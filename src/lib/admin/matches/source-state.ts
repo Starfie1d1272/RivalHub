@@ -1,3 +1,5 @@
+import { LINEUP_REVIEW_REQUIRED } from "@/lib/mizar/lineup-display";
+
 /** Private operator projection. Never included in the public phase contract. */
 export type SourceMode = "none" | "mizar_auto" | "manual_map";
 export type SourceHealth = "not_applicable" | "healthy" | "unknown" | "stale" | "conflict";
@@ -21,7 +23,7 @@ export function projectOperatorSource(source: OperatorSourceFacts | null) {
   const reviewReasons: ReviewReason[] = [];
   if (source?.continuityHealth === "execution_conflict") reviewReasons.push("execution_mismatch");
   if (source?.identityHealth === "conflict") reviewReasons.push("identity_mismatch");
-  if (source?.lineupHealth === "conflict") reviewReasons.push("lineup_mismatch");
+  if ((source?.lineupHealth === "conflict" || source?.lineupHealth === LINEUP_REVIEW_REQUIRED)) reviewReasons.push("lineup_mismatch");
   if (source?.sourceConflict || source?.continuityHealth === "source_conflict") reviewReasons.push("source_conflict");
   if (source?.resultConflict || source?.continuityHealth === "result_conflict") reviewReasons.push("result_conflict");
   if (source?.continuityHealth === "conflict" && !source.resultConflict) reviewReasons.push("continuity_failure");

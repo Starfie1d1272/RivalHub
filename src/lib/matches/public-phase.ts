@@ -5,19 +5,20 @@ import { matchLiveSessions, matchVetoSessions, matchMaps, type Match, type Match
 import { computeSeriesScoreAfterMap } from "./result-rules";
 import { canConfirmMapScoreboard } from "./map-scoreboard";
 import type { PublicMatchContext } from "./public-context";
+import { LINEUP_REVIEW_REQUIRED } from "@/lib/mizar/lineup-display";
 import { projectMatchPresentationPhase } from "./presentation-phase";
 
 /** Called after the public route has checked match/season visibility. No private DTO escapes. */
 export async function loadPublicMatchPhase(match: Match, maps: MatchMap[]) {
   const [veto, session] = await Promise.all([
     db.query.matchVetoSessions.findFirst({ where: eq(matchVetoSessions.matchId, match.id), columns: { startedAt: true, completedAt: true } }),
-    db.query.matchLiveSessions.findFirst({ where: and(eq(matchLiveSessions.matchId, match.id), isNull(matchLiveSessions.closedAt)), columns: { currentMapId: true, mapExecutionPhase: true } }),
+    db.query.matchLiveSessions.findFirst({ where: and(eq(matchLiveSessions.matchId, match.id), isNull(matchLiveSessions.closedAt)), columns: { currentMapId: true, mapExecutionPhase: true, lineupHealth: true } }),
   ]);
   return projectPublicContext(match, maps, veto, session);
 }
 
 type PhaseMap = Pick<MatchMap, "id" | "mapName" | "mapOrder" | "scoreA" | "scoreB" | "completedAt" | "startedAt">;
-function projectPublicContext(match: Match, maps: PhaseMap[], veto: { startedAt: Date | null; completedAt: Date | null } | undefined, session: { currentMapId: string | null; mapExecutionPhase: string } | undefined): PublicMatchContext {
+function projectPublicContext(match: Match, maps: PhaseMap[], veto: { startedAt: Date | null; completedAt: Date | null } | undefined, session: { currentMapId: string | null; mapExecutionPhase: string; lineupHealth: string } | undefined): PublicMatchContext {
   const facts = {
     status: match.status, scheduledAt: match.scheduledAt?.toISOString() ?? null,
     startedAt: match.startedAt?.toISOString() ?? null, completedAt: match.completedAt?.toISOString() ?? null,
@@ -25,12 +26,13 @@ function projectPublicContext(match: Match, maps: PhaseMap[], veto: { startedAt:
     maps: maps.map(map => ({ id: map.id, order: map.mapOrder, completedAt: canConfirmMapScoreboard(map) ? map.completedAt!.toISOString() : null })),
     gameplayMapId: maps.find(map => map.startedAt && !map.completedAt)?.id ?? (session?.mapExecutionPhase === "gameplay" ? session.currentMapId : null),
   };
-  const currentMapId = [...facts.maps].sort((a, b) => a.order - b.order).find(map => map.completedAt === null)?.id ?? null;
+  const displayMapId = match.status === "in_progress" && session?.lineupHealth === LINEUP_REVIEW_REQUIRED && maps.some(map => map.id === session.currentMapId && !map.completedAt) ? session.currentMapId : null;
+  const currentMapId = displayMapId ?? [...facts.maps].sort((a, b) => a.order - b.order).find(map => map.completedAt === null)?.id ?? null;
   const confirmed = maps.filter(canConfirmMapScoreboard).sort((a, b) => a.mapOrder - b.mapOrder);
   const last = confirmed.at(-1);
   const progress = match.status === "in_progress" && last
     ? computeSeriesScoreAfterMap(match.format, confirmed.slice(0, -1), last.scoreA!, last.scoreB!) : null;
-  return { phase: projectMatchPresentationPhase(facts), currentMapId,
+  return { phase: displayMapId ? session?.mapExecutionPhase === "gameplay" ? "gameplay" : session?.mapExecutionPhase === "inter_map" ? "inter_map" : "awaiting_gameplay" : projectMatchPresentationPhase(facts), currentMapId,
     lastCompletedMap: last ? { id: last.id, mapName: last.mapName, scoreA: last.scoreA!, scoreB: last.scoreB! } : null,
     seriesProgress: progress ? { scoreA: progress.mapWinsA, scoreB: progress.mapWinsB } : null };
 
@@ -44,7 +46,7 @@ export async function loadPublicMatchContexts(matches: Match[]): Promise<Map<str
   const [maps, vetos, sessions] = await Promise.all([
     db.query.matchMaps.findMany({ where: inArray(matchMaps.matchId, ids), columns: { matchId: true, id: true, mapName: true, mapOrder: true, scoreA: true, scoreB: true, startedAt: true, completedAt: true } }),
     db.query.matchVetoSessions.findMany({ where: inArray(matchVetoSessions.matchId, ids), columns: { matchId: true, startedAt: true, completedAt: true } }),
-    db.query.matchLiveSessions.findMany({ where: and(inArray(matchLiveSessions.matchId, ids), isNull(matchLiveSessions.closedAt)), columns: { matchId: true, currentMapId: true, mapExecutionPhase: true } }),
+    db.query.matchLiveSessions.findMany({ where: and(inArray(matchLiveSessions.matchId, ids), isNull(matchLiveSessions.closedAt)), columns: { matchId: true, currentMapId: true, mapExecutionPhase: true, lineupHealth: true } }),
   ]);
   return new Map(active.map(match => [match.id, projectPublicContext(match, maps.filter(map => map.matchId === match.id), vetos.find(veto => veto.matchId === match.id), sessions.find(session => session.matchId === match.id))]));
 }

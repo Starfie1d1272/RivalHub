@@ -1,4 +1,5 @@
 import type { LiveSnapshotV1 } from "./protocol";
+import { isLineupMismatchOnly } from "./lineup-display";
 
 /** Hard bound for one public live payload; the browser never receives more. */
 export const PUBLIC_LIVE_MAX_BYTES = 192 * 1024;
@@ -8,14 +9,22 @@ export const PUBLIC_LIVE_MAX_BYTES = 192 * 1024;
  * delivery cursor stay at ingest; viewers only receive presentation facts plus the
  * authority revision that owns them.
  */
-export function projectPublicLive(snapshot: LiveSnapshotV1, authorityRevision: number, receivedAt: string) {
+export function projectPublicLive(snapshot: LiveSnapshotV1, authorityRevision: number, receivedAt: string, canonicalPlayerBySteam64?: ReadonlyMap<string, string>) {
+  const restricted = canonicalPlayerBySteam64 !== undefined || isLineupMismatchOnly(snapshot.capability);
+  const players = restricted
+    ? snapshot.players.map(player => player.identityEvidence === "canonical" && canonicalPlayerBySteam64?.get(player.sourcePlayerId) === player.canonicalPlayerId ? player : { ...player, canonicalPlayerId: null })
+    : snapshot.players;
+  const identities = new Map(players.map(player => [player.sourcePlayerId, player.canonicalPlayerId]));
+  const radar = restricted && snapshot.radar
+    ? { ...snapshot.radar, players: snapshot.radar.players.map(player => ({ ...player, canonicalPlayerId: identities.get(player.sourcePlayerId) ?? null })) }
+    : snapshot.radar;
   const projection = {
     schemaVersion: "rivalhub.public-live.v1" as const,
     matchId: snapshot.matchId, producedAt: snapshot.producedAt, receivedAt,
     delivery: { authorityRevision, generation: snapshot.cursor.programSourceGeneration, epoch: snapshot.cursor.mapEpoch, sequence: snapshot.cursor.runtimeSeq },
     series: snapshot.series, map: snapshot.map, roundPhase: snapshot.roundPhase, clock: snapshot.clock,
-    teams: snapshot.teams, players: snapshot.players, roundHistory: snapshot.roundHistory,
-    bomb: snapshot.bomb, radar: snapshot.radar, capability: snapshot.capability,
+    teams: snapshot.teams, players, roundHistory: snapshot.roundHistory,
+    bomb: snapshot.bomb, radar, capability: restricted ? { ...snapshot.capability, identity: "degraded" as const, lineupMismatchOnly: true } : snapshot.capability,
   };
   if (new TextEncoder().encode(JSON.stringify(projection)).length > PUBLIC_LIVE_MAX_BYTES) throw new Error("public_live_payload_too_large");
   return projection;
