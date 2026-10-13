@@ -1,7 +1,7 @@
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 import { createHash } from "node:crypto";
-import { and, eq, asc, gte, lte, isNull, or } from "drizzle-orm";
+import { and, eq, asc, gte, lte, inArray, isNull, or } from "drizzle-orm";
 import { db, type TxDb } from "@/db/client";
 import { matches, seasons, competitionEntries, matchMaps, matchVetoSteps, matchCommentators, users, steamProfiles } from "@/db/schema";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
@@ -47,15 +47,16 @@ export async function loadMizarMatchDocumentInTx(tx: TxDb, matchId: string, comp
   assertCompetitionMatch(match);
   const season = await loadCompetitionInTx(tx, competitionId);
   const players = await loadEffectiveMatchRoster(tx, [match.id], true);
+  const steam64s = [...new Set(players.flatMap(player => player.steam64 ? [player.steam64] : []))];
+  const profiles = steam64s.length
+    ? await tx.select({ steam64: steamProfiles.steam64, avatarUrl: steamProfiles.avatarUrl }).from(steamProfiles).where(inArray(steamProfiles.steam64, steam64s))
+    : [];
+  const avatarBySteam64 = new Map(profiles.map(profile => [profile.steam64, profile.avatarUrl]));
   const entrant = async (entryId: string) => {
     const [entry] = await tx.select({ entryId: competitionEntries.id, name: competitionEntries.name, logoUrl: competitionEntries.logoUrl }).from(competitionEntries).where(eq(competitionEntries.id, entryId));
     if (!entry) throw new AppError(ErrorCode.NOT_FOUND, "参赛队伍不存在。");
     const roster = players.filter(player => player.entryId === entryId);
-    const identities = [];
-    for (const player of roster) {
-      const [profile] = player.steam64 ? await tx.select({ avatarUrl: steamProfiles.avatarUrl }).from(steamProfiles).where(eq(steamProfiles.steam64, player.steam64)) : [];
-      identities.push({ playerId: player.userId, steam64: player.steam64, displayName: getPublicDisplayName(player), avatarUrl: profile?.avatarUrl ?? null, isStarter: player.isStarter });
-    }
+    const identities = roster.map(player => ({ playerId: player.userId, steam64: player.steam64, displayName: getPublicDisplayName(player), avatarUrl: player.steam64 ? avatarBySteam64.get(player.steam64) ?? null : null, isStarter: player.isStarter }));
     return { ...entry, roster: { rosterId: roster[0]?.rosterId ?? null, players: identities } };
   };
   const a = await entrant(match.entryAId);

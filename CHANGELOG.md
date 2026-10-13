@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.17.3]
+
+### Fixed
+
+- 赛事人数概览改为在数据库聚合同一份有效名单，避免仅显示人数时传输完整选手资料；保留候选、正式与冻结名单的人数和实时更新语义。
+- 合并制播比赛资料中的选手头像查询，减少名单读取的数据库往返，保持头像、替补名单和资料版本语义不变。
+
 ## [2.17.2]
 
 ### Fixed
@@ -2963,6 +2970,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.17.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.2...v2.17.3
 [2.17.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.1...v2.17.2
 [2.17.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.0...v2.17.1
 [2.17.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.16.0...v2.17.0

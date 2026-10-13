@@ -136,6 +136,11 @@ jobs:
         id: plan
         run: node scripts/ci/timing.mjs "Release plan" -- pnpm release:plan
 
+      # Consumed by Refresh Preview Data through the completed run's job steps.
+      - name: Preview mirror migration marker
+        if: steps.plan.outputs.migrationChanged == 'true'
+        run: echo "Release Plan requires a post-release Preview refresh."
+
       - name: 运行 changed migration checks
         if: steps.plan.outputs.migrationChanged == 'true'
         run: node scripts/ci/timing.mjs "Migration checks" -- pnpm db:check
