@@ -82,11 +82,13 @@ export function updatePublicSeasonInfoTag(seasonId: string): void {
 
 export function revalidatePublicPlayerTag(userId: string): void {
   revalidateTag(publicPlayerTag(userId), "max");
+  revalidateTag(PUBLIC_HOME_TAG, "max");
   revalidatePublicStatsTag();
 }
 
 export function updatePublicPlayerTag(userId: string): void {
   updateTag(publicPlayerTag(userId));
+  updatePublicHomeTag();
   updatePublicStatsTag();
 }
 

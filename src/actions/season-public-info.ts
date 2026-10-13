@@ -84,8 +84,8 @@ export async function updateCommunityGroup(input: { id: string; label: string; a
     const [existing] = await db.select().from(communityGroups).where(eq(communityGroups.id, parsed.data.id)).limit(1);
     if (!existing) return fail({ code: "NOT_FOUND", message: "交流群不存在。" });
     const row = await db.transaction((tx) => updateCommunityGroupInTx(tx, context(admin), parsed.data.id, { label: parsed.data.label, audience: parsed.data.audience, groupNumber: parsed.data.groupNumber, joinUrl: parsed.data.joinUrl, note: parsed.data.note, status: parsed.data.status, qrImagePath: parsed.data.status === "closed" ? null : existing.qrImagePath }));
-    if (row.oldQrImagePath && (parsed.data.status === "closed" || row.row.qrImagePath !== row.oldQrImagePath)) await seasonPublicAssetsStorage.remove(row.oldQrImagePath);
     revalidateSeasonInfo(existing.seasonId, await seasonSlug(existing.seasonId));
+    if (row.oldQrImagePath && (parsed.data.status === "closed" || row.row.qrImagePath !== row.oldQrImagePath)) await seasonPublicAssetsStorage.remove(row.oldQrImagePath);
     return ok(undefined);
   } catch (error) { return actionError("updateCommunityGroup", error); }
 }
@@ -95,8 +95,8 @@ export async function deleteCommunityGroup(id: string): Promise<ActionResult<voi
   try {
     const admin = await requireAdmin();
     const row = await db.transaction((tx) => deleteCommunityGroupInTx(tx, context(admin), id));
-    if (row.qrImagePath) await seasonPublicAssetsStorage.remove(row.qrImagePath);
     revalidateSeasonInfo(row.seasonId, await seasonSlug(row.seasonId));
+    if (row.qrImagePath) await seasonPublicAssetsStorage.remove(row.qrImagePath);
     return ok(undefined);
   } catch (error) { return actionError("deleteCommunityGroup", error); }
 }
@@ -131,8 +131,8 @@ export async function uploadCommunityGroupQr(groupId: string, formData: FormData
       await seasonPublicAssetsStorage.remove(path);
       throw error;
     }
-    if (group.qrImagePath) await seasonPublicAssetsStorage.remove(group.qrImagePath);
     revalidateSeasonInfo(group.seasonId, await seasonSlug(group.seasonId));
+    if (group.qrImagePath) await seasonPublicAssetsStorage.remove(group.qrImagePath);
     return ok(undefined);
   } catch (error) { return actionError("uploadCommunityGroupQr", error); }
 }
@@ -145,8 +145,8 @@ export async function removeCommunityGroupQr(groupId: string): Promise<ActionRes
     if (!group) return fail({ code: "NOT_FOUND", message: "交流群不存在。" });
     assertSeasonAccess(context(admin), group.seasonId);
     await db.transaction((tx) => updateCommunityGroupInTx(tx, context(admin), group.id, { label: group.label, audience: group.audience, groupNumber: group.groupNumber, joinUrl: group.joinUrl, note: group.note, status: group.status, qrImagePath: null }));
-    if (group.qrImagePath) await seasonPublicAssetsStorage.remove(group.qrImagePath);
     revalidateSeasonInfo(group.seasonId, await seasonSlug(group.seasonId));
+    if (group.qrImagePath) await seasonPublicAssetsStorage.remove(group.qrImagePath);
     return ok(undefined);
   } catch (error) { return actionError("removeCommunityGroupQr", error); }
 }

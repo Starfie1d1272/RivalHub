@@ -1,11 +1,14 @@
 import "server-only";
 
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, ne } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db/client";
 import { publicSeasonInfoTag } from "@/lib/cache/tags";
 import { communityGroups, seasonContacts, seasonPublicInfo, seasons, type CommunityGroup, type SeasonContact, type SeasonPublicInfo } from "@/db/schema";
 import { toPublicSeasonInfo, type PublicSeasonInfo } from "./presentation";
+import { getCurrentUserAuthorization } from "@/lib/auth/session";
+import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
+import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 
 export type SeasonPublicInfoAdmin = {
   season: { id: string; slug: string; name: string; logoUrl: string | null };
@@ -15,20 +18,50 @@ export type SeasonPublicInfoAdmin = {
 };
 
 export async function getPublicSeasonInfo(seasonId: string): Promise<PublicSeasonInfo> {
-  "use cache";
+  const publicInfo = await getCachedPublicSeasonInfo(seasonId);
+  if (publicInfo) return publicInfo;
+
+  // A cache miss may mean draft, a just-published event, or deletion. Only
+  // draft previews require authorization; a deleted event has no DTO.
+  const [season] = await db.select({ status: seasons.status }).from(seasons)
+    .where(eq(seasons.id, seasonId)).limit(1);
+  if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES[ErrorCode.SEASON_NOT_FOUND]);
+  if (season.status !== "draft") return readSeasonInfo(seasonId);
+
+  const viewer = await getCurrentUserAuthorization();
+  if (!viewer || (viewer.role !== "super_admin" && !viewer.seasonIds.includes(seasonId))) {
+    return toPublicSeasonInfo(null, [], []);
+  }
+  return readSeasonInfo(seasonId);
+}
+
+async function getCachedPublicSeasonInfo(seasonId: string): Promise<PublicSeasonInfo | null> {
+  "use cache: remote";
   cacheLife("minutes");
   cacheTag(publicSeasonInfoTag(seasonId));
+  const [season] = await db.select({ info: { rulesLabel: seasonPublicInfo.rulesLabel, rulesHref: seasonPublicInfo.rulesHref } })
+    .from(seasons).leftJoin(seasonPublicInfo, eq(seasonPublicInfo.seasonId, seasons.id))
+    .where(and(eq(seasons.id, seasonId), ne(seasons.status, "draft"))).limit(1);
+  if (!season) return null;
+  return readSeasonInfo(seasonId, season.info);
+}
 
-  const [info] = await db.select().from(seasonPublicInfo).where(eq(seasonPublicInfo.seasonId, seasonId)).limit(1);
+async function readSeasonInfo(
+  seasonId: string,
+  publicInfo?: Pick<SeasonPublicInfo, "rulesLabel" | "rulesHref"> | null,
+): Promise<PublicSeasonInfo> {
+  const info = publicInfo === undefined
+    ? (await db.select().from(seasonPublicInfo).where(eq(seasonPublicInfo.seasonId, seasonId)).limit(1))[0] ?? null
+    : publicInfo;
   const groups = await db.select().from(communityGroups).where(eq(communityGroups.seasonId, seasonId)).orderBy(asc(communityGroups.sortOrder), asc(communityGroups.createdAt), asc(communityGroups.id));
   const contacts = await db.select().from(seasonContacts).where(eq(seasonContacts.seasonId, seasonId)).orderBy(asc(seasonContacts.sortOrder), asc(seasonContacts.createdAt), asc(seasonContacts.id));
   return toPublicSeasonInfo(info ?? null, groups, contacts);
 }
 
 export async function getPublicSeasonInfoBySlug(seasonSlug: string): Promise<(PublicSeasonInfo & { season: { id: string; slug: string; name: string } }) | null> {
-  const [season] = await db.select({ id: seasons.id, slug: seasons.slug, name: seasons.name }).from(seasons).where(eq(seasons.slug, seasonSlug)).limit(1);
+  const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) return null;
-  return { ...(await getPublicSeasonInfo(season.id)), season };
+  return { ...(await getPublicSeasonInfo(season.id)), season: { id: season.id, slug: season.slug, name: season.name } };
 }
 
 export async function listSeasonPublicInfoAdmin(role: "season_admin" | "super_admin", seasonIds: readonly string[]): Promise<SeasonPublicInfoAdmin[]> {

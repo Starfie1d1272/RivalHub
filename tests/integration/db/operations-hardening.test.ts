@@ -5,15 +5,21 @@
 import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { describe, expect, it, vi } from "vitest";
-vi.mock("next/cache", () => ({ cacheLife: vi.fn(), cacheTag: vi.fn() }));
+import { cacheTag, revalidateTag } from "next/cache";
+vi.mock("next/cache", () => ({ cacheLife: vi.fn(), cacheTag: vi.fn(), revalidateTag: vi.fn() }));
+// Authorization is outside the shared cache; SQL visibility uses real PostgreSQL.
+const { viewer } = vi.hoisted(() => ({ viewer: vi.fn().mockResolvedValue(null) }));
+vi.mock("../../../src/lib/auth/session", () => ({ getCurrentUserAuthorization: viewer }));
 import * as schema from "../../../src/db/schema";
 import { announcements, auditLogs, communityGroups, feedbackReports, seasons, users } from "../../../src/db/schema";
 import { eq } from "drizzle-orm";
+import { PUBLIC_ANNOUNCEMENTS_TAG, PUBLIC_SEASON_CATALOG_TAG, publicSeasonInfoTag } from "../../../src/lib/cache/tags";
+import { revalidatePublicSeasonTags } from "../../../src/lib/revalidation";
 import { createAnnouncementInTx, updateAnnouncementInTx, setAnnouncementStatusInTx } from "../../../src/lib/announcements/commands";
 import { getRelevantAttentionAnnouncement, listPublicAnnouncements } from "../../../src/lib/announcements/read-model";
 import { submitFeedbackInTx, setFeedbackStatusInTx } from "../../../src/lib/feedback/commands";
 import { createCommunityGroupInTx, createSeasonContactInTx, updateCommunityGroupInTx, upsertSeasonPublicInfoInTx } from "../../../src/lib/season-public-info/commands";
-import { getPublicSeasonInfo } from "../../../src/lib/season-public-info/read-model";
+import { getPublicSeasonInfo, getPublicSeasonInfoBySlug } from "../../../src/lib/season-public-info/read-model";
 import { createLocalPool } from "./harness/database";
 
 describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
@@ -72,6 +78,8 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
       expect(publicAfterPublish).toEqual(expect.arrayContaining([
         expect.objectContaining({ id: draft.id, title: "赛程调整通知（草稿）" }),
       ]));
+      expect(vi.mocked(cacheTag).mock.calls.some((tags) => tags.includes(PUBLIC_ANNOUNCEMENTS_TAG))).toBe(true);
+      expect(vi.mocked(cacheTag).mock.calls.some((tags) => tags.includes(PUBLIC_SEASON_CATALOG_TAG))).toBe(false);
 
       const [beforeEdit] = await database
         .select({ status: announcements.status, updatedAt: announcements.updatedAt })
@@ -133,6 +141,11 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
       } finally {
         vi.useRealTimers();
       }
+
+      // A published announcement on a draft event is still private.
+      await database.update(seasons).set({ status: "draft" }).where(eq(seasons.id, seasonId));
+      expect((await listPublicAnnouncements(seasonId)).some((a) => a.id === draft.id)).toBe(false);
+      await database.update(seasons).set({ status: "playing" }).where(eq(seasons.id, seasonId));
 
       // 4. Withdraw announcement
       await database.transaction((tx) =>
@@ -216,6 +229,20 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
       expect(publicInfo.contacts).toEqual(expect.arrayContaining([
         expect.objectContaining({ id: contact.id, value: "ops@example.com", href: "mailto:ops@example.com" }),
       ]));
+      expect(vi.mocked(cacheTag).mock.calls.some((tags) => tags.includes(publicSeasonInfoTag(seasonId)))).toBe(true);
+      expect(vi.mocked(cacheTag).mock.calls.some((tags) => tags.includes(PUBLIC_SEASON_CATALOG_TAG))).toBe(false);
+      vi.mocked(revalidateTag).mockClear();
+      revalidatePublicSeasonTags(`ops-info-${seasonId.slice(0, 8)}`, seasonId);
+      expect(vi.mocked(revalidateTag).mock.calls.some(([tag]) => tag === PUBLIC_SEASON_CATALOG_TAG)).toBe(true);
+      expect(vi.mocked(revalidateTag).mock.calls.some(([tag]) => tag === PUBLIC_ANNOUNCEMENTS_TAG || tag === publicSeasonInfoTag(seasonId))).toBe(false);
+
+      // Anonymous draft reads cannot expose public-info configuration; authorized
+      // previews use the uncached path and observe the actual DB facts.
+      await database.update(seasons).set({ status: "draft" }).where(eq(seasons.id, seasonId));
+      expect((await getPublicSeasonInfo(seasonId)).groups).toEqual([]);
+      viewer.mockResolvedValueOnce({ userId: actorId, role: "super_admin", seasonIds: [] });
+      expect((await getPublicSeasonInfo(seasonId)).groups.some((row) => row.id === group.id)).toBe(true);
+      await database.update(seasons).set({ status: "registration" }).where(eq(seasons.id, seasonId));
 
       // 4. Close group -> active projection hides join facts and QR URL
       await database.transaction((tx) =>
@@ -240,6 +267,13 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
         joinUrl: null,
         qrImageUrl: null,
       });
+
+      // The ID read must not turn a deleted event into a default DTO, even
+      // for a previously authorized admin. Slug lookup keeps its null contract.
+      await database.delete(seasons).where(eq(seasons.id, seasonId));
+      viewer.mockResolvedValueOnce({ userId: actorId, role: "super_admin", seasonIds: [] });
+      await expect(getPublicSeasonInfo(seasonId)).rejects.toMatchObject({ code: "SEASON_NOT_FOUND" });
+      await expect(getPublicSeasonInfoBySlug(`ops-info-${seasonId.slice(0, 8)}`)).resolves.toBeNull();
     } finally {
       await database.delete(auditLogs).where(eq(auditLogs.actorId, actorId));
       await database.delete(seasons).where(eq(seasons.id, seasonId));
