@@ -42,6 +42,19 @@ async function appeals(f: Awaited<ReturnType<typeof fixture>>) {
 }
 
 describe("BP appeal gameplay lifecycle", () => {
+  it("reports appeal-only closure as applied without a session revision change, then makes retries idempotent", async () => {
+    const f = await fixture();
+    await submit(f);
+    const session = (await readVetoRoomSnapshot(f.matchId)).session;
+    await db.update(schema.matchMaps).set({ startedAt: NOW }).where(eq(schema.matchMaps.id, f.mapOneId));
+
+    expect(await reconcileVetoRoom(f.matchId)).toBe("applied");
+    expect((await appeals(f))[0]!.status).toBe("closed");
+    expect((await readVetoRoomSnapshot(f.matchId)).session).toEqual(session);
+    expect(await reconcileVetoRoom(f.matchId)).toBe("idempotent");
+    expect(await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.matchId), eq(schema.auditLogs.action, "match.veto.appeal_close")))).toHaveLength(1);
+  });
+
   it.each(["cancelled", "finished"] as const)("keeps a non-restoring admin resolution for an unplayed %s match", async status => {
     const f = await fixture();
     await submit(f);
