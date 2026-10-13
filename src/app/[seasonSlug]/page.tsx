@@ -16,7 +16,7 @@ import { eq, count, or, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3, UserRoundSearch, Trophy } from "lucide-react";
 import { db } from "@/db/client";
-import { matches, competitionEntries, competitionQualificationRuns, majorTournamentEntrants } from "@/db/schema";
+import { matches, competitionEntries, majorTournamentEntrants } from "@/db/schema";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
@@ -104,7 +104,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     : null;
 
   const isMajor = season.competitionTemplate === "major";
-  const [majorParticipantOverview, [teamCountRow], participantSummary, [matchCountRow], upcomingMatches, standings, qualificationRun, [finalMainEntrantCountRow]] =
+  const [majorParticipantOverview, [teamCountRow], participantSummary, [matchCountRow], upcomingMatches, standings, [finalMainEntrantCountRow]] =
     await Promise.all([
       isMajor ? getMajorPublicParticipantOverview(season) : Promise.resolve(null),
       isMajor
@@ -118,12 +118,10 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
       upcomingMatchesQuery ?? Promise.resolve([] as { id: string; status: string; scheduledAt: Date | null; stage: string; teamAName: string | null; teamBName: string | null }[]),
       season.status === "playing" && !isMajor ? getStandings(season.id) : Promise.resolve([]),
       isMajor
-        ? db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) })
-        : Promise.resolve(undefined),
-      isMajor
         ? db.select({ value: count() }).from(majorTournamentEntrants).where(eq(majorTournamentEntrants.seasonId, season.id))
         : Promise.resolve([] as { value: number }[]),
     ]);
+  const qualificationRun = isMajor ? stagePresentation.qualificationRun ?? null : null;
   const qualificationMatches = qualificationRun
     ? await db.select({ status: matches.status, round: matches.round }).from(matches).where(and(officialMatchCondition(), eq(matches.qualificationRunId, qualificationRun.id)))
     : [];
@@ -137,7 +135,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   const qualificationCurrentRound = incompleteQualificationRounds.length > 0
     ? Math.min(...incompleteQualificationRounds)
     : Math.max(0, ...qualificationMatches.map((match) => match.round ?? 0)) + 1;
-  const finalMainEntrantsConfirmed = qualificationRun !== undefined &&
+  const finalMainEntrantsConfirmed = qualificationRun !== null &&
     Number(finalMainEntrantCountRow?.value ?? 0) === qualificationRun.targetEntrantCount;
 
   // ── 动态阶段列表 ──────────────────────────────────────────

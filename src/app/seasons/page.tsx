@@ -4,7 +4,7 @@ import { EventLogo } from "@/components/season/EventLogo";
 import { getMajorPublicParticipantOverview } from "@/lib/major/public-participants";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
 import { SeasonResults } from "@/components/season/SeasonResults";
-import { getParticipantSummary } from "@/lib/participants/summary";
+import { getParticipantSummaries } from "@/lib/participants/summary";
 import { formatCSTShortDate } from "@/lib/utils/date";
 import { groupSeasonsByLifecycle, SEASON_LIFECYCLE_GROUPS } from "@/lib/seasons/presentation";
 import { Suspense } from "react";
@@ -15,7 +15,7 @@ import { getPublicSeasonCatalog } from "@/lib/data/public-seasons";
 import { presentRegistrationSchedule, presentSeasonDirectoryActivity, presentSeasonParticipationState } from "@/lib/seasons/presentation";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { PageHeader, PageLayout, Panel, StatusPill } from "@/components/rivalhub";
-import { and, asc, inArray } from "drizzle-orm";
+import { and, asc, desc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches } from "@/db/schema";
 
@@ -37,23 +37,20 @@ async function SeasonsContent() {
   const activeSeasonIds = allSeasons.filter((season) => season.hasOfficialMatches && !["finished", "archived"].includes(season.status)).map((season) => season.id);
   const rawActiveMatchRows = activeSeasonIds.length
     ? await db
-      .select({ seasonId: matches.seasonId, stage: matches.stage, status: matches.status, scheduledAt: matches.scheduledAt })
+      .selectDistinctOn([matches.seasonId], { seasonId: matches.seasonId, stage: matches.stage, status: matches.status, scheduledAt: matches.scheduledAt })
       .from(matches)
       .where(and(officialMatchCondition(), and(inArray(matches.seasonId, activeSeasonIds), inArray(matches.status, ["scheduled", "in_progress"]))))
-      .orderBy(asc(matches.scheduledAt), asc(matches.id))
+      .orderBy(asc(matches.seasonId), desc(sql`${matches.status} = 'in_progress'`), asc(matches.scheduledAt), asc(matches.id))
     : [];
   const activeMatchRows = rawActiveMatchRows.map(requireCompetitionFields);
-  const nextMatchBySeason = new Map<string, typeof activeMatchRows[number]>();
-  for (const row of activeMatchRows) {
-    const current = nextMatchBySeason.get(row.seasonId);
-    if (!current || (row.status === "in_progress" && current.status !== "in_progress")) nextMatchBySeason.set(row.seasonId, row);
-  }
+  const nextMatchBySeason = new Map(activeMatchRows.map((row) => [row.seasonId, row]));
   const stagePresentations = new Map(await Promise.all(
     allSeasons
       .filter((season) => nextMatchBySeason.has(season.id))
       .map(async (season) => [season.id, await getPublicSeasonStagePresentation(season)] as const),
   ));
-  const summaries = new Map(await Promise.all(allSeasons.map(async (season) => [season.id, { participants: season.competitionTemplate === "major" ? { count: (await getMajorPublicParticipantOverview(season)).playerCount } : await getParticipantSummary(season), results: ["finished", "archived"].includes(season.status) ? await getPublicSeasonResults(season) : null }] as const)));
+  const participantSummaries = await getParticipantSummaries(allSeasons.filter((season) => season.competitionTemplate !== "major"));
+  const summaries = new Map(await Promise.all(allSeasons.map(async (season) => [season.id, { participants: season.competitionTemplate === "major" ? { count: (await getMajorPublicParticipantOverview(season)).playerCount } : participantSummaries.get(season.id)!, results: ["finished", "archived"].includes(season.status) ? await getPublicSeasonResults(season) : null }] as const)));
 
   return (
     <PageLayout as="div" variant="wide">
