@@ -4,6 +4,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionQualificationRuns, majorStageRuns, matches } from "@/db/schema";
+import type { CompetitionQualificationRun } from "@/db/schema/competition-qualification";
 import { buildOfficialStageDirectory, type OfficialStage, type QualificationStageFact } from "./official-stages";
 import { resolveMajorStagePlan } from "@/lib/major/run-snapshot";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
@@ -20,6 +21,9 @@ export interface PublicStagePresentation {
   initializedStageKeys: readonly string[];
   currentStageKey: string | null;
   currentStageLabel: string | null;
+  qualificationRun?: Pick<CompetitionQualificationRun,
+    "id" | "format" | "targetEntrantCount" | "candidateCount" | "playInEntryCount" |
+    "qualifierCount" | "startedAt" | "completedAt"> | null;
 }
 
 /** The public Stage plan is the event plan, or the frozen Major StageRun plan
@@ -73,16 +77,22 @@ export async function getPublicSeasonStagePresentation(
         .where(eq(majorStageRuns.seasonId, season.id))
       : Promise.resolve([] as { stageKey: string; ruleSnapshot: unknown }[]),
     loadOfficialMatchStages(eq(matches.seasonId, season.id)),
-    db.select({ format: competitionQualificationRuns.format, playInEntryCount: competitionQualificationRuns.playInEntryCount,
+    db.select({ id: competitionQualificationRuns.id, format: competitionQualificationRuns.format,
+      targetEntrantCount: competitionQualificationRuns.targetEntrantCount,
+      candidateCount: competitionQualificationRuns.candidateCount,
+      playInEntryCount: competitionQualificationRuns.playInEntryCount,
       qualifierCount: competitionQualificationRuns.qualifierCount, startedAt: competitionQualificationRuns.startedAt,
       completedAt: competitionQualificationRuns.completedAt }).from(competitionQualificationRuns)
       .where(eq(competitionQualificationRuns.seasonId, season.id)).limit(1),
   ]);
 
-  return buildPublicStagePresentation(
-    season,
-    stageRuns,
-    matchStageRows.flatMap((row) => row.stage === null ? [] : [row.stage]),
-    qualificationRows[0] ?? null,
-  );
+  return {
+    ...buildPublicStagePresentation(
+      season,
+      stageRuns,
+      matchStageRows.flatMap((row) => row.stage === null ? [] : [row.stage]),
+      qualificationRows[0] ?? null,
+    ),
+    qualificationRun: qualificationRows[0] ?? null,
+  };
 }
