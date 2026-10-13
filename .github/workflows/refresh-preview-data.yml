@@ -55,8 +55,8 @@ jobs:
           # Full reruns use their newer preflight, never a stale successful marker.
           # This marker is emitted from Release Plan, including resumed releases.
           # Older releases have no marker: skip the extra export; daily/manual remain.
-          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID/jobs?filter=all&per_page=100" \
-            --jq '[.[].jobs[] | select(.name == "preflight")] | max_by(.id) | select(.conclusion == "success") | .steps[]? | select(.name == "Preview mirror migration marker") | .conclusion' > "$RUNNER_TEMP/preview-migration-marker"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID/jobs?filter=all&per_page=100" \
+            | jq -sr '[.[].jobs[] | select(.name == "preflight")] | max_by(.id) | select(.conclusion == "success") | .steps[]? | select(.name == "Preview mirror migration marker") | .conclusion' > "$RUNNER_TEMP/preview-migration-marker"
           if [[ "$(cat "$RUNNER_TEMP/preview-migration-marker")" == "success" ]]; then
             echo "refresh=true" >> "$GITHUB_OUTPUT"
             echo "Release contains database migrations; refreshing Preview." >> "$GITHUB_STEP_SUMMARY"
