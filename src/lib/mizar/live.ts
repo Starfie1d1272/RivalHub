@@ -4,12 +4,14 @@ import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches, matchMaps, matchLiveSessions, seasons, competitionQualificationRuns } from "@/db/schema";
 import { createServiceClient } from "@/lib/auth/supabase-server";
+import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { logEvent } from "@/lib/observability/server";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { assertInstallationInTx } from "./installation";
 import { parseLiveSnapshotV1 } from "./protocol";
 import { projectPublicLive } from "./live-projection";
 import { admitLiveDelivery } from "./live-admission";
+import { hasObservedLineup, hasCurrentLineup, isLineupMismatchOnly, LINEUP_REVIEW_REQUIRED } from "./lineup-display";
 import { createLiveBroadcastFetch, liveBroadcastException } from "./live-broadcast";
 
 // One producer cadence interval; requests delayed beyond it are disposable.
@@ -33,12 +35,29 @@ export async function ingestMizarLive(installationId: string, competitionId: str
       await assertInstallationInTx(tx, installationId, competitionId);
       const [match] = await tx.select().from(matches).where(and(eq(matches.id, snapshot.matchId), eq(matches.seasonId, competitionId))).for("share");
       const [source] = await tx.select().from(matchLiveSessions).where(and(eq(matchLiveSessions.matchId, snapshot.matchId), isNull(matchLiveSessions.closedAt))).for("share");
-      if (!match || match.status !== "in_progress" || match.format !== snapshot.format || !source || source.installationId !== installationId || source.authorityRevision !== authorityRevision || source.producerInstanceId !== snapshot.cursor.producerInstanceId || source.liveSessionId !== snapshot.cursor.liveSessionId || source.programSourceGeneration !== snapshot.cursor.programSourceGeneration || source.mapEpoch !== snapshot.cursor.mapEpoch || snapshot.cursor.runtimeSeq < source.lastReliableSeq || source.identityHealth !== "healthy" || source.lineupHealth !== "healthy" || !snapshot.capability.telemetryFresh || !snapshot.capability.contextFresh || snapshot.capability.identity !== "matched" || !snapshot.capability.lineupComplete || !snapshot.capability.canonicalTeams) {
+      const observedLineup = source?.identityHealth === "healthy" && source.lineupHealth === LINEUP_REVIEW_REQUIRED
+        && source.continuityHealth === "healthy" && !source.autoCanonicalizationArmed
+        && source.mapExecutionPhase === "gameplay" && source.currentMapId === snapshot.map.mapId
+        && source.manualTakeoverMapEpoch !== snapshot.cursor.mapEpoch && (hasObservedLineup(snapshot) || snapshot.capability.identity === "matched" && hasCurrentLineup(snapshot.players));
+      if (isLineupMismatchOnly(snapshot.capability) && !observedLineup) throw new AppError(ErrorCode.FORBIDDEN, "名单差异仍需确认展示来源。");
+      if (!match || match.status !== "in_progress" || match.format !== snapshot.format || !source || source.installationId !== installationId || source.authorityRevision !== authorityRevision || source.producerInstanceId !== snapshot.cursor.producerInstanceId || source.liveSessionId !== snapshot.cursor.liveSessionId || source.programSourceGeneration !== snapshot.cursor.programSourceGeneration || source.mapEpoch !== snapshot.cursor.mapEpoch || snapshot.cursor.runtimeSeq < source.lastReliableSeq || source.identityHealth !== "healthy" || (source.lineupHealth !== "healthy" && !observedLineup) || !snapshot.capability.telemetryFresh || !snapshot.capability.contextFresh || (snapshot.capability.identity !== "matched" && !observedLineup) || !snapshot.capability.lineupComplete || !snapshot.capability.canonicalTeams) {
         throw new AppError(ErrorCode.FORBIDDEN, "实时数据源或本场首发校验未通过。");
+      }
+      if (observedLineup) {
+        const [map] = await tx.select({ id: matchMaps.id }).from(matchMaps).where(and(
+          eq(matchMaps.id, source!.currentMapId!), eq(matchMaps.matchId, match.id),
+          eq(matchMaps.mapName, snapshot.map.name ?? ""), eq(matchMaps.mapOrder, snapshot.series.currentMapOrder ?? -1),
+          isNull(matchMaps.completedAt),
+        ));
+        if (!map) throw new AppError(ErrorCode.FORBIDDEN, "实时地图不匹配。");
       }
       if (![match.entryAId, match.entryBId].includes(snapshot.teams.ct.entryId ?? "") || ![match.entryAId, match.entryBId].includes(snapshot.teams.t.entryId ?? "") || snapshot.teams.ct.entryId === snapshot.teams.t.entryId) throw new AppError(ErrorCode.VALIDATION_FAILED, "实时队伍不匹配。");
       if (performance.now() - receivedAt > LIVE_FRAME_BUDGET_MS) return { accepted: false, reason: "frame_expired" };
-      const payload = projectPublicLive(snapshot, authorityRevision, new Date().toISOString());
+      const identities = observedLineup
+        ? new Map((await loadEffectiveMatchRoster(tx, [match.id])).filter(player => player.steam64 && player.isStarter).map(player => [player.steam64!, player.userId]))
+        : undefined;
+      if (performance.now() - receivedAt > LIVE_FRAME_BUDGET_MS) return { accepted: false, reason: "frame_expired" };
+      const payload = projectPublicLive(snapshot, authorityRevision, new Date().toISOString(), identities);
       if (!admitLiveDelivery(snapshot, authorityRevision)) return { accepted: false, reason: "delivery_dropped" };
       const broadcast = createLiveBroadcastFetch();
       const client = createServiceClient({ fetch: broadcast.fetch });

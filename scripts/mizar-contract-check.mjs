@@ -153,6 +153,10 @@ process.stdout.write("Mizar browser pairing contract (start + pending/authorized
 const liveFixture = await fixture("mizar-live-snapshot-v1.radar.json");
 output.parseLiveSnapshotV1(liveFixture);
 rivalhubProtocol.parseLiveSnapshotV1(liveFixture);
+const observedLive = { ...liveFixture, capability: { ...liveFixture.capability, identity: "degraded", lineupMismatchOnly: true } };
+for (const parse of [output.parseLiveSnapshotV1, rivalhubProtocol.parseLiveSnapshotV1]) {
+  if (parse(observedLive).capability.lineupMismatchOnly !== true) throw new Error("roster-only live evidence lost");
+}
 const liveRejections = [
   ["unsupported version", { ...liveFixture, schemaVersion: "mizar.live-snapshot.v2" }],
   ["radar map mismatch", { ...liveFixture, radar: { ...liveFixture.radar, mapName: "de_mirage" } }],
@@ -187,6 +191,10 @@ for (const event of reliableCorpus.events) {
 const mapEnded = reliableCorpus.events.find((event) => event.kind === "map_ended");
 if (mapEnded.payload.scoreA !== 13 || mapEnded.payload.scoreB !== 9 || mapEnded.payload.scoreCT !== 4 || mapEnded.payload.scoreT !== 9) {
   throw new Error("reliable corpus must keep scoreA/scoreB entrant-relative and CT/T evidence-only");
+}
+const observedStart = { ...reliableCorpus.events.find(event => event.kind === "map_started"), evidence: { ...mapEnded.evidence, identity: "degraded", lineupMismatchOnly: true } };
+for (const parse of [output.parseReliableEventV1, rivalhubProtocol.parseReliableEventV1]) {
+  if (parse(observedStart).evidence.lineupMismatchOnly !== true) throw new Error("roster-only reliable evidence lost");
 }
 const reliableRejections = [
   ["unknown kind", { ...reliableCorpus.events[0], kind: "map_paused", payload: {} }],

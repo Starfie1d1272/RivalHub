@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { liveSnapshotV1Schema } from "./protocol";
+import { hasObservedLineup } from "./lineup-display";
 import { PUBLIC_LIVE_MAX_BYTES, type PublicLiveMatchProjection } from "./live-projection";
 
 const wire = liveSnapshotV1Schema.shape;
@@ -47,7 +48,7 @@ export function parsePublicLiveProjection(input: unknown, matchId: string): Publ
   const parsed = publicLiveSchema.safeParse(input);
   if (!parsed.success) return null;
   const next = parsed.data;
-  if (next.matchId !== matchId || !next.capability.telemetryFresh || !next.capability.contextFresh || next.capability.identity !== "matched" || !next.capability.lineupComplete || !next.capability.canonicalTeams) return null;
+  if (next.matchId !== matchId || !next.capability.telemetryFresh || !next.capability.contextFresh || (next.capability.identity !== "matched" && !hasObservedLineup(next)) || !next.capability.lineupComplete || !next.capability.canonicalTeams) return null;
   if (next.radar && (!next.capability.radarCurrent || next.radar.mapName !== next.map.name)) return null;
   if (next.roundHistory && next.series.currentMapOrder !== null && next.roundHistory.mapOrder !== next.series.currentMapOrder) return null;
   if (Date.parse(next.producedAt) > Date.parse(next.receivedAt) + 30000 || Date.parse(next.receivedAt) - Date.parse(next.producedAt) > 10000) return null;

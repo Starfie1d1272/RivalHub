@@ -1,5 +1,5 @@
 // Frozen producer contract, vendored from Mizar packages/protocol/src/output.ts.
-// Verified against Mizar main 84fca284a9dec46c0a5b1985a8c9115c9801542c by
+// Verified against Mizar 3c43f583f5aae9741a56c88e3a502b983f88f1d1 by
 // scripts/mizar-contract-check.mjs; change it only together with the producer.
 // RivalHub public projection lives in live-projection.ts.
 import { z } from 'zod';
@@ -31,6 +31,7 @@ const capability = z.strictObject({
   lineupComplete: z.boolean(),
   radarCurrent: z.boolean(),
   canonicalTeams: z.boolean(),
+  lineupMismatchOnly: z.boolean().optional(),
 });
 const player = z.strictObject({
   sourcePlayerId: id,
@@ -231,6 +232,7 @@ const reliableEventBase = z.strictObject({
     identity,
     telemetryFresh: z.boolean(),
     contextFresh: z.boolean(),
+    lineupMismatchOnly: z.boolean().optional(),
     source: z.enum(['runtime-transition', 'runtime-continuity', 'series-progress', 'identity']),
   }),
 });

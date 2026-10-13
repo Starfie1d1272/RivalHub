@@ -311,7 +311,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Starfie1d1272/Mizar
-          ref: e52c455fb4caea0284dc5f6d0d8ec52bb8159364 # Mizar #118, published radar-view 0.1.0
+          ref: 3c43f583f5aae9741a56c88e3a502b983f88f1d1 # Mizar #370, roster-only LIVE evidence
           path: .mizar-checkout
       - name: Mizar cross-repo contract
         if: matrix.task == 'provider' && matrix.live

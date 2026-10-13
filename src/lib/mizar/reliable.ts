@@ -13,6 +13,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { assertInstallationInTx, hashCredential } from "./installation";
 import { validateObservedLineupInTx } from "./source";
 import { parseReliableEventV1 } from "./protocol";
+import { isLineupMismatchOnly, LINEUP_REVIEW_REQUIRED } from "./lineup-display";
 
 export async function ingestMizarReliable(installationId: string, competitionId: string, input: unknown, authorityRevision: number, lineupSteam64: readonly string[] = []) {
   const event = parseReliableEventV1(input);
@@ -40,6 +41,8 @@ export async function ingestMizarReliable(installationId: string, competitionId:
     const now = new Date();
     let outcome = "observed";
     const updates: Partial<typeof matchLiveSessions.$inferInsert> = { lastReliableSeq: event.cursor.runtimeSeq, lastReliableEventAt: now };
+    const reviewRequired = source.lineupHealth === LINEUP_REVIEW_REQUIRED || event.kind === "lineup_mismatch" || isLineupMismatchOnly(event.evidence);
+    if (reviewRequired) { updates.lineupHealth = LINEUP_REVIEW_REQUIRED; updates.autoCanonicalizationArmed = false; }
     const fresh = event.evidence.identity === "matched" && event.evidence.telemetryFresh && event.evidence.contextFresh;
     if (generationChanged || epochChanged) {
       updates.programSourceGeneration = event.cursor.programSourceGeneration;
@@ -47,18 +50,19 @@ export async function ingestMizarReliable(installationId: string, competitionId:
       updates.autoCanonicalizationArmed = false;
       updates.continuityHealth = "unknown";
       updates.mapExecutionPhase = "waiting";
-      updates.currentMapId = null;
+      if (!reviewRequired) updates.currentMapId = null;
+      else if (source.mapExecutionPhase === "inter_map" || source.mapExecutionPhase === "awaiting_next_map") updates.mapExecutionPhase = epochChanged ? "awaiting_next_map" : source.mapExecutionPhase;
     } else if (event.kind === "identity_mismatch" || event.kind === "lineup_mismatch") {
       updates.autoCanonicalizationArmed = false;
       if (event.kind === "identity_mismatch") updates.identityHealth = "conflict";
-      else updates.lineupHealth = "conflict";
+      else updates.lineupHealth = reviewRequired ? LINEUP_REVIEW_REQUIRED : "conflict";
       outcome = "needs_attention";
     } else if (event.kind === "match_started" && match.status === "scheduled") {
       const lineupValid = await validateObservedLineupInTx(tx, match, lineupSteam64);
-      if (!fresh || !lineupValid) {
+      if (!fresh || !lineupValid || reviewRequired) {
         updates.autoCanonicalizationArmed = false;
         updates.identityHealth = event.evidence.identity === "matched" ? "healthy" : "conflict";
-        updates.lineupHealth = lineupValid ? "healthy" : "conflict";
+        updates.lineupHealth = reviewRequired ? LINEUP_REVIEW_REQUIRED : lineupValid ? "healthy" : "conflict";
         if (!event.evidence.telemetryFresh || !event.evidence.contextFresh) updates.continuityHealth = "stale";
         outcome = "needs_attention";
       } else {
@@ -70,22 +74,35 @@ export async function ingestMizarReliable(installationId: string, competitionId:
         outcome = "canonicalized";
       }
     } else if (event.kind === "map_started") {
-      const [map] = await tx.select().from(matchMaps).where(eq(matchMaps.matchId, match.id)).orderBy(asc(matchMaps.mapOrder)).then(rows => rows.filter(map => map.completedAt === null));
+      const maps = await tx.select().from(matchMaps).where(eq(matchMaps.matchId, match.id)).orderBy(asc(matchMaps.mapOrder));
+      const displayMap = reviewRequired ? maps.find(map => map.id === source.currentMapId) : undefined;
+      const map = displayMap
+        ? source.mapExecutionPhase === "awaiting_next_map" ? maps.find(map => map.mapOrder === displayMap.mapOrder + 1 && map.completedAt === null) : source.mapExecutionPhase === "inter_map" ? undefined : displayMap
+        : maps.find(map => map.completedAt === null);
       const validMap = Boolean(map && map.mapName === event.mapName && (event.mapId === null || map.id === event.mapId));
       const lineupValid = await validateObservedLineupInTx(tx, match, lineupSteam64);
       const executionConflict = source.continuityHealth === "execution_conflict";
       const veto = await tx.query.matchVetoSessions.findFirst({ where: eq(matchVetoSessions.matchId, match.id), columns: { completedAt: true } });
-      const mayArm = Boolean(veto?.completedAt) && (!executionConflict || event.cursor.runtimeSeq > source.lastReliableSeq) && match.status === "in_progress" && fresh && validMap && lineupValid && source.manualTakeoverMapEpoch !== event.cursor.mapEpoch;
+      const observedLineup = isLineupMismatchOnly(event.evidence) && event.evidence.telemetryFresh && event.evidence.contextFresh
+        && lineupSteam64.length === 10 && new Set(lineupSteam64).size === 10 && lineupSteam64.every(id => /^\d{17}$/.test(id))
+        && !lineupValid && validMap && Boolean(veto?.completedAt) && match.status === "in_progress"
+        && !executionConflict && source.manualTakeoverMapEpoch !== event.cursor.mapEpoch;
+      const displayOnly = reviewRequired || observedLineup;
+      const displayReady = displayOnly && validMap && map!.completedAt === null && Boolean(veto?.completedAt)
+        && match.status === "in_progress" && (fresh && lineupValid || observedLineup) && !executionConflict
+        && source.manualTakeoverMapEpoch !== event.cursor.mapEpoch;
+      const mayArm = !displayOnly && Boolean(veto?.completedAt) && (!executionConflict || event.cursor.runtimeSeq > source.lastReliableSeq) && match.status === "in_progress" && fresh && validMap && lineupValid && source.manualTakeoverMapEpoch !== event.cursor.mapEpoch;
       updates.autoCanonicalizationArmed = mayArm;
-      updates.identityHealth = event.evidence.identity === "matched" ? "healthy" : "conflict";
-      updates.lineupHealth = lineupValid ? "healthy" : "conflict";
+      updates.identityHealth = event.evidence.identity === "matched" || displayReady ? "healthy" : "conflict";
+      updates.lineupHealth = displayOnly ? LINEUP_REVIEW_REQUIRED : lineupValid ? "healthy" : "conflict";
       updates.continuityHealth = !validMap || (executionConflict && !mayArm) ? "execution_conflict" : !event.evidence.telemetryFresh || !event.evidence.contextFresh ? "stale" : "healthy";
       // An invalid observation cannot erase the trusted execution or a manual binding.
       // A complete, current start observation can revalidate AUTO; an explicit
       // manual choice remains authoritative for this epoch. End events never re-arm.
       if (validMap && (!executionConflict || mayArm)) {
         updates.currentMapId = map!.id;
-        if (fresh && lineupValid && match.status === "in_progress") {
+        if (displayReady) updates.mapExecutionPhase = "gameplay";
+        if (!displayOnly && fresh && lineupValid && match.status === "in_progress") {
           await startCanonicalMapInTx(tx,match.id,map!.id,mizarAuditActorId(installationId));
           updates.mapExecutionPhase = "gameplay";
         }
@@ -94,7 +111,11 @@ export async function ingestMizarReliable(installationId: string, competitionId:
     } else if (event.kind === "map_ended") {
       const [map] = await tx.select().from(matchMaps).where(and(eq(matchMaps.matchId, match.id), eq(matchMaps.mapName, event.mapName ?? "")));
       const sameExecution = Boolean(map && source.currentMapId === map.id && (event.mapId === null || event.mapId === map.id));
-      if (fresh && sameExecution && map!.completedAt !== null) {
+      if (reviewRequired) {
+        updates.autoCanonicalizationArmed = false;
+        outcome = "needs_attention";
+        if (sameExecution && (fresh || isLineupMismatchOnly(event.evidence)) && event.evidence.telemetryFresh && event.evidence.contextFresh) updates.mapExecutionPhase = "inter_map";
+      } else if (fresh && sameExecution && map!.completedAt !== null) {
         outcome = map!.scoreA === event.payload.scoreA && map!.scoreB === event.payload.scoreB ? "consistent" : "needs_attention";
         if (outcome === "needs_attention") { updates.continuityHealth = "result_conflict"; updates.autoCanonicalizationArmed = false; }
       } else if (!fresh || !source.autoCanonicalizationArmed || source.manualTakeoverMapEpoch === event.cursor.mapEpoch || !sameExecution) {

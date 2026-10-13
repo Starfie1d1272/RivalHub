@@ -9,6 +9,7 @@ import { MatchRadar } from "./MatchRadar";
 import { visibleLiveSnapshot, liveFreshness, liveClockSeconds, type LiveViewerState } from "@/lib/mizar/live-viewer-state";
 import { presentBomb, presentLivePhase, formatLiveClock, publicPlayerLabels, presentLiveConnection } from "@/lib/mizar/live-presentation";
 import { mapLabel } from "@/lib/maps";
+import { isLineupMismatchOnly } from "@/lib/mizar/lineup-display";
 import type { PublicMatchContext } from "@/lib/matches/public-context";
 import type { PublicLiveMatchProjection } from "@/lib/mizar/live-projection";
 
@@ -51,6 +52,7 @@ export function MatchRealtimeSurface({ state, now, phase, currentMapId, lastComp
         {showLive ? freshness === "fresh" ? "● 实时" : "实时数据暂时中断" : previous ? `上次画面 · ${presentLiveConnection(state.connection)}` : phase === "awaiting_gameplay" ? "等待正式对局" : phase === "inter_map" ? "图间休息" : presentLiveConnection(state.connection)}
       </span>}
     </div>
+    {showLive && isLineupMismatchOnly(snapshot.capability) && <p role="status" className="text-sm text-[var(--color-warn)]">现场名单需核实，仅展示实时数据；正式赛果待核实。</p>}
     {showLive ? <>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div><p className="font-semibold">{mapLabel(snapshot.map.name ?? "")} <span className="ml-2 text-sm font-normal text-[var(--color-fg-mid)]">第 {snapshot.map.roundNumber ?? "—"} 回合</span></p>
