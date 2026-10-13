@@ -376,7 +376,7 @@ describe("Mizar reliable event ingest ownership", () => {
       lineupFixture.authorityRevision,
     );
     expect(lineup.outcome).toBe("needs_attention");
-    expect((await loadSource(lineupFixture.sessionId)).lineupHealth).toBe("conflict");
+    expect(await loadSource(lineupFixture.sessionId)).toMatchObject({ lineupHealth: "review_required", autoCanonicalizationArmed: false });
   });
 
   it("records match_started as a reality primitive only when identity and lineup evidence agree", async () => {
