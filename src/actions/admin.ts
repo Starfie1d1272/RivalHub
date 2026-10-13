@@ -24,7 +24,7 @@ import {
 } from "@/lib/auth/session";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { maybeAdvanceFromRegistration } from "@/lib/seasons/transitions";
-import { updatePublicSeasonTags } from "@/lib/revalidation";
+import { updatePublicHomeTag, updatePublicSeasonTags } from "@/lib/revalidation";
 import {
   type RegistrationStatus,
   validateTransition,
@@ -140,6 +140,7 @@ export async function reviewRegistration(input: ReviewInput) {
         })
       : null;
 
+    updatePublicHomeTag();
     if (advancedSlug) {
       updatePublicSeasonTags(advancedSlug, reg?.seasonId);
       revalidatePath(`/${advancedSlug}`);

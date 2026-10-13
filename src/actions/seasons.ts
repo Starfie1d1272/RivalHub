@@ -17,7 +17,7 @@ import type { StagePlan, TeamRegistrationConfig } from "@/types/season";
 import { validateCompetitionDefinition } from "@/lib/competition/definition";
 import { assertSeasonHasNoHistoricalFacts, openSeasonRegistrationInTx, resolveConversionPolicyForPublish, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
 import { seasonFormSchema, seasonUpdatePayloadSchema, planSeasonCreate, planSeasonUpdate, type SeasonFormInput } from "@/lib/seasons/edit";
-import { updatePublicSeasonTags } from "@/lib/revalidation";
+import { updatePublicAnnouncementTags, updatePublicSeasonInfoTag, updatePublicSeasonTags } from "@/lib/revalidation";
 
 export type { SeasonFormInput };
 
@@ -248,6 +248,8 @@ export async function deleteSeason(seasonId: string): Promise<ActionResult<void>
     });
 
     updatePublicSeasonTags(deleted.slug);
+    updatePublicAnnouncementTags(seasonId);
+    updatePublicSeasonInfoTag(seasonId);
     revalidatePath("/admin");
     return ok(undefined);
   } catch (e) {

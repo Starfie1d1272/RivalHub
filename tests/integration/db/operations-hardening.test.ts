@@ -6,6 +6,9 @@ import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { describe, expect, it, vi } from "vitest";
 vi.mock("next/cache", () => ({ cacheLife: vi.fn(), cacheTag: vi.fn() }));
+// Authorization is outside the shared cache; SQL visibility uses real PostgreSQL.
+const { viewer } = vi.hoisted(() => ({ viewer: vi.fn().mockResolvedValue(null) }));
+vi.mock("../../../src/lib/auth/session", () => ({ getCurrentUserAuthorization: viewer }));
 import * as schema from "../../../src/db/schema";
 import { announcements, auditLogs, communityGroups, feedbackReports, seasons, users } from "../../../src/db/schema";
 import { eq } from "drizzle-orm";
@@ -134,6 +137,11 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
         vi.useRealTimers();
       }
 
+      // A published announcement on a draft event is still private.
+      await database.update(seasons).set({ status: "draft" }).where(eq(seasons.id, seasonId));
+      expect((await listPublicAnnouncements(seasonId)).some((a) => a.id === draft.id)).toBe(false);
+      await database.update(seasons).set({ status: "playing" }).where(eq(seasons.id, seasonId));
+
       // 4. Withdraw announcement
       await database.transaction((tx) =>
         setAnnouncementStatusInTx(tx, adminContext, draft.id, "draft")
@@ -216,6 +224,14 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
       expect(publicInfo.contacts).toEqual(expect.arrayContaining([
         expect.objectContaining({ id: contact.id, value: "ops@example.com", href: "mailto:ops@example.com" }),
       ]));
+
+      // Anonymous draft reads cannot expose public-info configuration; authorized
+      // previews use the uncached path and observe the actual DB facts.
+      await database.update(seasons).set({ status: "draft" }).where(eq(seasons.id, seasonId));
+      expect((await getPublicSeasonInfo(seasonId)).groups).toEqual([]);
+      viewer.mockResolvedValueOnce({ userId: actorId, role: "super_admin", seasonIds: [] });
+      expect((await getPublicSeasonInfo(seasonId)).groups.some((row) => row.id === group.id)).toBe(true);
+      await database.update(seasons).set({ status: "registration" }).where(eq(seasons.id, seasonId));
 
       // 4. Close group -> active projection hides join facts and QR URL
       await database.transaction((tx) =>
