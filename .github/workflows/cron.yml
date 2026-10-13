@@ -75,8 +75,7 @@ jobs:
               --connect-timeout 10 \
               --max-time 60 \
               --retry 2 \
-              --retry-all-errors \
-              --retry-delay 5 \
+              --retry-connrefused \
               --retry-max-time 180 \
               --header "Authorization: Bearer ${CRON_SECRET}" \
               --header "X-RivalHub-Cron-Source: ${CRON_SOURCE}" \
