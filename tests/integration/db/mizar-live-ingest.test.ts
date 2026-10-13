@@ -702,6 +702,7 @@ describe("Tournament Context provider ownership", () => {
     expect(players.filter(player => player.steam64 !== fixture.steam64[0]).every(player => player.avatarUrl === null)).toBe(true);
     // Protect the provider read budget against per-player round trips, using actual SQL execution.
     expect(queries.filter(query => /from "steam_profiles"/.test(query))).toHaveLength(1);
+    expect(queries.filter(query => /from "competition_entries"/.test(query))).toHaveLength(1);
     expect(await db.transaction(tx => loadMizarMatchDocumentInTx(tx, fixture.matchId, fixture.seasonId))).toEqual(document);
     expect(document.maps.map((map) => map.mapName)).toEqual(["de_ancient", "de_mirage"]);
     expect(document.revision).toHaveLength(64);
