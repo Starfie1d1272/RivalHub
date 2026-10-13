@@ -2,7 +2,7 @@ import { officialMatchCondition } from "@/lib/matches/scope";
 import { isCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 
-import { and, count, desc, eq, inArray, ne, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
 import { buildTournamentAnalytics, buildTournamentPerformanceAnalyticsFromProjections as buildTournamentPerformanceAnalytics, remapTournamentPerformanceMapProjection, scopeTournamentPerformanceMapProjectionToTeam } from "@cs2dak/tournament";
 import { db, type DB, type TxDb } from "@/db/client";
 import { competitionEntries, eventRosterMembers, matchDemoImports, matchDemoStatProjections, matchPlayerStats, matchMaps, matchRosterPlayers, matchRosters, matches, matchVetoSteps, seasons, steamProfiles, teams, users } from "@/db/schema";
@@ -175,10 +175,24 @@ export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: { seasonId?:
 }
 
 async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean } = {}) {
+  return loadStatsEvidenceSelection(tx, scope, options, sql<typeof matchDemoStatProjections.$inferSelect.facts>`${matchDemoStatProjections.facts}`);
+}
+
+type ProjectionTargets = {
+  tournament: { mapKey: string; matchKey: string };
+  performance: { mapKey: string; matchKey: string };
+};
+
+async function loadStatsEvidenceSelection<T extends ProjectionTargets>(
+  tx: TxDb,
+  scope: StatsEvidenceScope,
+  options: Parameters<typeof loadStatsContext>[2],
+  factsSelection: SQL<T>,
+) {
   const context = await loadStatsContext(tx, scope, options);
   const refs = await loadCurrentProjectionRefs(tx, context);
   const importIds = refs.map(({ current }) => current.id);
-  const rows = importIds.length ? await tx.select({ importId: matchDemoStatProjections.importId, facts: matchDemoStatProjections.facts })
+  const rows = importIds.length ? await tx.select({ importId: matchDemoStatProjections.importId, facts: factsSelection })
     .from(matchDemoStatProjections).where(and(inArray(matchDemoStatProjections.importId, importIds), eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION))) : [];
   recordStatsProjectionRead(rows, context.currentRefs.length - refs.length);
   const factsByImport = new Map(rows.map((row) => [row.importId, row.facts]));
@@ -560,7 +574,18 @@ async function loadTournamentPlayerDetail(
 
 export async function getTournamentPerformancePlayers(scope: TournamentStatsScope, database: DB = db) {
   return database.transaction(async (tx) => {
-    const loaded = await loadStatsEvidence(tx, scope);
+    // The benchmark consumes performance only; retain both target checks without
+    // transferring tournament weapon facts or records for every public event.
+    const loaded = await loadStatsEvidenceSelection(tx, scope, {}, sql<{
+      tournament: ProjectionTargets["tournament"];
+      performance: typeof matchDemoStatProjections.$inferSelect.facts.performance;
+    }>`jsonb_build_object(
+      'tournament', jsonb_build_object(
+        'mapKey', ${matchDemoStatProjections.facts}->'tournament'->'mapKey',
+        'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey'
+      ),
+      'performance', ${matchDemoStatProjections.facts}->'performance'
+    )`);
     return buildTournamentPerformanceAnalytics(
       loaded.selected.map((row) => row.facts.performance),
       { labels: loaded.labels },

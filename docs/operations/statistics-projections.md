@@ -10,6 +10,9 @@ map sufficient statistics also support deterministic flash leave-one-map-out.
 Equipment candidates require all ten known values and verified freeze-end exporter
 semantics. Unverified exporter versions lower economy coverage, never supply zero.
 The public serializer sends only selected-view summaries and bounded record ties.
+Attribute benchmarks select only performance projections and the tournament target
+keys needed for validation. They share current-import, identity-binding and target
+validation with full statistics reads, within the same read-only snapshot.
 
 ## Rebuild and release
 
