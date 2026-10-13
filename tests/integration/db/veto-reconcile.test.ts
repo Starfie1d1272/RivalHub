@@ -10,7 +10,7 @@ import { seedFixture } from "./harness/mizar";
 // Action mocks cannot detect lineup-only writes or duplicate timeout settlement.
 describe("Veto reconciliation committed changes", () => {
   it.each([false, true])("reports default lineup creation with session=%s, then leaves retries unchanged", async hasSession => {
-    const f = await seedFixture();
+    const f = await seedFixture({ freezeEventRoster: true });
     const matchId = randomUUID();
     await db.insert(schema.matches).values({
       id: matchId, seasonId: f.seasonId, entryAId: f.entryAId, entryBId: f.entryBId,
