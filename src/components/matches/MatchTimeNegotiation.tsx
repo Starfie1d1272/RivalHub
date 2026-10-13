@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { useRoutePolling } from "@/components/use-visible-polling";
 import { toast } from "sonner";
 import { proposeMatchTime, respondToTimeProposal, forceSetMatchTime } from "@/actions/matches/scheduling";
 import { Button } from "@/components/ui/button";
@@ -52,7 +51,7 @@ export function MatchTimeNegotiation({
   const isNegotiationClosed =
     confirmationCutoffTime !== null && now >= confirmationCutoffTime;
 
-  useRoutePolling(pendingProposals.length > 0 ? 30_000 : null, isPending);
+  // The scheduled match page already refreshes this dialog through MatchContextRefresh.
 
   // Deadline display is local; it must recover after a suspended browser tab.
   useEffect(() => {
