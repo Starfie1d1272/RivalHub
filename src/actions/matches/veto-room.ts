@@ -38,10 +38,12 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   return result.data;
 }
 
-async function finishMutation<T>(matchId: string, outcome: T) {
-  const match = await getMatchOrThrow(matchId);
-  const season = await db.query.seasons.findFirst({ where: eq(seasons.id, match.seasonId) });
-  if (season) revalidateMatchPaths(season.slug, matchId);
+async function finishMutation<T>(matchId: string, outcome: T, changed = true) {
+  if (changed) {
+    const match = await getMatchOrThrow(matchId);
+    const season = await db.query.seasons.findFirst({ where: eq(seasons.id, match.seasonId) });
+    if (season) revalidateMatchPaths(season.slug, matchId);
+  }
   return ok({ outcome, room: await getVetoRoomView(matchId) });
 }
 
@@ -71,7 +73,8 @@ export async function reconcileVetoRoomAction(input: unknown) {
   try {
     const { matchId } = parse(base, input);
     await assertVetoRoomReadable(matchId);
-    return await finishMutation(matchId, await reconcileVetoRoom(matchId));
+    const outcome = await reconcileVetoRoom(matchId);
+    return await finishMutation(matchId, outcome, outcome === "applied");
   } catch (error) {
     return actionError("reconcileVetoRoom", error);
   }

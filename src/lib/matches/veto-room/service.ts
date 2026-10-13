@@ -705,14 +705,14 @@ export async function reconcileVetoRoom(matchId: string): Promise<VetoMutationOu
   return db.transaction(async (tx) => {
     const match = await lockMatchInTx(tx, matchId);
     const appealsClosed = await closeVetoAppealsAfterGameplayInTx(tx, matchId);
-    await materializeDefaultLineupsInTx(tx, match);
+    const lineupsCreated = await materializeDefaultLineupsInTx(tx, match);
     const [session] = await tx.select().from(matchVetoSessions)
       .where(eq(matchVetoSessions.matchId, match.id))
       .for("update");
-    if (!session) return appealsClosed ? "applied" : "idempotent";
+    if (!session) return appealsClosed || lineupsCreated > 0 ? "applied" : "idempotent";
     const now = await databaseNow(tx);
     const reconciled = await reconcileVetoSessionInTx(tx, match, session, now);
-    return !appealsClosed && reconciled.revision === session.revision ? "idempotent" : "applied";
+    return !appealsClosed && lineupsCreated === 0 && reconciled.revision === session.revision ? "idempotent" : "applied";
   });
 }
 
