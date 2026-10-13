@@ -41,3 +41,5 @@ active docs 只保存当前稳定知识。改 architecture/domain/workflow/polic
 ## Before merge
 
 按 [`docs/testing.md`](docs/testing.md) 选择变更所需 evidence。至少检查完整 diff、未跟踪文件、敏感信息、临时产物和 active migration 归属；不要用 PR 文案、视觉 demo 或单一 CI 绿灯替代所需层级的真实验证。
+
+涉及数据库读取、缓存或轮询的变更，review 同时核对代表性调用的查询次数、返回行数/字节量和触发频率；仅需计数的路径不应拉取完整资料。记录实测与估算的边界，缓存缺少命中证据不能视为已生效；影响生产用量的修复发布后复查真实调用增量，不以 CI 通过代替费用改善验收。
