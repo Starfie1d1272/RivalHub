@@ -13,7 +13,7 @@ import { revalidateMatchPaths } from "@/lib/revalidation";
 const uuid = z.guid();
 const url = z.string().trim().max(2000).refine(isHttpUrl, "录像链接必须是 http 或 https URL");
 async function matchAndAdminOrThrow(matchId: string) { const match = await db.query.matches.findFirst({ where: eq(matches.id, matchId), columns: { id: true, seasonId: true } }); if (!match || !match.seasonId) throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。"); const season = await db.query.seasons.findFirst({ where: eq(seasons.id, match.seasonId), columns: { slug: true } }); if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在。"); return { match, season, admin: await requireSeasonAdmin(match.seasonId) }; }
-async function run(matchId: string, work: (actorId: string) => Promise<void>): Promise<ActionResult<void>> { try { const { match, season, admin } = await matchAndAdminOrThrow(matchId); await work(auditActorId(admin)); revalidateMatchPaths(season.slug, match.id); return ok(undefined); } catch (error) { return actionError("postmatch", error); } }
+async function run(matchId: string, work: (actorId: string) => Promise<void>): Promise<ActionResult<void>> { try { const { match, season, admin } = await matchAndAdminOrThrow(matchId); await work(auditActorId(admin)); revalidateMatchPaths(season.slug, match.id, { statistics: false }); return ok(undefined); } catch (error) { return actionError("postmatch", error); } }
 export async function addMatchCommentator(input: unknown) { const p = z.object({ matchId: uuid, userId: uuid }).safeParse(input); return p.success ? run(p.data.matchId, async (actorId) => { await db.transaction((tx) => addMatchCommentatorInTx(tx, { ...p.data, actorId })); }) : failValidation("解说参数无效。"); }
 export async function claimMatchCommentary(input: unknown): Promise<ActionResult<void>> {
   const parsed = z.object({ matchId: uuid }).strict().safeParse(input);
@@ -21,7 +21,7 @@ export async function claimMatchCommentary(input: unknown): Promise<ActionResult
   try {
     const { match, season, admin } = await matchAndAdminOrThrow(parsed.data.matchId);
     await db.transaction((tx) => claimMatchCommentaryInTx(tx, { matchId: match.id, userId: admin.userId }));
-    revalidateMatchPaths(season.slug, match.id);
+    revalidateMatchPaths(season.slug, match.id, { statistics: false });
     return ok(undefined);
   } catch (error) {
     return actionError("postmatch", error);
@@ -33,7 +33,7 @@ export async function cancelMatchCommentary(input: unknown): Promise<ActionResul
   try {
     const { match, season, admin } = await matchAndAdminOrThrow(parsed.data.matchId);
     await db.transaction((tx) => cancelMatchCommentaryInTx(tx, { matchId: match.id, userId: admin.userId }));
-    revalidateMatchPaths(season.slug, match.id);
+    revalidateMatchPaths(season.slug, match.id, { statistics: false });
     return ok(undefined);
   } catch (error) {
     return actionError("postmatch", error);

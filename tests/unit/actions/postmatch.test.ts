@@ -59,7 +59,7 @@ describe("post-match action revalidation", () => {
   it("cancels only as the session user, rejects forged identities and preserves authorization failures", async () => {
     expect(await cancelMatchCommentary({ matchId })).toEqual({ success: true, data: undefined });
     expect(cancelMatchCommentaryInTxMock).toHaveBeenCalledExactlyOnceWith({}, { matchId, userId: "admin-1" });
-    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("major", matchId);
+    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("major", matchId, { statistics: false });
     vi.clearAllMocks();
     for (const input of [{ matchId, userId: matchId }, { matchId, seasonId: matchId }, { matchId: "invalid" }]) {
       expect(await cancelMatchCommentary(input)).toMatchObject({ success: false, error: { code: "VALIDATION_FAILED" } });
