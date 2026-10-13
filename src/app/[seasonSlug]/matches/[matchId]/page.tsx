@@ -1,3 +1,4 @@
+import { projectDisplayScore } from "@/lib/matches/display-score";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
@@ -342,7 +343,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
       <MatchHeroHeader
         seasonSlug={seasonSlug}
         stageName={presentMatchStage(match.stage, season.stagePlan)}
-        match={match}
+        match={{ ...match, displayScore: projectDisplayScore(match, maps) }}
         teamA={teamA}
         teamB={teamB}
         isFinished={isFinished}

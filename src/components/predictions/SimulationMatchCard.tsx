@@ -38,7 +38,7 @@ export function SimulationMatchCard({
   const side = (id: string, index: number) => {
     const team = teams.get(id);
     const winning = match.winner === id;
-    const score = index === 0 ? match.scoreA : match.scoreB;
+    const score = index === 0 ? (match.displayScore ?? match).scoreA : (match.displayScore ?? match).scoreB;
     return (
       <button
         key={id}
@@ -86,11 +86,11 @@ export function SimulationMatchCard({
             {actual ? (
               <>
                 <strong data-winning={match.winner === match.a}>
-                  {match.scoreA ?? "—"}
+                  {(match.displayScore ?? match).scoreA ?? "—"}
                 </strong>
                 <span>:</span>
                 <strong data-winning={match.winner === match.b}>
-                  {match.scoreB ?? "—"}
+                  {(match.displayScore ?? match).scoreB ?? "—"}
                 </strong>
               </>
             ) : (

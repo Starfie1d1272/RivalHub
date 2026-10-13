@@ -1,3 +1,4 @@
+import { withDisplayScores } from "./display-score-data";
 import { isCompetitionMatch } from "./competition-context";
 import "server-only";
 
@@ -20,8 +21,8 @@ export interface MatchHeadToHeadRow {
   completedAt: Date | null;
   stage: string;
   format: string;
-  scoreA: number;
-  scoreB: number;
+  scoreA: number | null;
+  scoreB: number | null;
   teamAWon: boolean;
 }
 
@@ -41,8 +42,8 @@ export function projectMatchPreAnalysis(input: {
   entryAId: string;
   entryBId: string;
   mapPool: readonly string[];
-  matchesA: readonly Match[];
-  matchesB: readonly Match[];
+  matchesA: readonly (Match & { displayScore?: import("./display-score").DisplayScore })[];
+  matchesB: readonly (Match & { displayScore?: import("./display-score").DisplayScore })[];
   entryNames: ReadonlyMap<string, string>;
   mapWinsA: ReadonlyMap<string, MatchWinStats>;
   mapWinsB: ReadonlyMap<string, MatchWinStats>;
@@ -73,8 +74,9 @@ export function projectMatchPreAnalysis(input: {
     .slice(0, 10)
     .map((match) => {
       const teamAIsEntryA = match.entryAId === input.entryAId;
-      const scoreA = teamAIsEntryA ? match.scoreA! : match.scoreB!;
-      const scoreB = teamAIsEntryA ? match.scoreB! : match.scoreA!;
+      const display = match.displayScore ?? match;
+      const scoreA = teamAIsEntryA ? display.scoreA : display.scoreB;
+      const scoreB = teamAIsEntryA ? display.scoreB : display.scoreA;
       return {
         matchId: match.id,
         scheduledAt: match.scheduledAt,
@@ -83,7 +85,7 @@ export function projectMatchPreAnalysis(input: {
         format: match.format,
         scoreA,
         scoreB,
-        teamAWon: scoreA > scoreB,
+        teamAWon: teamAIsEntryA ? match.scoreA! > match.scoreB! : match.scoreB! > match.scoreA!,
       };
     });
 
@@ -103,10 +105,14 @@ export async function loadMatchPreAnalysis(
   entryBId: string,
   mapPool: readonly string[],
 ): Promise<MatchPreAnalysis> {
-  const [matchesA, matchesB] = await Promise.all([
+  const [rawA, rawB] = await Promise.all([
     getSeasonFinishedMatches(seasonId, entryAId),
     getSeasonFinishedMatches(seasonId, entryBId),
   ]);
+  const displayed = await withDisplayScores([...new Map([...rawA, ...rawB].map(match => [match.id, match])).values()]);
+  const byId = new Map(displayed.map(match => [match.id, match]));
+  const matchesA = rawA.map(match => byId.get(match.id)!);
+  const matchesB = rawB.map(match => byId.get(match.id)!);
   const matchIdsA = matchesA.map((match) => match.id);
   const matchIdsB = matchesB.map((match) => match.id);
   const opponentIds = [...new Set([

@@ -36,6 +36,7 @@ export interface PublicMatch {
   a: string;
   b: string;
   winner: string | null;
+  displayScore?: import("@/lib/matches/display-score").DisplayScore;
   scoreA: number | null;
   scoreB: number | null;
   format: "bo1" | "bo3" | "bo5";
@@ -78,6 +79,7 @@ export interface SimMatch {
   b: string;
   winner: string | null;
   source: "official" | "assumption" | "pending" | "preview";
+  displayScore?: import("@/lib/matches/display-score").DisplayScore;
   scoreA: number | null;
   scoreB: number | null;
   record: { wins: number; losses: number } | null;

@@ -1,3 +1,5 @@
+import { projectBracketDisplayScores } from "@/lib/bracket/display-scores";
+import { withDisplayScores } from "@/lib/matches/display-score-data";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { loadPublicMatchContexts } from "@/lib/matches/public-phase";
@@ -53,7 +55,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
     getPublicSeasonStagePresentation(season),
     db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) }),
   ]);
-  const allMatches = allMatchesRaw.map(requireCompetitionMatch);
+  const allMatches = await withDisplayScores(allMatchesRaw.map(requireCompetitionMatch));
 
   const liveContexts = await loadPublicMatchContexts(allMatches);
   const teamMap = new Map(allTeams.map((team) => [team.id, team.name]));
@@ -244,7 +246,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                         <section className="space-y-3">
                           <h2 className="text-lg font-semibold text-[var(--color-fg)]">对阵图</h2>
                           <BracketView
-                            data={bracketData}
+                            data={projectBracketDisplayScores(bracketData, allStageMatches)}
                             themeColor={season.themeColor}
                             matchNodeMap={matchNodeMap}
                             seasonSlug={seasonSlug}

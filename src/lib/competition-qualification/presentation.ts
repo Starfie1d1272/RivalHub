@@ -15,6 +15,7 @@ export interface QualificationSwissMatch {
   entryAId: string;
   entryBId: string;
   round: number | null;
+  displayScore?: import("@/lib/matches/display-score").DisplayScore;
   scoreA: number | null;
   scoreB: number | null;
   status: string;
@@ -95,6 +96,7 @@ export function buildQualificationSwissReadModel(input: {
     teamBName: nameByEntryId.get(match.entryBId) ?? "未知队伍",
     teamALogoUrl: logoByEntryId.get(match.entryAId) ?? null,
     teamBLogoUrl: logoByEntryId.get(match.entryBId) ?? null,
+    displayScore: match.displayScore,
     scoreA: match.scoreA,
     scoreB: match.scoreB,
     status: match.status,

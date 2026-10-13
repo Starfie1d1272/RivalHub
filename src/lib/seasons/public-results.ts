@@ -1,3 +1,4 @@
+import { withDisplayScores } from "@/lib/matches/display-score-data";
 import { loadOfficialMatchRows } from "@/lib/matches/read-official";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
@@ -30,6 +31,7 @@ export async function getPublicSeasonResults(season: PublicSeason) {
   const finalNode = lastStage && brackets?.get(lastStage.key) ? resolveFinalBracketNodeId(brackets.get(lastStage.key)!) : null;
   const finals = lastStage ? matchRows.filter((match) => match.stage === lastStage.key && (season.competitionTemplate === "major" ? match.entryRound === "final" && match.ownership === "major_stage" && (!result || match.majorStageRunId === result.playoffStageRunId) : finalNode !== null && match.bracketNodeId === String(finalNode))) : [];
   const final = finals.length === 1 ? finals[0] : null;
+  const [displayFinal] = await withDisplayScores(final ? [final] : []);
   const confirmed = result?.status === "confirmed";
   const championHonor = honorRows.filter((honor) => honor.type === "champion");
   const validChampion = championHonor.filter((honor) => honor.state === "valid");
@@ -47,7 +49,7 @@ export async function getPublicSeasonResults(season: PublicSeason) {
     : [];
   return {
     champion: championId && names.has(championId) ? { entryId: championId, name: names.get(championId)! } : null,
-    final: final ? { id: final.id, teamA: names.get(final.entryAId) ?? "待定", teamB: names.get(final.entryBId) ?? "待定", scoreA: final.scoreA, scoreB: final.scoreB } : null,
+    final: final ? { id: final.id, teamA: names.get(final.entryAId) ?? "待定", teamB: names.get(final.entryBId) ?? "待定", scoreA: displayFinal.displayScore.scoreA, scoreB: displayFinal.displayScore.scoreB } : null,
     placements: placements.filter((entry) => names.has(entry.entryId)),
     honors: honorRows.filter((honor) => honor.state === "valid" && (honor.entryId ? names.has(honor.entryId) : honor.userId !== null)).map((honor) => ({ id: honor.id, label: honor.label, entryId: honor.entryId, userId: honor.userId, name: honor.entryId ? names.get(honor.entryId) ?? "队伍" : getPublicDisplayName(honor) })),
     completedAt: matchRows.filter((match) => match.completedAt !== null).at(-1)?.completedAt ?? null,
