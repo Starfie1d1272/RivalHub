@@ -178,6 +178,19 @@ async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: {
   return loadStatsEvidenceSelection(tx, scope, options, sql<typeof matchDemoStatProjections.$inferSelect.facts>`${matchDemoStatProjections.facts}`);
 }
 
+/** Team/map details consume both analytics owners, but never record candidates. */
+async function loadStatsDetailEvidence(tx: TxDb, scope: StatsEvidenceScope, options: Parameters<typeof loadStatsContext>[2] = {}) {
+  return loadStatsEvidenceSelection(tx, scope, options, sql<Pick<typeof matchDemoStatProjections.$inferSelect.facts, "tournament" | "performance">>`jsonb_build_object(
+    'tournament', ${matchDemoStatProjections.facts}->'tournament',
+    'performance', ${matchDemoStatProjections.facts}->'performance'
+  )`);
+}
+
+type PlayerDetailFacts = {
+  tournament: Pick<typeof matchDemoStatProjections.$inferSelect.facts.tournament, "mapKey" | "matchKey" | "mapName">;
+  performance: typeof matchDemoStatProjections.$inferSelect.facts.performance;
+};
+
 type ProjectionTargets = {
   tournament: { mapKey: string; matchKey: string };
   performance: { mapKey: string; matchKey: string };
@@ -409,19 +422,23 @@ function indexStatsRows<T>(rows: readonly T[], key: (row: T) => string) {
   return index;
 }
 
-function aggregateEvidenceByMap(
-  selected: Awaited<ReturnType<typeof loadStatsEvidence>>["selected"],
-  labels: StatsLabels,
-  options: { indexPlayers?: boolean } = {},
-) {
-  const grouped = new Map<string, typeof selected>();
+function groupEvidenceByMap<T extends { facts: { tournament: { mapName: string } } }>(selected: T[]) {
+  const grouped = new Map<string, T[]>();
   for (const row of selected) {
     const mapName = row.facts.tournament.mapName;
     const rows = grouped.get(mapName) ?? [];
     rows.push(row);
     grouped.set(mapName, rows);
   }
-  return [...grouped].map(([mapName, rows]) => {
+  return [...grouped];
+}
+
+function aggregateEvidenceByMap(
+  selected: Awaited<ReturnType<typeof loadStatsDetailEvidence>>["selected"],
+  labels: StatsLabels,
+  options: { indexPlayers?: boolean } = {},
+) {
+  return groupEvidenceByMap(selected).map(([mapName, rows]) => {
     const analytics = buildTournamentAnalytics(rows.map((row) => row.facts.tournament), { labels });
     const performance = buildTournamentPerformanceAnalytics(rows.map((row) => row.facts.performance), { labels });
     return {
@@ -446,7 +463,9 @@ function resultMatchesForMapScope<T extends { id: string }>(
 }
 
 function buildCoverage(
-  loaded: Awaited<ReturnType<typeof loadStatsEvidence>>,
+  loaded: Pick<Awaited<ReturnType<typeof loadStatsContext>>, "matches" | "scopedMaps" | "entries"> & {
+    selected: Array<{ facts: { tournament: { mapName: string } } }>;
+  },
   results = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries),
 ) {
   const detailedByMapName = new Map<string, number>();
@@ -533,15 +552,25 @@ async function loadTournamentPlayerDetail(
   matchIds: readonly string[],
   options: { requireCurrentImports?: boolean; includeTestMatch?: boolean } = {},
 ) {
-  const loaded = await loadStatsEvidence(tx, scope, { matchIds, includeTestMatch: options.includeTestMatch });
+  const loaded = await loadStatsEvidenceSelection(tx, scope, { matchIds, includeTestMatch: options.includeTestMatch }, sql<PlayerDetailFacts>`jsonb_build_object(
+    'tournament', jsonb_build_object(
+      'mapKey', ${matchDemoStatProjections.facts}->'tournament'->'mapKey',
+      'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey',
+      'mapName', ${matchDemoStatProjections.facts}->'tournament'->'mapName'
+    ),
+    'performance', ${matchDemoStatProjections.facts}->'performance'
+  )`);
   const scoreboard = await getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, groupByTeam: false, requireCurrentImports: options.requireCurrentImports, includeTestMatch: options.includeTestMatch });
   const scoreboardMaps = await getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, groupByMap: true, groupByTeam: false, requireCurrentImports: options.requireCurrentImports, includeTestMatch: options.includeTestMatch });
   const performance = buildTournamentPerformanceAnalytics(loaded.selected.map((row) => row.facts.performance), { labels: loaded.labels });
   const detail = indexStatsRows(performance.players, (row) => row.player.entityKey).get(scope.playerId) ?? null;
-  const maps = aggregateEvidenceByMap(loaded.selected, loaded.labels, { indexPlayers: true }).map((row) => ({
-    mapName: row.mapName,
-    performance: row.performancePlayers?.get(scope.playerId) ?? null,
-  }));
+  const maps = groupEvidenceByMap(loaded.selected).map(([mapName, rows]) => {
+    const performance = buildTournamentPerformanceAnalytics(rows.map((row) => row.facts.performance), { labels: loaded.labels });
+    return {
+      mapName,
+      performance: indexStatsRows(performance.players, (row) => row.player.entityKey).get(scope.playerId) ?? null,
+    };
+  });
   const results = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries);
   const record = await getPublicPlayerRecord(scope.playerId, { seasonId: scope.seasonId, matchIds, database: tx });
   const [mvpRow] = matchIds.length ? await tx.select({ count: count() }).from(matches).where(and(officialMatchCondition(),
@@ -636,7 +665,7 @@ export async function getPlayerCareerDetail(
 
 
 export function remapLinkedTeamFacts(
-  selected: Awaited<ReturnType<typeof loadStatsEvidence>>["selected"],
+  selected: Awaited<ReturnType<typeof loadStatsDetailEvidence>>["selected"],
   linkedEntryIds: ReadonlySet<string>,
   teamId: string,
 ) {
@@ -665,7 +694,7 @@ export function remapLinkedTeamFacts(
 }
 
 export function buildLongTeamPerformanceProjection(
-  selected: Awaited<ReturnType<typeof loadStatsEvidence>>["selected"],
+  selected: Awaited<ReturnType<typeof loadStatsDetailEvidence>>["selected"],
   linkedEntryIds: ReadonlySet<string>,
   teamId: string,
   labels: StatsLabels = { teams: {}, players: {} },
@@ -684,7 +713,7 @@ export function buildLongTeamPerformanceProjection(
 }
 
 export function buildCompetitionEntryPerformanceProjection(
-  selected: Awaited<ReturnType<typeof loadStatsEvidence>>["selected"],
+  selected: Awaited<ReturnType<typeof loadStatsDetailEvidence>>["selected"],
   teamId: string,
   labels: StatsLabels = { teams: {}, players: {} },
 ) {
@@ -745,7 +774,7 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
       or(inArray(matches.entryAId, [...linkedEntryIds]), inArray(matches.entryBId, [...linkedEntryIds])),
     ));
     const matchIds = appearanceMatches.map((match) => match.id);
-    const loaded = await loadStatsEvidence(tx, {}, { matchIds });
+    const loaded = await loadStatsDetailEvidence(tx, {}, { matchIds });
     const labels: StatsLabels = {
       ...loaded.labels,
       teams: { ...loaded.labels.teams, [teamId]: linkedEntries[0]?.name ?? teamId },
@@ -831,7 +860,7 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
 
 export async function getTournamentTeamDetail(scope: TournamentStatsScope & { teamId: string }, database: DB = db) {
   return database.transaction(async (tx) => {
-    const loaded = await loadStatsEvidence(tx, scope, { teamId: scope.teamId });
+    const loaded = await loadStatsDetailEvidence(tx, scope, { teamId: scope.teamId });
     const veto = await loadVetoData(tx, scope, loaded.entries);
     const results = buildTournamentResults(resultMatchesForMapScope(loaded.matches, loaded.scopedMaps, scope.mapFilter), loaded.scopedMaps, loaded.entries);
     const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
@@ -889,7 +918,7 @@ export async function getTournamentTeamDetail(scope: TournamentStatsScope & { te
 
 export async function getTournamentMapDetail(scope: Omit<TournamentStatsScope, "mapFilter" | "teamFilter"> & { map: string }, database: DB = db) {
   return database.transaction(async (tx) => {
-    const loaded = await loadStatsEvidence(tx, scope, { mapName: scope.map });
+    const loaded = await loadStatsDetailEvidence(tx, scope, { mapName: scope.map });
     const vetoRows = await loadScopedVetoRows(tx, scope, scope.map);
     const results = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries);
     const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
