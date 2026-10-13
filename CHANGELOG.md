@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.17.5]
+
+### Fixed
+
+- BP 房间重复协调且事实无变化时保留缓存；真实推进、申诉关闭等变化继续及时刷新页面和统计。
+- Watchdog 只重试暂时性故障，并以最后一次 HTTP 响应判定任务成功；Preview 镜像故障可安全地按文档重跑。
+
+### Changed
+
+- 公共首页、选手资料、公告与赛事介绍复用共享远程缓存；公告提醒仍按分钟过期，资料变更、身份归并、报名审核和删除及时刷新。草稿内容仍受权限控制。
+- Major 公开名单、赛事首页与目录减少重复名单和计数读取，保留原有展示与排序。
+- 选手、队伍、地图统计详情与 Mizar 赛程、制播资料减少数据库读取量，保持现有结果和权限语义。
+- 赛后资料与解说操作不再驱逐未变化的公开统计缓存。
+
 ## [2.17.4]
 
 ### Fixed
@@ -2981,6 +2995,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.17.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.4...v2.17.5
 [2.17.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.3...v2.17.4
 [2.17.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.2...v2.17.3
 [2.17.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.1...v2.17.2
