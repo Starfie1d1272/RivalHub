@@ -72,7 +72,8 @@ describe("veto lifecycle shipped reader1/publisher0", () => {
     const original = await rows(f);
     expect((await db.transaction(tx => loadBetFacts(tx, f.seasonId))).vetoByMatch.get(f.matchId)!.pendingAppeal).toBe(true);
     await start(f); await start(f);
-    const maps = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
+    // Compare complete facts by identity; these snapshot queries have no row-order contract.
+    const maps = (await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId))).sort((a, b) => a.id.localeCompare(b.id));
     expect(maps.find(m => m.id === f.mapOneId)!.startedAt).not.toBeNull();
     await readVetoRoomCore(f.matchId); await reconcileVetoRoom(f.matchId);
     expect(await runMatchVetoTimeoutJob()).toMatchObject({ result: { processed: 0, changed: 0 } });
@@ -97,7 +98,7 @@ describe("veto lifecycle shipped reader1/publisher0", () => {
     await expect(rewindVetoRoom({ matchId: f.matchId, actorId: f.actorId, targetTurnKey: "choose-veto-team-a", reason: "不得抹除已开赛地图" })).rejects.toThrow("不能恢复 BP");
     await expect(submit(f)).rejects.toThrow("联系赛事管理员");
     expect(await rows(f)).toEqual(original);
-    expect(await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId))).toEqual(maps);
+    expect((await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId))).sort((a, b) => a.id.localeCompare(b.id))).toEqual(maps);
     expect((await db.transaction(tx => loadBetFacts(tx, f.seasonId))).vetoByMatch.get(f.matchId)!.pendingAppeal).toBe(false);
     expect(await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.matchId), eq(schema.auditLogs.action, "match.veto.appeal_close")))).toHaveLength(0);
   });
