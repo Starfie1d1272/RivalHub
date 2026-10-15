@@ -103,9 +103,9 @@ Pure tests retain integer pool conservation, the first-match deadline, and one u
 `tests/e2e/flows/public-match-live.spec.ts` uses disposable Local Supabase facts and the existing private viewer endpoint. Its dedicated producer only rewrites local match/context IDs and delivery timestamps; it sends captured player/radar data at 1 Hz. Chromium checks private delivery, live scores, stale clock freezing, unavailable fallback, recovery, reload with a qualified previous table, new-frame replacement, cross-match navigation, icon failure and map changes. Retained deterministic tests protect new authoritative proof, context/map/source/login/schema matching, revoked-scope clearing and private token renewal/disposal. PostgreSQL protects source revision, identity/lineup/epoch fencing, completed-map rejection and scoped token admission. Cross-repo adapter/parser checks and the forced Local Supabase provider contract remain required for their affected surfaces. Exact age matrices, every delivery-reducer transition, cache storage-denial/two-match bounds and the detailed receiver-sharing lifecycle no longer have permanent deterministic oracles; the browser journey does not replace those assertions. These checks do not certify a production deployment, real operator handover or sustained capacity.
 
 
-### 无产品入口的比赛领域命令
+### 比赛领域命令的 production 检查根
 
-独立比赛创建与结束/补录/更正命令是本轮明确交付的内部领域入口，线上授权与约战 UI 尚未接入。`knip.json` 将 `src/lib/matches/creation.ts`、`src/lib/matches/unassociated-result.ts` 声明为生产领域检查根，使 production 模式继续检查它们的依赖；不为通过检查添加无授权的路由或虚假调用。命令行为由真实数据库集成回归验证，后续接入产品调用后移除这两条显式根。
+独立比赛创建命令尚无产品调用入口，`knip.json` 保留 `src/lib/matches/creation.ts` 显式生产检查根，使 production 模式继续检查其依赖；不为通过检查添加无授权的路由或虚假调用，接入产品调用后再移除该显式根。结束/补录/更正命令已由管理员测试赛工作台经 `TestMatchConclusion` → `concludeTestMatch` 调用 `src/lib/matches/unassociated-result.ts`，随产品引用图纳入 production 检查，无需显式根。命令行为由真实数据库集成回归验证。
 
 浏览器使用原 `/favicon.ico` 探测Next进程可用，不证明根布局或业务路由已编译。LIVE 在实际比赛页导航时先验证 document 状态并监听页面编译/运行异常，失败直接报告 HTTP 状态或异常及服务端诊断附件，不等待观众令牌超时。首页本身由 production smoke 验证。production 与 LIVE runner 仅启动 Auth、SQL（LIVE 另含 Realtime），provider 与上传路径仍启用 Storage/PostgREST。
 
