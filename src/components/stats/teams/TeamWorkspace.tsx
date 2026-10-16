@@ -1,5 +1,6 @@
 "use client";
 
+import { STATS_METRICS } from "@/lib/stats/metrics";
 import React, { useMemo, useState } from "react";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
@@ -196,8 +197,8 @@ export function TeamWorkspace({ detail }: {
           {analytics ? <>
             <MetricSection title="Round Conversion" items={[
               { label: "Pistol", metric: "pistol", value: <MetricValue metric="pistol" value={analytics.pistol} /> },
-              { label: "R2 Conversion", metric: "conversion", value: <MetricValue metric="conversion" value={analytics.round2.conversion} /> },
-              { label: "R2 Break", metric: "break", value: <MetricValue metric="break" value={analytics.round2.break} /> },
+              { label: STATS_METRICS.conversion.label, metric: "conversion", value: <MetricValue metric="conversion" value={analytics.round2.conversion} /> },
+              { label: STATS_METRICS.break.label, metric: "break", value: <MetricValue metric="break" value={analytics.round2.break} /> },
             ]} columns={3} />
             <MetricSection title="Man Advantage" items={[
               { label: "5v4", metric: "fiveVFour", value: <MetricValue metric="fiveVFour" value={analytics.manAdvantage["5v4"]} /> },
@@ -240,7 +241,7 @@ export function TeamWorkspace({ detail }: {
             { label: "Utility K/100r", metric: "utilityKills", value: <MetricValue metric="utilityKills" value={performance.slices.overall.utility.utilityKillsPerRound} /> },
           ]} columns={3} />
           <MetricSection title="Objective" items={[
-            { label: "Plant conversion", metric: "plantConversion", value: <MetricValue metric="plantConversion" value={performance.slices.overall.objective.plantConversions} /> },
+            { label: STATS_METRICS.plantConversion.label, metric: "plantConversion", value: <MetricValue metric="plantConversion" value={performance.slices.overall.objective.plantConversions} /> },
           ]} columns={3} />
         </div> : <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">暂无团队统计。</p>
       )}
