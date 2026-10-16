@@ -100,6 +100,8 @@ read model 保留已有 public-safe canonical identity：BET option entity 由 m
 
 `/stats` 使用平台主题与 `PageLayout wide`，默认全部公开赛事，包括 archived 历史。赛事是可搜索的上下文筛选，不是统计页面归属；选择器只接收 public-safe 摘要，确认选项才导航，支持键盘、焦点返回与内部滚动。阶段只用于单届；赛制与地图属于共享 scope。Overview / Players / Teams / Maps / Weapons / Records 是固定六个内容 tab。旧公开赛事统计入口永久迁移到 canonical URL；授权 draft preview 继续隔离在薄适配入口中。
 
+统计标签与说明由 `src/lib/stats/metrics.ts` 统一定义；无额外上下文时复用中央名称。地图 Opening Conversion / Comeback 使用发生有效首杀对枪的回合为分母，R2 Conversion / Break 使用对应手枪局结果后的第二回合机会为分母，不能共用指标定义。1vX 分项使用对应人数的残局说明和尝试次数；阵营、人数等必要的上下文标签可以保留。
+
 Players Opening 在 FD/100r 后显示 Traded FD%；Utility 在 Blind/Flash 后显示 Net Blind/Flash。两列沿用排序、dynamic qualification、样本与 tooltip contract，次级列在窄屏隐藏，净值保留负数。搜索与队伍展示过滤不改变指标资格总体。
 
 Overview 的概要之后展示至多六条紧凑「数据观察 / Insights」，无候选时省略。每条提供范围、自然中文、分子/分母或秒/颗与投掷数、可展开的「为何出现」及相关统计链接；不使用能力分、奖项标签、因果或显著性断言。保留 Situation Highlights，避免卡片墙。
