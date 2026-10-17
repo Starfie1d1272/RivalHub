@@ -2,6 +2,15 @@
 
 RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supabase、Vitest 与 Playwright 的高校电竞赛事管理平台。
 
+## 执行、澄清与批准
+
+- 在平台与工具权限边界内，以用户当前目标和本轮会话中仍有效的授权为准；后续补充默认调整当前任务，不丢弃未完成目标。仓库具体契约约束通用 Skill 示例，Skill 只补充当前任务所需的专业步骤，不另设重复确认或验收流程。
+- 对“帮我修改/修复/优化”等行动请求，完成定位、最小必要修改和相称验证后交付。常规、可逆的实现选择自主决定；不把计划、首次失败或“可以继续”当作完成。
+- 先查会话、代码与相关文档。只有缺失信息会实质改变目标、验收、外部目标或难以撤销的结果，且无法可靠推断时才澄清；合并相关问题，只暂停依赖答案的步骤。可选偏好使用已知约定或说明假设后推进；未答复不等于批准。
+- 执行动作前检查已有授权及其对象、范围和环境。同一范围已获授权时不重复申请；缺少有效授权的外部副作用或破坏性操作，以及平台要求的审批，才需要批准。需要批准时，先完成已授权且不依赖批准的准备，给出具体差异、目标、影响及要求批准的规则来源；不要先执行受限动作。
+- Skill 中的“先确认”默认指通过证据核实；只有明确需要用户决定或授权时才向用户提问。发现失败后，修复请求继续定位、修复并复验；纯审阅请求交付发现。环境或权限阻塞时尝试适用的受支持替代路径，不绕过门禁，完成其余独立工作并准确报告缺失证据。
+- 不为可能的未来需求增加抽象、基础设施、依赖或无关清理。按下文 Validation 选择最低充分证据；通过后仅在修改、失败或新风险出现时扩大或重跑。任务完成边界与 PR 交付规则见 [`CONTRIBUTING.md`](CONTRIBUTING.md#交付范围与完成条件)。
+
 ## 先定位 authority
 
 - 文档入口与冲突处理：[`docs/README.md`](docs/README.md)。当前实现以 code/schema/active migrations/tests 为准；赛事政策在 `docs/rules/`，durable rationale 在 `docs/decisions/`，历史材料在 `docs/archive/`。
@@ -10,7 +19,7 @@ RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supaba
 - 测试证据：[`docs/testing.md`](docs/testing.md)；环境/迁移/release：[`docs/deployment.md`](docs/deployment.md) 与 `docs/operations/`；协作规则：[`CONTRIBUTING.md`](CONTRIBUTING.md)。
 - 修改前先搜索 canonical owner。相同 transition、derived fact、validation、formatter 或 query/domain rule 只能有一个业务 owner；transport/presentation 复用它。
 - 可执行架构契约见 `pnpm architecture:check`；Client 只能经 `use server` action boundary 进入 server workflow，`src/lib/` 不反向依赖 entrypoint/presentation。
-- Release / tag / deploy / production mutation 有更严格入口：任何写操作或远端 mutation 前，必须完整读完 [`docs/operations/release.md`](docs/operations/release.md)；repository search / `rg` 只用于定位，不能替代全文读取。
+- 仅在执行 release / tag / deploy / production mutation，或修改这些流程时，必须先完整读完 [`docs/operations/release.md`](docs/operations/release.md)；此时 repository search / `rg` 只用于定位，不能替代全文读取。普通本地编辑、检查与 feature branch/PR 操作按各自文档执行。
 
 ## Cross-domain contract
 
@@ -30,11 +39,11 @@ RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supaba
 
 ## Validation
 
-新增测试先说明独立保护价值、具体失败风险、现有证据缺口与最低足够层；不为每个函数、组件或实现细节机械添加测试。安全、权限、业务不变量、事务、并发与真实 DB/provider 契约必须保留。源码写法、CSS class、重复跨层规则和第三方库转发不作为默认测试目标。
+新增测试应能说明独立保护价值、具体失败风险、现有证据缺口与最低足够层；在交付说明或 PR 中简述即可，无需先等待用户批准测试方案。不为每个函数、组件或实现细节机械添加测试。安全、权限、业务不变量、事务、并发与真实 DB/provider 契约必须保留。源码写法、CSS class、重复跨层规则和第三方库转发不作为默认测试目标。
 
 按风险选择 [`docs/testing.md`](docs/testing.md) 中的最小 evidence。日常优先使用与 changed surface 匹配的 `pnpm type-check:*`、定向 Vitest 和文件级 ESLint；`pnpm type-check`、`pnpm lint`、`pnpm test`、`pnpm db:check`、`pnpm knip`、`pnpm knip --production`、`pnpm verify` 是按风险选择的 broad host-only 或最终检查，不是每次迭代默认全跑。提交前检查完整 diff、未跟踪文件、敏感信息和临时产物。
 
-默认开发与交付流程是 Draft → Ready：开发阶段使用 Draft PR，push 后由 Evidence Planner 运行与 changed surface 匹配的 affected evidence 并产生 `draft-gate`；本地只执行匹配改动的 host-only 快速检查，不为每次迭代默认启动 PostgreSQL、Local Supabase 或 browser 重型环境。准备交付时将 PR 标记为 Ready for review；Ready PR 使用同一个 Evidence Planner 运行匹配改动风险的 affected evidence 并产生 required 的 `ci-gate`（不因 Ready 状态机械升级为 FULL）。只有最新 required checks 全绿后才能 merge；新 push 会使旧 commit 的 evidence 失效。
+进入 PR 交付范围时，按 [`CONTRIBUTING.md`](CONTRIBUTING.md#draft--ready-开发与-ci) 执行 Draft → Ready 和最新 commit 的 required checks；状态转换不自动扩大测试范围。本地只执行匹配改动的 host-only 快速检查，不为每次迭代默认启动 PostgreSQL、Local Supabase 或 browser 重型环境。
 
 本地 `pnpm check` / `pnpm verify` 是可选 broad host-only gate，不是每次迭代或每次 push 的默认要求。需要真实数据库、Supabase 或 browser 复现时，按 [`docs/operations/local-development.md`](docs/operations/local-development.md) 只启动最小层级。
 
@@ -47,6 +56,11 @@ PR title、Changeset 与 closure 语义由 [`CONTRIBUTING.md`](CONTRIBUTING.md) 
 - 成功时只确认 required checks（尤其 `ci-gate`）成功，不读成功 job 的全量日志或逐步复述。
 - 失败时先读取失败 check/job 摘要，只有摘要不足以定位才读取 `--log-failed` 等失败范围日志；本地修复和验证完成后再统一 push，避免边试边连续触发 CI。
 - 不要用 `sleep 10 && query` 伪装等待，也不要为此增加 bot、server、daemon 或其他基础设施。
+- watch 在工具支持时作为可恢复的运行中会话等待，保留进度沟通能力。正常 pending 继续等待；认证、审批、配额、失联或平台执行时限阻塞时，保留 PR/head SHA、最后状态和恢复方式，报告未完成的检查，不把 pending 当作成功或扩大权限来完成。
+
+## Next.js 文档适用范围
+
+下面是工具维护的框架提示。涉及 Next.js API、路由、渲染或配置时，写代码前读取相关本地指南；纯文档或无关领域逻辑只读取其相关 owner，不要求通读框架文档。保留生成区块，项目适用范围在区块外维护。
 
 <!-- BEGIN:nextjs-agent-rules -->
 
