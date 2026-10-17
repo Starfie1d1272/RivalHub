@@ -1,5 +1,7 @@
 # 产品遥测本地证据（2026-10-17）
 
+历史证据：本目录对应 `dd20deff` 修正前的 events TEXT 实现，源码 hash 应在该版本核对；不代表当前原始数据压缩或留存配置。终审修正及最新测量见 [新证据](../product-telemetry-review-2026-10-17/README.md)。
+
 基线 main：`a1051ea7`。执行前通过 GitHub API 与本地 fetch 核对；开放 PR 仅 #944（界面重设计）和 #936（actions/cache 更新），没有重复产品遥测 PR。Mizar #398 仅只读参考其草稿说明，未修改其分支/资源。
 
 `measurement.json` 由 `pnpm telemetry:measure` 产生，`source-sha256.txt` 标识被测源码；构建/部署的完整 SHA 以交付 PR 为准。场景是每会话活跃 30 分钟，每分钟一次导航/筛选和两次显式动作，总计 150 条事件、30 次直传，无新增 Vercel 采集请求。空闲轮询不注入动作。合成场景不是线上 DAU、用户行为分布或费用证明。

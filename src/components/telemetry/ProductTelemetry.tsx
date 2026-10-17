@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { Bootstrap } from "@/lib/telemetry/protocol";
-import { configureTelemetry, flushTelemetry, markHistoryNavigation, recordClientError, recordPage, setTelemetryScene, telemetryFlushInterval } from "@/lib/telemetry/client";
+import { configureTelemetry, flushTelemetry, markHistoryNavigation, recordClientError, recordPage, renewTelemetryIfNeeded, setTelemetryScene, telemetryFlushInterval } from "@/lib/telemetry/client";
 
 export function ProductTelemetry({ config }: { config: Bootstrap | null }) {
   const pathname = usePathname();
@@ -10,8 +10,10 @@ export function ProductTelemetry({ config }: { config: Bootstrap | null }) {
   useEffect(() => {
     configureTelemetry(config);
     if (!config) return;
-    const timer = setInterval(flushTelemetry, telemetryFlushInterval);
-    const hidden = () => { if (document.visibilityState === "hidden") flushTelemetry(); };
+    const renew = () => { void renewTelemetryIfNeeded(); };
+    const timer = setInterval(() => { flushTelemetry(); renew(); }, telemetryFlushInterval);
+    const hidden = () => { if (document.visibilityState === "hidden") flushTelemetry(); else renew(); };
+    renew();
     window.addEventListener("popstate", markHistoryNavigation);
     window.addEventListener("pagehide", flushTelemetry);
     window.addEventListener("error", recordClientError);

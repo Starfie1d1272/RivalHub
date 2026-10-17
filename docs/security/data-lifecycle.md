@@ -44,7 +44,7 @@
 | 设备 verifier、配对/邀请、会话 | 原 owner expiresAt/撤销控制使用资格；session 有 canonical 有效期 | registry 注册时清该用户过期会话，退出/全撤销删除记录，durable fence 保留；设备撤销保留关系/audit。失效 intents/receipts 未有统一物理 purge |
 | 反馈 | new/triaged/resolved 只是处理状态；当前无 resolved 后自动删除期限 | 状态更新不删 body/pathname/fingerprint；保留期、主动撤回、低敏处理结论应另行确定，不把 resolved 当匿名化 |
 | 业务 audit | 当前无统一自动 purge，维护正式追溯 | 低敏写入与安全投影不使历史 raw/private meta 公开；未来脱敏需定义责任追溯、tombstone、授权关系 |
-| 产品遥测 | active raw/索引从事件时间七天；无身份日汇总候选九十天，最终策略待批准 | 读端到期不可见、小时任务有界物理删除；D1 Time Travel 恢复副本可能另存七天，必须按 [产品遥测清单](../operations/product-telemetry.md) 确认总保留要求；恢复前停收并清过期数据；不进入应用 PG 备份 |
+| 产品遥测 | 压缩 raw/索引从事件时间七天读端到期；长期汇总默认关闭，另行批准具体天数 | 读端到期不可见、小时任务分块删行，不保证所有副本七天物理擦除；D1 Time Travel 恢复副本可能在行删除后另存七天，清理故障还会延后，必须按 [产品遥测清单](../operations/product-telemetry.md) 确认总保留要求；恢复前停收并清过期数据；不进入应用 PG 备份 |
 | Runtime telemetry | provider-managed，按当前 project/source/plan 核验 | provider 管理过期；仓库采样率不能推出保留期，ingest secret presence 不能证明查询权限。实际配置/owner/核验时间留在执行 Issue |
 | Cache/projection/心跳 | 原 owner freshness、invalidation、reducer version | 由 canonical facts 重建；恢复旧缓存不能绕过身份/资格/处罚/撤销校验。心跳无独立历史 purge，不能宣传已到期物理删除 |
 | 浏览器上一帧 | 原服务端收帧时间后 30 秒；恢复前必须取得 fresh viewer proof，未知资格、上下文/地图/登录变化清除 | owner 在期限安排标签页清理，读端始终拒绝超期；浏览器冻结时物理清理可能延后。登录/退出清除，不进入 application DB、备份或灾难恢复输入；恢复不会刷新原时间 |

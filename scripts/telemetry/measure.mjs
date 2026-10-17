@@ -8,6 +8,7 @@ import { gzipSync } from 'node:zlib';
 import { DatabaseSync } from 'node:sqlite';
 import { chromium } from '@playwright/test';
 import { accountKey, signTicket } from '../../src/lib/telemetry/ticket.ts';
+import { batchSummary, compressEvents } from '../../workers/telemetry/storage.ts';
 import { Miniflare } from 'miniflare';
 const require = createRequire(import.meta.url);
 // tsx's declared transpiler, used only to measure the actual client bundle.
@@ -40,11 +41,15 @@ try {
   });
   const sqlite = new DatabaseSync(join(directory, 'telemetry.sqlite'));
   sqlite.exec(await readFile('workers/telemetry/schema.sql', 'utf8'));
-  const insert = sqlite.prepare('INSERT INTO batches VALUES(?,?,?,?,?,?,?,?,?,?,?,?)');
+  const insert = sqlite.prepare('INSERT INTO batches VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)');
+  const reference = new DatabaseSync(join(directory, 'uncompressed.sqlite'));
+  reference.exec(await readFile('workers/telemetry/schema.sql', 'utf8'));
+  const referenceInsert = reference.prepare('INSERT INTO batches VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)');
+  let rawJsonBytes = 0, gzipBytes = 0, summaryBytes = 0; const compressionTimes = [];
   const perDay = [];
   const started = performance.now();
   // A seven-day 30-session/day cohort, with the actual Chromium-produced event bodies.
-  sqlite.exec('BEGIN');
+  sqlite.exec('BEGIN'); reference.exec('BEGIN');
   for (let day = 0; day < 7; day++) for (let user = 0; user < 30; user++) {
     let index = 0;
     const ticketId = randomUUID(); const sessionId = randomUUID();
@@ -52,13 +57,20 @@ try {
     for (const body of measured.bodies) {
       const events = JSON.parse(body).events.map(event => ({ ...event, session: sessionId, at: event.at + day * 86400000 }));
       const json = JSON.stringify(events);
-      insert.run(ticketId, JSON.parse(body).id, measured.initialClock + day * 86400000 + index++ * 60000, measured.initialClock + (day + 7) * 86400000, new Date(measured.initialClock + day * 86400000).toISOString().slice(0, 10), account, sessionId, 'user', 'a'.repeat(40), 'preview', Buffer.byteLength(json), json);
+      const start = performance.now(); const compressed = await compressEvents(events); compressionTimes.push(performance.now() - start);
+      const summary = batchSummary(events);
+      rawJsonBytes += Buffer.byteLength(json); gzipBytes += compressed.byteLength; summaryBytes += Buffer.byteLength(summary);
+      const metadata = [ticketId, JSON.parse(body).id, measured.initialClock + day * 86400000 + index++ * 60000, measured.initialClock + (day + 7) * 86400000, new Date(measured.initialClock + day * 86400000).toISOString().slice(0, 10), account, sessionId, 'user', 'a'.repeat(40), 'preview', Buffer.byteLength(json)];
+      insert.run(...metadata, new Uint8Array(compressed), summary);
+      referenceInsert.run(...metadata, json, summary);
     }
   }
-  sqlite.exec('COMMIT');
+  sqlite.exec('COMMIT'); reference.exec('COMMIT');
   const insertMs = performance.now() - started;
   const storageBytes = sqlite.prepare('PRAGMA page_count').get().page_count * sqlite.prepare('PRAGMA page_size').get().page_size;
-  sqlite.close();
+  const uncompressedStorageBytes = reference.prepare('PRAGMA page_count').get().page_count * reference.prepare('PRAGMA page_size').get().page_size;
+  compressionTimes.sort((a, b) => a - b);
+  sqlite.close(); reference.close();
   for (const sessions of [10, 30, 100]) perDay.push({ sessions, events: measured.events.length * sessions, requests: measured.requests * sessions, wireBytesWith900ByteTicket: (measured.wireBytesWithoutTicket + measured.requests * 900) * sessions, fits5000BatchDailyBudget: measured.requests * sessions <= 5000 });
   const bindings = { SIGNING_KEY: 'fixture-signing-key'.repeat(3), ADMIN_KEY: 'fixture-admin-key'.repeat(3), ALLOWED_ORIGIN: 'https://fixture.invalid', ACCEPTING: '1', RETENTION_APPROVED: '1' };
   const signingTimes = [];
@@ -84,5 +96,5 @@ try {
   }
   signingTimes.sort((a, b) => a - b); receiverTimes.sort((a, b) => a - b);
   const receiver = { acceptedBatches: measured.bodies.length, ticketSigningP95Ms: signingTimes[94], localWorkerRequestWallP95Ms: receiverTimes[Math.floor(receiverTimes.length * .95)], d1: await d1.prepare('SELECT count(*) AS batches FROM batches').all() };
-  console.log(JSON.stringify({ receiver, scenario: '30 minutes/session; each minute one navigation/filter + two completed explicit actions; idle polling absent', browser: await browser.version(), bundle: { minifiedBytes: bytes.length, gzipBytes: gzipSync(bytes).length }, perSession: { requests: measured.requests, events: measured.events.length, operationOverheadMs: measured.operationOverheadMs }, perDay, sqlite: { sessionsPerDay: 30, days: 7, batches: 30 * 7 * measured.requests, allocatedBytesIncludingIndexes: storageBytes, insertWallMs: insertMs }, limits: 'Synthetic Chromium and local SQLite, not Cloudflare CPU, D1 billed rows, shared quota headroom or production traffic. Ticket overhead conservatively adds 900 bytes/batch. No automatic rollout.' }, null, 2));
+  console.log(JSON.stringify({ receiver, scenario: '30 minutes/session; each minute one navigation/filter + two completed explicit actions; idle polling absent', browser: await browser.version(), bundle: { minifiedBytes: bytes.length, gzipBytes: gzipSync(bytes).length }, perSession: { requests: measured.requests, events: measured.events.length, operationOverheadMs: measured.operationOverheadMs }, perDay, sqlite: { sessionsPerDay: 30, days: 7, batches: 30 * 7 * measured.requests, allocatedBytesIncludingIndexes: storageBytes, uncompressedEquivalentBytesIncludingIndexes: uncompressedStorageBytes, rawJsonBytes, gzipBytes, summaryBytes, rawGzipRatio: gzipBytes / rawJsonBytes, compressionWallP95Ms: compressionTimes[Math.floor(compressionTimes.length * .95)], insertWallMs: insertMs }, limits: 'Synthetic Chromium and local SQLite, not Cloudflare CPU, D1 billed rows, shared quota headroom or production traffic. Ticket overhead conservatively adds 900 bytes/batch. No automatic rollout.' }, null, 2));
 } finally { await browser?.close(); await runtime?.dispose(); await rm(directory, { recursive: true, force: true }); }

@@ -10,13 +10,19 @@ let activeAt = 0;
 let sceneContext: { prefix: string; scene: Scene; eventId: string } | null = null;
 let previousPage = "";
 let historyNavigation = false;
+let bootstrap: Bootstrap | null = null;
+let generation = 0;
+let renewing = false;
+let nextRenewalAttempt = 0;
 const errorCodes = new Set<string>(Object.values(ErrorCode));
 const storageKey = "rivalhub-product-session-v1";
 function attempt(callback: () => void) { try { callback(); } catch { /* Observability cannot alter a business result. */ } }
 
 export function configureTelemetry(config: Bootstrap | null) {
   attempt(() => {
-    if (!config || navigator.doNotTrack === "1" || (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl) { queue = null; identity = null; return; }
+    generation++;
+    if (!config || navigator.doNotTrack === "1" || (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl) { queue = null; identity = null; bootstrap = null; return; }
+    bootstrap = config;
     if (queue && identity === config.identity) { queue.configure(config); return; }
     queue = new TelemetryQueue(config);
     identity = config.identity;
@@ -67,10 +73,33 @@ export function recordFilter(key: string, value: string) {
 export function recordClientError() { record({ kind: "error", errorCode: "CLIENT_UNHANDLED" }); }
 export function flushTelemetry() { attempt(() => { void queue?.flush().catch(() => {}); }); }
 export function resetTelemetryIdentity() {
-  flushTelemetry(); queue = null; identity = null; session = ""; previousPage = "";
+  flushTelemetry(); generation++; nextRenewalAttempt = 0; bootstrap = null; queue = null; identity = null; session = ""; previousPage = "";
   attempt(() => sessionStorage.removeItem(storageKey));
 }
 export const telemetryFlushInterval = LIMITS.flushMs;
+
+async function requestBootstrap(): Promise<Bootstrap | null> {
+  const response = await fetch("/api/product-telemetry", {
+    method: "POST", credentials: "same-origin", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(5000),
+  });
+  if (!response.ok) throw new Error("renewal_failed");
+  return response.json();
+}
+
+/** Once per ~20h on a visible tab; failure retries at most hourly, never per click. */
+export async function renewTelemetryIfNeeded(renew: () => Promise<Bootstrap | null | undefined> = requestBootstrap) {
+  if (!queue || !bootstrap || renewing || document.visibilityState === "hidden" || Date.now() < bootstrap.expiresAt - 4 * 3600000 || Date.now() < nextRenewalAttempt) return;
+  renewing = true; nextRenewalAttempt = Date.now() + 3600000;
+  const captured = generation; let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const value = await Promise.race([
+      renew(),
+      new Promise<undefined>(resolve => { timeout = setTimeout(() => resolve(undefined), 5000); }),
+    ]);
+    if (captured === generation && value !== undefined) configureTelemetry(value);
+  } catch { /* Renewal failure never blocks an action or retries that action. */ }
+  finally { clearTimeout(timeout); renewing = false; }
+}
 
 // Only these declared discriminants are read. Never enumerate or serialize action input.
 function variantFor(operation: Operation, input: unknown): string | undefined {

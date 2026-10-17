@@ -9,7 +9,7 @@ it("executes the real Worker and D1 API: concurrent ACK deduplication, usage and
   const require = createRequire(import.meta.url);
   const { build } = createRequire(require.resolve("tsx/package.json"))("esbuild") as { build(options: object): Promise<{ outputFiles: { text: string }[] }> };
   const built = await build({ entryPoints: ["workers/telemetry/index.ts"], bundle: true, write: false, format: "esm", platform: "browser" });
-  const bindings = { SIGNING_KEY: "fixture-worker-signing-key".repeat(2), ADMIN_KEY: "fixture-worker-admin-key".repeat(2), ALLOWED_ORIGIN: "https://rivalhub.invalid", ACCEPTING: "1", RETENTION_APPROVED: "1" };
+  const bindings = { SIGNING_KEY: "fixture-worker-signing-key".repeat(2), ADMIN_KEY: "fixture-worker-admin-key".repeat(2), ALLOWED_ORIGIN: "https://rivalhub.invalid", ACCEPTING: "1", RETENTION_APPROVED: "1", SUMMARY_RETENTION_DAYS: "14" };
   const mf = new Miniflare({ modules: true, script: built.outputFiles![0].text, compatibilityDate: "2026-07-30", bindings, d1Databases: ["DB"] });
   try {
     const db = await mf.getD1Database("DB");
