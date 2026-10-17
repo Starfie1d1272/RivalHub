@@ -7,6 +7,7 @@
 | 任务 | 文档 |
 | --- | --- |
 | 第一次了解项目 | [`../README.md`](../README.md) |
+| 独立产品重设计前了解现状 | [2026-10-17 产品事实基线](product-baseline/2026-10-17/README.md)（固定 commit 快照，产品事实与实现索引分开） |
 | 开发、PR、Changeset | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) |
 | 系统边界与代码分层 | [`architecture.md`](./architecture.md) |
 | 核心领域实体与事实 ownership | [`domain-model.md`](./domain-model.md) |
