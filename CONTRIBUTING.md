@@ -2,6 +2,20 @@
 
 技术架构、测试与部署边界分别见 [`docs/architecture.md`](docs/architecture.md)、[`docs/testing.md`](docs/testing.md)、[`docs/deployment.md`](docs/deployment.md)。Issue/PR 不替代 code、tests、active migrations 或 GitHub ruleset 的实际证据。
 
+## 交付范围与完成条件
+
+以用户请求及会话中仍有效的授权确定终点，不在每个阶段重复确认，也不自动扩大为发布：
+
+| 请求范围 | 完成条件 |
+| --- | --- |
+| 审阅、分析、方案 | 提供有位置与依据的发现或方案；仅请求审阅时不自动实施 |
+| 修改、修复、优化 | 完成必要文件修改和相称验证，交付差异、结果与限制；未指定远端交付时本地完成即可 |
+| 提交 PR / 按 PR 流程交付 | 完成提交、push、PR 及下面的 Draft → Ready 流程，确认最新 required checks；用户明确只要 Draft 时保持 Draft |
+| 合并 | 在合并已授权且 CI、up-to-date、review 条件满足后执行，并读取实际合并结果 |
+| 发布 / 部署 | 在目标环境已授权时依照 release runbook 执行，以其完成条件为准 |
+
+准备工作、成功构建和已发起远端操作都不能代替结果验证。必需证据或动作受阻时，完成不受影响的部分，明确已完成项、阻塞步骤、原因及最小恢复动作；不得声称整个任务完成。满足请求范围及必要证据后停止，不自动追加发布、重构或无关验证。
+
 ## Branch, Issue and PR
 
 - `main` 是唯一长期 releasable trunk。常规工作从最新 `main` 创建 `feat/*`、`fix/*`、`docs/*` 等短期分支，PR base 为 `main`；只允许 squash merge，不直接 push/force-push `main`。
@@ -13,7 +27,7 @@
 
 ## Draft → Ready 开发与 CI
 
-- 新功能、修复和文档工作默认以 **Draft PR** 开始。Draft 期间每次 push 由 Evidence Planner 根据 changed surface 选择 affected static、PostgreSQL integration spec 和 semantic browser flow，并以 `draft-gate` 汇总；该结果用于快速反馈，不是最终 merge evidence。
+- 进入 PR 交付范围的新功能、修复和文档工作默认以 **Draft PR** 开始；只要求本地修改时不以创建 PR 作为前置条件。Draft 期间每次 push 由 Evidence Planner 根据 changed surface 选择 affected static、PostgreSQL integration spec 和 semantic browser flow，并以 `draft-gate` 汇总；该结果用于快速反馈，不是最终 merge evidence。
 - 本地迭代只执行与当前改动匹配的 host-only 快速检查。不要为了每次修改重复启动 PostgreSQL、Local Supabase 或 browser 重型环境；对应真实环境证据由 CI 按需运行，失败复现时再按 [`docs/operations/local-development.md`](docs/operations/local-development.md) 启动最小层级。
 - 实现和本地快速检查完成、准备交付时，将 PR 标记为 **Ready for review**。Ready PR 使用同一个 Evidence Planner 规划与变更风险相匹配的最低充分 evidence（遵循 L0–L4 风险分层，不机械升级为 FULL），并产生 ruleset required 的 `ci-gate`。
 - 只有最新 commit 的 required `ci-gate` / `pr-title` 及 ruleset 要求的其它 checks 全部成功，且 strict up-to-date 与 review thread 条件满足后，才可以 merge。新 push 会使旧 commit 的 evidence 失效，不能沿用旧结果。
