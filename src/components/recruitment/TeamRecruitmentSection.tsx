@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { closeTeamRecruitment, dismissRecruitmentInterest, saveTeamRecruitment } from "@/actions/recruitment";
+import { closeTeamRecruitment as telemetry_closeTeamRecruitment, dismissRecruitmentInterest as telemetry_dismissRecruitmentInterest, saveTeamRecruitment as telemetry_saveTeamRecruitment } from "@/actions/recruitment";
 import { InviteRecruitingPlayerButton } from "@/components/recruitment/InviteRecruitingPlayerButton";
 import { RecruitmentPositionPicker } from "@/components/recruitment/RecruitmentPositionPicker";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Panel, PosChip, StatusBanner, StatusPill } from "@/components/rivalhub";
 import type { Cs2Position } from "@/lib/config/cs2-positions";
+import { observeAction } from "@/lib/telemetry/client";
+
+const closeTeamRecruitment = observeAction("recruitment.closeTeamRecruitment", telemetry_closeTeamRecruitment);
+const dismissRecruitmentInterest = observeAction("recruitment.dismissRecruitmentInterest", telemetry_dismissRecruitmentInterest);
+const saveTeamRecruitment = observeAction("recruitment.saveTeamRecruitment", telemetry_saveTeamRecruitment);
 
 type Recruitment = { id: string; positions: Cs2Position[]; targetSeasonId: string | null; targetSeasonName: string | null; note: string | null; status: "open" | "closed"; expiresAt: string; isPubliclyActive: boolean } | null;
 type Interest = { userId: string; name: string; positions: Cs2Position[]; currentTeamSlug?: string | null; currentTeamName?: string | null; qq: string | null };

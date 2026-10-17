@@ -2,11 +2,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { concludeTestMatch } from "@/actions/test-matches";
+import { concludeTestMatch as telemetry_concludeTestMatch } from "@/actions/test-matches";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { mapLabel } from "@/lib/maps";
 import { InlineConfirm } from "@/components/rivalhub";
+import { observeAction } from "@/lib/telemetry/client";
+
+const concludeTestMatch = observeAction("test-matches.concludeTestMatch", telemetry_concludeTestMatch);
 
 type ResultMap = { id: string; mapName: string; scoreA: number; scoreB: number };
 export function TestMatchConclusion({ matchId, finished, disposition, updatedAt, scoreA: initialA, scoreB: initialB, maps }: {

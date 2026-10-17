@@ -1,9 +1,12 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import { cancelMatchCommentary } from "@/actions/postmatch";
+import { cancelMatchCommentary as telemetry_cancelMatchCommentary } from "@/actions/postmatch";
 import { InlineConfirm } from "@/components/rivalhub/InlineConfirm";
 import { Button } from "@/components/ui/button";
+import { observeAction } from "@/lib/telemetry/client";
+
+const cancelMatchCommentary = observeAction("postmatch.cancelMatchCommentary", telemetry_cancelMatchCommentary);
 
 export function CancelCommentaryButton({ matchId }: { matchId: string }) {
   const [pending, startTransition] = useTransition();

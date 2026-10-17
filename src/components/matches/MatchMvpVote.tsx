@@ -6,7 +6,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { Panel } from "@/components/rivalhub";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
-import { castMatchMvpVote } from "@/actions/player-stats";
+import { castMatchMvpVote as telemetry_castMatchMvpVote } from "@/actions/player-stats";
 import { MVP_DEADLINE_MS } from "@/lib/utils/date";
 import { formatStat, type StatMetric } from "@/lib/stats";
 import { useRoutePolling } from "@/components/use-visible-polling";
@@ -16,6 +16,9 @@ import { MetricValue } from "@/components/stats/MetricValue";
 import { STATS_METRICS } from "@/lib/stats/metrics";
 import type { StatsRateValue } from "@/lib/stats/presentation";
 import { Button } from "@/components/ui/button";
+import { observeAction } from "@/lib/telemetry/client";
+
+const castMatchMvpVote = observeAction("player-stats.castMatchMvpVote", telemetry_castMatchMvpVote);
 
 interface MvpCandidate {
   userId: string | null;

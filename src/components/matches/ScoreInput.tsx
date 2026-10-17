@@ -3,7 +3,10 @@
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { updateMatchStatus } from "@/actions/matches";
+import { updateMatchStatus as telemetry_updateMatchStatus } from "@/actions/matches";
+import { observeAction } from "@/lib/telemetry/client";
+
+const updateMatchStatus = observeAction("matches.updateMatchStatus", telemetry_updateMatchStatus);
 
 interface ScoreInputProps {
   matchId: string;

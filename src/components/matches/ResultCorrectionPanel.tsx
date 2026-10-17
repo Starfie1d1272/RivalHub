@@ -11,10 +11,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Checklist, Panel, StatusBanner } from "@/components/rivalhub";
 import type { ResultCorrectionPlanPresentation } from "@/lib/match-corrections/presentation";
 import {
-  applyMatchResultCorrection,
-  planMatchResultCorrection,
-  recordMatchRecoveryAdjudication,
+  applyMatchResultCorrection as telemetry_applyMatchResultCorrection,
+  planMatchResultCorrection as telemetry_planMatchResultCorrection,
+  recordMatchRecoveryAdjudication as telemetry_recordMatchRecoveryAdjudication,
 } from "@/actions/matches/corrections";
+import { observeAction } from "@/lib/telemetry/client";
+
+const applyMatchResultCorrection = observeAction("matches.corrections.applyMatchResultCorrection", telemetry_applyMatchResultCorrection);
+const planMatchResultCorrection = observeAction("matches.corrections.planMatchResultCorrection", telemetry_planMatchResultCorrection);
+const recordMatchRecoveryAdjudication = observeAction("matches.corrections.recordMatchRecoveryAdjudication", telemetry_recordMatchRecoveryAdjudication);
 
 interface ResultCorrectionPanelProps {
   matchId: string;

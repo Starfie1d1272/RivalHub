@@ -19,9 +19,13 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { adminSelectMatchRoster, confirmMatchRoster } from "@/actions/matches/roster";
+import { adminSelectMatchRoster as telemetry_adminSelectMatchRoster, confirmMatchRoster as telemetry_confirmMatchRoster } from "@/actions/matches/roster";
 import type { RosterData } from "@/lib/admin/matches/types";
 import type { MatchRosterStatus } from "@/db/schema";
+import { observeAction } from "@/lib/telemetry/client";
+
+const adminSelectMatchRoster = observeAction("matches.roster.adminSelectMatchRoster", telemetry_adminSelectMatchRoster);
+const confirmMatchRoster = observeAction("matches.roster.confirmMatchRoster", telemetry_confirmMatchRoster);
 
 // ── Types ───────────────────────────────────────────────────────────────────
 

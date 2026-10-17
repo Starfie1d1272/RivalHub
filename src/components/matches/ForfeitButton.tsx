@@ -6,7 +6,10 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { forfeitMatch } from "@/actions/matches";
+import { forfeitMatch as telemetry_forfeitMatch } from "@/actions/matches";
+import { observeAction } from "@/lib/telemetry/client";
+
+const forfeitMatch = observeAction("matches.forfeitMatch", telemetry_forfeitMatch);
 
 interface ForfeitButtonProps {
   matchId: string;

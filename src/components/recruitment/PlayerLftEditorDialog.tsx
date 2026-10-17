@@ -4,13 +4,17 @@ import React from "react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { closePlayerLft, savePlayerLft } from "@/actions/recruitment";
+import { closePlayerLft as telemetry_closePlayerLft, savePlayerLft as telemetry_savePlayerLft } from "@/actions/recruitment";
 import { RecruitmentPositionPicker } from "@/components/recruitment/RecruitmentPositionPicker";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { Cs2Position } from "@/lib/config/cs2-positions";
+import { observeAction } from "@/lib/telemetry/client";
+
+const closePlayerLft = observeAction("recruitment.closePlayerLft", telemetry_closePlayerLft);
+const savePlayerLft = observeAction("recruitment.savePlayerLft", telemetry_savePlayerLft);
 
 type ExistingLft = { positions: Cs2Position[]; targetSeasonId: string | null; note: string | null } | null;
 

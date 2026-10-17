@@ -1,4 +1,5 @@
 "use client";
+import { recordFilter } from "@/lib/telemetry/client";
 import React, { useState, type ReactNode } from "react";
 import { ArrowDown, ArrowRight, Columns3, LayoutGrid, List } from "lucide-react";
 import styles from "./tournament.module.css";
@@ -29,7 +30,7 @@ export function TournamentFlow({ rounds, view, setView, renderRound, finalResult
               key={key}
               type="button"
               aria-pressed={view === key}
-              onClick={() => setView(key)}
+              onClick={() => { recordFilter("view", key); setView(key); }}
             >
               <Icon size={16} />
               <span>{label}</span>

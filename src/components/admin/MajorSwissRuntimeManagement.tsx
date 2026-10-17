@@ -3,11 +3,16 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { finalizeMajorSwissRound, startMajorPlayoff, transitionMajorSwissStage } from "@/actions/major-prestart";
+import { finalizeMajorSwissRound as telemetry_finalizeMajorSwissRound, startMajorPlayoff as telemetry_startMajorPlayoff, transitionMajorSwissStage as telemetry_transitionMajorSwissStage } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Marker, Panel } from "@/components/rivalhub";
 import type { MajorSwissRuntimeData } from "@/lib/admin/major-runtime";
+import { observeAction } from "@/lib/telemetry/client";
+
+const finalizeMajorSwissRound = observeAction("major-prestart.finalizeMajorSwissRound", telemetry_finalizeMajorSwissRound);
+const startMajorPlayoff = observeAction("major-prestart.startMajorPlayoff", telemetry_startMajorPlayoff);
+const transitionMajorSwissStage = observeAction("major-prestart.transitionMajorSwissStage", telemetry_transitionMajorSwissStage);
 
 export type { MajorSwissRuntimeData } from "@/lib/admin/major-runtime";
 

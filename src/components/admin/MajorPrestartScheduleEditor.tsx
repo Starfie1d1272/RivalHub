@@ -2,11 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { saveMajorPrestartSchedule } from "@/actions/major-prestart";
+import { saveMajorPrestartSchedule as telemetry_saveMajorPrestartSchedule } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toCSTDateTimeInput } from "@/lib/utils/date";
+import { observeAction } from "@/lib/telemetry/client";
+
+const saveMajorPrestartSchedule = observeAction("major-prestart.saveMajorPrestartSchedule", telemetry_saveMajorPrestartSchedule);
 
 export function MajorPrestartScheduleEditor({ seasonId, kind, label, value, disabled, hint }: {
   seasonId: string;

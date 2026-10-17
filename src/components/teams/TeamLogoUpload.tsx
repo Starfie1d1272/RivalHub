@@ -3,9 +3,12 @@
 import React, { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Spinner } from "@/components/rivalhub";
-import { uploadTeamLogo } from "@/actions/teams";
+import { uploadTeamLogo as telemetry_uploadTeamLogo } from "@/actions/teams";
 import { LOGO_MAX_BYTES, LOGO_ALLOWED_TYPES } from "@/lib/config/upload-limits";
 import { TeamLogoImage } from "./TeamLogoImage";
+import { observeAction } from "@/lib/telemetry/client";
+
+const uploadTeamLogo = observeAction("teams.uploadTeamLogo", telemetry_uploadTeamLogo);
 
 interface TeamLogoUploadProps {
   teamId?: string;

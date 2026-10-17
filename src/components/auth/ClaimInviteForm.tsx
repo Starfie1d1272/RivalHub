@@ -6,7 +6,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { claimInviteCode } from "@/actions/auth";
+import { claimInviteCode as telemetry_claimInviteCode } from "@/actions/auth";
+import { observeAction } from "@/lib/telemetry/client";
+
+const claimInviteCode = observeAction("auth.claimInviteCode", telemetry_claimInviteCode);
 
 interface Props {
   initialCode?: string;

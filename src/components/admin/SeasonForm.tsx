@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { createSeason, deleteSeason, openSeasonRegistration, publishSeason, updateSeason, revertSeasonToDraft, revertSeasonToRegistration, forceFinishSeason, archiveSeason, type SeasonFormInput } from "@/actions/seasons";
+import { createSeason as telemetry_createSeason, deleteSeason as telemetry_deleteSeason, openSeasonRegistration as telemetry_openSeasonRegistration, publishSeason as telemetry_publishSeason, updateSeason as telemetry_updateSeason, revertSeasonToDraft as telemetry_revertSeasonToDraft, revertSeasonToRegistration as telemetry_revertSeasonToRegistration, forceFinishSeason as telemetry_forceFinishSeason, archiveSeason as telemetry_archiveSeason, type SeasonFormInput } from "@/actions/seasons";
 import {
   type PlayerType,
   type RegistrationConfig,
@@ -53,6 +53,17 @@ import {
   type CompetitivePlatformOption,
 } from "@/components/admin/SeasonSettingsFacts";
 import type { ConversionPolicyProvenance } from "@/lib/competitive/conversion-policy-admin";
+import { observeAction } from "@/lib/telemetry/client";
+
+const createSeason = observeAction("seasons.createSeason", telemetry_createSeason);
+const deleteSeason = observeAction("seasons.deleteSeason", telemetry_deleteSeason);
+const openSeasonRegistration = observeAction("seasons.openSeasonRegistration", telemetry_openSeasonRegistration);
+const publishSeason = observeAction("seasons.publishSeason", telemetry_publishSeason);
+const updateSeason = observeAction("seasons.updateSeason", telemetry_updateSeason);
+const revertSeasonToDraft = observeAction("seasons.revertSeasonToDraft", telemetry_revertSeasonToDraft);
+const revertSeasonToRegistration = observeAction("seasons.revertSeasonToRegistration", telemetry_revertSeasonToRegistration);
+const forceFinishSeason = observeAction("seasons.forceFinishSeason", telemetry_forceFinishSeason);
+const archiveSeason = observeAction("seasons.archiveSeason", telemetry_archiveSeason);
 
 const PLAYER_TYPES: PlayerType[] = ["enrolled", "graduated", "external"];
 

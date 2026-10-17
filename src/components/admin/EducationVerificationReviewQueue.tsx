@@ -3,11 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { reviewEducationVerification } from "@/actions/education-verifications";
+import { reviewEducationVerification as telemetry_reviewEducationVerification } from "@/actions/education-verifications";
 import { EmptyState, Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { formatCST } from "@/lib/utils/date";
 import type { EducationReviewRow } from "@/lib/education/admin-review-contract";
+import { observeAction } from "@/lib/telemetry/client";
+
+const reviewEducationVerification = observeAction("education-verifications.reviewEducationVerification", telemetry_reviewEducationVerification);
 
 export type EducationReviewEmptyState = "no-records" | "no-pending" | "no-results";
 

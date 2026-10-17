@@ -3,9 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { runSchedulerJobManually } from "@/actions/scheduler";
+import { runSchedulerJobManually as telemetry_runSchedulerJobManually } from "@/actions/scheduler";
 import { InlineConfirm, Panel, StatusPill } from "@/components/rivalhub";
 import type { SchedulerHealthView } from "@/lib/scheduler/admin";
+import { observeAction } from "@/lib/telemetry/client";
+
+const runSchedulerJobManually = observeAction("scheduler.runSchedulerJobManually", telemetry_runSchedulerJobManually);
 
 function formatHealthTime(value: string | null): string {
   return value ? new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" }) : "暂无记录";

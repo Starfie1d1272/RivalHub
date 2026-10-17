@@ -3,6 +3,8 @@ allowBuilds:
   esbuild: true
   sharp: true
   unrs-resolver: false
+  # Miniflare uses the lockfile-provided platform binary; no install-time download fallback.
+  workerd: false
 overrides:
   # GHSA-w5hq-g745-h8pq: brackets-manager@1.9.1 -> uuid@9.0.1（< 11.1.1 patched floor）。
   # path: .>brackets-manager>uuid；brackets-manager 最新 1.11.0 仍声明 uuid ^9.0.0，

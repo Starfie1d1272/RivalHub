@@ -4,7 +4,10 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { InlineConfirm } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
-import { deleteMatch } from "@/actions/matches";
+import { deleteMatch as telemetry_deleteMatch } from "@/actions/matches";
+import { observeAction } from "@/lib/telemetry/client";
+
+const deleteMatch = observeAction("matches.deleteMatch", telemetry_deleteMatch);
 
 interface DeleteMatchButtonProps {
   matchId: string;

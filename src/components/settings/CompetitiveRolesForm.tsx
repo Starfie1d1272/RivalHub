@@ -2,12 +2,15 @@
 
 import React, { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { saveCompetitiveRoles } from "@/actions/competitive-profile";
+import { saveCompetitiveRoles as telemetry_saveCompetitiveRoles } from "@/actions/competitive-profile";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Panel } from "@/components/rivalhub";
 import { CS2_POSITION_LABELS, CS2_POSITION_VALUES, type Cs2Position } from "@/lib/config/cs2-positions";
+import { observeAction } from "@/lib/telemetry/client";
+
+const saveCompetitiveRoles = observeAction("competitive-profile.saveCompetitiveRoles", telemetry_saveCompetitiveRoles);
 
 export function CompetitiveRolesForm({ initialRoles, initialPrimaryRole }: { initialRoles: Cs2Position[]; initialPrimaryRole: Cs2Position | null }) {
   const [roles, setRoles] = useState<Cs2Position[]>(initialRoles);

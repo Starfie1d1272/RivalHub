@@ -101,13 +101,17 @@
     "scripts/db/public-live-browser-fixture.ts!",
     "src/lib/matches/creation.ts!",
     "playwright.production.config.ts!",
-    "scripts/dependencies/snapshot.ts!"
+    "scripts/dependencies/snapshot.ts!",
+    "workers/telemetry/index.ts!",
+    "scripts/telemetry/measure.mjs!",
+    "scripts/telemetry/query.ts!"
   ],
   "project": [
     "src/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!",
     "scripts/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!",
     "tests/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}",
-    "*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!"
+    "*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!",
+    "workers/telemetry/**/*.ts!"
   ],
   "ignoreBinaries": [
     "openssl"

@@ -1,0 +1,16 @@
+// Review-only template. No real account/database IDs, secrets, or auto-deploy workflow.
+{
+  "name": "rivalhub-product-telemetry",
+  "main": "index.ts",
+  "compatibility_date": "2026-07-30",
+  "workers_dev": false,
+  "observability": { "enabled": false },
+  "vars": {
+    "ACCEPTING": "0",
+    "RETENTION_APPROVED": "0",
+    "SUMMARY_RETENTION_DAYS": "0",
+    "ALLOWED_ORIGIN": "https://replace-with-approved-origin.invalid"
+  },
+  "d1_databases": [{ "binding": "DB", "database_name": "rivalhub-product-telemetry", "database_id": "REQUIRES_APPROVAL" }],
+  "triggers": { "crons": ["0 * * * *"] }
+}

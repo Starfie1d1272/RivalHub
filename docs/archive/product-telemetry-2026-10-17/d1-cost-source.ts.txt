@@ -1,0 +1,34 @@
+import { createRequire } from 'node:module';
+import { readFile } from 'node:fs/promises';
+import { handle, maintain } from '/workspace/RivalHub/workers/telemetry/index.ts';
+import { signTicket } from '/workspace/RivalHub/src/lib/telemetry/ticket.ts';
+const require=createRequire('/workspace/RivalHub/package.json');
+const {Miniflare}=require('miniflare');
+async function main(){
+ const mf=new Miniflare({modules:true,script:'export default {fetch(){return new Response("fixture")}}',compatibilityDate:'2026-07-30',d1Databases:['DB']});
+ try{
+ const db=await mf.getD1Database('DB');
+ await db.batch((await readFile('/workspace/RivalHub/workers/telemetry/schema.sql','utf8')).replace(/^--.*$/gm,'').split(';').map(s=>s.trim()).filter(Boolean).map(s=>db.prepare(s)));
+ let reads=0,writes=0,queries=0;
+ const record=(r:any)=>{reads+=r.meta?.rows_read??0;writes+=r.meta?.rows_written??0;queries++;return r;};
+ const raw=new WeakMap();
+ const wrap=(s:any)=>{const proxy={bind:(...v:any[])=>wrap(s.bind(...v)),all:async()=>record(await s.all()),first:async()=>record(await s.all()).results[0]??null,run:async()=>record(await s.run())};raw.set(proxy,s);return proxy;};
+ const tracked={prepare:(sql:string)=>wrap(db.prepare(sql)),batch:async(ss:any[])=>{const r=await db.batch(ss.map(s=>raw.get(s)));r.forEach(record);return r;}};
+ const env={DB:tracked,SIGNING_KEY:'fixture-key'.repeat(5),ADMIN_KEY:'fixture-admin'.repeat(5),ALLOWED_ORIGIN:'https://fixture.invalid',ACCEPTING:'1',RETENTION_APPROVED:'1'};
+ const start=Date.now(), session=crypto.randomUUID();
+ const ticket=await signTicket({v:1,id:crypto.randomUUID(),account:null,role:'anonymous',release:'a'.repeat(40),environment:'preview',origin:env.ALLOWED_ORIGIN,exp:start+3600000},env.SIGNING_KEY);
+ for(let n=0;n<30;n++){
+  const at=start+n*60000;
+  const events=[{id:crypto.randomUUID(),at,session,route:'/[seasonSlug]/bet',scene:'major',kind:'page'}];
+  for(let j=0;j<2;j++){const operationId=crypto.randomUUID();for(const phase of ['start','success'])events.push({id:crypto.randomUUID(),at,session,route:'/[seasonSlug]/bet',scene:'major',kind:'operation',operation:'free-predictions.submitFreePrediction',operationId,phase} as any);}
+  const r=await handle(new Request('https://fixture.invalid/v1/batches',{method:'POST',headers:{origin:env.ALLOWED_ORIGIN},body:JSON.stringify({v:1,id:crypto.randomUUID(),ticket,events})}),env as any,at);
+  if(r.status!==204)throw Error('failed '+r.status);
+ }
+ const ingest={reads,writes,queries};reads=writes=queries=0;
+ await maintain(env as any,start+86400000);
+ const rollup={reads,writes,queries};reads=writes=queries=0;
+ await maintain(env as any,start+8*86400000);
+ console.log(JSON.stringify({model:'30 batches/150 events, real production handler+maintenance SQL via local D1 API (not hosted billing)',ingest,rollup,cleanup:{reads,writes,queries}},null,2));
+ }finally{await mf.dispose();}
+}
+main();

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { expireSanction, issueSanction, revokeSanction, searchSanctionSubjects } from "@/actions/discipline";
+import { expireSanction as telemetry_expireSanction, issueSanction as telemetry_issueSanction, revokeSanction as telemetry_revokeSanction, searchSanctionSubjects } from "@/actions/discipline";
 import type { SanctionEffect } from "@/lib/discipline/contract";
 import { SANCTION_EFFECTS } from "@/lib/discipline/contract";
 import { formatCST, parseCSTInput } from "@/lib/utils/date";
@@ -25,6 +25,11 @@ import {
   type DisciplineSanctionRow,
   type DisciplineSubjectOption,
 } from "@/lib/discipline/admin-review-contract";
+import { observeAction } from "@/lib/telemetry/client";
+
+const expireSanction = observeAction("discipline.expireSanction", telemetry_expireSanction);
+const issueSanction = observeAction("discipline.issueSanction", telemetry_issueSanction);
+const revokeSanction = observeAction("discipline.revokeSanction", telemetry_revokeSanction);
 
 export type { DisciplineSanctionRow, DisciplineSubjectOption } from "@/lib/discipline/admin-review-contract";
 

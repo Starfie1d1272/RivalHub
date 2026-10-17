@@ -3,13 +3,26 @@
 import { SeasonLogoEditor } from "@/components/admin/SeasonLogoEditor";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { createCommunityGroup, createSeasonContact, deleteCommunityGroup, deleteSeasonContact, moveCommunityGroup, moveSeasonContact, removeCommunityGroupQr, saveSeasonPublicInfo, updateCommunityGroup, updateSeasonContact, uploadCommunityGroupQr } from "@/actions/season-public-info";
+import { createCommunityGroup as telemetry_createCommunityGroup, createSeasonContact as telemetry_createSeasonContact, deleteCommunityGroup as telemetry_deleteCommunityGroup, deleteSeasonContact as telemetry_deleteSeasonContact, moveCommunityGroup as telemetry_moveCommunityGroup, moveSeasonContact as telemetry_moveSeasonContact, removeCommunityGroupQr as telemetry_removeCommunityGroupQr, saveSeasonPublicInfo as telemetry_saveSeasonPublicInfo, updateCommunityGroup as telemetry_updateCommunityGroup, updateSeasonContact as telemetry_updateSeasonContact, uploadCommunityGroupQr as telemetry_uploadCommunityGroupQr } from "@/actions/season-public-info";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { LOGO_ALLOWED_TYPES, LOGO_MAX_BYTES } from "@/lib/config/upload-limits";
 import type { SeasonPublicInfoAdmin } from "@/lib/season-public-info/read-model";
+import { observeAction } from "@/lib/telemetry/client";
+
+const createCommunityGroup = observeAction("season-public-info.createCommunityGroup", telemetry_createCommunityGroup);
+const createSeasonContact = observeAction("season-public-info.createSeasonContact", telemetry_createSeasonContact);
+const deleteCommunityGroup = observeAction("season-public-info.deleteCommunityGroup", telemetry_deleteCommunityGroup);
+const deleteSeasonContact = observeAction("season-public-info.deleteSeasonContact", telemetry_deleteSeasonContact);
+const moveCommunityGroup = observeAction("season-public-info.moveCommunityGroup", telemetry_moveCommunityGroup);
+const moveSeasonContact = observeAction("season-public-info.moveSeasonContact", telemetry_moveSeasonContact);
+const removeCommunityGroupQr = observeAction("season-public-info.removeCommunityGroupQr", telemetry_removeCommunityGroupQr);
+const saveSeasonPublicInfo = observeAction("season-public-info.saveSeasonPublicInfo", telemetry_saveSeasonPublicInfo);
+const updateCommunityGroup = observeAction("season-public-info.updateCommunityGroup", telemetry_updateCommunityGroup);
+const updateSeasonContact = observeAction("season-public-info.updateSeasonContact", telemetry_updateSeasonContact);
+const uploadCommunityGroupQr = observeAction("season-public-info.uploadCommunityGroupQr", telemetry_uploadCommunityGroupQr);
 
 type AsyncResult = Promise<{ success: boolean; error?: { message: string } }>;
 type GroupRow = SeasonPublicInfoAdmin["groups"][number];

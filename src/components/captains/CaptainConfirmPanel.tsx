@@ -5,7 +5,7 @@ import { useTransition, useState } from "react";
 import { CheckCircle2, ShieldCheck, AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { confirmCaptains } from "@/actions/captains";
+import { confirmCaptains as telemetry_confirmCaptains } from "@/actions/captains";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -21,6 +21,9 @@ import {
 import { CAPTAIN_TEAM_COUNT } from "@/lib/captains/rules";
 import { positionLabel } from "@/lib/validators/registration";
 import type { PublicCaptainCandidate } from "@/lib/captains/data";
+import { observeAction } from "@/lib/telemetry/client";
+
+const confirmCaptains = observeAction("captains.confirmCaptains", telemetry_confirmCaptains);
 
 interface CaptainConfirmPanelProps {
   seasonId: string;

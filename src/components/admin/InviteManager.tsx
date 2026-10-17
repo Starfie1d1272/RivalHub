@@ -3,7 +3,7 @@
 import React, { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { createInviteCode, deactivateInviteCode } from "@/actions/admin";
+import { createInviteCode as telemetry_createInviteCode, deactivateInviteCode as telemetry_deactivateInviteCode } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,10 @@ import {
   type AdminInviteSort,
   type AdminInviteState,
 } from "@/lib/admin/invites-contract";
+import { observeAction } from "@/lib/telemetry/client";
+
+const createInviteCode = observeAction("admin.createInviteCode", telemetry_createInviteCode);
+const deactivateInviteCode = observeAction("admin.deactivateInviteCode", telemetry_deactivateInviteCode);
 
 interface PendingSuperAdminInvite {
   maxUses: number;

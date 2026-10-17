@@ -14,9 +14,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { generateSchedule } from "@/actions/matches";
+import { generateSchedule as telemetry_generateSchedule } from "@/actions/matches";
 import { STAGE_TYPE_LABELS } from "@/lib/seasons/presentation";
 import type { StagePlan } from "@/types/season";
+import { observeAction } from "@/lib/telemetry/client";
+
+const generateSchedule = observeAction("matches.generateSchedule", telemetry_generateSchedule);
 
 interface GenerateScheduleCardProps {
   seasonId: string;
