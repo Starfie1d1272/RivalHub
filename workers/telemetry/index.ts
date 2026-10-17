@@ -64,8 +64,8 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
         env.DB.prepare(`INSERT OR IGNORE INTO batches(ticket,id,received,expires,day,account,session,role,release,environment,bytes,events)
           SELECT ?,?,?,?,?,?,?,?,?,?,?,? WHERE
           (SELECT batches FROM usage WHERE day=?)<? AND (SELECT bytes FROM usage WHERE day=?)+?<=?
-          AND (SELECT count(*) FROM batches WHERE ticket=?)<?`)
-          .bind(ticket.id, input.id, now, Math.min(...input.events.map(e => e.at)) + 7 * DAY, day, ticket.account, input.events[0].session, ticket.role, ticket.release, ticket.environment, bytes, events, day, BUDGET.batches, day, bytes, BUDGET.bytes, ticket.id, BUDGET.ticketBatches),
+          AND (SELECT count(*) FROM batches WHERE ticket=?)<? AND NOT EXISTS (SELECT 1 FROM rollups WHERE day=?)`)
+          .bind(ticket.id, input.id, now, Math.min(...input.events.map(e => e.at)) + 7 * DAY, day, ticket.account, input.events[0].session, ticket.role, ticket.release, ticket.environment, bytes, events, day, BUDGET.batches, day, bytes, BUDGET.bytes, ticket.id, BUDGET.ticketBatches, day),
         env.DB.prepare("UPDATE usage SET batches=batches+1,bytes=bytes+? WHERE day=? AND changes()=1").bind(bytes, day),
       ]);
       const accepted = await env.DB.prepare("SELECT id FROM batches WHERE ticket=? AND id=?").bind(ticket.id, input.id).first();
@@ -105,23 +105,26 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
   } catch { return response(503, origin === env.ALLOWED_ORIGIN ? origin : undefined); }
 }
 
-/** Hourly scheduled maintenance. Replaces closed UTC-day aggregates, so retries cannot double count. */
+/** Expiry commits independently before rollup, including when summary writes run out of space. */
 export async function maintain(env: Env, now = Date.now()) {
   if (env.RETENTION_APPROVED !== "1") return;
   const today = new Date(now).toISOString().slice(0, 10);
-  const pending = await env.DB.prepare("SELECT day FROM usage WHERE day<? AND day NOT IN (SELECT day FROM rollups) ORDER BY day LIMIT 1").bind(today).first<{ day: string }>();
+  await env.DB.prepare("DELETE FROM batches WHERE (ticket,id) IN (SELECT ticket,id FROM batches WHERE expires<=? ORDER BY expires LIMIT 500)").bind(now).run();
   await env.DB.batch([
-    ...(pending ? [env.DB.prepare(`INSERT OR REPLACE INTO summaries(day,release,environment,role,scene,route,kind,operation,phase,outcome,variant,events,duration_ms)
-      SELECT b.day,b.release,b.environment,b.role,json_extract(e.value,'$.scene'),json_extract(e.value,'$.route'),
-        json_extract(e.value,'$.kind'),coalesce(json_extract(e.value,'$.operation'),''),coalesce(json_extract(e.value,'$.phase'),''),coalesce(json_extract(e.value,'$.outcome'),''),coalesce(json_extract(e.value,'$.variant'),''),
-        count(*),sum(coalesce(json_extract(e.value,'$.durationMs'),0))
-      FROM batches b,json_each(b.events) e WHERE b.day=?
-      GROUP BY 1,2,3,4,5,6,7,8,9,10,11`).bind(pending.day),
-    env.DB.prepare("INSERT INTO rollups(day) VALUES(?) ON CONFLICT DO NOTHING").bind(pending.day)] : []),
-    env.DB.prepare("DELETE FROM batches WHERE (ticket,id) IN (SELECT ticket,id FROM batches WHERE expires<=? ORDER BY expires LIMIT 500)").bind(now),
     env.DB.prepare("DELETE FROM rollups WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
     env.DB.prepare("DELETE FROM usage WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
     env.DB.prepare("DELETE FROM summaries WHERE day<?").bind(new Date(now - 90 * DAY).toISOString().slice(0, 10)),
+  ]);
+  const pending = await env.DB.prepare("SELECT day FROM usage WHERE day<? AND day NOT IN (SELECT day FROM rollups) ORDER BY day LIMIT 1").bind(today).first<{ day: string }>();
+  if (!pending) return;
+  await env.DB.batch([
+    env.DB.prepare(`INSERT OR REPLACE INTO summaries(day,release,environment,role,scene,route,kind,operation,phase,outcome,variant,events,duration_ms)
+      SELECT b.day,b.release,b.environment,b.role,json_extract(e.value,'$.scene'),json_extract(e.value,'$.route'),
+        json_extract(e.value,'$.kind'),coalesce(json_extract(e.value,'$.operation'),''),coalesce(json_extract(e.value,'$.phase'),''),coalesce(json_extract(e.value,'$.outcome'),''),coalesce(json_extract(e.value,'$.variant'),''),
+        count(*),sum(coalesce(json_extract(e.value,'$.durationMs'),0))
+      FROM batches b,json_each(b.events) e WHERE b.day=? AND b.expires>?
+      GROUP BY 1,2,3,4,5,6,7,8,9,10,11`).bind(pending.day, now),
+    env.DB.prepare("INSERT INTO rollups(day) VALUES(?) ON CONFLICT DO NOTHING").bind(pending.day),
   ]);
 }
 const worker = { fetch: (request: Request, env: Env) => handle(request, env), scheduled: (_event: unknown, env: Env) => maintain(env) };

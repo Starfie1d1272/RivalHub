@@ -63,6 +63,13 @@ describe("independent receiver privacy, budget and lifecycle", () => {
     expect((await post({ ...env, RETENTION_APPROVED: "0" }, body)).status).toBe(503);
     expect(sqlite.prepare("SELECT count(*) AS n FROM batches").get()?.n).toBe(0);
   });
+  it("does not admit an in-flight old-day request after that day's rollup closes", async () => {
+    const { env, sqlite } = fixture(); const body = await batch(env);
+    sqlite.prepare("INSERT INTO rollups(day) VALUES(?)").run("2026-10-17");
+    expect((await post(env, body)).status).toBe(429);
+    expect(sqlite.prepare("SELECT batches FROM usage").get()?.batches).toBe(0);
+    expect(sqlite.prepare("SELECT count(*) AS n FROM batches").get()?.n).toBe(0);
+  });
   it("atomically refuses admission at the daily budget without increasing counters", async () => {
     const { env, sqlite } = fixture(); const body = await batch(env);
     sqlite.prepare("INSERT INTO usage(day,batches,bytes) VALUES(?,?,0)").run("2026-10-17", BUDGET.batches);
@@ -91,6 +98,25 @@ describe("independent receiver privacy, budget and lifecycle", () => {
     sqlite.exec("CREATE TRIGGER fail_counter BEFORE UPDATE ON usage BEGIN SELECT RAISE(ABORT,'fixture'); END;");
     expect((await post(env, body)).status).toBe(503);
     expect(sqlite.prepare("SELECT count(*) AS n FROM batches").get()?.n).toBe(0);
+  });
+  it("commits expiry even when rollup persistence fails, then retries the rollup without expired input", async () => {
+    const { env, sqlite } = fixture(); const body = await batch(env);
+    await post(env, body);
+    const expiredId = crypto.randomUUID();
+    sqlite.prepare("INSERT INTO batches SELECT ticket,?,received,?,day,account,session,role,release,environment,bytes,events FROM batches LIMIT 1").run(expiredId, now);
+    sqlite.exec("CREATE TRIGGER fail_rollup BEFORE INSERT ON summaries BEGIN SELECT RAISE(ABORT,'fixture full'); END;");
+    await expect(maintain(env, now + 86400000)).rejects.toThrow();
+    expect(sqlite.prepare("SELECT count(*) AS n FROM batches WHERE id=?").get(expiredId)?.n).toBe(0);
+    expect(sqlite.prepare("SELECT count(*) AS n FROM rollups").get()?.n).toBe(0);
+    sqlite.exec("DROP TRIGGER fail_rollup");
+    await maintain(env, now + 86400000);
+    expect(sqlite.prepare("SELECT events FROM summaries").get()?.events).toBe(1);
+    sqlite.exec("CREATE TRIGGER fail_summary_cleanup BEFORE DELETE ON summaries BEGIN SELECT RAISE(ABORT,'fixture delete failure'); END;");
+    await expect(maintain(env, now + 91 * 86400000)).rejects.toThrow();
+    expect(sqlite.prepare("SELECT count(*) AS n FROM batches").get()?.n).toBe(0);
+    sqlite.exec("DROP TRIGGER fail_summary_cleanup");
+    await maintain(env, now + 91 * 86400000);
+    expect(sqlite.prepare("SELECT count(*) AS n FROM summaries").get()?.n).toBe(0);
   });
   it("paginates equal timestamps without losing batches and bounds cleanup to 500 rows", async () => {
     const { env, sqlite } = fixture(); const body = await batch(env);

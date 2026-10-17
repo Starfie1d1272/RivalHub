@@ -1,8 +1,8 @@
 {
   "receiver": {
     "acceptedBatches": 30,
-    "ticketSigningP95Ms": 1.181233999999904,
-    "localWorkerRequestWallP95Ms": 8.570240000000013,
+    "ticketSigningP95Ms": 1.0527699999997822,
+    "localWorkerRequestWallP95Ms": 31.188114000000496,
     "d1": {
       "success": true,
       "meta": {
@@ -33,8 +33,8 @@
     "events": 150,
     "operationOverheadMs": {
       "p50": 0.10000000009313226,
-      "p95": 0.5,
-      "max": 1.5
+      "p95": 1.8000000000465661,
+      "max": 2.800000000046566
     }
   },
   "perDay": [
@@ -64,8 +64,8 @@
     "sessionsPerDay": 30,
     "days": 7,
     "batches": 6300,
-    "allocatedBytesIncludingIndexes": 32358400,
-    "insertWallMs": 230.22424999999998
+    "allocatedBytesIncludingIndexes": 32362496,
+    "insertWallMs": 232.45015599999988
   },
   "limits": "Synthetic Chromium and local SQLite, not Cloudflare CPU, D1 billed rows, shared quota headroom or production traffic. Ticket overhead conservatively adds 900 bytes/batch. No automatic rollout."
 }

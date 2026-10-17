@@ -54,9 +54,9 @@ Worker 仅使用独立 D1：一个批次一行、服务端校验后写入、按�
 
 ## 保留、清理、恢复
 
-原始事件和所有账号/会话索引在同一 batches 表，按批内最早事件时间加七天到期。所有查询立即排除到期批次；小时任务每轮最多删 500 批，失败下次继续。物理删除可能延迟到维护成功；停收不会关闭维护。清理时间不刷新 event time，也不通过重发延长已有批次寿命。
+原始事件和所有账号/会话索引在同一 batches 表，按批内最早事件时间加七天到期。所有查询立即排除到期批次；小时任务每轮最多删 500 批，失败下次继续；raw 删除先独立提交，后续汇总写入/删除失败不会回滚 raw 清理。物理删除可能延迟到维护成功；停收不会关闭维护。清理时间不刷新 event time，也不通过重发延长已有批次寿命。
 
-独立的候选汇总保留 **90 天，待确认**：关闭的 UTC 接收日汇总一次，维度仅日期、版本、环境、角色、场景、路由、动作/子类型/阶段/outcome，值仅次数、耗时总和。没有 account/session/operationId/eventId/requestId、自由文本或可回放路径。rollup marker 保证重跑不双算；usage/marker 最长八天，仅用于预算/进度。汇总没有独立用户数、留存曲线或个人轨迹，不能用于跨产品追踪。七天内未成功汇总可能损失基线，不能延长原始留存来补算。
+独立的候选汇总保留 **90 天，待确认**：关闭的 UTC 接收日汇总一次，维度仅日期、版本、环境、角色、场景、路由、动作/子类型/阶段/outcome，值仅次数、耗时总和。没有 account/session/operationId/eventId/requestId、自由文本或可回放路径。rollup marker 保证重跑不双算；已汇总接收日拒绝迟到的在途写入，后续重试按新的接收日处理（仍受 15 分钟事件年龄限制）；usage/marker 最长八天，仅用于预算/进度。汇总没有独立用户数、留存曲线或个人轨迹，不能用于跨产品追踪。七天内未成功汇总可能损失基线，不能延长原始留存来补算。
 
 **恢复副本必须另行确认**：D1 Free 的 Time Travel 恢复窗口为七天。应用七天删除不能证明恢复历史立即物理擦除；被删除原始数据可能在随后恢复窗口中存在（从事件创建算保守约十四天）。若要求“包括 provider 恢复副本在内绝对七天”，这个候选不能直接获批上线，需要先确认可关闭/缩短恢复历史的能力或更换存储方案。恢复时保持 ACCEPTING=0，先执行过期清理并核验所有查询 cutoff、预算进度，再经确认开流量；旧备份不应重新成为可读原始事件。遥测不进入 RivalHub PostgreSQL DR 备份，不额外导出 raw 或建长期账号映射表。
 
@@ -84,6 +84,6 @@ pnpm telemetry:query usage
 3. 由维护者批准并注入四类最小凭据：app/Worker 共用的 signing key、app/受控账号查询用 account key、独立 operator key、部署所需 provider 权限。本 PR 不创建持续凭据或授权。
 4. 复制 review-only `wrangler.example.jsonc` 到受控部署配置，填批准的 D1 ID；在新空的独立 D1 应用 schema.sql，检查 schema/索引和权限。此 SQL 不是 RivalHub PostgreSQL migration，不在应用 release 自动执行；后续演进需独立编号迁移，不重跑初始化文件。
 5. 经批准先在隔离 Preview 验收：身份切换、Major/Rivals、返回/筛选、业务拒绝/响应丢失、Worker 停机、重试去重、按账号/会话查询、跨 origin/无授权拒绝、七天边界、500 批清理分页与恢复前清理。
-6. 测量真实 Worker CPU/请求数、D1 rows_read/rows_written、数据库 size（含索引/90 天汇总）、各共享免费额度。核对每批最多 50 个 D1 查询限制，本实现通常 7 个以内；保留失效/拒绝请求开销。超过预算保持停收，绝不加付费能力。
+6. 对比新旧构建的实际 Next 路由资源 gzip/加载与 hydration，结合现有 Speed Insights 复核（core 独立 bundle 量测不等于全站增量）。测量真实 Worker CPU/请求数、D1 rows_read/rows_written、数据库 size（含索引/90 天汇总）、各共享免费额度。核对每批最多 50 个 D1 查询限制，本实现通常 7 个以内；保留失效/拒绝请求开销。超过预算保持停收，绝不加付费能力。
 7. 单独批准生产部署后才能启用 PRODUCT_TELEMETRY_ENABLED、ACCEPTING、RETENTION_APPROVED；核查 build release 标签与实际签名版本。小范围比较代表性等长窗口，不拿本地量测承诺线上成本。
 8. 回滚先停 app 采集/Worker ACCEPTING；不更改业务 cache，不撤掉既有原始清理。密钥轮换会使旧票据失效；账号 key 轮换会改变 lookup，需要明确旧七天窗口处理，不能建立永久映射补连。
