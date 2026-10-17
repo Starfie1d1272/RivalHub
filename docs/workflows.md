@@ -34,7 +34,7 @@ Major:  draft → registration → playing → finished → archived
 - 报名开放后，已经冻结的 policy/context 不随全局目录变化；运营 deadline 只在其允许的生命周期内调整。
 - draft 撤回/删除必须通过无既有业务事实的 guard；不能靠 UI 隐藏按钮代替 server validation。
 - 后台生命周期分组和首页 featured season 是 presentation projection，不创建全局 `currentSeason` 事实。
-- 报名曾实际开放不代表当前仍可提交；首页报名提示、报名入口与报名页统一消费 `registration/window` 的计划、实际开放及截止时间。报名截止不会自行推进赛事到投票、选秀或比赛阶段。
+- 报名曾实际开放不代表当前仍可提交；首页报名提示、报名入口与报名页统一消费 `registration/window` 的计划、实际开放及截止时间。团队报名赛事截止后仍需完成相应赛前流程；Major 不会因截止自动开赛。个人报名赛事实际开放后，通过人数达到容量或报名截止到期时，审核与 scheduler 通过 `maybeAdvanceFromRegistration` 自动推进到投票（启用队长投票时）或比赛阶段；选秀仍由队长确认与选秀流程推进。
 
 ## ConversionPolicy lifecycle
 
@@ -217,7 +217,7 @@ honor grant/revoke ─────┘
 submit → review/revise → evidence → resolve/correct
 ```
 
-是否可用只由 capability 决定，不从 season status 推导。capability 关闭时入口和 server mutation 都 fail closed。社区奖不替代官方 `tournament_honors`。
+capability 决定是否提供社区奖能力，关闭时入口和 server mutation 都 fail closed；各操作仍执行自身状态限制，例如已归档赛事不能提交新的社区奖，只有已公开奖项能补候选证据，发起人修改和撤回也受奖项状态约束。社区奖不替代官方 `tournament_honors`。
 
 ## Spectator predictions
 

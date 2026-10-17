@@ -69,7 +69,7 @@ Server Action 返回赛事范围的读取 DTO 时，也必须在 action 自身�
 
 ## Data API baseline
 
-业务数据库默认 **server-only**：`anon` / `authenticated` 对 application-owned public tables 无业务 grants，RLS 默认 deny。first-party browser Supabase client 用于 Auth；公开比赛另用独立 receive-only viewer client 订阅 private Broadcast，不旁路直连业务表。服务端仅对公开 playing 赛事的 in_progress 比赛签发五分钟单场 viewer token；独立客户端通过 accessToken callback 使用该 token，不持久化会话或覆盖登录身份。Realtime 仅允许匹配 topic 的 Broadcast SELECT，不授予 INSERT；详情页与可见赛程行复用同一 receive-only viewer contract；重连与续期等待下一份 heartbeat，不读取快照历史。
+业务数据库默认 **server-only**：`anon` / `authenticated` 对 application-owned public tables 无业务 grants，RLS 默认 deny。first-party browser Supabase client 用于 Auth；公开比赛另用独立 receive-only viewer client 订阅 private Broadcast，不旁路直连业务表。服务端对符合 `issueLiveViewerToken` 范围的 in_progress 比赛签发五分钟单场 viewer token：公开 playing 赛事比赛、registration 阶段关联本届已开始且未完成 Qualification run 的正式 Play-in，以及 registration/voting/drafting 阶段的测试赛。未进行、未公开或不满足对应运行范围的比赛不能取得凭据。独立客户端通过 accessToken callback 使用该 token，不持久化会话或覆盖登录身份。Realtime 仅允许匹配 topic 的 Broadcast SELECT，不授予 INSERT；详情页与可见赛程行复用同一 receive-only viewer contract；重连与续期等待下一份 heartbeat，不读取快照历史。
 
 如果未来新增 direct Data API 或 Realtime surface，同一变更必须同时定义：
 
