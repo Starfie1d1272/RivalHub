@@ -1,3 +1,5 @@
+import { connection } from "next/server";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -16,7 +18,11 @@ interface CaptainsPageProps {
   params: Promise<{ seasonSlug: string }>;
 }
 
-export default async function CaptainsPage({ params }: CaptainsPageProps) {
+export default function CaptainsPage(props: CaptainsPageProps) {
+  return <Suspense fallback={<PageLayout variant="wide"><p role="status">正在加载投票…</p></PageLayout>}><CaptainsContent {...props} /></Suspense>;
+}
+async function CaptainsContent({ params }: CaptainsPageProps) {
+  await connection();
   const { seasonSlug } = await params;
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
@@ -69,23 +75,11 @@ export default async function CaptainsPage({ params }: CaptainsPageProps) {
         <p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)] uppercase mb-1">
           {season.name} · CAPTAINS
         </p>
-        <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">队长投票</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">{season.status === "voting" ? "队长投票" : "队长投票结果"}</h1>
         <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
-          公开票数与当前前 8 会定时刷新；赛季进入 drafting 后本页保留最终结果。
+          {season.status === "voting" ? "实时票数" : "查看票数与选秀回顾"}
         </p>
       </div>
-
-      {season.status === "voting" && (
-        <div className="rounded-sm border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5 p-4 text-sm text-[var(--color-fg-mid)]">
-          <p className="font-medium text-[var(--color-fg)] mb-1">关于选秀顺序</p>
-          <p>
-            第一轮选秀将<strong className="text-[var(--color-fg)]">逆向进行</strong>
-            ——排位最靠后的队伍最先选人，依次轮到排位靠前的队伍。
-            请根据候选人的<strong className="text-[var(--color-fg)]">实际实力</strong>（而非关系远近）进行投票，
-            以确保选秀公平。
-          </p>
-        </div>
-      )}
 
       <CaptainVotingPanel
         seasonName={season.name}

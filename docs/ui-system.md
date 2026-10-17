@@ -6,6 +6,8 @@
 
 通俗英文与常见专业标签可直接用于导航、筛选和指标，标签保持简短清晰。正常页面优先展示事实、指标和操作，不为统计结果补写免责声明式说明，也不为了“正向”机械改写客观空态：用户能继续操作时给出下一步，没有数据时可直接使用 `—`、`暂无数据` 或具体空态。解释优先放入共享 HelpTooltip / Why?，只回答“这是什么、怎么算、为什么出现”；算法门槛、内部实现与方法论边界留在代码、测试、审计或技术证据中。问号附在标签右侧，使用相对容器内的绝对定位，标签自身决定居中宽度和正常排版。参赛者与管理员的操作指引和异常处理使用自然中文，直接表达当前目标、状态、完成条件和下一步。品牌、CS2 通用缩写、专有名词及专业赛事术语（如 Major、Stage 1、BO3）可保留英文。产品流程使用面向用户的名称；内部 enum/key、revision、snapshot、算法字段和序列化诊断留在代码、审计或明确的技术详情中。
 
+常态文案简短、正向，优先当前事实与下一步动作。省略重复提醒、泛化告诫和实现原理；必要的参赛条件、资金限制与受阻原因结合当前事实展示。
+
 所有 domain、persistence 或 enum 值进入 UI 时，必须经过类型化的 presentation owner：
 
 `domain / persistence / enum value` → `typed presentation owner` → `human-readable product text` → `UI`
@@ -51,10 +53,14 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 - narrow：auth、single action、confirmation、长文阅读、单列长表单和小型纵向状态页；目标是阅读 measure 与任务聚焦。
 - standard：entity/detail page 和中等复杂度 workflow；纵向内容为主，但需要正常的数据、卡片和指标横向空间。
-- wide：directory、card grid、searchable/filterable list、standalone admin list、data browsing 和多区域 workspace。
-- workbench：高密度 operator canvas 与 season-admin 多任务工作区；父级拥有最大可用页面宽度，子页面不再对整页重新加 max-w-*。
+- wide：最大外框 1440px；首页、赛事总览、directory、card grid 和多区域 detail。
+- workbench：最大外框 1760px；数据 explorer、选秀阵容墙、队长工作区、推演 canvas 与 season-admin。父级拥有最大可用页面宽度，子页面不再对整页重新加 max-w-*。
 
 选择 variant 时先看页面的信息架构和交互密度，不按历史 max-w-* 机械套用。inner max-w-* 只服务真实的阅读或表单 measure；如果它包住整个 list、grid、operator workspace 或多区块 detail page，它实际上又在决定 page sizing，应回到 PageLayout 语义重新审查。
+
+全站沿用深色橙色竞技品牌。首页采用单一赛事主视觉与有主次的内容编排；分析、表单和操作背景保持安静，网格只进入展示层。控件、普通 surface 和展示面的圆角由共享语义 token 拥有。赛事主题覆盖 accent / rgb / soft / edge / focus / on-accent 完整色族，按钮文字按颜色亮度选择可读前景。导航 alignment frame 复用 `pageAlignmentFrame`。
+
+赛事入口由 `src/lib/seasons/entries.ts` 维护轻量 presentation metadata；能力门禁继续消费实际配置与既有 read model，入口不承担授权或 transition。Rivals 投票和选秀在历史中保持原目的地；Major 的预测与竞猜、赛事推演保持分别可发现。
 
 颜色不能单独承担 success/warning/danger；状态同时使用文字、图标或结构表达。10–11px mono 只用于 code、marker、ticker 和 compact metadata，不承担正文解释。
 
@@ -92,13 +98,17 @@ read model 保留已有 public-safe canonical identity：BET option entity 由 m
 
 无队伍时，创建队伍的名称、简介与提交按钮在客户端事件处理就绪前禁用，并显示简短准备状态；就绪后首次填写与提交保留输入，成功后回读真实队伍工作区。
 
-个人工作区使用真实导航链接和 `aria-current`，窄屏允许换行；父级 `PageLayout` 持有整页宽度与 gutter，子路由不重复创建页面壳。离开长期队伍的说明必须明确：该操作不会自动改写已经提交、审核通过或冻结的赛事名单。
+个人待办显示赛事与队伍上下文；相同竞技资料缺项只说明一次，每届赛事原操作入口分别保留。个人工作区使用真实导航链接和 `aria-current`，窄屏允许换行；父级 `PageLayout` 持有整页宽度与 gutter，子路由不重复创建页面壳。离开长期队伍的说明必须明确：该操作不会自动改写已经提交、审核通过或冻结的赛事名单。
 
 ### Platform data center
 
 全站固定入口为「赛事 / 队伍 / 数据中心」，桌面、移动与 fallback 复用相同目的地。公共数据加载后，在「赛事」之后增加最多一个活跃赛事名称入口，复用生命周期分组与首页优先级；无活跃赛事时不以历史赛事补位。桌面长名称有界截断，移动菜单允许换行。活跃赛事内部页面高亮该入口，其它赛事页面高亮「赛事」，路径匹配遵守 segment 边界。公共导航与 viewer/session Suspense island 保持隔离。赛事页保留「首页 → 赛事 → 本届名称」breadcrumb 与内部业务导航，不再重复显示赛事名称选择框；切换其它赛事通过「赛事」目录完成。导航默认项不作为比赛归属或授权依据。
 
-`/stats` 使用平台主题与 `PageLayout wide`，默认全部公开赛事，包括 archived 历史。赛事是可搜索的上下文筛选，不是统计页面归属；选择器只接收 public-safe 摘要，确认选项才导航，支持键盘、焦点返回与内部滚动。阶段只用于单届；赛制与地图属于共享 scope。Overview / Players / Teams / Maps / Weapons / Records 是固定六个内容 tab。旧公开赛事统计入口永久迁移到 canonical URL；授权 draft preview 继续隔离在薄适配入口中。
+`/stats` 使用平台主题与 `PageLayout workbench`，默认全部公开赛事，包括 archived 历史。赛事是可搜索的上下文筛选，不是统计页面归属；选择器只接收 public-safe 摘要，确认选项才导航，支持键盘、焦点返回与内部滚动。阶段只用于单届；赛制与地图属于共享 scope。Overview / Players / Teams / Maps / Weapons / Records 是固定六个内容 tab。旧公开赛事统计入口永久迁移到 canonical URL；授权 draft preview 继续隔离在薄适配入口中。
+
+单届统计上下文提供“返回本届赛事 / 查看赛程”。主 explorer 的已支持排序、方向、分页、指标 family 和搜索记录在 URL；列的可排序能力仍在表格边界校验，嵌入表保留本地状态。大型独立表使用单一有界滚动区和吸顶表头；身份列固定，窄屏收紧身份列以露出主指标，桌面维持阅读宽度；全部指标继续在表格局部横滚中可达。当前排序列仅轻量强调。从统计进入资料时通过上下文携带本站 `/stats` 返回地址，返回校验拒绝外部或其它路由。
+
+公开选秀只有一套真实状态主区：preview 保持只读并刷新状态，active / paused 受控刷新，complete / archive 停止轮询。阵容墙按真实队伍与已选轮次展示；archive 不呈现 LIVE、倒计时或待选空池。队长工作区默认露出本队阵容，详情阅读与实际选入是两个独立动作。宽桌面详情在第三栏，窄屏在当前候选行就近展开；点击详情保留焦点，不提交选人。投票侧栏在窄屏先于候选列表显示。阵容墙在1440保持紧凑可读行距，1920保留八队同排；手机折叠头提供展开标识和状态。推演标题与赛事上下文同排，为棋盘留出首屏空间。
 
 统计标签与说明由 `src/lib/stats/metrics.ts` 统一定义；无额外上下文时复用中央名称。地图 Opening Conversion / Comeback 使用发生有效首杀对枪的回合为分母，R2 Conversion / Break 使用对应手枪局结果后的第二回合机会为分母，不能共用指标定义。1vX 分项使用对应人数的残局说明和尝试次数；阵营、人数等必要的上下文标签可以保留。
 

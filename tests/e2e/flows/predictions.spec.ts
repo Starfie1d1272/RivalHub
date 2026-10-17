@@ -21,7 +21,7 @@ test("观众完成选队提交、草稿隔离、图片导出", async ({
     );
     await page.goto(`/${fixture.slug}/predictions`);
     await expect(
-      page.getByRole("heading", { name: /观赛预测验收赛/ }),
+      page.getByRole("heading", { name: "赛事推演", exact: true }),
     ).toBeVisible();
     await page.getByRole("button", { name: /加入 Pick’Em/ }).click();
     await expect(

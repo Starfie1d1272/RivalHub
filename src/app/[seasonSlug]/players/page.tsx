@@ -1,3 +1,5 @@
+import { connection } from "next/server";
+import { Suspense } from "react";
 import { ParticipantDirectoryToolbar } from "@/components/season/ParticipantDirectoryToolbar";
 import { parseParticipantDirectoryQuery, matchesDirectorySearch, supportsRegistrationPositionDirectory } from "@/lib/players/directory-query";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
@@ -31,7 +33,11 @@ export async function generateMetadata({ params }: PlayersPageProps): Promise<Me
   };
 }
 
-export default async function PlayersPage({ params, searchParams }: PlayersPageProps) {
+export default function PlayersPage(props: PlayersPageProps) {
+  return <Suspense fallback={<PageLayout variant="wide"><p role="status">正在加载…</p></PageLayout>}><PlayersPageContent {...props} /></Suspense>;
+}
+export async function PlayersPageContent({ params, searchParams }: PlayersPageProps) {
+  await connection();
   const { seasonSlug } = await params;
   const rawQuery = await searchParams;
   const position = positionValues.includes(rawQuery.position as typeof positionValues[number]) ? rawQuery.position! : "";
@@ -48,7 +54,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
     const teamCount = projection.teamCount;
 
     return (
-      <PageLayout as="div" variant="wide" className="space-y-8">
+      <PageLayout as="div" variant="wide" className="space-y-6">
         <PageHeader
           title="选手"
           eyebrow={season.name}
@@ -83,7 +89,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
     const playersWithStats = projection.players.filter((player) => player.stats !== null).length;
 
     return (
-      <PageLayout as="div" variant="wide" className="space-y-8">
+      <PageLayout as="div" variant="wide" className="space-y-6">
         <PageHeader title="选手" eyebrow={season.name} description="以下选手来自本届已确认参赛名单。" />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
           <Stat label="选手" value={projection.players.length} />
@@ -183,7 +189,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
   const visiblePlayers = directoryPlayers.filter((player) => (!query.team || player.teamId === query.team) && matchesDirectorySearch(query.q, player.displayName));
 
   return (
-    <PageLayout as="div" variant="wide" className="space-y-8">
+    <PageLayout as="div" variant="wide" className="space-y-6">
       <PageHeader
         title="选手"
         eyebrow={season.name}

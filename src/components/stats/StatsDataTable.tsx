@@ -51,9 +51,11 @@ interface RankingState<T> {
   metricLabel: string;
 }
 
+export interface StatsTableState { sortKey: string; direction: StatsSortDirection; page: number }
+
 export function StatsDataTable<T>({
   rows, columns, rowKey, initialSortKey, initialDirection = "desc", pageSize = 25, showRank = false, embedded = false,
-  tableClassName = "min-w-max", emptyLabel = "暂无数据", rankingBaselineRows,
+  tableClassName = "min-w-max", emptyLabel = "暂无数据", rankingBaselineRows, state, onStateChange,
 }: {
   rows: readonly T[];
   columns: readonly StatsDataColumn<T>[];
@@ -66,10 +68,19 @@ export function StatsDataTable<T>({
   tableClassName?: string;
   emptyLabel?: string;
   rankingBaselineRows?: readonly T[];
+  state?: StatsTableState;
+  onStateChange?: (state: StatsTableState) => void;
 }) {
-  const [sortKey, setSortKey] = useState(initialSortKey ?? "");
-  const [direction, setDirection] = useState<StatsSortDirection>(initialDirection);
-  const [page, setPage] = useState(1);
+  const [localSortKey, setSortKey] = useState(initialSortKey ?? "");
+  const [localDirection, setDirection] = useState<StatsSortDirection>(initialDirection);
+  const [localPage, setPage] = useState(1);
+  const sortKey = state?.sortKey ?? localSortKey;
+  const direction = state?.direction ?? localDirection;
+  const page = state?.page ?? localPage;
+  function update(next: StatsTableState) {
+    if (onStateChange) onStateChange(next);
+    else { setSortKey(next.sortKey); setDirection(next.direction); setPage(next.page); }
+  }
   const activeColumn = columns.find((item) => item.key === sortKey);
 
   const rankingState = useMemo<RankingState<T> | null>(() => {
@@ -107,9 +118,7 @@ export function StatsDataTable<T>({
   const pageRows = sortedRows.slice(pageStart, safePage * pageSize);
 
   function sortBy(key: string) {
-    if (sortKey === key) setDirection((current) => current === "desc" ? "asc" : "desc");
-    else { setSortKey(key); setDirection("desc"); }
-    setPage(1);
+    update({ sortKey: key, direction: sortKey === key && direction === "desc" ? "asc" : "desc", page: 1 });
   }
 
   return (
@@ -126,11 +135,11 @@ export function StatsDataTable<T>({
           </span>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className={embedded ? "overflow-x-auto" : "max-h-[70vh] overflow-auto"}>
         <table className={`w-full ${tableClassName} text-sm`}>
-          <thead className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">
+          <thead className="text-xs uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">
             <tr className="border-b border-[var(--color-border)]">
-              {showRank && <th className="sticky left-0 z-20 w-12 min-w-12 max-w-12 whitespace-nowrap bg-[var(--color-panel)] px-3 py-3 text-left text-[var(--color-fg-dim)]">#</th>}
+              {showRank && <th className="sticky top-0 left-0 z-30 w-12 min-w-12 max-w-12 whitespace-nowrap bg-[var(--color-panel)] px-3 py-3 text-left text-[var(--color-fg-dim)]">#</th>}
               {columns.map((column, index) => {
                 const active = sortKey === column.key;
                 const arrow = direction === "desc" ? "↓" : "↑";
@@ -140,7 +149,7 @@ export function StatsDataTable<T>({
                   <th
                     key={column.key}
                     aria-sort={active ? direction === "desc" ? "descending" : "ascending" : "none"}
-                    className={`${column.identity ? "w-[11rem] min-w-[11rem] max-w-[11rem]" : "whitespace-nowrap"} py-3 ${column.numeric ? `${hasNumericAdornment(column) ? "pl-3 pr-9" : "px-3"} text-right` : "px-3 text-left"} ${column.className ?? ""} ${index === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}
+                    className={`sticky top-0 z-20 bg-[var(--color-panel)] ${column.identity ? "w-[6rem] min-w-[6rem] max-w-[6rem] sm:w-[14rem] sm:min-w-[14rem] sm:max-w-[14rem]" : "whitespace-nowrap"} py-3 ${column.numeric ? `${hasNumericAdornment(column) ? "pl-3 pr-8 sm:pr-9" : "px-3"} text-right` : "px-3 text-left"} ${column.className ?? ""} ${index === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}
                   >
                     <div className={`relative flex min-h-6 min-w-0 items-center ${column.numeric ? "justify-end" : "justify-start"}`}>
                       {column.sortable && column.sortValue ? (
@@ -193,7 +202,7 @@ export function StatsDataTable<T>({
                       </td>
                     )}
                     {columns.map((column, columnIndex) => (
-                      <td key={column.key} className={`${column.identity ? "w-[11rem] min-w-[11rem] max-w-[11rem] overflow-hidden" : "whitespace-nowrap"} py-2.5 align-top ${column.numeric ? `${hasNumericAdornment(column) ? "pl-3 pr-9" : "px-3"} text-right tabular-nums [&_.stats-metric-value]:items-end [&_.stats-metric-value]:text-right` : "px-3 text-left"} ${column.className ?? ""} ${columnIndex === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}>
+                      <td key={column.key} style={sortKey === column.key ? { backgroundColor: "color-mix(in srgb, var(--color-accent) 4%, var(--color-panel))" } : undefined} className={`${column.identity ? "w-[6rem] min-w-[6rem] max-w-[6rem] sm:w-[14rem] sm:min-w-[14rem] sm:max-w-[14rem] overflow-hidden" : "whitespace-nowrap"} py-2.5 align-top ${column.numeric ? `${hasNumericAdornment(column) ? "pl-3 pr-8 sm:pr-9" : "px-3"} text-right tabular-nums [&_.stats-metric-value]:items-end [&_.stats-metric-value]:text-right` : "px-3 text-left"} ${column.className ?? ""} ${columnIndex === 0 ? `sticky ${showRank ? "left-12" : "left-0"} z-10 bg-[var(--color-panel)]` : ""}`}>
                         {column.identity ? <div className="min-w-0 max-w-full truncate">{column.render(row, globalIndex)}</div> : column.render(row, globalIndex)}
                       </td>
                     ))}
@@ -205,7 +214,7 @@ export function StatsDataTable<T>({
           </tbody>
         </table>
       </div>
-      {totalPages > 1 && <div className="border-t border-[var(--color-border)] p-3"><PaginationControls page={safePage} totalPages={totalPages} onPageChange={setPage} /></div>}
+      {totalPages > 1 && <div className="border-t border-[var(--color-border)] p-3"><PaginationControls page={safePage} totalPages={totalPages} onPageChange={(page) => update({ sortKey, direction, page })} /></div>}
     </div>
   );
 }

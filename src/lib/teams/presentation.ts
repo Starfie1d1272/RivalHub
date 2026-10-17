@@ -51,7 +51,7 @@ export function presentTeamShareInvitation(
     return { state: "expired", title: "邀请链接已过期", sub: "这个邀请链接已过期。", canAccept: false };
   }
   if (invitation.status === "pending") {
-    return { state: "available", title: "这是队伍邀请", sub: "接受邀请即加入队伍；加入队伍不等于参加任何赛事，参赛时仍需在对应赛事中确认名单。", canAccept: true };
+    return { state: "available", title: "队伍邀请", sub: "接受邀请，加入队伍。", canAccept: true };
   }
   return { state: "unavailable", title: "邀请已失效", sub: "这个邀请链接当前不可用。", canAccept: false };
 }

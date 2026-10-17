@@ -51,7 +51,7 @@ export function MatchHeroHeader({
 }: MatchHeroHeaderProps) {
   return (
     <>
-      <div className="flex items-center gap-4">
+      <div className="flex min-w-0 items-center gap-4">
         <Link
           href={`/${seasonSlug}/matches`}
           className="text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] transition-colors"
@@ -61,7 +61,7 @@ export function MatchHeroHeader({
       </div>
 
       <div
-        className="flex flex-col sm:grid sm:grid-cols-[1fr_auto_1fr] items-center gap-6 px-8 py-8"
+        className="flex flex-col sm:grid sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 px-4 py-6 sm:px-8 sm:py-8"
         style={{
           background:
             teamA && teamB
@@ -71,11 +71,11 @@ export function MatchHeroHeader({
           border: `1px solid var(--color-border)`,
         }}
       >
-        <div className="flex items-center gap-4 justify-end">
+        <div className="flex items-center gap-4 justify-end min-w-0">
           <div className="text-right min-w-0">
             <TeamProfileLink
               seasonSlug={seasonSlug} entryId={match.entryAId}
-              className="font-bold text-lg sm:text-[28px] hover:text-[var(--color-accent)] transition-colors"
+              className="block break-words font-bold text-lg sm:text-[28px] hover:text-[var(--color-accent)] transition-colors"
               style={{
                 fontFamily: "var(--font-display)",
                 color: "var(--color-fg)",
@@ -136,7 +136,7 @@ export function MatchHeroHeader({
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex min-w-0 items-center gap-4">
           {teamB && (
             <div className="w-12 h-12 sm:w-16 sm:h-16 shrink-0">
               <TeamLogoImage
@@ -153,7 +153,7 @@ export function MatchHeroHeader({
           <div className="min-w-0">
             <TeamProfileLink
               seasonSlug={seasonSlug} entryId={match.entryBId}
-              className="font-bold text-lg sm:text-[28px] hover:text-[var(--color-accent)] transition-colors"
+              className="block break-words font-bold text-lg sm:text-[28px] hover:text-[var(--color-accent)] transition-colors"
               style={{
                 fontFamily: "var(--font-display)",
                 color: "var(--color-fg)",

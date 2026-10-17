@@ -1,3 +1,7 @@
+import type { PublicDraftData } from "@/lib/draft/data";
+import { DRAFT_TOTAL_ROUNDS } from "@/types/draft";
+import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
 import type { MatchStatus } from "@/types/match";
 import React from "react";
@@ -20,6 +24,7 @@ export { shouldLoadRegistrationPositionCounts } from "@/lib/home/presentation";
 
 interface HomePanelSeason {
   name: string;
+  hasOfficialMatches?: boolean;
   slug: string;
   status: SeasonStatus;
   registrationMode: RegistrationMode;
@@ -31,6 +36,7 @@ interface HomePanelSeason {
 }
 
 interface CandidateSummary {
+  userId?: string;
   name: string;
   voteCount: number;
 }
@@ -39,12 +45,15 @@ interface HomeMatchSummary {
   teamAName?: string | null;
   teamBName?: string | null;
   id: string;
+  entryAId?: string | null;
+  entryBId?: string | null;
   status: string;
   scheduledAt: Date | null;
   format: string;
 }
 
 interface HomeSeasonPanelProps {
+  draftData?: PublicDraftData;
   season: HomePanelSeason;
   maxPerPosition: number;
   positionCountMap: Map<string, number>;
@@ -62,9 +71,10 @@ export function HomeSeasonPanel({
   liveAndUpcomingMatches,
   teamCount,
   playerCount,
+  draftData,
 }: HomeSeasonPanelProps) {
   const registrationSchedule = presentRegistrationSchedule(season);
-  if (isRegistrationActuallyOpen(season) && liveAndUpcomingMatches.length === 0) {
+  if (isRegistrationActuallyOpen(season) && !season.hasOfficialMatches && liveAndUpcomingMatches.length === 0) {
     return (
       <Panel label="REGISTRATION">
         <div className="grid gap-3.5">
@@ -140,18 +150,21 @@ export function HomeSeasonPanel({
   }
 
   if (season.status === "drafting" && liveAndUpcomingMatches.length === 0) {
-    return <Panel label="DRAFT"><SeasonPanelTitle season={season} /><p className="my-4 text-sm text-[var(--color-fg-mid)]">关注选人进度与正在形成的赛事阵容。</p><Button asChild><Link href={`/${season.slug}/draft`}>查看选秀 →</Link></Button></Panel>;
+    const complete = Boolean(draftData && draftData.maxPicks > 0 && draftData.totalPicks >= draftData.maxPicks);
+    const state = draftData?.state;
+    const currentTeam = draftData?.teams.find(team => team.entryId === state?.currentEntryId);
+    const label = !draftData ? "选秀阶段" : complete ? "阵容已完成" : !state ? "选秀预览" : state.isActive ? "选秀进行中" : "选秀已暂停";
+    return <Panel label="选秀进度"><div className="flex flex-wrap items-center justify-between gap-3"><StatusPill label={label} tone={complete ? "success" : "accent"} />{draftData && <p className="font-mono text-xl tabular-nums">{draftData.totalPicks}<span className="text-sm text-[var(--color-fg-mid)]"> / {draftData.maxPicks} 已选</span></p>}</div>{state && !complete && <dl className="my-5 grid grid-cols-2 gap-4"><div><dt className="mb-2 text-xs text-[var(--color-fg-mid)]">当前轮次</dt><dd className="font-mono text-xl">{state.currentRound} / {DRAFT_TOTAL_ROUNDS}</dd></div><div><dt className="mb-2 text-xs text-[var(--color-fg-mid)]">{state.isActive ? "当前选择" : "等待恢复"}</dt><dd className="font-semibold">{currentTeam ? <TeamProfileLink seasonSlug={season.slug} entryId={currentTeam.entryId}>{currentTeam.teamName}</TeamProfileLink> : "等待队伍"}</dd></div></dl>}<Button className="mt-4" asChild><Link href={`/${season.slug}/draft`}>{complete ? "回顾选秀" : "查看选秀"} →</Link></Button></Panel>;
   }
 
   if (season.status === "playing" || liveAndUpcomingMatches.length > 0) {
     return (
-      <Panel label="MATCHES">
+      <Panel label="近期比赛">
         <div className="grid gap-3.5">
-          <SeasonPanelTitle season={season} />
           <div className="grid gap-2 py-3 border-y border-[var(--color-border)]">
             {liveAndUpcomingMatches.length > 0 ? (
               liveAndUpcomingMatches.map((match) => (
-                <Link key={match.id} href={`/${season.slug}/matches/${match.id}`} className="block"><MatchTickerRow match={match} /></Link>
+                <MatchTickerRow key={match.id} match={match} slug={season.slug} />
               ))
             ) : (
               <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-fg-dim)" }}>
@@ -159,7 +172,6 @@ export function HomeSeasonPanel({
               </div>
             )}
           </div>
-          <PanelStats teamCount={teamCount} playerCount={playerCount} status={season.status} registrationMode={season.registrationMode} />
           <Button className="w-full" asChild>
             <Link href={`/${season.slug}/matches`} className="w-full">
               查看赛程 →
@@ -267,7 +279,7 @@ function CandidateRankRow({
       </div>
       <div>
         <div style={{ fontWeight: 600, fontSize: 14, color: "var(--color-fg)" }}>
-          {candidate.name}
+          {candidate.userId ? <PlayerProfileLink userId={candidate.userId}>{candidate.name}</PlayerProfileLink> : candidate.name}
         </div>
       </div>
       <div
@@ -284,25 +296,19 @@ function CandidateRankRow({
   );
 }
 
-function MatchTickerRow({ match }: { match: HomeMatchSummary }) {
+function MatchTickerRow({ match, slug }: { match: HomeMatchSummary; slug: string }) {
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex flex-wrap items-center gap-2">
-        {(match.teamAName || match.teamBName) && <span className="text-sm">{match.teamAName ?? "待定"} vs {match.teamBName ?? "待定"}</span>}
+    <div className="flex min-w-0 flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        {(match.teamAName || match.teamBName) && <span className="min-w-0 break-words text-sm [overflow-wrap:anywhere]"><TeamProfileLink seasonSlug={slug} entryId={match.entryAId}>{match.teamAName ?? "待定"}</TeamProfileLink> <span className="text-[var(--color-fg-mid)]">vs</span> <TeamProfileLink seasonSlug={slug} entryId={match.entryBId}>{match.teamBName ?? "待定"}</TeamProfileLink></span>}
         <MatchStatusBadge status={match.status as MatchStatus} scheduledAt={match.scheduledAt} />
       </div>
-      <span
-        style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: 11,
-          color: "var(--color-fg-mid)",
-        }}
-      >
+      <Link href={`/${slug}/matches/${match.id}`} aria-label={`查看 ${match.teamAName ?? "待定"} 对 ${match.teamBName ?? "待定"} 比赛`} className="shrink-0 font-mono text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)]">
         {match.format.toUpperCase()}
         {match.scheduledAt
           ? ` · ${formatCSTDateTime(match.scheduledAt)}`
-          : ""}
-      </span>
+          : ""} →
+      </Link>
     </div>
   );
 }

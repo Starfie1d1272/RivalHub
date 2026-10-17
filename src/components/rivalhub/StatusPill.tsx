@@ -22,7 +22,7 @@ export function StatusPill({ label, tone }: StatusPillProps) {
       className="inline-flex items-center gap-1.5 px-2 py-0.5 font-bold rounded-sm border"
       style={{
         fontFamily: "var(--font-mono)",
-        fontSize: 10,
+        fontSize: 12,
         letterSpacing: "var(--tracking-label)",
         color,
         borderColor: `color-mix(in srgb, ${color} 33%, transparent)`,

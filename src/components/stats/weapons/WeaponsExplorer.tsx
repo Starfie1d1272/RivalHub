@@ -1,10 +1,11 @@
 "use client";
+import { StatsExplorerTable } from "@/components/stats/StatsExplorerTable";
 import React from "react";
 
 import { useRouter } from "next/navigation";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricValue } from "@/components/stats/MetricValue";
-import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
+import { type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import { displayWeaponName, statsRateDenominator } from "@/lib/stats/presentation";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
 import { navigateStatsScope, type StatsQuery } from "@/lib/stats/view-state";
@@ -45,7 +46,7 @@ export function WeaponsExplorer({ data, query, seasonSlug }: { data: TournamentS
           {hasFilters && <button type="button" onClick={clearFilters} className="text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]">Clear filters</button>}
         </div>
       </div>
-      <StatsDataTable
+      <StatsExplorerTable
         rows={rows}
         columns={columns}
         rowKey={(row) => row.weapon}

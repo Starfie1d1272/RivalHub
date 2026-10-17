@@ -15,7 +15,7 @@ export function StatsShell({
 }) {
   const partialCoverage = coverage.completedMaps > 0 && coverage.detailedMaps < coverage.completedMaps;
   return (
-    <div className="min-w-0 space-y-5">
+    <div className="min-w-0 space-y-3">
       <div className="flex min-w-0 flex-col gap-2 border-b border-[var(--color-border)] sm:flex-row sm:items-end sm:justify-between">
         <nav aria-label="数据中心" className="flex min-w-0 gap-1 overflow-x-auto">
           {(Object.entries(STATS_TABS) as [StatsTab, string][]).map(([tab, label]) => {

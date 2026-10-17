@@ -1,5 +1,7 @@
+import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
+import { seasonEntries } from "@/lib/seasons/entries";
+import { connection } from "next/server";
 import { officialMatchCondition } from "@/lib/matches/scope";
-import { statsEntryHref } from "@/lib/stats/view-state";
 import { EventLogo } from "@/components/season/EventLogo";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
 import type { MatchStatus } from "@/types/match";
@@ -21,7 +23,6 @@ import { formatCSTDateTime } from "@/lib/utils/date";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
 import {
-  isRegistrationActuallyOpen,
   presentRegistrationSchedule,
   presentSeasonParticipationState,
   presentSeasonKind,
@@ -60,6 +61,7 @@ export default function SeasonPage({ params }: SeasonPageProps) {
 }
 
 export async function SeasonPageContent({ params }: SeasonPageProps) {
+  await connection();
   const { seasonSlug } = await params;
 
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
@@ -84,6 +86,8 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     ? db
         .select({
           id: matches.id,
+          entryAId: matches.entryAId,
+          entryBId: matches.entryBId,
           status: matches.status,
           scheduledAt: matches.scheduledAt,
           stage: matches.stage,
@@ -99,7 +103,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
             or(eq(matches.status, "scheduled"), eq(matches.status, "in_progress"))
           ))
         )
-        .orderBy(matches.scheduledAt)
+        .orderBy(sql`case when ${matches.status} = 'in_progress' then 0 when ${matches.scheduledAt} is not null then 1 else 2 end`, matches.scheduledAt)
         .limit(4)
     : null;
 
@@ -115,7 +119,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         total: count(),
         finished: sql<number>`count(*) filter (where ${matches.status} = 'finished')`,
       }).from(matches).where(and(officialMatchCondition(), eq(matches.seasonId, season.id))),
-      upcomingMatchesQuery ?? Promise.resolve([] as { id: string; status: string; scheduledAt: Date | null; stage: string; teamAName: string | null; teamBName: string | null }[]),
+      upcomingMatchesQuery ?? Promise.resolve([] as { id: string; entryAId: string | null; entryBId: string | null; status: string; scheduledAt: Date | null; stage: string; teamAName: string | null; teamBName: string | null }[]),
       season.status === "playing" && !isMajor ? getStandings(season.id) : Promise.resolve([]),
       isMajor
         ? db.select({ value: count() }).from(majorTournamentEntrants).where(eq(majorTournamentEntrants.seasonId, season.id))
@@ -166,6 +170,8 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     });
   }
 
+  if (qualificationRun) phases.push({ key: "play-in", label: "PLAY-IN", done: Boolean(qualificationRun.completedAt) });
+
   // 比赛阶段（从 stagePlan 读取）
   if (stagePlan.length > 0) {
     const PLAYING_IDX = STATUS_IDX.playing;
@@ -203,70 +209,19 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   });
 
   // 找当前阶段（第一个未完成的）
-  let currentPhaseIdx = qualificationBeforeMainStart ? -1 : phases.findIndex((p) => !p.done);
+  let currentPhaseIdx = ["finished", "archived"].includes(season.status) ? phases.findIndex(phase => phase.key === "finished") : stagePresentation.currentStageKey ? phases.findIndex(phase => phase.key === stagePresentation.currentStageKey) : phases.findIndex((p) => !p.done);
   if (currentPhaseIdx === -1 && !qualificationBeforeMainStart) currentPhaseIdx = phases.length - 1;
 
-  const isHistorical = season.status === "finished" || season.status === "archived";
-  const registrationIsOpen = isRegistrationActuallyOpen(season);
+  const isHistorical = ["finished", "archived"].includes(season.status);
   const registrationSchedule = presentRegistrationSchedule(season);
-  const quickLinks = [
-    {
-      href: `/${seasonSlug}/register`,
-      label: "报名",
-      description: "提交报名信息",
-      icon: UserPlus,
-      show: !isHistorical && registrationIsOpen,
-    },
-    {
-      href: `/${seasonSlug}/players`,
-      label: "选手",
-      description: majorParticipantOverview?.presentation.playerDescription ?? "已通过审核的参赛选手",
-      icon: UserRoundSearch,
-      show: true,
-    },
-    {
-      href: `/${seasonSlug}/captains`,
-      label: "队长投票",
-      description: isHistorical ? "查看最终投票结果" : "为心仪队长投票",
-      icon: Vote,
-      show: season.hasCaptainVoting,
-    },
-    {
-      href: `/${seasonSlug}/draft`,
-      label: "选秀",
-      description: isHistorical ? "查看完整选人记录" : "实时观看选秀进度",
-      icon: Shuffle,
-      show: season.hasDraft,
-    },
-    {
-      href: `/${seasonSlug}/teams`,
-      label: "队伍",
-      description: "查看各队选手分布",
-      icon: Users,
-      show: true,
-    },
-    {
-      href: `/${seasonSlug}/matches`,
-      label: "赛程",
-      description: "Bracket + 战报",
-      icon: Swords,
-      show: hasMatches,
-    },
-    {
-      href: statsEntryHref(seasonSlug, {}, season.status === "draft"),
-      label: "数据统计",
-      description: "赛事排行榜与个人数据",
-      icon: BarChart3,
-      show: showStats(season),
-    },
-    { href: `/${seasonSlug}/community-awards`, label: "社区奖", description: "浏览奖项与获奖者", icon: Trophy, show: season.hasCommunityAwards },
-  ].filter((l) => l.show);
+  const entryIcons = { captains: Vote, draft: Shuffle, matches: Swords, teams: Users, players: UserRoundSearch, stats: BarChart3, awards: Trophy, bet: Trophy, predictions: Shuffle, info: UserPlus, overview: Swords };
+  const quickLinks = seasonEntries({ ...season, hasMatches, hasStats: showStats(season), hasPredictions: isMajor }).filter(entry => entry.canRead && entry.key !== "overview").map(entry => ({ ...entry, description: "", icon: entryIcons[entry.key] }));
 
   return (
     <PageLayout variant="wide" className="space-y-8">
-      <div className="relative mb-12 pt-6">
+      <div className="relative overflow-hidden rounded-[var(--radius-display)] border border-[var(--color-border)] bg-[var(--color-panel)] px-6 py-8 sm:px-8 sm:py-10">
         <div className="flex items-center gap-3 mb-4 text-xs uppercase tracking-wider">
-          <StatusPill {...presentSeasonParticipationState(season)} />
+          <StatusPill label={!isHistorical && stagePresentation.currentStageLabel ? stagePresentation.currentStageLabel : presentSeasonParticipationState(season).label} tone={!isHistorical && stagePresentation.currentStageLabel ? "accent" : presentSeasonParticipationState(season).tone} />
           <span className="text-[var(--color-fg-dim)]">{presentSeasonKind(season.kind)}</span>
         </div>
         <div className="flex items-center gap-3 mb-4">
@@ -293,7 +248,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
       {results && <SeasonResults results={results} slug={seasonSlug} />}
 
       {/* Phase tracker */}
-      <Panel contentClassName="p-6">
+      <Panel contentClassName="px-5 py-3">
         <ScrollHint fromColor="var(--color-panel)">
           <div role="list" aria-label="赛事阶段" className="flex items-start">
             {phases.map((phase, i) => (
@@ -344,22 +299,22 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
 
       {/* Upcoming matches and standings share a dual-column layout. */}
       {(upcomingMatches.length > 0 || standings.length > 0) && (
-        <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-4">
+        <div className={upcomingMatches.length > 0 && standings.length > 0 ? "grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" : "grid grid-cols-1 gap-4"}>
           {/* Left: 近期比赛 */}
           {upcomingMatches.length > 0 && (
             <Panel
               label={
                 <div className="flex items-center justify-between w-full">
-                  <span>NEXT MATCHES</span>
+                  <span>近期比赛</span>
                   <Button size="sm" variant="ghost" asChild>
-                    <Link href={`/${seasonSlug}/matches`}>VIEW ALL →</Link>
+                    <Link href={`/${seasonSlug}/matches`}>全部赛程 →</Link>
                   </Button>
                 </div>
               }
             >
-              <div className="grid gap-2">
+              <div className="grid grid-cols-1 gap-2">
                 {upcomingMatches.map((match) => (
-                  <Link key={match.id} href={`/${seasonSlug}/matches/${match.id}` as never}>
+                  <article key={match.id} className="min-w-0">
                     <div
                       className="flex items-center gap-2 p-2.5 rounded-sm transition-colors hover:bg-[var(--color-panel-hi)] hover:border-[var(--color-border-hi)]"
                       style={{
@@ -369,22 +324,22 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <span className="text-sm font-semibold text-[var(--color-fg)] truncate flex-1 text-right">
-                          {match.teamAName ?? "TBD"}
+                          <TeamProfileLink seasonSlug={seasonSlug} entryId={match.entryAId}>{match.teamAName ?? "待定"}</TeamProfileLink>
                         </span>
                         <span className="font-mono text-xs text-[var(--color-fg-dim)] shrink-0">vs</span>
                         <span className="text-sm font-semibold text-[var(--color-fg)] truncate flex-1">
-                          {match.teamBName ?? "TBD"}
+                          <TeamProfileLink seasonSlug={seasonSlug} entryId={match.entryBId}>{match.teamBName ?? "待定"}</TeamProfileLink>
                         </span>
                       </div>
-                      <div className="shrink-0 flex flex-col items-end gap-0.5">
-                        <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase tracking-wider">
+                      <Link href={`/${seasonSlug}/matches/${match.id}`} aria-label={`查看 ${match.teamAName ?? "待定"} 对 ${match.teamBName ?? "待定"} 比赛`} className="shrink-0 flex flex-col items-end gap-0.5">
+                        <span className="font-mono text-xs text-[var(--color-fg-dim)] uppercase tracking-wider">
                           {(match.stage === null ? undefined : stageLabelByKey.get(match.stage)) ?? "比赛阶段"}
                         </span>
                         <MatchStatusBadge status={match.status as MatchStatus} scheduledAt={match.scheduledAt} />
-                        {match.scheduledAt && <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">{formatCSTDateTime(match.scheduledAt)}</span>}
-                      </div>
+                        {match.scheduledAt && <span className="font-mono text-xs text-[var(--color-fg-dim)]">{formatCSTDateTime(match.scheduledAt)}</span>}
+                      </Link>
                     </div>
-                  </Link>
+                  </article>
                 ))}
               </div>
             </Panel>
@@ -423,26 +378,12 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         <Stat label="STAGE" value={stagePresentation.currentStageLabel ?? "—"} accent />
       </div>
 
-      <SectionHeader title="赛事导航" description="快速访问各功能模块" />
+      <SectionHeader title="继续探索" />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {quickLinks.map(({ href, label, description, icon: Icon }) => (
+      <div className="grid gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
+        {quickLinks.map(({ href, label, icon: Icon }) => (
           <Link key={href} href={href as never} className="group">
-            <Panel hoverable>
-              <div className="flex flex-col gap-2">
-                <div
-                  className="inline-flex items-center justify-center w-10 h-10 rounded-sm mb-1 transition-colors"
-                  style={{
-                    backgroundColor: "var(--color-accent-soft)",
-                    color: "var(--color-accent)",
-                  }}
-                >
-                  <Icon size={18} />
-                </div>
-                <h3 className="text-sm font-semibold text-[var(--color-fg)]">{label}</h3>
-                <p className="text-xs text-[var(--color-fg-dim)]">{description}</p>
-              </div>
-            </Panel>
+            <div className="flex items-center gap-3 border-b border-[var(--color-border)] py-4 transition-colors group-hover:text-[var(--color-accent)]"><Icon size={18} className="text-[var(--color-fg-mid)]" /><h3 className="flex-1 text-sm font-medium">{label}</h3><span aria-hidden>↗</span></div>
           </Link>
         ))}
       </div>
@@ -451,7 +392,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         const hasSeasonInfo = hasPublicSeasonInfo(seasonInfo);
         if (!latestSeasonAnnouncement && !hasSeasonInfo) return null;
         return (
-          <div className={latestSeasonAnnouncement && hasSeasonInfo ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
+          <div className={latestSeasonAnnouncement && hasSeasonInfo ? "grid gap-4 lg:grid-cols-2" : "grid grid-cols-1 gap-4"}>
             {latestSeasonAnnouncement && (
               <Panel label={<div className="flex w-full items-center justify-between gap-3"><span>最新公告</span><Button size="sm" variant="ghost" asChild><Link href={`/${seasonSlug}/announcements`}>历史公告 →</Link></Button></div>}>
                 <p className="font-semibold text-[var(--color-fg)]">{latestSeasonAnnouncement.title}</p>

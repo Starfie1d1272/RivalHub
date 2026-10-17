@@ -240,12 +240,10 @@ export function PredictionBoard({
   }
   return (
     <div className={`${styles.workbench} min-w-0 space-y-4`}>
-      <div className="flex flex-wrap justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold tracking-widest text-[var(--color-accent)]">
-            RIVALHUB / PREDICTION
-          </p>
-          <h1 className="mt-2 text-2xl font-bold">{base.name} · 赛事推演</h1>
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[var(--color-border)] pb-4">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
+          <h1 className="text-[28px] font-semibold">赛事推演</h1>
+          <p className="text-sm text-[var(--color-fg-mid)]">{base.name}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -284,7 +282,7 @@ export function PredictionBoard({
         </div>
       </div>
       {context.kind === "major" && (
-        <nav aria-label="观赛预测功能" className="flex gap-2">
+        <nav aria-label="赛事推演功能" className="flex gap-2">
           <Button
             variant={tab === "sim" ? "default" : "outline"}
             onClick={() => setTab("sim")}

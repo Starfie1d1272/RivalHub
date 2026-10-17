@@ -62,14 +62,14 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
     : event?.rosterLabel ?? "本届名单";
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <div className="overflow-hidden border border-[var(--color-border)] bg-[var(--color-panel)]">
         <div className="p-5 sm:p-6">
           <PageHeader
             title={(
-              <span className="flex items-center gap-4">
+              <span className="flex min-w-0 items-center gap-4">
                 <TeamLogo logoUrl={identity.logoUrl} teamName={identity.name} size="lg" />
-                <span>{identity.name}</span>
+                <span className="min-w-0 break-words">{identity.name}</span>
               </span>
             )}
             eyebrow={event ? event.season.name : "Team"}
@@ -110,7 +110,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
       </div>
 
       {statsUnavailable && <p role="status" className="text-sm text-[var(--color-fg-mid)]">竞技统计暂时无法加载，请稍后重试。</p>}
-      {event && <div className="grid gap-8">
+      {event && <div className="grid min-w-0 grid-cols-1 gap-8">
         <section className="space-y-4">
           <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">MEMBERS</p><h2 className="mt-1 text-lg font-semibold">{eventRosterHeading}</h2></div>
           <div className="border-y border-[var(--color-border)] px-1">
@@ -153,7 +153,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
       </div>}
 
       {!event && team && <>
-        <div className="grid gap-8">
+        <div className="grid min-w-0 grid-cols-1 gap-8">
           <section className="space-y-4">
             <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">TEAM</p><h2 className="mt-1 text-lg font-semibold">当前成员</h2></div>
             <div className="border-y border-[var(--color-border)] px-1">

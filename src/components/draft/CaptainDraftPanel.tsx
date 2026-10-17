@@ -1,5 +1,8 @@
 "use client";
 
+import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
+import { useClientReady } from "@/components/rivalhub/useClientReady";
+
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React, { useMemo, useState } from "react";
@@ -12,7 +15,7 @@ import { canPickPosition } from "@/lib/draft/rules";
 import { positionLabel } from "@/lib/validators/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { PosChip } from "@/components/rivalhub/PosChip";
-import { PlayerInfoPopover } from "./PlayerInfoPopover";
+import { useRoutePolling } from "@/components/use-visible-polling";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { sortByRank } from "@/lib/utils/rank";
@@ -57,11 +60,15 @@ export function CaptainDraftPanel({
   readonly: isReadonly,
 }: CaptainDraftPanelProps) {
   const router = useRouter();
+  const interactive = useClientReady();
   const [filter, setFilter] = useState(FILTER_ALL);
   const [search, setSearch] = useState("");
   const [pendingRegistrationId, setPendingRegistrationId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [rosterOpen, setRosterOpen] = useState(false);
+  const [rosterOpen, setRosterOpen] = useState(true);
+  const [inspectedId, setInspectedId] = useState<string | null>(null);
+  const inspected = players.find(player => player.registrationId === inspectedId) ?? null;
+  useRoutePolling(isReadonly ? null : 10_000, pendingRegistrationId !== null);
 
   const grouped = useMemo(() => {
     const map = new Map<string, CaptainDraftPlayer[]>();
@@ -104,7 +111,7 @@ export function CaptainDraftPanel({
     return players.find((p) => p.registrationId === candidate.registrationId) ?? null;
   }, [players, positionCounts, isDraftActive, isCurrentCaptainTurn]);
 
-  const canSubmit = isDraftActive && isCurrentCaptainTurn && pendingRegistrationId === null;
+  const canSubmit = interactive && isDraftActive && isCurrentCaptainTurn && pendingRegistrationId === null;
 
   async function handlePick(player: CaptainDraftPlayer) {
     if (!canSubmit || !canPickPosition(positionCounts[player.primaryPosition] ?? 0)) return;
@@ -135,10 +142,10 @@ export function CaptainDraftPanel({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="grid items-start gap-5 md:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_300px]">
       {/* Header */}
       {!isReadonly && (
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4 md:col-span-2 xl:col-span-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-[var(--color-fg)]"><TeamProfileLink entryId={entryId}>{teamName}</TeamProfileLink></h2>
@@ -173,9 +180,10 @@ export function CaptainDraftPanel({
 
       {/* Roster Summary (collapsible) */}
       {!isReadonly && (
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] overflow-hidden">
+        <div className="min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] overflow-hidden md:sticky md:top-20">
           <button
             type="button"
+            disabled={!interactive}
             onClick={() => setRosterOpen(!rosterOpen)}
             className="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)] transition-colors"
           >
@@ -186,8 +194,8 @@ export function CaptainDraftPanel({
             )}
             我的阵容（{rosterMembers.length + 1} 人）
           </button>
-          {rosterOpen && (
-            <div className="border-t border-[var(--color-border)] px-4 py-3 space-y-3">
+          {(
+            <div className={`border-t border-[var(--color-border)] px-4 py-3 space-y-3 ${rosterOpen ? "" : "hidden md:block"}`}>
               {/* Position occupation */}
               <div className="flex flex-wrap gap-2 text-xs text-[var(--color-fg-mid)]">
                 {seasonPositions.map((pos) => {
@@ -222,7 +230,7 @@ export function CaptainDraftPanel({
         </div>
       )}
 
-      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
+      <div className="min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
         {/* Auto-pick candidate hint */}
         {!isReadonly && autoPickCandidate && isCurrentCaptainTurn && (
           <div className="mb-4 rounded-sm border px-3 py-2 text-xs" style={{ borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)", color: "var(--color-warn)" }}>
@@ -231,10 +239,8 @@ export function CaptainDraftPanel({
               <span>
                 超时自动选人：<PlayerProfileLink userId={autoPickCandidate.userId}>{getPublicDisplayName(autoPickCandidate)}</PlayerProfileLink>（{positionLabel(autoPickCandidate.primaryPosition)}，{autoPickCandidate.peakRank}）
               </span>
+              <HelpTooltip label="自动选人规则" content="依次比较历史最高段位、Peak Rating、当前段位和当前 Rating，优先补齐空位，每位置最多 2 人。" />
             </div>
-            <p className="mt-1.5 pl-5.5 text-[10px] leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-warn) 70%, var(--color-fg-mid))" }}>
-              规则：历史最高段位 → 巅峰Rating → 当前段位 → 当前Rating；优先填空位，同位置不超过2人
-            </p>
           </div>
         )}
 
@@ -244,6 +250,7 @@ export function CaptainDraftPanel({
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-[var(--color-fg-dim)]" aria-hidden="true" />
             <input
               type="text"
+              disabled={!interactive}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="搜索选手名..."
@@ -255,6 +262,7 @@ export function CaptainDraftPanel({
               type="button"
               size="sm"
               variant={filter === FILTER_ALL ? "default" : "secondary"}
+              disabled={!interactive}
               onClick={() => setFilter(FILTER_ALL)}
             >
               全部 {players.length}
@@ -268,7 +276,7 @@ export function CaptainDraftPanel({
                   type="button"
                   size="sm"
                   variant={filter === position ? "default" : "secondary"}
-                  disabled={count === 0}
+                  disabled={!interactive || count === 0}
                   onClick={() => setFilter(filter === position ? FILTER_ALL : position)}
                 >
                   {positionLabel(position)} {teamCount}/2 · {count}
@@ -362,11 +370,7 @@ export function CaptainDraftPanel({
                       <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
                     </div>
 
-                    <PlayerInfoPopover
-                      gameplayStyle={player.gameplayStyle}
-                      notes={player.notes}
-                      competitionHistory={player.competitionHistory}
-                    />
+                    <Button size="sm" variant="ghost" disabled={!interactive} onClick={() => setInspectedId(current => current === player.registrationId ? null : player.registrationId)} aria-expanded={inspectedId === player.registrationId} aria-controls={`draft-detail-${player.registrationId} draft-inspector`}>{interactive ? "详情" : "准备中…"}</Button>
 
                     {/* Pick button */}
                     {!isReadonly && (
@@ -374,7 +378,7 @@ export function CaptainDraftPanel({
                         type="button"
                         size="sm"
                         disabled={disabled}
-                        aria-label={positionOpen ? `选择 ${displayedName}` : `${displayedName} 已满`}
+                        aria-label={positionOpen ? `选入 ${displayedName}` : `${displayedName} 已满`}
                         onClick={() => void handlePick(player)}
                         className="shrink-0"
                       >
@@ -383,7 +387,7 @@ export function CaptainDraftPanel({
                         ) : positionOpen ? (
                           <Check className="size-4" aria-hidden="true" />
                         ) : null}
-                        {positionOpen ? "选择" : "已满"}
+                        {positionOpen ? "选入" : "已满"}
                       </Button>
                     )}
                   </div>
@@ -442,18 +446,14 @@ export function CaptainDraftPanel({
                         <div className="min-w-0">
                           <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
                         </div>
-                        <PlayerInfoPopover
-                          gameplayStyle={player.gameplayStyle}
-                          notes={player.notes}
-                          competitionHistory={player.competitionHistory}
-                        />
+                        <Button size="sm" variant="ghost" disabled={!interactive} onClick={() => setInspectedId(current => current === player.registrationId ? null : player.registrationId)} aria-expanded={inspectedId === player.registrationId} aria-controls={`draft-detail-${player.registrationId} draft-inspector`}>{interactive ? "详情" : "准备中…"}</Button>
                       </div>
                       {!isReadonly && (
                         <Button
                           type="button"
                           size="sm"
                           disabled={disabled}
-                          aria-label={positionOpen ? `选择 ${displayedName}` : `${displayedName} 已满`}
+                          aria-label={positionOpen ? `选入 ${displayedName}` : `${displayedName} 已满`}
                           onClick={() => void handlePick(player)}
                           className="shrink-0"
                         >
@@ -462,17 +462,25 @@ export function CaptainDraftPanel({
                           ) : positionOpen ? (
                             <Check className="size-4" aria-hidden="true" />
                           ) : null}
-                          {positionOpen ? "选择" : "已满"}
+                          {positionOpen ? "选入" : "已满"}
                         </Button>
                       )}
                     </div>
                   </div>
+                  {inspectedId === player.registrationId && <div id={`draft-detail-${player.registrationId}`} role="region" aria-label={`选手详情 · ${displayedName}`} className="mt-4 border-t border-[var(--color-border)] pt-4 xl:hidden"><DraftPlayerDetails player={player} canSelect={canSubmit && canPickPosition(positionCounts[player.primaryPosition] ?? 0)} onPick={isReadonly ? undefined : () => void handlePick(player)} /></div>}
                 </div>
               );
             })}
           </div>
         )}
       </div>
+      <aside id="draft-inspector" className="hidden min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-5 md:col-start-2 xl:col-start-3 xl:row-start-2 xl:block xl:sticky xl:top-20" aria-label="选手详情">
+        {inspected ? <DraftPlayerDetails player={inspected} canSelect={canSubmit && canPickPosition(positionCounts[inspected.primaryPosition] ?? 0)} onPick={isReadonly ? undefined : () => void handlePick(inspected)} /> : <><h2 className="font-semibold">选手详情</h2><p className="mt-3 text-sm leading-6 text-[var(--color-fg-mid)]">选择选手查看。</p></>}
+      </aside>
     </div>
   );
+}
+
+function DraftPlayerDetails({ player, canSelect, onPick }: { player: CaptainDraftPlayer; canSelect: boolean; onPick?: () => void }) {
+  return <><p className="text-xs text-[var(--color-fg-mid)]">选手详情</p><h2 className="mt-3 text-xl font-semibold"><PlayerProfileLink userId={player.userId}>{getPublicDisplayName(player)}</PlayerProfileLink></h2><p className="mt-2 text-sm text-[var(--color-fg-mid)]">{positionLabel(player.primaryPosition)} · 副选 {positionLabel(player.secondaryPosition)}</p><dl className="my-5 grid grid-cols-2 gap-4 text-sm"><div><dt className="text-[var(--color-fg-mid)]">最高段位</dt><dd className="mt-1 font-mono">{player.peakRank}</dd></div><div><dt className="text-[var(--color-fg-mid)]">Peak Rating</dt><dd className="mt-1 font-mono">{player.peakRating}</dd></div></dl><p className="text-sm leading-6">{player.gameplayStyle || "暂无打法说明"}</p>{player.competitionHistory && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{player.competitionHistory}</p>}{player.notes && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{player.notes}</p>}{onPick && <Button className="mt-5" disabled={!canSelect} onClick={onPick}>选入本队</Button>}</>;
 }

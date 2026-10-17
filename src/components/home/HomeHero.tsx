@@ -1,87 +1,36 @@
-import { EventLogo } from "@/components/season/EventLogo";
-import React from "react";
+import Image from "next/image";
 import Link from "next/link";
-import type { RegistrationMode, SeasonStatus } from "@/types/season";
-import { APP_BRAND } from "@/lib/branding";
-import type { HomeEyebrow } from "@/lib/home/navigation";
-import { getRegistrationWindowState, type RegistrationWindowSeason } from "@/lib/registration/window";
-import { Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
+import type { PublicSeason } from "@/lib/data/public-seasons";
+import type { HomeEyebrow, HomeNavEntry } from "@/lib/home/navigation";
 
-interface HomeHeroSeason extends RegistrationWindowSeason {
-  name: string;
-  logoUrl?: string | null;
-  slug: string;
-  status: SeasonStatus;
-  registrationMode: RegistrationMode;
-  registrationOpenedAt?: Date | string | null;
-}
-
-interface HomeHeroProps {
-  season: HomeHeroSeason;
+export function HomeHero({ season, eyebrow, primary, stageLabel, teamCount, playerCount }: {
+  season: Pick<PublicSeason, "name" | "slug" | "status" | "registrationMode"> & Partial<Pick<PublicSeason, "logoUrl" | "hasCaptainVoting" | "hasDraft">>;
   eyebrow: HomeEyebrow;
-}
-
-export function HomeHero({ season, eyebrow }: HomeHeroProps) {
-  const registrationIsOpen = getRegistrationWindowState(season).canSubmit;
-
-  return (
-    <Panel className="overflow-hidden relative" contentClassName="p-0">
-      <div className="p-7 relative z-10">
-        <div
-          className="mb-3 font-bold"
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 11,
-            color: eyebrow.color,
-            letterSpacing: "var(--tracking-eyebrow)",
-          }}
-        >
-          {eyebrow.text}
-        </div>
-        <h1
-          className="font-semibold leading-[0.95] m-0 text-4xl lg:text-[56px]"
-          style={{
-            fontFamily: "var(--font-display)",
-            letterSpacing: "var(--tracking-tight-2)",
-            color: "var(--color-fg)",
-          }}
-        >
-          {APP_BRAND.name}
-          <br />
-          <span className="inline-flex items-center gap-3" style={{ color: "var(--color-accent)" }}><EventLogo logoUrl={season.logoUrl ?? null} /><span>{season.name}</span></span>
-        </h1>
-        <div
-          className="mt-3.5 max-w-[520px] leading-relaxed"
-          style={{ color: "var(--color-fg-mid)", fontSize: 14 }}
-        >
-          {APP_BRAND.description}
-        </div>
-        <div className="flex gap-2.5 mt-5.5 flex-wrap">
-          <Button asChild>
-            <Link href={`/${season.slug}`}>进入赛事 →</Link>
-          </Button>
-          <Button variant="ghost" asChild>
-            <Link href="/seasons">赛事中心</Link>
-          </Button>
+  primary: HomeNavEntry | null;
+  stageLabel: string | null;
+  teamCount: number;
+  playerCount: number;
+}) {
+  return <section className="home-event-hero relative isolate overflow-hidden rounded-[var(--radius-display)] border border-[var(--color-border)] bg-[var(--color-panel)]">
+    <div aria-hidden className="home-event-art pointer-events-none absolute inset-y-0 right-0 w-[48%]">
+      <Image src="/brand/rivalhub/rivalhub-symbol-color-transparent-tight.png" alt="" fill sizes="(min-width: 1440px) 620px, 45vw" priority className="object-contain p-10" />
+    </div>
+    <div className="relative z-10 grid min-h-[440px] content-between gap-10 p-6 sm:p-10 lg:p-12">
+      <div className="max-w-[760px]">
+        <p className="mb-6 font-mono text-xs tracking-[0.18em] text-[var(--color-accent)]">RIVALHUB / COMPETE TOGETHER</p>
+        <p className="mb-4 flex items-center gap-2 text-sm font-medium text-[var(--color-fg-mid)]"><span aria-hidden className="size-1.5 rounded-full bg-[var(--color-accent)]" />{stageLabel ?? eyebrow.text.replace(/^●\s*/, "")}</p>
+        <h1 className="max-w-[18ch] text-balance text-[clamp(36px,4.5vw,72px)] font-bold leading-[1.06] tracking-tight text-[var(--color-fg)] [overflow-wrap:anywhere]">{season.name}</h1>
+        <div className="mt-8 flex flex-wrap items-center gap-3">
+          {primary && <Button size="lg" asChild><Link href={primary.href as never}>{(["finished", "archived"].includes(season.status) ? "赛事回顾" : primary.label)} <span aria-hidden>↗</span></Link></Button>}
+          <Button size="lg" variant="outline" asChild><Link href={`/${season.slug}`}>赛事总览</Link></Button>
         </div>
       </div>
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-50 pointer-events-none"
-        style={{
-          background: `
-            radial-gradient(circle at 90% 10%, ${
-              registrationIsOpen
-                ? "var(--color-ok-soft)"
-                : season.status === "registration" || season.status === "voting"
-                  ? "var(--color-warn-soft)"
-                  : "var(--color-accent-soft)"
-            } 0, transparent 40%),
-            repeating-linear-gradient(0deg, transparent 0 32px, color-mix(in srgb, var(--color-border) 25%, transparent) 32px 33px)
-          `,
-        }}
-      />
-    </Panel>
-  );
+      <dl className="flex flex-wrap gap-x-10 gap-y-4 border-t border-[var(--color-border-hi)] pt-5 text-sm">
+        <div><dt className="mb-1 text-xs text-[var(--color-fg-mid)]">参赛队伍</dt><dd className="font-mono text-xl font-semibold tabular-nums">{teamCount}</dd></div>
+        <div><dt className="mb-1 text-xs text-[var(--color-fg-mid)]">本届选手</dt><dd className="font-mono text-xl font-semibold tabular-nums">{playerCount}</dd></div>
+        <div><dt className="mb-1 text-xs text-[var(--color-fg-mid)]">参与方式</dt><dd className="pt-1">{season.registrationMode === "team" ? "组队参赛" : ["个人报名", ...(season.hasCaptainVoting ? ["队长投票"] : []), ...(season.hasDraft ? ["蛇形选秀"] : [])].join(" · ")}</dd></div>
+      </dl>
+    </div>
+  </section>;
 }
