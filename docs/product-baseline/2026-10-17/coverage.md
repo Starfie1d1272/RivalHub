@@ -29,7 +29,7 @@
 | Major 报名 | Team 创建本届 Entry、名单、本人确认、资格、提交审核 | 候补/补正/拒绝、撤回审核、新版本、成员退出、特批绑定版本 | §5.3 | [E09](implementation-index.md#e09) |
 | Major 赛前 | 审核收口、资格草稿/确认、正赛席位、名单冻结、建议/种子、明确开赛 | 候选变化、旧版本、容量阻塞、自助调整窗口、计划时间非自动开赛 | §5.4 | [E10](implementation-index.md#e10) |
 | Play-in | Direct BO3、Short Swiss，预览确认每轮、晋级 | 2W2L、人数门槛、无重赛约束、取消/删除禁止、下游恢复限制 | §5.4、§6.4 | [E10](implementation-index.md#e10)、[E14](implementation-index.md#e14) |
-| 正式阶段 | Rivals 循环/双败、Major Swiss/Playoffs、晋级、最终名次 | 冻结运行、阶段规模/BO、轮次确认、正式结果待确认 | §5.2、§5.5 | [E11](implementation-index.md#e11) |
+| 正式阶段 | Rivals 循环/双败、Major Swiss/Playoffs、晋级、最终名次、可选季军赛/并列第 3–4 名 | 冻结运行、阶段规模/BO、轮次确认；季军赛启动选择冻结、BO3；决赛与启用的季军赛完赛及有效比分门槛、正式结果待确认 | §5.2、§5.5 | [E11](implementation-index.md#e11) |
 | 单场协调 | 提议/接受/拒绝/改期、管理指定、转播预留 | 首次 24h/2h 自动采纳、己方不能回应、原时间保留、过期容量 | §6.2 | [E12](implementation-index.md#e12) |
 | 单场阵容 | 合法五人、BP 负责人、默认主力、开始冻结 | 无合法五人、校籍/实力/纪律、晚改、历史成员不能替换 | §6.2 | [E12](implementation-index.md#e12) |
 | BP | 准备、宽限、先手选择、BO1/3/5 禁选边 | 超时、暂停/恢复、技术申诉、实际开局边界、独立发布开关 | §6.3 | [E13](implementation-index.md#e13) |
@@ -70,7 +70,7 @@
 
 | 实际执行的文档核验 | 结果 |
 | --- | --- |
-| 固定基线链接检查（以 `git show <SHA>:<path>` 校验文件与行号；本地校验文档锚点） | 4 份资料包、694 个链接、399 个不同的固定基线定位全部有效 |
+| 固定基线链接检查（以 `git show <SHA>:<path>` 校验文件与行号；本地校验文档锚点） | 4 份资料包、701 个链接、405 个不同的固定基线定位全部有效 |
 | 编号与入口集合核对 | E01–E24 均被正文引用；入口索引与基线全部 98 个页面/HTTP 路由集合相等 |
 | 实际变更文件输入仓库 `classifyChangedFiles` | 7 个 Markdown 文件，`docs-only surface`；不选择 static/PostgreSQL/system lane |
 | `git diff --check`、新增文档空白/占位与敏感值检查、完整改动范围核对 | 通过；产品源码、配置、依赖、测试、迁移、已发布规则均无变更 |

@@ -246,7 +246,7 @@
 
 ## E11 · 阶段运行、晋级与正式最终结果
 
-正文第 5.5 节。标准托管 profile 从能力和 frozen StagePlan 判断，不是任意容量；榜单是投影，StageRun/官方比赛才是推进依据。
+正文第 5.5 节。标准托管 profile 从能力和 frozen StagePlan 判断，不是任意容量；榜单是投影，StageRun/官方比赛才是推进依据。季军赛/并列第 3–4 名分支、启动选择冻结与最终结果完赛门槛分别由发布规则和当前实现支持。
 
 **规则/实现定位**
 
@@ -256,6 +256,12 @@
 - [src/lib/major/swiss.ts:139](https://github.com/Starfie1d1272/RivalHub/blob/4ca5f800c44ea2611f82e18fcbede2077e3cdafc/src/lib/major/swiss.ts#L139) — `MAJOR_SWISS_WIN_THRESHOLD`
 - [src/lib/major/swiss-runtime.ts:1](https://github.com/Starfie1d1272/RivalHub/blob/4ca5f800c44ea2611f82e18fcbede2077e3cdafc/src/lib/major/swiss-runtime.ts#L1)
 - [src/lib/major/playoff-runtime.ts:1](https://github.com/Starfie1d1272/RivalHub/blob/4ca5f800c44ea2611f82e18fcbede2077e3cdafc/src/lib/major/playoff-runtime.ts#L1)
+- [docs/rules/published/nju-major-v1.1.md:243](https://github.com/Starfie1d1272/RivalHub/blob/4ca5f800c44ea2611f82e18fcbede2077e3cdafc/docs/rules/published/nju-major-v1.1.md#L243) — §8：季军赛按赛果确定第 3、4 名；并列季军方案为两支半决赛失利队并列第 3–4 名
+- [src/components/admin/MajorSwissRuntimeManagement.tsx:55](https://github.com/Starfie1d1272/RivalHub/blob/4ca5f800c44ea2611f82e18fcbede2077e3cdafc/src/components/admin/MajorSwissRuntimeManagement.tsx#L55) — 管理员启动 Playoffs 时选择是否设置季军赛，并告知创建时冻结
+- [src/lib/major/playoff-runtime.ts:89](https://github.com/Starfie1d1272/RivalHub/blob/4ca5f800c44ea2611f82e18fcbede2077e3cdafc/src/lib/major/playoff-runtime.ts#L89) — 启动参数及创建时写入冻结规则快照；已存在的淘汰赛不重新创建或改选
+- [src/lib/major/playoff-runtime.ts:232](https://github.com/Starfie1d1272/RivalHub/blob/4ca5f800c44ea2611f82e18fcbede2077e3cdafc/src/lib/major/playoff-runtime.ts#L232) — 按冻结选择为半决赛失利队创建 BO3 季军赛
+- [src/lib/major/playoff-runtime.ts:246](https://github.com/Starfie1d1272/RivalHub/blob/4ca5f800c44ea2611f82e18fcbede2077e3cdafc/src/lib/major/playoff-runtime.ts#L246) — 生成最终名次时纳入决赛及启用的季军赛；结果初始为待确认
+- [src/lib/major/playoff-runtime.ts:50](https://github.com/Starfie1d1272/RivalHub/blob/4ca5f800c44ea2611f82e18fcbede2077e3cdafc/src/lib/major/playoff-runtime.ts#L50) — 上述比赛统一检查完赛状态、完成时间与有效正式比分
 - [src/lib/matches/stage-transition.ts:1](https://github.com/Starfie1d1272/RivalHub/blob/4ca5f800c44ea2611f82e18fcbede2077e3cdafc/src/lib/matches/stage-transition.ts#L1)
 - [src/lib/formats/supported.ts:1](https://github.com/Starfie1d1272/RivalHub/blob/4ca5f800c44ea2611f82e18fcbede2077e3cdafc/src/lib/formats/supported.ts#L1)
 - [src/db/schema/major-stage.ts:50](https://github.com/Starfie1d1272/RivalHub/blob/4ca5f800c44ea2611f82e18fcbede2077e3cdafc/src/db/schema/major-stage.ts#L50) — `majorResultStatusEnum`
