@@ -14,11 +14,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { InlineConfirm, HelpTooltip, PageHeader, ListToolbar, ListSearchField, ClearFilters, ResultSummary, PaginationControls, useListQueryParams } from "@/components/rivalhub";
 import type { ListSearchFieldHandle } from "@/components/rivalhub/ListSearchField";
 import { TeamLogo } from "@/components/teams/TeamLogo";
-import { operateBet } from "@/actions/bet";
+import { operateBet as telemetry_operateBet } from "@/actions/bet";
 import { betStateLabel, formatPoints } from "@/lib/bet/presentation";
 import { BET_GROUPS, BET_OPERATION_PAGE_SIZE, betOperationsList, type BetOperationsQuery } from "@/lib/bet/operations";
 import type { BetBoardDTO, BetMarketDTO, BetState } from "@/lib/bet/types";
 import { formatCSTDateTime } from "@/lib/utils/date";
+import { observeAction } from "@/lib/telemetry/client";
+
+const operateBet = observeAction("bet.operateBet", telemetry_operateBet);
 
 const STATES: BetState[] = ["open", "locked", "settled", "refunded"];
 const FILTER_KEYS = ["q", "state", "category", "stage"];

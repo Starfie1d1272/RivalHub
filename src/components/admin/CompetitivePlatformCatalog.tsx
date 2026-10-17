@@ -4,17 +4,17 @@ import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  createCompetitivePlatformRank,
-  createCompetitivePlatformSeason,
-  deleteCompetitivePlatformRank,
-  deleteCompetitivePlatformSeason,
-  moveCompetitivePlatformRank,
-  moveCompetitivePlatformSeason,
-  setCurrentCompetitivePlatformSeason,
-  setCompetitivePlatformSeasonActive,
-  updateCompetitivePlatform,
-  updateCompetitivePlatformRankLabel,
-  updateCompetitivePlatformSeason,
+  createCompetitivePlatformRank as telemetry_createCompetitivePlatformRank,
+  createCompetitivePlatformSeason as telemetry_createCompetitivePlatformSeason,
+  deleteCompetitivePlatformRank as telemetry_deleteCompetitivePlatformRank,
+  deleteCompetitivePlatformSeason as telemetry_deleteCompetitivePlatformSeason,
+  moveCompetitivePlatformRank as telemetry_moveCompetitivePlatformRank,
+  moveCompetitivePlatformSeason as telemetry_moveCompetitivePlatformSeason,
+  setCurrentCompetitivePlatformSeason as telemetry_setCurrentCompetitivePlatformSeason,
+  setCompetitivePlatformSeasonActive as telemetry_setCompetitivePlatformSeasonActive,
+  updateCompetitivePlatform as telemetry_updateCompetitivePlatform,
+  updateCompetitivePlatformRankLabel as telemetry_updateCompetitivePlatformRankLabel,
+  updateCompetitivePlatformSeason as telemetry_updateCompetitivePlatformSeason,
 } from "@/actions/competitive-platform";
 import { resolveCatalogSeasonRoles, type CompetitivePlatformCatalogEntry } from "@/lib/competitive/catalog-contract";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineConfirm, Panel, StatusBanner } from "@/components/rivalhub";
+import { observeAction } from "@/lib/telemetry/client";
+
+const createCompetitivePlatformRank = observeAction("competitive-platform.createCompetitivePlatformRank", telemetry_createCompetitivePlatformRank);
+const createCompetitivePlatformSeason = observeAction("competitive-platform.createCompetitivePlatformSeason", telemetry_createCompetitivePlatformSeason);
+const deleteCompetitivePlatformRank = observeAction("competitive-platform.deleteCompetitivePlatformRank", telemetry_deleteCompetitivePlatformRank);
+const deleteCompetitivePlatformSeason = observeAction("competitive-platform.deleteCompetitivePlatformSeason", telemetry_deleteCompetitivePlatformSeason);
+const moveCompetitivePlatformRank = observeAction("competitive-platform.moveCompetitivePlatformRank", telemetry_moveCompetitivePlatformRank);
+const moveCompetitivePlatformSeason = observeAction("competitive-platform.moveCompetitivePlatformSeason", telemetry_moveCompetitivePlatformSeason);
+const setCurrentCompetitivePlatformSeason = observeAction("competitive-platform.setCurrentCompetitivePlatformSeason", telemetry_setCurrentCompetitivePlatformSeason);
+const setCompetitivePlatformSeasonActive = observeAction("competitive-platform.setCompetitivePlatformSeasonActive", telemetry_setCompetitivePlatformSeasonActive);
+const updateCompetitivePlatform = observeAction("competitive-platform.updateCompetitivePlatform", telemetry_updateCompetitivePlatform);
+const updateCompetitivePlatformRankLabel = observeAction("competitive-platform.updateCompetitivePlatformRankLabel", telemetry_updateCompetitivePlatformRankLabel);
+const updateCompetitivePlatformSeason = observeAction("competitive-platform.updateCompetitivePlatformSeason", telemetry_updateCompetitivePlatformSeason);
 
 type Platform = CompetitivePlatformCatalogEntry;
 

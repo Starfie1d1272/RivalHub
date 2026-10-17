@@ -1,14 +1,18 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { claimBetRelief, getBetRelief } from "@/actions/bet";
+import { claimBetRelief as telemetry_claimBetRelief, getBetRelief } from "@/actions/bet";
 import type { BetReliefDTO } from "@/lib/bet/relief";
-import { getFreePredictionBoard, getFreePredictionRanking, submitFreePrediction } from "@/actions/free-predictions";
+import { getFreePredictionBoard, getFreePredictionRanking, submitFreePrediction as telemetry_submitFreePrediction } from "@/actions/free-predictions";
 import { ErrorCode } from "@/lib/errors";
 import type { FreePredictionMatchDTO } from "@/lib/free-predictions/types";
 import type { ComponentProps } from "react";
 import { BetBoard } from "./BetBoard";
 import { freeMatchRow, freePredictionPanel, freeRankingModel } from "./free-prediction-presentation";
 import type { FreePredictionModel } from "./presentation-contract";
+import { observeAction } from "@/lib/telemetry/client";
+
+const claimBetRelief = observeAction("bet.claimBetRelief", telemetry_claimBetRelief);
+const submitFreePrediction = observeAction("free-predictions.submitFreePrediction", telemetry_submitFreePrediction);
 
 export function UnifiedBetBoard({ freeMatches, reliefModel, ...props }: Omit<ComponentProps<typeof BetBoard>, "predictions" | "predictionControls" | "predictionMatchRows" | "relief"> & { freeMatches: FreePredictionMatchDTO[]; reliefModel: BetReliefDTO }) {
   const [snapshot, setSnapshot] = useState({ origin: freeMatches, value: freeMatches });

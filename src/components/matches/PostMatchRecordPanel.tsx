@@ -1,12 +1,19 @@
 "use client";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { addMatchCommentator, removeMatchCommentator, revokePostMatchSubmission, submitPostMatchReport, updateMatchVideoUrl } from "@/actions/postmatch";
+import { addMatchCommentator as telemetry_addMatchCommentator, removeMatchCommentator as telemetry_removeMatchCommentator, revokePostMatchSubmission as telemetry_revokePostMatchSubmission, submitPostMatchReport as telemetry_submitPostMatchReport, updateMatchVideoUrl as telemetry_updateMatchVideoUrl } from "@/actions/postmatch";
 import { Button } from "@/components/ui/button";
 import { InlineConfirm } from "@/components/rivalhub/InlineConfirm";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import type { AdminPostMatchRecordData } from "@/lib/admin/matches/types";
+import { observeAction } from "@/lib/telemetry/client";
+
+const addMatchCommentator = observeAction("postmatch.addMatchCommentator", telemetry_addMatchCommentator);
+const removeMatchCommentator = observeAction("postmatch.removeMatchCommentator", telemetry_removeMatchCommentator);
+const revokePostMatchSubmission = observeAction("postmatch.revokePostMatchSubmission", telemetry_revokePostMatchSubmission);
+const submitPostMatchReport = observeAction("postmatch.submitPostMatchReport", telemetry_submitPostMatchReport);
+const updateMatchVideoUrl = observeAction("postmatch.updateMatchVideoUrl", telemetry_updateMatchVideoUrl);
 
 export type PostMatchRecordData = AdminPostMatchRecordData;
 export function PostMatchRecordPanel({ matchId, data }: { matchId: string; data: PostMatchRecordData }) {

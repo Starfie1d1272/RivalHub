@@ -1,0 +1,129 @@
+import { LIMITS, UUID, validEvent, type TelemetryEvent } from "../../src/lib/telemetry/protocol";
+import { verifyTicket } from "../../src/lib/telemetry/ticket";
+
+export interface Statement {
+  bind(...args: (string | number | null)[]): Statement;
+  all<T = Record<string, unknown>>(): Promise<{ results: T[]; meta?: Record<string, number> }>;
+  first<T = Record<string, unknown>>(): Promise<T | null>;
+  run(): Promise<{ meta?: Record<string, number> }>;
+}
+export interface Database { prepare(sql: string): Statement; batch(statements: Statement[]): Promise<unknown[]> }
+export interface Env {
+  DB: Database; SIGNING_KEY: string; ADMIN_KEY: string; ALLOWED_ORIGIN: string;
+  ACCEPTING?: string; RETENTION_APPROVED?: string;
+}
+const DAY = 86400000;
+// Deliberately below Workers Free/D1 allowances. Shared account headroom still needs approval.
+export const BUDGET = { batches: 5000, bytes: 8 * 1024 * 1024, ticketBatches: 120 };
+function response(status: number, origin?: string, value?: unknown) {
+  return new Response(value === undefined ? null : JSON.stringify(value), { status, headers: {
+    "Cache-Control": "no-store", ...(value === undefined ? {} : { "Content-Type": "application/json" }),
+    ...(origin ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" } : {}),
+  } });
+}
+async function boundedBody(request: Request): Promise<string | null> {
+  const reader = request.body?.getReader();
+  if (!reader) return null;
+  const chunks: Uint8Array[] = []; let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > LIMITS.bytes) { await reader.cancel(); return null; }
+    chunks.push(value);
+  }
+  const result = new Uint8Array(size); let offset = 0;
+  for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length; }
+  return new TextDecoder().decode(result);
+}
+
+export async function handle(request: Request, env: Env, now = Date.now()): Promise<Response> {
+  const url = new URL(request.url);
+  const origin = request.headers.get("origin");
+  try {
+    if (url.pathname === "/v1/batches" && request.method === "POST") {
+      if (origin !== env.ALLOWED_ORIGIN) return response(403);
+      if (env.ACCEPTING !== "1" || env.RETENTION_APPROVED !== "1") return response(503, origin);
+      const body = await boundedBody(request);
+      if (!body) return response(413, origin);
+      let input: { v: number; id: string; ticket: string; events: TelemetryEvent[] };
+      try { input = JSON.parse(body); } catch { return response(400, origin); }
+      if (!input || Object.keys(input).some(k => !["v", "id", "ticket", "events"].includes(k)) || input.v !== 1 || !UUID.test(input.id) || typeof input.ticket !== "string") return response(400, origin);
+      const ticket = await verifyTicket(input.ticket, env.SIGNING_KEY, now);
+      if (!ticket || ticket.origin !== origin) return response(401, origin);
+      if (!Array.isArray(input.events) || !input.events.length || input.events.length > LIMITS.batch || !input.events.every(e => validEvent(e, now)) || input.events.some(e => e.session !== input.events[0].session) || new Set(input.events.map(e => e.id)).size !== input.events.length) return response(400, origin);
+      const existing = await env.DB.prepare("SELECT id FROM batches WHERE ticket=? AND id=? AND expires>?").bind(ticket.id, input.id, now).first();
+      if (existing) return response(204, origin);
+      // Stop admission if cleanup is overdue; expiry checks also protect every read.
+      if (await env.DB.prepare("SELECT id FROM batches WHERE expires<=? LIMIT 1").bind(now).first()) return response(503, origin);
+      const events = JSON.stringify(input.events);
+      const bytes = new TextEncoder().encode(events).byteLength;
+      const day = new Date(now).toISOString().slice(0, 10);
+      await env.DB.batch([
+        env.DB.prepare("INSERT OR IGNORE INTO usage(day) VALUES(?)").bind(day),
+        env.DB.prepare(`INSERT OR IGNORE INTO batches(ticket,id,received,expires,day,account,session,role,release,environment,bytes,events)
+          SELECT ?,?,?,?,?,?,?,?,?,?,?,? WHERE
+          (SELECT batches FROM usage WHERE day=?)<? AND (SELECT bytes FROM usage WHERE day=?)+?<=?
+          AND (SELECT count(*) FROM batches WHERE ticket=?)<?`)
+          .bind(ticket.id, input.id, now, Math.min(...input.events.map(e => e.at)) + 7 * DAY, day, ticket.account, input.events[0].session, ticket.role, ticket.release, ticket.environment, bytes, events, day, BUDGET.batches, day, bytes, BUDGET.bytes, ticket.id, BUDGET.ticketBatches),
+        env.DB.prepare("UPDATE usage SET batches=batches+1,bytes=bytes+? WHERE day=? AND changes()=1").bind(bytes, day),
+      ]);
+      const accepted = await env.DB.prepare("SELECT id FROM batches WHERE ticket=? AND id=?").bind(ticket.id, input.id).first();
+      return response(accepted ? 204 : 429, origin);
+    }
+    if (url.pathname.startsWith("/admin/")) {
+      if (!env.ADMIN_KEY || env.ADMIN_KEY.length < 32 || request.headers.get("authorization") !== `Bearer ${env.ADMIN_KEY}`) return response(401);
+      if (request.method !== "GET") return response(405);
+      if (url.pathname === "/admin/events") {
+        const session = url.searchParams.get("session");
+        const account = url.searchParams.get("account");
+        if ((!session && !account) || (session && !UUID.test(session)) || (account && !/^[A-Za-z0-9_-]{43}$/.test(account))) return response(400);
+        const before = Number(url.searchParams.get("before") ?? now + 1);
+        if (!Number.isFinite(before)) return response(400);
+        const cursorId = url.searchParams.get("id"); const cursorTicket = url.searchParams.get("ticket");
+        if ((cursorId || cursorTicket) && (!cursorId || !cursorTicket || !UUID.test(cursorId) || !UUID.test(cursorTicket))) return response(400);
+        const field = session ? "session" : "account";
+        const rows = await env.DB.prepare(`SELECT ticket,id,received,account,session,role,release,environment,events FROM batches
+          WHERE ${field}=? AND expires>? AND (received<? OR (received=? AND (id<? OR (id=? AND ticket<?))))
+          ORDER BY received DESC,id DESC,ticket DESC LIMIT 101`).bind(session ?? account!, now, before, before, cursorId ?? "", cursorId ?? "", cursorTicket ?? "").all();
+        const last = rows.results[99];
+        return response(200, undefined, { batches: rows.results.slice(0, 100), truncated: rows.results.length > 100,
+          nextCursor: rows.results.length > 100 ? { before: last.received, id: last.id, ticket: last.ticket } : null });
+      }
+      if (url.pathname === "/admin/summary") {
+        const from = url.searchParams.get("from"); const to = url.searchParams.get("to");
+        if (!from || !to || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to || Date.parse(to) - Date.parse(from) > 31 * DAY) return response(400);
+        const rows = await env.DB.prepare("SELECT * FROM summaries WHERE day>=? AND day<=? AND day>=? ORDER BY day,release,route LIMIT 5001").bind(from, to, new Date(now - 90 * DAY).toISOString().slice(0, 10)).all();
+        return response(200, undefined, { rows: rows.results.slice(0, 5000), truncated: rows.results.length > 5000 });
+      }
+      if (url.pathname === "/admin/usage") {
+        const rows = await env.DB.prepare("SELECT * FROM usage ORDER BY day DESC LIMIT 8").all();
+        return response(200, undefined, { usage: rows.results, budget: BUDGET });
+      }
+    }
+    return response(404);
+  } catch { return response(503, origin === env.ALLOWED_ORIGIN ? origin : undefined); }
+}
+
+/** Hourly scheduled maintenance. Replaces closed UTC-day aggregates, so retries cannot double count. */
+export async function maintain(env: Env, now = Date.now()) {
+  if (env.RETENTION_APPROVED !== "1") return;
+  const today = new Date(now).toISOString().slice(0, 10);
+  const pending = await env.DB.prepare("SELECT day FROM usage WHERE day<? AND day NOT IN (SELECT day FROM rollups) ORDER BY day LIMIT 1").bind(today).first<{ day: string }>();
+  await env.DB.batch([
+    ...(pending ? [env.DB.prepare(`INSERT OR REPLACE INTO summaries(day,release,environment,role,scene,route,kind,operation,phase,outcome,variant,events,duration_ms)
+      SELECT b.day,b.release,b.environment,b.role,json_extract(e.value,'$.scene'),json_extract(e.value,'$.route'),
+        json_extract(e.value,'$.kind'),coalesce(json_extract(e.value,'$.operation'),''),coalesce(json_extract(e.value,'$.phase'),''),coalesce(json_extract(e.value,'$.outcome'),''),coalesce(json_extract(e.value,'$.variant'),''),
+        count(*),sum(coalesce(json_extract(e.value,'$.durationMs'),0))
+      FROM batches b,json_each(b.events) e WHERE b.day=?
+      GROUP BY 1,2,3,4,5,6,7,8,9,10,11`).bind(pending.day),
+    env.DB.prepare("INSERT INTO rollups(day) VALUES(?) ON CONFLICT DO NOTHING").bind(pending.day)] : []),
+    env.DB.prepare("DELETE FROM batches WHERE (ticket,id) IN (SELECT ticket,id FROM batches WHERE expires<=? ORDER BY expires LIMIT 500)").bind(now),
+    env.DB.prepare("DELETE FROM rollups WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
+    env.DB.prepare("DELETE FROM usage WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
+    env.DB.prepare("DELETE FROM summaries WHERE day<?").bind(new Date(now - 90 * DAY).toISOString().slice(0, 10)),
+  ]);
+}
+const worker = { fetch: (request: Request, env: Env) => handle(request, env), scheduled: (_event: unknown, env: Env) => maintain(env) };
+
+export default worker;

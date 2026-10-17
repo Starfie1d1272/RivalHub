@@ -2,12 +2,15 @@
 
 import React, { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { saveCompetitiveProfile } from "@/actions/competitive-profile";
+import { saveCompetitiveProfile as telemetry_saveCompetitiveProfile } from "@/actions/competitive-profile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Panel, StatusBanner } from "@/components/rivalhub";
+import { observeAction } from "@/lib/telemetry/client";
+
+const saveCompetitiveProfile = observeAction("competitive-profile.saveCompetitiveProfile", telemetry_saveCompetitiveProfile);
 
 type FactStatus = "ranked" | "unranked" | "unrecorded";
 type Fact = { status: FactStatus; rank: string; rating: string; stars: string };

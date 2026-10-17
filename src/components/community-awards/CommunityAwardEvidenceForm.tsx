@@ -4,13 +4,17 @@ import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { addCommunityAwardEvidence } from "@/actions/community-awards";
+import { addCommunityAwardEvidence as telemetry_addCommunityAwardEvidence } from "@/actions/community-awards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
 import type { SeasonAwardCandidate as Candidate } from "@/lib/community-awards/read-model";
+import { observeAction } from "@/lib/telemetry/client";
+
+const addCommunityAwardEvidence = observeAction("community-awards.addCommunityAwardEvidence", telemetry_addCommunityAwardEvidence);
+
 type Match = { id: string; label: string };
 
 /** Public evidence entry stays a small form, independent of award-card/admin UI. */

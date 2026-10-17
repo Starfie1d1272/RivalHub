@@ -4,13 +4,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { createAnnouncement, updateAnnouncement } from "@/actions/announcements";
+import { createAnnouncement as telemetry_createAnnouncement, updateAnnouncement as telemetry_updateAnnouncement } from "@/actions/announcements";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ANNOUNCEMENT_TYPE_LABELS } from "@/lib/announcements/presentation";
 import type { AnnouncementAdminRow } from "@/lib/announcements/read-model";
+import { observeAction } from "@/lib/telemetry/client";
+
+const createAnnouncement = observeAction("announcements.createAnnouncement", telemetry_createAnnouncement);
+const updateAnnouncement = observeAction("announcements.updateAnnouncement", telemetry_updateAnnouncement);
 
 type SeasonOption = { id: string; name: string };
 

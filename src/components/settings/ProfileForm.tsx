@@ -2,13 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { lookupSteamProfile, updateProfile, type ProfileInput } from "@/actions/account";
+import { lookupSteamProfile, updateProfile as telemetry_updateProfile, type ProfileInput } from "@/actions/account";
 import { Field } from "@/components/rivalhub";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { COMPETITION_HISTORY_MAX_LENGTH, GAMEPLAY_STYLE_MAX_LENGTH } from "@/lib/player-declared-profile";
+import { observeAction } from "@/lib/telemetry/client";
+
+const updateProfile = observeAction("account.updateProfile", telemetry_updateProfile);
 
 interface ProfileFormProps {
   current: {

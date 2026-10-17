@@ -6,11 +6,14 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InlineConfirm } from "@/components/rivalhub";
-import { correctMapScore } from "@/actions/matches";
+import { correctMapScore as telemetry_correctMapScore } from "@/actions/matches";
 import { previewSeriesMapCorrection } from "@/actions/matches/series-correction";
 import type { SeriesCorrectionPreview } from "@/lib/matches/series-score-correction";
 import { SeriesScoreCorrectionReview } from "./SeriesScoreCorrectionReview";
 import { mapLabel } from "@/lib/maps";
+import { observeAction } from "@/lib/telemetry/client";
+
+const correctMapScore = observeAction("matches.correctMapScore", telemetry_correctMapScore);
 
 export function MapScoreCorrectInput({ entryAId, entryBId, seasonSlug, matchId, matchInProgress = false, mapId, mapName, scoreA, scoreB, teamAName, teamBName }: {
   entryAId?: string; entryBId?: string; seasonSlug?: string; matchId?: string; matchInProgress?: boolean; mapId: string; mapName: string; scoreA: number; scoreB: number; teamAName: string; teamBName: string;

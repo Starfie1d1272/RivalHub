@@ -5,11 +5,16 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Play, Pause, RotateCcw } from "lucide-react";
-import { startDraft, pauseDraft, resumeDraft } from "@/actions/draft";
+import { startDraft as telemetry_startDraft, pauseDraft as telemetry_pauseDraft, resumeDraft as telemetry_resumeDraft } from "@/actions/draft";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DRAFT_TOTAL_ROUNDS } from "@/types/draft";
 import type { DraftAdminData } from "@/lib/draft/data";
+import { observeAction } from "@/lib/telemetry/client";
+
+const startDraft = observeAction("draft.startDraft", telemetry_startDraft);
+const pauseDraft = observeAction("draft.pauseDraft", telemetry_pauseDraft);
+const resumeDraft = observeAction("draft.resumeDraft", telemetry_resumeDraft);
 
 interface DraftAdminPanelProps {
   seasonId: string;

@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { recordFilter } from "@/lib/telemetry/client";
 
 export interface MetricFamilyOption<Key extends string = string> {
   key: Key;
@@ -27,7 +28,7 @@ export function MetricFamilyTabs<Key extends string>({
             role="tab"
             aria-selected={active}
             type="button"
-            onClick={() => onChange(option.key)}
+            onClick={() => { recordFilter("tab", option.key); onChange(option.key); }}
             className={[
               "-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
               "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]",

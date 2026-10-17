@@ -2,9 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { revokeUserSessions } from "@/actions/session-management";
+import { revokeUserSessions as telemetry_revokeUserSessions } from "@/actions/session-management";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { observeAction } from "@/lib/telemetry/client";
+
+const revokeUserSessions = observeAction("session-management.revokeUserSessions", telemetry_revokeUserSessions);
 
 export function UserSessionControl({ userId }: { userId: string }) {
   const [open, setOpen] = useState(false);

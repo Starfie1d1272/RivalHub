@@ -2,12 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { batchSetCompletionDeadline } from "@/actions/matches";
+import { batchSetCompletionDeadline as telemetry_batchSetCompletionDeadline } from "@/actions/matches";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Panel } from "@/components/rivalhub";
 import { parseCSTInput } from "@/lib/utils/date";
+import { observeAction } from "@/lib/telemetry/client";
+
+const batchSetCompletionDeadline = observeAction("matches.batchSetCompletionDeadline", telemetry_batchSetCompletionDeadline);
 
 interface RoundGroup {
   label: string;

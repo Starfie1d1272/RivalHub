@@ -6,7 +6,7 @@ import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, 
 import { usePathname } from "next/navigation";
 import { Info, X } from "lucide-react";
 import { toast } from "sonner";
-import { submitFeedback } from "@/actions/feedback";
+import { submitFeedback as telemetry_submitFeedback } from "@/actions/feedback";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +14,9 @@ import { MarkdownDocument } from "@/components/content/MarkdownDocument";
 import type { PublicAnnouncement } from "@/lib/announcements/presentation";
 import { FEEDBACK_CATEGORY_LABELS, type FeedbackCategory } from "@/lib/feedback/validation";
 import { activeGroupCount, type PublicSeasonInfo } from "@/lib/season-public-info/presentation";
+import { observeAction } from "@/lib/telemetry/client";
+
+const submitFeedback = observeAction("feedback.submitFeedback", telemetry_submitFeedback);
 
 const ACK_PREFIX = "rivalhub:announcement-ack:";
 

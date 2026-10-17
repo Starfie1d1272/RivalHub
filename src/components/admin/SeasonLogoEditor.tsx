@@ -3,12 +3,16 @@
 import React, { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { uploadSeasonLogo, removeSeasonLogo } from "@/actions/season-public-info";
+import { uploadSeasonLogo as telemetry_uploadSeasonLogo, removeSeasonLogo as telemetry_removeSeasonLogo } from "@/actions/season-public-info";
 import { EventLogo } from "@/components/season/EventLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LOGO_ALLOWED_TYPES, LOGO_MAX_BYTES } from "@/lib/config/upload-limits";
+import { observeAction } from "@/lib/telemetry/client";
+
+const uploadSeasonLogo = observeAction("season-public-info.uploadSeasonLogo", telemetry_uploadSeasonLogo);
+const removeSeasonLogo = observeAction("season-public-info.removeSeasonLogo", telemetry_removeSeasonLogo);
 
 export function SeasonLogoEditor({ seasonId, logoUrl }: { seasonId: string; logoUrl: string | null }) {
   const inputId = useId();

@@ -16,19 +16,31 @@ import { useVisiblePolling } from "@/components/use-visible-polling";
 import type { VetoRoomView } from "@/lib/matches/veto-room/read-model";
 import type { ActionResult } from "@/types/action";
 import {
-  claimVetoRepresentativeAction,
-  pauseVetoRoomAction,
-  performVetoRoomCommand,
+  claimVetoRepresentativeAction as telemetry_claimVetoRepresentativeAction,
+  pauseVetoRoomAction as telemetry_pauseVetoRoomAction,
+  performVetoRoomCommand as telemetry_performVetoRoomCommand,
   readVetoRoom,
   reconcileVetoRoomAction,
-  requestVetoRoomStart,
-  resolveVetoRoomAppeal,
-  resumeVetoRoomAction,
-  rewindVetoRoomAction,
-  setManualVetoPrivilege,
-  submitVetoRoomAppeal,
-  updateVetoRepresentative,
+  requestVetoRoomStart as telemetry_requestVetoRoomStart,
+  resolveVetoRoomAppeal as telemetry_resolveVetoRoomAppeal,
+  resumeVetoRoomAction as telemetry_resumeVetoRoomAction,
+  rewindVetoRoomAction as telemetry_rewindVetoRoomAction,
+  setManualVetoPrivilege as telemetry_setManualVetoPrivilege,
+  submitVetoRoomAppeal as telemetry_submitVetoRoomAppeal,
+  updateVetoRepresentative as telemetry_updateVetoRepresentative,
 } from "@/actions/matches/veto-room";
+import { observeAction } from "@/lib/telemetry/client";
+
+const claimVetoRepresentativeAction = observeAction("matches.veto-room.claimVetoRepresentativeAction", telemetry_claimVetoRepresentativeAction);
+const pauseVetoRoomAction = observeAction("matches.veto-room.pauseVetoRoomAction", telemetry_pauseVetoRoomAction);
+const performVetoRoomCommand = observeAction("matches.veto-room.performVetoRoomCommand", telemetry_performVetoRoomCommand);
+const requestVetoRoomStart = observeAction("matches.veto-room.requestVetoRoomStart", telemetry_requestVetoRoomStart);
+const resolveVetoRoomAppeal = observeAction("matches.veto-room.resolveVetoRoomAppeal", telemetry_resolveVetoRoomAppeal);
+const resumeVetoRoomAction = observeAction("matches.veto-room.resumeVetoRoomAction", telemetry_resumeVetoRoomAction);
+const rewindVetoRoomAction = observeAction("matches.veto-room.rewindVetoRoomAction", telemetry_rewindVetoRoomAction);
+const setManualVetoPrivilege = observeAction("matches.veto-room.setManualVetoPrivilege", telemetry_setManualVetoPrivilege);
+const submitVetoRoomAppeal = observeAction("matches.veto-room.submitVetoRoomAppeal", telemetry_submitVetoRoomAppeal);
+const updateVetoRepresentative = observeAction("matches.veto-room.updateVetoRepresentative", telemetry_updateVetoRepresentative);
 
 type MutationData = { outcome: string; room: VetoRoomView };
 type MutationResult = ActionResult<MutationData>;

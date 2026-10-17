@@ -3,10 +3,13 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { submitCommunityAward } from "@/actions/community-awards";
+import { submitCommunityAward as telemetry_submitCommunityAward } from "@/actions/community-awards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { observeAction } from "@/lib/telemetry/client";
+
+const submitCommunityAward = observeAction("community-awards.submitCommunityAward", telemetry_submitCommunityAward);
 
 /** The submission workflow is shared without importing an admin/list presentation. */
 export function CommunityAwardSubmissionForm({ seasonId }: { seasonId: string }) {

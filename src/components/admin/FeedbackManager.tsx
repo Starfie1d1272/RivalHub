@@ -2,12 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { setFeedbackStatus } from "@/actions/feedback";
+import { setFeedbackStatus as telemetry_setFeedbackStatus } from "@/actions/feedback";
 import { ClearFilters, ListToolbar, useListQueryParams } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FEEDBACK_CATEGORY_LABELS, FEEDBACK_STATUS_LABELS, type FeedbackCategory, type FeedbackStatus } from "@/lib/feedback/validation";
 import type { FeedbackAdminRow } from "@/lib/feedback/read-model";
+import { observeAction } from "@/lib/telemetry/client";
+
+const setFeedbackStatus = observeAction("feedback.setFeedbackStatus", telemetry_setFeedbackStatus);
 
 const FILTER_DEFAULTS = { status: "all", category: "all" } as const;
 const SELECT_CLASS_NAME = "h-9 w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]";

@@ -4,13 +4,18 @@ import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { acceptTeamInvitation, createTeam, declineTeamInvitation } from "@/actions/teams";
+import { acceptTeamInvitation as telemetry_acceptTeamInvitation, createTeam as telemetry_createTeam, declineTeamInvitation as telemetry_declineTeamInvitation } from "@/actions/teams";
 import { TeamInvitationsSection } from "@/components/teams/TeamInvitationsSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Panel, StatusBanner } from "@/components/rivalhub";
 import { useClientReady } from "@/components/rivalhub/useClientReady";
+import { observeAction } from "@/lib/telemetry/client";
+
+const acceptTeamInvitation = observeAction("teams.acceptTeamInvitation", telemetry_acceptTeamInvitation);
+const createTeam = observeAction("teams.createTeam", telemetry_createTeam);
+const declineTeamInvitation = observeAction("teams.declineTeamInvitation", telemetry_declineTeamInvitation);
 
 type Invitation = { id: string; teamId: string; teamName: string; expiresAt: string };
 

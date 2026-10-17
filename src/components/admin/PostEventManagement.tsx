@@ -6,12 +6,12 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  archiveMajorTournament,
-  confirmMajorFinalResult,
-  createPostEventAdjudication,
-  grantTournamentHonor,
-  revokePostEventAdjudication,
-  revokeTournamentHonor,
+  archiveMajorTournament as telemetry_archiveMajorTournament,
+  confirmMajorFinalResult as telemetry_confirmMajorFinalResult,
+  createPostEventAdjudication as telemetry_createPostEventAdjudication,
+  grantTournamentHonor as telemetry_grantTournamentHonor,
+  revokePostEventAdjudication as telemetry_revokePostEventAdjudication,
+  revokeTournamentHonor as telemetry_revokeTournamentHonor,
 } from "@/actions/postevent";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,6 +19,14 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { InlineConfirm, Panel, StatusBanner } from "@/components/rivalhub";
+import { observeAction } from "@/lib/telemetry/client";
+
+const archiveMajorTournament = observeAction("postevent.archiveMajorTournament", telemetry_archiveMajorTournament);
+const confirmMajorFinalResult = observeAction("postevent.confirmMajorFinalResult", telemetry_confirmMajorFinalResult);
+const createPostEventAdjudication = observeAction("postevent.createPostEventAdjudication", telemetry_createPostEventAdjudication);
+const grantTournamentHonor = observeAction("postevent.grantTournamentHonor", telemetry_grantTournamentHonor);
+const revokePostEventAdjudication = observeAction("postevent.revokePostEventAdjudication", telemetry_revokePostEventAdjudication);
+const revokeTournamentHonor = observeAction("postevent.revokeTournamentHonor", telemetry_revokeTournamentHonor);
 
 type PlacementGroup = { from: number; to: number; entryIds: string[] };
 type Team = { id: string; name: string };

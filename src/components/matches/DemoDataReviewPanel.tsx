@@ -4,7 +4,7 @@ import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React, { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { confirmStoredDemoParticipantIdentity, recheckSeasonStoredDemoImports, recheckStoredDemoImport, rejectStoredDemoImport, retireGameplaySteamIdentity } from "@/actions/demo-integration";
+import { confirmStoredDemoParticipantIdentity as telemetry_confirmStoredDemoParticipantIdentity, recheckSeasonStoredDemoImports as telemetry_recheckSeasonStoredDemoImports, recheckStoredDemoImport as telemetry_recheckStoredDemoImport, rejectStoredDemoImport as telemetry_rejectStoredDemoImport, retireGameplaySteamIdentity as telemetry_retireGameplaySteamIdentity } from "@/actions/demo-integration";
 import { InlineConfirm, Panel } from "@/components/rivalhub";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
@@ -12,6 +12,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { AdminDemoReviewMap, AdminDemoReviewParticipant } from "@/lib/admin/matches/types";
 import type { AdminDemoQuality } from "@/lib/admin/matches/demo-quality";
+import { observeAction } from "@/lib/telemetry/client";
+
+const confirmStoredDemoParticipantIdentity = observeAction("demo-integration.confirmStoredDemoParticipantIdentity", telemetry_confirmStoredDemoParticipantIdentity);
+const recheckSeasonStoredDemoImports = observeAction("demo-integration.recheckSeasonStoredDemoImports", telemetry_recheckSeasonStoredDemoImports);
+const recheckStoredDemoImport = observeAction("demo-integration.recheckStoredDemoImport", telemetry_recheckStoredDemoImport);
+const rejectStoredDemoImport = observeAction("demo-integration.rejectStoredDemoImport", telemetry_rejectStoredDemoImport);
+const retireGameplaySteamIdentity = observeAction("demo-integration.retireGameplaySteamIdentity", telemetry_retireGameplaySteamIdentity);
 
 function ParticipantReview({ importId, participant }: { importId: string; participant: AdminDemoReviewParticipant }) {
   const id = useId();

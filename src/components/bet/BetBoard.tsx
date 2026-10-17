@@ -21,11 +21,15 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { HelpTooltip, PageHeader } from "@/components/rivalhub";
 import { TeamLogo } from "@/components/teams/TeamLogo";
-import { mutateBet, getBetBoard } from "@/actions/bet";
+import { mutateBet as telemetry_mutateBet, getBetBoard } from "@/actions/bet";
 import { betStateLabel, formatPoints } from "@/lib/bet/presentation";
 import type { BetBoardDTO, BetMarketDTO } from "@/lib/bet/types";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
+import { observeAction } from "@/lib/telemetry/client";
+
+const mutateBet = observeAction("bet.mutateBet", telemetry_mutateBet);
+
 const filters=[{key:"open",label:"开放"},{key:"mine",label:"我的投入"},{key:"settled",label:"已结算"},{key:"event",label:"赛事"},{key:"leaderboard",label:"排行榜"},{key:"records",label:"记录"}] as const;
 export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,predictionControls,rankings,relief,predictionMatchRows,rankingRefreshAction,returnSelection}:{initial:BetBoardDTO;slug:string;signedIn:boolean;view:string;matchFilter:string|null;predictions?:FreePredictionModel[];predictionControls?:FreePredictionControls;rankings?:Record<PredictionRankingSort,PredictionRankingModel>;relief?:Omit<ComponentProps<typeof BetRelief>,"onClaimed">;predictionMatchRows?:BetBoardDTO["matches"];rankingRefreshAction?:ComponentProps<typeof PredictionLeaderboard>["refreshAction"];returnSelection?:{market?:string;option?:string;prediction?:string;choice?:string}}) {
   const router=useRouter();const [snapshot,setSnapshot]=useState({origin:initial,value:initial});const data=snapshot.origin===initial?snapshot.value:initial;const [pending,startTransition]=useTransition();

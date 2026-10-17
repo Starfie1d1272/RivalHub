@@ -5,8 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { expressRecruitmentInterest, withdrawRecruitmentInterest } from "@/actions/recruitment";
+import { expressRecruitmentInterest as telemetry_expressRecruitmentInterest, withdrawRecruitmentInterest as telemetry_withdrawRecruitmentInterest } from "@/actions/recruitment";
 import { Button } from "@/components/ui/button";
+import { observeAction } from "@/lib/telemetry/client";
+
+const expressRecruitmentInterest = observeAction("recruitment.expressRecruitmentInterest", telemetry_expressRecruitmentInterest);
+const withdrawRecruitmentInterest = observeAction("recruitment.withdrawRecruitmentInterest", telemetry_withdrawRecruitmentInterest);
 
 export function RecruitmentInterestButton({ recruitmentIntentId, interested, invited = false, loggedIn, loginHref = "/login?next=/teams/recruitment" }: { recruitmentIntentId: string; interested: boolean; invited?: boolean; loggedIn: boolean; loginHref?: string }) {
   const [pending, startTransition] = useTransition();

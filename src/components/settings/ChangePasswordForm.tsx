@@ -3,10 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { changeUserPassword } from "@/actions/account";
+import { changeUserPassword as telemetry_changeUserPassword } from "@/actions/account";
 import { Field } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
+import { observeAction } from "@/lib/telemetry/client";
+
+const changeUserPassword = observeAction("account.changeUserPassword", telemetry_changeUserPassword);
 
 export function ChangePasswordForm() {
   const router = useRouter();
