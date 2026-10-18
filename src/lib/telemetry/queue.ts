@@ -8,7 +8,7 @@ export class TelemetryQueue {
   private busy = false;
   private nextAttempt = 0;
   readonly metrics = { events: 0, dropped: 0, requests: 0, bytes: 0, failures: 0 };
-  constructor(private config: Bootstrap, private readonly send: typeof fetch = fetch) {}
+  constructor(private config: Bootstrap, private readonly send: typeof fetch = globalThis.fetch.bind(globalThis)) {}
   configure(config: Bootstrap) { this.config = config; }
 
   add(event: TelemetryEvent) {
