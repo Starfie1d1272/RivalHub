@@ -36,7 +36,7 @@ function ReadinessCard({ item, context, relatedTasks }: { item: MyReadinessItem;
       <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{item.detail}</p>
       <div className="flex flex-wrap items-center justify-between gap-3">
         {responsibility && <span className="text-xs text-[var(--color-fg-dim)]">{presentMyReadinessResponsibility(responsibility)}</span>}
-        <div className="flex flex-wrap gap-2">{relatedTasks ? relatedTasks.map(task => <Button key={task.item.id} size="sm" variant="outline" asChild><Link href={task.item.cta.href as never} aria-label={`${task.context} · ${task.item.cta.label}`}>{task.context} →</Link></Button>) : <><Button size="sm" variant={item.secondaryCta ? "default" : "outline"} asChild><Link href={item.cta.href as never}>{item.cta.label}</Link></Button>{item.secondaryCta && <Button size="sm" variant="outline" asChild><Link href={item.secondaryCta.href as never}>{item.secondaryCta.label}</Link></Button>}</>}</div>
+        <div className="flex flex-wrap gap-2">{relatedTasks ? relatedTasks.map(task => <Button key={task.item.id} size="sm" variant="outline" asChild><Link href={task.item.cta.href as never} aria-label={task.context ? `${task.context} · ${task.item.cta.label}` : task.item.cta.label}>{task.context || task.item.cta.label} →</Link></Button>) : <><Button size="sm" variant={item.secondaryCta ? "default" : "outline"} asChild><Link href={item.cta.href as never}>{item.cta.label}</Link></Button>{item.secondaryCta && <Button size="sm" variant="outline" asChild><Link href={item.secondaryCta.href as never}>{item.secondaryCta.label}</Link></Button>}</>}</div>
       </div>
     </div>
   );
@@ -64,8 +64,10 @@ export function MyReadinessDashboard({ model }: { model: MyWorkspaceModel }) {
   for (const task of model.tasks) {
     const competition = readiness.competitions.find(row => row.entry.id === task.id || row.qualification.id === task.id);
     const context = competition ? `${competition.seasonName} · ${competition.name}` : "";
-    const key = task.id.startsWith("qualification-") && context && !task.secondaryCta
-      ? JSON.stringify([task.title, task.state, task.detail, task.responsibility]) : task.id;
+    // Only coalesce identical profile blockers; preserve every affected event link.
+    const profileTask = task.id === "profile" || task.id.startsWith("qualification-");
+    const key = profileTask && !task.secondaryCta
+      ? JSON.stringify(["profile", task.detail, task.responsibility]) : task.id;
     const group = taskGroups.get(key) ?? [];
     group.push({ item: task, context });
     taskGroups.set(key, group);
@@ -75,14 +77,14 @@ export function MyReadinessDashboard({ model }: { model: MyWorkspaceModel }) {
 
     <Section>
       <SectionHeader title="需要你处理" />
-      {taskGroups.size > 0 ? <div className={taskGroups.size > 1 ? "grid gap-3 md:grid-cols-2" : "grid gap-3"}>{[...taskGroups.entries()].map(([key, tasks]) => <ReadinessCard key={key} item={tasks[0]!.item} context={tasks.length === 1 ? tasks[0]!.context : undefined} relatedTasks={tasks.length > 1 ? tasks : undefined} />)}</div> : <StatusBanner tone="success" title="暂无待办" />}
+      {taskGroups.size > 0 ? <div className={taskGroups.size > 1 ? "grid gap-3 md:grid-cols-2" : "grid gap-3"}>{[...taskGroups.entries()].map(([key, tasks]) => <ReadinessCard key={key} item={tasks.some(task => task.item.id === "profile") ? { ...tasks[0]!.item, title: "个人资料" } : tasks[0]!.item} context={tasks.length === 1 ? tasks[0]!.context : undefined} relatedTasks={tasks.length > 1 ? tasks : undefined} />)}</div> : <StatusBanner tone="success" title="暂无待办" />}
     </Section>
 
     {model.upcomingMatches.length > 0 && <Section><SectionHeader title="接下来" /><div className="grid gap-4 md:grid-cols-2">{model.upcomingMatches.map((match) => <Panel key={`${match.seasonId}-${match.task.href}`} label={match.seasonName} contentClassName="p-5"><div className="space-y-3"><div><p className="font-semibold"><TeamProfileLink seasonSlug={match.seasonSlug} entryId={match.entryId}>{match.entryName}</TeamProfileLink></p><p className="mt-1 text-sm text-[var(--color-fg-mid)]">{match.task.title} · {match.task.detail}</p></div><Button size="sm" variant="outline" asChild><Link href={match.task.href as never}>查看比赛</Link></Button></div></Panel>)}</div></Section>}
 
-    <Section><SectionHeader title="当前参与" /><TeamSummary model={model} />{model.currentCompetitions.length > 0 ? <div className="grid gap-4 xl:grid-cols-2">{model.currentCompetitions.map((context) => <MyCompetitionCard key={context.entryId} context={context} />)}</div> : <Panel contentClassName="p-5"><p className="text-sm text-[var(--color-fg-mid)]">当前没有负责或参与中的赛事。</p></Panel>}</Section>
+    <Section><SectionHeader title="当前参与" /><div className="grid items-start gap-4 lg:grid-cols-2"><TeamSummary model={model} />{model.currentCompetitions.length > 0 ? <div className="grid gap-4">{model.currentCompetitions.map((context) => <MyCompetitionCard key={context.entryId} context={context} />)}</div> : <Panel contentClassName="p-5"><p className="text-sm text-[var(--color-fg-mid)]">当前没有负责或参与中的赛事。</p></Panel>}</div></Section>
 
-    <Section><SectionHeader title="参赛资料" /><div className="grid gap-4 md:grid-cols-2"><ReadinessCard item={readiness.profile} /><ReadinessCard item={readiness.education} />{readiness.competitiveProfiles.map((profile) => <CompetitiveCard key={profile.key} profile={profile} />)}</div></Section>
+    <Section><SectionHeader title="参赛资料" /><div className="grid gap-4 md:grid-cols-2">{!model.tasks.some(task => task.id === readiness.profile.id) && <ReadinessCard item={readiness.profile} />}{!model.tasks.some(task => task.id === readiness.education.id) && <ReadinessCard item={readiness.education} />}{readiness.competitiveProfiles.map((profile) => <CompetitiveCard key={profile.key} profile={profile} />)}</div></Section>
 
     {blockedSanctions && <Section><SectionHeader title="当前有效的个人纪律限制" /><div className="grid gap-4 md:grid-cols-2">{model.sanctions.map((sanction) => <SanctionCard key={sanction.id} sanction={sanction} />)}</div></Section>}
 

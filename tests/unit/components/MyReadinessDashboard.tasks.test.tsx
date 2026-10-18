@@ -24,3 +24,15 @@ it("retains distinct event deficiencies rather than folding them into the first"
   expect(screen.getByText("春季 Major · Alpha")).toBeVisible();
   expect(screen.getByText("秋季 Major · Alpha")).toBeVisible();
 });
+
+it("coalesces the profile reminder without losing profile or event destinations", () => {
+  const data = model("请填写 QQ 号。");
+  for (const task of data.tasks) task.detail = "请填写 QQ 号。";
+  data.readiness.profile = { ...ready, state: "incomplete", detail: "请填写 QQ 号。", responsibility: "self", cta: { href: "/settings", label: "完善参赛资料" } };
+  data.tasks.push(data.readiness.profile);
+  render(<MyReadinessDashboard model={data} />);
+  expect(screen.getAllByText("请填写 QQ 号。")).toHaveLength(1);
+  expect(screen.getByRole("link", { name: "完善参赛资料" })).toHaveAttribute("href", "/settings");
+  expect(screen.getByRole("link", { name: "春季 Major · Alpha · 查看并补齐资料" })).toHaveAttribute("href", "/spring/register");
+  expect(screen.getByRole("link", { name: "秋季 Major · Alpha · 查看并补齐资料" })).toHaveAttribute("href", "/autumn/register");
+});
