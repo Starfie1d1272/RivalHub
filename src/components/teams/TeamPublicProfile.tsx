@@ -1,24 +1,22 @@
+import { TeamRoster } from "./TeamRoster";
+import { TeamMatches } from "./TeamMatches";
+import { TeamCareer, TeamHistory, TeamRecruitment } from "./TeamProfileHistory";
 import { TeamMapProfile } from "./TeamMapProfile";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
-import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { TeamRosterMapContext, TeamWorkspace } from "@/components/stats/teams/TeamWorkspace";
 import type { PublicTeamMapProfile } from "@/lib/teams/map-profile";
 import type { PublicSeasonResults } from "@/lib/seasons/public-results";
 import type { LongTeamCareerDetail, TournamentTeamDetail } from "@/lib/stats/tournament-query";
 import React from "react";
-import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { EmptyState, PageHeader, Panel, PosChip, StatusPill } from "@/components/rivalhub";
+import { PageHeader, StatusPill } from "@/components/rivalhub";
 import { TeamLogo } from "@/components/teams/TeamLogo";
-import { RecruitmentInterestButton } from "@/components/recruitment/RecruitmentInterestButton";
 import type { PublicEventTeamContext } from "@/lib/competition-entries/public-team-context";
-import { presentMatchStatus } from "@/lib/matches/presentation";
 import type { PublicTeamProfile } from "@/lib/teams/public-profile";
 import type { PublicLongTeamProfileReadModel } from "@/lib/teams/profile-read-model";
 import { presentTeamMembershipStatus, presentTeamStatus } from "@/lib/teams/presentation";
-import { formatCSTShortDate } from "@/lib/utils/date";
 
 export interface TeamPublicProfileProps {
   team: PublicTeamProfile | null;
@@ -27,10 +25,11 @@ export interface TeamPublicProfileProps {
   event?: PublicEventTeamContext | null;
   performance?: LongTeamCareerDetail | TournamentTeamDetail | null;
   career?: PublicLongTeamProfileReadModel["career"];
+  matches?: PublicLongTeamProfileReadModel["matches"];
   statsUnavailable?: boolean;
 }
 
-export function TeamPublicProfile({ team, event = null, mapProfile, results, performance, career = [], statsUnavailable = false }: TeamPublicProfileProps) {
+export function TeamPublicProfile({ team, event = null, mapProfile, results, performance, career = [], matches = [], statsUnavailable = false }: TeamPublicProfileProps) {
   const identity = event?.entry ?? team?.team;
   if (!identity) return null;
 
@@ -62,24 +61,26 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
     ? "本届名单"
     : event?.rosterLabel ?? "本届名单";
 
-  const orderedMatches = event?.matches.toSorted((a, b) => {
-    const aFinished = a.status === "finished" || a.status === "cancelled";
-    const bFinished = b.status === "finished" || b.status === "cancelled";
-    if (aFinished !== bFinished) return aFinished ? 1 : -1;
-    const timeA = (a.completedAt ?? a.scheduledAt)?.getTime() ?? 0;
-    const timeB = (b.completedAt ?? b.scheduledAt)?.getTime() ?? 0;
-    return aFinished ? timeB - timeA : timeA - timeB;
-  }) ?? [];
+  const detail = eventDetail ?? longDetail;
+  const members = event
+    ? event.roster.toSorted((a, b) => Number(b.isStarter) - Number(a.isStarter)).map(member => ({
+      ...member, label: member.isStarter ? "首发" : "替补",
+    }))
+    : currentMembers.map(member => ({
+      ...member, captain: member.userId === team?.team.captainUserId,
+      label: member.status === "active" ? undefined : presentTeamMembershipStatus(member.status).label,
+    }));
+  const matchRows = event ? event.matches.map(match => ({ ...match, seasonSlug: event.season.slug })) : matches;
 
   return (
     <div className="min-w-0 space-y-6">
       <div className="overflow-hidden border border-[var(--color-border)] bg-[var(--color-panel)]">
-        <div className={event ? "p-4" : "p-5 sm:p-6"}>
+        <div className="p-4">
           <PageHeader
-            className={event ? "border-0 pb-0" : undefined}
+            className="border-0 pb-0"
             title={(
               <span className="flex min-w-0 items-center gap-4">
-                <TeamLogo logoUrl={identity.logoUrl} teamName={identity.name} size="lg" className={event ? "h-14 w-14" : undefined} />
+                <TeamLogo logoUrl={identity.logoUrl} teamName={identity.name} size="lg" className="h-14 w-14" />
                 <span className="min-w-0 break-words">{identity.name}</span>
               </span>
             )}
@@ -121,128 +122,17 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
       </div>
 
       {statsUnavailable && <p role="status" className="text-sm text-[var(--color-fg-mid)]">竞技统计暂时无法加载，请稍后重试。</p>}
-      {event && <div className="grid min-w-0 grid-cols-1 gap-8">
-        <section className="space-y-4">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">MEMBERS</p><h2 className="mt-1 text-lg font-semibold">{eventRosterHeading}</h2></div>
-          <div className="border-y border-[var(--color-border)] px-1">
-            <div className="grid grid-cols-2 gap-x-4 sm:grid-cols-3 lg:grid-cols-5">
-              {event.roster.length > 0 ? event.roster.toSorted((a, b) => Number(b.isStarter) - Number(a.isStarter)).map((member) => (
-                <div key={member.userId} className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 py-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <PlayerAvatar name={member.name} avatarUrl={member.avatarUrl} size="sm" />
-                    <PlayerProfileLink userId={member.userId} className="min-w-0 break-words font-medium hover:text-[var(--color-accent)]">{member.name}</PlayerProfileLink>
-                  </div>
-                  <span className="text-xs text-[var(--color-fg-mid)]">{member.isStarter ? "首发" : "替补"}</span>
-                </div>
-              )) : <p className="py-4 text-sm text-[var(--color-fg-mid)]">{eventRosterHeading}暂无可展示成员。</p>}
-            </div>
-          </div>
-        </section>
 
-        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-          {eventDetail && <TeamMapProfile maps={eventDetail.maps.map(({ mapName, results, selection }) => ({ mapName, results, selection }))} samples={eventDetail.vetoActionSamples} />}
-        <section className="space-y-4">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">MATCHES</p><h2 className="mt-1 text-lg font-semibold">近期比赛</h2></div>
-          <div className="border-y border-[var(--color-border)] divide-y divide-[var(--color-border)]">
-            {orderedMatches.length > 0 ? orderedMatches.slice(0, 5).map((match) => {
-              const statusLabel = presentMatchStatus(match.status, { isForfeit: match.isForfeit, scheduledAt: match.scheduledAt }).label;
-              const hasScore = match.ownScore !== null && match.opponentScore !== null;
-              return (
-                <Link key={match.id} href={`/${event.season.slug}/matches/${match.id}`} className="grid grid-cols-[minmax(0,1fr)_5.5rem] items-center gap-3 px-1 py-3 text-sm hover:bg-[var(--color-panel-hi)]">
-                  <span className="min-w-0 break-words font-medium">对阵 {match.opponentName ?? "待定"}</span>
-                  <span className="flex w-[5.5rem] shrink-0 flex-col items-end text-right tabular-nums">
-                    {hasScore && <span className="text-base font-semibold tabular-nums">{(match.displayScore ? match.displayScore.own : match.ownScore) ?? "—"} : {(match.displayScore ? match.displayScore.opponent : match.opponentScore) ?? "—"}</span>}
-                    <span className={`${hasScore ? "mt-0.5" : ""} text-xs font-normal text-[var(--color-fg-mid)]`}>{statusLabel}</span>
-                  </span>
-                </Link>
-              );
-            }) : <p className="py-4 text-sm text-[var(--color-fg-mid)]">暂无比赛。</p>}
-          </div>
-          {orderedMatches.length > 5 && <details className="border-t border-[var(--color-border)] pt-3">
-            <summary className="cursor-pointer text-sm text-[var(--color-fg-mid)]">其余本届比赛 · {orderedMatches.length - 5} 场</summary>
-            <div className="mt-3 divide-y divide-[var(--color-border)]">{orderedMatches.slice(5).map(match => <Link key={match.id} href={`/${event.season.slug}/matches/${match.id}`} className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm hover:text-[var(--color-accent)]"><span className="min-w-0 break-words">{match.opponentName ?? "待定"}</span><span className="shrink-0 tabular-nums">{match.displayScore?.own ?? match.ownScore ?? "—"} : {match.displayScore?.opponent ?? match.opponentScore ?? "—"}</span></Link>)}</div>
-          </details>}
-        </section>
-        </div>
-        {eventDetail && <section className="space-y-4"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">PERFORMANCE</p><h2 className="mt-1 text-lg font-semibold">竞技表现</h2></div><TeamWorkspace detail={eventDetail} /></section>}
-        {mapProfile && <TeamRosterMapContext mapProfile={mapProfile} hasOwnMaps={hasOwnMaps} />}
-
-      </div>}
-
-      {!event && team && <>
-        <div className="grid min-w-0 grid-cols-1 gap-8">
-          <section className="space-y-4">
-            <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">TEAM</p><h2 className="mt-1 text-lg font-semibold">当前成员</h2></div>
-            <div className="border-y border-[var(--color-border)] px-1">
-            <div className="divide-y divide-[var(--color-border)]">
-              {currentMembers.length > 0 ? currentMembers.map((member) => (
-                <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <PlayerAvatar name={member.name} avatarUrl={member.avatarUrl} size="sm" />
-                    {member.userId === team.team.captainUserId && <PosChip pos="C" small />}
-                    <PlayerProfileLink userId={member.userId} className="min-w-0 break-words text-sm hover:text-[var(--color-accent)]">{member.name}</PlayerProfileLink>
-                  </div>
-                  <StatusPill {...presentTeamMembershipStatus(member.status)} />
-                </div>
-              )) : <EmptyState title="暂无当前成员" />}
-            </div>
-            </div>
-            {currentEntries.length > 0 && <div className="border-t border-[var(--color-border)] pt-3"><p className="mb-2 text-xs font-medium text-[var(--color-fg-dim)]">当前赛事</p><div className="space-y-2">{currentEntries.map((entry) => <TeamProfileLink key={entry.id} className="flex items-center justify-between gap-3 text-sm hover:text-[var(--color-accent)]" seasonSlug={entry.seasonSlug} entryId={entry.id}><span><span className="font-medium">{entry.seasonName}</span><span className="ml-2 text-[var(--color-fg-mid)]">{entry.name}</span></span><span>→</span></TeamProfileLink>)}</div></div>}
-          </section>
-
-          {longDetail && <section className="space-y-4"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">PERFORMANCE</p><h2 className="mt-1 text-lg font-semibold">竞技表现</h2></div><TeamWorkspace detail={longDetail} /></section>}
-          {mapProfile && <TeamRosterMapContext mapProfile={mapProfile} hasOwnMaps={hasOwnMaps} />}
-          <section className="space-y-4">
-            <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">CAREER</p><h2 className="mt-1 text-lg font-semibold">赛事履历</h2></div>
-            <div className="border-y border-[var(--color-border)]">
-            {career.length > 0 ? (
-              <div className="divide-y divide-[var(--color-border)]">
-                {career.map((entry) => (
-                  <TeamProfileLink key={entry.id} seasonSlug={entry.seasonSlug} entryId={entry.id} className="grid gap-3 px-5 py-4 hover:bg-[var(--color-panel-hi)] sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] sm:items-center">
-                    <span className="min-w-0">
-                      <span className="block break-words text-sm font-semibold">{entry.seasonName}</span>
-                      <span className="mt-1 block break-words text-xs text-[var(--color-fg-mid)]">{entry.name}</span>
-                      {entry.honors.length > 0 && <span className="mt-1.5 flex flex-wrap gap-x-2 gap-y-1 text-xs font-medium text-[var(--color-accent)]">{entry.honors.map((honor) => <span key={honor}>{honor}</span>)}</span>}
-                    </span>
-                    <span className="grid grid-cols-3 gap-3 text-xs tabular-nums text-[var(--color-fg-mid)]">
-                      <span><span className="block text-[10px] uppercase tracking-wide text-[var(--color-fg-dim)]">Match</span><span className="mt-0.5 block font-medium text-[var(--color-fg)]">{entry.matchWins === null ? "—" : `${entry.matchWins}-${entry.matchLosses}`}</span></span>
-                      <span><span className="block text-[10px] uppercase tracking-wide text-[var(--color-fg-dim)]">Map</span><span className="mt-0.5 block font-medium text-[var(--color-fg)]">{entry.mapWins === null ? "—" : `${entry.mapWins}-${entry.mapLosses}`}</span></span>
-                      <span><span className="block text-[10px] uppercase tracking-wide text-[var(--color-fg-dim)]">Maps</span><span className="mt-0.5 block font-medium text-[var(--color-fg)]">{entry.maps ?? "—"}</span></span>
-                    </span>
-                    <span className="flex items-center justify-between gap-3 sm:justify-end">
-                      <span className="text-xs font-medium text-[var(--color-fg-mid)]">{entry.placement ?? "完赛"}</span>
-                      <span aria-hidden>→</span>
-                    </span>
-                  </TeamProfileLink>
-                ))}
-              </div>
-            ) : <div className="p-5"><EmptyState title="尚无已结束赛事记录。" /></div>}
-            </div>
-          </section>
-        </div>
-      </>}
-
-      {!event && team && <section className="space-y-4">
-        <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">PROFILE</p><h2 className="mt-1 text-lg font-semibold">队伍资料</h2></div>
-        {team.recruitment && <Panel label="正在招募" contentClassName="p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="space-y-3"><div className="flex flex-wrap items-center gap-2"><span className="text-sm text-[var(--color-fg-mid)]">需要位置</span>{team.recruitment.positions.length ? team.recruitment.positions.map((position) => <PosChip key={position} pos={position} />) : <span className="text-sm">位置不限</span>}</div>{team.recruitment.targetSeasonName && <p className="text-sm text-[var(--color-fg-mid)]">目标赛事 · {team.recruitment.targetSeasonName}</p>}{team.recruitment.note && <p className="max-w-2xl text-sm leading-6 text-[var(--color-fg-mid)]">{team.recruitment.note}</p>}<p className="text-xs text-[var(--color-fg-dim)]">更新于 {formatCSTShortDate(team.recruitment.updatedAt)}</p></div>{!currentUserMembership && <RecruitmentInterestButton recruitmentIntentId={team.recruitment.id} interested={team.viewerInterested} invited={team.viewerInvited} loggedIn={team.loggedIn} />}
-        </div>
-      </Panel>}
-
-        <Panel label="队伍历史" contentClassName="p-5">
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="space-y-3">
-              <h3 className="font-semibold">名称变更</h3>
-              {team.nameChanges.length > 0 ? <div className="space-y-2">{team.nameChanges.map((change) => <p key={change.id} className="text-sm text-[var(--color-fg-mid)]">{change.oldName ? `${change.oldName} → ` : ""}{change.newName} · {formatCSTShortDate(change.changedAt)}</p>)}</div> : <p className="text-sm text-[var(--color-fg-mid)]">暂无变更记录</p>}
-            </div>
-            <div className="space-y-3">
-              <h3 className="font-semibold">队长变更</h3>
-              {team.captainChanges.length > 0 ? <div className="space-y-2">{team.captainChanges.map((change) => <p key={change.id} className="text-sm text-[var(--color-fg-mid)]">{change.name} · {formatCSTShortDate(change.changedAt)}</p>)}</div> : <p className="text-sm text-[var(--color-fg-mid)]">暂无变更记录</p>}
-            </div>
-          </div>
-        </Panel>
-      </section>}
+      {!event && currentEntries.length > 0 && <div className="border-y border-[var(--color-border)] py-3"><p className="mb-2 text-xs font-medium text-[var(--color-fg-dim)]">当前赛事</p><div className="space-y-2">{currentEntries.map(entry => <TeamProfileLink key={entry.id} className="flex items-center justify-between gap-3 text-sm hover:text-[var(--color-accent)]" seasonSlug={entry.seasonSlug} entryId={entry.id}><span><span className="font-medium">{entry.seasonName}</span><span className="ml-2 text-[var(--color-fg-mid)]">{entry.name}</span></span><span>→</span></TeamProfileLink>)}</div></div>}
+      <TeamRoster title={event ? eventRosterHeading : "当前成员"} members={members} />
+      {!event && team && <TeamRecruitment team={team} />}
+      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+        {detail && <TeamMapProfile title={event ? "本届地图画像" : "生涯地图画像"} maps={detail.maps.map(({ mapName, results, selection }) => ({ mapName, results, selection }))} samples={detail.vetoActionSamples} />}
+        <TeamMatches matches={matchRows} />
+      </div>
+      {detail && <section className="space-y-4"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">PERFORMANCE</p><h2 className="mt-1 text-lg font-semibold">竞技表现</h2></div><TeamWorkspace detail={detail} /></section>}
+      {mapProfile && <TeamRosterMapContext mapProfile={mapProfile} hasOwnMaps={hasOwnMaps} />}
+      {!event && team && <><TeamCareer career={career} /><TeamHistory team={team} /></>}
     </div>
   );
 }

@@ -28,15 +28,15 @@ async function TeamProfileContent({ params }: { params: Promise<{ slug: string }
   if (!model) notFound();
 
   return (
-    <PageLayout as="div" variant="standard" className="space-y-8">
-      <TeamPublicProfile team={model.profile} mapProfile={model.mapProfile} performance={model.performance} career={model.career} statsUnavailable={model.statsUnavailable} />
+    <PageLayout as="div" variant="wide" className="space-y-8">
+      <TeamPublicProfile team={model.profile} mapProfile={model.mapProfile} performance={model.performance} career={model.career} matches={model.matches} statsUnavailable={model.statsUnavailable} />
     </PageLayout>
   );
 }
 
 function TeamProfileFallback() {
   return (
-    <PageLayout variant="standard" className="min-h-[60vh]" aria-busy="true">
+    <PageLayout variant="wide" className="min-h-[60vh]" aria-busy="true">
       <span className="sr-only">正在加载队伍页面…</span>
     </PageLayout>
   );

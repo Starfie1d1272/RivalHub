@@ -350,6 +350,13 @@ async function loadScopedVetoRows(
   ));
 }
 
+function vetoActionSamples(rows: readonly { action: string; matchId: string }[]) {
+  return {
+    pick: new Set(rows.filter(row => row.action === "pick").map(row => row.matchId)).size,
+    ban: new Set(rows.filter(row => row.action === "ban").map(row => row.matchId)).size,
+  };
+}
+
 async function loadVetoData(tx: TxDb, scope: StatsEvidenceScope & { teamId?: string }, entries: Array<{ id: string; name: string }>, remap: (id: string) => string = (id) => id) {
   const originalMatches = await tx.select({
     id: matches.id,
@@ -391,10 +398,7 @@ async function loadVetoData(tx: TxDb, scope: StatsEvidenceScope & { teamId?: str
     vetoes: applicableMatches.filter((match) => recordedApplicableIds.has(match.id) && (match.entryAId === entry.id || match.entryBId === entry.id)).length,
   }));
   return {
-    actionSamples: {
-      pick: new Set(rows.filter(row => row.action === "pick").map(row => row.matchId)).size,
-      ban: new Set(rows.filter(row => row.action === "ban").map(row => row.matchId)).size,
-    },
+    actionSamples: vetoActionSamples(rows),
     rows: rows.map(({ mapName, action, entryId }) => ({ mapName, action, entryId })),
     participants,
     teams,
@@ -770,6 +774,7 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
       teamRating: null,
       detailedPlayers: [],
       selection: [],
+      vetoActionSamples: { pick: 0, ban: 0 },
       maps: [],
       coverage: { detailedMaps: 0, completedMaps: 0, maps: [] },
     };
@@ -813,6 +818,7 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
     );
     const teamRating = buildTeamRatings(scoreboard.map((row) => ({ ...row, teamId })))[0] ?? null;
     const vetoRows = matchIds.length ? await tx.select({
+      matchId: matchVetoSteps.matchId,
       mapName: matchVetoSteps.mapName,
       action: matchVetoSteps.actionType,
       entryId: matchVetoSteps.entryId,
@@ -829,11 +835,12 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
     const analyticsByMap = aggregateEvidenceByMap(remapped, labels, { indexPlayers: true });
     const coverage = buildCoverage({ ...loaded, selected: remapped }, resultFacts);
     const coverageByMap = new Map(coverage.maps.map((row) => [row.mapName, row]));
-    const maps = [...new Set([...mapResults.keys(), ...analyticsByMap.map((row) => row.mapName)])].sort().map((mapName) => {
+    const maps = [...new Set([...mapResults.keys(), ...analyticsByMap.map((row) => row.mapName), ...selection.map(row => row.mapName)])].sort().map((mapName) => {
       const detail = analyticsByMap.find((row) => row.mapName === mapName);
       return {
         mapName,
         results: mapResults.get(mapName) ?? null,
+        selection: selection.find(row => row.mapName === mapName)?.teams.find(row => row.entryId === teamId) ?? null,
         coverage: coverageByMap.get(mapName) ?? { mapName, completedMaps: 0, detailedMaps: 0 },
         analytics: detail?.analyticsTeams.get(teamId) ?? null,
         performance: detail?.performanceTeams.get(teamId) ?? null,
@@ -857,6 +864,7 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
       teamRating,
       detailedPlayers,
       selection,
+      vetoActionSamples: vetoActionSamples(vetoRows),
       maps,
       coverage,
     };

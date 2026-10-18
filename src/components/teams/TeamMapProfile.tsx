@@ -1,16 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import type { TournamentTeamDetail } from "@/lib/stats/tournament-query";
 import { mapLabel } from "@/lib/maps";
 import { mapThumbnail } from "@/lib/map-thumbnail";
 
-export function TeamMapProfile({ maps, samples }: { maps: Pick<TournamentTeamDetail["maps"][number], "mapName" | "results" | "selection">[]; samples: TournamentTeamDetail["vetoActionSamples"] }) {
+export function TeamMapProfile({ maps, samples, title = "本届地图画像" }: { title?: string; maps: { mapName: string; results: { played: number; wins: number; losses: number } | null; selection: { picks: number; bans: number } | null }[]; samples: { pick: number; ban: number } }) {
   const [metric, setMetric] = useState<"win" | "pick" | "ban">("win");
   const rows = maps.toSorted((a, b) => (b.results?.played ?? 0) - (a.results?.played ?? 0));
   return <section className="min-w-0 space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <h2 className="text-lg font-semibold">本届地图画像</h2>
+      <h2 className="text-lg font-semibold">{title}</h2>
       <div className="flex gap-1" role="group" aria-label="地图指标">
         {([["win", "胜率"], ["pick", "Pick"], ["ban", "Ban"]] as const).map(([key, label]) => <button key={key} type="button" aria-pressed={metric === key} onClick={() => setMetric(key)} className={`min-h-9 rounded-sm px-3 text-sm ${metric === key ? "bg-[var(--color-accent)] text-black" : "border border-[var(--color-border)]"}`}>{label}</button>)}
       </div>

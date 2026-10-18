@@ -128,7 +128,9 @@ Records 按 Performance / Clutch / Rounds 分组，以当前范围内完整有�
 
 `TeamPublicProfile` 的本届名单只展示 Player identity 与首发/替补标记；区分当前、已审核或最终名单时使用 public read model 提供的自然标题，不渲染流程状态 pill，也不从长期资料或 `seasonRegistrations` 补写本届位置。Major 选手目录同样只展示本届队伍、首发/替补、Player link 和已有的本届已验证统计。`CompetitionEntry`、`EventRoster`、revision、snapshot 等实现术语不进入正常公开文案。
 
-公开队伍 Profile 的稳定信息层级固定为 section composition，而不是业务块 card wall。长期队伍按 **Hero → 当前成员/当前赛事 → Performance（All-time）→ 阵容地图参考（有内容时）→ Career → 队伍资料** 组织；赛事队伍按 **Hero → 本届名单 → Performance（本届）→ 阵容地图参考（有内容时）→ 本届比赛** 组织。Hero 展示队伍身份、已确认名次/荣誉和 Match W-L、Map W-L、Maps、Rating；赛事页不重复摆放 Record、名单人数、seed 或 Next match 摘要。一级 section 使用 eyebrow + 中文 heading + whitespace/divider 建立层级；Hero 可以保留连续 surface 与紧凑 headline strip，但 Career、Matches 等不得各自退化为独立大卡墙。
+公开队伍 Profile 共用 `PageLayout wide` 与 `TeamPublicProfile` 的一套 section composition：**Hero → 当前赛事（长期页）→ 名单 → 招募（长期页有需求时）→ 地图画像 / 近期比赛 → Performance → 阵容地图参考（有内容时）→ Career / 队伍历史（长期页）**。`TeamRoster` 统一紧凑成员排列，赛事 context 提供本届首发/替补，长期资料提供当前成员、队长及非活跃成员状态；禁止从长期成员补写赛事名单。`TeamMapProfile` 共用胜率/Pick/Ban 图表，本届与生涯标题区分统计范围；`TeamMatches` 共用比赛排序、比分与链接展示，长期页由 public read model 注入各比赛所属赛事与己方视角。两种入口只在数据范围及专属模块上有差异，不维护两套布局。
+
+Hero 展示队伍身份、已确认名次/荣誉和 Match W-L、Map W-L、Maps、Rating；赛事页不重复摆放 Record、名单人数、seed 或 Next match 摘要。一级 section 使用 eyebrow + 中文 heading + whitespace/divider 建立层级；Hero 保留连续 surface 与紧凑 headline strip，Career、Matches 等不使用独立大卡墙。长期招募复用既有 viewer state 与权限入口，未登录、感兴趣、已邀请及当前成员状态不因布局变化而重新判断。
 
 Team Performance 固定使用 **Overview / Rounds & Economy / Teamplay / Maps / Players / Weapons**。Long Team scope 固定 All-time，不增加赛事 selector；赛事队伍 scope 固定本届。Overview 与 Hero 必须互补而非机械复读；指标 family 使用 shared `MetricSection`、`MetricValue`、metric help contract，collection grain 使用 `StatsDataTable`。Players 的长期队伍语义是“实际代表 linked 赛事队伍出战时的表现”，不混入其它队伍样本。专业指标解释使用 shared tooltip；常驻正文表达页面事实，不解释聚合实现、来源步骤或开发 contract。
 
