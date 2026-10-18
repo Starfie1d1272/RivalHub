@@ -388,7 +388,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
             {!turn.completedAt && !turn.paused && !matchClosed && room.permissions.canOperateCurrentTurn && (
               <div
                 data-testid="veto-primary-actions"
-                className="sticky bottom-2 z-10 max-h-[42vh] overflow-y-auto rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 shadow-sm md:static md:max-h-none md:overflow-visible md:border-0 md:bg-transparent md:p-0 md:shadow-none"
+                className="min-w-0"
               >
                 {turn.currentTurnAction === "role_select" && (
                   <div className="flex flex-wrap gap-2" aria-label="选择先禁图队伍">
