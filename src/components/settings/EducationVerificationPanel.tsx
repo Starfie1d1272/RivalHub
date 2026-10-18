@@ -120,6 +120,17 @@ export function EducationVerificationPanel({
   const manualLabel = institutionalIdentities.length > 0 ? "3 · 录取通知书人工审核" : "2 · 录取通知书人工审核";
 
   return <div className="space-y-5">
+    <Panel label="认证记录" contentClassName="p-0">
+      {verifications.length === 0 ? <p className="p-5 text-sm text-[var(--color-fg-mid)]">尚无教育认证记录。</p> : <Checklist items={verifications.map((item) => ({
+        label: `${item.institution} · ${item.academicStatus === "enrolled" ? "在读" : "已毕业"} · ${statusLabel[item.status]}`,
+        detail: item.status === "rejected"
+          ? [item.reviewNote ? `审核说明：${item.reviewNote}` : null, isChsiEvidenceType(item.evidenceType) ? CHSI_RECOVERY_GUIDANCE : null].filter(Boolean).join(" ") || `提交于 ${item.submittedAt}`
+          : `提交于 ${item.submittedAt}`,
+        state: item.status === "approved" ? "complete" as const : item.status === "rejected" ? "blocked" as const : "pending" as const,
+        action: emailVerified && item.status === "rejected" && isChsiEvidenceType(item.evidenceType) ? <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => retryChsiVerification(item)}>重新提交</Button> : undefined,
+      }))} />}
+    </Panel>
+
     <StatusBanner
       tone={emailVerified ? "success" : "warn"}
       title={emailVerified ? "当前登录邮箱已验证" : "当前登录邮箱尚未验证"}
@@ -185,16 +196,6 @@ export function EducationVerificationPanel({
       </Panel></div>}
     </div>}
 
-    <Panel label="认证记录" contentClassName="p-0">
-      {verifications.length === 0 ? <p className="p-5 text-sm text-[var(--color-fg-mid)]">尚无教育认证记录。</p> : <Checklist items={verifications.map((item) => ({
-        label: `${item.institution} · ${item.academicStatus === "enrolled" ? "在读" : "已毕业"} · ${statusLabel[item.status]}`,
-        detail: item.status === "rejected"
-          ? [item.reviewNote ? `审核说明：${item.reviewNote}` : null, isChsiEvidenceType(item.evidenceType) ? CHSI_RECOVERY_GUIDANCE : null].filter(Boolean).join(" ") || `提交于 ${item.submittedAt}`
-          : `提交于 ${item.submittedAt}`,
-        state: item.status === "approved" ? "complete" as const : item.status === "rejected" ? "blocked" as const : "pending" as const,
-        action: emailVerified && item.status === "rejected" && isChsiEvidenceType(item.evidenceType) ? <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => retryChsiVerification(item)}>重新提交</Button> : undefined,
-      }))} />}
-    </Panel>
     <p className="text-xs text-[var(--color-fg-mid)]">赛事报名需要邮箱已验证和已认证教育身份。<Link className="underline" href="/">返回首页</Link></p>
   </div>;
 }
