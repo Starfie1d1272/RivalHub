@@ -177,7 +177,7 @@ export function AdminMatchWorkbench({
         {match.status === "scheduled" && startBlockers.length > 0 && <p className="text-sm text-[var(--color-warn)]">{startBlockers.join("；")}</p>}
         {operator.workflow.primaryTask === "source_check" && <p className="text-sm text-[var(--color-warn)]">{operator.workflow.description}</p>}
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          {match.status !== "cancelled" && <Link className={vetoCompletedAt ? "text-[var(--color-fg-mid)] underline underline-offset-4" : "inline-flex min-h-10 items-center rounded bg-[var(--color-accent)] px-4 font-medium text-[var(--color-accent-fg)]"} href={`/${season.slug}/matches/${match.id}/veto`}>{vetoCompletedAt ? "查看 BP" : "进入 BP"}</Link>}
+          {match.status !== "cancelled" && <Link className={vetoCompletedAt || match.status === "finished" ? "text-[var(--color-fg-mid)] underline underline-offset-4" : "inline-flex min-h-10 items-center rounded bg-[var(--color-accent)] px-4 font-medium text-[var(--color-accent-fg)]"} href={`/${season.slug}/matches/${match.id}/veto`}>{vetoCompletedAt || match.status === "finished" ? "查看 BP" : "进入 BP"}</Link>}
           {operator.workflow.focusMapId && match.status !== "finished" && <a className="text-[var(--color-accent)] underline underline-offset-4" href={`#scoreboard-${operator.workflow.focusMapId}`}>补计分板</a>}
         {officialMapStart && <OfficialMapStart seasonId={season.id} matchId={match.id} mapId={officialMapStart.mapId} mapName={officialMapStart.mapName} />}
           {postMatchTasks.map(task => <a key={`${task.anchor}:${task.label}`} className="text-[var(--color-accent)] underline underline-offset-4" href={`#${task.anchor}`}>{task.label}</a>)}
