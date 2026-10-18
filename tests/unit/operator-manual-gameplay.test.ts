@@ -3,7 +3,7 @@ import { resolveGameplayMapId } from "@/lib/matches/presentation-phase";
 import { projectOperatorWorkflow } from "@/lib/admin/matches/operator-workflow";
 
 it("moves manual operations from room prep to scoring after an explicit map start, then to the next room", () => {
-  const maps = [1, 2].map(order => ({ id: `map-${order}`, order, name: order === 1 ? "mirage" : "inferno", startSide: "ct" as const, startedAt: null as string | null, completedAt: null as string | null, scoreboardComplete: false, demoLabel: "待上传" }));
+  const maps = [1, 2].map(order => ({ id: `map-${order}`, order, name: order === 1 ? "mirage" : "inferno", startSide: "ct" as const, startedAt: null as string | null, completedAt: null as string | null, scoreboardComplete: false, demoNeedsAttention: false, demoLabel: "待上传" }));
   const workflow = () => projectOperatorWorkflow({ status: "in_progress", isForfeit: false, vetoComplete: true, maps, observedGameplayMapId: resolveGameplayMapId(maps, null) });
   expect(workflow()).toMatchObject({ phase: "awaiting_gameplay", roomMapId: "map-1" });
   maps[0]!.startedAt = "2026-10-19T00:00:00Z";
