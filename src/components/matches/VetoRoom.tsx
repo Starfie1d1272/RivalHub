@@ -400,16 +400,15 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                     onConfirm={mapName => sendCommand({ kind: "step", actionType: turn.currentTurnAction, mapName })} />
                 )}
                 {turn.currentTurnAction === "side_pick" && (
-                  <div className="flex flex-wrap gap-2" aria-label="选择地图起始方">
-                    <Button variant="outline" disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "step", actionType: "side_pick", side: "ct" })}>CT 开局</Button>
-                    <Button variant="outline" disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "step", actionType: "side_pick", side: "t" })}>T 开局</Button>
+                  <div className="grid grid-cols-2 gap-3" aria-label="选择地图起始方">
+                    <Button aria-label="CT 开局" variant="outline" className="h-20 justify-between px-5 text-left hover:border-[var(--color-info)]" disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "step", actionType: "side_pick", side: "ct" })}><span><span className="block font-mono text-2xl font-bold text-[var(--color-info)]">CT</span><span className="text-xs text-[var(--color-fg-mid)]">防守方开局</span></span><span aria-hidden className="text-[var(--color-fg-dim)]">↗</span></Button>
+                    <Button aria-label="T 开局" variant="outline" className="h-20 justify-between px-5 text-left hover:border-[var(--color-warn)]" disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "step", actionType: "side_pick", side: "t" })}><span><span className="block font-mono text-2xl font-bold text-[var(--color-warn)]">T</span><span className="text-xs text-[var(--color-fg-mid)]">进攻方开局</span></span><span aria-hidden className="text-[var(--color-fg-dim)]">↗</span></Button>
                   </div>
                 )}
               </div>
             )}
 
             {!turn.completedAt && !turn.paused && match.statusKey !== "in_progress" && <p className="text-sm text-[var(--color-fg-mid)]">本场 BP 记录已保留，可随时查看。</p>}
-            {!turn.completedAt && !turn.paused && match.statusKey === "in_progress" && !room.permissions.canOperateCurrentTurn && <p className="text-sm text-[var(--color-fg-mid)]">等待{currentEntry ? <TeamProfileLink seasonSlug={room.seasonSlug} entryId={currentEntry.id}>{currentEntry.name}</TeamProfileLink> : "对应队伍"}完成本轮操作。</p>}
           </div>
         </Panel>
       )}
