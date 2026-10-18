@@ -22,7 +22,7 @@ it("keeps a team's deciders and BP samples separate from unrelated matches in th
       await tx.insert(schema.users).values({ id: userId, email: `${userId}@example.test`, displayName: "Veto scope fixture" });
       await tx.insert(schema.seasons).values({ id: seasonId, slug: seasonId, name: "Veto scope", kind: "custom", status: "finished" });
       await tx.insert(schema.teams).values({ id: teamId, slug: teamId, name: "Long Team", captainUserId: userId, creatorUserId: userId });
-      await tx.insert(schema.competitionEntries).values(entries.map((entry, index) => ({ id: entry.id, competitionId: seasonId, source: "event_native" as const, teamId: index === 0 ? teamId : null, name: `Team ${index}`, representativeUserId: userId, registrationStatus: "approved" as const, currentRosterRevisionId: entry.revision })));
+      await tx.insert(schema.competitionEntries).values(entries.map((entry, index) => ({ id: entry.id, competitionId: seasonId, source: index === 0 ? "linked_team" as const : "event_native" as const, teamId: index === 0 ? teamId : null, name: `Team ${index}`, representativeUserId: userId, registrationStatus: "approved" as const, currentRosterRevisionId: entry.revision })));
       await tx.insert(schema.competitionEntryRosterRevisions).values(entries.map(entry => ({ id: entry.revision, entryId: entry.id, revisionNumber: 1, status: "approved" as const, createdBy: "fixture" })));
       await tx.insert(schema.matches).values([ownMatch!, otherMatch!].map((id, index) => ({ id, seasonId, entryAId: entries[index * 2]!.id, entryBId: entries[index * 2 + 1]!.id, stage: "main", status: "finished" as const, format: "bo3" as const, scoreA: 2, scoreB: 0, completedAt: new Date() })));
       await tx.insert(schema.matchVetoSteps).values([
