@@ -14,7 +14,7 @@ import type { TournamentStats } from "@/lib/stats/tournament-query";
 import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
 import { getDynamicRankingFloor, isRankingEligible, partitionRankingPopulation } from "@/lib/stats/ranking";
 import { displayWeaponName, statsRateDenominator, type StatsRateValue } from "@/lib/stats/presentation";
-import type { StatsMetricKey } from "@/lib/stats/metrics";
+import { STATS_METRICS, type StatsMetricKey } from "@/lib/stats/metrics";
 import { sortStatsRows } from "@/lib/stats/sorting";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 
@@ -88,7 +88,7 @@ function situationHighlights(data: TournamentStats): SituationHighlight[] {
   const performanceTeams = data.performance.teams;
   return [
     situationHighlight(teams, "round-win", "Round Win", "roundWin", (team) => ({ rate: team.roundWinRate, wins: team.roundWins, opportunities: team.rounds })),
-    situationHighlight(teams, "r2-conv", "R2 Conversion", "conversion", (team) => team.round2.conversion),
+    situationHighlight(teams, "r2-conv", STATS_METRICS.conversion.label, "conversion", (team) => team.round2.conversion),
     situationHighlight(teams, "r2-break", "R2 Break", "break", (team) => team.round2.break),
     situationHighlight(teams, "pistol", "Pistol Win", "pistol", (team) => team.pistol),
     situationHighlight(teams, "5v4", "5v4 Conversion", "fiveVFour", (team) => team.manAdvantage["5v4"]),
@@ -212,7 +212,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
             <div className="mt-2"><StatsSideSplit ct={data.analytics.totals.ct} t={data.analytics.totals.t} /></div>
           </div>
           <div className="px-4 py-4">
-            <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]"><StatsMetricLabel metric="conversion">Pistol → R2</StatsMetricLabel></p>
+            <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]"><StatsMetricLabel metric="conversion">{STATS_METRICS.conversion.label}</StatsMetricLabel></p>
             <div className="mt-1.5 text-lg font-semibold"><MetricValue metric="conversion" value={data.analytics.totals.round2Conversion} sampleDisplay="compact" /></div>
           </div>
         </div>

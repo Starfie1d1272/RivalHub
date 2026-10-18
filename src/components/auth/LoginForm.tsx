@@ -5,11 +5,16 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Field } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
-import { loginWithPassword, resendSignupConfirmation, signUp } from "@/actions/auth";
+import { loginWithPassword as telemetry_loginWithPassword, resendSignupConfirmation as telemetry_resendSignupConfirmation, signUp as telemetry_signUp } from "@/actions/auth";
 import { TurnstileWidget, type TurnstileFailure } from "@/components/auth/TurnstileWidget";
 import { EMAIL_RESEND_COOLDOWN_SECONDS, isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { clearPreviousLiveViews } from "@/lib/mizar/live-viewer-cache-reset";
+import { observeAction } from "@/lib/telemetry/client";
+
+const loginWithPassword = observeAction("auth.loginWithPassword", telemetry_loginWithPassword);
+const resendSignupConfirmation = observeAction("auth.resendSignupConfirmation", telemetry_resendSignupConfirmation);
+const signUp = observeAction("auth.signUp", telemetry_signUp);
 
 type Mode = "login" | "register";
 

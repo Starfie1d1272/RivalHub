@@ -2,11 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { createManualInstitution } from "@/actions/education-verifications";
+import { createManualInstitution as telemetry_createManualInstitution } from "@/actions/education-verifications";
 import { Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { observeAction } from "@/lib/telemetry/client";
+
+const createManualInstitution = observeAction("education-verifications.createManualInstitution", telemetry_createManualInstitution);
 
 export function ManualInstitutionCreateForm() {
   const [pending, startTransition] = useTransition();

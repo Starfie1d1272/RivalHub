@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -87,15 +87,6 @@ export interface MajorPublicParticipantPlayer extends PublicPlayerIdentity {
 export interface MajorPublicParticipantProjection extends MajorPublicParticipantOverview {
   players: MajorPublicParticipantPlayer[];
 }
-
-type PublicEntryRow = {
-  id: string;
-  name: string;
-  logoUrl: string | null;
-  registrationStatus: "approved";
-  representativeUserId: string;
-  teamId: string | null;
-};
 
 type RosterMemberRow = {
   entryId: string;
@@ -226,27 +217,42 @@ function publicRosterMember(row: RosterMemberRow) {
   };
 }
 
-async function loadMajorPublicParticipantState(
+async function loadMajorPublicParticipantDirectory(season: MajorPublicParticipantSeason): Promise<Awaited<ReturnType<typeof loadMajorPublicParticipantDirectoryFull>>>;
+async function loadMajorPublicParticipantDirectory(season: MajorPublicParticipantSeason, idsOnly: true): Promise<Awaited<ReturnType<typeof loadMajorPublicParticipantDirectoryIds>>>;
+async function loadMajorPublicParticipantDirectory(season: MajorPublicParticipantSeason, idsOnly = false) {
+  return idsOnly ? loadMajorPublicParticipantDirectoryIds(season) : loadMajorPublicParticipantDirectoryFull(season);
+}
+
+function loadMajorPublicParticipantDirectoryFull(season: MajorPublicParticipantSeason) {
+  return loadMajorPublicParticipantDirectoryWithEntries(season, db
+    .select({
+      id: competitionEntries.id,
+      name: competitionEntries.name,
+      logoUrl: competitionEntries.logoUrl,
+      registrationStatus: competitionEntries.registrationStatus,
+      representativeUserId: competitionEntries.representativeUserId,
+      teamId: competitionEntries.teamId,
+    })
+    .from(competitionEntries)
+    .where(and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "approved")))
+    .orderBy(asc(competitionEntries.formationOrder), asc(competitionEntries.id)));
+}
+
+function loadMajorPublicParticipantDirectoryIds(season: MajorPublicParticipantSeason) {
+  return loadMajorPublicParticipantDirectoryWithEntries(season, db
+    .select({ id: competitionEntries.id })
+    .from(competitionEntries)
+    .where(and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "approved")))
+    .orderBy(asc(competitionEntries.formationOrder), asc(competitionEntries.id)));
+}
+
+async function loadMajorPublicParticipantDirectoryWithEntries<T extends { id: string }>(
   season: MajorPublicParticipantSeason,
-  options: { entryId?: string } = {},
-): Promise<MajorPublicParticipantState> {
+  approvedEntriesQuery: Promise<T[]>,
+) {
   const { entrantCapacity } = getStandardMajorDefinition(season);
   const [approvedEntries, entrantRefs, prestartState] = await Promise.all([
-    db
-      .select({
-        id: competitionEntries.id,
-        name: competitionEntries.name,
-        logoUrl: competitionEntries.logoUrl,
-        registrationStatus: competitionEntries.registrationStatus,
-        representativeUserId: competitionEntries.representativeUserId,
-        teamId: competitionEntries.teamId,
-      })
-      .from(competitionEntries)
-      .where(and(
-        eq(competitionEntries.competitionId, season.id),
-        eq(competitionEntries.registrationStatus, "approved"),
-      ))
-      .orderBy(asc(competitionEntries.formationOrder), asc(competitionEntries.id)),
+    approvedEntriesQuery,
     db
       .select({
         entryId: majorTournamentEntrants.competitionEntryId,
@@ -258,67 +264,90 @@ async function loadMajorPublicParticipantState(
       where: eq(majorPrestartStates.seasonId, season.id),
       columns: { entrantsLockedAt: true, seedsConfirmedAt: true },
     }),
-  ]) as [PublicEntryRow[], Array<{ entryId: string }>, { entrantsLockedAt: Date | null; seedsConfirmedAt: Date | null } | undefined];
+  ]);
 
   const approvedEntryIds = approvedEntries.map((entry) => entry.id);
   const officialEntryIds = entrantRefs.map((entrant) => entrant.entryId);
+  const eventRosterFacts = officialEntryIds.length
+    ? await db.select({ entryId: eventRosters.entryId, status: eventRosters.status })
+      .from(eventRosters)
+      .where(inArray(eventRosters.entryId, officialEntryIds))
+      .orderBy(asc(eventRosters.entryId))
+    : [] as EventRosterFact[];
+  const lifecycle = resolveMajorPublicParticipantLifecycle({
+    entrantCapacity,
+    approvedEntryIds,
+    officialEntryIds,
+    eventRosterFacts,
+    entrantsLockedAt: prestartState?.entrantsLockedAt ?? null,
+  });
+  const approvedEntryIdSet = new Set(approvedEntryIds);
+  const visibleEntryIds = lifecycle.officialSetComplete
+    ? officialEntryIds.filter((entryId) => approvedEntryIdSet.has(entryId))
+    : approvedEntryIds;
+  const presentation = presentMajorPublicParticipantPhase(lifecycle.phase);
+  return { entrantCapacity, approvedEntries, approvedEntryIds, officialEntryIds, prestartState, eventRosterFacts, lifecycle, visibleEntryIds, presentation };
+}
+
+function approvedRosterQuery(entryIds: string[]) {
+  return db.select({
+    entryId: competitionEntries.id,
+    userId: competitionEntryRosterMembers.userId,
+    displayName: users.displayName,
+    perfectName: users.perfectName,
+    personaName: steamProfiles.personaName,
+    avatarUrl: steamProfiles.avatarUrl,
+    isStarter: competitionEntryRosterMembers.isPrimaryStarter,
+  }).from(competitionEntryRosterMembers)
+    .innerJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntryRosterMembers.revisionId))
+    .innerJoin(competitionEntries, eq(competitionEntries.approvedRosterRevisionId, competitionEntryRosterRevisions.id))
+    .innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+    .where(and(inArray(competitionEntries.id, entryIds), eq(competitionEntryRosterRevisions.status, "approved")));
+}
+
+function eventRosterQuery(entryIds: string[]) {
+  return db.select({
+    entryId: eventRosters.entryId,
+    userId: eventRosterMembers.userId,
+    displayName: users.displayName,
+    perfectName: users.perfectName,
+    personaName: steamProfiles.personaName,
+    avatarUrl: steamProfiles.avatarUrl,
+    isStarter: eventRosterMembers.isPrimaryStarter,
+  }).from(eventRosterMembers)
+    .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
+    .innerJoin(users, eq(users.id, eventRosterMembers.userId))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+    .where(and(inArray(eventRosters.entryId, entryIds), eq(eventRosterMembers.isCurrent, true)));
+}
+
+async function loadMajorPublicParticipantState(
+  season: MajorPublicParticipantSeason,
+  options: { entryId?: string } = {},
+): Promise<MajorPublicParticipantState> {
+  const { entrantCapacity, approvedEntries, approvedEntryIds, officialEntryIds, prestartState, eventRosterFacts, lifecycle, visibleEntryIds, presentation } = await loadMajorPublicParticipantDirectory(season);
+  const officialEntryIdSet = new Set(officialEntryIds);
   const lifecycleEntryIds = options.entryId
     ? approvedEntryIds.filter((entryId) => entryId === options.entryId)
     : approvedEntryIds;
-  const eventMemberEntryIds = options.entryId
-    ? officialEntryIds.includes(options.entryId) ? [options.entryId] : []
-    : officialEntryIds;
+  // Match the roster source consumed below, including approved teams that were
+  // not selected and remain accessible through their individual detail pages.
+  const eventMemberEntryIds = lifecycle.officialSetComplete
+    ? lifecycleEntryIds.filter((entryId) => officialEntryIdSet.has(entryId))
+    : [];
+  const approvedMemberEntryIds = lifecycle.officialSetComplete
+    ? lifecycleEntryIds.filter((entryId) => !officialEntryIdSet.has(entryId))
+    : lifecycleEntryIds;
 
   // Roster membership is an event fact; a later user merge must not erase it from the public record.
-  const [approvedRosterRows, eventRosterFacts, eventRosterMembersRows, seedRows] = await Promise.all([
-    lifecycleEntryIds.length
-      ? db
-        .select({
-          entryId: competitionEntries.id,
-          userId: competitionEntryRosterMembers.userId,
-          displayName: users.displayName,
-          perfectName: users.perfectName,
-          personaName: steamProfiles.personaName,
-          avatarUrl: steamProfiles.avatarUrl,
-          isStarter: competitionEntryRosterMembers.isPrimaryStarter,
-        })
-        .from(competitionEntryRosterMembers)
-        .innerJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntryRosterMembers.revisionId))
-        .innerJoin(competitionEntries, eq(competitionEntries.approvedRosterRevisionId, competitionEntryRosterRevisions.id))
-        .innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId))
-        .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-        .where(and(
-          inArray(competitionEntries.id, lifecycleEntryIds),
-          eq(competitionEntryRosterRevisions.status, "approved"),
-        ))
+  const [approvedRosterRows, eventRosterMembersRows, seedRows] = await Promise.all([
+    approvedMemberEntryIds.length
+      ? approvedRosterQuery(approvedMemberEntryIds)
         .orderBy(asc(competitionEntries.id), asc(users.id))
       : Promise.resolve([] as RosterMemberRow[]),
-    officialEntryIds.length
-      ? db
-        .select({
-          entryId: eventRosters.entryId,
-          status: eventRosters.status,
-        })
-        .from(eventRosters)
-        .where(inArray(eventRosters.entryId, officialEntryIds))
-        .orderBy(asc(eventRosters.entryId))
-      : Promise.resolve([] as EventRosterFact[]),
     eventMemberEntryIds.length
-      ? db
-        .select({
-          entryId: eventRosters.entryId,
-          userId: eventRosterMembers.userId,
-          displayName: users.displayName,
-          perfectName: users.perfectName,
-          personaName: steamProfiles.personaName,
-          avatarUrl: steamProfiles.avatarUrl,
-          isStarter: eventRosterMembers.isPrimaryStarter,
-        })
-        .from(eventRosterMembers)
-        .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
-        .innerJoin(users, eq(users.id, eventRosterMembers.userId))
-        .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-        .where(and(inArray(eventRosters.entryId, eventMemberEntryIds), eq(eventRosterMembers.isCurrent, true)))
+      ? eventRosterQuery(eventMemberEntryIds)
         .orderBy(asc(eventRosters.entryId), asc(users.id))
       : Promise.resolve([] as RosterMemberRow[]),
     db
@@ -331,19 +360,6 @@ async function loadMajorPublicParticipantState(
       .where(eq(majorTournamentSeeds.seasonId, season.id)),
   ]);
 
-  const lifecycle = resolveMajorPublicParticipantLifecycle({
-    entrantCapacity,
-    approvedEntryIds,
-    officialEntryIds,
-    eventRosterFacts,
-    entrantsLockedAt: prestartState?.entrantsLockedAt ?? null,
-  });
-  const approvedEntryIdSet = new Set(approvedEntryIds);
-  const officialEntryIdSet = new Set(officialEntryIds);
-  const visibleEntryIds = lifecycle.officialSetComplete
-    ? officialEntryIds.filter((entryId) => approvedEntryIdSet.has(entryId))
-    : approvedEntryIds;
-  const presentation = presentMajorPublicParticipantPhase(lifecycle.phase);
   const confirmedSeeds = lifecycle.officialSetComplete
     ? resolveConfirmedMajorSeeds({
       entrantCapacity,
@@ -454,7 +470,21 @@ function overviewFromState(state: MajorPublicParticipantState): MajorPublicParti
 export async function getMajorPublicParticipantOverview(
   season: MajorPublicParticipantSeason,
 ): Promise<MajorPublicParticipantOverview> {
-  return overviewFromState(await loadMajorPublicParticipantState(season));
+  const { entrantCapacity, approvedEntryIds, officialEntryIds, lifecycle, visibleEntryIds, presentation } = await loadMajorPublicParticipantDirectory(season, true);
+  // Count the same roster occurrences as the detailed view, including merged users
+  // and substitutes. Never transfer identities or avatars just to display a count.
+  const [row] = visibleEntryIds.length
+    ? await (lifecycle.officialSetComplete
+      ? db.select({ value: count() }).from(eventRosterQuery(visibleEntryIds).as("visible_roster"))
+      : db.select({ value: count() }).from(approvedRosterQuery(visibleEntryIds).as("visible_roster")))
+    : [];
+  return {
+    phase: lifecycle.phase, presentation, entrantCapacity,
+    approvedCandidateCount: approvedEntryIds.length,
+    officialEntrantCount: officialEntryIds.length,
+    teamCount: visibleEntryIds.length,
+    playerCount: row?.value ?? 0,
+  };
 }
 
 export async function getMajorPublicParticipantSummary(

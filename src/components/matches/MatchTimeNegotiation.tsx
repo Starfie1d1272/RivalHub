@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { useRoutePolling } from "@/components/use-visible-polling";
 import { toast } from "sonner";
-import { proposeMatchTime, respondToTimeProposal, forceSetMatchTime } from "@/actions/matches/scheduling";
+import { proposeMatchTime as telemetry_proposeMatchTime, respondToTimeProposal as telemetry_respondToTimeProposal, forceSetMatchTime as telemetry_forceSetMatchTime } from "@/actions/matches/scheduling";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +10,12 @@ import { formatCST, parseCSTInput, toCSTDateTimeInput } from "@/lib/utils/date";
 import type { MatchTimeProposalView } from "@/lib/matches/time-proposals";
 
 import { projectMatchScheduling } from "@/lib/matches/time-rules";
+import { observeAction } from "@/lib/telemetry/client";
+
+const proposeMatchTime = observeAction("matches.scheduling.proposeMatchTime", telemetry_proposeMatchTime);
+const respondToTimeProposal = observeAction("matches.scheduling.respondToTimeProposal", telemetry_respondToTimeProposal);
+const forceSetMatchTime = observeAction("matches.scheduling.forceSetMatchTime", telemetry_forceSetMatchTime);
+
 interface MatchTimeNegotiationProps {
   matchId: string;
   isCaptainA: boolean;
@@ -52,7 +57,7 @@ export function MatchTimeNegotiation({
   const isNegotiationClosed =
     confirmationCutoffTime !== null && now >= confirmationCutoffTime;
 
-  useRoutePolling(pendingProposals.length > 0 ? 30_000 : null, isPending);
+  // The scheduled match page already refreshes this dialog through MatchContextRefresh.
 
   // Deadline display is local; it must recover after a suspended browser tab.
   useEffect(() => {

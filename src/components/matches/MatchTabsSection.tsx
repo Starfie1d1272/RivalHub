@@ -7,6 +7,7 @@ interface MatchRow {
   id: string;
   entryAId: string;
   entryBId: string;
+  displayScore?: import("@/lib/matches/display-score").DisplayScore;
   scoreA: number | null;
   scoreB: number | null;
   format: string;
@@ -58,6 +59,7 @@ export function MatchTabsSection({
                 seasonSlug={seasonSlug}
                 teamAName={teamMap.get(m.entryAId) ?? unknownTeamName}
                 teamBName={teamMap.get(m.entryBId) ?? unknownTeamName}
+                displayScore={m.displayScore}
                 scoreA={m.scoreA}
                 scoreB={m.scoreB}
                 stageLabel={stageLabel}
@@ -84,6 +86,7 @@ export function MatchTabsSection({
                 seasonSlug={seasonSlug}
                 teamAName={teamMap.get(m.entryAId) ?? unknownTeamName}
                 teamBName={teamMap.get(m.entryBId) ?? unknownTeamName}
+                displayScore={m.displayScore}
                 scoreA={m.scoreA}
                 scoreB={m.scoreB}
                 stageLabel={stageLabel}

@@ -10,12 +10,14 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { assertInstallationInTx } from "./installation";
 import { loadMizarMatchDocumentInTx } from "./context";
+import { LINEUP_REVIEW_REQUIRED } from "./lineup-display";
 
 export const sourceClaimSchema = z.strictObject({
   matchId: z.uuid(), producerInstanceId: z.string().min(1).max(128), liveSessionId: z.string().min(1).max(128),
   programSourceGeneration: z.number().int().nonnegative(), mapEpoch: z.number().int().nonnegative(),
   contextRevision: z.string().min(1).max(128), takeover: z.boolean().default(false),
   lineupSteam64: z.array(z.string().regex(/^\d{17}$/)).max(10).default([]),
+  allowLineupMismatch: z.boolean().default(false),
 });
 
 export const sourceReleaseSchema = z.strictObject({
@@ -30,18 +32,21 @@ export async function validateObservedLineupInTx(tx: TxDb, match: Match, steam64
   return expected.length === 10 && expected.every(id => id !== null) && new Set(steam64s).size === 10 && expected.every(id => steam64s.includes(id!));
 }
 
-export async function claimMizarSource(installationId: string, competitionId: string, input: z.infer<typeof sourceClaimSchema>) {
+export async function claimMizarSource(installationId: string, competitionId: string, rawInput: z.input<typeof sourceClaimSchema>) {
+  const input = sourceClaimSchema.parse(rawInput);
   return db.transaction(async tx => {
     await assertInstallationInTx(tx, installationId, competitionId);
     const match = await lockMatchInTx(tx, input.matchId);
     if (match.seasonId !== competitionId || !["scheduled", "in_progress"].includes(match.status)) throw new AppError(ErrorCode.FORBIDDEN, "不能连接这场比赛的数据源。");
-    await materializeDefaultLineupsInTx(tx, match);
+    if (!input.allowLineupMismatch) await materializeDefaultLineupsInTx(tx, match);
     const context = await loadMizarMatchDocumentInTx(tx, match.id, competitionId);
     if (input.contextRevision !== context.revision) throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛资料已变化，请刷新后重试。");
     const lineupValid = input.lineupSteam64.length === 10 && await validateObservedLineupInTx(tx, match, input.lineupSteam64);
-    if (input.lineupSteam64.length > 0 && !lineupValid) throw new AppError(ErrorCode.VALIDATION_FAILED, "实际首发不匹配，请核对后重试。");
+    const observedLineup = input.allowLineupMismatch && input.lineupSteam64.length === 10 && new Set(input.lineupSteam64).size === 10;
+    if (input.lineupSteam64.length > 0 && !lineupValid && !observedLineup) throw new AppError(ErrorCode.VALIDATION_FAILED, "实际首发不匹配，请核对后重试。");
     const [active] = await tx.select().from(matchLiveSessions).where(and(eq(matchLiveSessions.matchId, match.id), isNull(matchLiveSessions.closedAt))).for("update");
     if (active?.installationId === installationId && active.producerInstanceId === input.producerInstanceId && active.liveSessionId === input.liveSessionId) {
+      if (observedLineup && !lineupValid) await tx.update(matchLiveSessions).set({ lineupHealth: LINEUP_REVIEW_REQUIRED, autoCanonicalizationArmed: false }).where(eq(matchLiveSessions.id, active.id));
       if (active.contextRevision !== input.contextRevision) await tx.update(matchLiveSessions).set({ contextRevision: input.contextRevision, autoCanonicalizationArmed: false, continuityHealth: "unknown" }).where(eq(matchLiveSessions.id, active.id));
       return { authorityRevision: active.authorityRevision, claimed: true };
     }
@@ -52,7 +57,7 @@ export async function claimMizarSource(installationId: string, competitionId: st
     const [latest] = await tx.select({ revision: matchLiveSessions.authorityRevision }).from(matchLiveSessions).where(eq(matchLiveSessions.matchId, match.id)).orderBy(desc(matchLiveSessions.authorityRevision)).limit(1);
     const now = new Date();
     if (active) await tx.update(matchLiveSessions).set({ closedAt: now, closeReason: "handover", autoCanonicalizationArmed: false }).where(eq(matchLiveSessions.id, active.id));
-    const [binding] = await tx.insert(matchLiveSessions).values({ matchId: match.id, installationId, producerInstanceId: input.producerInstanceId, liveSessionId: input.liveSessionId, authorityRevision: (latest?.revision ?? 0) + 1, programSourceGeneration: input.programSourceGeneration, mapEpoch: input.mapEpoch, contextRevision: input.contextRevision, identityHealth: "unknown", lineupHealth: lineupValid ? "healthy" : "unknown", continuityHealth: "unknown", autoCanonicalizationArmed: false }).returning();
+    const [binding] = await tx.insert(matchLiveSessions).values({ matchId: match.id, installationId, producerInstanceId: input.producerInstanceId, liveSessionId: input.liveSessionId, authorityRevision: (latest?.revision ?? 0) + 1, programSourceGeneration: input.programSourceGeneration, mapEpoch: input.mapEpoch, contextRevision: input.contextRevision, identityHealth: "unknown", lineupHealth: lineupValid ? "healthy" : observedLineup ? LINEUP_REVIEW_REQUIRED : "unknown", continuityHealth: "unknown", autoCanonicalizationArmed: false }).returning();
     await tx.update(mizarInstallations).set({ lastSeenAt: now }).where(eq(mizarInstallations.id, installationId));
     await writeAuditInTx(tx, { seasonId: competitionId, actorId: mizarAuditActorId(installationId), action: "mizar.source.claim", targetId: match.id, meta: { installationId, authorityRevision: binding.authorityRevision, previousInstallationId: active?.installationId ?? null } });
     return { claimed: true, authorityRevision: binding.authorityRevision };
@@ -132,7 +137,7 @@ export async function takeOverCurrentMap(matchId: string, actorId: string, expec
       }
     } else if (source.currentMapId !== expected.mapId) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前地图或数据源已变化，请刷新后重试。");
     if (alreadyTakenOver) return;
-    if (!report && ![source.identityHealth, source.lineupHealth, source.continuityHealth].some(health => ["conflict", "source_conflict", "result_conflict", "execution_conflict", "stale"].includes(health))) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前没有已核实的异常需要人工接管。");
+    if (!report && ![source.identityHealth, source.lineupHealth, source.continuityHealth].some(health => ["conflict", "source_conflict", "result_conflict", "execution_conflict", "stale", LINEUP_REVIEW_REQUIRED].includes(health))) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前没有已核实的异常需要人工接管。");
     await tx.update(matchLiveSessions).set({ autoCanonicalizationArmed: false, manualTakeoverMapEpoch: source.mapEpoch, currentMapId: map.id }).where(eq(matchLiveSessions.id, source.id));
     await writeAuditInTx(tx, { seasonId: match.seasonId, actorId, action: "mizar.map.manual_takeover", targetId: matchId, meta: { sessionId: source.id, mapEpoch: source.mapEpoch, programSourceGeneration: source.programSourceGeneration, previousManualTakeoverMapEpoch: source.manualTakeoverMapEpoch, previousMapId: source.currentMapId, mapId: map.id, mapOrder: map.mapOrder, recoveredMapBinding: source.currentMapId === null, continuityHealth: source.continuityHealth, operatorReportedProblem: report?.reason ?? null, reviewedReliableSeq: report?.lastReliableSeq ?? null } });
   });

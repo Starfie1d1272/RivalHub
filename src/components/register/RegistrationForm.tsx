@@ -18,7 +18,7 @@ import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { RegistrationConfig, PlayerType } from "@/types/season";
 import { type MapPreferenceLevel } from "@/types/season";
 
-import { loadRegistrationDraft, saveRegistrationDraft, submitRegistration } from "@/actions/register";
+import { loadRegistrationDraft, saveRegistrationDraft as telemetry_saveRegistrationDraft, submitRegistration as telemetry_submitRegistration } from "@/actions/register";
 import type { RegistrationWindowState } from "@/lib/registration/window";
 import { normalizeEmail } from "@/lib/utils/email";
 import { compactUndefined } from "@/lib/utils/object";
@@ -45,6 +45,10 @@ import {
   countMapPreferenceLevels,
   isPositionFull,
 } from "./registration-form-utils";
+import { observeAction } from "@/lib/telemetry/client";
+
+const saveRegistrationDraft = observeAction("register.saveRegistrationDraft", telemetry_saveRegistrationDraft);
+const submitRegistration = observeAction("register.submitRegistration", telemetry_submitRegistration);
 
 interface RegistrationFormProps {
   seasonId: string;

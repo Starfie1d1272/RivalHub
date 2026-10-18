@@ -534,7 +534,11 @@ export function systemMatrixFor(plan, liveEvidence) {
   // The real stale/recovery window is the longest indivisible browser flow.
   // Keep its runner free of unrelated route compilation and fixture work.
   if (specs.includes(liveSpec)) matrix.push({ task: "browser-live", live: true, specs: [liveSpec] });
-  const ordinary = specs.filter(spec => spec !== liveSpec);
+  const seriesSpec = "tests/e2e/flows/series-score-correction.spec.ts";
+  // This 30-second flow validates stale-preview recovery and persisted results.
+  // Concurrent public-page cold compilation can consume its entire budget.
+  if (specs.includes(seriesSpec)) matrix.push({ task: "browser-series", live: false, specs: [seriesSpec] });
+  const ordinary = specs.filter(spec => spec !== liveSpec && spec !== seriesSpec);
   const shards = Array.from({ length: Math.min(7, ordinary.length) }, () => []);
   ordinary.forEach((spec, index) => shards[index % shards.length].push(spec));
   return [...matrix, ...shards.map((specs, index) => ({

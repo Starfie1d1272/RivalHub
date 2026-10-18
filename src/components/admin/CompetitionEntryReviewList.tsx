@@ -3,7 +3,7 @@
 import { useRef, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { grantCompetitionEntryRestrictionOverride, reviewCompetitionEntry, revokeCompetitionEntryRestrictionOverride } from "@/actions/competition-entries";
+import { grantCompetitionEntryRestrictionOverride as telemetry_grantCompetitionEntryRestrictionOverride, reviewCompetitionEntry as telemetry_reviewCompetitionEntry, revokeCompetitionEntryRestrictionOverride as telemetry_revokeCompetitionEntryRestrictionOverride } from "@/actions/competition-entries";
 import { presentCompetitionEntryRegistration } from "@/lib/competition-entries/presentation";
 import {
   ClearFilters,
@@ -29,6 +29,11 @@ import {
   type TeamRegistrationReviewQuery,
   type TeamRegistrationReviewRow,
 } from "@/lib/registrations/admin-review-contract";
+import { observeAction } from "@/lib/telemetry/client";
+
+const grantCompetitionEntryRestrictionOverride = observeAction("competition-entries.grantCompetitionEntryRestrictionOverride", telemetry_grantCompetitionEntryRestrictionOverride);
+const reviewCompetitionEntry = observeAction("competition-entries.reviewCompetitionEntry", telemetry_reviewCompetitionEntry);
+const revokeCompetitionEntryRestrictionOverride = observeAction("competition-entries.revokeCompetitionEntryRestrictionOverride", telemetry_revokeCompetitionEntryRestrictionOverride);
 
 type ReviewEntry = TeamRegistrationReviewRow;
 type ParticipantStatus = ReviewEntry["members"][number]["status"];

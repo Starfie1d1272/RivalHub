@@ -23,6 +23,7 @@ interface MatchHeroMatch {
   format: keyof typeof MATCH_FORMAT_LABELS;
   status: "scheduled" | "in_progress" | "finished" | "cancelled" | string;
   resultDisposition?: "recorded" | "pending" | "omitted" | null;
+  displayScore?: import("@/lib/matches/display-score").DisplayScore;
   scoreA: number | null;
   scoreB: number | null;
   scheduledAt: Date | null;
@@ -102,7 +103,7 @@ export function MatchHeroHeader({
         <div className="text-center px-4">
           {isFinished ? (
             <div
-              aria-label="系列赛比分"
+              aria-label={match.displayScore?.kind === "rounds" ? "单图回合比分" : "系列赛比分"}
               className="font-bold text-4xl sm:text-[56px]"
               style={{
                 fontFamily: "var(--font-mono)",
@@ -111,9 +112,9 @@ export function MatchHeroHeader({
                 lineHeight: 1,
               }}
             >
-              {match.scoreA ?? "—"}
+              {(match.displayScore ?? match).scoreA ?? "—"}
               <span className="mx-3" style={{ color: "var(--color-fg-dim)", fontSize: 24 }}>:</span>
-              {match.scoreB ?? "—"}
+              {(match.displayScore ?? match).scoreB ?? "—"}
             </div>
           ) : (
             <div

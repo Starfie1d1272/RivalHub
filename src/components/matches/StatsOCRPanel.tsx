@@ -22,11 +22,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  extractStatsFromScreenshot,
-  savePlayerStats,
+  extractStatsFromScreenshot as telemetry_extractStatsFromScreenshot,
+  savePlayerStats as telemetry_savePlayerStats,
   getPlayerStatsByMap,
   getMatchPlayerOptions,
-  deletePlayerStatsByMap,
+  deletePlayerStatsByMap as telemetry_deletePlayerStatsByMap,
   type PlayerOption,
 } from "@/actions/player-stats";
 import { isStatOutOfRange } from "@/lib/config/stat-ranges";
@@ -34,6 +34,11 @@ import { InlineConfirm } from "@/components/rivalhub";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils/cn";
 import { assignScreenshotPlayer, mergeScreenshotDrafts, type ScoreboardDraft } from "./stats-ocr-drafts";
+import { observeAction } from "@/lib/telemetry/client";
+
+const extractStatsFromScreenshot = observeAction("player-stats.extractStatsFromScreenshot", telemetry_extractStatsFromScreenshot);
+const savePlayerStats = observeAction("player-stats.savePlayerStats", telemetry_savePlayerStats);
+const deletePlayerStatsByMap = observeAction("player-stats.deletePlayerStatsByMap", telemetry_deletePlayerStatsByMap);
 
 interface Props {
   mapId: string;

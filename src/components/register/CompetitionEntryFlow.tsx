@@ -7,15 +7,15 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
-  confirmCompetitionEntryParticipation,
-  createCompetitionEntry,
-  declineCompetitionEntryParticipation,
-  requestCompetitionEntryRosterChange,
-  saveCompetitionEntryRoster,
-  submitCompetitionEntry,
-  transferCompetitionEntryRepresentative,
-  withdrawCompetitionEntryFromReview,
-  withdrawCompetitionEntryParticipation,
+  confirmCompetitionEntryParticipation as telemetry_confirmCompetitionEntryParticipation,
+  createCompetitionEntry as telemetry_createCompetitionEntry,
+  declineCompetitionEntryParticipation as telemetry_declineCompetitionEntryParticipation,
+  requestCompetitionEntryRosterChange as telemetry_requestCompetitionEntryRosterChange,
+  saveCompetitionEntryRoster as telemetry_saveCompetitionEntryRoster,
+  submitCompetitionEntry as telemetry_submitCompetitionEntry,
+  transferCompetitionEntryRepresentative as telemetry_transferCompetitionEntryRepresentative,
+  withdrawCompetitionEntryFromReview as telemetry_withdrawCompetitionEntryFromReview,
+  withdrawCompetitionEntryParticipation as telemetry_withdrawCompetitionEntryParticipation,
 } from "@/actions/competition-entries";
 import { Checklist, InlineConfirm, Panel, StatusBanner } from "@/components/rivalhub";
 import type { ChecklistItem } from "@/components/rivalhub/Checklist";
@@ -34,6 +34,17 @@ import type { QualificationFinding } from "@/lib/qualification/service";
 import { recruitmentHref } from "@/lib/recruitment/contract";
 
 import type { CompetitionEntryCapabilities } from "@/lib/competition-entries/capabilities";
+import { observeAction } from "@/lib/telemetry/client";
+
+const confirmCompetitionEntryParticipation = observeAction("competition-entries.confirmCompetitionEntryParticipation", telemetry_confirmCompetitionEntryParticipation);
+const createCompetitionEntry = observeAction("competition-entries.createCompetitionEntry", telemetry_createCompetitionEntry);
+const declineCompetitionEntryParticipation = observeAction("competition-entries.declineCompetitionEntryParticipation", telemetry_declineCompetitionEntryParticipation);
+const requestCompetitionEntryRosterChange = observeAction("competition-entries.requestCompetitionEntryRosterChange", telemetry_requestCompetitionEntryRosterChange);
+const saveCompetitionEntryRoster = observeAction("competition-entries.saveCompetitionEntryRoster", telemetry_saveCompetitionEntryRoster);
+const submitCompetitionEntry = observeAction("competition-entries.submitCompetitionEntry", telemetry_submitCompetitionEntry);
+const transferCompetitionEntryRepresentative = observeAction("competition-entries.transferCompetitionEntryRepresentative", telemetry_transferCompetitionEntryRepresentative);
+const withdrawCompetitionEntryFromReview = observeAction("competition-entries.withdrawCompetitionEntryFromReview", telemetry_withdrawCompetitionEntryFromReview);
+const withdrawCompetitionEntryParticipation = observeAction("competition-entries.withdrawCompetitionEntryParticipation", telemetry_withdrawCompetitionEntryParticipation);
 
 type Role = Cs2Position;
 type Readiness = { ready: boolean; blockers: string[]; findings: QualificationFinding[]; educationApproved: boolean; educationState: "ready" | "pending_review" | "rejected" | "missing" };

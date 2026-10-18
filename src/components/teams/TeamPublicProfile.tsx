@@ -142,7 +142,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
                 <Link key={match.id} href={`/${event.season.slug}/matches/${match.id}`} className="grid grid-cols-[minmax(0,1fr)_5.5rem] items-center gap-3 px-1 py-3 text-sm hover:bg-[var(--color-panel-hi)]">
                   <span className="min-w-0 break-words font-medium">对阵 {match.opponentName ?? "待定"}</span>
                   <span className="flex w-[5.5rem] shrink-0 flex-col items-end text-right tabular-nums">
-                    {hasScore && <span className="text-base font-semibold tabular-nums">{match.ownScore} : {match.opponentScore}</span>}
+                    {hasScore && <span className="text-base font-semibold tabular-nums">{(match.displayScore ? match.displayScore.own : match.ownScore) ?? "—"} : {(match.displayScore ? match.displayScore.opponent : match.opponentScore) ?? "—"}</span>}
                     <span className={`${hasScore ? "mt-0.5" : ""} text-xs font-normal text-[var(--color-fg-mid)]`}>{statusLabel}</span>
                   </span>
                 </Link>

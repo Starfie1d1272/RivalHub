@@ -1,6 +1,8 @@
 import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import type { Pool } from "pg";
 import { describe, expect, it } from "vitest";
 import { db } from "../../../src/db/client";
 import * as schema from "../../../src/db/schema";
@@ -374,7 +376,7 @@ describe("Mizar reliable event ingest ownership", () => {
       lineupFixture.authorityRevision,
     );
     expect(lineup.outcome).toBe("needs_attention");
-    expect((await loadSource(lineupFixture.sessionId)).lineupHealth).toBe("conflict");
+    expect(await loadSource(lineupFixture.sessionId)).toMatchObject({ lineupHealth: "review_required", autoCanonicalizationArmed: false });
   });
 
   it("records match_started as a reality primitive only when identity and lineup evidence agree", async () => {
@@ -685,11 +687,23 @@ describe("Tournament Context provider ownership", () => {
   it("projects public-safe facts with the canonical event logoUrl and no private lineage", async () => {
     const fixture = await seedFixture();
     await db.update(schema.seasons).set({ logoUrl: "https://example.test/logo.png" }).where(eq(schema.seasons.id, fixture.seasonId));
-    const document = await db.transaction((tx) => loadMizarMatchDocumentInTx(tx, fixture.matchId, fixture.seasonId));
+    await db.insert(schema.steamProfiles).values({ steam64: fixture.steam64[0]!, personaName: "Avatar owner", profileUrl: "https://example.test/profile", avatarUrl: "https://example.test/avatar.png" });
+    const queries: string[] = [];
+    const observedDb = drizzle((db as typeof db & { $client: Pool }).$client, {
+      schema, logger: { logQuery: query => queries.push(query) },
+    });
+    const document = await observedDb.transaction((tx) => loadMizarMatchDocumentInTx(tx, fixture.matchId, fixture.seasonId));
     expect(document.schemaVersion).toBe("rivalhub.broadcast-manifest.v1");
     expect(document.match.competition.logoUrl).toBe("https://example.test/logo.png");
     expect(document.entrants.a.roster.players).toHaveLength(5);
     expect(document.entrants.a.roster.players.every((player) => player.isStarter)).toBe(true);
+    const players = [...document.entrants.a.roster.players, ...document.entrants.b.roster.players];
+    expect(players.find(player => player.steam64 === fixture.steam64[0])?.avatarUrl).toBe("https://example.test/avatar.png");
+    expect(players.filter(player => player.steam64 !== fixture.steam64[0]).every(player => player.avatarUrl === null)).toBe(true);
+    // Protect the provider read budget against per-player round trips, using actual SQL execution.
+    expect(queries.filter(query => /from "steam_profiles"/.test(query))).toHaveLength(1);
+    expect(queries.filter(query => /from "competition_entries"/.test(query))).toHaveLength(1);
+    expect(await db.transaction(tx => loadMizarMatchDocumentInTx(tx, fixture.matchId, fixture.seasonId))).toEqual(document);
     expect(document.maps.map((map) => map.mapName)).toEqual(["de_ancient", "de_mirage"]);
     expect(document.revision).toHaveLength(64);
 

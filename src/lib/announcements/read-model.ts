@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db/client";
 import { announcements, seasons, type Announcement } from "@/db/schema";
@@ -35,6 +35,10 @@ type PublicRow = {
   season: { slug: string; name: string } | null;
 };
 
+function publicAnnouncementSeasonCondition() {
+  return or(isNull(announcements.seasonId), ne(seasons.status, "draft"));
+}
+
 function publicAnnouncementOrder() {
   return [desc(announcements.publishedAt), desc(announcements.updatedAt), desc(announcements.id)];
 }
@@ -44,7 +48,7 @@ function toPublic(row: PublicRow): PublicAnnouncement {
 }
 
 export async function listPublicAnnouncements(seasonId?: string): Promise<PublicAnnouncement[]> {
-  "use cache";
+  "use cache: remote";
   cacheLife("minutes");
   cacheTag(PUBLIC_ANNOUNCEMENTS_TAG, ...(seasonId ? [publicAnnouncementsSeasonTag(seasonId)] : []));
 
@@ -68,6 +72,7 @@ export async function listPublicAnnouncements(seasonId?: string): Promise<Public
     .leftJoin(seasons, eq(announcements.seasonId, seasons.id))
     .where(and(
       eq(announcements.status, "published"),
+      publicAnnouncementSeasonCondition(),
       seasonId ? eq(announcements.seasonId, seasonId) : undefined,
     ))
     .orderBy(...publicAnnouncementOrder());
@@ -75,7 +80,7 @@ export async function listPublicAnnouncements(seasonId?: string): Promise<Public
 }
 
 export async function listAllPublicAnnouncements(): Promise<PublicAnnouncement[]> {
-  "use cache";
+  "use cache: remote";
   cacheLife("minutes");
   cacheTag(PUBLIC_ANNOUNCEMENTS_TAG);
 
@@ -97,7 +102,7 @@ export async function listAllPublicAnnouncements(): Promise<PublicAnnouncement[]
     })
     .from(announcements)
     .leftJoin(seasons, eq(announcements.seasonId, seasons.id))
-    .where(eq(announcements.status, "published"))
+    .where(and(eq(announcements.status, "published"), publicAnnouncementSeasonCondition()))
     .orderBy(...publicAnnouncementOrder());
   return rows.map(toPublic);
 }
@@ -108,7 +113,7 @@ export async function getLatestSeasonAnnouncement(seasonId: string): Promise<Pub
 }
 
 export async function getLatestSiteAnnouncement(): Promise<PublicAnnouncement | null> {
-  "use cache";
+  "use cache: remote";
   cacheLife("minutes");
   cacheTag(PUBLIC_ANNOUNCEMENTS_TAG);
 
@@ -146,11 +151,15 @@ export async function getRelevantAnnouncement(seasonId?: string): Promise<Public
 
 export async function getRelevantAttentionAnnouncement(seasonId?: string): Promise<PublicAnnouncement | null> {
   const now = new Date(Math.floor(Date.now() / 60_000) * 60_000);
-  return getCachedRelevantAttentionAnnouncement(seasonId ?? null, now);
+  const rows = await getCachedAttentionCandidates(seasonId ?? null);
+  const selected = selectAttentionAnnouncement(rows.map((row) => row.announcement), seasonId, now);
+  return selected ? toPublic(rows.find((row) => row.announcement.id === selected.id)!) : null;
 }
 
-async function getCachedRelevantAttentionAnnouncement(seasonId: string | null, now: Date): Promise<PublicAnnouncement | null> {
-  "use cache";
+// Cache public facts by scope; the clock must not create a new DB cache entry
+// every minute. Selection outside the cache preserves the minute boundary.
+async function getCachedAttentionCandidates(seasonId: string | null): Promise<PublicRow[]> {
+  "use cache: remote";
   cacheLife("minutes");
   cacheTag(
     PUBLIC_ANNOUNCEMENTS_TAG,
@@ -182,10 +191,9 @@ async function getCachedRelevantAttentionAnnouncement(seasonId: string | null, n
     })
     .from(announcements)
     .leftJoin(seasons, eq(announcements.seasonId, seasons.id))
-    .where(where)
+    .where(and(where, publicAnnouncementSeasonCondition()))
     .orderBy(...publicAnnouncementOrder());
-  const selected = selectAttentionAnnouncement(rows.map((row) => ({ ...row.announcement, scope: row.announcement.scope })), seasonId ?? undefined, now);
-  return selected ? toPublic(rows.find((row) => row.announcement.id === selected.id)!) : null;
+  return rows;
 }
 
 export async function getPublicAnnouncementHistory(seasonId?: string): Promise<PublicAnnouncement[]> {

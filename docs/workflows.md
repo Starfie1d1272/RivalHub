@@ -34,7 +34,7 @@ Major:  draft → registration → playing → finished → archived
 - 报名开放后，已经冻结的 policy/context 不随全局目录变化；运营 deadline 只在其允许的生命周期内调整。
 - draft 撤回/删除必须通过无既有业务事实的 guard；不能靠 UI 隐藏按钮代替 server validation。
 - 后台生命周期分组和首页 featured season 是 presentation projection，不创建全局 `currentSeason` 事实。
-- 报名曾实际开放不代表当前仍可提交；首页报名提示、报名入口与报名页统一消费 `registration/window` 的计划、实际开放及截止时间。报名截止不会自行推进赛事到投票、选秀或比赛阶段。
+- 报名曾实际开放不代表当前仍可提交；首页报名提示、报名入口与报名页统一消费 `registration/window` 的计划、实际开放及截止时间。团队报名赛事截止后仍需完成相应赛前流程；Major 不会因截止自动开赛。个人报名赛事实际开放后，通过人数达到容量或报名截止到期时，审核与 scheduler 通过 `maybeAdvanceFromRegistration` 自动推进到投票（启用队长投票时）或比赛阶段；选秀仍由队长确认与选秀流程推进。
 
 ## ConversionPolicy lifecycle
 
@@ -89,6 +89,8 @@ Team captain creates Entry
 
 草稿只表示尚未提交审核，不提供终止报名动作。报名提交窗口仍开放时，负责人可以把 `submitted` 撤回为同一个 Entry 的新 draft revision 后继续编辑和再次提交；既有 submission、roster revision 与 audit 历史保留，成员 active claim 不释放。报名截止后保持 `submitted` 等待审核，不再撤成无法重新提交的草稿。`changes_requested` 继续只表示管理员要求补正，`withdrawn` 不用于普通主动撤回审核。
 
+同一已批准名单版本内，外校实力例外在规则阈值不变且星数差没有扩大时继续有效；资料修正不改写原审批快照，差距扩大、规则变化、撤销或新名单版本仍需复核。
+
 管理员审核可以批准、候补、拒绝或要求补正。**approved Entry 只表示报名审核通过，不等于正式获得 Major 正赛席位。**
 
 在 EventRoster 尚未冻结、名单调整截止时间未到且 Major 当前阶段允许自助修改时，已确认的普通成员可以本人退出本届赛事；服务端会复用现有名单变更 transition，保留原 approved revision，创建或复用可编辑的 self roster change draft，从新 draft 移除该成员并释放本届 active commitment。Entry 随后需要重新完成成员确认、资格检查和管理员审核。退出长期 Team 不会被这个动作隐式改变；名单冻结或调整窗口关闭后继续由服务端 fail closed，并提示联系赛事管理员。
@@ -121,7 +123,7 @@ Qualification run 保存格式、冻结候选与预排名。管理员生成每�
 
 Qualification 的胜者更正走通用结果更正与审计入口，但只允许在正赛 entrants 尚未产生、且后续 Qualification 比赛仍全部 scheduled 时执行。确认后在同一事务中作废并审计后续轮，再由冻结候选与更正后的 canonical Match 结果重新投影晋级事实；若后续比赛已开始/结束或正赛 entrants 已产生，则拒绝自动恢复并转赛事事故裁决。
 
-首轮生成时，Play-in 队伍的已批准 Entry roster 由共享 EventRoster owner 同步并确认；资格赛阵容消费 confirmed/frozen EventRoster。Entry 重新批准只在比赛间隙同步当前 EventRoster。已被 MatchRoster 引用的旧 EventRosterMember 保留为非当前历史行，新比赛使用新当前行；已有 MatchRoster 不改写。Major 正赛仍要求 frozen EventRoster。Qualification 完成后，正赛集合只由直通 Entry 与系统推导的晋级 Entry 构成，并且必须达到冻结 profile 的准确容量。
+首轮生成时，Play-in 队伍的已批准 Entry roster 由共享 EventRoster owner 同步并确认；资格赛阵容消费 confirmed/frozen EventRoster。Entry 重新批准只在比赛间隙同步当前 EventRoster。已被 MatchRoster 引用的旧 EventRosterMember 保留为非当前历史行，新比赛使用新当前行；已有 MatchRoster 不改写。Major 正赛仍要求 frozen EventRoster。Qualification 完成后，正赛集合只由直通 Entry 与系统推导的晋级 Entry 构成，并且必须达到冻结 profile 的准确容量。 确认正赛席位承接已批准名单，不因当前外校实力差重新阻断整个参赛集合；名单人数、身份、纪律限制、一致性及重复选手仍校验，实际出场实力限制由当场首发校验。
 
 公开首页在 Main Event 首阶段开始前，将 PLAY-IN 作为独立信息面板放在阶段 tracker 下方；此时 REGISTER 显示完成，Main Event 阶段待开始，且没有 Main Event 阶段显示为当前阶段。公开和后台赛程以 PLAY-IN 独立 tab 展示 Qualification-owned matches，并以分隔线与 Main Event tabs 区分；它不会因为不属于 StagePlan 而触发未配置阶段告警。合法的 `stage=<StageConfig.key>` 请求优先显示对应 Main Event 阶段，然后回退到当前 Main Event 阶段、Play-in、Stage 1；`stage=play-in` 显式选择 Play-in。Short Swiss public/admin standings 从通用 Swiss projection 与 Qualification run facts 投影，使用 P 前缀种子并只展示 R1–R3。Direct BO3 赛程在比赛卡片前显示 Play-in 晋级数量与剩余名额摘要。
 
@@ -217,7 +219,7 @@ honor grant/revoke ─────┘
 submit → review/revise → evidence → resolve/correct
 ```
 
-是否可用只由 capability 决定，不从 season status 推导。capability 关闭时入口和 server mutation 都 fail closed。社区奖不替代官方 `tournament_honors`。
+capability 决定是否提供社区奖能力，关闭时入口和 server mutation 都 fail closed；各操作仍执行自身状态限制，例如已归档赛事不能提交新的社区奖，只有已公开奖项能补候选证据，发起人修改和撤回也受奖项状态约束。社区奖不替代官方 `tournament_honors`。
 
 ## Spectator predictions
 

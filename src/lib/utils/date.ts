@@ -35,10 +35,6 @@ export function formatCST(date: Date | string): string {
   });
 }
 
-export function parseCST(str: string): Date {
-  return new Date(str);
-}
-
 /** datetime-local 输入不含时区信息，管理员在 CST 时区输入 → 解析为 UTC Date */
 export function parseCSTInput(value: string | null): Date | null {
   if (!value) return null;
@@ -58,27 +54,12 @@ export function getCountdownSeconds(deadline: Date | string): number {
   return Math.max(0, Math.floor((d.getTime() - Date.now()) / 1000));
 }
 
-export function isDeadlinePassed(deadline: Date | string): boolean {
-  const d = typeof deadline === "string" ? new Date(deadline) : deadline;
-  return d.getTime() <= Date.now();
-}
-
 /** MVP 投票截止窗口：比赛结束后 24 小时 */
 export const MVP_DEADLINE_MS = 24 * 60 * 60 * 1000;
 
 export function formatCSTShortDate(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;
   return d.toLocaleDateString(CST_LOCALE, { timeZone: CST_TZ, month: "short", day: "numeric" });
-}
-
-export function formatCSTDate(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleDateString(CST_LOCALE, {
-    timeZone: CST_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
 }
 
 /** CST 月日+时间，例如 "5月18日 19:30" */

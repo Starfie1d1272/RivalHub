@@ -5,8 +5,11 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InlineConfirm } from "@/components/rivalhub";
-import { revokeMatchInstallation } from "@/actions/match-operations";
+import { revokeMatchInstallation as telemetry_revokeMatchInstallation } from "@/actions/match-operations";
 import { formatCSTDateTime } from "@/lib/utils/date";
+import { observeAction } from "@/lib/telemetry/client";
+
+const revokeMatchInstallation = observeAction("match-operations.revokeMatchInstallation", telemetry_revokeMatchInstallation);
 
 type Installation = { id: string; name: string; lastSeenAt: string | null; canRevoke: boolean; owned: boolean; activeMatches: { id: string; label: string }[] };
 export function MatchResources({ seasonId, data }: { seasonId: string; data: { installations: Installation[]; downloads: { windows: string; macos: string; windowsZip?: string } | null } }) {

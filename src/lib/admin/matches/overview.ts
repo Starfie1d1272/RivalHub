@@ -1,3 +1,4 @@
+import { withDisplayScores } from "@/lib/matches/display-score-data";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import type { CompetitionMatch } from "@/lib/matches/competition-context";
@@ -166,7 +167,7 @@ export async function loadAdminMatchOverview({
       ? db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) })
       : Promise.resolve(undefined),
   ]);
-  const allMatches = allMatchesRaw.map(requireCompetitionMatch);
+  const allMatches = await withDisplayScores(allMatchesRaw.map(requireCompetitionMatch));
 
   const stagePlan = isMajor
     ? resolveMajorStagePlan(normalizeStagePlan(season.stagePlan), stageRunRows)

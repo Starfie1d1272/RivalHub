@@ -64,6 +64,7 @@ export interface AdminMatchSummary {
   round: Match["round"];
   format: Match["format"];
   entryRound: Match["entryRound"];
+  displayScore?: import("@/lib/matches/display-score").DisplayScore;
   scoreA: Match["scoreA"];
   scoreB: Match["scoreB"];
   status: Match["status"];

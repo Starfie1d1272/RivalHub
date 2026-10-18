@@ -31,7 +31,7 @@ const publicPlayerColumns = {
 } as const;
 
 export async function getPublicPlayerById(userId: string): Promise<PublicPlayer | null> {
-  "use cache";
+  "use cache: remote";
   cacheLife("minutes");
   cacheTag(publicPlayerTag(userId));
 

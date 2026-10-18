@@ -10,7 +10,7 @@ import React, {
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { getPredictionBoard, mutatePrediction } from "@/actions/predictions";
+import { getPredictionBoard, mutatePrediction as telemetry_mutatePrediction } from "@/actions/predictions";
 import type { PickEmBoardData } from "@/lib/predictions/data";
 import {
   samePick,
@@ -29,9 +29,13 @@ import { pickEmDockVisible } from "@/lib/predictions/presentation";
 import { PickEditor, emptyPick } from "./PickEditor";
 import { TournamentBoard } from "./TournamentBoard";
 import { PickEmRecord } from "./PickEmRecord";
-import { exportPredictionImage } from "./share-image";
+import { exportPredictionImage as unobservedExportPredictionImage } from "./share-image";
 import { usePredictionConfirmation } from "./usePredictionConfirmation";
 import styles from "@/components/tournament/tournament.module.css";
+import { observeAction, observeTask } from "@/lib/telemetry/client";
+
+const exportPredictionImage = observeTask("predictions.exportImage", unobservedExportPredictionImage);
+const mutatePrediction = observeAction("predictions.mutatePrediction", telemetry_mutatePrediction);
 
 function defaultStage(context: SimulationContext) {
   const stages = orderedPredictionStages(context.baseline.stages);

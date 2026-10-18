@@ -1,3 +1,4 @@
+import type { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
@@ -28,7 +29,7 @@ import {
 } from "../../../src/lib/demo-integration/review";
 import { dakStableScoreboardValues, submitRivalHubEvidence } from "../../../src/lib/demo-integration/submit";
 import { recordGameplaySteamIdentityInTx } from "../../../src/lib/identity/gameplay-steam";
-import { getCurrentStatsSelectionInTx, getPlayerCareerDetail, getTournamentMapDetail, getTournamentPlayerDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
+import { getCurrentStatsSelectionInTx, getLongTeamCareerDetail, getPlayerCareerDetail, getTournamentTeamDetail, getTournamentMapDetail, getTournamentPerformancePlayers, getTournamentPlayerDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
 import { adaptStatsEvidence } from "../../../src/lib/stats/evidence-adapter";
 import { getStatsLeaderboard } from "../../../src/lib/stats/leaderboard-query";
 import { getVerifiedPlayerStatsBySeason } from "../../../src/lib/stats/public-query";
@@ -93,6 +94,46 @@ describe("DAK evidence submit persistence", () => {
     const queryLog: string[] = [];
     const queryBindings: unknown[][] = [];
     const observedDatabase = drizzle(client, { schema, logger: { logQuery: (query, params) => { queryLog.push(query); queryBindings.push(params); } } });
+    // This protects the public DTO/evidence contract and real transferred payload;
+    // mocks cannot prove that the production query omits unused persisted facts.
+    async function checkDetailProjection<T>(scenario: string, owner: () => Promise<T>, player: boolean) {
+      queryLog.length = 0;
+      queryBindings.length = 0;
+      const result = await owner();
+      const queries = queryLog.map((query, index) => ({ query, params: queryBindings[index]! }))
+        .filter(({ query }) => /from "match_demo_stat_projections"/i.test(query) && query.includes('"facts"'));
+      expect(queries).toHaveLength(1);
+      const { query, params } = queries[0]!;
+      const connection = (client as unknown as { connection: EventEmitter }).connection;
+      async function replay(text: string) {
+        let bytes = 0;
+        const countDataRow = (message: { length: number }) => { bytes += 1 + message.length; };
+        connection.on("dataRow", countDataRow);
+        try {
+          const rows = await client.query({ text, values: params, rowMode: "array" });
+          return { rows: rows.rows, bytes };
+        } finally {
+          connection.off("dataRow", countDataRow);
+        }
+      }
+      const full = await replay('select "import_id", "facts"' + query.slice(query.indexOf(' from "match_demo_stat_projections"')));
+      const detail = await replay(query);
+      expect(detail.rows).toHaveLength(full.rows.length);
+      for (let index = 0; index < detail.rows.length; index++) {
+        const facts = detail.rows[index]![1];
+        const before = full.rows[index]![1];
+        expect(facts.performance).toEqual(before.performance);
+        expect(facts.tournament).toEqual(player ? {
+          mapKey: before.tournament.mapKey, matchKey: before.tournament.matchKey, mapName: before.tournament.mapName,
+        } : before.tournament);
+        expect(facts).not.toHaveProperty("records");
+      }
+      expect(detail.bytes).toBeLessThan(full.bytes);
+      console.info(JSON.stringify({ scenario, factsQueriesBefore: 1, factsQueriesAfter: queries.length,
+        rowsBefore: full.rows.length, rowsAfter: detail.rows.length, dataRowBytesBefore: full.bytes, dataRowBytesAfter: detail.bytes,
+        measurement: "PostgreSQL DataRow frames including type/length/field framing; excludes other protocol/TLS; not provider billing" }));
+      return result;
+    }
     const ids = {
       season: randomUUID(),
       entryA: randomUUID(),
@@ -443,11 +484,13 @@ describe("DAK evidence submit persistence", () => {
       queryLog.length = 0;
       queryBindings.length = 0;
       expect((await getTournamentStats({ seasonId: ids.season }, observedDatabase)).coverage.detailedMaps).toBe(0);
+      expect(await getTournamentPerformancePlayers({ seasonId: ids.season }, observedDatabase)).toEqual([]);
       expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
       await database.insert(schema.matchDemoStatProjections).values({ ...projectionsAfterPromotion[0]!, projectionVersion: "retired-version" });
       queryLog.length = 0;
       queryBindings.length = 0;
       expect((await getTournamentStats({ seasonId: ids.season }, observedDatabase)).coverage.detailedMaps).toBe(0);
+      expect(await getTournamentPerformancePlayers({ seasonId: ids.season }, observedDatabase)).toEqual([]);
       expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
       await expect(database.transaction((tx) => backfillStatisticsProjectionForMapInTx(tx, ids.map, false))).resolves.toBe("missing");
       await expect(database.transaction((tx) => backfillStatisticsProjectionForMapInTx(tx, ids.map, true))).resolves.toBe("rebuilt");
@@ -556,6 +599,36 @@ describe("DAK evidence submit persistence", () => {
         maps: [{ mapName: "de_ancient", completedMaps: 1, detailedMaps: 1 }],
       });
       expect(stats.performance.players).toHaveLength(10);
+      // Protect benchmark parity and actual SQL payload reduction, not just the
+      // query spelling: replay the owner's emitted SQL against the same real rows.
+      const fullProjectionRows = await client.query({ text: projectionQuery!, values: queryBindings[queryLog.indexOf(projectionQuery!)]!, rowMode: "array" });
+      queryLog.length = 0;
+      queryBindings.length = 0;
+      expect(await getTournamentPerformancePlayers({ seasonId: ids.season }, observedDatabase)).toEqual(stats.performance.players);
+      const benchmarkQueries = queryLog.filter((query) => /from "match_demo_stat_projections"/i.test(query) && query.includes('"facts"'));
+      expect(benchmarkQueries).toHaveLength(1);
+      const benchmarkProjectionRows = await client.query({ text: benchmarkQueries[0]!, values: queryBindings[queryLog.indexOf(benchmarkQueries[0]!)]!, rowMode: "array" });
+      expect(benchmarkProjectionRows.rows).toHaveLength(fullProjectionRows.rows.length);
+      const benchmarkFacts = benchmarkProjectionRows.rows[0]![1];
+      expect(benchmarkFacts.performance).toEqual(fullProjectionRows.rows[0]![1].performance);
+      expect(benchmarkFacts.tournament).toEqual({ mapKey: ids.map, matchKey: ids.match });
+      expect(benchmarkFacts).not.toHaveProperty("records");
+      const fullBytes = Buffer.byteLength(JSON.stringify(fullProjectionRows.rows));
+      const benchmarkBytes = Buffer.byteLength(JSON.stringify(benchmarkProjectionRows.rows));
+      expect(benchmarkBytes).toBeLessThan(fullBytes);
+      expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
+      console.log(JSON.stringify({ scenario: "benchmark-projection-selection", factsQueriesBefore: 1, factsQueriesAfter: benchmarkQueries.length,
+        rowsBefore: fullProjectionRows.rows.length, rowsAfter: benchmarkProjectionRows.rows.length, fullBytes, benchmarkBytes,
+        measurement: "local PostgreSQL JSON result; not wire billing" }));
+      await database.update(schema.matchDemoStatProjections).set({
+        facts: { ...rebuiltProjection!.facts, tournament: { ...rebuiltProjection!.facts.tournament, matchKey: randomUUID() } },
+      }).where(eq(schema.matchDemoStatProjections.importId, importId));
+      try {
+        await expect(getTournamentPerformancePlayers({ seasonId: ids.season }, observedDatabase)).rejects.toThrow("Statistics projection target mismatch");
+      } finally {
+        await database.update(schema.matchDemoStatProjections).set({ facts: rebuiltProjection!.facts })
+          .where(eq(schema.matchDemoStatProjections.importId, importId));
+      }
       expect(stats.analytics.teams).toHaveLength(2);
       expect(stats.analytics.maps[0]?.mapName).toBe("de_ancient");
       expect(stats.leaderboard).toHaveLength(10);
@@ -574,7 +647,7 @@ describe("DAK evidence submit persistence", () => {
 
       queryLog.length = 0;
       queryBindings.length = 0;
-      const mapDetail = await getTournamentMapDetail({ seasonId: ids.season, map: "de_ancient" }, observedDatabase);
+      const mapDetail = await checkDetailProjection("map-detail-one-map", () => getTournamentMapDetail({ seasonId: ids.season, map: "de_ancient" }, observedDatabase), false);
       expect(mapDetail).toMatchObject({
         map: "de_ancient",
         coverage: stats.coverage,
@@ -587,6 +660,9 @@ describe("DAK evidence submit persistence", () => {
       expect(queryLog.some((query) => /from "match_maps" inner join "matches"/i.test(query) && query.includes('"map_name" ='))).toBe(true);
       expect(queryLog.some((query) => /from "matches"/i.test(query) && !/inner join "match_maps"/i.test(query))).toBe(false);
       expect(queryLog.filter((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toHaveLength(0);
+
+      const teamDetail = await checkDetailProjection("team-detail-one-map", () => getTournamentTeamDetail({ seasonId: ids.season, teamId: ids.entryA }, observedDatabase), false);
+      expect(teamDetail.performance).not.toBeNull();
 
       // A second event proves the all-time profile merges independently
       // confirmed imports while map filtering leaves series facts intact.
@@ -792,6 +868,8 @@ describe("DAK evidence submit persistence", () => {
       });
       try {
         await database.update(schema.competitionEntries).set({ source: "linked_team", teamId: linkedTeamId }).where(inArray(schema.competitionEntries.id, [ids.entryA, ids.careerEntryA]));
+        const longDetail = await checkDetailProjection("long-team-two-maps", () => getLongTeamCareerDetail(linkedTeamId, observedDatabase), false);
+        expect(longDetail.maps.map(row => row.mapName)).toEqual(["de_ancient", "de_nuke"]);
         const linkedStats = await getTournamentStats(platformScope, observedDatabase);
         expect(linkedStats.analytics.teams).toHaveLength(3);
         expect(linkedStats.analytics.teams.find((row) => row.team.entityKey === linkedTeamId)?.mapCount).toBe(2);
@@ -884,7 +962,13 @@ describe("DAK evidence submit persistence", () => {
 
       queryLog.length = 0;
       queryBindings.length = 0;
-      const allTimeCareer = await getPlayerCareerDetail({ playerId: userIds[0]! }, observedDatabase);
+      const allTimeCareer = await checkDetailProjection("player-career-two-maps", () => getPlayerCareerDetail({ playerId: userIds[0]! }, observedDatabase), true);
+      expect(allTimeCareer.maps.map(row => row.mapName)).toEqual(["de_ancient", "de_nuke"]);
+      expect(stableNumbers(allTimeCareer.performance)).toEqual(stableNumbers(platformStats.performance.players.find(row => row.player.entityKey === userIds[0])));
+      expect(stableNumbers(allTimeCareer.maps.map(row => row.performance))).toEqual(stableNumbers([
+        buildTournamentPerformanceAnalytics([expectedFacts.performance], { labels: platformLabels }).players.find(row => row.player.entityKey === userIds[0]),
+        buildTournamentPerformanceAnalytics([careerFacts.performance], { labels: platformLabels }).players.find(row => row.player.entityKey === userIds[0]),
+      ]));
       expect(allTimeCareer.summary).toMatchObject({ matches: 2, wins: 2, losses: 0, mvp: 1, maps: 2 });
       expect(allTimeCareer.scoreboard[0]).toMatchObject({ maps: 2 });
       expect(allTimeCareer.scoreboardMaps.map((row) => row.mapName)).toEqual(["de_ancient", "de_nuke"]);
@@ -900,16 +984,65 @@ describe("DAK evidence submit persistence", () => {
 
 
       const eventCareer = await getPlayerCareerDetail({ playerId: userIds[0]!, eventSlug: ids.season }, observedDatabase);
-      const tournamentCareer = await getTournamentPlayerDetail({ playerId: userIds[0]!, seasonId: ids.season }, observedDatabase);
+      const tournamentCareer = await checkDetailProjection("player-detail-one-map", () => getTournamentPlayerDetail({ playerId: userIds[0]!, seasonId: ids.season }, observedDatabase), true);
       expect(eventCareer.scoreboard).toEqual(tournamentCareer.scoreboard);
       expect(eventCareer.performance).toEqual(tournamentCareer.performance);
       expect(eventCareer.summary).toEqual(tournamentCareer.summary);
       expect(eventCareer.summary).toMatchObject({ matches: 1, wins: 1, losses: 0, mvp: 0, maps: 1 });
 
-      const mapCareer = await getPlayerCareerDetail({ playerId: userIds[0]!, mapFilter: "de_ancient" }, observedDatabase);
+      const mapCareer = await checkDetailProjection("player-career-map-filter", () => getPlayerCareerDetail({ playerId: userIds[0]!, mapFilter: "de_ancient" }, observedDatabase), true);
       expect(mapCareer.summary).toMatchObject({ matches: 2, wins: 2, losses: 0, mvp: 1, maps: 1 });
       expect(mapCareer.scoreboard[0]).toMatchObject({ maps: 1 });
       expect(mapCareer.scoreboardMaps.map((row) => row.mapName)).toEqual(["de_ancient"]);
+
+      const emptyPlayer = await getTournamentPlayerDetail({ playerId: randomUUID(), seasonId: ids.season }, database);
+      expect(emptyPlayer.performance).toBeNull();
+      expect(emptyPlayer.maps).toEqual([]);
+      async function expectDetailsUnavailable() {
+        const player = await getTournamentPlayerDetail({ playerId: userIds[0]!, seasonId: ids.season }, database);
+        expect(player.performance).toBeNull();
+        expect(player.coverage.detailedMaps).toBe(0);
+        expect((await getTournamentTeamDetail({ seasonId: ids.season, teamId: ids.entryA }, database)).performance).toBeNull();
+        expect((await getTournamentMapDetail({ seasonId: ids.season, map: "de_ancient" }, database)).coverage.detailedMaps).toBe(0);
+      }
+      for (const invalid of [{ completedAt: null }, { scoreA: null, scoreB: null, completedAt: null }, { completedAt: new Date(now.getTime() + 1_000) }]) {
+        await database.update(schema.matchMaps).set(invalid).where(eq(schema.matchMaps.id, ids.map));
+        try {
+          await expectDetailsUnavailable();
+        } finally {
+          await database.update(schema.matchMaps).set({ completedAt: now, scoreA: 13, scoreB: 9 }).where(eq(schema.matchMaps.id, ids.map));
+        }
+      }
+
+      // Both target identities remain mandatory after narrowing JSONB fields.
+      const [detailProjection] = await database.select().from(schema.matchDemoStatProjections)
+        .where(and(eq(schema.matchDemoStatProjections.importId, importId), eq(schema.matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION)));
+      for (const section of ["tournament", "performance"] as const) {
+        for (const key of ["mapKey", "matchKey"] as const) {
+          await database.update(schema.matchDemoStatProjections).set({ facts: {
+            ...detailProjection!.facts, [section]: { ...detailProjection!.facts[section], [key]: randomUUID() },
+          } }).where(eq(schema.matchDemoStatProjections.importId, importId));
+          try {
+            await expect(getTournamentPlayerDetail({ playerId: userIds[0]!, seasonId: ids.season }, database)).rejects.toThrow("Statistics projection target mismatch");
+            await expect(getTournamentTeamDetail({ seasonId: ids.season, teamId: ids.entryA }, database)).rejects.toThrow("Statistics projection target mismatch");
+            await expect(getTournamentMapDetail({ seasonId: ids.season, map: "de_ancient" }, database)).rejects.toThrow("Statistics projection target mismatch");
+          } finally {
+            await database.update(schema.matchDemoStatProjections).set({ facts: detailProjection!.facts }).where(eq(schema.matchDemoStatProjections.importId, importId));
+          }
+        }
+      }
+      for (const invalid of [
+        { evidenceRevision: "stale-detail-revision" },
+        { identityBindings: detailProjection!.identityBindings.map((binding, index) => index === 0 ? { ...binding, userId: randomUUID() } : binding) },
+      ]) {
+        await database.update(schema.matchDemoStatProjections).set(invalid).where(eq(schema.matchDemoStatProjections.importId, importId));
+        try {
+          await expectDetailsUnavailable();
+        } finally {
+          await database.update(schema.matchDemoStatProjections).set({ evidenceRevision: detailProjection!.evidenceRevision, identityBindings: detailProjection!.identityBindings })
+            .where(eq(schema.matchDemoStatProjections.importId, importId));
+        }
+      }
 
       const revisedCompletedAt = new Date(now.getTime() + 1_000);
       await database.update(schema.matchMaps).set({ completedAt: revisedCompletedAt }).where(eq(schema.matchMaps.id, ids.map));

@@ -1,3 +1,4 @@
+import { ObservedActionForm } from "@/components/telemetry/ObservedActionForm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { asc, eq, inArray, sql } from "drizzle-orm";
@@ -33,7 +34,7 @@ export default async function MizarConnectPage({ searchParams }: { searchParams:
   return <main className="mx-auto max-w-xl p-8">
     <h1 className="text-2xl font-semibold">连接 Mizar</h1>
     <p className="mt-4 text-sm text-[var(--color-fg-mid)]">以 {user?.displayName?.trim() || "未设置显示名的管理员"} 的身份授权 Mizar 读取所选赛事赛程，并提交该赛事的实时制播数据。授权后可在赛事管理页撤销连接。</p>
-    {allowedSeasons.length ? <form action={authorizeMizarPairingAction} className="mt-6 space-y-4">
+    {allowedSeasons.length ? <ObservedActionForm operation="integrations.mizar.authorize" action={authorizeMizarPairingAction} className="mt-6 space-y-4">
       <input type="hidden" name="pairingId" value={pairingId} />
       <label className="block text-sm font-medium" htmlFor="mizar-competition">授权赛事</label>
       <select id="mizar-competition" name="competitionId" required defaultValue={allowedSeasons.length === 1 ? allowedSeasons[0].id : ""} className="w-full rounded border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2 text-sm">
@@ -41,7 +42,7 @@ export default async function MizarConnectPage({ searchParams }: { searchParams:
         {allowedSeasons.map(season => <option key={season.id} value={season.id}>{season.name}</option>)}
       </select>
       <button type="submit" className="rounded-sm bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-[var(--color-accent-fg)]">授权 Mizar</button>
-    </form> : <p className="mt-6 text-[var(--color-danger)]">当前账号没有可授权的赛事管理员权限。</p>}
+    </ObservedActionForm> : <p className="mt-6 text-[var(--color-danger)]">当前账号没有可授权的赛事管理员权限。</p>}
     <Link className="mt-6 inline-block text-sm underline" href="/">返回首页</Link>
   </main>;
 }

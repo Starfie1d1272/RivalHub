@@ -4,6 +4,7 @@ import { getRegistrationWindowState } from "@/lib/registration/window";
 import { Button } from "@/components/ui/button";
 import type { PublicSeason } from "@/lib/data/public-seasons";
 import { connection } from "next/server";
+import { TelemetryScene } from "@/components/telemetry/ProductTelemetry";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -65,6 +66,7 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
         hasPredictions={season.competitionTemplate === "major"}
         participationAction={<Suspense fallback={null}><SeasonParticipationEntry season={season} /></Suspense>}
       />
+      <TelemetryScene prefix={`/${seasonSlug}`} scene={season.competitionTemplate} eventId={season.id} />
       {children}
       <Suspense fallback={null}>
         <SeasonInformationFeedbackLauncher season={{ id: season.id, slug: season.slug }} />

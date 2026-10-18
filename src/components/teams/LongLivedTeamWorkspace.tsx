@@ -3,13 +3,23 @@
 import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createTeamShareInvitation, disbandTeam, inviteTeamMember, kickTeamMember, revokeTeamInvitation, setTeamMembershipStatus, transferTeamCaptain, updateTeamProfile } from "@/actions/teams";
+import { createTeamShareInvitation as telemetry_createTeamShareInvitation, disbandTeam as telemetry_disbandTeam, inviteTeamMember as telemetry_inviteTeamMember, kickTeamMember as telemetry_kickTeamMember, revokeTeamInvitation as telemetry_revokeTeamInvitation, setTeamMembershipStatus as telemetry_setTeamMembershipStatus, transferTeamCaptain as telemetry_transferTeamCaptain, updateTeamProfile as telemetry_updateTeamProfile } from "@/actions/teams";
 import { TeamDangerZone } from "@/components/teams/TeamDangerZone";
 import { TeamInvitationsSection } from "@/components/teams/TeamInvitationsSection";
 import { TeamMembershipSection } from "@/components/teams/TeamMembershipSection";
 import { TeamProfileSection } from "@/components/teams/TeamProfileSection";
 import { TeamRecruitmentSection } from "@/components/recruitment/TeamRecruitmentSection";
 import type { Cs2Position } from "@/lib/config/cs2-positions";
+import { observeAction } from "@/lib/telemetry/client";
+
+const createTeamShareInvitation = observeAction("teams.createTeamShareInvitation", telemetry_createTeamShareInvitation);
+const disbandTeam = observeAction("teams.disbandTeam", telemetry_disbandTeam);
+const inviteTeamMember = observeAction("teams.inviteTeamMember", telemetry_inviteTeamMember);
+const kickTeamMember = observeAction("teams.kickTeamMember", telemetry_kickTeamMember);
+const revokeTeamInvitation = observeAction("teams.revokeTeamInvitation", telemetry_revokeTeamInvitation);
+const setTeamMembershipStatus = observeAction("teams.setTeamMembershipStatus", telemetry_setTeamMembershipStatus);
+const transferTeamCaptain = observeAction("teams.transferTeamCaptain", telemetry_transferTeamCaptain);
+const updateTeamProfile = observeAction("teams.updateTeamProfile", telemetry_updateTeamProfile);
 
 type Membership = { id: string; userId: string; name: string; qq: string | null; status: "active" | "benched" | "left" };
 type Invitation = { id: string; teamId: string; teamName: string; teamSlug?: string; email?: string | null; expiresAt: string };

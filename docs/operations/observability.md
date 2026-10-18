@@ -2,6 +2,8 @@
 
 RivalHub 的 runtime observability 由 `src/lib/observability/` 统一拥有。它记录结构化、可关联、默认安全的运行事件和关键 operation span；`audit_logs` 仍只记录业务事实，不是 runtime log 的替代品。
 
+页面/筛选/人工业务操作的产品基线由独立 [产品遥测](product-telemetry.md) 承接；它复用错误 requestId，不改变本页 runtime exporter、采样或线上缓存，不将事件发给 Better Stack。
+
 ## 目标与边界
 
 ```text

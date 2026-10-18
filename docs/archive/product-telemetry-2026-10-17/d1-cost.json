@@ -1,0 +1,18 @@
+{
+  "model": "30 batches/150 events, real production handler+maintenance SQL via local D1 API (not hosted billing)",
+  "ingest": {
+    "reads": 615,
+    "writes": 151,
+    "queries": 180
+  },
+  "rollup": {
+    "reads": 338,
+    "writes": 4,
+    "queries": 7
+  },
+  "cleanup": {
+    "reads": 124,
+    "writes": 30,
+    "queries": 5
+  }
+}

@@ -4,8 +4,11 @@ import React from "react";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { inviteTeamMemberByUserId } from "@/actions/teams";
+import { inviteTeamMemberByUserId as telemetry_inviteTeamMemberByUserId } from "@/actions/teams";
 import { Button } from "@/components/ui/button";
+import { observeAction } from "@/lib/telemetry/client";
+
+const inviteTeamMemberByUserId = observeAction("teams.inviteTeamMemberByUserId", telemetry_inviteTeamMemberByUserId);
 
 export function InviteRecruitingPlayerButton({ teamId, userId, label = "邀请加入" }: { teamId: string; userId: string; label?: string }) {
   const [pending, startTransition] = useTransition();

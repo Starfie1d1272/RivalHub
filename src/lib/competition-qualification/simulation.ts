@@ -65,6 +65,9 @@ export function simulateQualification(
           : official?.winner
             ? "official"
             : "preview",
+        displayScore: !selected && official?.winner && official.displayScore ? { ...official.displayScore,
+          scoreA: official.a === a ? official.displayScore.scoreA : official.displayScore.scoreB,
+          scoreB: official.a === a ? official.displayScore.scoreB : official.displayScore.scoreA } : undefined,
         scoreA:
           !selected && official?.winner
             ? official.a === a

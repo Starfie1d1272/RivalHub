@@ -20,8 +20,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { createMatch } from "@/actions/matches";
+import { createMatch as telemetry_createMatch } from "@/actions/matches";
 import { Plus } from "lucide-react";
+import { observeAction } from "@/lib/telemetry/client";
+
+const createMatch = observeAction("matches.createMatch", telemetry_createMatch);
 
 interface Team {
   id: string;

@@ -4,12 +4,12 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  declareInstitutionalEmailEducation,
-  submitAdmissionNoticeEducation,
-  submitEducationVerification,
+  declareInstitutionalEmailEducation as telemetry_declareInstitutionalEmailEducation,
+  submitAdmissionNoticeEducation as telemetry_submitAdmissionNoticeEducation,
+  submitEducationVerification as telemetry_submitEducationVerification,
   type EducationSubmissionOutcome,
 } from "@/actions/education-verifications";
-import { resendCurrentEmailVerification } from "@/actions/auth";
+import { resendCurrentEmailVerification as telemetry_resendCurrentEmailVerification } from "@/actions/auth";
 import { Checklist, Panel, StatusBanner } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,12 @@ import {
   EducationInstitutionSelector,
   type EducationInstitutionOption,
 } from "./EducationInstitutionSelector";
+import { observeAction } from "@/lib/telemetry/client";
+
+const declareInstitutionalEmailEducation = observeAction("education-verifications.declareInstitutionalEmailEducation", telemetry_declareInstitutionalEmailEducation);
+const submitAdmissionNoticeEducation = observeAction("education-verifications.submitAdmissionNoticeEducation", telemetry_submitAdmissionNoticeEducation);
+const submitEducationVerification = observeAction("education-verifications.submitEducationVerification", telemetry_submitEducationVerification);
+const resendCurrentEmailVerification = observeAction("auth.resendCurrentEmailVerification", telemetry_resendCurrentEmailVerification);
 
 type Verification = {
   id: string;

@@ -4,7 +4,10 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Field } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
-import { sendPasswordResetEmail } from "@/actions/auth";
+import { sendPasswordResetEmail as telemetry_sendPasswordResetEmail } from "@/actions/auth";
+import { observeAction } from "@/lib/telemetry/client";
+
+const sendPasswordResetEmail = observeAction("auth.sendPasswordResetEmail", telemetry_sendPasswordResetEmail);
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");

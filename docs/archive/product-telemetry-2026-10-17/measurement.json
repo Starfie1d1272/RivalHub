@@ -1,0 +1,71 @@
+{
+  "receiver": {
+    "acceptedBatches": 30,
+    "ticketSigningP95Ms": 1.0527699999997822,
+    "localWorkerRequestWallP95Ms": 31.188114000000496,
+    "d1": {
+      "success": true,
+      "meta": {
+        "served_by": "miniflare.db",
+        "duration": 0,
+        "changes": 0,
+        "last_row_id": 2,
+        "changed_db": false,
+        "size_after": 176128,
+        "rows_read": 30,
+        "rows_written": 0
+      },
+      "results": [
+        {
+          "batches": 30
+        }
+      ]
+    }
+  },
+  "scenario": "30 minutes/session; each minute one navigation/filter + two completed explicit actions; idle polling absent",
+  "browser": "153.0.8010.12",
+  "bundle": {
+    "minifiedBytes": 19166,
+    "gzipBytes": 6301
+  },
+  "perSession": {
+    "requests": 30,
+    "events": 150,
+    "operationOverheadMs": {
+      "p50": 0.10000000009313226,
+      "p95": 1.8000000000465661,
+      "max": 2.800000000046566
+    }
+  },
+  "perDay": [
+    {
+      "sessions": 10,
+      "events": 1500,
+      "requests": 300,
+      "wireBytesWith900ByteTicket": 721180,
+      "fits5000BatchDailyBudget": true
+    },
+    {
+      "sessions": 30,
+      "events": 4500,
+      "requests": 900,
+      "wireBytesWith900ByteTicket": 2163540,
+      "fits5000BatchDailyBudget": true
+    },
+    {
+      "sessions": 100,
+      "events": 15000,
+      "requests": 3000,
+      "wireBytesWith900ByteTicket": 7211800,
+      "fits5000BatchDailyBudget": true
+    }
+  ],
+  "sqlite": {
+    "sessionsPerDay": 30,
+    "days": 7,
+    "batches": 6300,
+    "allocatedBytesIncludingIndexes": 32362496,
+    "insertWallMs": 232.45015599999988
+  },
+  "limits": "Synthetic Chromium and local SQLite, not Cloudflare CPU, D1 billed rows, shared quota headroom or production traffic. Ticket overhead conservatively adds 900 bytes/batch. No automatic rollout."
+}

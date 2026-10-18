@@ -24,6 +24,7 @@
 | 管理员 grants/邀请；[access](../../src/lib/auth/admin-access.ts)、[invites](../../src/lib/auth/admin-invites.ts) | PostgreSQL 保存授权边界、邀请/认领与撤销事实 | private/sensitive，授权后台/server-only；关系展示不输出邀请 token |
 | 反馈；[schema](../../src/db/schema/feedback.ts)、[commands](../../src/lib/feedback/commands.ts) | PostgreSQL 保存文本、最小 pathname、版本、triage 状态、内部去重指纹 | private，超级管理员处理；自由文本可能 sensitive；指纹不入 DTO，不保存完整 URL query/raw logs |
 | 业务 audit；[write owner](../../src/lib/audit/write.ts) | PostgreSQL 保存谁改变哪些业务事实 | private，按全局/赛事权限投影；不展开 raw meta，不补造未知历史 |
+| 产品遥测；[owner/部署清单](../operations/product-telemetry.md) | 独立、默认关闭的 Worker/D1 保存白名单事件；七天账号/会话排障与版本基线 | private/operator-only；产品专用 HMAC 账号、随机诊断 session；不含鉴权 session/凭据/正文 |
 | Runtime telemetry；[observability](../operations/observability.md) | Vercel/Better Stack 保存脱敏日志、trace、运行诊断 | private，运维授权；不成为业务审计，不复制到 application DB |
 | Cache/projection/scheduler health；[统计](../operations/statistics-projections.md)、[scheduler](../deployment.md) | PostgreSQL/runtime cache 保存可重建统计、Steam profile cache、有界当前健康 | 仍按 DTO 输出；freshness/失效不等于物理删除，projection 不是 source fact |
 | 浏览器上一帧；[previous view owner](../../src/lib/mizar/live-previous-view.ts) | 同标签页 sessionStorage 暂存最多两场匿名公开计分表，减少连接期间的空白 | 仅 public display values 与 opaque revision；不存 token、cookie、用户/source 身份、雷达或运行时钟，不是正式赛果或事件 replay |
@@ -37,12 +38,13 @@
 | 正式赛事、冻结名单、赛果、奖项、裁决、积分账本 | 长期可追溯历史；改名、解绑、归档不是删除触发 | 正式更正/撤销由原 owner 与审计处理；不重写当时归属。账号删除后的匿名化范围尚需独立契约；见 [workflows](../workflows.md) |
 | 当前账号、联系方式、报名草稿、legacy 私有字段 | 当前无统一到期删除；account lifetime 不等于已实现删除产品 | identity/auth 处理凭据撤销、归并与会话失效，不代表旧个人数据物理清除；长期目的与删除范围尚需收口 |
 | 教育目录、认证结论、审核历史 | 保留审核事实，与证据分开 | 清理 code/object 不删除学校、已通过/驳回、审核时间与结论 |
-| Completed 教育核验材料 | `reviewedAt` 达 canonical 七天 cutoff 后到期；pending 不按提交时间推断到期，缺审核时间不补造 | 新列表/搜索/签名请求不再提供到期 evidence。[retention](../../src/lib/education/retention.ts) 删除对象成功后才清 DB key，CHSI code 清空；失败交既有 scheduler 重试。已签发短期 URL 仍受 adapter TTL/对象删除约束，读端不能撤销它；[访问单测](../../tests/unit/lib/education/evidence-access.test.ts)、[列表 DB](../../tests/integration/db/education-admin-review.test.ts)、[清理 DB](../../tests/integration/db/education-manual-retention.test.ts) |
+| Completed 教育核验材料 | `reviewedAt` 达 canonical 七天 cutoff 后到期；pending 不按提交时间推断到期，缺审核时间不补造 | 新列表/搜索/签名请求不再提供到期 evidence。[retention](../../src/lib/education/retention.ts) 删除对象成功后才清 DB key，CHSI code 清空；失败交既有 scheduler 重试。已签发短期 URL 仍受 adapter TTL/对象删除约束，读端不能撤销它；[签名入口](../../src/lib/education/evidence-access.ts)、[列表 DB](../../tests/integration/db/education-admin-review.test.ts)、[清理 DB](../../tests/integration/db/education-manual-retention.test.ts) |
 | Pending 教育审核/未完成身份请求 | 未定义放弃或长期 pending 的全量自动删除；有 expiresAt 的授权请求到期不可使用 | 失效不等于记录已删除；复用原 owner，不另建七天 scheduler，不按“旧”猜测放弃 |
 | Demo import/receipt/私有诊断 | 当前无统一固定 purge 期限；正式统计/身份 provenance 是另一种事实 | 原 artifact、导入诊断、正式统计的删除边界需独立决定；待核对身份不是 public cache |
 | 设备 verifier、配对/邀请、会话 | 原 owner expiresAt/撤销控制使用资格；session 有 canonical 有效期 | registry 注册时清该用户过期会话，退出/全撤销删除记录，durable fence 保留；设备撤销保留关系/audit。失效 intents/receipts 未有统一物理 purge |
 | 反馈 | new/triaged/resolved 只是处理状态；当前无 resolved 后自动删除期限 | 状态更新不删 body/pathname/fingerprint；保留期、主动撤回、低敏处理结论应另行确定，不把 resolved 当匿名化 |
 | 业务 audit | 当前无统一自动 purge，维护正式追溯 | 低敏写入与安全投影不使历史 raw/private meta 公开；未来脱敏需定义责任追溯、tombstone、授权关系 |
+| 产品遥测 | 压缩 raw/索引从事件时间七天读端到期；长期汇总默认关闭，另行批准具体天数 | 读端到期不可见、小时任务分块删行，不保证所有副本七天物理擦除；D1 Time Travel 恢复副本可能在行删除后另存七天，清理故障还会延后，必须按 [产品遥测清单](../operations/product-telemetry.md) 确认总保留要求；恢复前停收并清过期数据；不进入应用 PG 备份 |
 | Runtime telemetry | provider-managed，按当前 project/source/plan 核验 | provider 管理过期；仓库采样率不能推出保留期，ingest secret presence 不能证明查询权限。实际配置/owner/核验时间留在执行 Issue |
 | Cache/projection/心跳 | 原 owner freshness、invalidation、reducer version | 由 canonical facts 重建；恢复旧缓存不能绕过身份/资格/处罚/撤销校验。心跳无独立历史 purge，不能宣传已到期物理删除 |
 | 浏览器上一帧 | 原服务端收帧时间后 30 秒；恢复前必须取得 fresh viewer proof，未知资格、上下文/地图/登录变化清除 | owner 在期限安排标签页清理，读端始终拒绝超期；浏览器冻结时物理清理可能延后。登录/退出清除，不进入 application DB、备份或灾难恢复输入；恢复不会刷新原时间 |
@@ -76,7 +78,7 @@
 A 为已有 contract/自动证据；B 为 contract 已定但当前 provider 配置/自动核验不足；C 为保留/删除尚未定义；D 为可复现访问/恢复错误。未知不能写成已落实。
 
 - A：completed-review cutoff、对象先删后清引用、private Storage/授权签名；[education DB](../../tests/integration/db/education-evidence-retention.test.ts)。Browser Data API 继续由 [access matrix](../../scripts/db/access-matrix.ts) deny-by-default。
-- A：敏感对象 active-reference-only、未知 bucket 拒绝；[隔离恢复 tests](../../tests/unit/recovery-storage.test.ts)。R2 当前配置仍需原 verify 的真实 read-back。
+- A：敏感对象 active-reference-only、未知 bucket 拒绝；实现由 [对象恢复 owner](../../scripts/db/recovery/storage.ts) 与 [Storage policy](../../scripts/db/recovery/storage-policy.ts) 承接。实现引用不代表隔离恢复验收；已退役的访问/恢复单测及其覆盖缺口见 [测试清理记录](../archive/testing-retention-2026-10-12/files.csv)，不能声称逐断言等价替代。R2 当前配置仍需原 verify 的真实 read-back。
 - B：Vercel/Better Stack retention、Supabase physical backup/PITR plan 的当前配置，由执行 Issue 记录授权与低敏回读证据。
 - C：resolved feedback、abandoned pending evidence、草稿/旧联系方式、raw Demo/receipt 的物理删除期限；账号删除后的 provenance/官方历史匿名化范围。
 - C：旧备份中的账号/session/机器撤销与删除事件的恢复失效范围，需 recovery/auth owner 独立的可验收机制。

@@ -9,6 +9,7 @@ import {
   revokeCompetitionEntryRestrictionOverrideInTx,
   reviewCompetitionEntryInTx,
   submitCompetitionEntryInTx,
+  validateApprovedCompetitionEntryRosterInTx,
 } from "../../../src/lib/competition-entries/commands";
 import { loadActiveRestrictionOverridesInTx } from "../../../src/lib/competition-entries/restriction-overrides";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
@@ -238,6 +239,20 @@ describe("competition entry qualification restriction overrides PostgreSQL", () 
         decision: "approved",
         actorId: "local-admin-3",
       }));
+
+      const validateApproved = (recheckExternalStrength = true) => database.transaction(async (tx) => {
+        const entry = await tx.query.competitionEntries.findFirst({ where: (table, { eq }) => eq(table.id, ids.entry) });
+        const season = await tx.query.seasons.findFirst({ where: (table, { eq }) => eq(table.id, ids.season) });
+        if (!entry || !season) throw new Error("Missing approved fixture");
+        return validateApprovedCompetitionEntryRosterInTx(tx, entry, season, { recheckExternalStrength });
+      });
+      await client.query("UPDATE competitive_rank_facts SET stars = 39 WHERE id = $1", [ids.externalHistorical]);
+      await validateApproved();
+      await client.query("UPDATE competitive_rank_facts SET stars = 43 WHERE id = $1", [ids.externalHistorical]);
+      await expectAppError(() => validateApproved(), ErrorCode.VALIDATION_FAILED);
+      // Seat synchronization preserves the approved entry; actual lineups still recheck strength.
+      await validateApproved(false);
+      await client.query("UPDATE competitive_rank_facts SET stars = 40 WHERE id = $1", [ids.externalHistorical]);
 
       const persisted = await client.query<{ status: string; revision_status: string; active_overrides: string; grant_audits: string; revoke_audits: string }>(
         `SELECT entry.registration_status AS status,

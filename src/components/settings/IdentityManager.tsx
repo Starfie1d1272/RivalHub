@@ -3,11 +3,15 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { requestSecondaryEmailIdentity, revokeSecondaryEmailIdentity } from "@/actions/identity";
+import { requestSecondaryEmailIdentity as telemetry_requestSecondaryEmailIdentity, revokeSecondaryEmailIdentity as telemetry_revokeSecondaryEmailIdentity } from "@/actions/identity";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Panel, StatusBanner } from "@/components/rivalhub";
+import { observeAction } from "@/lib/telemetry/client";
+
+const requestSecondaryEmailIdentity = observeAction("identity.requestSecondaryEmailIdentity", telemetry_requestSecondaryEmailIdentity);
+const revokeSecondaryEmailIdentity = observeAction("identity.revokeSecondaryEmailIdentity", telemetry_revokeSecondaryEmailIdentity);
 
 type Identity = { id: string; email: string; primary: boolean; verifiedAt: string };
 

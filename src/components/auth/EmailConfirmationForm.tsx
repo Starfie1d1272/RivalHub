@@ -2,8 +2,11 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { confirmEmailVerification } from "@/actions/auth-confirmation";
+import { confirmEmailVerification as telemetry_confirmEmailVerification } from "@/actions/auth-confirmation";
 import { Button } from "@/components/ui/button";
+import { observeAction } from "@/lib/telemetry/client";
+
+const confirmEmailVerification = observeAction("auth-confirmation.confirmEmailVerification", telemetry_confirmEmailVerification);
 
 interface Props {
   flow: "signup" | "reverify";

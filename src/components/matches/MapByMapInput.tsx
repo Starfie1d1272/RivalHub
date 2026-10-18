@@ -8,9 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { recordMapResult } from "@/actions/matches";
+import { recordMapResult as telemetry_recordMapResult } from "@/actions/matches";
 import { getMaxMaps, getWinThreshold, SIDE_LABELS } from "@/types/match";
 import { mapLabel } from "@/lib/maps";
+import { observeAction } from "@/lib/telemetry/client";
+
+const recordMapResult = observeAction("matches.recordMapResult", telemetry_recordMapResult);
 
 interface CompletedMap {
   mapOrder: number;

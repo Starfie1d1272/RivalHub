@@ -2,8 +2,11 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { confirmSecondaryEmailIdentity } from "@/actions/identity";
+import { confirmSecondaryEmailIdentity as telemetry_confirmSecondaryEmailIdentity } from "@/actions/identity";
 import { Button } from "@/components/ui/button";
+import { observeAction } from "@/lib/telemetry/client";
+
+const confirmSecondaryEmailIdentity = observeAction("identity.confirmSecondaryEmailIdentity", telemetry_confirmSecondaryEmailIdentity);
 
 export function SecondaryIdentityConfirmationForm({
   tokenHash,

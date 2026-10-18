@@ -5,13 +5,15 @@ import { requireSupabaseSecretKey } from "../../../src/lib/runtime/supabase-keys
 
 test.use({ scenarioProfile: "auth" });
 
-test("logout rejects a saved cookie while another login survives; changing password revokes both", async ({ page, browser, scenario }) => {
+test("logout rejects a saved cookie while another login survives", async ({ page, browser, scenario }) => {
   const account = scenario.accounts[0]!;
   const otherContext = await browser.newContext({ baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000" });
   const other = await otherContext.newPage();
   try {
-    await signInProgrammatically(page, account, scenario, "/settings/security");
-    await signInProgrammatically(other, account, scenario, "/settings/security");
+    await Promise.all([
+      signInProgrammatically(page, account, scenario, "/settings/security"),
+      signInProgrammatically(other, account, scenario, "/settings/security"),
+    ]);
     const saved = await page.context().cookies();
     await page.getByRole("button", { name: "账号菜单", exact: true }).click();
     await page.getByRole("menuitem", { name: "退出登录", exact: true }).click();
@@ -21,7 +23,19 @@ test("logout rejects a saved cookie while another login survives; changing passw
     await expect(page).toHaveURL(/\/login/);
     await other.reload();
     await expect(other).toHaveURL(/\/settings\/security$/);
-    await signInProgrammatically(page, account, scenario, "/settings/security");
+    await expect(other.getByLabel("原密码", { exact: true })).toBeVisible();
+  } finally { await otherContext.close(); }
+});
+
+test("changing password revokes both prior logins and rejects saved cookies", async ({ page, browser, scenario }) => {
+  const account = scenario.accounts[0]!;
+  const otherContext = await browser.newContext({ baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000" });
+  const other = await otherContext.newPage();
+  try {
+    await Promise.all([
+      signInProgrammatically(page, account, scenario, "/settings/security"),
+      signInProgrammatically(other, account, scenario, "/settings/security"),
+    ]);
     const beforeChange = await page.context().cookies();
     await page.getByLabel("原密码", { exact: true }).fill(scenario.password);
     await page.getByLabel("新密码", { exact: true }).fill("New-Session-Password-7!");
@@ -42,8 +56,10 @@ test("provider recovery through the real browser form revokes both prior applica
   const otherContext = await browser.newContext({ baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000" });
   const other = await otherContext.newPage();
   try {
-    await signInProgrammatically(page, account, scenario, "/settings/security");
-    await signInProgrammatically(other, account, scenario, "/settings/security");
+    await Promise.all([
+      signInProgrammatically(page, account, scenario, "/settings/security"),
+      signInProgrammatically(other, account, scenario, "/settings/security"),
+    ]);
     const saved = await page.context().cookies();
     const apiUrl = assertLocalHttpUrl(process.env.NEXT_PUBLIC_SUPABASE_URL, "local auth URL");
     const admin = createClient(apiUrl, requireSupabaseSecretKey(process.env.SUPABASE_SECRET_KEY, process.env.NEXT_PUBLIC_SUPABASE_URL), { auth: { persistSession: false, autoRefreshToken: false } });

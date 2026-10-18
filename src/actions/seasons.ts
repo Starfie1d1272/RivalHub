@@ -17,7 +17,7 @@ import type { StagePlan, TeamRegistrationConfig } from "@/types/season";
 import { validateCompetitionDefinition } from "@/lib/competition/definition";
 import { assertSeasonHasNoHistoricalFacts, openSeasonRegistrationInTx, resolveConversionPolicyForPublish, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
 import { seasonFormSchema, seasonUpdatePayloadSchema, planSeasonCreate, planSeasonUpdate, type SeasonFormInput } from "@/lib/seasons/edit";
-import { updatePublicSeasonTags } from "@/lib/revalidation";
+import { updatePublicAnnouncementTags, updatePublicSeasonInfoTag, updatePublicSeasonTags } from "@/lib/revalidation";
 
 export type { SeasonFormInput };
 
@@ -102,11 +102,23 @@ export async function updateSeason(input: SeasonFormInput): Promise<ActionResult
         actorId: auditActorId(admin),
         targetId: existing.id,meta: { slug: nextSlug, template, metadataOnly },
       });
-      return { oldSlug: existing.slug, slug: nextSlug };
+      return {
+        id: existing.id,
+        oldSlug: existing.slug,
+        slug: nextSlug,
+        publicMetadataChanged: existing.status !== "draft" && (
+          (set.name !== undefined && set.name !== existing.name)
+          || (set.slug !== undefined && set.slug !== existing.slug)
+        ),
+      };
     });
 
     updatePublicSeasonTags(updated.oldSlug);
     if (updated.slug !== updated.oldSlug) updatePublicSeasonTags(updated.slug);
+    if (updated.publicMetadataChanged) {
+      updatePublicAnnouncementTags(updated.id);
+      updatePublicSeasonInfoTag(updated.id);
+    }
     revalidatePath("/admin");
     revalidatePath("/");
     revalidatePath("/seasons");
@@ -181,6 +193,8 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
     });
 
     updatePublicSeasonTags(season.slug);
+    updatePublicAnnouncementTags(seasonId);
+    updatePublicSeasonInfoTag(seasonId);
     revalidatePath("/admin");
     revalidatePath(`/admin/${season.slug}/settings`);
     revalidatePath(`/${season.slug}`);
@@ -248,6 +262,8 @@ export async function deleteSeason(seasonId: string): Promise<ActionResult<void>
     });
 
     updatePublicSeasonTags(deleted.slug);
+    updatePublicAnnouncementTags(seasonId);
+    updatePublicSeasonInfoTag(seasonId);
     revalidatePath("/admin");
     return ok(undefined);
   } catch (e) {
@@ -288,6 +304,8 @@ export async function revertSeasonToDraft(seasonId: string): Promise<ActionResul
     });
 
     updatePublicSeasonTags(season.slug);
+    updatePublicAnnouncementTags(seasonId);
+    updatePublicSeasonInfoTag(seasonId);
     revalidatePath("/admin");
     revalidatePath(`/admin/${season.slug}/settings`);
     revalidatePath(`/${season.slug}`);

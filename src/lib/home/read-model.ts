@@ -45,7 +45,7 @@ export interface PublicHomeProjection {
 export async function getPublicHomeProjection(
   allSeasons: PublicSeasonWithCompletion[],
 ): Promise<PublicHomeProjection> {
-  "use cache";
+  "use cache: remote";
   cacheLife("minutes");
   cacheTag(PUBLIC_HOME_TAG);
 

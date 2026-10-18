@@ -1,3 +1,4 @@
+import { withDisplayScores } from "@/lib/matches/display-score-data";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 
@@ -45,6 +46,7 @@ export type PublicEventTeamMatch = {
   scheduledAt: Date | null;
   completedAt: Date | null;
   stage?: string;
+  displayScore?: { own: number | null; opponent: number | null };
   ownScore: number | null;
   opponentScore: number | null;
 };
@@ -121,6 +123,7 @@ type CollectedMatchFacts = {
 };
 
 type PublicMatchRow = {
+  displayScore?: import("@/lib/matches/display-score").DisplayScore;
   stage?: string;
   id: string;
   entryAId: string;
@@ -171,6 +174,7 @@ function collectMatchFacts(
           scheduledAt: match.scheduledAt,
           completedAt: match.completedAt,
           stage: match.stage,
+          displayScore: match.displayScore ? { own: side.entryId === match.entryAId ? match.displayScore.scoreA : match.displayScore.scoreB, opponent: side.entryId === match.entryAId ? match.displayScore.scoreB : match.displayScore.scoreA } : undefined,
           ownScore: side.ownScore,
           opponentScore: side.opponentScore,
         });
@@ -195,6 +199,8 @@ async function loadMatchRows(seasonId: string, entryIds: readonly string[]) {
         entryAId: true,
         entryBId: true,
         status: true,
+        format: true,
+        resultDisposition: true,
         isForfeit: true,
         scheduledAt: true,
         completedAt: true,
@@ -212,7 +218,7 @@ export async function getPublicEventTeamMatchFacts(
 ): Promise<Map<string, PublicEventTeamMatchFacts>> {
   const targetIds = uniqueIds(entryIds);
   if (targetIds.length === 0) return new Map();
-  const entryMatches = await loadMatchRows(seasonId, targetIds);
+  const entryMatches = await withDisplayScores(await loadMatchRows(seasonId, targetIds));
   const targetIdSet = new Set(targetIds);
   const opponentIds = uniqueIds(entryMatches.flatMap((match) => [
     ...(targetIdSet.has(match.entryAId) ? [match.entryBId] : []),

@@ -1,4 +1,5 @@
 "use client";
+import { recordFilter } from "@/lib/telemetry/client";
 import React, { Fragment, useMemo, useState, type ReactNode } from "react";
 
 // Adapted from cs2-demo-analysis-kit
@@ -119,6 +120,7 @@ export function StatsDataTable<T>({
 
   function sortBy(key: string) {
     update({ sortKey: key, direction: sortKey === key && direction === "desc" ? "asc" : "desc", page: 1 });
+    recordFilter("sort", key);
   }
 
   return (

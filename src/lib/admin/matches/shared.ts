@@ -18,7 +18,7 @@ const STATUS_SORT_ORDER: Record<string, number> = {
   cancelled: 3,
 };
 
-export function projectAdminMatchSummary(match: Match, demoNeedsAttentionCount = 0): AdminMatchSummary {
+export function projectAdminMatchSummary(match: Match & { displayScore?: import("@/lib/matches/display-score").DisplayScore }, demoNeedsAttentionCount = 0): AdminMatchSummary {
   return {
     id: match.id,
     entryAId: match.entryAId,
@@ -27,6 +27,7 @@ export function projectAdminMatchSummary(match: Match, demoNeedsAttentionCount =
     round: match.round,
     format: match.format,
     entryRound: match.entryRound,
+    displayScore: match.displayScore,
     scoreA: match.scoreA,
     scoreB: match.scoreB,
     status: match.status,

@@ -4,8 +4,14 @@ import * as React from "react"
 import * as TabsPrimitive from "@radix-ui/react-tabs"
 
 import { cn } from "@/lib/utils/cn"
+import { recordFilter } from "@/lib/telemetry/client"
 
-const Tabs = TabsPrimitive.Root
+function Tabs({ onValueChange, ...props }: React.ComponentProps<typeof TabsPrimitive.Root>) {
+  return <TabsPrimitive.Root {...props} onValueChange={(value) => {
+    recordFilter("tab", value);
+    onValueChange?.(value);
+  }} />
+}
 
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,

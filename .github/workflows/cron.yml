@@ -71,16 +71,19 @@ jobs:
           FAILED=0
           for CRON_JOB_KEY in "${JOB_KEYS[@]}"; do
             pnpm --silent db:production:scheduler:watchdog-plan verify
-            if ! curl --fail --silent --show-error \
+            if CRON_HTTP_STATUS="$(curl --fail --silent --show-error \
+              --output /dev/null --write-out '%{http_code}' \
               --connect-timeout 10 \
               --max-time 60 \
               --retry 2 \
-              --retry-all-errors \
-              --retry-delay 5 \
+              --retry-connrefused \
               --retry-max-time 180 \
               --header "Authorization: Bearer ${CRON_SECRET}" \
               --header "X-RivalHub-Cron-Source: ${CRON_SOURCE}" \
-              "https://match.starfie1d.top/api/cron/${CRON_JOB_KEY}"; then
+              "https://match.starfie1d.top/api/cron/${CRON_JOB_KEY}")" &&
+              [[ "$CRON_HTTP_STATUS" == 2[0-9][0-9] ]]; then
+              continue
+            else
               echo "::error::Deployed scheduler target failed: ${CRON_JOB_KEY}"
               FAILED=1
             fi

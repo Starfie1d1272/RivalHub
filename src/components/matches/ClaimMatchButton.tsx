@@ -1,8 +1,11 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import { claimMatchCommentary } from "@/actions/postmatch";
+import { claimMatchCommentary as telemetry_claimMatchCommentary } from "@/actions/postmatch";
 import { Button } from "@/components/ui/button";
+import { observeAction } from "@/lib/telemetry/client";
+
+const claimMatchCommentary = observeAction("postmatch.claimMatchCommentary", telemetry_claimMatchCommentary);
 
 export function ClaimMatchButton({ matchId }: { matchId: string }) {
   const [pending, startTransition] = useTransition();

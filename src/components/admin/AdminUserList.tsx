@@ -2,12 +2,15 @@
 
 import React, { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { revokeUserAdminRole } from "@/actions/admin";
+import { revokeUserAdminRole as telemetry_revokeUserAdminRole } from "@/actions/admin";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { formatCST } from "@/lib/utils/date";
 import { Panel } from "@/components/rivalhub";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { observeAction } from "@/lib/telemetry/client";
+
+const revokeUserAdminRole = observeAction("admin.revokeUserAdminRole", telemetry_revokeUserAdminRole);
 
 interface AdminUserRow {
   id: string;
