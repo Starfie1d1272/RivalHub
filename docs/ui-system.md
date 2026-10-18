@@ -114,7 +114,7 @@ read model 保留已有 public-safe canonical identity：BET option entity 由 m
 
 Players Opening 在 FD/100r 后显示 Traded FD%；Utility 在 Blind/Flash 后显示 Net Blind/Flash。两列沿用排序、dynamic qualification、样本与 tooltip contract，次级列在窄屏隐藏，净值保留负数。搜索与队伍展示过滤不改变指标资格总体。
 
-Overview 按赛事概要、核心榜单、地图概览、Insights、情境分析组织；核心榜单优先进入桌面首屏。Insights 至多六条，宽屏三列、中屏两列、手机单列，无候选时省略。每条提供范围、自然中文、分子/分母或秒/颗与投掷数、可展开的「为何出现」及相关统计链接；不使用能力分、奖项标签、因果或显著性断言。保留 Situation Highlights，避免卡片墙。
+Overview 按赛事概要、核心榜单、地图概览、Insights、情境分析组织；核心榜单优先进入桌面首屏。Insights 至多六条，宽屏三列、中屏两列、手机单列，无候选时省略。每条提供范围、自然中文、分子/分母或秒/颗与投掷数、可展开的「为何出现」及相关统计链接；不使用能力分、奖项标签、因果或显著性断言。Round Situations 保留九宫格；5v4、5v3 Conversion 标明 Lowest，取达到共享动态样本门槛的最低胜率，其余项目取最高值。标题问号解释选择方向，单项问号继续解释指标口径，不增加常驻说明段落。
 
 Records 按 Performance / Clutch / Rounds 分组，以当前范围内完整有效的单图或回合事实比较极值。保持者与发生次数分开，全部并列通过有界分页追溯赛事、比赛、地图、比分和回合；没有回合详情路由时链接比赛并注明 Rn。覆盖说明限定纪录结论，未知值不解释为零。
 

@@ -59,14 +59,15 @@ function economyVsFullRows(data: TournamentStats): EconomyMatrixRow[] {
   });
 }
 
-function bestTeamRate<T extends { team: TeamAnalyticsRow["team"] }>(
+function selectTeamRate<T extends { team: TeamAnalyticsRow["team"] }>(
   teams: readonly T[],
   valueFor: (team: T) => StatsRateValue,
+  direction: "asc" | "desc" = "desc",
 ): { team: TeamAnalyticsRow["team"]; value: StatsRateValue } | null {
   const population = teams.map((row) => ({ team: row.team, value: valueFor(row) }));
   const { ranked } = partitionRankingPopulation(population, (row) => row.value.rate, (row) => statsRateDenominator(row.value));
   return ranked.sort((left, right) =>
-      (right.value.rate ?? -1) - (left.value.rate ?? -1) ||
+      (direction === "asc" ? 1 : -1) * ((left.value.rate ?? 0) - (right.value.rate ?? 0)) ||
       (statsRateDenominator(right.value) ?? 0) - (statsRateDenominator(left.value) ?? 0) ||
       left.team.displayName.localeCompare(right.team.displayName),
     )[0] ?? null;
@@ -78,9 +79,10 @@ function situationHighlight<T extends { team: TeamAnalyticsRow["team"] }>(
   label: string,
   metric: StatsMetricKey,
   valueFor: (team: T) => StatsRateValue,
+  direction: "asc" | "desc" = "desc",
 ): SituationHighlight {
-  const best = bestTeamRate(teams, valueFor);
-  return { key, label, metric, team: best?.team ?? null, value: best?.value ?? null };
+  const selected = selectTeamRate(teams, valueFor, direction);
+  return { key, label, metric, team: selected?.team ?? null, value: selected?.value ?? null };
 }
 
 function situationHighlights(data: TournamentStats): SituationHighlight[] {
@@ -91,10 +93,10 @@ function situationHighlights(data: TournamentStats): SituationHighlight[] {
     situationHighlight(teams, "r2-conv", STATS_METRICS.conversion.label, "conversion", (team) => team.round2.conversion),
     situationHighlight(teams, "r2-break", "R2 Break", "break", (team) => team.round2.break),
     situationHighlight(teams, "pistol", "Pistol Win", "pistol", (team) => team.pistol),
-    situationHighlight(teams, "5v4", "5v4 Conversion", "fiveVFour", (team) => team.manAdvantage["5v4"]),
+    situationHighlight(teams, "5v4", "5v4 Conversion · Lowest", "fiveVFour", (team) => team.manAdvantage["5v4"], "asc"),
     situationHighlight(teams, "4v5", "4v5 Comeback", "fourVFive", (team) => team.manAdvantage["4v5"]),
     situationHighlight(performanceTeams, "opening", "Opening Success", "openingWin", (team) => team.slices.overall.opening.successRate),
-    situationHighlight(teams, "5v3", "5v3 Conversion", "fiveVThree", (team) => team.manAdvantage["5v3"]),
+    situationHighlight(teams, "5v3", "5v3 Conversion · Lowest", "fiveVThree", (team) => team.manAdvantage["5v3"], "asc"),
     situationHighlight(teams, "3v5", "3v5 Comeback", "threeVFive", (team) => team.manAdvantage["3v5"]),
   ];
 }
@@ -284,7 +286,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
 
           <section className="min-w-0">
             <div className="mb-2.5">
-              <h3 className="font-semibold">Situation Highlights</h3>
+              <h3 className="font-semibold"><span className="relative inline-block">Round Situations<StatsTooltip className="absolute left-full top-1/2 ml-1 -translate-y-1/2" label="Round Situations 说明" content="各类回合情境下的队伍表现。5v4、5v3 展示人数优势下胜率最低的队伍，其余项目展示最高值；仅比较达到样本门槛的队伍。" /></span></h3>
             </div>
             <div className="grid gap-px border border-[var(--color-border)] bg-[var(--color-border)] sm:grid-cols-3">
               {highlights.map((highlight) => (
