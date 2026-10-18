@@ -123,7 +123,7 @@ async function validateEntryRoster(
   entry: typeof competitionEntries.$inferSelect,
   season: typeof seasons.$inferSelect,
   allowedRevisionStatuses: readonly ("draft" | "submitted" | "approved")[],
-  options: { requireCurrentTeamMembership: boolean; requireActiveRestrictionOverrides?: boolean },
+  options: { requireCurrentTeamMembership: boolean; requireActiveRestrictionOverrides?: boolean; recheckExternalStrength?: boolean },
 ) {
   const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!revision || !allowedRevisionStatuses.includes(revision.status as "draft" | "submitted" | "approved")) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不可用于此操作。");
@@ -194,7 +194,8 @@ async function validateEntryRoster(
     entry,
     season,
     members: rows.map((row) => ({ userId: row.userId, label: userLabels.get(row.userId) ?? row.userId, primary: row.primary, participantStatus: row.participantStatus })),
-    qualificationFindings: qualification?.findings ?? [],
+    qualificationFindings: (qualification?.findings ?? []).filter((finding) =>
+      options.recheckExternalStrength !== false || finding.code !== "external_strength_gap"),
     registrationBlockedUserIds: new Set(registrationBlocks.keys()),
     rosterBlockedUserIds: new Set(rosterBlocks.keys()),
     currentTeamLogoUrl: currentTeamIdentity[0]?.logoUrl ?? null,
@@ -216,6 +217,7 @@ export async function validateApprovedCompetitionEntryRosterInTx(
   tx: TxDb,
   entry: typeof competitionEntries.$inferSelect,
   season: typeof seasons.$inferSelect,
+  options: { recheckExternalStrength?: boolean } = {},
 ) {
   if (entry.registrationStatus !== "approved" || !entry.approvedRosterRevisionId || entry.currentRosterRevisionId !== entry.approvedRosterRevisionId) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "只能选择当前报名已通过审核且名单记录完整的队伍。 ");
@@ -223,6 +225,7 @@ export async function validateApprovedCompetitionEntryRosterInTx(
   return validateEntryRoster(tx, entry, season, ["approved"], {
     requireCurrentTeamMembership: false,
     requireActiveRestrictionOverrides: true,
+    ...options,
   });
 }
 
