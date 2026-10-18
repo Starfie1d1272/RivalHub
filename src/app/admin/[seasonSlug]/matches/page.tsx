@@ -12,7 +12,6 @@ import { GenerateScheduleCard } from "@/components/matches/GenerateScheduleCard"
 import { AdminMatchFilter } from "@/components/matches/AdminMatchFilter";
 import { AdminMatchRow } from "@/components/matches/AdminMatchRow";
 import { StandingsTable } from "@/components/matches/StandingsTable";
-import { SwissBracket } from "@/components/matches/SwissBracket";
 import { MajorPlayoffRuntimeManagement } from "@/components/admin/MajorPlayoffRuntimeManagement";
 import { MajorSwissRuntimeManagement } from "@/components/admin/MajorSwissRuntimeManagement";
 import { PageHeader, Panel, Section } from "@/components/rivalhub";
@@ -46,6 +45,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         description="查看当前与下一场任务，进入单场处理赛务；赛程和积分按阶段浏览。"
         actions={(
           <>
+          <MatchResources seasonId={data.season.id} data={resources} />
           {data.teams.length >= 2 && data.stagePlan.length > 0 && (
             <CreateMatchForm
               seasonId={data.season.id}
@@ -66,8 +66,6 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       <AdminPostMatchTasks rows={postMatchTasks} seasonSlug={seasonSlug} stage={filters.stage} team={filters.team} stageNames={Object.fromEntries(data.stagePlan.map(s => [s.key, s.name]))} />
       <AdminMatchOperations rows={operations} seasonSlug={seasonSlug} stage={filters.stage} team={filters.team} stageNames={Object.fromEntries(data.stagePlan.map(s => [s.key, s.name]))} />
       <MatchCommentaryQueue data={commentary} seasonSlug={seasonSlug} />
-      <MatchResources seasonId={data.season.id} data={resources} />
-
       {matchCount > 0 && (
         <AdminMatchFilter
           stages={[
@@ -149,9 +147,6 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
             const isPlayoff = stage.type === "double_elim" || stage.type === "single_elim";
             return (
               <TabsContent key={stage.key} value={stage.key} className="mt-4 space-y-6">
-                {data.stageReadModels.get(stage.key) && (
-                  <SwissBracket data={data.stageReadModels.get(stage.key)!} seasonSlug={seasonSlug} />
-                )}
                 {standings.length > 0 && (
                   <Section className="space-y-2">
                     <h2 className="text-base font-semibold text-[var(--color-fg)]">积分榜</h2>
