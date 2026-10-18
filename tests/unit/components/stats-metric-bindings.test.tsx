@@ -8,8 +8,14 @@ import { buildTournamentResults } from "@/lib/stats/results";
 import type { TournamentMapDetail, TournamentStats } from "@/lib/stats/tournament-query";
 import { parseStatsQuery } from "@/lib/stats/view-state";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
-afterEach(cleanup);
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
+afterEach(() => {
+  cleanup();
+  window.history.replaceState(null, "", "/");
+});
 
 // The shared formatter accepts any rate-shaped value. Only rendered consumer
 // evidence catches a correct number paired with another metric's help/sample.
@@ -103,13 +109,14 @@ describe("Stats metric consumer semantics", () => {
 
   it("describes 1v1 and 1v2 as scenario-specific clutch attempts", async () => {
     const user = userEvent.setup();
+    window.history.replaceState(null, "", "/season/stats?tab=players&family=clutch");
     // Only the explorer's public read-model fields are needed in this fixture.
     const data = {
       leaderboard: [], performance: performanceFixture(),
       coverage: { completedMaps: 1, detailedMaps: 1, maps: [] }, options: { teams: [], maps: [] },
     } as unknown as TournamentStats;
     render(<PlayersExplorer data={data} query={parseStatsQuery({}, [])} seasonSlug="season" />);
-    await user.click(screen.getByRole("tab", { name: "Clutch" }));
+    expect(screen.getByRole("tab", { name: "Clutch" })).toHaveAttribute("aria-selected", "true");
     for (const [label, value, sample] of [["1v1%", "100.0%", "1 / 1"], ["1v2%", "0.0%", "0 / 1"]]) {
       const header = screen.getByRole("columnheader", { name: new RegExp(label) });
       await expectHelp(user, header, "1vX% 指标说明", /分母为该 1vX 场景的尝试次数/);

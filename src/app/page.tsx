@@ -108,7 +108,7 @@ async function HomeContent() {
       />
       <SeasonCardGrid markerNum={2} markerSub="MORE" title="其他赛事" seasons={projection.otherSeasons} />
       <SeasonCardGrid
-        markerNum={3}
+        markerNum={projection.otherSeasons.length > 0 ? 3 : 2}
         markerSub="ARCHIVE"
         title="历届赛事"
         seasons={projection.archivedSeasons}

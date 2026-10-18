@@ -210,7 +210,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   phases.push({
     key: "finished",
     label: "完赛",
-    done: currentStatusIdx > STATUS_IDX.finished,
+    done: currentStatusIdx >= STATUS_IDX.finished,
   });
 
   // 找当前阶段（第一个未完成的）
@@ -234,7 +234,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     .slice(0, 4);
   const participationKeys = new Set(["captains", "draft", "bet", "predictions", "awards"]);
   const relatedGroups = [
-    { label: "参与赛事", entries: relatedEntries.filter((entry) => participationKeys.has(entry.key)) },
+    { label: isHistorical ? "赛事回顾" : "参与赛事", entries: relatedEntries.filter((entry) => participationKeys.has(entry.key)) },
     { label: "赛事资料", entries: relatedEntries.filter((entry) => !participationKeys.has(entry.key)) },
   ].filter((group) => group.entries.length > 0);
 

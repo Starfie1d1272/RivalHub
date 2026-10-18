@@ -142,7 +142,7 @@ export function SeasonMatchPreview({
 
         return (
           <article key={match.id} className="min-w-0 py-4 first:pt-0 last:pb-0">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--color-fg-dim)]">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--color-fg-mid)]">
               {isMatchStatus(match.status) && <MatchStatusBadge status={match.status} scheduledAt={match.scheduledAt} />}
               {matchStageLabel && <span>{matchStageLabel}</span>}
               {match.format && isMatchFormat(match.format) && <span className="font-mono">{presentMatchFormat(match.format).label}</span>}
