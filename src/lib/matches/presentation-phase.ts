@@ -27,3 +27,12 @@ export function projectMatchPresentationPhase(facts: MatchPhaseFacts): MatchPres
   if (current && current.id === facts.gameplayMapId) return "gameplay";
   return maps.some(map => map.completedAt !== null) ? "inter_map" : "awaiting_gameplay";
 }
+
+/** An unfinished map with an official start takes precedence over live observation. */
+export function resolveGameplayMapId(
+  maps: readonly { id: string; startedAt: Date | string | null; completedAt: Date | string | null }[],
+  session: { currentMapId: string | null; mapExecutionPhase: string } | null | undefined,
+): string | null {
+  return maps.find(map => map.startedAt && !map.completedAt)?.id
+    ?? (session?.mapExecutionPhase === "gameplay" ? session.currentMapId : null);
+}

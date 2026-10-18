@@ -8,6 +8,7 @@ import type { EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
 import { loadQualificationSwissStageReadModel } from "@/lib/matches/qualification-stage-read-model";
 import type { DemoImportMetadata } from "@/lib/demo-integration/metadata";
+import { resolveGameplayMapId } from "@/lib/matches/presentation-phase";
 import { mapLabel } from "@/lib/maps";
 import { projectOperatorMaps } from "./operator-maps";
 import { loadOperatorEvidence } from "./operator-evidence";
@@ -47,7 +48,7 @@ export async function loadOperatorContext(input: {
     scheduledAt: match.scheduledAt?.toISOString(), startedAt: match.startedAt?.toISOString(), completedAt: match.completedAt?.toISOString(),
     status: match.status, isForfeit: match.isForfeit, vetoComplete: input.vetoComplete,
     maps: operatorMaps,
-    observedGameplayMapId: liveSession?.mapExecutionPhase === "gameplay" ? liveSession.currentMapId : null,
+    observedGameplayMapId: resolveGameplayMapId(maps, liveSession),
   });
   const roomMap = operatorMaps.find(map => map.id === workflow.roomMapId);
   const record = swiss?.rounds.flatMap(round => round.groups).find(group => group.matchups.some(row => row.matchId === match.id))?.record;

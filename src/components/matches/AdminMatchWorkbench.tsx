@@ -130,7 +130,7 @@ export function AdminMatchWorkbench({
     submitted: Boolean(postMatch?.submittedAt),
     hasVideo: Boolean(postMatch?.videoUrl), reopened: postMatch?.rosterReopened,
   });
-  const taskTitle = match.status === "finished" && !operator.review
+  const taskTitle = match.status === "finished" && operator.workflow.reviewReasons.length === 0
     ? (postMatchTasks.length ? "补齐赛后资料" : "本场已完成")
     : operator.workflow.title;
 
@@ -160,13 +160,16 @@ export function AdminMatchWorkbench({
           {match.completionDeadline && <span>截止：{formatCSTDateTime(match.completionDeadline)}</span>}
         </div>
 
+        <div className="flex flex-wrap items-center justify-between gap-2">
+        {commentary.byMatchId[match.id] && <MatchCommentaryStatus matchId={match.id} assignment={commentary.byMatchId[match.id]} />}
+        {broadcasts.length > 0 && <aside aria-label="转播状态" className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-fg-mid)]">{broadcasts.map((row, i) => <span key={i}>直播：{row.name} · {row.label}</span>)}</aside>}
+        </div>
       </header>
 
       <Separator />
 
 
       <section aria-labelledby="operator-task" className="space-y-3 rounded border border-[var(--color-border)] border-l-2 border-l-[var(--color-accent)] bg-[var(--color-bg)] p-4">
-        {commentary.byMatchId[match.id] && <MatchCommentaryStatus matchId={match.id} assignment={commentary.byMatchId[match.id]} />}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 id="operator-task" className="text-xl font-semibold">{taskTitle}</h2>
           <OperatorTaskControls elapsed={operator.workflow.elapsed} />
@@ -176,6 +179,7 @@ export function AdminMatchWorkbench({
         <div className="flex flex-wrap items-center gap-3 text-sm">
           {match.status !== "cancelled" && <Link className={vetoCompletedAt ? "text-[var(--color-fg-mid)] underline underline-offset-4" : "inline-flex min-h-10 items-center rounded bg-[var(--color-accent)] px-4 font-medium text-[var(--color-accent-fg)]"} href={`/${season.slug}/matches/${match.id}/veto`}>{vetoCompletedAt ? "查看 BP" : "进入 BP"}</Link>}
           {operator.workflow.focusMapId && match.status !== "finished" && <a className="text-[var(--color-accent)] underline underline-offset-4" href={`#scoreboard-${operator.workflow.focusMapId}`}>补计分板</a>}
+        {officialMapStart && <OfficialMapStart seasonId={season.id} matchId={match.id} mapId={officialMapStart.mapId} mapName={officialMapStart.mapName} />}
           {postMatchTasks.map(task => <a key={`${task.anchor}:${task.label}`} className="text-[var(--color-accent)] underline underline-offset-4" href={`#${task.anchor}`}>{task.label}</a>)}
         </div>
         {operator.review && <OperatorIssuePanel reasons={operator.workflow.reviewReasons} review={operator.review} />}
@@ -183,8 +187,7 @@ export function AdminMatchWorkbench({
           key={`${operator.problemRecovery.sessionId}:${operator.problemRecovery.mapEpoch}:${operator.problemRecovery.reportContext.programSourceGeneration}:${operator.problemRecovery.reportContext.lastReliableSeq}:${operator.problemRecovery.mapId}`}
           matchId={match.id} scope={{ sessionId: operator.problemRecovery.sessionId, mapEpoch: operator.problemRecovery.mapEpoch, mapId: operator.problemRecovery.mapId, recoverMapBinding: operator.problemRecovery.recoverMapBinding }}
           reportContext={operator.problemRecovery.reportContext} mapLabel={operator.problemRecovery.mapLabel} /> : null}
-        {broadcasts.length > 0 && <aside aria-label="转播状态" className="space-y-1 text-sm">{broadcasts.map((row, i) => <p key={i}>B站直播：{row.name} · {row.label}</p>)}</aside>}
-        {officialMapStart && <OfficialMapStart seasonId={season.id} matchId={match.id} mapId={officialMapStart.mapId} mapName={officialMapStart.mapName} />}
+        {operator.roomGuide && <div id="perfect-room-guide"><PerfectRoomGuide guide={operator.roomGuide} /></div>}
         {vetoCompletedAt && ((match.status === "in_progress" && operator.workflow.manualResultAllowed) || (match.testConfig && match.status === "finished" && match.resultDisposition !== "omitted" && pendingMaps.length > 0)) && <details id="manual-result" className="space-y-3 pt-3" open={operator.workflow.sourceMode === "manual_map" || operator.workflow.phase === "gameplay"}>
           <summary className="cursor-pointer text-sm font-medium">录入本图比分</summary>
                 <MapByMapInput
@@ -199,14 +202,13 @@ export function AdminMatchWorkbench({
                   mapPool={mapPool}
                 />
         </details>}
-        {operator.roomGuide && <div id="perfect-room-guide"><PerfectRoomGuide guide={operator.roomGuide} /></div>}
       </section>
       <aside aria-label="比赛与数据源" className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--color-fg-mid)]">
         <span>{SOURCE_MODE_LABEL[operator.workflow.sourceMode]}</span>
         {operator.liveScope && operator.workflow.sourceMode === "mizar_auto" && !operator.workflow.reviewReasons.length
           ? <OperatorLiveStatus matchId={match.id} scope={operator.liveScope} />
           : <span>{SOURCE_HEALTH_LABEL[operator.workflow.sourceHealth]}</span>}
-        {commentary.nextMatch && <span>下一场：<CommentaryMatchLink match={commentary.nextMatch} seasonSlug={season.slug} /></span>}
+        {commentary.nextMatch && <div className="flex flex-wrap items-center gap-2">下一场：<CommentaryMatchLink match={commentary.nextMatch} seasonSlug={season.slug} /></div>}
         <a className="ml-auto underline underline-offset-4" href={`/admin/${season.slug}/matches#match-resources`}>设备与下载</a>
       </aside>
 
