@@ -21,11 +21,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { saveVetoSteps, getMatchVetoSteps, type VetoStepInput } from "@/actions/matches/veto";
+import { saveVetoSteps as telemetry_saveVetoSteps, getMatchVetoSteps, type VetoStepInput } from "@/actions/matches/veto";
 import { mapLabel } from "@/lib/maps";
 import type { VetoActionType } from "@/types/match";
 import { SIDE_LABELS } from "@/types/match";
 import { cn } from "@/lib/utils/cn";
+import { observeAction } from "@/lib/telemetry/client";
+
+const saveVetoSteps = observeAction("matches.veto.saveVetoSteps", telemetry_saveVetoSteps);
 
 interface Props {
   matchId: string;

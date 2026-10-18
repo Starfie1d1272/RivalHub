@@ -3,7 +3,10 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { takeOverMatchMap } from "@/actions/match-operations";
+import { takeOverMatchMap as telemetry_takeOverMatchMap } from "@/actions/match-operations";
+import { observeAction } from "@/lib/telemetry/client";
+
+const takeOverMatchMap = observeAction("match-operations.takeOverMatchMap", telemetry_takeOverMatchMap);
 
 export function ManualMapTakeover({ matchId, scope, mapLabel, reportContext }: { matchId: string; mapLabel?: string; reportContext?: { programSourceGeneration: number; lastReliableSeq: number; currentMapId: string | null }; scope: { sessionId: string; mapEpoch: number; mapId: string; recoverMapBinding?: boolean } }) {
   const router = useRouter();

@@ -5,13 +5,13 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
-  configureCompetitionQualification,
-  generateCompetitionQualificationRound,
+  configureCompetitionQualification as telemetry_configureCompetitionQualification,
+  generateCompetitionQualificationRound as telemetry_generateCompetitionQualificationRound,
   previewCompetitionQualificationRound,
-  resetCompetitionQualification,
-  saveCompetitionQualificationDraft,
+  resetCompetitionQualification as telemetry_resetCompetitionQualification,
+  saveCompetitionQualificationDraft as telemetry_saveCompetitionQualificationDraft,
 } from "@/actions/competition-qualification";
-import { selectMajorEntrants, setMajorManagedProfile } from "@/actions/major-prestart";
+import { selectMajorEntrants as telemetry_selectMajorEntrants, setMajorManagedProfile as telemetry_setMajorManagedProfile } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { InlineConfirm, Marker, Panel } from "@/components/rivalhub";
@@ -24,6 +24,14 @@ import type { ActionResult } from "@/types/action";
 import { MajorRankingWorkspace } from "./MajorRankingWorkspace";
 import { formatCST } from "@/lib/utils/date";
 import { initialPreliminaryOrder } from "@/lib/admin/season-workspace/ranking-order";
+import { observeAction } from "@/lib/telemetry/client";
+
+const configureCompetitionQualification = observeAction("competition-qualification.configureCompetitionQualification", telemetry_configureCompetitionQualification);
+const generateCompetitionQualificationRound = observeAction("competition-qualification.generateCompetitionQualificationRound", telemetry_generateCompetitionQualificationRound);
+const resetCompetitionQualification = observeAction("competition-qualification.resetCompetitionQualification", telemetry_resetCompetitionQualification);
+const saveCompetitionQualificationDraft = observeAction("competition-qualification.saveCompetitionQualificationDraft", telemetry_saveCompetitionQualificationDraft);
+const selectMajorEntrants = observeAction("major-prestart.selectMajorEntrants", telemetry_selectMajorEntrants);
+const setMajorManagedProfile = observeAction("major-prestart.setMajorManagedProfile", telemetry_setMajorManagedProfile);
 
 type ManagementData = MajorPrestartPageData["management"];
 type QualificationRoundPreview = {

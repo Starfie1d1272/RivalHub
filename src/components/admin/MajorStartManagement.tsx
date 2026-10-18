@@ -2,11 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { startMajor } from "@/actions/major-prestart";
+import { startMajor as telemetry_startMajor } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Marker, Panel } from "@/components/rivalhub";
 import type { MajorOpeningPlan } from "@/lib/major/opening";
+import { observeAction } from "@/lib/telemetry/client";
+
+const startMajor = observeAction("major-prestart.startMajor", telemetry_startMajor);
 
 export function MajorStartManagement({
   seasonId,

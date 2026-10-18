@@ -5,7 +5,7 @@ import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ChevronRight, Clock, Loader2, Search, Zap } from "lucide-react";
-import { pickPlayer } from "@/actions/draft";
+import { pickPlayer as telemetry_pickPlayer } from "@/actions/draft";
 import { Button } from "@/components/ui/button";
 import { DraftCountdown } from "./DraftCountdown";
 import { canPickPosition } from "@/lib/draft/rules";
@@ -18,6 +18,9 @@ import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { sortByRank } from "@/lib/utils/rank";
 import { selectAutoPickCandidate } from "@/lib/draft/auto-pick";
 import type { CaptainDraftPlayer } from "@/lib/draft/data";
+import { observeAction, recordFilter } from "@/lib/telemetry/client";
+
+const pickPlayer = observeAction("draft.pickPlayer", telemetry_pickPlayer);
 
 const FILTER_ALL = "all";
 
@@ -246,6 +249,7 @@ export function CaptainDraftPanel({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onBlur={() => recordFilter("search", search ? "selected" : "")}
               placeholder="搜索选手名..."
               className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-panel-hi)] py-1.5 pl-8 pr-3 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-fg-dim)] focus:border-[var(--color-accent)] focus:outline-none"
             />
@@ -255,7 +259,7 @@ export function CaptainDraftPanel({
               type="button"
               size="sm"
               variant={filter === FILTER_ALL ? "default" : "secondary"}
-              onClick={() => setFilter(FILTER_ALL)}
+              onClick={() => { recordFilter("position", FILTER_ALL); setFilter(FILTER_ALL); }}
             >
               全部 {players.length}
             </Button>
@@ -269,7 +273,7 @@ export function CaptainDraftPanel({
                   size="sm"
                   variant={filter === position ? "default" : "secondary"}
                   disabled={count === 0}
-                  onClick={() => setFilter(filter === position ? FILTER_ALL : position)}
+                  onClick={() => { const value = filter === position ? FILTER_ALL : position; recordFilter("position", value); setFilter(value); }}
                 >
                   {positionLabel(position)} {teamCount}/2 · {count}
                 </Button>

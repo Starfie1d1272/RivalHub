@@ -3,12 +3,16 @@
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { confirmMajorTournamentSeeds, saveMajorTournamentSeeds } from "@/actions/major-prestart";
+import { confirmMajorTournamentSeeds as telemetry_confirmMajorTournamentSeeds, saveMajorTournamentSeeds as telemetry_saveMajorTournamentSeeds } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
 import { Marker, Panel } from "@/components/rivalhub";
 import { formatCST } from "@/lib/utils/date";
 import type { MajorPrestartPageData } from "@/lib/admin/season-workspace/types";
 import { MajorRankingWorkspace, type RankingTeam } from "./MajorRankingWorkspace";
+import { observeAction } from "@/lib/telemetry/client";
+
+const confirmMajorTournamentSeeds = observeAction("major-prestart.confirmMajorTournamentSeeds", telemetry_confirmMajorTournamentSeeds);
+const saveMajorTournamentSeeds = observeAction("major-prestart.saveMajorTournamentSeeds", telemetry_saveMajorTournamentSeeds);
 
 export type MajorTournamentSeedsManagementData = MajorPrestartPageData["seedManagement"];
 

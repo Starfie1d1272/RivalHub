@@ -12,8 +12,8 @@ interface H2HMatch {
   completedAt: Date | null;
   stage: string;
   format: string;
-  scoreA: number;
-  scoreB: number;
+  scoreA: number | null;
+  scoreB: number | null;
   teamAWon: boolean;
 }
 
@@ -91,7 +91,7 @@ export function MatchHeadToHead({
                 className="font-mono font-semibold text-sm hover:underline"
                 style={{ color: "var(--color-fg)", whiteSpace: "nowrap" }}
               >
-                {m.scoreA} : {m.scoreB}
+                {m.scoreA ?? "—"} : {m.scoreB ?? "—"}
               </Link>
 
               {/* 胜负（相对 A 队） */}

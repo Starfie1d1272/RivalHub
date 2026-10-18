@@ -3,11 +3,14 @@
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { lockMajorPrestartEntrants } from "@/actions/major-prestart";
+import { lockMajorPrestartEntrants as telemetry_lockMajorPrestartEntrants } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
 import { Marker, Panel } from "@/components/rivalhub";
 import type { MajorPrestartPageData } from "@/lib/admin/season-workspace/types";
 import { MajorRankingWorkspace } from "./MajorRankingWorkspace";
+import { observeAction } from "@/lib/telemetry/client";
+
+const lockMajorPrestartEntrants = observeAction("major-prestart.lockMajorPrestartEntrants", telemetry_lockMajorPrestartEntrants);
 
 export type MajorPrestartManagementData = MajorPrestartPageData["management"];
 

@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { toast } from "sonner";
-import { proposeMatchTime, respondToTimeProposal, forceSetMatchTime } from "@/actions/matches/scheduling";
+import { proposeMatchTime as telemetry_proposeMatchTime, respondToTimeProposal as telemetry_respondToTimeProposal, forceSetMatchTime as telemetry_forceSetMatchTime } from "@/actions/matches/scheduling";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,12 @@ import { formatCST, parseCSTInput, toCSTDateTimeInput } from "@/lib/utils/date";
 import type { MatchTimeProposalView } from "@/lib/matches/time-proposals";
 
 import { projectMatchScheduling } from "@/lib/matches/time-rules";
+import { observeAction } from "@/lib/telemetry/client";
+
+const proposeMatchTime = observeAction("matches.scheduling.proposeMatchTime", telemetry_proposeMatchTime);
+const respondToTimeProposal = observeAction("matches.scheduling.respondToTimeProposal", telemetry_respondToTimeProposal);
+const forceSetMatchTime = observeAction("matches.scheduling.forceSetMatchTime", telemetry_forceSetMatchTime);
+
 interface MatchTimeNegotiationProps {
   matchId: string;
   isCaptainA: boolean;

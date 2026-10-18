@@ -43,7 +43,7 @@ export function AdminMatchRow({
         <div className="flex items-center gap-3">
           <TeamProfileLink seasonSlug={seasonSlug} entryId={match.entryAId} className="font-semibold">{teamAName}</TeamProfileLink>
           <span className="text-[var(--color-fg-mid)]">
-            {match.status === "finished" ? `${match.scoreA ?? 0} : ${match.scoreB ?? 0}` : "vs"}
+            {match.status === "finished" ? `${(match.displayScore ?? match).scoreA ?? "—"} : ${(match.displayScore ?? match).scoreB ?? "—"}` : "vs"}
           </span>
           <TeamProfileLink seasonSlug={seasonSlug} entryId={match.entryBId} className="font-semibold">{teamBName}</TeamProfileLink>
         </div>

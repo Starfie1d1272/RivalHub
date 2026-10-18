@@ -1,5 +1,6 @@
 "use client";
 
+import { STATS_METRICS } from "@/lib/stats/metrics";
 import { TeamIdentityLinks } from "../TeamIdentityLinks";
 import { useState } from "react";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
@@ -190,10 +191,10 @@ export function PlayerWorkspace({ detail, compact = false, hideMaps = false }: {
 
           <MetricSection title="Damage" items={[
             { label: "Util/r", metric: "utility", value: <MetricValue metric="utility" value={slice.utility.utilityDamagePerRound} /> },
-            { label: "HE Damage/r", metric: "hePerRound", value: <MetricValue metric="hePerRound" value={slice.utility.heDamagePerRound} /> },
-            { label: "HE Damage/Throw", metric: "hePerThrow", value: <MetricValue metric="hePerThrow" value={slice.utility.heDamagePerThrow} sampleLabel="HE throws" /> },
-            { label: "Fire Damage/r", metric: "firePerRound", value: <MetricValue metric="firePerRound" value={slice.utility.fireDamagePerRound} /> },
-            { label: "Fire Damage/Throw", metric: "firePerThrow", value: <MetricValue metric="firePerThrow" value={slice.utility.fireDamagePerThrow} sampleLabel="fire throws" /> },
+            { label: STATS_METRICS.hePerRound.label, metric: "hePerRound", value: <MetricValue metric="hePerRound" value={slice.utility.heDamagePerRound} /> },
+            { label: STATS_METRICS.hePerThrow.label, metric: "hePerThrow", value: <MetricValue metric="hePerThrow" value={slice.utility.heDamagePerThrow} sampleLabel="HE throws" /> },
+            { label: STATS_METRICS.firePerRound.label, metric: "firePerRound", value: <MetricValue metric="firePerRound" value={slice.utility.fireDamagePerRound} /> },
+            { label: STATS_METRICS.firePerThrow.label, metric: "firePerThrow", value: <MetricValue metric="firePerThrow" value={slice.utility.fireDamagePerThrow} sampleLabel="fire throws" /> },
           ]} columns={5} />
 
           <MetricSection title="Usage" items={[

@@ -1,6 +1,6 @@
 "use client";
 
-import { resetUserPassword } from "@/actions/password-recovery";
+import { resetUserPassword as telemetry_resetUserPassword } from "@/actions/password-recovery";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -8,6 +8,9 @@ import { Field } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { createBrowserClient } from "@/lib/auth/supabase";
 import { isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
+import { observeAction } from "@/lib/telemetry/client";
+
+const resetUserPassword = observeAction("password-recovery.resetUserPassword", telemetry_resetUserPassword);
 
 export function ResetPasswordForm() {
   const [password, setPassword] = useState("");

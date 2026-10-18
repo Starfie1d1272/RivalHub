@@ -36,20 +36,6 @@ export function ratioOfSums(numerator: string, denominator: string): SQL {
   END`;
 }
 
-/** 三个完整 raw total 的 KDA；任一 total 缺失或死亡数为零时返回 NULL。 */
-export function kdaOfSums(kills: string, assists: string, deaths: string): SQL {
-  const killsSum = completeSum(kills);
-  const assistsSum = completeSum(assists);
-  const deathsSum = completeSum(deaths);
-  return sql`CASE
-    WHEN ${killsSum} IS NOT NULL
-      AND ${assistsSum} IS NOT NULL
-      AND ${deathsSum} > 0
-    THEN (${killsSum} + ${assistsSum})::numeric / ${deathsSum}
-    ELSE NULL
-  END`;
-}
-
 /**
  * 回合加权均值 — ADR 跨图聚合的正确方式
  * 依赖别名：mm

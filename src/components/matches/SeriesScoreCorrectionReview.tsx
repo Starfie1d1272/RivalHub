@@ -6,8 +6,11 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { confirmSeriesMapCorrection } from "@/actions/matches/series-correction";
+import { confirmSeriesMapCorrection as telemetry_confirmSeriesMapCorrection } from "@/actions/matches/series-correction";
 import type { SeriesCorrectionPreview, SeriesCorrectionRequest } from "@/lib/matches/series-score-correction";
+import { observeAction } from "@/lib/telemetry/client";
+
+const confirmSeriesMapCorrection = observeAction("matches.series-correction.confirmSeriesMapCorrection", telemetry_confirmSeriesMapCorrection);
 
 export function SeriesScoreCorrectionReview({ entryAId, entryBId, seasonSlug, preview, request, initialReason, teamAName, teamBName, onCancel, onDone }: {
   entryAId?: string; entryBId?: string; seasonSlug?: string;

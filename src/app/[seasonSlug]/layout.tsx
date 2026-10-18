@@ -1,3 +1,4 @@
+import { TelemetryScene } from "@/components/telemetry/ProductTelemetry";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -67,6 +68,7 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
         hasStats={showStats(season)}
         hasPredictions={season.competitionTemplate === "major"}
       />
+      <TelemetryScene prefix={`/${seasonSlug}`} scene={season.competitionTemplate} eventId={season.id} />
       {children}
       <Suspense fallback={null}>
         <SeasonInformationFeedbackLauncher season={{ id: season.id, slug: season.slug }} />

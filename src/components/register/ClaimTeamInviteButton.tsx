@@ -4,8 +4,11 @@ import React, { useTransition } from "react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { acceptTeamInvitation } from "@/actions/teams";
+import { acceptTeamInvitation as telemetry_acceptTeamInvitation } from "@/actions/teams";
 import { Button } from "@/components/ui/button";
+import { observeAction } from "@/lib/telemetry/client";
+
+const acceptTeamInvitation = observeAction("teams.acceptTeamInvitation", telemetry_acceptTeamInvitation);
 
 export function ClaimTeamInviteButton({ token }: { token: string }) {
   const router = useRouter();

@@ -1,3 +1,4 @@
+import { ObservedActionForm } from "@/components/telemetry/ObservedActionForm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -28,10 +29,10 @@ export default async function DakConnectPage({
       <h1 className="text-2xl font-semibold">连接 DAK Studio</h1>
       <p className="mt-4 text-[var(--color-fg-mid)]">DAK Studio 将获得当前账号已授权赛事的最小集成权限：读取赛事、提交 Demo 证据、读取 Demo 状态。</p>
       {canAuthorize ? (
-        <form action={authorizeDakPairingAction} className="mt-6 space-y-4">
+        <ObservedActionForm operation="integrations.dak.authorize" action={authorizeDakPairingAction} className="mt-6 space-y-4">
           <input type="hidden" name="pairingId" value={pairingId} />
           <button type="submit" className="rounded-sm bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-[var(--color-accent-fg)]">授权此 DAK Studio 设备</button>
-        </form>
+        </ObservedActionForm>
       ) : (
         <p className="mt-6 text-[var(--color-danger)]">当前账号没有赛事管理员权限，不能建立 DAK 连接。</p>
       )}

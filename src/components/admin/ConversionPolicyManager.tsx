@@ -6,11 +6,11 @@ import React, { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  approveConversionPolicyAction,
-  createConversionPolicyDraftAction,
-  retireConversionPolicyAction,
-  setCurrentConversionPolicyAction,
-  updateConversionPolicyDraftAction,
+  approveConversionPolicyAction as telemetry_approveConversionPolicyAction,
+  createConversionPolicyDraftAction as telemetry_createConversionPolicyDraftAction,
+  retireConversionPolicyAction as telemetry_retireConversionPolicyAction,
+  setCurrentConversionPolicyAction as telemetry_setCurrentConversionPolicyAction,
+  updateConversionPolicyDraftAction as telemetry_updateConversionPolicyDraftAction,
 } from "@/actions/conversion-policies";
 import {
   BUILT_IN_COMPETITIVE_PLATFORMS,
@@ -30,6 +30,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { InlineConfirm, Panel, StatusPill } from "@/components/rivalhub";
+import { observeAction } from "@/lib/telemetry/client";
+
+const approveConversionPolicyAction = observeAction("conversion-policies.approveConversionPolicyAction", telemetry_approveConversionPolicyAction);
+const createConversionPolicyDraftAction = observeAction("conversion-policies.createConversionPolicyDraftAction", telemetry_createConversionPolicyDraftAction);
+const retireConversionPolicyAction = observeAction("conversion-policies.retireConversionPolicyAction", telemetry_retireConversionPolicyAction);
+const setCurrentConversionPolicyAction = observeAction("conversion-policies.setCurrentConversionPolicyAction", telemetry_setCurrentConversionPolicyAction);
+const updateConversionPolicyDraftAction = observeAction("conversion-policies.updateConversionPolicyDraftAction", telemetry_updateConversionPolicyDraftAction);
 
 const fivee = BUILT_IN_COMPETITIVE_PLATFORMS.fivee;
 const perfectWorld = BUILT_IN_COMPETITIVE_PLATFORMS.perfect_world;

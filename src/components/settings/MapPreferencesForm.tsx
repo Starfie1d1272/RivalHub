@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { saveMapPreferences } from "@/actions/competitive-profile";
+import { saveMapPreferences as telemetry_saveMapPreferences } from "@/actions/competitive-profile";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/rivalhub";
 import { MapPreferenceSection } from "@/components/register/MapPreferenceSection";
@@ -16,6 +16,9 @@ import type {
   MapPreferenceLevel,
 } from "@/types/season";
 import { projectMapPreferences, toMapPreferenceFacts } from "@/lib/maps";
+import { observeAction } from "@/lib/telemetry/client";
+
+const saveMapPreferences = observeAction("competitive-profile.saveMapPreferences", telemetry_saveMapPreferences);
 
 export function MapPreferencesForm({ initialPreferences }: { initialPreferences: MapPreference[] }) {
   const [preferences, setPreferences] = useState<MapPreferenceDraft[]>(() =>

@@ -1,4 +1,6 @@
 import { cache, Suspense } from "react";
+import { ProductTelemetry } from "@/components/telemetry/ProductTelemetry";
+import { telemetryBootstrap } from "@/lib/telemetry/server";
 import { eq } from "drizzle-orm";
 import { connection } from "next/server";
 
@@ -53,15 +55,19 @@ async function HeaderViewer({ variant }: { variant: "desktop" | "mobile" }) {
   // public header shell and navigation remain eligible for prerender/prefetch.
   await connection();
   const viewer = await getHeaderViewer();
+  const telemetry = variant === "desktop" ? await telemetryBootstrap(viewer?.session ?? null) : null;
   return (
-    <HeaderViewerClient
-      variant={variant}
-      session={viewer?.session ?? null}
-      avatarUrl={viewer?.avatarUrl}
-      personaName={viewer?.personaName}
-      displayName={viewer?.displayName}
-      perfectName={viewer?.perfectName}
-    />
+    <>
+      {variant === "desktop" && <ProductTelemetry config={telemetry} />}
+      <HeaderViewerClient
+        variant={variant}
+        session={viewer?.session ?? null}
+        avatarUrl={viewer?.avatarUrl}
+        personaName={viewer?.personaName}
+        displayName={viewer?.displayName}
+        perfectName={viewer?.perfectName}
+      />
+    </>
   );
 }
 

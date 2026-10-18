@@ -3,9 +3,12 @@
 import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { leaveTeam } from "@/actions/teams";
+import { leaveTeam as telemetry_leaveTeam } from "@/actions/teams";
 import { InlineConfirm } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
+import { observeAction } from "@/lib/telemetry/client";
+
+const leaveTeam = observeAction("teams.leaveTeam", telemetry_leaveTeam);
 
 export function LeaveTeamControl({ teamId }: { teamId: string }) {
   const router = useRouter();

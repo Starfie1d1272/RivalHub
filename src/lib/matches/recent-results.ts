@@ -4,8 +4,8 @@ export interface RecentMatchResult {
   matchId: string;
   opponentName: string;
   opponentId: string;
-  scoreFor: number;
-  scoreAgainst: number;
+  scoreFor: number | null;
+  scoreAgainst: number | null;
   won: boolean;
   format: string;
   playedAt: Date;
@@ -14,7 +14,7 @@ export interface RecentMatchResult {
 /** Project a team's latest official series results without recomputing match outcomes. */
 export function projectRecentMatchResults(
   entryId: string,
-  matches: readonly Pick<Match, "id" | "entryAId" | "entryBId" | "scoreA" | "scoreB" | "completedAt" | "scheduledAt" | "format">[],
+  matches: readonly (Pick<Match, "id" | "entryAId" | "entryBId" | "scoreA" | "scoreB" | "completedAt" | "scheduledAt" | "format"> & { displayScore?: import("./display-score").DisplayScore })[],
   entryNames: ReadonlyMap<string, string>,
   limit = 5,
 ): RecentMatchResult[] {
@@ -25,11 +25,12 @@ export function projectRecentMatchResults(
     .flatMap((match) => {
       const isA = match.entryAId === entryId;
       const opponentId = isA ? match.entryBId : match.entryAId;
-      const scoreFor = isA ? match.scoreA! : match.scoreB!;
-      const scoreAgainst = isA ? match.scoreB! : match.scoreA!;
+      const display = match.displayScore ?? match;
+      const scoreFor = isA ? display.scoreA : display.scoreB;
+      const scoreAgainst = isA ? display.scoreB : display.scoreA;
       const playedAt = match.completedAt ?? match.scheduledAt;
       const opponentName = opponentId === null ? undefined : entryNames.get(opponentId);
       if (!playedAt || !opponentName || opponentId === null) return [];
-      return [{ matchId: match.id, opponentId, opponentName, scoreFor, scoreAgainst, won: scoreFor > scoreAgainst, format: match.format, playedAt }];
+      return [{ matchId: match.id, opponentId, opponentName, scoreFor, scoreAgainst, won: isA ? match.scoreA! > match.scoreB! : match.scoreB! > match.scoreA!, format: match.format, playedAt }];
     });
 }

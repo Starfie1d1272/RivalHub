@@ -3,12 +3,15 @@
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React, { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { submitMatchRoster } from "@/actions/matches/roster";
+import { submitMatchRoster as telemetry_submitMatchRoster } from "@/actions/matches/roster";
 import { Button } from "@/components/ui/button";
 import { PosChip } from "@/components/rivalhub";
 
 import { positionLabel } from "@/lib/validators/registration";
 import { getDisplayName } from "@/lib/identity/display-name";
+import { observeAction } from "@/lib/telemetry/client";
+
+const submitMatchRoster = observeAction("matches.roster.submitMatchRoster", telemetry_submitMatchRoster);
 
 interface TeamMember {
   userId: string;

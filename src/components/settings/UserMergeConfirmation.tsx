@@ -3,8 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { executeSelfServiceUserMerge } from "@/actions/user-merge";
+import { executeSelfServiceUserMerge as telemetry_executeSelfServiceUserMerge } from "@/actions/user-merge";
 import { Button } from "@/components/ui/button";
+import { observeAction } from "@/lib/telemetry/client";
+
+const executeSelfServiceUserMerge = observeAction("user-merge.executeSelfServiceUserMerge", telemetry_executeSelfServiceUserMerge);
 
 export function UserMergeConfirmation({
   authorizationId,

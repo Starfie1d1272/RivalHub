@@ -3,7 +3,7 @@
 import React, { useRef, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { reviewRegistration } from "@/actions/admin";
+import { reviewRegistration as telemetry_reviewRegistration } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AdminPlayerContact } from "@/components/admin/AdminPlayerContact";
@@ -28,6 +28,9 @@ import {
   type RegistrationRow,
   type SoloRegistrationReviewQuery,
 } from "@/lib/registrations/admin-review-contract";
+import { observeAction } from "@/lib/telemetry/client";
+
+const reviewRegistration = observeAction("admin.reviewRegistration", telemetry_reviewRegistration);
 
 export type { RegistrationRow } from "@/lib/registrations/admin-review-contract";
 

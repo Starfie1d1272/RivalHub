@@ -1,3 +1,4 @@
+import { withDisplayScores } from "@/lib/matches/display-score-data";
 import { requireCompetitionMatch } from "./competition-context";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -14,6 +15,7 @@ export interface StageSwissMatchRow {
   teamALogoUrl?: string | null;
   teamBLogoUrl?: string | null;
   teamBName: string;
+  displayScore?: import("./display-score").DisplayScore;
   scoreA: number | null;
   scoreB: number | null;
   status: string;
@@ -89,7 +91,7 @@ export async function loadMajorSwissStageReadModel(
     ),
     orderBy: [asc(matches.round), asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
   });
-  const managedMatches = managedMatchesRaw.map(requireCompetitionMatch);
+  const managedMatches = await withDisplayScores(managedMatchesRaw.map(requireCompetitionMatch));
   const logoByEntryId = new Map(entrantRows.map(row => [row.entryId, row.logoUrl]));
   const nameByEntryId = new Map(entrantRows.map((row) => [row.entryId, row.teamName]));
   const finalizedRound = asFinalizedRound(stageRun.finalizedRound);
@@ -131,6 +133,7 @@ export async function loadMajorSwissStageReadModel(
       teamBName: nameByEntryId.get(match.entryBId) ?? "待定",
       teamALogoUrl: logoByEntryId.get(match.entryAId) ?? null,
       teamBLogoUrl: logoByEntryId.get(match.entryBId) ?? null,
+      displayScore: match.displayScore,
       scoreA: match.scoreA,
       scoreB: match.scoreB,
       status: match.status,

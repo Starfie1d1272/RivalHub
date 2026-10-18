@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { setAnnouncementStatus } from "@/actions/announcements";
+import { setAnnouncementStatus as telemetry_setAnnouncementStatus } from "@/actions/announcements";
 import { ClearFilters, ListToolbar, useListQueryParams } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { ANNOUNCEMENT_TYPE_LABELS, toAnnouncementExcerpt } from "@/lib/announcements/presentation";
 import type { AnnouncementAdminRow } from "@/lib/announcements/read-model";
+import { observeAction } from "@/lib/telemetry/client";
+
+const setAnnouncementStatus = observeAction("announcements.setAnnouncementStatus", telemetry_setAnnouncementStatus);
 
 type SeasonOption = { id: string; name: string };
 type Row = AnnouncementAdminRow;

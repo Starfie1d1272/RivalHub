@@ -3,10 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createTestMatch, searchTestMatchOperators } from "@/actions/test-matches";
+import { createTestMatch as telemetry_createTestMatch, searchTestMatchOperators } from "@/actions/test-matches";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { observeAction } from "@/lib/telemetry/client";
+
+const createTestMatch = observeAction("test-matches.createTestMatch", telemetry_createTestMatch);
 
 function Choice({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { id: string; name: string }[] }) {
   return <div className="min-w-0 space-y-1.5"><span className="text-sm">{label}</span><Select value={value} onValueChange={onChange}><SelectTrigger aria-label={label}><SelectValue placeholder="请选择" /></SelectTrigger><SelectContent>{options.map(option => <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>)}</SelectContent></Select></div>;

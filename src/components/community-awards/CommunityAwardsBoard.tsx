@@ -3,7 +3,7 @@
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { addCommunityAwardEvidence, requestCommunityAwardSupplement, resolveCommunityAward, reviewCommunityAward, reviseCommunityAward, submitCommunityAward, withdrawCommunityAward } from "@/actions/community-awards";
+import { addCommunityAwardEvidence as telemetry_addCommunityAwardEvidence, requestCommunityAwardSupplement as telemetry_requestCommunityAwardSupplement, resolveCommunityAward as telemetry_resolveCommunityAward, reviewCommunityAward as telemetry_reviewCommunityAward, reviseCommunityAward as telemetry_reviseCommunityAward, submitCommunityAward as telemetry_submitCommunityAward, withdrawCommunityAward as telemetry_withdrawCommunityAward } from "@/actions/community-awards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,6 +14,16 @@ import type { CommunityAwardStatus } from "@/db/schema";
 
 import type { CommunityAwardModel } from "@/lib/community-awards/data";
 import type { SeasonAwardCandidate } from "@/lib/community-awards/read-model";
+import { observeAction } from "@/lib/telemetry/client";
+
+const addCommunityAwardEvidence = observeAction("community-awards.addCommunityAwardEvidence", telemetry_addCommunityAwardEvidence);
+const requestCommunityAwardSupplement = observeAction("community-awards.requestCommunityAwardSupplement", telemetry_requestCommunityAwardSupplement);
+const resolveCommunityAward = observeAction("community-awards.resolveCommunityAward", telemetry_resolveCommunityAward);
+const reviewCommunityAward = observeAction("community-awards.reviewCommunityAward", telemetry_reviewCommunityAward);
+const reviseCommunityAward = observeAction("community-awards.reviseCommunityAward", telemetry_reviseCommunityAward);
+const submitCommunityAward = observeAction("community-awards.submitCommunityAward", telemetry_submitCommunityAward);
+const withdrawCommunityAward = observeAction("community-awards.withdrawCommunityAward", telemetry_withdrawCommunityAward);
+
 type Award = CommunityAwardModel;
 type Candidate = SeasonAwardCandidate;
 type Match = { id: string; label: string };

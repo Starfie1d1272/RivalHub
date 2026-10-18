@@ -14,7 +14,7 @@ function TeamResults({ name, entryId, matches, seasonSlug }: { name: string; ent
             <span className={match.won ? "font-bold text-[var(--color-success)]" : "font-bold text-[var(--color-danger)]"}>{match.won ? "胜" : "负"}</span>
             <span className="text-[var(--color-fg-mid)]">{match.format.toUpperCase()}<span className="block text-[10px]">{new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", timeZone: "Asia/Shanghai" }).format(match.playedAt)}</span></span>
             <TeamProfileLink seasonSlug={seasonSlug} entryId={match.opponentId} className="min-w-0 truncate">{match.opponentName}</TeamProfileLink>
-            <Link href={`/${seasonSlug}/matches/${match.matchId}`} aria-label={`查看对阵 ${match.opponentName} 的比赛`} className="font-mono tabular-nums hover:underline">{match.scoreFor} : {match.scoreAgainst}</Link>
+            <Link href={`/${seasonSlug}/matches/${match.matchId}`} aria-label={`查看对阵 ${match.opponentName} 的比赛`} className="font-mono tabular-nums hover:underline">{match.scoreFor ?? "—"} : {match.scoreAgainst ?? "—"}</Link>
           </div>
         </li>)}
       </ul>}

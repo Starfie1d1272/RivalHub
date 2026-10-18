@@ -1,3 +1,4 @@
+import { TelemetryScene } from "@/components/telemetry/ProductTelemetry";
 import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 import { eq } from "drizzle-orm";
@@ -57,6 +58,7 @@ async function AdminSeasonContent({
         showSettings={isSuperAdmin}
         hasBet={season.competitionTemplate === "major"}
       />
+      <TelemetryScene prefix={`/admin/${seasonSlug}`} scene={season.competitionTemplate} eventId={season.id} />
       {children}
     </PageLayout>
   );

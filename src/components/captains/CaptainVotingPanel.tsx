@@ -6,7 +6,7 @@ import { useRoutePolling } from "@/components/use-visible-polling";
 import { RefreshCw, Undo2, Vote } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { castVote, retractVote } from "@/actions/captains";
+import { castVote as telemetry_castVote, retractVote as telemetry_retractVote } from "@/actions/captains";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/rivalhub";
@@ -17,6 +17,10 @@ import type {
   CaptainVoteRecord,
   PublicCaptainVoter,
 } from "@/lib/captains/data";
+import { observeAction } from "@/lib/telemetry/client";
+
+const castVote = observeAction("captains.castVote", telemetry_castVote);
+const retractVote = observeAction("captains.retractVote", telemetry_retractVote);
 
 interface CaptainVotingPanelProps {
   seasonName: string;

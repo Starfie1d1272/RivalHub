@@ -131,6 +131,9 @@ export function simulateMajor(
             : winner
               ? "official"
               : "pending",
+        displayScore: !compatible && official?.winner && official.displayScore ? { ...official.displayScore,
+          scoreA: official.a === a ? official.displayScore.scoreA : official.displayScore.scoreB,
+          scoreB: official.a === a ? official.displayScore.scoreB : official.displayScore.scoreA } : undefined,
         scoreA:
           !compatible && official?.winner
             ? official.a === a

@@ -3,11 +3,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { finalizeMajorPlayoffRound } from "@/actions/major-prestart";
+import { finalizeMajorPlayoffRound as telemetry_finalizeMajorPlayoffRound } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Marker, Panel } from "@/components/rivalhub";
 import type { MajorPlayoffRuntimeData } from "@/lib/admin/major-runtime";
+import { observeAction } from "@/lib/telemetry/client";
+
+const finalizeMajorPlayoffRound = observeAction("major-prestart.finalizeMajorPlayoffRound", telemetry_finalizeMajorPlayoffRound);
 
 export type { MajorPlayoffRuntimeData } from "@/lib/admin/major-runtime";
 

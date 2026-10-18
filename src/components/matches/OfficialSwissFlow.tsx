@@ -48,8 +48,8 @@ export function OfficialSwissFlow({ data, seasonSlug }: { data: SwissStageReadMo
 function OfficialMatch({ match, slug }: { match: StageSwissMatchRow; slug: string }) {
   return <div
     className={`${styles.match} ${styles.compactMatch}`}>
-    {([{ id: match.entryAId, name: match.teamAName, logo: match.teamALogoUrl, score: match.scoreA, other: match.scoreB },
-      { id: match.entryBId, name: match.teamBName, logo: match.teamBLogoUrl, score: match.scoreB, other: match.scoreA }]).map((team, i) =>
+    {([{ id: match.entryAId, name: match.teamAName, logo: match.teamALogoUrl, score: (match.displayScore ?? match).scoreA, other: (match.displayScore ?? match).scoreB },
+      { id: match.entryBId, name: match.teamBName, logo: match.teamBLogoUrl, score: (match.displayScore ?? match).scoreB, other: (match.displayScore ?? match).scoreA }]).map((team, i) =>
       <div key={i} className={styles.teamSide} data-winning={match.status === "finished" && team.score !== null && team.other !== null && team.score > team.other}>
         <TeamProfileLink entryId={team.id} seasonSlug={slug} className="flex min-w-0 flex-1 items-center gap-2"><TeamLogo teamName={team.name} logoUrl={team.logo ?? null} className={styles.smallLogo} />
         <span className={styles.teamName} title={team.name}>{team.name}</span></TeamProfileLink>

@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.18.0]
+
+### Added
+
+- 新增默认关闭的轻量产品遥测能力，支持页面与筛选基线、关联操作结果，以及按独立账号标识或会话排障。云端采集尚未启用，部署、凭据与最终留存方案须单独确认。
+
+### Fixed
+
+- 修正地图首杀转化、首死翻盘及选手 1v1/1v2 残局指标的说明与样本口径，统一 R2、下包转化和 HE/Fire 伤害指标名称。
+
+## [2.17.6]
+
+### Fixed
+
+- BO1 有可信正式单图结果时，比赛详情、赛程、预测和历史赛果显示实际回合比分；多图系列赛与弃权保留系列比分，缺失结果不再显示虚假的 0:0。
+- 现场账号与登记首发不一致时，可在来源授权、地图与实时证据校验通过后继续展示网站实时数据，并提示名单异常。临时账号不关联登记选手；展示不修改固定首发、正式赛果、统计或竞猜结算。
+
+### Maintenance
+
+- 系列比分更正的浏览器证据使用独立 CI 分片，保持实际更正和拒绝路径验证。
+
 ## [2.17.5]
 
 ### Fixed
@@ -2995,6 +3016,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.18.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.6...v2.18.0
+[2.17.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.5...v2.17.6
 [2.17.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.4...v2.17.5
 [2.17.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.3...v2.17.4
 [2.17.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.2...v2.17.3
