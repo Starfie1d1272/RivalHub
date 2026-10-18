@@ -66,11 +66,13 @@ export function toPublicSeasonInfo(
   info: Pick<SeasonPublicInfo, "rulesLabel" | "rulesHref"> | null,
   groups: readonly Pick<CommunityGroup, "id" | "label" | "audience" | "status" | "groupNumber" | "qrImagePath" | "joinUrl" | "note" | "sortOrder">[],
   contacts: readonly Pick<SeasonContact, "id" | "label" | "publicName" | "value" | "href" | "note" | "sortOrder">[],
+  seasonSlug?: string,
 ): PublicSeasonInfo {
+  const defaultRulesHref = seasonSlug === "2026-nju-rivals" ? "/rules/spring" : "/rules";
   return {
     rules: {
       label: info?.rulesLabel ?? "赛事规则",
-      href: safePublicHref(info?.rulesHref, "/rules") ?? "/rules",
+      href: safePublicHref(info?.rulesHref, defaultRulesHref) ?? defaultRulesHref,
     },
     groups: [...groups]
       .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
