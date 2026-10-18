@@ -72,7 +72,7 @@ export function AdminMatchRow({
         </span>
         <span>{match.scheduledAt ? `排期：${formatCSTDateTime(match.scheduledAt)}` : "尚未排期"}</span>
         {match.ownership === "major_stage" ? <span>赛事阶段管理</span> : <span>手动比赛</span>}
-        {match.demoNeedsAttentionCount && match.demoNeedsAttentionCount > 0 && (
+        {(match.demoNeedsAttentionCount ?? 0) > 0 && (
           <span className="font-medium text-[var(--color-warn)]">
             Demo 数据需要处理 · {match.demoNeedsAttentionCount} 张地图
           </span>

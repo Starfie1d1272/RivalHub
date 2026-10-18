@@ -6,7 +6,7 @@ export function resolveMatchReturnContext(seasonSlug: string, value: string | un
   const url = new URL(value, "https://return.invalid");
   const allowed = new Map([
     [root, "回到赛事总览"], [`${root}/prestart`, "回到开赛筹备"],
-    [`${root}/matches`, url.searchParams.get("view") === "schedule" ? "回到赛程与阶段" : "回到比赛执行"],
+    [`${root}/matches`, url.searchParams.get("view") === "schedule" ? "回到赛程与阶段" : url.searchParams.get("view") === "materials" ? "回到赛后资料" : "回到比赛执行"],
     [`${root}/test-matches`, "回到测试赛"], [`${root}/logs`, "回到操作记录"],
   ]);
   const label = allowed.get(url.pathname);

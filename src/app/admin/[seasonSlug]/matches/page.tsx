@@ -31,7 +31,9 @@ interface AdminMatchesPageProps {
 export default async function AdminMatchesPage({ params, searchParams }: AdminMatchesPageProps) {
   const { seasonSlug } = await params;
   const filters = await searchParams;
-  const scheduling = filters.view === "schedule";
+  const view = filters.view === "schedule" || filters.view === "materials" ? filters.view : "";
+  const scheduling = view === "schedule";
+  const materials = view === "materials";
   const data = await loadAdminMatchOverview({ seasonSlug, ...filters });
   if (!data) notFound();
   const [commentary, resources, postMatchTasks] = await Promise.all([loadAdminMatchCommentary(data.season.id), loadMatchResources(data.season.id), loadAdminPostMatchTasks(data.season.id)]);
@@ -43,8 +45,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   return (
     <div className="min-w-0 space-y-6">
       <PageHeader
-        title={`${scheduling ? "赛程与阶段" : "比赛执行"} · ${data.season.name}`}
-        description={scheduling ? "编排赛程、查看积分并推进赛事阶段。" : "处理认领、排期与赛后资料，进入单场继续工作。"}
+        title={`${scheduling ? "赛程与阶段" : materials ? "赛后资料" : "比赛执行"} · ${data.season.name}`}
+        description={materials ? "按资料缺口找到比赛，继续补齐计分板、Demo 与解说回放。" : scheduling ? "编排赛程、查看积分并推进赛事阶段。" : "处理认领、排期与赛后资料，进入单场继续工作。"}
         actions={(
           <>
           <MatchResources seasonId={data.season.id} data={resources} />
@@ -66,11 +68,11 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       />
 
       <nav aria-label="比赛工作视图" className="flex flex-wrap gap-2 border-b border-[var(--color-border)] pb-3">
-        {[["", "比赛执行"], ["schedule", "赛程与阶段"]].map(([view, label]) => {
+        {[["", "比赛执行"], ["schedule", "赛程与阶段"], ["materials", `赛后资料 · ${postMatchTasks.length}`]].map(([targetView, label]) => {
           const query = new URLSearchParams();
-          if (view) query.set("view", view);
+          if (targetView) query.set("view", targetView);
           for (const key of ["stage", "status", "team"] as const) if (filters[key]) query.set(key, filters[key]);
-          return <Link key={label} href={`/admin/${seasonSlug}/matches?${query}`} aria-current={scheduling === Boolean(view) ? "page" : undefined} className={`rounded-sm px-4 py-2 text-sm ${scheduling === Boolean(view) ? "bg-[var(--color-accent)] font-semibold text-[var(--color-accent-fg)]" : "bg-[var(--color-panel)]"}`}>{label}</Link>;
+          return <Link key={label} href={`/admin/${seasonSlug}/matches?${query}`} aria-current={view === targetView ? "page" : undefined} className={`rounded-sm px-4 py-2 text-sm ${view === targetView ? "bg-[var(--color-accent)] font-semibold text-[var(--color-accent-fg)]" : "bg-[var(--color-panel)]"}`}>{label}</Link>;
         })}
       </nav>
       {matchCount > 0 && (
@@ -83,11 +85,16 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         />
       )}
 
-      {!scheduling && <>
+      {!scheduling && !materials && <>
       <MatchCommentaryQueue data={commentary} seasonSlug={seasonSlug} />
-      <AdminPostMatchTasks rows={postMatchTasks} seasonSlug={seasonSlug} stage={filters.stage} team={filters.team} stageNames={Object.fromEntries(data.stagePlan.map(s => [s.key, s.name]))} />
+
       <AdminMatchOperations rows={operations} seasonSlug={seasonSlug} stage={filters.stage} team={filters.team} stageNames={Object.fromEntries(data.stagePlan.map(s => [s.key, s.name]))} />
 
+      </>}
+
+      {materials && <>
+      <AdminPostMatchTasks rows={postMatchTasks} seasonSlug={seasonSlug} stage={filters.stage} team={filters.team} stageNames={Object.fromEntries(data.stagePlan.map(s => [s.key, s.name]))} />
+        {postMatchTasks.length === 0 && <Panel><p className="text-sm text-[var(--color-fg-mid)]">当前没有待补齐的赛后资料。</p></Panel>}
       </>}
 
       {unconfiguredMatchNotice(data.unconfiguredMatches)}
@@ -124,7 +131,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 
       </>}
 
-      {data.commentaryEffectiveness.length > 0 && (
+      {materials && data.commentaryEffectiveness.length > 0 && (
         <details className="rounded border border-[var(--color-border)] px-4 py-3">
           <summary className="cursor-pointer text-sm font-medium">解说有效场次统计</summary>
           <div className="mt-3 space-y-3 text-sm">
@@ -151,7 +158,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         </details>
       )}
 
-      {(matchCount > 0 || data.qualificationRun) && data.defaultStageKey && (
+      {!materials && (matchCount > 0 || data.qualificationRun) && data.defaultStageKey && (
         <AdminMatchStageTabs value={data.defaultStageKey}>
           <TabsList className="h-auto min-h-10 max-w-full justify-start overflow-x-auto overflow-y-hidden">
             {data.stageViews.map(({ stage }) => (

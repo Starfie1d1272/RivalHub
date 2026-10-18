@@ -1,10 +1,10 @@
 import { MAJOR_PRESTART_PHASES } from "@/lib/admin/season-workspace/prestart-phase";
 import React from "react";
 import Link from "next/link";
-import { Marker, Panel, Stat, StatusPill } from "@/components/rivalhub";
+import { PageHeader, Panel, Stat, StatusPill } from "@/components/rivalhub";
 import { AdminExceptionSummary } from "@/components/admin/AdminExceptionSummary";
 import { Button } from "@/components/ui/button";
-import { presentSeasonLifecycle, presentSeasonLifecycleSummary, presentSeasonStatus } from "@/lib/seasons/presentation";
+import { presentSeasonStatus } from "@/lib/seasons/presentation";
 import { formatCST } from "@/lib/utils/date";
 import type { SeasonWorkspaceOverviewData } from "@/lib/admin/season-workspace/types";
 
@@ -17,12 +17,11 @@ export function SeasonWorkspaceOverview({ data }: { data: SeasonWorkspaceOvervie
   const { season, summary, nextAction } = data;
   const preparing = !["playing", "finished", "archived"].includes(season.status);
   const root = `/admin/${season.slug}`;
-  const lifecycle = presentSeasonLifecycle(season);
   const status = presentSeasonStatus(season.status);
   const isTeamRegistration = season.registrationMode === "team";
   const stats = isTeamRegistration
     ? [
-      { label: "正式参赛队", value: `${summary.frozenEntrantCount}/${summary.entrantCount}` },
+      { label: "已冻结正赛名单", value: summary.entrantCount ? `${summary.frozenEntrantCount} / ${summary.entrantCount} 队` : "尚未确定" },
       { label: "比赛", value: summary.matchCount },
     ]
     : [
@@ -37,9 +36,7 @@ export function SeasonWorkspaceOverview({ data }: { data: SeasonWorkspaceOvervie
 
   return (
     <div className="space-y-5">
-      <Marker sub={`${lifecycle.label} · ${presentSeasonLifecycleSummary(season)}`} action={<StatusPill {...status} />}>
-        {season.name}
-      </Marker>
+      <PageHeader title={season.name} description={preparing ? "筹备本届赛事，随时进入工作台处理具体事务。" : "跟进当前赛事，继续比赛执行与整届收尾。"} actions={<StatusPill {...status} />} />
 
       <div className="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
         <Panel label={preparing ? "办赛进度" : "赛事进展"}>

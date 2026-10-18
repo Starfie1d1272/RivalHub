@@ -59,6 +59,7 @@ export function AdminSidebar({ email, role, seasons }: { email: string; role: Ad
           {season && <Link href={`/${season.slug}`}>查看公开赛事 ↗</Link>}
         </div>
       </div>
+      <p className="px-4 pt-2 text-xs text-[var(--color-fg-dim)] md:hidden">左右滑动查看全部管理入口</p>
       {/* nav */}
       <nav aria-label="管理后台导航" className="flex min-w-0 flex-1 overflow-x-auto md:block md:overflow-y-auto">
         {navigation.map((group) => (
