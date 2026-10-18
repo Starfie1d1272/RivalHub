@@ -193,12 +193,14 @@
 
 /* Editorial event surfaces keep decoration outside analysis/form workspaces. */
 .home-event-hero {
-  background-image: radial-gradient(ellipse at 90% 40%, var(--color-accent-soft), transparent 64%);
+  background-image:
+    radial-gradient(ellipse at 88% 30%, var(--color-accent-soft), transparent 55%),
+    radial-gradient(ellipse at 60% 100%, var(--color-accent-b-soft), transparent 65%);
 }
 .home-event-art {
-  opacity: .72;
-  transform: rotate(-10deg) scale(1.12);
-  mask-image: linear-gradient(90deg, transparent, #000 35%);
+  opacity: .82;
+  transform: rotate(-8deg) scale(1.04);
+  mask-image: linear-gradient(90deg, transparent, #000 28%);
 }
 .home-event-hero::after {
   content: "";
@@ -207,8 +209,8 @@
   z-index: -1;
   background-image: var(--background-image-grid-hairline);
   background-size: 48px 48px;
-  opacity: .25;
+  opacity: .2;
 }
 @media (max-width: 767px) {
-  .home-event-art { width: 80%; opacity: .18; right: -28%; }
+  .home-event-art { width: 80%; opacity: .14; right: -28%; }
 }

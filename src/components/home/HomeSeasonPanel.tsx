@@ -1,30 +1,28 @@
-import type { PublicDraftData } from "@/lib/draft/data";
-import { DRAFT_TOTAL_ROUNDS } from "@/types/draft";
-import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
-import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
-import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
-import type { MatchStatus } from "@/types/match";
-import React from "react";
+import type { PublicDraftSummary } from "@/lib/draft/data";
 import Link from "next/link";
 import type { RegistrationMode, SeasonStatus } from "@/types/season";
-import { formatCSTDateTime } from "@/lib/utils/date";
 import {
-  getSeasonLifecycleGroup,
-  isRegistrationActuallyOpen,
-  presentSeasonLifecycle,
-  presentSeasonLifecycleSummary,
-  presentSeasonKind,
   presentRegistrationSchedule,
   presentSeasonParticipationState,
 } from "@/lib/seasons/presentation";
+import { getRegistrationWindowState } from "@/lib/registration/window";
 import { MiniStat, Panel, StatusPill } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
+import {
+  SeasonDraftPreview,
+  SeasonMatchPreview,
+  SeasonVotingPreview,
+  type SeasonPreviewCandidate,
+  type SeasonPreviewMatch,
+} from "@/components/season/SeasonStageHighlights";
 
 export { shouldLoadRegistrationPositionCounts } from "@/lib/home/presentation";
 
 interface HomePanelSeason {
   name: string;
   hasOfficialMatches?: boolean;
+  hasCaptainVoting?: boolean;
+  hasDraft?: boolean;
   slug: string;
   status: SeasonStatus;
   registrationMode: RegistrationMode;
@@ -35,32 +33,16 @@ interface HomePanelSeason {
   registrationClosesAt: Date | null;
 }
 
-interface CandidateSummary {
-  userId?: string;
-  name: string;
-  voteCount: number;
-}
-
-interface HomeMatchSummary {
-  teamAName?: string | null;
-  teamBName?: string | null;
-  id: string;
-  entryAId?: string | null;
-  entryBId?: string | null;
-  status: string;
-  scheduledAt: Date | null;
-  format: string;
-}
-
 interface HomeSeasonPanelProps {
-  draftData?: PublicDraftData;
+  draftData?: PublicDraftSummary;
   season: HomePanelSeason;
   maxPerPosition: number;
   positionCountMap: Map<string, number>;
-  topCandidatesWithNames: CandidateSummary[];
-  liveAndUpcomingMatches: HomeMatchSummary[];
+  topCandidatesWithNames: SeasonPreviewCandidate[];
+  liveAndUpcomingMatches: SeasonPreviewMatch[];
   teamCount: number;
   playerCount: number;
+  showSummary?: boolean;
 }
 
 export function HomeSeasonPanel({
@@ -72,262 +54,70 @@ export function HomeSeasonPanel({
   teamCount,
   playerCount,
   draftData,
+  showSummary = true,
 }: HomeSeasonPanelProps) {
   const registrationSchedule = presentRegistrationSchedule(season);
-  if (isRegistrationActuallyOpen(season) && !season.hasOfficialMatches && liveAndUpcomingMatches.length === 0) {
-    return (
-      <Panel label="REGISTRATION">
-        <div className="grid gap-3.5">
-          <SeasonPanelTitle season={season} />
-          {registrationSchedule && (
-            <p className="text-sm text-[var(--color-fg-mid)]">
-              {registrationSchedule.primary}{season.registrationMode === "team" && registrationSchedule.secondary ? ` · ${registrationSchedule.secondary}` : ""}
-            </p>
-          )}
-          {season.registrationMode === "team" ? (
-            <div className="py-3 border-y border-[var(--color-border)]">
-              <PanelStats teamCount={teamCount} playerCount={playerCount} status={season.status} registrationMode={season.registrationMode} />
-            </div>
-          ) : (
-            <div className="grid gap-2">
-              {season.positions.map((pos) => {
-                const filled = positionCountMap.get(pos) ?? 0;
-                const pct = maxPerPosition > 0
-                  ? Math.min(100, Math.round((filled / maxPerPosition) * 100))
-                  : 0;
+  const historical = ["finished", "archived"].includes(season.status);
+  const hasMatchActivity = !historical && (season.hasOfficialMatches || liveAndUpcomingMatches.length > 0);
 
-                return (
-                  <div key={pos}>
-                    <div className="flex justify-between mb-1" style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-fg-dim)", letterSpacing: "var(--tracking-label)" }}>
-                      <span className="uppercase">{pos}</span>
-                      <span style={{ color: "var(--color-fg-mid)" }}>{filled} / {maxPerPosition}</span>
-                    </div>
-                    <div className="h-[3px] rounded-full" style={{ background: "var(--color-border)" }}>
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${pct}%`,
-                          background: pct >= 90 ? "var(--color-warn)" : "var(--color-accent)",
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {season.registrationMode === "team" && <Button variant="outline" asChild><Link href="/teams/recruitment">去组队大厅找队友 →</Link></Button>}
-        </div>
+  if (hasMatchActivity) {
+    return (
+      <Panel label={<div className="flex w-full flex-wrap items-center justify-between gap-3"><h2>近期比赛</h2><Link href={`/${season.slug}/matches`} className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)]">全部赛程 →</Link></div>}>
+        <SeasonMatchPreview seasonSlug={season.slug} matches={liveAndUpcomingMatches} />
       </Panel>
     );
   }
 
-  if (season.status === "voting" && liveAndUpcomingMatches.length === 0) {
+  if (season.status === "voting" && season.hasCaptainVoting !== false) {
     return (
-      <Panel label="VOTING · TOP 3">
-        <div className="grid gap-3">
-          {topCandidatesWithNames.length > 0 ? (
-            topCandidatesWithNames.map((candidate, index) => (
-              <CandidateRankRow
-                key={`${candidate.name}-${index}`}
-                candidate={candidate}
-                index={index}
-              />
-            ))
-          ) : (
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-fg-dim)" }}>
-              暂无投票数据
-            </div>
-          )}
-        </div>
-        <Button className="mt-3.5 w-full" asChild>
-          <Link href={`/${season.slug}/captains`} className="w-full">
-            查看全部候选人 →
-          </Link>
-        </Button>
+      <Panel label={<h2>队长投票</h2>}>
+        <SeasonVotingPreview candidates={topCandidatesWithNames} />
+        <Link href={`/${season.slug}/captains`} className="mt-5 inline-flex min-h-7 items-center text-sm text-[var(--color-accent)]">查看全部候选人 →</Link>
       </Panel>
     );
   }
 
-  if (season.status === "drafting" && liveAndUpcomingMatches.length === 0) {
+  if (season.status === "drafting" && season.hasDraft !== false) {
     const complete = Boolean(draftData && draftData.maxPicks > 0 && draftData.totalPicks >= draftData.maxPicks);
-    const state = draftData?.state;
-    const currentTeam = draftData?.teams.find(team => team.entryId === state?.currentEntryId);
-    const label = !draftData ? "选秀阶段" : complete ? "阵容已完成" : !state ? "选秀预览" : state.isActive ? "选秀进行中" : "选秀已暂停";
-    return <Panel label="选秀进度"><div className="flex flex-wrap items-center justify-between gap-3"><StatusPill label={label} tone={complete ? "success" : "accent"} />{draftData && <p className="font-mono text-xl tabular-nums">{draftData.totalPicks}<span className="text-sm text-[var(--color-fg-mid)]"> / {draftData.maxPicks} 已选</span></p>}</div>{state && !complete && <dl className="my-5 grid grid-cols-2 gap-4"><div><dt className="mb-2 text-xs text-[var(--color-fg-mid)]">当前轮次</dt><dd className="font-mono text-xl">{state.currentRound} / {DRAFT_TOTAL_ROUNDS}</dd></div><div><dt className="mb-2 text-xs text-[var(--color-fg-mid)]">{state.isActive ? "当前选择" : "等待恢复"}</dt><dd className="font-semibold">{currentTeam ? <TeamProfileLink seasonSlug={season.slug} entryId={currentTeam.entryId}>{currentTeam.teamName}</TeamProfileLink> : "等待队伍"}</dd></div></dl>}<Button className="mt-4" asChild><Link href={`/${season.slug}/draft`}>{complete ? "回顾选秀" : "查看选秀"} →</Link></Button></Panel>;
-  }
-
-  if (season.status === "playing" || liveAndUpcomingMatches.length > 0) {
     return (
-      <Panel label="近期比赛">
-        <div className="grid gap-3.5">
-          <div className="grid gap-2 py-3 border-y border-[var(--color-border)]">
-            {liveAndUpcomingMatches.length > 0 ? (
-              liveAndUpcomingMatches.map((match) => (
-                <MatchTickerRow key={match.id} match={match} slug={season.slug} />
-              ))
-            ) : (
-              <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-fg-dim)" }}>
-                待进行比赛尚未排定
-              </div>
-            )}
-          </div>
-          <Button className="w-full" asChild>
-            <Link href={`/${season.slug}/matches`} className="w-full">
-              查看赛程 →
-            </Link>
-          </Button>
-        </div>
+      <Panel label={<h2>选秀进度</h2>}>
+        <SeasonDraftPreview seasonSlug={season.slug} draftData={draftData ?? null} />
+        <Link href={`/${season.slug}/draft`} className="mt-5 inline-flex min-h-7 items-center text-sm text-[var(--color-accent)]">{complete ? "回顾选秀" : "查看选秀"} →</Link>
       </Panel>
     );
   }
 
+  const registrationOpen = getRegistrationWindowState(season).canSubmit;
   return (
-    <Panel label={getSeasonLifecycleGroup(season) === "upcoming" ? "UPCOMING" : "EVENT"}>
-      <div className="grid gap-3.5">
-        <SeasonPanelTitle season={season} useLifecycleSummary />
-        <div className="flex items-center gap-2">
-          <StatusPill {...presentSeasonLifecycle(season)} />
-          <span className="text-xs text-[var(--color-fg-mid)]">{presentSeasonLifecycleSummary(season)}</span>
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 11,
-              color: "var(--color-fg-mid)",
-            }}
-          >
-            {presentSeasonKind(season.kind)}
-          </span>
-        </div>
+    <Panel label={<h2>{registrationOpen ? "报名信息" : "赛事进展"}</h2>}>
+      <div className="grid gap-4">
+        {showSummary && <div><StatusPill {...presentSeasonParticipationState(season)} /><h3 className="mt-2 text-xl font-semibold">{season.name}</h3></div>}
         {registrationSchedule && (
-          <p className="text-sm text-[var(--color-fg-mid)]">
-            {registrationSchedule.primary}{registrationSchedule.secondary ? ` · ${registrationSchedule.secondary}` : ""}
-          </p>
+          <div className="space-y-1 text-sm text-[var(--color-fg-mid)]">
+            <p>{registrationSchedule.primary}</p>
+            {registrationSchedule.secondary && <p>{registrationSchedule.secondary}</p>}
+          </div>
         )}
-        <div className="py-3 border-y border-[var(--color-border)]">
-          <PanelStats teamCount={teamCount} playerCount={playerCount} status={season.status} registrationMode={season.registrationMode} />
+        {registrationOpen && season.registrationMode === "solo" ? (
+          <div className="grid gap-3">
+            {season.positions.map((position) => {
+              const filled = positionCountMap.get(position) ?? 0;
+              const percentage = maxPerPosition > 0 ? Math.min(100, Math.round((filled / maxPerPosition) * 100)) : 0;
+              return <div key={position}><div className="mb-1.5 flex justify-between font-mono text-xs text-[var(--color-fg-mid)]"><span className="uppercase">{position}</span><span>{filled} / {maxPerPosition}</span></div><div className="h-1 overflow-hidden rounded-full bg-[var(--color-border)]"><div className="h-full rounded-full" style={{ width: `${percentage}%`, background: percentage >= 90 ? "var(--color-warn)" : "var(--color-accent)" }} /></div></div>;
+            })}
+          </div>
+        ) : showSummary && (
+          <div className="grid grid-cols-2 gap-3 border-y border-[var(--color-border)] py-3">
+            <MiniStat label={season.registrationMode === "team" && season.status === "registration" ? "已审核队伍" : "参赛队伍"} value={teamCount} />
+            <MiniStat label="本届选手" value={playerCount} accent />
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+          <Link href={`/${season.slug}/info`} className="inline-flex min-h-7 items-center text-[var(--color-accent)]">赛事规则与信息 →</Link>
+          <Link href={`/${season.slug}/${season.registrationMode === "team" ? "teams" : "players"}`} className="inline-flex min-h-7 items-center text-[var(--color-fg-mid)] hover:text-[var(--color-accent)]">{season.registrationMode === "team" ? "本届队伍" : "本届选手"} →</Link>
         </div>
-        <Button className="w-full" asChild>
-          <Link href={`/${season.slug}`} className="w-full">
-            进入赛事 →
-          </Link>
-        </Button>
+        {showSummary && <Button variant="outline" asChild><Link href={`/${season.slug}`}>进入赛事 →</Link></Button>}
       </div>
     </Panel>
-  );
-}
-
-function SeasonPanelTitle({ season, useLifecycleSummary = false }: { season: HomePanelSeason; useLifecycleSummary?: boolean }) {
-  const label = useLifecycleSummary
-    ? presentSeasonLifecycleSummary(season)
-    : presentSeasonParticipationState(season).label;
-
-  return (
-    <div>
-      <div
-        className="uppercase"
-        style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: 10,
-          color: "var(--color-fg-dim)",
-          letterSpacing: "var(--tracking-label)",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        className="mt-1 font-semibold"
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: 20,
-          color: "var(--color-fg)",
-        }}
-      >
-        {season.name}
-      </div>
-    </div>
-  );
-}
-
-function CandidateRankRow({
-  candidate,
-  index,
-}: {
-  candidate: CandidateSummary;
-  index: number;
-}) {
-  return (
-    <div
-      className="grid items-center gap-3"
-      style={{
-        gridTemplateColumns: "auto 1fr auto",
-        padding: "10px 12px",
-        background: index === 0 ? "color-mix(in srgb, var(--color-accent) 4%, transparent)" : "var(--color-panel-low)",
-        border: `1px solid ${index === 0 ? "var(--color-accent-edge)" : "var(--color-border)"}`,
-        borderRadius: "var(--radius-sm, 2px)",
-      }}
-    >
-      <div
-        style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: 20,
-          fontWeight: 700,
-          color: index === 0 ? "var(--color-accent)" : "var(--color-fg-mid)",
-        }}
-      >
-        {String(index + 1).padStart(2, "0")}
-      </div>
-      <div>
-        <div style={{ fontWeight: 600, fontSize: 14, color: "var(--color-fg)" }}>
-          {candidate.userId ? <PlayerProfileLink userId={candidate.userId}>{candidate.name}</PlayerProfileLink> : candidate.name}
-        </div>
-      </div>
-      <div
-        style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: 18,
-          fontWeight: 700,
-          color: "var(--color-fg)",
-        }}
-      >
-        {candidate.voteCount}
-      </div>
-    </div>
-  );
-}
-
-function MatchTickerRow({ match, slug }: { match: HomeMatchSummary; slug: string }) {
-  return (
-    <div className="flex min-w-0 flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-        {(match.teamAName || match.teamBName) && <span className="min-w-0 break-words text-sm [overflow-wrap:anywhere]"><TeamProfileLink seasonSlug={slug} entryId={match.entryAId}>{match.teamAName ?? "待定"}</TeamProfileLink> <span className="text-[var(--color-fg-mid)]">vs</span> <TeamProfileLink seasonSlug={slug} entryId={match.entryBId}>{match.teamBName ?? "待定"}</TeamProfileLink></span>}
-        <MatchStatusBadge status={match.status as MatchStatus} scheduledAt={match.scheduledAt} />
-      </div>
-      <Link href={`/${slug}/matches/${match.id}`} aria-label={`查看 ${match.teamAName ?? "待定"} 对 ${match.teamBName ?? "待定"} 比赛`} className="shrink-0 font-mono text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)]">
-        {match.format.toUpperCase()}
-        {match.scheduledAt
-          ? ` · ${formatCSTDateTime(match.scheduledAt)}`
-          : ""} →
-      </Link>
-    </div>
-  );
-}
-
-function PanelStats({
-  teamCount,
-  playerCount,
-  status,
-  registrationMode,
-}: {
-  teamCount: number;
-  playerCount: number;
-  registrationMode: string;
-  status: SeasonStatus;
-}) {
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      <MiniStat label={registrationMode === "team" && status === "registration" ? "已通过审核" : "TEAMS"} value={teamCount} />
-      <MiniStat label="PLAYERS" value={playerCount} accent />
-    </div>
   );
 }

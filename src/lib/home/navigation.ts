@@ -39,6 +39,12 @@ export interface HomeNavEntry {
   meta: string;
 }
 
+export interface SeasonPrimaryAction {
+  key: "register" | "matches" | "captains" | "draft" | "teams" | "info" | "overview";
+  href: string;
+  label: string;
+}
+
 export interface HomeEyebrow {
   text: string;
   color: string;
@@ -118,6 +124,40 @@ export function buildHomeEyebrow(
   };
 }
 
+/** Public next action only; registration windows and enabled capabilities remain authoritative. */
+export function buildSeasonPrimaryAction(
+  season: HomeNavSeason,
+  now: Date = new Date(),
+): SeasonPrimaryAction {
+  const href = `/${season.slug}`;
+  if (season.status === "finished" || season.status === "archived") {
+    return season.hasOfficialMatches
+      ? { key: "matches", href: `${href}/matches`, label: "赛事回顾" }
+      : { key: "overview", href, label: "赛事回顾" };
+  }
+  if (season.hasOfficialMatches) {
+    return { key: "matches", href: `${href}/matches`, label: "查看赛程" };
+  }
+  if (season.status === "voting" && season.hasCaptainVoting) {
+    return { key: "captains", href: `${href}/captains`, label: "参与投票" };
+  }
+  if (season.status === "drafting" && season.hasDraft) {
+    return { key: "draft", href: `${href}/draft`, label: "查看选秀" };
+  }
+  const registration = getRegistrationWindowState(season, now);
+  if (registration.canSubmit) {
+    return {
+      key: "register",
+      href: `${href}/register`,
+      label: season.registrationMode === "team" ? "组队报名" : "个人报名",
+    };
+  }
+  if (registration.phase === "closed" || season.status === "playing") {
+    return { key: "teams", href: `${href}/teams`, label: "本届队伍" };
+  }
+  return { key: "info", href: `${href}/info`, label: "查看赛事信息" };
+}
+
 export function buildHomeNavEntries(
   season: HomeNavSeason,
   auth?: HomeNavAuthState,
@@ -153,11 +193,14 @@ export function buildHomeNavEntries(
   }));
 }
 
-export function selectHomeNavTiers(entries: HomeNavEntry[], status: SeasonStatus) {
-  const tier1Key = status === "registration" && !entries.some(entry => entry.key === "register") ? "matches" : getPrimaryNavKey(status);
-  const tier1Entry = tier1Key
+export function selectHomeNavTiers(entries: HomeNavEntry[], status: SeasonStatus, primaryAction?: SeasonPrimaryAction) {
+  const tier1Key = primaryAction?.key ?? (status === "registration" && !entries.some(entry => entry.key === "register") ? "matches" : getPrimaryNavKey(status));
+  const matchingEntry = tier1Key
     ? entries.find((entry) => entry.key === tier1Key) ?? null
     : null;
+  const tier1Entry = primaryAction
+    ? { mono: primaryAction.key.toUpperCase(), meta: "", ...matchingEntry, ...primaryAction }
+    : matchingEntry;
 
   const tier2Candidates = entries.filter(
     (entry) => entry.key !== tier1Key && entry.key !== "login" && entry.key !== "seasons"

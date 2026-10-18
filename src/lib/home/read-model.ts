@@ -34,11 +34,13 @@ export interface PublicHomeProjection {
     entryBId: string | null;
     status: string;
     scheduledAt: Date | null;
+    stage: string | null;
     format: string;
     teamAName: string | null;
     teamBName: string | null;
   }>;
   teamCount: number;
+  teamCountLabel: string;
   playerCount: number;
 }
 
@@ -76,6 +78,7 @@ export async function getPublicHomeProjection(
       topCandidatesWithNames: [],
       liveAndUpcomingMatches: [],
       teamCount: 0,
+      teamCountLabel: "参赛队伍",
       playerCount: 0,
     };
   }
@@ -112,6 +115,7 @@ export async function getPublicHomeProjection(
             entryBId: matches.entryBId,
             status: matches.status,
             scheduledAt: matches.scheduledAt,
+            stage: matches.stage,
             format: matches.format,
             teamAName: competitionEntries.name,
             teamBName: opponentEntry.name,
@@ -131,6 +135,7 @@ export async function getPublicHomeProjection(
             entryBId: string | null;
             status: string;
             scheduledAt: Date | null;
+            stage: string | null;
             format: string;
             teamAName: string | null;
             teamBName: string | null;
@@ -152,6 +157,7 @@ export async function getPublicHomeProjection(
     topCandidatesWithNames: topCandidates,
     liveAndUpcomingMatches,
     teamCount: majorOverview?.teamCount ?? Number(featuredTeamCount?.value ?? 0),
+    teamCountLabel: majorOverview?.phase === "approved_candidates" ? "已审核队伍" : "参赛队伍",
     playerCount: majorOverview?.playerCount ?? participantSummary.count,
   };
 }

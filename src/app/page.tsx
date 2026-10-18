@@ -1,4 +1,4 @@
-import { getPublicDraftData } from "@/lib/draft/data";
+import { getPublicDraftSummary } from "@/lib/draft/data";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import Link from "next/link";
 import { SeasonResults } from "@/components/season/SeasonResults";
@@ -10,6 +10,7 @@ import { getPublicSeasonCatalog } from "@/lib/data/public-seasons";
 import {
   buildHomeEyebrow,
   buildHomeNavEntries,
+  buildSeasonPrimaryAction,
   selectHomeNavTiers,
 } from "@/lib/home/navigation";
 import { getPublicHomeProjection } from "@/lib/home/read-model";
@@ -50,33 +51,55 @@ async function HomeContent() {
   const eyebrow = buildHomeEyebrow(featured);
   const [stage, draftData] = await Promise.all([
     getPublicSeasonStagePresentation(featured),
-    featured.status === "drafting" && featured.hasDraft ? getPublicDraftData(featured.id) : Promise.resolve(null),
+    featured.status === "drafting" && featured.hasDraft ? getPublicDraftSummary(featured.id) : Promise.resolve(null),
   ]);
   const { tier1Entry, tier2Entries, tier3Entries } = selectHomeNavTiers(
     buildHomeNavEntries(featured),
-    featured.status
+    featured.status,
+    buildSeasonPrimaryAction(featured),
+  );
+  const hasMatchActivity = !["finished", "archived"].includes(featured.status)
+    && featured.hasOfficialMatches;
+  const currentActivity = projection.results ? (
+    <SeasonResults results={projection.results} slug={featured.slug} compact />
+  ) : (
+    <HomeSeasonPanel
+      season={featured}
+      maxPerPosition={projection.maxPerPosition}
+      positionCountMap={new Map(Object.entries(projection.positionCounts))}
+      topCandidatesWithNames={projection.topCandidatesWithNames}
+      liveAndUpcomingMatches={projection.liveAndUpcomingMatches.map((match) => ({
+        ...match,
+        stageLabel: match.stage ? stage.labels[match.stage] ?? null : null,
+      }))}
+      teamCount={projection.teamCount}
+      playerCount={projection.playerCount}
+      draftData={draftData ?? undefined}
+      showSummary={false}
+    />
   );
 
   return (
     <PageLayout variant="wide" className="grid gap-7">
-      {/* Hero */}
-      <HomeHero season={featured} eyebrow={eyebrow} primary={tier1Entry} stageLabel={stage.currentStageLabel} teamCount={projection.teamCount} playerCount={projection.playerCount} />
-      <Suspense fallback={null}><HomePersonalNextStep season={featured} /></Suspense>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div>
-        {projection.results ? <SeasonResults results={projection.results} slug={featured.slug} compact /> : <HomeSeasonPanel
-          season={featured}
-          maxPerPosition={projection.maxPerPosition}
-          positionCountMap={new Map(Object.entries(projection.positionCounts))}
-          topCandidatesWithNames={projection.topCandidatesWithNames}
-          liveAndUpcomingMatches={projection.liveAndUpcomingMatches}
-          teamCount={projection.teamCount}
-          playerCount={projection.playerCount}
-          draftData={draftData ?? undefined}
-        />}
+      <HomeHero
+        season={featured}
+        eyebrow={eyebrow}
+        primary={tier1Entry}
+        stageLabel={stage.currentStageLabel}
+        teamCount={projection.teamCount}
+        playerCount={projection.playerCount}
+        teamCountLabel={projection.teamCountLabel}
+      />
+      {hasMatchActivity ? currentActivity : (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div className="min-w-0">{currentActivity}</div>
+          <section className="flex flex-col justify-between gap-5 border-y border-[var(--color-border)] py-5">
+            <div><p className="font-mono text-[11px] tracking-widest text-[var(--color-accent)]">FIND YOUR TEAM</p><h2 className="mt-3 text-2xl font-semibold">一起上场</h2><p className="mt-2 text-sm text-[var(--color-fg-mid)]">找到队友，参加下一场比赛。</p></div>
+            <Link href="/teams/recruitment" className="inline-flex min-h-8 items-center text-sm hover:text-[var(--color-accent)]">组队与招募 →</Link>
+          </section>
         </div>
-        <section className="flex flex-col justify-between gap-5 border-y border-[var(--color-border)] py-5"><div><p className="font-mono text-xs tracking-widest text-[var(--color-accent)]">FIND YOUR TEAM</p><h2 className="mt-3 text-2xl font-semibold">一起上场</h2><p className="mt-2 text-sm text-[var(--color-fg-mid)]">寻找队伍与队友，开启下一段赛事旅程。</p></div><Link href="/teams/recruitment" className="text-sm hover:text-[var(--color-accent)]">组队与招募 →</Link></section>
-      </div>
+      )}
+      <Suspense fallback={null}><HomePersonalNextStep season={featured} /></Suspense>
 
       <HomeNavigation
         tier1Entry={tier1Entry}
@@ -89,6 +112,7 @@ async function HomeContent() {
         markerSub="ARCHIVE"
         title="历届赛事"
         seasons={projection.archivedSeasons}
+        compact
       />
     </PageLayout>
   );

@@ -99,6 +99,14 @@ export interface PublicDraftData {
   maxPicks: number;
 }
 
+/** Public event summaries need progress and team names, not the player pool. */
+export interface PublicDraftSummary {
+  state: DraftLiveState | null;
+  teams: Pick<DraftTeamSlot, "entryId" | "teamName">[];
+  totalPicks: number;
+  maxPicks: number;
+}
+
 export interface CaptainDraftData {
   state: DraftLiveState | null;
   teams: DraftTeamSlot[];
@@ -438,6 +446,49 @@ async function loadCaptainRemainingPlayers(
   return rows
     .filter((row) => !excluded.has(row.registrationId))
     .map(serializeCaptainDraftPlayer);
+}
+
+export async function getPublicDraftSummary(seasonId: string): Promise<PublicDraftSummary> {
+  const [state, teams, [pickCount]] = await Promise.all([
+    db.query.draftState.findFirst({
+      columns: {
+        currentRound: true,
+        currentEntryId: true,
+        roundDeadline: true,
+        isActive: true,
+      },
+      where: eq(draftState.seasonId, seasonId),
+    }),
+    db
+      .select({ entryId: competitionEntries.id, teamName: competitionEntries.name })
+      .from(competitionEntries)
+      .where(and(
+        eq(competitionEntries.competitionId, seasonId),
+        isNotNull(competitionEntries.formationOrder),
+        isNotNull(competitionEntries.sourceRegistrationId),
+      ))
+      .orderBy(asc(competitionEntries.formationOrder)),
+    db
+      .select({ value: count() })
+      .from(draftPicks)
+      .innerJoin(seasonRegistrations, eq(draftPicks.registrationId, seasonRegistrations.id))
+      .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+      .where(eq(draftPicks.seasonId, seasonId)),
+  ]);
+
+  return {
+    state: state
+      ? {
+          currentRound: state.currentRound,
+          currentEntryId: state.currentEntryId,
+          roundDeadline: state.roundDeadline?.toISOString() ?? null,
+          isActive: state.isActive,
+        }
+      : null,
+    teams,
+    totalPicks: Number(pickCount?.value ?? 0),
+    maxPicks: DRAFT_TEAMS * DRAFT_TOTAL_ROUNDS,
+  };
 }
 
 export async function getPublicDraftData(seasonId: string): Promise<PublicDraftData> {
