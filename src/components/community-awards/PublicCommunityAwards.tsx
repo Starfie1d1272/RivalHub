@@ -12,8 +12,8 @@ import { CommunityAwardEvidenceForm } from "./CommunityAwardEvidenceForm";
 import { CommunityAwardSubmissionForm } from "./CommunityAwardSubmissionForm";
 import type { CommunityAwardModel } from "@/lib/community-awards/data";
 
-export function PublicCommunityAwards({ seasonId, awards, currentUserId, candidates, matches }: {
-  seasonId: string; awards: CommunityAwardModel[]; currentUserId: string | null;
+export function PublicCommunityAwards({ seasonId, seasonSlug, hasEnded, awards, currentUserId, candidates, matches }: {
+  seasonId: string; seasonSlug: string; hasEnded: boolean; awards: CommunityAwardModel[]; currentUserId: string | null;
   candidates: import("@/lib/community-awards/read-model").SeasonAwardCandidate[]; matches: { id: string; label: string }[];
 }) {
   const shared = { seasonId, currentUserId, candidates, matches, isAdmin: false };
@@ -24,7 +24,7 @@ export function PublicCommunityAwards({ seasonId, awards, currentUserId, candida
   ];
   const own = awards.filter((award) => award.submittedByUserId === currentUserId && ["pending_review", "rejected"].includes(award.status));
   return <div className="space-y-8">
-    {currentUserId ? <Dialog><DialogTrigger asChild><Button>提出社区奖</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>提出社区奖</DialogTitle><DialogDescription>说明奖项条件与奖品，提交给赛事方审核。</DialogDescription></DialogHeader><DialogBody><CommunityAwardSubmissionForm seasonId={seasonId} /></DialogBody></DialogContent></Dialog> : <Button asChild><Link href="/login">登录后提出社区奖</Link></Button>}
+    {currentUserId ? <Dialog><DialogTrigger asChild><Button>提出社区奖</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>提出社区奖</DialogTitle><DialogDescription>说明奖项条件与奖品，提交给赛事方审核。</DialogDescription></DialogHeader><DialogBody><CommunityAwardSubmissionForm seasonId={seasonId} /></DialogBody></DialogContent></Dialog> : <Button asChild><Link href={`/login?next=${encodeURIComponent(`/${seasonSlug}/community-awards`)}`}>登录后提出社区奖</Link></Button>}
     {groups.map((group) => {
       const items = awards.filter((award) => group.statuses.includes(award.status));
       if (!items.length) return null;
@@ -38,7 +38,7 @@ export function PublicCommunityAwards({ seasonId, awards, currentUserId, candida
         {award.status === "approved" && currentUserId && <Dialog><DialogTrigger asChild><Button size="sm" variant="outline">提交候选证据</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>{award.name} · 候选证据</DialogTitle><DialogDescription>候选人可为本届赛事相关人员。</DialogDescription></DialogHeader><DialogBody><CommunityAwardEvidenceForm awardId={award.id} candidates={candidates} matches={matches} /></DialogBody></DialogContent></Dialog>}
       </Panel>)}</div></section>;
     })}
-    {awards.length === 0 && <Panel><p className="text-sm text-[var(--color-fg-mid)]">社区奖公布后会在这里展示。</p></Panel>}
+    {awards.length === 0 && <Panel><p className="text-sm text-[var(--color-fg-mid)]">{hasEnded ? "本届暂无社区奖记录。" : "社区奖公布后会在这里展示。"}</p></Panel>}
     {own.length > 0 && <section className="space-y-4"><h2 className="text-xl font-semibold">我的提交</h2><CommunityAwardsBoard {...shared} awards={own} allowSubmission={false} /></section>}
   </div>;
 }
