@@ -1,5 +1,5 @@
 import React from "react";
-import Link from "next/link";
+import { MatchWorkbenchLink as Link } from "./MatchWorkbenchLink";
 import { Panel } from "@/components/rivalhub";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";

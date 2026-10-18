@@ -15,7 +15,8 @@ import { StandingsTable } from "@/components/matches/StandingsTable";
 import { MajorPlayoffRuntimeManagement } from "@/components/admin/MajorPlayoffRuntimeManagement";
 import { MajorSwissRuntimeManagement } from "@/components/admin/MajorSwissRuntimeManagement";
 import { PageHeader, Panel, Section } from "@/components/rivalhub";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AdminMatchStageTabs } from "@/components/matches/AdminMatchStageTabs";
+import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { loadAdminMatchOverview } from "@/lib/admin/matches/overview";
 import { presentMatchLabel } from "@/lib/matches/presentation";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
@@ -24,12 +25,13 @@ import { MatchCommentaryQueue } from "@/components/matches/MatchCommentaryQueue"
 
 interface AdminMatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
-  searchParams: Promise<{ stage?: string; status?: string; team?: string }>;
+  searchParams: Promise<{ stage?: string; status?: string; team?: string; view?: string }>;
 }
 
 export default async function AdminMatchesPage({ params, searchParams }: AdminMatchesPageProps) {
   const { seasonSlug } = await params;
   const filters = await searchParams;
+  const scheduling = filters.view === "schedule";
   const data = await loadAdminMatchOverview({ seasonSlug, ...filters });
   if (!data) notFound();
   const [commentary, resources, postMatchTasks] = await Promise.all([loadAdminMatchCommentary(data.season.id), loadMatchResources(data.season.id), loadAdminPostMatchTasks(data.season.id)]);
@@ -41,8 +43,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   return (
     <div className="min-w-0 space-y-6">
       <PageHeader
-        title={`比赛总览 · ${data.season.name}`}
-        description="查看当前与下一场任务，进入单场处理赛务；赛程和积分按阶段浏览。"
+        title={`${scheduling ? "赛程与阶段" : "比赛执行"} · ${data.season.name}`}
+        description={scheduling ? "编排赛程、查看积分并推进赛事阶段。" : "处理认领、排期与赛后资料，进入单场继续工作。"}
         actions={(
           <>
           <MatchResources seasonId={data.season.id} data={resources} />
@@ -63,9 +65,14 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         )}
       />
 
-      <AdminPostMatchTasks rows={postMatchTasks} seasonSlug={seasonSlug} stage={filters.stage} team={filters.team} stageNames={Object.fromEntries(data.stagePlan.map(s => [s.key, s.name]))} />
-      <AdminMatchOperations rows={operations} seasonSlug={seasonSlug} stage={filters.stage} team={filters.team} stageNames={Object.fromEntries(data.stagePlan.map(s => [s.key, s.name]))} />
-      <MatchCommentaryQueue data={commentary} seasonSlug={seasonSlug} />
+      <nav aria-label="比赛工作视图" className="flex flex-wrap gap-2 border-b border-[var(--color-border)] pb-3">
+        {[["", "比赛执行"], ["schedule", "赛程与阶段"]].map(([view, label]) => {
+          const query = new URLSearchParams();
+          if (view) query.set("view", view);
+          for (const key of ["stage", "status", "team"] as const) if (filters[key]) query.set(key, filters[key]);
+          return <Link key={label} href={`/admin/${seasonSlug}/matches?${query}`} aria-current={scheduling === Boolean(view) ? "page" : undefined} className={`rounded-sm px-4 py-2 text-sm ${scheduling === Boolean(view) ? "bg-[var(--color-accent)] font-semibold text-[var(--color-accent-fg)]" : "bg-[var(--color-panel)]"}`}>{label}</Link>;
+        })}
+      </nav>
       {matchCount > 0 && (
         <AdminMatchFilter
           stages={[
@@ -76,8 +83,16 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         />
       )}
 
+      {!scheduling && <>
+      <MatchCommentaryQueue data={commentary} seasonSlug={seasonSlug} />
+      <AdminPostMatchTasks rows={postMatchTasks} seasonSlug={seasonSlug} stage={filters.stage} team={filters.team} stageNames={Object.fromEntries(data.stagePlan.map(s => [s.key, s.name]))} />
+      <AdminMatchOperations rows={operations} seasonSlug={seasonSlug} stage={filters.stage} team={filters.team} stageNames={Object.fromEntries(data.stagePlan.map(s => [s.key, s.name]))} />
+
+      </>}
+
       {unconfiguredMatchNotice(data.unconfiguredMatches)}
 
+      {scheduling && <>
       {data.season.status !== "playing" && matchCount === 0 && (
         <Panel contentClassName="p-4" className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">
@@ -107,6 +122,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       {data.swissRuntime && <MajorSwissRuntimeManagement data={data.swissRuntime} />}
       {data.playoffRuntime && <MajorPlayoffRuntimeManagement data={data.playoffRuntime} />}
 
+      </>}
+
       {data.commentaryEffectiveness.length > 0 && (
         <details className="rounded border border-[var(--color-border)] px-4 py-3">
           <summary className="cursor-pointer text-sm font-medium">解说有效场次统计</summary>
@@ -135,7 +152,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       )}
 
       {(matchCount > 0 || data.qualificationRun) && data.defaultStageKey && (
-        <Tabs defaultValue={data.defaultStageKey}>
+        <AdminMatchStageTabs value={data.defaultStageKey}>
           <TabsList className="h-auto min-h-10 max-w-full justify-start overflow-x-auto overflow-y-hidden">
             {data.stageViews.map(({ stage }) => (
               <TabsTrigger key={stage.key} value={stage.key}>{stage.name}</TabsTrigger>
@@ -147,7 +164,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
             const isPlayoff = stage.type === "double_elim" || stage.type === "single_elim";
             return (
               <TabsContent key={stage.key} value={stage.key} className="mt-4 space-y-6">
-                {standings.length > 0 && (
+                {scheduling && standings.length > 0 && (
                   <Section className="space-y-2">
                     <h2 className="text-base font-semibold text-[var(--color-fg)]">积分榜</h2>
                     <Panel contentClassName="p-0" className="overflow-hidden">
@@ -175,6 +192,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                           teamBName={teamNameById.get(match.entryBId) ?? (isPlayoff ? "待定" : "未知队伍")}
                           seasonSlug={seasonSlug}
                           stageName={stage.name}
+                          returnTo={`/admin/${seasonSlug}/matches?${new URLSearchParams({ ...Object.fromEntries(Object.entries(filters).filter(([, value]) => typeof value === "string")), stage: stage.key })}#match-${match.id}`}
                           commentary={commentary.byMatchId[match.id]}
                         />
                       ))}
@@ -184,10 +202,10 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
               </TabsContent>
             );
           })}
-        </Tabs>
+        </AdminMatchStageTabs>
       )}
 
-      {!data.canGenerate && matchCount === 0 && (
+      {matchCount === 0 && (
         <Panel contentClassName="p-8 text-center text-[var(--color-fg-mid)]">暂无比赛记录</Panel>
       )}
     </div>

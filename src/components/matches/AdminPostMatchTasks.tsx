@@ -1,5 +1,5 @@
 import React from "react";
-import Link from "next/link";
+import { MatchWorkbenchLink as Link } from "./MatchWorkbenchLink";
 import { Panel } from "@/components/rivalhub";
 import { presentMatchStage } from "@/lib/matches/presentation";
 import type { AdminPostMatchTaskRow } from "@/lib/admin/matches/postmatch-tasks";

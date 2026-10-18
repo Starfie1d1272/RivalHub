@@ -57,7 +57,7 @@ export function selectSeasonWorkspaceNextAction(
     };
   }
 
-  if (season.status === "playing" || summary.matchCount > 0) {
+  if (season.status === "playing") {
     if (summary.scheduledMatchesWithoutConfirmedLineups > 0 || summary.matchCount > 0) {
       return {
         label: "查看比赛工作区",
@@ -67,7 +67,7 @@ export function selectSeasonWorkspaceNextAction(
         href: `/admin/${season.slug}/matches`,
       };
     }
-    return { label: "处理赛前检查", detail: "赛事已进入进行阶段，但尚未形成比赛工作项。", href: `/admin/${season.slug}/prestart` };
+    return { label: "编排赛事赛程", detail: "赛事已开赛，可生成赛程并推进当前阶段。", href: `/admin/${season.slug}/matches?view=schedule` };
   }
 
   if (season.status === "registration") {

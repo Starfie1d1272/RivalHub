@@ -19,7 +19,6 @@ export function AdminExceptionSummary({ seasonSlug, data }: { seasonSlug: string
     ...(data.competitionTemplate === "major" ? [
       { label: "最终结果待确认", value: data.finalResultPendingConfirmation ? 1 : 0, href: `/admin/${seasonSlug}/post-event` },
     ] : []),
-    { label: "生效中的赛后裁定", value: data.activeAdjudications, href: `/admin/${seasonSlug}/post-event` },
   ].filter((item) => item.value > 0);
 
   return (

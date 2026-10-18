@@ -18,9 +18,9 @@ type Row = AnnouncementAdminRow;
 const FILTER_DEFAULTS = { status: "all", scope: "all" } as const;
 const SELECT_CLASS_NAME = "h-9 w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]";
 
-export function AnnouncementManager({ rows }: { rows: Row[]; seasons: SeasonOption[]; canManageSite: boolean }) {
+export function AnnouncementManager({ rows, routeBase = "/admin/operations/announcements", seasonScoped = false }: { rows: Row[]; seasons: SeasonOption[]; canManageSite: boolean; routeBase?: string; seasonScoped?: boolean }) {
   const [pending, startTransition] = useTransition();
-  const { searchParams, update } = useListQueryParams({ routeBase: "/admin/operations/announcements", defaults: FILTER_DEFAULTS });
+  const { searchParams, update } = useListQueryParams({ routeBase, defaults: FILTER_DEFAULTS });
   const currentStatus = isAnnouncementStatus(searchParams.get("status")) ? searchParams.get("status")! : "all";
   const currentScope = isAnnouncementScope(searchParams.get("scope")) ? searchParams.get("scope")! : "all";
 
@@ -39,7 +39,7 @@ export function AnnouncementManager({ rows }: { rows: Row[]; seasons: SeasonOpti
     <>
       <div className="flex flex-wrap justify-end gap-2">
         <Button asChild>
-          <Link href="/admin/operations/announcements/new">新建公告</Link>
+          <Link href={`${routeBase}/new` as never}>新建公告</Link>
         </Button>
       </div>
 
@@ -52,6 +52,7 @@ export function AnnouncementManager({ rows }: { rows: Row[]; seasons: SeasonOpti
             <option value="published">已发布</option>
           </select>
         </label>
+        {!seasonScoped && <>
         <label className="min-w-0 w-full sm:w-40">
           <span className="mb-1.5 block text-xs text-[var(--color-fg-mid)]">范围</span>
           <select aria-label="公告范围" value={currentScope} onChange={(event) => update({ scope: event.target.value })} className={SELECT_CLASS_NAME}>
@@ -60,6 +61,7 @@ export function AnnouncementManager({ rows }: { rows: Row[]; seasons: SeasonOpti
             <option value="season">赛事</option>
           </select>
         </label>
+        </>}
         <ClearFilters defaults={FILTER_DEFAULTS} searchParams={searchParams} onClear={(updates) => update(updates)} />
       </ListToolbar>
 
@@ -86,7 +88,7 @@ export function AnnouncementManager({ rows }: { rows: Row[]; seasons: SeasonOpti
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
                   <Button size="sm" variant="outline" asChild>
-                    <Link href={`/admin/operations/announcements/${row.id}`}>编辑</Link>
+                    <Link href={`${routeBase}/${row.id}` as never}>编辑</Link>
                   </Button>
                   <Button
                     size="sm"

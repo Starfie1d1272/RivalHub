@@ -7,7 +7,7 @@ import { seasons } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
-import { SeasonSubNav } from "@/components/admin/SeasonSubNav";
+import Link from "next/link";
 import { PageLayout } from "@/components/rivalhub";
 
 export default function AdminSeasonLayout(props: {
@@ -29,6 +29,7 @@ async function AdminSeasonContent({
     where: eq(seasons.slug, seasonSlug),
     columns: {
       id: true,
+      name: true,
       competitionTemplate: true,
       registrationMode: true,
       hasCaptainVoting: true,
@@ -43,21 +44,12 @@ async function AdminSeasonContent({
   const admin = await resolveAdminPageAccess(() => requireSeasonAdmin(season.id));
   if (!admin) return <AdminAccessDenied />;
 
-  const hasMatches = season.stagePlan.length > 0;
-  const isSuperAdmin = admin.role === "super_admin";
-
   return (
     <PageLayout as="div" variant="workbench" className="space-y-6">
-      <SeasonSubNav
-        seasonSlug={seasonSlug}
-        registrationMode={season.registrationMode}
-        hasCaptainVoting={season.hasCaptainVoting}
-        hasDraft={season.hasDraft}
-        hasCommunityAwards={season.hasCommunityAwards}
-        hasMatches={hasMatches}
-        showSettings={isSuperAdmin}
-        hasBet={season.competitionTemplate === "major"}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] pb-3 text-sm">
+        <Link href={`/admin/${seasonSlug}`} className="font-semibold">{season.name}</Link>
+        <Link href={`/${seasonSlug}`} className="text-[var(--color-fg-mid)]">查看公开赛事 ↗</Link>
+      </div>
       <TelemetryScene prefix={`/admin/${seasonSlug}`} scene={season.competitionTemplate} eventId={season.id} />
       {children}
     </PageLayout>

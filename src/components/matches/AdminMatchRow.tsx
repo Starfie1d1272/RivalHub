@@ -16,6 +16,7 @@ export interface AdminMatchRowProps {
   teamBName: string;
   seasonSlug: string;
   stageName?: string | null;
+  returnTo?: string;
   commentary?: AdminMatchCommentaryAssignment;
 }
 
@@ -30,9 +31,10 @@ export function AdminMatchRow({
   seasonSlug,
   stageName,
   commentary,
+  returnTo,
 }: AdminMatchRowProps) {
   return (
-    <Panel
+    <div id={`match-${match.id}`} className="scroll-mt-4"><Panel
       contentClassName="p-4"
       className={cn(
         "space-y-3",
@@ -85,7 +87,7 @@ export function AdminMatchRow({
         </p>
         <div className="flex items-center gap-3">
           <Link
-            href={`/admin/${seasonSlug}/matches/${match.id}`}
+            href={`/admin/${seasonSlug}/matches/${match.id}${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`}
             className="text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
           >
             进入比赛工作台 →
@@ -100,6 +102,6 @@ export function AdminMatchRow({
           </Link>
         </div>
       </div>
-    </Panel>
+    </Panel></div>
   );
 }

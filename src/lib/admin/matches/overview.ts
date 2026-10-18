@@ -277,8 +277,8 @@ export async function loadAdminMatchOverview({
       format: qualificationRun.format,
       playInEntryCount: qualificationRun.playInEntryCount,
     } : null,
-    defaultStageKey: filterStage === "play-in" && qualificationRun
-      ? "play-in"
+    defaultStageKey: filterStage && stageViews.some(({ stage }) => stage.key === filterStage)
+      ? filterStage
       : isMajor
         ? stageRunRows.filter((run) => run.startedAt).sort((a, b) => b.startedAt!.getTime() - a.startedAt!.getTime())[0]?.stageKey
           ?? (qualificationRun ? "play-in" : stagePlan[0]?.key ?? null)

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import Link from "next/link";
+import { MatchWorkbenchLink as Link } from "./MatchWorkbenchLink";
 import { toast } from "sonner";
 import { AdminPlayerContact } from "@/components/admin/AdminPlayerContact";
 import { Panel } from "@/components/rivalhub";

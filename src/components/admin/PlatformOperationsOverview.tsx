@@ -43,7 +43,7 @@ function GrowthDay({ day }: { day: PlatformOperationsGrowthDay }) {
   );
 }
 
-export function PlatformOperationsOverview({ data }: { data: PlatformOperationsOverviewData }) {
+export function PlatformOperationsOverview({ data, canManageUsers = false }: { data: PlatformOperationsOverviewData; canManageUsers?: boolean }) {
   const { population, playerPool, teams, growth } = data;
   const maxBucketCount = Math.max(1, ...teams.sizeDistribution.map((bucket) => bucket.count));
 
@@ -66,9 +66,9 @@ export function PlatformOperationsOverview({ data }: { data: PlatformOperationsO
 
       <Panel label="玩家池结构" contentClassName="p-5">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <PoolMetric label="当前在队伍" value={playerPool.currentTeamUsers} href="/admin/users?tab=users&team=in_team" />
-          <PoolMetric label="认证且当前无队伍" value={playerPool.certifiedWithoutTeam} href="/admin/users?tab=users&education=approved&team=none" />
-          <PoolMetric label="当前在队但未认证" value={playerPool.teamWithoutCertification} href="/admin/users?tab=users&education=unverified&team=in_team" />
+          <PoolMetric label="当前在队伍" value={playerPool.currentTeamUsers} href={canManageUsers ? "/admin/users?tab=users&team=in_team" : undefined} />
+          <PoolMetric label="认证且当前无队伍" value={playerPool.certifiedWithoutTeam} href={canManageUsers ? "/admin/users?tab=users&education=approved&team=none" : undefined} />
+          <PoolMetric label="当前在队但未认证" value={playerPool.teamWithoutCertification} href={canManageUsers ? "/admin/users?tab=users&education=unverified&team=in_team" : undefined} />
           <PoolMetric label="选手找队" value={playerPool.publicPlayerLft} />
           <PoolMetric label="队伍招募" value={playerPool.publicTeamRecruiting} />
         </div>
