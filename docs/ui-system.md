@@ -232,6 +232,7 @@ shared layer **不拥有** allowed query、validation、SQL `WHERE/ORDER BY`、q
 - 使用既有 labeled controls；字段级 validation 靠近字段，服务端错误保留给用户。
 - pending/success/failure 状态明确，避免重复 mutation。
 - 长期 profile、赛事报名和单场 roster 等不同事实不混成同一表单。
+- 已通过的队伍报名默认展示当前本届只读名单，将主力／替补和确认状态合并到成员行；不展示禁用的编辑复选框或未入选候选队员。当前资料检查可展开查看，并明确其不改变已通过结果；可用的名单变更及负责人交接入口继续保留。名单调整提示区分时间截止、赛事阶段限制和名单锁定。
 - 文件上传客户端提示、服务端再次验证；敏感材料只呈现任务最小信息。教育认证 fallback 是学信网材料不可得时的新生兜底，使用 canonical 高校 selector、单张非空 JPG/PNG/WebP 图片（最大 5 MiB），界面必须直接说明必要页面、遮挡身份证号/考生号/条形码或二维码、审核完成七天后自动删除且不会公开展示；不得让用户理解或操作 Storage key、signed URL 或内部 evidence enum。
 - qualification、seed、lineup、start 等关键判断展示最新服务端事实，不让乐观 UI 成为最终结论。
 

@@ -18,6 +18,7 @@ import {
 } from "@/db/schema";
 import {
   selectCompetitionEntryParticipantContext,
+  currentRosterParticipantStatus,
   type CompetitionEntrySelectionEntry,
 } from "@/lib/competition-entries/participant-context";
 import {
@@ -144,7 +145,7 @@ export const loadMyCompetitionSources = cache(async (userId: string): Promise<My
       entryUpdatedAt: competitionEntries.updatedAt,
       registrationStatus: competitionEntries.registrationStatus,
       revisionOrigin: competitionEntryRosterRevisions.origin,
-      participantStatus: competitionEntryParticipants.status,
+      participantStatus: currentRosterParticipantStatus(),
       representativeUserId: competitionEntries.representativeUserId,
       teamRegistrationConfig: seasons.teamRegistrationConfig,
       activeClaimEntryId: competitionEntryActiveClaims.entryId,
@@ -187,7 +188,7 @@ export const loadTeamCompetitionSources = cache(async (teamId: string, userId: s
       entryUpdatedAt: competitionEntries.updatedAt,
       registrationStatus: competitionEntries.registrationStatus,
       revisionOrigin: competitionEntryRosterRevisions.origin,
-      participantStatus: competitionEntryParticipants.status,
+      participantStatus: currentRosterParticipantStatus(),
       representativeUserId: competitionEntries.representativeUserId,
       teamRegistrationConfig: seasons.teamRegistrationConfig,
     })
