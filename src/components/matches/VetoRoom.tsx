@@ -292,6 +292,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                     <h2 className="font-semibold"><TeamProfileLink seasonSlug={room.seasonSlug} entryId={entry.id}>{entry.name}</TeamProfileLink></h2>
                     <span className="text-xs text-[var(--color-fg-mid)]">{entry.rosterStatusLabel}</span>
                   </div>
+                  <p className={`mt-2 text-xs ${entry.startRequested ? "text-[var(--color-ok)]" : "text-[var(--color-fg-mid)]"}`}>{entry.startRequested ? "已就绪" : "等待确认"}</p>
                   {entry.lineupBlocker && <p className="mt-2 text-xs text-[var(--color-warn)]">{entry.lineupBlocker}</p>}
                   <p className="mt-2 text-sm text-[var(--color-fg-mid)]">BP 负责人：{entry.vetoRepresentativeUserId ? <PlayerProfileLink userId={entry.vetoRepresentativeUserId}>{entry.vetoRepresentativeName}</PlayerProfileLink> : "尚未指定"}</p>
                   <details className="mt-2 text-xs text-[var(--color-fg-dim)]"><summary className="cursor-pointer">查看本场首发（{entry.starters.length} 人）</summary><p className="mt-2">{entry.starters.length ? entry.starters.map((starter, index) => <React.Fragment key={starter.id}>{index > 0 ? "、" : null}<PlayerProfileLink userId={starter.userId}>{starter.name}</PlayerProfileLink></React.Fragment>) : "待提交"}</p></details>
@@ -337,7 +338,6 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
               {matchCountdown && <p>{matchCountdown === "00:00" ? "BP 已开放" : `距离 BP 开放 ${matchCountdown}`}</p>}
               <p>确认截止时间：{timeLabel(turn.effectiveForceAt)}</p>
               {turn.previousMatchBlocker && <p className="text-[var(--color-warn)]">等待上一场比赛结束后开始 BP。</p>}
-              <p>{room.entries.map((entry, index) => <React.Fragment key={entry.id}>{index > 0 ? "；" : null}<TeamProfileLink seasonSlug={room.seasonSlug} entryId={entry.id}>{entry.name}</TeamProfileLink>：{entry.startRequested ? "已就绪" : "等待确认"}</React.Fragment>)}</p>
             </div>
           </div>
         </Panel>
