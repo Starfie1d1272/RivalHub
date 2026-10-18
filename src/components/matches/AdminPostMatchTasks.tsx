@@ -9,7 +9,7 @@ export function AdminPostMatchTasks({ rows, seasonSlug, stage, team, stageNames 
 }) {
   const scoped = rows.filter(row => (!stage || stage === "all" || row.stage === stage) &&
     (!team || team === "all" || [row.entryAId, row.entryBId].includes(team)));
-  if (scoped.length === 0) return null;
+  if (scoped.length === 0) return <Panel><p className="text-sm text-[var(--color-fg-mid)]">当前范围没有待补齐的赛后资料。</p></Panel>;
   const mine = scoped.filter(row => row.isMine);
   const others = scoped.filter(row => !row.isMine);
   const list = (items: AdminPostMatchTaskRow[]) => <ul className="divide-y divide-[var(--color-border)]">

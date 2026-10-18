@@ -82,6 +82,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
             ...data.stagePlan.map((stage) => ({ key: stage.key, name: stage.name })),
           ]}
           teams={data.teams}
+          showStatus={!materials}
         />
       )}
 
@@ -94,7 +95,6 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 
       {materials && <>
       <AdminPostMatchTasks rows={postMatchTasks} seasonSlug={seasonSlug} stage={filters.stage} team={filters.team} stageNames={Object.fromEntries(data.stagePlan.map(s => [s.key, s.name]))} />
-        {postMatchTasks.length === 0 && <Panel><p className="text-sm text-[var(--color-fg-mid)]">当前没有待补齐的赛后资料。</p></Panel>}
       </>}
 
       {unconfiguredMatchNotice(data.unconfiguredMatches)}

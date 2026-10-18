@@ -22,6 +22,7 @@ interface TeamOption {
 interface AdminMatchFilterProps {
   stages: StageOption[];
   teams?: TeamOption[];
+  showStatus?: boolean;
 }
 
 const STATUS_OPTIONS = [
@@ -32,7 +33,7 @@ const STATUS_OPTIONS = [
   { value: "cancelled", label: "已取消" },
 ];
 
-export function AdminMatchFilter({ stages, teams }: AdminMatchFilterProps) {
+export function AdminMatchFilter({ stages, teams, showStatus = true }: AdminMatchFilterProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -65,7 +66,7 @@ export function AdminMatchFilter({ stages, teams }: AdminMatchFilterProps) {
         </SelectContent>
       </Select>
 
-      <Select value={currentStatus} onValueChange={(v) => updateFilter("status", v)}>
+      {showStatus && <Select value={currentStatus} onValueChange={(v) => updateFilter("status", v)}>
         <SelectTrigger className="w-[140px]">
           <SelectValue placeholder="状态筛选" />
         </SelectTrigger>
@@ -74,7 +75,7 @@ export function AdminMatchFilter({ stages, teams }: AdminMatchFilterProps) {
             <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
           ))}
         </SelectContent>
-      </Select>
+      </Select>}
 
       {teams && teams.length > 0 && (
         <Select value={currentTeam} onValueChange={(v) => updateFilter("team", v)}>
