@@ -21,8 +21,8 @@ export function TeamMapProfile({ maps, samples }: { maps: Pick<TournamentTeamDet
         const sample = metric === "win" ? row.results?.played ?? 0 : samples[metric];
         const rate = sample > 0 ? Math.round(count / sample * 100) : null;
         const thumbnail = mapThumbnail(row.mapName);
-        return <div key={row.mapName} className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3 py-2.5 sm:grid-cols-[8rem_minmax(0,1fr)]">
-          <div className="flex h-12 items-center rounded-sm bg-[var(--color-panel)] bg-cover bg-center px-2 text-sm font-semibold" style={thumbnail ? { backgroundImage: `linear-gradient(90deg, #090c10dd, #090c1055), url("${thumbnail}")` } : undefined}>{mapLabel(row.mapName)}</div>
+        return <div key={row.mapName} className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3 py-2 sm:grid-cols-[8rem_minmax(0,1fr)]">
+          <div className="flex h-10 items-center rounded-sm bg-[var(--color-panel)] bg-cover bg-center px-2 text-sm font-semibold" style={thumbnail ? { backgroundImage: `linear-gradient(90deg, #090c10dd, #090c1055), url("${thumbnail}")` } : undefined}>{mapLabel(row.mapName)}</div>
           <div className="min-w-0 space-y-1.5">
             <div className="flex flex-wrap items-baseline justify-between gap-x-2 text-xs text-[var(--color-fg-mid)]"><span className="text-sm font-semibold tabular-nums text-[var(--color-fg)]">{rate === null ? "—" : `${rate}%`}</span><span>{metric === "win" ? `${count} 胜 ${row.results?.losses ?? 0} 负 · ${sample} 图` : `${count} 次 / ${sample} 场 BP`}</span></div>
             <div className="h-1.5 overflow-hidden bg-[var(--color-border)]" aria-hidden="true"><div className="h-full bg-[var(--color-accent)]" style={{ width: `${Math.min(100, rate ?? 0)}%` }} /></div>

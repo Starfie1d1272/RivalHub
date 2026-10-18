@@ -2,8 +2,9 @@ import { expect, test } from "../fixtures";
 
 test.use({ scenarioProfile: "major-entry" });
 
-test("公开赛事队伍与选手查询保留 URL 状态及移动布局", async ({ page, scenario }) => {
+test("参赛阵容与报名名单查询保留 URL 状态及移动布局", async ({ page, scenario }) => {
   await page.goto(`/${scenario.slug}/teams`);
+  await expect(page.getByRole("heading", { name: "参赛阵容", exact: true })).toBeVisible();
   await expect(page.getByLabel("搜索队伍或选手")).toBeVisible();
   const teamSearch = page.getByLabel("搜索队伍或选手");
   await teamSearch.fill("unmatched-public-query");
@@ -14,7 +15,7 @@ test("公开赛事队伍与选手查询保留 URL 状态及移动布局", async 
   await expect(page.getByLabel("搜索队伍或选手")).toHaveValue("");
 
   await page.goto(`/${scenario.slug}/players`);
-  await expect(page.getByRole("heading", { name: "选手", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "报名名单", exact: true })).toBeVisible();
   await expect(page.getByLabel("所属队伍")).toBeVisible();
   const playerSearch = page.getByLabel("搜索选手");
   await playerSearch.fill("unmatched-player");

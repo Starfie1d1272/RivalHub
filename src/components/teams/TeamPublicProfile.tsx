@@ -74,11 +74,12 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
   return (
     <div className="min-w-0 space-y-6">
       <div className="overflow-hidden border border-[var(--color-border)] bg-[var(--color-panel)]">
-        <div className="p-5 sm:p-6">
+        <div className={event ? "p-4" : "p-5 sm:p-6"}>
           <PageHeader
+            className={event ? "border-0 pb-0" : undefined}
             title={(
               <span className="flex min-w-0 items-center gap-4">
-                <TeamLogo logoUrl={identity.logoUrl} teamName={identity.name} size="lg" />
+                <TeamLogo logoUrl={identity.logoUrl} teamName={identity.name} size="lg" className={event ? "h-14 w-14" : undefined} />
                 <span className="min-w-0 break-words">{identity.name}</span>
               </span>
             )}
@@ -126,7 +127,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
           <div className="border-y border-[var(--color-border)] px-1">
             <div className="grid grid-cols-2 gap-x-4 sm:grid-cols-3 lg:grid-cols-5">
               {event.roster.length > 0 ? event.roster.toSorted((a, b) => Number(b.isStarter) - Number(a.isStarter)).map((member) => (
-                <div key={member.userId} className="flex min-w-0 flex-col items-start gap-1 py-3">
+                <div key={member.userId} className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 py-2">
                   <div className="flex min-w-0 items-center gap-2">
                     <PlayerAvatar name={member.name} avatarUrl={member.avatarUrl} size="sm" />
                     <PlayerProfileLink userId={member.userId} className="min-w-0 break-words font-medium hover:text-[var(--color-accent)]">{member.name}</PlayerProfileLink>
