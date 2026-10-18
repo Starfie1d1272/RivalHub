@@ -1,4 +1,4 @@
-import { getStandardMajorDefinition } from "@/lib/major/standard";
+import { capabilitiesFromSeason, checkStandardMajorCapabilities } from "@/lib/competition/definition";
 import { deriveMajorPrestartPhase, MAJOR_PRESTART_PHASES } from "./prestart-phase";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
@@ -173,11 +173,12 @@ export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<S
     endAt: season.endAt,
   } satisfies SeasonWorkspaceOverviewData["season"];
 
-  const prestartPhase = majorFacts ? deriveMajorPrestartPhase({
+  const majorDefinition = majorFacts ? checkStandardMajorCapabilities(capabilitiesFromSeason(season)) : null;
+  const prestartPhase = majorFacts && majorDefinition?.isStandardMajor ? deriveMajorPrestartPhase({
       registrationClosed: Boolean(season.registrationClosesAt && season.registrationClosesAt.getTime() <= Date.now()),
       approvedCandidateCount: summary.approvedEntries,
       pendingReviewCount: summary.pendingApplications,
-      entrantCapacity: getStandardMajorDefinition(season).entrantCapacity,
+      entrantCapacity: majorDefinition.entrantCapacity,
       entrantCount: summary.entrantCount,
       qualificationConfigured: Boolean(majorFacts.qualification),
       qualificationCompleted: Boolean(majorFacts.qualification?.completedAt),
