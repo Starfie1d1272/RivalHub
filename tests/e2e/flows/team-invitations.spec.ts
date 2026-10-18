@@ -28,7 +28,7 @@ test("未入队用户可以从 /my 和 /teams 发现并处理 direct invitation"
     // First visit follows creation: the earlier pre-invitation /my/teams load
     // proved nothing and repeated layout/hydration before the actual journey.
     await signInProgrammatically(inviteePage, invitee, scenario, "/my");
-    await expect(inviteePage.getByText(/你有 \d+ 个待处理的队伍邀请/).first()).toBeVisible();
+    await expect(inviteePage.getByText(/\d+ 个队伍邀请待处理/).first()).toBeVisible();
     await expect(inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true }).first()).toHaveAttribute("href", "/my/teams");
 
     await inviteePage.getByRole("banner").getByRole("link", { name: "队伍", exact: true }).click();

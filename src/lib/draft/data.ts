@@ -62,11 +62,11 @@ export interface CaptainDraftPlayer extends PublicDraftPlayer {
   registrationId: string;
   /** Tie-break input for the operator-only automatic-pick preview. */
   createdAt: string;
-  /** Displayed by the captain-only PlayerInfoPopover. */
+  /** Available to the captain workspace. */
   gameplayStyle: string | null;
-  /** Displayed by the captain-only PlayerInfoPopover. */
+  /** Available to the captain workspace. */
   notes: string | null;
-  /** Displayed by the captain-only PlayerInfoPopover. */
+  /** Available to the captain workspace. */
   competitionHistory: string | null;
 }
 
