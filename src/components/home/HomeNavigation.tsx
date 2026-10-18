@@ -19,7 +19,7 @@ export function HomeNavigation({ tier1Entry, tier2Entries, tier3Entries }: HomeN
       {featured.length > 0 && (
         <div className={`grid gap-x-8 sm:grid-cols-2 ${featured.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
           {featured.map((entry) => (
-            <Link key={entry.key} href={entry.href as never} className="group flex min-h-28 min-w-0 items-center justify-between gap-4 border-t border-[var(--color-border)] py-5">
+            <Link key={entry.key} href={entry.href as never} className="group flex min-w-0 items-center justify-between gap-4 border-t border-[var(--color-border)] py-4">
               <div className="min-w-0">
                 <p className="mb-2 font-mono text-[11px] tracking-widest text-[var(--color-fg-dim)]">{entry.mono}</p>
                 <h3 className="text-xl font-semibold transition-colors group-hover:text-[var(--color-accent)]">{entry.label}</h3>

@@ -197,11 +197,6 @@
     radial-gradient(ellipse at 88% 30%, var(--color-accent-soft), transparent 55%),
     radial-gradient(ellipse at 60% 100%, var(--color-accent-b-soft), transparent 65%);
 }
-.home-event-art {
-  opacity: .82;
-  transform: rotate(-8deg) scale(1.04);
-  mask-image: linear-gradient(90deg, transparent, #000 28%);
-}
 .home-event-hero::after {
   content: "";
   position: absolute;
@@ -210,7 +205,4 @@
   background-image: var(--background-image-grid-hairline);
   background-size: 48px 48px;
   opacity: .2;
-}
-@media (max-width: 767px) {
-  .home-event-art { width: 80%; opacity: .14; right: -28%; }
 }

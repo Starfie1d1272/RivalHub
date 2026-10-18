@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import type { PublicSeason } from "@/lib/data/public-seasons";
@@ -26,33 +25,27 @@ export function HomeHero({ season, eyebrow, primary, stageLabel, teamCount, play
 
   return (
     <section aria-labelledby="home-event-title" className="home-event-hero relative isolate overflow-hidden rounded-[var(--radius-display)] border border-[var(--color-border)] bg-[var(--color-panel)]">
-      <div aria-hidden="true" className="home-event-art pointer-events-none absolute inset-y-0 right-0 w-[46%]">
-        <Image
-          src="/brand/rivalhub/rivalhub-symbol-color-transparent-tight.png"
-          alt=""
-          fill
-          sizes="(min-width: 1440px) 640px, (min-width: 768px) 46vw, 75vw"
-          preload
-          className="object-contain p-8 lg:p-10"
-        />
-      </div>
-      <div className="relative z-10 grid min-h-[360px] content-between gap-8 p-6 sm:min-h-[400px] sm:p-9 lg:p-10">
-        <div className="max-w-[760px]">
-          <p className="mb-5 font-mono text-[11px] tracking-[0.2em] text-[var(--color-fg-mid)]">RIVALHUB <span className="mx-2 text-[var(--color-accent)]">/</span> CAMPUS COUNTER-STRIKE</p>
-          <p className="mb-3 flex items-center gap-2 text-sm font-medium text-[var(--color-fg-mid)]">
+      <div className="grid gap-6 p-6 sm:p-7">
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <p className="font-mono text-[11px] tracking-[0.2em] text-[var(--color-fg-mid)]">RIVALHUB <span className="mx-2 text-[var(--color-accent)]">/</span> CAMPUS COUNTER-STRIKE</p>
+          <p className="flex items-center gap-2 text-sm font-medium text-[var(--color-fg-mid)]">
             <span aria-hidden="true" className="size-1.5 rounded-full bg-[var(--color-accent)]" />{statusLabel}
           </p>
-          <h1 id="home-event-title" className="max-w-[18ch] text-balance text-[clamp(34px,4.7vw,70px)] font-bold leading-[1.08] tracking-tight text-[var(--color-fg)] [overflow-wrap:anywhere]">{season.name}</h1>
-          <div className="mt-7 flex flex-wrap items-center gap-3">
-            {primary && <Button size="lg" asChild><Link href={primary.href as never}>{primary.label} <span aria-hidden="true">↗</span></Link></Button>}
-            {primary?.href !== overviewHref && <Button size="lg" variant="outline" asChild><Link href={`/${season.slug}`}>赛事总览</Link></Button>}
-          </div>
         </div>
-        <dl className="flex flex-wrap items-end gap-x-8 gap-y-4 border-t border-[var(--color-border-hi)] pt-4 text-sm sm:gap-x-12">
-          {(season.registrationMode === "team" || teamCount > 0) && <div className="flex items-baseline gap-3"><dt className="text-xs text-[var(--color-fg-mid)]">{teamCountLabel}</dt><dd className="font-mono text-2xl font-semibold tabular-nums">{teamCount}</dd></div>}
-          <div className="flex items-baseline gap-3"><dt className="text-xs text-[var(--color-fg-mid)]">本届选手</dt><dd className="font-mono text-2xl font-semibold tabular-nums">{playerCount}</dd></div>
-          <div className="basis-full sm:basis-auto"><dt className="sr-only">参与方式</dt><dd className="text-xs text-[var(--color-fg-mid)]">{participation}</dd></div>
-        </dl>
+        <div className="grid items-end gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-10">
+          <div className="min-w-0">
+            <h1 id="home-event-title" className="max-w-[18ch] text-balance text-[clamp(34px,4.7vw,70px)] font-bold leading-[1.08] tracking-tight text-[var(--color-fg)] [overflow-wrap:anywhere]">{season.name}</h1>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              {primary && <Button size="lg" asChild><Link href={primary.href as never}>{primary.label} <span aria-hidden="true">↗</span></Link></Button>}
+              {primary?.href !== overviewHref && <Button size="lg" variant="outline" asChild><Link href={`/${season.slug}`}>赛事总览</Link></Button>}
+            </div>
+          </div>
+          <dl className="flex flex-wrap items-end gap-x-8 gap-y-4 border-t border-[var(--color-border-hi)] pt-4 text-sm lg:grid lg:grid-cols-2 lg:border-t-0 lg:border-l lg:pb-1 lg:pl-8 lg:pt-0">
+            {(season.registrationMode === "team" || teamCount > 0) && <div className="flex items-baseline gap-3"><dt className="text-xs text-[var(--color-fg-mid)]">{teamCountLabel}</dt><dd className="font-mono text-2xl font-semibold tabular-nums">{teamCount}</dd></div>}
+            <div className="flex items-baseline gap-3"><dt className="text-xs text-[var(--color-fg-mid)]">本届选手</dt><dd className="font-mono text-2xl font-semibold tabular-nums">{playerCount}</dd></div>
+            <div className="basis-full lg:col-span-2"><dt className="sr-only">参与方式</dt><dd className="text-xs text-[var(--color-fg-mid)]">{participation}</dd></div>
+          </dl>
+        </div>
       </div>
     </section>
   );
