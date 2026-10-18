@@ -104,7 +104,9 @@
     "scripts/dependencies/snapshot.ts!",
     "workers/telemetry/index.ts!",
     "scripts/telemetry/measure.mjs!",
-    "scripts/telemetry/query.ts!"
+    "scripts/telemetry/query.ts!",
+    "scripts/telemetry/prepare.ts!",
+    "scripts/telemetry/verify-live.ts!"
   ],
   "project": [
     "src/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!",
