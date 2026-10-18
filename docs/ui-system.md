@@ -124,9 +124,9 @@ Records 按 Performance / Clutch / Rounds 分组，以当前范围内完整有�
 
 存在赛事 context 时，队名、图标、名次/荣誉、赛事战绩、本届名单、正式地图表现与比赛链接展示本届事实；公开 Hero 不呈现报名审核、名单冻结等流程状态、解释文案或 seed。长期 Team 以简短入口承接当前成员、招募、赛事履历、名称/队长历史。没有长期 Team 的 event-native entry 复用同一 shell，省略长期 Team 入口。
 
-标准 Major 的公开队伍列表、赛事队伍详情、`/[seasonSlug]/players` 和赛事首页摘要共享一个 server-only public participant read model。审核期由页面级文案说明候选队伍；正式参赛队集合完整后切换集合说明，名单仍在调整时使用「当前参赛名单」，冻结后使用「最终参赛名单」。详情页在赛事结束后将名单标题收敛为「本届名单」。官方 seed fact 仍由 Major read model 提供给依赖 seeding 的赛事上下文；公开队伍目录和 Team profile 不以 seed 标识队伍。这些页面只接收显式 public DTO，不在页面内重算生命周期或把报名名单冒充赛事名单。
+标准 Major 的公开参赛阵容、赛事队伍详情和赛事首页摘要共享一个 server-only public participant read model。审核期由页面级文案说明候选队伍；正式参赛队集合完整后切换集合说明，名单仍在调整时使用「当前参赛名单」，冻结后使用「最终参赛名单」。详情页在赛事结束后将名单标题收敛为「本届名单」。官方 seed fact 仍由 Major read model 提供给依赖 seeding 的赛事上下文；公开队伍目录和 Team profile 不以 seed 标识队伍。这些页面只接收显式 public DTO，不在页面内重算生命周期或把报名名单冒充赛事名单。
 
-`TeamPublicProfile` 的本届名单只展示 Player identity 与首发/替补标记；区分当前、已审核或最终名单时使用 public read model 提供的自然标题，不渲染流程状态 pill，也不从长期资料或 `seasonRegistrations` 补写本届位置。Major 选手目录同样只展示本届队伍、首发/替补、Player link 和已有的本届已验证统计。`CompetitionEntry`、`EventRoster`、revision、snapshot 等实现术语不进入正常公开文案。
+`TeamPublicProfile` 的本届名单只展示 Player identity 与首发/替补标记；区分当前、已审核或最终名单时使用 public read model 提供的自然标题，不渲染流程状态 pill，也不从长期资料或 `seasonRegistrations` 补写本届位置。`CompetitionEntry`、`EventRoster`、revision、snapshot 等实现术语不进入正常公开文案。
 
 公开队伍 Profile 共用 `PageLayout wide` 与 `TeamPublicProfile` 的一套 section composition：**Hero → 当前赛事（长期页）→ 名单 → 招募（长期页有需求时）→ 地图画像 / 近期比赛 → Performance → 阵容地图参考（有内容时）→ Career / 队伍历史（长期页）**。`TeamRoster` 统一紧凑成员排列，赛事 context 提供本届首发/替补，长期资料提供当前成员、队长及非活跃成员状态；禁止从长期成员补写赛事名单。`TeamMapProfile` 共用胜率/Pick/Ban 图表，本届与生涯标题区分统计范围；`TeamMatches` 共用比赛排序、比分与链接展示，长期页由 public read model 注入各比赛所属赛事与己方视角。两种入口只在数据范围及专属模块上有差异，不维护两套布局。
 
@@ -173,7 +173,7 @@ Major Play-in 管理使用正赛规模、候选与直通/晋级数等紧凑统�
 
 ### Event participant directory and team profile
 
-赛事导航将队伍与选手统一为「参赛阵容」，按队伍展示首发和替补，统一搜索队名与选手名并突出匹配成员；名单不依赖正式统计资格。官方名次优先，无名次队伍保留形成顺序，不由胜率推算名次。Rivals 报名名单与候选人保留次级入口和原有位置筛选，旧选手 URL 继续可访问，导航归属参赛阵容。
+赛事导航将队伍与选手统一为「参赛阵容」，按队伍展示首发和替补，统一搜索队名与选手名并突出匹配成员；名单不依赖正式统计资格。官方名次优先，无名次队伍保留形成顺序，不由胜率推算名次。Major 不再提供独立选手列表，旧 `/[seasonSlug]/players` 地址转到本届参赛阵容并保留姓名搜索。Rivals 报名名单与候选人保留次级入口和原有位置筛选，导航归属参赛阵容。
 
 赛事队伍详情使用 wide 布局，先展示身份成绩与紧凑名单，再以宽屏两栏展示本届地图画像和近期比赛，窄屏纵向排列；其余比赛可展开，完整竞技统计保留在下方。地图画像按实际出场数排列，胜率附胜负与地图样本，Pick/Ban 附次数及拥有对应禁选动作的本队比赛样本；未出场但有禁选记录的地图仍可见，无样本显示破折号。队伍 Deciders 只统计该队参与的比赛，赛事汇总保持赛事范围。个人打法画像评分与整队聚合另行设计，不由此布局变更推导。
 

@@ -13,15 +13,17 @@ export function PlayerPerformanceFilters({
   userId,
   events,
   query,
+  fromStats,
 }: {
   userId: string;
   events: readonly (PlayerPerformanceEventOption & { id: string; name: string })[];
   query: PlayerPerformanceQuery;
+  fromStats?: string | null;
 }) {
   const router = useRouter();
   const maps = query.event ? events.find((event) => event.slug === query.event)?.maps ?? [] : [...new Set(events.flatMap((event) => event.maps))].sort();
   const navigate = (updates: Partial<PlayerPerformanceQuery>) => {
-    router.push(playerPerformanceHref(userId, query, updates, events) as Route, { scroll: false });
+    router.push(playerPerformanceHref(userId, query, updates, events, fromStats) as Route, { scroll: false });
   };
 
   return (

@@ -4,19 +4,17 @@ import { Suspense } from "react";
 import { ParticipantDirectoryToolbar } from "@/components/season/ParticipantDirectoryToolbar";
 import { parseParticipantDirectoryQuery, matchesDirectorySearch, supportsRegistrationPositionDirectory } from "@/lib/players/directory-query";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { eq, and, asc, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, eventRosterMembers, eventRosters, seasonRegistrations, steamProfiles, users } from "@/db/schema";
 import { PageHeader, PageLayout, Stat } from "@/components/rivalhub";
-import { MajorPlayerDirectoryRow } from "@/components/players/MajorPlayerDirectoryRow";
 import { EventPlayerDirectoryRow } from "@/components/players/EventPlayerDirectoryRow";
 import { PlayerDirectoryRow } from "@/components/players/PlayerDirectoryRow";
 import { countDirectoryPlayersWithTeam, sortPlayerDirectory } from "@/lib/players/directory-order";
 import { positionLabel, positionValues } from "@/lib/validators/registration";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
-import { getMajorPublicParticipantProjection } from "@/lib/major/public-participants";
 import { getPublicEventRosterPlayerProjection } from "@/lib/competition-entries/public-player-projection";
 import { getVerifiedPlayerStatsBySeason } from "@/lib/stats/public-query";
 import type { Metadata } from "next";
@@ -47,40 +45,8 @@ export async function PlayersPageContent({ params, searchParams }: PlayersPagePr
   if (!season) notFound();
 
   if (season.competitionTemplate === "major") {
-    const projection = await getMajorPublicParticipantProjection(season);
-    const teamOptions = [...new Map(projection.players.map((player) => [player.entryId, { id: player.entryId, name: player.entryName }])).values()];
-    const query = parseParticipantDirectoryQuery(rawQuery, teamOptions);
-    const visiblePlayers = projection.players.filter((player) => (!query.team || query.team === player.entryId) && matchesDirectorySearch(query.q, player.name));
-    const playersWithStats = projection.players.filter((player) => player.stats !== null).length;
-    const teamCount = projection.teamCount;
-
-    return (
-      <PageLayout as="div" variant="wide" className="space-y-6">
-        <PageHeader
-          title="报名名单"
-          eyebrow={season.name}
-          description={projection.presentation.playerDescription}
-        />
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-          <Stat label="选手" value={projection.players.length} />
-          <Stat label="所属队伍" value={teamCount} />
-          <Stat label="正式比赛数据" value={playersWithStats} accent />
-        </div>
-
-        <Link className="text-sm text-[var(--color-accent)]" href={`/${seasonSlug}/teams`}>← 参赛阵容</Link>
-        <ParticipantDirectoryToolbar query={query.q} team={query.team} teams={teamOptions} total={visiblePlayers.length} />
-        {visiblePlayers.length === 0 ? (
-          <div className="py-16 text-center text-[var(--color-fg-mid)]">暂无符合条件的选手</div>
-        ) : (
-          <div className="space-y-3">
-            {visiblePlayers.map((player) => (
-              <MajorPlayerDirectoryRow key={`${player.entryId}-${player.userId}`} player={player} seasonSlug={seasonSlug} />
-            ))}
-          </div>
-        )}
-      </PageLayout>
-    );
+    const { q } = parseParticipantDirectoryQuery(rawQuery);
+    redirect(q ? `/${seasonSlug}/teams?${new URLSearchParams({ q })}` : `/${seasonSlug}/teams`);
   }
 
   if (!supportsRegistrationPositionDirectory(season.competitionTemplate)) {

@@ -1,3 +1,5 @@
+import { safeStatsReturn } from "@/lib/stats/return-context";
+
 export interface PlayerPerformanceQuery {
   event: string;
   map: string;
@@ -24,6 +26,7 @@ export function playerPerformanceHref(
   current: PlayerPerformanceQuery,
   updates: Partial<PlayerPerformanceQuery>,
   events: readonly PlayerPerformanceEventOption[],
+  fromStats?: string | null,
 ) {
   const event = updates.event ?? current.event;
   const eventOption = event ? events.find((candidate) => candidate.slug === event) : undefined;
@@ -33,6 +36,8 @@ export function playerPerformanceHref(
   const params = new URLSearchParams();
   if (eventOption) params.set("event", eventOption.slug);
   if (map) params.set("map", map);
+  const returnHref = safeStatsReturn(fromStats);
+  if (returnHref) params.set("fromStats", returnHref);
   const query = params.toString();
   return `/players/${userId}${query ? `?${query}` : ""}`;
 }

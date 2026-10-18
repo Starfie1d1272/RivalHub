@@ -237,7 +237,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
               竞技表现 <span className="text-sm font-normal text-[var(--color-fg-mid)]">· {career.selectedEvent?.name ?? "All-time"}</span>
             </h2>
           </div>
-          <PlayerPerformanceFilters userId={userId} events={career.events} query={query} />
+          <PlayerPerformanceFilters userId={userId} events={career.events} query={query} fromStats={fromStats} />
         </div>
 
         {career.coverage.completedMaps > 0 && career.coverage.detailedMaps < career.coverage.completedMaps && (
