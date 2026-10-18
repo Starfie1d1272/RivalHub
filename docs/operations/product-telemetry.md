@@ -2,6 +2,8 @@
 
 Owner：`src/lib/telemetry/`；页面接入 `src/components/telemetry/`；独立接收端 `workers/telemetry/`。默认关闭，未配置真实接收地址/凭据/绑定。本设计不授权部署、合并、持续访问或实际删除。
 
+应用 release 成功只证明网站构建上线，不能代替接收端部署、环境配置及浏览器入库验收。部署准备工具不更改云资源；下面的云端写入、密钥配置与开流量步骤均须先获得对应授权。
+
 ## 与现有采集的关系
 
 Vercel Analytics/Speed Insights 继续负责既有匿名流量与性能；`src/lib/observability/` 的 OTel/Better Stack 继续负责服务端运行日志、脱敏异常和 requestId。产品遥测补足页面、筛选和显式业务操作基线，不把 runtime logs 复制到业务 PostgreSQL，也不增加点击级 Server Action、Vercel Function、Runtime Cache 写入或线上缓存策略。
@@ -67,7 +69,7 @@ Worker 验证 JSON 白名单后，用原生 `CompressionStream("gzip")` 压缩�
 
 **长期汇总默认关闭，保留天数尚未批准。** 仅设置 `RETENTION_APPROVED=1` 仍不会写日汇总；必须另外批准并配置 `SUMMARY_RETENTION_DAYS`（技术范围 1–90，缺省/0/非法值关闭新汇总）。90 天仅为讨论候选和技术上限，不是默认值或已批准政策。明确启用后，对关闭的 UTC 接收日汇总一次，维度仅日期、版本、环境、角色、场景、路由、动作/子类型/阶段/outcome，值仅次数、耗时总和。没有 account/session/operationId/eventId/requestId、自由文本或可回放路径。每行 expires 固定为该接收日结束时刻加批准天数，查询与删除都按 expires；修改配置或重跑不能延长已有行。关闭新汇总仍删除已到期汇总。rollup marker 保证重跑不双算；已汇总接收日拒绝迟到的在途写入，后续重试按新的接收日处理（仍受 15 分钟事件年龄限制）；usage/marker 最长八天，仅用于预算/进度。汇总没有独立用户数、留存曲线或个人轨迹，不能用于跨产品追踪。七天内未成功汇总可能损失基线，不能延长原始留存来补算。
 
-**恢复副本必须另行确认**：D1 Free 的 Time Travel 恢复窗口为七天。应用七天删除不能证明恢复历史立即物理擦除；被删行可能在随后恢复窗口中存在：正常清理约为事件后十四天再加调度延迟；清理故障还可能更久，十四天不是绝对上限。七天读端 cutoff、SQL DELETE 和 provider 存储介质/备份的物理擦除是不同边界；本实现不能证明所有副本在七天内物理消失。若要求“包括 provider 恢复副本在内绝对七天”，这个候选不能直接获批上线，需要先确认可关闭/缩短恢复历史的能力或更换存储方案。恢复时保持 ACCEPTING=0，先执行过期清理并核验所有查询 cutoff、预算进度，再经确认开流量；旧备份不应重新成为可读原始事件。遥测不进入 RivalHub PostgreSQL DR 备份，不额外导出 raw 或建长期账号映射表。
+**恢复副本必须另行确认**：[D1 Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/) 始终开启，Free 恢复窗口为七天，不能将其描述为已关闭的可选备份。应用七天删除不能证明恢复历史立即物理擦除；被删行可能在随后恢复窗口中存在：正常清理约为事件后十四天再加调度延迟；清理故障还可能更久，十四天不是绝对上限。七天读端 cutoff、SQL DELETE 和 provider 存储介质/备份的物理擦除是不同边界；本实现不能证明所有副本在七天内物理消失。若要求“包括 provider 恢复副本在内绝对七天”，这个候选不能直接获批上线，需要先确认可关闭/缩短恢复历史的能力或更换存储方案。恢复时保持 ACCEPTING=0，先执行过期清理并核验所有查询 cutoff、预算进度，再经确认开流量；旧备份不应重新成为可读原始事件。遥测不进入 RivalHub PostgreSQL DR 备份，不额外导出 raw 或建长期账号映射表。
 
 `RETENTION_APPROVED=0` 时既不接收也不运行持久清理；线上一旦启用后紧急停收只改 ACCEPTING，必须保留清理。不得在已存数据时取消维护而声称仍执行七天保留。
 
@@ -96,3 +98,80 @@ pnpm telemetry:query usage
 6. 对比新旧构建的实际 Next 路由资源 gzip/加载与 hydration，结合现有 Speed Insights 复核（core 独立 bundle 量测不等于全站增量）。测量真实 Worker CPU/请求数、D1 rows_read/rows_written、数据库 size（含索引/实际获批天数的汇总）、各共享免费额度。核对每批最多 50 个 D1 查询限制，本实现通常 7 个以内；保留失效/拒绝请求开销。超过预算保持停收，绝不加付费能力。
 7. 单独批准生产部署后才能启用 PRODUCT_TELEMETRY_ENABLED、ACCEPTING、RETENTION_APPROVED；汇总天数需另行批准；核查 build release 标签与实际签名版本。小范围比较代表性等长窗口，不拿本地量测承诺线上成本。
 8. 回滚先停 app 采集/Worker ACCEPTING；不更改业务 cache，不撤掉既有原始清理。密钥轮换会使旧票据失效；账号 key 轮换会改变 lookup，需要明确旧七天窗口处理，不能建立永久映射补连。
+
+## 可执行的独立接收端准备
+
+`pnpm exec tsx scripts/telemetry/prepare.ts inventory --account <approved-account-id>` 使用已有 `CLOUDFLARE_API_TOKEN` 只读列出 D1/Worker 的名称、ID 和 D1 大小；无 token 时明确失败，不登录、不创建资源、不把未查询到当作不存在。结果标记分页不完整，不能拿第一页证明目标不存在。另从 Cloudflare account dashboard 核实 Workers **Free**、当前 UTC 日请求量、D1 reads/writes 与总存储；记录核验时间和余量。若账户已是 Paid，则不得把其“免费包含量”当作免费硬停机方案直接部署，需另行选择 Free 账户或批准的免费隔离方案。
+
+建议资源名是 `rivalhub-product-telemetry-preview` 和 `rivalhub-product-telemetry-production`，每个名称对应各自一个 Worker 和一个空 D1。它们是待批准的新资源名，不能据此断言已存在。无需 R2、KV、Queue、Durable Object、域名购买、Zone 写权限或 Mizar 绑定。使用账户现有 workers.dev 子域提供 HTTPS；若账户尚无子域，建立该公开端点也是应批准的配置动作。
+
+获得目标资源创建许可及已有受控 provider 访问后，按以下顺序执行；不要在未批准环境运行写入命令。Wrangler 是固定版本的一次性 CLI，不改应用依赖或锁文件。
+
+```sh
+# 本节云端命令依赖已批准的 CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_API_TOKEN。
+# 先 inventory；目标同名资源存在时检查绑定、schema 和数据，不覆盖或重跑建表。
+pnpm exec tsx scripts/telemetry/prepare.ts inventory --account "$CLOUDFLARE_ACCOUNT_ID"
+pnpm dlx wrangler@4.151.1 d1 create rivalhub-product-telemetry-preview
+pnpm dlx wrangler@4.151.1 d1 create rivalhub-product-telemetry-production
+```
+
+记录各新库返回的实际 UUID，再分别生成配置（以下为 Production；Preview 要用自己的 UUID 和固定 Preview origin）：
+
+```sh
+pnpm exec tsx scripts/telemetry/prepare.ts config \
+  --account "$CLOUDFLARE_ACCOUNT_ID" --database "$RIVALHUB_TELEMETRY_D1_ID" \
+  --origin https://match.starfie1d.top --environment production \
+  --output .agent-tmp/telemetry/production.json
+pnpm dlx wrangler@4.151.1 d1 info rivalhub-product-telemetry-production \
+  --config .agent-tmp/telemetry/production.json
+pnpm dlx wrangler@4.151.1 d1 execute rivalhub-product-telemetry-production \
+  --config .agent-tmp/telemetry/production.json --remote \
+  --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'"
+```
+
+确认 `version: production`、账户/UUID 匹配，并且上面的用户表列表为空；否则停止初始化，先检查已有 schema，不能使用 DROP/清库绕过。只对已批准的新空库应用以下文件，并查证四表和五个显式索引均存在。Preview 同样独立执行。
+
+```sh
+pnpm dlx wrangler@4.151.1 d1 execute rivalhub-product-telemetry-production \
+  --config .agent-tmp/telemetry/production.json --remote --file workers/telemetry/schema.sql
+pnpm dlx wrangler@4.151.1 d1 execute rivalhub-product-telemetry-production \
+  --config .agent-tmp/telemetry/production.json --remote \
+  --command "SELECT type,name FROM sqlite_master WHERE type IN ('table','index') AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY type,name"
+pnpm dlx wrangler@4.151.1 deploy --dry-run \
+  --config .agent-tmp/telemetry/production.json --outdir .agent-tmp/telemetry/bundle
+```
+
+生成器只在忽略目录写新文件，不覆盖已有配置；main 使用绝对本地路径，避免 `.agent-tmp` 下相对路径错误。它明确启用 workers.dev、关闭 Preview URL/Workers 日志、设置小时 cron，并保持 `ACCEPTING=0`、`RETENTION_APPROVED=0`、`SUMMARY_RETENTION_DAYS=0`。`--dry-run` 只构建，不证明数据库存在、资源额度、cron 实际执行或线上 CPU 达标。
+
+### 凭据与网站配置的最小清单
+
+所有值经批准后在受控终端生成/注入，不出现在参数、PR、构建日志或聊天中；每个环境各自生成三份至少 32 字节随机密钥。Worker secret 文件使用忽略目录和 0600 权限，注入后安全删除；不能复用 Mizar、应用会话或其他服务的密钥。
+
+| 用途 | Worker | Vercel 项目对应环境 | 受控运维终端 |
+| --- | --- | --- | --- |
+| 接收票据验签 | secret `SIGNING_KEY` | Secret `PRODUCT_TELEMETRY_SIGNING_KEY`，与该 Worker 相同 | 不需要 |
+| RivalHub 账号 HMAC | 不需要 | Secret `PRODUCT_TELEMETRY_ACCOUNT_KEY` | 仅账号定位时使用同值 |
+| 查询授权 | secret `ADMIN_KEY` | 不设置 | `PRODUCT_TELEMETRY_ADMIN_KEY` |
+| 接收 URL | 路径 `/v1/batches` | Config `PRODUCT_TELEMETRY_ENDPOINT=https://<worker>.<subdomain>.workers.dev/v1/batches` | 同 URL |
+| 允许的网站 | `ALLOWED_ORIGIN` | Config `PRODUCT_TELEMETRY_ORIGIN`，必须与 Worker 相同 | 同 origin |
+| 开关 | `ACCEPTING`、`RETENTION_APPROVED`、`SUMMARY_RETENTION_DAYS` | Config `PRODUCT_TELEMETRY_ENABLED=0`，经开流量许可后才为 `1` | 不需要 |
+
+Provider 权限与上表运行时密钥不同。先复用已有获批的访问；若需要新建 token，先明确到期时间、账户范围和用途并获批。读取资源需要 D1 Read / Workers Scripts Read；创建独立库、应用 schema 和部署所需的 D1 Edit / Workers Scripts Edit 可能覆盖账户内多项资源，不能声称按名称便自动隔离。若平台权限不能限到两个目标，由 owner 执行相应命令或明确批准账户范围；不因此索要 Global API Key、Zone、R2 或业务数据库权限。Vercel 只需目标 `rival-hub` 项目的指定 Production/固定 Preview 分支环境变量管理权限，不扩展到团队其他项目。
+
+经批准可将只含 `SIGNING_KEY` / `ADMIN_KEY` 的受控 JSON 文件通过 `wrangler deploy --secrets-file <private-file>` 与全关配置一起部署，先检查未授权读取为 401、跨 origin 为 403、合法 origin 停收为 503。这个部署仍不接收事件。获得 raw 留存及 Preview 测试流量许可后，把 Preview 配置中的 `RETENTION_APPROVED`、`ACCEPTING` 改为 `1` 再部署；汇总仍为 `0`，Production 继续关闭。不能用默认全关文件覆盖已启用且有数据的接收端，否则会同时关闭清理。
+
+环境变量修改不会改变已经构建的 Vercel deployment。开流量需要为对应网站环境构建并部署新的候选，遵循 [发布规范](release.md) 的 smoke/routing 门槛；不可把已上线的 v2.18.0 当作 fresh retry 来绕过配置发布，same-tag resume 本就跳过构建。实际 Production 配置发布方式、exact commit/tag 和开流量时间须纳入同次确认。停收时先令 Worker `ACCEPTING=0`；已批准的 `RETENTION_APPROVED=1` 与小时清理应继续。
+
+### 如何证明浏览器、接收、存储和读取一致
+
+在经批准的隔离 Preview 配置发布后，向受控进程注入上表 URL/operator key，并设置 `TELEMETRY_EXPECTED_COMMIT`（40 位构建 commit）、`TELEMETRY_EXPECTED_ENVIRONMENT=preview` 及已批准测试的 `TELEMETRY_ALLOW_LIVE_SMOKE=1`，运行：
+
+```sh
+pnpm exec tsx scripts/telemetry/verify-live.ts
+```
+
+脚本使用新建匿名 Chromium 会话访问实际网站首页，不 mock fetch、不注入客户端或票据、不执行业务写入。它检查真实网站 bootstrap 指向指定接收端，等待页面 observer 正常的一分钟批量请求，确认 CORS、无 Cookie/referrer、204 ACK，再凭独立 operator key 按该浏览器 session 读取 `/admin/events`。只有同 batch ID、精确版本/环境、anonymous 身份及 gzip 解压后事件完全一致才通过；再验证无凭据读取 401、错误 origin 接收 403。输出只有布尔值、计数和版本，不输出 ticket、session、账号或原始事件。异常只报固定阶段，不保存 trace/HAR。该测试会产生少量**真实匿名遥测数据**并按同一七天策略过期，显式许可变量不能代替用户授权。测试超时/失败不应触发业务重放。
+
+这证明正常匿名页面链路，不替代登录账号、Major/Rivals、返回筛选和真实操作终态验收。后者在固定 Preview 上用获批测试账号按既有功能交互，确认同 operationId 的 start/result、账号和会话查询一致；不得用生产业务写入制造测试。到期、续签、配额、重试及维护故障使用已有 receiver/client/workerd 测试和隔离 Preview fixture 验证，不修改生产时钟、持久数据或保留开关。Production 开启后只运行匿名 smoke，并观察首个正常到期小时任务与 cleanup backlog。
+
+真实用量证据需记录同一测试窗口前后 Workers 请求与 CPU 分位、D1 reads/writes/size（含索引）、网站新增请求/字节及 hydrate 影响。`/admin/usage` 的批数/未压缩 bytes 不是 provider 账单；5000 批是接收上限，不是承诺共享账户能承受的正常流量。缺少共享余量或实际 CPU/查询开销证据时保持停收，不能升级付费来补证据。汇总 `0` 时只可比较七天内仍可读的同长窗口；跨版本更长期比较必须另行批准具体汇总天数后启用，不能回补已经过期的原始事件。
