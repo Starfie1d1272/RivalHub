@@ -449,7 +449,9 @@ export function PredictionBoard({
             </section>
             {context.kind === "major" && !contest && (
               <p role="status" className="text-sm text-[var(--color-fg-mid)]">
-                Pick’Em 等待本阶段官方名单确认；可以先进行赛事推演。
+                {stage
+                  ? "Pick’Em 等待本阶段官方名单确认；可以先进行赛事推演。"
+                  : "Pick’Em 等待本阶段官方名单确认。"}
               </p>
             )}
             {dockVisible && contest && (
