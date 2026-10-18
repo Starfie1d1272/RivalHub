@@ -1,6 +1,7 @@
 "use client";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
+import { getSwissResultDisplayEntries } from "@/lib/matches/swiss-display-results";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { TeamLogo } from "@/components/teams/TeamLogo";
@@ -16,11 +17,12 @@ export function OfficialSwissFlow({ data, seasonSlug }: { data: SwissStageReadMo
     ? { winThreshold: SHORT_SWISS_WIN_THRESHOLD, lossThreshold: SHORT_SWISS_LOSS_THRESHOLD }
     : { winThreshold: MAJOR_SWISS_WIN_THRESHOLD, lossThreshold: MAJOR_SWISS_LOSS_THRESHOLD };
   const results = swissResultRecords(policy);
+  const displayEntries = getSwissResultDisplayEntries(data);
   const result = (record: typeof results[number]) => {
     const advanced = record.wins === policy.winThreshold;
     return <TournamentResult seasonSlug={seasonSlug} key={`${record.wins}-${record.losses}`} label={advanced ? "Qualified" : "Eliminated"}
       record={`${record.wins}–${record.losses}`} tone={advanced ? "advance" : "eliminated"} view={view}
-      teams={data.competitionEntries.filter(t => t.wins === record.wins && t.losses === record.losses && t.status === (advanced ? "advanced" : "eliminated"))
+      teams={displayEntries.filter(t => t.wins === record.wins && t.losses === record.losses)
         .map(t => ({ id: t.entryId, name: t.teamName, logoUrl: t.logoUrl }))} />;
   };
   return <TournamentFlow rounds={data.rounds.map(r => r.round)} view={view}
