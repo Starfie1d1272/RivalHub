@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.18.1]
+
+### Fixed
+
+- 修复选手资料更新后较低的外校实力差使已有特批失效的问题；确认正赛席位承接已批准名单，实际阵容继续执行首发资格校验。
+
 ## [2.18.0]
 
 ### Added
@@ -3016,6 +3022,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.18.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.18.0...v2.18.1
 [2.18.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.6...v2.18.0
 [2.17.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.5...v2.17.6
 [2.17.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.4...v2.17.5
