@@ -216,8 +216,9 @@ export function DemoDataReviewPanel({ reviews = [], quality = [] }: { reviews?: 
       <SeasonRecheckControl importId={reviews[0]!.importId} />
       {reviews.map((review) => <MapReview key={review.importId} review={review} />)}
     </Panel>}
-    {quality.length > 0 && <Panel label="Demo 数据质量" contentClassName="space-y-4 p-4">
-      <p className="text-sm leading-6 text-[var(--color-fg-mid)]">警告是数据检查提示，不等于上传失败；QA 错误会阻止自动确认。高级能力降级说明可用信息受限，与 QA 警告分别核对。</p>
+    {quality.length > 0 && <details className="space-y-3 rounded border border-[var(--color-border)] p-3">
+      <summary className="cursor-pointer text-sm font-medium">Demo 数据质量 · {quality.length} 图</summary>
+      <p className="text-sm leading-6 text-[var(--color-fg-mid)]">警告不代表上传失败；QA 错误会阻止自动确认。</p>
       {quality.map((item) => <details key={item.importId} className="rounded border border-[var(--color-border)] p-3 text-sm">
         <summary className="cursor-pointer">第 {item.mapOrder} 图 · {item.mapName} · {item.summary}</summary>
         <div className="mt-3 space-y-2 leading-6">
@@ -236,7 +237,7 @@ export function DemoDataReviewPanel({ reviews = [], quality = [] }: { reviews?: 
           </details>}
         </div>
       </details>)}
-    </Panel>}
+    </details>}
     </>
   );
 }

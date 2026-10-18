@@ -7,8 +7,7 @@ import { OperatorLiveStatus } from "./OperatorLiveStatus";
 import { OperatorIssuePanel } from "./OperatorIssuePanel";
 import Link from "next/link";
 import React from "react";
-import { cn } from "@/lib/utils/cn";
-import { presentMatchFormat, presentMatchLabel } from "@/lib/matches/presentation";
+import { presentMatchFormat } from "@/lib/matches/presentation";
 import { Separator } from "@/components/ui/separator";
 import { Panel, StatusPill } from "@/components/rivalhub";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
@@ -23,7 +22,7 @@ import { ForfeitButton } from "@/components/matches/ForfeitButton";
 import { MapScoreCorrectInput } from "@/components/matches/MapScoreCorrectInput";
 import { DeleteMatchButton } from "@/components/matches/DeleteMatchButton";
 import { CompletedAtInput } from "@/components/matches/CompletedAtInput";
-import { PreMatchOperatorChecklist } from "@/components/matches/PreMatchOperatorChecklist";
+import { projectOperatorPostMatchTasks } from "@/lib/admin/matches/operator-workflow";
 import { PostMatchRecordPanel } from "@/components/matches/PostMatchRecordPanel";
 import { DemoDataReviewPanel } from "@/components/matches/DemoDataReviewPanel";
 import { SOURCE_MODE_LABEL, SOURCE_HEALTH_LABEL } from "@/lib/admin/matches/source-state";
@@ -68,7 +67,7 @@ function RosterSummary({
       <div className="flex items-center justify-between gap-2">
         <p className="font-medium"><TeamProfileLink entryId={entryId}>{teamName}</TeamProfileLink></p>
         <span className="text-xs text-[var(--color-fg-mid)]">
-          {roster.status === "confirmed" ? "开赛时已定格" : "有效首发，开赛时自动核验"}
+          {roster.status === "confirmed" ? "已定格" : "待开赛核验"}
         </span>
       </div>
       <p className="mt-2 text-xs leading-5 text-[var(--color-fg-mid)]">
@@ -124,31 +123,27 @@ export function AdminMatchWorkbench({
     teamAPreflight,
     teamBPreflight,
   });
-  const matchLabel = presentMatchLabel({
-    stage: match.stage,
-    stageName,
-    round: match.round,
-    entryRound: match.entryRound,
-    teamAName,
-    teamBName,
+  const postMatchTasks = projectOperatorPostMatchTasks({
+    status: match.status, isForfeit: match.isForfeit,
+    maps: operator.workflow.completedMaps,
+    commentatorCount: postMatch?.commentators.length ?? 0,
+    submitted: Boolean(postMatch?.submittedAt),
+    hasVideo: Boolean(postMatch?.videoUrl), reopened: postMatch?.rosterReopened,
   });
+  const taskTitle = match.status === "finished" && !operator.review
+    ? (postMatchTasks.length ? "补齐赛后资料" : "本场已完成")
+    : operator.workflow.title;
 
   return (
-    <Panel
-      contentClassName="p-3 sm:p-5 space-y-6 min-w-0"
-      className={cn(
-        "space-y-6",
-        match.status === "in_progress" && "border-l-[3px] border-[var(--color-accent)]",
-      )}
-    >
+    <Panel contentClassName="p-3 sm:p-5 space-y-4 min-w-0">
       <header className="space-y-3">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex min-w-0 flex-wrap items-center gap-3 break-words">
-            <TeamProfileLink seasonSlug={season.slug} entryId={match.entryAId} className="min-w-0 max-w-full text-lg font-semibold [overflow-wrap:anywhere]">{teamAName}</TeamProfileLink>
+            <TeamProfileLink seasonSlug={season.slug} entryId={match.entryAId} className="min-w-0 max-w-full text-xl sm:text-2xl font-semibold [overflow-wrap:anywhere]">{teamAName}</TeamProfileLink>
             <span className="text-[var(--color-fg-mid)]">
               {match.status === "finished" ? `${match.scoreA ?? "—"} : ${match.scoreB ?? "—"}` : "vs"}
             </span>
-            <TeamProfileLink seasonSlug={season.slug} entryId={match.entryBId} className="min-w-0 max-w-full text-lg font-semibold [overflow-wrap:anywhere]">{teamBName}</TeamProfileLink>
+            <TeamProfileLink seasonSlug={season.slug} entryId={match.entryBId} className="min-w-0 max-w-full text-xl sm:text-2xl font-semibold [overflow-wrap:anywhere]">{teamBName}</TeamProfileLink>
           </div>
           <div className="flex items-center gap-2">
             <StatusPill {...presentMatchFormat(match.format)} />
@@ -160,7 +155,7 @@ export function AdminMatchWorkbench({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--color-fg-mid)]">
-          <span className="min-w-0 max-w-full [overflow-wrap:anywhere]">{matchLabel}</span>
+          <span className="min-w-0 max-w-full [overflow-wrap:anywhere]">{stageName ?? match.stage}{match.round != null ? ` · 第 ${match.round} 轮` : match.entryRound ? ` · ${match.entryRound}` : ""}</span>
           <span>排期：{match.scheduledAt ? formatCSTDateTime(match.scheduledAt) : "尚未排期"}</span>
           {match.completionDeadline && <span>截止：{formatCSTDateTime(match.completionDeadline)}</span>}
         </div>
@@ -169,17 +164,19 @@ export function AdminMatchWorkbench({
 
       <Separator />
 
-      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_15rem]">
-      <section aria-labelledby="operator-task" className="space-y-3 rounded border border-[var(--color-border)] p-4">
+
+      <section aria-labelledby="operator-task" className="space-y-3 rounded border border-[var(--color-border)] border-l-2 border-l-[var(--color-accent)] bg-[var(--color-bg)] p-4">
         {commentary.byMatchId[match.id] && <MatchCommentaryStatus matchId={match.id} assignment={commentary.byMatchId[match.id]} />}
-        <p className="text-xs text-[var(--color-fg-mid)]">{operator.workflow.primaryTask === "observe" ? "比赛状态" : "当前任务"}</p>
-        <h2 id="operator-task" className="text-lg font-semibold">{operator.workflow.title}</h2>
-        <p className="text-sm text-[var(--color-fg-mid)]">{operator.workflow.description}</p>
-        {operator.workflow.nextStep && <p className="text-sm">{operator.workflow.nextStep}</p>}
-        <div className="flex flex-wrap items-center gap-4 text-sm text-[var(--color-accent)]">
-          <Link className="inline-flex min-h-10 items-center rounded border border-[var(--color-border)] px-4 font-medium" href={`/${season.slug}/matches/${match.id}/veto`}>{vetoCompletedAt ? "查看 BP" : "进入 BP"}</Link>
-          {operator.workflow.focusMapId && <a className="underline underline-offset-4" href={`#scoreboard-${operator.workflow.focusMapId}`}>打开本图 OCR</a>}
-          {operator.roomGuide && <a className="underline underline-offset-4" href="#perfect-room-guide">{operator.workflow.focusMapId ? "下一图建房指引" : "查看 Perfect 建房指引"}</a>}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="operator-task" className="text-xl font-semibold">{taskTitle}</h2>
+          <OperatorTaskControls elapsed={operator.workflow.elapsed} />
+        </div>
+        {match.status === "scheduled" && startBlockers.length > 0 && <p className="text-sm text-[var(--color-warn)]">{startBlockers.join("；")}</p>}
+        {operator.workflow.primaryTask === "source_check" && <p className="text-sm text-[var(--color-warn)]">{operator.workflow.description}</p>}
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          {match.status !== "cancelled" && <Link className={vetoCompletedAt ? "text-[var(--color-fg-mid)] underline underline-offset-4" : "inline-flex min-h-10 items-center rounded bg-[var(--color-accent)] px-4 font-medium text-[var(--color-accent-fg)]"} href={`/${season.slug}/matches/${match.id}/veto`}>{vetoCompletedAt ? "查看 BP" : "进入 BP"}</Link>}
+          {operator.workflow.focusMapId && match.status !== "finished" && <a className="text-[var(--color-accent)] underline underline-offset-4" href={`#scoreboard-${operator.workflow.focusMapId}`}>补计分板</a>}
+          {postMatchTasks.map(task => <a key={`${task.anchor}:${task.label}`} className="text-[var(--color-accent)] underline underline-offset-4" href={`#${task.anchor}`}>{task.label}</a>)}
         </div>
         {operator.review && <OperatorIssuePanel reasons={operator.workflow.reviewReasons} review={operator.review} />}
         {operator.takeover ? <ManualMapTakeover key={`${operator.takeover.sessionId}:${operator.takeover.mapEpoch}:${operator.takeover.mapId}:${Boolean(operator.takeover.recoverMapBinding)}`} matchId={match.id} scope={operator.takeover} mapLabel={operator.recoveryMapLabel ?? undefined} /> : operator.problemRecovery ? <ManualMapTakeover
@@ -188,9 +185,8 @@ export function AdminMatchWorkbench({
           reportContext={operator.problemRecovery.reportContext} mapLabel={operator.problemRecovery.mapLabel} /> : null}
         {broadcasts.length > 0 && <aside aria-label="转播状态" className="space-y-1 text-sm">{broadcasts.map((row, i) => <p key={i}>B站直播：{row.name} · {row.label}</p>)}</aside>}
         {officialMapStart && <OfficialMapStart seasonId={season.id} matchId={match.id} mapId={officialMapStart.mapId} mapName={officialMapStart.mapName} />}
-        <OperatorTaskControls elapsed={operator.workflow.elapsed} />
         {vetoCompletedAt && ((match.status === "in_progress" && operator.workflow.manualResultAllowed) || (match.testConfig && match.status === "finished" && match.resultDisposition !== "omitted" && pendingMaps.length > 0)) && <details id="manual-result" className="space-y-3 pt-3" open={operator.workflow.sourceMode === "manual_map" || operator.workflow.phase === "gameplay"}>
-          <summary className="cursor-pointer text-sm font-medium">比赛结束后录入本图比分</summary>
+          <summary className="cursor-pointer text-sm font-medium">录入本图比分</summary>
                 <MapByMapInput
                   matchId={match.id}
                   format={match.format}
@@ -205,40 +201,37 @@ export function AdminMatchWorkbench({
         </details>}
         {operator.roomGuide && <div id="perfect-room-guide"><PerfectRoomGuide guide={operator.roomGuide} /></div>}
       </section>
-      <aside aria-label="比赛与数据源" className="space-y-3 text-sm rounded border border-[var(--color-border)] p-4 self-start">
-        <p className="font-semibold">比分记录</p>
-        <p>{SOURCE_MODE_LABEL[operator.workflow.sourceMode]}</p>
+      <aside aria-label="比赛与数据源" className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--color-fg-mid)]">
+        <span>{SOURCE_MODE_LABEL[operator.workflow.sourceMode]}</span>
         {operator.liveScope && operator.workflow.sourceMode === "mizar_auto" && !operator.workflow.reviewReasons.length
           ? <OperatorLiveStatus matchId={match.id} scope={operator.liveScope} />
-          : <p>{SOURCE_HEALTH_LABEL[operator.workflow.sourceHealth]}</p>}
-        <div className="border-t border-[var(--color-border)] pt-3">
-          <p className="mb-1 text-sm font-medium">我的下一场</p>
-          {commentary.nextMatch ? <CommentaryMatchLink match={commentary.nextMatch} seasonSlug={season.slug} /> : <p className="text-sm text-[var(--color-fg-mid)]">当前没有已认领的下一场</p>}
-        </div>
-
-        <a className="text-[var(--color-accent)] underline" href={`/admin/${season.slug}/matches#match-resources`}>设备与下载</a>
+          : <span>{SOURCE_HEALTH_LABEL[operator.workflow.sourceHealth]}</span>}
+        {commentary.nextMatch && <span>下一场：<CommentaryMatchLink match={commentary.nextMatch} seasonSlug={season.slug} /></span>}
+        <a className="ml-auto underline underline-offset-4" href={`/admin/${season.slug}/matches#match-resources`}>设备与下载</a>
       </aside>
-      </div>
 
       {match.status === "finished" && <section aria-label="赛后完成度" className="grid gap-3 sm:grid-cols-3 text-sm">
         <p>官方比赛：{completion.official}</p>
         <p>比赛数据：{completion.data}</p>
         <p>解说与录像：{completion.production}</p>
       </section>}
+      {match.status === "finished" && postMatch && <details id="match-workbench-finished-postmatch" open={postMatchTasks.some(task => task.anchor === "match-workbench-finished-postmatch")} className="space-y-3 rounded border border-[var(--color-border)] p-3">
+        <summary className="cursor-pointer font-medium">解说与录像</summary>
+        <PostMatchRecordPanel matchId={match.id} data={postMatch} />
+      </details>}
       {operator.workflow.completedMaps.length > 0 && match.status !== "cancelled" && (
         <section aria-labelledby="operator-scoreboards" className="space-y-3">
-          <h2 id="operator-scoreboards" className="font-semibold">已完成地图 · 平台计分板与 Demo</h2>
-          <p className="text-sm text-[var(--color-fg-mid)]">在 Perfect 截取计分板并识别；下载 Demo 后使用 Uploader 同步分析结果。</p>
+          <h2 id="operator-scoreboards" className="font-semibold">地图数据</h2>
           {operator.workflow.completedMaps.map(map => <details key={map.id} id={`scoreboard-${map.id}`} open={operator.workflow.focusMapId === map.id} className="rounded border border-[var(--color-border)] p-3">
-            <summary className="cursor-pointer text-sm">Map {map.order} · {mapLabel(map.name)} · {map.scoreboardComplete ? "平台计分板已补齐" : "平台计分板待补"} · Demo {map.demoLabel}</summary>
+            <summary className="cursor-pointer text-sm">Map {map.order} · {mapLabel(map.name)} · {map.scoreboardComplete ? "计分板 ✓" : "待补计分板"} · Demo {map.demoLabel}</summary>
             <div className="mt-3"><StatsOCRPanel mapId={map.id} mapName={map.name} /></div>
             {map.demoNeedsAttention && <p className="mt-2 text-sm text-[var(--color-warn)]">请检查下方 Demo 待处理项；若阵容或比分已更正，请在上传器中重新生成并同步。</p>}
           </details>)}
-          {operator.workflow.isPostMatch && <div className="space-y-2 rounded border border-[var(--color-border)] p-3 text-sm">
-            <p>去 Perfect 下载本场已完成地图的 Demo，再使用 RivalHub Demo Uploader 上传。上传后刷新当前任务，检查每图同步结果。</p>
-            <p>原始 .dem 在本地解析，仅同步分析结果。</p>
+          {operator.workflow.isPostMatch && <details className="space-y-2 rounded border border-[var(--color-border)] p-3 text-sm">
+            <summary className="cursor-pointer">上传 Demo</summary>
+            <p className="text-[var(--color-fg-mid)]">从 Perfect 下载 Demo，用上传器同步。本地解析，不上传原始文件。</p>
             <MatchDownloads downloads={uploaderDownloads ?? null} />
-          </div>}
+          </details>}
         </section>
       )}
 
@@ -252,50 +245,14 @@ export function AdminMatchWorkbench({
 
       {match.status !== "cancelled" && <DemoDataReviewPanel reviews={demoReviews} quality={demoQuality} />}
 
-      <details id="match-lineups" className="space-y-4 rounded border border-[var(--color-border)] p-4" open={match.status === "scheduled"}>
+      {match.status !== "cancelled" && <details id="match-lineups" className="space-y-4 rounded border border-[var(--color-border)] p-4" open={match.status === "scheduled"}>
         <summary className="cursor-pointer font-semibold">首发、BP 与赛程管理</summary>
-      <section aria-labelledby="match-workbench-overview" className="space-y-3">
-        {match.status === "scheduled" && (
-          <PreMatchOperatorChecklist
-            requiresPreflight={requiresPreflight}
-            teamA={{
-              name: teamAName,
-              submitted: Boolean(teamARoster),
-              confirmed: teamARoster?.status === "confirmed",
-              starters: teamARoster?.starters.length ?? 0,
-              preflight: teamAPreflight,
-            }}
-            teamB={{
-              name: teamBName,
-              submitted: Boolean(teamBRoster),
-              confirmed: teamBRoster?.status === "confirmed",
-              starters: teamBRoster?.starters.length ?? 0,
-              preflight: teamBPreflight,
-            }}
-            mapState={completedMaps.length + pendingMaps.length > 0 ? "recorded" : "not_recorded"}
-          />
-        )}
-        {match.status === "scheduled" && startBlockers.length > 0 && (
-          <p className="text-xs leading-5 text-[var(--color-warn)]">
-            下一步：{startBlockers.join("；")}
-          </p>
-        )}
-        {match.status === "scheduled" && (
-          <p className="text-xs leading-5 text-[var(--color-fg-mid)]">
-            默认宽限为 15 分钟。排期可在下方调整；弃赛或判负请记录原因。
-          </p>
-        )}
-      </section>
-
       {match.status !== "cancelled" && (
         <section aria-labelledby="match-workbench-lineup" className="space-y-3">
           <div>
             <h2 id="match-workbench-lineup" className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">
               首发名单
             </h2>
-            <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
-              从本届赛事名单中选择本场实际出场选手。
-            </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <RosterSummary entryId={match.entryAId} teamName={teamAName} members={teamAMembers} roster={teamARoster} />
@@ -325,9 +282,6 @@ export function AdminMatchWorkbench({
               <h2 id="match-workbench-maps" className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">
                 BP、地图与比赛时间
               </h2>
-              <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
-                双方完成 BP 后，系统生成地图与选边计划。
-              </p>
             </div>
             <ScheduledAtInput
               matchId={match.id}
@@ -349,13 +303,11 @@ export function AdminMatchWorkbench({
 
 
 
-          <section aria-labelledby="match-workbench-danger" className="space-y-3 border-t border-[var(--color-danger-edge)] pt-4">
+          <details className="space-y-3 border-t border-[var(--color-danger-edge)] pt-3">
+            <summary className="cursor-pointer text-sm text-[var(--color-danger)]">弃赛 / 判负</summary>
             <div>
-              <h2 id="match-workbench-danger" className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-danger)]">
-                危险操作与恢复
-              </h2>
               <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
-                判负会写入正式结果并审计；请先确认赛程调整无法解决问题，再选择弃赛方并填写原因。
+                判负将写入正式结果。请先核对排期，再选择弃赛方并填写原因。
               </p>
             </div>
             <ForfeitButton
@@ -365,23 +317,16 @@ export function AdminMatchWorkbench({
               teamAName={teamAName}
               teamBName={teamBName}
             />
-          </section>
+          </details>
         </>
       )}
 
-      </details>
+      </details>}
 
       {match.status === "finished" && (
         <>
-          <section aria-labelledby="match-workbench-finished-maps" className="space-y-3">
-            <div>
-              <h2 id="match-workbench-finished-maps" className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">
-                BP 与已完成地图
-              </h2>
-              <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
-                查看本场 BP 记录，或补充线下禁选结果。
-              </p>
-            </div>
+          <details id="match-workbench-finished-maps" className="space-y-3 rounded border border-[var(--color-border)] p-3">
+            <summary className="cursor-pointer text-sm font-medium">补录线下 BP</summary>
             <VetoInputDialog
               matchId={match.id}
               format={match.format}
@@ -397,18 +342,7 @@ export function AdminMatchWorkbench({
                 {match.isForfeit ? "本场已记录弃赛结果。" : "本场没有已记录的实际地图比分。"}
               </p>
             )}
-          </section>
-
-          {postMatch && (
-            <details open={postMatch.commentators.length > 0} className="space-y-3 rounded border border-[var(--color-border)] p-3">
-              <summary className="cursor-pointer font-medium">{postMatch.commentators.length ? "解说与录像" : "补充实际解说"}</summary>
-            <section aria-labelledby="match-workbench-finished-postmatch" className="space-y-3">
-              <h2 id="match-workbench-finished-postmatch" className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">
-                赛后资料
-              </h2>
-              <PostMatchRecordPanel matchId={match.id} data={postMatch} />
-            </section></details>
-          )}
+          </details>
 
           <details aria-labelledby="match-workbench-recovery" className="space-y-4 border-t border-[var(--color-danger-edge)] pt-4">
               <summary id="match-workbench-recovery" className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-danger)]">
@@ -429,12 +363,6 @@ export function AdminMatchWorkbench({
             />
           </details>
         </>
-      )}
-
-      {match.status === "cancelled" && (
-        <p className="text-sm text-[var(--color-fg-mid)]">
-          本场已取消。
-        </p>
       )}
 
       <footer className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] pt-4">
