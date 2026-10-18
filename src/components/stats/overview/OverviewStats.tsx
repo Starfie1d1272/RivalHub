@@ -192,7 +192,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
   ];
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-5">
       <section aria-label="Tournament summary" className="border-y border-[var(--color-border)] bg-[var(--color-panel-low)]">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
           <div className="px-4 py-4 lg:border-r lg:border-[var(--color-border)]">
@@ -216,16 +216,6 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
             <div className="mt-1.5 text-lg font-semibold"><MetricValue metric="conversion" value={data.analytics.totals.round2Conversion} sampleDisplay="compact" /></div>
           </div>
         </div>
-      </section>
-
-      <Insights insights={data.insights ?? []} query={query} seasonSlug={seasonSlug} />
-
-      <section aria-labelledby="maps-heading">
-        <div className="mb-3 flex items-end justify-between gap-3">
-          <h2 id="maps-heading" className="text-base font-semibold">Maps</h2>
-          <span className="text-xs text-[var(--color-fg-dim)]">{maps.length} map{maps.length === 1 ? "" : "s"}</span>
-        </div>
-        <StatsDataTable rows={maps} columns={mapColumns} rowKey={(row) => row.mapName} initialSortKey="played" tableClassName="table-fixed" />
       </section>
 
       <section aria-label="Tournament leaders" className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
@@ -257,6 +247,16 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
           </div>
         </section>
       </section>
+
+      <section aria-labelledby="maps-heading">
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <h2 id="maps-heading" className="text-base font-semibold">Maps</h2>
+          <span className="text-xs text-[var(--color-fg-dim)]">{maps.length} map{maps.length === 1 ? "" : "s"}</span>
+        </div>
+        <StatsDataTable rows={maps} columns={mapColumns} rowKey={(row) => row.mapName} initialSortKey="played" tableClassName="table-fixed" />
+      </section>
+
+      <Insights insights={data.insights ?? []} query={query} seasonSlug={seasonSlug} />
 
       <section aria-labelledby="economy-conversion">
         <div className="mb-3 flex items-end justify-between gap-3">

@@ -111,7 +111,7 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
   const overallColumns: StatsDataColumn<ScoreboardRow>[] = [
     { key: "player", label: "Player", identity: true, render: (row) => playerLink(row.userId, row.perfectName) },
     { key: "team", label: "Team", className: "hidden w-48 sm:table-cell", render: (row) => <span className="block truncate" title={row.teamName ?? undefined}><TeamIdentityLinks ids={row.teamIds ?? (row.teamId ? [row.teamId] : [])} names={teamNames} links={data.teamLinks} seasonSlug={seasonSlug} fallback={row.teamName}/></span> },
-    { key: "maps", label: "Maps", numeric: true, className: "w-[8%]", sortable: true, sortValue: (row) => row.maps, render: (row) => row.maps },
+    { key: "maps", label: "Maps", numeric: true, className: "w-16 sm:w-[8%]", sortable: true, sortValue: (row) => row.maps, render: (row) => row.maps },
     { key: "rounds", label: "Rounds", numeric: true, className: "hidden w-[9%] sm:table-cell", sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds ?? "—" },
     { key: "rating", metric: "rating", numeric: true, sortable: true, sortValue: (row) => row.avgRating, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
     { key: "adr", metric: "adr", numeric: true, sortable: true, sortValue: (row) => row.avgAdr, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="adr" value={row.avgAdr} /> },
@@ -139,7 +139,7 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
         columns={overallColumns}
         rowKey={(row, index) => `${row.userId ?? row.perfectName}:${row.teamId ?? ""}:${index}`}
         initialSortKey="rating"
-        tableClassName="min-w-[980px] table-fixed"
+        tableClassName="min-w-[360px] sm:min-w-[760px] xl:min-w-[980px] table-fixed"
         emptyLabel="暂无选手统计"
       />
     );
@@ -152,7 +152,7 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
         columns={DAKColumns(family, teamNames, data.teamLinks, seasonSlug)}
         rowKey={(row, index) => `${row.player.entityKey}:detail:${index}`}
         initialSortKey={family === "opening" ? "win" : family === "teamplay" ? "kast" : family === "utility" ? "util" : "clutch"}
-        tableClassName="min-w-[960px] table-fixed"
+        tableClassName="min-w-[560px] sm:min-w-[960px] table-fixed"
         emptyLabel="调整范围查看详细统计"
       />
     );

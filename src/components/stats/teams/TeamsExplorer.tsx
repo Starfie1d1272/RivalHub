@@ -139,7 +139,7 @@ export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentSta
         columns={teamColumns(family, seasonSlug, data.teamLinks)}
         rowKey={(row) => row.entryId}
         initialSortKey={family === "results" ? "match" : family === "rounds" ? "rw" : family === "conversion" ? "r2" : "opening"}
-        tableClassName={family === "results" ? "min-w-[700px] table-fixed" : family === "conversion" ? "min-w-[1120px] table-fixed" : "min-w-[940px] table-fixed"}
+        tableClassName={family === "results" ? "min-w-[440px] sm:min-w-[700px] table-fixed" : family === "conversion" ? "min-w-[560px] sm:min-w-[1120px] table-fixed" : "min-w-[520px] sm:min-w-[940px] table-fixed"}
         emptyLabel="暂无赛果"
       />
     </section>

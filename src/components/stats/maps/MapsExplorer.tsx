@@ -272,7 +272,7 @@ export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStat
             columns={poolColumns}
             rowKey={(row) => row.mapName}
             initialSortKey="played"
-            tableClassName="min-w-[860px] table-fixed"
+            tableClassName="min-w-[320px] sm:min-w-[860px] table-fixed"
             emptyLabel="暂无赛果或 BP 数据"
           />
         </>
