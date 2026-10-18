@@ -34,7 +34,7 @@ export function HomeHero({ season, eyebrow, primary, stageLabel, teamCount, play
         </div>
         <div className="grid items-end gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-10">
           <div className="min-w-0">
-            <h1 id="home-event-title" className="max-w-[18ch] text-balance text-[clamp(34px,4.7vw,70px)] font-bold leading-[1.08] tracking-tight text-[var(--color-fg)] [overflow-wrap:anywhere]">{season.name}</h1>
+            <h1 id="home-event-title" className="text-balance text-[clamp(34px,4.7vw,70px)] font-bold leading-[1.08] tracking-tight text-[var(--color-fg)] [overflow-wrap:anywhere]">{season.name}</h1>
             <div className="mt-6 flex flex-wrap items-center gap-3">
               {primary && <Button size="lg" asChild><Link href={primary.href as never}>{primary.label} <span aria-hidden="true">↗</span></Link></Button>}
               {primary?.href !== overviewHref && <Button size="lg" variant="outline" asChild><Link href={`/${season.slug}`}>赛事总览</Link></Button>}
