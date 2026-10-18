@@ -64,7 +64,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
   }
 
   const { user, career } = profile;
-  const score = career?.scoreboard[0];
+  const overview = profile.careerOverview;
   const registrationBySeasonId = new Map(profile.registrationSnapshots.map((registration) => [registration.seasonId, registration]));
   const careerSeasonIds = new Set(profile.careerHistory.map((entry) => entry.seasonId));
   const standaloneRegistrationSnapshots = profile.registrationSnapshots.filter((registration) => !careerSeasonIds.has(registration.seasonId));
@@ -117,10 +117,10 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
   };
 
   return (
-    <PageLayout variant="standard" className="space-y-12">
+    <PageLayout variant="standard" className="space-y-6">
       <StatsReturnLink href={fromStats} />
-      <section className="border-b border-[var(--color-border)] pb-8">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+      <section className="border-b border-[var(--color-border)] pb-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <PlayerAvatar name={getPublicDisplayName(user)} avatarUrl={user.avatarUrl} size="lg" />
           <div className="min-w-0 flex-1 space-y-4">
             <div className="space-y-2">
@@ -208,27 +208,71 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
           </div>
         </div>
 
-        <dl className="mt-6 grid grid-cols-2 border-y border-[var(--color-border)] sm:grid-cols-4">
+        <div className="mt-4"><SectionHeading>Career Stats</SectionHeading></div>
+        <dl aria-label="Career Stats" className="mt-2 grid grid-cols-2 border-y border-[var(--color-border)] sm:grid-cols-4">
           <div className="px-3 py-3 sm:first:pl-0">
             <dt className="text-[11px] text-[var(--color-fg-mid)]"><StatsMetricLabel metric="rating">Rating</StatsMetricLabel></dt>
-            <dd className="mt-1 text-lg font-semibold tabular-nums"><MetricValue metric="rating" value={score?.avgRating ?? null} /></dd>
+            <dd className="mt-1 text-lg font-semibold tabular-nums"><MetricValue metric="rating" value={overview.rating} /></dd>
           </div>
           <div className="border-l border-[var(--color-border)] px-3 py-3">
             <dt className="text-[11px] text-[var(--color-fg-mid)]"><StatsMetricLabel metric="adr">ADR</StatsMetricLabel></dt>
-            <dd className="mt-1 text-lg font-semibold tabular-nums"><MetricValue metric="adr" value={score?.avgAdr ?? null} /></dd>
+            <dd className="mt-1 text-lg font-semibold tabular-nums"><MetricValue metric="adr" value={overview.adr} /></dd>
           </div>
           <div className="border-l border-[var(--color-border)] px-3 py-3">
             <dt className="text-[11px] text-[var(--color-fg-mid)]"><StatsMetricLabel metric="kd">K/D</StatsMetricLabel></dt>
-            <dd className="mt-1 text-lg font-semibold tabular-nums"><MetricValue metric="kd" value={score?.kdRatio ?? null} /></dd>
+            <dd className="mt-1 text-lg font-semibold tabular-nums"><MetricValue metric="kd" value={overview.kd} /></dd>
           </div>
           <div className="border-l border-[var(--color-border)] px-3 py-3">
             <dt className="text-[11px] text-[var(--color-fg-mid)]">Maps</dt>
-            <dd className="mt-1 text-lg font-semibold tabular-nums">{career?.summary.maps ?? "—"}</dd>
+            <dd className="mt-1 text-lg font-semibold tabular-nums">{overview.maps ?? "—"}</dd>
           </div>
         </dl>
       </section>
 
-      <section className="space-y-5" aria-labelledby="player-career-heading">
+      {career ? <section className="space-y-4" aria-labelledby="player-performance-heading">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-1">
+            <SectionHeading>Performance</SectionHeading>
+            <h2 id="player-performance-heading" className="text-xl font-semibold">
+              竞技表现 <span className="text-sm font-normal text-[var(--color-fg-mid)]">· {career.selectedEvent?.name ?? "All-time"}</span>
+            </h2>
+          </div>
+          <PlayerPerformanceFilters userId={userId} events={career.events} query={query} />
+        </div>
+
+        {career.coverage.completedMaps > 0 && career.coverage.detailedMaps < career.coverage.completedMaps && (
+          <p className="text-xs text-[var(--color-fg-mid)]">
+            详细数据覆盖 {career.coverage.detailedMaps}/{career.coverage.completedMaps} 张地图
+          </p>
+        )}
+
+        <dl className="grid grid-cols-2 border-y border-[var(--color-border)] sm:grid-cols-4">
+          <div className="px-3 py-3 sm:first:pl-0">
+            <dt className="text-[11px] text-[var(--color-fg-mid)]">Matches</dt>
+            <dd className="mt-1 font-semibold tabular-nums">{career.summary.matches}</dd>
+            <p className="text-xs text-[var(--color-fg-dim)]">{career.summary.wins}–{career.summary.losses} · {pct(career.summary.wins, career.summary.matches)}</p>
+          </div>
+          <div className="border-l border-[var(--color-border)] px-3 py-3">
+            <dt className="text-[11px] text-[var(--color-fg-mid)]">Maps</dt>
+            <dd className="mt-1 font-semibold tabular-nums">{career.summary.maps}</dd>
+          </div>
+          <div className="border-l border-[var(--color-border)] px-3 py-3">
+            <dt className="text-[11px] text-[var(--color-fg-mid)]">Rounds</dt>
+            <dd className="mt-1 font-semibold tabular-nums">{career.summary.rounds}</dd>
+          </div>
+          <div className="border-l border-[var(--color-border)] px-3 py-3">
+            <dt className="text-[11px] text-[var(--color-fg-mid)]">MVP</dt>
+            <dd className="mt-1 font-semibold tabular-nums">{career.summary.mvp > 0 ? career.summary.mvp : "—"}</dd>
+          </div>
+        </dl>
+
+        {profile.attributes && <PlayerAttributes profile={profile.attributes} />}
+        {profile.benchmarkUnavailable && <p role="status" className="text-sm text-[var(--color-fg-mid)]">选手属性暂时无法加载，请稍后重试。</p>}
+
+        <PlayerWorkspace detail={career} compact />
+      </section> : <p role="status" className="text-sm text-[var(--color-fg-mid)]">竞技统计暂时无法加载，请稍后重试。</p>}
+
+      <section className="space-y-4" aria-labelledby="player-career-heading">
         <div className="space-y-1">
           <SectionHeading>Career</SectionHeading>
           <h2 id="player-career-heading" className="text-xl font-semibold text-[var(--color-fg)]">赛事履历</h2>
@@ -239,7 +283,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
             {profile.careerHistory.map((entry) => {
               const registration = registrationBySeasonId.get(entry.seasonId);
               return (
-                <article key={entry.seasonId + ":" + entry.teamId} className="py-5">
+                <article key={entry.seasonId + ":" + entry.teamId} className="py-3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 space-y-2">
                       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -289,13 +333,13 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
       </section>
 
       {hasDeclaredProfile && (
-        <section className="space-y-5" aria-labelledby="player-profile-heading">
+        <section className="space-y-4" aria-labelledby="player-profile-heading">
           <div className="space-y-1">
             <SectionHeading>Profile</SectionHeading>
             <h2 id="player-profile-heading" className="text-xl font-semibold">长期资料</h2>
           </div>
 
-          <div className="grid gap-8 lg:grid-cols-2">
+          <div className="grid gap-5 lg:grid-cols-2">
             {profile.publicCompetitiveProfile.length > 0 && (
               <div className="space-y-3 border-t border-[var(--color-border)] pt-4">
                 <h3 className="text-sm font-semibold">竞技档案</h3>
@@ -345,48 +389,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
         </section>
       )}
 
-      {career ? <section className="space-y-5" aria-labelledby="player-performance-heading">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="space-y-1">
-            <SectionHeading>Performance</SectionHeading>
-            <h2 id="player-performance-heading" className="text-xl font-semibold">
-              竞技表现 <span className="text-sm font-normal text-[var(--color-fg-mid)]">· {career.selectedEvent?.name ?? "All-time"}</span>
-            </h2>
-          </div>
-          <PlayerPerformanceFilters userId={userId} events={career.events} query={query} />
-        </div>
 
-        {career.coverage.completedMaps > 0 && career.coverage.detailedMaps < career.coverage.completedMaps && (
-          <p className="text-xs text-[var(--color-fg-mid)]">
-            详细数据覆盖 {career.coverage.detailedMaps}/{career.coverage.completedMaps} 张地图
-          </p>
-        )}
-
-        <dl className="grid grid-cols-2 border-y border-[var(--color-border)] sm:grid-cols-4">
-          <div className="px-3 py-3 sm:first:pl-0">
-            <dt className="text-[11px] text-[var(--color-fg-mid)]">Matches</dt>
-            <dd className="mt-1 font-semibold tabular-nums">{career.summary.matches}</dd>
-            <p className="text-xs text-[var(--color-fg-dim)]">{career.summary.wins}–{career.summary.losses} · {pct(career.summary.wins, career.summary.matches)}</p>
-          </div>
-          <div className="border-l border-[var(--color-border)] px-3 py-3">
-            <dt className="text-[11px] text-[var(--color-fg-mid)]">Maps</dt>
-            <dd className="mt-1 font-semibold tabular-nums">{career.summary.maps}</dd>
-          </div>
-          <div className="border-l border-[var(--color-border)] px-3 py-3">
-            <dt className="text-[11px] text-[var(--color-fg-mid)]">Rounds</dt>
-            <dd className="mt-1 font-semibold tabular-nums">{career.summary.rounds}</dd>
-          </div>
-          <div className="border-l border-[var(--color-border)] px-3 py-3">
-            <dt className="text-[11px] text-[var(--color-fg-mid)]">MVP</dt>
-            <dd className="mt-1 font-semibold tabular-nums">{career.summary.mvp > 0 ? career.summary.mvp : "—"}</dd>
-          </div>
-        </dl>
-
-        {profile.attributes && <PlayerAttributes profile={profile.attributes} />}
-        {profile.benchmarkUnavailable && <p role="status" className="text-sm text-[var(--color-fg-mid)]">选手属性暂时无法加载，请稍后重试。</p>}
-
-        <PlayerWorkspace detail={career} compact />
-      </section> : <p role="status" className="text-sm text-[var(--color-fg-mid)]">竞技统计暂时无法加载，请稍后重试。</p>}
 
     </PageLayout>
   );
