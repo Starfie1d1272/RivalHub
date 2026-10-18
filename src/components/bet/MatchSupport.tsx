@@ -29,7 +29,7 @@ export function MatchSupport({ slug, matchId, teamA, teamB, amounts, predictions
   const predictionLeft = votes > 0 && voteA && voteB && voteA.count + voteB.count === votes ? voteA.count / votes * 100 : null;
   const predictionRight = predictionLeft === null ? null : 100 - predictionLeft;
 
-  return <div className="min-w-0 space-y-3 border border-[var(--color-border)] bg-[var(--color-panel-low)] p-4 text-sm">
+  return <div data-match-bet className="min-w-0 space-y-3 border border-[var(--color-border)] bg-[var(--color-panel-low)] p-4 text-sm">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <span className="flex items-center gap-5">
         <span className="relative inline-block font-mono font-bold text-[var(--color-accent)]">BET<HelpTooltip className="absolute -right-3 top-0" label="支持率说明" content="支持率按本场比赛胜者盘口中，各队投入积分占总投入积分计算，不代表获胜概率或支持人数比例。" /></span>

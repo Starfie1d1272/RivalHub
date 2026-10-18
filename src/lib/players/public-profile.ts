@@ -37,8 +37,14 @@ export async function getPublicPlayerProfileReadModel(
 ) {
   const user = await getPublicPlayerById(userId);
   if (!user) return null;
-  const [career, currentTeams, registrations, competitiveFacts, competitiveRoles, mapPreferences, competitiveCatalog, educationRows, playerLft, teamMemberRows, careerRecords] = await Promise.all([
-    readOptionalPublicStats("player_career", () => getPublicPlayerCareerDetail({ playerId: userId, eventSlug: scope.eventSlug, mapFilter: scope.mapFilter })),
+  // Reuse the same cached read for an unfiltered profile; scoped performance
+  // and the lifetime header are independent and can load concurrently.
+  const lifetimePromise = readOptionalPublicStats("player_career", () => getPublicPlayerCareerDetail({ playerId: userId }));
+  const performancePromise = scope.eventSlug || scope.mapFilter
+    ? readOptionalPublicStats("player_career", () => getPublicPlayerCareerDetail({ playerId: userId, eventSlug: scope.eventSlug, mapFilter: scope.mapFilter }))
+    : lifetimePromise;
+  const [career, currentTeams, registrations, competitiveFacts, competitiveRoles, mapPreferences, competitiveCatalog, educationRows, playerLft, teamMemberRows, careerRecords, lifetime] = await Promise.all([
+    performancePromise,
     db.select({ slug: teams.slug, name: teams.name }).from(teamMemberships)
       .innerJoin(teams, eq(teams.id, teamMemberships.teamId))
       .where(and(eq(teamMemberships.userId, userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))),
@@ -88,6 +94,7 @@ export async function getPublicPlayerProfileReadModel(
       .where(and(eq(eventRosterMembers.userId, userId), eq(eventRosterMembers.isCurrent, true), inArray(eventRosters.status, ["confirmed", "frozen"]), ne(seasons.status, "draft"), publicCompetitionEntryCondition()))
       .orderBy(desc(seasons.createdAt), asc(competitionEntries.name), asc(competitionEntries.id)),
     getPublicPlayerRecords(userId),
+    lifetimePromise,
   ]);
 
   const uniqueHistoryEntries = [...new Map(teamMemberRows.map((entry) => [`${entry.seasonId}:${entry.teamId}`, entry])).values()];
@@ -143,6 +150,12 @@ export async function getPublicPlayerProfileReadModel(
   return {
     user,
     career,
+    careerOverview: {
+      rating: lifetime?.scoreboard[0]?.avgRating ?? null,
+      adr: lifetime?.scoreboard[0]?.avgAdr ?? null,
+      kd: lifetime?.scoreboard[0]?.kdRatio ?? null,
+      maps: lifetime?.summary.maps ?? null,
+    },
     currentTeams,
     eventTeams: uniqueHistoryEntries,
     currentEventTeams,

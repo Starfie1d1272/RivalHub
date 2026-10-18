@@ -4,7 +4,7 @@ import type { SemanticTone } from "@/lib/presentation";
 import type { MatchStatus } from "@/types/match";
 
 const TONE_STYLES: Record<SemanticTone, string> = {
-  neutral: "border-[var(--color-border)] text-[var(--color-fg-dim)] bg-transparent",
+  neutral: "border-[var(--color-border)] text-[var(--color-fg-mid)] bg-transparent",
   info: "border-[var(--color-info-edge)] text-[var(--color-info)] bg-[var(--color-info-soft)]",
   success: "border-[var(--color-ok-edge)] text-[var(--color-ok)] bg-[var(--color-ok-soft)]",
   warn: "border-[var(--color-warn-edge)] text-[var(--color-warn)] bg-[var(--color-warn-soft)]",

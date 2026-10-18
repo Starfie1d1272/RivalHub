@@ -25,8 +25,8 @@ export function MyCompetitionCard({ context }: { context: MyCompetitionContext }
           <StatusPill label={seasonStatus.label} tone={seasonStatus.tone} />
         </div>
         <div className="grid gap-3 text-sm leading-6 text-[var(--color-fg-mid)] sm:grid-cols-2">
-          <p>报名：{context.registration.label} · {context.registration.detail}</p>
-          {context.participation && <p>参赛确认：{context.participation.label} · {context.participation.detail}</p>}
+          <p>报名：{context.registration.state === "ready" ? context.registration.label : context.registration.detail}</p>
+          {context.participation && <p>参赛确认：{context.participation.state === "ready" ? context.participation.label : context.participation.detail}</p>}
         </div>
         {context.nextMatch && <div className="border-l-2 border-[var(--color-accent)] pl-3"><p className="font-medium">{context.nextMatch.title}</p><p className="text-sm text-[var(--color-fg-mid)]">{context.nextMatch.detail}</p></div>}
         <div className="flex flex-wrap gap-2">

@@ -1,11 +1,12 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, type DB, type TxDb } from "@/db/client";
 import {
   competitionEntries,
   competitionEntryActiveClaims,
   competitionEntryParticipants,
+  competitionEntryRosterMembers,
 } from "@/db/schema";
 import type { CompetitionEntryParticipantStatus } from "@/lib/competition-entries/presentation";
 
@@ -26,7 +27,7 @@ export interface CompetitionEntrySelectionEntry {
 }
 
 export function selectCompetitionEntryParticipantContext<T extends CompetitionEntrySelectionEntry>(input: {
-  participantRows: ReadonlyArray<{ entry: T; participantStatus: CompetitionEntryParticipantStatus }>;
+  participantRows: ReadonlyArray<{ entry: T; participantStatus: CompetitionEntryParticipantStatus | null }>;
   representativeEntries: readonly T[];
   activeClaimEntries: readonly T[];
 }): {
@@ -72,11 +73,21 @@ export function selectCompetitionEntryParticipantContext<T extends CompetitionEn
 type ParticipantContextInput = { competitionId: string; userId: string };
 type ParticipantContextQueryable = Pick<DB, "select">;
 
+/** An old invitation outside the current revision is history, not a pending task. */
+export function currentRosterParticipantStatus() {
+  return sql<CompetitionEntryParticipantStatus | null>`case
+    when ${competitionEntryParticipants.status} = 'invited' and not exists (
+      select 1 from ${competitionEntryRosterMembers}
+      where ${competitionEntryRosterMembers.revisionId} = ${competitionEntries.currentRosterRevisionId}
+        and ${competitionEntryRosterMembers.participantId} = ${competitionEntryParticipants.id}
+    ) then null else ${competitionEntryParticipants.status} end`;
+}
+
 function participantContextQueries(executor: ParticipantContextQueryable, input: ParticipantContextInput) {
   return {
     participantRows: () => executor.select({
       entry: competitionEntries,
-      participantStatus: competitionEntryParticipants.status,
+      participantStatus: currentRosterParticipantStatus(),
     })
       .from(competitionEntryParticipants)
       .innerJoin(competitionEntries, eq(competitionEntries.id, competitionEntryParticipants.entryId))

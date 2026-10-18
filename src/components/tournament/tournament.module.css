@@ -136,7 +136,7 @@
 }
 .logoMatch {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 55px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(55px, max-content) minmax(0, 1fr);
   min-height: 80px;
 }
 .teamSide {
@@ -191,6 +191,13 @@
   background: var(--color-panel-low);
   font-variant-numeric: tabular-nums;
   font-size: 18px;
+}
+.scoreLine {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
 }
 .score strong[data-winning="true"] {
   color: var(--advance);
@@ -352,6 +359,12 @@
   gap: 24px;
   justify-content: center;
 }
+.board[data-fixed-view="true"] .roundTitle {
+  margin-bottom: 20px;
+}
+.board[data-fixed-view="true"] .roundContent {
+  padding-block: 20px;
+}
 .board[data-layout="list"] .rounds {
   display: flex;
   flex-direction: column;
@@ -462,7 +475,7 @@
     min-width: 0;
   }
   .board[data-layout="list"] .logoMatch {
-    grid-template-columns: minmax(0, 1fr) 36px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(36px, max-content) minmax(0, 1fr);
   }
   .board[data-layout="list"] .logo {
     width: 36px !important;
@@ -502,7 +515,7 @@
     font-size: 18px;
   }
   .board[data-layout="list"] .logoMatch {
-    grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(24px, max-content) minmax(0, 1fr);
   }
   .board[data-layout="list"] .score {
     font-size: 12px;

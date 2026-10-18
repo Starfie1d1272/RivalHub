@@ -6,15 +6,15 @@ import styles from "./tournament.module.css";
 export type TournamentView = "flow" | "compact" | "list";
 /** Layout only: adapters retain ownership of official facts and simulation choices. */
 export function TournamentFlow({ rounds, view, setView, renderRound, finalResults, legend, label, resultLabel, initialRound }: {
-  rounds: number[]; view: TournamentView; setView: (view: TournamentView) => void;
+  rounds: number[]; view: TournamentView; setView?: (view: TournamentView) => void;
   renderRound: (round: number) => ReactNode; finalResults: ReactNode; legend?: ReactNode;
   label: string; resultLabel: string; initialRound?: number;
 }) {
   const [mobileRound, setMobileRound] = useState<number | "results">(initialRound ?? rounds[0] ?? 1);
   return (
-    <div className={styles.board} data-layout={view}>
-      <div className={styles.toolbar}>
-        <div
+    <div className={styles.board} data-layout={view} data-fixed-view={!setView || undefined}>
+      {(setView || legend) && <div className={styles.toolbar}>
+        {setView && <div
           role="group"
           aria-label="赛程展示方式"
           className={styles.viewSwitch}
@@ -36,9 +36,9 @@ export function TournamentFlow({ rounds, view, setView, renderRound, finalResult
               <span>{label}</span>
             </button>
           ))}
-        </div>
-        <div className={styles.legend}>{legend}</div>
-      </div>
+        </div>}
+        {legend && <div className={styles.legend}>{legend}</div>}
+      </div>}
       {view === "list" && (
         <nav className={styles.mobileRounds} aria-label="当前展示轮次">
           {rounds.map((round) => (

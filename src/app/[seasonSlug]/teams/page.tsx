@@ -1,23 +1,27 @@
-import { getBatchPublicTeamMapPreviews } from "@/lib/teams/map-profile";
+import Link from "next/link";
+import { connection } from "next/server";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
-import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { ParticipantDirectoryToolbar } from "@/components/season/ParticipantDirectoryToolbar";
 import { parseParticipantDirectoryQuery, matchesDirectorySearch } from "@/lib/players/directory-query";
-import { publicCompetitionEntryCondition, publicCompetitionEntryLabel } from "@/lib/competition-entries/public-visibility";
+import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { Suspense } from "react";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/db/client";
 import { competitionEntries, eventRosterMembers, eventRosters, steamProfiles, users } from "@/db/schema";
 import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
-import { PageHeader, PageLayout, Stat } from "@/components/rivalhub";
+import { PageHeader, PageLayout } from "@/components/rivalhub";
 import { TeamCard } from "@/components/teams/TeamCard";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { createEmptyPublicEventTeamRecord, getPublicEventTeamMatchSummary } from "@/lib/competition-entries/public-team-context";
+import { getPublicEventTeamMatchSummary } from "@/lib/competition-entries/public-team-context";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { getMajorPublicParticipantSummary } from "@/lib/major/public-participants";
 
-export default async function CompetitionEntriesPage({ params, searchParams }: { params: Promise<{ seasonSlug: string }>; searchParams?: Promise<{ q?: string }> }) {
+export default function CompetitionEntriesPage(props: { params: Promise<{ seasonSlug: string }>; searchParams?: Promise<{ q?: string }> }) {
+  return <Suspense fallback={<PageLayout variant="wide"><p role="status">正在加载…</p></PageLayout>}><CompetitionEntriesPageContent {...props} /></Suspense>;
+}
+export async function CompetitionEntriesPageContent({ params, searchParams }: { params: Promise<{ seasonSlug: string }>; searchParams?: Promise<{ q?: string }> }) {
+  await connection();
   const { seasonSlug } = await params;
   const { q } = parseParticipantDirectoryQuery(await searchParams);
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
@@ -27,29 +31,20 @@ export default async function CompetitionEntriesPage({ params, searchParams }: {
     const summary = await getMajorPublicParticipantSummary(season);
 
     const visibleTeams = summary.teams.filter((team) => matchesDirectorySearch(q, team.entry.name, ...team.roster.map((member) => member.name)));
-    const [mapPreviews, results, stagePresentation] = await Promise.all([
-      getBatchPublicTeamMapPreviews(visibleTeams.map((team) => team.entry.id)),
-      getPublicSeasonResults(season),
-      getPublicSeasonStagePresentation(season),
-    ]);
-    return <PageLayout as="div" variant="wide" className="space-y-8">
+    const results = await getPublicSeasonResults(season);
+    return <PageLayout as="div" variant="wide" className="space-y-6">
       <PageHeader
-        title="队伍"
+        title="参赛阵容"
         eyebrow={season.name}
-        description={summary.presentation.teamCollectionDescription}
         actions={<Suspense fallback={null}><AdminShortcutSlot href={`/admin/${seasonSlug}/settings`} label="赛事管理" /></Suspense>}
       />
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
-        <Stat label="队伍" value={summary.teamCount} />
-        <Stat label="选手" value={summary.playerCount} />
-        <Stat label="比赛" value={`${summary.finishedMatchCount}/${summary.matchCount}`} />
-      </div>
+      <p className="text-sm text-[var(--color-fg-mid)]">{summary.teamCount} 支队伍 · {summary.playerCount} 名选手 · {summary.finishedMatchCount}/{summary.matchCount} 场比赛已结束</p>
       <ParticipantDirectoryToolbar query={q} total={visibleTeams.length} />
       {visibleTeams.length === 0 ? (
         <div className="py-16 text-center text-[var(--color-fg-mid)]">{q ? "没有匹配的队伍或选手" : `${summary.presentation.teamCollectionLabel}尚未形成`}</div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {visibleTeams.map((team) => (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {visibleTeams.toSorted((a, b) => (results.placements.findIndex(p => p.entryId === a.entry.id) + 1 || Infinity) - (results.placements.findIndex(p => p.entryId === b.entry.id) + 1 || Infinity)).map((team) => (
             <TeamCard
               key={team.entry.id}
               entryId={team.entry.id}
@@ -57,11 +52,8 @@ export default async function CompetitionEntriesPage({ params, searchParams }: {
               seasonSlug={seasonSlug}
               logoUrl={team.entry.logoUrl}
               players={team.roster}
-              record={team.record}
-              maps={mapPreviews.get(team.entry.id)?.own ?? []}
-              stages={mapPreviews.get(team.entry.id)?.playedStages?.map((key) => stagePresentation.labels[key]).filter((name): name is string => Boolean(name))}
+              query={q}
               placement={results.placements.find((placement) => placement.entryId === team.entry.id)?.label}
-              summary={null}
             />
           ))}
         </div>
@@ -70,28 +62,24 @@ export default async function CompetitionEntriesPage({ params, searchParams }: {
   }
 
   const entries = await db.query.competitionEntries.findMany({ where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition()), orderBy: [asc(competitionEntries.formationOrder), asc(competitionEntries.id)] });
-  if (entries.length === 0) return <PageLayout variant="wide" className="py-16 text-center text-[var(--color-fg-mid)]">赛事队伍尚未形成</PageLayout>;
   const members = await db.select({ entryId: eventRosters.entryId, userId: users.id, personaName: steamProfiles.personaName, avatarUrl: steamProfiles.avatarUrl, perfectName: users.perfectName, displayName: users.displayName, isStarter: eventRosterMembers.isPrimaryStarter })
     .from(eventRosterMembers).innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId)).innerJoin(users, eq(users.id, eventRosterMembers.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(and(inArray(eventRosters.entryId, entries.map((entry) => entry.id)), inArray(eventRosters.status, ["confirmed", "frozen"]), eq(eventRosterMembers.isCurrent, true)));
   const matchSummary = await getPublicEventTeamMatchSummary(season.id, entries.map((entry) => entry.id));
   const membersByEntry = new Map<string, typeof members>();
   for (const member of members) membersByEntry.set(member.entryId, [...(membersByEntry.get(member.entryId) ?? []), member]);
-  const record = (entryId: string) => matchSummary.records.get(entryId) ?? createEmptyPublicEventTeamRecord();
   const visibleEntries = entries.filter((entry) => matchesDirectorySearch(q, entry.name, ...(membersByEntry.get(entry.id) ?? []).map(getPublicDisplayName)));
-  const [mapPreviews, results, stagePresentation] = await Promise.all([
-    getBatchPublicTeamMapPreviews(visibleEntries.map((entry) => entry.id)),
-    getPublicSeasonResults(season),
-    getPublicSeasonStagePresentation(season),
-  ]);
-  return <PageLayout as="div" variant="wide" className="space-y-8">
-    <PageHeader title="队伍" eyebrow={season.name} description={publicCompetitionEntryLabel(season)} actions={<Suspense fallback={null}><AdminShortcutSlot href={`/admin/${seasonSlug}/settings`} label="赛事管理" /></Suspense>} />
-    <div className="grid grid-cols-3 gap-3 sm:gap-4"><Stat label="队伍" value={entries.length} /><Stat label="已确认选手" value={members.length} /><Stat label="比赛" value={`${matchSummary.finished}/${matchSummary.total}`} /></div>
-    <p className="text-xs text-[var(--color-fg-dim)]">{season.registrationMode === "team" && season.status === "registration" ? "审核通过后进入正赛候选池，正式正赛名额由赛委会确认。" : "这里展示本届赛事队伍；队伍资料与历史请到队伍页面查看。"}</p>
+  const results = await getPublicSeasonResults(season);
+  return <PageLayout as="div" variant="wide" className="space-y-6">
+    <PageHeader title="参赛阵容" eyebrow={season.name} actions={<Suspense fallback={null}><AdminShortcutSlot href={`/admin/${seasonSlug}/settings`} label="赛事管理" /></Suspense>} />
+    <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+      <p className="text-[var(--color-fg-mid)]">{entries.length} 支队伍 · {members.length} 名确认选手 · {matchSummary.finished}/{matchSummary.total} 场比赛已结束</p>
+      {season.competitionTemplate === "rivals" && <Link className="text-[var(--color-accent)] hover:underline" href={`/${seasonSlug}/players`}>报名名单与候选人 →</Link>}
+    </div>
     <ParticipantDirectoryToolbar query={q} total={visibleEntries.length} />
     {visibleEntries.length === 0 ? (
       <div className="py-16 text-center text-[var(--color-fg-mid)]">{q ? "没有匹配的队伍或选手" : "赛事队伍尚未形成"}</div>
     ) : (
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{visibleEntries.map((entry) => <TeamCard stages={mapPreviews.get(entry.id)?.playedStages?.map((key) => stagePresentation.labels[key]).filter((name): name is string => Boolean(name))} maps={mapPreviews.get(entry.id)?.own} placement={results.placements.find((placement) => placement.entryId === entry.id)?.label} key={entry.id} entryId={entry.id} teamName={entry.name} seasonSlug={seasonSlug} logoUrl={entry.logoUrl} players={(membersByEntry.get(entry.id) ?? []).map((member) => ({ name: getPublicDisplayName(member), avatarUrl: member.avatarUrl, isStarter: member.isStarter, userId: member.userId }))} record={record(entry.id)} summary={null} />)}</div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{visibleEntries.toSorted((a, b) => (results.placements.findIndex(p => p.entryId === a.id) + 1 || Infinity) - (results.placements.findIndex(p => p.entryId === b.id) + 1 || Infinity)).map((entry) => <TeamCard query={q} placement={results.placements.find((placement) => placement.entryId === entry.id)?.label} key={entry.id} entryId={entry.id} teamName={entry.name} seasonSlug={seasonSlug} logoUrl={entry.logoUrl} players={(membersByEntry.get(entry.id) ?? []).map((member) => ({ name: getPublicDisplayName(member), avatarUrl: member.avatarUrl, isStarter: member.isStarter, userId: member.userId }))} />)}</div>
     )}
   </PageLayout>;
 }

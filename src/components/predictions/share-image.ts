@@ -150,7 +150,7 @@ export async function exportPredictionImage(input: {
   }
   ctx.fillStyle = muted;
   ctx.font = "18px sans-serif";
-  ctx.fillText("RIVALHUB · 图片分享不等于正式提交", 48, canvas.height - 34);
+  ctx.fillText("RIVALHUB", 48, canvas.height - 34);
   const blob = await new Promise<Blob>((resolve, reject) =>
     canvas.toBlob((value) =>
       value ? resolve(value) : reject(new Error("导出失败，请重试")),

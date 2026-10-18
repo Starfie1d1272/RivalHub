@@ -1,8 +1,9 @@
 "use client";
 import { MatchDownloads } from "@/components/matches/MatchDownloads";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { InlineConfirm } from "@/components/rivalhub";
 import { revokeMatchInstallation as telemetry_revokeMatchInstallation } from "@/actions/match-operations";
@@ -13,13 +14,25 @@ const revokeMatchInstallation = observeAction("match-operations.revokeMatchInsta
 
 type Installation = { id: string; name: string; lastSeenAt: string | null; canRevoke: boolean; owned: boolean; activeMatches: { id: string; label: string }[] };
 export function MatchResources({ seasonId, data }: { seasonId: string; data: { installations: Installation[]; downloads: { windows: string; macos: string; windowsZip?: string } | null } }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const openFromHash = () => {
+      if (window.location.hash === "#match-resources") setOpen(true);
+    };
+    openFromHash();
+    window.addEventListener("hashchange", openFromHash);
+    return () => window.removeEventListener("hashchange", openFromHash);
+  }, []);
   const [selected, setSelected] = useState<Installation | null>(null);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
-  return <details id="match-resources" className="rounded border border-[var(--color-border)] p-4 space-y-4">
-    <summary className="cursor-pointer font-semibold">设备与下载</summary>
+  return <Dialog open={open} onOpenChange={setOpen}>
+    <DialogTrigger asChild><Button id="match-resources" variant="outline" size="sm">设备与下载</Button></DialogTrigger>
+    <DialogContent size="lg" aria-describedby={undefined}>
+      <DialogHeader><DialogTitle>设备与下载</DialogTitle></DialogHeader>
+      <DialogBody className="space-y-4">
     <section className="space-y-3"><h3 className="font-medium">Mizar 连接授权</h3>
       <p className="text-sm text-[var(--color-fg-mid)]">在 Mizar 点击「连接 RivalHub」，选择本届赛事。比赛与采集设备在 Mizar 中切换。</p>
       {!data.installations.length && <p className="text-sm">暂无已授权设备</p>}
@@ -28,5 +41,7 @@ export function MatchResources({ seasonId, data }: { seasonId: string; data: { i
       {error && <p role="alert">{error}</p>}
     </section>
     <MatchDownloads downloads={data.downloads} />
-  </details>;
+      </DialogBody>
+    </DialogContent>
+  </Dialog>;
 }

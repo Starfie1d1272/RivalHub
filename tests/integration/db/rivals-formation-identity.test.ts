@@ -13,6 +13,7 @@ vi.mock("@/lib/revalidation", () => ({ revalidateSeasonPaths: vi.fn() }));
 import { confirmCaptains } from "@/actions/captains";
 import { pickPlayer } from "@/actions/draft/picks";
 import { getEntryIdForRepresentative } from "@/actions/matches/_shared";
+import { getPublicDraftData, getPublicDraftSummary } from "@/lib/draft/data";
 
 it("forms canonical captain Entries and commits a draft pick without losing identity provenance", async () => {
   const pool = createLocalPool();
@@ -78,6 +79,18 @@ it("forms canonical captain Entries and commits a draft pick without losing iden
     expect((await pool.query("SELECT action FROM audit_logs WHERE season_id=$1 ORDER BY created_at", [seasonId])).rows).toEqual([
       { action: "captain.confirm" }, { action: "draft.pick" },
     ]);
+    const [fullDraft, summary] = await Promise.all([
+      getPublicDraftData(seasonId),
+      getPublicDraftSummary(seasonId),
+    ]);
+    expect(summary).toEqual({
+      state: fullDraft.state,
+      teams: fullDraft.teams.map(({ entryId, teamName }) => ({ entryId, teamName })),
+      totalPicks: fullDraft.totalPicks,
+      maxPicks: fullDraft.maxPicks,
+    });
+    expect(summary.totalPicks).toBe(1);
+    expect(summary.teams.some((team) => team.entryId === summary.state?.currentEntryId)).toBe(true);
   } finally {
     await pool.end();
   }

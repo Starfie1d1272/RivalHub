@@ -336,6 +336,15 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
   const visibleMaps = maps;
   const defaultTab = showSummaryTab ? "summary" : (visibleMaps[0]?.id ?? "");
 
+  const showBpPrimary = phase === "veto" || phase === "awaiting_veto" || phase === "preparation";
+  const matchBet = !match.testConfig && season.competitionTemplate === "major" ? (
+    <Suspense fallback={null}>
+      <MatchBetLink seasonId={season.id} matchId={match.id} slug={seasonSlug}
+        teamA={{ entryId: match.entryAId, name: teamA?.name ?? "队伍 A" }}
+        teamB={{ entryId: match.entryBId, name: teamB?.name ?? "队伍 B" }} />
+    </Suspense>
+  ) : null;
+
   return (
     <PageLayout variant="wide" className="space-y-8">
       {match.testConfig && <p className="text-sm text-[var(--color-fg-mid)]">测试赛 · 不计入正式赛程与统计</p>}
@@ -416,8 +425,10 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
         </Panel>
       )}
 
-      {(phase === "veto" || phase === "awaiting_veto" || phase === "preparation") && <div className="space-y-4" data-testid="match-bp-primary">          <section className="space-y-3">
-            <Panel label="BP 与开赛">
+      {(showBpPrimary || (!isFinished && matchBet)) && (
+        <div className={`grid min-w-0 gap-4 ${showBpPrimary ? "lg:has-[>[data-match-bet]]:grid-cols-2" : ""}`}>
+          {showBpPrimary && <section className="min-w-0" data-testid="match-bp-primary">
+            <Panel label="BP 与开赛" className="flex h-full flex-col" contentClassName="flex flex-1 flex-col justify-center">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="font-semibold text-[var(--color-fg)]">{phase === "veto" ? "BP 进行中" : "等待 BP"}</h2>
@@ -435,9 +446,11 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
                 </Link>
               </div>
             </Panel>
-          </section>
-
-          {match.status !== "scheduled" && (
+          </section>}
+          {!isFinished && matchBet}
+        </div>
+      )}
+      {showBpPrimary && match.status !== "scheduled" && (
             <VetoView seasonSlug={seasonSlug}
               matchId={match.id}
               teamAName={teamA?.name ?? "队伍 A"}
@@ -445,14 +458,12 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
               entryAId={match.entryAId}
               entryBId={match.entryBId}
             />
-          )}
-      </div>}
+      )}
       {(isSeasonAdmin || isCaptainA || isCaptainB) && afterVeto && !isFinished && (
         <Link prefetch={false} className="inline-flex min-h-10 w-fit items-center rounded border border-[var(--color-border)] px-3 text-sm" href={`/${seasonSlug}/matches/${match.id}/veto`}>
           进入 BP 房间
         </Link>
       )}
-      {!match.testConfig && season.competitionTemplate === "major" && <Suspense fallback={null}><MatchBetLink seasonId={season.id} matchId={match.id} slug={seasonSlug} teamA={{ entryId: match.entryAId, name: teamA?.name ?? "队伍 A" }} teamB={{ entryId: match.entryBId, name: teamB?.name ?? "队伍 B" }} /></Suspense>}
       <MatchLiveProvider matchId={match.id} eligible={afterVeto}>
       {(afterVeto || isFinished) && maps.length > 0 && <MatchMapSequence seasonSlug={seasonSlug}
         maps={maps.map(map => ({ id: map.id, mapOrder: map.mapOrder, mapName: map.mapName, pickedByEntryId: map.pickedByEntryId, scoreA: map.scoreA, scoreB: map.scoreB, completedAt: map.completedAt?.toISOString() ?? null }))}
@@ -618,6 +629,8 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
         </section>
       ) : null}
 
+      {isFinished && matchBet}
+
       {/* 详细统计 */}
       {detailedUnavailable && <p role="status">高级统计暂时无法加载，请稍后重试。</p>}
       {detailed && detailedPlayerId && (
@@ -674,8 +687,8 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
         />
       )}
 
-      {/* 赛后最终名单；BP 记录与地图保持在顶部 */}
-      {isFinished && (
+      {/* 弃赛且没有实际地图或阵容时，不展示空名单。 */}
+      {isFinished && (!match.isForfeit || maps.length > 0 || Boolean(teamARoster?.length || teamBRoster?.length)) && (
         <>
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>

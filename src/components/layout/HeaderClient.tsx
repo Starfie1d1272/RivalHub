@@ -31,12 +31,13 @@ export function HeaderClient({
       <header
       className="sticky top-0 z-50 border-b backdrop-blur"
       style={{
-        padding: "12px 28px",
+        padding: "14px clamp(16px, 2vw, 32px)",
+        minHeight: 64,
         background: "color-mix(in srgb, var(--color-panel-low) 90%, transparent)",
         borderColor: "var(--color-border)",
         display: "grid",
         gridTemplateColumns: "auto 1fr auto",
-        gap: 24,
+        gap: 16,
         alignItems: "center",
       }}
     >

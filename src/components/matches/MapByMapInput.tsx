@@ -124,7 +124,7 @@ export function MapByMapInput({
       {completedMaps.length > 0 && (
         <div className="space-y-1">
           {completedMaps.map((m) => (
-            <div key={m.mapOrder} className="flex items-center gap-2 text-xs text-[var(--color-fg-mid)]">
+            <div key={m.mapOrder} className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-fg-mid)]">
               <span className="w-4">#{m.mapOrder}</span>
               <span className="font-medium text-[var(--color-fg)]">{mapLabel(m.mapName)}</span>
               <Badge variant="outline" className="text-xs">
@@ -142,7 +142,7 @@ export function MapByMapInput({
         <form onSubmit={handleSubmit} className="space-y-3 pt-1 border-t border-[var(--color-border)]">
           {nextPending ? (
             // BP 引导模式：地图和 pick 方从 BP 读取
-            <div className="flex items-center gap-2 pt-2">
+            <div className="flex flex-wrap items-center gap-2 pt-2">
               <span className="text-xs text-[var(--color-fg-mid)]">第 {nextPending.mapOrder} 图</span>
               <span className="text-xs font-medium text-[var(--color-fg)]">{mapLabel(nextPending.mapName)}</span>
               <Badge variant="outline" className="text-xs">
@@ -159,7 +159,7 @@ export function MapByMapInput({
             <p className="text-xs font-medium text-[var(--color-fg-mid)] pt-2">录入第 {nextMapOrder} 图</p>
           )}
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className={nextPending ? "flex flex-wrap items-end gap-4" : "grid grid-cols-2 gap-3 sm:grid-cols-4"}>
             {!nextPending && (
               <>
                 <div className="space-y-1">
@@ -207,24 +207,24 @@ export function MapByMapInput({
             )}
 
             <div className="space-y-1 col-span-2 sm:col-span-1">
-              <Label className="text-xs text-[var(--color-fg-mid)]">回合数</Label>
-              <div className="flex items-end gap-1">
-                <div className="space-y-1">
-                  <TeamProfileLink entryId={entryAId} className="text-[10px] text-[var(--color-fg-dim)]">{teamAName}</TeamProfileLink>
-                  <Input type="number" min="0" value={scoreA} onChange={(e) => setScoreA(e.target.value)}
-                    className="w-14 text-center h-8 text-xs" placeholder="0" />
+              <Label className="sr-only">回合数</Label>
+              <div className="flex items-end gap-3">
+                <div className="min-w-0 w-28 space-y-1 sm:w-40">
+                  <TeamProfileLink entryId={entryAId} className="block break-words text-sm text-[var(--color-fg-mid)]">{teamAName}</TeamProfileLink>
+                  <Input aria-label={`${teamAName} 回合数`} type="number" min="0" value={scoreA} onChange={(e) => setScoreA(e.target.value)}
+                    className="h-11 w-full text-center font-mono text-xl" placeholder="0" />
                 </div>
-                <span className="text-[var(--color-fg-mid)] text-xs pb-1.5">:</span>
-                <div className="space-y-1">
-                  <TeamProfileLink entryId={entryBId} className="text-[10px] text-[var(--color-fg-dim)]">{teamBName}</TeamProfileLink>
-                  <Input type="number" min="0" value={scoreB} onChange={(e) => setScoreB(e.target.value)}
-                    className="w-14 text-center h-8 text-xs" placeholder="0" />
+                <span className="text-[var(--color-fg-mid)] text-lg pb-2">:</span>
+                <div className="min-w-0 w-28 space-y-1 sm:w-40">
+                  <TeamProfileLink entryId={entryBId} className="block break-words text-sm text-[var(--color-fg-mid)]">{teamBName}</TeamProfileLink>
+                  <Input aria-label={`${teamBName} 回合数`} type="number" min="0" value={scoreB} onChange={(e) => setScoreB(e.target.value)}
+                    className="h-11 w-full text-center font-mono text-xl" placeholder="0" />
                 </div>
               </div>
             </div>
           </div>
 
-          <Button type="submit" size="sm" disabled={isPending} className="h-8 text-xs">
+          <Button type="submit" size="sm" disabled={isPending} className="min-h-10">
             确认录入
           </Button>
         </form>

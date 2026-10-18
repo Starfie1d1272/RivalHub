@@ -15,7 +15,7 @@ export function StageSwissReadModel({ data, seasonSlug }: StageSwissReadModelPro
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold text-[var(--color-fg)]">{isQualification ? "PLAY-IN" : data.stageName}</h2>
+        <h2 className="sr-only">{isQualification ? "PLAY-IN" : data.stageName}</h2>
         <p className="text-xs text-[var(--color-fg-mid)]">
           {isQualification
             ? `${data.teamCount} → ${data.advanceCount} · BO1 · 2胜晋级 / 2负淘汰 · ${qualificationComplete ? "已结束" : `Round ${qualificationRound}`}`

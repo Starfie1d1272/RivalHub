@@ -40,7 +40,7 @@ export function MatchMapSequence({ maps, currentMapId, seasonSlug, entryAId, tea
   return <section aria-label="BP 结果与地图" className="min-w-0 space-y-3">
     <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-lg font-semibold">BP 结果与地图</h2>
       {progress && <p className="text-sm text-[var(--color-fg-mid)]" aria-label="地图胜场">Series {progress.scoreA ?? "—"} : {progress.scoreB ?? "—"} <HelpTooltip label="地图胜场说明" content="Series 表示双方已赢下的地图数；每张地图上的数字表示该图回合比分。" /></p>}</div>
-    <ol className="grid gap-3 sm:grid-cols-3">{maps.map(map => {
+    <ol className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-3">{maps.map(map => {
       const completed = map.completedAt !== null && map.scoreA !== null && map.scoreB !== null;
       const current = !finished && map.id === currentMapId;
       return <li key={map.id} style={{ backgroundImage: mapThumbnail(map.mapName) ? `linear-gradient(90deg, color-mix(in srgb, var(--color-bg) 88%, transparent), color-mix(in srgb, var(--color-bg) 55%, transparent)), url("${mapThumbnail(map.mapName)}")` : undefined }} className={`min-w-0 border bg-[var(--color-panel-low)] bg-cover bg-center p-4 ${current ? "border-[var(--color-accent)]" : "border-[var(--color-border)]"}`}>

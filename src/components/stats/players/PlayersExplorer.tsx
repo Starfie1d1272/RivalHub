@@ -1,13 +1,14 @@
 "use client";
+import { StatsExplorerTable } from "@/components/stats/StatsExplorerTable";
 import React from "react";
 import { TeamIdentityLinks } from "../TeamIdentityLinks";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricValue } from "@/components/stats/MetricValue";
-import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
+import { type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import { openingDeathTraded } from "@/lib/stats/derived-metrics";
 import { statsRateDenominator, statsRateNumerator } from "@/lib/stats/presentation";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
@@ -90,23 +91,27 @@ function DAKColumns(family: Exclude<Family, "overall">, teamNames: ReadonlyMap<s
 
 export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentStats; query: StatsQuery; seasonSlug: string }) {
   const router = useRouter();
-  const [family, setFamily] = useState<Family>("overall");
-  const [search, setSearch] = useState("");
+  function setReadingState(key: string, value: string) {
+    const next = new URLSearchParams(params.toString());
+    if (value) next.set(key, value); else next.delete(key);
+    next.delete("page");
+    if (key === "family") { next.delete("sort"); next.delete("direction"); }
+    window.history.replaceState(null, "", `?${next}`);
+  }
+  const params = useSearchParams();
+  const family = (families.find(row => row.key === params.get("family"))?.key ?? "overall") as Family;
+  const setFamily = (value: Family) => setReadingState("family", value);
+  const search = String(params.get("q") ?? "").slice(0, 128);
+  const setSearch = (value: string) => setReadingState("q", value);
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const teamNames = useMemo(() => new Map(data.performance.teams.map((team) => [team.team.entityKey, team.team.displayName])), [data.performance.teams]);
-  const scoreboardRows = useMemo(
-    () => data.leaderboard.filter((row) => (!query.teamFilter || row.teamId === query.teamFilter || row.teamIds?.includes(query.teamFilter)) && `${row.perfectName} ${row.teamName ?? ""}`.toLocaleLowerCase().includes(normalizedSearch)),
-    [data.leaderboard, normalizedSearch, query.teamFilter],
-  );
-  const dakRows = useMemo(
-    () => data.performance.players.filter((row) => (!query.teamFilter || row.teamEntityKeys.includes(query.teamFilter)) && `${row.player.displayName} ${playerTeam(row, teamNames)}`.toLocaleLowerCase().includes(normalizedSearch)),
-    [data.performance.players, normalizedSearch, teamNames, query.teamFilter],
-  );
+  const scoreboardRows = data.leaderboard.filter((row) => (!query.teamFilter || row.teamId === query.teamFilter || row.teamIds?.includes(query.teamFilter)) && `${row.perfectName} ${row.teamName ?? ""}`.toLocaleLowerCase().includes(normalizedSearch));
+  const dakRows = data.performance.players.filter((row) => (!query.teamFilter || row.teamEntityKeys.includes(query.teamFilter)) && `${row.player.displayName} ${playerTeam(row, teamNames)}`.toLocaleLowerCase().includes(normalizedSearch));
 
   const overallColumns: StatsDataColumn<ScoreboardRow>[] = [
     { key: "player", label: "Player", identity: true, render: (row) => playerLink(row.userId, row.perfectName) },
     { key: "team", label: "Team", className: "hidden w-48 sm:table-cell", render: (row) => <span className="block truncate" title={row.teamName ?? undefined}><TeamIdentityLinks ids={row.teamIds ?? (row.teamId ? [row.teamId] : [])} names={teamNames} links={data.teamLinks} seasonSlug={seasonSlug} fallback={row.teamName}/></span> },
-    { key: "maps", label: "Maps", numeric: true, className: "w-[8%]", sortable: true, sortValue: (row) => row.maps, render: (row) => row.maps },
+    { key: "maps", label: "Maps", numeric: true, className: "w-16 sm:w-[8%]", sortable: true, sortValue: (row) => row.maps, render: (row) => row.maps },
     { key: "rounds", label: "Rounds", numeric: true, className: "hidden w-[9%] sm:table-cell", sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds ?? "—" },
     { key: "rating", metric: "rating", numeric: true, sortable: true, sortValue: (row) => row.avgRating, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
     { key: "adr", metric: "adr", numeric: true, sortable: true, sortValue: (row) => row.avgAdr, rankingSample: (row) => row.rounds, render: (row) => <MetricValue metric="adr" value={row.avgAdr} /> },
@@ -127,34 +132,34 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
   let table: React.ReactNode;
   if (family === "overall") {
     table = (
-      <StatsDataTable
+      <StatsExplorerTable
         key={family}
         rows={scoreboardRows}
         rankingBaselineRows={data.leaderboard}
         columns={overallColumns}
         rowKey={(row, index) => `${row.userId ?? row.perfectName}:${row.teamId ?? ""}:${index}`}
         initialSortKey="rating"
-        tableClassName="min-w-[980px] table-fixed"
+        tableClassName="min-w-[360px] sm:min-w-[760px] xl:min-w-[980px] table-fixed"
         emptyLabel="暂无选手统计"
       />
     );
   } else {
     table = (
-      <StatsDataTable
+      <StatsExplorerTable
         key={family}
         rows={dakRows}
         rankingBaselineRows={data.performance.players}
         columns={DAKColumns(family, teamNames, data.teamLinks, seasonSlug)}
         rowKey={(row, index) => `${row.player.entityKey}:detail:${index}`}
         initialSortKey={family === "opening" ? "win" : family === "teamplay" ? "kast" : family === "utility" ? "util" : "clutch"}
-        tableClassName="min-w-[960px] table-fixed"
+        tableClassName="min-w-[560px] sm:min-w-[960px] table-fixed"
         emptyLabel="调整范围查看详细统计"
       />
     );
   }
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-3">
       <MetricFamilyTabs label="Player metrics" value={family} options={families} onChange={setFamily} />
 
       <div className="flex min-w-0 flex-wrap items-end gap-3">

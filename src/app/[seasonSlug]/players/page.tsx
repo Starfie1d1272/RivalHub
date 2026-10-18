@@ -1,19 +1,20 @@
+import Link from "next/link";
+import { connection } from "next/server";
+import { Suspense } from "react";
 import { ParticipantDirectoryToolbar } from "@/components/season/ParticipantDirectoryToolbar";
 import { parseParticipantDirectoryQuery, matchesDirectorySearch, supportsRegistrationPositionDirectory } from "@/lib/players/directory-query";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { eq, and, asc, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, eventRosterMembers, eventRosters, seasonRegistrations, steamProfiles, users } from "@/db/schema";
 import { PageHeader, PageLayout, Stat } from "@/components/rivalhub";
-import { MajorPlayerDirectoryRow } from "@/components/players/MajorPlayerDirectoryRow";
 import { EventPlayerDirectoryRow } from "@/components/players/EventPlayerDirectoryRow";
 import { PlayerDirectoryRow } from "@/components/players/PlayerDirectoryRow";
 import { countDirectoryPlayersWithTeam, sortPlayerDirectory } from "@/lib/players/directory-order";
 import { positionLabel, positionValues } from "@/lib/validators/registration";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
-import { getMajorPublicParticipantProjection } from "@/lib/major/public-participants";
 import { getPublicEventRosterPlayerProjection } from "@/lib/competition-entries/public-player-projection";
 import { getVerifiedPlayerStatsBySeason } from "@/lib/stats/public-query";
 import type { Metadata } from "next";
@@ -31,7 +32,11 @@ export async function generateMetadata({ params }: PlayersPageProps): Promise<Me
   };
 }
 
-export default async function PlayersPage({ params, searchParams }: PlayersPageProps) {
+export default function PlayersPage(props: PlayersPageProps) {
+  return <Suspense fallback={<PageLayout variant="wide"><p role="status">正在加载…</p></PageLayout>}><PlayersPageContent {...props} /></Suspense>;
+}
+export async function PlayersPageContent({ params, searchParams }: PlayersPageProps) {
+  await connection();
   const { seasonSlug } = await params;
   const rawQuery = await searchParams;
   const position = positionValues.includes(rawQuery.position as typeof positionValues[number]) ? rawQuery.position! : "";
@@ -40,39 +45,8 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
   if (!season) notFound();
 
   if (season.competitionTemplate === "major") {
-    const projection = await getMajorPublicParticipantProjection(season);
-    const teamOptions = [...new Map(projection.players.map((player) => [player.entryId, { id: player.entryId, name: player.entryName }])).values()];
-    const query = parseParticipantDirectoryQuery(rawQuery, teamOptions);
-    const visiblePlayers = projection.players.filter((player) => (!query.team || query.team === player.entryId) && matchesDirectorySearch(query.q, player.name));
-    const playersWithStats = projection.players.filter((player) => player.stats !== null).length;
-    const teamCount = projection.teamCount;
-
-    return (
-      <PageLayout as="div" variant="wide" className="space-y-8">
-        <PageHeader
-          title="选手"
-          eyebrow={season.name}
-          description={projection.presentation.playerDescription}
-        />
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-          <Stat label="选手" value={projection.players.length} />
-          <Stat label="所属队伍" value={teamCount} />
-          <Stat label="正式比赛数据" value={playersWithStats} accent />
-        </div>
-
-        <ParticipantDirectoryToolbar query={query.q} team={query.team} teams={teamOptions} total={visiblePlayers.length} />
-        {visiblePlayers.length === 0 ? (
-          <div className="py-16 text-center text-[var(--color-fg-mid)]">暂无符合条件的选手</div>
-        ) : (
-          <div className="space-y-3">
-            {visiblePlayers.map((player) => (
-              <MajorPlayerDirectoryRow key={`${player.entryId}-${player.userId}`} player={player} seasonSlug={seasonSlug} />
-            ))}
-          </div>
-        )}
-      </PageLayout>
-    );
+    const { q } = parseParticipantDirectoryQuery(rawQuery);
+    redirect(q ? `/${seasonSlug}/teams?${new URLSearchParams({ q })}` : `/${seasonSlug}/teams`);
   }
 
   if (!supportsRegistrationPositionDirectory(season.competitionTemplate)) {
@@ -83,13 +57,14 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
     const playersWithStats = projection.players.filter((player) => player.stats !== null).length;
 
     return (
-      <PageLayout as="div" variant="wide" className="space-y-8">
-        <PageHeader title="选手" eyebrow={season.name} description="以下选手来自本届已确认参赛名单。" />
+      <PageLayout as="div" variant="wide" className="space-y-6">
+        <PageHeader title="报名名单" eyebrow={season.name} description="以下选手来自本届已确认参赛名单。" />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
           <Stat label="选手" value={projection.players.length} />
           <Stat label="所属队伍" value={projection.teamCount} />
           <Stat label="正式比赛数据" value={playersWithStats} accent />
         </div>
+        <Link className="text-sm text-[var(--color-accent)]" href={`/${seasonSlug}/teams`}>← 参赛阵容</Link>
         <ParticipantDirectoryToolbar query={query.q} team={query.team} teams={teamOptions} total={visiblePlayers.length} />
         {visiblePlayers.length === 0 ? (
           <div className="py-16 text-center text-[var(--color-fg-mid)]">暂无符合条件的选手</div>
@@ -183,9 +158,9 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
   const visiblePlayers = directoryPlayers.filter((player) => (!query.team || player.teamId === query.team) && matchesDirectorySearch(query.q, player.displayName));
 
   return (
-    <PageLayout as="div" variant="wide" className="space-y-8">
+    <PageLayout as="div" variant="wide" className="space-y-6">
       <PageHeader
-        title="选手"
+        title="报名名单"
         eyebrow={season.name}
         description={`${registrations.length} 人已通过审核`}
       />
@@ -197,6 +172,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
         <Stat label="位置" value={position ? positionLabel(position) : "全部"} />
       </div>
 
+      <Link className="text-sm text-[var(--color-accent)]" href={`/${seasonSlug}/teams`}>← 参赛阵容</Link>
       <ParticipantDirectoryToolbar
         query={query.q}
         team={query.team}

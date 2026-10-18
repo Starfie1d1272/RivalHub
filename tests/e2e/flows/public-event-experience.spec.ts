@@ -2,8 +2,9 @@ import { expect, test } from "../fixtures";
 
 test.use({ scenarioProfile: "major-entry" });
 
-test("公开赛事队伍与选手查询保留 URL 状态及移动布局", async ({ page, scenario }) => {
+test("参赛阵容查询保留 URL 状态，Major 旧选手地址转到阵容", async ({ page, scenario }) => {
   await page.goto(`/${scenario.slug}/teams`);
+  await expect(page.getByRole("heading", { name: "参赛阵容", exact: true })).toBeVisible();
   await expect(page.getByLabel("搜索队伍或选手")).toBeVisible();
   const teamSearch = page.getByLabel("搜索队伍或选手");
   await teamSearch.fill("unmatched-public-query");
@@ -13,13 +14,9 @@ test("公开赛事队伍与选手查询保留 URL 状态及移动布局", async 
   await page.goBack();
   await expect(page.getByLabel("搜索队伍或选手")).toHaveValue("");
 
-  await page.goto(`/${scenario.slug}/players`);
-  await expect(page.getByRole("heading", { name: "选手", exact: true })).toBeVisible();
-  await expect(page.getByLabel("所属队伍")).toBeVisible();
-  const playerSearch = page.getByLabel("搜索选手");
-  await playerSearch.fill("unmatched-player");
-  await expect(page).toHaveURL(/q=unmatched-player/);
-  await expect(playerSearch).toHaveValue("unmatched-player");
+  await page.goto(`/${scenario.slug}/players?q=unmatched-player`);
+  await expect(page).toHaveURL(new RegExp(`/${scenario.slug}/teams\\?q=unmatched-player$`));
+  await expect(page.getByRole("heading", { name: "参赛阵容", exact: true })).toBeVisible();
+  await expect(page.getByLabel("搜索队伍或选手")).toHaveValue("unmatched-player");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
-
 });

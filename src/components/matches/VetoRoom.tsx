@@ -292,6 +292,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                     <h2 className="font-semibold"><TeamProfileLink seasonSlug={room.seasonSlug} entryId={entry.id}>{entry.name}</TeamProfileLink></h2>
                     <span className="text-xs text-[var(--color-fg-mid)]">{entry.rosterStatusLabel}</span>
                   </div>
+                  <p className={`mt-2 text-xs ${entry.startRequested ? "text-[var(--color-ok)]" : "text-[var(--color-fg-mid)]"}`}>{entry.startRequested ? "已就绪" : "等待确认"}</p>
                   {entry.lineupBlocker && <p className="mt-2 text-xs text-[var(--color-warn)]">{entry.lineupBlocker}</p>}
                   <p className="mt-2 text-sm text-[var(--color-fg-mid)]">BP 负责人：{entry.vetoRepresentativeUserId ? <PlayerProfileLink userId={entry.vetoRepresentativeUserId}>{entry.vetoRepresentativeName}</PlayerProfileLink> : "尚未指定"}</p>
                   <details className="mt-2 text-xs text-[var(--color-fg-dim)]"><summary className="cursor-pointer">查看本场首发（{entry.starters.length} 人）</summary><p className="mt-2">{entry.starters.length ? entry.starters.map((starter, index) => <React.Fragment key={starter.id}>{index > 0 ? "、" : null}<PlayerProfileLink userId={starter.userId}>{starter.name}</PlayerProfileLink></React.Fragment>) : "待提交"}</p></details>
@@ -337,7 +338,6 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
               {matchCountdown && <p>{matchCountdown === "00:00" ? "BP 已开放" : `距离 BP 开放 ${matchCountdown}`}</p>}
               <p>确认截止时间：{timeLabel(turn.effectiveForceAt)}</p>
               {turn.previousMatchBlocker && <p className="text-[var(--color-warn)]">等待上一场比赛结束后开始 BP。</p>}
-              <p>{room.entries.map((entry, index) => <React.Fragment key={entry.id}>{index > 0 ? "；" : null}<TeamProfileLink seasonSlug={room.seasonSlug} entryId={entry.id}>{entry.name}</TeamProfileLink>：{entry.startRequested ? "已就绪" : "等待确认"}</React.Fragment>)}</p>
             </div>
           </div>
         </Panel>
@@ -388,7 +388,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
             {!turn.completedAt && !turn.paused && !matchClosed && room.permissions.canOperateCurrentTurn && (
               <div
                 data-testid="veto-primary-actions"
-                className="sticky bottom-2 z-10 max-h-[42vh] overflow-y-auto rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 shadow-sm md:static md:max-h-none md:overflow-visible md:border-0 md:bg-transparent md:p-0 md:shadow-none"
+                className="min-w-0"
               >
                 {turn.currentTurnAction === "role_select" && (
                   <div className="flex flex-wrap gap-2" aria-label="选择先禁图队伍">
@@ -400,16 +400,15 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
                     onConfirm={mapName => sendCommand({ kind: "step", actionType: turn.currentTurnAction, mapName })} />
                 )}
                 {turn.currentTurnAction === "side_pick" && (
-                  <div className="flex flex-wrap gap-2" aria-label="选择地图起始方">
-                    <Button variant="outline" disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "step", actionType: "side_pick", side: "ct" })}>CT 开局</Button>
-                    <Button variant="outline" disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "step", actionType: "side_pick", side: "t" })}>T 开局</Button>
+                  <div className="grid grid-cols-2 gap-3" aria-label="选择地图起始方">
+                    <Button aria-label="CT 开局" variant="outline" className="h-20 justify-between px-5 text-left hover:border-[var(--color-info)]" disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "step", actionType: "side_pick", side: "ct" })}><span><span className="block font-mono text-2xl font-bold text-[var(--color-info)]">CT</span><span className="text-xs text-[var(--color-fg-mid)]">防守方开局</span></span><span aria-hidden className="text-[var(--color-fg-dim)]">↗</span></Button>
+                    <Button aria-label="T 开局" variant="outline" className="h-20 justify-between px-5 text-left hover:border-[var(--color-warn)]" disabled={pending || remainingMs <= 0} onClick={() => sendCommand({ kind: "step", actionType: "side_pick", side: "t" })}><span><span className="block font-mono text-2xl font-bold text-[var(--color-warn)]">T</span><span className="text-xs text-[var(--color-fg-mid)]">进攻方开局</span></span><span aria-hidden className="text-[var(--color-fg-dim)]">↗</span></Button>
                   </div>
                 )}
               </div>
             )}
 
             {!turn.completedAt && !turn.paused && match.statusKey !== "in_progress" && <p className="text-sm text-[var(--color-fg-mid)]">本场 BP 记录已保留，可随时查看。</p>}
-            {!turn.completedAt && !turn.paused && match.statusKey === "in_progress" && !room.permissions.canOperateCurrentTurn && <p className="text-sm text-[var(--color-fg-mid)]">等待{currentEntry ? <TeamProfileLink seasonSlug={room.seasonSlug} entryId={currentEntry.id}>{currentEntry.name}</TeamProfileLink> : "对应队伍"}完成本轮操作。</p>}
           </div>
         </Panel>
       )}

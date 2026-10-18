@@ -27,7 +27,7 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     const options=await db.select().from(schema.betOptions).where(eq(schema.betOptions.marketId,market.id)).orderBy(asc(schema.betOptions.position));
     await page.goto(`/${fixture.slug}/bet?match=${matches[0]!.id}`,{waitUntil:"domcontentloaded"});
     await expect(page.getByRole("heading",{name:"预测与竞猜",exact:true})).toBeVisible();
-    await expect(page.getByRole("link",{name:"竞猜平台",exact:true})).toBeVisible();
+    await expect(page.getByRole("link",{name:"预测与竞猜",exact:true})).toBeVisible();
     await page.getByRole("button",{name:"领取 1,000 积分"}).click();await expect(page.getByRole("button",{name:"领取 1,000 积分"})).toHaveCount(0);
     const card=page.locator("article").filter({has:page.locator(`a[href="/${fixture.slug}/matches/${matches[0]!.id}"]`)});const winner=card.getByRole("region",{name:"比赛胜者"});
     async function openMaps(){await card.getByRole("tab",{name:/地图/}).click();await expect(card.getByRole("tabpanel",{name:"地图",exact:true})).toBeVisible();const details=card.locator("details");if(await details.count()&&await details.getAttribute("open")===null)await details.locator("summary").click();}

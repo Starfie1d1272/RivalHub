@@ -6,7 +6,7 @@ import { computeSeriesScoreAfterMap } from "./result-rules";
 import { canConfirmMapScoreboard } from "./map-scoreboard";
 import type { PublicMatchContext } from "./public-context";
 import { LINEUP_REVIEW_REQUIRED } from "@/lib/mizar/lineup-display";
-import { projectMatchPresentationPhase } from "./presentation-phase";
+import { projectMatchPresentationPhase, resolveGameplayMapId } from "./presentation-phase";
 
 /** Called after the public route has checked match/season visibility. No private DTO escapes. */
 export async function loadPublicMatchPhase(match: Match, maps: MatchMap[]) {
@@ -24,7 +24,7 @@ function projectPublicContext(match: Match, maps: PhaseMap[], veto: { startedAt:
     startedAt: match.startedAt?.toISOString() ?? null, completedAt: match.completedAt?.toISOString() ?? null,
     veto: veto?.completedAt || (maps.length > 0 && !veto?.startedAt) ? "completed" as const : veto?.startedAt ? "in_progress" as const : "not_started" as const,
     maps: maps.map(map => ({ id: map.id, order: map.mapOrder, completedAt: canConfirmMapScoreboard(map) ? map.completedAt!.toISOString() : null })),
-    gameplayMapId: maps.find(map => map.startedAt && !map.completedAt)?.id ?? (session?.mapExecutionPhase === "gameplay" ? session.currentMapId : null),
+    gameplayMapId: resolveGameplayMapId(maps, session),
   };
   const displayMapId = match.status === "in_progress" && session?.lineupHealth === LINEUP_REVIEW_REQUIRED && maps.some(map => map.id === session.currentMapId && !map.completedAt) ? session.currentMapId : null;
   const currentMapId = displayMapId ?? [...facts.maps].sort((a, b) => a.order - b.order).find(map => map.completedAt === null)?.id ?? null;

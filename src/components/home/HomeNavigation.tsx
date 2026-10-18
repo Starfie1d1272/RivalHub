@@ -1,8 +1,6 @@
-import React from "react";
 import Link from "next/link";
 import type { HomeNavEntry } from "@/lib/home/navigation";
-import { Marker, Panel } from "@/components/rivalhub";
-import { Button } from "@/components/ui/button";
+import { Marker } from "@/components/rivalhub";
 
 interface HomeNavigationProps {
   tier1Entry: HomeNavEntry | null;
@@ -10,103 +8,33 @@ interface HomeNavigationProps {
   tier3Entries: HomeNavEntry[];
 }
 
-export function HomeNavigation({
-  tier1Entry,
-  tier2Entries,
-  tier3Entries,
-}: HomeNavigationProps) {
+export function HomeNavigation({ tier1Entry, tier2Entries, tier3Entries }: HomeNavigationProps) {
+  const related = tier2Entries.filter((entry) => entry.key !== tier1Entry?.key);
+  const featured = related.slice(0, 4);
+  const secondary = [...related.slice(4), ...tier3Entries];
+
   return (
-    <div>
-      <Marker num={1} sub="NAVIGATION">
-        入口
-      </Marker>
-
-      {tier1Entry && (
-        <div className="mb-3">
-          <Link href={tier1Entry.href as never} className="group block">
-            <Panel className="transition-colors hover:border-[var(--color-border-hi)] border-l-[3px] border-l-[var(--color-accent)]">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: 10,
-                      color: "var(--color-fg-dim)",
-                      letterSpacing: "var(--tracking-label)",
-                      marginBottom: 4,
-                    }}
-                  >
-                    {tier1Entry.mono}
-                  </div>
-                  <div
-                    className="font-semibold"
-                    style={{
-                      fontFamily: "var(--font-sans)",
-                      fontSize: 18,
-                      color: "var(--color-fg)",
-                    }}
-                  >
-                    {tier1Entry.label}
-                  </div>
-                  <p className="mt-1 text-xs text-[var(--color-fg-mid)]">{tier1Entry.meta}</p>
-                </div>
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 20,
-                    color: "var(--color-accent)",
-                  }}
-                >
-                  →
-                </span>
+    <section className="space-y-4">
+      <Marker num={1} sub="EXPLORE"><h2>赛事与互动</h2></Marker>
+      {featured.length > 0 && (
+        <div className={`grid gap-x-8 sm:grid-cols-2 ${featured.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
+          {featured.map((entry) => (
+            <Link key={entry.key} href={entry.href as never} className="group flex min-w-0 items-center justify-between gap-4 border-t border-[var(--color-border)] py-4">
+              <div className="min-w-0">
+                <p className="mb-2 font-mono text-[11px] tracking-widest text-[var(--color-fg-dim)]">{entry.mono}</p>
+                <h3 className="text-xl font-semibold transition-colors group-hover:text-[var(--color-accent)]">{entry.label}</h3>
+                {entry.meta && <p className="mt-1 text-sm text-[var(--color-fg-mid)]">{entry.meta}</p>}
               </div>
-            </Panel>
-          </Link>
-        </div>
-      )}
-
-      {tier2Entries.length > 0 && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-          {tier2Entries.map((tile) => (
-            <Link key={tile.href} href={tile.href as never} className="group">
-              <Panel className="transition-colors hover:border-[var(--color-border-hi)]">
-                <div
-                  className="flex items-center gap-2 mb-1.5"
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 10,
-                    color: "var(--color-fg-dim)",
-                    letterSpacing: "var(--tracking-label)",
-                  }}
-                >
-                  {tile.mono}
-                </div>
-                <div
-                  className="font-semibold"
-                  style={{
-                    fontFamily: "var(--font-sans)",
-                    fontSize: 14,
-                    color: "var(--color-fg)",
-                  }}
-                >
-                  {tile.label}
-                </div>
-                <p className="mt-1 text-xs text-[var(--color-fg-mid)]">{tile.meta}</p>
-              </Panel>
+              <span aria-hidden="true" className="text-lg text-[var(--color-accent)]">↗</span>
             </Link>
           ))}
         </div>
       )}
-
-      {tier3Entries.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
-          {tier3Entries.map((tile) => (
-            <Button key={tile.href} variant="ghost" asChild>
-              <Link href={tile.href as never}>{tile.label}<span className="text-xs text-[var(--color-fg-dim)]">{tile.meta}</span></Link>
-            </Button>
-          ))}
+      {secondary.length > 0 && (
+        <div className="flex flex-wrap gap-x-6 gap-y-1 border-t border-[var(--color-border)] pt-3">
+          {secondary.map((entry) => <Link key={entry.key} href={entry.href as never} className="inline-flex min-h-8 items-center text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]">{entry.label} →</Link>)}
         </div>
       )}
-    </div>
+    </section>
   );
 }

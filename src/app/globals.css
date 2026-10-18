@@ -124,9 +124,10 @@
   --size-icon-lg: 24px;
 
   /* Radii */
-  --radius-sm: 0px;
-  --radius-md: 2px;
-  --radius-lg: 3px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-display: 12px;
 
   /* Background */
   --background-image-grid-hairline: linear-gradient(
@@ -156,8 +157,7 @@
 
   body {
     background-color: var(--color-bg);
-    background-image: var(--background-image-grid-hairline);
-    background-size: var(--background-size-grid);
+
     color: var(--color-fg);
     font-family: var(--font-sans);
     font-feature-settings: "cv11", "ss01";
@@ -189,4 +189,20 @@
     scroll-behavior: auto !important;
     transition-duration: 1ms !important;
   }
+}
+
+/* Editorial event surfaces keep decoration outside analysis/form workspaces. */
+.home-event-hero {
+  background-image:
+    radial-gradient(ellipse at 88% 30%, var(--color-accent-soft), transparent 55%),
+    radial-gradient(ellipse at 60% 100%, var(--color-accent-b-soft), transparent 65%);
+}
+.home-event-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--background-image-grid-hairline);
+  background-size: 48px 48px;
+  opacity: .2;
 }

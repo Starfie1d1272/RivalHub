@@ -1,4 +1,5 @@
 "use client";
+import { StatsNavigationProvider } from "./StatsNavigationContext";
 import React from "react";
 
 import type { Route } from "next";
@@ -57,7 +58,7 @@ export function TournamentStatsView({
   if (query.tab === "records" && data) content = <Records records={data.records ?? []} query={query} seasonSlug={seasonSlug} coverage={data.recordCoverage} />;
 
   return (
-    <StatsShell
+    <StatsNavigationProvider><StatsShell
       query={query}
       seasonSlug={seasonSlug}
       stages={stages}
@@ -68,6 +69,6 @@ export function TournamentStatsView({
       directoryLabel={directoryLabel}
     >
       {content}
-    </StatsShell>
+    </StatsShell></StatsNavigationProvider>
   );
 }

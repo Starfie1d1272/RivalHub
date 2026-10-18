@@ -1,4 +1,4 @@
-import { statsEntryHref } from "@/lib/stats/view-state";
+import { seasonEntries } from "@/lib/seasons/entries";
 import type { RegistrationMode, SeasonStatus } from "@/types/season";
 import { getSeasonLifecycleGroup, isRegistrationActuallyOpen } from "@/lib/seasons/presentation";
 import { showStats } from "@/lib/utils/season";
@@ -15,6 +15,9 @@ export interface FeaturedSeasonInput {
 
 export interface HomeNavSeason extends RegistrationWindowSeason {
   hasOfficialMatches?: boolean;
+  competitionTemplate?: string;
+  hasMatches?: boolean;
+  stagePlan?: readonly unknown[];
   slug: string;
   registrationMode: RegistrationMode;
   hasCaptainVoting: boolean;
@@ -34,6 +37,12 @@ export interface HomeNavEntry {
   label: string;
   mono: string;
   meta: string;
+}
+
+export interface SeasonPrimaryAction {
+  key: "register" | "matches" | "captains" | "draft" | "teams" | "info" | "overview";
+  href: string;
+  label: string;
 }
 
 export interface HomeEyebrow {
@@ -103,6 +112,9 @@ export function buildHomeEyebrow(
   if (status === "voting") {
     return { text: "● 队长投票中", color: "var(--color-warn)" };
   }
+  if (status === "drafting") {
+    return { text: "● 选秀阶段", color: "var(--color-accent)" };
+  }
   if (status === "playing") {
     return { text: "● 比赛进行中", color: "var(--color-ok)" };
   }
@@ -112,6 +124,40 @@ export function buildHomeEyebrow(
   };
 }
 
+/** Public next action only; registration windows and enabled capabilities remain authoritative. */
+export function buildSeasonPrimaryAction(
+  season: HomeNavSeason,
+  now: Date = new Date(),
+): SeasonPrimaryAction {
+  const href = `/${season.slug}`;
+  if (season.status === "finished" || season.status === "archived") {
+    return season.hasOfficialMatches
+      ? { key: "matches", href: `${href}/matches`, label: "赛事回顾" }
+      : { key: "overview", href, label: "赛事回顾" };
+  }
+  if (season.hasOfficialMatches) {
+    return { key: "matches", href: `${href}/matches`, label: "查看赛程" };
+  }
+  if (season.status === "voting" && season.hasCaptainVoting) {
+    return { key: "captains", href: `${href}/captains`, label: "参与投票" };
+  }
+  if (season.status === "drafting" && season.hasDraft) {
+    return { key: "draft", href: `${href}/draft`, label: "查看选秀" };
+  }
+  const registration = getRegistrationWindowState(season, now);
+  if (registration.canSubmit) {
+    return {
+      key: "register",
+      href: `${href}/register`,
+      label: season.registrationMode === "team" ? "组队报名" : "个人报名",
+    };
+  }
+  if (registration.phase === "closed" || season.status === "playing") {
+    return { key: "teams", href: `${href}/teams`, label: "本届队伍" };
+  }
+  return { key: "info", href: `${href}/info`, label: "查看赛事信息" };
+}
+
 export function buildHomeNavEntries(
   season: HomeNavSeason,
   auth?: HomeNavAuthState,
@@ -119,56 +165,8 @@ export function buildHomeNavEntries(
 ): HomeNavEntry[] {
   const isHistorical = season.status === "finished" || season.status === "archived";
   const entries: (HomeNavEntry & { show: boolean })[] = [
-    {
-      key: "register",
-      href: `/${season.slug}/register`,
-      label: "报名",
-      mono: "REGISTER",
-      meta: season.registrationMode === "team" ? "创建或加入队伍" : "个人报名",
-      show: getRegistrationWindowState(season, now).canSubmit,
-    },
-    {
-      key: "captains",
-      href: `/${season.slug}/captains`,
-      label: "队长投票",
-      mono: "CAPTAINS",
-      meta: isHistorical ? "结果已归档" : "实时票数",
-      show: season.hasCaptainVoting,
-    },
-    {
-      key: "draft",
-      href: `/${season.slug}/draft`,
-      label: "选秀",
-      mono: "DRAFT ROOM",
-      meta: isHistorical ? "选人回顾" : season.status === "drafting" ? "选人进行中" : "选人记录",
-      show: season.hasDraft,
-    },
-    {
-      key: "teams",
-      href: `/${season.slug}/teams`,
-      label: "队伍",
-      mono: "TEAMS",
-      meta: "赛事参赛队伍",
-      show: true,
-    },
-    {
-      key: "matches",
-      href: `/${season.slug}/matches`,
-      label: "赛程",
-      mono: "MATCHES",
-      meta: "赛程与赛果",
-      show: true,
-    },
-    {
-      key: "stats",
-      href: statsEntryHref(season.slug, {}, season.status === "draft"),
-      label: "数据统计",
-      mono: "STATS",
-      meta: "Rating · ADR",
-      show: showStats(season),
-    },
-    { key: "players", href: `/${season.slug}/players`, label: "选手", mono: "PLAYERS", meta: "本届选手", show: true },
-    { key: "awards", href: `/${season.slug}/community-awards`, label: "社区奖", mono: "AWARDS", meta: "创意与荣誉", show: Boolean(season.hasCommunityAwards) },
+    { key: "register", href: `/${season.slug}/register`, label: "报名", mono: "REGISTER", meta: season.registrationMode === "team" ? "组队参赛" : "个人报名", show: getRegistrationWindowState(season, now).canSubmit && !season.hasOfficialMatches },
+    ...seasonEntries({ ...season, hasMatches: season.hasMatches ?? (season.stagePlan ? season.stagePlan.length > 0 : true), hasStats: showStats(season), hasPredictions: season.competitionTemplate === "major" }).filter(entry => entry.key !== "overview").map(entry => ({ key: entry.key, href: entry.href, label: entry.label, mono: entry.key.toUpperCase(), meta: entry.key === "draft" ? isHistorical ? "选人回顾" : "阵容与选人进度" : entry.key === "captains" ? isHistorical ? "结果已归档" : "候选与真实票数" : entry.key === "bet" ? "免费预测 · 积分竞猜" : entry.key === "predictions" ? "自由推演 · Pick’Em" : "", show: entry.canRead })),
     {
       key: "seasons",
       href: "/seasons",
@@ -195,11 +193,14 @@ export function buildHomeNavEntries(
   }));
 }
 
-export function selectHomeNavTiers(entries: HomeNavEntry[], status: SeasonStatus) {
-  const tier1Key = getPrimaryNavKey(status);
-  const tier1Entry = tier1Key
+export function selectHomeNavTiers(entries: HomeNavEntry[], status: SeasonStatus, primaryAction?: SeasonPrimaryAction) {
+  const tier1Key = primaryAction?.key ?? (status === "registration" && !entries.some(entry => entry.key === "register") ? "matches" : getPrimaryNavKey(status));
+  const matchingEntry = tier1Key
     ? entries.find((entry) => entry.key === tier1Key) ?? null
     : null;
+  const tier1Entry = primaryAction
+    ? { mono: primaryAction.key.toUpperCase(), meta: "", ...matchingEntry, ...primaryAction }
+    : matchingEntry;
 
   const tier2Candidates = entries.filter(
     (entry) => entry.key !== tier1Key && entry.key !== "login" && entry.key !== "seasons"
@@ -207,9 +208,9 @@ export function selectHomeNavTiers(entries: HomeNavEntry[], status: SeasonStatus
 
   return {
     tier1Entry,
-    tier2Entries: tier2Candidates.slice(0, 4),
+    tier2Entries: tier2Candidates.filter(entry => ["matches", "bet", "predictions", "stats", "captains", "draft"].includes(entry.key)),
     tier3Entries: [
-      ...tier2Candidates.slice(4),
+      ...tier2Candidates.filter(entry => !["matches", "bet", "predictions", "stats", "captains", "draft"].includes(entry.key)),
       ...entries.filter((entry) => entry.key === "seasons" || entry.key === "login"),
     ],
   };

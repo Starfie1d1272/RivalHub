@@ -254,7 +254,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         <div className="mx-auto w-full max-w-2xl space-y-6">
           <div>
             <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-accent)]">{season.name} · TEAM REGISTER</p>
-            <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">队伍报名</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">{entry ? "我的参赛" : "队伍报名"}</h1>
           </div>
           <StatusBanner
             tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}

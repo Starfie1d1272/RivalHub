@@ -1,3 +1,5 @@
+import { connection } from "next/server";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -16,7 +18,11 @@ interface CaptainsPageProps {
   params: Promise<{ seasonSlug: string }>;
 }
 
-export default async function CaptainsPage({ params }: CaptainsPageProps) {
+export default function CaptainsPage(props: CaptainsPageProps) {
+  return <Suspense fallback={<PageLayout variant="wide"><p role="status">正在加载投票…</p></PageLayout>}><CaptainsContent {...props} /></Suspense>;
+}
+async function CaptainsContent({ params }: CaptainsPageProps) {
+  await connection();
   const { seasonSlug } = await params;
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();

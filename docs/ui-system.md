@@ -6,6 +6,8 @@
 
 通俗英文与常见专业标签可直接用于导航、筛选和指标，标签保持简短清晰。正常页面优先展示事实、指标和操作，不为统计结果补写免责声明式说明，也不为了“正向”机械改写客观空态：用户能继续操作时给出下一步，没有数据时可直接使用 `—`、`暂无数据` 或具体空态。解释优先放入共享 HelpTooltip / Why?，只回答“这是什么、怎么算、为什么出现”；算法门槛、内部实现与方法论边界留在代码、测试、审计或技术证据中。问号附在标签右侧，使用相对容器内的绝对定位，标签自身决定居中宽度和正常排版。参赛者与管理员的操作指引和异常处理使用自然中文，直接表达当前目标、状态、完成条件和下一步。品牌、CS2 通用缩写、专有名词及专业赛事术语（如 Major、Stage 1、BO3）可保留英文。产品流程使用面向用户的名称；内部 enum/key、revision、snapshot、算法字段和序列化诊断留在代码、审计或明确的技术详情中。
 
+常态文案简短、正向，优先当前事实与下一步动作。省略重复提醒、泛化告诫和实现原理；必要的参赛条件、资金限制与受阻原因结合当前事实展示。
+
 所有 domain、persistence 或 enum 值进入 UI 时，必须经过类型化的 presentation owner：
 
 `domain / persistence / enum value` → `typed presentation owner` → `human-readable product text` → `UI`
@@ -51,16 +53,20 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 - narrow：auth、single action、confirmation、长文阅读、单列长表单和小型纵向状态页；目标是阅读 measure 与任务聚焦。
 - standard：entity/detail page 和中等复杂度 workflow；纵向内容为主，但需要正常的数据、卡片和指标横向空间。
-- wide：directory、card grid、searchable/filterable list、standalone admin list、data browsing 和多区域 workspace。
-- workbench：高密度 operator canvas 与 season-admin 多任务工作区；父级拥有最大可用页面宽度，子页面不再对整页重新加 max-w-*。
+- wide：最大外框 1440px；首页、赛事总览、directory、card grid 和多区域 detail。
+- workbench：最大外框 1760px；数据 explorer、选秀阵容墙、队长工作区、推演 canvas 与 season-admin。父级拥有最大可用页面宽度，子页面不再对整页重新加 max-w-*。
 
 选择 variant 时先看页面的信息架构和交互密度，不按历史 max-w-* 机械套用。inner max-w-* 只服务真实的阅读或表单 measure；如果它包住整个 list、grid、operator workspace 或多区块 detail page，它实际上又在决定 page sizing，应回到 PageLayout 语义重新审查。
+
+全站沿用深色橙色竞技品牌。首页采用单一赛事主视觉与有主次的内容编排；分析、表单和操作背景保持安静，网格只进入展示层。控件、普通 surface 和展示面的圆角由共享语义 token 拥有。赛事主题覆盖 accent / rgb / soft / edge / focus / on-accent 完整色族，按钮文字按颜色亮度选择可读前景。导航 alignment frame 复用 `pageAlignmentFrame`。
+
+赛事入口由 `src/lib/seasons/entries.ts` 维护轻量 presentation metadata；能力门禁继续消费实际配置与既有 read model，入口不承担授权或 transition。Rivals 投票和选秀在历史中保持原目的地；Major 的预测与竞猜、赛事推演保持分别可发现。
 
 颜色不能单独承担 success/warning/danger；状态同时使用文字、图标或结构表达。10–11px mono 只用于 code、marker、ticker 和 compact metadata，不承担正文解释。
 
 ## Information hierarchy
 
-页面顺序从当前任务与关键事实开始，再到历史和辅助操作。管理视图把可编辑事实、blocker/readiness、确认动作和危险操作分组，不把整个 domain 塞进一张万能 Card。
+页面顺序从当前任务与关键事实开始，再到历史和辅助操作。我的参赛工作台合并原因及责任相同的个人资料待办，保留关联赛事入口，资料区不重复已列出的待办；桌面当前队伍与赛事并排，手机纵排。队长工作区先展示成员与邀请，再展示资料和招募；单条赛事记录使用完整可用宽度。管理视图把可编辑事实、blocker/readiness、确认动作和危险操作分组，不把整个 domain 塞进一张万能 Card。
 
 Major 赛前工作区按报名收口、资格方案、资格赛、正赛名单、正赛种子、开赛确认六阶段组织；顶部始终显示进度，默认只完整展开当前阶段，已完成阶段提供可展开摘要，未来阶段只提示前置条件。报名截止、最终名单调整截止和 Main Event 计划开始分别在报名收口、正赛名单和开赛确认阶段编辑，并受当前 lifecycle gate 约束；未来阶段不提前暴露编辑面，计划时间不代表实际开赛。Qualification 比赛在工作区只显示汇总和统一比赛管理入口。
 
@@ -92,19 +98,23 @@ read model 保留已有 public-safe canonical identity：BET option entity 由 m
 
 无队伍时，创建队伍的名称、简介与提交按钮在客户端事件处理就绪前禁用，并显示简短准备状态；就绪后首次填写与提交保留输入，成功后回读真实队伍工作区。
 
-个人工作区使用真实导航链接和 `aria-current`，窄屏允许换行；父级 `PageLayout` 持有整页宽度与 gutter，子路由不重复创建页面壳。离开长期队伍的说明必须明确：该操作不会自动改写已经提交、审核通过或冻结的赛事名单。
+个人待办显示赛事与队伍上下文；相同竞技资料缺项只说明一次，每届赛事原操作入口分别保留。个人工作区使用真实导航链接和 `aria-current`，窄屏允许换行；父级 `PageLayout` 持有整页宽度与 gutter，子路由不重复创建页面壳。离开长期队伍的说明必须明确：该操作不会自动改写已经提交、审核通过或冻结的赛事名单。
 
 ### Platform data center
 
 全站固定入口为「赛事 / 队伍 / 数据中心」，桌面、移动与 fallback 复用相同目的地。公共数据加载后，在「赛事」之后增加最多一个活跃赛事名称入口，复用生命周期分组与首页优先级；无活跃赛事时不以历史赛事补位。桌面长名称有界截断，移动菜单允许换行。活跃赛事内部页面高亮该入口，其它赛事页面高亮「赛事」，路径匹配遵守 segment 边界。公共导航与 viewer/session Suspense island 保持隔离。赛事页保留「首页 → 赛事 → 本届名称」breadcrumb 与内部业务导航，不再重复显示赛事名称选择框；切换其它赛事通过「赛事」目录完成。导航默认项不作为比赛归属或授权依据。
 
-`/stats` 使用平台主题与 `PageLayout wide`，默认全部公开赛事，包括 archived 历史。赛事是可搜索的上下文筛选，不是统计页面归属；选择器只接收 public-safe 摘要，确认选项才导航，支持键盘、焦点返回与内部滚动。阶段只用于单届；赛制与地图属于共享 scope。Overview / Players / Teams / Maps / Weapons / Records 是固定六个内容 tab。旧公开赛事统计入口永久迁移到 canonical URL；授权 draft preview 继续隔离在薄适配入口中。
+`/stats` 使用平台主题与 `PageLayout workbench`，默认全部公开赛事，包括 archived 历史。赛事是可搜索的上下文筛选，不是统计页面归属；选择器只接收 public-safe 摘要，确认选项才导航，支持键盘、焦点返回与内部滚动。阶段只用于单届；赛制与地图属于共享 scope。Overview / Players / Teams / Maps / Weapons / Records 是固定六个内容 tab。旧公开赛事统计入口永久迁移到 canonical URL；授权 draft preview 继续隔离在薄适配入口中。
+
+单届统计上下文提供“返回本届赛事 / 查看赛程”。主 explorer 的已支持排序、方向、分页、指标 family 和搜索记录在 URL；列的可排序能力仍在表格边界校验，嵌入表保留本地状态。大型独立表使用单一有界滚动区和吸顶表头；身份列固定，窄屏收紧身份列以露出主指标，桌面维持阅读宽度；全部指标继续在表格局部横滚中可达。当前排序列仅轻量强调。从统计进入资料时通过上下文携带本站 `/stats` 返回地址，返回校验拒绝外部或其它路由。
+
+公开选秀只有一套真实状态主区：preview 保持只读并刷新状态，active / paused 受控刷新，complete / archive 停止轮询。阵容墙按真实队伍与已选轮次展示；archive 不呈现 LIVE、倒计时或待选空池。队长工作区默认露出本队阵容，详情阅读与实际选入是两个独立动作。宽桌面详情在第三栏，窄屏在当前候选行就近展开；点击详情保留焦点，不提交选人。投票侧栏在窄屏先于候选列表显示。阵容墙在1440保持紧凑可读行距，1920保留八队同排；手机折叠头提供展开标识和状态。推演标题与赛事上下文同排，为棋盘留出首屏空间。
 
 统计标签与说明由 `src/lib/stats/metrics.ts` 统一定义；无额外上下文时复用中央名称。地图 Opening Conversion / Comeback 使用发生有效首杀对枪的回合为分母，R2 Conversion / Break 使用对应手枪局结果后的第二回合机会为分母，不能共用指标定义。1vX 分项使用对应人数的残局说明和尝试次数；阵营、人数等必要的上下文标签可以保留。
 
 Players Opening 在 FD/100r 后显示 Traded FD%；Utility 在 Blind/Flash 后显示 Net Blind/Flash。两列沿用排序、dynamic qualification、样本与 tooltip contract，次级列在窄屏隐藏，净值保留负数。搜索与队伍展示过滤不改变指标资格总体。
 
-Overview 的概要之后展示至多六条紧凑「数据观察 / Insights」，无候选时省略。每条提供范围、自然中文、分子/分母或秒/颗与投掷数、可展开的「为何出现」及相关统计链接；不使用能力分、奖项标签、因果或显著性断言。保留 Situation Highlights，避免卡片墙。
+Overview 按赛事概要、核心榜单、地图概览、Insights、情境分析组织；核心榜单优先进入桌面首屏。Insights 至多六条，宽屏三列、中屏两列、手机单列，无候选时省略。每条提供范围、自然中文、分子/分母或秒/颗与投掷数、可展开的「为何出现」及相关统计链接；不使用能力分、奖项标签、因果或显著性断言。Round Situations 保留九宫格；5v4、5v3 Conversion 标明 Lowest，取达到共享动态样本门槛的最低胜率，其余项目取最高值。标题问号解释选择方向，单项问号继续解释指标口径，不增加常驻说明段落。
 
 Records 按 Performance / Clutch / Rounds 分组，以当前范围内完整有效的单图或回合事实比较极值。保持者与发生次数分开，全部并列通过有界分页追溯赛事、比赛、地图、比分和回合；没有回合详情路由时链接比赛并注明 Rn。覆盖说明限定纪录结论，未知值不解释为零。
 
@@ -114,11 +124,13 @@ Records 按 Performance / Clutch / Rounds 分组，以当前范围内完整有�
 
 存在赛事 context 时，队名、图标、名次/荣誉、赛事战绩、本届名单、正式地图表现与比赛链接展示本届事实；公开 Hero 不呈现报名审核、名单冻结等流程状态、解释文案或 seed。长期 Team 以简短入口承接当前成员、招募、赛事履历、名称/队长历史。没有长期 Team 的 event-native entry 复用同一 shell，省略长期 Team 入口。
 
-标准 Major 的公开队伍列表、赛事队伍详情、`/[seasonSlug]/players` 和赛事首页摘要共享一个 server-only public participant read model。审核期由页面级文案说明候选队伍；正式参赛队集合完整后切换集合说明，名单仍在调整时使用「当前参赛名单」，冻结后使用「最终参赛名单」。详情页在赛事结束后将名单标题收敛为「本届名单」。官方 seed fact 仍由 Major read model 提供给依赖 seeding 的赛事上下文；公开队伍目录和 Team profile 不以 seed 标识队伍。这些页面只接收显式 public DTO，不在页面内重算生命周期或把报名名单冒充赛事名单。
+标准 Major 的公开参赛阵容、赛事队伍详情和赛事首页摘要共享一个 server-only public participant read model。审核期由页面级文案说明候选队伍；正式参赛队集合完整后切换集合说明，名单仍在调整时使用「当前参赛名单」，冻结后使用「最终参赛名单」。详情页在赛事结束后将名单标题收敛为「本届名单」。官方 seed fact 仍由 Major read model 提供给依赖 seeding 的赛事上下文；公开队伍目录和 Team profile 不以 seed 标识队伍。这些页面只接收显式 public DTO，不在页面内重算生命周期或把报名名单冒充赛事名单。
 
-`TeamPublicProfile` 的本届名单只展示 Player identity 与首发/替补标记；区分当前、已审核或最终名单时使用 public read model 提供的自然标题，不渲染流程状态 pill，也不从长期资料或 `seasonRegistrations` 补写本届位置。Major 选手目录同样只展示本届队伍、首发/替补、Player link 和已有的本届已验证统计。`CompetitionEntry`、`EventRoster`、revision、snapshot 等实现术语不进入正常公开文案。
+`TeamPublicProfile` 的本届名单只展示 Player identity 与首发/替补标记；区分当前、已审核或最终名单时使用 public read model 提供的自然标题，不渲染流程状态 pill，也不从长期资料或 `seasonRegistrations` 补写本届位置。`CompetitionEntry`、`EventRoster`、revision、snapshot 等实现术语不进入正常公开文案。
 
-公开队伍 Profile 的稳定信息层级固定为 section composition，而不是业务块 card wall。长期队伍按 **Hero → 当前成员/当前赛事 → Performance（All-time）→ 阵容地图参考（有内容时）→ Career → 队伍资料** 组织；赛事队伍按 **Hero → 本届名单 → Performance（本届）→ 阵容地图参考（有内容时）→ 本届比赛** 组织。Hero 展示队伍身份、已确认名次/荣誉和 Match W-L、Map W-L、Maps、Rating；赛事页不重复摆放 Record、名单人数、seed 或 Next match 摘要。一级 section 使用 eyebrow + 中文 heading + whitespace/divider 建立层级；Hero 可以保留连续 surface 与紧凑 headline strip，但 Career、Matches 等不得各自退化为独立大卡墙。
+公开队伍 Profile 共用 `PageLayout wide` 与 `TeamPublicProfile` 的一套 section composition：**Hero → 当前赛事（长期页）→ 名单 → 招募（长期页有需求时）→ 地图画像 / 近期比赛 → Performance → 阵容地图参考（有内容时）→ Career / 队伍历史（长期页）**。`TeamRoster` 统一紧凑成员排列，赛事 context 提供本届首发/替补，长期资料提供当前成员、队长及非活跃成员状态；禁止从长期成员补写赛事名单。`TeamMapProfile` 共用胜率/Pick/Ban 图表，本届与生涯标题区分统计范围；`TeamMatches` 共用比赛排序、比分与链接展示，长期页由 public read model 注入各比赛所属赛事与己方视角。两种入口只在数据范围及专属模块上有差异，不维护两套布局。
+
+Hero 展示队伍身份、已确认名次/荣誉和 Match W-L、Map W-L、Maps、Rating；赛事页不重复摆放 Record、名单人数、seed 或 Next match 摘要。一级 section 使用 eyebrow + 中文 heading + whitespace/divider 建立层级；Hero 保留连续 surface 与紧凑 headline strip，Career、Matches 等不使用独立大卡墙。长期招募复用既有 viewer state 与权限入口，未登录、感兴趣、已邀请及当前成员状态不因布局变化而重新判断。
 
 Team Performance 固定使用 **Overview / Rounds & Economy / Teamplay / Maps / Players / Weapons**。Long Team scope 固定 All-time，不增加赛事 selector；赛事队伍 scope 固定本届。Overview 与 Hero 必须互补而非机械复读；指标 family 使用 shared `MetricSection`、`MetricValue`、metric help contract，collection grain 使用 `StatsDataTable`。Players 的长期队伍语义是“实际代表 linked 赛事队伍出战时的表现”，不混入其它队伍样本。专业指标解释使用 shared tooltip；常驻正文表达页面事实，不解释聚合实现、来源步骤或开发 contract。
 
@@ -128,42 +140,48 @@ Maps tab 只展示队伍自身正式地图表现。阵容成员历史正式地�
 
 ### Single-match operator workbench
 
-赛事后台比赛总览顶部提供赛后缺口清单：本人负责场次优先，其它有权限的场次次级展示，未认领不隐藏计分板和 Demo 缺口。清单复用单场完成投影，链接直达对应地图或赛后资料；已齐备项不重复，处理中的 Demo 与待上传、失败、待审核分开显示。比赛总览同时提供个人当前场、下一场和解说认领；单场工作台主区域展示比赛状态与待执行动作，侧栏保留比分记录方式、个人下一场及设备入口。解说沿用现有认领，采用紧凑文字链接。
+赛事后台比赛总览顶部提供赛后缺口清单：本人负责场次优先，其它有权限的场次次级展示，未认领不隐藏计分板和 Demo 缺口。清单复用单场完成投影，链接直达对应地图或赛后资料；已齐备项不重复，处理中的 Demo 与待上传、失败、待审核分开显示。比赛总览同时提供个人当前场、下一场和解说认领；单场工作台以当前任务为视觉主体，只保留一个任务标题和可执行入口，不重复说明与下一步。比分记录方式、个人下一场及设备入口放在紧凑辅助栏；没有下一场时不占位。解说沿用现有认领，采用紧凑文字链接。
 
-工作台以当前比赛状态和可执行动作组织内容。赛前主入口为「进入 BP」，赛中及赛后为「查看 BP」；沿用既有 BP 页面，当前禁选、地图和倒计时居主位，首发详情与更换负责人按需展开。赛前摘要读取正式名单与 BP 状态，首发在开赛事务中核验确认；Perfect 建房以正式赛程及 BP 结果提供六项复制和配置指引。
+工作台按赛前、BP、建房、比赛中、图间与赛后组织内容；手动确认开局与采集到的开局事实共用公开页的阶段判定，已开图后转入录分，不继续提示建房。赛前首发缺口只提示一次；建房值与录分按当前阶段展示，赛后复用完成投影只列缺项，解说录像待办置于地图历史之前。已完成数据、固定配置、上传器帮助和数据质量详情按需展开；异常处理及危险操作的影响和确认不可省略。赛前主入口为「进入 BP」，赛中及赛后为「查看 BP」；沿用既有 BP 页面，当前禁选、地图和倒计时居主位，首发详情与更换负责人按需展开。赛前摘要读取正式名单与 BP 状态，首发在开赛事务中核验确认；Perfect 建房以正式赛程及 BP 结果提供六项复制和配置指引。
 
 常态文案陈述状态与动作，如「Map 1 · Ancient 进行中」「比赛数据暂未更新」。异常展示已知差异、对应处理入口和恢复条件，备用手动录分收起。设备与授权撤销放在赛事比赛总览的工具区，确认步骤显示影响范围。地图比分更正位于工作台次级「比分更正与系列恢复」区域，逐图填写比分与原因、核对影响、确认保存。服务端发现更正将提前结束进行中系列时，提供独立「更正系列赛果」入口；预览系列比分、地图比分、比赛状态、实际地图、下游和赛后资料，再填写整场原因并显式确认后续地图尚未开打。冲突显示「无法直接完成更正」及具体地图/下游影响，禁止确认。
 
-Perfect 仅六项复制按钮：轮次、短描述、Team 1、Team 2、GOTV 线路 2 延迟、密码；其余固定设置和起始边以核对清单显示。未知值显示待核对并禁用复制。图间 OCR 与下一图建房入口同时可用，保存/清除后更新当前任务；距上一图正式 completed_at 正计时，10 分钟提供非阻塞软提醒，不意味着外部房间未创建；下一图开始或系列赛结束后停止提醒。系列赛结束后的 Demo 下载/上传器入口、每图同步状态与赛后资料都不依赖 OCR 齐备。Demo 待处理项独立于可 OCR 的地图列表，避免历史事实缺失时失去恢复入口。已有 Demo 数据但 Rating/RWS/WE 不齐时直接提供补传截图入口；未匹配截图行可由管理员明确选择已有 Demo 选手并合并这三个指标，消费重复草稿，不按相似昵称推断身份或覆盖 Demo 比赛数据。取消恢复已保存数据。
+Perfect 仅六项复制按钮：轮次、短描述、Team 1、Team 2、GOTV 线路 2 延迟、密码；起始边、地图和比赛归属直接显示，其余固定设置收进核对清单；各组内保持后台表单顺序。未知值显示待核对并禁用复制。图间 OCR 与下一图建房入口同时可用，保存/清除后更新当前任务；距上一图正式 completed_at 正计时，10 分钟提供非阻塞软提醒，不意味着外部房间未创建；下一图开始或系列赛结束后停止提醒。系列赛结束后的 Demo 下载/上传器入口、每图同步状态与赛后资料都不依赖 OCR 齐备。Demo 待处理项独立于可 OCR 的地图列表，避免历史事实缺失时失去恢复入口。已有 Demo 数据但 Rating/RWS/WE 不齐时直接提供补传截图入口；未匹配截图行可由管理员明确选择已有 Demo 选手并合并这三个指标，消费重复草稿，不按相似昵称推断身份或覆盖 Demo 比赛数据。取消恢复已保存数据。
 
 ### BP 的角色与阶段展示
 既有公开 BP 页共用正式地图计划与服务端权限。观众查看进度、地图顺序与起始阵营；首发可按权限认领 BP 负责人；当前负责人操作本轮；管理员处理暂停、恢复与负责人调整。BP 页仅为赛事管理员提供返回工作台的入口，建房指引由工作台按当前比赛阶段展示。等待方与观众使用状态提示，当前操作方使用行动提示。正常操作记录省略内部来源标签，超时自动选择与管理员调整保留可理解的说明。完成页读取正式地图结果汇总；取消后展示历史记录并停止操作倒计时与边界推进。历史技术申诉沿用责任队伍与管理员的既有权限，申诉表单按需展开。明确刷新给出完成反馈，后台轮询保持安静。
 
-BP 操作页与公开记录共用 BAN / PICK / SIDE / DECIDER 标签。当前操作和 CT/T 起始方的解释放入共享问号提示；BP 优先权使用短标签与按需说明。关键修复动作与后果保持可见，常规页面省略重复用途介绍。
+BP 操作页与公开记录共用 BAN / PICK / SIDE / DECIDER 标签。地图操作使用现有地图缩略图与深色遮罩，地图名称保持中性色，BAN / PICK 仅以局部红／绿标记区分；选中地图用边框与勾选共同标识，确认栏显示动作与地图名。CT / T 选边卡片使用蓝／黄局部标记和起始阵营文字。手机端地图区随页面自然滚动，避免浮动操作区遮住倒计时或将确认按钮藏入嵌套滚动。当前操作和 CT/T 起始方的解释放入共享问号提示；BP 优先权使用短标签与按需说明。关键修复动作与后果保持可见，常规页面省略重复用途介绍。
 
 ### Public event browsing
 
-首页保留赛事 Hero、状态侧栏与快捷入口，登录者的报名阻塞事项使用 readiness owner 的个人投影。赛事目录按生命周期分组；已结束赛事以正式冠军、决赛、排名与荣誉组织历史入口。冠军和名次来自明确赛果/荣誉事实，撤销荣誉不自动递补。选手目录标题固定为「选手」，队伍与选手搜索使用共享列表工具及 URL 查询参数。
+首页使用单一赛事 Hero，比赛期的近期对阵紧接主视觉，其后才是个人提醒与相关入口；非比赛期展示实际报名、投票或选秀进展。首页与赛事总览共享公开主行动的 presentation owner：已有官方比赛优先赛程，报名按真实窗口，投票和选秀按启用能力，历史进入回顾；配置了赛制不代表已经有比赛。登录者的报名阻塞事项使用 readiness owner 的个人投影，公开内容与 session Suspense 保持分离。赛事总览使用紧凑标题和一次性队伍、选手、比赛摘要，当前内容在主栏，公告、规则与少量相关入口在侧栏；完整赛事入口仍由内部导航承接。比赛摘要共享状态、阶段和明确的比赛入口，队伍名称保留独立资料链接。Major 队伍数量标签消费 public participant owner 的实际名单阶段。赛事目录按生命周期分组，首页历史赛事使用紧凑列表；已结束赛事以正式冠军、决赛、排名与荣誉组织历史入口。冠军和名次来自明确赛果/荣誉事实，撤销荣誉不自动递补。选手目录标题固定为「选手」，队伍与选手搜索使用共享列表工具及 URL 查询参数。
 
 队伍地图画像区分三类事实：赛事队伍自身本届正式地图表现（长期队伍为自身正式历史）、当前阵容成员历史正式赛事地图经验、成员自报地图熟练度。正式地图表现属于 Performance → Maps；后两类在 Performance 后进入「阵容地图参考」。队伍 W/L 只归属于实际参赛队伍；成员经验供 scouting 参考，不能转换为当前队伍 W/L 或合成地图强度分。公开文案陈述统计事实，不常驻解释数据聚合和来源实现。
 
 赛程的阶段与对阵上下文在队伍筛选时保持完整，通过高亮定位相关比赛；历史赛事默认展示结果。BO1 在唯一已完成地图的合法回合比分与正式胜者一致时展示单图回合比分；弃权、缺图或冲突事实保留系列比分，BO3/BO5 保持系列胜场语义。展示投影不参与排名或竞猜结算。未知比分显示破折号，比赛状态统一复用中央 presentation：显式管理员开赛后的 `in_progress` 展示「进行中」，结束展示「已结束」，取消展示「已取消」；排期和直播地址不能自行推导实时 LIVE 状态。Match Detail 赛前依次提供阵容、带真实样本数的地图胜/选/禁对照、双方近期赛果和次级历史交锋，不在比赛页重复六维能力图或手动两人对比；只有相关队长、BP 负责人或管理员看到「你的赛务」，排期与首发编辑使用聚焦弹窗。赛后每张已有正式比分的地图显示确认的静态 Scoreboard，整场汇总随已完成且有确认数据的地图累计，详细指标按整场/单图范围复用 Stats Center；没有当前 Demo detail 时省略详细指标。基础 Scoreboard 固定为 Player、Rating、K、D、A、ADR、HS%、FK、MK、CL、WE，两队共用固定列宽、数值右对齐，窄屏局部横向滚动；公开页面不挂载后台录入或确认控件。比赛详情提供轻量 BET 奖池入口，完整投入交互只在独立 BET 页面维护。MatchRoster 仅在赛事具备 registration-position capability 时通过共享 PosChip 与 positionLabel 展示英文位置标签（IGL、AWPer、Opener、Closer、Anchor），不重复「报名位置」前缀，不把报名位置解释为本场位置；其它赛事不查询或显示该字段。赛前及比赛期存在有效直播资源时，在 Hero 附近提供「进入直播间」入口及解说信息；结束后隐藏直播入口，录像/VOD 作为历史资料置于页面后部。
 
-Major Play-in 管理使用正赛规模、候选与直通/晋级数等紧凑统计；配置确认前展示完整预排名与「路径」，每轮生成前展示队名和冻结预排名种子对阵，赛制定义通过 tooltip 提供。首页阶段 tracker 只标记 Main Event；Play-in 独立面板按 configured、in progress、completed 展示赛程待生成、当前 Round、晋级队数与正赛名单确认状态。Play-in 期间 REGISTER 完成、Main Event 阶段待开始且不设置当前 Main Event 阶段。赛程页把 PLAY-IN tab 与 Main Event 阶段分隔；Short Swiss summary 展示 Play-in 人数到晋级席位、赛制和当前轮次/结束状态；standings 按当前排名排序，Seed、P1…Pn 标签保持冻结预排名，列头使用 Seed / Team / W-L / BU ? / Status，并仅显示 R1–R3。
+Major Play-in 管理使用正赛规模、候选与直通/晋级数等紧凑统计；配置确认前展示完整预排名与「路径」，每轮生成前展示队名和冻结预排名种子对阵，赛制定义通过 tooltip 提供。赛事总览的 Play-in 摘要与当前比赛放在同一区块，按 configured、in progress、completed 展示赛程待生成、当前 Round、晋级队数与正赛名单确认状态；完整阶段进度在当前内容之后以细条呈现。Play-in 期间 REGISTER 完成、Main Event 阶段待开始且不设置当前 Main Event 阶段。赛程页把 PLAY-IN tab 与 Main Event 阶段分隔；正式 Swiss 赛程固定使用紧凑对阵，不提供展示方式切换；阶段 Tab 下保留赛制与进度摘要，阶段标题仅供辅助技术识别，避免重复显示。结果卡在整轮确认前即可展示当前轮已结束比赛带来的晋级/淘汰战绩；只作展示补充，不改变正式 standings、种子、配对和轮次确认。赛程表优先于下方比赛列表，保留轮次居中编排；赛事推演继续独立提供布局切换。Short Swiss summary 展示 Play-in 人数到晋级席位、赛制和当前轮次/结束状态；standings 按当前排名排序，Seed、P1…Pn 标签保持冻结预排名，列头使用 Seed / Team / W-L / BU ? / Status，并仅显示 R1–R3。
 
 社区奖公开页面以进行中、已结奖、未颁/取消及个人提交组织浏览。申报与证据表单由 CTA 打开，复用既有 action workflow；候选人与获奖者保持赛事相关人员语义，仅在相关人员确认具有长期选手公开身份（历史参赛或已填写选手资料）时链接选手主页，非选手相关人员展示公开姓名，公开 DTO 与管理审核字段保持分离。
 
 ### Public Match live composition
 
-公开比赛用 shared Match phase projection 区分 BP、等待正式对局、对局和图间；freshness 与直播资源独立。详情页 Hero 在赛前、对局与图间保留弱化的 VS，只有赛后显示最终系列赛比分；进行中「地图胜场」放在地图区，通过地图上下文与可访问说明明确当前图比分。地图卡与实时数据区共用单份 viewer state，CT/T 换边后按 canonical 队伍 A/B 映射比分。BP 当前进度先于其它赛前内容。完整禁选记录在进行中展开，BP 完成后与地图序列一起固定在顶部（含 POST），过程默认折叠；行首使用轻量彩色文字 BAN / PICK / DECIDER / SIDE，正文使用 removed / picked / was left over / chose … on，选边说明收进共享问号提示。BP 后固定为地图序列/BP 结果、直播播放器、比赛数据，三个阶段复用同一布局；没有直播入口显示紧凑缺省文案。桌面比赛数据为左侧基础数据、右侧共享雷达；两队紧凑表格的总高度与雷达面板齐平，回合记录放在整行下方。窄屏纵向排列、表格局部滚动。赛程和比赛详情使用 wide 布局。只有当前有可展示的实时画面时才默认折叠阵容与赛前资料，短暂 stale 保持布局，等待、图间和 unavailable 展开；用户主动展开的选择在恢复实时后保留，已有正式地图结果继续显示（包括健康 GSI 可靠事件自动采纳的结果，不要求重复人工确认）；未产生结果时不重复展示待进行的地图详情。
+公开比赛用 shared Match phase projection 区分 BP、等待正式对局、对局和图间；freshness 与直播资源独立。详情页 Hero 在赛前、对局与图间保留弱化的 VS，只有赛后显示最终系列赛比分；进行中「地图胜场」放在地图区，通过地图上下文与可访问说明明确当前图比分。地图卡与实时数据区共用单份 viewer state，CT/T 换边后按 canonical 队伍 A/B 映射比分。BP 当前进度先于其它赛前内容。启用预测与 BET 的赛事在宽屏将 BP 状态与双支持率同排，窄屏纵向排列；队长和管理员赛务操作、完整 BP 过程保持独立整行。赛后支持率置于地图结果与基础选手数据之后，保留盘口入口和真实支持率，不因空态移除赛前入口。地图卡按可用宽度和实际地图数排列，单图使用整行；无实际地图且无双方阵容的弃赛不展示空名单。完整禁选记录在进行中展开，BP 完成后与地图序列一起固定在顶部（含 POST），过程默认折叠；行首使用轻量彩色文字 BAN / PICK / DECIDER / SIDE，正文使用 removed / picked / was left over / chose … on，选边说明收进共享问号提示。BP 后固定为地图序列/BP 结果、直播播放器、比赛数据，三个阶段复用同一布局；没有直播入口显示紧凑缺省文案。桌面比赛数据为左侧基础数据、右侧共享雷达；两队紧凑表格的总高度与雷达面板齐平，回合记录放在整行下方。窄屏纵向排列、表格局部滚动。赛程和比赛详情使用 wide 布局。只有当前有可展示的实时画面时才默认折叠阵容与赛前资料，短暂 stale 保持布局，等待、图间和 unavailable 展开；用户主动展开的选择在恢复实时后保留，已有正式地图结果继续显示（包括健康 GSI 可靠事件自动采纳的结果，不要求重复人工确认）；未产生结果时不重复展示待进行的地图详情。
 
 实时基础表以名称为高密度 identity，不重复头像，展示当前边、存活、HP、Armor、Money、K/D/A、ADR；选手表与雷达 marker 使用同一数字编号，按 source identity 稳定排序，不随昵称或 CT/T 换边改变；不展示武器、弹药、装备值、kill feed 或来源诊断。共享雷达展示真实协议已有的玩家、C4、楼层、投掷物、烟雾及火焰，缺失本地增强不补造。接收后不超过三秒为 fresh，三至十秒明确显示「实时数据暂时中断」并冻结时钟/雷达；超过十秒或尚无合法帧时隐藏动态画面，保留 canonical 比赛内容。C4 常态携带不占状态栏，仅显示掉落、安放、拆除等状态。图间不沿用上一图动态画面，地图/比赛切换重置视觉历史。外部赛程列表的进行中卡片在窄屏将队名上下排列、比分置于右侧，保留队名阅读宽度；只在可见且处于 gameplay 的比赛行订阅同一 private viewer，比赛行在桌面统一高度和列宽，以「(A 地图胜场) 本图回合比分 (B 地图胜场)」紧凑显示，地图名仅为次级文字，不重复标注「实时」；BP/等待显示 canonical 阶段；图间保持「(地图胜场) 上一图回合比分 (地图胜场)」，不增加结束/等待文案，地图名称与比分范围由可访问说明补充，失鲜标注中断，unavailable 移除实时比分，赛后只展示最终结果。
+
+### Event participant directory and team profile
+
+赛事导航将队伍与选手统一为「参赛阵容」，按队伍展示首发和替补，统一搜索队名与选手名并突出匹配成员；名单不依赖正式统计资格。官方名次优先，无名次队伍保留形成顺序，不由胜率推算名次。Major 不再提供独立选手列表，旧 `/[seasonSlug]/players` 地址转到本届参赛阵容并保留姓名搜索。Rivals 报名名单与候选人保留次级入口和原有位置筛选，导航归属参赛阵容。
+
+赛事队伍详情使用 wide 布局，先展示身份成绩与紧凑名单，再以宽屏两栏展示本届地图画像和近期比赛，窄屏纵向排列；其余比赛可展开，完整竞技统计保留在下方。地图画像按实际出场数排列，胜率附胜负与地图样本，Pick/Ban 附次数及拥有对应禁选动作的本队比赛样本；未出场但有禁选记录的地图仍可见，无样本显示破折号。队伍 Deciders 只统计该队参与的比赛，赛事汇总保持赛事范围。个人打法画像评分与整队聚合另行设计，不由此布局变更推导。
 
 ### Public player profile
 
 MVP 已结算卡保留 Rating、K/D/A、ADR 主指标，次级使用 HS%、FK、MK、CL、RWS、WE 标签。已提交胜者具备有效统计投影时，通过现有公开统计缓存读取整场 KAST、Trade/100r、Util/r、FA/100r 与回合样本，复用 Stats Center 的口径、格式与说明；单图/其他选手标签不会改变 MVP 范围。缺少投影时保留基础表现，不从原始 Demo Evidence 重建，也不从最高 Rating 推导胜者。完整数据链接定位本场该选手的整场面板。专业标签复用简短英文，指标解释使用共享问号提示，MVP 问号附在标签右侧且不参与居中宽度计算，支持悬停、键盘与触屏；表格内不重复“本图回合”等说明。
 
-`/players/[userId]` 是选手的长期资料页，维持 PageLayout standard，保留当前身份、活动、找队状态、报名时资料、公开竞技档案、自报地图熟练度和选手自述。Performance 默认使用 All-time；Event 和 Map 是可分享、刷新可恢复的 URL scope，默认值从 URL 省略，切换 Event 时只在所选赛事不包含当前 Map 时清除 Map。Side（Overall / T / CT）留在指标 workspace 内。系列赛 W/L 与 MVP 随 Event scope 变化，不随 Map scope 变化；Map 只筛选地图、回合和选手表现。指标沿用赛事 Player detail 的 Overview、Opening、Teamplay、Utility、Clutch、Maps、Weapons 家族、MetricValue、样本与 tooltip 语义。Player detail 以 full-width metric section 和紧凑数据行组织，不用等高卡片墙填充指标；Opening 与 Teamplay 分离，地图与武器按列表/表格 grain 展示，不把赛事 Players 宽表直接嵌入 standard 页面。Radar 仅显示所选单届赛事的赛事内标准化结果，不合并不同赛事的分数。赛事履历展示当届队伍、正式战绩、已确认名次和有效官方荣誉，并链接到赛事队伍页与选手统计；用户文案使用「队伍 / Team」，不泄漏 `CompetitionEntry` 等内部术语。
+`/players/[userId]` 是选手的长期资料页，维持 PageLayout standard，保留当前身份、活动、找队状态、报名时资料、公开竞技档案、自报地图熟练度和选手自述。页面按身份与 Career Stats → Performance 与既有七维画像及详细数据 → 赛事履历 → 长期资料组织，保持单栏。顶部 Career Stats 的 Rating / ADR / K/D / Maps 固定为全部公开赛事、全部地图的生涯汇总，不随 Event / Map 筛选变化；Performance 默认使用 All-time；Event 和 Map 是可分享、刷新可恢复的 URL scope，默认值从 URL 省略，切换 Event 时只在所选赛事不包含当前 Map 时清除 Map。Side（Overall / T / CT）留在指标 workspace 内。系列赛 W/L 与 MVP 随 Event scope 变化，不随 Map scope 变化；Map 只筛选地图、回合和选手表现。指标沿用赛事 Player detail 的 Overview、Opening、Teamplay、Utility、Clutch、Maps、Weapons 家族、MetricValue、样本与 tooltip 语义。Player detail 以 full-width metric section 和紧凑数据行组织，不用等高卡片墙填充指标；Opening 与 Teamplay 分离，地图与武器按列表/表格 grain 展示，不把赛事 Players 宽表直接嵌入 standard 页面。Radar 仅显示所选单届赛事的赛事内标准化结果，不合并不同赛事的分数。赛事履历展示当届队伍、正式战绩、已确认名次和有效官方荣誉，并链接到赛事队伍页与选手统计；用户文案使用「队伍 / Team」，不泄漏 `CompetitionEntry` 等内部术语。
 
 ### Public information and feedback entry
 
@@ -180,6 +198,7 @@ Major 排名的预排名草稿、未保存修改、版本冲突和最终锁定�
 - 稳定列序和可扫描 identity/status/date；密度来自分组与行距，不靠不可读字号。
 - 数字使用稳定对齐和 `tabular-nums`；`null/unknown` 与数值 `0` 明确区分。
 - 二维 overflow 由最近的局部容器拥有，普通页面不产生 document-level 横向滚动。
+- 数据 explorer 的表格最小宽度按断点设置，隐藏次要列时同步回收其宽度；手机初始视图应可见身份与核心指标，不让桌面最小宽度把剩余数字列撑成空白。详细指标保留局部横向滚动。
 - `StatsDataTable` 可显式标记 bounded identity column；sticky identity 内容在该列内截断，numeric columns 保持 `whitespace-nowrap` 与 `tabular-nums`。
 - 移动端首屏必须读到 primary identity + primary metric/action；必要时提供摘要/卡片，而不是只把桌面表格横向塞入。
 - `ScrollHint` 只表达局部横向内容是否仍可滚动，不拥有 domain navigation。
@@ -213,6 +232,7 @@ shared layer **不拥有** allowed query、validation、SQL `WHERE/ORDER BY`、q
 - 使用既有 labeled controls；字段级 validation 靠近字段，服务端错误保留给用户。
 - pending/success/failure 状态明确，避免重复 mutation。
 - 长期 profile、赛事报名和单场 roster 等不同事实不混成同一表单。
+- 已通过的队伍报名默认展示当前本届只读名单，将主力／替补和确认状态合并到成员行；不展示禁用的编辑复选框或未入选候选队员。当前资料检查可展开查看，并明确其不改变已通过结果；可用的名单变更及负责人交接入口继续保留。名单调整提示区分时间截止、赛事阶段限制和名单锁定。
 - 文件上传客户端提示、服务端再次验证；敏感材料只呈现任务最小信息。教育认证 fallback 是学信网材料不可得时的新生兜底，使用 canonical 高校 selector、单张非空 JPG/PNG/WebP 图片（最大 5 MiB），界面必须直接说明必要页面、遮挡身份证号/考生号/条形码或二维码、审核完成七天后自动删除且不会公开展示；不得让用户理解或操作 Storage key、signed URL 或内部 evidence enum。
 - qualification、seed、lineup、start 等关键判断展示最新服务端事实，不让乐观 UI 成为最终结论。
 

@@ -24,9 +24,7 @@ import {
 } from "@/lib/competition-entries/public-team-context";
 import type { PublicSeason } from "@/lib/data/public-seasons";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import type { PublicPlayerIdentity } from "@/lib/identity/public-player";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
-import { getVerifiedPlayerStatsBySeason, type VerifiedPlayerSeasonStats } from "@/lib/stats/public-query";
 
 export type MajorPublicParticipantSeason = Pick<
   PublicSeason,
@@ -57,8 +55,6 @@ export type MajorPublicParticipantPhase =
 export interface MajorPublicParticipantPresentation {
   teamCollectionLabel: string;
   teamCollectionDescription: string;
-  playerHeading: string;
-  playerDescription: string;
 }
 
 export interface MajorPublicParticipantOverview {
@@ -75,17 +71,6 @@ export interface MajorPublicParticipantSummary extends MajorPublicParticipantOve
   teams: PublicEventTeamSummary[];
   matchCount: number;
   finishedMatchCount: number;
-}
-
-export interface MajorPublicParticipantPlayer extends PublicPlayerIdentity {
-  entryId: string;
-  entryName: string;
-  isStarter: boolean;
-  stats: VerifiedPlayerSeasonStats | null;
-}
-
-export interface MajorPublicParticipantProjection extends MajorPublicParticipantOverview {
-  players: MajorPublicParticipantPlayer[];
 }
 
 type RosterMemberRow = {
@@ -111,7 +96,6 @@ interface MajorPublicParticipantState extends MajorPublicParticipantOverview {
   officialSetComplete: boolean;
   visibleEntryIds: string[];
   teams: MajorPublicParticipantTeamBase[];
-  players: Array<Omit<MajorPublicParticipantPlayer, "stats"> & { stats: null }>;
 }
 
 export interface MajorPublicParticipantLifecycleFacts {
@@ -184,22 +168,16 @@ export function presentMajorPublicParticipantPhase(
       return {
         teamCollectionLabel: "正式参赛队",
         teamCollectionDescription: "本届正式参赛队及最终参赛名单已经确认。",
-        playerHeading: "正式参赛队选手",
-        playerDescription: "以下选手来自本届最终参赛名单。",
       };
     case "final_entrants":
       return {
         teamCollectionLabel: "正式参赛队",
         teamCollectionDescription: "本届正式参赛队已经确定，参赛名单仍可能调整。",
-        playerHeading: "正式参赛队选手",
-        playerDescription: "以下选手来自本届当前参赛名单；最终名单仍可能调整。",
       };
     case "approved_candidates":
       return {
         teamCollectionLabel: "已通过报名审核的队伍",
         teamCollectionDescription: "以下队伍已通过报名审核，正赛资格由赛委会确认。",
-        playerHeading: "已通过审核队伍选手",
-        playerDescription: "以下选手来自已通过审核的队伍，正赛名单待确认。",
       };
   }
 }
@@ -428,15 +406,6 @@ async function loadMajorPublicParticipantState(
     } satisfies MajorPublicParticipantTeamBase;
   });
   const visibleTeams = teams.filter((team) => visibleEntryIds.includes(team.entry.id));
-  const players = visibleTeams.flatMap((team) => team.roster.map((member) => ({
-    userId: member.userId,
-    avatarUrl: member.avatarUrl,
-    entryId: team.entry.id,
-    entryName: team.entry.name,
-    name: member.name,
-    isStarter: member.isStarter,
-    stats: null,
-  })));
 
   return {
     phase: lifecycle.phase,
@@ -445,13 +414,12 @@ async function loadMajorPublicParticipantState(
     approvedCandidateCount: approvedEntries.length,
     officialEntrantCount: officialEntryIds.length,
     teamCount: visibleTeams.length,
-    playerCount: players.length,
+    playerCount: visibleTeams.reduce((total, team) => total + team.roster.length, 0),
     approvedEntryIds,
     officialEntryIds,
     officialSetComplete: lifecycle.officialSetComplete,
     visibleEntryIds,
     teams,
-    players,
   };
 }
 
@@ -506,29 +474,6 @@ export async function getMajorPublicParticipantSummary(
       })),
     matchCount: matchSummary.total,
     finishedMatchCount: matchSummary.finished,
-  };
-}
-
-export async function getMajorPublicParticipantProjection(
-  season: MajorPublicParticipantSeason,
-): Promise<MajorPublicParticipantProjection> {
-  const state = await loadMajorPublicParticipantState(season);
-  const statsByUserId = await getVerifiedPlayerStatsBySeason(
-    season.id,
-    state.players.map((player) => player.userId),
-  );
-  return {
-    phase: state.phase,
-    presentation: state.presentation,
-    entrantCapacity: state.entrantCapacity,
-    approvedCandidateCount: state.approvedCandidateCount,
-    officialEntrantCount: state.officialEntrantCount,
-    teamCount: state.teamCount,
-    playerCount: state.playerCount,
-    players: state.players.map((player) => ({
-      ...player,
-      stats: statsByUserId.get(player.userId) ?? null,
-    })).sort((a, b) => a.entryName.localeCompare(b.entryName) || a.name.localeCompare(b.name)),
   };
 }
 

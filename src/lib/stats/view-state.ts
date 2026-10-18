@@ -7,6 +7,11 @@ export type StatsSearch = Record<string, string | string[] | undefined>;
 
 export interface StatsQuery {
   recordPage?: number;
+  sort?: string;
+  direction?: "asc" | "desc";
+  page?: number;
+  family?: string;
+  q?: string;
   preview?: boolean;
   tab: StatsTab;
   stage: string;
@@ -31,6 +36,11 @@ export function parseStatsQuery(raw: StatsSearch, stages: readonly string[]): St
   const format: StatsMatchFormat = requestedFormat === "bo1" || requestedFormat === "bo3" || requestedFormat === "bo5" ? requestedFormat : "";
   return {
     tab,
+    sort: /^[a-zA-Z0-9_:-]{1,64}$/.test(value("sort")) ? value("sort") : "",
+    direction: value("direction") === "asc" ? "asc" : "desc",
+    page: /^[1-9][0-9]{0,3}$/.test(value("page")) ? Number(value("page")) : 1,
+    family: ["overall", "opening", "teamplay", "utility", "clutch", "results", "rounds", "conversion"].includes(value("family")) ? value("family") : "",
+    q: value("q"),
     stage: value("stage") ? stages.includes(value("stage")) ? value("stage") : "__invalid__" : "",
     format,
     mapFilter: value("mapFilter") ? mapKeyPattern.test(value("mapFilter")) ? value("mapFilter") : "__invalid__" : "",
@@ -44,6 +54,11 @@ export function parseStatsQuery(raw: StatsSearch, stages: readonly string[]): St
 
 function serializeStatsQuery(query: StatsQuery): URLSearchParams {
   const params = new URLSearchParams();
+  if (query.sort) params.set("sort", query.sort);
+  if (query.sort && query.direction === "asc") params.set("direction", "asc");
+  if (query.page && query.page > 1) params.set("page", String(query.page));
+  if (query.family) params.set("family", query.family);
+  if (query.q) params.set("q", query.q);
   if (query.tab !== "overview") params.set("tab", query.tab);
   if (query.stage) params.set("stage", query.stage);
   if (query.format) params.set("format", query.format);
@@ -85,6 +100,11 @@ export function statsHref(slug: string, current: StatsQuery, updates: StatsQuery
 
   if (updates.recordPage !== undefined && nextTab === "records") next.recordPage = updates.recordPage;
   if (nextTab !== current.tab || updates.stage !== undefined || updates.format !== undefined || updates.mapFilter !== undefined) next.recordPage = 1;
+  if (updates.family !== undefined) { next.family = updates.family; next.sort = ""; next.page = 1; }
+  if (updates.q !== undefined) { next.q = updates.q; next.page = 1; }
+  if (updates.sort !== undefined) next.sort = updates.sort;
+  if (updates.direction !== undefined) next.direction = updates.direction;
+  if (updates.page !== undefined) next.page = updates.page;
   const params = serializeStatsQuery(next);
   if (slug && !current.preview) params.set("event", slug);
   const path = current.preview ? `/${slug}/stats` : "/stats";

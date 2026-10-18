@@ -1,12 +1,13 @@
 "use client";
+import { StatsExplorerTable } from "@/components/stats/StatsExplorerTable";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricValue } from "@/components/stats/MetricValue";
-import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
+import { type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import { statsRateDenominator } from "@/lib/stats/presentation";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
 import { type StatsQuery } from "@/lib/stats/view-state";
@@ -106,7 +107,16 @@ function teamColumns(family: Family, seasonSlug: string, links?: Record<string, 
 
 export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentStats; query: StatsQuery; seasonSlug: string }) {
   const router = useRouter();
-  const [family, setFamily] = useState<Family>("results");
+  function setReadingState(key: string, value: string) {
+    const next = new URLSearchParams(params.toString());
+    if (value) next.set(key, value); else next.delete(key);
+    next.delete("page");
+    if (key === "family") { next.delete("sort"); next.delete("direction"); }
+    window.history.replaceState(null, "", `?${next}`);
+  }
+  const params = useSearchParams();
+  const family = (families.find(row => row.key === params.get("family"))?.key ?? "results") as Family;
+  const setFamily = (value: Family) => setReadingState("family", value);
   const rows = useMemo(() => rowsFor(data), [data]);
   const partialCoverage = family !== "results" && data.coverage.completedMaps > 0 && data.coverage.detailedMaps < data.coverage.completedMaps;
 
@@ -122,14 +132,14 @@ export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentSta
         </div>
       </div>
 
-      <StatsDataTable
+      <StatsExplorerTable
         key={family}
         rows={rows}
         rankingBaselineRows={rows}
         columns={teamColumns(family, seasonSlug, data.teamLinks)}
         rowKey={(row) => row.entryId}
         initialSortKey={family === "results" ? "match" : family === "rounds" ? "rw" : family === "conversion" ? "r2" : "opening"}
-        tableClassName={family === "results" ? "min-w-[700px] table-fixed" : family === "conversion" ? "min-w-[1120px] table-fixed" : "min-w-[940px] table-fixed"}
+        tableClassName={family === "results" ? "min-w-[440px] sm:min-w-[700px] table-fixed" : family === "conversion" ? "min-w-[560px] sm:min-w-[1120px] table-fixed" : "min-w-[520px] sm:min-w-[940px] table-fixed"}
         emptyLabel="暂无赛果"
       />
     </section>

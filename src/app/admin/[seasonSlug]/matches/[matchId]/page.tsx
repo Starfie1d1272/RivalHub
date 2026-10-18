@@ -14,16 +14,15 @@ export default async function AdminMatchWorkbenchPage({ params }: AdminMatchWork
   if (!data) notFound();
 
   return (
-    <div className="min-w-0 space-y-5">
-      <header>
+    <div className="min-w-0 space-y-4">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
         <p className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">{data.season.name}</p>
-        <h1 className="mt-1 text-2xl font-bold text-[var(--color-fg)]">{data.match.testConfig ? "测试赛工作台" : "单场比赛工作台"}</h1>
-        <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-          查看本场进度，完成准备、比分记录与赛后资料。
-        </p>
+        <h1 className="mt-1 text-lg font-bold text-[var(--color-fg)]">{data.match.testConfig ? "测试赛工作台" : "比赛工作台"}</h1>
+        </div>
         <Link
           href={data.match.testConfig ? `/admin/${seasonSlug}/test-matches` : `/admin/${seasonSlug}/matches`}
-          className="mt-3 inline-flex text-sm text-[var(--color-accent)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+          className="inline-flex text-sm text-[var(--color-accent)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
         >
           ← {data.match.testConfig ? "回到测试赛" : "回到赛事比赛总览"}
         </Link>

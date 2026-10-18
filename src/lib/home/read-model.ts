@@ -1,17 +1,16 @@
+import { getPublicCaptainVotingData } from "@/lib/captains/data";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 
 import { alias } from "drizzle-orm/pg-core";
-import { and, count, desc, eq, or } from "drizzle-orm";
+import { and, count, eq, or, sql } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 
 import { db } from "@/db/client";
-import { competitionEntries, seasonRegistrations, steamProfiles, users } from "@/db/schema";
-import { captainVotes } from "@/db/schema/votes";
+import { competitionEntries, seasonRegistrations, users } from "@/db/schema";
 import { matches } from "@/db/schema/matches";
 import { PUBLIC_HOME_TAG } from "@/lib/cache/tags";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
-import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getMajorPublicParticipantOverview } from "@/lib/major/public-participants";
 import { getParticipantSummary } from "@/lib/participants/summary";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
@@ -28,16 +27,20 @@ export interface PublicHomeProjection {
   results: PublicSeasonResults | null;
   maxPerPosition: number;
   positionCounts: Record<string, number>;
-  topCandidatesWithNames: Array<{ name: string; voteCount: number }>;
+  topCandidatesWithNames: Array<{ userId: string; name: string; voteCount: number }>;
   liveAndUpcomingMatches: Array<{
     id: string;
+    entryAId: string | null;
+    entryBId: string | null;
     status: string;
     scheduledAt: Date | null;
+    stage: string | null;
     format: string;
     teamAName: string | null;
     teamBName: string | null;
   }>;
   teamCount: number;
+  teamCountLabel: string;
   playerCount: number;
 }
 
@@ -75,6 +78,7 @@ export async function getPublicHomeProjection(
       topCandidatesWithNames: [],
       liveAndUpcomingMatches: [],
       teamCount: 0,
+      teamCountLabel: "参赛队伍",
       playerCount: 0,
     };
   }
@@ -102,26 +106,16 @@ export async function getPublicHomeProjection(
             .groupBy(seasonRegistrations.primaryPosition)
         : Promise.resolve([] as { position: string; cnt: number }[]),
       featured.status === "voting"
-        ? db.select({
-            displayName: users.displayName,
-            perfectName: users.perfectName,
-            personaName: steamProfiles.personaName,
-            voteCount: count(),
-          })
-            .from(captainVotes)
-            .innerJoin(seasonRegistrations, eq(captainVotes.candidateRegistrationId, seasonRegistrations.id))
-            .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
-            .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-            .where(eq(seasonRegistrations.seasonId, featured.id))
-            .groupBy(users.id, users.displayName, users.perfectName, steamProfiles.personaName)
-            .orderBy(desc(count()))
-            .limit(3)
-        : Promise.resolve([] as { displayName: string | null; perfectName: string | null; personaName: string | null; voteCount: number }[]),
+        ? getPublicCaptainVotingData(featured.id).then(data => data.candidates.slice(0, 3).map(candidate => ({ userId: candidate.userId, name: candidate.displayName, voteCount: candidate.voteCount })))
+        : Promise.resolve([] as { userId: string; name: string; voteCount: number }[]),
       featured.hasOfficialMatches
         ? db.select({
             id: matches.id,
+            entryAId: matches.entryAId,
+            entryBId: matches.entryBId,
             status: matches.status,
             scheduledAt: matches.scheduledAt,
+            stage: matches.stage,
             format: matches.format,
             teamAName: competitionEntries.name,
             teamBName: opponentEntry.name,
@@ -133,12 +127,15 @@ export async function getPublicHomeProjection(
               eq(matches.seasonId, featured.id),
               or(eq(matches.status, "in_progress"), eq(matches.status, "scheduled")),
             )))
-            .orderBy(matches.scheduledAt)
+            .orderBy(sql`case when ${matches.status} = 'in_progress' then 0 when ${matches.scheduledAt} is not null then 1 else 2 end`, matches.scheduledAt)
             .limit(2)
         : Promise.resolve([] as {
             id: string;
+            entryAId: string | null;
+            entryBId: string | null;
             status: string;
             scheduledAt: Date | null;
+            stage: string | null;
             format: string;
             teamAName: string | null;
             teamBName: string | null;
@@ -157,12 +154,10 @@ export async function getPublicHomeProjection(
     results,
     maxPerPosition: registrationConfig.maxPerPosition,
     positionCounts: Object.fromEntries(registrationCounts.map((row) => [row.position, Number(row.cnt)])),
-    topCandidatesWithNames: topCandidates.map((candidate) => ({
-      name: getPublicDisplayName(candidate),
-      voteCount: Number(candidate.voteCount),
-    })),
+    topCandidatesWithNames: topCandidates,
     liveAndUpcomingMatches,
     teamCount: majorOverview?.teamCount ?? Number(featuredTeamCount?.value ?? 0),
+    teamCountLabel: majorOverview?.phase === "approved_candidates" ? "已审核队伍" : "参赛队伍",
     playerCount: majorOverview?.playerCount ?? participantSummary.count,
   };
 }

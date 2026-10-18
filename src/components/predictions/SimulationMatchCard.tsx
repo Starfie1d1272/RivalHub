@@ -84,7 +84,7 @@ export function SimulationMatchCard({
           {side(match.a, 0)}
           <div className={styles.score}>
             {actual ? (
-              <>
+              <span className={styles.scoreLine}>
                 <strong data-winning={match.winner === match.a}>
                   {(match.displayScore ?? match).scoreA ?? "—"}
                 </strong>
@@ -92,7 +92,7 @@ export function SimulationMatchCard({
                 <strong data-winning={match.winner === match.b}>
                   {(match.displayScore ?? match).scoreB ?? "—"}
                 </strong>
-              </>
+              </span>
             ) : (
               <>
                 <strong>{preview ? "VS" : "✓"}</strong>

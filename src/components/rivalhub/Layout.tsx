@@ -6,9 +6,14 @@ export type PageLayoutVariant = "narrow" | "standard" | "wide" | "workbench";
 const PAGE_LAYOUT_WIDTHS: Record<PageLayoutVariant, string> = {
   narrow: "max-w-3xl",
   standard: "max-w-5xl",
-  wide: "max-w-7xl",
-  workbench: "max-w-[1600px]",
+  wide: "max-w-[1440px]",
+  workbench: "max-w-[1760px]",
 };
+
+/** Navigation frames share body alignment without owning vertical geometry. */
+export function pageAlignmentFrame(variant: PageLayoutVariant = "wide") {
+  return cn("mx-auto w-full px-4 sm:px-6 lg:px-8", PAGE_LAYOUT_WIDTHS[variant]);
+}
 
 interface PageLayoutProps extends HTMLAttributes<HTMLElement> {
   children: ReactNode;

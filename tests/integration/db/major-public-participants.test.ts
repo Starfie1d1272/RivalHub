@@ -6,7 +6,6 @@ import { Pool } from "pg";
 import { createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
 import {
   getMajorPublicParticipantOverview,
-  getMajorPublicParticipantProjection,
   getMajorPublicParticipantSummary,
   getMajorPublicParticipantTeam,
   type MajorPublicParticipantSeason,
@@ -445,9 +444,9 @@ describe("Major public participant read model PostgreSQL integration", () => {
       expect(candidate.presentation.teamCollectionLabel).toBe("已通过报名审核的队伍");
       expect(candidate.teams.every((team) => team.rosterLabel === "已审核报名名单")).toBe(true);
 
-      const candidatePlayers = await expectRosterSources(() => getMajorPublicParticipantProjection(fixture.season), approvedIds, []);
-      expect(candidatePlayers.players).toHaveLength(33 * 5);
-      expect(candidatePlayers.players.find((player) => player.userId === fixture.entries[0]?.userIds[1])?.avatarUrl).toBe("https://cdn.test/major-player-0-1.webp");
+      const candidatePlayers = candidate.teams.flatMap((team) => team.roster);
+      expect(candidatePlayers).toHaveLength(33 * 5);
+      expect(candidatePlayers.find((player) => player.userId === fixture.entries[0]?.userIds[1])?.avatarUrl).toBe("https://cdn.test/major-player-0-1.webp");
 
       const candidateDetail = await expectRosterSources(() => getMajorPublicParticipantTeam(fixture.season, fixture.entries[32]!.entryId), unselectedIds, []);
       expect(candidateDetail?.participation).toMatchObject({
@@ -475,7 +474,6 @@ describe("Major public participant read model PostgreSQL integration", () => {
       expect((await expectOverviewMatches(fixture.season)).phase).toBe("approved_candidates");
       expect(await getParticipantSummary(fixture.season)).toEqual({ count: 155, hasPlayers: true });
       await expectRosterSources(() => getMajorPublicParticipantSummary(fixture.season), approvedIds.slice(1), []);
-      await expectRosterSources(() => getMajorPublicParticipantProjection(fixture.season), approvedIds.slice(1), []);
       await expectRosterSources(() => getMajorPublicParticipantTeam(fixture.season, fixture.entries[1]!.entryId), [fixture.entries[1]!.entryId], []);
       await pool.query("UPDATE competition_entries SET registration_status = 'approved' WHERE id = $1", [fixture.entries[0]!.entryId]);
       const final = await expectRosterSources(() => getMajorPublicParticipantSummary(fixture.season), unselectedIds, officialIds);
@@ -485,9 +483,9 @@ describe("Major public participant read model PostgreSQL integration", () => {
       expect(final.playerCount).toBe(32 * 5);
       expect(final.teams.every((team) => team.rosterLabel === "当前参赛名单")).toBe(true);
       expect(final.teams.find((team) => team.entry.id === fixture.entries[0]?.entryId)?.roster.some((member) => member.name === "公开选手 0-1")).toBe(true);
-      const finalPlayers = await expectRosterSources(() => getMajorPublicParticipantProjection(fixture.season), unselectedIds, officialIds);
-      expect(finalPlayers.players.find((player) => player.userId === fixture.entries[0]?.userIds[1])?.avatarUrl).toBe("https://cdn.test/major-player-0-1.webp");
-      expect(finalPlayers.players.find((player) => player.userId === fixture.entries[0]!.userIds[5])?.isStarter).toBe(false);
+      const finalPlayers = final.teams.flatMap((team) => team.roster);
+      expect(finalPlayers.find((player) => player.userId === fixture.entries[0]?.userIds[1])?.avatarUrl).toBe("https://cdn.test/major-player-0-1.webp");
+      expect(finalPlayers.find((player) => player.userId === fixture.entries[0]!.userIds[5])?.isStarter).toBe(false);
 
       const unselectedDetail = await expectRosterSources(() => getMajorPublicParticipantTeam(fixture.season, fixture.entries[32]!.entryId), unselectedIds, []);
       expect(unselectedDetail?.roster).toEqual(candidateDetail?.roster);
@@ -507,7 +505,6 @@ describe("Major public participant read model PostgreSQL integration", () => {
       expect(missing?.rosterStatus).toBeNull();
       expect(missing?.rosterLabel).toBe("当前参赛名单");
       expect((await expectRosterSources(() => getMajorPublicParticipantSummary(fixture.season), unselectedIds, officialIds)).playerCount).toBe(155);
-      expect((await expectRosterSources(() => getMajorPublicParticipantProjection(fixture.season), unselectedIds, officialIds)).players).toHaveLength(155);
       await pool.query("INSERT INTO event_rosters SELECT * FROM json_populate_recordset(NULL::event_rosters, $1::json)", [JSON.stringify(missingRoster.rows)]);
       await pool.query("INSERT INTO event_roster_members SELECT * FROM json_populate_recordset(NULL::event_roster_members, $1::json)", [JSON.stringify(missingMembers.rows)]);
 
@@ -527,14 +524,13 @@ describe("Major public participant read model PostgreSQL integration", () => {
       const frozen = await expectRosterSources(() => getMajorPublicParticipantSummary(fixture.season), unselectedIds, officialIds);
       expect(frozen.phase).toBe("rosters_frozen");
       expect(frozen.teams.every((team) => team.rosterLabel === "最终参赛名单")).toBe(true);
-      expect(frozen.presentation.playerDescription).toBe("以下选手来自本届最终参赛名单。");
 
       const frozenTeam = frozen.teams.find((team) => team.entry.id === fixture.entries[0]?.entryId);
       expect(frozenTeam?.roster.find((member) => member.userId === fixture.entries[0]?.userIds[1])?.isStarter).toBe(true);
-      const frozenPlayers = await expectRosterSources(() => getMajorPublicParticipantProjection(fixture.season), unselectedIds, officialIds);
+      const frozenPlayers = frozen.teams.flatMap((team) => team.roster);
       const frozenDetail = await expectRosterSources(() => getMajorPublicParticipantTeam(fixture.season, fixture.entries[0]!.entryId), [], [fixture.entries[0]!.entryId]);
       expect(frozenDetail?.roster).toEqual(frozenTeam?.roster);
-      expect(frozenPlayers.players.find((player) => player.userId === fixture.entries[0]?.userIds[1])?.avatarUrl).toBe("https://cdn.test/major-player-0-1.webp");
+      expect(frozenPlayers.find((player) => player.userId === fixture.entries[0]?.userIds[1])?.avatarUrl).toBe("https://cdn.test/major-player-0-1.webp");
     } finally {
       await cleanupFixture(pool, fixture);
       await pool.end();
