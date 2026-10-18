@@ -247,7 +247,7 @@ export function AdminMatchWorkbench({
 
       {match.status !== "cancelled" && <details id="match-lineups" className="space-y-4 rounded border border-[var(--color-border)] p-4" open={match.status === "scheduled"}>
         <summary className="cursor-pointer font-semibold">首发、BP 与赛程管理</summary>
-      {match.status !== "cancelled" && (
+      {
         <section aria-labelledby="match-workbench-lineup" className="space-y-3">
           <div>
             <h2 id="match-workbench-lineup" className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">
@@ -273,9 +273,9 @@ export function AdminMatchWorkbench({
             />
           )}
         </section>
-      )}
+      }
 
-      {match.status !== "cancelled" && match.status !== "finished" && (
+      {match.status !== "finished" && (
         <>
           <section aria-labelledby="match-workbench-maps" className="space-y-3">
             <div>
