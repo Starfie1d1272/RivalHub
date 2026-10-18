@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { ParticipantDirectoryToolbar } from "@/components/season/ParticipantDirectoryToolbar";
@@ -56,7 +57,7 @@ export async function PlayersPageContent({ params, searchParams }: PlayersPagePr
     return (
       <PageLayout as="div" variant="wide" className="space-y-6">
         <PageHeader
-          title="选手"
+          title="报名名单"
           eyebrow={season.name}
           description={projection.presentation.playerDescription}
         />
@@ -67,6 +68,7 @@ export async function PlayersPageContent({ params, searchParams }: PlayersPagePr
           <Stat label="正式比赛数据" value={playersWithStats} accent />
         </div>
 
+        <Link className="text-sm text-[var(--color-accent)]" href={`/${seasonSlug}/teams`}>← 参赛阵容</Link>
         <ParticipantDirectoryToolbar query={query.q} team={query.team} teams={teamOptions} total={visiblePlayers.length} />
         {visiblePlayers.length === 0 ? (
           <div className="py-16 text-center text-[var(--color-fg-mid)]">暂无符合条件的选手</div>
@@ -90,12 +92,13 @@ export async function PlayersPageContent({ params, searchParams }: PlayersPagePr
 
     return (
       <PageLayout as="div" variant="wide" className="space-y-6">
-        <PageHeader title="选手" eyebrow={season.name} description="以下选手来自本届已确认参赛名单。" />
+        <PageHeader title="报名名单" eyebrow={season.name} description="以下选手来自本届已确认参赛名单。" />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
           <Stat label="选手" value={projection.players.length} />
           <Stat label="所属队伍" value={projection.teamCount} />
           <Stat label="正式比赛数据" value={playersWithStats} accent />
         </div>
+        <Link className="text-sm text-[var(--color-accent)]" href={`/${seasonSlug}/teams`}>← 参赛阵容</Link>
         <ParticipantDirectoryToolbar query={query.q} team={query.team} teams={teamOptions} total={visiblePlayers.length} />
         {visiblePlayers.length === 0 ? (
           <div className="py-16 text-center text-[var(--color-fg-mid)]">暂无符合条件的选手</div>
@@ -191,7 +194,7 @@ export async function PlayersPageContent({ params, searchParams }: PlayersPagePr
   return (
     <PageLayout as="div" variant="wide" className="space-y-6">
       <PageHeader
-        title="选手"
+        title="报名名单"
         eyebrow={season.name}
         description={`${registrations.length} 人已通过审核`}
       />
@@ -203,6 +206,7 @@ export async function PlayersPageContent({ params, searchParams }: PlayersPagePr
         <Stat label="位置" value={position ? positionLabel(position) : "全部"} />
       </div>
 
+      <Link className="text-sm text-[var(--color-accent)]" href={`/${seasonSlug}/teams`}>← 参赛阵容</Link>
       <ParticipantDirectoryToolbar
         query={query.q}
         team={query.team}

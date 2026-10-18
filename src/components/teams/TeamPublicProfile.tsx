@@ -1,3 +1,4 @@
+import { TeamMapProfile } from "./TeamMapProfile";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { TeamRosterMapContext, TeamWorkspace } from "@/components/stats/teams/TeamWorkspace";
@@ -61,6 +62,15 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
     ? "本届名单"
     : event?.rosterLabel ?? "本届名单";
 
+  const orderedMatches = event?.matches.toSorted((a, b) => {
+    const aFinished = a.status === "finished" || a.status === "cancelled";
+    const bFinished = b.status === "finished" || b.status === "cancelled";
+    if (aFinished !== bFinished) return aFinished ? 1 : -1;
+    const timeA = (a.completedAt ?? a.scheduledAt)?.getTime() ?? 0;
+    const timeB = (b.completedAt ?? b.scheduledAt)?.getTime() ?? 0;
+    return aFinished ? timeB - timeA : timeA - timeB;
+  }) ?? [];
+
   return (
     <div className="min-w-0 space-y-6">
       <div className="overflow-hidden border border-[var(--color-border)] bg-[var(--color-panel)]">
@@ -86,7 +96,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
             actions={event ? (
               <div className="flex flex-wrap items-center gap-3">
                 {team && <TeamProfileLink slug={team.team.slug} className="text-sm text-[var(--color-accent)] hover:underline">队伍主页 · {team.team.name}</TeamProfileLink>}
-                <Link href={`/${event.season.slug}/teams`} className="text-sm text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)]">返回赛事队伍</Link>
+                <Link href={`/${event.season.slug}/teams`} className="text-sm text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)]">返回参赛阵容</Link>
               </div>
             ) : (team && currentUserMembership && team.team.status === "active") ? (
               <Button size="sm" asChild><Link href="/my/teams">管理我的队伍</Link></Button>
@@ -114,12 +124,11 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
         <section className="space-y-4">
           <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">MEMBERS</p><h2 className="mt-1 text-lg font-semibold">{eventRosterHeading}</h2></div>
           <div className="border-y border-[var(--color-border)] px-1">
-            <div className="divide-y divide-[var(--color-border)]">
-              {event.roster.length > 0 ? event.roster.map((member) => (
-                <div key={member.userId} className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div className="grid grid-cols-2 gap-x-4 sm:grid-cols-3 lg:grid-cols-5">
+              {event.roster.length > 0 ? event.roster.toSorted((a, b) => Number(b.isStarter) - Number(a.isStarter)).map((member) => (
+                <div key={member.userId} className="flex min-w-0 flex-col items-start gap-1 py-3">
                   <div className="flex min-w-0 items-center gap-2">
                     <PlayerAvatar name={member.name} avatarUrl={member.avatarUrl} size="sm" />
-                    {member.isStarter && <PosChip pos="S" small />}
                     <PlayerProfileLink userId={member.userId} className="min-w-0 break-words font-medium hover:text-[var(--color-accent)]">{member.name}</PlayerProfileLink>
                   </div>
                   <span className="text-xs text-[var(--color-fg-mid)]">{member.isStarter ? "首发" : "替补"}</span>
@@ -129,13 +138,12 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
           </div>
         </section>
 
-        {eventDetail && <section className="space-y-4"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">PERFORMANCE</p><h2 className="mt-1 text-lg font-semibold">竞技表现</h2></div><TeamWorkspace detail={eventDetail} /></section>}
-        {mapProfile && <TeamRosterMapContext mapProfile={mapProfile} hasOwnMaps={hasOwnMaps} />}
-
+        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+          {eventDetail && <TeamMapProfile maps={eventDetail.maps.map(({ mapName, results, selection }) => ({ mapName, results, selection }))} samples={eventDetail.vetoActionSamples} />}
         <section className="space-y-4">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">MATCHES</p><h2 className="mt-1 text-lg font-semibold">本届比赛</h2></div>
+          <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">MATCHES</p><h2 className="mt-1 text-lg font-semibold">近期比赛</h2></div>
           <div className="border-y border-[var(--color-border)] divide-y divide-[var(--color-border)]">
-            {event.matches.length > 0 ? event.matches.map((match) => {
+            {orderedMatches.length > 0 ? orderedMatches.slice(0, 5).map((match) => {
               const statusLabel = presentMatchStatus(match.status, { isForfeit: match.isForfeit, scheduledAt: match.scheduledAt }).label;
               const hasScore = match.ownScore !== null && match.opponentScore !== null;
               return (
@@ -149,7 +157,15 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
               );
             }) : <p className="py-4 text-sm text-[var(--color-fg-mid)]">暂无比赛。</p>}
           </div>
+          {orderedMatches.length > 5 && <details className="border-t border-[var(--color-border)] pt-3">
+            <summary className="cursor-pointer text-sm text-[var(--color-fg-mid)]">其余本届比赛 · {orderedMatches.length - 5} 场</summary>
+            <div className="mt-3 divide-y divide-[var(--color-border)]">{orderedMatches.slice(5).map(match => <Link key={match.id} href={`/${event.season.slug}/matches/${match.id}`} className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm hover:text-[var(--color-accent)]"><span className="min-w-0 break-words">{match.opponentName ?? "待定"}</span><span className="shrink-0 tabular-nums">{match.displayScore?.own ?? match.ownScore ?? "—"} : {match.displayScore?.opponent ?? match.opponentScore ?? "—"}</span></Link>)}</div>
+          </details>}
         </section>
+        </div>
+        {eventDetail && <section className="space-y-4"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">PERFORMANCE</p><h2 className="mt-1 text-lg font-semibold">竞技表现</h2></div><TeamWorkspace detail={eventDetail} /></section>}
+        {mapProfile && <TeamRosterMapContext mapProfile={mapProfile} hasOwnMaps={hasOwnMaps} />}
+
       </div>}
 
       {!event && team && <>

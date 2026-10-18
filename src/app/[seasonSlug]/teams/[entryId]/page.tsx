@@ -16,7 +16,7 @@ import { getPublicTeamProfile } from "@/lib/teams/public-profile";
 import { getPublicCompetitionEntryPerformanceReadModel } from "@/lib/teams/profile-read-model";
 
 export default function CompetitionEntryDetailPage(props: { params: Promise<{ seasonSlug: string; entryId: string }>; searchParams?: Promise<StatsSearch> }) {
-  return <Suspense fallback={<PageLayout variant="standard"><p role="status">正在加载…</p></PageLayout>}><CompetitionEntryDetailPageContent {...props} /></Suspense>;
+  return <Suspense fallback={<PageLayout variant="wide"><p role="status">正在加载…</p></PageLayout>}><CompetitionEntryDetailPageContent {...props} /></Suspense>;
 }
 export async function CompetitionEntryDetailPageContent({ params, searchParams }: { params: Promise<{ seasonSlug: string; entryId: string }>; searchParams?: Promise<StatsSearch> }) {
   await connection();
@@ -39,7 +39,7 @@ export async function CompetitionEntryDetailPageContent({ params, searchParams }
     getPublicSeasonResults(season),
   ]);
   return (
-    <PageLayout as="div" variant="standard" className="space-y-8">
+    <PageLayout as="div" variant="wide" className="space-y-8">
       <StatsReturnLink href={fromStats} />
       <TeamPublicProfile team={team} event={event} mapProfile={performanceModel.mapProfile} performance={performanceModel.performance} results={results} statsUnavailable={performanceModel.statsUnavailable} />
     </PageLayout>

@@ -10,8 +10,9 @@ describe("season entry capability contract", () => {
   });
   it("does not manufacture draft or prediction capabilities", () => {
     const entries = seasonEntries({ slug: "custom", status: "playing", hasCaptainVoting: false, hasDraft: false, hasMatches: false, hasStats: false });
-    expect(entries.filter(row => row.canRead).map(row => row.key)).toEqual(["overview", "teams", "players", "info"]);
+    expect(entries.filter(row => row.canRead).map(row => row.key)).toEqual(["overview", "teams", "info"]);
     expect(entries[0]!.matches("/custom-other")).toBe(false);
+    expect(entries.find(row => row.key === "teams")?.matches("/custom/players")).toBe(true);
   });
 });
 
