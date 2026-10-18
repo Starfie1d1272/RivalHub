@@ -151,7 +151,9 @@ export async function selectMajorEntrantsAndSyncRostersInTx(
       { requireEventRosterSync: false },
     );
   for (const row of coherent) {
-    await validateApprovedCompetitionEntryRosterInTx(tx, row.entry, season);
+    // Seat selection carries approved rosters forward; match lineups own the
+    // current external strength check, including after the roster change window.
+    await validateApprovedCompetitionEntryRosterInTx(tx, row.entry, season, { recheckExternalStrength: false });
   }
 
   const revisionIds = coherent.map((row) => row.approvedRevision.id);

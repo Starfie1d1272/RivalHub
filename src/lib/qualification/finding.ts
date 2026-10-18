@@ -90,6 +90,29 @@ export function sameQualificationFindingFact(
   }) === qualificationFindingFingerprint(finding);
 }
 
+/** An existing approval covers an unchanged or reduced external strength gap. */
+export function qualificationFindingCoveredByApproval(
+  snapshot: unknown,
+  finding: QualificationFinding,
+): boolean {
+  if (sameQualificationFindingFact(snapshot, finding)) return true;
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return false;
+  const approved = snapshot as Partial<QualificationFinding>;
+  if (approved.code !== "external_strength_gap" || finding.code !== approved.code ||
+      approved.waivable !== true || finding.waivable !== true) return false;
+  const previous = approved.metadata;
+  const current = finding.metadata;
+  if (!previous || !current) return false;
+  const keys = EXTERNAL_STRENGTH_FACT_KEYS;
+  if (keys.some((key) => typeof previous[key] !== "number" || !Number.isFinite(previous[key]) ||
+      typeof current[key] !== "number" || !Number.isFinite(current[key]) ||
+      (previous[key] as number) < 0 || (current[key] as number) < 0)) return false;
+  if (previous.externalStrengthMaxStarGap !== current.externalStrengthMaxStarGap) return false;
+  const previousGap = (previous.strongestExternalStars as number) - (previous.strongestHomeStars as number);
+  const currentGap = (current.strongestExternalStars as number) - (current.strongestHomeStars as number);
+  return previousGap > (previous.externalStrengthMaxStarGap as number) && currentGap <= previousGap;
+}
+
 export function uniqueQualificationFindings(
   findings: readonly QualificationFinding[],
 ): QualificationFinding[] {
