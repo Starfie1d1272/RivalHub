@@ -29,7 +29,7 @@ import {
   presentSeasonKind,
   presentStageMarker,
 } from "@/lib/seasons/presentation";
-import { PageLayout, StatusPill, Panel, ScrollHint } from "@/components/rivalhub";
+import { PageLayout, StatusPill, Panel, ScrollHint, PhaseStep } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
 import { StandingsTable } from "@/components/matches/StandingsTable";
@@ -159,13 +159,13 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
 
   // 赛前阶段（capability 驱动）
   const preMatchRules: { key: string; label: string; doneAfter: SeasonStatus }[] = [
-    { key: "register", label: "报名", doneAfter: "registration" },
+    { key: "register", label: "REGISTER", doneAfter: "registration" },
   ];
   if (season.hasCaptainVoting) {
-    preMatchRules.push({ key: "vote", label: "队长投票", doneAfter: "voting" });
+    preMatchRules.push({ key: "vote", label: "VOTE", doneAfter: "voting" });
   }
   if (season.hasDraft) {
-    preMatchRules.push({ key: "draft", label: "选秀", doneAfter: "drafting" });
+    preMatchRules.push({ key: "draft", label: "DRAFT", doneAfter: "drafting" });
   }
   for (const rule of preMatchRules) {
     phases.push({
@@ -209,7 +209,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   // 结束标记
   phases.push({
     key: "finished",
-    label: "完赛",
+    label: "FINISHED",
     done: currentStatusIdx >= STATUS_IDX.finished,
   });
 
@@ -240,8 +240,8 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
 
   return (
     <PageLayout variant="wide" className="space-y-5">
-      <section aria-labelledby="season-title" className="home-event-hero relative overflow-hidden rounded-[var(--radius-display)] border border-[var(--color-border)] px-5 py-6 sm:px-7 lg:min-h-[216px]">
-        <div className="relative z-10 grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+      <section aria-labelledby="season-title" className="home-event-hero relative overflow-hidden rounded-[var(--radius-display)] border border-[var(--color-border)] px-5 py-5 sm:px-7">
+        <div className="relative z-10 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3 text-xs">
               <StatusPill
@@ -250,7 +250,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
               />
               <span className="font-mono uppercase tracking-wider text-[var(--color-fg-dim)]">{presentSeasonKind(season.kind)}</span>
             </div>
-            <div className="mt-4 flex min-w-0 items-center gap-3">
+            <div className="mt-3 flex min-w-0 items-center gap-3">
               <EventLogo logoUrl={season.logoUrl} className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14" />
               <h1 id="season-title" className="min-w-0 text-3xl font-bold leading-tight text-[var(--color-fg)] sm:text-4xl [overflow-wrap:anywhere]">
                 {season.name}
@@ -259,7 +259,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
                 <AdminShortcutSlot href={`/admin/${seasonSlug}/settings`} />
               </Suspense>
             </div>
-            <dl className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-[var(--color-fg-mid)]">
+            <dl className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-[var(--color-fg-mid)]">
               {(season.registrationMode === "team" || publicTeamCount > 0) && (
                 <div className="flex items-baseline gap-2">
                   <dt>{teamCountLabel}</dt>
@@ -294,6 +294,24 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
           </div>
         </div>
       </section>
+
+      {/* Preserve the established numbered phase tracker as the full-width orientation anchor. */}
+      <Panel contentClassName="p-6">
+        <ScrollHint fromColor="var(--color-panel)">
+          <div role="list" aria-label="赛事阶段" className="flex items-start">
+            {phases.map((phase, i) => (
+              <PhaseStep
+                key={phase.key}
+                label={phase.label}
+                stepNumber={i + 1}
+                isDone={phase.done}
+                isCurrent={i === currentPhaseIdx}
+                isLast={i === phases.length - 1}
+              />
+            ))}
+          </div>
+        </ScrollHint>
+      </Panel>
 
       <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.42fr)]">
         <div className="min-w-0 space-y-4">
@@ -391,21 +409,27 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
             </Panel>
           )}
 
-          <Panel contentClassName="px-4 py-3">
-            <ScrollHint fromColor="var(--color-panel)">
-              <ol aria-label="赛事阶段" className="flex min-w-max items-center gap-3 text-xs">
-                {phases.map((phase, i) => (
-                  <li key={phase.key} aria-current={i === currentPhaseIdx ? "step" : undefined} aria-label={`${phase.label} ${phase.done ? "已完成" : i === currentPhaseIdx ? "进行中" : "待开始"}`} className="flex shrink-0 items-center gap-3">
-                    <span className="inline-flex items-center gap-1.5 font-medium" style={{ color: phase.done ? "var(--color-ok)" : i === currentPhaseIdx ? "var(--color-accent)" : "var(--color-fg-dim)" }}>
-                      <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />
-                      {phase.label}
-                    </span>
-                    {i < phases.length - 1 && <span aria-hidden className="text-[var(--color-fg-dim)]">›</span>}
-                  </li>
-                ))}
-              </ol>
-            </ScrollHint>
-          </Panel>
+          {relatedGroups.length > 0 && (
+            <Panel label={<h2>相关入口</h2>} contentClassName="grid gap-4 sm:grid-cols-2">
+              {relatedGroups.map((group) => (
+                <nav key={group.label} aria-label={group.label}>
+                  <h3 className="mb-1 text-xs text-[var(--color-fg-dim)]">{group.label}</h3>
+                  <div className="divide-y divide-[var(--color-border)]">
+                    {group.entries.map((entry) => {
+                      const Icon = entryIcons[entry.key];
+                      return (
+                        <Link key={entry.key} href={entry.href as import("next").Route} className="group flex min-h-10 items-center gap-3 py-2 text-sm text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]">
+                          <Icon size={16} aria-hidden />
+                          <span className="min-w-0 flex-1 font-medium">{entry.label}</span>
+                          <span aria-hidden>→</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </nav>
+              ))}
+            </Panel>
+          )}
         </div>
 
         <aside aria-label="赛事公告与相关信息" className="min-w-0 space-y-4">
@@ -433,28 +457,6 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
                   </div>
                 )}
               </div>
-            </Panel>
-          )}
-
-          {relatedGroups.length > 0 && (
-            <Panel label={<h2>相关入口</h2>} contentClassName="space-y-4">
-              {relatedGroups.map((group) => (
-                <nav key={group.label} aria-label={group.label}>
-                  <h3 className="mb-1 text-xs text-[var(--color-fg-dim)]">{group.label}</h3>
-                  <div className="divide-y divide-[var(--color-border)]">
-                    {group.entries.map((entry) => {
-                      const Icon = entryIcons[entry.key];
-                      return (
-                        <Link key={entry.key} href={entry.href as import("next").Route} className="group flex min-h-10 items-center gap-3 py-2 text-sm text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]">
-                          <Icon size={16} aria-hidden />
-                          <span className="min-w-0 flex-1 font-medium">{entry.label}</span>
-                          <span aria-hidden>→</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </nav>
-              ))}
             </Panel>
           )}
         </aside>
