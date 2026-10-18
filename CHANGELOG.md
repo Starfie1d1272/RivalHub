@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.18.3]
+
+### Fixed
+
+- 修复浏览器诊断数据无法发送的问题。
+
 ## [2.18.2]
 
 ### Fixed
@@ -3028,6 +3034,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.18.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.18.2...v2.18.3
 [2.18.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.18.1...v2.18.2
 [2.18.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.18.0...v2.18.1
 [2.18.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.17.6...v2.18.0

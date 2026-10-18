@@ -90,3 +90,16 @@ it("renews through an abortable same-origin fetch outside the Server Action queu
   }));
   expect(send.mock.calls[0][1]).not.toHaveProperty("body");
 });
+
+it("binds the default browser fetch receiver before storing it on the queue", async () => {
+  const send = vi.fn(function (this: unknown) {
+    if (this !== globalThis) throw new TypeError("Illegal invocation");
+    return Promise.resolve(new Response(null, { status: 204 }));
+  });
+  vi.stubGlobal("fetch", send);
+  const q = new TelemetryQueue(config);
+  q.add({ id: crypto.randomUUID(), at: Date.now(), session: crypto.randomUUID(), route: "/", scene: "site", kind: "page" });
+  await q.flush();
+  expect(send).toHaveBeenCalledTimes(1);
+  expect(q.metrics.failures).toBe(0);
+});
