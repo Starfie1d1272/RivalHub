@@ -472,10 +472,22 @@ describe("Major public participant read model PostgreSQL integration", () => {
       // current draft and unconfirmed event roster are not the public source.
       const amended = fixture.entries[0]!;
       const draftRevisionId = randomUUID();
-      await pool.query("INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by) VALUES ($1, $2, 2, 'draft', $3)", [draftRevisionId, amended.entryId, ACTOR]);
-      await pool.query("INSERT INTO competition_entry_roster_members (id, revision_id, participant_id, user_id, is_primary_starter) VALUES ($1, $2, $3, $4, true)", [randomUUID(), draftRevisionId, amended.participantIds[5], amended.userIds[5]]);
+      const amendmentClient = await pool.connect();
       try {
-        await pool.query("UPDATE event_rosters SET status = 'preparing' WHERE id = $1", [fixture.eventRosterIds[0]]);
+        await amendmentClient.query("BEGIN");
+        await amendmentClient.query("SET CONSTRAINTS ALL DEFERRED");
+        await amendmentClient.query("INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by) VALUES ($1, $2, 2, 'draft', $3)", [draftRevisionId, amended.entryId, ACTOR]);
+        await amendmentClient.query("INSERT INTO competition_entry_roster_members (id, revision_id, participant_id, user_id, is_primary_starter) VALUES ($1, $2, $3, $4, true)", [randomUUID(), draftRevisionId, amended.participantIds[5], amended.userIds[5]]);
+        await amendmentClient.query("UPDATE competition_entries SET registration_status = 'changes_requested', current_roster_revision_id = $2 WHERE id = $1", [amended.entryId, draftRevisionId]);
+        await amendmentClient.query("UPDATE event_rosters SET status = 'preparing' WHERE id = $1", [fixture.eventRosterIds[0]]);
+        await amendmentClient.query("COMMIT");
+      } catch (error) {
+        await amendmentClient.query("ROLLBACK");
+        throw error;
+      } finally {
+        amendmentClient.release();
+      }
+      try {
         for (const status of ["changes_requested", "submitted"]) {
           await pool.query("UPDATE competition_entries SET registration_status = $1, current_roster_revision_id = $2 WHERE id = $3", [status, draftRevisionId, amended.entryId]);
           const pending = await expectRosterSources(() => getMajorPublicParticipantSummary(fixture.season), [amended.entryId, ...unselectedIds], officialIds.slice(1));
@@ -489,10 +501,21 @@ describe("Major public participant read model PostgreSQL integration", () => {
         expect(await getMajorPublicParticipantTeam(fixture.season, amended.entryId)).toBeNull();
         expect(await db.query.competitionEntries.findMany({ where: and(eq(competitionEntries.id, amended.entryId), publicCompetitionEntryIdentityCondition()), columns: { id: true } })).toEqual([]);
       } finally {
-        await pool.query("UPDATE competition_entries SET registration_status = 'approved', current_roster_revision_id = $2, approved_roster_revision_id = $2 WHERE id = $1", [amended.entryId, amended.revisionId]);
-        await pool.query("UPDATE event_rosters SET status = 'confirmed' WHERE id = $1", [fixture.eventRosterIds[0]]);
-        await pool.query("DELETE FROM competition_entry_roster_members WHERE revision_id = $1", [draftRevisionId]);
-        await pool.query("DELETE FROM competition_entry_roster_revisions WHERE id = $1", [draftRevisionId]);
+        const cleanupClient = await pool.connect();
+        try {
+          await cleanupClient.query("BEGIN");
+          await cleanupClient.query("SET CONSTRAINTS ALL DEFERRED");
+          await cleanupClient.query("UPDATE competition_entries SET registration_status = 'approved', current_roster_revision_id = $2, approved_roster_revision_id = $2 WHERE id = $1", [amended.entryId, amended.revisionId]);
+          await cleanupClient.query("UPDATE event_rosters SET status = 'confirmed' WHERE id = $1", [fixture.eventRosterIds[0]]);
+          await cleanupClient.query("DELETE FROM competition_entry_roster_members WHERE revision_id = $1", [draftRevisionId]);
+          await cleanupClient.query("DELETE FROM competition_entry_roster_revisions WHERE id = $1", [draftRevisionId]);
+          await cleanupClient.query("COMMIT");
+        } catch (error) {
+          await cleanupClient.query("ROLLBACK");
+          throw error;
+        } finally {
+          cleanupClient.release();
+        }
       }
       const partialEntrant = await pool.query("DELETE FROM major_tournament_entrants WHERE id = $1 RETURNING *", [fixture.entrantIds[0]]);
       const partialSet = await expectRosterSources(() => getMajorPublicParticipantSummary(fixture.season), approvedIds, []);
