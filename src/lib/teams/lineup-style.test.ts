@@ -47,6 +47,7 @@ describe("lineup chart candidate rules", () => {
 });
 
 it("uses outward true-score axes including equal scores and score boundaries", () => {
+  expect(lineupStyleAxis([20, 80]).ticks).toEqual([10, 40, 60, 90]);
   expect(lineupStyleAxis([30, 70])).toMatchObject({ min: 25, max: 75 });
   for (const values of [[0, 0], [100, 100], [50, 50], [0, 100], [31, 32]]) {
     const axis = lineupStyleAxis(values);

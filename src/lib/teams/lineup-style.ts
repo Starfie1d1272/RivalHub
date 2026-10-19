@@ -51,7 +51,9 @@ export function lineupStyleAxis(values: readonly number[]) {
   const high = Math.min(100, Math.ceil((max + padding) / 5) * 5);
   const step = high - low > 40 ? 20 : high - low > 20 ? 10 : 5;
   const ticks = [low];
-  for (let tick = Math.ceil((low + 1) / step) * step; tick < high; tick += step) ticks.push(tick);
+  for (let tick = Math.ceil((low + 1) / step) * step; tick < high; tick += step) {
+    if (tick - low >= step * 0.6 && high - tick >= step * 0.6) ticks.push(tick);
+  }
   ticks.push(high);
   return { min: low, max: high, ticks };
 }
