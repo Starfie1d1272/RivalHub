@@ -17,6 +17,7 @@ import {
 import { lockGameplayIdentityWriteInTx } from "@/lib/identity/write-lock";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
+import { isDemoEvidenceValidationError } from "@/lib/demo-evidence/validation-error";
 import { lockDemoImportLineageInTx } from "./promotion";
 import { revalidateStoredDemoImportInTx, type StoredDemoRevalidationResult } from "./revalidation";
 import { sha256Json } from "./revision";
@@ -60,6 +61,7 @@ export function readStoredEvidence(row: typeof matchDemoImports.$inferSelect) {
   try {
     evidence = parseRivalHubDemoEvidenceV1(row.payload);
   } catch (cause) {
+    if (!isDemoEvidenceValidationError(cause)) throw cause;
     const error = new AppError(ErrorCode.VALIDATION_FAILED, INVALID_STORED_PAYLOAD_MESSAGE);
     error.cause = cause;
     throw error;

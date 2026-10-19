@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DemoEvidenceValidationError } from "./validation-error";
 import { sanitizeDiagnosticCode, sanitizeDiagnosticMessage, sanitizeDiagnosticPath } from "./diagnostic-safety";
 
 export const DAK_DIAGNOSTICS_EXTENSION = "cs2dak/diagnostics";
@@ -43,11 +44,11 @@ export function validateDakDiagnostics(
     || quality.qa.errorCount + quality.qa.warningCount !== quality.qa.issueCount
     || quality.qa.ok !== (quality.qa.errorCount === 0)
     || errors > quality.qa.errorCount || warnings > quality.qa.warningCount) {
-    throw new Error("QA diagnostics 与质量摘要不一致");
+    throw new DemoEvidenceValidationError("QA diagnostics 与质量摘要不一致");
   }
   if (richKills.eventCount !== killCount || richKills.flagsEventCount > killCount
     || richKills.namedActiveWeaponEventCount > killCount) {
-    throw new Error("richKills diagnostics 计数不一致");
+    throw new DemoEvidenceValidationError("richKills diagnostics 计数不一致");
   }
   const reasonHasEvidence = {
     no_kill_events: killCount === 0,
@@ -62,6 +63,6 @@ export function validateDakDiagnostics(
     no_rich_kill_flags: "missing",
   } as const;
   if (!reasonHasEvidence[richKills.reason] || availability[richKills.reason] !== quality.capabilities.richKills) {
-    throw new Error("richKills diagnostics 与能力摘要不一致");
+    throw new DemoEvidenceValidationError("richKills diagnostics 与能力摘要不一致");
   }
 }

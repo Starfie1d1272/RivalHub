@@ -7,6 +7,7 @@ import { matchDemoImports, type DakPairing } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
+import { isDemoEvidenceValidationError } from "@/lib/demo-evidence/validation-error";
 import type { IntegrationIssue, EvidenceSubmissionResponse, RivalHubEvidenceSubmission } from "./contracts";
 import { pairingCanReadSeason } from "./pairing";
 import { demoImportMetadataSelection, type DemoImportMetadata } from "./metadata";
@@ -55,6 +56,7 @@ function parseSubmission(input: unknown): RivalHubEvidenceSubmission {
   try {
     return parseRivalHubDemoEvidenceV1(input);
   } catch (error) {
+    if (!isDemoEvidenceValidationError(error)) throw error;
     throw new AppError(ErrorCode.VALIDATION_FAILED, `Demo Evidence V1 校验失败：${error instanceof Error ? error.message : "格式不合法"}`);
   }
 }
