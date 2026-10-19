@@ -71,6 +71,8 @@ export function PredictionBoard({
   const [sidebar, setSidebar] = useState(false);
   const [pending, start] = useTransition();
   const readSequence = useRef(0);
+  const workInFlight = useRef(false);
+  const [refreshFailed, setRefreshFailed] = useState(false);
   const requests = useRef(new Map<string, string>());
   const base = context.baseline;
   const simulation = useMemo(
@@ -96,6 +98,7 @@ export function PredictionBoard({
       next.contexts.find(
         (c) => c.kind === (switched ? next.defaultContext : context.kind),
       ) ?? next.contexts.find((c) => c.kind === next.defaultContext)!;
+    setRefreshFailed(false);
     setData(next);
     setContext(nextContext);
     if (
@@ -117,7 +120,7 @@ export function PredictionBoard({
     let active = true,
       inFlight = false;
     const update = async () => {
-      if (document.hidden || inFlight) return;
+      if (document.hidden || inFlight || workInFlight.current) return;
       inFlight = true;
       const sequence = ++readSequence.current;
       try {
@@ -125,14 +128,18 @@ export function PredictionBoard({
           seasonId: initial.base.seasonId,
           view: tab,
         });
-        if (active && sequence === readSequence.current && r.success)
-          acceptAutoRefresh(r.data);
+        if (active && sequence === readSequence.current) {
+          if (r.success) acceptAutoRefresh(r.data);
+          else setRefreshFailed(true);
+        }
+      } catch {
+        if (active && sequence === readSequence.current) setRefreshFailed(true);
       } finally {
         inFlight = false;
       }
     };
     const refresh = () => {
-      void update().catch(() => {});
+      void update();
     };
     const timer = setInterval(refresh, 30000);
     document.addEventListener("visibilitychange", refresh);
@@ -145,11 +152,17 @@ export function PredictionBoard({
   }, [initial.base.seasonId, tab]);
 
   function run(work: () => Promise<void>) {
+    if (workInFlight.current) return;
+    workInFlight.current = true;
+    ++readSequence.current;
     start(async () => {
       try {
         await work();
       } catch {
-        toast.error("请求失败，请重试。");
+        setRefreshFailed(true);
+        toast.error("暂未取得结果，请先刷新赛况确认。");
+      } finally {
+        workInFlight.current = false;
       }
     });
   }
@@ -158,7 +171,7 @@ export function PredictionBoard({
     const r = await getPredictionBoard({ seasonId: base.seasonId, view: tab });
     if (sequence !== readSequence.current) return;
     if (r.success) acceptRefresh(r.data, reset);
-    else toast.error(r.error.message);
+    else { setRefreshFailed(true); toast.error(r.error.message); }
   }
   function choose(match: SimMatch, winner: string) {
     if (choices[`${stageKey}/${match.key}`]?.winner === winner) return;
@@ -285,6 +298,7 @@ export function PredictionBoard({
             ) : null)}
         </div>
       </div>
+      {refreshFailed && <p role="status" className="text-sm text-[var(--color-warn)]">赛况更新失败，当前保留上次数据。可点击「刷新赛况」。</p>}
       {context.kind === "major" && (
         <nav aria-label="赛事推演功能" className="flex gap-2">
           <Button
@@ -304,9 +318,9 @@ export function PredictionBoard({
       {tab === "record" && context.kind === "major" ? (
         data.view === "record" ? (
           <PickEmRecord data={data} />
-        ) : (
+        ) : !refreshFailed ? (
           <p role="status">正在加载我的战绩…</p>
-        )
+        ) : null
       ) : (
         <>
           <div className="flex flex-wrap gap-2" aria-label="赛事阶段">

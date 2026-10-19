@@ -1,31 +1,33 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { touchSession, getOnlineCount } from "@/actions/online";
 
 export function OnlineCounter() {
   const [count, setCount] = useState<number | null>(null);
 
-  const fetchCount = useCallback(async () => {
-    try {
-      const data = await getOnlineCount();
-      setCount(data.count);
-    } catch {
-      // 不可用时静默跳过
-    }
-  }, []);
-
   useEffect(() => {
-    let mounted = true;
-    const tick = () => {
-      touchSession()
-        .then(() => { if (mounted) fetchCount(); })
-        .catch(() => {}); // user_sessions 表不存在时静默跳过
-    };
-    tick();
-    const id = setInterval(tick, 300_000); // 每 5 分钟心跳
-    return () => { clearInterval(id); mounted = false; };
-  }, [fetchCount]);
+    let active = true;
+    let inFlight = false;
+    async function tick() {
+      if (inFlight || document.hidden) return;
+      inFlight = true;
+      try {
+        await touchSession();
+        const data = await getOnlineCount();
+        if (active) setCount(data.count);
+      } catch {
+        // A stale presence count is not a current online count.
+        if (active) setCount(null);
+      } finally {
+        inFlight = false;
+      }
+    }
+    void tick();
+    const id = setInterval(() => { void tick(); }, 300_000);
+    document.addEventListener("visibilitychange", tick);
+    return () => { clearInterval(id); active = false; document.removeEventListener("visibilitychange", tick); };
+  }, []);
 
   if (count === null) return null;
 
