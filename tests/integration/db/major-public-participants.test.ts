@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../../../src/db/client";
 import { competitionEntries } from "../../../src/db/schema";
 import { publicCompetitionEntryIdentityCondition } from "../../../src/lib/competition-entries/public-visibility";
+import { getPublicTournamentTeamDetail } from "../../../src/lib/stats/cached-query";
 import { getParticipantSummary } from "../../../src/lib/participants/summary";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
@@ -16,6 +17,8 @@ import {
 } from "../../../src/lib/major/public-participants";
 import { checkStandardMajorCapabilities } from "../../../src/lib/competition/definition";
 import { createLocalPool } from "./harness/database";
+
+vi.mock("next/cache", () => ({ cacheTag: vi.fn(), cacheLife: vi.fn() }));
 
 const observation = vi.hoisted(() => ({ queries: [] as Array<{ query: string; params: unknown[] }> }));
 vi.mock("@/db/client", async importOriginal => {
@@ -495,10 +498,12 @@ describe("Major public participant read model PostgreSQL integration", () => {
           expect(pending.teamCount).toBe(32);
           expect(pending.teams.find((team) => team.entry.id === amended.entryId)?.roster).toEqual(candidate.teams.find((team) => team.entry.id === amended.entryId)?.roster);
           await expectOverviewMatches(fixture.season);
+          await expect(getPublicTournamentTeamDetail({ seasonId: fixture.season.id, teamId: amended.entryId }, "public")).resolves.toBeDefined();
           expect(await db.query.competitionEntries.findMany({ where: and(eq(competitionEntries.id, amended.entryId), publicCompetitionEntryIdentityCondition()), columns: { id: true } })).toEqual([{ id: amended.entryId }]);
         }
         await pool.query("UPDATE competition_entries SET approved_roster_revision_id = NULL WHERE id = $1", [amended.entryId]);
         expect(await getMajorPublicParticipantTeam(fixture.season, amended.entryId)).toBeNull();
+        await expect(getPublicTournamentTeamDetail({ seasonId: fixture.season.id, teamId: amended.entryId }, "public")).rejects.toMatchObject({ code: "NOT_FOUND" });
         expect(await db.query.competitionEntries.findMany({ where: and(eq(competitionEntries.id, amended.entryId), publicCompetitionEntryIdentityCondition()), columns: { id: true } })).toEqual([]);
       } finally {
         const cleanupClient = await pool.connect();

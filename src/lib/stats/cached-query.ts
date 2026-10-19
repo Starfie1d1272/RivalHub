@@ -4,6 +4,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db/client";
 import { competitionEntries, matches, seasons } from "@/db/schema";
+import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
 import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -53,7 +54,7 @@ async function normalizeScope(scope: TournamentStatsScope, season: PublicStageSe
 
 async function requirePublicEntry(seasonId: string, entryId: string): Promise<void> {
   const [entry] = await db.select({ id: competitionEntries.id }).from(competitionEntries)
-    .where(and(eq(competitionEntries.id, entryId), eq(competitionEntries.competitionId, seasonId), eq(competitionEntries.registrationStatus, "approved"))).limit(1);
+    .where(and(eq(competitionEntries.id, entryId), eq(competitionEntries.competitionId, seasonId), publicCompetitionEntryIdentityCondition())).limit(1);
   if (!entry) throw new AppError(ErrorCode.NOT_FOUND, "参赛队伍不存在或尚未公开。");
 }
 

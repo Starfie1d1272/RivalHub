@@ -3,6 +3,7 @@ import { and, eq, inArray, ne } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db/client";
 import { competitionEntries, matchMaps, matchVetoSteps, matches, seasons } from "@/db/schema";
+import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
 import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
@@ -53,7 +54,7 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
   if (raw.teamFilter && (!query.teamFilter || (query.tab !== "players" && query.tab !== "weapons"))) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
   if (query.teamFilter) {
     const [entry] = await db.select({ id: competitionEntries.id }).from(competitionEntries).where(and(
-      eq(competitionEntries.id, query.teamFilter), eq(competitionEntries.competitionId, event!.id), eq(competitionEntries.registrationStatus, "approved"),
+      eq(competitionEntries.id, query.teamFilter), eq(competitionEntries.competitionId, event!.id), publicCompetitionEntryIdentityCondition(),
     )).limit(1);
     if (!entry) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
   }
