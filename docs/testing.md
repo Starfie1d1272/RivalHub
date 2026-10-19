@@ -42,9 +42,9 @@ PR CI 保留 `static`、`postgres`、`system` 三条 capability lane，按 L0–
 - FULL（L4）不再是普通 Ready PR 或 `main` push 的默认行为，仅作为明确的收敛事件（CI/toolchain/harness/unknown/destructive 改动、手动 `workflow_dispatch` 或 nightly 定时收敛）。Release 直接消费 exact tag commit SHA 在 `main` 上的 canonical CI evidence，不在 production activation 后补跑第二套代码正确性 CI。
 - `main` push 采用 changed-surface 规划 affected smoke，不默认重复执行 FULL。精确 planner 与 job 以 `.github/workflows/ci.yml`、`scripts/ci/plan.mjs` 为 authority，排障见 [`operations/ci.md`](./operations/ci.md)。
 
-CI 只负责选择和阻断 evidence，不成为业务测试语义的第二 owner。全量 PostgreSQL 选择使用既有两片矩阵，包括 migration 要求全套 PG 但其它 capability 仍为 affected 的计划；显式小集合仍使用单片。两片保留全部文件且只执行一次，聚合门禁等待全部片并保留各自耗时证据，不改变 180 秒总墙钟预算或起点。
+CI 只负责选择和阻断 evidence，不成为业务测试语义的第二 owner。全量 PostgreSQL 选择使用既有两片矩阵，包括 migration 要求全套 PG 但其它 capability 仍为 affected 的计划；显式小集合仍使用单片。两片保留全部文件且只执行一次，聚合门禁等待全部片并保留各自耗时证据，保留 180 秒实际执行关键路径预算。
 
-速度验收按 workflow 开始到全部必需门禁完成的 wall time 计算，包含排队、planner、安装、环境启动与 cleanup：普通修改争取 60 秒，数据库、真实系统与 FULL 回归由门禁强制执行 180 秒上限。删行数、测试数下降或调低 timeout 都不能代替真实 CI 成功记录。system 的 provider、production smoke 与受影响 browser 分片并行，gate 等待所有分片；每个 runner 拥有独立服务，场景内部使用独立账号与赛事。LIVE 单独分片，其余动态发现的 spec 最多分成七片；LIVE 保留真实断流、恢复、跨场导航和换图。浏览器验证这些真实任务，不声称精确证明 stale/unavailable 的时间边界。
+速度验收按实际执行关键路径计算：串行 planner 与 capability lane 的执行时间相加，并行 matrix、独立 dependency job 取最长路径，最后加上 gate 在核验前已执行的耗时。各 job 依据当前 run attempt 的实际 step 时间计算，包含 runner setup、checkout、安装、环境启动、测试及已完成的 cleanup，不使用可能早于 runner 分配的 job `started_at`；job 排队和 step 间的平台调度空档不计入。gate 在读取计时 API 前冻结本地执行耗时，API 等待不占预算；核验后的报告上传与 runner post-cleanup 不属于预算截止点。原 workflow 总 wall time 继续独立记录用于诊断。普通修改争取 60 秒，数据库、真实系统与 FULL 回归仍由门禁强制执行 180 秒实际执行上限；缺失必需 job/step 的计时数据、无效时间或未知图节点会阻断，不按零耗时放行。删行数、测试数下降或调低 timeout 都不能代替真实 CI 成功记录。system 的 provider、production smoke 与受影响 browser 分片并行，gate 等待所有分片；每个 runner 拥有独立服务，场景内部使用独立账号与赛事。LIVE 单独分片，其余动态发现的 spec 最多分成七片；LIVE 保留真实断流、恢复、跨场导航和换图。浏览器验证这些真实任务，不声称精确证明 stale/unavailable 的时间边界。
 
 ## Staging and production
 
