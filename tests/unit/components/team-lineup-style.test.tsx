@@ -16,7 +16,7 @@ it("opens touch-safe details, selects coincident members and exposes a separate 
   expect(screen.getAllByRole("group")).toHaveLength(1);
   expect(screen.queryByRole("link")).not.toBeInTheDocument();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  const plot = screen.getByRole("group", { name: "火力与道具" });
+  const plot = screen.getByRole("group", { name: "Star Chart" });
   await user.click(within(plot).getByRole("button", { name: /中文完整昵称/ }));
   expect(screen.getByRole("link", { name: /中文完整昵称/ })).toHaveAttribute("href", "/players/player-0");
   await user.click(screen.getByRole("button", { name: "查看 English Steam Name" }));
@@ -38,7 +38,7 @@ it("does not render empty coordinate systems when all pairs have fewer than thre
 it("closes the floating card on an outside click and reopens it on keyboard focus", async () => {
   const user = userEvent.setup();
   render(<><button>页面其它操作</button><TeamLineupStyle members={members} /></>);
-  const point = within(screen.getByRole("group", { name: "火力与道具" })).getByRole("button", { name: /中文完整昵称/ });
+  const point = within(screen.getByRole("group", { name: "Star Chart" })).getByRole("button", { name: /中文完整昵称/ });
   await user.click(point);
   expect(screen.getByRole("dialog")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "页面其它操作" }));

@@ -14,7 +14,7 @@ export function TeamLineupStyle({ members }: { members?: readonly LineupStyleMem
   const charts = LINEUP_STYLE_CHARTS.map((chart) => ({ ...chart, points: selectLineupStylePoints(members ?? [], chart.x, chart.y) })).filter((chart) => chart.points.length > 0);
   return <section className="space-y-4" aria-label="阵容打法">
     <div className="flex flex-wrap items-baseline justify-between gap-2">
-      <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">LINEUP STYLE</p><h2 className="mt-1 text-lg font-semibold">阵容打法</h2></div>
+      <h2 className="text-lg font-semibold">Player Styles</h2>
       <p className="text-xs text-[var(--color-fg-mid)]">成员个人生涯 · 全站历史基准</p>
     </div>
     {charts.length ? <div className="grid min-w-0 gap-4 lg:grid-cols-3">
@@ -82,28 +82,28 @@ function StyleChart({ chart, selection, onSelect, onClose }: { chart: Chart; sel
       <h3 id={`${id}-title`} className="text-base font-semibold">{chart.title}</h3>
       <span className="text-xs tabular-nums text-[var(--color-fg-dim)]">{chart.points.length} 人</span>
     </div>
-    <div className="relative mt-3 aspect-square" role="group" aria-labelledby={`${id}-title`} aria-describedby={limited ? `${id}-sample` : undefined}>
+    <div className="relative mx-auto mt-2 aspect-square w-full max-w-[17rem]" role="group" aria-labelledby={`${id}-title`} aria-describedby={limited ? `${id}-sample` : undefined}>
       <svg viewBox="0 0 400 400" className="h-full w-full" aria-hidden="true">
         <defs><marker id={`${id}-arrow`} markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><path d="M0 0L5 2.5L0 5" fill="var(--color-fg-dim)" /></marker></defs>
         <rect x="30" y="20" width="364" height="344" fill="var(--color-panel-hi)" opacity="0.45" />
         <path d="M34 196H388" stroke="var(--color-fg-dim)" strokeOpacity="0.4" strokeWidth="1" markerEnd={`url(#${id}-arrow)`} />
         <path d="M212 360V26" stroke="var(--color-fg-dim)" strokeOpacity="0.4" strokeWidth="1" markerEnd={`url(#${id}-arrow)`} />
-        <text x="40" y="42" fontSize="13" fill="var(--color-fg-mid)">{chart.corners[0]}</text>
-        <text x="384" y="42" textAnchor="end" fontSize="13" fill="var(--color-fg-mid)">{chart.corners[1]}</text>
-        <text x="40" y="353" fontSize="13" fill="var(--color-fg-mid)">{chart.corners[2]}</text>
-        <text x="384" y="353" textAnchor="end" fontSize="13" fill="var(--color-fg-mid)">{chart.corners[3]}</text>
-        <text transform="translate(15 196) rotate(-90)" textAnchor="middle" fontSize="13" fill="var(--color-fg-secondary)">{chart.yLabel.toUpperCase()}</text>
-        <text x="212" y="389" textAnchor="middle" fontSize="13" fill="var(--color-fg-secondary)">{chart.xLabel.toUpperCase()}</text>
+        <text x="40" y="42" fontSize="16" fill="var(--color-fg-mid)">{chart.corners[0]}</text>
+        <text x="384" y="42" textAnchor="end" fontSize="16" fill="var(--color-fg-mid)">{chart.corners[1]}</text>
+        <text x="40" y="353" fontSize="16" fill="var(--color-fg-mid)">{chart.corners[2]}</text>
+        <text x="384" y="353" textAnchor="end" fontSize="16" fill="var(--color-fg-mid)">{chart.corners[3]}</text>
+        <text transform="translate(15 196) rotate(-90)" textAnchor="middle" fontSize="16" fill="var(--color-fg-secondary)">{chart.yLabel.toUpperCase()}</text>
+        <text x="212" y="389" textAnchor="middle" fontSize="16" fill="var(--color-fg-secondary)">{chart.xLabel.toUpperCase()}</text>
       </svg>
       {chart.points.map((point, index) => <button key={point.userId} type="button"
-        className={`absolute flex size-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)] ${point.limited ? "outline outline-1 outline-offset-2 outline-dashed outline-[var(--color-fg-dim)]" : "outline-none"} ${selection?.userId === point.userId ? "ring-2 ring-[var(--color-accent)] ring-offset-2 ring-offset-[var(--color-panel)]" : ""}`}
+        className={`absolute flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)] ${point.limited ? "outline outline-1 outline-offset-2 outline-dashed outline-[var(--color-fg-dim)]" : "outline-none"} ${selection?.userId === point.userId ? "ring-2 ring-[var(--color-accent)] ring-offset-2 ring-offset-[var(--color-panel)]" : ""}`}
         style={{ left: `${xPosition(point.x) / 4}%`, top: `${yPosition(point.y) / 4}%`, zIndex: active?.userId === point.userId ? 20 : selection?.userId === point.userId ? 15 : index + 1 }}
         aria-label={`${point.name}，${chart.xLabel} ${point.x}，${chart.yLabel} ${point.y}${point.limited ? "，样本有限" : ""}`}
         aria-haspopup="dialog" aria-expanded={active?.userId === point.userId} aria-controls={active ? `${id}-detail` : undefined}
         onPointerEnter={(event) => { if (event.pointerType === "mouse") activate(point, event.currentTarget); }}
         onPointerLeave={scheduleClose} onFocus={(event) => activate(point, event.currentTarget)}
         onClick={(event) => activate(point, event.currentTarget, true)}>
-        <PlayerAvatar name={point.name} avatarUrl={point.avatarUrl} size="sm" className="size-9" />
+        <PlayerAvatar name={point.name} avatarUrl={point.avatarUrl} size="sm" />
       </button>)}
     </div>
     {limited && <p id={`${id}-sample`} className="mt-1 flex items-center gap-2 px-1 text-xs text-[var(--color-fg-mid)]"><span aria-hidden="true" className="size-3 rounded-full border border-dashed border-[var(--color-fg-dim)]" />{preview ? "样本有限预览" : "虚线圈表示部分属性样本有限"}</p>}
