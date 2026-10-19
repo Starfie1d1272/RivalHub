@@ -274,6 +274,8 @@ function readSnapshotUnsafe(path: string): MirrorSnapshot {
     const bytes = Buffer.from(asset.data, "base64");
     if (bytes.length > MAX_ASSET_BYTES || createHash("sha256").update(bytes).digest("hex") !== asset.sha256) throw new Error("Corrupt public mirror asset.");
   }
+  const publicRecipientAwardIds = new Set(snapshot.tables.community_awards
+    .filter((award) => award.status === "awarded").map((award) => award.id));
   for (const [table, rows] of Object.entries(snapshot.tables)) {
     const tablePolicy = policy.tables[table];
     if (!tablePolicy) throw new Error("Snapshot contains a table outside the source policy.");
@@ -291,6 +293,11 @@ function readSnapshotUnsafe(path: string): MirrorSnapshot {
             context: { phase: "snapshot read", table, column },
           });
         }
+      }
+      if (table === "community_award_recipients" && !publicRecipientAwardIds.has(row.award_id)) {
+        throw new PreviewMirrorError("PREVIEW_SNAPSHOT_INVALID", "Award recipient is outside a public awarded outcome.", {
+          context: { phase: "snapshot read", table },
+        });
       }
       if (table === "users" && (row.email !== `${row.id}@preview.invalid` || row.role !== "user" || row.auth_id || row.email_verified_at)) throw new Error("Unsanitized mirror identity.");
       if (table === "season_registrations" && JSON.stringify(row.screenshot_urls) !== "[]") throw new Error("Private screenshot in mirror.");

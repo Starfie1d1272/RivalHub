@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { describe, expect, it } from "vitest";
 import type { TxDb } from "@/db/client";
 import { localDatabaseUrl } from "./harness/database";
+import { assertReviewedColumns, exportQuery } from "../../../scripts/db/preview/policy";
 
 describe("postmatch PostgreSQL invariants", () => {
   it("limits commentators, freezes a submitted roster, and derives completion from video", async () => {
@@ -116,6 +117,14 @@ describe("postmatch PostgreSQL invariants", () => {
       const { getPublicCommunityAwardBoardData, getAdminCommunityAwardBoardData } = await import("../../../src/lib/community-awards/data");
       const { awards: publicAwards } = await getPublicCommunityAwardBoardData(db, { seasonId, currentUserId: null, stagePlan: [] });
       expect(publicAwards.find((item) => item.id === award.awardId)).toMatchObject({ recipientUserId: adminA, recipientName: "解说甲", recipientTarget: null });
+      // Preview export must accept the current schema and keep public recipients.
+      for (const table of ["community_awards", "community_award_recipients"]) {
+        const inventory = await pool.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1", [table]);
+        expect(() => assertReviewedColumns(table, inventory.rows.map((row) => row.column_name))).not.toThrow();
+      }
+      const mirroredRecipients = await pool.query(exportQuery("community_award_recipients"));
+      expect(mirroredRecipients.rows).toContainEqual({ award_id: award.awardId, user_id: adminA, position: 0 });
+
       const adminBoardBefore = await getAdminCommunityAwardBoardData(db, { seasonId, stagePlan: [] });
       expect(adminBoardBefore.awards.find(item => item.id === award.awardId)).toMatchObject({ recipientTarget: null, submitterPlayerUserId: null, evidence: [expect.objectContaining({ candidatePlayerUserId: null, submitterPlayerUserId: null })] });
       expect(adminBoardBefore.candidates.find(item => item.id === adminA)?.playerUserId).toBeNull();
