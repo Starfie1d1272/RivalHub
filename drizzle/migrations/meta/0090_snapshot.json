@@ -3743,15 +3743,15 @@
         "competition_qualification_drafts_season_id_seasons_id_fk": {
           "name": "competition_qualification_drafts_season_id_seasons_id_fk",
           "tableFrom": "competition_qualification_drafts",
-          "tableTo": "seasons",
           "columnsFrom": [
             "season_id"
           ],
+          "tableTo": "seasons",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -3763,7 +3763,7 @@
           "value": "\"competition_qualification_drafts\".\"version\" > 0"
         }
       },
-      "isRLSEnabled": false
+      "isRLSEnabled": true
     },
     "public.competition_qualification_entrants": {
       "name": "competition_qualification_entrants",
@@ -14857,65 +14857,65 @@
               "expression": "version",
               "isExpression": false,
               "asc": false,
-              "nulls": "last"
+              "nulls": "first"
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "prediction_picks_contest_id_season_id_prediction_contests_id_season_id_fk": {
           "name": "prediction_picks_contest_id_season_id_prediction_contests_id_season_id_fk",
           "tableFrom": "prediction_picks",
-          "tableTo": "prediction_contests",
           "columnsFrom": [
             "contest_id",
             "season_id"
           ],
+          "tableTo": "prediction_contests",
           "columnsTo": [
             "id",
             "season_id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "prediction_picks_account_id_season_id_prediction_accounts_id_season_id_fk": {
           "name": "prediction_picks_account_id_season_id_prediction_accounts_id_season_id_fk",
           "tableFrom": "prediction_picks",
-          "tableTo": "prediction_accounts",
           "columnsFrom": [
             "account_id",
             "season_id"
           ],
+          "tableTo": "prediction_accounts",
           "columnsTo": [
             "id",
             "season_id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "prediction_picks_account_id_request_id_unique": {
           "name": "prediction_picks_account_id_request_id_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "account_id",
             "request_id"
-          ]
+          ],
+          "nullsNotDistinct": false
         },
         "prediction_picks_contest_id_account_id_version_unique": {
           "name": "prediction_picks_contest_id_account_id_version_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "contest_id",
             "account_id",
             "version"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
