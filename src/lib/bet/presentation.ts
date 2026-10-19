@@ -1,7 +1,7 @@
 import type { MarketType, BetState, BetSubject } from "./types";
 const catalog: Record<MarketType, { title: string; group: "赛事" | "比赛" | "BP" | "单图"; help: string }> = {
-  champion: { title: "冠军", group: "赛事", help: "正赛冠军正式确认后结算；正赛第一场 BP 或比赛开始时锁盘。" },
-  top_fragger: { title: "赛事击杀王", group: "赛事", help: "按正赛所有正式地图的已确认 Demo 总击杀计算；包含加时，并列第一共同获胜。全部地图统计确认后结算。" },
+  champion: { title: "冠军", group: "赛事", help: "正赛队伍确定后开放；正赛第一场 BP 或比赛开始时锁盘，冠军正式确认后结算。" },
+  top_fragger: { title: "赛事击杀王", group: "赛事", help: "正式名单冻结后开放；按正赛所有正式地图的已确认 Demo 总击杀计算；包含加时，并列第一共同获胜。全部地图统计确认后结算。" },
   match_winner: { title: "比赛胜者", group: "比赛", help: "实际开赛时锁盘，正式比赛结束后结算；弃权、取消或对阵更正退款。" },
   exact_score: { title: "精确比分", group: "比赛", help: "比分按页面左侧队伍 : 右侧队伍排列；实际开赛时锁盘。" },
   total_maps: { title: "总地图数", group: "比赛", help: "大：实际进行的地图数高于分界线；小：低于分界线。实际开赛时锁盘；弃权退款。" },

@@ -37,7 +37,7 @@ describe("BO3 presence production publisher",()=>{
     expect((await f.db.select().from(schema.betMarkets).where(eq(schema.betMarkets.matchId,match.id))).filter(m=>m.type.startsWith("veto_"))).toEqual([market]);
     expect(options.map(o=>o.key)).toEqual(pool);
     expect((await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.id===market.id)).toMatchObject({title:"BP · 本场三图",state:"open",pool:"0",participants:0});
-    expect(await f.db.query.betPrograms.findFirst({where:eq(schema.betPrograms.seasonId,f.seasonId)})).toMatchObject({catalogVersion:3});
+    expect(await f.db.query.betPrograms.findFirst({where:eq(schema.betPrograms.seasonId,f.seasonId)})).toMatchObject({catalogVersion:4});
   }));
   // Any prior BP contract blocks a new presence pool, including zero-stake terminal
   // history and changed identities. Rows are seeded as historical v2 financial facts.

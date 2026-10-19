@@ -2,13 +2,13 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@/db/schema";
-import { createMajorDefaultCapabilities } from "@/lib/competition/templates";
+import { createMajorDefaultCapabilities, createMajor24Capabilities } from "@/lib/competition/templates";
 import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
 import { operateBetInTx,joinBetInTx } from "@/lib/bet/service";
 import { betBoard } from "@/lib/bet/data";
 import { localDatabaseUrl } from "./database";
 import { withScratchDatabase,migrationFiles,replayMigration } from "./migration-replay";
-export async function fixture(work:(f:{db:ReturnType<typeof drizzle<typeof schema>>;seasonId:string;userId:string;otherId:string;matchId:string;entryIds:string[]})=>Promise<void>) {
+export async function fixture(work:(f:{db:ReturnType<typeof drizzle<typeof schema>>;seasonId:string;userId:string;otherId:string;matchId:string;entryIds:string[]})=>Promise<void>, options: { major24?: boolean } = {}) {
   await withScratchDatabase("bet_test",async client=>{
     for(const file of migrationFiles(name=>/^\d{4}_.*\.sql$/.test(name)))await replayMigration(client,file);
     const url=new URL(localDatabaseUrl());url.pathname=`/${(await client.query("select current_database() as name")).rows[0].name}`;
@@ -16,7 +16,7 @@ export async function fixture(work:(f:{db:ReturnType<typeof drizzle<typeof schem
     const seasonId=randomUUID(),userId=randomUUID(),otherId=randomUUID();
     try {
       await db.insert(schema.users).values([userId,otherId].map(id=>({id,email:`${id}@example.test`,displayName:"观众",emailVerifiedAt:new Date(),emailVerificationSource:"admin_migration" as const})));
-      const cap=createMajorDefaultCapabilities();await db.insert(schema.seasons).values({...cap,id:seasonId,slug:`bet-${seasonId}`,name:"BET 测试",kind:"Major",competitionTemplate:"major",status:"playing"});
+      const cap=options.major24 ? createMajor24Capabilities() : createMajorDefaultCapabilities();await db.insert(schema.seasons).values({...cap,id:seasonId,slug:`bet-${seasonId}`,name:"BET 测试",kind:"Major",competitionTemplate:"major",status:"playing"});
       const entryIds:string[]=[];
       for(const name of ["银河","新星"]) {
         const entryId=randomUUID(),revisionId=randomUUID();entryIds.push(entryId);
