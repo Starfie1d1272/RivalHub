@@ -4,7 +4,7 @@
 
 ## 结论
 
-- 当前 active chain 的 123 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
+- 当前 active chain 的 124 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
 - `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。
 - 通用 provider bracket state 按 `(competition_id, stage_key)` 归属 canonical logical Stage；Major Swiss standings 只由 StageRun entrants、managed matches 与 finalized round 投影。
 - `DraftLiveRoom` 与 `CaptainVotingPanel` 继续使用 10 秒 polling；`ResetPasswordForm` 仅调用 Supabase Auth。比赛直播使用独立的 private Broadcast channel 与短期 receive-only viewer JWT，不开放业务表 Data API。
@@ -55,6 +55,7 @@
 | audit_logs | 高敏感管理操作记录 | 审计 | src/lib/audit/; src/actions/audit.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 审计 actor、目标和内部 metadata 由服务端审计 owner 维护。 |
 | captain_votes | 参赛者投票事实 | Rivals 队长投票 | src/actions/captains.ts; src/lib/captains/data.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 投票 mutation 与结果读取通过 Server Action/Server Component；浏览器只轮询刷新。 |
 | community_award_evidence | 内部证据与提交人信息 | 赛后 / 社区奖项 | src/lib/community-awards/service.ts; src/lib/audit/targets.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 证据用于审核和审计，公开奖项只消费显式 read model。 |
+| community_award_recipients | 公开获奖者关联 | 社区奖 | src/lib/community-awards/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 完整获奖名单由服务端事务维护；浏览器只消费公开 DTO。 |
 | community_awards | 审核、结果与奖项内部事实 | 赛后 / 社区奖项 | src/lib/community-awards/service.ts; src/actions/community-awards.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | public_note 等公开字段由服务端 projection 决定，原始审核记录仍为 server-only。 |
 | community_groups | 赛事群组与二维码运营事实 | 赛事公开运营信息 | src/lib/season-public-info/commands.ts; src/lib/season-public-info/read-model.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 公开 projection 仍由服务端生成，群号、二维码路径和关闭状态不能由客户端旁路修改。 |
 | competition_stage_bracket_states | 高敏感、阶段范围运行时 JSON | 赛事 bracket runtime | src/lib/bracket/index.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 每个 logical Stage 由 (competition_id, stage_key) 独立拥有 provider state；阶段 key 是领域 identity，浏览器不直连。 |

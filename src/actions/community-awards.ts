@@ -8,6 +8,8 @@ import { communityAwards, seasons } from "@/db/schema";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { auditActorId, requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import {
+  configureCommunityAwardInTx,
+  verifyCommunityAwardEvidenceInTx,
   addCommunityAwardEvidenceInTx,
   requestCommunityAwardSupplementInTx,
   resolveCommunityAwardInTx,
@@ -125,7 +127,7 @@ export async function addCommunityAwardEvidence(input: unknown): Promise<ActionR
 }
 
 export async function resolveCommunityAward(input: unknown): Promise<ActionResult<void>> {
-  const parsed = z.object({ awardId: uuid, status: z.enum(["awarded", "not_awarded", "cancelled"]), recipientUserId: uuid.nullable().optional(), outcomeNote: z.string().trim().min(1).max(2000) }).safeParse(input);
+  const parsed = z.object({ awardId: uuid, status: z.enum(["awarded", "not_awarded", "cancelled"]), recipientUserIds: z.array(uuid), expectedVersion: z.number().int().nonnegative(), outcomeNote: z.string().trim().min(1).max(2000) }).safeParse(input);
   if (!parsed.success) return failValidation("结奖参数无效。 ");
   try {
     const { award, season, admin } = await awardAndAdminOrThrow(parsed.data.awardId);
@@ -133,4 +135,26 @@ export async function resolveCommunityAward(input: unknown): Promise<ActionResul
     revalidateAwards(season.slug);
     return ok(undefined);
   } catch (error) { return actionError("resolveCommunityAward", error); }
+}
+
+export async function configureCommunityAward(input: unknown): Promise<ActionResult<void>> {
+  const parsed = z.object({ awardId: uuid, recipientPolicy: z.enum(["single", "limited", "all_ties"]), recipientLimit: z.number().int().min(1).nullable(), settlementPolicy: z.enum(["event_verified", "play_in_complete", "stage_complete", "season_complete"]), settlementStageKey: z.string().trim().min(1).max(100).nullable(), reason: z.string().trim().min(1).max(2000), expectedVersion: z.number().int().nonnegative() }).safeParse(input);
+  if (!parsed.success) return failValidation("结奖规则参数无效。 ");
+  try {
+    const { season, admin } = await awardAndAdminOrThrow(parsed.data.awardId);
+    await db.transaction(tx => configureCommunityAwardInTx(tx, { ...parsed.data, actorId: auditActorId(admin) }));
+    revalidateAwards(season.slug);
+    return ok(undefined);
+  } catch (error) { return actionError("configureCommunityAward", error); }
+}
+
+export async function verifyCommunityAwardEvidence(input: unknown): Promise<ActionResult<void>> {
+  const parsed = z.object({ awardId: uuid, evidenceId: uuid, status: z.enum(["eligible", "ineligible"]), note: z.string().trim().min(1).max(2000), expectedVersion: z.number().int().nonnegative() }).safeParse(input);
+  if (!parsed.success) return failValidation("核验参数无效。 ");
+  try {
+    const { season, admin } = await awardAndAdminOrThrow(parsed.data.awardId);
+    await db.transaction(tx => verifyCommunityAwardEvidenceInTx(tx, { ...parsed.data, actorId: auditActorId(admin) }));
+    revalidateAwards(season.slug);
+    return ok(undefined);
+  } catch (error) { return actionError("verifyCommunityAwardEvidence", error); }
 }

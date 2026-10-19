@@ -221,6 +221,10 @@ submit → review/revise → evidence → resolve/correct
 
 capability 决定是否提供社区奖能力，关闭时入口和 server mutation 都 fail closed；各操作仍执行自身状态限制，例如已归档赛事不能提交新的社区奖，只有已公开奖项能补候选证据，发起人修改和撤回也受奖项状态约束。社区奖不替代官方 `tournament_honors`。
 
+管理员设置获奖人数及结算策略并记录理由；旧奖项和新申报均保守默认为单人、整届结束后结奖，不解析自由文本。事件奖必须先核实最终获奖者的候选证据；Play-in 使用 Qualification 的 `completedAt`，正式 Swiss 阶段使用 StageRun 的最终轮确认，淘汰赛阶段使用相同 StageRun 的正式最终结果。Major 整届结束以确认后的最终结果为准；其它赛事使用正式结束/归档状态。已核验候选仍保持进行中，管理员另行原子提交最终名单。不颁同样受结算时机约束并需理由；事件奖的“本届不颁”等待整届结束。运营取消可提前进行并留理由，以便及时撤销错误结果；取消不保留任何获奖者。已公开奖项不能改成尚未达成的结算条件。
+
+结果、更正、规则设置和候选核验共用奖项行锁与版本检查；旧页面遇到并发变更须刷新，名单、旧/新状态和理由与审计在同一事务提交。核验更正不隐式撤销已公开结果，管理员需显式更正最终名单。公开投影不加载候选证据、处理人或内部核验备注。
+
 ## Spectator predictions
 
 Prediction is available without administrator activation or login. Each visit/refresh starts from current official tournament facts; unfinished matches use a deterministic high-seed winner preview. Choices and undo live only in browser memory, with no scenario persistence or sharing. An upstream edit clears affected downstream choices and recomputes the preview. Completed official matches may be overridden for an if line without changing official results or inventing scores. Updated official facts reset the local worldline.

@@ -2,8 +2,10 @@ import { officialMatchCondition } from "@/lib/matches/scope";
 import { and, asc, eq, inArray, isNotNull, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { DB } from "@/db/client";
-import { communityAwardEvidence, communityAwards, competitionEntries, matches, steamProfiles, users } from "@/db/schema";
-import type { CommunityAwardStatus } from "@/db/schema";
+import { communityAwardEvidence, communityAwardRecipients, communityAwards, competitionEntries, matches, steamProfiles, users } from "@/db/schema";
+import { canSettleCommunityAward } from "./policy";
+import { getCommunityAwardProgress } from "./progress";
+import type { CommunityAwardStatus, CommunityAward } from "@/db/schema";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { presentMatchLabel } from "@/lib/matches/presentation";
 import { formatCST } from "@/lib/utils/date";
@@ -15,6 +17,11 @@ type CommunityAwardQueryable = Pick<DB, "select" | "selectDistinct">;
 type StagePlan = ReturnType<typeof normalizeStagePlan>;
 
 type CommunityAwardEvidenceModel = {
+  verificationStatus: "pending" | "eligible" | "ineligible";
+  verifiedByUserId: string | null;
+  verifiedByName: string | null;
+  verifiedAt: string | null;
+  verificationNote: string | null;
   submittedByUserId: string;
   submitterPlayerUserId: string | null;
   candidateUserId: string | null;
@@ -30,6 +37,14 @@ type CommunityAwardEvidenceModel = {
 
 export type CommunityAwardModel = {
   id: string;
+  recipients: { userId: string; name: string; target: string | null }[];
+  recipientPolicy: CommunityAward["recipientPolicy"];
+  recipientLimit: number | null;
+  settlementPolicy: CommunityAward["settlementPolicy"];
+  settlementStageKey: string | null;
+  resultVersion: number;
+  settlementReady?: boolean;
+  nonAwardingReady?: boolean;
   submittedByUserId: string;
   submitterPlayerUserId: string | null;
   name: string;
@@ -51,6 +66,7 @@ type CommunityAwardBoardData = {
   awards: CommunityAwardModel[];
   candidates: Awaited<ReturnType<typeof getSeasonAwardCandidates>>;
   matches: { id: string; label: string }[];
+  stages?: { key: string; name: string }[];
 };
 
 async function getMatchOptions(executor: CommunityAwardQueryable, seasonId: string, stagePlan: StagePlan) {
@@ -63,20 +79,21 @@ async function getMatchOptions(executor: CommunityAwardQueryable, seasonId: stri
 }
 
 export async function getPublicCommunityAwardBoardData(executor: CommunityAwardQueryable, args: { seasonId: string; currentUserId: string | null; stagePlan: StagePlan }): Promise<CommunityAwardBoardData> {
-  const recipient = alias(users, "community_award_recipient");
-  const recipientProfile = alias(steamProfiles, "community_award_recipient_profile");
   const publicAward = or(inArray(communityAwards.status, PUBLIC_COMMUNITY_AWARD_STATUSES), and(eq(communityAwards.status, "withdrawn"), isNotNull(communityAwards.reviewedAt)));
   const [rows, candidates, matchOptions] = await Promise.all([
-    executor.select({ id: communityAwards.id, submittedByUserId: communityAwards.submittedByUserId, name: communityAwards.name, condition: communityAwards.condition, prize: communityAwards.prize, supplementaryNote: communityAwards.supplementaryNote, publicNote: communityAwards.publicNote, reviewNote: communityAwards.reviewNote, reviewedAt: communityAwards.reviewedAt, status: communityAwards.status, outcomeNote: communityAwards.outcomeNote, submitter: { displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName }, recipientUserId: communityAwards.recipientUserId, recipient: { displayName: recipient.displayName, perfectName: recipient.perfectName, personaName: recipientProfile.personaName } }).from(communityAwards).innerJoin(users, eq(communityAwards.submittedByUserId, users.id)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).leftJoin(recipient, eq(communityAwards.recipientUserId, recipient.id)).leftJoin(recipientProfile, eq(recipientProfile.steam64, recipient.steam64)).where(and(eq(communityAwards.seasonId, args.seasonId), args.currentUserId ? or(publicAward, eq(communityAwards.submittedByUserId, args.currentUserId)) : publicAward)).orderBy(asc(communityAwards.createdAt)),
+    executor.select({ id: communityAwards.id, recipientPolicy: communityAwards.recipientPolicy, recipientLimit: communityAwards.recipientLimit, settlementPolicy: communityAwards.settlementPolicy, settlementStageKey: communityAwards.settlementStageKey, resultVersion: communityAwards.resultVersion, submittedByUserId: communityAwards.submittedByUserId, name: communityAwards.name, condition: communityAwards.condition, prize: communityAwards.prize, supplementaryNote: communityAwards.supplementaryNote, publicNote: communityAwards.publicNote, reviewNote: communityAwards.reviewNote, reviewedAt: communityAwards.reviewedAt, status: communityAwards.status, outcomeNote: communityAwards.outcomeNote, submitter: { displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName } }).from(communityAwards).innerJoin(users, eq(communityAwards.submittedByUserId, users.id)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(and(eq(communityAwards.seasonId, args.seasonId), args.currentUserId ? or(publicAward, eq(communityAwards.submittedByUserId, args.currentUserId)) : publicAward)).orderBy(asc(communityAwards.createdAt)),
     getSeasonAwardCandidates(executor, args.seasonId),
     getMatchOptions(executor, args.seasonId, args.stagePlan),
   ]);
+  const recipientsByAward = await loadRecipients(executor, rows.map(row => row.id));
   const playerUserIdSet = await getPublicPlayerIdentityIds(executor,
-    [...new Set(rows.flatMap(row => [row.submittedByUserId, ...(row.recipientUserId ? [row.recipientUserId] : [])]))]);
+    [...new Set(rows.flatMap(row => [row.submittedByUserId]))]);
 
   return {
     awards: rows.filter((row) => row.submittedByUserId === args.currentUserId || isPublicCommunityAward(row.status, row.reviewedAt)).map((row) => ({
       id: row.id,
+      recipients: recipientsByAward.get(row.id) ?? [],
+      recipientPolicy: row.recipientPolicy, recipientLimit: row.recipientLimit, settlementPolicy: row.settlementPolicy, settlementStageKey: row.settlementStageKey, resultVersion: row.resultVersion,
       submittedByUserId: row.submittedByUserId,
       submitterPlayerUserId: playerUserIdSet.has(row.submittedByUserId) ? row.submittedByUserId : null,
       name: row.name,
@@ -87,9 +104,9 @@ export async function getPublicCommunityAwardBoardData(executor: CommunityAwardQ
       reviewNote: row.submittedByUserId === args.currentUserId ? row.reviewNote : null,
       status: row.status,
       submitterName: getPublicDisplayName(row.submitter),
-      recipientName: row.recipient ? getPublicDisplayName(row.recipient) : null,
-      recipientUserId: row.recipientUserId,
-      recipientTarget: row.recipientUserId && playerUserIdSet.has(row.recipientUserId) ? `/players/${row.recipientUserId}` : null,
+      recipientName: recipientsByAward.get(row.id)?.[0]?.name ?? null,
+      recipientUserId: recipientsByAward.get(row.id)?.[0]?.userId ?? null,
+      recipientTarget: recipientsByAward.get(row.id)?.[0]?.target ?? null,
       outcomeNote: row.outcomeNote,
     })),
     candidates,
@@ -98,27 +115,45 @@ export async function getPublicCommunityAwardBoardData(executor: CommunityAwardQ
 }
 
 export async function getAdminCommunityAwardBoardData(executor: CommunityAwardQueryable, args: { seasonId: string; stagePlan: StagePlan }): Promise<CommunityAwardBoardData> {
-  const recipient = alias(users, "award_recipient");
-  const recipientProfile = alias(steamProfiles, "award_recipient_profile");
+  const evidenceVerifier = alias(users, "evidence_verifier");
   const evidenceSubmitter = alias(users, "evidence_submitter");
   const evidenceSubmitterProfile = alias(steamProfiles, "evidence_submitter_profile");
   const evidenceCandidate = alias(users, "evidence_candidate");
   const evidenceCandidateProfile = alias(steamProfiles, "evidence_candidate_profile");
   const [awardRows, evidenceRows, candidates, matchOptions] = await Promise.all([
-    executor.select({ id: communityAwards.id, submittedByUserId: communityAwards.submittedByUserId, name: communityAwards.name, condition: communityAwards.condition, prize: communityAwards.prize, supplementaryNote: communityAwards.supplementaryNote, publicNote: communityAwards.publicNote, reviewNote: communityAwards.reviewNote, status: communityAwards.status, outcomeNote: communityAwards.outcomeNote, submitter: { displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName }, recipientUserId: communityAwards.recipientUserId, recipient: { displayName: recipient.displayName, perfectName: recipient.perfectName, personaName: recipientProfile.personaName } }).from(communityAwards).innerJoin(users, eq(communityAwards.submittedByUserId, users.id)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).leftJoin(recipient, eq(communityAwards.recipientUserId, recipient.id)).leftJoin(recipientProfile, eq(recipientProfile.steam64, recipient.steam64)).where(eq(communityAwards.seasonId, args.seasonId)).orderBy(asc(communityAwards.createdAt)),
-    executor.select({ id: communityAwardEvidence.id, awardId: communityAwardEvidence.awardId, submittedByUserId: communityAwardEvidence.submittedByUserId, candidateUserId: communityAwardEvidence.candidateUserId, explanation: communityAwardEvidence.explanation, videoUrl: communityAwardEvidence.videoUrl, createdAt: communityAwardEvidence.createdAt, matchId: communityAwardEvidence.matchId, submitter: { displayName: evidenceSubmitter.displayName, perfectName: evidenceSubmitter.perfectName, personaName: evidenceSubmitterProfile.personaName }, candidate: { displayName: evidenceCandidate.displayName, perfectName: evidenceCandidate.perfectName, personaName: evidenceCandidateProfile.personaName } }).from(communityAwardEvidence).innerJoin(communityAwards, eq(communityAwardEvidence.awardId, communityAwards.id)).innerJoin(evidenceSubmitter, eq(communityAwardEvidence.submittedByUserId, evidenceSubmitter.id)).leftJoin(evidenceSubmitterProfile, eq(evidenceSubmitterProfile.steam64, evidenceSubmitter.steam64)).leftJoin(evidenceCandidate, eq(communityAwardEvidence.candidateUserId, evidenceCandidate.id)).leftJoin(evidenceCandidateProfile, eq(evidenceCandidateProfile.steam64, evidenceCandidate.steam64)).where(eq(communityAwards.seasonId, args.seasonId)),
+    executor.select({ id: communityAwards.id, recipientPolicy: communityAwards.recipientPolicy, recipientLimit: communityAwards.recipientLimit, settlementPolicy: communityAwards.settlementPolicy, settlementStageKey: communityAwards.settlementStageKey, resultVersion: communityAwards.resultVersion, submittedByUserId: communityAwards.submittedByUserId, name: communityAwards.name, condition: communityAwards.condition, prize: communityAwards.prize, supplementaryNote: communityAwards.supplementaryNote, publicNote: communityAwards.publicNote, reviewNote: communityAwards.reviewNote, status: communityAwards.status, outcomeNote: communityAwards.outcomeNote, submitter: { displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName } }).from(communityAwards).innerJoin(users, eq(communityAwards.submittedByUserId, users.id)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(eq(communityAwards.seasonId, args.seasonId)).orderBy(asc(communityAwards.createdAt)),
+    executor.select({ id: communityAwardEvidence.id, verificationStatus: communityAwardEvidence.verificationStatus, verifiedByName: evidenceVerifier.displayName, verifiedByUserId: communityAwardEvidence.verifiedByUserId, verifiedAt: communityAwardEvidence.verifiedAt, verificationNote: communityAwardEvidence.verificationNote, awardId: communityAwardEvidence.awardId, submittedByUserId: communityAwardEvidence.submittedByUserId, candidateUserId: communityAwardEvidence.candidateUserId, explanation: communityAwardEvidence.explanation, videoUrl: communityAwardEvidence.videoUrl, createdAt: communityAwardEvidence.createdAt, matchId: communityAwardEvidence.matchId, submitter: { displayName: evidenceSubmitter.displayName, perfectName: evidenceSubmitter.perfectName, personaName: evidenceSubmitterProfile.personaName }, candidate: { displayName: evidenceCandidate.displayName, perfectName: evidenceCandidate.perfectName, personaName: evidenceCandidateProfile.personaName } }).from(communityAwardEvidence).leftJoin(evidenceVerifier, eq(communityAwardEvidence.verifiedByUserId, evidenceVerifier.id)).innerJoin(communityAwards, eq(communityAwardEvidence.awardId, communityAwards.id)).innerJoin(evidenceSubmitter, eq(communityAwardEvidence.submittedByUserId, evidenceSubmitter.id)).leftJoin(evidenceSubmitterProfile, eq(evidenceSubmitterProfile.steam64, evidenceSubmitter.steam64)).leftJoin(evidenceCandidate, eq(communityAwardEvidence.candidateUserId, evidenceCandidate.id)).leftJoin(evidenceCandidateProfile, eq(evidenceCandidateProfile.steam64, evidenceCandidate.steam64)).where(eq(communityAwards.seasonId, args.seasonId)),
     getSeasonAwardCandidates(executor, args.seasonId),
     getMatchOptions(executor, args.seasonId, args.stagePlan),
   ]);
+  const recipientsByAward = await loadRecipients(executor, awardRows.map(row => row.id));
+  const progress = await getCommunityAwardProgress(executor, args.seasonId);
   const playerUserIdSet = await getPublicPlayerIdentityIds(executor,
-    [...new Set([...awardRows.flatMap(row => [row.submittedByUserId, ...(row.recipientUserId ? [row.recipientUserId] : [])]),
+    [...new Set([...awardRows.flatMap(row => [row.submittedByUserId]),
       ...evidenceRows.flatMap(row => [row.submittedByUserId, ...(row.candidateUserId ? [row.candidateUserId] : [])])])]);
   const matchLabels = new Map(matchOptions.map((match) => [match.id, match.label]));
   const evidenceByAward = new Map<string, CommunityAwardEvidenceModel[]>();
   for (const row of evidenceRows) {
     const list = evidenceByAward.get(row.awardId) ?? [];
-    list.push({ id: row.id, submittedByUserId: row.submittedByUserId, candidateUserId: row.candidateUserId, submitterPlayerUserId: playerUserIdSet.has(row.submittedByUserId) ? row.submittedByUserId : null, candidatePlayerUserId: row.candidateUserId && playerUserIdSet.has(row.candidateUserId) ? row.candidateUserId : null, submitterName: getPublicDisplayName(row.submitter), candidateName: row.candidate ? getPublicDisplayName(row.candidate) : null, matchLabel: row.matchId ? matchLabels.get(row.matchId) ?? null : null, explanation: row.explanation, videoUrl: row.videoUrl, createdAt: formatCST(row.createdAt) });
+    list.push({ id: row.id, verificationStatus: row.verificationStatus, verifiedByName: row.verifiedByName, verifiedByUserId: row.verifiedByUserId, verifiedAt: row.verifiedAt ? formatCST(row.verifiedAt) : null, verificationNote: row.verificationNote, submittedByUserId: row.submittedByUserId, candidateUserId: row.candidateUserId, submitterPlayerUserId: playerUserIdSet.has(row.submittedByUserId) ? row.submittedByUserId : null, candidatePlayerUserId: row.candidateUserId && playerUserIdSet.has(row.candidateUserId) ? row.candidateUserId : null, submitterName: getPublicDisplayName(row.submitter), candidateName: row.candidate ? getPublicDisplayName(row.candidate) : null, matchLabel: row.matchId ? matchLabels.get(row.matchId) ?? null : null, explanation: row.explanation, videoUrl: row.videoUrl, createdAt: formatCST(row.createdAt) });
     evidenceByAward.set(row.awardId, list);
   }
-  return { awards: awardRows.map((row) => ({ ...row, submitterPlayerUserId: playerUserIdSet.has(row.submittedByUserId) ? row.submittedByUserId : null, submitterName: getPublicDisplayName(row.submitter), recipientName: row.recipient ? getPublicDisplayName(row.recipient) : null, recipientTarget: row.recipientUserId && playerUserIdSet.has(row.recipientUserId) ? `/players/${row.recipientUserId}` : null, evidence: evidenceByAward.get(row.id) ?? [] })), candidates, matches: matchOptions };
+  return { awards: awardRows.map((row) => {
+    const eligible = (evidenceByAward.get(row.id) ?? []).flatMap(item => item.verificationStatus === "eligible" && item.candidateUserId ? [item.candidateUserId] : []);
+    return { ...row, nonAwardingReady: canSettleCommunityAward(row, progress, "not_awarded", [], eligible), recipientUserId: recipientsByAward.get(row.id)?.[0]?.userId ?? null, recipients: recipientsByAward.get(row.id) ?? [], settlementReady: canSettleCommunityAward(row, progress, "awarded", eligible, eligible), submitterPlayerUserId: playerUserIdSet.has(row.submittedByUserId) ? row.submittedByUserId : null, submitterName: getPublicDisplayName(row.submitter), recipientName: recipientsByAward.get(row.id)?.[0]?.name ?? null, recipientTarget: recipientsByAward.get(row.id)?.[0]?.target ?? null, evidence: evidenceByAward.get(row.id) ?? [] };
+  }), candidates, matches: matchOptions, stages: progress.stages };
+
+}
+
+async function loadRecipients(executor: CommunityAwardQueryable, awardIds: string[]) {
+  const result = new Map<string, CommunityAwardModel["recipients"]>();
+  if (!awardIds.length) return result;
+  const rows = await executor.select({ awardId: communityAwardRecipients.awardId, userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName }).from(communityAwardRecipients).innerJoin(users, eq(communityAwardRecipients.userId, users.id)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(communityAwardRecipients.awardId, awardIds)).orderBy(asc(communityAwardRecipients.position), asc(communityAwardRecipients.userId));
+  const players = await getPublicPlayerIdentityIds(executor, rows.map(row => row.userId));
+  for (const row of rows) {
+    const list = result.get(row.awardId) ?? [];
+    list.push({ userId: row.userId, name: getPublicDisplayName(row), target: players.has(row.userId) ? `/players/${row.userId}` : null });
+    result.set(row.awardId, list);
+  }
+  return result;
 }

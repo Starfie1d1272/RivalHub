@@ -111,7 +111,8 @@ describe("postmatch PostgreSQL invariants", () => {
       await db.transaction((tx) => reviewCommunityAwardInTx(tx, { awardId: award.awardId, status: "approved", reviewNote: null, actorId: adminA }));
       await expect(db.transaction((tx) => addCommunityAwardEvidenceInTx(tx, { awardId: award.awardId, submitterId: outsider, candidateUserId: outsider, matchId, explanation: "不在赛事范围" }))).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
       await db.transaction((tx) => addCommunityAwardEvidenceInTx(tx, { awardId: award.awardId, submitterId: outsider, candidateUserId: adminA, matchId, explanation: "赛事相关人员的证据", videoUrl: "https://video.example/evidence" }));
-      await db.transaction((tx) => resolveCommunityAwardInTx(tx, { awardId: award.awardId, status: "awarded", recipientUserId: adminA, outcomeNote: "确认获奖", actorId: adminB }));
+      await pool.query("UPDATE seasons SET status='finished' WHERE id=$1", [seasonId]);
+      await db.transaction(async (tx) => resolveCommunityAwardInTx(tx, { awardId: award.awardId, status: "awarded", recipientUserId: adminA, outcomeNote: "确认获奖", expectedVersion: 1, actorId: adminB }));
       const { getPublicCommunityAwardBoardData, getAdminCommunityAwardBoardData } = await import("../../../src/lib/community-awards/data");
       const { awards: publicAwards } = await getPublicCommunityAwardBoardData(db, { seasonId, currentUserId: null, stagePlan: [] });
       expect(publicAwards.find((item) => item.id === award.awardId)).toMatchObject({ recipientUserId: adminA, recipientName: "解说甲", recipientTarget: null });
@@ -136,7 +137,8 @@ describe("postmatch PostgreSQL invariants", () => {
       expect(await getPublicPlayerIdentityIds(db, [adminB])).toEqual(new Set());
       const adminBoardAfter = await getAdminCommunityAwardBoardData(db, { seasonId, stagePlan: [] });
       expect(adminBoardAfter.awards.find(item => item.id === award.awardId)).toMatchObject({ recipientTarget: `/players/${adminA}`, evidence: [expect.objectContaining({ candidatePlayerUserId: adminA, submitterPlayerUserId: null })] });
-      await db.transaction((tx) => resolveCommunityAwardInTx(tx, { awardId: award.awardId, status: "not_awarded", recipientUserId: null, outcomeNote: "更正结果", actorId: adminB }));
+      await pool.query("UPDATE seasons SET status='finished' WHERE id=$1", [seasonId]);
+      await db.transaction(async (tx) => resolveCommunityAwardInTx(tx, { awardId: award.awardId, status: "not_awarded", recipientUserId: null, outcomeNote: "更正结果", expectedVersion: 2, actorId: adminB }));
 
       const supplementWithdraw = await db.transaction((tx) => submitCommunityAwardInTx(tx, { seasonId, submitterId: outsider, name: "待补充撤回奖", condition: "原条件", prize: "原奖品" }));
       await db.transaction((tx) => requestCommunityAwardSupplementInTx(tx, { awardId: supplementWithdraw.awardId, note: "请补充可判断条件", actorId: adminA }));
@@ -203,7 +205,7 @@ describe("postmatch PostgreSQL invariants", () => {
         (tx: TxDb) => requestCommunityAwardSupplementInTx(tx, { awardId: award.awardId, note: "Please supplement", actorId: submitterId }),
         (tx: TxDb) => withdrawCommunityAwardInTx(tx, { awardId: award.awardId, submitterId }),
         (tx: TxDb) => addCommunityAwardEvidenceInTx(tx, { awardId: award.awardId, submitterId, explanation: "Blocked evidence" }),
-        (tx: TxDb) => resolveCommunityAwardInTx(tx, { awardId: award.awardId, status: "awarded", recipientUserId: submitterId, outcomeNote: "Blocked result", actorId: submitterId }),
+        (tx: TxDb) => resolveCommunityAwardInTx(tx, { awardId: award.awardId, status: "awarded", recipientUserId: submitterId, outcomeNote: "Blocked result", expectedVersion: 0, actorId: submitterId }),
       ];
 
       for (const mutation of guardedMutations) {
