@@ -100,7 +100,8 @@ test("administrator reconciles the exact pending update and the user can log in 
     await pool.query("DELETE FROM application_sessions WHERE user_id=$1", [player.userId]);
     await userPage.reload();
     await expect(userPage).toHaveURL(/\/login/);
-    await signInProgrammatically(page, admin, scenario, `/admin/users?tab=users&q=${encodeURIComponent(player.email)}`);
+    await signInProgrammatically(page, admin, scenario, "/admin/users");
+    await page.goto(`/admin/users?tab=users&q=${encodeURIComponent(player.email)}`);
     const row = page.getByRole("row").filter({ hasText: player.email });
     await row.getByRole("button", { name: "退出旧登录" }).click();
     await expect(page.getByText(`待核查更新：${mutationId}`)).toBeVisible();
