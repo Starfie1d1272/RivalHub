@@ -43,7 +43,7 @@ Vitest 的 React/jsdom project 只在 GitHub Actions 使用一次 diagnostic ret
 
 CI 不使用 mock 来替代 constraint、transaction、locking 或并发证据。affected PG 从真实测试的传递依赖计算消费者（含动态 import 与 vi.mock 引用），混合修改取并集；schema、migration、harness 或未知消费者回退 FULL。容量测量由独立 experiments config 运行，不进入 required PG suite。
 
-FULL PostgreSQL 固定使用两个 runner，以 Vitest 原生 `1/2`、`2/2` 按文件分片完整 integration 集合；affected PG 仍使用一个 `1/1` runner 与原选择集合。两个 FULL runner 各自启动真实 `postgres:17`，执行 migration risk/release compatibility、active-chain replay、seed/fixture/schema verification，并为原有三个并发 worker 克隆独立数据库；不共享数据库或事务。matrix 禁用 fail-fast、最多并发两个 runner，保留每片 timing/test-count evidence；任一片失败或取消使 `postgres` 聚合失败，gate 等待全部分片，180 秒起点与预算不变。
+FULL PostgreSQL 固定使用两个 runner，以 Vitest 原生 `1/2`、`2/2` 按文件分片完整 integration 集合；affected PG 仍使用一个 `1/1` runner 与原选择集合。两个 FULL runner 各自启动真实 `postgres:17`，执行 migration risk/release compatibility、active-chain replay、seed/fixture/schema verification，并为原有三个并发 worker 克隆独立数据库；不共享数据库或事务。matrix 禁用 fail-fast、最多并发两个 runner，保留每片 timing/test-count evidence；任一片失败或取消使 `postgres` 聚合失败，gate 等待全部分片，180 秒预算按实际执行关键路径计算，排队不计入。
 
 Release 的 migration rehearsal 使用同一套 plain `postgres:17` service、`preparePg17Database()` 和 active migration replay owner；它不启动 Local Supabase。CI PostgreSQL lane、Release workflow 与本地 `db:local:migrate` 共享 `scripts/db/migration-replay.ts`，避免出现第二套只在发布时运行的 migration runner。
 
@@ -55,7 +55,7 @@ Release 的 migration rehearsal 使用同一套 plain `postgres:17` service、`p
 - affected 关键 browser E2E 与 production build/start App Shell smoke。
 
 浏览器 lane 使用 runner 已有 Chrome，不需要在每个 run 重新安装 Playwright browser。
-system matrix 将 provider contract、production smoke 和独立的 LIVE、系列比分更正 browser 分片与最多七个其它 browser 分片并行执行；每个 runner 只启动自己的最小 Supabase，只有 provider 的 LIVE evidence 与含 LIVE spec 的分片启动 Realtime。受影响 spec 集合按文件精确分割，空集合不创建 browser job；provider 与 production 各执行一次，统一 gate 等待整个 matrix 成功。系列比分更正分片独占 runner，避免其它公开路由冷编译挤占其 30 秒测试预算；测试断言、超时和 flaky gate 保持原值。每个 browser runner 使用两个 worker；E2E 每个 test attempt 创建独立的 DB/Auth scenario，清理仅限该场景。`major-entry` 与 production smoke 使用真实 UI 登录；其它 dev 已登录流程通过受保护的 test-only route 调用同一个 `loginWithPassword`，不会伪造应用 cookie。
+system matrix 将 provider contract、production smoke 和独立的 LIVE、系列比分更正、会话撤销 browser 分片与最多七个其它 browser 分片并行执行；每个 runner 只启动自己的最小 Supabase，只有 provider 的 LIVE evidence 与含 LIVE spec 的分片启动 Realtime。受影响 spec 集合按文件精确分割，空集合不创建 browser job；provider 与 production 各执行一次，统一 gate 等待整个 matrix 成功。系列比分更正分片独占 runner，避免其它公开路由冷编译挤占其 30 秒测试预算；测试断言、超时和 flaky gate 保持原值。会话撤销分片与其 spec 的 auth scenario 使用相同的最小服务层，不与免费预测等其它冷路由共用 runner。每个 browser runner 使用两个 worker；E2E 每个 test attempt 创建独立的 DB/Auth scenario，清理仅限该场景。`major-entry` 与 production smoke 使用真实 UI 登录；其它 dev 已登录流程通过受保护的 test-only route 调用同一个 `loginWithPassword`，不会伪造应用 cookie。
 
 CI 会把 bootstrap、各 capability lane、Vitest project、真实 PG integration、E2E body 与 FULL wall time 写入 GitHub Step Summary；其中 Vitest flaky evidence 会列出 project、file、full test name、首次失败、retry 通过和 retry count。system 失败或 retry/flaky 时保留 trace、screenshot、HTML report、脱敏 Next 日志和 scenario/attempt manifest；成功 run 不上传这些大体积 artifact。Playwright 在 CI 使用一次 retry，并以 `failOnFlakyTests` 阻断“首次失败、重试成功”的假绿；Vitest 使用同一原则，但由显式 flaky guard 保留 static job 的失败语义。
 
@@ -142,3 +142,9 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm verify:services
 3. 在本地用同一 canonical pnpm command 复现；
 4. PostgreSQL / system 失败时确认是测试本身、环境启动还是 cleanup；
 5. 只有 planner 分类错误时才修改 planner，不要为了缩短 CI 把必要证据降级成 skipped。
+
+## 执行耗时门禁
+
+`execution-budget.mjs` 只读取当前 `run_id` / `run_attempt` 的分页 job/step 计时。每个 job 累计真实执行的 step 区间（重叠部分仅算一次），不把 job `started_at` 到第一条 step 之间的 runner 排队或 step 间调度空档当作执行。CI 图按 `max(plan + max(static, postgres, system), dependency-graph-build, dependency-review) + gate` 计算实际关键路径；matrix 各片取最长执行耗时，保留并行语义。gate 的本地计时在计时 API 请求前冻结，截止到核验步骤开始，不包含该次 GitHub API 等待及核验后的报告/runner post-cleanup。
+
+原 workflow wall time 仍写入报告，供排队和整体交付延迟诊断；合并门禁使用 180 秒执行预算。GitHub 计时元数据暂未补齐时有限重读，等待不计入执行预算；已测得超时立即阻断，不重试。读取持续失败、缺失 required lane/step 或 CI 图出现未知 job 均失败，不用缺失值、旧 attempt 或跳过 evidence 达成速度预算。修改 CI 图时同改此执行路径 owner 与边界测试。

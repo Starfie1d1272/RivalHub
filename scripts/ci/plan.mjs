@@ -538,7 +538,11 @@ export function systemMatrixFor(plan, liveEvidence) {
   // This 30-second flow validates stale-preview recovery and persisted results.
   // Concurrent public-page cold compilation can consume its entire budget.
   if (specs.includes(seriesSpec)) matrix.push({ task: "browser-series", live: false, specs: [seriesSpec] });
-  const ordinary = specs.filter(spec => spec !== liveSpec && spec !== seriesSpec);
+  const sessionSpec = "tests/e2e/flows/session-revocation.spec.ts";
+  // Four auth flows plus unrelated cold routes exceed the execution budget.
+  // Match the spec's auth scenario profile on its own runner.
+  if (specs.includes(sessionSpec)) matrix.push({ task: "browser-session", live: false, specs: [sessionSpec] });
+  const ordinary = specs.filter(spec => spec !== liveSpec && spec !== seriesSpec && spec !== sessionSpec);
   const shards = Array.from({ length: Math.min(7, ordinary.length) }, () => []);
   ordinary.forEach((spec, index) => shards[index % shards.length].push(spec));
   return [...matrix, ...shards.map((specs, index) => ({
