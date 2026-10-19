@@ -1,0 +1,32 @@
+import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, expect, it, vi } from "vitest";
+const mocks = vi.hoisted(() => ({ read: vi.fn(), revoke: vi.fn() }));
+vi.mock("@/actions/session-management", () => ({ getPasswordReconciliationState: mocks.read, revokeUserSessions: mocks.revoke }));
+vi.mock("@/lib/telemetry/client", () => ({ observeAction: (_name: string, fn: unknown) => fn }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+import { UserSessionControl } from "@/components/admin/UserSessionControl";
+const mutationId = "2d767019-0b0e-4684-9c89-994d631e786a";
+beforeEach(() => { vi.clearAllMocks(); mocks.read.mockResolvedValue({ success: true, data: { mutationId } }); mocks.revoke.mockResolvedValue({ success: true }); });
+it("submits the loaded mutation and verified evidence only after an explicit recovery choice", async () => {
+  const user = userEvent.setup();
+  render(<UserSessionControl userId="fixture-user" />);
+  await user.click(screen.getByRole("button", { name: "退出旧登录" }));
+  await screen.findByText(`待核查更新：${mutationId}`);
+  await user.click(screen.getByRole("checkbox"));
+  expect(screen.getByRole("button", { name: "确认恢复登录" })).toBeDisabled();
+  await user.type(screen.getByLabelText("证据编号"), "event-123");
+  await user.selectOptions(screen.getByLabelText("已核实结果"), "rejected");
+  await user.click(screen.getByRole("button", { name: "确认恢复登录" }));
+  expect(mocks.revoke).toHaveBeenCalledWith({ userId: "fixture-user", reconciliation: { mutationId, outcome: "rejected", evidenceSource: "supabase_auth_audit", evidenceReference: "event-123", verified: true } });
+});
+it("ignores a state response after the dialog closes", async () => {
+  let resolve!: (value: unknown) => void;
+  mocks.read.mockReturnValue(new Promise(r => { resolve = r; }));
+  const user = userEvent.setup();
+  render(<UserSessionControl userId="fixture-user" />);
+  await user.click(screen.getByRole("button", { name: "退出旧登录" }));
+  await user.keyboard("{Escape}");
+  await act(async () => resolve({ success: true, data: { mutationId } }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});

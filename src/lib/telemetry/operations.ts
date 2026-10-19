@@ -190,6 +190,7 @@ export const OPERATIONS = [
   "seasons.revertSeasonToDraft",
   "seasons.revertSeasonToRegistration",
   "seasons.updateSeason",
+  "session-management.getPasswordReconciliationState",
   "session-management.revokeUserSessions",
   "teams.acceptTeamInvitation",
   "teams.createTeam",

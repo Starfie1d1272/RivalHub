@@ -2,6 +2,17 @@ import { describe, expect, it } from "vitest";
 import { extractSafeException, redactText, sanitizeSafeContext } from "@/lib/observability/redact";
 
 describe("observability redaction", () => {
+  it("ignores accessor and hostile array context without losing other diagnostic fields", () => {
+    let reads = 0;
+    const context = Object.defineProperties({ provider: "steam", httpStatus: 503 }, {
+      password: { enumerable: true, get: () => { reads++; throw new Error("private"); } },
+      reason: { enumerable: true, get: () => { reads++; throw new Error("private"); } },
+      errorCodes: { enumerable: true, value: new Proxy([], { get: () => { throw new Error("private array"); } }) },
+    });
+    expect(sanitizeSafeContext(context)).toEqual({ provider: "steam", httpStatus: 503 });
+    expect(reads).toBe(0);
+  });
+
   // Security contract: inner causes add diagnostic value without introducing
   // unbounded data, URL secrets, or a second path around PostgreSQL redaction.
   it("suppresses every wrapper message when a nested cause is PostgreSQL", () => {

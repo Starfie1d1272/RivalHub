@@ -170,12 +170,20 @@ export function sanitizeSafeContext(context: Record<string, unknown> | undefined
   if (!context || typeof context !== "object") return {};
   const result: Record<string, unknown> = {};
   let count = 0;
-  for (const [key, value] of Object.entries(context)) {
-    if (count >= MAX_CONTEXT_KEYS || !SAFE_CONTEXT_KEYS.has(key)) continue;
-    const safeValue = key === "errorDigest" ? safeErrorDigest(value) : sanitizeContextValue(value);
-    if (safeValue !== undefined) {
-      result[key] = safeValue;
-      count += 1;
+  // Inspect only bounded, allowlisted own data fields. Accessors and hostile
+  // proxies must not execute arbitrary work or discard the original failure.
+  for (const key of SAFE_CONTEXT_KEYS) {
+    if (count >= MAX_CONTEXT_KEYS) break;
+    try {
+      const descriptor = Object.getOwnPropertyDescriptor(context, key);
+      if (!descriptor || !("value" in descriptor)) continue;
+      const safeValue = key === "errorDigest" ? safeErrorDigest(descriptor.value) : sanitizeContextValue(descriptor.value);
+      if (safeValue !== undefined) {
+        result[key] = safeValue;
+        count += 1;
+      }
+    } catch {
+      // Retain the other valid fields if this individual value is unreadable.
     }
   }
   return result;
