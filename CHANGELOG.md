@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.20.0]
+
+### Added
+
+- 比赛页新增阵容与选手关键数据对照，支持分别切换双方首发、查看开赛前历史表现和进入个人主页；未提交名单时标注预计阵容，缺少双方数据时收起对比。
+- 队伍公开页新增阵容打法画像，以成员生涯属性展示三组 Steam 头像散点图，支持查看分数、样本及个人主页。
+- 社区奖支持人数上限、全部并列者和完整获奖名单，增加候选证据核验与事件、阶段结奖时机设置；默认等待整届结束。多人和提前结奖规则须在新版部署并排空旧版请求后启用。
+
+### Fixed
+
+- 补全管理员密码异常恢复，核对当前更新编号、记录结果与证据编号，并原子保存登录恢复和审计，拒绝过期页面解除新的更新。
+- 赛事推演刷新失败时保留原数据并提供重试，防止迟到赛况覆盖新结果；在线人数读取失败时隐藏旧值，恢复后重新显示。
+- 补齐 Steam 与材料、赛事图片存储失败的安全诊断，保留状态码和网络原因，继续隐藏凭据、文件路径与响应正文。
+- 日志附加字段读取异常时保留原始错误诊断，避免日志影响正常请求。
+
 ## [2.19.4]
 
 ### Fixed
@@ -3079,6 +3094,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.20.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.4...v2.20.0
 [2.19.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.3...v2.19.4
 [2.19.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.2...v2.19.3
 [2.19.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.1...v2.19.2
