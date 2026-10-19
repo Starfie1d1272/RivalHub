@@ -8,6 +8,7 @@ import { matchDemoImports } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { parseRivalHubDemoEvidenceV1 } from "@/lib/demo-evidence/contract";
+import { isDemoEvidenceValidationError } from "@/lib/demo-evidence/validation-error";
 import type { IntegrationIssue, RivalHubEvidenceSubmission } from "./contracts";
 import { DEMO_CONTENT_CONFLICT_MESSAGE, lockDemoImportLineageInTx, promoteDemoImportInTx, resolveDemoImportLineageInTx } from "./promotion";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
@@ -32,7 +33,8 @@ export function parseStoredEvidence(row: typeof matchDemoImports.$inferSelect): 
   let evidence: RivalHubEvidenceSubmission;
   try {
     evidence = parseRivalHubDemoEvidenceV1(row.payload);
-  } catch {
+  } catch (cause) {
+    if (!isDemoEvidenceValidationError(cause)) throw cause;
     return { evidence: null, issues: [integrationIssue("STORED_PAYLOAD_INVALID", INVALID_STORED_PAYLOAD_MESSAGE)] };
   }
 

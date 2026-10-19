@@ -15,7 +15,7 @@ import { loadAdminDemoReview } from "../../../src/lib/admin/matches/demo-review"
 import { projectAdminDemoQuality } from "../../../src/lib/admin/matches/demo-quality";
 import { loadCanonicalTarget } from "../../../src/lib/demo-integration/validation";
 import { ErrorCode } from "../../../src/lib/errors";
-import { parseRivalHubDemoEvidenceV1 } from "../../../src/lib/demo-evidence/contract";
+import * as demoEvidenceContract from "../../../src/lib/demo-evidence/contract";
 import type { RivalHubEvidenceSubmission } from "../../../src/lib/demo-integration/contracts";
 import { lockDemoImportLineageInTx } from "../../../src/lib/demo-integration/promotion";
 import { revalidateSeasonNeedsAttentionImports, revalidateStoredDemoImportInTx } from "../../../src/lib/demo-integration/revalidation";
@@ -294,7 +294,7 @@ describe("DAK evidence submit persistence", () => {
         seasonIds: [ids.season],
       });
 
-      const fixture = parseRivalHubDemoEvidenceV1(JSON.parse(readFileSync(fixturePath, "utf8")) as unknown);
+      const fixture = demoEvidenceContract.parseRivalHubDemoEvidenceV1(JSON.parse(readFileSync(fixturePath, "utf8")) as unknown);
       const targetWithoutStageRun = { ...fixture.target };
       delete targetWithoutStageRun.stageRunId;
       const evidence: RivalHubEvidenceSubmission = {
@@ -339,7 +339,7 @@ describe("DAK evidence submit persistence", () => {
           isStarter: true,
         })),
       });
-      const legacyEvidence = parseRivalHubDemoEvidenceV1({
+      const legacyEvidence = demoEvidenceContract.parseRivalHubDemoEvidenceV1({
         ...evidence,
         contract: {
           ...evidence.contract,
@@ -1160,7 +1160,7 @@ describe("DAK evidence submit persistence", () => {
 
       const primarySteam64 = evidence.participants[0]!.steamId64;
       const alternateSteam64 = "76561198123456789";
-      const aliasEvidence = parseRivalHubDemoEvidenceV1(JSON.parse(
+      const aliasEvidence = demoEvidenceContract.parseRivalHubDemoEvidenceV1(JSON.parse(
         JSON.stringify(evidenceNPlusOne).replaceAll(primarySteam64, alternateSteam64),
       ) as unknown);
       aliasEvidence.participants[0] = {
@@ -1225,6 +1225,22 @@ describe("DAK evidence submit persistence", () => {
         maps: await database.select().from(schema.matchMaps).where(eq(schema.matchMaps.id, ids.map)),
       });
       const beforeFault = await recheckSnapshot();
+      // A pure-parser defect must roll back instead of persisting an invalid
+      // payload issue or turning identity review into an expected rejection.
+      for (const operation of ["recheck", "identity"] as const) {
+        const parserCause = new TypeError("synthetic evidence parser failure token=private");
+        const parser = vi.spyOn(demoEvidenceContract, "parseRivalHubDemoEvidenceV1")
+          .mockImplementation(() => { throw parserCause; });
+        try {
+          await expect(database.transaction(tx => operation === "recheck"
+            ? revalidateStoredDemoImportInTx(tx, { importId: needsIdentity.importId!, actorId: userIds[0]! })
+            : confirmStoredDemoParticipantIdentityInTx(tx, {
+              importId: needsIdentity.importId!, observedSteam64: alternateSteam64,
+              eventRosterMemberId: eventMemberIds[0]!, actorId: userIds[0]!,
+            }))).rejects.toBe(parserCause);
+        } finally { parser.mockRestore(); }
+        expect(sha256Json(await recheckSnapshot()), operation).toBe(sha256Json(beforeFault));
+      }
       for (const fault of ["coding", "sql", "timeout", "identity-after-write"] as const) {
         const originalQuery = client.query;
         let matchReads = 0;
@@ -1419,7 +1435,7 @@ describe("DAK evidence submit persistence", () => {
       ))).toHaveLength(2); // recovered batch + identity confirmation
 
       const idempotentAliasImportId = randomUUID();
-      const idempotentAliasEvidence = parseRivalHubDemoEvidenceV1({
+      const idempotentAliasEvidence = demoEvidenceContract.parseRivalHubDemoEvidenceV1({
         ...aliasEvidence,
         participants: aliasEvidence.participants.map((participant, index) => index === 0
           ? { ...participant, nameSnapshot: `${participant.nameSnapshot}（重复确认）` }
@@ -1557,7 +1573,7 @@ describe("DAK evidence submit persistence", () => {
         expect.objectContaining({ status: "active", provenance: "profile_change" }),
       ]);
 
-      const retiredAliasEvidence = parseRivalHubDemoEvidenceV1({
+      const retiredAliasEvidence = demoEvidenceContract.parseRivalHubDemoEvidenceV1({
         ...aliasEvidence,
         participants: aliasEvidence.participants.map((participant, index) => index === 0
           ? { ...participant, nameSnapshot: `${participant.nameSnapshot}（撤销后）` }
@@ -1573,7 +1589,7 @@ describe("DAK evidence submit persistence", () => {
       expect(retiredAliasRetry.issues.some((row) => row.code === "PARTICIPANT_IDENTITY_UNRESOLVED")).toBe(true);
 
       const primaryIdempotentImportId = randomUUID();
-      const primaryIdempotentEvidence = parseRivalHubDemoEvidenceV1({
+      const primaryIdempotentEvidence = demoEvidenceContract.parseRivalHubDemoEvidenceV1({
         ...evidenceNPlusOne,
         participants: evidenceNPlusOne.participants.map((participant, index) => index === 0
           ? { ...participant, nameSnapshot: `${participant.nameSnapshot}（主身份已恢复）`, resolution: { status: "unresolved" } }
@@ -1618,7 +1634,7 @@ describe("DAK evidence submit persistence", () => {
       expect(await database.select().from(schema.userGameplaySteamIds)
         .where(eq(schema.userGameplaySteamIds.userId, userIds[0]!))).toEqual(primaryIdentityBeforeIdempotency);
 
-      const scoreOnlyEvidence = parseRivalHubDemoEvidenceV1({
+      const scoreOnlyEvidence = demoEvidenceContract.parseRivalHubDemoEvidenceV1({
         ...evidenceNPlusOne,
         quality: {
           ...evidenceNPlusOne.quality,
@@ -1653,7 +1669,7 @@ describe("DAK evidence submit persistence", () => {
         provenance: "admin_confirmed_alternate",
         reason: "测试跨用户 gameplay alias 冲突。",
       }));
-      const crossUserEvidence = parseRivalHubDemoEvidenceV1(JSON.parse(
+      const crossUserEvidence = demoEvidenceContract.parseRivalHubDemoEvidenceV1(JSON.parse(
         JSON.stringify({ ...evidenceNPlusOne, source: { ...evidenceNPlusOne.source, demoSha256: "d".repeat(64) } })
           .replaceAll(primarySteam64, conflictingSteam64),
       ) as unknown);
@@ -1710,7 +1726,7 @@ describe("DAK evidence submit persistence", () => {
           createdAt: input.createdAt,
         });
       };
-      const lineageEvidence = (suffix: string) => parseRivalHubDemoEvidenceV1({
+      const lineageEvidence = (suffix: string) => demoEvidenceContract.parseRivalHubDemoEvidenceV1({
         ...evidenceNPlusOne,
         participants: evidenceNPlusOne.participants.map((participant, index) => index === 0
           ? { ...participant, nameSnapshot: `Fixture Player 01 (${suffix})` }
@@ -1770,7 +1786,7 @@ describe("DAK evidence submit persistence", () => {
 
       const differentDemoConfirmedId = randomUUID();
       const differentDemoBase = lineageEvidence("different-demo-confirmed");
-      const differentDemoEvidence = parseRivalHubDemoEvidenceV1({
+      const differentDemoEvidence = demoEvidenceContract.parseRivalHubDemoEvidenceV1({
         ...differentDemoBase,
         source: { ...differentDemoBase.source, demoSha256: "e".repeat(64) },
       });

@@ -58,6 +58,8 @@ BETTER_STACK_INGESTING_HOST=<server-only Better Stack OTLP ingest host>
 
 DAK HTTP 五入口通过 `withIntegrationRequest()` 复用请求 trace、固定路由与 `after()` flush；handled 500 只由 `dak.request.failure` capture 一次，保留原始异常的脱敏 cause/SQLSTATE 与 auth/read/validate/domain/revalidation 阶段。既有 `error.code/message` 协议不增添字段，安全提示及 `X-Request-Id` 使用同一编号；导入后失效失败明确提示已收到提交，先查看保存结果并核对导入状态、不要重新上传；该已知状态不附加通用“稍后重试”前缀。预期 401/403/404/422 不产生 exception 告警，成功响应不变。
 
+Demo Evidence 的格式和关系校验分别由 ZodError 与 DemoEvidenceValidationError 标识。提交、存量重查及身份确认只把这两类已知校验失败映射为无效数据；解析程序异常交回既有 request/cause 边界，事务回滚，不写入 STORED_PAYLOAD_INVALID，也不将异常原文作为预期校验提示返回。
+
 PostgreSQL 分类必须复用 `src/db/errors.ts` 的 `extractPgError()`。日志只允许 SQLSTATE、constraint/schema/table/column 等分类 metadata，不能读取或输出 raw query、params、detail 或完整 Drizzle error。
 
 Steam 与教育材料/赛事公开图片 Storage 的失败事件保留有界 HTTP 状态、允许的异常名称及网络/服务错误代码；`provider-failure.ts` 只读取这些 metadata 和有界 cause/originalError 链，不读取 provider message、stack、正文、凭据 URL 或对象路径。事件沿用请求上下文关联，Storage 4xx（408/429 除外）不标记为可直接重试。

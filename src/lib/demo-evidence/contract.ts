@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DemoEvidenceValidationError } from "./validation-error";
 import { DAK_DIAGNOSTICS_EXTENSION, dakDiagnosticsSchema, validateDakDiagnostics } from "./diagnostics";
 
 const uuidSchema = z.guid();
@@ -225,46 +226,46 @@ export function parseRivalHubDemoEvidenceV1(input: unknown): RivalHubDemoEvidenc
   if (diagnostics) validateDakDiagnostics(diagnostics, evidence.quality, evidence.sourceFacts.kills.length);
   const participantBySteam = new Map<string, RivalHubDemoEvidenceV1["participants"][number]>();
   for (const participant of evidence.participants) {
-    if (participantBySteam.has(participant.steamId64)) throw new Error("participants 不能重复 Steam64");
+    if (participantBySteam.has(participant.steamId64)) throw new DemoEvidenceValidationError("participants 不能重复 Steam64");
     participantBySteam.set(participant.steamId64, participant);
     if (participant.resolution.status === "matched" && participant.resolution.entryId !== evidence.target.entryAId && participant.resolution.entryId !== evidence.target.entryBId) {
-      throw new Error("matched participant 的 entryId 必须属于 evidence target");
+      throw new DemoEvidenceValidationError("matched participant 的 entryId 必须属于 evidence target");
     }
   }
 
   const rounds = evidence.sourceFacts.rounds;
-  if (evidence.source.mapName !== evidence.target.expectedMapName) throw new Error("source mapName 必须匹配 target expectedMapName");
+  if (evidence.source.mapName !== evidence.target.expectedMapName) throw new DemoEvidenceValidationError("source mapName 必须匹配 target expectedMapName");
   const roundBySeq = new Map(rounds.map((round) => [round.roundSeq, round]));
   if (roundBySeq.size !== rounds.length || rounds.some((round, index) => round.roundSeq !== index + 1)) {
-    throw new Error("roundSeq 必须从 1 连续且唯一");
+    throw new DemoEvidenceValidationError("roundSeq 必须从 1 连续且唯一");
   }
   for (const kill of evidence.sourceFacts.kills) {
     if (!roundBySeq.has(kill.roundSeq) || !participantBySteam.has(kill.victimSteamId64) || (kill.killerSteamId64 !== null && !participantBySteam.has(kill.killerSteamId64))) {
-      throw new Error("kill 引用了未知 round 或 participant");
+      throw new DemoEvidenceValidationError("kill 引用了未知 round 或 participant");
     }
   }
   for (const objective of evidence.sourceFacts.objectives) {
     if (!roundBySeq.has(objective.roundSeq) || (objective.actorSteamId64 !== null && !participantBySteam.has(objective.actorSteamId64))) {
-      throw new Error("objective 引用了未知 round 或 participant");
+      throw new DemoEvidenceValidationError("objective 引用了未知 round 或 participant");
     }
   }
 
   const playerRoundByKey = new Map<string, RivalHubDemoEvidenceV1["semanticFacts"]["playerRounds"][number]>();
   for (const fact of evidence.semanticFacts.playerRounds) {
     const participant = participantBySteam.get(fact.steamId64);
-    if (!roundBySeq.has(fact.roundSeq) || !participant || participant.observedTeamKey !== fact.teamKey) throw new Error("playerRound 引用了不匹配的 round 或 participant");
+    if (!roundBySeq.has(fact.roundSeq) || !participant || participant.observedTeamKey !== fact.teamKey) throw new DemoEvidenceValidationError("playerRound 引用了不匹配的 round 或 participant");
     const key = `${fact.roundSeq}:${fact.steamId64}`;
-    if (playerRoundByKey.has(key)) throw new Error("playerRound 不能重复");
+    if (playerRoundByKey.has(key)) throw new DemoEvidenceValidationError("playerRound 不能重复");
     playerRoundByKey.set(key, fact);
   }
-  if (playerRoundByKey.size !== rounds.length * evidence.participants.length) throw new Error("normal V1 必须为每名 participant 提供每回合 playerRound");
+  if (playerRoundByKey.size !== rounds.length * evidence.participants.length) throw new DemoEvidenceValidationError("normal V1 必须为每名 participant 提供每回合 playerRound");
 
   const playerSummaries = new Map(evidence.summaries.playerMaps.map((summary) => [summary.steamId64, summary]));
-  if (evidence.summaries.playerMaps.length !== evidence.participants.length || playerSummaries.size !== evidence.participants.length) throw new Error("playerMaps 必须恰好覆盖每名 participant 一次");
+  if (evidence.summaries.playerMaps.length !== evidence.participants.length || playerSummaries.size !== evidence.participants.length) throw new DemoEvidenceValidationError("playerMaps 必须恰好覆盖每名 participant 一次");
   for (const participant of evidence.participants) {
     const summary = playerSummaries.get(participant.steamId64);
-    if (!summary || summary.teamKey !== participant.observedTeamKey) throw new Error("playerMaps participant 映射无效");
-    if (summary.rounds !== rounds.length) throw new Error("playerMaps rounds 必须匹配 source rounds");
+    if (!summary || summary.teamKey !== participant.observedTeamKey) throw new DemoEvidenceValidationError("playerMaps participant 映射无效");
+    if (summary.rounds !== rounds.length) throw new DemoEvidenceValidationError("playerMaps rounds 必须匹配 source rounds");
   }
   const weaponFacts = new Map<string, { kills: number; headshotKills: number }>();
   for (const kill of evidence.sourceFacts.kills) {
@@ -280,13 +281,13 @@ export function parseRivalHubDemoEvidenceV1(input: unknown): RivalHubDemoEvidenc
     if (kill.headshot) row.headshotKills += 1;
     weaponFacts.set(key, row);
   }
-  if (weaponFacts.size !== evidence.summaries.playerWeapons.length) throw new Error("playerWeapons 必须恰好覆盖 source kill weapon breakdown");
+  if (weaponFacts.size !== evidence.summaries.playerWeapons.length) throw new DemoEvidenceValidationError("playerWeapons 必须恰好覆盖 source kill weapon breakdown");
   for (const summary of evidence.summaries.playerWeapons) {
     const fact = weaponFacts.get(`${summary.steamId64}:${summary.weapon}`);
-    if (!fact || fact.kills !== summary.kills || fact.headshotKills !== summary.headshotKills) throw new Error("playerWeapons 与 source kills 不一致");
+    if (!fact || fact.kills !== summary.kills || fact.headshotKills !== summary.headshotKills) throw new DemoEvidenceValidationError("playerWeapons 与 source kills 不一致");
   }
   const teamMaps = new Map(evidence.summaries.teamMaps.map((summary) => [summary.teamKey, summary]));
-  if (teamMaps.size !== 2) throw new Error("teamMaps 必须覆盖双方各一次");
+  if (teamMaps.size !== 2) throw new DemoEvidenceValidationError("teamMaps 必须覆盖双方各一次");
   for (const teamKey of ["teamA", "teamB"] as const) {
     const summary = teamMaps.get(teamKey)!;
     const sideFor = (round: RivalHubDemoEvidenceV1["sourceFacts"]["rounds"][number]) => teamKey === "teamA" ? round.teamASide : round.teamBSide;
@@ -294,17 +295,17 @@ export function parseRivalHubDemoEvidenceV1(input: unknown): RivalHubDemoEvidenc
     const tRounds = teamRounds.filter((round) => sideFor(round) === "t");
     const ctRounds = teamRounds.filter((round) => sideFor(round) === "ct");
     if (summary.rounds !== rounds.length || summary.roundWins !== rounds.filter((round) => round.winnerTeamKey === teamKey).length || summary.tRounds !== tRounds.length || summary.tWins !== tRounds.filter((round) => round.winnerTeamKey === teamKey).length || summary.ctRounds !== ctRounds.length || summary.ctWins !== ctRounds.filter((round) => round.winnerTeamKey === teamKey).length) {
-      throw new Error("teamMaps 与 source rounds 不一致");
+      throw new DemoEvidenceValidationError("teamMaps 与 source rounds 不一致");
     }
   }
   const conversionByTeam = new Map(evidence.semanticFacts.teamConversions.map((conversion) => [conversion.teamKey, conversion]));
   if (conversionByTeam.size !== 2 || !conversionByTeam.has("teamA") || !conversionByTeam.has("teamB")) {
-    throw new Error("teamConversions 必须恰好覆盖双方各一次");
+    throw new DemoEvidenceValidationError("teamConversions 必须恰好覆盖双方各一次");
   }
   for (const conversion of evidence.semanticFacts.teamConversions) {
     const advantages = new Set(conversion.manAdvantage.map((row) => row.advantage));
     if (advantages.size !== 4 || !(["5v4", "4v5", "5v3", "3v5"] as const).every((key) => advantages.has(key))) {
-      throw new Error("manAdvantage 必须恰好覆盖四种状态各一次");
+      throw new DemoEvidenceValidationError("manAdvantage 必须恰好覆盖四种状态各一次");
     }
   }
   return evidence;
