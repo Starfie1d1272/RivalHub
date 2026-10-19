@@ -156,9 +156,12 @@ async function callAPI(params: CallParams) {
       }
 
       let json: unknown;
-      try { json = await response.json(); } catch {
-        if (controller.signal.aborted) throw new OCRFailure("timeout", "response", "response_timeout", undefined, { requestId: params.requestId });
-        throw new OCRFailure("upstream", "json_parse", "invalid_response_json", response.status, { requestId: params.requestId });
+      try { json = await response.json(); } catch (error) {
+        if (!controller.signal.aborted && error instanceof SyntaxError) {
+          throw new OCRFailure("upstream", "json_parse", "invalid_response_json", response.status, { requestId: params.requestId });
+        }
+        // Body streams can fail after valid HTTP headers; preserve the transport boundary.
+        throw error;
       }
       const content = getResponseContent(json);
       if (!content) throw new OCRFailure("upstream", "response", "empty_response", response.status, { requestId: params.requestId });
@@ -166,7 +169,7 @@ async function callAPI(params: CallParams) {
     } catch (error) {
       if (error instanceof OCRFailure) throw error;
       const timedOut = controller.signal.aborted;
-      throw new OCRFailure(timedOut ? "timeout" : "network", phase, timedOut ? "request_timeout" : "network_failure", undefined, {
+      throw new OCRFailure(timedOut ? "timeout" : "network", phase, timedOut ? (phase === "response" ? "response_timeout" : "request_timeout") : "network_failure", undefined, {
         requestId: params.requestId,
         // Preserve the real transport cause only after bounded projection and redaction.
         diagnostics: extractOCRDiagnostics(error, [params.apiKey, params.base64Image]),
