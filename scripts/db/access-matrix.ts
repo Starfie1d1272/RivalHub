@@ -151,6 +151,10 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "证据用于审核和审计，公开奖项只消费显式 read model。",
   ),
   serverOnly(
+    "community_award_recipients", "社区奖", "公开获奖者关联",
+    "src/lib/community-awards/", "完整获奖名单由服务端事务维护；浏览器只消费公开 DTO。",
+  ),
+  serverOnly(
     "community_awards",
     "赛后 / 社区奖项",
     "审核、结果与奖项内部事实",

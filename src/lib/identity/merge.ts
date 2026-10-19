@@ -1,3 +1,4 @@
+import { reparentCommunityAwardRecipientsInTx } from "@/lib/community-awards/service";
 import { revokeAllApplicationSessionsInTx } from "@/lib/auth/session-registry";
 import { createHash } from "node:crypto";
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -67,6 +68,8 @@ export const USER_REFERENCE_RULES: readonly UserReferenceRule[] = [
   { table: "community_awards", column: "reviewed_by_user_id", label: "社区奖项审核人", mode: "preserve" },
   { table: "community_awards", column: "recipient_user_id", label: "社区奖项获奖人", mode: "reparent" },
   { table: "community_awards", column: "outcome_by_user_id", label: "社区奖项处理人", mode: "preserve" },
+  { table: "community_award_recipients", column: "user_id", label: "社区奖完整获奖名单", mode: "reparent" },
+  { table: "community_award_evidence", column: "verified_by_user_id", label: "社区奖候选核验人", mode: "preserve" },
   { table: "community_award_evidence", column: "submitted_by_user_id", label: "社区奖项证据提交人", mode: "preserve" },
   { table: "community_award_evidence", column: "candidate_user_id", label: "社区奖项候选人", mode: "reparent" },
   { table: "competition_entries", column: "representative_user_id", label: "参赛条目代表人", mode: "reparent" },
@@ -434,7 +437,7 @@ async function loadCollisionFacts(queryable: MergeQueryable, input: { canonicalU
         + (SELECT count(*)::int FROM identity_link_requests WHERE user_id = ${input.mergedUserId} AND status = 'pending')
         + (SELECT count(*)::int FROM user_sessions WHERE user_id = ${input.mergedUserId}) AS transient_rows,
       (SELECT count(*)::int FROM community_awards WHERE submitted_by_user_id = ${input.mergedUserId} OR reviewed_by_user_id = ${input.mergedUserId} OR outcome_by_user_id = ${input.mergedUserId})
-        + (SELECT count(*)::int FROM community_award_evidence WHERE submitted_by_user_id = ${input.mergedUserId})
+        + (SELECT count(*)::int FROM community_award_evidence WHERE submitted_by_user_id = ${input.mergedUserId} OR verified_by_user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM dak_pairing_intents WHERE authorized_by_user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM mizar_pairing_intents WHERE authorized_by_user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM announcements WHERE created_by = ${input.mergedUserId} OR updated_by = ${input.mergedUserId})
@@ -482,7 +485,8 @@ async function loadSnapshotHash(queryable: MergeQueryable, input: { canonicalUse
       UNION ALL SELECT 'admin_invite_claims', invite_id::text || ':' || user_id::text, row_to_json(c)::text FROM admin_invite_claims c WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'announcements', id::text, row_to_json(a)::text FROM announcements a WHERE created_by IN (${input.canonicalUserId}, ${input.mergedUserId}) OR updated_by IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'community_awards', id::text, row_to_json(a)::text FROM community_awards a WHERE submitted_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR reviewed_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR recipient_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR outcome_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
-      UNION ALL SELECT 'community_award_evidence', id::text, row_to_json(e)::text FROM community_award_evidence e WHERE submitted_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR candidate_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
+      UNION ALL SELECT 'community_award_recipients', award_id::text || ':' || user_id::text, row_to_json(r)::text FROM community_award_recipients r WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
+      UNION ALL SELECT 'community_award_evidence', id::text, row_to_json(e)::text FROM community_award_evidence e WHERE submitted_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR candidate_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR verified_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'dak_pairing_intents', id::text, row_to_json(i)::text FROM dak_pairing_intents i WHERE authorized_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'dak_pairings', id::text, row_to_json(p)::text FROM dak_pairings p WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'mizar_pairing_intents', id::text, row_to_json(mi)::text FROM mizar_pairing_intents mi WHERE authorized_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
@@ -588,11 +592,12 @@ export async function executeUserMergeInTx(tx: TxDb, input: ExecuteUserMergeInpu
   await mergeHonorFactsInTx(tx, input.canonicalUserId, input.mergedUserId);
   await mergeMvpFactsInTx(tx, input.canonicalUserId, input.mergedUserId);
   await mergeUnionFactsInTx(tx, input.canonicalUserId, input.mergedUserId);
+  await reparentCommunityAwardRecipientsInTx(tx, { canonicalUserId: input.canonicalUserId, mergedUserId: input.mergedUserId, actorId: input.actorUserId });
   await revokeAllApplicationSessionsInTx(tx, input.canonicalUserId);
   await revokeAllApplicationSessionsInTx(tx, input.mergedUserId);
   await closeTransientFactsInTx(tx, input.canonicalUserId, input.mergedUserId);
   await mergeIdentitiesInTx(tx, input.canonicalUserId, input.mergedUserId);
-  for (const rule of USER_REFERENCE_RULES.filter((entry) => entry.mode === "reparent" && !["match_player_stats.user_id", "match_mvp_votes.player_user_id", "tournament_honors.user_id"].includes(`${entry.table}.${entry.column}`))) {
+  for (const rule of USER_REFERENCE_RULES.filter((entry) => entry.mode === "reparent" && !["community_awards.recipient_user_id", "community_award_recipients.user_id", "match_player_stats.user_id", "match_mvp_votes.player_user_id", "tournament_honors.user_id"].includes(`${entry.table}.${entry.column}`))) {
     await updateReference(tx, rule.table, rule.column, input.canonicalUserId, input.mergedUserId);
   }
 

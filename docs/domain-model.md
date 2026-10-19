@@ -197,7 +197,8 @@ Major Swiss 的 public/admin read model 只从 `major_stage_entrants`、`matches
 - match correction / adjudication：比赛或赛后裁决；
 - `major_final_results`：正式最终结果；
 - `tournament_honors`：官方荣誉；
-- `community_awards`：独立的社区奖流程。
+- `community_awards` / `community_award_recipients`：独立的社区奖流程与完整获奖名单；单人、人数上限或全部并列者策略由奖项明确持有，`recipient_user_id` 仅为滚动发布的单人投影。
+- `community_award_evidence`：候选证据与待核验、符合条件、不符合条件处置；核验保留处理人、时间、理由及审计，不产生官方比赛或荣誉事实。
 
 处罚不会自动改写比分、placement 或 honor；冠军/荣誉撤销也不会隐式递补另一名获奖者。任何连锁影响必须由显式 adjudication 产生可审计事实。
 

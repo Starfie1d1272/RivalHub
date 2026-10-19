@@ -27,6 +27,8 @@ export const OPERATIONS = [
   "captains.castVote",
   "captains.confirmCaptains",
   "captains.retractVote",
+  "community-awards.configureCommunityAward",
+  "community-awards.verifyCommunityAwardEvidence",
   "community-awards.addCommunityAwardEvidence",
   "community-awards.requestCommunityAwardSupplement",
   "community-awards.resolveCommunityAward",
