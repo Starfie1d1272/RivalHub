@@ -59,7 +59,7 @@ describe("CI execution budget", () => {
       writeFileSync(path, rows.map(row => JSON.stringify(row)).join("\n"));
       const run = gate => spawnSync(process.execPath, ["scripts/ci/execution-budget.mjs", "--jobs", path,
         "--gate-ms", String(gate), "--budget-ms", "180000"], { encoding: "utf8",
-        env: { ...process.env, REQUIRED_JOBS: '["static"]', GITHUB_EVENT_NAME: "push", RIVALHUB_TIMING_FILE: join(dir, "timing.jsonl") } });
+        env: { ...process.env, RIVALHUB_TIMING_STDOUT_ONLY: "0", REQUIRED_JOBS: '["static"]', GITHUB_EVENT_NAME: "push", RIVALHUB_TIMING_FILE: join(dir, "timing.jsonl") } });
       expect(run(2_000).status).toBe(0);
       expect(run(2_001).status).toBe(1);
       expect(readFileSync(join(dir, "timing.jsonl"), "utf8")).toContain('"milliseconds":180001');
@@ -82,7 +82,7 @@ describe("CI execution budget", () => {
       const result = spawnSync("bash", ["-e", "-c", command], { encoding: "utf8", env: { ...process.env,
         PATH: `${dir}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_ENV: join(dir, "github-env"), RIVALHUB_GATE_STARTED_MS: "0",
         GITHUB_REPOSITORY: "owner/repo", GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "2", GITHUB_EVENT_NAME: "pull_request",
-        REQUIRED_JOBS: '["static","postgres"]', RIVALHUB_TIMING_FILE: join(dir, "timing.jsonl"),
+        REQUIRED_JOBS: '["static","postgres"]', RIVALHUB_TIMING_STDOUT_ONLY: "0", RIVALHUB_TIMING_FILE: join(dir, "timing.jsonl"),
         CI_TEST_CLOCK: clock, CI_TEST_ARGS: join(dir, "args"), CI_TEST_JOBS: join(dir, "jobs.json"),
       } });
       expect(result.status, result.stderr).toBe(0);
