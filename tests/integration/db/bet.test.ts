@@ -191,11 +191,11 @@ describe("BET transactional admission and settlement",()=>{
   it("recovers a new catalog even if an older worker consumed dirty before promotion",async()=>fixture(async f=>{
     const original=await f.db.query.matches.findFirst({where:eq(schema.matches.id,f.matchId)});
     const [match]=await f.db.insert(schema.matches).values({seasonId:f.seasonId,entryAId:f.entryIds[0]!,entryBId:f.entryIds[1]!,majorStageRunId:original!.majorStageRunId,stage:"stage1",ownership:"major_stage",managedKey:"rollout-window",format:"bo3"}).returning();
-    await f.db.update(schema.betPrograms).set({dirty:false,catalogVersion:1}).where(eq(schema.betPrograms.seasonId,f.seasonId));
+    await f.db.update(schema.betPrograms).set({dirty:false,catalogVersion:3}).where(eq(schema.betPrograms.seasonId,f.seasonId));
     expect((await f.db.execute(sql`select public.scheduler_job_is_due('reconcile-predictions') as due`)).rows[0]!.due).toBe(true);
     expect(await runBetReconciliationJob(f.db)).toBe(1);
     expect((await read(f.db,f.seasonId,f.userId)).markets.filter(m=>m.matchId===match!.id && m.type==="total_rounds" && m.canStake)).toHaveLength(3);
-    expect(await f.db.query.betPrograms.findFirst({where:eq(schema.betPrograms.seasonId,f.seasonId)})).toMatchObject({dirty:false,catalogVersion:3});
+    expect(await f.db.query.betPrograms.findFirst({where:eq(schema.betPrograms.seasonId,f.seasonId)})).toMatchObject({dirty:false,catalogVersion:4});
     expect((await f.db.execute(sql`select public.scheduler_job_is_due('reconcile-predictions') as due`)).rows[0]!.due).toBe(false);
     expect(await runBetReconciliationJob(f.db)).toBe(0);
   }));
