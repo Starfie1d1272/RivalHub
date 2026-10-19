@@ -266,7 +266,7 @@ jobs:
     env:
       RIVALHUB_LIVE_EVIDENCE: ${{ matrix.live && '1' || '0' }}
       SUPABASE_USE_SLIM_IMAGES: "1"
-      RIVALHUB_LOCAL_SERVICE_PROFILE: ${{ (matrix.task == 'production' || matrix.task == 'browser-live') && 'auth' || 'full' }}
+      RIVALHUB_LOCAL_SERVICE_PROFILE: ${{ (matrix.task == 'production' || matrix.task == 'browser-live' || matrix.task == 'browser-session') && 'auth' || 'full' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
