@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
@@ -31,6 +31,7 @@ function StyleChart({ chart, selection, onSelect, onClose }: { chart: Chart; sel
   const pinned = useRef(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const returningFocus = useRef(false);
   const xAxis = lineupStyleAxis(chart.points.map((point) => point.x));
   const yAxis = lineupStyleAxis(chart.points.map((point) => point.y));
   // Scores retain their independently scaled domains; only the numeric chrome is hidden.
@@ -40,9 +41,26 @@ function StyleChart({ chart, selection, onSelect, onClose }: { chart: Chart; sel
   const nearby = active ? chart.points.filter((point) => Math.abs(xPosition(point.x) - xPosition(active.x)) < 64 && Math.abs(yPosition(point.y) - yPosition(active.y)) < 64) : [];
   const limited = chart.points.some((point) => point.limited);
   const preview = chart.points.every((point) => point.limited);
-  function cancelClose() {
+  const cancelClose = useCallback(() => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
     closeTimer.current = null;
+  }, []);
+  const closeAndRestoreFocus = useCallback(() => {
+    cancelClose();
+    if (trigger && document.activeElement !== trigger) {
+      returningFocus.current = true;
+      trigger.focus({ preventScroll: true });
+      returningFocus.current = false;
+    }
+    onClose();
+  }, [cancelClose, trigger, onClose]);
+  function enterCard() {
+    const first = cardRef.current?.querySelector<HTMLElement>("a[href], button:not([disabled])");
+    if (!first) return false;
+    pinned.current = true;
+    cancelClose();
+    first.focus();
+    return true;
   }
   function scheduleClose() {
     if (pinned.current) return;
@@ -62,7 +80,7 @@ function StyleChart({ chart, selection, onSelect, onClose }: { chart: Chart; sel
       const target = event.target as Node;
       if (!trigger!.contains(target) && !cardRef.current?.contains(target)) onClose();
     }
-    function key(event: KeyboardEvent) { if (event.key === "Escape") onClose(); }
+    function key(event: KeyboardEvent) { if (event.key === "Escape") { event.preventDefault(); closeAndRestoreFocus(); } }
     window.addEventListener("scroll", onClose, true);
     window.addEventListener("resize", onClose);
     document.addEventListener("pointerdown", outside);
@@ -75,7 +93,7 @@ function StyleChart({ chart, selection, onSelect, onClose }: { chart: Chart; sel
       document.removeEventListener("focusin", outside);
       document.removeEventListener("keydown", key);
     };
-  }, [active, trigger, onClose]);
+  }, [active, trigger, onClose, closeAndRestoreFocus]);
 
   return <div className="min-w-0 border border-[var(--color-border)] bg-[var(--color-panel)] p-3 sm:p-4">
     <div className="flex items-baseline justify-between gap-2 px-1">
@@ -101,14 +119,17 @@ function StyleChart({ chart, selection, onSelect, onClose }: { chart: Chart; sel
         aria-label={`${point.name}，${chart.xLabel} ${point.x}，${chart.yLabel} ${point.y}${point.limited ? "，样本有限" : ""}`}
         aria-haspopup="dialog" aria-expanded={active?.userId === point.userId} aria-controls={active ? `${id}-detail` : undefined}
         onPointerEnter={(event) => { if (event.pointerType === "mouse") activate(point, event.currentTarget); }}
-        onPointerLeave={scheduleClose} onFocus={(event) => activate(point, event.currentTarget)}
-        onClick={(event) => activate(point, event.currentTarget, true)}>
+        onPointerLeave={scheduleClose} onFocus={(event) => { if (!returningFocus.current) activate(point, event.currentTarget); }}
+        onKeyDown={(event) => {
+          if (event.key === "Tab" && !event.shiftKey && active?.userId === point.userId && enterCard()) event.preventDefault();
+        }}
+        onClick={(event) => { activate(point, event.currentTarget, true); if (event.detail === 0) enterCard(); }}>
         <PlayerAvatar name={point.name} avatarUrl={point.avatarUrl} size="sm" />
       </button>)}
     </div>
     {limited && <p id={`${id}-sample`} className="mt-1 flex items-center gap-2 px-1 text-xs text-[var(--color-fg-mid)]"><span aria-hidden="true" className="size-3 rounded-full border border-dashed border-[var(--color-fg-dim)]" />{preview ? "样本有限预览" : "虚线圈表示部分属性样本有限"}</p>}
     {active && trigger && <PlayerCard id={`${id}-detail`} chart={chart} active={active} nearby={nearby} trigger={trigger} cardRef={cardRef}
-      onEnter={cancelClose} onLeave={scheduleClose} onClose={onClose}
+      onEnter={cancelClose} onLeave={scheduleClose} onClose={closeAndRestoreFocus}
       onChoose={(point) => { pinned.current = true; cancelClose(); onSelect(point.userId); }} />}
   </div>;
 }
@@ -132,6 +153,12 @@ function PlayerCard({ id, chart, active, nearby, trigger, cardRef, onEnter, onLe
   }, [active, trigger, cardRef]);
   return createPortal(<div ref={cardRef} id={id} role="dialog" aria-label={`${active.name} · ${chart.title}`}
     onPointerEnter={onEnter} onPointerLeave={onLeave}
+    onKeyDown={(event) => {
+      if (event.key !== "Tab") return;
+      const controls = [...(cardRef.current?.querySelectorAll<HTMLElement>("a[href], button:not([disabled])") ?? [])];
+      const boundary = event.shiftKey ? controls[0] : controls.at(-1);
+      if (event.target === boundary) { event.preventDefault(); onClose(); }
+    }}
     className="fixed z-[200] w-72 max-w-[calc(100vw-24px)] border border-[var(--color-border-hi)] bg-[var(--color-panel-hi)] p-3 text-xs leading-5 text-[var(--color-fg-primary)] shadow-lg"
     style={position ? { ...position } : { visibility: "hidden" }}>
     <div className="flex items-start gap-2">

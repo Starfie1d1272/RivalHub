@@ -47,3 +47,49 @@ it("closes the floating card on an outside click and reopens it on keyboard focu
   expect(point).toHaveFocus();
   expect(screen.getByRole("dialog")).toBeInTheDocument();
 });
+
+it("routes keyboard focus into the portal, activates the profile link and returns to the originating avatar", async () => {
+  const user = userEvent.setup();
+  render(<TeamLineupStyle members={members} />);
+  const points = within(screen.getByRole("group", { name: "Star Chart" })).getAllByRole("button");
+  await user.tab();
+  expect(points[0]).toHaveFocus();
+  await user.tab();
+  const link = screen.getByRole("link", { name: /中文完整昵称/ });
+  expect(link).toHaveFocus();
+  expect(link).toHaveAttribute("href", "/players/player-0");
+  let destination: string | null = null;
+  link.addEventListener("click", (event) => { event.preventDefault(); destination = link.getAttribute("href"); });
+  await user.keyboard("{Enter}");
+  expect(destination).toBe("/players/player-0");
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(points[0]).toHaveFocus();
+  await user.tab();
+  expect(points[1]).toHaveFocus();
+  await user.keyboard("{Enter}");
+  expect(screen.getByRole("link", { name: /English Steam Name/ })).toHaveFocus();
+  await user.tab({ shift: true });
+  expect(points[1]).toHaveFocus();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+it("returns focus after the last card control without trapping the next Tab in the popup", async () => {
+  const user = userEvent.setup();
+  render(<TeamLineupStyle members={members} />);
+  const points = within(screen.getByRole("group", { name: "Star Chart" })).getAllByRole("button");
+  await user.tab();
+  await user.keyboard(" ");
+  expect(screen.getByRole("link", { name: /中文完整昵称/ })).toHaveFocus();
+  await user.tab();
+  expect(screen.getByRole("button", { name: "关闭选手信息" })).toHaveFocus();
+  for (const name of ["中文完整昵称", "English Steam Name", "Third Player"]) {
+    await user.tab();
+    expect(screen.getByRole("button", { name: `查看 ${name}` })).toHaveFocus();
+  }
+  await user.tab();
+  expect(points[0]).toHaveFocus();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  await user.tab();
+  expect(points[1]).toHaveFocus();
+});
