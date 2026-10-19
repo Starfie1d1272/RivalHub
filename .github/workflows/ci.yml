@@ -102,7 +102,7 @@ jobs:
           path: ${{ env.PNPM_CONFIG_STORE_DIR }}
           key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc') }}
           restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-
-      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+      - uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           cache: false
           require-lockfile: true
@@ -188,7 +188,7 @@ jobs:
           path: ${{ env.PNPM_CONFIG_STORE_DIR }}
           key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc') }}
           restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-
-      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+      - uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           cache: false
           require-lockfile: true
@@ -240,7 +240,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+      - uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           cache: false
           require-lockfile: true
@@ -292,7 +292,7 @@ jobs:
           path: ${{ env.PNPM_CONFIG_STORE_DIR }}
           key: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-${{ hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.npmrc') }}
           restore-keys: ${{ runner.os }}-${{ runner.arch }}-pnpm-store-v1-
-      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+      - uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           cache: false
           require-lockfile: true
