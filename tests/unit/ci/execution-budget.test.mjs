@@ -66,7 +66,9 @@ describe("CI execution budget", () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
-  it("runs the workflow step against the exact attempt, paginates, and excludes timing API waiting", () => {
+  it.each([
+    ["ready", 0, 0, 1], ["delayed", 2, 0, 3], ["missing", 6, 1, 6], ["over-budget", 0, 1, 1],
+  ])("runs the workflow against the exact attempt with bounded metadata waiting: %s", (mode, missingReads, exitCode, reads) => {
     const workflow = parse(readFileSync(resolve(".github/workflows/ci.yml"), "utf8"));
     const record = workflow.jobs.gate.steps.find(s => s.name === "Record required gate wall time").run;
     const enforce = workflow.jobs.gate.steps.find(s => s.name === "Enforce required gate execution budget").run;
@@ -74,21 +76,40 @@ describe("CI execution budget", () => {
     const dir = mkdtempSync(join(tmpdir(), "ci-budget-workflow-"));
     try {
       const clock = join(dir, "clock"); writeFileSync(clock, "1000");
-      writeFileSync(join(dir, "jobs.json"), corpus().map(row => JSON.stringify(row)).join("\n"));
+      const rows = corpus();
+      if (mode === "over-budget") rows[0] = job("plan", 200_000);
+      writeFileSync(join(dir, "jobs.json"), rows.map(row => JSON.stringify(row)).join("\n"));
+      writeFileSync(join(dir, "reads"), "0");
       // The metadata fetch consumes 10 minutes of external waiting on a fake clock.
       writeFileSync(join(dir, "date"), '#!/bin/sh\ncat "$CI_TEST_CLOCK"\n');
-      writeFileSync(join(dir, "gh"), '#!/bin/sh\nprintf "%s\\n" "$@" >> "$CI_TEST_ARGS"\nprintf 601000 > "$CI_TEST_CLOCK"\ncase "$*" in *jobs*) cat "$CI_TEST_JOBS";; *) printf "1970-01-01T00:00:00Z";; esac\n');
+      writeFileSync(join(dir, "gh"), `#!/bin/sh
+printf '%s\\n' "$@" >> "$CI_TEST_ARGS"
+printf 601000 > "$CI_TEST_CLOCK"
+case "$*" in
+  *jobs*)
+    count=$(cat "$CI_TEST_READS")
+    count=$((count + 1))
+    printf '%s' "$count" > "$CI_TEST_READS"
+    if [ "$count" -le "$CI_TEST_MISSING_READS" ]; then printf '{"name":"plan","steps":[]}\\n'; else cat "$CI_TEST_JOBS"; fi
+    ;;
+  *) printf '1970-01-01T00:00:00Z';;
+esac
+`);
+      writeFileSync(join(dir, "sleep"), '#!/bin/sh\nexit 0\n');
+      chmodSync(join(dir, "sleep"), 0o755);
       chmodSync(join(dir, "date"), 0o755); chmodSync(join(dir, "gh"), 0o755);
       const result = spawnSync("bash", ["-e", "-c", command], { encoding: "utf8", env: { ...process.env,
         PATH: `${dir}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_ENV: join(dir, "github-env"), RIVALHUB_GATE_STARTED_MS: "0",
         GITHUB_REPOSITORY: "owner/repo", GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "2", GITHUB_EVENT_NAME: "pull_request",
         REQUIRED_JOBS: '["static","postgres"]', RIVALHUB_TIMING_STDOUT_ONLY: "0", RIVALHUB_TIMING_FILE: join(dir, "timing.jsonl"),
         CI_TEST_CLOCK: clock, CI_TEST_ARGS: join(dir, "args"), CI_TEST_JOBS: join(dir, "jobs.json"),
+        CI_TEST_READS: join(dir, "reads"), CI_TEST_MISSING_READS: String(missingReads),
       } });
-      expect(result.status, result.stderr).toBe(0);
+      expect(result.status, result.stderr).toBe(exitCode);
+      expect(Number(readFileSync(join(dir, "reads"), "utf8"))).toBe(reads);
       expect(readFileSync(join(dir, "args"), "utf8")).toContain('repos/owner/repo/actions/runs/123/attempts/2/jobs?per_page=100');
       expect(readFileSync(join(dir, "args"), "utf8")).toContain('--paginate');
-      expect(readFileSync(join(dir, "timing.jsonl"), "utf8")).toContain('"milliseconds":61000');
+      if (exitCode === 0) expect(readFileSync(join(dir, "timing.jsonl"), "utf8")).toContain('"milliseconds":61000');
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });

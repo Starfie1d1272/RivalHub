@@ -75,6 +75,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.exitCode = recorded.status ?? 1;
   } catch (error) {
     console.error(error.message);
-    process.exitCode = 1;
+    // Metadata can lag behind needs.*.result; distinguish it from a measured budget failure.
+    process.exitCode = 2;
   }
 }

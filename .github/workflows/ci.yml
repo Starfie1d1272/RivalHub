@@ -414,10 +414,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REQUIRED_JOBS: ${{ needs.plan.outputs.required_jobs }}
         run: |
-          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" \
-            --jq '.jobs[] | {name, conclusion, steps} | tojson' > "$RUNNER_TEMP/ci-execution-jobs.jsonl"
-          node scripts/ci/execution-budget.mjs --jobs "$RUNNER_TEMP/ci-execution-jobs.jsonl" \
-            --gate-ms "$((RIVALHUB_GATE_FINISHED_MS - RIVALHUB_GATE_STARTED_MS))" --budget-ms 180000
+          # GitHub job timing can lag behind completed needs; never substitute missing durations.
+          for attempt in 1 2 3 4 5 6; do
+            if gh api --paginate -H 'Cache-Control: no-cache' \
+              "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" \
+              --jq '.jobs[] | {name, conclusion, steps} | tojson' > "$RUNNER_TEMP/ci-execution-jobs.jsonl"; then
+              if node scripts/ci/execution-budget.mjs --jobs "$RUNNER_TEMP/ci-execution-jobs.jsonl" \
+                --gate-ms "$((RIVALHUB_GATE_FINISHED_MS - RIVALHUB_GATE_STARTED_MS))" --budget-ms 180000; then
+                exit 0
+              else
+                status=$?
+                if [ "$status" -ne 2 ]; then exit "$status"; fi
+              fi
+            fi
+            if [ "$attempt" -lt 6 ]; then sleep 5; fi
+          done
+          echo 'GitHub execution timing remained unavailable after bounded retries.' >&2
+          exit 1
 
       - name: Preserve machine-readable evidence
         if: always()
