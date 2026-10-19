@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { db } from "@/db/client";
 import { PublicCommunityAwards } from "@/components/community-awards/PublicCommunityAwards";
@@ -7,7 +8,11 @@ import { getPublicCommunityAwardBoardData } from "@/lib/community-awards/data";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 
-export default async function CommunityAwardsPage({ params }: { params: Promise<{ seasonSlug: string }> }) {
+export default function CommunityAwardsPage(props: { params: Promise<{ seasonSlug: string }> }) {
+  return <Suspense fallback={<div role="status" className="p-4 text-sm">正在加载社区奖…</div>}><CommunityAwardsContent {...props} /></Suspense>;
+}
+
+async function CommunityAwardsContent({ params }: { params: Promise<{ seasonSlug: string }> }) {
   const { seasonSlug } = await params;
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();

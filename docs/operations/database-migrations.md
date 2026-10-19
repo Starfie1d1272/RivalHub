@@ -72,6 +72,14 @@ Issue #806 的 `0073_careless_pretty_boy` 是明确的未开放功能清理例�
 
 纯 additive migration 不要求机械拆成多个 release；会破坏上一稳定应用读写的变化必须跨 release 收敛。
 
+## 社区奖名单的 expand / reader 切换
+
+`community_award_recipients` 是完整名单事实。扩展迁移保留旧 `recipient_user_id`、原 CHECK 和单人读取契约，回填所有历史获奖记录，不依据当前赛季是否有结果决定是否迁移。N 版本继续读取一个真实获奖者；N+1 从关系表批量读取完整名单，新 writer 在同一事务维护关系表和首位获奖者投影。延迟约束在提交时校验状态、名单与人数上限，旧 writer 的单人更正由数据库桥接到关系表并补存完整旧/新结果与理由审计；多人规则或提前结算策略上的旧 writer 会被拒绝，不能静默覆盖新结果。
+
+部署顺序为 expand/backfill → 部署完整名单 reader/writer → 排空 N 版本请求 → 管理员显式启用多人或提前结算规则。滚动重叠期间只运营原单人、整届结束策略；N 的公开页无法展示多人，因此不能在旧 reader 尚有流量时发布新的多人结果。已有公开奖项内容和历史结果不在迁移中被重解释。回退 N 应先停止新结奖/核验操作，保留数据库扩展和已有名单，不能用旧 reader 作为多人结果的完整展示。
+
+本轮不删除单人投影或桥接 trigger；仅在上一稳定 shipped 应用不再引用旧字段后，后续 release 才可独立执行 contract cleanup。兼容与回填由 PostgreSQL migration spec 实测，生产排空与策略启用属于发布/运营操作，不由普通 feature PR 执行。
+
 ## Staging
 
 存在远程状态、锁、兼容性或 release 风险时，使用受保护 staging workflow rehearsal；不要从个人 shell 直接写 staging。

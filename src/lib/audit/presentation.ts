@@ -172,6 +172,7 @@ const TARGET_OVERRIDES: Readonly<Partial<Record<AuditReadAction, AuditTargetCont
   "postevent.adjudication.revoke": { type: "post_event_adjudication", lifecycle: "stable" },
   "postevent.honor.grant": { type: "tournament_honor", lifecycle: "stable" },
   "postevent.honor.revoke": { type: "tournament_honor", lifecycle: "stable" },
+  "community_award.evidence.verify": { type: "community_award_evidence", lifecycle: "stable" },
   "community_award.evidence.submit": { type: "community_award_evidence", lifecycle: "stable" },
   "identity.link.merge_required": { type: "user_merge_authorization", lifecycle: "stable" },
   "identity.link.complete": { type: "user", lifecycle: "stable" },
@@ -457,6 +458,10 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "postmatch.report.submit": { label: "确认解说名单", category: "postmatch" },
   "postmatch.report.revoke": { label: "重开解说名单", category: "postmatch" },
 
+  "community_award.legacy.resolve": { label: "兼容写入社区奖结果", category: "community" },
+  "community_award.recipient.merge": { label: "归并社区奖获奖者身份", category: "community" },
+  "community_award.configure": { label: "设置社区奖结奖规则", category: "community" },
+  "community_award.evidence.verify": { label: "核验社区奖候选证据", category: "community" },
   "community_award.submit": { label: "提交社区奖", category: "community" },
   "community_award.revise": { label: "重新提交社区奖", category: "community" },
   "community_award.request_supplement": { label: "要求补充社区奖材料", category: "community" },

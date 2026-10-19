@@ -67,6 +67,10 @@
 
 恢复先在隔离目标验证，scheduler 最后 provision。尚未定义删除策略的自由文本/个人资料不能借恢复随意 purge；缺 tombstone 或 snapshot 后撤销事实的类别应明确作为恢复能力缺口处理。
 
+## 社区奖名单与核验
+
+社区奖 service 拥有完整获奖者关系及证据核验，目的为结奖、更正与追溯。名单按现有奖项公开范围投影；候选证据、处理人、时间与内部备注只供本届授权管理员，不进入公开 DTO 或浏览器 Data API。它们沿用赛事历史和审计的长期保留目的，无新增定时清理；删除奖项时关联名单/证据随 award FK 级联删除，用户历史核验 actor 保留原身份，账号归并由身份 owner 委托社区奖名单 owner 去重并同步旧投影。PostgreSQL 备份包含这些关联及内部字段，恢复须保留同一迁移版本、外键、延迟约束与审计；恢复旧快照不会自动包含快照后的更正。通用账号删除/历史匿名化仍按既有缺口管理。
+
 ## 新持久化类别规则
 
 新增或扩大持久化范围，同变更说明 owner、purpose、storage/visibility、sensitive fields、retention 或长期理由、expiry trigger、删除/匿名化 owner、backup/restore 语义与最小 evidence。已有类别引用本页与原代码 owner，不复制清理任务；新 fixed retention 必须验证边界、幂等和失败重试。
