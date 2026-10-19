@@ -60,6 +60,8 @@ DAK HTTP 五入口通过 `withIntegrationRequest()` 复用请求 trace、固定�
 
 PostgreSQL 分类必须复用 `src/db/errors.ts` 的 `extractPgError()`。日志只允许 SQLSTATE、constraint/schema/table/column 等分类 metadata，不能读取或输出 raw query、params、detail 或完整 Drizzle error。
 
+Steam 与教育材料/赛事公开图片 Storage 的失败事件保留有界 HTTP 状态、允许的异常名称及网络/服务错误代码；`provider-failure.ts` 只读取这些 metadata 和有界 cause/originalError 链，不读取 provider message、stack、正文、凭据 URL 或对象路径。事件沿用请求上下文关联，Storage 4xx（408/429 除外）不标记为可直接重试。
+
 ## 脱敏 contract
 
 默认拒绝以下字段或内容：
