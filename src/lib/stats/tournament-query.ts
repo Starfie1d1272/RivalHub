@@ -2,7 +2,7 @@ import { officialMatchCondition } from "@/lib/matches/scope";
 import { isCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 
-import { and, count, desc, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, inArray, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { buildTournamentAnalytics, buildTournamentPerformanceAnalyticsFromProjections as buildTournamentPerformanceAnalytics, remapTournamentPerformanceMapProjection, scopeTournamentPerformanceMapProjectionToTeam } from "@cs2dak/tournament";
 import { db, type DB, type TxDb } from "@/db/client";
 import { competitionEntries, eventRosterMembers, matchDemoImports, matchDemoStatProjections, matchPlayerStats, matchMaps, matchRosterPlayers, matchRosters, matches, matchVetoSteps, seasons, steamProfiles, teams, users } from "@/db/schema";
@@ -161,13 +161,15 @@ async function loadCurrentProjectionRefs(tx: TxDb, context: Awaited<ReturnType<t
 }
 
 /** Lightweight canonical selection for public directory/scouting aggregates. */
-export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: { seasonId?: string; userIds?: readonly string[] }) {
+export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: { seasonId?: string; userIds?: readonly string[]; before?: Date; excludeMatchId?: string }) {
   if (scope.userIds?.length === 0) return { currentImportIds: [], roster: [], matchIds: [] };
   const candidates = await tx.selectDistinct({ id: matches.id }).from(matches)
     .innerJoin(seasons, eq(seasons.id, matches.seasonId))
     .innerJoin(matchPlayerStats, eq(matchPlayerStats.matchId, matches.id))
     .where(and(officialMatchCondition(), eq(matches.status, "finished"), ne(seasons.status, "draft"),
       scope.seasonId ? eq(matches.seasonId, scope.seasonId) : undefined,
+      scope.before ? lt(matches.completedAt, scope.before) : undefined,
+      scope.excludeMatchId ? ne(matches.id, scope.excludeMatchId) : undefined,
       scope.userIds ? inArray(matchPlayerStats.userId, [...scope.userIds]) : undefined));
   const context = await loadStatsContext(tx, {}, { matchIds: candidates.map((row) => row.id) });
   const refs = await loadCurrentProjectionRefs(tx, context);

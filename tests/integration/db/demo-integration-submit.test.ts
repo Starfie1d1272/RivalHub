@@ -31,6 +31,7 @@ import { dakStableScoreboardValues, submitRivalHubEvidence } from "../../../src/
 import { recordGameplaySteamIdentityInTx } from "../../../src/lib/identity/gameplay-steam";
 import { getCurrentStatsSelectionInTx, getLongTeamCareerDetail, getPlayerCareerDetail, getPlayerCareerPerformances, getTournamentTeamDetail, getTournamentMapDetail, getTournamentPerformancePlayers, getTournamentPlayerDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
 import { adaptStatsEvidence } from "../../../src/lib/stats/evidence-adapter";
+import { loadLineupCareers } from "../../../src/lib/matches/lineup-comparison-query";
 import { getStatsLeaderboard } from "../../../src/lib/stats/leaderboard-query";
 import { getVerifiedPlayerStatsBySeason } from "../../../src/lib/stats/public-query";
 import { STATISTICS_PROJECTION_VERSION } from "../../../src/lib/stats/projection-version";
@@ -995,6 +996,20 @@ describe("DAK evidence submit persistence", () => {
         expect(stableNumbers(career.performance)).toEqual(stableNumbers(individual.performance));
         expect({ maps: career.maps, rounds: career.rounds }).toEqual({ maps: individual.summary.maps, rounds: individual.summary.rounds });
       }
+
+      // Prematch scouting shares the scoreboard aggregation and historical population.
+      queryLog.length = 0;
+      const comparison = await loadLineupCareers(userIds, randomUUID(), new Date(now.getTime() + 1), observedDatabase);
+      expect(comparison).toHaveLength(userIds.length);
+      expect(queryLog.some(query => query.includes('"facts"') || query.includes('"payload"'))).toBe(false);
+      console.info(JSON.stringify({ scenario: "lineup-comparison", queries: queryLog.length, players: comparison.length, dtoBytes: Buffer.byteLength(JSON.stringify(comparison)), cache: "uncached local PostgreSQL" }));
+      const firstCareer = allTimeCareer.scoreboard[0]!;
+      expect(comparison.find(row => row.userId === userIds[0])).toMatchObject({ maps: firstCareer.maps, rounds: firstCareer.rounds, rating: firstCareer.avgRating, adr: firstCareer.avgAdr, kpr: firstCareer.kpr, kast: firstCareer.kast, firstKill: firstCareer.fkpr, trade: firstCareer.tradeKpr });
+      // A match ending exactly at the cutoff cannot leak into its own preview.
+      expect(await loadLineupCareers(userIds, randomUUID(), now, observedDatabase)).toEqual([]);
+      const withoutCurrent = await loadLineupCareers(userIds, ids.careerMatch, new Date(now.getTime() + 1), observedDatabase);
+      expect(withoutCurrent.every(row => row.maps === 1)).toBe(true);
+      expect(await loadLineupCareers([], ids.match, new Date(), observedDatabase)).toEqual([]);
 
       const eventCareer = await getPlayerCareerDetail({ playerId: userIds[0]!, eventSlug: ids.season }, observedDatabase);
       const tournamentCareer = await checkDetailProjection("player-detail-one-map", () => getTournamentPlayerDetail({ playerId: userIds[0]!, seasonId: ids.season }, observedDatabase), true);

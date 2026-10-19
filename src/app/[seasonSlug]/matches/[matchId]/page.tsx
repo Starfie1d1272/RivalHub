@@ -40,6 +40,9 @@ import { MATCH_FORMAT_LABELS, SIDE_LABELS } from "@/types/match";
 import { TimeProposalHistory } from "@/components/matches/TimeProposalHistory";
 import { MatchTimeNegotiation } from "@/components/matches/MatchTimeNegotiation";
 import { MatchRosterView } from "@/components/matches/MatchRosterView";
+import { MatchLineupComparison } from "@/components/matches/MatchLineupComparison";
+import { lineupComparisonCutoff, resolveLineup } from "@/lib/matches/lineup-comparison";
+import { getLineupCareers } from "@/lib/matches/lineup-comparison-query";
 import { MatchRosterForm } from "@/components/matches/MatchRosterForm";
 import { VetoView } from "@/components/matches/VetoView";
 import { MatchMapProfile } from "@/components/matches/MatchMapProfile";
@@ -143,6 +146,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
         userId: users.id,
         avatarUrl: steamProfiles.avatarUrl,
         isCurrent: eventRosterMembers.isCurrent,
+        isPrimaryStarter: eventRosterMembers.isPrimaryStarter,
       })
       .from(eventRosterMembers)
       .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
@@ -250,6 +254,20 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
   const teamBRoster: RosterPlayer[] | null = rosterB
     ? buildRoster(rosterB, allTeamMembers, match.entryBId)
     : null;
+
+  const allowExpected = match.status === "scheduled" && !match.startedAt && !match.gameplayStartedAt;
+  const registeredLineup = (entryId: string) => allTeamMembers.filter((member) => member.teamId === entryId && member.isCurrent)
+    .map((member) => ({ userId: member.userId, displayName: member.displayName, personaName: member.personaName,
+      perfectName: member.perfectName, avatarUrl: member.avatarUrl, isPrimaryStarter: member.isPrimaryStarter, isStarter: member.isPrimaryStarter }));
+  const lineupA = resolveLineup(teamARoster, registeredLineup(match.entryAId), allowExpected);
+  const lineupB = resolveLineup(teamBRoster, registeredLineup(match.entryBId), allowExpected);
+  const comparisonCutoff = lineupComparisonCutoff(match);
+  const lineupCareers = !isFinished && (allowExpected || comparisonCutoff)
+    ? await readOptionalPublicStats("match-lineup-comparison", () => getLineupCareers(
+      [...new Set([...(lineupA.players ?? []), ...(lineupB.players ?? [])]
+        .filter((player) => player.isStarter).flatMap((player) => player.userId ? [player.userId] : []))].sort(),
+      match.id, comparisonCutoff?.toISOString() ?? null,
+    )) : [];
 
   // MVP 投票 + 整场汇总数据（已结束比赛）
   let mvpCandidates: {
@@ -490,12 +508,13 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
         <PreMatchContext phase={phase} currentMapId={publicContext.currentMapId}>
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
-            <Panel contentClassName="p-4">
-              <MatchRosterView entryAId={match.entryAId} entryBId={match.entryBId}
-                teamAName={teamA?.name ?? "队伍 A"}
-                teamARoster={teamARoster}
-                teamBName={teamB?.name ?? "队伍 B"}
-                teamBRoster={teamBRoster}
+            <Panel contentClassName="p-0 overflow-hidden">
+              <MatchLineupComparison
+                a={{ entryId: match.entryAId, name: teamA?.name ?? "队伍 A", ...lineupA }}
+                b={{ entryId: match.entryBId, name: teamB?.name ?? "队伍 B", ...lineupB }}
+                careers={lineupCareers ?? []}
+                historical={comparisonCutoff !== null}
+                unavailable={lineupCareers === null}
               />
             </Panel>
           </section>
