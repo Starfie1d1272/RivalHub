@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.19.4]
+
+### Fixed
+
+- 参赛管理默认展示待审核、需补正与资格异常；正赛实力参考按正式参赛队及最新调整名单重新排序。
+- 恢复 Play-in 淘汰选手在转会窗口内自主退出原赛事归属并加入晋级队伍的能力，包括原赛事负责人；保留历史名单与赛果，并允许没有其他进行中赛事的淘汰队伍正常解散。
+- 冠军竞猜在 Play-in 完成、正式正赛队伍确定后自动开放；赛事击杀王独立等待正式名单冻结。两者在正赛首场 BP 或比赛开始时锁盘，阶段积分仍按阶段启动发放。
+
 ## [2.19.3]
 
 ### Fixed
@@ -3071,6 +3079,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.19.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.3...v2.19.4
 [2.19.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.2...v2.19.3
 [2.19.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.1...v2.19.2
 [2.19.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.0...v2.19.1
