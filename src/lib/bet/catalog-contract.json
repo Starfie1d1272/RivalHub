@@ -5,6 +5,10 @@
     "bo3BpPresence": {
       "readerVersion": 1,
       "publisherVersion": 1
+    },
+    "eventBeforeSeeds": {
+      "readerVersion": 1,
+      "publisherVersion": 0
     }
   }
 }

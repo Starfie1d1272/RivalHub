@@ -52,10 +52,11 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
   const bpMarkets=await tx.select().from(markets).where(eq(markets.seasonId,seasonId)).then(rows=>rows.filter(m=>m.type.startsWith("veto_")));
   const publishesPresence=(catalogContract.capabilities?.bo3BpPresence?.publisherVersion ?? 0) >= 1;
   const existing=await tx.select().from(markets).where(and(eq(markets.seasonId,seasonId),eq(markets.type,"total_rounds")));
-  if (!f.event.started && f.event.entryIds.length) {
+  const earlyEventPublication = (catalogContract.capabilities?.eventBeforeSeeds?.publisherVersion ?? 0) >= 1;
+  if (!f.event.started && f.eventPublication.entrantsReady && (earlyEventPublication || f.eventPublication.seedsConfirmed)) {
     const subject: BetSubject={kind:"event",entryIds:f.event.entryIds,playerIds:f.event.playerIds};
     await createMarket(tx,seasonId,null,"champion",{...subject,playerIds:[]},f.event.entryIds.map(id=>({key:id,label:f.entries.find(e=>e.id===id)?.name??"队伍"})));
-    await createMarket(tx,seasonId,null,"top_fragger",subject,f.players.map(p=>({key:p.id,label:p.name})));
+    if (f.eventPublication.rostersReady) await createMarket(tx,seasonId,null,"top_fragger",subject,f.players.map(p=>({key:p.id,label:p.name})));
   }
   for (const m of f.official) {
     if (!m.majorStageRunId && !m.qualificationRunId || m.entryRound==="third_place" || m.isForfeit || m.status==="finished" || m.status==="cancelled") continue;
@@ -206,7 +207,7 @@ export async function stakeBetInTx(tx:TxDb,input:{seasonId:string;userId:string;
   const facts=await loadBetFacts(tx,input.seasonId);
   const market=await tx.query.betMarkets.findFirst({where:eq(markets.id,target.id)});
   if(program.paused || !market || market.lockedAt || marketIsLocked(betFactInput(market,facts)) || resolveBetFact(betFactInput(market,facts)).state!=="pending") invalid("盘口已锁定或暂停投入");
-  const restriction = betRosterRestriction(input.userId, market.subject.entryIds, facts.roster);
+  const restriction = betRosterRestriction(input.userId, market.subject, facts.roster);
   if (restriction) throw new AppError(ErrorCode.FORBIDDEN, restriction);
   const option=await tx.query.betOptions.findFirst({where:and(eq(options.id,input.optionId),eq(options.marketId,market.id))});
   if(!option) invalid("所选选项不属于此盘口");
