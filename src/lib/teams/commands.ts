@@ -1,3 +1,4 @@
+import { isEliminatedMajorEntryInTx } from "@/lib/major/eliminated-entry";
 import { and, count, desc, eq, gte, inArray, isNull, ne, sql } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 import type { AuditAction } from "@/lib/audit/presentation";
@@ -234,12 +235,14 @@ export async function transferTeamCaptainInTx(tx: TxDb, input: { teamId: string;
 export async function disbandTeamInTx(tx: TxDb, input: { teamId: string; actorUserId: string; actorId: string; emergencyOverride: boolean }): Promise<string> {
   const team = await lockTeam(tx, input.teamId);
   if (team.captainUserId !== input.actorUserId && !input.emergencyOverride) throw new AppError(ErrorCode.FORBIDDEN, "只有当前队长可以执行此操作。");
-  const [activeEntry] = await tx
-    .select({ id: competitionEntries.id })
+  const ongoingEntries = await tx
+    .select({ id: competitionEntries.id, season: seasons })
     .from(competitionEntries)
     .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
-    .where(and(eq(competitionEntries.teamId, team.id), inArray(competitionEntries.registrationStatus, ["draft", "submitted", "changes_requested", "waitlisted", "approved"]), sql`${seasons.status} NOT IN ('finished', 'archived')`))
-    .limit(1);
+    .where(and(eq(competitionEntries.teamId, team.id), inArray(competitionEntries.registrationStatus, ["draft", "submitted", "changes_requested", "waitlisted", "approved"]), sql`${seasons.status} NOT IN ('finished', 'archived')`));
+  const activeEntry = (await Promise.all(ongoingEntries.map(async entry =>
+    await isEliminatedMajorEntryInTx(tx, entry.season, entry.id) ? null : entry,
+  ))).find(entry => entry !== null);
   if (activeEntry && !input.emergencyOverride) throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍仍有进行中的赛事参赛条目，不能直接解散。");
   const now = new Date();
   await tx.update(teamMemberships).set({ status: "left", endedAt: now, endedReason: "disbanded", updatedAt: now }).where(and(eq(teamMemberships.teamId, team.id), isNull(teamMemberships.endedAt)));

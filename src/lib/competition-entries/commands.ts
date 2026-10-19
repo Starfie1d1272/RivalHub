@@ -47,6 +47,7 @@ import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/li
 import { assessEntryRosterReadiness } from "@/lib/competition-entries/readiness";
 import { normalizePerfectTeamId } from "@/lib/competition-entries/perfect-team-id";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
+import { canReleaseEliminatedParticipationInTx } from "@/lib/major/eliminated-entry";
 import { canSelfAdjustMajorRosterInTx } from "@/lib/major/roster-window";
 
 const editableStatuses = ["draft", "changes_requested"] as const;
@@ -341,6 +342,18 @@ export async function withdrawCompetitionEntryParticipationInTx(tx: TxDb, input:
     registrationStatus: competitionEntries.registrationStatus,
   }).from(competitionEntries).where(eq(competitionEntries.id, input.entryId));
   if (!entryScope) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。");
+  const [withdrawalSeason] = await tx.select().from(seasons).where(eq(seasons.id, entryScope.competitionId)).for("update");
+  if (!withdrawalSeason) throw new AppError(ErrorCode.NOT_FOUND, "赛事不存在。");
+  if (await canReleaseEliminatedParticipationInTx(tx, withdrawalSeason, input.entryId)) {
+    const entry = await lockEntry(tx, input.entryId);
+    const [participant] = await tx.select().from(competitionEntryParticipants).where(and(eq(competitionEntryParticipants.entryId, entry.id), eq(competitionEntryParticipants.userId, input.userId))).for("update");
+    if (!participant || participant.status !== "confirmed") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前没有可退出的已确认承诺。");
+    await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.participantId, participant.id));
+    const now = new Date();
+    await tx.update(competitionEntryParticipants).set({ status: "withdrawn", withdrawnAt: now, updatedAt: now }).where(eq(competitionEntryParticipants.id, participant.id));
+    await auditEntry(tx, { action: "competition_entry.participant.withdraw", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: participant.id, userId: input.userId, source: "eliminated_self_withdrawal" } });
+    return { seasonSlug: withdrawalSeason.slug };
+  }
   if (entryScope.representativeUserId === input.userId) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先将赛事负责人交接给另一位已确认成员，再退出本届赛事。");
   const startsRosterChange = entryScope.registrationStatus === "approved";
   if (startsRosterChange) {

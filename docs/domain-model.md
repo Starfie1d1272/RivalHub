@@ -169,6 +169,8 @@ approved CompetitionEntry candidates
 
 公开展示区分已确认席位与名单变更审核：已有 approved revision 的 Entry 进入 changes_requested / submitted 时，继续保留公开队伍身份和正赛席位，阵容读取上一份 approved revision。尚未审核的 current revision 不公开；首次报名草稿、拒绝和退出仍受原可见性条件限制。名单变更的资格复核与开赛门禁保持独立。
 
+Qualification 正式完成且 Main Event entrant set 完整后，淘汰 Entry 的已确认选手可在最终名单调整截止前自主释放本届 active claim。该个人退出只更新 participation 与审计，不重开原 Entry 审核、不修改历史 revision/EventRoster/比赛；历史赛事负责人也可退出，无须交接已结束 Entry 的负责人。晋级队的阵容编辑、邀请确认和资格审核继续使用原窗口。长期 Team 成员/队长关系独立；已淘汰 Entry 不再阻止长期 Team 解散，其他仍进行中的 Entry 仍阻止普通解散。
+
 `major_stage_runs` 是已启动阶段的运行时身份并冻结该阶段需要的规则、entrant 和 eligibility context；`major_stage_entrants` 是阶段参与者真相。后续推进依赖 StageRun + 已完成比赛，而不是 UI standings。
 
 Managed Major 的唯一 profile owner 从保存的 StagePlan 识别 Major-24 或 Major-32；默认模板继续使用 Major-32。报名阶段只有在未创建 Qualification run、正赛 entrants/seeds/StageRun 且未锁定赛前事实时，才能通过受控 owner 更新 profile。开赛时 StagePlan 随 StageRun 冻结，阶段转换、种子批次、开赛预览和最终名次都从该 frozen plan 派生，不从 mutable Season 配置或展示文字推断。
