@@ -167,6 +167,8 @@ approved CompetitionEntry candidates
 
 已批准 Entry 只是候选；Qualification 的预排名保存在独立 run entrant 中，正式 entrant set、EventRoster、系统种子建议和管理员最终 seed 都是不同事实。报名截止与最终名单锁定不同：报名截止/Qualification 期间临时关闭自助名单调整，Qualification 完成后仅最终 entrant 可在最终截止前重新调整。`major_prestart_states.main_event_planned_start_at` 是可审计的运营计划，不是实际 StageRun 开始。系统建议 snapshot 冻结其输入与 provenance，不能因之后查看排序或人工调整而重算；最终 seed 由独立 seed owner 保存。
 
+公开展示区分已确认席位与名单变更审核：已有 approved revision 的 Entry 进入 changes_requested / submitted 时，继续保留公开队伍身份和正赛席位，阵容读取上一份 approved revision。尚未审核的 current revision 不公开；首次报名草稿、拒绝和退出仍受原可见性条件限制。名单变更的资格复核与开赛门禁保持独立。
+
 `major_stage_runs` 是已启动阶段的运行时身份并冻结该阶段需要的规则、entrant 和 eligibility context；`major_stage_entrants` 是阶段参与者真相。后续推进依赖 StageRun + 已完成比赛，而不是 UI standings。
 
 Managed Major 的唯一 profile owner 从保存的 StagePlan 识别 Major-24 或 Major-32；默认模板继续使用 Major-32。报名阶段只有在未创建 Qualification run、正赛 entrants/seeds/StageRun 且未锁定赛前事实时，才能通过受控 owner 更新 profile。开赛时 StagePlan 随 StageRun 冻结，阶段转换、种子批次、开赛预览和最终名次都从该 frozen plan 派生，不从 mutable Season 配置或展示文字推断。

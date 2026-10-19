@@ -8,7 +8,7 @@ import { competitionEntries, majorFinalResults, majorStageRuns, matches, steamPr
 import { loadStageBracketViews, resolveFinalBracketNodeId } from "@/lib/bracket";
 import { parseMajorFinalPlacementGroups } from "@/lib/major/placement";
 import { getManagedMajorProfileFromRunSnapshot } from "@/lib/major/standard";
-import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
+import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
 import { resolvePublicStagePlan } from "@/lib/seasons/public-stage";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import type { PublicSeason } from "@/lib/data/public-seasons";
@@ -19,7 +19,7 @@ export async function getPublicSeasonResults(season: PublicSeason) {
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
     db.select({ id: tournamentHonors.id, label: tournamentHonors.label, type: tournamentHonors.type, state: tournamentHonors.state, entryId: tournamentHonors.entryId, userId: tournamentHonors.userId, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
       .from(tournamentHonors).leftJoin(users, eq(users.id, tournamentHonors.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(eq(tournamentHonors.seasonId, season.id)),
-    db.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition())),
+    db.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryIdentityCondition())),
     loadOfficialMatchRows(and(eq(matches.seasonId, season.id), eq(matches.status, "finished"))!).orderBy(asc(matches.completedAt)),
     season.competitionTemplate === "major" ? db.select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot }).from(majorStageRuns).where(eq(majorStageRuns.seasonId, season.id)) : [],
   ]);

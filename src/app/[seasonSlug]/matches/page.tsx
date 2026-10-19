@@ -4,7 +4,7 @@ import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { loadPublicMatchContexts } from "@/lib/matches/public-phase";
 import { MatchContextRefresh } from "@/components/matches/MatchContextRefresh";
-import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
+import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { and, eq, asc } from "drizzle-orm";
@@ -44,7 +44,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
 
   const [allTeams, allMatchesRaw, finalResult, stagePresentation, qualificationRun] = await Promise.all([
     db.query.competitionEntries.findMany({
-      where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition()),
+      where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryIdentityCondition()),
       orderBy: [asc(competitionEntries.formationOrder)],
     }),
     db.query.matches.findMany({

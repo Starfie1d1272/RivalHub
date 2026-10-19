@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, count, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
 import {
   competitionEntries,
   competitionEntryRosterMembers,
@@ -212,19 +213,19 @@ function loadMajorPublicParticipantDirectoryFull(season: MajorPublicParticipantS
       teamId: competitionEntries.teamId,
     })
     .from(competitionEntries)
-    .where(and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "approved")))
+    .where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryIdentityCondition()))
     .orderBy(asc(competitionEntries.formationOrder), asc(competitionEntries.id)));
 }
 
 function loadMajorPublicParticipantDirectoryIds(season: MajorPublicParticipantSeason) {
   return loadMajorPublicParticipantDirectoryWithEntries(season, db
-    .select({ id: competitionEntries.id })
+    .select({ id: competitionEntries.id, registrationStatus: competitionEntries.registrationStatus })
     .from(competitionEntries)
-    .where(and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "approved")))
+    .where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryIdentityCondition()))
     .orderBy(asc(competitionEntries.formationOrder), asc(competitionEntries.id)));
 }
 
-async function loadMajorPublicParticipantDirectoryWithEntries<T extends { id: string }>(
+async function loadMajorPublicParticipantDirectoryWithEntries<T extends { id: string; registrationStatus: string }>(
   season: MajorPublicParticipantSeason,
   approvedEntriesQuery: Promise<T[]>,
 ) {
@@ -245,6 +246,7 @@ async function loadMajorPublicParticipantDirectoryWithEntries<T extends { id: st
   ]);
 
   const approvedEntryIds = approvedEntries.map((entry) => entry.id);
+  const amendingEntryIds = approvedEntries.filter((entry) => entry.registrationStatus !== "approved").map((entry) => entry.id);
   const officialEntryIds = entrantRefs.map((entrant) => entrant.entryId);
   const eventRosterFacts = officialEntryIds.length
     ? await db.select({ entryId: eventRosters.entryId, status: eventRosters.status })
@@ -264,7 +266,7 @@ async function loadMajorPublicParticipantDirectoryWithEntries<T extends { id: st
     ? officialEntryIds.filter((entryId) => approvedEntryIdSet.has(entryId))
     : approvedEntryIds;
   const presentation = presentMajorPublicParticipantPhase(lifecycle.phase);
-  return { entrantCapacity, approvedEntries, approvedEntryIds, officialEntryIds, prestartState, eventRosterFacts, lifecycle, visibleEntryIds, presentation };
+  return { entrantCapacity, approvedEntries, approvedEntryIds, amendingEntryIds, officialEntryIds, prestartState, eventRosterFacts, lifecycle, visibleEntryIds, presentation };
 }
 
 function approvedRosterQuery(entryIds: string[]) {
@@ -304,18 +306,19 @@ async function loadMajorPublicParticipantState(
   season: MajorPublicParticipantSeason,
   options: { entryId?: string } = {},
 ): Promise<MajorPublicParticipantState> {
-  const { entrantCapacity, approvedEntries, approvedEntryIds, officialEntryIds, prestartState, eventRosterFacts, lifecycle, visibleEntryIds, presentation } = await loadMajorPublicParticipantDirectory(season);
+  const { entrantCapacity, approvedEntries, approvedEntryIds, amendingEntryIds, officialEntryIds, prestartState, eventRosterFacts, lifecycle, visibleEntryIds, presentation } = await loadMajorPublicParticipantDirectory(season);
   const officialEntryIdSet = new Set(officialEntryIds);
+  const amendingEntryIdSet = new Set(amendingEntryIds);
   const lifecycleEntryIds = options.entryId
     ? approvedEntryIds.filter((entryId) => entryId === options.entryId)
     : approvedEntryIds;
   // Match the roster source consumed below, including approved teams that were
   // not selected and remain accessible through their individual detail pages.
   const eventMemberEntryIds = lifecycle.officialSetComplete
-    ? lifecycleEntryIds.filter((entryId) => officialEntryIdSet.has(entryId))
+    ? lifecycleEntryIds.filter((entryId) => officialEntryIdSet.has(entryId) && !amendingEntryIdSet.has(entryId))
     : [];
   const approvedMemberEntryIds = lifecycle.officialSetComplete
-    ? lifecycleEntryIds.filter((entryId) => !officialEntryIdSet.has(entryId))
+    ? lifecycleEntryIds.filter((entryId) => !officialEntryIdSet.has(entryId) || amendingEntryIdSet.has(entryId))
     : lifecycleEntryIds;
 
   // Roster membership is an event fact; a later user merge must not erase it from the public record.
@@ -355,7 +358,8 @@ async function loadMajorPublicParticipantState(
   const requestedEntries = approvedEntries.filter((entry) => lifecycleEntryIds.includes(entry.id));
   const teams = requestedEntries.map((entry) => {
     const isOfficial = lifecycle.officialSetComplete && officialEntryIdSet.has(entry.id);
-    const roster = isOfficial
+    const isAmending = amendingEntryIdSet.has(entry.id);
+    const roster = isOfficial && !isAmending
       ? (eventMembersByEntryId.get(entry.id) ?? [])
       : (approvedMembersByEntryId.get(entry.id) ?? []);
     const seed = isOfficial ? (seedByEntryId.get(entry.id) ?? null) : null;
@@ -397,7 +401,7 @@ async function loadMajorPublicParticipantState(
       },
       participation,
       roster: roster.map(publicRosterMember),
-      rosterLabel: isOfficial
+      rosterLabel: isOfficial && !isAmending
         ? lifecycle.phase === "rosters_frozen" ? "最终参赛名单" : "当前参赛名单"
         : "已审核报名名单",
       rosterStatus: isOfficial ? (eventRosterByEntryId.get(entry.id)?.status ?? null) : null,
@@ -438,13 +442,17 @@ function overviewFromState(state: MajorPublicParticipantState): MajorPublicParti
 export async function getMajorPublicParticipantOverview(
   season: MajorPublicParticipantSeason,
 ): Promise<MajorPublicParticipantOverview> {
-  const { entrantCapacity, approvedEntryIds, officialEntryIds, lifecycle, visibleEntryIds, presentation } = await loadMajorPublicParticipantDirectory(season, true);
+  const { entrantCapacity, approvedEntryIds, amendingEntryIds, officialEntryIds, lifecycle, visibleEntryIds, presentation } = await loadMajorPublicParticipantDirectory(season, true);
   // Count the same roster occurrences as the detailed view, including merged users
   // and substitutes. Never transfer identities or avatars just to display a count.
+  const amending = new Set(amendingEntryIds);
+  const eventIds = lifecycle.officialSetComplete ? visibleEntryIds.filter((id) => !amending.has(id)) : [];
+  const approvedIds = lifecycle.officialSetComplete ? visibleEntryIds.filter((id) => amending.has(id)) : visibleEntryIds;
+  const rosterQuery = eventIds.length && approvedIds.length
+    ? eventRosterQuery(eventIds).unionAll(approvedRosterQuery(approvedIds))
+    : eventIds.length ? eventRosterQuery(eventIds) : approvedRosterQuery(approvedIds);
   const [row] = visibleEntryIds.length
-    ? await (lifecycle.officialSetComplete
-      ? db.select({ value: count() }).from(eventRosterQuery(visibleEntryIds).as("visible_roster"))
-      : db.select({ value: count() }).from(approvedRosterQuery(visibleEntryIds).as("visible_roster")))
+    ? await db.select({ value: count() }).from(rosterQuery.as("visible_roster"))
     : [];
   return {
     phase: lifecycle.phase, presentation, entrantCapacity,

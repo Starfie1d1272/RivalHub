@@ -1,3 +1,7 @@
+import { and, eq } from "drizzle-orm";
+import { db } from "../../../src/db/client";
+import { competitionEntries } from "../../../src/db/schema";
+import { publicCompetitionEntryIdentityCondition } from "../../../src/lib/competition-entries/public-visibility";
 import { getParticipantSummary } from "../../../src/lib/participants/summary";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
@@ -464,6 +468,55 @@ describe("Major public participant read model PostgreSQL integration", () => {
       await expectOverviewMatches(fixture.season);
       expect(await getParticipantSummary(fixture.season)).toEqual({ count: 159, hasPlayers: true });
       await pool.query('UPDATE event_roster_members SET is_current = true WHERE event_roster_id = $1 AND user_id = $2', [fixture.eventRosterIds[0], fixture.entries[0]!.userIds[1]]);
+      // A previously approved team keeps its seat during an amendment. The
+      // current draft and unconfirmed event roster are not the public source.
+      const amended = fixture.entries[0]!;
+      const draftRevisionId = randomUUID();
+      const amendmentClient = await pool.connect();
+      try {
+        await amendmentClient.query("BEGIN");
+        await amendmentClient.query("SET CONSTRAINTS ALL DEFERRED");
+        await amendmentClient.query("INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by) VALUES ($1, $2, 2, 'draft', $3)", [draftRevisionId, amended.entryId, ACTOR]);
+        await amendmentClient.query("INSERT INTO competition_entry_roster_members (id, revision_id, participant_id, user_id, is_primary_starter) VALUES ($1, $2, $3, $4, true)", [randomUUID(), draftRevisionId, amended.participantIds[5], amended.userIds[5]]);
+        await amendmentClient.query("UPDATE competition_entries SET registration_status = 'changes_requested', current_roster_revision_id = $2 WHERE id = $1", [amended.entryId, draftRevisionId]);
+        await amendmentClient.query("UPDATE event_rosters SET status = 'preparing', confirmed_at = NULL, confirmed_by = NULL WHERE id = $1", [fixture.eventRosterIds[0]]);
+        await amendmentClient.query("COMMIT");
+      } catch (error) {
+        await amendmentClient.query("ROLLBACK");
+        throw error;
+      } finally {
+        amendmentClient.release();
+      }
+      try {
+        for (const status of ["changes_requested", "submitted"]) {
+          await pool.query("UPDATE competition_entries SET registration_status = $1, current_roster_revision_id = $2 WHERE id = $3", [status, draftRevisionId, amended.entryId]);
+          const pending = await expectRosterSources(() => getMajorPublicParticipantSummary(fixture.season), [amended.entryId, ...unselectedIds], officialIds.slice(1));
+          expect(pending.phase).toBe("final_entrants");
+          expect(pending.teamCount).toBe(32);
+          expect(pending.teams.find((team) => team.entry.id === amended.entryId)?.roster).toEqual(candidate.teams.find((team) => team.entry.id === amended.entryId)?.roster);
+          await expectOverviewMatches(fixture.season);
+          expect(await db.query.competitionEntries.findMany({ where: and(eq(competitionEntries.id, amended.entryId), publicCompetitionEntryIdentityCondition()), columns: { id: true } })).toEqual([{ id: amended.entryId }]);
+        }
+        await pool.query("UPDATE competition_entries SET approved_roster_revision_id = NULL WHERE id = $1", [amended.entryId]);
+        expect(await getMajorPublicParticipantTeam(fixture.season, amended.entryId)).toBeNull();
+        expect(await db.query.competitionEntries.findMany({ where: and(eq(competitionEntries.id, amended.entryId), publicCompetitionEntryIdentityCondition()), columns: { id: true } })).toEqual([]);
+      } finally {
+        const cleanupClient = await pool.connect();
+        try {
+          await cleanupClient.query("BEGIN");
+          await cleanupClient.query("SET CONSTRAINTS ALL DEFERRED");
+          await cleanupClient.query("UPDATE competition_entries SET registration_status = 'approved', current_roster_revision_id = $2, approved_roster_revision_id = $2 WHERE id = $1", [amended.entryId, amended.revisionId]);
+          await cleanupClient.query("UPDATE event_rosters SET status = 'confirmed', confirmed_at = now(), confirmed_by = $2 WHERE id = $1", [fixture.eventRosterIds[0], ACTOR]);
+          await cleanupClient.query("DELETE FROM competition_entry_roster_members WHERE revision_id = $1", [draftRevisionId]);
+          await cleanupClient.query("DELETE FROM competition_entry_roster_revisions WHERE id = $1", [draftRevisionId]);
+          await cleanupClient.query("COMMIT");
+        } catch (error) {
+          await cleanupClient.query("ROLLBACK");
+          throw error;
+        } finally {
+          cleanupClient.release();
+        }
+      }
       const partialEntrant = await pool.query("DELETE FROM major_tournament_entrants WHERE id = $1 RETURNING *", [fixture.entrantIds[0]]);
       const partialSet = await expectRosterSources(() => getMajorPublicParticipantSummary(fixture.season), approvedIds, []);
       expect(partialSet.phase).toBe("approved_candidates");
