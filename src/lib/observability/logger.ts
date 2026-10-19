@@ -146,7 +146,7 @@ export function captureException(event: string, error: unknown, options: Capture
     const expected = classification.errorClass === "expected";
     const exception = expected ? undefined : extractSafeException(error, classification.pg ?? null);
     const safeContext = {
-      ...options.safeContext,
+      ...sanitizeSafeContext(options.safeContext),
       ...(options.provider ? { provider: options.provider } : {}),
       ...(classification.pg?.constraint ? { constraint: classification.pg.constraint } : {}),
       ...(classification.pg?.schema ? { schema: classification.pg.schema } : {}),
