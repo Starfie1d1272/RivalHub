@@ -1,10 +1,25 @@
-import { and, eq, inArray } from "drizzle-orm";
-import { competitionEntries, eventRosters } from "@/db/schema";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
+import { competitionEntries, competitionEntryRosterRevisions, eventRosters } from "@/db/schema";
 
 /** Public entry reads share the approved set. Rivals formation already creates
  * approved event-native entries; team applications must pass review first. */
 export function publicCompetitionEntryCondition() {
   return eq(competitionEntries.registrationStatus, "approved");
+}
+
+/** Retain an already-public entry identity while a replacement roster is reviewed.
+ * Consumers must read its approved revision, never the pending/current draft. */
+export function publicCompetitionEntryIdentityCondition() {
+  return or(
+    publicCompetitionEntryCondition(),
+    and(
+      inArray(competitionEntries.registrationStatus, ["changes_requested", "submitted"]),
+      sql`exists (select 1 from ${competitionEntryRosterRevisions} as public_approved_roster
+        where public_approved_roster.id = ${competitionEntries.approvedRosterRevisionId}
+          and public_approved_roster.entry_id = ${competitionEntries.id}
+          and public_approved_roster.status = 'approved')`,
+    ),
+  );
 }
 
 /** A public season player must belong to an approved entry with a confirmed

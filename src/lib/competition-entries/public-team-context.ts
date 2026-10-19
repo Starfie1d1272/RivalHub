@@ -13,7 +13,7 @@ import {
   steamProfiles,
   users,
 } from "@/db/schema";
-import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
+import { publicCompetitionEntryCondition, publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
 import {
   presentCompetitionEntryRegistration,
   type CompetitionEntryRegistrationStatus,
@@ -226,7 +226,7 @@ export async function getPublicEventTeamMatchFacts(
   ]));
   const opponents = opponentIds.length
     ? await db.query.competitionEntries.findMany({
-      where: and(inArray(competitionEntries.id, opponentIds), publicCompetitionEntryCondition()),
+      where: and(inArray(competitionEntries.id, opponentIds), publicCompetitionEntryIdentityCondition()),
       columns: { id: true, name: true },
     })
     : [];
