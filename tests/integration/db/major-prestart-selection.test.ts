@@ -8,6 +8,7 @@ import { selectMajorEntrantsAndSyncRostersInTx, lockMajorPrestartEntrantsInTx } 
 import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/competition-entries/roster-change";
 import { loadMajorPrestartPageData } from "../../../src/lib/admin/season-workspace/major-prestart";
 import { reviewCompetitionEntryInTx, submitCompetitionEntryInTx } from "../../../src/lib/competition-entries/commands";
+import { getTeamRegistrationReview, normalizeTeamRegistrationReviewQuery } from "../../../src/lib/registrations/admin-review";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
 import { checkStandardMajorCapabilities } from "../../../src/lib/competition/definition";
 import { createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
@@ -674,6 +675,37 @@ async function exerciseSuccessfulFreezeWorkflow(): Promise<void> {
 }
 
 describe("Major prestart final Entry selection", () => {
+  it("ranks the current entrant roster during correction and includes it in the default attention queue", async () => {
+    const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 4 });
+    const database = drizzle(pool, { schema });
+    let fixture: SelectionFixture | undefined;
+    try {
+      fixture = await prepareFixture(pool);
+      await database.transaction(tx => selectMajorEntrantsAndSyncRostersInTx(tx, {
+        seasonId: fixture!.seasonId, competitionEntryIds: [fixture!.entryB.entryId], actorId: ACTOR,
+      }));
+      const members = [...fixture.entryB.userIds.slice(0, 4), fixture.entryB.userIds[5]!];
+      await prepareSubmittedRosterChange(database, fixture.entryB, members);
+      await database.transaction(tx => reviewCompetitionEntryInTx(tx, {
+        entryId: fixture!.entryB.entryId, decision: "changes_requested", reason: "补充资料", actorId: ACTOR,
+      }));
+      const [season] = await database.select().from(schema.seasons).where(eq(schema.seasons.id, fixture.seasonId));
+      const preview = await loadMajorPrestartPageData(season!);
+      expect(preview.management.mainEventStrengthPreview.teams).toHaveLength(1);
+      expect(preview.management.mainEventStrengthPreview.teams[0]).toMatchObject({ teamId: fixture.entryB.entryId, recommendationRank: 1, available: true });
+      expect(preview.management.mainEventStrengthPreview.teams[0]!.starters.map(member => member.userId).sort()).toEqual([...members].sort());
+      expect(preview.management.rankingRoster.findLast(row => row.entryId === fixture!.entryB.entryId)!.members.map(member => member.userId).sort()).toEqual([...members].sort());
+      const attention = await getTeamRegistrationReview(season!, normalizeTeamRegistrationReviewQuery({}));
+      expect(attention.rows.some(row => row.id === fixture!.entryB.entryId && row.status === "changes_requested")).toBe(true);
+      const submitted = await getTeamRegistrationReview(season!, normalizeTeamRegistrationReviewQuery({ status: "submitted" }));
+      expect(submitted.rows).toEqual([]);
+      expect(await readRoster(pool, fixture.entryB.entryId)).toMatchObject({ source: fixture.entryB.revisionId });
+    } finally {
+      if (fixture) await cleanup(pool, fixture);
+      await pool.end();
+    }
+  });
+
   it("materializes the approved roster, keeps selection atomic, reconciles new approvals, and fails closed after freeze", async () => {
     await exerciseSelectionWorkflow();
   });

@@ -46,6 +46,7 @@ const PARTICIPANT_STATUS: Record<ParticipantStatus, string> = {
 };
 
 const STATUS_OPTIONS = [
+  { value: "attention", label: "待处理" },
   { value: "submitted", label: "待审核" },
   { value: "approved", label: "已通过" },
   { value: "waitlisted", label: "候补" },
@@ -199,7 +200,7 @@ export function CompetitionEntryReviewList({
     {entries.length === 0 ? (
       <StatusBanner
         tone="info"
-        title={hasAnyRecords ? "没有符合当前筛选条件的报名" : draftCount > 0 ? "暂时没有队伍提交审核" : "暂无队伍提交审核"}
+        title={currentStatus === "attention" && !normalizedQuery.q && currentQualification === "all" ? "当前没有待处理报名" : hasAnyRecords ? "没有符合当前筛选条件的报名" : draftCount > 0 ? "暂时没有队伍提交审核" : "暂无队伍提交审核"}
         sub={hasAnyRecords ? "请调整搜索、状态或资格筛选。" : draftCount > 0 ? `已有 ${draftCount} 支队伍正在填写报名。` : startedCount > 0 ? "已开始的报名当前处于其它状态。" : "尚无队伍开始报名。"}
       />
     ) : <div className="space-y-5">{entries.map((entry) => {

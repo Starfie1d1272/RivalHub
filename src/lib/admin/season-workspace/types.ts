@@ -121,6 +121,7 @@ export interface MajorPrestartPageData {
     pendingReviewCount: number;
     initialPreliminaryOrderEntryIds: string[];
     strengthPreview: MajorPrestartStrengthPreview;
+    mainEventStrengthPreview: MajorPrestartStrengthPreview;
     rankingRoster: Array<{ entryId: string; members: Array<MajorStrengthStarter & { isPrimaryStarter: boolean }> }>;
     approvedCandidates: Array<{
       id: string;

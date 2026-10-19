@@ -34,7 +34,7 @@ export function MajorLiveRanking({ data }: { data: MajorPrestartManagementData }
 export function MajorPrestartManagement({ data }: { data: MajorPrestartManagementData }) {
   const [pending, startTransition] = useTransition();
   const rosterById = new Map(data.rankingRoster.map((row) => [row.entryId, row.members]));
-  const referenceById = new Map(data.strengthPreview.teams.map((team) => [team.teamId, team]));
+  const referenceById = new Map(data.mainEventStrengthPreview.teams.map((team) => [team.teamId, team]));
   const teams = data.entrants.map((entrant) => ({
     entryId: entrant.teamId,
     teamName: entrant.teamName,

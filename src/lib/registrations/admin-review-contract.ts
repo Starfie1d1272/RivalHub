@@ -6,7 +6,7 @@ export const SOLO_REGISTRATION_REVIEW_PAGE_SIZE = 25;
 
 export const TEAM_REGISTRATION_REVIEW_DEFAULTS = {
   q: "",
-  status: "submitted",
+  status: "attention",
   qualification: "all",
   sort: "oldest",
 } as const;
@@ -19,7 +19,7 @@ export const SOLO_REGISTRATION_REVIEW_DEFAULTS = {
 } as const;
 
 export type RegistrationReviewSearchParams = Record<string, string | string[] | undefined> | URLSearchParams;
-export type TeamRegistrationReviewStatus = "submitted" | "approved" | "waitlisted" | "changes_requested" | "rejected" | "withdrawn" | "all";
+export type TeamRegistrationReviewStatus = "attention" | "submitted" | "approved" | "waitlisted" | "changes_requested" | "rejected" | "withdrawn" | "all";
 export type TeamQualificationFilter = "all" | "ready" | "blocked";
 export type TeamRegistrationReviewSort = "oldest" | "newest_updated";
 export type SoloRegistrationReviewStatus = "pending" | "approved" | "rejected" | "waitlisted" | "all";
@@ -93,7 +93,7 @@ export interface TeamRegistrationReviewRow {
   id: string;
   name: string;
   source: "linked_team" | "event_native";
-  status: Exclude<TeamRegistrationReviewStatus, "all">;
+  status: Exclude<TeamRegistrationReviewStatus, "all" | "attention">;
   reviewReason: string | null;
   perfectTeamId: string | null;
   logoUrl: string | null;

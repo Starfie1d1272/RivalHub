@@ -165,7 +165,7 @@ approved CompetitionEntry candidates
 → start StageRun
 ```
 
-已批准 Entry 只是候选；Qualification 的预排名保存在独立 run entrant 中，正式 entrant set、EventRoster、系统种子建议和管理员最终 seed 都是不同事实。报名截止与最终名单锁定不同：报名截止/Qualification 期间临时关闭自助名单调整，Qualification 完成后仅最终 entrant 可在最终截止前重新调整。`major_prestart_states.main_event_planned_start_at` 是可审计的运营计划，不是实际 StageRun 开始。系统建议 snapshot 冻结其输入与 provenance，不能因之后查看排序或人工调整而重算；最终 seed 由独立 seed owner 保存。
+已批准 Entry 只是候选；Qualification 的预排名保存在独立 run entrant 中，正式 entrant set、EventRoster、系统种子建议和管理员最终 seed 都是不同事实。报名截止与最终名单锁定不同：报名截止/Qualification 期间临时关闭自助名单调整，Qualification 完成后仅最终 entrant 可在最终截止前重新调整。`major_prestart_states.main_event_planned_start_at` 是可审计的运营计划，不是实际 StageRun 开始。后台正赛实力参考仅对当前正式 entrant set 重新排序，名单未锁定时使用 current revision，待审核或需补正不阻止资料完整的队伍参与参考；锁定后使用冻结 EventRoster。报名阶段参考、历史 Qualification 预排名、正赛实时参考和最终 seed 分别表达各自阶段。系统建议 snapshot 冻结其输入与 provenance，不能因之后查看排序或人工调整而重算；最终 seed 由独立 seed owner 保存。
 
 公开展示区分已确认席位与名单变更审核：已有 approved revision 的 Entry 进入 changes_requested / submitted 时，继续保留公开队伍身份和正赛席位，阵容读取上一份 approved revision。尚未审核的 current revision 不公开；首次报名草稿、拒绝和退出仍受原可见性条件限制。名单变更的资格复核与开赛门禁保持独立。
 
