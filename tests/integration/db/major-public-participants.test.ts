@@ -479,7 +479,7 @@ describe("Major public participant read model PostgreSQL integration", () => {
         await amendmentClient.query("INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by) VALUES ($1, $2, 2, 'draft', $3)", [draftRevisionId, amended.entryId, ACTOR]);
         await amendmentClient.query("INSERT INTO competition_entry_roster_members (id, revision_id, participant_id, user_id, is_primary_starter) VALUES ($1, $2, $3, $4, true)", [randomUUID(), draftRevisionId, amended.participantIds[5], amended.userIds[5]]);
         await amendmentClient.query("UPDATE competition_entries SET registration_status = 'changes_requested', current_roster_revision_id = $2 WHERE id = $1", [amended.entryId, draftRevisionId]);
-        await amendmentClient.query("UPDATE event_rosters SET status = 'preparing' WHERE id = $1", [fixture.eventRosterIds[0]]);
+        await amendmentClient.query("UPDATE event_rosters SET status = 'preparing', confirmed_at = NULL, confirmed_by = NULL WHERE id = $1", [fixture.eventRosterIds[0]]);
         await amendmentClient.query("COMMIT");
       } catch (error) {
         await amendmentClient.query("ROLLBACK");
@@ -506,7 +506,7 @@ describe("Major public participant read model PostgreSQL integration", () => {
           await cleanupClient.query("BEGIN");
           await cleanupClient.query("SET CONSTRAINTS ALL DEFERRED");
           await cleanupClient.query("UPDATE competition_entries SET registration_status = 'approved', current_roster_revision_id = $2, approved_roster_revision_id = $2 WHERE id = $1", [amended.entryId, amended.revisionId]);
-          await cleanupClient.query("UPDATE event_rosters SET status = 'confirmed' WHERE id = $1", [fixture.eventRosterIds[0]]);
+          await cleanupClient.query("UPDATE event_rosters SET status = 'confirmed', confirmed_at = now(), confirmed_by = $2 WHERE id = $1", [fixture.eventRosterIds[0], ACTOR]);
           await cleanupClient.query("DELETE FROM competition_entry_roster_members WHERE revision_id = $1", [draftRevisionId]);
           await cleanupClient.query("DELETE FROM competition_entry_roster_revisions WHERE id = $1", [draftRevisionId]);
           await cleanupClient.query("COMMIT");
