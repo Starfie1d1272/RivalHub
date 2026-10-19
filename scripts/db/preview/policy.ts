@@ -71,7 +71,8 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   match_veto_appeals: "id timeout_incident_id submitted_by status resolution_scope resolved_by created_at resolved_at",
   match_commentators: "match_id user_id added_by_user_id added_at",
   post_match_reports: "match_id submitted_by_user_id submitted_at",
-  community_awards: "id season_id submitted_by_user_id name condition prize public_note status reviewed_by_user_id reviewed_at recipient_user_id outcome_note outcome_by_user_id outcome_at created_at updated_at",
+  community_awards: "id season_id submitted_by_user_id name condition prize public_note status reviewed_by_user_id reviewed_at recipient_policy recipient_limit settlement_policy settlement_stage_key result_version recipient_user_id outcome_note outcome_by_user_id outcome_at created_at updated_at",
+  community_award_recipients: "award_id user_id position",
   announcements: "id scope season_id type title body status requires_attention attention_until published_at created_by updated_by created_at updated_at",
   season_public_info: "id season_id rules_label rules_href created_at updated_at",
   community_groups: "id season_id label audience group_number qr_image_path join_url note status sort_order created_at updated_at",
@@ -127,6 +128,12 @@ type PreviewSchemaLifecycleTable = {
  * entries for a lagging source and rejects columns past their removal marker.
  */
 export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = [
+  { table: "community_award_recipients", introducedAt: "0090_yellow_blink" },
+  {
+    table: "community_awards",
+    columns: ["recipient_policy", "recipient_limit", "settlement_policy", "settlement_stage_key", "result_version"]
+      .map((name) => ({ name, introducedAt: "0090_yellow_blink" })),
+  },
   { table: "competition_qualification_drafts", introducedAt: "0072_petite_iron_man" },
   { table: "event_rosters", columns: [{ name: "eligibility_snapshot", introducedAt: "0072_petite_iron_man" }] },
   { table: "competition_qualification_runs", introducedAt: "0056_competition-qualification-playin", columns: [{ name: "eligibility_policy", introducedAt: "0072_petite_iron_man" }] },
@@ -358,7 +365,8 @@ export function exportQuery(table: string, source: PreviewPolicyInput = readExpe
   // Only public, final facts; pending private review evidence is not a preview seed.
   const filter = table === "education_verifications" ? " WHERE status = 'approved'"
     : table === "announcements" ? " WHERE status = 'published'"
-      : table === "community_awards" ? " WHERE status IN ('approved', 'awarded', 'not_awarded', 'cancelled')" : "";
+      : table === "community_awards" ? " WHERE status IN ('approved', 'awarded', 'not_awarded', 'cancelled')"
+        : table === "community_award_recipients" ? " WHERE EXISTS (SELECT 1 FROM public.community_awards a WHERE a.id = community_award_recipients.award_id AND a.status = 'awarded')" : "";
   return `SELECT ${expressions.join(", ")} FROM public.${quoteIdentifier(table)}${filter}`;
 }
 
