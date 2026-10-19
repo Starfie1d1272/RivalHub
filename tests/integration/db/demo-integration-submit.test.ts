@@ -29,7 +29,7 @@ import {
 } from "../../../src/lib/demo-integration/review";
 import { dakStableScoreboardValues, submitRivalHubEvidence } from "../../../src/lib/demo-integration/submit";
 import { recordGameplaySteamIdentityInTx } from "../../../src/lib/identity/gameplay-steam";
-import { getCurrentStatsSelectionInTx, getLongTeamCareerDetail, getPlayerCareerDetail, getTournamentTeamDetail, getTournamentMapDetail, getTournamentPerformancePlayers, getTournamentPlayerDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
+import { getCurrentStatsSelectionInTx, getLongTeamCareerDetail, getPlayerCareerDetail, getPlayerCareerPerformances, getTournamentTeamDetail, getTournamentMapDetail, getTournamentPerformancePlayers, getTournamentPlayerDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
 import { adaptStatsEvidence } from "../../../src/lib/stats/evidence-adapter";
 import { getStatsLeaderboard } from "../../../src/lib/stats/leaderboard-query";
 import { getVerifiedPlayerStatsBySeason } from "../../../src/lib/stats/public-query";
@@ -982,6 +982,19 @@ describe("DAK evidence submit persistence", () => {
       expect(selectedImportIds).not.toContain(ids.legacyImport);
       expect(selectedImportIds).not.toContain(conflictBeforePromotionId);
 
+
+      // Roster scouting must match individual careers across transfers without N+1 projection reads.
+      queryLog.length = 0;
+      const rosterCareers = await getPlayerCareerPerformances(userIds, observedDatabase);
+      const rosterProjectionReads = queryLog.filter((query) => /from "match_demo_stat_projections"/i.test(query) && query.includes('"facts"'));
+      console.info(JSON.stringify({ scenario: "lineup-career-batch", players: rosterCareers.length, queries: queryLog.length, projectionReads: rosterProjectionReads.length, maps: rosterCareers.map((career) => career.maps), dtoBytes: Buffer.byteLength(JSON.stringify(rosterCareers)), cache: "uncached local PostgreSQL; not provider billing or remote cache evidence" }));
+      expect(rosterProjectionReads).toHaveLength(1);
+      expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
+      for (const career of rosterCareers) {
+        const individual = await getPlayerCareerDetail({ playerId: career.playerId }, database);
+        expect(stableNumbers(career.performance)).toEqual(stableNumbers(individual.performance));
+        expect({ maps: career.maps, rounds: career.rounds }).toEqual({ maps: individual.summary.maps, rounds: individual.summary.rounds });
+      }
 
       const eventCareer = await getPlayerCareerDetail({ playerId: userIds[0]!, eventSlug: ids.season }, observedDatabase);
       const tournamentCareer = await checkDetailProjection("player-detail-one-map", () => getTournamentPlayerDetail({ playerId: userIds[0]!, seasonId: ids.season }, observedDatabase), true);

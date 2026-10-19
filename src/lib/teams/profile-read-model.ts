@@ -1,5 +1,7 @@
 import "server-only";
 
+import { getPublicLineupStyle } from "./lineup-style-query";
+
 import { getPublicEventTeamMatchFacts, type PublicEventTeamContext } from "@/lib/competition-entries/public-team-context";
 import { getPublicSeasonCatalog, type PublicSeason } from "@/lib/data/public-seasons";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
@@ -29,7 +31,8 @@ export async function getPublicLongTeamProfileReadModel(
   const completedMaps = performance?.official.maps.filter((map) => map.completedAt !== null && map.scoreA !== null && map.scoreB !== null) ?? [];
   const preview = performance ? aggregatePublicTeamMapProfile(entryIds, performance.official.matches, completedMaps) : undefined;
   const entriesBySeason = Map.groupBy(profile.entries, entry => entry.seasonId);
-  const [mapProfile, seasonCatalog, matchesBySeason] = await Promise.all([
+  const [lineupStyle, mapProfile, seasonCatalog, matchesBySeason] = await Promise.all([
+    readOptionalPublicStats("player_career", () => getPublicLineupStyle(profile.currentMembers)),
     getPublicTeamMapProfile(entryIds, profile.currentMembers.map((member) => member.userId), preview),
     getPublicSeasonCatalog(),
     Promise.all([...entriesBySeason].map(async ([seasonId, entries]) => {
@@ -62,6 +65,7 @@ export async function getPublicLongTeamProfileReadModel(
     });
   return {
     mode: "long" as const,
+    lineupStyle,
     profile,
     performance,
     statsUnavailable: performance === null,
@@ -86,13 +90,13 @@ export async function getPublicCompetitionEntryPerformanceReadModel(
   ));
   const completedMaps = performance?.official.maps.filter((map) => map.completedAt !== null && map.scoreA !== null && map.scoreB !== null) ?? [];
   const preview = performance ? aggregatePublicTeamMapProfile([event.entry.id], performance.official.matches.filter((match) => match.status === "finished"), completedMaps) : undefined;
-  const mapProfile = await getPublicTeamMapProfile(
-    [event.entry.id],
-    event.roster.map((member) => member.userId),
-    preview,
-  );
+  const [mapProfile, lineupStyle] = await Promise.all([
+    getPublicTeamMapProfile([event.entry.id], event.roster.map((member) => member.userId), preview),
+    readOptionalPublicStats("player_career", () => getPublicLineupStyle(event.roster)),
+  ]);
   return {
     mode: "event" as const,
+    lineupStyle,
     performance,
     statsUnavailable: performance === null,
     mapProfile,

@@ -29,7 +29,7 @@ async function TeamProfileContent({ params }: { params: Promise<{ slug: string }
 
   return (
     <PageLayout as="div" variant="wide" className="space-y-8">
-      <TeamPublicProfile team={model.profile} mapProfile={model.mapProfile} performance={model.performance} career={model.career} matches={model.matches} statsUnavailable={model.statsUnavailable} />
+      <TeamPublicProfile lineupStyle={model.lineupStyle} team={model.profile} mapProfile={model.mapProfile} performance={model.performance} career={model.career} matches={model.matches} statsUnavailable={model.statsUnavailable} />
     </PageLayout>
   );
 }
