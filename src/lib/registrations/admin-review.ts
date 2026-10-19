@@ -78,7 +78,7 @@ export function normalizeTeamRegistrationReviewQuery(input: RegistrationReviewSe
   const statusValue = readParam(input, "status");
   const qualificationValue = readParam(input, "qualification");
   const sortValue = readParam(input, "sort");
-  const status: TeamRegistrationReviewStatus = statusValue === "all" || TEAM_REVIEW_STATUSES.includes(statusValue as typeof TEAM_REVIEW_STATUSES[number])
+  const status: TeamRegistrationReviewStatus = statusValue === "attention" || statusValue === "all" || TEAM_REVIEW_STATUSES.includes(statusValue as typeof TEAM_REVIEW_STATUSES[number])
     ? statusValue as TeamRegistrationReviewStatus
     : TEAM_REGISTRATION_REVIEW_DEFAULTS.status;
   const qualification: TeamQualificationFilter = qualificationValue === "ready" || qualificationValue === "blocked" || qualificationValue === "all"
@@ -153,7 +153,7 @@ export async function getTeamRegistrationReview(
   const conditions = [
     eq(competitionEntries.competitionId, season.id),
     eq(users.status, "active"),
-    query.status === "all"
+    (query.status === "all" || query.status === "attention")
       ? inArray(competitionEntries.registrationStatus, [...TEAM_REVIEW_STATUSES])
       : eq(competitionEntries.registrationStatus, query.status),
   ];
@@ -218,11 +218,15 @@ export async function getTeamRegistrationReview(
   const projectedRows = await projectTeamRegistrationRows(season, entries, true);
   const reviewRows = projectedRows.map((row) => ({
     ...row,
-    status: row.status as Exclude<TeamRegistrationReviewStatus, "all">,
+    status: row.status as Exclude<TeamRegistrationReviewStatus, "all" | "attention">,
   }));
+  const statusRows = query.status === "attention"
+    ? reviewRows.filter((row) => row.status === "submitted" || row.status === "changes_requested" || row.status === "waitlisted"
+      || (row.status === "approved" && (row.qualificationFindings.length > 0 || row.members.some((member) => member.readiness?.ready === false))))
+    : reviewRows;
   const filteredRows = query.qualification === "all"
-    ? reviewRows
-    : reviewRows.filter((row) => (row.qualificationFindings.length === 0) === (query.qualification === "ready"));
+    ? statusRows
+    : statusRows.filter((row) => (row.qualificationFindings.length === 0) === (query.qualification === "ready"));
   const total = filteredRows.length;
   const totalPages = Math.ceil(total / TEAM_REGISTRATION_REVIEW_PAGE_SIZE);
   const page = totalPages > 0 ? Math.min(query.page, totalPages) : 1;
@@ -338,7 +342,7 @@ async function projectTeamRegistrationRows(
       id: entry.id,
       name: entry.name,
       source: entry.source,
-      status: entry.status as Exclude<TeamRegistrationReviewStatus, "all">,
+      status: entry.status as Exclude<TeamRegistrationReviewStatus, "all" | "attention">,
       reviewReason: entry.reviewReason,
       perfectTeamId: normalizePerfectTeamId(entry.perfectTeamId),
       logoUrl: entry.logoUrl,

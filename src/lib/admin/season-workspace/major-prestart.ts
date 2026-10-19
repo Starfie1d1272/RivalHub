@@ -376,6 +376,46 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     };
     return { ...projectStrengthStarter({ userId: member.userId, label: member.label, input, breakdown }), isPrimaryStarter: member.isPrimaryStarter };
   };
+  // Current Main Event reference is scoped to its entrants, independently of
+  // the historical qualification order and the frozen final-seed snapshot.
+  const mainEventEntryIds = entrantRows.map((entrant) => entrant.teamId);
+  const currentMainEventMembers = state?.entrantsLockedAt || mainEventEntryIds.length === 0 ? [] : await db.select({
+    entryId: competitionEntries.id,
+    userId: competitionEntryRosterMembers.userId,
+    displayName: users.displayName,
+    perfectName: users.perfectName,
+    personaName: steamProfiles.personaName,
+    email: users.email,
+    isPrimaryStarter: competitionEntryRosterMembers.isPrimaryStarter,
+  }).from(competitionEntries)
+    .innerJoin(competitionEntryRosterMembers, eq(competitionEntryRosterMembers.revisionId, competitionEntries.currentRosterRevisionId))
+    .innerJoin(users, eq(competitionEntryRosterMembers.userId, users.id))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+    .where(inArray(competitionEntries.id, mainEventEntryIds));
+  const mainEventMembers = state?.entrantsLockedAt
+    ? rosterRows.map((member) => ({ ...member, entryId: entrantRows.find((entrant) => entrant.id === member.entrantId)!.teamId }))
+    : currentMainEventMembers.map((member) => ({ ...member, label: getDisplayName(member) }));
+  const missingMainEventFacts = [...new Set(mainEventMembers.map((member) => member.userId))].filter((id) => !qualificationFacts.has(id));
+  if (competitiveProfile && missingMainEventFacts.length > 0) {
+    const facts = await loadParticipantQualificationFacts(missingMainEventFacts, {
+      platform: competitiveProfile.platform,
+      fallbackPlatform: competitiveProfile.fallbackConversion?.sourcePlatform,
+      includeCompetitiveFacts: true,
+    });
+    for (const [id, fact] of facts) qualificationFacts.set(id, fact);
+  }
+  const mainEventStrengthPreview = competitiveProfile ? projectLiveStrengthPreview(buildTeamSeedRecommendations(
+    entrantRows.map((entrant) => ({
+      teamId: entrant.teamId,
+      teamName: entrant.teamName ?? entrant.teamId,
+      starters: mainEventMembers.filter((member) => member.entryId === entrant.teamId && member.isPrimaryStarter).map((member) => {
+        const fact = qualificationFacts.get(member.userId);
+        return fact ? toPlayerStrengthInput(fact, competitiveProfile) : {
+          userId: member.userId, label: member.label,
+          historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null,
+        };
+      }),
+    })), competitiveProfile), competitiveProfile) : { ...strengthPreview, teams: [] };
   const frozenTeams = frozenTeamsForSnapshot(entrantRows, rosterRows);
   const frozenSetFingerprint = buildFrozenSetFingerprint(season.id, frozenTeams);
   const recommendationStatus = getSeedRecommendationSnapshotStatus({ snapshot, seasonId: season.id, frozenSetFingerprint });
@@ -476,11 +516,12 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       pendingReviewCount: pendingReviews.length,
       initialPreliminaryOrderEntryIds,
       strengthPreview,
+      mainEventStrengthPreview,
       rankingRoster: [
         ...candidateEntries.map((entry) => ({ entryId: entry.id, members: (approvedMembersByEntryId.get(entry.id) ?? [])
           .map(rosterStrength).sort((a, b) => Number(b.isPrimaryStarter) - Number(a.isPrimaryStarter)) })),
-        ...entrantRows.map((entrant) => ({ entryId: entrant.teamId, members: rosterRows
-          .filter((member) => member.entrantId === entrant.id)
+        ...entrantRows.map((entrant) => ({ entryId: entrant.teamId, members: mainEventMembers
+          .filter((member) => member.entryId === entrant.teamId)
           .map(rosterStrength).sort((a, b) => Number(b.isPrimaryStarter) - Number(a.isPrimaryStarter)) })),
       ],
       approvedCandidates: candidateEntries.map((entry) => ({
