@@ -24,7 +24,7 @@ export function SeasonPrestartCapabilityPanel({
 
   return (
     <div className="space-y-5">
-      <Marker sub={`赛前工作区 · ${seasonName}`}>赛前流程</Marker>
+      <Marker sub={`开赛筹备 · ${seasonName}`}>开赛筹备</Marker>
       <Panel label="赛前入口">
         {links.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">本届暂无额外赛前操作。</p> : <div className="grid gap-3 sm:grid-cols-2">
           {links.map((link) => <Link key={link.href} href={link.href as never} className="border border-[var(--color-border)] p-3 transition-colors hover:bg-[var(--color-panel-hi)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"><span className="font-medium">{link.label} →</span><span className="mt-1 block text-sm text-[var(--color-fg-mid)]">{link.detail}</span></Link>)}

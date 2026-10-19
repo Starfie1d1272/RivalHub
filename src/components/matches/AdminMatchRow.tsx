@@ -16,6 +16,7 @@ export interface AdminMatchRowProps {
   teamBName: string;
   seasonSlug: string;
   stageName?: string | null;
+  returnTo?: string;
   commentary?: AdminMatchCommentaryAssignment;
 }
 
@@ -30,9 +31,10 @@ export function AdminMatchRow({
   seasonSlug,
   stageName,
   commentary,
+  returnTo,
 }: AdminMatchRowProps) {
   return (
-    <Panel
+    <div id={`match-${match.id}`} className="scroll-mt-4"><Panel
       contentClassName="p-4"
       className={cn(
         "space-y-3",
@@ -70,7 +72,7 @@ export function AdminMatchRow({
         </span>
         <span>{match.scheduledAt ? `排期：${formatCSTDateTime(match.scheduledAt)}` : "尚未排期"}</span>
         {match.ownership === "major_stage" ? <span>赛事阶段管理</span> : <span>手动比赛</span>}
-        {match.demoNeedsAttentionCount && match.demoNeedsAttentionCount > 0 && (
+        {(match.demoNeedsAttentionCount ?? 0) > 0 && (
           <span className="font-medium text-[var(--color-warn)]">
             Demo 数据需要处理 · {match.demoNeedsAttentionCount} 张地图
           </span>
@@ -79,13 +81,10 @@ export function AdminMatchRow({
 
       {commentary && <MatchCommentaryStatus matchId={match.id} assignment={commentary} />}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
-        <p className="text-xs text-[var(--color-fg-mid)]">
-          首发、BP、结果、赛后资料与恢复操作均在单场工作台完成。
-        </p>
+      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[var(--color-border)] pt-3">
         <div className="flex items-center gap-3">
           <Link
-            href={`/admin/${seasonSlug}/matches/${match.id}`}
+            href={`/admin/${seasonSlug}/matches/${match.id}${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`}
             className="text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
           >
             进入比赛工作台 →
@@ -100,6 +99,6 @@ export function AdminMatchRow({
           </Link>
         </div>
       </div>
-    </Panel>
+    </Panel></div>
   );
 }

@@ -7,5 +7,5 @@ import { getPlatformOperationsOverview } from "@/lib/admin/platform-operations/o
 export default async function PlatformOperationsAdminPage() {
   const admin = await resolveAdminPageAccess(requireAdmin);
   if (!admin) return <AdminAccessDenied />;
-  return <PlatformOperationsOverview data={await getPlatformOperationsOverview()} />;
+  return <PlatformOperationsOverview canManageUsers={admin.role === "super_admin"} data={await getPlatformOperationsOverview()} />;
 }

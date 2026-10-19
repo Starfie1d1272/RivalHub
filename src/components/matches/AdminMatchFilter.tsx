@@ -22,6 +22,8 @@ interface TeamOption {
 interface AdminMatchFilterProps {
   stages: StageOption[];
   teams?: TeamOption[];
+  showStatus?: boolean;
+  showStage?: boolean;
 }
 
 const STATUS_OPTIONS = [
@@ -32,7 +34,7 @@ const STATUS_OPTIONS = [
   { value: "cancelled", label: "已取消" },
 ];
 
-export function AdminMatchFilter({ stages, teams }: AdminMatchFilterProps) {
+export function AdminMatchFilter({ stages, teams, showStatus = true, showStage = true }: AdminMatchFilterProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -42,7 +44,7 @@ export function AdminMatchFilter({ stages, teams }: AdminMatchFilterProps) {
 
   function updateFilter(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
-    if (value === "all") {
+    if (value === "all" && key !== "status") {
       params.delete(key);
     } else {
       params.set(key, value);
@@ -53,7 +55,7 @@ export function AdminMatchFilter({ stages, teams }: AdminMatchFilterProps) {
 
   return (
     <div className="flex items-center gap-3 flex-wrap">
-      <Select value={currentStage} onValueChange={(v) => updateFilter("stage", v)}>
+      {showStage && <Select value={currentStage} onValueChange={(v) => updateFilter("stage", v)}>
         <SelectTrigger className="w-[140px]">
           <SelectValue placeholder="阶段筛选" />
         </SelectTrigger>
@@ -63,9 +65,9 @@ export function AdminMatchFilter({ stages, teams }: AdminMatchFilterProps) {
             <SelectItem key={s.key} value={s.key}>{s.name}</SelectItem>
           ))}
         </SelectContent>
-      </Select>
+      </Select>}
 
-      <Select value={currentStatus} onValueChange={(v) => updateFilter("status", v)}>
+      {showStatus && <Select value={currentStatus} onValueChange={(v) => updateFilter("status", v)}>
         <SelectTrigger className="w-[140px]">
           <SelectValue placeholder="状态筛选" />
         </SelectTrigger>
@@ -74,7 +76,7 @@ export function AdminMatchFilter({ stages, teams }: AdminMatchFilterProps) {
             <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
           ))}
         </SelectContent>
-      </Select>
+      </Select>}
 
       {teams && teams.length > 0 && (
         <Select value={currentTeam} onValueChange={(v) => updateFilter("team", v)}>

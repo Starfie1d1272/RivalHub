@@ -5,7 +5,7 @@ import type { CompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 import { readReopenedPostMatchIds } from "@/lib/postmatch/read";
 
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
@@ -30,8 +30,6 @@ import {
 } from "@/lib/matches/stage-views";
 import { calculateStageRoundRobinStandings } from "@/lib/matches/stage-standings";
 import { loadStageBracketEntrantIds } from "@/lib/bracket";
-import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
-import { loadQualificationSwissStageReadModel } from "@/lib/matches/qualification-stage-read-model";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { resolveMajorStagePlan } from "@/lib/major/run-snapshot";
 import { buildMajorRuntimeData } from "@/lib/admin/major-runtime";
@@ -69,6 +67,7 @@ async function loadDemoNeedsAttentionCounts(matchIds: readonly string[]): Promis
 
 export interface AdminMatchOverviewFilter {
   seasonSlug: string;
+  view?: "execution" | "schedule";
   stage?: string;
   status?: string;
   team?: string;
@@ -130,60 +129,70 @@ async function loadCommentaryEffectiveness(
     .filter(({ matches: effectiveMatches }) => effectiveMatches.length > 0);
 }
 
-/**
- * Season-level read model only. Detail tables (event roster, match roster,
- * veto, post-match and OCR) belong to the match workbench loader.
- */
-export async function loadAdminMatchOverview({
-  seasonSlug,
-  stage: filterStage,
-  status: filterStatus,
-  team: filterTeam,
-}: AdminMatchOverviewFilter): Promise<AdminMatchOverviewData | null> {
+/** Independent materials-view read; execution and scheduling do not need this report. */
+export async function loadAdminCommentaryEffectiveness(seasonId: string): Promise<AdminCommentaryEffectiveness[]> {
+  await requireSeasonAdmin(seasonId);
+  const completed = await db.query.matches.findMany({
+    where: and(officialMatchCondition(), eq(matches.seasonId, seasonId), eq(matches.status, "finished"), isNotNull(matches.videoUrl)),
+    orderBy: [asc(matches.createdAt)],
+  });
+  return loadCommentaryEffectiveness(seasonId, completed.map(requireCompetitionMatch));
+}
+
+/** Shared authorized configuration; materials do not need the schedule substrate. */
+async function loadWorkspaceContext(seasonSlug: string) {
   const season = await db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) });
   if (!season) return null;
   await requireSeasonAdmin(season.id);
-
-  const isMajor = season.competitionTemplate === "major";
-  const [allTeams, allMatchesRaw, stageRunRows, finalResult, qualificationRun] = await Promise.all([
+  const [allTeams, stageRunRows, qualificationRun] = await Promise.all([
     db.query.competitionEntries.findMany({
-      where: eq(competitionEntries.competitionId, season.id),
-      orderBy: [asc(competitionEntries.formationOrder)],
+      where: eq(competitionEntries.competitionId, season.id), orderBy: [asc(competitionEntries.formationOrder)],
     }),
+    season.competitionTemplate === "major" ? db.select({
+      id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, finalizedRound: majorStageRuns.finalizedRound,
+      ruleSnapshot: majorStageRuns.ruleSnapshot, startedAt: majorStageRuns.startedAt,
+    }).from(majorStageRuns).where(eq(majorStageRuns.seasonId, season.id)) : Promise.resolve([]),
+    season.competitionTemplate === "major" ? db.query.competitionQualificationRuns.findFirst({
+      where: eq(competitionQualificationRuns.seasonId, season.id),
+    }) : Promise.resolve(undefined),
+  ]);
+  const stagePlan = season.competitionTemplate === "major"
+    ? resolveMajorStagePlan(normalizeStagePlan(season.stagePlan), stageRunRows)
+    : normalizeStagePlan(season.stagePlan);
+  return { season, allTeams, stageRunRows, qualificationRun, stagePlan };
+}
+
+function projectWorkspace(context: NonNullable<Awaited<ReturnType<typeof loadWorkspaceContext>>>): Pick<AdminMatchOverviewData, "season" | "teams" | "stagePlan" | "qualificationRun"> {
+  const { season, allTeams, stagePlan, qualificationRun } = context;
+  return {
+    season: { id: season.id, slug: season.slug, name: season.name, status: season.status, competitionTemplate: season.competitionTemplate },
+    teams: allTeams.map(({ id, name }) => ({ id, name })), stagePlan,
+    qualificationRun: qualificationRun ? { id: qualificationRun.id, format: qualificationRun.format, playInEntryCount: qualificationRun.playInEntryCount } : null,
+  };
+}
+
+export async function loadAdminMatchWorkspace(seasonSlug: string) {
+  const context = await loadWorkspaceContext(seasonSlug);
+  return context ? projectWorkspace(context) : null;
+}
+
+/** Execution and scheduling reuse the same match facts and domain rules. */
+export async function loadAdminMatchOverview({
+  seasonSlug, view = "execution", stage: filterStage, status: filterStatus, team: filterTeam,
+}: AdminMatchOverviewFilter): Promise<AdminMatchOverviewData | null> {
+  const context = await loadWorkspaceContext(seasonSlug);
+  if (!context) return null;
+  const { season, allTeams, stageRunRows, qualificationRun, stagePlan } = context;
+  const isMajor = season.competitionTemplate === "major";
+  const [allMatchesRaw, finalResult] = await Promise.all([
     db.query.matches.findMany({
-      where: and(officialMatchCondition(), eq(matches.seasonId, season.id)),
-      orderBy: [asc(matches.createdAt)],
+      where: and(officialMatchCondition(), eq(matches.seasonId, season.id)), orderBy: [asc(matches.createdAt)],
     }),
-    isMajor
-      ? db
-          .select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, finalizedRound: majorStageRuns.finalizedRound, ruleSnapshot: majorStageRuns.ruleSnapshot, startedAt: majorStageRuns.startedAt })
-          .from(majorStageRuns)
-          .where(eq(majorStageRuns.seasonId, season.id))
-      : Promise.resolve([] as { id: string; stageKey: string; finalizedRound: number; ruleSnapshot: unknown; startedAt: Date | null }[]),
-    isMajor
-      ? db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) })
-      : Promise.resolve(undefined),
-    isMajor
-      ? db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) })
-      : Promise.resolve(undefined),
+    isMajor && view === "schedule" ? db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }) : Promise.resolve(undefined),
   ]);
   const allMatches = await withDisplayScores(allMatchesRaw.map(requireCompetitionMatch));
 
-  const stagePlan = isMajor
-    ? resolveMajorStagePlan(normalizeStagePlan(season.stagePlan), stageRunRows)
-    : normalizeStagePlan(season.stagePlan);
-  const stageReadModels = new Map(
-    (await Promise.all(
-      stagePlan
-        .filter((stage) => stage.type === "swiss")
-        .map(async (stage) => [stage.key, await loadMajorSwissStageReadModel(season.id, stage.key)] as const),
-    )).filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
-  );
-  const qualificationSwissReadModel = qualificationRun?.format === "short_swiss_2w2l"
-    ? await loadQualificationSwissStageReadModel(season.id)
-    : null;
-  if (qualificationSwissReadModel) stageReadModels.set("play-in", qualificationSwissReadModel);
-  const { swissRuntime, playoffRuntime } = isMajor
+  const { swissRuntime, playoffRuntime } = isMajor && view === "schedule"
     ? buildMajorRuntimeData({
         seasonId: season.id,
         stageRuns: stageRunRows,
@@ -191,7 +200,8 @@ export async function loadAdminMatchOverview({
         finalResultStatus: finalResult?.status,
       })
     : { swissRuntime: null, playoffRuntime: null };
-  const demoNeedsAttentionByMatch = await loadDemoNeedsAttentionCounts(allMatches.map((match) => match.id));
+  const demoNeedsAttentionByMatch = view === "execution"
+    ? await loadDemoNeedsAttentionCounts(allMatches.map((match) => match.id)) : new Map<string, number>();
 
   const statusFilter = (match: { status: string }) =>
     !filterStatus || filterStatus === "all" || match.status === filterStatus;
@@ -228,16 +238,16 @@ export async function loadAdminMatchOverview({
   } : null;
   const stageViews = [...(qualificationStageView ? [qualificationStageView] : []), ...configuredStageViews];
   const projectedMatches = allMatches.map((match) => projectAdminMatchSummary(match, demoNeedsAttentionByMatch.get(match.id) ?? 0));
-  const commentaryEffectiveness = await loadCommentaryEffectiveness(season.id, allMatches);
 
   const finishedMatchIds = allMatches
     .filter((match) => match.status === "finished")
     .map((match) => match.id);
-  const roundScoresByMatchId = await getMatchMapRoundScores(finishedMatchIds);
-  const stageEntrantIdsByKey = await loadStageBracketEntrantIds(db, season.id);
+  const [roundScoresByMatchId, stageEntrantIdsByKey] = view === "schedule"
+    ? await Promise.all([getMatchMapRoundScores(finishedMatchIds), loadStageBracketEntrantIds(db, season.id)])
+    : [new Map(), new Map()];
 
   const standingsByStage = new Map(
-    allStageViews
+    (view === "schedule" ? allStageViews : [])
       .filter((view) => view.stage.type === "round_robin" && view.matches.length > 0)
       .map((view) => [
         view.stage.key,
@@ -255,30 +265,16 @@ export async function loadAdminMatchOverview({
   const canGenerate = season.status === "playing" && matchCount === 0 && allTeams.length >= 2 && !hasSwissStage;
 
   return {
-    season: {
-      id: season.id,
-      slug: season.slug,
-      name: season.name,
-      status: season.status,
-    },
-    teams: allTeams.map((team) => ({ id: team.id, name: team.name })),
-    stagePlan,
+    ...projectWorkspace(context),
     matches: projectedMatches,
     stageViews,
-    stageReadModels,
-    commentaryEffectiveness,
     unconfiguredMatches: unconfiguredMatches.map((match) => projectAdminMatchSummary(match, demoNeedsAttentionByMatch.get(match.id) ?? 0)),
     standingsByStage,
-    batchDeadlineGroups: buildBatchDeadlineGroups(allMatches, stagePlan),
+    batchDeadlineGroups: view === "schedule" ? buildBatchDeadlineGroups(allMatches, stagePlan) : [],
     canGenerate,
     hasSwissStage,
-    qualificationRun: qualificationRun ? {
-      id: qualificationRun.id,
-      format: qualificationRun.format,
-      playInEntryCount: qualificationRun.playInEntryCount,
-    } : null,
-    defaultStageKey: filterStage === "play-in" && qualificationRun
-      ? "play-in"
+    defaultStageKey: filterStage && stageViews.some(({ stage }) => stage.key === filterStage)
+      ? filterStage
       : isMajor
         ? stageRunRows.filter((run) => run.startedAt).sort((a, b) => b.startedAt!.getTime() - a.startedAt!.getTime())[0]?.stageKey
           ?? (qualificationRun ? "play-in" : stagePlan[0]?.key ?? null)

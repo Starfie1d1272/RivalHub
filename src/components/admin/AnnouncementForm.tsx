@@ -34,12 +34,14 @@ export function AnnouncementForm({
   seasons,
   canManageSite,
   isEditing = false,
+  returnHref = "/admin/operations/announcements",
 }: {
   initialData?: AnnouncementAdminRow | null;
   announcementId?: string;
   seasons: SeasonOption[];
   canManageSite: boolean;
   isEditing?: boolean;
+  returnHref?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -83,7 +85,7 @@ export function AnnouncementForm({
       }
 
       toast.success(isEditing ? "公告已更新" : "公告草稿已创建");
-      router.push("/admin/operations/announcements");
+      router.push(returnHref as never);
       router.refresh();
     });
   }
@@ -205,7 +207,7 @@ export function AnnouncementForm({
 
       <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
         <Button variant="outline" asChild>
-          <Link href="/admin/operations/announcements">取消</Link>
+          <Link href={returnHref as never}>取消</Link>
         </Button>
         <Button disabled={pending || !isValid} onClick={save}>
           {pending ? "保存中…" : isEditing ? "保存修改" : "保存草稿"}

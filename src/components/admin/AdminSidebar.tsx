@@ -2,16 +2,18 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { logoutAndClearPreviousViews } from "@/components/auth/logout";
-import { getAdminNavigation, getActiveAdminNavigationHref, type AdminRole } from "@/lib/admin/navigation";
+import { getAdminNavigation, getSeasonAdminNavigation, getActiveAdminNavigationHref, type AdminRole, type AdminSeasonOption } from "@/lib/admin/navigation";
 
-export function AdminSidebar({ email, role }: { email: string; role: AdminRole }) {
+export function AdminSidebar({ email, role, seasons }: { email: string; role: AdminRole; seasons: AdminSeasonOption[] }) {
   const pathname = usePathname();
   const router = useRouter();
-  const navigation = getAdminNavigation(role);
+  const params = useParams();
+  const season = seasons.find((option) => option.slug === params.seasonSlug);
+  const navigation = season ? getSeasonAdminNavigation(season, role) : getAdminNavigation(role);
   const activeHref = getActiveAdminNavigationHref(pathname, navigation);
   const [isPending, startTransition] = useTransition();
 
@@ -26,7 +28,7 @@ export function AdminSidebar({ email, role }: { email: string; role: AdminRole }
 
   return (
     <div
-      className="flex items-center border-b border-[var(--color-border)] md:h-full md:flex-col md:items-stretch md:border-b-0 md:border-r"
+      className="flex flex-col items-stretch border-b border-[var(--color-border)] md:sticky md:top-0 md:h-screen md:overflow-y-auto md:flex-col md:items-stretch md:border-b-0 md:border-r"
       style={{
         background: "var(--color-panel-low)",
       }}
@@ -41,11 +43,25 @@ export function AdminSidebar({ email, role }: { email: string; role: AdminRole }
           letterSpacing: "var(--tracking-eyebrow)",
         }}
       >
-        [ ADMIN ]
+        {season ? "赛事工作区" : "平台管理"}
       </div>
 
+      <div className="space-y-3 border-b border-[var(--color-border)] px-4 pb-4">
+        <label className="block text-xs text-[var(--color-fg-mid)]" htmlFor="admin-season-switch">当前工作范围</label>
+        <select id="admin-season-switch" value={season?.slug ?? ""}
+          onChange={(event) => router.push(event.target.value ? `/admin/${event.target.value}` : "/admin/operations")}
+          className="w-full min-w-0 rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] p-2 text-sm">
+          <option value="">平台管理</option>
+          {seasons.map((option) => <option key={option.id} value={option.slug}>{option.name}</option>)}
+        </select>
+        <div className="flex flex-wrap gap-3 text-xs text-[var(--color-fg-mid)]">
+          <Link href="/admin">赛事目录</Link>
+          {season && <Link href={`/${season.slug}`}>查看公开赛事 ↗</Link>}
+        </div>
+      </div>
+      <p className="px-4 pt-2 text-xs text-[var(--color-fg-dim)] md:hidden">左右滑动查看全部管理入口</p>
       {/* nav */}
-      <nav aria-label="管理后台导航" className="flex min-w-0 flex-1 overflow-x-auto md:block">
+      <nav aria-label="管理后台导航" className="flex min-w-0 flex-1 overflow-x-auto md:block md:overflow-y-auto">
         {navigation.map((group) => (
           <div key={group.key} className="shrink-0 md:mb-3">
             <div

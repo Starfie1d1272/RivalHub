@@ -16,7 +16,7 @@ import { eq } from "drizzle-orm";
 import { PUBLIC_ANNOUNCEMENTS_TAG, PUBLIC_SEASON_CATALOG_TAG, publicSeasonInfoTag } from "../../../src/lib/cache/tags";
 import { revalidatePublicSeasonTags } from "../../../src/lib/revalidation";
 import { createAnnouncementInTx, updateAnnouncementInTx, setAnnouncementStatusInTx } from "../../../src/lib/announcements/commands";
-import { getRelevantAttentionAnnouncement, listPublicAnnouncements } from "../../../src/lib/announcements/read-model";
+import { getRelevantAttentionAnnouncement, listPublicAnnouncements, listAnnouncementsForAdmin } from "../../../src/lib/announcements/read-model";
 import { submitFeedbackInTx, setFeedbackStatusInTx } from "../../../src/lib/feedback/commands";
 import { createCommunityGroupInTx, createSeasonContactInTx, updateCommunityGroupInTx, upsertSeasonPublicInfoInTx } from "../../../src/lib/season-public-info/commands";
 import { getPublicSeasonInfo, getPublicSeasonInfoBySlug } from "../../../src/lib/season-public-info/read-model";
@@ -62,6 +62,11 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
       );
 
       expect(draft.id).toBeDefined();
+      // A selected event narrows even a super-admin list; it never widens grants.
+      expect((await listAnnouncementsForAdmin({ role: "super_admin", seasonIds: [], seasonId })).map(row => row.id)).toEqual([draft.id]);
+      expect(await listAnnouncementsForAdmin({ role: "season_admin", seasonIds: [], seasonId })).toEqual([]);
+      expect(await listAnnouncementsForAdmin({ role: "season_admin", seasonIds: [seasonId], seasonId: randomUUID() })).toEqual([]);
+      expect((await listAnnouncementsForAdmin({ role: "season_admin", seasonIds: [seasonId], seasonId })).map(row => row.id)).toEqual([draft.id]);
 
       // Draft must NOT be visible in public read model
       const publicBeforePublish = await listPublicAnnouncements(seasonId);

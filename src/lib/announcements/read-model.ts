@@ -205,8 +205,10 @@ export async function listAnnouncementsForAdmin(input: {
   seasonIds: readonly string[];
   status?: Announcement["status"];
   scope?: Announcement["scope"];
+  seasonId?: string;
 }): Promise<AnnouncementAdminRow[]> {
   const conditions = [
+    input.seasonId ? eq(announcements.seasonId, input.seasonId) : undefined,
     input.status ? eq(announcements.status, input.status) : undefined,
     input.scope ? eq(announcements.scope, input.scope) : undefined,
     input.role === "super_admin" ? undefined : input.seasonIds.length > 0 ? inArray(announcements.seasonId, input.seasonIds) : eq(announcements.id, "00000000-0000-0000-0000-000000000000"),

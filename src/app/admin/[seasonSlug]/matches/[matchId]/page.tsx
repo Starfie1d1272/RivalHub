@@ -1,3 +1,4 @@
+import { resolveMatchReturnContext } from "@/lib/admin/matches/return-context";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminMatchWorkbench } from "@/components/matches/AdminMatchWorkbench";
@@ -6,12 +7,14 @@ import { TestMatchConclusion } from "@/components/matches/TestMatchConclusion";
 
 interface AdminMatchWorkbenchPageProps {
   params: Promise<{ seasonSlug: string; matchId: string }>;
+  searchParams: Promise<{ returnTo?: string }>;
 }
 
-export default async function AdminMatchWorkbenchPage({ params }: AdminMatchWorkbenchPageProps) {
+export default async function AdminMatchWorkbenchPage({ params, searchParams }: AdminMatchWorkbenchPageProps) {
   const { seasonSlug, matchId } = await params;
   const data = await loadAdminMatchWorkbench({ seasonSlug, matchId });
   if (!data) notFound();
+  const returnContext = resolveMatchReturnContext(seasonSlug, (await searchParams).returnTo, Boolean(data.match.testConfig));
 
   return (
     <div className="min-w-0 space-y-4">
@@ -21,10 +24,10 @@ export default async function AdminMatchWorkbenchPage({ params }: AdminMatchWork
         <h1 className="mt-1 text-lg font-bold text-[var(--color-fg)]">{data.match.testConfig ? "测试赛工作台" : "比赛工作台"}</h1>
         </div>
         <Link
-          href={data.match.testConfig ? `/admin/${seasonSlug}/test-matches` : `/admin/${seasonSlug}/matches`}
+          href={returnContext.href as never}
           className="inline-flex text-sm text-[var(--color-accent)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
         >
-          ← {data.match.testConfig ? "回到测试赛" : "回到赛事比赛总览"}
+          ← {returnContext.label}
         </Link>
       </header>
       <AdminMatchWorkbench {...data} />

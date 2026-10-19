@@ -1,3 +1,5 @@
+import { capabilitiesFromSeason, checkStandardMajorCapabilities } from "@/lib/competition/definition";
+import { deriveMajorPrestartPhase, MAJOR_PRESTART_PHASES } from "./prestart-phase";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 
@@ -5,6 +7,7 @@ import { and, count, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
+  competitionQualificationRuns,
   eventRosterMembers,
   eventRosters,
   majorFinalResults,
@@ -34,6 +37,7 @@ type MajorOverviewFacts = {
   seedRows: Array<{ teamId: string; tournamentSeed: number }>;
   state: typeof majorPrestartStates.$inferSelect | undefined;
   seedRecommendation: { status: "missing" | "ready" | "mismatch" };
+  qualification: { completedAt: Date | null } | undefined;
   finalResultStatus: "pending_confirmation" | "confirmed" | null;
 };
 
@@ -52,7 +56,7 @@ async function loadRegistrationCounts(season: Season) {
 }
 
 async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFacts> {
-  const [state, entrants, rawRosterRows, seedRows, snapshot, finalResult] = await Promise.all([
+  const [state, entrants, rawRosterRows, seedRows, snapshot, finalResult, qualification] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
       id: majorTournamentEntrants.id,
@@ -78,6 +82,7 @@ async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFact
       .where(eq(majorTournamentSeeds.seasonId, season.id)),
     db.query.majorSeedRecommendationSnapshots.findFirst({ where: eq(majorSeedRecommendationSnapshots.seasonId, season.id) }),
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id), columns: { status: true } }),
+    db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id), columns: { completedAt: true } }),
   ]);
 
   const rosterRows = rawRosterRows.map(({ displayName, perfectName, personaName, email, ...row }) => ({
@@ -89,6 +94,7 @@ async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFact
   const recommendationStatus = getSeedRecommendationSnapshotStatus({ snapshot, seasonId: season.id, frozenSetFingerprint });
   return {
     state,
+    qualification,
     entrants,
     rosterRows,
     seedRows,
@@ -139,8 +145,8 @@ export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<S
 
   const summary: SeasonWorkspaceOverviewSummary = {
     ...registrationSummary,
-    entrantCount: majorFacts?.entrants.length ?? (season.registrationMode === "team" ? registrationSummary.formedTeamCount : 0),
-    frozenEntrantCount: majorFacts?.entrants.filter((entrant) => entrant.rosterStatus === "frozen").length ?? (season.registrationMode === "team" ? registrationSummary.formedTeamCount : 0),
+    entrantCount: majorFacts?.entrants.length ?? 0,
+    frozenEntrantCount: majorFacts?.entrants.filter((entrant) => entrant.rosterStatus === "frozen").length ?? 0,
     matchCount: Number(matchCountRows[0]?.count ?? 0),
     scheduledMatchesWithoutConfirmedLineups: scheduledMatchRows.filter((match) => (confirmedLineupsByMatch.get(match.id) ?? 0) < 2).length,
     finalResultPendingConfirmation: majorFacts?.finalResultStatus === "pending_confirmation",
@@ -167,11 +173,27 @@ export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<S
     endAt: season.endAt,
   } satisfies SeasonWorkspaceOverviewData["season"];
 
+  const majorDefinition = majorFacts ? checkStandardMajorCapabilities(capabilitiesFromSeason(season)) : null;
+  const prestartPhase = majorFacts && majorDefinition?.isStandardMajor ? deriveMajorPrestartPhase({
+      registrationClosed: Boolean(season.registrationClosesAt && season.registrationClosesAt.getTime() <= Date.now()),
+      approvedCandidateCount: summary.approvedEntries,
+      pendingReviewCount: summary.pendingApplications,
+      entrantCapacity: majorDefinition.entrantCapacity,
+      entrantCount: summary.entrantCount,
+      qualificationConfigured: Boolean(majorFacts.qualification),
+      qualificationCompleted: Boolean(majorFacts.qualification?.completedAt),
+      entrantsLocked: Boolean(majorFacts.state?.entrantsLockedAt),
+      seedsConfirmed: Boolean(majorFacts.state?.seedsConfirmedAt && majorFacts.state.seedsConfirmedBy),
+    }) : null;
+
   return {
     season: overviewSeason,
     summary,
     registrationFunnel,
     readiness,
-    nextAction: selectSeasonWorkspaceNextAction(overviewSeason, summary, readiness),
+    prestartPhase,
+    nextAction: prestartPhase && !["playing", "finished", "archived"].includes(season.status) && summary.pendingApplications === 0
+      ? { label: `继续${MAJOR_PRESTART_PHASES[prestartPhase - 1]}`, detail: "在完整筹备工作台中核对条件并继续办理。", href: `/admin/${season.slug}/prestart` }
+      : selectSeasonWorkspaceNextAction(overviewSeason, summary, readiness),
   };
 }

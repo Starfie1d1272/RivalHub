@@ -41,6 +41,7 @@ export interface SeasonWorkspaceOverviewData {
   summary: SeasonWorkspaceOverviewSummary;
   registrationFunnel: SeasonWorkspaceTeamRegistrationFunnel | null;
   readiness: MajorPrestartReadiness | null;
+  prestartPhase: 1 | 2 | 3 | 4 | 5 | 6 | null;
   nextAction: SeasonWorkspaceNextAction;
 }
 

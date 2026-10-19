@@ -22,6 +22,7 @@ export interface AdminMatchCommentaryAssignment {
 
 export interface AdminCommentaryMatch {
   id: string;
+  stage: string;
   entryAId: string;
   entryBId: string;
   isTest?: boolean;
@@ -55,6 +56,7 @@ export async function readAdminMatchCommentary(
   const [matchRows, eligibleUsers] = await Promise.all([
     database.select({
       id: matches.id,
+      stage: matches.stage,
       testConfig: matches.testConfig,
       entryAId: matches.entryAId,
       entryBId: matches.entryBId,
@@ -105,7 +107,7 @@ export async function readAdminMatchCommentary(
     const cancellationBlockedReason = isMine ? commentaryCancellationBlocker(match) : null;
     byMatchId[match.id] = { commentators, isMine, canClaim: canCommentate && active && !isMine && commentators.length < 2, canCancel: canCommentate && isMine && cancellationBlockedReason === null, cancellationBlockedReason };
     if ((match.status === "scheduled" || match.status === "in_progress") && match.id !== excludeMatchId) {
-      activeMatches.push({ id: match.id, isTest: Boolean(match.testConfig), entryAId: match.entryAId, entryBId: match.entryBId, teamAName: match.teamAName, teamBName: match.teamBName, status: match.status, scheduledAt: match.scheduledAt });
+      activeMatches.push({ id: match.id, stage: match.stage, isTest: Boolean(match.testConfig), entryAId: match.entryAId, entryBId: match.entryBId, teamAName: match.teamAName, teamBName: match.teamBName, status: match.status, scheduledAt: match.scheduledAt });
     }
   }
   const claimable = activeMatches.filter((match) => byMatchId[match.id]!.canClaim);
