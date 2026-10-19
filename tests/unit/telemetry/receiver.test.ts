@@ -145,6 +145,11 @@ describe("independent receiver privacy, budget and lifecycle", () => {
   });
   it("normalizes all dynamic paths and projects filters without text or credentials", () => {
     expect(routeTemplate("/team-invites/SECRET?token=SECRET")).toBe("/team-invites/[token]");
+    expect(routeTemplate("/admin/private-event/announcements/new")).toBe("/admin/[seasonSlug]/announcements/new");
+    expect(routeTemplate("/admin/private-event/announcements/private-id")).toBe("/admin/[seasonSlug]/announcements/[announcementId]");
+    expect(routeTemplate("/admin/operations/announcements/new")).toBe("/admin/operations/announcements/new");
+    expect(routeTemplate("/admin/private-event/information")).toBe("/admin/[seasonSlug]/information");
+    expect(safeFilters(new URLSearchParams("view=materials&ops=conflict&stage=stage1&team=PRIVATE"))).toEqual({ ops: "conflict", stage: "stage1", view: "materials", team: "selected" });
     expect(routeTemplate("/players/private-id")).toBe("/players/[userId]");
     expect(routeTemplate("/arbitrary/private/path/content")).toBe("/unknown");
     expect(safeFilters(new URLSearchParams("tab=players&q=PRIVATE&token=SECRET&teamFilter=PRIVATE&format=bo3"))).toEqual({ tab: "players", format: "bo3", q: "selected", teamFilter: "selected" });
