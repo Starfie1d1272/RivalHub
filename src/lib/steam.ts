@@ -1,6 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
+import { providerFailureMetadata } from "@/lib/observability/provider-failure";
 import { providerFetch } from "@/lib/observability/fetch";
 import { captureException, logEvent, traceOperation } from "@/lib/observability/server";
 
@@ -90,7 +91,7 @@ export async function getSteamPlayerSummaries(steam64s: readonly string[]): Prom
             avatarUrl: player.avatarfull ?? null,
           });
         }
-      } catch {
+      } catch (error) {
         // Provider exceptions may contain the credential-bearing request URL.
         captureException(
           "provider.steam.failure",
@@ -101,6 +102,7 @@ export async function getSteamPlayerSummaries(steam64s: readonly string[]): Prom
             provider: "steam",
             errorClass: "dependency",
             retryable: true,
+            safeContext: providerFailureMetadata(error),
           },
         );
         return { status: "failed" };

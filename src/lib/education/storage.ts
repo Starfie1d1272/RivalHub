@@ -2,6 +2,7 @@ import "server-only";
 
 import { createServiceClient } from "@/lib/auth/supabase-server";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { providerFailureMetadata } from "@/lib/observability/provider-failure";
 import { logEvent } from "@/lib/observability/server";
 import {
   EDUCATION_EVIDENCE_SIGNED_URL_TTL_SECONDS,
@@ -57,18 +58,16 @@ export const educationEvidenceStorage = {
 };
 
 function reportStorageFailure(operation: "upload" | "remove" | "signed_url", error: unknown): void {
-  // Deliberately omit the object key, file name, provider error, and URL. The
-  // provider adapter has already converted the dependency failure into a safe
-  // application error for its caller.
-  void error;
+  // Keep only bounded status/code metadata; never read messages, paths, files or URLs.
+  const metadata = providerFailureMetadata(error);
   logEvent({
     level: "error",
     event: "education.evidence_storage.failure",
     scope: "education",
     operation,
     errorClass: "dependency",
-    retryable: true,
-    safeContext: { provider: "supabase", bucket: EDUCATION_EVIDENCE_BUCKET },
+    retryable: metadata.httpStatus === undefined || metadata.httpStatus >= 500 || metadata.httpStatus === 408 || metadata.httpStatus === 429,
+    safeContext: { provider: "supabase", ...metadata },
   });
 }
 

@@ -2,6 +2,7 @@ import "server-only";
 
 import { createServiceClient } from "@/lib/auth/supabase-server";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { providerFailureMetadata } from "@/lib/observability/provider-failure";
 import { logEvent } from "@/lib/observability/server";
 import { SEASON_PUBLIC_ASSETS_BUCKET } from "./presentation";
 
@@ -30,8 +31,8 @@ export const seasonPublicAssetsStorage = {
 };
 
 function reportStorageFailure(operation: "upload" | "remove", error: unknown): void {
-  void error;
-  logEvent({ level: "error", event: "season_public_assets_storage.failure", scope: "season_public_info", operation, errorClass: "dependency", retryable: true, safeContext: { provider: "supabase", bucket: SEASON_PUBLIC_ASSETS_BUCKET } });
+  const metadata = providerFailureMetadata(error);
+  logEvent({ level: "error", event: "season_public_assets_storage.failure", scope: "season_public_info", operation, errorClass: "dependency", retryable: metadata.httpStatus === undefined || metadata.httpStatus >= 500 || metadata.httpStatus === 408 || metadata.httpStatus === 429, safeContext: { provider: "supabase", ...metadata } });
 }
 
 function isMissingObjectError(error: unknown): boolean {
