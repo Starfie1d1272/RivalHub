@@ -227,12 +227,13 @@ async function loadStatsEvidenceSelection<T extends ProjectionTargets>(
   return { ...context, selected, labels };
 }
 
-async function loadPlayerAppearanceScope(
+async function loadPlayerAppearanceScopes(
   tx: TxDb,
-  playerId: string,
+  playerIds: readonly string[],
   filters: Partial<Pick<TournamentStatsScope, "seasonId" | "stage" | "format">> = {},
 ) {
-  const candidates = await tx.select({
+  const candidates = playerIds.length ? await tx.select({
+    userId: eventRosterMembers.userId,
     matchId: matches.id,
     seasonId: seasons.id,
     eventSlug: seasons.slug,
@@ -243,7 +244,7 @@ async function loadPlayerAppearanceScope(
     .innerJoin(matches, eq(matches.id, matchRosters.matchId))
     .innerJoin(seasons, eq(seasons.id, matches.seasonId))
     .where(and(
-      eq(eventRosterMembers.userId, playerId),
+      inArray(eventRosterMembers.userId, [...playerIds]),
       eq(matchRosterPlayers.isStarter, true),
       inArray(matchRosters.status, ["submitted", "confirmed"]),
       eq(matches.status, "finished"),
@@ -251,42 +252,52 @@ async function loadPlayerAppearanceScope(
       filters.seasonId ? eq(matches.seasonId, filters.seasonId) : undefined,
       filters.stage ? eq(matches.stage, filters.stage) : undefined,
       filters.format ? eq(matches.format, filters.format) : undefined,
-    ));
+    )) : [];
   const candidateIds = [...new Set(candidates.map((row) => row.matchId))];
   const effectiveRoster = await loadEffectiveMatchRoster(tx, candidateIds);
-  const effectiveMatchIds = new Set(effectiveRoster.filter((row) => row.userId === playerId).map((row) => row.matchId));
-  const appearances = [...new Map(candidates.filter((row) => effectiveMatchIds.has(row.matchId)).map((row) => [row.matchId, row])).values()];
-  const matchIds = appearances.map((row) => row.matchId);
-  const mapRows = matchIds.length
-    ? await tx.select({ matchId: matchMaps.matchId, mapName: matchMaps.mapName }).from(matchMaps).where(inArray(matchMaps.matchId, matchIds))
+  const mapRows = candidateIds.length
+    ? await tx.select({ matchId: matchMaps.matchId, mapName: matchMaps.mapName }).from(matchMaps).where(inArray(matchMaps.matchId, candidateIds))
     : [];
-  const mapsBySeason = new Map<string, Set<string>>();
-  const matchIdsBySeason = new Map<string, Set<string>>();
-  for (const appearance of appearances) {
-    mapsBySeason.set(appearance.seasonId, mapsBySeason.get(appearance.seasonId) ?? new Set());
-    const ids = matchIdsBySeason.get(appearance.seasonId) ?? new Set<string>();
-    ids.add(appearance.matchId);
-    matchIdsBySeason.set(appearance.seasonId, ids);
-  }
-  const eventByMatchId = new Map(appearances.map((row) => [row.matchId, row.seasonId]));
-  for (const row of mapRows) {
-    const seasonId = eventByMatchId.get(row.matchId);
-    if (seasonId) mapsBySeason.get(seasonId)?.add(row.mapName);
-  }
-  const eventsById = new Map<string, PlayerStatsEventOption>();
-  for (const appearance of appearances) {
-    if (!eventsById.has(appearance.seasonId)) eventsById.set(appearance.seasonId, {
-      id: appearance.seasonId,
-      slug: appearance.eventSlug,
-      name: appearance.eventName,
-      maps: [...(mapsBySeason.get(appearance.seasonId) ?? [])].sort(),
-    });
-  }
-  return {
-    matchIds,
-    events: [...eventsById.values()].sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id)),
-    matchIdsBySeason,
-  };
+  return new Map(playerIds.map((playerId) => {
+    const effectiveMatchIds = new Set(effectiveRoster.filter((row) => row.userId === playerId).map((row) => row.matchId));
+    const appearances = [...new Map(candidates.filter((row) => row.userId === playerId && effectiveMatchIds.has(row.matchId)).map((row) => [row.matchId, row])).values()];
+    const matchIds = appearances.map((row) => row.matchId);
+    const mapsBySeason = new Map<string, Set<string>>();
+    const matchIdsBySeason = new Map<string, Set<string>>();
+    for (const appearance of appearances) {
+      mapsBySeason.set(appearance.seasonId, mapsBySeason.get(appearance.seasonId) ?? new Set());
+      const ids = matchIdsBySeason.get(appearance.seasonId) ?? new Set<string>();
+      ids.add(appearance.matchId);
+      matchIdsBySeason.set(appearance.seasonId, ids);
+    }
+    const eventByMatchId = new Map(appearances.map((row) => [row.matchId, row.seasonId]));
+    for (const row of mapRows) {
+      const seasonId = eventByMatchId.get(row.matchId);
+      if (seasonId) mapsBySeason.get(seasonId)?.add(row.mapName);
+    }
+    const eventsById = new Map<string, PlayerStatsEventOption>();
+    for (const appearance of appearances) {
+      if (!eventsById.has(appearance.seasonId)) eventsById.set(appearance.seasonId, {
+        id: appearance.seasonId,
+        slug: appearance.eventSlug,
+        name: appearance.eventName,
+        maps: [...(mapsBySeason.get(appearance.seasonId) ?? [])].sort(),
+      });
+    }
+    return [playerId, {
+      matchIds,
+      events: [...eventsById.values()].sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id)),
+      matchIdsBySeason,
+    }] as const;
+  }));
+}
+
+async function loadPlayerAppearanceScope(
+  tx: TxDb,
+  playerId: string,
+  filters: Partial<Pick<TournamentStatsScope, "seasonId" | "stage" | "format">> = {},
+) {
+  return (await loadPlayerAppearanceScopes(tx, [playerId], filters)).get(playerId)!;
 }
 
 function buildVetoSelection(
@@ -669,6 +680,34 @@ export async function getPlayerCareerDetail(
       : playerScope.matchIds;
     const detail = await loadTournamentPlayerDetail(tx, { playerId: scope.playerId, seasonId: event?.id, mapFilter }, matchIds, { requireCurrentImports: true });
     return { ...detail, events: playerScope.events, selectedEvent: event ?? null, mapFilter };
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+}
+
+
+/** One read-only selection for the roster; each career retains its own effective appearances. */
+export async function getPlayerCareerPerformances(playerIds: readonly string[], database: DB = db) {
+  return database.transaction(async (tx) => {
+    const scopes = await loadPlayerAppearanceScopes(tx, [...new Set(playerIds)].sort());
+    const matchIds = [...new Set([...scopes.values()].flatMap((scope) => scope.matchIds))];
+    const loaded = await loadStatsEvidenceSelection(tx, {}, { matchIds }, sql<PlayerDetailFacts>`jsonb_build_object(
+      'tournament', jsonb_build_object(
+        'mapKey', ${matchDemoStatProjections.facts}->'tournament'->'mapKey',
+        'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey',
+        'mapName', ${matchDemoStatProjections.facts}->'tournament'->'mapName'
+      ),
+      'performance', ${matchDemoStatProjections.facts}->'performance'
+    )`);
+    return [...scopes].map(([playerId, scope]) => {
+      const appearances = new Set(scope.matchIds);
+      const maps = loaded.scopedMaps.filter((map) => appearances.has(map.matchId)
+        && map.completedAt !== null && map.scoreA !== null && map.scoreB !== null);
+      const mapIds = new Set(maps.map((map) => map.id));
+      const performance = buildTournamentPerformanceAnalytics(
+        loaded.selected.filter((row) => mapIds.has(row.facts.tournament.mapKey)).map((row) => row.facts.performance),
+        { labels: loaded.labels },
+      ).players.find((row) => row.player.entityKey === playerId) ?? null;
+      return { playerId, maps: maps.length, rounds: maps.reduce((sum, map) => sum + map.scoreA! + map.scoreB!, 0), performance };
+    });
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 

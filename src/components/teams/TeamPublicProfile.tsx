@@ -1,3 +1,5 @@
+import { TeamLineupStyle } from "./TeamLineupStyle";
+import type { LineupStyleMember } from "@/lib/teams/lineup-style";
 import { TeamRoster } from "./TeamRoster";
 import { TeamMatches } from "./TeamMatches";
 import { TeamCareer, TeamHistory, TeamRecruitment } from "./TeamProfileHistory";
@@ -20,6 +22,7 @@ import { presentTeamMembershipStatus, presentTeamStatus } from "@/lib/teams/pres
 
 export interface TeamPublicProfileProps {
   team: PublicTeamProfile | null;
+  lineupStyle?: LineupStyleMember[] | null;
   mapProfile?: PublicTeamMapProfile;
   results?: PublicSeasonResults;
   event?: PublicEventTeamContext | null;
@@ -29,7 +32,7 @@ export interface TeamPublicProfileProps {
   statsUnavailable?: boolean;
 }
 
-export function TeamPublicProfile({ team, event = null, mapProfile, results, performance, career = [], matches = [], statsUnavailable = false }: TeamPublicProfileProps) {
+export function TeamPublicProfile({ lineupStyle, team, event = null, mapProfile, results, performance, career = [], matches = [], statsUnavailable = false }: TeamPublicProfileProps) {
   const identity = event?.entry ?? team?.team;
   if (!identity) return null;
 
@@ -125,6 +128,7 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results, per
 
       {!event && currentEntries.length > 0 && <div className="border-y border-[var(--color-border)] py-3"><p className="mb-2 text-xs font-medium text-[var(--color-fg-dim)]">当前赛事</p><div className="space-y-2">{currentEntries.map(entry => <TeamProfileLink key={entry.id} className="flex items-center justify-between gap-3 text-sm hover:text-[var(--color-accent)]" seasonSlug={entry.seasonSlug} entryId={entry.id}><span><span className="font-medium">{entry.seasonName}</span><span className="ml-2 text-[var(--color-fg-mid)]">{entry.name}</span></span><span>→</span></TeamProfileLink>)}</div></div>}
       <TeamRoster title={event ? eventRosterHeading : "当前成员"} members={members} />
+      <TeamLineupStyle members={lineupStyle} />
       {!event && team && <TeamRecruitment team={team} />}
       <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         {detail && <TeamMapProfile title={event ? "本届地图画像" : "生涯地图画像"} maps={detail.maps.map(({ mapName, results, selection }) => ({ mapName, results, selection }))} samples={detail.vetoActionSamples} />}

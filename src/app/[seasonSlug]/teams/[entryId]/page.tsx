@@ -41,7 +41,7 @@ export async function CompetitionEntryDetailPageContent({ params, searchParams }
   return (
     <PageLayout as="div" variant="wide" className="space-y-8">
       <StatsReturnLink href={fromStats} />
-      <TeamPublicProfile team={team} event={event} mapProfile={performanceModel.mapProfile} performance={performanceModel.performance} results={results} statsUnavailable={performanceModel.statsUnavailable} />
+      <TeamPublicProfile lineupStyle={performanceModel.lineupStyle} team={team} event={event} mapProfile={performanceModel.mapProfile} performance={performanceModel.performance} results={results} statsUnavailable={performanceModel.statsUnavailable} />
     </PageLayout>
   );
 }
