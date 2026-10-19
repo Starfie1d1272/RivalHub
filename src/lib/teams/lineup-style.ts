@@ -8,9 +8,9 @@ export interface LineupStyleMember extends PublicPlayerIdentity {
 }
 
 export const LINEUP_STYLE_CHARTS = [
-  { key: "firepower-utility", title: "火力与道具", x: "firepower", y: "utility", xLabel: "Firepower", yLabel: "Utility" },
-  { key: "opening-clutching", title: "回合节奏", x: "opening", y: "clutching", xLabel: "Opening", yLabel: "Clutching" },
-  { key: "entrying-trading", title: "突破与补枪", x: "entrying", y: "trading", xLabel: "Entrying", yLabel: "Trading" },
+  { key: "firepower-utility", title: "火力与道具", x: "firepower", y: "utility", xLabel: "Firepower", yLabel: "Utility", corners: ["Support", "Both", "Neither", "Star"] },
+  { key: "opening-clutching", title: "回合节奏", x: "opening", y: "clutching", xLabel: "Opening", yLabel: "Clutching", corners: ["Passive", "Both", "Neither", "Aggro"] },
+  { key: "entrying-trading", title: "突破与补枪", x: "entrying", y: "trading", xLabel: "Entrying", yLabel: "Trading", corners: ["Crow", "Pack", "Loner", "Lamb"] },
 ] as const;
 
 export interface LineupStylePoint extends PublicPlayerIdentity {
