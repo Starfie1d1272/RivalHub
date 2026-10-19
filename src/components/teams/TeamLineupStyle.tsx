@@ -30,7 +30,7 @@ function StyleChart({ chart, selected, onSelect }: { chart: Chart; selected: str
   const xPosition = (value: number) => 56 + (value - xAxis.min) / (xAxis.max - xAxis.min) * 320;
   const yPosition = (value: number) => 246 - (value - yAxis.min) / (yAxis.max - yAxis.min) * 210;
   const active = chart.points.find((point) => point.userId === activeId) ?? null;
-  const nearby = active ? chart.points.filter((point) => Math.abs(xPosition(point.x) - xPosition(active.x)) < 40 && Math.abs(yPosition(point.y) - yPosition(active.y)) < 40) : [];
+  const nearby = active ? chart.points.filter((point) => Math.abs(xPosition(point.x) - xPosition(active.x)) < 56 && Math.abs(yPosition(point.y) - yPosition(active.y)) < 56) : [];
   const limited = chart.points.some((point) => point.limited);
   const preview = chart.points.every((point) => point.limited);
   function activate(point: LineupStylePoint) {
@@ -56,7 +56,7 @@ function StyleChart({ chart, selected, onSelect }: { chart: Chart; selected: str
         <text x="216" y="293" textAnchor="middle" fontSize="12" fill="var(--color-fg-secondary)">{chart.xLabel}</text>
       </svg>
       {chart.points.map((point, index) => <button key={point.userId} type="button"
-        className={`absolute flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)] ${point.limited ? "outline outline-1 outline-offset-2 outline-dashed outline-[var(--color-fg-dim)]" : ""} ${selected === point.userId ? "ring-2 ring-[var(--color-accent)] ring-offset-2 ring-offset-[var(--color-panel)]" : ""}`}
+        className={`absolute flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)] ${point.limited ? "outline outline-1 outline-offset-2 outline-dashed outline-[var(--color-fg-dim)]" : "outline-none"} ${selected === point.userId ? "ring-2 ring-[var(--color-accent)] ring-offset-2 ring-offset-[var(--color-panel)]" : ""}`}
         style={{ left: `${xPosition(point.x) / 4}%`, top: `${yPosition(point.y) / 3}%`, zIndex: activeId === point.userId ? 20 : selected === point.userId ? 15 : index + 1 }}
         aria-label={`${point.name}，${chart.xLabel} ${point.x}，${chart.yLabel} ${point.y}${point.limited ? "，样本有限" : ""}`}
         aria-pressed={activeId === point.userId} aria-controls={`${id}-detail`}
