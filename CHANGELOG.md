@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.19.2]
+
+### Fixed
+
+- 修复名单补正中的队伍详情页加载统计时报错，并统一数据中心队伍筛选的公开可见性判断。
+
 ## [2.19.1]
 
 ### Fixed
@@ -3059,6 +3065,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.19.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.1...v2.19.2
 [2.19.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.0...v2.19.1
 [2.19.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.18.3...v2.19.0
 [2.18.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.18.2...v2.18.3
