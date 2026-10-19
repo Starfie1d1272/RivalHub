@@ -9,6 +9,7 @@ export function getCompetitionEntryCapabilities(input: {
   revision: { status: string; origin: CompetitionEntryRosterRevisionOrigin } | null;
   rosterFrozen: boolean;
   majorAdjustmentPhaseOpen?: boolean;
+  eliminatedParticipationRelease?: boolean;
 }, now = new Date()) {
   const { season, entry, revision, rosterFrozen, majorAdjustmentPhaseOpen = true } = input;
   const window = getRegistrationWindowState(season, now);
@@ -18,7 +19,7 @@ export function getCompetitionEntryCapabilities(input: {
   const canRequestRosterChange = !rosterFrozen && entry?.status === "approved"
     && entry.hasApprovedRoster && majorAdjustmentPhaseOpen && canSelfChangeApprovedRoster(season, now);
   const selfChangeOpen = majorAdjustmentPhaseOpen && canSelfChangeApprovedRoster(season, now);
-  const canWithdrawParticipation = !rosterFrozen && !!entry
+  const canWithdrawParticipation = Boolean(input.eliminatedParticipationRelease && entry) || !rosterFrozen && !!entry
     && (entry.status === "approved" ? entry.hasApprovedRoster && selfChangeOpen
       : revision?.origin === "self_roster_change" ? selfChangeOpen : majorAdjustmentPhaseOpen);
   const canWithdrawFromReview = !rosterFrozen && entry?.status === "submitted"
@@ -30,6 +31,7 @@ export function getCompetitionEntryCapabilities(input: {
     canSubmitForReview: editable,
     canWithdrawFromReview,
     canWithdrawParticipation,
+    ...(input.eliminatedParticipationRelease && entry ? { canReleaseEliminatedParticipation: true } : {}),
     canRequestRosterChange,
     canConfirmParticipation: editable,
     canRespondToAdminRemediation: editable && revision?.origin === "admin_remediation",

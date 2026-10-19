@@ -151,7 +151,7 @@ export function CompetitionEntryFlow(props: Props) {
   const invitationConflictSub = !props.invitationConflict ? null
     : representative && (props.capabilities.canEditCurrentRoster || props.capabilities.canRequestRosterChange)
       ? `你目前是「${entry.name}」的赛事负责人。若要更换队伍，请先在下方把赛事负责人交接给另一位已确认成员，再退出本届赛事；这不会退出你当前的队伍。`
-      : !representative && props.capabilities.canWithdrawParticipation
+      : (!representative || props.capabilities.canReleaseEliminatedParticipation) && props.capabilities.canWithdrawParticipation
         ? `你目前已确认代表「${entry.name}」参加本届赛事。若要更换队伍，请先在“我的参赛确认”中退出当前本届赛事；这不会退出你当前的队伍。退出后页面会显示待处理的新邀请。`
         : props.capabilities.readOnlyReason ?? "当前名单不能自行调整；如需更换参赛队伍，请联系赛事管理员处理。";
   const unsaved = selected.length !== entry.roster.length || selected.some((id) => !entry.roster.some((member) => member.userId === id))
@@ -259,7 +259,9 @@ export function CompetitionEntryFlow(props: Props) {
       : entry.status === "draft" && entry.revisionOrigin !== "self_roster_change" && props.registrationWindowPhase === "closed" && !props.registrationWindowCanSubmit
         ? "首次报名已截止 · 本次报名未在截止前提交"
         : null;
-  const participantWithdrawalExplanation = entry.status === "approved"
+  const participantWithdrawalExplanation = props.capabilities.canReleaseEliminatedParticipation
+    ? "释放本届参赛归属后可确认新队邀请，历史名单和比赛保留。日常队伍成员关系单独管理。"
+    : entry.status === "approved"
     ? "退出后本届名单须调整并重新审核，日常队伍成员关系保留。"
     : "退出本届名单，日常队伍成员关系保留。";
   const toggleSelected = (userId: string) => {
@@ -280,7 +282,7 @@ export function CompetitionEntryFlow(props: Props) {
       sub={invitationConflictSub ?? undefined}
     />}
     {removeMember && <InlineConfirm danger title={`从本届名单移除 ${removeMember.label}？`} sub="保存名单后生效；该成员的本届参赛确认将失效，日常队伍成员关系保持原样。原已通过名单保留为历史记录。" confirmLabel="从本届名单移除" onCancel={() => setRemoveMember(null)} onConfirm={() => { toggleSelected(removeMember.userId); setRemoveMember(null); }} />}
-    {!representative && <Panel label="我的参赛确认" contentClassName="p-6">{own ? <><p className="mb-3 text-sm font-medium">当前状态：{presentCompetitionEntryParticipation(own.confirmation, entry.status).label}</p>{own.confirmation === "invited" && props.capabilities.canConfirmParticipation && <div className="flex gap-2"><Button disabled={pending} onClick={() => run(() => confirmCompetitionEntryParticipation({ entryId: entry.id }), "已确认参加本届赛事")}>确认参赛</Button><Button variant="outline" disabled={pending} onClick={() => run(() => declineCompetitionEntryParticipation({ entryId: entry.id }), "已拒绝本届赛事邀请")}>拒绝邀请</Button></div>}{own.confirmation === "confirmed" && props.capabilities.canWithdrawParticipation && (confirmParticipantWithdrawal ? <InlineConfirm danger title="退出本届赛事？" sub={participantWithdrawalExplanation} confirmLabel="确认退出本届赛事" onCancel={() => setConfirmParticipantWithdrawal(false)} onConfirm={() => { setConfirmParticipantWithdrawal(false); run(() => withdrawCompetitionEntryParticipation({ entryId: entry.id }), "已退出本届赛事"); }} /> : <Button variant="outline" disabled={pending} onClick={() => setConfirmParticipantWithdrawal(true)}>退出本届赛事</Button>)}{(own.confirmation === "declined" || own.confirmation === "withdrawn") && <p className="text-sm text-[var(--color-fg-mid)]">如需参赛，请由赛事负责人将你重新加入本届名单。</p>}</> : <p className="text-sm text-[var(--color-fg-mid)]">你不在当前本届名单中；如需参赛，请联系赛事负责人确认名单。</p>}</Panel>}
+    {(!representative || props.capabilities.canReleaseEliminatedParticipation) && <Panel label="我的参赛确认" contentClassName="p-6">{own ? <><p className="mb-3 text-sm font-medium">当前状态：{presentCompetitionEntryParticipation(own.confirmation, entry.status).label}</p>{own.confirmation === "invited" && props.capabilities.canConfirmParticipation && <div className="flex gap-2"><Button disabled={pending} onClick={() => run(() => confirmCompetitionEntryParticipation({ entryId: entry.id }), "已确认参加本届赛事")}>确认参赛</Button><Button variant="outline" disabled={pending} onClick={() => run(() => declineCompetitionEntryParticipation({ entryId: entry.id }), "已拒绝本届赛事邀请")}>拒绝邀请</Button></div>}{own.confirmation === "confirmed" && props.capabilities.canWithdrawParticipation && (confirmParticipantWithdrawal ? <InlineConfirm danger title="退出本届赛事？" sub={participantWithdrawalExplanation} confirmLabel="确认退出本届赛事" onCancel={() => setConfirmParticipantWithdrawal(false)} onConfirm={() => { setConfirmParticipantWithdrawal(false); run(() => withdrawCompetitionEntryParticipation({ entryId: entry.id }), "已退出本届赛事"); }} /> : <Button variant="outline" disabled={pending} onClick={() => setConfirmParticipantWithdrawal(true)}>退出本届赛事</Button>)}{(own.confirmation === "declined" || own.confirmation === "withdrawn") && <p className="text-sm text-[var(--color-fg-mid)]">如需参赛，请由赛事负责人将你重新加入本届名单。</p>}</> : <p className="text-sm text-[var(--color-fg-mid)]">你不在当前本届名单中；如需参赛，请联系赛事负责人确认名单。</p>}</Panel>}
     {representative && <>
       {approvedReadOnly ? <>
         <Panel label="本届名单" contentClassName="p-4">
