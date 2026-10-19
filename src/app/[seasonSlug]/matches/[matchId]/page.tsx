@@ -510,8 +510,8 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
             <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
             <Panel contentClassName="p-0 overflow-hidden">
               <MatchLineupComparison
-                a={{ entryId: match.entryAId, name: teamA?.name ?? "队伍 A", ...lineupA }}
-                b={{ entryId: match.entryBId, name: teamB?.name ?? "队伍 B", ...lineupB }}
+                a={{ entryId: match.entryAId, name: teamA?.name ?? "队伍 A", logoUrl: teamA?.logoUrl ?? null, ...lineupA }}
+                b={{ entryId: match.entryBId, name: teamB?.name ?? "队伍 B", logoUrl: teamB?.logoUrl ?? null, ...lineupB }}
                 careers={lineupCareers ?? []}
                 historical={comparisonCutoff !== null}
                 unavailable={lineupCareers === null}
