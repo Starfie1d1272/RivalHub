@@ -34,14 +34,15 @@ export function routeTemplate(pathname: string): string {
 
 const categories: Record<string, readonly string[]> = {
   tab: ["overview", "players", "teams", "maps", "weapons", "records", "free", "points", "result", "bp", "ranking", "matches", "stats", "active", "done"],
+  ops: ["todo", "unproposed", "pending", "confirmed", "reschedule_pending", "uncovered", "conflict", "all"],
   position: ["all", "igl", "awper", "opener", "closer", "anchor"],
-  stage: ["all", "play_in", "swiss", "playoffs", "group", "final"],
+  stage: ["all", "play_in", "play-in", "stage1", "stage2", "playoff", "swiss", "playoffs", "group", "final"],
   source: ["all", "official", "test"],
   sort: ["rating", "ratingPro", "adr", "kd", "kills", "profit", "hits", "accuracy", "name", "team", "maps", "samples"],
   order: ["asc", "desc"], side: ["all", "ct", "t"],
   status: ["all", "pending", "approved", "rejected", "scheduled", "ongoing", "finished"],
   map: ["de_dust2", "de_mirage", "de_inferno", "de_nuke", "de_ancient", "de_anubis", "de_train", "de_overpass", "de_vertigo"],
-  view: ["performance", "veto", "all", "sim", "record", "flow", "compact", "list"],
+  view: ["execution", "schedule", "materials", "performance", "veto", "all", "sim", "record", "flow", "compact", "list"],
   format: ["bo1", "bo3", "bo5"], mapsView: ["pool", "veto"],
   mapFilter: ["de_dust2", "de_mirage", "de_inferno", "de_nuke", "de_ancient", "de_anubis", "de_train", "de_overpass", "de_vertigo"],
 };
