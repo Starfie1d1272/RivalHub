@@ -1,3 +1,4 @@
+import { isAdminMatchInScope } from "@/lib/admin/matches/workspace-filters";
 import React from "react";
 import { MatchWorkbenchLink as Link } from "./MatchWorkbenchLink";
 import { Panel } from "@/components/rivalhub";
@@ -19,34 +20,43 @@ export function MatchCommentaryStatus({ matchId, assignment }: { matchId: string
   </div>;
 }
 
-export function CommentaryMatchLink({ match, seasonSlug }: { match: AdminCommentaryMatch; seasonSlug: string }) {
+export function CommentaryMatchLink({ match, seasonSlug, sourceAnchor }: { match: AdminCommentaryMatch; seasonSlug: string; sourceAnchor?: string }) {
   return <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
     {match.isTest && <span className="text-xs text-[var(--color-fg-mid)]">测试赛</span>}
     <TeamProfileLink seasonSlug={seasonSlug} entryId={match.entryAId}>{match.teamAName}</TeamProfileLink>
     <span className="text-[var(--color-fg-mid)]">vs</span>
     <TeamProfileLink seasonSlug={seasonSlug} entryId={match.entryBId}>{match.teamBName}</TeamProfileLink>
-    <Link href={`/admin/${seasonSlug}/matches/${match.id}`} className="break-words font-medium text-[var(--color-accent)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]">
+    <Link sourceAnchor={sourceAnchor} href={`/admin/${seasonSlug}/matches/${match.id}`} className="break-words font-medium text-[var(--color-accent)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]">
       {match.scheduledAt ? formatCSTDateTime(match.scheduledAt) : "尚未排期"} · 进入比赛工作台
     </Link>
   </div>;
 }
 
-export function MatchCommentaryQueue({ data, seasonSlug }: { data: AdminMatchCommentaryData; seasonSlug: string }) {
+export function MyCommentaryMatches({ data, seasonSlug }: { data: AdminMatchCommentaryData; seasonSlug: string }) {
   return <Panel contentClassName="space-y-4 p-4">
     <section className="space-y-2" aria-labelledby="my-current-commentary">
       <h2 id="my-current-commentary" className="font-semibold">我的当前比赛</h2>
-      {data.currentMatches.length > 0 ? <ul className="space-y-2">{data.currentMatches.map((match) => <li key={match.id}><CommentaryMatchLink match={match} seasonSlug={seasonSlug} /></li>)}</ul>
+      {data.currentMatches.length > 0 ? <ul className="space-y-2">{data.currentMatches.map((match) => <li key={match.id} id={`my-current-${match.id}`} className="scroll-mt-4"><CommentaryMatchLink match={match} seasonSlug={seasonSlug} sourceAnchor={`my-current-${match.id}`} /></li>)}</ul>
         : <p className="text-sm text-[var(--color-fg-mid)]">当前没有正在进行的已认领比赛</p>}
     </section>
     <section className="space-y-2 border-t border-[var(--color-border)] pt-3" aria-labelledby="my-next-commentary">
       <h2 id="my-next-commentary" className="font-semibold">我的下一场</h2>
-      {data.nextMatch ? <><CommentaryMatchLink match={data.nextMatch} seasonSlug={seasonSlug} /><MatchCommentaryStatus matchId={data.nextMatch.id} assignment={data.byMatchId[data.nextMatch.id]!} /></>
+      {data.nextMatch ? <div id={`my-next-${data.nextMatch.id}`} className="scroll-mt-4"><CommentaryMatchLink match={data.nextMatch} seasonSlug={seasonSlug} sourceAnchor={`my-next-${data.nextMatch.id}`} /><MatchCommentaryStatus matchId={data.nextMatch.id} assignment={data.byMatchId[data.nextMatch.id]!} /></div>
         : <p className="text-sm text-[var(--color-fg-mid)]">当前没有已认领的下一场</p>}
     </section>
-    <section className="space-y-2 border-t border-[var(--color-border)] pt-3" aria-labelledby="claimable-commentary">
+
+  </Panel>;
+}
+
+export function MatchCommentaryQueue({ data, seasonSlug, stage, team }: {
+  data: AdminMatchCommentaryData; seasonSlug: string; stage?: string; team?: string;
+}) {
+  const claimable = data.claimableMatches.filter(match => isAdminMatchInScope(match, { stage, team }));
+  return <Panel contentClassName="space-y-4 p-4">
+    <section className="space-y-2" aria-labelledby="claimable-commentary">
       <h2 id="claimable-commentary" className="font-semibold">可认领的比赛</h2>
-      {data.claimableMatches.length > 0 ? <ul className="divide-y divide-[var(--color-border)]">{data.claimableMatches.map((match) => <li key={match.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-        <CommentaryMatchLink match={match} seasonSlug={seasonSlug} />
+      {claimable.length > 0 ? <ul className="divide-y divide-[var(--color-border)]">{claimable.map((match) => <li key={match.id} id={`commentary-${match.id}`} className="scroll-mt-4 flex flex-wrap items-center justify-between gap-2 py-2">
+        <CommentaryMatchLink match={match} seasonSlug={seasonSlug} sourceAnchor={`commentary-${match.id}`} />
         <div className="flex flex-wrap items-center gap-2 text-sm"><span>{presentMatchStatus(match.status, { scheduledAt: match.scheduledAt }).label} · 解说 {data.byMatchId[match.id]?.commentators.length ?? 0}/2</span>{data.byMatchId[match.id]?.canClaim && <ClaimMatchButton matchId={match.id} />}</div>
       </li>)}</ul> : <p className="text-sm text-[var(--color-fg-mid)]">当前没有待认领的比赛</p>}
     </section>

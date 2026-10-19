@@ -145,8 +145,8 @@ export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<S
 
   const summary: SeasonWorkspaceOverviewSummary = {
     ...registrationSummary,
-    entrantCount: majorFacts?.entrants.length ?? (season.registrationMode === "team" ? registrationSummary.formedTeamCount : 0),
-    frozenEntrantCount: majorFacts?.entrants.filter((entrant) => entrant.rosterStatus === "frozen").length ?? (season.registrationMode === "team" ? registrationSummary.formedTeamCount : 0),
+    entrantCount: majorFacts?.entrants.length ?? 0,
+    frozenEntrantCount: majorFacts?.entrants.filter((entrant) => entrant.rosterStatus === "frozen").length ?? 0,
     matchCount: Number(matchCountRows[0]?.count ?? 0),
     scheduledMatchesWithoutConfirmedLineups: scheduledMatchRows.filter((match) => (confirmedLineupsByMatch.get(match.id) ?? 0) < 2).length,
     finalResultPendingConfirmation: majorFacts?.finalResultStatus === "pending_confirmation",

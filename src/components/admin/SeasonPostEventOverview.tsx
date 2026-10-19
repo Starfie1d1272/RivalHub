@@ -12,7 +12,7 @@ export function SeasonPostEventOverview({ data }: { data: PostEventPageData }) {
   };
 
   return <div className="space-y-5">
-    <Marker sub={`赛后收尾 · ${data.season.name}`} action={<StatusPill {...status} />}>赛后工作区</Marker>
+    <Marker sub={`赛后收尾 · ${data.season.name}`} action={<StatusPill {...status} />}>结果与荣誉</Marker>
     <Panel label="赛后摘要">
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="border border-[var(--color-border)] px-3 py-3"><p className="text-xs text-[var(--color-fg-mid)]">比赛</p><p className="mt-1 text-2xl font-semibold tabular-nums">{summary.matchCount}</p></div>

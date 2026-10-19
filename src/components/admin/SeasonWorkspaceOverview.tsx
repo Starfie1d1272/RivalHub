@@ -21,7 +21,9 @@ export function SeasonWorkspaceOverview({ data }: { data: SeasonWorkspaceOvervie
   const isTeamRegistration = season.registrationMode === "team";
   const stats = isTeamRegistration
     ? [
-      { label: "已冻结正赛名单", value: summary.entrantCount ? `${summary.frozenEntrantCount} / ${summary.entrantCount} 队` : "尚未确定" },
+      season.competitionTemplate === "major"
+        ? { label: "已冻结正赛名单", value: summary.entrantCount ? `${summary.frozenEntrantCount} / ${summary.entrantCount} 队` : "尚未确定" }
+        : { label: "已批准参赛队伍", value: summary.approvedEntries },
       { label: "比赛", value: summary.matchCount },
     ]
     : [

@@ -52,7 +52,7 @@ export function MajorPrestartConsole({ seasonName, readiness, management, seedMa
   return <div className="space-y-5">
     <div>
       <Marker sub={started ? `${readiness.openingPlan?.stage1.name ?? "首阶段"}已创建` : `当前：${MAJOR_PRESTART_PHASES[phase - 1]}`}>
-        赛事赛前 · {seasonName}
+        开赛筹备 · {seasonName}
       </Marker>
       <p className="mt-1 text-sm text-[var(--color-fg-mid)]">按阶段确认候选、资格赛、最终名单和种子；实际开赛只在最后一步由管理员确认。</p>
     </div>

@@ -27,7 +27,7 @@ vi.mock("@/lib/admin/matches/demo-review", () => ({
 }));
 
 import { db } from "@/db/client";
-import { loadAdminMatchOverview } from "@/lib/admin/matches/overview";
+import { loadAdminMatchOverview, loadAdminMatchWorkspace } from "@/lib/admin/matches/overview";
 import { loadAdminMatchWorkbench } from "@/lib/admin/matches/workbench";
 import { readRivalHubEvents } from "@/lib/demo-integration/read";
 import { resolveDemoImportLineageInTx } from "@/lib/demo-integration/promotion";
@@ -121,6 +121,18 @@ describe("Demo metadata PostgreSQL egress boundary", () => {
       expect(overview?.matches[0]?.demoNeedsAttentionCount).toBe(3);
       expect(importReads()).toHaveLength(1);
       expect(payloadReads()).toHaveLength(0);
+
+      observation.queries.length = 0;
+      const schedule = await loadAdminMatchOverview({ seasonSlug: slug, view: "schedule" });
+      expect(schedule?.matches).toHaveLength(1);
+      expect(importReads()).toHaveLength(0);
+
+      observation.queries.length = 0;
+      const materials = await loadAdminMatchWorkspace(slug);
+      expect(materials?.season.slug).toBe(slug);
+      expect(materials).not.toHaveProperty("canGenerate");
+      expect(importReads()).toHaveLength(0);
+      expect(observation.queries.some(({ sql }) => /from "matches"|from "match_maps"|from "match_commentators"/i.test(sql))).toBe(false);
 
       observation.queries.length = 0;
       const workbench = await loadAdminMatchWorkbench({ seasonSlug: slug, matchId: ids.match });

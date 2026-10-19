@@ -3,7 +3,6 @@ import type { CompetitionEntry, Match as DbMatch, MatchMap, MatchRosterStatus, S
 import type { MajorPlayoffRuntimeData, MajorSwissRuntimeData } from "@/lib/admin/major-runtime";
 import type { TeamStanding } from "@/lib/standings";
 import type { StageConfig, StagePlan } from "@/types/season";
-import type { SwissStageReadModel } from "@/lib/matches/stage-read-model";
 import type { CompetitionQualificationRun } from "@/db/schema";
 import type { OperatorWorkflow, PerfectRoomGuideData } from "./operator-workflow";
 import type { AdminMatchCommentaryData } from "./commentary";
@@ -135,14 +134,12 @@ export interface AdminFinishedMap {
 }
 
 export interface AdminMatchOverviewData {
-  season: Pick<Season, "id" | "slug" | "name" | "status">;
+  season: Pick<Season, "id" | "slug" | "name" | "status" | "competitionTemplate">;
   teams: Pick<CompetitionEntry, "id" | "name">[];
   stagePlan: StagePlan;
   matches: AdminMatchSummary[];
   stageViews: { stage: StageConfig; matches: AdminMatchSummary[] }[];
-  stageReadModels: Map<string, SwissStageReadModel>;
   qualificationRun: Pick<CompetitionQualificationRun, "id" | "format" | "playInEntryCount"> | null;
-  commentaryEffectiveness: AdminCommentaryEffectiveness[];
   unconfiguredMatches: AdminMatchSummary[];
   standingsByStage: Map<string, TeamStanding[]>;
   batchDeadlineGroups: {

@@ -51,8 +51,8 @@ export function selectSeasonWorkspaceNextAction(
 ): SeasonWorkspaceNextAction {
   if (season.status === "finished" || season.status === "archived") {
     return {
-      label: "查看赛后工作区",
-      detail: season.status === "archived" ? "赛事已归档，可进入赛后工作区查看收尾记录。" : "赛事已结束，可进行官方收尾。",
+      label: "查看结果与荣誉",
+      detail: season.status === "archived" ? "赛事已归档，可进入结果与荣誉查看收尾记录。" : "赛事已结束，可进行官方收尾。",
       href: `/admin/${season.slug}/post-event`,
     };
   }
@@ -60,10 +60,10 @@ export function selectSeasonWorkspaceNextAction(
   if (season.status === "playing") {
     if (summary.scheduledMatchesWithoutConfirmedLineups > 0 || summary.matchCount > 0) {
       return {
-        label: "查看比赛工作区",
+        label: "进入比赛执行",
         detail: summary.scheduledMatchesWithoutConfirmedLineups > 0
           ? `${summary.scheduledMatchesWithoutConfirmedLineups} 场已排期比赛等待名单确认。`
-          : `${summary.matchCount} 场比赛已进入赛事工作区。`,
+          : `${summary.matchCount} 场比赛可在比赛执行中查看。`,
         href: `/admin/${season.slug}/matches`,
       };
     }
@@ -85,20 +85,20 @@ export function selectSeasonWorkspaceNextAction(
 
     if (readiness && !readiness.canStart) {
       return {
-        label: "处理赛前检查",
-        detail: "赛前检查仍有事项需要处理。",
+        label: "继续开赛筹备",
+        detail: "开赛筹备仍有事项需要处理。",
         href: `/admin/${season.slug}/prestart`,
       };
     }
 
-    return { label: "查看赛前工作区", detail: "报名窗口已开放，可继续准备赛事运营流程。", href: `/admin/${season.slug}/prestart` };
+    return { label: "进入开赛筹备", detail: "报名窗口已开放，可继续准备赛事运营流程。", href: `/admin/${season.slug}/prestart` };
   }
 
   if (season.status === "draft") {
-    return { label: "准备赛事", detail: "赛事尚未发布，可从赛前工作区检查当前能力。", href: `/admin/${season.slug}/prestart` };
+    return { label: "准备赛事", detail: "赛事尚未发布，可从开赛筹备检查当前条件。", href: `/admin/${season.slug}/prestart` };
   }
 
   return readiness && !readiness.canStart
-    ? { label: "处理赛前检查", detail: "赛前检查仍有事项需要处理。", href: `/admin/${season.slug}/prestart` }
-    : { label: "查看赛前工作区", detail: "从赛事工作区继续当前运营流程。", href: `/admin/${season.slug}/prestart` };
+    ? { label: "继续开赛筹备", detail: "开赛筹备仍有事项需要处理。", href: `/admin/${season.slug}/prestart` }
+    : { label: "进入开赛筹备", detail: "从赛事工作区继续当前运营流程。", href: `/admin/${season.slug}/prestart` };
 }

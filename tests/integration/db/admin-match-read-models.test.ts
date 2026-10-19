@@ -13,7 +13,8 @@ vi.mock("@/lib/auth/session", () => ({
 import { loadAdminPostMatchTasks } from "@/lib/admin/matches/postmatch-tasks";
 import { loadAdminMatchOperations } from "@/lib/admin/matches/operations";
 import { loadAdminMatchCommentary } from "@/lib/admin/matches/commentary";
-import { loadAdminMatchOverview } from "@/lib/admin/matches/overview";
+import { loadSeasonWorkspaceOverview } from "@/lib/admin/season-workspace/overview";
+import { loadAdminMatchOverview, loadAdminCommentaryEffectiveness } from "@/lib/admin/matches/overview";
 import { loadAdminMatchWorkbench } from "@/lib/admin/matches/workbench";
 
 describe("admin match read models PostgreSQL integration", () => {
@@ -261,7 +262,9 @@ describe("admin match read models PostgreSQL integration", () => {
       expect(overview).not.toHaveProperty("mapPool");
       expect(overview?.swissRuntime).toBeNull();
       expect(overview?.playoffRuntime).toBeNull();
-      expect(overview?.commentaryEffectiveness).toEqual([
+      const workspace = await loadSeasonWorkspaceOverview(seasonASlug);
+      expect(workspace?.summary).toMatchObject({ approvedEntries: 2, entrantCount: 0, frozenEntrantCount: 0 });
+      expect(await loadAdminCommentaryEffectiveness(ids.seasonA)).toEqual([
         expect.objectContaining({
           admin: expect.objectContaining({ userId: ids.admin, name: "赛事管理员" }),
           matches: [expect.objectContaining({ id: ids.matchA })],
@@ -295,8 +298,7 @@ describe("admin match read models PostgreSQL integration", () => {
       await pool.query("DELETE FROM season_admin_grants WHERE user_id=$1", [ids.admin]);
       const globalWorkbench = await loadAdminMatchWorkbench({ seasonSlug: seasonASlug, matchId: ids.matchA });
       expect(globalWorkbench?.postMatch?.seasonAdmins).toContainEqual(expect.objectContaining({ userId: ids.admin, name: "赛事管理员" }));
-      const globalOverview = await loadAdminMatchOverview({ seasonSlug: seasonASlug });
-      expect(globalOverview?.commentaryEffectiveness).toEqual([
+      expect(await loadAdminCommentaryEffectiveness(ids.seasonA)).toEqual([
         expect.objectContaining({ admin: expect.objectContaining({ userId: ids.admin }), matches: [expect.objectContaining({ id: ids.matchA })] }),
       ]);
 

@@ -81,10 +81,7 @@ export function AdminMatchRow({
 
       {commentary && <MatchCommentaryStatus matchId={match.id} assignment={commentary} />}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
-        <p className="text-xs text-[var(--color-fg-mid)]">
-          首发、BP、结果、赛后资料与恢复操作均在单场工作台完成。
-        </p>
+      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[var(--color-border)] pt-3">
         <div className="flex items-center gap-3">
           <Link
             href={`/admin/${seasonSlug}/matches/${match.id}${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`}
