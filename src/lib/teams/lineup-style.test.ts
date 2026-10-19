@@ -39,7 +39,7 @@ describe("lineup chart candidate rules", () => {
     members[2].attributes[0].score = Number.NaN;
     members[3].attributes[1].status = "no-data";
     expect(select(members)).toHaveLength(3);
-    expect(select(members).find((point) => point.userId === "00")?.limited).toBe(true);
+    expect(select(members).find((point) => point.userId === "00")).toMatchObject({ limited: true, xLimited: false, yLimited: true });
     expect(selectLineupStylePoints(members, "opening", "clutching")).toHaveLength(6);
     members[0].attributes[0].score = Infinity;
     expect(select(members)).toEqual([]);

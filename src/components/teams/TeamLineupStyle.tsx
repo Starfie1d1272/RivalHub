@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { LINEUP_STYLE_CHARTS, lineupStyleAxis, selectLineupStylePoints, type LineupStyleMember, type LineupStylePoint } from "@/lib/teams/lineup-style";
@@ -97,7 +98,13 @@ function StyleChart({ chart, selection, onSelect, onClose }: { chart: Chart; sel
 
   return <div className="min-w-0 border border-[var(--color-border)] bg-[var(--color-panel)] p-3 sm:p-4">
     <div className="flex items-baseline justify-between gap-2 px-1">
-      <h3 id={`${id}-title`} className="text-base font-semibold">{chart.title}</h3>
+      <div className="relative">
+        <h3 id={`${id}-title`} className="text-base font-semibold">{chart.title}</h3>
+        <HelpTooltip label={`${chart.title} 说明`} className="absolute left-full top-1 ml-1.5" content={<>
+          <p>坐标轴自动缩放，象限表示当前成员间的相对风格；分数采用全站历史基准。</p>
+          {chart.key === "entrying-trading" && <p className="mt-1">Crow 补枪多、被补少；Pack 双向较多；Loner 双向较少；Lamb 被补多、补枪少。</p>}
+        </>} />
+      </div>
       <span className="text-xs tabular-nums text-[var(--color-fg-dim)]">{chart.points.length} 人</span>
     </div>
     <div className="relative mx-auto mt-2 aspect-square w-full max-w-[17rem]" role="group" aria-labelledby={`${id}-title`} aria-describedby={limited ? `${id}-sample` : undefined}>
@@ -127,7 +134,7 @@ function StyleChart({ chart, selection, onSelect, onClose }: { chart: Chart; sel
         <PlayerAvatar name={point.name} avatarUrl={point.avatarUrl} size="sm" />
       </button>)}
     </div>
-    {limited && <p id={`${id}-sample`} className="mt-1 flex items-center gap-2 px-1 text-xs text-[var(--color-fg-mid)]"><span aria-hidden="true" className="size-3 rounded-full border border-dashed border-[var(--color-fg-dim)]" />{preview ? "样本有限预览" : "虚线圈表示部分属性样本有限"}</p>}
+    {limited && <p id={`${id}-sample`} className="mt-1 flex items-center gap-2 px-1 text-[10px] text-[var(--color-fg-dim)]"><span aria-hidden="true" className="size-2.5 rounded-full border border-dashed border-[var(--color-fg-dim)]" />{preview ? "样本有限预览" : "虚线圈表示部分属性样本有限"}</p>}
     {active && trigger && <PlayerCard id={`${id}-detail`} chart={chart} active={active} nearby={nearby} trigger={trigger} cardRef={cardRef}
       onEnter={cancelClose} onLeave={scheduleClose} onClose={closeAndRestoreFocus}
       onChoose={(point) => { pinned.current = true; cancelClose(); onSelect(point.userId); }} />}
@@ -167,10 +174,9 @@ function PlayerCard({ id, chart, active, nearby, trigger, cardRef, onEnter, onLe
       <button type="button" className="min-h-6 min-w-6 text-[var(--color-fg-dim)] hover:text-[var(--color-fg-primary)]" aria-label="关闭选手信息" onClick={onClose}>×</button>
     </div>
     <div className="mt-3 grid grid-cols-2 gap-3 border-t border-[var(--color-border)] pt-2">
-      <div className="text-[var(--color-fg-mid)]">{chart.xLabel}<span className="ml-2 font-semibold tabular-nums text-[var(--color-fg-primary)]">{active.x}</span></div>
-      <div className="text-[var(--color-fg-mid)]">{chart.yLabel}<span className="ml-2 font-semibold tabular-nums text-[var(--color-fg-primary)]">{active.y}</span></div>
+      <div className="text-[var(--color-fg-mid)]">{chart.xLabel}<span className="ml-2 font-semibold tabular-nums text-[var(--color-fg-primary)]">{active.x}</span>{active.xLimited && <span className="ml-1.5 whitespace-nowrap text-[10px] text-[var(--color-fg-dim)]">样本有限</span>}</div>
+      <div className="text-[var(--color-fg-mid)]">{chart.yLabel}<span className="ml-2 font-semibold tabular-nums text-[var(--color-fg-primary)]">{active.y}</span>{active.yLimited && <span className="ml-1.5 whitespace-nowrap text-[10px] text-[var(--color-fg-dim)]">样本有限</span>}</div>
     </div>
-    {active.limited && <p className="mt-2 text-[var(--color-fg-mid)]">本图部分属性样本有限。</p>}
     {nearby.length > 1 && <div className="mt-3 border-t border-[var(--color-border)] pt-2"><p className="mb-2 text-[var(--color-fg-mid)]">附近成员 · 点击切换</p><div className="flex flex-wrap gap-2">{nearby.map((point) => <button type="button" key={point.userId} aria-label={`查看 ${point.name}`} aria-pressed={active.userId === point.userId} title={point.name} onClick={() => onChoose(point)} className={`rounded-full focus-visible:outline-2 focus-visible:outline-[var(--color-border-focus)] ${active.userId === point.userId ? "ring-1 ring-[var(--color-accent)]" : ""}`}><PlayerAvatar name={point.name} avatarUrl={point.avatarUrl} size="sm" /></button>)}</div></div>}
   </div>, document.body);
 }

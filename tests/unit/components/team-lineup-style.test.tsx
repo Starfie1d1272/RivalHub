@@ -23,7 +23,10 @@ it("opens touch-safe details, selects coincident members and exposes a separate 
   expect(screen.getByRole("link", { name: /English Steam Name/ })).toHaveAttribute("href", "/players/player-1");
   expect(screen.getByText("个人生涯 · 9 Maps")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "查看 Third Player" }));
-  expect(screen.getByText("本图部分属性样本有限。")).toBeInTheDocument();
+  const card = within(screen.getByRole("dialog"));
+  expect(card.getByText("Utility")).toHaveTextContent("样本有限");
+  expect(card.getByText("Firepower")).not.toHaveTextContent("样本有限");
+  expect(card.getAllByText("样本有限")).toHaveLength(1);
   expect(screen.getByRole("dialog")).toContainElement(screen.getByRole("link"));
   await user.keyboard("{Escape}");
   expect(screen.queryByRole("link")).not.toBeInTheDocument();
@@ -44,6 +47,9 @@ it("closes the floating card on an outside click and reopens it on keyboard focu
   await user.click(screen.getByRole("button", { name: "页面其它操作" }));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   await user.tab();
+  expect(screen.getByRole("button", { name: "Star Chart 说明" })).toHaveFocus();
+  expect(screen.getByRole("tooltip")).toHaveTextContent("坐标轴自动缩放");
+  await user.tab();
   expect(point).toHaveFocus();
   expect(screen.getByRole("dialog")).toBeInTheDocument();
 });
@@ -52,6 +58,7 @@ it("routes keyboard focus into the portal, activates the profile link and return
   const user = userEvent.setup();
   render(<TeamLineupStyle members={members} />);
   const points = within(screen.getByRole("group", { name: "Star Chart" })).getAllByRole("button");
+  await user.tab();
   await user.tab();
   expect(points[0]).toHaveFocus();
   await user.tab();
@@ -78,6 +85,7 @@ it("returns focus after the last card control without trapping the next Tab in t
   const user = userEvent.setup();
   render(<TeamLineupStyle members={members} />);
   const points = within(screen.getByRole("group", { name: "Star Chart" })).getAllByRole("button");
+  await user.tab();
   await user.tab();
   await user.keyboard(" ");
   expect(screen.getByRole("link", { name: /中文完整昵称/ })).toHaveFocus();

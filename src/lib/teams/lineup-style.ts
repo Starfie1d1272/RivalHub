@@ -19,6 +19,8 @@ export interface LineupStylePoint extends PublicPlayerIdentity {
   x: number;
   y: number;
   limited: boolean;
+  xLimited: boolean;
+  yLimited: boolean;
 }
 
 /** Selection is independent for each pair, including qualification and missing coordinates. */
@@ -30,7 +32,7 @@ export function selectLineupStylePoints(members: readonly LineupStyleMember[], x
       || x.score == null || y.score == null || !Number.isFinite(x.score) || !Number.isFinite(y.score)
       || x.score < 0 || x.score > 100 || y.score < 0 || y.score > 100) return [];
     return [{ userId: member.userId, name: member.name, avatarUrl: member.avatarUrl, maps: member.maps, rounds: member.rounds,
-      x: x.score, y: y.score, limited: x.status === "limited" || y.status === "limited" }];
+      x: x.score, y: y.score, xLimited: x.status === "limited", yLimited: y.status === "limited", limited: x.status === "limited" || y.status === "limited" }];
   }).sort((a, b) => b.maps - a.maps || b.rounds - a.rounds || (a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0));
   const qualified = points.filter((point) => !point.limited);
   const limited = points.filter((point) => point.limited);
