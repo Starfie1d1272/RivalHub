@@ -40,6 +40,7 @@ import { RegistrationScheduleCountdown } from "@/components/seasons/Registration
 import { RegistrationOpeningRecovery } from "@/components/register/RegistrationOpeningRecovery";
 
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
+import { canReleaseEliminatedParticipationInTx } from "@/lib/major/eliminated-entry";
 import { getCompetitionEntryCapabilities } from "@/lib/competition-entries/capabilities";
 import { isMajorRosterAdjustmentPhaseOpen } from "@/lib/major/roster-window";
 import { loadCompetitionEntryParticipantContext } from "@/lib/competition-entries/participant-context";
@@ -163,7 +164,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           ? db.select({ logoUrl: teams.logoUrl }).from(teams).where(eq(teams.id, entry.teamId)).limit(1)
           : Promise.resolve([]),
       ]);
-      capabilities = getCompetitionEntryCapabilities({ season, entry: { status: entry.registrationStatus, hasApprovedRoster: !!entry.approvedRosterRevisionId }, revision: revision ?? null, rosterFrozen: eventRoster?.status === "frozen", majorAdjustmentPhaseOpen });
+      capabilities = getCompetitionEntryCapabilities({ season, entry: { status: entry.registrationStatus, hasApprovedRoster: !!entry.approvedRosterRevisionId }, revision: revision ?? null, rosterFrozen: eventRoster?.status === "frozen", majorAdjustmentPhaseOpen, eliminatedParticipationRelease: await canReleaseEliminatedParticipationInTx(db, season, entry.id) });
       const candidateRows = entry.teamId
         ? await db.select({ membershipId: teamMemberships.id, userId: teamMemberships.userId, status: teamMemberships.status, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
             .from(teamMemberships).innerJoin(users, eq(users.id, teamMemberships.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
