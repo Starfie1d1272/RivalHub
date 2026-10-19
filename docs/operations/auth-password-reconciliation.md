@@ -10,10 +10,12 @@ Supabase Auth 与应用 PostgreSQL 不能原子提交。`mutatePassword` 在调�
 2. 由有权限的平台维护人员在应用审计记录中核对 `user.password_update_started` 与后续 `user.change_password`、`user.reset_password` 或 `user.password_update_failed`。这些记录不存密码；只有 started 不能确定 provider 结果。核对当前 `passwordMutationId` 与完成审计是否在同一事务提交；不得只因 provider 成功、旧会话失效或一次 DB 错误就断言 fence 已清除或必须清除。
 3. 由拥有对应 Supabase 项目权限的维护人员在 Auth 的 Audit Logs 核对同一身份、时间窗口与密码更新事件。应用 requestId 不传播给 Supabase，必须结合时间与受控身份映射核查，不宣称跨 provider 编号可直接检索。不要通过索取用户密码、重复调用更新或尝试新旧密码来“验证”。provider 结果仍无法确认时继续保持阻断，升级给项目维护人员核查。
 
-## 解除阻断的现有边界与缺口
+## 管理员恢复入口
 
-`src/lib/auth/session-registry.ts` 的 `finishPasswordMutationInTx` 是唯一完成 owner：在事务内锁 active user，要求精确匹配当前 `passwordMutationId`，再次撤销会话与旧认证 proof，最后清除 pending。不能直接 UPDATE 控制表或以随机/过期 mutation ID 解除。真实 PostgreSQL 回归证明 owner 接受匹配 ID 后仅允许之后取得的认证 proof 登录；它不证明 provider 已更新密码。
+平台超级管理员在 `/admin/users?tab=users` 的「退出旧登录」中读取当前待核查 mutation ID。普通退出登录仅撤销会话，保留密码更新阻断。恢复登录需要明确核实本次 provider 请求已经结束，并选择成功或明确拒绝、核查来源及原系统的事件/排查编号。未知结果继续核查，不能选择推测结果。编号本身不是成功证据；管理员必须核对对应身份、时间和结果，系统记录的是管理员核查结论，不宣称自动验证了 provider 日志。不要粘贴密码、链接、token 或日志正文。
 
-当前产品没有管理员核查/解除阻断页面，也没有受保护的 reconciliation CLI；普通用户重置入口与新登录请求仍会被 pending fence 拒绝，并返回停止提交与核查指引；页面刷新不会丢失数据库阻断。本手册的只读核查可以执行，但不能据此承诺管理员已能从产品恢复登录。内部 owner 的直接测试调用不等于部署的运维入口。核查后仍需另行实现并独立审查带授权、精确 mutation ID、已确认 provider 结果与审计的恢复入口，再按生产操作授权执行；本变更不创建这个功能，也不执行生产写入。该端到端恢复缺口保持开放。
+服务端独立校验超级管理员权限、精确 mutation ID 和结构化核查依据；历史版本仅传 `providerMutationSettled: true` 的解除请求被拒绝，需刷新页面后重新核查。`finishPasswordMutationInTx` 是唯一解除 owner：锁 active user、匹配当前 mutation ID、再次撤销会话和旧认证 proof、清除 pending。解除与包含核查来源、编号、结果及 mutation ID 的 `user.sessions_revoke` 审计在同一事务提交，审计失败整笔回滚。重复提交或过期页面不能解除另一轮更新的阻断。页面关闭或重新打开后的旧响应不会覆盖当前状态。
+
+恢复后用户重新登录。该操作不调用 Auth 修改密码，不复用旧登录 proof。新密码更新的 started/完成审计均记录 mutation ID，便于将应用事实关联到当前阻断；旧记录按身份和时间核查，不能伪造缺失的关联字段。核查元数据沿用安全审计的可见性、保留和备份规则，见 `docs/security/data-lifecycle.md`；只存记录编号，不复制 provider 日志内容。生产恢复须由获授权管理员执行并验证用户重新登录，测试环境通过不代替生产操作证据。
 
 官方错误合同：[Auth error codes](https://supabase.com/docs/guides/auth/debugging/error-codes)。429 应等待几分钟重试；`invalid_credentials` 与 `email_not_confirmed` 有明确含义。已安装 auth-js 的 retryable fetch error 在网络失败时携带 status=0；该值不证明密码错误。
