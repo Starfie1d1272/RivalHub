@@ -624,6 +624,13 @@
       "when": 1791774617444,
       "tag": "0088_bet-bo3-publication",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1792393091742,
+      "tag": "0089_bet-event-publication",
+      "breakpoints": true
     }
   ]
 }
