@@ -462,6 +462,7 @@
 .workbench .logo { width: 40px !important; height: 40px !important; }
 .workbench .logoMatch .teamSide { padding-block: 0; gap: 0; }
 .workbench .teamName { font-size: 12px; line-height: 16px; }
+.workbench .logoMatch .teamName { font-size: 11px; }
 .workbench .score { font-size: 14px; line-height: 18px; gap: 0; }
 .workbench .score small { line-height: 12px; }
 .workbench .scoreMatchLink { min-height: 16px; }
