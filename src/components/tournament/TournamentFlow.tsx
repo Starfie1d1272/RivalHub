@@ -4,6 +4,24 @@ import React, { useState, type ReactNode } from "react";
 import { ArrowDown, ArrowRight, Columns3, LayoutGrid, List } from "lucide-react";
 import styles from "./tournament.module.css";
 export type TournamentView = "flow" | "compact" | "list";
+export function TournamentViewSwitch({ view, setView }: {
+  view: TournamentView; setView: (view: TournamentView) => void;
+}) {
+  return (
+    <div role="group" aria-label="赛程展示方式" className={styles.viewSwitch}>
+      {([
+        ["flow", "晋级路径", Columns3],
+        ["compact", "紧凑对阵", List],
+        ["list", "轮次列表", LayoutGrid],
+      ] as const).map(([key, label, Icon]) => (
+        <button key={key} type="button" aria-pressed={view === key}
+          onClick={() => { recordFilter("view", key); setView(key); }}>
+          <Icon size={16} /><span>{label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 /** Layout only: adapters retain ownership of official facts and simulation choices. */
 export function TournamentFlow({ rounds, view, setView, renderRound, finalResults, legend, label, resultLabel, initialRound }: {
   rounds: number[]; view: TournamentView; setView?: (view: TournamentView) => void;
@@ -14,29 +32,7 @@ export function TournamentFlow({ rounds, view, setView, renderRound, finalResult
   return (
     <div className={styles.board} data-layout={view} data-fixed-view={!setView || undefined}>
       {(setView || legend) && <div className={styles.toolbar}>
-        {setView && <div
-          role="group"
-          aria-label="赛程展示方式"
-          className={styles.viewSwitch}
-        >
-          {(
-            [
-              ["flow", "晋级路径", Columns3],
-              ["compact", "紧凑对阵", List],
-              ["list", "轮次列表", LayoutGrid],
-            ] as const
-          ).map(([key, label, Icon]) => (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={view === key}
-              onClick={() => { recordFilter("view", key); setView(key); }}
-            >
-              <Icon size={16} />
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>}
+        {setView && <TournamentViewSwitch view={view} setView={setView} />}
         {legend && <div className={styles.legend}>{legend}</div>}
       </div>}
       {view === "list" && (

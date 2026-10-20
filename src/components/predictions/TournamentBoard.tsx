@@ -1,7 +1,6 @@
 "use client";
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { useClientReady } from "@/components/rivalhub/useClientReady";
-import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import {
   MAJOR_SWISS_WIN_THRESHOLD,
   MAJOR_SWISS_LOSS_THRESHOLD,
@@ -9,7 +8,7 @@ import {
 import { SwissRecordGroup, TournamentResult, swissResultRecords } from "@/components/tournament/SwissPrimitives";
 import type { Baseline, SimMatch, SimStage } from "@/lib/predictions/types";
 import { SimulationMatchCard } from "./SimulationMatchCard";
-import { TournamentFlow } from "@/components/tournament/TournamentFlow";
+import { TournamentFlow, type TournamentView } from "@/components/tournament/TournamentFlow";
 type ResultGroup = {
   key: string;
   label: string;
@@ -19,12 +18,14 @@ type ResultGroup = {
 };
 export function TournamentBoard({
   stage,
+  view,
   seasonSlug,
   teams,
   editable,
   onChoose,
 }: {
   stage: SimStage;
+  view: TournamentView;
   seasonSlug?: string;
   teams: Baseline["teams"];
   editable: boolean;
@@ -32,7 +33,6 @@ export function TournamentBoard({
 }) {
   // SSR buttons must remain disabled until React can handle a user's choice.
   const interactive = useClientReady();
-  const [view, setView] = useState<"flow" | "compact" | "list">("flow");
   const teamMap = useMemo(
     () => new Map(teams.map((t) => [t.teamId, t])),
     [teams],
@@ -136,10 +136,8 @@ export function TournamentBoard({
       </>
     );
   };
-  return <TournamentFlow rounds={rounds} view={view} setView={setView}
+  return <TournamentFlow rounds={rounds} view={view}
     renderRound={roundBody} finalResults={results((rounds.at(-1) ?? 0) + 1).map(resultCard)}
     label={swiss ? "Swiss 完整赛事推演" : "淘汰赛完整晋级路径"}
-    resultLabel={stage.complete ? "推演结果" : "预览结果"}
-    legend={<><span>○ 系统补全</span><span>● 官方赛果</span><span>✓ 我的选择</span>
-      <HelpTooltip label="如何推演" content="点选队伍推演胜者。未结束比赛默认高种子获胜，模拟选择不显示虚构比分。修改上游会重算后续；刷新清空选择。推演不会自动提交 Pick’Em。" /></>} />;
+    resultLabel={stage.complete ? "推演结果" : "预览结果"} />;
 }

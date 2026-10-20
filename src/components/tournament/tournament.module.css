@@ -407,6 +407,81 @@
 .mobileRounds {
   display: none;
 }
+/* Prediction workspace shares controls and canvas edges with its Pick’Em dock. */
+.workspaceToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.workspaceToolbar .viewSwitch button {
+  min-height: 36px;
+  padding: 6px 10px;
+}
+.dockToggle {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+.dockToggle[aria-expanded="true"] {
+  background: var(--color-accent-soft);
+}
+.workspaceCanvas {
+  --canvas-height: max(360px, calc(100dvh - 320px));
+}
+.workbench .rounds {
+  grid-template-columns: repeat(var(--round-count), minmax(184px, 1fr));
+  gap: 24px;
+}
+.workbench .board[data-layout="compact"] .rounds {
+  grid-template-columns: repeat(var(--round-count), minmax(210px, 1fr));
+  justify-content: start;
+}
+.workbench .board .roundTitle {
+  min-height: 36px;
+  margin-bottom: 12px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+.workbench .board .roundContent {
+  justify-content: flex-start;
+  padding-block: 0;
+  gap: 16px;
+}
+.workbench .roundArrow {
+  right: -22px;
+  top: 8px;
+  width: 18px;
+}
+.workbench .groupMatches { gap: 8px; }
+.workbench .recordHeading { font-size: 14px; margin-bottom: 8px; }
+.workbench .logoMatch { min-height: 76px; }
+.workbench .logo { width: 32px !important; height: 32px !important; }
+.workbench .teamSide { padding-block: 7px; gap: 4px; }
+.workbench .result h4 { padding: 8px 10px; letter-spacing: 0; }
+.workbench .result h4 strong { font-size: 18px; }
+.workbench .resultLogos { padding: 10px 8px; gap: 10px; }
+.workbench .resultRows { padding: 10px; gap: 8px; }
+.workbench .board[data-layout="list"] .rounds { gap: 28px; }
+.workbench .board[data-layout="list"] .roundContent { justify-content: flex-start; }
+.workbench .board[data-layout="list"] .groupMatches { justify-content: flex-start; }
+.workbench .board[data-layout="list"] .match { min-height: 84px; }
+@media (min-width: 1024px) {
+  .workbench .viewport,
+  .predictionDock {
+    max-height: var(--canvas-height);
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-fg-dim) transparent;
+  }
+  .workbench .viewport { padding: 0 4px 12px; }
+  .workbench .board .roundTitle {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--color-bg);
+  }
+}
 @media (max-width: 640px) {
   .workbench h1 {
     font-size: 18px;

@@ -23,10 +23,6 @@ test("观众完成选队提交、草稿隔离、图片导出", async ({
     await expect(
       page.getByRole("heading", { name: "赛事推演", exact: true }),
     ).toBeVisible();
-    await page.getByRole("button", { name: /加入 Pick’Em/ }).click();
-    await expect(
-      page.getByRole("button", { name: /加入 Pick’Em/ }),
-    ).toHaveCount(0);
     const mobile = info.project.name === "mobile-chrome";
     const identityCard = page.getByTestId("sim-match-stage1-r1-1");
     await expect(identityCard.locator("a a, button a, a button, button button")).toHaveCount(0);
