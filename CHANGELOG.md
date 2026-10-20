@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.21.2]
+
+### Fixed
+
+- 赛事推演完整展开赛程，由页面统一上下滚动；右侧预测单停靠在导航下方并保留独立滚动，方便对照选队。
+
 ## [2.21.1]
 
 ### Changed
@@ -3125,6 +3131,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.21.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.1...v2.21.2
 [2.21.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.0...v2.21.1
 [2.21.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.20.0...v2.21.0
 [2.20.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.4...v2.20.0
