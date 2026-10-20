@@ -33,6 +33,12 @@ measurement. The regression suite requires performance projection bytes below
 25% of the corresponding multi-map player-round facts.
 
 This exact-version pnpm patch is an explicit bridge for the single RivalHub change.
+Dependabot excludes this package's ordinary major/minor/patch version updates while
+the bridge is present: an automatic version bump leaves the exact-version patch
+unused and fails pnpm before a valid update can be produced. Security updates and
+alerts remain enabled; a security fix still requires an explicit patch migration or
+removal with the same contract verification. Remove the version-update exclusion
+when this patch is retired.
 It includes readable package JavaScript and declarations; no registry release or
 upstream repository mutation is required. Exit condition: publish the equivalent
 DAK public projection contract through DAK's normal review/release process, upgrade
