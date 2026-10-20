@@ -19,6 +19,7 @@ import { recordStatsProjectionRead } from "@/lib/observability/statistics";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { buildScopeInsights } from "./insight-facts";
 import { buildRecords, collectRecordTies, type RecordOccurrence, type RecordSummary } from "./records";
+import { RECORD_EVENT_NAMES, type CompactRecordEvent, type RecordEventKind } from "./record-facts";
 import type { Insight } from "./insights";
 import { buildTournamentResults } from "./results";
 import { buildTeamRatings } from "./team-rating";
@@ -177,7 +178,7 @@ export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: { seasonId?:
 }
 
 async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean } = {}) {
-  return loadStatsEvidenceSelection(tx, scope, options, sql<typeof matchDemoStatProjections.$inferSelect.facts>`${matchDemoStatProjections.facts}`);
+  return loadStatsEvidenceSelection(tx, scope, options, sql<typeof matchDemoStatProjections.$inferSelect.facts>`${matchDemoStatProjections.facts} #- '{records,events}'`);
 }
 
 /** Team/map details consume both analytics owners, but never record candidates. */
@@ -549,6 +550,27 @@ export async function getTournamentStats(scope: PlatformStatsScope, database: DB
           entityHref: isTeam ? teamLinks[id]! : `/players/${id}`, opponent };
       });
     });
+    // Cumulative leaders aggregate every player-map count, not just map extrema.
+    const totals = new Map<string, { fourKills: number; aces: number; sources: RecordOccurrence[] }>();
+    for (const row of original.selected) for (const player of row.facts.records?.multiKills ?? []) {
+      const total = totals.get(player.entityId) ?? { fourKills: 0, aces: 0, sources: [] };
+      total.fourKills += player.fourKills; total.aces += player.aces;
+      const map = mapsById.get(row.facts.tournament.mapKey)!;
+      const entry = entriesById.get(player.entryId)!;
+      const match = matchesById.get(map.matchId)!;
+      for (const [kind, count] of [["fourKillsTotal", player.fourKills], ["acesTotal", player.aces]] as const) if (count) {
+        total.sources.push({ kind, entityId: player.entityId, entryId: player.entryId, numerator: count, denominator: 1,
+          eventName: entry.eventName, eventSlug: entry.eventSlug, matchId: match.id, mapId: map.id, mapName: map.mapName,
+          score: `${map.scoreA}-${map.scoreB}`, rounds: map.scoreA! + map.scoreB!, entityName: original.labels.players[player.entityId] ?? "选手",
+          entityHref: `/players/${player.entityId}`, opponent: entriesById.get(player.entryId === match.entryAId ? match.entryBId : match.entryAId)?.name ?? "—" });
+      }
+      totals.set(player.entityId, total);
+    }
+    for (const total of totals.values()) for (const source of total.sources) occurrences.push({ ...source,
+      numerator: source.kind === "fourKillsTotal" ? total.fourKills : total.aces });
+    const eventCounts = Object.fromEntries(Object.keys(RECORD_EVENT_NAMES).map(kind => [kind,
+      original.selected.reduce((sum, row) => sum + (row.facts.records?.eventCounts?.[kind as RecordEventKind] ?? 0), 0)])) as Record<RecordEventKind, number>;
+    const eventMaps = original.selected.filter(row => row.facts.records?.eventCounts).length;
     const recordTies = collectRecordTies(occurrences);
     const records = buildRecords(recordTies);
     const recordCoverage = { maps: original.selected.filter((r) => r.facts.records).length, economyRounds: original.selected.reduce((sum, r) => sum + (r.facts.records?.economyKnownRounds ?? 0), 0) };
@@ -558,13 +580,72 @@ export async function getTournamentStats(scope: PlatformStatsScope, database: DB
       ...({ teamLinks } as { teamLinks?: Record<string, string> }),
       analytics,
       performance: scope.weaponTeamId ? buildTournamentPerformanceAnalytics(performanceFactsForScope(loaded, scope.weaponTeamId), { labels: loaded.labels }) : performance,
-      ...({ insights, records, recordTies, recordCoverage } as { insights?: Insight[]; records?: RecordSummary[]; recordTies?: RecordOccurrence[]; recordCoverage?: { maps: number; economyRounds: number } }),
+      ...({ insights, records, recordTies, recordCoverage, recordEvents: undefined, eventCounts, eventMaps } as { recordEvents?: RecordEventPage; eventCounts?: Record<RecordEventKind, number>; eventMaps?: number; insights?: Insight[]; records?: RecordSummary[]; recordTies?: RecordOccurrence[]; recordCoverage?: { maps: number; economyRounds: number } }),
       results,
       selection: buildVetoSelection(veto.participants, veto.rows, mapNames, scope.mapFilter),
       veto: { teams: veto.teams, sample: veto.sample },
       coverage,
       options: { teams: platform ? [] : loaded.participantEntries, maps: mapNames },
     };
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+}
+
+
+export const RECORD_EVENT_PAGE_SIZE = 25;
+export interface RecordEventOccurrence extends CompactRecordEvent {
+  eventName: string; eventSlug: string; matchId: string; mapId: string; mapName: string;
+  entityName: string; teamName: string; teamHref: string; opponent: string; opponentHref: string;
+  victimName?: string; score: string;
+}
+export interface RecordEventPage {
+  rows: RecordEventOccurrence[]; total: number; page: number; pages: number; maps: number;
+  weapons: string[];
+}
+/** Same current-import / revision / identity selection as analytics, with DB-side event pagination. */
+export async function getTournamentRecordEvents(scope: PlatformStatsScope, filter: { eventType?: RecordEventKind | ""; eventWeapon?: string; eventPage?: number }, database: DB = db): Promise<RecordEventPage> {
+  return database.transaction(async tx => {
+    if (!scope.seasonId || scope.publicOnly) {
+      const events = await tx.select({ id: seasons.id }).from(seasons).where(and(ne(seasons.status, "draft"),
+        scope.seasonIds ? inArray(seasons.id, scope.seasonIds) : undefined, scope.seasonId ? eq(seasons.id, scope.seasonId) : undefined));
+      if (scope.seasonId && !events.some(event => event.id === scope.seasonId)) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
+      scope = { ...scope, seasonIds: events.map(event => event.id) };
+    }
+    const loaded = await loadStatsEvidenceSelection(tx, scope, {}, sql<ProjectionTargets>`jsonb_build_object(
+      'tournament', jsonb_build_object('mapKey', ${matchDemoStatProjections.facts}->'tournament'->'mapKey', 'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey'),
+      'performance', jsonb_build_object('mapKey', ${matchDemoStatProjections.facts}->'performance'->'mapKey', 'matchKey', ${matchDemoStatProjections.facts}->'performance'->'matchKey'))`);
+    const ids = loaded.selected.map(row => row.importId);
+    const page = filter.eventPage ?? 1;
+    if (!Number.isSafeInteger(page) || page < 1 || page > 999999) throw new AppError(ErrorCode.NOT_FOUND, "事件页不可用。");
+    if (!ids.length) {
+      if (page > 1) throw new AppError(ErrorCode.NOT_FOUND, "事件页不可用。");
+      return { rows: [], total: 0, page: 1, pages: 1, maps: 0, weapons: [] };
+    }
+    const source = sql`LATERAL jsonb_array_elements(COALESCE(${matchDemoStatProjections.facts}->'records'->'events', '[]'::jsonb)) WITH ORDINALITY AS occurrence(event, position)`;
+    const base = and(inArray(matchDemoStatProjections.importId, ids), eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION));
+    const typeCondition = filter.eventType ? sql`occurrence.event->>'kind' = ${filter.eventType}` : undefined;
+    const condition = and(base, typeCondition, filter.eventWeapon ? sql`(occurrence.event->>'weapon' = ${filter.eventWeapon} OR occurrence.event->'weapons' ? ${filter.eventWeapon})` : undefined);
+    const [countRow] = await tx.select({ total: count() }).from(matchDemoStatProjections).innerJoin(source, sql`true`).where(condition);
+    const total = Number(countRow?.total ?? 0), pages = Math.max(1, Math.ceil(total / RECORD_EVENT_PAGE_SIZE));
+    if (page > pages) throw new AppError(ErrorCode.NOT_FOUND, "事件页不可用。");
+    const weaponRows = await tx.selectDistinct({ weapon: sql<string>`weapon.value #>> '{}'` }).from(matchDemoStatProjections)
+      .innerJoin(source, sql`true`).innerJoin(sql`LATERAL jsonb_array_elements(COALESCE(occurrence.event->'weapons', jsonb_build_array(occurrence.event->'weapon'))) AS weapon(value)`, sql`true`)
+      .where(and(base, typeCondition));
+    const weapons = weaponRows.map(row => row.weapon).filter((weapon): weapon is string => Boolean(weapon)).sort();
+    const rows = await tx.select({ importId: matchDemoStatProjections.importId, event: sql<CompactRecordEvent>`occurrence.event` }).from(matchDemoStatProjections)
+      .innerJoin(source, sql`true`).where(condition).orderBy(matchDemoStatProjections.importId, sql`(occurrence.event->>'round')::int`, sql`occurrence.position`)
+      .limit(RECORD_EVENT_PAGE_SIZE).offset((page - 1) * RECORD_EVENT_PAGE_SIZE);
+    const refs = new Map(loaded.currentRefs.map(ref => [ref.current.id, ref]));
+    const entries = new Map(loaded.entryRows.map(entry => [entry.id, entry]));
+    return { total, page, pages, maps: loaded.selected.length, weapons, rows: rows.map(({ importId, event }) => {
+      const { map, match } = refs.get(importId)!;
+      const entry = entries.get(event.entryId)!;
+      const opponent = entries.get(event.entryId === match.entryAId ? match.entryBId : match.entryAId)!;
+      return { ...event, eventName: entry.eventName, eventSlug: entry.eventSlug, matchId: match.id, mapId: map.id, mapName: map.mapName,
+        entityName: loaded.labels.players[event.entityId] ?? "选手", teamName: entry.name, teamHref: `/${entry.eventSlug}/teams/${entry.id}`,
+        opponent: opponent.name, opponentHref: `/${opponent.eventSlug}/teams/${opponent.id}`,
+        victimName: event.victimId ? loaded.labels.players[event.victimId] ?? "选手" : undefined,
+        score: `${event.scoreA}-${event.scoreB}` };
+    }) };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 

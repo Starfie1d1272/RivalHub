@@ -55,7 +55,7 @@ export function TournamentStatsView({
     ? <WeaponsExplorer data={data} query={query} seasonSlug={seasonSlug} />
     : <EmptyState title="暂无武器统计" />;
 
-  if (query.tab === "records" && data) content = <Records records={data.records ?? []} query={query} seasonSlug={seasonSlug} coverage={data.recordCoverage} />;
+  if (query.tab === "records" && data) content = <Records records={data.records ?? []} query={query} seasonSlug={seasonSlug} coverage={data.recordCoverage} events={data.recordEvents} counts={data.eventCounts} eventMaps={data.eventMaps} />;
 
   return (
     <StatsNavigationProvider><StatsShell

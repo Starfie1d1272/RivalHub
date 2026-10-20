@@ -10,7 +10,7 @@ import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { traceOperation } from "@/lib/observability/server";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import { INSIGHT_RULES_VERSION } from "./insights";
-import { getTournamentStats, type PlatformStatsScope } from "./tournament-query";
+import { getTournamentStats, getTournamentRecordEvents, type PlatformStatsScope } from "./tournament-query";
 import { buildRecords } from "./records";
 import { publicStatsView } from "./public-view";
 import { parseStatsQuery, type StatsSearch } from "./view-state";
@@ -70,5 +70,10 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
     query.recordPage = page;
     if (page > 1) data = { ...data, records: buildRecords(data.recordTies ?? [], page) };
   }
+  for (const key of ["eventType", "eventWeapon", "eventPage"] as const) {
+    if (raw[key] !== undefined && (query.tab !== "records" || typeof raw[key] !== "string" ||
+      (key === "eventPage" ? !/^[1-9][0-9]{0,5}$/.test(raw[key] as string) : raw[key] !== query[key]))) throw new AppError(ErrorCode.NOT_FOUND, "事件范围不可用。");
+  }
+  if (query.tab === "records") data = { ...data, recordEvents: await getTournamentRecordEvents(scope, query) };
   return { data: publicStatsView(data, query), query, event, stages, maps: allowedMaps, events: events.map(({ id, slug, name, status }) => ({ slug, name, status, maps: [...new Set(maps.filter((m) => m.seasonId === id).map((m) => m.name))].sort() })) };
 }
