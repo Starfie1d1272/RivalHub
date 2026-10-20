@@ -428,6 +428,7 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "major_prestart.reopen_roster": { label: "重新打开 Major 阵容", category: "major" },
   "major_prestart.save_schedule": { label: "调整 Major 赛前计划", category: "major" },
   "major_prestart.lock_entrants": { label: "锁定 Major 参赛队", category: "major" },
+  "major_prestart.unlock_entrants": { label: "撤回 Major 名单冻结", category: "major" },
   "major_prestart.set_managed_profile": { label: "调整 Major 正赛规模", category: "major" },
   "major_prestart.save_tournament_seeds": { label: "保存 Major 种子", category: "major" },
   "major_prestart.confirm_tournament_seeds": { label: "确认 Major 种子", category: "major" },
