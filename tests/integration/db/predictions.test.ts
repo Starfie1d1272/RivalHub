@@ -1,3 +1,4 @@
+import { initializePreviewPickEm } from "../../../scripts/db/preview/predictions";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -41,7 +42,7 @@ type Fixture = {
   runId: string;
   matchIds: string[];
 };
-async function fixture(work: (f: Fixture) => Promise<void>, capacity: 24 | 32 = 32) {
+async function fixture(work: (f: Fixture) => Promise<void>, capacity: 24 | 32 = 32, initializePredictions = true) {
   await withScratchDatabase("prediction_test", async (client) => {
     for (const file of migrationFiles((name) => /^\d{4}_.*\.sql$/.test(name)))
       await replayMigration(client, file);
@@ -173,6 +174,7 @@ async function fixture(work: (f: Fixture) => Promise<void>, capacity: 24 | 32 = 
           })),
         )
         .returning({ id: schema.matches.id });
+      if (initializePredictions) {
       await db.transaction((tx) =>
         syncAutomaticPickEmInTx(tx, seasonId),
       );
@@ -183,6 +185,7 @@ async function fixture(work: (f: Fixture) => Promise<void>, capacity: 24 | 32 = 
           ),
         ),
       );
+      }
       await work({
         db,
         pool,
@@ -354,6 +357,48 @@ describe("spectator prediction PostgreSQL contracts", () => {
       expect((await runPredictionReconciliationJob(db)).result.completed).toBe(0);
       await db.update(schema.matches).set({ status: "in_progress" }).where(eq(schema.matches.id, f.matchIds[0]!));
       expect(await due()).toBe(true);
+    }));
+
+  it("rebuilds idempotent Preview stage windows from official entrants without viewer accounts or picks", async () =>
+    fixture(async ({ db, seasonId }) => {
+      await initializePreviewPickEm(db);
+      await initializePreviewPickEm(db);
+      expect(await db.select().from(schema.predictionPrograms).where(eq(schema.predictionPrograms.seasonId, seasonId))).toHaveLength(1);
+      const windows = await db.select().from(schema.predictionContests).where(eq(schema.predictionContests.seasonId, seasonId));
+      expect(windows).toHaveLength(1);
+      expect(windows[0]!.stageKey).toBe("stage1");
+      expect(windows[0]!.entrants).toHaveLength(16);
+      expect(await db.select().from(schema.predictionAccounts)).toHaveLength(0);
+      expect(await db.select().from(schema.predictionPicks)).toHaveLength(0);
+      expect(await db.select().from(schema.predictionLedger)).toHaveLength(0);
+    }, 32, false));
+
+  it("joins atomically on first pick save, credits once across concurrent retries and rolls back rejected first saves", async () =>
+    fixture(async ({ db, seasonId }) => {
+      const viewer = randomUUID(), rejected = randomUUID();
+      await db.insert(schema.users).values([viewer, rejected].map((id) => ({
+        id, email: `${id}@example.test`, displayName: "新观众",
+        emailVerifiedAt: new Date(), emailVerificationSource: "admin_migration" as const,
+      })));
+      const [contest] = await db.select().from(schema.predictionContests).where(eq(schema.predictionContests.seasonId, seasonId));
+      const input = { seasonId, userId: viewer, contestId: contest!.id,
+        pick: { perfect: [], advance: [], eliminated: [] }, submitted: false, requestId: randomUUID() };
+      const receipts = await Promise.all([0, 1].map(() => db.transaction((tx) => savePickInTx(tx, input))));
+      expect(receipts[0]).toEqual(receipts[1]);
+      const viewerAccounts = await db.select().from(schema.predictionAccounts).where(and(eq(schema.predictionAccounts.seasonId, seasonId), eq(schema.predictionAccounts.userId, viewer)));
+      expect(viewerAccounts).toHaveLength(1);
+      const accountId = viewerAccounts[0]!.id;
+      const credits = await db.select().from(schema.predictionLedger).where(eq(schema.predictionLedger.accountId, accountId));
+      expect(credits.filter((row) => row.kind === "initial")).toHaveLength(1);
+      expect(credits.find((row) => row.kind === "initial")!.amount).toBe(BigInt(DEFAULT_RULES.initialPoints));
+      const saved = await db.select().from(schema.predictionPicks).where(eq(schema.predictionPicks.accountId, accountId));
+      expect(saved).toHaveLength(1);
+      expect(saved[0]!.submitted).toBe(false);
+      await expect(db.transaction((tx) => savePickInTx(tx, { ...input, userId: rejected, submitted: true, requestId: randomUUID() }))).rejects.toThrow();
+      expect(await db.select().from(schema.predictionAccounts).where(eq(schema.predictionAccounts.userId, rejected))).toHaveLength(0);
+      await db.update(schema.matches).set({ status: "in_progress" }).where(eq(schema.matches.seasonId, seasonId));
+      await expect(db.transaction((tx) => savePickInTx(tx, { ...input, userId: rejected, requestId: randomUUID() }))).rejects.toThrow("截止");
+      expect(await db.select().from(schema.predictionAccounts).where(eq(schema.predictionAccounts.userId, rejected))).toHaveLength(0);
     }));
 
   it("keeps versioned submissions separate, blocks late requests, permanently locks on early start and protects identity/history", async () =>

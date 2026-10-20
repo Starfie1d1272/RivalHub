@@ -23,10 +23,6 @@ test("观众完成选队提交、草稿隔离、图片导出", async ({
     await expect(
       page.getByRole("heading", { name: "赛事推演", exact: true }),
     ).toBeVisible();
-    await page.getByRole("button", { name: /加入 Pick’Em/ }).click();
-    await expect(
-      page.getByRole("button", { name: /加入 Pick’Em/ }),
-    ).toHaveCount(0);
     const mobile = info.project.name === "mobile-chrome";
     const identityCard = page.getByTestId("sim-match-stage1-r1-1");
     await expect(identityCard.locator("a a, button a, a button, button button")).toHaveCount(0);
@@ -38,14 +34,9 @@ test("观众完成选队提交、草稿隔离、图片导出", async ({
     await page.goBack();
     await expect(identityCard).toHaveAttribute("data-source", "preview");
 
-    if (mobile)
-      await page
-        .getByRole("button", { name: "我的预测单", exact: true })
-        .click();
-    else
-      await page
-        .getByRole("button", { name: "展开预测单", exact: true })
-        .click();
+    await page.getByRole("button", { name: "保存推演为 Pick’Em", exact: true }).click();
+    await expect(page.getByText("已保存当前推演 · 草稿未提交", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "恰好 3胜0负 1：队伍 17", exact: true })).toBeVisible();
     const slotNames = [
       "恰好 3胜0负 1",
       "恰好 3胜0负 2",

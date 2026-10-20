@@ -407,7 +407,107 @@
 .mobileRounds {
   display: none;
 }
+/* Prediction workspace shares controls and canvas edges with its Pick’Em dock. */
+.workspaceToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.workspaceToolbar .viewSwitch button {
+  min-height: 36px;
+  padding: 6px 10px;
+}
+.dockToggle {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+.dockToggle[aria-expanded="true"] {
+  background: var(--color-accent-soft);
+}
+.workspaceCanvas {
+  --canvas-height: max(360px, calc(100dvh - 320px));
+}
+.workbench .rounds {
+  grid-template-columns: repeat(var(--round-count), 200px);
+  min-width: max-content;
+  justify-content: safe center;
+  gap: 32px;
+}
+.workbench .board[data-layout="compact"] .rounds {
+  grid-template-columns: repeat(var(--round-count), 220px);
+  justify-content: safe center;
+}
+.workbench .board .roundTitle {
+  min-height: 36px;
+  margin-bottom: 12px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+.workbench .board .roundContent {
+  justify-content: center;
+  padding-block: 20px;
+  gap: 24px;
+}
+.workbench .roundArrow {
+  right: -26px;
+  top: 55%;
+  width: 18px;
+}
+.workbench .groupMatches { gap: 8px; }
+.workbench .recordHeading { font-size: 14px; margin-bottom: 8px; }
+/* Match proportions follow the Cologne reference: 200px logo cards and 24px team rows. */
+.workbench .logoMatch { min-height: 58px; }
+.workbench .logo { width: 40px !important; height: 40px !important; }
+.workbench .logoMatch .teamSide { padding-block: 0; gap: 0; }
+.workbench .teamName { font-size: 12px; line-height: 16px; }
+.workbench .logoMatch .teamName { font-size: 11px; }
+.workbench .score { font-size: 14px; line-height: 18px; gap: 0; }
+.workbench .score small { line-height: 12px; }
+.workbench .scoreMatchLink { min-height: 16px; }
+.workbench .compactMatch .teamSide { min-height: 24px; padding: 2px 6px; gap: 4px; }
+.workbench .compactMatch .smallLogo { width: 20px !important; height: 20px !important; }
+.workbench .compactMatch .seed,
+.workbench .compactMatch .rowScore { font-size: 12px; line-height: 16px; }
+.workbench .result h4 { padding: 4px 8px; line-height: 18px; letter-spacing: 0; }
+.workbench .result h4 strong { font-size: 14px; }
+.workbench .resultLogos { display: grid; grid-template-columns: repeat(auto-fit, minmax(48px, 1fr)); padding: 6px 8px; gap: 6px; }
+.workbench .resultLogos .resultTeam { gap: 2px; }
+.workbench .resultRows { padding: 4px 8px; gap: 0; }
+.workbench .resultRows .resultTeam { min-height: 24px; gap: 6px; }
+.workbench .resultRows .smallLogo { width: 20px !important; height: 20px !important; }
+.workbench .resultTeam span { font-size: 12px; line-height: 16px; }
+.workbench .board[data-layout="list"] .rounds { gap: 28px; min-width: 0; }
+.workbench .board[data-layout="list"] .roundContent { justify-content: center; padding-block: 0; }
+.workbench .board[data-layout="list"] .groupMatches { justify-content: center; }
+.workbench .board[data-layout="list"] .match { min-height: 52px; }
+@media (min-width: 1024px) {
+  .workbench .viewport,
+  .predictionDock {
+    max-height: var(--canvas-height);
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-fg-dim) transparent;
+  }
+  .workbench .viewport { padding: 0 4px 12px; }
+  .workbench .board .roundTitle {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--color-bg);
+  }
+}
 @media (max-width: 640px) {
+  .workspaceToolbar .viewSwitch {
+    flex: 0 0 100%;
+    width: 100%;
+  }
+  .workspaceToolbar .viewSwitch button {
+    padding: 8px 4px;
+    gap: 4px;
+  }
+
   .workbench h1 {
     font-size: 18px;
     line-height: 1.4;

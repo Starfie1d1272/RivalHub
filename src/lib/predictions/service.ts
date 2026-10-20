@@ -408,14 +408,12 @@ export async function reconcilePredictionProgram(
     .where(eq(jobs.seasonId, seasonId));
   return base;
 }
-export async function joinPredictionsInTx(
+/** Caller holds the program lock; first participation and its credit commit with the pick. */
+async function ensurePredictionAccountInTx(
   tx: TxDb,
   input: { seasonId: string; userId: string },
+  initialPoints: number,
 ) {
-  await activeUser(tx, input.userId);
-  await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
-  const program = await lockPredictionProgram(tx, input.seasonId);
-  await reconcilePredictionProgram(tx, program);
   const [account] = await tx
     .insert(accounts)
     .values(input)
@@ -425,10 +423,21 @@ export async function joinPredictionsInTx(
     await writeLedger(tx, {
       seasonId: input.seasonId,
       accountId: account.id,
-      amount: BigInt(program.rules.initialPoints),
+      amount: BigInt(initialPoints),
       kind: "initial",
       source: "initial",
     });
+  return account ?? accountFor(tx, input.seasonId, input.userId);
+}
+export async function joinPredictionsInTx(
+  tx: TxDb,
+  input: { seasonId: string; userId: string },
+) {
+  await activeUser(tx, input.userId);
+  await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
+  const program = await lockPredictionProgram(tx, input.seasonId);
+  await reconcilePredictionProgram(tx, program);
+  await ensurePredictionAccountInTx(tx, input, program.rules.initialPoints);
   return { joined: true };
 }
 export async function savePickInTx(
@@ -467,7 +476,7 @@ export async function savePickInTx(
     .for("share");
   const program = await lockPredictionProgram(tx, input.seasonId);
   const base = await reconcilePredictionProgram(tx, program);
-  const account = await accountFor(tx, input.seasonId, input.userId);
+  const account = await ensurePredictionAccountInTx(tx, { seasonId: input.seasonId, userId: input.userId }, program.rules.initialPoints);
   const [replay] = await tx
     .select()
     .from(picks)

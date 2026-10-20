@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import React, { useState } from "react";
 import {
   PLAYOFF_PICK_KEYS,
@@ -20,6 +21,10 @@ export function emptyPick(kind: string): Pick {
 }
 export function PickEditor({
   data,
+  signedIn,
+  loginHref,
+  stageName,
+  simulationStatus,
   contest,
   pick,
   onChange,
@@ -28,6 +33,10 @@ export function PickEditor({
   busy,
 }: {
   data: PickEmBoardData;
+  signedIn: boolean;
+  loginHref: string;
+  stageName: string;
+  simulationStatus?: string;
   contest: Contest;
   pick: Pick;
   onChange: (pick: Pick) => void;
@@ -94,7 +103,7 @@ export function PickEditor({
     />
   );
   return (
-    <Panel label="我的阶段预测单" className="h-fit">
+    <Panel label={`${stageName} · 我的预测单`} className="h-fit">
       <div className="space-y-4">
         <div className="flex items-center gap-1">
           Pick’Em{" "}
@@ -118,6 +127,7 @@ export function PickEditor({
         <p className="text-xs text-[var(--color-fg-mid)]">
           截止：{contest.deadline ? new Date(contest.deadline).toLocaleString("zh-CN") : "时间待公布"}
         </p>
+        {simulationStatus && <p role="status" className="text-xs text-[var(--color-accent)]">{simulationStatus}</p>}
         {"perfect" in pick ? (
           <>
             {SWISS_PICK_GROUPS.map((group) => (
@@ -321,10 +331,11 @@ export function PickEditor({
         <p className="text-sm">
           已填写 {chosen.filter(Boolean).length}/{total}
         </p>
+        {!signedIn && <Button asChild className="w-full"><Link href={loginHref as never}>登录保存 Pick’Em</Link></Button>}
         <Button
           className="w-full"
           disabled={
-            locked || !data.joined || chosen.filter(Boolean).length !== total
+            locked || !signedIn || chosen.filter(Boolean).length !== total
           }
           onClick={() => onSave(true)}
         >
@@ -333,7 +344,7 @@ export function PickEditor({
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            disabled={locked || !data.joined}
+            disabled={locked || !signedIn}
             onClick={() => onSave(false)}
           >
             保存草稿
