@@ -76,3 +76,9 @@ export function displayWeaponName(value: string): string {
   const normalized = value.trim().toLowerCase().replace(/^(weapon_|item_)/, "").replace(/[\s-]+/g, "_");
   return weaponLabels[normalized] ?? value.trim().replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
+
+/** Event labels never fall back to unreviewed exporter identifiers. */
+export function displayRecordWeapon(value: string): string {
+  const normalized = value.trim().toLowerCase().replace(/^(weapon_|item_)/, "");
+  return weaponLabels[normalized] ?? "其他武器";
+}

@@ -7,7 +7,7 @@ import type { Route } from "next";
 import type { RecordSummary } from "@/lib/stats/records";
 import { RECORD_EVENT_NAMES, type RecordEventKind } from "@/lib/stats/record-facts";
 import type { RecordEventPage } from "@/lib/stats/tournament-query";
-import { displayWeaponName } from "@/lib/stats/presentation";
+import { displayRecordWeapon } from "@/lib/stats/presentation";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 import { statsHref, navigateStatsScope, type StatsQuery } from "@/lib/stats/view-state";
 
@@ -61,7 +61,7 @@ export function Records({ records, query, seasonSlug, coverage, events, counts, 
       {coverage && <span className="pr-4 text-xs tabular-nums text-[var(--color-fg-mid)]"><Help label={`${coverage.maps} 张地图`}>已确认的纪录覆盖；事件覆盖 {eventMaps} 张地图，经济数据覆盖 {coverage.economyRounds} 回合。缺少事实的地图不计入事件数量。</Help></span>}
     </div>
     <nav aria-label="事件数量" className="grid grid-cols-2 gap-px overflow-hidden border border-[var(--color-border)] bg-[var(--color-border)] sm:grid-cols-4 xl:grid-cols-7">
-      {summaryKinds.map(kind => <Link key={kind} href={`${statsHref(seasonSlug, query, { eventType: kind })}#record-events` as Route} scroll={false} className={`flex min-w-0 items-baseline justify-between gap-2 bg-[var(--color-panel-low)] px-3 py-3 ${linkStyle}`}>
+      {summaryKinds.map(kind => <Link key={kind} href={`${statsHref(seasonSlug, query, { eventType: kind })}#record-events` as Route} className={`flex min-w-0 items-baseline justify-between gap-2 bg-[var(--color-panel-low)] px-3 py-3 ${linkStyle}`}>
         <span className="text-xs text-[var(--color-fg-mid)]">{RECORD_EVENT_NAMES[kind]}</span><span className="text-xl font-semibold tabular-nums">{eventMaps ? counts?.[kind] ?? "—" : "—"}</span>
       </Link>)}
     </nav>
@@ -76,24 +76,24 @@ export function Records({ records, query, seasonSlug, coverage, events, counts, 
           <option value="">全部事件</option>{(Object.entries(RECORD_EVENT_NAMES) as [RecordEventKind, string][]).map(([kind, name]) => <option key={kind} value={kind}>{name}</option>)}
         </select></label>
         <label className="grid min-w-0 gap-1 text-xs text-[var(--color-fg-mid)]">武器<select value={query.eventWeapon ?? ""} onChange={event => navigateStatsScope(router, seasonSlug, query, { eventWeapon: event.target.value })} className={selectStyle}>
-          <option value="">全部武器</option>{events?.weapons.map(weapon => <option key={weapon} value={weapon}>{displayWeaponName(weapon)}</option>)}
+          <option value="">全部武器</option>{events?.weapons.map(weapon => <option key={weapon} value={weapon}>{displayRecordWeapon(weapon)}</option>)}
         </select></label>
         {(query.eventType || query.eventWeapon) && <Link href={statsHref(seasonSlug, query, { eventType: "", eventWeapon: "" })} scroll={false} className={`${linkStyle} py-2.5 text-xs`}>清除筛选</Link>}
       </div>
       {!events?.rows.length ? <p className="border-y border-[var(--color-border)] py-10 text-center text-sm text-[var(--color-fg-mid)]">{eventMaps ? "暂无匹配事件" : "暂无事件数据"}</p> : <div className="divide-y divide-[var(--color-border)] border-y border-[var(--color-border)]">
         <div className="hidden grid-cols-[5rem_minmax(0,1.2fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)] gap-4 py-2 text-xs text-[var(--color-fg-dim)] md:grid"><span>事件</span><span>选手 / 队伍</span><span>对手 / 赛事</span><span>地图 / 回合</span><span>武器 / 受害者</span></div>
-        {events.rows.map(event => <article key={`${event.mapId}:${event.id}`} className="grid min-w-0 gap-x-4 gap-y-2 py-3 text-sm md:grid-cols-[5rem_minmax(0,1.2fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
-          <span className="w-fit self-start border border-[var(--color-border)] px-2 py-1 text-xs font-medium">{RECORD_EVENT_NAMES[event.kind]}</span>
+        {events.rows.map(event => <article key={`${event.mapId}:${event.id}`} className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-2 py-3 text-sm md:grid-cols-[5rem_minmax(0,1.2fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
+          <span className="col-span-2 w-fit self-start border border-[var(--color-border)] px-2 py-1 text-xs font-medium md:col-span-1">{RECORD_EVENT_NAMES[event.kind]}</span>
           <div className="min-w-0 space-y-1 break-words"><Link href={`/players/${event.entityId}` as Route} className={`${linkStyle} font-medium`}>{event.entityName}</Link><Link href={event.teamHref as Route} className={`${linkStyle} block text-xs text-[var(--color-fg-mid)]`}>{event.teamName}</Link></div>
           <div className="min-w-0 space-y-1 break-words"><Link href={event.opponentHref as Route} className={linkStyle}>vs {event.opponent}</Link><Link href={`/${event.eventSlug}` as Route} className={`${linkStyle} block text-xs text-[var(--color-fg-mid)]`}>{event.eventName}</Link></div>
           <Link href={`/${event.eventSlug}/matches/${event.matchId}` as Route} className={`${linkStyle} space-y-1`}><span className="block">{mapLabel(event.mapName)} <span className="font-medium tabular-nums">R{event.round}</span></span><span className="block text-xs tabular-nums text-[var(--color-fg-mid)]">{event.score}</span></Link>
-          <div className="min-w-0 space-y-1 break-words text-xs text-[var(--color-fg-mid)]"><span>{event.weapon ? displayWeaponName(event.weapon) : event.weapons?.map(displayWeaponName).join(" / ") || "—"}</span>{event.victimId && event.kind !== "world" && event.kind !== "suicide" && <Link href={`/players/${event.victimId}` as Route} className={`${linkStyle} block`}>→ {event.victimName}</Link>}</div>
+          <div className="min-w-0 space-y-1 break-words text-xs text-[var(--color-fg-mid)]"><span>{event.weapon ? displayRecordWeapon(event.weapon) : event.weapons?.map(displayRecordWeapon).join(" / ") || "—"}</span>{event.victimId && event.kind !== "world" && event.kind !== "suicide" && <Link href={`/players/${event.victimId}` as Route} className={`${linkStyle} block`}>→ {event.victimName}</Link>}</div>
         </article>)}
       </div>}
       {events && events.pages > 1 && <nav aria-label="事件分页" className="flex flex-wrap items-center justify-between gap-3 text-sm">
-        {events.page > 1 ? <Link href={statsHref(seasonSlug, query, { eventPage: events.page - 1 })} scroll={false} className={`${linkStyle} py-2`}>上一页</Link> : <span />}
+        {events.page > 1 ? <Link href={`${statsHref(seasonSlug, query, { eventPage: events.page - 1 })}#record-events` as Route} className={`${linkStyle} py-2`}>上一页</Link> : <span />}
         <span className="text-xs tabular-nums text-[var(--color-fg-mid)]">{events.page} / {events.pages}</span>
-        {events.page < events.pages ? <Link href={statsHref(seasonSlug, query, { eventPage: events.page + 1 })} scroll={false} className={`${linkStyle} py-2`}>下一页</Link> : <span />}
+        {events.page < events.pages ? <Link href={`${statsHref(seasonSlug, query, { eventPage: events.page + 1 })}#record-events` as Route} className={`${linkStyle} py-2`}>下一页</Link> : <span />}
       </nav>}
     </section>
   </section>;

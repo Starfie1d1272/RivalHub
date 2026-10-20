@@ -489,6 +489,7 @@ describe("DAK evidence submit persistence", () => {
       queryLog.length = 0;
       queryBindings.length = 0;
       expect((await getTournamentStats({ seasonId: ids.season }, observedDatabase)).coverage.detailedMaps).toBe(0);
+      expect(await getTournamentRecordEvents({ seasonId: ids.season }, {}, observedDatabase)).toMatchObject({ maps: 0, total: 0, rows: [] });
       expect(await getTournamentPerformancePlayers({ seasonId: ids.season }, observedDatabase)).toEqual([]);
       expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
       await database.insert(schema.matchDemoStatProjections).values({ ...projectionsAfterPromotion[0]!, projectionVersion: "retired-version" });
@@ -853,6 +854,8 @@ describe("DAK evidence submit persistence", () => {
         baselineMs, platformMs, baselineDtoBytes: Buffer.byteLength(JSON.stringify(eventViews)), platformDtoBytes: Buffer.byteLength(JSON.stringify(platformStats)),
         maps: 2, users: 10, cache: "uncached PostgreSQL; no production latency claim" }));
       expect(platformStats.records).toHaveLength(11);
+      expect(platformStats.records?.find(row => row.kind === "fourKillsTotal")?.value).toBe(2);
+      expect(platformStats.records?.find(row => row.kind === "acesTotal")?.value).toBe(2);
       const actualEvents = await getTournamentRecordEvents(platformScope, {}, observedDatabase);
       expect(actualEvents.rows.length).toBeLessThanOrEqual(25);
       expect(actualEvents.total).toBeGreaterThan(0);

@@ -28,9 +28,10 @@ describe("Records occurrences", () => {
     expect(facts.events.find(event => event.kind === "fourKill")?.weapons).toEqual(["hegrenade", "inferno", "knife_butterfly", "taser"]);
     expect(facts.events.find(event => event.kind === "knife")?.weapon).toBe("knife_butterfly");
     expect(facts.multiKills).toEqual([{ entityId: "player-0", entryId: evidence.target.entryAId, fourKills: 1, aces: 0 }]);
-    evidence.semanticFacts.playerRounds[0]!.kills = 5;
+    evidence.semanticFacts.playerRounds.find(row => row.roundSeq === 10 && row.steamId64 === killer.steamId64)!.kills = 5;
+    evidence.sourceFacts.kills.push(kill(enemies[4]!.steamId64, "galilar"));
     const ace = collectRecordEvents(evidence, bindings)!;
-    expect(ace.eventCounts).toMatchObject({ fourKill: 1, ace: 1 });
+    expect(ace.eventCounts).toMatchObject({ fourKill: 0, ace: 1 });
   });
   it("retains every multi-kill occurrence while compacting extrema and records HE+fire damage", () => {
     const { evidence, bindings } = fixture();
