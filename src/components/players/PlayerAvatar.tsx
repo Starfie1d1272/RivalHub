@@ -26,7 +26,7 @@ export function PlayerAvatar({ name, avatarUrl, hasActivePublicSanction = false,
   const label = `${name} · 当前存在赛事纪律处罚`;
   return <span role="img" aria-label={label} title={label} className={cn("relative inline-flex shrink-0 align-middle [container-type:inline-size]", style.className, className)}>
     <span aria-hidden="true" className="contents">{avatar}</span>
-    <span aria-hidden="true" className="pointer-events-none absolute inset-x-[-18.75%] top-1/2 inline-flex h-1/2 -translate-y-1/2 rotate-[-30deg] items-center justify-center whitespace-nowrap bg-[var(--color-danger)] text-[31.25cqw] font-bold leading-none text-white shadow-sm">
+    <span aria-hidden="true" className="pointer-events-none absolute inset-x-[-10%] top-1/2 inline-flex h-1/2 -translate-y-1/2 rotate-[-30deg] items-center justify-center whitespace-nowrap bg-[var(--color-danger)] text-[31.25cqw] font-bold leading-none text-white shadow-sm">
       已禁赛
     </span>
   </span>;
