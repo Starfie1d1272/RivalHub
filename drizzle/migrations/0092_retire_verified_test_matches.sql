@@ -31,6 +31,9 @@ BEGIN
       jsonb_build_object('purpose', 'retire_completed_test', 'migration', '0092_retire_verified_test_matches',
         'entryAId', target.entry_a_id, 'entryBId', target.entry_b_id, 'status', target.status,
         'mapCount', (SELECT count(*) FROM public.match_maps WHERE match_id = target.id)));
+    -- Release the submitted-commentator guard before deleting its roster.
+    DELETE FROM public.post_match_reports WHERE match_id = target.id;
+    DELETE FROM public.match_commentators WHERE match_id = target.id;
     DELETE FROM public.free_prediction_locks WHERE match_id = target.id;
     DELETE FROM public.match_time_proposals WHERE match_id = target.id;
     DELETE FROM public.match_veto_steps WHERE match_id = target.id;

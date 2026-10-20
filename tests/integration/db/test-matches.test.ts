@@ -74,6 +74,9 @@ describe("event test matches", () => {
     await db.update(schema.matches).set({ status: "finished", resultDisposition: "omitted", completedAt: new Date() }).where(eq(schema.matches.id, f.match.id));
     const [season] = await db.select().from(schema.seasons).where(eq(schema.seasons.id, f.seasonId));
     const [testMap] = await db.insert(schema.matchMaps).values({ matchId: f.match.id, mapOrder: 1, mapName: "de_dust2" }).returning();
+    await db.insert(schema.seasonAdminGrants).values({ seasonId: f.seasonId, userId: f.captainA }).onConflictDoNothing();
+    await db.insert(schema.matchCommentators).values({ matchId: f.match.id, userId: f.captainA, addedByUserId: f.captainA });
+    await db.insert(schema.postMatchReports).values({ matchId: f.match.id, submittedByUserId: f.captainA });
     const migration = readFileSync("drizzle/migrations/0092_retire_verified_test_matches.sql", "utf8")
       .replaceAll("36f748a5-2753-4d0f-acdd-9849666fd2ac", f.match.id)
       .replaceAll("d4de85cc-3f9a-451d-ad1d-41e6b8ef910f", randomUUID())
