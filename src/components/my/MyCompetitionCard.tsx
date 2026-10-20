@@ -28,6 +28,7 @@ export function MyCompetitionCard({ context }: { context: MyCompetitionContext }
           <p>报名：{context.registration.state === "ready" ? context.registration.label : context.registration.detail}</p>
           {context.participation && <p>参赛确认：{context.participation.state === "ready" ? context.participation.label : context.participation.detail}</p>}
         </div>
+        {context.viewerRole === "team_member" && context.season.status === "registration" && <p className="text-sm text-[var(--color-fg-mid)]">你已加入队伍，等待赛事负责人将你加入本届名单，再由本人确认参赛。</p>}
         {context.nextMatch && <div className="border-l-2 border-[var(--color-accent)] pl-3"><p className="font-medium">{context.nextMatch.title}</p><p className="text-sm text-[var(--color-fg-mid)]">{context.nextMatch.detail}</p></div>}
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="default" asChild><Link href={context.primaryAction.href as never}>{context.primaryAction.label}</Link></Button>

@@ -10,6 +10,8 @@ import { auditActorId, requireAuth, requireSeasonAdmin } from "@/lib/auth/sessio
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entries/roster-change";
 import {
+  addCompetitionEntryRosterMemberInTx,
+  transferCompetitionEntryParticipationInTx,
   confirmCompetitionEntryParticipationInTx,
   createCompetitionEntryInTx,
   declineCompetitionEntryParticipationInTx,
@@ -57,6 +59,31 @@ export async function saveCompetitionEntryRoster(input: { entryId: string; userI
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
   } catch (error) { return actionError("saveCompetitionEntryRoster", error); }
+}
+
+export async function addCompetitionEntryRosterMember(input: { entryId: string; memberUserId: string }): Promise<ActionResult<void>> {
+  const parsed = z.object({ entryId: uuid, memberUserId: uuid }).safeParse(input);
+  if (!parsed.success) return failValidation("队伍或成员信息无效。");
+  try {
+    const session = await requireAuth();
+    const result = await db.transaction(tx => addCompetitionEntryRosterMemberInTx(tx, { ...parsed.data, userId: session.userId, actorId: auditActorId(session) }));
+    revalidateEntry(result.seasonSlug, parsed.data.entryId);
+    revalidatePath("/my/teams");
+    return ok(undefined);
+  } catch (error) { return actionError("addCompetitionEntryRosterMember", error); }
+}
+
+export async function transferCompetitionEntryParticipation(input: { entryId: string; fromEntryId: string }): Promise<ActionResult<void>> {
+  const parsed = z.object({ entryId: uuid, fromEntryId: uuid }).safeParse(input);
+  if (!parsed.success) return failValidation("参赛队伍信息无效。");
+  try {
+    const session = await requireAuth();
+    const result = await db.transaction(tx => transferCompetitionEntryParticipationInTx(tx, { ...parsed.data, userId: session.userId, actorId: auditActorId(session) }));
+    revalidateEntry(result.seasonSlug, parsed.data.entryId);
+    revalidatePath(`/${result.seasonSlug}/entries/${parsed.data.fromEntryId}`);
+    revalidatePath("/my/teams");
+    return ok(undefined);
+  } catch (error) { return actionError("transferCompetitionEntryParticipation", error); }
 }
 
 export async function confirmCompetitionEntryParticipation(input: { entryId: string }): Promise<ActionResult<void>> {

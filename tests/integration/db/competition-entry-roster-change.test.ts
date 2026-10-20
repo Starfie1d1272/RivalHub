@@ -4,8 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { describe, expect, it } from "vitest";
 import type { TxDb } from "../../../src/db/client";
 import * as schema from "../../../src/db/schema";
-import { saveCompetitionEntryRosterInTx, withdrawCompetitionEntryParticipationInTx } from "../../../src/lib/competition-entries/commands";
-import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/competition-entries/roster-change";
+import { addCompetitionEntryRosterMemberInTx, saveCompetitionEntryRosterInTx, withdrawCompetitionEntryParticipationInTx } from "../../../src/lib/competition-entries/commands";
 import { ErrorCode } from "../../../src/lib/errors";
 import { capturePostgresError, createLocalPool } from "./harness/database";
 
@@ -98,16 +97,18 @@ describe("approved competition-entry roster changes", () => {
     const client = await pool.connect();
     const database = drizzle(client, { schema });
     const tx = database as unknown as TxDb;
-    const ids = { season: randomUUID(), team: randomUUID(), representative: randomUUID(), member: randomUUID(), entry: randomUUID(), approvedRevision: randomUUID(), representativeParticipant: randomUUID(), memberParticipant: randomUUID() };
+    const ids = { newMember: randomUUID(), season: randomUUID(), team: randomUUID(), representative: randomUUID(), member: randomUUID(), entry: randomUUID(), approvedRevision: randomUUID(), representativeParticipant: randomUUID(), memberParticipant: randomUUID() };
     try {
       await client.query("BEGIN");
       await database.insert(schema.users).values([
+          { id: ids.newMember, email: `${ids.newMember}@local.test` },
           { id: ids.representative, email: `${ids.representative}@local.test` },
           { id: ids.member, email: `${ids.member}@local.test` },
       ]);
       await database.insert(schema.seasons).values({ id: ids.season, slug: ids.season, name: "Roster change", kind: "custom", registrationMode: "team", status: "registration", registrationOpensAt: new Date(Date.now() - 60_000), registrationOpenedAt: new Date(Date.now() - 60_000), registrationClosesAt: new Date(Date.now() + 86_400_000), minTeamSize: 1, maxTeamSize: 9, starterCount: 1 });
       await database.insert(schema.teams).values({ id: ids.team, slug: ids.team, name: "Roster team", creatorUserId: ids.representative, captainUserId: ids.representative });
       await database.insert(schema.teamMemberships).values([
+          { teamId: ids.team, userId: ids.newMember },
           { teamId: ids.team, userId: ids.representative },
           { teamId: ids.team, userId: ids.member },
       ]);
@@ -127,7 +128,14 @@ describe("approved competition-entry roster changes", () => {
           { revisionId: ids.approvedRevision, participantId: ids.memberParticipant, userId: ids.member, isPrimaryStarter: false },
       ]);
 
-      await requestCompetitionEntryRosterChangeInTx(tx, { entryId: ids.entry, representativeUserId: ids.representative, actorId: ids.representative });
+      expect(await capturePostgresError(client, () => addCompetitionEntryRosterMemberInTx(tx, { entryId: ids.entry, memberUserId: ids.newMember, userId: ids.member, actorId: ids.member }))).toMatchObject({ code: ErrorCode.FORBIDDEN });
+      await addCompetitionEntryRosterMemberInTx(tx, { entryId: ids.entry, memberUserId: ids.newMember, userId: ids.representative, actorId: ids.representative });
+      const proposed = (await database.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, ids.entry) }))!;
+      expect(proposed).toMatchObject({ registrationStatus: "changes_requested", approvedRosterRevisionId: ids.approvedRevision });
+      const proposedMembers = await database.select().from(schema.competitionEntryRosterMembers).where(eq(schema.competitionEntryRosterMembers.revisionId, proposed.currentRosterRevisionId));
+      expect(proposedMembers).toHaveLength(3);
+      expect(proposedMembers.filter(member => member.isPrimaryStarter).map(member => member.userId)).toEqual([ids.representative]);
+      expect(await database.query.competitionEntryParticipants.findFirst({ where: and(eq(schema.competitionEntryParticipants.entryId, ids.entry), eq(schema.competitionEntryParticipants.userId, ids.newMember)) })).toMatchObject({ status: "invited" });
       expect(await capturePostgresError(client, () => saveCompetitionEntryRosterInTx(tx, { entryId: ids.entry, userId: ids.representative, actorId: ids.representative, userIds: [ids.member], primaryStarterUserIds: [ids.member] }))).toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
       await saveCompetitionEntryRosterInTx(tx, { entryId: ids.entry, userId: ids.representative, actorId: ids.representative, userIds: [ids.representative], primaryStarterUserIds: [ids.representative] });
 
@@ -142,6 +150,14 @@ describe("approved competition-entry roster changes", () => {
       expect(released).toEqual([]);
       const audit = await database.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, ids.entry), eq(schema.auditLogs.action, "competition_entry.participant.remove")));
       expect(audit).toHaveLength(1);
+      const addMember = () => addCompetitionEntryRosterMemberInTx(tx, { entryId: ids.entry, memberUserId: ids.member, userId: ids.representative, actorId: ids.representative });
+      expect(await capturePostgresError(client, () => addCompetitionEntryRosterMemberInTx(tx, { entryId: ids.entry, memberUserId: ids.member, userId: ids.member, actorId: ids.member }))).toMatchObject({ code: ErrorCode.FORBIDDEN });
+      await addMember();
+      const restoredMembers = await database.select().from(schema.competitionEntryRosterMembers).where(eq(schema.competitionEntryRosterMembers.revisionId, entry!.currentRosterRevisionId));
+      expect(restoredMembers).toHaveLength(2);
+      expect(restoredMembers.filter(member => member.isPrimaryStarter).map(member => member.userId)).toEqual([ids.representative]);
+      expect(await database.query.competitionEntryParticipants.findFirst({ where: eq(schema.competitionEntryParticipants.id, ids.memberParticipant) })).toMatchObject({ status: "invited" });
+      expect(await database.select().from(schema.competitionEntryRosterMembers).where(eq(schema.competitionEntryRosterMembers.revisionId, ids.approvedRevision))).toHaveLength(2);
     } finally {
       await client.query("ROLLBACK").catch(() => {});
       client.release();
