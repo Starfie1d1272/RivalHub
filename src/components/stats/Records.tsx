@@ -61,7 +61,7 @@ export function Records({ records, query, seasonSlug, coverage, events, counts, 
       {coverage && <span className="pr-4 text-xs tabular-nums text-[var(--color-fg-mid)]"><Help label={`${coverage.maps} 张地图`}>已确认的纪录覆盖；事件覆盖 {eventMaps} 张地图，经济数据覆盖 {coverage.economyRounds} 回合。缺少事实的地图不计入事件数量。</Help></span>}
     </div>
     <nav aria-label="事件数量" className="grid grid-cols-2 gap-px overflow-hidden border border-[var(--color-border)] bg-[var(--color-border)] sm:grid-cols-4 xl:grid-cols-7">
-      {summaryKinds.map(kind => <Link key={kind} href={`${statsHref(seasonSlug, query, { eventType: kind })}#record-events` as Route} className={`flex min-w-0 items-baseline justify-between gap-2 bg-[var(--color-panel-low)] px-3 py-3 ${linkStyle}`}>
+      {summaryKinds.map(kind => <Link key={kind} href={`${statsHref(seasonSlug, query, { eventType: kind })}#record-events` as Route} className={`col-span-1 flex min-w-0 items-baseline justify-between gap-2 bg-[var(--color-panel-low)] px-3 py-3 last:col-span-2 xl:last:col-span-1 ${linkStyle}`}>
         <span className="text-xs text-[var(--color-fg-mid)]">{RECORD_EVENT_NAMES[kind]}</span><span className="text-xl font-semibold tabular-nums">{eventMaps ? counts?.[kind] ?? "—" : "—"}</span>
       </Link>)}
     </nav>
