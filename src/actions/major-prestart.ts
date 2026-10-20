@@ -31,6 +31,7 @@ import { revalidateSeasonPaths } from "@/lib/revalidation";
 import { traceOperation } from "@/lib/observability/server";
 import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import { lockMajorPrestartEntrantsInTx, selectMajorEntrantsAndSyncRostersInTx } from "@/lib/major/prestart-entrants";
+import { rollbackMajorPrestartEntrantsInTx } from "@/lib/major/prestart-rollback";
 import { saveMajorPrestartRosterInTx } from "@/lib/major/prestart-roster";
 import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
 import { parseCSTInput } from "@/lib/utils/date";
@@ -289,6 +290,36 @@ export async function lockMajorPrestartEntrants(input: { seasonId: string }): Pr
     revalidateMajorPrestart(season.slug);
     return ok(undefined);
   } catch (error) { return actionError("lockMajorPrestartEntrants", error); }
+}
+
+/** Admin-only recovery, exclusively before the first tournament seed is saved. */
+export async function rollbackMajorPrestartEntrants(input: {
+  seasonId: string; reason: string; reopenUntil: string;
+}): Promise<ActionResult<void>> {
+  const parsed = z.object({
+    seasonId: uuid,
+    reason: z.string().trim().min(1).max(1000),
+    reopenUntil: z.string().datetime({ local: true }),
+  }).safeParse(input);
+  if (!parsed.success) return failValidation("请填写原因和新的名单调整截止时间。");
+  const reopenUntil = parseCSTInput(parsed.data.reopenUntil);
+  if (!reopenUntil) return failValidation("名单调整截止时间无效。");
+  try {
+    const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
+    await traceOperation("major.prestart.unlock_entrants", {
+      scope: "major",
+      operation: "prestart.unlock_entrants",
+      attributes: { "rivalhub.workflow": "major_prestart" },
+    }, () => db.transaction((tx) => rollbackMajorPrestartEntrantsInTx(tx, {
+      seasonId: season.id,
+      reopenUntil,
+      reason: parsed.data.reason,
+      actorId: auditActorId(admin),
+    })));
+    revalidateMajorPrestart(season.slug);
+    revalidatePath(`/admin/${season.slug}/settings`);
+    return ok(undefined);
+  } catch (error) { return actionError("rollbackMajorPrestartEntrants", error); }
 }
 
 export async function saveMajorTournamentSeeds(input: { seasonId: string; entryIds: string[] }): Promise<ActionResult<void>> {
