@@ -1385,8 +1385,8 @@ describe("DAK evidence submit persistence", () => {
       expect(confirmedMixed.rounds).toHaveLength(mixedEvidence.sourceFacts.rounds.length);
       expect(confirmedMixed.stats).toHaveLength(10);
       expect(confirmedMixed.stats.every(row => row.dakImportId === ids.mixedImport)).toBe(true);
-      expect(confirmedMixed.projections).toHaveLength(1);
-      expect(confirmedMixed.projections[0]?.identityBindings).toHaveLength(10);
+      expect(confirmedMixed.projections.map(row => row.projectionVersion).sort()).toEqual([PREVIOUS_STATISTICS_PROJECTION_VERSION, STATISTICS_PROJECTION_VERSION].sort());
+      expect(confirmedMixed.projections.every(row => row.identityBindings.length === 10)).toBe(true);
       expect(confirmedMixed.audits).toHaveLength(1);
       expect(confirmedMixed.audits[0]?.action).toBe("match.demo.recheck");
       const recoveredBatch = await revalidateSeasonNeedsAttentionImports({ seasonId: ids.season, actorId: userIds[0]! });
