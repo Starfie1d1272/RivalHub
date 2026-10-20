@@ -103,6 +103,7 @@
     "src/lib/matches/creation.ts!",
     "playwright.production.config.ts!",
     "scripts/dependencies/snapshot.ts!",
+    "scripts/dependencies/submit.mjs!",
     "workers/telemetry/index.ts!",
     "scripts/telemetry/measure.mjs!",
     "scripts/telemetry/query.ts!",

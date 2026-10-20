@@ -63,6 +63,8 @@ CI 会把 bootstrap、各 capability lane、Vitest project、真实 PG integrati
 
 Pull Request 额外运行 dependency review；达到 workflow 设定的严重度阈值时阻断。
 
+PR 的 `dependency-graph-build` 只生成来源绑定 artifact；远端 main 图由独立 `Dependency graph` workflow 提交并逐项回读。后者的写权限、触发范围、stale-source 拒绝与恢复步骤见 [依赖维护](../dependency-maintenance.md#github-graph-与-updater)。该 lane 不取代 required PR dependency-review，也不以 main 图成功宣称 PR/fork/Dependabot coverage 已恢复。
+
 ## Selective vs full
 
 CI 遵循 L0–L4 风险分层与最低且足够可信证据原则：
