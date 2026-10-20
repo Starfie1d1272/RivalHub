@@ -98,6 +98,7 @@ export const OPERATIONS = [
   "major-prestart.finalizeMajorPlayoffRound",
   "major-prestart.finalizeMajorSwissRound",
   "major-prestart.lockMajorPrestartEntrants",
+  "major-prestart.rollbackMajorPrestartEntrants",
   "major-prestart.saveMajorPrestartSchedule",
   "major-prestart.saveMajorTournamentSeeds",
   "major-prestart.selectMajorEntrants",

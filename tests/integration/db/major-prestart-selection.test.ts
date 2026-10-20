@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
 import { selectMajorEntrantsAndSyncRostersInTx, lockMajorPrestartEntrantsInTx } from "../../../src/lib/major/prestart-entrants";
 import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/competition-entries/roster-change";
+import { rollbackMajorPrestartEntrantsInTx } from "../../../src/lib/major/prestart-rollback";
 import { loadMajorPrestartPageData } from "../../../src/lib/admin/season-workspace/major-prestart";
 import { reviewCompetitionEntryInTx, submitCompetitionEntryInTx } from "../../../src/lib/competition-entries/commands";
 import { getTeamRegistrationReview, normalizeTeamRegistrationReviewQuery } from "../../../src/lib/registrations/admin-review";
@@ -712,6 +713,91 @@ describe("Major prestart final Entry selection", () => {
 
   it("locks exactly the canonical capacity in PostgreSQL and is idempotent", async () => {
     await exerciseSuccessfulFreezeWorkflow();
+  });
+
+  it("undoes a pre-seed freeze atomically, reopens the change window and rebuilds the next snapshot", async () => {
+    const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 4 });
+    const database = drizzle(pool, { schema });
+    let fixture: FullFreezeFixture | undefined;
+    try {
+      fixture = await prepareFullFreezeFixture(pool);
+      const entryIds = fixture.entries.map((entry) => entry.entryId);
+      await database.transaction(tx => selectMajorEntrantsAndSyncRostersInTx(tx, {
+        seasonId: fixture!.seasonId, competitionEntryIds: entryIds, actorId: ACTOR,
+      }));
+      await pool.query(
+        "UPDATE seasons SET roster_change_closes_at = now() - interval '1 second' WHERE id = $1",
+        [fixture.seasonId],
+      );
+      await database.transaction(tx => lockMajorPrestartEntrantsInTx(tx, {
+        seasonId: fixture!.seasonId, actorId: ACTOR,
+      }));
+      const firstSnapshot = await pool.query<{ id: string }>(
+        "SELECT id FROM major_seed_recommendation_snapshots WHERE season_id = $1",
+        [fixture.seasonId],
+      );
+      expect(firstSnapshot.rows).toHaveLength(1);
+
+      // DB immutability is preserved outside the guarded admin transaction.
+      await expect(pool.query(
+        "UPDATE event_rosters SET status = 'confirmed', frozen_at = NULL, frozen_by = NULL WHERE entry_id = $1",
+        [entryIds[0]],
+      )).rejects.toThrow(/frozen event roster/);
+
+      const reopenUntil = new Date(Date.now() + 60 * 60 * 1000);
+      const restored = await database.transaction(tx => rollbackMajorPrestartEntrantsInTx(tx, {
+        seasonId: fixture!.seasonId, actorId: ACTOR, reason: "管理员修正遗漏参赛成员",
+        reopenUntil,
+      }));
+      expect(restored.reopenedRosterCount).toBe(entryIds.length);
+      const afterRollback = await pool.query<{
+        locked: Date | null; newDeadline: Date; confirmed: string; frozen: string; snapshots: string; audits: string;
+      }>(
+        `SELECT (SELECT entrants_locked_at FROM major_prestart_states WHERE season_id=$1) AS locked,
+                (SELECT roster_change_closes_at FROM seasons WHERE id=$1) AS "newDeadline",
+                (SELECT count(*)::text FROM event_rosters WHERE entry_id = ANY($2::uuid[]) AND status='confirmed') AS confirmed,
+                (SELECT count(*)::text FROM event_rosters WHERE entry_id = ANY($2::uuid[]) AND status='frozen') AS frozen,
+                (SELECT count(*)::text FROM major_seed_recommendation_snapshots WHERE season_id=$1) AS snapshots,
+                (SELECT count(*)::text FROM audit_logs WHERE season_id=$1 AND action='major_prestart.unlock_entrants') AS audits`,
+        [fixture.seasonId, entryIds],
+      );
+      expect(afterRollback.rows[0]).toMatchObject({
+        locked: null, newDeadline: reopenUntil,
+        confirmed: String(entryIds.length), frozen: "0", snapshots: "0", audits: "1",
+      });
+
+      // Same official entrant set can be frozen again, but from a new snapshot.
+      await pool.query(
+        "UPDATE seasons SET roster_change_closes_at = now() - interval '1 second' WHERE id = $1",
+        [fixture.seasonId],
+      );
+      const relocked = await database.transaction(tx => lockMajorPrestartEntrantsInTx(tx, {
+        seasonId: fixture!.seasonId, actorId: ACTOR,
+      }));
+      expect(relocked).toMatchObject({ alreadyLocked: false, entrantCount: entryIds.length });
+      const nextSnapshot = await pool.query<{ id: string }>(
+        "SELECT id FROM major_seed_recommendation_snapshots WHERE season_id = $1",
+        [fixture.seasonId],
+      );
+      expect(nextSnapshot.rows).toHaveLength(1);
+      expect(nextSnapshot.rows[0]?.id).not.toBe(firstSnapshot.rows[0]?.id);
+
+      // Saved ranking makes this operation irrevocably unavailable.
+      await pool.query(
+        `INSERT INTO major_tournament_seeds (season_id, tournament_entrant_id, seed)
+         SELECT $1, id, 1 FROM major_tournament_entrants
+          WHERE season_id=$1 ORDER BY id LIMIT 1`,
+        [fixture.seasonId],
+      );
+      const refused = await database.transaction(tx => rollbackMajorPrestartEntrantsInTx(tx, {
+        seasonId: fixture!.seasonId, actorId: ACTOR, reason: "不应放行",
+        reopenUntil: new Date(Date.now() + 60 * 60 * 1000),
+      })).catch((error: unknown) => error);
+      expect(refused).toMatchObject({ code: ErrorCode.SEASON_INVALID_STATUS });
+    } finally {
+      if (fixture) await cleanupFullFreeze(pool, fixture);
+      await pool.end();
+    }
   });
 
   it.each([
