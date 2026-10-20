@@ -427,7 +427,7 @@
   background: var(--color-accent-soft);
 }
 .workspaceCanvas {
-  --canvas-height: max(360px, calc(100dvh - 320px));
+  --prediction-dock-top: 80px;
 }
 .workbench .rounds {
   grid-template-columns: repeat(var(--round-count), 200px);
@@ -483,20 +483,15 @@
 .workbench .board[data-layout="list"] .groupMatches { justify-content: center; }
 .workbench .board[data-layout="list"] .match { min-height: 52px; }
 @media (min-width: 1024px) {
-  .workbench .viewport,
   .predictionDock {
-    max-height: var(--canvas-height);
+    position: sticky;
+    top: var(--prediction-dock-top);
+    max-height: calc(100dvh - var(--prediction-dock-top) - 16px);
     overflow: auto;
     scrollbar-width: thin;
     scrollbar-color: var(--color-fg-dim) transparent;
   }
   .workbench .viewport { padding: 0 4px 12px; }
-  .workbench .board .roundTitle {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    background: var(--color-bg);
-  }
 }
 @media (max-width: 640px) {
   .workspaceToolbar .viewSwitch {
