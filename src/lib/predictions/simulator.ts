@@ -202,6 +202,11 @@ export function simulateMajor(
       });
       qualifiers =
         finalized === 5 ? [...getMajorSwissQualifiers(projection)] : [];
+      const resultPick = finalized === 5 ? {
+        perfect: projection.teams.filter((t) => t.wins === 3 && t.losses === 0).map((t) => t.teamId),
+        advance: projection.teams.filter((t) => t.wins === 3 && t.losses > 0).map((t) => t.teamId),
+        eliminated: projection.teams.filter((t) => t.losses === 3 && t.wins === 0).map((t) => t.teamId),
+      } : null;
       result.push({
         swissPolicy: { winThreshold: MAJOR_SWISS_WIN_THRESHOLD, lossThreshold: MAJOR_SWISS_LOSS_THRESHOLD },
         key: stage.key,
@@ -217,22 +222,8 @@ export function simulateMajor(
           wins: t.wins,
           losses: t.losses,
         })),
-        pick:
-          finalized === 5 &&
-          !upstreamPreview &&
-          !rows.some((m) => m.source === "preview")
-            ? {
-                perfect: projection.teams
-                  .filter((t) => t.wins === 3 && t.losses === 0)
-                  .map((t) => t.teamId),
-                advance: projection.teams
-                  .filter((t) => t.wins === 3 && t.losses > 0)
-                  .map((t) => t.teamId),
-                eliminated: projection.teams
-                  .filter((t) => t.losses === 3 && t.wins === 0)
-                  .map((t) => t.teamId),
-              }
-            : null,
+        resultPick,
+        pick: !upstreamPreview && !rows.some((m) => m.source === "preview") ? resultPick : null,
       });
     } else {
       const facts: MajorPlayoffMatchFact[] = [];
@@ -268,6 +259,7 @@ export function simulateMajor(
           })),
         );
       }
+      const resultPick = facts.length === 7 ? { bracket: facts.map((m) => m.winnerId) } : null;
       result.push({
         key: stage.key,
         entrants,
@@ -278,12 +270,8 @@ export function simulateMajor(
           !upstreamPreview &&
           !rows.some((m) => m.source === "preview"),
         standings: [],
-        pick:
-          facts.length === 7 &&
-          !upstreamPreview &&
-          !rows.some((m) => m.source === "preview")
-            ? { bracket: facts.map((m) => m.winnerId) }
-            : null,
+        resultPick,
+        pick: !upstreamPreview && !rows.some((m) => m.source === "preview") ? resultPick : null,
       });
     }
   }

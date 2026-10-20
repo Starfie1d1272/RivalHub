@@ -98,6 +98,8 @@ export interface SimStage {
   complete: boolean;
   standings: { teamId: string; wins: number; losses: number }[];
   pick: Pick | null;
+  /** Complete displayed results, including system-filled winners; saving remains explicit. */
+  resultPick?: Pick | null;
 }
 /** JSONB object key order is not semantic; preserve slot array order. */
 export function samePick(a: Pick, b: Pick): boolean {

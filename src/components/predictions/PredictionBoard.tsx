@@ -210,14 +210,15 @@ export function PredictionBoard({
       await reload();
     });
   }
-  const simulationPick = stage?.pick
-    ? "perfect" in stage.pick
+  const displayedPick = stage?.resultPick ?? stage?.pick;
+  const simulationPick = displayedPick
+    ? "perfect" in displayedPick
       ? {
-          perfect: stage.pick.perfect.slice(0, data.rules.perfect),
-          advance: stage.pick.advance.slice(0, data.rules.advance),
-          eliminated: stage.pick.eliminated.slice(0, data.rules.eliminated),
+          perfect: displayedPick.perfect.slice(0, data.rules.perfect),
+          advance: displayedPick.advance.slice(0, data.rules.advance),
+          eliminated: displayedPick.eliminated.slice(0, data.rules.eliminated),
         }
-      : stage.pick
+      : displayedPick
     : undefined;
   const savedSource = contest ? savedSimulation[contest.id] : undefined;
   const simulationChanged = !!savedSource && !!simulationPick && !samePick(savedSource, simulationPick);
@@ -340,7 +341,7 @@ export function PredictionBoard({
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--color-fg-mid)]">
             <span>基于官方赛况 · {stage && contest && !contest.voidReason && samePredictionEntrants(stage.entrants, contest.entrants) ? "官方名单" : "推演名单"} · 我的选择 {Object.keys(choices).length} 场</span>
             <div className={styles.legend}><span>○ 系统补全</span><span>● 官方赛果</span><span>✓ 我的选择</span>
-              <HelpTooltip label="如何推演" content="点选队伍推演胜者，修改上游会重算后续。未结束比赛默认高种子获胜，不显示虚构比分。保存推演会保存本阶段草稿；正式提交请在预测单中确认。刷新赛况会清空推演选择。" />
+              <HelpTooltip label="如何推演" content="点选队伍推演胜者，修改上游会重算后续。未结束比赛默认高种子获胜，不显示虚构比分。保存推演会将当前显示的赛果（含系统补全）保存为本阶段草稿；正式提交请在预测单中确认。刷新赛况会清空推演选择。" />
             </div>
           </div>
           {dockVisible && <div className="flex gap-2 lg:hidden">
