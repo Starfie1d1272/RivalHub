@@ -5,6 +5,8 @@ import { TournamentStatsView } from "@/components/stats/TournamentStats";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { getPublicTournamentMapDetail, getPublicTournamentStats } from "@/lib/stats/cached-query";
+import { getTournamentRecordEvents } from "@/lib/stats/tournament-query";
+import { buildRecords } from "@/lib/stats/records";
 import { publicStatsView } from "@/lib/stats/public-view";
 import { parseStatsQuery, statsHref, type StatsSearch } from "@/lib/stats/view-state";
 import { ErrorCode, isAppErrorCode } from "@/lib/errors";
@@ -38,9 +40,13 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     } else {
       data = await readOptionalPublicStats("tournament", () => getPublicTournamentStats({
         ...scope,
-        mapFilter: query.tab === "players" || query.tab === "teams" || query.tab === "weapons" ? query.mapFilter || undefined : undefined,
+        mapFilter: query.tab === "players" || query.tab === "teams" || query.tab === "weapons" || query.tab === "records" ? query.mapFilter || undefined : undefined,
         teamFilter: query.tab === "players" || query.tab === "weapons" ? query.teamFilter || undefined : undefined,
       }, visibility)) ?? undefined;
+      if (data && query.tab === "records") {
+        data = { ...data, records: buildRecords(data.recordTies ?? [], query.recordPage),
+          recordEvents: await getTournamentRecordEvents({ ...scope, mapFilter: query.mapFilter || undefined }, query) };
+      }
     }
   } catch (error) {
     if (isAppErrorCode(error, ErrorCode.NOT_FOUND)) notFound();

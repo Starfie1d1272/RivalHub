@@ -29,12 +29,12 @@ import {
 } from "../../../src/lib/demo-integration/review";
 import { dakStableScoreboardValues, submitRivalHubEvidence } from "../../../src/lib/demo-integration/submit";
 import { recordGameplaySteamIdentityInTx } from "../../../src/lib/identity/gameplay-steam";
-import { getCurrentStatsSelectionInTx, getLongTeamCareerDetail, getPlayerCareerDetail, getPlayerCareerPerformances, getTournamentTeamDetail, getTournamentMapDetail, getTournamentPerformancePlayers, getTournamentPlayerDetail, getTournamentStats } from "../../../src/lib/stats/tournament-query";
+import { getCurrentStatsSelectionInTx, getLongTeamCareerDetail, getPlayerCareerDetail, getPlayerCareerPerformances, getTournamentTeamDetail, getTournamentMapDetail, getTournamentPerformancePlayers, getTournamentPlayerDetail, getTournamentStats, getTournamentRecordEvents } from "../../../src/lib/stats/tournament-query";
 import { adaptStatsEvidence } from "../../../src/lib/stats/evidence-adapter";
 import { loadLineupCareers } from "../../../src/lib/matches/lineup-comparison-query";
 import { getStatsLeaderboard } from "../../../src/lib/stats/leaderboard-query";
 import { getVerifiedPlayerStatsBySeason } from "../../../src/lib/stats/public-query";
-import { STATISTICS_PROJECTION_VERSION } from "../../../src/lib/stats/projection-version";
+import { PREVIOUS_STATISTICS_PROJECTION_VERSION, STATISTICS_PROJECTION_VERSION } from "../../../src/lib/stats/projection-version";
 import { backfillStatisticsProjectionForMapInTx, inspectStatisticsProjectionCoverage, reconcileMissingStatisticsProjections } from "../../../src/lib/stats/projection-backfill";
 import { invalidateConfirmedDemoIdentityInTx } from "../../../src/lib/identity/statistics-invalidation";
 import { createLocalPool } from "./harness/database";
@@ -470,8 +470,12 @@ describe("DAK evidence submit persistence", () => {
       });
       expect(importsAfterPromotion.find((row) => row.id === importId)?.confirmedAt).not.toBeNull();
       expect(importsAfterPromotion.find((row) => row.id === ids.legacyImport)?.payloadSha256).not.toBe(importsAfterPromotion.find((row) => row.id === importId)?.payloadSha256);
-      const projectionsAfterPromotion = await database.select().from(schema.matchDemoStatProjections).where(eq(schema.matchDemoStatProjections.importId, importId));
+      const allProjections = await database.select().from(schema.matchDemoStatProjections).where(eq(schema.matchDemoStatProjections.importId, importId));
+      const projectionsAfterPromotion = allProjections.filter(row => row.projectionVersion === STATISTICS_PROJECTION_VERSION);
       expect(projectionsAfterPromotion).toHaveLength(1);
+      const legacyProjection = allProjections.find(row => row.projectionVersion === PREVIOUS_STATISTICS_PROJECTION_VERSION);
+      expect(legacyProjection?.facts.records).not.toHaveProperty("events");
+      expect(legacyProjection?.facts.records?.candidates.every(row => ["kills", "adr", "firstKills", "tradeKills", "clutch", "economy"].includes(row.kind))).toBe(true);
       expect(projectionsAfterPromotion[0]).toMatchObject({
         projectionVersion: STATISTICS_PROJECTION_VERSION,
         payloadSha256: sha256Json(evidence),
@@ -485,6 +489,7 @@ describe("DAK evidence submit persistence", () => {
       queryLog.length = 0;
       queryBindings.length = 0;
       expect((await getTournamentStats({ seasonId: ids.season }, observedDatabase)).coverage.detailedMaps).toBe(0);
+      expect(await getTournamentRecordEvents({ seasonId: ids.season }, {}, observedDatabase)).toMatchObject({ maps: 0, total: 0, rows: [] });
       expect(await getTournamentPerformancePlayers({ seasonId: ids.season }, observedDatabase)).toEqual([]);
       expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
       await database.insert(schema.matchDemoStatProjections).values({ ...projectionsAfterPromotion[0]!, projectionVersion: "retired-version" });
@@ -848,7 +853,22 @@ describe("DAK evidence submit persistence", () => {
       console.info(JSON.stringify({ scenario: "platform-two-event-batch", baselineQueries, platformQueries: queryLog.length,
         baselineMs, platformMs, baselineDtoBytes: Buffer.byteLength(JSON.stringify(eventViews)), platformDtoBytes: Buffer.byteLength(JSON.stringify(platformStats)),
         maps: 2, users: 10, cache: "uncached PostgreSQL; no production latency claim" }));
-      expect(platformStats.records).toHaveLength(6);
+      expect(platformStats.records).toHaveLength(11);
+      expect(platformStats.records?.find(row => row.kind === "fourKillsTotal")?.value).toBe(2);
+      expect(platformStats.records?.find(row => row.kind === "acesTotal")?.value).toBe(2);
+      const actualEvents = await getTournamentRecordEvents(platformScope, {}, observedDatabase);
+      expect(actualEvents.rows.length).toBeLessThanOrEqual(25);
+      expect(actualEvents.total).toBeGreaterThan(0);
+      const fourKills = await getTournamentRecordEvents(platformScope, { eventType: "fourKill" }, observedDatabase);
+      expect(fourKills.total).toBe(platformStats.eventCounts?.fourKill);
+      expect(fourKills.rows.every(row => row.kind === "fourKill" && row.teamHref.includes("/teams/") && row.opponentHref.includes("/teams/"))).toBe(true);
+      if (actualEvents.pages > 1) {
+        const nextPage = await getTournamentRecordEvents(platformScope, { eventPage: 2 }, observedDatabase);
+        const keys = new Set(actualEvents.rows.map(row => `${row.mapId}:${row.id}`));
+        expect(nextPage.rows.every(row => !keys.has(`${row.mapId}:${row.id}`))).toBe(true);
+      }
+      await expect(getTournamentRecordEvents(platformScope, { eventPage: actualEvents.pages + 1 }, observedDatabase)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND });
+      expect(queryLog.some(query => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
       expect(platformStats.records?.filter((row) => row.value !== null).length).toBeGreaterThanOrEqual(4);
       expect(platformStats.records?.flatMap((row) => row.occurrences).every((row) => row.entityHref.startsWith("/players/") || row.entityHref.includes("/teams/"))).toBe(true);
       const platformLabels = { teams: Object.fromEntries(platformStats.analytics.teams.map((row) => [row.team.entityKey, row.team.displayName])),
@@ -1365,8 +1385,8 @@ describe("DAK evidence submit persistence", () => {
       expect(confirmedMixed.rounds).toHaveLength(mixedEvidence.sourceFacts.rounds.length);
       expect(confirmedMixed.stats).toHaveLength(10);
       expect(confirmedMixed.stats.every(row => row.dakImportId === ids.mixedImport)).toBe(true);
-      expect(confirmedMixed.projections).toHaveLength(1);
-      expect(confirmedMixed.projections[0]?.identityBindings).toHaveLength(10);
+      expect(confirmedMixed.projections.map(row => row.projectionVersion).sort()).toEqual([PREVIOUS_STATISTICS_PROJECTION_VERSION, STATISTICS_PROJECTION_VERSION].sort());
+      expect(confirmedMixed.projections.every(row => row.identityBindings.length === 10)).toBe(true);
       expect(confirmedMixed.audits).toHaveLength(1);
       expect(confirmedMixed.audits[0]?.action).toBe("match.demo.recheck");
       const recoveredBatch = await revalidateSeasonNeedsAttentionImports({ seasonId: ids.season, actorId: userIds[0]! });
