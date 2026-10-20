@@ -9,6 +9,7 @@ import { MajorCompetitionFlow } from "./MajorCompetitionFlow";
 import { MajorTournamentSeedsManagement, type MajorTournamentSeedsManagementData } from "./MajorTournamentSeedsManagement";
 import { MajorStartManagement } from "./MajorStartManagement";
 import { MajorPrestartScheduleEditor } from "./MajorPrestartScheduleEditor";
+import { MajorPrestartRollbackControl } from "./MajorPrestartRollbackControl";
 
 export function MajorPrestartConsole({ seasonName, readiness, management, seedManagement, started }: {
   seasonName: string;
@@ -102,7 +103,10 @@ export function MajorPrestartConsole({ seasonName, readiness, management, seedMa
       </Panel>
       <MajorPrestartManagement data={management} />
     </>}
-    {phase === 5 && <MajorTournamentSeedsManagement data={seedManagement} management={management} />}
+    {phase === 5 && <>
+      {seedManagement.seeds.length === 0 && !seedManagement.seedsConfirmed && <MajorPrestartRollbackControl seasonId={management.seasonId} />}
+      <MajorTournamentSeedsManagement data={seedManagement} management={management} />
+    </>}
     {phase === 6 && <>
       <Panel label="开赛总览">
         <p className="text-sm text-[var(--color-fg-mid)]">正式参赛队 {management.entrants.length} 支 · 最终名单 {management.entrantsLocked ? "已冻结" : "待冻结"} · 种子 {seedManagement.seedsConfirmed ? "已确认" : "待确认"} · 首轮 {readiness.openingPlan?.firstRound.pairings.length ?? "待生成"} 场</p>
