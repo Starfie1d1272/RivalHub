@@ -9,7 +9,16 @@ Compact record candidates retain all local maxima/ties and round provenance;
 map sufficient statistics also support deterministic flash leave-one-map-out.
 Equipment candidates require all ten known values and verified freeze-end exporter
 semantics. Unverified exporter versions lower economy coverage, never supply zero.
-The public serializer sends only selected-view summaries and bounded record ties.
+Records/2 also retains every 4K/Ace and classified kill occurrence, per-map event
+counts and every player's multi-kill counts. Only exact four/five enemy kills from
+Stable/3 playerRounds qualify; TK, suicide and C4/world deaths remain separate.
+Utility extrema use single-player, single-round HE plus fire damage. Cumulative
+multi-kill leaders sum every map count before selecting ties. Scope aggregates
+exclude occurrence arrays in PostgreSQL; event readers reuse current-import,
+revision, target and identity checks and select at most 25 occurrences per page
+with SQL type/weapon filters. Full events never enter the aggregate remote cache.
+The public serializer sends only selected-view summaries and bounded record ties
+or event pages. Missing event projections lower coverage rather than imply zero.
 Attribute benchmarks select only performance projections and the tournament target
 keys needed for validation. They share current-import, identity-binding and target
 validation with full statistics reads, within the same read-only snapshot.
@@ -43,8 +52,12 @@ in a truncated scan never means ready. Operators may explicitly increase
 `coverage --scan-limit N --batch-size N --max-duration-ms N` after reviewing the
 workload; partial reports from different snapshots cannot be combined into ready.
 A currently eligible import must have a valid projection. Superseded, rejected, stale-revision and
-non-current-profile imports are not eligible. Older projection versions may remain
-for rollback but are never selected by a different reducer version.
+non-current-profile imports are not eligible. Older projection versions remain
+for rollback but are never selected by a different reducer version. During the
+Records/1 → Records/2 cutover, confirmation and recheck write both versions in the
+same transaction; Records/1 retains only its original six candidate kinds, with
+no occurrence arrays. Previous application writes are caught by the existing
+bounded repair job and the protected pre-routing coverage gate.
 
 Production commands are `db:production:stats-projections:backfill` and
 `db:production:stats-projections:coverage`. The wrapper requires the normal

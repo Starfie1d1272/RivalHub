@@ -1,3 +1,4 @@
+import { RECORD_EVENT_NAMES, type RecordEventKind } from "./record-facts";
 import type { Route } from "next";
 
 export const STATS_TABS = { overview: "Overview", players: "Players", teams: "Teams", maps: "Maps", weapons: "Weapons", records: "Records" } as const;
@@ -7,6 +8,9 @@ export type StatsSearch = Record<string, string | string[] | undefined>;
 
 export interface StatsQuery {
   recordPage?: number;
+  eventType?: RecordEventKind | "";
+  eventPage?: number;
+  eventWeapon?: string;
   sort?: string;
   direction?: "asc" | "desc";
   page?: number;
@@ -36,6 +40,10 @@ export function parseStatsQuery(raw: StatsSearch, stages: readonly string[]): St
   const format: StatsMatchFormat = requestedFormat === "bo1" || requestedFormat === "bo3" || requestedFormat === "bo5" ? requestedFormat : "";
   return {
     tab,
+    recordPage: /^[1-9][0-9]{0,5}$/.test(value("recordPage")) ? Number(value("recordPage")) : 1,
+    eventPage: /^[1-9][0-9]{0,5}$/.test(value("eventPage")) ? Number(value("eventPage")) : 1,
+    eventType: Object.hasOwn(RECORD_EVENT_NAMES, value("eventType")) ? value("eventType") as RecordEventKind : "",
+    eventWeapon: /^[a-z0-9_]{1,64}$/.test(value("eventWeapon")) ? value("eventWeapon") : "",
     sort: /^[a-zA-Z0-9_:-]{1,64}$/.test(value("sort")) ? value("sort") : "",
     direction: value("direction") === "asc" ? "asc" : "desc",
     page: /^[1-9][0-9]{0,3}$/.test(value("page")) ? Number(value("page")) : 1,
@@ -67,6 +75,11 @@ function serializeStatsQuery(query: StatsQuery): URLSearchParams {
   if (query.tab === "maps" && query.map) params.set("map", query.map);
   if (query.tab === "records" && query.recordPage && query.recordPage > 1) params.set("recordPage", String(query.recordPage));
   if (query.tab === "maps" && query.mapsView === "veto") params.set("mapsView", "veto");
+  if (query.tab === "records") {
+    if (query.eventType) params.set("eventType", query.eventType);
+    if (query.eventPage && query.eventPage > 1) params.set("eventPage", String(query.eventPage));
+    if (query.eventWeapon) params.set("eventWeapon", query.eventWeapon);
+  }
   return params;
 }
 
@@ -100,6 +113,12 @@ export function statsHref(slug: string, current: StatsQuery, updates: StatsQuery
 
   if (updates.recordPage !== undefined && nextTab === "records") next.recordPage = updates.recordPage;
   if (nextTab !== current.tab || updates.stage !== undefined || updates.format !== undefined || updates.mapFilter !== undefined) next.recordPage = 1;
+  if (nextTab === "records") {
+    if (updates.eventType !== undefined) { next.eventType = updates.eventType; next.eventWeapon = ""; next.eventPage = 1; }
+    if (updates.eventWeapon !== undefined) { next.eventWeapon = updates.eventWeapon; next.eventPage = 1; }
+    if (updates.eventPage !== undefined) next.eventPage = updates.eventPage;
+    if (updates.stage !== undefined || updates.format !== undefined || updates.mapFilter !== undefined) next.eventPage = 1;
+  }
   if (updates.family !== undefined) { next.family = updates.family; next.sort = ""; next.page = 1; }
   if (updates.q !== undefined) { next.q = updates.q; next.page = 1; }
   if (updates.sort !== undefined) next.sort = updates.sort;

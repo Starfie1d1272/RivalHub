@@ -7,10 +7,19 @@ updates:
     schedule:
       interval: "weekly"
   - package-ecosystem: "npm"
+    # Lockfile generation vs frozen installation: docs/dependency-maintenance.md
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 0
+    open-pull-requests-limit: 5
+    ignore:
+      # Exact patch migration is reviewed with its API contract; see patches/README.md.
+      # Only version updates are excluded; security updates remain enabled.
+      - dependency-name: "@cs2dak/tournament"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
     groups:
       production-minor-patch:
         applies-to: version-updates

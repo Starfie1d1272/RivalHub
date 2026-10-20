@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { connection } from "next/server";
 import type { Metadata } from "next";
 import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -104,6 +105,8 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
     );
   }
 
+  // 报名窗口取决于当前请求时间，不能在静态预渲染阶段计算。
+  await connection();
   const registrationWindow = getRegistrationWindowState(season);
   const registrationSchedule = presentRegistrationSchedule(season);
   if (registrationWindow.phase === "unscheduled" || registrationWindow.phase === "upcoming") {
