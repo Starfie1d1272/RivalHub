@@ -7,6 +7,7 @@ updates:
     schedule:
       interval: "weekly"
   - package-ecosystem: "npm"
+    # Lockfile generation vs frozen installation: docs/dependency-maintenance.md
     directory: "/"
     schedule:
       interval: "weekly"
