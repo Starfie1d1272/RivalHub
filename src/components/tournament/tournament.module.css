@@ -469,12 +469,15 @@
 .workbench .compactMatch .smallLogo { width: 20px !important; height: 20px !important; }
 .workbench .compactMatch .seed,
 .workbench .compactMatch .rowScore { font-size: 12px; line-height: 16px; }
-.workbench .result h4 { padding: 8px 10px; letter-spacing: 0; }
-.workbench .result h4 strong { font-size: 18px; }
-.workbench .resultLogos { padding: 10px 8px; gap: 10px; }
-.workbench .resultRows { padding: 10px; gap: 8px; }
-.workbench .board[data-layout="list"] .rounds { gap: 28px; }
-.workbench .board[data-layout="list"] .rounds { min-width: 0; }
+.workbench .result h4 { padding: 4px 8px; line-height: 18px; letter-spacing: 0; }
+.workbench .result h4 strong { font-size: 14px; }
+.workbench .resultLogos { display: grid; grid-template-columns: repeat(auto-fit, minmax(48px, 1fr)); padding: 6px 8px; gap: 6px; }
+.workbench .resultLogos .resultTeam { gap: 2px; }
+.workbench .resultRows { padding: 4px 8px; gap: 0; }
+.workbench .resultRows .resultTeam { min-height: 24px; gap: 6px; }
+.workbench .resultRows .smallLogo { width: 20px !important; height: 20px !important; }
+.workbench .resultTeam span { font-size: 12px; line-height: 16px; }
+.workbench .board[data-layout="list"] .rounds { gap: 28px; min-width: 0; }
 .workbench .board[data-layout="list"] .roundContent { justify-content: center; padding-block: 0; }
 .workbench .board[data-layout="list"] .groupMatches { justify-content: center; }
 .workbench .board[data-layout="list"] .match { min-height: 52px; }
