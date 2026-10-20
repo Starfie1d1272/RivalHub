@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 51423)
-Total output lines: 3330
-
 # Changelog
 
 ## [2.21.3]
@@ -1729,7 +1726,83 @@ Major 不再在赛事发布时冻结竞技平台赛季，而是在**实际开放
 
 - 优化竞技档案的段位与 S 段星数填写布局，使星数紧邻对应段位。
 - 强化竞技位置和教育认证学校选择后的视觉反馈，并支持重新选择学校。
-- 统一注册确认、当前邮箱验证和密码重置邮件的 RivalHub 品牌样式、安全提示与两步邮箱确认说明…1423 tokens truncated…anaged runtime 管理，Bracket 的可变运行时状态由独立持久化 owner 管理。
+- 统一注册确认、当前邮箱验证和密码重置邮件的 RivalHub 品牌样式、安全提示与两步邮箱确认说明。
+- 补充赛事窗口状态的公开提示和管理员发布确认，减少“发布赛事”“开放报名”“正式开赛”之间的语义混淆。
+- 收紧名单调整边界：只有赛事实际开放报名后，已批准参赛队伍才能自助调整名单。
+
+### Security
+
+- 社区奖、证据、解说和赛后报告继续由 server-only 数据库 owner 读写；public Data API 的 anon/authenticated 访问被明确拒绝。
+
+### Migration & Operations
+
+本版本包含新的 forward migrations，用于社区奖与赛后解说、组队大厅、赛事参与窗口、名单调整 revision 来源及其 server-only 数据库访问保护。
+
+生产环境继续通过 RivalHub release workflow 执行 active Drizzle migration chain、迁移校验、精确版本 Vercel Production 部署和 smoke test；不要使用 `db:push` 或绕过 release gate 直接修改 production schema。
+
+## [2.0.3]
+
+### Fixed
+
+- 注册邮箱确认改为用户在确认页显式确认后才生效，避免邮件安全扫描器预取链接自动完成验证；未验证、链接失效与邮件发送受限时提供可继续操作的提示。
+
+## [2.0.2]
+
+### Changed
+
+- 生产发版改为由 `v*` tag 的 release workflow 串行执行数据库前向迁移、严格校验、精确 Vercel Production 部署与 smoke test；普通 `main` production build 不能绕过 release gate。
+
+### Fixed
+
+- 公开玩家竞技档案改用长期竞技位置与平台目录展示位置、段位、赛季和星数，不再把赛事报名快照当作长期资料。
+
+### Migration & Operations
+
+- Production release 会在应用部署前执行 active Drizzle migration chain 并进行 exact verify；迁移或校验失败会中止新版本部署并保留上一版 production。
+
+## [2.0.1]
+
+### Fixed
+
+- 教育身份认证改为提交学信网在线验证码；用户不再提交临时报告链接，超级管理员可在官方验证页复制验证码后人工核验，验证码不会出现在公开资料或审核日志中。
+- 统一长期参赛资料的完美平台身份与 CS2 五位置定义，并将竞技档案默认入口设为完美世界竞技平台。
+- 统一参赛入口、报名状态、赛事阶段和竞技资料说明，减少用户界面中的内部术语与状态值泄漏。
+
+## [2.0.0]
+
+RivalHub 2.0 是一次完整的赛事产品与领域模型升级。相较 1.x 以单届 Rivals 赛事为核心的实现，2.0 将用户身份、长期 Team、赛事参赛身份、资格、正式名单、比赛运行时与赛后历史拆分为明确的长期事实和赛事事实，并新增完整的 NJU Major 运营流程。
+
+### Added
+
+#### 完整的 Major 赛事运营流程
+
+新增 NJU Major 从报名到归档的完整生命周期：长期 Team 创建 CompetitionEntry；队员邀请、确认与报名名单 revision；教育身份、竞技档案与纪律限制的统一资格判断；管理员审核、候补、退回补正与重新提交；正式赛事名单确认与冻结；32 支正式参赛队的种子管理；三阶段 Swiss；Quarterfinal、Semifinal、季军赛与 Final；单场首发阵容确认；比赛时间协商、BP 与赛果管理；赛果更正与受控 downstream recovery；纪律处罚、赛后裁决、最终名次、正式荣誉与赛事归档。
+
+Major runtime 将 StageRun、TournamentEntrant、种子、比赛和最终名次持久化为正式赛事事实；已开始赛事不再依赖可变化的长期 Team 或当前用户资料解释历史。
+
+#### 长期 Team 与 CompetitionEntry
+
+Team 现在是跨赛事存在的长期一级实体，支持创建与资料维护、成员邀请与邀请链接、active / benched / left 生命周期、队长交接、招募状态、解散，以及队长和名称的 append-only 历史记录。
+
+CompetitionEntry 是一支 Team 或一组参赛者进入某届 Competition 的规范参赛身份，明确区分长期 Team membership、本届赛事 participant、报名承诺 roster revision、正式 EventRoster、StageEntrant 和单场 MatchRoster。Rivals 选秀队和 Major 长期 Team 因此可以在同一赛事身份模型下保留各自产品流程。
+
+#### 长期参与者资料与“我的”
+
+新增稳定的 `/my` 入口，集中呈现长期个人资料、教育认证、竞技档案、当前长期 Team、CompetitionEntry、当前赛事 qualification 和本人可见的有效纪律限制，并提供对应 blocker、处理方和下一步入口。`profile readiness` 与 `event eligibility` 保持独立，资料完整不再被误认为满足某届赛事资格。
+
+#### 教育认证、竞技平台目录与长期竞技档案
+
+教育资格从旧用户字段中独立出来，形成可审核的长期事实。2.0 内置完美世界竞技平台与 5E；平台统一拥有 rank ladder 与 canonical performance Rating，平台赛季只表达时间目录。竞技档案明确区分 rank、S 段 stars 与 platform Rating，赛事发布时冻结所需的平台、current / previous season 与 rank ladder 上下文。
+
+#### 纪律与赛后管理
+
+新增赛事级纪律处罚管理，支持报名、名单和出场限制、生效窗口、管理员内部证据、面向用户的说明、撤销与过期处理。Major 赛后新增独立的 final result confirmation、placement、adjudication、tournament honor、revoke / vacant 与 archive；纪律事实不会隐式修改既有比赛结果、名次或荣誉，冠军荣誉被撤销时不会自动将亚军递补为冠军。
+
+### Changed
+
+#### 赛事模型与运行时边界
+
+`competitionTemplate` 现在是 Rivals、Major 和 Custom 的明确模板身份；内置模板不再通过 capability 结构反推身份。运行中的赛事使用冻结的 StageRun 事实，Major Swiss 由 Major-managed runtime 管理，Bracket 的可变运行时状态由独立持久化 owner 管理。
 
 #### 正式名单、比赛名单与管理员权限
 
