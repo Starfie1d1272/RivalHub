@@ -32,14 +32,16 @@ describe("public player discipline states", () => {
     expect(screen.getAllByRole("article")).toHaveLength(2);
   });
 
-  it("retains accessible sanction meaning on small fallback avatars without tiny text", () => {
+  it("labels every sanctioned avatar size while retaining the accessible event-sanction meaning", () => {
     const { rerender } = render(<PlayerAvatar name="Player" size="sm" hasActivePublicSanction />);
     expect(screen.getByRole("img", { name: "Player · 当前存在赛事纪律处罚" })).toHaveAttribute("title", "Player · 当前存在赛事纪律处罚");
-    expect(screen.queryByText("处罚中")).not.toBeInTheDocument();
+    expect(screen.getByText("已禁赛")).toBeInTheDocument();
+    rerender(<PlayerAvatar name="Player" size="md" hasActivePublicSanction />);
+    expect(screen.getByText("已禁赛")).toBeInTheDocument();
     rerender(<PlayerAvatar name="Player" size="lg" hasActivePublicSanction />);
-    expect(screen.getByText("处罚中")).toBeInTheDocument();
+    expect(screen.getByText("已禁赛")).toBeInTheDocument();
     rerender(<PlayerAvatar name="Player" />);
     expect(screen.getByRole("img", { name: "Player" })).toBeVisible();
-    expect(screen.queryByText("处罚中")).not.toBeInTheDocument();
+    expect(screen.queryByText("已禁赛")).not.toBeInTheDocument();
   });
 });

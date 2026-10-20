@@ -24,10 +24,10 @@ export function PlayerAvatar({ name, avatarUrl, hasActivePublicSanction = false,
     : <span role={hasActivePublicSanction ? undefined : "img"} aria-label={hasActivePublicSanction ? undefined : name} className={classes}>{name.trim().charAt(0).toUpperCase() || "?"}</span>;
   if (!hasActivePublicSanction) return avatar;
   const label = `${name} · 当前存在赛事纪律处罚`;
-  return <span role="img" aria-label={label} title={label} className={cn("relative inline-flex shrink-0 overflow-hidden rounded-full align-middle", style.className, className)}>
+  return <span role="img" aria-label={label} title={label} className={cn("relative inline-flex shrink-0 align-middle", style.className, className)}>
     <span aria-hidden="true" className="contents">{avatar}</span>
-    <span aria-hidden="true" className={cn("pointer-events-none absolute inset-x-[-25%] top-1/2 -translate-y-1/2 rotate-[-30deg] bg-[var(--color-danger)] text-center font-semibold text-white shadow-sm", size === "lg" ? "py-1 text-[11px] leading-4" : "h-1.5")}>
-      {size === "lg" ? "处罚中" : null}
+    <span aria-hidden="true" className="pointer-events-none absolute inset-x-[-6px] top-1/2 inline-flex h-4 -translate-y-1/2 rotate-[-30deg] items-center justify-center whitespace-nowrap bg-[var(--color-danger)] text-[10px] font-bold leading-none text-white shadow-sm">
+      已禁赛
     </span>
   </span>;
 }
