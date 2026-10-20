@@ -56,6 +56,7 @@ export async function getPublicLongTeamProfileReadModel(
         ...entry,
         placement: results?.placements.find((placement) => placement.entryId === entry.id)?.label ?? null,
         honors: results?.honors.filter((honor) => honor.entryId === entry.id).map((honor) => honor.label) ?? [],
+        honorHistory: results?.honorHistory.filter((honor) => honor.entryId === entry.id) ?? [],
         matchWins: performance ? profileEntryRecords.get(entry.id)?.matchWins ?? 0 : null,
         matchLosses: performance ? profileEntryRecords.get(entry.id)?.matchLosses ?? 0 : null,
         mapWins: performance ? profileEntryRecords.get(entry.id)?.mapWins ?? 0 : null,

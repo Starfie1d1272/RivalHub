@@ -1,3 +1,5 @@
+import { HONOR_STATE_LABELS } from "@/lib/postevent/presentation";
+import { PlayerActiveSanctions, PlayerDisciplineHistory } from "@/components/players/PlayerDiscipline";
 import { safeStatsReturn } from "@/lib/stats/return-context";
 import { StatsReturnLink } from "@/components/stats/StatsNavigationContext";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
@@ -86,7 +88,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
       <details className="group border-t border-[var(--color-border)] pt-3">
         <summary className="cursor-pointer list-none text-xs text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-fg)]">
           <span className="inline-flex items-center gap-2">
-            <span>报名档案（报名时资料）</span>
+            <span>报名时资料</span>
             <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
           </span>
         </summary>
@@ -121,7 +123,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
       <StatsReturnLink href={fromStats} />
       <section className="border-b border-[var(--color-border)] pb-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          <PlayerAvatar name={getPublicDisplayName(user)} avatarUrl={user.avatarUrl} size="lg" />
+          <PlayerAvatar name={getPublicDisplayName(user)} avatarUrl={user.avatarUrl} hasActivePublicSanction={profile.sanctions.some((sanction) => sanction.status === "active")} size="lg" />
           <div className="min-w-0 flex-1 space-y-4">
             <div className="space-y-2">
               <h1 className="text-3xl font-black text-[var(--color-fg)]">{getPublicDisplayName(user)}</h1>
@@ -208,6 +210,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
           </div>
         </div>
 
+        <div className="mt-4"><PlayerActiveSanctions sanctions={profile.sanctions} /></div>
         <div className="mt-4"><SectionHeading>Career Stats</SectionHeading></div>
         <dl aria-label="Career Stats" className="mt-2 grid grid-cols-2 border-y border-[var(--color-border)] sm:grid-cols-4">
           <div className="px-3 py-3 sm:first:pl-0">
@@ -227,6 +230,67 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
             <dd className="mt-1 text-lg font-semibold tabular-nums">{overview.maps ?? "—"}</dd>
           </div>
         </dl>
+      </section>
+
+      <section className="space-y-4" aria-labelledby="player-career-heading">
+        <div className="space-y-1">
+          <SectionHeading>Career</SectionHeading>
+          <h2 id="player-career-heading" className="text-xl font-semibold text-[var(--color-fg)]">赛事履历</h2>
+        </div>
+
+        {profile.careerHistory.length > 0 ? (
+          <div className="divide-y divide-[var(--color-border)] border-y border-[var(--color-border)]">
+            {profile.careerHistory.map((entry) => {
+              const registration = registrationBySeasonId.get(entry.seasonId);
+              return (
+                <article key={entry.seasonId + ":" + entry.teamId} className="py-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                        <TeamProfileLink
+                          className="font-semibold transition-colors hover:text-[var(--color-accent)]"
+                          seasonSlug={entry.seasonSlug} entryId={entry.teamId}
+                        >
+                          {entry.seasonName}
+                        </TeamProfileLink>
+                        <span className="text-sm text-[var(--color-fg-mid)]">{entry.teamName}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-fg-mid)]">
+                        {entry.placement && <span>{entry.placement}</span>}
+                        <span>{entry.record.played} 场 · {entry.record.wins} 胜 / {entry.record.losses} 负</span>
+                        {entry.honors.map((honor) => <span key={honor}>官方荣誉 · {honor}</span>)}
+                      </div>
+                      {entry.honorHistory.length > 0 && <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-fg-dim)]">{entry.honorHistory.map((honor, index) => <span key={index}>{honor.label} · {HONOR_STATE_LABELS[honor.state]}</span>)}</div>}
+                    </div>
+                    <Link
+                      href={statsEntryHref(entry.seasonSlug, { tab: "players", teamFilter: entry.teamId })}
+                      className="shrink-0 text-xs text-[var(--color-accent)]"
+                    >
+                      赛事选手统计 →
+                    </Link>
+                  </div>
+                  {registration && <div className="mt-4">{renderRegistrationSnapshot(registration)}</div>}
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--color-fg-mid)]">暂无已结束赛事记录</p>
+        )}
+
+        {standaloneRegistrationSnapshots.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-xs text-[var(--color-fg-dim)]">其它报名记录</p>
+            <div className="divide-y divide-[var(--color-border)] border-y border-[var(--color-border)]">
+              {standaloneRegistrationSnapshots.map((registration) => (
+                <div key={registration.id} className="py-4">
+                  <p className="mb-3 text-sm font-semibold">{registration.seasonName}</p>
+                  {renderRegistrationSnapshot(registration)}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       {career ? <section className="space-y-4" aria-labelledby="player-performance-heading">
@@ -272,65 +336,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
         <PlayerWorkspace detail={career} compact />
       </section> : <p role="status" className="text-sm text-[var(--color-fg-mid)]">竞技统计暂时无法加载，请稍后重试。</p>}
 
-      <section className="space-y-4" aria-labelledby="player-career-heading">
-        <div className="space-y-1">
-          <SectionHeading>Career</SectionHeading>
-          <h2 id="player-career-heading" className="text-xl font-semibold text-[var(--color-fg)]">赛事履历</h2>
-        </div>
-
-        {profile.careerHistory.length > 0 ? (
-          <div className="divide-y divide-[var(--color-border)] border-y border-[var(--color-border)]">
-            {profile.careerHistory.map((entry) => {
-              const registration = registrationBySeasonId.get(entry.seasonId);
-              return (
-                <article key={entry.seasonId + ":" + entry.teamId} className="py-3">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0 space-y-2">
-                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                        <TeamProfileLink
-                          className="font-semibold transition-colors hover:text-[var(--color-accent)]"
-                          seasonSlug={entry.seasonSlug} entryId={entry.teamId}
-                        >
-                          {entry.seasonName}
-                        </TeamProfileLink>
-                        <span className="text-sm text-[var(--color-fg-mid)]">{entry.teamName}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-fg-mid)]">
-                        {entry.placement && <span>{entry.placement}</span>}
-                        <span>{entry.record.played} 场 · {entry.record.wins} 胜 / {entry.record.losses} 负</span>
-                        {entry.honors.map((honor) => <span key={honor}>官方荣誉 · {honor}</span>)}
-                      </div>
-                    </div>
-                    <Link
-                      href={statsEntryHref(entry.seasonSlug, { tab: "players", teamFilter: entry.teamId })}
-                      className="shrink-0 text-xs text-[var(--color-accent)]"
-                    >
-                      赛事选手统计 →
-                    </Link>
-                  </div>
-                  {registration && <div className="mt-4">{renderRegistrationSnapshot(registration)}</div>}
-                </article>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-sm text-[var(--color-fg-mid)]">暂无已结束赛事记录</p>
-        )}
-
-        {standaloneRegistrationSnapshots.length > 0 && (
-          <div className="space-y-3">
-            <p className="text-xs text-[var(--color-fg-dim)]">其它报名记录</p>
-            <div className="divide-y divide-[var(--color-border)] border-y border-[var(--color-border)]">
-              {standaloneRegistrationSnapshots.map((registration) => (
-                <div key={registration.id} className="py-4">
-                  <p className="mb-3 text-sm font-semibold">{registration.seasonName}</p>
-                  {renderRegistrationSnapshot(registration)}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </section>
+      <PlayerDisciplineHistory sanctions={profile.sanctions} />
 
       {hasDeclaredProfile && (
         <section className="space-y-4" aria-labelledby="player-profile-heading">

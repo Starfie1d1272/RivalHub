@@ -23,6 +23,7 @@ const castMatchMvpVote = observeAction("player-stats.castMatchMvpVote", telemetr
 interface MvpCandidate {
   userId: string | null;
   avatarUrl: string | null;
+  hasActivePublicSanction?: boolean;
   perfectName: string;
   kills: number | null;
   deaths: number | null;
@@ -143,7 +144,7 @@ export function MatchMvpVote({
         <div className="text-center space-y-1">
           <p className="text-sm text-[var(--color-fg-mid)]">{awaitingSettlement ? "MVP 结果确认中" : "本场 MVP"}</p>
           <div className="flex items-center justify-center gap-2 text-xl font-bold text-[var(--color-accent)]">
-            {mvpStats && <PlayerAvatar name={mvp?.playerName ?? "MVP"} avatarUrl={mvpStats.avatarUrl} size="md" />}
+            {mvpStats && <PlayerAvatar name={mvp?.playerName ?? "MVP"} avatarUrl={mvpStats.avatarUrl} hasActivePublicSanction={mvpStats.hasActivePublicSanction} size="md" />}
             {mvp?.playerUserId ? (
               <PlayerProfileLink userId={mvp.playerUserId} className="hover:underline">
                 {mvp?.playerName ?? (awaitingSettlement ? "等待结果确认" : "暂无 MVP 结果")}
@@ -198,7 +199,7 @@ export function MatchMvpVote({
                   <span className="inline-flex min-w-0 items-center gap-2">
                     {(() => {
                       const candidate = candidates.find((c) => candidateKey(c.userId, c.perfectName) === candidateKey(v.playerUserId, v.playerName));
-                      return candidate ? <PlayerAvatar name={v.playerName} avatarUrl={candidate.avatarUrl} size="sm" /> : null;
+                      return candidate ? <PlayerAvatar name={v.playerName} avatarUrl={candidate.avatarUrl} hasActivePublicSanction={candidate.hasActivePublicSanction} size="sm" /> : null;
                     })()}
                     {v.playerUserId ? (
                       <PlayerProfileLink userId={v.playerUserId} className="truncate hover:text-[var(--color-accent)] transition-colors">
@@ -255,7 +256,7 @@ export function MatchMvpVote({
             >
               <div className="flex items-center justify-between mb-2 gap-2">
                 <span className="inline-flex min-w-0 items-center gap-2 font-semibold text-[var(--color-fg)]">
-                  <PlayerAvatar name={c.perfectName} avatarUrl={c.avatarUrl} size="sm" />
+                  <PlayerAvatar name={c.perfectName} avatarUrl={c.avatarUrl} hasActivePublicSanction={c.hasActivePublicSanction} size="sm" />
                   {c.perfectName}
                 </span>
                 <span

@@ -131,7 +131,7 @@ function StyleChart({ chart, selection, onSelect, onClose }: { chart: Chart; sel
           if (event.key === "Tab" && !event.shiftKey && active?.userId === point.userId && enterCard()) event.preventDefault();
         }}
         onClick={(event) => { activate(point, event.currentTarget, true); if (event.detail === 0) enterCard(); }}>
-        <PlayerAvatar name={point.name} avatarUrl={point.avatarUrl} size="sm" />
+        <PlayerAvatar name={point.name} avatarUrl={point.avatarUrl} hasActivePublicSanction={point.hasActivePublicSanction} size="sm" />
       </button>)}
     </div>
     {limited && <p id={`${id}-sample`} className="mt-1 flex items-center gap-2 px-1 text-[10px] text-[var(--color-fg-dim)]"><span aria-hidden="true" className="size-2.5 rounded-full border border-dashed border-[var(--color-fg-dim)]" />{preview ? "样本有限预览" : "虚线圈表示部分属性样本有限"}</p>}
@@ -169,7 +169,7 @@ function PlayerCard({ id, chart, active, nearby, trigger, cardRef, onEnter, onLe
     className="fixed z-[200] w-72 max-w-[calc(100vw-24px)] border border-[var(--color-border-hi)] bg-[var(--color-panel-hi)] p-3 text-xs leading-5 text-[var(--color-fg-primary)] shadow-lg"
     style={position ? { ...position } : { visibility: "hidden" }}>
     <div className="flex items-start gap-2">
-      <PlayerAvatar name={active.name} avatarUrl={active.avatarUrl} size="sm" />
+      <PlayerAvatar name={active.name} avatarUrl={active.avatarUrl} hasActivePublicSanction={active.hasActivePublicSanction} size="sm" />
       <div className="min-w-0 flex-1"><PlayerProfileLink userId={active.userId} className="break-words text-sm font-semibold">{active.name} <span aria-hidden="true">↗</span></PlayerProfileLink><p className="text-[var(--color-fg-mid)]">个人生涯 · {active.maps} Maps</p></div>
       <button type="button" className="min-h-6 min-w-6 text-[var(--color-fg-dim)] hover:text-[var(--color-fg-primary)]" aria-label="关闭选手信息" onClick={onClose}>×</button>
     </div>
@@ -177,6 +177,6 @@ function PlayerCard({ id, chart, active, nearby, trigger, cardRef, onEnter, onLe
       <div className="text-[var(--color-fg-mid)]">{chart.xLabel}<span className="ml-2 font-semibold tabular-nums text-[var(--color-fg-primary)]">{active.x}</span>{active.xLimited && <span className="ml-1.5 whitespace-nowrap text-[10px] text-[var(--color-fg-dim)]">样本有限</span>}</div>
       <div className="text-[var(--color-fg-mid)]">{chart.yLabel}<span className="ml-2 font-semibold tabular-nums text-[var(--color-fg-primary)]">{active.y}</span>{active.yLimited && <span className="ml-1.5 whitespace-nowrap text-[10px] text-[var(--color-fg-dim)]">样本有限</span>}</div>
     </div>
-    {nearby.length > 1 && <div className="mt-3 border-t border-[var(--color-border)] pt-2"><p className="mb-2 text-[var(--color-fg-mid)]">附近成员 · 点击切换</p><div className="flex flex-wrap gap-2">{nearby.map((point) => <button type="button" key={point.userId} aria-label={`查看 ${point.name}`} aria-pressed={active.userId === point.userId} title={point.name} onClick={() => onChoose(point)} className={`rounded-full focus-visible:outline-2 focus-visible:outline-[var(--color-border-focus)] ${active.userId === point.userId ? "ring-1 ring-[var(--color-accent)]" : ""}`}><PlayerAvatar name={point.name} avatarUrl={point.avatarUrl} size="sm" /></button>)}</div></div>}
+    {nearby.length > 1 && <div className="mt-3 border-t border-[var(--color-border)] pt-2"><p className="mb-2 text-[var(--color-fg-mid)]">附近成员 · 点击切换</p><div className="flex flex-wrap gap-2">{nearby.map((point) => <button type="button" key={point.userId} aria-label={`查看 ${point.name}`} aria-pressed={active.userId === point.userId} title={point.name} onClick={() => onChoose(point)} className={`rounded-full focus-visible:outline-2 focus-visible:outline-[var(--color-border-focus)] ${active.userId === point.userId ? "ring-1 ring-[var(--color-accent)]" : ""}`}><PlayerAvatar name={point.name} avatarUrl={point.avatarUrl} hasActivePublicSanction={point.hasActivePublicSanction} size="sm" /></button>)}</div></div>}
   </div>, document.body);
 }

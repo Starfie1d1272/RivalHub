@@ -1,3 +1,4 @@
+import { hasActivePublicSanction } from "@/lib/discipline/public-query";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
@@ -106,6 +107,7 @@ export async function PlayersPageContent({ params, searchParams }: PlayersPagePr
       perfectName: users.perfectName,
       personaName: steamProfiles.personaName,
       avatarUrl: steamProfiles.avatarUrl,
+      hasActivePublicSanction: hasActivePublicSanction(users.id),
     })
     .from(seasonRegistrations)
     .innerJoin(users, eq(seasonRegistrations.userId, users.id))
@@ -139,7 +141,7 @@ export async function PlayersPageContent({ params, searchParams }: PlayersPagePr
       userId: reg.userId,
       registrationId: reg.registrationId,
       displayName: getPublicDisplayName(reg),
-      avatarUrl: reg.avatarUrl,
+      avatarUrl: reg.avatarUrl, hasActivePublicSanction: reg.hasActivePublicSanction,
       name: getPublicDisplayName(reg),
       primaryPosition: reg.primaryPosition,
       secondaryPosition: reg.secondaryPosition,

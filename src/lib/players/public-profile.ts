@@ -18,6 +18,7 @@ import { getPublicCompetitiveCatalog } from "@/lib/competitive/public-catalog";
 import { presentCompetitiveRole, presentPublicCompetitiveProfile } from "@/lib/competitive/presentation";
 import { presentPublicEducationIdentities } from "@/lib/education/presentation";
 import { getPublicPlayerLft } from "@/lib/recruitment/data";
+import { getPublicPlayerSanctions } from "@/lib/discipline/public-query";
 
 export type PublicPlayerCareerEvent = {
   seasonId: string;
@@ -28,6 +29,7 @@ export type PublicPlayerCareerEvent = {
   teamName: string;
   placement: string | null;
   honors: string[];
+  honorHistory: Array<{ label: string; state: string }>;
   record: { wins: number; losses: number; played: number };
 };
 
@@ -43,7 +45,7 @@ export async function getPublicPlayerProfileReadModel(
   const performancePromise = scope.eventSlug || scope.mapFilter
     ? readOptionalPublicStats("player_career", () => getPublicPlayerCareerDetail({ playerId: userId, eventSlug: scope.eventSlug, mapFilter: scope.mapFilter }))
     : lifetimePromise;
-  const [career, currentTeams, registrations, competitiveFacts, competitiveRoles, mapPreferences, competitiveCatalog, educationRows, playerLft, teamMemberRows, careerRecords, lifetime] = await Promise.all([
+  const [career, currentTeams, registrations, competitiveFacts, competitiveRoles, mapPreferences, competitiveCatalog, educationRows, playerLft, teamMemberRows, careerRecords, lifetime, sanctions] = await Promise.all([
     performancePromise,
     db.select({ slug: teams.slug, name: teams.name }).from(teamMemberships)
       .innerJoin(teams, eq(teams.id, teamMemberships.teamId))
@@ -95,6 +97,7 @@ export async function getPublicPlayerProfileReadModel(
       .orderBy(desc(seasons.createdAt), asc(competitionEntries.name), asc(competitionEntries.id)),
     getPublicPlayerRecords(userId),
     lifetimePromise,
+    getPublicPlayerSanctions(userId),
   ]);
 
   const uniqueHistoryEntries = [...new Map(teamMemberRows.map((entry) => [`${entry.seasonId}:${entry.teamId}`, entry])).values()];
@@ -119,6 +122,7 @@ export async function getPublicPlayerProfileReadModel(
         teamName: entry.teamName,
         placement: results?.placements.find((placement) => placement.entryId === entry.teamId)?.label ?? null,
         honors: [...new Set(honorLabels)],
+        honorHistory: results?.honorHistory.filter((honor) => honor.entryId === entry.teamId || honor.userId === userId).map(({ label, state }) => ({ label, state })) ?? [],
         record: careerRecords.get(entry.seasonId) ?? { wins: 0, losses: 0, played: 0 },
       };
     });
@@ -149,6 +153,7 @@ export async function getPublicPlayerProfileReadModel(
 
   return {
     user,
+    sanctions,
     career,
     careerOverview: {
       rating: lifetime?.scoreboard[0]?.avgRating ?? null,

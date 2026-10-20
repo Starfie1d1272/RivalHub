@@ -35,6 +35,7 @@ export function resolveSanctionStatus(
 ): ResolvedSanctionStatus {
   if (row.status === "revoked") return "revoked";
   if (row.status === "draft") return "draft";
+  if (row.status === "expired") return "expired";
   if (row.effectiveFrom.getTime() > now.getTime()) return "draft";
   if (row.effectiveUntil !== null && row.effectiveUntil.getTime() <= now.getTime()) {
     return "expired";

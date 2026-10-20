@@ -299,6 +299,14 @@ function readSnapshotUnsafe(path: string): MirrorSnapshot {
           context: { phase: "snapshot read", table },
         });
       }
+      if (table === "disciplinary_cases" && (!["active", "expired", "revoked"].includes(String(row.status))
+        || !Number.isFinite(Date.parse(String(row.effective_from)))
+        || Date.parse(String(row.effective_from)) > Date.parse(snapshot.refreshedAt)
+        || !snapshot.tables.seasons.some((season) => season.id === row.season_id && season.status !== "draft"))) {
+        throw new PreviewMirrorError("PREVIEW_SNAPSHOT_INVALID", "Discipline record is outside a public effective outcome.", {
+          context: { phase: "snapshot read", table },
+        });
+      }
       if (table === "users" && (row.email !== `${row.id}@preview.invalid` || row.role !== "user" || row.auth_id || row.email_verified_at)) throw new Error("Unsanitized mirror identity.");
       if (table === "season_registrations" && JSON.stringify(row.screenshot_urls) !== "[]") throw new Error("Private screenshot in mirror.");
       if (table === "team_memberships") assertSanitizedTeamMembership(row);

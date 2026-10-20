@@ -1,3 +1,4 @@
+import { hasActivePublicSanction } from "@/lib/discipline/public-query";
 import "server-only";
 
 import { and, asc, count, eq, inArray } from "drizzle-orm";
@@ -77,6 +78,7 @@ export interface MajorPublicParticipantSummary extends MajorPublicParticipantOve
 type RosterMemberRow = {
   entryId: string;
   avatarUrl: string | null;
+  hasActivePublicSanction?: boolean;
   userId: string;
   displayName: string | null;
   perfectName: string | null;
@@ -192,6 +194,7 @@ function publicRosterMember(row: RosterMemberRow) {
     userId: row.userId,
     name: getPublicDisplayName(row),
     avatarUrl: row.avatarUrl ?? null,
+    hasActivePublicSanction: row.hasActivePublicSanction ?? false,
     isStarter: row.isStarter,
   };
 }
@@ -277,6 +280,7 @@ function approvedRosterQuery(entryIds: string[]) {
     perfectName: users.perfectName,
     personaName: steamProfiles.personaName,
     avatarUrl: steamProfiles.avatarUrl,
+    hasActivePublicSanction: hasActivePublicSanction(users.id),
     isStarter: competitionEntryRosterMembers.isPrimaryStarter,
   }).from(competitionEntryRosterMembers)
     .innerJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntryRosterMembers.revisionId))
@@ -294,6 +298,7 @@ function eventRosterQuery(entryIds: string[]) {
     perfectName: users.perfectName,
     personaName: steamProfiles.personaName,
     avatarUrl: steamProfiles.avatarUrl,
+    hasActivePublicSanction: hasActivePublicSanction(users.id),
     isStarter: eventRosterMembers.isPrimaryStarter,
   }).from(eventRosterMembers)
     .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))

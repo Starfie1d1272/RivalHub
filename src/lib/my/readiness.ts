@@ -1,3 +1,4 @@
+export { SANCTION_EFFECT_LABELS } from "@/lib/discipline/contract";
 import { countActionableRecruitmentInterests } from "@/lib/recruitment/data";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -473,9 +474,3 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
     userId,
   });
 }
-
-export const SANCTION_EFFECT_LABELS: Record<SanctionEffect, string> = {
-  registration_block: "阻止报名",
-  roster_block: "阻止进入赛事名单",
-  match_participation_block: "阻止单场出场",
-};

@@ -1,3 +1,4 @@
+import { hasActivePublicSanction } from "@/lib/discipline/public-query";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
@@ -144,6 +145,7 @@ export async function getPublicTeamProfileCore(
         id: teamMemberships.id,
         userId: users.id,
         avatarUrl: steamProfiles.avatarUrl,
+        hasActivePublicSanction: hasActivePublicSanction(users.id),
         displayName: users.displayName,
         personaName: steamProfiles.personaName,
         perfectName: users.perfectName,
@@ -201,12 +203,13 @@ export async function getPublicTeamProfileCore(
 
   const currentMembers = members
     .filter((member): member is typeof member & { status: PublicTeamMembershipStatus } => member.endedAt === null && member.status !== "left")
-    .map(({ id, userId, displayName, personaName, perfectName, status, avatarUrl }) => ({
+    .map(({ id, userId, displayName, personaName, perfectName, status, avatarUrl, hasActivePublicSanction }) => ({
       id,
       userId,
       name: getPublicDisplayName({ displayName, personaName, perfectName }),
       status,
       avatarUrl,
+      hasActivePublicSanction,
     }));
   const entryIds = entries.map((entry) => entry.id);
   const rawPlayed = knownMatches ?? (entryIds.length

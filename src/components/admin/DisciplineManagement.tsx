@@ -316,16 +316,18 @@ export function DisciplineManagement({
 
           <div className="space-y-2">
             <label className="block text-sm text-[var(--color-fg-mid)]" htmlFor="discipline-public-explanation">
-              公开说明（可能展示给被处罚用户）
+              公开处罚说明
             </label>
             <textarea
               id="discipline-public-explanation"
+              aria-describedby="discipline-public-explanation-help"
               value={publicExplanation}
               onChange={(e) => setPublicExplanation(e.target.value)}
               rows={2}
               maxLength={1000}
               className="w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)] transition-colors"
             />
+            <p id="discipline-public-explanation-help" className="text-xs text-[var(--color-fg-mid)]">向本人展示，并用于个人主页公示。请勿填写内部证据或敏感信息。</p>
           </div>
 
           <div className="space-y-2">

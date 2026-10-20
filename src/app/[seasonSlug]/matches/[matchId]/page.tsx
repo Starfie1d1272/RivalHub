@@ -1,3 +1,4 @@
+import { hasActivePublicSanction } from "@/lib/discipline/public-query";
 import { projectDisplayScore } from "@/lib/matches/display-score";
 import type { Metadata } from "next";
 import { connection } from "next/server";
@@ -145,6 +146,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
         perfectName: users.perfectName,
         userId: users.id,
         avatarUrl: steamProfiles.avatarUrl,
+        hasActivePublicSanction: hasActivePublicSanction(users.id),
         isCurrent: eventRosterMembers.isCurrent,
         isPrimaryStarter: eventRosterMembers.isPrimaryStarter,
       })
@@ -258,7 +260,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
   const allowExpected = match.status === "scheduled" && !match.startedAt && !match.gameplayStartedAt;
   const registeredLineup = (entryId: string) => allTeamMembers.filter((member) => member.teamId === entryId && member.isCurrent)
     .map((member) => ({ userId: member.userId, displayName: member.displayName, personaName: member.personaName,
-      perfectName: member.perfectName, avatarUrl: member.avatarUrl, isPrimaryStarter: member.isPrimaryStarter, isStarter: member.isPrimaryStarter }));
+      perfectName: member.perfectName, avatarUrl: member.avatarUrl, hasActivePublicSanction: member.hasActivePublicSanction, isPrimaryStarter: member.isPrimaryStarter, isStarter: member.isPrimaryStarter }));
   const lineupA = resolveLineup(teamARoster, registeredLineup(match.entryAId), allowExpected);
   const lineupB = resolveLineup(teamBRoster, registeredLineup(match.entryBId), allowExpected);
   const comparisonCutoff = lineupComparisonCutoff(match);
@@ -318,6 +320,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
   if (isFinished && scoreboard) {
     mvpCandidates = scoreboard.mvpCandidates.map((candidate) => ({
       ...candidate,
+      hasActivePublicSanction: candidate.userId ? userIdToMember.get(candidate.userId)?.hasActivePublicSanction ?? false : false,
       avatarUrl: candidate.userId ? userIdToMember.get(candidate.userId)?.avatarUrl ?? null : null,
     }));
 

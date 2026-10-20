@@ -1,3 +1,4 @@
+import { HONOR_STATE_LABELS } from "@/lib/postevent/presentation";
 import { EmptyState, Panel, PosChip } from "@/components/rivalhub";
 import { TeamProfileLink } from "./TeamProfileLink";
 import { RecruitmentInterestButton } from "@/components/recruitment/RecruitmentInterestButton";
@@ -26,6 +27,7 @@ export function TeamCareer({ career }: { career: PublicLongTeamProfileReadModel[
                       <span className="block break-words text-sm font-semibold">{entry.seasonName}</span>
                       <span className="mt-1 block break-words text-xs text-[var(--color-fg-mid)]">{entry.name}</span>
                       {entry.honors.length > 0 && <span className="mt-1.5 flex flex-wrap gap-x-2 gap-y-1 text-xs font-medium text-[var(--color-accent)]">{entry.honors.map((honor) => <span key={honor}>{honor}</span>)}</span>}
+                      {entry.honorHistory.length > 0 && <span className="mt-1.5 flex flex-wrap gap-x-2 gap-y-1 text-xs text-[var(--color-fg-dim)]">{entry.honorHistory.map((honor) => <span key={honor.id}>{honor.label} · {HONOR_STATE_LABELS[honor.state]}</span>)}</span>}
                     </span>
                     <span className="grid grid-cols-3 gap-3 text-xs tabular-nums text-[var(--color-fg-mid)]">
                       <span><span className="block text-[10px] uppercase tracking-wide text-[var(--color-fg-dim)]">Match</span><span className="mt-0.5 block font-medium text-[var(--color-fg)]">{entry.matchWins === null ? "—" : `${entry.matchWins}-${entry.matchLosses}`}</span></span>
