@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { eq, count } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, competitionEntries } from "@/db/schema";
+import { seasons } from "@/db/schema";
 import { PageHeader } from "@/components/rivalhub";
 import { DraftAdminPanel } from "@/components/draft/DraftAdminPanel";
+import { getFormedCompetitionEntryCount } from "@/lib/competition-entries/counts";
 import { getDraftAdminData } from "@/lib/draft/data";
 
 interface AdminDraftPageProps {
@@ -23,11 +24,7 @@ export default async function AdminDraftPage({ params }: AdminDraftPageProps) {
   });
   if (!season) notFound();
 
-  const [teamCountRow] = await db
-    .select({ count: count() })
-    .from(competitionEntries)
-    .where(eq(competitionEntries.competitionId, season.id));
-  const teamCount = Number(teamCountRow?.count ?? 0);
+  const teamCount = await getFormedCompetitionEntryCount(season.id);
 
   const data = season.hasDraft ? await getDraftAdminData(season.id) : null;
 

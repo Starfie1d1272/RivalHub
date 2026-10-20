@@ -152,3 +152,9 @@ Prediction mutations serialize by canonical user → season lifecycle guard → 
 | Persistence / migration | `src/db/schema/`, `drizzle/migrations/` |
 
 需要具体 owner 时先 repository search，再沿 tests 和 callers 确认；不要把本表扩成实时文件清单。
+
+## 指标读取边界
+
+页面和组件消费领域 read model，不直接定义数据库 count/sum/avg/min/max 聚合；`ARCH_PAGE_AGGREGATE` 检查聚合导入及 SQL 模板。相同含义的指标只有一个 owner：正式赛事完成/总场数归 `matches/read-official`，已审核参赛队数归 `competition-entries/counts`，参赛人数的单赛事入口复用批量入口的注册方式规则。选秀形成队伍数、审核通过数、Major 正赛名单人数等不同含义必须保留明确的领域范围，不能用同名函数掩盖差异。UI 搜索结果数量、编辑中选择数及图形宽度属于展示状态，不替代领域事实。
+
+测试赛保留共用执行流程与显式测试入口；公开正式列表、统计及其地图/BP筛选目录均从正式比赛范围读取。不得把当前晋级名单当成赛事历史范围。

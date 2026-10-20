@@ -1,16 +1,14 @@
+import { getOfficialUpcomingMatches } from "@/lib/seasons/overview-read-model";
+import { getApprovedCompetitionEntryCount } from "@/lib/competition-entries/counts";
 import { getPublicCaptainVotingData } from "@/lib/captains/data";
-import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 
-import { alias } from "drizzle-orm/pg-core";
-import { and, count, eq, or, sql } from "drizzle-orm";
+import { and, count, eq, or } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 
 import { db } from "@/db/client";
-import { competitionEntries, seasonRegistrations, users } from "@/db/schema";
-import { matches } from "@/db/schema/matches";
+import { seasonRegistrations, users } from "@/db/schema";
 import { PUBLIC_HOME_TAG } from "@/lib/cache/tags";
-import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { getMajorPublicParticipantOverview } from "@/lib/major/public-participants";
 import { getParticipantSummary } from "@/lib/participants/summary";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
@@ -83,14 +81,10 @@ export async function getPublicHomeProjection(
     };
   }
 
-  const opponentEntry = alias(competitionEntries, "home_opponent");
-  const [majorOverview, [featuredTeamCount], participantSummary, registrationCounts, topCandidates, liveAndUpcomingMatches] =
+  const [majorOverview, featuredTeamCount, participantSummary, registrationCounts, topCandidates, liveAndUpcomingMatches] =
     await Promise.all([
       featured.competitionTemplate === "major" ? getMajorPublicParticipantOverview(featured) : Promise.resolve(null),
-      featured.competitionTemplate === "major"
-        ? Promise.resolve([] as { value: number }[])
-        : db.select({ value: count() }).from(competitionEntries)
-            .where(and(eq(competitionEntries.competitionId, featured.id), publicCompetitionEntryCondition())),
+      featured.competitionTemplate === "major" ? Promise.resolve(0) : getApprovedCompetitionEntryCount(featured.id),
       featured.competitionTemplate === "major"
         ? Promise.resolve({ count: 0, hasPlayers: false })
         : getParticipantSummary(featured),
@@ -109,26 +103,7 @@ export async function getPublicHomeProjection(
         ? getPublicCaptainVotingData(featured.id).then(data => data.candidates.slice(0, 3).map(candidate => ({ userId: candidate.userId, name: candidate.displayName, voteCount: candidate.voteCount })))
         : Promise.resolve([] as { userId: string; name: string; voteCount: number }[]),
       featured.hasOfficialMatches
-        ? db.select({
-            id: matches.id,
-            entryAId: matches.entryAId,
-            entryBId: matches.entryBId,
-            status: matches.status,
-            scheduledAt: matches.scheduledAt,
-            stage: matches.stage,
-            format: matches.format,
-            teamAName: competitionEntries.name,
-            teamBName: opponentEntry.name,
-          })
-            .from(matches)
-            .leftJoin(competitionEntries, eq(competitionEntries.id, matches.entryAId))
-            .leftJoin(opponentEntry, eq(opponentEntry.id, matches.entryBId))
-            .where(and(officialMatchCondition(), and(
-              eq(matches.seasonId, featured.id),
-              or(eq(matches.status, "in_progress"), eq(matches.status, "scheduled")),
-            )))
-            .orderBy(sql`case when ${matches.status} = 'in_progress' then 0 when ${matches.scheduledAt} is not null then 1 else 2 end`, matches.scheduledAt)
-            .limit(2)
+        ? getOfficialUpcomingMatches(featured.id, 2)
         : Promise.resolve([] as {
             id: string;
             entryAId: string | null;
@@ -156,7 +131,7 @@ export async function getPublicHomeProjection(
     positionCounts: Object.fromEntries(registrationCounts.map((row) => [row.position, Number(row.cnt)])),
     topCandidatesWithNames: topCandidates,
     liveAndUpcomingMatches,
-    teamCount: majorOverview?.teamCount ?? Number(featuredTeamCount?.value ?? 0),
+    teamCount: majorOverview?.teamCount ?? featuredTeamCount,
     teamCountLabel: majorOverview?.phase === "approved_candidates" ? "已审核队伍" : "参赛队伍",
     playerCount: majorOverview?.playerCount ?? participantSummary.count,
   };

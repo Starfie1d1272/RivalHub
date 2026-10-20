@@ -3,6 +3,17 @@ import { checkArchitecture } from "../../../scripts/architecture/check";
 
 describe("architecture import boundaries", () => {
 
+  it("keeps SQL metrics out of presentation, including aliased imports", () => {
+    const violations = checkArchitecture({ files: {
+      "src/app/demo/page.tsx": 'import { count as rows } from "drizzle-orm"; void rows;',
+      "src/components/Demo.tsx": 'const metric = sql`count(*) filter (where status = 1)`;',
+      "src/lib/demo/read-model.ts": 'import { count } from "drizzle-orm"; void count;',
+    } });
+    expect(violations.filter(v => v.ruleId === "ARCH_PAGE_AGGREGATE").map(v => v.file)).toEqual([
+      "src/app/demo/page.tsx", "src/components/Demo.tsx",
+    ]);
+  });
+
   it("rejects client access to database and server-owned facades", () => {
     const violations = checkArchitecture({
       files: {

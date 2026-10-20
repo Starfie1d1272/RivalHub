@@ -1,3 +1,4 @@
+import { getOfficialSeasonMatchSummary } from "@/lib/matches/read-official";
 import { hasActivePublicSanction } from "@/lib/discipline/public-query";
 import "server-only";
 
@@ -472,11 +473,10 @@ export async function getMajorPublicParticipantSummary(
   season: MajorPublicParticipantSeason,
 ): Promise<MajorPublicParticipantSummary> {
   const state = await loadMajorPublicParticipantState(season);
-  const matchSummary = await getPublicEventTeamMatchSummary(
-    season.id,
-    state.visibleEntryIds,
-    state.approvedEntryIds,
-  );
+  const [matchSummary, seasonMatches] = await Promise.all([
+    getPublicEventTeamMatchSummary(season.id, state.visibleEntryIds, state.approvedEntryIds),
+    getOfficialSeasonMatchSummary(season.id),
+  ]);
   return {
     ...overviewFromState(state),
     teams: state.teams
@@ -485,8 +485,8 @@ export async function getMajorPublicParticipantSummary(
         ...team,
         record: matchSummary.records.get(team.entry.id) ?? createEmptyPublicEventTeamRecord(),
       })),
-    matchCount: matchSummary.total,
-    finishedMatchCount: matchSummary.finished,
+    matchCount: seasonMatches.total,
+    finishedMatchCount: seasonMatches.finished,
   };
 }
 

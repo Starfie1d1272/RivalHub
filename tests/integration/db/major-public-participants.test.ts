@@ -90,7 +90,7 @@ async function insertFixture(pool: Pool): Promise<Fixture> {
   const entrantCapacity = checkStandardMajorCapabilities(capabilities).entrantCapacity;
   const seasonId = randomUUID();
   const seasonSlug = `major-public-participants-${seasonId}`;
-  const entries = Array.from({ length: entrantCapacity + 1 }, () => ({
+  const entries = Array.from({ length: entrantCapacity + 2 }, () => ({
     entryId: randomUUID(),
     revisionId: randomUUID(),
     userIds: Array.from({ length: 6 }, () => randomUUID()),
@@ -406,6 +406,7 @@ async function cleanupFixture(pool: Pool, fixture: Fixture): Promise<void> {
   try {
     await client.query("BEGIN");
     await client.query("SET LOCAL session_replication_role = replica");
+    await client.query("DELETE FROM matches WHERE season_id = $1", [fixture.season.id]);
     await client.query("DELETE FROM major_tournament_seeds WHERE season_id = $1", [fixture.season.id]);
     await client.query("DELETE FROM major_tournament_entrants WHERE season_id = $1", [fixture.season.id]);
     await client.query(
@@ -446,16 +447,16 @@ describe("Major public participant read model PostgreSQL integration", () => {
       const unselectedIds = approvedIds.slice(fixture.entrantIds.length);
       const candidate = await expectRosterSources(() => getMajorPublicParticipantSummary(fixture.season), approvedIds, []);
       expect(candidate.phase).toBe("approved_candidates");
-      expect(candidate.teams).toHaveLength(33);
-      expect(candidate.playerCount).toBe(33 * 5);
+      expect(candidate.teams).toHaveLength(34);
+      expect(candidate.playerCount).toBe(34 * 5);
       expect(candidate.presentation.teamCollectionLabel).toBe("已通过报名审核的队伍");
       expect(candidate.teams.every((team) => team.rosterLabel === "已审核报名名单")).toBe(true);
 
       const candidatePlayers = candidate.teams.flatMap((team) => team.roster);
-      expect(candidatePlayers).toHaveLength(33 * 5);
+      expect(candidatePlayers).toHaveLength(34 * 5);
       expect(candidatePlayers.find((player) => player.userId === fixture.entries[0]?.userIds[1])?.avatarUrl).toBe("https://cdn.test/major-player-0-1.webp");
 
-      const candidateDetail = await expectRosterSources(() => getMajorPublicParticipantTeam(fixture.season, fixture.entries[32]!.entryId), unselectedIds, []);
+      const candidateDetail = await expectRosterSources(() => getMajorPublicParticipantTeam(fixture.season, fixture.entries[32]!.entryId), [fixture.entries[32]!.entryId], []);
       expect(candidateDetail?.participation).toMatchObject({
         label: "已通过报名审核",
         detail: "已通过报名审核，正赛资格待确认。",
@@ -463,6 +464,15 @@ describe("Major public participant read model PostgreSQL integration", () => {
       expect(candidateDetail?.rosterLabel).toBe("已审核报名名单");
 
       await makeOfficialFacts(pool, fixture);
+      // A completed qualification match between two eliminated entries remains
+      // part of the event even though neither is in the final entrant directory.
+      await pool.query("INSERT INTO matches (id, season_id, entry_a_id, entry_b_id, stage, status, score_a, score_b, completed_at) VALUES ($1,$2,$3,$4,'play-in','finished',1,0,now())",
+        [randomUUID(), fixture.season.id, fixture.entries[32]!.entryId, fixture.entries[33]!.entryId]);
+      const withEliminatedHistory = await getMajorPublicParticipantSummary(fixture.season);
+      expect(withEliminatedHistory.teamCount).toBe(32);
+      expect(withEliminatedHistory.matchCount).toBe(1);
+      expect(withEliminatedHistory.finishedMatchCount).toBe(1);
+
       await pool.query("UPDATE event_roster_members SET is_primary_starter = false WHERE event_roster_id = $1 AND user_id = $2", [fixture.eventRosterIds[0], fixture.entries[0]!.userIds[5]]);
       await expectOverviewMatches(fixture.season);
       expect(await getParticipantSummary(fixture.season)).toEqual({ count: 160, hasPlayers: true });
@@ -545,7 +555,7 @@ describe("Major public participant read model PostgreSQL integration", () => {
       expect(finalPlayers.find((player) => player.userId === fixture.entries[0]?.userIds[1])?.avatarUrl).toBe("https://cdn.test/major-player-0-1.webp");
       expect(finalPlayers.find((player) => player.userId === fixture.entries[0]!.userIds[5])?.isStarter).toBe(false);
 
-      const unselectedDetail = await expectRosterSources(() => getMajorPublicParticipantTeam(fixture.season, fixture.entries[32]!.entryId), unselectedIds, []);
+      const unselectedDetail = await expectRosterSources(() => getMajorPublicParticipantTeam(fixture.season, fixture.entries[32]!.entryId), [fixture.entries[32]!.entryId], []);
       expect(unselectedDetail?.roster).toEqual(candidateDetail?.roster);
       expect(unselectedDetail?.participation.detail).toBe("已通过报名审核，但未进入本届正式参赛名单。");
       const officialDetail = await expectRosterSources(() => getMajorPublicParticipantTeam(fixture.season, fixture.entries[0]!.entryId), [], [fixture.entries[0]!.entryId]);

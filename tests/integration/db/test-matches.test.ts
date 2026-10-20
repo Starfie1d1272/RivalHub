@@ -1,3 +1,7 @@
+import { getOfficialStatsMapCatalog } from "@/lib/stats/platform-query";
+import { readFileSync } from "node:fs";
+import { getPublicEventTeamMatchFacts, getPublicEventTeamMatchSummary } from "@/lib/competition-entries/public-team-context";
+import { getOfficialSeasonMatchSummary } from "@/lib/matches/read-official";
 import { exportQuery } from "../../../scripts/db/preview/policy";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
@@ -65,6 +69,29 @@ async function playBp(f: Awaited<ReturnType<typeof create>>) {
 }
 
 describe("event test matches", () => {
+  it("retires only approved completed rehearsals and retains shared identities", async () => {
+    const f = await create();
+    await db.update(schema.matches).set({ status: "finished", resultDisposition: "omitted", completedAt: new Date() }).where(eq(schema.matches.id, f.match.id));
+    const [season] = await db.select().from(schema.seasons).where(eq(schema.seasons.id, f.seasonId));
+    const [testMap] = await db.insert(schema.matchMaps).values({ matchId: f.match.id, mapOrder: 1, mapName: "de_dust2" }).returning();
+    const migration = readFileSync("drizzle/migrations/0092_retire_verified_test_matches.sql", "utf8")
+      .replaceAll("36f748a5-2753-4d0f-acdd-9849666fd2ac", f.match.id)
+      .replaceAll("d4de85cc-3f9a-451d-ad1d-41e6b8ef910f", randomUUID())
+      .replaceAll("2026-nju-major", season!.slug);
+    const officialBefore = await getOfficialSeasonMatchSummary(f.seasonId);
+    const rosterBefore = await db.select().from(schema.eventRosters).where(inArray(schema.eventRosters.entryId, [f.entryAId, f.entryBId]));
+    await db.transaction(tx => tx.execute(sql.raw(migration)));
+    expect(await db.query.matches.findFirst({ where: eq(schema.matches.id, f.match.id) })).toBeUndefined();
+    expect(await db.query.matchMaps.findFirst({ where: eq(schema.matchMaps.id, testMap!.id) })).toBeUndefined();
+    expect(await db.query.matchVetoSessions.findFirst({ where: eq(schema.matchVetoSessions.matchId, f.match.id) })).toBeUndefined();
+    expect(await getOfficialSeasonMatchSummary(f.seasonId)).toEqual(officialBefore);
+    expect(await db.select().from(schema.eventRosters).where(inArray(schema.eventRosters.entryId, [f.entryAId, f.entryBId]))).toEqual(rosterBefore);
+    // Re-running a retirement is harmless; substituting a formal match is rejected.
+    await db.transaction(tx => tx.execute(sql.raw(migration)));
+    await expect(db.transaction(tx => tx.execute(sql.raw(migration.replaceAll(f.match.id, f.matchId))))).rejects.toThrow();
+    expect(await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) })).toBeTruthy();
+  });
+
   afterEach(() => vi.unstubAllEnvs());
   // Protect the real SQL membership projection and DAK consumer contract;
   // pure directory tests alone cannot detect test leakage or missing DB joins.
@@ -186,6 +213,10 @@ describe("event test matches", () => {
     const publicBefore = { results: await getPublicSeasonResults(season), stage: await getPublicSeasonStagePresentation(season) };
     const officialBefore = await loadOfficialMatchRows(eq(schema.matches.seasonId, f.seasonId));
     const before = await db.transaction(tx => loadBetFacts(tx, f.seasonId));
+    const seasonCountsBefore = await getOfficialSeasonMatchSummary(f.seasonId);
+    const mapsBefore = await getOfficialStatsMapCatalog([f.seasonId]);
+    const teamFactsBefore = await getPublicEventTeamMatchFacts(f.seasonId, [f.entryAId, f.entryBId]);
+    const teamSummaryBefore = await getPublicEventTeamMatchSummary(f.seasonId, [f.entryAId, f.entryBId]);
     const playerBefore = await getPublicPlayerRecord(f.captainA, { seasonId: f.seasonId });
     await playBp(f);
     const document = await db.transaction(tx => loadMizarMatchDocumentInTx(tx, f.match.id, f.seasonId));
@@ -219,6 +250,10 @@ describe("event test matches", () => {
     expect(await loadOfficialMatchRows(eq(schema.matches.seasonId, f.seasonId))).toEqual(officialBefore);
     expect({ results: await getPublicSeasonResults(season), stage: await getPublicSeasonStagePresentation(season) }).toEqual(publicBefore);
     const after = await db.transaction(tx => loadBetFacts(tx, f.seasonId));
+    expect(await getOfficialStatsMapCatalog([f.seasonId])).toEqual(mapsBefore);
+    expect(await getOfficialSeasonMatchSummary(f.seasonId)).toEqual(seasonCountsBefore);
+    expect(await getPublicEventTeamMatchFacts(f.seasonId, [f.entryAId, f.entryBId])).toEqual(teamFactsBefore);
+    expect(await getPublicEventTeamMatchSummary(f.seasonId, [f.entryAId, f.entryBId])).toEqual(teamSummaryBefore);
     expect(after.official).toEqual(before.official);
     expect(after.maps).toEqual(before.maps);
     expect(after.event).toEqual(before.event);
