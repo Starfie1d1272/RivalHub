@@ -638,6 +638,13 @@
       "when": 1792403594942,
       "tag": "0090_yellow_blink",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1792515600000,
+      "tag": "0091_major_preseed_unlock_guard",
+      "breakpoints": true
     }
   ]
 }
