@@ -14,7 +14,7 @@
 ## 需要真实服务时的第一次启动
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm db:local:bootstrap
 RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm dev:local
 ```
