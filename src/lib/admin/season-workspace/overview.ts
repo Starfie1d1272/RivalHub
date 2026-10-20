@@ -1,5 +1,7 @@
 import { capabilitiesFromSeason, checkStandardMajorCapabilities } from "@/lib/competition/definition";
 import { deriveMajorPrestartPhase, MAJOR_PRESTART_PHASES } from "./prestart-phase";
+import { getOfficialSeasonMatchSummary } from "@/lib/matches/read-official";
+import { getApprovedCompetitionEntryCount } from "@/lib/competition-entries/counts";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 
@@ -104,9 +106,7 @@ async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFact
 }
 
 async function loadFormedTeamCount(season: Season): Promise<number> {
-  const [row] = await db.select({ count: count() }).from(competitionEntries)
-    .where(and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "approved")));
-  return Number(row?.count ?? 0);
+  return getApprovedCompetitionEntryCount(season.id);
 }
 
 export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<SeasonWorkspaceOverviewData | null> {
@@ -115,7 +115,7 @@ export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<S
 
   const [registrationRows, matchCountRows, scheduledMatchRows, matchRosterRows, activeAdjudicationRows, formedTeamCount, majorFacts] = await Promise.all([
     loadRegistrationCounts(season),
-    db.select({ count: count() }).from(matches).where(and(officialMatchCondition(), eq(matches.seasonId, season.id))),
+    getOfficialSeasonMatchSummary(season.id).then(summary => [{ count: summary.total }]),
     db.select({ id: matches.id }).from(matches)
       .where(and(officialMatchCondition(), and(eq(matches.seasonId, season.id), eq(matches.status, "scheduled"), isNotNull(matches.scheduledAt)))),
     db.select({ matchId: matchRosters.matchId, status: matchRosters.status }).from(matchRosters)

@@ -1,9 +1,9 @@
-import { officialMatchCondition } from "@/lib/matches/scope";
+import { getOfficialSeasonMatchSummary } from "@/lib/matches/read-official";
 import "server-only";
 
 import { and, asc, count, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, majorFinalResults, majorStageRuns, matches, postEventAdjudications, tournamentHonors } from "@/db/schema";
+import { competitionEntries, majorFinalResults, majorStageRuns, postEventAdjudications, tournamentHonors } from "@/db/schema";
 import { parseMajorFinalPlacementGroups } from "@/lib/major/placement";
 import { getManagedMajorProfileFromRunSnapshot } from "@/lib/major/standard";
 import type { Season } from "@/db/schema/seasons";
@@ -12,7 +12,7 @@ import type { PostEventPageData } from "./types";
 export async function loadPostEventPageData(season: Season): Promise<PostEventPageData> {
   if (season.competitionTemplate !== "major") {
     const [matchCountRows, honorCountRows, activeAdjudicationCountRows] = await Promise.all([
-      db.select({ count: count() }).from(matches).where(and(officialMatchCondition(), eq(matches.seasonId, season.id))),
+      getOfficialSeasonMatchSummary(season.id),
       db.select({ count: count() }).from(tournamentHonors).where(eq(tournamentHonors.seasonId, season.id)),
       db.select({ count: count() }).from(postEventAdjudications)
         .where(and(eq(postEventAdjudications.seasonId, season.id), eq(postEventAdjudications.status, "active"))),
@@ -23,7 +23,7 @@ export async function loadPostEventPageData(season: Season): Promise<PostEventPa
         seasonId: season.id,
         seasonStatus: season.status,
         competitionTemplate: season.competitionTemplate,
-        matchCount: Number(matchCountRows[0]?.count ?? 0),
+        matchCount: matchCountRows.total,
         honorCount: Number(honorCountRows[0]?.count ?? 0),
         activeAdjudicationCount: Number(activeAdjudicationCountRows[0]?.count ?? 0),
         finalResult: null,
@@ -45,7 +45,7 @@ export async function loadPostEventPageData(season: Season): Promise<PostEventPa
       .from(tournamentHonors).where(eq(tournamentHonors.seasonId, season.id)).orderBy(asc(tournamentHonors.createdAt)),
     db.select({ id: postEventAdjudications.id, status: postEventAdjudications.status, kind: postEventAdjudications.kind, target: postEventAdjudications.target, impacts: postEventAdjudications.impacts, targetEntryId: postEventAdjudications.targetEntryId, targetUserId: postEventAdjudications.targetUserId, targetMatchId: postEventAdjudications.targetMatchId, reason: postEventAdjudications.reason, explanation: postEventAdjudications.publicExplanation, createdAt: postEventAdjudications.createdAt })
       .from(postEventAdjudications).where(eq(postEventAdjudications.seasonId, season.id)).orderBy(asc(postEventAdjudications.createdAt)),
-    db.select({ count: count() }).from(matches).where(and(officialMatchCondition(), eq(matches.seasonId, season.id))),
+    getOfficialSeasonMatchSummary(season.id),
   ]);
   let placementGroups: ReturnType<typeof parseMajorFinalPlacementGroups> | null = null;
   if (finalResult) {
@@ -62,7 +62,7 @@ export async function loadPostEventPageData(season: Season): Promise<PostEventPa
       seasonId: season.id,
       seasonStatus: season.status,
       competitionTemplate: season.competitionTemplate,
-      matchCount: Number(matchCountRows[0]?.count ?? 0),
+      matchCount: matchCountRows.total,
       honorCount: honorRows.length,
       activeAdjudicationCount: adjudicationRows.filter((row) => row.status === "active").length,
       finalResult: finalResult ? {

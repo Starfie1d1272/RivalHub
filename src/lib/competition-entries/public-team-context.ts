@@ -1,3 +1,4 @@
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { hasActivePublicSanction } from "@/lib/discipline/public-query";
 import { withDisplayScores } from "@/lib/matches/display-score-data";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
@@ -191,6 +192,7 @@ async function loadMatchRows(seasonId: string, entryIds: readonly string[]) {
     ? []
     : db.query.matches.findMany({
       where: and(
+        officialMatchCondition(),
         eq(matches.seasonId, seasonId),
         or(inArray(matches.entryAId, targetIds), inArray(matches.entryBId, targetIds)),
       ),

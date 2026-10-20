@@ -1,7 +1,9 @@
+import { getOfficialUpcomingMatches, getQualificationMatchProgress } from "@/lib/seasons/overview-read-model";
+import { getOfficialSeasonMatchSummary } from "@/lib/matches/read-official";
+import { getApprovedCompetitionEntryCount } from "@/lib/competition-entries/counts";
 import { seasonEntries } from "@/lib/seasons/entries";
 import { buildSeasonPrimaryAction } from "@/lib/home/navigation";
 import { connection } from "next/server";
-import { officialMatchCondition } from "@/lib/matches/scope";
 import { EventLogo } from "@/components/season/EventLogo";
 import { SeasonDraftPreview, SeasonMatchPreview, SeasonVotingPreview } from "@/components/season/SeasonStageHighlights";
 import { getPublicCaptainVotingData } from "@/lib/captains/data";
@@ -11,15 +13,10 @@ import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { SeasonResults } from "@/components/season/SeasonResults";
 import { getSeasonPersonalNextStep } from "@/lib/seasons/public-next-step";
 import { SeasonNextStep } from "@/components/season/SeasonNextStep";
-import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import Link from "next/link";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { eq, count, or, and, sql } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
 import { Vote, Users, Swords, Shuffle, BarChart3, UserRoundSearch, Trophy, Info } from "lucide-react";
-import { db } from "@/db/client";
-import { matches, competitionEntries, majorTournamentEntrants } from "@/db/schema";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
@@ -81,71 +78,31 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   const initializedStages = new Set(stagePresentation.initializedStageKeys);
 
   // ── 统计数据 + 即将到来的比赛 ────────────────────────────────────────
-  const teamA = alias(competitionEntries, "team_a");
-  const teamB = alias(competitionEntries, "team_b");
-
-  const upcomingMatchesQuery = season.hasOfficialMatches && !isHistorical
-    ? db
-        .select({
-          id: matches.id,
-          entryAId: matches.entryAId,
-          entryBId: matches.entryBId,
-          status: matches.status,
-          scheduledAt: matches.scheduledAt,
-          format: matches.format,
-          stage: matches.stage,
-          teamAName: teamA.name,
-          teamBName: teamB.name,
-        })
-        .from(matches)
-        .leftJoin(teamA, eq(matches.entryAId, teamA.id))
-        .leftJoin(teamB, eq(matches.entryBId, teamB.id))
-        .where(
-          and(officialMatchCondition(), and(
-            eq(matches.seasonId, season.id),
-            or(eq(matches.status, "scheduled"), eq(matches.status, "in_progress"))
-          ))
-        )
-        .orderBy(sql`case when ${matches.status} = 'in_progress' then 0 when ${matches.scheduledAt} is not null then 1 else 2 end`, matches.scheduledAt)
-        .limit(4)
-    : null;
+  const upcomingMatchesQuery = season.hasOfficialMatches && !isHistorical ? getOfficialUpcomingMatches(season.id) : null;
 
   const isMajor = season.competitionTemplate === "major";
-  const [majorParticipantOverview, [teamCountRow], participantSummary, [matchCountRow], upcomingMatches, standings, [finalMainEntrantCountRow], captainVoting, draftData] =
+  const [majorParticipantOverview, teamCount, participantSummary, matchCountRow, upcomingMatches, standings, captainVoting, draftData] =
     await Promise.all([
       isMajor ? getMajorPublicParticipantOverview(season) : Promise.resolve(null),
       isMajor
-        ? Promise.resolve([] as { value: number }[])
-        : db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition())),
+        ? Promise.resolve(0)
+        : getApprovedCompetitionEntryCount(season.id),
       isMajor ? Promise.resolve(null) : getParticipantSummary(season),
-      db.select({
-        total: count(),
-        finished: sql<number>`count(*) filter (where ${matches.status} = 'finished')`,
-      }).from(matches).where(and(officialMatchCondition(), eq(matches.seasonId, season.id))),
+      getOfficialSeasonMatchSummary(season.id),
       upcomingMatchesQuery ?? Promise.resolve([] as { id: string; entryAId: string | null; entryBId: string | null; status: string; scheduledAt: Date | null; format: string; stage: string; teamAName: string | null; teamBName: string | null }[]),
       season.status === "playing" && !isMajor ? getStandings(season.id) : Promise.resolve([]),
-      isMajor
-        ? db.select({ value: count() }).from(majorTournamentEntrants).where(eq(majorTournamentEntrants.seasonId, season.id))
-        : Promise.resolve([] as { value: number }[]),
       season.status === "voting" && season.hasCaptainVoting ? getPublicCaptainVotingData(season.id) : Promise.resolve(null),
       season.status === "drafting" && season.hasDraft ? getPublicDraftSummary(season.id) : Promise.resolve(null),
     ]);
   const qualificationRun = isMajor ? stagePresentation.qualificationRun ?? null : null;
-  const qualificationMatches = qualificationRun
-    ? await db.select({ status: matches.status, round: matches.round }).from(matches).where(and(officialMatchCondition(), eq(matches.qualificationRunId, qualificationRun.id)))
-    : [];
+  const qualificationProgress = qualificationRun ? await getQualificationMatchProgress(qualificationRun.id) : null;
   const mainEventStarted = stagePlan.some((stage) => stage.key === stagePresentation.currentStageKey || initializedStages.has(stage.key));
   const qualificationBeforeMainStart = Boolean(qualificationRun) && !mainEventStarted;
-  const publicTeamCount = majorParticipantOverview?.teamCount ?? Number(teamCountRow?.value ?? 0);
+  const publicTeamCount = majorParticipantOverview?.teamCount ?? teamCount;
   const publicPlayerCount = majorParticipantOverview?.playerCount ?? participantSummary?.count ?? 0;
-  const incompleteQualificationRounds = qualificationMatches
-    .filter((match) => match.status !== "finished" && match.round !== null)
-    .map((match) => match.round!);
-  const qualificationCurrentRound = incompleteQualificationRounds.length > 0
-    ? Math.min(...incompleteQualificationRounds)
-    : Math.max(0, ...qualificationMatches.map((match) => match.round ?? 0)) + 1;
+  const qualificationCurrentRound = qualificationProgress?.currentRound ?? 1;
   const finalMainEntrantsConfirmed = qualificationRun !== null &&
-    Number(finalMainEntrantCountRow?.value ?? 0) === qualificationRun.targetEntrantCount;
+    (majorParticipantOverview?.officialEntrantCount ?? 0) === qualificationRun.targetEntrantCount;
 
   // ── 动态阶段列表 ──────────────────────────────────────────
   interface Phase {

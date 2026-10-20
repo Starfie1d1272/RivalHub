@@ -1,4 +1,5 @@
 import "server-only";
+import { officialMatchCondition } from "@/lib/matches/scope";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db/client";
@@ -19,6 +20,15 @@ import { parseStatsQuery, type StatsSearch } from "./view-state";
 export async function getFreshStatsEvents() {
   return db.select({ id: seasons.id, slug: seasons.slug, name: seasons.name, status: seasons.status, stagePlan: seasons.stagePlan, competitionTemplate: seasons.competitionTemplate })
     .from(seasons).where(ne(seasons.status, "draft")).orderBy(seasons.id);
+}
+/** Map/BP discovery shares the formal scope of the statistics it filters. */
+export async function getOfficialStatsMapCatalog(seasonIds: string[]) {
+  const maps = seasonIds.length ? await db.selectDistinct({ name: matchMaps.mapName, seasonId: matches.seasonId }).from(matchMaps)
+    .innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(officialMatchCondition(), inArray(matches.seasonId, seasonIds))) : [];
+  const vetoMaps = seasonIds.length ? await db.selectDistinct({ name: matchVetoSteps.mapName, seasonId: matches.seasonId }).from(matchVetoSteps)
+    .innerJoin(matches, eq(matches.id, matchVetoSteps.matchId)).where(and(officialMatchCondition(), inArray(matches.seasonId, seasonIds))) : [];
+  maps.push(...vetoMaps);
+  return maps;
 }
 async function cachedPlatformStats(scope: PlatformStatsScope, versions: string) {
   "use cache: remote";
@@ -42,11 +52,7 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
   const query = parseStatsQuery(raw, stages.map((s) => s.key));
   if ((!event && (raw.stage || raw.teamFilter)) || query.stage === "__invalid__" || query.mapFilter === "__invalid__") throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
   const ids = event ? [event.id] : events.map((e) => e.id);
-  const maps = events.length ? await db.selectDistinct({ name: matchMaps.mapName, seasonId: matches.seasonId }).from(matchMaps)
-    .innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(inArray(matches.seasonId, events.map((e) => e.id))) : [];
-  const vetoMaps = events.length ? await db.selectDistinct({ name: matchVetoSteps.mapName, seasonId: matches.seasonId }).from(matchVetoSteps)
-    .innerJoin(matches, eq(matches.id, matchVetoSteps.matchId)).where(inArray(matches.seasonId, events.map((e) => e.id))) : [];
-  maps.push(...vetoMaps);
+  const maps = await getOfficialStatsMapCatalog(events.map(e => e.id));
   const allowedMaps = [...new Set(maps.filter((m) => m.seasonId !== null && ids.includes(m.seasonId)).map((m) => m.name))].sort();
   if ((raw.map && !/^de_[a-z0-9_]+$/.test(raw.map as string)) || (raw.map && query.tab !== "maps")
     || (query.map && !allowedMaps.includes(query.map)) || (query.mapFilter && !allowedMaps.includes(query.mapFilter))

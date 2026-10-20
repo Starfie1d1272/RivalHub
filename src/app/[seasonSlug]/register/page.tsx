@@ -1,10 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import type { Metadata } from "next";
-import { and, count, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
-  competitionEntries,
   competitionEntryActiveClaims,
   competitionQualificationRuns,
   majorTournamentEntrants,
@@ -41,7 +40,7 @@ import { presentRegistrationSchedule } from "@/lib/seasons/presentation";
 import { RegistrationScheduleCountdown } from "@/components/seasons/RegistrationScheduleCountdown";
 import { RegistrationOpeningRecovery } from "@/components/register/RegistrationOpeningRecovery";
 
-import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
+import { getApprovedCompetitionEntryCount } from "@/lib/competition-entries/counts";
 import { canReleaseEliminatedParticipationInTx } from "@/lib/major/eliminated-entry";
 import { getCompetitionEntryCapabilities } from "@/lib/competition-entries/capabilities";
 import { isMajorRosterAdjustmentPhaseOpen } from "@/lib/major/roster-window";
@@ -138,12 +137,12 @@ export default async function RegisterPage({ params, searchParams }: RegisterPag
 
   if (isTeamRegistration(season)) {
     const requestedEntry = (await searchParams)?.entry;
-    const [captainedTeams, participantContext, [approvedCount], currentTeamRows] = await Promise.all([
+    const [captainedTeams, participantContext, approvedCount, currentTeamRows] = await Promise.all([
       db.select({ id: teams.id, slug: teams.slug, name: teams.name }).from(teams)
         .where(and(eq(teams.status, "active"), eq(teams.captainUserId, userSession.userId)))
         .orderBy(teams.name),
       loadCompetitionEntryParticipantContext({ competitionId: season.id, userId: userSession.userId, requestedEntryId: typeof requestedEntry === "string" ? requestedEntry : undefined }),
-      db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition())),
+      getApprovedCompetitionEntryCount(season.id),
       db.select({ id: teams.id, slug: teams.slug, name: teams.name }).from(teamMemberships).innerJoin(teams, eq(teams.id, teamMemberships.teamId)).where(and(eq(teamMemberships.userId, userSession.userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))).limit(1),
     ]);
     const entry = participantContext.primaryEntry;
@@ -286,7 +285,7 @@ export default async function RegisterPage({ params, searchParams }: RegisterPag
             transferFrom={transferFrom}
             requiresTeamLogo={normalizeTeamRegistrationConfig(season.teamRegistrationConfig).requireTeamLogo}
             canManageEntryTeamProfile={Boolean(entry?.teamId && captainedTeams.some((team) => team.id === entry.teamId))}
-            approvedTeamCount={approvedCount?.value ?? 0}
+            approvedTeamCount={approvedCount}
             majorEntrantCapacity={season.competitionTemplate === "major"
               ? resolveManagedMajorProfile({ stagePlan: normalizeStagePlan(season.stagePlan) })?.entrantCapacity ?? null
               : null}

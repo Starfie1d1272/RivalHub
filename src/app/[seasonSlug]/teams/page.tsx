@@ -1,20 +1,15 @@
-import { hasActivePublicSanction } from "@/lib/discipline/public-query";
+import { getPublicCompetitionEntryDirectory } from "@/lib/competition-entries/public-directory";
 import Link from "next/link";
 import { connection } from "next/server";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
 import { ParticipantDirectoryToolbar } from "@/components/season/ParticipantDirectoryToolbar";
 import { parseParticipantDirectoryQuery, matchesDirectorySearch } from "@/lib/players/directory-query";
-import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { Suspense } from "react";
-import { and, asc, eq, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
-import { db } from "@/db/client";
-import { competitionEntries, eventRosterMembers, eventRosters, steamProfiles, users } from "@/db/schema";
 import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
 import { PageHeader, PageLayout } from "@/components/rivalhub";
 import { TeamCard } from "@/components/teams/TeamCard";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { getPublicEventTeamMatchSummary } from "@/lib/competition-entries/public-team-context";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { getMajorPublicParticipantSummary } from "@/lib/major/public-participants";
 
@@ -62,11 +57,7 @@ export async function CompetitionEntriesPageContent({ params, searchParams }: { 
     </PageLayout>;
   }
 
-  const entries = await db.query.competitionEntries.findMany({ where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition()), orderBy: [asc(competitionEntries.formationOrder), asc(competitionEntries.id)] });
-  const members = await db.select({ entryId: eventRosters.entryId, userId: users.id, personaName: steamProfiles.personaName, avatarUrl: steamProfiles.avatarUrl,
-        hasActivePublicSanction: hasActivePublicSanction(users.id), perfectName: users.perfectName, displayName: users.displayName, isStarter: eventRosterMembers.isPrimaryStarter })
-    .from(eventRosterMembers).innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId)).innerJoin(users, eq(users.id, eventRosterMembers.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(and(inArray(eventRosters.entryId, entries.map((entry) => entry.id)), inArray(eventRosters.status, ["confirmed", "frozen"]), eq(eventRosterMembers.isCurrent, true)));
-  const matchSummary = await getPublicEventTeamMatchSummary(season.id, entries.map((entry) => entry.id));
+  const { entries, members, matchSummary, teamCount, playerCount } = await getPublicCompetitionEntryDirectory(season);
   const membersByEntry = new Map<string, typeof members>();
   for (const member of members) membersByEntry.set(member.entryId, [...(membersByEntry.get(member.entryId) ?? []), member]);
   const visibleEntries = entries.filter((entry) => matchesDirectorySearch(q, entry.name, ...(membersByEntry.get(entry.id) ?? []).map(getPublicDisplayName)));
@@ -74,7 +65,7 @@ export async function CompetitionEntriesPageContent({ params, searchParams }: { 
   return <PageLayout as="div" variant="wide" className="space-y-6">
     <PageHeader title="参赛阵容" eyebrow={season.name} actions={<Suspense fallback={null}><AdminShortcutSlot href={`/admin/${seasonSlug}/settings`} label="赛事管理" /></Suspense>} />
     <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-      <p className="text-[var(--color-fg-mid)]">{entries.length} 支队伍 · {members.length} 名确认选手 · {matchSummary.finished}/{matchSummary.total} 场比赛已结束</p>
+      <p className="text-[var(--color-fg-mid)]">{teamCount} 支队伍 · {playerCount} 名确认选手 · {matchSummary.finished}/{matchSummary.total} 场比赛已结束</p>
       {season.competitionTemplate === "rivals" && <Link className="text-[var(--color-accent)] hover:underline" href={`/${seasonSlug}/players`}>报名名单与候选人 →</Link>}
     </div>
     <ParticipantDirectoryToolbar query={q} total={visibleEntries.length} />

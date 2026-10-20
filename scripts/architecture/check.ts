@@ -14,7 +14,8 @@ export type ArchitectureRuleId =
   | "ARCH_CLIENT_SERVER"
   | "ARCH_LIB_ENTRYPOINT"
   | "ARCH_CANONICAL_PROVIDER"
-  | "ARCH_AUDIT_WRITER";
+  | "ARCH_AUDIT_WRITER"
+  | "ARCH_PAGE_AGGREGATE";
 
 export interface ArchitectureViolation {
   ruleId: ArchitectureRuleId;
@@ -81,6 +82,7 @@ export function checkArchitecture(options: ArchitectureCheckOptions = {}): Archi
       checkCanonicalProvider(record, edge.specifier, report);
     }
     checkAuditWriter(record, report);
+    checkPageAggregates(record, report);
   }
 
   const libraryVisited = new Set<string>();
@@ -98,6 +100,29 @@ export function checkArchitecture(options: ArchitectureCheckOptions = {}): Archi
   return graph.violations.sort((a, b) =>
     `${a.file}|${a.ruleId}|${a.target ?? ""}`.localeCompare(`${b.file}|${b.ruleId}|${b.target ?? ""}`),
   );
+}
+
+/** UI entrypoints consume domain summaries, never own SQL metric definitions. */
+function checkPageAggregates(record: SourceRecord, report: (violation: ArchitectureViolation) => void): void {
+  if (!record.path.startsWith("src/app/") && !record.path.startsWith("src/components/")) return;
+  const aggregateNames = new Set(["count", "countDistinct", "sum", "sumDistinct", "avg", "avgDistinct", "min", "max"]);
+  for (const node of record.ast.statements) {
+    if (!ts.isImportDeclaration(node) || !ts.isStringLiteral(node.moduleSpecifier)
+      || node.moduleSpecifier.text !== "drizzle-orm") continue;
+    const bindings = node.importClause?.namedBindings;
+    if (bindings && ts.isNamedImports(bindings) && bindings.elements.some(element => aggregateNames.has((element.propertyName ?? element.name).text))) {
+      report({ ruleId: "ARCH_PAGE_AGGREGATE", file: record.path,
+        message: "页面/组件必须消费领域 read model 的指标，不能直接定义数据库聚合。" });
+    }
+  }
+  const visit = (node: ts.Node): void => {
+    if (ts.isTaggedTemplateExpression(node) && /\b(count|sum|avg|min|max)\s*\(/i.test(node.template.getText(record.ast))) {
+      report({ ruleId: "ARCH_PAGE_AGGREGATE", file: record.path,
+        message: "SQL 聚合指标必须由领域 read model 统一拥有，不能写在页面/组件内。" });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(record.ast);
 }
 
 function checkAuditWriter(record: SourceRecord, report: (violation: ArchitectureViolation) => void): void {
