@@ -1,5 +1,7 @@
 "use client";
 
+import { HONOR_STATE_LABELS } from "@/lib/postevent/presentation";
+
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { useMemo, useState, useTransition } from "react";
@@ -49,7 +51,6 @@ function safeManualKey(value: string): string {
   return key || "manual-award";
 }
 
-const HONOR_STATE_LABELS: Record<string, string> = { valid: "有效", revoked: "已撤销", vacant: "空缺", not_awarded: "未授予" };
 const ADJUDICATION_STATUS_LABELS: Record<string, string> = { active: "生效中", revoked: "已撤销" };
 const ADJUDICATION_KIND_LABELS: Record<string, string> = { team_sanction: "队伍裁决", player_sanction: "选手裁决", result_correction: "结果处理" };
 

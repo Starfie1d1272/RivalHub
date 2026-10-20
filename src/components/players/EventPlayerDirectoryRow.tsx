@@ -36,7 +36,7 @@ export function EventPlayerDirectoryRow({
               aria-label={player.name}
               className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors sm:text-base"
             >
-              <PlayerAvatar name={player.name} avatarUrl={player.avatarUrl} size="sm" />
+              <PlayerAvatar name={player.name} avatarUrl={player.avatarUrl} hasActivePublicSanction={player.hasActivePublicSanction} size="sm" />
               <span className="truncate">{player.name}</span>
             </PlayerProfileLink>
             <span className="border border-[var(--color-border)] px-1.5 py-0.5 text-[11px] text-[var(--color-fg-mid)]">

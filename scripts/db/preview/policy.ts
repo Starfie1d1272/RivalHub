@@ -5,6 +5,7 @@ import { PreviewMirrorError } from "./diagnostics";
 const PREVIEW_REDACTED_ACTOR = "preview:redacted";
 
 export function sanitizedRequiredFields(table: string, row: Record<string, unknown>): Record<string, string | null> {
+  if (table === "disciplinary_cases") return { issued_by: PREVIEW_REDACTED_ACTOR };
   if (table === "competition_qualification_drafts") return { updated_by: PREVIEW_REDACTED_ACTOR };
   if (table === "competition_qualification_runs") return {
     configured_by: PREVIEW_REDACTED_ACTOR,
@@ -80,6 +81,7 @@ export const PREVIEW_COLUMNS: Record<string, string> = {
   competition_stage_bracket_states: "competition_id stage_key data updated_at",
   post_event_adjudications: "id season_id status kind target impacts target_entry_id target_user_id target_match_id public_explanation created_by created_at revoked_by revoked_at",
   tournament_honors: "id season_id honor_key type label state basis placement_from placement_to entry_id user_id source_final_result_id adjudication_id awarded_by awarded_at revoked_by revoked_at created_at updated_at",
+  disciplinary_cases: "id season_id subject_user_id status effects public_explanation effective_from effective_until revoked_at created_at updated_at",
   user_gameplay_steam_ids: "id user_id steam64 status provenance source_import_id confirmed_by_user_id confirmed_at reason retired_by_user_id retired_at retired_reason created_at",
 };
 
@@ -104,6 +106,7 @@ export const OMITTED_COLUMNS: Record<string, string> = {
   match_veto_appeals: "reason resolution_note",
   post_event_adjudications: "client_request_id reason internal_evidence revocation_reason",
   tournament_honors: "client_request_id revocation_reason",
+  disciplinary_cases: "internal_evidence issued_by revoked_by revocation_reason",
   recruitment_intents: "note",
 };
 
@@ -128,6 +131,7 @@ type PreviewSchemaLifecycleTable = {
  * entries for a lagging source and rejects columns past their removal marker.
  */
 export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = [
+  { table: "disciplinary_cases", introducedAt: "0010_same_the_order" },
   { table: "community_award_recipients", introducedAt: "0090_yellow_blink" },
   {
     table: "community_awards",
@@ -208,7 +212,7 @@ export const EXCLUDED_TABLES = new Set(`identity_link_requests user_identities u
   institution_email_domains conversion_policies registration_drafts team_invitations recruitment_interests
   competition_entry_legacy_identities competition_entry_restriction_overrides major_prestart_issues major_seed_recommendation_snapshots
   audit_logs admin_invites admin_invite_claims season_admin_grants match_mvp_votes match_time_proposals
-  application_sessions application_session_controls statistics_projection_repair_cursors user_sessions disciplinary_case_idempotency disciplinary_cases community_award_evidence
+  application_sessions application_session_controls statistics_projection_repair_cursors user_sessions disciplinary_case_idempotency community_award_evidence
   prediction_programs prediction_accounts prediction_contests prediction_picks prediction_judgements
   prediction_markets prediction_market_options prediction_stakes prediction_settlements prediction_ledger prediction_jobs prediction_stage_milestones
   free_prediction_choices free_prediction_requests free_prediction_locks
@@ -353,6 +357,7 @@ export function exportQuery(table: string, source: PreviewPolicyInput = readExpe
     return quoteIdentifier(column);
   });
   if (table === "users") expressions.push(`id::text || '@preview.invalid' AS email`, `'user' AS role`);
+  if (table === "disciplinary_cases") expressions.push(`'${PREVIEW_REDACTED_ACTOR}'::text AS issued_by`);
   if (table === "season_registrations") expressions.push(`ARRAY[]::text[] AS screenshot_urls`);
   if (table === "team_memberships") expressions.push(`CASE WHEN "ended_at" IS NOT NULL THEN 'left'::team_membership_end_reason ELSE NULL END AS ended_reason`);
   if (table === "post_event_adjudications" || table === "tournament_honors") expressions.push(`id AS client_request_id`);
@@ -364,6 +369,7 @@ export function exportQuery(table: string, source: PreviewPolicyInput = readExpe
   );
   // Only public, final facts; pending private review evidence is not a preview seed.
   const filter = table === "education_verifications" ? " WHERE status = 'approved'"
+    : table === "disciplinary_cases" ? " WHERE status <> 'draft' AND effective_from <= now() AND EXISTS (SELECT 1 FROM public.seasons s WHERE s.id = disciplinary_cases.season_id AND s.status <> 'draft')"
     : table === "announcements" ? " WHERE status = 'published'"
       : table === "community_awards" ? " WHERE status IN ('approved', 'awarded', 'not_awarded', 'cancelled')"
         : table === "community_award_recipients" ? " WHERE EXISTS (SELECT 1 FROM public.community_awards a WHERE a.id = community_award_recipients.award_id AND a.status = 'awarded')" : "";

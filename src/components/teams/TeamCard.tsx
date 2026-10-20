@@ -7,6 +7,7 @@ import { matchesDirectorySearch } from "@/lib/players/directory-query";
 interface PlayerPreview {
   name: string;
   avatarUrl: string | null;
+  hasActivePublicSanction?: boolean;
   isStarter: boolean;
   userId?: string | null;
 }
@@ -37,7 +38,7 @@ export function TeamCard({ entryId, teamName, seasonSlug, logoUrl, players, plac
         <p className="mb-2 text-xs text-[var(--color-fg-dim)]">{group.label} · {group.players.length}</p>
         <div className="grid grid-cols-2 gap-2">
           {group.players.map((player, index) => <div key={player.userId ?? index} className={`flex min-w-0 items-center gap-2 py-1 ${query && matchesDirectorySearch(query, player.name) ? "rounded-sm bg-[var(--color-accent-soft)] text-[var(--color-accent)]" : ""}`}>
-            <PlayerAvatar name={player.name} avatarUrl={player.avatarUrl} size="sm" />
+            <PlayerAvatar name={player.name} avatarUrl={player.avatarUrl} hasActivePublicSanction={player.hasActivePublicSanction} size="sm" />
             {player.userId ? <PlayerProfileLink userId={player.userId} title={player.name} className="min-w-0 truncate text-sm hover:underline">{player.name}</PlayerProfileLink> : <span title={player.name} className="truncate text-sm">{player.name}</span>}
           </div>)}
         </div>

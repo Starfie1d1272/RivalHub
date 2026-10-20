@@ -1,3 +1,4 @@
+import { hasActivePublicSanction } from "@/lib/discipline/public-query";
 import { and, asc, count, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
@@ -24,6 +25,7 @@ export interface DraftTeamSlot {
     userId: string | null;
     personaName: string | null;
     avatarUrl: string | null;
+    hasActivePublicSanction?: boolean;
     displayName: string | null;
     perfectName: string | null;
     primaryPosition: string;
@@ -32,6 +34,7 @@ export interface DraftTeamSlot {
     userId: string;
     personaName: string | null;
     avatarUrl: string | null;
+    hasActivePublicSanction?: boolean;
     perfectName: string | null;
     displayName: string | null;
     primaryPosition: string;
@@ -45,6 +48,7 @@ export interface DraftTeamSlot {
 export interface PublicDraftPlayer {
   userId: string;
   avatarUrl: string | null;
+  hasActivePublicSanction?: boolean;
   personaName: string | null;
   perfectName: string | null;
   displayName: string | null;
@@ -129,6 +133,7 @@ export interface DraftAdminData {
 interface DraftPlayerSource {
   registrationId: string;
   avatarUrl: string | null;
+  hasActivePublicSanction?: boolean;
   userId: string;
   personaName: string | null;
   perfectName: string | null;
@@ -158,6 +163,7 @@ export function serializePublicDraftPlayer(row: DraftPlayerSource): PublicDraftP
     userId: row.userId,
     personaName: row.personaName ?? null,
     avatarUrl: row.avatarUrl ?? null,
+    hasActivePublicSanction: row.hasActivePublicSanction ?? false,
     perfectName: row.perfectName ?? null,
     displayName: row.displayName ?? null,
     primaryPosition: row.primaryPosition,
@@ -232,6 +238,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
             userId: users.id,
             personaName: steamProfiles.personaName,
             avatarUrl: steamProfiles.avatarUrl,
+            hasActivePublicSanction: hasActivePublicSanction(users.id),
             perfectName: users.perfectName,
             displayName: users.displayName,
             primaryPosition: seasonRegistrations.primaryPosition,
@@ -257,6 +264,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
       autoPicked: draftPicks.autoPicked,
       personaName: steamProfiles.personaName,
       avatarUrl: steamProfiles.avatarUrl,
+      hasActivePublicSanction: hasActivePublicSanction(users.id),
       displayName: users.displayName,
       perfectName: users.perfectName,
       primaryPosition: seasonRegistrations.primaryPosition,
@@ -300,7 +308,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
         return {
           userId: member.userId,
           personaName: member.personaName ?? null,
-          avatarUrl: member.avatarUrl,
+          avatarUrl: member.avatarUrl, hasActivePublicSanction: member.hasActivePublicSanction,
           perfectName: member.perfectName ?? null,
           displayName: member.displayName ?? null,
           primaryPosition: member.primaryPosition,
@@ -319,6 +327,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
         userId: captain?.userId ?? null,
         personaName: captain?.personaName ?? null,
         avatarUrl: captain?.avatarUrl ?? null,
+        hasActivePublicSanction: captain?.hasActivePublicSanction ?? false,
         displayName: captain?.displayName ?? null,
         perfectName: captain?.perfectName ?? null,
         primaryPosition: captain?.primaryPosition ?? "未知",
@@ -377,6 +386,7 @@ async function loadPublicRemainingPlayers(
       userId: seasonRegistrations.userId,
       personaName: steamProfiles.personaName,
       avatarUrl: steamProfiles.avatarUrl,
+      hasActivePublicSanction: hasActivePublicSanction(users.id),
       perfectName: users.perfectName,
       displayName: users.displayName,
       primaryPosition: seasonRegistrations.primaryPosition,
@@ -417,6 +427,7 @@ async function loadCaptainRemainingPlayers(
       userId: seasonRegistrations.userId,
       personaName: steamProfiles.personaName,
       avatarUrl: steamProfiles.avatarUrl,
+      hasActivePublicSanction: hasActivePublicSanction(users.id),
       perfectName: users.perfectName,
       displayName: users.displayName,
       primaryPosition: seasonRegistrations.primaryPosition,

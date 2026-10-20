@@ -4,7 +4,8 @@ import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, majorFinalResults, majorStageRuns, matches, steamProfiles, tournamentHonors, users } from "@/db/schema";
+import { competitionEntries, majorFinalResults, majorStageRuns, matches, postEventAdjudications, steamProfiles, tournamentHonors, users } from "@/db/schema";
+import { serializePostEventAdjudicationPublic } from "@/lib/postevent/service";
 import { loadStageBracketViews, resolveFinalBracketNodeId } from "@/lib/bracket";
 import { parseMajorFinalPlacementGroups } from "@/lib/major/placement";
 import { getManagedMajorProfileFromRunSnapshot } from "@/lib/major/standard";
@@ -15,13 +16,21 @@ import type { PublicSeason } from "@/lib/data/public-seasons";
 
 /** Historical output uses actual completed matches and explicit final/honor facts. */
 export async function getPublicSeasonResults(season: PublicSeason) {
-  const [result, honorRows, entries, rawMatchRows, runs] = await Promise.all([
+  const [result, honorRows, entries, rawMatchRows, runs, adjudicationRows] = await Promise.all([
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
     db.select({ id: tournamentHonors.id, label: tournamentHonors.label, type: tournamentHonors.type, state: tournamentHonors.state, entryId: tournamentHonors.entryId, userId: tournamentHonors.userId, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
       .from(tournamentHonors).leftJoin(users, eq(users.id, tournamentHonors.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(eq(tournamentHonors.seasonId, season.id)),
     db.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryIdentityCondition())),
     loadOfficialMatchRows(and(eq(matches.seasonId, season.id), eq(matches.status, "finished"))!).orderBy(asc(matches.completedAt)),
     season.competitionTemplate === "major" ? db.select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot }).from(majorStageRuns).where(eq(majorStageRuns.seasonId, season.id)) : [],
+    db.select({
+      id: postEventAdjudications.id, seasonId: postEventAdjudications.seasonId,
+      status: postEventAdjudications.status, kind: postEventAdjudications.kind, target: postEventAdjudications.target,
+      impacts: postEventAdjudications.impacts, targetEntryId: postEventAdjudications.targetEntryId,
+      targetUserId: postEventAdjudications.targetUserId, targetMatchId: postEventAdjudications.targetMatchId,
+      publicExplanation: postEventAdjudications.publicExplanation, createdAt: postEventAdjudications.createdAt,
+      revokedAt: postEventAdjudications.revokedAt,
+    }).from(postEventAdjudications).where(eq(postEventAdjudications.seasonId, season.id)).orderBy(asc(postEventAdjudications.createdAt), asc(postEventAdjudications.id)),
   ]);
   const matchRows = rawMatchRows.map(requireCompetitionFields);
   const names = new Map(entries.map((entry) => [entry.id, entry.name]));
@@ -48,10 +57,13 @@ export async function getPublicSeasonResults(season: PublicSeason) {
     ? (final.scoreA > final.scoreB ? [final.entryAId, final.entryBId] : [final.entryBId, final.entryAId]).map((entryId, index) => ({ entryId, name: names.get(entryId) ?? "队伍", label: `第 ${index + 1} 名` }))
     : [];
   return {
+    adjudications: adjudicationRows.map((row) => ({ ...serializePostEventAdjudicationPublic(row), targetName: row.targetEntryId ? names.get(row.targetEntryId) ?? "队伍" : null })),
     champion: championId && names.has(championId) ? { entryId: championId, name: names.get(championId)! } : null,
+    championVacant: validChampion.length === 0 && championHonor.some((honor) => honor.state !== "valid"),
     final: final ? { id: final.id, teamA: names.get(final.entryAId) ?? "待定", teamB: names.get(final.entryBId) ?? "待定", scoreA: displayFinal.displayScore.scoreA, scoreB: displayFinal.displayScore.scoreB } : null,
     placements: placements.filter((entry) => names.has(entry.entryId)),
     honors: honorRows.filter((honor) => honor.state === "valid" && (honor.entryId ? names.has(honor.entryId) : honor.userId !== null)).map((honor) => ({ id: honor.id, label: honor.label, entryId: honor.entryId, userId: honor.userId, name: honor.entryId ? names.get(honor.entryId) ?? "队伍" : getPublicDisplayName(honor) })),
+    honorHistory: honorRows.filter((honor) => honor.state !== "valid").map((honor) => ({ id: honor.id, label: honor.label, state: honor.state, entryId: honor.entryId, userId: honor.userId, name: honor.entryId ? names.get(honor.entryId) ?? "队伍" : honor.userId ? getPublicDisplayName(honor) : null })),
     completedAt: matchRows.filter((match) => match.completedAt !== null).at(-1)?.completedAt ?? null,
     finishedMatches: matchRows.length,
   };

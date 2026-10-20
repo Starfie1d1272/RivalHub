@@ -15,6 +15,7 @@ interface RosterPlayer {
   isStarter: boolean;
   userId?: string | null;
   avatarUrl: string | null;
+  hasActivePublicSanction?: boolean;
 }
 
 interface MatchRosterViewProps {
@@ -48,12 +49,12 @@ function RosterColumn({ teamName, roster, entryId }: { entryId?: string; teamNam
             >
               {p.userId ? (
                 <PlayerProfileLink userId={p.userId} className="flex max-w-full min-w-0 items-center gap-2 hover:text-[var(--color-accent)] transition-colors">
-                  <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} size="sm" />
+                  <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} hasActivePublicSanction={p.hasActivePublicSanction} size="sm" />
                   <span className="truncate">{getPublicDisplayName(p)}</span>
                 </PlayerProfileLink>
               ) : (
                 <span className="flex max-w-full min-w-0 items-center gap-2">
-                  <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} size="sm" />
+                  <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} hasActivePublicSanction={p.hasActivePublicSanction} size="sm" />
                   <span className="truncate">{getPublicDisplayName(p)}</span>
                 </span>
               )}
@@ -70,12 +71,12 @@ function RosterColumn({ teamName, roster, entryId }: { entryId?: string; teamNam
                   {i > 0 && "、"}
                   {p.userId ? (
                     <PlayerProfileLink userId={p.userId} className="hover:text-[var(--color-accent)] transition-colors">
-                      <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} size="sm" />
+                      <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} hasActivePublicSanction={p.hasActivePublicSanction} size="sm" />
                       <span className="truncate">{getPublicDisplayName(p)}</span>
                     </PlayerProfileLink>
                   ) : (
                     <>
-                      <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} size="sm" />
+                      <PlayerAvatar name={getPublicDisplayName(p)} avatarUrl={p.avatarUrl} hasActivePublicSanction={p.hasActivePublicSanction} size="sm" />
                       <span className="truncate">{getPublicDisplayName(p)}</span>
                     </>
                   )}

@@ -101,7 +101,7 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
             >
               {/* Desktop: single row */}
               <div className="hidden md:flex items-center gap-3">
-                <PlayerAvatar name={displayedName} avatarUrl={p.avatarUrl} size="sm" />
+                <PlayerAvatar name={displayedName} avatarUrl={p.avatarUrl} hasActivePublicSanction={p.hasActivePublicSanction} size="sm" />
                 <span
                   className="inline-flex shrink-0 items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-bold"
                   style={{
@@ -137,7 +137,7 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
               {/* Mobile: two rows */}
               <div className="md:hidden space-y-1">
                 <div className="flex items-center gap-2">
-                  <PlayerAvatar name={displayedName} avatarUrl={p.avatarUrl} size="sm" />
+                  <PlayerAvatar name={displayedName} avatarUrl={p.avatarUrl} hasActivePublicSanction={p.hasActivePublicSanction} size="sm" />
                   <span
                     className="inline-flex shrink-0 items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-bold"
                     style={{

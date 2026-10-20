@@ -1,3 +1,5 @@
+import { and, eq, inArray } from "drizzle-orm";
+import { getPublicPlayerSanctions, hasActivePublicSanction } from "@/lib/discipline/public-query";
 /**
  * PR H1 — 纪律与资格边界真实 PostgreSQL 集成测试。
  *
@@ -548,6 +550,37 @@ async function main(): Promise<void> {
       } finally {
         client.release();
       }
+    }
+
+    // Public reads select safe columns and batch the minimal marker in the roster query.
+    {
+      const subject = await userLookupByEmail(emailsA[1]!);
+      const teammate = await userLookupByEmail(emailsA[2]!);
+      const now = new Date();
+      const before = new Date(now.getTime() - 86400_000);
+      const after = new Date(now.getTime() + 86400_000);
+      await database.insert(schema.disciplinaryCases).values([
+        { seasonId, subjectUserId: subject, status: "active", effectiveFrom: before, effects: ["roster_block"], issuedBy: ACTOR, internalEvidence: "private-only-sentinel", publicExplanation: "public explanation" },
+        { seasonId, subjectUserId: subject, status: "active", effectiveFrom: before, effectiveUntil: new Date(now.getTime() - 1000), effects: ["registration_block"], issuedBy: ACTOR },
+        { seasonId, subjectUserId: subject, status: "revoked", effectiveFrom: before, revokedAt: now, effects: ["registration_block"], issuedBy: ACTOR, revocationReason: "private-revoke-sentinel" },
+        { seasonId, subjectUserId: subject, status: "draft", effectiveFrom: before, effects: ["registration_block"], issuedBy: ACTOR },
+        { seasonId, subjectUserId: subject, status: "active", effectiveFrom: after, effects: ["registration_block"], issuedBy: ACTOR },
+        { seasonId, subjectUserId: subject, status: "expired", effectiveFrom: before, effects: ["registration_block"], issuedBy: ACTOR },
+      ]);
+      const publicRows = await getPublicPlayerSanctions(subject, database, now);
+      expect(publicRows.map((row) => row.status).sort()).toEqual(["active", "expired", "expired", "revoked"]);
+      const payload = JSON.stringify(publicRows);
+      for (const privateValue of ["private-only-sentinel", "private-revoke-sentinel", "internalEvidence", "issuedBy", "revocationReason"]) expect(payload).not.toContain(privateValue);
+      expect(payload).toContain("public explanation");
+      expect(await getPublicPlayerSanctions(teammate, database, now)).toEqual([]);
+      const markers = await database.select({ userId: schema.users.id, active: hasActivePublicSanction(schema.users.id) })
+        .from(schema.users).where(inArray(schema.users.id, [subject, teammate]));
+      expect(markers.find((row) => row.userId === subject)?.active).toBe(true);
+      expect(markers.find((row) => row.userId === teammate)?.active).toBe(false);
+      await database.update(schema.disciplinaryCases).set({ status: "revoked", revokedAt: now })
+        .where(and(eq(schema.disciplinaryCases.subjectUserId, subject), eq(schema.disciplinaryCases.status, "active")));
+      const [revoked] = await database.select({ active: hasActivePublicSanction(schema.users.id) }).from(schema.users).where(eq(schema.users.id, subject));
+      expect(revoked.active).toBe(false);
     }
 
     // ── S6：队伍事实零改动 ─────────────────────────────────────────────

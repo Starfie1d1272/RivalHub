@@ -11,6 +11,7 @@ export interface PlayerDirectoryData {
   userId: string;
   registrationId: string;
   avatarUrl: string | null;
+  hasActivePublicSanction?: boolean;
   displayName: string;
   primaryPosition: string;
   secondaryPosition: string | null;
@@ -39,7 +40,7 @@ export function PlayerDirectoryRow({ player, seasonSlug }: { player: PlayerDirec
               aria-label={player.displayName}
               className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors sm:text-base"
             >
-              <PlayerAvatar name={player.displayName} avatarUrl={player.avatarUrl} size="sm" />
+              <PlayerAvatar name={player.displayName} avatarUrl={player.avatarUrl} hasActivePublicSanction={player.hasActivePublicSanction} size="sm" />
               <span className="truncate">{player.displayName}</span>
             </PlayerProfileLink>
             <PosChip pos={positionLabel(player.primaryPosition)} />

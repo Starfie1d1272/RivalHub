@@ -3,4 +3,5 @@ export interface PublicPlayerIdentity {
   userId: string;
   name: string;
   avatarUrl: string | null;
+  hasActivePublicSanction?: boolean;
 }

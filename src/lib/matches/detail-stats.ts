@@ -38,6 +38,7 @@ interface TeamMemberSummary {
   primaryPosition: string;
   userId?: string | null;
   avatarUrl: string | null;
+  hasActivePublicSanction?: boolean;
 }
 
 export interface RosterPlayer {
@@ -48,6 +49,7 @@ export interface RosterPlayer {
   isStarter: boolean;
   userId?: string | null;
   avatarUrl: string | null;
+  hasActivePublicSanction?: boolean;
 }
 
 export function buildRoster(
@@ -67,6 +69,7 @@ export function buildRoster(
       isStarter: playerMap.get(m.id) ?? false,
       userId: m.userId ?? null,
       avatarUrl: m.avatarUrl,
+      hasActivePublicSanction: m.hasActivePublicSanction,
     }));
 }
 

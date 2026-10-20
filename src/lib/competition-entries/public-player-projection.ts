@@ -1,3 +1,4 @@
+import { hasActivePublicSanction } from "@/lib/discipline/public-query";
 import "server-only";
 
 import { and, asc, eq } from "drizzle-orm";
@@ -14,6 +15,7 @@ export async function getPublicEventRosterPlayerProjection(seasonId: string): Pr
   players: Array<{
     userId: string;
     avatarUrl: string | null;
+    hasActivePublicSanction?: boolean;
     entryId: string;
     entryName: string;
     name: string;
@@ -26,6 +28,7 @@ export async function getPublicEventRosterPlayerProjection(seasonId: string): Pr
     .select({
       userId: users.id,
       avatarUrl: steamProfiles.avatarUrl,
+      hasActivePublicSanction: hasActivePublicSanction(users.id),
       displayName: users.displayName,
       perfectName: users.perfectName,
       personaName: steamProfiles.personaName,
@@ -45,7 +48,7 @@ export async function getPublicEventRosterPlayerProjection(seasonId: string): Pr
   return {
     players: rows.map((row) => ({
       userId: row.userId,
-      avatarUrl: row.avatarUrl,
+      avatarUrl: row.avatarUrl, hasActivePublicSanction: row.hasActivePublicSanction,
       entryId: row.entryId,
       entryName: row.entryName,
       name: getPublicDisplayName(row),

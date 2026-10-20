@@ -1,3 +1,5 @@
+import { PublicAdjudications } from "@/components/season/PublicAdjudications";
+import { HONOR_STATE_LABELS } from "@/lib/postevent/presentation";
 import { TeamLineupStyle } from "./TeamLineupStyle";
 import type { LineupStyleMember } from "@/lib/teams/lineup-style";
 import { TeamRoster } from "./TeamRoster";
@@ -108,6 +110,7 @@ export function TeamPublicProfile({ lineupStyle, team, event = null, mapProfile,
             ) : null}
           />
           {eventHonors.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{eventHonors.map((honor) => <span key={honor.id} className="text-sm font-semibold text-[var(--color-accent)]">{honor.label}</span>)}</div>}
+          {event && results && results.honorHistory.filter((honor) => honor.entryId === event.entry.id).map((honor) => <p key={honor.id} className="mt-2 text-xs text-[var(--color-fg-dim)]">{honor.label} · {HONOR_STATE_LABELS[honor.state]}</p>)}
         </div>
         <div className="grid grid-cols-2 border-t border-[var(--color-border)] sm:grid-cols-4">
           {[
@@ -127,6 +130,7 @@ export function TeamPublicProfile({ lineupStyle, team, event = null, mapProfile,
       {statsUnavailable && <p role="status" className="text-sm text-[var(--color-fg-mid)]">竞技统计暂时无法加载，请稍后重试。</p>}
 
       {!event && currentEntries.length > 0 && <div className="border-y border-[var(--color-border)] py-3"><p className="mb-2 text-xs font-medium text-[var(--color-fg-dim)]">当前赛事</p><div className="space-y-2">{currentEntries.map(entry => <TeamProfileLink key={entry.id} className="flex items-center justify-between gap-3 text-sm hover:text-[var(--color-accent)]" seasonSlug={entry.seasonSlug} entryId={entry.id}><span><span className="font-medium">{entry.seasonName}</span><span className="ml-2 text-[var(--color-fg-mid)]">{entry.name}</span></span><span>→</span></TeamProfileLink>)}</div></div>}
+      {event && results && <PublicAdjudications adjudications={results.adjudications.filter((ruling) => ruling.targetEntryId === event.entry.id)} seasonSlug={event.season.slug} />}
       <TeamRoster title={event ? eventRosterHeading : "当前成员"} members={members} />
       <TeamLineupStyle members={lineupStyle} />
       {!event && team && <TeamRecruitment team={team} />}

@@ -1,3 +1,4 @@
+import { hasActivePublicSanction } from "@/lib/discipline/public-query";
 import Link from "next/link";
 import { connection } from "next/server";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
@@ -62,7 +63,8 @@ export async function CompetitionEntriesPageContent({ params, searchParams }: { 
   }
 
   const entries = await db.query.competitionEntries.findMany({ where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition()), orderBy: [asc(competitionEntries.formationOrder), asc(competitionEntries.id)] });
-  const members = await db.select({ entryId: eventRosters.entryId, userId: users.id, personaName: steamProfiles.personaName, avatarUrl: steamProfiles.avatarUrl, perfectName: users.perfectName, displayName: users.displayName, isStarter: eventRosterMembers.isPrimaryStarter })
+  const members = await db.select({ entryId: eventRosters.entryId, userId: users.id, personaName: steamProfiles.personaName, avatarUrl: steamProfiles.avatarUrl,
+        hasActivePublicSanction: hasActivePublicSanction(users.id), perfectName: users.perfectName, displayName: users.displayName, isStarter: eventRosterMembers.isPrimaryStarter })
     .from(eventRosterMembers).innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId)).innerJoin(users, eq(users.id, eventRosterMembers.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(and(inArray(eventRosters.entryId, entries.map((entry) => entry.id)), inArray(eventRosters.status, ["confirmed", "frozen"]), eq(eventRosterMembers.isCurrent, true)));
   const matchSummary = await getPublicEventTeamMatchSummary(season.id, entries.map((entry) => entry.id));
   const membersByEntry = new Map<string, typeof members>();
@@ -79,7 +81,7 @@ export async function CompetitionEntriesPageContent({ params, searchParams }: { 
     {visibleEntries.length === 0 ? (
       <div className="py-16 text-center text-[var(--color-fg-mid)]">{q ? "没有匹配的队伍或选手" : "赛事队伍尚未形成"}</div>
     ) : (
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{visibleEntries.toSorted((a, b) => (results.placements.findIndex(p => p.entryId === a.id) + 1 || Infinity) - (results.placements.findIndex(p => p.entryId === b.id) + 1 || Infinity)).map((entry) => <TeamCard query={q} placement={results.placements.find((placement) => placement.entryId === entry.id)?.label} key={entry.id} entryId={entry.id} teamName={entry.name} seasonSlug={seasonSlug} logoUrl={entry.logoUrl} players={(membersByEntry.get(entry.id) ?? []).map((member) => ({ name: getPublicDisplayName(member), avatarUrl: member.avatarUrl, isStarter: member.isStarter, userId: member.userId }))} />)}</div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{visibleEntries.toSorted((a, b) => (results.placements.findIndex(p => p.entryId === a.id) + 1 || Infinity) - (results.placements.findIndex(p => p.entryId === b.id) + 1 || Infinity)).map((entry) => <TeamCard query={q} placement={results.placements.find((placement) => placement.entryId === entry.id)?.label} key={entry.id} entryId={entry.id} teamName={entry.name} seasonSlug={seasonSlug} logoUrl={entry.logoUrl} players={(membersByEntry.get(entry.id) ?? []).map((member) => ({ name: getPublicDisplayName(member), avatarUrl: member.avatarUrl, hasActivePublicSanction: member.hasActivePublicSanction, isStarter: member.isStarter, userId: member.userId }))} />)}</div>
     )}
   </PageLayout>;
 }

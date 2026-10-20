@@ -207,6 +207,8 @@ async function main(): Promise<void> {
     expect(!revokeChampion.alreadyRevoked,  "P4 首次冠军撤销必须生效。").toBe(true);
     const revokedPublicResults = await getPublicSeasonResults(publicSeason);
     expect(revokedPublicResults.champion).toBeNull();
+    expect(revokedPublicResults.championVacant).toBe(true);
+    expect(revokedPublicResults.honorHistory).toEqual(expect.arrayContaining([expect.objectContaining({ id: championHonor.honorId, state: "revoked", entryId: f.championId })]));
     expect(revokedPublicResults.placements).toEqual(confirmedPublicResults.placements);
     expect(revokedPublicResults.honors.some((honor) => honor.entryId === f.championId)).toBe(false);
     const honorState = await pool.query<{ champion: string; runner_up: string }>(
@@ -264,6 +266,10 @@ async function main(): Promise<void> {
 
     // 19: public serializer is intentionally unable to leak internal evidence.
     const [rulingRow] = await database.select().from(schema.postEventAdjudications).where(eq(schema.postEventAdjudications.id, ruling.adjudicationId));
+    const publicRulings = (await getPublicSeasonResults(publicSeason)).adjudications;
+    expect(publicRulings).toEqual(expect.arrayContaining([expect.objectContaining({ id: ruling.adjudicationId, targetEntryId: f.thirdId, explanation: "public team ruling" })]));
+    expect(JSON.stringify(publicRulings)).not.toContain("private ruling proof");
+    expect(JSON.stringify(publicRulings)).not.toContain('"reason"');
     const [honorRow] = await database.select().from(schema.tournamentHonors).where(eq(schema.tournamentHonors.id, rulingHonor.honorId));
     expect(!JSON.stringify(serializePostEventAdjudicationPublic(rulingRow!)).includes("private ruling proof"),  "P19 裁决公开序列化不得泄露内部证据。").toBe(true);
     expect(!JSON.stringify(serializeTournamentHonorPublic(honorRow!)).includes("private"),  "P19 荣誉公开序列化不得泄露私有字段。").toBe(true);

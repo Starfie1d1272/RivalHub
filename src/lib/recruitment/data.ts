@@ -1,3 +1,4 @@
+import { hasActivePublicSanction } from "@/lib/discipline/public-query";
 import "server-only";
 
 import { alias } from "drizzle-orm/pg-core";
@@ -58,6 +59,7 @@ export interface PlayerLftCardData extends PublicRecruitmentIntent {
   userId: string;
   name: string;
   avatarUrl: string | null;
+  hasActivePublicSanction?: boolean;
   currentTeamId: string | null;
   competitiveRoles: Cs2Position[];
   mapPreferences: MapPreferenceDraft[];
@@ -165,6 +167,7 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
       personaName: steamProfiles.personaName,
       perfectName: users.perfectName,
       avatarUrl: steamProfiles.avatarUrl,
+      hasActivePublicSanction: hasActivePublicSanction(users.id),
       currentTeamId: currentPlayerTeam.id,
       currentTeamSlug: currentPlayerTeam.slug,
       currentTeamName: currentPlayerTeam.name,

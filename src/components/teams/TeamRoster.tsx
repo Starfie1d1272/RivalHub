@@ -14,7 +14,7 @@ export function TeamRoster({ title, members }: {
       <div className="grid grid-cols-2 gap-x-4 sm:grid-cols-3 lg:grid-cols-5">
         {members.length > 0 ? members.map(member => <div key={member.userId} className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 py-2">
           <div className="flex min-w-0 items-center gap-2">
-            <PlayerAvatar name={member.name} avatarUrl={member.avatarUrl} size="sm" />
+            <PlayerAvatar name={member.name} avatarUrl={member.avatarUrl} hasActivePublicSanction={member.hasActivePublicSanction} size="sm" />
             {member.captain && <PosChip pos="C" small />}
             <PlayerProfileLink userId={member.userId} className="min-w-0 break-words font-medium hover:text-[var(--color-accent)]">{member.name}</PlayerProfileLink>
           </div>

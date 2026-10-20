@@ -359,7 +359,9 @@ export async function archiveTournamentInTx(
 }
 
 /** Public-safe shapes: private evidence and internal actor provenance are omitted by construction. */
-export function serializePostEventAdjudicationPublic(row: PostEventAdjudication) {
+export function serializePostEventAdjudicationPublic(row: Pick<PostEventAdjudication,
+  "id" | "seasonId" | "status" | "kind" | "target" | "impacts" | "targetEntryId" | "targetUserId" | "targetMatchId" | "publicExplanation" | "createdAt" | "revokedAt"
+>) {
   return {
     id: row.id,
     seasonId: row.seasonId,
@@ -370,7 +372,6 @@ export function serializePostEventAdjudicationPublic(row: PostEventAdjudication)
     targetEntryId: row.targetEntryId,
     targetUserId: row.targetUserId,
     targetMatchId: row.targetMatchId,
-    reason: row.reason,
     explanation: row.publicExplanation,
     createdAt: row.createdAt,
     revokedAt: row.revokedAt,

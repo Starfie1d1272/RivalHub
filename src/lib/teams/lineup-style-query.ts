@@ -22,5 +22,5 @@ async function getCareerAttributes(playerIds: string[]) {
 export async function getPublicLineupStyle(members: readonly PublicPlayerIdentity[]): Promise<LineupStyleMember[]> {
   if (!members.length) return [];
   const careers = new Map((await getCareerAttributes([...new Set(members.map((member) => member.userId))].sort())).map((career) => [career.userId, career]));
-  return members.map((member) => ({ ...careers.get(member.userId)!, userId: member.userId, name: member.name, avatarUrl: member.avatarUrl }));
+  return members.map((member) => ({ ...careers.get(member.userId)!, userId: member.userId, name: member.name, avatarUrl: member.avatarUrl, hasActivePublicSanction: member.hasActivePublicSanction }));
 }

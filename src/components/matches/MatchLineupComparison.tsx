@@ -62,7 +62,7 @@ function RosterSide({ side, selected, onSelect, careers, className }: {
           <button type="button" disabled={!player.userId} aria-label={`选择 ${name}`} aria-pressed={active}
             onClick={() => player.userId && onSelect(player.userId)}
             className="flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-1 text-center focus-visible:outline-2 focus-visible:outline-[var(--color-border-focus)] lg:min-h-11 lg:flex-row lg:justify-start lg:gap-2 lg:px-2 lg:text-left">
-            <PlayerAvatar name={name} avatarUrl={player.avatarUrl} size="sm" />
+            <PlayerAvatar name={name} avatarUrl={player.avatarUrl} hasActivePublicSanction={player.hasActivePublicSanction} size="sm" />
             <span className="w-full min-w-0 lg:flex-1">
               <span className="block truncate text-xs font-medium lg:text-sm" title={name}>{name}</span>
               <span className="hidden truncate text-xs text-[var(--color-fg-mid)] lg:block">{player.substituteAppearance ? "替补出场 · " : ""}{career ? `${career.maps} Maps` : "暂无记录"}</span>
@@ -86,7 +86,7 @@ function RosterSide({ side, selected, onSelect, careers, className }: {
 function SelectedPlayer({ player, career }: { player: LineupPlayer; career: LineupCareer }) {
   const name = getPublicDisplayName(player);
   return <div className="flex min-w-0 flex-col items-center gap-1 text-center">
-    <PlayerAvatar name={name} avatarUrl={player.avatarUrl} size="lg" className="size-14 text-xl" />
+    <PlayerAvatar name={name} avatarUrl={player.avatarUrl} hasActivePublicSanction={player.hasActivePublicSanction} size="lg" className="size-14 text-xl" />
     <PlayerProfileLink userId={career.userId} className="max-w-full truncate text-base font-semibold" title={name}>{name}</PlayerProfileLink>
     <span className="text-xs text-[var(--color-fg-mid)]">{career.maps} Maps · {career.rounds ?? "—"} Rounds{!career.qualified && <span className="block">样本有限</span>}</span>
   </div>;

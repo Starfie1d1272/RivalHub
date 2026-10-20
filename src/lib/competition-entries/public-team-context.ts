@@ -1,3 +1,4 @@
+import { hasActivePublicSanction } from "@/lib/discipline/public-query";
 import { withDisplayScores } from "@/lib/matches/display-score-data";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
@@ -296,6 +297,7 @@ export async function getPublicCompetitionEntryTeamContext(
         perfectName: users.perfectName,
         personaName: steamProfiles.personaName,
         avatarUrl: steamProfiles.avatarUrl,
+        hasActivePublicSanction: hasActivePublicSanction(users.id),
         isStarter: eventRosterMembers.isPrimaryStarter,
       })
       .from(eventRosterMembers)
@@ -322,7 +324,7 @@ export async function getPublicCompetitionEntryTeamContext(
     roster: rosterRows.map((member) => ({
       userId: member.userId,
       name: getPublicDisplayName(member),
-      avatarUrl: member.avatarUrl,
+      avatarUrl: member.avatarUrl, hasActivePublicSanction: member.hasActivePublicSanction,
       isStarter: member.isStarter,
     })),
     rosterLabel: "本届参赛名单",
