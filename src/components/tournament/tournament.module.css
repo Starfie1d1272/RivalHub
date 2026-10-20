@@ -483,6 +483,15 @@
   }
 }
 @media (max-width: 640px) {
+  .workspaceToolbar .viewSwitch {
+    flex: 0 0 100%;
+    width: 100%;
+  }
+  .workspaceToolbar .viewSwitch button {
+    padding: 8px 4px;
+    gap: 4px;
+  }
+
   .workbench h1 {
     font-size: 18px;
     line-height: 1.4;
