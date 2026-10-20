@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.21.1]
+
+### Changed
+
+- 优化赛事推演的公共工具栏与五轮卡片比例，保留轮次居中及完整晋级／淘汰队伍；横向卡片队名调整为 11px，预测单与赛程工作区对齐并独立滚动。
+- 推演结果可通过橙色「保存推演为 Pick’Em」直接保存为阶段草稿，首次保存自动加入；预测单提示赛果变化，正式提交独立确认。
+
+### Fixed
+
+- 打通转队后的本届参赛确认与名单调整：负责人可补入新成员并分享处理链接，选手可在允许转队时确认更换参赛队伍；页面展示名单差异、待办及资料缺项。
+- 管理员可在保存 Major 种子前撤回最终名单冻结，修正名单后重新冻结；已保存种子或已启动阶段的赛事继续保持锁定。
+
 ## [2.21.0]
 
 ### Added
@@ -3113,6 +3125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.21.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.0...v2.21.1
 [2.21.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.20.0...v2.21.0
 [2.20.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.4...v2.20.0
 [2.19.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.3...v2.19.4
