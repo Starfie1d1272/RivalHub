@@ -1,10 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import type { Metadata } from "next";
-import { and, count, eq, inArray, isNull } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
+  competitionEntryActiveClaims,
   competitionQualificationRuns,
   majorTournamentEntrants,
   eventRosters,
@@ -48,6 +49,7 @@ import { loadCompetitionEntryParticipantContext } from "@/lib/competition-entrie
 
 interface RegisterPageProps {
   params: Promise<{ seasonSlug: string }>;
+  searchParams?: Promise<{ entry?: string | string[] }>;
 }
 
 export async function generateMetadata({ params }: RegisterPageProps): Promise<Metadata> {
@@ -56,7 +58,7 @@ export async function generateMetadata({ params }: RegisterPageProps): Promise<M
   return { title: season ? `报名 · ${season.name}` : "报名" };
 }
 
-export default async function RegisterPage({ params }: RegisterPageProps) {
+export default async function RegisterPage({ params, searchParams }: RegisterPageProps) {
   const { seasonSlug } = await params;
 
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
@@ -135,16 +137,19 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   }
 
   if (isTeamRegistration(season)) {
+    const requestedEntry = (await searchParams)?.entry;
     const [captainedTeams, participantContext, [approvedCount], currentTeamRows] = await Promise.all([
       db.select({ id: teams.id, slug: teams.slug, name: teams.name }).from(teams)
         .where(and(eq(teams.status, "active"), eq(teams.captainUserId, userSession.userId)))
         .orderBy(teams.name),
-      loadCompetitionEntryParticipantContext({ competitionId: season.id, userId: userSession.userId }),
+      loadCompetitionEntryParticipantContext({ competitionId: season.id, userId: userSession.userId, requestedEntryId: typeof requestedEntry === "string" ? requestedEntry : undefined }),
       db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition())),
       db.select({ id: teams.id, slug: teams.slug, name: teams.name }).from(teamMemberships).innerJoin(teams, eq(teams.id, teamMemberships.teamId)).where(and(eq(teamMemberships.userId, userSession.userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))).limit(1),
     ]);
     const entry = participantContext.primaryEntry;
     let entryView: Parameters<typeof CompetitionEntryFlow>[0]["entry"] = null;
+    const previousEntry = participantContext.activeClaimEntry?.id !== entry?.id ? participantContext.activeClaimEntry : null;
+    const transferFrom = previousEntry ? { id: previousEntry.id, name: previousEntry.name, canRelease: await canReleaseEliminatedParticipationInTx(db, season, previousEntry.id) } : null;
     let capabilities = getCompetitionEntryCapabilities({ season, entry: null, revision: null, rosterFrozen: false });
     if (entry) {
       const [qualificationRun, finalEntrant] = season.competitionTemplate === "major" ? await Promise.all([
@@ -183,6 +188,9 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
             .where(eq(competitionEntryRosterMembers.revisionId, revision.id))
         : [];
       const userIds = [...new Set([...candidateRows.map((row) => row.userId), ...rosterRows.map((row) => row.userId)])];
+      const unconfirmedUserIds = rosterRows.filter(row => row.confirmation !== "confirmed").map(row => row.userId);
+      const otherClaims = unconfirmedUserIds.length ? await db.select({ userId: competitionEntryActiveClaims.userId }).from(competitionEntryActiveClaims).where(and(eq(competitionEntryActiveClaims.competitionId, season.id), inArray(competitionEntryActiveClaims.userId, unconfirmedUserIds), ne(competitionEntryActiveClaims.entryId, entry.id))) : [];
+      const claimedByOtherEntry = new Set(otherClaims.map(row => row.userId));
       const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
       const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
       const hasCompetitiveProfile = Boolean(teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile);
@@ -227,6 +235,9 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         if (role.isPrimary) primaryRoleByUser.set(role.userId, role.role);
       }
       const candidates = candidateRows.map((row) => ({ membershipId: row.membershipId, userId: row.userId, label: getPublicDisplayName(row), status: row.status as "active" | "benched", roles: rolesByUser.get(row.userId) ?? [], primaryRole: primaryRoleByUser.get(row.userId) ?? null, readiness: readinessByUser.get(row.userId) }));
+      const approvedRoster = entry.approvedRosterRevisionId && entry.approvedRosterRevisionId !== entry.currentRosterRevisionId
+        ? await db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName }).from(competitionEntryRosterMembers).innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(eq(competitionEntryRosterMembers.revisionId, entry.approvedRosterRevisionId))
+        : null;
       entryView = {
         id: entry.id,
         name: entry.name,
@@ -237,6 +248,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         representativeUserId: entry.representativeUserId,
         reviewReason: revision?.origin === "self_roster_change" ? null : entry.reviewReason,
         qualificationFindings: qualification.findings,
+        approvedRoster: approvedRoster?.map(member => ({ userId: member.userId, label: getPublicDisplayName(member) })),
         candidates,
         roster: rosterRows.map((row) => ({
           participantId: row.participantId,
@@ -247,6 +259,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           roles: rolesByUser.get(row.userId) ?? [],
           primaryRole: primaryRoleByUser.get(row.userId) ?? null,
           confirmation: row.confirmation,
+          hasOtherCommitment: row.confirmation !== "confirmed" && claimedByOtherEntry.has(row.userId),
           primary: row.primary,
           readiness: readinessByUser.get(row.userId),
         })),
@@ -261,14 +274,16 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
             <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">{entry ? "我的参赛" : "队伍报名"}</h1>
           </div>
           <StatusBanner
-            tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
-            title={registrationWindow.message}
+            tone={entry && (capabilities.canEditCurrentRoster || capabilities.canRequestRosterChange || capabilities.canReleaseEliminatedParticipation) ? "info" : getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
+            title={entry ? capabilities.canReleaseEliminatedParticipation ? "可处理参赛队伍变更" : capabilities.canRequestRosterChange || capabilities.canEditCurrentRoster ? "名单调整开放中" : entry.registrationStatus === "submitted" ? "名单变更审核中" : capabilities.readOnlyReason ?? "本届名单已审核通过" : registrationWindow.message}
             sub={[registrationSchedule?.primary, registrationSchedule?.secondary, season.rosterChangeClosesAt ? `${season.competitionTemplate === "major" ? "最终名单调整截止" : "名单可自行调整至"} ${formatCST(season.rosterChangeClosesAt)}` : "名单调整截止时间与报名截止时间一致"].filter(Boolean).join(" · ")}
           />
-          <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
+          <RegistrationScheduleCountdown target={entry && (capabilities.canEditCurrentRoster || capabilities.canRequestRosterChange) ? season.rosterChangeClosesAt?.toISOString() ?? null : registrationSchedule?.countdownTarget ?? null} />
           <CompetitionEntryFlow
             key={entry ? `${entry.id}:${entry.updatedAt.toISOString()}` : "new"}
             capabilities={capabilities}
+            pendingInvitations={participantContext.pendingInvitations}
+            transferFrom={transferFrom}
             requiresTeamLogo={normalizeTeamRegistrationConfig(season.teamRegistrationConfig).requireTeamLogo}
             canManageEntryTeamProfile={Boolean(entry?.teamId && captainedTeams.some((team) => team.id === entry.teamId))}
             approvedTeamCount={approvedCount?.value ?? 0}

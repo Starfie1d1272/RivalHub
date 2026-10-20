@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
+  addCompetitionEntryRosterMember as telemetry_addCompetitionEntryRosterMember,
+  transferCompetitionEntryParticipation as telemetry_transferCompetitionEntryParticipation,
   confirmCompetitionEntryParticipation as telemetry_confirmCompetitionEntryParticipation,
   createCompetitionEntry as telemetry_createCompetitionEntry,
   declineCompetitionEntryParticipation as telemetry_declineCompetitionEntryParticipation,
@@ -36,6 +38,8 @@ import { recruitmentHref } from "@/lib/recruitment/contract";
 import type { CompetitionEntryCapabilities } from "@/lib/competition-entries/capabilities";
 import { observeAction } from "@/lib/telemetry/client";
 
+const addCompetitionEntryRosterMember = observeAction("competition-entries.addCompetitionEntryRosterMember", telemetry_addCompetitionEntryRosterMember);
+const transferCompetitionEntryParticipation = observeAction("competition-entries.transferCompetitionEntryParticipation", telemetry_transferCompetitionEntryParticipation);
 const confirmCompetitionEntryParticipation = observeAction("competition-entries.confirmCompetitionEntryParticipation", telemetry_confirmCompetitionEntryParticipation);
 const createCompetitionEntry = observeAction("competition-entries.createCompetitionEntry", telemetry_createCompetitionEntry);
 const declineCompetitionEntryParticipation = observeAction("competition-entries.declineCompetitionEntryParticipation", telemetry_declineCompetitionEntryParticipation);
@@ -49,7 +53,7 @@ const withdrawCompetitionEntryParticipation = observeAction("competition-entries
 type Role = Cs2Position;
 type Readiness = { ready: boolean; blockers: string[]; findings: QualificationFinding[]; educationApproved: boolean; educationState: "ready" | "pending_review" | "rejected" | "missing" };
 type Candidate = { membershipId: string; userId: string; label: string; status: "active" | "benched"; roles: Role[]; primaryRole: Role | null; readiness?: Readiness };
-type RosterMember = Candidate & { participantId: string; confirmation: CompetitionEntryParticipantStatus; primary: boolean };
+type RosterMember = Candidate & { participantId: string; confirmation: CompetitionEntryParticipantStatus; primary: boolean; hasOtherCommitment?: boolean };
 
 const ROLE: Record<Role, string> = Object.fromEntries(
   Object.entries(CS2_POSITION_LABELS).map(([role, label]) => [role, label.full]),
@@ -72,6 +76,8 @@ interface Props {
   registrationWindowPhase: "hidden" | "unscheduled" | "upcoming" | "open" | "closed";
   rosterChangeClosesAtLabel?: string | null;
   capabilities: CompetitionEntryCapabilities;
+  pendingInvitations?: Array<{ id: string; name: string }>;
+  transferFrom?: { id: string; name: string; canRelease: boolean } | null;
   invitationConflict: null | {
     pendingInvitationCount: number;
     latestPendingInvitationName: string;
@@ -90,6 +96,7 @@ interface Props {
     qualificationFindings: QualificationFinding[];
     roster: RosterMember[];
     candidates: Candidate[];
+    approvedRoster?: Array<{ userId: string; label: string }>;
   };
 }
 
@@ -98,6 +105,7 @@ export function CompetitionEntryFlow(props: Props) {
   const [pending, startTransition] = useTransition();
   const [refreshing, startRefreshTransition] = useTransition();
   const lastServerRefreshAt = useRef(0);
+  const [confirmTransfer, setConfirmTransfer] = useState(false);
   const [confirmRosterChange, setConfirmRosterChange] = useState(false);
   const [confirmParticipantWithdrawal, setConfirmParticipantWithdrawal] = useState(false);
   const [removeMember, setRemoveMember] = useState<Candidate | null>(null);
@@ -125,7 +133,7 @@ export function CompetitionEntryFlow(props: Props) {
 
   const run = (work: () => Promise<{ success: boolean; error?: { message: string } }>, message: string) => startTransition(async () => {
     const result = await work();
-    if (result.success) toast.success(message);
+    if (result.success) { toast.success(message); router.refresh(); }
     else toast.error(result.error?.message ?? "操作失败");
   });
 
@@ -147,6 +155,13 @@ export function CompetitionEntryFlow(props: Props) {
   const representative = entry.representativeUserId === props.currentUserId;
   const own = entry.roster.find((member) => member.userId === props.currentUserId);
   const editable = representative && props.capabilities.canEditCurrentRoster;
+  const registrationHref = `/${props.seasonSlug}/register?entry=${entry.id}`;
+  const newMembers = entry.candidates.filter(candidate => !entry.roster.some(member => member.userId === candidate.userId));
+  const copyInvitation = async () => {
+    try { await navigator.clipboard.writeText(new URL(registrationHref, window.location.origin).href); toast.success("参赛确认链接已复制，请发给对应成员"); }
+    catch { toast.error("复制失败，请打开下方页面后复制地址"); }
+  };
+
   const approvedReadOnly = entry.status === "approved" && !editable;
   const invitationConflictSub = !props.invitationConflict ? null
     : representative && (props.capabilities.canEditCurrentRoster || props.capabilities.canRequestRosterChange)
@@ -187,8 +202,8 @@ export function CompetitionEntryFlow(props: Props) {
     if (prefixedSeason) return prefixedSeason[1]!.toUpperCase();
     return "指定赛季";
   };
-  const participantChecks: ChecklistItem[] = props.requiresCompetitiveProfile
-    ? entry.roster.flatMap<ChecklistItem>((member) => {
+  const checksForMember = (member: RosterMember): ChecklistItem[] => {
+      if (!props.requiresCompetitiveProfile) return [];
       if (!member.readiness) return [{ label: `${member.label} · 等待该成员确认参赛后检查资料`, state: "blocked" as const }];
       if (member.readiness.ready) return [{ label: `${member.label} · 参赛资料已齐全`, state: "complete" as const }];
       return member.readiness.findings.map((finding) => {
@@ -202,7 +217,8 @@ export function CompetitionEntryFlow(props: Props) {
         const identityTarget = finding.code === "identity_incomplete"
           ? finding.metadata?.field === "email_verified_at" ? "/settings/education" : "/settings"
           : null;
-        const href = competitiveTarget ?? educationTarget ?? identityTarget;
+        const target = competitiveTarget ?? educationTarget ?? identityTarget;
+        const href = target ? `${target}${target.includes("?") ? "&" : "?"}returnTo=${encodeURIComponent(registrationHref)}` : null;
         const label = competitiveTarget
           ? seasonKey === "historical"
             ? `${member.label} · 需要本人补充 · ${platformLabel(platform!)} 历史最高`
@@ -220,8 +236,8 @@ export function CompetitionEntryFlow(props: Props) {
             : undefined,
         };
       });
-    })
-    : [];
+    };
+  const participantChecks = entry.roster.flatMap(checksForMember);
   const rosterBlockingFindings = rosterFindings.filter((finding) => !finding.waivable);
   const rosterReviewFindings = rosterFindings.filter((finding) => finding.waivable);
   const blockingChecks: ChecklistItem[] = [
@@ -260,7 +276,7 @@ export function CompetitionEntryFlow(props: Props) {
         ? "首次报名已截止 · 本次报名未在截止前提交"
         : null;
   const participantWithdrawalExplanation = props.capabilities.canReleaseEliminatedParticipation
-    ? "释放本届参赛归属后可确认新队邀请，历史名单和比赛保留。日常队伍成员关系单独管理。"
+    ? "结束代表原队的参赛确认后，可接受新队的参赛邀请。历史名单和比赛记录保留。"
     : entry.status === "approved"
     ? "退出后本届名单须调整并重新审核，日常队伍成员关系保留。"
     : "退出本届名单，日常队伍成员关系保留。";
@@ -274,15 +290,32 @@ export function CompetitionEntryFlow(props: Props) {
     {props.capabilities.readOnlyReason && <StatusBanner tone="info" title={props.capabilities.readOnlyReason ?? "报名尚未开放"} />}
     <StatusBanner tone={entry.status === "approved" ? "success" : entry.status === "changes_requested" ? "warn" : "info"} title={`${entry.name} · ${registrationActionStatus ?? registration.label}`} sub={entry.revisionOrigin === "self_roster_change" ? registration.detail : entry.reviewReason ?? undefined} />
     {entry.status === "approved" && <TeamProfileLink seasonSlug={props.seasonSlug} entryId={entry.id} className="inline-block text-sm" aria-label={`查看 ${entry.name} 队伍资料`}>查看赛事队伍资料 →</TeamProfileLink>}
-    {props.invitationConflict && <StatusBanner
+    {props.invitationConflict && !props.transferFrom && <StatusBanner
       tone="warn"
       title={props.invitationConflict.pendingInvitationCount === 1
         ? `还有来自「${props.invitationConflict.latestPendingInvitationName}」的本届参赛邀请待处理`
         : `还有 ${props.invitationConflict.pendingInvitationCount} 个本届参赛邀请待处理`}
       sub={invitationConflictSub ?? undefined}
     />}
+    {(props.pendingInvitations ?? []).filter(invitation => invitation.id !== entry.id).map(invitation => <Panel key={invitation.id} label="待处理参赛邀请" contentClassName="p-4"><p className="text-sm">{invitation.name} 邀请你加入本届名单。</p><Button asChild className="mt-3"><Link href={`/${props.seasonSlug}/register?entry=${invitation.id}`}>查看并处理邀请</Link></Button></Panel>)}
+    {props.transferFrom && own?.confirmation === "invited" && <Panel label="更换本届参赛队伍" contentClassName="p-4">
+      <p className="mb-3 text-sm leading-6">{entry.name} 邀请你参赛。你当前仍确认代表{props.transferFrom.name}参加本届赛事。</p>
+      {props.transferFrom.canRelease && props.capabilities.canConfirmParticipation ? confirmTransfer
+        ? <InlineConfirm title={`确认转为代表${entry.name}参赛？`} sub="确认后会结束代表原队的参赛确认，并接受新队邀请。历史名单和比赛记录保留；新名单仍需队长提交并由赛委会审核。" confirmLabel="确认更换参赛队伍" onCancel={() => setConfirmTransfer(false)} onConfirm={() => { setConfirmTransfer(false); run(() => transferCompetitionEntryParticipation({ entryId: entry.id, fromEntryId: props.transferFrom!.id }), "已确认代表新队参赛，请检查下方资料是否齐全"); }} />
+        : <Button disabled={pending} onClick={() => setConfirmTransfer(true)}>确认转为代表{entry.name}参赛</Button>
+        : <p className="text-sm text-[var(--color-fg-mid)]">当前不能自行更换参赛队伍，请联系赛委会处理。</p>}
+    </Panel>}
+    {representative && entry.approvedRoster && <Panel label="本次名单调整" contentClassName="p-4"><p className="text-sm">已审核名单 {entry.approvedRoster.length} 人，待审核名单 {entry.roster.length} 人。</p><p className="mt-2 text-sm">新增：{entry.roster.filter(member => !entry.approvedRoster!.some(previous => previous.userId === member.userId)).map(member => member.label).join("、") || "暂无"}</p><p className="mt-1 text-sm">移除：{entry.approvedRoster.filter(previous => !entry.roster.some(member => member.userId === previous.userId)).map(member => member.label).join("、") || "暂无"}</p></Panel>}
+    {representative && newMembers.length > 0 && (props.capabilities.canRequestRosterChange || editable) && <Panel label="队伍中还有成员未加入本届名单" contentClassName="p-4">
+      <p className="mb-3 text-sm text-[var(--color-fg-mid)]">将成员加入后，请把参赛确认链接发给本人。新名单审核通过后生效。</p>
+      {newMembers.map(member => <div key={member.userId} className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] py-3"><div><PlayerProfileLink userId={member.userId}>{member.label}</PlayerProfileLink>{member.readiness && !member.readiness.ready && <p className="mt-1 text-xs text-[var(--color-warn)]">{member.readiness.blockers.join(" ")}</p>}</div><Button size="sm" disabled={pending || unsaved || entry.roster.length >= props.maxRoster} onClick={() => run(() => addCompetitionEntryRosterMember({ entryId: entry.id, memberUserId: member.userId }), "已加入本届待审核名单，请通知本人确认参赛")}>加入本届名单</Button></div>)}
+      {unsaved && <p className="text-sm">请先保存下方名单修改。</p>}{entry.roster.length >= props.maxRoster && <p className="text-sm">本届名单人数已满，请先调整名单。</p>}
+    </Panel>}
+    {representative && entry.roster.some(member => member.confirmation !== "confirmed" || member.readiness && !member.readiness.ready) && <Panel label="成员待办" contentClassName="p-4"><div className="space-y-3">{entry.roster.filter(member => member.confirmation !== "confirmed" || member.readiness && !member.readiness.ready).map(member => <div key={member.userId} className="border-b border-[var(--color-border)] pb-3"><PlayerProfileLink userId={member.userId}>{member.label}</PlayerProfileLink><p className="mt-1 text-sm">{member.hasOtherCommitment ? "本人需处理原队参赛确认，再确认代表本队参赛。" : member.confirmation !== "confirmed" ? "等待本人确认参赛。" : "本人参赛已确认。"}</p>{member.readiness && !member.readiness.ready && <p className="mt-1 text-sm text-[var(--color-warn)]">待补充：{member.readiness.blockers.join(" ")}</p>}</div>)}</div><Button className="mt-3" variant="outline" onClick={copyInvitation}>复制成员处理链接</Button><Link href={registrationHref as never} className="mt-2 block text-sm underline underline-offset-4">打开成员处理页面</Link></Panel>}
+    {!representative && own?.readiness && !own.readiness.ready && <Panel label="我的参赛资料" contentClassName="p-4"><Checklist items={checksForMember(own)} /></Panel>}
+    {!representative && own?.confirmation === "confirmed" && (entry.status === "changes_requested" || entry.status === "draft" || entry.status === "submitted") && <StatusBanner tone="info" title={`已确认代表${entry.name}参赛`} sub={entry.status === "submitted" ? "名单已提交，等待赛委会审核。" : "请补齐参赛资料，随后由赛事负责人提交名单审核。"} />}
     {removeMember && <InlineConfirm danger title={`从本届名单移除 ${removeMember.label}？`} sub="保存名单后生效；该成员的本届参赛确认将失效，日常队伍成员关系保持原样。原已通过名单保留为历史记录。" confirmLabel="从本届名单移除" onCancel={() => setRemoveMember(null)} onConfirm={() => { toggleSelected(removeMember.userId); setRemoveMember(null); }} />}
-    {(!representative || props.capabilities.canReleaseEliminatedParticipation) && <Panel label="我的参赛确认" contentClassName="p-6">{own ? <><p className="mb-3 text-sm font-medium">当前状态：{presentCompetitionEntryParticipation(own.confirmation, entry.status).label}</p>{own.confirmation === "invited" && props.capabilities.canConfirmParticipation && <div className="flex gap-2"><Button disabled={pending} onClick={() => run(() => confirmCompetitionEntryParticipation({ entryId: entry.id }), "已确认参加本届赛事")}>确认参赛</Button><Button variant="outline" disabled={pending} onClick={() => run(() => declineCompetitionEntryParticipation({ entryId: entry.id }), "已拒绝本届赛事邀请")}>拒绝邀请</Button></div>}{own.confirmation === "confirmed" && props.capabilities.canWithdrawParticipation && (confirmParticipantWithdrawal ? <InlineConfirm danger title="退出本届赛事？" sub={participantWithdrawalExplanation} confirmLabel="确认退出本届赛事" onCancel={() => setConfirmParticipantWithdrawal(false)} onConfirm={() => { setConfirmParticipantWithdrawal(false); run(() => withdrawCompetitionEntryParticipation({ entryId: entry.id }), "已退出本届赛事"); }} /> : <Button variant="outline" disabled={pending} onClick={() => setConfirmParticipantWithdrawal(true)}>退出本届赛事</Button>)}{(own.confirmation === "declined" || own.confirmation === "withdrawn") && <p className="text-sm text-[var(--color-fg-mid)]">如需参赛，请由赛事负责人将你重新加入本届名单。</p>}</> : <p className="text-sm text-[var(--color-fg-mid)]">你不在当前本届名单中；如需参赛，请联系赛事负责人确认名单。</p>}</Panel>}
+    {(!representative || props.capabilities.canReleaseEliminatedParticipation) && <Panel label="我的参赛确认" contentClassName="p-6">{own ? <><p className="mb-3 text-sm font-medium">当前状态：{presentCompetitionEntryParticipation(own.confirmation, entry.status).label}</p>{own.confirmation === "invited" && props.capabilities.canConfirmParticipation && !props.transferFrom && <div className="flex gap-2"><Button disabled={pending} onClick={() => run(() => confirmCompetitionEntryParticipation({ entryId: entry.id }), "已确认参加本届赛事")}>确认参赛</Button><Button variant="outline" disabled={pending} onClick={() => run(() => declineCompetitionEntryParticipation({ entryId: entry.id }), "已拒绝本届赛事邀请")}>拒绝邀请</Button></div>}{own.confirmation === "confirmed" && props.capabilities.canWithdrawParticipation && (confirmParticipantWithdrawal ? <InlineConfirm danger title={props.capabilities.canReleaseEliminatedParticipation ? "结束代表原队的参赛确认？" : "退出本届赛事？"} sub={participantWithdrawalExplanation} confirmLabel={props.capabilities.canReleaseEliminatedParticipation ? "确认结束原队参赛确认" : "确认退出本届赛事"} onCancel={() => setConfirmParticipantWithdrawal(false)} onConfirm={() => { setConfirmParticipantWithdrawal(false); run(() => withdrawCompetitionEntryParticipation({ entryId: entry.id }), props.capabilities.canReleaseEliminatedParticipation ? "已结束代表原队的参赛确认，可继续处理新队邀请" : "已退出本届赛事"); }} /> : <Button variant="outline" disabled={pending} onClick={() => setConfirmParticipantWithdrawal(true)}>{props.capabilities.canReleaseEliminatedParticipation ? "处理原队参赛确认" : "退出本届赛事"}</Button>)}{(own.confirmation === "declined" || own.confirmation === "withdrawn") && <p className="text-sm text-[var(--color-fg-mid)]">如需参赛，请由赛事负责人将你重新加入本届名单。</p>}</> : <p className="text-sm text-[var(--color-fg-mid)]">你不在当前本届名单中；如需参赛，请联系赛事负责人确认名单。</p>}</Panel>}
     {representative && <>
       {approvedReadOnly ? <>
         <Panel label="本届名单" contentClassName="p-4">

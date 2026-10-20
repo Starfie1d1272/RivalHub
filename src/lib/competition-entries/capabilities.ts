@@ -35,7 +35,7 @@ export function getCompetitionEntryCapabilities(input: {
     canRequestRosterChange,
     canConfirmParticipation: editable,
     canRespondToAdminRemediation: editable && revision?.origin === "admin_remediation",
-    readOnlyReason: rosterFrozen ? "最终名单已锁定；如需处理名单或参赛状态，请联系赛事管理员。" : editable || canRequestRosterChange ? null
+    readOnlyReason: input.eliminatedParticipationRelease && entry ? null : rosterFrozen ? "最终名单已锁定；如需处理名单或参赛状态，请联系赛事管理员。" : editable || canRequestRosterChange ? null
       : entry?.status === "approved" || (entry?.status === "changes_requested" && revision?.origin === "self_roster_change")
         ? rosterChangeClosed ? "名单调整已截止；如需处理名单或参赛状态，请联系赛事管理员。" : !majorAdjustmentPhaseOpen ? "当前赛事阶段暂不开放名单调整；最终名单确认后，符合条件的队伍可在截止前调整。" : "当前名单暂不可自行调整，请联系赛委会。"
         : window.canSubmit ? null : window.message,

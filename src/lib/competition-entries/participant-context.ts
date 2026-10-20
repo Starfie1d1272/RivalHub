@@ -14,6 +14,8 @@ import type { CompetitionEntryParticipantStatus } from "@/lib/competition-entrie
 export interface CompetitionEntryParticipantContext {
   primaryEntry: typeof competitionEntries.$inferSelect | null;
   activeClaimEntryId: string | null;
+  activeClaimEntry: typeof competitionEntries.$inferSelect | null;
+  pendingInvitations: Array<{ id: string; name: string }>;
   invitationConflict: null | {
     pendingInvitationCount: number;
     latestPendingInvitationName: string;
@@ -30,9 +32,12 @@ export function selectCompetitionEntryParticipantContext<T extends CompetitionEn
   participantRows: ReadonlyArray<{ entry: T; participantStatus: CompetitionEntryParticipantStatus | null }>;
   representativeEntries: readonly T[];
   activeClaimEntries: readonly T[];
+  requestedEntryId?: string;
 }): {
   primaryEntry: T | null;
   activeClaimEntryId: string | null;
+  activeClaimEntry: T | null;
+  pendingInvitations: Array<{ id: string; name: string }>;
   invitationConflict: null | {
     pendingInvitationCount: number;
     latestPendingInvitationName: string;
@@ -55,7 +60,9 @@ export function selectCompetitionEntryParticipantContext<T extends CompetitionEn
     : [];
 
   return {
-    primaryEntry: activeClaimEntry ?? pendingInvitationRows[0]?.entry ?? fallbackEntries[0] ?? null,
+    primaryEntry: pendingInvitationRows.find(row => row.entry.id === input.requestedEntryId)?.entry ?? activeClaimEntry ?? pendingInvitationRows[0]?.entry ?? fallbackEntries[0] ?? null,
+    activeClaimEntry,
+    pendingInvitations: pendingInvitationRows.map(row => ({ id: row.entry.id, name: row.entry.name })),
     activeClaimEntryId: activeClaimEntry?.id ?? null,
     invitationConflict: invitationRows.length === 0
       ? null
@@ -70,7 +77,7 @@ export function selectCompetitionEntryParticipantContext<T extends CompetitionEn
  * Select the registration-page Entry from the user's active event commitment.
  * Without one, a pending invitation takes precedence over a recently edited past Entry.
  */
-type ParticipantContextInput = { competitionId: string; userId: string };
+type ParticipantContextInput = { competitionId: string; userId: string; requestedEntryId?: string };
 type ParticipantContextQueryable = Pick<DB, "select">;
 
 /** An old invitation outside the current revision is history, not a pending task. */
@@ -115,11 +122,13 @@ function presentParticipantContext(
   participantRows: Awaited<ReturnType<ReturnType<typeof participantContextQueries>["participantRows"]>>,
   representativeEntries: Awaited<ReturnType<ReturnType<typeof participantContextQueries>["representativeEntries"]>>,
   activeClaimRows: Awaited<ReturnType<ReturnType<typeof participantContextQueries>["activeClaimRows"]>>,
+  requestedEntryId?: string,
 ): CompetitionEntryParticipantContext {
   return selectCompetitionEntryParticipantContext({
     participantRows,
     representativeEntries,
     activeClaimEntries: activeClaimRows.map((row) => row.entry),
+    requestedEntryId,
   });
 }
 
@@ -133,7 +142,7 @@ export async function loadCompetitionEntryParticipantContext(
     queries.representativeEntries(),
     queries.activeClaimRows(),
   ]);
-  return presentParticipantContext(participantRows, representativeEntries, activeClaimRows);
+  return presentParticipantContext(participantRows, representativeEntries, activeClaimRows, input.requestedEntryId);
 }
 
 /** Transaction-scoped variant: one TxDb shares one pg.Client, so queries are serialized. */
@@ -145,5 +154,5 @@ export async function loadCompetitionEntryParticipantContextInTx(
   const participantRows = await queries.participantRows();
   const representativeEntries = await queries.representativeEntries();
   const activeClaimRows = await queries.activeClaimRows();
-  return presentParticipantContext(participantRows, representativeEntries, activeClaimRows);
+  return presentParticipantContext(participantRows, representativeEntries, activeClaimRows, input.requestedEntryId);
 }

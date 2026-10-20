@@ -1,3 +1,4 @@
+import { RegistrationReturnLink } from "@/components/settings/RegistrationReturnLink";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { EducationVerificationPanel } from "@/components/settings/EducationVerificationPanel";
@@ -7,7 +8,7 @@ import { getUserSession } from "@/lib/auth/session";
 import { emailDomain } from "@/lib/education/validation";
 import { listVerifiedEmailIdentities } from "@/lib/identity/linking";
 
-export default async function EducationSettingsPage() {
+export default async function EducationSettingsPage({ searchParams }: { searchParams?: Promise<{ returnTo?: string | string[] }> }) {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/settings/education");
   const user = await db.query.users.findFirst({ where: and(eq(users.id, session.userId), eq(users.status, "active")) });
@@ -34,5 +35,5 @@ export default async function EducationSettingsPage() {
     const institution = domain ? institutionByDomain.get(domain) : undefined;
     return institution ? [{ identityId: identity.id, email: identity.email, institution }] : [];
   });
-  return <div><h1 className="mb-2 text-3xl font-semibold">教育身份认证</h1><p className="mb-6 text-sm text-[var(--color-fg-mid)]">教育认证只用于赛事资格审核；公开页面不会展示你的学信网在线验证码或审核备注。</p><EducationVerificationPanel email={user.email} emailVerified={Boolean(user.emailVerifiedAt)} institutionalIdentities={institutionalIdentities} verifications={rows.map((row) => ({ ...row, submittedAt: row.submittedAt.toISOString() }))} /></div>;
+  return <div><RegistrationReturnLink href={(await searchParams)?.returnTo} /><h1 className="mb-2 text-3xl font-semibold">教育身份认证</h1><p className="mb-6 text-sm text-[var(--color-fg-mid)]">教育认证只用于赛事资格审核；公开页面不会展示你的学信网在线验证码或审核备注。</p><EducationVerificationPanel email={user.email} emailVerified={Boolean(user.emailVerifiedAt)} institutionalIdentities={institutionalIdentities} verifications={rows.map((row) => ({ ...row, submittedAt: row.submittedAt.toISOString() }))} /></div>;
 }

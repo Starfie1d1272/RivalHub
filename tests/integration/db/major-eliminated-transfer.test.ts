@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { TxDb } from "../../../src/db/client";
 import * as schema from "../../../src/db/schema";
 import { createMajor24Capabilities } from "@/lib/competition/templates";
-import { withdrawCompetitionEntryParticipationInTx, confirmCompetitionEntryParticipationInTx } from "@/lib/competition-entries/commands";
+import { withdrawCompetitionEntryParticipationInTx, transferCompetitionEntryParticipationInTx } from "@/lib/competition-entries/commands";
 import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entries/roster-change";
 import { disbandTeamInTx } from "@/lib/teams/commands";
 import { canReleaseEliminatedParticipationInTx } from "@/lib/major/eliminated-entry";
@@ -63,10 +63,13 @@ describe("eliminated Major participant transfer", () => {
 
       const [run] = await database.insert(schema.competitionQualificationRuns).values({ seasonId: ids.season, format: "short_swiss_2w2l", targetEntrantCount: 24, candidateCount: 30, directEntryCount: 18, playInEntryCount: 12, qualifierCount: 6, configuredBy: ids.representative, startedAt: new Date(), startedBy: ids.representative }).returning();
       await database.insert(schema.competitionQualificationEntrants).values({ runId: run!.id, seasonId: ids.season, competitionEntryId: ids.entry, preliminarySeed: 30 });
+      const targetTeamId = randomUUID();
+      await database.insert(schema.teams).values({ id: targetTeamId, slug: targetTeamId, name: "新队", creatorUserId: ids.thirdMember, captainUserId: ids.thirdMember });
+      await database.insert(schema.teamCaptainChanges).values({ teamId: targetTeamId, fromUserId: null, toUserId: ids.thirdMember, changedByActorId: ids.thirdMember });
       const qualified: string[] = [];
       for (let i = 0; i < 24; i++) {
         const id = randomUUID(), revision = randomUUID(); qualified.push(id);
-        await database.insert(schema.competitionEntries).values({ id, competitionId: ids.season, source: "event_native", name: `晋级队 ${i}`, representativeUserId: ids.thirdMember, registrationStatus: "approved", currentRosterRevisionId: revision, approvedRosterRevisionId: revision });
+        await database.insert(schema.competitionEntries).values({ id, competitionId: ids.season, source: i === 0 ? "linked_team" : "event_native", teamId: i === 0 ? targetTeamId : null, name: `晋级队 ${i}`, representativeUserId: ids.thirdMember, registrationStatus: "approved", currentRosterRevisionId: revision, approvedRosterRevisionId: revision });
         await database.insert(schema.competitionEntryRepresentativeChanges).values({ entryId: id, toUserId: ids.thirdMember, changedByActorId: ids.thirdMember });
         await database.insert(schema.competitionEntryRosterRevisions).values({ id: revision, entryId: id, revisionNumber: 1, status: "approved", createdBy: ids.thirdMember, approvedAt: new Date() });
         await database.insert(schema.majorTournamentEntrants).values({ seasonId: ids.season, competitionEntryId: id });
@@ -81,17 +84,38 @@ describe("eliminated Major participant transfer", () => {
       const history = await database.select().from(schema.competitionEntryRosterMembers).where(eq(schema.competitionEntryRosterMembers.revisionId, ids.approvedRevision));
       const oldRoster = await database.query.eventRosters.findFirst({ where: eq(schema.eventRosters.id, ids.eventRoster) });
       await withdrawCompetitionEntryParticipationInTx(tx, { entryId: ids.entry, userId: ids.member, actorId: ids.member });
-      await withdrawCompetitionEntryParticipationInTx(tx, { entryId: ids.entry, userId: ids.representative, actorId: ids.representative });
       expect(await database.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, ids.entry) })).toMatchObject({ registrationStatus: "approved", currentRosterRevisionId: ids.approvedRevision, approvedRosterRevisionId: ids.approvedRevision, representativeUserId: ids.representative });
       expect(await database.select().from(schema.competitionEntryRosterMembers).where(eq(schema.competitionEntryRosterMembers.revisionId, ids.approvedRevision))).toEqual(history);
       expect(await database.query.eventRosters.findFirst({ where: eq(schema.eventRosters.id, ids.eventRoster) })).toEqual(oldRoster);
-      expect(await database.select().from(schema.competitionEntryActiveClaims).where(and(eq(schema.competitionEntryActiveClaims.competitionId, ids.season), eq(schema.competitionEntryActiveClaims.userId, ids.representative)))).toEqual([]);
+
       await requestCompetitionEntryRosterChangeInTx(tx, { entryId: qualified[0]!, representativeUserId: ids.thirdMember, actorId: ids.thirdMember });
       const target = (await database.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, qualified[0]!) }))!;
       const participant = randomUUID();
       await database.insert(schema.competitionEntryParticipants).values({ id: participant, entryId: target.id, userId: ids.representative, status: "invited", invitedByUserId: ids.thirdMember });
       await database.insert(schema.competitionEntryRosterMembers).values({ revisionId: target.currentRosterRevisionId, participantId: participant, userId: ids.representative, isPrimaryStarter: true });
-      await confirmCompetitionEntryParticipationInTx(tx, { entryId: target.id, userId: ids.representative, actorId: ids.representative });
+      const transfer = () => transferCompetitionEntryParticipationInTx(tx, { entryId: target.id, fromEntryId: ids.entry, userId: ids.representative, actorId: ids.representative });
+      const oldClaim = await database.query.competitionEntryActiveClaims.findFirst({ where: eq(schema.competitionEntryActiveClaims.participantId, ids.representativeParticipant) });
+      expect(await capturePostgresError(client, transfer)).toMatchObject({ code: "VALIDATION_FAILED" });
+      expect(await database.query.competitionEntryActiveClaims.findFirst({ where: eq(schema.competitionEntryActiveClaims.participantId, ids.representativeParticipant) })).toEqual(oldClaim);
+      await database.update(schema.teamMemberships).set({ status: "left", endedAt: new Date(), endedReason: "left" }).where(and(eq(schema.teamMemberships.teamId, ids.team), eq(schema.teamMemberships.userId, ids.representative)));
+      await database.insert(schema.teamMemberships).values({ teamId: targetTeamId, userId: ids.representative });
+      // A stale invitation must roll back the release and its audit together.
+      await database.delete(schema.competitionEntryRosterMembers).where(eq(schema.competitionEntryRosterMembers.participantId, participant));
+      const auditBefore = await database.select().from(schema.auditLogs).where(eq(schema.auditLogs.seasonId, ids.season));
+      expect(await capturePostgresError(client, transfer)).toMatchObject({ code: "REGISTRATION_INVALID_TRANSITION" });
+      expect(await database.query.competitionEntryActiveClaims.findFirst({ where: eq(schema.competitionEntryActiveClaims.participantId, ids.representativeParticipant) })).toEqual(oldClaim);
+      expect(await database.query.competitionEntryParticipants.findFirst({ where: eq(schema.competitionEntryParticipants.id, ids.representativeParticipant) })).toMatchObject({ status: "confirmed" });
+      expect(await database.select().from(schema.auditLogs).where(eq(schema.auditLogs.seasonId, ids.season))).toEqual(auditBefore);
+      await database.insert(schema.competitionEntryRosterMembers).values({ revisionId: target.currentRosterRevisionId, participantId: participant, userId: ids.representative, isPrimaryStarter: true });
+      expect(await capturePostgresError(client, () => transferCompetitionEntryParticipationInTx(tx, { entryId: target.id, fromEntryId: qualified[1]!, userId: ids.representative, actorId: ids.representative }))).toMatchObject({ code: "REGISTRATION_INVALID_TRANSITION" });
+      expect(await capturePostgresError(client, () => transferCompetitionEntryParticipationInTx(tx, { entryId: target.id, fromEntryId: ids.entry, userId: ids.secondMember, actorId: ids.secondMember }))).toBeDefined();
+      await database.update(schema.seasons).set({ rosterChangeClosesAt: new Date(Date.now() - 1000) }).where(eq(schema.seasons.id, ids.season));
+      expect(await capturePostgresError(client, transfer)).toMatchObject({ code: "REGISTRATION_CLOSED" });
+      await database.update(schema.seasons).set({ rosterChangeClosesAt: new Date(Date.now() + 172_800_000) }).where(eq(schema.seasons.id, ids.season));
+      await transfer();
+      expect(await database.select().from(schema.competitionEntryRosterMembers).where(eq(schema.competitionEntryRosterMembers.revisionId, ids.approvedRevision))).toEqual(history);
+      expect(await database.query.eventRosters.findFirst({ where: eq(schema.eventRosters.id, ids.eventRoster) })).toEqual(oldRoster);
+      expect(await database.query.competitionEntryParticipants.findFirst({ where: eq(schema.competitionEntryParticipants.id, participant) })).toMatchObject({ status: "confirmed" });
       expect(await database.query.competitionEntryActiveClaims.findFirst({ where: and(eq(schema.competitionEntryActiveClaims.competitionId, ids.season), eq(schema.competitionEntryActiveClaims.userId, ids.representative)) })).toMatchObject({ entryId: target.id });
       await database.update(schema.seasons).set({ rosterChangeClosesAt: new Date(Date.now() - 1000) }).where(eq(schema.seasons.id, ids.season));
       await expect(capturePostgresError(client, () => withdrawCompetitionEntryParticipationInTx(tx, { entryId: ids.entry, userId: ids.secondMember, actorId: ids.secondMember }))).resolves.toMatchObject({ code: "REGISTRATION_CLOSED" });

@@ -1,3 +1,4 @@
+import { RegistrationReturnLink } from "@/components/settings/RegistrationReturnLink";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getUserSession } from "@/lib/auth/session";
@@ -7,7 +8,7 @@ import { Checklist, PageHeader, Panel, StatusBanner } from "@/components/rivalhu
 import { ProfileForm } from "@/components/settings/ProfileForm";
 import { loadSettingsProfileReadiness } from "@/lib/my/readiness";
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams?: Promise<{ returnTo?: string | string[] }> }) {
   const session = await getUserSession();
   if (!session) redirect("/login");
 
@@ -37,9 +38,10 @@ export default async function SettingsPage() {
   ];
 
   return <div className="space-y-6">
-    <PageHeader title="设置与参赛资料" description="这里维护个人资料；报名和赛事资格只在具体赛事上下文中按冻结规则核验。" />
+    <RegistrationReturnLink href={(await searchParams)?.returnTo} />
+    <PageHeader title="设置与参赛资料" description="这里维护个人资料；每届赛事会按本届规则检查报名和参赛资格。" />
     {readiness.ready
-      ? <StatusBanner tone="success" title="参赛资料已齐全" sub="具体赛事的报名、确认加入和首发资格仍会按该届冻结规则复核。" />
+      ? <StatusBanner tone="success" title="参赛资料已齐全" sub="具体赛事的报名、确认加入和首发资格仍会按本届规则复核。" />
       : <StatusBanner tone="warn" title={`还缺 ${readyItems.length} 项参赛资料`} sub="完成以下项目可保持个人资料完整；具体赛事是否满足资格请在对应报名页查看。" />}
 
     {readyItems.length > 0 && <Panel label="下一步" contentClassName="p-0"><Checklist items={readyItems} /></Panel>}

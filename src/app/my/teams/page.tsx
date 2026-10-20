@@ -1,3 +1,4 @@
+import { loadMyCompetitionContexts } from "@/lib/my/competitions";
 import { redirect } from "next/navigation";
 import { MyTeamWorkspace } from "@/components/my/MyTeamWorkspace";
 import { getUserSession } from "@/lib/auth/session";
@@ -9,5 +10,6 @@ export const instant = false;
 export default async function MyTeamsPage() {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/my/teams");
-  return <MyTeamWorkspace model={await loadMyTeamWorkspace(session.userId)} />;
+  const [model, personalCompetitions] = await Promise.all([loadMyTeamWorkspace(session.userId), loadMyCompetitionContexts(session.userId)]);
+  return <MyTeamWorkspace model={model} personalCompetitions={personalCompetitions} />;
 }

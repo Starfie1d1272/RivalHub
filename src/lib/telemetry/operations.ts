@@ -36,6 +36,8 @@ export const OPERATIONS = [
   "community-awards.reviseCommunityAward",
   "community-awards.submitCommunityAward",
   "community-awards.withdrawCommunityAward",
+  "competition-entries.addCompetitionEntryRosterMember",
+  "competition-entries.transferCompetitionEntryParticipation",
   "competition-entries.confirmCompetitionEntryParticipation",
   "competition-entries.createCompetitionEntry",
   "competition-entries.declineCompetitionEntryParticipation",
