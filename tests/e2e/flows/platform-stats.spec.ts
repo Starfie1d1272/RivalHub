@@ -17,7 +17,7 @@ test("数据中心统一入口、赛事选择、URL 状态与历史恢复", asyn
   await expect(page.getByRole("button", { name: "选择赛事", exact: true })).toContainText(scenario.seasonName);
   await tabs.getByRole("link", { name: "Records", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Records" })).toBeVisible();
-  await expect(page.getByText("Most Kills in a Map", { exact: true })).toBeVisible();
+  await expect(page.getByText("单图最多击杀", { exact: true })).toBeVisible();
   await page.goBack();
   await expect(page).toHaveURL(`/stats?event=${scenario.slug}`);
   await expect(tabs.getByRole("link", { name: "Overview", exact: true })).toHaveAttribute("aria-current", "page");

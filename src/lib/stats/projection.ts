@@ -9,7 +9,7 @@ import type { CanonicalTarget } from "@/lib/demo-integration/validation";
 import type { GameplayUserResolution } from "@/lib/identity/gameplay-steam";
 import { collectRecordFacts } from "./record-facts";
 import { adaptStatsEvidence } from "./evidence-adapter";
-import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
+import { PREVIOUS_STATISTICS_PROJECTION_VERSION, STATISTICS_PROJECTION_VERSION } from "./projection-version";
 
 export { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 
@@ -50,8 +50,13 @@ export async function materializeStatisticsProjectionInTx(input: MaterializeStat
   };
   // Rechecking an identity is allowed to rebuild the derived projection; the
   // source artifact/hash is never updated. Retries converge on the same key.
-  await input.tx.insert(matchDemoStatProjections).values(values).onConflictDoUpdate({
+  const legacyKinds = new Set(["kills", "adr", "firstKills", "tradeKills", "clutch", "economy"]);
+  const legacy = { ...values, projectionVersion: PREVIOUS_STATISTICS_PROJECTION_VERSION, facts: {
+    ...values.facts, records: { equipmentSampling: records.equipmentSampling, economyKnownRounds: records.economyKnownRounds,
+      candidates: records.candidates.filter(candidate => legacyKinds.has(candidate.kind)) },
+  } };
+  for (const projection of [legacy, values]) await input.tx.insert(matchDemoStatProjections).values(projection).onConflictDoUpdate({
     target: [matchDemoStatProjections.importId, matchDemoStatProjections.projectionVersion],
-    set: { ...values, createdAt: new Date() },
+    set: { ...projection, createdAt: new Date() },
   });
 }

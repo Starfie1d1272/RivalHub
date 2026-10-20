@@ -12,6 +12,9 @@ export interface StatsRateValue {
 const economyLabels = { pistol: "手枪", eco: "经济局", semi: "半起", force: "强起", full: "全起" } as const;
 
 const weaponLabels: Record<string, string> = {
+  hkp2000: "P2000", elite: "Dual Berettas", revolver: "R8 Revolver", cz75a: "CZ75-Auto", ssg08: "SSG 08", aug: "AUG", sg556: "SG 553", mp7: "MP7",
+  taser: "Zeus x27", p90: "P90", negev: "Negev", scar20: "SCAR-20", g3sg1: "G3SG1", nova: "Nova", xm1014: "XM1014", mag7: "MAG-7", sawedoff: "Sawed-Off", mp5sd: "MP5-SD", m249: "M249", bizon: "PP-Bizon",
+  knife: "匕首", knife_t: "匕首", bayonet: "刺刀", knife_css: "海豹短刀", knife_flip: "折叠刀", knife_gut: "穿肠刀", knife_karambit: "爪子刀", knife_m9_bayonet: "M9 刺刀", knife_tactical: "猎杀者匕首", knife_falchion: "弯刀", knife_survival_bowie: "鲍伊猎刀", knife_butterfly: "蝴蝶刀", knife_push: "暗影双匕", knife_cord: "系绳匕首", knife_canis: "求生匕首", knife_ursus: "熊刀", knife_gypsy_jackknife: "折刀", knife_outdoor: "流浪者匕首", knife_stiletto: "短剑", knife_widowmaker: "锯齿爪刀", knife_skeleton: "骷髅匕首", knife_kukri: "廓尔喀刀", c4: "C4", planted_c4: "C4", world: "环境", worldspawn: "环境", trigger_hurt: "环境", molotov: "燃烧瓶", incgrenade: "燃烧弹",
   ak47: "AK-47", m4a1: "M4A4", m4a1_silencer: "M4A1-S", awp: "AWP", deagle: "Desert Eagle",
   glock: "Glock-18", usp_silencer: "USP-S", p250: "P250", fiveseven: "Five-SeveN", tec9: "Tec-9",
   mp9: "MP9", mac10: "MAC-10", ump45: "UMP-45", famas: "FAMAS", galilar: "Galil AR",
@@ -72,4 +75,10 @@ export function formatEconomyLabel(economy: keyof typeof economyLabels): string 
 export function displayWeaponName(value: string): string {
   const normalized = value.trim().toLowerCase().replace(/^(weapon_|item_)/, "").replace(/[\s-]+/g, "_");
   return weaponLabels[normalized] ?? value.trim().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+/** Event labels never fall back to unreviewed exporter identifiers. */
+export function displayRecordWeapon(value: string): string {
+  const normalized = value.trim().toLowerCase().replace(/^(weapon_|item_)/, "");
+  return weaponLabels[normalized] ?? "其他武器";
 }
