@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.21.3]
+
+### Fixed
+
+- 赛事总览、参赛阵容及相关后台统一正式比赛完成场数和总场数，淘汰队伍的历史比赛不再漏算。
+- 队伍近期比赛和数据中心地图/BP筛选目录排除测试赛；清理两场已结束历史测试赛，保留正式比赛、参赛档案及删除审计。
+
+### Changed
+
+- 收拢已审核队伍、参赛人数和近期比赛查询，页面不再自行定义数据库聚合指标，并增加架构及真实数据库回归保护。
+
 ## [2.21.2]
 
 ### Fixed
@@ -3131,6 +3142,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.21.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.2...v2.21.3
 [2.21.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.1...v2.21.2
 [2.21.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.0...v2.21.1
 [2.21.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.20.0...v2.21.0
