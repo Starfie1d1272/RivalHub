@@ -23,10 +23,10 @@ export async function submitSnapshot({ snapshot, sha, ref, eventName, repository
 
   const receipt = await request("POST", `${base}/dependency-graph/snapshots`, snapshot);
   if (!Number.isSafeInteger(receipt.id) || receipt.id <= 0
-    || !["SUCCESS", "ACCEPTED"].includes(receipt.result)) {
-    throw new Error("GitHub did not accept the dependency snapshot");
+    || receipt.result !== "SUCCESS") {
+    throw new Error("GitHub did not confirm the dependency graph update");
   }
-  // Acceptance is not evidence that the graph is indexed; the read-only job verifies it.
+  // ACCEPTED explicitly means no graph update. Even SUCCESS needs a full read-back.
   return { sourceSha: sha, sourceRef: ref, submissionId: receipt.id, result: receipt.result };
 }
 

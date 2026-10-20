@@ -20,7 +20,7 @@ PR CI 的只读 build job 保存 exact SHA/ref snapshot（十四天 artifact）�
 
 `.github/workflows/dependency-graph.yml` 独立维护 main 的远端依赖元数据：锁文件、manifest、构图工具或该 workflow 的 main push，以及 weekly / 手动 main 运行，先以 contents-read 生成 exact SHA/ref snapshot，再由独立 submit job 提交。只有 submit job 声明 contents-write；它仅 checkout 对应 main source、下载本次 run 的 snapshot、执行无第三方依赖的 `scripts/dependencies/submit.mjs`，不安装或运行应用依赖。提交器在 POST 前检查 snapshot 的来源、manifest/detector/correlator 和当前 main SHA；main 已前进则失败，需从最新 main 手动重跑 workflow（rerun 旧 run 不会更新 SHA）。不得挪用 release 凭据或新增长期 token。
 
-提交 receipt 只证明 API 接受。独立 contents-read job 用同一 SHA 的 canonical lockfile 回读 SBOM，逐项检查全部 identities、包间 edges 与 direct roots；允许有限的索引延迟重试，仍不一致则失败。snapshot、submission receipt 和 SBOM/readback 分开保留十四天，summary 记录 source SHA 和锁文件哈希。该 workflow 的启用涉及新增 job 级 contents-write，必须作为独立权限变更审阅；本地验证不代表它已在远端执行成功。
+提交器要求 receipt 为 SUCCESS；ACCEPTED 按 API 定义仅保存 snapshot、没有更新仓库依赖图，必须失败。即使 SUCCESS 也不能代替内容核验：独立 contents-read job 用同一 SHA 的 canonical lockfile 回读 SBOM，逐项检查全部 identities、包间 edges 与 direct roots；允许有限的索引延迟重试，仍不一致则失败。snapshot、submission receipt 和 SBOM/readback 分开保留十四天，summary 记录 source SHA 和锁文件哈希。该 workflow 的启用涉及新增 job 级 contents-write，必须作为独立权限变更审阅；本地验证不代表它已在远端执行成功。
 
 `verify-sbom` 检查每个包、每条 dependency edge，以及 SPDX DESCRIBES 所指 repository root 的 direct edges：直接依赖不得缺根边，传递依赖不得误标 direct。其它 GitHub Actions detector 的根依赖不影响应用判断。SPDX export 未提供 runtime/dev scope label，scope 由 exact snapshot 与锁图遍历/单测核验，不假称可回读 label。核对时使用与已提交 snapshot 一致的 exact lockfile；default-branch SBOM 不能用于宣称 PR head 的不同 directness 已上线。
 

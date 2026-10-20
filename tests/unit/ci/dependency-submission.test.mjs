@@ -57,10 +57,10 @@ describe("main dependency submission boundary", () => {
     }
   });
 
-  it("does not treat a rejected or malformed submission receipt as acceptance", async () => {
-    for (const receipt of [{ id: 42, result: "ERROR" }, { result: "SUCCESS" }]) {
+  it("requires SUCCESS because ACCEPTED does not update the repository graph", async () => {
+    for (const receipt of [{ id: 42, result: "ACCEPTED" }, { id: 42, result: "INVALID" }, { result: "SUCCESS" }]) {
       const request = vi.fn().mockResolvedValueOnce({ object: { sha } }).mockResolvedValueOnce(receipt);
-      await expect(submitSnapshot({ snapshot: snapshot(), sha, ref, eventName, repository, request })).rejects.toThrow(/did not accept/);
+      await expect(submitSnapshot({ snapshot: snapshot(), sha, ref, eventName, repository, request })).rejects.toThrow(/did not confirm/);
     }
   });
 });
