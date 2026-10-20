@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.21.0]
+
+### Added
+
+- 选手公开主页展示有效赛事处罚及到期、撤销历史；公开头像统一显示等比例「已禁赛」斜条，赛事履历提前呈现，荣誉撤销、冠军空缺和公开裁决可追溯。
+- 数据中心 Records 新增 4K、Ace 与单回合道具伤害纪录，支持查看多杀、特殊武器击杀、TK 等事件及比赛来源；优化移动端浏览，筛选与分页可通过链接恢复。
+
+### Changed
+
+- 更新 Next.js、React、表单校验与交互组件等运行时依赖，纳入上游补丁和兼容性修复。
+
+### Fixed
+
+- 修复 OCR 响应读取中断被误报为格式错误的问题，保留网络中断及读取超时的安全排查原因。
+- 修复 Demo 提交、重新核查和身份确认中的错误归因，解析程序异常保留排查原因与原有记录。
+- 修复找回密码请求期间修改邮箱后，成功提示显示错误邮箱的问题。
+- 报名页按当前请求时间判断开放窗口，避免预渲染报错。
+- 补齐预览库社区奖与公开纪律记录的脱敏镜像策略及迁移兼容。
+
 ## [2.20.0]
 
 ### Added
@@ -3094,6 +3113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.21.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.20.0...v2.21.0
 [2.20.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.4...v2.20.0
 [2.19.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.3...v2.19.4
 [2.19.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.2...v2.19.3
