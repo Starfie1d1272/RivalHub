@@ -11,7 +11,7 @@ const sendPasswordResetEmail = observeAction("auth.sendPasswordResetEmail", tele
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [sentEmail, setSentEmail] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -19,19 +19,19 @@ export function ForgotPasswordForm() {
     startTransition(async () => {
       const result = await sendPasswordResetEmail(email);
       if (result.success) {
-        setSent(true);
+        setSentEmail(email);
       } else {
         toast.error(result.error.message);
       }
     });
   };
 
-  if (sent) {
+  if (sentEmail !== null) {
     return (
       <div className="text-center">
         <p className="text-sm text-[var(--color-fg)] mb-2">重置链接已发送</p>
         <p className="text-xs text-[var(--color-fg-mid)]">
-          请查看邮箱 {email}，点击邮件中的链接设置新密码。链接 1 小时内有效。
+          请查看邮箱 {sentEmail}，点击邮件中的链接设置新密码。链接 1 小时内有效。
         </p>
         <p className="mt-2 text-xs text-[var(--color-fg-mid)]">
           如果几分钟内没有收到，请检查垃圾邮件或稍后重新请求。
