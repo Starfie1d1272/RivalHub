@@ -1,17 +1,21 @@
 import "server-only";
 
-import { and, desc, eq, lte, ne, sql, type SQLWrapper } from "drizzle-orm";
+import { and, desc, eq, getTableName, lte, ne, sql } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db, type DB } from "@/db/client";
 import { disciplinaryCases, seasons } from "@/db/schema";
 import { serializeSanctionPublic } from "./service";
 
 /** A boolean projection inside the existing list query; never one request per avatar.
  * Read at request time so expiry/revocation cannot outlive a cached identity. */
-export function hasActivePublicSanction(userId: SQLWrapper) {
+export function hasActivePublicSanction(userId: AnyPgColumn) {
+  // Drizzle removes column qualification in single-table SELECT projections.
+  // Preserve the outer reference inside this correlated subquery explicitly.
+  const subject = sql`${sql.identifier(getTableName(userId.table))}.${sql.identifier(userId.name)}`;
   return sql<boolean>`exists (
     select 1 from public.disciplinary_cases public_sanction
     inner join public.seasons public_sanction_event on public_sanction_event.id = public_sanction.season_id
-    where public_sanction.subject_user_id = ${userId}
+    where public_sanction.subject_user_id = ${subject}
       and public_sanction_event.status <> 'draft'
       and public_sanction.status = 'active'
       and public_sanction.effective_from <= now()
