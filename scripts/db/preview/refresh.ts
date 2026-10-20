@@ -201,6 +201,15 @@ export async function refreshMirror(path: string): Promise<void> {
     await runPreviewRefreshPhase("db migrate", () => migrateToSource(connected, snapshot));
     await runPreviewRefreshPhase("db import", () => importAndMigrateSnapshot(connected, snapshot, target.applyCurrentMigrations));
     await runPreviewRefreshPhase("db state setup", () => ensureMirrorState(connected));
+    // Current domain code requires the current schema; older source-only mirrors stay readable.
+    if (target.applyCurrentMigrations || snapshot.migrations.length === readExpectedMigrations().length) {
+      await runPreviewRefreshPhase("pickem windows", async () => {
+        const [{ initializePreviewPickEm }, schema] = await Promise.all([
+          import("./predictions"), import("../../../src/db/schema"),
+        ]);
+        await initializePreviewPickEm(drizzle(connected, { schema }));
+      });
+    }
 
     const bindings = await runPreviewRefreshPhase("persona auth", () => provisionPersonas(snapshot, target));
     await runPreviewRefreshPhase("persona db binding", async () => {

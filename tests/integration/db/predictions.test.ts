@@ -1,3 +1,4 @@
+import { initializePreviewPickEm } from "../../../scripts/db/preview/predictions";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -41,7 +42,7 @@ type Fixture = {
   runId: string;
   matchIds: string[];
 };
-async function fixture(work: (f: Fixture) => Promise<void>, capacity: 24 | 32 = 32) {
+async function fixture(work: (f: Fixture) => Promise<void>, capacity: 24 | 32 = 32, initializePredictions = true) {
   await withScratchDatabase("prediction_test", async (client) => {
     for (const file of migrationFiles((name) => /^\d{4}_.*\.sql$/.test(name)))
       await replayMigration(client, file);
@@ -173,6 +174,7 @@ async function fixture(work: (f: Fixture) => Promise<void>, capacity: 24 | 32 = 
           })),
         )
         .returning({ id: schema.matches.id });
+      if (initializePredictions) {
       await db.transaction((tx) =>
         syncAutomaticPickEmInTx(tx, seasonId),
       );
@@ -183,6 +185,7 @@ async function fixture(work: (f: Fixture) => Promise<void>, capacity: 24 | 32 = 
           ),
         ),
       );
+      }
       await work({
         db,
         pool,
@@ -355,6 +358,20 @@ describe("spectator prediction PostgreSQL contracts", () => {
       await db.update(schema.matches).set({ status: "in_progress" }).where(eq(schema.matches.id, f.matchIds[0]!));
       expect(await due()).toBe(true);
     }));
+
+  it("rebuilds idempotent Preview stage windows from official entrants without viewer accounts or picks", async () =>
+    fixture(async ({ db, seasonId }) => {
+      await initializePreviewPickEm(db);
+      await initializePreviewPickEm(db);
+      expect(await db.select().from(schema.predictionPrograms).where(eq(schema.predictionPrograms.seasonId, seasonId))).toHaveLength(1);
+      const windows = await db.select().from(schema.predictionContests).where(eq(schema.predictionContests.seasonId, seasonId));
+      expect(windows).toHaveLength(1);
+      expect(windows[0]!.stageKey).toBe("stage1");
+      expect(windows[0]!.entrants).toHaveLength(16);
+      expect(await db.select().from(schema.predictionAccounts)).toHaveLength(0);
+      expect(await db.select().from(schema.predictionPicks)).toHaveLength(0);
+      expect(await db.select().from(schema.predictionLedger)).toHaveLength(0);
+    }, 32, false));
 
   it("joins atomically on first pick save, credits once across concurrent retries and rolls back rejected first saves", async () =>
     fixture(async ({ db, seasonId }) => {

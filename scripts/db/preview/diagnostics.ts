@@ -19,6 +19,7 @@ export type PreviewRefreshPhase =
   | "db migrate"
   | "db import"
   | "db state setup"
+  | "pickem windows"
   | "persona auth"
   | "persona db binding"
   | "public asset upload"

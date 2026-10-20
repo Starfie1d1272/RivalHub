@@ -12,6 +12,7 @@ RivalHub 的所有 Vercel Preview 固定连接 `rivalhub-dev`，不连接 produc
 - 独立比赛从 `0077_match_execution_context` 起镜像执行快照与结果结论。快照只投影固定 version、图池与脱敏双方（Preview A/B、空标志 URL），不复制任意 JSON 键；赛事比赛继续保留空快照。`result_disposition` 与总比分保持原值，保证导入后仍满足比赛变体和终局约束。旧 source migration prefix 不查询这两个新列。
 - 社区奖只镜像公开状态的奖项；从 `0090_yellow_blink` 起保留人数/结奖政策、结果版本，以及已授奖奖项的完整获奖者关系。获奖者导出与同一快照中的 `awarded` 奖项关联，导入前再次校验该边界；尚未应用该 migration 的 source 不查询新表或新列。证据、核验记录、审核说明仍不导出。
 - 个人纪律只镜像已生效、非草稿赛事中的公开记录（active / expired / revoked），保留公开说明、能力与生效窗口；`internal_evidence`、撤销内部理由与真实 actor 不导出，必填 `issued_by` 固定为 `preview:redacted`。导入前再次拒绝草稿、未来生效、草稿赛事、内部字段和未脱敏 actor。队伍裁决仍是独立事实，不转成成员处罚。
+- 镜像不复制 Pick’Em 用户参与、预测单或积分。导入后的 schema 与当前代码一致（或显式应用当前 migrations）时，刷新流程通过 canonical `syncAutomaticPickEmInTx` 从开放赛事的官方名单幂等重建阶段窗口；截止与锁定仍按官方赛况判定。旧 source-only schema 跳过这一步，避免当前业务代码读取未来列。
 - `preview_mirror_state` 只记录 source tag/commit、refresh 时间和计数，供 Preview banner 诊断；它不是 availability 状态机。
 - refresh 先完成 dev Storage preflight，再 reset 并应用 snapshot source migrations。reset 同时移除本应用在 `realtime.messages` 上的 `rivalhub_match_live_receive` policy，由 active migration chain 重建，保留 provider 管理的表和其它 policies；随后，导入脱敏 production snapshot 和验证外键；manual dispatch 可通过 `apply_current_migrations` 选择是否把 `migration_ref` 的当前 migration 应用到这份 production-derived 数据并再次验证，最后才 provision persona、公共 assets 与 mirror state。命令只输出固定的 phase 名称和完成/失败状态，不输出 row value、asset path、credential 或 provider 原始错误。旧 Preview 因共享 schema/data 失效是可接受的 trade-off；daily/post-release refresh 始终用 `main`。
 
