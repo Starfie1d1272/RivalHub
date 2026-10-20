@@ -124,6 +124,10 @@ export async function reconcileBetInTx(tx: TxDb,seasonId: string) {
   const now=new Date();
   const all=await tx.select().from(markets).where(eq(markets.seasonId,seasonId));
   for(const market of all) {
+    // A pre-seeding admin rollback temporarily removes the frozen player set.
+    // Do not terminally void an otherwise valid no-stake Top Fragger market
+    // until a new frozen roster can be compared against its immutable terms.
+    if (market.type === "top_fragger" && !f.eventPublication.rostersReady && !f.event.started) continue;
     const input=betFactInput(market,f);
     const fact=resolveBetFact(input);
     if (!market.lockedAt && (marketIsLocked(input) || fact.state!=="pending")) await tx.update(markets).set({lockedAt:now}).where(eq(markets.id,market.id));
