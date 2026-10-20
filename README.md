@@ -99,7 +99,7 @@ RivalHub 2.x 先把官方实例和真实赛事运营做好。代码以 AGPL-3.0 
 ### 快速开始
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm db:local:bootstrap
 pnpm dev:local
 ```
