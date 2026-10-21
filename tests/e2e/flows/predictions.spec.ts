@@ -45,7 +45,16 @@ test("观众完成选队提交、草稿隔离、图片导出", async ({
     const matchLink = identityCard.getByRole("link", { name: /查看 .* 比赛/ });
     await expect(identityCard.getByRole("link")).toHaveCount(1);
     await expect(matchLink).toHaveAttribute("href", new RegExp(`^/${fixture.slug}/matches/`));
-    await matchLink.focus(); await matchLink.press("Enter");
+    // This suite runs against next dev. Compile the destination document before
+    // timing keyboard navigation: the cold match route races the parallel BET
+    // compilation on CI, while the same route passes immediately on retry.
+    const matchHref = await matchLink.getAttribute("href");
+    const destination = await page.request.get(matchHref!);
+    expect(destination.status()).toBe(200);
+    await expect(medal).toBeHidden();
+    await matchLink.focus();
+    await expect(matchLink).toBeFocused();
+    await matchLink.press("Enter");
     await expect(page).toHaveURL(new RegExp(`/${fixture.slug}/matches/`));
     await page.goBack();
     await expect(identityCard).toHaveAttribute("data-source", "preview");
