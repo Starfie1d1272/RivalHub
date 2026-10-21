@@ -1,0 +1,68 @@
+name: Standby Preview package
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/standby-package.yml'
+      - 'scripts/standby/**'
+      - 'next.config.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: standby-preview-package-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview-credential:
+    if: vars.RIVALHUB_STANDBY_OPERATOR_PUBLIC_KEY != '' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    environment: staging
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          cache: true
+          require-lockfile: true
+      - name: Seal Preview connection credential for the operator
+        env:
+          RIVALHUB_STAGING_DB_PASSWORD: ${{ secrets.RIVALHUB_STAGING_DB_PASSWORD }}
+          RIVALHUB_STANDBY_OPERATOR_PUBLIC_KEY: ${{ vars.RIVALHUB_STANDBY_OPERATOR_PUBLIC_KEY }}
+        run: pnpm exec node scripts/standby/seal-preview-credential.mjs
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        with:
+          name: standby-preview-sealed-credential
+          path: .agent-tmp/standby-credential/*
+          retention-days: 1
+          if-no-files-found: error
+  package:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    env:
+      CI: true
+      NEXT_TELEMETRY_DISABLED: 1
+      NEXT_PUBLIC_APP_URL: https://preview-standby.starfie1d.top
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.RIVALHUB_PREVIEW_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          cache: true
+          require-lockfile: true
+      - name: Verify Preview isolation
+        run: pnpm exec node --test scripts/standby/start.test.mjs
+      - name: Build Linux runtime package
+        run: pnpm exec node scripts/standby/build.mjs
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        with:
+          name: standby-preview-linux-x64
+          path: .agent-tmp/standby-package/*
+          retention-days: 7
+          if-no-files-found: error
