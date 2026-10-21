@@ -144,7 +144,7 @@ export function judgePick(
   throw new Error("Pick kind mismatch");
 }
 export function coinLevel(
-  locked: number,
+  submissionsCompleted: number,
   challenges: number,
   r: PredictionRules,
 ): string {
@@ -154,7 +154,7 @@ export function coinLevel(
       ? "黄金"
       : challenges >= r.silver
         ? "白银"
-        : locked > 0
+        : submissionsCompleted > 0
           ? "青铜"
           : "未获得";
 }

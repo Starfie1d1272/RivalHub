@@ -125,7 +125,7 @@ export function PickEditor({
           {dirty && " · 有未提交修改"}
         </p>
         <p className="text-xs text-[var(--color-fg-mid)]">
-          截止：{contest.deadline ? new Date(contest.deadline).toLocaleString("zh-CN") : "时间待公布"}
+          截止：{contest.deadline ? new Date(contest.deadline).toLocaleString("zh-CN") : "时间待公布"}{contest.deadlineTentative && "（暂定）"}
         </p>
         {simulationStatus && <p role="status" className="text-xs text-[var(--color-accent)]">{simulationStatus}</p>}
         {"perfect" in pick ? (

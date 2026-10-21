@@ -436,6 +436,15 @@ describe("spectator prediction PostgreSQL contracts", () => {
       );
       expect(board.contests[0]!.submitted?.version).toBe(saved.version);
       expect(board.contests[0]!.draft).not.toEqual(pick);
+      expect(board.contests[0]!.locked).toBe(false);
+      expect(board.contests[0]!.deadlineTentative).toBe(false);
+      await db.update(schema.matches).set({ scheduledAt: null }).where(eq(schema.matches.id, f.matchIds[1]!));
+      const tentative = await db.transaction((tx) => predictionBoard(tx, seasonId, userId));
+      expect(tentative.contests[0]!.deadlineTentative).toBe(true);
+      expect(tentative.contests[0]!.deadline).toBe(board.contests[0]!.deadline);
+      expect(board.achievement?.challenges).toBe(1);
+      expect(board.achievement?.coin).toBe("青铜");
+      expect(board.achievement?.progress[0]?.tasks[0]?.state).toBe("complete");
       expect(
         (await loadBaseline(db, seasonId)).matches.every((m) => !m.winner),
       ).toBe(true);

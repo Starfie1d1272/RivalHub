@@ -128,8 +128,8 @@ export async function predictionBoard(
         tasks,
       };
     });
-    const locked = progress.filter((p) => p.locked).length;
-    const challenges = locked + progress.reduce((n, p) => n + p.challenges, 0);
+    const submissionsCompleted = progress.filter((p) => p.tasks[0]?.state === "complete").length;
+    const challenges = submissionsCompleted + progress.reduce((n, p) => n + p.challenges, 0);
     const maximum =
       challenges +
       progress.reduce((n, p) => n + (p.judged ? 0 : p.possible), 0);
@@ -137,8 +137,8 @@ export async function predictionBoard(
       accountId: account.id,
       name: account.name ?? "观众",
       challenges,
-      coin: coinLevel(locked, challenges, rules),
-      maximumCoin: coinLevel(locked, maximum, rules),
+      coin: coinLevel(submissionsCompleted, challenges, rules),
+      maximumCoin: coinLevel(submissionsCompleted, maximum, rules),
       hits: progress.reduce((n, p) => n + (p.hits ?? 0), 0),
       progress,
     };
@@ -234,6 +234,7 @@ export async function predictionBoard(
               ).map((p) => [p.higherSeedTeamId, p.lowerSeedTeamId])
             : [],
         deadline: state.deadline?.toISOString() ?? null,
+        deadlineTentative: state.deadlineTentative,
         locked: state.locked,
         deadlineReached: !!state.deadline && state.deadline.getTime() <= now,
         voidReason: c.voidReason ?? (mismatch ? "官方阶段名单更正，原预测单作废" : null),

@@ -53,7 +53,7 @@ export function PickEmAchievement({ data, signedIn }: { data: PickEmBoardData; s
         <span className={styles.taskState}>{task.progress !== null && task.target > 1 ? `${task.progress}/${task.target} · ` : ""}{taskLabels[task.state]}</span>
       </li>)}</ul>
     </section>)}
-    <p className={styles.rule}>铜币：首次有效提交锁定 · 银 {data.rules.silver} / 金 {data.rules.gold} / 钻 {data.rules.diamond}</p>
+    <p className={styles.rule}>铜币：首次完整提交 · 银 {data.rules.silver} / 金 {data.rules.gold} / 钻 {data.rules.diamond}</p>
     {!signedIn && <p className={styles.rule}>登录后记录你的挑战进度</p>}
   </div>;
   const ranking = <div className={styles.ranking}>
