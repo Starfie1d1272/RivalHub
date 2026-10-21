@@ -5,6 +5,7 @@ import { PageLayout } from "@/components/rivalhub";
 import { db } from "@/db/client";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { getUserSession } from "@/lib/auth/session";
+import { getBetPublicStats } from "@/lib/bet/public-stats-cache";
 import { readUnifiedBetBoard } from "@/lib/bet/board-read";
 import { z } from "zod";
 import { UnifiedBetBoard } from "@/components/bet/UnifiedBetBoard";
@@ -23,8 +24,10 @@ async function BetContent({params,searchParams}:{params:Promise<{seasonSlug:stri
   const matchId=query.match ? z.guid().safeParse(query.match) : null;
   if(matchId && !matchId.success)notFound();
   const recordsPage=/^\d{1,6}$/.test(query.page??"")?Number(query.page):0;
+  const scope={view,matchId:matchId?.data,recordsPage};
+  const publicStats=await getBetPublicStats(season,scope);
   const data=await db.transaction(async tx=>{
-    const {bet,free}=await readUnifiedBetBoard(tx,season.id,user?.userId??null,{view,matchId:matchId?.data,recordsPage});
+    const {bet,free}=await readUnifiedBetBoard(tx,season.id,user?.userId??null,scope,publicStats);
     const rankings=query.view==="leaderboard"?{
       profit:freeRankingModel(await readFreePredictionRanking(tx,season.id,"profit")),
       hits:freeRankingModel(await readFreePredictionRanking(tx,season.id,"hits")),

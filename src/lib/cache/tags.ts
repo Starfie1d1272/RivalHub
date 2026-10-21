@@ -33,3 +33,7 @@ export function seasonStandingsTag(seasonId: string): string {
 export function publicPlayerTag(userId: string): string {
   return `public-player:${userId}`;
 }
+
+export function publicBetTag(seasonId: string): string {
+  return `public-bet:${seasonId}`;
+}
