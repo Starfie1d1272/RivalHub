@@ -10,7 +10,11 @@
 
 赛果消费既有 `resolveBetFact` 正式赛果投影，取消/弃权/更换对阵或缺失比赛不记有效次数。BP 消费完整合法 BP 集合，不依赖实际已打地图数量；待申诉或尚未完成时 pending，无效结果 void。成绩从当前 canonical facts 读取时计算，更正自动改变成绩，不持久化另一份官方答案。
 
-`getFreePredictionBoard({seasonId})` 安全地返回 canonical 比赛 status/isForfeit、各类 restriction(code/message)、当前会话本人的选择和成绩、双方匿名赛果人数/比例以及 BP 地图计数。访客 mine/grade 为 null；零人数的比例为 null。`getFreePredictionRanking({seasonId,sort,userIds?})` 的 sort 为 profit/hits/accuracy，同表保留三列；没有已判定赛果时 hits/judged/accuracy 为 null。只计算赛果，BP 永不入榜。命中次数榜至少一场有效已判定赛果即可参与正式排名，包括零命中者；命中率榜才以完整赛事总体经 `partitionRankingPopulation` 计算 P75 × 25% 动态资格线。两榜均先确定资格与排名，再筛选用户；净收益沿用 BET 的资格、并列排名与有效净收益投影。
+`readFreePredictionBoard` 安全地返回 canonical 比赛 status/isForfeit、各类 restriction(code/message)、当前会话本人的选择和成绩、双方匿名赛果人数/比例以及 BP 地图计数。访客 mine/grade 为 null；零人数的比例为 null。`getFreePredictionRanking({seasonId,sort,userIds?})` 的 sort 为 profit/hits/accuracy，同表保留三列；没有已判定赛果时 hits/judged/accuracy 为 null。只计算赛果，BP 永不入榜。命中次数榜至少一场有效已判定赛果即可参与正式排名，包括零命中者；命中率榜才以完整赛事总体经 `partitionRankingPopulation` 计算 P75 × 25% 动态资格线。两榜均先确定资格与排名，再筛选用户；净收益沿用 BET 的资格、并列排名与有效净收益投影。
+
+竞猜页由 `readUnifiedBetBoard` 在一次只读 repeatable-read transaction 内共享比赛事实，积分竞猜与免费预测使用同一份输入。单场支持率按赛事和比赛限定比赛、地图、BP、选择及截止事实，仍复用 canonical alias、subject validity 与成绩规则。免费预测读取不加载赛事级冠军/击杀王事实；普通比赛看板只读取当前用户的名单准入信息，赛事级视图才读取完整赛事事实。
+
+客户端由 `UnifiedBetBoard` 统一保持 15 秒可见页轮询，隐藏时暂停、返回时立即刷新，同一时间最多一个看板请求。操作后回读先废弃并等待旧请求，再读取最新事务快照；个人状态始终来自服务端会话。轮询只返回个人钱包摘要及所需盘口/预测，完整排行按打开或切换排序读取，个人账单仅在记录页以每页 50 条读取。基础显示字段仍随轻量事实查询回读，以反映队名和赛务更正；不新增跨用户缓存。提交与结算继续消费现有事务内的权威事实和截止校验。
 
 三表为 server-only，启用 RLS 且拒绝 anon/authenticated Data API。公开服务只输出本人选择与匿名统计，排行允许公开成绩及既有公开身份，不输出参与者逐场选择。
 

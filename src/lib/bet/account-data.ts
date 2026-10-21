@@ -8,7 +8,11 @@ import { marketPresentation } from "./presentation";
 import { betLedgerLabel } from "./ledger-presentation";
 import type { BetFacts } from "./facts";
 import type { BetBoardDTO } from "./types";
-export async function readBetAccounts(tx: TxDb, seasonId: string, accountId: string | undefined, facts: BetFacts) {
+export interface BetAccountReadOptions {
+  leaderboard?: boolean;
+  records?: false | {page:number;size:number};
+}
+export async function readBetAccounts(tx: TxDb, seasonId: string, accountId: string | undefined, facts: BetFacts, options: BetAccountReadOptions = {}) {
   const latest = tx.selectDistinctOn([betSettlements.marketId], { id: betSettlements.id, marketId: betSettlements.marketId, state: betSettlements.state })
     .from(betSettlements).innerJoin(betMarkets, eq(betMarkets.id, betSettlements.marketId))
     .where(eq(betMarkets.seasonId, seasonId)).orderBy(asc(betSettlements.marketId), desc(betSettlements.revision)).as("latest_bet_results");
@@ -18,7 +22,16 @@ export async function readBetAccounts(tx: TxDb, seasonId: string, accountId: str
     .where(and(eq(betLedger.seasonId, seasonId), eq(betLedger.kind, "settlement"))).groupBy(betLedger.accountId).as("bet_participation");
   const totals = tx.select({ accountId: betLedger.accountId, balance: sql<string>`sum(${betLedger.amount})::text`.as("balance"), profit: sql<string>`sum(${betLedger.profit})::text`.as("profit") })
     .from(betLedger).where(eq(betLedger.seasonId, seasonId)).groupBy(betLedger.accountId).as("bet_totals");
-  const rows = await tx.select({ accountId: betAccounts.id, userId: users.id, displayName: users.displayName, personaName: steamProfiles.personaName, perfectName: users.perfectName,
+  const ranked = tx.select({accountId:betAccounts.id,balance:totals.balance,profit:totals.profit,
+    rank:sql<number | null>`case when ${participation.count} > 0 then rank() over (
+      order by case when ${participation.count} > 0 then ${totals.profit}::numeric end desc nulls last
+    )::int else null end`.as("account_rank")})
+    .from(betAccounts).innerJoin(totals,eq(totals.accountId,betAccounts.id))
+    .leftJoin(participation,eq(participation.accountId,betAccounts.id))
+    .where(eq(betAccounts.seasonId,seasonId)).as("ranked_accounts");
+  const summary = options.leaderboard === false && accountId
+    ? (await tx.select().from(ranked).where(eq(ranked.accountId,accountId)))[0] : undefined;
+  const rows = options.leaderboard === false ? [] : await tx.select({ accountId: betAccounts.id, userId: users.id, displayName: users.displayName, personaName: steamProfiles.personaName, perfectName: users.perfectName,
     joinedAt: betAccounts.joinedAt, balance: totals.balance, profit: totals.profit, settledCount: participation.count })
     .from(betAccounts).innerJoin(users, eq(users.id, betAccounts.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .innerJoin(totals, eq(totals.accountId, betAccounts.id)).leftJoin(participation, eq(participation.accountId, betAccounts.id))
@@ -33,15 +46,18 @@ export async function readBetAccounts(tx: TxDb, seasonId: string, accountId: str
     return { userId: row.userId, playerUserId: playerIds.has(row.userId) ? row.userId : null, name: getPublicDisplayName(row), profit: row.profit, settledCount: row.settledCount!, rank };
   });
   // Only the authenticated viewer's account is read; raw source keys never leave this owner.
-  const ledgerRows = accountId ? await tx.select({ createdAt: betLedger.createdAt, amount: betLedger.amount, kind: betLedger.kind, source: betLedger.source,
+  const ledgerRows = accountId && options.records !== false ? await tx.select({ createdAt: betLedger.createdAt, amount: betLedger.amount, kind: betLedger.kind, source: betLedger.source,
     state: betSettlements.state, market: betMarkets })
     .from(betLedger)
     .leftJoin(betStakes, and(eq(betLedger.kind, "stake"), eq(betStakes.accountId, betLedger.accountId), eq(betLedger.source, sql`'stake/' || ${betStakes.id}::text`)))
     .leftJoin(betSettlements, and(sql`${betLedger.kind} in ('settlement', 'reversal')`, eq(sql`split_part(${betLedger.source}, '/', 2)`, sql`${betSettlements.id}::text`)))
     .leftJoin(betMarkets, and(eq(betMarkets.seasonId, seasonId), eq(betMarkets.id, sql`coalesce(${betStakes.marketId}, ${betSettlements.marketId})`)))
     .where(and(eq(betLedger.accountId, accountId), eq(betLedger.seasonId, seasonId)))
-    .orderBy(desc(betLedger.createdAt), desc(betLedger.id)) : [];
-  const records: BetBoardDTO["records"] = ledgerRows.map(row => {
+    .orderBy(desc(betLedger.createdAt), desc(betLedger.id))
+    .limit(options.records ? options.records.size + 1 : 2147483647)
+    .offset(options.records ? options.records.page * options.records.size : 0) : [];
+  const recordsHasMore = !!options.records && ledgerRows.length > options.records.size;
+  const records: BetBoardDTO["records"] = (options.records ? ledgerRows.slice(0,options.records.size) : ledgerRows).map(row => {
     const stage = row.kind === "stage" ? facts.season.stagePlan.find(stage => row.source === `stage/${stage.key}`)?.name ?? "正赛阶段" : null;
     const label = betLedgerLabel(row.kind, stage, row.state);
     const market = row.market;
@@ -49,5 +65,5 @@ export async function readBetAccounts(tx: TxDb, seasonId: string, accountId: str
       marketPresentation(market.type, market.line).title, market.subject.kind === "map" || market.subject.kind === "map_slot" ? `第${market.subject.mapOrder}图` : null].filter(Boolean).join(" · ") : null;
     return { createdAt: row.createdAt.toISOString(), amount: row.amount.toString(), label, context };
   });
-  return { balance: BigInt(mine?.balance ?? "0"), profit: mine?.profit ?? "0", rank: leaderboard.find(row => row.userId === mine?.userId)?.rank ?? null, leaderboard, records };
+  return { balance: BigInt(summary?.balance ?? mine?.balance ?? "0"), profit: summary?.profit ?? mine?.profit ?? "0", rank: summary?.rank ?? leaderboard.find(row => row.userId === mine?.userId)?.rank ?? null, leaderboard, records, recordsHasMore };
 }

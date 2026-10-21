@@ -1,5 +1,5 @@
 import "server-only";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { freePredictionChoices as choices, freePredictionLocks as locks, users, competitionQualificationRuns } from "@/db/schema";
 import { resolveCanonicalUserId } from "@/lib/identity/canonical";
@@ -8,9 +8,10 @@ import { marketIsLocked, subjectMatches } from "@/lib/bet/domain";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { predictionInput, gradePrediction, freePredictionRestriction, freePredictionCompetitionIsOpen } from "./domain";
 import type { FreePredictionMatchDTO, FreePredictionSubject } from "./types";
-export async function loadFreePredictionPopulation(tx: TxDb, seasonId: string) {
-  const facts = await loadBetFacts(tx,seasonId);
-  const rows = await tx.select().from(choices).where(eq(choices.seasonId,seasonId));
+export interface FreePredictionReadScope { matchId?: string; facts?: BetFacts }
+export async function loadFreePredictionPopulation(tx: TxDb, seasonId: string, scope: FreePredictionReadScope = {}) {
+  const facts = scope.facts ?? await loadBetFacts(tx,seasonId,{matchId:scope.matchId,event:false,rosterUserId:null});
+  const rows = await tx.select().from(choices).where(and(eq(choices.seasonId,seasonId),scope.matchId ? eq(choices.matchId,scope.matchId) : undefined));
   // Original attribution/revisions stay immutable across identity merge. Project one
   // current vote per canonical person, retaining the selected account's choice.
   const identities = rows.length ? await tx.select({id:users.id,status:users.status}).from(users).where(inArray(users.id,[...new Set(rows.map(r=>r.userId))])) : [];
@@ -32,9 +33,9 @@ export function choiceFact(row: typeof choices.$inferSelect, f: BetFacts) {
   return predictionInput(row.subject,{match:f.official.find(m=>m.id===row.matchId),maps:f.maps.filter(m=>m.matchId===row.matchId),veto:f.vetoByMatch.get(row.matchId),event:f.event});
 }
 /** Only mine contains selections; anonymous payload contains no voter identity. */
-export async function readFreePredictionBoard(tx: TxDb, seasonId: string, userId: string | null): Promise<{seasonId:string;matches:FreePredictionMatchDTO[]}> {
-  const {facts:f,rows} = await loadFreePredictionPopulation(tx,seasonId);
-  const fences = await tx.select().from(locks).where(eq(locks.seasonId,seasonId));
+export async function readFreePredictionBoard(tx: TxDb, seasonId: string, userId: string | null, scope: FreePredictionReadScope = {}): Promise<{seasonId:string;matches:FreePredictionMatchDTO[]}> {
+  const {facts:f,rows} = await loadFreePredictionPopulation(tx,seasonId,scope);
+  const fences = await tx.select().from(locks).where(and(eq(locks.seasonId,seasonId),scope.matchId ? eq(locks.matchId,scope.matchId) : undefined));
   const qualificationRuns = await tx.select().from(competitionQualificationRuns).where(eq(competitionQualificationRuns.seasonId, seasonId));
   const user = userId ? await tx.query.users.findFirst({where:(u,{eq})=>eq(u.id,userId),columns:{status:true,emailVerifiedAt:true}}) : undefined;
   const result: FreePredictionMatchDTO[] = [];
@@ -66,5 +67,5 @@ export async function readFreePredictionBoard(tx: TxDb, seasonId: string, userId
   return {seasonId,matches:result};
 }
 export async function readFreeMatchSupport(tx: TxDb, seasonId: string, matchId: string) {
-  return (await readFreePredictionBoard(tx,seasonId,null)).matches.find(m=>m.matchId===matchId)?.result.support ?? null;
+  return (await readFreePredictionBoard(tx,seasonId,null,{matchId})).matches.find(m=>m.matchId===matchId)?.result.support ?? null;
 }
