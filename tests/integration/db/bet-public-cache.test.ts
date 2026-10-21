@@ -23,7 +23,7 @@ it("shares only aggregates while viewer money, choices and admission remain fres
     await f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId,marketId:market.id,optionId:market.options[option]!.id,amount,requestId:randomUUID()}));
     await f.db.transaction(tx=>submitFreePredictionInTx(tx,{seasonId:f.seasonId,matchId:f.matchId,userId,kind:"result",selection:[f.entryIds[option]!],requestId:randomUUID()}));
   }
-  const snapshot=await f.db.transaction(tx=>readBetPublicStats(tx,f.seasonId,{includeEvent:false,includeFree:true}),{accessMode:"read only",isolationLevel:"repeatable read"});
+  let snapshot=await f.db.transaction(tx=>readBetPublicStats(tx,f.seasonId,{includeEvent:false,includeFree:true}),{accessMode:"read only",isolationLevel:"repeatable read"});
   const serialized=JSON.stringify(snapshot);
   for (const id of [f.userId,f.otherId,...spectators]) expect(serialized).not.toContain(id);
   for (const key of ["userId","accountId","selection","balance","records","mine"]) expect(serialized).not.toContain(`"${key}"`);
@@ -71,6 +71,17 @@ it("shares only aggregates while viewer money, choices and admission remain fres
     }
     console.info("BET_PUBLIC_STATS_REUSE",JSON.stringify(report));
     const reusedRead=()=>f.db.transaction(tx=>readUnifiedBetBoard(tx,f.seasonId,f.userId,{},snapshot),{accessMode:"read only",isolationLevel:"repeatable read"});
+    await f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId:f.userId,marketId:market.id,optionId:market.options[0]!.id,amount:"50",requestId:randomUUID()}));
+    const freshMoney=await read(f.userId),reusedMoney=await reusedRead();
+    expect(reusedMoney.bet).toMatchObject({balance:freshMoney.bet.balance,debt:freshMoney.bet.debt,profit:freshMoney.bet.profit,rank:freshMoney.bet.rank});
+    expect(reusedMoney.bet.markets.find(m=>m.id===market.id)!.mine).toEqual(freshMoney.bet.markets.find(m=>m.id===market.id)!.mine);
+    expect(reusedMoney.bet.markets.find(m=>m.id===market.id)!.mine!.amount).toBe("150");
+    const recordScope={view:"records",recordsPage:0};
+    const freshRecords=await f.db.transaction(tx=>readUnifiedBetBoard(tx,f.seasonId,f.userId,recordScope));
+    const reusedRecords=await f.db.transaction(tx=>readUnifiedBetBoard(tx,f.seasonId,f.userId,recordScope,snapshot));
+    expect(reusedRecords.bet.records).toEqual(freshRecords.bet.records);
+    expect(reusedRecords.bet.records.some(row=>row.amount==="-50")).toBe(true);
+    snapshot=await f.db.transaction(tx=>readBetPublicStats(tx,f.seasonId,{includeEvent:false,includeFree:true}));
     await f.db.transaction(tx=>operateBetInTx(tx,{seasonId:f.seasonId,actorId:f.userId,operation:"pause"}));
     expect(await reusedRead()).toEqual(await read(f.userId));
     expect((await reusedRead()).bet.markets.every(m=>!m.canStake)).toBe(true);
@@ -95,7 +106,7 @@ it("shares only aggregates while viewer money, choices and admission remain fres
 it("keeps multilevel alias choices, canonical preference and latest alias selection in private reads",async()=>fixture(async f=>{
   const original=(await f.db.query.matches.findFirst({where:eq(schema.matches.id,f.matchId)}))!;
   const aliasA=randomUUID(),aliasB=randomUUID(),aliasC=randomUUID();
-  await f.db.insert(schema.users).values([aliasA,aliasB,aliasC].map(id=>({id,email:`${id}@example.test`}))) ;
+  await f.db.insert(schema.users).values([aliasA,aliasB,aliasC].map(id=>({id,email:`${id}@example.test`})));
   await f.db.update(schema.users).set({status:"merged",mergedIntoUserId:f.userId,mergedAt:new Date()}).where(eq(schema.users.id,aliasB));
   await f.db.update(schema.users).set({status:"merged",mergedIntoUserId:aliasB,mergedAt:new Date()}).where(eq(schema.users.id,aliasA));
   await f.db.update(schema.users).set({status:"merged",mergedIntoUserId:f.otherId,mergedAt:new Date()}).where(eq(schema.users.id,aliasC));
