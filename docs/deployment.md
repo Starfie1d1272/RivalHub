@@ -86,6 +86,7 @@ Release workflow 在 deployment smoke 成功后，使用受保护 production env
 - migration：[`operations/database-migrations.md`](./operations/database-migrations.md)
 - staging：[`operations/staging.md`](./operations/staging.md)
 - release：[`operations/release.md`](./operations/release.md)
+- Supabase 新组织迁库：[`operations/supabase-relocation.md`](./operations/supabase-relocation.md)
 - 应用备用机与 Vercel 故障切换：[`operations/standby.md`](./operations/standby.md)
 - 测试证据：[`testing.md`](./testing.md)
 

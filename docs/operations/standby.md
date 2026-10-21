@@ -6,7 +6,7 @@
 
 `Standby Preview package` workflow 在 Linux x64 打包 Next.js standalone、静态资源和锁定的 Node runtime。`standby.json` 记录精确 commit、公开环境配置和 runtime 版本；启动时复用 canonical Preview guard，拒绝 production DB/Auth URL、环境标志或构建后更改公开配置。
 
-**Preview 包不能直接改环境变量接入生产。** 公共 Supabase key 和应用 URL 已内联到浏览器资源。正式切换前必须通过 [release authority](./release.md) 建立并验收受保护的 production standalone 构建、凭据交付与部署路径，以当前 immutable release tag 为输入，构建 production public configuration，并回读同一 tag/commit。本 PR 只交付 Preview 打包和安装路径；上述 production 发布路径尚未实现、尚未演练，因此当前状态不属于“一条命令即可接管生产”。
+**Preview 包不能直接改环境变量接入生产。** 公共 Supabase key 和应用 URL 已内联到浏览器资源。正式切换前必须通过 [release authority](./release.md) 建立并验收受保护的 production standalone 构建、凭据交付与部署路径，以当前 immutable release tag 为输入，构建 production public configuration，并回读同一 tag/commit。当前实现只提供 Preview 打包和安装；production standalone 发布路径尚未实现和演练。
 
 生产路径准备完成后，在故障前保留以下材料：当前正式 tag/commit、对应 Linux production 包及校验和、完整生产 runtime 配置、原 DNS 记录与 TTL、Caddy 配置备份、候选实例的验收记录。凭据存入服务器 root-only 文件或既有受保护 secret store；记录里仅保留变量名和来源。
 
@@ -46,7 +46,7 @@ curl --fail http://127.0.0.1:3031/api/system/release
 此流程在 production standalone 前置条件完成后执行；故障发生时若只有 Preview 包，先恢复 Vercel 服务，并完成 production 发布路径，不能用 dev 数据对外替代生产。
 
 1. **判定故障范围。** 从两个网络检查 `https://match.starfie1d.top/api/system/release`、主要页面、Vercel 状态及 Supabase 可用性。应用备用机能替代 Vercel 计算和静态资源；Supabase 配额/停服仍会影响两端。
-2. **冻结版本与源数据。** 使用最近一次成功的 canonical production read-back 和 immutable tag 校验 commit。确认候选包与现有 schema 兼容。切换本身不运行 migration、不导入备份、不修改 Supabase 项目。数据库故障走 [disaster recovery](./disaster-recovery.md)。
+2. **冻结版本与源数据。** 使用最近一次成功的 canonical production read-back 和 immutable tag 校验 commit。确认候选包与现有 schema 兼容。切换本身不运行 migration、不导入备份、不修改 Supabase 项目。数据库故障走 [disaster recovery](./disaster-recovery.md)，新组织迁库走 [Supabase 迁库 SOP](./supabase-relocation.md)。
 3. **启动生产候选。** 使用独立 production 服务、端口和目录，保持当前 Preview 实例隔离。使用正式域名的构建参数和受保护生产 runtime 配置。先用 `curl --resolve match.starfie1d.top:443:<SERVER_IP>` 验证实际证书、release identity 和页面；TLS 证书必须提前准备（DNS challenge 或经授权的验证切换）。用浏览器 hosts/DNS 预演验证登录、Server Actions、图片和实时连接，记录原 DNS 以便恢复。
 4. **检查会话与请求边界。** 同域名、兼容版本和相同 session signing secret 才可能延续旧会话；使用不同 signing secret 时安排重新登录。核对 Supabase Auth redirect allowlist、Steam callback、代理转发 Host/Proto、上传大小限制与 Next image 配置。生产 Caddy 入口不能保留 Preview Basic Auth，否则用户和 scheduler 都会被拦截。
 5. **切 DNS。** 事前将正式域名 TTL 降到约 300 秒并等待旧 TTL 过期；故障时修改正式域名现有记录指向备用机，处理冲突的 CNAME/A/AAAA。保留旧 Vercel domain/project 和部署。不要提前停掉仍可服务的旧实例；传播期两个实例必须使用同一兼容版本与同一 Supabase。

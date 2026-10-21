@@ -2,6 +2,8 @@
 
 本页是 RivalHub production 数据恢复的 canonical runbook。代码 owner 位于 [`scripts/db/recovery/`](../../scripts/db/recovery/)，本页只规定边界、证据和操作顺序，不保存 PII、signed URL、object key 明文、secret 或 private key。
 
+计划性迁往新 Supabase 组织时，按 [迁库 SOP](./supabase-relocation.md) 编排恢复、配置同步与切流；仅应用层切换见 [备用机 SOP](./standby.md)。
+
 ## 目标与当前边界
 
 RivalHub 使用 Recovery format 2 的 typed recovery artifact：full artifact 将 production Supabase 数据库与真实 Storage objects 绑定到同一个 run identity；DB-only checkpoint 只捕获 logical database。runner 在临时目录生成明文、计算 checksum、压缩后用 age 公钥加密，最后只上传 private Cloudflare R2 中的 encrypted artifact、sidecar manifest 和 completion marker。`producer` 是生成工具的 code/package identity；`source` 是备份时 production 实际部署的 release/commit 与 database migration terminal；两者可以不同。
