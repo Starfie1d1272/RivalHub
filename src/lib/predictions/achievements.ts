@@ -10,8 +10,8 @@ export function stageTasks(input: {
   const { result } = input;
   const base: PickEmTaskState = input.voided ? "void" : input.closed && !input.submitted ? "missed" : input.available ? "active" : "upcoming";
   const submission: PickEmTask = { key: "submission", label: "赛前完整提交预测", target: 1,
-    state: input.voided ? "void" : input.locked ? "complete" : input.submitted && !input.closed ? "submitted" : base,
-    progress: input.locked ? 1 : 0 };
+    state: input.voided ? "void" : input.submitted ? "complete" : base,
+    progress: input.submitted && !input.voided ? 1 : 0 };
   const goals = input.type === "swiss"
     ? [{ key: "hits", label: `猜对至少 ${input.target} 项`, target: input.target, achieved: result ? result.hits >= input.target : false, progress: result?.hits ?? null }]
     : [{ key: "quarter", label: "八强猜对至少 2 场", target: 2 }, { key: "semi", label: "四强猜对至少 1 场", target: 1 }, { key: "champion", label: "猜中冠军", target: 1 }].map((goal, index) => ({ ...goal, achieved: result?.challenges[index] ?? false, progress: null }));

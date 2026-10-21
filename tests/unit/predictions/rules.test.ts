@@ -153,14 +153,20 @@ describe("automatic Pick’Em lifecycle", () => {
     const base = baseline();
     const now = new Date("2026-10-07T00:00:00Z");
     const contest = { stageKey: "stage1", deadline: null, lockedAt: null };
-    expect(pickEmWindowState(base, contest, now)).toEqual({ deadline: null, locked: false });
+    expect(pickEmWindowState(base, contest, now)).toEqual({ deadline: null, locked: false, deadlineTentative: false });
     base.matches = [{ id: "m", stageKey: "stage1", key: "r1-1", round: 1,
       a: "team17", b: "team25", winner: null, scoreA: null, scoreB: null,
       format: "bo1", status: "scheduled", scheduledAt: "2026-10-07T02:00:00Z" }];
+    expect(pickEmWindowState(base, contest, now).deadlineTentative).toBe(true);
+    const first = base.matches[0]!;
+    base.matches = Array.from({ length: 8 }, (_, i) => ({ ...first, id: `m${i}`, key: `r1-${i + 1}` }));
+    expect(pickEmWindowState(base, contest, now).deadlineTentative).toBe(false);
+    base.matches[7]!.scheduledAt = null;
+    expect(pickEmWindowState(base, contest, now).deadlineTentative).toBe(true);
     const early = new Date("2026-10-07T01:00:00Z");
     expect(pickEmWindowState(base, { ...contest, deadline: early }, now).deadline?.toISOString()).toBe("2026-10-07T02:00:00.000Z");
     const elapsed = new Date("2026-10-06T23:00:00Z");
-    expect(pickEmWindowState(base, { ...contest, deadline: elapsed }, now)).toEqual({ deadline: elapsed, locked: true });
+    expect(pickEmWindowState(base, { ...contest, deadline: elapsed }, now)).toEqual({ deadline: elapsed, locked: true, deadlineTentative: false });
     base.matches[0]!.status = "in_progress";
     expect(pickEmWindowState(base, contest, now).locked).toBe(true);
   });

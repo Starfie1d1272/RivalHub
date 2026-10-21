@@ -23,7 +23,7 @@ export function officialPickEmStages(base: Baseline) {
 /** No independent deadline. An elapsed deadline or an actual start is irreversible. */
 export function pickEmWindowState(
   base: Baseline,
-  contest: { stageKey: string; deadline: Date | null; lockedAt: Date | null },
+  contest: { stageKey: string; deadline: Date | null; lockedAt: Date | null; entrants?: readonly unknown[] },
   now: Date,
 ) {
   const matches = base.matches.filter((match) => match.stageKey === contest.stageKey);
@@ -35,7 +35,10 @@ export function pickEmWindowState(
     (!!contest.deadline && contest.deadline <= now) ||
     (!!deadline && deadline <= now) ||
     matches.some((match) => match.status === "in_progress" || match.status === "finished");
-  return { deadline: contest.lockedAt || (contest.deadline && contest.deadline <= now) ? contest.deadline : deadline, locked };
+  const firstRound = matches.filter((match) => match.round === 1 && match.status !== "cancelled");
+  const expectedFirstRound = (contest.entrants?.length ?? (base.stages.find((stage) => stage.key === contest.stageKey)?.type === "single_elim" ? 8 : 16)) / 2;
+  const deadlineTentative = !locked && !!deadline && (firstRound.length < expectedFirstRound || firstRound.some((match) => !match.scheduledAt));
+  return { deadlineTentative, deadline: contest.lockedAt || (contest.deadline && contest.deadline <= now) ? contest.deadline : deadline, locked };
 }
 
 export function samePredictionEntrants(
