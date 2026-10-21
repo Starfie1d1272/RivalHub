@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.21.5]
+
+### Fixed
+
+- 完整正式提交 Pick’Em 后立即完成对应提交任务并获得铜币；已有提交同步体现，截止前仍可修改和重新提交，草稿不覆盖正式提交。
+- 纪念币侧边和立体边框匹配对应素材外圈颜色，未解锁铜币保持铜色侧边；保留原有高光与灯光。
+
+### Changed
+
+- 首轮排期尚未全部确定时，预测截止时间标注“暂定”；仍以当前阶段最早开赛时间为准，已锁定后不重新开放。
+
 ## [2.21.4]
 
 ### Added
@@ -3345,3 +3356,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.1.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.0...v1.0.2
 [1.0.0]: https://github.com/Starfie1d1272/RivalHub/compare/v0.3.0...v1.0.0
+
+[2.21.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.4...v2.21.5
