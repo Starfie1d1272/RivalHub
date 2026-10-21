@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.21.4]
+
+### Added
+
+- 赛事推演页头新增纪念币与任务进度组件，支持任务／排行榜展开，以及大尺寸可旋转币体特写；接入本届铜、银、金、钻石币图。
+- 尚未创建比赛的推演对阵提供双方队伍资料入口；缺少正式比赛数据的选手，在地图熟练度旁展示历史最高段位及对应完美 Rating Pro。
+
+### Changed
+
+- 本届八项 Pick’Em 挑战按首次有效提交锁定发放铜币，银／金／钻门槛统一为 2／5／8；同完成任务数并列，组内按真实命中数排序。
+- 左侧标题和阶段导航保持原有留白，右侧成就组件独立延伸；纪念币保留原色与亮度，并增加主光、补光和轮廓光。
+
+### Fixed
+
+- 提高推演胜负状态的可读性，保留原有卡片布局；优化弹层关闭与焦点交互，并为不支持 WebGL 的环境提供静态币图。
+
 ## [2.21.3]
 
 ### Fixed
@@ -3142,6 +3158,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.21.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.3...v2.21.4
 [2.21.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.2...v2.21.3
 [2.21.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.1...v2.21.2
 [2.21.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.0...v2.21.1
