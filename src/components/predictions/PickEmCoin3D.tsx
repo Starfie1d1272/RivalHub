@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { createCoinGeometry } from "./coin-geometry";
 import { COIN_FINISHES, PICKEM_COIN_FACES } from "./coin-assets";
 
 /** An owned three-dimensional mesh. Artwork is independently replaceable on each face. */
@@ -45,8 +46,8 @@ export default function PickEmCoin3D({ coin }: { coin: string }) {
     const metal = new THREE.MeshStandardMaterial({ color: finish.metal, metalness: .92, roughness: .27 });
     const faces = [metal.clone(), metal.clone()];
     const group = new THREE.Group(); scene.add(group);
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(.98, .98, .14, 128), [metal, ...faces]);
-    body.rotation.x = Math.PI / 2; group.add(body);
+    const body = new THREE.Mesh(createCoinGeometry(), [metal, ...faces]);
+    group.add(body);
     const rimGeometry = new THREE.TorusGeometry(.965, .035, 12, 128);
     for (const z of [-.075, .075]) { const rim = new THREE.Mesh(rimGeometry, metal); rim.position.z = z; group.add(rim); }
     const grooveGeometry = new THREE.BoxGeometry(.018, .035, .11);
