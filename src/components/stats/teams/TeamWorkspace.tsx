@@ -62,7 +62,13 @@ export function TeamRosterMapContext({
             {mapProfile.preferences.map((member) => (
               <div key={member.userId} className="space-y-2">
                 <PlayerProfileLink className="text-sm font-medium hover:text-[var(--color-accent)]" userId={member.userId}>{member.name}</PlayerProfileLink>
-                <MapPreferenceChips preferences={member.preferences} minLevel="none" />
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <MapPreferenceChips preferences={member.preferences} minLevel="none" />
+                  {member.historicalPeak && <span className="text-xs text-[var(--color-fg-mid)]">
+                    历史最高 {member.historicalPeak.rankLabel}{member.historicalPeak.stars !== null && ` · ${member.historicalPeak.stars}★`}
+                    {member.historicalPeak.rating !== null && member.historicalPeak.rating !== "null" && ` · Rating Pro ${member.historicalPeak.rating}`}
+                  </span>}
+                </div>
               </div>
             ))}
           </div>

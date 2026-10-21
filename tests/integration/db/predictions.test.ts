@@ -282,7 +282,7 @@ describe("spectator prediction PostgreSQL contracts", () => {
       expect(await balance(f)).toBe(BigInt(2000));
       expect(await balance(f, otherId)).toBe(BigInt(0));
       const board = await db.transaction((tx) => predictionBoard(tx, seasonId, userId));
-      expect(board.rules).toMatchObject({ silver: 4, gold: 6, diamond: 8 });
+      expect(board.rules).toMatchObject({ silver: 2, gold: 5, diamond: 8 });
       expect(board.contests[0]!.submitted).toBeTruthy();
       expect(board.contests[0]!.locked).toBe(true);
     }, 24));
@@ -314,6 +314,8 @@ describe("spectator prediction PostgreSQL contracts", () => {
         expect(sim.markets).toEqual([]);
         expect(sim.ledger).toEqual([]);
         expect(sim.pickLeaderboard).toEqual([]);
+        expect(sim.achievement?.challenges).toBe(0);
+        expect(sim.achievement?.progress[0]?.tasks).toHaveLength(2);
         const points = await read("points");
         expect(points.markets[0]).toMatchObject({
           participants: 2,

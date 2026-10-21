@@ -652,6 +652,13 @@
       "when": 1792533686835,
       "tag": "0092_retire_verified_test_matches",
       "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1792575765712,
+      "tag": "0093_pickem_coin_thresholds",
+      "breakpoints": true
     }
   ]
 }

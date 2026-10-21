@@ -1,0 +1,51 @@
+.widget { min-width: 218px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-panel); }
+.summary { display: flex; align-items: center; gap: 12px; padding: 8px 12px; }
+.coinThumb { width: 56px; height: 56px; flex-shrink: 0; border-radius: 50%; box-shadow: 0 2px 10px #0006; }
+.coinThumb img { width: 100%; height: 100%; mix-blend-mode: multiply; }
+.summaryText { flex: 1; display: flex; flex-direction: column; }
+.summaryText > span { font-size: 11px; color: var(--color-fg-mid); }
+.summaryText strong { font-size: 25px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.summaryText small { font-size: 15px; color: var(--color-fg-dim); font-weight: 400; }
+.expand { align-self: flex-start; padding: 4px; color: var(--color-fg-mid); }
+.actions { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--color-border); }
+.actions > button { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 10px; font-size: 11px; }
+.actions > button + button { border-left: 1px solid var(--color-border); }
+.actions button:hover, .actions button[data-state="open"], .expand:hover { color: var(--color-accent); background: var(--color-accent-soft); }
+.widget button:focus-visible, .popover button:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: 2px; }
+.popover { z-index: var(--z-overlay); width: min(440px, calc(100vw - 24px)); max-height: min(560px, var(--radix-popover-content-available-height)); overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface-floating); padding: 16px; box-shadow: 0 18px 60px #0008; }
+.panelTitle { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; font-size: 14px; }
+.panelTitle button { padding: 5px; }
+.dialog { padding: 0; }
+.expandedBody { display: grid; grid-template-columns: minmax(0, 1fr) minmax(330px, .85fr); gap: 24px; overflow: hidden; }
+.coinStage { position: relative; min-height: 0; display: flex; flex-direction: column; border-radius: var(--radius-sm); background: radial-gradient(ellipse at 50% 48%, var(--color-panel-hi), var(--color-panel-low) 75%); }
+.coinStage > div:last-child { flex: 1; }
+.coinTitle { padding: 24px 24px 0; text-align: center; }
+.coinTitle span { font-size: 11px; letter-spacing: .12em; color: var(--color-fg-dim); }
+.coinTitle h2 { margin-top: 5px; font-size: 28px; font-weight: 600; }
+.coinTitle p { font-size: 13px; color: var(--color-fg-mid); }
+.detailPanel { min-height: 0; overflow-y: auto; padding: 4px 8px; }
+.tasks section + section { margin-top: 24px; }
+.tasks h3 { margin-bottom: 8px; color: var(--color-fg-mid); font-size: 12px; font-weight: 600; }
+.tasks li { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--color-border); font-size: 13px; }
+.taskIcon { color: var(--color-fg-dim); width: 16px; flex-shrink: 0; }
+.tasks li[data-complete="true"] .taskIcon { color: var(--color-accent); }
+.taskState { color: var(--color-fg-dim); font-size: 11px; flex-shrink: 0; }
+.tasks li[data-complete="true"] .taskState { color: var(--color-accent); }
+.rule { margin-top: 14px; color: var(--color-fg-dim); font-size: 11px; }
+.myRank { display: flex; align-items: center; gap: 12px; padding: 16px; background: var(--color-accent-soft); font-size: 13px; }
+.myRank strong { color: var(--color-accent); font-size: 24px; }
+.myRank span { margin-left: auto; }
+.rankHead { display: flex; justify-content: space-between; padding: 14px 4px 8px; font-size: 11px; color: var(--color-fg-dim); }
+.ranking li { display: flex; gap: 12px; align-items: center; padding: 12px 4px; border-bottom: 1px solid var(--color-border); font-size: 13px; }
+.ranking li[data-me="true"] { color: var(--color-accent); }
+.rankNumber { width: 28px; color: var(--color-fg-dim); font-variant-numeric: tabular-nums; }
+.ranking small { font-weight: 400; color: var(--color-fg-dim); }
+.empty, .loading, .retry { padding: 12px 0; font-size: 12px; color: var(--color-fg-mid); }
+@media (max-width: 767px) {
+  .expandedBody { display: flex; flex-direction: column; overflow-y: auto; }
+  .coinStage { min-height: 320px; }
+  .coinTitle { padding-top: 12px; }
+  .coinTitle h2 { font-size: 20px; }
+  .detailPanel { overflow: visible; }
+  .tasks li { flex-wrap: wrap; }
+}

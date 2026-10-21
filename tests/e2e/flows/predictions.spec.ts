@@ -23,6 +23,22 @@ test("观众完成选队提交、草稿隔离、图片导出", async ({
     await expect(
       page.getByRole("heading", { name: "赛事推演", exact: true }),
     ).toBeVisible();
+    const achievement = page.getByTestId("pickem-achievement");
+    await expect(achievement).toBeVisible();
+    await achievement.getByRole("button", { name: "任务", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "任务列表" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(achievement.getByRole("button", { name: "任务", exact: true })).toBeFocused();
+    await achievement.getByRole("button", { name: "放大我的纪念币" }).click();
+    const medal = page.getByRole("dialog", { name: "我的纪念币" });
+    await expect(medal).toBeVisible();
+    await medal.getByRole("tab", { name: "排行榜", exact: true }).click();
+    await expect(medal.getByText("完成任务", { exact: true })).toBeVisible();
+    await medal.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(achievement.getByRole("button", { name: "放大我的纪念币" })).toBeFocused();
+    const hypothetical = page.locator('[data-testid^="sim-match-stage1-r2-"]').first();
+    await expect(hypothetical.getByRole("link", { name: /队伍资料/ })).toHaveCount(2);
+    await expect(hypothetical.locator("a a, button a, a button, button button")).toHaveCount(0);
     const mobile = info.project.name === "mobile-chrome";
     const identityCard = page.getByTestId("sim-match-stage1-r1-1");
     await expect(identityCard.locator("a a, button a, a button, button button")).toHaveCount(0);

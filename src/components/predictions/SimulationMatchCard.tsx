@@ -35,6 +35,14 @@ export function SimulationMatchCard({
     ? `/${encodeURIComponent(seasonSlug)}/matches/${encodeURIComponent(match.officialMatchId)}` as Route
     : null;
   const matchLabel = `查看 ${teams.get(match.a)?.name ?? "队伍"} 对 ${teams.get(match.b)?.name ?? "队伍"} 比赛`;
+  const navigation = matchHref
+    ? <Link href={matchHref} className={compact ? styles.matchLink : styles.scoreMatchLink} aria-label={matchLabel} title="查看比赛"><ArrowUpRight size={14} aria-hidden="true" /></Link>
+    : seasonSlug ? <div className={compact ? styles.teamLinks : styles.scoreTeamLinks}>
+      {[match.a, match.b].map((id) => <Link key={id}
+        href={`/${encodeURIComponent(seasonSlug)}/teams/${encodeURIComponent(id)}` as Route}
+        aria-label={`查看 ${teams.get(id)?.name ?? "队伍"} 队伍资料`}
+        title={`查看 ${teams.get(id)?.name ?? "队伍"}`}><ArrowUpRight size={13} aria-hidden="true" /></Link>)}
+    </div> : null;
   const side = (id: string, index: number) => {
     const team = teams.get(id);
     const winning = match.winner === id;
@@ -59,7 +67,7 @@ export function SimulationMatchCard({
         <span className={styles.teamName} title={team?.name}>{team?.name ?? "队伍"}</span>
         {compact && (
           <strong className={styles.rowScore}>
-            {actual ? (score ?? "—") : winning ? "胜" : "—"}
+            {actual ? (score ?? "—") : winning && !preview ? "✓" : "—"}
           </strong>
         )}
       </button>
@@ -77,7 +85,7 @@ export function SimulationMatchCard({
         <>
           {side(match.a, 0)}
           {side(match.b, 1)}
-          {matchHref && <Link href={matchHref} className={styles.matchLink} aria-label={matchLabel} title="查看比赛"><ArrowUpRight size={14} aria-hidden="true" /></Link>}
+          {navigation}
         </>
       ) : (
         <>
@@ -101,7 +109,7 @@ export function SimulationMatchCard({
                 </small>
               </>
             )}
-            {matchHref && <Link href={matchHref} className={styles.scoreMatchLink} aria-label={matchLabel} title="查看比赛"><ArrowUpRight size={14} aria-hidden="true" /></Link>}
+            {navigation}
           </div>
           {side(match.b, 1)}
         </>

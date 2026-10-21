@@ -17,6 +17,7 @@ const DIALOG_CONTENT_SIZE_CLASSES = {
   md: "max-w-lg",
   lg: "max-w-2xl",
   xl: "max-w-4xl",
+  immersive: "max-w-none sm:w-[80vw] h-[80dvh]",
 } as const
 
 export type DialogContentSize = keyof typeof DIALOG_CONTENT_SIZE_CLASSES

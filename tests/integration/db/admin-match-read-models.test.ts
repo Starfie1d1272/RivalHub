@@ -209,7 +209,11 @@ describe("admin match read models PostgreSQL integration", () => {
          VALUES ($1, $2, $3, 'Alpha', 0, 0, $5), ($1, $2, $4, 'Beta', 9, 999, NULL)`,
         [ids.matchA, ids.mapA, ids.playerA, ids.playerB, ids.admin],
       );
+      await pool.query("INSERT INTO user_map_preferences (user_id,map_preferences) VALUES ($1,'[]'::jsonb),($2,'[]'::jsonb)", [ids.playerA, ids.playerB]);
+      await pool.query("INSERT INTO competitive_rank_facts (user_id,platform,kind,rank,rating) VALUES ($1,'perfect_world','historical_peak','A',1.25),($2,'perfect_world','historical_peak','A',1.50)", [ids.playerA, ids.playerB]);
       const ownProfile = await getPublicTeamMapProfile([ids.entryA], [ids.playerA, ids.playerB]);
+      expect(ownProfile.preferences.find(row => row.userId === ids.playerA)?.historicalPeak).toBeNull();
+      expect(ownProfile.preferences.find(row => row.userId === ids.playerB)?.historicalPeak).toMatchObject({ rankLabel: "A", rating: "1.50" });
       expect(ownProfile.own).toEqual([{ mapName: "de_inferno", wins: 1, played: 1 }]);
       expect(ownProfile.experience).toEqual([{ mapName: "de_inferno", samples: 1, players: 1, rating: 0, adr: 0, kd: null }]);
       const coldStart = await getPublicTeamMapProfile([ids.entryC], [ids.playerA]);
