@@ -1,9 +1,11 @@
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
+import { getPublicCompetitiveCatalog } from "@/lib/competitive/public-catalog";
+import { presentPublicCompetitiveProfile } from "@/lib/competitive/presentation";
 import { and, eq, inArray, isNotNull, or, ne } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matchMaps, matches, seasons, steamProfiles, userMapPreferences, users } from "@/db/schema";
+import { competitiveRankFacts, matchMaps, matches, seasons, steamProfiles, userMapPreferences, users } from "@/db/schema";
 import { getPublicPlayerMapExperienceContext } from "@/lib/stats/public-query";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 
@@ -90,10 +92,15 @@ export async function getPublicTeamMapProfile(
   knownPreview?: PublicTeamMapPreview,
 ) {
   const ids = [...new Set(entryIds)];
-  const [played, experienceContext, preferences] = await Promise.all([
+  const [played, experienceContext, preferences, rankFacts, catalog] = await Promise.all([
     !knownPreview && ids.length ? db.select({ id: matches.id, stage: matches.stage, entryAId: matches.entryAId, entryBId: matches.entryBId }).from(matches).innerJoin(seasons, eq(seasons.id, matches.seasonId)).where(and(officialMatchCondition(), and(eq(matches.status, "finished"), ne(seasons.status, "draft"), or(inArray(matches.entryAId, ids), inArray(matches.entryBId, ids))))) : [],
     getPublicPlayerMapExperienceContext(memberIds),
     memberIds.length ? db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, preferences: userMapPreferences.mapPreferences }).from(userMapPreferences).innerJoin(users, eq(users.id, userMapPreferences.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(users.id, [...new Set(memberIds)])) : [],
+    memberIds.length ? db.select({ id: competitiveRankFacts.id, userId: competitiveRankFacts.userId, platform: competitiveRankFacts.platform,
+      kind: competitiveRankFacts.kind, platformSeasonKey: competitiveRankFacts.platformSeasonKey, status: competitiveRankFacts.status,
+      rank: competitiveRankFacts.rank, rating: competitiveRankFacts.rating, stars: competitiveRankFacts.stars, achievedSeasonKey: competitiveRankFacts.achievedSeasonKey,
+    }).from(competitiveRankFacts).where(and(inArray(competitiveRankFacts.userId, [...new Set(memberIds)]), eq(competitiveRankFacts.platform, "perfect_world"), eq(competitiveRankFacts.kind, "historical_peak"))) : [],
+    memberIds.length ? getPublicCompetitiveCatalog() : [],
   ]);
   const matchIds = played.map((match) => match.id);
   const maps = matchIds.length
@@ -108,7 +115,10 @@ export async function getPublicTeamMapProfile(
       experiencedMembers: experienceContext.experiencedMemberIds.length,
       experiencedMemberIds: experienceContext.experiencedMemberIds,
     },
-    preferences: preferences.map((row) => ({ userId: row.userId, name: getPublicDisplayName(row), preferences: row.preferences })),
+    preferences: preferences.map((row) => ({ userId: row.userId, name: getPublicDisplayName(row), preferences: row.preferences,
+      historicalPeak: experienceContext.experiencedMemberIds.includes(row.userId) ? null
+        : presentPublicCompetitiveProfile(catalog, rankFacts.filter((fact) => fact.userId === row.userId))[0]?.facts[0] ?? null,
+    })),
   };
 }
 export type PublicTeamMapProfile = Awaited<ReturnType<typeof getPublicTeamMapProfile>>;

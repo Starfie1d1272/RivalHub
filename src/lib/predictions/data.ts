@@ -1,3 +1,4 @@
+import { stageTasks, rankPickEmAchievements } from "./achievements";
 import { withDisplayScores } from "@/lib/matches/display-score-data";
 import { matches as officialMatches } from "@/db/schema";
 import { inArray } from "drizzle-orm";
@@ -21,7 +22,6 @@ import { generateMajorPlayoffQuarterfinals } from "@/lib/major/playoff";
 import {
   defaultPredictionRules,
   effectivePredictionMarketDeadline,
-  stageChallengeCount,
   coinLevel,
   judgePick,
 } from "./rules";
@@ -80,7 +80,7 @@ export async function predictionBoard(
     .from(picks)
     .where(and(eq(picks.seasonId, seasonId), records ? undefined : me ? eq(picks.accountId, me.id) : sql`false`))
     .orderBy(picks.accountId, picks.contestId, picks.submitted, desc(picks.version));
-  const history = records && windows.length
+  const history = (records || !!me) && windows.length
     ? await tx
         .select()
         .from(judgements)
@@ -105,7 +105,7 @@ export async function predictionBoard(
     if (pick.submitted && !submissions.has(key)) submissions.set(key, pick);
   }
   const totalsByAccount = new Map(totals.map((total) => [total.accountId, total]));
-  const achievements = (records ? allAccounts : []).map((account) => {
+  const achievements = allAccounts.map((account) => {
     const progress = base.stages.map((stage) => {
       const contest = windows.find((c) => c.stageKey === stage.key);
       const pick = contest ? submissions.get(`${account.id}/${contest.id}`) : null;
@@ -116,22 +116,16 @@ export async function predictionBoard(
       const locked = !!(contest?.lockedAt && !contest.voidedAt && pick);
       const result =
         locked && actual && pick ? judgePick(pick.pick, actual) : null;
-      const results = result
-        ? stage.type === "swiss"
-          ? [result.hits >= rules.swissTarget]
-          : result.challenges
-        : [];
+      const tasks = stageTasks({ type: stage.type, target: rules.swissTarget,
+        submitted: !!pick, locked,
+        closed: !!contest && pickEmWindowState(base, contest, new Date(now)).locked,
+        available: !!contest, voided: !!contest?.voidedAt, result });
       return {
-        key: stage.key,
-        name: stage.name,
-        locked,
-        judged: !!result,
+        key: stage.key, name: stage.name, locked, judged: !!result,
         hits: result?.hits ?? null,
-        challenges: results.filter(Boolean).length,
-        possible:
-          !contest?.voidedAt && (!contest || !pickEmWindowState(base, contest, new Date(now)).locked || !!pick) && (!contest?.lockedAt || !!pick)
-            ? stageChallengeCount(stage.type) + (locked ? 0 : 1)
-            : 0,
+        challenges: tasks.slice(1).filter((task) => task.state === "complete").length,
+        possible: tasks.filter((task) => ["submitted", "active", "upcoming"].includes(task.state)).length,
+        tasks,
       };
     });
     const locked = progress.filter((p) => p.locked).length;
@@ -312,13 +306,7 @@ export async function predictionBoard(
         isMe: a.id === me?.id,
       })),
     ),
-    pickLeaderboard: rank(
-      achievements.map((a) => ({
-        name: a.name,
-        value: String(a.hits),
-        isMe: a.accountId === me?.id,
-      })),
-    ),
+    pickLeaderboard: records ? rankPickEmAchievements(achievements, me?.id) : [],
   };
 }
 export type PredictionBoardData = Awaited<ReturnType<typeof predictionBoard>>;

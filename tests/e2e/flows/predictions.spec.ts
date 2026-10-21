@@ -23,13 +23,38 @@ test("观众完成选队提交、草稿隔离、图片导出", async ({
     await expect(
       page.getByRole("heading", { name: "赛事推演", exact: true }),
     ).toBeVisible();
+    const achievement = page.getByTestId("pickem-achievement");
+    await expect(achievement).toBeVisible();
+    await achievement.getByRole("button", { name: "任务", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "任务列表" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(achievement.getByRole("button", { name: "任务", exact: true })).toBeFocused();
+    await achievement.getByRole("button", { name: "放大我的纪念币" }).click();
+    const medal = page.getByRole("dialog", { name: "我的纪念币" });
+    await expect(medal).toBeVisible();
+    await medal.getByRole("tab", { name: "排行榜", exact: true }).click();
+    await expect(medal.getByText("完成任务", { exact: true })).toBeVisible();
+    await medal.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(achievement.getByRole("button", { name: "放大我的纪念币" })).toBeFocused();
+    const hypothetical = page.locator('[data-testid^="sim-match-stage1-r2-"]').first();
+    await expect(hypothetical.getByRole("link", { name: /队伍资料/ })).toHaveCount(2);
+    await expect(hypothetical.locator("a a, button a, a button, button button")).toHaveCount(0);
     const mobile = info.project.name === "mobile-chrome";
     const identityCard = page.getByTestId("sim-match-stage1-r1-1");
     await expect(identityCard.locator("a a, button a, a button, button button")).toHaveCount(0);
     const matchLink = identityCard.getByRole("link", { name: /查看 .* 比赛/ });
     await expect(identityCard.getByRole("link")).toHaveCount(1);
     await expect(matchLink).toHaveAttribute("href", new RegExp(`^/${fixture.slug}/matches/`));
-    await matchLink.focus(); await matchLink.press("Enter");
+    // This suite runs against next dev. Compile the destination document before
+    // timing keyboard navigation: the cold match route races the parallel BET
+    // compilation on CI, while the same route passes immediately on retry.
+    const matchHref = await matchLink.getAttribute("href");
+    const destination = await page.request.get(matchHref!);
+    expect(destination.status()).toBe(200);
+    await expect(medal).toBeHidden();
+    await matchLink.focus();
+    await expect(matchLink).toBeFocused();
+    await matchLink.press("Enter");
     await expect(page).toHaveURL(new RegExp(`/${fixture.slug}/matches/`));
     await page.goBack();
     await expect(identityCard).toHaveAttribute("data-source", "preview");

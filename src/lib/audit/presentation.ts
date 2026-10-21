@@ -227,6 +227,7 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "predictions.open_market": { label: "开放积分池", category: "predictions" },
   "predictions.open_contest": { label: "开放阶段预测", category: "predictions" },
   "predictions.void_contest": { label: "作废阶段预测", category: "predictions" },
+  "predictions.configure": { label: "调整纪念币挑战门槛", category: "predictions" },
   "predictions.enable": { label: "开放观赛预测并冻结规则", category: "predictions" },
   "predictions.open_window": { label: "开放预测窗口", category: "predictions" },
   "predictions.moderate": { label: "调整预测参与状态", category: "predictions" },

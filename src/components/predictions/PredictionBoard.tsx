@@ -30,7 +30,7 @@ import { samePredictionEntrants } from "@/lib/predictions/lifecycle";
 import { pickEmDockVisible } from "@/lib/predictions/presentation";
 import { PickEditor, emptyPick } from "./PickEditor";
 import { TournamentBoard } from "./TournamentBoard";
-import { PickEmRecord } from "./PickEmRecord";
+import { PickEmAchievement } from "./PickEmAchievement";
 import { exportPredictionImage as unobservedExportPredictionImage } from "./share-image";
 import { usePredictionConfirmation } from "./usePredictionConfirmation";
 import styles from "@/components/tournament/tournament.module.css";
@@ -68,7 +68,7 @@ export function PredictionBoard({
   const [choices, setChoices] = useState<Choices>({});
   const [undo, setUndo] = useState<Choices[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Pick>>({});
-  const [tab, setTab] = useState<"sim" | "record">("sim");
+  const tab = "sim" as const;
   const [mobile, setMobile] = useState("sim");
   const [view, setView] = useState<TournamentView>("flow");
   const [savedSimulation, setSavedSimulation] = useState<Record<string, Pick>>({});
@@ -147,7 +147,6 @@ export function PredictionBoard({
     };
     const timer = setInterval(refresh, 30000);
     document.addEventListener("visibilitychange", refresh);
-    if (tab === "record") refresh();
     return () => {
       active = false;
       clearInterval(timer);
@@ -266,12 +265,12 @@ export function PredictionBoard({
   }
   return (
     <div className={`${styles.workbench} min-w-0 space-y-4`}>
-      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[var(--color-border)] pb-4">
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
+      <div className={styles.predictionHeader}>
+        <div className={styles.predictionTitle}>
           <h1 className="text-[28px] font-semibold">赛事推演</h1>
           <p className="text-sm text-[var(--color-fg-mid)]">{base.name}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className={styles.predictionHeaderActions}>
           <Button
             variant="outline"
             disabled={pending}
@@ -279,23 +278,13 @@ export function PredictionBoard({
           >
             刷新赛况
           </Button>
-          {context.kind === "major" && (
-            <Button variant="outline" aria-pressed={tab === "record"} onClick={() => setTab(tab === "sim" ? "record" : "sim")}>
-              {tab === "sim" ? "我的战绩" : "返回推演"}
-            </Button>
-          )}
+          {context.kind === "major" && <PickEmAchievement data={data} signedIn={signedIn} />}
         </div>
       </div>
       {refreshFailed && <p role="status" className="text-sm text-[var(--color-warn)]">赛况更新失败，当前保留上次数据。可点击「刷新赛况」。</p>}
-      {tab === "record" && context.kind === "major" ? (
-        data.view === "record" ? (
-          <PickEmRecord data={data} />
-        ) : !refreshFailed ? (
-          <p role="status">正在加载我的战绩…</p>
-        ) : null
-      ) : (
+      {
         <>
-          <div className="flex flex-wrap gap-2" aria-label="赛事阶段">
+          <div className={styles.predictionStages} aria-label="赛事阶段">
             {data.contexts
               .filter((c) => c.kind !== context.kind)
               .map((c) => (
@@ -424,7 +413,7 @@ export function PredictionBoard({
             )}
           </div>
         </>
-      )}
+      }
       {confirmation}
     </div>
   );

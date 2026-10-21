@@ -60,7 +60,7 @@ export function effectivePredictionMarketDeadline(input: {
 }
 export function defaultPredictionRules(stages: readonly PublicStage[]): PredictionRules {
   const maximum = predictionChallengeCapacity(stages);
-  return { ...DEFAULT_RULES, silver: Math.ceil(maximum / 2), gold: Math.ceil(maximum * 0.7), diamond: maximum };
+  return { ...DEFAULT_RULES, silver: maximum === 8 ? 2 : Math.ceil(maximum / 2), gold: maximum === 8 ? 5 : Math.ceil(maximum * 0.7), diamond: maximum };
 }
 export const pickSchema = z.union([
   z.object({

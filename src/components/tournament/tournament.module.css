@@ -1,3 +1,11 @@
+.predictionHeader { position: relative; min-height: 40px; }
+.predictionTitle { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding-right: 350px; }
+.predictionHeaderActions { position: absolute; right: 0; top: 0; display: flex; align-items: flex-start; gap: 12px; }
+.predictionStages { display: flex; flex-wrap: wrap; gap: 8px; padding-right: 350px; min-height: 44px; }
+@media (max-width: 899px) {
+  .predictionTitle, .predictionStages { padding-right: 0; }
+  .predictionHeaderActions { position: static; margin-top: 16px; justify-content: space-between; }
+}
 .board {
   --advance: var(--color-info, #22c9dc);
   --out: var(--color-danger, #f04461);
@@ -641,3 +649,25 @@
     transition: none;
   }
 }
+
+/* Same card geometry, source-aware contrast and compact scouting rail. */
+.match[data-source="assumption"] .teamSide[data-winning="true"] {
+  background: var(--color-accent-soft);
+  box-shadow: inset 3px 0 var(--color-accent);
+  color: var(--color-fg-primary);
+}
+.match[data-source="official"] .teamSide[data-winning="true"] {
+  background: color-mix(in srgb, var(--advance) 32%, var(--color-panel-hi));
+  box-shadow: inset 3px 0 var(--advance);
+  color: var(--color-fg-primary);
+}
+.match[data-source="preview"] .teamSide[data-winning="true"] {
+  background: var(--color-panel-hi);
+  color: var(--color-fg-primary);
+}
+.teamLinks { grid-column: 2; grid-row: 1 / 3; display: grid; grid-template-rows: 1fr 1fr; border-left: 1px solid var(--color-border); background: var(--color-panel-low); }
+.teamLinks a, .scoreTeamLinks a { display: flex; align-items: center; justify-content: center; color: var(--color-fg-mid); }
+.teamLinks a + a { border-top: 1px solid var(--color-border); }
+.scoreTeamLinks { display: grid; grid-template-columns: 1fr 1fr; width: 100%; min-height: 24px; }
+.teamLinks a:hover, .scoreTeamLinks a:hover { background: var(--color-accent-soft); color: var(--color-accent); }
+.teamLinks a:focus-visible, .scoreTeamLinks a:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: -2px; }
