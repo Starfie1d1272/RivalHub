@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.21.8]
+
+### Changed
+
+- 竞猜公共积分池和支持率在用户间共享短时缓存，保留 15 秒刷新频率。个人积分、选择及封盘资格实时读取，提交后立即更新统计，对阵更正与账号归并继续使用当前有效记录。
+
 ## [2.21.7]
 
 ### Changed
@@ -3374,3 +3380,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [2.21.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.6...v2.21.7
 [2.21.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.5...v2.21.6
+
+[2.21.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.7...v2.21.8
