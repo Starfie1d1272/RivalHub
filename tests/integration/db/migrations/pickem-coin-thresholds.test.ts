@@ -14,6 +14,8 @@ it("updates only the approved event's previous coin thresholds, keeps rules and 
     expect((await client.query("SELECT rules FROM prediction_programs WHERE season_id=$1", [id])).rows[0].rules).toEqual({ ...rules, silver: 2, gold: 5 });
     expect((await client.query("SELECT rules FROM prediction_programs WHERE season_id=$1", [other])).rows[0].rules).toEqual(rules);
     await replayMigration(client, target);
+    await expect(client.query("UPDATE prediction_programs SET rules=rules || '{\"silver\":3}'::jsonb WHERE season_id=$1", [id])).rejects.toMatchObject({ code: "23514" });
+    expect((await client.query("SELECT tgenabled FROM pg_trigger WHERE tgname='prediction_frozen_config' AND tgrelid='prediction_programs'::regclass")).rows[0].tgenabled).toBe("O");
     expect((await client.query("SELECT count(*)::int AS n FROM audit_logs WHERE season_id=$1 AND meta->>'migration'='0093_pickem_coin_thresholds'", [id])).rows[0].n).toBe(1);
   });
 });

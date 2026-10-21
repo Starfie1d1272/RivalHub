@@ -32,7 +32,7 @@ export function PickEmAchievement({ data, signedIn }: { data: PickEmBoardData; s
   const capacity = predictionChallengeCapacity(data.base.stages);
   const stages = achievement?.progress ?? data.base.stages.map((stage) => ({ key: stage.key, name: stage.name,
     tasks: stageTasks({ type: stage.type, target: data.rules.swissTarget, submitted: false, locked: false, closed: false,
-      available: false, voided: false, result: null }) }));
+      available: data.contests.some(contest => contest.stageKey === stage.key && !contest.locked), voided: false, result: null }) }));
   async function refresh() {
     const id = ++request.current; setLoading(true); setError(false);
     try {

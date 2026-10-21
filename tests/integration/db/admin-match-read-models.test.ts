@@ -4,6 +4,8 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { createLocalPool } from "./harness/database";
 
+vi.mock("next/cache", () => ({ cacheLife: vi.fn(), cacheTag: vi.fn() }));
+
 const requireSeasonAdminMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/auth/session", () => ({

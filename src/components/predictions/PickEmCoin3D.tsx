@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -20,6 +21,7 @@ export default function PickEmCoin3D({ coin }: { coin: string }) {
     try { renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); }
     catch { queueMicrotask(() => setFailed(true)); return; }
     let disposed = false;
+    renderer.domElement.dataset.coinRenderer = "webgl";
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x000000, 0);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -85,12 +87,14 @@ export default function PickEmCoin3D({ coin }: { coin: string }) {
     };
   }, [finish.metal]);
   return <div className="flex h-full min-h-0 flex-col">
-    <div ref={host} className="min-h-[220px] flex-1 touch-none cursor-grab active:cursor-grabbing" role="img" aria-label={`${finish.label}三维展示，可拖动旋转`} />
-    {failed && <p role="status" className="text-center text-sm text-[var(--color-fg-mid)]">三维预览暂不可用</p>}
+    <div ref={host} className={`relative flex min-h-[220px] flex-1 items-center justify-center touch-none cursor-grab active:cursor-grabbing ${failed ? "[&_canvas]:hidden" : ""}`} role="img" aria-label={`${finish.label}三维展示，可拖动旋转`}>
+      {failed && <div className="h-56 w-56 rounded-full shadow-2xl" style={{ backgroundColor: finish.metal }}><Image src={PICKEM_COIN_FACES.front} width={224} height={224} alt={finish.label} className="mix-blend-multiply" /></div>}
+    </div>
+    {failed && <p role="status" className="text-center text-sm text-[var(--color-fg-mid)]">当前显示静态币图</p>}
     <div className="flex justify-center gap-4 py-4 text-xs text-[var(--color-fg-mid)]">
-      <button type="button" onClick={() => rotate.current?.(-1)} aria-label="向左旋转纪念币">向左旋转</button>
-      <button type="button" onClick={() => reset.current?.()}>复位</button>
-      <button type="button" onClick={() => rotate.current?.(1)} aria-label="向右旋转纪念币">向右旋转</button>
+      <button type="button" disabled={failed} className="disabled:opacity-40" onClick={() => rotate.current?.(-1)} aria-label="向左旋转纪念币">向左旋转</button>
+      <button type="button" disabled={failed} className="disabled:opacity-40" onClick={() => reset.current?.()}>复位</button>
+      <button type="button" disabled={failed} className="disabled:opacity-40" onClick={() => rotate.current?.(1)} aria-label="向右旋转纪念币">向右旋转</button>
     </div>
   </div>;
 }
