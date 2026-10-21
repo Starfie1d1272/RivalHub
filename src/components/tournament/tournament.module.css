@@ -1,3 +1,11 @@
+.predictionHeader { position: relative; min-height: 40px; }
+.predictionTitle { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding-right: 350px; }
+.predictionHeaderActions { position: absolute; right: 0; top: 0; display: flex; align-items: flex-start; gap: 12px; }
+.predictionStages { display: flex; flex-wrap: wrap; gap: 8px; padding-right: 350px; min-height: 44px; }
+@media (max-width: 899px) {
+  .predictionTitle, .predictionStages { padding-right: 0; }
+  .predictionHeaderActions { position: static; margin-top: 16px; justify-content: space-between; }
+}
 .board {
   --advance: var(--color-info, #22c9dc);
   --out: var(--color-danger, #f04461);

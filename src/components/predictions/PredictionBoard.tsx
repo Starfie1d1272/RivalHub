@@ -265,12 +265,12 @@ export function PredictionBoard({
   }
   return (
     <div className={`${styles.workbench} min-w-0 space-y-4`}>
-      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[var(--color-border)] pb-4">
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
+      <div className={styles.predictionHeader}>
+        <div className={styles.predictionTitle}>
           <h1 className="text-[28px] font-semibold">赛事推演</h1>
           <p className="text-sm text-[var(--color-fg-mid)]">{base.name}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className={styles.predictionHeaderActions}>
           <Button
             variant="outline"
             disabled={pending}
@@ -284,7 +284,7 @@ export function PredictionBoard({
       {refreshFailed && <p role="status" className="text-sm text-[var(--color-warn)]">赛况更新失败，当前保留上次数据。可点击「刷新赛况」。</p>}
       {
         <>
-          <div className="flex flex-wrap gap-2" aria-label="赛事阶段">
+          <div className={styles.predictionStages} aria-label="赛事阶段">
             {data.contexts
               .filter((c) => c.kind !== context.kind)
               .map((c) => (

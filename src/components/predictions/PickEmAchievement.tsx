@@ -67,7 +67,7 @@ export function PickEmAchievement({ data, signedIn }: { data: PickEmBoardData; s
   return <Dialog open={expanded} onOpenChange={(open) => { setExpanded(open); if (open) { setPopover(null); void refresh(); } }}>
     <div className={styles.widget} data-testid="pickem-achievement">
       <div className={styles.summary}>
-        <div className={styles.coinThumb} style={coin === "未获得" ? { filter: "grayscale(1)", opacity: .55 } : undefined}>
+        <div className={styles.coinThumb}>
           <Image src={coinFaces(coin).front} alt={finish.label} width={64} height={64} />
         </div>
         <div className={styles.summaryText}><span>{finish.label}</span><strong>{achievement?.challenges ?? 0}<small> / {capacity}</small></strong></div>

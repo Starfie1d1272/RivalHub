@@ -26,7 +26,7 @@ export default function PickEmCoin3D({ coin }: { coin: string }) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x000000, 0);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.4;
+    renderer.toneMappingExposure = 1.15;
     target.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(34, 1, .1, 50);
@@ -43,8 +43,10 @@ export default function PickEmCoin3D({ coin }: { coin: string }) {
     scene.environment = env.texture;
     const key = new THREE.DirectionalLight(0xffead1, 4); key.position.set(3, 4, 5); scene.add(key);
     const fill = new THREE.DirectionalLight(0xc6e6ff, 2); fill.position.set(-4, 0, 2); scene.add(fill);
+    const rimLight = new THREE.DirectionalLight(0xb9dfff, 3); rimLight.position.set(2, 3, -4); scene.add(rimLight);
+    scene.add(new THREE.AmbientLight(0xffffff, .65));
     const metal = new THREE.MeshStandardMaterial({ color: finish.metal, metalness: .92, roughness: .27 });
-    const faces = [0, 1].map(() => new THREE.MeshBasicMaterial({ color: coin === "未获得" ? 0x899199 : 0xffffff, toneMapped: false }));
+    const faces = [0, 1].map(() => new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: .3, roughness: .4, emissive: 0xffffff, emissiveIntensity: .25 }));
     const group = new THREE.Group(); scene.add(group);
     const body = new THREE.Mesh(createCoinGeometry(), [metal, ...faces]);
     group.add(body);
@@ -64,7 +66,7 @@ export default function PickEmCoin3D({ coin }: { coin: string }) {
       loader.load(url, (texture) => {
         if (disposed) { texture.dispose(); return; }
         textures.push(texture); texture.colorSpace = THREE.SRGBColorSpace;
-        faces[i]!.map = texture; faces[i]!.needsUpdate = true; render();
+        faces[i]!.map = texture; faces[i]!.emissiveMap = texture; faces[i]!.needsUpdate = true; render();
       }, undefined, () => { if (!disposed) setFailed(true); });
     });
     controls.addEventListener("change", render);
@@ -89,7 +91,7 @@ export default function PickEmCoin3D({ coin }: { coin: string }) {
   }, [finish.metal, coin]);
   return <div className="flex h-full min-h-0 flex-col">
     <div ref={host} className={`relative flex min-h-[220px] flex-1 items-center justify-center touch-none cursor-grab active:cursor-grabbing ${failed ? "[&_canvas]:hidden" : ""}`} role="img" aria-label={`${finish.label}三维展示，可拖动旋转`}>
-      {failed && <div className="h-full max-h-[480px] w-full max-w-[480px] p-5" style={coin === "未获得" ? { filter: "grayscale(1)", opacity: .55 } : undefined}><Image src={coinFaces(coin).front} width={480} height={480} alt={finish.label} className="h-full w-full object-contain" /></div>}
+      {failed && <div className="h-full max-h-[480px] w-full max-w-[480px] p-5"><Image src={coinFaces(coin).front} width={480} height={480} alt={finish.label} className="h-full w-full object-contain drop-shadow-[0_0_24px_#ffd5a840]" /></div>}
     </div>
     {failed && <p role="status" className="text-center text-sm text-[var(--color-fg-mid)]">当前显示静态币图</p>}
     <div className="flex justify-center gap-4 py-4 text-xs text-[var(--color-fg-mid)]">

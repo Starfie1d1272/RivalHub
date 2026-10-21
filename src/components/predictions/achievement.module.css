@@ -1,7 +1,7 @@
 .widget { min-width: 218px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-panel); }
 .summary { display: flex; align-items: center; gap: 12px; padding: 8px 12px; }
 .coinThumb { width: 56px; height: 56px; flex-shrink: 0; border-radius: 50%; box-shadow: 0 2px 10px #0006; }
-.coinThumb img { width: 100%; height: 100%; object-fit: contain; }
+.coinThumb img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 0 8px #ffd5a830); }
 .summaryText { flex: 1; display: flex; flex-direction: column; }
 .summaryText > span { font-size: 11px; color: var(--color-fg-mid); }
 .summaryText strong { font-size: 25px; line-height: 1.15; font-variant-numeric: tabular-nums; }
@@ -17,7 +17,7 @@
 .panelTitle button { padding: 5px; }
 .dialog { padding: 0; }
 .expandedBody { display: grid; grid-template-columns: minmax(0, 1fr) minmax(330px, .85fr); gap: 24px; overflow: hidden; }
-.coinStage { position: relative; min-height: 0; display: flex; flex-direction: column; border-radius: var(--radius-sm); background: radial-gradient(ellipse at 50% 48%, var(--color-panel-hi), var(--color-panel-low) 75%); }
+.coinStage { position: relative; min-height: 0; display: flex; flex-direction: column; border-radius: var(--radius-sm); background: radial-gradient(ellipse at 44% 38%, #5a463130, transparent 55%), radial-gradient(ellipse at 75% 55%, #8ebeff14, transparent 65%), var(--color-panel-low); }
 .coinStage > div:last-child { flex: 1; }
 .coinTitle { padding: 24px 24px 0; text-align: center; }
 .coinTitle span { font-size: 11px; letter-spacing: .12em; color: var(--color-fg-dim); }
