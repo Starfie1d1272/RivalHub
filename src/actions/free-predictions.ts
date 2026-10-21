@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
-import { requireAuth, getUserSession } from "@/lib/auth/session";
+import { requireAuth } from "@/lib/auth/session";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";

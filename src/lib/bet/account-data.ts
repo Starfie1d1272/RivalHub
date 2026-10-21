@@ -22,7 +22,7 @@ export async function readBetAccounts(tx: TxDb, seasonId: string, accountId: str
     .where(and(eq(betLedger.seasonId, seasonId), eq(betLedger.kind, "settlement"))).groupBy(betLedger.accountId).as("bet_participation");
   const totals = tx.select({ accountId: betLedger.accountId, balance: sql<string>`sum(${betLedger.amount})::text`.as("balance"), profit: sql<string>`sum(${betLedger.profit})::text`.as("profit") })
     .from(betLedger).where(eq(betLedger.seasonId, seasonId)).groupBy(betLedger.accountId).as("bet_totals");
-  const ranked = tx.select({accountId:betAccounts.id,balance:totals.balance,profit:totals.profit,
+  const ranked = tx.select({accountId:betAccounts.id,userId:betAccounts.userId,joinedAt:betAccounts.joinedAt,balance:totals.balance,profit:totals.profit,settledCount:participation.count,
     rank:sql<number | null>`case when ${participation.count} > 0 then rank() over (
       order by case when ${participation.count} > 0 then ${totals.profit}::numeric end desc nulls last
     )::int else null end`.as("account_rank")})
@@ -31,19 +31,15 @@ export async function readBetAccounts(tx: TxDb, seasonId: string, accountId: str
     .where(eq(betAccounts.seasonId,seasonId)).as("ranked_accounts");
   const summary = options.leaderboard === false && accountId
     ? (await tx.select().from(ranked).where(eq(ranked.accountId,accountId)))[0] : undefined;
-  const rows = options.leaderboard === false ? [] : await tx.select({ accountId: betAccounts.id, userId: users.id, displayName: users.displayName, personaName: steamProfiles.personaName, perfectName: users.perfectName,
-    joinedAt: betAccounts.joinedAt, balance: totals.balance, profit: totals.profit, settledCount: participation.count })
-    .from(betAccounts).innerJoin(users, eq(users.id, betAccounts.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-    .innerJoin(totals, eq(totals.accountId, betAccounts.id)).leftJoin(participation, eq(participation.accountId, betAccounts.id))
-    .where(eq(betAccounts.seasonId, seasonId))
-    .orderBy(sql`${totals.profit}::numeric desc`, desc(participation.count), asc(betAccounts.joinedAt), asc(betAccounts.id));
+  const rows = options.leaderboard === false ? [] : await tx.select({ accountId: ranked.accountId, userId: users.id, displayName: users.displayName, personaName: steamProfiles.personaName, perfectName: users.perfectName,
+    balance: ranked.balance, profit: ranked.profit, settledCount: ranked.settledCount, rank:ranked.rank })
+    .from(ranked).innerJoin(users, eq(users.id, ranked.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+    .orderBy(sql`${ranked.profit}::numeric desc`, desc(ranked.settledCount), asc(ranked.joinedAt), asc(ranked.accountId));
   const mine = rows.find(row => row.accountId === accountId);
   const eligible = rows.filter(row => (row.settledCount ?? 0) > 0);
-  let rank = 0;
   const playerIds = await getPublicPlayerIdentityIds(tx, eligible.map(row => row.userId));
-  const leaderboard: BetBoardDTO["leaderboard"] = eligible.map((row, index) => {
-    if (index === 0 || row.profit !== eligible[index - 1]!.profit) rank = index + 1;
-    return { userId: row.userId, playerUserId: playerIds.has(row.userId) ? row.userId : null, name: getPublicDisplayName(row), profit: row.profit, settledCount: row.settledCount!, rank };
+  const leaderboard: BetBoardDTO["leaderboard"] = eligible.map(row => {
+    return { userId: row.userId, playerUserId: playerIds.has(row.userId) ? row.userId : null, name: getPublicDisplayName(row), profit: row.profit, settledCount: row.settledCount!, rank:row.rank! };
   });
   // Only the authenticated viewer's account is read; raw source keys never leave this owner.
   const ledgerRows = accountId && options.records !== false ? await tx.select({ createdAt: betLedger.createdAt, amount: betLedger.amount, kind: betLedger.kind, source: betLedger.source,
