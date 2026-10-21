@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.21.6]
+
+### Changed
+
+- 优化比赛后台现有赛务待办组件的信息层级：突出对阵、开赛时间与下一步操作，将负责人、解说和完成期限置于辅助层，排期回应说明支持展开。
+- 保留原后台布局、品牌样式、八类筛选、联系与复制催办入口，以及进入工作台后返回原筛选和位置的行为；同刻撞档独立提示。
+
 ## [2.21.5]
 
 ### Fixed
@@ -3358,3 +3365,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.0.0]: https://github.com/Starfie1d1272/RivalHub/compare/v0.3.0...v1.0.0
 
 [2.21.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.4...v2.21.5
+
+[2.21.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.5...v2.21.6
