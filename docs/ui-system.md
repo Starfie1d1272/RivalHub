@@ -270,7 +270,7 @@ Swiss rounds and Qualified / Eliminated buckets use the owning policy: Main Even
 
 Swiss Pick’Em retains logo slots and a visible team pool, keyboard/tap assignment and optional drag. 选队槽位、队伍池与淘汰赛选项只提供预测选择和必要的清空操作，不附加队伍资料跳转；锁定后保留只读选择状态。 Draft save, PNG export and formal submission remain distinct; simulation never automatically submits. Eligible displayed results (including system-filled winners) can be explicitly saved as the current stage draft, opening the dock; replacing a different nonempty draft requires confirmation. First save/submission creates participation and initial credit atomically through the existing program lock, with idempotent retries; no separate join step is required. 推演保存后标明与草稿的关系，上游改选提示可更新草稿，手动编辑保持独立，正式提交始终由预测单内的独立操作完成。 Export derives submission status from a fresh server read. Rules and interaction explanations use shared HelpTooltip; normal UI shows stage, teams, results, choices and submitted/deadline/lock status without revision or internal keys.
 
-推演页头用纪念币成就组件替代独立战绩页切换：币图、已完成任务数常显；任务与排行榜按需展开，同一时刻一个面板。放大视图使用 immersive Dialog，在桌面约 80vw × 80dvh，左侧三维币、右侧任务／排行榜 tabs，窄屏纵向排布。当前八项任务在首次有效提交锁定后获得铜币，银／金／钻门槛为 2／5／8；排行榜按完成任务数并列，同任务数内部按真实命中数降序排列。任务、纪念币和榜单由同一服务端投影计算；常规推演轮询仅读取本人进度，全榜仅在主动展开时读取。三维模块只在放大时加载，关闭时释放 GPU 资源，提供键盘可用的旋转和复位操作。币体为自有几何，正反面素材独立替换，不携带 Valve 原模型或材质。
+推演页头用纪念币成就组件替代独立战绩页切换：币图、已完成任务数常显；任务与排行榜按需展开，同一时刻一个面板。放大视图使用 immersive Dialog，在桌面约 80vw × 80dvh，左侧三维币、右侧任务／排行榜 tabs，窄屏纵向排布。当前八项任务在首次有效提交锁定后获得铜币，银／金／钻门槛为 2／5／8；排行榜按完成任务数并列，同任务数内部按真实命中数降序排列。任务、纪念币和榜单由同一服务端投影计算；常规推演轮询仅读取本人进度，全榜仅在主动展开时读取。三维模块只在放大时加载，关闭时释放 GPU 资源，提供键盘可用的旋转和复位操作。币体为自有几何，按铜／银／金／钻选择用户提供的透明币图，当前正反面共用对应等级素材；未解锁显示灰阶。币面保留原图颜色，侧边独立使用金属材质，不携带 Valve 原模型或材质。
 
 队伍地图参考保留既有布局；缺少正式地图统计的成员在自报熟练地图旁显示完美平台历史最高段位与对应 Rating Pro，使用公共竞技资料展示 owner，已有正式地图数据的成员省略这组兜底参考。
 

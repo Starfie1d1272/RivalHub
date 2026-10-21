@@ -11,7 +11,7 @@ import { getPredictionBoard } from "@/actions/predictions";
 import { predictionChallengeCapacity } from "@/lib/predictions/rules";
 import { stageTasks, type PickEmTaskState } from "@/lib/predictions/achievements";
 import type { PickEmBoardData } from "@/lib/predictions/data";
-import { COIN_FINISHES, PICKEM_COIN_FACES } from "./coin-assets";
+import { COIN_FINISHES, coinFaces } from "./coin-assets";
 import styles from "./achievement.module.css";
 
 const Coin3D = dynamic(() => import("./PickEmCoin3D"), { ssr: false, loading: () => <p role="status" className="m-auto text-sm">正在加载纪念币…</p> });
@@ -67,8 +67,8 @@ export function PickEmAchievement({ data, signedIn }: { data: PickEmBoardData; s
   return <Dialog open={expanded} onOpenChange={(open) => { setExpanded(open); if (open) { setPopover(null); void refresh(); } }}>
     <div className={styles.widget} data-testid="pickem-achievement">
       <div className={styles.summary}>
-        <div className={styles.coinThumb} style={{ backgroundColor: finish.metal }}>
-          <Image src={PICKEM_COIN_FACES.front} alt={finish.label} width={64} height={64} />
+        <div className={styles.coinThumb} style={coin === "未获得" ? { filter: "grayscale(1)", opacity: .55 } : undefined}>
+          <Image src={coinFaces(coin).front} alt={finish.label} width={64} height={64} />
         </div>
         <div className={styles.summaryText}><span>{finish.label}</span><strong>{achievement?.challenges ?? 0}<small> / {capacity}</small></strong></div>
         <DialogTrigger asChild><button type="button" className={styles.expand} aria-label="放大我的纪念币"><Maximize2 size={16} /></button></DialogTrigger>
