@@ -15,6 +15,14 @@ export interface BetBoardReadOptions extends BetAccountReadOptions {
   facts?: BetFacts;
   matchId?: string;
   includeEvent?: boolean;
+  publicPools?: Awaited<ReturnType<typeof readBetPools>>;
+}
+export async function readBetPools(tx: TxDb, seasonId: string, scope: Pick<BetBoardReadOptions, "matchId" | "includeEvent"> = {}) {
+  const marketScope=and(eq(betMarkets.seasonId,seasonId),scope.matchId?eq(betMarkets.matchId,scope.matchId):scope.includeEvent===false?isNotNull(betMarkets.matchId):undefined);
+  const marketIds=tx.select({id:betMarkets.id}).from(betMarkets).where(marketScope);
+  const pool=await tx.select({marketId:betStakes.marketId,optionId:betStakes.optionId,amount:sql<string>`sum(${betStakes.amount})::text`}).from(betStakes).where(and(eq(betStakes.seasonId,seasonId),inArray(betStakes.marketId,marketIds))).groupBy(betStakes.marketId,betStakes.optionId);
+  const counts=await tx.select({marketId:betStakes.marketId,count:sql<number>`count(distinct ${betStakes.accountId})::int`}).from(betStakes).where(and(eq(betStakes.seasonId,seasonId),inArray(betStakes.marketId,marketIds))).groupBy(betStakes.marketId);
+  return {pool,counts};
 }
 export async function betBoard(tx:TxDb,seasonId:string,userId:string|null, options:BetBoardReadOptions = {}):Promise<BetBoardDTO> {
   const program=await tx.query.betPrograms.findFirst({where:eq(betPrograms.seasonId,seasonId)});
@@ -27,8 +35,7 @@ export async function betBoard(tx:TxDb,seasonId:string,userId:string|null, optio
   const marketScope=and(eq(betMarkets.seasonId,seasonId),options.matchId?eq(betMarkets.matchId,options.matchId):options.includeEvent===false?isNotNull(betMarkets.matchId):undefined);
   const all=await tx.select().from(betMarkets).where(marketScope).orderBy(asc(betMarkets.createdAt),asc(betMarkets.id));
   const marketIds=tx.select({id:betMarkets.id}).from(betMarkets).where(marketScope);
-  const pool=await tx.select({marketId:betStakes.marketId,optionId:betStakes.optionId,amount:sql<string>`sum(${betStakes.amount})::text`}).from(betStakes).where(and(eq(betStakes.seasonId,seasonId),inArray(betStakes.marketId,marketIds))).groupBy(betStakes.marketId,betStakes.optionId);
-  const counts=await tx.select({marketId:betStakes.marketId,count:sql<number>`count(distinct ${betStakes.accountId})::int`}).from(betStakes).where(and(eq(betStakes.seasonId,seasonId),inArray(betStakes.marketId,marketIds))).groupBy(betStakes.marketId);
+  const {pool,counts}=options.publicPools ?? await readBetPools(tx,seasonId,options);
   const myStakes=account?await tx.select({marketId:betStakes.marketId,optionId:betStakes.optionId,amount:sql<string>`sum(${betStakes.amount})::text`}).from(betStakes).where(and(eq(betStakes.accountId,account.id),inArray(betStakes.marketId,marketIds))).groupBy(betStakes.marketId,betStakes.optionId):[];
   const allOptions=await tx.select({option:betOptions}).from(betOptions).innerJoin(betMarkets,eq(betMarkets.id,betOptions.marketId)).where(marketScope).orderBy(asc(betOptions.position)).then(rows=>rows.map(r=>r.option));
   const latestSettlements=await tx.selectDistinctOn([betSettlements.marketId],{batch:betSettlements}).from(betSettlements).innerJoin(betMarkets,eq(betMarkets.id,betSettlements.marketId)).where(marketScope).orderBy(asc(betSettlements.marketId),desc(betSettlements.revision)).then(rows=>rows.map(r=>r.batch));

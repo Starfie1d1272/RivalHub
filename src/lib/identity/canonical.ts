@@ -1,7 +1,7 @@
 import "server-only";
 import { assertFreshAuthenticationInTx } from "@/lib/auth/session-registry";
 
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
 import { userIdentities, users } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -33,6 +33,25 @@ export async function resolveCanonicalUserId(
   }
 
   throw new AppError(ErrorCode.INTERNAL_ERROR, "用户归并 alias 链超过安全上限。");
+}
+
+/** Original attribution rows whose alias chain resolves to this active viewer. */
+export async function getCanonicalUserSourceIds(queryable: IdentityQueryable, userId: string): Promise<string[]> {
+  const [viewer] = await queryable.select({id: users.id}).from(users).where(and(eq(users.id, userId), eq(users.status, "active"))).limit(1);
+  if (!viewer) return [];
+  const ids = new Set([viewer.id]);
+  let frontier = [viewer.id];
+  // Match resolveCanonicalUserId's maximum of 16 visited accounts.
+  for (let depth = 1; depth < 16 && frontier.length; depth++) {
+    const rows = await queryable.select({id: users.id}).from(users).where(and(ne(users.status, "active"), inArray(users.mergedIntoUserId, frontier)));
+    frontier = rows.map(row => row.id).filter(id => !ids.has(id));
+    for (const id of frontier) ids.add(id);
+  }
+  if (frontier.length) {
+    const deeper = await queryable.select({id: users.id}).from(users).where(and(ne(users.status, "active"), inArray(users.mergedIntoUserId, frontier))).limit(1);
+    if (deeper.length) throw new AppError(ErrorCode.INTERNAL_ERROR, "用户归并 alias 链超过安全上限。");
+  }
+  return [...ids];
 }
 
 /** Resolve an Auth result to one canonical person and maintain credential rows. */
