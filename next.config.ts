@@ -19,6 +19,7 @@ const localStorageImagePatterns =
     : [];
 
 const nextConfig: NextConfig = {
+  ...(process.env.RIVALHUB_STANDALONE === "1" ? { output: "standalone" as const } : {}),
   cacheComponents: true,
   partialPrefetching: true,
   serverExternalPackages: ["pg"],

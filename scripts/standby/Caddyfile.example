@@ -1,0 +1,6 @@
+preview-standby.starfie1d.top {
+    basic_auth {
+        standby REPLACE_WITH_CADDY_PASSWORD_HASH
+    }
+    reverse_proxy 127.0.0.1:3031
+}

@@ -62,6 +62,7 @@
 - [`statistics-projections.md`](./operations/statistics-projections.md)
 - [`staging.md`](./operations/staging.md)
 - [`release.md`](./operations/release.md)
+- [`standby.md`](./operations/standby.md)
 - [`disaster-recovery.md`](./operations/disaster-recovery.md)
 - [`major-referee-guide.md`](./operations/major-referee-guide.md)
 - [`spectator-predictions.md`](./operations/spectator-predictions.md)
