@@ -86,6 +86,7 @@ Release workflow 在 deployment smoke 成功后，使用受保护 production env
 - migration：[`operations/database-migrations.md`](./operations/database-migrations.md)
 - staging：[`operations/staging.md`](./operations/staging.md)
 - release：[`operations/release.md`](./operations/release.md)
+- 应用备用机与 Vercel 故障切换：[`operations/standby.md`](./operations/standby.md)
 - 测试证据：[`testing.md`](./testing.md)
 
 provider project ID、host、secret 和 workflow 具体实现由受保护配置/代码拥有，不在本文件复制。

@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   preview-credential:
-    if: vars.RIVALHUB_STANDBY_OPERATOR_PUBLIC_KEY != '' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.event_name == 'workflow_dispatch' && vars.RIVALHUB_STANDBY_OPERATOR_PUBLIC_KEY != ''
     runs-on: ubuntu-24.04
     environment: staging
     steps:

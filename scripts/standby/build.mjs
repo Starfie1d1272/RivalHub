@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { assertPreviewAuthEnvironment, PREVIEW_PROJECT_REF } from "../../src/lib/runtime/preview.ts";
@@ -51,6 +52,6 @@ for (const name of [".env", ".env.local", ".env.production", ".env.production.lo
 mkdirSync(".agent-tmp/standby-package", { recursive: true });
 const archive = `.agent-tmp/standby-package/rivalhub-standby-${sourceCommit}.tar.gz`;
 execFileSync("tar", ["-czf", archive, "-C", bundle, "."], { stdio: "inherit" });
-const sum = execFileSync("sha256sum", [archive], { encoding: "utf8" }).split(/\s+/)[0];
+const sum = createHash("sha256").update(readFileSync(archive)).digest("hex");
 writeFileSync(`${archive}.sha256`, `${sum}  ${archive.split("/").at(-1)}\n`);
 console.log(JSON.stringify({ sourceCommit, releaseTag, environment: "preview", archive, sha256: sum }));

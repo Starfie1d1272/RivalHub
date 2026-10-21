@@ -1,0 +1,30 @@
+[Unit]
+Description=RivalHub isolated Preview standby
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=rivalhub-standby
+Group=rivalhub-standby
+WorkingDirectory=/opt/rivalhub-standby/current
+EnvironmentFile=/etc/rivalhub-standby/preview.env
+ExecStart=/opt/rivalhub-standby/current/runtime/node /opt/rivalhub-standby/current/scripts/standby/start.mjs
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+MemoryMax=512M
+CPUQuota=100%
+TasksMax=128
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/rivalhub-standby/current/.next/cache
+
+[Install]
+WantedBy=multi-user.target
