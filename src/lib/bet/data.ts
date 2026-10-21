@@ -1,32 +1,39 @@
 import { betOptionEntity } from "./option-entity";
 import "server-only";
-import { and, eq, asc, desc, sql } from "drizzle-orm";
+import { and, eq, asc, desc, sql, isNotNull, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { betPrograms, betAccounts, betMarkets, betOptions, betStakes, betSettlements, betLedger, users } from "@/db/schema";
 import { betRosterRestriction } from "./admission";
-import { readBetAccounts } from "./account-data";
-import { loadBetFacts } from "./facts";
+import { readBetAccounts, type BetAccountReadOptions } from "./account-data";
+import { loadBetFacts, type BetFacts } from "./facts";
 import { betFactInput } from "./service";
 import { marketIsLocked, resolveBetFact } from "./domain";
 import { marketPresentation, marketContext } from "./presentation";
 import type { BetBoardDTO, BetState } from "./types";
 /** Read-only repeatable-read snapshot. Never create markets or settle from GET. */
-export async function betBoard(tx:TxDb,seasonId:string,userId:string|null):Promise<BetBoardDTO> {
+export interface BetBoardReadOptions extends BetAccountReadOptions {
+  facts?: BetFacts;
+  matchId?: string;
+  includeEvent?: boolean;
+}
+export async function betBoard(tx:TxDb,seasonId:string,userId:string|null, options:BetBoardReadOptions = {}):Promise<BetBoardDTO> {
   const program=await tx.query.betPrograms.findFirst({where:eq(betPrograms.seasonId,seasonId)});
   if (!program) return {seasonId,enabled:false,paused:false,joined:false,balance:"0",debt:"0",profit:"0",rank:null,leaderboard:[],records:[],markets:[],matches:[]};
-  const f=await loadBetFacts(tx,seasonId);
+  const f=options.facts ?? await loadBetFacts(tx,seasonId,{matchId:options.matchId,event:options.includeEvent,rosterUserId:options.includeEvent === false ? userId : undefined});
   const account=userId?await tx.query.betAccounts.findFirst({where:and(eq(betAccounts.seasonId,seasonId),eq(betAccounts.userId,userId))}):undefined;
   const user=userId?await tx.query.users.findFirst({where:eq(users.id,userId),columns:{role:true,status:true,emailVerifiedAt:true}}):undefined;
   const joinReason=!userId?"登录后领取初始积分":!user||user.status!=="active"||!user.emailVerifiedAt?"请先完成邮箱验证并重新登录":f.season.status==="archived"?"赛事已归档，不能领取积分":account?"已领取本届初始积分":null;
-  const { balance, profit, rank, leaderboard, records } = await readBetAccounts(tx, seasonId, account?.id, f);
-  const all=await tx.select().from(betMarkets).where(eq(betMarkets.seasonId,seasonId)).orderBy(asc(betMarkets.createdAt),asc(betMarkets.id));
-  const pool=await tx.select({marketId:betStakes.marketId,optionId:betStakes.optionId,amount:sql<string>`sum(${betStakes.amount})::text`}).from(betStakes).where(eq(betStakes.seasonId,seasonId)).groupBy(betStakes.marketId,betStakes.optionId);
-  const counts=await tx.select({marketId:betStakes.marketId,count:sql<number>`count(distinct ${betStakes.accountId})::int`}).from(betStakes).where(eq(betStakes.seasonId,seasonId)).groupBy(betStakes.marketId);
-  const myStakes=account?await tx.select({marketId:betStakes.marketId,optionId:betStakes.optionId,amount:sql<string>`sum(${betStakes.amount})::text`}).from(betStakes).where(eq(betStakes.accountId,account.id)).groupBy(betStakes.marketId,betStakes.optionId):[];
-  const allOptions=await tx.select({option:betOptions}).from(betOptions).innerJoin(betMarkets,eq(betMarkets.id,betOptions.marketId)).where(eq(betMarkets.seasonId,seasonId)).orderBy(asc(betOptions.position)).then(rows=>rows.map(r=>r.option));
-  const latestSettlements=await tx.selectDistinctOn([betSettlements.marketId],{batch:betSettlements}).from(betSettlements).innerJoin(betMarkets,eq(betMarkets.id,betSettlements.marketId)).where(eq(betMarkets.seasonId,seasonId)).orderBy(asc(betSettlements.marketId),desc(betSettlements.revision)).then(rows=>rows.map(r=>r.batch));
-  const myPayouts=account?await tx.select().from(betLedger).where(and(eq(betLedger.accountId,account.id),eq(betLedger.kind,"settlement"))):[];
-  const result:BetBoardDTO={seasonId,enabled:!!program,paused:program?.paused??false,joined:!!account,joinEligibility:{canJoin:joinReason===null,reason:joinReason},balance:(balance>BigInt(0)?balance:BigInt(0)).toString(),debt:(balance<BigInt(0)?-balance:BigInt(0)).toString(),profit,rank,leaderboard,records,markets:[],matches:f.official.map(m=>({id:m.id,entryAId:m.entryAId,entryBId:m.entryBId,a:f.entries.find(e=>e.id===m.entryAId)?.name??"队伍",b:f.entries.find(e=>e.id===m.entryBId)?.name??"队伍",logoA:f.entries.find(e=>e.id===m.entryAId)?.logoUrl??null,logoB:f.entries.find(e=>e.id===m.entryBId)?.logoUrl??null,stage:m.qualificationRunId?"PLAY-IN":f.season.stagePlan.find(s=>s.key===m.stage)?.name??"正赛",format:m.format.toUpperCase(),scheduledAt:m.scheduledAt?.toISOString()??null}))};
+  const { balance, profit, rank, leaderboard, records, recordsHasMore } = await readBetAccounts(tx, seasonId, account?.id, f, options);
+  const marketScope=and(eq(betMarkets.seasonId,seasonId),options.matchId?eq(betMarkets.matchId,options.matchId):options.includeEvent===false?isNotNull(betMarkets.matchId):undefined);
+  const all=await tx.select().from(betMarkets).where(marketScope).orderBy(asc(betMarkets.createdAt),asc(betMarkets.id));
+  const marketIds=tx.select({id:betMarkets.id}).from(betMarkets).where(marketScope);
+  const pool=await tx.select({marketId:betStakes.marketId,optionId:betStakes.optionId,amount:sql<string>`sum(${betStakes.amount})::text`}).from(betStakes).where(and(eq(betStakes.seasonId,seasonId),inArray(betStakes.marketId,marketIds))).groupBy(betStakes.marketId,betStakes.optionId);
+  const counts=await tx.select({marketId:betStakes.marketId,count:sql<number>`count(distinct ${betStakes.accountId})::int`}).from(betStakes).where(and(eq(betStakes.seasonId,seasonId),inArray(betStakes.marketId,marketIds))).groupBy(betStakes.marketId);
+  const myStakes=account?await tx.select({marketId:betStakes.marketId,optionId:betStakes.optionId,amount:sql<string>`sum(${betStakes.amount})::text`}).from(betStakes).where(and(eq(betStakes.accountId,account.id),inArray(betStakes.marketId,marketIds))).groupBy(betStakes.marketId,betStakes.optionId):[];
+  const allOptions=await tx.select({option:betOptions}).from(betOptions).innerJoin(betMarkets,eq(betMarkets.id,betOptions.marketId)).where(marketScope).orderBy(asc(betOptions.position)).then(rows=>rows.map(r=>r.option));
+  const latestSettlements=await tx.selectDistinctOn([betSettlements.marketId],{batch:betSettlements}).from(betSettlements).innerJoin(betMarkets,eq(betMarkets.id,betSettlements.marketId)).where(marketScope).orderBy(asc(betSettlements.marketId),desc(betSettlements.revision)).then(rows=>rows.map(r=>r.batch));
+  const myPayouts=account && latestSettlements.length?await tx.select().from(betLedger).where(and(eq(betLedger.accountId,account.id),eq(betLedger.kind,"settlement"),inArray(betLedger.source,latestSettlements.map(s=>`settlement/${s.id}`)))):[];
+  const result:BetBoardDTO={seasonId,enabled:!!program,paused:program?.paused??false,joined:!!account,joinEligibility:{canJoin:joinReason===null,reason:joinReason},balance:(balance>BigInt(0)?balance:BigInt(0)).toString(),debt:(balance<BigInt(0)?-balance:BigInt(0)).toString(),profit,rank,leaderboard,records,recordsHasMore,markets:[],matches:f.official.map(m=>({id:m.id,entryAId:m.entryAId,entryBId:m.entryBId,a:f.entries.find(e=>e.id===m.entryAId)?.name??"队伍",b:f.entries.find(e=>e.id===m.entryBId)?.name??"队伍",logoA:f.entries.find(e=>e.id===m.entryAId)?.logoUrl??null,logoB:f.entries.find(e=>e.id===m.entryBId)?.logoUrl??null,stage:m.qualificationRunId?"PLAY-IN":f.season.stagePlan.find(s=>s.key===m.stage)?.name??"正赛",format:m.format.toUpperCase(),scheduledAt:m.scheduledAt?.toISOString()??null}))};
   for (const market of all) {
     if (market.matchId && market.subject.kind !== "event" && !result.matches.some(m => m.id === market.matchId)) {
       const subject = market.subject;

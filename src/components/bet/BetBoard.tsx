@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { HelpTooltip, PageHeader } from "@/components/rivalhub";
 import { TeamLogo } from "@/components/teams/TeamLogo";
-import { mutateBet as telemetry_mutateBet, getBetBoard } from "@/actions/bet";
+import { mutateBet as telemetry_mutateBet } from "@/actions/bet";
 import { betStateLabel, formatPoints } from "@/lib/bet/presentation";
 import type { BetBoardDTO, BetMarketDTO } from "@/lib/bet/types";
 import { formatCSTDateTime } from "@/lib/utils/date";
@@ -31,8 +31,8 @@ import { observeAction } from "@/lib/telemetry/client";
 const mutateBet = observeAction("bet.mutateBet", telemetry_mutateBet);
 
 const filters=[{key:"open",label:"开放"},{key:"mine",label:"我的投入"},{key:"settled",label:"已结算"},{key:"event",label:"赛事"},{key:"leaderboard",label:"排行榜"},{key:"records",label:"记录"}] as const;
-export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,predictionControls,rankings,relief,predictionMatchRows,rankingRefreshAction,returnSelection}:{initial:BetBoardDTO;slug:string;signedIn:boolean;view:string;matchFilter:string|null;predictions?:FreePredictionModel[];predictionControls?:FreePredictionControls;rankings?:Record<PredictionRankingSort,PredictionRankingModel>;relief?:Omit<ComponentProps<typeof BetRelief>,"onClaimed">;predictionMatchRows?:BetBoardDTO["matches"];rankingRefreshAction?:ComponentProps<typeof PredictionLeaderboard>["refreshAction"];returnSelection?:{market?:string;option?:string;prediction?:string;choice?:string}}) {
-  const router=useRouter();const [snapshot,setSnapshot]=useState({origin:initial,value:initial});const data=snapshot.origin===initial?snapshot.value:initial;const [pending,startTransition]=useTransition();
+export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,predictionControls,rankings,relief,predictionMatchRows,rankingRefreshAction,returnSelection,refreshAction,recordsPage=0}:{initial:BetBoardDTO;refreshAction:()=>Promise<boolean>;recordsPage?:number;slug:string;signedIn:boolean;view:string;matchFilter:string|null;predictions?:FreePredictionModel[];predictionControls?:FreePredictionControls;rankings?:Record<PredictionRankingSort,PredictionRankingModel>;relief?:Omit<ComponentProps<typeof BetRelief>,"onClaimed">;predictionMatchRows?:BetBoardDTO["matches"];rankingRefreshAction?:ComponentProps<typeof PredictionLeaderboard>["refreshAction"];returnSelection?:{market?:string;option?:string;prediction?:string;choice?:string}}) {
+  const router=useRouter();const data=initial;const [pending,startTransition]=useTransition();
   const interactive=useClientReady();
   const boardRef=useRef<HTMLDivElement|null>(null);
   const participationTitle=useRef<HTMLHeadingElement|null>(null);
@@ -48,7 +48,6 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
   useEffect(()=>{if(restoreFocusAfterPending.current&&!pending&&!freePending&&!selected&&!predictionTarget){restoreFocusAfterPending.current=false;participationOpener.current?.focus();}},[pending,freePending,selected,predictionTarget]);
   const [amount,setAmount]=useState("");const [allIn,setAllIn]=useState(false);const [allConfirmed,setAllConfirmed]=useState(false);
   const [requestId,setRequestId]=useState(()=>resumedMarket?crypto.randomUUID():"");const [error,setError]=useState<string|null>(null);
-  useEffect(()=>{let alive=true;const refresh=async()=>{if(document.visibilityState!=="visible")return;const r=await getBetBoard({seasonId:initial.seasonId});if(alive&&r.success)setSnapshot({origin:initial,value:r.data});};const timer=setInterval(()=>void refresh(),15000);return()=>{alive=false;clearInterval(timer);};},[initial]);
   const matches = [...data.matches, ...(predictionMatchRows ?? []).filter(match => !data.matches.some(row => row.id === match.id))];
   const active=filters.some(f=>f.key===view)?view:"open";
   const predictionMatches = predictions && predictionControls ? matches.filter(match => (!matchFilter || match.id === matchFilter) && predictions.some(panel => panel.matchId === match.id && (active === "mine" ? panel.own.length > 0 : active === "settled" ? panel.officialStatus === "finished" || panel.officialStatus === "cancelled" || panel.status === "void" : active === "open" && (Boolean(matchFilter) || panel.officialStatus !== "finished" && panel.officialStatus !== "cancelled" && panel.status !== "void")))) : [];
@@ -56,8 +55,8 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
   const loginHref = `/login?next=${encodeURIComponent(`/${slug}/bet?${new URLSearchParams({view: active, ...(matchFilter ? {match: matchFilter} : {})})}`)}` as const;
   function loginFor(selection:Record<string,string>){const query=new URLSearchParams({...selection,view:active});const next=safeLocalRedirect(`/${slug}/bet?${query}`);router.push(`/login?next=${encodeURIComponent(next)}`);}
   function choose(market:BetMarketDTO,optionId:string){if(interactionBusy)return;if(!signedIn){loginFor({...(market.matchId?{match:market.matchId}:{}),market:market.id,option:optionId});return;}if(!selected&&!predictionTarget)participationOpener.current=document.activeElement as HTMLElement;setPredictionTarget(market.matchId?{matchId:market.matchId,kind:market.group==="比赛"||market.type==="total_rounds"&&matches.find(m=>m.id===market.matchId)?.format==="BO1"?"winner":"bp"}:null);setSelected({market,optionId});setAmount("");setAllIn(false);setAllConfirmed(false);setRequestId(crypto.randomUUID());setError(null);}
-  function join(){if(interactionBusy||!data.joinEligibility?.canJoin)return;startTransition(async()=>{try{const r=await mutateBet({operation:"join",seasonId:data.seasonId});if(!r.success){setError(r.error.message);toast.error(r.error.message);return;}const fresh=await getBetBoard({seasonId:data.seasonId});if(fresh.success){setSnapshot({origin:initial,value:fresh.data});setError(null);}else setError("积分已领取，余额更新失败，请刷新后查看。");router.refresh();}catch{setError("领取结果暂未确认，请刷新后查看。");}});}
-  function submit(){if(!selected || pending || freePending || !canStakeSelection)return;startTransition(async()=>{const r=await mutateBet({operation:"stake",seasonId:data.seasonId,marketId:selected.market.id,optionId:selected.optionId,amount:allIn?"all":amount,requestId});if(!r.success){setError(r.error.message);return;}toast.success(`已投入 ${formatPoints(r.data && "amount" in r.data?r.data.amount:"0")} 积分`);closeParticipation();router.refresh();const fresh=await getBetBoard({seasonId:data.seasonId});if(fresh.success)setSnapshot({origin:initial,value:fresh.data});});}
+  function join(){if(interactionBusy||!data.joinEligibility?.canJoin)return;startTransition(async()=>{try{const r=await mutateBet({operation:"join",seasonId:data.seasonId});if(!r.success){setError(r.error.message);toast.error(r.error.message);return;}if(await refreshAction())setError(null);else setError("积分已领取，余额更新失败，请刷新后查看。");}catch{setError("领取结果暂未确认，请刷新后查看。");}});}
+  function submit(){if(!selected || pending || freePending || !canStakeSelection)return;startTransition(async()=>{const r=await mutateBet({operation:"stake",seasonId:data.seasonId,marketId:selected.market.id,optionId:selected.optionId,amount:allIn?"all":amount,requestId});if(!r.success){setError(r.error.message);return;}toast.success(`已投入 ${formatPoints(r.data && "amount" in r.data?r.data.amount:"0")} 积分`);closeParticipation();if(!await refreshAction())toast.error("投入已提交，数据更新失败，请刷新后查看。");});}
   const current=data.markets.find(m=>m.id===selected?.market.id);
   const selectedOption=current?.options.find(o=>o.id===selected?.optionId);
   const canStakeSelection=Boolean(signedIn&&data.joined&&selectedOption&&current?.canStake&&(!current.mine||current.mine.optionId===selected?.optionId));
@@ -75,7 +74,7 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
         <Metric label="可用积分" value={data.joined?formatPoints(data.balance):"—"} accent help="首次领取 1,000 积分；加入后的 Main Event 新阶段各补给 300，不补历史阶段。管理员可以参与，但本人参赛队伍相关盘口不可参与。排名按净收益，不按余额；至少一次已结算参与才上榜。使用赛事积分参与无抽水社区奖池。积分不能购买、交易、转账、提现或兑换现实价值；只能追加原选项，不能换边或撤回。无胜方投入、全部投入均获胜或弃权时原额退款。预计回报随奖池变化。"/>
         <Metric label="净收益" value={data.joined?`${BigInt(data.profit)>BigInt(0)?"+":""}${formatPoints(data.profit)}`:"—"}/>
         <Link href={`/${slug}/bet?view=leaderboard`} aria-label="查看 BET 排行榜" className="rounded focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"><Metric label="排名" value={data.rank?`#${data.rank}`:"未上榜"}/></Link>
-        {data.joined && relief && <BetRelief {...relief} onClaimed={()=>{router.refresh();void getBetBoard({seasonId:data.seasonId}).then(fresh=>{if(fresh.success)setSnapshot({origin:initial,value:fresh.data});}).catch(()=>toast.error("钱包状态更新失败，请刷新后查看。"));}}/>}
+        {data.joined && relief && <BetRelief {...relief} onClaimed={()=>{void refreshAction().then(success=>{if(!success)toast.error("钱包状态更新失败，请刷新后查看。");});}}/>}
         {data.enabled && !data.joined && (signedIn?data.joinEligibility?.canJoin?<Button onClick={join} disabled={interactionBusy}>领取 1,000 积分</Button>:<span className="text-xs text-[var(--color-fg-mid)]">{data.joinEligibility?.reason??"领取资格暂不可用，请刷新"}</span>:<Button asChild><Link href={loginHref}>登录参与</Link></Button>)}
       </div>
     </>}/>
@@ -87,7 +86,7 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
       <span className="ml-auto py-3 text-xs tabular-nums text-[var(--color-fg-dim)]">{visible.filter(m=>m.state==="open").length} 个开放盘口</span>
     </nav>
     {matchFilter && <Link href={`/${slug}/bet` as never} className="inline-block text-sm text-[var(--color-accent)]">查看全部比赛 →</Link>}
-    {active==="leaderboard"?(rankings?<PredictionLeaderboard rankings={rankings} refreshAction={rankingRefreshAction}/>:<BetLeaderboard rows={data.leaderboard}/>):active==="records"?<BetRecords rows={data.records} signedIn={signedIn}/>:!visible.length&&!predictionMatches.length?<Empty text={!data.enabled?"BET 尚未开放":active==="mine"?"还没有投入记录":active==="settled"?"暂无已结算盘口":active==="event"?"等待正赛名单确认":"等待下一场对阵或地图"}/>:<div className={cn("grid min-w-0 items-start gap-5",!matchFilter&&"lg:grid-cols-2")}>
+    {active==="leaderboard"?(rankings?<PredictionLeaderboard rankings={rankings} refreshAction={rankingRefreshAction}/>:<BetLeaderboard rows={data.leaderboard}/>):active==="records"?<BetRecords rows={data.records} signedIn={signedIn} slug={slug} page={recordsPage} hasMore={data.recordsHasMore??false}/>:!visible.length&&!predictionMatches.length?<Empty text={!data.enabled?"BET 尚未开放":active==="mine"?"还没有投入记录":active==="settled"?"暂无已结算盘口":active==="event"?"等待正赛名单确认":"等待下一场对阵或地图"}/>:<div className={cn("grid min-w-0 items-start gap-5",!matchFilter&&"lg:grid-cols-2")}>
       {[...new Set([...visible.map(m=>m.matchId), ...predictionMatches.map(match=>match.id)])].map(id=>{
         const match = matches.find(m=>m.id===id);
         return id&&match?<MatchCard key={id} busy={interactionBusy} match={match} markets={visible.filter(m=>m.matchId===id)} slug={slug} choose={choose} initialGroup={resumedMarket?.matchId===id?(resumedMarket.group==="比赛"||resumedMarket.type==="total_rounds"&&match.format==="BO1"?"赛果":"地图"):resumedPrediction?.matchId===id?(resumedPrediction.kind==="winner"?"赛果":"地图"):undefined} predictions={predictions?.filter(panel=>panel.matchId===id)} openPrediction={openPrediction}/>:!id?<section key="event" className="space-y-5 lg:col-span-2">{visible.filter(m=>!m.matchId).map(m=><div key={m.id} className="border border-[var(--color-border)] bg-[var(--color-panel)] p-5"><MarketRow busy={interactionBusy} market={m} slug={slug} choose={choose}/></div>)}</section>:null;
@@ -180,13 +179,12 @@ function BetLeaderboard({ rows }: { rows: BetBoardDTO["leaderboard"] }) {
       <td className="px-2 py-3 tabular-nums">{BigInt(row.profit)>BigInt(0)?"+":""}{formatPoints(row.profit)}</td><td className="px-2 py-3 tabular-nums">{row.settledCount}</td>
     </tr>)}</tbody></table></div>;
 }
-function BetRecords({ rows, signedIn }: { rows: BetBoardDTO["records"]; signedIn: boolean }) {
+function BetRecords({ rows, signedIn, slug, page, hasMore }: { rows: BetBoardDTO["records"]; signedIn: boolean; slug:string; page:number; hasMore:boolean }) {
   if (!signedIn) return <Empty text="登录后查看本人积分记录" />;
-  if (!rows.length) return <Empty text="暂无积分记录" />;
-  return <ol aria-label="本人积分记录" className="divide-y divide-[var(--color-border)]">{rows.map((row, index) => <li key={`${row.createdAt}-${index}`} className="flex items-start justify-between gap-4 py-4">
+  return <>{!rows.length&&<Empty text="暂无积分记录"/>}<ol aria-label="本人积分记录" className="divide-y divide-[var(--color-border)]">{rows.map((row, index) => <li key={`${row.createdAt}-${index}`} className="flex items-start justify-between gap-4 py-4">
     <div className="min-w-0 space-y-1"><p className="text-sm">{row.label}</p>{row.context && <p className="break-words text-xs text-[var(--color-fg-mid)]">{row.context}</p>}<time dateTime={row.createdAt} className="text-xs text-[var(--color-fg-dim)]">{formatCSTDateTime(row.createdAt)}</time></div>
     <span className="shrink-0 font-mono tabular-nums">{BigInt(row.amount)>BigInt(0)?"+":""}{formatPoints(row.amount)}</span>
-  </li>)}</ol>;
+  </li>)}</ol><nav aria-label="积分记录翻页" className="flex justify-between text-sm">{page>0?<Link href={`/${slug}/bet?view=records&page=${page-1}` as never}>上一页</Link>:<span/>}{hasMore&&<Link href={`/${slug}/bet?view=records&page=${page+1}` as never}>下一页</Link>}</nav></>;
 }
 
 function predictionOption(option:BetMarketDTO["options"][number],model:FreePredictionModel,key:string){return model.kind==="winner"?option.entity?.kind==="team"&&option.entity.entryId===key:option.label===model.options.find(p=>p.key===key)?.label;}

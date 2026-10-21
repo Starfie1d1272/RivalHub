@@ -9,24 +9,38 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { resolveManagedMajorProfile } from "@/lib/competition/definition";
 import type { EventFact, VetoFact } from "./domain";
-export async function loadBetFacts(tx: TxDb,seasonId: string) {
+export interface BetFactScope {
+  matchId?: string;
+  event?: boolean;
+  // Undefined loads the complete roster for lifecycle owners; null loads none.
+  rosterUserId?: string | null;
+}
+export async function loadBetFacts(tx: TxDb,seasonId: string, scope: BetFactScope = {}) {
   const season = await tx.query.seasons.findFirst({where:eq(seasons.id,seasonId)});
   if (!season) throw new AppError(ErrorCode.NOT_FOUND,"赛事不存在");
-  const officialRows = await tx.select().from(matches).where(and(officialMatchCondition(), eq(matches.seasonId,seasonId))).orderBy(asc(matches.createdAt)).then(rows=>rows.map(requireCompetitionMatch).map(m=>({...m,operationalStartedAt:m.startedAt,startedAt:m.gameplayStartedAt})));
-  const maps = await tx.select({map:matchMaps}).from(matchMaps).innerJoin(matches,eq(matches.id,matchMaps.matchId)).where(and(officialMatchCondition(), eq(matches.seasonId,seasonId))).then(rows=>rows.map(r=>r.map));
+  const matchCondition = and(officialMatchCondition(), eq(matches.seasonId,seasonId), scope.matchId ? eq(matches.id,scope.matchId) : undefined);
+  const officialRows = await tx.select().from(matches).where(matchCondition).orderBy(asc(matches.createdAt)).then(rows=>rows.map(requireCompetitionMatch).map(m=>({...m,operationalStartedAt:m.startedAt,startedAt:m.gameplayStartedAt})));
+  const maps = await tx.select({map:matchMaps}).from(matchMaps).innerJoin(matches,eq(matches.id,matchMaps.matchId)).where(matchCondition).then(rows=>rows.map(r=>r.map));
   // Canonical map facts also prove gameplay when the separate start marker is absent.
   const official = officialRows.map(m => ({...m,startedAt:m.startedAt ?? maps
     .filter(map=>map.matchId===m.id && (map.startedAt || map.completedAt))
     .map(map=>map.startedAt ?? map.completedAt!)
     .sort((a,b)=>a.getTime()-b.getTime())[0] ?? null}));
-  const vetos = await tx.select().from(matchVetoSessions).innerJoin(matches,eq(matches.id,matchVetoSessions.matchId)).where(and(officialMatchCondition(), eq(matches.seasonId,seasonId))).then(rows=>rows.map(r=>r.match_veto_sessions));
-  const appeals = await tx.select({matchId:matchVetoTimeoutIncidents.matchId}).from(matchVetoAppeals).innerJoin(matchVetoTimeoutIncidents,eq(matchVetoTimeoutIncidents.id,matchVetoAppeals.timeoutIncidentId)).innerJoin(matches,eq(matches.id,matchVetoTimeoutIncidents.matchId)).where(and(officialMatchCondition(), and(eq(matches.seasonId,seasonId),eq(matchVetoAppeals.status,"pending"))));
+  const vetos = await tx.select({veto:matchVetoSessions}).from(matchVetoSessions).innerJoin(matches,eq(matches.id,matchVetoSessions.matchId)).where(matchCondition).then(rows=>rows.map(r=>r.veto));
+  const appeals = await tx.select({matchId:matchVetoTimeoutIncidents.matchId}).from(matchVetoAppeals).innerJoin(matchVetoTimeoutIncidents,eq(matchVetoTimeoutIncidents.id,matchVetoAppeals.timeoutIncidentId)).innerJoin(matches,eq(matches.id,matchVetoTimeoutIncidents.matchId)).where(and(matchCondition,eq(matchVetoAppeals.status,"pending")));
   // Reader-only rollout retains pending history. Gameplay ends its BP recovery
   // effect even before the closed producer is shipped; settlement must continue.
   const recoverableAppeals = new Set((await Promise.all([...new Set(appeals.map(a=>a.matchId))]
     .map(async matchId => await hasVetoGameplayInTx(tx, matchId) ? null : matchId))).filter(id=>id!==null));
   const vetoByMatch = new Map<string,VetoFact>(vetos.map(v=>[v.matchId,{...v,pendingAppeal:recoverableAppeals.has(v.matchId)}]));
   const entries = await tx.select({id:competitionEntries.id,name:competitionEntries.name,logoUrl:competitionEntries.logoUrl}).from(competitionEntries).where(eq(competitionEntries.competitionId,seasonId));
+  const roster = scope.rosterUserId === null ? [] : await tx.select({entryId:eventRosters.entryId,userId:eventRosterMembers.userId,name:users.displayName,perfectName:users.perfectName,personaName:steamProfiles.personaName,current:eventRosterMembers.isCurrent}).from(eventRosterMembers).innerJoin(eventRosters,eq(eventRosters.id,eventRosterMembers.eventRosterId)).innerJoin(competitionEntries,eq(competitionEntries.id,eventRosters.entryId)).innerJoin(users,eq(users.id,eventRosterMembers.userId)).leftJoin(steamProfiles,eq(steamProfiles.steam64,users.steam64)).where(and(eq(competitionEntries.competitionId,seasonId),inArray(eventRosters.status,["confirmed","frozen"]), scope.rosterUserId ? eq(eventRosterMembers.userId,scope.rosterUserId) : undefined));
+  if (scope.event === false) {
+    return {season,official,maps,vetoByMatch,entries,roster,players:[] as {id:string;name:string}[],
+      event:{entryIds:[],playerIds:[],started:false,champion:null,kills:null} as EventFact,
+      runs:[] as (typeof majorStageRuns.$inferSelect)[],
+      eventPublication:{entrantsReady:false,rostersReady:false,seedsConfirmed:false}};
+  }
   const prestart = await tx.query.majorPrestartStates.findFirst({where:eq(majorPrestartStates.seasonId,seasonId)});
   const entrants = await tx.select({entryId:majorTournamentEntrants.competitionEntryId}).from(majorTournamentEntrants).where(eq(majorTournamentEntrants.seasonId,seasonId));
   const qualification = await tx.query.competitionQualificationRuns.findFirst({where:eq(competitionQualificationRuns.seasonId,seasonId),columns:{completedAt:true}});
@@ -35,7 +49,7 @@ export async function loadBetFacts(tx: TxDb,seasonId: string) {
   const entryIds = entrantsReady ? entrants.map(e=>e.entryId).sort() : [];
   const rosterStates = entryIds.length ? await tx.select({entryId:eventRosters.entryId,status:eventRosters.status}).from(eventRosters).where(inArray(eventRosters.entryId,entryIds)) : [];
   const rostersReady = Boolean(prestart?.entrantsLockedAt && entryIds.length && rosterStates.length === entryIds.length && rosterStates.every(r=>r.status === "frozen"));
-  const roster = await tx.select({entryId:eventRosters.entryId,userId:eventRosterMembers.userId,name:users.displayName,perfectName:users.perfectName,personaName:steamProfiles.personaName,current:eventRosterMembers.isCurrent}).from(eventRosterMembers).innerJoin(eventRosters,eq(eventRosters.id,eventRosterMembers.eventRosterId)).innerJoin(competitionEntries,eq(competitionEntries.id,eventRosters.entryId)).innerJoin(users,eq(users.id,eventRosterMembers.userId)).leftJoin(steamProfiles,eq(steamProfiles.steam64,users.steam64)).where(and(eq(competitionEntries.competitionId,seasonId),inArray(eventRosters.status,["confirmed","frozen"])));
+
   const players = [...new Map(roster.filter(r=>rostersReady && r.current && entryIds.includes(r.entryId)).map(r=>[r.userId,{id:r.userId,name:getDisplayName({displayName:r.name,perfectName:r.perfectName,personaName:r.personaName})}])).values()].sort((a,b)=>a.id.localeCompare(b.id));
   const final = await tx.query.majorFinalResults.findFirst({where:eq(majorFinalResults.seasonId,seasonId)});
   const stats = await tx.select({mapId:matchPlayerStats.mapId,userId:matchPlayerStats.userId,kills:matchPlayerStats.kills,importId:matchDemoImports.id}).from(matchPlayerStats).innerJoin(matchDemoImports,eq(matchDemoImports.id,matchPlayerStats.dakImportId)).where(and(eq(matchDemoImports.seasonId,seasonId),eq(matchDemoImports.status,"confirmed"),isNotNull(matchPlayerStats.verifiedAt),isNotNull(matchPlayerStats.userId),isNotNull(matchPlayerStats.kills)));

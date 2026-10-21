@@ -9,7 +9,7 @@ import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { ok } from "@/types/action";
-import { betBoard } from "@/lib/bet/data";
+import { readUnifiedBetBoard } from "@/lib/bet/board-read";
 import { joinBetInTx, stakeBetInTx, operateBetInTx, claimBetReliefInTx } from "@/lib/bet/service";
 import { lockMatchInTx } from "@/lib/match-rosters/service";
 import { startCanonicalMapInTx } from "@/lib/matches/map-start";
@@ -22,9 +22,14 @@ async function publicSeason(seasonId:string) {
   return season;
 }
 function refresh(slug:string) {revalidatePath(`/${slug}/bet`);revalidatePath(`/admin/${slug}/bet`);}
-export async function getBetBoard(input:unknown) {
-  const p=scope.safeParse(input);if(!p.success)return failValidation("赛事参数无效");
-  try {await publicSeason(p.data.seasonId);const user=await getUserSession();return ok(await db.transaction(tx=>betBoard(tx,p.data.seasonId,user?.userId??null),{accessMode:"read only",isolationLevel:"repeatable read"}));}catch(e){return actionError("bet.read",e);}
+export async function getUnifiedBetBoard(input:unknown) {
+  const p=scope.extend({matchId:z.guid().optional(),view:z.enum(["open","mine","settled","event","leaderboard","records"]).default("open")}).safeParse(input);
+  if(!p.success)return failValidation("赛事参数无效");
+  try {
+    await publicSeason(p.data.seasonId);
+    const user=await getUserSession();
+    return ok(await db.transaction(tx=>readUnifiedBetBoard(tx,p.data.seasonId,user?.userId??null,p.data),{accessMode:"read only",isolationLevel:"repeatable read"}));
+  }catch(e){return actionError("bet.unified_read",e);}
 }
 const spectator=z.discriminatedUnion("operation",[scope.extend({operation:z.literal("join")}),scope.extend({operation:z.literal("stake"),marketId:z.guid(),optionId:z.guid(),amount:z.union([z.literal("all"),z.string().regex(/^[1-9]\d{0,14}$/)]),requestId:z.guid()})]);
 export async function mutateBet(input:unknown) {

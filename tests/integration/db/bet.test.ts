@@ -1,3 +1,4 @@
+import { readUnifiedBetBoard } from "@/lib/bet/board-read";
 import { randomUUID } from "node:crypto";
 import { eq,and,sql } from "drizzle-orm";
 import { describe,it,expect } from "vitest";
@@ -20,6 +21,7 @@ describe("BET transactional admission and settlement",()=>{
     const [roster]=await f.db.insert(schema.eventRosters).values({entryId:f.entryIds[0]!,sourceRosterRevisionId:entry!.approvedRosterRevisionId,status:"confirmed",confirmedAt:new Date(),confirmedBy:"test"}).returning();
     const [member]=await f.db.insert(schema.eventRosterMembers).values({eventRosterId:roster!.id,userId:f.userId}).returning();
     expect((await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.id===market.id)).toMatchObject({canStake:false,restriction:"相关队伍名单成员不能参与此盘口"});
+    expect((await f.db.transaction(tx=>readUnifiedBetBoard(tx,f.seasonId,f.userId))).bet.markets.find(m=>m.id===market.id)).toMatchObject({canStake:false,restriction:"相关队伍名单成员不能参与此盘口"});
     await expect(f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId:f.userId,marketId:market.id,optionId:market.options[0]!.id,amount:"10",requestId:randomUUID()}))).rejects.toThrow(/名单成员/);
     await f.db.update(schema.eventRosterMembers).set({isCurrent:false}).where(eq(schema.eventRosterMembers.id,member!.id));
     expect((await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.id===market.id)?.canStake).toBe(true);
@@ -69,6 +71,7 @@ describe("BET transactional admission and settlement",()=>{
     await db.update(schema.users).set({ gameplayStyle: "已填写选手打法" }).where(eq(schema.users.id, otherId));
     expect((await read(db, seasonId, userId)).leaderboard.find(row => row.userId === otherId)?.playerUserId).toBe(otherId);
     await db.update(schema.users).set({ gameplayStyle: null }).where(eq(schema.users.id, otherId));
+    for(const id of [userId,otherId,third])expect((await db.transaction(tx=>readUnifiedBetBoard(tx,seasonId,id))).bet.rank).toBe(id===third?3:1);
     expect(board.rank).toBe(1);expect(board.records.map(r=>r.amount)).toEqual(["200","-100","1000"]);
     expect(board.records.every(r=>Object.keys(r).sort().join(",")==="amount,context,createdAt,label")).toBe(true);
     expect(board.leaderboard.every(r=>Object.keys(r).sort().join(",")==="name,playerUserId,profit,rank,settledCount,userId")).toBe(true);
@@ -80,10 +83,12 @@ describe("BET transactional admission and settlement",()=>{
     await db.update(schema.matches).set({scoreA:0,scoreB:2}).where(eq(schema.matches.id,matchId));await reconcile();
     const corrected=await read(db,seasonId,userId);
     expect(corrected.leaderboard.map(r=>[r.userId,r.profit,r.rank])).toEqual([[third,"200",1],[userId,"-100",2],[otherId,"-100",2]]);
+    expect((await db.transaction(tx=>readUnifiedBetBoard(tx,seasonId,userId))).bet).toMatchObject({rank:2,balance:corrected.balance,debt:corrected.debt,profit:corrected.profit,markets:corrected.markets});
     expect(corrected.records.some(r=>r.label.includes("官方赛果更正") && r.amount==="-200")).toBe(true);
     expect(corrected.records.some(r=>r.label==="结算" && r.amount==="0")).toBe(true);
     await db.update(schema.matches).set({status:"in_progress",scoreA:null,scoreB:null,completedAt:null}).where(eq(schema.matches.id,matchId));await reconcile();
     const pending=await read(db,seasonId,userId);expect(pending.rank).toBeNull();expect(pending.leaderboard).toEqual([]);
+    expect((await db.transaction(tx=>readUnifiedBetBoard(tx,seasonId,userId))).bet).toMatchObject({rank:null,balance:pending.balance,profit:pending.profit});
   }));
 
   it("serializes official updates with BET operations without a market/program deadlock",async()=>fixture(async f=>{
