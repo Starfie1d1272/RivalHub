@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.21.7]
+
+### Changed
+
+- 减少比赛支持率和竞猜页的重复数据读取，保持 15 秒更新与操作后的即时回读；积分记录按页加载，保留封盘、账号归并和结算规则。
+
 ## [2.21.6]
 
 ### Changed
@@ -3366,4 +3372,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [2.21.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.4...v2.21.5
 
+[2.21.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.6...v2.21.7
 [2.21.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.5...v2.21.6
