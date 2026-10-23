@@ -25,7 +25,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths=/opt/rivalhub-production/current/.next/cache
+ReadWritePaths=/opt/rivalhub-production/current/.next/cache /opt/rivalhub-production/current/.next/server/route-cache
 
 [Install]
 WantedBy=multi-user.target

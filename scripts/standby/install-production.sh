@@ -133,8 +133,8 @@ fi
 printf '%s\n' "$archive_sha" > "$release/.archive-sha256"
 chmod -R o-rwx "$release"
 chown -R root:rivalhub-production "$release"
-mkdir -p "$release/.next/cache"
-chown -R rivalhub-production:rivalhub-production "$release/.next/cache"
+mkdir -p "$release/.next/cache" "$release/.next/server/route-cache"
+chown -R rivalhub-production:rivalhub-production "$release/.next/cache" "$release/.next/server/route-cache"
 # Persist recovery evidence before the first mutation, including interrupted SSH sessions.
 printf '%s\n' "$snapshot" > "$root/previous-snapshot.next"
 mv -Tf "$root/previous-snapshot.next" "$root/previous-snapshot"

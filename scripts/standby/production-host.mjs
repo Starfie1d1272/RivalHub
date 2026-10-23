@@ -27,7 +27,7 @@ if (mode === 'runtime-identity') {
   function walk(root, relative = '') {
     for (const entry of readdirSync(`${root}/${relative}`).sort()) {
       const name = relative ? `${relative}/${entry}` : entry;
-      if (name === '.next/cache' || name === '.archive-sha256') continue;
+      if (name === '.next/cache' || name === '.next/server/route-cache' || name === '.archive-sha256') continue;
       const path = `${root}/${name}`;
       const stat = lstatSync(path);
       hash.update(`${name}\0`);

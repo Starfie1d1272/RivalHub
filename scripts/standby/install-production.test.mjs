@@ -34,7 +34,7 @@ test('host promotion, failed restart recovery, immutable retry and explicit roll
     writeFileSync(unit, 'old service');
     const candidate = join(dir, 'candidate');
     mkdirSync(join(candidate, 'runtime'), { recursive: true });
-    mkdirSync(join(candidate, '.next'));
+    mkdirSync(join(candidate, '.next/server'), { recursive: true });
     mkdirSync(join(candidate, 'scripts/standby'), { recursive: true });
     symlinkSync(process.execPath, join(candidate, 'runtime/node'));
     writeFileSync(join(candidate, 'standby.json'), manifest(next, 'v1.0.1'));
@@ -71,6 +71,8 @@ else throw Error(cmd);
     assert.equal(readFileSync(unit, 'utf8'), 'old service');
     assert.match(result.stderr, /previous state restored/);
     assert.ok(!result.stderr.includes('never-print-me'));
+    writeFileSync(join(failedRelease, '.next/server/route-cache/cached-route'), 'runtime response');
+    writeFileSync(join(failedRelease, '.next/cache/cached-fetch'), 'runtime fetch');
     rmSync(join(failedRelease, '.archive-sha256'));
     writeFileSync(join(dir, 'fail-health'), '');
     result = run(deployArgs);
