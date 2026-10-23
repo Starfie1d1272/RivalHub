@@ -32,10 +32,10 @@ Caddy 配置 `/etc/caddy/rivalhub-production.caddy`，代理请求体上限 12 M
 | 页面与缓存 | 首页、两场比赛详情、登录页均 200；HTML 为 private/no-store；JS/CSS 为 immutable |
 | 图片 | Next 本地图片优化 200；现生产 Storage 队标 JPEG 200 |
 | Server Actions | 新构建登录 action 对无效邮箱返回预期校验，不建立会话；正式 Origin 经代理传递正常 |
-| Auth | Supabase Auth health 200，正式回调域名已核对；真实账号登录／会话由 owner 明确选择切换后验收 |
+| Auth | Supabase Auth health 200，正式回调域名已核对；owner 已在切换后确认真实账号登录成功 |
 | Realtime | 正式 viewer endpoint 200；用其真实短期 token 加入对应 private receive-only channel，状态 SUBSCRIBED |
 | Mizar | 未授权 schedule 请求按既有协议返回 403；实际 Windows/Mizar 凭据及推送尚未验收 |
-| Provider | Steam 只读请求 200；旧 OCR key 401 后从另一现有本地配置恢复有效 key，models 请求 200；未执行实际 OCR 推理或上传 |
+| Provider | Steam 只读请求 200；旧 OCR key 401 后从另一现有本地配置恢复有效 key，models 请求 200；owner 随后提供的最新 key 与 Linux 一致。10 月 24 日同一合成记分板真实推理在 Linux / 本机均返回 10 行，耗时约 125 / 113 秒；真实业务曾记录 180 秒超时与 HTTP 500 / 50507，稳定性尚未恢复验证 |
 | 产品统计 | 正式页面真实 bootstrap ticket 携带准确生产 commit，通过接收端验签后空 batch 被拒绝为 400；无效签名为 401。此检查不写统计事件；浏览器接收至存储全链尚未读取核对 |
 | 运行日志 | journal 可读，exporter 配置启用；Better Stack 实际接收返回 402 / Quota reached，远端日志未恢复 |
 | 调度 | 保留 pg_cron/pg_net + GitHub watchdog，未新建 cron；Vault base URL 与 CRON_SECRET 对齐；统计投影任务 UTC 15:55:00.110 dispatch、15:55:02.427 success，证明自然调度已到达新入口 |
@@ -62,11 +62,11 @@ journal 观察到未知／旧 Server Action ID（含 `x`）被拒绝；无法从
 
 回退 Vercel 前先确认原 deployment 已恢复服务并通过 exact identity/业务检查，再恢复上述 CNAME 和 TTL 600；保留 Linux 服务至少一个旧 TTL 窗口。Vercel 原配置保留了旧会话及统计密钥，回退验收必须处理重新登录，并通过受保护配置发布让统计签名与当前 Worker 一致。Vercel 仍暂停时，恢复 DNS 只恢复路由，网站仍会返回 402。Supabase 数据持续使用同一份，不做反向数据库恢复。代理异常可恢复备份中的 Caddy 配置，validate 后 reload；这不会自动恢复应用可用性。
 
-后续发布仍需按 release SOP 处理目标平台 routing。现有 Vercel Release workflow 不会部署 Linux；不能在此状态直接宣告一个新 tag 已上线。
+后续发布的 Linux 默认路径与 Vercel 回退路径由本次 PR 更新，须进入 main 后才成为正式 workflow；不能把 feature branch 的验证等同新 tag 发布完成。
 
 ## 2026-10-24 访问反馈补充
 
-Owner 已确认在正式域名完成真实登录。一位使用搜狗浏览器的访客报告连接重置，切换 Edge 后恢复访问；尚未确定该浏览器内核或具体失败链路。服务器 loopback 强制 TLS 1.2 请求返回 200。本机经 Clash TUN 的对照中，同 IP 多个域名 TLS 1.2 重置、TLS 1.3 成功，因此该本机结果不能代表所有公网客户端。保持现有生产 TLS 配置。
+Owner 已确认在正式域名完成真实登录。一位使用搜狗浏览器的访客报告连接重置，切换 Edge 后恢复访问；尚未确定该浏览器内核或具体失败链路。服务器 loopback 强制 TLS 1.2 请求返回 200。本机经 Clash TUN 的对照中，同 IP 多个域名 TLS 1.2 重置、TLS 1.3 成功，因此该本机结果不能代表所有公网客户端。保持现有生产 TLS 配置。上传器日志显示 Python 3.12.10 在 SSL 握手阶段被 WinError 10054 重置，未获得 HTTP 响应；尚未确认失败 Windows 的协商细节。临时诊断域名验证 Cloudflare 入口能完成 TLS 1.2/1.3 握手，但 Python User-Agent 返回 403 / 1010；正式域名仍为 DNS-only，代理路径还需客户端规则与 OCR 长请求验收。
 
 ## 2026-10-24 正式发布流程验证
 
@@ -75,3 +75,7 @@ Release 默认目标改为 Linux，保留显式 Vercel 路径。Owner 授权后�
 使用新 controller、安装器与该专用 key，在真实主机重新安装现有 v2.21.10 包，checksum、主机首页/版本与公网 canonical 首页/版本全部通过。正式 SHA 保持 `30eb5e3a96fe493226ebaa7a74babe65ad879fc7`，数据库未变更。恢复快照为 `/opt/rivalhub-production/rollback/20261023T161607Z.fjudhKbD`；应用停止等待可达到 systemd 的 30 秒超时，因此单实例发布有短暂不可用窗口。
 
 本地通过 scripts 类型检查、定向 ESLint、workflow YAML 解析、5 项 routing failure tests 与主机恢复模拟测试。模拟覆盖重启/健康失败、断线补偿、不可变包重试、同版本重新构建与锁拒绝。尚未通过 main/tag 运行完整新版 Release workflow，也未在真实服务器注入故障演练回退；这些证据与同版本真实安装分别记录。
+
+## 2026-10-24 运行时缓存修复
+
+Next.js 当前版本把运行时路由缓存写入 `.next/server/route-cache`。初始 systemd 沙箱只开放 `.next/cache`，日志出现 route-cache mkdir ENOENT。安装器现预建两个精确目录并赋予应用用户写权限，unit 仅开放这两个目录；包完整性比较排除运行时缓存。线上应用同样配置后，首页 200、exact v2.21.10 身份不变，route-cache 已生成 index.html/meta/RSC 缓存，自动重启计数为 0。构建代码保持只读。
