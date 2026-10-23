@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.21.10]
+
+### Fixed
+
+- 修复 Mizar 在首图结束并刷新比赛资料后，下一图事件因网站数据源仍保留旧资料版本而被拒绝的问题。接收端核实当前网站资料版本后原子更新会话，继续保留身份、事件顺序和地图执行校验。
+
 ## [2.21.9]
 
 ### Changed
@@ -3390,3 +3396,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.21.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.7...v2.21.8
 
 [2.21.9]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.8...v2.21.9
+
+[2.21.10]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.9...v2.21.10
