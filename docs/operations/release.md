@@ -169,4 +169,6 @@ Production destructive restore、provider cutover、incident freeze 和 Issue cl
 
 若 canonical endpoint 因 provider 暂停返回 402，冻结最近一次成功 Release run 的 canonical convergence 记录，并与 immutable tag、exact-SHA main CI、GitHub Release 及 provider deployment metadata 交叉核对。将无法实时读取旧 endpoint 的事实和原路由状态保留为故障证据，禁止仅凭最大 tag 推断曾上线版本。
 
-受保护 production package job 使用原 release 的 clean source、实际 Production public configuration 与 canonical build entrypoint，记录应用和 operator tooling 的独立 SHA、配置 hash 与包 checksum。runtime 凭据单独通过现有受保护渠道交付。候选以正式 Host 和有效 TLS 验证 release identity、核心页面、登录/session、Server Actions、Realtime/Mizar 及调度配置后，才允许变更正式 DNS；切换后再次验收业务和资源。原 Vercel project/config 保留，回退 DNS 前确认 Vercel 可服务。
+受保护 production package job 使用原 release 的 clean source、实际 Production public configuration 与 canonical build entrypoint，记录应用和 operator tooling 的独立 SHA、配置 hash 与包 checksum。runtime 凭据单独通过现有受保护渠道交付。候选以正式 Host 和有效 TLS 验证 release identity、核心页面、登录/session、Server Actions、Realtime/Mizar 及调度配置后，才允许变更正式 DNS；本次 owner 明确接受延后的项目须记录缺口，不能标为全量验收通过。切换后再次验收业务和资源。原 Vercel project/config 保留，回退 DNS 前确认 Vercel 可服务。
+
+Linux 承载期间，现有 Vercel routing controller 不会更新 Linux 服务。后续新版本须先完成目标平台的发布与 routing 门槛，或恢复 Vercel 承载；禁止仅更新 Vercel alias 就声称正式域名已升级。

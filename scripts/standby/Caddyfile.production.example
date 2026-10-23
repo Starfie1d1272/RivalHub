@@ -1,0 +1,10 @@
+# Import this site from the existing Caddyfile after backing it up.
+# Before DNS cutover, add an explicitly provisioned valid certificate.
+# After cutover, use Caddy automatic HTTPS and verify certificate issuance.
+match.starfie1d.top {
+    encode zstd gzip
+    request_body {
+        max_size 12MB
+    }
+    reverse_proxy 127.0.0.1:3032
+}

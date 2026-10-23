@@ -1,10 +1,10 @@
 # 应用备用机与 Vercel 故障切换
 
-本手册管理官方实例的应用层备用机。当前安装目标为 **Preview 验收环境**：`preview-standby.starfie1d.top`，只连接 `rivalhub-dev`，使用独立访问密码。生产域名仍由 Vercel 提供服务，Supabase 保持现有数据库、Auth、Storage 和 Realtime 服务。
+本手册管理官方实例的 Linux 应用托管与 Vercel 故障切换。Production 使用正式域名与独立生产服务；Preview 使用 `preview-standby.starfie1d.top`，只连接 dev 项目，并保留独立访问密码。Supabase 继续提供数据库、Auth、Storage 和 Realtime。实际在线版本以正式 `/api/system/release` 回读为准；首次生产切换及验收缺口见 [2026-10-23 执行记录](../archive/rehearsals/2026-10-23-linux-hosting-cutover.md)。
 
-## 当前能力与生产切换前置条件
+## 环境隔离与生产切换前置条件
 
-`Standby application package` workflow 在 Linux x64 打包 Next.js standalone、静态资源和锁定的 Node runtime。`standby.json` 记录精确 commit、公开环境配置和 runtime 版本；启动时复用 canonical Preview guard，拒绝 production DB/Auth URL、环境标志或构建后更改公开配置。
+`Standby application package` workflow 在 Linux x64 打包 Next.js standalone、静态资源和锁定的 Node runtime。`standby.json` 记录精确 commit、公开环境配置和 runtime 版本；Preview job 的启动路径复用 canonical Preview guard，拒绝 production DB/Auth URL、环境标志或构建后更改公开配置。
 
 **Preview 包不能直接改环境变量接入生产。** 公共 Supabase key 和应用 URL 已内联到浏览器资源。正式切换前必须通过 [release authority](./release.md) 建立并验收受保护的 production standalone 构建、凭据交付与部署路径，以当前 immutable release tag 为输入，构建 production public configuration，并回读同一 tag/commit。生产打包使用独立的 `production-package` job 与 `install-production.sh`，消费已有 immutable stable tag。Preview 包和 guard 保持独立。生产迁移是否完成以候选业务验收、DNS/TLS 回读和调度证据为准；仅新增脚本或成功打包不能标记为已演练。
 
@@ -43,13 +43,13 @@ curl --fail http://127.0.0.1:3031/api/system/release
 
 1. 手动运行 workflow，下载 `standby-production-linux-x64`，保存 JSON manifest 和 `.sha256`，交叉核对正式 release 与构建配置。
 2. 从既有受保护 Production 配置准备独立 runtime 文件。Vercel `env pull` 会省略 sensitive values，空值必须从现有 secret store 取得；禁止用旧导出或新随机值静默替换 session/cron/provider 凭据。必需项为 `DATABASE_URL`、`SUPABASE_SECRET_KEY`、`SUPABASE_JWT_SECRET`、`ADMIN_SESSION_SECRET`、`CRON_SECRET`；启用的 Turnstile、Steam、OCR、observability 和 telemetry 配置保持原值。全部公开变量须与包一致。
-3. runtime 明确设置 `NODE_ENV=production`、`VERCEL_ENV=production`、`RIVALHUB_DB_TARGET=production`、`HOSTNAME=127.0.0.1`、`PORT=3032`、`NODE_OPTIONS=--max-old-space-size=320`；禁止测试认证开关。凭据文件权限 600，目录 700。
+3. runtime 明确设置 `NODE_ENV=production`、`VERCEL_ENV=production`、`RIVALHUB_DB_TARGET=production`、`HOSTNAME=127.0.0.1`、`PORT=3032`、`NODE_OPTIONS=--max-old-space-size=320`；`GIT_COMMIT_SHA`、`RIVALHUB_RELEASE_COMMIT` 和 `RIVALHUB_RELEASE_TAG` 与包 manifest 对齐，供日志和产品统计标记来源；禁止测试认证开关。凭据文件权限 600，目录 700。已交付的 Linux runtime 副本保存在操作员本机 `~/.config/rivalhub/credentials/production-linux.env`；更新须同步受保护副本，禁止提交或打印。
 4. 传输包、checksum、runtime 文件及同一 operator commit 的安装器/service，运行 `bash install-production.sh ARCHIVE PRODUCTION_ENV`。安装器先校验包和实际 runtime target，再切换应用；不执行 migration。systemd 用户 `rivalhub-production`、服务 `rivalhub-production`、目录 `/opt/rivalhub-production`、配置 `/etc/rivalhub-production/production.env` 与 Preview 分离。服务只监听 loopback；内存上限 512 MiB，写权限限于 `.next/cache`。
 5. 更新前快照保存在 `/opt/rivalhub-production/rollback/<timestamp>`，包含 previous symlink、环境和 service；身份检查失败触发回退。首次失败保持服务停止。必须另行回读业务和 TLS，安装器的身份检查不代表业务验收完成。
 
 回退已有生产候选时先停止服务，按 `previous-snapshot` 指定的快照恢复 `previous-release` symlink、`production.env` 与 `service`，执行 `daemon-reload` 和启动，并回读 exact release identity。缺少任一快照项时停止并定位；保留当前、上一包及故障证据。反向代理与 DNS 是独立回退步骤。
 
-正式域名的 Caddy site 使用有效证书、`reverse_proxy 127.0.0.1:3032`，保留 Host、X-Forwarded-Host、X-Forwarded-Proto 和 streaming，上传上限与 Next 的 10 MiB Server Actions contract 一致。不要设置全站共享 HTML 缓存或 Preview Basic Auth。切换前用 DNS challenge 预置有效证书，并用 `curl --resolve` 验证正式 Host；切换后确认自动续期路径可用。
+正式域名的 Caddy site 使用有效证书，参见 [`Caddyfile.production.example`](../../scripts/standby/Caddyfile.production.example)。`reverse_proxy 127.0.0.1:3032` 默认保留 Host，并设置 X-Forwarded-Host、X-Forwarded-Proto；保持 streaming。代理请求体上限设为 12 MB，为 Next 的 10 MiB Server Actions 及 multipart 开销留出空间；应用层限制仍生效。不要设置全站共享 HTML 缓存或 Preview Basic Auth。切换前用 DNS challenge 预置有效证书，并用 `curl --resolve` 或显式 SNI/Host 的 HTTPS 客户端验证；切换后去除临时静态证书引用，确认 Caddy 自动签证成功并登记 renewal 信息。保留预置证书作为故障证据，不能把手工 DNS 证书视为自动续期已完成。
 
 新 standalone build 的 Server Actions ID/encryption key 可能不同于原 Vercel build。验收需在候选上重新加载页面并实际调用 action；旧页面可能需要刷新。Session 延续仍取决于相同的 `ADMIN_SESSION_SECRET`，不能以应用 commit 相同推断密钥或 action identity 相同。
 
@@ -57,7 +57,9 @@ curl --fail http://127.0.0.1:3031/api/system/release
 
 现有 `use cache: remote` 的公共 read model 保留原有 TTL/tag 失效边界；当前 Next.js 内置实现在自托管未配置 remote handler 时使用进程内 handler。单进程可复用缓存，重启后重新预热。Vercel Preview 与备用机各有独立缓存，跨实例写入不传播内存 tag 失效，另一实例按原 TTL 刷新；因此验收更新时必须在同一实例验证。以后增加多副本时，需要共享 cache handler 或失效广播，并单独验证。
 
-验收顺序：401 访问保护 → HTTPS release identity → 首页和赛事 → persona 登录 → 角色权限 → Preview 可恢复写入及刷新回读 → 静态资源/图片 → 进程重启后恢复。竞猜只做读路径验收时，不得声称已验证下单、结算或资金一致性。Storage、Realtime 和外部 provider 未实际完成的场景需单独列明。
+Preview 先验证 401 访问保护；Production 验证公开入口可访问。随后依次验证 HTTPS release identity、首页和赛事、真实登录与会话、角色权限、可恢复写入及刷新回读、静态资源/图片、重启恢复。生产验证不得操作真实赛果或竞猜。竞猜只做读路径验收时，不得声称已验证下单、结算或资金一致性。Realtime 订阅成功只证明接收通道，Mizar 实际设备配对和事件推送仍需独立验收。账号不可用而由 owner 明确接受延后登录时，记录该验收缺口和接手人。
+
+运行日志先核对 journal，再确认 Better Stack 真正接收；`observability.exporter.enabled` 只表示配置完整。接收端 402/quota 等限制须保留为未恢复项，不因本地日志存在而声称远端监控正常。产品统计密钥轮换同时更新 Worker `SIGNING_KEY` 与应用 `PRODUCT_TELEMETRY_SIGNING_KEY`；`PRODUCT_TELEMETRY_ACCOUNT_KEY` 轮换会改变账号匿名标识，须按当次授权执行。Worker 的查询凭据、保留策略和清理任务保持原配置。
 
 ## Vercel 停用后的切换顺序
 
@@ -70,6 +72,10 @@ curl --fail http://127.0.0.1:3031/api/system/release
 5. **切 DNS。** 事前将正式域名 TTL 降到约 300 秒并等待旧 TTL 过期；故障时修改正式域名现有记录指向备用机，处理冲突的 CNAME/A/AAAA。保留旧 Vercel domain/project 和部署。不要提前停掉仍可服务的旧实例；传播期两个实例必须使用同一兼容版本与同一 Supabase。
 6. **读回与观察。** 多网络核对 DNS、证书、exact release identity；验收登录和核心读写，观察 5xx、延迟、数据库连接、内存与重启计数。第一波缓存冷启动需要重新查询，不能把 Preview 的低并发内存结果视为生产容量保证。
 7. **核对调度。** 生产 primary 为 Supabase pg_cron/pg_net，watchdog 为 GitHub Actions，二者经正式域名调用应用。正式域名和 CRON_SECRET 保持一致时 DNS 切换会改变落点；核对 Vault 中实际 base URL，以及 canonical scheduler health 中 fresh primary trigger 与 endpoint success。只保留既有调度 owner，不在服务器另加一份 cron。若需改变配置，走受保护 production provisioning path。
+
+调度健康使用部署版本的 `health-contract.ts`：空闲 job 的 fresh trigger 且没有未消费 dispatch 即为健康。等待一次自然到期的已配置 job 完成端点调用，记录 dispatch/success 时间；不能为了制造验收证据触发竞猜、MVP 或真实赛果结算。DNS 传播期仍可能命中暂停的 Vercel，最长观察原记录 TTL，并保留两种落点证据。
+
+Production 在 Linux 期间，现有 Release workflow 的应用 promotion 仍以 Vercel 为目标，不能直接作为 Linux 更新流程。新版本发布前应完成相应 routing adapter 的发布门槛，或先验证并恢复 Vercel 承载；本手册的同版本故障切换不授予新版本跳过 migration、CI 和业务验收的权限。
 
 ## 回退到 Vercel
 
