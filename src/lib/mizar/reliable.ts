@@ -13,6 +13,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { assertInstallationInTx, hashCredential } from "./installation";
 import { validateObservedLineupInTx } from "./source";
 import { parseReliableEventV1 } from "./protocol";
+import { loadMizarMatchDocumentInTx } from "./context";
 import { isLineupMismatchOnly, LINEUP_REVIEW_REQUIRED } from "./lineup-display";
 
 export async function ingestMizarReliable(installationId: string, competitionId: string, input: unknown, authorityRevision: number, lineupSteam64: readonly string[] = []) {
@@ -31,7 +32,12 @@ export async function ingestMizarReliable(installationId: string, competitionId:
       if (receipt.eventHash !== eventHash) throw new AppError(ErrorCode.VALIDATION_FAILED, "重复事件内容冲突。");
       return { outcome: receipt.outcome, duplicate: true };
     }
-    if (event.contextRevision !== source.contextRevision) throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛资料已经更新，请刷新制播比赛。");
+    // A refreshed producer may advance to the current website document without
+    // relinquishing its source. Never adopt an arbitrary or stale revision.
+    if (event.contextRevision !== source.contextRevision) {
+      const context = await loadMizarMatchDocumentInTx(tx, match.id, competitionId);
+      if (event.contextRevision !== context.revision) throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛资料已经更新，请刷新制播比赛。");
+    }
     // One runtime mutation may emit several distinct boundary events at the same cursor.
     // Idempotency keys are checked above; only an older cursor is stale.
     if (event.cursor.runtimeSeq < source.lastReliableSeq) throw new AppError(ErrorCode.VALIDATION_FAILED, "事件已过期。");
@@ -40,7 +46,7 @@ export async function ingestMizarReliable(installationId: string, competitionId:
     if ((!generationChanged && event.cursor.programSourceGeneration !== source.programSourceGeneration) || (!epochChanged && event.cursor.mapEpoch !== source.mapEpoch)) throw new AppError(ErrorCode.VALIDATION_FAILED, "对局数据已过期，请刷新数据源。");
     const now = new Date();
     let outcome = "observed";
-    const updates: Partial<typeof matchLiveSessions.$inferInsert> = { lastReliableSeq: event.cursor.runtimeSeq, lastReliableEventAt: now };
+    const updates: Partial<typeof matchLiveSessions.$inferInsert> = { contextRevision: event.contextRevision, lastReliableSeq: event.cursor.runtimeSeq, lastReliableEventAt: now };
     const reviewRequired = source.lineupHealth === LINEUP_REVIEW_REQUIRED || event.kind === "lineup_mismatch" || isLineupMismatchOnly(event.evidence);
     if (reviewRequired) { updates.lineupHealth = LINEUP_REVIEW_REQUIRED; updates.autoCanonicalizationArmed = false; }
     const fresh = event.evidence.identity === "matched" && event.evidence.telemetryFresh && event.evidence.contextFresh;

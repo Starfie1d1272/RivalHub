@@ -74,6 +74,28 @@ async function nextEpoch(fixture: Fixture, sequence = 10) {
 
 describe("Mizar reliable event ingest ownership", () => {
 
+  it("accepts the current website revision after a map result without losing the next epoch", async () => {
+    const f = await seedFixture();
+    await ingestMizarReliable(f.installationId, f.seasonId, reliableEvent(f), f.authorityRevision, f.steam64);
+    const end = reliableEvent(f, { kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 13, scoreT: 9 } });
+    end.cursor.runtimeSeq = 2;
+    await ingestMizarReliable(f.installationId, f.seasonId, end, f.authorityRevision);
+    const context = await db.transaction(tx => loadMizarMatchDocumentInTx(tx, f.matchId, f.seasonId));
+    expect(context.revision).not.toBe(f.contextRevision);
+    const boundary = reliableEvent(f, { contextRevision: context.revision, kind: "map_epoch_changed", payload: { previousMapEpoch: 1, reason: "next map" } });
+    boundary.cursor.mapEpoch = 2;
+    boundary.cursor.runtimeSeq = 3;
+    await expectCode(() => ingestMizarReliable(f.installationId, f.seasonId, { ...boundary, contextRevision: "unknown-revision" }, f.authorityRevision), ErrorCode.VALIDATION_FAILED);
+    expect(await loadSource(f.sessionId)).toMatchObject({ contextRevision: f.contextRevision, mapEpoch: 1 });
+    await ingestMizarReliable(f.installationId, f.seasonId, boundary, f.authorityRevision);
+    const start = reliableEvent(f, { contextRevision: context.revision, mapId: f.mapTwoId, mapName: "de_mirage" });
+    start.cursor.mapEpoch = 2;
+    start.cursor.runtimeSeq = 4;
+    expect((await ingestMizarReliable(f.installationId, f.seasonId, start, f.authorityRevision, f.steam64)).outcome).toBe("armed");
+    expect(await loadSource(f.sessionId)).toMatchObject({ contextRevision: context.revision, mapEpoch: 2, currentMapId: f.mapTwoId, mapExecutionPhase: "gameplay" });
+    await expectCode(() => ingestMizarReliable(f.installationId, f.seasonId, { ...start, idempotencyKey: randomUUID(), contextRevision: f.contextRevision }, f.authorityRevision, f.steam64), ErrorCode.VALIDATION_FAILED);
+  });
+
   it("rejects an operator report after reliable progress or a same-epoch generation change", async () => {
     const f = await seedFixture();
     const recovery = (await operatorContext(f)).problemRecovery!;
