@@ -14,7 +14,7 @@ const RECOVERY_TARGET = "isolated" as const;
 
 /** Retain recovery compatibility with encrypted backups from the previous organization. */
 export function isProductionRecoverySource(projectRef: string): boolean {
-  return projectRef === PRODUCTION_PROJECT_REF || projectRef === "sucokfotkypwqkckfynp";
+  return projectRef === PRODUCTION_PROJECT_REF || projectRef === "rrrebbxfghmgnoyyeqqd" || projectRef === "sucokfotkypwqkckfynp";
 }
 
 export type BackupClass = "daily" | "pre-release" | "manual";

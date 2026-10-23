@@ -659,6 +659,13 @@
       "when": 1792575765712,
       "tag": "0093_pickem_coin_thresholds",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1792734599345,
+      "tag": "0094_supabase_relocation_nju_1_storage_urls",
+      "breakpoints": true
     }
   ]
 }

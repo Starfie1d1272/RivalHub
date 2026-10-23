@@ -191,7 +191,7 @@ export async function selectPersonaCandidates(client: Pick<PoolClient, "query">,
 async function exportPublicAssets(tables: MirrorSnapshot["tables"], allowlistedSeasonAssets: Set<string>): Promise<MirrorAsset[]> {
   const secret = process.env.SUPABASE_SECRET_KEY;
   if (!secret) return [];
-  const supabaseUrl = process.env.RIVALHUB_PRODUCTION_SUPABASE_URL ?? "https://rrrebbxfghmgnoyyeqqd.supabase.co";
+  const supabaseUrl = process.env.RIVALHUB_PRODUCTION_SUPABASE_URL ?? "https://eurxkguokrkvpcsmxuru.supabase.co";
   const client = createClient(supabaseUrl, secret, { auth: { persistSession: false, autoRefreshToken: false } });
   const refs = new Map<string, MirrorAsset["bucket"]>();
   for (const row of [...tables.teams, ...tables.competition_entries]) {

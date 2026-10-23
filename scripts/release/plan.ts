@@ -49,6 +49,7 @@ const RELEASE_SCHEDULER_PATHS = new Set([
   "src/lib/scheduler/definitions.ts",
   "src/lib/cron-auth.ts",
   "scripts/db/scheduler.ts",
+  "scripts/db/production-environment.ts",
   "scripts/db/verification-contract.ts",
   ".github/workflows/cron.yml",
 ]);

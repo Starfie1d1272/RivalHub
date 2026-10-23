@@ -16,8 +16,8 @@ test("Preview standby refuses production credentials, target switches, and publi
   assert.doesNotThrow(() => assertStandbyEnvironment(manifest, env));
   for (const changed of [
     { VERCEL_ENV: "production" },
-    { DATABASE_URL: env.DATABASE_URL.replace(PREVIEW_PROJECT_REF, "rrrebbxfghmgnoyyeqqd") },
-    { NEXT_PUBLIC_SUPABASE_URL: "https://rrrebbxfghmgnoyyeqqd.supabase.co" },
+    { DATABASE_URL: env.DATABASE_URL.replace(PREVIEW_PROJECT_REF, "eurxkguokrkvpcsmxuru") },
+    { NEXT_PUBLIC_SUPABASE_URL: "https://eurxkguokrkvpcsmxuru.supabase.co" },
     { NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_other" },
     { NEXT_PUBLIC_APP_URL: "https://match.starfie1d.top" },
     { SUPABASE_JWT_SECRET: "[SENSITIVE]" },
