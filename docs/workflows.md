@@ -198,7 +198,7 @@ Mizar 数据源闭环：Mizar 在本机发起短期 pairing intent 并保留 pol
 
 单场工作台从正式地图计划、正式单图完成事实与已有 Mizar 开始记录投影当前任务。BP 后提供 Perfect 建房指引及 `https://match.wmpvp.com/` 后台入口；可复制字段与核对项按后台表单顺序统一呈现，使用已完成的网站 BP 结果，不引导重复 BP。整个系列赛保持 RivalHub A/B 对应 Perfect Team 1/2；起始边未知时要求核对，不猜边。轮次和短描述分开，Swiss 短描述来自相应 StageRun / Qualification 的 canonical Swiss read model，未知值不能复制。仅轮次、短描述、两队名、GOTV 线路 2 延迟和密码提供复制；其余为核对项，不保存或推断外部房间是否已创建。
 
-单图同时具备正式比分与完成时间即可打开 OCR。DAK 前的基础计分板齐备要求十名 effective starters 完整身份覆盖、无重复或越界，Match/Map/队伍归属一致，且 kills、deaths、assists、hsPercent、firstKills、multiKills、clutches、adr、ratingPro、rws、we 十一项字段齐全，通过既有 schema / stat-ranges 与正式回合上下文核验。缺值保持 incomplete，零值按各字段既有合法范围处理。DAK 后 identity/gameplay/verification lineage 仍归 DAK，OCR 只补 Rating Pro / RWS / WE；缺值不抹掉已有 enrichment，基础板从已核验的 DAK gameplay 与平台 enrichment 合并判定，DAK evidence 同步状态单独检查。
+单图同时具备正式比分与完成时间即可打开 OCR。OCR provider 默认使用 Qwen3.5-9B 非思考模式生成紧凑表格，服务端按固定列序恢复字段；列数不完整的行不进入识别结果。模型可由 `SILICONFLOW_MODEL` 覆盖。DAK 前的基础计分板齐备要求十名 effective starters 完整身份覆盖、无重复或越界，Match/Map/队伍归属一致，且 kills、deaths、assists、hsPercent、firstKills、multiKills、clutches、adr、ratingPro、rws、we 十一项字段齐全，通过既有 schema / stat-ranges 与正式回合上下文核验。缺值保持 incomplete，零值按各字段既有合法范围处理。DAK 后 identity/gameplay/verification lineage 仍归 DAK，OCR 只补 Rating Pro / RWS / WE；缺值不抹掉已有 enrichment，基础板从已核验的 DAK gameplay 与平台 enrichment 合并判定，DAK evidence 同步状态单独检查。
 
 图间 OCR 与下一图准备可并行，不构成建房或赛后资料的门槛。上一图人工完成后，即使旧采集冲突仍待核对，也显示已记录状态与下一图建房指引，保留 REVIEW 证据，不再要求重复提交上一图比分。图间计时仅在派生阶段为 inter_map 时从上一图正式 completed_at 正计时，10 分钟软提醒；下一图已经 gameplay 或系列结束后不再显示图间提醒、催促准备已开打的地图，即使随后失鲜或人工接管也如此。保存/清除后刷新投影，页面可见时定期刷新，仍可手动刷新。正式系列赛结束立即进入赛后整理，BO3 的 2:0 不准备 Map 3，仍进行中的 1:1 才继续；无实际地图的弃赛不要求 OCR 或 Demo。公开赛后页面将有效比赛回放置于顶部 BP 记录右侧，窄屏自然换行；没有有效回放时不显示入口，直播间仍独立标注。赛后工作台提供 Demo Uploader 稳定下载入口及逐图同步状态，needs_attention 面板保留独立恢复入口，即使当前地图缺少正式结果也不隐藏。
 
