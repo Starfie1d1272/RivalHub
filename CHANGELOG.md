@@ -1903,25 +1903,25 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ## [2.0.0-rc.4]
 
-### Fixed
+### Patch Changes
 
 - b2b7ae4: Converge 2.0 competition templates, participant qualification context, and administrator lifecycle workflows.
 
 ## [2.0.0-rc.3]
 
-### Fixed
+### Patch Changes
 
 - 收敛公开队长、选秀与比赛协商 DTO，修复登录态导航、登录回跳安全、历史赛季入口与隐私链接。
 
 ## [2.0.0-rc.2]
 
-### Fixed
+### Patch Changes
 
 - 对齐生产 Supabase 强密码策略，增加注册和重置密码确认，刷新失败的一次性 Turnstile 校验，并避免吞掉密码重置发信错误。
 
 ## [2.0.0-rc.1]
 
-### Fixed
+### Patch Changes
 
 - 明确 legacy Root 管理员登录入口与标准 owner email bootstrap 的边界。
 
@@ -1931,7 +1931,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 - RivalHub 2.0 RC：引入 capability 驱动的 Major 赛事运营闭环，并收拢正式 production cutover 所需的 Auth、报名、赛程与数据完整性能力。
 
-### Fixed
+### Patch Changes
 
 - dabc985: 新增 fail-closed 的 Local Supabase 开发入口，隔离旧远程数据库配置并验证 Drizzle migration、Auth、Storage 与 Data API 默认拒绝策略。
 - ed1f9cb: Team 报名与含 Swiss 赛季在完整运营闭环落地前保持 fail closed，避免误用个人报名和自动状态迁移。
