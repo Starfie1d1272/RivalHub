@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.21.9]
+
+### Changed
+
+- 迁移 Supabase 生产环境并同步图片地址，保留账号、赛事与竞猜数据；迁移后需重新登录。
+
 ## [2.21.8]
 
 ### Changed
@@ -3382,3 +3388,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.21.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.5...v2.21.6
 
 [2.21.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.7...v2.21.8
+
+[2.21.9]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.8...v2.21.9

@@ -55,6 +55,15 @@ function writeReleaseTimeCapabilities(storageMutation: boolean): void {
 }
 
 describe("release plan", () => {
+  it("provisions scheduler on the production target even when scheduler definitions are unchanged", () => {
+    const result = plan([{ status: "M", paths: ["scripts/db/production-environment.ts"] }]);
+
+    expect(result.schedulerChanged).toBe(true);
+    expect(result.requiresSchedulerProvision).toBe(true);
+    expect(result.requiresProductionMigration).toBe(false);
+    expect(plan([{ status: "M", paths: ["src/lib/scheduler/runners.ts"] }]).requiresSchedulerProvision).toBe(false);
+  });
+
   it("runs missing-season repair in the protected data phase without schema replay", () => {
     const result = plan([{ status: "A", paths: ["src/lib/competitive/profile-repair.ts"] }]);
     expect(result.requiresCompetitiveProfileRepair).toBe(true);
