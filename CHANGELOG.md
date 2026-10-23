@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.21.11]
+
+### Fixed
+
+- 记分板 OCR 默认改用 Qwen3.5-9B 的非思考模式，并减少重复字段输出，缩短识别等待；服务端校验表格列数后还原玩家数据。
+
 ## [2.21.10]
 
 ### Fixed
@@ -3398,3 +3404,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.21.9]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.8...v2.21.9
 
 [2.21.10]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.9...v2.21.10
+
+[2.21.11]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.10...v2.21.11
