@@ -6,3 +6,4 @@ import "server-only";
 export { captureException, logEvent } from "./logger";
 export { flushObservability } from "./flush";
 export { traceOperation } from "./tracing";
+export { getRuntimeHealthSnapshot } from "./runtime-health";

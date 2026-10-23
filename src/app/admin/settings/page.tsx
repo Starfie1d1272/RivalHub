@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db } from "@/db/client";
+import { db, getDatabasePoolSnapshot } from "@/db/client";
 import { steamProfiles, users } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
@@ -8,6 +8,7 @@ import { PageHeader, PageLayout, Panel, StatusPill } from "@/components/rivalhub
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { SchedulerHealthPanel } from "@/components/admin/SchedulerHealthPanel";
 import { getSchedulerHealthView } from "@/lib/scheduler/admin";
+import { getRuntimeHealthSnapshot } from "@/lib/observability/server";
 
 const ENV_VARS = [
   {
@@ -45,10 +46,43 @@ export default async function AdminSettingsPage() {
     .limit(1);
   const adminDisplayName = adminUser ? getDisplayName(adminUser) : admin.email;
   const schedulerHealth = await getSchedulerHealthView();
+  const runtime = getRuntimeHealthSnapshot();
+  const pool = getDatabasePoolSnapshot();
+  const memoryLabel = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
+  const runtimeRows = runtime ? [
+    ["Node.js", runtime.nodeVersion],
+    ["连续运行", `${Math.floor(runtime.uptimeSeconds / 60).toLocaleString("zh-CN")} 分钟`],
+    ["进程驻留内存", memoryLabel(runtime.rssBytes)],
+    ["堆已用 / 当前容量", `${memoryLabel(runtime.heapUsedBytes)} / ${memoryLabel(runtime.heapTotalBytes)}`],
+    ["V8 堆上限", memoryLabel(runtime.heapLimitBytes)],
+    ["环境内存约束", runtime.constrainedMemoryBytes === null ? "未提供" : memoryLabel(runtime.constrainedMemoryBytes)],
+    ["事件循环忙碌比例（自启动）", `${(runtime.eventLoopUtilization * 100).toFixed(1)}%`],
+  ] : [];
 
   return (
     <PageLayout variant="narrow" className="space-y-10">
         <PageHeader title="系统状态" description={`当前登录：${adminDisplayName}`} />
+
+        <section aria-labelledby="runtime-health-title" className="space-y-4">
+          <div className="space-y-1">
+            <h2 id="runtime-health-title" className="text-base font-semibold text-[var(--color-fg)]">服务进程</h2>
+            <p className="text-xs text-[var(--color-fg-mid)]">打开或刷新本页时读取当前进程；事件循环比例为自启动累计值。</p>
+          </div>
+          <Panel contentClassName="space-y-4 p-4">
+            {runtime ? <>
+              <p className="text-xs text-[var(--color-fg-mid)]">采样时间：{new Date(runtime.sampledAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}</p>
+              <dl className="grid gap-4 sm:grid-cols-2">
+                {runtimeRows.map(([label, value]) => <div key={label} className="space-y-1">
+                  <dt className="text-xs text-[var(--color-fg-mid)]">{label}</dt>
+                  <dd className="text-sm font-mono text-[var(--color-fg)]">{value}</dd>
+                </div>)}
+              </dl>
+            </> : <p className="text-sm text-[var(--color-fg-mid)]">暂时无法读取进程状态。</p>}
+            <div className="border-t border-[var(--color-border)] pt-4 text-sm text-[var(--color-fg-mid)]">
+              {pool ? <p>数据库连接 {pool.total} / {pool.max ?? "—"}；闲置 {pool.idle}；等待连接 {pool.waiting}。</p> : <p>当前进程尚未创建数据库连接池。</p>}
+            </div>
+          </Panel>
+        </section>
 
         {/* 密码管理 */}
         <section className="space-y-4">
@@ -63,7 +97,7 @@ export default async function AdminSettingsPage() {
           <div className="space-y-1">
             <h2 className="text-base font-semibold text-[var(--color-fg)]">环境变量状态</h2>
             <p className="text-xs text-[var(--color-fg-mid)]">
-              这些配置需在服务器环境变量中设置（.env.local 或 Vercel Dashboard），不能通过界面修改。
+              配置由部署环境的负责人维护，本页只展示是否配置。
             </p>
           </div>
           <Panel contentClassName="p-0 divide-y divide-[var(--color-border)]" className="overflow-hidden">
@@ -91,7 +125,7 @@ export default async function AdminSettingsPage() {
         <section id="ocr-configuration" className="space-y-4">
           <h2 className="text-base font-semibold text-[var(--color-fg)]">OCR 配置检查</h2>
           <Panel contentClassName="space-y-3 p-4 text-sm text-[var(--color-fg-mid)]">
-            <p>遇到鉴权失败，请由配置负责人在 Vercel 项目的 Settings → Environment Variables 检查 SILICONFLOW_API_KEY 是否绑定到发生错误的环境及当前部署；本页不验证密钥有效性。</p>
+            <p>遇到鉴权失败，请由配置负责人在当前部署的受保护环境配置中检查 SILICONFLOW_API_KEY 是否对应发生错误的环境与版本；本页不验证密钥有效性。</p>
             <p>同时检查 SILICONFLOW_API_URL 的服务地址与 SILICONFLOW_MODEL 的模型配置，并在 SiliconFlow 控制台核对凭据是否有效、账号权限、模型访问权限及余额。不要在截图、日志或工单中提交密钥。</p>
             <p>使用 OCR 提示中的排查编号查询 Runtime Logs，结合 HTTP 状态、失败阶段和脱敏原因定位问题。配置存在不能证明上游鉴权成功。</p>
           </Panel>

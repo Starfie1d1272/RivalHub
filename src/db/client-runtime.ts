@@ -39,6 +39,18 @@ function createPool(): Pool {
 let pool: Pool | null = null;
 let _db: DB | null = null;
 
+interface DatabasePoolSnapshot {
+  total: number;
+  idle: number;
+  waiting: number;
+  max: number | null;
+}
+
+/** Read current counters without initializing the pool or opening a connection. */
+export function getDatabasePoolSnapshot(): DatabasePoolSnapshot | null {
+  return pool ? { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount, max: pool.options.max ?? null } : null;
+}
+
 // Proxy 确保 Pool 重建后 db 始终指向新 drizzle 实例
 export const db = new Proxy({} as DB, {
   get(_target, prop) {
