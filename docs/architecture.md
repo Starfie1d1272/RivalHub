@@ -124,6 +124,8 @@ BET 公共积分池、参与人数和免费预测支持率由 `src/lib/bet/publi
 
 Prediction mutations serialize by canonical user → season lifecycle guard → relevant official match rows → prediction outbox → event program. Settlement workers read official facts without taking tournament row locks. Lightweight triggers enqueue durable work in the same transaction as official edits and permanently close affected windows; settlement failures leave retryable work and do not execute inside official result transactions. The protected reconciliation endpoint runs through the shared scheduler registry/execution/health owner; its worker and authorized mutations consume the same reconciliation owner. Spectator reads run in read-only repeatable-read transactions and never reconcile or acquire program/outbox row locks. Simulation, pools and records select their own projections: simulation reads only the current spectator’s picks, pools aggregate stakes in PostgreSQL, and achievement/leaderboard work is reserved for the records view. Deadline expiry is projected as closed immediately while durable locking and settlement remain worker/mutation responsibilities. Partial worker failure is reported to scheduler health, and no parser or Demo submission can directly settle a market. Browser clocks are presentation only.
 
+BET 排行榜由 `src/lib/free-predictions/ranking.ts` 在单个 read-only repeatable-read 事务内载入一次全赛事总体，再生成收益、命中数与准确率三个投影。每个投影独立复制并赋值 rank/group，保留各自资格门槛、并列与筛选后排名语义；单榜 action 复用同一总体读取和投影 owner。
+
 ## Security and operations
 
 - Supabase Auth 管理邮箱凭据；应用 session 只保存身份，当前角色和 season grants 每次从数据库读取。

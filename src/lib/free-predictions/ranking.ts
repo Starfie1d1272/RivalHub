@@ -10,8 +10,7 @@ import { partitionRankingPopulation } from "@/lib/stats/ranking";
 import { loadFreePredictionPopulation, choiceFact } from "./data";
 import { gradePrediction } from "./domain";
 import type { FreePredictionRankingRowDTO, FreePredictionSort } from "./types";
-/** Baseline is the entire event. Filters are applied only after ranks/eligibility. */
-export async function readFreePredictionRanking(tx: TxDb, seasonId: string, sort: FreePredictionSort, filterUserIds?: string[]) {
+async function loadRankingPopulation(tx: TxDb, seasonId: string) {
   const {facts,rows} = await loadFreePredictionPopulation(tx,seasonId);
   const financial = (await readBetAccounts(tx,seasonId,undefined,facts)).leaderboard;
   // Canonical account totals keep joined-but-unjudged participants distinct from absence.
@@ -32,6 +31,28 @@ export async function readFreePredictionRanking(tx: TxDb, seasonId: string, sort
     return {userId:identity.userId,playerUserId:playerIds.has(identity.userId)?identity.userId:null,name:getPublicDisplayName(identity),profit:bet?.profit??null,
       hits:score?.hits??null,judged:score?.judged??null,accuracy:score?score.hits/score.judged:null,rank:null,group:"limited"};
   });
+  return { population, financial };
+}
+
+/** Baseline is the entire event. Filters are applied only after ranks/eligibility. */
+export async function readFreePredictionRanking(tx: TxDb, seasonId: string, sort: FreePredictionSort, filterUserIds?: string[]) {
+  return projectRanking(await loadRankingPopulation(tx, seasonId), sort, filterUserIds);
+}
+
+/** All three views share one read-only transaction snapshot and one population read. */
+export async function readFreePredictionRankings(tx: TxDb, seasonId: string) {
+  const population = await loadRankingPopulation(tx, seasonId);
+  return {
+    profit: projectRanking(population, "profit"),
+    hits: projectRanking(population, "hits"),
+    accuracy: projectRanking(population, "accuracy"),
+  };
+}
+
+function projectRanking(input: Awaited<ReturnType<typeof loadRankingPopulation>>, sort: FreePredictionSort, filterUserIds?: string[]) {
+  // Each ranking assigns group/rank independently; never mutate the shared population.
+  const population = input.population.map(row => ({ ...row }));
+  const financial = input.financial;
   const accuracyPopulation = partitionRankingPopulation(population,row=>row.accuracy,row=>row.judged,population);
   // Hit totals need participation, not the accuracy leaderboard's sample floor.
   const ranked = sort === "hits" ? population.filter(row=>(row.judged??0)>=1) : accuracyPopulation.ranked;
