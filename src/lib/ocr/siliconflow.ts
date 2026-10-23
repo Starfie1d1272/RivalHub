@@ -7,15 +7,20 @@ import { providerFetch } from "@/lib/observability/fetch";
 import { logEvent, traceOperation } from "@/lib/observability/server";
 
 const DEFAULT_API_URL = "https://api.siliconflow.cn/v1/chat/completions";
-const DEFAULT_MODEL = "Qwen/Qwen3-VL-8B-Instruct";
+const DEFAULT_MODEL = "Qwen/Qwen3.5-9B";
 
-const SYSTEM_PROMPT = `提取这张 CS2 记分板截图中所有玩家的数据，返回 JSON。
+// Tuple columns follow the screenshot; expand them only after provider parsing.
+const SCOREBOARD_COLUMNS = ["perfectName", "kills", "deaths", "assists", "hsPercent", "firstKills", "multiKills", "clutches", "adr", "rws", "ratingPro", "we"] as const;
+const SYSTEM_PROMPT = `读取记分板全部10行。只返回JSON：{"players":[["昵称",20,10,5,30,3,2,1,85.5,12.34,1.25,10.5]]}。
+每行按截图列序：昵称、击杀、死亡、助攻、爆头率、首杀、多杀、残局、ADR、RWS、Rating、WE。
+跳过标题行。未知填null，数值不带单位。`;
 
-截图是一个表格，每行一个玩家，共 10 行。列从左到右：玩家昵称、击杀、死亡、助攻、爆头率、首杀、多杀、残局、ADR、RWS、Rating、WE。
-跳过标题行，只取数据行。无法辨认的格子填 null。
-
-返回格式：
-{"players":[{"perfectName":"昵称","kills":20,"deaths":10,"assists":5,"hsPercent":30,"firstKills":3,"multiKills":2,"clutches":1,"adr":85.5,"rws":12.34,"ratingPro":1.25,"we":10.5}]}`;
+function expandPlayerRow(row: unknown): unknown {
+  if (!Array.isArray(row)) return row;
+  // Missing cells must be explicit nulls; reject shifted or truncated rows.
+  if (row.length !== SCOREBOARD_COLUMNS.length) return null;
+  return Object.fromEntries(SCOREBOARD_COLUMNS.map((column, index) => [column, row[index]]));
+}
 
 function extractPlayersArray(parsed: unknown): unknown[] {
   if (Array.isArray(parsed)) return parsed;
@@ -117,6 +122,10 @@ async function callAPI(params: CallParams) {
     max_tokens: 4096,
     temperature: 0,
   };
+
+  if (params.model.startsWith("Qwen/Qwen3.5-")) {
+    body.enable_thinking = false;
+  }
 
   if (params.withResponseFormat) {
     body.response_format = { type: "json_object" };
@@ -270,7 +279,7 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
     const validPlayers: PlayerRowOCR[] = [];
     let idx = 0;
     for (const row of rawPlayers) {
-      const r = playerRowLenientSchema.safeParse(row);
+      const r = playerRowLenientSchema.safeParse(expandPlayerRow(row));
       if (!r.success) {
         logEvent({
           level: "warn",

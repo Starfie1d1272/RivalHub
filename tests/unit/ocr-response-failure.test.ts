@@ -24,6 +24,20 @@ describe("OCR response-body failure boundary", () => {
     vi.unstubAllEnvs();
   });
 
+  it("maps compact scoreboard columns and rejects incomplete rows", async () => {
+    fetchProvider.mockResolvedValue(Response.json({ choices: [{ message: { content: JSON.stringify({ players: [
+      ["fixture", 20, 10, 5, 30, 3, 2, 1, 85.5, 12.34, 1.25, 10.5],
+      ["shifted", 20],
+    ] }) } }] }));
+    expect(await run()).toEqual({ players: [{ perfectName: "fixture", kills: 20, deaths: 10, assists: 5, hsPercent: 30, firstKills: 3, multiKills: 2, clutches: 1, adr: 85.5, rws: 12.34, ratingPro: 1.25, we: 10.5 }] });
+  });
+
+  it("disables thinking for the default extraction model", async () => {
+    fetchProvider.mockResolvedValue(Response.json({ choices: [{ message: { content: '{"players":[{"perfectName":"fixture"}]}' } }] }));
+    await run();
+    expect(JSON.parse(fetchProvider.mock.calls[0][1].body)).toMatchObject({ model: "Qwen/Qwen3.5-9B", enable_thinking: false });
+  });
+
   it("retains a redacted transport cause when a successful HTTP response body fails", async () => {
     const cause = Object.assign(new Error(`socket closed ${key} ${image}`), { code: "UND_ERR_SOCKET" });
     const response = new Response(new ReadableStream({
