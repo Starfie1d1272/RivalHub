@@ -1,6 +1,6 @@
 # 2026-10-23 Linux 生产托管切换记录
 
-**2026-10-24 后续检查发现生产访问阻塞：** 主机地域为 `cn-shanghai`，公网 HTTP 请求正式域名返回阿里云 `403 / Non-compliance ICP Filing` 备案拦截页。此前部分 HTTPS 探测成功不代表全客户端可用。当前 Linux 主机作为正式入口的验收未完成；需完成备案/接入或另行授权迁至可用托管目标。
+**2026-10-24 访问复验：** 公网 HTTP 存在阿里云 `403 / Non-compliance ICP Filing` 备案拦截。Windows 上传器另已复现旧 TLS 运行库的 HTTPS 连接重置；同一正式域名在托管 Python 3.12.15 / OpenSSL 3.5.9 下恢复，证据见下文。当前入口仍有 HTTP 与部分客户端的验收缺口，不能据此标为全客户端可用。
 
 本记录保存本次故障切换证据，不作为后续版本或服务状态的实时 authority。操作 SOP 见 [standby](../../operations/standby.md)，发布约束见 [release](../../operations/release.md)。时间为北京时间，附 UTC 的字段除外。
 
@@ -68,7 +68,7 @@ journal 观察到未知／旧 Server Action ID（含 `x`）被拒绝；无法从
 
 ## 2026-10-24 访问反馈补充
 
-Owner 已确认在正式域名完成真实登录。一位使用搜狗浏览器的访客报告连接重置，切换 Edge 后恢复访问；尚未确定该浏览器内核或具体失败链路。服务器 loopback 强制 TLS 1.2 请求返回 200。本机经 Clash TUN 的对照中，同 IP 多个域名 TLS 1.2 重置、TLS 1.3 成功，因此该本机结果不能代表所有公网客户端。保持现有生产 TLS 配置。上传器日志显示 Python 3.12.10 在 SSL 握手阶段被 WinError 10054 重置，未获得 HTTP 响应；尚未确认失败 Windows 的协商细节。临时诊断域名验证 Cloudflare 入口能完成 TLS 1.2/1.3 握手，但 Python User-Agent 返回 403 / 1010；正式域名仍为 DNS-only，代理路径还需客户端规则与 OCR 长请求验收。
+Owner 已确认在正式域名完成真实登录。一位使用搜狗浏览器的访客报告连接重置，切换 Edge 后恢复访问；尚未确定该浏览器内核或具体失败链路。服务器 loopback 强制 TLS 1.2 请求返回 200。本机经 Clash TUN 的对照中，同 IP 多个域名 TLS 1.2 重置、TLS 1.3 成功，因此该本机结果不能代表所有公网客户端。保持现有生产 TLS 配置。Windows runner 使用 Python 3.12.10 / OpenSSL 3.0.16 复现上传器 WinError 10054，默认协商和强制 TLS 1.3 均在 HTTP 前失败（[失败对照](https://github.com/Starfie1d1272/cs2-demo-analysis-kit/actions/runs/39991707002)）。同一正式域名使用 uv-managed Python 3.12.15 / OpenSSL 3.5.9 后，标准 urllib 版本请求返回 200、UploaderApi 空 pairing poll 返回预期 422，冻结 EXE 启动通过（[Windows 复验](https://github.com/Starfie1d1272/cs2-demo-analysis-kit/actions/runs/39992858656)）。上传器修复由 [DAK PR #119](https://github.com/Starfie1d1272/cs2-demo-analysis-kit/pull/119) 固定随包运行库，尚未正式发布；原故障电脑的完整配对/上传仍待验收。临时诊断域名验证 Cloudflare 入口能完成 TLS 1.2/1.3 握手，但 Python User-Agent 返回 403 / 1010；正式域名仍为 DNS-only，代理路径还需客户端规则与 OCR 长请求验收。
 
 ## 2026-10-24 正式发布流程验证
 
