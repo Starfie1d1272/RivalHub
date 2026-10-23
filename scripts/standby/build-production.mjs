@@ -5,6 +5,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { publicConfiguration, configurationHash } from "./production-config.mjs";
 import { verifyExactShaCiPrerequisite } from "../release/ci-prerequisite.ts";
+import { RELEASE_TAG_PATTERN } from "../../src/lib/release/identity.ts";
 import { PRODUCTION_PROJECT_REF } from "../db/production-environment.ts";
 
 // Operator tooling and immutable application source have separate identities.
@@ -13,7 +14,7 @@ const root = resolve(process.argv[2] ?? "");
 const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
 const releaseTag = process.env.RELEASE_TAG;
 if (process.platform !== "linux" || process.arch !== "x64") throw new Error("Linux x64 builder required.");
-if (!/^v\d+\.\d+\.\d+$/.test(releaseTag ?? "")) throw new Error("Immutable stable release tag required.");
+if (!RELEASE_TAG_PATTERN.test(releaseTag ?? "")) throw new Error("Immutable release tag required.");
 const sourceCommit = git("rev-parse", "HEAD");
 if (git("rev-parse", `${releaseTag}^{commit}`) !== sourceCommit || git("status", "--porcelain")) throw new Error("Clean exact-release checkout required.");
 git("merge-base", "--is-ancestor", sourceCommit, "origin/main");

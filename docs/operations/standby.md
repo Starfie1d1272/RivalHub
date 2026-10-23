@@ -6,7 +6,7 @@
 
 `Standby application package` workflow 在 Linux x64 打包 Next.js standalone、静态资源和锁定的 Node runtime。`standby.json` 记录精确 commit、公开环境配置和 runtime 版本；Preview job 的启动路径复用 canonical Preview guard，拒绝 production DB/Auth URL、环境标志或构建后更改公开配置。
 
-**Preview 包不能直接改环境变量接入生产。** 公共 Supabase key 和应用 URL 已内联到浏览器资源。正式切换前必须通过 [release authority](./release.md) 建立并验收受保护的 production standalone 构建、凭据交付与部署路径，以当前 immutable release tag 为输入，构建 production public configuration，并回读同一 tag/commit。生产打包使用独立的 `production-package` job 与 `install-production.sh`，消费已有 immutable stable tag。Preview 包和 guard 保持独立。生产迁移是否完成以候选业务验收、DNS/TLS 回读和调度证据为准；仅新增脚本或成功打包不能标记为已演练。
+**Preview 包不能直接改环境变量接入生产。** 公共 Supabase key 和应用 URL 已内联到浏览器资源。正式切换前必须通过 [release authority](./release.md) 建立并验收受保护的 production standalone 构建、凭据交付与部署路径，以当前 immutable release tag 为输入，构建 production public configuration，并回读同一 tag/commit。生产打包使用独立的 `production-package` job 与 `install-production.sh`，消费已有 immutable release tag。Preview 包和 guard 保持独立。生产迁移是否完成以候选业务验收、DNS/TLS 回读和调度证据为准；仅新增脚本或成功打包不能标记为已演练。
 
 生产路径准备完成后，在故障前保留以下材料：当前正式 tag/commit、对应 Linux production 包及校验和、完整生产 runtime 配置、原 DNS 记录与 TTL、Caddy 配置备份、候选实例的验收记录。凭据存入服务器 root-only 文件或既有受保护 secret store；记录里仅保留变量名和来源。
 
@@ -44,7 +44,7 @@ curl --fail http://127.0.0.1:3031/api/system/release
 1. 手动运行 workflow，下载 `standby-production-linux-x64`，保存 JSON manifest 和 `.sha256`，交叉核对正式 release 与构建配置。
 2. 从既有受保护 Production 配置准备独立 runtime 文件。Vercel `env pull` 会省略 sensitive values，空值必须从现有 secret store 取得；禁止用旧导出或新随机值静默替换 session/cron/provider 凭据。必需项为 `DATABASE_URL`、`SUPABASE_SECRET_KEY`、`SUPABASE_JWT_SECRET`、`ADMIN_SESSION_SECRET`、`CRON_SECRET`；启用的 Turnstile、Steam、OCR、observability 和 telemetry 配置保持原值。全部公开变量须与包一致。
 3. runtime 明确设置 `NODE_ENV=production`、`VERCEL_ENV=production`、`RIVALHUB_DB_TARGET=production`、`HOSTNAME=127.0.0.1`、`PORT=3032`、`NODE_OPTIONS=--max-old-space-size=320`；`GIT_COMMIT_SHA`、`RIVALHUB_RELEASE_COMMIT` 和 `RIVALHUB_RELEASE_TAG` 与包 manifest 对齐，供日志和产品统计标记来源；禁止测试认证开关。凭据文件权限 600，目录 700。已交付的 Linux runtime 副本保存在操作员本机 `~/.config/rivalhub/credentials/production-linux.env`；更新须同步受保护副本，禁止提交或打印。
-4. 传输包、checksum、runtime 文件及同一 operator commit 的安装器/service，运行 `bash install-production.sh ARCHIVE PRODUCTION_ENV`。安装器先校验包和实际 runtime target，再切换应用；不执行 migration。systemd 用户 `rivalhub-production`、服务 `rivalhub-production`、目录 `/opt/rivalhub-production`、配置 `/etc/rivalhub-production/production.env` 与 Preview 分离。服务只监听 loopback；内存上限 512 MiB，写权限限于 `.next/cache`。
+4. 传输包、checksum、runtime 文件及同一 operator commit 的 `install-production.sh`、`production-host.mjs` 与 `rivalhub-production.service`，运行 `bash install-production.sh ARCHIVE PRODUCTION_ENV`。安装器先校验包和实际 runtime target，再切换应用；不执行 migration。systemd 用户 `rivalhub-production`、服务 `rivalhub-production`、目录 `/opt/rivalhub-production`、配置 `/etc/rivalhub-production/production.env` 与 Preview 分离。服务只监听 loopback；内存上限 512 MiB，写权限限于 `.next/cache`。
 5. 更新前快照保存在 `/opt/rivalhub-production/rollback/<timestamp>`，包含 previous symlink、环境和 service；身份检查失败触发回退。首次失败保持服务停止。必须另行回读业务和 TLS，安装器的身份检查不代表业务验收完成。
 
 回退已有生产候选时先停止服务，按 `previous-snapshot` 指定的快照恢复 `previous-release` symlink、`production.env` 与 `service`，执行 `daemon-reload` 和启动，并回读 exact release identity。缺少任一快照项时停止并定位；保留当前、上一包及故障证据。反向代理与 DNS 是独立回退步骤。
@@ -75,13 +75,13 @@ Preview 先验证 401 访问保护；Production 验证公开入口可访问。�
 
 调度健康使用部署版本的 `health-contract.ts`：空闲 job 的 fresh trigger 且没有未消费 dispatch 即为健康。等待一次自然到期的已配置 job 完成端点调用，记录 dispatch/success 时间；不能为了制造验收证据触发竞猜、MVP 或真实赛果结算。DNS 传播期仍可能命中暂停的 Vercel，最长观察原记录 TTL，并保留两种落点证据。
 
-Production 在 Linux 期间，现有 Release workflow 的应用 promotion 仍以 Vercel 为目标，不能直接作为 Linux 更新流程。新版本发布前应完成相应 routing adapter 的发布门槛，或先验证并恢复 Vercel 承载；本手册的同版本故障切换不授予新版本跳过 migration、CI 和业务验收的权限。
+Production 在 Linux 期间，正式更新使用 [Release workflow](./release.md#3-protected-release-workflow) 的默认 Linux 路径，保持 migration、checkpoint 与 exact-SHA CI 门槛。构建公开配置写入 production Environment 的 `RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION`；`LINUX_DEPLOY_SSH_KEY` 为专用部署私钥，`LINUX_DEPLOY_KNOWN_HOSTS` 固定已验证主机公钥。SSH root 部署权限须经 owner 授权后建立，禁止把个人 SSH key 上传到 GitHub。安装采用单实例短暂停机切换，公网 canonical 检查失败也会回退上一包；制品、快照及 SSH 事务目录保留作恢复证据。
 
 ## 回退到 Vercel
 
 1. 确认 Vercel 已恢复；处于暂停状态时恢复 DNS 只恢复路由，服务仍可能返回 402。以候选部署 URL/受保护 smoke 验证与当前生产 schema 兼容的 exact release。不要把仅本地构建成功当作回退条件。
 2. 恢复切换前保存的正式域名 DNS 记录；保留备用应用运行至少一个旧 TTL 窗口，避免尚未更新 DNS 的客户端断开。
-3. 从两个网络读回正式 `/api/system/release`，验证登录、核心读写与 scheduler health。Supabase 持续使用同一份数据，不进行反向数据复制或数据库回滚。
+3. 将 repository variable `RIVALHUB_RELEASE_HOSTING` 设为 `vercel`，后续正式发布恢复 Vercel candidate/OIDC/routing 路径。从两个网络读回正式 `/api/system/release`，验证登录、核心读写与 scheduler health。Supabase 持续使用同一份数据，不进行反向数据复制或数据库回滚。
 4. DNS 收敛、流量和调度恢复后，停止 production 备用服务并恢复其访问限制，保留包和脱敏运行证据。Preview 备用实例继续用于演练。
 
 若仅 Preview 新包失败，可先停止服务，将 `current` 原子切回 `/opt/rivalhub-standby/previous-release` 中记录的相对路径，恢复匹配的 `preview.env.previous`，再启动并核对 `/api/system/release`。目标包为空或已移除时停止，不能猜测版本。

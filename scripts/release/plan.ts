@@ -115,6 +115,7 @@ export function buildReleasePlan(options: BuildReleasePlanOptions = {}): Release
   );
   const releaseInfraChanged = changedPaths.some((path) =>
     path.startsWith("scripts/release/")
+    || path.startsWith("scripts/standby/")
     || path === "scripts/vercel-build.ts"
     || path === "vercel.json"
     || path === ".github/workflows/release.yml",
@@ -228,7 +229,8 @@ function isApplicationPath(
   entries: readonly ReleaseChangeEntry[],
 ): boolean {
   if (path.startsWith("drizzle/migrations/") || path.startsWith("scripts/db/recovery/")) return false;
-  if (path.startsWith("scripts/release/") || path === "scripts/vercel-build.ts") return false;
+  if (path.startsWith("scripts/release/")
+    || path.startsWith("scripts/standby/") || path === "scripts/vercel-build.ts") return false;
   if (path.startsWith(".github/workflows/recovery-") || path === ".github/workflows/release.yml") return false;
   if (path.startsWith("docs/") || path.endsWith(".md") || path.endsWith(".mdx") || path.startsWith(".changeset/")) return false;
   if (METADATA_PATHS.has(path)) {

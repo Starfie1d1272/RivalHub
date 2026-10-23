@@ -63,3 +63,15 @@ journal 观察到未知／旧 Server Action ID（含 `x`）被拒绝；无法从
 回退 Vercel 前先确认原 deployment 已恢复服务并通过 exact identity/业务检查，再恢复上述 CNAME 和 TTL 600；保留 Linux 服务至少一个旧 TTL 窗口。Vercel 原配置保留了旧会话及统计密钥，回退验收必须处理重新登录，并通过受保护配置发布让统计签名与当前 Worker 一致。Vercel 仍暂停时，恢复 DNS 只恢复路由，网站仍会返回 402。Supabase 数据持续使用同一份，不做反向数据库恢复。代理异常可恢复备份中的 Caddy 配置，validate 后 reload；这不会自动恢复应用可用性。
 
 后续发布仍需按 release SOP 处理目标平台 routing。现有 Vercel Release workflow 不会部署 Linux；不能在此状态直接宣告一个新 tag 已上线。
+
+## 2026-10-24 访问反馈补充
+
+Owner 已确认在正式域名完成真实登录。一位使用搜狗浏览器的访客报告连接重置，切换 Edge 后恢复访问；尚未确定该浏览器内核或具体失败链路。服务器 loopback 强制 TLS 1.2 请求返回 200。本机经 Clash TUN 的对照中，同 IP 多个域名 TLS 1.2 重置、TLS 1.3 成功，因此该本机结果不能代表所有公网客户端。保持现有生产 TLS 配置。
+
+## 2026-10-24 正式发布流程验证
+
+Release 默认目标改为 Linux，保留显式 Vercel 路径。Owner 授权后新增 GitHub production 专用 SSH key，使用独立 key、固定 host key 与 `restrict` authorized_keys 选项；runtime 用户继续为 `rivalhub-production`。GitHub 已配置公开构建 JSON、host key 与部署 secret，私钥未写入仓库。操作员受保护副本为 `~/.config/rivalhub/credentials/github-linux-deploy.key`。
+
+使用新 controller、安装器与该专用 key，在真实主机重新安装现有 v2.21.10 包，checksum、主机首页/版本与公网 canonical 首页/版本全部通过。正式 SHA 保持 `30eb5e3a96fe493226ebaa7a74babe65ad879fc7`，数据库未变更。恢复快照为 `/opt/rivalhub-production/rollback/20261023T161607Z.fjudhKbD`；应用停止等待可达到 systemd 的 30 秒超时，因此单实例发布有短暂不可用窗口。
+
+本地通过 scripts 类型检查、定向 ESLint、workflow YAML 解析、5 项 routing failure tests 与主机恢复模拟测试。模拟覆盖重启/健康失败、断线补偿、不可变包重试、同版本重新构建与锁拒绝。尚未通过 main/tag 运行完整新版 Release workflow，也未在真实服务器注入故障演练回退；这些证据与同版本真实安装分别记录。
