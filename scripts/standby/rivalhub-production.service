@@ -1,0 +1,31 @@
+[Unit]
+Description=RivalHub production application
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=rivalhub-production
+Group=rivalhub-production
+WorkingDirectory=/opt/rivalhub-production/current
+EnvironmentFile=/etc/rivalhub-production/production.env
+ExecStart=/opt/rivalhub-production/current/runtime/node /opt/rivalhub-production/current/scripts/standby/start-production.mjs
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+SuccessExitStatus=143
+MemoryMax=512M
+CPUQuota=100%
+TasksMax=128
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/rivalhub-production/current/.next/cache
+
+[Install]
+WantedBy=multi-user.target

@@ -1,4 +1,4 @@
-name: Standby Preview package
+name: Standby application package
 
 on:
   pull_request:
@@ -8,6 +8,15 @@ on:
       - 'scripts/standby/**'
       - 'next.config.ts'
   workflow_dispatch:
+    inputs:
+      production_release_tag:
+        description: 'Existing stable release tag; empty builds isolated Preview'
+        type: string
+        default: ''
+      production_public_configuration:
+        description: 'JSON of declared NEXT_PUBLIC_* build values; no secrets'
+        type: string
+        default: '{}'
 
 permissions:
   contents: read
@@ -18,7 +27,7 @@ concurrency:
 
 jobs:
   preview-credential:
-    if: github.event_name == 'workflow_dispatch' && vars.RIVALHUB_STANDBY_OPERATOR_PUBLIC_KEY != ''
+    if: github.event_name == 'workflow_dispatch' && inputs.production_release_tag == '' && vars.RIVALHUB_STANDBY_OPERATOR_PUBLIC_KEY != ''
     runs-on: ubuntu-24.04
     environment: staging
     steps:
@@ -41,7 +50,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
   package:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: (github.event_name == 'workflow_dispatch' && inputs.production_release_tag == '') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-24.04
     env:
       CI: true
@@ -64,5 +73,43 @@ jobs:
         with:
           name: standby-preview-linux-x64
           path: .agent-tmp/standby-package/*
+          retention-days: 7
+          if-no-files-found: error
+  production-package:
+    if: github.event_name == 'workflow_dispatch' && inputs.production_release_tag != ''
+    runs-on: ubuntu-24.04
+    environment: production
+    permissions:
+      contents: read
+      actions: read
+    env:
+      CI: true
+      NEXT_TELEMETRY_DISABLED: 1
+      RELEASE_TAG: ${{ inputs.production_release_tag }}
+      RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION: ${{ inputs.production_public_configuration }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          cache: true
+          require-lockfile: true
+      - name: Verify environment isolation
+        run: pnpm exec tsx --test scripts/standby/start.test.mjs scripts/standby/production.test.mjs
+      - name: Prepare exact immutable application checkout
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          git worktree add --detach "$RUNNER_TEMP/rivalhub-production-source" "$RELEASE_TAG"
+          cd "$RUNNER_TEMP/rivalhub-production-source"
+          pnpm install --frozen-lockfile
+      - name: Build independent production package
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm exec tsx scripts/standby/build-production.mjs "$RUNNER_TEMP/rivalhub-production-source"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        with:
+          name: standby-production-linux-x64
+          path: .agent-tmp/standby-production-package/*
           retention-days: 7
           if-no-files-found: error

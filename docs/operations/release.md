@@ -162,3 +162,11 @@ PostgreSQL TLS contract 由 `src/db/postgres-connection.ts` 统一维护，详�
 - 需要 production acceptance 的 Issue 具备真实 evidence 后再关闭。
 
 Production destructive restore、provider cutover、incident freeze 和 Issue close 不是普通 release retry 的隐含副作用；必须满足各自明确授权与独立证据门槛。
+
+## 8. 已授权的应用托管故障切换
+
+同一正式版本从 Vercel 迁到备用 Linux 属于独立 provider cutover，须有明确授权，执行细节由 [`standby.md`](./standby.md) 维护。此路径复用已有正式 tag 与数据库，不创建新 tag、不运行无关 migration、不恢复备份。
+
+若 canonical endpoint 因 provider 暂停返回 402，冻结最近一次成功 Release run 的 canonical convergence 记录，并与 immutable tag、exact-SHA main CI、GitHub Release 及 provider deployment metadata 交叉核对。将无法实时读取旧 endpoint 的事实和原路由状态保留为故障证据，禁止仅凭最大 tag 推断曾上线版本。
+
+受保护 production package job 使用原 release 的 clean source、实际 Production public configuration 与 canonical build entrypoint，记录应用和 operator tooling 的独立 SHA、配置 hash 与包 checksum。runtime 凭据单独通过现有受保护渠道交付。候选以正式 Host 和有效 TLS 验证 release identity、核心页面、登录/session、Server Actions、Realtime/Mizar 及调度配置后，才允许变更正式 DNS；切换后再次验收业务和资源。原 Vercel project/config 保留，回退 DNS 前确认 Vercel 可服务。
