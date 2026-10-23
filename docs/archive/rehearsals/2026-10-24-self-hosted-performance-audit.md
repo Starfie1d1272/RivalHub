@@ -23,7 +23,7 @@
 | `/stats` | 0.692 s | 103,400 |
 | `/stats?tab=players` | 0.893 s | 318,233 |
 | `/2026-nju-major/matches` | 2.121 s | 37,967 |
-| `/2026-nju-major/bet?tab=ranking` | 5.607 s | 50,507 |
+| `/2026-nju-major/bet` 排行榜视图 | 5.607 s | 50,507 |
 
 这些请求的首字节约 45–58 ms。App Router 流式 shell 的早期首字节不能代表页面数据已完成；也不能直接用 curl 完整时间替代浏览器 LCP。
 
@@ -51,7 +51,7 @@ D1 当次控制台快照为约 1.57 MB，查询 p50 约 0.34 ms；账户 Free �
 | [#1055](https://github.com/Starfie1d1272/RivalHub/pull/1055) | 三种免费预测榜单共用一次人群读取 | 生产只读 repeatable-read 对照 39→13 SQL，三种排序各 108 人，DTO 完全相同；没有数据写入 |
 | [#1056](https://github.com/Starfie1d1272/RivalHub/pull/1056) | 按选中视图拆分统计中心 Client 组件 | 保留 SSR；本机 Google Fonts TLS 失败阻塞生产构建，实际下载量与耗时收益待验证 |
 | [#1057](https://github.com/Starfie1d1272/RivalHub/pull/1057) | Cloudflare TTFB/FCP/LCP/INP 与 NAV_COMMIT | 25 项定向测试及最终完整 CI 通过；Worker 先于网站发布，实际浏览器入库待验收 |
-| 本 PR | 超级管理员按需读取进程和连接池快照 | 无探测 SQL、后台采样或新增持久化；候选尚未部署 |
+| [#1058](https://github.com/Starfie1d1272/RivalHub/pull/1058) | 超级管理员按需读取进程和连接池快照 | 无探测 SQL、后台采样或新增持久化；候选尚未部署 |
 
 ## 页面覆盖
 
