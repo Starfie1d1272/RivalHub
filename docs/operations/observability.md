@@ -98,7 +98,7 @@ Sampler 在 SERVER span 创建时读取 Next 提供的 `http.target`，兼容 `u
 
 Span name、`rivalhub.*`、`db.*`、HTTP method/status 和 provider 等属性必须是低基数值。默认不加 user/team/entry ID、email、昵称或业务 payload。跨 provider 的 trace propagation 只对自有 deployment URL 开启；Supabase、Steam、SiliconFlow、Cloudflare Turnstile 和 Better Stack 均不接收 RivalHub trace headers。
 
-`db.query` 的 pooled query span 在调用前记录 `rivalhub.db.pool.total/idle/waiting` 数量快照，返回后记录 `rivalhub.db.result.rows`；仅保存数值，不包含 SQL 或行内容。duration 包含连接获取与执行，调用前快照不能精确拆分等待时间；事务内通过 checked-out client 执行的语句不由此 wrapper 计数。常驻 Node 主机保留空闲连接 30 秒，Vercel 保留 5 秒；连接上限与故障重建、重试边界维持由数据库 runtime owner 管理。
+`db.query` 的 pooled query span 在调用前记录 `rivalhub.db.pool.total/idle/waiting` 数量快照，返回后记录 `rivalhub.db.result.rows`；仅保存数值，不包含 SQL 或行内容。duration 包含连接获取与执行，调用前快照不能精确拆分等待时间；事务内通过 checked-out client 执行的语句不由此 wrapper 计数。常驻 Next.js Node 服务保留空闲连接 30 秒，Vercel 与 CLI 保留 5 秒；连接上限与故障重建、重试边界维持由数据库 runtime owner 管理。
 
 ## 查询与排障
 

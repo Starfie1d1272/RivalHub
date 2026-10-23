@@ -30,7 +30,7 @@ function createPool(): Pool {
     prepare: false,
     max: process.env.NODE_ENV === "production" ? 3 : 10,
     // Persistent Node hosts reuse TLS connections between page visits.
-    idleTimeoutMillis: process.env.VERCEL === "1" ? 5000 : 30000,
+    idleTimeoutMillis: process.env.NEXT_RUNTIME === "nodejs" && process.env.VERCEL !== "1" ? 30000 : 5000,
     connectionTimeoutMillis: 10000,
   };
 
