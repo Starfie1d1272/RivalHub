@@ -1,12 +1,12 @@
 # 产品遥测：基线、排障与上线边界
 
-Owner：`src/lib/telemetry/`；页面接入 `src/components/telemetry/`；独立接收端 `workers/telemetry/`。默认关闭，未配置真实接收地址/凭据/绑定。本设计不授权部署、合并、持续访问或实际删除。
+Owner：`src/lib/telemetry/`；页面接入 `src/components/telemetry/`；独立接收端 `workers/telemetry/`。默认关闭，启用依赖对应环境的接收地址、凭据与绑定；是否运行以配置与实际入库证据为准。本文不授权部署、合并、持续访问或实际删除。
 
 应用 release 成功只证明网站构建上线，不能代替接收端部署、环境配置及浏览器入库验收。部署准备工具不更改云资源；下面的云端写入、密钥配置与开流量步骤均须先获得对应授权。
 
 ## 与现有采集的关系
 
-Vercel Analytics/Speed Insights 继续负责既有匿名流量与性能；`src/lib/observability/` 的 OTel/Better Stack 继续负责服务端运行日志、脱敏异常和 requestId。产品遥测补足页面、筛选和显式业务操作基线，不把 runtime logs 复制到业务 PostgreSQL，也不增加点击级 Server Action、Vercel Function、Runtime Cache 写入或线上缓存策略。
+Vercel Analytics/Speed Insights 继续负责既有匿名流量与性能；`src/lib/observability/` 的 OTel/Better Stack 继续负责服务端运行日志、脱敏异常和 requestId。产品遥测补足页面耗时、筛选和显式业务操作基线，不把 runtime logs 复制到业务 PostgreSQL，也不增加点击级 Server Action、Vercel Function、Runtime Cache 写入或线上缓存策略。
 
 浏览器在 Header 已有的 request/Suspense island 中获得限定 RivalHub 的签名接收票据；首次签发复用已读取的 Header 授权投影。可见的长开页面另通过 独立 `POST /api/product-telemetry` 每约 20 小时续签一次，重新读取当前授权（无 Runtime Cache 写入）；续签失败最多每小时一次有界重试。它不是用户动作，也不是每点击/每批发送一次的 Vercel 请求。每分钟把内存队列的最多 32 条事件直传独立 Worker。页面隐藏/退出触发一次 best-effort flush；请求使用 keepalive、omit credentials、no-referrer 和 text/plain，避免携带 Cookie、来源 URL 或逐批预检。空队列没有请求。
 
@@ -24,6 +24,18 @@ Worker 仅使用独立 D1：一个批次一行、服务端校验后写入、按�
 
 这是浏览器报告的产品基线，不是安全审计或账本。脚本未加载、DNT/GPC、广告拦截、离线、队列溢出、过期、限额、关闭标签页或授权 island 故障都会缺数；开始后无终态不等于业务失败。服务端实际执行但响应丢失时只记 unknown，再用 requestId/audit 查证。
 
+## 页面性能
+
+单一 observer 通过 Next.js `useReportWebVitals` 的稳定 callback 记录 TTFB、FCP、LCP、INP，值统一为四舍五入的毫秒（0–3,600,000）。CLS 的单位不同，不进入本协议的毫秒字段。只读取指标名称、数值和内存中的导航归属；不序列化 PerformanceEntry、DOM selector、原生 metric ID、URL、query 或 referrer。指标原生 ID 在最多 128 项的内存映射内换为随机事件 UUID，同一指标的后续报告沿用该 UUID；尚未发送的更新在队列内合并，已发送批次保持不可变。映射有界且只在当前身份内有效，不能据此保证无限长会话中的全局去重。
+
+归属优先使用指标的 `navigationURL`，缺失时使用原始 document navigation entry；仅发送本站路由模板。延迟到达、所属路径与当前页面不同的报告归入 site，不附当前赛事 UUID。身份变更后清除映射，并丢弃开始于旧身份期间的导航指标。旧版本浏览器或不支持 Soft Navigation 的浏览器可能只报告初始文档指标；INP 需要实际交互，缺失不补零。
+
+`src/instrumentation-client.ts` 使用 Next.js `onRouterTransitionStart` 捕获本站导航起点，现有 pathname/search observer 在目标路由提交后记录 NAV_COMMIT；新的起点替换被放弃的导航，身份变更丢弃在途测量。它覆盖可观察的 App Router 导航到提交的等待，包含同路径筛选导航；Suspense 内容可能尚未完成，不等于完整内容就绪或 LCP。无匹配提交、observer 未加载或超过一小时的测量不补造。
+
+performance 事件的白名单 `metricName` 为 TTFB/FCP/LCP/INP/NAV_COMMIT，`durationMs` 为毫秒。同批 summary 保持九列布局，原 variant 维度在 performance kind 下保存 metricName，次数/耗时总和表示接收的观察报告；跨批指标更新可能重复贡献，不能把 summary 平均值当作每次导航的最终 Web Vital 或 p75。受控 raw 分析应先按 session/id 取最新 at，且说明映射边界与采集缺口。保留、访问、DNT/GPC、队列/批次和免费预算沿用原规则，采集不逐次发送。
+
+协议升级时先部署兼容新旧事件的独立 Worker，再按正式 release 流程发布网站采集端；旧 Worker 会拒绝含新 kind 的整批。此次只扩展已校验事件和现有 summary 维度，无 D1 schema migration，不重跑初始化 SQL。回滚网站可继续使用新 Worker；若回滚 Worker，先停用新版网站采集，避免整批被拒。
+
 ## 数据字段与身份
 
 | 字段 | 来源/约束 |
@@ -34,9 +46,10 @@ Worker 仅使用独立 D1：一个批次一行、服务端校验后写入、按�
 | role | Header 授权快照：anonymous/user/season_admin/super_admin；队长/代表不是全局授权角色，通过路由/操作区分，不猜测其权限 |
 | release / environment | 签名票据中的构建 commit 与 preview/production；生产需检查 release 不是 unknown |
 | route / scene / eventId | 路由模板、canonical 赛事模板 major/rivals/other（无赛事为 site）、公开赛事 UUID；未加载对应 layout 时可能是 site |
-| kind / navigation / filters | page/filter/operation/error；navigate/history/reload；明确允许的类别/selected |
+| kind / navigation / filters | page/filter/operation/error/performance；navigate/history/reload；明确允许的类别/selected |
 | operation / variant / phase | 注册表中的动作名、固定子类型、start/success/rejected/unknown |
-| operationId / durationMs / outcome | 单次调用关联、最多一小时耗时、applied/stale/noop（存在时） |
+| operationId / durationMs / outcome | 单次调用关联；操作或性能指标最多一小时的整数毫秒耗时；applied/stale/noop（存在时） |
+| metricName | 仅 performance 事件；固定的毫秒指标名 |
 | errorCode / requestId | 已知错误枚举或固定未知分类、既有 UUID；不保存 message/stack/cause |
 | received / expires / bytes | 接收 UTC、批内最早事件 at + 七天、未压缩事件 JSON UTF-8 字节数（预算口径） |
 | events_gzip / summary | 原始事件 gzip BLOB；同批七天到期的无身份计数投影，后者不是已批准的长期汇总 |
@@ -61,7 +74,7 @@ Worker 验证 JSON 白名单后，用原生 `CompressionStream("gzip")` 压缩�
 
 `summary` 是同批次内的无身份维度/计数/耗时投影，与原始压缩数据同删，供明确获批后的日汇总读取，避免每天解压全部 raw。账号/会话索引保持可检索；受控查询每页最多二十批，逐批解压且每批解码上限 24 KiB，仍返回原 events JSON 供现有 CLI 使用。解压失败只使该次查询失败，不触发明文存储回退。压缩不是加密，也不改变访问权限、TTL 或恢复副本限制。
 
-新旧事件字节、gzip 字节、附加计数投影、含全部索引的 SQLite 空间、压缩 wall time 分开量测，见 [终审修正证据](../archive/product-telemetry-review-2026-10-17/README.md)。本 PR 尚未部署，初始化 schema 直接使用新格式；不得将该建表文件直接重跑到已有数据库，任何实际旧库升级需另行编号迁移和批准。
+新旧事件字节、gzip 字节、附加计数投影、含全部索引的 SQLite 空间、压缩 wall time 分开量测，见 [终审修正证据](../archive/product-telemetry-review-2026-10-17/README.md)。初始化 schema 使用 gzip 格式；已有数据库只应用对应的独立编号迁移，不重跑建表文件。性能事件扩展不修改该 schema。
 
 ## 保留、清理、恢复
 

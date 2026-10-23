@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { handle, maintain, BUDGET, type Database, type Env, type Statement } from "../../../workers/telemetry/index";
 import { signTicket, accountKey } from "@/lib/telemetry/ticket";
 import { gunzipSync } from "node:zlib";
-import { routeTemplate, safeFilters, type TelemetryEvent, type Ticket } from "@/lib/telemetry/protocol";
+import { routeTemplate, safeFilters, validEvent, type TelemetryEvent, type Ticket } from "@/lib/telemetry/protocol";
 
 const now = Date.UTC(2026, 9, 17, 12);
 const databases: DatabaseSync[] = [];
@@ -42,6 +42,20 @@ function admin(env: Env, path: string, time = now) {
 afterEach(() => { for (const db of databases.splice(0)) db.close(); });
 
 describe("independent receiver privacy, budget and lifecycle", () => {
+  it("validates bounded millisecond metrics and persists their existing summary dimensions and expiry", async () => {
+    const { env, sqlite } = fixture();
+    const sample: TelemetryEvent = { id: crypto.randomUUID(), at: now, session: crypto.randomUUID(), route: "/stats", scene: "site", kind: "performance", metricName: "LCP", durationMs: 1250 };
+    expect(validEvent(sample, now)).toBe(true);
+    for (const extra of [{ metricName: "PRIVATE" }, { durationMs: NaN }, { durationMs: -1 }, { durationMs: 3600001 }, { durationMs: 1.5 }, { durationMs: undefined }, { navigationURL: "PRIVATE" }, { entries: [] }, { filters: { q: "selected" } }, { operation: "captains.castVote" }]) {
+      expect(validEvent({ ...sample, ...extra }, now)).toBe(false);
+    }
+    expect(validEvent({ ...sample, kind: "page", durationMs: undefined }, now)).toBe(false);
+    expect((await post(env, await batch(env, [sample]))).status).toBe(204);
+    const stored = sqlite.prepare("SELECT events_gzip,summary,expires FROM batches").get()!;
+    expect(JSON.parse(gunzipSync(stored.events_gzip as Uint8Array).toString())).toEqual([sample]);
+    expect(JSON.parse(String(stored.summary))).toEqual([["site", "/stats", "performance", "", "", "", "LCP", 1, 1250]]);
+    expect(stored.expires).toBe(now + 7 * 86400000);
+  });
   it("deduplicates lost ACK retries, reads by account/session, and never persists ingest credentials", async () => {
     const { env, sqlite } = fixture(); const body = await batch(env);
     expect((await post(env, body)).status).toBe(204);

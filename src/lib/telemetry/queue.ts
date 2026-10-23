@@ -14,6 +14,10 @@ export class TelemetryQueue {
   add(event: TelemetryEvent) {
     if (Date.now() >= this.config.expiresAt) return;
     this.metrics.events++;
+    if (event.kind === "performance") {
+      const index = this.events.findIndex(previous => previous.kind === "performance" && previous.id === event.id);
+      if (index >= 0) { this.events[index] = event; return; }
+    }
     if (this.events.length >= LIMITS.queue) { this.events.shift(); this.metrics.dropped++; }
     this.events.push(event);
     // Collection never sends synchronously and never creates one request per click.
