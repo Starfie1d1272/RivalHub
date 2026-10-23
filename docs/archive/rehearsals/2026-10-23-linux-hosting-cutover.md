@@ -1,5 +1,7 @@
 # 2026-10-23 Linux 生产托管切换记录
 
+**2026-10-24 后续检查发现生产访问阻塞：** 主机地域为 `cn-shanghai`，公网 HTTP 请求正式域名返回阿里云 `403 / Non-compliance ICP Filing` 备案拦截页。此前部分 HTTPS 探测成功不代表全客户端可用。当前 Linux 主机作为正式入口的验收未完成；需完成备案/接入或另行授权迁至可用托管目标。
+
 本记录保存本次故障切换证据，不作为后续版本或服务状态的实时 authority。操作 SOP 见 [standby](../../operations/standby.md)，发布约束见 [release](../../operations/release.md)。时间为北京时间，附 UTC 的字段除外。
 
 ## 范围与身份
@@ -79,3 +81,9 @@ Release 默认目标改为 Linux，保留显式 Vercel 路径。Owner 授权后�
 ## 2026-10-24 运行时缓存修复
 
 Next.js 当前版本把运行时路由缓存写入 `.next/server/route-cache`。初始 systemd 沙箱只开放 `.next/cache`，日志出现 route-cache mkdir ENOENT。安装器现预建两个精确目录并赋予应用用户写权限，unit 仅开放这两个目录；包完整性比较排除运行时缓存。线上应用同样配置后，首页 200、exact v2.21.10 身份不变，route-cache 已生成 index.html/meta/RSC 缓存，自动重启计数为 0。构建代码保持只读。
+
+## 2026-10-24 备案拦截证据
+
+通过主机 metadata 的 `region-id` 只读回读确认 `cn-shanghai`。本机 Node HTTP 请求显式连接 `47.103.131.158:80`，Host 为 `match.starfie1d.top`，得到 `403`、`Server: Beaver`、HTML 标题 `Non-compliance ICP Filing` 与阿里云 `www.aliyun.com/beian/beian-block` 链接。该证据确认备案拦截已经发生；尚无证据把每一条 Windows TLS reset 均归因到同一个拦截设备。
+
+临时诊断域名 `rivalhub-network-check.starfie1d.top` 仅返回诊断文本与公开版本标识，经 Cloudflare 代理。Python UA 返回 403 / 1010；未批准、未实施 Browser Integrity Check 调整，正式域名没有切换到 Cloudflare。停止把代理作为备案问题的恢复路径。诊断配置保留在 `/etc/caddy/rivalhub-network-check.caddy`，待网络处理方案确定后移除。
