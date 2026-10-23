@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.21.10]
+
+### Fixed
+
+- 修复 Mizar 在首图结束并刷新比赛资料后，下一图事件因网站数据源仍保留旧资料版本而被拒绝的问题。接收端核实当前网站资料版本后原子更新会话，继续保留身份、事件顺序和地图执行校验。
+
 ## [2.21.9]
 
 ### Changed
@@ -1897,25 +1903,25 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ## [2.0.0-rc.4]
 
-### Patch Changes
+### Fixed
 
 - b2b7ae4: Converge 2.0 competition templates, participant qualification context, and administrator lifecycle workflows.
 
 ## [2.0.0-rc.3]
 
-### Patch Changes
+### Fixed
 
 - 收敛公开队长、选秀与比赛协商 DTO，修复登录态导航、登录回跳安全、历史赛季入口与隐私链接。
 
 ## [2.0.0-rc.2]
 
-### Patch Changes
+### Fixed
 
 - 对齐生产 Supabase 强密码策略，增加注册和重置密码确认，刷新失败的一次性 Turnstile 校验，并避免吞掉密码重置发信错误。
 
 ## [2.0.0-rc.1]
 
-### Patch Changes
+### Fixed
 
 - 明确 legacy Root 管理员登录入口与标准 owner email bootstrap 的边界。
 
@@ -1925,7 +1931,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 - RivalHub 2.0 RC：引入 capability 驱动的 Major 赛事运营闭环，并收拢正式 production cutover 所需的 Auth、报名、赛程与数据完整性能力。
 
-### Patch Changes
+### Fixed
 
 - dabc985: 新增 fail-closed 的 Local Supabase 开发入口，隔离旧远程数据库配置并验证 Drizzle migration、Auth、Storage 与 Data API 默认拒绝策略。
 - ed1f9cb: Team 报名与含 Swiss 赛季在完整运营闭环落地前保持 fail closed，避免误用个人报名和自动状态迁移。
@@ -3390,3 +3396,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.21.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.7...v2.21.8
 
 [2.21.9]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.8...v2.21.9
+
+[2.21.10]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.9...v2.21.10
