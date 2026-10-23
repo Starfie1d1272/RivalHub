@@ -30,7 +30,7 @@
     "eslint.config.mjs!",
     "scripts/standby/build.mjs!",
     "scripts/standby/production-host.mjs!",
-    "scripts/standby/build-production.mjs!",
+    "scripts/standby/build-production.mjs",
     "scripts/standby/start-production.mjs!",
     "scripts/standby/seal-preview-credential.mjs!",
     "scripts/standby/start.mjs!",
