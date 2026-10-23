@@ -31,6 +31,44 @@ const ENV_VARS = [
   },
 ] as const;
 
+function RuntimeHealthPanel() {
+  const runtime = getRuntimeHealthSnapshot();
+  const pool = getDatabasePoolSnapshot();
+  const memoryLabel = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
+  const runtimeRows = runtime ? [
+    ["Node.js", runtime.nodeVersion],
+    ["连续运行", `${Math.floor(runtime.uptimeSeconds / 60).toLocaleString("zh-CN")} 分钟`],
+    ["进程驻留内存", memoryLabel(runtime.rssBytes)],
+    ["堆已用 / 当前容量", `${memoryLabel(runtime.heapUsedBytes)} / ${memoryLabel(runtime.heapTotalBytes)}`],
+    ["V8 堆上限", memoryLabel(runtime.heapLimitBytes)],
+    ["环境内存约束", runtime.constrainedMemoryBytes === null ? "未提供" : memoryLabel(runtime.constrainedMemoryBytes)],
+    ["事件循环忙碌比例（自启动）", `${(runtime.eventLoopUtilization * 100).toFixed(1)}%`],
+  ] : [];
+
+  return (
+    <section aria-labelledby="runtime-health-title" className="space-y-4">
+      <div className="space-y-1">
+        <h2 id="runtime-health-title" className="text-base font-semibold text-[var(--color-fg)]">服务进程</h2>
+        <p className="text-xs text-[var(--color-fg-mid)]">打开或刷新本页时读取当前进程；事件循环比例为自启动累计值。</p>
+      </div>
+      <Panel contentClassName="space-y-4 p-4">
+        {runtime ? <>
+          <p className="text-xs text-[var(--color-fg-mid)]">采样时间：{new Date(runtime.sampledAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}</p>
+          <dl className="grid gap-4 sm:grid-cols-2">
+            {runtimeRows.map(([label, value]) => <div key={label} className="space-y-1">
+              <dt className="text-xs text-[var(--color-fg-mid)]">{label}</dt>
+              <dd className="text-sm font-mono text-[var(--color-fg)]">{value}</dd>
+            </div>)}
+          </dl>
+        </> : <p className="text-sm text-[var(--color-fg-mid)]">暂时无法读取进程状态。</p>}
+        <div className="border-t border-[var(--color-border)] pt-4 text-sm text-[var(--color-fg-mid)]">
+          {pool ? <p>数据库连接 {pool.total} / {pool.max ?? "—"}；闲置 {pool.idle}；等待连接 {pool.waiting}。</p> : <p>当前进程尚未创建数据库连接池。</p>}
+        </div>
+      </Panel>
+    </section>
+  );
+}
+
 export default async function AdminSettingsPage() {
   const admin = await resolveAdminPageAccess(requireSuperAdmin);
   if (!admin) return <AdminAccessDenied />;
@@ -46,43 +84,12 @@ export default async function AdminSettingsPage() {
     .limit(1);
   const adminDisplayName = adminUser ? getDisplayName(adminUser) : admin.email;
   const schedulerHealth = await getSchedulerHealthView();
-  const runtime = getRuntimeHealthSnapshot();
-  const pool = getDatabasePoolSnapshot();
-  const memoryLabel = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
-  const runtimeRows = runtime ? [
-    ["Node.js", runtime.nodeVersion],
-    ["连续运行", `${Math.floor(runtime.uptimeSeconds / 60).toLocaleString("zh-CN")} 分钟`],
-    ["进程驻留内存", memoryLabel(runtime.rssBytes)],
-    ["堆已用 / 当前容量", `${memoryLabel(runtime.heapUsedBytes)} / ${memoryLabel(runtime.heapTotalBytes)}`],
-    ["V8 堆上限", memoryLabel(runtime.heapLimitBytes)],
-    ["环境内存约束", runtime.constrainedMemoryBytes === null ? "未提供" : memoryLabel(runtime.constrainedMemoryBytes)],
-    ["事件循环忙碌比例（自启动）", `${(runtime.eventLoopUtilization * 100).toFixed(1)}%`],
-  ] : [];
 
   return (
     <PageLayout variant="narrow" className="space-y-10">
         <PageHeader title="系统状态" description={`当前登录：${adminDisplayName}`} />
 
-        <section aria-labelledby="runtime-health-title" className="space-y-4">
-          <div className="space-y-1">
-            <h2 id="runtime-health-title" className="text-base font-semibold text-[var(--color-fg)]">服务进程</h2>
-            <p className="text-xs text-[var(--color-fg-mid)]">打开或刷新本页时读取当前进程；事件循环比例为自启动累计值。</p>
-          </div>
-          <Panel contentClassName="space-y-4 p-4">
-            {runtime ? <>
-              <p className="text-xs text-[var(--color-fg-mid)]">采样时间：{new Date(runtime.sampledAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}</p>
-              <dl className="grid gap-4 sm:grid-cols-2">
-                {runtimeRows.map(([label, value]) => <div key={label} className="space-y-1">
-                  <dt className="text-xs text-[var(--color-fg-mid)]">{label}</dt>
-                  <dd className="text-sm font-mono text-[var(--color-fg)]">{value}</dd>
-                </div>)}
-              </dl>
-            </> : <p className="text-sm text-[var(--color-fg-mid)]">暂时无法读取进程状态。</p>}
-            <div className="border-t border-[var(--color-border)] pt-4 text-sm text-[var(--color-fg-mid)]">
-              {pool ? <p>数据库连接 {pool.total} / {pool.max ?? "—"}；闲置 {pool.idle}；等待连接 {pool.waiting}。</p> : <p>当前进程尚未创建数据库连接池。</p>}
-            </div>
-          </Panel>
-        </section>
+        <RuntimeHealthPanel />
 
         {/* 密码管理 */}
         <section className="space-y-4">
