@@ -36,7 +36,7 @@ Caddy 配置 `/etc/caddy/rivalhub-production.caddy`，代理请求体上限 12 M
 | Realtime | 正式 viewer endpoint 200；用其真实短期 token 加入对应 private receive-only channel，状态 SUBSCRIBED |
 | Mizar | 未授权 schedule 请求按既有协议返回 403；实际 Windows/Mizar 凭据及推送尚未验收 |
 | Provider | Steam 只读请求 200；旧 OCR key 401 后从另一现有本地配置恢复有效 key，models 请求 200；未执行实际 OCR 推理或上传 |
-| 产品统计 | 新签名 ticket 通过验签后空 batch 被拒绝为 400；无效签名为 401。此检查不写统计事件；浏览器接收至存储全链尚未读取核对 |
+| 产品统计 | 正式页面真实 bootstrap ticket 携带准确生产 commit，通过接收端验签后空 batch 被拒绝为 400；无效签名为 401。此检查不写统计事件；浏览器接收至存储全链尚未读取核对 |
 | 运行日志 | journal 可读，exporter 配置启用；Better Stack 实际接收返回 402 / Quota reached，远端日志未恢复 |
 | 调度 | 保留 pg_cron/pg_net + GitHub watchdog，未新建 cron；Vault base URL 与 CRON_SECRET 对齐；统计投影任务 UTC 15:55:00.110 dispatch、15:55:02.427 success，证明自然调度已到达新入口 |
 
@@ -44,14 +44,14 @@ Caddy 配置 `/etc/caddy/rivalhub-production.caddy`，代理请求体上限 12 M
 
 journal 观察到未知／旧 Server Action ID（含 `x`）被拒绝；无法从该日志确认请求来源，新页面 action 验证通过。旧页面应刷新。尚无全量 HTTP 错误率证据，不能把探测成功率等同真实用户错误率。
 
-候选只读探测样本：首页约 1.85 秒，比赛详情约 4.08–4.34 秒，静态资源约 30–46 ms，图片优化约 217 ms。样本包含冷启动／数据库查询成本，不代表生产 p95 或容量测试。
+候选只读探测样本：首页约 1.85 秒，比赛详情约 4.08–4.34 秒，静态资源约 30–46 ms，图片优化约 217 ms。切换后热态首页样本约 0.52 秒。样本包含冷启动／数据库查询成本，不代表生产 p95 或容量测试。
 
 ## 资源与回退
 
 | 资源 | 安装前 | 切换后观察 |
 | --- | --- | --- |
-| 整机 available memory | 约 662 MiB | 约 561 MiB |
-| Production cgroup memory | 未运行 | 约 112 MiB（随请求变化） |
+| 整机 available memory | 约 662 MiB | 约 504–561 MiB |
+| Production cgroup memory | 未运行 | 约 112–177 MiB（随请求变化） |
 | Preview cgroup memory | 约 99 MiB | 约 94 MiB |
 | Production / Preview 自动重启 | — / 0 | 0 / 0 |
 | PostgreSQL 会话快照 | 未采集同口径基线 | active 2、idle 9、state 空 1，含本次只读检查 |
@@ -60,6 +60,6 @@ journal 观察到未知／旧 Server Action ID（含 `x`）被拒绝；无法从
 
 服务器 `/root/rivalhub-cutover-20261023/` 保留原 Caddy、DNS/TTL、服务和资源快照、包与校验和。当前 production 包保留在 `/opt/rivalhub-production/releases/`；这是首次生产安装，没有上一 Linux 生产版本可回退。安装器的空 previous-release 不能作为有效上一版本。
 
-回退 Vercel 前先确认原 deployment 已恢复服务并通过 exact identity/业务检查，再恢复上述 CNAME 和 TTL 600；保留 Linux 服务至少一个旧 TTL 窗口。Vercel 仍暂停时，恢复 DNS 只恢复路由，网站仍会返回 402。Supabase 数据持续使用同一份，不做反向数据库恢复。代理异常可恢复备份中的 Caddy 配置，validate 后 reload；这不会自动恢复应用可用性。
+回退 Vercel 前先确认原 deployment 已恢复服务并通过 exact identity/业务检查，再恢复上述 CNAME 和 TTL 600；保留 Linux 服务至少一个旧 TTL 窗口。Vercel 原配置保留了旧会话及统计密钥，回退验收必须处理重新登录，并通过受保护配置发布让统计签名与当前 Worker 一致。Vercel 仍暂停时，恢复 DNS 只恢复路由，网站仍会返回 402。Supabase 数据持续使用同一份，不做反向数据库恢复。代理异常可恢复备份中的 Caddy 配置，validate 后 reload；这不会自动恢复应用可用性。
 
 后续发布仍需按 release SOP 处理目标平台 routing。现有 Vercel Release workflow 不会部署 Linux；不能在此状态直接宣告一个新 tag 已上线。
