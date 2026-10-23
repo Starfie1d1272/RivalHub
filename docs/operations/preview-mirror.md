@@ -37,6 +37,8 @@ Vercel Preview environment 只配置 dev-scoped 值：
 
 Preview runtime 拒绝非 `rivalhub-dev` database/public Auth URL 与缺失的 server credential；production DB/Auth/Storage/provider credential 永远不得出现。Vercel Deployment Protection 仍是 Preview 的访问边界；persona fixture credential 不是安全边界。正常的 dev 写入、Auth、Storage 和 sandbox provider 行为不受 Preview 专用限制；没有 sandbox provider credential 的单项能力应独立 fail closed。
 
+用户指定的迁库复用配置由 [Supabase 迁库 SOP](./supabase-relocation.md#本地凭据与连续命名) 管理：新 Production/Dev 可读取同一份本地数据库密码，但连接 URL/用户名、项目 keys 与目标校验必须分别指向各自项目。共享 Resend SMTP 是用户明确指定的 provider 例外，只通过 Supabase 管理端配置到新项目的 Auth SMTP；该 key 的账号权限与发送额度仍共享，不属于 sandbox。SMTP key 不进入脱敏 artifact、staging refresh job 或 Vercel/standby Preview runtime。应用内其它 provider 继续使用 dev/sandbox credential，以上例外不扩大其权限范围。
+
 ## Preview persona fixture credentials
 
 以下是 disposable Preview fixture credentials，供已经通过 Vercel Deployment Protection 的 developer/agent 直接进行角色态测试。它们不是安全 credential，也不应当用于 production 或其它不可牺牲环境；每次 refresh 都会把五个账号的密码重置为统一值。
