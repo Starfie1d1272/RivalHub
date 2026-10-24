@@ -4,8 +4,69 @@ import { expect, it, vi } from "vitest";
 import { DatabasePool } from "@/db/pool";
 import { logEvent } from "@/lib/observability/logger";
 import { localDatabaseUrl } from "./harness/database";
+import { db } from "@/db/client";
 
-vi.mock("@/lib/observability/logger", () => ({ logEvent: vi.fn() }));
+vi.mock("@/lib/observability/logger", () => ({ logEvent: vi.fn(), captureException: vi.fn() }));
+
+it("shares a real PG replacement across module graphs and drains an old transaction without replay", async () => {
+  const a = await import("@/db/client-runtime");
+  vi.resetModules();
+  const b = await import("@/db/client-runtime");
+  const client = (runtime: typeof a) => (runtime.db as unknown as { $client: Pool }).$client;
+  const old = client(a);
+  expect(client(b)).toBe(old);
+  const generation = a.getDatabasePoolSnapshot()!.generation;
+  const held = await old.connect();
+  let released = false;
+  try {
+    await held.query("BEGIN");
+    await held.query("select 17 as n");
+    // Explicit fixture idle-error injection, not a real unknown commit.
+    old.emit("error", Object.assign(new Error("fixture idle disconnect"), { code: "ECONNRESET" }));
+    old.emit("error", Object.assign(new Error("fixture concurrent disconnect"), { code: "ECONNRESET" }));
+    await vi.waitFor(() => expect(a.getDatabasePoolSnapshot()!.generation).toBe(generation + 1));
+    const replacement = client(b);
+    expect(replacement).not.toBe(old);
+    expect(client(a)).toBe(replacement);
+    expect(replacement.listenerCount("error")).toBe(1);
+    expect((await replacement.query("select 23 as n")).rows).toEqual([{ n: 23 }]);
+    expect((await held.query("select 19 as n")).rows).toEqual([{ n: 19 }]);
+    expect(a.getDatabasePoolSnapshot()!.retiring.total).toBeGreaterThan(0);
+    old.emit("error", Object.assign(new Error("fixture retired event"), { code: "ECONNRESET" }));
+    expect(a.getDatabasePoolSnapshot()!.generation).toBe(generation + 1);
+    await held.query("COMMIT"); held.release(); released = true;
+    await vi.waitFor(() => expect(a.getDatabasePoolSnapshot()!.rebuilding).toBe(false));
+    expect(a.getDatabasePoolSnapshot()!.retiring.total).toBe(0);
+    expect((await replacement.query("select 29 as n")).rows).toEqual([{ n: 29 }]);
+    expect(replacement.listenerCount("error")).toBe(1);
+  } finally {
+    if (!released) { await held.query("ROLLBACK").catch(() => {}); held.release(); }
+    await Promise.all([a.disposeDatabaseBinding(), b.disposeDatabaseBinding()]);
+  }
+});
+
+it("preserves the runtime owner's real pooled callback return and error channels", async () => {
+  const pool = (db as unknown as { $client: Pool }).$client;
+  expect(pool.listenerCount("error")).toBe(1);
+  const callback = vi.fn();
+  await new Promise<void>((resolve, reject) => {
+    const returned = pool.query("select $1::int as n", [41], (error, result) => {
+      callback();
+      if (error) return reject(error);
+      try { expect(result.rows).toEqual([{ n: 41 }]); resolve(); } catch (failure) { reject(failure); }
+    });
+    expect(returned).toBeUndefined();
+  });
+  await new Promise<void>((resolve, reject) => {
+    const returned = pool.query("select 1/0", error => {
+      callback();
+      try { expect(error).toMatchObject({ code: "22012" }); resolve(); } catch (failure) { reject(failure); }
+    });
+    expect(returned).toBeUndefined();
+  });
+  expect(callback).toHaveBeenCalledTimes(2);
+  expect(pool.listenerCount("error")).toBe(1);
+});
 
 // Real pg-pool checkout: a timed-out queued write must never run after release.
 it("preserves promise/callback checkout, removes timed-out work and keeps the pool usable", async () => {
