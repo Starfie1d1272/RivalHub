@@ -119,3 +119,7 @@ Production 在 Linux 期间，正式更新使用 [Release workflow](./release.md
 4. DNS 收敛、流量和调度恢复后，停止 production 备用服务并恢复其访问限制，保留包和脱敏运行证据。Preview 备用实例继续用于演练。
 
 若仅 Preview 新包失败，可先停止服务，将 `current` 原子切回 `/opt/rivalhub-standby/previous-release` 中记录的相对路径，恢复匹配的 `preview.env.previous`，再启动并核对 `/api/system/release`。目标包为空或已移除时停止，不能猜测版本。
+
+### 单进程在线人数
+
+正式 `start-production.mjs` 在启动 standalone server 前设置进程内部 `RIVALHUB_PRESENCE_MODE=single-process`，服务由单个 Node PID 承载时使用共享进程内存计数。该标志不进入公开构建配置，也不从浏览器接受；不得将本 launcher 包装成多 worker/多副本后继续沿用该模式。其它启动入口保留 PostgreSQL fallback。状态重启清空，后续可见页面心跳自动恢复；详细统计与持久检查点语义见 [在线活跃状态](../auth-and-permissions.md#在线活跃状态)。

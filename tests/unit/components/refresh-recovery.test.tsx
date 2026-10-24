@@ -1,9 +1,9 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ read: vi.fn(), touch: vi.fn(), count: vi.fn() }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), count: vi.fn() }));
 vi.mock("@/actions/predictions", () => ({ getPredictionBoard: mocks.read, mutatePrediction: vi.fn() }));
-vi.mock("@/actions/online", () => ({ touchSession: mocks.touch, getOnlineCount: mocks.count }));
+vi.mock("@/actions/online", () => ({ heartbeatOnline: mocks.count }));
 vi.mock("@/lib/telemetry/client", () => ({ observeAction: (_name: string, fn: unknown) => fn, observeTask: (_name: string, fn: unknown) => fn }));
 vi.mock("@/components/predictions/share-image", () => ({ exportPredictionImage: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -47,13 +47,12 @@ it("late automatic response cannot replace a newer explicit read", async () => {
   expect(screen.queryByText("过期赛况")).toBeNull();
 });
 it("hides an unavailable online count and resumes on the next successful heartbeat", async () => {
-  mocks.touch.mockResolvedValue(undefined);
-  mocks.count.mockResolvedValueOnce({ count: 12 }).mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce({ count: 9 });
+  mocks.count.mockResolvedValueOnce({ count: 12, windowSeconds: 120, intervalMs: 60000 }).mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce({ count: 9, windowSeconds: 120, intervalMs: 60000 });
   render(<OnlineCounter />);
   await act(async () => {});
   expect(screen.getByText(/12/)).toBeVisible();
-  await act(async () => { await vi.advanceTimersByTimeAsync(300000); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
   expect(screen.queryByText(/12/)).toBeNull();
-  await act(async () => { await vi.advanceTimersByTimeAsync(300000); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
   expect(screen.getByText(/9/)).toBeVisible();
 });
