@@ -19,3 +19,4 @@ confirmed Demo质量详情由展开后的独立授权读取提供；首屏保留
 比赛三view的普通列表为25条，分页与阶段/队伍/状态保存在URL；切换筛选重置页号。execution读取当前阶段窄排序事实后仅读当前页完整展示字段；schedule的frozen runtime、积分榜和批量排期保留全阶段事实。materials在canonical完整判定后分页，不把原始finished行截断成错误的待办总数。Main Swiss房间提示复用冻结投影，仅返回该场record。
 
 公告列表消费canonical summary/count；季赛详情将id、seasonId和actor scope交同一个owner。赛事信息目录只消费两种计数，详情保持直接scoped读取。教育概览与审核队列是独立服务端区域，概览失败不把队列伪装成空集合；审核队列primary-ready仅在真实内容旁记录。
+队长确认面板只消费前八名的展示字段和完整候选人数；后台reader只读取approved、active且愿任队长的报名，复用canonical排序，确认action仍重新核验。换算策略赛事引用按当前SQL顺序一次分组，保留显式版本优先于fallback及报名冻结状态。
