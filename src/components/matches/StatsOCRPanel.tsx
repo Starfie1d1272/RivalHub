@@ -111,6 +111,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   const [viewMode, setViewMode] = useState(Boolean(initialRows?.length));
   const [initialLoading, setInitialLoading] = useState(initialRows === undefined);
   const [recovery, setRecovery] = useState<"unknown" | "refresh_pending" | "conflict" | null>(null);
+  const [restoredOperation, setRestoredOperation] = useState(false);
   const [readFailed, setReadFailed] = useState(false);
   const initialReadComplete = useRef(initialRows !== undefined);
   const readGeneration = useRef(0);
@@ -123,6 +124,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   function clearPendingOperation() {
     if (actorScope.current && pendingOperation.current) forgetScoreboardOperation(mapId, actorScope.current, pendingOperation.current.operationId);
     pendingOperation.current = null;
+    setRestoredOperation(false);
   }
   function persistOperation(command: ScoreboardCommand & { operation: "save" | "clear" }): boolean {
     if (!actorScope.current) { setError("请先读取当前计分板再提交。"); return false; }
@@ -130,6 +132,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
       const existing = readPendingScoreboardOperation(mapId, actorScope.current);
       if (existing) {
         pendingOperation.current = existing;
+        setRestoredOperation(true);
         setRecovery("unknown");
         setError("此地图还有未核对的原操作，请先核对提交凭据。");
         return false;
@@ -208,6 +211,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
       const original = readPendingScoreboardOperation(mapId, result.data.actorScope);
       if (original) {
         pendingOperation.current = original;
+        setRestoredOperation(true);
         setRecovery("unknown");
         setError("已恢复原操作编号。请核对持久提交凭据，当前读取的数据不能单独证明原操作结果。");
       }
@@ -269,6 +273,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
       const stored = !pendingOperation.current && readPendingScoreboardOperation(mapId, result.data.actorScope);
       if (stored) {
         pendingOperation.current = stored;
+        setRestoredOperation(true);
         setRecovery("unknown");
         setError("已恢复原操作编号，请核对提交凭据。");
         return;
@@ -383,6 +388,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
     const command = { operationId: crypto.randomUUID(), expectedActor: actorScope.current, expectedVersion: baseVersion, operation: "save" as const, rows: drafts };
     if (!persistOperation(command)) return;
     pendingOperation.current = command;
+    setRestoredOperation(false);
     activeOperation.current = command.operation;
     ++editEpoch.current;
     setSaving(true);
@@ -462,6 +468,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
     const command = { operationId: crypto.randomUUID(), expectedActor: actorScope.current, expectedVersion: baseVersion, operation: "clear" as const };
     if (!persistOperation(command)) return;
     pendingOperation.current = command;
+    setRestoredOperation(false);
     activeOperation.current = command.operation;
     ++editEpoch.current;
     setSaving(true);
@@ -505,7 +512,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   return (
     <div className="mt-4 space-y-4">
       {(recovery || readFailed) && <div role="status" className="space-y-2 text-sm">
-        <p>{recovery === "unknown" ? "提交结果待核对；当前草稿和操作编号已保留。" : recovery === "conflict" ? "计分板存在后续更改，请读取当前数据核对。" : recovery === "refresh_pending" ? "写入已确认，刷新待完成。" : "无法读取已保存数据。"}</p>
+        <p>{recovery === "unknown" ? (restoredOperation ? "原操作编号已恢复；关闭前的草稿未持久保存。" : "提交结果待核对；当前草稿和操作编号已保留。") : recovery === "conflict" ? "计分板存在后续更改，请读取当前数据核对。" : recovery === "refresh_pending" ? "写入已确认，刷新待完成。" : "无法读取已保存数据。"}</p>
         <Button size="sm" variant="outline" disabled={saving} onClick={reloadSavedData}>{recovery === "unknown" ? "核对原操作提交凭据" : "载入当前已保存数据（替换草稿）"}</Button>
       </div>}
       <div className="flex items-center justify-between gap-2">
