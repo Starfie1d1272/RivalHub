@@ -46,10 +46,11 @@ function getEntryIdForViewer(
   return rosterPlayers.find((player) => player.userId === viewerId && player.isStarter)?.entryId ?? null;
 }
 
-export async function getVetoRoomView(matchId: string) {
+/** An explicit authorization value is valid only within the current request. */
+export async function getVetoRoomView(matchId: string, requestAuthorization?: Awaited<ReturnType<typeof getCurrentUserAuthorization>>) {
   const [core, authorization] = await Promise.all([
     readVetoRoomSnapshot(matchId),
-    getCurrentUserAuthorization(),
+    requestAuthorization === undefined ? getCurrentUserAuthorization() : Promise.resolve(requestAuthorization),
   ]);
   return projectVetoRoomView(core, authorization?.userId ?? null, authorization);
 }

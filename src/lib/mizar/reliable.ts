@@ -2,7 +2,7 @@ import "server-only";
 import { mizarAuditActorId } from "@/lib/audit/people";
 import { and, eq, isNull, asc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, matchMaps, matchLiveSessions, mizarReliableReceipts, mizarInstallations, matchVetoSessions } from "@/db/schema";
+import { matches, matchMaps, matchLiveSessions, mizarReliableReceipts, matchVetoSessions } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { lockMatchInTx, applyMatchStatusTransitionInTx } from "@/lib/match-rosters/service";
 import { startCanonicalMapInTx } from "@/lib/matches/map-start";
@@ -10,6 +10,7 @@ import { recordCanonicalMapResultInTx } from "@/lib/matches/results";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { touchMizarInstallation } from "./heartbeat";
 import { assertInstallationInTx, hashCredential } from "./installation";
 import { validateObservedLineupInTx } from "./source";
 import { parseReliableEventV1 } from "./protocol";
@@ -19,7 +20,7 @@ import { isLineupMismatchOnly, LINEUP_REVIEW_REQUIRED } from "./lineup-display";
 export async function ingestMizarReliable(installationId: string, competitionId: string, input: unknown, authorityRevision: number, lineupSteam64: readonly string[] = []) {
   const event = parseReliableEventV1(input);
   if (event.competitionId !== competitionId || event.cursor.liveSessionId === null) throw new AppError(ErrorCode.FORBIDDEN, "制播数据不属于当前连接。");
-  return db.transaction(async tx => {
+  const result = await db.transaction(async tx => {
     await assertInstallationInTx(tx, installationId, competitionId);
     const match = await lockMatchInTx(tx, event.matchId);
     const [source] = await tx.select().from(matchLiveSessions).where(and(eq(matchLiveSessions.matchId, match.id), isNull(matchLiveSessions.closedAt))).for("update");
@@ -154,9 +155,10 @@ export async function ingestMizarReliable(installationId: string, competitionId:
         meta: { sessionId: source.id, mapEpoch: source.mapEpoch, mapId: updates.currentMapId, programSourceGeneration: source.programSourceGeneration, runtimeSeq: event.cursor.runtimeSeq } });
     }
     await tx.update(matchLiveSessions).set(updates).where(eq(matchLiveSessions.id, source.id));
-    await tx.update(mizarInstallations).set({ lastSeenAt: now }).where(eq(mizarInstallations.id, installationId));
     await tx.insert(mizarReliableReceipts).values({ sessionId: source.id, idempotencyKey: event.idempotencyKey, eventHash, kind: event.kind, outcome });
     await writeAuditInTx(tx, { seasonId: competitionId, actorId: mizarAuditActorId(installationId), action: "mizar.reliable.accept", targetId: match.id, meta: { kind: event.kind, outcome, lineupDifference, ...(event.kind === "identity_mismatch" || event.kind === "lineup_mismatch" ? { reason: event.payload.reason } : {}), sessionId: source.id, mapEpoch: source.mapEpoch, currentMapId: source.currentMapId, receivedMapId: event.mapId, receivedMapName: event.mapName, continuityHealth: updates.continuityHealth ?? source.continuityHealth, ...(event.kind === "map_ended" ? event.payload : {}) } });
     return { outcome, duplicate: false };
   });
+  await touchMizarInstallation(installationId, competitionId);
+  return result;
 }

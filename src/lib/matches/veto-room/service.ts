@@ -2,7 +2,7 @@ import { assertCompetitionMatch, type CompetitionMatch } from "../competition-co
 import "server-only";
 
 import { randomInt } from "node:crypto";
-import { and, asc, eq, gte, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
 import { db } from "@/db/client";
@@ -83,6 +83,18 @@ export interface VetoRoomCoreSnapshot {
 
 export type VetoMutationOutcome = "applied" | "idempotent" | "stale";
 
+export interface VetoMutationReceipt {
+  outcome: VetoMutationOutcome;
+  changed: boolean;
+  committedRevision: number | null;
+  affectedFacts: Array<"lineups" | "appeals" | "veto">;
+}
+
+function mutationReceipt(outcome: VetoMutationOutcome, session: VetoSession | undefined, facts: VetoMutationReceipt["affectedFacts"]): VetoMutationReceipt {
+  return { outcome, changed: facts.length > 0, committedRevision: session?.revision ?? null, affectedFacts: [...new Set(facts)] };
+}
+
+
 function logStaleVetoCommand(reason: "deadline" | "revision" | "turn"): void {
   logEvent({
     level: "info",
@@ -146,7 +158,7 @@ function higherSeedEntry(
   return entryId;
 }
 
-async function getSessionForUpdateInTx(tx: TxDb, match: VetoMatch): Promise<VetoSession> {
+async function getSessionForUpdateInTx(tx: TxDb, match: VetoMatch, onCreated?: () => void): Promise<VetoSession> {
   const [existing] = await tx
     .select()
     .from(matchVetoSessions)
@@ -160,7 +172,7 @@ async function getSessionForUpdateInTx(tx: TxDb, match: VetoMatch): Promise<Veto
     .values({ matchId: match.id, privilegedEntryId })
     .onConflictDoNothing()
     .returning();
-  if (inserted) return inserted;
+  if (inserted) { onCreated?.(); return inserted; }
 
   const [raced] = await tx
     .select()
@@ -263,16 +275,6 @@ async function getRepresentativeUserIdInTx(tx: TxDb, match: VetoMatch, entryId: 
   return row?.userId ?? null;
 }
 
-async function hasConfirmedLineupsInTx(tx: TxDb, match: VetoMatch): Promise<boolean> {
-  const confirmed = await tx.select({ entryId: matchRosters.entryId })
-    .from(matchRosters)
-    .where(and(
-      eq(matchRosters.matchId, match.id),
-      inArray(matchRosters.entryId, [match.entryAId, match.entryBId]),
-    ));
-  return new Set(confirmed.map((row) => row.entryId)).size === 2;
-}
-
 async function getEntryRepresentativeUserIdInTx(tx: TxDb, entryId: string): Promise<string | null> {
   const [row] = await tx
     .select({ userId: competitionEntries.representativeUserId })
@@ -288,46 +290,33 @@ async function loadStartTimingInTx(
 ): Promise<{ effectiveForceAt: Date | null; previousMatchBlocker: boolean }> {
   if (!match.scheduledAt) return { effectiveForceAt: null, previousMatchBlocker: false };
   const entries = [match.entryAId, match.entryBId];
-  const previousMatchPredicate = or(
-    inArray(matches.entryAId, entries),
-    inArray(matches.entryBId, entries),
-  );
-  const [activePrevious] = await tx
-    .select({ id: matches.id })
-    .from(matches)
-    .where(and(
-      eq(matches.seasonId, match.seasonId),
-      ne(matches.id, match.id),
-      match.testConfig ? isNotNull(matches.testConfig) : isNull(matches.testConfig),
-      eq(matches.status, "in_progress"),
-      previousMatchPredicate,
-    ))
-    .limit(1);
-  if (activePrevious) return { effectiveForceAt: null, previousMatchBlocker: true };
-
   const opensAt = new Date(match.scheduledAt.getTime() - 15 * 60_000);
-  const completions = await tx
-    .select({ completedAt: matches.completedAt })
-    .from(matches)
-    .where(and(
-      eq(matches.seasonId, match.seasonId),
-      ne(matches.id, match.id),
-      match.testConfig ? isNotNull(matches.testConfig) : isNull(matches.testConfig),
-      eq(matches.status, "finished"),
-      previousMatchPredicate,
-      isNotNull(matches.completedAt),
-      gte(matches.completedAt, opensAt),
-    ));
-  const latestPreviousCompletion = completions.reduce<Date | null>((latest, row) => {
-    if (!row.completedAt) return latest;
-    return !latest || row.completedAt > latest ? row.completedAt : latest;
-  }, null);
+  const [timing] = await tx.select({
+    blocked: sql<boolean>`coalesce(bool_or(${matches.status} = 'in_progress'), false)`,
+    completedAt: sql<string | null>`max(${matches.completedAt}) filter (where ${matches.status} = 'finished' and ${matches.completedAt} >= ${opensAt})`,
+  }).from(matches).where(and(
+    eq(matches.seasonId, match.seasonId), ne(matches.id, match.id),
+    match.testConfig ? isNotNull(matches.testConfig) : isNull(matches.testConfig),
+    or(inArray(matches.entryAId, entries), inArray(matches.entryBId, entries)),
+  ));
+  if (timing?.blocked) return { effectiveForceAt: null, previousMatchBlocker: true };
   const normalForceAt = new Date(match.scheduledAt.getTime() + 15 * 60_000);
-  const afterPrevious = latestPreviousCompletion ? new Date(latestPreviousCompletion.getTime() + 15 * 60_000) : normalForceAt;
-  return {
-    effectiveForceAt: afterPrevious > normalForceAt ? afterPrevious : normalForceAt,
-    previousMatchBlocker: false,
-  };
+  const afterPrevious = timing?.completedAt ? new Date(new Date(timing.completedAt).getTime() + 15 * 60_000) : normalForceAt;
+  return { effectiveForceAt: afterPrevious > normalForceAt ? afterPrevious : normalForceAt, previousMatchBlocker: false };
+}
+
+/** Both frozen BP representatives and captains share the current match scope. */
+async function loadStartActorsInTx(tx: TxDb, match: VetoMatch) {
+  const rows = await tx.select({ entryId: competitionEntries.id, captainId: competitionEntries.representativeUserId,
+    rosterId: matchRosters.id, bpId: eventRosterMembers.userId })
+    .from(competitionEntries)
+    .leftJoin(matchRosters, and(eq(matchRosters.entryId, competitionEntries.id), eq(matchRosters.matchId, match.id)))
+    .leftJoin(matchRosterPlayers, and(eq(matchRosterPlayers.rosterId, matchRosters.id), eq(matchRosterPlayers.isStarter, true), eq(matchRosterPlayers.isVetoRepresentative, true)))
+    .leftJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
+    .where(and(eq(competitionEntries.competitionId, match.seasonId), inArray(competitionEntries.id, [match.entryAId, match.entryBId])));
+  const actors = new Map(rows.map(row => [row.entryId, { ...row, bpId: match.testConfig
+    ? row.entryId === match.entryAId ? match.testConfig.operatorAId : match.testConfig.operatorBId : row.bpId }]));
+  return { actors, lineupsReady: [match.entryAId, match.entryBId].every(id => Boolean(actors.get(id)?.rosterId)) };
 }
 
 async function getMapPoolInTx(tx: TxDb, match: VetoMatch): Promise<string[]> {
@@ -363,10 +352,11 @@ async function tryStartSessionInTx(
   actorId: string,
 ): Promise<VetoSession> {
   if (session.startedAt || match.status !== "scheduled" || session.privilegedEntryId === null) return session;
-  const entryARep = await getRepresentativeUserIdInTx(tx, match, match.entryAId);
-  const entryBRep = await getRepresentativeUserIdInTx(tx, match, match.entryBId);
-  const entryACaptain = await getEntryRepresentativeUserIdInTx(tx, match.entryAId);
-  const entryBCaptain = await getEntryRepresentativeUserIdInTx(tx, match.entryBId);
+  const { actors, lineupsReady } = await loadStartActorsInTx(tx, match);
+  const entryARep = actors.get(match.entryAId)?.bpId;
+  const entryBRep = actors.get(match.entryBId)?.bpId;
+  const entryACaptain = actors.get(match.entryAId)?.captainId;
+  const entryBCaptain = actors.get(match.entryBId)?.captainId;
   const timing = await loadStartTimingInTx(tx, match);
   if (timing.previousMatchBlocker) return session;
 
@@ -381,7 +371,7 @@ async function tryStartSessionInTx(
     ? bothRepsReady
     : withinOpenWindow && (bothRepsReady || (isForceTime && (requestAIsValid || requestBIsValid)));
   if (!mayStart) return session;
-  if (!await hasConfirmedLineupsInTx(tx, match)) return session;
+  if (!lineupsReady) return session;
 
   const mapPoolSnapshot = await getMapPoolInTx(tx, match);
   const existingSteps = await readStepsInTx(tx, match.id);
@@ -714,17 +704,20 @@ export async function readVetoRoomSnapshot(matchId: string, database: DB = db): 
 
 /** Reconcile a deterministic lifecycle boundary without making ordinary polling take row locks. */
 export async function reconcileVetoRoom(matchId: string): Promise<VetoMutationOutcome> {
+  return (await reconcileVetoRoomReceipt(matchId)).outcome;
+}
+
+export async function reconcileVetoRoomReceipt(matchId: string): Promise<VetoMutationReceipt> {
   return db.transaction(async (tx) => {
     const match = await lockMatchInTx(tx, matchId);
-    const appealsClosed = await closeVetoAppealsAfterGameplayInTx(tx, matchId);
-    const lineupsCreated = await materializeDefaultLineupsInTx(tx, match);
+    const facts: VetoMutationReceipt["affectedFacts"] = [];
+    if (await closeVetoAppealsAfterGameplayInTx(tx, matchId)) facts.push("appeals");
+    if (await materializeDefaultLineupsInTx(tx, match) > 0) facts.push("lineups");
     const [session] = await tx.select().from(matchVetoSessions)
-      .where(eq(matchVetoSessions.matchId, match.id))
-      .for("update");
-    if (!session) return appealsClosed || lineupsCreated > 0 ? "applied" : "idempotent";
-    const now = await databaseNow(tx);
-    const reconciled = await reconcileVetoSessionInTx(tx, match, session, now);
-    return !appealsClosed && lineupsCreated === 0 && reconciled.revision === session.revision ? "idempotent" : "applied";
+      .where(eq(matchVetoSessions.matchId, match.id)).for("update");
+    const reconciled = session ? await reconcileVetoSessionInTx(tx, match, session, await databaseNow(tx)) : undefined;
+    if (reconciled && reconciled.revision !== session?.revision) facts.push("veto");
+    return mutationReceipt(facts.length ? "applied" : "idempotent", reconciled, facts);
   });
 }
 
@@ -890,32 +883,37 @@ export async function claimVetoRepresentative(input: {
   });
 }
 
-export async function requestVetoStart(input: {
+export async function requestVetoStartReceipt(input: {
   matchId: string;
   entryId: string;
   actorId: string;
   expectedRevision: number;
   expectedTurnKey: string | null;
-}): Promise<VetoMutationOutcome> {
+}): Promise<VetoMutationReceipt> {
   return db.transaction(async (tx) => {
     const receivedAt = await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
-    await materializeDefaultLineupsInTx(tx, match, receivedAt, match.scheduledAt === null);
-    let session = await getSessionForUpdateInTx(tx, match);
+    const facts: VetoMutationReceipt["affectedFacts"] = [];
+    if (await materializeDefaultLineupsInTx(tx, match, receivedAt, match.scheduledAt === null) > 0) facts.push("lineups");
+    let session = await getSessionForUpdateInTx(tx, match, () => facts.push("veto"));
+    const initialRevision = session.revision;
+    const receipt = (outcome: VetoMutationOutcome) => mutationReceipt(outcome, session,
+      session.revision !== initialRevision ? [...facts, "veto"] : facts);
     const processingNow = await databaseNow(tx);
     session = await reconcileVetoSessionInTx(tx, match, session, processingNow, input.actorId);
-    if (session.startedAt) return "idempotent";
+    if (session.startedAt) return receipt("idempotent");
     if (session.revision !== input.expectedRevision || session.currentTurnKey !== input.expectedTurnKey) {
       logStaleVetoCommand(session.currentTurnKey !== input.expectedTurnKey ? "turn" : "revision");
-      return "stale";
+      return receipt("stale");
     }
     if (match.status !== "scheduled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "当前比赛状态不能开始 BP。");
     if (session.privilegedEntryId === null) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先由赛事管理员指定本场 BP 先手队伍。");
     if (input.entryId !== match.entryAId && input.entryId !== match.entryBId) throw new AppError(ErrorCode.VALIDATION_FAILED, "请求队伍不属于本场比赛。");
-    if (!await hasConfirmedLineupsInTx(tx, match)) throw new AppError(ErrorCode.VALIDATION_FAILED, "双方本场首发就绪后才能开始 BP。");
+    const { actors, lineupsReady } = await loadStartActorsInTx(tx, match);
+    if (!lineupsReady) throw new AppError(ErrorCode.VALIDATION_FAILED, "双方本场首发就绪后才能开始 BP。");
 
-    const bpRepresentativeId = await getRepresentativeUserIdInTx(tx, match, input.entryId);
-    const entryRepresentativeId = await getEntryRepresentativeUserIdInTx(tx, input.entryId);
+    const bpRepresentativeId = actors.get(input.entryId)?.bpId;
+    const entryRepresentativeId = actors.get(input.entryId)?.captainId;
     const timing = await loadStartTimingInTx(tx, match);
     const isBpRepresentative = bpRepresentativeId === input.actorId;
     const mayCaptainRequest = timing.effectiveForceAt !== null && receivedAt >= timing.effectiveForceAt && entryRepresentativeId === input.actorId;
@@ -932,7 +930,7 @@ export async function requestVetoStart(input: {
     const isEntryA = input.entryId === match.entryAId;
     const existingRequester = isEntryA ? session.entryAStartRequestedBy : session.entryBStartRequestedBy;
     const existingAt = isEntryA ? session.entryAStartRequestedAt : session.entryBStartRequestedAt;
-    if (existingRequester === input.actorId && existingAt) return "idempotent";
+    if (existingRequester === input.actorId && existingAt) return receipt("idempotent");
     const updated = await updateSessionInTx(tx, match.id, session, isEntryA
       ? { entryAStartRequestedAt: receivedAt, entryAStartRequestedBy: input.actorId }
       : { entryBStartRequestedAt: receivedAt, entryBStartRequestedBy: input.actorId });
@@ -943,7 +941,8 @@ export async function requestVetoStart(input: {
       targetId: match.id,
       meta: { entryId: input.entryId, asRepresentative: !isBpRepresentative },
     });
-    const reconciled = await reconcileVetoSessionInTx(tx, match, updated, processingNow, input.actorId);
+    session = await reconcileVetoSessionInTx(tx, match, updated, processingNow, input.actorId);
+    const reconciled = session;
     if (!reconciled.startedAt) {
       const postRequestTiming = await loadStartTimingInTx(tx, match);
       logEvent({
@@ -957,30 +956,34 @@ export async function requestVetoStart(input: {
         },
       });
     }
-    return "applied";
+    return receipt("applied");
   });
 }
 
-export async function submitVetoCommand(input: {
+export async function submitVetoCommandReceipt(input: {
   matchId: string;
   actorId: string;
   expectedRevision: number;
   expectedTurnKey: string;
   clientRequestId: string;
   command: { kind: "role_select"; entryId: string } | { kind: "step"; actionType: VetoActionType; mapName?: string; side?: Side };
-}, database: DB = db): Promise<VetoMutationOutcome> {
+}, database: DB = db): Promise<VetoMutationReceipt> {
   return database.transaction(async (tx) => {
     const receivedAt = await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
-    await materializeDefaultLineupsInTx(tx, match);
-    let session = await getSessionForUpdateInTx(tx, match);
+    const facts: VetoMutationReceipt["affectedFacts"] = [];
+    if (await materializeDefaultLineupsInTx(tx, match) > 0) facts.push("lineups");
+    let session = await getSessionForUpdateInTx(tx, match, () => facts.push("veto"));
+    const originalRevision = session.revision;
+    const receipt = (outcome: VetoMutationOutcome) => mutationReceipt(outcome, session,
+      session.revision !== originalRevision ? [...facts, "veto"] : facts);
 
     if (input.command.kind === "step") {
       const [existingRequest] = await tx.select({ id: matchVetoSteps.id })
         .from(matchVetoSteps)
         .where(and(eq(matchVetoSteps.matchId, match.id), eq(matchVetoSteps.clientRequestId, input.clientRequestId)))
         .limit(1);
-      if (existingRequest) return "idempotent";
+      if (existingRequest) return receipt("idempotent");
     }
 
     const initialSteps = await readStepsInTx(tx, match.id);
@@ -990,11 +993,11 @@ export async function submitVetoCommand(input: {
     const turn = currentTurn(match, session, steps);
     if (session.revision !== input.expectedRevision) {
       logStaleVetoCommand("revision");
-      return "stale";
+      return receipt("stale");
     }
     if (session.currentTurnKey !== input.expectedTurnKey || turn?.key !== input.expectedTurnKey) {
       logStaleVetoCommand("turn");
-      return "stale";
+      return receipt("stale");
     }
     if (!session.startedAt || session.completedAt || session.pausedAt || match.status !== "in_progress") {
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "当前 BP 房间不可操作。");
@@ -1009,7 +1012,7 @@ export async function submitVetoCommand(input: {
       }
       if (!session.turnDeadlineAt || receivedAt > session.turnDeadlineAt) {
         logStaleVetoCommand("deadline");
-        return "stale";
+        return receipt("stale");
       }
       if (input.command.entryId !== match.entryAId && input.command.entryId !== match.entryBId) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "所选队伍不属于本场比赛。");
@@ -1028,8 +1031,8 @@ export async function submitVetoCommand(input: {
         targetId: match.id,
         meta: { entryId: input.command.entryId },
       });
-      await reconcileVetoSessionInTx(tx, match, session, receivedAt, input.actorId, steps);
-      return "applied";
+      session = await reconcileVetoSessionInTx(tx, match, session, receivedAt, input.actorId, steps);
+      return receipt("applied");
     }
 
     if (turn.actionType === "role_select" || turn.actionType === "decider") {
@@ -1041,7 +1044,7 @@ export async function submitVetoCommand(input: {
     const deadline = session.turnDeadlineAt;
     if (!deadline || receivedAt > deadline) {
       logStaleVetoCommand("deadline");
-      return "stale";
+      return receipt("stale");
     }
     const pool = session.mapPoolSnapshot ?? [];
     const stepFacts = asStepFacts(steps);
@@ -1100,9 +1103,17 @@ export async function submitVetoCommand(input: {
       targetId: match.id,
       meta: { actionType: turn.actionType, turnKey: turn.key },
     });
-    await reconcileVetoSessionInTx(tx, match, session, receivedAt, input.actorId, afterSteps);
-    return "applied";
+    session = await reconcileVetoSessionInTx(tx, match, session, receivedAt, input.actorId, afterSteps);
+    return receipt("applied");
   });
+}
+
+/** Legacy domain callers still consume the command outcome. Transports use the full receipt. */
+export async function requestVetoStart(input: Parameters<typeof requestVetoStartReceipt>[0]): Promise<VetoMutationOutcome> {
+  return (await requestVetoStartReceipt(input)).outcome;
+}
+export async function submitVetoCommand(input: Parameters<typeof submitVetoCommandReceipt>[0], database: DB = db): Promise<VetoMutationOutcome> {
+  return (await submitVetoCommandReceipt(input, database)).outcome;
 }
 
 export async function pauseVetoRoom(input: { matchId: string; actorId: string; reason: string }): Promise<void> {
