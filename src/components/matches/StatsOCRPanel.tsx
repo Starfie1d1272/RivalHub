@@ -31,8 +31,9 @@ import {
   deletePlayerStatsByMap as telemetry_deletePlayerStatsByMap,
   type PlayerOption,
 } from "@/actions/player-stats";
-import type { ScoreboardCommand, ScoreboardSnapshot } from "@/lib/ocr/scoreboard-contract";
+import type { AuthorizedScoreboardSnapshot, ScoreboardCommand } from "@/lib/ocr/scoreboard-contract";
 import type { OperatorScoreboardRow } from "@/lib/matches/operator-scoreboard";
+import { forgetScoreboardOperation, readPendingScoreboardOperation, rememberScoreboardOperation } from "@/lib/ocr/scoreboard-recovery";
 import { OCR_MAX_IMAGE_BYTES, OCR_IMAGE_SIZE_MESSAGE, isOCRImageMimeType } from "@/lib/ocr/input-contract";
 import { isStatOutOfRange } from "@/lib/config/stat-ranges";
 import { InlineConfirm } from "@/components/rivalhub";
@@ -113,9 +114,31 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   const [readFailed, setReadFailed] = useState(false);
   const initialReadComplete = useRef(initialRows !== undefined);
   const readGeneration = useRef(0);
+  const reloadBusyOwner = useRef(0);
   const [baseVersion, setBaseVersion] = useState<string | null>(initialVersion ?? null);
+  const actorScope = useRef<string | null>(null);
   const pendingOperation = useRef<(ScoreboardCommand & { operation: "save" | "clear"; rows?: DraftRow[] }) | null>(null);
-  function adoptSnapshot(snapshot: ScoreboardSnapshot) {
+  function clearPendingOperation() {
+    if (actorScope.current && pendingOperation.current) forgetScoreboardOperation(mapId, actorScope.current, pendingOperation.current.operationId);
+    pendingOperation.current = null;
+  }
+  function persistOperation(command: ScoreboardCommand & { operation: "save" | "clear" }): boolean {
+    if (!actorScope.current) { setError("请先读取当前计分板再提交。"); return false; }
+    try {
+      const existing = readPendingScoreboardOperation(mapId, actorScope.current);
+      if (existing) {
+        pendingOperation.current = existing;
+        setRecovery("unknown");
+        setError("此地图还有未核对的原操作，请先核对提交凭据。");
+        return false;
+      }
+      rememberScoreboardOperation({ ...command, mapId, actorScope: actorScope.current });
+      return true;
+    }
+    catch { setError("操作恢复编号无法保存，请恢复此站点的本地存储后再提交。"); return false; }
+  }
+  function adoptSnapshot(snapshot: AuthorizedScoreboardSnapshot) {
+    actorScope.current = snapshot.actorScope;
     initialReadComplete.current = true;
     const saved = savedDrafts(snapshot.rows);
     setBaseVersion(snapshot.version);
@@ -160,6 +183,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
         return;
       }
       initialReadComplete.current = true;
+      actorScope.current = result.data.actorScope;
       setBaseVersion(result.data.version);
       const saved = savedDrafts(result.data.rows);
       setDrafts(saved);
@@ -170,6 +194,27 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
     }).finally(() => { if (!cancelled && generation === readGeneration.current) setInitialLoading(false); });
     return () => { cancelled = true; };
   }, [mapId, initialRows, initialVersion]);
+
+  useEffect(() => {
+    if (!readPendingScoreboardOperation(mapId)) return;
+    const generation = ++readGeneration.current;
+    let cancelled = false;
+    getOperatorScoreboardSnapshot(mapId).then(result => {
+      if (cancelled || generation !== readGeneration.current) return;
+      if (!result.success) { setReadFailed(true); setError(result.error.message); return; }
+      adoptSnapshot(result.data);
+      const original = readPendingScoreboardOperation(mapId, result.data.actorScope);
+      if (original) {
+        pendingOperation.current = original;
+        setRecovery("unknown");
+        setError("已恢复原操作编号。请核对持久提交凭据，当前读取的数据不能单独证明原操作结果。");
+      }
+    }).catch(() => {
+      if (!cancelled && generation === readGeneration.current) { setReadFailed(true); setError("原操作恢复上下文暂时无法核对，请重试读取。"); }
+    }).finally(() => { if (!cancelled && generation === readGeneration.current) setInitialLoading(false); });
+    return () => { cancelled = true; };
+    // map owns the mounted editor; props changes cannot restart recovery.
+  }, [mapId]);
 
   async function enterEditMode() {
     setSaving(true);
@@ -187,6 +232,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   }
 
   async function reloadSavedData() {
+    const owner = ++reloadBusyOwner.current;
     const generation = ++readGeneration.current;
     setSaving(true);
     try {
@@ -204,7 +250,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
         setRecovery("refresh_pending");
         const refresh = await retryPlayerStatsRefresh(mapId);
         if (!refresh.success) { setError("原提交已确认，缓存刷新仍未完成，请重试刷新。"); return; }
-        pendingOperation.current = null;
+        clearPendingOperation();
         setRecovery(null);
         setError(status.data.superseded ? "原提交已确认，但已有后续更改；已载入当前数据，请核对后再编辑。" : null);
         return;
@@ -217,11 +263,18 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
       if (generation !== readGeneration.current) return;
       if (!result.success) { setError(result.error.message); return; }
       adoptSnapshot(result.data);
-      pendingOperation.current = null;
+      const stored = !pendingOperation.current && readPendingScoreboardOperation(mapId, result.data.actorScope);
+      if (stored) {
+        pendingOperation.current = stored;
+        setRecovery("unknown");
+        setError("已恢复原操作编号，请核对提交凭据。");
+        return;
+      }
+      clearPendingOperation();
       setRecovery(null);
       setError(null);
-    } catch { setError("提交状态暂时无法核对，原草稿和操作编号已保留。"); }
-    finally { if (generation === readGeneration.current) setSaving(false); }
+    } catch { if (generation === readGeneration.current) setError("提交状态暂时无法核对，原草稿和操作编号已保留。"); }
+    finally { if (owner === reloadBusyOwner.current) setSaving(false); }
   }
 
   async function handleExtract() {
@@ -259,6 +312,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
 
       const saved = savedDrafts(result.data.snapshot.rows);
       initialReadComplete.current = true;
+      actorScope.current = result.data.snapshot.actorScope;
       setBaseVersion(result.data.snapshot.version);
       setCanonicalDrafts(saved);
       setDrafts(mergeScreenshotDrafts(result.data.drafts, saved));
@@ -318,6 +372,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   async function handleSave() {
     if (recovery || readFailed || !baseVersion) return;
     const command = { operationId: crypto.randomUUID(), expectedVersion: baseVersion, operation: "save" as const, rows: drafts };
+    if (!persistOperation(command)) return;
     pendingOperation.current = command;
     setSaving(true);
     setError(null);
@@ -327,7 +382,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
       if (!result.success) {
         setError(result.error.message);
         if (result.error.code === "INTERNAL_ERROR") setRecovery("unknown");
-        else { pendingOperation.current = null; if (result.error.meta?.outcome === "conflict") setRecovery("conflict"); }
+        else { clearPendingOperation(); if (result.error.meta?.outcome === "conflict") setRecovery("conflict"); }
         return;
       }
       committed = true;
@@ -340,7 +395,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
       setCanonicalDrafts(saved);
       setDrafts(saved);
       setViewMode(true);
-      if (!result.data.refreshPending) { setRecovery(null); pendingOperation.current = null; }
+      if (!result.data.refreshPending) { setRecovery(null); clearPendingOperation(); }
       router.refresh();
     } catch {
       setRecovery(committed ? "refresh_pending" : "unknown");
@@ -380,8 +435,21 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   );
 
   async function handleClear() {
-    if (recovery || readFailed || !baseVersion) return;
+    if (recovery || readFailed) return;
+    if (!baseVersion || !actorScope.current) {
+      setSaving(true);
+      try {
+        const read = await getOperatorScoreboardSnapshot(mapId);
+        if (!read.success) { setError(read.error.message); return; }
+        adoptSnapshot(read.data);
+        setShowClearConfirm(false);
+        setError("已载入当前数据，请核对后再次确认清除。");
+      } catch { setError("当前数据暂时无法读取，尚未清除。"); }
+      finally { setSaving(false); }
+      return;
+    }
     const command = { operationId: crypto.randomUUID(), expectedVersion: baseVersion, operation: "clear" as const };
+    if (!persistOperation(command)) return;
     pendingOperation.current = command;
     setSaving(true);
     let committed = false;
@@ -390,7 +458,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
       if (!result.success) {
         setError(result.error.message);
         if (result.error.code === "INTERNAL_ERROR") setRecovery("unknown");
-        else { pendingOperation.current = null; if (result.error.meta?.outcome === "conflict") setRecovery("conflict"); }
+        else { clearPendingOperation(); if (result.error.meta?.outcome === "conflict") setRecovery("conflict"); }
         return;
       }
       committed = true;
@@ -404,7 +472,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
       setCanonicalDrafts(saved);
       setDrafts(saved);
       setViewMode(saved.length > 0);
-      if (!result.data.refreshPending) { setRecovery(null); pendingOperation.current = null; }
+      if (!result.data.refreshPending) { setRecovery(null); clearPendingOperation(); }
       toast.success("计分板输入已清除");
       router.refresh();
     } catch {
