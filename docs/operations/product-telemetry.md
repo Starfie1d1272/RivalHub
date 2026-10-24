@@ -28,7 +28,7 @@ Worker 仅使用独立 D1：一个批次一行、服务端校验后写入、按�
 
 ## 页面性能
 
-单一 observer 通过 Next.js `useReportWebVitals` 的稳定 callback 记录 TTFB、FCP、LCP、INP，值统一为四舍五入的毫秒（0–3,600,000）；CLS 使用独立无单位 `score`（0–100、客户端四舍五入至四位小数），与 `durationMs` 互斥。只读取指标名称、数值和内存中的导航归属；不序列化 PerformanceEntry、DOM selector、原生 metric ID、URL、query 或 referrer。指标原生 ID 在最多 128 项的内存映射内换为随机事件 UUID，同一指标的后续报告沿用该 UUID；尚未发送的更新在队列内合并，已发送批次保持不可变。映射有界且只在当前身份内有效，不能据此保证无限长会话中的全局去重。
+单一 observer 通过 Next.js `useReportWebVitals` 的稳定 callback 记录 TTFB、FCP、LCP、INP，值统一为四舍五入的毫秒（0–3,600,000）；CLS 使用独立无单位 `score`（0–100、客户端四舍五入至四位小数），与 `durationMs` 互斥。只读取指标名称、数值和内存中的导航归属；不序列化 PerformanceEntry、DOM selector、原生 metric ID、URL、query 或 referrer。指标原生 ID 在最多 128 项的内存映射内换为随机事件 UUID，同一指标的后续报告沿用该 UUID 和首次报告的 session，不因超过 30 分钟闲置后再次上报而产生第二个样本主体；尚未发送的更新在队列内合并，已发送批次保持不可变。映射有界且只在当前身份内有效，不能据此保证无限长会话中的全局去重。
 
 归属优先使用指标的 `navigationURL`，缺失时使用原始 document navigation entry；仅发送本站路由模板。延迟到达、所属路径与当前页面不同的报告归入 site，不附当前赛事 UUID。身份变更后清除映射，并丢弃开始于旧身份期间的导航指标。旧版本浏览器或不支持 Soft Navigation 的浏览器可能只报告初始文档指标；INP 需要实际交互，缺失不补零。
 
@@ -44,6 +44,16 @@ performance 事件的白名单 `metricName` 为 TTFB/FCP/LCP/INP/NAV_COMMIT/CLS�
 
 来源只按 document.referrer 分类为 none/internal/search/social/external/unknown，none 表示没有可用 referrer，不能据此断言直接输入网址。原始来源域名、路径、query、凭据和 UTM 值均不发送。分类沿用当前文档入口，SPA 内部导航不会改写入口来源；它不代表逐页上一个页面。固定分类可随事件保存，继续受同批七天 TTL、DNT/GPC、operator 权限及原恢复副本约束；不建立独立映射或延长留存。
 
+## 有界内容就绪合同
+
+接收端兼容旧事件及 measurement v1。先部署 Worker，再在网站服务端设置 `PRODUCT_TELEMETRY_MEASUREMENT_V1=1`；未设置时 bootstrap 不宣告能力，客户端继续旧协议。回滚 Worker 前先关闭该开关并停止仍持有 v1 bootstrap 的旧标签页采集；仅关闭开关不能撤回已签发配置。
+
+`ContentReady` 只挂载于真实可用内容旁，不放在 fallback。module 白名单为 match/schedule/statistics/player/team/bet/prediction/admin/account/public；phase 为 primary/advanced/form。同一导航、模块、阶段只记首次就绪。异步工作用 `captureTelemetryNavigation()` 在开始时捕获 token，结束时调用 `recordContentReady(token, module, phase)`；导航或身份改变后旧 token 被丢弃。此计时采用单调 performance 时钟，初次 document 从零开始，已观察的软导航从 router start 开始；没有 router start 时从首次观察开始，不解释为完整导航耗时。
+
+v1 的 page/operation/error/ready/NAV_COMMIT 携带随机 navigationId、构建冻结的 clientRelease 和上报时 visibility。签名票据 release 仍表示签发服务器版本，两者不得混用。Web Vitals 保留原生来源路由与 navigationType/startTime 的有限投影，使用每个指标样本自己的随机 correlation ID（随样本更新保持），不附当前 SPA 导航 ID；该 ID 不表示不同指标已被归并成同一次导航，避免将晚到样本串到当前页面。v1 的导航上下文另带 lifecycle：hard/soft/bfcache/prerender/unknown、采集时的 startedHidden、隐藏后恢复标志、单调时钟起点和 activation 相对毫秒。BFCache pageshow(persisted) 创建新导航并拒绝旧 ready token，普通 visibility 恢复保持导航；这些生命周期字段来自当前 collector，不能推断 observer 挂载前未观察到的隐藏转换。Web Vital 原始异常值仍保留；完整浏览器 cohort 与旧客户端对照尚需集成实验。ready 作为独立 kind 保存于既有七天 raw 数据，不混入 LCP/NAV_COMMIT 或现有面板分位数。
+
+局部 error boundary 通过 `recordClientBoundaryError(error)` 复用同一投影；无需自行读取或上传异常内容。客户端错误 v1 附固定 source（window_error/unhandled_rejection/boundary）、异常类别及可选 s1 fingerprint。fingerprint 只取自身 data property stack 的前 8192 字符中至多五个 Next 静态 chunk basename/数字行列；无此 data property 时可用 ErrorEvent 的文件/行列元数据。仅对归一化 frame 计算有界 64-bit hash，原文、URL、函数名、message 和 stack 均不上传、不持久化，也不调用任意 stack getter。没有受控 frame 时缺省 fingerprint；它是排查线索而非唯一根因证明。四个历史错误路由仍由页面 owner 复现关闭。新增字段不扩大接收端访问权限、保留时长、批次或队列预算。
+
 ## 数据字段与身份
 
 | 字段 | 来源/约束 |
@@ -54,7 +64,7 @@ performance 事件的白名单 `metricName` 为 TTFB/FCP/LCP/INP/NAV_COMMIT/CLS�
 | role | Header 授权快照：anonymous/user/season_admin/super_admin；队长/代表不是全局授权角色，通过路由/操作区分，不猜测其权限 |
 | release / environment | 签名票据中的构建 commit 与 preview/production；生产需检查 release 不是 unknown |
 | route / scene / eventId | 路由模板、canonical 赛事模板 major/rivals/other（无赛事为 site）、公开赛事 UUID；未加载对应 layout 时可能是 site |
-| kind / navigation / filters | page/filter/operation/error/performance；navigate/history/reload；明确允许的类别/selected |
+| kind / navigation / filters | page/filter/operation/error/performance/ready；navigate/history/reload；明确允许的类别/selected |
 | operation / variant / phase | 注册表中的动作名、固定子类型、start/success/rejected/unknown |
 | operationId / durationMs / outcome | 单次调用关联；操作或性能指标最多一小时的整数毫秒耗时；applied/stale/noop（存在时） |
 | metricName / score | 仅 performance 事件；固定指标名；CLS 使用无单位 score，其他指标使用 durationMs |

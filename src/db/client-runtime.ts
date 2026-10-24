@@ -47,11 +47,13 @@ interface DatabasePoolSnapshot {
   idle: number;
   waiting: number;
   max: number | null;
+  client: ReturnType<DatabasePool["getClientSnapshot"]> | null;
+  acquire: ReturnType<DatabasePool["getAcquireSnapshot"]> | null;
 }
 
 /** Read current counters without initializing the pool or opening a connection. */
 export function getDatabasePoolSnapshot(): DatabasePoolSnapshot | null {
-  return pool ? { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount, max: pool.options.max ?? null } : null;
+  return pool ? { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount, max: pool.options.max ?? null, client: pool instanceof DatabasePool ? pool.getClientSnapshot() : null, acquire: pool instanceof DatabasePool ? pool.getAcquireSnapshot() : null } : null;
 }
 
 // Proxy 确保 Pool 重建后 db 始终指向新 drizzle 实例
@@ -122,7 +124,7 @@ function setupPoolGuard(p: Pool) {
         // attempt 1（rebuild 后）：pool 已指向新 Pool，用新 Pool 的原始 query
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const queryFn = attempt === 0 ? _orig : ((pool as any).__orig ?? _orig);
-        return await traceOperation("db.query", {
+        return await traceOperation("db.pool.query", {
           scope: "database",
           operation: "query",
           attributes: {

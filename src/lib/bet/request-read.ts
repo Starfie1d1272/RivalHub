@@ -12,9 +12,9 @@ export async function readBetBoardRequest(input:z.infer<typeof betBoardRequestIn
   const season=await authorizePublicMajorRead(input.seasonId);
   const user=await getUserSession();
   const publicStats=await getBetPublicStats(season,input);
-  const snapshot=await traceOperation("bet.board.transaction",{scope:"bet",operation:"board",attributes:{"rivalhub.stage":"transaction"}},()=>db.transaction(async tx=>{
+  const snapshot=await traceOperation("bet.board.transaction",{scope:"bet",operation:"board",stage:"transaction"},()=>db.transaction(async tx=>{
     await tx.execute(sql`set local statement_timeout = '5000ms'`);
     return readUnifiedBetSnapshot(tx,input.seasonId,user?.userId??null,input,publicStats);
   },{accessMode:"read only",isolationLevel:"repeatable read"}));
-  return traceOperation("bet.board.project",{scope:"bet",operation:"board",attributes:{"rivalhub.stage":"project"}},async()=>projectUnifiedBetBoard(snapshot));
+  return traceOperation("bet.board.project",{scope:"bet",operation:"board",stage:"project"},async()=>projectUnifiedBetBoard(snapshot));
 }

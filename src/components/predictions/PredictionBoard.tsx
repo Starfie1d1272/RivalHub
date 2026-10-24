@@ -1,4 +1,5 @@
 "use client";
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import React, {
   useEffect,
   useEffectEvent,
@@ -272,6 +273,7 @@ export function PredictionBoard({
   }
   return (
     <div className={`${styles.workbench} min-w-0 space-y-4`}>
+      <ContentReady module="prediction" phase="primary"/>
       <div className={styles.predictionHeader}>
         <div className={styles.predictionTitle}>
           <h1 className="text-[28px] font-semibold">赛事推演</h1>

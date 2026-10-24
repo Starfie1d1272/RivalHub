@@ -1,4 +1,5 @@
 "use client";
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { useClientReady } from "@/components/rivalhub/useClientReady";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { SupportLine } from "./MatchSupport";
@@ -79,6 +80,7 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
 
   function closeParticipation(){if(uncertain)return;setSelected(null);setPredictionTarget(null);setError(null);}
   return <div ref={boardRef} className="space-y-5" aria-busy={interactionBusy}>
+    {interactive&&<ContentReady module="bet" phase="primary"/>}
     {matchFilter && <nav aria-label="单场竞猜位置" className="flex flex-wrap gap-4 text-sm text-[var(--color-fg-mid)]"><Link href={`/${slug}/matches/${matchFilter}` as never} className="hover:text-[var(--color-accent)]">← 返回比赛详情</Link><Link href={`/${slug}/bet` as never} className="hover:text-[var(--color-accent)]">全部竞猜 →</Link></nav>}
     <PageHeader title="预测与竞猜" description={interactive?undefined:<span role="status">正在准备操作…</span>} actions={<>
       <div className="flex flex-wrap items-end gap-x-8 gap-y-4">

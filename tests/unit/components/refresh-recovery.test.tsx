@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+vi.mock("@/components/telemetry/ContentReady",()=>({ContentReady:()=>null}));
 const mocks = vi.hoisted(() => ({ read: vi.fn(), count: vi.fn() }));
 vi.mock("@/actions/predictions", () => ({ mutatePrediction: vi.fn() }));
 vi.mock("@/lib/predictions/http-client", () => ({ fetchPredictionBoard: mocks.read, fetchPickEmSummary: vi.fn() }));
