@@ -15,9 +15,11 @@ export const READY_PHASES = ["primary", "advanced", "form"] as const;
 export interface MeasurementContext {
   v: 1; navigationId: string; clientRelease: string;
   visibility: "visible" | "hidden";
+  lifecycle?: { navigationType: "hard" | "soft" | "bfcache" | "prerender" | "unknown"; startedHidden: boolean; resumed: boolean; startMs: number; activationMs: number };
+
 }
 export interface TelemetryEvent {
-  clientError?: { source: "window_error" | "unhandled_rejection" | "boundary"; category: "TypeError" | "RangeError" | "ReferenceError" | "SyntaxError" | "Error" | "unknown" };
+  clientError?: { fingerprint?: string; source: "window_error" | "unhandled_rejection" | "boundary"; category: "TypeError" | "RangeError" | "ReferenceError" | "SyntaxError" | "Error" | "unknown" };
   measurement?: MeasurementContext;
   ready?: { module: typeof READY_MODULES[number]; phase: typeof READY_PHASES[number] };
   id: string; at: number; session: string; route: string; scene: Scene;
@@ -92,12 +94,14 @@ export function validEvent(value: unknown, now: number): value is TelemetryEvent
   if (e.kind !== "operation" && e.kind !== "performance" && e.kind !== "ready" && e.durationMs !== undefined) return false;
   if (e.clientError !== undefined) {
     const c = e.clientError as NonNullable<TelemetryEvent["clientError"]>;
-    if (e.kind !== "error" || !c || typeof c !== "object" || Array.isArray(c) || Object.keys(c).sort().join() !== "category,source" || !["window_error", "unhandled_rejection", "boundary"].includes(c.source) || !["TypeError", "RangeError", "ReferenceError", "SyntaxError", "Error", "unknown"].includes(c.category)) return false;
+    if (e.kind !== "error" || !c || typeof c !== "object" || Array.isArray(c) || !["category,source", "category,fingerprint,source"].includes(Object.keys(c).sort().join()) || (c.fingerprint !== undefined && (typeof c.fingerprint !== "string" || !/^s1:[0-9a-f]{16}$/.test(c.fingerprint))) || !["window_error", "unhandled_rejection", "boundary"].includes(c.source) || !["TypeError", "RangeError", "ReferenceError", "SyntaxError", "Error", "unknown"].includes(c.category)) return false;
   }
   if (e.measurement !== undefined) {
     const m = e.measurement as MeasurementContext;
-    if (!m || typeof m !== "object" || Array.isArray(m) || Object.keys(m).sort().join() !== "clientRelease,navigationId,v,visibility" || m.v !== 1 || !UUID.test(String(m.navigationId)) || typeof m.clientRelease !== "string" || !/^[A-Za-z0-9._-]{1,80}$/.test(m.clientRelease) || !["visible", "hidden"].includes(m.visibility)) return false;
+    if (!m || typeof m !== "object" || Array.isArray(m) || !["clientRelease,navigationId,v,visibility", "clientRelease,lifecycle,navigationId,v,visibility"].includes(Object.keys(m).sort().join()) || m.v !== 1 || !UUID.test(String(m.navigationId)) || typeof m.clientRelease !== "string" || !/^[A-Za-z0-9._-]{1,80}$/.test(m.clientRelease) || !["visible", "hidden"].includes(m.visibility)) return false;
   }
+  const lifecycle = (e.measurement as MeasurementContext | undefined)?.lifecycle;
+  if (lifecycle !== undefined && (!lifecycle || typeof lifecycle !== "object" || Array.isArray(lifecycle) || Object.keys(lifecycle).sort().join() !== "activationMs,navigationType,resumed,startMs,startedHidden" || !["hard", "soft", "bfcache", "prerender", "unknown"].includes(lifecycle.navigationType) || typeof lifecycle.startedHidden !== "boolean" || typeof lifecycle.resumed !== "boolean" || ![lifecycle.startMs, lifecycle.activationMs].every(value => typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 86400000))) return false;
   if (e.kind === "ready") {
     const r = e.ready as TelemetryEvent["ready"];
     if (!r || typeof r !== "object" || Array.isArray(r) || Object.keys(r).sort().join() !== "module,phase" || !(READY_MODULES as readonly string[]).includes(r.module) || !(READY_PHASES as readonly string[]).includes(r.phase) || e.durationMs === undefined || e.measurement === undefined) return false;

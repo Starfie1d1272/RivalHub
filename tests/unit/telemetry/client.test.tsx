@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { beginTelemetryNavigation, captureTelemetryNavigation, recordContentReady, configureTelemetry, flushTelemetry, observeAction, recordPage, recordWebVital, renewTelemetryIfNeeded, resetTelemetryIdentity, setTelemetryScene } from "@/lib/telemetry/client";
+import { beginTelemetryNavigation, captureTelemetryNavigation, recordContentReady, restoreTelemetryPage, recordTelemetryVisibility, recordClientError, configureTelemetry, flushTelemetry, observeAction, recordPage, recordWebVital, renewTelemetryIfNeeded, resetTelemetryIdentity, setTelemetryScene } from "@/lib/telemetry/client";
 import { TelemetryQueue } from "@/lib/telemetry/queue";
 import type { Bootstrap, TelemetryEvent } from "@/lib/telemetry/protocol";
 
@@ -189,4 +189,94 @@ it("gates ready collection, deduplicates phases and rejects an old navigation to
   expect(events.every((e: TelemetryEvent) => e.kind === "ready")).toBe(true);
   expect(events[0].measurement.navigationId).not.toBe(events[1].measurement.navigationId);
   expect(JSON.stringify(events)).not.toMatch(/native-sample/);
+});
+
+it("shares one session between first vitals and page, rotates once after idle, and preserves old sample updates", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", send); configureTelemetry(config);
+  const source = { navigationURL: window.location.href, navigationStartTime: performance.now() };
+  recordWebVital({ ...source, name: "LCP", value: 1000, id: "first" }); recordPage();
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const first = JSON.parse(send.mock.calls[0][1].body).events;
+  expect(first[0].session).toBe(first[1].session);
+  vi.setSystemTime(Date.now() + 31 * 60000);
+  recordWebVital({ ...source, name: "LCP", value: 1200, id: "new" });
+  recordWebVital({ ...source, name: "INP", value: 50, id: "new-inp" });
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+  const next = JSON.parse(send.mock.calls[1][1].body).events;
+  expect(next[0].session).toBe(next[1].session);
+  expect(next[0].session).not.toBe(first[0].session);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  vi.setSystemTime(Date.now() + 1000);
+  recordWebVital({ ...source, name: "LCP", value: 1300, id: "first" });
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(3));
+  expect(JSON.parse(send.mock.calls[2][1].body).events[0].session).toBe(first[0].session);
+});
+
+it("keeps an operation completion on its starting route and navigation after a later page commits", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", send); window.history.replaceState(null, "", "/stats");
+  configureTelemetry({ ...config, measurementVersion: 1 }); recordPage();
+  let resolve!: (value: { success: true }) => void;
+  const pending = observeAction("captains.castVote", () => new Promise<{ success: true }>(r => { resolve = r; }))();
+  beginTelemetryNavigation("/teams", "push"); window.history.replaceState(null, "", "/teams"); recordPage();
+  resolve({ success: true }); await pending;
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const events = JSON.parse(send.mock.calls[0][1].body).events as TelemetryEvent[];
+  const action = events.filter(e => e.kind === "operation");
+  expect(action).toHaveLength(2);
+  expect(action[0].route).toBe("/stats"); expect(action[1].route).toBe("/stats");
+  expect(action[0].measurement?.navigationId).toBe(action[1].measurement?.navigationId);
+  expect(action[1].measurement?.navigationId).not.toBe(events.find(e => e.route === "/teams")?.measurement?.navigationId);
+});
+
+it("rotates navigation on BFCache restore and marks a hidden/visible lifecycle without resetting ready", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", send); configureTelemetry({ ...config, measurementVersion: 1 });
+  const old = captureTelemetryNavigation();
+  Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" }); recordTelemetryVisibility();
+  Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" }); recordTelemetryVisibility();
+  recordContentReady(old, "statistics", "primary");
+  restoreTelemetryPage(new PageTransitionEvent("pageshow", { persisted: true }));
+  recordContentReady(old, "statistics", "advanced");
+  recordContentReady(captureTelemetryNavigation(), "statistics", "primary");
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const events = JSON.parse(send.mock.calls[0][1].body).events as TelemetryEvent[];
+  expect(events[0].measurement?.lifecycle?.resumed).toBe(true);
+  expect(events.filter(e => e.kind === "ready")).toHaveLength(2);
+  expect(events.at(-1)?.measurement?.lifecycle?.navigationType).toBe("bfcache");
+  expect(events.at(-1)?.measurement?.navigationId).not.toBe(old);
+});
+
+it("only fingerprints controlled Next chunk frames, never arbitrary error text or getter stacks", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", send); configureTelemetry({ ...config, measurementVersion: 1 });
+  const error = new TypeError("PRIVATE MESSAGE");
+  error.stack = "PRIVATE MESSAGE\n at x (https://private.invalid/_next/static/chunks/app-fixture.js:12:34)";
+  recordClientError(new ErrorEvent("error", { error, filename: "https://private.invalid/_next/static/chunks/app-fixture.js", lineno: 12, colno: 34 }));
+  const getter = vi.fn(() => { throw new Error("PRIVATE GETTER"); });
+  recordClientError(new ErrorEvent("error", { error: Object.defineProperty({}, "stack", { get: getter }) }));
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const events = JSON.parse(send.mock.calls[0][1].body).events as TelemetryEvent[];
+  expect(events[0].clientError?.fingerprint).toMatch(/^s1:[0-9a-f]{16}$/);
+  expect(events[1].clientError?.fingerprint).toBeUndefined();
+  expect(getter).not.toHaveBeenCalled();
+  expect(JSON.stringify(events)).not.toMatch(/PRIVATE|private.invalid|app-fixture|12:34/);
+});
+
+it("keeps native prerender lifecycle and source route on a late metric instead of copying current SPA navigation", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", send); configureTelemetry({ ...config, measurementVersion: 1 });
+  const start = performance.now();
+  const entries = vi.spyOn(performance, "getEntriesByType").mockReturnValue([{ activationStart: 123 }] as unknown as PerformanceEntryList);
+  try {
+    window.history.replaceState(null, "", "/teams"); recordPage();
+    recordWebVital({ name: "FCP", id: "late-private-native-id", value: 2344987, navigationURL: `${window.location.origin}/stats`, navigationStartTime: start, navigationType: "prerender" });
+    flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    const events = JSON.parse(send.mock.calls[0][1].body).events as TelemetryEvent[];
+    expect(events[1]).toMatchObject({ route: "/stats", durationMs: 2344987, measurement: { lifecycle: { navigationType: "prerender", activationMs: 123 } } });
+    expect(events[1].measurement?.navigationId).not.toBe(events[0].measurement?.navigationId);
+    expect(JSON.stringify(events)).not.toContain("late-private-native-id");
+  } finally { entries.mockRestore(); }
 });

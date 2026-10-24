@@ -109,7 +109,7 @@ function sanitizeSpanAttributes(options: TraceOptions): Record<string, string | 
     "rivalhub.route": options.route,
     "rivalhub.provider": options.provider,
   };
-  for (const [key, value] of Object.entries({ ...builtIns, ...options.attributes })) {
+  for (const [key, value] of Object.entries({ ...builtIns, ...options.attributes, "rivalhub.stage": builtIns["rivalhub.stage"] })) {
     if (!ALLOWED_ATTRIBUTES.has(key) || value === undefined) continue;
     if (typeof value === "string") {
       const safe = redactText(value, 160).split(/[?#]/, 1)[0].replace(/[^\x20-\x7e]/g, " ").slice(0, 160);

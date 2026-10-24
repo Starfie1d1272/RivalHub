@@ -263,6 +263,15 @@ it("accepts old events and bounded ready/error extensions while rejecting arbitr
   expect(validEvent(ready, now)).toBe(true);
   for (const extra of [{ measurement: { ...measurement, url: "PRIVATE" } }, { measurement: { ...measurement, clientRelease: "https://private.invalid" } }, { ready: { module: "PRIVATE", phase: "primary" } }, { ready: { ...ready.ready, text: "PRIVATE" } }, { measurement: undefined }, { clientError: { source: "boundary", category: "Error" } }]) expect(validEvent({ ...ready, ...extra }, now)).toBe(false);
   expect((await post(env, await batch(env, [ready]))).status).toBe(204);
-  const row = sqlite.prepare("SELECT events_gzip FROM batches").get() as { events_gzip: Uint8Array };
+  const row = sqlite.prepare("SELECT events_gzip, summary FROM batches").get() as { events_gzip: Uint8Array; summary: string };
+  expect(JSON.parse(row.summary)).toEqual([]);
   expect(JSON.parse(gunzipSync(row.events_gzip).toString())[0]).toEqual(ready);
+});
+
+it("bounds lifecycle and fingerprint extensions without accepting arbitrary diagnostic payloads", () => {
+  const measurement = { v: 1, navigationId: crypto.randomUUID(), clientRelease: "fixture", visibility: "visible", lifecycle: { navigationType: "bfcache", startedHidden: false, resumed: true, startMs: 123, activationMs: 0 } };
+  const sample = event({ kind: "error", operation: undefined, operationId: undefined, phase: undefined, durationMs: undefined, errorCode: "CLIENT_UNHANDLED", clientError: { source: "window_error", category: "TypeError", fingerprint: "s1:0123456789abcdef" } });
+  expect(validEvent({ ...sample, measurement }, now)).toBe(true);
+  for (const lifecycle of [{ ...measurement.lifecycle, url: "PRIVATE" }, { ...measurement.lifecycle, startMs: -1 }, { ...measurement.lifecycle, activationMs: Infinity }, { ...measurement.lifecycle, navigationType: "PRIVATE" }, { ...measurement.lifecycle, resumed: "yes" }]) expect(validEvent({ ...sample, measurement: { ...measurement, lifecycle } }, now)).toBe(false);
+  for (const clientError of [{ ...sample.clientError, stack: "PRIVATE" }, { ...sample.clientError, fingerprint: "PRIVATE" }]) expect(validEvent({ ...sample, clientError }, now)).toBe(false);
 });

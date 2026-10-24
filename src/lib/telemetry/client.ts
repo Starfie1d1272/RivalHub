@@ -1,5 +1,6 @@
+import { clientErrorFingerprint } from "./error-fingerprint";
 import { ErrorCode } from "@/lib/errors";
-import { LIMITS, routeTemplate, safeFilters, UUID, VARIANTS, type Bootstrap, type Scene, type TelemetryEvent, READY_MODULES, READY_PHASES } from "./protocol";
+import { LIMITS, routeTemplate, safeFilters, UUID, VARIANTS, type Bootstrap, type Scene, type TelemetryEvent, type MeasurementContext, READY_MODULES, READY_PHASES } from "./protocol";
 import type { Operation } from "./operations";
 import { classifyClient } from "./client-context";
 import { TelemetryQueue } from "./queue";
@@ -15,16 +16,41 @@ let bootstrap: Bootstrap | null = null;
 let generation = 0;
 let renewing = false;
 let nextRenewalAttempt = 0;
-const vitalIds = new Map<string, { id: string; session: string }>();
+const vitalIds = new Map<string, { id: string; session: string; measurement?: MeasurementContext }>();
 let vitalNavigationAfter = 0;
 let pendingNavigation: { target: string; started: number; queue: TelemetryQueue; navigation: "navigate" | "history" } | null = null;
-let activeNavigation: { key: string; id: string; started: number; seen: Set<string> } | null = null;
+let activeNavigation: { key: string; id: string; started: number; seen: Set<string>; lifecycle: NonNullable<MeasurementContext["lifecycle"]> } | null = null;
+let hiddenSinceNavigation = typeof document !== "undefined" && document.visibilityState === "hidden";
+function navigationLifecycle(kind: "hard" | "soft" | "bfcache" | "unknown", start: number): NonNullable<MeasurementContext["lifecycle"]> {
+  const timing = performance.getEntriesByType("navigation")[0] as (PerformanceNavigationTiming & { activationStart?: number }) | undefined;
+  const activation = timing?.activationStart ?? 0;
+  return { navigationType: kind === "hard" && (activation > 0 || (document as Document & { prerendering?: boolean }).prerendering) ? "prerender" : kind,
+    startedHidden: document.visibilityState === "hidden", resumed: false,
+    startMs: Math.min(86400000, Math.max(0, Math.round(start))), activationMs: Math.min(86400000, Math.max(0, Math.round(activation))) };
+}
+export function recordTelemetryVisibility() {
+  attempt(() => {
+    if (document.visibilityState === "hidden") hiddenSinceNavigation = true;
+    else if (hiddenSinceNavigation && activeNavigation) activeNavigation.lifecycle.resumed = true;
+  });
+}
+export function restoreTelemetryPage(event: PageTransitionEvent) {
+  attempt(() => {
+    if (!event.persisted || !queue || bootstrap?.measurementVersion !== 1) return;
+    activeNavigation = { key: window.location.pathname + window.location.search, id: crypto.randomUUID(), started: performance.now(), seen: new Set(), lifecycle: navigationLifecycle("bfcache", performance.now()) };
+    pendingNavigation = null;
+    hiddenSinceNavigation = document.visibilityState === "hidden";
+    // A restore is a new navigation; mounted components need not mount again.
+    previousPage = ""; recordPage();
+  });
+}
 /** Capture when work starts; pass this token back so late ready cannot mark a newer navigation. */
 export function captureTelemetryNavigation(): string | null {
   if (!queue || bootstrap?.measurementVersion !== 1) return null;
   const key = window.location.pathname + window.location.search;
   if (!activeNavigation || activeNavigation.key !== key) {
-    activeNavigation = { key, id: crypto.randomUUID(), started: pendingNavigation?.target === key ? pendingNavigation.started : previousPage ? performance.now() : 0, seen: new Set() };
+    hiddenSinceNavigation = document.visibilityState === "hidden";
+    activeNavigation = { key, id: crypto.randomUUID(), started: pendingNavigation?.target === key ? pendingNavigation.started : previousPage ? performance.now() : 0, seen: new Set(), lifecycle: navigationLifecycle(pendingNavigation?.target === key ? "soft" : previousPage ? "unknown" : "hard", pendingNavigation?.target === key ? pendingNavigation.started : previousPage ? performance.now() : 0) };
   }
   return activeNavigation.id;
 }
@@ -71,16 +97,23 @@ function context(): Pick<TelemetryEvent, "route" | "scene" | "eventId"> {
 export function setTelemetryScene(prefix: string, scene: string, eventId: string) {
   sceneContext = UUID.test(eventId) ? { prefix, scene: scene === "major" || scene === "rivals" ? scene : "other", eventId } : null;
 }
+function touchSession(now: number) {
+  if (!session || now - activeAt >= 1800000) session = crypto.randomUUID();
+  activeAt = now;
+}
+function measurementContext(): MeasurementContext | undefined {
+  const navigationId = captureTelemetryNavigation();
+  return navigationId ? { v: 1, navigationId, lifecycle: activeNavigation ? { ...activeNavigation.lifecycle } : undefined, clientRelease: process.env.RIVALHUB_RELEASE_COMMIT || "unknown", visibility: document.visibilityState === "hidden" ? "hidden" : "visible" } : undefined;
+}
 function record(event: Omit<TelemetryEvent, "id" | "at" | "session" | "route" | "scene"> & Partial<Pick<TelemetryEvent, "route" | "scene">>, operationSession?: string, sampleId?: string) {
   attempt(() => {
     if (!queue) return;
     const now = Date.now();
-    if (!session || now - activeAt >= 1800000) session = crypto.randomUUID();
-    activeAt = now;
+    touchSession(now);
     attempt(() => sessionStorage.setItem(storageKey, JSON.stringify({ id: session, identity, at: now })));
-    const navigationId = captureTelemetryNavigation();
+    const measurement = event.measurement ?? ((event.kind !== "performance" || event.metricName === "NAV_COMMIT") ? measurementContext() : undefined);
     queue.add({ ...context(), ...event,
-      ...(navigationId && (event.kind !== "performance" || event.metricName === "NAV_COMMIT") ? { measurement: { v: 1 as const, navigationId, clientRelease: process.env.RIVALHUB_RELEASE_COMMIT || "unknown", visibility: document.visibilityState === "hidden" ? "hidden" as const : "visible" as const } } : {}), client: classifyClient(navigator.userAgent, navigator.maxTouchPoints, document.referrer, window.location.origin), id: sampleId ?? crypto.randomUUID(), at: now, session: operationSession ?? session });
+      ...(measurement ? { measurement } : {}), client: classifyClient(navigator.userAgent, navigator.maxTouchPoints, document.referrer, window.location.origin), id: sampleId ?? crypto.randomUUID(), at: now, session: operationSession ?? session });
   });
 }
 export function markHistoryNavigation() { historyNavigation = true; }
@@ -97,7 +130,7 @@ export function beginTelemetryNavigation(target: string, navigationType: string)
 }
 
 /** Read only declared numeric fields: entries, selectors, URLs and native metric IDs are never serialized. */
-export function recordWebVital(metric: { name: string; value: number; id: string; navigationURL?: string; navigationStartTime?: number }) {
+export function recordWebVital(metric: { name: string; value: number; id: string; navigationURL?: string; navigationStartTime?: number; navigationType?: string }) {
   attempt(() => {
     if (!queue || !["TTFB", "FCP", "LCP", "INP", "CLS"].includes(metric.name) || !Number.isFinite(metric.value) || metric.value < 0 || metric.value > (metric.name === "CLS" ? 100 : 3600000) || typeof metric.id !== "string" || metric.id.length > 128) return;
     if ((metric.navigationStartTime ?? 0) < vitalNavigationAfter) return;
@@ -109,12 +142,23 @@ export function recordWebVital(metric: { name: string; value: number; id: string
     const key = `${metric.name}:${metric.id}`;
     let sample = vitalIds.get(key);
     if (!sample) {
-      if (!session || Date.now() - activeAt >= 1800000) session = crypto.randomUUID();
-      sample = { id: crypto.randomUUID(), session }; vitalIds.set(key, sample);
+      touchSession(Date.now());
+      sample = { id: crypto.randomUUID(), session };
+      if (bootstrap?.measurementVersion === 1) {
+        const start = metric.navigationStartTime ?? 0;
+        const kind = metric.navigationType === "soft-navigation" ? "soft" : metric.navigationType === "back-forward-cache" ? "bfcache" : metric.navigationType === "prerender" ? "prerender" : ["navigate", "reload", "back-forward"].includes(metric.navigationType ?? "") ? "hard" : "unknown";
+        const lifecycle = navigationLifecycle(kind === "prerender" ? "hard" : kind, Number.isFinite(start) ? start : 0);
+        lifecycle.navigationType = kind;
+        // Native metric lifecycle remains distinct from current SPA navigation.
+        // Its random correlation ID is per sample and stable across later reports.
+        sample.measurement = { v: 1, navigationId: crypto.randomUUID(), clientRelease: process.env.RIVALHUB_RELEASE_COMMIT || "unknown", visibility: document.visibilityState === "hidden" ? "hidden" : "visible", lifecycle };
+      }
+      vitalIds.set(key, sample);
       if (vitalIds.size > 128) vitalIds.delete(vitalIds.keys().next().value!);
     }
     const current = url.pathname === window.location.pathname;
     record({ kind: "performance", metricName: metric.name as TelemetryEvent["metricName"], ...(metric.name === "CLS" ? { score: Math.round(metric.value * 10000) / 10000 } : { durationMs: Math.round(metric.value) }),
+      ...(sample.measurement ? { measurement: sample.measurement } : {}),
       route: routeTemplate(url.pathname), ...(current ? {} : { scene: "site", eventId: undefined }),
     }, sample.session, sample.id);
   });
@@ -154,7 +198,8 @@ export function recordClientError(event?: Event) {
     // Read only an own data property: never invoke arbitrary getters or collect message/stack/URL.
     const name = error && typeof error === "object" ? Object.getOwnPropertyDescriptor(error, "name")?.value : undefined;
     const category = ["TypeError", "RangeError", "ReferenceError", "SyntaxError", "Error"].includes(name) ? name : error instanceof TypeError ? "TypeError" : error instanceof Error ? "Error" : "unknown";
-    record({ kind: "error", errorCode: "CLIENT_UNHANDLED", clientError: { source: event?.type === "error" ? "window_error" : event?.type === "unhandledrejection" ? "unhandled_rejection" : "boundary", category } });
+    const fingerprint = clientErrorFingerprint(error, event instanceof ErrorEvent ? { filename: event.filename, line: event.lineno, column: event.colno } : undefined);
+    record({ kind: "error", errorCode: "CLIENT_UNHANDLED", clientError: { source: event?.type === "error" ? "window_error" : event?.type === "unhandledrejection" ? "unhandled_rejection" : "boundary", category, ...(fingerprint ? { fingerprint } : {}) } });
   });
 }
 export function flushTelemetry() { attempt(() => { void queue?.flush().catch(() => {}); }); }
@@ -212,17 +257,19 @@ export function observeAction<A extends unknown[], R>(operation: Operation, acti
     let variant: string | undefined;
     let filters: Record<string, string> | undefined;
     let operationSession: string | undefined;
+    let operationMeasurement: MeasurementContext | undefined;
     const actionQueue = queue;
     attempt(() => {
       operationId = crypto.randomUUID(); started = performance.now(); captured = context();
       variant = variantFor(operation, args[0]); filters = safeFilters(new URLSearchParams(window.location.search));
       record({ ...captured, kind: "operation", operation, operationId, phase: "start", ...(variant ? { variant } : {}) });
       operationSession = session;
+      operationMeasurement = measurementContext();
     });
     const finish = (phase: TelemetryEvent["phase"], errorCode?: string, requestId?: string, outcome?: TelemetryEvent["outcome"]) => attempt(() => {
       // Do not attribute an old user's pending result to a new identity.
       if (!operationId || queue !== actionQueue) return;
-      record({ ...captured, kind: "operation", operation, operationId, phase,
+      record({ ...captured, ...(operationMeasurement ? { measurement: operationMeasurement } : {}), kind: "operation", operation, operationId, phase,
         ...(variant ? { variant } : {}), ...(phase !== "success" && filters && Object.keys(filters).length ? { filters } : {}),
         durationMs: Math.min(3600000, Math.max(0, Math.round(performance.now() - started))),
         ...(outcome ? { outcome } : {}), ...(errorCode ? { errorCode } : {}), ...(requestId && UUID.test(requestId) ? { requestId } : {}),
