@@ -47,11 +47,12 @@ interface DatabasePoolSnapshot {
   idle: number;
   waiting: number;
   max: number | null;
+  acquire: ReturnType<DatabasePool["getAcquireSnapshot"]> | null;
 }
 
 /** Read current counters without initializing the pool or opening a connection. */
 export function getDatabasePoolSnapshot(): DatabasePoolSnapshot | null {
-  return pool ? { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount, max: pool.options.max ?? null } : null;
+  return pool ? { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount, max: pool.options.max ?? null, acquire: pool instanceof DatabasePool ? pool.getAcquireSnapshot() : null } : null;
 }
 
 // Proxy 确保 Pool 重建后 db 始终指向新 drizzle 实例

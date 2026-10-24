@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { beginTelemetryNavigation, configureTelemetry, flushTelemetry, observeAction, recordPage, recordWebVital, renewTelemetryIfNeeded, resetTelemetryIdentity, setTelemetryScene } from "@/lib/telemetry/client";
+import { beginTelemetryNavigation, captureTelemetryNavigation, recordContentReady, configureTelemetry, flushTelemetry, observeAction, recordPage, recordWebVital, renewTelemetryIfNeeded, resetTelemetryIdentity, setTelemetryScene } from "@/lib/telemetry/client";
 import { TelemetryQueue } from "@/lib/telemetry/queue";
 import type { Bootstrap, TelemetryEvent } from "@/lib/telemetry/protocol";
 
@@ -156,4 +156,37 @@ it("records coalesced CLS scores separately from millisecond durations", async (
   expect(events[0]).not.toHaveProperty("durationMs");
   expect(events[0].client).toHaveProperty("source");
   expect(JSON.stringify(events)).not.toContain("private-native-id");
+});
+
+it("keeps a Web Vital sample's session stable across the inactivity boundary", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", send); configureTelemetry(config);
+  const metric = { name: "LCP", value: 1200, id: "native-sample", navigationURL: window.location.href, navigationStartTime: performance.now() };
+  recordWebVital(metric); flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  vi.setSystemTime(Date.now() + 31 * 60000);
+  recordWebVital({ ...metric, value: 1800 }); flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+  const first = JSON.parse(send.mock.calls[0][1].body).events[0];
+  const last = JSON.parse(send.mock.calls[1][1].body).events[0];
+  expect(last.id).toBe(first.id);
+  expect(last.session).toBe(first.session);
+});
+
+it("gates ready collection, deduplicates phases and rejects an old navigation token", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", send); configureTelemetry(config);
+  expect(captureTelemetryNavigation()).toBeNull();
+  configureTelemetry({ ...config, measurementVersion: 1 });
+  const token = captureTelemetryNavigation();
+  recordContentReady(token, "statistics", "primary");
+  recordContentReady(token, "statistics", "primary");
+  window.history.replaceState(null, "", "/stats");
+  recordContentReady(token, "statistics", "advanced");
+  recordContentReady(captureTelemetryNavigation(), "statistics", "primary");
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const events = JSON.parse(send.mock.calls[0][1].body).events;
+  expect(events).toHaveLength(2);
+  expect(events.every((e: TelemetryEvent) => e.kind === "ready")).toBe(true);
+  expect(events[0].measurement.navigationId).not.toBe(events[1].measurement.navigationId);
+  expect(JSON.stringify(events)).not.toMatch(/native-sample/);
 });

@@ -5,6 +5,18 @@ type ConnectCallback = Parameters<Pool["connect"]>[0];
 
 /** Covers both pool.query's callback checkout and Drizzle transaction checkout. */
 export class DatabasePool extends Pool {
+  private readonly acquire = {
+    count: 0, failures: 0, totalMs: 0, maxMs: 0,
+    states: { reuse: 0, connect: 0, queued: 0 },
+    // Non-cumulative buckets: <=1, <=10, <=100, <=1000, >1000 ms.
+    buckets: [0, 0, 0, 0, 0],
+  };
+
+  /** Complete process-local denominator, including fast and failed checkouts. */
+  getAcquireSnapshot() {
+    return { ...this.acquire, states: { ...this.acquire.states }, buckets: [...this.acquire.buckets] };
+  }
+
   connect(): Promise<PoolClient>;
   connect(callback: ConnectCallback): void;
   connect(callback?: ConnectCallback): Promise<PoolClient> | void {
@@ -13,6 +25,12 @@ export class DatabasePool extends Pool {
     const connectionState = snapshot.poolIdle > 0 ? "reuse" : snapshot.poolTotal >= (snapshot.poolMax ?? 10) ? "queued" : "connect";
     const report = (error?: Error) => {
       const durationMs = performance.now() - started;
+      this.acquire.count++;
+      this.acquire.failures += error ? 1 : 0;
+      this.acquire.totalMs += durationMs;
+      this.acquire.maxMs = Math.max(this.acquire.maxMs, durationMs);
+      this.acquire.states[connectionState]++;
+      this.acquire.buckets[durationMs <= 1 ? 0 : durationMs <= 10 ? 1 : durationMs <= 100 ? 2 : durationMs <= 1000 ? 3 : 4]++;
       if (!error && durationMs < 1000) return;
       try {
         logEvent({ level: "warn", event: "db.pool.acquire", scope: "database", operation: "pool.acquire", durationMs,

@@ -98,6 +98,8 @@ Sampler 在 SERVER span 创建时读取 Next 提供的 `http.target`，兼容 `u
 
 此策略不改变 scheduler 触发频率、due gating 或 health projection。发布后必须回读实际请求树，确认平台没有在 Next 请求之前创建无法识别路径的本地 parent；若有，先修正入口识别，不用 child span 过滤掩盖问题。5% 是采样概率，不是小窗口内的精确计数或已测得的 ingest 降幅。
 
+`traceOperation` 的可选 stage 只接受 authorize/read/transaction/compute/project/invalidate/provider/serialize，沿用当前 trace 和错误 owner；不加业务 ID 或输入。领域 owner 在实际阶段边界标记，不重复包装同一 SQL。
+
 不为每个 helper 创建 span，只为可运营的边界创建：
 
 - request → route / Server Action；
@@ -110,7 +112,7 @@ Sampler 在 SERVER span 创建时读取 Next 提供的 `http.target`，兼容 `u
 
 Span name、`rivalhub.*`、`db.*`、HTTP method/status 和 provider 等属性必须是低基数值。默认不加 user/team/entry ID、email、昵称或业务 payload。跨 provider 的 trace propagation 只对自有 deployment URL 开启；Supabase、Steam、SiliconFlow、Cloudflare Turnstile 和 Better Stack 均不接收 RivalHub trace headers。
 
-`db.query` 的 pooled query span 在调用前记录 `rivalhub.db.pool.total/idle/waiting` 数量快照，返回后记录 `rivalhub.db.result.rows`；仅保存数值，不包含 SQL 或行内容。duration 包含连接获取与执行，调用前快照不能精确拆分等待时间；事务内通过 checked-out client 执行的语句不由此 wrapper 计数。常驻 production Next.js Node 服务在空闲时保留至多两条已建立连接，不主动预建；超过该下限的空闲连接在 30 秒后回收，Vercel 与 CLI 保留 5 秒的回收行为；连接上限与故障重建、重试边界维持由数据库 runtime owner 管理。
+`db.query` 的 pooled query span 在调用前记录 `rivalhub.db.pool.total/idle/waiting` 数量快照，返回后记录 `rivalhub.db.result.rows`；仅保存数值，不包含 SQL 或行内容。duration 包含连接获取与执行，调用前快照不能精确拆分等待时间；事务内通过 checked-out client 执行的语句不由此 wrapper 计数。`getDatabasePoolSnapshot().acquire` 提供当前 pool 自创建以来所有成功/失败 checkout 的 count、failures、totalMs、maxMs、开始时 reuse/connect/queued 次数与非累积耗时桶（≤1/10/100/1000/>1000 ms）；每次读取返回副本，不初始化连接，也不保存单次样本。它是进程内完整分母，pool 重建后归零，不能作为持久历史或 TLS 新建比例。慢日志保持原有阈值；不从慢日志计算全部请求分位数。常驻 production Next.js Node 服务在空闲时保留至多两条已建立连接，不主动预建；超过该下限的空闲连接在 30 秒后回收，Vercel 与 CLI 保留 5 秒的回收行为；连接上限与故障重建、重试边界维持由数据库 runtime owner 管理。
 
 ## 查询与排障
 

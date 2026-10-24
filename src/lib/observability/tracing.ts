@@ -2,7 +2,10 @@ import { context as otelContext, SpanStatusCode, trace, type Span } from "@opent
 import { classifyError } from "@/lib/observability/errors";
 import { extractSafeException, redactText } from "@/lib/observability/redact";
 
+export const TRACE_STAGES = ["authorize", "read", "transaction", "compute", "project", "invalidate", "provider", "serialize"] as const;
+
 export interface TraceOptions {
+  stage?: typeof TRACE_STAGES[number];
   scope?: string;
   operation?: string;
   route?: string;
@@ -11,6 +14,7 @@ export interface TraceOptions {
 }
 
 const ALLOWED_ATTRIBUTES = new Set([
+  "rivalhub.stage",
   "rivalhub.scope",
   "rivalhub.operation",
   "rivalhub.route",
@@ -99,6 +103,7 @@ export async function traceOperation<T>(name: string, options: TraceOptions, wor
 function sanitizeSpanAttributes(options: TraceOptions): Record<string, string | number | boolean> {
   const attributes: Record<string, string | number | boolean> = {};
   const builtIns: Record<string, string | undefined> = {
+    "rivalhub.stage": options.stage && TRACE_STAGES.includes(options.stage) ? options.stage : undefined,
     "rivalhub.scope": options.scope,
     "rivalhub.operation": options.operation,
     "rivalhub.route": options.route,

@@ -30,5 +30,13 @@ it("preserves promise/callback checkout, removes timed-out work and keeps the po
     expect((await pool.query("select 42 as answer")).rows).toEqual([{ answer: 42 }]);
     expect(pool.totalCount).toBe(1);
     expect(pool.idleCount).toBe(1);
+    const acquire = pool.getAcquireSnapshot();
+    expect(acquire).toMatchObject({ count: 5, failures: 1, states: { connect: 1, queued: 1, reuse: 3 } });
+    expect(acquire.buckets.reduce((sum, count) => sum + count, 0)).toBe(acquire.count);
+    expect(acquire.totalMs).toBeGreaterThanOrEqual(acquire.maxMs);
+    acquire.states.reuse = 999;
+    acquire.buckets.fill(999);
+    expect(pool.getAcquireSnapshot().states.reuse).toBe(3);
+    expect(pool.getAcquireSnapshot().buckets.reduce((sum, count) => sum + count, 0)).toBe(5);
   } finally { await pool.end(); }
 });

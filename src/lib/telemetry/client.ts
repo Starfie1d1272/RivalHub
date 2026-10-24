@@ -1,5 +1,5 @@
 import { ErrorCode } from "@/lib/errors";
-import { LIMITS, routeTemplate, safeFilters, UUID, VARIANTS, type Bootstrap, type Scene, type TelemetryEvent } from "./protocol";
+import { LIMITS, routeTemplate, safeFilters, UUID, VARIANTS, type Bootstrap, type Scene, type TelemetryEvent, READY_MODULES, READY_PHASES } from "./protocol";
 import type { Operation } from "./operations";
 import { classifyClient } from "./client-context";
 import { TelemetryQueue } from "./queue";
@@ -15,9 +15,28 @@ let bootstrap: Bootstrap | null = null;
 let generation = 0;
 let renewing = false;
 let nextRenewalAttempt = 0;
-const vitalIds = new Map<string, string>();
+const vitalIds = new Map<string, { id: string; session: string }>();
 let vitalNavigationAfter = 0;
 let pendingNavigation: { target: string; started: number; queue: TelemetryQueue; navigation: "navigate" | "history" } | null = null;
+let activeNavigation: { key: string; id: string; started: number; seen: Set<string> } | null = null;
+/** Capture when work starts; pass this token back so late ready cannot mark a newer navigation. */
+export function captureTelemetryNavigation(): string | null {
+  if (!queue || bootstrap?.measurementVersion !== 1) return null;
+  const key = window.location.pathname + window.location.search;
+  if (!activeNavigation || activeNavigation.key !== key) {
+    activeNavigation = { key, id: crypto.randomUUID(), started: pendingNavigation?.target === key ? pendingNavigation.started : previousPage ? performance.now() : 0, seen: new Set() };
+  }
+  return activeNavigation.id;
+}
+export function recordContentReady(token: string | null, module: typeof READY_MODULES[number], phase: typeof READY_PHASES[number]) {
+  attempt(() => {
+    if (!token || token !== captureTelemetryNavigation() || !activeNavigation || !READY_MODULES.includes(module) || !READY_PHASES.includes(phase)) return;
+    const key = `${module}:${phase}`;
+    if (activeNavigation.seen.has(key)) return;
+    activeNavigation.seen.add(key);
+    record({ kind: "ready", ready: { module, phase }, durationMs: Math.min(3600000, Math.max(0, Math.round(performance.now() - activeNavigation.started))) });
+  });
+}
 const errorCodes = new Set<string>(Object.values(ErrorCode));
 const storageKey = "rivalhub-product-session-v1";
 function attempt(callback: () => void) { try { callback(); } catch { /* Observability cannot alter a business result. */ } }
@@ -25,6 +44,7 @@ function attempt(callback: () => void) { try { callback(); } catch { /* Observab
 export function configureTelemetry(config: Bootstrap | null) {
   attempt(() => {
     generation++;
+    if (!config || config.identity !== identity) activeNavigation = null;
     if (!config || navigator.doNotTrack === "1" || (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl) {
       if (queue) vitalNavigationAfter = performance.now();
       queue = null; identity = null; bootstrap = null;
@@ -58,7 +78,9 @@ function record(event: Omit<TelemetryEvent, "id" | "at" | "session" | "route" | 
     if (!session || now - activeAt >= 1800000) session = crypto.randomUUID();
     activeAt = now;
     attempt(() => sessionStorage.setItem(storageKey, JSON.stringify({ id: session, identity, at: now })));
-    queue.add({ ...context(), ...event, client: classifyClient(navigator.userAgent, navigator.maxTouchPoints, document.referrer, window.location.origin), id: sampleId ?? crypto.randomUUID(), at: now, session: operationSession ?? session });
+    const navigationId = captureTelemetryNavigation();
+    queue.add({ ...context(), ...event,
+      ...(navigationId && (event.kind !== "performance" || event.metricName === "NAV_COMMIT") ? { measurement: { v: 1 as const, navigationId, clientRelease: process.env.RIVALHUB_RELEASE_COMMIT || "unknown", visibility: document.visibilityState === "hidden" ? "hidden" as const : "visible" as const } } : {}), client: classifyClient(navigator.userAgent, navigator.maxTouchPoints, document.referrer, window.location.origin), id: sampleId ?? crypto.randomUUID(), at: now, session: operationSession ?? session });
   });
 }
 export function markHistoryNavigation() { historyNavigation = true; }
@@ -69,6 +91,7 @@ export function beginTelemetryNavigation(target: string, navigationType: string)
     if (!queue) return;
     const url = new URL(target, window.location.href);
     if (url.origin !== window.location.origin) return;
+    activeNavigation = null;
     pendingNavigation = { target: url.pathname + url.search, started: performance.now(), queue, navigation: navigationType === "traverse" ? "history" : "navigate" };
   });
 }
@@ -84,20 +107,22 @@ export function recordWebVital(metric: { name: string; value: number; id: string
     const url = new URL(source, window.location.href);
     if (url.origin !== window.location.origin) return;
     const key = `${metric.name}:${metric.id}`;
-    let id = vitalIds.get(key);
-    if (!id) {
-      id = crypto.randomUUID(); vitalIds.set(key, id);
+    let sample = vitalIds.get(key);
+    if (!sample) {
+      if (!session || Date.now() - activeAt >= 1800000) session = crypto.randomUUID();
+      sample = { id: crypto.randomUUID(), session }; vitalIds.set(key, sample);
       if (vitalIds.size > 128) vitalIds.delete(vitalIds.keys().next().value!);
     }
     const current = url.pathname === window.location.pathname;
     record({ kind: "performance", metricName: metric.name as TelemetryEvent["metricName"], ...(metric.name === "CLS" ? { score: Math.round(metric.value * 10000) / 10000 } : { durationMs: Math.round(metric.value) }),
       route: routeTemplate(url.pathname), ...(current ? {} : { scene: "site", eventId: undefined }),
-    }, undefined, id);
+    }, sample.session, sample.id);
   });
 }
 export function recordPage() {
   attempt(() => {
     if (!queue) return;
+    captureTelemetryNavigation();
     const pending = pendingNavigation;
     if (pending?.target === window.location.pathname + window.location.search) {
       pendingNavigation = null;
@@ -122,11 +147,20 @@ export function recordFilter(key: string, value: string) {
     if (Object.keys(filters).length) record({ kind: "filter", filters });
   });
 }
-export function recordClientError() { record({ kind: "error", errorCode: "CLIENT_UNHANDLED" }); }
+export function recordClientError(event?: Event) {
+  attempt(() => {
+    if (bootstrap?.measurementVersion !== 1) { record({ kind: "error", errorCode: "CLIENT_UNHANDLED" }); return; }
+    const error: unknown = event instanceof ErrorEvent ? event.error : typeof PromiseRejectionEvent !== "undefined" && event instanceof PromiseRejectionEvent ? event.reason : undefined;
+    // Read only an own data property: never invoke arbitrary getters or collect message/stack/URL.
+    const name = error && typeof error === "object" ? Object.getOwnPropertyDescriptor(error, "name")?.value : undefined;
+    const category = ["TypeError", "RangeError", "ReferenceError", "SyntaxError", "Error"].includes(name) ? name : error instanceof TypeError ? "TypeError" : error instanceof Error ? "Error" : "unknown";
+    record({ kind: "error", errorCode: "CLIENT_UNHANDLED", clientError: { source: event?.type === "error" ? "window_error" : event?.type === "unhandledrejection" ? "unhandled_rejection" : "boundary", category } });
+  });
+}
 export function flushTelemetry() { attempt(() => { void queue?.flush().catch(() => {}); }); }
 export function resetTelemetryIdentity() {
   flushTelemetry(); generation++; nextRenewalAttempt = 0; bootstrap = null; queue = null; identity = null; session = ""; previousPage = "";
-  vitalIds.clear(); pendingNavigation = null;
+  vitalIds.clear(); pendingNavigation = null; activeNavigation = null;
   vitalNavigationAfter = performance.now();
   attempt(() => sessionStorage.removeItem(storageKey));
 }

@@ -255,3 +255,14 @@ describe("independent receiver privacy, budget and lifecycle", () => {
     expect((await post(env, { ...burst, id: crypto.randomUUID(), events: [{ ...burst.events[0], at: later }] }, later)).status).toBe(204);
   });
 });
+
+it("accepts old events and bounded ready/error extensions while rejecting arbitrary diagnostic fields", async () => {
+  const { env, sqlite } = fixture();
+  const measurement = { v: 1 as const, navigationId: crypto.randomUUID(), clientRelease: "fixture-client", visibility: "visible" as const };
+  const ready: TelemetryEvent = { id: crypto.randomUUID(), at: now, session: crypto.randomUUID(), route: "/stats", scene: "site", kind: "ready", measurement, ready: { module: "statistics", phase: "primary" }, durationMs: 123 };
+  expect(validEvent(ready, now)).toBe(true);
+  for (const extra of [{ measurement: { ...measurement, url: "PRIVATE" } }, { measurement: { ...measurement, clientRelease: "https://private.invalid" } }, { ready: { module: "PRIVATE", phase: "primary" } }, { ready: { ...ready.ready, text: "PRIVATE" } }, { measurement: undefined }, { clientError: { source: "boundary", category: "Error" } }]) expect(validEvent({ ...ready, ...extra }, now)).toBe(false);
+  expect((await post(env, await batch(env, [ready]))).status).toBe(204);
+  const row = sqlite.prepare("SELECT events_gzip FROM batches").get() as { events_gzip: Uint8Array };
+  expect(JSON.parse(gunzipSync(row.events_gzip).toString())[0]).toEqual(ready);
+});
