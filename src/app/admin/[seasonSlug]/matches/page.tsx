@@ -3,9 +3,8 @@ import { ContentReady } from "@/components/telemetry/ContentReady";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadAdminPostMatchTaskPage } from "@/lib/admin/matches/postmatch-tasks";
-import { loadAdminMatchOperations } from "@/lib/admin/matches/operations";
+import { loadAdminMatchPanels } from "@/lib/admin/matches/panels";
 import { loadAdminMatchOverview, loadAdminMatchWorkspace } from "@/lib/admin/matches/overview";
-import { loadAdminMatchCommentary } from "@/lib/admin/matches/commentary";
 import { AdminPostMatchTasks } from "@/components/matches/AdminPostMatchTasks";
 import { AdminMatchOperations } from "@/components/matches/AdminMatchOperations";
 import { MatchResources } from "@/components/matches/MatchResources";
@@ -38,11 +37,12 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   const overview = materials ? null : await loadAdminMatchOverview({ ...filters, seasonSlug, view: scheduling ? "schedule" : "execution" });
   const data = materials ? await loadAdminMatchWorkspace(seasonSlug) : overview;
   if (!data) notFound();
-  const [commentary, postMatchTasks] = await Promise.all([
-    view === "execution" ? loadAdminMatchCommentary(data.season.id, { historicalMatchIds: overview?.matches.map(match => match.id) ?? [] }) : Promise.resolve(null),
+  const [panels, postMatchTasks] = await Promise.all([
+    view === "execution" ? loadAdminMatchPanels(data.season.id, overview?.matches.map(match => match.id) ?? []) : Promise.resolve(null),
     materials ? loadAdminPostMatchTaskPage(data.season.id, filters) : Promise.resolve(null),
   ]);
-  const operations = commentary ? await loadAdminMatchOperations(data.season.id, commentary) : [];
+  const commentary = panels?.commentary ?? null;
+  const operations = panels?.operations ?? [];
   const matchCount = overview?.matchCount ?? 0;
   const teamNameById = new Map(data.teams.map((team) => [team.id, team.name]));
   const stages = [

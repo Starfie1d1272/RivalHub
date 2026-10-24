@@ -1,5 +1,8 @@
 import { getPublicTeamMapProfile } from "@/lib/teams/map-profile";
 import { getPublicPlayerMapExperienceContext } from "@/lib/stats/public-query";
+import { db } from "@/db/client";
+import { Pool } from "pg";
+import { loadAdminMatchPanels } from "@/lib/admin/matches/panels";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { createLocalPool } from "./harness/database";
@@ -339,6 +342,26 @@ describe("admin match read models PostgreSQL integration", () => {
       expect(ops).toHaveLength(1);
       expect(ops[0]?.scheduling).toMatchObject({ state:'reschedule_pending',autoAcceptAt:null });
       expect(ops[0]?.conflicts).toEqual([expect.objectContaining({userId:ids.admin,matchId:ids.testMatch,isTest:true})]);
+      const applicationPool = (db as typeof db & { $client: Pool }).$client;
+      const originalQuery = applicationPool.query;
+      async function measure<T>(read: () => Promise<T>) {
+        const cost = { queries: 0, rows: 0, jsonBytes: 0 };
+        const spy = vi.spyOn(applicationPool, "query").mockImplementation((function(this: Pool, ...args: unknown[]) {
+          const result = Reflect.apply(originalQuery, this, args);
+          if (!result || typeof result.then !== "function") return result;
+          return result.then((value: { rows: unknown[] }) => { cost.queries++; cost.rows += value.rows.length; cost.jsonBytes += Buffer.byteLength(JSON.stringify(value.rows)); return value; });
+        }) as typeof originalQuery);
+        try { return { value: await read(), cost }; } finally { spy.mockRestore(); }
+      }
+      const independent = await measure(async () => {
+        const commentary = await loadAdminMatchCommentary(ids.seasonA, { historicalMatchIds: [ids.matchA] });
+        return { commentary, operations: await loadAdminMatchOperations(ids.seasonA, commentary) };
+      });
+      const coordinated = await measure(() => loadAdminMatchPanels(ids.seasonA, [ids.matchA]));
+      expect(coordinated.value).toEqual(independent.value);
+      expect(coordinated.cost.queries).toBe(independent.cost.queries - 1);
+      expect(coordinated.value.operations[0]?.conflicts).toEqual([expect.objectContaining({ userId: ids.admin, matchId: ids.testMatch, isTest: true })]);
+      console.info("ADMIN_SHARED_ACTIVE_COST", JSON.stringify({ independent: independent.cost, coordinated: coordinated.cost }));
       await pool.query("UPDATE matches SET scheduled_at=scheduled_at+interval '1 minute' WHERE id=$1",[ids.testMatch]);
       expect((await loadAdminMatchOperations(ids.seasonA,await loadAdminMatchCommentary(ids.seasonA)))[0]?.conflicts).toEqual([]);
       const authorizedCommentary = await loadAdminMatchCommentary(ids.seasonA);
