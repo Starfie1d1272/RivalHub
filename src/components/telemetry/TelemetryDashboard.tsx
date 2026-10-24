@@ -1,5 +1,4 @@
 "use client";
-import { ContentReady } from "./ContentReady";
 import { useEffect, useRef, useState, useMemo } from "react";
 import { ContentReady } from "./ContentReady";
 import type { Analysis } from "@/lib/telemetry/analysis-model";
@@ -1593,7 +1592,6 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
           </details>
         </footer>
       </PageLayout>
-      <ContentReady module="admin" phase="primary" />
     </>
   );
 }
