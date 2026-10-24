@@ -716,9 +716,10 @@ export async function reconcileVetoRoom(matchId: string): Promise<VetoMutationOu
   return (await reconcileVetoRoomReceipt(matchId)).outcome;
 }
 
-export async function reconcileVetoRoomReceipt(matchId: string): Promise<VetoMutationReceipt> {
+export async function reconcileVetoRoomReceipt(matchId: string, expectedSeasonId?: string): Promise<VetoMutationReceipt> {
   return db.transaction(async (tx) => {
     const match = await lockMatchInTx(tx, matchId);
+    if (expectedSeasonId !== undefined && match.seasonId !== expectedSeasonId) throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。");
     const facts: VetoMutationReceipt["affectedFacts"] = [];
     if (await closeVetoAppealsAfterGameplayInTx(tx, matchId)) facts.push("appeals");
     if (await materializeDefaultLineupsInTx(tx, match) > 0) facts.push("lineups");

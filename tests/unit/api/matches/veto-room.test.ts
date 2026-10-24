@@ -18,7 +18,7 @@ describe("BP HTTP boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://match.example");
-    access.mockResolvedValue(undefined);view.mockResolvedValue({ session: { revision: 2 } });run.mockResolvedValue({ outcome: "applied", room: {} });
+    access.mockResolvedValue({ seasonId: "season-1", authorization: null });view.mockResolvedValue({ session: { revision: 2 } });run.mockResolvedValue({ outcome: "applied", room: {} });
   });
   it("returns private uncached reads only after the shared visibility guard", async () => {
     const response = await GET(new Request(url), context);
