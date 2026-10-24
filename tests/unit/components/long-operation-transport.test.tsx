@@ -1,3 +1,5 @@
+import { webcrypto } from "node:crypto";
+Object.defineProperty(globalThis.crypto, "subtle", { configurable: true, value: webcrypto.subtle });
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";

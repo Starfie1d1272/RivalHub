@@ -5,6 +5,9 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import { and, eq, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, matchTimeProposals, matches, seasons } from "@/db/schema";
+import { z } from "zod";
+import { getReadbackMatchOrThrow } from "@/lib/matches/readback-scope";
+import { timeReadbackVersion, type TimeReadback } from "@/lib/matches/operation-readback";
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
@@ -220,4 +223,34 @@ export async function forceSetMatchTime(
   } catch (e) {
     return actionError("forceSetMatchTime", e);
   }
+}
+
+/** Recovery requires current representative or season-admin authority, not an old viewer flag. */
+export async function getTimeProposalReadback(proposalId: string): Promise<ActionResult<TimeReadback>> {
+  try {
+    if (!z.uuid().safeParse(proposalId).success) throw new AppError(ErrorCode.VALIDATION_FAILED, "提议编号无效。");
+    const session = await requireAuth();
+    const candidate = await db.query.matchTimeProposals.findFirst({ where: eq(matchTimeProposals.id, proposalId), columns: { matchId: true } });
+    if (!candidate) throw new AppError(ErrorCode.NOT_FOUND, "提议不存在。");
+    const match = await getReadbackMatchOrThrow(candidate.matchId);
+    if (!await getEntryIdForRepresentative(session.userId, match)) await requireSeasonAdmin(match.seasonId);
+    const [row] = await db.select({ proposalId: matchTimeProposals.id, status: matchTimeProposals.status, resolution: matchTimeProposals.resolution,
+      proposedTime: matchTimeProposals.proposedTime, scheduledAt: matches.scheduledAt, rejectReason: matchTimeProposals.rejectReason })
+      .from(matchTimeProposals).innerJoin(matches, eq(matches.id, matchTimeProposals.matchId))
+      .where(and(eq(matchTimeProposals.id, proposalId), eq(matches.id, match.id), eq(matches.seasonId, match.seasonId)));
+    if (!row) throw new AppError(ErrorCode.NOT_FOUND, "提议范围已变化，请重新读取。");
+    const value = { ...row, proposedTime: row.proposedTime.toISOString(), scheduledAt: row.scheduledAt?.toISOString() ?? null };
+    return ok({ matchId: match.id, value, version: await timeReadbackVersion(match.id, value) });
+  } catch (error) { return actionError("getTimeProposalReadback", error); }
+}
+export async function retryTimeProposalRefresh(proposalId: string): Promise<ActionResult<void>> {
+  try {
+    const read = await getTimeProposalReadback(proposalId);
+    if (!read.success) return read;
+    const match = await getReadbackMatchOrThrow(read.data.matchId);
+    const [season] = await db.select({ slug: seasons.slug }).from(seasons).where(eq(seasons.id, match.seasonId));
+    if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛事不存在。");
+    revalidateMatchPaths(season.slug, match.id, { statistics: false });
+    return ok(undefined);
+  } catch (error) { return actionError("retryTimeProposalRefresh", error); }
 }
