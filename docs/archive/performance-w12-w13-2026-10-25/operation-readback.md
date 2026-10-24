@@ -14,7 +14,8 @@ SHA-256 内容版本来自当前完整语义投影，是状态相等检查，不
 ## 可重复证据
 
 - `pnpm exec vitest run tests/unit/components/operation-readback.test.tsx tests/unit/operation-readback.test.ts tests/unit/match-recording-editor.test.tsx tests/unit/components/long-operation-transport.test.tsx`: 10 项通过。覆盖 unknown 后核对、顺序/原 ID/内容不一致、名单替补与 BP 代表、同排期不同提议、匹配仍不重放。
-- `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm test:integration -- tests/integration/db/operation-readback.test.ts tests/integration/db/postmatch-community-awards.test.ts tests/integration/db/match-time-scheduling.test.ts`: 12 项真实 PostgreSQL 通过。核对 fresh 代表转移、管理员撤权、拒绝前不读取私有名单/录像、原提议状态变化与只读 audit 不变；同时复验原录像与排期事务不变量。
+- `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm test:integration -- tests/integration/db/operation-readback.test.ts tests/integration/db/postmatch-community-awards.test.ts tests/integration/db/match-time-scheduling.test.ts`: 12 项真实 PostgreSQL 通过。核对实际代表转移、管理员拒绝分支（该文件采用 auth mock）、拒绝前不读取私有名单/录像、原提议状态变化与只读 audit 不变；同时复验原录像与排期事务不变量。
+- `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm test:integration -- tests/integration/db/operation-readback-auth-chain.test.ts`：额外 1 项真实授权链补验通过。实际 iron-session/application registry/角色/grant 实现完成添加 grant→读取成功→删除 DB grant→三入口 FORBIDDEN/私有 SQL 0→恢复 grant→成功→撤销 registry session、保留签名 cookie→三入口 UNAUTHORIZED。仅 Next cookie/connection 平台传输适配；不冒充 provider 登录或真实 HTTP。原始补验提交 [`27e8f15d`](https://github.com/Starfie1d1272/RivalHub/commit/27e8f15d7d4da9a3fd5a6971cb13d6a110a47246)，证据边界见 [真实应用授权链撤销补验](readback-auth-chain.md)。
 - app/tests 类型检查、架构检查和变更源码 ESLint。原始日志、fixture 账号与本地凭据不提交。
 
 这组证据不代表生产部署性能改善，不替代 OCR durable receipt 的浏览器关闭重开证据。AS03/04/07/09/14 的有界覆盖核对另行记录，不在此宣称完成。
