@@ -1,3 +1,4 @@
+import { lockMatchForInspectionInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { hasMatchRecording, recordingInput, type MatchRecording } from "./recording-types";
 import { commentaryAdminEligibility } from "./eligibility";
 import { commentaryCancellationBlocker } from "./commentary-policy";
@@ -11,11 +12,6 @@ import { matchCommentators, matchLiveSessions, matchVetoSessions, matches, postM
 import { AppError, ErrorCode } from "@/lib/errors";
 import { readReopenedPostMatchIds } from "./read";
 
-async function lockMatchInTx(tx: TxDb, matchId: string) {
-  const [match] = await tx.select().from(matches).where(eq(matches.id, matchId)).for("update");
-  if (!match) throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。");
-  return match;
-}
 async function lockSubmissionInTx(tx: TxDb, matchId: string) {
   const [submission] = await tx.select().from(postMatchReports).where(eq(postMatchReports.matchId, matchId)).for("update");
   return submission ?? null;

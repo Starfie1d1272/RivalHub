@@ -1,3 +1,4 @@
+import { lockDemoIdentityInvalidationSeasonsInTx } from "@/lib/identity/statistics-invalidation";
 import "server-only";
 
 import { and, eq } from "drizzle-orm";
@@ -213,8 +214,7 @@ export async function retireSeasonGameplaySteamIdentityInTx(
     throw new AppError(ErrorCode.VALIDATION_FAILED, "撤销比赛 Steam 身份必须填写原因。");
   }
   const [identity] = await tx.select().from(userGameplaySteamIds)
-    .where(eq(userGameplaySteamIds.id, input.identityId))
-    .for("update");
+    .where(eq(userGameplaySteamIds.id, input.identityId));
   if (!identity) throw new AppError(ErrorCode.NOT_FOUND, "Steam 游戏身份不存在。");
   if (identity.provenance !== "admin_confirmed_alternate" || !identity.sourceImportId) {
     throw new AppError(ErrorCode.FORBIDDEN, "只能撤销由比赛确认产生的 Steam 身份。");
@@ -226,6 +226,15 @@ export async function retireSeasonGameplaySteamIdentityInTx(
     throw new AppError(ErrorCode.FORBIDDEN, "该 Steam 身份不属于当前赛事。");
   }
 
+  await lockDemoIdentityInvalidationSeasonsInTx(tx, { steam64: identity.steam64 }, input.seasonId);
+  const [lockedIdentity] = await tx.select().from(userGameplaySteamIds)
+    .where(eq(userGameplaySteamIds.id, input.identityId)).for("update");
+  const [lockedSource] = await tx.select({ seasonId: matchDemoImports.seasonId }).from(matchDemoImports)
+    .where(eq(matchDemoImports.id, identity.sourceImportId));
+  if (!lockedIdentity || lockedIdentity.steam64 !== identity.steam64 || lockedIdentity.sourceImportId !== identity.sourceImportId
+    || lockedIdentity.provenance !== identity.provenance || lockedSource?.seasonId !== input.seasonId) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "Steam 身份或来源赛事已变化，请重新读取。");
+  }
   const result = await retireCanonicalGameplaySteamIdentityInTx(tx, {
     identityId: identity.id,
     actorId: input.actorId,

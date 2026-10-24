@@ -1,8 +1,9 @@
+import { lockSeasonForTournamentInTx } from "@/lib/postevent/guard";
 import "server-only";
 
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { matchDemoImports, matchPlayerStats, matchRoundFacts } from "@/db/schema";
+import { matchDemoImports, matchPlayerStats, matchRoundFacts, matchMaps, matches } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { materializeStatisticsProjectionInTx } from "@/lib/stats/projection";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -36,6 +37,13 @@ export const DEMO_CONTENT_CONFLICT_MESSAGE = "该地图已有另一份已确认 
 export async function lockDemoImportLineageInTx(tx: TxDb, matchMapId: string): Promise<void> {
   await lockGameplayIdentityWriteInTx(tx);
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`demo-map:${matchMapId}`}, 0))`);
+  // Preserve the empty-lineage advisory fence and canonical missing-target
+  // classification. Existing targets acquire the event fence before imports
+  // or matches; every event writer retains UPDATE, so those children cannot
+  // form an import/match cycle with an official correction.
+  const [scope] = await tx.select({ seasonId: matches.seasonId }).from(matchMaps)
+    .innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(eq(matchMaps.id, matchMapId));
+  if (scope?.seasonId) await lockSeasonForTournamentInTx(tx, scope.seasonId);
 }
 
 const LINEAGE_ACTIVE_STATUSES = ["confirmed", "needs_attention", "stale"] as const;

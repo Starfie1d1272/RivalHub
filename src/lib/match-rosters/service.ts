@@ -542,16 +542,22 @@ export interface ConfirmRosterOutcome {
 
 export async function confirmMatchRosterInTx(
   tx: TxDb,
-  args: { rosterId: string; actorId: string },
+  args: { rosterId: string; actorId: string; expectedMatchId?: string; expectedSeasonId?: string },
 ): Promise<ConfirmRosterOutcome> {
-  const [roster] = await tx
-    .select()
-    .from(matchRosters)
-    .where(eq(matchRosters.id, args.rosterId))
-    .for("update");
+  // Discover without taking a child lock; the canonical season/match fence
+  // precedes every mutable roster row. Recheck the discovered association.
+  const [scope] = await tx.select({ matchId: matchRosters.matchId, entryId: matchRosters.entryId })
+    .from(matchRosters).where(eq(matchRosters.id, args.rosterId));
+  if (!scope) throw new AppError(ErrorCode.NOT_FOUND, "名单不存在。");
+  const match = await lockMatchInTx(tx, scope.matchId);
+  if ((args.expectedMatchId && match.id !== args.expectedMatchId) || (args.expectedSeasonId && match.seasonId !== args.expectedSeasonId)) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "名单所属赛事或比赛已变化，请重新授权后再操作。");
+  }
+  const [roster] = await tx.select().from(matchRosters).where(eq(matchRosters.id, args.rosterId)).for("update");
   if (!roster) throw new AppError(ErrorCode.NOT_FOUND, "名单不存在。");
-
-  const match = await lockMatchInTx(tx, roster.matchId);
+  if (roster.matchId !== scope.matchId || roster.entryId !== scope.entryId) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "名单所属比赛或队伍已变化，请重新读取后再操作。");
+  }
   assertScheduledOrThrow(match);
   await lockCurrentEventRosterForLineupInTx(tx, match, roster.entryId);
 

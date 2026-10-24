@@ -9,16 +9,24 @@ import { AppError, ErrorCode } from "@/lib/errors";
  * (adjudications, honor lifecycle, sanction governance, audit viewing) live
  * outside this gate by design.
  */
-export async function assertSeasonAllowsTournamentMutationInTx(
+export async function lockSeasonForTournamentInTx(
   txOrDb: Pick<TxDb, "select">,
   seasonId: string,
-): Promise<void> {
+) {
   const [row] = await txOrDb
     .select({ status: seasons.status })
     .from(seasons)
     .where(eq(seasons.id, seasonId))
     .for("update");
   if (!row) throw new AppError(ErrorCode.NOT_FOUND, "赛季不存在。");
+  return row;
+}
+
+export async function assertSeasonAllowsTournamentMutationInTx(
+  txOrDb: Pick<TxDb, "select">,
+  seasonId: string,
+): Promise<void> {
+  const row = await lockSeasonForTournamentInTx(txOrDb, seasonId);
   if (row.status === "archived") {
     throw new AppError(
       ErrorCode.VALIDATION_FAILED,
