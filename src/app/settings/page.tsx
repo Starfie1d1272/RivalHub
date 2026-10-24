@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { Suspense } from "react";
 import { RegistrationReturnLink } from "@/components/settings/RegistrationReturnLink";
 import { eq } from "drizzle-orm";
@@ -38,7 +39,7 @@ export default async function SettingsPage({ searchParams }: { searchParams?: Pr
       <SettingsReadiness userId={session.userId} />
     </Suspense>
     <Panel label="参赛资料" contentClassName="p-5">
-      <ProfileForm current={{ displayName: user?.displayName ?? null, perfectName: user?.perfectName ?? null, steam64: user?.steam64 ?? null, steamProfile: user?.steamProfile?.personaName && user.steamProfile.profileUrl ? { personaName: user.steamProfile.personaName, profileUrl: user.steamProfile.profileUrl, avatarUrl: user.steamProfile.avatarUrl ?? null } : null, qq: user?.qq ?? null, liveStreamUrl: user?.liveStreamUrl ?? null, gameplayStyle: user?.gameplayStyle ?? null, competitionHistory: user?.competitionHistory ?? null }} />
+      <ContentReady module="account" phase="form" /><ProfileForm current={{ displayName: user?.displayName ?? null, perfectName: user?.perfectName ?? null, steam64: user?.steam64 ?? null, steamProfile: user?.steamProfile?.personaName && user.steamProfile.profileUrl ? { personaName: user.steamProfile.personaName, profileUrl: user.steamProfile.profileUrl, avatarUrl: user.steamProfile.avatarUrl ?? null } : null, qq: user?.qq ?? null, liveStreamUrl: user?.liveStreamUrl ?? null, gameplayStyle: user?.gameplayStyle ?? null, competitionHistory: user?.competitionHistory ?? null }} />
     </Panel>
 
   </div>;

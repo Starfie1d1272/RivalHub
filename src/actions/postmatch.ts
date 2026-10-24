@@ -25,7 +25,7 @@ async function matchAndAdminOrThrow(matchId: string) {
 async function run(matchId: string, work: (actorId: string) => Promise<void>): Promise<ActionResult<{ refreshPending: boolean }>> {
   try {
     const { match, season, admin } = await matchAndAdminOrThrow(matchId);
-    await traceOperation("postmatch.commit", { scope: "action", operation: "postmatch.commit" }, () => work(auditActorId(admin)));
+    await traceOperation("postmatch.commit", { scope: "action", operation: "postmatch.commit", stage: "transaction" }, () => work(auditActorId(admin)));
     let refreshPending = false;
     try { revalidateMatchPaths(season.slug, match.id, { statistics: false }); }
     catch (error) {
