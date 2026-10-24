@@ -3,7 +3,7 @@ import { getOfficialSeasonMatchSummary } from "@/lib/matches/read-official";
 import { getApprovedCompetitionEntryCount } from "@/lib/competition-entries/counts";
 import { seasonEntries } from "@/lib/seasons/entries";
 import { buildSeasonPrimaryAction } from "@/lib/home/navigation";
-import { connection } from "next/server";
+import { io } from "next/cache";
 import { EventLogo } from "@/components/season/EventLogo";
 import { SeasonDraftPreview, SeasonMatchPreview, SeasonVotingPreview } from "@/components/season/SeasonStageHighlights";
 import { getPublicCaptainVotingData } from "@/lib/captains/data";
@@ -59,42 +59,36 @@ export default function SeasonPage({ params }: SeasonPageProps) {
 }
 
 export async function SeasonPageContent({ params }: SeasonPageProps) {
-  await connection();
+  await io();
   const { seasonSlug } = await params;
 
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
   const isHistorical = ["finished", "archived"].includes(season.status);
-  const [latestSeasonAnnouncement, seasonInfo, results, stagePresentation] = await Promise.all([
+  const isMajor = season.competitionTemplate === "major";
+  const stagePresentationRead = getPublicSeasonStagePresentation(season);
+  const [latestSeasonAnnouncement, seasonInfo, results, stagePresentation,
+    majorParticipantOverview, teamCount, participantSummary, matchCountRow,
+    upcomingMatches, standings, captainVoting, draftData, qualificationProgress] = await Promise.all([
     getLatestSeasonAnnouncement(season.id),
     getPublicSeasonInfo(season.id),
     isHistorical ? getPublicSeasonResults(season) : Promise.resolve(null),
-    getPublicSeasonStagePresentation(season),
+    stagePresentationRead,
+    isMajor ? getMajorPublicParticipantOverview(season) : Promise.resolve(null),
+    isMajor ? Promise.resolve(0) : getApprovedCompetitionEntryCount(season.id),
+    isMajor ? Promise.resolve(null) : getParticipantSummary(season),
+    getOfficialSeasonMatchSummary(season.id),
+    season.hasOfficialMatches && !isHistorical ? getOfficialUpcomingMatches(season.id) : Promise.resolve([]),
+    season.status === "playing" && !isMajor ? getStandings(season.id) : Promise.resolve([]),
+    season.status === "voting" && season.hasCaptainVoting ? getPublicCaptainVotingData(season.id) : Promise.resolve(null),
+    season.status === "drafting" && season.hasDraft ? getPublicDraftSummary(season.id) : Promise.resolve(null),
+    stagePresentationRead.then(presentation => isMajor && presentation.qualificationRun
+      ? getQualificationMatchProgress(presentation.qualificationRun.id) : null),
   ]);
   const stagePlan = stagePresentation.stagePlan;
   const stageLabelByKey = new Map(Object.entries(stagePresentation.labels));
   const hasMatches = stagePresentation.officialStages.length > 0;
-
   const initializedStages = new Set(stagePresentation.initializedStageKeys);
-
-  // ── 统计数据 + 即将到来的比赛 ────────────────────────────────────────
-  const upcomingMatchesQuery = season.hasOfficialMatches && !isHistorical ? getOfficialUpcomingMatches(season.id) : null;
-
-  const isMajor = season.competitionTemplate === "major";
-  const [majorParticipantOverview, teamCount, participantSummary, matchCountRow, upcomingMatches, standings, captainVoting, draftData, qualificationProgress] =
-    await Promise.all([
-      isMajor ? getMajorPublicParticipantOverview(season) : Promise.resolve(null),
-      isMajor
-        ? Promise.resolve(0)
-        : getApprovedCompetitionEntryCount(season.id),
-      isMajor ? Promise.resolve(null) : getParticipantSummary(season),
-      getOfficialSeasonMatchSummary(season.id),
-      upcomingMatchesQuery ?? Promise.resolve([] as { id: string; entryAId: string | null; entryBId: string | null; status: string; scheduledAt: Date | null; format: string; stage: string; teamAName: string | null; teamBName: string | null }[]),
-      season.status === "playing" && !isMajor ? getStandings(season.id) : Promise.resolve([]),
-      season.status === "voting" && season.hasCaptainVoting ? getPublicCaptainVotingData(season.id) : Promise.resolve(null),
-      season.status === "drafting" && season.hasDraft ? getPublicDraftSummary(season.id) : Promise.resolve(null),
-      isMajor && stagePresentation.qualificationRun ? getQualificationMatchProgress(stagePresentation.qualificationRun.id) : Promise.resolve(null),
-    ]);
   const qualificationRun = isMajor ? stagePresentation.qualificationRun ?? null : null;
   const mainEventStarted = stagePlan.some((stage) => stage.key === stagePresentation.currentStageKey || initializedStages.has(stage.key));
   const qualificationBeforeMainStart = Boolean(qualificationRun) && !mainEventStarted;

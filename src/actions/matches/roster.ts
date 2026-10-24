@@ -2,10 +2,9 @@
 
 import { writeAuditInTx } from "@/lib/audit/write";
 
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
-  matchRosterPlayers,
   matchRosters,
   seasons,
 } from "@/db/schema";
@@ -20,6 +19,7 @@ import {
   lockMatchInTx,
   persistMatchRosterInTx,
 } from "@/lib/match-rosters/service";
+import { loadMatchRosters } from "@/lib/match-rosters/read-model";
 import { getEntryIdForRepresentative } from "./_shared";
 
 async function revalidateAfterRosterChange(match: { seasonId: string; id: string }): Promise<void> {
@@ -244,17 +244,5 @@ export async function unlockMatchRoster(
  * 查询某场比赛的名单（含首发/替补队员）。
  */
 export async function getMatchRoster(matchId: string, entryId: string) {
-  const roster = await db.query.matchRosters.findFirst({
-    where: and(
-      eq(matchRosters.matchId, matchId),
-      eq(matchRosters.entryId, entryId),
-    ),
-  });
-  if (!roster) return null;
-
-  const players = await db.query.matchRosterPlayers.findMany({
-    where: eq(matchRosterPlayers.rosterId, roster.id),
-  });
-
-  return { ...roster, players };
+  return (await loadMatchRosters(matchId, [entryId])).get(entryId) ?? null;
 }

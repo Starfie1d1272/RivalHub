@@ -56,7 +56,7 @@ import { getMatchMvpResults } from "@/actions/player-stats";
 import { getMatchTimeProposalViews } from "@/lib/matches/time-proposals";
 import { projectMatchScheduling } from "@/lib/matches/time-rules";
 import { presentMatchStage, presentSchedulingAction } from "@/lib/matches/presentation";
-import { getMatchRoster } from "@/actions/matches/roster";
+import { loadMatchRosters } from "@/lib/match-rosters/read-model";
 import { getUserSession, requireSeasonAdmin } from "@/lib/auth/session";
 import { isExpectedAuthFailure } from "@/lib/errors";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
@@ -152,15 +152,13 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
   const needScoreboard = isFinished || hasCompletedMaps;
 
   const [
-    rosterA,
-    rosterB,
+    rosters,
     allTeamMemberRows,
     preAnalysis,
     commentatorRows,
     timeProposals,
   ] = await Promise.all([
-    getMatchRoster(match.id, match.entryAId),
-    getMatchRoster(match.id, match.entryBId),
+    loadMatchRosters(match.id, [match.entryAId, match.entryBId]),
     db
       .select({
         id: eventRosterMembers.id,
@@ -199,6 +197,8 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
     getMatchTimeProposalViews(match.id, userSession?.userId),
   ]);
 
+  const rosterA = rosters.get(match.entryAId) ?? null;
+  const rosterB = rosters.get(match.entryBId) ?? null;
   const commentatorPlayerIds = await getPublicPlayerIdentityIds(db, commentatorRows.map(row => row.userId));
   const publicCommentators = commentatorRows.map(row => ({ ...row, playerUserId: commentatorPlayerIds.has(row.userId) ? row.userId : null }));
 
