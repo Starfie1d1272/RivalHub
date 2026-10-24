@@ -603,7 +603,7 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
                 />
               </Panel>
               <Trend rows={data.buckets} hours={data.filters.hours} />
-              <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
+              {selectedMetric && hist && <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
                 <Panel contentClassName="p-0">
                   <Heading
                     title="访问页面"
@@ -1061,7 +1061,7 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
             </TabsContent>
             <TabsContent value="performance" className="space-y-4">
               {tab === "performance" && (!selectedMetric || !hist) && <Panel contentClassName="p-4">当前数据缺少所选指标或分布，请选择其他指标或刷新分析。</Panel>}
-              {tab === "performance" && selectedMetric && hist && <>
+              {tab === "performance" && <>
               <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
                 {data.metrics.map((m) => (
                   <button
@@ -1081,7 +1081,7 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
                   </button>
                 ))}
               </div>
-              <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
+              {selectedMetric && hist && <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
                 <Panel contentClassName="p-0">
                   <Heading
                     title={`${metricLabels[metric]}分布`}
@@ -1180,7 +1180,7 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
                     </p>
                   </div>
                 </Panel>
-              </div>
+              </div>}
               <Panel contentClassName="p-0">
                 <Heading
                   title="页面性能排行"

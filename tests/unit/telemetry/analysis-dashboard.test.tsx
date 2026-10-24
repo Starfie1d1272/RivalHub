@@ -64,3 +64,15 @@ it("coalesces a burst of session choices into the final authorized read", async 
   await waitFor(() => expect(query).toHaveBeenCalledTimes(1));
   expect(query.mock.calls[0]![0].session).toBe(initial.sessions[1]!.key);
 });
+
+it("keeps other metric choices available when the current LCP is missing", async () => {
+  const user = userEvent.setup();
+  const base = sample();
+  const initial = { ...base, metrics: base.metrics.filter(metric => metric.key !== "LCP"), histograms: base.histograms.filter(histogram => histogram.metric !== "LCP") };
+  render(<TelemetryDashboard initial={initial} />);
+  await user.click(screen.getByRole("tab", { name: "页面性能" }));
+  expect(screen.getByText("当前数据缺少所选指标或分布，请选择其他指标或刷新分析。")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /INP.*P75/ }));
+  expect(screen.queryByText("当前数据缺少所选指标或分布，请选择其他指标或刷新分析。")).not.toBeInTheDocument();
+  expect(screen.getByText("交互响应分布")).toBeInTheDocument();
+});

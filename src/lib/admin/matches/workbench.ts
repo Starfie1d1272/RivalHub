@@ -36,7 +36,7 @@ import { loadMatchRosters } from "@/lib/match-rosters/read-model";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { demoImportMetadataSelection } from "@/lib/demo-integration/metadata";
 import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
-import { loadOrFetchSteamProfiles } from "@/lib/steam-profiles";
+import { enrichAdminDemoReviewPersonas } from "./demo-personas";
 import { loadAdminDemoReview } from "./demo-review";
 import { projectAdminDemoQuality } from "./demo-quality";
 import type { AdminDemoReviewMap, AdminMatchWorkbenchData, RosterData, TeamMemberData } from "@/lib/admin/matches/types";
@@ -302,12 +302,7 @@ export async function loadAdminMatchWorkbench({
   ]);
 
   // Persona is display enrichment, never part of canonical validation or its transaction.
-  const profiles = await traceOperation("admin.match.persona", { scope: "admin", operation: "match.persona", stage: "provider", provider: "steam" },
-    () => loadOrFetchSteamProfiles(db, demoReviews.flatMap(review => review.participants.map(participant => participant.observedSteam64))));
-  for (const review of demoReviews) for (const participant of review.participants) {
-    const profile = profiles.get(participant.observedSteam64);
-    if (profile) participant.observedSteamProfile = { personaName: profile.personaName, profileUrl: profile.profileUrl, avatarUrl: profile.avatarUrl };
-  }
+  await enrichAdminDemoReviewPersonas(demoReviews);
   return {
     completion: projectOperatorCompletion({ status: match.status, isForfeit: match.isForfeit, maps: operator.workflow.completedMaps, commentatorCount: commentatorRows.length, submitted: Boolean(submittedAt), reopened: rosterReopened, hasVideo: hasMatchRecording(match) }),
     season: { id: season.id, slug: season.slug, name: season.name },
