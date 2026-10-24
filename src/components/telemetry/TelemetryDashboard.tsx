@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { ContentReady } from "./ContentReady";
 import type { Analysis } from "@/lib/telemetry/analysis-model";
 import { cat, metricLabels } from "@/lib/telemetry/analysis-presentation";
 import { Panel } from "@/components/rivalhub/Panel";
@@ -380,6 +381,7 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
     data.distributions[environment as keyof Analysis["distributions"]];
   return (
     <>
+      {!busy && !error && filtersMatch && <ContentReady module="admin" phase="primary" />}
       <PageLayout
         variant="workbench"
         className="space-y-4 [&_tr]:border-[var(--color-border)] [&_td]:py-2.5 [&_th]:py-2.5"
