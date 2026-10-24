@@ -69,6 +69,9 @@ it("does not acknowledge a generation committed while cache invalidation was in 
 
 it("coalesces BP facts once per transaction and rolls the delivery obligation back with facts", async () => {
   const f = await seedFixture();
+  // An old worker/backfill left an unpublished conservative category.
+  await db.update(schema.matchVetoInvalidations).set({ affectedFacts: ["veto"] })
+    .where(eq(schema.matchVetoInvalidations.matchId, f.matchId));
   const initial = (await watermark(f.matchId))!;
   await db.transaction(async tx => {
     await tx.update(schema.matchVetoSessions).set({ revision: 1 }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
@@ -76,11 +79,16 @@ it("coalesces BP facts once per transaction and rolls the delivery obligation ba
   });
   const committed = (await watermark(f.matchId))!;
   expect(committed.generation).toBe(initial.generation + BigInt(1));
+  expect(committed.affectedFacts).toEqual(expect.arrayContaining(["veto", "veto_step"]));
+  cache.revalidateTag.mockClear();
+  await deliverVetoInvalidation(f.matchId, "route");
+  expect(cache.revalidateTag.mock.calls.some(call => call[0] === PUBLIC_STATS_TAG)).toBe(true);
+  const delivered = (await watermark(f.matchId))!;
   await expect(db.transaction(async tx => {
     await tx.update(schema.matchVetoSessions).set({ revision: 3 }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
     throw new Error("rollback fixture");
   })).rejects.toThrow("rollback fixture");
-  expect(await watermark(f.matchId)).toEqual(committed);
+  expect(await watermark(f.matchId)).toEqual(delivered);
 });
 
 it("makes scheduler delivery failures visible and recovers archived/paused rooms without domain replay", async () => {
