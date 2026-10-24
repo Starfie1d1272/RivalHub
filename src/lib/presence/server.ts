@@ -9,9 +9,11 @@ const runtime = globalThis as typeof globalThis & { rivalhubPresence?: PresenceS
 export async function heartbeatPresence(userId: string | null): Promise<{ count: number; windowSeconds: number; intervalMs: number }> {
   const now = Date.now();
   const persist = async () => {
-    await db.insert(userSessions).values({ userId: userId!, lastActiveAt: new Date(now) })
+    const written = await db.insert(userSessions).values({ userId: userId!, lastActiveAt: new Date(now) })
       .onConflictDoUpdate({ target: userSessions.userId, set: { lastActiveAt: new Date(now) },
-        setWhere: sql`${userSessions.lastActiveAt} <= ${new Date(now - 300_000).toISOString()}` });
+        setWhere: sql`${userSessions.lastActiveAt} <= ${new Date(now - 300_000).toISOString()}` })
+      .returning({ userId: userSessions.userId });
+    return written.length > 0;
   };
   if (process.env.RIVALHUB_PRESENCE_MODE === "single-process") {
     const state = runtime.rivalhubPresence ??= new PresenceState();

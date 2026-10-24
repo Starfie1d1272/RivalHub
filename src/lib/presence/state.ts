@@ -7,7 +7,7 @@ type Entry = { seen: number; persisted: number; pending?: Promise<void> };
 export class PresenceState {
   private readonly accounts = new Map<string, Entry>();
 
-  async touch(userId: string, now: number, persist: () => Promise<void>): Promise<void> {
+  async touch(userId: string, now: number, persist: () => Promise<boolean>): Promise<void> {
     let entry = this.accounts.get(userId);
     if (!entry) {
       for (const [id, value] of this.accounts) if (value.seen <= now - PERSIST_MS && !value.pending) this.accounts.delete(id);
@@ -19,7 +19,7 @@ export class PresenceState {
     if (entry.pending) return entry.pending;
     if (entry.persisted > now - PERSIST_MS) return;
     const current = entry;
-    current.pending = persist().then(() => { current.persisted = now; }).finally(() => { current.pending = undefined; });
+    current.pending = persist().then((written) => { if (written) current.persisted = now; }).finally(() => { current.pending = undefined; });
     return current.pending;
   }
 
