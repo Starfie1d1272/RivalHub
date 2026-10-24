@@ -46,17 +46,15 @@ export async function loadAdminMatchCommentary(seasonId: string, options: { excl
   return readAdminMatchCommentary(db, { seasonId, currentUserId: admin.userId, ...options });
 }
 
-/** Database read owner. Callers must authorize the season before projecting it. */
-export async function readAdminMatchCommentary(
-  database: DB | TxDb,
-  { seasonId, currentUserId, excludeMatchId, historicalMatchIds }: { seasonId: string; currentUserId: string; excludeMatchId?: string; historicalMatchIds?: readonly string[] },
-): Promise<AdminMatchCommentaryData> {
+export async function readAdminMatchPanelFacts(database: DB | TxDb, seasonId: string, historicalMatchIds?: readonly string[]) {
   const teamA = alias(competitionEntries, "commentary_team_a");
   const teamB = alias(competitionEntries, "commentary_team_b");
-  const [matchRows, eligibleUsers] = await Promise.all([
-    database.select({
+  return database.select({
       id: matches.id,
       stage: matches.stage,
+      round: matches.round,
+      createdAt: matches.createdAt,
+      completionDeadline: matches.completionDeadline,
       testConfig: matches.testConfig,
       entryAId: matches.entryAId,
       entryBId: matches.entryBId,
@@ -70,16 +68,28 @@ export async function readAdminMatchCommentary(
     }).from(matches)
       .leftJoin(matchVetoSessions, eq(matchVetoSessions.matchId, matches.id))
       .leftJoin(matchLiveSessions, and(eq(matchLiveSessions.matchId, matches.id), isNull(matchLiveSessions.closedAt)))
-      .innerJoin(teamA, eq(teamA.id, matches.entryAId))
-      .innerJoin(teamB, eq(teamB.id, matches.entryBId))
+      .leftJoin(teamA, eq(teamA.id, matches.entryAId))
+      .leftJoin(teamB, eq(teamB.id, matches.entryBId))
       .where(and(eq(matches.seasonId, seasonId), historicalMatchIds ? or(
         inArray(matches.status, ["scheduled", "in_progress"]),
         historicalMatchIds.length ? inArray(matches.id, [...historicalMatchIds]) : undefined,
       ) : undefined))
-      .orderBy(asc(matches.id)),
+      .orderBy(asc(matches.id));
+}
+export type AdminMatchPanelFact = Awaited<ReturnType<typeof readAdminMatchPanelFacts>>[number];
+
+/** Database read owner. Callers must authorize the season before projecting it. */
+export async function readAdminMatchCommentary(
+  database: DB | TxDb,
+  { seasonId, currentUserId, excludeMatchId, historicalMatchIds }: { seasonId: string; currentUserId: string; excludeMatchId?: string; historicalMatchIds?: readonly string[] },
+  preloaded?: readonly AdminMatchPanelFact[],
+): Promise<AdminMatchCommentaryData> {
+  const [rawMatches, eligibleUsers] = await Promise.all([
+    preloaded ?? readAdminMatchPanelFacts(database, seasonId, historicalMatchIds),
     database.select({ userId: users.id }).from(users)
       .where(and(eq(users.id, currentUserId), commentaryAdminEligibility(seasonId))),
   ]);
+  const matchRows = rawMatches.flatMap(row => row.teamAName !== null && row.teamBName !== null ? [{ ...row, teamAName: row.teamAName, teamBName: row.teamBName }] : []);
   const commentatorRows = matchRows.length === 0 ? [] : await database.select({
     matchId: matchCommentators.matchId,
     userId: users.id,
