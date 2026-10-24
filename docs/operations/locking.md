@@ -8,6 +8,7 @@ Public reads do not acquire these mutation locks.
 | Owner / entry | Locks and indirect writes |
 | --- | --- |
 | `matches/locking.ts`; roster, BP, scheduling, canonical result consumers | match UPDATE → season UPDATE → domain rows; official DML can acquire BET program and prediction job locks |
+| `match-rosters/service.ts` confirmation | roster UPDATE precedes the canonical match/season helper; this inherited child→parent edge also needs coordinated migration |
 | `postevent/guard.ts` | season UPDATE; callers which later change season state already require this exclusive mode |
 | `actions/seasons.ts`, Major prestart/start/transition/playoff/swiss, `postevent/service.ts` archive | season UPDATE → run/entrant/roster/match/domain writes; these callers cannot be changed to a shared lifecycle gate |
 | `match-corrections/service.ts`, match score corrections | source/downstream match locks and lifecycle guard; changing only the canonical match helper does not migrate these direct writers |

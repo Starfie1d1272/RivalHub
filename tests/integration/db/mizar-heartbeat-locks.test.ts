@@ -17,6 +17,8 @@ vi.mock("@/lib/mizar/installation", async original => {
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { ingestMizarReliable } from "@/lib/mizar/reliable";
+import { claimMizarSource } from "@/lib/mizar/source";
+import { loadMizarMatchDocumentInTx } from "@/lib/mizar/context";
 import { RELIABLE_EVENT_SCHEMA_VERSION } from "@/lib/mizar/protocol";
 import { touchMizarInstallation } from "@/lib/mizar/heartbeat";
 import { createLocalPool } from "./harness/database";
@@ -73,6 +75,24 @@ it("throttles heartbeat writes, preserves later timestamps and ignores revoked/c
   await db.update(schema.mizarInstallations).set({ lastSeenAt: null, revokedAt: new Date() }).where(eq(schema.mizarInstallations.id, f.installationId));
   await touchMizarInstallation(f.installationId, f.seasonId);
   expect((await installation())!.lastSeenAt).toBeNull();
+});
+
+it("commits a competing source takeover and exact claim retry with the same installation SHARE barrier", async () => {
+  const f = await seedFixture();
+  const context = await db.transaction(tx => loadMizarMatchDocumentInTx(tx, f.matchId, f.seasonId));
+  let arrived = 0;
+  let release!: () => void;
+  const ready = new Promise<void>(resolve => { release = resolve; });
+  barrier.wait = async () => { if (++arrived === 2) release(); await ready; };
+  const input = { matchId: f.matchId, producerInstanceId: "takeover-fixture", liveSessionId: "takeover-live-fixture",
+    programSourceGeneration: 0, mapEpoch: 1, contextRevision: context.revision, takeover: true,
+    lineupSteam64: f.steam64, allowLineupMismatch: false };
+  try {
+    const results = await Promise.all([1, 2].map(() => claimMizarSource(f.installationId, f.seasonId, input)));
+    expect(results.every(result => result.claimed)).toBe(true);
+    expect(new Set(results.map(result => result.authorityRevision)).size).toBe(1);
+    expect(await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.matchId), eq(schema.auditLogs.action, "mizar.source.claim")))).toHaveLength(1);
+  } finally { barrier.wait = undefined; }
 });
 
 it("bounds a display touch behind an authority SHARE and never reports it as a business failure", async () => {

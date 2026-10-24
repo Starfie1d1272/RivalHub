@@ -75,3 +75,19 @@ it("immediately reads an unknown command result and blocks resubmission of the o
   expect(screen.queryByRole("button", { name: "由 A 先禁图" })).not.toBeInTheDocument();
   expect(send).toHaveBeenCalledOnce();
 });
+
+it("keeps a confirmed commit distinct from a failed room refresh and waits for its committed revision", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(now);
+  Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+  read.mockResolvedValue({ success: true, data: room(1) });
+  send.mockResolvedValue({ success: true, data: { outcome: "applied", receipt: { committedRevision: 2 }, room: null, refreshFailed: true } });
+  render(<VetoRoom initialRoom={room(1)} />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "由 A 先禁图" })); });
+  expect(screen.getByText("操作已确认，房间刷新暂未完成，正在重新同步。")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "由 A 先禁图" })).toBeDisabled();
+  read.mockResolvedValue({ success: true, data: room(2) });
+  await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
+  expect(screen.queryByRole("button", { name: "由 A 先禁图" })).not.toBeInTheDocument();
+  expect(send).toHaveBeenCalledOnce();
+});
