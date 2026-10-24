@@ -114,7 +114,8 @@ function record(event: Omit<TelemetryEvent, "id" | "at" | "session" | "route" | 
     const now = Date.now();
     touchSession(now);
     attempt(() => sessionStorage.setItem(storageKey, JSON.stringify({ id: session, identity, at: now })));
-    const measurement = event.measurement ?? ((event.kind !== "performance" || event.metricName === "NAV_COMMIT") ? measurementContext() : undefined);
+    const capturedMeasurement = event.measurement ?? ((event.kind !== "performance" || event.metricName === "NAV_COMMIT") ? measurementContext() : undefined);
+    const measurement = capturedMeasurement ? { ...capturedMeasurement, visibility: document.visibilityState === "hidden" ? "hidden" as const : "visible" as const } : undefined;
     queue.add({ ...context(), ...event,
       ...(measurement ? { measurement } : {}), client: classifyClient(navigator.userAgent, navigator.maxTouchPoints, document.referrer, window.location.origin), id: sampleId ?? crypto.randomUUID(), at: now, session: operationSession ?? session });
   });

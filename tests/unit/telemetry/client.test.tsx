@@ -307,3 +307,29 @@ it("lets a local boundary provide its error through the same privacy projection"
   expect(events[0].clientError?.fingerprint).toMatch(/^s1:[0-9a-f]{16}$/);
   expect(JSON.stringify(events)).not.toMatch(/PRIVATE|private.invalid|boundary-fixture/);
 });
+
+it("reports current visibility on completion and native metric updates while preserving their original correlation", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", send); configureTelemetry({ ...config, measurementVersion: 1 });
+  const previous = Object.getOwnPropertyDescriptor(document, "visibilityState");
+  Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+  try {
+    let finish!: (value: { success: true }) => void;
+    const pending = observeAction("captains.castVote", () => new Promise<{ success: true }>(resolve => { finish = resolve; }))();
+    const metric = { name: "LCP", id: "same-sample", value: 1000, navigationURL: window.location.href, navigationStartTime: performance.now(), navigationType: "navigate" };
+    recordWebVital(metric);
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    finish({ success: true }); await pending;
+    recordWebVital({ ...metric, value: 1500 });
+    flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    const events = JSON.parse(send.mock.calls[0][1].body).events as TelemetryEvent[];
+    const operation = events.filter(event => event.kind === "operation");
+    expect(operation[0].measurement?.visibility).toBe("visible");
+    expect(operation[1].measurement?.visibility).toBe("hidden");
+    expect(operation[1].measurement?.navigationId).toBe(operation[0].measurement?.navigationId);
+    expect(events.find(event => event.kind === "performance")?.measurement?.visibility).toBe("hidden");
+  } finally {
+    if (previous) Object.defineProperty(document, "visibilityState", previous);
+    else Reflect.deleteProperty(document, "visibilityState");
+  }
+});
