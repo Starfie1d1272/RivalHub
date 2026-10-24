@@ -294,3 +294,16 @@ it("analyzes real D1 batches with reader authorization, latest metric reports an
     await mf.dispose();
   }
 }, 30000);
+
+it("counts all result reports independently of the bounded issue list and started-call cohort", async () => {
+  const { analyzeTelemetry } = await import("@/lib/telemetry/analysis-model");
+  const { analysisDefaults } = await import("@/lib/telemetry/analysis-query");
+  const now = Date.now();
+  const common = { at: now - 1, received: now - 1, expires: now + 60000, session: "a".repeat(32), account: null, role: "anonymous", release: "fixture", route: "/", scene: "site", eventId: null, kind: "operation" };
+  const events = Array.from({ length: 101 }, (_, i) => ({ ...common, id: `r${i}`, operationId: `op${i}`, operation: `operation${i}`, phase: "rejected" }));
+  events.push({ ...common, id: "unknown", operationId: "unknown", operation: "unknown", phase: "unknown" });
+  const data = analyzeTelemetry({ capturedAt: now, batches: 4, bytes: 20000, oldest: now - 1, events, metricIds: [], usage: { budget: { batches: 5000, bytes: 8388608 }, usage: [], expiredBatches: 0 }, truncated: false, validUntil: now + 60000 }, analysisDefaults);
+  expect(data.errorGroups).toHaveLength(100);
+  expect(data.totals).toMatchObject({ rejectedReports: 101, unknownReports: 1, rejected: 0, unknown: 0, resultOnly: 102 });
+  expect(AnalysisData.parse(data).totals.rejectedReports).toBe(101);
+});

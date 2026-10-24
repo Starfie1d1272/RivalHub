@@ -146,6 +146,7 @@ export function analyzeTelemetry(
   const starts = rows.filter(
     (e) => e.kind === "operation" && e.phase === "start",
   );
+  const startedKeys = new Set(starts.map(opKey));
   const calls = starts.map((e) => {
     const results = (completeOps.get(opKey(e)) ?? [])
       .filter((x) => x.phase !== "start")
@@ -410,7 +411,9 @@ export function analyzeTelemetry(
       starts: starts.length,
       success: phase("success"),
       rejected: phase("rejected"),
+      rejectedReports: rejects.length,
       unknown: phase("unknown"),
+      unknownReports: unknown.length,
       pending: phase("pending"),
       outcomeCoveragePct: pct(starts.length - phase("pending"), starts.length),
       errors: errors.length,
@@ -425,7 +428,7 @@ export function analyzeTelemetry(
         (e) =>
           e.kind === "operation" &&
           e.phase !== "start" &&
-          !starts.some((s) => opKey(s) === opKey(e)),
+          !startedKeys.has(opKey(e)),
       ).length,
     },
     buckets,

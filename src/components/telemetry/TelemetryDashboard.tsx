@@ -160,7 +160,7 @@ function Distribution({
     </div>
   );
 }
-function Trend({ rows }: { rows: Analysis["buckets"] }) {
+function Trend({ rows, hours }: { rows: Analysis["buckets"]; hours: string }) {
   const [series, setSeries] = useState<
     "views" | "sessions" | "operations" | "filters" | "errors"
   >("views");
@@ -199,7 +199,7 @@ function Trend({ rows }: { rows: Analysis["buckets"] }) {
       </div>
       <div className="flex justify-between px-5 pt-4 text-xs text-[var(--color-fg-mid)]">
         <span>
-          {names[series]} · {rows.length <= 8 ? "按天" : "按小时"}
+          {names[series]} · {Number(hours) > 24 ? "按天" : "按小时"}
         </span>
         <span>
           {hover !== null && rows[hover]
@@ -324,6 +324,7 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
   const [errorType, setErrorType] = useState("all");
   const [errorKey, setErrorKey] = useState("");
   const [session, setSession] = useState("");
+  const [loadedSession, setLoadedSession] = useState("");
   const [environment, setEnvironment] = useState("device");
   const [technical, setTechnical] = useState(false);
   const first = useRef(true);
@@ -340,11 +341,12 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
         if (cancelled) return;
         if (result.status !== "ready") throw new Error("读取失败");
         setData(result.data);
+        setLoadedSession(session);
         setBusy(false);
       })
       .catch(() => {
         if (!cancelled) {
-          setError("未能更新遥测分析，下面保留上次成功查询的结果。");
+          setError("未能更新遥测分析，请点击刷新分析重试。");
           setBusy(false);
         }
       });
@@ -358,6 +360,9 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
     setSession("");
     setShowAll(false);
   };
+  const filtersMatch = Object.entries(f).every(
+    ([key, value]) => data.filters[key as keyof Filters] === value,
+  );
   const active = Object.entries(f).filter(([k, v]) => k !== "hours" && v);
   const totals = data.totals;
   const ranks = data.routes.filter((p) => p.label.includes(search));
@@ -546,15 +551,17 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
             批；部分分析数据不完整。
           </p>
         )}
-        <Tabs value={tab} onValueChange={setTab}>
+        {!filtersMatch ? (
+          <Panel><Empty text={error ? "当前筛选读取失败，请点击刷新分析重试。" : "正在读取当前筛选…"} /></Panel>
+        ) : <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="max-w-full justify-start overflow-x-auto">
             <TabsTrigger value="overview">访问概览</TabsTrigger>
             <TabsTrigger value="behavior">使用行为</TabsTrigger>
             <TabsTrigger value="performance">页面性能</TabsTrigger>
             <TabsTrigger value="errors">
               异常与拒绝
-              {totals.errors + totals.unknown > 0
-                ? ` · ${totals.errors + totals.unknown}`
+              {totals.errors + totals.unknownReports > 0
+                ? ` · ${totals.errors + totals.unknownReports}`
                 : ""}
             </TabsTrigger>
             <TabsTrigger value="collection">采集状态</TabsTrigger>
@@ -588,7 +595,7 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
                   note={`${totals.success} 成功 · ${totals.rejected} 业务拒绝`}
                 />
               </Panel>
-              <Trend rows={data.buckets} />
+              <Trend rows={data.buckets} hours={data.filters.hours} />
               <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
                 <Panel contentClassName="p-0">
                   <Heading
@@ -675,13 +682,13 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
                       {[
                         {
                           label: "客户端与未知结果",
-                          value: totals.errors + totals.unknown,
+                          value: totals.errors + totals.unknownReports,
                           note: `影响 ${totals.affectedSessions} 个会话`,
                           next: "errors",
                         },
                         {
                           label: "业务拒绝",
-                          value: totals.rejected,
+                          value: totals.rejectedReports,
                           note: "展开查看错误分类与相关操作",
                           next: "errors",
                         },
@@ -990,7 +997,9 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
                         }
                         note="按报告时间排序 · 最多显示 100 条非性能事件"
                       />
-                      {session ? (
+                      {session && session !== loadedSession ? (
+                        <Empty text={error ? "此会话读取失败，请重试。" : "正在读取此会话…"} />
+                      ) : session ? (
                         <div className="max-h-[600px] space-y-0 overflow-auto p-4">
                           {data.timeline.map((e, i) => (
                             <div
@@ -1270,16 +1279,14 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
             <TabsContent value="errors" className="space-y-4">
               <Panel contentClassName="grid grid-cols-2 divide-x divide-[var(--color-border)] p-0 md:grid-cols-4">
                 <Stat label="客户端异常" value={totals.errors} />
-                <Stat label="操作结果未知" value={totals.unknown} />
+                <Stat label="操作结果未知" value={totals.unknownReports} />
                 <Stat
                   label="受异常影响的会话"
                   value={totals.affectedSessions}
                 />
                 <Stat
                   label="业务拒绝报告"
-                  value={data.errorGroups
-                    .filter((e) => e.type === "rejected")
-                    .reduce((n, e) => n + e.n, 0)}
+                  value={totals.rejectedReports}
                   help="拒绝报告按收到的终态计数。业务操作页按本窗口发起的调用关联结果，两个口径可能不同。"
                 />
               </Panel>
@@ -1552,7 +1559,7 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
               </Panel>
             </TabsContent>
           </div>
-        </Tabs>
+        </Tabs>}
         <footer className="flex flex-wrap justify-between gap-3 border-t border-[var(--color-border)] pt-4 text-xs text-[var(--color-fg-mid)]">
           <span>生产遥测 · 北京时间</span>
           <details>
