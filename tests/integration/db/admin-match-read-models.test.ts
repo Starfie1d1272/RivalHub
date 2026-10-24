@@ -269,6 +269,12 @@ describe("admin match read models PostgreSQL integration", () => {
       expect(overview).not.toHaveProperty("mapPool");
       expect(overview?.swissRuntime).toBeNull();
       expect(overview?.playoffRuntime).toBeNull();
+      const scheduledOverview = await loadAdminMatchOverview({ seasonSlug: seasonASlug, view: "schedule" });
+      expect(scheduledOverview?.standingsByStage.get("round_robin")).toEqual([
+        expect.objectContaining({ teamId: ids.entryA, wins: 1, losses: 0, netRounds: 5, totalRoundsWon: 13 }),
+        expect.objectContaining({ teamId: ids.entryB, wins: 0, losses: 1, netRounds: -5, totalRoundsWon: 8 }),
+      ]);
+
       const workspace = await loadSeasonWorkspaceOverview(seasonASlug);
       expect(workspace?.summary).toMatchObject({ approvedEntries: 2, entrantCount: 0, frozenEntrantCount: 0 });
       expect(await loadAdminCommentaryEffectiveness(ids.seasonA)).toEqual([
