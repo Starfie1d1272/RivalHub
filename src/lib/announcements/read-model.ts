@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db/client";
 import { announcements, seasons, type Announcement } from "@/db/schema";
@@ -200,19 +200,24 @@ export async function getPublicAnnouncementHistory(seasonId?: string): Promise<P
   return seasonId ? listPublicAnnouncements(seasonId) : listAllPublicAnnouncements();
 }
 
-export async function listAnnouncementsForAdmin(input: {
+export type AnnouncementAdminFilters = {
   role: "season_admin" | "super_admin";
   seasonIds: readonly string[];
   status?: Announcement["status"];
   scope?: Announcement["scope"];
   seasonId?: string;
-}): Promise<AnnouncementAdminRow[]> {
-  const conditions = [
+};
+
+function announcementAdminConditions(input: AnnouncementAdminFilters) {
+  return [
     input.seasonId ? eq(announcements.seasonId, input.seasonId) : undefined,
     input.status ? eq(announcements.status, input.status) : undefined,
     input.scope ? eq(announcements.scope, input.scope) : undefined,
     input.role === "super_admin" ? undefined : input.seasonIds.length > 0 ? inArray(announcements.seasonId, input.seasonIds) : eq(announcements.id, "00000000-0000-0000-0000-000000000000"),
   ];
+}
+
+export async function listAnnouncementsForAdmin(input: AnnouncementAdminFilters): Promise<AnnouncementAdminRow[]> {
   const rows = await db
     .select({
       id: announcements.id,
@@ -232,12 +237,64 @@ export async function listAnnouncementsForAdmin(input: {
     })
     .from(announcements)
     .leftJoin(seasons, eq(announcements.seasonId, seasons.id))
-    .where(and(...conditions))
+    .where(and(...announcementAdminConditions(input)))
     .orderBy(desc(announcements.updatedAt), desc(announcements.id));
   return rows;
 }
 
-export async function getAnnouncementForAdmin(id: string, input: { role: "season_admin" | "super_admin"; seasonIds: readonly string[] }): Promise<AnnouncementAdminRow | null> {
-  const rows = await listAnnouncementsForAdmin(input);
-  return rows.find((row) => row.id === id) ?? null;
+export type AnnouncementAdminSummary = Omit<AnnouncementAdminRow, "body">;
+
+export async function listAnnouncementAdminSummaries(input: AnnouncementAdminFilters & { page?: number; pageSize?: number }): Promise<{
+  items: AnnouncementAdminSummary[]; total: number; page: number; pageSize: number;
+}> {
+  const page = Number.isSafeInteger(input.page) && input.page! > 0 && input.page! <= 10000 ? input.page! : 1;
+  const pageSize = Number.isSafeInteger(input.pageSize) && input.pageSize! > 0 && input.pageSize! <= 100 ? input.pageSize! : 20;
+  const totalRead = db.select({ value: count() }).from(announcements).where(and(...announcementAdminConditions(input))).execute();
+  const [rows, [total]] = await Promise.all([db
+    .select({
+      id: announcements.id,
+      scope: announcements.scope,
+      seasonId: announcements.seasonId,
+      seasonName: seasons.name,
+      seasonSlug: seasons.slug,
+      type: announcements.type,
+      title: announcements.title,
+      status: announcements.status,
+      requiresAttention: announcements.requiresAttention,
+      attentionUntil: announcements.attentionUntil,
+      publishedAt: announcements.publishedAt,
+      createdAt: announcements.createdAt,
+      updatedAt: announcements.updatedAt,
+    })
+    .from(announcements)
+    .leftJoin(seasons, eq(announcements.seasonId, seasons.id))
+    .where(and(...announcementAdminConditions(input)))
+    .orderBy(desc(announcements.updatedAt), desc(announcements.id))
+    .limit(pageSize).offset((page - 1) * pageSize), totalRead]);
+  return { items: rows, total: Number(total?.value ?? 0), page, pageSize };
+}
+
+export async function getAnnouncementForAdmin(id: string, input: AnnouncementAdminFilters): Promise<AnnouncementAdminRow | null> {
+  const [row] = await db
+    .select({
+      id: announcements.id,
+      scope: announcements.scope,
+      seasonId: announcements.seasonId,
+      seasonName: seasons.name,
+      seasonSlug: seasons.slug,
+      type: announcements.type,
+      title: announcements.title,
+      body: announcements.body,
+      status: announcements.status,
+      requiresAttention: announcements.requiresAttention,
+      attentionUntil: announcements.attentionUntil,
+      publishedAt: announcements.publishedAt,
+      createdAt: announcements.createdAt,
+      updatedAt: announcements.updatedAt,
+    })
+    .from(announcements)
+    .leftJoin(seasons, eq(announcements.seasonId, seasons.id))
+    .where(and(eq(announcements.id, id), ...announcementAdminConditions(input)))
+    .limit(1);
+  return row ?? null;
 }

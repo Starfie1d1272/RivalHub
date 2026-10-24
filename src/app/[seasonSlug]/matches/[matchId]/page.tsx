@@ -1,5 +1,4 @@
 import MatchDetailLoading from "./loading";
-import { loadPublicMatchRefreshToken } from "@/lib/matches/public-refresh";
 import { hasMatchRecording } from "@/lib/postmatch/recording-types";
 import { MatchRecordings } from "@/components/matches/MatchRecordings";
 import { hasActivePublicSanction } from "@/lib/discipline/public-query";
@@ -107,19 +106,17 @@ async function loadMatchCore(params: MatchDetailPageProps["params"]) {
   if (!match || match.seasonId !== season.id) notFound();
   assertCompetitionMatch(match);
 
-  const [teams, maps, refreshToken] = await Promise.all([
+  const [teams, maps] = await Promise.all([
     db.query.competitionEntries.findMany({ where: and(eq(competitionEntries.competitionId, season.id), inArray(competitionEntries.id, [match.entryAId, match.entryBId])) }),
     db.query.matchMaps.findMany({
       where: eq(matchMaps.matchId, matchId),
       orderBy: (t, { asc }) => [asc(t.mapOrder)],
     }),
-    match.status === "scheduled" || match.status === "in_progress"
-      ? loadPublicMatchRefreshToken(season.id, { matchId: match.id }) : Promise.resolve(""),
   ]);
 
   const teamA = teams.find(team => team.id === match.entryAId);
   const teamB = teams.find(team => team.id === match.entryBId);
-  return { seasonSlug, season, match, teamA, teamB, maps, refreshToken };
+  return { seasonSlug, season, match, teamA, teamB, maps };
 }
 
 type MatchCore = Awaited<ReturnType<typeof loadMatchCore>>;
@@ -133,7 +130,7 @@ async function MatchDetailShell({ params, searchParams }: MatchDetailPageProps) 
   const { seasonSlug, season, match, teamA, teamB, maps } = core;
   return <PageLayout variant="wide" className="space-y-8">
     {match.testConfig && <p className="text-sm text-[var(--color-fg-mid)]">测试赛 · 不计入正式赛程与统计</p>}
-    <MatchContextRefresh enabled={match.status === "scheduled" || match.status === "in_progress"} seasonSlug={seasonSlug} scope={{ matchId: match.id }} initialToken={core.refreshToken} />
+    <MatchContextRefresh enabled={match.status === "scheduled" || match.status === "in_progress"} seasonSlug={seasonSlug} scope={{ matchId: match.id }} />
     <MatchHeroHeader seasonSlug={seasonSlug} stageName={presentMatchStage(match.stage, season.stagePlan)}
       match={{ ...match, displayScore: projectDisplayScore(match, maps) }} teamA={teamA} teamB={teamB} isFinished={match.status === "finished"} />
     <Suspense fallback={<div role="status" className="min-h-80 text-sm text-[var(--color-fg-mid)]">比赛内容加载中…</div>}>

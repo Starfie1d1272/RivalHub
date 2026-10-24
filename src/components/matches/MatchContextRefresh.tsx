@@ -7,17 +7,19 @@ import { readPublicMatchRefreshToken } from "@/actions/public-match-refresh";
 import type { PublicMatchRefreshScope } from "@/lib/matches/public-refresh";
 
 /** Live frames remain on Broadcast; idle pages read a token instead of rebuilding RSC. */
-export function MatchContextRefresh({ enabled, seasonSlug, scope, initialToken }: {
-  enabled: boolean; seasonSlug: string; scope: PublicMatchRefreshScope; initialToken: string;
+export function MatchContextRefresh({ enabled, seasonSlug, scope }: {
+  enabled: boolean; seasonSlug: string; scope: PublicMatchRefreshScope;
 }) {
   const router = useRouter();
   const [pending, startRefresh] = useTransition();
   const lastFullSync = useRef(0);
-  const requestScope = `${seasonSlug}:${scope.matchId ?? scope.stage}:${initialToken}`;
+  const lastObservedToken = useRef<string | null>(null);
+  const requestScope = `${seasonSlug}:${scope.matchId ?? scope.stage}`;
   const currentScope = useRef(requestScope);
   useEffect(() => {
     currentScope.current = requestScope;
     lastFullSync.current = 0;
+    lastObservedToken.current = null;
   }, [requestScope]);
   useVisiblePolling(async () => {
     if (pending) return;
@@ -28,7 +30,11 @@ export function MatchContextRefresh({ enabled, seasonSlug, scope, initialToken }
     if (lastFullSync.current === 0) lastFullSync.current = now;
     // A failed read cannot be interpreted as unchanged. Full resync recovers
     // authorization/visibility changes and auxiliary/global facts within two minutes.
-    if (!result?.success || result.data !== initialToken || now - lastFullSync.current >= 120_000) {
+    const changed = !result?.success || result.data !== lastObservedToken.current;
+    if (result?.success) lastObservedToken.current = result.data;
+    // The first read establishes a baseline before starting its RSC request.
+    // Comparing against a later SSR fingerprint could miss a concurrent change.
+    if (changed || now - lastFullSync.current >= 120_000) {
       lastFullSync.current = now;
       startRefresh(() => router.refresh());
     }

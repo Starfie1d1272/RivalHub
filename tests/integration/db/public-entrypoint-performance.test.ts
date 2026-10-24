@@ -127,3 +127,28 @@ it("reuses Play-in facts only inside the frozen run and event scope", async () =
   const unrelated = { ...displayed[0]!, id: randomUUID(), seasonId: randomUUID() };
   expect(await loadQualificationSwissStageReadModel(f.seasonId, { run: run!, displayedMatches: [...displayed, unrelated] })).toEqual(direct);
 });
+
+it("keeps administrator summary counts and direct details scoped without returning list bodies", async () => {
+  const { listAnnouncementAdminSummaries, getAnnouncementForAdmin } = await import("@/lib/announcements/read-model");
+  const { listSeasonPublicInfoAdminSummaries, getSeasonPublicInfoAdmin } = await import("@/lib/season-public-info/read-model");
+  const f = await seedFixture(), other = await seedFixture();
+  await db.insert(schema.communityGroups).values([{ seasonId: f.seasonId, label: "active", groupNumber: "1" }, { seasonId: f.seasonId, label: "closed", status: "closed" }]);
+  await db.insert(schema.seasonContacts).values({ seasonId: f.seasonId, label: "public contact", value: "fixture" });
+  await db.insert(schema.communityGroups).values({ seasonId: other.seasonId, label: "foreign", groupNumber: "2" });
+  const summaries = await listSeasonPublicInfoAdminSummaries("season_admin", [f.seasonId]);
+  expect(summaries).toHaveLength(1);
+  expect(summaries[0]).toMatchObject({ season: { id: f.seasonId }, groupCount: 2, contactCount: 1 });
+  expect(await listSeasonPublicInfoAdminSummaries("season_admin", [])).toEqual([]);
+  expect((await getSeasonPublicInfoAdmin(f.seasonId, "season_admin", [f.seasonId]))?.groups).toHaveLength(2);
+  expect(await getSeasonPublicInfoAdmin(other.seasonId, "season_admin", [f.seasonId])).toBeNull();
+  const [draft] = await db.insert(schema.announcements).values({ scope: "season", seasonId: f.seasonId, title: "admin draft", body: "full detail body" }).returning();
+  await db.insert(schema.announcements).values({ scope: "season", seasonId: other.seasonId, title: "foreign draft", body: "foreign body" });
+  const access = { role: "season_admin" as const, seasonIds: [f.seasonId] };
+  const page = await listAnnouncementAdminSummaries({ ...access, pageSize: 1 });
+  expect(page).toMatchObject({ total: 1, page: 1, pageSize: 1 });
+  expect(page.items[0]).toMatchObject({ id: draft!.id, status: "draft" });
+  expect(page.items[0]).not.toHaveProperty("body");
+  expect((await getAnnouncementForAdmin(draft!.id, access))?.body).toBe("full detail body");
+  expect(await getAnnouncementForAdmin(draft!.id, { ...access, seasonId: other.seasonId })).toBeNull();
+  expect(await getAnnouncementForAdmin(draft!.id, { role: "season_admin", seasonIds: [] })).toBeNull();
+});

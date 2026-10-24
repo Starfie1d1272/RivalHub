@@ -1,4 +1,3 @@
-import { loadPublicMatchRefreshToken } from "@/lib/matches/public-refresh";
 import { projectBracketDisplayScores } from "@/lib/bracket/display-scores";
 import { withDisplayScores } from "@/lib/matches/display-score-data";
 import { officialMatchCondition } from "@/lib/matches/scope";
@@ -66,7 +65,6 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
       ? requestedMajorStageKey ?? stagePresentation.currentStageKey ?? (qualificationRun ? "play-in" : stagePlan[0]?.key ?? null)
       : resolveDefaultStageKey(stagePlan, stagePresentation.initializedStageKeys.map(stage => ({ stage })), requestedStage);
   const selectedStage = stagePlan.find(stage => stage.key === defaultStageKey);
-  const refreshTokenRead = defaultStageKey ? loadPublicMatchRefreshToken(season.id, { stage: defaultStageKey }) : Promise.resolve("");
   const allMatchesRaw = defaultStageKey ? await db.query.matches.findMany({
     where: and(officialMatchCondition(), eq(matches.seasonId, season.id), eq(matches.stage, defaultStageKey)),
     orderBy: [asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
@@ -116,7 +114,6 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
   });
 
 
-  const refreshToken = await refreshTokenRead;
   if (stagePresentation.initializedStageKeys.length === 0 && allTeams.length === 0) {
     return (
       <PageLayout variant="wide" className="py-16 text-center text-[var(--color-fg-mid)]">
@@ -127,7 +124,7 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
 
   return (
     <PageLayout as="div" variant="standard" className="space-y-8">
-      <MatchContextRefresh enabled={defaultStageKey !== null && !["finished", "archived"].includes(season.status)} seasonSlug={seasonSlug} scope={{ stage: defaultStageKey ?? "" }} initialToken={refreshToken} />
+      <MatchContextRefresh enabled={defaultStageKey !== null && !["finished", "archived"].includes(season.status)} seasonSlug={seasonSlug} scope={{ stage: defaultStageKey ?? "" }} />
       <PageHeader
         title="赛程"
         eyebrow={season.name}

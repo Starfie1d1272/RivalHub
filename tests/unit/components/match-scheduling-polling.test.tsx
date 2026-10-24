@@ -26,7 +26,7 @@ it("polls only the change token while idle, and refreshes changed facts after ta
   let visibility: DocumentVisibilityState = "visible";
   vi.spyOn(document, "visibilityState", "get").mockImplementation(() => visibility);
   render(<>
-    <MatchContextRefresh enabled seasonSlug="isolated" scope={{ matchId: "match" }} initialToken="initial" />
+    <MatchContextRefresh enabled seasonSlug="isolated" scope={{ matchId: "match" }} />
     <MatchTimeNegotiation matchId="match" isCaptainA isCaptainB={false} isAdmin={false}
       currentScheduledAt={null} currentCompletionDeadline={null} hasSubmittedRoster
       initialProposals={[{ id: "proposal", status: "pending", proposedTime: new Date("2026-10-14T12:00:00Z"),
@@ -34,15 +34,15 @@ it("polls only the change token while idle, and refreshes changed facts after ta
   </>);
   for (let tick = 0; tick < 8; tick++) await act(() => vi.advanceTimersByTimeAsync(15_000));
   expect(readToken).toHaveBeenCalledTimes(8);
-  expect(refresh).not.toHaveBeenCalled();
+  expect(refresh).toHaveBeenCalledTimes(1);
   visibility = "hidden";
   await act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
   await act(() => vi.advanceTimersByTimeAsync(60_000));
   expect(readToken).toHaveBeenCalledTimes(8);
-  expect(refresh).not.toHaveBeenCalled();
+  expect(refresh).toHaveBeenCalledTimes(1);
   readToken.mockResolvedValue({ success: true, data: "changed" });
   visibility = "visible";
   await act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
   expect(readToken).toHaveBeenCalledTimes(9);
-  expect(refresh).toHaveBeenCalledTimes(1);
+  expect(refresh).toHaveBeenCalledTimes(2);
 });
