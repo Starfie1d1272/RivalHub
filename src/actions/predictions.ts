@@ -5,11 +5,11 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { actionError, failValidation } from "@/lib/action-utils";
-import { requireAuth, getUserSession } from "@/lib/auth/session";
+import { requireAuth } from "@/lib/auth/session";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { ok } from "@/types/action";
-import { predictionBoard, publicPickEmBoard } from "@/lib/predictions/data";
+import { predictionRequestInput, pickEmSummaryRequestInput, readPredictionRequest, readPickEmSummaryRequest } from "@/lib/predictions/request-read";
 import { pickSchema } from "@/lib/predictions/rules";
 import {
   joinPredictionsInTx,
@@ -30,28 +30,9 @@ function refresh(slug: string) {
   revalidatePath(`/${slug}/predictions`);
 }
 export async function getPredictionBoard(input: unknown) {
-  const p = scope
-    .extend({ view: z.enum(["sim", "record"]).default("sim") })
-    .safeParse(input);
-  if (!p.success) return failValidation("赛事参数无效");
-  try {
-    await publicSeason(p.data.seasonId);
-    const user = await getUserSession();
-    return ok(
-      await db.transaction(
-        (tx) =>
-          predictionBoard(
-            tx,
-            p.data.seasonId,
-            user?.userId ?? null,
-            p.data.view,
-          ).then(publicPickEmBoard),
-        { accessMode: "read only", isolationLevel: "repeatable read" },
-      ),
-    );
-  } catch (e) {
-    return actionError("predictions.read", e);
-  }
+  const parsed=predictionRequestInput.safeParse(input);
+  if(!parsed.success)return failValidation("赛事参数无效");
+  try{return ok(await readPredictionRequest(parsed.data));}catch(error){return actionError("predictions.read",error);}
 }
 const spectatorInput = z.discriminatedUnion("operation", [
   scope.extend({ operation: z.literal("join") }),
@@ -74,9 +55,16 @@ export async function mutatePrediction(input: unknown) {
       if (args.operation === "join") return joinPredictionsInTx(tx, args);
       return savePickInTx(tx, args);
     });
-    refresh(season.slug);
+    try { refresh(season.slug); } catch (error) { actionError("predictions.postcommit_refresh", error); }
     return ok(receipt);
   } catch (e) {
     return actionError("predictions.mutate", e);
   }
+}
+
+/** Tasks need only the viewer; ranking retains the full population before truncation. */
+export async function getPickEmSummary(input: unknown) {
+  const parsed=pickEmSummaryRequestInput.safeParse(input);
+  if(!parsed.success)return failValidation("赛事参数无效");
+  try{return ok(await readPickEmSummaryRequest(parsed.data));}catch(error){return actionError("predictions.summary",error);}
 }

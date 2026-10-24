@@ -38,25 +38,28 @@ export async function betBalance(tx: TxDb,accountId: string) {
   return BigInt(row?.amount??"0");
 }
 export function betFactInput(m: typeof markets.$inferSelect,facts: BetFacts) {return {...m,match:facts.official.find(x=>x.id===m.matchId),maps:facts.maps.filter(x=>x.matchId===m.matchId),veto:facts.vetoByMatch.get(m.matchId??""),event:facts.event};}
-async function createMarket(tx: TxDb,seasonId: string,matchId: string|null,type: MarketType,subject: BetSubject,choices: {key:string;label:string}[],line: number|null=null) {
-  if (choices.length<2) return;
-  const marketKey = `${matchId??"event"}/${type}/${digest(subject)}`;
-  const [market] = await tx.insert(markets).values({seasonId,matchId,type,subject,line,marketKey}).onConflictDoNothing().returning();
-  if (market) await tx.insert(options).values(choices.map((o,position)=>({...o,position,marketId:market.id})));
-}
 async function publishMarkets(tx: TxDb,f: BetFacts) {
   const seasonId=f.season.id;
   const program=await tx.query.betPrograms.findFirst({where:eq(programs.seasonId,seasonId)});
   // Every existing BP pool freezes its terms, including empty or terminal history.
   // Presence adoption also prevents rollback to ordered rules after subject correction.
-  const bpMarkets=await tx.select().from(markets).where(eq(markets.seasonId,seasonId)).then(rows=>rows.filter(m=>m.type.startsWith("veto_")));
+  const catalog=await tx.select().from(markets).where(eq(markets.seasonId,seasonId));
+  const known = new Set(catalog.map(market=>market.marketKey));
+  const planned: {row: typeof markets.$inferInsert; choices: {key:string;label:string}[]}[] = [];
+  function planMarket(seasonId: string, matchId: string|null, type: MarketType, subject: BetSubject, choices: {key:string;label:string}[], line: number|null=null) {
+    const marketKey = `${matchId??"event"}/${type}/${digest(subject)}`;
+    if (choices.length < 2 || known.has(marketKey)) return;
+    known.add(marketKey);
+    planned.push({row:{seasonId,matchId,type,subject,line,marketKey},choices});
+  }
+  const bpMarkets=catalog.filter(m=>m.type.startsWith("veto_"));
   const publishesPresence=(catalogContract.capabilities?.bo3BpPresence?.publisherVersion ?? 0) >= 1;
-  const existing=await tx.select().from(markets).where(and(eq(markets.seasonId,seasonId),eq(markets.type,"total_rounds")));
+  const existing=catalog.filter(m=>m.type==="total_rounds");
   const earlyEventPublication = (catalogContract.capabilities?.eventBeforeSeeds?.publisherVersion ?? 0) >= 1;
   if (!f.event.started && f.eventPublication.entrantsReady && (earlyEventPublication || f.eventPublication.seedsConfirmed)) {
     const subject: BetSubject={kind:"event",entryIds:f.event.entryIds,playerIds:f.event.playerIds};
-    await createMarket(tx,seasonId,null,"champion",{...subject,playerIds:[]},f.event.entryIds.map(id=>({key:id,label:f.entries.find(e=>e.id===id)?.name??"队伍"})));
-    if (f.eventPublication.rostersReady) await createMarket(tx,seasonId,null,"top_fragger",subject,f.players.map(p=>({key:p.id,label:p.name})));
+    planMarket(seasonId,null,"champion",{...subject,playerIds:[]},f.event.entryIds.map(id=>({key:id,label:f.entries.find(e=>e.id===id)?.name??"队伍"})));
+    if (f.eventPublication.rostersReady) planMarket(seasonId,null,"top_fragger",subject,f.players.map(p=>({key:p.id,label:p.name})));
   }
   for (const m of f.official) {
     if (!m.majorStageRunId && !m.qualificationRunId || m.entryRound==="third_place" || m.isForfeit || m.status==="finished" || m.status==="cancelled") continue;
@@ -67,12 +70,12 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
     const subject: BetSubject={kind:"match",entryIds:[m.entryAId,m.entryBId],runId:(m.majorStageRunId??m.qualificationRunId)!,format:m.format,mapPool:[]};
     const teams=subject.entryIds.map(id=>({key:id,label:f.entries.find(e=>e.id===id)?.name??"队伍"}));
     if (!m.startedAt && !legacyStart) {
-      await createMarket(tx,seasonId,m.id,"match_winner",subject,teams);
+      planMarket(seasonId,m.id,"match_winner",subject,teams);
       if (m.format!=="bo1") {
         const target=m.format==="bo3"?2:3;
         const scores=Array.from({length:target},(_,i)=>({key:`${target}:${i}`,label:`${target}:${i}`})).concat(Array.from({length:target},(_,i)=>({key:`${target-1-i}:${target}`,label:`${target-1-i}:${target}`})));
-        await createMarket(tx,seasonId,m.id,"exact_score",subject,scores);
-        await createMarket(tx,seasonId,m.id,"total_maps",subject,[{key:"over",label:"大"},{key:"under",label:"小"}],seriesLineTwice(m.format));
+        planMarket(seasonId,m.id,"exact_score",subject,scores);
+        planMarket(seasonId,m.id,"total_maps",subject,[{key:"over",label:"大"},{key:"under",label:"小"}],seriesLineTwice(m.format));
       }
       const pool=veto?.mapPoolSnapshot??normalizeRegistrationConfig(f.season.registrationConfig).mapPool;
       if (!veto?.startedAt && pool.length>=Number(m.format.slice(2)) && !bpMarkets.some(market=>market.type==="veto_present" && market.matchId===m.id)) {
@@ -81,10 +84,10 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
         if (m.format==="bo3" && publishesPresence) {
           // Never convert or supplement an old BP pool, even after identity corrections.
           if (pool.length===7 && new Set(pool).size===7 && !bpMarkets.some(market=>market.matchId===m.id))
-            await createMarket(tx,seasonId,m.id,"veto_present",bpSubject,choices);
+            planMarket(seasonId,m.id,"veto_present",bpSubject,choices);
         } else {
-          await createMarket(tx,seasonId,m.id,m.format==="bo1"?"veto_map":"veto_first",bpSubject,choices);
-          if(m.format!=="bo1") await createMarket(tx,seasonId,m.id,"veto_decider",bpSubject,choices);
+          planMarket(seasonId,m.id,m.format==="bo1"?"veto_map":"veto_first",bpSubject,choices);
+          if(m.format!=="bo1") planMarket(seasonId,m.id,"veto_decider",bpSubject,choices);
         }
       }
     }
@@ -101,28 +104,39 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
       },m,maps,veto))) continue;
       const map=maps.find(x=>x.mapOrder===mapOrder);
       const recent=map?history.filter(x=>x.id!==map.id && x.mapName===map.mapName && f.official.some(match=>match.id===x.matchId && [match.entryAId,match.entryBId].some(id=>subject.entryIds.includes(id)))).slice(0,20):[];
-      await createMarket(tx,seasonId,m.id,"total_rounds",slot,[{key:"over",label:"大"},{key:"under",label:"小"}],roundLineTwice(recent.map(x=>x.scoreA!+x.scoreB!),history.slice(0,60).map(x=>x.scoreA!+x.scoreB!)));
+      planMarket(seasonId,m.id,"total_rounds",slot,[{key:"over",label:"大"},{key:"under",label:"小"}],roundLineTwice(recent.map(x=>x.scoreA!+x.scoreB!),history.slice(0,60).map(x=>x.scoreA!+x.scoreB!)));
     }
     if (!veto?.completedAt || veto.pendingAppeal) continue;
     const map=maps.find(x=>!x.completedAt);
     if (!map || map.startedAt || (map.mapOrder===1 && m.startedAt) || maps.filter(x=>x.mapOrder<map.mapOrder).some(x=>!x.completedAt)) continue;
     if (computeSeriesProgress(m.format,maps.filter(x=>x.completedAt)).seriesFinished) continue;
     const mapSubject: BetSubject={kind:"map",entryIds:subject.entryIds,runId:subject.runId,format:m.format,mapId:map.id,mapOrder:map.mapOrder,mapName:map.mapName};
-    if (m.format!=="bo1") await createMarket(tx,seasonId,m.id,"map_winner",mapSubject,teams);
+    if (m.format!=="bo1") planMarket(seasonId,m.id,"map_winner",mapSubject,teams);
     if (catalogContract.publisherVersion >= 2) continue;
     const legacyHistory=f.maps.filter(x=>x.completedAt && x.scoreA!==null && x.scoreB!==null && x.id!==map.id).sort((a,b)=>b.completedAt!.getTime()-a.completedAt!.getTime());
     const recent=legacyHistory.filter(x=>x.mapName===map.mapName && f.official.some(match=>match.id===x.matchId && [match.entryAId,match.entryBId].some(id=>subject.entryIds.includes(id)))).slice(0,20);
     // A compatible older publisher must never duplicate a newer slot pool.
     if (existing.some(market=>market.matchId===m.id && market.subject.kind==="map_slot" && market.subject.mapOrder===map.mapOrder && subjectMatches(market.subject,m,maps,veto))) continue;
-    await createMarket(tx,seasonId,m.id,"total_rounds",mapSubject,[{key:"over",label:"大"},{key:"under",label:"小"}],roundLineTwice(recent.map(x=>x.scoreA!+x.scoreB!),legacyHistory.slice(0,60).map(x=>x.scoreA!+x.scoreB!)));
+    planMarket(seasonId,m.id,"total_rounds",mapSubject,[{key:"over",label:"大"},{key:"under",label:"小"}],roundLineTwice(recent.map(x=>x.scoreA!+x.scoreB!),legacyHistory.slice(0,60).map(x=>x.scoreA!+x.scoreB!)));
   }
+  if (planned.length) {
+    // Batch sizes bound SQL parameter counts while preserving the program transaction.
+    for (let start=0;start<planned.length;start+=500) {
+      const batch=planned.slice(start,start+500);
+      const inserted=await tx.insert(markets).values(batch.map(item=>item.row)).onConflictDoNothing().returning();
+      const byKey=new Map(batch.map(item=>[item.row.marketKey,item.choices]));
+      const optionRows=inserted.flatMap(market=>(byKey.get(market.marketKey)??[]).map((choice,position)=>({...choice,position,marketId:market.id})));
+      if (optionRows.length) await tx.insert(options).values(optionRows);
+      catalog.push(...inserted);
+    }
+  }
+  return catalog;
 }
 /** Caller holds only Bet program lock; official rows are read, never locked by workers. */
 export async function reconcileBetInTx(tx: TxDb,seasonId: string) {
   const f=await loadBetFacts(tx,seasonId);
-  await publishMarkets(tx,f);
+  const all=await publishMarkets(tx,f);
   const now=new Date();
-  const all=await tx.select().from(markets).where(eq(markets.seasonId,seasonId));
   // Keep database round trips bounded while the shared program lock is held.
   const marketIds=all.map(market=>market.id);
   const allChoices=marketIds.length ? await tx.select().from(options).where(inArray(options.marketId,marketIds)) : [];
@@ -140,6 +154,8 @@ export async function reconcileBetInTx(tx: TxDb,seasonId: string) {
     rows.push(stake);stakesByMarket.set(stake.marketId,rows);
   }
   const previousByMarket=new Map(latest.map(batch=>[batch.marketId,batch]));
+  const oldLedger=latest.length ? await tx.select().from(ledger).where(and(eq(ledger.seasonId,seasonId),inArray(ledger.source,latest.map(batch=>`settlement/${batch.id}`)))) : [];
+  const ledgerRows: (typeof ledger.$inferInsert)[] = [];
   for(const market of all) {
     // A pre-seeding admin rollback temporarily removes the frozen player set.
     // Do not terminally void an otherwise valid no-stake Top Fragger market
@@ -162,13 +178,18 @@ export async function reconcileBetInTx(tx: TxDb,seasonId: string) {
     if(previous?.fingerprint===fingerprint) continue;
     const [batch]=await tx.insert(settlements).values({marketId:market.id,revision:(previous?.revision??0)+1,state,winningOptionIds,fingerprint}).returning();
     if(previous) {
-      const old=await tx.select().from(ledger).where(and(eq(ledger.seasonId,seasonId),eq(ledger.source,`settlement/${previous.id}`)));
-      for(const row of old) await writeLedger(tx,{seasonId,accountId:row.accountId,amount:-row.amount,profit:-row.profit,kind:"reversal",source:`reversal/${batch!.id}/${row.id}`});
+      const old=oldLedger.filter(row=>row.source===`settlement/${previous.id}`);
+      for(const row of old) ledgerRows.push({seasonId,accountId:row.accountId,amount:-row.amount,profit:-row.profit,kind:"reversal",source:`reversal/${batch!.id}/${row.id}`});
     }
     if(state!=="pending") {
       const payouts=distributePool(rows.map(s=>({accountId:s.accountId,optionId:s.optionId,stake:s.amount})),state==="settled"?winningOptionIds:null);
-      for(const [accountId,amount] of payouts) await writeLedger(tx,{seasonId,accountId,amount,profit:amount-rows.filter(s=>s.accountId===accountId).reduce((n,s)=>n+s.amount,BigInt(0)),kind:"settlement",source:`settlement/${batch!.id}`});
+      const invested=new Map<string,bigint>();
+      for (const row of rows) invested.set(row.accountId,(invested.get(row.accountId)??BigInt(0))+row.amount);
+      for(const [accountId,amount] of payouts) ledgerRows.push({seasonId,accountId,amount,profit:amount-(invested.get(accountId)??BigInt(0)),kind:"settlement",source:`settlement/${batch!.id}`});
     }
+  }
+  for (let start=0;start<ledgerRows.length;start+=1000) {
+    await tx.insert(ledger).values(ledgerRows.slice(start,start+1000)).onConflictDoNothing({target:[ledger.accountId,ledger.source]});
   }
   // Recover canonical launches even when the StageRun predates BET activation.
   // Keep database timestamp precision and the immutable first launch per stage key.
@@ -225,7 +246,7 @@ export async function stakeBetInTx(tx:TxDb,input:{seasonId:string;userId:string;
     if(replay.marketId!==input.marketId || replay.optionId!==input.optionId || replay.allIn!==(input.amount==="all") || !replay.allIn && replay.amount.toString()!==input.amount) invalid("重复请求标识与内容不一致");
     return {amount:replay.amount.toString()};
   }
-  const facts=await loadBetFacts(tx,input.seasonId);
+  const facts=await loadBetFacts(tx,input.seasonId,{matchId:target.matchId??undefined,event:!target.matchId,rosterUserId:target.matchId?input.userId:undefined});
   const market=await tx.query.betMarkets.findFirst({where:eq(markets.id,target.id)});
   if(program.paused || !market || market.lockedAt || marketIsLocked(betFactInput(market,facts)) || resolveBetFact(betFactInput(market,facts)).state!=="pending") invalid("盘口已锁定或暂停投入");
   const restriction = betRosterRestriction(input.userId, market.subject, facts.roster);

@@ -2,7 +2,6 @@ import "server-only";
 import { eq, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { users, steamProfiles } from "@/db/schema";
-import { readBetRankingParticipants } from "@/lib/bet/ranking-participants";
 import { readBetAccounts } from "@/lib/bet/account-data";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getPublicPlayerIdentityIds } from "@/lib/players/public-identity";
@@ -10,11 +9,20 @@ import { partitionRankingPopulation } from "@/lib/stats/ranking";
 import { loadFreePredictionPopulation, choiceFact } from "./data";
 import { gradePrediction } from "./domain";
 import type { FreePredictionRankingRowDTO, FreePredictionSort } from "./types";
-async function loadRankingPopulation(tx: TxDb, seasonId: string) {
+export async function readFreeRankingSnapshot(tx: TxDb, seasonId: string) {
   const {facts,rows} = await loadFreePredictionPopulation(tx,seasonId);
-  const financial = (await readBetAccounts(tx,seasonId,undefined,facts)).leaderboard;
-  // Canonical account totals keep joined-but-unjudged participants distinct from absence.
-  const accounts = await readBetRankingParticipants(tx,seasonId);
+  const finances=await readBetAccounts(tx,seasonId,undefined,facts,{records:false});
+  const financial=finances.leaderboard;
+  // Includes joined but unjudged accounts and retains complete-population ranks.
+  const accounts=finances.financialPopulation;
+  const ids = [...new Set([...rows.map(r=>r.userId),...accounts.map(r=>r.userId)])];
+  const identities = ids.length ? await tx.select({userId:users.id,displayName:users.displayName,perfectName:users.perfectName,personaName:steamProfiles.personaName})
+    .from(users).leftJoin(steamProfiles,eq(steamProfiles.steam64,users.steam64)).where(inArray(users.id,ids)) : [];
+  const playerIds = await getPublicPlayerIdentityIds(tx,ids);
+  return {facts,rows,financial,accounts,identities,playerIds,finances};
+}
+function projectPopulation(snapshot: Awaited<ReturnType<typeof readFreeRankingSnapshot>>) {
+  const {facts,rows,financial,accounts,identities,playerIds}=snapshot;
   const results = new Map<string,{hits:number;judged:number}>();
   for (const row of rows.filter(r=>r.kind === "result")) {
     const grade = gradePrediction("result",row.selection,choiceFact(row,facts));
@@ -22,10 +30,6 @@ async function loadRankingPopulation(tx: TxDb, seasonId: string) {
     const current = results.get(row.userId) ?? {hits:0,judged:0};
     current.judged++; current.hits += grade.hits!; results.set(row.userId,current);
   }
-  const ids = [...new Set([...rows.map(r=>r.userId),...accounts.map(r=>r.userId)])];
-  const identities = ids.length ? await tx.select({userId:users.id,displayName:users.displayName,perfectName:users.perfectName,personaName:steamProfiles.personaName})
-    .from(users).leftJoin(steamProfiles,eq(steamProfiles.steam64,users.steam64)).where(inArray(users.id,ids)) : [];
-  const playerIds = await getPublicPlayerIdentityIds(tx,ids);
   const population: FreePredictionRankingRowDTO[] = identities.map(identity=>{
     const score = results.get(identity.userId); const bet = accounts.find(r=>r.userId===identity.userId);
     return {userId:identity.userId,playerUserId:playerIds.has(identity.userId)?identity.userId:null,name:getPublicDisplayName(identity),profit:bet?.profit??null,
@@ -36,20 +40,19 @@ async function loadRankingPopulation(tx: TxDb, seasonId: string) {
 
 /** Baseline is the entire event. Filters are applied only after ranks/eligibility. */
 export async function readFreePredictionRanking(tx: TxDb, seasonId: string, sort: FreePredictionSort, filterUserIds?: string[]) {
-  return projectRanking(await loadRankingPopulation(tx, seasonId), sort, filterUserIds);
+  return projectRanking(projectPopulation(await readFreeRankingSnapshot(tx, seasonId)), sort, filterUserIds);
 }
 
-/** All three views share one read-only transaction snapshot and one population read. */
+/** All three views share one read-only snapshot and one population. */
 export async function readFreePredictionRankings(tx: TxDb, seasonId: string) {
-  const population = await loadRankingPopulation(tx, seasonId);
-  return {
-    profit: projectRanking(population, "profit"),
-    hits: projectRanking(population, "hits"),
-    accuracy: projectRanking(population, "accuracy"),
-  };
+  return projectFreeRankings(await readFreeRankingSnapshot(tx,seasonId));
+}
+export function projectFreeRankings(snapshot: Awaited<ReturnType<typeof readFreeRankingSnapshot>>) {
+  const population=projectPopulation(snapshot);
+  return {profit:projectRanking(population,"profit"),hits:projectRanking(population,"hits"),accuracy:projectRanking(population,"accuracy")};
 }
 
-function projectRanking(input: Awaited<ReturnType<typeof loadRankingPopulation>>, sort: FreePredictionSort, filterUserIds?: string[]) {
+function projectRanking(input: ReturnType<typeof projectPopulation>, sort: FreePredictionSort, filterUserIds?: string[]) {
   // Each ranking assigns group/rank independently; never mutate the shared population.
   const population = input.population.map(row => ({ ...row }));
   const financial = input.financial;

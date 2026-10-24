@@ -768,6 +768,14 @@ describe("spectator prediction PostgreSQL contracts", () => {
       await db.transaction((tx) =>
         joinPredictionsInTx(tx, { seasonId, userId: lateId }),
       );
+      // Joining cannot settle another spectator's historical rights. Initial credit
+      // is immediate; the registered runner consumes durable stage entitlement.
+      expect(await balance(f)).toBe(BigInt(1000));
+      expect(await balance(f,lateId)).toBe(BigInt(1000));
+      expect((await db.select().from(schema.predictionJobs).where(eq(schema.predictionJobs.seasonId,seasonId)))[0]?.dirty).toBe(true);
+      expect((await runPredictionReconciliationJob(db)).result.completed).toBe(1);
+      expect((await db.select().from(schema.predictionJobs).where(eq(schema.predictionJobs.seasonId,seasonId)))[0]?.dirty).toBe(false);
+      await runPredictionReconciliationJob(db);
       expect(await balance(f)).toBe(BigInt(1300));
       expect(await balance(f, lateId)).toBe(BigInt(1000));
       await db
@@ -851,3 +859,33 @@ it("accepts unscheduled picks, follows postponements while open and latches elap
     expect(postponed.submitted).not.toBeNull();
   });
 });
+
+// Admission cannot defer irreversible deadlines. Real transaction failure proves
+// that an attempted worker completion cannot consume the durable dirty marker.
+it("latches expired admission synchronously and retries real worker failure without losing due work",async()=>fixture(async f=>{
+  const {db,seasonId}=f;
+  const [contest]=await db.select().from(schema.predictionContests).where(eq(schema.predictionContests.seasonId,seasonId));
+  await db.update(schema.predictionJobs).set({dirty:false}).where(eq(schema.predictionJobs.seasonId,seasonId));
+  await db.update(schema.predictionContests).set({deadline:new Date(Date.now()-1000)}).where(eq(schema.predictionContests.id,contest!.id));
+  const viewer=randomUUID();
+  await db.insert(schema.users).values({id:viewer,email:`${viewer}@example.test`,emailVerifiedAt:new Date(),emailVerificationSource:"admin_migration"});
+  const before=await db.select().from(schema.predictionJudgements).where(eq(schema.predictionJudgements.contestId,contest!.id));
+  await db.transaction(tx=>joinPredictionsInTx(tx,{seasonId,userId:viewer}));
+  expect(await balance(f,viewer)).toBe(BigInt(DEFAULT_RULES.initialPoints));
+  const [latched]=await db.select().from(schema.predictionContests).where(eq(schema.predictionContests.id,contest!.id));
+  expect(latched!.lockedAt).not.toBeNull();
+  expect(await db.select().from(schema.predictionJudgements).where(eq(schema.predictionJudgements.contestId,contest!.id))).toEqual(before);
+  expect((await db.select().from(schema.predictionJobs).where(eq(schema.predictionJobs.seasonId,seasonId)))[0]?.dirty).toBe(true);
+  await db.execute(sql`create function public.w07_reject_completion() returns trigger language plpgsql as $$ begin raise exception 'isolated worker completion fault'; end $$`);
+  await db.execute(sql`create trigger w07_reject_completion before update of dirty on prediction_jobs for each row when (new.dirty = false) execute function public.w07_reject_completion()`);
+  await expect(runPredictionReconciliationJob(db)).rejects.toThrow("Prediction reconciliation failed");
+  expect((await db.select().from(schema.predictionJobs).where(eq(schema.predictionJobs.seasonId,seasonId)))[0]?.dirty).toBe(true);
+  await db.execute(sql`drop trigger w07_reject_completion on prediction_jobs`);
+  await db.execute(sql`drop function public.w07_reject_completion()`);
+  expect((await runPredictionReconciliationJob(db)).result.completed).toBe(1);
+  await db.update(schema.matches).set({scheduledAt:new Date(Date.now()+86400000)}).where(eq(schema.matches.seasonId,seasonId));
+  await db.transaction(tx=>joinPredictionsInTx(tx,{seasonId,userId:viewer}));
+  const [after]=await db.select().from(schema.predictionContests).where(eq(schema.predictionContests.id,contest!.id));
+  expect(after!.lockedAt).toEqual(latched!.lockedAt);
+  expect(await balance(f,viewer)).toBe(BigInt(DEFAULT_RULES.initialPoints));
+}));

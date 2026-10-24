@@ -2,15 +2,15 @@
 
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Maximize2, Trophy } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getPredictionBoard } from "@/actions/predictions";
+import { fetchPickEmSummary as getPickEmSummary } from "@/lib/predictions/http-client";
 import { predictionChallengeCapacity } from "@/lib/predictions/rules";
 import { stageTasks, type PickEmTaskState } from "@/lib/predictions/achievements";
-import type { PickEmBoardData } from "@/lib/predictions/data";
+import type { PickEmSummary, PickEmBoardData } from "@/lib/predictions/data";
 import { COIN_FINISHES, coinFaces } from "./coin-assets";
 import styles from "./achievement.module.css";
 
@@ -22,28 +22,33 @@ export function PickEmAchievement({ data, signedIn }: { data: PickEmBoardData; s
   const [expanded, setExpanded] = useState(false);
   const [section, setSection] = useState<Section>("tasks");
   const [popover, setPopover] = useState<Section | null>(null);
-  const [record, setRecord] = useState<PickEmBoardData | null>(null);
+  const [record, setRecord] = useState<{epoch:string;value:PickEmSummary} | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const epoch=`${data.base.seasonId}/${data.achievement?.accountId??"anonymous"}`;
+  const summary=record?.epoch===epoch?record.value:null;
+  const abort=useRef<AbortController|null>(null);
   const request = useRef(0);
-  const achievement = (expanded || popover ? record?.achievement : null) ?? data.achievement;
+  useEffect(()=>()=>{++request.current;abort.current?.abort();},[epoch]);
+  const achievement = (expanded || popover ? summary?.achievement : null) ?? data.achievement;
   const coin = achievement?.coin ?? "未获得";
   const finish = COIN_FINISHES[coin] ?? COIN_FINISHES.未获得!;
   const capacity = predictionChallengeCapacity(data.base.stages);
   const stages = achievement?.progress ?? data.base.stages.map((stage) => ({ key: stage.key, name: stage.name,
     tasks: stageTasks({ type: stage.type, target: data.rules.swissTarget, submitted: false, locked: false, closed: false,
       available: data.contests.some(contest => contest.stageKey === stage.key && !contest.locked), voided: false, result: null }) }));
-  async function refresh() {
+  async function refresh(target: Section = section) {
     const id = ++request.current; setLoading(true); setError(false);
     try {
-      const result = await getPredictionBoard({ seasonId: data.base.seasonId, view: "record" });
+      abort.current?.abort();const controller=new AbortController();abort.current=controller;
+      const result = await getPickEmSummary({ seasonId: data.base.seasonId, view: target },controller.signal);
       if (id !== request.current) return;
-      if (result.success) setRecord(result.data); else setError(true);
+      if (result.success) setRecord({epoch,value:result.data}); else setError(true);
     } catch { if (id === request.current) setError(true); }
     finally { if (id === request.current) setLoading(false); }
   }
-  const rows = record?.pickLeaderboard ?? [];
-  const mine = rows.find((row) => row.isMe);
+  const rows = summary?.pickLeaderboard ?? [];
+  const mine = summary?.mine;
   const taskList = <div className={styles.tasks}>
     {stages.map((stage) => <section key={stage.key}>
       <h3>{stage.name}</h3>
@@ -64,7 +69,7 @@ export function PickEmAchievement({ data, signedIn }: { data: PickEmBoardData; s
     </li>)}</ol> : !loading && !error ? <p className={styles.empty}>等待首位挑战者</p> : null}
   </div>;
   const status = error ? <button type="button" className={styles.retry} onClick={() => void refresh()}>加载失败，点击重试</button> : loading ? <p className={styles.loading} role="status">正在更新…</p> : null;
-  return <Dialog open={expanded} onOpenChange={(open) => { setExpanded(open); if (open) { setPopover(null); void refresh(); } }}>
+  return <Dialog open={expanded} onOpenChange={(open) => { setExpanded(open); if (open) { setPopover(null); void refresh(section); } }}>
     <div className={styles.widget} data-testid="pickem-achievement">
       <div className={styles.summary}>
         <div className={styles.coinThumb}>
@@ -73,7 +78,7 @@ export function PickEmAchievement({ data, signedIn }: { data: PickEmBoardData; s
         <div className={styles.summaryText}><span>{finish.label}</span><strong>{achievement?.challenges ?? 0}<small> / {capacity}</small></strong></div>
         <DialogTrigger asChild><button type="button" className={styles.expand} aria-label="放大我的纪念币"><Maximize2 size={16} /></button></DialogTrigger>
       </div>
-      <div className={styles.actions}>{(["ranking", "tasks"] as const).map((key) => <Popover.Root key={key} open={popover === key} onOpenChange={(open) => { setPopover(open ? key : null); if (open) { setSection(key); void refresh(); } }}>
+      <div className={styles.actions}>{(["ranking", "tasks"] as const).map((key) => <Popover.Root key={key} open={popover === key} onOpenChange={(open) => { setPopover(open ? key : null); if (open) { setSection(key); void refresh(section); } }}>
         <Popover.Trigger asChild><button type="button">{key === "tasks" ? "任务" : "排行榜"}<ChevronDown size={12} aria-hidden="true" /></button></Popover.Trigger>
         <Popover.Portal><Popover.Content align="end" sideOffset={8} collisionPadding={12} className={styles.popover} aria-label={key === "tasks" ? "任务列表" : "排行榜"}>
           <div className={styles.panelTitle}><strong>{key === "tasks" ? "挑战任务" : "排行榜"}</strong><button type="button" aria-label="放大成就面板" onClick={() => { setPopover(null); setExpanded(true); }}><Maximize2 size={15} /></button></div>
@@ -88,7 +93,7 @@ export function PickEmAchievement({ data, signedIn }: { data: PickEmBoardData; s
           <div className={styles.coinTitle}><span>{data.base.name}</span><h2>{finish.label}</h2><p>{achievement?.challenges ?? 0} / {capacity} 项挑战</p></div>
           {expanded && <Coin3D coin={coin} />}
         </section>
-        <Tabs value={section} onValueChange={(value) => setSection(value as Section)} className={styles.detailPanel}>
+        <Tabs value={section} onValueChange={(value) => { setSection(value as Section); void refresh(value as Section); }} className={styles.detailPanel}>
           <TabsList className="w-full"><TabsTrigger value="tasks" className="flex-1">任务</TabsTrigger><TabsTrigger value="ranking" className="flex-1">排行榜</TabsTrigger></TabsList>
           {status}<TabsContent value="tasks">{taskList}</TabsContent><TabsContent value="ranking">{ranking}</TabsContent>
         </Tabs>

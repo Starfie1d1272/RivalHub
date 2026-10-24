@@ -22,16 +22,16 @@ import {
   type QualificationShortSwissContext,
 } from "./types";
 
-export async function loadQualificationContext(
+export async function loadQualificationRead(
   tx: TxDb,
   seasonId: string,
   name: string,
-): Promise<QualificationShortSwissContext | null> {
+): Promise<{context:QualificationShortSwissContext|null;official:(typeof matches.$inferSelect)[]}> {
   const [run] = await tx
     .select()
     .from(competitionQualificationRuns)
     .where(eq(competitionQualificationRuns.seasonId, seasonId));
-  if (!run || run.format !== "short_swiss_2w2l") return null;
+  if (!run || run.format !== "short_swiss_2w2l") return {context:null,official:[]};
   const entrants = await tx
     .select()
     .from(competitionQualificationEntrants)
@@ -130,10 +130,13 @@ export async function loadQualificationContext(
       }),
     )
     .digest("hex");
-  return {
+  return {official:rawOfficial,context:{
     kind: "qualification-short-swiss",
     baseline,
     runId: run.id,
     entrants: playing,
-  };
+  }};
+}
+export async function loadQualificationContext(tx:TxDb,seasonId:string,name:string) {
+  return (await loadQualificationRead(tx,seasonId,name)).context;
 }

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/db/client";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { getUserSession } from "@/lib/auth/session";
-import { predictionBoard, publicPickEmBoard } from "@/lib/predictions/data";
+import { readPredictionSnapshot, projectPredictionBoard, publicPickEmBoard } from "@/lib/predictions/data";
 import { PredictionBoard } from "@/components/predictions/PredictionBoard";
 export default function PredictionsPage(props: {
   params: Promise<{ seasonSlug: string }>;
@@ -33,8 +33,8 @@ async function PredictionContent({
   if (!season || season.competitionTemplate !== "major") notFound();
   const user = await getUserSession();
   const data = await db.transaction((tx) =>
-    predictionBoard(tx, season.id, user?.userId ?? null, "sim"),
+    readPredictionSnapshot(tx, season.id, user?.userId ?? null, "sim"),
     { accessMode: "read only", isolationLevel: "repeatable read" },
   );
-  return <PredictionBoard initial={publicPickEmBoard(data)} slug={seasonSlug} signedIn={!!user} />;
+  return <PredictionBoard initial={publicPickEmBoard(projectPredictionBoard(data))} slug={seasonSlug} signedIn={!!user} />;
 }
