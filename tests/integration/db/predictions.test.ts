@@ -773,9 +773,24 @@ describe("spectator prediction PostgreSQL contracts", () => {
       expect(await balance(f)).toBe(BigInt(1000));
       expect(await balance(f,lateId)).toBe(BigInt(1000));
       expect((await db.select().from(schema.predictionJobs).where(eq(schema.predictionJobs.seasonId,seasonId)))[0]?.dirty).toBe(true);
+      const [beneficiary]=await db.select().from(schema.predictionAccounts).where(eq(schema.predictionAccounts.userId,userId));
+      const stageRewards=()=>db.select().from(schema.predictionLedger).where(and(eq(schema.predictionLedger.accountId,beneficiary!.id),eq(schema.predictionLedger.source,"stage/stage2")));
+      expect(await stageRewards()).toHaveLength(0);
+      // Fail only if the owed 300-point award has actually been appended inside
+      // this transaction; success-without-writing cannot satisfy the fault oracle.
+      await db.execute(sql`create function public.w07_reject_award_completion() returns trigger language plpgsql as $$ begin if exists (select 1 from prediction_ledger where season_id = new.season_id and source = 'stage/stage2' and amount = 300) then raise exception 'isolated monetary completion fault'; end if; return new; end $$`);
+      await db.execute(sql`create trigger w07_reject_award_completion before update of dirty on prediction_jobs for each row when (new.dirty = false) execute function public.w07_reject_award_completion()`);
+      await expect(runPredictionReconciliationJob(db)).rejects.toThrow("Prediction reconciliation failed");
+      expect(await stageRewards()).toHaveLength(0);
+      expect(await balance(f)).toBe(BigInt(1000));
+      expect((await db.select().from(schema.predictionJobs).where(eq(schema.predictionJobs.seasonId,seasonId)))[0]?.dirty).toBe(true);
+      await db.execute(sql`drop trigger w07_reject_award_completion on prediction_jobs`);
+      await db.execute(sql`drop function public.w07_reject_award_completion()`);
       expect((await runPredictionReconciliationJob(db)).result.completed).toBe(1);
+      const awarded=await stageRewards();expect(awarded).toHaveLength(1);expect(awarded[0]!.amount).toBe(BigInt(300));
       expect((await db.select().from(schema.predictionJobs).where(eq(schema.predictionJobs.seasonId,seasonId)))[0]?.dirty).toBe(false);
       await runPredictionReconciliationJob(db);
+      expect(await stageRewards()).toHaveLength(1);
       expect(await balance(f)).toBe(BigInt(1300));
       expect(await balance(f, lateId)).toBe(BigInt(1000));
       await db
