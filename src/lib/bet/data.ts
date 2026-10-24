@@ -21,16 +21,25 @@ export interface BetBoardReadOptions extends BetAccountReadOptions {
 export async function readBetPools(tx: TxDb, seasonId: string, scope: Pick<BetBoardReadOptions, "matchId" | "includeEvent"> = {}) {
   const marketScope=and(eq(betMarkets.seasonId,seasonId),scope.matchId?eq(betMarkets.matchId,scope.matchId):scope.includeEvent===false?isNotNull(betMarkets.matchId):undefined);
   const marketIds=tx.select({id:betMarkets.id}).from(betMarkets).where(marketScope);
-  const pool=await tx.select({marketId:betStakes.marketId,optionId:betStakes.optionId,amount:sql<string>`sum(${betStakes.amount})::text`}).from(betStakes).where(and(eq(betStakes.seasonId,seasonId),inArray(betStakes.marketId,marketIds))).groupBy(betStakes.marketId,betStakes.optionId);
-  const counts=await tx.select({marketId:betStakes.marketId,count:sql<number>`count(distinct ${betStakes.accountId})::int`}).from(betStakes).where(and(eq(betStakes.seasonId,seasonId),inArray(betStakes.marketId,marketIds))).groupBy(betStakes.marketId);
-  return {pool,counts};
+  const rows=await tx.select({marketId:betStakes.marketId,optionId:sql<string | null>`${betStakes.optionId}`,amount:sql<string>`sum(${betStakes.amount})::text`,count:sql<number>`count(distinct ${betStakes.accountId})::int`})
+    .from(betStakes).where(and(eq(betStakes.seasonId,seasonId),inArray(betStakes.marketId,marketIds)))
+    .groupBy(sql`grouping sets ((${betStakes.marketId}, ${betStakes.optionId}), (${betStakes.marketId}))`);
+  return {
+    pool: rows.flatMap(row=>row.optionId===null?[]:[{marketId:row.marketId,optionId:row.optionId,amount:row.amount}]),
+    counts: rows.filter(row=>row.optionId===null).map(row=>({marketId:row.marketId,count:row.count})),
+  };
 }
 export async function betBoard(tx:TxDb,seasonId:string,userId:string|null, options:BetBoardReadOptions = {}):Promise<BetBoardDTO> {
-  const program=await tx.query.betPrograms.findFirst({where:eq(betPrograms.seasonId,seasonId)});
+  const [viewer]=await tx.select({program:betPrograms,account:betAccounts,user:{role:users.role,status:users.status,emailVerifiedAt:users.emailVerifiedAt}})
+    .from(betPrograms)
+    .leftJoin(betAccounts,and(eq(betAccounts.seasonId,betPrograms.seasonId),userId?eq(betAccounts.userId,userId):sql`false`))
+    .leftJoin(users,userId?eq(users.id,userId):sql`false`)
+    .where(eq(betPrograms.seasonId,seasonId)).limit(1);
+  const program=viewer?.program;
+  const account=viewer?.account;
+  const user=viewer?.user;
   if (!program) return {seasonId,enabled:false,paused:false,joined:false,balance:"0",debt:"0",profit:"0",rank:null,leaderboard:[],records:[],markets:[],matches:[]};
   const f=options.facts ?? await loadBetFacts(tx,seasonId,{matchId:options.matchId,event:options.includeEvent,rosterUserId:options.includeEvent === false ? userId : undefined});
-  const account=userId?await tx.query.betAccounts.findFirst({where:and(eq(betAccounts.seasonId,seasonId),eq(betAccounts.userId,userId))}):undefined;
-  const user=userId?await tx.query.users.findFirst({where:eq(users.id,userId),columns:{role:true,status:true,emailVerifiedAt:true}}):undefined;
   const joinReason=!userId?"登录后领取初始积分":!user||user.status!=="active"||!user.emailVerifiedAt?"请先完成邮箱验证并重新登录":f.season.status==="archived"?"赛事已归档，不能领取积分":account?"已领取本届初始积分":null;
   const { balance, profit, rank, leaderboard, records, recordsHasMore } = await readBetAccounts(tx, seasonId, account?.id, f, options);
   const marketScope=and(eq(betMarkets.seasonId,seasonId),options.matchId?eq(betMarkets.matchId,options.matchId):options.includeEvent===false?isNotNull(betMarkets.matchId):undefined);

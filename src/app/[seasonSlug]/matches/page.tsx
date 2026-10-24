@@ -67,7 +67,7 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
   const [liveContexts, roundScoresByMatchId, swissEntries, qualificationSwissReadModel, bracketDataByStage] = await Promise.all([
     loadPublicMatchContexts(allMatches),
     getMatchMapRoundScores(allMatches.filter(match => match.status === "finished").map(match => match.id)),
-    Promise.all(stagePlan.filter(stage => stage.type === "swiss").map(async stage => [stage.key, await loadMajorSwissStageReadModel(season.id, stage.key)] as const)),
+    Promise.all(stagePlan.filter(stage => stage.type === "swiss").map(async stage => [stage.key, await loadMajorSwissStageReadModel(season.id, stage.key, allMatches)] as const)),
     qualificationRun?.format === "short_swiss_2w2l" ? loadQualificationSwissStageReadModel(season.id) : Promise.resolve(null),
     loadStageBracketViews(db, season.id),
   ]);

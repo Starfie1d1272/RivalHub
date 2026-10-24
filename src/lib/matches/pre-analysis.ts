@@ -4,7 +4,7 @@ import "server-only";
 
 import { db } from "@/db/client";
 import type { Match } from "@/db/schema";
-import { getTeamBanStats, getTeamMapWinStats, getTeamPickStats } from "@/lib/teams/data";
+import { getTeamMapProfiles } from "@/lib/teams/data";
 import { getSeasonFinishedMatches } from "./detail-data";
 import { projectRecentMatchResults, type RecentMatchResult } from "./recent-results";
 
@@ -112,8 +112,6 @@ export async function loadMatchPreAnalysis(
   const byId = new Map(displayed.map(match => [match.id, match]));
   const matchesA = rawA.map(match => byId.get(match.id)!);
   const matchesB = rawB.map(match => byId.get(match.id)!);
-  const matchIdsA = matchesA.map((match) => match.id);
-  const matchIdsB = matchesB.map((match) => match.id);
   const opponentIds = [...new Set([
     ...matchesA.map((match) => match.entryAId === entryAId ? match.entryBId : match.entryAId),
     ...matchesB.map((match) => match.entryAId === entryBId ? match.entryBId : match.entryAId),
@@ -122,13 +120,8 @@ export async function loadMatchPreAnalysis(
     ? await db.query.competitionEntries.findMany({ where: (entries, { inArray }) => inArray(entries.id, opponentIds), columns: { id: true, name: true } })
     : [];
   const entryNames = new Map(opponentRows.map((entry) => [entry.id, entry.name]));
-  const [mapWinsA, mapWinsB, picksA, picksB, bansA, bansB] = await Promise.all([
-    getTeamMapWinStats(entryAId, matchesA),
-    getTeamMapWinStats(entryBId, matchesB),
-    getTeamPickStats(entryAId, matchIdsA),
-    getTeamPickStats(entryBId, matchIdsB),
-    getTeamBanStats(entryAId, matchIdsA),
-    getTeamBanStats(entryBId, matchIdsB),
+  const [profileA, profileB] = await getTeamMapProfiles([
+    { entryId: entryAId, matches: matchesA }, { entryId: entryBId, matches: matchesB },
   ]);
   return projectMatchPreAnalysis({
     entryAId,
@@ -137,11 +130,11 @@ export async function loadMatchPreAnalysis(
     matchesA,
     matchesB,
     entryNames,
-    mapWinsA,
-    mapWinsB,
-    picksA: { count: picksA.pickCount, bpMatchCount: picksA.bpMatchCount },
-    picksB: { count: picksB.pickCount, bpMatchCount: picksB.bpMatchCount },
-    bansA: { count: bansA.banCount, bpMatchCount: bansA.bpMatchCount },
-    bansB: { count: bansB.banCount, bpMatchCount: bansB.bpMatchCount },
+    mapWinsA: profileA!.mapWins,
+    mapWinsB: profileB!.mapWins,
+    picksA: profileA!.picks,
+    picksB: profileB!.picks,
+    bansA: profileA!.bans,
+    bansB: profileB!.bans,
   });
 }

@@ -3,7 +3,7 @@ import { getSeasonPersonalNextStep } from "@/lib/seasons/public-next-step";
 import { getRegistrationWindowState } from "@/lib/registration/window";
 import { Button } from "@/components/ui/button";
 import type { PublicSeason } from "@/lib/data/public-seasons";
-import { connection } from "next/server";
+import { io } from "next/cache";
 import { TelemetryScene } from "@/components/telemetry/ProductTelemetry";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
@@ -40,7 +40,7 @@ export default function SeasonLayout({ children, params }: SeasonLayoutProps) {
 }
 
 async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
-  await connection();
+  await io();
   const { seasonSlug } = await params;
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
 
@@ -80,7 +80,7 @@ function SeasonLayoutFallback() {
 }
 
 export async function SeasonParticipationEntry({ season }: { season: PublicSeason }) {
-  await connection();
+  await io();
   const task = await getSeasonPersonalNextStep(season);
   const isHistorical = season.status === "finished" || season.status === "archived";
   const registrationOpen = getRegistrationWindowState(season).canSubmit;

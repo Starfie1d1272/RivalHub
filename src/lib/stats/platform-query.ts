@@ -43,16 +43,18 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
   if (requestedEvent !== undefined && (typeof requestedEvent !== "string" || !/^[a-z0-9][a-z0-9-]{0,127}$/.test(requestedEvent))) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
   const event = events.find((e) => e.slug === requestedEvent);
   if (requestedEvent && !event) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
-  const stages = event ? (await getPublicSeasonStagePresentation(event)).officialStages.map(({ key, name }) => ({ key, name })) : [];
   for (const key of ["stage", "format", "mapFilter", "map", "teamFilter"]) {
     const value = raw[key];
     if (value !== undefined && (typeof value !== "string" || value.length > 128)) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
   }
   if (raw.format && !["bo1", "bo3", "bo5"].includes(raw.format as string)) throw new AppError(ErrorCode.NOT_FOUND, "赛制范围不可用。");
+  const [stages, maps] = await Promise.all([
+    event ? getPublicSeasonStagePresentation(event).then(presentation => presentation.officialStages.map(({ key, name }) => ({ key, name }))) : Promise.resolve([]),
+    getOfficialStatsMapCatalog(events.map(e => e.id)),
+  ]);
   const query = parseStatsQuery(raw, stages.map((s) => s.key));
   if ((!event && (raw.stage || raw.teamFilter)) || query.stage === "__invalid__" || query.mapFilter === "__invalid__") throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
   const ids = event ? [event.id] : events.map((e) => e.id);
-  const maps = await getOfficialStatsMapCatalog(events.map(e => e.id));
   const allowedMaps = [...new Set(maps.filter((m) => m.seasonId !== null && ids.includes(m.seasonId)).map((m) => m.name))].sort();
   if ((raw.map && !/^de_[a-z0-9_]+$/.test(raw.map as string)) || (raw.map && query.tab !== "maps")
     || (query.map && !allowedMaps.includes(query.map)) || (query.mapFilter && !allowedMaps.includes(query.mapFilter))

@@ -5,7 +5,7 @@ import { expect, it } from "vitest";
 import * as schema from "@/db/schema";
 import type { TxDb } from "@/db/client";
 import { fixture } from "./harness/bet-fixture";
-import { betBoard } from "@/lib/bet/data";
+import { betBoard, readBetPools } from "@/lib/bet/data";
 import { loadBetFacts } from "@/lib/bet/facts";
 import { readUnifiedBetBoard } from "@/lib/bet/board-read";
 import { readFreePredictionBoard, readFreeMatchSupport } from "@/lib/free-predictions/data";
@@ -69,4 +69,28 @@ it("bounds match reads, shares board facts, and preserves money/rank/history aga
     expect((await measure(tx=>readFreeMatchSupport(tx,f.seasonId,randomUUID()))).value).toBeNull();
     await expect(measure(tx=>readFreeMatchSupport(tx,randomUUID(),f.matchId))).rejects.toThrow("赛事不存在");
   } finally {client.release();}
+}));
+
+// Real SQL protects bigint precision and distinct participants across options.
+it("aggregates option pools and market participants in one snapshot without double-counting accounts", async () => fixture(async f => {
+  const board = await f.db.transaction(tx => betBoard(tx, f.seasonId, f.userId));
+  const market = board.markets.find(row => row.type === "match_winner")!;
+  const accounts = await f.db.select().from(schema.betAccounts).where(eq(schema.betAccounts.seasonId, f.seasonId));
+  const viewer = accounts.find(row => row.userId === f.userId)!;
+  const other = accounts.find(row => row.userId === f.otherId)!;
+  const large = BigInt("9007199254740993");
+  await f.db.insert(schema.betStakes).values([
+    { seasonId: f.seasonId, marketId: market.id, accountId: viewer.id, optionId: market.options[0]!.id, amount: large, requestId: randomUUID() },
+    { seasonId: f.seasonId, marketId: market.id, accountId: viewer.id, optionId: market.options[1]!.id, amount: BigInt(10), requestId: randomUUID() },
+    { seasonId: f.seasonId, marketId: market.id, accountId: other.id, optionId: market.options[0]!.id, amount: BigInt(20), requestId: randomUUID() },
+  ]);
+  let reads = 0;
+  const measured = drizzle(f.db.$client, { schema, logger: { logQuery: query => { if (query.startsWith("select")) reads++; } } });
+  const pools = await measured.transaction(tx => readBetPools(tx, f.seasonId, { matchId: f.matchId }));
+  expect(reads).toBe(1);
+  expect(pools.pool.find(row => row.optionId === market.options[0]!.id)?.amount).toBe((large + BigInt(20)).toString());
+  expect(pools.pool.find(row => row.optionId === market.options[1]!.id)?.amount).toBe("10");
+  expect(pools.counts.find(row => row.marketId === market.id)?.count).toBe(2);
+  expect(await f.db.transaction(tx => readBetPools(tx, f.seasonId, { matchId: randomUUID() }))).toEqual({ pool: [], counts: [] });
+  expect(await f.db.transaction(tx => readBetPools(tx, randomUUID()))).toEqual({ pool: [], counts: [] });
 }));
