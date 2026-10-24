@@ -12,11 +12,13 @@ async function fixture() {
   const f = await seedFixture();
   const [entry] = await db.select({ userId: schema.competitionEntries.representativeUserId }).from(schema.competitionEntries).where(eq(schema.competitionEntries.id, f.entryAId));
   const userId = entry!.userId;
+  // Readers order by createdAt; one INSERT gives every default now() the same value.
+  // Distinct fixture times make these positional assertions independent of tie order.
   const awards = await db.insert(schema.communityAwards).values([
-    { seasonId: f.seasonId, submittedByUserId: userId, name: "Event verified", condition: "Long condition".repeat(100), prize: "Prize", settlementPolicy: "event_verified" },
-    { seasonId: f.seasonId, submittedByUserId: userId, name: "Season complete", condition: "Condition", prize: "Prize", settlementPolicy: "season_complete" },
-    { seasonId: f.seasonId, submittedByUserId: userId, name: "Play-in complete", condition: "Condition", prize: "Prize", settlementPolicy: "play_in_complete" },
-    { seasonId: f.seasonId, submittedByUserId: userId, name: "Stage complete", condition: "Condition", prize: "Prize", settlementPolicy: "stage_complete", settlementStageKey: "stage1" },
+    { seasonId: f.seasonId, submittedByUserId: userId, name: "Event verified", createdAt: new Date("2025-01-01T00:00:00Z"), condition: "Long condition".repeat(100), prize: "Prize", settlementPolicy: "event_verified" },
+    { seasonId: f.seasonId, submittedByUserId: userId, name: "Season complete", createdAt: new Date("2025-01-01T00:00:01Z"), condition: "Condition", prize: "Prize", settlementPolicy: "season_complete" },
+    { seasonId: f.seasonId, submittedByUserId: userId, name: "Play-in complete", createdAt: new Date("2025-01-01T00:00:02Z"), condition: "Condition", prize: "Prize", settlementPolicy: "play_in_complete" },
+    { seasonId: f.seasonId, submittedByUserId: userId, name: "Stage complete", createdAt: new Date("2025-01-01T00:00:03Z"), condition: "Condition", prize: "Prize", settlementPolicy: "stage_complete", settlementStageKey: "stage1" },
   ]).returning();
   await db.insert(schema.communityAwardEvidence).values(Array.from({ length: 20 }, (_, i) => ({ awardId: awards[0]!.id,
     submittedByUserId: userId, candidateUserId: userId, matchId: f.matchId, explanation: "Private evidence".repeat(200),
