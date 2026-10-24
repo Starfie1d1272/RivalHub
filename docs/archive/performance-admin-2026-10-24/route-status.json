@@ -61,9 +61,9 @@
       "route": "/admin/[seasonSlug]/prestart",
       "task": "A-PRESTART",
       "status": "experiment_pending",
-      "implemented": "复用请求内season",
-      "evidence": "保留原readiness owner",
-      "remainingExperiment": "qualification raw bundle与current/previous approved revision接口、锁定/未锁定金样",
+      "implemented": "候选、冻结名单、当前Main Event成员去重后一次读取同平台qualification facts；仍使用canonical profile/冻结判定",
+      "evidence": "真实PG7例：current revision修正、选择原子性、精确容量冻结幂等、回滚、缺实力/非法rank mapping/非5首发fail-closed",
+      "remainingExperiment": "qualification raw bundle支持已在#1085核实；前后查询量/真实规模primary-ready；previous approved revision历史查询窗口",
       "owner": "accounts+admin"
     },
     {
@@ -260,7 +260,7 @@
       "task": "A-BETADMIN",
       "status": "experiment_pending",
       "implemented": "消费#1086 readBetOperationsSnapshot，RR释放后project；pending取同snapshot dirty，无第二program读取",
-      "evidence": "临时集成main6697cb5c+#1086 a94b96ef真实PG read-footprint；Chromium后台登录/hydration/启用确认/DBprogram创建通过",
+      "evidence": "临时集成main6697cb5c+#1086 a94b96ef真实PG read-footprint；Chromium后台登录/hydration/启用确认/DBprogram创建通过；首场BO3/retry0/显式trace后台确认启用再次通过25.3s，未复现W07持续未hydration",
       "remainingExperiment": "等待#1086合并后正式分支检查；复杂市场筛选规模及RSC/ready测量；锁盘/更正由BETowner测试",
       "owner": "bet+admin"
     },

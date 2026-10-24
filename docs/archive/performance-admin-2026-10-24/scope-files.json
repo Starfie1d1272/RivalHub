@@ -4,6 +4,7 @@
   "files": [
     ".changeset/admin-read-boundaries.md",
     "docs/archive/performance-admin-2026-10-24/README.md",
+    "docs/archive/performance-admin-2026-10-24/hydration-fixture.json",
     "docs/archive/performance-admin-2026-10-24/read-cost.json",
     "docs/archive/performance-admin-2026-10-24/route-status.json",
     "docs/archive/performance-admin-2026-10-24/scope-files.json",
@@ -53,6 +54,7 @@
     "src/lib/admin/platform-operations/overview.ts",
     "src/lib/admin/season-content.ts",
     "src/lib/admin/season-context.ts",
+    "src/lib/admin/season-workspace/major-prestart.ts",
     "src/lib/admin/season-workspace/overview.ts",
     "src/lib/admin/users.ts",
     "src/lib/audit/targets.ts",
