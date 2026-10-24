@@ -1,3 +1,4 @@
+import { completedVetoMaps } from "@/lib/matches/veto-result";
 import { sameIds, subjectMatches, resolveBetFact, type MarketFactInput } from "@/lib/bet/domain";
 import { isActiveCompetitionQualificationRun } from "@/lib/competition-qualification/activity";
 import type { FreePredictionKind, FreePredictionSubject, FreePredictionResultDTO, FreePredictionRestrictionDTO } from "./types";
@@ -24,10 +25,8 @@ export function gradePrediction(kind: FreePredictionKind, selection: string[], i
     const hits = fact.winningKeys.includes(selection[0]!) ? 1 : 0;
     return { state: hits ? "correct" : "incorrect", hits, total: 1, answer: [...fact.winningKeys] };
   }
-  if (!input.veto?.completedAt || input.veto.pendingAppeal) return pending;
-  const maps = input.maps.filter(m => m.mapOrder >= 1 && m.mapOrder <= total).sort((a,b) => a.mapOrder-b.mapOrder);
-  const answer = maps.map(m => m.mapName);
-  if (maps.length !== total || new Set(answer).size !== total || maps.some((m,i) => m.mapOrder !== i+1) || !answer.every(name => input.veto!.mapPoolSnapshot?.includes(name))) return voided;
+  const answer = input.match ? completedVetoMaps(input.match.format, input.match.entryAId, input.veto) : null;
+  if (!answer) return pending;
   const hits = selection.filter(name => answer.includes(name)).length;
   return { state: sameIds(selection, answer) ? "correct" : "incorrect", hits, total, answer };
 }

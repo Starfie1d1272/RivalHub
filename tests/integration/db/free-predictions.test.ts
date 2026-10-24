@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe,it,expect } from "vitest";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { fixture } from "./harness/free-prediction-fixture";
 import { submitFreePredictionInTx } from "@/lib/free-predictions/service";
@@ -59,11 +59,13 @@ describe("free predictions real PostgreSQL",()=>{
     const selected=pool.slice(0,3);
     await f.db.transaction(tx=>submitFreePredictionInTx(tx,{seasonId:f.seasonId,matchId:f.matchId,userId:f.userId,kind:"bp",selection:[...selected].reverse(),requestId:randomUUID()}));
     await f.db.insert(schema.matchVetoSessions).values({matchId:f.matchId,mapPoolSnapshot:pool,startedAt:new Date(),completedAt:new Date()});
+    await f.db.insert(schema.matchVetoSteps).values([3,4,0,1,5,6,2].map((index,i)=>({matchId:f.matchId,mapName:pool[index]!,stepOrder:i+1,actionType:i===6?"decider":i===2||i===3?"pick":"ban"})));
     await f.db.insert(schema.matchMaps).values(selected.map((mapName,i)=>({matchId:f.matchId,mapName,mapOrder:i+1})));
     const read=()=>f.db.transaction(tx=>readFreePredictionBoard(tx,f.seasonId,f.userId));
     expect((await read()).matches[0]!.bp.grade?.state).toBe("correct");
     expect((await f.db.transaction(tx=>readFreePredictionRanking(tx,f.seasonId,"accuracy"))).rows[0]!.judged).toBeNull();
-    await f.db.update(schema.matchMaps).set({mapName:pool[3]!}).where(eq(schema.matchMaps.mapOrder,3));
+    await f.db.update(schema.matchVetoSteps).set({mapName:pool[2]!}).where(and(eq(schema.matchVetoSteps.matchId,f.matchId),eq(schema.matchVetoSteps.actionType,"ban"),eq(schema.matchVetoSteps.mapName,pool[3]!)));
+    await f.db.update(schema.matchVetoSteps).set({mapName:pool[3]!}).where(and(eq(schema.matchVetoSteps.matchId,f.matchId),eq(schema.matchVetoSteps.actionType,"decider")));
     expect((await read()).matches[0]!.bp.grade).toMatchObject({state:"incorrect",hits:2,total:3});
     await f.db.update(schema.matchVetoSessions).set({startedAt:null,completedAt:null}).where(eq(schema.matchVetoSessions.matchId,f.matchId));
     expect((await read()).matches[0]!.bp.locked).toBe(true);
