@@ -2,10 +2,11 @@
 
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
 
-import React, { useMemo, useState, useTransition } from "react";
+import React, { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  readConversionPolicyDetail,
   approveConversionPolicyAction as telemetry_approveConversionPolicyAction,
   createConversionPolicyDraftAction as telemetry_createConversionPolicyDraftAction,
   retireConversionPolicyAction as telemetry_retireConversionPolicyAction,
@@ -21,7 +22,7 @@ import {
   type ConversionPolicyMapping,
   type StarSegment,
 } from "@/lib/competitive/conversion-policy";
-import type { ConversionPolicyAdminRow } from "@/lib/competitive/conversion-policy-admin";
+import type { ConversionPolicyAdminRow, ConversionPolicyAdminSummary } from "@/lib/competitive/conversion-policy-admin";
 import { formatCST } from "@/lib/utils/date";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -102,27 +103,55 @@ function rankLabel(rank: BuiltInRankDefinition): string {
   return rank.label === rank.rankKey ? rank.rankKey : `${rank.label}（${rank.rankKey}）`;
 }
 
-export function ConversionPolicyManager({ initialPolicies }: { initialPolicies: ConversionPolicyAdminRow[] }) {
+export function ConversionPolicyManager({ initialPolicies }: { initialPolicies: ConversionPolicyAdminSummary[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [newDraft, setNewDraft] = useState<NewDraftState | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
-  const selected = useMemo(() => initialPolicies.find((policy) => policy.id === selectedId) ?? null, [initialPolicies, selectedId]);
+  const [selected, setSelected] = useState<ConversionPolicyAdminRow | null>(null);
+  const [loadingBase, setLoadingBase] = useState(false);
+  const readToken = useRef(0);
 
   const approvedBases = initialPolicies.filter((policy) => policy.status === "approved" || policy.status === "retired");
   const defaultBase = initialPolicies.find((policy) => policy.isCurrent && policy.status === "approved") ?? approvedBases[0];
 
-  function openPolicy(policy: ConversionPolicyAdminRow) {
-    setSelectedId(policy.id);
-    setEditor(editorFromPolicy(policy));
-    setConfirmation(null);
+  async function openPolicy(policy: Pick<ConversionPolicyAdminSummary, "id">) {
+    const token = ++readToken.current;
+    setLoadingBase(false); // Switching flow cancels the outstanding base-read busy owner.
+    setSelectedId(policy.id); setSelected(null); setEditor(null); setConfirmation(null);
+    try {
+      const result = await readConversionPolicyDetail(policy.id);
+      if (token !== readToken.current) return;
+      if (!result.success || !result.data) {
+        toast.error(result.success ? "策略已不可用，请刷新目录。" : result.error.message);
+        setSelectedId(null); return;
+      }
+      setSelected(result.data); setEditor(editorFromPolicy(result.data));
+    } catch { if (token === readToken.current) { toast.error("暂时无法读取策略，请重试。"); setSelectedId(null); } }
+  }
+
+  async function openNewDraft() {
+    if (!defaultBase) return;
+    const token = ++readToken.current;
+    setLoadingBase(true);
+    try {
+      const result = await readConversionPolicyDetail(defaultBase.id);
+      if (token !== readToken.current) return;
+      if (!result.success || !result.data) { toast.error(result.success ? "基准策略已不可用。" : result.error.message); return; }
+      const base = result.data;
+      setNewDraft({ basePolicyId: base.id, version: "", sourceNote: base.sourceNote ?? "", rationale: base.rationale ?? "", changeSummary: "", internalNote: "" });
+    } catch { if (token === readToken.current) toast.error("暂时无法读取基准策略，请重试。"); }
+    finally { if (token === readToken.current) setLoadingBase(false); }
   }
 
   function closePolicy() {
     if (pending) return;
+    readToken.current++;
+    setLoadingBase(false);
     setSelectedId(null);
+    setSelected(null);
     setEditor(null);
     setConfirmation(null);
   }
@@ -137,6 +166,7 @@ export function ConversionPolicyManager({ initialPolicies }: { initialPolicies: 
       toast.success(successMessage);
       onSuccess?.();
       router.refresh();
+      if (selectedId) void openPolicy({ id: selectedId });
     });
   }
 
@@ -240,10 +270,10 @@ export function ConversionPolicyManager({ initialPolicies }: { initialPolicies: 
           <Button
             type="button"
             size="sm"
-            disabled={pending || approvedBases.length === 0}
-            onClick={() => setNewDraft({ basePolicyId: defaultBase?.id ?? "", version: "", sourceNote: defaultBase?.sourceNote ?? "", rationale: defaultBase?.rationale ?? "", changeSummary: "", internalNote: "" })}
+            disabled={pending || loadingBase || approvedBases.length === 0}
+            onClick={() => void openNewDraft()}
           >
-            + 新建版本
+            {loadingBase ? "读取基准…" : "+ 新建版本"}
           </Button>
         </div>
 
@@ -276,8 +306,8 @@ export function ConversionPolicyManager({ initialPolicies }: { initialPolicies: 
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-xs text-[var(--color-fg-mid)]">{formatDate(policy.createdAt)}</td>
                     <td className="px-4 py-3 text-xs text-[var(--color-fg-mid)]">{policy.approvedAt ? `${formatDate(policy.approvedAt)} · ${policy.approvedByLabel ?? "未知管理员"}` : "未批准"}</td>
-                    <td className="px-4 py-3">{policy.eventReferences.length}</td>
-                    <td className="px-4 py-3 text-right"><Button type="button" size="sm" variant="outline" onClick={() => openPolicy(policy)}>查看详情</Button></td>
+                    <td className="px-4 py-3">{policy.eventReferenceCount}</td>
+                    <td className="px-4 py-3 text-right"><Button type="button" size="sm" variant="outline" onClick={() => void openPolicy(policy)}>查看详情</Button></td>
                   </tr>
                 ))}
               </tbody>
@@ -307,13 +337,14 @@ export function ConversionPolicyManager({ initialPolicies }: { initialPolicies: 
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(selected && editor)} onOpenChange={(open) => { if (!open) closePolicy(); }}>
+      <Dialog open={Boolean(selectedId)} onOpenChange={(open) => { if (!open) closePolicy(); }}>
         <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>{selected ? `换算规则 ${selected.version}` : "换算规则"}</DialogTitle>
             <DialogDescription>{selected ? `${platformLabel(selected.sourcePlatform)} → ${platformLabel(selected.targetPlatform)}` : ""}</DialogDescription>
           </DialogHeader>
           <DialogBody className="space-y-6">
+            {!selected && <p role="status">正在读取完整策略…</p>}
             {selected && editor && (
               <>
                 <div className="flex flex-wrap items-center gap-2"><StatusPill label={policyStatusLabel(selected.status)} tone={policyStatusTone(selected.status)} />{selected.isCurrent && <StatusPill label="当前" tone="accent" />}</div>
