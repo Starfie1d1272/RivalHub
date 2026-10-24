@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
 import { createLocalPool } from "./harness/database";
-import { loadAdminAnnouncementPage } from "@/lib/admin/announcement-page";
+import { loadAdminAnnouncementPage, getAdminAnnouncementDetail } from "@/lib/admin/announcement-page";
 import { getAnnouncementForAdmin } from "@/lib/announcements/read-model";
 
 it("clamps summary pages within the same status/season authorization scope and preserves complete detail", async () => {
@@ -26,7 +26,8 @@ it("clamps summary pages within the same status/season authorization scope and p
     expect(last.items).toHaveLength(5);
     expect((await loadAdminAnnouncementPage({ ...access, status: "published", page: "999" }))).toMatchObject({ total: 0, page: 1, items: [] });
     expect((await loadAdminAnnouncementPage({ ...access, seasonIds: [] }))).toMatchObject({ total: 0, items: [] });
-    expect(await getAnnouncementForAdmin(ids[0]!, access)).toMatchObject({ body, seasonId: season });
+    expect(await getAdminAnnouncementDetail("invalid-route-id", access)).toBeNull();
+    expect(await getAdminAnnouncementDetail(ids[0]!, access)).toMatchObject({ body, seasonId: season });
     expect(await getAnnouncementForAdmin(foreignId, access)).toBeNull();
     expect(await getAnnouncementForAdmin(ids[0]!, { ...access, seasonId: foreign })).toBeNull();
   } finally {
