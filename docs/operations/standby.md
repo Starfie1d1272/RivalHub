@@ -47,7 +47,7 @@ ssh -p 52222 47.103.131.158 'python3 -' < scripts/standby/log-capacity.py
 
 日志正文大小不包含 journal 索引、元数据和压缩开销，不能当作磁盘增长。比赛前后分别保存这份脱敏快照，比较实际目录占用、正文量与根分区余量；轮转删除、其它服务和应用包也会改变磁盘值。此工具不清理、不导出原始日志，也不创建历史数据库。
 
-应用专用容量策略由 `scripts/standby/journal/` 模板拥有，通过 `configure-journal.sh` 在已安装的主机上独立 opt-in；正式/Preview 安装器与 Release 不自动启用。要求 systemd >=245 与 journal namespace 支持。两个应用可共用 rivalhub namespace：持久日志容量目标 256MiB、单文件 16MiB、保留目标七天、至少给磁盘其它用途留 2GiB；运行时日志目标 16MiB，关闭该 namespace 的 syslog/kmsg/console/wall 转发。容量约束可能使日志早于七天淘汰；journal 按文件轮转和删除，活跃文件与文件粒度可能使容量/时限暂时超出目标，不能承诺精确七天物理删除。这项设置只管理启用后该 namespace 的日志，不清理既有全机 journal 或其它服务文件。
+应用专用容量策略由 `scripts/standby/journal/` 模板拥有，通过 `configure-journal.sh` 在已安装的主机上独立 opt-in；正式/Preview 安装器与 Release 不自动启用。要求 systemd >=245 与 journal namespace 支持。两个应用可共用 rivalhub namespace：持久日志容量目标 256MiB、单文件 16MiB、保留目标七天、磁盘可用空间目标 2GiB；运行时日志目标 16MiB，关闭该 namespace 的 syslog/kmsg/console/wall 转发。容量约束可能使日志早于七天淘汰；journal 按文件轮转和删除，活跃文件与文件粒度可能使容量/时限暂时超出目标，不能承诺精确七天物理删除。这项设置只管理启用后该 namespace 的日志，不清理既有全机 journal 或其它服务文件。
 
 ```bash
 # 在已获授权的配置窗口，复制脚本与相邻 journal/ 模板后执行
