@@ -1,40 +1,44 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { touchSession, getOnlineCount } from "@/actions/online";
+import { heartbeatOnline } from "@/actions/online";
 
 export function OnlineCounter() {
-  const [count, setCount] = useState<number | null>(null);
+  const [presence, setPresence] = useState<{ count: number; windowSeconds: number } | null>(null);
 
   useEffect(() => {
     let active = true;
     let inFlight = false;
+    let intervalMs = 60_000;
+    let timer: ReturnType<typeof setTimeout>;
     async function tick() {
-      if (inFlight || document.hidden) return;
+      if (inFlight) return;
+      clearTimeout(timer);
+      if (document.hidden) return;
       inFlight = true;
       try {
-        await touchSession();
-        const data = await getOnlineCount();
-        if (active) setCount(data.count);
+        const data = await heartbeatOnline();
+        intervalMs = data.intervalMs;
+        if (active) setPresence(data);
       } catch {
         // A stale presence count is not a current online count.
-        if (active) setCount(null);
+        if (active) setPresence(null);
       } finally {
         inFlight = false;
+        if (active) timer = setTimeout(() => { void tick(); }, intervalMs);
       }
     }
     void tick();
-    const id = setInterval(() => { void tick(); }, 300_000);
     document.addEventListener("visibilitychange", tick);
-    return () => { clearInterval(id); active = false; document.removeEventListener("visibilitychange", tick); };
+    return () => { clearTimeout(timer); active = false; document.removeEventListener("visibilitychange", tick); };
   }, []);
 
-  if (count === null) return null;
+  if (presence === null) return null;
 
   return (
-    <span className="font-mono text-[11px] text-[var(--color-fg-mid)] select-none">
+    <span title={`最近 ${presence.windowSeconds / 60} 分钟活跃的登录账号`} className="font-mono text-[11px] text-[var(--color-fg-mid)] select-none">
       <span style={{ color: "var(--color-accent)" }}>●</span>{" "}
-      {count.toLocaleString()}
+      {presence.count.toLocaleString()}
     </span>
   );
 }

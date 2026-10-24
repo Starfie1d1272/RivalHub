@@ -97,3 +97,11 @@ Server Action 返回赛事范围的读取 DTO 时，也必须在 action 自身�
 Preview 固定使用 `rivalhub-dev` 的 Auth。refresh 会提供 deterministic `player`、`invited`、`captain`、`season-admin`、`super-admin` 便捷测试账号：队长优先绑定当前赛事 linked Team 的 captain，season-admin 获得当前赛季 grant，super-admin 独立选择。它们使用公开、统一、可重置的 disposable fixture credential，不是安全边界；Vercel Deployment Protection 仍负责 Preview 访问控制。它们不是唯一允许登录的账号；正常 dev 注册、登录、重置和业务写入都可用。
 
 Vercel Preview 仅可配置 dev-scoped Supabase URL、publishable/secret credential、独立 `ADMIN_SESSION_SECRET` 与必要的 dev/sandbox provider credential；Hosted 不接受 legacy API key fallback；Local Supabase adapter 将 loopback provider key 映射到同一 canonical 变量，JWT-shaped local keys 仅在 loopback URL 下接受。privileged credential 可以存在，但其权限必须只限 `rivalhub-dev`；production credential 永远不得进入 Preview。
+
+## 在线活跃状态
+
+`src/actions/online.ts` 的单一 `heartbeatOnline()` 每次从当前服务端 session 校验账号，客户端不能指定身份；匿名请求只读取人数，不登记匿名标识。浏览器只在页面可见时发送，失败隐藏旧计数，重新可见立即刷新。
+
+正式 Linux launcher 明确启用 `RIVALHUB_PRESENCE_MODE=single-process`：进程内共享有界状态按账号去重，页面每分钟心跳，近两分钟内有心跳的登录账号计入人数。它是最近活跃估计，不代表实时 TCP 连接或当前正在操作；多个标签页/设备共用一个账号只计一次。进程重启后随心跳恢复，页面悬挂、网络中断或退出后的旧活动至多保留两分钟。若扩为多个 Node worker/副本，必须先替换共享状态 owner；进程状态不能跨实例汇总。
+
+PostgreSQL `user_sessions.last_active_at` 继续保存最近活跃检查点，每账号最多五分钟更新一次，支撑后台 24h/7d/30d 活跃统计，时间精度沿用五分钟心跳口径；没有新增历史轨迹或 timer 写入。并发标签页共享在途写入，失败不标记检查点成功，下次重试。身份校验仍按每次请求执行，不复用鉴权缓存。其它 launcher 默认使用同一个 action 的五分钟 PostgreSQL fallback，不使用跨实例内存计数。UI 提示明确当前统计窗口。
