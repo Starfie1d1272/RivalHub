@@ -36,11 +36,31 @@ it("disables stale controls on RSC refresh and authorization rejection, preservi
   fireEvent.click(screen.getByRole("button", { name: "重试" }));
   await waitFor(() => expect(screen.getByRole("button", { name: "确认 one" })).not.toBeDisabled()); expect(input).toHaveValue("unsaved");
 });
-it("rechecks activated details and options when the authenticated viewer changes", async () => {
-  const { container, rerender } = render(<AdminCommunityAwardsWorkspace seasonId="season" currentUserId="admin" summaries={initial} stages={[]} />);
-  await open(container.querySelector("details")!); await screen.findByRole("textbox", { name: "draft one" });
-  rerender(<AdminCommunityAwardsWorkspace seasonId="season" currentUserId="other-admin" summaries={initial} stages={[]} />);
-  expect(screen.getByRole("button", { name: "确认 one" })).toBeDisabled();
+it.each(["success", "denied"])("discards private draft on viewer switch before a %s fresh read", async outcome => {
+  const { container, rerender } = render(<AdminCommunityAwardsWorkspace seasonId="season" currentUserId="admin-a" summaries={initial} stages={[]} />);
+  await open(container.querySelector("details")!);
+  fireEvent.change(await screen.findByRole("textbox", { name: "draft one" }), { target: { value: "private unsaved admin-a" } });
+  boundary.detail.mockImplementationOnce(async ({ awardId }) => outcome === "success" ? { success: true, data: full(awardId) } : { success: false, error: { message: "permission revoked" } });
+  rerender(<AdminCommunityAwardsWorkspace seasonId="season" currentUserId="admin-b" summaries={initial} stages={[]} />);
+  expect(screen.queryByDisplayValue("private unsaved admin-a")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "确认 one" })).not.toBeInTheDocument();
+  await open(container.querySelector("details")!);
   await waitFor(() => expect(boundary.options).toHaveBeenCalledTimes(2));
-  await waitFor(() => expect(screen.getByRole("button", { name: "确认 one" })).not.toBeDisabled());
+  if (outcome === "success") {
+    expect(await screen.findByRole("textbox", { name: "draft one" })).toHaveValue("full private condition");
+    expect(screen.getByRole("button", { name: "确认 one" })).not.toBeDisabled();
+  } else {
+    expect(await screen.findByRole("alert")).toHaveTextContent("permission revoked");
+    expect(screen.queryByRole("textbox", { name: "draft one" })).not.toBeInTheDocument();
+  }
+  expect(screen.queryByDisplayValue("private unsaved admin-a")).not.toBeInTheDocument();
+});
+it("discards private draft when the same award ID is rerendered in another season", async () => {
+  const { container, rerender } = render(<AdminCommunityAwardsWorkspace seasonId="season-a" currentUserId="admin" summaries={initial} stages={[]} />);
+  await open(container.querySelector("details")!);
+  fireEvent.change(await screen.findByRole("textbox", { name: "draft one" }), { target: { value: "private season-a" } });
+  rerender(<AdminCommunityAwardsWorkspace seasonId="season-b" currentUserId="admin" summaries={initial} stages={[]} />);
+  expect(screen.queryByDisplayValue("private season-a")).not.toBeInTheDocument();
+  await open(container.querySelector("details")!);
+  await waitFor(() => expect(boundary.detail).toHaveBeenLastCalledWith({ seasonId: "season-b", awardId: "one" }));
 });

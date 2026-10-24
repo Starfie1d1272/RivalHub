@@ -32,7 +32,7 @@ export function AdminCommunityAwardsWorkspace({ seasonId, currentUserId, summari
   return <div className="space-y-6">{groups.map(group => <section key={group.label} className="space-y-3">
     <h2 className="text-lg font-semibold">{group.label}</h2>
     {group.awards.length === 0 && <p className="text-sm text-[var(--color-fg-mid)]">暂无此状态的社区奖</p>}
-    {group.awards.map(summary => <AwardDetails key={summary.id} summary={summary} seasonId={seasonId} currentUserId={currentUserId} stages={stages} options={options} />)}
+    {group.awards.map(summary => <AwardDetails key={`${seasonId}:${currentUserId}:${summary.id}`} summary={summary} seasonId={seasonId} currentUserId={currentUserId} stages={stages} options={options} />)}
   </section>)}</div>;
 }
 

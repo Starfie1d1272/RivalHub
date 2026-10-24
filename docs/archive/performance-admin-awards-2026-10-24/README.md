@@ -9,3 +9,5 @@
 真实Chromium流程通过（21.9秒，retry=0，显式trace）：首屏Flight无长条件/证据marker，展开两奖保留完整证据，关闭再打开保留审核草稿，实际审核仅改变该fixture奖为approved并刷新分组，另一奖仍pending，撤权新请求拒绝。业务写入仅针对该隔离fixture，结束后按ID清理。未进行生产写入、发布或部署。
 
 此证据不证明生产LCP/p95，不把mock权限依赖说成真实session权限实验。组件测试使用action替身，PG权限拒绝用例注入授权边界；真实session与RSC边界由上述浏览器路径验证。原始trace/认证资料不提交。
+
+详情子树按seasonId/currentUserId/awardId隔离；切换身份或赛事即清除上一scope的私有详情与未保存草稿，新scope需重新展开并授权读取。同viewer的RSC刷新仍保留草稿并在fresh/loading/error门禁内等待。新增回归先复现3失败，再验证新viewer成功/拒绝及跨season均无旧草稿DOM；原同viewer刷新保草稿用例继续通过。
