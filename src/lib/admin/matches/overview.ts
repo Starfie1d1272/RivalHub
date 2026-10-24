@@ -211,7 +211,7 @@ export async function loadAdminMatchOverview({
     }),
     isMajor && view === "schedule" ? db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }) : Promise.resolve(undefined),
   ]);
-  const allMatches = await withDisplayScores(allMatchesRaw.map(requireCompetitionMatch));
+  const allMatches = await withDisplayScores(allMatchesRaw.map(row => requireCompetitionMatch(row)));
 
   const { swissRuntime, playoffRuntime } = isMajor && view === "schedule"
     ? buildMajorRuntimeData({
