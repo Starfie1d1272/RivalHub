@@ -6,7 +6,7 @@ import { createPredictionBrowserFixture, removePredictionBrowserFixture } from "
 import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
 import * as schema from "@/db/schema";
 
-test.use({ scenarioProfile: "auth" });
+test.use({ scenarioProfile: "auth", trace: "on" });
 test.setTimeout(90_000);
 
 test("后台 BET 主体完成 hydration 后可进入并提交启用确认", async ({ page, scenario }, testInfo) => {
@@ -20,6 +20,9 @@ test("后台 BET 主体完成 hydration 后可进入并提交启用确认", asyn
     if (request.resourceType() === "script" && new URL(request.url()).origin === new URL(page.url()).origin) failures.push(`script: ${new URL(request.url()).pathname}: ${request.failure()?.errorText}`);
   });
   try {
+    const firstMatch = await database.query.matches.findFirst({ where: eq(schema.matches.seasonId, fixture.seasonId), orderBy: (matches, { asc }) => [asc(matches.createdAt), asc(matches.id)] });
+    if (!firstMatch) throw new Error("后台 BET fixture 缺少比赛");
+    await database.update(schema.matches).set({ format: "bo3" }).where(eq(schema.matches.id, firstMatch.id));
     await database.insert(schema.seasonAdminGrants).values({ seasonId: fixture.seasonId, userId: actor.userId });
     await signInProgrammatically(page, actor, scenario, `/admin/${fixture.slug}/bet`);
     const enable = page.getByRole("button", { name: "启用 BET", exact: true });
