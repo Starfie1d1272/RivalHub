@@ -20,3 +20,5 @@ confirmed Demo质量详情由展开后的独立授权读取提供；首屏保留
 
 公告列表消费canonical summary/count；季赛详情将id、seasonId和actor scope交同一个owner。赛事信息目录只消费两种计数，详情保持直接scoped读取。教育概览与审核队列是独立服务端区域，概览失败不把队列伪装成空集合；审核队列primary-ready仅在真实内容旁记录。
 队长确认面板只消费前八名的展示字段和完整候选人数；后台reader只读取approved、active且愿任队长的报名，复用canonical排序，确认action仍重新核验。换算策略赛事引用按当前SQL顺序一次分组，保留显式版本优先于fallback及报名冻结状态。
+
+筹备页的最近阵容差异只读取按revisionNumber排序的倒数第二个approvedAt事实，不重新解释冻结来源。后台选秀pool的state/teams/picks可并行，members仍依赖teams，事务内默认顺序保留；catalog后台pool消费者显式使用共享reader的concurrent选项，冻结事务保持默认顺序。
