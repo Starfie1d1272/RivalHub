@@ -36,20 +36,20 @@ rm tests/integration/db/w12-performance.tmp.test.ts tests/integration/db/w12-bas
 | AS-00 | 待具体实验 | 固定 auth clock/canonical/session、password begin/provider/finalize、OCR players 阶段；OCR requestId 顶层兼容 | W01 #1082 已合入，真实 ready consumer/stage 已接；集成人验证同导航 token 与 receiver-first |
 | AS-01 | 待具体实验 | 设置/readiness 复用公开目录 owner；仅公开冷读允许三表独立并行；freeze/写仍 caller executor 顺序读取 | W12/W01 量 production build 下冷/暖真实 cache hit 和主表单 ready/LCP；本机 no-op cache 不能证明命中 |
 | AS-02 | 已实现已测 | 单次 raw bundle + platform/fallback 纯投影，兼容旧 loader；私有事实不跨请求缓存 | PG 检查同 executor、4 次 raw 查询、投影零查询、primary/fallback/unranked；资格冻结/修正 suite 通过 |
-| AS-03 | 待具体实验 | next-match request memo、只富化每 entry 首场；My 复用当前队伍 owner | W12 真实 RSC 同请求 memo/队长成员/多历史 cohort；长期历史分页须先有 payload/人口证据，未无证据重写 |
-| AS-04 | 待具体实验 | 候选/当前名单并读，claims/roles/facts 按依赖共同开始，旧批准名单提前；准入与 revision 不变 | W12/总体验证者跑 team/solo/Major 注册窗口真实浏览器；PG 资格与冻结链已回归 |
+| AS-03 | 已测 request memo；人口实验待补 | next-match request memo、首场富化与当前队伍 owner | 真实 react-server dispatcher + PG：personal/team 同请求一次、下一请求重读；未据空人口 fixture 宣称完成长期历史/角色 cohort，见 bounded-acceptance.md |
+| AS-04 | 已测窗口与准入链；生产性能待验 | 依赖分组、保留 revision/冻结准入；请求事实置于 leaf Suspense | 原生 Chromium team/solo/Major 九窗口 + Major 创建报名；注册 PG 五项复验；资格/冻结原 suite 保留，见 bounded-acceptance.md |
 | AS-05 | 已实现已测 | 当前视图有界卡片；完整 SQL filter 后计数与分页；页数收缩纠正；仅当前页富化 | PG 覆盖 q/event/position/size/map、邀请/过期及 1000 intents；浏览器 ready 与生产资源收益另验 |
 | AS-06 | 已实现已测 | 原始 canonical candidate ID 去重；冲突拒绝、锁后归属、revoked subject/fresh-auth fence 保留 | 真实独立 PG 连接的身份撤销/登录 12 项回归通过；不据此承诺解决 13s provider 尾延迟 |
-| AS-07 | 待具体实验 | Login/Forgot/Reset/Change transport 受控恢复；密码 unknown 禁重提，成功导航保留 | 组件与 password PostgreSQL；真实 Local Supabase/browser 由总体验证者执行；静态 reset 页慢样本尚无资源归因 |
+| AS-07 | 已测 Local Auth/transport；生产慢样本待归因 | 登录与凭据表单受控 unknown；密码 fence 不变 | Local Supabase 真实登录与浏览器 abort 后恢复通过；Next 底层实际三次网络尝试，未伪称一次 HTTP；密码 PG 与组件独立证据保留，见 bounded-acceptance.md |
 | AS-08 | 已实现已测 | 邮件 unknown 不取消 pending；明确 4xx 与 5xx/408/transport 分离；user→request 锁序与 DB clock 阻止有效 pending 被跨刷新/双击替换，原链接到期后才允许新请求 | 真实 PG 并发、原 token/status 保留、DB 过期后重建通过；provider adapter 用确定性 503/accepted，未声称实际送达 |
-| AS-09 | 已实现已测 | 统一 7 MiB 原图预算，编码后保留 >680 KiB envelope；服务端 canonical base64/signature 复核 | 6/7/7.5/8/10 MiB、伪装/截断单测通过；没有提高全局 body limit；实际反代边界与慢上行由总体验证者测 |
+| AS-09 | 已实现已测；生产反代待验 | 7 MiB 原图预算与 canonical 编码/签名复核不变 | 9,786,741 字节真实 Next envelope 正常/分块均 200；超限被 body-limit 拒绝（本地 action HTTP 500）；生产反代未验证，见 bounded-proof.json |
 | AS-10 | 已实现已测 | OCR 窄 map/match join，先 fresh admin，再 players/provider 并行；typed 回读不伪空 | app types/architecture/组件；付费模型未调用，生产 provider 时间与字段精度尚不宣称 |
 | AS-11 | 待具体实验 | fallback 共用原 180s monotonic deadline；真实 decoded imageBytes；既有关 thinking/tuple/body timeout 不重复计功 | 当前默认 Qwen3.5-9B 与 thinking 配置未改；仓内只有响应/输入契约测试，没有标注截图精度基线。压缩/换模型属条件实验，需至少20张脱敏标注图与费用授权；没有新增付费调用 |
-| AS-12 | 待具体实验 | typed read、finally、unknown 保留草稿禁重写、已知 commit 与 refresh 分离；显式重试失效不重放 mutation；initialRows undefined/[] 不同 | W03 分配 actor/map/operationId/digest/version receipt 的 active migration；W12 后续 lost COMMIT ack/双管理员版本冲突 PG。当前 read 只加载最新状态，不能证明某次未知写属于本操作 |
-| AS-13 | 待具体实验 | 删除 action 两处重复完整 assert；保留 persist 锁后完整校验；postcommit 返回 refreshPending | PG 名单/资格通过；MatchRosterForm/AdminRosterDialog 已消费 refreshPending/unknown，confirm 的已确认分支也重试失效；严格 receipt/版本核对仍待合同 |
-| AS-14 | 待具体实验 | 教育页用户窄字段；资料/安全/竞技主表单与辅助 readiness/列表/roles/maps 分 leaf | W12/总体验证者 production build 的实际 form-ready 与 shift source；没有用占位高度宣称 CLS 达标 |
-| AS-15 | 待具体实验 | postmatch match/season 一次窄 join；commit 与失效结果分离；录像未知 move 不重放、save 稳定 ID 保留 | PG 录像 owner、action postcommit、组件 unknown 通过；PostMatchRecordPanel 已消费共享 run 的 refreshPending 并单独重试失效，2 项组件恢复通过；严格 receipt/版本+双管理员 lost response 和 ready trace 仍待集成 |
-| AS-16 | 待具体实验 | candidate/season 窄投影；锁序/锁后 deadline/代表/coverage 不变；未知回应禁重放 | 真实 PG 排期/身份回归与组件通过；receipt 归属/版本恢复仍待锁组；未无依据合并 legacy 提议方 SQL |
+| AS-12 | 已实现已测 | typed read/finally、actor 绑定、版本 CAS、原子 durable receipt、非敏感 locator 与未知草稿互斥 | #1091 已合 main；非空 save/重放/CAS/superseded PG + 原生浏览器关闭重开、实际 HTTP 丢响应、missing/权限变化通过；adapter COMMIT 模拟与网络故障分别记录，见 ocr-receipts.md |
+| AS-13 | 已交付独立 Ready #1110 | 保留锁后完整准入；fresh 授权完整名单/代表/内容版本核对 | 组件与真实 PG 通过；当前状态相同不当提交归属凭据、不自动重放，见 operation-readback.md；合并由父会话控制 |
+| AS-14 | 已测真实 leaf；生产指标待验 | 设置窄事实/辅助 leaf；请求读取在真实表单边界内，fallback 不报 ready | 三个实际可编辑表单与 shift source tag 已测，竞技锚点为保存按钮；设置/报名 uncached-data 警告移除；不宣称生产 p75/p95 或 CLS 达标，见 bounded-proof.json |
+| AS-15 | 已交付独立 Ready #1110 | 录像原 ID/内容/相对顺序与版本授权核对；保留未知草稿 | 单测/组件与真实 PG 通过；状态匹配仍不证明原提交归属，仅明确提交后的失效允许单独重试，见 operation-readback.md |
+| AS-16 | 已交付独立 Ready #1110 | 原 proposalId/status/resolution/proposedTime/scheduledAt/reason 与版本核对 | 相同排期不同原提议不能判完成；fresh 代表/管理员授权，保留锁序/deadline/coverage；单测/组件/真实 PG 通过，见 operation-readback.md |
 
 ## 路由审查范围
 

@@ -16,7 +16,11 @@ interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default async function CompetitiveProfileSettingsPage({ searchParams }: PageProps) {
+export default function CompetitiveProfileSettingsPage(props: PageProps) {
+  return <Suspense fallback={<p role="status" aria-busy="true">正在读取账号资料…</p>}><CompetitiveProfileSettingsContent {...props} /></Suspense>;
+}
+
+async function CompetitiveProfileSettingsContent({ searchParams }: PageProps) {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/settings/competitive");
   const rawSearchParams = await searchParams;
