@@ -24,7 +24,7 @@ export type FeedbackAdminRow = {
 };
 
 export type FeedbackAdminSummary = Omit<FeedbackAdminRow, "body"> & { bodySummary: string };
-export const FEEDBACK_ADMIN_PAGE_SIZE = 25;
+const FEEDBACK_ADMIN_PAGE_SIZE = 25;
 type Filters = { status?: FeedbackStatus; category?: FeedbackCategory };
 
 function feedbackFilter(filters: Filters) {
@@ -55,11 +55,6 @@ function projectFeedback(row: FeedbackReadRow): FeedbackAdminRow {
     userLabel: getFeedbackUserLabel({ userId: row.userId, displayName: row.userDisplayName, perfectName: row.userPerfectName,
       personaName: row.userSteamName, email: row.userEmail }),
     createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
-}
-
-/** Compatibility reader; paged admin pages use getFeedbackAdminPage. */
-export async function listFeedbackForAdmin(filters: Filters = {}): Promise<FeedbackAdminRow[]> {
-  return (await feedbackQuery(feedbackFilter(filters))).map(projectFeedback);
 }
 
 export async function getFeedbackAdminPage(filters: Filters & { page?: number } = {}) {

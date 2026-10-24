@@ -197,8 +197,8 @@
       "task": "A-FEEDBACK",
       "status": "implemented_tested",
       "implemented": "DB稳定25条摘要分页、中文body前160字；详情按ID/limit1独立fresh超级管理员授权、完整正文与重试",
-      "evidence": "真实PG65条/4000字中文、筛选/稳定同时间ID排序/clamp/完整详情/授权拒绝/安全fingerprint不泄漏",
-      "remainingExperiment": "deleted user展示fixture；浏览器filter/detail/back-forward及历史规模计划",
+      "evidence": "真实PG65条/4000字中文、筛选/稳定同时间ID排序/clamp/完整详情/授权拒绝/安全fingerprint不泄漏；真实删除身份后userId/userLabel为空且正文完整",
+      "remainingExperiment": "浏览器filter/detail/back-forward及历史规模计划",
       "owner": "admin"
     },
     {

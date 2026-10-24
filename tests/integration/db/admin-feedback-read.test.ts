@@ -13,6 +13,7 @@ it("pages safe summaries and reauthorizes full detail without a list scan", asyn
   const pool = createLocalPool();
   const ids = Array.from({ length: 65 }, () => randomUUID());
   const body = "完整中文反馈".repeat(600).slice(0, 4000);
+  const deletedUser = randomUUID();
   const fingerprint = `private-fingerprint-${randomUUID()}`;
   const filter = { category: "content_correction" as const };
   const baseline = await getFeedbackAdminPage(filter);
@@ -32,6 +33,11 @@ it("pages safe summaries and reauthorizes full detail without a list scan", asyn
     expect(resolved.rows.every(row => row.status === "resolved")).toBe(true);
     const clamped = await getFeedbackAdminPage({ ...filter, page: 999 });
     expect(clamped.page).toBe(clamped.totalPages);
+    await pool.query("insert into users(id,email,display_name) values($1,$2,'安全显示名')", [deletedUser, `${deletedUser}@fixture.test`]);
+    await pool.query("update feedback_reports set user_id=$1 where id=$2", [deletedUser, ids[0]]);
+    expect(await getFeedbackForAdmin(ids[0]!)).toMatchObject({ userId: deletedUser, userLabel: "安全显示名" });
+    await pool.query("delete from users where id=$1", [deletedUser]);
+    expect(await getFeedbackForAdmin(ids[0]!)).toMatchObject({ userId: null, userLabel: null, body });
     const detail = await getFeedbackForAdmin(ids[0]!);
     expect(detail?.body).toBe(body);
     expect(detail).not.toHaveProperty("bodyFingerprint");
@@ -43,6 +49,7 @@ it("pages safe summaries and reauthorizes full detail without a list scan", asyn
     expect(await readFeedbackDetail(ids[0]!)).toMatchObject({ success: false, error: { code: ErrorCode.FORBIDDEN } });
   } finally {
     await pool.query("delete from feedback_reports where id=any($1::uuid[])", [ids]);
+    await pool.query("delete from users where id=$1", [deletedUser]);
     await pool.end();
   }
 });
