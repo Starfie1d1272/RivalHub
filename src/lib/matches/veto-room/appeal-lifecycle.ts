@@ -8,14 +8,15 @@ import { canPublishVetoAppealClosure } from "./lifecycle-publication";
 export const VETO_APPEAL_CLOSURE_NOTE = "正式对局已开始，BP 恢复窗口已结束；原超时记录与申诉原因保留，超时责任未作裁定。如需进一步赛务处理，请联系赛事管理员并提供超时记录。";
 
 /** Operational start and BP completion are not evidence of actual gameplay. */
-export async function hasVetoGameplayInTx(tx: Pick<TxDb, "query" | "select">, matchId: string): Promise<boolean> {
-  const match = await tx.query.matches.findFirst({ where: eq(matches.id, matchId), columns: { gameplayStartedAt: true } });
-  if (match?.gameplayStartedAt) return true;
-  const [map] = await tx.select({ id: matchMaps.id }).from(matchMaps).where(and(
-    eq(matchMaps.matchId, matchId),
-    or(isNotNull(matchMaps.startedAt), isNotNull(matchMaps.scoreA), isNotNull(matchMaps.scoreB), isNotNull(matchMaps.completedAt)),
-  )).limit(1);
-  return Boolean(map);
+export function vetoGameplayExists(matchId: string) {
+  return sql<boolean>`exists (select 1 from ${matches} where ${matches.id} = ${matchId} and ${matches.gameplayStartedAt} is not null)
+    or exists (select 1 from ${matchMaps} where ${and(eq(matchMaps.matchId, matchId),
+      or(isNotNull(matchMaps.startedAt), isNotNull(matchMaps.scoreA), isNotNull(matchMaps.scoreB), isNotNull(matchMaps.completedAt)))})`;
+}
+
+export async function hasVetoGameplayInTx(tx: Pick<TxDb, "select">, matchId: string): Promise<boolean> {
+  const [row] = await tx.select({ started: vetoGameplayExists(matchId) }).from(matches).where(eq(matches.id, matchId)).limit(1);
+  return row?.started ?? false;
 }
 
 /** Caller holds the canonical match lock, shared with appeal submission and resolution. */

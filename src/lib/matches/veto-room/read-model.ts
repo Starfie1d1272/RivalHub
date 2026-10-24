@@ -18,7 +18,6 @@ import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/c
 import { mapLabel } from "@/lib/maps";
 import { MATCH_FORMAT_LABELS, SIDE_LABELS } from "@/types/match";
 import { readVetoRoomSnapshot, type VetoRoomCoreSnapshot } from "./service";
-import { hasVetoGameplayInTx } from "./appeal-lifecycle";
 
 const MATCH_STATUS_LABELS = {
   scheduled: "待进行",
@@ -61,51 +60,51 @@ export async function projectVetoRoomView(
   viewerId: string | null,
   authorization: Awaited<ReturnType<typeof getCurrentUserAuthorization>>,
  ) {
-  const [context] = await db
-    .select({
-      seasonSlug: seasons.slug,
-      seasonName: seasons.name,
-      stagePlan: seasons.stagePlan,
-      registrationConfig: seasons.registrationConfig,
-    })
-    .from(seasons)
-    .where(eq(seasons.id, core.match.seasonId))
-    .limit(1);
+  const [entryRows, rosterRows, operatorRows, completedMaps] = await Promise.all([
+    db
+      .select({ id: competitionEntries.id, name: competitionEntries.name, representativeUserId: competitionEntries.representativeUserId })
+      .from(competitionEntries)
+      .where(and(
+        eq(competitionEntries.competitionId, core.match.seasonId),
+        orEntryId(core.match.entryAId, core.match.entryBId),
+      )),
+    db
+      .select({
+        entryId: matchRosters.entryId,
+        rosterId: matchRosters.id,
+        rosterStatus: matchRosters.status,
+        memberId: eventRosterMembers.id,
+        userId: eventRosterMembers.userId,
+        displayName: users.displayName,
+        perfectName: users.perfectName,
+        personaName: steamProfiles.personaName,
+        isStarter: matchRosterPlayers.isStarter,
+        isVetoRepresentative: matchRosterPlayers.isVetoRepresentative,
+      })
+      .from(matchRosters)
+      .innerJoin(matchRosterPlayers, eq(matchRosterPlayers.rosterId, matchRosters.id))
+      .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
+      .innerJoin(users, eq(users.id, eventRosterMembers.userId))
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+      .where(eq(matchRosters.matchId, core.match.id)),
+    core.match.testConfig ? db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
+      .from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+      .where(inArray(users.id, [core.match.testConfig.operatorAId, core.match.testConfig.operatorBId])) : Promise.resolve([]),
+    core.session.completedAt ? db.select({
+      id: matchMaps.id, mapOrder: matchMaps.mapOrder, mapName: matchMaps.mapName, teamAStartSide: matchMaps.teamAStartSide,
+    }).from(matchMaps).where(eq(matchMaps.matchId, core.match.id)) : Promise.resolve([])
+  ]);
+  // Sample the response clock after auth and the other projection reads finish.
+  const [context] = await db.select({
+    seasonSlug: seasons.slug,
+    seasonName: seasons.name,
+    stagePlan: seasons.stagePlan,
+    registrationConfig: seasons.registrationConfig,
+    serverNow: sql<string>`clock_timestamp()`.mapWith(value => new Date(value)),
+  }).from(seasons).where(eq(seasons.id, core.match.seasonId)).limit(1);
   if (!context) throw new Error("赛事不存在。");
-
-  const entryRows = await db
-    .select({ id: competitionEntries.id, name: competitionEntries.name, representativeUserId: competitionEntries.representativeUserId })
-    .from(competitionEntries)
-    .where(and(
-      eq(competitionEntries.competitionId, core.match.seasonId),
-      orEntryId(core.match.entryAId, core.match.entryBId),
-    ));
   const entryById = new Map(entryRows.map((entry) => [entry.id, entry]));
-
-  const rosterRows = await db
-    .select({
-      entryId: matchRosters.entryId,
-      rosterId: matchRosters.id,
-      rosterStatus: matchRosters.status,
-      memberId: eventRosterMembers.id,
-      userId: eventRosterMembers.userId,
-      displayName: users.displayName,
-      perfectName: users.perfectName,
-      personaName: steamProfiles.personaName,
-      isStarter: matchRosterPlayers.isStarter,
-      isVetoRepresentative: matchRosterPlayers.isVetoRepresentative,
-    })
-    .from(matchRosters)
-    .innerJoin(matchRosterPlayers, eq(matchRosterPlayers.rosterId, matchRosters.id))
-    .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
-    .innerJoin(users, eq(users.id, eventRosterMembers.userId))
-    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-    .where(eq(matchRosters.matchId, core.match.id));
-
-  const clockResult = await db.execute(sql`SELECT clock_timestamp() AS now`);
-  const clockRow = clockResult.rows[0] as { now?: Date | string } | undefined;
-  if (!clockRow?.now) throw new Error("读取 BP 房间服务器时间失败。");
-  const serverNow = clockRow.now instanceof Date ? clockRow.now : new Date(clockRow.now);
+  const serverNow = context.serverNow;
 
   const rosterByEntry = new Map<string, typeof rosterRows>();
   for (const row of rosterRows) {
@@ -113,9 +112,6 @@ export async function projectVetoRoomView(
     rows.push(row);
     rosterByEntry.set(row.entryId, rows);
   }
-  const operatorRows = core.match.testConfig ? await db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
-    .from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-    .where(inArray(users.id, [core.match.testConfig.operatorAId, core.match.testConfig.operatorBId])) : [];
   const isAdmin = authorization?.role === "super_admin" || Boolean(authorization?.seasonIds.includes(core.match.seasonId));
   const viewerEntryId = core.match.testConfig?.operatorAId === viewerId ? core.match.entryAId : core.match.testConfig?.operatorBId === viewerId ? core.match.entryBId : getEntryIdForViewer(viewerId, entryRows, rosterRows);
   const currentTurnEntry = core.currentTurn?.actorEntryId ?? null;
@@ -199,7 +195,7 @@ export async function projectVetoRoomView(
     };
   });
 
-  const gameplayStarted = await hasVetoGameplayInTx(db, core.match.id);
+  const gameplayStarted = core.gameplayStarted;
   const recoveryClosed = core.match.status === "finished" || core.match.status === "cancelled" || gameplayStarted;
   const appealsByIncident = new Map(core.appeals.map((appeal) => [appeal.timeoutIncidentId, appeal]));
   const incidents = core.incidents.map((incident) => {
@@ -229,9 +225,6 @@ export async function projectVetoRoomView(
     };
   });
 
-  const completedMaps = core.session.completedAt ? await db.select({
-    id: matchMaps.id, mapOrder: matchMaps.mapOrder, mapName: matchMaps.mapName, teamAStartSide: matchMaps.teamAStartSide,
-  }).from(matchMaps).where(eq(matchMaps.matchId, core.match.id)) : [];
   const map = (value: string) => mapLabel(value);
   return {
     seasonSlug: context.seasonSlug,
