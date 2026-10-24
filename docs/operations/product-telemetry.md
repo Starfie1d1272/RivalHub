@@ -36,7 +36,7 @@ Worker 仅使用独立 D1：一个批次一行、服务端校验后写入、按�
 
 performance 事件的白名单 `metricName` 为 TTFB/FCP/LCP/INP/NAV_COMMIT/CLS。前五项的 `durationMs` 为毫秒；CLS 只使用 `score`。同批 summary 前九列兼容原布局，原 variant 维度在 performance kind 下保存 metricName，第九列始终为毫秒总和（CLS 为零）；可选第十列保存 CLS score 总和（其他指标为 null），第十一列保存固定 client 分类。旧无 client 的毫秒行仍只有九列。分类不同的报告分组，日汇总仍跨分类合并；旧 `duration_ms` 日汇总暂不写 CLS，避免单位混用。次数/耗时总和表示接收的观察报告；跨批指标更新可能重复贡献，不能把 summary 平均值当作每次导航的最终 Web Vital 或 p75。受控 raw 分析应先按 session/id 取最新 at，且说明映射边界与采集缺口。保留、访问、DNT/GPC、队列/批次和免费预算沿用原规则，采集不逐次发送。
 
-协议升级时先部署兼容新旧事件的独立 Worker，再按正式 release 流程发布网站采集端；旧 Worker 会拒绝含新 kind 的整批。此次扩展已校验事件、可选固定分类与兼容尾列，无 D1 schema migration，不重跑初始化 SQL。回滚网站可继续使用新 Worker；若回滚 Worker，先停用新版网站采集，避免整批被拒。
+协议升级时先部署兼容新旧事件的独立 Worker，再按正式 release 流程发布网站采集端；旧 Worker 会拒绝含未识别字段或指标的整批。此次扩展已校验事件、可选固定分类与兼容尾列，无 D1 schema migration，不重跑初始化 SQL。回滚网站可继续使用新 Worker；若回滚 Worker，先停用新版网站采集，避免整批被拒。
 
 ## 设备与入口分类
 
