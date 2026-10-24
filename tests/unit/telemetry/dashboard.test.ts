@@ -7,7 +7,7 @@ it("protects dashboard queries and bounds D1 summaries without exposing identiti
   const require = createRequire(import.meta.url);
   const { build } = createRequire(require.resolve("tsx/package.json"))("esbuild") as { build(options: object): Promise<{ outputFiles: { text: string }[] }> };
   const built = await build({ entryPoints: ["workers/telemetry/index.ts"], bundle: true, write: false, format: "esm", platform: "browser" });
-  const bindings = { SIGNING_KEY: "fixture-signing-key".repeat(3), ADMIN_KEY: "fixture-admin-key".repeat(3), ALLOWED_ORIGIN: "https://rivalhub.invalid" };
+  const bindings = { SIGNING_KEY: "fixture-signing-key".repeat(3), ADMIN_KEY: "fixture-admin-key".repeat(3), DASHBOARD_KEY: "fixture-dashboard-key".repeat(3), ALLOWED_ORIGIN: "https://rivalhub.invalid" };
   const mf = new Miniflare({ modules: true, script: built.outputFiles[0].text, compatibilityDate: "2026-07-30", bindings, d1Databases: ["DB"] });
   try {
     const db = await mf.getD1Database("DB");
@@ -34,6 +34,13 @@ it("protects dashboard queries and bounds D1 summaries without exposing identiti
     expect((await mf.dispatchFetch("https://worker.invalid/admin/dashboard?account=private-account", { headers })).status).toBe(400);
     const response = await mf.dispatchFetch("https://worker.invalid/admin/dashboard?release=test", { headers });
     expect(response.status).toBe(200);
+    const readerHeaders = { authorization: `Bearer ${bindings.DASHBOARD_KEY}` };
+    expect((await mf.dispatchFetch("https://worker.invalid/admin/dashboard", { headers: readerHeaders })).status).toBe(200);
+    for (const path of ["/admin/usage", "/admin/summary", "/admin/events?session=private-session", "/admin/dashboard/private"]) {
+      expect((await mf.dispatchFetch(`https://worker.invalid${path}`, { headers: readerHeaders })).status).toBe(401);
+    }
+    expect((await mf.dispatchFetch("https://worker.invalid/admin/dashboard", { method: "POST", headers: readerHeaders })).status).toBe(405);
+    expect((await mf.dispatchFetch("https://worker.invalid/admin/dashboard", { headers: { authorization: "Bearer wrong" } })).status).toBe(401);
     const text = await response.text();
     expect(text).not.toMatch(/private-|events_gzip|SIGNING_KEY|ADMIN_KEY/);
     const data = JSON.parse(text);
