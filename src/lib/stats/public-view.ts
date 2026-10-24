@@ -1,30 +1,26 @@
+import { buildOverviewReadModel } from "./overview";
 import type { TournamentStats } from "./tournament-query";
 import type { StatsQuery } from "./view-state";
-/** Only aggregated summaries used by the selected view cross the RSC boundary. */
-export function publicStatsView(data: TournamentStats, query: StatsQuery): TournamentStats {
-  const overview = query.tab === "overview", players = query.tab === "players", teams = query.tab === "teams", maps = query.tab === "maps", weapons = query.tab === "weapons", records = query.tab === "records";
-  const { recordTies, ...publicData } = data;
-  void recordTies;
-  return { ...publicData,
-    leaderboard: overview || players ? data.leaderboard : [],
-    teamRatings: overview || teams ? data.teamRatings : [],
-    insights: overview ? data.insights : undefined,
-    records: records ? data.records : undefined,
-    recordEvents: records ? data.recordEvents : undefined,
-    eventCounts: records ? data.eventCounts : undefined,
-    eventMaps: records ? data.eventMaps : undefined,
-    recordCoverage: records ? data.recordCoverage : undefined,
-    analytics: { ...data.analytics, provenance: { semanticProfile: null, analysisVersions: [] },
-      teams: overview || teams || (maps && query.map) ? data.analytics.teams : [],
-      maps: overview || maps ? data.analytics.maps : [], weapons: [], economyMatrix: overview || (maps && query.map) ? data.analytics.economyMatrix : [] },
-    performance: { ...data.performance, provenance: { semanticProfile: null, analysisVersions: [] },
-      players: players || (maps && query.map) ? data.performance.players : [],
-      teams: overview || players || teams || (maps && query.map) ? data.performance.teams : [],
-      maps: overview || (maps && query.map) ? data.performance.maps : [],
-      weapons: overview || weapons ? data.performance.weapons : [] },
-    results: { ...data.results, teams: overview || teams || (maps && query.map) ? data.results.teams : [],
-      maps: overview || maps ? data.results.maps : [], teamMaps: maps ? data.results.teamMaps : [] },
-    selection: overview || maps ? data.selection : [],
-    veto: { ...data.veto, teams: maps ? data.veto.teams : [] },
-  };
+
+/** No internal record ties, provenance or unused tab collections cross RSC. */
+export function publicStatsView(data: TournamentStats, query: StatsQuery) {
+  const common: { coverage: TournamentStats["coverage"]; options: TournamentStats["options"]; teamLinks?: Record<string, string> } = { coverage: data.coverage, options: data.options, teamLinks: data.teamLinks };
+  switch (query.tab) {
+    case "overview": return { ...common, tab: "overview" as const, overview: buildOverviewReadModel(data) };
+    case "players": return { ...common, tab: "players" as const, leaderboard: data.leaderboard,
+      performance: { players: data.performance.players, teams: data.performance.teams } };
+    case "teams": return { ...common, tab: "teams" as const, teamRatings: data.teamRatings,
+      analytics: { teams: data.analytics.teams }, performance: { teams: data.performance.teams }, results: { teams: data.results.teams } };
+    case "weapons": return { ...common, tab: "weapons" as const, performance: { weapons: data.performance.weapons } };
+    case "records": return { ...common, tab: "records" as const, records: data.records, recordEvents: data.recordEvents,
+      eventCounts: data.eventCounts, eventMaps: data.eventMaps, recordCoverage: data.recordCoverage };
+    case "maps": return { ...common, tab: "maps" as const,
+      analytics: { maps: data.analytics.maps }, results: { maps: data.results.maps }, selection: data.selection, veto: data.veto,
+      mapDetail: query.map ? { map: query.map, results: data.results, selection: data.selection, coverage: data.coverage,
+        analytics: { ...data.analytics, provenance: { semanticProfile: null, analysisVersions: [] }, weapons: [] },
+        performance: { ...data.performance, provenance: { semanticProfile: null, analysisVersions: [] }, weapons: [] },
+        entries: data.results.teams.map(row => ({ id: row.entryId, name: row.name })) } : undefined };
+  }
 }
+export type PublicStatsData = ReturnType<typeof publicStatsView>;
+export type StatsTabData<T extends StatsQuery["tab"]> = Extract<PublicStatsData, { tab: T }>;

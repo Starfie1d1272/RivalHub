@@ -9,6 +9,7 @@ import type { TournamentMapDetail, TournamentStats } from "@/lib/stats/tournamen
 import { parseStatsQuery } from "@/lib/stats/view-state";
 
 vi.mock("next/navigation", () => ({
+  usePathname: () => window.location.pathname,
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   useSearchParams: () => new URLSearchParams(window.location.search),
 }));

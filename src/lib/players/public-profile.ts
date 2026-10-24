@@ -36,8 +36,9 @@ export type PublicPlayerCareerEvent = {
 export async function getPublicPlayerProfileReadModel(
   userId: string,
   scope: { eventSlug?: string; mapFilter?: string } = {},
+  known?: { user: NonNullable<Awaited<ReturnType<typeof getPublicPlayerById>>>; sanctions: Awaited<ReturnType<typeof getPublicPlayerSanctions>> },
 ) {
-  const user = await getPublicPlayerById(userId);
+  const user = known?.user.id === userId ? known.user : await getPublicPlayerById(userId);
   if (!user) return null;
   // Reuse the same cached read for an unfiltered profile; scoped performance
   // and the lifetime header are independent and can load concurrently.
@@ -45,12 +46,10 @@ export async function getPublicPlayerProfileReadModel(
   const performancePromise = scope.eventSlug || scope.mapFilter
     ? readOptionalPublicStats("player_career", () => getPublicPlayerCareerDetail({ playerId: userId, eventSlug: scope.eventSlug, mapFilter: scope.mapFilter }))
     : lifetimePromise;
-  const [career, currentTeams, registrations, competitiveFacts, competitiveRoles, mapPreferences, competitiveCatalog, educationRows, playerLft, teamMemberRows, careerRecords, lifetime, sanctions] = await Promise.all([
-    performancePromise,
-    db.select({ slug: teams.slug, name: teams.name }).from(teamMemberships)
-      .innerJoin(teams, eq(teams.id, teamMemberships.teamId))
-      .where(and(eq(teamMemberships.userId, userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))),
-    db.select({
+  const benchmarkPromise = performancePromise.then(career => career?.performance
+    ? readOptionalPublicStats("player_benchmark", getPlayerAttributeBenchmark)
+    : null);
+  const registrationsPromise = db.select({
       id: seasonRegistrations.id,
       seasonId: seasonRegistrations.seasonId,
       primaryPosition: seasonRegistrations.primaryPosition,
@@ -65,7 +64,43 @@ export async function getPublicPlayerProfileReadModel(
     }).from(seasonRegistrations)
       .innerJoin(seasons, eq(seasonRegistrations.seasonId, seasons.id))
       .where(and(eq(seasonRegistrations.userId, userId), eq(seasonRegistrations.status, "approved"), ne(seasons.status, "draft")))
-      .orderBy(asc(seasons.name), asc(seasonRegistrations.id)),
+      .orderBy(asc(seasons.name), asc(seasonRegistrations.id)).execute();
+  const teamMemberRowsPromise = db.select({
+      seasonId: competitionEntries.competitionId,
+      teamId: competitionEntries.id,
+      teamName: competitionEntries.name,
+      seasonSlug: seasons.slug,
+      seasonName: seasons.name,
+      seasonStatus: seasons.status,
+    }).from(eventRosterMembers)
+      .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+      .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
+      .innerJoin(seasons, eq(competitionEntries.competitionId, seasons.id))
+      .where(and(eq(eventRosterMembers.userId, userId), eq(eventRosterMembers.isCurrent, true), inArray(eventRosters.status, ["confirmed", "frozen"]), ne(seasons.status, "draft"), publicCompetitionEntryCondition()))
+      .orderBy(desc(seasons.createdAt), asc(competitionEntries.name), asc(competitionEntries.id)).execute();
+  const registrationCompletionPromise = registrationsPromise.then(registrations => registrations.length > 0
+    ? db.select({ seasonId: matches.seasonId, lastCompletedAt: max(matches.completedAt) })
+      .from(matches)
+      .where(and(officialMatchCondition(), and(inArray(matches.seasonId, [...new Set(registrations.map((registration) => registration.seasonId))]), eq(matches.status, "finished"))))
+      .groupBy(matches.seasonId)
+    : []);
+  const resultBySeasonPromise = teamMemberRowsPromise.then(async rows => {
+    const resultBySeason = new Map<string, Awaited<ReturnType<typeof getPublicSeasonResults>>>();
+    const slugs = [...new Set(rows.filter(entry => ["finished", "archived"].includes(entry.seasonStatus)).map(entry => entry.seasonSlug))];
+    for (let offset = 0; offset < slugs.length; offset += 2) {
+      await Promise.all(slugs.slice(offset, offset + 2).map(async slug => {
+        const season = await getPublicSeasonBySlug(slug);
+        if (season) resultBySeason.set(season.id, await getPublicSeasonResults(season));
+      }));
+    }
+    return resultBySeason;
+  });
+  const [career, currentTeams, registrations, competitiveFacts, competitiveRoles, mapPreferences, competitiveCatalog, educationRows, playerLft, teamMemberRows, careerRecords, lifetime, sanctions, registrationCompletionRows, resultBySeason] = await Promise.all([
+    performancePromise,
+    db.select({ slug: teams.slug, name: teams.name }).from(teamMemberships)
+      .innerJoin(teams, eq(teams.id, teamMemberships.teamId))
+      .where(and(eq(teamMemberships.userId, userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))),
+    registrationsPromise,
     db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, userId)),
     db.select().from(userCompetitiveRoles).where(eq(userCompetitiveRoles.userId, userId)),
     db.select().from(userMapPreferences).where(eq(userMapPreferences.userId, userId)),
@@ -82,31 +117,15 @@ export async function getPublicPlayerProfileReadModel(
       .where(and(eq(educationVerifications.userId, userId), eq(educationVerifications.status, "approved")))
       .orderBy(asc(institutions.name), asc(educationVerifications.institutionId), desc(educationVerifications.submittedAt), asc(educationVerifications.id)),
     getPublicPlayerLft(userId),
-    db.select({
-      seasonId: competitionEntries.competitionId,
-      teamId: competitionEntries.id,
-      teamName: competitionEntries.name,
-      seasonSlug: seasons.slug,
-      seasonName: seasons.name,
-      seasonStatus: seasons.status,
-    }).from(eventRosterMembers)
-      .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
-      .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
-      .innerJoin(seasons, eq(competitionEntries.competitionId, seasons.id))
-      .where(and(eq(eventRosterMembers.userId, userId), eq(eventRosterMembers.isCurrent, true), inArray(eventRosters.status, ["confirmed", "frozen"]), ne(seasons.status, "draft"), publicCompetitionEntryCondition()))
-      .orderBy(desc(seasons.createdAt), asc(competitionEntries.name), asc(competitionEntries.id)),
+    teamMemberRowsPromise,
     getPublicPlayerRecords(userId),
     lifetimePromise,
-    getPublicPlayerSanctions(userId),
+    known?.user.id === userId ? Promise.resolve(known.sanctions) : getPublicPlayerSanctions(userId),
+    registrationCompletionPromise,
+    resultBySeasonPromise,
   ]);
 
   const uniqueHistoryEntries = [...new Map(teamMemberRows.map((entry) => [`${entry.seasonId}:${entry.teamId}`, entry])).values()];
-  const resultBySeason = new Map<string, Awaited<ReturnType<typeof getPublicSeasonResults>>>();
-  const historicalSeasonSlugs = [...new Set(uniqueHistoryEntries.filter((entry) => ["finished", "archived"].includes(entry.seasonStatus)).map((entry) => entry.seasonSlug))];
-  await Promise.all(historicalSeasonSlugs.map(async (slug) => {
-    const season = await getPublicSeasonBySlug(slug);
-    if (season) resultBySeason.set(season.id, await getPublicSeasonResults(season));
-  }));
 
   const careerHistory: PublicPlayerCareerEvent[] = uniqueHistoryEntries
     .filter((entry) => ["finished", "archived"].includes(entry.seasonStatus))
@@ -126,12 +145,6 @@ export async function getPublicPlayerProfileReadModel(
         record: careerRecords.get(entry.seasonId) ?? { wins: 0, losses: 0, played: 0 },
       };
     });
-  const registrationCompletionRows = registrations.length > 0
-    ? await db.select({ seasonId: matches.seasonId, lastCompletedAt: max(matches.completedAt) })
-      .from(matches)
-      .where(and(officialMatchCondition(), and(inArray(matches.seasonId, [...new Set(registrations.map((registration) => registration.seasonId))]), eq(matches.status, "finished"))))
-      .groupBy(matches.seasonId)
-    : [];
   const completionBySeasonId = new Map(registrationCompletionRows.map((row) => [row.seasonId, row.lastCompletedAt]));
   const registrationSnapshots = [...registrations].sort((left, right) => {
     const leftTime = completionBySeasonId.get(left.seasonId)?.getTime() ?? Number.NEGATIVE_INFINITY;
@@ -144,9 +157,7 @@ export async function getPublicPlayerProfileReadModel(
     .filter((role): role is string => role !== null);
   const publicEducationIdentities = presentPublicEducationIdentities(educationRows);
   const currentEventTeams = uniqueHistoryEntries.filter((entry) => !["finished", "archived"].includes(entry.seasonStatus));
-  const benchmark = career?.performance
-    ? await readOptionalPublicStats("player_benchmark", getPlayerAttributeBenchmark)
-    : null;
+  const benchmark = await benchmarkPromise;
   const attributes = career?.performance && benchmark
     ? projectPlayerAttributeProfile(career.performance, benchmark)
     : null;

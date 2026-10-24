@@ -14,6 +14,7 @@ import { isOfficialStageKey } from "@/lib/seasons/official-stages";
 import {
   getLongTeamCareerDetail,
   getMatchPlayerDetail,
+  getMatchMvpSummary,
   getPlayerCareerDetail,
   getPlayerCareerFilterOptions,
   getTournamentMapDetail,
@@ -154,4 +155,19 @@ export async function getPublicMatchPlayerDetail(
     .where(and(eq(matches.id, matchId), ne(seasons.status, "draft"))).limit(1);
   if (!match) return null;
   return cachedMatchPlayerDetail(matchId, playerId, mapName);
+}
+
+async function cachedMatchMvpSummary(matchId: string, playerId: string) {
+  "use cache: remote";
+  statsCachePolicy();
+  return getMatchMvpSummary(matchId, playerId);
+}
+
+/** Entrypoints retain draft authorization; no draft facts enter shared caches. */
+export async function getPublicMatchMvpSummary(matchId: string, playerId: string, visibility: Visibility) {
+  if (visibility === "draft") return getMatchMvpSummary(matchId, playerId);
+  const [match] = await db.select({ id: matches.id }).from(matches)
+    .innerJoin(seasons, eq(seasons.id, matches.seasonId))
+    .where(and(eq(matches.id, matchId), ne(seasons.status, "draft"))).limit(1);
+  return match ? cachedMatchMvpSummary(matchId, playerId) : null;
 }

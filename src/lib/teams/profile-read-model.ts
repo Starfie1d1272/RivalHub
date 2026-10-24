@@ -7,7 +7,7 @@ import { getPublicSeasonCatalog, type PublicSeason } from "@/lib/data/public-sea
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
 import { getPublicLongTeamCareerDetail, getPublicTournamentTeamDetail } from "@/lib/stats/cached-query";
 import { aggregatePublicTeamMapProfile, getPublicTeamMapProfile } from "@/lib/teams/map-profile";
-import { getPublicTeamProfileCore, getTeamProfileViewerState, type PublicTeamIdentity } from "@/lib/teams/public-profile";
+import { getPublicTeamProfileBasics, getPublicTeamProfileCore, getTeamProfileViewerState, type PublicTeamIdentity } from "@/lib/teams/public-profile";
 import { readOptionalPublicStats } from "@/lib/stats/availability";
 
 /**
@@ -22,17 +22,22 @@ export async function getPublicLongTeamProfileReadModel(
   viewerUserId?: string | null,
   knownTeam?: PublicTeamIdentity,
 ) {
-  const performance = await readOptionalPublicStats("team_career", () => getPublicLongTeamCareerDetail(teamId));
-  const core = await getPublicTeamProfileCore(teamId, knownTeam, performance?.official.matches);
+  const performancePromise = readOptionalPublicStats("team_career", () => getPublicLongTeamCareerDetail(teamId));
+  const basics = await getPublicTeamProfileBasics(teamId, knownTeam);
+  if (!basics) return null;
+  const lineupStylePromise = readOptionalPublicStats("player_career", () => getPublicLineupStyle(basics.currentMembers));
+  const viewerPromise = getTeamProfileViewerState(basics, viewerUserId);
+  const performance = await performancePromise;
+  const core = await getPublicTeamProfileCore(teamId, knownTeam, performance?.official.matches, basics);
   if (!core) return null;
-  const profile = { ...core, ...await getTeamProfileViewerState(core, viewerUserId) };
+  const profile = { ...core, ...await viewerPromise };
   const entryIds = profile.entries.map((entry) => entry.id);
   const historicalSeasonIds = new Set(profile.entries.filter((entry) => ["finished", "archived"].includes(entry.seasonStatus)).map((entry) => entry.seasonId));
   const completedMaps = performance?.official.maps.filter((map) => map.completedAt !== null && map.scoreA !== null && map.scoreB !== null) ?? [];
   const preview = performance ? aggregatePublicTeamMapProfile(entryIds, performance.official.matches, completedMaps) : undefined;
   const entriesBySeason = Map.groupBy(profile.entries, entry => entry.seasonId);
   const [lineupStyle, mapProfile, seasonCatalog, matchesBySeason] = await Promise.all([
-    readOptionalPublicStats("player_career", () => getPublicLineupStyle(profile.currentMembers)),
+    lineupStylePromise,
     getPublicTeamMapProfile(entryIds, profile.currentMembers.map((member) => member.userId), preview),
     getPublicSeasonCatalog(),
     Promise.all([...entriesBySeason].map(async ([seasonId, entries]) => {
@@ -81,28 +86,30 @@ export async function getPublicLongTeamProfileReadModel(
  * Event analytics keeps CompetitionEntry as the canonical Team key. Long Team
  * linkage is presentation context only and never rewrites this event identity.
  */
+export function startPublicCompetitionEntryPerformanceReadModel(
+  season: Pick<PublicSeason, "id" | "status">,
+  event: PublicEventTeamContext,
+) {
+  const lineupStyle = readOptionalPublicStats("player_career", () => getPublicLineupStyle(event.roster));
+  const performance = readOptionalPublicStats("event_team", () => getPublicTournamentTeamDetail(
+    { seasonId: season.id, teamId: event.entry.id }, season.status === "draft" ? "draft" : "public",
+  ));
+  const mapProfile = performance.then(detail => {
+    const completedMaps = detail?.official.maps.filter(map => map.completedAt !== null && map.scoreA !== null && map.scoreB !== null) ?? [];
+    const preview = detail ? aggregatePublicTeamMapProfile([event.entry.id], detail.official.matches.filter(match => match.status === "finished"), completedMaps) : undefined;
+    return getPublicTeamMapProfile([event.entry.id], event.roster.map(member => member.userId), preview);
+  });
+  return { lineupStyle, performance, mapProfile };
+}
+
 export async function getPublicCompetitionEntryPerformanceReadModel(
   season: Pick<PublicSeason, "id" | "status">,
   event: PublicEventTeamContext,
 ) {
-  const performance = await readOptionalPublicStats("event_team", () => getPublicTournamentTeamDetail(
-    { seasonId: season.id, teamId: event.entry.id },
-    season.status === "draft" ? "draft" : "public",
-  ));
-  const completedMaps = performance?.official.maps.filter((map) => map.completedAt !== null && map.scoreA !== null && map.scoreB !== null) ?? [];
-  const preview = performance ? aggregatePublicTeamMapProfile([event.entry.id], performance.official.matches.filter((match) => match.status === "finished"), completedMaps) : undefined;
-  const [mapProfile, lineupStyle] = await Promise.all([
-    getPublicTeamMapProfile([event.entry.id], event.roster.map((member) => member.userId), preview),
-    readOptionalPublicStats("player_career", () => getPublicLineupStyle(event.roster)),
-  ]);
-  return {
-    mode: "event" as const,
-    lineupStyle,
-    performance,
-    statsUnavailable: performance === null,
-    mapProfile,
-    mapExperienceCoverage: mapProfile.experienceCoverage,
-  };
+  const sections = startPublicCompetitionEntryPerformanceReadModel(season, event);
+  const [performance, lineupStyle, mapProfile] = await Promise.all([sections.performance, sections.lineupStyle, sections.mapProfile]);
+  return { mode: "event" as const, lineupStyle, performance, statsUnavailable: performance === null, mapProfile,
+    mapExperienceCoverage: mapProfile.experienceCoverage };
 }
 
 export type PublicLongTeamProfileReadModel = NonNullable<Awaited<ReturnType<typeof getPublicLongTeamProfileReadModel>>>;

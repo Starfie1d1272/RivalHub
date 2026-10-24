@@ -66,7 +66,7 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
     )).limit(1);
     if (!entry) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
   }
-  const scope: PlatformStatsScope = { publicOnly: true, seasonId: event?.id, seasonIds: ids, stage: query.stage || undefined,
+  const scope: PlatformStatsScope = { publicOnly: true, view: query.tab, mapDetail: Boolean(query.map), seasonId: event?.id, seasonIds: ids, stage: query.stage || undefined,
     format: query.format || undefined, mapFilter: query.map || query.mapFilter || undefined, weaponTeamId: query.tab === "weapons" ? query.teamFilter || undefined : undefined };
   // Entity filtering is presentation only: qualification/Insights use the full scoped population.
   let data = await cachedPlatformStats(scope, `${STATISTICS_PROJECTION_VERSION}:insights/${INSIGHT_RULES_VERSION}`);

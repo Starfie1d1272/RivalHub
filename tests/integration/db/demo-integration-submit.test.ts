@@ -1,3 +1,6 @@
+import { compilePlayerAttributeBenchmark } from "@/lib/stats/player-attributes";
+import { publicStatsView } from "@/lib/stats/public-view";
+import { parseStatsQuery, STATS_TABS } from "@/lib/stats/view-state";
 import type { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -29,7 +32,7 @@ import {
 } from "../../../src/lib/demo-integration/review";
 import { dakStableScoreboardValues, submitRivalHubEvidence } from "../../../src/lib/demo-integration/submit";
 import { recordGameplaySteamIdentityInTx } from "../../../src/lib/identity/gameplay-steam";
-import { getCurrentStatsSelectionInTx, getLongTeamCareerDetail, getPlayerCareerDetail, getPlayerCareerPerformances, getTournamentTeamDetail, getTournamentMapDetail, getTournamentPerformancePlayers, getTournamentPlayerDetail, getTournamentStats, getTournamentRecordEvents } from "../../../src/lib/stats/tournament-query";
+import { getCurrentStatsSelectionInTx, getMatchMvpSummary, getTournamentPerformancePopulations, getLongTeamCareerDetail, getPlayerCareerDetail, getPlayerCareerPerformances, getTournamentTeamDetail, getTournamentMapDetail, getTournamentPerformancePlayers, getTournamentPlayerDetail, getTournamentStats, getTournamentRecordEvents } from "../../../src/lib/stats/tournament-query";
 import { adaptStatsEvidence } from "../../../src/lib/stats/evidence-adapter";
 import { loadLineupCareers } from "../../../src/lib/matches/lineup-comparison-query";
 import { getStatsLeaderboard } from "../../../src/lib/stats/leaderboard-query";
@@ -491,6 +494,7 @@ describe("DAK evidence submit persistence", () => {
       expect((await getTournamentStats({ seasonId: ids.season }, observedDatabase)).coverage.detailedMaps).toBe(0);
       expect(await getTournamentRecordEvents({ seasonId: ids.season }, {}, observedDatabase)).toMatchObject({ maps: 0, total: 0, rows: [] });
       expect(await getTournamentPerformancePlayers({ seasonId: ids.season }, observedDatabase)).toEqual([]);
+      expect(await getMatchMvpSummary(ids.match, userIds[0]!, observedDatabase)).toBeNull();
       expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
       await database.insert(schema.matchDemoStatProjections).values({ ...projectionsAfterPromotion[0]!, projectionVersion: "retired-version" });
       queryLog.length = 0;
@@ -608,6 +612,27 @@ describe("DAK evidence submit persistence", () => {
       // Protect benchmark parity and actual SQL payload reduction, not just the
       // query spelling: replay the owner's emitted SQL against the same real rows.
       const fullProjectionRows = await client.query({ text: projectionQuery!, values: queryBindings[queryLog.indexOf(projectionQuery!)]!, rowMode: "array" });
+      // Demand-driven reads must preserve every visible value, using the same
+      // current projections and complete population as the full legacy read.
+      for (const tab of Object.keys(STATS_TABS) as Array<keyof typeof STATS_TABS>) {
+        const query = parseStatsQuery({ tab }, []);
+        const scoped = await getTournamentStats({ seasonId: ids.season, view: tab }, observedDatabase);
+        expect(publicStatsView(scoped, query)).toEqual(publicStatsView(stats, query));
+        if (tab !== "records") expect(scoped.recordTies).toBeUndefined();
+        if (tab !== "overview") expect(scoped.insights).toBeUndefined();
+      }
+      expect(await getTournamentPerformancePopulations([ids.season], observedDatabase)).toEqual([stats.performance.players]);
+      const winner = stats.performance.players[0]!;
+      queryLog.length = 0;
+      const mvp = await getMatchMvpSummary(ids.match, winner.player.entityKey, observedDatabase);
+      expect(mvp).toEqual({ rounds: winner.slices.overall.sample.rounds, kast: winner.slices.overall.kast,
+        tradeKillsPerRound: winner.slices.overall.trade.tradeKillsPerRound,
+        utilityDamagePerRound: winner.slices.overall.utility.utilityDamagePerRound,
+        flashAssistsPerRound: winner.slices.overall.utility.flashAssistsPerRound });
+      expect(queryLog.some(query => query.includes('from "match_player_stats"'))).toBe(false);
+      expect(await getMatchMvpSummary(ids.match, randomUUID(), observedDatabase)).toBeNull();
+
+
       queryLog.length = 0;
       queryBindings.length = 0;
       expect(await getTournamentPerformancePlayers({ seasonId: ids.season }, observedDatabase)).toEqual(stats.performance.players);
@@ -845,6 +870,20 @@ describe("DAK evidence submit persistence", () => {
       expect(platformStats.analytics.teams).toHaveLength(4); // Same names do not merge event-native entries.
       expect(platformStats.options.teams).toEqual([]);
       expect(platformStats.leaderboard.find((row) => row.userId === userIds[0])?.teamIds?.sort()).toEqual([ids.entryA, ids.careerEntryA].sort());
+      queryLog.length = 0;
+      const perEventPopulations = [];
+      for (const seasonId of platformScope.seasonIds) perEventPopulations.push(await getTournamentPerformancePlayers({ seasonId }, observedDatabase));
+      const perEventQueries = queryLog.length;
+      queryLog.length = 0;
+      const benchmarkPopulations = await getTournamentPerformancePopulations(platformScope.seasonIds, observedDatabase);
+      const batchQueries = queryLog.length;
+      expect(batchQueries).toBeLessThan(perEventQueries);
+      expect(compilePlayerAttributeBenchmark(benchmarkPopulations.flat())).toEqual(compilePlayerAttributeBenchmark(perEventPopulations.flat()));
+      console.log(JSON.stringify({ scenario: "benchmark-two-event-batch", events: 2, perEventQueries, batchQueries,
+        observations: benchmarkPopulations.flat().length, boundary: "isolated PostgreSQL; not remote cache or production" }));
+      expect(benchmarkPopulations).toHaveLength(2);
+      expect(benchmarkPopulations.flat()).toHaveLength(eventViews.flatMap(view => view.performance.players).length);
+      expect(compilePlayerAttributeBenchmark(benchmarkPopulations.flat())).toEqual(compilePlayerAttributeBenchmark(eventViews.flatMap(view => view.performance.players)));
       const publicEventStats = await getTournamentStats({ seasonId: ids.season, publicOnly: true }, database);
       expect(publicEventStats.leaderboard.find((row) => row.userId === userIds[0])?.teamIds).toEqual([ids.entryA]);
       expect(queryLog.filter((query) => /from "match_demo_stat_projections"/i.test(query) && query.includes('"facts"'))).toHaveLength(1);
@@ -915,6 +954,7 @@ describe("DAK evidence submit persistence", () => {
       await database.update(schema.seasons).set({ status: "draft" }).where(eq(schema.seasons.id, ids.careerSeason));
       expect((await getTournamentStats(platformScope, observedDatabase)).coverage.detailedMaps).toBe(1);
       await expect(getTournamentStats({ seasonId: ids.careerSeason, publicOnly: true }, observedDatabase)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND });
+      expect(await getTournamentPerformancePopulations([ids.careerSeason], observedDatabase)).toEqual([]);
       await database.update(schema.seasons).set({ status: "playing" }).where(eq(schema.seasons.id, ids.careerSeason));
 
       const coverage = await database.transaction((tx) => inspectStatisticsProjectionCoverage(tx, { batchSize: 1 }),
