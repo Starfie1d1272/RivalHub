@@ -87,10 +87,10 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     await expect(rounds.filter({hasText:"第1图 · Inferno"})).toContainText("已投 100");
     await db.update(schema.matchMaps).set({startedAt:new Date()}).where(eq(schema.matchMaps.id,maps[0]!.id));
     await page.reload();await openMaps();await expect(card.getByRole("tabpanel", {name:"地图", exact:true})).toBeVisible();
-    await presence.locator("button:not([aria-label])").first().click();await expect(page.getByRole("dialog").getByRole("button",{name:"确认投入",exact:true})).toBeDisabled();await page.getByRole("button",{name:"取消",exact:true}).click();
-    await rounds.filter({hasText:"第1图 · Inferno"}).getByRole("button",{name:/^大/}).click();await expect(page.getByRole("dialog").getByRole("button",{name:"确认投入",exact:true})).toBeDisabled();await page.getByRole("button",{name:"取消",exact:true}).click();
+    await expect(presence).toContainText("已锁盘");await expect(presence).toContainText("已投 10");await expect(presence.locator("button:not([aria-label])")).toHaveCount(0);
+    const lockedRounds=rounds.filter({hasText:"第1图 · Inferno"});await expect(lockedRounds).toContainText("已锁盘");await expect(lockedRounds).toContainText("已投 100");await expect(lockedRounds.getByRole("button",{name:/^大/})).toHaveCount(0);
     await expect(rounds.filter({hasText:"第2图 · Nuke"}).getByRole("button",{name:/^大/})).toBeEnabled();
     await db.update(schema.matches).set({gameplayStartedAt:new Date()}).where(eq(schema.matches.id,matches[0]!.id));
-    await page.reload();await expect(card.getByRole("tabpanel", {name:"赛果", exact:true})).toBeVisible();await winner.locator("button:not([aria-label])").first().click();await expect(page.getByRole("dialog").getByRole("button",{name:"确认投入",exact:true})).toBeDisabled();await page.getByRole("button",{name:"取消",exact:true}).click();await expect(winner).toContainText("已锁盘");
+    await page.reload();await expect(card.getByRole("tabpanel", {name:"赛果", exact:true})).toBeVisible();await expect(winner).toContainText("已锁盘");await expect(winner).toContainText("已投 200");await expect(winner.locator("button:not([aria-label])")).toHaveCount(0);
   }finally {await removePredictionBrowserFixture(fixture.seasonId);await pool.end();}
 });
