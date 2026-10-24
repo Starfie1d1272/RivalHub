@@ -1,6 +1,6 @@
 {
   "routeCount": 35,
-  "asOfMain": "28f0a74ce56b77f7d10154069413a6558e82a741",
+  "asOfMain": "ac2c6a6d4577033245680cea1cbb5e8592b14fd2",
   "note": "35 source entrypoints, not51 visited URLs. This is a factual delivery snapshot, not release/performance success. Separate implementation, delivery, immediate evidence and long-term observation. Historical matrices remain historical.",
   "routes": [
     {
@@ -10,7 +10,7 @@
       "evidence": "Actual authenticated root Flight: sidebar/page directory SQL count 1; fresh request after grant revoke denied; Chromium retry=0.",
       "owner": "admin",
       "implementationState": "implemented_tested",
-      "delivery": "merged #1083; Suspense/evidence pushed perf/admin-immediate-evidence-v2, PR creation blocked",
+      "delivery": "directory merged #1083; own Suspense/evidence in Ready #1112, awaiting final CI/parent merge",
       "immediateAcceptance": "Passed bounded directory and revoke experiment.",
       "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
     },
@@ -98,7 +98,7 @@
       "evidence": "PGscope/privacy/fallback；RSC新props组件测试；同match/map/import共享request-local标签只读一次；Chromium direct URL/back/forward 50/15行、30 distinct IDs/2types标签；PG50refs/30types（12现存18fallback）串行vs有界逐值等价",
       "owner": "admin",
       "implementationState": "implemented_tested",
-      "delivery": "merged #1083; additional page clamp/evidence pushed perf/admin-immediate-evidence-v2, Ready PR creation blocked",
+      "delivery": "single-read owner merged #1083; page clamp and immediate evidence in Ready #1112, awaiting final CI/parent merge",
       "immediateAcceptance": "Passed direct URL/back-forward and30-type PG. Additional actual PG overflow999→last15rows, empty filter, unsafe number; Chromium999 shows2/2 with disabled next and15rows (20.4s), normal page50 labels remains.",
       "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
     },
@@ -109,7 +109,7 @@
       "evidence": "临时集成type-check、architecture，真实PG分离与组合DTO等价、过期搜索/展示hard-expire；真实Chromium季赛管理员拒绝且无证据code，超级管理员同fixture证据可见；临时overview5000ms受控延迟，实际队列已显示且筛选导航时overview仍fallback；源码已恢复",
       "owner": "accounts",
       "implementationState": "implemented_tested",
-      "delivery": "merged #1094; immediate fixture evidence pushed, PR creation blocked",
+      "delivery": "implementation merged #1094; controlled slow-overview evidence in Ready #1112",
       "immediateAcceptance": "Passed slow-overview interactive queue experiment; not an injected production timeout feature.",
       "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
     },
@@ -160,12 +160,12 @@
     {
       "route": "/admin/[seasonSlug]/community-awards",
       "task": "A-AWARDADMIN",
-      "implemented": "summary首屏保留全局settlementReady；每奖项首次打开fresh admin+season scope detail，候选选项同snapshot共享一次；关闭保草稿，fresh/pending/denied gate；原写入协议保留",
-      "evidence": "Temporary exact-provider integration:3components+4realPG passed; Chromium21.9s initial Flight no evidence, open2details, draft close/reopen, actual fixture approve+DB check, revoke denies. Provider footprint11→8SQL/59→7rows/74397→866JSONbytes attributed to provider.",
+      "implemented": "summary首屏保留全局settlementReady；每奖项首次打开fresh admin+season scope detail，候选选项同snapshot共享一次；关闭保草稿，fresh/pending/denied gate；原写入协议保留；详情子树按season/viewer/award隔离，跨身份清除旧私有草稿，同viewer刷新保草稿",
+      "evidence": "Temporary exact-provider integration:3components+4realPG passed; Chromium21.9s initial Flight no evidence, open2details, draft close/reopen, actual fixture approve+DB check, revoke denies. Provider footprint11→8SQL/59→7rows/74397→866JSONbytes attributed to provider.；最终main集成5组件、4真实PG、Chromium17.9s通过；provider fixture明确createdAt，顺序parity和全部计数断言保留",
       "owner": "public+admin",
       "implementationState": "implemented_tested",
-      "delivery": "provider #1106 6c14db73 pending merge; consumer pushed perf/admin-awards-consumer, Ready PR creation blocked",
-      "immediateAcceptance": "Consumer tested with exact provider; final main dependency integration/CI remains blocked on delivery, not an absent API.",
+      "delivery": "provider #1106 fe0c6b9 and consumer #1113 963240e9 merged; required CI40142058272/40142743124 success",
+      "immediateAcceptance": "Canonical summary/detail and fresh actor scope verified in real browser/PG. Cross-viewer private draft isolation covered by failed-before/passed-after component cases; no production-latency claim.",
       "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
     },
     {
@@ -175,7 +175,7 @@
       "evidence": "PGprivacy/fallback，props更新与0重复action；同match/map/import共享request-local标签只读一次；Chromium direct URL/back/forward 50/15行、30 distinct IDs/2types标签；PG50refs/30types（12现存18fallback）串行vs有界逐值等价",
       "owner": "admin",
       "implementationState": "implemented_tested",
-      "delivery": "merged #1083; additional page clamp/evidence pushed perf/admin-immediate-evidence-v2, Ready PR creation blocked",
+      "delivery": "single-read owner merged #1083; page clamp and immediate evidence in Ready #1112, awaiting final CI/parent merge",
       "immediateAcceptance": "Passed direct URL/back-forward and30-type PG. Additional actual PG overflow999→last15rows, empty filter, unsafe number; Chromium999 shows2/2 with disabled next and15rows (20.4s), normal page50 labels remains.",
       "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
     },
@@ -208,7 +208,7 @@
       "evidence": "Real PG lifecycle/scope/detail parity; 22policy DTO344369→6450 bytes, not SQL wire bytes. 4UI+1action tests incl interrupted base-read/detail/close race pass.",
       "owner": "accounts+admin",
       "implementationState": "implemented_tested",
-      "delivery": "refs Map merged #1100; #1109 synced1cc300eb, CI40139243830 pending; busy race independently approved",
+      "delivery": "refs Map #1100 and summary/detail #1109 final1cc300eb merged; exact required CI40139243830 success",
       "immediateAcceptance": "Busy race repaired in isolated commit; final synced-head CI still required.",
       "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
     },
@@ -442,13 +442,27 @@
     "A-WB3": "#1102 merged; original P2 fixed and independently reviewed",
     "A-MATCHLIST/A-WB5-commentary": "#1103 merged; common active coordinator7→6SQL; authoritative conflict universe retained",
     "A-PRESTART-previous-approved": "#1107 merged; original historical position preserved",
-    "A-AWARDADMIN": "provider1106 + pushed consumer, tested integration; PR creation blocked",
+    "A-AWARDADMIN": "provider #1106 + consumer #1113 merged; fresh scoped reads, lazy shared options, cross-viewer subtree isolation; targeted/browser/required CI passed",
     "A-CAPTAINS": "#1100 merged; narrow ranking DTO, no voter projection",
-    "A-CONFIG": "#1100 refs Map, #1107 pool catalog merged; #1109 final1cc300eb summary/detail/race fix CI pending; Tx sequence deliberately preserved",
+    "A-CONFIG": "#1100 refs Map, #1107 pool catalog, #1109 summary/detail and busy race fix merged; canonical Tx sequence deliberately preserved",
     "A-DRAFTADMIN": "#1107 merged; independent pool reads only"
   },
   "knownImmediateGaps": [
-    "Provider-delayed workbench paired browser ready/CLS and telemetry upper-bound browser profile have no new evidence here.",
-    "New consumer/evidence branches lack PR/required CI because automatic approval rejected Ready PR creation."
-  ]
+    "Provider-delayed workbench paired browser ready/CLS and telemetry upper-bound browser profile have no new evidence here."
+  ],
+  "deliverySummary": {
+    "mergedGroups": [
+      "#1083",
+      "#1094",
+      "#1100",
+      "#1102",
+      "#1103",
+      "#1106",
+      "#1107",
+      "#1109",
+      "#1113"
+    ],
+    "finalEvidencePR": "#1112 Ready; final CI and parent merge pending",
+    "production": "Not released/deployed by this agent. Production cohort latency/cost validation is separate from fixture correctness."
+  }
 }
