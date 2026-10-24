@@ -63,7 +63,14 @@ export function normalizeEducationReviewQuery(input: EducationReviewSearchParams
   };
 }
 
+/** Compatibility composition; view consumers can skip the unrelated reader. */
 export async function getEducationReviewQueue(query: EducationReviewQuery): Promise<EducationReviewQueue> {
+  const [page, overview] = await Promise.all([getEducationReviewPage(query), getEducationReviewOverview()]);
+  return { ...page, overview };
+}
+
+/** Queue, filter options and pagination only; evidence lifetime gates remain here. */
+export async function getEducationReviewPage(query: EducationReviewQuery): Promise<Omit<EducationReviewQueue, "overview">> {
   const now = new Date();
   const conditions = [eq(users.status, "active")];
   if (query.q) {
@@ -89,7 +96,7 @@ export async function getEducationReviewQueue(query: EducationReviewQuery): Prom
   if (query.academic !== "all") conditions.push(eq(educationVerifications.academicStatus, query.academic));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-  const [[totalRow], institutionOptionRows, [datasetRow], [activeUserRow], approvedIdentityRows] = await Promise.all([
+  const [[totalRow], institutionOptionRows, [datasetRow]] = await Promise.all([
     db.select({ count: count() })
       .from(educationVerifications)
       .innerJoin(users, eq(educationVerifications.userId, users.id))
@@ -103,20 +110,7 @@ export async function getEducationReviewQueue(query: EducationReviewQuery): Prom
       .groupBy(institutions.id, institutions.name)
       .orderBy(desc(countDistinct(users.id)), asc(institutions.name), asc(institutions.id)),
     db.select({ count: count() }).from(educationVerifications).innerJoin(users, and(eq(educationVerifications.userId, users.id), eq(users.status, "active"))),
-    db.select({ count: count() }).from(users).where(eq(users.status, "active")),
-    db.selectDistinctOn([educationVerifications.userId, educationVerifications.institutionId], {
-      userId: educationVerifications.userId,
-      institutionId: educationVerifications.institutionId,
-      institutionName: institutions.name,
-      academicStatus: educationVerifications.academicStatus,
-      submittedAt: educationVerifications.submittedAt,
-      id: educationVerifications.id,
-    })
-      .from(educationVerifications)
-      .innerJoin(users, and(eq(educationVerifications.userId, users.id), eq(users.status, "active")))
-      .innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
-      .where(eq(educationVerifications.status, "approved"))
-      .orderBy(educationVerifications.userId, educationVerifications.institutionId, desc(educationVerifications.submittedAt), desc(educationVerifications.id)),
+
   ]);
 
   const total = Number(totalRow?.count ?? 0);
@@ -169,10 +163,30 @@ export async function getEducationReviewQueue(query: EducationReviewQuery): Prom
     pageSize: EDUCATION_REVIEW_PAGE_SIZE,
     totalPages,
     institutionOptions: institutionOptionRows.map((row) => ({ ...row, userCount: Number(row.userCount) })),
-    overview: buildEducationOverview(Number(activeUserRow?.count ?? 0), approvedIdentityRows),
     normalizedQuery: { ...query, page },
     hasAnyRecords: Number(datasetRow?.count ?? 0) > 0,
   };
+}
+
+/** Global active-user / distinct approved user+institution overview; no queue rows. */
+export async function getEducationReviewOverview(): Promise<EducationReviewQueue["overview"]> {
+  const [[activeUserRow], approvedIdentityRows] = await Promise.all([
+    db.select({ count: count() }).from(users).where(eq(users.status, "active")),
+    db.selectDistinctOn([educationVerifications.userId, educationVerifications.institutionId], {
+      userId: educationVerifications.userId,
+      institutionId: educationVerifications.institutionId,
+      institutionName: institutions.name,
+      academicStatus: educationVerifications.academicStatus,
+      submittedAt: educationVerifications.submittedAt,
+      id: educationVerifications.id,
+    })
+      .from(educationVerifications)
+      .innerJoin(users, and(eq(educationVerifications.userId, users.id), eq(users.status, "active")))
+      .innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
+      .where(eq(educationVerifications.status, "approved"))
+      .orderBy(educationVerifications.userId, educationVerifications.institutionId, desc(educationVerifications.submittedAt), desc(educationVerifications.id)),
+  ]);
+  return buildEducationOverview(Number(activeUserRow?.count ?? 0), approvedIdentityRows);
 }
 
 function isChsiEvidenceType(evidenceType: string): boolean {
