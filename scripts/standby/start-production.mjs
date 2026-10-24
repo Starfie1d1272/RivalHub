@@ -31,6 +31,8 @@ if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[
   const root = fileURLToPath(new URL("../../", import.meta.url));
   const manifest = JSON.parse(readFileSync(resolve(root, "standby.json"), "utf8"));
   assertProductionStandbyEnvironment(manifest);
+  // This launcher serves exactly one standalone Node process.
+  process.env.RIVALHUB_PRESENCE_MODE = "single-process";
   process.chdir(root);
   await import(new URL("../../server.js", import.meta.url));
 }

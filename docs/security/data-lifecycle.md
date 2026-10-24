@@ -20,7 +20,7 @@
 | Demo/OCR 与出场身份；[Demo](../../src/lib/demo-integration/submit.ts)、[gameplay identity](../../src/db/schema/gameplay-identity.ts) | PostgreSQL 保存上传数据、待核对身份、正式统计与 provenance | 原 payload/诊断为 private/sensitive；public 统计消费 canonical projection；OCR request 不成为日志附件 |
 | Mizar/DAK 配对与设备；[Mizar](../../src/db/schema/mizar.ts)、[pairing](../../src/lib/integrations/pairing-security.ts) | PostgreSQL 保存授权、verifier/poll hash、有效期、撤销关系与可靠事件 receipts | verifier 为 secret，设备关系为 private/server-only；机器/授权人 DTO 不输出 credential；raw secret 不写 audit/log |
 | Application session；[registry](../../src/lib/auth/session-registry.ts) | PostgreSQL 保存随机会话 ID、有效期、durable revocation fence；浏览器持受保护 cookie | sensitive/server-only；会话 ID 有授权价值，不是公开用户身份；cookie 不入日志 |
-| 在线心跳；[user_sessions](../../src/db/schema/user-sessions.ts) | PostgreSQL 最近活跃时间用于在线人数 | private、可重建当前状态，不参与鉴权，不是长期活动轨迹 |
+| 在线心跳；[user_sessions](../../src/db/schema/user-sessions.ts)、[presence](../../src/lib/presence/server.ts) | PostgreSQL 最近活跃时间用于后台活跃账号统计；单进程承载用内存维护近两分钟活跃登录账号数 | private、不参与鉴权；内存只保存账号 ID、最近心跳及五分钟写入节流状态，最多 10,000 个账号，闲置五分钟后在后续登记时清理；重启即清空、不备份、不导出；PostgreSQL 复用既有账号删除/归并生命周期 |
 | 管理员 grants/邀请；[access](../../src/lib/auth/admin-access.ts)、[invites](../../src/lib/auth/admin-invites.ts) | PostgreSQL 保存授权边界、邀请/认领与撤销事实 | private/sensitive，授权后台/server-only；关系展示不输出邀请 token |
 | 反馈；[schema](../../src/db/schema/feedback.ts)、[commands](../../src/lib/feedback/commands.ts) | PostgreSQL 保存文本、最小 pathname、版本、triage 状态、内部去重指纹 | private，超级管理员处理；自由文本可能 sensitive；指纹不入 DTO，不保存完整 URL query/raw logs |
 | 业务 audit；[write owner](../../src/lib/audit/write.ts) | PostgreSQL 保存谁改变哪些业务事实 | private，按全局/赛事权限投影；不展开 raw meta，不补造未知历史 |
