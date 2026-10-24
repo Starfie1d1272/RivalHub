@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.22.1]
+
+### Fixed
+
+- 修复自托管跨区读库时，Mizar LIVE 接收因多轮串行校验超过 500 毫秒而持续丢弃新帧的问题；合并查询，保留设备撤销、数据源交接和帧顺序校验。
+
+### Changed
+
+- 减少 BP 房间轮询的数据库往返，复用只读快照，并在响应末尾重新采样服务器时间。
+- LIVE 日志按每分钟活动窗口汇总接受、过期等结果数量和平均耗时，便于核验上报状态。
+
 ## [2.22.0]
 
 ### Added
@@ -3447,3 +3458,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.21.13]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.11...v2.21.13
 
 [2.22.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.13...v2.22.0
+
+[2.22.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.22.0...v2.22.1
