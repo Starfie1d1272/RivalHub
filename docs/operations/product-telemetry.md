@@ -97,7 +97,7 @@ Worker 验证 JSON 白名单后，用原生 `CompressionStream("gzip")` 压缩�
 
 ## 管理后台分析
 
-`/admin/telemetry` 仅向超级管理员开放，复用当前授权后由 server-only adapter 查询独立 Worker 的 `GET /admin/dashboard`。服务端使用 `PRODUCT_TELEMETRY_ENDPOINT` 与独立 `PRODUCT_TELEMETRY_ADMIN_KEY`；浏览器只收到聚合 DTO。部署时先更新接收端，再为网站配置同一接收端的查询凭据；缺少配置、接收端版本不支持或连通失败时显示明确状态，不回退到公开 D1 查询。查询不记录凭据、账号、会话或原始事件，不改变数据保留与恢复政策。
+`/admin/telemetry` 仅向超级管理员开放，复用当前授权后由 server-only adapter 查询独立 Worker 的 `GET /admin/dashboard`。服务端使用 `PRODUCT_TELEMETRY_ENDPOINT` 与独立 `PRODUCT_TELEMETRY_ADMIN_KEY`；该网站变量优先配置 Worker 专用 `DASHBOARD_KEY`，仅能 GET 面板汇总，不能读取 `/admin/events`、`/admin/usage` 或其它 operator 端点。已有 `ADMIN_KEY` 继续支持原运维查询与面板，不轮换或覆盖；`DASHBOARD_KEY` 是可选独立密钥，缺省时原行为不变。浏览器只收到聚合 DTO。部署时先更新接收端，再为网站配置同一接收端的查询凭据；缺少配置、接收端版本不支持或连通失败时显示明确状态，不回退到公开 D1 查询。查询不记录凭据、账号、会话或原始事件，不改变数据保留与恢复政策。
 
 分析范围为 production 环境最近 6 小时、24 小时或 7 天，支持精确版本与路由模板筛选；所有读取排除到期批次。每次最多读取按 received DESC、ticket/id 稳定排序的最新 1,000 个匹配版本批次摘要，再筛选页面，超过时明确标为部分样本。D1 内先分组聚合 summary，接收端仅整理聚合行与现有 usage/cleanup 投影，不解压 raw，也不返回 identity。趋势按 UTC 接收小时分组，截断时从实际选中批次的最早接收小时开始，窗口首尾小时可能不完整；访问、操作开始、终态分别统计。性能按账号/会话内随机样本 ID 取报告时间最新值后展示样本均值与数量，INP 下降与乱序送达均不以最大值或接收时间覆盖最新样本；旧摘要缺少样本 ID 时单独显示历史报告数，不混入均值。当前访问仍可能更新，不代表最终导航值或 p75。CLS 使用独立的无单位分数均值，不进入毫秒均值；旧批次无此指标时不补零。存在可选 client 尾列时按 page 报告统计设备、浏览器、系统与来源类别，旧批次无分类显示未采集；none 只表示无 referrer。
 
@@ -181,7 +181,8 @@ pnpm dlx wrangler@4.151.1 deploy --dry-run \
 | --- | --- | --- | --- |
 | 接收票据验签 | secret `SIGNING_KEY` | Secret `PRODUCT_TELEMETRY_SIGNING_KEY`，与该 Worker 相同 | 不需要 |
 | RivalHub 账号 HMAC | 不需要 | Secret `PRODUCT_TELEMETRY_ACCOUNT_KEY` | 仅账号定位时使用同值 |
-| 查询授权 | secret `ADMIN_KEY` | 仅服务端启用面板时配置 Secret `PRODUCT_TELEMETRY_ADMIN_KEY` | `PRODUCT_TELEMETRY_ADMIN_KEY` |
+| 运维查询授权 | secret `ADMIN_KEY` | 不配置到浏览器 | 运维使用 `PRODUCT_TELEMETRY_ADMIN_KEY` |
+| 网站面板查询 | 独立 secret `DASHBOARD_KEY` | 服务端 `PRODUCT_TELEMETRY_ADMIN_KEY`，与 DASHBOARD_KEY 相同 | 不需要 |
 | 接收 URL | 路径 `/v1/batches` | Config `PRODUCT_TELEMETRY_ENDPOINT=https://<worker>.<subdomain>.workers.dev/v1/batches` | 同 URL |
 | 允许的网站 | `ALLOWED_ORIGIN` | Config `PRODUCT_TELEMETRY_ORIGIN`，必须与 Worker 相同 | 同 origin |
 | 开关 | `ACCEPTING`、`RETENTION_APPROVED`、`SUMMARY_RETENTION_DAYS` | Config `PRODUCT_TELEMETRY_ENABLED=0`，经开流量许可后才为 `1` | 不需要 |
