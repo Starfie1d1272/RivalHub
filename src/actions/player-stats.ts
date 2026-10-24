@@ -39,7 +39,7 @@ import {
 } from "@/lib/matches/operator-scoreboard";
 import { applyOcrScoreboardEnrichment } from "@/lib/matches/scoreboard-ownership";
 
-import type { ScoreboardCommand, ScoreboardOperation, ScoreboardReceiptStatus, ScoreboardSnapshot } from "@/lib/ocr/scoreboard-contract";
+import type { AuthorizedScoreboardSnapshot, ScoreboardCommand, ScoreboardOperation, ScoreboardReceiptStatus } from "@/lib/ocr/scoreboard-contract";
 import { ScoreboardConflict, assertScoreboardReplay, assertScoreboardVersion, commitScoreboardReceipt, findScoreboardReceipt, presentScoreboardReceipt } from "@/lib/ocr/scoreboard-receipts";
 import { scoreboardPayloadDigest, scoreboardVersion, scoreboardVersionColumns } from "@/lib/ocr/scoreboard-version";
 
@@ -136,7 +136,7 @@ export async function extractStatsFromScreenshot(
       perfectName: p.perfectName ?? "(未填写昵称)",
     }));
 
-    return ok({ drafts, playerOptions, snapshot });
+    return ok({ drafts, playerOptions, snapshot: { ...snapshot, actorScope: match.actorUserId } });
   } catch (e) {
     if (e instanceof OCRFailure) {
       captureException("provider.siliconflow.ocr_failure", e, {
@@ -345,10 +345,10 @@ export async function getMatchPlayerOptions(mapId: string): Promise<ActionResult
   }
 }
 
-export async function getOperatorScoreboardSnapshot(mapId: string): Promise<ActionResult<ScoreboardSnapshot>> {
+export async function getOperatorScoreboardSnapshot(mapId: string): Promise<ActionResult<AuthorizedScoreboardSnapshot>> {
   try {
-    await loadAuthorizedScoreboardContext(mapId);
-    return ok(await loadOperatorScoreboardSnapshot(db, mapId));
+    const match = await loadAuthorizedScoreboardContext(mapId);
+    return ok({ ...await loadOperatorScoreboardSnapshot(db, mapId), actorScope: match.actorUserId });
   } catch (error) { return actionError("getOperatorScoreboardSnapshot", error); }
 }
 
@@ -359,24 +359,23 @@ export async function getScoreboardEditorState(mapId: string) {
       loadOperatorScoreboardSnapshot(db, mapId),
       loadScoreboardPlayers(db, match.id, [match.entryAId, match.entryBId]),
     ]);
-    return ok({ snapshot, playerOptions: players.map(player => ({ userId: player.userId, perfectName: player.perfectName ?? "(未填写昵称)" })) });
+    return ok({ snapshot: { ...snapshot, actorScope: match.actorUserId }, playerOptions: players.map(player => ({ userId: player.userId, perfectName: player.perfectName ?? "(未填写昵称)" })) });
   } catch (error) { return actionError("getScoreboardEditorState", error); }
 }
 
-export async function getScoreboardOperationReceipt(mapId: string, input: ScoreboardCommand & { operation: ScoreboardOperation; rows?: PlayerStatsDraft[] }): Promise<ActionResult<ScoreboardReceiptStatus>> {
+export async function getScoreboardOperationReceipt(mapId: string, input: ScoreboardCommand & { operation: ScoreboardOperation }): Promise<ActionResult<ScoreboardReceiptStatus>> {
   try {
-    const parsed = scoreboardCommandSchema.extend({ operation: z.enum(["save", "clear"]),
-      rows: z.array(playerRowSchema.extend({ perfectName: z.string().trim().min(1).max(128), userId: z.uuid().nullable() })).max(20).optional(),
-    }).safeParse(input);
-    if (!parsed.success || (parsed.data.operation === "save" && !parsed.data.rows)) throw new AppError(ErrorCode.VALIDATION_FAILED, "原操作编号或内容无效");
+    const parsed = scoreboardCommandSchema.extend({ operation: z.enum(["save", "clear"]) }).safeParse(input);
+    if (!parsed.success) throw new AppError(ErrorCode.VALIDATION_FAILED, "原操作编号或内容无效");
     const match = await loadAuthorizedScoreboardContext(mapId);
     const receipt = await findScoreboardReceipt(db, match.actorUserId, parsed.data.operationId);
     if (!receipt || receipt.mapId !== mapId) return ok({ status: "unconfirmed" });
-    const digest = scoreboardPayloadDigest(mapId, parsed.data.operation, parsed.data, parsed.data.operation === "save" ? parsed.data.rows : []);
-    assertScoreboardReplay(receipt, mapId, parsed.data.operation, digest);
+    if (receipt.operation !== parsed.data.operation || receipt.baseVersion !== parsed.data.expectedVersion) {
+      throw new ScoreboardConflict("原操作编号与操作上下文不一致，请核对提交记录。");
+    }
     // Sequential read: never compare the receipt to an older parallel snapshot.
     const snapshot = await loadOperatorScoreboardSnapshot(db, mapId);
-    return ok({ status: "committed", receipt: presentScoreboardReceipt(receipt), snapshot, superseded: receipt.resultVersion !== snapshot.version });
+    return ok({ status: "committed", receipt: presentScoreboardReceipt(receipt), snapshot: { ...snapshot, actorScope: match.actorUserId }, superseded: receipt.resultVersion !== snapshot.version });
   } catch (error) { return scoreboardFailure("getScoreboardOperationReceipt", error); }
 }
 

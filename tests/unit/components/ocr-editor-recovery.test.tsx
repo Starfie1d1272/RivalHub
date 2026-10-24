@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 
@@ -14,8 +14,9 @@ const saved = { perfectName: "Retained player", userId: "00000000-0000-4000-8000
   hsPercent: 30, firstKills: 2, multiKills: 1, clutches: 0, adr: 80, rws: 10, ratingPro: 1.2, we: 8, gameplayLocked: true };
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   mocks.invalidate.mockResolvedValue({ success: true });
-  mocks.options.mockResolvedValue({ success: true, data: { snapshot: { rows: [saved], version: "a".repeat(64) }, playerOptions: [{ userId: saved.userId, perfectName: saved.perfectName }] } });
+  mocks.options.mockResolvedValue({ success: true, data: { snapshot: { rows: [saved], version: "a".repeat(64), actorScope: saved.userId }, playerOptions: [{ userId: saved.userId, perfectName: saved.perfectName }] } });
 });
 
 // Protect the user-visible write/refresh boundary; DB ownership is covered in real PG.
@@ -49,7 +50,7 @@ it("does not treat a failed initial read as an empty editable scoreboard", async
 
 it("does not overwrite an explicitly recovered edit with a late initial prop snapshot", async () => {
   mocks.read.mockResolvedValueOnce({ success: false, error: { code: "INTERNAL_ERROR", message: "unavailable" } })
-    .mockResolvedValueOnce({ success: true, data: { rows: [saved], version: "a".repeat(64) } });
+    .mockResolvedValueOnce({ success: true, data: { rows: [saved], version: "a".repeat(64), actorScope: saved.userId } });
   const user = userEvent.setup();
   const { rerender } = render(<StatsOCRPanel mapId="map" mapName="de_mirage" />);
   await screen.findByText("无法读取已保存数据。");
@@ -80,7 +81,7 @@ it("keeps the draft after an unknown save and exits busy without replay", async 
 it("retains a committed draft when refresh fails, then permits an explicit authorized reload", async () => {
   mocks.save.mockResolvedValue({ success: true, data: { saved: 1, refreshPending: false } });
   mocks.read.mockResolvedValueOnce({ success: false, error: { code: "INTERNAL_ERROR", message: "unavailable" } })
-    .mockResolvedValueOnce({ success: true, data: { rows: [saved], version: "a".repeat(64) } });
+    .mockResolvedValueOnce({ success: true, data: { rows: [saved], version: "a".repeat(64), actorScope: saved.userId } });
   const user = userEvent.setup();
   render(<StatsOCRPanel mapId="map" mapName="de_mirage" initialRows={[saved]} />);
   await user.click(screen.getByRole("button", { name: "重新录入" }));
@@ -97,7 +98,7 @@ it("retains a committed draft when refresh fails, then permits an explicit autho
 it("keeps the original unknown command blocked until its durable receipt is confirmed", async () => {
   mocks.save.mockRejectedValue(new TypeError("lost commit acknowledgement"));
   mocks.receipt.mockResolvedValueOnce({ success: true, data: { status: "unconfirmed" } })
-    .mockResolvedValueOnce({ success: true, data: { status: "committed", snapshot: { rows: [{ ...saved, ratingPro: 2 }], version: "b".repeat(64) }, superseded: true } });
+    .mockResolvedValueOnce({ success: true, data: { status: "committed", snapshot: { rows: [{ ...saved, ratingPro: 2 }], version: "b".repeat(64), actorScope: saved.userId }, superseded: true } });
   const user = userEvent.setup();
   render(<StatsOCRPanel mapId="map" mapName="de_mirage" initialRows={[saved]} />);
   await user.click(screen.getByRole("button", { name: "重新录入" }));
@@ -122,4 +123,69 @@ it("loads the authorized roster and current version before manually adding to a 
   expect(await screen.findByLabelText("Retained player K")).toHaveValue(20);
   expect(mocks.options).toHaveBeenCalledOnce();
   expect(mocks.read).not.toHaveBeenCalled();
+});
+
+it("recovers an original operation after unmount without persisting private draft contents", async () => {
+  mocks.save.mockRejectedValue(new TypeError("response lost"));
+  const user = userEvent.setup();
+  const first = render(<StatsOCRPanel mapId="map" mapName="de_mirage" initialRows={[saved]} />);
+  await user.click(screen.getByRole("button", { name: "重新录入" }));
+  await user.click(await screen.findByRole("button", { name: "确认保存" }));
+  await screen.findByText("提交结果待核对；当前草稿和操作编号已保留。");
+  const command = mocks.save.mock.calls[0][1];
+  const persisted = Object.values(localStorage).join("");
+  expect(persisted).toContain(command.operationId);
+  expect(persisted).not.toContain(saved.perfectName);
+  expect(persisted).not.toContain("ratingPro");
+  expect(persisted).not.toContain('"rows"');
+  first.unmount();
+  mocks.read.mockResolvedValue({ success: true, data: { rows: [saved], version: "b".repeat(64), actorScope: saved.userId } });
+  mocks.receipt.mockResolvedValue({ success: true, data: { status: "committed", snapshot: { rows: [saved], version: "b".repeat(64), actorScope: saved.userId }, superseded: false } });
+  render(<StatsOCRPanel mapId="map" mapName="de_mirage" initialRows={[saved]} />);
+  await screen.findByText(/已恢复原操作编号/);
+  await user.click(screen.getByRole("button", { name: "核对原操作提交凭据" }));
+  await waitFor(() => expect(screen.queryByRole("button", { name: "核对原操作提交凭据" })).toBeNull());
+  expect(mocks.receipt).toHaveBeenCalledWith("map", expect.objectContaining({ operationId: command.operationId, expectedVersion: command.expectedVersion, operation: "save" }));
+  expect(mocks.save).toHaveBeenCalledOnce();
+  expect(localStorage.length).toBe(0);
+});
+
+
+it("releases busy ownership after an in-flight recovery is superseded by initial props", async () => {
+  let finishRead!: (result: unknown) => void;
+  mocks.read.mockResolvedValueOnce({ success: false, error: { code: "INTERNAL_ERROR", message: "unavailable" } })
+    .mockReturnValueOnce(new Promise(resolve => { finishRead = resolve; }));
+  const user = userEvent.setup();
+  const { rerender } = render(<StatsOCRPanel mapId="map" mapName="de_mirage" />);
+  await screen.findByText("无法读取已保存数据。");
+  await user.click(screen.getByRole("button", { name: "载入当前已保存数据（替换草稿）" }));
+  rerender(<StatsOCRPanel mapId="map" mapName="de_mirage" initialRows={[saved]} />);
+  const edit = await screen.findByRole("button", { name: "重新录入" });
+  expect(edit).toBeDisabled();
+  await act(async () => finishRead({ success: true, data: { rows: [{ ...saved, ratingPro: 9 }], version: "b".repeat(64), actorScope: saved.userId } }));
+  await waitFor(() => expect(edit).toBeEnabled());
+  expect(mocks.save).not.toHaveBeenCalled();
+});
+
+it("does not restore another actor's persisted operation", async () => {
+  const { rememberScoreboardOperation } = await import("@/lib/ocr/scoreboard-recovery");
+  rememberScoreboardOperation({ mapId: "map", actorScope: "00000000-0000-4000-8000-000000000099", operationId: crypto.randomUUID(), operation: "clear", expectedVersion: "a".repeat(64) });
+  mocks.read.mockResolvedValue({ success: true, data: { rows: [saved], version: "b".repeat(64), actorScope: saved.userId } });
+  render(<StatsOCRPanel mapId="map" mapName="de_mirage" initialRows={[saved]} />);
+  await waitFor(() => expect(mocks.read).toHaveBeenCalled());
+  expect(screen.queryByRole("button", { name: "核对原操作提交凭据" })).toBeNull();
+  expect(mocks.receipt).not.toHaveBeenCalled();
+  expect(localStorage.length).toBe(1);
+});
+
+it("does not send a write if its non-sensitive recovery locator cannot be persisted", async () => {
+  const user = userEvent.setup();
+  render(<StatsOCRPanel mapId="map" mapName="de_mirage" initialRows={[saved]} />);
+  await user.click(screen.getByRole("button", { name: "重新录入" }));
+  const unavailable = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("storage unavailable"); });
+  try {
+    await user.click(await screen.findByRole("button", { name: "确认保存" }));
+    expect(await screen.findByText(/操作恢复编号无法保存/)).toBeVisible();
+    expect(mocks.save).not.toHaveBeenCalled();
+  } finally { unavailable.mockRestore(); }
 });
