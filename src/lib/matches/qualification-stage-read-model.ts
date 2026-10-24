@@ -9,13 +9,18 @@ import {
   competitionQualificationEntrants,
   competitionQualificationRuns,
   matches,
+  type Match,
+  type CompetitionQualificationRun,
 } from "@/db/schema";
 import { buildQualificationSwissReadModel } from "@/lib/competition-qualification/presentation";
 
-export async function loadQualificationSwissStageReadModel(seasonId: string) {
-  const [run] = await db.select().from(competitionQualificationRuns)
-    .where(eq(competitionQualificationRuns.seasonId, seasonId)).limit(1);
-  if (!run || run.format !== "short_swiss_2w2l") return null;
+export async function loadQualificationSwissStageReadModel(seasonId: string, supplied?: {
+  run: CompetitionQualificationRun;
+  displayedMatches: readonly (Match & { displayScore: import("./display-score").DisplayScore })[];
+}) {
+  const run = supplied ? supplied.run : (await db.select().from(competitionQualificationRuns)
+    .where(eq(competitionQualificationRuns.seasonId, seasonId)).limit(1))[0];
+  if (!run || run.seasonId !== seasonId || run.format !== "short_swiss_2w2l") return null;
 
   const [entrants, linkedMatches] = await Promise.all([
     db.select({
@@ -30,7 +35,11 @@ export async function loadQualificationSwissStageReadModel(seasonId: string) {
         eq(competitionQualificationEntrants.seasonId, seasonId),
       ))
       .orderBy(asc(competitionQualificationEntrants.preliminarySeed)),
-    db.select({
+    supplied ? Promise.resolve(supplied.displayedMatches.filter(match =>
+      match.seasonId === seasonId && match.qualificationRunId === run.id &&
+      match.stage === "play-in" && match.ownership === "manual" && match.majorStageRunId === null &&
+      match.managedKey === null && match.bracketNodeId === null,
+    ).map(match => requireCompetitionFields(match))) : db.select({
       id: matches.id,
       entryAId: matches.entryAId,
       entryBId: matches.entryBId,
@@ -48,12 +57,13 @@ export async function loadQualificationSwissStageReadModel(seasonId: string) {
       bracketNodeId: matches.bracketNodeId,
     }).from(matches)
       .where(and(eq(matches.seasonId, seasonId), eq(matches.qualificationRunId, run.id)))
-      .orderBy(asc(matches.round), asc(matches.id)),
+      .orderBy(asc(matches.round), asc(matches.id))
+      .then(rows => withDisplayScores(rows.map(row => requireCompetitionFields(row)))),
   ]);
 
   return buildQualificationSwissReadModel({
     directEntryCount: run.directEntryCount,
     entrants,
-    matches: await withDisplayScores(linkedMatches.map(requireCompetitionFields)),
+    matches: linkedMatches,
   });
 }

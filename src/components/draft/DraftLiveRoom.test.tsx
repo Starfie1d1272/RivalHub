@@ -1,19 +1,26 @@
-import { render, cleanup } from "@testing-library/react";
+import { act, render, cleanup } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { DraftLiveRoom } from "./DraftLiveRoom";
-import { useRoutePolling } from "@/components/use-visible-polling";
 import type { PublicDraftData } from "@/lib/draft/data";
-vi.mock("@/components/use-visible-polling", () => ({ useRoutePolling: vi.fn() }));
+const { read, refresh } = vi.hoisted(() => ({ read: vi.fn(), refresh: vi.fn() }));
+vi.mock("@/actions/public-draft", () => ({ readPublicDraft: read }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("./TeamDraftGrid", () => ({ TeamDraftGrid: () => null }));
 vi.mock("./PlayerPool", () => ({ PlayerPool: () => null }));
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 const data: PublicDraftData = { state: null, teams: [], snakeOrder: [], remainingPlayers: [], completedPicks: [], totalPicks: 0, maxPicks: 48 };
-// Protect the previous readonly => no-refresh bug without granting spectator mutations.
-it("refreshes a readonly preview but stops refreshing an archive and a completed room", () => {
-  const view = render(<DraftLiveRoom data={data} seasonPositions={[]} readonly mode="preview" />);
-  expect(useRoutePolling).toHaveBeenLastCalledWith(30_000);
-  view.rerender(<DraftLiveRoom data={data} seasonPositions={[]} readonly mode="archive" />);
-  expect(useRoutePolling).toHaveBeenLastCalledWith(null);
-  view.rerender(<DraftLiveRoom data={{ ...data, totalPicks: 48 }} seasonPositions={[]} mode="live" />);
-  expect(useRoutePolling).toHaveBeenLastCalledWith(null);
+// Protect readonly spectator updates and termination with the real visibility hook.
+it("reads a readonly preview without route refresh and stops after archive or completion", async () => {
+  vi.useFakeTimers();
+  read.mockResolvedValue({ success: true, data: { data, mode: "preview" } });
+  const view = render(<DraftLiveRoom seasonSlug="event" data={data} seasonPositions={[]} readonly mode="preview" />);
+  await act(() => vi.advanceTimersByTimeAsync(30_000));
+  expect(read).toHaveBeenCalledTimes(1);
+  expect(refresh).not.toHaveBeenCalled();
+  view.rerender(<DraftLiveRoom seasonSlug="event" data={data} seasonPositions={[]} readonly mode="archive" />);
+  await act(() => vi.advanceTimersByTimeAsync(30_000));
+  expect(read).toHaveBeenCalledTimes(1);
+  view.rerender(<DraftLiveRoom seasonSlug="event" data={{ ...data, totalPicks: 48 }} seasonPositions={[]} mode="live" />);
+  await act(() => vi.advanceTimersByTimeAsync(30_000));
+  expect(read).toHaveBeenCalledTimes(1);
 });

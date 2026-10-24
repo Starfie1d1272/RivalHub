@@ -13,7 +13,7 @@ import { getMajorPublicParticipantOverview } from "@/lib/major/public-participan
 import { getParticipantSummary } from "@/lib/participants/summary";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { groupSeasonsByLifecycle } from "@/lib/seasons/presentation";
-import { getPublicSeasonResults, type PublicSeasonResults } from "@/lib/seasons/public-results";
+import { getPublicSeasonResultSummaries, type PublicSeasonResultSummary } from "@/lib/seasons/public-results";
 import { selectFeaturedSeason } from "@/lib/home/navigation";
 import { shouldLoadRegistrationPositionCounts } from "@/lib/home/presentation";
 import type { PublicSeasonWithCompletion } from "@/lib/data/public-seasons";
@@ -22,7 +22,7 @@ export interface PublicHomeProjection {
   featured: PublicSeasonWithCompletion | null;
   otherSeasons: PublicSeasonWithCompletion[];
   archivedSeasons: PublicSeasonWithCompletion[];
-  results: PublicSeasonResults | null;
+  results: PublicSeasonResultSummary | null;
   maxPerPosition: number;
   positionCounts: Record<string, number>;
   topCandidatesWithNames: Array<{ userId: string; name: string; voteCount: number }>;
@@ -81,7 +81,7 @@ export async function getPublicHomeProjection(
     };
   }
 
-  const [majorOverview, featuredTeamCount, participantSummary, registrationCounts, topCandidates, liveAndUpcomingMatches] =
+  const [majorOverview, featuredTeamCount, participantSummary, registrationCounts, topCandidates, liveAndUpcomingMatches, results] =
     await Promise.all([
       featured.competitionTemplate === "major" ? getMajorPublicParticipantOverview(featured) : Promise.resolve(null),
       featured.competitionTemplate === "major" ? Promise.resolve(0) : getApprovedCompetitionEntryCount(featured.id),
@@ -99,7 +99,7 @@ export async function getPublicHomeProjection(
             ))
             .groupBy(seasonRegistrations.primaryPosition)
         : Promise.resolve([] as { position: string; cnt: number }[]),
-      featured.status === "voting"
+      featured.status === "voting" && featured.hasCaptainVoting
         ? getPublicCaptainVotingData(featured.id).then(data => data.candidates.slice(0, 3).map(candidate => ({ userId: candidate.userId, name: candidate.displayName, voteCount: candidate.voteCount })))
         : Promise.resolve([] as { userId: string; name: string; voteCount: number }[]),
       featured.hasOfficialMatches
@@ -115,11 +115,10 @@ export async function getPublicHomeProjection(
             teamAName: string | null;
             teamBName: string | null;
           }[]),
+      ["finished", "archived"].includes(featured.status)
+        ? getPublicSeasonResultSummaries([featured]).then(results => results.get(featured.id) ?? null) : Promise.resolve(null),
     ]);
 
-  const results = ["finished", "archived"].includes(featured.status)
-    ? await getPublicSeasonResults(featured)
-    : null;
   const registrationConfig = normalizeRegistrationConfig(featured.registrationConfig);
 
   return {
