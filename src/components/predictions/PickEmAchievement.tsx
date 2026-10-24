@@ -78,7 +78,7 @@ export function PickEmAchievement({ data, signedIn }: { data: PickEmBoardData; s
         <div className={styles.summaryText}><span>{finish.label}</span><strong>{achievement?.challenges ?? 0}<small> / {capacity}</small></strong></div>
         <DialogTrigger asChild><button type="button" className={styles.expand} aria-label="放大我的纪念币"><Maximize2 size={16} /></button></DialogTrigger>
       </div>
-      <div className={styles.actions}>{(["ranking", "tasks"] as const).map((key) => <Popover.Root key={key} open={popover === key} onOpenChange={(open) => { setPopover(open ? key : null); if (open) { setSection(key); void refresh(section); } }}>
+      <div className={styles.actions}>{(["ranking", "tasks"] as const).map((key) => <Popover.Root key={key} open={popover === key} onOpenChange={(open) => { setPopover(open ? key : null); if (open) { setSection(key); void refresh(key); } }}>
         <Popover.Trigger asChild><button type="button">{key === "tasks" ? "任务" : "排行榜"}<ChevronDown size={12} aria-hidden="true" /></button></Popover.Trigger>
         <Popover.Portal><Popover.Content align="end" sideOffset={8} collisionPadding={12} className={styles.popover} aria-label={key === "tasks" ? "任务列表" : "排行榜"}>
           <div className={styles.panelTitle}><strong>{key === "tasks" ? "挑战任务" : "排行榜"}</strong><button type="button" aria-label="放大成就面板" onClick={() => { setPopover(null); setExpanded(true); }}><Maximize2 size={15} /></button></div>
