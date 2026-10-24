@@ -61,7 +61,7 @@ rm src/lib/admin/matches/overview-list-baseline.ts src/lib/admin/matches/postmat
 
 ## 接口与限制
 
-正式分支已安全rebase到main `6867f2346b254eb06e233d6ed4b0ebd5e2767bbe`，所有领域依赖均已合入；浏览器数值保留其实际采样基线，不当作新head重测。正式分支app/tests类型、全部受影响TS/TSX ESLint、architecture及9个PG文件22例全部通过，accounts、stats、public摘要/详情API均已合入。公告consumer在SQL固定季赛scope并只用summary/count，详情保留完整正文。教育overview/page独立返回受控错误，fresh授权在父page，证据过期owner不变。prestart union IDs只读一次不限定平台的raw bundle，再按profile/fallback投影。
+正式分支已安全rebase到main `88d4e15f48bdfd4965ae6e4a12e6a26d8db8edf1`，所有领域依赖均已合入；浏览器数值保留其实际采样基线，不当作新head重测。正式分支app/tests类型、全部受影响TS/TSX ESLint、architecture及9个PG文件22例全部通过，accounts、stats、public摘要/详情API均已合入。公告consumer在SQL固定季赛scope并只用summary/count，详情保留完整正文。教育overview/page独立返回受控错误，fresh授权在父page，证据过期owner不变。prestart union IDs只读一次不限定平台的raw bundle，再按profile/fallback投影。
 
 Play-in reader #1096已合main6867f234，正式consumer不再依赖未合export。历史临时集成验证pin保留在content-boundaries.json中，未复制领域owner文件。#1094保持Ready，以最终head的required CI收口；不设置Draft门槛。
 

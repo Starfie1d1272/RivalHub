@@ -322,7 +322,7 @@
   "integrationBase": "7b619d2b17ef7c089184b922991ce312404fb9c3",
   "betDependency": "a94b96ef5be2857c6518b460deedfcb3623437c4",
   "dependencies": {},
-  "codeBase": "6867f2346b254eb06e233d6ed4b0ebd5e2767bbe",
+  "codeBase": "88d4e15f48bdfd4965ae6e4a12e6a26d8db8edf1",
   "resolvedDependencies": {
     "accounts": "main7f1b9d5a",
     "stats": "main051ab5c7",
