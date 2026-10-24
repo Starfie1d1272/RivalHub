@@ -34,9 +34,9 @@ Worker 仅使用独立 D1：一个批次一行、服务端校验后写入、按�
 
 `src/instrumentation-client.ts` 使用 Next.js `onRouterTransitionStart` 捕获本站导航起点，现有 pathname/search observer 在目标路由提交后记录 NAV_COMMIT；新的起点替换被放弃的导航，身份变更丢弃在途测量。它覆盖可观察的 App Router 导航到提交的等待，包含同路径筛选导航；Suspense 内容可能尚未完成，不等于完整内容就绪或 LCP。无匹配提交、observer 未加载或超过一小时的测量不补造。
 
-performance 事件的白名单 `metricName` 为 TTFB/FCP/LCP/INP/NAV_COMMIT/CLS。前五项的 `durationMs` 为毫秒；CLS 只使用 `score`。同批 summary 前九列兼容原布局，原 variant 维度在 performance kind 下保存 metricName，第九列始终为毫秒总和（CLS 为零）；可选第十列保存 CLS score 总和（其他指标为 null），第十一列保存固定 client 分类。旧无 client 的毫秒行仍只有九列。分类不同的报告分组，日汇总仍跨分类合并；旧 `duration_ms` 日汇总暂不写 CLS，避免单位混用。次数/耗时总和表示接收的观察报告；跨批指标更新可能重复贡献，不能把 summary 平均值当作每次导航的最终 Web Vital 或 p75。受控 raw 分析应先按 session/id 取最新 at，且说明映射边界与采集缺口。保留、访问、DNT/GPC、队列/批次和免费预算沿用原规则，采集不逐次发送。
+performance 事件的白名单 `metricName` 为 TTFB/FCP/LCP/INP/NAV_COMMIT/CLS。前五项的 `durationMs` 为毫秒；CLS 只使用 `score`。同批 summary 前九列兼容原布局，原 variant 维度在 performance kind 下保存 metricName，第九列始终为毫秒总和（CLS 为零）；可选第十列保存 CLS score 总和（其他指标为 null），第十一列保存固定 client 分类或 null；性能行追加第十二列随机样本 ID 与第十三列报告时间，并保留每个样本。旧行继续可读。分类不同的报告分组，日汇总仍跨分类合并；旧 `duration_ms` 日汇总暂不写 CLS，避免单位混用。面板对当前样本内同账号/会话、指标 ID 取最新报告时间的值后求均值；缺少样本 ID 的旧报告单列数量，不混入均值。日汇总的次数/耗时总和仍是接收报告口径，不用于最终 Web Vital/p75。保留、访问、DNT/GPC、队列/批次和免费预算沿用原规则，采集不逐次发送。
 
-协议升级时先部署兼容新旧事件的独立 Worker，再按正式 release 流程发布网站采集端；旧 Worker 会拒绝含未识别字段或指标的整批。此次扩展已校验事件、可选固定分类与兼容尾列，无 D1 schema migration，不重跑初始化 SQL。回滚网站可继续使用新 Worker；若回滚 Worker，先停用新版网站采集，避免整批被拒。
+协议升级时先部署兼容新旧事件的独立 Worker，再按正式 release 流程发布网站采集端；旧 Worker 会拒绝含未识别字段或指标的整批。采集协议扩展不改 D1 表结构；面板另有添加索引的独立迁移，按下文执行，不重跑初始化 SQL。回滚网站可继续使用新 Worker；若回滚 Worker，先停用新版网站采集，避免整批被拒。
 
 ## 设备与入口分类
 

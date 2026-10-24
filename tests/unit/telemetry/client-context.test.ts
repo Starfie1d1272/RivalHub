@@ -12,7 +12,7 @@ it("projects mobile, tablet and browser families without returning identifying i
 });
 
 it("keeps only document source category and drops credentials, path, query and host", () => {
-  for (const [referrer, source] of [["https://site.invalid/private?token=SECRET", "internal"], ["https://www.baidu.com/s?wd=SECRET", "search"], ["https://m.bilibili.com/PRIVATE", "social"], ["https://baidu.com.attacker.invalid/SECRET", "external"], ["https://PRIVATE:SECRET@private.invalid/PRIVATE?q=SECRET", "external"], ["javascript:PRIVATE", "unknown"], ["PRIVATE", "unknown"]]) {
+  for (const [referrer, source] of [["https://google.com.attacker.invalid/?q=SECRET", "external"], ["https://www.google.com.hk/?q=SECRET", "search"], ["https://site.invalid/private?token=SECRET", "internal"], ["https://www.baidu.com/s?wd=SECRET", "search"], ["https://m.bilibili.com/PRIVATE", "social"], ["https://baidu.com.attacker.invalid/SECRET", "external"], ["https://PRIVATE:SECRET@private.invalid/PRIVATE?q=SECRET", "external"], ["javascript:PRIVATE", "unknown"], ["PRIVATE", "unknown"]]) {
     const result = classifyClient("PRIVATE", 0, referrer, "https://site.invalid");
     expect(result.source).toBe(source);
     expect(JSON.stringify(result)).not.toMatch(/PRIVATE|SECRET|invalid|baidu/);
