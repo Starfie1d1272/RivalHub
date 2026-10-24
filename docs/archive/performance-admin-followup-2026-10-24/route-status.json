@@ -25,7 +25,7 @@
       "route": "/admin/[seasonSlug]/matches",
       "task": "A-MATCHLIST",
       "status": "implemented_tested",
-      "implemented": "三view普通列表25行；execution窄排序事实→当前25场完整字段；materials阶段/队伍先下推、canonical全范围待办派生后分页，地图/计分板/录像字段缩窄；schedule完整runtime/积分榜不截断，仅分页渲染",
+      "implemented": "三view普通列表25行；execution窄排序事实→当前25场完整字段；materials阶段/队伍先下推、canonical全范围待办派生后分页，地图/计分板/录像字段缩窄；schedule完整所需runtime/积分榜事实不截断，去除未用录像/entry私有列，仅当前25条渲染",
       "evidence": "真实PG100/500场遍历/筛选/clamp/未配置诊断；Chromium三view/两规模/next+back通过；精确前后文档/DOM/LCP/CLS与同fixture PG对照见同目录",
       "remainingExperiment": "代表生产cohort p75/p95和pool混合负载；当前fixture是8active+100/500finished，未声称500active全局操作队列预算达标",
       "owner": "admin"
@@ -34,9 +34,9 @@
       "route": "/admin/[seasonSlug]/matches/[matchId]",
       "task": "A-WB",
       "status": "experiment_pending",
-      "implemented": "canonical roster；OCR激活保草稿；persona出事务且DB/provider失败局部降级；Bili/download独立Suspense；confirmed Demo质量按图展开读取；commentary仅active+当前图历史；Main Swiss单场record窄读，复用frozen投影",
+      "implemented": "canonical roster；OCR激活保草稿；persona出事务且DB/provider失败局部降级；Bili/download独立Suspense；confirmed Demo质量按图展开读取；commentary仅active+当前图历史；Main Swiss单场record窄读，复用frozen投影；Play-in窄reader consumer已接#1096",
       "evidence": "真实PG confirmed QA初读无artifact、展开一图/旧import/跨scope拒绝；persona故障注入4例；OCR组件测试；commentary全局队列与局部历史等价；真实PG old/full parity，4→3SQL，14019→2967结果JSON字节",
-      "remainingExperiment": "Play-in单场record API已向public owner明确提出；needs_attention详细review仍在首读；真实provider延迟与primary-ready/CLS配对",
+      "remainingExperiment": "#1096合main后的精确head CI；needs_attention详细review仍在首读；真实provider延迟与primary-ready/CLS配对",
       "owner": "admin"
     },
     {
@@ -322,12 +322,13 @@
   "integrationBase": "d58ab7c4fb97cef7795ee2de9d9b5d6a2e208eaf",
   "betDependency": "a94b96ef5be2857c6518b460deedfcb3623437c4",
   "dependencies": {
-    "public": "e7a7ae264b1ed63ffb8f12828ea2979b33f157c1"
+    "playinReader": "b820d4b6bac7fd690c05f9c9628f6886cfe976bf (#1096)"
   },
-  "codeBase": "49c6c7fdf87972d9514b6f81015452ec604accd9",
+  "codeBase": "7b619d2b17ef7c089184b922991ce312404fb9c3",
   "resolvedDependencies": {
     "accounts": "main7f1b9d5a",
-    "stats": "main051ab5c7"
+    "stats": "main051ab5c7",
+    "public": "main7b619d2b"
   },
   "tasks": [
     {
@@ -344,10 +345,10 @@
     },
     {
       "id": "A-WB-5-playin-swiss",
-      "status": "owner_interface_pending",
+      "status": "implemented_tested_pending_dependency_merge",
       "consumer": "operator roomGuide record/stageName only",
       "owner": "public canonical qualification-stage-read-model",
-      "requiredAPI": "loadQualificationSwissMatchRecord(seasonId,matchId) -> {stageName,record}|null；保留完整seed/pairing校验，跳过name/logo/display score"
+      "evidence": "operator-context已直接消费#1096窄reader；main7b619d2b+ b820d4b6临时集成type/PG22例通过"
     },
     {
       "id": "A-WB-5-commentary",
@@ -359,15 +360,15 @@
     {
       "id": "A-MATCHLIST-execution",
       "status": "implemented_tested",
-      "evidence": "100/500finished+8active，完整match展示最多25；PG遍历/筛选/clamp；500场Flight gzip822586→56831、decoded2184601→156138 bytes",
+      "evidence": "100/500finished+8active，完整match展示最多25；PG遍历/筛选/clamp；500场Flight gzip822586→56831、decoded2184601→156138 bytes；最终必要列查询PG结果1043520→112655 JSON bytes",
       "remaining": "当前阶段窄排序事实仍O(N)，新增1SQL；500active全局操作队列不在该fixture范围"
     },
     {
       "id": "A-MATCHLIST-schedule",
       "status": "implemented_tested",
       "serverFacts": "full frozen stage用于runtime/standings/batch groups，未截断权威事实",
-      "clientConsumers": "MajorSwissRuntimeManagement/PlayoffManagement接有界run摘要；BatchDeadlineCard接group/count；AdminMatchStageTabs只包含当前25条Server rows",
-      "evidence": "500场DOM9849→677；完整root Flight gzip717946→49570、decoded2054900→128929 bytes；DB query/result量不变"
+      "clientConsumers": "Swiss Runtime 13标量、Playoff Runtime 7标量；BatchDeadline group/count；当前25条Server rows，未传完整match数组/ruleSnapshot",
+      "evidence": "500场DOM9849→677；完整root Flight gzip717946→49570、decoded2054900→128929 bytes；DB query/result量不变；最终窄列PG 6SQL/542行不变，1043502→139679 JSON bytes"
     },
     {
       "id": "A-MATCHLIST-materials",

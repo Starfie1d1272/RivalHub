@@ -1,5 +1,5 @@
 {
-  "base": "49c6c7fdf87972d9514b6f81015452ec604accd9",
+  "base": "7b619d2b17ef7c089184b922991ce312404fb9c3",
   "files": [
     ".changeset/admin-windowed-lists.md",
     "docs/archive/performance-admin-followup-2026-10-24/README.md",
@@ -7,6 +7,7 @@
     "docs/archive/performance-admin-followup-2026-10-24/browser-before.json",
     "docs/archive/performance-admin-followup-2026-10-24/browser-document-after.json",
     "docs/archive/performance-admin-followup-2026-10-24/browser-document-before.json",
+    "docs/archive/performance-admin-followup-2026-10-24/read-cost-pre-column-projection.json",
     "docs/archive/performance-admin-followup-2026-10-24/read-cost.json",
     "docs/archive/performance-admin-followup-2026-10-24/route-status.json",
     "docs/archive/performance-admin-followup-2026-10-24/scope-files.json",
@@ -30,9 +31,12 @@
     "src/lib/admin/matches/operator-maps.ts",
     "src/lib/admin/matches/overview.ts",
     "src/lib/admin/matches/postmatch-tasks.ts",
+    "src/lib/admin/matches/shared.ts",
     "src/lib/admin/matches/types.ts",
     "src/lib/admin/season-workspace/major-prestart.ts",
     "src/lib/matches/stage-read-model.ts",
+    "src/lib/matches/stage-standings.ts",
+    "src/lib/standings.ts",
     "tests/e2e/flows/admin-match-readiness.spec.ts",
     "tests/integration/db/admin-announcement-page.test.ts",
     "tests/integration/db/admin-list-cost.benchmark.test.ts",
@@ -41,7 +45,11 @@
     "tests/integration/db/demo-import-egress.test.ts"
   ],
   "dependencies": {
-    "public": "e7a7ae264b1ed63ffb8f12828ea2979b33f157c1"
+    "playinReader": "b820d4b6bac7fd690c05f9c9628f6886cfe976bf (#1096)"
   },
-  "note": "候选领域代码仅在临时集成分支合入；本分支不复制它们。"
+  "note": "候选领域代码仅在临时集成分支合入；本分支不复制它们。",
+  "sharedTypeOnly": [
+    "src/lib/standings.ts",
+    "src/lib/matches/stage-standings.ts"
+  ]
 }

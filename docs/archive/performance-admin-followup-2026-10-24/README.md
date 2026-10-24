@@ -6,7 +6,7 @@
 
 ## 浏览器配对
 
-Chromium desktop、hard navigation、开发服务器预热、等价独立生成fixture（不同UUID）、8 active + 100/500 finished，每个size/view各1样本。首轮仅文档的before/after数值见 `browser-document-before.json` / `browser-document-after.json`。不是p75/p95，不是生产数据。primaryDomReadyMs是可见普通行出现的MutationObserver时间，**不是产品CONTENT_READY或hydration完成时间**。next/back均在真实页面上验证，trace只保留本地fixture产物。
+Chromium desktop、hard navigation、开发服务器预热、等价独立生成fixture（不同UUID）、8 active + 100/500 finished，每个size/view各1样本。首轮仅文档的before/after数值见 `browser-document-before.json` / `browser-document-after.json`。不是p75/p95，不是生产数据。primaryDomReadyMs是普通行DOM首次有非零布局高度的MutationObserver时间（该行可能在viewport外），**不是产品CONTENT_READY或hydration完成时间**。next/back均在真实页面上验证，trace只保留本地fixture产物。
 
 | finished | view | 解码文档 bytes before→after | DOM before→after | 单次LCP ms before→after |
 | --- | --- | --- | --- | --- |
@@ -38,9 +38,9 @@ DOM、文档encoded/decoded、LCP与精确CLS仍分别记录在每个sample；�
 
 同一隔离PG fixture、100/500 finished、8 active，每场finished含一个合法约1.5KB录像URL；3轮交错读。临时baseline模块来自精确06d0ea5，读完删除，不提交。`read-cost.json`仅含统计，不含记录、参数或凭据。
 
-500场时：execution 7→8 SQL、543→568返回行、1043514→169290结果JSON字节；窄事实增加一次roundtrip及行数，不能写成“DB读取严格25行”。materials 9→9 SQL、502→502行、1009622→97122字节；canonical范围内扫描仍随规模增长。schedule SQL/结果量不变（6、542行、1043496字节），收益在呈现，不在DB。没有用更早fallback冒充内容完成。
+500场最终列投影：execution 7→8 SQL、543→568返回行、1043520→112655结果JSON字节；窄事实增加一次roundtrip及行数，不能写成“DB读取严格25行”。materials 9→9 SQL、502→502行、1009622→97122字节；canonical范围内扫描仍随规模增长。schedule 6→6 SQL、542→542行、1043502→139679字节：保留完整计算所需的match/run/比分事实，但不再拉取无消费者的录像正文与entry私有字段。两个共享standings函数仅缩窄输入类型，排名/历史恢复/排序实现不变；真实PG覆盖1:0胜负与13:8地图的净回合差。旧未缩窄列快照另存read-cost-pre-column-projection.json。没有用更早fallback冒充内容完成。
 
-Main Swiss单场record与完整reader比较：已结束BO1的同一frozen run，4→3SQL，25→25行，14019→2967结果JSON字节。无run/跨scope/未知match/不完整finalized round均覆盖，原frozen规则与record投影函数复用；Play-in窄API仍交public owner协调。
+Main Swiss单场record与完整reader比较：已结束BO1的同一frozen run，4→3SQL，25→25行，14019→2967结果JSON字节。无run/跨scope/未知match/不完整finalized round均覆盖，原frozen规则与record投影函数复用；Play-in窄API已接入#1096 b820d4b6，临时集成验证其三个PG用例；保留原direct-BO3格式分支，不复制canonical pairing规则。
 
 复现PG配对：
 
@@ -57,6 +57,10 @@ rm src/lib/admin/matches/overview-list-baseline.ts src/lib/admin/matches/postmat
 
 public `e7a7ae264b1ed63ffb8f12828ea2979b33f157c1`、accounts `c602550eb6d6c7580c5daf2122c782bf3ceddf85`、stats `ec0989a502b08f71f1a917e07b88e3cf02e13b17`仅用于临时集成验证：app/tests类型和架构通过；10个reader PG及8个qualification/prestart PG通过。公告consumer在SQL固定季赛scope并只用summary/count，详情保留完整正文。教育overview/page独立返回受控错误，fresh授权在父page，证据过期owner不变。prestart union IDs读一次不限定平台的raw bundle，再按profile/fallback投影。
 
-最终依赖合入main后必须rebase并让最新head CI验证。35页逐项状态见 `route-status.json`，精确文件与依赖见 `scope-files.json`。仍缺真实部署cohort、混合pool预算、500 active全局队列、Play-in record窄API及慢教育overview的浏览器隔离；没有把这些写成已完成。未发布、未部署、未做生产写入。
+最终依赖合入main后必须rebase并让最新head CI验证。35页逐项状态见 `route-status.json`，精确文件与依赖见 `scope-files.json`。仍缺真实部署cohort、混合pool预算、500 active全局队列、慢教育overview的浏览器隔离；没有把这些写成已完成。未发布、未部署、未做生产写入。
 
 后续正式代码已跟进包含accounts和stats的main；public API仍待合入。最新临时集成app/tests类型、受影响ESLint与架构检查通过；8个定向PG文件的19用例中，自定义play-in fixture修正后单独重跑通过，其他18例通过。RSC测试已去除额外探测query，使用实际页面参数。当前A-WB-5四子项与三个view分别列在route-status tasks，不能按一个route状态冒充全部完成。
+
+最终验证基于正式公共API main7b619d2b，加#1096 b820d4b6临时合入：app/tests类型、受影响ESLint、architecture与9个定向PG文件22例全部通过。资料、阶段/队伍筛选、分页clamp、普通自定义play-in、Swiss/Play-in parity、scope与证据时限均覆盖。用户最新指示为直接Ready，#1094已转Ready；依赖未合与CI pending保持明确记录，不以Draft设置人工门槛。
+
+已核对schedule的实际Client消费者：MajorSwissRuntimeManagement只接13个标量字段，MajorPlayoffRuntimeManagement只接7个标量字段；BatchDeadlineCard接stage/round/entryRound/count分组，普通赛程Server rows只有当前25条。没有把完整match数组或frozen ruleSnapshot原样传入这些Client props。
