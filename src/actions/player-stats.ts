@@ -48,6 +48,7 @@ export type PlayerOption = {
 };
 
 async function loadAuthorizedScoreboardContext(mapId: string) {
+  return traceOperation("scoreboard.authorize", { scope: "action", operation: "scoreboard.authorize", stage: "authorize" }, async () => {
   if (!z.uuid().safeParse(mapId).success) throw new AppError(ErrorCode.VALIDATION_FAILED, "地图记录无效");
   const [match] = await db.select({ id: matches.id, seasonId: matches.seasonId,
     entryAId: matches.entryAId, entryBId: matches.entryBId, stage: matches.stage,
@@ -56,6 +57,7 @@ async function loadAuthorizedScoreboardContext(mapId: string) {
   assertCompetitionMatch(match);
   await requireSeasonAdmin(match.seasonId);
   return match;
+  });
 }
 
 /** COMMIT is already confirmed; cache failure must not turn it into an apparent rejected write. */
@@ -95,7 +97,7 @@ export async function extractStatsFromScreenshot(
   try {
     const match = await loadAuthorizedScoreboardContext(mapId);
     const [seasonPlayers, ocrResult] = await Promise.all([
-      traceOperation("ocr.players.load", { scope: "action", operation: "ocr.players.load" },
+      traceOperation("ocr.players.load", { scope: "action", operation: "ocr.players.load", stage: "read" },
         () => loadScoreboardPlayers(db, match.id, [match.entryAId, match.entryBId])),
       extractScoreboardFromBase64(base64Image, mimeType),
     ]);

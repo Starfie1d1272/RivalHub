@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
@@ -17,7 +18,7 @@ export default async function AccountSecurityPage() {
       <VerifiedIdentities userId={session.userId} />
     </Suspense>
     <Panel label="登录密码" contentClassName="p-5">
-      <ChangePasswordForm />
+      <ContentReady module="account" phase="form" /><ChangePasswordForm />
     </Panel>
   </div>;
 }

@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { redirect } from "next/navigation";
 import { MyCompetitionCard } from "@/components/my/MyCompetitionCard";
 import { EmptyState, PageHeader, Section, SectionHeader } from "@/components/rivalhub";
@@ -21,5 +22,5 @@ export default async function MyCompetitionsPage() {
     loadTestMatches({ viewerId: session.userId }),
   ]);
   const grouped = groupMyCompetitionContexts(contexts);
-  return <div className="space-y-8"><PageHeader title="我的赛事" />{testMatches.length > 0 && <Section><SectionHeader title="我的测试赛" description="双方队长和指定 BP 操作人的比赛入口。" /><TestMatchList matches={testMatches} /></Section>}<CompetitionGroup title="当前参与" contexts={grouped.current} /><CompetitionGroup title="历史赛事" contexts={grouped.history} /></div>;
+  return <div className="space-y-8"><ContentReady module="account" phase="primary" /><PageHeader title="我的赛事" />{testMatches.length > 0 && <Section><SectionHeader title="我的测试赛" description="双方队长和指定 BP 操作人的比赛入口。" /><TestMatchList matches={testMatches} /></Section>}<CompetitionGroup title="当前参与" contexts={grouped.current} /><CompetitionGroup title="历史赛事" contexts={grouped.history} /></div>;
 }

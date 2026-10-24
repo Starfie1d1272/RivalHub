@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import type { Metadata } from "next";
@@ -286,7 +287,7 @@ export default async function RegisterPage({ params, searchParams }: RegisterPag
             sub={[registrationSchedule?.primary, registrationSchedule?.secondary, season.rosterChangeClosesAt ? `${season.competitionTemplate === "major" ? "最终名单调整截止" : "名单可自行调整至"} ${formatCST(season.rosterChangeClosesAt)}` : "名单调整截止时间与报名截止时间一致"].filter(Boolean).join(" · ")}
           />
           <RegistrationScheduleCountdown target={entry && (capabilities.canEditCurrentRoster || capabilities.canRequestRosterChange) ? season.rosterChangeClosesAt?.toISOString() ?? null : registrationSchedule?.countdownTarget ?? null} />
-          <CompetitionEntryFlow
+          <ContentReady module="account" phase="form" /><CompetitionEntryFlow
             key={entry ? `${entry.id}:${entry.updatedAt.toISOString()}` : "new"}
             capabilities={capabilities}
             pendingInvitations={participantContext.pendingInvitations}
@@ -473,7 +474,7 @@ export default async function RegisterPage({ params, searchParams }: RegisterPag
             </p>
           </div>
         ) : (
-          <RegistrationForm
+          <><ContentReady module="account" phase="form" /><RegistrationForm
             seasonId={season.id}
             seasonName={season.name}
             positionCounts={positionCounts}
@@ -483,7 +484,7 @@ export default async function RegisterPage({ params, searchParams }: RegisterPag
             currentUserEmail={userSession?.email ?? null}
             initialValues={initialValues}
             submitLabel={canEditExisting ? "更新报名" : undefined}
-          />
+          /></>
         )}
       </Panel>
 

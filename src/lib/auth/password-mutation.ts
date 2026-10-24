@@ -12,7 +12,7 @@ export async function mutatePassword(
   action: "user.change_password" | "user.reset_password",
   update: () => Promise<{ error: unknown }>,
 ): Promise<void> {
-  const mutationId = await traceOperation("password.begin", { scope: "action", operation: "password.begin" }, () => db.transaction(async (tx) => {
+  const mutationId = await traceOperation("password.begin", { scope: "action", operation: "password.begin", stage: "transaction" }, () => db.transaction(async (tx) => {
     const id = await beginPasswordMutationInTx(tx, userId, startedAt);
     await writeAuditInTx(tx, { action: "user.password_update_started", actorId: userId, targetId: userId, meta: { operation: action, mutationId: id } });
     return id;
@@ -20,7 +20,7 @@ export async function mutatePassword(
   // Thrown/unknown provider outcomes deliberately retain the block for operator reconciliation.
   let result: { error: unknown };
   try {
-    result = await traceOperation("password.provider_update", { scope: "provider", operation: "password.update", provider: "supabase-auth" }, update);
+    result = await traceOperation("password.provider_update", { scope: "provider", operation: "password.update", stage: "provider", provider: "supabase-auth" }, update);
   } catch (cause) {
     throw new PasswordMutationError("unknown", cause);
   }
@@ -31,7 +31,7 @@ export async function mutatePassword(
     }
   }
   try {
-    await traceOperation("password.finalize", { scope: "action", operation: "password.finalize" }, () => db.transaction(async (tx) => {
+    await traceOperation("password.finalize", { scope: "action", operation: "password.finalize", stage: "transaction" }, () => db.transaction(async (tx) => {
       await finishPasswordMutationInTx(tx, userId, mutationId);
       await writeAuditInTx(tx, {
         seasonId: null, action: result.error ? "user.password_update_failed" : action,
