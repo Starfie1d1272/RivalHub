@@ -1,6 +1,6 @@
 # 后台读取与辅助展示边界
 
-后台赛事上下文通过 `src/lib/admin/season-context.ts` 在单次 RSC 请求中复用。侧栏和目录复用经当前管理员授权的窄目录；内部完整赛事行只供 server reader 使用，页面向 Client 显式投影。React request cache 不承担跨请求权限缓存，每个独立 action 保留 fresh authorization。
+后台赛事上下文通过 `src/lib/admin/season-context.ts` 在单次 RSC 请求中复用。侧栏和目录复用经当前管理员授权的窄目录；内部完整赛事行只供 server reader 使用，页面向 Client 显式投影。React request cache 不承担跨请求权限缓存，每个独立 action 保留 fresh authorization。目录page自身以Suspense隔离资料等待；fallback不含授权资料，也不记录content-ready。
 
 后台比赛工作台的开赛 preflight、实际首发、地图与来源 authority 仍由原领域 owner 判定。Demo 身份复核在事务内读取 canonical identity，Steam persona 只在所有相关事务结束后批量补充，不参与决定可确认身份。Bilibili 状态与 Uploader 下载信息在独立 Suspense 区域读取，辅助失败不改变正式比赛事实。下载与设备弹窗通过首次打开后的 action 读取，action 重新检查赛事权限。
 

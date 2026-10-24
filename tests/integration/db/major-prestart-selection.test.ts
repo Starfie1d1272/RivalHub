@@ -1,3 +1,6 @@
+import { existsSync, watch, writeFileSync } from "node:fs";
+import { dirname, basename } from "node:path";
+import { loadSeasonWorkspaceOverview } from "@/lib/admin/season-workspace/overview";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -606,6 +609,35 @@ async function exerciseSuccessfulFreezeWorkflow(): Promise<void> {
       actorId: ACTOR,
     }));
     expect(locked).toMatchObject({ entrantCount: fixture.entries.length, alreadyLocked: false });
+
+    // Non-empty canonical freeze, then exercise only the started-event read branch.
+    await pool.query("UPDATE seasons SET status='playing' WHERE id=$1", [fixture.seasonId]);
+    try {
+      const overview = await loadSeasonWorkspaceOverview(season.slug);
+      expect(fixture.entries.length).toBeGreaterThan(0);
+      expect(overview?.summary).toMatchObject({ entrantCount: fixture.entries.length, frozenEntrantCount: fixture.entries.length });
+      expect(overview?.readiness).toBeNull();
+      expect(overview?.prestartPhase).toBeNull();
+      if (!overview) throw new Error("started frozen overview missing");
+      const serialized = JSON.stringify(overview);
+      expect(serialized).not.toContain(fixture.entries[0]!.userIds[0]);
+      const frozenMembers = await pool.query<{ count: string }>("select count(*)::text as count from event_roster_members m join event_rosters r on r.id=m.event_roster_id where r.entry_id=any($1::uuid[]) and r.status='frozen'", [entryIds]);
+      expect(Number(frozenMembers.rows[0]!.count)).toBe(fixture.entries.reduce((n, entry) => n + entry.userIds.length, 0));
+      console.info("ADMIN_FROZEN_OVERVIEW", JSON.stringify({ entrants: fixture.entries.length, frozenEntrants: fixture.entries.length, members: Number(frozenMembers.rows[0]!.count), readiness: null, projectedBytes: Buffer.byteLength(serialized) }));
+      const bridge = process.env.RIVALHUB_OVERVIEW_BROWSER_BRIDGE;
+      if (bridge) {
+        // Test-only shared fixture bridge. No transaction remains open while the browser reads it.
+        writeFileSync(bridge, JSON.stringify({ slug: season.slug, entrants: fixture.entries.length, members: Number(frozenMembers.rows[0]!.count), firstRosterUserId: fixture.entries[0]!.userIds[0] }));
+        await new Promise<void>((resolve, reject) => {
+          const finish = () => { if (existsSync(`${bridge}.release`)) { clearTimeout(timer); observer.close(); resolve(); } };
+          const observer = watch(dirname(bridge), (_event, filename) => { if (filename?.toString() === `${basename(bridge)}.release`) finish(); });
+          const timer = setTimeout(() => { observer.close(); reject(new Error("overview browser fixture release timed out")); }, 60_000);
+          observer.on("error", error => { clearTimeout(timer); observer.close(); reject(error); });
+          finish();
+        });
+      }
+    } finally { await pool.query("UPDATE seasons SET status=$2 WHERE id=$1", [fixture.seasonId, season.status]); }
+
 
     const state = await pool.query<{ lockedAt: Date | null; lockedBy: string | null }>(
       `SELECT entrants_locked_at AS "lockedAt", entrants_locked_by AS "lockedBy"

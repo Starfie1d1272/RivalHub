@@ -1,0 +1,10 @@
+--- a/src/app/admin/education-verifications/page.tsx
++++ b/src/app/admin/education-verifications/page.tsx
+@@ -42,6 +42,7 @@
+ }
+ 
+ async function EducationOverviewRegion() {
++  await new Promise<void>(resolve => setTimeout(resolve, 5000)); // isolated browser probe; never committed
+   let overview: Awaited<ReturnType<typeof getEducationReviewOverview>> | null = null;
+   try { overview = await getEducationReviewOverview(); }
+   catch (error) {
