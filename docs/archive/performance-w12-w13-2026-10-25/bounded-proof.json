@@ -1,5 +1,5 @@
 {
-  "bodyCandidate": "836d1bcd",
+  "bodyCandidate": "836d1bcd1903d19c1172ad8eff7ebf48fbfd518b",
   "leafCandidate": "3d16f395f2b1a383cce422c649636b2387dc84ac",
   "bodyBudget": {
     "transportAttemptsBeforeGuidance": 3,
@@ -127,5 +127,6 @@
     "leafCandidate": 3
   },
   "realPostgresTests": 6,
-  "productionBuildOrProxyVerified": false
+  "productionBuildOrProxyVerified": false,
+  "rscErrorGuard": "Real RSC onError must remain empty; separately rerun 1 PostgreSQL test after adding this assertion."
 }
