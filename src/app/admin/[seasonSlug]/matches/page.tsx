@@ -38,7 +38,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   const data = materials ? await loadAdminMatchWorkspace(seasonSlug) : overview;
   if (!data) notFound();
   const [commentary, postMatchTasks] = await Promise.all([
-    view === "execution" ? loadAdminMatchCommentary(data.season.id) : Promise.resolve(null),
+    view === "execution" ? loadAdminMatchCommentary(data.season.id, { historicalMatchIds: overview?.matches.map(match => match.id) ?? [] }) : Promise.resolve(null),
     materials ? loadAdminPostMatchTasks(data.season.id) : Promise.resolve([]),
   ]);
   const operations = commentary ? await loadAdminMatchOperations(data.season.id, commentary) : [];

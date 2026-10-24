@@ -25,27 +25,27 @@
       "route": "/admin/[seasonSlug]/matches",
       "task": "A-MATCHLIST",
       "status": "experiment_pending",
-      "implemented": "resources 与 effectiveness 展开后读取；当前阶段 RSC 列表；仅当前 RR standings；Demo metadata 按可见 scope",
-      "evidence": "PG match reader、Demo egress；非配置阶段仍保留统计",
-      "remainingExperiment": "execution/schedule/materials 各100/500场 fixture、主列表ready；共享active substrate和列表分页",
+      "implemented": "resources/effectiveness展开读取；execution只读当前阶段与未配置阶段诊断；schedule仅当前阶段RSC及RR专用数据",
+      "evidence": "真实PG100/500场分阶段fixture、正式/测试scope、全局matchCount及非配置阶段诊断",
+      "remainingExperiment": "execution完整分页、schedule/materials 100/500场RSC bytes/ready；共享active substrate及materials全局任务摘要",
       "owner": "admin"
     },
     {
       "route": "/admin/[seasonSlug]/matches/[matchId]",
       "task": "A-WB",
       "status": "experiment_pending",
-      "implemented": "canonical roster；OCR激活保草稿；persona出事务；Bili/download独立Suspense",
-      "evidence": "PG match/egress，OCR挂载组件测试",
-      "remainingExperiment": "Demo artifact/detail懒读、Swiss窄record、commentary全季substrate；真实provider延迟 tx-span/primary-ready",
+      "implemented": "canonical roster；OCR激活保草稿；persona出事务且DB/provider失败局部降级；Bili/download独立Suspense；confirmed Demo质量按图展开读取；commentary仅active+当前图历史",
+      "evidence": "真实PG confirmed QA初读无artifact、展开一图/旧import/跨scope拒绝；persona故障注入4例；OCR组件测试；commentary全局队列与局部历史等价",
+      "remainingExperiment": "needs_attention详细review仍在首读；Swiss窄record；真实provider延迟tx-span/primary-ready/CLS；RSC bytes",
       "owner": "admin"
     },
     {
       "route": "/admin/telemetry",
       "task": "A-TELEMETRY",
       "status": "experiment_pending",
-      "implemented": "150ms合批、active-tab JSX与派生、空metric/hist防线、route error boundary",
-      "evidence": "组件：会话旧结果隔离/合批/空指标",
-      "remainingExperiment": "5次历史错误缺栈：复现与安全fingerprint；上限fixture profile；single-flight由观测owner提供",
+      "implemented": "150ms合批、active-tab派生与JSX；缺当前指标仍可选择其它有效指标；route boundary安全fingerprint；保留#1082唯一条件ready",
+      "evidence": "4组件用例：旧会话隔离/合批/空指标/partial metric切换；新main type-check",
+      "remainingExperiment": "5次历史异常缺栈，仍需生产版本归因；上限fixture浏览器profile及single-flight并发实验",
       "owner": "observability+admin"
     },
     {
@@ -80,8 +80,8 @@
       "task": "A-AUDIT",
       "status": "experiment_pending",
       "implemented": "searchParams→固定scope RSC，移除第二套action读；标签pool按3类型有界",
-      "evidence": "PGscope/privacy/fallback；RSC新props组件测试",
-      "remainingExperiment": "30种target的50行SQL/labels对照、共用match/entry依赖batch",
+      "evidence": "PGscope/privacy/fallback；RSC新props组件测试；同match/map/import共享request-local标签只读一次",
+      "remainingExperiment": "30种target的50行SQL/labels对照",
       "owner": "admin"
     },
     {
@@ -143,7 +143,7 @@
       "task": "A-AUDIT",
       "status": "experiment_pending",
       "implemented": "RSC唯一list owner、稳定createdAt/id；有界标签类型并发",
-      "evidence": "PGprivacy/fallback，props更新与0重复action",
+      "evidence": "PGprivacy/fallback，props更新与0重复action；同match/map/import共享request-local标签只读一次",
       "remainingExperiment": "30target label SQL对照；直接URL/back-forward浏览器实验",
       "owner": "admin"
     },
@@ -195,11 +195,11 @@
     {
       "route": "/admin/operations/feedback",
       "task": "A-FEEDBACK",
-      "status": "experiment_pending",
-      "implemented": "未重写domain reader",
-      "evidence": "入口与无界list已核对",
-      "remainingExperiment": "canonical owner提供stable page+summary+按ID详情；长中文body/删除身份fixture",
-      "owner": "admin/domain-owner"
+      "status": "implemented_tested",
+      "implemented": "DB稳定25条摘要分页、中文body前160字；详情按ID/limit1独立fresh超级管理员授权、完整正文与重试",
+      "evidence": "真实PG65条/4000字中文、筛选/稳定同时间ID排序/clamp/完整详情/授权拒绝/安全fingerprint不泄漏",
+      "remainingExperiment": "deleted user展示fixture；浏览器filter/detail/back-forward及历史规模计划",
+      "owner": "admin"
     },
     {
       "route": "/admin/operations/season-info",
@@ -232,10 +232,10 @@
       "route": "/admin/[seasonSlug]/discipline",
       "task": "A-DISCIPLINE",
       "status": "experiment_pending",
-      "implemented": "未变更canonical时窗规则",
-      "evidence": "入口/reader内存分页核对",
-      "remainingExperiment": "状态/now/active-subject与完整filter SQL分页金样、证据detail按需",
-      "owner": "admin/domain-owner"
+      "implemented": "active subject join；canonical JS时窗/搜索/排序保留；窄事实过滤分页后仅当前25条读取完整证据，两段只读RR同snapshot",
+      "evidence": "真实PG67case全状态/now边界/中文英文搜索/merged subject/跨season/clamp；完整证据保留",
+      "remainingExperiment": "尚未SQL化全部metadata分页；代表规模returned bytes及query plan；无权限与撤权浏览器路径",
+      "owner": "admin"
     },
     {
       "route": "/admin/[seasonSlug]/captains",
@@ -259,9 +259,9 @@
       "route": "/admin/[seasonSlug]/bet",
       "task": "A-BETADMIN",
       "status": "experiment_pending",
-      "implemented": "未改BET资金owner",
-      "evidence": "入口RR与program dirty已核对",
-      "remainingExperiment": "BET owner专属admin DTO含同snapshot dirty；BigInt/封盘/更正fixture",
+      "implemented": "消费#1086 readBetOperationsSnapshot，RR释放后project；pending取同snapshot dirty，无第二program读取",
+      "evidence": "临时集成main6697cb5c+#1086 a94b96ef真实PG read-footprint；Chromium后台登录/hydration/启用确认/DBprogram创建通过",
+      "remainingExperiment": "等待#1086合并后正式分支检查；复杂市场筛选规模及RSC/ready测量；锁盘/更正由BETowner测试",
       "owner": "bet+admin"
     },
     {
@@ -318,5 +318,7 @@
       "remainingExperiment": "public owner id+season scoped detail；同ID跨slug拒绝",
       "owner": "public+admin"
     }
-  ]
+  ],
+  "integrationBase": "6697cb5cdace762297085cf7c6ed542d0c434cc1",
+  "betDependency": "a94b96ef5be2857c6518b460deedfcb3623437c4"
 }

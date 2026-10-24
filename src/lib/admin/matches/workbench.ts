@@ -298,7 +298,7 @@ export async function loadAdminMatchWorkbench({
     loadOperatorContext({ match, maps: mapRecords, imports: demoImportRows, roster: effectiveRosterRows,
       seasonName: season.name, stageName: match.testConfig ? "测试赛" : stage?.name ?? null, isSwiss: stage?.type === "swiss",
       teamAName, teamBName, vetoComplete: Boolean(vetoSession?.completedAt) }),
-    readAdminMatchCommentary(db, { seasonId: season.id, currentUserId: admin.userId, excludeMatchId: match.id }),
+    readAdminMatchCommentary(db, { seasonId: season.id, currentUserId: admin.userId, excludeMatchId: match.id, historicalMatchIds: [match.id] }),
   ]);
 
   // Persona is display enrichment, never part of canonical validation or its transaction.
