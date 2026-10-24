@@ -49,7 +49,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
         .leftJoin(seasonAdminGrants, eq(seasonAdminGrants.userId, users.id))
         .where(and(eq(users.status, "active"), or(eq(users.role, "super_admin"), isNotNull(seasonAdminGrants.userId))))
         .orderBy(asc(users.createdAt)),
-      db.query.seasons.findMany(),
+      db.query.seasons.findMany({ columns: { id: true, name: true } }),
     ]);
     const seasonMap = Object.fromEntries(allSeasons.map((s) => [s.id, s.name]));
     const adminById = new Map<string, {

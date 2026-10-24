@@ -9,6 +9,8 @@ import { actionError, failValidation } from "@/lib/action-utils";
 import { auditActorId, getUserSession, requireSuperAdmin } from "@/lib/auth/session";
 import { submitFeedbackInTx, setFeedbackStatusInTx } from "@/lib/feedback/commands";
 import { feedbackCategorySchema, normalizeFeedbackBody, safePublicPathname, FEEDBACK_BODY_MAX_LENGTH } from "@/lib/feedback/validation";
+import { getFeedbackForAdmin } from "@/lib/feedback/read-model";
+import { AppError, ErrorCode } from "@/lib/errors";
 import { ok, type ActionResult } from "@/types/action";
 
 const uuid = z.guid();
@@ -49,4 +51,15 @@ export async function setFeedbackStatus(input: { id: string; status: "new" | "tr
     revalidatePath("/admin/operations/feedback");
     return ok(undefined);
   } catch (error) { return actionError("setFeedbackStatus", error); }
+}
+
+export async function readFeedbackDetail(id: string) {
+  const parsed = uuid.safeParse(id);
+  if (!parsed.success) return failValidation("反馈参数无效。");
+  try {
+    await requireSuperAdmin();
+    const detail = await getFeedbackForAdmin(parsed.data);
+    if (!detail) throw new AppError(ErrorCode.NOT_FOUND, "未找到该反馈。");
+    return ok(detail);
+  } catch (error) { return actionError("readFeedbackDetail", error); }
 }

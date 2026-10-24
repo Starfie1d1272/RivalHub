@@ -1,7 +1,7 @@
 import "server-only";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db, type DB, type TxDb } from "@/db/client";
 import { competitionEntries, matchCommentators, matchLiveSessions, matchVetoSessions, matches, steamProfiles, users } from "@/db/schema";
@@ -41,7 +41,7 @@ export interface AdminMatchCommentaryData {
 }
 
 /** Server-authorized, season-scoped facts; deliberately independent of list filters. */
-export async function loadAdminMatchCommentary(seasonId: string, options: { excludeMatchId?: string } = {}): Promise<AdminMatchCommentaryData> {
+export async function loadAdminMatchCommentary(seasonId: string, options: { excludeMatchId?: string; historicalMatchIds?: readonly string[] } = {}): Promise<AdminMatchCommentaryData> {
   const admin = await requireSeasonAdmin(seasonId);
   return readAdminMatchCommentary(db, { seasonId, currentUserId: admin.userId, ...options });
 }
@@ -49,7 +49,7 @@ export async function loadAdminMatchCommentary(seasonId: string, options: { excl
 /** Database read owner. Callers must authorize the season before projecting it. */
 export async function readAdminMatchCommentary(
   database: DB | TxDb,
-  { seasonId, currentUserId, excludeMatchId }: { seasonId: string; currentUserId: string; excludeMatchId?: string },
+  { seasonId, currentUserId, excludeMatchId, historicalMatchIds }: { seasonId: string; currentUserId: string; excludeMatchId?: string; historicalMatchIds?: readonly string[] },
 ): Promise<AdminMatchCommentaryData> {
   const teamA = alias(competitionEntries, "commentary_team_a");
   const teamB = alias(competitionEntries, "commentary_team_b");
@@ -72,7 +72,10 @@ export async function readAdminMatchCommentary(
       .leftJoin(matchLiveSessions, and(eq(matchLiveSessions.matchId, matches.id), isNull(matchLiveSessions.closedAt)))
       .innerJoin(teamA, eq(teamA.id, matches.entryAId))
       .innerJoin(teamB, eq(teamB.id, matches.entryBId))
-      .where(eq(matches.seasonId, seasonId))
+      .where(and(eq(matches.seasonId, seasonId), historicalMatchIds ? or(
+        inArray(matches.status, ["scheduled", "in_progress"]),
+        historicalMatchIds.length ? inArray(matches.id, [...historicalMatchIds]) : undefined,
+      ) : undefined))
       .orderBy(asc(matches.id)),
     database.select({ userId: users.id }).from(users)
       .where(and(eq(users.id, currentUserId), commentaryAdminEligibility(seasonId))),

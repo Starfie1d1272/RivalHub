@@ -1,11 +1,11 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { identityLinkRequests } from "@/db/schema";
+import { identityLinkRequests, users } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { createPublicAuthClient } from "@/lib/auth/supabase-server";
 import { isSecondaryEmailOtpType } from "@/lib/auth/secondary-email-otp";
@@ -18,7 +18,7 @@ import {
 } from "@/lib/identity/linking";
 import { normalizeEmail } from "@/lib/utils/email";
 import { traceOperation, logEvent } from "@/lib/observability/server";
-import { ErrorCode } from "@/lib/errors";
+import { AppError, ErrorCode } from "@/lib/errors";
 import { fail, ok, type ActionResult } from "@/types/action";
 
 const emailSchema = z.email().max(320);
@@ -32,21 +32,35 @@ export async function requestSecondaryEmailIdentity(emailInput: string): Promise
     const session = await requireAuth();
     const email = normalizeEmail(parsed.data);
     const stateToken = randomBytes(32).toString("base64url");
-    const now = new Date();
-    const [request] = await db.transaction(async (tx) => {
+    const request = await db.transaction(async (tx) => {
+      // Match confirmation/merge's user -> request order. The gate ends before
+      // provider IO; a competing call sees the durable pending request.
+      const [owner] = await tx.select({ status: users.status }).from(users).where(eq(users.id, session.userId)).for("update");
+      if (owner?.status !== "active") throw new AppError(ErrorCode.UNAUTHORIZED, "账号状态已变化，请重新登录。");
+      const clock = await tx.execute<{ now: string }>(sql`select clock_timestamp()::text as now`);
+      const now = new Date(clock.rows[0]!.now);
+      const [pending] = await tx.select({ id: identityLinkRequests.id }).from(identityLinkRequests).where(and(
+        eq(identityLinkRequests.userId, session.userId), eq(identityLinkRequests.normalizedEmail, email),
+        eq(identityLinkRequests.status, "pending"), gt(identityLinkRequests.expiresAt, now),
+      )).limit(1);
+      // A provider timeout does not prove rejection. Preserve the original URL
+      // through its expiry, including across page reloads and concurrent calls.
+      if (pending) return null;
       await tx.update(identityLinkRequests).set({ status: "cancelled", completedAt: now }).where(and(
         eq(identityLinkRequests.userId, session.userId),
         eq(identityLinkRequests.normalizedEmail, email),
         eq(identityLinkRequests.status, "pending"),
       ));
-      return tx.insert(identityLinkRequests).values({
+      const [created] = await tx.insert(identityLinkRequests).values({
         userId: session.userId,
         normalizedEmail: email,
         stateTokenHash: hashIdentityLinkState(stateToken),
         expiresAt: new Date(now.getTime() + 30 * 60 * 1000),
       }).returning({ id: identityLinkRequests.id });
+      if (!created) throw new Error("无法创建邮箱绑定请求");
+      return created;
     });
-    if (!request) throw new Error("无法创建邮箱绑定请求");
+    if (!request) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "已有有效的邮箱绑定请求，请检查邮箱；原链接到期后再重新发起。", meta: { outcome: "unknown" } });
 
     deliveryStarted = true;
     const { error } = await traceOperation("provider.supabase.auth.link_email", { scope: "provider", operation: "identity.link_email", provider: "supabase-auth" }, () => createPublicAuthClient().auth.signInWithOtp({

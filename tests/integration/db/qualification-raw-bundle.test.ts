@@ -20,6 +20,8 @@ describe("qualification raw bundle on the caller's PostgreSQL executor", () => {
           { userId, platform: "fivee", kind: "season_peak", platformSeasonKey: "fixture", status: "unranked", rank: null, rating: null },
         ]);
         queries = 0;
+        expect(await loadParticipantQualificationRawBundle([], { executor: tx })).toEqual({ userRows: [], verificationRows: [], rankRows: [], platformSeasonRows: [] });
+        expect(queries).toBe(0);
         const bundle = await loadParticipantQualificationRawBundle([userId, userId], { executor: tx });
         expect(queries).toBe(4);
         const beforeProjection = queries;

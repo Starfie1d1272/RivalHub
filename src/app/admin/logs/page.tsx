@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { fetchAuditLogs, getAuditSeasons } from "@/actions/audit";
@@ -54,6 +55,7 @@ export default async function AdminLogsPage({ searchParams }: AdminLogsPageProps
     <PageLayout variant="wide" className="space-y-6">
       <PageHeader title="操作日志" />
       <AuditLogTable initialLogs={logsResult.data.logs} initialTotal={logsResult.data.total} seasons={seasonsResult.data} />
+      <ContentReady module="admin" phase="primary" />
     </PageLayout>
   );
 }

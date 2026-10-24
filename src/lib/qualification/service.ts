@@ -496,6 +496,7 @@ export async function loadParticipantQualificationRawBundle(
 ) {
   const executor = options.executor ?? db;
   const ids = [...new Set(userIds)];
+  if (ids.length === 0) return { userRows: [], verificationRows: [], rankRows: [], platformSeasonRows: [] };
   const includeCompetitiveFacts = options.includeCompetitiveFacts ?? true;
   const platforms = [options.platform, options.fallbackPlatform].filter((item): item is string => Boolean(item));
   const rankFactsFilter = platforms.length > 0

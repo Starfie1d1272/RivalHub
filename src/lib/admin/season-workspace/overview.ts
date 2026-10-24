@@ -1,3 +1,4 @@
+import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { capabilitiesFromSeason, checkStandardMajorCapabilities } from "@/lib/competition/definition";
 import { deriveMajorPrestartPhase, MAJOR_PRESTART_PHASES } from "./prestart-phase";
 import { getOfficialSeasonMatchSummary } from "@/lib/matches/read-official";
@@ -5,7 +6,7 @@ import { getApprovedCompetitionEntryCount } from "@/lib/competition-entries/coun
 import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 
-import { and, count, eq, isNotNull } from "drizzle-orm";
+import { and, count, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
@@ -20,7 +21,6 @@ import {
   matchRosters,
   matches,
   postEventAdjudications,
-  seasons,
   seasonRegistrations,
   steamProfiles,
   users,
@@ -34,6 +34,8 @@ import { projectRegistrationSummary, projectTeamRegistrationFunnel, selectSeason
 import type { SeasonWorkspaceOverviewData, SeasonWorkspaceOverviewSummary } from "./types";
 
 type MajorOverviewFacts = {
+  entrantCount: number;
+  frozenEntrantCount: number;
   entrants: Array<{ id: string; teamId: string; teamName: string | null; eventRosterId: string; sourceRosterRevisionId: string | null; rosterStatus: "preparing" | "confirmed" | "frozen" }>;
   rosterRows: Array<{ entrantId: string; eventRosterId: string; userId: string; participantId: string | null; label: string; educationVerificationId: string | null; isPrimaryStarter: boolean }>;
   seedRows: Array<{ teamId: string; tournamentSeed: number }>;
@@ -57,7 +59,20 @@ async function loadRegistrationCounts(season: Season) {
     .groupBy(seasonRegistrations.status);
 }
 
-async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFacts> {
+async function loadMajorOverviewFacts(season: Season, includeReadiness: boolean): Promise<MajorOverviewFacts> {
+  if (!includeReadiness) {
+    const [[counts], finalResult] = await Promise.all([
+      db.select({ count: count(), frozen: sql<number>`count(*) filter (where ${eventRosters.status} = 'frozen')` })
+        .from(majorTournamentEntrants)
+        .innerJoin(competitionEntries, eq(majorTournamentEntrants.competitionEntryId, competitionEntries.id))
+        .innerJoin(eventRosters, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
+        .where(eq(majorTournamentEntrants.seasonId, season.id)),
+      db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id), columns: { status: true } }),
+    ]);
+    return { entrantCount: Number(counts?.count ?? 0), frozenEntrantCount: Number(counts?.frozen ?? 0),
+      entrants: [], rosterRows: [], seedRows: [], state: undefined, qualification: undefined,
+      seedRecommendation: { status: "missing" }, finalResultStatus: finalResult?.status ?? null };
+  }
   const [state, entrants, rawRosterRows, seedRows, snapshot, finalResult, qualification] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
@@ -91,10 +106,10 @@ async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFact
     ...row,
     label: getDisplayName({ displayName, perfectName, personaName, email }),
   }));
-  const frozenTeams = frozenTeamsForSnapshot(entrants, rosterRows);
-  const frozenSetFingerprint = buildFrozenSetFingerprint(season.id, frozenTeams);
-  const recommendationStatus = getSeedRecommendationSnapshotStatus({ snapshot, seasonId: season.id, frozenSetFingerprint });
+  const recommendationStatus = getSeedRecommendationSnapshotStatus({ snapshot, seasonId: season.id,
+    frozenSetFingerprint: buildFrozenSetFingerprint(season.id, frozenTeamsForSnapshot(entrants, rosterRows)) });
   return {
+    entrantCount: entrants.length, frozenEntrantCount: entrants.filter(entrant => entrant.rosterStatus === "frozen").length,
     state,
     qualification,
     entrants,
@@ -110,9 +125,10 @@ async function loadFormedTeamCount(season: Season): Promise<number> {
 }
 
 export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<SeasonWorkspaceOverviewData | null> {
-  const season = await db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) });
+  const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) return null;
 
+  const includeReadiness = !["playing", "finished", "archived"].includes(season.status);
   const [registrationRows, matchCountRows, scheduledMatchRows, matchRosterRows, activeAdjudicationRows, formedTeamCount, majorFacts] = await Promise.all([
     loadRegistrationCounts(season),
     getOfficialSeasonMatchSummary(season.id).then(summary => [{ count: summary.total }]),
@@ -124,7 +140,7 @@ export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<S
     db.select({ count: count() }).from(postEventAdjudications)
       .where(and(eq(postEventAdjudications.seasonId, season.id), eq(postEventAdjudications.status, "active"))),
     season.registrationMode === "solo" ? loadFormedTeamCount(season) : Promise.resolve(null),
-    season.competitionTemplate === "major" ? loadMajorOverviewFacts(season) : Promise.resolve(null),
+    season.competitionTemplate === "major" ? loadMajorOverviewFacts(season, includeReadiness) : Promise.resolve(null),
   ]);
 
   const registrationSummary = projectRegistrationSummary(
@@ -145,15 +161,15 @@ export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<S
 
   const summary: SeasonWorkspaceOverviewSummary = {
     ...registrationSummary,
-    entrantCount: majorFacts?.entrants.length ?? 0,
-    frozenEntrantCount: majorFacts?.entrants.filter((entrant) => entrant.rosterStatus === "frozen").length ?? 0,
+    entrantCount: majorFacts?.entrantCount ?? 0,
+    frozenEntrantCount: majorFacts?.frozenEntrantCount ?? 0,
     matchCount: Number(matchCountRows[0]?.count ?? 0),
     scheduledMatchesWithoutConfirmedLineups: scheduledMatchRows.filter((match) => (confirmedLineupsByMatch.get(match.id) ?? 0) < 2).length,
     finalResultPendingConfirmation: majorFacts?.finalResultStatus === "pending_confirmation",
     activeAdjudications: Number(activeAdjudicationRows[0]?.count ?? 0),
   };
 
-  const readiness = majorFacts
+  const readiness = majorFacts && includeReadiness
     ? buildMajorReadiness(season, majorFacts.state, majorFacts.entrants, majorFacts.rosterRows, majorFacts.seedRows, {
       seedRecommendation: majorFacts.seedRecommendation,
     })
@@ -173,7 +189,7 @@ export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<S
     endAt: season.endAt,
   } satisfies SeasonWorkspaceOverviewData["season"];
 
-  const majorDefinition = majorFacts ? checkStandardMajorCapabilities(capabilitiesFromSeason(season)) : null;
+  const majorDefinition = majorFacts && includeReadiness ? checkStandardMajorCapabilities(capabilitiesFromSeason(season)) : null;
   const prestartPhase = majorFacts && majorDefinition?.isStandardMajor ? deriveMajorPrestartPhase({
       registrationClosed: Boolean(season.registrationClosesAt && season.registrationClosesAt.getTime() <= Date.now()),
       approvedCandidateCount: summary.approvedEntries,

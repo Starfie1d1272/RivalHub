@@ -1,7 +1,7 @@
+import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
+
+
 import { PostEventManagement } from "@/components/admin/PostEventManagement";
 import { SeasonPostEventOverview } from "@/components/admin/SeasonPostEventOverview";
 import { PageHeader } from "@/components/rivalhub";
@@ -9,7 +9,7 @@ import { loadPostEventPageData } from "@/lib/admin/season-workspace/post-event";
 
 export default async function AdminSeasonPostEventPage({ params }: { params: Promise<{ seasonSlug: string }> }) {
   const { seasonSlug } = await params;
-  const season = await db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) });
+  const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) notFound();
 
   const { data, season: postEventSeason } = await loadPostEventPageData(season);

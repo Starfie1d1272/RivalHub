@@ -33,7 +33,7 @@ rm tests/integration/db/w12-performance.tmp.test.ts tests/integration/db/w12-bas
 
 | 任务 | 状态 | 已实现/保持 | 尚缺证据、下一动作和 owner |
 | --- | --- | --- | --- |
-| AS-00 | 待具体实验 | 固定 auth clock/canonical/session、password begin/provider/finalize、OCR players 阶段；OCR requestId 顶层兼容 | W01 #1082 合并后接真实 ready consumer；集成人验证同导航 token 与 receiver-first |
+| AS-00 | 待具体实验 | 固定 auth clock/canonical/session、password begin/provider/finalize、OCR players 阶段；OCR requestId 顶层兼容 | W01 #1082 已合入，真实 ready consumer/stage 已接；集成人验证同导航 token 与 receiver-first |
 | AS-01 | 待具体实验 | 设置/readiness 复用公开目录 owner；仅公开冷读允许三表独立并行；freeze/写仍 caller executor 顺序读取 | W12/W01 量 production build 下冷/暖真实 cache hit 和主表单 ready/LCP；本机 no-op cache 不能证明命中 |
 | AS-02 | 已实现已测 | 单次 raw bundle + platform/fallback 纯投影，兼容旧 loader；私有事实不跨请求缓存 | PG 检查同 executor、4 次 raw 查询、投影零查询、primary/fallback/unranked；资格冻结/修正 suite 通过 |
 | AS-03 | 待具体实验 | next-match request memo、只富化每 entry 首场；My 复用当前队伍 owner | W12 真实 RSC 同请求 memo/队长成员/多历史 cohort；长期历史分页须先有 payload/人口证据，未无证据重写 |
@@ -41,14 +41,14 @@ rm tests/integration/db/w12-performance.tmp.test.ts tests/integration/db/w12-bas
 | AS-05 | 已实现已测 | 当前视图有界卡片；完整 SQL filter 后计数与分页；页数收缩纠正；仅当前页富化 | PG 覆盖 q/event/position/size/map、邀请/过期及 1000 intents；浏览器 ready 与生产资源收益另验 |
 | AS-06 | 已实现已测 | 原始 canonical candidate ID 去重；冲突拒绝、锁后归属、revoked subject/fresh-auth fence 保留 | 真实独立 PG 连接的身份撤销/登录 12 项回归通过；不据此承诺解决 13s provider 尾延迟 |
 | AS-07 | 待具体实验 | Login/Forgot/Reset/Change transport 受控恢复；密码 unknown 禁重提，成功导航保留 | 组件与 password PostgreSQL；真实 Local Supabase/browser 由总体验证者执行；静态 reset 页慢样本尚无资源归因 |
-| AS-08 | 待具体实验 | 邮件 unknown 不取消 pending；明确 4xx 与 5xx/408/transport 分离；identity UI 禁立即重发 | W12 需要 provider adapter 的持久 unknown/cooldown/双击并发证据；原申请入口仍可显式重建旧 pending，不宣称 durable receipt 已完成 |
+| AS-08 | 已实现已测 | 邮件 unknown 不取消 pending；明确 4xx 与 5xx/408/transport 分离；user→request 锁序与 DB clock 阻止有效 pending 被跨刷新/双击替换，原链接到期后才允许新请求 | 真实 PG 并发、原 token/status 保留、DB 过期后重建通过；provider adapter 用确定性 503/accepted，未声称实际送达 |
 | AS-09 | 已实现已测 | 统一 7 MiB 原图预算，编码后保留 >680 KiB envelope；服务端 canonical base64/signature 复核 | 6/7/7.5/8/10 MiB、伪装/截断单测通过；没有提高全局 body limit；实际反代边界与慢上行由总体验证者测 |
 | AS-10 | 已实现已测 | OCR 窄 map/match join，先 fresh admin，再 players/provider 并行；typed 回读不伪空 | app types/architecture/组件；付费模型未调用，生产 provider 时间与字段精度尚不宣称 |
-| AS-11 | 待具体实验 | fallback 共用原 180s monotonic deadline；真实 decoded imageBytes；既有关 thinking/tuple/body timeout 不重复计功 | W12/资料 owner 提供至少20张脱敏代表截图，做字段精度/完整率/时延/费用实验；缺图片且没有新增付费调用 |
+| AS-11 | 待具体实验 | fallback 共用原 180s monotonic deadline；真实 decoded imageBytes；既有关 thinking/tuple/body timeout 不重复计功 | 当前默认 Qwen3.5-9B 与 thinking 配置未改；仓内只有响应/输入契约测试，没有标注截图精度基线。压缩/换模型属条件实验，需至少20张脱敏标注图与费用授权；没有新增付费调用 |
 | AS-12 | 待具体实验 | typed read、finally、unknown 保留草稿禁重写、已知 commit 与 refresh 分离；显式重试失效不重放 mutation；initialRows undefined/[] 不同 | W03 分配 actor/map/operationId/digest/version receipt 的 active migration；W12 后续 lost COMMIT ack/双管理员版本冲突 PG。当前 read 只加载最新状态，不能证明某次未知写属于本操作 |
-| AS-13 | 待具体实验 | 删除 action 两处重复完整 assert；保留 persist 锁后完整校验；postcommit 返回 refreshPending | PG 名单/资格通过；W04/集成人让 MatchRosterForm 消费 refreshPending 与 transport unknown，receipt/版本核对仍待 W03 合同 |
+| AS-13 | 待具体实验 | 删除 action 两处重复完整 assert；保留 persist 锁后完整校验；postcommit 返回 refreshPending | PG 名单/资格通过；MatchRosterForm/AdminRosterDialog 已消费 refreshPending/unknown，confirm 的已确认分支也重试失效；严格 receipt/版本核对仍待合同 |
 | AS-14 | 待具体实验 | 教育页用户窄字段；资料/安全/竞技主表单与辅助 readiness/列表/roles/maps 分 leaf | W12/总体验证者 production build 的实际 form-ready 与 shift source；没有用占位高度宣称 CLS 达标 |
-| AS-15 | 待具体实验 | postmatch match/season 一次窄 join；commit 与失效结果分离；录像未知 move 不重放、save 稳定 ID 保留 | PG 录像 owner、action postcommit、组件 unknown 通过；严格 receipt/版本+双管理员 lost response 和 ready trace 仍待集成 |
+| AS-15 | 待具体实验 | postmatch match/season 一次窄 join；commit 与失效结果分离；录像未知 move 不重放、save 稳定 ID 保留 | PG 录像 owner、action postcommit、组件 unknown 通过；PostMatchRecordPanel 已消费共享 run 的 refreshPending 并单独重试失效，2 项组件恢复通过；严格 receipt/版本+双管理员 lost response 和 ready trace 仍待集成 |
 | AS-16 | 待具体实验 | candidate/season 窄投影；锁序/锁后 deadline/代表/coverage 不变；未知回应禁重放 | 真实 PG 排期/身份回归与组件通过；receipt 归属/版本恢复仍待锁组；未无依据合并 legacy 提议方 SQL |
 
 ## 路由审查范围
@@ -76,3 +76,7 @@ rm tests/integration/db/w12-performance.tmp.test.ts tests/integration/db/w12-bas
 - 没有 schema/trigger/锁模式变更，没有修改 tags/revalidation owner。撤回、身份归并和官方更正的 hard-expire 没有削弱。应用变更可整体回退，不回滚数据库事实。
 - 严格 OCR 幂等、版本冲突恢复依赖 W03 active migration；当前 UI 禁盲重放是独立修复，不能代替 durable receipt。
 - 尚未运行全仓 build 或全套测试，依委派由父会话统一安排；尚未合并、发版或验证线上改善。
+
+独立复审回归：密码 provider trace 在 exporter 前做专用 allowlist 投影，实际 OTel span 的自由文本/stack 合成凭据防泄漏通过，业务 unknown/cause 不变。OCR 显式恢复后标记首次读取完成并废弃旧请求，晚到 initialRows 不再覆盖编辑草稿。报名 current revision 限缩与教育 Page/Overview 拆分的 8 项真实 PG 通过。
+
+取消在途 reload 的读取 epoch 与 busy owner 已分离：晚到 initialRows 仍废弃旧响应，旧请求 finally 仍释放其 busy。真实组件复现（首读失败→reload 在途→晚到 props→旧响应结束）通过，保留新快照且恢复可编辑。
