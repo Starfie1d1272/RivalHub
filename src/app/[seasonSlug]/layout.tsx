@@ -33,9 +33,11 @@ export async function generateMetadata({ params }: SeasonLayoutProps): Promise<M
 
 export default function SeasonLayout({ children, params }: SeasonLayoutProps) {
   return (
-    <Suspense fallback={<SeasonLayoutFallback />}>
-      <SeasonLayoutContent params={params}>{children}</SeasonLayoutContent>
-    </Suspense>
+    <div className="min-h-svh">
+      <Suspense fallback={<SeasonLayoutFallback />}>
+        <SeasonLayoutContent params={params}>{children}</SeasonLayoutContent>
+      </Suspense>
+    </div>
   );
 }
 
@@ -76,7 +78,7 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
 }
 
 function SeasonLayoutFallback() {
-  return <div className="min-h-[50vh]" aria-busy="true" />;
+  return <div aria-busy="true" aria-label="正在读取赛事" />;
 }
 
 export async function SeasonParticipationEntry({ season }: { season: PublicSeason }) {

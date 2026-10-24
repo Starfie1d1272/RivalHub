@@ -3,7 +3,8 @@
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRoutePolling } from "@/components/use-visible-polling";
+import { useRouter } from "next/navigation";
+import { useGuardedVisiblePolling } from "@/components/use-visible-polling";
 import { getNextEntryId } from "@/lib/draft/rules";
 import { DRAFT_TOTAL_ROUNDS } from "@/types/draft";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
@@ -12,7 +13,10 @@ import { TeamDraftGrid } from "./TeamDraftGrid";
 import { PlayerPool } from "./PlayerPool";
 import type { PublicDraftData } from "@/lib/draft/data";
 
+import { readPublicDraft } from "@/actions/public-draft";
+
 interface DraftLiveRoomProps {
+  seasonSlug: string;
   data: PublicDraftData;
   seasonPositions: string[];
   readonly?: boolean;
@@ -27,11 +31,16 @@ interface PickNotification {
 }
 
 export function DraftLiveRoom({
-  data,
+  data: initialData,
   seasonPositions,
+  seasonSlug,
   readonly: isReadonly,
-  mode,
+  mode: initialMode,
 }: DraftLiveRoomProps) {
+  const router = useRouter();
+  const [polled, setPolled] = useState<{ source: typeof initialData; sourceMode: typeof initialMode; data: typeof initialData; mode: "preview" | "live" | "archive" } | null>(null);
+  const data = polled?.source === initialData && polled.sourceMode === initialMode ? polled.data : initialData;
+  const mode = polled?.source === initialData && polled.sourceMode === initialMode ? polled.mode : initialMode;
   const { state, teams, snakeOrder, remainingPlayers, completedPicks, totalPicks, maxPicks } =
     data;
 
@@ -73,7 +82,17 @@ export function DraftLiveRoom({
     };
   }, []);
 
-  useRoutePolling(isArchive || isComplete ? null : isLive ? 10_000 : 30_000);
+  useGuardedVisiblePolling(async (isCurrent) => {
+    if (!seasonSlug) return;
+    const result = await readPublicDraft(seasonSlug).catch(() => null);
+    if (!isCurrent()) return;
+    if (result?.success) {
+      const next = result.data;
+      setPolled({ source: initialData, sourceMode: initialMode, ...next });
+      if (next.mode !== mode || next.data.state?.isActive !== data.state?.isActive ||
+        (next.data.maxPicks > 0 && next.data.totalPicks >= next.data.maxPicks) !== isComplete) router.refresh();
+    } else router.refresh();
+  }, seasonSlug && !isArchive && !isComplete ? isLive ? 10_000 : 30_000 : null, seasonSlug);
 
   // Watch for new picks via completedPicks changes
   const prevPickCountRef = useRef(completedPicks.length);
@@ -106,11 +125,11 @@ export function DraftLiveRoom({
   const nextTeam = teams.find(team => team.entryId === next?.entryId);
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6">
       {/* Pick notification banner —— 仅直播模式 */}
       {!isArchive && notification && (
         <div
-          className="flex items-center justify-center rounded-md px-4 py-3 text-sm font-medium text-[var(--color-accent-fg)] transition-opacity duration-200"
+          className="absolute inset-x-0 top-0 z-10 flex items-center justify-center rounded-md px-4 py-3 text-sm font-medium text-[var(--color-accent-fg)] transition-opacity duration-200"
           style={{
             background: "var(--color-accent)",
             opacity: notificationVisible ? 1 : 0,
