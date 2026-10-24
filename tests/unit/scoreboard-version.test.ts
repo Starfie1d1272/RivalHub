@@ -19,7 +19,7 @@ it("includes private DAK/provenance changes in the opaque version independent of
   }
 });
 it("binds receipt replay to map, operation, base version and canonical input", () => {
-  const command = { operationId: "original", expectedVersion: "a".repeat(64) };
+  const command = { operationId: "original", expectedActor: "actor", expectedVersion: "a".repeat(64) };
   const digest = scoreboardPayloadDigest("map", "save", command, [{ userId: "user", ratingPro: 1.4 } as { userId: string }]);
   const receipt = { mapId: "map", operation: "save" as const, payloadDigest: digest };
   expect(() => assertScoreboardReplay(receipt, "map", "save", digest)).not.toThrow();

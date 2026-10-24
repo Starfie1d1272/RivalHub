@@ -41,10 +41,10 @@ import {
 import { applyOcrScoreboardEnrichment } from "@/lib/matches/scoreboard-ownership";
 
 import type { AuthorizedScoreboardSnapshot, ScoreboardCommand, ScoreboardOperation, ScoreboardReceiptStatus } from "@/lib/ocr/scoreboard-contract";
-import { ScoreboardConflict, assertScoreboardReplay, assertScoreboardVersion, commitScoreboardReceipt, findScoreboardReceipt, presentScoreboardReceipt } from "@/lib/ocr/scoreboard-receipts";
+import { ScoreboardConflict, assertScoreboardActor, assertScoreboardReplay, assertScoreboardVersion, commitScoreboardReceipt, findScoreboardReceipt, presentScoreboardReceipt } from "@/lib/ocr/scoreboard-receipts";
 import { scoreboardPayloadDigest, scoreboardVersion, scoreboardVersionColumns } from "@/lib/ocr/scoreboard-version";
 
-const scoreboardCommandSchema = z.object({ operationId: z.uuid(), expectedVersion: z.string().regex(/^[a-f0-9]{64}$/) });
+const scoreboardCommandSchema = z.object({ operationId: z.uuid(), expectedActor: z.uuid(), expectedVersion: z.string().regex(/^[a-f0-9]{64}$/) });
 function scoreboardFailure(operation: string, error: unknown) {
   return error instanceof ScoreboardConflict
     ? fail({ code: error.code, message: error.message, meta: { outcome: "conflict" } })
@@ -199,6 +199,7 @@ export async function savePlayerStats(
     assertCompetitionMatch(match);
     const session = await requireSeasonAdmin(match.seasonId);
     const actor = auditActorId(session);
+    assertScoreboardActor(parsed.data.expectedActor, actor);
 
     const violations: string[] = [];
     for (const s of stats) {
@@ -372,6 +373,7 @@ export async function getScoreboardOperationReceipt(mapId: string, input: Scoreb
     const parsed = scoreboardCommandSchema.extend({ operation: z.enum(["save", "clear"]) }).safeParse(input);
     if (!parsed.success) throw new AppError(ErrorCode.VALIDATION_FAILED, "原操作编号或内容无效");
     const match = await loadAuthorizedScoreboardContext(mapId);
+    assertScoreboardActor(parsed.data.expectedActor, match.actorUserId);
     const receipt = await findScoreboardReceipt(db, match.actorUserId, parsed.data.operationId);
     if (!receipt || receipt.mapId !== mapId) return ok({ status: "unconfirmed" });
     if (receipt.operation !== parsed.data.operation || receipt.baseVersion !== parsed.data.expectedVersion) {
@@ -502,6 +504,7 @@ export async function deletePlayerStatsByMap(mapId: string, command: ScoreboardC
     const session = await requireSeasonAdmin(match.seasonId);
 
     const actor = auditActorId(session);
+    assertScoreboardActor(parsed.data.expectedActor, actor);
     const payloadDigest = scoreboardPayloadDigest(mapId, "clear", parsed.data);
     const outcome = await db.transaction(async (tx) => {
       const currentMatch = await lockMatchForEvidenceInTx(tx, map.matchId);

@@ -114,6 +114,8 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   const [readFailed, setReadFailed] = useState(false);
   const initialReadComplete = useRef(initialRows !== undefined);
   const readGeneration = useRef(0);
+  const activeOperation = useRef<"extract" | "save" | "clear" | null>(null);
+  const editEpoch = useRef(0);
   const reloadBusyOwner = useRef(0);
   const [baseVersion, setBaseVersion] = useState<string | null>(initialVersion ?? null);
   const actorScope = useRef<string | null>(null);
@@ -217,6 +219,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   }, [mapId]);
 
   async function enterEditMode() {
+    if (activeOperation.current) return;
     setSaving(true);
     const generation = ++readGeneration.current;
     try {
@@ -278,6 +281,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   }
 
   async function handleExtract() {
+    if (activeOperation.current || saving || recovery || readFailed) return;
     const file = selectedFile;
     if (!file) {
       setError("请先选择截图文件");
@@ -289,6 +293,8 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
     }
 
     if (!isOCRImageMimeType(file.type)) { setError("请选择 JPEG、PNG 或 WebP 图片。"); return; }
+    activeOperation.current = "extract";
+    const epoch = ++editEpoch.current;
     setError(null);
     setExtracting(true);
     ++readGeneration.current;
@@ -296,9 +302,11 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
 
     try {
       const base64 = await fileToBase64(file);
+      if (epoch !== editEpoch.current || activeOperation.current !== "extract" || pendingOperation.current) return;
       imageRead = true;
       const mimeType = file.type;
       const result = await extractStatsFromScreenshot({ mapId, base64Image: base64, mimeType });
+      if (epoch !== editEpoch.current || activeOperation.current !== "extract" || pendingOperation.current) return;
 
       if (!result.success) {
         setError(result.error.message);
@@ -320,8 +328,9 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
       optionsLoaded.current = true;
       setPlayerOptions(result.data.playerOptions);
     } catch {
-      setError(imageRead ? "OCR 请求未完成，请检查网络连接后重试。" : "截图文件读取失败，请重新选择图片后重试。");
+      if (epoch === editEpoch.current && activeOperation.current === "extract") setError(imageRead ? "OCR 请求未完成，请检查网络连接后重试。" : "截图文件读取失败，请重新选择图片后重试。");
     } finally {
+      if (activeOperation.current === "extract") activeOperation.current = null;
       setExtracting(false);
     }
   }
@@ -347,7 +356,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   }
 
   async function handleAddRow() {
-    if (saving || recovery || readFailed) return;
+    if (activeOperation.current || saving || recovery || readFailed) return;
     setSaving(true);
     const generation = ++readGeneration.current;
     try {
@@ -370,10 +379,12 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   }
 
   async function handleSave() {
-    if (recovery || readFailed || !baseVersion) return;
-    const command = { operationId: crypto.randomUUID(), expectedVersion: baseVersion, operation: "save" as const, rows: drafts };
+    if (activeOperation.current || recovery || readFailed || !baseVersion || !actorScope.current) return;
+    const command = { operationId: crypto.randomUUID(), expectedActor: actorScope.current, expectedVersion: baseVersion, operation: "save" as const, rows: drafts };
     if (!persistOperation(command)) return;
     pendingOperation.current = command;
+    activeOperation.current = command.operation;
+    ++editEpoch.current;
     setSaving(true);
     setError(null);
     let committed = false;
@@ -400,7 +411,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
     } catch {
       setRecovery(committed ? "refresh_pending" : "unknown");
       setError(committed ? "已保存，刷新尚未完成。请读取最新数据核对。" : "提交结果尚未确认，草稿已保留。请先读取当前已保存数据核对，不要重复提交。");
-    } finally { setSaving(false); }
+    } finally { if (activeOperation.current === "save") activeOperation.current = null; setSaving(false); }
   }
 
   const assignedUserIdsByRow = useMemo(
@@ -435,7 +446,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   );
 
   async function handleClear() {
-    if (recovery || readFailed) return;
+    if (activeOperation.current || recovery || readFailed) return;
     if (!baseVersion || !actorScope.current) {
       setSaving(true);
       try {
@@ -448,9 +459,11 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
       finally { setSaving(false); }
       return;
     }
-    const command = { operationId: crypto.randomUUID(), expectedVersion: baseVersion, operation: "clear" as const };
+    const command = { operationId: crypto.randomUUID(), expectedActor: actorScope.current, expectedVersion: baseVersion, operation: "clear" as const };
     if (!persistOperation(command)) return;
     pendingOperation.current = command;
+    activeOperation.current = command.operation;
+    ++editEpoch.current;
     setSaving(true);
     let committed = false;
     try {
@@ -478,7 +491,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
     } catch {
       setRecovery(committed ? "refresh_pending" : "unknown");
       setError(committed ? "清除已提交，刷新尚未完成。" : "清除结果尚未确认，请读取当前已保存数据核对，不要重复清除。");
-    } finally { setSaving(false); }
+    } finally { if (activeOperation.current === "clear") activeOperation.current = null; setSaving(false); }
   }
 
   if (initialLoading) {
@@ -509,14 +522,14 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
                 onCancel={() => setShowClearConfirm(false)}
               />
             ) : (
-              <Button size="sm" variant="outline" onClick={enterEditMode} disabled={saving || Boolean(recovery) || readFailed}>重新录入</Button>
+              <Button size="sm" variant="outline" onClick={enterEditMode} disabled={extracting || saving || Boolean(recovery) || readFailed}>重新录入</Button>
             )}
             {!showClearConfirm && (
               <Button
                 size="sm"
                 variant="ghost"
                 className="text-[var(--color-danger)]"
-                disabled={saving || Boolean(recovery) || readFailed}
+                disabled={extracting || saving || Boolean(recovery) || readFailed}
                 onClick={() => setShowClearConfirm(true)}
               >
                 清除计分板输入
@@ -556,7 +569,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
             {extracting ? "识别中…" : "OCR 识别截图"}
           </Button>
           {drafts.some(row => row.gameplayLocked) && <p className="text-xs text-[var(--color-fg-mid)]">Demo 已确认的选手只能修正 Rating / RWS / WE。</p>}
-          {!viewMode && <Button size="sm" variant="outline" disabled={saving || extracting || Boolean(recovery) || readFailed} onClick={handleAddRow}>
+          {!viewMode && <Button size="sm" variant="outline" disabled={extracting || saving || Boolean(recovery) || readFailed} onClick={handleAddRow}>
             添加行
           </Button>}
         </div>
@@ -634,7 +647,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
                         </TableCell>
                         <TableCell className="min-w-56">
                           <Select
-                            disabled={saving || Boolean(recovery) || row.gameplayLocked}
+                            disabled={extracting || saving || Boolean(recovery) || row.gameplayLocked}
                             value={row.userId ?? "__none__"}
                             onValueChange={(v) => handleUserChange(idx, v)}
                           >
@@ -667,7 +680,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
                                   "border-[var(--color-danger)] text-[var(--color-danger)]",
                               )}
                               aria-label={`${row.perfectName} ${f.label}`}
-                              disabled={saving || Boolean(recovery) || (row.gameplayLocked && !OPERATOR_FIELDS.has(f.key))}
+                              disabled={extracting || saving || Boolean(recovery) || (row.gameplayLocked && !OPERATOR_FIELDS.has(f.key))}
                               type="number"
                               value={(row[f.key] as number | null) ?? ""}
                               onChange={(e) =>
@@ -682,7 +695,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
                             size="sm"
                             className="h-7 w-7 p-0 text-[var(--color-danger)]"
                             onClick={() => handleDeleteRow(idx)}
-                            disabled={saving || Boolean(recovery) || row.gameplayLocked}
+                            disabled={extracting || saving || Boolean(recovery) || row.gameplayLocked}
                             title="删除此行"
                           >
                             ×
@@ -698,7 +711,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
                 <Button
                   size="sm"
                   onClick={handleSave}
-                  disabled={saving || Boolean(recovery) || readFailed || !baseVersion || errorCount > 0 || unmatchedCount > 0}
+                  disabled={extracting || saving || Boolean(recovery) || readFailed || !baseVersion || errorCount > 0 || unmatchedCount > 0}
                 >
                   {saving ? "保存中…" : "确认保存"}
                 </Button>
@@ -717,7 +730,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
                     size="sm"
                     variant="ghost"
                     onClick={() => { setDrafts(canonicalDrafts); setSelectedFile(null); setError(null); setViewMode(canonicalDrafts.length > 0); }}
-                    disabled={saving || Boolean(recovery)}
+                    disabled={extracting || saving || Boolean(recovery)}
                   >
                     取消
                   </Button>
