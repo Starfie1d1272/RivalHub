@@ -73,7 +73,7 @@ it("reports a timeout commit even when the submitted command is stale, then retu
   const input = { matchId: f.matchId, actorId: match.testConfig!.operatorAId, expectedRevision: before.session.revision,
     expectedTurnKey: "ban-veto-a-opening", clientRequestId: randomUUID(), command: { kind: "step" as const, actionType: "ban" as const, mapName: "de_nuke" } };
   const receipt = await submitVetoCommandReceipt(input);
-  expect(receipt).toMatchObject({ outcome: "stale", changed: true, affectedFacts: ["veto"] });
+  expect(receipt).toMatchObject({ outcome: "stale", changed: true, affectedFacts: ["veto_step"] });
   expect(receipt.committedRevision).toBeGreaterThan(before.session.revision);
   expect(await submitVetoCommandReceipt(input)).toMatchObject({ outcome: "stale", changed: false, committedRevision: receipt.committedRevision, affectedFacts: [] });
   expect(await db.select().from(schema.matchVetoTimeoutIncidents).where(eq(schema.matchVetoTimeoutIncidents.matchId, f.matchId))).toHaveLength(1);
@@ -89,7 +89,7 @@ it("reports an actual start commit when an already-ready request returns idempot
   }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
   const input = { matchId: f.matchId, entryId: f.entryAId, actorId: match.testConfig!.operatorAId, expectedRevision: 0, expectedTurnKey: null };
   const receipt = await requestVetoStartReceipt(input);
-  expect(receipt).toMatchObject({ outcome: "idempotent", changed: true, affectedFacts: ["veto"] });
+  expect(receipt).toMatchObject({ outcome: "idempotent", changed: true, affectedFacts: ["veto_step"] });
   expect(await requestVetoStartReceipt(input)).toMatchObject({ outcome: "idempotent", changed: false, affectedFacts: [] });
   expect(await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.matchId), eq(schema.auditLogs.action, "match.veto.start")))).toHaveLength(1);
 });
@@ -114,7 +114,7 @@ it("reports map_plan independently when timeout catch-up completes and replaces 
   }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
   const receipt = await reconcileVetoRoomReceipt(f.matchId);
   expect(receipt).toMatchObject({ changed: true, outcome: "applied" });
-  expect(receipt.affectedFacts).toEqual(expect.arrayContaining(["veto", "map_plan"]));
+  expect(receipt.affectedFacts).toEqual(expect.arrayContaining(["veto_step", "map_plan"]));
   expect((await readVetoRoomSnapshot(f.matchId)).session.completedAt).not.toBeNull();
   expect(await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId))).toHaveLength(1);
 });

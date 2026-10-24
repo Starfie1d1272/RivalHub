@@ -108,3 +108,11 @@ Delivery exceptions remain durable and cause scheduler execution to fail;
 they are not reported as a successful cache publication. Old applications can
 ignore the additive table; old workers do not acknowledge it. Rollback keeps
 the obligation for a compatible forward worker rather than deleting facts.
+
+Canonical BP invalidation categories are defined in `src/types/veto-room.ts`:
+`lineups`, `appeals`, `veto_step`, `map_plan`, and legacy `veto`. Session,
+step and timeout triggers register `veto_step`; every map write independently
+unions `map_plan` in that same generation. Legacy backfill retains broad `veto`.
+Old/unknown categories and map plans always invalidate broadly. New known
+non-map steps may use the narrow scheduled/in-progress W09 contract; a mixed
+pending generation retains every unpublished broad category until CAS delivery.
