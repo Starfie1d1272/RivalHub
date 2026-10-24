@@ -1,0 +1,329 @@
+{
+  "baseline": "06d0ea5074e15b866e2695b34e8f43ab761a9851",
+  "routeCount": 35,
+  "note": "源码入口35页逐项复核；experiment_pending可包含已实现已测的局部任务，不等于未实现。未把静态结构改进当作生产性能达标。",
+  "routes": [
+    {
+      "route": "/admin",
+      "task": "A-DIRECTORY",
+      "status": "experiment_pending",
+      "implemented": "授权窄目录与侧栏共享 request cache",
+      "evidence": "type-check、架构检查；尚无浏览器查询计数",
+      "remainingExperiment": "同一 RSC sidebar/page 查询计数、撤权新请求、真实赛事规模 body bytes",
+      "owner": "admin"
+    },
+    {
+      "route": "/admin/[seasonSlug]",
+      "task": "A-OVERVIEW",
+      "status": "experiment_pending",
+      "implemented": "已开赛生命周期 SQL 摘要，跳过成员身份/seed snapshot/readiness",
+      "evidence": "PG 生命周期、配对空名单 Major 查询 14→9",
+      "remainingExperiment": "真实 frozen entrants fixture；同 cohort primary-ready/CLS",
+      "owner": "admin"
+    },
+    {
+      "route": "/admin/[seasonSlug]/matches",
+      "task": "A-MATCHLIST",
+      "status": "implemented_tested",
+      "implemented": "三view普通列表25行；execution窄排序事实→当前25场完整字段；materials阶段/队伍先下推、canonical全范围待办派生后分页，地图/计分板/录像字段缩窄；schedule完整runtime/积分榜不截断，仅分页渲染",
+      "evidence": "真实PG100/500场遍历/筛选/clamp/未配置诊断；Chromium三view/两规模/next+back通过；精确前后文档/DOM/LCP/CLS与同fixture PG对照见同目录",
+      "remainingExperiment": "代表生产cohort p75/p95和pool混合负载；当前fixture是8active+100/500finished，未声称500active全局操作队列预算达标",
+      "owner": "admin"
+    },
+    {
+      "route": "/admin/[seasonSlug]/matches/[matchId]",
+      "task": "A-WB",
+      "status": "experiment_pending",
+      "implemented": "canonical roster；OCR激活保草稿；persona出事务且DB/provider失败局部降级；Bili/download独立Suspense；confirmed Demo质量按图展开读取；commentary仅active+当前图历史；Main Swiss单场record窄读，复用frozen投影",
+      "evidence": "真实PG confirmed QA初读无artifact、展开一图/旧import/跨scope拒绝；persona故障注入4例；OCR组件测试；commentary全局队列与局部历史等价；真实PG old/full parity，4→3SQL，14019→2967结果JSON字节",
+      "remainingExperiment": "Play-in单场record API已向public owner明确提出；needs_attention详细review仍在首读；真实provider延迟与primary-ready/CLS配对",
+      "owner": "admin"
+    },
+    {
+      "route": "/admin/telemetry",
+      "task": "A-TELEMETRY",
+      "status": "experiment_pending",
+      "implemented": "150ms合批、active-tab派生与JSX；缺当前指标仍可选择其它有效指标；route boundary安全fingerprint；保留#1082唯一条件ready",
+      "evidence": "4组件用例：旧会话隔离/合批/空指标/partial metric切换；新main type-check",
+      "remainingExperiment": "5次历史异常缺栈，仍需生产版本归因；上限fixture浏览器profile及single-flight并发实验",
+      "owner": "observability+admin"
+    },
+    {
+      "route": "/admin/operations",
+      "task": "A-OPS",
+      "status": "experiment_pending",
+      "implemented": "activity条件计数、team-size histogram/player-pool SQL、recruitment count、CST日历史aggregate",
+      "evidence": "真实PG生命周期/时窗/认证去重；1000user 10轮配对",
+      "remainingExperiment": "真实team/membership规模query plan及混合pool预算；primary-ready/CLS",
+      "owner": "admin"
+    },
+    {
+      "route": "/admin/[seasonSlug]/prestart",
+      "task": "A-PRESTART",
+      "status": "experiment_pending",
+      "implemented": "union candidate/frozen/current Main IDs一次不限平台raw bundle，再按profile/fallback纯投影；不改冻结事实",
+      "evidence": "精确accounts契约临时集成，7prestart+1跨平台raw bundle真实PG通过",
+      "remainingExperiment": "实际规模raw rank结果量；锁定/未锁定primary-ready/CLS；previous approved revision历史窗口",
+      "owner": "accounts+admin"
+    },
+    {
+      "route": "/admin/users",
+      "task": "A-USERS",
+      "status": "experiment_pending",
+      "implemented": "参与筛选EXISTS，当前页distinct-season计数；管理员tab窄season字段",
+      "evidence": "PG参与2季/1季/0季与page clamp",
+      "remainingExperiment": "教育/team/activity组合规模plan；super-admin/撤权回归",
+      "owner": "admin"
+    },
+    {
+      "route": "/admin/[seasonSlug]/logs",
+      "task": "A-AUDIT",
+      "status": "experiment_pending",
+      "implemented": "searchParams→固定scope RSC，移除第二套action读；标签pool按3类型有界",
+      "evidence": "PGscope/privacy/fallback；RSC新props组件测试；同match/map/import共享request-local标签只读一次",
+      "remainingExperiment": "30种target的50行SQL/labels对照",
+      "owner": "admin"
+    },
+    {
+      "route": "/admin/education-verifications",
+      "task": "A-EDUREVIEW",
+      "status": "implemented_tested",
+      "implemented": "分别消费page/overview，两个独立Suspense与受控错误区域；核心审核队列旁唯一ready；证据寿命owner不变",
+      "evidence": "临时集成type-check、architecture，真实PG分离与组合DTO等价、过期搜索/展示hard-expire",
+      "remainingExperiment": "慢overview/局部失败的浏览器streaming观察；依赖合main后的CI",
+      "owner": "accounts"
+    },
+    {
+      "route": "/admin/[seasonSlug]/registrations",
+      "task": "A-REGADMIN",
+      "status": "experiment_pending",
+      "implemented": "复用请求内season",
+      "evidence": "保留资格与全局derived total",
+      "remainingExperiment": "accounts提供仅current revision facts、derived筛选前total、solo drafts分页",
+      "owner": "accounts+admin"
+    },
+    {
+      "route": "/admin/[seasonSlug]/settings",
+      "task": "A-CONFIG",
+      "status": "experiment_pending",
+      "implemented": "season就绪后即开始provenance，与catalog并行",
+      "evidence": "type-check，freeze owner未改",
+      "remainingExperiment": "catalog展示/事务入口由accounts统一；编辑表单ready与freeze金样",
+      "owner": "accounts+admin"
+    },
+    {
+      "route": "/admin/operations/announcements",
+      "task": "A-ANNOUNCEADMIN",
+      "status": "implemented_tested",
+      "implemented": "消费canonical20条summary/count；当前actor scope保持，越界页clamp重读；完整正文在editor详情",
+      "evidence": "临时精确依赖集成type-check；真实PG65条/同时间ID稳定排序/正文不随列表返回/越权零行/跨季详情拒绝",
+      "remainingExperiment": "依赖合main后的CI与浏览器filter/back-forward；public mutation不变",
+      "owner": "public+admin"
+    },
+    {
+      "route": "/admin/[seasonSlug]/test-matches",
+      "task": "A-TESTMATCH",
+      "status": "experiment_pending",
+      "implemented": "复用请求内season",
+      "evidence": "假设“测试赛未分页全表”被已有limit100/窄投影否定；PG正式/测试隔离",
+      "remainingExperiment": ">100历史可达性/分页需求fixture；保留official隔离",
+      "owner": "admin+matches"
+    },
+    {
+      "route": "/admin/[seasonSlug]/community-awards",
+      "task": "A-AWARDADMIN",
+      "status": "experiment_pending",
+      "implemented": "复用请求内season",
+      "evidence": "未改共享奖项owner",
+      "remainingExperiment": "public owner summary/detail/candidate契约；全局settlementReady与证据fixture",
+      "owner": "public+admin"
+    },
+    {
+      "route": "/admin/logs",
+      "task": "A-AUDIT",
+      "status": "experiment_pending",
+      "implemented": "RSC唯一list owner、稳定createdAt/id；有界标签类型并发",
+      "evidence": "PGprivacy/fallback，props更新与0重复action；同match/map/import共享request-local标签只读一次",
+      "remainingExperiment": "30target label SQL对照；直接URL/back-forward浏览器实验",
+      "owner": "admin"
+    },
+    {
+      "route": "/admin/invites",
+      "task": "A-INVITES",
+      "status": "implemented_tested",
+      "implemented": "SQL状态筛选/排序/分页；常规count/page并行、越界clamp后回查",
+      "evidence": "65历史状态/expiry==now/null/claims/page；1000历史10轮配对",
+      "remainingExperiment": "跨地域自然请求尾延迟；非权限摘要不做共享cache",
+      "owner": "admin"
+    },
+    {
+      "route": "/admin/competitive-seasons",
+      "task": "A-CONFIG",
+      "status": "experiment_pending",
+      "implemented": "未复制catalog owner",
+      "evidence": "只读入口核对",
+      "remainingExperiment": "accounts统一catalog pool/InTx接口，再测管理变更新鲜度",
+      "owner": "accounts+admin"
+    },
+    {
+      "route": "/admin/competitive-seasons/conversion-policies",
+      "task": "A-CONFIG",
+      "status": "experiment_pending",
+      "implemented": "未改冻结policy owner",
+      "evidence": "只读入口核对",
+      "remainingExperiment": "policy→refs Map/summary detail，版本与冻结引用规模plan",
+      "owner": "accounts+admin"
+    },
+    {
+      "route": "/admin/seasons/new",
+      "task": "A-CONFIG",
+      "status": "experiment_pending",
+      "implemented": "保留静态template与fresh catalog",
+      "evidence": "未为无profile的表单重构bundle",
+      "remainingExperiment": "accounts catalog接口；新建dirty表单/目录变更回归",
+      "owner": "accounts+admin"
+    },
+    {
+      "route": "/admin/settings",
+      "task": "A-SYSTEMSTATUS",
+      "status": "experiment_pending",
+      "implemented": "保留按请求runtime/health读取与只显示凭据存在性",
+      "evidence": "假设“该GET运行scheduler job”被reader源码否定",
+      "remainingExperiment": "scheduler read span实际慢才拆panel；不可点击生产立即运行",
+      "owner": "admin"
+    },
+    {
+      "route": "/admin/operations/feedback",
+      "task": "A-FEEDBACK",
+      "status": "implemented_tested",
+      "implemented": "DB稳定25条摘要分页、中文body前160字；详情按ID/limit1独立fresh超级管理员授权、完整正文与重试",
+      "evidence": "真实PG65条/4000字中文、筛选/稳定同时间ID排序/clamp/完整详情/授权拒绝/安全fingerprint不泄漏；真实删除身份后userId/userLabel为空且正文完整",
+      "remainingExperiment": "浏览器filter/detail/back-forward及历史规模计划",
+      "owner": "admin"
+    },
+    {
+      "route": "/admin/operations/season-info",
+      "task": "A-INFOADMIN",
+      "status": "implemented_tested",
+      "implemented": "目录仅消费groupCount/contactCount；两详情沿用owner单season direct read及稳定排序",
+      "evidence": "public-entrypoint真实PG摘要无联系明细、零授权与scope检查；临时集成类型检查",
+      "remainingExperiment": "依赖合main的CI；联系人修改失效/权限浏览器验证",
+      "owner": "public-info+admin"
+    },
+    {
+      "route": "/admin/operations/season-info/[seasonSlug]",
+      "task": "A-INFOADMIN",
+      "status": "implemented_tested",
+      "implemented": "目录仅消费groupCount/contactCount；两详情沿用owner单season direct read及稳定排序",
+      "evidence": "public-entrypoint真实PG摘要无联系明细、零授权与scope检查；临时集成类型检查",
+      "remainingExperiment": "依赖合main的CI；联系人修改失效/权限浏览器验证",
+      "owner": "public-info+admin"
+    },
+    {
+      "route": "/admin/[seasonSlug]/information",
+      "task": "A-INFOADMIN",
+      "status": "implemented_tested",
+      "implemented": "目录仅消费groupCount/contactCount；两详情沿用owner单season direct read及稳定排序",
+      "evidence": "public-entrypoint真实PG摘要无联系明细、零授权与scope检查；临时集成类型检查",
+      "remainingExperiment": "依赖合main的CI；联系人修改失效/权限浏览器验证",
+      "owner": "public-info+admin"
+    },
+    {
+      "route": "/admin/[seasonSlug]/discipline",
+      "task": "A-DISCIPLINE",
+      "status": "experiment_pending",
+      "implemented": "active subject join；canonical JS时窗/搜索/排序保留；窄事实过滤分页后仅当前25条读取完整证据，两段只读RR同snapshot",
+      "evidence": "真实PG67case全状态/now边界/中文英文搜索/merged subject/跨season/clamp；完整证据保留",
+      "remainingExperiment": "尚未SQL化全部metadata分页；代表规模returned bytes及query plan；无权限与撤权浏览器路径",
+      "owner": "admin"
+    },
+    {
+      "route": "/admin/[seasonSlug]/captains",
+      "task": "A-CAPTAINS",
+      "status": "experiment_pending",
+      "implemented": "复用request season；保留独立candidate/count并行",
+      "evidence": "假设“page所有查询串行”被源码否定",
+      "remainingExperiment": "captains owner候选ranking窄DTO；不生成未消费voter列表，同票规则金样",
+      "owner": "public+admin"
+    },
+    {
+      "route": "/admin/[seasonSlug]/draft",
+      "task": "A-DRAFTADMIN",
+      "status": "experiment_pending",
+      "implemented": "formed count 与admin data并行；复用season",
+      "evidence": "type-check，不改pick/frozen规则",
+      "remainingExperiment": "draft owner state/teams/picks真依赖；暂停/恢复/自动pick金样",
+      "owner": "public+admin"
+    },
+    {
+      "route": "/admin/[seasonSlug]/bet",
+      "task": "A-BETADMIN",
+      "status": "experiment_pending",
+      "implemented": "消费#1086 readBetOperationsSnapshot，RR释放后project；pending取同snapshot dirty，无第二program读取",
+      "evidence": "临时集成main6697cb5c+#1086 a94b96ef真实PG read-footprint；Chromium后台登录/hydration/启用确认/DBprogram创建通过；首场BO3/retry0/显式trace后台确认启用再次通过25.3s，未复现W07持续未hydration；#1086合main后正式分支type-check/PG与BO3浏览器流程通过15.1s",
+      "remainingExperiment": "复杂市场筛选规模及RSC/ready测量；锁盘/更正由BETowner测试",
+      "owner": "bet+admin"
+    },
+    {
+      "route": "/admin/[seasonSlug]/post-event",
+      "task": "A-POSTEVENT",
+      "status": "experiment_pending",
+      "implemented": "复用season；保留finalResult关联frozen run",
+      "evidence": "假设“独立资料全部串行”被已有并行否定",
+      "remainingExperiment": "真实honors/adjudication规模；需要才分页；run丢失fail-closed回归",
+      "owner": "admin"
+    },
+    {
+      "route": "/admin/operations/announcements/new",
+      "task": "A-ANNOUNCEADMIN",
+      "status": "experiment_pending",
+      "implemented": "保留授权season options与完整编辑状态",
+      "evidence": "未无证据拆editor bundle",
+      "remainingExperiment": "public共享owner接口落定；新建表单payload/profile",
+      "owner": "public+admin"
+    },
+    {
+      "route": "/admin/operations/announcements/[announcementId]",
+      "task": "A-ANNOUNCEADMIN",
+      "status": "implemented_tested",
+      "implemented": "复用owner direct scoped detail；季赛consumer将seasonId/scope固定进SQL，保留返回后校验",
+      "evidence": "真实PG完整长正文及同ID跨季拒绝",
+      "remainingExperiment": "编辑表单dirty、撤权浏览器回归；依赖合mainCI",
+      "owner": "public+admin"
+    },
+    {
+      "route": "/admin/[seasonSlug]/announcements",
+      "task": "A-ANNOUNCEADMIN",
+      "status": "implemented_tested",
+      "implemented": "消费canonical20条summary/count；当前actor scope保持，越界页clamp重读；完整正文在editor详情",
+      "evidence": "临时精确依赖集成type-check；真实PG65条/同时间ID稳定排序/正文不随列表返回/越权零行/跨季详情拒绝",
+      "remainingExperiment": "依赖合main后的CI与浏览器filter/back-forward；public mutation不变",
+      "owner": "public+admin"
+    },
+    {
+      "route": "/admin/[seasonSlug]/announcements/new",
+      "task": "A-ANNOUNCEADMIN",
+      "status": "experiment_pending",
+      "implemented": "窄content context复用season",
+      "evidence": "固定season表单保留",
+      "remainingExperiment": "表单dirty/权限撤销回归；无历史list读取",
+      "owner": "public+admin"
+    },
+    {
+      "route": "/admin/[seasonSlug]/announcements/[announcementId]",
+      "task": "A-ANNOUNCEADMIN",
+      "status": "implemented_tested",
+      "implemented": "复用owner direct scoped detail；季赛consumer将seasonId/scope固定进SQL，保留返回后校验",
+      "evidence": "真实PG完整长正文及同ID跨季拒绝",
+      "remainingExperiment": "编辑表单dirty、撤权浏览器回归；依赖合mainCI",
+      "owner": "public+admin"
+    }
+  ],
+  "integrationBase": "d58ab7c4fb97cef7795ee2de9d9b5d6a2e208eaf",
+  "betDependency": "a94b96ef5be2857c6518b460deedfcb3623437c4",
+  "dependencies": {
+    "public": "e7a7ae264b1ed63ffb8f12828ea2979b33f157c1",
+    "accounts": "c602550eb6d6c7580c5daf2122c782bf3ceddf85",
+    "stats": "ec0989a502b08f71f1a917e07b88e3cf02e13b17"
+  }
+}

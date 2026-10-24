@@ -15,3 +15,7 @@ Major 已开赛、结束与归档的总览只读人数和状态摘要，不计�
 confirmed Demo质量详情由展开后的独立授权读取提供；首屏保留当前import metadata。needs_attention仍执行canonical身份与目标核验。Steam缓存或upsert失败仅影响persona展示，保留原blocker、候选与规范化身份。工作台解说只读全部active赛事和当前场的历史分配，全局下一场与测试赛冲突范围不随局部历史窗口缩小。
 
 反馈列表只下发25条正文摘要；详情action每次重新验证超级管理员并按ID读取完整正文。纪律页仍调用唯一的canonical状态/时窗解析，在只读repeatable-read快照内先读窄事实，再仅为当前页读取内部证据；未把显示优化作为处罚authority。
+
+比赛三view的普通列表为25条，分页与阶段/队伍/状态保存在URL；切换筛选重置页号。execution读取当前阶段窄排序事实后仅读当前页完整展示字段；schedule的frozen runtime、积分榜和批量排期保留全阶段事实。materials在canonical完整判定后分页，不把原始finished行截断成错误的待办总数。Main Swiss房间提示复用冻结投影，仅返回该场record。
+
+公告列表消费canonical summary/count；季赛详情将id、seasonId和actor scope交同一个owner。赛事信息目录只消费两种计数，详情保持直接scoped读取。教育概览与审核队列是独立服务端区域，概览失败不把队列伪装成空集合；审核队列primary-ready仅在真实内容旁记录。
