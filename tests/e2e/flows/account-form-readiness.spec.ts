@@ -17,7 +17,7 @@ test("records actual enabled settings forms separately from navigation and layou
   const samples = [];
   for (const route of ["/settings/security", "/settings/competitive", "/settings/education"]) {
     await page.goto(route, { waitUntil: "domcontentloaded" });
-    const form = route.endsWith("security") ? page.getByLabel("新密码", { exact: true }) : route.endsWith("education") ? page.getByLabel("学信网在线验证码") : page.getByRole("combobox").first();
+    const form = route.endsWith("security") ? page.getByLabel("新密码", { exact: true }) : route.endsWith("education") ? page.getByLabel("学信网在线验证码") : page.getByRole("button", { name: "保存竞技档案", exact: true });
     await expect(form).toBeVisible(); await expect(form).toBeEnabled();
     const readyMs = await form.evaluate(() => performance.now());
     await page.waitForLoadState("networkidle");
