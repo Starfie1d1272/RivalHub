@@ -142,6 +142,7 @@ export async function maintain(env: Env, now = Date.now()) {
         json_extract(e.value,'$[2]'),json_extract(e.value,'$[3]'),json_extract(e.value,'$[4]'),json_extract(e.value,'$[5]'),json_extract(e.value,'$[6]'),
         sum(json_extract(e.value,'$[7]')),sum(json_extract(e.value,'$[8]')),?
       FROM batches b,json_each(b.summary) e WHERE b.day=? AND b.expires>?
+        AND NOT (json_extract(e.value,'$[2]')='performance' AND json_extract(e.value,'$[6]')='CLS')
       GROUP BY 1,2,3,4,5,6,7,8,9,10,11`).bind(Date.parse(pending.day) + (retention + 1) * DAY, pending.day, now),
     env.DB.prepare("INSERT INTO rollups(day) VALUES(?) ON CONFLICT DO NOTHING").bind(pending.day),
   ]);

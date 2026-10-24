@@ -7,11 +7,20 @@ export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 export const ROLES = ["anonymous", "user", "season_admin", "super_admin"] as const;
 export type Role = typeof ROLES[number];
 export type Scene = "major" | "rivals" | "other" | "site";
-export const PERFORMANCE_METRICS = ["TTFB", "FCP", "LCP", "INP", "NAV_COMMIT"] as const;
+export const PERFORMANCE_METRICS = ["TTFB", "FCP", "LCP", "INP", "NAV_COMMIT", "CLS"] as const;
+export const CLIENT_CATEGORIES = {
+  device: ["mobile", "tablet", "desktop", "unknown"],
+  browser: ["chrome", "safari", "firefox", "edge", "other"],
+  os: ["windows", "macos", "linux", "android", "ios", "other"],
+  source: ["none", "internal", "search", "social", "external", "unknown"],
+} as const;
+export type ClientContext = { [K in keyof typeof CLIENT_CATEGORIES]: (typeof CLIENT_CATEGORIES)[K][number] };
 export interface TelemetryEvent {
   id: string; at: number; session: string; route: string; scene: Scene;
   kind: "page" | "filter" | "operation" | "error" | "performance";
   metricName?: typeof PERFORMANCE_METRICS[number];
+  score?: number;
+  client?: ClientContext;
   phase?: "start" | "success" | "rejected" | "unknown";
   operation?: typeof OPERATIONS[number]; operationId?: string; durationMs?: number;
   errorCode?: string; requestId?: string;
@@ -65,7 +74,7 @@ const operationSet = new Set<string>(OPERATIONS);
 const routes = new Set<string>([...ROUTES, "/unknown"]);
 const allowedErrors = new Set<string>([...Object.values(ErrorCode), "UNCLASSIFIED", "INVALID_RESULT", "TRANSPORT_OR_THROW", "CLIENT_UNHANDLED"]);
 export const VARIANTS = ["join", "stake", "enable", "pause", "resume", "retry", "close", "void", "pick_save", "pick_submit", "result", "bp", "ban", "pick", "side_pick", "role_select"] as const;
-const fields = new Set(["id", "at", "session", "route", "scene", "kind", "phase", "operation", "operationId", "durationMs", "errorCode", "requestId", "navigation", "filters", "eventId", "outcome", "variant", "metricName"]);
+const fields = new Set(["id", "at", "session", "route", "scene", "kind", "phase", "operation", "operationId", "durationMs", "errorCode", "requestId", "navigation", "filters", "eventId", "outcome", "variant", "metricName", "score", "client"]);
 /** Receiver rejects unknown fields instead of persisting arbitrary client objects. */
 export function validEvent(value: unknown, now: number): value is TelemetryEvent {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -78,9 +87,18 @@ export function validEvent(value: unknown, now: number): value is TelemetryEvent
   if (e.kind !== "operation" && ["operation", "operationId", "phase", "outcome", "variant"].some(key => e[key] !== undefined)) return false;
   if (e.kind !== "operation" && e.kind !== "performance" && e.durationMs !== undefined) return false;
   if (e.kind === "performance") {
-    if (!(PERFORMANCE_METRICS as readonly string[]).includes(String(e.metricName)) || e.durationMs === undefined) return false;
+    if (!(PERFORMANCE_METRICS as readonly string[]).includes(String(e.metricName))) return false;
+    if (e.metricName === "CLS") {
+      if (typeof e.score !== "number" || !Number.isFinite(e.score) || e.score < 0 || e.score > 100 || e.durationMs !== undefined) return false;
+    } else if (e.durationMs === undefined || e.score !== undefined) return false;
     if (["errorCode", "requestId", "filters"].some(key => e[key] !== undefined)) return false;
-  } else if (e.metricName !== undefined) return false;
+  } else if (e.metricName !== undefined || e.score !== undefined) return false;
+  if (e.client !== undefined) {
+    if (!e.client || typeof e.client !== "object" || Array.isArray(e.client)) return false;
+    const client = e.client as Record<string, unknown>;
+    if (Object.keys(client).length !== Object.keys(CLIENT_CATEGORIES).length ||
+      Object.entries(CLIENT_CATEGORIES).some(([key, allowed]) => typeof client[key] !== "string" || !(allowed as readonly string[]).includes(client[key] as string))) return false;
+  }
   if (e.kind === "operation" && (!operationSet.has(String(e.operation)) || !UUID.test(String(e.operationId)) || !["start", "success", "rejected", "unknown"].includes(String(e.phase)))) return false;
   if (e.durationMs !== undefined && (typeof e.durationMs !== "number" || !Number.isInteger(e.durationMs) || e.durationMs < 0 || e.durationMs > 3600000)) return false;
   if (e.requestId !== undefined && !UUID.test(String(e.requestId))) return false;
