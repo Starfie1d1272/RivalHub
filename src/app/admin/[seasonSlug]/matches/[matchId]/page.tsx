@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { resolveMatchReturnContext } from "@/lib/admin/matches/return-context";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -32,6 +33,7 @@ export default async function AdminMatchWorkbenchPage({ params, searchParams }: 
       </header>
       <AdminMatchWorkbench {...data} />
       {data.match.testConfig && (data.match.status === "in_progress" || data.match.status === "finished") && <TestMatchConclusion key={data.match.updatedAt.toISOString()} scoreA={data.match.scoreA} scoreB={data.match.scoreB} maps={data.finishedMaps} matchId={matchId} finished={data.match.status === "finished"} disposition={data.match.resultDisposition} updatedAt={data.match.updatedAt.toISOString()} />}
+      <ContentReady module="admin" phase="primary" />
     </div>
   );
 }

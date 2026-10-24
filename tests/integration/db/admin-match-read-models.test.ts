@@ -48,6 +48,7 @@ describe("admin match read models PostgreSQL integration", () => {
       rosterB: randomUUID(),
       mapA: randomUUID(),
     };
+    const scaleMatchIds: string[] = [];
     const seasonASlug = `admin-read-model-a-${ids.seasonA}`;
     const seasonBSlug = `admin-read-model-b-${ids.seasonB}`;
     const stagePlan = JSON.stringify([{
@@ -352,6 +353,31 @@ describe("admin match read models PostgreSQL integration", () => {
       const missingCompletion = await loadAdminMatchWorkbench({ seasonSlug: seasonASlug, matchId: ids.matchA });
       expect(missingCompletion?.operator.workflow.completedMaps).toEqual([]);
       expect(missingCompletion?.operator.workflow.focusMapId).toBeNull();
+
+      // Actual 100/500-match fixtures: the selected execution stage is bounded
+      // independently of global counts and unconfigured-stage diagnostics.
+      const globalBefore = (await loadAdminMatchOverview({ seasonSlug: seasonASlug, view: "schedule" }))!.matchCount;
+      await pool.query("UPDATE seasons SET stage_plan=$2::json WHERE id=$1", [ids.seasonA, JSON.stringify([
+        { key: "round_robin", name: "循环赛", type: "round_robin", teamCount: 2, advanceTiers: [] },
+        { key: "later", name: "后续阶段", type: "single_elim", teamCount: 2, advanceTiers: [] },
+      ])]);
+      for (const size of [100, 500]) {
+        const extra = Array.from({ length: size - scaleMatchIds.length }, () => randomUUID());
+        scaleMatchIds.push(...extra);
+        await pool.query(`INSERT INTO matches (id,season_id,entry_a_id,entry_b_id,stage,format,status)
+          SELECT id,$2,$3,$4,CASE WHEN n % 2 = 0 THEN 'later' ELSE 'round_robin' END,'bo3','scheduled'
+          FROM unnest($1::uuid[]) WITH ORDINALITY AS rows(id,n)`, [extra, ids.seasonA, ids.entryA, ids.entryB]);
+        const first = await loadAdminMatchOverview({ seasonSlug: seasonASlug, stage: "round_robin" });
+        expect(first?.matchCount).toBe(globalBefore + size);
+        expect(first?.matches.filter(match => match.stage === "round_robin")).toHaveLength(size / 2 + 1);
+        expect(first?.matches.filter(match => match.stage === "later")).toHaveLength(0);
+        expect(first?.unconfiguredMatches.map(match => match.id)).toContain(ids.operationMatch);
+        const later = await loadAdminMatchOverview({ seasonSlug: seasonASlug, stage: "later" });
+        expect(later?.matches.filter(match => match.stage === "later")).toHaveLength(size / 2);
+        expect(later?.matches.filter(match => match.stage === "round_robin")).toHaveLength(0);
+        expect(later?.matchCount).toBe(first?.matchCount);
+      }
+
     } finally {
       const cleanupClient = await pool.connect();
       try {
@@ -365,6 +391,7 @@ describe("admin match read models PostgreSQL integration", () => {
         await cleanupClient.query("DELETE FROM match_maps WHERE id = $1", [ids.mapA]);
         await cleanupClient.query("DELETE FROM match_time_proposals WHERE match_id=$1", [ids.operationMatch]);
         await cleanupClient.query("DELETE FROM match_commentators WHERE match_id IN ($1,$2)", [ids.operationMatch,ids.testMatch]);
+        await cleanupClient.query("DELETE FROM matches WHERE id=ANY($1::uuid[])", [scaleMatchIds]);
         await cleanupClient.query("DELETE FROM matches WHERE id IN ($1, $2, $3, $4)", [ids.matchA, ids.matchB,ids.operationMatch,ids.testMatch]);
         await cleanupClient.query("DELETE FROM event_roster_members WHERE id IN ($1, $2)", [ids.memberA, ids.memberB]);
         await cleanupClient.query("DELETE FROM event_rosters WHERE id IN ($1, $2)", [ids.eventRosterA, ids.eventRosterB]);

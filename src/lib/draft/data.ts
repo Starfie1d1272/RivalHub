@@ -1,6 +1,6 @@
 import { hasActivePublicSanction } from "@/lib/discipline/public-query";
 import { and, asc, count, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
-import { db } from "@/db/client";
+import { db, type DB } from "@/db/client";
 import {
   draftState,
   draftPicks,
@@ -200,14 +200,14 @@ interface DraftBaseData {
   captainRegistrationIds: Set<string>;
 }
 
-async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
+async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "query"> = db): Promise<DraftBaseData> {
   const maxPicks = DRAFT_TEAMS * DRAFT_TOTAL_ROUNDS;
 
-  const state = await db.query.draftState.findFirst({
+  const state = await executor.query.draftState.findFirst({
     where: eq(draftState.seasonId, seasonId),
   });
 
-  const draftTeamRows = await db
+  const draftTeamRows = await executor
     .select({
       id: competitionEntries.id,
       name: competitionEntries.name,
@@ -231,7 +231,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
   const entryIds = teamRows.map((team) => team.id);
   const allMembers =
     entryIds.length > 0
-      ? await db
+      ? await executor
           .select({
             entryId: eventRosters.entryId,
             registrationId: seasonRegistrations.id,
@@ -254,7 +254,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
           .where(and(inArray(eventRosters.entryId, entryIds), eq(eventRosterMembers.isCurrent, true)))
       : [];
 
-  const pickRows = await db
+  const pickRows = await executor
     .select({
       entryId: draftPicks.entryId,
       registrationId: draftPicks.registrationId,
@@ -379,8 +379,9 @@ function remainingRegistrationIds(base: DraftBaseData): string[] {
 async function loadPublicRemainingPlayers(
   seasonId: string,
   base: DraftBaseData,
+  executor: Pick<DB, "select"> = db,
 ): Promise<PublicDraftPlayer[]> {
-  const rows = await db
+  const rows = await executor
     .select({
       registrationId: seasonRegistrations.id,
       userId: seasonRegistrations.userId,
@@ -404,17 +405,12 @@ async function loadPublicRemainingPlayers(
       and(
         eq(seasonRegistrations.seasonId, seasonId),
         eq(seasonRegistrations.status, "approved"),
+        remainingRegistrationIds(base).length ? notInArray(seasonRegistrations.id, remainingRegistrationIds(base)) : undefined,
       ),
     )
     .orderBy(asc(seasonRegistrations.primaryPosition));
 
-  const excluded = base.pickedRegistrationIds;
-  const excludedCaptains = base.captainRegistrationIds;
-  return rows
-    .filter(
-      (row) => !excluded.has(row.registrationId) && !excludedCaptains.has(row.registrationId),
-    )
-    .map(serializePublicDraftPlayer);
+  return rows.map(serializePublicDraftPlayer);
 }
 
 async function loadCaptainRemainingPlayers(
@@ -502,9 +498,13 @@ export async function getPublicDraftSummary(seasonId: string): Promise<PublicDra
   };
 }
 
-export async function getPublicDraftData(seasonId: string): Promise<PublicDraftData> {
-  const base = await loadDraftBase(seasonId);
-  const remainingPlayers = await loadPublicRemainingPlayers(seasonId, base);
+export async function getPublicDraftData(seasonId: string, archive = false): Promise<PublicDraftData> {
+  const { base, remainingPlayers } = await db.transaction(async tx => {
+    const base = await loadDraftBase(seasonId, tx);
+    const remainingPlayers = archive || (base.maxPicks > 0 && base.totalPicks >= base.maxPicks)
+      ? [] : await loadPublicRemainingPlayers(seasonId, base, tx);
+    return { base, remainingPlayers };
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
   return {
     state: base.state,
     teams: base.teams,
@@ -554,4 +554,10 @@ export async function getDraftAdminData(seasonId: string): Promise<DraftAdminDat
     maxPicks: base.maxPicks,
     remainingPlayerCount: Number(remainingRow?.count ?? 0),
   };
+}
+
+export function publicDraftAccessMode(season: { status: string; hasDraft: boolean }): "archive" | "live" | null {
+  if (!season.hasDraft) return null;
+  if (["playing", "finished", "archived"].includes(season.status)) return "archive";
+  return season.status === "drafting" ? "live" : null;
 }

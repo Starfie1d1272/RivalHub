@@ -10,5 +10,5 @@ export async function getPublicCompetitiveCatalog() {
   "use cache: remote";
   cacheLife({ stale: 60, revalidate: 3600, expire: 86400 });
   cacheTag(PUBLIC_COMPETITIVE_CATALOG_TAG);
-  return loadCompetitivePlatformCatalog(db);
+  return loadCompetitivePlatformCatalog(db, { concurrent: true });
 }

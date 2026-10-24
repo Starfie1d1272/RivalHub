@@ -253,6 +253,16 @@ describe("recruitment PostgreSQL invariants", () => {
       expect(targetMapMatch.playerLfts.map((item) => item.userId)).toContain(ids.contender);
       const targetNoneMap = await getRecruitmentLobbyData({ targetSeasonId: ids.replacementSeason, map: "de_cache" });
       expect(targetNoneMap.playerLfts.map((item) => item.userId)).toEqual([ids.invitee]);
+      // Pagination must retain both fully filtered totals and enrich only the active page.
+      const pagedPlayers = await getRecruitmentLobbyData({ targetSeasonId: ids.replacementSeason, map: "de_custom_nju" }, null, { view: "players", pageSize: 1 });
+      expect(pagedPlayers.playerCount).toBe(targetMapMatch.playerLfts.length);
+      expect(pagedPlayers.teamCount).toBe(targetMapMatch.teamRecruitments.length);
+      expect(pagedPlayers.playerLfts).toHaveLength(1);
+      expect(pagedPlayers.teamRecruitments).toHaveLength(0);
+      const pagedTeams = await getRecruitmentLobbyData({ teamSize: "small" }, ids.interested, { view: "teams", pageSize: 1, page: 999 });
+      expect(pagedTeams.playerLfts).toHaveLength(0);
+      expect(pagedTeams.teamRecruitments.length).toBeLessThanOrEqual(1);
+      expect(pagedTeams.page).toBe(pagedTeams.totalPages);
       const activeDutyMapMatch = await getRecruitmentLobbyData({ map: "de_mirage" });
       expect(activeDutyMapMatch.playerLfts.map((item) => item.userId)).toEqual([ids.contender]);
 
@@ -338,4 +348,28 @@ describe("recruitment PostgreSQL invariants", () => {
       await pool.end();
     }
   });
+  it("bounds active player cards and exact counts for 1000 synthetic intents", async () => {
+    const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 2 });
+    const ids = Array.from({ length: 1000 }, () => randomUUID());
+    const label = `budget-${randomUUID()}`;
+    try {
+      await pool.query("insert into users(id, email, display_name) select id, id::text || '@local.test', $2 from unnest($1::uuid[]) id", [ids, label]);
+      await pool.query("insert into recruitment_intents(kind, user_id, expires_at) select 'player_lft', id, now() + interval '1 day' from unnest($1::uuid[]) id", [ids]);
+      const full = await getRecruitmentLobbyData({ q: label });
+      const page = await getRecruitmentLobbyData({ q: label }, null, { view: "players", page: 2, pageSize: 24 });
+      expect(full.playerLfts).toHaveLength(1000);
+      expect(page.playerCount).toBe(1000);
+      expect(page.teamCount).toBe(0);
+      expect(page.playerLfts).toHaveLength(24);
+      expect(page.playerLfts.map(row => row.id)).toEqual(full.playerLfts.slice(24, 48).map(row => row.id));
+      expect(page.totalPages).toBe(42);
+      const last = await getRecruitmentLobbyData({ q: label }, null, { view: "players", page: 99, pageSize: 24 });
+      expect(last.page).toBe(42);
+      expect(last.playerLfts).toHaveLength(16);
+    } finally {
+      await pool.query("delete from users where id = any($1::uuid[])", [ids]);
+      await pool.end();
+    }
+  });
+
 });

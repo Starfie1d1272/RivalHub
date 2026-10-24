@@ -1,10 +1,10 @@
+import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { Suspense } from "react";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
+
+
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { loadTestMatchEntries, loadTestMatches } from "@/lib/matches/test-matches";
 import { TestMatchForm } from "@/components/matches/TestMatchForm";
@@ -17,7 +17,7 @@ export default function TestMatchesPage(props: { params: Promise<{ seasonSlug: s
 
 async function TestMatchesContent({ params }: { params: Promise<{ seasonSlug: string }> }) {
   const { seasonSlug } = await params;
-  const season = await db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) });
+  const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) notFound();
   if (!await resolveAdminPageAccess(() => requireSeasonAdmin(season.id))) return <AdminAccessDenied />;
   const [entries, testMatches] = await Promise.all([

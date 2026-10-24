@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { HONOR_STATE_LABELS } from "@/lib/postevent/presentation";
 import { PlayerActiveSanctions, PlayerDisciplineHistory } from "@/components/players/PlayerDiscipline";
 import { safeStatsReturn } from "@/lib/stats/return-context";
@@ -19,6 +20,8 @@ import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { resolveCanonicalUserId } from "@/lib/identity/canonical";
 import { PUBLIC_PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
 import { POSITION_LABELS } from "@/lib/validators/registration";
+import { getPublicPlayerById, type PublicPlayer } from "@/lib/data/public-players";
+import { getPublicPlayerSanctions } from "@/lib/discipline/public-query";
 import { getPublicPlayerProfileReadModel } from "@/lib/players/public-profile";
 import { parsePlayerPerformanceQuery, type PlayerPerformanceSearch } from "@/lib/players/performance-view-state";
 import { db } from "@/db/client";
@@ -53,10 +56,28 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
   if (canonicalUserId !== userId) redirect(`/players/${canonicalUserId}`);
 
   const query = parsePlayerPerformanceQuery(rawSearch);
-  const profile = await getPublicPlayerProfileReadModel(userId, {
+  const [user, sanctions] = await Promise.all([getPublicPlayerById(userId), getPublicPlayerSanctions(userId)]);
+  if (!user) notFound();
+  const profilePromise = getPublicPlayerProfileReadModel(userId, {
     eventSlug: query.event || undefined,
     mapFilter: query.map || undefined,
-  });
+  }, { user, sanctions });
+  return <PageLayout variant="standard" className="space-y-6">
+    <StatsReturnLink href={fromStats} />
+    <PlayerIdentity user={user} hasActivePublicSanction={sanctions.some(sanction => sanction.status === "active")} />
+    <Suspense fallback={<div aria-busy="true" className="min-h-[40rem] animate-pulse border-y border-[var(--color-border)] bg-[var(--color-panel-low)]"><span className="sr-only">正在加载选手资料与统计…</span></div>}>
+      <PlayerProfileContent profilePromise={profilePromise} userId={userId} query={query} fromStats={fromStats} />
+    </Suspense>
+  </PageLayout>;
+}
+
+async function PlayerProfileContent({ profilePromise, userId, query, fromStats }: {
+  fromStats: ReturnType<typeof safeStatsReturn>;
+  profilePromise: ReturnType<typeof getPublicPlayerProfileReadModel>;
+  userId: string;
+  query: ReturnType<typeof parsePlayerPerformanceQuery>;
+}) {
+  const profile = await profilePromise;
   if (!profile) notFound();
   if (profile.career && query.event && !profile.career.selectedEvent) redirect(`/players/${userId}`);
   if (profile.career && query.map && !profile.career.mapFilter) {
@@ -119,28 +140,11 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
   };
 
   return (
-    <PageLayout variant="standard" className="space-y-6">
-      <StatsReturnLink href={fromStats} />
+    <>
       <section className="border-b border-[var(--color-border)] pb-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          <PlayerAvatar name={getPublicDisplayName(user)} avatarUrl={user.avatarUrl} hasActivePublicSanction={profile.sanctions.some((sanction) => sanction.status === "active")} size="lg" />
           <div className="min-w-0 flex-1 space-y-4">
-            <div className="space-y-2">
-              <h1 className="text-3xl font-black text-[var(--color-fg)]">{getPublicDisplayName(user)}</h1>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-fg-mid)]">
-                {user.perfectName && <span className="font-mono">完美平台 · {user.perfectName}</span>}
-                {user.steamProfileUrl && (
-                  <a
-                    href={user.steamProfileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="transition-colors hover:text-[var(--color-accent)]"
-                  >
-                    Steam ↗
-                  </a>
-                )}
-              </div>
-            </div>
+
 
             {profile.publicEducationIdentities.length > 0 && (
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--color-fg-mid)]">
@@ -397,7 +401,8 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
 
 
 
-    </PageLayout>
+      <ContentReady module="player" phase="primary" />
+    </>
   );
 }
 
@@ -407,4 +412,26 @@ function PlayerPageFallback() {
       <span className="sr-only">正在加载选手页面…</span>
     </PageLayout>
   );
+}
+
+function PlayerIdentity({ user, hasActivePublicSanction }: { user: PublicPlayer; hasActivePublicSanction: boolean }) {
+  return <div className="flex items-start gap-4">
+    <PlayerAvatar name={getPublicDisplayName(user)} avatarUrl={user.avatarUrl} hasActivePublicSanction={hasActivePublicSanction} size="lg" />
+            <div className="space-y-2">
+              <h1 className="text-3xl font-black text-[var(--color-fg)]">{getPublicDisplayName(user)}</h1>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-fg-mid)]">
+                {user.perfectName && <span className="font-mono">完美平台 · {user.perfectName}</span>}
+                {user.steamProfileUrl && (
+                  <a
+                    href={user.steamProfileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="transition-colors hover:text-[var(--color-accent)]"
+                  >
+                    Steam ↗
+                  </a>
+                )}
+              </div>
+            </div>
+  </div>;
 }

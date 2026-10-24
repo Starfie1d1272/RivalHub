@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { redirect } from "next/navigation";
 import { MyReadinessDashboard } from "@/components/my/MyReadinessDashboard";
 import { getUserSession } from "@/lib/auth/session";
@@ -10,5 +11,5 @@ export const instant = false;
 export default async function MyPage() {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/my");
-  return <MyReadinessDashboard model={await loadMyWorkspace(session.userId)} />;
+  return <><ContentReady module="account" phase="primary" /><MyReadinessDashboard model={await loadMyWorkspace(session.userId)} /></>;
 }

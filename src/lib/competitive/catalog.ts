@@ -24,10 +24,16 @@ export type DatabaseExecutor = typeof dbClient | Parameters<Parameters<typeof db
 
 export async function loadCompetitivePlatformCatalog(
   executor: DatabaseExecutor,
+  options: { concurrent?: boolean } = {},
 ): Promise<CompetitivePlatformCatalogEntry[]> {
-  const platforms = await executor.select().from(competitivePlatforms).orderBy(asc(competitivePlatforms.key));
-  const ranks = await executor.select().from(competitivePlatformRanks).orderBy(asc(competitivePlatformRanks.platformKey), asc(competitivePlatformRanks.sortOrder));
-  const seasons = await executor.select().from(competitivePlatformSeasons).orderBy(asc(competitivePlatformSeasons.platform), asc(competitivePlatformSeasons.sortOrder));
+  const platformQuery = executor.select().from(competitivePlatforms).orderBy(asc(competitivePlatforms.key));
+  const rankQuery = executor.select().from(competitivePlatformRanks).orderBy(asc(competitivePlatformRanks.platformKey), asc(competitivePlatformRanks.sortOrder));
+  const seasonQuery = executor.select().from(competitivePlatformSeasons).orderBy(asc(competitivePlatformSeasons.platform), asc(competitivePlatformSeasons.sortOrder));
+  // Only the public presentation reader opts into independent pool statements.
+  // Transaction/freeze callers retain sequential work on their own executor.
+  const [platforms, ranks, seasons] = options.concurrent
+    ? await Promise.all([platformQuery, rankQuery, seasonQuery])
+    : [await platformQuery, await rankQuery, await seasonQuery];
   return platforms.sort((left, right) => compareCompetitivePlatformPriority(left.key, right.key)).map((platform) => ({
     key: platform.key,
     displayName: platform.displayName,

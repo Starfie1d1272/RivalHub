@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
+import { captureTelemetryNavigation, recordContentReady } from "@/lib/telemetry/client";
 import type { BracketData, BracketMatch } from "@/lib/bracket";
 
 declare global {
@@ -20,6 +21,7 @@ declare global {
 }
 
 interface BracketViewProps {
+  reportScheduleReady?: boolean;
   data: BracketData;
   themeColor?: string | null;
   matchNodeMap?: Map<string, string>;
@@ -214,7 +216,7 @@ function getMatchAccessibleLabel(
   return `查看比赛详情：${getSlotName(0)} 对 ${getSlotName(1)}`;
 }
 
-export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: BracketViewProps) {
+export function BracketView({ data, themeColor, matchNodeMap, seasonSlug, reportScheduleReady = false }: BracketViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scriptReady, setScriptReady] = useState(false);
   const [renderError, setRenderError] = useState(false);
@@ -241,6 +243,7 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
         });
     }
 
+    const navigation = reportScheduleReady ? captureTelemetryNavigation() : null;
     let disposed = false;
     let cleanupInteractions: (() => void) | undefined;
 
@@ -370,6 +373,7 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
             removeNodeListeners.forEach((remove) => remove());
           };
         }
+        if (navigation) recordContentReady(navigation, "schedule", "primary");
       })
       .catch(() => {
         if (disposed) return;
@@ -381,7 +385,7 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
       disposed = true;
       cleanupInteractions?.();
     };
-  }, [scriptReady, data, matchNodeMap, seasonSlug, router]);
+  }, [scriptReady, data, matchNodeMap, seasonSlug, router, reportScheduleReady]);
 
   if (data.stage.length === 0) {
     return (

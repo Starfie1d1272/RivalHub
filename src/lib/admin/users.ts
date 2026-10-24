@@ -115,10 +115,10 @@ export async function getAdminUsersList(query: AdminUsersQuery): Promise<AdminUs
         ${steam64Search}
       )`
     : sql``;
-  const havingClause = query.filter === "participated"
-    ? sql`HAVING COUNT(DISTINCT sr.season_id) > 0`
+  const participationClause = query.filter === "participated"
+    ? sql`AND EXISTS (SELECT 1 FROM season_registrations sr WHERE sr.user_id = u.id)`
     : query.filter === "none"
-      ? sql`HAVING COUNT(DISTINCT sr.season_id) = 0`
+      ? sql`AND NOT EXISTS (SELECT 1 FROM season_registrations sr WHERE sr.user_id = u.id)`
       : sql``;
   const educationClause = query.education === "approved"
     ? sql`AND EXISTS (
@@ -166,18 +166,15 @@ export async function getAdminUsersList(query: AdminUsersQuery): Promise<AdminUs
       sp.profile_url AS steam_profile_url,
       u.steam64,
       u.qq,
-      u.created_at,
-      COUNT(DISTINCT sr.season_id)::int AS season_count
+      u.created_at
     FROM users u
-    LEFT JOIN season_registrations sr ON sr.user_id = u.id
     LEFT JOIN steam_profiles sp ON sp.steam64 = u.steam64
       WHERE u.status = 'active'
       ${searchClause}
       ${educationClause}
       ${teamClause}
       ${activityClause}
-    GROUP BY u.id, sp.persona_name, sp.profile_url
-    ${havingClause}
+    ${participationClause}
   `;
 
   const [countResult, datasetResult, rowsResult] = await Promise.all([
@@ -185,7 +182,7 @@ export async function getAdminUsersList(query: AdminUsersQuery): Promise<AdminUs
     db.execute(sql`SELECT COUNT(*)::int AS total FROM users WHERE status = 'active'`),
     db.execute(sql`
       WITH user_rows AS (${groupedUsers})
-      SELECT *
+      SELECT user_rows.*, (SELECT COUNT(DISTINCT sr.season_id)::int FROM season_registrations sr WHERE sr.user_id = user_rows.id) AS season_count
       FROM user_rows
       ORDER BY created_at DESC, id DESC
       LIMIT ${ADMIN_USERS_PAGE_SIZE}
@@ -200,7 +197,7 @@ export async function getAdminUsersList(query: AdminUsersQuery): Promise<AdminUs
     ? normalizeAdminUserRows(rowsResult.rows)
     : normalizeAdminUserRows((await db.execute(sql`
         WITH user_rows AS (${groupedUsers})
-        SELECT *
+        SELECT user_rows.*, (SELECT COUNT(DISTINCT sr.season_id)::int FROM season_registrations sr WHERE sr.user_id = user_rows.id) AS season_count
         FROM user_rows
         ORDER BY created_at DESC, id DESC
         LIMIT ${ADMIN_USERS_PAGE_SIZE}
@@ -222,15 +219,13 @@ export async function getAdminUserStats(): Promise<AdminUserStats> {
   const result = await db.execute(sql`
     SELECT
       COUNT(*)::int AS total,
-      COUNT(*) FILTER (WHERE season_count > 0)::int AS participated,
-      COUNT(*) FILTER (WHERE season_count = 0)::int AS not_participated,
+      COUNT(*) FILTER (WHERE participated)::int AS participated,
+      COUNT(*) FILTER (WHERE NOT participated)::int AS not_participated,
       COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days')::int AS recent_30d
     FROM (
-      SELECT u.id, u.created_at, COUNT(DISTINCT sr.season_id) AS season_count
+      SELECT u.id, u.created_at, EXISTS (SELECT 1 FROM season_registrations sr WHERE sr.user_id = u.id) AS participated
       FROM users u
-      LEFT JOIN season_registrations sr ON sr.user_id = u.id
-      WHERE u.status = 'active'
-      GROUP BY u.id, u.created_at
+        WHERE u.status = 'active'
     ) sub
   `);
   const row = result.rows[0] as {

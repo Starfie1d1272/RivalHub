@@ -139,6 +139,8 @@ export interface AdminMatchOverviewData {
   teams: Pick<CompetitionEntry, "id" | "name">[];
   stagePlan: StagePlan;
   matches: AdminMatchSummary[];
+  /** All official matches, independent of the selected stage/list scope. */
+  matchCount: number;
   stageViews: { stage: StageConfig; matches: AdminMatchSummary[] }[];
   qualificationRun: Pick<CompetitionQualificationRun, "id" | "format" | "playInEntryCount"> | null;
   unconfiguredMatches: AdminMatchSummary[];
@@ -159,8 +161,6 @@ export interface AdminMatchOverviewData {
 
 export interface AdminMatchWorkbenchData {
   completion: { official: string; data: string; production: string };
-  broadcasts?: { name: string; label: string }[];
-  uploaderDownloads?: { windows: string; macos: string; windowsZip?: string } | null;
   season: Pick<Season, "id" | "slug" | "name">;
   stageName: string | null;
   match: Match;
@@ -181,6 +181,7 @@ export interface AdminMatchWorkbenchData {
   postMatch: AdminPostMatchRecordData | null;
   demoReviews?: AdminDemoReviewMap[];
   demoQuality?: AdminDemoQuality[];
+  demoQualitySummaries?: Pick<AdminDemoQuality, "importId" | "matchMapId" | "mapOrder" | "mapName">[];
   operator: {
     liveScope?: { authorityRevision: number; generation: number; epoch: number; mapId: string | null } | null;
     problemRecovery?: { sessionId: string; mapEpoch: number; mapId: string; recoverMapBinding: boolean; mapLabel: string; reportContext: { programSourceGeneration: number; lastReliableSeq: number; currentMapId: string | null } } | null;

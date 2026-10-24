@@ -6,7 +6,6 @@ import { readStoredEvidence } from "@/lib/demo-integration/review";
 import { hasConfirmableParticipantIdentityIssue, validateCanonicalTarget, type CanonicalTarget } from "@/lib/demo-integration/validation";
 import { loadGameplayIdentityReviewDetails } from "@/lib/identity/gameplay-steam";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { loadOrFetchSteamProfiles } from "@/lib/steam-profiles";
 import { ensureRequestId } from "@/lib/observability/context";
 import { captureException } from "@/lib/observability/server";
 import { redactText } from "@/lib/observability/redact";
@@ -80,9 +79,6 @@ export async function loadAdminDemoReview(
     const validation = await validateCanonicalTarget(tx, evidence, target);
     phase = "identity-review-details";
     const details = await loadGameplayIdentityReviewDetails(tx, validation.resolutions);
-    const observedSteam64s = evidence.participants.map((participant) => participant.steamId64);
-    phase = "steam-profile-read";
-    const officialProfiles = await loadOrFetchSteamProfiles(tx, observedSteam64s);
     phase = "review-projection";
     const participants: AdminDemoReviewParticipant[] = [];
     let resolvedCount = 0;
@@ -113,14 +109,8 @@ export async function loadAdminDemoReview(
         teamName: entryNames.get(entryId) ?? "未知队伍", state,
         currentPlayer: detail ? { userId: detail.userId, name: detail.name } : null,
         retirableIdentityId: retirable ? identity.identityId : null,
-        observedSteamProfile: (() => {
-          const profile = officialProfiles.get(participant.steamId64);
-          return profile ? {
-            personaName: profile.personaName,
-            profileUrl: profile.profileUrl,
-            avatarUrl: profile.avatarUrl,
-          } : null;
-        })(),
+        // Optional persona enrichment runs after the validation transaction closes.
+        observedSteamProfile: null,
         note: state === "confirmable" ? null : state === "roster-mismatch"
           ? "该玩家已对应到本队赛事成员。请核对实际出场名单，并通过本场首发管理处理差异。"
           : state === "conflict-retirable"

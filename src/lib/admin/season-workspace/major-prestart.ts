@@ -220,55 +220,6 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     (approvedMembersByEntryId.get(entry.id) ?? [])
       .map((member) => member.userId),
   ))];
-  const qualificationFacts = competitiveProfile
-    ? await loadParticipantQualificationFacts(candidateMemberUserIds, {
-      platform: competitiveProfile.platform,
-      fallbackPlatform: competitiveProfile.fallbackConversion?.sourcePlatform,
-      includeCompetitiveFacts: true,
-    })
-    : new Map();
-  const liveStrengthInputs = candidateEntries.map((entry) => ({
-    teamId: entry.id,
-    teamName: entry.name,
-    starters: (approvedMembersByEntryId.get(entry.id) ?? [])
-      .filter((member) => member.isPrimaryStarter)
-      .map((member) => {
-        const fact = qualificationFacts.get(member.userId);
-        return fact && competitiveProfile
-          ? toPlayerStrengthInput(fact, competitiveProfile)
-          : {
-            userId: member.userId,
-            label: member.label,
-            historicalPeak: null,
-            previousSeasonPeak: null,
-            currentSeasonPeak: null,
-          };
-      }),
-  }));
-  const strengthPreview: MajorPrestartStrengthPreview = competitiveProfile
-    ? projectLiveStrengthPreview(buildTeamSeedRecommendations(liveStrengthInputs, competitiveProfile), competitiveProfile)
-    : {
-      status: "unavailable",
-      platform: configuredCompetitiveProfile?.platform ?? null,
-      conversionPolicyId: configuredCompetitiveProfile?.conversionPolicyId ?? null,
-      conversionPolicyVersion: configuredCompetitiveProfile?.conversionPolicyVersion ?? null,
-      blockers: [capabilities.teamRegistrationConfig.requireCompetitiveProfile
-        ? "本届冻结的竞技平台目录不完整，暂时无法计算实时队伍实力参考。"
-        : "本届赛事缺少实力参考所需的竞技上下文。"],
-      teams: candidateEntries.map((entry) => ({
-        teamId: entry.id,
-        teamName: entry.name,
-        available: false,
-        blockers: [capabilities.teamRegistrationConfig.requireCompetitiveProfile
-          ? "本届冻结的竞技平台目录不完整，暂时无法计算实时队伍实力参考。"
-          : "本届赛事缺少实力参考所需的竞技上下文。"],
-        recommendationRank: null,
-        displayOrder: null,
-        tieState: "not_ranked" as const,
-        starters: [],
-      })),
-    };
-
   const [qualificationDraft] = await db.select().from(competitionQualificationDrafts).where(eq(competitionQualificationDrafts.seasonId, season.id));
   const [state, entrantRows, rawRosterRows, seedRows, snapshot, stageRunRows, qualificationRun, qualificationEntrants, rawQualificationMatches, pendingReviews] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
@@ -317,6 +268,79 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     ...member,
     label: getDisplayName({ displayName, perfectName, personaName, email }),
   }));
+  // Current Main Event reference is scoped to its entrants, independently of
+  // the historical qualification order and the frozen final-seed snapshot.
+  const mainEventEntryIds = entrantRows.map((entrant) => entrant.teamId);
+  const currentMainEventMembers = state?.entrantsLockedAt || mainEventEntryIds.length === 0 ? [] : await db.select({
+    entryId: competitionEntries.id,
+    userId: competitionEntryRosterMembers.userId,
+    displayName: users.displayName,
+    perfectName: users.perfectName,
+    personaName: steamProfiles.personaName,
+    email: users.email,
+    isPrimaryStarter: competitionEntryRosterMembers.isPrimaryStarter,
+  }).from(competitionEntries)
+    .innerJoin(competitionEntryRosterMembers, eq(competitionEntryRosterMembers.revisionId, competitionEntries.currentRosterRevisionId))
+    .innerJoin(users, eq(competitionEntryRosterMembers.userId, users.id))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+    .where(inArray(competitionEntries.id, mainEventEntryIds));
+  const mainEventMembers = state?.entrantsLockedAt
+    ? rosterRows.map((member) => ({ ...member, entryId: entrantRows.find((entrant) => entrant.id === member.entrantId)!.teamId }))
+    : currentMainEventMembers.map((member) => ({ ...member, label: getDisplayName(member) }));
+  const qualificationUserIds = [...new Set([
+    ...candidateMemberUserIds,
+    ...rosterRows.map(member => member.userId),
+    ...mainEventMembers.map(member => member.userId),
+  ])];
+  const qualificationFacts = competitiveProfile
+    ? await loadParticipantQualificationFacts(qualificationUserIds, {
+      platform: competitiveProfile.platform,
+      fallbackPlatform: competitiveProfile.fallbackConversion?.sourcePlatform,
+      includeCompetitiveFacts: true,
+    })
+    : new Map();
+  const liveStrengthInputs = candidateEntries.map((entry) => ({
+    teamId: entry.id,
+    teamName: entry.name,
+    starters: (approvedMembersByEntryId.get(entry.id) ?? [])
+      .filter((member) => member.isPrimaryStarter)
+      .map((member) => {
+        const fact = qualificationFacts.get(member.userId);
+        return fact && competitiveProfile
+          ? toPlayerStrengthInput(fact, competitiveProfile)
+          : {
+            userId: member.userId,
+            label: member.label,
+            historicalPeak: null,
+            previousSeasonPeak: null,
+            currentSeasonPeak: null,
+          };
+      }),
+  }));
+  const strengthPreview: MajorPrestartStrengthPreview = competitiveProfile
+    ? projectLiveStrengthPreview(buildTeamSeedRecommendations(liveStrengthInputs, competitiveProfile), competitiveProfile)
+    : {
+      status: "unavailable",
+      platform: configuredCompetitiveProfile?.platform ?? null,
+      conversionPolicyId: configuredCompetitiveProfile?.conversionPolicyId ?? null,
+      conversionPolicyVersion: configuredCompetitiveProfile?.conversionPolicyVersion ?? null,
+      blockers: [capabilities.teamRegistrationConfig.requireCompetitiveProfile
+        ? "本届冻结的竞技平台目录不完整，暂时无法计算实时队伍实力参考。"
+        : "本届赛事缺少实力参考所需的竞技上下文。"],
+      teams: candidateEntries.map((entry) => ({
+        teamId: entry.id,
+        teamName: entry.name,
+        available: false,
+        blockers: [capabilities.teamRegistrationConfig.requireCompetitiveProfile
+          ? "本届冻结的竞技平台目录不完整，暂时无法计算实时队伍实力参考。"
+          : "本届赛事缺少实力参考所需的竞技上下文。"],
+        recommendationRank: null,
+        displayOrder: null,
+        tieState: "not_ranked" as const,
+        starters: [],
+      })),
+    };
+
   const previousApprovedRevisions = entrantRows.length === 0 ? [] : await db.select({
     id: competitionEntryRosterRevisions.id,
     entryId: competitionEntryRosterRevisions.entryId,
@@ -355,16 +379,6 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       .map((member) => member.label);
     if (added.length || removed.length || primaryChanged.length) recentRosterChangeByEntryId.set(entrant.teamId, { added, removed, primaryChanged });
   }
-  const missingRosterUserIds = [...new Set(rosterRows.map((member) => member.userId))]
-    .filter((userId) => !qualificationFacts.has(userId));
-  if (competitiveProfile && missingRosterUserIds.length > 0) {
-    const finalFacts = await loadParticipantQualificationFacts(missingRosterUserIds, {
-      platform: competitiveProfile.platform,
-      fallbackPlatform: competitiveProfile.fallbackConversion?.sourcePlatform,
-      includeCompetitiveFacts: true,
-    });
-    for (const [userId, fact] of finalFacts) qualificationFacts.set(userId, fact);
-  }
   const rosterStrength = (member: { userId: string; label: string; isPrimaryStarter: boolean }) => {
     const fact = qualificationFacts.get(member.userId);
     const input: PlayerStrengthInput = fact
@@ -376,34 +390,6 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     };
     return { ...projectStrengthStarter({ userId: member.userId, label: member.label, input, breakdown }), isPrimaryStarter: member.isPrimaryStarter };
   };
-  // Current Main Event reference is scoped to its entrants, independently of
-  // the historical qualification order and the frozen final-seed snapshot.
-  const mainEventEntryIds = entrantRows.map((entrant) => entrant.teamId);
-  const currentMainEventMembers = state?.entrantsLockedAt || mainEventEntryIds.length === 0 ? [] : await db.select({
-    entryId: competitionEntries.id,
-    userId: competitionEntryRosterMembers.userId,
-    displayName: users.displayName,
-    perfectName: users.perfectName,
-    personaName: steamProfiles.personaName,
-    email: users.email,
-    isPrimaryStarter: competitionEntryRosterMembers.isPrimaryStarter,
-  }).from(competitionEntries)
-    .innerJoin(competitionEntryRosterMembers, eq(competitionEntryRosterMembers.revisionId, competitionEntries.currentRosterRevisionId))
-    .innerJoin(users, eq(competitionEntryRosterMembers.userId, users.id))
-    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-    .where(inArray(competitionEntries.id, mainEventEntryIds));
-  const mainEventMembers = state?.entrantsLockedAt
-    ? rosterRows.map((member) => ({ ...member, entryId: entrantRows.find((entrant) => entrant.id === member.entrantId)!.teamId }))
-    : currentMainEventMembers.map((member) => ({ ...member, label: getDisplayName(member) }));
-  const missingMainEventFacts = [...new Set(mainEventMembers.map((member) => member.userId))].filter((id) => !qualificationFacts.has(id));
-  if (competitiveProfile && missingMainEventFacts.length > 0) {
-    const facts = await loadParticipantQualificationFacts(missingMainEventFacts, {
-      platform: competitiveProfile.platform,
-      fallbackPlatform: competitiveProfile.fallbackConversion?.sourcePlatform,
-      includeCompetitiveFacts: true,
-    });
-    for (const [id, fact] of facts) qualificationFacts.set(id, fact);
-  }
   const mainEventStrengthPreview = competitiveProfile ? projectLiveStrengthPreview(buildTeamSeedRecommendations(
     entrantRows.map((entrant) => ({
       teamId: entrant.teamId,

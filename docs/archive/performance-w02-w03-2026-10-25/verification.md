@@ -1,9 +1,9 @@
 # W02/W03 verification and remaining experiments
 
 This record covers isolated fixtures. It is not production deployment, billing,
-LCP or remote cache evidence. W09's canonical revalidation contract is a merge
-prerequisite; validation used candidate f29a1c8f with latest main d58ab7c4 in a
-private integration worktree. The feature diff does not copy W09 implementation.
+LCP or remote cache evidence. W09's canonical revalidation contract is now merged on main (49c6c7fd).
+The feature has synchronized main and validates that formal contract, including
+known veto_step and conservative legacy veto/map_plan behavior.
 
 | Task / route | State | Evidence / limitation |
 | --- | --- | --- |
@@ -20,9 +20,11 @@ private integration worktree. The feature diff does not copy W09 implementation.
 | Repeated BET trigger dirtying | Implemented, tested | Same locked five-market fixture: old repeated UPDATEs 6, new 0; exact lock timestamp unchanged and dirty remains true. BP delivery generation adds its own intentional durable writes. |
 | Complete writer/trigger lock protocol | Follow-up in progress | Season-first candidates retain UPDATE; requires roster/Demo/correction/worker closure and coordinated old-worker drain before release. |
 
-Relevant local evidence (overlapping suites are not additive): 29 component,
-action and API tests passed; 5 durable-delivery, 14 lifecycle and 6 reconciliation
-PG tests passed. One real-browser scenario covers durable delivery and both
+Relevant local evidence (overlapping suites are not additive): 42 component,
+action, API and cache-contract tests passed; the latest formal-contract PG batch
+has 17 passing tests including 7 durable-delivery cases. Both archived/due
+lifecycle intersections report the domain error while delivering the watermark.
+Earlier lifecycle and reconciliation evidence is overlapping. One real-browser scenario covers durable delivery and both
 same-revision lost-response commands. Initial Mizar/trigger evidence is retained
 in the PR description; new required CI is mandatory for the final commit.
 
@@ -36,3 +38,11 @@ pnpm exec vitest run tests/unit/components/veto-room-requests.test.tsx tests/uni
 The browser fault harness is a temporary private fixture, not a production hook
 or a permanent mock of PostgreSQL. Neither injected fault code nor credentials
 are committed. No production mutation or deployment was performed.
+
+BP-03 remaining evidence is explicit: the 2+1 SELECT measurement above covers
+core/projection only, not an entire HTTP request, outer auth or BEGIN/COMMIT.
+Start actors and timing are batched; command RETURNING reuses locked steps
+(2 step reads verified). Start/command reuse request authorization in projection.
+GET/reconcile still perform visibility/scope work before snapshot; draft auth
+reuse and complete HTTP footprint remain follow-up work, not a claimed HTTP
+query-count improvement in this PR.
