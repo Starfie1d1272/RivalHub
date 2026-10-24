@@ -23,4 +23,3 @@ export function publicStatsView(data: TournamentStats, query: StatsQuery) {
   }
 }
 export type PublicStatsData = ReturnType<typeof publicStatsView>;
-export type StatsTabData<T extends StatsQuery["tab"]> = Extract<PublicStatsData, { tab: T }>;

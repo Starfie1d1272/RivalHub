@@ -97,20 +97,9 @@ export function startPublicCompetitionEntryPerformanceReadModel(
   const mapProfile = performance.then(detail => {
     const completedMaps = detail?.official.maps.filter(map => map.completedAt !== null && map.scoreA !== null && map.scoreB !== null) ?? [];
     const preview = detail ? aggregatePublicTeamMapProfile([event.entry.id], detail.official.matches.filter(match => match.status === "finished"), completedMaps) : undefined;
-    return getPublicTeamMapProfile([event.entry.id], event.roster.map(member => member.userId), preview);
+    return readOptionalPublicStats("event_team", () => getPublicTeamMapProfile([event.entry.id], event.roster.map(member => member.userId), preview));
   });
   return { lineupStyle, performance, mapProfile };
 }
 
-export async function getPublicCompetitionEntryPerformanceReadModel(
-  season: Pick<PublicSeason, "id" | "status">,
-  event: PublicEventTeamContext,
-) {
-  const sections = startPublicCompetitionEntryPerformanceReadModel(season, event);
-  const [performance, lineupStyle, mapProfile] = await Promise.all([sections.performance, sections.lineupStyle, sections.mapProfile]);
-  return { mode: "event" as const, lineupStyle, performance, statsUnavailable: performance === null, mapProfile,
-    mapExperienceCoverage: mapProfile.experienceCoverage };
-}
-
 export type PublicLongTeamProfileReadModel = NonNullable<Awaited<ReturnType<typeof getPublicLongTeamProfileReadModel>>>;
-export type PublicCompetitionEntryPerformanceReadModel = Awaited<ReturnType<typeof getPublicCompetitionEntryPerformanceReadModel>>;

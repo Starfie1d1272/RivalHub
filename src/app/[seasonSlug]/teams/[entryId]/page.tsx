@@ -67,11 +67,11 @@ async function EventMaps({ sections }: { sections: Sections }) {
   return detail ? <TeamMapProfile title="本届地图画像" maps={detail.maps.map(({ mapName, results, selection }) => ({ mapName, results, selection }))} samples={detail.vetoActionSamples} /> : null;
 }
 async function EventAdvanced({ sections }: { sections: Sections }) {
-  const [detail, mapProfile] = await Promise.all([sections.performance, sections.mapProfile, sections.lineupStyle]);
+  const [detail, mapProfile, lineup] = await Promise.all([sections.performance, sections.mapProfile, sections.lineupStyle]);
   return <>
     {detail ? <section className="space-y-4"><h2 className="text-lg font-semibold">竞技表现</h2><TeamWorkspace detail={{ teamId: detail.teamId, analytics: detail.analytics, performance: detail.performance, economyMatrix: detail.economyMatrix, selection: detail.selection, maps: detail.maps, scoreboard: detail.scoreboard, detailedPlayers: detail.detailedPlayers }} /></section>
       : <p role="status">竞技统计暂时无法加载，请稍后重试。</p>}
-    <ContentReady module="team" phase="advanced" />
-    <TeamRosterMapContext mapProfile={mapProfile} hasOwnMaps={Boolean(detail?.maps.some(row => (row.results?.played ?? 0) > 0))} />
+    {detail && mapProfile && lineup !== null && <ContentReady module="team" phase="advanced" />}
+    {mapProfile ? <TeamRosterMapContext mapProfile={mapProfile} hasOwnMaps={Boolean(detail?.maps.some(row => (row.results?.played ?? 0) > 0))} /> : <p role="status">阵容地图参考暂时无法加载，请稍后重试。</p>}
   </>;
 }
