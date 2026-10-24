@@ -96,7 +96,7 @@ A 为已有 contract/自动证据；B 为 contract 已定但当前 provider 配�
 
 OCR command receipts belong to the scoreboard persistence owner. They retain only
 the actor/operation identifiers, map, operation kind, SHA256 input digest, base
-and resulting content versions, result row count and database commit timestamp.
+and resulting content versions, result row count and database creation timestamp.
 They retain no original image, submitted rows, credentials or request body.
 Fresh season-admin recovery reads only the current actor and map; browser Data
 API and Realtime have no grants or policies. Receipts live with their actor and
