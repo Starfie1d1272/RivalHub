@@ -145,4 +145,9 @@ it.each(["in_progress", "scheduled"] as const)("delivers pending obligations whe
   expect(after.publishedGeneration).toBe(after.generation);
   expect(cache.revalidateTag.mock.calls.some(call => call[0] === publicBetTag(f.seasonId))).toBe(true);
   expect((await readVetoRoomSnapshot(f.matchId)).session).toEqual(session);
+  // This intentionally due archived fixture must not remain a global domain
+  // candidate for another spec reusing this worker database.
+  await db.update(schema.matchVetoSessions).set({ completedAt: new Date(), entryAStartRequestedAt: null, entryAStartRequestedBy: null })
+    .where(eq(schema.matchVetoSessions.matchId, f.matchId));
+  await deliverVetoInvalidation(f.matchId, "route");
 });
