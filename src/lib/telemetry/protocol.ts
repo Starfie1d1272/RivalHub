@@ -1,6 +1,8 @@
 import { ErrorCode } from "@/lib/errors";
 import { OPERATIONS } from "./operations";
 import { ROUTES } from "./routes";
+import { CLIENT_CATEGORIES, type ClientContext } from "./client-context-contract";
+export { CLIENT_CATEGORIES, type ClientContext } from "./client-context-contract";
 
 export const LIMITS = { batch: 32, bytes: 24576, queue: 256, flushMs: 60000, ageMs: 900000 } as const;
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -8,13 +10,6 @@ export const ROLES = ["anonymous", "user", "season_admin", "super_admin"] as con
 export type Role = typeof ROLES[number];
 export type Scene = "major" | "rivals" | "other" | "site";
 export const PERFORMANCE_METRICS = ["TTFB", "FCP", "LCP", "INP", "NAV_COMMIT", "CLS"] as const;
-export const CLIENT_CATEGORIES = {
-  device: ["mobile", "tablet", "desktop", "unknown"],
-  browser: ["chrome", "safari", "firefox", "edge", "other"],
-  os: ["windows", "macos", "linux", "android", "ios", "other"],
-  source: ["none", "internal", "search", "social", "external", "unknown"],
-} as const;
-export type ClientContext = { [K in keyof typeof CLIENT_CATEGORIES]: (typeof CLIENT_CATEGORIES)[K][number] };
 export interface TelemetryEvent {
   id: string; at: number; session: string; route: string; scene: Scene;
   kind: "page" | "filter" | "operation" | "error" | "performance";
