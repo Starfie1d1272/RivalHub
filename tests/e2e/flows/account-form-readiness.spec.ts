@@ -19,9 +19,9 @@ test("records actual enabled settings forms separately from navigation and layou
     await page.goto(route, { waitUntil: "domcontentloaded" });
     const form = route.endsWith("security") ? page.getByLabel("新密码", { exact: true }) : route.endsWith("education") ? page.getByLabel("学信网在线验证码") : page.getByRole("combobox").first();
     await expect(form).toBeVisible(); await expect(form).toBeEnabled();
-    const readyMs = await page.evaluate(() => performance.now());
+    const readyMs = await form.evaluate(() => performance.now());
     await page.waitForLoadState("networkidle");
-    const shifts = await page.evaluate(() => (window as unknown as { accountFormShifts: unknown[] }).accountFormShifts);
+    const shifts = await form.evaluate(() => (window as unknown as { accountFormShifts: unknown[] }).accountFormShifts);
     samples.push({ route, enabledFormReadyMs: readyMs, shifts });
   }
   await info.attach("settings-actual-form-readiness", { body: JSON.stringify({ runtime: "canonical-runner-runtime-not-assumed-production", viewport: page.viewportSize(), samples }), contentType: "application/json" });
