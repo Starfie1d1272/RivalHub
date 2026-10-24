@@ -103,6 +103,15 @@ it("reports map_plan independently when timeout catch-up completes and replaces 
     mapPoolSnapshot: match.testConfig!.mapPool, currentTurnKey: "choose-veto-team-a",
     turnStartedAt: sql`clock_timestamp() - interval '1 day'`, turnDeadlineAt: sql`clock_timestamp() - interval '1 day' + interval '45 seconds'`,
   }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
+  // The system decider grants a fresh side-pick deadline; it must not be
+  // retroactively expired by the earlier backlog of timeout turns.
+  const catchUp = await reconcileVetoRoomReceipt(f.matchId);
+  expect(catchUp.affectedFacts).not.toContain("map_plan");
+  expect((await readVetoRoomSnapshot(f.matchId)).currentTurn?.actionType).toBe("side_pick");
+  await db.update(schema.matchVetoSessions).set({
+    turnStartedAt: sql`clock_timestamp() - interval '50 seconds'`,
+    turnDeadlineAt: sql`clock_timestamp() - interval '5 seconds'`,
+  }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
   const receipt = await reconcileVetoRoomReceipt(f.matchId);
   expect(receipt).toMatchObject({ changed: true, outcome: "applied" });
   expect(receipt.affectedFacts).toEqual(expect.arrayContaining(["veto", "map_plan"]));
