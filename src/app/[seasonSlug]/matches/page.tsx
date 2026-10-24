@@ -6,6 +6,7 @@ import { loadPublicMatchContexts } from "@/lib/matches/public-phase";
 import { MatchContextRefresh } from "@/components/matches/MatchContextRefresh";
 import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
 import { Suspense } from "react";
+import { io } from "next/cache";
 import { notFound } from "next/navigation";
 import { and, eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -35,7 +36,12 @@ interface MatchesPageProps {
   searchParams: Promise<{ team?: string; stage?: string }>;
 }
 
-export default async function MatchesPage({ params, searchParams }: MatchesPageProps) {
+export default function MatchesPage(props: MatchesPageProps) {
+  return <Suspense fallback={<PageLayout variant="standard"><p role="status">赛程加载中…</p></PageLayout>}><MatchesContent {...props} /></Suspense>;
+}
+
+async function MatchesContent({ params, searchParams }: MatchesPageProps) {
+  await io();
   const { seasonSlug } = await params;
   const { team: filterTeamId, stage: requestedStage } = await searchParams;
 
@@ -57,12 +63,16 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   ]);
   const allMatches = await withDisplayScores(allMatchesRaw.map(requireCompetitionMatch));
 
-  const liveContexts = await loadPublicMatchContexts(allMatches);
-  const teamMap = new Map(allTeams.map((team) => [team.id, team.name]));
-  const roundScoresByMatchId = await getMatchMapRoundScores(
-    allMatches.filter((match) => match.status === "finished").map((match) => match.id),
-  );
   const stagePlan = stagePresentation.stagePlan;
+  const [liveContexts, roundScoresByMatchId, swissEntries, qualificationSwissReadModel, bracketDataByStage] = await Promise.all([
+    loadPublicMatchContexts(allMatches),
+    getMatchMapRoundScores(allMatches.filter(match => match.status === "finished").map(match => match.id)),
+    Promise.all(stagePlan.filter(stage => stage.type === "swiss").map(async stage => [stage.key, await loadMajorSwissStageReadModel(season.id, stage.key)] as const)),
+    qualificationRun?.format === "short_swiss_2w2l" ? loadQualificationSwissStageReadModel(season.id) : Promise.resolve(null),
+    loadStageBracketViews(db, season.id),
+  ]);
+  const swissReadModels = new Map(swissEntries.filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null));
+  const teamMap = new Map(allTeams.map(team => [team.id, team.name]));
   const qualificationMatches = qualificationRun
     ? allMatches.filter((match) => match.qualificationRunId === qualificationRun.id &&
       match.stage === "play-in" && match.ownership === "manual" && match.majorStageRunId === null &&
@@ -71,19 +81,6 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   const qualificationMatchIds = new Set(qualificationMatches.map((match) => match.id));
   const majorStageMatches = allMatches.filter((match) => !qualificationMatchIds.has(match.id));
   const { views: stageViews, unconfiguredMatches } = buildStageViews<typeof allMatches[number]>(stagePlan, majorStageMatches);
-  const swissReadModels = new Map(
-    (await Promise.all(
-      stagePlan
-        .filter((stage) => stage.type === "swiss")
-        .map(async (stage) => [
-          stage.key,
-          await loadMajorSwissStageReadModel(season.id, stage.key),
-        ] as const),
-    )).filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
-  );
-  const qualificationSwissReadModel = qualificationRun?.format === "short_swiss_2w2l"
-    ? await loadQualificationSwissStageReadModel(season.id)
-    : null;
   const sortActiveMatches = (stageMatches: typeof allMatches) =>
     [...stageMatches].sort((a, b) => {
       const timeDifference = (a.scheduledAt?.getTime() ?? Infinity) - (b.scheduledAt?.getTime() ?? Infinity);
@@ -104,7 +101,6 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
     ),
   });
 
-  const bracketDataByStage = await loadStageBracketViews(db, season.id);
   const requestedMajorStageKey = requestedStage && stagePlan.some((stage) => stage.key === requestedStage)
     ? requestedStage
     : null;

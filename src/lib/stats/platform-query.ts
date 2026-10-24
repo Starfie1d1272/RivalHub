@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
@@ -17,18 +18,17 @@ import { publicStatsView } from "./public-view";
 import { parseStatsQuery, type StatsSearch } from "./view-state";
 
 /** Fresh public membership is part of the cache key, including historical archived events. */
-export async function getFreshStatsEvents() {
+export const getFreshStatsEvents = cache(async function getFreshStatsEvents() {
   return db.select({ id: seasons.id, slug: seasons.slug, name: seasons.name, status: seasons.status, stagePlan: seasons.stagePlan, competitionTemplate: seasons.competitionTemplate })
     .from(seasons).where(ne(seasons.status, "draft")).orderBy(seasons.id);
-}
+});
 /** Map/BP discovery shares the formal scope of the statistics it filters. */
 export async function getOfficialStatsMapCatalog(seasonIds: string[]) {
-  const maps = seasonIds.length ? await db.selectDistinct({ name: matchMaps.mapName, seasonId: matches.seasonId }).from(matchMaps)
-    .innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(officialMatchCondition(), inArray(matches.seasonId, seasonIds))) : [];
-  const vetoMaps = seasonIds.length ? await db.selectDistinct({ name: matchVetoSteps.mapName, seasonId: matches.seasonId }).from(matchVetoSteps)
-    .innerJoin(matches, eq(matches.id, matchVetoSteps.matchId)).where(and(officialMatchCondition(), inArray(matches.seasonId, seasonIds))) : [];
-  maps.push(...vetoMaps);
-  return maps;
+  if (!seasonIds.length) return [];
+  return db.selectDistinct({ name: matchMaps.mapName, seasonId: matches.seasonId }).from(matchMaps)
+    .innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(officialMatchCondition(), inArray(matches.seasonId, seasonIds)))
+    .unionAll(db.selectDistinct({ name: matchVetoSteps.mapName, seasonId: matches.seasonId }).from(matchVetoSteps)
+    .innerJoin(matches, eq(matches.id, matchVetoSteps.matchId)).where(and(officialMatchCondition(), inArray(matches.seasonId, seasonIds))));
 }
 async function cachedPlatformStats(scope: PlatformStatsScope, versions: string) {
   "use cache: remote";

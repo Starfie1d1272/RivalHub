@@ -5,32 +5,22 @@ import { ok } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { actionError, getMatchOrThrow } from "@/lib/action-utils";
 import { auditActorId, getCurrentUserAuthorization, requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
-import { revalidateMatchPaths } from "@/lib/revalidation";
-import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
+import { assertVetoRoomReadable } from "@/lib/matches/veto-room/access";
+import { runVetoInteraction, finishVetoInteraction, vetoStartInput, vetoCommandInput } from "@/lib/matches/veto-room/interaction";
 import {
   claimVetoRepresentative,
   pauseVetoRoom,
-  requestVetoStart,
   resolveVetoAppeal,
   resumeVetoRoom,
   rewindVetoRoom,
-  reconcileVetoRoom,
   setManualPrivilegedEntry,
   setVetoRepresentative,
   submitVetoAppeal,
-  submitVetoCommand,
 } from "@/lib/matches/veto-room/service";
 import { getVetoRoomView } from "@/lib/matches/veto-room/read-model";
 
 const uuid = z.string().uuid();
 const base = z.object({ matchId: uuid });
-const revision = z.object({
-  expectedRevision: z.number().int().nonnegative(),
-  expectedTurnKey: z.string().max(100).nullable(),
-});
 
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value);
@@ -39,24 +29,7 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
 }
 
 async function finishMutation<T>(matchId: string, outcome: T, changed = true) {
-  if (changed) {
-    const match = await getMatchOrThrow(matchId);
-    const season = await db.query.seasons.findFirst({ where: eq(seasons.id, match.seasonId) });
-    if (season) revalidateMatchPaths(season.slug, matchId);
-  }
-  return ok({ outcome, room: await getVetoRoomView(matchId) });
-}
-
-async function assertVetoRoomReadable(matchId: string): Promise<void> {
-  const match = await getMatchOrThrow(matchId);
-  const [season] = await db.select({ id: seasons.id, slug: seasons.slug })
-    .from(seasons)
-    .where(eq(seasons.id, match.seasonId))
-    .limit(1);
-  const readableSeason = season ? await getPublicOrAuthorizedDraftSeason(season.slug) : null;
-  if (!season || readableSeason?.id !== season.id) {
-    throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。");
-  }
+  return ok(await finishVetoInteraction(matchId, outcome, changed));
 }
 
 export async function readVetoRoom(matchIdInput: unknown) {
@@ -72,9 +45,7 @@ export async function readVetoRoom(matchIdInput: unknown) {
 export async function reconcileVetoRoomAction(input: unknown) {
   try {
     const { matchId } = parse(base, input);
-    await assertVetoRoomReadable(matchId);
-    const outcome = await reconcileVetoRoom(matchId);
-    return await finishMutation(matchId, outcome, outcome === "applied");
+    return ok(await runVetoInteraction({ operation: "reconcile", matchId }, "action"));
   } catch (error) {
     return actionError("reconcileVetoRoom", error);
   }
@@ -126,34 +97,17 @@ export async function claimVetoRepresentativeAction(input: unknown) {
 
 export async function requestVetoRoomStart(input: unknown) {
   try {
-    const parsed = parse(base.extend({ entryId: uuid }).merge(revision), input);
-    const actor = await requireAuth();
-    return await finishMutation(parsed.matchId, await requestVetoStart({ ...parsed, actorId: auditActorId(actor) }));
+    const parsed = parse(vetoStartInput, input);
+    return ok(await runVetoInteraction({ ...parsed, operation: "start" }, "action"));
   } catch (error) {
     return actionError("requestVetoRoomStart", error);
   }
 }
 
-const command = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("role_select"), entryId: uuid }),
-  z.object({
-    kind: z.literal("step"),
-    actionType: z.enum(["ban", "pick", "side_pick"]),
-    mapName: z.string().min(1).max(100).optional(),
-    side: z.enum(["t", "ct"]).optional(),
-  }),
-]);
-
 export async function performVetoRoomCommand(input: unknown) {
   try {
-    const parsed = parse(base.extend({
-      ...revision.shape,
-      expectedTurnKey: z.string().min(1).max(100),
-      clientRequestId: uuid,
-      command,
-    }), input);
-    const actor = await requireAuth();
-    return await finishMutation(parsed.matchId, await submitVetoCommand({ ...parsed, actorId: auditActorId(actor) }));
+    const parsed = parse(vetoCommandInput, input);
+    return ok(await runVetoInteraction({ ...parsed, operation: "command" }, "action"));
   } catch (error) {
     return actionError("performVetoRoomCommand", error);
   }

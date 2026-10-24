@@ -101,7 +101,7 @@ Sampler 在 SERVER span 创建时读取 Next 提供的 `http.target`，兼容 `u
 不为每个 helper 创建 span，只为可运营的边界创建：
 
 - request → route / Server Action；
-- DB query、连接池创建、重建和仅限建立连接前失败的一次 retry；
+- DB query、连接池创建、重建和仅限建立连接前失败的一次 retry；连接获取失败或超过一秒时，`db.pool.acquire` 日志记录 durationMs、入队前 poolTotal/poolIdle/poolWaiting/poolMax、connectionState（reuse/connect/queued）及 outcome。queued 表示获取开始时无空闲连接且已达应用池上限；connect 包括新连接的网络/TLS/provider 握手，不能据此认定数据库执行慢。该事件不重放查询，也不把失败后的恢复解释为原操作未提交；
 - Supabase Auth/session、Turnstile、Steam、SiliconFlow/OCR；
 - Rivals registration submit；CompetitionEntry submit/review；
 - Major prestart final entrant selection/reconciliation and lock, Major start、Swiss round finalize、stage transition、playoff start；

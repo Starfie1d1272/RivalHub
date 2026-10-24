@@ -44,7 +44,11 @@ it("reads an active BP snapshot in two SELECTs without changing session or expos
     // Auth/projection may finish much later than the core snapshot.
     await db.execute(sql`select pg_sleep(0.05)`);
     const responseBoundary=await db.execute(sql`select clock_timestamp() as now`);
-    const anonymous=await projectVetoRoomView(snapshot,null,null);
+    const beforeProjection=selects;
+    const anonymous=await projectVetoRoomView(snapshot,null,null,measured);
+    expect(selects-beforeProjection).toBe(1);
+    expect(anonymous.entries.map(entry=>entry.id)).toEqual([f.entryAId,f.entryBId]);
+    expect(anonymous.entries.every(entry=>typeof entry.name === "string")).toBe(true);
     const responseNow=new Date(anonymous.session.serverNow).getTime();
     expect(responseNow).toBeGreaterThan(snapshot.serverNow.getTime());
     expect(responseNow).toBeGreaterThanOrEqual(new Date(responseBoundary.rows[0]!.now as string).getTime());
@@ -56,7 +60,7 @@ it("reads an active BP snapshot in two SELECTs without changing session or expos
     expect((await readVetoRoomSnapshot(f.matchId)).gameplayStarted).toBe(true);
     expect(await db.query.matchVetoSessions.findFirst({where:eq(schema.matchVetoSessions.matchId,f.matchId)})).toEqual(before);
     expect(await db.select({id:schema.auditLogs.id}).from(schema.auditLogs).where(eq(schema.auditLogs.targetId,f.matchId))).toEqual(audit);
-    console.info("VETO_READ_FOOTPRINT",JSON.stringify({snapshotSelects:selects,snapshotReturnedRows:rows,transactionMaxConcurrentQueries:concurrent}));
+    console.info("VETO_READ_FOOTPRINT",JSON.stringify({snapshotSelects:2,projectionSelects:1,snapshotReturnedRows:rows,transactionMaxConcurrentQueries:concurrent}));
   } finally {client.query=query;client.release();await pool.end();}
 });
 

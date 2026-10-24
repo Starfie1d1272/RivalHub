@@ -45,6 +45,7 @@ vi.mock("@/lib/matches/veto-room/service", () => ({
 }));
 
 import { readVetoRoom, reconcileVetoRoomAction } from "@/actions/matches/veto-room";
+import { runVetoInteraction } from "@/lib/matches/veto-room/interaction";
 import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
 
 const matchId = "00000000-0000-4000-8000-000000000001";
@@ -55,15 +56,17 @@ describe("Veto Room action read authorization", () => {
     matchMock.mockResolvedValue({ id: "match-1", seasonId: "season-1" });
     const chain = {
       from: vi.fn(),
+      innerJoin: vi.fn(),
       where: vi.fn(),
       limit: vi.fn(),
     };
     chain.from.mockReturnValue(chain);
+    chain.innerJoin.mockReturnValue(chain);
     chain.where.mockReturnValue(chain);
     chain.limit.mockResolvedValue([{ id: "season-1", slug: "draft-season" }]);
     selectMock.mockReturnValue(chain);
     publicSeasonMock.mockResolvedValue(null);
-    readViewMock.mockResolvedValue({ match: { id: "match-1" } });
+    readViewMock.mockResolvedValue({ seasonSlug: "draft-season", match: { id: "match-1" } });
     reconcileRoomMock.mockResolvedValue("applied");
     seasonMock.mockResolvedValue({ id: "season-1", slug: "draft-season" });
   });
@@ -98,7 +101,7 @@ describe("Veto Room action read authorization", () => {
   it.each(["idempotent", "stale"])("returns the latest room without invalidating caches for %s reconciliation", async outcome => {
     publicSeasonMock.mockResolvedValue({ id: "season-1", slug: "draft-season" });
     reconcileRoomMock.mockResolvedValue(outcome);
-    const room = { match: { id: matchId }, session: { revision: 7 } };
+    const room = { seasonSlug: "draft-season", match: { id: matchId }, session: { revision: 7 } };
     readViewMock.mockResolvedValue(room);
 
     expect(await reconcileVetoRoomAction({ matchId })).toEqual({ success: true, data: { outcome, room } });
@@ -107,6 +110,15 @@ describe("Veto Room action read authorization", () => {
     expect(cacheMock.revalidateTag).not.toHaveBeenCalled();
     expect(cacheMock.revalidatePath).not.toHaveBeenCalled();
     expect(seasonMock).not.toHaveBeenCalled();
+  });
+
+  it("uses route invalidation before projecting a committed BP result", async () => {
+    publicSeasonMock.mockResolvedValue({ id: "season-1", slug: "draft-season" });
+    readViewMock.mockRejectedValueOnce(new Error("projection unavailable"));
+    await expect(runVetoInteraction({ operation: "reconcile", matchId }, "route")).rejects.toThrow("projection unavailable");
+    expect(cacheMock.revalidateTag).toHaveBeenCalledWith(PUBLIC_STATS_TAG, { expire: 0 });
+    expect(cacheMock.updateTag).not.toHaveBeenCalled();
+    expect(cacheMock.revalidatePath).toHaveBeenCalledWith(`/draft-season/matches/${matchId}`);
   });
 
   it("immediately invalidates statistics and match pages after applied reconciliation", async () => {

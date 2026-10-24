@@ -1,7 +1,8 @@
 import { postgresConnection } from "./postgres-connection";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import type { Pool } from "pg";
+import { DatabasePool } from "./pool";
 import * as schema from "./schema";
 // This module is reserved for Node application/CLI entrypoints; the relative
 // imports intentionally bypass the Next server-only facade.
@@ -25,16 +26,14 @@ function createPool(): Pool {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pgConfig: any = {
     ...connection,
-    // Transaction Pooler (port 6543) 共享连接池，适合 serverless
-    // 回退 Session Pooler (port 5432) 时删除 prepare: false 并调回 max: 1
-    prepare: false,
-    max: process.env.NODE_ENV === "production" ? 3 : 10,
+    // Persistent hosts serve concurrent pages, transactions and LIVE in one pool.
+    max: process.env.NODE_ENV === "production" && process.env.VERCEL === "1" ? 3 : 10,
     // Persistent Node hosts reuse TLS connections between page visits.
     idleTimeoutMillis: process.env.NEXT_RUNTIME === "nodejs" && process.env.VERCEL !== "1" ? 30000 : 5000,
     connectionTimeoutMillis: 10000,
   };
 
-  return new Pool(pgConfig);
+  return new DatabasePool(pgConfig);
 }
 
 let pool: Pool | null = null;

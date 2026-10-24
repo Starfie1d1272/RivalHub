@@ -1,6 +1,6 @@
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionMatch } from "@/lib/matches/competition-context";
-import { hasVetoGameplayInTx } from "@/lib/matches/veto-room/appeal-lifecycle";
+import { vetoGameplayExists } from "@/lib/matches/veto-room/appeal-lifecycle";
 import "server-only";
 import { and, eq, inArray, isNotNull, asc } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
@@ -29,11 +29,10 @@ export async function loadBetFacts(tx: TxDb,seasonId: string, scope: BetFactScop
   const vetos = await tx.select({veto:matchVetoSessions}).from(matchVetoSessions).innerJoin(matches,eq(matches.id,matchVetoSessions.matchId)).where(matchCondition).then(rows=>rows.map(r=>r.veto));
   const vetoSteps = await tx.select({matchId:matchVetoSteps.matchId,stepOrder:matchVetoSteps.stepOrder,actionType:matchVetoSteps.actionType,mapName:matchVetoSteps.mapName})
     .from(matchVetoSteps).innerJoin(matches,eq(matches.id,matchVetoSteps.matchId)).where(matchCondition).orderBy(asc(matchVetoSteps.stepOrder));
-  const appeals = await tx.select({matchId:matchVetoTimeoutIncidents.matchId}).from(matchVetoAppeals).innerJoin(matchVetoTimeoutIncidents,eq(matchVetoTimeoutIncidents.id,matchVetoAppeals.timeoutIncidentId)).innerJoin(matches,eq(matches.id,matchVetoTimeoutIncidents.matchId)).where(and(matchCondition,eq(matchVetoAppeals.status,"pending")));
+  const appeals = await tx.select({matchId:matchVetoTimeoutIncidents.matchId,gameplay:vetoGameplayExists(matchVetoTimeoutIncidents.matchId)}).from(matchVetoAppeals).innerJoin(matchVetoTimeoutIncidents,eq(matchVetoTimeoutIncidents.id,matchVetoAppeals.timeoutIncidentId)).innerJoin(matches,eq(matches.id,matchVetoTimeoutIncidents.matchId)).where(and(matchCondition,eq(matchVetoAppeals.status,"pending")));
   // Reader-only rollout retains pending history. Gameplay ends its BP recovery
   // effect even before the closed producer is shipped; settlement must continue.
-  const recoverableAppeals = new Set((await Promise.all([...new Set(appeals.map(a=>a.matchId))]
-    .map(async matchId => await hasVetoGameplayInTx(tx, matchId) ? null : matchId))).filter(id=>id!==null));
+  const recoverableAppeals = new Set(appeals.filter(appeal=>!appeal.gameplay).map(appeal=>appeal.matchId));
   const vetoByMatch = new Map<string,VetoFact>(vetos.map(v=>[v.matchId,{...v,steps:vetoSteps.filter(step=>step.matchId===v.matchId),pendingAppeal:recoverableAppeals.has(v.matchId)}]));
   const entries = await tx.select({id:competitionEntries.id,name:competitionEntries.name,logoUrl:competitionEntries.logoUrl}).from(competitionEntries).where(eq(competitionEntries.competitionId,seasonId));
   const roster = scope.rosterUserId === null ? [] : await tx.select({entryId:eventRosters.entryId,userId:eventRosterMembers.userId,name:users.displayName,perfectName:users.perfectName,personaName:steamProfiles.personaName,current:eventRosterMembers.isCurrent}).from(eventRosterMembers).innerJoin(eventRosters,eq(eventRosters.id,eventRosterMembers.eventRosterId)).innerJoin(competitionEntries,eq(competitionEntries.id,eventRosters.entryId)).innerJoin(users,eq(users.id,eventRosterMembers.userId)).leftJoin(steamProfiles,eq(steamProfiles.steam64,users.steam64)).where(and(eq(competitionEntries.competitionId,seasonId),inArray(eventRosters.status,["confirmed","frozen"]), scope.rosterUserId ? eq(eventRosterMembers.userId,scope.rosterUserId) : undefined));

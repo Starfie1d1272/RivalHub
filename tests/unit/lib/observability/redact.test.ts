@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { extractSafeException, redactText, sanitizeSafeContext } from "@/lib/observability/redact";
 
 describe("observability redaction", () => {
+  it("retains numeric pool diagnostics and discards credentials and query input", () => {
+    expect(sanitizeSafeContext({ poolTotal: 3, poolIdle: 0, poolWaiting: 7, poolMax: 3,
+      connectionState: "queued", password: "private", query: "select secret", params: ["private"] }))
+      .toEqual({ poolTotal: 3, poolIdle: 0, poolWaiting: 7, poolMax: 3, connectionState: "queued" });
+  });
+
   it("ignores accessor and hostile array context without losing other diagnostic fields", () => {
     let reads = 0;
     const context = Object.defineProperties({ provider: "steam", httpStatus: 503 }, {

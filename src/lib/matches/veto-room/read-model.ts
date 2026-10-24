@@ -1,7 +1,7 @@
 import "server-only";
 
-import { and, eq, inArray, or, sql } from "drizzle-orm";
-import { db } from "@/db/client";
+import { and, eq, inArray, or, sql, type Column, type GetColumnData } from "drizzle-orm";
+import { db, type DB } from "@/db/client";
 import {
   competitionEntries,
   eventRosterMembers,
@@ -13,7 +13,7 @@ import {
   users,
 } from "@/db/schema";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { getCurrentUserAuthorization, getUserSession } from "@/lib/auth/session";
+import { getCurrentUserAuthorization } from "@/lib/auth/session";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { mapLabel } from "@/lib/maps";
 import { MATCH_FORMAT_LABELS, SIDE_LABELS } from "@/types/match";
@@ -47,55 +47,62 @@ function getEntryIdForViewer(
 }
 
 export async function getVetoRoomView(matchId: string) {
-  const [core, viewer, authorization] = await Promise.all([
+  const [core, authorization] = await Promise.all([
     readVetoRoomSnapshot(matchId),
-    getUserSession(),
     getCurrentUserAuthorization(),
   ]);
-  return projectVetoRoomView(core, viewer?.userId ?? null, authorization);
+  return projectVetoRoomView(core, authorization?.userId ?? null, authorization);
+}
+
+// json_agg reads SQL column labels, so preserve the DTO's camelCase field names.
+function jsonField<T extends Column>(column: T, name: string) {
+  return sql<GetColumnData<T>>`${column}`.as(name);
 }
 
 export async function projectVetoRoomView(
   core: VetoRoomCoreSnapshot,
   viewerId: string | null,
   authorization: Awaited<ReturnType<typeof getCurrentUserAuthorization>>,
- ) {
-  const [entryRows, rosterRows, operatorRows, completedMaps] = await Promise.all([
-    db
-      .select({ id: competitionEntries.id, name: competitionEntries.name, representativeUserId: competitionEntries.representativeUserId })
+  database: Pick<DB, "select"> = db,
+) {
+  const entriesQuery = database
+      .select({ id: jsonField(competitionEntries.id, "id"), name: jsonField(competitionEntries.name, "name"), representativeUserId: jsonField(competitionEntries.representativeUserId, "representativeUserId") })
       .from(competitionEntries)
       .where(and(
         eq(competitionEntries.competitionId, core.match.seasonId),
         orEntryId(core.match.entryAId, core.match.entryBId),
-      )),
-    db
+      ));
+  const rosterQuery = database
       .select({
-        entryId: matchRosters.entryId,
-        rosterId: matchRosters.id,
-        rosterStatus: matchRosters.status,
-        memberId: eventRosterMembers.id,
-        userId: eventRosterMembers.userId,
-        displayName: users.displayName,
-        perfectName: users.perfectName,
-        personaName: steamProfiles.personaName,
-        isStarter: matchRosterPlayers.isStarter,
-        isVetoRepresentative: matchRosterPlayers.isVetoRepresentative,
+        entryId: jsonField(matchRosters.entryId, "entryId"),
+        rosterId: jsonField(matchRosters.id, "rosterId"),
+        rosterStatus: jsonField(matchRosters.status, "rosterStatus"),
+        memberId: jsonField(eventRosterMembers.id, "memberId"),
+        userId: jsonField(eventRosterMembers.userId, "userId"),
+        displayName: jsonField(users.displayName, "displayName"),
+        perfectName: jsonField(users.perfectName, "perfectName"),
+        personaName: jsonField(steamProfiles.personaName, "personaName"),
+        isStarter: jsonField(matchRosterPlayers.isStarter, "isStarter"),
+        isVetoRepresentative: jsonField(matchRosterPlayers.isVetoRepresentative, "isVetoRepresentative"),
       })
       .from(matchRosters)
       .innerJoin(matchRosterPlayers, eq(matchRosterPlayers.rosterId, matchRosters.id))
       .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
       .innerJoin(users, eq(users.id, eventRosterMembers.userId))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(eq(matchRosters.matchId, core.match.id)),
-    core.match.testConfig ? db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
+      .where(eq(matchRosters.matchId, core.match.id));
+  const operatorsQuery = database.select({ userId: jsonField(users.id, "userId"), displayName: jsonField(users.displayName, "displayName"), perfectName: jsonField(users.perfectName, "perfectName"), personaName: jsonField(steamProfiles.personaName, "personaName") })
       .from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(inArray(users.id, [core.match.testConfig.operatorAId, core.match.testConfig.operatorBId])) : Promise.resolve([]),
-    core.session.completedAt ? db.select({
-      id: matchMaps.id, mapOrder: matchMaps.mapOrder, mapName: matchMaps.mapName, teamAStartSide: matchMaps.teamAStartSide,
-    }).from(matchMaps).where(eq(matchMaps.matchId, core.match.id)) : Promise.resolve([])
-  ]);
-  // Sample the response clock after auth and the other projection reads finish.
-  const [context] = await db.select({
+      .where(core.match.testConfig ? inArray(users.id, [core.match.testConfig.operatorAId, core.match.testConfig.operatorBId]) : sql`false`);
+  const mapsQuery = database.select({
+      id: jsonField(matchMaps.id, "id"), mapOrder: jsonField(matchMaps.mapOrder, "mapOrder"), mapName: jsonField(matchMaps.mapName, "mapName"), teamAStartSide: jsonField(matchMaps.teamAStartSide, "teamAStartSide"),
+    }).from(matchMaps).where(eq(matchMaps.matchId, core.match.id));
+  // Bounded public rows share one SQL round trip; auth finishes before this response clock.
+  const [context] = await database.select({
+    entryRows: sql<Awaited<typeof entriesQuery>>`coalesce((select json_agg(veto_entries) from (${entriesQuery}) veto_entries), '[]'::json)`,
+    rosterRows: sql<Awaited<typeof rosterQuery>>`coalesce((select json_agg(veto_roster) from (${rosterQuery}) veto_roster), '[]'::json)`,
+    operatorRows: core.match.testConfig ? sql<Awaited<typeof operatorsQuery>>`coalesce((select json_agg(veto_operators) from (${operatorsQuery}) veto_operators), '[]'::json)` : sql<Awaited<typeof operatorsQuery>>`'[]'::json`,
+    completedMaps: core.session.completedAt ? sql<Awaited<typeof mapsQuery>>`coalesce((select json_agg(veto_maps) from (${mapsQuery}) veto_maps), '[]'::json)` : sql<Awaited<typeof mapsQuery>>`'[]'::json`,
     seasonSlug: seasons.slug,
     seasonName: seasons.name,
     stagePlan: seasons.stagePlan,
@@ -103,6 +110,7 @@ export async function projectVetoRoomView(
     serverNow: sql<string>`clock_timestamp()`.mapWith(value => new Date(value)),
   }).from(seasons).where(eq(seasons.id, core.match.seasonId)).limit(1);
   if (!context) throw new Error("赛事不存在。");
+  const { entryRows, rosterRows, operatorRows, completedMaps } = context;
   const entryById = new Map(entryRows.map((entry) => [entry.id, entry]));
   const serverNow = context.serverNow;
 

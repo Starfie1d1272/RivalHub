@@ -3,11 +3,11 @@ import { MatchRecordings } from "@/components/matches/MatchRecordings";
 import { hasActivePublicSanction } from "@/lib/discipline/public-query";
 import { projectDisplayScore } from "@/lib/matches/display-score";
 import type { Metadata } from "next";
-import { connection } from "next/server";
+import { io } from "next/cache";
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { getPublicPlayerIdentityIds } from "@/lib/players/public-identity";
-import React, { Suspense } from "react";
+import React, { cache, Suspense } from "react";
 import { MatchBetLink } from "@/components/bet/MatchBetLink";
 import { PreMatchContext } from "@/components/matches/PreMatchContext";
 import { MatchContextRefresh } from "@/components/matches/MatchContextRefresh";
@@ -82,27 +82,26 @@ interface MatchDetailPageProps {
   searchParams: Promise<{ statsPlayer?: string; statsMap?: string; scheduling?: string }>;
 }
 
+const loadMatch = cache((matchId: string) => db.query.matches.findFirst({ where: eq(matches.id, matchId) }));
+
 export async function generateMetadata({ params }: MatchDetailPageProps): Promise<Metadata> {
-  await connection();
+  await io();
   const { matchId } = await params;
-  const match = await db.query.matches.findFirst({ where: eq(matches.id, matchId), columns: { testConfig: true } });
+  const match = await loadMatch(matchId);
   return match?.testConfig ? { robots: { index: false, follow: false } } : {};
 }
 
-export default async function MatchDetailPage({ params, searchParams }: MatchDetailPageProps) {
-  await connection();
+async function loadMatchCore(params: MatchDetailPageProps["params"]) {
+  await io();
   const { seasonSlug, matchId } = await params;
-  const statsQuery = await searchParams;
 
   const [season, match] = await Promise.all([
     getPublicOrAuthorizedDraftSeason(seasonSlug),
-    db.query.matches.findFirst({ where: eq(matches.id, matchId) }),
+    loadMatch(matchId),
   ]);
   if (!season) notFound();
   if (!match || match.seasonId !== season.id) notFound();
   assertCompetitionMatch(match);
-
-  const mapPool = match.testConfig?.mapPool ?? normalizeRegistrationConfig(season.registrationConfig).mapPool;
 
   const [teamA, teamB, maps] = await Promise.all([
     db.query.competitionEntries.findFirst({ where: eq(competitionEntries.id, match.entryAId) }),
@@ -113,7 +112,34 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
     }),
   ]);
 
-  const publicContext = await loadPublicMatchPhase(match, maps);
+  return { seasonSlug, season, match, teamA, teamB, maps };
+}
+
+type MatchCore = Awaited<ReturnType<typeof loadMatchCore>>;
+
+export default function MatchDetailPage(props: MatchDetailPageProps) {
+  return <Suspense fallback={<PageLayout variant="wide"><p role="status">比赛加载中…</p></PageLayout>}><MatchDetailShell {...props} /></Suspense>;
+}
+
+async function MatchDetailShell({ params, searchParams }: MatchDetailPageProps) {
+  const core = await loadMatchCore(params);
+  const { seasonSlug, season, match, teamA, teamB, maps } = core;
+  return <PageLayout variant="wide" className="space-y-8">
+    {match.testConfig && <p className="text-sm text-[var(--color-fg-mid)]">测试赛 · 不计入正式赛程与统计</p>}
+    <MatchContextRefresh enabled={match.status === "scheduled" || match.status === "in_progress"} />
+    <MatchHeroHeader seasonSlug={seasonSlug} stageName={presentMatchStage(match.stage, season.stagePlan)}
+      match={{ ...match, displayScore: projectDisplayScore(match, maps) }} teamA={teamA} teamB={teamB} isFinished={match.status === "finished"} />
+    <Suspense fallback={<div role="status" className="min-h-80 text-sm text-[var(--color-fg-mid)]">比赛内容加载中…</div>}>
+      <MatchDetailContent core={core} searchParams={searchParams} />
+    </Suspense>
+  </PageLayout>;
+}
+
+async function MatchDetailContent({ core, searchParams }: { core: MatchCore; searchParams: MatchDetailPageProps["searchParams"] }) {
+  const { seasonSlug, season, match, teamA, teamB, maps } = core;
+  const statsQuery = await searchParams;
+  const mapPool = match.testConfig?.mapPool ?? normalizeRegistrationConfig(season.registrationConfig).mapPool;
+  const [publicContext, userSession] = await Promise.all([loadPublicMatchPhase(match, maps), getUserSession()]);
   const phase = publicContext.phase;
   const afterVeto = phase === "awaiting_gameplay" || phase === "gameplay" || phase === "inter_map";
   const isFinished = match.status === "finished";
@@ -124,8 +150,6 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
   // POST scoreboard is queried only when finished or when maps have been completed.
   const needPreAnalysis = !isFinished;
   const needScoreboard = isFinished || hasCompletedMaps;
-
-  const userSession = await getUserSession();
 
   const [
     rosterA,
@@ -367,18 +391,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
   ) : null;
 
   return (
-    <PageLayout variant="wide" className="space-y-8">
-      {match.testConfig && <p className="text-sm text-[var(--color-fg-mid)]">测试赛 · 不计入正式赛程与统计</p>}
-      <MatchContextRefresh enabled={match.status === "scheduled" || match.status === "in_progress"} />
-      <MatchHeroHeader
-        seasonSlug={seasonSlug}
-        stageName={presentMatchStage(match.stage, season.stagePlan)}
-        match={{ ...match, displayScore: projectDisplayScore(match, maps) }}
-        teamA={teamA}
-        teamB={teamB}
-        isFinished={isFinished}
-      />
-
+    <>
       {/* 赛前管理员 / 队长聚焦赛务弹窗 */}
       {((isCaptainA || isCaptainB || isSeasonAdmin) && match.status === "scheduled") && (
         <Panel contentClassName="space-y-3 p-4">
@@ -730,6 +743,6 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
           <p className="text-sm">解说：{publicCommentators.map((person, index) => <React.Fragment key={person.userId}>{index > 0 ? "、" : null}{person.playerUserId ? <PlayerProfileLink userId={person.playerUserId}>{getPublicDisplayName(person)}</PlayerProfileLink> : getPublicDisplayName(person)}</React.Fragment>)}</p>
         </Panel>
       )}
-    </PageLayout>
+    </>
   );
 }

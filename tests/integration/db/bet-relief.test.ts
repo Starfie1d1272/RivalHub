@@ -1,3 +1,4 @@
+import { drizzle } from "drizzle-orm/node-postgres";
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
@@ -184,3 +185,18 @@ describe("BET relief real ledger and serialization",()=>{
     expect(await eligibility(f)).toMatchObject({granted:"10",reason:"claimed_today"});
   }));
 });
+
+// This financial eligibility reader must keep all inputs in one fresh statement.
+it("reads relief eligibility in one statement for joined, anonymous and missing-season viewers", async () => fixture(async f => {
+  const client = await f.db.$client.connect();
+  const statements: string[] = [];
+  const db = drizzle(client, { schema, logger: { logQuery(query) { statements.push(query); } } });
+  try {
+    for (const [seasonId, userId] of [[f.seasonId, f.userId], [f.seasonId, null], [randomUUID(), f.userId]] as const) {
+      statements.length = 0;
+      const actual = await db.transaction(tx => readBetRelief(tx, seasonId, userId), {accessMode:"read only", isolationLevel:"repeatable read"});
+      expect(actual).toMatchObject({ canClaim: false, reason: !userId ? "login_required" : seasonId !== f.seasonId ? "disabled" : "balance_sufficient" });
+      expect(statements.filter(query => query.startsWith("select"))).toHaveLength(1);
+    }
+  } finally { client.release(); }
+}));

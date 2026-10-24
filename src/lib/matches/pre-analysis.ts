@@ -105,10 +105,9 @@ export async function loadMatchPreAnalysis(
   entryBId: string,
   mapPool: readonly string[],
 ): Promise<MatchPreAnalysis> {
-  const [rawA, rawB] = await Promise.all([
-    getSeasonFinishedMatches(seasonId, entryAId),
-    getSeasonFinishedMatches(seasonId, entryBId),
-  ]);
+  const raw = await getSeasonFinishedMatches(seasonId, [entryAId, entryBId]);
+  const rawA = raw.filter(match => match.entryAId === entryAId || match.entryBId === entryAId);
+  const rawB = raw.filter(match => match.entryAId === entryBId || match.entryBId === entryBId);
   const displayed = await withDisplayScores([...new Map([...rawA, ...rawB].map(match => [match.id, match])).values()]);
   const byId = new Map(displayed.map(match => [match.id, match]));
   const matchesA = rawA.map(match => byId.get(match.id)!);
