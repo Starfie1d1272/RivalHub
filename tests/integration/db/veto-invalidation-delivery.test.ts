@@ -129,10 +129,11 @@ it("hard-invalidates map catalog consumers when a BP plan is rewound or maps are
 
 it.each(["in_progress", "scheduled"] as const)("delivers pending obligations when an archived %s room also has a rejected lifecycle transition", async status => {
   const f = await seedFixture();
+  const entry = (await db.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, f.entryAId) }))!;
   await db.update(schema.matches).set({ status }).where(eq(schema.matches.id, f.matchId));
   await db.update(schema.matchVetoSessions).set({ completedAt: null, pausedAt: null,
     startedAt: status === "in_progress" ? new Date() : null,
-    entryAStartRequestedAt: new Date(), turnDeadlineAt: sql`clock_timestamp() - interval '10 seconds'`,
+    entryAStartRequestedAt: new Date(), entryAStartRequestedBy: entry.representativeUserId, turnDeadlineAt: sql`clock_timestamp() - interval '10 seconds'`,
   }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
   await db.update(schema.seasons).set({ status: "archived" }).where(eq(schema.seasons.id, f.seasonId));
   const session = (await readVetoRoomSnapshot(f.matchId)).session;
