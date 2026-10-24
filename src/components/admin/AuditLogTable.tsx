@@ -1,12 +1,11 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import React, { useRef, useTransition } from "react";
 import { AuditLogDetailDialog } from "./AuditLogDetailDialog";
-import { fetchAuditLogs, type AuditLogFilters } from "@/actions/audit";
+
 import { ClearFilters, ListSearchField, ListToolbar, PaginationControls, ResultSummary, type ListSearchFieldHandle, useListQueryParams } from "@/components/rivalhub";
 import { formatCST } from "@/lib/utils/date";
 import {
-  AUDIT_LOG_LOAD_ERROR_MESSAGE,
   getAuditActionFilterOptions,
   getAuditActionPresentation,
   type AuditLogView,
@@ -37,13 +36,13 @@ const ACTION_FILTER_GROUPS = ACTION_FILTER_OPTIONS.reduce<Array<{ label: string;
 }, []);
 
 export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = "/admin/logs", seasonScopeId }: Props) {
-  const { searchParams, update } = useListQueryParams({ routeBase, defaults: AUDIT_QUERY_DEFAULTS });
+  const { searchParams, update: navigate } = useListQueryParams({ routeBase, defaults: AUDIT_QUERY_DEFAULTS });
   const searchFieldRef = useRef<ListSearchFieldHandle>(null);
   const [isPending, startTransition] = useTransition();
 
-  const [logs, setLogs] = useState(initialLogs);
-  const [total, setTotal] = useState(initialTotal);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const logs = initialLogs;
+  const total = initialTotal;
+  const update: typeof navigate = (...args) => startTransition(() => navigate(...args));
 
   const pageValue = Number(searchParams.get("page") ?? "1");
   const currentPage = Number.isSafeInteger(pageValue) && pageValue > 0 ? pageValue : 1;
@@ -52,40 +51,6 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
   const currentSeason = searchParams.get("seasonId") ?? "";
   const currentDateFrom = searchParams.get("dateFrom") ?? "";
   const currentDateTo = searchParams.get("dateTo") ?? "";
-
-  const reload = useCallback(() => {
-    const filters: AuditLogFilters = { page: currentPage, pageSize: PAGE_SIZE };
-    if (currentAction) filters.action = currentAction;
-    if (currentActor) filters.actorId = currentActor;
-    if (currentSeason) filters.seasonId = currentSeason;
-    if (currentDateFrom) filters.dateFrom = currentDateFrom;
-    if (currentDateTo) filters.dateTo = currentDateTo;
-    if (seasonScopeId) filters.seasonScopeId = seasonScopeId;
-
-    setLoadError(null);
-    startTransition(async () => {
-      try {
-        const result = await fetchAuditLogs(filters);
-        if (!result.success) {
-          setLoadError(AUDIT_LOG_LOAD_ERROR_MESSAGE);
-          return;
-        }
-        setLogs(result.data.logs);
-        setTotal(result.data.total);
-      } catch {
-        setLoadError(AUDIT_LOG_LOAD_ERROR_MESSAGE);
-      }
-    });
-  }, [currentAction, currentActor, currentDateFrom, currentDateTo, currentPage, currentSeason, seasonScopeId, startTransition]);
-
-  const isInitialMount = useRef(true);
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-    reload();
-  }, [reload]);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -181,17 +146,6 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
           }}
         />
       </ListToolbar>
-
-      {loadError && (
-        <div
-          role="alert"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-sm px-3 py-2 text-xs"
-          style={{ background: "color-mix(in srgb, var(--color-danger) 8%, transparent)", border: "1px solid color-mix(in srgb, var(--color-danger) 35%, transparent)", color: "var(--color-danger)" }}
-        >
-          <span>{loadError}</span>
-          <button type="button" onClick={reload} className="underline underline-offset-2">重试</button>
-        </div>
-      )}
 
       <div className="flex items-center justify-between gap-3">
         <ResultSummary total={total} page={currentPage} pageSize={PAGE_SIZE} totalPages={totalPages} />

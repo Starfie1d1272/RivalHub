@@ -23,7 +23,7 @@ vi.mock("@/db/client", async (importOriginal) => {
 });
 vi.mock("@/lib/auth/session", () => ({ requireSeasonAdmin: vi.fn(async () => ({ userId: observation.userId })) }));
 vi.mock("@/lib/admin/matches/demo-review", () => ({
-  loadAdminDemoReview: vi.fn(async (_tx: unknown, row: { id: string }) => ({ importId: row.id })),
+  loadAdminDemoReview: vi.fn(async (_tx: unknown, row: { id: string }) => ({ importId: row.id, participants: [] })),
 }));
 
 import { db } from "@/db/client";

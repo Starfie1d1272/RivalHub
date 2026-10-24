@@ -159,8 +159,6 @@ export interface AdminMatchOverviewData {
 
 export interface AdminMatchWorkbenchData {
   completion: { official: string; data: string; production: string };
-  broadcasts?: { name: string; label: string }[];
-  uploaderDownloads?: { windows: string; macos: string; windowsZip?: string } | null;
   season: Pick<Season, "id" | "slug" | "name">;
   stageName: string | null;
   match: Match;

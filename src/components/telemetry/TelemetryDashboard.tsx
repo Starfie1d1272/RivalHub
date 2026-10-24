@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { ContentReady } from "./ContentReady";
 import type { Analysis } from "@/lib/telemetry/analysis-model";
 import { cat, metricLabels } from "@/lib/telemetry/analysis-presentation";
@@ -282,7 +282,7 @@ function Trend({ rows, hours }: { rows: Analysis["buckets"]; hours: string }) {
             fontSize="13"
             fill="var(--color-fg-mid)"
           >
-            {time(rows[i].at)}
+            {rows[i] ? time(rows[i].at) : ""}
           </text>
         ))}
       </svg>
@@ -337,6 +337,7 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
     let cancelled = false;
     setBusy(true);
     setError("");
+    const timer = setTimeout(() => {
     getTelemetryAnalysisAction({ ...f, session })
       .then((result) => {
         if (cancelled) return;
@@ -351,12 +352,14 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
           setBusy(false);
         }
       });
+    }, 150);
     return () => {
+      clearTimeout(timer);
       cancelled = true;
     };
   }, [f, session, refresh]);
   const update = (key: keyof Filters, value: string) => {
-    setF((old) => ({ ...old, [key]: value }));
+    setF((old) => old[key] === value ? old : ({ ...old, [key]: value }));
     setErrorKey("");
     setSession("");
     setShowAll(false);
@@ -366,17 +369,17 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
   );
   const active = Object.entries(f).filter(([k, v]) => k !== "hours" && v);
   const totals = data.totals;
-  const ranks = data.routes.filter((p) => p.label.includes(search));
-  const selectedMetric = data.metrics.find((m) => m.key === metric)!;
-  const hist = data.histograms.find((h) => h.metric === metric)!;
-  const perf = data.performanceRoutes
+  const ranks = useMemo(() => tab === "overview" ? data.routes.filter((p) => p.label.includes(search)) : [], [data.routes, search, tab]);
+  const selectedMetric = data.metrics.find((m) => m.key === metric);
+  const hist = data.histograms.find((h) => h.metric === metric);
+  const perf = useMemo(() => tab === "performance" ? data.performanceRoutes
     .filter((p) => p.metric === metric)
-    .sort((a, b) => (b.p75 ?? 0) - (a.p75 ?? 0));
-  const errors = data.errorGroups.filter(
+    .sort((a, b) => (b.p75 ?? 0) - (a.p75 ?? 0)) : [], [data.performanceRoutes, metric, tab]);
+  const errors = useMemo(() => tab === "errors" ? data.errorGroups.filter(
     (e) => errorType === "all" || e.type === errorType,
-  );
+  ) : [], [data.errorGroups, errorType, tab]);
   const detail = data.errorGroups.find((e) => e.key === errorKey);
-  const variants = data.variants.filter((v) => v.variant);
+  const variants = useMemo(() => tab === "behavior" ? data.variants.filter((v) => v.variant) : [], [data.variants, tab]);
   const environmentRows =
     data.distributions[environment as keyof Analysis["distributions"]];
   return (
@@ -573,6 +576,7 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
             aria-busy={busy}
           >
             <TabsContent value="overview" className="space-y-4">
+              {tab === "overview" && <>
               <Panel contentClassName="grid grid-cols-2 divide-x divide-[var(--color-border)] p-0 md:grid-cols-4">
                 <Stat
                   label="页面访问"
@@ -772,8 +776,10 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
                   </Panel>
                 </div>
               </div>
+              </>}
             </TabsContent>
             <TabsContent value="behavior" className="space-y-4">
+              {tab === "behavior" && <>
               <Tabs value={behavior} onValueChange={setBehavior}>
                 <TabsList>
                   <TabsTrigger value="operations">业务操作</TabsTrigger>
@@ -781,6 +787,7 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
                   <TabsTrigger value="sessions">会话路径</TabsTrigger>
                 </TabsList>
                 <TabsContent value="operations" className="mt-4 space-y-4">
+              {behavior === "operations" && <>
                   <Panel contentClassName="grid grid-cols-2 divide-x divide-[var(--color-border)] p-0 md:grid-cols-4">
                     <Stat label="已发起" value={totals.starts} />
                     <Stat
@@ -902,8 +909,10 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
                       </p>
                     </Panel>
                   </div>
+              </>}
                 </TabsContent>
                 <TabsContent value="filters" className="mt-4 space-y-4">
+              {behavior === "filters" && <>
                   <div className="grid gap-4 md:grid-cols-2">
                     <Panel contentClassName="p-0">
                       <Heading
@@ -943,8 +952,10 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
                       </div>
                     </Panel>
                   </div>
+              </>}
                 </TabsContent>
                 <TabsContent value="sessions" className="mt-4">
+              {behavior === "sessions" && <>
                   <div className="grid items-start gap-4 lg:grid-cols-[1fr_1.2fr]">
                     <Panel contentClassName="p-0">
                       <Heading
@@ -1042,10 +1053,14 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
                       )}
                     </Panel>
                   </div>
+              </>}
                 </TabsContent>
               </Tabs>
+              </>}
             </TabsContent>
             <TabsContent value="performance" className="space-y-4">
+              {tab === "performance" && (!selectedMetric || !hist) && <Panel contentClassName="p-4">当前数据缺少所选指标或分布，请选择其他指标或刷新分析。</Panel>}
+              {tab === "performance" && selectedMetric && hist && <>
               <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
                 {data.metrics.map((m) => (
                   <button
@@ -1277,8 +1292,10 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
                   条缺少可信样本标识的旧版报告。旧版报告仅计入采集量。分位数基于最新已收到的观测值；指标样本不等同于页面访问数。页面切换测量到路由提交为止，主要内容加载反映浏览器可报告的导航。
                 </p>
               </details>
+              </>}
             </TabsContent>
             <TabsContent value="errors" className="space-y-4">
+              {tab === "errors" && <>
               <Panel contentClassName="grid grid-cols-2 divide-x divide-[var(--color-border)] p-0 md:grid-cols-4">
                 <Stat label="客户端异常" value={totals.errors} />
                 <Stat label="操作结果未知" value={totals.unknownReports} />
@@ -1453,8 +1470,10 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
                   </Panel>
                 )}
               </div>
+              </>}
             </TabsContent>
             <TabsContent value="collection" className="space-y-4">
+              {tab === "collection" && <>
               <div className="grid gap-4 md:grid-cols-2">
                 <Panel contentClassName="p-5">
                   <h2 className="text-sm font-semibold">数据范围</h2>
@@ -1559,6 +1578,7 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
                   正文大小按未压缩字节统计
                 </p>
               </Panel>
+              </>}
             </TabsContent>
           </div>
         </Tabs>}

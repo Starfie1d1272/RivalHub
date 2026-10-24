@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import TelemetryDashboard from "@/components/telemetry/TelemetryDashboard";
@@ -39,4 +39,26 @@ it("keeps a previous session's timeline out of a newly selected session", async 
   await act(async () => fail(new Error("fixture failure")));
   expect(await screen.findByText("此会话读取失败，请重试。")).toBeInTheDocument();
   expect(screen.queryByText("A 专属操作")).not.toBeInTheDocument();
+});
+
+it("handles schema-allowed empty trends and missing metrics without a render exception", async () => {
+  const user = userEvent.setup();
+  const initial = { ...sample(), buckets: [], metrics: [], histograms: [] };
+  render(<TelemetryDashboard initial={initial} />);
+  await user.click(screen.getByRole("tab", { name: "页面性能" }));
+  expect(screen.getByText("当前数据缺少所选指标或分布，请选择其他指标或刷新分析。")).toBeInTheDocument();
+  expect(query).not.toHaveBeenCalled();
+});
+
+it("coalesces a burst of session choices into the final authorized read", async () => {
+  const user = userEvent.setup();
+  const initial = sample();
+  query.mockResolvedValue({ status: "ready", data: initial });
+  render(<TelemetryDashboard initial={initial} />);
+  await user.click(screen.getByRole("tab", { name: "使用行为" }));
+  await user.click(screen.getByRole("tab", { name: "会话路径" }));
+  fireEvent.click(screen.getByRole("button", { name: /^会话 001$/ }));
+  fireEvent.click(screen.getByRole("button", { name: /^会话 002$/ }));
+  await waitFor(() => expect(query).toHaveBeenCalledTimes(1));
+  expect(query.mock.calls[0]![0].session).toBe(initial.sessions[1]!.key);
 });

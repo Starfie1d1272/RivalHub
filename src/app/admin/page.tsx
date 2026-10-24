@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { desc, inArray } from "drizzle-orm";
-import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
+import { listAdminSeasonDirectory } from "@/lib/admin/season-context";
 import { requireAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import {
@@ -19,16 +17,7 @@ export default async function AdminDashboardPage() {
   const admin = await resolveAdminPageAccess(requireAdmin);
   if (!admin) return <AdminAccessDenied />;
 
-  const allSeasons =
-    admin.role === "super_admin"
-      ? await db.select().from(seasons).orderBy(desc(seasons.createdAt))
-      : admin.seasonIds.length > 0
-        ? await db
-            .select()
-            .from(seasons)
-            .where(inArray(seasons.id, admin.seasonIds))
-            .orderBy(desc(seasons.createdAt))
-        : [];
+  const allSeasons = await listAdminSeasonDirectory();
   const seasonsByLifecycle = groupSeasonsByLifecycle(allSeasons);
 
   return (

@@ -9,14 +9,21 @@ import { ErrorState, PageHeader } from "@/components/rivalhub";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { AuditLogTable } from "@/components/admin/AuditLogTable";
 
-export default async function SeasonAuditLogPage({ params }: { params: Promise<{ seasonSlug: string }> }) {
+export default async function SeasonAuditLogPage({ params, searchParams }: {
+  params: Promise<{ seasonSlug: string }>;
+  searchParams: Promise<{ page?: string; action?: string; actor?: string; dateFrom?: string; dateTo?: string }>;
+}) {
   const { seasonSlug } = await params;
   const season = await db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug), columns: { id: true, name: true } });
   if (!season) notFound();
   if (!(await resolveAdminPageAccess(() => requireSeasonAdmin(season.id)))) {
     return <AdminAccessDenied />;
   }
-  const result = await fetchAuditLogs({ seasonScopeId: season.id, pageSize: 50 });
+  const query = await searchParams;
+  const result = await fetchAuditLogs({
+    seasonScopeId: season.id, pageSize: 50, page: Number(query.page),
+    action: query.action, actorId: query.actor, dateFrom: query.dateFrom, dateTo: query.dateTo,
+  });
   if (!result.success) {
     return (
       <div className="min-w-0 space-y-5">

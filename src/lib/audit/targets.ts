@@ -209,9 +209,32 @@ const RESOLVABLE_TARGET_TYPES = new Set([
   "season_public_info", "team", "team_application", "tournament_honor", "user", "user_gameplay_steam_id",
 ]);
 
+/** Pool reads resolve at most three target types concurrently; transaction reads stay serial. */
 export async function resolveAuditTargets(
   refs: readonly AuditTargetRef[],
   executor: AuditDatabaseExecutor = db,
+): Promise<Record<string, AuditTargetPresentation>> {
+  if (executor !== db) return resolveAuditTargetGroups(refs, executor);
+  const groups = new Map<string, AuditTargetRef[]>();
+  for (const ref of refs) {
+    const type = normalizeAuditTarget(ref).targetType;
+    if (!type) continue;
+    const group = groups.get(type) ?? [];
+    group.push(ref);
+    groups.set(type, group);
+  }
+  const batches = [...groups.values()];
+  const result: Record<string, AuditTargetPresentation> = {};
+  for (let offset = 0; offset < batches.length; offset += 3) {
+    const resolved = await Promise.all(batches.slice(offset, offset + 3).map(group => resolveAuditTargetGroups(group, db)));
+    for (const targets of resolved) Object.assign(result, targets);
+  }
+  return result;
+}
+
+async function resolveAuditTargetGroups(
+  refs: readonly AuditTargetRef[],
+  executor: AuditDatabaseExecutor,
 ): Promise<Record<string, AuditTargetPresentation>> {
   const normalizedRefs = refs.map(normalizeAuditTarget);
   const targetIdSets = new Map<string, Set<string>>();
