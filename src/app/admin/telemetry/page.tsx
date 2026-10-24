@@ -54,8 +54,8 @@ export default async function TelemetryPage({ searchParams }: { searchParams: Pr
     </form>
     {!parsed && <p role="alert" className="text-sm text-[var(--color-fg-mid)]">已恢复默认筛选。</p>}
     {!data ? <Panel contentClassName="p-6"><p>{result.status === "unconfigured" ? "尚未配置遥测查询" : "暂时无法读取，请稍后重试"}</p></Panel> : <>
-      <p className="text-sm text-[var(--color-fg-mid)]">更新于 {utc(data.generatedAt)} UTC · {integer(data.sampledBatches)} 批 · 最近上报：{data.latestReceived ? `${utc(data.latestReceived)} UTC` : "暂无"}</p>
-      {data.truncated && <p role="status" className="rounded border border-[var(--color-border)] p-3 text-sm">显示最近 1,000 批，缩小时间范围可查看更多。</p>}
+      <p className="text-sm text-[var(--color-fg-mid)]">更新于 {utc(data.generatedAt)} UTC · {integer(data.sampledBatches)} 批 · 窗口最近上报：{data.latestReceived ? `${utc(data.latestReceived)} UTC` : "暂无"}</p>
+      {data.truncated && <p role="status" className="rounded border border-[var(--color-border)] p-3 text-sm">显示最近 1,000 批。</p>}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[["页面访问", data.totals.page], ["操作开始", data.totals.start], ["业务拒绝", data.totals.rejected], ["结果未知", data.totals.unknown]].map(([label, n]) => <Panel key={label} contentClassName="p-4"><div className="text-sm text-[var(--color-fg-mid)]">{label}</div><div className="mt-2 font-mono text-2xl">{integer(Number(n))}</div></Panel>)}</div>
       {!data.sampledBatches && <p className="text-sm">所选范围暂无数据。</p>}
       <Trend rows={data.trend} />

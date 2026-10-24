@@ -18,7 +18,9 @@ export async function dashboard(db: Database, filters: DashboardFilters, now: nu
     AND environment='production' AND (?='' OR release=?) ORDER BY received DESC,ticket DESC,id DESC LIMIT ?`;
   const args = [now, from, filters.release, filters.release];
   const statements = [
-    db.prepare(`SELECT count(*) AS batches,max(received) AS latestReceived,min(expires) AS earliestExpiry FROM (${sample})`).bind(...args, DASHBOARD_BATCH_LIMIT + 1),
+    db.prepare(`SELECT count(*) AS batches,max(received) AS latestReceived,min(expires) AS earliestExpiry,
+      min(CASE WHEN sample_rank<=${DASHBOARD_BATCH_LIMIT} THEN received END) AS earliestReceived
+      FROM (SELECT received,expires,row_number() OVER (ORDER BY received DESC) AS sample_rank FROM (${sample}))`).bind(...args, DASHBOARD_BATCH_LIMIT + 1),
     db.prepare(`WITH expanded AS (
       SELECT cast(b.received/${HOUR} AS INTEGER)*${HOUR} AS at,
         json_extract(j.value,'$[1]') AS route,json_extract(j.value,'$[2]') AS kind,
@@ -40,10 +42,11 @@ export async function dashboard(db: Database, filters: DashboardFilters, now: nu
     db.prepare("SELECT count(*) AS expiredBatches,min(expires) AS oldestExpiry FROM batches WHERE expires<=?").bind(now),
   ];
   const results = await db.batch(statements) as Array<{ results: unknown[] }>;
-  const meta = results[0].results[0] as { batches: number; latestReceived: number | null; earliestExpiry: number | null };
+  const meta = results[0].results[0] as { batches: number; latestReceived: number | null; earliestExpiry: number | null; earliestReceived: number | null };
   const totals = { page: 0, filter: 0, error: 0, start: 0, success: 0, rejected: 0, unknown: 0 };
   const trend = new Map<number, DashboardData["trend"][number]>();
-  for (let at = Math.floor(from / HOUR) * HOUR; at <= now; at += HOUR) trend.set(at, { at, page: 0, start: 0, error: 0 });
+  const trendFrom = meta.batches > DASHBOARD_BATCH_LIMIT ? Math.max(from, meta.earliestReceived ?? from) : from;
+  for (let at = Math.floor(trendFrom / HOUR) * HOUR; at <= now; at += HOUR) trend.set(at, { at, page: 0, start: 0, error: 0 });
   const routes = new Map<string, DashboardData["routes"][number]>();
   const operations = new Map<string, DashboardData["operations"][number]>();
   const clients = new Map<string, DashboardData["clients"][number]>();

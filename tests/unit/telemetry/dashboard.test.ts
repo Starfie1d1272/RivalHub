@@ -50,9 +50,10 @@ it("protects dashboard queries and bounds D1 summaries without exposing identiti
       INSERT INTO batches SELECT 'fixture',cast(x AS TEXT),?,?,?,'private-account','private-session','user','test','production',1,X'00',? FROM n`)
       .bind(now, now + 600000, new Date(now).toISOString().slice(0, 10), JSON.stringify(newerSummary)).run();
     const bounded = await mf.dispatchFetch("https://worker.invalid/admin/dashboard", { headers });
-    const sampled = await bounded.json() as { truncated: boolean; sampledBatches: number; totals: { page: number } };
+    const sampled = await bounded.json() as { trend: { at: number }[]; truncated: boolean; sampledBatches: number; totals: { page: number } };
     expect(sampled.truncated).toBe(true);
     expect(sampled.sampledBatches).toBe(1000);
     expect(sampled.totals.page).toBe(3000);
+    expect(sampled.trend[0].at).toBe(Math.floor(now / 3600000) * 3600000);
   } finally { await mf.dispose(); }
 }, 30000);
