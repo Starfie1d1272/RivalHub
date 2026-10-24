@@ -1,7 +1,8 @@
+import { deliverExistingFixtureVetoInvalidations } from "./harness/veto-delivery";
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn(), revalidatePublicSeasonTags: vi.fn(), revalidatePublicStatsTag: vi.fn(), revalidateSeasonPaths: vi.fn() }));
+vi.mock("@/lib/revalidation", () => ({ revalidateVetoRoomPaths: vi.fn(), revalidateMatchPaths: vi.fn(), revalidatePublicSeasonTags: vi.fn(), revalidatePublicStatsTag: vi.fn(), revalidateSeasonPaths: vi.fn() }));
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { loadBetFacts } from "@/lib/bet/facts";
@@ -76,6 +77,18 @@ describe("veto lifecycle shipped reader1/publisher0", () => {
     const maps = (await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId))).sort((a, b) => a.id.localeCompare(b.id));
     expect(maps.find(m => m.id === f.mapOneId)!.startedAt).not.toBeNull();
     await readVetoRoomCore(f.matchId); await reconcileVetoRoom(f.matchId);
+    // A delivery-only invocation may drain durable cache work, without
+    // publishing the independently disabled appeal-closure transition.
+    // Reproduce the CI worker queue: earlier specs can leave more than the
+    // production scheduler's 50-delivery batch. These are real session facts,
+    // not manually acknowledged outbox rows.
+    const previousRooms = Array.from({ length: 55 }, () => randomUUID());
+    await db.insert(schema.matches).values(previousRooms.map(id => ({ id, seasonId: f.seasonId,
+      entryAId: f.entryAId, entryBId: f.entryBId, stage: "fixture-stage", format: "bo3" as const, status: "cancelled" as const })));
+    await db.insert(schema.matchVetoSessions).values(previousRooms.map(matchId => ({ matchId })));
+    expect((await db.select().from(schema.matchVetoInvalidations).where(gt(schema.matchVetoInvalidations.generation, schema.matchVetoInvalidations.publishedGeneration))).length).toBeGreaterThan(50);
+    await deliverExistingFixtureVetoInvalidations();
+    expect(await runMatchVetoTimeoutJob()).toMatchObject({ result: { changed: 0 } });
     expect(await runMatchVetoTimeoutJob()).toMatchObject({ result: { processed: 0, changed: 0 } });
     const pool = createLocalPool();
     try {

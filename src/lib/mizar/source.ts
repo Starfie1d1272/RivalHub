@@ -10,6 +10,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { assertInstallationInTx } from "./installation";
 import { loadMizarMatchDocumentInTx } from "./context";
+import { touchMizarInstallation } from "./heartbeat";
 import { LINEUP_REVIEW_REQUIRED } from "./lineup-display";
 
 export const sourceClaimSchema = z.strictObject({
@@ -34,7 +35,7 @@ export async function validateObservedLineupInTx(tx: TxDb, match: Match, steam64
 
 export async function claimMizarSource(installationId: string, competitionId: string, rawInput: z.input<typeof sourceClaimSchema>) {
   const input = sourceClaimSchema.parse(rawInput);
-  return db.transaction(async tx => {
+  const result = await db.transaction(async tx => {
     await assertInstallationInTx(tx, installationId, competitionId);
     const match = await lockMatchInTx(tx, input.matchId);
     if (match.seasonId !== competitionId || !["scheduled", "in_progress"].includes(match.status)) throw new AppError(ErrorCode.FORBIDDEN, "不能连接这场比赛的数据源。");
@@ -58,10 +59,11 @@ export async function claimMizarSource(installationId: string, competitionId: st
     const now = new Date();
     if (active) await tx.update(matchLiveSessions).set({ closedAt: now, closeReason: "handover", autoCanonicalizationArmed: false }).where(eq(matchLiveSessions.id, active.id));
     const [binding] = await tx.insert(matchLiveSessions).values({ matchId: match.id, installationId, producerInstanceId: input.producerInstanceId, liveSessionId: input.liveSessionId, authorityRevision: (latest?.revision ?? 0) + 1, programSourceGeneration: input.programSourceGeneration, mapEpoch: input.mapEpoch, contextRevision: input.contextRevision, identityHealth: "unknown", lineupHealth: lineupValid ? "healthy" : observedLineup ? LINEUP_REVIEW_REQUIRED : "unknown", continuityHealth: "unknown", autoCanonicalizationArmed: false }).returning();
-    await tx.update(mizarInstallations).set({ lastSeenAt: now }).where(eq(mizarInstallations.id, installationId));
     await writeAuditInTx(tx, { seasonId: competitionId, actorId: mizarAuditActorId(installationId), action: "mizar.source.claim", targetId: match.id, meta: { installationId, authorityRevision: binding.authorityRevision, previousInstallationId: active?.installationId ?? null } });
     return { claimed: true, authorityRevision: binding.authorityRevision };
   });
+  if (result.claimed) await touchMizarInstallation(installationId, competitionId);
+  return result;
 }
 
 export async function releaseMizarSource(
