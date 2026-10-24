@@ -1,0 +1,310 @@
+{
+  "environment": "Chromium / Next dev / dedicated migrated local PostgreSQL fixture; controlled layout geometry, not production or LCP acceptance",
+  "baselineRef": "daf263b3be95a101358446569bd7264f59dce3bf",
+  "candidateLayoutSha256": "6d1bf92a099d763c5f8d194c450910d5e81c02904332795f42d402e12932f407",
+  "contract": "One small-viewport minimum season content slot persists outside Suspense. Natural document flow and long-content growth remain enabled; footer has no visibility/position/height change.",
+  "fixture": {
+    "kind": "custom playing event",
+    "longRoute": "20 published season announcements, each 80 repetitions of a short public fixture sentence",
+    "shortRoute": "season information with empty optional groups and contacts"
+  },
+  "reproduction": [
+    "Create an isolated database with the canonical active migration chain and local seed; never block a production/shared database. Create a new public fixture slug per cold-read run to avoid season cache hits.",
+    "Before navigating Chromium to the long announcement route, BEGIN; LOCK TABLE seasons IN ACCESS EXCLUSIVE MODE in a dedicated fixture connection.",
+    "Observe main [aria-busy=true] attached and wait two animation frames; record footer.getBoundingClientRect(). Do not require the empty fallback child to have its own height: the candidate outer slot owns geometry.",
+    "COMMIT the fixture connection, await the first announcement heading and document.fonts.ready, then collect non-hadRecentInput PerformanceObserver layout-shift entries after 700ms.",
+    "At 1440x1000 and 390x844 navigate between the long announcement and short info routes; scroll the footer into view, assert its first link visible and document scrollWidth <= innerWidth.",
+    "The desktop before/after and independent mobile candidate runs below use equivalent fresh fixtures. The candidate also wraps announcement URL reads in its own Suspense/io boundary, eliminating the dev instant-shell URL-data warning."
+  ],
+  "runs": [
+    {
+      "candidate": "before",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "initialFooter": {
+        "x": 0,
+        "y": 942.5,
+        "width": 1440,
+        "height": 57.5
+      },
+      "finalFooter": {
+        "x": 0,
+        "y": 8960,
+        "width": 1440,
+        "height": 57.5
+      },
+      "shifts": [
+        {
+          "value": 2.6046413845486116e-06,
+          "sources": [
+            {
+              "tag": "DIV",
+              "footer": false,
+              "previousY": 17.5,
+              "currentY": 19.5
+            }
+          ]
+        },
+        {
+          "value": 0.057,
+          "sources": [
+            {
+              "tag": "FOOTER",
+              "footer": true,
+              "previousY": 942.5,
+              "currentY": 0
+            }
+          ]
+        },
+        {
+          "value": 0.00012730848524305553,
+          "sources": [
+            {
+              "tag": "A",
+              "footer": false,
+              "previousY": 17,
+              "currentY": 17
+            },
+            {
+              "tag": "A",
+              "footer": false,
+              "previousY": 17,
+              "currentY": 17
+            },
+            {
+              "tag": "DIV",
+              "footer": false,
+              "previousY": 19.5,
+              "currentY": 19.5
+            },
+            {
+              "tag": "A",
+              "footer": false,
+              "previousY": 17,
+              "currentY": 17
+            },
+            {
+              "tag": "A",
+              "footer": false,
+              "previousY": 17,
+              "currentY": 17
+            }
+          ]
+        }
+      ],
+      "long1440": {
+        "footer": {
+          "x": 0,
+          "y": 942,
+          "width": 1440,
+          "height": 57.5
+        },
+        "overflow": false
+      },
+      "short1440": {
+        "footer": {
+          "x": 0,
+          "y": 942.5,
+          "width": 1440,
+          "height": 57.5
+        },
+        "overflow": false,
+        "documentHeight": 1000
+      },
+      "long390": {
+        "footer": {
+          "x": 0,
+          "y": 745,
+          "width": 390,
+          "height": 98.5
+        },
+        "overflow": false
+      },
+      "short390": {
+        "footer": {
+          "x": 0,
+          "y": 745.5,
+          "width": 390,
+          "height": 98.5
+        },
+        "overflow": false,
+        "documentHeight": 844
+      },
+      "totalObservedCls": 0.05712991312662761,
+      "footerSourceCls": 0.057
+    },
+    {
+      "candidate": "after",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "initialFooter": {
+        "x": 0,
+        "y": 1064,
+        "width": 1440,
+        "height": 57.5
+      },
+      "finalFooter": {
+        "x": 0,
+        "y": 8960,
+        "width": 1440,
+        "height": 57.5
+      },
+      "shifts": [
+        {
+          "value": 2.6046413845486116e-06,
+          "sources": [
+            {
+              "tag": "DIV",
+              "footer": false,
+              "previousY": 17.5,
+              "currentY": 19.5
+            }
+          ]
+        },
+        {
+          "value": 0.00012441963855131172,
+          "sources": [
+            {
+              "tag": "A",
+              "footer": false,
+              "previousY": 17,
+              "currentY": 17
+            },
+            {
+              "tag": "A",
+              "footer": false,
+              "previousY": 17,
+              "currentY": 17
+            },
+            {
+              "tag": "DIV",
+              "footer": false,
+              "previousY": 19.5,
+              "currentY": 19.5
+            },
+            {
+              "tag": "A",
+              "footer": false,
+              "previousY": 17,
+              "currentY": 17
+            },
+            {
+              "tag": "A",
+              "footer": false,
+              "previousY": 17,
+              "currentY": 17
+            }
+          ]
+        }
+      ],
+      "long1440": {
+        "footer": {
+          "x": 0,
+          "y": 942,
+          "width": 1440,
+          "height": 57.5
+        },
+        "overflow": false
+      },
+      "short1440": {
+        "footer": {
+          "x": 0,
+          "y": 942,
+          "width": 1440,
+          "height": 57.5
+        },
+        "overflow": false,
+        "documentHeight": 1122
+      },
+      "long390": {
+        "footer": {
+          "x": 0,
+          "y": 745,
+          "width": 390,
+          "height": 98.5
+        },
+        "overflow": false
+      },
+      "short390": {
+        "footer": {
+          "x": 0,
+          "y": 745,
+          "width": 390,
+          "height": 98.5
+        },
+        "overflow": false,
+        "documentHeight": 1008
+      },
+      "totalObservedCls": 0.00012702427993586032,
+      "footerSourceCls": 0
+    },
+    {
+      "candidate": "after-mobile",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "initialFooter": {
+        "x": 0,
+        "y": 909,
+        "width": 390,
+        "height": 98.5
+      },
+      "finalFooter": {
+        "x": 0,
+        "y": 19549,
+        "width": 390,
+        "height": 98.5
+      },
+      "shifts": [],
+      "long1440": {
+        "footer": {
+          "x": 0,
+          "y": 942,
+          "width": 1440,
+          "height": 57.5
+        },
+        "overflow": false
+      },
+      "short1440": {
+        "footer": {
+          "x": 0,
+          "y": 942,
+          "width": 1440,
+          "height": 57.5
+        },
+        "overflow": false,
+        "documentHeight": 1122
+      },
+      "long390": {
+        "footer": {
+          "x": 0,
+          "y": 745,
+          "width": 390,
+          "height": 98.5
+        },
+        "overflow": false
+      },
+      "short390": {
+        "footer": {
+          "x": 0,
+          "y": 745,
+          "width": 390,
+          "height": 98.5
+        },
+        "overflow": false,
+        "documentHeight": 1008
+      },
+      "totalObservedCls": 0,
+      "footerSourceCls": 0
+    }
+  ],
+  "limits": [
+    "The header-only production-candidate trace reported by W07 is independent evidence; its CLS number is not reused as this fixture baseline.",
+    "No end-to-end production CLS budget, final integrated candidate or LCP improvement is inferred from these development fixture runs."
+  ]
+}
