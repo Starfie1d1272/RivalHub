@@ -217,7 +217,7 @@ export async function loadAdminMatchOverview({
     match.qualificationRunId === qualificationRun.id && match.stage === "play-in" && match.ownership === "manual" &&
     match.majorStageRunId === null && match.managedKey === null && match.bracketNodeId === null);
   const executionCandidates = executionFacts ? sortAdminMatches(executionFacts.filter(match =>
-    match.stage === executionStage && (executionStage !== "play-in" || isQualificationMatch(match)) &&
+    match.stage === executionStage && (!qualificationRun || executionStage !== "play-in" || isQualificationMatch(match)) &&
     (!filterStatus || filterStatus === "all" || match.status === filterStatus) &&
     (!filterTeam || filterTeam === "all" || match.entryAId === filterTeam || match.entryBId === filterTeam))) : [];
   const totalPages = Math.ceil(executionCandidates.length / 25);

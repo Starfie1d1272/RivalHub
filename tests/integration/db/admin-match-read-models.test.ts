@@ -419,6 +419,14 @@ describe("admin match read models PostgreSQL integration", () => {
         expect(last.page).toBe(firstPage.totalPages);
       }
       expect(await loadAdminPostMatchTaskPage(ids.seasonA, { team: "invalid-team" })).toMatchObject({ rows: [], total: 0, page: 1 });
+      // Custom tournaments may legitimately name an ordinary configured stage
+      // "play-in" without owning a qualification run.
+      await pool.query("UPDATE seasons SET stage_plan=$2::json WHERE id=$1", [ids.seasonA, JSON.stringify([{ key: "play-in", name: "Custom play-in", type: "round_robin", teamCount: 2, advanceTiers: [] }])]);
+      await pool.query("UPDATE matches SET stage='play-in' WHERE id=$1", [scaleMatchIds[0]]);
+      const customPlayIn = await loadAdminMatchOverview({ seasonSlug: seasonASlug, stage: "play-in" });
+      expect(customPlayIn?.pagination?.total).toBe(1);
+      expect(customPlayIn?.stageViews[0]?.matches.map(row => row.id)).toEqual([scaleMatchIds[0]]);
+
 
     } finally {
       const cleanupClient = await pool.connect();
