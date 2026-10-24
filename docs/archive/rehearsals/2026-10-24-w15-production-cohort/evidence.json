@@ -1,0 +1,4707 @@
+{
+  "sourceSha": "67d279c55e703e23a2cfe7ec0a2d4b907fa79b22",
+  "browser": "Chromium153.0.8010.12",
+  "mode": "Next16.4.2 production; loopback fixture; desktop1280x800; cold/warm browser, server cache not cold-controlled",
+  "purpose": "intermediate collection pipeline, not final BP/worker mixed acceptance or a before/after speedup",
+  "scope": "synthetic canonical prediction fixture; BET open/settled, stats overview/players, schedule; no business actions",
+  "externalTlsProbe": {
+    "browser": "153.0.8010.12",
+    "ignoreHTTPSErrors": false,
+    "results": [
+      {
+        "label": "analytics",
+        "reason": "ERR_CERT_AUTHORITY_INVALID"
+      },
+      {
+        "label": "speed-insights",
+        "reason": "ERR_CERT_AUTHORITY_INVALID"
+      }
+    ]
+  },
+  "footprint": {
+    "build": {
+      "commit": "67d279c55e703e23a2cfe7ec0a2d4b907fa79b22",
+      "nextBuildId": "9d9FDF0jRPxFjkqTJjkZW",
+      "vercelBuildId": null
+    },
+    "bytes": {
+      "nextOutputTotal": {
+        "bytes": 304093860,
+        "files": 3843
+      },
+      "nextBuildCache": {
+        "bytes": 218455132,
+        "files": 33
+      },
+      "nextOutputWithoutBuildCache": {
+        "bytes": 85638728,
+        "files": 3810
+      },
+      "nextServerAndFunctionOutput": {
+        "bytes": 74713195,
+        "files": 3533
+      },
+      "vercelOutputTotal": null,
+      "vercelFunctions": null,
+      "nextStatic": {
+        "bytes": 9308055,
+        "files": 240
+      },
+      "publicAssets": {
+        "bytes": 20484634,
+        "files": 72
+      },
+      "vercelStatic": null
+    },
+    "largestNextRouteArtifacts": [
+      {
+        "path": ".next/server/app/admin/[seasonSlug]/matches/[matchId]/page_client-reference-manifest.js",
+        "bytes": 161392
+      },
+      {
+        "path": ".next/server/app/[seasonSlug]/matches/[matchId]/page_client-reference-manifest.js",
+        "bytes": 145347
+      },
+      {
+        "path": ".next/server/app/admin/[seasonSlug]/matches/page_client-reference-manifest.js",
+        "bytes": 120163
+      },
+      {
+        "path": ".next/server/app/[seasonSlug]/matches/page_client-reference-manifest.js",
+        "bytes": 100453
+      },
+      {
+        "path": ".next/server/app/[seasonSlug]/teams/[entryId]/page_client-reference-manifest.js",
+        "bytes": 100069
+      },
+      {
+        "path": ".next/server/app/players/[userId]/page_client-reference-manifest.js",
+        "bytes": 90697
+      },
+      {
+        "path": ".next/server/app/teams/[slug]/page_client-reference-manifest.js",
+        "bytes": 90106
+      },
+      {
+        "path": ".next/server/app/[seasonSlug]/register/page_client-reference-manifest.js",
+        "bytes": 87138
+      },
+      {
+        "path": ".next/server/app/admin/[seasonSlug]/prestart/page_client-reference-manifest.js",
+        "bytes": 86395
+      },
+      {
+        "path": ".next/server/app/teams/recruitment/page_client-reference-manifest.js",
+        "bytes": 85286
+      },
+      {
+        "path": ".next/server/app/[seasonSlug]/page_client-reference-manifest.js",
+        "bytes": 83973
+      },
+      {
+        "path": ".next/server/app/my/teams/page_client-reference-manifest.js",
+        "bytes": 83515
+      }
+    ],
+    "largestVercelFunctions": [],
+    "sharedTracedDependencyHotspots": [
+      {
+        "name": "next",
+        "bytes": 1587175,
+        "files": 108,
+        "traceCount": 110
+      },
+      {
+        "name": "pg",
+        "bytes": 97103,
+        "files": 18,
+        "traceCount": 106
+      },
+      {
+        "name": "@opentelemetry/api",
+        "bytes": 76092,
+        "files": 45,
+        "traceCount": 110
+      },
+      {
+        "name": "react",
+        "bytes": 68633,
+        "files": 4,
+        "traceCount": 110
+      },
+      {
+        "name": "pg-protocol",
+        "bytes": 33132,
+        "files": 7,
+        "traceCount": 106
+      },
+      {
+        "name": "@swc/helpers",
+        "bytes": 28106,
+        "files": 3,
+        "traceCount": 110
+      },
+      {
+        "name": "pg-pool",
+        "bytes": 15543,
+        "files": 2,
+        "traceCount": 106
+      },
+      {
+        "name": "pg-types",
+        "bytes": 15389,
+        "files": 6,
+        "traceCount": 106
+      },
+      {
+        "name": "pg-connection-string",
+        "bytes": 8846,
+        "files": 2,
+        "traceCount": 106
+      },
+      {
+        "name": "pgpass",
+        "bytes": 7029,
+        "files": 3,
+        "traceCount": 106
+      },
+      {
+        "name": "split2",
+        "bytes": 4877,
+        "files": 2,
+        "traceCount": 106
+      },
+      {
+        "name": "postgres-interval",
+        "bytes": 4079,
+        "files": 2,
+        "traceCount": 106
+      }
+    ]
+  },
+  "cohorts": [
+    {
+      "summary": {
+        "size": 1,
+        "exitCode": 0,
+        "samePid": true,
+        "poolCount": 1,
+        "delta": {
+          "acquires": 17,
+          "sql": 58,
+          "sqlMs": 194.11031300000468,
+          "holdMs": 212.36348099999304,
+          "failures": 0,
+          "transactions": 3
+        },
+        "maxWaiting": 0,
+        "rssBytes": [
+          202063872,
+          226250752
+        ],
+        "heapBytes": [
+          82667560,
+          88718024
+        ],
+        "samples": 32,
+        "browserPages": 2,
+        "pageErrors": 0,
+        "badPageStatuses": [],
+        "readyByRound": [
+          {
+            "round": "cold-browser",
+            "acceptedBatches": 1,
+            "ready": 1,
+            "statuses": [
+              204
+            ]
+          },
+          {
+            "round": "warm-browser",
+            "acceptedBatches": 1,
+            "ready": 1,
+            "statuses": [
+              204
+            ]
+          }
+        ],
+        "acquireStatesDelta": {
+          "reuse": 17,
+          "connect": 0,
+          "queued": 0
+        },
+        "acquireBucketsDelta": [
+          11,
+          6,
+          0,
+          0,
+          0
+        ],
+        "transactionMsDelta": 136.01909099999466
+      },
+      "harnessPatchSha256": "90bb8c6dc5364ab1afbf08e5dbc7174b207700c2873f4eba45db2f09eebb996d",
+      "collectorSha256": "9ba4a480c98227c624982b0c590f7f48c0c1649507428213e2cc2cae716e6e83",
+      "receiverWindows": [
+        {
+          "round": "cold-browser",
+          "batchDelta": 1,
+          "statuses": [
+            204
+          ],
+          "ready": [
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 430
+            }
+          ]
+        },
+        {
+          "round": "warm-browser",
+          "batchDelta": 1,
+          "statuses": [
+            204
+          ],
+          "ready": [
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 374
+            }
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "round": "cold-browser",
+          "label": "bet-open",
+          "index": 0,
+          "httpStatus": 200,
+          "domUsableObservedMs": 521.7999999998137,
+          "lcpMs": 448,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 76,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 134717,
+              "decodedBodyBytes": 321391,
+              "transferBytes": 137117
+            },
+            "script": {
+              "count": 25,
+              "encodedBodyBytes": 339953,
+              "decodedBodyBytes": 1086186,
+              "transferBytes": 347453
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            },
+            "fetch": {
+              "count": 37,
+              "encodedBodyBytes": 38777,
+              "decodedBodyBytes": 104912,
+              "transferBytes": 49877
+            }
+          },
+          "document": {
+            "transferBytes": 21230,
+            "encodedBodyBytes": 20930,
+            "decodedBodyBytes": 126145,
+            "ttfbMs": 15.200000000186265
+          },
+          "scrollHeight": 2029,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "bet-open",
+          "index": 0,
+          "httpStatus": 200,
+          "domUsableObservedMs": 408.8999999994412,
+          "lcpMs": 368,
+          "clsSessionWindowMaximum": 0.00014312403202056885,
+          "longTaskMs": 0,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 133063,
+              "decodedBodyBytes": 314532,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 25,
+              "encodedBodyBytes": 339953,
+              "decodedBodyBytes": 1086186,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 37,
+              "encodedBodyBytes": 38584,
+              "decodedBodyBytes": 104443,
+              "transferBytes": 39514
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 21234,
+            "encodedBodyBytes": 20934,
+            "decodedBodyBytes": 126145,
+            "ttfbMs": 4.6000000005587935
+          },
+          "scrollHeight": 2029,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "size": 10,
+        "exitCode": 0,
+        "samePid": true,
+        "poolCount": 1,
+        "delta": {
+          "acquires": 242,
+          "sql": 433,
+          "sqlMs": 18268.888234000107,
+          "holdMs": 18367.637270999963,
+          "failures": 0,
+          "transactions": 12
+        },
+        "maxWaiting": 13,
+        "rssBytes": [
+          226250752,
+          411316224
+        ],
+        "heapBytes": [
+          89046560,
+          174296760
+        ],
+        "samples": 50,
+        "browserPages": 20,
+        "pageErrors": 0,
+        "badPageStatuses": [],
+        "readyByRound": [
+          {
+            "round": "cold-browser",
+            "acceptedBatches": 10,
+            "ready": 10,
+            "statuses": [
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204
+            ]
+          },
+          {
+            "round": "warm-browser",
+            "acceptedBatches": 13,
+            "ready": 10,
+            "statuses": [
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204
+            ]
+          }
+        ],
+        "acquireStatesDelta": {
+          "reuse": 192,
+          "connect": 3,
+          "queued": 47
+        },
+        "acquireBucketsDelta": [
+          133,
+          54,
+          41,
+          14,
+          0
+        ],
+        "transactionMsDelta": 6822.090768999988
+      },
+      "harnessPatchSha256": "90bb8c6dc5364ab1afbf08e5dbc7174b207700c2873f4eba45db2f09eebb996d",
+      "collectorSha256": "9ba4a480c98227c624982b0c590f7f48c0c1649507428213e2cc2cae716e6e83",
+      "receiverWindows": [
+        {
+          "round": "cold-browser",
+          "batchDelta": 10,
+          "statuses": [
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204
+          ],
+          "ready": [
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 2020
+            },
+            {
+              "route": "/[seasonSlug]/matches",
+              "module": "schedule",
+              "phase": "primary",
+              "durationMs": 2200
+            },
+            {
+              "route": "/[seasonSlug]/matches",
+              "module": "schedule",
+              "phase": "primary",
+              "durationMs": 2162
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 2280
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 2216
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 2468
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1357
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1400
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1346
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1338
+            }
+          ]
+        },
+        {
+          "round": "warm-browser",
+          "batchDelta": 13,
+          "statuses": [
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204
+          ],
+          "ready": [
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 1994
+            },
+            {
+              "route": "/[seasonSlug]/matches",
+              "module": "schedule",
+              "phase": "primary",
+              "durationMs": 1911
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1156
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 2199
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 1956
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1195
+            },
+            {
+              "route": "/[seasonSlug]/matches",
+              "module": "schedule",
+              "phase": "primary",
+              "durationMs": 2066
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 928
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 2095
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1151
+            }
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "round": "cold-browser",
+          "label": "bet-records",
+          "index": 1,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2289.7999999998137,
+          "lcpMs": 1540,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 769,
+          "resources": {
+            "link": {
+              "count": 7,
+              "encodedBodyBytes": 134561,
+              "decodedBodyBytes": 321235,
+              "transferBytes": 136661
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 339326,
+              "decodedBodyBytes": 1085559,
+              "transferBytes": 346526
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 29,
+              "encodedBodyBytes": 33003,
+              "decodedBodyBytes": 89145,
+              "transferBytes": 41703
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 17307,
+            "encodedBodyBytes": 17007,
+            "decodedBodyBytes": 68995,
+            "ttfbMs": 368.09999999962747
+          },
+          "scrollHeight": 922,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "schedule",
+          "index": 4,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2372.5,
+          "lcpMs": 1712,
+          "clsSessionWindowMaximum": 0.00020206706523895262,
+          "longTaskMs": 409,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 134717,
+              "decodedBodyBytes": 321391,
+              "transferBytes": 137117
+            },
+            "script": {
+              "count": 26,
+              "encodedBodyBytes": 411440,
+              "decodedBodyBytes": 1353623,
+              "transferBytes": 419240
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 33,
+              "encodedBodyBytes": 25926,
+              "decodedBodyBytes": 63068,
+              "transferBytes": 35826
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 29771,
+            "encodedBodyBytes": 29471,
+            "decodedBodyBytes": 167285,
+            "ttfbMs": 135.09999999962747
+          },
+          "scrollHeight": 2186,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "schedule",
+          "index": 9,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2410.2000000001863,
+          "lcpMs": 1964,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 680,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 134717,
+              "decodedBodyBytes": 321391,
+              "transferBytes": 137117
+            },
+            "script": {
+              "count": 27,
+              "encodedBodyBytes": 414784,
+              "decodedBodyBytes": 1361721,
+              "transferBytes": 422884
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 36,
+              "encodedBodyBytes": 38155,
+              "decodedBodyBytes": 103507,
+              "transferBytes": 48955
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 29405,
+            "encodedBodyBytes": 29105,
+            "decodedBodyBytes": 167242,
+            "ttfbMs": 38.799999999813735
+          },
+          "scrollHeight": 2186,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "bet-open",
+          "index": 5,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2423.9000000003725,
+          "lcpMs": 1648,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 1093,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 134717,
+              "decodedBodyBytes": 321391,
+              "transferBytes": 137117
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 336609,
+              "decodedBodyBytes": 1078088,
+              "transferBytes": 343809
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 33,
+              "encodedBodyBytes": 26045,
+              "decodedBodyBytes": 63462,
+              "transferBytes": 35945
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 20302,
+            "encodedBodyBytes": 20002,
+            "decodedBodyBytes": 126059,
+            "ttfbMs": 333
+          },
+          "scrollHeight": 2029,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:script:canceled": 2,
+            "application:fetch:canceled": 1
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "bet-open",
+          "index": 0,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2376.4000000003725,
+          "lcpMs": 1952,
+          "clsSessionWindowMaximum": 0.00020206706523895262,
+          "longTaskMs": 143,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 134717,
+              "decodedBodyBytes": 321391,
+              "transferBytes": 137117
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 336609,
+              "decodedBodyBytes": 1078088,
+              "transferBytes": 343809
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 35,
+              "encodedBodyBytes": 26676,
+              "decodedBodyBytes": 64548,
+              "transferBytes": 37176
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 21051,
+            "encodedBodyBytes": 20751,
+            "decodedBodyBytes": 126102,
+            "ttfbMs": 441.8999999994412
+          },
+          "scrollHeight": 2029,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "bet-records",
+          "index": 6,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2444.0999999996275,
+          "lcpMs": 1892,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 870,
+          "resources": {
+            "link": {
+              "count": 7,
+              "encodedBodyBytes": 134561,
+              "decodedBodyBytes": 321235,
+              "transferBytes": 136661
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 339326,
+              "decodedBodyBytes": 1085559,
+              "transferBytes": 346526
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 30,
+              "encodedBodyBytes": 33313,
+              "decodedBodyBytes": 89687,
+              "transferBytes": 42313
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 18063,
+            "encodedBodyBytes": 17763,
+            "decodedBodyBytes": 69038,
+            "ttfbMs": 415.20000000018626
+          },
+          "scrollHeight": 922,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:script:canceled": 2,
+            "application:fetch:canceled": 1
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "stats-overview",
+          "index": 2,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1429.5,
+          "lcpMs": 1356,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 219,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144631,
+              "decodedBodyBytes": 355015,
+              "transferBytes": 16523
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 20653
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 16,
+              "encodedBodyBytes": 19977,
+              "decodedBodyBytes": 56157,
+              "transferBytes": 24777
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 18329,
+            "encodedBodyBytes": 18029,
+            "decodedBodyBytes": 76822,
+            "ttfbMs": 58.700000000186265
+          },
+          "scrollHeight": 1099,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "stats-overview",
+          "index": 7,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1524.199999999255,
+          "lcpMs": 1136,
+          "clsSessionWindowMaximum": 0.00014782627820968626,
+          "longTaskMs": 137,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144631,
+              "decodedBodyBytes": 355015,
+              "transferBytes": 16523
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 20653
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 17,
+              "encodedBodyBytes": 22630,
+              "decodedBodyBytes": 63554,
+              "transferBytes": 27730
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 18714,
+            "encodedBodyBytes": 18414,
+            "decodedBodyBytes": 76822,
+            "ttfbMs": 37.09999999962747
+          },
+          "scrollHeight": 1099,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "stats-players",
+          "index": 8,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1330.4000000003725,
+          "lcpMs": 1020,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 172,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144316,
+              "decodedBodyBytes": 353457,
+              "transferBytes": 16208
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 20653
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 17,
+              "encodedBodyBytes": 22641,
+              "decodedBodyBytes": 63566,
+              "transferBytes": 27741
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 16913,
+            "encodedBodyBytes": 16613,
+            "decodedBodyBytes": 62478,
+            "ttfbMs": 133.20000000018626
+          },
+          "scrollHeight": 800,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "stats-players",
+          "index": 3,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1423.5,
+          "lcpMs": 1336,
+          "clsSessionWindowMaximum": 0.00494740104675293,
+          "longTaskMs": 84,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144316,
+              "decodedBodyBytes": 353457,
+              "transferBytes": 16208
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 20653
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 17,
+              "encodedBodyBytes": 22641,
+              "decodedBodyBytes": 63566,
+              "transferBytes": 27741
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 17292,
+            "encodedBodyBytes": 16992,
+            "decodedBodyBytes": 62478,
+            "ttfbMs": 125.59999999962747
+          },
+          "scrollHeight": 800,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "bet-records",
+          "index": 1,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2419,
+          "lcpMs": 2300,
+          "clsSessionWindowMaximum": 0.00020206706523895262,
+          "longTaskMs": 0,
+          "resources": {
+            "link": {
+              "count": 7,
+              "encodedBodyBytes": 132907,
+              "decodedBodyBytes": 314376,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 339326,
+              "decodedBodyBytes": 1085559,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 30,
+              "encodedBodyBytes": 33313,
+              "decodedBodyBytes": 89687,
+              "transferBytes": 32143
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 18054,
+            "encodedBodyBytes": 17754,
+            "decodedBodyBytes": 69038,
+            "ttfbMs": 154.09999999962747
+          },
+          "scrollHeight": 922,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "schedule",
+          "index": 9,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2391.199999999255,
+          "lcpMs": 2212,
+          "clsSessionWindowMaximum": 0.00020206706523895262,
+          "longTaskMs": 0,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 133063,
+              "decodedBodyBytes": 314532,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 27,
+              "encodedBodyBytes": 414784,
+              "decodedBodyBytes": 1361721,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 37,
+              "encodedBodyBytes": 38465,
+              "decodedBodyBytes": 104049,
+              "transferBytes": 39395
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 29385,
+            "encodedBodyBytes": 29085,
+            "decodedBodyBytes": 167242,
+            "ttfbMs": 167.20000000018626
+          },
+          "scrollHeight": 2186,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "bet-open",
+          "index": 0,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2536.5,
+          "lcpMs": 2484,
+          "clsSessionWindowMaximum": 0.00014312403202056885,
+          "longTaskMs": 154,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 133063,
+              "decodedBodyBytes": 314532,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 25,
+              "encodedBodyBytes": 339953,
+              "decodedBodyBytes": 1086186,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 37,
+              "encodedBodyBytes": 38584,
+              "decodedBodyBytes": 104443,
+              "transferBytes": 39514
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 21074,
+            "encodedBodyBytes": 20774,
+            "decodedBodyBytes": 126102,
+            "ttfbMs": 12.099999999627471
+          },
+          "scrollHeight": 2029,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "stats-overview",
+          "index": 2,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1199.9000000003725,
+          "lcpMs": 1176,
+          "clsSessionWindowMaximum": 0.00014782627820968626,
+          "longTaskMs": 57,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144631,
+              "decodedBodyBytes": 355015,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 17,
+              "encodedBodyBytes": 22630,
+              "decodedBodyBytes": 63554,
+              "transferBytes": 17560
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 18330,
+            "encodedBodyBytes": 18030,
+            "decodedBodyBytes": 76822,
+            "ttfbMs": 83.3999999994412
+          },
+          "scrollHeight": 1099,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 6,
+          "failureGroups": {
+            "application:fetch:canceled": 2,
+            "application:script:canceled": 4
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 4
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "bet-records",
+          "index": 6,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2404.5999999996275,
+          "lcpMs": 2236,
+          "clsSessionWindowMaximum": 0.00020206706523895262,
+          "longTaskMs": 54,
+          "resources": {
+            "link": {
+              "count": 7,
+              "encodedBodyBytes": 132907,
+              "decodedBodyBytes": 314376,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 339326,
+              "decodedBodyBytes": 1085559,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 30,
+              "encodedBodyBytes": 33313,
+              "decodedBodyBytes": 89687,
+              "transferBytes": 32143
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 18062,
+            "encodedBodyBytes": 17762,
+            "decodedBodyBytes": 69038,
+            "ttfbMs": 165
+          },
+          "scrollHeight": 922,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "stats-players",
+          "index": 8,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1293.5,
+          "lcpMs": 1192,
+          "clsSessionWindowMaximum": 0.0044529706239700316,
+          "longTaskMs": 0,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144316,
+              "decodedBodyBytes": 353457,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 17,
+              "encodedBodyBytes": 22641,
+              "decodedBodyBytes": 63566,
+              "transferBytes": 17571
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 16733,
+            "encodedBodyBytes": 16433,
+            "decodedBodyBytes": 62478,
+            "ttfbMs": 66.79999999981374
+          },
+          "scrollHeight": 800,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 6,
+          "failureGroups": {
+            "application:fetch:canceled": 2,
+            "application:script:canceled": 4
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 4
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "schedule",
+          "index": 4,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2491.7999999998137,
+          "lcpMs": 2332,
+          "clsSessionWindowMaximum": 0.0001221577525138855,
+          "longTaskMs": 99,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 133063,
+              "decodedBodyBytes": 314532,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 27,
+              "encodedBodyBytes": 414784,
+              "decodedBodyBytes": 1361721,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 38,
+              "encodedBodyBytes": 38948,
+              "decodedBodyBytes": 105004,
+              "transferBytes": 40178
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 29328,
+            "encodedBodyBytes": 29028,
+            "decodedBodyBytes": 167242,
+            "ttfbMs": 39.40000000037253
+          },
+          "scrollHeight": 2186,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "bet-open",
+          "index": 5,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2443.5999999996275,
+          "lcpMs": 2396,
+          "clsSessionWindowMaximum": 3.715463876724243e-05,
+          "longTaskMs": 0,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 133063,
+              "decodedBodyBytes": 314532,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 25,
+              "encodedBodyBytes": 339953,
+              "decodedBodyBytes": 1086186,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 37,
+              "encodedBodyBytes": 38584,
+              "decodedBodyBytes": 104443,
+              "transferBytes": 39514
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 21048,
+            "encodedBodyBytes": 20748,
+            "decodedBodyBytes": 126102,
+            "ttfbMs": 174
+          },
+          "scrollHeight": 2029,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "stats-overview",
+          "index": 7,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1257.0999999996275,
+          "lcpMs": 956,
+          "clsSessionWindowMaximum": 3.715463876724243e-05,
+          "longTaskMs": 0,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144631,
+              "decodedBodyBytes": 355015,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 17,
+              "encodedBodyBytes": 22630,
+              "decodedBodyBytes": 63554,
+              "transferBytes": 17560
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 17829,
+            "encodedBodyBytes": 17529,
+            "decodedBodyBytes": 76779,
+            "ttfbMs": 49.799999999813735
+          },
+          "scrollHeight": 1099,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 6,
+          "failureGroups": {
+            "application:fetch:canceled": 2,
+            "application:script:canceled": 4
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 4
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "stats-players",
+          "index": 3,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1245.5,
+          "lcpMs": 1224,
+          "clsSessionWindowMaximum": 0.004461791121959686,
+          "longTaskMs": 55,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144316,
+              "decodedBodyBytes": 353457,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 17,
+              "encodedBodyBytes": 22641,
+              "decodedBodyBytes": 63566,
+              "transferBytes": 17571
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 17233,
+            "encodedBodyBytes": 16933,
+            "decodedBodyBytes": 62521,
+            "ttfbMs": 59.30000000074506
+          },
+          "scrollHeight": 800,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 6,
+          "failureGroups": {
+            "application:fetch:canceled": 2,
+            "application:script:canceled": 4
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 4
+          }
+        }
+      ]
+    },
+    {
+      "summary": {
+        "size": 20,
+        "exitCode": 0,
+        "samePid": true,
+        "poolCount": 1,
+        "delta": {
+          "acquires": 477,
+          "sql": 803,
+          "sqlMs": 26432.642276000213,
+          "holdMs": 26588.944020000024,
+          "failures": 0,
+          "transactions": 18
+        },
+        "maxWaiting": 31,
+        "rssBytes": [
+          411840512,
+          480837632
+        ],
+        "heapBytes": [
+          177313944,
+          137483272
+        ],
+        "samples": 57,
+        "browserPages": 40,
+        "pageErrors": 0,
+        "badPageStatuses": [],
+        "readyByRound": [
+          {
+            "round": "cold-browser",
+            "acceptedBatches": 20,
+            "ready": 20,
+            "statuses": [
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204
+            ]
+          },
+          {
+            "round": "warm-browser",
+            "acceptedBatches": 28,
+            "ready": 20,
+            "statuses": [
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204,
+              204
+            ]
+          }
+        ],
+        "acquireStatesDelta": {
+          "reuse": 309,
+          "connect": 0,
+          "queued": 168
+        },
+        "acquireBucketsDelta": [
+          255,
+          55,
+          71,
+          96,
+          0
+        ],
+        "transactionMsDelta": 9373.512029999983
+      },
+      "harnessPatchSha256": "90bb8c6dc5364ab1afbf08e5dbc7174b207700c2873f4eba45db2f09eebb996d",
+      "collectorSha256": "9ba4a480c98227c624982b0c590f7f48c0c1649507428213e2cc2cae716e6e83",
+      "receiverWindows": [
+        {
+          "round": "cold-browser",
+          "batchDelta": 20,
+          "statuses": [
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204
+          ],
+          "ready": [
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 2312
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 3244
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1357
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1234
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 3976
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 4123
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 3902
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 4101
+            },
+            {
+              "route": "/[seasonSlug]/matches",
+              "module": "schedule",
+              "phase": "primary",
+              "durationMs": 4125
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 3724
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1637
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1746
+            },
+            {
+              "route": "/[seasonSlug]/matches",
+              "module": "schedule",
+              "phase": "primary",
+              "durationMs": 4060
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 3711
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1659
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1921
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1737
+            },
+            {
+              "route": "/[seasonSlug]/matches",
+              "module": "schedule",
+              "phase": "primary",
+              "durationMs": 4153
+            },
+            {
+              "route": "/[seasonSlug]/matches",
+              "module": "schedule",
+              "phase": "primary",
+              "durationMs": 4359
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1844
+            }
+          ]
+        },
+        {
+          "round": "warm-browser",
+          "batchDelta": 28,
+          "statuses": [
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204,
+            204
+          ],
+          "ready": [
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 1503
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 1472
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 1291
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 1516
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 1394
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 1766
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 940
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1176
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1088
+            },
+            {
+              "route": "/[seasonSlug]/matches",
+              "module": "schedule",
+              "phase": "primary",
+              "durationMs": 2174
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 1461
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1048
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1012
+            },
+            {
+              "route": "/[seasonSlug]/bet",
+              "module": "bet",
+              "phase": "primary",
+              "durationMs": 1532
+            },
+            {
+              "route": "/[seasonSlug]/matches",
+              "module": "schedule",
+              "phase": "primary",
+              "durationMs": 2214
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1139
+            },
+            {
+              "route": "/[seasonSlug]/matches",
+              "module": "schedule",
+              "phase": "primary",
+              "durationMs": 2114
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1020
+            },
+            {
+              "route": "/[seasonSlug]/matches",
+              "module": "schedule",
+              "phase": "primary",
+              "durationMs": 2189
+            },
+            {
+              "route": "/stats",
+              "module": "statistics",
+              "phase": "primary",
+              "durationMs": 1131
+            }
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "round": "cold-browser",
+          "label": "bet-records",
+          "index": 1,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2319.7000000001863,
+          "lcpMs": 1768,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 733,
+          "resources": {
+            "link": {
+              "count": 7,
+              "encodedBodyBytes": 134561,
+              "decodedBodyBytes": 321235,
+              "transferBytes": 136661
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 339326,
+              "decodedBodyBytes": 1085559,
+              "transferBytes": 346526
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 30,
+              "encodedBodyBytes": 33313,
+              "decodedBodyBytes": 89687,
+              "transferBytes": 42313
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 17309,
+            "encodedBodyBytes": 17009,
+            "decodedBodyBytes": 68995,
+            "ttfbMs": 262
+          },
+          "scrollHeight": 922,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "bet-open",
+          "index": 0,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2795.7000000001863,
+          "lcpMs": 2600,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 1329,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 134717,
+              "decodedBodyBytes": 321391,
+              "transferBytes": 137117
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 320473,
+              "decodedBodyBytes": 1031270,
+              "transferBytes": 326473
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            },
+            "fetch": {
+              "count": 20,
+              "encodedBodyBytes": 10371,
+              "decodedBodyBytes": 23578,
+              "transferBytes": 16371
+            }
+          },
+          "document": {
+            "transferBytes": 21144,
+            "encodedBodyBytes": 20844,
+            "decodedBodyBytes": 126145,
+            "ttfbMs": 73
+          },
+          "scrollHeight": 2029,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "stats-overview",
+          "index": 2,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1453.0999999996275,
+          "lcpMs": 760,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 464,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144631,
+              "decodedBodyBytes": 355015,
+              "transferBytes": 16523
+            },
+            "script": {
+              "count": 19,
+              "encodedBodyBytes": 307334,
+              "decodedBodyBytes": 990695,
+              "transferBytes": 17009
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 15,
+              "encodedBodyBytes": 10722,
+              "decodedBodyBytes": 23659,
+              "transferBytes": 15222
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 17829,
+            "encodedBodyBytes": 17529,
+            "decodedBodyBytes": 76779,
+            "ttfbMs": 33.5
+          },
+          "scrollHeight": 1099,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "stats-players",
+          "index": 3,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2237,
+          "lcpMs": 788,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 362,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144316,
+              "decodedBodyBytes": 353457,
+              "transferBytes": 16208
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 20653
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 17,
+              "encodedBodyBytes": 22641,
+              "decodedBodyBytes": 63566,
+              "transferBytes": 27741
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 16921,
+            "encodedBodyBytes": 16621,
+            "decodedBodyBytes": 62478,
+            "ttfbMs": 99.29999999981374
+          },
+          "scrollHeight": 800,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "bet-records",
+          "index": 16,
+          "httpStatus": 200,
+          "domUsableObservedMs": 4243.5,
+          "lcpMs": 2764,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 1920,
+          "resources": {
+            "link": {
+              "count": 7,
+              "encodedBodyBytes": 134561,
+              "decodedBodyBytes": 321235,
+              "transferBytes": 136661
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 339326,
+              "decodedBodyBytes": 1085559,
+              "transferBytes": 346526
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 30,
+              "encodedBodyBytes": 33313,
+              "decodedBodyBytes": 89687,
+              "transferBytes": 42313
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 18063,
+            "encodedBodyBytes": 17763,
+            "decodedBodyBytes": 69038,
+            "ttfbMs": 360.69999999925494
+          },
+          "scrollHeight": 922,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "bet-open",
+          "index": 5,
+          "httpStatus": 200,
+          "domUsableObservedMs": 4400.5,
+          "lcpMs": 2876,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 1928,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 134717,
+              "decodedBodyBytes": 321391,
+              "transferBytes": 137117
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 336609,
+              "decodedBodyBytes": 1078088,
+              "transferBytes": 343809
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 33,
+              "encodedBodyBytes": 26045,
+              "decodedBodyBytes": 63462,
+              "transferBytes": 35945
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 21048,
+            "encodedBodyBytes": 20748,
+            "decodedBodyBytes": 126102,
+            "ttfbMs": 343.5
+          },
+          "scrollHeight": 2029,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "bet-records",
+          "index": 11,
+          "httpStatus": 200,
+          "domUsableObservedMs": 4190,
+          "lcpMs": 2680,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 1973,
+          "resources": {
+            "link": {
+              "count": 7,
+              "encodedBodyBytes": 134561,
+              "decodedBodyBytes": 321235,
+              "transferBytes": 136661
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 339326,
+              "decodedBodyBytes": 1085559,
+              "transferBytes": 346526
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 29,
+              "encodedBodyBytes": 33003,
+              "decodedBodyBytes": 89145,
+              "transferBytes": 41703
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 18061,
+            "encodedBodyBytes": 17761,
+            "decodedBodyBytes": 69038,
+            "ttfbMs": 469.6000000005588
+          },
+          "scrollHeight": 922,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "bet-records",
+          "index": 6,
+          "httpStatus": 200,
+          "domUsableObservedMs": 4447.899999999441,
+          "lcpMs": 3056,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 1932,
+          "resources": {
+            "link": {
+              "count": 7,
+              "encodedBodyBytes": 134561,
+              "decodedBodyBytes": 321235,
+              "transferBytes": 136661
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 339326,
+              "decodedBodyBytes": 1085559,
+              "transferBytes": 346526
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 30,
+              "encodedBodyBytes": 33313,
+              "decodedBodyBytes": 89687,
+              "transferBytes": 42313
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 18062,
+            "encodedBodyBytes": 17762,
+            "decodedBodyBytes": 69038,
+            "ttfbMs": 289.5
+          },
+          "scrollHeight": 922,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "schedule",
+          "index": 14,
+          "httpStatus": 200,
+          "domUsableObservedMs": 4295.100000000559,
+          "lcpMs": 3000,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 2230,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 134717,
+              "decodedBodyBytes": 321391,
+              "transferBytes": 137117
+            },
+            "script": {
+              "count": 26,
+              "encodedBodyBytes": 411440,
+              "decodedBodyBytes": 1353623,
+              "transferBytes": 419240
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 32,
+              "encodedBodyBytes": 25616,
+              "decodedBodyBytes": 62526,
+              "transferBytes": 35216
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 29384,
+            "encodedBodyBytes": 29084,
+            "decodedBodyBytes": 167242,
+            "ttfbMs": 385.29999999981374
+          },
+          "scrollHeight": 2186,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "bet-open",
+          "index": 15,
+          "httpStatus": 200,
+          "domUsableObservedMs": 4334,
+          "lcpMs": 2856,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 1677,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 134717,
+              "decodedBodyBytes": 321391,
+              "transferBytes": 137117
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 336609,
+              "decodedBodyBytes": 1078088,
+              "transferBytes": 343809
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 33,
+              "encodedBodyBytes": 26045,
+              "decodedBodyBytes": 63462,
+              "transferBytes": 35945
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 21045,
+            "encodedBodyBytes": 20745,
+            "decodedBodyBytes": 126102,
+            "ttfbMs": 385.29999999981374
+          },
+          "scrollHeight": 2029,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "stats-players",
+          "index": 18,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1908.8999999994412,
+          "lcpMs": 1404,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 228,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144316,
+              "decodedBodyBytes": 353457,
+              "transferBytes": 16208
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 20653
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 17,
+              "encodedBodyBytes": 22641,
+              "decodedBodyBytes": 63566,
+              "transferBytes": 27741
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 16914,
+            "encodedBodyBytes": 16614,
+            "decodedBodyBytes": 62478,
+            "ttfbMs": 28.700000000186265
+          },
+          "scrollHeight": 800,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "stats-overview",
+          "index": 17,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1916.0999999996275,
+          "lcpMs": 1704,
+          "clsSessionWindowMaximum": 3.715463876724243e-05,
+          "longTaskMs": 55,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144631,
+              "decodedBodyBytes": 355015,
+              "transferBytes": 16523
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 20653
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 17,
+              "encodedBodyBytes": 22630,
+              "decodedBodyBytes": 63554,
+              "transferBytes": 27730
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 18010,
+            "encodedBodyBytes": 17710,
+            "decodedBodyBytes": 76779,
+            "ttfbMs": 16.200000000186265
+          },
+          "scrollHeight": 1099,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "schedule",
+          "index": 9,
+          "httpStatus": 200,
+          "domUsableObservedMs": 4561.799999999814,
+          "lcpMs": 3176,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 2011,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 134717,
+              "decodedBodyBytes": 321391,
+              "transferBytes": 137117
+            },
+            "script": {
+              "count": 26,
+              "encodedBodyBytes": 411440,
+              "decodedBodyBytes": 1353623,
+              "transferBytes": 419240
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 32,
+              "encodedBodyBytes": 25616,
+              "decodedBodyBytes": 62526,
+              "transferBytes": 35216
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 28531,
+            "encodedBodyBytes": 28231,
+            "decodedBodyBytes": 167199,
+            "ttfbMs": 366.70000000018626
+          },
+          "scrollHeight": 2186,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "bet-open",
+          "index": 10,
+          "httpStatus": 200,
+          "domUsableObservedMs": 4332.299999999814,
+          "lcpMs": 2880,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 1875,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 134717,
+              "decodedBodyBytes": 321391,
+              "transferBytes": 137117
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 336609,
+              "decodedBodyBytes": 1078088,
+              "transferBytes": 343809
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 32,
+              "encodedBodyBytes": 25562,
+              "decodedBodyBytes": 62507,
+              "transferBytes": 35162
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 21045,
+            "encodedBodyBytes": 20745,
+            "decodedBodyBytes": 126102,
+            "ttfbMs": 396.90000000037253
+          },
+          "scrollHeight": 2029,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "stats-players",
+          "index": 13,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1677.0999999996275,
+          "lcpMs": 1580,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 87,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144316,
+              "decodedBodyBytes": 353457,
+              "transferBytes": 16208
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 20653
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 17,
+              "encodedBodyBytes": 22641,
+              "decodedBodyBytes": 63566,
+              "transferBytes": 27741
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 16916,
+            "encodedBodyBytes": 16616,
+            "decodedBodyBytes": 62478,
+            "ttfbMs": 142.79999999981374
+          },
+          "scrollHeight": 800,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "stats-players",
+          "index": 8,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1915.800000000745,
+          "lcpMs": 1512,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 336,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144316,
+              "decodedBodyBytes": 353457,
+              "transferBytes": 16208
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 20653
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 17,
+              "encodedBodyBytes": 22641,
+              "decodedBodyBytes": 63566,
+              "transferBytes": 27741
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 16734,
+            "encodedBodyBytes": 16434,
+            "decodedBodyBytes": 62478,
+            "ttfbMs": 206
+          },
+          "scrollHeight": 800,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "stats-overview",
+          "index": 7,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1779.7999999998137,
+          "lcpMs": 1620,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 189,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144631,
+              "decodedBodyBytes": 355015,
+              "transferBytes": 16523
+            },
+            "script": {
+              "count": 19,
+              "encodedBodyBytes": 307334,
+              "decodedBodyBytes": 990695,
+              "transferBytes": 17009
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 13,
+              "encodedBodyBytes": 10091,
+              "decodedBodyBytes": 22573,
+              "transferBytes": 13991
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 18329,
+            "encodedBodyBytes": 18029,
+            "decodedBodyBytes": 76822,
+            "ttfbMs": 145
+          },
+          "scrollHeight": 1099,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "schedule",
+          "index": 19,
+          "httpStatus": 200,
+          "domUsableObservedMs": 4505,
+          "lcpMs": 3116,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 2161,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 134717,
+              "decodedBodyBytes": 321391,
+              "transferBytes": 137117
+            },
+            "script": {
+              "count": 26,
+              "encodedBodyBytes": 411440,
+              "decodedBodyBytes": 1353623,
+              "transferBytes": 419240
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 33,
+              "encodedBodyBytes": 25926,
+              "decodedBodyBytes": 63068,
+              "transferBytes": 35826
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 29383,
+            "encodedBodyBytes": 29083,
+            "decodedBodyBytes": 167242,
+            "ttfbMs": 389.09999999962747
+          },
+          "scrollHeight": 2186,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "stats-overview",
+          "index": 12,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1907.5999999996275,
+          "lcpMs": 1728,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 253,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144631,
+              "decodedBodyBytes": 355015,
+              "transferBytes": 16523
+            },
+            "script": {
+              "count": 19,
+              "encodedBodyBytes": 307334,
+              "decodedBodyBytes": 990695,
+              "transferBytes": 17009
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 13,
+              "encodedBodyBytes": 10091,
+              "decodedBodyBytes": 22573,
+              "transferBytes": 13991
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 17824,
+            "encodedBodyBytes": 17524,
+            "decodedBodyBytes": 76779,
+            "ttfbMs": 143.5
+          },
+          "scrollHeight": 1099,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "cold-browser",
+          "label": "schedule",
+          "index": 4,
+          "httpStatus": 200,
+          "domUsableObservedMs": 4716.299999999814,
+          "lcpMs": 3324,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 2251,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 134717,
+              "decodedBodyBytes": 321391,
+              "transferBytes": 137117
+            },
+            "script": {
+              "count": 26,
+              "encodedBodyBytes": 411440,
+              "decodedBodyBytes": 1353623,
+              "transferBytes": 419240
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 1410
+            },
+            "fetch": {
+              "count": 33,
+              "encodedBodyBytes": 25926,
+              "decodedBodyBytes": 63068,
+              "transferBytes": 35826
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 28701,
+            "encodedBodyBytes": 28401,
+            "decodedBodyBytes": 167242,
+            "ttfbMs": 103.59999999962747
+          },
+          "scrollHeight": 2186,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "bet-open",
+          "index": 0,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1978.5,
+          "lcpMs": 1452,
+          "clsSessionWindowMaximum": 0.00020206706523895262,
+          "longTaskMs": 173,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 133063,
+              "decodedBodyBytes": 314532,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 25,
+              "encodedBodyBytes": 339953,
+              "decodedBodyBytes": 1086186,
+              "transferBytes": 20653
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 36,
+              "encodedBodyBytes": 38274,
+              "decodedBodyBytes": 103901,
+              "transferBytes": 49074
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 20996,
+            "encodedBodyBytes": 20696,
+            "decodedBodyBytes": 126102,
+            "ttfbMs": 49.19999999925494
+          },
+          "scrollHeight": 2029,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "bet-records",
+          "index": 16,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2014.8999999994412,
+          "lcpMs": 1484,
+          "clsSessionWindowMaximum": 0.00020206706523895262,
+          "longTaskMs": 0,
+          "resources": {
+            "link": {
+              "count": 7,
+              "encodedBodyBytes": 132907,
+              "decodedBodyBytes": 314376,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 339326,
+              "decodedBodyBytes": 1085559,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 29,
+              "encodedBodyBytes": 33003,
+              "decodedBodyBytes": 89145,
+              "transferBytes": 31533
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 18449,
+            "encodedBodyBytes": 18149,
+            "decodedBodyBytes": 69081,
+            "ttfbMs": 53.59999999962747
+          },
+          "scrollHeight": 922,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "bet-records",
+          "index": 1,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2066.7000000001863,
+          "lcpMs": 1380,
+          "clsSessionWindowMaximum": 0.00020206706523895262,
+          "longTaskMs": 0,
+          "resources": {
+            "link": {
+              "count": 7,
+              "encodedBodyBytes": 132907,
+              "decodedBodyBytes": 314376,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 339326,
+              "decodedBodyBytes": 1085559,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 29,
+              "encodedBodyBytes": 33003,
+              "decodedBodyBytes": 89145,
+              "transferBytes": 31533
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 18083,
+            "encodedBodyBytes": 17783,
+            "decodedBodyBytes": 69038,
+            "ttfbMs": 6.900000000372529
+          },
+          "scrollHeight": 922,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "bet-open",
+          "index": 5,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2278.7000000001863,
+          "lcpMs": 1452,
+          "clsSessionWindowMaximum": 0.00020206706523895262,
+          "longTaskMs": 170,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 133063,
+              "decodedBodyBytes": 314532,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 25,
+              "encodedBodyBytes": 339953,
+              "decodedBodyBytes": 1086186,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 36,
+              "encodedBodyBytes": 38274,
+              "decodedBodyBytes": 103901,
+              "transferBytes": 38904
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 21430,
+            "encodedBodyBytes": 21130,
+            "decodedBodyBytes": 126145,
+            "ttfbMs": 113.09999999962747
+          },
+          "scrollHeight": 2029,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "bet-records",
+          "index": 6,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2495.0999999996275,
+          "lcpMs": 1372,
+          "clsSessionWindowMaximum": 0.00020206706523895262,
+          "longTaskMs": 114,
+          "resources": {
+            "link": {
+              "count": 7,
+              "encodedBodyBytes": 132907,
+              "decodedBodyBytes": 314376,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 339326,
+              "decodedBodyBytes": 1085559,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 29,
+              "encodedBodyBytes": 33003,
+              "decodedBodyBytes": 89145,
+              "transferBytes": 31533
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 18443,
+            "encodedBodyBytes": 18143,
+            "decodedBodyBytes": 69081,
+            "ttfbMs": 53
+          },
+          "scrollHeight": 922,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "bet-open",
+          "index": 15,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2498.5,
+          "lcpMs": 1804,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 54,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 133063,
+              "decodedBodyBytes": 314532,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 25,
+              "encodedBodyBytes": 339953,
+              "decodedBodyBytes": 1086186,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 36,
+              "encodedBodyBytes": 38274,
+              "decodedBodyBytes": 103901,
+              "transferBytes": 38904
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 21043,
+            "encodedBodyBytes": 20743,
+            "decodedBodyBytes": 126102,
+            "ttfbMs": 197.8999999994412
+          },
+          "scrollHeight": 2029,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "stats-players",
+          "index": 18,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1007.0999999996275,
+          "lcpMs": 608,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 0,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144316,
+              "decodedBodyBytes": 353457,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 17,
+              "encodedBodyBytes": 22641,
+              "decodedBodyBytes": 63566,
+              "transferBytes": 17571
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 17232,
+            "encodedBodyBytes": 16932,
+            "decodedBodyBytes": 62521,
+            "ttfbMs": 66.70000000018626
+          },
+          "scrollHeight": 800,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 4,
+          "failureGroups": {
+            "application:script:canceled": 4
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 4
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "stats-overview",
+          "index": 7,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1287.7000000001863,
+          "lcpMs": 904,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 0,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144631,
+              "decodedBodyBytes": 355015,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 19,
+              "encodedBodyBytes": 307334,
+              "decodedBodyBytes": 990695,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 13,
+              "encodedBodyBytes": 10091,
+              "decodedBodyBytes": 22573,
+              "transferBytes": 13991
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 17829,
+            "encodedBodyBytes": 17529,
+            "decodedBodyBytes": 76779,
+            "ttfbMs": 73.6000000005588
+          },
+          "scrollHeight": 1099,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "stats-players",
+          "index": 3,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1155.7999999998137,
+          "lcpMs": 852,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 0,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144316,
+              "decodedBodyBytes": 353457,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 17,
+              "encodedBodyBytes": 22641,
+              "decodedBodyBytes": 63566,
+              "transferBytes": 17571
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 1944
+            }
+          },
+          "document": {
+            "transferBytes": 17492,
+            "encodedBodyBytes": 17192,
+            "decodedBodyBytes": 62521,
+            "ttfbMs": 74.3999999994412
+          },
+          "scrollHeight": 800,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 5,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 4
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 4
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "bet-records",
+          "index": 11,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2546.7000000001863,
+          "lcpMs": 1504,
+          "clsSessionWindowMaximum": 0.00020206706523895262,
+          "longTaskMs": 0,
+          "resources": {
+            "link": {
+              "count": 7,
+              "encodedBodyBytes": 132907,
+              "decodedBodyBytes": 314376,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 24,
+              "encodedBodyBytes": 339326,
+              "decodedBodyBytes": 1085559,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 30,
+              "encodedBodyBytes": 33313,
+              "decodedBodyBytes": 89687,
+              "transferBytes": 32143
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 18445,
+            "encodedBodyBytes": 18145,
+            "decodedBodyBytes": 69081,
+            "ttfbMs": 64.5
+          },
+          "scrollHeight": 922,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "stats-overview",
+          "index": 12,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1114.5,
+          "lcpMs": 888,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 65,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144631,
+              "decodedBodyBytes": 355015,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 19,
+              "encodedBodyBytes": 307334,
+              "decodedBodyBytes": 990695,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 13,
+              "encodedBodyBytes": 10091,
+              "decodedBodyBytes": 22573,
+              "transferBytes": 13991
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 18329,
+            "encodedBodyBytes": 18029,
+            "decodedBodyBytes": 76822,
+            "ttfbMs": 85.5
+          },
+          "scrollHeight": 1099,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 5,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 4
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 4
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "schedule",
+          "index": 19,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2548.5,
+          "lcpMs": 2320,
+          "clsSessionWindowMaximum": 0.00020206706523895262,
+          "longTaskMs": 101,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 133063,
+              "decodedBodyBytes": 314532,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 27,
+              "encodedBodyBytes": 414784,
+              "decodedBodyBytes": 1361721,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 37,
+              "encodedBodyBytes": 38638,
+              "decodedBodyBytes": 104462,
+              "transferBytes": 39568
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 29769,
+            "encodedBodyBytes": 29469,
+            "decodedBodyBytes": 167285,
+            "ttfbMs": 66.20000000018626
+          },
+          "scrollHeight": 2186,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "stats-overview",
+          "index": 2,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1100.4000000003725,
+          "lcpMs": 776,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 50,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144631,
+              "decodedBodyBytes": 355015,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 19,
+              "encodedBodyBytes": 307334,
+              "decodedBodyBytes": 990695,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 13,
+              "encodedBodyBytes": 10091,
+              "decodedBodyBytes": 22573,
+              "transferBytes": 13991
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 18333,
+            "encodedBodyBytes": 18033,
+            "decodedBodyBytes": 76822,
+            "ttfbMs": 77.59999999962747
+          },
+          "scrollHeight": 1099,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 5,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 4
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 4
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "schedule",
+          "index": 4,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2552.2000000001863,
+          "lcpMs": 2324,
+          "clsSessionWindowMaximum": 0.00020206706523895262,
+          "longTaskMs": 323,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 133063,
+              "decodedBodyBytes": 314532,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 27,
+              "encodedBodyBytes": 414784,
+              "decodedBodyBytes": 1361721,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 39,
+              "encodedBodyBytes": 39431,
+              "decodedBodyBytes": 105959,
+              "transferBytes": 40961
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 29764,
+            "encodedBodyBytes": 29464,
+            "decodedBodyBytes": 167285,
+            "ttfbMs": 65.59999999962747
+          },
+          "scrollHeight": 2186,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "bet-open",
+          "index": 10,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2548.600000000559,
+          "lcpMs": 1348,
+          "clsSessionWindowMaximum": 0.00020206706523895262,
+          "longTaskMs": 89,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 133063,
+              "decodedBodyBytes": 314532,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 25,
+              "encodedBodyBytes": 339953,
+              "decodedBodyBytes": 1086186,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 36,
+              "encodedBodyBytes": 38294,
+              "decodedBodyBytes": 103957,
+              "transferBytes": 38924
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 21438,
+            "encodedBodyBytes": 21138,
+            "decodedBodyBytes": 126145,
+            "ttfbMs": 59.40000000037253
+          },
+          "scrollHeight": 2029,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 2,
+          "failureGroups": {
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "stats-players",
+          "index": 13,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1203.5,
+          "lcpMs": 916,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 60,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144316,
+              "decodedBodyBytes": 353457,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 17,
+              "encodedBodyBytes": 22641,
+              "decodedBodyBytes": 63566,
+              "transferBytes": 17571
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 16734,
+            "encodedBodyBytes": 16434,
+            "decodedBodyBytes": 62478,
+            "ttfbMs": 109.6000000005588
+          },
+          "scrollHeight": 800,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 4,
+          "failureGroups": {
+            "application:script:canceled": 4
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 4
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "schedule",
+          "index": 14,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2552.600000000559,
+          "lcpMs": 2316,
+          "clsSessionWindowMaximum": 0.00020206706523895262,
+          "longTaskMs": 220,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 133063,
+              "decodedBodyBytes": 314532,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 27,
+              "encodedBodyBytes": 414784,
+              "decodedBodyBytes": 1361721,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 37,
+              "encodedBodyBytes": 38465,
+              "decodedBodyBytes": 104049,
+              "transferBytes": 39395
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 29770,
+            "encodedBodyBytes": 29470,
+            "decodedBodyBytes": 167285,
+            "ttfbMs": 102.40000000037253
+          },
+          "scrollHeight": 2186,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "stats-players",
+          "index": 8,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1108.7000000001863,
+          "lcpMs": 772,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 0,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144316,
+              "decodedBodyBytes": 353457,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 20,
+              "encodedBodyBytes": 310678,
+              "decodedBodyBytes": 998793,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 17,
+              "encodedBodyBytes": 22641,
+              "decodedBodyBytes": 63566,
+              "transferBytes": 17571
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 17230,
+            "encodedBodyBytes": 16930,
+            "decodedBodyBytes": 62521,
+            "ttfbMs": 74.20000000018626
+          },
+          "scrollHeight": 800,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 5,
+          "failureGroups": {
+            "application:script:canceled": 4,
+            "application:fetch:canceled": 1
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 4
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "schedule",
+          "index": 9,
+          "httpStatus": 200,
+          "domUsableObservedMs": 2566.9000000003725,
+          "lcpMs": 2336,
+          "clsSessionWindowMaximum": 0.00020206706523895262,
+          "longTaskMs": 159,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 133063,
+              "decodedBodyBytes": 314532,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 27,
+              "encodedBodyBytes": 414784,
+              "decodedBodyBytes": 1361721,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 36,
+              "encodedBodyBytes": 38155,
+              "decodedBodyBytes": 103507,
+              "transferBytes": 38785
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 29773,
+            "encodedBodyBytes": 29473,
+            "decodedBodyBytes": 167285,
+            "ttfbMs": 52.799999999813735
+          },
+          "scrollHeight": 2186,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 3,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 2
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 2
+          }
+        },
+        {
+          "round": "warm-browser",
+          "label": "stats-overview",
+          "index": 17,
+          "httpStatus": 200,
+          "domUsableObservedMs": 1213.1000000005588,
+          "lcpMs": 972,
+          "clsSessionWindowMaximum": 0.0001979488134384155,
+          "longTaskMs": 106,
+          "resources": {
+            "link": {
+              "count": 8,
+              "encodedBodyBytes": 144631,
+              "decodedBodyBytes": 355015,
+              "transferBytes": 300
+            },
+            "script": {
+              "count": 19,
+              "encodedBodyBytes": 307334,
+              "decodedBodyBytes": 990695,
+              "transferBytes": 600
+            },
+            "img": {
+              "count": 1,
+              "encodedBodyBytes": 1110,
+              "decodedBodyBytes": 1110,
+              "transferBytes": 0
+            },
+            "fetch": {
+              "count": 13,
+              "encodedBodyBytes": 10091,
+              "decodedBodyBytes": 22573,
+              "transferBytes": 13991
+            },
+            "other": {
+              "count": 1,
+              "encodedBodyBytes": 1644,
+              "decodedBodyBytes": 1644,
+              "transferBytes": 300
+            }
+          },
+          "document": {
+            "transferBytes": 17828,
+            "encodedBodyBytes": 17528,
+            "decodedBodyBytes": 76779,
+            "ttfbMs": 73.29999999981374
+          },
+          "scrollHeight": 1099,
+          "visibility": "visible",
+          "footerVisibleAfterScroll": true,
+          "pageErrors": 0,
+          "failedRequests": 0,
+          "canceledRequests": 4,
+          "failureGroups": {
+            "application:fetch:canceled": 1,
+            "application:script:canceled": 3
+          },
+          "httpFailureGroups": {
+            "application-vercel-metrics:script:404": 3
+          }
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "1/10/20 cohorts executed sequentially; no randomized baseline or server cold-cache control.",
+    "Per-route sample counts are small; no p95 or production extrapolation.",
+    "LCP is the actual observed candidate before footer interaction, not TTFB; DOM usable time is separate from accepted ready.",
+    "Real Worker handler and SQLite validate signed batches locally; test-only loopback HTTP adapter is not production HTTPS evidence.",
+    "Counter samples include actual HTTP/prefetch/polling work; no independent CLI pool is substituted.",
+    "250ms sampler and headless scheduling add test-environment overhead.",
+    "No fixture BP command or canonical worker in this window; final locked/outbox candidate still pending.",
+    "RSS/heap before/after include caching and GC; no leak/capacity conclusion.",
+    "This desktop cohort does not close mobile/short-page, BFCache, prerender or hidden visibility final acceptance.",
+    "All Vercel metrics HTTP404 responses are retained; they are not business route successes."
+  ]
+}

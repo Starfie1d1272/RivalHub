@@ -12,7 +12,7 @@ import {
   type Match,
   type CompetitionQualificationRun,
 } from "@/db/schema";
-import { buildQualificationSwissReadModel } from "@/lib/competition-qualification/presentation";
+import { buildQualificationSwissMatchRecord, buildQualificationSwissReadModel } from "@/lib/competition-qualification/presentation";
 
 export async function loadQualificationSwissStageReadModel(seasonId: string, supplied?: {
   run: CompetitionQualificationRun;
@@ -66,4 +66,36 @@ export async function loadQualificationSwissStageReadModel(seasonId: string, sup
     entrants,
     matches: linkedMatches,
   });
+}
+
+/** Internal reader: callers authorize the season before requesting operator context.
+ * Keep all frozen pairing facts, without public identities or BO1 display-map reads.
+ */
+export async function loadQualificationSwissMatchRecord(seasonId: string, matchId: string): Promise<{ stageName: string; record: string } | null> {
+  const [run] = await db.select({
+    id: competitionQualificationRuns.id,
+    format: competitionQualificationRuns.format,
+    directEntryCount: competitionQualificationRuns.directEntryCount,
+  }).from(competitionQualificationRuns).where(eq(competitionQualificationRuns.seasonId, seasonId)).limit(1);
+  if (!run || run.format !== "short_swiss_2w2l") return null;
+
+  const [entrants, linkedMatches] = await Promise.all([
+    db.select({
+      entryId: competitionQualificationEntrants.competitionEntryId,
+      preliminarySeed: competitionQualificationEntrants.preliminarySeed,
+    }).from(competitionQualificationEntrants).where(and(
+      eq(competitionQualificationEntrants.runId, run.id),
+      eq(competitionQualificationEntrants.seasonId, seasonId),
+    )).orderBy(asc(competitionQualificationEntrants.preliminarySeed)),
+    db.select({
+      id: matches.id, entryAId: matches.entryAId, entryBId: matches.entryBId,
+      round: matches.round, scoreA: matches.scoreA, scoreB: matches.scoreB,
+      status: matches.status, format: matches.format, stage: matches.stage,
+      ownership: matches.ownership, majorStageRunId: matches.majorStageRunId,
+      managedKey: matches.managedKey, bracketNodeId: matches.bracketNodeId,
+    }).from(matches).where(and(eq(matches.seasonId, seasonId), eq(matches.qualificationRunId, run.id)))
+      .orderBy(asc(matches.round), asc(matches.id)),
+  ]);
+  return buildQualificationSwissMatchRecord({ directEntryCount: run.directEntryCount, entrants,
+    matches: linkedMatches.map(row => requireCompetitionFields(row)) }, matchId);
 }

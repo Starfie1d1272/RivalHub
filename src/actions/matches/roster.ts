@@ -2,10 +2,12 @@
 
 import { writeAuditInTx } from "@/lib/audit/write";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   matchRosters,
+  matchRosterPlayers,
+  matches,
   seasons,
 } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/types/action";
@@ -19,6 +21,8 @@ import {
   lockMatchInTx,
   persistMatchRosterInTx,
 } from "@/lib/match-rosters/service";
+import { getReadbackMatchOrThrow } from "@/lib/matches/readback-scope";
+import { rosterReadbackVersion, type RosterReadback } from "@/lib/matches/operation-readback";
 import { loadMatchRosters } from "@/lib/match-rosters/read-model";
 import { getEntryIdForRepresentative } from "./_shared";
 
@@ -247,4 +251,27 @@ export async function retryMatchRosterRefresh(matchId: string): Promise<ActionRe
  */
 export async function getMatchRoster(matchId: string, entryId: string) {
   return (await loadMatchRosters(matchId, [entryId])).get(entryId) ?? null;
+}
+
+/** Recovery-only read: fresh representative/admin authorization, never a write replay. */
+export async function getMatchRosterReadback(matchId: string, requestedEntryId?: string): Promise<ActionResult<RosterReadback>> {
+  try {
+    const session = await requireAuth();
+    const match = await getReadbackMatchOrThrow(matchId);
+    const ownEntryId = await getEntryIdForRepresentative(session.userId, match);
+    const entryId = requestedEntryId ?? ownEntryId;
+    if (!entryId || (entryId !== match.entryAId && entryId !== match.entryBId)) throw new AppError(ErrorCode.FORBIDDEN, "无法读取这支队伍的本场名单。");
+    if (entryId !== ownEntryId) await requireSeasonAdmin(match.seasonId);
+    const rows = await db.select({ id: matchRosters.id, status: matchRosters.status, memberId: matchRosterPlayers.eventRosterMemberId,
+      starter: matchRosterPlayers.isStarter, representative: matchRosterPlayers.isVetoRepresentative })
+      .from(matches).leftJoin(matchRosters, and(eq(matchRosters.matchId, matches.id), eq(matchRosters.entryId, entryId)))
+      .leftJoin(matchRosterPlayers, eq(matchRosterPlayers.rosterId, matchRosters.id))
+      .where(and(eq(matches.id, matchId), eq(matches.seasonId, match.seasonId)));
+    if (!rows.length) throw new AppError(ErrorCode.NOT_FOUND, "比赛范围已变化，请重新读取。");
+    const value = { rosterId: rows[0]!.id, status: rows[0]!.status,
+      starterIds: rows.filter(row => row.memberId && row.starter).map(row => row.memberId!),
+      substituteIds: rows.filter(row => row.memberId && row.starter === false).map(row => row.memberId!),
+      vetoRepresentativeEventRosterMemberId: rows.find(row => row.representative)?.memberId ?? null };
+    return ok({ matchId, entryId, value, version: await rosterReadbackVersion(matchId, value) });
+  } catch (error) { return actionError("getMatchRosterReadback", error); }
 }

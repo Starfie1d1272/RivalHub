@@ -9,6 +9,8 @@ import {
   approveConversionPolicyInTx,
   createConversionPolicyDraftInTx,
   loadConversionPolicyAdminRows,
+  loadConversionPolicyAdminSummaries,
+  loadConversionPolicyAdminDetail,
   loadConversionPolicyProvenance,
   retireConversionPolicyInTx,
   setCurrentConversionPolicyInTx,
@@ -149,6 +151,25 @@ describe("conversion policy admin lifecycle", () => {
       expect(baseAdminRow?.eventReferences).toHaveLength(2);
       expect(baseAdminRow?.eventReferences.map((reference) => reference.referenceState).sort()).toEqual(["published_locked", "registration_frozen"]);
       expect(baseAdminRow?.eventReferences.every((reference) => reference.policyId === base.id)).toBe(true);
+
+      const summaries = await loadConversionPolicyAdminSummaries(executor);
+      expect(summaries.map(row => row.id)).toEqual(rows.map(row => row.id));
+      expect(summaries.find(row => row.id === base.id)?.eventReferenceCount).toBe(2);
+      for (const row of summaries) {
+        expect(row).not.toHaveProperty("mapping"); expect(row).not.toHaveProperty("internalNote");
+        expect(row).not.toHaveProperty("eventReferences"); expect(row).not.toHaveProperty("sourceNote");
+      }
+      expect(await loadConversionPolicyAdminDetail(executor, base.id)).toEqual(baseAdminRow);
+      expect(await loadConversionPolicyAdminDetail(executor, foreignPolicyId)).toBeNull();
+      expect(await loadConversionPolicyAdminDetail(executor, randomUUID())).toBeNull();
+      await client.query(`insert into conversion_policies(source_platform,target_platform,version,status,mapping,source_note,rationale,change_summary,internal_note)
+        select 'fivee','perfect_world','fixture-cost-'||n,'draft',$1::jsonb,repeat('s',4000),repeat('r',4000),repeat('c',4000),repeat('i',4000) from generate_series(1,20) n`, [JSON.stringify(base.mapping)]);
+      const fullCost = await loadConversionPolicyAdminRows(executor);
+      const summaryCost = await loadConversionPolicyAdminSummaries(executor);
+      expect(summaryCost.map(row => row.id)).toEqual(fullCost.map(row => row.id));
+      expect(Buffer.byteLength(JSON.stringify(summaryCost))).toBeLessThan(Buffer.byteLength(JSON.stringify(fullCost)) / 10);
+      console.info("ADMIN_POLICY_SUMMARY_DTO_COST", JSON.stringify({ policies: fullCost.length,
+        fullBytes: Buffer.byteLength(JSON.stringify(fullCost)), summaryBytes: Buffer.byteLength(JSON.stringify(summaryCost)) }));
 
       const provenance = await loadConversionPolicyProvenance(executor, JSON.parse(frozenConfig));
       expect(provenance).toMatchObject({ id: base.id, version: base.version, sourceNote: base.sourceNote, rationale: base.rationale, changeSummary: base.changeSummary });

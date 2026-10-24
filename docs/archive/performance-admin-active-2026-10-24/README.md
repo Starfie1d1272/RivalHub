@@ -1,0 +1,7 @@
+# execution共享active事实
+
+execution的commentary与operations由同一coordinator负责，单次读取完整active宇宙及可见历史ID。后台局部stage/team/page不裁剪全局下一场、认领队列与正式/测试赛冲突。commentary仍按原ID输入顺序和canonical状态/时间排序，operations按scheduledAt/createdAt；缺失关联的原错误边界保留。standalone reader仍可独立调用，没有跨请求权限或数据缓存。
+
+真实隔离PG在正式赛与同时间测试赛的同一fixture逐字段比较独立调用和coordinator：7→6SQL，12→10返回行，结果JSON2187→1818字节。这是新公共fact owner的独立调用与共享调用对照，非历史checkout或生产p95。全部输出相等，测试赛冲突保留。admin-match-read-models与原match-commentary契约共11例通过，app/tests类型、文件级ESLint、architecture通过。
+
+当前证据不是500active浏览器规模验收。完整active事实和全局冲突派生仍O(N)，不引持久summary、不把页面窗口当authority。#1094的分页consumer接入时只需保留panels读取替换，不复制本reader。

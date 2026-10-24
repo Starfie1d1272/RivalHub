@@ -1,0 +1,51 @@
+import { spawnSync, spawn } from 'node:child_process';
+import { resolve } from 'node:path';
+import { createServer } from 'node:http';
+import { DatabaseSync } from 'node:sqlite';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
+const root=process.cwd();
+const {parseLocalSupabaseStatus,buildLocalAppEnvironment}=await import(resolve(root,'scripts/db/local-environment.ts'));
+const result=spawnSync(resolve(root,'node_modules/.bin/supabase'),['status','--output','json'],{encoding:'utf8'});
+if(result.status!==0)throw new Error('Local Supabase unavailable');
+const env=buildLocalAppEnvironment(parseLocalSupabaseStatus(result.stdout),process.env);
+env.NODE_ENV='production';env.VERCEL_ENV='production';env.RIVALHUB_W15_TEST_SNAPSHOT='1';
+env.RIVALHUB_RELEASE_COMMIT='67d279c55e703e23a2cfe7ec0a2d4b907fa79b22';
+env.NEXT_PUBLIC_APP_URL='http://127.0.0.1:3015';
+if(process.argv[2]==='build') {
+ const child=spawn(resolve(root,'node_modules/.bin/next'),['build'],{env,stdio:'inherit'});
+ child.on('exit',code=>{process.exitCode=code??1;});
+} else {
+ const { handle }=await import(resolve(root,'workers/telemetry/index.ts'));
+ const sqlite=new DatabaseSync(':memory:');sqlite.exec(readFileSync(resolve(root,'workers/telemetry/schema.sql'),'utf8'));
+ const wrap=(sql:string,values:any[]=[]):any=>({bind:(...args:any[])=>wrap(sql,args),all:async()=>({results:sqlite.prepare(sql).all(...values.map(v=>v instanceof ArrayBuffer?new Uint8Array(v):v))}),first:async()=>sqlite.prepare(sql).get(...values.map(v=>v instanceof ArrayBuffer?new Uint8Array(v):v))??null,run:async()=>({meta:{changes:Number(sqlite.prepare(sql).run(...values.map(v=>v instanceof ArrayBuffer?new Uint8Array(v):v)).changes)}})});
+ const DB={prepare:wrap,batch:async(statements:any[])=>{sqlite.exec('BEGIN');try{const out=[];for(const s of statements)out.push(await s.run());sqlite.exec('COMMIT');return out;}catch(e){sqlite.exec('ROLLBACK');throw e;}}};
+ const secret=randomBytes(48).toString('base64url');
+ const statuses:number[]=[];
+ const evidence=()=>{
+  const rows=sqlite.prepare('SELECT events_gzip FROM batches ORDER BY received,ticket,id').all();
+  const kinds:Record<string,number>={}; const ready:unknown[]=[];
+  for(const row of rows)for(const event of JSON.parse(gunzipSync(row.events_gzip as Uint8Array).toString())){kinds[event.kind]=(kinds[event.kind]??0)+1;if(event.kind==='ready')ready.push({route:event.route,module:event.ready.module,phase:event.ready.phase,durationMs:event.durationMs});}
+  return {statuses,batches:rows.length,kinds,ready};
+ };
+ const receiver=createServer(async(req,res)=>{
+  try{
+   if(req.method==='GET'&&req.url==='/harness-evidence'){res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(evidence()));return;}
+   const chunks=[];for await(const chunk of req)chunks.push(chunk);
+   const request=new Request('http://127.0.0.1:3105'+req.url,{method:req.method,headers:{origin:req.headers.origin??''},...(req.method==='POST'?{body:Buffer.concat(chunks)}:{})});
+   const response=await handle(request,{DB,SIGNING_KEY:secret,ADMIN_KEY:randomBytes(48).toString('base64url'),ALLOWED_ORIGIN:'http://127.0.0.1:3015',ACCEPTING:'1',RETENTION_APPROVED:'1',SUMMARY_RETENTION_DAYS:'0'});
+   statuses.push(response.status);res.writeHead(response.status,Object.fromEntries(response.headers));res.end(await response.text());
+  }catch{res.writeHead(500);res.end();}
+ });
+ await new Promise<void>(r=>receiver.listen(3105,'127.0.0.1',r));
+ Object.assign(env,{PRODUCT_TELEMETRY_ENABLED:'1',PRODUCT_TELEMETRY_MEASUREMENT_V1:'1',PRODUCT_TELEMETRY_SIGNING_KEY:secret,PRODUCT_TELEMETRY_ACCOUNT_KEY:randomBytes(48).toString('base64url'),PRODUCT_TELEMETRY_ENDPOINT:'http://127.0.0.1:3105/v1/batches',PRODUCT_TELEMETRY_ORIGIN:'http://127.0.0.1:3015'});
+ const child=spawn(resolve(root,'node_modules/.bin/next'),['start','--hostname','127.0.0.1','--port','3015'],{env,stdio:'inherit'});
+ const timer=setInterval(()=>{
+  // Counts only; tickets, identities, sessions and event payloads stay in memory.
+  writeFileSync('/workspace/perf-materials/w15-production-receiver.json',JSON.stringify(evidence()),{mode:0o600});
+ },500);
+ const cleanup=()=>{clearInterval(timer);receiver.close();sqlite.close();};
+ child.on('exit',code=>{cleanup();process.exitCode=code??1;});
+ for(const signal of ['SIGTERM','SIGINT'] as const)process.on(signal,()=>child.kill(signal));
+}

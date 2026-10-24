@@ -14,7 +14,7 @@ import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { loadEffectiveMatchRoster, type EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 import { getPublicPlayerRecord } from "@/lib/players/public-record";
-import { getStatsLeaderboard } from "./leaderboard-query";
+import { getPlayerStatsScoreboards, getStatsLeaderboard } from "./leaderboard-query";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import { recordStatsProjectionRead } from "@/lib/observability/statistics";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -694,8 +694,7 @@ async function loadTournamentPlayerSnapshot(
     ),
     'performance', ${matchDemoStatProjections.facts}->'performance'
   )`);
-  const scoreboard = await getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, groupByTeam: false, requireCurrentImports: options.requireCurrentImports, includeTestMatch: options.includeTestMatch });
-  const scoreboardMaps = await getStatsLeaderboard(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, groupByMap: true, groupByTeam: false, requireCurrentImports: options.requireCurrentImports, includeTestMatch: options.includeTestMatch });
+  const { scoreboard, scoreboardMaps } = await getPlayerStatsScoreboards(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, requireCurrentImports: options.requireCurrentImports, includeTestMatch: options.includeTestMatch });
   const record = await getPublicPlayerRecord(scope.playerId, { seasonId: scope.seasonId, matchIds, database: tx });
   const [mvpRow] = matchIds.length ? await tx.select({ count: count() }).from(matches).where(and(officialMatchCondition(),
     eq(matches.mvpWinnerUserId, scope.playerId),

@@ -1,5 +1,5 @@
 import { withDisplayScores } from "@/lib/matches/display-score-data";
-import { requireCompetitionMatch, type CompetitionMatch } from "./competition-context";
+import { requireCompetitionMatch, requireCompetitionFields, type CompetitionMatch } from "./competition-context";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, majorStageEntrants, majorStageRuns, majorTournamentEntrants, matches, type Match } from "@/db/schema";
@@ -150,11 +150,7 @@ export async function loadMajorSwissStageReadModel(
     const stateByEntryId = new Map(beforeRound?.teams.map((team) => [team.teamId, team]) ?? []);
     const groups = new Map<string, StageSwissMatchRow[]>();
     for (const row of rows) {
-      const recordA = stateByEntryId.get(row.entryAId);
-      const recordB = stateByEntryId.get(row.entryBId);
-      const keyA = recordA ? `${recordA.wins}:${recordA.losses}` : "待定";
-      const keyB = recordB ? `${recordB.wins}:${recordB.losses}` : "待定";
-      const key = keyA === keyB ? keyA : `${keyA} | ${keyB}`;
+      const key = swissRecordLabel(stateByEntryId, row.entryAId, row.entryBId);
       const bucket = groups.get(key) ?? [];
       bucket.push(row);
       groups.set(key, bucket);
@@ -189,4 +185,46 @@ export async function loadMajorSwissStageReadModel(
 function asFinalizedRound(value: number): MajorSwissFinalizedRound {
   if (value === 0 || value === 1 || value === 2 || value === 3 || value === 4 || value === 5) return value;
   throw new Error("invalid Major Swiss finalizedRound");
+}
+
+function swissRecordLabel(states: ReadonlyMap<string, { wins: number; losses: number }>, entryAId: string, entryBId: string) {
+  const a = states.get(entryAId), b = states.get(entryBId);
+  const keyA = a ? `${a.wins}:${a.losses}` : "待定";
+  const keyB = b ? `${b.wins}:${b.losses}` : "待定";
+  return keyA === keyB ? keyA : `${keyA} | ${keyB}`;
+}
+
+/** Room-guide projection of the same frozen run; no names, logos or display-score reads. */
+export async function loadMajorSwissMatchRecord(seasonId: string, stageKey: string, matchId: string) {
+  const [run] = await db.select({ id: majorStageRuns.id, finalizedRound: majorStageRuns.finalizedRound,
+    ruleSnapshot: majorStageRuns.ruleSnapshot }).from(majorStageRuns)
+    .where(and(eq(majorStageRuns.seasonId, seasonId), eq(majorStageRuns.stageKey, stageKey))).limit(1);
+  if (!run) return null;
+  const frozen = parseMajorRunSnapshot(run.ruleSnapshot, stageKey);
+  const [entrants, rows] = await Promise.all([
+    db.select({ teamId: majorTournamentEntrants.competitionEntryId, initialStageSeed: majorStageEntrants.stageSeed })
+      .from(majorStageEntrants).innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.id, majorStageEntrants.tournamentEntrantId))
+      .innerJoin(competitionEntries, eq(competitionEntries.id, majorTournamentEntrants.competitionEntryId))
+      .where(eq(majorStageEntrants.stageRunId, run.id)),
+    db.select({ id: matches.id, entryAId: matches.entryAId, entryBId: matches.entryBId, round: matches.round,
+      status: matches.status, completedAt: matches.completedAt, scoreA: matches.scoreA, scoreB: matches.scoreB })
+      .from(matches).where(and(eq(matches.seasonId, seasonId), eq(matches.stage, stageKey), eq(matches.majorStageRunId, run.id), eq(matches.ownership, "major_stage"))),
+  ]);
+  const scopedRows = rows.map(row => requireCompetitionFields(row));
+  const target = scopedRows.find(row => row.id === matchId);
+  if (!target?.round || target.round < 1 || target.round > MAJOR_SWISS_MAX_ROUNDS) return null;
+  const facts: MajorSwissMatchFact[] = scopedRows.filter(row => row.status === "finished" && row.completedAt !== null &&
+    row.scoreA !== null && row.scoreB !== null && row.round !== null).map(row => ({
+      matchId: row.id, round: row.round as MajorSwissMatchFact["round"], entryAId: row.entryAId!, entryBId: row.entryBId!,
+      winnerId: row.scoreA! > row.scoreB! ? row.entryAId! : row.entryBId!,
+    }));
+  const finalizedRound = asFinalizedRound(run.finalizedRound);
+  let projection;
+  try { projection = projectMajorSwissStage({ entrants, matches: facts, finalizedRound }); }
+  catch { return null; }
+  const before = target.round <= finalizedRound
+    ? projectMajorSwissStage({ entrants, matches: facts, finalizedRound: asFinalizedRound(target.round - 1) })
+    : projection;
+  return { stageName: frozen.stage.name,
+    record: swissRecordLabel(new Map(before.teams.map(team => [team.teamId, team])), target.entryAId!, target.entryBId!) };
 }

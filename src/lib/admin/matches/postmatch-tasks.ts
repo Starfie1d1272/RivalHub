@@ -1,7 +1,7 @@
-import { hasMatchRecording } from "@/lib/postmatch/recording-types";
+import { hasMatchRecordingCondition } from "@/lib/postmatch/recording-query";
 import "server-only";
 import { readReopenedPostMatchIds } from "@/lib/postmatch/read";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db, type DB, type TxDb } from "@/db/client";
 import { competitionEntries, matchCommentators, matchDemoImports, matchMaps, matchPlayerStats, matches, postMatchReports } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
@@ -27,18 +27,46 @@ export async function loadAdminPostMatchTasks(seasonId: string): Promise<AdminPo
   return readAdminPostMatchTasks(db, seasonId, admin.userId);
 }
 
+export async function loadAdminPostMatchTaskPage(seasonId: string, scope: { stage?: string; team?: string; page?: string }) {
+  const admin = await requireSeasonAdmin(seasonId);
+  // Derive all task states in scope before pagination. A raw finished-match
+  // LIMIT would hide late missing/stale Demo or reopened production work.
+  const tasks = await readAdminPostMatchTasks(db, seasonId, admin.userId, scope);
+  const total = tasks.length, totalPages = Math.ceil(total / 25);
+  const requested = Number(scope.page);
+  const page = totalPages ? Math.min(Number.isSafeInteger(requested) && requested > 0 ? requested : 1, totalPages) : 1;
+  return { rows: tasks.slice((page - 1) * 25, page * 25), total, page, pageSize: 25, totalPages,
+    mineCount: tasks.filter(row => row.isMine).length };
+}
+
 /** Authorized caller supplies the season. Child reads use only IDs from this scoped official query. */
-export async function readAdminPostMatchTasks(database: DB | TxDb, seasonId: string, userId: string): Promise<AdminPostMatchTaskRow[]> {
-  const matchRows = await database.select().from(matches)
-    .where(and(eq(matches.seasonId, seasonId), officialMatchCondition(), eq(matches.status, "finished")))
+export async function readAdminPostMatchTasks(database: DB | TxDb, seasonId: string, userId: string, scope: { stage?: string; team?: string } = {}): Promise<AdminPostMatchTaskRow[]> {
+  const matchRows = await database.select({
+    id: matches.id, seasonId: matches.seasonId, stage: matches.stage,
+    majorStageRunId: matches.majorStageRunId, status: matches.status,
+    entryAId: matches.entryAId, entryBId: matches.entryBId, isForfeit: matches.isForfeit,
+    hasVideo: hasMatchRecordingCondition().mapWith(Boolean),
+  }).from(matches)
+    .where(and(eq(matches.seasonId, seasonId), officialMatchCondition(), eq(matches.status, "finished"),
+      scope.stage && scope.stage !== "all" ? eq(matches.stage, scope.stage) : undefined,
+      scope.team && scope.team !== "all" ? or(sql`${matches.entryAId}::text = ${scope.team}`, sql`${matches.entryBId}::text = ${scope.team}`) : undefined))
     .orderBy(desc(matches.completedAt), asc(matches.id));
   if (matchRows.length === 0) return [];
   const ids = matchRows.map(match => match.id);
   const [maps, roster, imports, scoreboards, commentators, reports, entries, reopenedIds] = await Promise.all([
-    database.select().from(matchMaps).where(inArray(matchMaps.matchId, ids)).orderBy(asc(matchMaps.mapOrder)),
-    loadEffectiveMatchRoster(database, ids, true),
+    database.select({ id: matchMaps.id, matchId: matchMaps.matchId, mapOrder: matchMaps.mapOrder,
+      mapName: matchMaps.mapName, teamAStartSide: matchMaps.teamAStartSide,
+      scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB, completedAt: matchMaps.completedAt,
+    }).from(matchMaps).where(inArray(matchMaps.matchId, ids)).orderBy(asc(matchMaps.mapOrder)),
+    loadEffectiveMatchRoster(database, ids),
     database.select(demoImportMetadataSelection).from(matchDemoImports).where(and(eq(matchDemoImports.seasonId, seasonId), inArray(matchDemoImports.matchId, ids))).orderBy(desc(matchDemoImports.createdAt)),
-    database.select().from(matchPlayerStats).where(inArray(matchPlayerStats.matchId, ids)),
+    database.select({ matchId: matchPlayerStats.matchId, mapId: matchPlayerStats.mapId,
+      userId: matchPlayerStats.userId, perfectName: matchPlayerStats.perfectName,
+      kills: matchPlayerStats.kills, deaths: matchPlayerStats.deaths, assists: matchPlayerStats.assists,
+      hsPercent: matchPlayerStats.hsPercent, firstKills: matchPlayerStats.firstKills,
+      multiKills: matchPlayerStats.multiKills, clutches: matchPlayerStats.clutches,
+      adr: matchPlayerStats.adr, ratingPro: matchPlayerStats.ratingPro, rws: matchPlayerStats.rws, we: matchPlayerStats.we,
+    }).from(matchPlayerStats).where(inArray(matchPlayerStats.matchId, ids)),
     database.select({ matchId: matchCommentators.matchId, userId: matchCommentators.userId }).from(matchCommentators).where(inArray(matchCommentators.matchId, ids)),
     database.select({ matchId: postMatchReports.matchId }).from(postMatchReports).where(inArray(postMatchReports.matchId, ids)),
     database.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, seasonId), inArray(competitionEntries.id, [...new Set(matchRows.flatMap(match => [match.entryAId, match.entryBId]).filter((id): id is string => id !== null))]))),
@@ -66,7 +94,7 @@ export async function readAdminPostMatchTasks(database: DB | TxDb, seasonId: str
       roster: rosterByMatch.get(match.id) ?? [], imports: importsByMatch.get(match.id) ?? [],
       scoreboards: scoresByMatch.get(match.id) ?? [] });
     const tasks = projectOperatorPostMatchTasks({ status: match.status, isForfeit: match.isForfeit, maps: operatorMaps,
-      commentatorCount: people.length, submitted: submitted.has(match.id), reopened: reopenedIds.has(match.id), hasVideo: hasMatchRecording(match) });
+      commentatorCount: people.length, submitted: submitted.has(match.id), reopened: reopenedIds.has(match.id), hasVideo: match.hasVideo });
     if (tasks.length === 0 || !match.entryAId || !match.entryBId) return [];
     return [{ id: match.id, stage: match.stage ?? "", entryAId: match.entryAId, entryBId: match.entryBId,
       teamAName: names.get(match.entryAId) ?? "未知队伍", teamBName: names.get(match.entryBId) ?? "未知队伍",

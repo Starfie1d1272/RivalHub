@@ -1,0 +1,42 @@
+import json, subprocess, threading, time, urllib.request, hashlib
+from pathlib import Path
+import sys
+
+root = Path('/workspace/perf-materials')
+size = int(sys.argv[1])
+assert size in (1, 10, 20)
+base = 'http://127.0.0.1:3015/api/w15-local-snapshot'
+def snapshot():
+    with urllib.request.urlopen(base, timeout=15) as response:
+        return json.load(response)
+
+samples = []
+stop = threading.Event()
+def sample_loop():
+    while not stop.is_set() and len(samples) < 500:
+        samples.append(snapshot())
+        stop.wait(.25)
+
+before = snapshot()
+thread = threading.Thread(target=sample_loop)
+thread.start()
+try:
+    result = subprocess.run(['node', str(root/'w15-final-cohort.cjs'), str(root/f'w15-production67-{size}-config.json')], timeout=180)
+finally:
+    stop.set()
+    thread.join()
+after = snapshot()
+browser = json.loads((root/f'w15-production67-{size}-browser.json').read_text())
+patch = subprocess.check_output(['git', 'diff'], text=True) + subprocess.run(['git','diff','--no-index','--','/dev/null','src/app/api/w15-local-snapshot/route.ts'],text=True,capture_output=True).stdout
+source = subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip()
+report = dict(sourceSha=source, patchSha256=hashlib.sha256(patch.encode()).hexdigest(), collectorSha256=hashlib.sha256((root/'w15-final-cohort.cjs').read_bytes()).hexdigest(), before=before, after=after, processSamples=samples, browser=browser, exitCode=result.returncode)
+(root/'w15-production67-harness.patch').write_text(patch)
+(root/f'w15-production67-{size}-report.json').write_text(json.dumps(report,indent=2))
+def total(s, section, field):
+    return sum(p[section][field] for p in s['pools'])
+delta = {name:total(after,section,field)-total(before,section,field) for name,section,field in [('acquires','acquire','count'),('sql','client','queries'),('sqlMs','client','queryMs'),('holdMs','client','holdMs'),('failures','client','failures'),('transactions','client','transactions')]}
+summary = dict(size=size, exitCode=result.returncode, samePid=len({s['pid'] for s in [before,*samples,after]})==1, poolCount=len(after['pools']), delta=delta, maxWaiting=max((p['waiting'] for s in samples for p in s['pools']),default=0), rssBytes=[before['runtime']['rssBytes'],after['runtime']['rssBytes']], heapBytes=[before['runtime']['heapUsedBytes'],after['runtime']['heapUsedBytes']], samples=len(samples), browserPages=len(browser['results']), pageErrors=sum(s['pageErrors'] for s in browser['results']), badPageStatuses=[s['httpStatus']for s in browser['results']if s['httpStatus']!=200], readyByRound=[dict(round=w['round'],acceptedBatches=w['batchDelta'],ready=len(w['ready']),statuses=w['statuses'])for w in browser['receiverWindows']])
+(root/f'w15-production67-{size}-summary.json').write_text(json.dumps(summary,indent=2))
+print(json.dumps(summary))
+if result.returncode:
+    raise SystemExit(result.returncode)
