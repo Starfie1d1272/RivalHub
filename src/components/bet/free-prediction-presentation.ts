@@ -4,7 +4,7 @@ import { mapLabel } from "@/lib/maps";
 import type { FreePredictionModel, PredictionRankingModel } from "./presentation-contract";
 
 export function freeMatchRow(match: FreePredictionMatchDTO): BetBoardDTO["matches"][number] {
-  return { id: match.matchId, entryAId: match.entryIds[0], entryBId: match.entryIds[1], a: match.a, b: match.b, logoA: match.logoA, logoB: match.logoB, stage: match.stage, format: match.format.toUpperCase(), scheduledAt: match.scheduledAt };
+  return { id: match.matchId, entryAId: match.entryIds[0], entryBId: match.entryIds[1], a: match.a, b: match.b, logoA: match.logoA, logoB: match.logoB, stage: match.stage, format: match.format.toUpperCase(), scheduledAt: match.scheduledAt, status: match.status, displayScore: match.displayScore };
 }
 
 export function freePredictionPanel(match: FreePredictionMatchDTO, kind: "winner" | "bp"): FreePredictionModel {
