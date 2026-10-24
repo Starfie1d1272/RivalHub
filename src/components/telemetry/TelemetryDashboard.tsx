@@ -603,7 +603,7 @@ export default function TelemetryDashboard({ initial }: { initial: Analysis }) {
                 />
               </Panel>
               <Trend rows={data.buckets} hours={data.filters.hours} />
-              {selectedMetric && hist && <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
+              <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
                 <Panel contentClassName="p-0">
                   <Heading
                     title="访问页面"
