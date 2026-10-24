@@ -1,0 +1,21 @@
+{
+  "environment": "isolated local PostgreSQL + Local Supabase + Chromium",
+  "test": "tests/e2e/flows/admin-content-read-boundaries.spec.ts",
+  "status": "passed",
+  "durationSeconds": 32.6,
+  "retry": 0,
+  "integrationBranchHead": "8d319286",
+  "codeBase": "7b619d2b17ef7c089184b922991ce312404fb9c3",
+  "dependencyValidationPin": "b820d4b6bac7fd690c05f9c9628f6886cfe976bf",
+  "assertions": [
+    "6 announcement routes: summaries/page/back/full editor/cross-season denial",
+    "3 information routes: count-only directory and complete detail",
+    "education: season administrator denial and super-administrator evidence visibility",
+    "announcements unchanged after read-only navigation"
+  ],
+  "limits": [
+    "dev server, not production performance cohort",
+    "no dirty-form or mutation revocation claim",
+    "trace retained locally only"
+  ]
+}

@@ -89,7 +89,7 @@
       "task": "A-EDUREVIEW",
       "status": "implemented_tested",
       "implemented": "分别消费page/overview，两个独立Suspense与受控错误区域；核心审核队列旁唯一ready；证据寿命owner不变",
-      "evidence": "临时集成type-check、architecture，真实PG分离与组合DTO等价、过期搜索/展示hard-expire",
+      "evidence": "临时集成type-check、architecture，真实PG分离与组合DTO等价、过期搜索/展示hard-expire；真实Chromium季赛管理员拒绝且无证据code，超级管理员同fixture证据可见",
       "remainingExperiment": "慢overview/局部失败的浏览器streaming观察；依赖合main后的CI",
       "owner": "accounts"
     },
@@ -116,8 +116,8 @@
       "task": "A-ANNOUNCEADMIN",
       "status": "implemented_tested",
       "implemented": "消费canonical20条summary/count；当前actor scope保持，越界页clamp重读；完整正文在editor详情",
-      "evidence": "临时精确依赖集成type-check；真实PG65条/同时间ID稳定排序/正文不随列表返回/越权零行/跨季详情拒绝",
-      "remainingExperiment": "依赖合main后的CI与浏览器filter/back-forward；public mutation不变",
+      "evidence": "临时精确依赖集成type-check；真实PG65条/同时间ID稳定排序/正文不随列表返回/越权零行/跨季详情拒绝；真实Chromium两个列表20条、global next/back、列表Flight无正文、两个详情完整正文及跨季拒绝",
+      "remainingExperiment": "最新head required CI；编辑mutation协议未改，dirty/撤权mutation不作为已测",
       "owner": "public+admin"
     },
     {
@@ -206,7 +206,7 @@
       "task": "A-INFOADMIN",
       "status": "implemented_tested",
       "implemented": "目录仅消费groupCount/contactCount；两详情沿用owner单season direct read及稳定排序",
-      "evidence": "public-entrypoint真实PG摘要无联系明细、零授权与scope检查；临时集成类型检查",
+      "evidence": "public-entrypoint真实PG摘要无联系明细、零授权与scope检查；临时集成类型检查；真实Chromium目录准确group/contact计数且Flight无联系方式，两处详情保留完整联系方式",
       "remainingExperiment": "public合main后的精确head CI；联系人编辑失效/撤权浏览器",
       "owner": "public-info+admin"
     },
@@ -215,7 +215,7 @@
       "task": "A-INFOADMIN",
       "status": "implemented_tested",
       "implemented": "目录仅消费groupCount/contactCount；两详情沿用owner单season direct read及稳定排序",
-      "evidence": "public-entrypoint真实PG摘要无联系明细、零授权与scope检查；临时集成类型检查",
+      "evidence": "public-entrypoint真实PG摘要无联系明细、零授权与scope检查；临时集成类型检查；真实Chromium目录准确group/contact计数且Flight无联系方式，两处详情保留完整联系方式",
       "remainingExperiment": "public合main后的精确head CI；联系人编辑失效/撤权浏览器",
       "owner": "public-info+admin"
     },
@@ -224,7 +224,7 @@
       "task": "A-INFOADMIN",
       "status": "implemented_tested",
       "implemented": "目录仅消费groupCount/contactCount；两详情沿用owner单season direct read及稳定排序",
-      "evidence": "public-entrypoint真实PG摘要无联系明细、零授权与scope检查；临时集成类型检查",
+      "evidence": "public-entrypoint真实PG摘要无联系明细、零授权与scope检查；临时集成类型检查；真实Chromium目录准确group/contact计数且Flight无联系方式，两处详情保留完整联系方式",
       "remainingExperiment": "public合main后的精确head CI；联系人编辑失效/撤权浏览器",
       "owner": "public-info+admin"
     },
@@ -276,10 +276,10 @@
     {
       "route": "/admin/operations/announcements/new",
       "task": "A-ANNOUNCEADMIN",
-      "status": "experiment_pending",
+      "status": "hypothesis_rejected_for_now",
       "implemented": "fresh授权赛事选项；不读取历史公告正文；新建表单未做无profile的bundle重构",
-      "evidence": "入口/消费者核对及临时依赖集成type-check；summary/detail接口已闭环到相邻列表/详情",
-      "remainingExperiment": "新建表单dirty/权限撤销的浏览器smoke；没有editor bundle归因时不拆分",
+      "evidence": "真实Chromium两处空新建表单；Flight无历史长正文；源码无历史正文reader；未发现可归因bundle收益",
+      "remainingExperiment": "若profile识别editor bundle瓶颈再拆分；dirty/撤权mutation不属于本次只读验证",
       "owner": "public+admin"
     },
     {
@@ -287,8 +287,8 @@
       "task": "A-ANNOUNCEADMIN",
       "status": "implemented_tested",
       "implemented": "复用owner direct scoped detail；季赛consumer将seasonId/scope固定进SQL，保留返回后校验",
-      "evidence": "真实PG完整长正文及同ID跨季拒绝",
-      "remainingExperiment": "编辑表单dirty、撤权浏览器回归；依赖合mainCI",
+      "evidence": "真实PG完整长正文及同ID跨季拒绝；真实Chromium两个列表20条、global next/back、列表Flight无正文、两个详情完整正文及跨季拒绝",
+      "remainingExperiment": "最新head required CI；编辑mutation协议未改，dirty/撤权mutation不作为已测",
       "owner": "public+admin"
     },
     {
@@ -296,17 +296,17 @@
       "task": "A-ANNOUNCEADMIN",
       "status": "implemented_tested",
       "implemented": "消费canonical20条summary/count；当前actor scope保持，越界页clamp重读；完整正文在editor详情",
-      "evidence": "临时精确依赖集成type-check；真实PG65条/同时间ID稳定排序/正文不随列表返回/越权零行/跨季详情拒绝",
-      "remainingExperiment": "依赖合main后的CI与浏览器filter/back-forward；public mutation不变",
+      "evidence": "临时精确依赖集成type-check；真实PG65条/同时间ID稳定排序/正文不随列表返回/越权零行/跨季详情拒绝；真实Chromium两个列表20条、global next/back、列表Flight无正文、两个详情完整正文及跨季拒绝",
+      "remainingExperiment": "最新head required CI；编辑mutation协议未改，dirty/撤权mutation不作为已测",
       "owner": "public+admin"
     },
     {
       "route": "/admin/[seasonSlug]/announcements/new",
       "task": "A-ANNOUNCEADMIN",
-      "status": "experiment_pending",
+      "status": "hypothesis_rejected_for_now",
       "implemented": "fresh授权赛事选项；不读取历史公告正文；新建表单未做无profile的bundle重构",
-      "evidence": "入口/消费者核对及临时依赖集成type-check；summary/detail接口已闭环到相邻列表/详情",
-      "remainingExperiment": "新建表单dirty/权限撤销的浏览器smoke；没有editor bundle归因时不拆分",
+      "evidence": "真实Chromium两处空新建表单；Flight无历史长正文；源码无历史正文reader；未发现可归因bundle收益",
+      "remainingExperiment": "若profile识别editor bundle瓶颈再拆分；dirty/撤权mutation不属于本次只读验证",
       "owner": "public+admin"
     },
     {
@@ -314,15 +314,15 @@
       "task": "A-ANNOUNCEADMIN",
       "status": "implemented_tested",
       "implemented": "复用owner direct scoped detail；季赛consumer将seasonId/scope固定进SQL，保留返回后校验",
-      "evidence": "真实PG完整长正文及同ID跨季拒绝",
-      "remainingExperiment": "编辑表单dirty、撤权浏览器回归；依赖合mainCI",
+      "evidence": "真实PG完整长正文及同ID跨季拒绝；真实Chromium两个列表20条、global next/back、列表Flight无正文、两个详情完整正文及跨季拒绝",
+      "remainingExperiment": "最新head required CI；编辑mutation协议未改，dirty/撤权mutation不作为已测",
       "owner": "public+admin"
     }
   ],
-  "integrationBase": "d58ab7c4fb97cef7795ee2de9d9b5d6a2e208eaf",
+  "integrationBase": "7b619d2b17ef7c089184b922991ce312404fb9c3",
   "betDependency": "a94b96ef5be2857c6518b460deedfcb3623437c4",
   "dependencies": {
-    "playinReader": "b820d4b6bac7fd690c05f9c9628f6886cfe976bf (#1096)"
+    "playInSwissPR1096": "dbb5eb8124fc5e52053f951c4f48fd11f0979dfb"
   },
   "codeBase": "7b619d2b17ef7c089184b922991ce312404fb9c3",
   "resolvedDependencies": {

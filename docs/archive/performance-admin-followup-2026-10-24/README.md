@@ -53,14 +53,16 @@ rm src/lib/admin/matches/overview-list-baseline.ts src/lib/admin/matches/postmat
 
 浏览器用 `tests/e2e/flows/admin-match-readiness.spec.ts`；before须在06d0ea5临时checkout放同一测试文件，设置 `RIVALHUB_ADMIN_READINESS_BASELINE=1`，after不设。两次均设置独立输出路径 `RIVALHUB_ADMIN_READINESS_OUTPUT`，只用本地fixture。
 
+## 公告、信息与教育浏览器边界
+
+`tests/e2e/flows/admin-content-read-boundaries.spec.ts` 在隔离真实PG、Local Supabase登录和Chromium中通过（32.6秒，retry=0，显式trace）。65条长正文公告：两个列表各显示20条，global next/back有效，完整root Flight不含正文marker；两个新建页为空表单，两个详情页保留完整正文；季赛详情拒绝同ID跨季访问。信息目录保留两种准确计数且Flight不含联系方式，两处详情保留完整联系方式。季赛管理员被拒绝访问教育审核且Flight无证据code，超级管理员可读取同一fixture证据。测试只执行读取和导航，结束检查公告正文/草稿状态未变；fixture写入、清理仅在本地隔离DB。新建页没有历史正文reader，未做无profile的bundle重构。
+
+初始页面网络稳定后才发独立Flight探测；该等待不充当hydration或产品ready时间。完整trace仅留本地，不提交认证信息。Next开发服务器仍报告既有admin入口`connection()`缺少Suspense边界的警告；本用例证明内容/权限边界，不证明所有入口已达到instant navigation目标。
+
 ## 接口与限制
 
-public `e7a7ae264b1ed63ffb8f12828ea2979b33f157c1`、accounts `c602550eb6d6c7580c5daf2122c782bf3ceddf85`、stats `ec0989a502b08f71f1a917e07b88e3cf02e13b17`仅用于临时集成验证：app/tests类型和架构通过；10个reader PG及8个qualification/prestart PG通过。公告consumer在SQL固定季赛scope并只用summary/count，详情保留完整正文。教育overview/page独立返回受控错误，fresh授权在父page，证据过期owner不变。prestart union IDs读一次不限定平台的raw bundle，再按profile/fallback投影。
+正式基于main `7b619d2b17ef7c089184b922991ce312404fb9c3`，accounts、stats、public摘要/详情API均已合入。公告consumer在SQL固定季赛scope并只用summary/count，详情保留完整正文。教育overview/page独立返回受控错误，fresh授权在父page，证据过期owner不变。prestart union IDs只读一次不限定平台的raw bundle，再按profile/fallback投影。
 
-最终依赖合入main后必须rebase并让最新head CI验证。35页逐项状态见 `route-status.json`，精确文件与依赖见 `scope-files.json`。仍缺真实部署cohort、混合pool预算、500 active全局队列、慢教育overview的浏览器隔离；没有把这些写成已完成。未发布、未部署、未做生产写入。
+Play-in reader来自独立PR #1096。临时集成验证pin `b820d4b6bac7fd690c05f9c9628f6886cfe976bf`；已对比最新候选 `dbb5eb8124fc5e52053f951c4f48fd11f0979dfb`，相关reader、presentation、PG测试无差异。app/tests类型、受影响ESLint、architecture与9个定向PG文件22例全部通过。#1096仍待父会审查合入，之后必须同步main并以最新head的required CI收口；临时验证不是正式分支独立编译成功的声明。#1094保持Ready，不设置Draft门槛。
 
-后续正式代码已跟进包含accounts和stats的main；public API仍待合入。最新临时集成app/tests类型、受影响ESLint与架构检查通过；8个定向PG文件的19用例中，自定义play-in fixture修正后单独重跑通过，其他18例通过。RSC测试已去除额外探测query，使用实际页面参数。当前A-WB-5四子项与三个view分别列在route-status tasks，不能按一个route状态冒充全部完成。
-
-最终验证基于正式公共API main7b619d2b，加#1096 b820d4b6临时合入：app/tests类型、受影响ESLint、architecture与9个定向PG文件22例全部通过。资料、阶段/队伍筛选、分页clamp、普通自定义play-in、Swiss/Play-in parity、scope与证据时限均覆盖。用户最新指示为直接Ready，#1094已转Ready；依赖未合与CI pending保持明确记录，不以Draft设置人工门槛。
-
-已核对schedule的实际Client消费者：MajorSwissRuntimeManagement只接13个标量字段，MajorPlayoffRuntimeManagement只接7个标量字段；BatchDeadlineCard接stage/round/entryRound/count分组，普通赛程Server rows只有当前25条。没有把完整match数组或frozen ruleSnapshot原样传入这些Client props。
+35页逐项状态见 `route-status.json`，精确文件与依赖见 `scope-files.json`。A-WB-5四子项与三个view分别列项。仍缺真实部署cohort、混合pool预算、500 active全局队列、慢教育overview的浏览器隔离；这些没有标为完成。未发布、未部署、未做生产写入。
