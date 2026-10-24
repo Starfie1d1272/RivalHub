@@ -29,3 +29,22 @@ it("shows a controlled rejection and allows an explicit retry", async () => {
   await screen.findByRole("textbox", { name: "review draft" });
   expect(boundary.read).toHaveBeenCalledTimes(2);
 });
+
+it("disables stale actions throughout fresh loading and denial without discarding draft", async () => {
+  const { container, rerender } = render(<DeferredDemoReview seasonId="season" matchId="match" summary={summary} />);
+  await act(async () => { const details = container.querySelector("details")!; details.open = true; fireEvent(details, new Event("toggle")); });
+  const input = await screen.findByRole("textbox", { name: "review draft" });
+  fireEvent.change(input, { target: { value: "unsaved" } });
+  expect(input).not.toBeDisabled();
+  let resolve!: (result: unknown) => void;
+  boundary.read.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+  rerender(<DeferredDemoReview seasonId="season" matchId="match" summary={{ ...summary }} />);
+  expect(input).toBeDisabled();
+  expect(input).toHaveValue("unsaved");
+  await act(async () => { resolve({ success: false, error: { message: "permission revoked" } }); });
+  expect(await screen.findByRole("alert")).toHaveTextContent("permission revoked");
+  expect(input).toBeDisabled(); expect(input).toHaveValue("unsaved");
+  fireEvent.click(screen.getByRole("button", { name: "重试" }));
+  await waitFor(() => expect(input).not.toBeDisabled());
+  expect(input).toHaveValue("unsaved");
+});
