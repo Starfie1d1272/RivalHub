@@ -1,0 +1,9 @@
+# 换算策略目录与详情边界
+
+目录SQL只选择显示元数据，引用计数使用canonical reference提取规则对每个赛事规范化一次。Client不接mapping、说明正文或逐赛事引用。完整详情与复制新版本所需基准说明由独立action逐次requireSuperAdmin后读取，查询固定policy ID与支持的平台对。原完整reader保留兼容；生命周期mutation及冻结事实未改。
+
+manager在打开详情时显示加载状态，关闭取消后丢弃迟到结果；失败提供提示，目录仍可重试。复制版本只在用户打开时读取基准说明，原默认说明保持。保存/批准/切当前/退役成功后重新读取可见详情，避免状态停留在旧draft。没有自动重放业务写入。
+
+真实隔离PG：现有生命周期/冻结引用测试通过，summary顺序与完整reader一致，引用计数准确2，完整详情字段等价，外平台/未知ID返回null。22个policy含20份4000字说明fixture时，完整DTO344369→summary6450字节；这是DTO字节量，未冒充SQL wire bytes。目录查询实际不选mapping/notes，仍读取赛事配置以复用canonical reference规则，没有谎称全部DB有界。
+
+权限unit1例验证每次读取fresh授权，撤权和非法ID不进入reader；UI3例验证按需完整说明、新版本默认说明/授权失败和关闭后迟到响应忽略。app/tests类型、文件级ESLint、architecture通过。未宣称生产RUM或SQL latency收益，原refs Map优化独立在#1100。
