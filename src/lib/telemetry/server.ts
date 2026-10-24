@@ -1,6 +1,7 @@
 import "server-only";
 import { accountKey, signTicket } from "./ticket";
 import type { Bootstrap, Ticket } from "./protocol";
+import { configuredTelemetryOrigin } from "./origin";
 
 /** Called inside the existing Header request island; no endpoint, auth query or runtime cache added. */
 export async function telemetryBootstrap(viewer: { userId: string; isAdmin: boolean; isSuperAdmin: boolean } | null): Promise<Bootstrap | null> {
@@ -9,7 +10,8 @@ export async function telemetryBootstrap(viewer: { userId: string; isAdmin: bool
     const secret = process.env.PRODUCT_TELEMETRY_SIGNING_KEY ?? "";
     const identitySecret = process.env.PRODUCT_TELEMETRY_ACCOUNT_KEY ?? "";
     const endpoint = new URL(process.env.PRODUCT_TELEMETRY_ENDPOINT ?? "");
-    const origin = new URL(process.env.PRODUCT_TELEMETRY_ORIGIN ?? "").origin;
+    const origin = configuredTelemetryOrigin();
+    if (!origin) return null;
     const environment = process.env.VERCEL_ENV;
     if (secret.length < 32 || identitySecret.length < 32 || endpoint.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.search || endpoint.hash || !["preview", "production"].includes(environment ?? "")) return null;
     const release = process.env.RIVALHUB_RELEASE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "unknown";
