@@ -25,7 +25,7 @@ it.each(["scheduled", "in_progress"])("preserves historical stats but hard-expir
     updates.push(handler.updateTags([tag], typeof durations === "object" ? durations : { expire: 3600 }));
   });
   try {
-    revalidateVetoRoomPaths(scoped, { changed: true, affectedFacts: ["lineups", "appeals"] }, { mode: "route" });
+    revalidateVetoRoomPaths(scoped, { changed: true, affectedFacts: ["lineups", "appeals", "veto_step"] }, { mode: "route" });
     await Promise.all(updates);
     await new Promise(resolve => setTimeout(resolve, 2));
     expect(cache.revalidateTag).not.toHaveBeenCalledWith(PUBLIC_STATS_TAG, expect.anything());
@@ -36,6 +36,9 @@ it.each(["scheduled", "in_progress"])("preserves historical stats but hard-expir
 });
 it.each([
   { matchStatus: "in_progress", affectedFacts: ["veto"] },
+  { matchStatus: "in_progress", affectedFacts: ["map_plan"] },
+  { matchStatus: "scheduled", affectedFacts: ["veto_step", "map_plan"] },
+  { matchStatus: "finished", affectedFacts: ["veto_step"] },
   { matchStatus: "finished", affectedFacts: ["veto"] },
   { matchStatus: "cancelled", affectedFacts: ["veto"] },
   { matchStatus: "in_progress", affectedFacts: ["official_result"] },

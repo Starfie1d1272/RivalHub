@@ -12,11 +12,11 @@
 | 进行中 BP 房间 | 无跨请求共享 room cache；no-store transport | fresh 权限、DB 时钟、revision、实际 lineup 与命令状态 |
 | 公共玩家基础资料 | public player tag；统计支路使用统计安全 tag | viewer overlay、资格与当前身份授权 |
 
-不按页面名称推断依赖：统计中的 veto reader 限定 finished；BET 公共 snapshot 则确实消费进行中 BP 的支持率和市场事实。lineup/appeal 等已证明无地图目录变化的 BP 变化豁免历史统计重建时，BET tag 仍必须立即过期。`veto` 旧 receipt 同时包含普通步骤与 map-plan 完成/重建；后者改变 scheduled/in_progress 地图目录及统计 selection/options，因此目前仍走宽失效，不能仅凭 finished veto reader 推断全部统计消费者只依赖完赛事实。
+不按页面名称推断依赖：统计中的 veto reader 限定 finished；BET 公共 snapshot 则确实消费进行中 BP 的支持率和市场事实。lineup/appeal 等已证明无地图目录变化的 BP 变化豁免历史统计重建时，BET tag 仍必须立即过期。`veto` 旧 receipt 同时包含普通步骤与 map-plan 完成/重建；后者改变 scheduled/in_progress 地图目录及统计 selection/options，因此仍走宽失效。只有 locks canonical owner 明确产生的 veto_step 表示普通非地图计划步骤；map_plan、旧 veto 和未知事实始终宽失效，混合事实采用并集，不能用不存在 map_plan 来推断旧 veto 等同 veto_step。不能仅凭 finished veto reader 推断全部统计消费者只依赖完赛事实。
 
 ## Mutation 合同
 
-`revalidateVetoRoomPaths(context, receipt, options)` 接收服务端读取的 slug/seasonId/matchId/matchStatus，以及领域 owner 的 changed/affectedFacts。没有真实变化时不失效。仅 scheduled/in_progress 且事实集合非空、全部属于 lineups/appeals 时，允许跳过全局统计失效；finished、cancelled、缺失/未知事实继续宽失效。`statistics:true` 是明确的紧急回退。
+`revalidateVetoRoomPaths(context, receipt, options)` 接收服务端读取的 slug/seasonId/matchId/matchStatus，以及领域 owner 的 changed/affectedFacts。没有真实变化时不失效。仅 scheduled/in_progress 且事实集合非空、全部属于 lineups/appeals/veto_step 时，允许跳过全局统计失效；finished、cancelled、缺失/未知事实继续宽失效。`statistics:true` 是明确的紧急回退。
 
 该 BP 专用合同保留现有 match/season 页面刷新，并立即失效单届 BET tag。Server Action 用 updateTag 保持 read-your-writes；Route Handler 用 `{ expire: 0 }`，不将 generic season 的 SWR 语义套到实时支持率。
 

@@ -16,6 +16,7 @@ vi.mock("next/cache", () => ({
 it("expires warm statistics options/selection after a pre-finish map-plan replacement hidden by a legacy veto receipt", async () => fixture(async f => {
   const [season] = await f.db.select({ slug: schema.seasons.slug }).from(schema.seasons).where(eq(schema.seasons.id, f.seasonId));
   for (const matchStatus of ["scheduled", "in_progress"] as const) {
+    for (const affectedFacts of [["veto"], ["map_plan"], ["veto_step", "map_plan"]]) {
     await f.db.update(schema.matches).set({ status: matchStatus }).where(eq(schema.matches.id, f.matchId));
     await f.db.delete(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
     await f.db.insert(schema.matchMaps).values({ matchId: f.matchId, mapOrder: 1, mapName: "de_mirage" });
@@ -37,7 +38,7 @@ it("expires warm statistics options/selection after a pre-finish map-plan replac
     const pending: Promise<void>[] = [];
     bridge.invalidate = (tag, expire) => { pending.push(cache.updateTags([tag], expire === undefined ? undefined : { expire })); };
     try {
-      revalidateVetoRoomPaths({ slug: season!.slug, seasonId: f.seasonId, matchId: f.matchId, matchStatus }, { changed: true, affectedFacts: ["veto"] }, { mode: "route" });
+      revalidateVetoRoomPaths({ slug: season!.slug, seasonId: f.seasonId, matchId: f.matchId, matchStatus }, { changed: true, affectedFacts }, { mode: "route" });
       await Promise.all(pending);
       // Next rounds tag timestamps to integer milliseconds; let that at-most
       // half-ms future boundary pass before asserting a subsequent read.
@@ -48,5 +49,6 @@ it("expires warm statistics options/selection after a pre-finish map-plan replac
       expect(rebuilt.options.maps).toContain("de_nuke");
       expect(rebuilt.selection.some((row: { mapName: string }) => row.mapName === "de_nuke")).toBe(true);
     } finally { bridge.invalidate = () => {}; }
+    }
   }
 }));
