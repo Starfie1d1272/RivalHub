@@ -15,7 +15,7 @@ const MESSAGES: Record<OCRFailureKind, string> = {
   network: "OCR 服务无法连接上游，请稍后重试；持续失败时请管理员检查网络连接。",
   timeout: "OCR 上游请求超时，请稍后重试。",
   upstream: "OCR 上游服务或返回结果异常，请稍后重试；持续失败时请联系管理员。",
-  image: "截图无法读取，请选择有效的 JPEG、PNG 或 WebP 图片（不超过 10MB）后重试。",
+  image: "截图无法读取，请选择有效的 JPEG、PNG 或 WebP 图片（不超过 7 MiB）后重试。",
 };
 
 /**
@@ -55,6 +55,7 @@ export function presentOCRFailure(error: OCRFailure): ActionError {
   return {
     code: error.kind === "image" ? ErrorCode.VALIDATION_FAILED : ErrorCode.OCR_UNAVAILABLE,
     message: MESSAGES[error.kind] + (error.httpStatus ? `（HTTP ${error.httpStatus}）` : ""),
+    requestId: error.requestId,
     meta: {
       requestId: error.requestId,
       configurationRequired: error.kind === "configuration" || error.kind === "authentication",

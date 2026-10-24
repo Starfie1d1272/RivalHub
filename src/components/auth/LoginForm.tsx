@@ -67,6 +67,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
       }
     }
     startTransition(async () => {
+      try {
       const result = mode === "login"
         ? await loginWithPassword(email, password)
         : await signUp(email, password, confirmPassword, turnstileToken, redirectRef.current);
@@ -89,6 +90,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
         }
         toast.error(result.error.message);
       }
+      } catch { toast.error(mode === "login" ? "登录请求未完成，请检查网络连接后重试。" : "注册请求结果尚未确认，请先检查邮件，不要立即重复注册。"); }
     });
   }, [email, password, confirmPassword, mode, turnstileToken]);
 
@@ -112,12 +114,17 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
             找回密码
           </Link>
           <Button type="button" variant="outline" className="w-full" disabled={isResendPending || isResendCoolingDown} onClick={() => startResendTransition(async () => {
+            try {
             const result = await resendSignupConfirmation(awaitingEmail, redirectRef.current);
             if (result.success) {
               setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
               toast.success("已提交验证邮件重发请求；如果该邮箱仍待验证，请检查收件箱及垃圾邮件等分类。");
             } else {
               toast.error(result.error.message);
+            }
+            } catch {
+              setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
+              toast.error("发送结果尚未确认，请先检查邮箱，稍后再显式重试。");
             }
           })}>
             {isResendCoolingDown ? `请等待 ${EMAIL_RESEND_COOLDOWN_SECONDS} 秒后重试` : "重新发送验证邮件"}

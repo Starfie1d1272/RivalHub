@@ -100,7 +100,16 @@ export function hasPlayableMapPreference(preferences: readonly MapPreferenceDraf
   return preferences.some((preference) => preference.map === map && preference.level !== null && PLAYABLE_MAP_LEVELS.has(preference.level));
 }
 
-export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewerUserId?: string | null): Promise<{
+export async function getRecruitmentLobbyData(
+  filters: RecruitmentFilters,
+  viewerUserId?: string | null,
+  pagination?: { view: "teams" | "players"; page?: number; pageSize?: number },
+): Promise<{
+  teamCount: number;
+  playerCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
   teamRecruitments: TeamRecruitmentCardData[];
   playerLfts: PlayerLftCardData[];
   targetSeasons: Array<{ id: string; name: string }>;
@@ -129,8 +138,25 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
     teamSize: filters.teamSize,
     map: filters.map && mapOptions.includes(filters.map) ? filters.map : undefined,
   };
-  const [teamRows, playerRows] = await Promise.all([
-    db.select({
+  // Full predicates precede LIMIT and feed both tab counts and the active page.
+  const memberCount = sql<number>`(select count(*)::int from ${teamMemberships}
+    inner join ${users} as recruitment_member on recruitment_member.id = ${teamMemberships.userId}
+    where ${teamMemberships.teamId} = ${teams.id} and ${teamMemberships.endedAt} is null and recruitment_member.status = 'active')`;
+  const teamSizeCondition = !normalizedFilters.teamSize ? undefined
+    : normalizedFilters.teamSize === "small" ? sql`${memberCount} <= 4`
+      : normalizedFilters.teamSize === "medium" ? sql`${memberCount} between 5 and 6` : sql`${memberCount} >= 7`;
+  const allowedMapSeasonIds = [...targetMapPools].filter(([, pool]) => pool.includes(normalizedFilters.map ?? "")).map(([id]) => id);
+  const mapCondition = !normalizedFilters.map ? undefined : and(
+    normalizedFilters.targetSeasonId ? undefined : or(isNull(recruitmentIntents.targetSeasonId),
+      allowedMapSeasonIds.length ? inArray(recruitmentIntents.targetSeasonId, allowedMapSeasonIds) : sql`false`),
+    sql`exists (select 1 from ${userMapPreferences}
+      where ${userMapPreferences.userId} = ${users.id}
+      and exists (select 1 from jsonb_array_elements(${userMapPreferences.mapPreferences}::jsonb) with ordinality as pref(value, ordinal)
+        where pref.value->>'map' = ${normalizedFilters.map} and pref.value->>'level' in ('playable', 'proficient', 'strong')
+        and not exists (select 1 from jsonb_array_elements(${userMapPreferences.mapPreferences}::jsonb) with ordinality as later(value, ordinal)
+          where later.ordinal > pref.ordinal and later.value->>'map' = pref.value->>'map' and later.value->>'level' is not null)))`,
+  );
+  const teamQuery = db.select({
       id: recruitmentIntents.id,
       positions: recruitmentIntents.positions,
       targetSeasonId: recruitmentIntents.targetSeasonId,
@@ -152,8 +178,9 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
       .innerJoin(users, and(eq(users.id, teams.captainUserId), eq(users.status, "active")))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
-      .where(and(...openConditions("team_recruiting", normalizedFilters, now), eq(teams.status, "active"), or(isNull(recruitmentIntents.targetSeasonId), teamRecruitmentTargetAvailableCondition(now, recruitmentIntents.teamId))))
-      .orderBy(desc(recruitmentIntents.updatedAt), desc(recruitmentIntents.id)),
+      .where(and(...openConditions("team_recruiting", normalizedFilters, now), eq(teams.status, "active"), teamSizeCondition, or(isNull(recruitmentIntents.targetSeasonId), teamRecruitmentTargetAvailableCondition(now, recruitmentIntents.teamId))))
+      .orderBy(desc(recruitmentIntents.updatedAt), desc(recruitmentIntents.id)).$dynamic();
+  const playerQuery =
     db.select({
       id: recruitmentIntents.id,
       positions: recruitmentIntents.positions,
@@ -177,8 +204,22 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
       .leftJoin(teamMemberships, and(eq(teamMemberships.userId, users.id), isNull(teamMemberships.endedAt)))
       .leftJoin(currentPlayerTeam, and(eq(currentPlayerTeam.id, teamMemberships.teamId), eq(currentPlayerTeam.status, "active")))
       .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
-      .where(and(...openConditions("player_lft", normalizedFilters, now), or(isNull(recruitmentIntents.targetSeasonId), recruitmentTargetAvailableCondition(now))))
-      .orderBy(desc(recruitmentIntents.updatedAt), desc(recruitmentIntents.id)),
+      .where(and(...openConditions("player_lft", normalizedFilters, now), mapCondition, or(isNull(recruitmentIntents.targetSeasonId), recruitmentTargetAvailableCondition(now))))
+      .orderBy(desc(recruitmentIntents.updatedAt), desc(recruitmentIntents.id)).$dynamic();
+
+  const [[teamTotal], [playerTotal]] = await Promise.all([
+    db.select({ count: sql<number>`count(*)::int` }).from(teamQuery.as("filtered_teams")),
+    db.select({ count: sql<number>`count(*)::int` }).from(playerQuery.as("filtered_players")),
+  ]);
+  const teamCount = teamTotal?.count ?? 0;
+  const playerCount = playerTotal?.count ?? 0;
+  const pageSize = Math.max(1, Math.min(50, Math.trunc(pagination?.pageSize || 24)));
+  const total = pagination?.view === "players" ? playerCount : teamCount;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.max(1, Math.min(totalPages, Math.trunc(pagination?.page || 1)));
+  const [teamRows, playerRows] = await Promise.all([
+    pagination?.view === "players" ? Promise.resolve([]) : pagination ? teamQuery.limit(pageSize).offset((page - 1) * pageSize) : teamQuery,
+    pagination?.view === "teams" ? Promise.resolve([]) : pagination ? playerQuery.limit(pageSize).offset((page - 1) * pageSize) : playerQuery,
   ]);
   const teamIds = teamRows.map((row) => row.teamId);
   const playerIds = [...new Set(playerRows.map((row) => row.userId))];
@@ -241,6 +282,7 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
     competitiveSummary: presentPublicCompetitiveSummary(competitiveCatalog, factsByUser.get(row.userId) ?? []),
   })).filter((item) => !normalizedFilters.map || hasPlayableMapPreference(item.mapPreferences, normalizedFilters.map));
   return {
+    teamCount, playerCount, page, pageSize, totalPages,
     teamRecruitments,
     playerLfts,
     targetSeasons,

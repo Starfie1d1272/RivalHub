@@ -1,4 +1,6 @@
 "use client";
+import { ContentReady } from "@/components/telemetry/ContentReady";
+
 import { STATS_METRICS } from "@/lib/stats/metrics";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
@@ -68,6 +70,7 @@ export function MapWorkspace({ detail, seasonSlug, teamLinks }: { detail: Tourna
   ];
 
   return (
+    <>
     <section className="space-y-5">
       <header><h2 className="text-xl font-semibold">{mapName}</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">{playedMaps} map{playedMaps === 1 ? "" : "s"} · {roundCount} round{roundCount === 1 ? "" : "s"}{partialCoverage ? ` · Coverage ${detail.coverage.detailedMaps}/${detail.coverage.completedMaps}` : ""}</p></header>
       <MetricFamilyTabs label="Map workspace" value={tab} options={tabs} onChange={setTab} />
@@ -92,5 +95,7 @@ export function MapWorkspace({ detail, seasonSlug, teamLinks }: { detail: Tourna
         <MetricPanel title="Economy Matchups"><StatsDataTable embedded rows={detail.analytics.economyMatrix} columns={economyColumns} rowKey={(row) => `${row.lowEconomy}:${row.highEconomy}`} emptyLabel="暂无经济样本" /></MetricPanel>
       </div>}
     </section>
+      <ContentReady module="statistics" phase="primary" />
+    </>
   );
 }

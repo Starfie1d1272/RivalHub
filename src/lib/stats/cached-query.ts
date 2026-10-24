@@ -1,3 +1,4 @@
+import { preservePublicStatsDependencyFailure } from "./availability";
 import "server-only";
 
 import { and, eq, ne } from "drizzle-orm";
@@ -14,14 +15,17 @@ import { isOfficialStageKey } from "@/lib/seasons/official-stages";
 import {
   getLongTeamCareerDetail,
   getMatchPlayerDetail,
+  getMatchMvpSummary,
   getPlayerCareerDetail,
   getPlayerCareerFilterOptions,
   getTournamentMapDetail,
   getTournamentStats,
   getTournamentTeamDetail,
   type TournamentStatsScope,
+  type PlatformStatsScope,
 } from "./tournament-query";
 
+type TournamentViewScope = TournamentStatsScope & Pick<PlatformStatsScope, "view" | "mapDetail" | "weaponTeamId">;
 type Visibility = "public" | "draft";
 type PlayerCareerScope = Parameters<typeof getPlayerCareerDetail>[0];
 type TeamScope = Parameters<typeof getTournamentTeamDetail>[0];
@@ -63,30 +67,31 @@ function statsCachePolicy(): void {
   cacheLife({ stale: 60, revalidate: 3600, expire: 86400 });
 }
 
-async function cachedTournamentStats(scope: TournamentStatsScope) {
+async function cachedTournamentStats(scope: TournamentViewScope) {
   "use cache: remote";
   statsCachePolicy();
-  return traceOperation("stats.public.read", { scope: "statistics", operation: "tournament" }, () => getTournamentStats(scope));
+  return traceOperation("stats.public.read", { scope: "statistics", operation: "tournament" }, () => preservePublicStatsDependencyFailure(() => getTournamentStats(scope)));
 }
 
 async function cachedTournamentTeam(scope: TeamScope) {
   "use cache: remote";
   statsCachePolicy();
-  return traceOperation("stats.public.read", { scope: "statistics", operation: "event_team" }, () => getTournamentTeamDetail(scope));
+  return traceOperation("stats.public.read", { scope: "statistics", operation: "event_team" }, () => preservePublicStatsDependencyFailure(() => getTournamentTeamDetail(scope)));
 }
 
 async function cachedTournamentMap(scope: MapScope) {
   "use cache: remote";
   statsCachePolicy();
-  return traceOperation("stats.public.read", { scope: "statistics", operation: "map" }, () => getTournamentMapDetail(scope));
+  return traceOperation("stats.public.read", { scope: "statistics", operation: "map" }, () => preservePublicStatsDependencyFailure(() => getTournamentMapDetail(scope)));
 }
 
 /** Entrypoints authorize draft access before calling; draft results never enter the remote cache. */
-export async function getPublicTournamentStats(scope: TournamentStatsScope, visibility: Visibility) {
+export async function getPublicTournamentStats(scope: TournamentViewScope, visibility: Visibility) {
   if (visibility === "draft") return getTournamentStats(scope);
   const season = await requirePublicSeason(scope.seasonId);
   if (scope.teamFilter) await requirePublicEntry(scope.seasonId, scope.teamFilter);
-  return cachedTournamentStats(await normalizeScope(scope, season));
+  if (scope.weaponTeamId) await requirePublicEntry(scope.seasonId, scope.weaponTeamId);
+  return cachedTournamentStats({ ...await normalizeScope(scope, season), view: scope.view, mapDetail: scope.mapDetail, weaponTeamId: scope.weaponTeamId });
 }
 
 export async function getPublicTournamentTeamDetail(scope: TeamScope, visibility: Visibility) {
@@ -108,13 +113,13 @@ export async function getPublicTournamentMapDetail(scope: MapScope, visibility: 
 async function cachedPlayerCareerDetail(scope: PlayerCareerScope) {
   "use cache: remote";
   statsCachePolicy();
-  return traceOperation("stats.public.read", { scope: "statistics", operation: "player_career" }, () => getPlayerCareerDetail(scope));
+  return traceOperation("stats.public.read", { scope: "statistics", operation: "player_career" }, () => preservePublicStatsDependencyFailure(() => getPlayerCareerDetail(scope)));
 }
 
 async function cachedPlayerFilterOptions(playerId: string) {
   "use cache: remote";
   statsCachePolicy();
-  return getPlayerCareerFilterOptions(playerId);
+  return preservePublicStatsDependencyFailure(() => getPlayerCareerFilterOptions(playerId));
 }
 
 export async function getPublicPlayerCareerDetail(scope: PlayerCareerScope) {
@@ -133,13 +138,13 @@ export async function getPublicPlayerCareerDetail(scope: PlayerCareerScope) {
 export async function getPublicLongTeamCareerDetail(teamId: string) {
   "use cache: remote";
   statsCachePolicy();
-  return traceOperation("stats.public.read", { scope: "statistics", operation: "team_career" }, () => getLongTeamCareerDetail(teamId));
+  return traceOperation("stats.public.read", { scope: "statistics", operation: "team_career" }, () => preservePublicStatsDependencyFailure(() => getLongTeamCareerDetail(teamId)));
 }
 
 async function cachedMatchPlayerDetail(matchId: string, playerId: string, mapName?: string) {
   "use cache: remote";
   statsCachePolicy();
-  return traceOperation("stats.public.read", { scope: "statistics", operation: "match_player" }, () => getMatchPlayerDetail(matchId, playerId, mapName));
+  return traceOperation("stats.public.read", { scope: "statistics", operation: "match_player" }, () => preservePublicStatsDependencyFailure(() => getMatchPlayerDetail(matchId, playerId, mapName)));
 }
 
 export async function getPublicMatchPlayerDetail(
@@ -154,4 +159,19 @@ export async function getPublicMatchPlayerDetail(
     .where(and(eq(matches.id, matchId), ne(seasons.status, "draft"))).limit(1);
   if (!match) return null;
   return cachedMatchPlayerDetail(matchId, playerId, mapName);
+}
+
+async function cachedMatchMvpSummary(matchId: string, playerId: string) {
+  "use cache: remote";
+  statsCachePolicy();
+  return preservePublicStatsDependencyFailure(() => getMatchMvpSummary(matchId, playerId));
+}
+
+/** Entrypoints retain draft authorization; no draft facts enter shared caches. */
+export async function getPublicMatchMvpSummary(matchId: string, playerId: string, visibility: Visibility) {
+  if (visibility === "draft") return getMatchMvpSummary(matchId, playerId);
+  const [match] = await db.select({ id: matches.id }).from(matches)
+    .innerJoin(seasons, eq(seasons.id, matches.seasonId))
+    .where(and(eq(matches.id, matchId), ne(seasons.status, "draft"))).limit(1);
+  return match ? cachedMatchMvpSummary(matchId, playerId) : null;
 }

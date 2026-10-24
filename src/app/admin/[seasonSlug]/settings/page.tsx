@@ -1,7 +1,7 @@
+import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+
 import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
@@ -19,11 +19,12 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
   if (!(await resolveAdminPageAccess(requireSuperAdmin))) return <AdminAccessDenied />;
 
   const { seasonSlug } = await params;
-  const [season, catalog] = await Promise.all([db.query.seasons.findFirst({
-    where: eq(seasons.slug, seasonSlug),
-  }), loadCompetitivePlatformCatalog(db)]);
+  const seasonPromise = findAdminSeasonBySlug(seasonSlug);
+  const [season, catalog, conversionPolicyProvenance] = await Promise.all([
+    seasonPromise, loadCompetitivePlatformCatalog(db),
+    seasonPromise.then(season => season ? loadConversionPolicyProvenance(db, season.teamRegistrationConfig) : null),
+  ]);
   if (!season) notFound();
-  const conversionPolicyProvenance = await loadConversionPolicyProvenance(db, season.teamRegistrationConfig);
 
   return (
     <div className="max-w-3xl">

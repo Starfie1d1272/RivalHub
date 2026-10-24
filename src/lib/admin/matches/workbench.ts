@@ -1,8 +1,8 @@
+import { traceOperation } from "@/lib/observability/server";
+import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { hasMatchRecording } from "@/lib/postmatch/recording-types";
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
-import { readBilibiliStatus, BROADCAST_STATUS_LABEL } from "@/lib/production/bilibili";
-import { readUploaderDownloads } from "@/lib/production/uploader";
 
 import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -19,7 +19,6 @@ import {
   matches,
   postMatchReports,
   seasonRegistrations,
-  seasons,
   steamProfiles,
   users,
 } from "@/db/schema";
@@ -33,9 +32,11 @@ import { getDisplayName } from "@/lib/identity/display-name";
 import { getPostMatchCompletion, POST_MATCH_COMPLETION_LABEL } from "@/lib/postmatch/completion";
 import { readReopenedPostMatchIds } from "@/lib/postmatch/read";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { loadMatchRosters } from "@/lib/match-rosters/read-model";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { demoImportMetadataSelection } from "@/lib/demo-integration/metadata";
 import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
+import { enrichAdminDemoReviewPersonas } from "./demo-personas";
 import { loadAdminDemoReview } from "./demo-review";
 import { projectAdminDemoQuality } from "./demo-quality";
 import type { AdminDemoReviewMap, AdminMatchWorkbenchData, RosterData, TeamMemberData } from "@/lib/admin/matches/types";
@@ -52,23 +53,6 @@ interface AdminMatchWorkbenchInput {
 type MatchRosterWithPlayers = typeof matchRosters.$inferSelect & {
   players: (typeof matchRosterPlayers.$inferSelect)[];
 };
-
-async function loadMatchRosters(matchId: string): Promise<MatchRosterWithPlayers[]> {
-  const rosters = await db.select().from(matchRosters).where(eq(matchRosters.matchId, matchId));
-  if (rosters.length === 0) return [];
-
-  const players = await db
-    .select()
-    .from(matchRosterPlayers)
-    .where(inArray(matchRosterPlayers.rosterId, rosters.map((roster) => roster.id)));
-  const playersByRoster = new Map<string, (typeof matchRosterPlayers.$inferSelect)[]>();
-  for (const player of players) {
-    const list = playersByRoster.get(player.rosterId) ?? [];
-    list.push(player);
-    playersByRoster.set(player.rosterId, list);
-  }
-  return rosters.map((roster) => ({ ...roster, players: playersByRoster.get(roster.id) ?? [] }));
-}
 
 function projectRoster(roster: MatchRosterWithPlayers | undefined): RosterData | null {
   if (!roster) return null;
@@ -111,7 +95,7 @@ export async function loadAdminMatchWorkbench({
   seasonSlug,
   matchId,
 }: AdminMatchWorkbenchInput): Promise<AdminMatchWorkbenchData | null> {
-  const season = await db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) });
+  const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) return null;
 
   // Scope the lookup itself so a guessed match id can never cross seasons.
@@ -162,7 +146,7 @@ export async function loadAdminMatchWorkbench({
             .where(eq(matchRosters.matchId, match.id))),
         ),
       )),
-    loadMatchRosters(match.id),
+    loadMatchRosters(match.id, entryIds),
     db.query.matchMaps.findMany({
       where: eq(matchMaps.matchId, match.id),
       orderBy: [asc(matchMaps.mapOrder)],
@@ -228,7 +212,7 @@ export async function loadAdminMatchWorkbench({
     membersByEntry.set(member.entryId, list);
   }
 
-  const rostersByEntry = new Map(rosterRows.map((roster) => [roster.entryId, roster]));
+  const rostersByEntry = rosterRows;
   let teamAPreflight = null;
   let teamBPreflight = null;
   if (match.status === "scheduled" && requiresCompetitionLineupPreflight(match)) {
@@ -255,12 +239,14 @@ export async function loadAdminMatchWorkbench({
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const entryName = new Map(entries.map((entry) => [entry.id, entry.name]));
   const reviewImportIds: string[] = [];
+  const demoQualitySummaries: NonNullable<AdminMatchWorkbenchData["demoQualitySummaries"]> = [];
   for (const map of mapRecords) {
     const rows = demoImportRows.filter((row) => row.matchMapId === map.id);
     const current = selectCurrentDemoImport(rows);
-    if (current?.status === "needs_attention" || current?.status === "confirmed") reviewImportIds.push(current.id);
+    if (current?.status === "needs_attention") reviewImportIds.push(current.id);
+    else if (current?.status === "confirmed") demoQualitySummaries.push({ importId: current.id, matchMapId: map.id, mapOrder: map.mapOrder, mapName: map.mapName });
   }
-  // Read only the selected current artifacts; quality warnings also matter after confirmation.
+  // Active reviews need authoritative details now; confirmed QA is advisory and loaded on expansion.
   const reviewImports = reviewImportIds.length
     ? await db.select().from(matchDemoImports).where(inArray(matchDemoImports.id, reviewImportIds))
     : [];
@@ -272,13 +258,13 @@ export async function loadAdminMatchWorkbench({
   });
   for (const map of mapRecords) {
     const row = currentImportByMap.get(map.id);
-    if (row?.status === "needs_attention") demoReviews.push(await db.transaction((tx) => loadAdminDemoReview(
+    if (row?.status === "needs_attention") demoReviews.push(await db.transaction((tx) => traceOperation("admin.match.demo-review", { scope: "admin", operation: "match.demo-review", stage: "transaction" }, () => loadAdminDemoReview(
       tx,
       row,
       { match, map, roster: effectiveRosterRows },
       entryName,
       eventRosterUserIdsByEntry,
-    )));
+    ))));
   }
   const submittedAt = submission?.submittedAt ?? null;
   const rosterReopened = reopenedIds.has(match.id) && !submission;
@@ -312,15 +298,12 @@ export async function loadAdminMatchWorkbench({
     loadOperatorContext({ match, maps: mapRecords, imports: demoImportRows, roster: effectiveRosterRows,
       seasonName: season.name, stageName: match.testConfig ? "测试赛" : stage?.name ?? null, isSwiss: stage?.type === "swiss",
       teamAName, teamBName, vetoComplete: Boolean(vetoSession?.completedAt) }),
-    readAdminMatchCommentary(db, { seasonId: season.id, currentUserId: admin.userId, excludeMatchId: match.id }),
+    readAdminMatchCommentary(db, { seasonId: season.id, currentUserId: admin.userId, excludeMatchId: match.id, historicalMatchIds: [match.id] }),
   ]);
 
-  const [broadcasts, uploaderDownloads] = await Promise.all([
-    match.status === "scheduled" || match.status === "in_progress" ? Promise.all(commentatorRows.map(async row => ({ name: getDisplayName(row), label: BROADCAST_STATUS_LABEL[await readBilibiliStatus(row.liveStreamUrl)] }))) : Promise.resolve([]),
-    operator.workflow.completedMaps.length ? readUploaderDownloads() : Promise.resolve(null),
-  ]);
+  // Persona is display enrichment, never part of canonical validation or its transaction.
+  await enrichAdminDemoReviewPersonas(demoReviews);
   return {
-    broadcasts, uploaderDownloads,
     completion: projectOperatorCompletion({ status: match.status, isForfeit: match.isForfeit, maps: operator.workflow.completedMaps, commentatorCount: commentatorRows.length, submitted: Boolean(submittedAt), reopened: rosterReopened, hasVideo: hasMatchRecording(match) }),
     season: { id: season.id, slug: season.slug, name: season.name },
     stageName: match.testConfig ? "测试赛" : stage?.name ?? null,
@@ -342,6 +325,7 @@ export async function loadAdminMatchWorkbench({
     postMatch,
     demoReviews,
     demoQuality,
+    demoQualitySummaries,
     operator,
     commentary,
   };

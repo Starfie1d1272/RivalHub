@@ -27,25 +27,14 @@ function TeamDirectoryFallback() {
 }
 
 async function TeamDirectoryContent({ searchParams }: { searchParams: Promise<TeamDirectorySearchParams> }) {
-  const [rawSearchParams, session] = await Promise.all([searchParams, getUserSession()]);
-  const query = normalizeTeamDirectoryQuery(rawSearchParams);
-  const [directory, currentTeamRows, pendingDirectInvitationCount] = await Promise.all([
-    getTeamDirectory(query),
-    session
-      ? db.select({ slug: teams.slug, captainUserId: teams.captainUserId }).from(teamMemberships).innerJoin(teams, eq(teams.id, teamMemberships.teamId)).where(and(eq(teamMemberships.userId, session.userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))).limit(1)
-      : Promise.resolve([]),
-    session ? countPendingDirectTeamInvitations(session.userId) : Promise.resolve(0),
-  ]);
-  const currentTeam = currentTeamRows[0] ?? null;
-  const role = currentTeam ? (currentTeam.captainUserId === session?.userId ? "captain" : "member") : null;
-  const cta = getTeamDirectoryCta(role, pendingDirectInvitationCount);
+  const directory = await getTeamDirectory(normalizeTeamDirectoryQuery(await searchParams));
 
   return (
     <PageLayout as="div" variant="wide" className="space-y-8">
       <PageHeader
         title="队伍"
         description="查看队伍、成员和赛事履历"
-        actions={session && <Button size="sm" asChild><Link href={cta.href as never}>{cta.label}</Link></Button>}
+        actions={<Suspense fallback={<span className="inline-block h-8 w-28" aria-hidden="true" />}><TeamDirectoryActions /></Suspense>}
       />
       <div className="space-y-4">
         <TeamSectionNav active="directory" />
@@ -61,4 +50,19 @@ async function TeamDirectoryContent({ searchParams }: { searchParams: Promise<Te
         : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{directory.rows.map((team) => <TeamDirectoryCard key={team.id} slug={team.slug} name={team.name} logoUrl={team.logoUrl} description={team.description} hasOpenRecruitment={team.hasOpenRecruitment} status={team.status} captainUserId={team.captainUserId} captainName={team.captainName} memberCount={team.memberCount} />)}</div>}
     </PageLayout>
   );
+}
+
+async function TeamDirectoryActions() {
+  const session = await getUserSession();
+  const [currentTeamRows, pendingDirectInvitationCount] = await Promise.all([
+    session
+      ? db.select({ slug: teams.slug, captainUserId: teams.captainUserId }).from(teamMemberships).innerJoin(teams, eq(teams.id, teamMemberships.teamId)).where(and(eq(teamMemberships.userId, session.userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))).limit(1)
+      : Promise.resolve([]),
+    session ? countPendingDirectTeamInvitations(session.userId) : Promise.resolve(0),
+  ]);
+  const currentTeam = currentTeamRows[0] ?? null;
+  const role = currentTeam ? (currentTeam.captainUserId === session?.userId ? "captain" : "member") : null;
+  const cta = getTeamDirectoryCta(role, pendingDirectInvitationCount);
+
+  return session ? <Button size="sm" asChild><Link href={cta.href as never}>{cta.label}</Link></Button> : null;
 }

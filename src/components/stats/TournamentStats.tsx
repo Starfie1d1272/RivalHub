@@ -1,13 +1,16 @@
 "use client";
+import { StatsViewSkeleton } from "@/components/stats/StatsViewSkeleton";
+
 import { StatsNavigationProvider } from "./StatsNavigationContext";
 import React, { Suspense } from "react";
 import dynamic from "next/dynamic";
 
 import type { Route } from "next";
 import { EmptyState } from "@/components/rivalhub";
-import type { TournamentMapDetail, TournamentStats } from "@/lib/stats/tournament-query";
+import type { TournamentMapDetail } from "@/lib/stats/tournament-query";
 import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
+import type { PublicStatsData } from "@/lib/stats/public-view";
 import { StatsShell } from "./StatsShell";
 
 const Records = dynamic(() => import("./Records").then((module) => module.Records));
@@ -25,7 +28,7 @@ export function TournamentStatsView({
   seasonSlug,
   stages,
 }: {
-  data?: TournamentStats;
+  data?: PublicStatsData;
   mapDetail?: TournamentMapDetail;
   query: StatsQuery;
   seasonSlug: string;
@@ -43,21 +46,21 @@ export function TournamentStatsView({
   }
 
   let content = <EmptyState title="选择统计范围" />;
-  if (query.tab === "overview" && data) content = <OverviewStats data={data} query={query} seasonSlug={seasonSlug} />;
-  if (query.tab === "players") content = data
+  if (query.tab === "overview" && data?.tab === "overview") content = <OverviewStats data={data.overview} query={query} seasonSlug={seasonSlug} />;
+  if (query.tab === "players") content = data?.tab === "players"
     ? <PlayersExplorer data={data} query={query} seasonSlug={seasonSlug} />
     : <EmptyState title="暂无选手统计" />;
-  if (query.tab === "teams") content = data
+  if (query.tab === "teams") content = data?.tab === "teams"
     ? <TeamsExplorer data={data} query={query} seasonSlug={seasonSlug} />
     : <EmptyState title="暂无队伍统计" />;
   if (query.tab === "maps") content = mapDetail
     ? <MapWorkspace detail={mapDetail} seasonSlug={seasonSlug} teamLinks={data?.teamLinks} />
-    : data ? <MapsExplorer data={data} query={query} seasonSlug={seasonSlug} /> : <EmptyState title="暂无地图统计" />;
-  if (query.tab === "weapons") content = data
+    : data?.tab === "maps" ? <MapsExplorer data={data} query={query} seasonSlug={seasonSlug} /> : <EmptyState title="暂无地图统计" />;
+  if (query.tab === "weapons") content = data?.tab === "weapons"
     ? <WeaponsExplorer data={data} query={query} seasonSlug={seasonSlug} />
     : <EmptyState title="暂无武器统计" />;
 
-  if (query.tab === "records" && data) content = <Records records={data.records ?? []} query={query} seasonSlug={seasonSlug} coverage={data.recordCoverage} events={data.recordEvents} counts={data.eventCounts} eventMaps={data.eventMaps} />;
+  if (query.tab === "records" && data?.tab === "records") content = <Records records={data.records ?? []} query={query} seasonSlug={seasonSlug} coverage={data.recordCoverage} events={data.recordEvents} counts={data.eventCounts} eventMaps={data.eventMaps} />;
 
   return (
     <StatsNavigationProvider><StatsShell
@@ -70,7 +73,7 @@ export function TournamentStatsView({
       directoryHref={directoryHref}
       directoryLabel={directoryLabel}
     >
-      <Suspense fallback={<p role="status" className="py-6 text-sm text-[var(--color-fg-mid)]">正在加载统计视图…</p>}>{content}</Suspense>
+      <Suspense fallback={<StatsViewSkeleton />}>{content}</Suspense>
     </StatsShell></StatsNavigationProvider>
   );
 }
