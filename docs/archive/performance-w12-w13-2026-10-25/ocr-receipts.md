@@ -1,6 +1,6 @@
 # OCR 提交回执与内容版本
 
-本补充已 rebase/retarget main `7f1b9d5a`，应用/测试类型与 2 项版本/摘要、12 项恢复组件通过。W03 已提供 0098，但最终 0097/0098 snapshot 五类 facts 同步仍待 owner 修正。临时集成分支上的自身真实 PG receipt 测试通过；其中并发、CAS、原子回滚与真实 COMMIT 后断响应使用真实 PostgreSQL，不计组件 mock。该临时证据不能替代最终链与全域锁 consumer 的精确候选验收。
+本补充已 rebase/retarget main `49c6c7fd`，应用/测试类型与 2 项版本/摘要、12 项恢复组件通过。迁移 owner 的 `0f1cdaa3` 已让 0097/0098 snapshot 对齐五类 facts。正确依赖组合源码 `8b26c009` 上，本专项真实 PG receipt、canonical lock barrier、Major roster safety、旧新锁序对照及 DAK/OCR 兼容合计 7 项通过，详见 `account-lock-consumers.md`（集成分支）。该证据覆盖局部集成，不替代最终 required CI、完整 W15 浏览器/财务并发和发布验证。
 
 - 保存/清除必须携带 UUID operationId 与安全快照返回的不透明内容版本。版本覆盖全部内部计分板字段及精确 PG 时间戳，浏览器只获得安全 editor DTO 与 SHA256。
 - 原 match SHARE → map UPDATE → stats 锁序保留。锁后检查版本，事实、审计和 actor/operation 唯一回执同事务提交；同编号同上下文只返回原回执，不重复事实或审计；跨 map/kind/digest 复用拒绝。
