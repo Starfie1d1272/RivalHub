@@ -10,7 +10,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
  * user SHARE → season admission and official actor FK checks. Contention rolls
  * back the whole command; callers must freshly preflight, never auto-replay.
  */
-export async function lockUserMergeEventClosureInTx(tx: TxDb, canonicalId: string, mergedId: string) {
+export async function lockUserMergeEventClosureInTx(tx: TxDb, canonicalId: string, mergedId: string, rules: readonly { table: string; column: string; mode: string }[]) {
   const ids = [canonicalId, mergedId];
   try {
     // Installation authority precedes event fencing in ingress and revocation.
@@ -54,6 +54,20 @@ export async function lockUserMergeEventClosureInTx(tx: TxDb, canonicalId: strin
     const independentMatchIds = scope.rows.flatMap(row => row.match_id ? [row.match_id] : []).sort();
     if (seasonIds.length) await tx.execute(sql`SELECT id FROM seasons WHERE id=ANY(${sql.param(seasonIds)}::uuid[]) ORDER BY id FOR UPDATE NOWAIT`);
     await tx.execute(sql`SELECT id FROM matches WHERE season_id=ANY(${sql.param(seasonIds)}::uuid[]) OR id=ANY(${sql.param(independentMatchIds)}::uuid[]) ORDER BY id FOR UPDATE NOWAIT`);
+    // Some person-fact owners (for example sanction revocation) lock their
+    // own row before an audit season FK. Do not wait on such children while
+    // holding the event fence, or acquire a program and wait on them later.
+    // Reuse merge's canonical reference policy; preserved actor facts and
+    // immutable financial accounts are never rewritten and are excluded.
+    const mutable = rules.filter(rule => rule.mode !== "preserve" && !["bet_accounts", "prediction_accounts", "mizar_installations"].includes(rule.table));
+    const byTable = new Map<string, string[]>();
+    for (const rule of mutable) byTable.set(rule.table, [...(byTable.get(rule.table) ?? []), rule.column]);
+    for (const [table, columns] of [...byTable].sort(([left], [right]) => left.localeCompare(right))) {
+      // Identifiers come only from the reviewed USER_REFERENCE_RULES constant.
+      const relation = sql.identifier(table);
+      const predicate = sql.join(columns.sort().map(column => sql`${sql.identifier(column)}=ANY(${sql.param(ids)}::uuid[])`), sql` OR `);
+      await tx.execute(sql`SELECT 1 FROM ${relation} WHERE ${predicate} ORDER BY ctid FOR UPDATE NOWAIT`);
+    }
   } catch (error) {
     const failure = error as { code?: string; cause?: { code?: string } };
     if ((failure.cause?.code ?? failure.code) === "55P03") {
