@@ -1,6 +1,7 @@
 import { readUnifiedBetBoard } from "@/lib/bet/board-read";
 import { randomUUID } from "node:crypto";
 import { eq,and,sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { describe,it,expect } from "vitest";
 import * as schema from "@/db/schema";
 import { operateBetInTx,joinBetInTx,stakeBetInTx,betBalance,lockBetProgram,reconcileBetInTx,runBetReconciliationJob } from "@/lib/bet/service";
@@ -8,6 +9,36 @@ import { betBoard } from "@/lib/bet/data";
 import { fixture,read } from "./harness/bet-fixture";
 describe("BET transactional admission and settlement",()=>{
   // Real SQL protects per-team sums and lifecycle retention; component fixtures cannot.
+
+  it("bounds settlement reads under the program lock and replays the latest correction without duplicate payouts",async()=>fixture(async f=>{
+    const market=(await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.type==="match_winner")!;
+    for(const [userId,option] of [[f.userId,0],[f.otherId,1]] as const) {
+      await f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId,marketId:market.id,optionId:market.options[option]!.id,amount:"100",requestId:randomUUID()}));
+    }
+    const reconcile=()=>f.db.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});
+    await f.db.update(schema.matches).set({status:"finished",scoreA:2,scoreB:0,completedAt:new Date()}).where(eq(schema.matches.id,f.matchId));
+    await reconcile();
+    expect((await read(f.db,f.seasonId,f.userId)).balance).toBe("1100");
+    await f.db.update(schema.matches).set({scoreA:0,scoreB:2}).where(eq(schema.matches.id,f.matchId));
+    await reconcile();
+    expect((await read(f.db,f.seasonId,f.userId)).balance).toBe("900");
+    expect((await read(f.db,f.seasonId,f.otherId)).balance).toBe("1100");
+
+    const batches=()=>f.db.select({id:schema.betSettlements.id,revision:schema.betSettlements.revision})
+      .from(schema.betSettlements).innerJoin(schema.betMarkets,eq(schema.betMarkets.id,schema.betSettlements.marketId))
+      .where(eq(schema.betMarkets.seasonId,f.seasonId)).orderBy(schema.betSettlements.id);
+    const before=await batches();
+    expect((await f.db.select().from(schema.betMarkets).where(eq(schema.betMarkets.seasonId,f.seasonId))).length).toBeGreaterThan(3);
+    const queries:string[]=[];
+    const measured=drizzle(f.db.$client,{schema,logger:{logQuery:query=>queries.push(query)}});
+    await measured.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});
+    // Actual SQL round trips, rather than local elapsed time, protect remote lock occupancy.
+    const settlementReads=queries.filter(query=>/^select\b/.test(query) && /from "bet_(options|stakes|settlements)"/.test(query));
+    expect(settlementReads.length).toBeLessThanOrEqual(3);
+    expect(await batches()).toEqual(before);
+    expect((await read(f.db,f.seasonId,f.userId)).balance).toBe("900");
+    expect((await read(f.db,f.seasonId,f.otherId)).balance).toBe("1100");
+  }));
 
   it("allows administrators while retaining current roster conflicts in both read and write paths", async () => fixture(async f => {
     await f.db.update(schema.users).set({role:"super_admin"}).where(eq(schema.users.id,f.userId));

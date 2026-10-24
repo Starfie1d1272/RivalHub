@@ -14,6 +14,9 @@ let bootstrap: Bootstrap | null = null;
 let generation = 0;
 let renewing = false;
 let nextRenewalAttempt = 0;
+const vitalIds = new Map<string, string>();
+let vitalNavigationAfter = 0;
+let pendingNavigation: { target: string; started: number; queue: TelemetryQueue; navigation: "navigate" | "history" } | null = null;
 const errorCodes = new Set<string>(Object.values(ErrorCode));
 const storageKey = "rivalhub-product-session-v1";
 function attempt(callback: () => void) { try { callback(); } catch { /* Observability cannot alter a business result. */ } }
@@ -21,10 +24,17 @@ function attempt(callback: () => void) { try { callback(); } catch { /* Observab
 export function configureTelemetry(config: Bootstrap | null) {
   attempt(() => {
     generation++;
-    if (!config || navigator.doNotTrack === "1" || (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl) { queue = null; identity = null; bootstrap = null; return; }
+    if (!config || navigator.doNotTrack === "1" || (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl) {
+      if (queue) vitalNavigationAfter = performance.now();
+      queue = null; identity = null; bootstrap = null;
+      vitalIds.clear(); pendingNavigation = null;
+      return;
+    }
     bootstrap = config;
     if (queue && identity === config.identity) { queue.configure(config); return; }
+    if (queue) vitalNavigationAfter = performance.now();
     queue = new TelemetryQueue(config);
+    vitalIds.clear(); pendingNavigation = null;
     identity = config.identity;
     session = ""; previousPage = "";
     const stored = JSON.parse(sessionStorage.getItem(storageKey) ?? "null") as { id: string; identity: string; at: number } | null;
@@ -40,20 +50,61 @@ function context(): Pick<TelemetryEvent, "route" | "scene" | "eventId"> {
 export function setTelemetryScene(prefix: string, scene: string, eventId: string) {
   sceneContext = UUID.test(eventId) ? { prefix, scene: scene === "major" || scene === "rivals" ? scene : "other", eventId } : null;
 }
-function record(event: Omit<TelemetryEvent, "id" | "at" | "session" | "route" | "scene"> & Partial<Pick<TelemetryEvent, "route" | "scene">>, operationSession?: string) {
+function record(event: Omit<TelemetryEvent, "id" | "at" | "session" | "route" | "scene"> & Partial<Pick<TelemetryEvent, "route" | "scene">>, operationSession?: string, sampleId?: string) {
   attempt(() => {
     if (!queue) return;
     const now = Date.now();
     if (!session || now - activeAt >= 1800000) session = crypto.randomUUID();
     activeAt = now;
     attempt(() => sessionStorage.setItem(storageKey, JSON.stringify({ id: session, identity, at: now })));
-    queue.add({ ...context(), ...event, id: crypto.randomUUID(), at: now, session: operationSession ?? session });
+    queue.add({ ...context(), ...event, id: sampleId ?? crypto.randomUUID(), at: now, session: operationSession ?? session });
   });
 }
 export function markHistoryNavigation() { historyNavigation = true; }
+/** Next.js router start hook; raw targets remain memory-only until the committed route matches. */
+export function beginTelemetryNavigation(target: string, navigationType: string) {
+  attempt(() => {
+    pendingNavigation = null;
+    if (!queue) return;
+    const url = new URL(target, window.location.href);
+    if (url.origin !== window.location.origin) return;
+    pendingNavigation = { target: url.pathname + url.search, started: performance.now(), queue, navigation: navigationType === "traverse" ? "history" : "navigate" };
+  });
+}
+
+/** Read only declared numeric fields: entries, selectors, URLs and native metric IDs are never serialized. */
+export function recordWebVital(metric: { name: string; value: number; id: string; navigationURL?: string; navigationStartTime?: number }) {
+  attempt(() => {
+    if (!queue || !["TTFB", "FCP", "LCP", "INP"].includes(metric.name) || !Number.isFinite(metric.value) || metric.value < 0 || metric.value > 3600000 || typeof metric.id !== "string" || metric.id.length > 128) return;
+    if ((metric.navigationStartTime ?? 0) < vitalNavigationAfter) return;
+    const initialUrl = (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined)?.name;
+    const source = metric.navigationURL ?? initialUrl;
+    if (!source) return;
+    const url = new URL(source, window.location.href);
+    if (url.origin !== window.location.origin) return;
+    const key = `${metric.name}:${metric.id}`;
+    let id = vitalIds.get(key);
+    if (!id) {
+      id = crypto.randomUUID(); vitalIds.set(key, id);
+      if (vitalIds.size > 128) vitalIds.delete(vitalIds.keys().next().value!);
+    }
+    const current = url.pathname === window.location.pathname;
+    record({ kind: "performance", metricName: metric.name as TelemetryEvent["metricName"], durationMs: Math.round(metric.value),
+      route: routeTemplate(url.pathname), ...(current ? {} : { scene: "site", eventId: undefined }),
+    }, undefined, id);
+  });
+}
 export function recordPage() {
   attempt(() => {
     if (!queue) return;
+    const pending = pendingNavigation;
+    if (pending?.target === window.location.pathname + window.location.search) {
+      pendingNavigation = null;
+      const elapsed = performance.now() - pending.started;
+      if (pending.queue === queue && elapsed >= 0 && elapsed <= 3600000) {
+        record({ kind: "performance", metricName: "NAV_COMMIT", durationMs: Math.round(elapsed), navigation: pending.navigation });
+      }
+    }
     const filters = safeFilters(new URLSearchParams(window.location.search));
     // The raw URL is only an in-memory deduplication key, never an event field.
     const page = `${window.location.pathname}?${window.location.search}`;
@@ -74,6 +125,8 @@ export function recordClientError() { record({ kind: "error", errorCode: "CLIENT
 export function flushTelemetry() { attempt(() => { void queue?.flush().catch(() => {}); }); }
 export function resetTelemetryIdentity() {
   flushTelemetry(); generation++; nextRenewalAttempt = 0; bootstrap = null; queue = null; identity = null; session = ""; previousPage = "";
+  vitalIds.clear(); pendingNavigation = null;
+  vitalNavigationAfter = performance.now();
   attempt(() => sessionStorage.removeItem(storageKey));
 }
 export const telemetryFlushInterval = LIMITS.flushMs;

@@ -72,18 +72,19 @@ function RuntimeHealthPanel() {
 export default async function AdminSettingsPage() {
   const admin = await resolveAdminPageAccess(requireSuperAdmin);
   if (!admin) return <AdminAccessDenied />;
-  const [adminUser] = await db
-    .select({
+  const [[adminUser], schedulerHealth] = await Promise.all([
+    db.select({
       personaName: steamProfiles.personaName,
       displayName: users.displayName,
       perfectName: users.perfectName,
     })
-    .from(users)
-    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-    .where(eq(users.id, admin.userId))
-    .limit(1);
+      .from(users)
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+      .where(eq(users.id, admin.userId))
+      .limit(1),
+    getSchedulerHealthView(),
+  ]);
   const adminDisplayName = adminUser ? getDisplayName(adminUser) : admin.email;
-  const schedulerHealth = await getSchedulerHealthView();
 
   return (
     <PageLayout variant="narrow" className="space-y-10">

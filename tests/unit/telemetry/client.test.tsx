@@ -1,10 +1,10 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { configureTelemetry, flushTelemetry, observeAction, recordPage, renewTelemetryIfNeeded, resetTelemetryIdentity } from "@/lib/telemetry/client";
+import { beginTelemetryNavigation, configureTelemetry, flushTelemetry, observeAction, recordPage, recordWebVital, renewTelemetryIfNeeded, resetTelemetryIdentity, setTelemetryScene } from "@/lib/telemetry/client";
 import { TelemetryQueue } from "@/lib/telemetry/queue";
 import type { Bootstrap, TelemetryEvent } from "@/lib/telemetry/protocol";
 
 const config: Bootstrap = { endpoint: "https://receiver.invalid/v1/batches", ticket: "transport-only", identity: "fixture", expiresAt: Date.now() + 86400000 };
-afterEach(() => { resetTelemetryIdentity(); vi.unstubAllGlobals(); vi.useRealTimers(); });
+afterEach(() => { resetTelemetryIdentity(); vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks(); window.history.replaceState(null, "", "/"); });
 it("correlates the real ActionResult, excludes input/response/error text, and leaves throws unchanged", async () => {
   const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
   vi.stubGlobal("fetch", fetcher); configureTelemetry(config);
@@ -102,4 +102,43 @@ it("binds the default browser fetch receiver before storing it on the queue", as
   await q.flush();
   expect(send).toHaveBeenCalledTimes(1);
   expect(q.metrics.failures).toBe(0);
+});
+
+it("projects numeric vitals, coalesces updates, and attributes late reports to their source route", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", send); configureTelemetry(config);
+  window.history.replaceState(null, "", "/2026-private/stats");
+  setTelemetryScene("/2026-private", "major", crypto.randomUUID());
+  const metric = { name: "LCP", id: "native-PRIVATE-id", value: 120.4,
+    navigationURL: `${window.location.origin}/players/PRIVATE?q=SECRET`, navigationStartTime: performance.now() + 1,
+    entries: [{ selector: "PRIVATE", text: "SECRET" }] };
+  recordWebVital(metric); recordWebVital({ ...metric, value: 245.8 });
+  recordWebVital({ ...metric, name: "CLS" });
+  recordWebVital({ ...metric, value: NaN });
+  recordWebVital({ ...metric, navigationURL: "https://foreign.invalid/PRIVATE" });
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const sent = JSON.parse(send.mock.calls[0][1].body);
+  expect(sent.events).toHaveLength(1);
+  expect(sent.events[0]).toMatchObject({ kind: "performance", metricName: "LCP", durationMs: 246, route: "/players/[userId]", scene: "site" });
+  expect(sent.events[0]).not.toHaveProperty("eventId");
+  expect(JSON.stringify(sent)).not.toMatch(/PRIVATE|SECRET|native-|selector|entries|navigationURL/);
+});
+
+it("records committed router latency, replaces abandoned transitions and drops old-identity measurements", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", send); configureTelemetry(config);
+  let clock = performance.now() + 100;
+  vi.spyOn(performance, "now").mockImplementation(() => clock);
+  beginTelemetryNavigation("/players/abandoned", "push"); clock += 40;
+  beginTelemetryNavigation("/stats?tab=players&q=PRIVATE", "traverse"); clock += 123;
+  window.history.replaceState(null, "", "/stats?tab=players&q=PRIVATE"); recordPage();
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  expect(JSON.parse(send.mock.calls[0][1].body).events.find((event: TelemetryEvent) => event.kind === "performance")).toMatchObject({ metricName: "NAV_COMMIT", durationMs: 123, route: "/stats", navigation: "history" });
+  beginTelemetryNavigation("/teams/PRIVATE", "push");
+  const oldStart = clock; clock += 10;
+  configureTelemetry({ ...config, identity: "new-account" });
+  recordWebVital({ name: "LCP", id: "old-navigation", value: 200, navigationURL: window.location.href, navigationStartTime: oldStart });
+  window.history.replaceState(null, "", "/teams/PRIVATE"); recordPage();
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+  expect(JSON.parse(send.mock.calls[1][1].body).events.every((event: TelemetryEvent) => event.kind !== "performance")).toBe(true);
 });

@@ -2,7 +2,7 @@
 
 RivalHub 的 runtime observability 由 `src/lib/observability/` 统一拥有。它记录结构化、可关联、默认安全的运行事件和关键 operation span；`audit_logs` 仍只记录业务事实，不是 runtime log 的替代品。
 
-页面/筛选/人工业务操作的产品基线由独立 [产品遥测](product-telemetry.md) 承接；它复用错误 requestId，不改变本页 runtime exporter、采样或线上缓存，不将事件发给 Better Stack。
+页面耗时/筛选/人工业务操作的产品基线由独立 [产品遥测](product-telemetry.md) 承接；它复用错误 requestId，不改变本页 runtime exporter、采样或线上缓存，不将事件发给 Better Stack。
 
 ## 目标与边界
 
@@ -105,6 +105,8 @@ Sampler 在 SERVER span 创建时读取 Next 提供的 `http.target`，兼容 `u
 - scheduler endpoint failure、watchdog fallback、人工 break-glass run；正常 primary success 与 fresh watchdog no-op 不逐条写 runtime log。
 
 Span name、`rivalhub.*`、`db.*`、HTTP method/status 和 provider 等属性必须是低基数值。默认不加 user/team/entry ID、email、昵称或业务 payload。跨 provider 的 trace propagation 只对自有 deployment URL 开启；Supabase、Steam、SiliconFlow、Cloudflare Turnstile 和 Better Stack 均不接收 RivalHub trace headers。
+
+`db.query` 的 pooled query span 在调用前记录 `rivalhub.db.pool.total/idle/waiting` 数量快照，返回后记录 `rivalhub.db.result.rows`；仅保存数值，不包含 SQL 或行内容。duration 包含连接获取与执行，调用前快照不能精确拆分等待时间；事务内通过 checked-out client 执行的语句不由此 wrapper 计数。常驻 Next.js Node 服务保留空闲连接 30 秒，Vercel 与 CLI 保留 5 秒；连接上限与故障重建、重试边界维持由数据库 runtime owner 管理。
 
 ## 查询与排障
 

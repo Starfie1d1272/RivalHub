@@ -11,7 +11,7 @@ import { z } from "zod";
 import { UnifiedBetBoard } from "@/components/bet/UnifiedBetBoard";
 import { freeRankingModel } from "@/components/bet/free-prediction-presentation";
 import { readBetRelief } from "@/lib/bet/relief-data";
-import { readFreePredictionRanking } from "@/lib/free-predictions/ranking";
+import { readFreePredictionRankings } from "@/lib/free-predictions/ranking";
 export default function BetPage(props:{params:Promise<{seasonSlug:string}>;searchParams:Promise<{view?:string;match?:string;market?:string;option?:string;prediction?:string;choice?:string;page?:string}>}) {
   return <Suspense fallback={<PageLayout variant="wide"><p role="status">正在加载 BET…</p></PageLayout>}><BetContent {...props}/></Suspense>;
 }
@@ -28,10 +28,11 @@ async function BetContent({params,searchParams}:{params:Promise<{seasonSlug:stri
   const publicStats=await getBetPublicStats(season,scope);
   const data=await db.transaction(async tx=>{
     const {bet,free}=await readUnifiedBetBoard(tx,season.id,user?.userId??null,scope,publicStats);
-    const rankings=query.view==="leaderboard"?{
-      profit:freeRankingModel(await readFreePredictionRanking(tx,season.id,"profit")),
-      hits:freeRankingModel(await readFreePredictionRanking(tx,season.id,"hits")),
-      accuracy:freeRankingModel(await readFreePredictionRanking(tx,season.id,"accuracy")),
+    const rankingData=query.view==="leaderboard"?await readFreePredictionRankings(tx,season.id):undefined;
+    const rankings=rankingData?{
+      profit:freeRankingModel(rankingData.profit),
+      hits:freeRankingModel(rankingData.hits),
+      accuracy:freeRankingModel(rankingData.accuracy),
     }:undefined;
     const relief=await readBetRelief(tx,season.id,user?.userId??null);
     return {bet,free,rankings,relief};

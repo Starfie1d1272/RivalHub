@@ -5,7 +5,7 @@ import * as schema from "@/db/schema";
 import { fixture } from "./harness/free-prediction-fixture";
 import { submitFreePredictionInTx } from "@/lib/free-predictions/service";
 import { readFreePredictionBoard } from "@/lib/free-predictions/data";
-import { readFreePredictionRanking } from "@/lib/free-predictions/ranking";
+import { readFreePredictionRanking, readFreePredictionRankings } from "@/lib/free-predictions/ranking";
 import { operateBetInTx, joinBetInTx, stakeBetInTx, lockBetProgram, reconcileBetInTx } from "@/lib/bet/service";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 // Protect real row-lock serialization, persistent rollback fences, private DTOs and corrected scores.
@@ -24,6 +24,11 @@ describe("free predictions real PostgreSQL",()=>{
     expect(await f.db.query.betSettlements.findFirst({where:eq(schema.betSettlements.marketId,market.id),orderBy:desc(schema.betSettlements.revision)})).toMatchObject({state:"refunded"});
     for(const sort of ["hits","accuracy"] as const) expect(await f.db.transaction(tx=>readFreePredictionRanking(tx,f.seasonId,sort))).toMatchObject({dynamicFloor:null,rows:[expect.objectContaining({userId:f.otherId,profit:"0",hits:null,judged:null,accuracy:null,rank:null,group:"limited"})]});
     expect((await f.db.transaction(tx=>readFreePredictionRanking(tx,f.seasonId,"profit"))).rows[0]).toMatchObject({userId:f.otherId,profit:"0",rank:1,group:"ranked",hits:null,judged:null});
+    const rankings = await f.db.transaction(tx=>readFreePredictionRankings(tx,f.seasonId));
+    expect(rankings.profit.rows[0]).toMatchObject({userId:f.otherId,rank:1,group:"ranked"});
+    for (const sort of ["hits", "accuracy"] as const) {
+      expect(rankings[sort]).toMatchObject({dynamicFloor:null,rows:[expect.objectContaining({userId:f.otherId,rank:null,group:"limited"})]});
+    }
   }));
   it("works without BET/join for own teams; replaces choices, retries without restoring, and hides others",async()=>fixture(async f=>{
     const input={seasonId:f.seasonId,matchId:f.matchId,userId:f.userId,kind:"result" as const,selection:[f.entryIds[0]!],requestId:randomUUID()};

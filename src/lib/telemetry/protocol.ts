@@ -7,9 +7,11 @@ export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 export const ROLES = ["anonymous", "user", "season_admin", "super_admin"] as const;
 export type Role = typeof ROLES[number];
 export type Scene = "major" | "rivals" | "other" | "site";
+export const PERFORMANCE_METRICS = ["TTFB", "FCP", "LCP", "INP", "NAV_COMMIT"] as const;
 export interface TelemetryEvent {
   id: string; at: number; session: string; route: string; scene: Scene;
-  kind: "page" | "filter" | "operation" | "error";
+  kind: "page" | "filter" | "operation" | "error" | "performance";
+  metricName?: typeof PERFORMANCE_METRICS[number];
   phase?: "start" | "success" | "rejected" | "unknown";
   operation?: typeof OPERATIONS[number]; operationId?: string; durationMs?: number;
   errorCode?: string; requestId?: string;
@@ -63,7 +65,7 @@ const operationSet = new Set<string>(OPERATIONS);
 const routes = new Set<string>([...ROUTES, "/unknown"]);
 const allowedErrors = new Set<string>([...Object.values(ErrorCode), "UNCLASSIFIED", "INVALID_RESULT", "TRANSPORT_OR_THROW", "CLIENT_UNHANDLED"]);
 export const VARIANTS = ["join", "stake", "enable", "pause", "resume", "retry", "close", "void", "pick_save", "pick_submit", "result", "bp", "ban", "pick", "side_pick", "role_select"] as const;
-const fields = new Set(["id", "at", "session", "route", "scene", "kind", "phase", "operation", "operationId", "durationMs", "errorCode", "requestId", "navigation", "filters", "eventId", "outcome", "variant"]);
+const fields = new Set(["id", "at", "session", "route", "scene", "kind", "phase", "operation", "operationId", "durationMs", "errorCode", "requestId", "navigation", "filters", "eventId", "outcome", "variant", "metricName"]);
 /** Receiver rejects unknown fields instead of persisting arbitrary client objects. */
 export function validEvent(value: unknown, now: number): value is TelemetryEvent {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -72,8 +74,13 @@ export function validEvent(value: unknown, now: number): value is TelemetryEvent
   if (typeof e.id !== "string" || !UUID.test(e.id) || typeof e.session !== "string" || !UUID.test(e.session)) return false;
   if (typeof e.at !== "number" || !Number.isInteger(e.at) || e.at < now - LIMITS.ageMs || e.at > now + 60000) return false;
   if (!routes.has(String(e.route)) || !["major", "rivals", "other", "site"].includes(String(e.scene))) return false;
-  if (!["page", "filter", "operation", "error"].includes(String(e.kind))) return false;
-  if (e.kind !== "operation" && ["operation", "operationId", "phase", "durationMs", "outcome", "variant"].some(key => e[key] !== undefined)) return false;
+  if (!["page", "filter", "operation", "error", "performance"].includes(String(e.kind))) return false;
+  if (e.kind !== "operation" && ["operation", "operationId", "phase", "outcome", "variant"].some(key => e[key] !== undefined)) return false;
+  if (e.kind !== "operation" && e.kind !== "performance" && e.durationMs !== undefined) return false;
+  if (e.kind === "performance") {
+    if (!(PERFORMANCE_METRICS as readonly string[]).includes(String(e.metricName)) || e.durationMs === undefined) return false;
+    if (["errorCode", "requestId", "filters"].some(key => e[key] !== undefined)) return false;
+  } else if (e.metricName !== undefined) return false;
   if (e.kind === "operation" && (!operationSet.has(String(e.operation)) || !UUID.test(String(e.operationId)) || !["start", "success", "rejected", "unknown"].includes(String(e.phase)))) return false;
   if (e.durationMs !== undefined && (typeof e.durationMs !== "number" || !Number.isInteger(e.durationMs) || e.durationMs < 0 || e.durationMs > 3600000)) return false;
   if (e.requestId !== undefined && !UUID.test(String(e.requestId))) return false;
