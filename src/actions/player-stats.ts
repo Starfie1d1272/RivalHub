@@ -1,4 +1,5 @@
 "use server";
+import { lockMatchForEvidenceInTx } from "@/lib/matches/locking";
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -206,10 +207,14 @@ export async function savePlayerStats(
     }
 
     await db.transaction(async (tx) => {
-      const [currentMatch] = await tx.select({ id: matches.id }).from(matches).where(eq(matches.id, map.matchId)).for("share");
-      const [currentMap] = await tx.select({ scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB, completedAt: matchMaps.completedAt }).from(matchMaps).where(eq(matchMaps.id, mapId)).for("update");
-      if (!currentMap || !currentMatch || !canConfirmMapScoreboard(currentMap)) throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束的地图可以确认选手数据。");
-      const allowed = await loadScoreboardPlayers(tx, match.id, [match.entryAId, match.entryBId]);
+      const currentMatch = await lockMatchForEvidenceInTx(tx, map.matchId);
+      assertCompetitionMatch(currentMatch);
+      if (currentMatch.seasonId !== match.seasonId) throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛所属赛事已变化，请重新读取后再操作。");
+      const [currentMap] = await tx.select({ matchId: matchMaps.matchId, scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB, completedAt: matchMaps.completedAt }).from(matchMaps).where(eq(matchMaps.id, mapId)).for("update");
+      if (!currentMap) throw new AppError(ErrorCode.NOT_FOUND, "地图或比赛记录不存在");
+      if (currentMap.matchId !== currentMatch.id) throw new AppError(ErrorCode.VALIDATION_FAILED, "地图所属比赛已变化，请重新读取后再操作。");
+      if (!canConfirmMapScoreboard(currentMap)) throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束的地图可以确认选手数据。");
+      const allowed = await loadScoreboardPlayers(tx, currentMatch.id, [currentMatch.entryAId, currentMatch.entryBId]);
       const userPerfectNames = new Map(allowed.map(row => [row.userId, row.perfectName]));
       if (userIds.some(id => !userPerfectNames.has(id))) throw new AppError(ErrorCode.VALIDATION_FAILED, "选手不属于本场出场阵容");
       const normalizedStats = stats.map(row => ({ ...row, perfectName: (row.userId && userPerfectNames.get(row.userId)) || row.perfectName }));
@@ -446,8 +451,12 @@ export async function deletePlayerStatsByMap(mapId: string): Promise<ActionResul
     const session = await requireSeasonAdmin(match.seasonId);
 
     await db.transaction(async (tx) => {
-      await tx.select({ id: matches.id }).from(matches).where(eq(matches.id, map.matchId)).for("share");
-      await tx.select({ id: matchMaps.id }).from(matchMaps).where(eq(matchMaps.id, mapId)).for("update");
+      const currentMatch = await lockMatchForEvidenceInTx(tx, map.matchId);
+      assertCompetitionMatch(currentMatch);
+      if (currentMatch.seasonId !== match.seasonId) throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛所属赛事已变化，请重新读取后再操作。");
+      const [currentMap] = await tx.select({ id: matchMaps.id, matchId: matchMaps.matchId }).from(matchMaps).where(eq(matchMaps.id, mapId)).for("update");
+      if (!currentMap) throw new AppError(ErrorCode.NOT_FOUND, "地图或比赛记录不存在");
+      if (currentMap.matchId !== currentMatch.id) throw new AppError(ErrorCode.VALIDATION_FAILED, "地图所属比赛已变化，请重新读取后再操作。");
       await clearOperatorScoreboardInTx(tx, mapId);
       await writeAuditInTx(tx, {
         seasonId: match.seasonId,

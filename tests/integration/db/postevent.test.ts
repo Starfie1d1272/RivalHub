@@ -312,3 +312,53 @@ describe("post-event PostgreSQL invariants", () => {
     await main();
   });
 });
+
+it.each(["legacy", "season-first"] as const)("postevent audit/archive lock barrier: %s", async mode => {
+  const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 3 });
+  const f = await prepareFixture(pool);
+  const a = await pool.connect(); const b = await pool.connect(); const observer = await pool.connect();
+  let pending: Promise<{ code?: string; confirmed?: boolean }> | undefined;
+  try {
+    await a.query("SET statement_timeout = '5s'");
+    await b.query("SET statement_timeout = '5s'");
+    await b.query("BEGIN");
+    await b.query("SELECT id FROM seasons WHERE id=$1 FOR UPDATE", [f.seasonId]);
+    const aPid = (await a.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    const bPid = (await b.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    const database = drizzle(a, { schema });
+    pending = database.transaction(async tx => {
+      if (mode === "season-first") {
+        await confirmMajorFinalResultInTx(tx, { seasonId: f.seasonId, actorId: ACTOR });
+      } else {
+        // Reproduce the original child-first lock and its real audit FK edge.
+        await tx.select().from(schema.majorFinalResults).where(eq(schema.majorFinalResults.id, f.resultId)).for("update");
+        await tx.insert(schema.auditLogs).values({ seasonId: f.seasonId, action: "major.result.confirm", actorId: ACTOR, targetId: f.resultId, targetType: "season" });
+      }
+      return { confirmed: true };
+    }).catch(error => ({ code: error.cause?.code ?? error.code }));
+    let blocked = false;
+    const deadline = performance.now() + 3000;
+    while (performance.now() < deadline) {
+      const waiting = await observer.query("SELECT $2::integer = ANY(pg_blocking_pids($1::integer)) AS blocked", [aPid, bPid]);
+      if (waiting.rows[0].blocked) { blocked = true; break; }
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    expect(blocked).toBe(true);
+    // This is archiveTournament's next row acquisition after its season fence.
+    const bResult = await b.query("SELECT id FROM major_final_results WHERE id=$1 FOR UPDATE", [f.resultId])
+      .then(() => ({} as { code?: string }), error => ({ code: error.code }));
+    await b.query("ROLLBACK");
+    const aResult = await pending;
+    if (mode === "legacy") expect([aResult.code, bResult.code].filter(Boolean)).toEqual(["40P01"]);
+    else {
+      expect(bResult.code).toBeUndefined(); expect(aResult).toEqual({ confirmed: true });
+      // The real archive transition observes the now-committed confirmation.
+      await database.transaction(tx => archiveTournamentInTx(tx, { seasonId: f.seasonId, actorId: ACTOR }));
+      expect((await database.query.seasons.findFirst({ where: eq(schema.seasons.id, f.seasonId) }))!.status).toBe("archived");
+    }
+  } finally {
+    await b.query("ROLLBACK"); if (pending) await pending;
+    a.release(); b.release(); observer.release();
+    await cleanup(pool, f); await pool.end();
+  }
+});

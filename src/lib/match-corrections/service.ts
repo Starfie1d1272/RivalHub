@@ -13,7 +13,7 @@ import {
 import { AppError, ErrorCode } from "@/lib/errors";
 import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
-import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
+import { lockMatchInTx, lockMatchForInspectionInTx } from "@/lib/matches/locking";
 import { matchCorrectionBlockedError, type MatchCorrectionBlocker } from "@/lib/match-corrections/errors";
 import { planCompetitionQualificationResultCorrectionInTx } from "@/lib/competition-qualification/runtime";
 import { deleteScheduledMatchAndDependentsInTx } from "@/lib/matches/deletion";
@@ -276,15 +276,22 @@ export async function planResultCorrectionInTx(
   tx: TxDb,
   args: { matchId: string; proposal: ResultCorrectionProposal },
 ): Promise<ResultCorrectionPlan> {
-  const [match] = await tx.select().from(matches).where(eq(matches.id, args.matchId)).for("update");
-  if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
+  const match = await lockMatchForInspectionInTx(tx, args.matchId);
+  return planLockedResultCorrectionInTx(tx, match, args.proposal);
+}
+
+async function planLockedResultCorrectionInTx(
+  tx: TxDb,
+  match: Match,
+  proposal: ResultCorrectionProposal,
+): Promise<ResultCorrectionPlan> {
   assertCompetitionMatch(match);
   if (match.testConfig) throw new AppError(ErrorCode.VALIDATION_FAILED, "测试赛请使用本场结果更正入口。");
   if (match.status !== "finished") {
     throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只能修正已结束的比赛结果。");
   }
 
-  const proposed = validateResultCorrectionProposal(match, args.proposal);
+  const proposed = validateResultCorrectionProposal(match, proposal);
   const currentWinner = resolveWinnerTeamId(match);
   const winnerChanges =
     currentWinner !== null && currentWinner !== proposed.winnerTeamId;
@@ -298,7 +305,7 @@ export async function planResultCorrectionInTx(
       scoreB: match.scoreB,
       isForfeit: match.isForfeit,
     },
-    proposed: { scoreA: args.proposal.scoreA, scoreB: args.proposal.scoreB, isForfeit: proposed.isForfeit },
+    proposed: { scoreA: proposal.scoreA, scoreB: proposal.scoreB, isForfeit: proposed.isForfeit },
     currentWinnerTeamId: currentWinner,
     proposedWinnerTeamId: proposed.winnerTeamId,
     winnerChanges,
@@ -471,11 +478,9 @@ export async function applyResultCorrectionInTx(
     confirmRecovery?: boolean;
   },
 ): Promise<AppliedResultCorrection> {
-  const [source] = await tx.select({ seasonId: matches.seasonId }).from(matches)
-    .where(eq(matches.id, args.matchId)).for("update");
-  if (!source || !source.seasonId) throw new AppError(ErrorCode.NOT_FOUND, "赛事比赛不存在。");
-  await assertSeasonAllowsTournamentMutationInTx(tx, source.seasonId);
-  const plan = await planResultCorrectionInTx(tx, { matchId: args.matchId, proposal: args.proposal });
+  const locked = await lockMatchInTx(tx, args.matchId);
+  if (!locked.seasonId) throw new AppError(ErrorCode.NOT_FOUND, "赛事比赛不存在。");
+  const plan = await planLockedResultCorrectionInTx(tx, locked, args.proposal);
 
   if (
     plan.current.scoreA === plan.proposed.scoreA &&
@@ -503,8 +508,7 @@ export async function applyResultCorrectionInTx(
     }
   }
 
-  const [locked] = await tx.select().from(matches).where(eq(matches.id, args.matchId)).for("update");
-  if (!locked) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
+
 
   await tx
     .update(matches)
@@ -608,8 +612,7 @@ export async function recordRecoveryAdjudicationInTx(
   tx: TxDb,
   args: { matchId: string; actorId: string; note: string },
 ): Promise<{ recorded: true }> {
-  const [locked] = await tx.select().from(matches).where(eq(matches.id, args.matchId)).for("update");
-  if (!locked) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
+  const locked = await lockMatchForInspectionInTx(tx, args.matchId);
   if (!args.note.trim()) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "裁决说明不能为空。");
   }
