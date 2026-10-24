@@ -8,7 +8,7 @@ import { assertLocalDatabaseUrl } from "../../../../scripts/db/local-environment
 import type { Pool } from "pg";
 const require = createRequire(import.meta.url);
 const React = require("react") as typeof import("react");
-const { renderToReadableStream } = require("next/dist/compiled/react-server-dom-webpack/server.node") as { renderToReadableStream: (value: unknown, manifest: object) => Promise<ReadableStream> };
+const { renderToReadableStream } = require("next/dist/compiled/react-server-dom-webpack/server.node") as { renderToReadableStream: (value: unknown, manifest: object, options: { onError: (error: unknown) => string }) => Promise<ReadableStream> };
 async function main() {
   assertLocalDatabaseUrl(process.env.DATABASE_URL, "RSC memo fixture");
   const pool = (db as typeof db & { $client: Pool }).$client;
@@ -25,8 +25,10 @@ async function main() {
   async function Team() { await loadTeamCompetitionContexts(teamId, userId); return null; }
   try {
     for (let request = 1; request <= 2; request++) {
-      const stream = await renderToReadableStream(React.createElement(React.Fragment, null, React.createElement(Personal), React.createElement(Team)), {});
+      const failures: unknown[] = [];
+      const stream = await renderToReadableStream(React.createElement(React.Fragment, null, React.createElement(Personal), React.createElement(Team)), {}, { onError(error) { failures.push(error); return "fixture-render-error"; } });
       await new Response(stream).text();
+      assert.equal(failures.length, 0, "RSC must finish both real read owners, not serialize a database/render error");
       assert.equal(chains, request, "personal and team must share exactly one next-match chain per RSC request, never across requests");
     }
     process.stdout.write(JSON.stringify({ requests: 2, chains, dispatcher: "react-server-dom-webpack", database: "real-local-postgres" }));
