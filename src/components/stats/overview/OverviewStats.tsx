@@ -1,4 +1,6 @@
 "use client";
+import { ContentReady } from "@/components/telemetry/ContentReady";
+
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
 
@@ -10,40 +12,17 @@ import { StatsMetricLabel } from "@/components/stats/StatsMetricHelp";
 import { StatsSideSplit } from "@/components/stats/StatsSideSplit";
 import { StatsDataTable, type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import { StatsTooltip } from "@/components/stats/StatsTooltip";
-import type { TournamentStats } from "@/lib/stats/tournament-query";
+import type { OverviewReadModel } from "@/lib/stats/overview";
+type MapLandscapeRow = OverviewReadModel["maps"][number];
+type EconomyMatrixRow = OverviewReadModel["economyRows"][number];
 import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
-import { getDynamicRankingFloor, isRankingEligible, partitionRankingPopulation } from "@/lib/stats/ranking";
-import { displayWeaponName, statsRateDenominator, type StatsRateValue } from "@/lib/stats/presentation";
-import { STATS_METRICS, type StatsMetricKey } from "@/lib/stats/metrics";
-import { sortStatsRows } from "@/lib/stats/sorting";
+import { displayWeaponName } from "@/lib/stats/presentation";
+import { STATS_METRICS } from "@/lib/stats/metrics";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
-
-interface MapLandscapeRow {
-  mapName: string;
-  played: number;
-  rounds: number;
-  ct: TournamentStats["analytics"]["maps"][number]["ct"] | null;
-  t: TournamentStats["analytics"]["maps"][number]["t"] | null;
-  detailed: number;
-  completed: number;
-}
 
 function mapLabel(mapName: string) {
   return CS2_MAP_CATALOG.find((row) => row.key === mapName)?.label ?? mapName;
 }
-
-type TeamAnalyticsRow = TournamentStats["analytics"]["teams"][number];
-type EconomyMatrixRow = TournamentStats["analytics"]["economyMatrix"][number];
-
-type SituationHighlight = {
-  key: string;
-  label: string;
-  metric: StatsMetricKey;
-  team: TeamAnalyticsRow["team"] | null;
-  value: StatsRateValue | null;
-};
-
-const FULL_BUY_ORDER = ["eco", "semi", "force"] as const;
 
 function economyBuyLabel(value: EconomyMatrixRow["lowEconomy"]): string {
   if (value === "eco") return "Eco";
@@ -52,119 +31,24 @@ function economyBuyLabel(value: EconomyMatrixRow["lowEconomy"]): string {
   return value;
 }
 
-function economyVsFullRows(data: TournamentStats): EconomyMatrixRow[] {
-  return FULL_BUY_ORDER.flatMap((lowEconomy) => {
-    const row = data.analytics.economyMatrix.find((candidate) => candidate.lowEconomy === lowEconomy && candidate.highEconomy === "full");
-    return row ? [row] : [];
-  });
-}
-
-function selectTeamRate<T extends { team: TeamAnalyticsRow["team"] }>(
-  teams: readonly T[],
-  valueFor: (team: T) => StatsRateValue,
-  direction: "asc" | "desc" = "desc",
-): { team: TeamAnalyticsRow["team"]; value: StatsRateValue } | null {
-  const population = teams.map((row) => ({ team: row.team, value: valueFor(row) }));
-  const { ranked } = partitionRankingPopulation(population, (row) => row.value.rate, (row) => statsRateDenominator(row.value));
-  return ranked.sort((left, right) =>
-      (direction === "asc" ? 1 : -1) * ((left.value.rate ?? 0) - (right.value.rate ?? 0)) ||
-      (statsRateDenominator(right.value) ?? 0) - (statsRateDenominator(left.value) ?? 0) ||
-      left.team.displayName.localeCompare(right.team.displayName),
-    )[0] ?? null;
-}
-
-function situationHighlight<T extends { team: TeamAnalyticsRow["team"] }>(
-  teams: readonly T[],
-  key: string,
-  label: string,
-  metric: StatsMetricKey,
-  valueFor: (team: T) => StatsRateValue,
-  direction: "asc" | "desc" = "desc",
-): SituationHighlight {
-  const selected = selectTeamRate(teams, valueFor, direction);
-  return { key, label, metric, team: selected?.team ?? null, value: selected?.value ?? null };
-}
-
-function situationHighlights(data: TournamentStats): SituationHighlight[] {
-  const teams = data.analytics.teams;
-  const performanceTeams = data.performance.teams;
-  return [
-    situationHighlight(teams, "round-win", "Round Win", "roundWin", (team) => ({ rate: team.roundWinRate, wins: team.roundWins, opportunities: team.rounds })),
-    situationHighlight(teams, "r2-conv", STATS_METRICS.conversion.label, "conversion", (team) => team.round2.conversion),
-    situationHighlight(teams, "r2-break", "R2 Break", "break", (team) => team.round2.break),
-    situationHighlight(teams, "pistol", "Pistol Win", "pistol", (team) => team.pistol),
-    situationHighlight(teams, "5v4", "5v4 Conversion · Lowest", "fiveVFour", (team) => team.manAdvantage["5v4"], "asc"),
-    situationHighlight(teams, "4v5", "4v5 Comeback", "fourVFive", (team) => team.manAdvantage["4v5"]),
-    situationHighlight(performanceTeams, "opening", "Opening Success", "openingWin", (team) => team.slices.overall.opening.successRate),
-    situationHighlight(teams, "5v3", "5v3 Conversion · Lowest", "fiveVThree", (team) => team.manAdvantage["5v3"], "asc"),
-    situationHighlight(teams, "3v5", "3v5 Comeback", "threeVFive", (team) => team.manAdvantage["3v5"]),
-  ];
-}
-
-function economyOverall(rows: readonly EconomyMatrixRow[]): { rounds: number; wins: number; rate: number | null } {
-  const rounds = rows.reduce((sum, row) => sum + row.rounds, 0);
-  const wins = rows.reduce((sum, row) => sum + row.lowEconomyWins, 0);
-  return { rounds, wins, rate: rounds > 0 ? wins / rounds : null };
-}
-
 function formatPercent(rate: number | null): string {
   return rate === null ? "—" : `${(rate * 100).toFixed(1)}%`;
 }
 
-function landscapeRows(data: TournamentStats): MapLandscapeRow[] {
-  const resultByName = new Map(data.results.maps.map((row) => [row.mapName, row]));
-  const analyticsByName = new Map(data.analytics.maps.map((row) => [row.mapName, row]));
-  const coverageByName = new Map(data.coverage.maps.map((row) => [row.mapName, row]));
-  const names = new Set([
-    ...resultByName.keys(),
-    ...data.selection.map((row) => row.mapName),
-    ...analyticsByName.keys(),
-    ...coverageByName.keys(),
-  ]);
-  return [...names].map((mapName) => {
-    const result = resultByName.get(mapName);
-    const coverage = coverageByName.get(mapName);
-    return {
-      mapName,
-      played: result?.played ?? 0,
-      rounds: result?.rounds ?? 0,
-      ct: analyticsByName.get(mapName)?.ct ?? null,
-      t: analyticsByName.get(mapName)?.t ?? null,
-      detailed: coverage?.detailedMaps ?? 0,
-      completed: coverage?.completedMaps ?? result?.played ?? 0,
-    };
-  });
-}
-
-function leaders(data: TournamentStats, query: StatsQuery, seasonSlug: string) {
-  const ratingFloor = getDynamicRankingFloor(data.leaderboard.map((row) => row.avgRating !== null ? row.rounds : null));
-  const rankedPlayers = data.leaderboard.filter((row) => row.avgRating !== null && (!ratingFloor || isRankingEligible(row.rounds, ratingFloor.floor)));
-  const topPlayers = sortStatsRows(rankedPlayers, { getValue: (row) => row.avgRating, direction: "desc" }, [
-    { getValue: (row) => row.perfectName, direction: "asc" },
-    { getValue: (row) => row.userId, direction: "asc" },
-  ]).slice(0, 5);
-  const teamRatingByEntry = new Map(data.teamRatings.map((row) => [row.entryId, row.rating]));
-  const teamRows = data.results.teams.map((row) => ({ ...row, rating: teamRatingByEntry.get(row.entryId) ?? null }));
-  const topTeams = sortStatsRows(teamRows, { getValue: (row) => row.rating, direction: "desc" }, [
-    { getValue: (row) => row.matchWins, direction: "desc" },
-    { getValue: (row) => row.matchLosses, direction: "asc" },
-    { getValue: (row) => row.name, direction: "asc" },
-  ]).slice(0, 5);
-  const topWeapons = sortStatsRows(data.performance.weapons, { getValue: (row) => row.kills, direction: "desc" }, [
-    { getValue: (row) => row.weapon, direction: "asc" },
-  ]).slice(0, 5);
-  const playerColumns: StatsDataColumn<TournamentStats["leaderboard"][number]>[] = [
+function leaders(data: OverviewReadModel, query: StatsQuery, seasonSlug: string) {
+  const { topPlayers, topTeams, topWeapons } = data;
+  const playerColumns: StatsDataColumn<OverviewReadModel["topPlayers"][number]>[] = [
     { key: "player", label: "Player", className: "w-[40%]", render: (row) => row.userId ? <PlayerProfileLink userId={row.userId} className="font-medium">{row.perfectName}</PlayerProfileLink> : row.perfectName },
     { key: "rating", label: "Rating", metric: "rating", numeric: true, className: "w-[22%]", render: (row) => <MetricValue metric="rating" value={row.avgRating} /> },
     { key: "sample", label: "Maps / Rds", numeric: true, className: "hidden w-[26%] sm:table-cell", render: (row) => <span>{row.maps} / {row.rounds ?? "—"}</span> },
   ];
-  const teamColumns: StatsDataColumn<typeof teamRows[number]>[] = [
+  const teamColumns: StatsDataColumn<OverviewReadModel["topTeams"][number]>[] = [
     { key: "team", label: "Team", className: "w-[34%]", render: (row) => <span className="block truncate" title={row.name}><TeamProfileLink profileHref={data.teamLinks?.[row.entryId] ?? `/${seasonSlug}/teams/${row.entryId}`} className="font-medium hover:text-[var(--color-accent)]">{row.name}</TeamProfileLink></span> },
     { key: "rating", metric: "rating", numeric: true, className: "w-[21%]", render: (row) => <MetricValue metric="rating" value={row.rating} /> },
     { key: "match", label: "W-L", numeric: true, className: "w-[18%]", render: (row) => `${row.matchWins}-${row.matchLosses}` },
     { key: "maps", label: "Maps", numeric: true, className: "hidden w-[15%] sm:table-cell", render: (row) => row.maps },
   ];
-  const weaponColumns: StatsDataColumn<TournamentStats["performance"]["weapons"][number]>[] = [
+  const weaponColumns: StatsDataColumn<OverviewReadModel["topWeapons"][number]>[] = [
     { key: "weapon", label: "Weapon", className: "w-[46%]", render: (row) => <span className="font-medium">{displayWeaponName(row.weapon)}</span> },
     { key: "kills", label: "Kills", numeric: true, className: "w-[18%]", render: (row) => row.kills },
     { key: "share", label: "Share", metric: "killShare", numeric: true, className: "w-[24%]", render: (row) => <MetricValue metric="killShare" value={row.killShare} sampleDisplay="hidden" /> },
@@ -172,8 +56,8 @@ function leaders(data: TournamentStats, query: StatsQuery, seasonSlug: string) {
   return { topPlayers, topTeams, topWeapons, playerColumns, teamColumns, weaponColumns };
 }
 
-export function OverviewStats({ data, query, seasonSlug }: { data: TournamentStats; query: StatsQuery; seasonSlug: string }) {
-  const maps = landscapeRows(data);
+export function OverviewStats({ data, query, seasonSlug }: { data: OverviewReadModel; query: StatsQuery; seasonSlug: string }) {
+  const maps = data.maps;
   const { topPlayers, topTeams, topWeapons, playerColumns, teamColumns, weaponColumns } = leaders(data, query, seasonSlug);
   const partialCoverage = data.coverage.completedMaps > 0 && data.coverage.detailedMaps < data.coverage.completedMaps;
   const mapColumns: StatsDataColumn<MapLandscapeRow>[] = [
@@ -184,9 +68,9 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
   ];
   if (partialCoverage) mapColumns.push({ key: "coverage", label: "Coverage", numeric: true, className: "hidden w-[16%] sm:table-cell", render: (row) => `${row.detailed}/${row.completed}` });
 
-  const economyRows = economyVsFullRows(data);
-  const overallEconomy = economyOverall(economyRows);
-  const highlights = situationHighlights(data);
+  const economyRows = data.economyRows;
+  const overallEconomy = data.overallEconomy;
+  const highlights = data.highlights;
   const economyColumns: StatsDataColumn<EconomyMatrixRow>[] = [
     { key: "buy", label: "Buy", className: "w-[34%]", render: (row) => <span className="font-medium">{economyBuyLabel(row.lowEconomy)}</span> },
     { key: "rounds", label: "Rounds", numeric: true, className: "w-[24%]", sortable: true, sortValue: (row) => row.rounds, render: (row) => row.rounds },
@@ -194,28 +78,29 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
   ];
 
   return (
+    <>
     <div className="space-y-5">
       <section aria-label="Tournament summary" className="border-y border-[var(--color-border)] bg-[var(--color-panel-low)]">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
           <div className="px-4 py-4 lg:border-r lg:border-[var(--color-border)]">
             <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">Matches</p>
-            <p className="mt-1.5 text-2xl font-semibold tabular-nums">{data.results.totals.completedMatches}</p>
+            <p className="mt-1.5 text-2xl font-semibold tabular-nums">{data.totals.completedMatches}</p>
           </div>
           <div className="px-4 py-4 lg:border-r lg:border-[var(--color-border)]">
             <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">Maps</p>
-            <p className="mt-1.5 text-2xl font-semibold tabular-nums">{data.results.totals.completedMaps}</p>
+            <p className="mt-1.5 text-2xl font-semibold tabular-nums">{data.totals.completedMaps}</p>
           </div>
           <div className="px-4 py-4 lg:border-r lg:border-[var(--color-border)]">
             <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">Rounds</p>
-            <p className="mt-1.5 text-2xl font-semibold tabular-nums">{data.results.totals.completedRounds}</p>
+            <p className="mt-1.5 text-2xl font-semibold tabular-nums">{data.totals.completedRounds}</p>
           </div>
           <div className="px-4 py-4 lg:border-r lg:border-[var(--color-border)]">
             <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]">Side Split</p>
-            <div className="mt-2"><StatsSideSplit ct={data.analytics.totals.ct} t={data.analytics.totals.t} /></div>
+            <div className="mt-2"><StatsSideSplit ct={data.sideSplit.ct} t={data.sideSplit.t} /></div>
           </div>
           <div className="px-4 py-4">
             <p className="text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-mid)]"><StatsMetricLabel metric="conversion">{STATS_METRICS.conversion.label}</StatsMetricLabel></p>
-            <div className="mt-1.5 text-lg font-semibold"><MetricValue metric="conversion" value={data.analytics.totals.round2Conversion} sampleDisplay="compact" /></div>
+            <div className="mt-1.5 text-lg font-semibold"><MetricValue metric="conversion" value={data.round2Conversion} sampleDisplay="compact" /></div>
           </div>
         </div>
       </section>
@@ -227,7 +112,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
             <Link href={statsHref(seasonSlug, query, { tab: "players" })} scroll={false} className="text-xs text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-accent)]">View all →</Link>
           </div>
           <div className="border-y border-[var(--color-border)] bg-[var(--color-panel)]">
-            <StatsDataTable embedded showRank rows={topPlayers} columns={playerColumns} rowKey={(row, index) => `${row.userId ?? row.perfectName}:${row.teamId ?? ""}:${index}`} pageSize={5} tableClassName="table-fixed" emptyLabel="暂无选手统计" />
+            <StatsDataTable embedded showRank rows={topPlayers} columns={playerColumns} rowKey={(row, index) => `${row.userId ?? row.perfectName}:${""}:${index}`} pageSize={5} tableClassName="table-fixed" emptyLabel="暂无选手统计" />
           </div>
         </section>
         <section className="min-w-0">
@@ -305,5 +190,7 @@ export function OverviewStats({ data, query, seasonSlug }: { data: TournamentSta
         </div>
       </section>
     </div>
+      <ContentReady module="statistics" phase="primary" />
+    </>
   );
 }
