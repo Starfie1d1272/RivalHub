@@ -1,3 +1,6 @@
+import { getTeamDirectory } from "@/lib/teams/directory";
+import { normalizeTeamDirectoryQuery } from "@/lib/teams/directory-contract";
+import { getPublicTeamProfileBasics, getPublicTeamProfileCore } from "@/lib/teams/public-profile";
 import { compilePlayerAttributeBenchmark } from "@/lib/stats/player-attributes";
 import { publicStatsView } from "@/lib/stats/public-view";
 import { parseStatsQuery, STATS_TABS } from "@/lib/stats/view-state";
@@ -863,6 +866,8 @@ describe("DAK evidence submit persistence", () => {
       const platformStarted = performance.now();
       const platformStats = await getTournamentStats(platformScope, observedDatabase);
       const platformMs = performance.now() - platformStarted;
+      const platformQueries = queryLog.length;
+      const platformQueryLog = [...queryLog];
       expect(platformStats.coverage.detailedMaps).toBe(2);
       expect(platformStats.performance.players).toHaveLength(10);
       expect(platformStats.leaderboard).toHaveLength(10);
@@ -886,10 +891,10 @@ describe("DAK evidence submit persistence", () => {
       expect(compilePlayerAttributeBenchmark(benchmarkPopulations.flat())).toEqual(compilePlayerAttributeBenchmark(eventViews.flatMap(view => view.performance.players)));
       const publicEventStats = await getTournamentStats({ seasonId: ids.season, publicOnly: true }, database);
       expect(publicEventStats.leaderboard.find((row) => row.userId === userIds[0])?.teamIds).toEqual([ids.entryA]);
-      expect(queryLog.filter((query) => /from "match_demo_stat_projections"/i.test(query) && query.includes('"facts"'))).toHaveLength(1);
-      expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
-      expect(queryLog.length).toBeLessThan(baselineQueries);
-      console.info(JSON.stringify({ scenario: "platform-two-event-batch", baselineQueries, platformQueries: queryLog.length,
+      expect(platformQueryLog.filter((query) => /from "match_demo_stat_projections"/i.test(query) && query.includes('"facts"'))).toHaveLength(1);
+      expect(platformQueryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
+      expect(platformQueries).toBeLessThan(baselineQueries);
+      console.info(JSON.stringify({ scenario: "platform-two-event-batch", baselineQueries, platformQueries,
         baselineMs, platformMs, baselineDtoBytes: Buffer.byteLength(JSON.stringify(eventViews)), platformDtoBytes: Buffer.byteLength(JSON.stringify(platformStats)),
         maps: 2, users: 10, cache: "uncached PostgreSQL; no production latency claim" }));
       expect(platformStats.records).toHaveLength(11);
@@ -930,6 +935,17 @@ describe("DAK evidence submit persistence", () => {
         await database.update(schema.competitionEntries).set({ source: "linked_team", teamId: linkedTeamId }).where(inArray(schema.competitionEntries.id, [ids.entryA, ids.careerEntryA]));
         const longDetail = await checkDetailProjection("long-team-two-maps", () => getLongTeamCareerDetail(linkedTeamId, observedDatabase), false);
         expect(longDetail.maps.map(row => row.mapName)).toEqual(["de_ancient", "de_nuke"]);
+        const directory = await getTeamDirectory(normalizeTeamDirectoryQuery({ q: "Explicit cross-event team" }));
+        expect(directory.rows.map(row => row.id)).toContain(linkedTeamId);
+        expect(directory.total).toBe(directory.rows.length);
+        expect(directory.rows.find(row => row.id === linkedTeamId)?.memberCount).toBe(1);
+        const missingDirectory = await getTeamDirectory(normalizeTeamDirectoryQuery({ q: randomUUID() }));
+        expect(missingDirectory).toMatchObject({ rows: [], total: 0, hasAnyTeams: true });
+        const basics = await getPublicTeamProfileBasics(linkedTeamId);
+        expect(basics?.currentMembers.map(row => row.userId)).toContain(userIds[0]);
+        expect(await getPublicTeamProfileCore(linkedTeamId, undefined, longDetail.official.matches, basics!))
+          .toEqual(await getPublicTeamProfileCore(linkedTeamId, undefined, longDetail.official.matches));
+
         const linkedStats = await getTournamentStats(platformScope, observedDatabase);
         expect(linkedStats.analytics.teams).toHaveLength(3);
         expect(linkedStats.analytics.teams.find((row) => row.team.entityKey === linkedTeamId)?.mapCount).toBe(2);

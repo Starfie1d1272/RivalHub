@@ -95,7 +95,7 @@ export async function getPublicPlayerProfileReadModel(
     }
     return resultBySeason;
   });
-  const [career, currentTeams, registrations, competitiveFacts, competitiveRoles, mapPreferences, competitiveCatalog, educationRows, playerLft, teamMemberRows, careerRecords, lifetime, sanctions, registrationCompletionRows, resultBySeason] = await Promise.all([
+  const [career, currentTeams, registrations, competitiveFacts, competitiveRoles, mapPreferences, competitiveCatalog, educationRows, playerLft, teamMemberRows, careerRecords, lifetime, sanctions, registrationCompletionRows, resultBySeason, benchmark] = await Promise.all([
     performancePromise,
     db.select({ slug: teams.slug, name: teams.name }).from(teamMemberships)
       .innerJoin(teams, eq(teams.id, teamMemberships.teamId))
@@ -123,6 +123,7 @@ export async function getPublicPlayerProfileReadModel(
     known?.user.id === userId ? Promise.resolve(known.sanctions) : getPublicPlayerSanctions(userId),
     registrationCompletionPromise,
     resultBySeasonPromise,
+    benchmarkPromise,
   ]);
 
   const uniqueHistoryEntries = [...new Map(teamMemberRows.map((entry) => [`${entry.seasonId}:${entry.teamId}`, entry])).values()];
@@ -157,7 +158,6 @@ export async function getPublicPlayerProfileReadModel(
     .filter((role): role is string => role !== null);
   const publicEducationIdentities = presentPublicEducationIdentities(educationRows);
   const currentEventTeams = uniqueHistoryEntries.filter((entry) => !["finished", "archived"].includes(entry.seasonStatus));
-  const benchmark = await benchmarkPromise;
   const attributes = career?.performance && benchmark
     ? projectPlayerAttributeProfile(career.performance, benchmark)
     : null;
