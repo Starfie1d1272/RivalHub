@@ -66,7 +66,7 @@ test("后台三 view 的可见内容、CLS 与分页保持真实范围", async (
         });
         expect(metrics.primaryDomReadyMs).not.toBeNull();
         const rsc = await page.evaluate(async () => {
-          const url = new URL(window.location.href); url.searchParams.set("__admin_readiness_probe", "rsc");
+          const url = new URL(window.location.href);
           const response = await fetch(url, { headers: { RSC: "1" }, cache: "no-store" });
           const decodedBytes = (await response.arrayBuffer()).byteLength;
           await new Promise(resolve => requestAnimationFrame(resolve));
