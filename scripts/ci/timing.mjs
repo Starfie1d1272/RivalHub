@@ -1,6 +1,8 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { spawn } from "node:child_process";
+import { spawnSync } from "node:child_process";
+import { runOwnedCommand } from "./command-watchdog.mjs";
+import { remainingExecutionBudget } from "./execution-budget.mjs";
 import { performance } from "node:perf_hooks";
 
 const env = process.env;
@@ -55,29 +57,39 @@ function parseTestCounts(output, kind) {
   return counts;
 }
 
-async function runCommand(label, command, args) {
+function activeCommandBudget() {
+  const route = `repos/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}/attempts/${env.GITHUB_RUN_ATTEMPT}/jobs?per_page=100`;
+  const result = spawnSync("gh", ["api", "--paginate", "-H", "Cache-Control: no-cache", route,
+    "--jq", ".jobs[] | {name,conclusion,steps} | tojson"], { encoding: "utf8", timeout: 5000, killSignal: "SIGKILL", maxBuffer: 5 * 1024 * 1024 });
+  if (result.error || result.status !== 0) throw new Error("CI execution metadata unavailable");
+  const jobs = result.stdout.split("\n").filter(Boolean).map(line => JSON.parse(line));
+  return remainingExecutionBudget(jobs, { jobName: env.RIVALHUB_CI_JOB_NAME, stepName: env.RIVALHUB_CI_STEP_NAME,
+    now: Date.now(), budgetMilliseconds: Number(env.RIVALHUB_CI_EXECUTION_BUDGET_MS) });
+}
+
+async function runCommand(label, command, args, { cleanup = false, timeoutMs } = {}) {
   const started = performance.now();
-  let output = "";
-  const child = spawn(command, args, {
-    cwd: process.cwd(), env: { ...env, RIVALHUB_TIMING_STDOUT_ONLY: "1" }, stdio: ["inherit", "pipe", "pipe"],
-  });
-  child.stdout.on("data", (chunk) => {
-    const text = String(chunk);
-    output += text;
-    process.stdout.write(text);
-  });
-  child.stderr.on("data", (chunk) => {
-    const text = String(chunk);
-    output += text;
-    process.stderr.write(text);
-  });
-  const exitCode = await new Promise((resolveExit, reject) => {
-    child.on("error", reject);
-    child.on("close", (code, signal) => resolveExit(code ?? (signal ? 1 : 0)));
-  });
-  record(label, performance.now() - started, { command, counts: parseTestCounts(output, env.RIVALHUB_TIMING_TEST_KIND) });
-  for (const internal of parseTimingOutput(output)) appendRecord(internal);
-  process.exitCode = exitCode;
+  let budget;
+  try {
+    if (env.GITHUB_ACTIONS === "true" && env.RIVALHUB_CI_WATCHDOG_OWNER !== "1" && !cleanup) {
+      budget = activeCommandBudget();
+      if (budget.remainingMilliseconds <= 0) throw new Error("CI execution budget exhausted before command start");
+      timeoutMs = Math.min(timeoutMs ?? Infinity, budget.remainingMilliseconds);
+    }
+    const result = await runOwnedCommand(command, args, { timeoutMs,
+      ownershipToken: env.RIVALHUB_CI_WATCHDOG_OWNER === "1" ? env.RIVALHUB_CI_COMMAND_TOKEN : undefined,
+      onTimeout: details => appendRecord({ kind: "command-failure", label, command, ...details, budget }),
+    });
+    record(label, performance.now() - started, { command, counts: parseTestCounts(result.output, env.RIVALHUB_TIMING_TEST_KIND),
+      exitCode: result.exitCode, exitSignal: result.exitSignal, timedOut: result.timedOut, cancelled: result.cancelled,
+      stdioClosed: result.closed, cleanupError: result.cleanupError, spawnError: result.spawnError, budget });
+    for (const internal of parseTimingOutput(result.output)) appendRecord(internal);
+    process.exitCode = result.code;
+  } catch (error) {
+    record(label, performance.now() - started, { command, failure: error.message, budget });
+    console.error(error.message);
+    process.exitCode = 1;
+  }
 }
 
 function renderSummary() {
@@ -174,5 +186,12 @@ if (args[0] === "summary") {
   if (separator < 1 || !args[separator + 1]) {
     throw new Error("用法：timing.mjs <label> -- <command> [args...]，或 timing.mjs summary。");
   }
-  await runCommand(args.slice(0, separator).join(" "), args[separator + 1], args.slice(separator + 2));
+  const labels = args.slice(0, separator);
+  const cleanup = labels.includes("--cleanup");
+  const timeoutIndex = labels.indexOf("--timeout-ms");
+  const timeoutMs = timeoutIndex >= 0 ? Number(labels[timeoutIndex + 1]) : cleanup ? 15000 : undefined;
+  if (timeoutIndex >= 0) labels.splice(timeoutIndex, 2);
+  const cleanupIndex = labels.indexOf("--cleanup");
+  if (cleanupIndex >= 0) labels.splice(cleanupIndex, 1);
+  await runCommand(labels.join(" "), args[separator + 1], args.slice(separator + 2), { cleanup, timeoutMs });
 }
