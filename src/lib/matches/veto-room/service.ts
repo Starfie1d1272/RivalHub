@@ -1,3 +1,4 @@
+import type { VetoAffectedFact } from "@/types/veto-room";
 import { assertCompetitionMatch, type CompetitionMatch } from "../competition-context";
 import "server-only";
 
@@ -89,7 +90,7 @@ export interface VetoMutationReceipt {
   outcome: VetoMutationOutcome;
   changed: boolean;
   committedRevision: number | null;
-  affectedFacts: Array<"lineups" | "appeals" | "veto" | "map_plan">;
+  affectedFacts: VetoAffectedFact[];
 }
 
 function mutationReceipt(outcome: VetoMutationOutcome, session: VetoSession | undefined, facts: VetoMutationReceipt["affectedFacts"]): VetoMutationReceipt {
@@ -724,7 +725,7 @@ export async function reconcileVetoRoomReceipt(matchId: string): Promise<VetoMut
     const [session] = await tx.select().from(matchVetoSessions)
       .where(eq(matchVetoSessions.matchId, match.id)).for("update");
     const reconciled = session ? await reconcileVetoSessionInTx(tx, match, session, await databaseNow(tx)) : undefined;
-    if (reconciled && reconciled.revision !== session?.revision) facts.push("veto");
+    if (reconciled && reconciled.revision !== session?.revision) facts.push("veto_step");
     if (reconciled?.completedAt && !session?.completedAt) facts.push("map_plan");
     return mutationReceipt(facts.length ? "applied" : "idempotent", reconciled, facts);
   });
@@ -904,11 +905,11 @@ export async function requestVetoStartReceipt(input: {
     const match = await lockMatchInTx(tx, input.matchId);
     const facts: VetoMutationReceipt["affectedFacts"] = [];
     if (await materializeDefaultLineupsInTx(tx, match, receivedAt, match.scheduledAt === null) > 0) facts.push("lineups");
-    let session = await getSessionForUpdateInTx(tx, match, () => facts.push("veto"));
+    let session = await getSessionForUpdateInTx(tx, match, () => facts.push("veto_step"));
     const initialRevision = session.revision;
     const initialCompleted = Boolean(session.completedAt);
     const receipt = (outcome: VetoMutationOutcome) => mutationReceipt(outcome, session,
-      [...facts, ...(session.revision !== initialRevision ? ["veto" as const] : []),
+      [...facts, ...(session.revision !== initialRevision ? ["veto_step" as const] : []),
         ...(Boolean(session.completedAt) !== initialCompleted ? ["map_plan" as const] : [])]);
     const processingNow = await databaseNow(tx);
     session = await reconcileVetoSessionInTx(tx, match, session, processingNow, input.actorId);
@@ -984,11 +985,11 @@ export async function submitVetoCommandReceipt(input: {
     const match = await lockMatchInTx(tx, input.matchId);
     const facts: VetoMutationReceipt["affectedFacts"] = [];
     if (await materializeDefaultLineupsInTx(tx, match) > 0) facts.push("lineups");
-    let session = await getSessionForUpdateInTx(tx, match, () => facts.push("veto"));
+    let session = await getSessionForUpdateInTx(tx, match, () => facts.push("veto_step"));
     const originalRevision = session.revision;
     const initialCompleted = Boolean(session.completedAt);
     const receipt = (outcome: VetoMutationOutcome) => mutationReceipt(outcome, session,
-      [...facts, ...(session.revision !== originalRevision ? ["veto" as const] : []),
+      [...facts, ...(session.revision !== originalRevision ? ["veto_step" as const] : []),
         ...(Boolean(session.completedAt) !== initialCompleted ? ["map_plan" as const] : [])]);
 
     if (input.command.kind === "step") {

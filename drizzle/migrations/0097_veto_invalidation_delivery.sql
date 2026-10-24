@@ -5,7 +5,7 @@ CREATE TABLE "match_veto_invalidations" (
 	"affected_facts" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"last_transaction_id" bigint NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "match_veto_invalidations_facts_check" CHECK (jsonb_typeof("affected_facts") = 'array' AND "affected_facts" <@ '["lineups","appeals","veto","map_plan"]'::jsonb AND jsonb_array_length("affected_facts") <= 4),
+	CONSTRAINT "match_veto_invalidations_facts_check" CHECK (jsonb_typeof("affected_facts") = 'array' AND "affected_facts" <@ '["lineups","appeals","veto_step","map_plan","veto"]'::jsonb AND jsonb_array_length("affected_facts") <= 5),
 	CONSTRAINT "match_veto_invalidations_generation_check" CHECK ("match_veto_invalidations"."generation" > 0 AND "match_veto_invalidations"."published_generation" >= 0 AND "match_veto_invalidations"."published_generation" <= "match_veto_invalidations"."generation")
 );
 --> statement-breakpoint
@@ -37,7 +37,7 @@ BEGIN
     RETURN COALESCE(NEW,OLD);
   END IF;
   category := CASE WHEN TG_TABLE_NAME='match_maps' THEN '["map_plan"]'::jsonb WHEN TG_TABLE_NAME='match_veto_appeals' THEN '["appeals"]'::jsonb
-    WHEN TG_TABLE_NAME IN ('match_rosters','match_roster_players') THEN '["lineups"]'::jsonb ELSE '["veto"]'::jsonb END;
+    WHEN TG_TABLE_NAME IN ('match_rosters','match_roster_players') THEN '["lineups"]'::jsonb ELSE '["veto_step"]'::jsonb END;
   INSERT INTO match_veto_invalidations(match_id,generation,published_generation,affected_facts,last_transaction_id)
     VALUES(mid,1,0,category,current_tx)
     ON CONFLICT(match_id) DO UPDATE SET
