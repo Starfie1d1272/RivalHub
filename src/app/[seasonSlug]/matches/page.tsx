@@ -1,3 +1,4 @@
+import { hasUnconfiguredPublicScheduleMatches } from "@/lib/matches/schedule-read";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import { projectBracketDisplayScores } from "@/lib/bracket/display-scores";
 import { withDisplayScores } from "@/lib/matches/display-score-data";
@@ -72,7 +73,7 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
   }) : [];
   const allMatches = await withDisplayScores(allMatchesRaw.map(requireCompetitionMatch));
   const needsBracket = selectedStage && ["round_robin", "single_elim", "double_elim"].includes(selectedStage.type);
-  const [liveContexts, roundScoresByMatchId, swissEntries, qualificationSwissReadModel, bracketState] = await Promise.all([
+  const [liveContexts, roundScoresByMatchId, swissEntries, qualificationSwissReadModel, bracketState, hasUnconfiguredMatches] = await Promise.all([
     loadPublicMatchContexts(allMatches),
     selectedStage?.type === "round_robin"
       ? getMatchMapRoundScores(allMatches.filter(match => match.status === "finished").map(match => match.id)) : Promise.resolve(new Map()),
@@ -81,6 +82,7 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
     defaultStageKey === "play-in" && qualificationRun?.format === "short_swiss_2w2l"
       ? loadQualificationSwissStageReadModel(season.id, { run: qualificationRun, displayedMatches: allMatches }) : Promise.resolve(null),
     needsBracket ? loadStageBracketState(db, season.id, selectedStage.key) : Promise.resolve(null),
+    hasUnconfiguredPublicScheduleMatches(season.id, stagePlan.map(stage => stage.key), qualificationRun?.id),
   ]);
   const bracketDataByStage = new Map(bracketState && selectedStage ? [[selectedStage.key, serializeStageBracket(bracketState)]] : []);
   const swissReadModels = new Map(swissEntries.filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null));
@@ -96,7 +98,6 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
   const qualificationMatchIds = new Set(qualificationMatches.map((match) => match.id));
   const majorStageMatches = allMatches.filter((match) => !qualificationMatchIds.has(match.id));
   const { views: stageViews } = buildStageViews<typeof allMatches[number]>(stagePlan, majorStageMatches);
-  const hasUnconfiguredMatches = stagePresentation.initializedStageKeys.some(key => key !== "play-in" && !stagePlan.some(stage => stage.key === key));
   const sortActiveMatches = (stageMatches: typeof allMatches) =>
     [...stageMatches].sort((a, b) => {
       const timeDifference = (a.scheduledAt?.getTime() ?? Infinity) - (b.scheduledAt?.getTime() ?? Infinity);

@@ -4,7 +4,7 @@ import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useVisiblePolling } from "@/components/use-visible-polling";
+import { useGuardedVisiblePolling } from "@/components/use-visible-polling";
 import { getNextEntryId } from "@/lib/draft/rules";
 import { DRAFT_TOTAL_ROUNDS } from "@/types/draft";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
@@ -82,16 +82,17 @@ export function DraftLiveRoom({
     };
   }, []);
 
-  useVisiblePolling(async () => {
+  useGuardedVisiblePolling(async (isCurrent) => {
     if (!seasonSlug) return;
     const result = await readPublicDraft(seasonSlug).catch(() => null);
+    if (!isCurrent()) return;
     if (result?.success) {
       const next = result.data;
       setPolled({ source: initialData, sourceMode: initialMode, ...next });
       if (next.mode !== mode || next.data.state?.isActive !== data.state?.isActive ||
         (next.data.maxPicks > 0 && next.data.totalPicks >= next.data.maxPicks) !== isComplete) router.refresh();
     } else router.refresh();
-  }, seasonSlug && !isArchive && !isComplete ? isLive ? 10_000 : 30_000 : null);
+  }, seasonSlug && !isArchive && !isComplete ? isLive ? 10_000 : 30_000 : null, seasonSlug);
 
   // Watch for new picks via completedPicks changes
   const prevPickCountRef = useRef(completedPicks.length);

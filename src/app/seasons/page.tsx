@@ -1,3 +1,4 @@
+import { selectSeasonDirectoryPage } from "@/lib/seasons/directory-page";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import { EventLogo } from "@/components/season/EventLogo";
@@ -6,7 +7,7 @@ import { getPublicSeasonResultSummaries } from "@/lib/seasons/public-results";
 import { SeasonResults } from "@/components/season/SeasonResults";
 import { getParticipantSummaries } from "@/lib/participants/summary";
 import { formatCSTShortDate } from "@/lib/utils/date";
-import { groupSeasonsByLifecycle, SEASON_LIFECYCLE_GROUPS } from "@/lib/seasons/presentation";
+import { SEASON_LIFECYCLE_GROUPS } from "@/lib/seasons/presentation";
 import { Suspense } from "react";
 import { io } from "next/cache";
 import Link from "next/link";
@@ -32,17 +33,12 @@ export default function SeasonsPage({ searchParams }: { searchParams: Promise<{ 
 async function SeasonsContent({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   await io();
   const [allSeasons, query] = await Promise.all([getPublicSeasonCatalog(), searchParams]);
-  const grouped = groupSeasonsByLifecycle(allSeasons);
-  const history = [...grouped.recent, ...grouped.archived];
-  const pages = Math.max(1, Math.ceil(history.length / 12));
-  const requested = Number(query.page);
-  const page = Number.isSafeInteger(requested) && requested > 0 ? Math.min(requested, pages) : 1;
-  const visibleHistory = new Set(history.slice((page - 1) * 12, page * 12).map(season => season.id));
+  const { grouped, page, pages } = selectSeasonDirectoryPage(allSeasons, query.page);
   return <PageLayout as="div" variant="wide">
     <PageHeader title="赛事中心" description={`共 ${allSeasons.length} 个赛事`} className="mb-10" />
     {allSeasons.length === 0 ? <p className="py-16 text-center text-[var(--color-fg-dim)]">暂无赛事记录</p> : <div className="space-y-10">
       {SEASON_LIFECYCLE_GROUPS.map(group => {
-        const seasons = grouped[group.key].filter(season => group.key === "active" || visibleHistory.has(season.id));
+        const seasons = grouped[group.key];
         return seasons.length > 0 ? <section key={group.key} className="space-y-4">
           <h2 className="text-xl font-semibold">{group.label}</h2>
           <Suspense fallback={<div role="status" className="min-h-64">正在加载赛事…</div>}>

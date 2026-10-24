@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useVisiblePolling } from "@/components/use-visible-polling";
+import { useGuardedVisiblePolling } from "@/components/use-visible-polling";
 import { readPublicMatchRefreshToken } from "@/actions/public-match-refresh";
 import type { PublicMatchRefreshScope } from "@/lib/matches/public-refresh";
 
@@ -21,11 +21,11 @@ export function MatchContextRefresh({ enabled, seasonSlug, scope }: {
     lastFullSync.current = 0;
     lastObservedToken.current = null;
   }, [requestScope]);
-  useVisiblePolling(async () => {
+  useGuardedVisiblePolling(async (isCurrent) => {
     if (pending) return;
     const requestedScope = requestScope;
     const result = await readPublicMatchRefreshToken({ seasonSlug, scope }).catch(() => null);
-    if (currentScope.current !== requestedScope) return;
+    if (!isCurrent() || currentScope.current !== requestedScope) return;
     const now = Date.now();
     if (lastFullSync.current === 0) lastFullSync.current = now;
     // A failed read cannot be interpreted as unchanged. Full resync recovers
@@ -38,6 +38,6 @@ export function MatchContextRefresh({ enabled, seasonSlug, scope }: {
       lastFullSync.current = now;
       startRefresh(() => router.refresh());
     }
-  }, enabled ? 15_000 : null);
+  }, enabled ? 15_000 : null, requestScope);
   return null;
 }

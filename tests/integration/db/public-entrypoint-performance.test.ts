@@ -91,6 +91,13 @@ it("detects scoped map/correction and roster facts while idle tokens stay stable
   const original = await token();
   expect(await token()).toBe(original);
   expect(original).toMatch(/^[a-f0-9]{32}$/);
+  // A real commit in the read gap yields a new token while the captured page
+  // facts remain old. The component bootstrap test requires a refresh here.
+  const captured = (await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) }))!;
+  const moved = new Date(captured.scheduledAt!.getTime() + 60_000);
+  await db.update(schema.matches).set({ scheduledAt: moved }).where(eq(schema.matches.id, f.matchId));
+  expect(await token()).not.toBe(original);
+  expect(captured.scheduledAt).not.toEqual(moved);
   await db.update(schema.matchMaps).set({ mapName: "de_nuke" }).where(eq(schema.matchMaps.id, f.mapTwoId));
   const changed = await token(); expect(changed).not.toBe(original);
   await db.update(schema.matchMaps).set({ mapName: "de_inferno" }).where(eq(schema.matchMaps.id, f.mapTwoId));
@@ -151,4 +158,18 @@ it("keeps administrator summary counts and direct details scoped without returni
   expect((await getAnnouncementForAdmin(draft!.id, access))?.body).toBe("full detail body");
   expect(await getAnnouncementForAdmin(draft!.id, { ...access, seasonId: other.seasonId })).toBeNull();
   expect(await getAnnouncementForAdmin(draft!.id, { role: "season_admin", seasonIds: [] })).toBeNull();
+});
+
+it("keeps mismatch warnings for unowned Play-in matches even when a qualification run exists", async () => {
+  const { hasUnconfiguredPublicScheduleMatches } = await import("@/lib/matches/schedule-read");
+  const f = await seedFixture();
+  const match = (await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) }))!;
+  expect(await hasUnconfiguredPublicScheduleMatches(f.seasonId, [match.stage!])).toBe(false);
+  const [run] = await db.insert(schema.competitionQualificationRuns).values({ seasonId: f.seasonId, format: "direct_bo3", targetEntrantCount: 1,
+    candidateCount: 2, directEntryCount: 0, playInEntryCount: 2, qualifierCount: 1, configuredBy: "fixture" }).returning();
+  const [playIn] = await db.insert(schema.matches).values({ seasonId: f.seasonId, entryAId: f.entryAId, entryBId: f.entryBId, stage: "play-in", format: "bo3" }).returning();
+  expect(await hasUnconfiguredPublicScheduleMatches(f.seasonId, [match.stage!], run!.id)).toBe(true);
+  await db.update(schema.matches).set({ qualificationRunId: run!.id }).where(eq(schema.matches.id, playIn!.id));
+  expect(await hasUnconfiguredPublicScheduleMatches(f.seasonId, [match.stage!], run!.id)).toBe(false);
+  expect(await hasUnconfiguredPublicScheduleMatches(f.seasonId, [match.stage!])).toBe(true);
 });

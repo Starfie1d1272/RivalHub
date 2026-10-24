@@ -2,7 +2,7 @@
 
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { useState, useTransition } from "react";
-import { useVisiblePolling } from "@/components/use-visible-polling";
+import { useGuardedVisiblePolling } from "@/components/use-visible-polling";
 import { RefreshCw, Undo2, Vote } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -50,15 +50,16 @@ export function CaptainVotingPanel({
   const [isPending, startTransition] = useTransition();
   const isVotingOpen = seasonStatus === "voting";
 
-  useVisiblePolling(async () => {
+  useGuardedVisiblePolling(async (isCurrent) => {
     if (isPending) return;
     const result = await readPublicCaptainVoting(seasonSlug).catch(() => null);
+    if (!isCurrent()) return;
     if (result?.success) {
       setPolled({ source: initialCandidates, sourceStatus: initialStatus, sourceVoter: initialVoter, sourceVotes: initialVotes, data: result.data });
       if (result.data.seasonStatus !== seasonStatus) router.refresh();
     }
     else router.refresh();
-  }, isVotingOpen && !viewerPending ? 10_000 : null);
+  }, isVotingOpen && !viewerPending ? 10_000 : null, seasonSlug);
 
   // votes 已在服务端按当前用户过滤
   const votedCandidateIds = new Set(votes.map((vote) => vote.candidateRegistrationId));
