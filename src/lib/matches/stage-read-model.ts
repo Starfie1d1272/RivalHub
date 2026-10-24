@@ -1,5 +1,5 @@
 import { withDisplayScores } from "@/lib/matches/display-score-data";
-import { requireCompetitionMatch, type CompetitionMatch } from "./competition-context";
+import { requireCompetitionMatch, requireCompetitionFields, type CompetitionMatch } from "./competition-context";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, majorStageEntrants, majorStageRuns, majorTournamentEntrants, matches, type Match } from "@/db/schema";
@@ -210,9 +210,10 @@ export async function loadMajorSwissMatchRecord(seasonId: string, stageKey: stri
       status: matches.status, completedAt: matches.completedAt, scoreA: matches.scoreA, scoreB: matches.scoreB })
       .from(matches).where(and(eq(matches.seasonId, seasonId), eq(matches.stage, stageKey), eq(matches.majorStageRunId, run.id), eq(matches.ownership, "major_stage"))),
   ]);
-  const target = rows.find(row => row.id === matchId);
+  const scopedRows = rows.map(row => requireCompetitionFields(row));
+  const target = scopedRows.find(row => row.id === matchId);
   if (!target?.round || target.round < 1 || target.round > MAJOR_SWISS_MAX_ROUNDS) return null;
-  const facts: MajorSwissMatchFact[] = rows.filter(row => row.status === "finished" && row.completedAt !== null &&
+  const facts: MajorSwissMatchFact[] = scopedRows.filter(row => row.status === "finished" && row.completedAt !== null &&
     row.scoreA !== null && row.scoreB !== null && row.round !== null).map(row => ({
       matchId: row.id, round: row.round as MajorSwissMatchFact["round"], entryAId: row.entryAId!, entryBId: row.entryBId!,
       winnerId: row.scoreA! > row.scoreB! ? row.entryAId! : row.entryBId!,

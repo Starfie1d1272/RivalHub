@@ -6,7 +6,7 @@ import { db } from "@/db/client";
 import { competitionQualificationRuns, matchLiveSessions, matchPlayerStats as playerStats, type Match as DbMatch, type MatchMap } from "@/db/schema";
 import type { EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 import { loadMajorSwissMatchRecord } from "@/lib/matches/stage-read-model";
-import { loadQualificationSwissStageReadModel } from "@/lib/matches/qualification-stage-read-model";
+import { loadQualificationSwissMatchRecord } from "@/lib/matches/qualification-stage-read-model";
 import type { DemoImportMetadata } from "@/lib/demo-integration/metadata";
 import { resolveGameplayMapId } from "@/lib/matches/presentation-phase";
 import { mapLabel } from "@/lib/maps";
@@ -37,7 +37,7 @@ export async function loadOperatorContext(input: {
       where: and(eq(matchLiveSessions.matchId, match.id), isNull(matchLiveSessions.closedAt)),
       columns: { id: true, authorityRevision: true, programSourceGeneration: true, lastReliableSeq: true, currentMapId: true, mapExecutionPhase: true, mapEpoch: true, manualTakeoverMapEpoch: true, identityHealth: true, lineupHealth: true, continuityHealth: true, autoCanonicalizationArmed: true },
     }),
-    match.qualificationRunId ? loadQualificationSwissStageReadModel(match.seasonId).then(view => view ? ({ stageName: view.stageName, record: view.rounds.flatMap(round => round.groups).find(group => group.matchups.some(row => row.matchId === match.id))?.record }) : null)
+    match.qualificationRunId ? loadQualificationSwissMatchRecord(match.seasonId, match.id)
       : input.isSwiss && match.ownership === "major_stage"
         ? loadMajorSwissMatchRecord(match.seasonId, match.stage, match.id) : Promise.resolve(null),
     match.qualificationRunId ? db.query.competitionQualificationRuns.findFirst({ where: and(eq(competitionQualificationRuns.id, match.qualificationRunId), eq(competitionQualificationRuns.seasonId, match.seasonId)), columns: { format: true } }) : Promise.resolve(null),
