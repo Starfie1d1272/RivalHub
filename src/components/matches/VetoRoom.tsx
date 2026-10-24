@@ -4,6 +4,7 @@ import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 
 import Link from "next/link";
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -291,6 +292,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
 
   return (
     <div className="space-y-6 py-8" data-testid="veto-room">
+      <React.Suspense fallback={null}><ContentReady module="match" phase="form" /></React.Suspense>
       <header className="space-y-2">
         <Link href={room.permissions.isAdmin ? `/admin/${room.seasonSlug}/matches/${match.id}` : `/${room.seasonSlug}/matches/${match.id}`} className="text-sm text-[var(--color-accent)] hover:underline">
           {room.permissions.isAdmin ? "返回比赛工作台" : "返回比赛"}

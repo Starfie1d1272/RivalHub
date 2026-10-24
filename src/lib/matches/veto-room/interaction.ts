@@ -6,7 +6,7 @@ import { matches, seasons } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { getCurrentUserAuthorization } from "@/lib/auth/session";
 import { revalidateMatchPaths } from "@/lib/revalidation";
-import { logEvent } from "@/lib/observability/server";
+import { logEvent, traceOperation } from "@/lib/observability/server";
 import { assertVetoRoomReadable } from "./access";
 import { getVetoRoomView } from "./read-model";
 import { reconcileVetoRoomReceipt, requestVetoStartReceipt, submitVetoCommandReceipt } from "./service";
@@ -31,15 +31,15 @@ export async function runVetoInteraction(input: z.infer<typeof vetoInteractionIn
   let outcome;
   let authorization: Awaited<ReturnType<typeof getCurrentUserAuthorization>> | undefined;
   if (input.operation === "reconcile") {
-    await assertVetoRoomReadable(input.matchId);
-    outcome = await reconcileVetoRoomReceipt(input.matchId);
+    await traceOperation("match.veto.authorize", { scope: "match", operation: "reconcile", stage: "authorize" }, () => assertVetoRoomReadable(input.matchId));
+    outcome = await traceOperation("match.veto.transaction", { scope: "match", operation: "reconcile", stage: "transaction" }, () => reconcileVetoRoomReceipt(input.matchId));
   } else {
-    authorization = await getCurrentUserAuthorization();
+    authorization = await traceOperation("match.veto.authorize", { scope: "match", operation: input.operation, stage: "authorize" }, () => getCurrentUserAuthorization());
     if (!authorization) throw new AppError(ErrorCode.UNAUTHORIZED, "请先登录。");
     const actor = authorization;
-    outcome = input.operation === "start"
-      ? await requestVetoStartReceipt({ ...input, actorId: actor.userId })
-      : await submitVetoCommandReceipt({ ...input, actorId: actor.userId });
+    outcome = await traceOperation("match.veto.transaction", { scope: "match", operation: input.operation, stage: "transaction" }, () => input.operation === "start"
+      ? requestVetoStartReceipt({ ...input, actorId: actor.userId })
+      : submitVetoCommandReceipt({ ...input, actorId: actor.userId }));
   }
   try {
     const result = await finishVetoInteraction(input.matchId, outcome.outcome, outcome.changed, mode, authorization);
@@ -52,11 +52,12 @@ export async function runVetoInteraction(input: z.infer<typeof vetoInteractionIn
 
 /** Invalidate committed facts before the fallible response projection. */
 export async function finishVetoInteraction<T>(matchId: string, outcome: T, changed: boolean, mode: "action" | "route" = "action", authorization?: Awaited<ReturnType<typeof getCurrentUserAuthorization>>) {
-  if (changed) {
+  if (changed) await traceOperation("match.veto.invalidate", { scope: "match", operation: "invalidate", stage: "invalidate" }, async () => {
     const [context] = await db.select({ slug: seasons.slug }).from(matches).innerJoin(seasons, eq(seasons.id, matches.seasonId))
       .where(eq(matches.id, matchId)).limit(1);
     if (!context) throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。");
     revalidateMatchPaths(context.slug, matchId, { mode });
-  }
-  return { outcome, room: await (authorization === undefined ? getVetoRoomView(matchId) : getVetoRoomView(matchId, authorization)) };
+  });
+  return { outcome, room: await traceOperation("match.veto.project", { scope: "match", operation: "project", stage: "project" },
+    () => authorization === undefined ? getVetoRoomView(matchId) : getVetoRoomView(matchId, authorization)) };
 }

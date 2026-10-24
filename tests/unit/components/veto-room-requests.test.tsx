@@ -5,6 +5,7 @@ import type { VetoRoomView } from "@/lib/matches/veto-room/read-model";
 const read = vi.hoisted(() => vi.fn());
 const send = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/matches/veto-room/client", async original => ({ ...await original<typeof import("@/lib/matches/veto-room/client")>(), fetchVetoRoom: read, sendVetoInteraction: send }));
+vi.mock("@/components/telemetry/ContentReady", () => ({ ContentReady: () => null }));
 vi.mock("@/lib/telemetry/client", () => ({ observeAction: (_name: string, action: unknown) => action }));
 vi.mock("@/actions/matches/veto-room", () => ({
   claimVetoRepresentativeAction: vi.fn(), pauseVetoRoomAction: vi.fn(), resolveVetoRoomAppeal: vi.fn(), resumeVetoRoomAction: vi.fn(),
