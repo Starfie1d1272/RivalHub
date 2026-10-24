@@ -26,7 +26,7 @@ export async function decompressEvents(blob: number[] | Uint8Array): Promise<str
 export function batchSummary(events: TelemetryEvent[]): string {
   const groups = new Map<string, { dimensions: string[]; events: number; duration: number }>();
   for (const e of events) {
-    const dimensions = [e.scene, e.route, e.kind, e.operation ?? "", e.phase ?? "", e.outcome ?? "", e.variant ?? ""];
+    const dimensions = [e.scene, e.route, e.kind, e.operation ?? "", e.phase ?? "", e.outcome ?? "", e.kind === "performance" ? e.metricName ?? "" : e.variant ?? ""];
     const key = JSON.stringify(dimensions);
     const group = groups.get(key) ?? { dimensions, events: 0, duration: 0 };
     group.events++; group.duration += e.durationMs ?? 0; groups.set(key, group);

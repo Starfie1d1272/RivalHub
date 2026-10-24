@@ -1,6 +1,6 @@
 "use client";
 import { StatsNavigationProvider } from "./StatsNavigationContext";
-import React from "react";
+import React, { Suspense } from "react";
 import dynamic from "next/dynamic";
 
 import type { Route } from "next";
@@ -70,7 +70,7 @@ export function TournamentStatsView({
       directoryHref={directoryHref}
       directoryLabel={directoryLabel}
     >
-      {content}
+      <Suspense fallback={<p role="status" className="py-6 text-sm text-[var(--color-fg-mid)]">正在加载统计视图…</p>}>{content}</Suspense>
     </StatsShell></StatsNavigationProvider>
   );
 }
