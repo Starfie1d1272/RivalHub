@@ -8,7 +8,7 @@ import { Panel, StatusPill } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogDescription } from "@/components/ui/dialog";
 import { CommunityAwardsBoard } from "./CommunityAwardsBoard";
-import { CommunityAwardEvidenceForm } from "./CommunityAwardEvidenceForm";
+import { CommunityAwardEvidenceOptions } from "./CommunityAwardEvidenceOptions";
 import { CommunityAwardSubmissionForm } from "./CommunityAwardSubmissionForm";
 import type { CommunityAwardModel } from "@/lib/community-awards/data";
 
@@ -35,7 +35,7 @@ export function PublicCommunityAwards({ seasonId, seasonSlug, hasEnded, awards, 
         <p className="text-sm">{award.condition}</p><p className="text-sm text-[var(--color-fg-mid)]">奖品 · {award.prize}</p>
         {award.outcomeNote && <p className="text-sm">{award.outcomeNote}</p>}
         <details className="text-sm"><summary className="cursor-pointer text-[var(--color-fg-mid)]">奖项说明</summary><p className="mt-2">发起人 · {award.submitterPlayerUserId ? <PlayerProfileLink userId={award.submitterPlayerUserId}>{award.submitterName}</PlayerProfileLink> : award.submitterName}</p>{award.supplementaryNote && <p>{award.supplementaryNote}</p>}{award.publicNote && <p>{award.publicNote}</p>}</details>
-        {award.status === "approved" && currentUserId && <Dialog><DialogTrigger asChild><Button size="sm" variant="outline">提交候选证据</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>{award.name} · 候选证据</DialogTitle><DialogDescription>候选人可为本届赛事相关人员。</DialogDescription></DialogHeader><DialogBody><CommunityAwardEvidenceForm awardId={award.id} candidates={candidates} matches={matches} /></DialogBody></DialogContent></Dialog>}
+        {award.status === "approved" && currentUserId && <Dialog><DialogTrigger asChild><Button size="sm" variant="outline">提交候选证据</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>{award.name} · 候选证据</DialogTitle><DialogDescription>候选人可为本届赛事相关人员。</DialogDescription></DialogHeader><DialogBody><CommunityAwardEvidenceOptions awardId={award.id} seasonSlug={seasonSlug} /></DialogBody></DialogContent></Dialog>}
       </Panel>)}</div></section>;
     })}
     {awards.length === 0 && <Panel><p className="text-sm text-[var(--color-fg-mid)]">{hasEnded ? "本届暂无社区奖记录。" : "社区奖公布后会在这里展示。"}</p></Panel>}

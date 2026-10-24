@@ -1,4 +1,4 @@
-import { connection } from "next/server";
+import { io } from "next/cache";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { PageHeader, PageLayout } from "@/components/rivalhub";
@@ -10,7 +10,7 @@ export default function SeasonInfoPage(props: { params: Promise<{ seasonSlug: st
   return <Suspense fallback={<PageLayout variant="narrow"><p role="status">正在加载…</p></PageLayout>}><SeasonInfoPageContent {...props} /></Suspense>;
 }
 async function SeasonInfoPageContent({ params }: { params: Promise<{ seasonSlug: string }> }) {
-  await connection();
+  await io();
   const { seasonSlug } = await params;
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
