@@ -188,9 +188,11 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
 
   useEffect(() => {
     const retryNow = () => { if (document.visibilityState === "hidden") return; boundaryAttempt.current.retryAt = 0; setClockSynchronized(false); void refresh(); };
+    const onPageShow = (event: PageTransitionEvent) => { if (event.persisted) retryNow(); };
+    window.addEventListener("pageshow", onPageShow);
     window.addEventListener("online", retryNow);
     document.addEventListener("visibilitychange", retryNow);
-    return () => { window.removeEventListener("online", retryNow); document.removeEventListener("visibilitychange", retryNow); };
+    return () => { window.removeEventListener("pageshow", onPageShow); window.removeEventListener("online", retryNow); document.removeEventListener("visibilitychange", retryNow); };
   }, [refresh]);
 
   useEffect(() => {

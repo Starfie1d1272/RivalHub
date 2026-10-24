@@ -160,3 +160,18 @@ it("retries durable invalidation via reconcile while a room is paused, without r
   expect(send).toHaveBeenCalledTimes(2);
   expect(send.mock.calls.every(call => call[0] === "reconcile")).toBe(true);
 });
+
+
+it("immediately resynchronizes a persisted pageshow without replaying a mutation", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(now);
+  Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+  const initial = room(1); initial.session.paused = true;
+  read.mockResolvedValue({ success: true, data: initial });
+  render(<VetoRoom initialRoom={initial} />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  const reads = read.mock.calls.length;
+  const restored = new Event("pageshow"); Object.defineProperty(restored, "persisted", { value: true });
+  await act(async () => { window.dispatchEvent(restored); });
+  expect(read.mock.calls.length).toBe(reads + 1);
+  expect(send).not.toHaveBeenCalled();
+});
