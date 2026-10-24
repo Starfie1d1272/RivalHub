@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 
@@ -91,4 +91,22 @@ it("retains a committed draft when refresh fails, then permits an explicit autho
   await waitFor(() => expect(screen.queryByText("写入已确认，刷新待完成。")).toBeNull());
   expect(mocks.save).toHaveBeenCalledOnce();
   expect(screen.getByRole("button", { name: "重新录入" })).toBeEnabled();
+});
+
+
+it("releases reload busy ownership when a late initial snapshot supersedes its read", async () => {
+  let finishRead!: (result: unknown) => void;
+  mocks.read.mockResolvedValueOnce({ success: false, error: { code: "INTERNAL_ERROR", message: "unavailable" } })
+    .mockReturnValueOnce(new Promise(resolve => { finishRead = resolve; }));
+  const user = userEvent.setup();
+  const { rerender } = render(<StatsOCRPanel mapId="map" mapName="de_mirage" />);
+  await screen.findByText("无法读取已保存数据。");
+  await user.click(screen.getByRole("button", { name: "载入当前已保存数据（替换草稿）" }));
+  rerender(<StatsOCRPanel mapId="map" mapName="de_mirage" initialRows={[saved]} />);
+  const edit = await screen.findByRole("button", { name: "重新录入" });
+  expect(edit).toBeDisabled();
+  await act(async () => finishRead({ success: true, data: [{ ...saved, ratingPro: 9 }] }));
+  await waitFor(() => expect(edit).toBeEnabled());
+  await user.click(edit);
+  expect(await screen.findByLabelText("Retained player Rating")).toHaveValue(1.2);
 });

@@ -78,3 +78,5 @@ rm tests/integration/db/w12-performance.tmp.test.ts tests/integration/db/w12-bas
 - 尚未运行全仓 build 或全套测试，依委派由父会话统一安排；尚未合并、发版或验证线上改善。
 
 独立复审回归：密码 provider trace 在 exporter 前做专用 allowlist 投影，实际 OTel span 的自由文本/stack 合成凭据防泄漏通过，业务 unknown/cause 不变。OCR 显式恢复后标记首次读取完成并废弃旧请求，晚到 initialRows 不再覆盖编辑草稿。报名 current revision 限缩与教育 Page/Overview 拆分的 8 项真实 PG 通过。
+
+取消在途 reload 的读取 epoch 与 busy owner 已分离：晚到 initialRows 仍废弃旧响应，旧请求 finally 仍释放其 busy。真实组件复现（首读失败→reload 在途→晚到 props→旧响应结束）通过，保留新快照且恢复可编辑。

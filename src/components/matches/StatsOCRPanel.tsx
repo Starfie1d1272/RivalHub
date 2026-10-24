@@ -109,6 +109,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
   const [readFailed, setReadFailed] = useState(false);
   const initialReadComplete = useRef(initialRows !== undefined);
   const readGeneration = useRef(0);
+  const reloadBusyOwner = useRef(0);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // Each mounted map owns its state; the workbench keys panels by map ID.
@@ -161,6 +162,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
   }
 
   async function reloadSavedData() {
+    const owner = ++reloadBusyOwner.current;
     const generation = ++readGeneration.current;
     setSaving(true);
     try {
@@ -180,8 +182,8 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
       setReadFailed(false);
       setInitialLoading(false);
       setError(null);
-    } catch { setError("已保存数据暂时无法读取，当前草稿已保留。"); }
-    finally { if (generation === readGeneration.current) setSaving(false); }
+    } catch { if (generation === readGeneration.current) setError("已保存数据暂时无法读取，当前草稿已保留。"); }
+    finally { if (owner === reloadBusyOwner.current) setSaving(false); }
   }
 
   async function handleExtract() {
