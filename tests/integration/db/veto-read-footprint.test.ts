@@ -24,10 +24,10 @@ it("reads an active BP snapshot in two SELECTs without changing session or expos
   const before=await db.query.matchVetoSessions.findFirst({where:eq(schema.matchVetoSessions.matchId,f.matchId)});
   const audit=await db.select({id:schema.auditLogs.id}).from(schema.auditLogs).where(eq(schema.auditLogs.targetId,f.matchId));
   const pool=createLocalPool({max:1});const client=await pool.connect();
-  const measured=drizzle(client,{schema});let selects=0;let rows=0;
+  const measured=drizzle(client,{schema});let selects=0;let rows=0;let jsonBytes=0;
   const query=client.query;
   client.query=((...args:unknown[])=>Promise.resolve(Reflect.apply(query,client,args)).then(result=>{
-    if(result.command==="SELECT"){selects++;rows+=result.rows.length;}
+    if(result.command==="SELECT"){selects++;rows+=result.rows.length;jsonBytes+=Buffer.byteLength(JSON.stringify(result.rows));}
     return result;
   })) as typeof client.query;
   try {
@@ -44,6 +44,7 @@ it("reads an active BP snapshot in two SELECTs without changing session or expos
     // Auth/projection may finish much later than the core snapshot.
     await db.execute(sql`select pg_sleep(0.05)`);
     const responseBoundary=await db.execute(sql`select clock_timestamp() as now`);
+    const snapshotRows=rows;const snapshotBytes=jsonBytes;
     const beforeProjection=selects;
     const anonymous=await projectVetoRoomView(snapshot,null,null,measured);
     expect(selects-beforeProjection).toBe(1);
@@ -60,7 +61,7 @@ it("reads an active BP snapshot in two SELECTs without changing session or expos
     expect((await readVetoRoomSnapshot(f.matchId)).gameplayStarted).toBe(true);
     expect(await db.query.matchVetoSessions.findFirst({where:eq(schema.matchVetoSessions.matchId,f.matchId)})).toEqual(before);
     expect(await db.select({id:schema.auditLogs.id}).from(schema.auditLogs).where(eq(schema.auditLogs.targetId,f.matchId))).toEqual(audit);
-    console.info("VETO_READ_FOOTPRINT",JSON.stringify({snapshotSelects:2,projectionSelects:1,snapshotReturnedRows:rows,transactionMaxConcurrentQueries:concurrent}));
+    console.info("VETO_READ_FOOTPRINT",JSON.stringify({snapshotSelects:2,projectionSelects:1,snapshotReturnedRows:snapshotRows,projectionReturnedRows:rows-snapshotRows,snapshotJsonBytes:snapshotBytes,projectionJsonBytes:jsonBytes-snapshotBytes,transactionMaxConcurrentQueries:concurrent}));
   } finally {client.query=query;client.release();await pool.end();}
 });
 
