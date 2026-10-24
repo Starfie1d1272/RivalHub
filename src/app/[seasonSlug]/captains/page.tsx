@@ -1,15 +1,11 @@
-import { connection } from "next/server";
+import { io } from "next/cache";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { and, eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { captainVotes, seasonRegistrations } from "@/db/schema";
 import { CaptainVotingPanel } from "@/components/captains/CaptainVotingPanel";
 import { PageLayout, Panel } from "@/components/rivalhub";
 import {
   getPublicCaptainVotingData,
-  type CaptainVoteRecord,
-  type PublicCaptainVoter,
+  getCaptainVotingViewer,
 } from "@/lib/captains/data";
 import { getUserSession } from "@/lib/auth/session";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
@@ -22,7 +18,7 @@ export default function CaptainsPage(props: CaptainsPageProps) {
   return <Suspense fallback={<PageLayout variant="wide"><p role="status">正在加载投票…</p></PageLayout>}><CaptainsContent {...props} /></Suspense>;
 }
 async function CaptainsContent({ params }: CaptainsPageProps) {
-  await connection();
+  await io();
   const { seasonSlug } = await params;
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
@@ -40,34 +36,7 @@ async function CaptainsContent({ params }: CaptainsPageProps) {
     );
   }
 
-  const [data, session] = await Promise.all([
-    getPublicCaptainVotingData(season.id),
-    getUserSession(),
-  ]);
-
-  let currentVoter: PublicCaptainVoter | null = null;
-  let currentVotes: CaptainVoteRecord[] = [];
-
-  if (session) {
-    const reg = await db.query.seasonRegistrations.findFirst({
-      where: and(
-        eq(seasonRegistrations.userId, session.userId),
-        eq(seasonRegistrations.seasonId, season.id),
-        eq(seasonRegistrations.status, "approved"),
-      ),
-      columns: { id: true },
-    });
-    if (reg) {
-      currentVoter = data.voters.find((v) => v.id === reg.id) ?? null;
-      currentVotes = await db
-        .select({
-          voterRegistrationId: captainVotes.voterRegistrationId,
-          candidateRegistrationId: captainVotes.candidateRegistrationId,
-        })
-        .from(captainVotes)
-        .where(eq(captainVotes.voterRegistrationId, reg.id));
-    }
-  }
+  const data = await getPublicCaptainVotingData(season.id);
 
   return (
     <PageLayout variant="wide" className="space-y-8">
@@ -93,13 +62,20 @@ async function CaptainsContent({ params }: CaptainsPageProps) {
         </div>
       )}
 
-      <CaptainVotingPanel
-        seasonName={season.name}
-        seasonStatus={season.status}
-        currentVoter={currentVoter}
-        candidates={data.candidates}
-        votes={currentVotes}
-      />
+      <Suspense fallback={<CaptainVotingPanel seasonSlug={season.slug} seasonName={season.name} seasonStatus={season.status}
+        currentVoter={null} candidates={data.candidates} votes={[]} viewerPending />}>
+        <CaptainViewerPanel season={season} data={data} />
+      </Suspense>
     </PageLayout>
   );
+}
+
+async function CaptainViewerPanel({ season, data }: {
+  season: { id: string; slug: string; name: string; status: string };
+  data: Awaited<ReturnType<typeof getPublicCaptainVotingData>>;
+}) {
+  const session = await getUserSession();
+  const viewer = await getCaptainVotingViewer(data, session?.userId ?? null);
+  return <CaptainVotingPanel seasonSlug={season.slug} seasonName={season.name} seasonStatus={season.status}
+    candidates={data.candidates} currentVoter={viewer.currentVoter} votes={viewer.votes} />;
 }

@@ -1,11 +1,11 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { identityLinkRequests } from "@/db/schema";
+import { identityLinkRequests, users } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { createPublicAuthClient } from "@/lib/auth/supabase-server";
 import { isSecondaryEmailOtpType } from "@/lib/auth/secondary-email-otp";
@@ -17,7 +17,8 @@ import {
   type CompleteIdentityLinkOutcome,
 } from "@/lib/identity/linking";
 import { normalizeEmail } from "@/lib/utils/email";
-import { ErrorCode } from "@/lib/errors";
+import { traceOperation, logEvent } from "@/lib/observability/server";
+import { AppError, ErrorCode } from "@/lib/errors";
 import { fail, ok, type ActionResult } from "@/types/action";
 
 const emailSchema = z.email().max(320);
@@ -26,40 +27,64 @@ const uuidSchema = z.uuid();
 export async function requestSecondaryEmailIdentity(emailInput: string): Promise<ActionResult<void>> {
   const parsed = emailSchema.safeParse(emailInput.trim());
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址。" });
+  let deliveryStarted = false;
   try {
     const session = await requireAuth();
     const email = normalizeEmail(parsed.data);
     const stateToken = randomBytes(32).toString("base64url");
-    const now = new Date();
-    const [request] = await db.transaction(async (tx) => {
+    const request = await db.transaction(async (tx) => {
+      // Match confirmation/merge's user -> request order. The gate ends before
+      // provider IO; a competing call sees the durable pending request.
+      const [owner] = await tx.select({ status: users.status }).from(users).where(eq(users.id, session.userId)).for("update");
+      if (owner?.status !== "active") throw new AppError(ErrorCode.UNAUTHORIZED, "账号状态已变化，请重新登录。");
+      const clock = await tx.execute<{ now: string }>(sql`select clock_timestamp()::text as now`);
+      const now = new Date(clock.rows[0]!.now);
+      const [pending] = await tx.select({ id: identityLinkRequests.id }).from(identityLinkRequests).where(and(
+        eq(identityLinkRequests.userId, session.userId), eq(identityLinkRequests.normalizedEmail, email),
+        eq(identityLinkRequests.status, "pending"), gt(identityLinkRequests.expiresAt, now),
+      )).limit(1);
+      // A provider timeout does not prove rejection. Preserve the original URL
+      // through its expiry, including across page reloads and concurrent calls.
+      if (pending) return null;
       await tx.update(identityLinkRequests).set({ status: "cancelled", completedAt: now }).where(and(
         eq(identityLinkRequests.userId, session.userId),
         eq(identityLinkRequests.normalizedEmail, email),
         eq(identityLinkRequests.status, "pending"),
       ));
-      return tx.insert(identityLinkRequests).values({
+      const [created] = await tx.insert(identityLinkRequests).values({
         userId: session.userId,
         normalizedEmail: email,
         stateTokenHash: hashIdentityLinkState(stateToken),
         expiresAt: new Date(now.getTime() + 30 * 60 * 1000),
       }).returning({ id: identityLinkRequests.id });
+      if (!created) throw new Error("无法创建邮箱绑定请求");
+      return created;
     });
-    if (!request) throw new Error("无法创建邮箱绑定请求");
+    if (!request) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "已有有效的邮箱绑定请求，请检查邮箱；原链接到期后再重新发起。", meta: { outcome: "unknown" } });
 
-    const { error } = await createPublicAuthClient().auth.signInWithOtp({
+    deliveryStarted = true;
+    const { error } = await traceOperation("provider.supabase.auth.link_email", { scope: "provider", operation: "identity.link_email", provider: "supabase-auth" }, () => createPublicAuthClient().auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: true,
         emailRedirectTo: identityConfirmationUrl(request.id, stateToken),
       },
-    });
+    }));
     if (error) {
+      // SDK 5xx/transport failures do not prove that no mail was accepted.
+      // Retain the pending request and its token so a late email remains valid.
+      if (typeof error.status !== "number" || error.status < 400 || error.status >= 500 || error.status === 408) {
+        logEvent({ level: "warn", event: "identity.link_email.unknown", scope: "provider", operation: "identity.link_email", errorClass: "dependency", retryable: false,
+          safeContext: { provider: "supabase-auth", outcome: "unknown", httpStatus: error.status } });
+        return fail({ code: ErrorCode.INTERNAL_ERROR, message: "验证邮件请求结果尚未确认，请先检查邮箱，不要立即重新发起绑定。", meta: { outcome: "unknown" } });
+      }
       await db.update(identityLinkRequests).set({ status: "cancelled", completedAt: new Date() })
         .where(and(eq(identityLinkRequests.id, request.id), eq(identityLinkRequests.status, "pending")));
       return fail({ code: ErrorCode.INTERNAL_ERROR, message: "验证邮件暂时无法发送，请稍后重试。" });
     }
     return ok(undefined);
   } catch (error) {
+    if (deliveryStarted) return fail({ code: ErrorCode.INTERNAL_ERROR, message: "验证邮件请求结果尚未确认，请先检查邮箱，不要立即重新发起绑定。", meta: { outcome: "unknown" } });
     return actionError("requestSecondaryEmailIdentity", error);
   }
 }

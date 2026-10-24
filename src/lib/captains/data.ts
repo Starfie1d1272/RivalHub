@@ -166,3 +166,13 @@ export async function getSeasonTeamCount(seasonId: string): Promise<number> {
   const [row] = await db.select({ count: count() }).from(competitionEntries).where(eq(competitionEntries.competitionId, seasonId));
   return Number(row?.count ?? 0);
 }
+
+/** Public candidate facts establish the approved, active event membership first. */
+export async function getCaptainVotingViewer(data: PublicCaptainVotingData, userId: string | null) {
+  const currentVoter = data.voters.find(voter => voter.userId === userId) ?? null;
+  const votes: CaptainVoteRecord[] = currentVoter ? await db.select({
+    voterRegistrationId: captainVotes.voterRegistrationId,
+    candidateRegistrationId: captainVotes.candidateRegistrationId,
+  }).from(captainVotes).where(eq(captainVotes.voterRegistrationId, currentVoter.id)) : [];
+  return { currentVoter, votes };
+}

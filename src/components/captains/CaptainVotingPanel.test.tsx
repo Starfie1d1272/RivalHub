@@ -1,0 +1,22 @@
+import { act, cleanup, render } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import { CaptainVotingPanel } from "./CaptainVotingPanel";
+const { read, refresh } = vi.hoisted(() => ({ read: vi.fn(), refresh: vi.fn() }));
+vi.mock("@/actions/public-captain-voting", () => ({ readPublicCaptainVoting: read }));
+vi.mock("@/actions/captains", () => ({ castVote: vi.fn(), retractVote: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
+it("keeps public candidates available while checking viewer rights and stops polling when voting ends", async () => {
+  vi.useFakeTimers();
+  const props = { seasonSlug: "event", seasonName: "Fixture", seasonStatus: "voting", candidates: [], currentVoter: null, votes: [] };
+  const view = render(<CaptainVotingPanel {...props} viewerPending />);
+  await act(() => vi.advanceTimersByTimeAsync(10_000));
+  expect(read).not.toHaveBeenCalled();
+  read.mockResolvedValue({ success: true, data: { seasonStatus: "drafting", candidates: [], currentVoter: null, votes: [] } });
+  view.rerender(<CaptainVotingPanel {...props} />);
+  await act(() => vi.advanceTimersByTimeAsync(10_000));
+  expect(read).toHaveBeenCalledTimes(1);
+  expect(refresh).toHaveBeenCalledTimes(1);
+  await act(() => vi.advanceTimersByTimeAsync(40_000));
+  expect(read).toHaveBeenCalledTimes(1);
+});

@@ -203,7 +203,7 @@ export const loadTeamCompetitionSources = cache(async (teamId: string, userId: s
     .orderBy(desc(seasons.createdAt), desc(competitionEntries.updatedAt), asc(competitionEntries.id));
 });
 
-export async function loadMyCompetitionNextMatches(userId: string): Promise<Map<string, MyCompetitionNextMatch>> {
+export const loadMyCompetitionNextMatches = cache(async (userId: string): Promise<Map<string, MyCompetitionNextMatch>> => {
   const rosterRows = await db
     .select({ seasonId: seasons.id, seasonSlug: seasons.slug, entryId: competitionEntries.id })
     .from(eventRosterMembers)
@@ -255,12 +255,16 @@ export async function loadMyCompetitionNextMatches(userId: string): Promise<Map<
     )))
     .orderBy(sql`case when ${matches.status} = 'in_progress' then 0 else 1 end`, asc(matches.scheduledAt), asc(matches.id));
 
+  const seenEntries = new Set<string>();
   const validMatches = upcoming.map(requireCompetitionFields).flatMap((match) => {
     const ownA = entryContexts.get(match.entryAId);
     const ownB = entryContexts.get(match.entryBId);
     if ((ownA && ownB) || (!ownA && !ownB)) return [];
     const own = ownA ?? ownB;
     if (!own || own.seasonId !== match.seasonId) return [];
+    const ownEntryId = ownA ? match.entryAId : match.entryBId;
+    if (seenEntries.has(ownEntryId)) return [];
+    seenEntries.add(ownEntryId);
     return [{
       match,
       ownEntryId: ownA ? match.entryAId : match.entryBId,
@@ -301,7 +305,7 @@ export async function loadMyCompetitionNextMatches(userId: string): Promise<Map<
     });
   }
   return result;
-}
+});
 
 export function projectMyCompetitionContext(
   source: MyCompetitionSource,

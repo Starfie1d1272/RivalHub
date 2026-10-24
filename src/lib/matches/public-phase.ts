@@ -10,6 +10,9 @@ import { projectMatchPresentationPhase, resolveGameplayMapId } from "./presentat
 
 /** Called after the public route has checked match/season visibility. No private DTO escapes. */
 export async function loadPublicMatchPhase(match: Match, maps: MatchMap[]) {
+  if (match.status === "finished" || match.status === "cancelled") {
+    return projectPublicContext(match, maps, undefined, undefined);
+  }
   const [veto, session] = await Promise.all([
     db.query.matchVetoSessions.findFirst({ where: eq(matchVetoSessions.matchId, match.id), columns: { startedAt: true, completedAt: true } }),
     db.query.matchLiveSessions.findFirst({ where: and(eq(matchLiveSessions.matchId, match.id), isNull(matchLiveSessions.closedAt)), columns: { currentMapId: true, mapExecutionPhase: true, lineupHealth: true } }),

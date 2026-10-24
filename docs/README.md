@@ -59,6 +59,7 @@
 - [`local-development.md`](./operations/local-development.md)
 - [`ci.md`](./operations/ci.md)
 - [`observability.md`](./operations/observability.md)
+- [`cache-invalidation.md`](./operations/cache-invalidation.md)
 - [`database-migrations.md`](./operations/database-migrations.md)
 - [`steam-profile-migration.md`](./operations/steam-profile-migration.md)
 - [`statistics-projections.md`](./operations/statistics-projections.md)

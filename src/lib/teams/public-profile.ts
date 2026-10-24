@@ -118,11 +118,10 @@ type TeamProfileViewerState = Pick<PublicTeamProfile, "currentUserMembership" | 
 type PublicTeamOfficialMatch = Pick<typeof matches.$inferSelect, "entryAId" | "entryBId" | "scoreA" | "scoreB" | "completedAt">;
 
 /** Viewer-independent facts can be shared without caching private recruitment state. */
-export async function getPublicTeamProfileCore(
+export async function getPublicTeamProfileBasics(
   teamId: string,
   knownTeam?: PublicTeamIdentity,
-  knownMatches?: readonly PublicTeamOfficialMatch[],
-): Promise<PublicTeamProfileCore | null> {
+) {
   const team = knownTeam?.id === teamId
     ? knownTeam
     : await db.query.teams.findFirst({
@@ -211,6 +210,18 @@ export async function getPublicTeamProfileCore(
       avatarUrl,
       hasActivePublicSanction,
     }));
+  return { team, currentMembers, entries, names, captains, recruitment };
+}
+
+export async function getPublicTeamProfileCore(
+  teamId: string,
+  knownTeam?: PublicTeamIdentity,
+  knownMatches?: readonly PublicTeamOfficialMatch[],
+  knownBasics?: NonNullable<Awaited<ReturnType<typeof getPublicTeamProfileBasics>>>,
+): Promise<PublicTeamProfileCore | null> {
+  const basics = knownBasics ?? await getPublicTeamProfileBasics(teamId, knownTeam);
+  if (!basics) return null;
+  const { team, currentMembers, entries, names, captains, recruitment } = basics;
   const entryIds = entries.map((entry) => entry.id);
   const rawPlayed = knownMatches ?? (entryIds.length
     ? await db
@@ -261,7 +272,7 @@ export async function getPublicTeamProfileCore(
 
 /** Personal overlay always runs outside shared public caches. */
 export async function getTeamProfileViewerState(
-  profile: PublicTeamProfileCore,
+  profile: Pick<PublicTeamProfileCore, "team" | "currentMembers" | "recruitment">,
   viewerUserId?: string | null,
 ): Promise<TeamProfileViewerState> {
   const { team, currentMembers, recruitment } = profile;
@@ -305,4 +316,9 @@ export async function getPublicTeamProfile(
 ): Promise<PublicTeamProfile | null> {
   const core = await getPublicTeamProfileCore(teamId, knownTeam);
   return core ? { ...core, ...await getTeamProfileViewerState(core, viewerUserId) } : null;
+}
+
+/** Event profiles need only this public link, never the long-team viewer overlay. */
+export async function getPublicTeamProfileLink(teamId: string) {
+  return await db.query.teams.findFirst({ where: eq(teams.id, teamId), columns: { id: true, name: true, slug: true } }) ?? null;
 }

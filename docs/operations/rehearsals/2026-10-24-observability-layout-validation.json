@@ -1,0 +1,243 @@
+{
+  "capturedAtUTC": "2026-10-24T20:17:23.773755+00:00",
+  "kind": "isolated Next dev geometry diagnostic; not production performance",
+  "source": {
+    "main": "06d0ea50",
+    "headerPR": {
+      "number": 1092,
+      "head": "a83c1dbeaa374b4cad94c565e298762f3c9dd76f"
+    },
+    "publicPR": {
+      "number": 1088,
+      "head": "c275038e71da9928d80da0cd2985ec80657c5279"
+    },
+    "temporaryIntegrationHead": "e83b5dabc20689609c1a205eaa4765b1ab1c1323",
+    "temporaryIntegrationTree": "030b0e5fa060cba89b2b9f235547565e8fd69b64"
+  },
+  "fixture": {
+    "kind": "canonical disposable prediction browser fixture",
+    "viewer": "anonymous",
+    "productionWrites": false,
+    "rawPrivateEvidenceIncluded": false
+  },
+  "beforeHeaderOnlyBet": [
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "totalCLS": 0.06838741903305053,
+      "sources": [
+        {
+          "value": 4.118251800537109e-06,
+          "at": 7700.299999999814,
+          "sources": [
+            {
+              "category": "header",
+              "previous": {
+                "x": 1194.40625,
+                "y": 17.5,
+                "width": 60,
+                "height": 28
+              },
+              "current": {
+                "x": 1197.515625,
+                "y": 19.5,
+                "width": 56.890625,
+                "height": 27
+              }
+            }
+          ]
+        },
+        {
+          "value": 0.06838330078124999,
+          "at": 8013.200000000186,
+          "sources": [
+            {
+              "category": "footer",
+              "previous": {
+                "x": 0,
+                "y": 742.5,
+                "width": 1280,
+                "height": 57.5
+              },
+              "current": {
+                "x": 0,
+                "y": 0,
+                "width": 0,
+                "height": 0
+              }
+            }
+          ]
+        }
+      ],
+      "n": 1
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "totalCLS": 0.11611374407582939,
+      "sources": [
+        {
+          "value": 0.11611374407582939,
+          "at": 938.9000000003725,
+          "sources": [
+            {
+              "category": "footer",
+              "previous": {
+                "x": 0,
+                "y": 745.5,
+                "width": 390,
+                "height": 98.5
+              },
+              "current": {
+                "x": 0,
+                "y": 0,
+                "width": 0,
+                "height": 0
+              }
+            }
+          ]
+        }
+      ],
+      "n": 1
+    }
+  ],
+  "after": [
+    {
+      "route": "/[seasonSlug]/info",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "n": 1,
+      "primaryObservedMs": 1930.7000000001863,
+      "totalCLS": 3.2946014404296874e-06,
+      "shifts": [
+        {
+          "value": 3.2946014404296874e-06,
+          "at": 1758.2999999998137,
+          "sources": [
+            {
+              "category": "header",
+              "before": {
+                "y": 17.5,
+                "height": 28
+              },
+              "after": {
+                "y": 19.5,
+                "height": 27
+              }
+            }
+          ]
+        }
+      ],
+      "documentHeight": 1122,
+      "footerDocumentTop": 1064,
+      "footerHeight": 57.5,
+      "slotHeight": 1000,
+      "footerDisplay": {
+        "display": "flex",
+        "visibility": "visible"
+      },
+      "footerReachability": {
+        "scrollY": 122,
+        "top": 942,
+        "bottom": 999.5,
+        "visible": true,
+        "focused": true
+      },
+      "pageErrors": 0
+    },
+    {
+      "route": "/[seasonSlug]/info",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "n": 1,
+      "primaryObservedMs": 642.7999999998137,
+      "totalCLS": 0,
+      "shifts": [],
+      "documentHeight": 1008,
+      "footerDocumentTop": 909,
+      "footerHeight": 98.5,
+      "slotHeight": 844,
+      "footerDisplay": {
+        "display": "flex",
+        "visibility": "visible"
+      },
+      "footerReachability": {
+        "scrollY": 164,
+        "top": 745,
+        "bottom": 843.5,
+        "visible": true,
+        "focused": true
+      },
+      "pageErrors": 0
+    },
+    {
+      "route": "/[seasonSlug]/bet",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "n": 1,
+      "primaryObservedMs": 652.7000000001863,
+      "totalCLS": 0,
+      "shifts": [],
+      "documentHeight": 2029,
+      "footerDocumentTop": 1971,
+      "footerHeight": 57.5,
+      "slotHeight": 1907,
+      "footerDisplay": {
+        "display": "flex",
+        "visibility": "visible"
+      },
+      "footerReachability": {
+        "scrollY": 1229,
+        "top": 742,
+        "bottom": 799.5,
+        "visible": true,
+        "focused": true
+      },
+      "pageErrors": 0
+    },
+    {
+      "route": "/[seasonSlug]/bet",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "n": 1,
+      "primaryObservedMs": 584.5999999996275,
+      "totalCLS": 0,
+      "shifts": [],
+      "documentHeight": 3781,
+      "footerDocumentTop": 3682,
+      "footerHeight": 98.5,
+      "slotHeight": 3617,
+      "footerDisplay": {
+        "display": "flex",
+        "visibility": "visible"
+      },
+      "footerReachability": {
+        "scrollY": 2937,
+        "top": 745,
+        "bottom": 843.5,
+        "visible": true,
+        "focused": true
+      },
+      "pageErrors": 0
+    }
+  ],
+  "limitations": [
+    "One run per route/viewport; no stable percentile or rollout benefit claim.",
+    "Development compilation/cache/font conditions differ from production.",
+    "Primary time is browser observation of actual info sections or BET articles, not an emitted canonical ready milestone.",
+    "No iframe/overlay/footer hiding; footer remains natural flow and keyboard reachable.",
+    "Shared min-h-svh intentionally reserves a full content viewport, moving the short-page footer below the initial viewport; zero footer-source CLS does not mean its document coordinate is unchanged."
+  ]
+}

@@ -116,13 +116,15 @@ export async function loadMatchPreAnalysis(
     ...matchesA.map((match) => match.entryAId === entryAId ? match.entryBId : match.entryAId),
     ...matchesB.map((match) => match.entryAId === entryBId ? match.entryBId : match.entryAId),
   ])];
-  const opponentRows = opponentIds.length
-    ? await db.query.competitionEntries.findMany({ where: (entries, { inArray }) => inArray(entries.id, opponentIds), columns: { id: true, name: true } })
-    : [];
-  const entryNames = new Map(opponentRows.map((entry) => [entry.id, entry.name]));
-  const [profileA, profileB] = await getTeamMapProfiles([
-    { entryId: entryAId, matches: matchesA }, { entryId: entryBId, matches: matchesB },
+  const [opponentRows, [profileA, profileB]] = await Promise.all([
+    opponentIds.length
+      ? db.query.competitionEntries.findMany({ where: (entries, { inArray }) => inArray(entries.id, opponentIds), columns: { id: true, name: true } })
+      : Promise.resolve([]),
+    getTeamMapProfiles([
+      { entryId: entryAId, matches: matchesA }, { entryId: entryBId, matches: matchesB },
+    ]),
   ]);
+  const entryNames = new Map(opponentRows.map((entry) => [entry.id, entry.name]));
   return projectMatchPreAnalysis({
     entryAId,
     entryBId,

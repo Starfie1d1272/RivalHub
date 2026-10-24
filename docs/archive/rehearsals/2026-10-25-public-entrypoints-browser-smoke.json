@@ -1,0 +1,43 @@
+{
+  "environment": "Next dev / isolated local Supabase fixture; timings are compile-inclusive smoke, not LCP",
+  "runs": [
+    {
+      "route": "/rules",
+      "status": 200,
+      "primaryVisibleMs": 4939
+    },
+    {
+      "route": "/seasons",
+      "status": 200,
+      "primaryVisibleMs": 1124
+    },
+    {
+      "route": "/announcements",
+      "status": 200,
+      "primaryVisibleMs": 1230
+    },
+    {
+      "route": "/[seasonSlug]",
+      "status": 200,
+      "primaryVisibleMs": 1986
+    },
+    {
+      "route": "/[seasonSlug]/matches",
+      "status": 200,
+      "primaryVisibleMs": 2273
+    },
+    {
+      "route": "/[seasonSlug]/matches/[matchId]",
+      "status": 200,
+      "primaryVisibleMs": 3222
+    },
+    {
+      "route": "/[seasonSlug]/community-awards",
+      "status": 200,
+      "primaryVisibleMs": 5847
+    }
+  ],
+  "stages": 2,
+  "mobileDocumentOverflow": false,
+  "pageErrors": []
+}

@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { RegistrationReturnLink } from "@/components/settings/RegistrationReturnLink";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
@@ -11,7 +12,7 @@ import { listVerifiedEmailIdentities } from "@/lib/identity/linking";
 export default async function EducationSettingsPage({ searchParams }: { searchParams?: Promise<{ returnTo?: string | string[] }> }) {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/settings/education");
-  const user = await db.query.users.findFirst({ where: and(eq(users.id, session.userId), eq(users.status, "active")) });
+  const [user] = await db.select({ id: users.id, email: users.email, emailVerifiedAt: users.emailVerifiedAt }).from(users).where(and(eq(users.id, session.userId), eq(users.status, "active"))).limit(1);
   if (!user) redirect("/login");
   const [rows, identities] = await Promise.all([
     db.select({ id: educationVerifications.id, institutionId: educationVerifications.institutionId, institution: institutions.name, institutionCode: institutions.moeInstitutionCode, province: institutions.province, evidenceType: educationVerifications.evidenceType, academicStatus: educationVerifications.academicStatus, status: educationVerifications.status, reviewNote: educationVerifications.reviewNote, submittedAt: educationVerifications.submittedAt }).from(educationVerifications).innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id)).where(eq(educationVerifications.userId, user.id)).orderBy(desc(educationVerifications.submittedAt)),
@@ -35,5 +36,5 @@ export default async function EducationSettingsPage({ searchParams }: { searchPa
     const institution = domain ? institutionByDomain.get(domain) : undefined;
     return institution ? [{ identityId: identity.id, email: identity.email, institution }] : [];
   });
-  return <div><RegistrationReturnLink href={(await searchParams)?.returnTo} /><h1 className="mb-2 text-3xl font-semibold">教育身份认证</h1><p className="mb-6 text-sm text-[var(--color-fg-mid)]">教育认证只用于赛事资格审核；公开页面不会展示你的学信网在线验证码或审核备注。</p><EducationVerificationPanel email={user.email} emailVerified={Boolean(user.emailVerifiedAt)} institutionalIdentities={institutionalIdentities} verifications={rows.map((row) => ({ ...row, submittedAt: row.submittedAt.toISOString() }))} /></div>;
+  return <div><RegistrationReturnLink href={(await searchParams)?.returnTo} /><h1 className="mb-2 text-3xl font-semibold">教育身份认证</h1><p className="mb-6 text-sm text-[var(--color-fg-mid)]">教育认证只用于赛事资格审核；公开页面不会展示你的学信网在线验证码或审核备注。</p><ContentReady module="account" phase="form" /><EducationVerificationPanel email={user.email} emailVerified={Boolean(user.emailVerifiedAt)} institutionalIdentities={institutionalIdentities} verifications={rows.map((row) => ({ ...row, submittedAt: row.submittedAt.toISOString() }))} /></div>;
 }

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db/client";
 import { publicSeasonInfoTag } from "@/lib/cache/tags";
@@ -54,8 +54,10 @@ async function readSeasonInfo(
   const info = publicInfo === undefined
     ? (await db.select().from(seasonPublicInfo).where(eq(seasonPublicInfo.seasonId, seasonId)).limit(1))[0] ?? null
     : publicInfo;
-  const groups = await db.select().from(communityGroups).where(eq(communityGroups.seasonId, seasonId)).orderBy(asc(communityGroups.sortOrder), asc(communityGroups.createdAt), asc(communityGroups.id));
-  const contacts = await db.select().from(seasonContacts).where(eq(seasonContacts.seasonId, seasonId)).orderBy(asc(seasonContacts.sortOrder), asc(seasonContacts.createdAt), asc(seasonContacts.id));
+  const [groups, contacts] = await Promise.all([
+    db.select().from(communityGroups).where(eq(communityGroups.seasonId, seasonId)).orderBy(asc(communityGroups.sortOrder), asc(communityGroups.createdAt), asc(communityGroups.id)),
+    db.select().from(seasonContacts).where(eq(seasonContacts.seasonId, seasonId)).orderBy(asc(seasonContacts.sortOrder), asc(seasonContacts.createdAt), asc(seasonContacts.id)),
+  ]);
   return toPublicSeasonInfo(info ?? null, groups, contacts, seasonSlug);
 }
 
@@ -85,10 +87,25 @@ export async function listSeasonPublicInfoAdmin(role: "season_admin" | "super_ad
   }));
 }
 
+export async function listSeasonPublicInfoAdminSummaries(role: "season_admin" | "super_admin", seasonIds: readonly string[]) {
+  const rows = await db.select({
+    season: { id: seasons.id, slug: seasons.slug, name: seasons.name, logoUrl: seasons.logoUrl },
+    groupCount: sql<number>`(select count(*)::int from ${communityGroups} admin_group where admin_group.season_id = seasons.id)`,
+    contactCount: sql<number>`(select count(*)::int from ${seasonContacts} admin_contact where admin_contact.season_id = seasons.id)`,
+  }).from(seasons)
+    .where(role === "super_admin" ? undefined : seasonIds.length ? inArray(seasons.id, seasonIds) : eq(seasons.id, "00000000-0000-0000-0000-000000000000"))
+    .orderBy(asc(seasons.name), asc(seasons.id));
+  return rows;
+}
+
 export async function getSeasonPublicInfoAdmin(seasonSlug: string, role: "season_admin" | "super_admin", seasonIds: readonly string[]): Promise<SeasonPublicInfoAdmin | null> {
-  const [season] = await db.select({ id: seasons.id, slug: seasons.slug, name: seasons.name, logoUrl: seasons.logoUrl }).from(seasons).where(eq(seasons.slug, seasonSlug)).limit(1);
-  if (!season || (role !== "super_admin" && !seasonIds.includes(season.id))) return null;
-  // Authorization above permits super admins too; this read stays event-scoped.
-  const [result] = await listSeasonPublicInfoAdmin("season_admin", [season.id]);
-  return result ?? null;
+  const [season] = await db.select({ id: seasons.id, slug: seasons.slug, name: seasons.name, logoUrl: seasons.logoUrl }).from(seasons)
+    .where(and(eq(seasons.slug, seasonSlug), role === "super_admin" ? undefined : seasonIds.length ? inArray(seasons.id, seasonIds) : eq(seasons.id, "00000000-0000-0000-0000-000000000000"))).limit(1);
+  if (!season) return null;
+  const [infos, groups, contacts] = await Promise.all([
+    db.select().from(seasonPublicInfo).where(eq(seasonPublicInfo.seasonId, season.id)).limit(1),
+    db.select().from(communityGroups).where(eq(communityGroups.seasonId, season.id)).orderBy(asc(communityGroups.sortOrder), asc(communityGroups.createdAt), asc(communityGroups.id)),
+    db.select().from(seasonContacts).where(eq(seasonContacts.seasonId, season.id)).orderBy(asc(seasonContacts.sortOrder), asc(seasonContacts.createdAt), asc(seasonContacts.id)),
+  ]);
+  return { season, info: infos[0] ?? null, groups, contacts };
 }
