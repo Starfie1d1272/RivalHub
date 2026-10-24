@@ -91,3 +91,19 @@ A 为已有 contract/自动证据；B 为 contract 已定但当前 provider 配�
 本页不授权生产 purge，不宣称通用账号删除或所有 provider 的实时 retention 已验收。
 
 比赛分图/完整回放与历史录像均属于公开赛事资料，由 postmatch owner 管理。`matches.recordings` 的解说归属、标题、链接随比赛保留；管理员可逐条移除，数据库备份仍遵循现有恢复保留期。导出 Preview 时排除该字段并使用空列表，原录像地址同样排除；不额外保存视频内容或建立外部抓取任务。
+
+## Operator scoreboard receipts
+
+OCR command receipts belong to the scoreboard persistence owner. They retain only
+the actor/operation identifiers, map, operation kind, SHA256 input digest, base
+and resulting content versions, result row count and database commit timestamp.
+They retain no original image, submitted rows, credentials or request body.
+Fresh season-admin recovery reads only the current actor and map; browser Data
+API and Realtime have no grants or policies. Receipts live with their actor and
+map and are removed by the existing foreign-key cascade when either parent is
+actually deleted. No independent age-based purge is introduced: a missing receipt
+is unconfirmed and never proves rollback or authorizes replay. Account merge
+cleanup may remove an old actor's receipt; it does not transfer recovery authority
+to another actor. Backups include receipts; restore requires the existing
+database/cache consistency procedure and cannot treat missing acknowledgements
+as proof that an earlier command did not commit.
