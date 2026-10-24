@@ -221,6 +221,15 @@ export function DemoDataReviewPanel({ reviews = [], quality = [] }: { reviews?: 
       <p className="text-sm leading-6 text-[var(--color-fg-mid)]">警告不代表上传失败；QA 错误会阻止自动确认。</p>
       {quality.map((item) => <details key={item.importId} className="rounded border border-[var(--color-border)] p-3 text-sm">
         <summary className="cursor-pointer">第 {item.mapOrder} 图 · {item.mapName} · {item.summary}</summary>
+        <DemoQualityDetails item={item} />
+      </details>)}
+    </details>}
+    </>
+  );
+}
+
+export function DemoQualityDetails({ item }: { item: AdminDemoQuality }) {
+  return (
         <div className="mt-3 space-y-2 leading-6">
           {item.notice && <p>{item.notice}</p>}
           {item.capability && <p>{item.capability}</p>}
@@ -236,8 +245,5 @@ export function DemoDataReviewPanel({ reviews = [], quality = [] }: { reviews?: 
             </ul>
           </details>}
         </div>
-      </details>)}
-    </details>}
-    </>
   );
 }

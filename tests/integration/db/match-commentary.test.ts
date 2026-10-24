@@ -318,6 +318,17 @@ describe("match commentary PostgreSQL contract", () => {
       expect(data.byMatchId[cancelled]?.canClaim).toBe(false);
       expect(JSON.stringify(data)).not.toContain("@local.test");
 
+      const scoped = await readAdminMatchCommentary(fixture.database, {
+        seasonId: fixture.seasonId, currentUserId: fixture.adminA, historicalMatchIds: [finished, foreign],
+      });
+      expect(scoped.currentMatches).toEqual(data.currentMatches);
+      expect(scoped.nextMatch).toEqual(data.nextMatch);
+      expect(scoped.claimableMatches).toEqual(data.claimableMatches);
+      expect(scoped.byMatchId[finished]).toEqual(data.byMatchId[finished]);
+      expect(scoped.byMatchId[cancelled]).toBeUndefined();
+      expect(scoped.byMatchId[foreign]).toBeUndefined();
+      expect(Object.keys(scoped.byMatchId).length).toBe(Object.keys(data.byMatchId).length - 1);
+
       const excluded = await readAdminMatchCommentary(fixture.database, { seasonId: fixture.seasonId, currentUserId: fixture.adminA, excludeMatchId: next });
       expect(excluded.nextMatch?.id).toBe(later);
       expect(excluded.byMatchId[next]?.isMine).toBe(true);

@@ -1,8 +1,8 @@
+import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
+
+
 import { PageHeader } from "@/components/rivalhub";
 import { DraftAdminPanel } from "@/components/draft/DraftAdminPanel";
 import { getFormedCompetitionEntryCount } from "@/lib/competition-entries/counts";
@@ -19,14 +19,13 @@ export async function generateMetadata({ params }: AdminDraftPageProps): Promise
 
 export default async function AdminDraftPage({ params }: AdminDraftPageProps) {
   const { seasonSlug } = await params;
-  const season = await db.query.seasons.findFirst({
-    where: eq(seasons.slug, seasonSlug),
-  });
+  const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) notFound();
 
-  const teamCount = await getFormedCompetitionEntryCount(season.id);
-
-  const data = season.hasDraft ? await getDraftAdminData(season.id) : null;
+  const [teamCount, data] = await Promise.all([
+    getFormedCompetitionEntryCount(season.id),
+    season.hasDraft ? getDraftAdminData(season.id) : Promise.resolve(null),
+  ]);
 
   return (
     <div className="space-y-6">
