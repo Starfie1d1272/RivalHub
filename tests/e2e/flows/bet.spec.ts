@@ -7,7 +7,7 @@ import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
 import { createPredictionBrowserFixture,removePredictionBrowserFixture } from "../helpers/prediction-fixture";
 import * as schema from "@/db/schema";
 test.use({scenarioProfile:"auth"});test.setTimeout(120000);
-test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({page,scenario})=>{
+test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({page,scenario,request})=>{
   const user=scenario.accounts[0]!;
   const fixture=await createPredictionBrowserFixture(user.userId);
   const pool=new Pool({connectionString:assertLocalDatabaseUrl(process.env.DATABASE_URL),ssl:false});const db=drizzle(pool,{schema});
@@ -29,6 +29,10 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     await expect(page.getByRole("heading",{name:"预测与竞猜",exact:true})).toBeVisible();
     await expect(page.getByRole("link",{name:"预测与竞猜",exact:true})).toBeVisible();
     await page.getByRole("button",{name:"领取 1,000 积分"}).click();await expect(page.getByRole("button",{name:"领取 1,000 积分"})).toHaveCount(0);
+    const publicRead=await request.get(`/api/bet/${fixture.seasonId}?matchId=${matches[0]!.id}`);
+    expect(publicRead.headers()["cache-control"]).toBe("private, no-store");
+    expect((await publicRead.json()).data.bet).toMatchObject({joined:false,balance:"0",records:[]});
+    expect((await page.request.get(`/api/bet/${fixture.seasonId}?matchId=${matches[0]!.id}`)).ok()).toBe(true);
     const card=page.locator("article").filter({has:page.locator(`a[href="/${fixture.slug}/matches/${matches[0]!.id}"]`)});const winner=card.getByRole("region",{name:"比赛胜者"});
     async function openMaps(){await card.getByRole("tab",{name:/地图/}).click();await expect(card.getByRole("tabpanel",{name:"地图",exact:true})).toBeVisible();const details=card.locator("details");if(await details.count()&&await details.getAttribute("open")===null)await details.locator("summary").click();}
     // Real publisher → public DTO → selection/confirmation: seven choices share
@@ -52,7 +56,27 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     await winner.locator("button:not([aria-label])").first().click();
     await expect(page.getByRole("dialog").getByRole("link", { name: `查看 ${options[0]!.label} 资料` })).toHaveAttribute("href", `/${fixture.slug}/teams/${options[0]!.key}`);
     await page.getByLabel("投入积分",{exact:true}).fill("200");
-    await page.getByRole("button",{name:"确认投入",exact:true}).click();await expect(page.getByRole("dialog")).toHaveCount(0);
+    // Drop only after the real action committed, then confirm by read-only receipt.
+    let dropped=false;
+    const dropCommitted: Parameters<typeof page.route>[1]=async route=>{
+      if(!dropped&&route.request().method()==="POST"&&route.request().headers()["next-action"]){dropped=true;await route.fetch();await route.abort("failed");}else await route.continue();
+    };
+    await page.route("**/*",dropCommitted);
+    await page.getByRole("button",{name:"确认投入",exact:true}).click();
+    await expect(page.getByRole("button",{name:"核对投入结果",exact:true})).toBeVisible();
+    await page.unroute("**/*",dropCommitted);
+    let releaseRead!:()=>void;
+    const waitForRelease=new Promise<void>(resolve=>{releaseRead=resolve;});
+    let refreshHandled:Promise<void>|undefined;
+    const delayRefresh:Parameters<typeof page.route>[1]=route=>{refreshHandled=(async()=>{await waitForRelease;await route.continue();})();return refreshHandled;};
+    await page.route("**/api/bet/*",delayRefresh);
+    try {
+      await page.getByRole("button",{name:"核对投入结果",exact:true}).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect.poll(()=>!!refreshHandled).toBe(true);
+    }finally{releaseRead();await refreshHandled;await page.unroute("**/api/bet/*",delayRefresh);}
+    const confirmedStakes=await db.select().from(schema.betStakes).where(eq(schema.betStakes.marketId,market.id));
+    expect(confirmedStakes.map(stake=>stake.amount.toString())).toEqual(["200"]);
     await expect(winner).toContainText("已投 200");await winner.locator("button:not([aria-label])").nth(1).click();await expect(page.getByLabel("投入积分",{exact:true})).toBeDisabled();await expect(page.getByRole("dialog").getByRole("button",{name:"确认投入",exact:true})).toBeDisabled();await page.getByRole("button",{name:"取消",exact:true}).click();
     await winner.locator("button:not([aria-label])").first().click();await page.getByRole("button",{name:"ALL IN",exact:true}).click();await expect(page.getByRole("button",{name:"确认投入",exact:true})).toBeDisabled();
     await page.getByLabel("确认投入全部可用积分，不能撤回").check();await expect(page.getByRole("button",{name:"确认投入",exact:true})).toBeEnabled();
@@ -92,5 +116,8 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     await expect(rounds.filter({hasText:"第2图 · Nuke"}).getByRole("button",{name:/^大/})).toBeEnabled();
     await db.update(schema.matches).set({gameplayStartedAt:new Date()}).where(eq(schema.matches.id,matches[0]!.id));
     await page.reload();await expect(card.getByRole("tabpanel", {name:"赛果", exact:true})).toBeVisible();await expect(winner).toContainText("已锁盘");await expect(winner).toContainText("已投 200");await expect(winner.locator("button:not([aria-label])")).toHaveCount(0);
+    await db.update(schema.seasons).set({status:"draft"}).where(eq(schema.seasons.id,fixture.seasonId));
+    expect((await request.get(`/api/bet/${fixture.seasonId}`)).status()).toBe(404);
+    expect((await page.request.get(`/api/bet/${fixture.seasonId}`)).status()).toBe(200);
   }finally {await removePredictionBrowserFixture(fixture.seasonId);await pool.end();}
 });
