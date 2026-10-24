@@ -2,7 +2,7 @@
 
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
-import React, { useState, useTransition } from "react";
+import React, { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,9 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { retryMatchRosterRefresh, adminSelectMatchRoster as telemetry_adminSelectMatchRoster, confirmMatchRoster as telemetry_confirmMatchRoster } from "@/actions/matches/roster";
+import { getMatchRosterReadback, retryMatchRosterRefresh, adminSelectMatchRoster as telemetry_adminSelectMatchRoster, confirmMatchRoster as telemetry_confirmMatchRoster } from "@/actions/matches/roster";
+import { rosterReadbackVersion, type RosterReadback } from "@/lib/matches/operation-readback";
+import { OperationReadbackNotice } from "./OperationReadbackNotice";
 import type { RosterData } from "@/lib/admin/matches/types";
 import type { MatchRosterStatus } from "@/db/schema";
 import { observeAction } from "@/lib/telemetry/client";
@@ -78,6 +80,9 @@ function RosterTeamSection({
 }: RosterTeamSectionProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const expectedVersion = useRef<string | null>(null);
+  const expectedRosterId = useRef<string | null>(null);
+  const [readback, setReadback] = useState<(RosterReadback & { matches: boolean }) | null>(null);
   const [recovery, setRecovery] = useState<"unknown" | "refresh_pending" | null>(null);
   // Two-step explicit flow: first pick, then review the exact five and confirm.
   const [pendingLineup, setPendingLineup] = useState<{ starterIds: string[]; substituteIds: string[]; vetoRepresentativeEventRosterMemberId: string | null } | null>(null);
@@ -140,6 +145,10 @@ function RosterTeamSection({
     if (recovery) return;
     startTransition(async () => {
       try {
+      expectedRosterId.current = null;
+      expectedVersion.current = await rosterReadbackVersion(matchId, { status: "submitted", starterIds: pendingLineup.starterIds,
+        substituteIds: allowSubstitutes ? pendingLineup.substituteIds : [], vetoRepresentativeEventRosterMemberId: pendingLineup.vetoRepresentativeEventRosterMemberId });
+      setReadback(null);
       const result = await adminSelectMatchRoster(
         matchId,
         teamId,
@@ -149,8 +158,8 @@ function RosterTeamSection({
           vetoRepresentativeEventRosterMemberId: pendingLineup.vetoRepresentativeEventRosterMemberId,
         },
       );
-      setPendingLineup(null);
       if (result.success) {
+        setPendingLineup(null);
         if (result.data.refreshPending) setRecovery("refresh_pending");
         toast.success(`${teamName} 名单已保存，开赛前需另行确认`);
         router.refresh();
@@ -166,6 +175,10 @@ function RosterTeamSection({
     if (recovery) return;
     startTransition(async () => {
       try {
+      expectedRosterId.current = rosterId;
+      expectedVersion.current = await rosterReadbackVersion(matchId, { status: "confirmed", starterIds: existingRoster?.starters ?? [],
+        substituteIds: existingRoster?.substitutes ?? [], vetoRepresentativeEventRosterMemberId: existingRoster?.vetoRepresentativeEventRosterMemberId ?? null });
+      setReadback(null);
       const result = await confirmMatchRoster(rosterId);
       if (result.success) {
         if (result.data.refreshPending) setRecovery("refresh_pending");
@@ -182,9 +195,19 @@ function RosterTeamSection({
   return (
     <div className="space-y-3">
       {recovery && <div role="alert" className="space-y-2 text-sm">
-        <p>{recovery === "unknown" ? "名单操作结果尚未确认，请刷新页面核对，不要重复提交。" : "名单已提交，页面刷新待完成。"}</p>
+        <p>{recovery === "unknown" ? "名单操作结果尚未确认，请读取当前名单核对，不要重复提交。" : "名单已提交，页面刷新待完成。"}</p>
         <Button size="sm" variant="outline" disabled={isPending} onClick={() => {
-          if (recovery === "unknown") { window.location.reload(); return; }
+          if (recovery === "unknown") {
+            startTransition(async () => {
+              try {
+                const result = await getMatchRosterReadback(matchId, teamId);
+                if (!result.success) { toast.error(result.error.message); return; }
+                setReadback({ ...result.data, matches: result.data.version === expectedVersion.current
+                  && (!expectedRosterId.current || result.data.value.rosterId === expectedRosterId.current) });
+              } catch { toast.error("当前名单暂时无法核对，选择已保留。"); }
+            });
+            return;
+          }
           startTransition(async () => {
             try {
               const result = await retryMatchRosterRefresh(matchId);
@@ -193,8 +216,12 @@ function RosterTeamSection({
               window.location.reload();
             } catch { toast.error("刷新仍未完成，请稍后重试刷新。"); }
           });
-        }}>{recovery === "unknown" ? "刷新页面核对名单" : "重试刷新（不重复提交）"}</Button>
+        }}>{recovery === "unknown" ? "读取当前名单核对" : "重试刷新（不重复提交）"}</Button>
       </div>}
+      {readback && <OperationReadbackNotice matches={readback.matches} version={readback.version}>
+        <p>首发：{readback.value.starterIds.map(id => getDisplayName(memberMap.get(id) ?? {})).join("、") || "无"}</p>
+        <p>替补：{readback.value.substituteIds.map(id => getDisplayName(memberMap.get(id) ?? {})).join("、") || "无"}；BP 负责人：{getDisplayName(memberMap.get(readback.value.vetoRepresentativeEventRosterMemberId ?? "") ?? {})}</p>
+      </OperationReadbackNotice>}
       <h4 className="font-semibold text-[var(--color-fg)]"><TeamProfileLink entryId={teamId}>{teamName}</TeamProfileLink></h4>
       {existingRoster && (
         <div className="flex items-center gap-2">

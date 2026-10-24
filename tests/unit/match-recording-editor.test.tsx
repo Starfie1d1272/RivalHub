@@ -1,3 +1,5 @@
+import { webcrypto } from "node:crypto";
+Object.defineProperty(globalThis.crypto, "subtle", { configurable: true, value: webcrypto.subtle });
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { MatchRecordingEditor } from "@/components/matches/MatchRecordingEditor";

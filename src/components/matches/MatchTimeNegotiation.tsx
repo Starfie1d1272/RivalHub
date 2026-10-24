@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useRef, useState, useTransition, useEffect } from "react";
 import { toast } from "sonner";
-import { proposeMatchTime as telemetry_proposeMatchTime, respondToTimeProposal as telemetry_respondToTimeProposal, forceSetMatchTime as telemetry_forceSetMatchTime } from "@/actions/matches/scheduling";
+import { getTimeProposalReadback, retryTimeProposalRefresh, proposeMatchTime as telemetry_proposeMatchTime, respondToTimeProposal as telemetry_respondToTimeProposal, forceSetMatchTime as telemetry_forceSetMatchTime } from "@/actions/matches/scheduling";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCST, parseCSTInput, toCSTDateTimeInput } from "@/lib/utils/date";
 import type { MatchTimeProposalView } from "@/lib/matches/time-proposals";
 
+import { timeReadbackVersion, type TimeReadback } from "@/lib/matches/operation-readback";
+import { OperationReadbackNotice } from "./OperationReadbackNotice";
 import { projectMatchScheduling } from "@/lib/matches/time-rules";
 import { observeAction } from "@/lib/telemetry/client";
 
@@ -37,6 +39,8 @@ export function MatchTimeNegotiation({
   initialProposals,
   hasSubmittedRoster = false,
 }: MatchTimeNegotiationProps) {
+  const expected = useRef<{ proposalId: string; version: string; committed: boolean } | null>(null);
+  const [readback, setReadback] = useState<(TimeReadback & { matches: boolean }) | null>(null);
   const [outcomeGuidance, setOutcomeGuidance] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [now, setNow] = useState(() => Date.now());
@@ -103,8 +107,16 @@ export function MatchTimeNegotiation({
     startTransition(async () => {
       try {
       const reason = action === "reject" ? rejectReasons[proposalId] : undefined;
+      const proposal = initialProposals.find(value => value.id === proposalId);
+      if (!proposal) { toast.error("提议已变化，请重新读取。"); return; }
+      expected.current = { proposalId, committed: false, version: await timeReadbackVersion(matchId, { proposalId,
+        status: action === "accept" ? "accepted" : "rejected", resolution: action === "accept" ? "participant_accept" : null,
+        proposedTime: new Date(proposal.proposedTime).toISOString(), scheduledAt: action === "accept" ? new Date(proposal.proposedTime).toISOString() : currentScheduledAt ? new Date(currentScheduledAt).toISOString() : null,
+        rejectReason: action === "reject" ? reason?.trim().slice(0, 200) ?? null : proposal.rejectReason }) };
+      setReadback(null);
       const result = await respondToTimeProposal(proposalId, action, reason);
       if (result.success) {
+        expected.current.committed = true;
         if (result.data?.refreshPending) setOutcomeGuidance("回应已提交，刷新待完成。请刷新页面核对当前提议状态。");
         toast.success(action === "accept" ? "已接受提议" : "已拒绝提议");
         setRejectReasons((prev) => ({ ...prev, [proposalId]: "" }));
@@ -134,7 +146,25 @@ export function MatchTimeNegotiation({
 
   return (
     <div className="space-y-4">
-      {outcomeGuidance && <p role="alert" className="text-sm text-[var(--color-danger)]">{outcomeGuidance}</p>}
+      {outcomeGuidance && <div role="alert" className="space-y-2 text-sm text-[var(--color-danger)]"><p>{outcomeGuidance}</p>
+        <Button size="sm" variant="outline" disabled={isPending} onClick={() => startTransition(async () => {
+          const original = expected.current;
+          if (!original) return;
+          try {
+            const result = await getTimeProposalReadback(original.proposalId);
+            if (!result.success) { toast.error(result.error.message); return; }
+            const matches = result.data.version === original.version && result.data.value.proposalId === original.proposalId;
+            setReadback({ ...result.data, matches });
+            if (original.committed && matches) {
+              const refreshed = await retryTimeProposalRefresh(original.proposalId);
+              if (refreshed.success) setOutcomeGuidance(null); else toast.error(refreshed.error.message);
+            }
+          } catch { toast.error("提议状态暂时无法核对，未重复回应。"); }
+        })}>读取原提议核对</Button>
+      </div>}
+      {readback && <OperationReadbackNotice matches={readback.matches} version={readback.version}>
+        <p>原提议 {readback.value.proposalId}：{readback.value.status}；处理方式：{readback.value.resolution ?? "无"}；当前排期：{readback.value.scheduledAt ? formatCST(readback.value.scheduledAt) : "未设定"}</p>
+      </OperationReadbackNotice>}
       {isCaptain && !hasSubmittedRoster && (
         <div className="rounded border p-3" style={{ borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)" }}>
           <p className="text-sm text-[var(--color-fg)]">请尽早提交本场首发及 BP 负责人</p>
