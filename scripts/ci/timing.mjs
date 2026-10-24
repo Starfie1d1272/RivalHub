@@ -60,7 +60,7 @@ function parseTestCounts(output, kind) {
 function activeCommandBudget() {
   const route = `repos/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}/attempts/${env.GITHUB_RUN_ATTEMPT}/jobs?per_page=100`;
   const result = spawnSync("gh", ["api", "--paginate", "-H", "Cache-Control: no-cache", route,
-    "--jq", ".jobs[] | {name,conclusion,steps} | tojson"], { encoding: "utf8", timeout: 5000, killSignal: "SIGKILL", maxBuffer: 5 * 1024 * 1024 });
+    "--jq", ".jobs[] | {name,conclusion,steps} | tojson"], { encoding: "utf8", env: { ...env, GH_TOKEN: env.RIVALHUB_CI_METADATA_TOKEN }, timeout: 5000, killSignal: "SIGKILL", maxBuffer: 5 * 1024 * 1024 });
   if (result.error || result.status !== 0) throw new Error("CI execution metadata unavailable");
   const jobs = result.stdout.split("\n").filter(Boolean).map(line => JSON.parse(line));
   return remainingExecutionBudget(jobs, { jobName: env.RIVALHUB_CI_JOB_NAME, stepName: env.RIVALHUB_CI_STEP_NAME,
@@ -71,7 +71,7 @@ async function runCommand(label, command, args, { cleanup = false, timeoutMs } =
   const started = performance.now();
   let budget;
   try {
-    if (env.GITHUB_ACTIONS === "true" && env.RIVALHUB_CI_WATCHDOG_OWNER !== "1" && !cleanup) {
+    if (env.GITHUB_ACTIONS === "true" && env.RIVALHUB_CI_BUDGET_ENABLED === "1" && env.RIVALHUB_CI_WATCHDOG_OWNER !== "1" && !cleanup) {
       budget = activeCommandBudget();
       if (budget.remainingMilliseconds <= 0) throw new Error("CI execution budget exhausted before command start");
       timeoutMs = Math.min(timeoutMs ?? Infinity, budget.remainingMilliseconds);

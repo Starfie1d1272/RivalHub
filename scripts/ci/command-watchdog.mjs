@@ -34,8 +34,7 @@ export async function runOwnedCommand(command, args, { timeoutMs, graceMs = 2000
   if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) throw new Error("Invalid command deadline");
   const token = ownershipToken ?? randomUUID();
   const childEnv = { ...env, [MARKER]: token, RIVALHUB_CI_WATCHDOG_OWNER: "1", RIVALHUB_TIMING_STDOUT_ONLY: "1" };
-  delete childEnv.GH_TOKEN;
-  delete childEnv.GITHUB_TOKEN;
+  delete childEnv.RIVALHUB_CI_METADATA_TOKEN;
   const started = performance.now();
   const child = spawn(command, args, { cwd: process.cwd(), env: childEnv, detached: process.platform !== "win32", stdio: ["inherit", "pipe", "pipe"] });
   let exitCode = null; let exitSignal = null; let exited = false; let closed = false;

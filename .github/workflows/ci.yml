@@ -22,6 +22,7 @@ env:
   NEXT_TELEMETRY_DISABLED: 1
   CI: true
   RIVALHUB_TIMING: 1
+  RIVALHUB_CI_BUDGET_ENABLED: "1"
   RIVALHUB_CI_EXECUTION_BUDGET_MS: 180000
   PNPM_CONFIG_STORE_DIR: ${{ github.workspace }}/.agent-tmp/pnpm-store
 
@@ -105,7 +106,7 @@ jobs:
 
       - name: Run static task
         env:
-          GH_TOKEN: ${{ github.token }}
+          RIVALHUB_CI_METADATA_TOKEN: ${{ github.token }}
           RIVALHUB_CI_STEP_NAME: Run static task
           RIVALHUB_CI_JOB_NAME: static / ${{ matrix.task }}
           RIVALHUB_TIMING_TEST_KIND: ${{ startsWith(matrix.task, 'unit-') && 'unit' || '' }}
@@ -198,7 +199,7 @@ jobs:
         run: git fetch origin main --tags
       - name: Measure PostgreSQL readiness
         env:
-          GH_TOKEN: ${{ github.token }}
+          RIVALHUB_CI_METADATA_TOKEN: ${{ github.token }}
           RIVALHUB_CI_STEP_NAME: Measure PostgreSQL readiness
           RIVALHUB_CI_JOB_NAME: postgres / ${{ matrix.shard }}
         run: |
@@ -216,13 +217,13 @@ jobs:
           '
       - name: PostgreSQL migration checks
         env:
-          GH_TOKEN: ${{ github.token }}
+          RIVALHUB_CI_METADATA_TOKEN: ${{ github.token }}
           RIVALHUB_CI_STEP_NAME: PostgreSQL migration checks
           RIVALHUB_CI_JOB_NAME: postgres / ${{ matrix.shard }}
         run: node scripts/ci/timing.mjs "postgres/migration" -- bash -c 'pnpm db:check && pnpm db:release-compat'
       - name: PostgreSQL integration
         env:
-          GH_TOKEN: ${{ github.token }}
+          RIVALHUB_CI_METADATA_TOKEN: ${{ github.token }}
           RIVALHUB_CI_STEP_NAME: PostgreSQL integration
           RIVALHUB_CI_JOB_NAME: postgres / ${{ matrix.shard }}
           RIVALHUB_TIMING_TEST_KIND: integration
@@ -315,19 +316,19 @@ jobs:
         run: node scripts/ci/timing.mjs record --label "bootstrap/install" --start-ms "$RIVALHUB_BOOTSTRAP_STARTED_MS"
       - name: Supabase startup
         env:
-          GH_TOKEN: ${{ github.token }}
+          RIVALHUB_CI_METADATA_TOKEN: ${{ github.token }}
           RIVALHUB_CI_STEP_NAME: Supabase startup
           RIVALHUB_CI_JOB_NAME: system / ${{ matrix.task }}
         run: node scripts/ci/timing.mjs "system/Supabase startup" -- pnpm db:local:start-services
       - name: System bootstrap
         env:
-          GH_TOKEN: ${{ github.token }}
+          RIVALHUB_CI_METADATA_TOKEN: ${{ github.token }}
           RIVALHUB_CI_STEP_NAME: System bootstrap
           RIVALHUB_CI_JOB_NAME: system / ${{ matrix.task }}
         run: node scripts/ci/timing.mjs "system/bootstrap" -- pnpm db:local:bootstrap-services
       - name: Provider contract
         env:
-          GH_TOKEN: ${{ github.token }}
+          RIVALHUB_CI_METADATA_TOKEN: ${{ github.token }}
           RIVALHUB_CI_STEP_NAME: Provider contract
           RIVALHUB_CI_JOB_NAME: system / ${{ matrix.task }}
         if: matrix.task == 'provider'
@@ -341,7 +342,7 @@ jobs:
           path: .mizar-checkout
       - name: Mizar cross-repo contract
         env:
-          GH_TOKEN: ${{ github.token }}
+          RIVALHUB_CI_METADATA_TOKEN: ${{ github.token }}
           RIVALHUB_CI_STEP_NAME: Mizar cross-repo contract
           RIVALHUB_CI_JOB_NAME: system / ${{ matrix.task }}
         if: matrix.task == 'provider' && matrix.live
@@ -349,7 +350,7 @@ jobs:
       - name: E2E body
         if: startsWith(matrix.task, 'browser-')
         env:
-          GH_TOKEN: ${{ github.token }}
+          RIVALHUB_CI_METADATA_TOKEN: ${{ github.token }}
           RIVALHUB_CI_STEP_NAME: E2E body
           RIVALHUB_CI_JOB_NAME: system / ${{ matrix.task }}
           RIVALHUB_TIMING_TEST_KIND: e2e
@@ -361,7 +362,7 @@ jobs:
       - name: Production browser smoke
         if: matrix.task == 'production'
         env:
-          GH_TOKEN: ${{ github.token }}
+          RIVALHUB_CI_METADATA_TOKEN: ${{ github.token }}
           RIVALHUB_CI_STEP_NAME: Production browser smoke
           RIVALHUB_CI_JOB_NAME: system / ${{ matrix.task }}
           RIVALHUB_TIMING_TEST_KIND: e2e

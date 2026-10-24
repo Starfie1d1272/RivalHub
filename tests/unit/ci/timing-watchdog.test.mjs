@@ -5,6 +5,20 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("timing command CI boundary", () => {
+  it("keeps other workflows opt-out and preserves caller GitHub credentials", () => {
+    const dir = mkdtempSync(join(tmpdir(), "timing-other-workflow-"));
+    try {
+      const result = spawnSync(process.execPath, ["scripts/ci/timing.mjs", "release-style command", "--", process.execPath,
+        "-e", "if(process.env.GH_TOKEN!=='fixture-gh'||process.env.GITHUB_TOKEN!=='fixture-github'||process.env.RIVALHUB_CI_METADATA_TOKEN)process.exit(9)"], {
+        encoding: "utf8", timeout: 4000, env: { ...process.env, GITHUB_ACTIONS: "true", RIVALHUB_CI_BUDGET_ENABLED: "0",
+          RIVALHUB_CI_WATCHDOG_OWNER: "0", RIVALHUB_TIMING_STDOUT_ONLY: "0", RIVALHUB_TIMING_FILE: join(dir, "timing"),
+          GH_TOKEN: "fixture-gh", GITHUB_TOKEN: "fixture-github", RIVALHUB_CI_METADATA_TOKEN: "fixture-internal" },
+      });
+      expect(result.status, result.stderr).toBe(0);
+      expect(readFileSync(join(dir, "timing"), "utf8")).not.toContain('"failure":');
+    } finally { rmSync(dir, { force: true, recursive: true }); }
+  });
+
   it("retains passing counts and a nonzero timeout instead of accepting printed success", () => {
     const dir = mkdtempSync(join(tmpdir(), "timing-timeout-"));
     try {
@@ -32,7 +46,7 @@ describe("timing command CI boundary", () => {
       chmodSync(join(dir, "gh"), 0o755);
       const result = spawnSync(process.execPath, ["scripts/ci/timing.mjs", "body", "--", process.execPath, "-e",
         `require('node:fs').writeFileSync(${JSON.stringify(join(dir, "launched"))},'yes')`], { encoding: "utf8", timeout: 5000,
-        env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_ACTIONS: "true", RIVALHUB_CI_WATCHDOG_OWNER: "0",
+        env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_ACTIONS: "true", RIVALHUB_CI_BUDGET_ENABLED: "1", RIVALHUB_CI_WATCHDOG_OWNER: "0",
           RIVALHUB_TIMING_STDOUT_ONLY: "0", RIVALHUB_TIMING_FILE: join(dir, "timing"),
           GITHUB_REPOSITORY: "owner/repo", GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "2",
           RIVALHUB_CI_JOB_NAME: "system / browser-4", RIVALHUB_CI_STEP_NAME: "body", RIVALHUB_CI_EXECUTION_BUDGET_MS: "180000",
