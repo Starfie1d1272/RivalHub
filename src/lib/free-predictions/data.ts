@@ -25,8 +25,10 @@ export async function loadFreePredictionPopulation(tx: TxDb, seasonId: string, s
   const rows = scope.populationUserId === null || sourceIds?.length === 0 ? [] : await tx.select().from(choices).where(and(eq(choices.seasonId,seasonId),scope.matchId ? eq(choices.matchId,scope.matchId) : undefined,sourceIds ? inArray(choices.userId,sourceIds) : undefined));
   // Original attribution/revisions stay immutable across identity merge. Project one
   // current vote per canonical person, retaining the selected account's choice.
-  const identities = rows.length ? await tx.select({id:users.id,status:users.status}).from(users).where(inArray(users.id,[...new Set(rows.map(r=>r.userId))])) : [];
-  const canonicalIds = new Map<string,string>();
+  const identities = !sourceIds && rows.length ? await tx.select({id:users.id,status:users.status}).from(users).where(inArray(users.id,[...new Set(rows.map(r=>r.userId))])) : [];
+  // The source owner already resolved every private row to this active viewer
+  // in the same repeatable-read snapshot; reuse that result for alias choices.
+  const canonicalIds = new Map<string,string>(sourceIds?.map(id => [id, scope.populationUserId!]));
   for (const identity of identities) {
     const id = identity.status === "active" ? identity.id : await resolveCanonicalUserId(tx,identity.id);
     if (id) canonicalIds.set(identity.id,id);
