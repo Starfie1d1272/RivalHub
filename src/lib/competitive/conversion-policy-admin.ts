@@ -159,14 +159,27 @@ function eventReferencesForPolicy(
   });
 }
 
+async function loadPolicyApproverLabels(executor: ConversionPolicyDatabaseExecutor, ids: readonly (string | null)[]) {
+  const approvedByIds = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  const approvers = approvedByIds.length === 0
+    ? []
+    : await executor.select({ id: users.id, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
+      .from(users)
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+      .where(inArray(users.id, approvedByIds));
+  return new Map(approvers.map((user) => [user.id, getDisplayName(user)]));
+}
+
 /** Load the complete super-admin read model, including stable event references. */
 export async function loadConversionPolicyAdminRows(
   executor: ConversionPolicyDatabaseExecutor = db,
+  policyId?: string,
 ): Promise<ConversionPolicyAdminRow[]> {
   const [policies, seasonRows] = await Promise.all([
     executor.select().from(conversionPolicies).where(and(
       eq(conversionPolicies.sourcePlatform, SUPPORTED_SOURCE_PLATFORM),
       eq(conversionPolicies.targetPlatform, SUPPORTED_TARGET_PLATFORM),
+      policyId ? eq(conversionPolicies.id, policyId) : undefined,
     )).orderBy(desc(conversionPolicies.createdAt), desc(conversionPolicies.version)),
     executor.select({
       id: seasons.id,
@@ -177,14 +190,7 @@ export async function loadConversionPolicyAdminRows(
       teamRegistrationConfig: seasons.teamRegistrationConfig,
     }).from(seasons).orderBy(asc(seasons.name), asc(seasons.id)),
   ]);
-  const approvedByIds = [...new Set(policies.map((policy) => policy.approvedBy).filter((id): id is string => Boolean(id)))];
-  const approvers = approvedByIds.length === 0
-    ? []
-    : await executor.select({ id: users.id, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
-      .from(users)
-      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(inArray(users.id, approvedByIds));
-  const approverLabels = new Map(approvers.map((user) => [user.id, getDisplayName(user)]));
+  const approverLabels = await loadPolicyApproverLabels(executor, policies.map(policy => policy.approvedBy));
 
   return policies.map((policy) => ({
     id: policy.id,
@@ -205,6 +211,33 @@ export async function loadConversionPolicyAdminRows(
     updatedAt: policy.updatedAt,
     eventReferences: eventReferencesForPolicy(policy.id, seasonRows),
   }));
+}
+
+export type ConversionPolicyAdminSummary = Pick<ConversionPolicyAdminRow,
+  "id" | "sourcePlatform" | "targetPlatform" | "version" | "status" | "isCurrent" | "approvedAt" | "approvedBy" | "approvedByLabel" | "createdAt"> & { eventReferenceCount: number };
+
+/** Directory metadata only. Mapping, notes and event reference detail load on demand. */
+export async function loadConversionPolicyAdminSummaries(executor: ConversionPolicyDatabaseExecutor = db): Promise<ConversionPolicyAdminSummary[]> {
+  const [policies, events] = await Promise.all([
+    executor.select({ id: conversionPolicies.id, sourcePlatform: conversionPolicies.sourcePlatform, targetPlatform: conversionPolicies.targetPlatform,
+      version: conversionPolicies.version, status: conversionPolicies.status, isCurrent: conversionPolicies.isCurrent,
+      approvedAt: conversionPolicies.approvedAt, approvedBy: conversionPolicies.approvedBy, createdAt: conversionPolicies.createdAt })
+      .from(conversionPolicies).where(and(eq(conversionPolicies.sourcePlatform, SUPPORTED_SOURCE_PLATFORM), eq(conversionPolicies.targetPlatform, SUPPORTED_TARGET_PLATFORM)))
+      .orderBy(desc(conversionPolicies.createdAt), desc(conversionPolicies.version)),
+    executor.select({ config: seasons.teamRegistrationConfig }).from(seasons),
+  ]);
+  const counts = new Map<string, number>();
+  for (const event of events) {
+    const id = extractConversionPolicyReference(event.config).conversionPolicyId;
+    if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  const labels = await loadPolicyApproverLabels(executor, policies.map(policy => policy.approvedBy));
+  return policies.map(policy => ({ ...policy, approvedByLabel: policy.approvedBy ? labels.get(policy.approvedBy) ?? policy.approvedBy : null,
+    eventReferenceCount: counts.get(policy.id) ?? 0 }));
+}
+
+export async function loadConversionPolicyAdminDetail(executor: ConversionPolicyDatabaseExecutor, id: string): Promise<ConversionPolicyAdminRow | null> {
+  return (await loadConversionPolicyAdminRows(executor, id))[0] ?? null;
 }
 
 /** Read only the operator-safe provenance used by Season Settings. */
