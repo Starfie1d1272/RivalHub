@@ -126,3 +126,22 @@ it("hard-invalidates map catalog consumers when a BP plan is rewound or maps are
   expect(await deliverVetoInvalidation(f.matchId, "route")).toBe("complete");
   expect(cache.revalidateTag.mock.calls.some(call => call[0] === PUBLIC_STATS_TAG)).toBe(true);
 });
+
+it.each(["in_progress", "scheduled"] as const)("delivers pending obligations when an archived %s room also has a rejected lifecycle transition", async status => {
+  const f = await seedFixture();
+  await db.update(schema.matches).set({ status }).where(eq(schema.matches.id, f.matchId));
+  await db.update(schema.matchVetoSessions).set({ completedAt: null, pausedAt: null,
+    startedAt: status === "in_progress" ? new Date() : null,
+    entryAStartRequestedAt: new Date(), turnDeadlineAt: sql`clock_timestamp() - interval '10 seconds'`,
+  }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
+  await db.update(schema.seasons).set({ status: "archived" }).where(eq(schema.seasons.id, f.seasonId));
+  const session = (await readVetoRoomSnapshot(f.matchId)).session;
+  const before = (await watermark(f.matchId))!;
+  expect(before.generation).toBeGreaterThan(before.publishedGeneration);
+  cache.revalidateTag.mockClear();
+  await expect(runMatchVetoTimeoutJob()).rejects.toThrow("赛季已归档");
+  const after = (await watermark(f.matchId))!;
+  expect(after.publishedGeneration).toBe(after.generation);
+  expect(cache.revalidateTag.mock.calls.some(call => call[0] === publicBetTag(f.seasonId))).toBe(true);
+  expect((await readVetoRoomSnapshot(f.matchId)).session).toEqual(session);
+});
