@@ -1,18 +1,16 @@
 export { SANCTION_EFFECT_LABELS } from "@/lib/discipline/contract";
 import { countActionableRecruitmentInterests } from "@/lib/recruitment/data";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
-  competitiveRankFacts,
   disciplinaryCases,
   seasons,
-  teamMemberships,
-  teams,
 } from "@/db/schema";
 import {
-  loadCompetitivePlatformCatalog,
   type CompetitivePlatformCatalogEntry,
 } from "@/lib/competitive/catalog";
+import { getPublicCompetitiveCatalog } from "@/lib/competitive/public-catalog";
+import { loadMyCurrentTeam } from "@/lib/my/team-workspace";
 import { serializeSanctionPublic, type SanctionEffect } from "@/lib/discipline/service";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { countPendingDirectTeamInvitations } from "@/lib/teams/invitations";
@@ -24,7 +22,9 @@ import {
 import {
   computeParticipantReadiness,
   getParticipantIdentityBlockers,
-  loadParticipantQualificationFacts,
+  loadParticipantQualificationRawBundle,
+  projectParticipantQualificationFacts,
+  type ParticipantQualificationRawBundle,
   type ParticipantQualificationFacts,
 } from "@/lib/qualification/service";
 import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
@@ -365,18 +365,16 @@ function buildCompetitiveProfileSources(
   });
 }
 
-async function loadCompetitiveProfileSources(
+function loadCompetitiveProfileSources(
   userId: string,
+  bundle: ParticipantQualificationRawBundle,
   catalog: readonly CompetitivePlatformCatalogEntry[],
   requiredPlatforms: ReadonlySet<string>,
-  platformsWithFacts: ReadonlySet<string>,
-): Promise<MyCompetitiveProfileSource[]> {
-  const platformKeys = selectMyCompetitiveProfilePlatformKeys(catalog, requiredPlatforms, platformsWithFacts);
-  const factsByPlatform = new Map<string, ParticipantQualificationFacts | null>();
-  await Promise.all(platformKeys.map(async (platform) => {
-    const facts = await loadParticipantQualificationFacts([userId], { platform });
-    factsByPlatform.set(platform, facts.get(userId) ?? null);
-  }));
+): MyCompetitiveProfileSource[] {
+  const platformKeys = selectMyCompetitiveProfilePlatformKeys(catalog, requiredPlatforms, new Set(bundle.rankRows.map(row => row.platform)));
+  const factsByPlatform = new Map(platformKeys.map(platform => [platform,
+    projectParticipantQualificationFacts(bundle, { platform }).get(userId) ?? null,
+  ]));
   return buildCompetitiveProfileSources(catalog, platformKeys, factsByPlatform, requiredPlatforms);
 }
 
@@ -386,20 +384,12 @@ async function loadCompetitiveProfileSources(
  * Event-specific qualification remains owned by the entry/event views.
  */
 export async function loadSettingsProfileReadiness(userId: string): Promise<SettingsProfileReadiness> {
-  const [baseFacts, catalog, platformFactRows] = await Promise.all([
-    loadParticipantQualificationFacts([userId]),
-    loadCompetitivePlatformCatalog(db),
-    db.selectDistinct({ platform: competitiveRankFacts.platform })
-      .from(competitiveRankFacts)
-      .where(eq(competitiveRankFacts.userId, userId)),
+  const [bundle, catalog] = await Promise.all([
+    loadParticipantQualificationRawBundle([userId]),
+    getPublicCompetitiveCatalog(),
   ]);
-  const baseFact = baseFacts.get(userId) ?? null;
-  const competitiveProfiles = await loadCompetitiveProfileSources(
-    userId,
-    catalog,
-    new Set<string>(),
-    new Set(platformFactRows.map((row) => row.platform)),
-  );
+  const baseFact = projectParticipantQualificationFacts(bundle).get(userId) ?? null;
+  const competitiveProfiles = loadCompetitiveProfileSources(userId, bundle, catalog, new Set<string>());
   const profile = profileState(baseFact);
   const education = latestEducationState(baseFact);
   return {
@@ -411,14 +401,10 @@ export async function loadSettingsProfileReadiness(userId: string): Promise<Sett
 }
 
 export async function loadMyReadiness(userId: string): Promise<MyReadinessModel> {
-  const [baseFacts, catalog, currentTeamRows, pendingDirectInvitationCount, actionableInterestCount, competitionRows, sanctionRows, platformFactRows] = await Promise.all([
-    loadParticipantQualificationFacts([userId]),
-    loadCompetitivePlatformCatalog(db),
-    db.select({ id: teams.id, name: teams.name, captainUserId: teams.captainUserId })
-      .from(teamMemberships)
-      .innerJoin(teams, eq(teams.id, teamMemberships.teamId))
-      .where(and(eq(teamMemberships.userId, userId), isNull(teamMemberships.endedAt), eq(teams.status, "active")))
-      .limit(1),
+  const [bundle, catalog, currentTeam, pendingDirectInvitationCount, actionableInterestCount, competitionRows, sanctionRows] = await Promise.all([
+    loadParticipantQualificationRawBundle([userId]),
+    getPublicCompetitiveCatalog(),
+    loadMyCurrentTeam(userId),
     countPendingDirectTeamInvitations(userId),
     countActionableRecruitmentInterests(userId),
     loadMyCompetitionSources(userId),
@@ -426,23 +412,18 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
       .from(disciplinaryCases)
       .innerJoin(seasons, eq(seasons.id, disciplinaryCases.seasonId))
       .where(and(eq(disciplinaryCases.subjectUserId, userId), eq(disciplinaryCases.status, "active"))),
-    db.selectDistinct({ platform: competitiveRankFacts.platform })
-      .from(competitiveRankFacts)
-      .where(eq(competitiveRankFacts.userId, userId)),
   ]);
 
-  const baseFact = baseFacts.get(userId) ?? null;
+  const baseFact = projectParticipantQualificationFacts(bundle).get(userId) ?? null;
   const requiredPlatforms = new Set<string>();
   for (const row of competitionRows) {
     const config = normalizeTeamRegistrationConfig(row.teamRegistrationConfig);
     if (config.requireCompetitiveProfile && config.competitiveProfile) requiredPlatforms.add(config.competitiveProfile.platform);
   }
-  const platformKeys = selectMyCompetitiveProfilePlatformKeys(catalog, requiredPlatforms, new Set(platformFactRows.map((row) => row.platform)));
-  const factsByPlatform = new Map<string, ParticipantQualificationFacts | null>();
-  await Promise.all(platformKeys.map(async (platform) => {
-    const facts = await loadParticipantQualificationFacts([userId], { platform });
-    factsByPlatform.set(platform, facts.get(userId) ?? null);
-  }));
+  const platformKeys = selectMyCompetitiveProfilePlatformKeys(catalog, requiredPlatforms, new Set(bundle.rankRows.map(row => row.platform)));
+  const factsByPlatform = new Map(platformKeys.map(platform => [platform,
+    projectParticipantQualificationFacts(bundle, { platform }).get(userId) ?? null,
+  ]));
 
   const competitiveProfiles = buildCompetitiveProfileSources(catalog, platformKeys, factsByPlatform, requiredPlatforms);
 
@@ -464,7 +445,7 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
   return buildMyReadinessModel({
     user: baseFact ?? { displayName: null, perfectName: null, personaName: null },
     baseFact,
-    currentTeam: currentTeamRows[0] ? { ...currentTeamRows[0], role: currentTeamRows[0].captainUserId === userId ? "captain" : "member" } : null,
+    currentTeam: currentTeam ? { ...currentTeam, role: currentTeam.viewerRole } : null,
     pendingDirectInvitationCount,
     actionableInterestCount,
     competitiveProfiles,

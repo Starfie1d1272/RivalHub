@@ -17,7 +17,7 @@ import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
 import { isPgUniqueViolation } from "@/db/errors";
-import { captureException } from "@/lib/observability/server";
+import { captureException, traceOperation } from "@/lib/observability/server";
 import { readMatchMvpResults } from "@/lib/matches/mvp";
 import { MVP_DEADLINE_MS } from "@/lib/utils/date";
 import { extractScoreboardFromBase64 } from "@/lib/ocr";
@@ -47,6 +47,41 @@ export type PlayerOption = {
   perfectName: string;
 };
 
+async function loadAuthorizedScoreboardContext(mapId: string) {
+  return traceOperation("scoreboard.authorize", { scope: "action", operation: "scoreboard.authorize", stage: "authorize" }, async () => {
+  if (!z.uuid().safeParse(mapId).success) throw new AppError(ErrorCode.VALIDATION_FAILED, "地图记录无效");
+  const [match] = await db.select({ id: matches.id, seasonId: matches.seasonId,
+    entryAId: matches.entryAId, entryBId: matches.entryBId, stage: matches.stage,
+  }).from(matchMaps).innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(eq(matchMaps.id, mapId)).limit(1);
+  if (!match) throw new AppError(ErrorCode.NOT_FOUND, "地图或比赛记录不存在");
+  assertCompetitionMatch(match);
+  await requireSeasonAdmin(match.seasonId);
+  return match;
+  });
+}
+
+/** COMMIT is already confirmed; cache failure must not turn it into an apparent rejected write. */
+function refreshScoreboardAfterCommit(): boolean {
+  try {
+    updatePublicStatsTag();
+    revalidatePath("/[seasonSlug]/matches/[matchId]", "page");
+    return false;
+  } catch (error) {
+    captureException("action.scoreboard_refresh_failure", error, { scope: "action", operation: "scoreboard.refresh" });
+    return true;
+  }
+}
+
+/** Explicit recovery of invalidation only; never replays the scoreboard mutation. */
+export async function retryPlayerStatsRefresh(mapId: string): Promise<ActionResult<void>> {
+  try {
+    await loadAuthorizedScoreboardContext(mapId);
+    updatePublicStatsTag();
+    revalidatePath("/[seasonSlug]/matches/[matchId]", "page");
+    return ok(undefined);
+  } catch (error) { return actionError("retryPlayerStatsRefresh", error); }
+}
+
 /**
  * 从截图 base64 提取记分板数据（不写库），返回草稿供管理员确认。
  * 同时返回赛季中所有已匹配玩家列表供下拉选择。
@@ -60,19 +95,12 @@ export async function extractStatsFromScreenshot(
 ) {
   const { mapId, base64Image, mimeType } = input;
   try {
-    const map = await db.query.matchMaps.findFirst({
-      where: eq(matchMaps.id, mapId),
-    });
-    if (!map) throw new AppError(ErrorCode.NOT_FOUND, "地图记录不存在");
-
-    const match = await db.query.matches.findFirst({
-      where: eq(matches.id, map.matchId),
-    });
-    if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛记录不存在");
-    assertCompetitionMatch(match);
-    await requireSeasonAdmin(match.seasonId);
-
-    const seasonPlayers = await loadScoreboardPlayers(db, match.id, [match.entryAId, match.entryBId]);
+    const match = await loadAuthorizedScoreboardContext(mapId);
+    const [seasonPlayers, ocrResult] = await Promise.all([
+      traceOperation("ocr.players.load", { scope: "action", operation: "ocr.players.load", stage: "read" },
+        () => loadScoreboardPlayers(db, match.id, [match.entryAId, match.entryBId])),
+      extractScoreboardFromBase64(base64Image, mimeType),
+    ]);
 
     const nameToUserId = new Map<string, string>();
     for (const p of seasonPlayers) {
@@ -80,8 +108,6 @@ export async function extractStatsFromScreenshot(
         nameToUserId.set(p.perfectName.toLowerCase(), p.userId);
       }
     }
-
-    const ocrResult = await extractScoreboardFromBase64(base64Image, mimeType);
 
     const drafts: PlayerStatsDraft[] = ocrResult.players.map((row) => {
       const name = row.perfectName as string;
@@ -267,9 +293,7 @@ export async function savePlayerStats(
       });
     });
 
-    updatePublicStatsTag();
-    revalidatePath("/[seasonSlug]/matches/[matchId]", "page");
-    return ok({ saved: stats.length });
+    return ok({ saved: stats.length, refreshPending: refreshScoreboardAfterCommit() });
   } catch (e) {
     return actionError("savePlayerStats", e);
   }
@@ -279,48 +303,23 @@ export async function savePlayerStats(
  * 查询某张地图已保存的计分板数据。只服务后台编辑器：先按本场所属赛季授权，
  * 再经 server-only read model 返回 sanitized DTO，不下发 DAK lineage 与审核字段。
  */
-export async function getPlayerStatsByMap(mapId: string): Promise<OperatorScoreboardRow[]> {
+export async function getPlayerStatsByMap(mapId: string): Promise<ActionResult<OperatorScoreboardRow[]>> {
   try {
-    const map = await db.query.matchMaps.findFirst({ where: eq(matchMaps.id, mapId) });
-    if (!map) return [];
-    const match = await db.query.matches.findFirst({ where: eq(matches.id, map.matchId) });
-    if (!match) return [];
-    assertCompetitionMatch(match);
-    await requireSeasonAdmin(match.seasonId);
-    return await loadOperatorScoreboard(db, mapId);
+    await loadAuthorizedScoreboardContext(mapId);
+    return ok(await loadOperatorScoreboard(db, mapId));
   } catch (error) {
-    captureException("action.player_stats_read_failure", error, {
-      scope: "action",
-      operation: "getPlayerStatsByMap",
-    });
-    return [];
+    return actionError("getPlayerStatsByMap", error);
   }
 }
 
-/**
- * 获取某张地图对应比赛的两队选手列表（用于 OCR 编辑时的下拉匹配）
- */
-export async function getMatchPlayerOptions(mapId: string): Promise<PlayerOption[]> {
+/** Freshly authorized options; failures cannot masquerade as an empty roster. */
+export async function getMatchPlayerOptions(mapId: string): Promise<ActionResult<PlayerOption[]>> {
   try {
-    const map = await db.query.matchMaps.findFirst({ where: eq(matchMaps.id, mapId) });
-    if (!map) return [];
-    const match = await db.query.matches.findFirst({ where: eq(matches.id, map.matchId) });
-    if (!match) return [];
-    assertCompetitionMatch(match);
-    await requireSeasonAdmin(match.seasonId);
-
+    const match = await loadAuthorizedScoreboardContext(mapId);
     const seasonPlayers = await loadScoreboardPlayers(db, match.id, [match.entryAId, match.entryBId]);
-
-    return seasonPlayers.map((p) => ({
-      userId: p.userId,
-      perfectName: p.perfectName ?? "(未填写昵称)",
-    }));
+    return ok(seasonPlayers.map(p => ({ userId: p.userId, perfectName: p.perfectName ?? "(未填写昵称)" })));
   } catch (error) {
-    captureException("action.player_options_failure", error, {
-      scope: "action",
-      operation: "getMatchPlayerOptions",
-    });
-    return [];
+    return actionError("getMatchPlayerOptions", error);
   }
 }
 
@@ -437,7 +436,7 @@ export async function castMatchMvpVote(
 /**
  * 清除管理员记分板输入；保留 DAK gameplay projection 与确认事实。
  */
-export async function deletePlayerStatsByMap(mapId: string): Promise<ActionResult<void>> {
+export async function deletePlayerStatsByMap(mapId: string): Promise<ActionResult<{ refreshPending: boolean }>> {
   try {
     const map = await db.query.matchMaps.findFirst({ where: eq(matchMaps.id, mapId) });
     if (!map) throw new AppError(ErrorCode.NOT_FOUND, "地图记录不存在");
@@ -458,9 +457,7 @@ export async function deletePlayerStatsByMap(mapId: string): Promise<ActionResul
       });
     });
 
-    updatePublicStatsTag();
-    revalidatePath("/[seasonSlug]/matches/[matchId]", "page");
-    return ok(undefined);
+    return ok({ refreshPending: refreshScoreboardAfterCommit() });
   } catch (e) {
     return actionError("deletePlayerStatsByMap", e);
   }

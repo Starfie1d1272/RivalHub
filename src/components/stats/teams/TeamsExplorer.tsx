@@ -1,4 +1,7 @@
 "use client";
+import { ContentReady } from "@/components/telemetry/ContentReady";
+
+
 import { StatsExplorerTable } from "@/components/stats/StatsExplorerTable";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
@@ -10,6 +13,7 @@ import { MetricValue } from "@/components/stats/MetricValue";
 import { type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import { statsRateDenominator } from "@/lib/stats/presentation";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
+type ViewData = Pick<TournamentStats, "coverage" | "options" | "teamLinks" | "teamRatings"> & { analytics: Pick<TournamentStats["analytics"], "teams">; performance: Pick<TournamentStats["performance"], "teams">; results: Pick<TournamentStats["results"], "teams"> };
 import { type StatsQuery } from "@/lib/stats/view-state";
 import { navigateStatsScope } from "@/lib/stats/view-state";
 
@@ -36,7 +40,7 @@ interface TeamDirectoryRow {
   performance: TournamentStats["performance"]["teams"][number] | null;
 }
 
-function rowsFor(data: TournamentStats): TeamDirectoryRow[] {
+function rowsFor(data: ViewData): TeamDirectoryRow[] {
   const analytics = new Map(data.analytics.teams.map((row) => [row.team.entityKey, row]));
   const performance = new Map(data.performance.teams.map((row) => [row.team.entityKey, row]));
   const ratings = new Map(data.teamRatings.map((row) => [row.entryId, row]));
@@ -105,7 +109,7 @@ function teamColumns(family: Family, seasonSlug: string, links?: Record<string, 
   ];
 }
 
-export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentStats; query: StatsQuery; seasonSlug: string }) {
+export function TeamsExplorer({ data, query, seasonSlug }: { data: ViewData; query: StatsQuery; seasonSlug: string }) {
   const router = useRouter();
   function setReadingState(key: string, value: string) {
     const next = new URLSearchParams(params.toString());
@@ -121,6 +125,7 @@ export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentSta
   const partialCoverage = family !== "results" && data.coverage.completedMaps > 0 && data.coverage.detailedMaps < data.coverage.completedMaps;
 
   return (
+    <>
     <section className="space-y-4">
       <MetricFamilyTabs label="Team metrics" value={family} options={families} onChange={setFamily} />
 
@@ -143,5 +148,7 @@ export function TeamsExplorer({ data, query, seasonSlug }: { data: TournamentSta
         emptyLabel="暂无赛果"
       />
     </section>
+      <ContentReady module="statistics" phase="primary" />
+    </>
   );
 }

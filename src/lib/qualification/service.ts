@@ -481,21 +481,22 @@ export async function resolveCompetitiveContext(config: CompetitiveProfileConfig
   return isCompleteCompetitiveContext(config) ? config : null;
 }
 
-/** Batched loader for one qualification fact bundle per roster request. */
-export async function loadParticipantQualificationFacts(
+/** Request/transaction-scoped raw facts. Never cache this bundle across requests or executors. */
+export async function loadParticipantQualificationRawBundle(
   userIds: readonly string[],
   options: {
     platform?: string;
     fallbackPlatform?: string;
     executor?: DatabaseExecutor;
+    /** Raw multi-platform consumers need chronology; compatibility reads without a platform do not. */
+    includePlatformChronology?: boolean;
     /** Skip rank facts for education/affiliation-only decisions. */
     includeCompetitiveFacts?: boolean;
   } = {},
-): Promise<Map<string, ParticipantQualificationFacts>> {
+) {
   const executor = options.executor ?? db;
-  const facts = new Map<string, ParticipantQualificationFacts>();
-  if (userIds.length === 0) return facts;
   const ids = [...new Set(userIds)];
+  if (ids.length === 0) return { userRows: [], verificationRows: [], rankRows: [], platformSeasonRows: [] };
   const includeCompetitiveFacts = options.includeCompetitiveFacts ?? true;
   const platforms = [options.platform, options.fallbackPlatform].filter((item): item is string => Boolean(item));
   const rankFactsFilter = platforms.length > 0
@@ -509,13 +510,27 @@ export async function loadParticipantQualificationFacts(
   const rankRows = includeCompetitiveFacts
     ? await executor.select().from(competitiveRankFacts).where(rankFactsFilter)
     : [];
-  const platformSeasonRows = includeCompetitiveFacts && options.platform
-    ? await executor.select({ seasonKey: competitivePlatformSeasons.seasonKey })
+  const platformSeasonRows = includeCompetitiveFacts && options.includePlatformChronology !== false
+    ? await executor.select({ platform: competitivePlatformSeasons.platform, seasonKey: competitivePlatformSeasons.seasonKey })
       .from(competitivePlatformSeasons)
-      .where(eq(competitivePlatformSeasons.platform, options.platform))
+      .where(options.platform ? eq(competitivePlatformSeasons.platform, options.platform) : undefined)
       .orderBy(asc(competitivePlatformSeasons.sortOrder))
     : [];
-  const platformSeasonOrder = platformSeasonRows.map((row) => row.seasonKey);
+  return { userRows, verificationRows, rankRows, platformSeasonRows };
+}
+
+export type ParticipantQualificationRawBundle = Awaited<ReturnType<typeof loadParticipantQualificationRawBundle>>;
+
+/** Pure platform/fallback projection of facts read on one executor. */
+export function projectParticipantQualificationFacts(
+  bundle: ParticipantQualificationRawBundle,
+  options: { platform?: string; fallbackPlatform?: string } = {},
+): Map<string, ParticipantQualificationFacts> {
+  const { userRows, verificationRows, rankRows, platformSeasonRows } = bundle;
+  const facts = new Map<string, ParticipantQualificationFacts>();
+  const platformSeasonOrder = options.platform
+    ? platformSeasonRows.filter(row => row.platform === options.platform).map(row => row.seasonKey)
+    : [];
 
   const approvedEducation = new Set(
     verificationRows.filter((row) => row.status === "approved").map((row) => row.userId),
@@ -566,6 +581,20 @@ export async function loadParticipantQualificationFacts(
     });
   }
   return facts;
+}
+
+/** Compatibility entrypoint: fresh facts on the caller's executor, with the same platform scope. */
+export async function loadParticipantQualificationFacts(
+  userIds: readonly string[],
+  options: {
+    platform?: string;
+    fallbackPlatform?: string;
+    executor?: DatabaseExecutor;
+    includeCompetitiveFacts?: boolean;
+  } = {},
+): Promise<Map<string, ParticipantQualificationFacts>> {
+  if (userIds.length === 0) return new Map();
+  return projectParticipantQualificationFacts(await loadParticipantQualificationRawBundle(userIds, { ...options, includePlatformChronology: Boolean(options.platform) }), options);
 }
 
 function resolveParticipantEducationReadiness(fact: ParticipantQualificationFacts): ParticipantEducationReadiness {

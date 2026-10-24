@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { notFound } from "next/navigation";
 import { SeasonWorkspaceOverview } from "@/components/admin/SeasonWorkspaceOverview";
 import { loadSeasonWorkspaceOverview } from "@/lib/admin/season-workspace/overview";
@@ -7,5 +8,5 @@ export default async function AdminSeasonOverviewPage({ params }: { params: Prom
   const data = await loadSeasonWorkspaceOverview(seasonSlug);
   if (!data) notFound();
 
-  return <SeasonWorkspaceOverview data={data} />;
+  return <><SeasonWorkspaceOverview data={data} /><ContentReady module="admin" phase="primary" /></>;
 }

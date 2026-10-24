@@ -13,7 +13,7 @@ import type { LongTeamCareerDetail, TournamentStats, TournamentTeamDetail } from
 import type { PublicTeamMapProfile } from "@/lib/teams/map-profile";
 import { displayWeaponName, formatEconomyLabel, statsRateDenominator } from "@/lib/stats/presentation";
 
-export type TeamPerformanceDetail = LongTeamCareerDetail | TournamentTeamDetail;
+export type TeamPerformanceDetail = Pick<LongTeamCareerDetail | TournamentTeamDetail, "teamId" | "analytics" | "performance" | "economyMatrix" | "selection" | "maps" | "scoreboard" | "detailedPlayers">;
 type TeamTab = "overview" | "rounds" | "teamplay" | "maps" | "players" | "weapons";
 
 export function TeamRosterMapContext({

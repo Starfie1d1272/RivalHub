@@ -1,4 +1,7 @@
 "use client";
+import { ContentReady } from "@/components/telemetry/ContentReady";
+
+
 import { StatsExplorerTable } from "@/components/stats/StatsExplorerTable";
 import React from "react";
 
@@ -8,11 +11,12 @@ import { MetricValue } from "@/components/stats/MetricValue";
 import { type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import { displayWeaponName, statsRateDenominator } from "@/lib/stats/presentation";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
+type ViewData = Pick<TournamentStats, "coverage" | "options"> & { performance: Pick<TournamentStats["performance"], "weapons"> };
 import { navigateStatsScope, type StatsQuery } from "@/lib/stats/view-state";
 
 type WeaponRow = TournamentStats["performance"]["weapons"][number];
 
-export function WeaponsExplorer({ data, query, seasonSlug }: { data: TournamentStats; query: StatsQuery; seasonSlug: string }) {
+export function WeaponsExplorer({ data, query, seasonSlug }: { data: ViewData; query: StatsQuery; seasonSlug: string }) {
   const router = useRouter();
   const rows = data.performance.weapons;
   const partialCoverage = data.coverage.completedMaps > 0 && data.coverage.detailedMaps < data.coverage.completedMaps;
@@ -31,6 +35,7 @@ export function WeaponsExplorer({ data, query, seasonSlug }: { data: TournamentS
   }
 
   return (
+    <>
     <section className="space-y-4">
       <div className="flex min-w-0 flex-wrap items-end gap-3">
         {seasonSlug && <label className="grid gap-1">
@@ -55,5 +60,7 @@ export function WeaponsExplorer({ data, query, seasonSlug }: { data: TournamentS
         emptyLabel="调整范围查看武器统计"
       />
     </section>
+      <ContentReady module="statistics" phase="primary" />
+    </>
   );
 }
