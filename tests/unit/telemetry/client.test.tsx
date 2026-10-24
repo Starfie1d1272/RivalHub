@@ -280,3 +280,19 @@ it("keeps native prerender lifecycle and source route on a late metric instead o
     expect(JSON.stringify(events)).not.toContain("late-private-native-id");
   } finally { entries.mockRestore(); }
 });
+
+it("refreshes activation timing after prerender activation without replacing the navigation token", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", send); configureTelemetry({ ...config, measurementVersion: 1 });
+  const entries = vi.spyOn(performance, "getEntriesByType").mockReturnValue([{ activationStart: 0 }] as unknown as PerformanceEntryList);
+  Object.defineProperty(document, "prerendering", { configurable: true, value: true });
+  try {
+    const token = captureTelemetryNavigation();
+    Object.defineProperty(document, "prerendering", { configurable: true, value: false });
+    entries.mockReturnValue([{ activationStart: 321 }] as unknown as PerformanceEntryList);
+    recordTelemetryVisibility(); recordContentReady(token, "public", "primary");
+    flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    const event = JSON.parse(send.mock.calls[0][1].body).events[0] as TelemetryEvent;
+    expect(event.measurement).toMatchObject({ navigationId: token, lifecycle: { navigationType: "prerender", activationMs: 321 } });
+  } finally { entries.mockRestore(); Object.defineProperty(document, "prerendering", { configurable: true, value: false }); }
+});
