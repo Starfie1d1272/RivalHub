@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useReportWebVitals } from "next/web-vitals";
 import type { Bootstrap } from "@/lib/telemetry/protocol";
-import { configureTelemetry, flushTelemetry, markHistoryNavigation, recordClientError, recordPage, recordWebVital, renewTelemetryIfNeeded, setTelemetryScene, telemetryFlushInterval } from "@/lib/telemetry/client";
+import { configureTelemetry, recordTelemetryVisibility, restoreTelemetryPage, flushTelemetry, markHistoryNavigation, recordClientError, recordPage, recordWebVital, renewTelemetryIfNeeded, setTelemetryScene, telemetryFlushInterval } from "@/lib/telemetry/client";
 
 export function ProductTelemetry({ config }: { config: Bootstrap | null }) {
   const pathname = usePathname();
@@ -13,20 +13,24 @@ export function ProductTelemetry({ config }: { config: Bootstrap | null }) {
     if (!config) return;
     const renew = () => { void renewTelemetryIfNeeded(); };
     const timer = setInterval(() => { flushTelemetry(); renew(); }, telemetryFlushInterval);
-    const hidden = () => { if (document.visibilityState === "hidden") flushTelemetry(); else renew(); };
+    const hidden = () => { recordTelemetryVisibility(); if (document.visibilityState === "hidden") flushTelemetry(); else renew(); };
     renew();
     window.addEventListener("popstate", markHistoryNavigation);
     window.addEventListener("pagehide", flushTelemetry);
+    window.addEventListener("pageshow", restoreTelemetryPage);
     window.addEventListener("error", recordClientError);
     window.addEventListener("unhandledrejection", recordClientError);
     document.addEventListener("visibilitychange", hidden);
+    document.addEventListener("prerenderingchange", hidden);
     return () => {
       clearInterval(timer);
       window.removeEventListener("popstate", markHistoryNavigation);
       window.removeEventListener("pagehide", flushTelemetry);
+      window.removeEventListener("pageshow", restoreTelemetryPage);
       window.removeEventListener("error", recordClientError);
       window.removeEventListener("unhandledrejection", recordClientError);
       document.removeEventListener("visibilitychange", hidden);
+      document.removeEventListener("prerenderingchange", hidden);
     };
   }, [config]);
   useReportWebVitals(recordWebVital);
