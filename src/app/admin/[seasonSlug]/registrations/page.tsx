@@ -1,7 +1,8 @@
+import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { notFound } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { registrationDrafts, seasons } from "@/db/schema";
+import { registrationDrafts } from "@/db/schema";
 import { PageHeader } from "@/components/rivalhub";
 import { RegistrationReviewList } from "@/components/admin/RegistrationReviewList";
 import { DraftRegistrationTable } from "@/components/admin/DraftRegistrationTable";
@@ -24,9 +25,7 @@ interface PageProps {
 
 export default async function AdminRegistrationsPage({ params, searchParams }: PageProps) {
   const { seasonSlug } = await params;
-  const season = await db.query.seasons.findFirst({
-    where: eq(seasons.slug, seasonSlug),
-  });
+  const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) notFound();
 
   const rawSearchParams: RegistrationReviewSearchParams = await searchParams ?? {};

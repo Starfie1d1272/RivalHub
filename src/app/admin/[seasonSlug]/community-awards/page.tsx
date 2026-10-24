@@ -1,8 +1,8 @@
+import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { Suspense } from "react";
-import { eq } from "drizzle-orm";
+
 import { notFound } from "next/navigation";
 import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
 import { CommunityAwardsBoard } from "@/components/community-awards/CommunityAwardsBoard";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getAdminCommunityAwardBoardData } from "@/lib/community-awards/data";
@@ -14,7 +14,7 @@ export default function AdminCommunityAwardsPage(props: { params: Promise<{ seas
 
 async function AdminCommunityAwardsContent({ params }: { params: Promise<{ seasonSlug: string }> }) {
   const { seasonSlug } = await params;
-  const season = await db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) });
+  const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) notFound();
   if (!season.hasCommunityAwards) notFound();
   const admin = await requireSeasonAdmin(season.id);

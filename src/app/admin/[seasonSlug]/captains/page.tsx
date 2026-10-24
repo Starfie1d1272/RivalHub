@@ -1,7 +1,7 @@
+import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
+
+
 import { CaptainConfirmPanel } from "@/components/captains/CaptainConfirmPanel";
 import { PageHeader, Panel } from "@/components/rivalhub";
 import { getPublicCaptainVotingData, getSeasonTeamCount } from "@/lib/captains/data";
@@ -12,9 +12,7 @@ interface AdminCaptainsPageProps {
 
 export default async function AdminCaptainsPage({ params }: AdminCaptainsPageProps) {
   const { seasonSlug } = await params;
-  const season = await db.query.seasons.findFirst({
-    where: eq(seasons.slug, seasonSlug),
-  });
+  const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) notFound();
 
   if (!season.hasCaptainVoting) {

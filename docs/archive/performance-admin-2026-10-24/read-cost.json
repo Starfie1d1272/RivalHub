@@ -1,0 +1,556 @@
+{
+  "baseline": "4ebecf5d5e1b629371c7d0c8851b6bab9c31d7f8",
+  "environment": "isolated loopback PostgreSQL; no simulated RTT; warm paired alternating runs",
+  "fixture": {
+    "additionalUsers": 1000,
+    "additionalInvites": 1000,
+    "majorEntrants": 0
+  },
+  "exclusions": [
+    "browser LCP/CLS",
+    "pool waiting under mixed load",
+    "production improvement"
+  ],
+  "runs": [
+    {
+      "reader": "operations",
+      "version": "before",
+      "round": 0,
+      "elapsedMs": 9.930984999999964,
+      "queries": 13,
+      "returnedRows": 1005,
+      "returnedJsonBytes": 69053
+    },
+    {
+      "reader": "operations",
+      "version": "after",
+      "round": 0,
+      "elapsedMs": 7.4474740000000565,
+      "queries": 11,
+      "returnedRows": 7,
+      "returnedJsonBytes": 161
+    },
+    {
+      "reader": "operations",
+      "version": "after",
+      "round": 1,
+      "elapsedMs": 6.324125000000095,
+      "queries": 11,
+      "returnedRows": 7,
+      "returnedJsonBytes": 161
+    },
+    {
+      "reader": "operations",
+      "version": "before",
+      "round": 1,
+      "elapsedMs": 8.073130999999876,
+      "queries": 13,
+      "returnedRows": 1005,
+      "returnedJsonBytes": 69053
+    },
+    {
+      "reader": "operations",
+      "version": "before",
+      "round": 2,
+      "elapsedMs": 6.935997000000043,
+      "queries": 13,
+      "returnedRows": 1005,
+      "returnedJsonBytes": 69053
+    },
+    {
+      "reader": "operations",
+      "version": "after",
+      "round": 2,
+      "elapsedMs": 5.613276000000042,
+      "queries": 11,
+      "returnedRows": 7,
+      "returnedJsonBytes": 161
+    },
+    {
+      "reader": "operations",
+      "version": "after",
+      "round": 3,
+      "elapsedMs": 6.130358999999999,
+      "queries": 11,
+      "returnedRows": 7,
+      "returnedJsonBytes": 161
+    },
+    {
+      "reader": "operations",
+      "version": "before",
+      "round": 3,
+      "elapsedMs": 6.608293000000003,
+      "queries": 13,
+      "returnedRows": 1005,
+      "returnedJsonBytes": 69053
+    },
+    {
+      "reader": "operations",
+      "version": "before",
+      "round": 4,
+      "elapsedMs": 7.91572599999995,
+      "queries": 13,
+      "returnedRows": 1005,
+      "returnedJsonBytes": 69053
+    },
+    {
+      "reader": "operations",
+      "version": "after",
+      "round": 4,
+      "elapsedMs": 11.71644399999991,
+      "queries": 11,
+      "returnedRows": 7,
+      "returnedJsonBytes": 161
+    },
+    {
+      "reader": "operations",
+      "version": "after",
+      "round": 5,
+      "elapsedMs": 6.752914999999803,
+      "queries": 11,
+      "returnedRows": 7,
+      "returnedJsonBytes": 161
+    },
+    {
+      "reader": "operations",
+      "version": "before",
+      "round": 5,
+      "elapsedMs": 8.25657799999999,
+      "queries": 13,
+      "returnedRows": 1005,
+      "returnedJsonBytes": 69053
+    },
+    {
+      "reader": "operations",
+      "version": "before",
+      "round": 6,
+      "elapsedMs": 8.159339000000045,
+      "queries": 13,
+      "returnedRows": 1005,
+      "returnedJsonBytes": 69053
+    },
+    {
+      "reader": "operations",
+      "version": "after",
+      "round": 6,
+      "elapsedMs": 7.0056340000001,
+      "queries": 11,
+      "returnedRows": 7,
+      "returnedJsonBytes": 161
+    },
+    {
+      "reader": "operations",
+      "version": "after",
+      "round": 7,
+      "elapsedMs": 5.525777999999946,
+      "queries": 11,
+      "returnedRows": 7,
+      "returnedJsonBytes": 161
+    },
+    {
+      "reader": "operations",
+      "version": "before",
+      "round": 7,
+      "elapsedMs": 6.6654510000000755,
+      "queries": 13,
+      "returnedRows": 1005,
+      "returnedJsonBytes": 69053
+    },
+    {
+      "reader": "operations",
+      "version": "before",
+      "round": 8,
+      "elapsedMs": 7.5390460000000985,
+      "queries": 13,
+      "returnedRows": 1005,
+      "returnedJsonBytes": 69053
+    },
+    {
+      "reader": "operations",
+      "version": "after",
+      "round": 8,
+      "elapsedMs": 6.292664000000059,
+      "queries": 11,
+      "returnedRows": 7,
+      "returnedJsonBytes": 161
+    },
+    {
+      "reader": "operations",
+      "version": "after",
+      "round": 9,
+      "elapsedMs": 5.1946969999999055,
+      "queries": 11,
+      "returnedRows": 7,
+      "returnedJsonBytes": 161
+    },
+    {
+      "reader": "operations",
+      "version": "before",
+      "round": 9,
+      "elapsedMs": 7.3008310000000165,
+      "queries": 13,
+      "returnedRows": 1005,
+      "returnedJsonBytes": 69053
+    },
+    {
+      "reader": "major-summary",
+      "version": "before",
+      "round": 0,
+      "elapsedMs": 5.472756000000118,
+      "queries": 14,
+      "returnedRows": 4,
+      "returnedJsonBytes": 346
+    },
+    {
+      "reader": "major-summary",
+      "version": "after",
+      "round": 0,
+      "elapsedMs": 3.820611000000099,
+      "queries": 9,
+      "returnedRows": 5,
+      "returnedJsonBytes": 345
+    },
+    {
+      "reader": "major-summary",
+      "version": "after",
+      "round": 1,
+      "elapsedMs": 3.8483909999999923,
+      "queries": 9,
+      "returnedRows": 5,
+      "returnedJsonBytes": 345
+    },
+    {
+      "reader": "major-summary",
+      "version": "before",
+      "round": 1,
+      "elapsedMs": 4.952115999999933,
+      "queries": 14,
+      "returnedRows": 4,
+      "returnedJsonBytes": 346
+    },
+    {
+      "reader": "major-summary",
+      "version": "before",
+      "round": 2,
+      "elapsedMs": 5.2092609999999695,
+      "queries": 14,
+      "returnedRows": 4,
+      "returnedJsonBytes": 346
+    },
+    {
+      "reader": "major-summary",
+      "version": "after",
+      "round": 2,
+      "elapsedMs": 2.9381020000000717,
+      "queries": 9,
+      "returnedRows": 5,
+      "returnedJsonBytes": 345
+    },
+    {
+      "reader": "major-summary",
+      "version": "after",
+      "round": 3,
+      "elapsedMs": 3.1025139999999283,
+      "queries": 9,
+      "returnedRows": 5,
+      "returnedJsonBytes": 345
+    },
+    {
+      "reader": "major-summary",
+      "version": "before",
+      "round": 3,
+      "elapsedMs": 6.192552999999862,
+      "queries": 14,
+      "returnedRows": 4,
+      "returnedJsonBytes": 346
+    },
+    {
+      "reader": "major-summary",
+      "version": "before",
+      "round": 4,
+      "elapsedMs": 5.073270999999977,
+      "queries": 14,
+      "returnedRows": 4,
+      "returnedJsonBytes": 346
+    },
+    {
+      "reader": "major-summary",
+      "version": "after",
+      "round": 4,
+      "elapsedMs": 3.136156000000028,
+      "queries": 9,
+      "returnedRows": 5,
+      "returnedJsonBytes": 345
+    },
+    {
+      "reader": "major-summary",
+      "version": "after",
+      "round": 5,
+      "elapsedMs": 4.388293000000203,
+      "queries": 9,
+      "returnedRows": 5,
+      "returnedJsonBytes": 345
+    },
+    {
+      "reader": "major-summary",
+      "version": "before",
+      "round": 5,
+      "elapsedMs": 5.247053999999935,
+      "queries": 14,
+      "returnedRows": 4,
+      "returnedJsonBytes": 346
+    },
+    {
+      "reader": "major-summary",
+      "version": "before",
+      "round": 6,
+      "elapsedMs": 5.907575999999835,
+      "queries": 14,
+      "returnedRows": 4,
+      "returnedJsonBytes": 346
+    },
+    {
+      "reader": "major-summary",
+      "version": "after",
+      "round": 6,
+      "elapsedMs": 5.136156000000028,
+      "queries": 9,
+      "returnedRows": 5,
+      "returnedJsonBytes": 345
+    },
+    {
+      "reader": "major-summary",
+      "version": "after",
+      "round": 7,
+      "elapsedMs": 3.2617749999999432,
+      "queries": 9,
+      "returnedRows": 5,
+      "returnedJsonBytes": 345
+    },
+    {
+      "reader": "major-summary",
+      "version": "before",
+      "round": 7,
+      "elapsedMs": 7.709422999999788,
+      "queries": 14,
+      "returnedRows": 4,
+      "returnedJsonBytes": 346
+    },
+    {
+      "reader": "major-summary",
+      "version": "before",
+      "round": 8,
+      "elapsedMs": 5.713361000000077,
+      "queries": 14,
+      "returnedRows": 4,
+      "returnedJsonBytes": 346
+    },
+    {
+      "reader": "major-summary",
+      "version": "after",
+      "round": 8,
+      "elapsedMs": 4.393593999999894,
+      "queries": 9,
+      "returnedRows": 5,
+      "returnedJsonBytes": 345
+    },
+    {
+      "reader": "major-summary",
+      "version": "after",
+      "round": 9,
+      "elapsedMs": 4.19389799999999,
+      "queries": 9,
+      "returnedRows": 5,
+      "returnedJsonBytes": 345
+    },
+    {
+      "reader": "major-summary",
+      "version": "before",
+      "round": 9,
+      "elapsedMs": 8.365334999999959,
+      "queries": 14,
+      "returnedRows": 4,
+      "returnedJsonBytes": 346
+    },
+    {
+      "reader": "invites",
+      "version": "before",
+      "round": 0,
+      "elapsedMs": 14.552048999999897,
+      "queries": 2,
+      "returnedRows": 1001,
+      "returnedJsonBytes": 148011
+    },
+    {
+      "reader": "invites",
+      "version": "after",
+      "round": 0,
+      "elapsedMs": 5.824301999999989,
+      "queries": 2,
+      "returnedRows": 26,
+      "returnedJsonBytes": 3818
+    },
+    {
+      "reader": "invites",
+      "version": "after",
+      "round": 1,
+      "elapsedMs": 3.2909799999999905,
+      "queries": 2,
+      "returnedRows": 26,
+      "returnedJsonBytes": 3818
+    },
+    {
+      "reader": "invites",
+      "version": "before",
+      "round": 1,
+      "elapsedMs": 5.317953999999872,
+      "queries": 2,
+      "returnedRows": 1001,
+      "returnedJsonBytes": 148011
+    },
+    {
+      "reader": "invites",
+      "version": "before",
+      "round": 2,
+      "elapsedMs": 6.096983999999793,
+      "queries": 2,
+      "returnedRows": 1001,
+      "returnedJsonBytes": 148011
+    },
+    {
+      "reader": "invites",
+      "version": "after",
+      "round": 2,
+      "elapsedMs": 1.9522230000000036,
+      "queries": 2,
+      "returnedRows": 26,
+      "returnedJsonBytes": 3818
+    },
+    {
+      "reader": "invites",
+      "version": "after",
+      "round": 3,
+      "elapsedMs": 2.1437989999999445,
+      "queries": 2,
+      "returnedRows": 26,
+      "returnedJsonBytes": 3818
+    },
+    {
+      "reader": "invites",
+      "version": "before",
+      "round": 3,
+      "elapsedMs": 6.074683999999934,
+      "queries": 2,
+      "returnedRows": 1001,
+      "returnedJsonBytes": 148011
+    },
+    {
+      "reader": "invites",
+      "version": "before",
+      "round": 4,
+      "elapsedMs": 7.232176999999865,
+      "queries": 2,
+      "returnedRows": 1001,
+      "returnedJsonBytes": 148011
+    },
+    {
+      "reader": "invites",
+      "version": "after",
+      "round": 4,
+      "elapsedMs": 1.9752650000000358,
+      "queries": 2,
+      "returnedRows": 26,
+      "returnedJsonBytes": 3818
+    },
+    {
+      "reader": "invites",
+      "version": "after",
+      "round": 5,
+      "elapsedMs": 2.3098969999998644,
+      "queries": 2,
+      "returnedRows": 26,
+      "returnedJsonBytes": 3818
+    },
+    {
+      "reader": "invites",
+      "version": "before",
+      "round": 5,
+      "elapsedMs": 6.726552999999967,
+      "queries": 2,
+      "returnedRows": 1001,
+      "returnedJsonBytes": 148011
+    },
+    {
+      "reader": "invites",
+      "version": "before",
+      "round": 6,
+      "elapsedMs": 5.990518999999949,
+      "queries": 2,
+      "returnedRows": 1001,
+      "returnedJsonBytes": 148011
+    },
+    {
+      "reader": "invites",
+      "version": "after",
+      "round": 6,
+      "elapsedMs": 2.0332989999999427,
+      "queries": 2,
+      "returnedRows": 26,
+      "returnedJsonBytes": 3818
+    },
+    {
+      "reader": "invites",
+      "version": "after",
+      "round": 7,
+      "elapsedMs": 2.164581999999882,
+      "queries": 2,
+      "returnedRows": 26,
+      "returnedJsonBytes": 3818
+    },
+    {
+      "reader": "invites",
+      "version": "before",
+      "round": 7,
+      "elapsedMs": 6.615497000000005,
+      "queries": 2,
+      "returnedRows": 1001,
+      "returnedJsonBytes": 148011
+    },
+    {
+      "reader": "invites",
+      "version": "before",
+      "round": 8,
+      "elapsedMs": 6.260864999999967,
+      "queries": 2,
+      "returnedRows": 1001,
+      "returnedJsonBytes": 148011
+    },
+    {
+      "reader": "invites",
+      "version": "after",
+      "round": 8,
+      "elapsedMs": 2.0076349999999366,
+      "queries": 2,
+      "returnedRows": 26,
+      "returnedJsonBytes": 3818
+    },
+    {
+      "reader": "invites",
+      "version": "after",
+      "round": 9,
+      "elapsedMs": 1.9229419999999209,
+      "queries": 2,
+      "returnedRows": 26,
+      "returnedJsonBytes": 3818
+    },
+    {
+      "reader": "invites",
+      "version": "before",
+      "round": 9,
+      "elapsedMs": 6.101959000000079,
+      "queries": 2,
+      "returnedRows": 1001,
+      "returnedJsonBytes": 148011
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import { hasMatchRecording } from "@/lib/postmatch/recording-types";
-import { MatchDownloads } from "@/components/matches/MatchDownloads";
+import { Suspense } from "react";
+import { MatchBroadcastStatus, MatchUploaderDownloads } from "./MatchWorkbenchAuxiliary";
 import { requiresCompetitionLineupPreflight } from "@/lib/match-rosters/policy";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
@@ -18,7 +19,8 @@ import { ScheduledAtInput } from "@/components/matches/ScheduledAtInput";
 import { VetoInputDialog } from "@/components/matches/VetoInputDialog";
 import { AdminRosterDialog } from "@/components/matches/AdminRosterDialog";
 import { ResultCorrectionPanel } from "@/components/matches/ResultCorrectionPanel";
-import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
+import { DeferredDemoQuality } from "./DeferredDemoQuality";
+import { ActivatedStatsOCRPanel } from "@/components/matches/ActivatedStatsOCRPanel";
 import { ForfeitButton } from "@/components/matches/ForfeitButton";
 import { MapScoreCorrectInput } from "@/components/matches/MapScoreCorrectInput";
 import { DeleteMatchButton } from "@/components/matches/DeleteMatchButton";
@@ -90,8 +92,6 @@ function RosterSummary({
 export function AdminMatchWorkbench({
   season,
   completion,
-  broadcasts = [],
-  uploaderDownloads,
   stageName,
   match,
   teamAName,
@@ -111,6 +111,7 @@ export function AdminMatchWorkbench({
   postMatch,
   demoReviews = [],
   demoQuality = [],
+  demoQualitySummaries = [],
   operator,
   commentary,
 }: AdminMatchWorkbenchProps) {
@@ -163,7 +164,7 @@ export function AdminMatchWorkbench({
 
         <div className="flex flex-wrap items-center justify-between gap-2">
         {commentary.byMatchId[match.id] && <MatchCommentaryStatus matchId={match.id} assignment={commentary.byMatchId[match.id]} />}
-        {broadcasts.length > 0 && <aside aria-label="转播状态" className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-fg-mid)]">{broadcasts.map((row, i) => <span key={i}>直播：{row.name} · {row.label}</span>)}</aside>}
+        {["scheduled", "in_progress"].includes(match.status) && <Suspense fallback={<p className="min-h-4 text-xs">正在读取转播状态…</p>}><MatchBroadcastStatus seasonId={season.id} matchId={match.id} /></Suspense>}
         </div>
       </header>
 
@@ -225,15 +226,14 @@ export function AdminMatchWorkbench({
       {operator.workflow.completedMaps.length > 0 && match.status !== "cancelled" && (
         <section aria-labelledby="operator-scoreboards" className="space-y-3">
           <h2 id="operator-scoreboards" className="font-semibold">地图数据</h2>
-          {operator.workflow.completedMaps.map(map => <details key={map.id} id={`scoreboard-${map.id}`} open={operator.workflow.focusMapId === map.id} className="rounded border border-[var(--color-border)] p-3">
-            <summary className="cursor-pointer text-sm">Map {map.order} · {mapLabel(map.name)} · {map.scoreboardComplete ? "计分板 ✓" : "待补计分板"} · Demo {map.demoLabel}</summary>
-            <div className="mt-3"><StatsOCRPanel mapId={map.id} mapName={map.name} /></div>
+          {operator.workflow.completedMaps.map(map => <ActivatedStatsOCRPanel key={map.id} mapId={map.id} mapName={map.name} initiallyOpen={operator.workflow.focusMapId === map.id}
+            summary={<>Map {map.order} · {mapLabel(map.name)} · {map.scoreboardComplete ? "计分板 ✓" : "待补计分板"} · Demo {map.demoLabel}</>}>
             {map.demoNeedsAttention && <p className="mt-2 text-sm text-[var(--color-warn)]">请检查下方 Demo 待处理项；若阵容或比分已更正，请在上传器中重新生成并同步。</p>}
-          </details>)}
+          </ActivatedStatsOCRPanel>)}
           {operator.workflow.isPostMatch && <details className="space-y-2 rounded border border-[var(--color-border)] p-3 text-sm">
             <summary className="cursor-pointer">上传 Demo</summary>
             <p className="text-[var(--color-fg-mid)]">从 Perfect 下载 Demo，用上传器同步。本地解析，不上传原始文件。</p>
-            <MatchDownloads downloads={uploaderDownloads ?? null} />
+            <Suspense fallback={<p className="min-h-10">正在读取下载地址…</p>}><MatchUploaderDownloads seasonId={season.id} /></Suspense>
           </details>}
         </section>
       )}
@@ -246,7 +246,12 @@ export function AdminMatchWorkbench({
         </div>)}
       </details>}
 
-      {match.status !== "cancelled" && <DemoDataReviewPanel reviews={demoReviews} quality={demoQuality} />}
+      {match.status !== "cancelled" && <>
+        <DemoDataReviewPanel reviews={demoReviews} quality={demoQuality} />
+        {demoQualitySummaries.length > 0 && <section aria-label="已确认 Demo 质量" className="space-y-3">
+          {demoQualitySummaries.map(summary => <DeferredDemoQuality key={summary.importId} seasonId={season.id} matchId={match.id} summary={summary} />)}
+        </section>}
+      </>}
 
       {match.status !== "cancelled" && <details id="match-lineups" className="space-y-4 rounded border border-[var(--color-border)] p-4" open={match.status === "scheduled"}>
         <summary className="cursor-pointer font-semibold">首发、BP 与赛程管理</summary>
