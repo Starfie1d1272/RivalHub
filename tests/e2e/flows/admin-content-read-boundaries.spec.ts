@@ -26,7 +26,7 @@ test("后台3信息+6公告入口使用摘要和scoped完整详情，教育权�
   async function flightText() {
     return page.evaluate(async () => {
       const response = await fetch(window.location.href, { headers: { RSC: "1" }, cache: "no-store" });
-      if (!response.ok() || !response.headers.get("content-type")?.includes("text/x-component")) throw new Error("未得到授权Flight响应");
+      if (!response.ok || !response.headers.get("content-type")?.includes("text/x-component")) throw new Error("未得到授权Flight响应");
       return response.text();
     });
   }
@@ -62,7 +62,7 @@ test("后台3信息+6公告入口使用摘要和scoped完整详情，教育权�
     await page.goto("/admin/operations/season-info");
     await expect(page.getByText("1 个交流群 · 1 条联系方式")).toBeVisible(); expect(await flightText()).not.toContain(contact);
     for (const path of [`/admin/operations/season-info/${fixture.slug}`, `/admin/${fixture.slug}/information`]) {
-      await page.goto(path); await expect(page.getByDisplayValue(contact)).toBeVisible();
+      await page.goto(path); await expect(page.locator(`input[value="${contact}"]`)).toBeVisible();
     }
     await page.goto("/admin/education-verifications");
     await expect(page.getByRole("alert")).toContainText("没有访问此管理页面所需的权限");
