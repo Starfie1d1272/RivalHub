@@ -3,6 +3,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import * as schema from "@/db/schema";
 import { joinBetInTx, lockBetProgram, reconcileBetInTx, runBetReconciliationJob, stakeBetInTx } from "@/lib/bet/service";
+import { readFreePredictionBoard } from "@/lib/free-predictions/data";
+import { submitFreePredictionInTx } from "@/lib/free-predictions/service";
 import { fixture, read } from "./harness/bet-fixture";
 
 type Fixture = Parameters<Parameters<typeof fixture>[0]>[0];
@@ -20,6 +22,7 @@ async function seed(f:Fixture) {
 }
 async function complete(f:Fixture,matchId:string) {
   await f.db.insert(schema.matchVetoSessions).values({matchId,startedAt:new Date(),completedAt:new Date(),mapPoolSnapshot:pool}).onConflictDoUpdate({target:schema.matchVetoSessions.matchId,set:{startedAt:new Date(),completedAt:new Date(),mapPoolSnapshot:pool}});
+  await f.db.insert(schema.matchVetoSteps).values([3,4,0,1,5,6,2].map((index,i)=>({matchId,stepOrder:i+1,mapName:pool[index]!,actionType:i===6?"decider":i===2||i===3?"pick":"ban"})));
   return f.db.insert(schema.matchMaps).values(pool.slice(0,3).map((mapName,i)=>({matchId,mapOrder:i+1,mapName}))).returning();
 }
 async function ledger(f:Fixture) {
@@ -94,7 +97,7 @@ describe("BO3 presence production publisher",()=>{
     const open=(await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.id===market.id)!;
     expect(open).toMatchObject({pool:"10",participants:4});
     expect(open.options.map(o=>o.percent)).toEqual([10,20,30,40,0,0,0]);
-    const maps=await complete(f,match.id);
+    await complete(f,match.id);
     await Promise.all([reconcile(f),reconcile(f)]);
     const settled=(await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.id===market.id)!;
     expect(settled.options.filter(o=>o.winner).map(o=>o.id)).toEqual(options.slice(0,3).map(o=>o.id));
@@ -102,7 +105,8 @@ describe("BO3 presence production publisher",()=>{
     expect(await ledger(f)).toMatchObject({amount:"4000",profit:"0"});
     const checkpoint=await ledger(f);await reconcile(f);expect(await ledger(f)).toEqual(checkpoint);
     const locked=(await f.db.query.betMarkets.findFirst({where:eq(schema.betMarkets.id,market.id)}))!.lockedAt;
-    await f.db.update(schema.matchMaps).set({mapName:pool[3]}).where(eq(schema.matchMaps.id,maps[2]!.id));
+    await f.db.update(schema.matchVetoSteps).set({mapName:pool[2]!}).where(and(eq(schema.matchVetoSteps.matchId,match.id),eq(schema.matchVetoSteps.actionType,"ban"),eq(schema.matchVetoSteps.mapName,pool[3]!)));
+    await f.db.update(schema.matchVetoSteps).set({mapName:pool[3]!}).where(and(eq(schema.matchVetoSteps.matchId,match.id),eq(schema.matchVetoSteps.actionType,"decider")));
     await reconcile(f);expect(await ledger(f)).toMatchObject({amount:"4000",profit:"0"});
     expect((await read(f.db,f.seasonId,viewers[3]!)).markets.find(m=>m.id===market.id)?.mine).toMatchObject({payout:"6",profit:"2"});
     // Actual persisted appeal facts must reverse credits while retaining admission lock.
@@ -139,6 +143,37 @@ describe("BO3 presence production publisher",()=>{
     for(const userId of [f.userId,f.otherId]) await f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId,marketId:market.id,optionId:options[optionIndex]!.id,amount:"100",requestId:randomUUID()}));
     await complete(f,match.id);await reconcile(f);await reconcile(f);
     expect((await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.id===market.id)).toMatchObject({state:"refunded",mine:{payout:"100",profit:"0"}});
+    expect(await ledger(f)).toMatchObject({amount:"2000",profit:"0"});
+  }));
+  it("settles a finished 2:0 from BP steps with only two played maps and retries corrections once",async()=>fixture(async f=>{
+    const {match,market,options}=await seed(f);
+    for(const [userId,option] of [[f.userId,options[0]!],[f.otherId,options[6]!]] as const)
+      await f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId,marketId:market.id,optionId:option.id,amount:"100",requestId:randomUUID()}));
+    await f.db.transaction(tx=>submitFreePredictionInTx(tx,{seasonId:f.seasonId,matchId:match.id,userId:f.userId,kind:"bp",selection:pool.slice(0,3),requestId:randomUUID()}));
+    await complete(f,match.id);
+    await f.db.delete(schema.matchMaps).where(and(eq(schema.matchMaps.matchId,match.id),eq(schema.matchMaps.mapOrder,3)));
+    await f.db.update(schema.matchMaps).set({completedAt:new Date(),scoreA:13,scoreB:7}).where(eq(schema.matchMaps.matchId,match.id));
+    await f.db.update(schema.matches).set({status:"finished",scoreA:2,scoreB:0,completedAt:new Date()}).where(eq(schema.matches.id,match.id));
+    await Promise.all([reconcile(f),reconcile(f)]);
+    const free=()=>f.db.transaction(tx=>readFreePredictionBoard(tx,f.seasonId,f.userId));
+    expect((await free()).matches.find(m=>m.matchId===match.id)?.bp.grade).toMatchObject({state:"correct",hits:3,total:3});
+    expect((await read(f.db,f.seasonId,f.userId)).markets.find(m=>m.id===market.id)?.mine).toMatchObject({payout:"200",profit:"100"});
+    expect(await f.db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId,match.id))).toHaveLength(2);
+    const first=await ledger(f);await reconcile(f);expect(await ledger(f)).toEqual(first);
+    // Correct the official plan; played maps remain historical gameplay facts.
+    await f.db.update(schema.matchVetoSteps).set({mapName:pool[0]!}).where(and(eq(schema.matchVetoSteps.matchId,match.id),eq(schema.matchVetoSteps.actionType,"ban"),eq(schema.matchVetoSteps.mapName,pool[6]!)));
+    await f.db.update(schema.matchVetoSteps).set({mapName:pool[6]!}).where(and(eq(schema.matchVetoSteps.matchId,match.id),eq(schema.matchVetoSteps.actionType,"pick"),eq(schema.matchVetoSteps.mapName,pool[0]!)));
+    await reconcile(f);await reconcile(f);
+    expect((await free()).matches.find(m=>m.matchId===match.id)?.bp.grade).toMatchObject({state:"incorrect",hits:2});
+    expect((await read(f.db,f.seasonId,f.otherId)).markets.find(m=>m.id===market.id)?.mine).toMatchObject({payout:"200",profit:"100"});
+    expect(await ledger(f)).toMatchObject({amount:"2000",profit:"0"});
+    const corrected=await ledger(f);await reconcile(f);expect(await ledger(f)).toEqual(corrected);
+    const [decider]=await f.db.delete(schema.matchVetoSteps).where(and(eq(schema.matchVetoSteps.matchId,match.id),eq(schema.matchVetoSteps.actionType,"decider"))).returning();
+    await reconcile(f);await reconcile(f);
+    expect((await free()).matches.find(m=>m.matchId===match.id)?.bp.grade).toMatchObject({state:"pending",hits:null});
+    expect((await read(f.db,f.seasonId,f.otherId)).markets.find(m=>m.id===market.id)).toMatchObject({state:"locked",mine:{payout:null}});
+    await f.db.insert(schema.matchVetoSteps).values(decider!);await reconcile(f);await reconcile(f);
+    expect((await read(f.db,f.seasonId,f.otherId)).markets.find(m=>m.id===market.id)?.mine).toMatchObject({payout:"200",profit:"100"});
     expect(await ledger(f)).toMatchObject({amount:"2000",profit:"0"});
   }));
   it("serializes stake behind official BP start and retains the trigger lock",async()=>fixture(async f=>{

@@ -1,3 +1,4 @@
+import { completedVetoMaps, type OfficialVetoResult } from "@/lib/matches/veto-result";
 import { computeSeriesProgress } from "@/lib/matches/result-rules";
 import type { BetSubject, MarketType } from "./types";
 import type { MarketResolutionFact } from "./resolution";
@@ -7,7 +8,7 @@ export interface MatchFact {
   isForfeit: boolean; startedAt: Date | null; scoreA: number | null; scoreB: number | null;
 }
 export interface MapFact { id: string; matchId: string; mapOrder: number; mapName: string; startedAt: Date | null; completedAt: Date | null; scoreA: number | null; scoreB: number | null }
-export interface VetoFact { startedAt: Date | null; completedAt: Date | null; mapPoolSnapshot: string[] | null; pendingAppeal: boolean }
+export interface VetoFact extends OfficialVetoResult { startedAt: Date | null }
 export interface EventFact { entryIds: string[]; playerIds: string[]; started: boolean; champion: string | null; kills: { userId: string; kills: number }[] | null }
 export interface MarketFactInput { type: MarketType; subject: BetSubject; line: number | null; voidedAt: Date | null; match?: MatchFact; maps: MapFact[]; veto?: VetoFact; event: EventFact }
 export function sameIds(a: readonly string[],b: readonly string[]) { return [...a].sort().join(",") === [...b].sort().join(","); }
@@ -57,20 +58,15 @@ export function resolveBetFact(input: MarketFactInput): MarketResolutionFact {
     // The frozen pool and BO define this market's terms; never infer them from play count.
     if (input.subject.kind !== "match" || match.format !== "bo3" ||
       input.subject.mapPool.length !== 7 || new Set(input.subject.mapPool).size !== 7) return voidFact;
-    if (!input.veto?.completedAt || input.veto.pendingAppeal) return pending;
-    const pool = input.subject.mapPool;
-    const maps = input.maps.slice().sort((a,b)=>a.mapOrder-b.mapOrder);
-    if (maps.length !== 3 || maps.some((m,i)=>m.mapOrder !== i+1) ||
-      new Set(maps.map(m=>m.mapName)).size !== 3 ||
-      maps.some(m=>!pool.includes(m.mapName))) return pending;
-    const names = maps.map(m=>m.mapName).sort();
-    return confirmed(names,names);
+    const names = completedVetoMaps(match.format, match.entryAId, input.veto);
+    return names ? confirmed([...names].sort(), [...names].sort()) : pending;
   }
   if (input.type.startsWith("veto_")) {
-    if (!input.veto?.completedAt || input.veto.pendingAppeal) return pending;
+    const names = completedVetoMaps(match.format, match.entryAId, input.veto);
+    if (!names) return pending;
     const order = input.type === "veto_decider" ? Number(match.format.slice(2)) : 1;
-    const map = input.maps.find(m=>m.mapOrder===order);
-    return map ? confirmed([map.mapName],{order,name:map.mapName}) : pending;
+    const name = names[order-1]!;
+    return confirmed([name],{order,name});
   }
   if (input.subject.kind === "map" || input.subject.kind === "map_slot") {
     const subject = input.subject;
