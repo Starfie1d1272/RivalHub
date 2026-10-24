@@ -1,3 +1,4 @@
+import { AdminMatchPagination } from "@/components/matches/AdminMatchPagination";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -25,7 +26,7 @@ import { MatchCommentaryQueue, MyCommentaryMatches } from "@/components/matches/
 
 interface AdminMatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
-  searchParams: Promise<{ stage?: string; status?: string; team?: string; view?: string; ops?: string }>;
+  searchParams: Promise<{ stage?: string; status?: string; team?: string; view?: string; ops?: string; page?: string }>;
 }
 
 export default async function AdminMatchesPage({ params, searchParams }: AdminMatchesPageProps) {
@@ -136,6 +137,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
             </TabsContent>;
           })}
         </AdminMatchStageTabs>
+        {overview.pagination && <AdminMatchPagination {...overview.pagination} />}
       </section>}
       {!materials && matchCount === 0 && <Panel contentClassName="p-8 text-center text-[var(--color-fg-mid)]">暂无比赛记录</Panel>}
       <ContentReady module="admin" phase="primary" />

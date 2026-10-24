@@ -73,6 +73,7 @@ export interface AdminMatchOverviewFilter {
   stage?: string;
   status?: string;
   team?: string;
+  page?: string;
 }
 
 async function loadCommentaryEffectiveness(
@@ -180,7 +181,7 @@ export async function loadAdminMatchWorkspace(seasonSlug: string) {
 
 /** Execution and scheduling reuse the same match facts and domain rules. */
 export async function loadAdminMatchOverview({
-  seasonSlug, view = "execution", stage: filterStage, status: filterStatus, team: filterTeam,
+  seasonSlug, view = "execution", stage: filterStage, status: filterStatus, team: filterTeam, page: requestedPage,
 }: AdminMatchOverviewFilter): Promise<AdminMatchOverviewData | null> {
   const context = await loadWorkspaceContext(seasonSlug);
   if (!context) return null;
@@ -204,10 +205,29 @@ export async function loadAdminMatchOverview({
     executionStage ? eq(matches.stage, executionStage) : undefined,
     configuredKeys.length ? notInArray(matches.stage, configuredKeys) : undefined,
   ));
+  const executionFacts = view === "execution" ? await db.select({
+    id: matches.id, stage: matches.stage, status: matches.status,
+    entryAId: matches.entryAId, entryBId: matches.entryBId,
+    scheduledAt: matches.scheduledAt, completedAt: matches.completedAt,
+    qualificationRunId: matches.qualificationRunId, ownership: matches.ownership,
+    majorStageRunId: matches.majorStageRunId, managedKey: matches.managedKey, bracketNodeId: matches.bracketNodeId,
+  }).from(matches).where(configuredKeys.length ? executionScope : scope)
+    .orderBy(asc(matches.createdAt), asc(matches.id)) : null;
+  const isQualificationMatch = (match: NonNullable<typeof executionFacts>[number]) => Boolean(qualificationRun &&
+    match.qualificationRunId === qualificationRun.id && match.stage === "play-in" && match.ownership === "manual" &&
+    match.majorStageRunId === null && match.managedKey === null && match.bracketNodeId === null);
+  const executionCandidates = executionFacts ? sortAdminMatches(executionFacts.filter(match =>
+    match.stage === executionStage && (executionStage !== "play-in" || isQualificationMatch(match)) &&
+    (!filterStatus || filterStatus === "all" || match.status === filterStatus) &&
+    (!filterTeam || filterTeam === "all" || match.entryAId === filterTeam || match.entryBId === filterTeam))) : [];
+  const totalPages = Math.ceil(executionCandidates.length / 25);
+  const parsedPage = Number(requestedPage);
+  const page = totalPages ? Math.min(Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1, totalPages) : 1;
+  const pageIds = executionCandidates.slice((page - 1) * 25, page * 25).map(match => match.id);
   const [allMatchesRaw, finalResult] = await Promise.all([
-    stageCounts?.length === 0 ? Promise.resolve([]) : db.query.matches.findMany({
-      where: view === "execution" && configuredKeys.length ? executionScope : scope,
-      orderBy: [asc(matches.createdAt)],
+    view === "execution" && pageIds.length === 0 ? Promise.resolve([]) : db.query.matches.findMany({
+      where: view === "execution" ? and(scope, inArray(matches.id, pageIds)) : scope,
+      orderBy: [asc(matches.createdAt), asc(matches.id)],
     }),
     isMajor && view === "schedule" ? db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }) : Promise.resolve(undefined),
   ]);
@@ -295,7 +315,9 @@ export async function loadAdminMatchOverview({
     matches: projectedMatches,
     matchCount,
     stageViews,
-    unconfiguredMatches: unconfiguredMatches.map((match) => projectAdminMatchSummary(match, demoNeedsAttentionByMatch.get(match.id) ?? 0)),
+    unconfiguredMatches: (executionFacts ? executionFacts.filter(match => !configuredKeys.includes(match.stage ?? "") && !isQualificationMatch(match)) : unconfiguredMatches)
+      .map(match => ({ id: match.id, stage: match.stage ?? "" })),
+    pagination: view === "execution" ? { total: executionCandidates.length, page, pageSize: 25, totalPages } : null,
     standingsByStage,
     batchDeadlineGroups: view === "schedule" ? buildBatchDeadlineGroups(allMatches, stagePlan) : [],
     canGenerate,

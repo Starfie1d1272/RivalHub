@@ -143,7 +143,8 @@ export interface AdminMatchOverviewData {
   matchCount: number;
   stageViews: { stage: StageConfig; matches: AdminMatchSummary[] }[];
   qualificationRun: Pick<CompetitionQualificationRun, "id" | "format" | "playInEntryCount"> | null;
-  unconfiguredMatches: AdminMatchSummary[];
+  unconfiguredMatches: Pick<AdminMatchSummary, "id" | "stage">[];
+  pagination: { total: number; page: number; pageSize: number; totalPages: number } | null;
   standingsByStage: Map<string, TeamStanding[]>;
   batchDeadlineGroups: {
     label: string;
