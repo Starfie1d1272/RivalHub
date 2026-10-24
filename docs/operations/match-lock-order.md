@@ -54,64 +54,34 @@ barriers both reproduce `40P01`. No blind replay fixes that compatibility gap.
    Include roster, OCR evidence, BET/free, BP, Mizar, Demo and postevent consumers;
    a helper-only deployment is incomplete. Build candidate artifacts before
    the outage. Do not run staging/fixture mutations against Production.
-2. Stop admission to **all** old application writers, including authenticated
-   actions, Mizar callbacks, cron/watchdog HTTP endpoints and independent
-   production CLI/backfill invocations. On the current single-instance Linux
-   hosting, the existing `rivalhub-production` service stop is the available
-   complete application-admission boundary. It also interrupts public reads;
-   this is a bounded maintenance outage, not a zero-downtime switch. Do not add
-   another service, token, permanent ingress policy or cron to implement it.
-   The pg_cron/pg_net and Actions watchdog can continue sending requests while
-   the service is stopped; unsuccessful dispatch is not business execution.
-   Do not report these expected maintenance failures as successful delivery.
-3. Verify the old service is actually stopped and its process/callback workers
-   exited. Its existing SIGTERM/30-second systemd stop timeout is not evidence
-   that every transaction committed. After stopping independent writers, use
-   the approved read-only database channel to observe transaction counts until
-   there are no transactions for the application role/database and no prepared
-   transactions. Observe twice, with no writer admitted between observations.
-   Bound this drain observation to 60 seconds; a timeout, hidden activity due
-   to insufficient visibility or ambiguous service state prevents candidate
-   start. Retain the outage and investigate through the existing owner. Do not
-   automatically terminate backends, revoke credentials or cancel transactions.
-   A shared role may include other maintenance work: coordinate that work
-   instead of excluding unexplained transactions from the count.
-4. Run the remaining protected migration/verify and package installation steps
-   through the release owner, with admission still closed to old writers.
-   Recheck quiescence after any intentional migration/verification transaction
-   finishes and before starting the candidate. No old application or old
-   independent worker may restart during this interval. Supabase dispatch is
-   an HTTP wake-up; queued requests after candidate start execute only the
-   candidate's implementation. Never run both source identities together.
-5. Start the exact candidate using the existing installation transaction;
-   verify canonical release identity and the release owner's smoke. Resume
-   independent workers only at that same source identity. Verify scheduler
-   primary and endpoint health, durable BP pending-delivery recovery, Mizar
-   authority/heartbeat and normal read paths. Receipt recovery determines
-   uncertain command outcomes; a disconnected request is not proof of rollback
-   and must not be replayed merely because the service restarted. Perform all
-   concurrency/fault writes in isolated fixtures; Production checks remain
-   low-frequency read-only verification.
-
-Read-only drain evidence can be restricted to aggregate counts, without SQL
-text, actor identities or payloads. In the protected application-role session,
-exclude only the observer's own backend; include idle-in-transaction sessions:
-
-```sql
-SELECT count(*) AS open_transactions
-FROM pg_stat_activity
-WHERE datname = current_database() AND usename = current_user
-  AND pid <> pg_backend_pid() AND xact_start IS NOT NULL;
-SELECT count(*) AS prepared_transactions
-FROM pg_prepared_xacts WHERE database = current_database();
-```
-
-These queries are evidence only if the observer can see every relevant writer
-and all application writer roles/databases have been enumerated. The repository
-currently has no release-integrated writer-admission/drain gate. The ordinary
-`systemctl restart` installation path alone therefore does **not** establish
-this first-switch prerequisite; the coordinator must complete the explicit
-stop/drain window or supply an independently reviewed equivalent before release.
+2. Before finalize, the release owner inventories and stops independent
+   production CLI/backfill/import/repair/identity-merge jobs and other workers,
+   including queued/in-progress Actions and other operator terminals/hosts.
+   Hold that stop window through acceptance. The deploy flock and HTTP service
+   do not fence independent writers. Unknown roles or unconfirmed worker scope
+   block the switch; two empty database samples do not prevent a future CLI.
+3. Complete the release owner's existing migration/verify and required
+   backfill gates while the previous application remains available. Then run
+   normal finalize: its canonical and localhost previous-identity checks must
+   happen **before** stopping the app. Do not manually stop it before invoking
+   the installer; that defeats these identity preconditions.
+4. Use the reviewed executable quiescence installer described in
+   [release.md](./release.md): after identity checks it stops the single current
+   systemd service and drains actual application-role PostgreSQL transactions,
+   including pooler work, twice before environment/current changes and start.
+   The HTTP stop also blocks actions, Mizar and HTTP cron/watchdog dispatch.
+   Expected failed dispatch during the outage is not successful execution.
+   Timeout, invisible/unknown work or drain failure keeps the service stopped;
+   no automatic backend termination, credential change or blind command replay.
+   The old and new lock protocols must never execute concurrently. Until the
+   executable release prerequisite is merged and verified, this lock PR alone
+   is not deployable evidence.
+5. Verify the candidate's exact identity and smoke, then resume independent
+   writers only at the same accepted source. Verify scheduler, durable BP
+   pending delivery and Mizar authority. Unknown requests recover through
+   receipts/facts; disconnection does not prove rollback. Concurrent/fault
+   business writes remain confined to isolated fixtures; Production checks
+   are low-frequency read-only observations.
 
 ### Rollback and uncertain outcome
 
@@ -123,7 +93,8 @@ read back canonical identity and host state first, then reconcile through the
 release owner. Do not issue another install or rollback blindly.
 
 Keep the additive 0096/0097/0098 migration chain and durable acknowledgements;
-normal rollback does not reverse DDL, erase generations, reset published
+the old identity registry will fail closed on the new receipt FK until its
+registry is compatible. Normal rollback does not reverse DDL, erase generations, reset published
 watermarks, or delete OCR receipts. The old BP worker does not consume the new
 delivery watermark. If the chosen old source lacks that worker, its scheduler
 success cannot prove pending delivery completed. Pending obligations remain
