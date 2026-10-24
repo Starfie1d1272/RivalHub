@@ -119,6 +119,7 @@ export function ConversionPolicyManager({ initialPolicies }: { initialPolicies: 
 
   async function openPolicy(policy: Pick<ConversionPolicyAdminSummary, "id">) {
     const token = ++readToken.current;
+    setLoadingBase(false); // Switching flow cancels the outstanding base-read busy owner.
     setSelectedId(policy.id); setSelected(null); setEditor(null); setConfirmation(null);
     try {
       const result = await readConversionPolicyDetail(policy.id);
@@ -148,6 +149,7 @@ export function ConversionPolicyManager({ initialPolicies }: { initialPolicies: 
   function closePolicy() {
     if (pending) return;
     readToken.current++;
+    setLoadingBase(false);
     setSelectedId(null);
     setSelected(null);
     setEditor(null);

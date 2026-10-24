@@ -38,3 +38,18 @@ it("ignores detail responses after the user closes the loading dialog", async ()
   await act(async () => { resolve({ success: true, data: detail }); });
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
+
+it("clears the cancelled base-read busy owner when a detail interrupts it, ignoring the late base result", async () => {
+  let resolveBase!: (result: unknown) => void;
+  boundary.read.mockImplementationOnce(() => new Promise(done => { resolveBase = done; })).mockResolvedValueOnce({ success: true, data: detail });
+  render(<ConversionPolicyManager initialPolicies={[summary]} />);
+  fireEvent.click(screen.getByRole("button", { name: "+ 新建版本" }));
+  expect(screen.getByRole("button", { name: "读取基准…" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "查看详情" }));
+  await screen.findByDisplayValue("private full source");
+  fireEvent.click(screen.getByRole("button", { name: /^关闭$/ }));
+  expect(screen.getByRole("button", { name: "+ 新建版本" })).toBeEnabled();
+  await act(async () => { resolveBase({ success: true, data: detail }); });
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "+ 新建版本" })).toBeEnabled();
+});
