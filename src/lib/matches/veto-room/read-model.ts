@@ -14,6 +14,7 @@ import {
 } from "@/db/schema";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getCurrentUserAuthorization } from "@/lib/auth/session";
+import { AppError, ErrorCode } from "@/lib/errors";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { mapLabel } from "@/lib/maps";
 import { MATCH_FORMAT_LABELS, SIDE_LABELS } from "@/types/match";
@@ -47,11 +48,12 @@ function getEntryIdForViewer(
 }
 
 /** An explicit authorization value is valid only within the current request. */
-export async function getVetoRoomView(matchId: string, requestAuthorization?: Awaited<ReturnType<typeof getCurrentUserAuthorization>>) {
+export async function getVetoRoomView(matchId: string, requestAuthorization?: Awaited<ReturnType<typeof getCurrentUserAuthorization>>, expectedSeasonId?: string) {
   const [core, authorization] = await Promise.all([
     readVetoRoomSnapshot(matchId),
     requestAuthorization === undefined ? getCurrentUserAuthorization() : Promise.resolve(requestAuthorization),
   ]);
+  if (expectedSeasonId !== undefined && core.match.seasonId !== expectedSeasonId) throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。");
   return projectVetoRoomView(core, authorization?.userId ?? null, authorization);
 }
 

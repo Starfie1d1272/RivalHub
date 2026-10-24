@@ -129,11 +129,13 @@ export async function getPublicSeasonBySlug(slug: string): Promise<PublicSeason 
  */
 export async function getPublicOrAuthorizedDraftSeason(
   slug: string,
+  requestAuthorization?: Awaited<ReturnType<typeof getCurrentUserAuthorization>>,
 ): Promise<PublicSeason | null> {
   const publicSeason = await getPublicSeasonBySlug(slug);
   if (publicSeason) return publicSeason;
 
-  const authorization = await getCurrentUserAuthorization();
+  // Only a fresh authorization from this server request may be supplied.
+  const authorization = requestAuthorization === undefined ? await getCurrentUserAuthorization() : requestAuthorization;
   if (!authorization) return null;
 
   const [draftSeason] = await db
