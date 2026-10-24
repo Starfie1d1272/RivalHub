@@ -24,16 +24,17 @@ export async function decompressEvents(blob: number[] | Uint8Array): Promise<str
 
 /** Identity-free per-batch counts let approved rollups avoid decompressing a whole day. */
 export function batchSummary(events: TelemetryEvent[]): string {
-  const groups = new Map<string, { dimensions: string[]; events: number; duration: number; score: number; client?: ClientContext }>();
+  const groups = new Map<string, { dimensions: string[]; events: number; duration: number; score: number; client?: ClientContext; sampleId?: string; at?: number }>();
   for (const e of events) {
     const dimensions = [e.scene, e.route, e.kind, e.operation ?? "", e.phase ?? "", e.outcome ?? "", e.kind === "performance" ? e.metricName ?? "" : e.variant ?? ""];
-    const key = JSON.stringify([dimensions, e.client ?? null]);
-    const group = groups.get(key) ?? { dimensions, events: 0, duration: 0, score: 0, client: e.client };
+    const key = JSON.stringify([dimensions, e.client ?? null, e.kind === "performance" ? e.id : null]);
+    const group = groups.get(key) ?? { dimensions, events: 0, duration: 0, score: 0, client: e.client, ...(e.kind === "performance" ? { sampleId: e.id, at: e.at } : {}) };
     group.events++; group.duration += e.durationMs ?? 0; group.score += e.score ?? 0; groups.set(key, group);
   }
   return JSON.stringify([...groups.values()].map(g => {
     const row = [...g.dimensions, g.events, g.duration];
     const score = g.dimensions[6] === "CLS" ? Math.round(g.score * 10000) / 10000 : null;
-    return g.client ? [...row, score, g.client] : score !== null ? [...row, score] : row;
+    return g.sampleId ? [...row, score, g.client ?? null, g.sampleId, g.at]
+      : g.client ? [...row, score, g.client] : row;
   }));
 }

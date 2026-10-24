@@ -197,3 +197,5 @@ pnpm exec tsx scripts/telemetry/verify-live.ts
 这证明正常匿名页面链路，不替代登录账号、Major/Rivals、返回筛选和真实操作终态验收。后者在固定 Preview 上用获批测试账号按既有功能交互，确认同 operationId 的 start/result、账号和会话查询一致；不得用生产业务写入制造测试。到期、续签、配额、重试及维护故障使用已有 receiver/client/workerd 测试和隔离 Preview fixture 验证，不修改生产时钟、持久数据或保留开关。Production 开启后只运行匿名 smoke，并观察首个正常到期小时任务与 cleanup backlog。
 
 真实用量证据需记录同一测试窗口前后 Workers 请求与 CPU 分位、D1 reads/writes/size（含索引）、网站新增请求/字节及 hydrate 影响。`/admin/usage` 的批数/未压缩 bytes 不是 provider 账单；5000 批是接收上限，不是承诺共享账户能承受的正常流量。缺少共享余量或实际 CPU/查询开销证据时保持停收，不能升级付费来补证据。汇总 `0` 时只可比较七天内仍可读的同长窗口；跨版本更长期比较必须另行批准具体汇总天数后启用，不能回补已经过期的原始事件。
+
+性能批次摘要还保留浏览器生成的随机指标样本 ID 与报告时间（不是原始 web-vitals ID），只随原批次保留七天。查询端按该 ID 选时间最新的值，避免 CLS/INP 在隐藏、恢复后重复更新而被当成多次访问；INP 允许下降，不能使用最大值代替最新值。旧摘要没有样本 ID 时仅能作为历史报告计数，不能混入去重指标样本均值。

@@ -6,6 +6,8 @@ it("projects mobile, tablet and browser families without returning identifying i
   expect(classifyClient("Mozilla Macintosh Safari/1", 5, "", "https://site.invalid")).toMatchObject({ device: "tablet", os: "ios" });
   expect(classifyClient("Mozilla Android Chrome/1", 5, "", "https://site.invalid")).toMatchObject({ device: "tablet", os: "android", browser: "chrome" });
   expect(classifyClient("Mozilla Windows Chrome/1 Edg/1", 0, "", "https://site.invalid")).toMatchObject({ device: "desktop", os: "windows", browser: "edge" });
+  expect(classifyClient("Crawler/1", 0, "", "https://site.invalid")).toMatchObject({ device: "unknown" });
+  expect(classifyClient("Windows Chrome/1 OPR/1", 0, "", "https://site.invalid")).toMatchObject({ browser: "other" });
   expect(classifyClient("", 0, "", "https://site.invalid")).toMatchObject({ device: "unknown", browser: "other" });
 });
 

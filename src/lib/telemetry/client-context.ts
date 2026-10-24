@@ -6,7 +6,7 @@ export function classifyClient(userAgent: string, touchPoints: number, referrer:
   const tablet = /iPad|Tablet/.test(userAgent) || (/Android/.test(userAgent) && !/Mobile/.test(userAgent)) || (ios && !/iPhone|iPod/.test(userAgent));
   const mobile = /Mobi|iPhone|iPod/.test(userAgent);
   const os = ios ? "ios" : /Android/.test(userAgent) ? "android" : /Windows/.test(userAgent) ? "windows" : /Macintosh|Mac OS X/.test(userAgent) ? "macos" : /Linux/.test(userAgent) ? "linux" : "other";
-  const browser = /Edg(?:e|A|iOS)?\//.test(userAgent) ? "edge" : /Firefox|FxiOS/.test(userAgent) ? "firefox" : /Chrome|CriOS/.test(userAgent) ? "chrome" : /Safari/.test(userAgent) ? "safari" : "other";
+  const browser = /OPR\/|Opera|SamsungBrowser\//.test(userAgent) ? "other" : /Edg(?:e|A|iOS)?\//.test(userAgent) ? "edge" : /Firefox|FxiOS/.test(userAgent) ? "firefox" : /Chrome|CriOS/.test(userAgent) ? "chrome" : /Safari/.test(userAgent) ? "safari" : "other";
   let source: ClientContext["source"] = referrer ? "unknown" : "none";
   if (referrer) {
     try {
@@ -19,5 +19,5 @@ export function classifyClient(userAgent: string, touchPoints: number, referrer:
       }
     } catch { /* Invalid referrers remain unknown. */ }
   }
-  return { device: tablet ? "tablet" : mobile ? "mobile" : userAgent ? "desktop" : "unknown", browser, os, source };
+  return { device: tablet ? "tablet" : mobile ? "mobile" : ["windows", "macos", "linux"].includes(os) ? "desktop" : "unknown", browser, os, source };
 }

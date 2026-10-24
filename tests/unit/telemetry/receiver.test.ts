@@ -53,7 +53,7 @@ describe("independent receiver privacy, budget and lifecycle", () => {
     expect((await post(env, await batch(env, [sample]))).status).toBe(204);
     const stored = sqlite.prepare("SELECT events_gzip,summary,expires FROM batches").get()!;
     expect(JSON.parse(gunzipSync(stored.events_gzip as Uint8Array).toString())).toEqual([sample]);
-    expect(JSON.parse(String(stored.summary))).toEqual([["site", "/stats", "performance", "", "", "", "LCP", 1, 1250]]);
+    expect(JSON.parse(String(stored.summary))).toEqual([["site", "/stats", "performance", "", "", "", "LCP", 1, 1250, null, null, sample.id, sample.at]]);
     expect(stored.expires).toBe(now + 7 * 86400000);
   });
   it("validates unitless CLS and coarse client categories without arbitrary metadata", async () => {
@@ -69,7 +69,7 @@ describe("independent receiver privacy, budget and lifecycle", () => {
     expect((await post(env, await batch(env, [sample]))).status).toBe(204);
     const stored = sqlite.prepare("SELECT events_gzip,summary FROM batches").get()!;
     expect(JSON.parse(gunzipSync(stored.events_gzip as Uint8Array).toString())).toEqual([sample]);
-    expect(JSON.parse(String(stored.summary))).toEqual([["site", "/", "performance", "", "", "", "CLS", 1, 0, 0.1254, sample.client]]);
+    expect(JSON.parse(String(stored.summary))).toEqual([["site", "/", "performance", "", "", "", "CLS", 1, 0, 0.1254, sample.client, sample.id, sample.at]]);
     await maintain(env, now + 86400000);
     expect(sqlite.prepare("SELECT count(*) AS n FROM summaries").get()?.n).toBe(0);
   });
