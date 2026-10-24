@@ -1,6 +1,6 @@
 import "server-only";
 import { sql } from "drizzle-orm";
-import { db } from "@/db/client";
+import { db, getDatabasePoolSnapshot } from "@/db/client";
 import { mizarInstallations } from "@/db/schema";
 import { logEvent } from "@/lib/observability/server";
 
@@ -10,6 +10,9 @@ import { logEvent } from "@/lib/observability/server";
  */
 export async function touchMizarInstallation(installationId: string, competitionId: string): Promise<void> {
   try {
+    // Display freshness must not queue behind domain work or open a connection.
+    const pool = getDatabasePoolSnapshot();
+    if (!pool || pool.idle === 0 || pool.waiting > 0) return;
     await db.transaction(async tx => {
       await tx.execute(sql`SELECT set_config('lock_timeout', '25ms', true), set_config('statement_timeout', '250ms', true)`);
       await tx.execute(sql`UPDATE ${mizarInstallations}

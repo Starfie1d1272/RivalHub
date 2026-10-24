@@ -18,10 +18,8 @@ vi.mock("@/db/client", async () => {
   const { drizzle } = await import("drizzle-orm/node-postgres");
   const schema = await import("@/db/schema");
   const { createLocalPool } = await import("./database");
-  const realDb = drizzle(
-    createLocalPool({ max: 3, connectionTimeoutMillis: 10000 }),
-    { schema },
-  );
+  const applicationPool = createLocalPool({ max: 3, connectionTimeoutMillis: 10000 });
+  const realDb = drizzle(applicationPool, { schema });
   const transaction = realDb.transaction.bind(realDb);
   realDb.transaction = async (work, config) => {
     let began = 0;
@@ -34,7 +32,9 @@ vi.mock("@/db/client", async () => {
       if (began) measured.transactions.push(performance.now() - began);
     }
   };
-  return { db: realDb };
+  return { db: realDb, getDatabasePoolSnapshot: () => ({
+    total: applicationPool.totalCount, idle: applicationPool.idleCount, waiting: applicationPool.waitingCount, max: 3,
+  }) };
 });
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),

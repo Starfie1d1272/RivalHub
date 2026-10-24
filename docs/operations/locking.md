@@ -21,7 +21,7 @@ Public reads do not acquire these mutation locks.
 | Mizar claim/reliable/release | installation SHARE → canonical match/season → source UPDATE; reliable receipt, canonical facts and audit commit together |
 | Mizar revoke | installation UPDATE → active sources UPDATE; SHARE verification remains necessary to linearize revocation |
 | Mizar LIVE | installation SHARE → match SHARE → source SHARE, with publication inside the transaction; channel disposal follows commit |
-| Mizar display heartbeat | separate transaction after committed claim/reliable; installation only, 25ms lock / 250ms statement budget, 30s DB write throttle, database clock, no revoked/cross-competition writes |
+| Mizar display heartbeat | separate transaction after committed claim/reliable; installation only, skips busy/no-idle application pools, 25ms lock / 250ms statement budget, 30s DB write throttle, database clock, no revoked/cross-competition writes |
 | `identity/write-lock.ts`, merge and confirmed Demo attribution | gameplay identity advisory gate first → user/identity or Demo lineage/season/domain rows; merge also reparents references and encounters their FK/trigger edges |
 | Demo import/review/promotion and player statistics | identity gate where attribution changes → map lineage/official writes → prediction/BET outboxes; follow their existing identity owner |
 | `postmatch/service.ts` | direct match UPDATE → submission/commentator/source rows; it uses a separate match owner, not the canonical helper |
