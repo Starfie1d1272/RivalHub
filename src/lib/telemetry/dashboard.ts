@@ -5,6 +5,7 @@ import { AnalysisData } from "./analysis-contract";
 import { parseAnalysisQuery } from "./analysis-query";
 import type { Analysis } from "./analysis-model";
 const cache = new Map<string, { expires: number; data: unknown }>();
+const pending = new Map<string, Promise<QueryResult<unknown>>>();
 
 async function queryThroughProxy(
   endpoint: URL,
@@ -61,6 +62,25 @@ async function readDashboard<T>(
   const hit = cache.get(key);
   if (hit && hit.expires > Date.now())
     return { status: "ready", data: hit.data as T };
+  const active = pending.get(key);
+  if (active) return active as Promise<QueryResult<T>>;
+  if (pending.size >= 12) return { status: "unavailable" };
+  const loading = loadDashboard(key, path, params, parse, validUntil);
+  pending.set(key, loading);
+  try {
+    return await loading;
+  } finally {
+    if (pending.get(key) === loading) pending.delete(key);
+  }
+}
+
+async function loadDashboard<T>(
+  key: string,
+  path: string,
+  params: Record<string, string>,
+  parse: (input: unknown) => T,
+  validUntil: (data: T) => number,
+): Promise<QueryResult<T>> {
   const secret = process.env.PRODUCT_TELEMETRY_ADMIN_KEY;
   if (!secret || secret.length < 32 || !process.env.PRODUCT_TELEMETRY_ENDPOINT)
     return { status: "unconfigured" };
