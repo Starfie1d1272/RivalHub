@@ -24,6 +24,8 @@ Worker 仅使用独立 D1：一个批次一行、服务端校验后写入、按�
 
 这是浏览器报告的产品基线，不是安全审计或账本。脚本未加载、DNT/GPC、广告拦截、离线、队列溢出、过期、限额、关闭标签页或授权 island 故障都会缺数；开始后无终态不等于业务失败。服务端实际执行但响应丢失时只记 unknown，再用 requestId/audit 查证。
 
+续签请求以 `PRODUCT_TELEMETRY_ORIGIN` 配置的公网 HTTPS origin 为准，与 Header 签发票据复用同一个 origin owner。配置必须是无凭据、路径、query 或 hash 的站点 origin；启用时配置无效则在授权读取前拒绝。自托管反向代理的内部 request URL、Host 和转发头不决定允许来源，跨域、缺少 Origin 和内部 loopback Origin 继续拒绝。
+
 ## 页面性能
 
 单一 observer 通过 Next.js `useReportWebVitals` 的稳定 callback 记录 TTFB、FCP、LCP、INP，值统一为四舍五入的毫秒（0–3,600,000）。CLS 的单位不同，不进入本协议的毫秒字段。只读取指标名称、数值和内存中的导航归属；不序列化 PerformanceEntry、DOM selector、原生 metric ID、URL、query 或 referrer。指标原生 ID 在最多 128 项的内存映射内换为随机事件 UUID，同一指标的后续报告沿用该 UUID；尚未发送的更新在队列内合并，已发送批次保持不可变。映射有界且只在当前身份内有效，不能据此保证无限长会话中的全局去重。
