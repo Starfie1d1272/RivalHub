@@ -1,6 +1,7 @@
 import { ErrorCode } from "@/lib/errors";
 import { LIMITS, routeTemplate, safeFilters, UUID, VARIANTS, type Bootstrap, type Scene, type TelemetryEvent } from "./protocol";
 import type { Operation } from "./operations";
+import { classifyClient } from "./client-context";
 import { TelemetryQueue } from "./queue";
 
 let queue: TelemetryQueue | null = null;
@@ -57,7 +58,7 @@ function record(event: Omit<TelemetryEvent, "id" | "at" | "session" | "route" | 
     if (!session || now - activeAt >= 1800000) session = crypto.randomUUID();
     activeAt = now;
     attempt(() => sessionStorage.setItem(storageKey, JSON.stringify({ id: session, identity, at: now })));
-    queue.add({ ...context(), ...event, id: sampleId ?? crypto.randomUUID(), at: now, session: operationSession ?? session });
+    queue.add({ ...context(), ...event, client: classifyClient(navigator.userAgent, navigator.maxTouchPoints, document.referrer, window.location.origin), id: sampleId ?? crypto.randomUUID(), at: now, session: operationSession ?? session });
   });
 }
 export function markHistoryNavigation() { historyNavigation = true; }
@@ -75,7 +76,7 @@ export function beginTelemetryNavigation(target: string, navigationType: string)
 /** Read only declared numeric fields: entries, selectors, URLs and native metric IDs are never serialized. */
 export function recordWebVital(metric: { name: string; value: number; id: string; navigationURL?: string; navigationStartTime?: number }) {
   attempt(() => {
-    if (!queue || !["TTFB", "FCP", "LCP", "INP"].includes(metric.name) || !Number.isFinite(metric.value) || metric.value < 0 || metric.value > 3600000 || typeof metric.id !== "string" || metric.id.length > 128) return;
+    if (!queue || !["TTFB", "FCP", "LCP", "INP", "CLS"].includes(metric.name) || !Number.isFinite(metric.value) || metric.value < 0 || metric.value > (metric.name === "CLS" ? 100 : 3600000) || typeof metric.id !== "string" || metric.id.length > 128) return;
     if ((metric.navigationStartTime ?? 0) < vitalNavigationAfter) return;
     const initialUrl = (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined)?.name;
     const source = metric.navigationURL ?? initialUrl;
@@ -89,7 +90,7 @@ export function recordWebVital(metric: { name: string; value: number; id: string
       if (vitalIds.size > 128) vitalIds.delete(vitalIds.keys().next().value!);
     }
     const current = url.pathname === window.location.pathname;
-    record({ kind: "performance", metricName: metric.name as TelemetryEvent["metricName"], durationMs: Math.round(metric.value),
+    record({ kind: "performance", metricName: metric.name as TelemetryEvent["metricName"], ...(metric.name === "CLS" ? { score: Math.round(metric.value * 10000) / 10000 } : { durationMs: Math.round(metric.value) }),
       route: routeTemplate(url.pathname), ...(current ? {} : { scene: "site", eventId: undefined }),
     }, undefined, id);
   });

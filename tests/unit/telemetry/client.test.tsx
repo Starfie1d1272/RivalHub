@@ -113,7 +113,7 @@ it("projects numeric vitals, coalesces updates, and attributes late reports to t
     navigationURL: `${window.location.origin}/players/PRIVATE?q=SECRET`, navigationStartTime: performance.now() + 1,
     entries: [{ selector: "PRIVATE", text: "SECRET" }] };
   recordWebVital(metric); recordWebVital({ ...metric, value: 245.8 });
-  recordWebVital({ ...metric, name: "CLS" });
+  recordWebVital({ ...metric, name: "CLS", value: 101 });
   recordWebVital({ ...metric, value: NaN });
   recordWebVital({ ...metric, navigationURL: "https://foreign.invalid/PRIVATE" });
   flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
@@ -141,4 +141,19 @@ it("records committed router latency, replaces abandoned transitions and drops o
   window.history.replaceState(null, "", "/teams/PRIVATE"); recordPage();
   flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
   expect(JSON.parse(send.mock.calls[1][1].body).events.every((event: TelemetryEvent) => event.kind !== "performance")).toBe(true);
+});
+
+
+it("records coalesced CLS scores separately from millisecond durations", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", send); configureTelemetry(config);
+  const metric = { name: "CLS", id: "private-native-id", value: 0.07512, navigationURL: window.location.href, navigationStartTime: performance.now() + 10000 };
+  recordWebVital(metric); recordWebVital({ ...metric, value: 0.12544 });
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const events = JSON.parse(send.mock.calls[0][1].body).events;
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({ metricName: "CLS", score: 0.1254 });
+  expect(events[0]).not.toHaveProperty("durationMs");
+  expect(events[0].client).toHaveProperty("source");
+  expect(JSON.stringify(events)).not.toContain("private-native-id");
 });
