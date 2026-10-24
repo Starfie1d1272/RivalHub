@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.23.0]
+
+### Added
+
+- 遥测分析增加联动筛选、会话路径、操作结果与耗时、性能分位数和异常下钻。
+
+### Changed
+
+- 后台遥测按分析任务组织页签，页面与操作使用可读名称，技术详情按需展开。
+- 减少制播实时画面授权的数据库往返，降低跨区部署下新鲜画面被丢弃的概率，保留设备撤销与数据源交接保护。
+- 正式发布复用已校验的 Node 和依赖缓存，减少安装包的重复传输；安装仍生成独立完整版本，并保留失败回退。
+
 ## [2.22.1]
 
 ### Fixed
@@ -3460,3 +3472,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.22.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.13...v2.22.0
 
 [2.22.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.22.0...v2.22.1
+
+[2.23.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.22.1...v2.23.0
