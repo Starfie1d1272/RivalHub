@@ -1,5 +1,7 @@
+import type { VetoAffectedFact } from "@/types/veto-room";
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   check,
   index,
   integer,
@@ -14,6 +16,20 @@ import {
 import { matches } from "./matches";
 import { competitionEntries } from "./competition-entries";
 import { users } from "./users";
+
+/** Server-only BP cache delivery watermark; no actor, reason or private payload. */
+export const matchVetoInvalidations = pgTable("match_veto_invalidations", {
+  matchId: uuid("match_id").primaryKey().references(() => matches.id, { onDelete: "cascade" }),
+  generation: bigint("generation", { mode: "bigint" }).notNull().default(sql`1`),
+  publishedGeneration: bigint("published_generation", { mode: "bigint" }).notNull().default(sql`0`),
+  affectedFacts: jsonb("affected_facts").$type<VetoAffectedFact[]>().notNull().default(sql`'[]'::jsonb`),
+  lastTransactionId: bigint("last_transaction_id", { mode: "bigint" }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => ({
+  factsShape: check("match_veto_invalidations_facts_check", sql`jsonb_typeof(${t.affectedFacts}) = 'array' AND ${t.affectedFacts} <@ '["lineups","appeals","veto_step","map_plan","veto"]'::jsonb AND jsonb_array_length(${t.affectedFacts}) <= 5`),
+  generationShape: check("match_veto_invalidations_generation_check", sql`${t.generation} > 0 AND ${t.publishedGeneration} >= 0 AND ${t.publishedGeneration} <= ${t.generation}`),
+  pending: index("match_veto_invalidations_pending_idx").on(t.updatedAt).where(sql`${t.generation} > ${t.publishedGeneration}`),
+})).enableRLS();
 
 export const matchVetoAppealStatusEnum = pgEnum("match_veto_appeal_status", ["pending", "accepted", "rejected", "closed"]);
 export const matchVetoResolutionScopeEnum = pgEnum("match_veto_resolution_scope", [

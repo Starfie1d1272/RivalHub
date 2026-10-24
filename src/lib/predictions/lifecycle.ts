@@ -2,8 +2,7 @@ import { simulateMajor } from "./simulator";
 import type { Baseline } from "./types";
 
 /** Official results only: default winners and local choices never open Pick’Em. */
-export function officialPickEmStages(base: Baseline) {
-  const projected = simulateMajor(base, {});
+export function officialPickEmStages(base: Baseline, projected = simulateMajor(base, {})) {
   return base.stages.flatMap((stage) => {
     const previous = stage.previousKey
       ? base.runs.find((run) => run.key === stage.previousKey)

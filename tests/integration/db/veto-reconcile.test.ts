@@ -3,7 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
-import { readVetoRoomSnapshot, reconcileVetoRoom } from "@/lib/matches/veto-room/service";
+import { readVetoRoomSnapshot, reconcileVetoRoom, reconcileVetoRoomReceipt, submitVetoCommandReceipt, requestVetoStartReceipt } from "@/lib/matches/veto-room/service";
 import { seedFixture } from "./harness/mizar";
 
 // Real transactions protect the outcome used to decide cache invalidation.
@@ -59,4 +59,62 @@ describe("Veto reconciliation committed changes", () => {
     expect(await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId))).toEqual(maps);
     expect(await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.matchId), eq(schema.auditLogs.action, "match.veto.timeout")))).toHaveLength(1);
   });
+});
+
+
+it("reports a timeout commit even when the submitted command is stale, then returns a no-change replay", async () => {
+  const f = await seedFixture({ isTest: true });
+  const match = (await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) }))!;
+  await db.update(schema.matchVetoSessions).set({ completedAt: null, privilegedEntryId: f.entryAId, vetoTeamAEntryId: f.entryAId,
+    mapPoolSnapshot: match.testConfig!.mapPool, currentTurnKey: "ban-veto-a-opening",
+    turnStartedAt: sql`clock_timestamp() - interval '50 seconds'`, turnDeadlineAt: sql`clock_timestamp() - interval '5 seconds'`,
+  }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
+  const before = await readVetoRoomSnapshot(f.matchId);
+  const input = { matchId: f.matchId, actorId: match.testConfig!.operatorAId, expectedRevision: before.session.revision,
+    expectedTurnKey: "ban-veto-a-opening", clientRequestId: randomUUID(), command: { kind: "step" as const, actionType: "ban" as const, mapName: "de_nuke" } };
+  const receipt = await submitVetoCommandReceipt(input);
+  expect(receipt).toMatchObject({ outcome: "stale", changed: true, affectedFacts: ["veto_step"] });
+  expect(receipt.committedRevision).toBeGreaterThan(before.session.revision);
+  expect(await submitVetoCommandReceipt(input)).toMatchObject({ outcome: "stale", changed: false, committedRevision: receipt.committedRevision, affectedFacts: [] });
+  expect(await db.select().from(schema.matchVetoTimeoutIncidents).where(eq(schema.matchVetoTimeoutIncidents.matchId, f.matchId))).toHaveLength(1);
+});
+
+it("reports an actual start commit when an already-ready request returns idempotent", async () => {
+  const f = await seedFixture({ isTest: true, matchStatus: "scheduled" });
+  const match = (await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) }))!;
+  await db.update(schema.matches).set({ scheduledAt: null }).where(eq(schema.matches.id, f.matchId));
+  await db.update(schema.matchVetoSessions).set({ startedAt: null, completedAt: null, privilegedEntryId: f.entryAId,
+    entryAStartRequestedBy: match.testConfig!.operatorAId, entryBStartRequestedBy: match.testConfig!.operatorBId,
+    entryAStartRequestedAt: new Date(), entryBStartRequestedAt: new Date(),
+  }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
+  const input = { matchId: f.matchId, entryId: f.entryAId, actorId: match.testConfig!.operatorAId, expectedRevision: 0, expectedTurnKey: null };
+  const receipt = await requestVetoStartReceipt(input);
+  expect(receipt).toMatchObject({ outcome: "idempotent", changed: true, affectedFacts: ["veto_step"] });
+  expect(await requestVetoStartReceipt(input)).toMatchObject({ outcome: "idempotent", changed: false, affectedFacts: [] });
+  expect(await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.matchId), eq(schema.auditLogs.action, "match.veto.start")))).toHaveLength(1);
+});
+
+
+it("reports map_plan independently when timeout catch-up completes and replaces the map catalog", async () => {
+  const f = await seedFixture({ isTest: true });
+  const match = (await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) }))!;
+  await db.update(schema.matches).set({ format: "bo1" }).where(eq(schema.matches.id, f.matchId));
+  await db.update(schema.matchVetoSessions).set({ completedAt: null, privilegedEntryId: f.entryAId, vetoTeamAEntryId: null,
+    mapPoolSnapshot: match.testConfig!.mapPool, currentTurnKey: "choose-veto-team-a",
+    turnStartedAt: sql`clock_timestamp() - interval '1 day'`, turnDeadlineAt: sql`clock_timestamp() - interval '1 day' + interval '45 seconds'`,
+  }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
+  // The system decider grants a fresh side-pick deadline; it must not be
+  // retroactively expired by the earlier backlog of timeout turns.
+  const catchUp = await reconcileVetoRoomReceipt(f.matchId);
+  expect(catchUp.affectedFacts).not.toContain("map_plan");
+  expect((await readVetoRoomSnapshot(f.matchId)).currentTurn?.actionType).toBe("side_pick");
+  await db.update(schema.matchVetoSessions).set({
+    turnStartedAt: sql`clock_timestamp() - interval '50 seconds'`,
+    turnDeadlineAt: sql`clock_timestamp() - interval '5 seconds'`,
+  }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
+  const receipt = await reconcileVetoRoomReceipt(f.matchId);
+  expect(receipt).toMatchObject({ changed: true, outcome: "applied" });
+  expect(receipt.affectedFacts).toEqual(expect.arrayContaining(["veto_step", "map_plan"]));
+  expect((await readVetoRoomSnapshot(f.matchId)).session.completedAt).not.toBeNull();
+  expect(await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId))).toHaveLength(1);
 });

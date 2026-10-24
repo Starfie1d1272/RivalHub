@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 // Future immutable producer build; production remains reader1/publisher0.
 vi.mock("@/lib/matches/veto-room/lifecycle-contract.json", () => ({ default: { readerVersion: 1, publisherVersion: 1 } }));
-vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn(), revalidatePublicSeasonTags: vi.fn(), revalidatePublicStatsTag: vi.fn(), revalidateSeasonPaths: vi.fn() }));
+vi.mock("@/lib/revalidation", () => ({ revalidateVetoRoomPaths: vi.fn(), revalidateMatchPaths: vi.fn(), revalidatePublicSeasonTags: vi.fn(), revalidatePublicStatsTag: vi.fn(), revalidateSeasonPaths: vi.fn() }));
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { lockMatchInTx } from "@/lib/matches/locking";
@@ -113,6 +113,9 @@ describe("BP appeal gameplay lifecycle", () => {
     const pool = createLocalPool();
     try {
       const due = async () => (await pool.query("SELECT public.scheduler_job_is_due('resolve-match-veto-timeouts', $1::boolean) AS due", [canPublishVetoAppealClosure()])).rows[0].due;
+      // Fresh fixture facts also create delivery work; drain that before
+      // isolating the gameplay/closure due signal. No lifecycle fact changes.
+      expect(await runMatchVetoTimeoutJob()).toMatchObject({ result: { changed: 0 } });
       expect(await due()).toBe(false);
       await db.update(schema.matchMaps).set({ startedAt: NOW }).where(eq(schema.matchMaps.id, f.mapOneId));
       expect(await due()).toBe(true);

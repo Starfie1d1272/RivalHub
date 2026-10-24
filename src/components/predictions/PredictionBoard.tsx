@@ -1,4 +1,5 @@
 "use client";
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import React, {
   useEffect,
   useEffectEvent,
@@ -12,7 +13,7 @@ import { toast } from "sonner";
 import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import { TournamentViewSwitch, type TournamentView } from "@/components/tournament/TournamentFlow";
 import { Button } from "@/components/ui/button";
-import { getPredictionBoard, mutatePrediction as telemetry_mutatePrediction } from "@/actions/predictions";
+import { mutatePrediction as telemetry_mutatePrediction } from "@/actions/predictions";
 import type { PickEmBoardData } from "@/lib/predictions/data";
 import {
   samePick,
@@ -34,6 +35,7 @@ import { PickEmAchievement } from "./PickEmAchievement";
 import { exportPredictionImage as unobservedExportPredictionImage } from "./share-image";
 import { usePredictionConfirmation } from "./usePredictionConfirmation";
 import styles from "@/components/tournament/tournament.module.css";
+import { fetchPredictionBoard as getPredictionBoard } from "@/lib/predictions/http-client";
 import { observeAction, observeTask } from "@/lib/telemetry/client";
 
 const exportPredictionImage = observeTask("predictions.exportImage", unobservedExportPredictionImage);
@@ -74,6 +76,7 @@ export function PredictionBoard({
   const [savedSimulation, setSavedSimulation] = useState<Record<string, Pick>>({});
   const [sidebar, setSidebar] = useState(false);
   const [pending, start] = useTransition();
+  const readAbort=useRef<AbortController|null>(null);
   const readSequence = useRef(0);
   const workInFlight = useRef(false);
   const [refreshFailed, setRefreshFailed] = useState(false);
@@ -128,10 +131,12 @@ export function PredictionBoard({
       inFlight = true;
       const sequence = ++readSequence.current;
       try {
+        readAbort.current?.abort();
+        const abort=new AbortController();readAbort.current=abort;
         const r = await getPredictionBoard({
           seasonId: initial.base.seasonId,
           view: tab,
-        });
+        },abort.signal);
         if (active && sequence === readSequence.current) {
           if (r.success) acceptAutoRefresh(r.data);
           else setRefreshFailed(true);
@@ -149,6 +154,7 @@ export function PredictionBoard({
     document.addEventListener("visibilitychange", refresh);
     return () => {
       active = false;
+      readAbort.current?.abort();
       clearInterval(timer);
       document.removeEventListener("visibilitychange", refresh);
     };
@@ -171,7 +177,9 @@ export function PredictionBoard({
   }
   async function reload(reset = false) {
     const sequence = ++readSequence.current;
-    const r = await getPredictionBoard({ seasonId: base.seasonId, view: tab });
+    readAbort.current?.abort();
+    const abort=new AbortController();readAbort.current=abort;
+    const r = await getPredictionBoard({ seasonId: base.seasonId, view: tab },abort.signal);
     if (sequence !== readSequence.current) return;
     if (r.success) acceptRefresh(r.data, reset);
     else { setRefreshFailed(true); toast.error(r.error.message); }
@@ -206,7 +214,7 @@ export function PredictionBoard({
         setSidebar(true);
       }
       toast.success(submitted ? "正式提交成功" : "草稿已保存");
-      await reload();
+      void reload().catch(()=>{setRefreshFailed(true);toast.error("预测已提交，读取更新失败，请刷新后查看。");});
     });
   }
   const displayedPick = stage?.resultPick ?? stage?.pick;
@@ -265,6 +273,7 @@ export function PredictionBoard({
   }
   return (
     <div className={`${styles.workbench} min-w-0 space-y-4`}>
+      <ContentReady module="prediction" phase="primary"/>
       <div className={styles.predictionHeader}>
         <div className={styles.predictionTitle}>
           <h1 className="text-[28px] font-semibold">赛事推演</h1>

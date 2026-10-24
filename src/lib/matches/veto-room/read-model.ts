@@ -46,10 +46,11 @@ function getEntryIdForViewer(
   return rosterPlayers.find((player) => player.userId === viewerId && player.isStarter)?.entryId ?? null;
 }
 
-export async function getVetoRoomView(matchId: string) {
+/** An explicit authorization value is valid only within the current request. */
+export async function getVetoRoomView(matchId: string, requestAuthorization?: Awaited<ReturnType<typeof getCurrentUserAuthorization>>) {
   const [core, authorization] = await Promise.all([
     readVetoRoomSnapshot(matchId),
-    getCurrentUserAuthorization(),
+    requestAuthorization === undefined ? getCurrentUserAuthorization() : Promise.resolve(requestAuthorization),
   ]);
   return projectVetoRoomView(core, authorization?.userId ?? null, authorization);
 }
@@ -220,6 +221,10 @@ export async function projectVetoRoomView(
       sourceLabel: "超时自动选择",
       appeal: appeal ? {
         id: appeal.id,
+        status: appeal.status,
+        submittedByViewer: Boolean(viewerId && appeal.submittedBy === viewerId),
+        resolvedByViewer: Boolean(viewerId && appeal.resolvedBy === viewerId),
+        resolutionScope: appeal.resolutionScope,
         statusLabel: gameplayStarted && appeal.status === "pending"
           ? "恢复窗口已结束（原待处理记录保留）"
           : APPEAL_STATUS_LABELS[appeal.status],
@@ -235,6 +240,7 @@ export async function projectVetoRoomView(
 
   const map = (value: string) => mapLabel(value);
   return {
+    pendingInvalidation: Boolean(core.pendingInvalidation),
     seasonSlug: context.seasonSlug,
     seasonName: context.seasonName,
     match: {
