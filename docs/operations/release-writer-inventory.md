@@ -27,7 +27,7 @@ production runs against the current release run ID; queued/waiting work also
 needs an owner-held stop window. Never cancel a run by name guessing.
 
 ```sh
-for state in in_progress queued waiting requested; do
+for state in in_progress queued waiting requested pending; do
   timeout 15s gh api "repos/Starfie1d1272/RivalHub/actions/runs?status=$state&per_page=100" \
     --jq 'if .total_count > 100 then error("Incomplete writer inventory: more than 100 runs") else {total_count,runs:[.workflow_runs[]|{id,path,status,head_sha}]} end' || exit 1
 done
