@@ -15,6 +15,8 @@ export interface Fixture {
   mapTwoId: string;
   installationId: string;
   installationBId: string;
+  credentialHash: string;
+  credentialBHash: string;
   sessionId: string;
   producerInstanceId: string;
   liveSessionId: string;
@@ -40,6 +42,8 @@ export async function seedFixture(options: { isTest?: boolean; matchStatus?: "sc
   const pairingIntentB = randomUUID();
   const installationId = randomUUID();
   const installationBId = randomUUID();
+  const credentialHash = randomUUID();
+  const credentialBHash = randomUUID();
   const userIds = Array.from({ length: 10 }, () => randomUUID());
   const participantIds = Array.from({ length: 10 }, () => randomUUID());
   const eventMemberIds = Array.from({ length: 10 }, () => randomUUID());
@@ -125,8 +129,8 @@ export async function seedFixture(options: { isTest?: boolean; matchStatus?: "sc
       { id: pairingIntentB, pollTokenHash: randomUUID(), status: "authorized", competitionId: seasonId, authorizedByUserId: userIds[5]!, authorizedAt: NOW, expiresAt: new Date(NOW.getTime() + 600_000) },
     ]);
     await tx.insert(schema.mizarInstallations).values([
-      { id: installationId, competitionId: seasonId, pairingIntentId: pairingIntentA, authorizedByUserId: userIds[0]!, credentialHash: randomUUID() },
-      { id: installationBId, competitionId: seasonId, pairingIntentId: pairingIntentB, authorizedByUserId: userIds[5]!, credentialHash: randomUUID() },
+      { id: installationId, competitionId: seasonId, pairingIntentId: pairingIntentA, authorizedByUserId: userIds[0]!, credentialHash },
+      { id: installationBId, competitionId: seasonId, pairingIntentId: pairingIntentB, authorizedByUserId: userIds[5]!, credentialHash: credentialBHash },
     ]);
     session = await tx.insert(schema.matchLiveSessions).values({
       matchId,
@@ -145,5 +149,5 @@ export async function seedFixture(options: { isTest?: boolean; matchStatus?: "sc
       mapExecutionPhase: options.unboundSource ? "waiting" : "gameplay",
     }).returning({ id: schema.matchLiveSessions.id });
   });
-  return { seasonId, entryAId, entryBId, matchId, mapOneId, mapTwoId, installationId, installationBId, sessionId: session![0]!.id, producerInstanceId, liveSessionId, contextRevision, authorityRevision, steam64 };
+  return { seasonId, entryAId, entryBId, matchId, mapOneId, mapTwoId, installationId, installationBId, credentialHash, credentialBHash, sessionId: session![0]!.id, producerInstanceId, liveSessionId, contextRevision, authorityRevision, steam64 };
 }

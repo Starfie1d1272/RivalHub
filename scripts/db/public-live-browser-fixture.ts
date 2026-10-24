@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../../src/db/client";
-import { matches, matchMaps, matchLiveSessions, competitionEntries, seasons } from "../../src/db/schema";
+import { matches, matchMaps, matchLiveSessions, competitionEntries, seasons, mizarInstallations } from "../../src/db/schema";
 import { ingestMizarLive } from "../../src/lib/mizar/live";
 import { parseLiveSnapshotV1 } from "../../src/lib/mizar/protocol";
 import { assertDeclaredDatabaseTarget } from "./local-environment";
@@ -42,6 +42,8 @@ if (command === "prepare") {
   const currentMap = await db.query.matchMaps.findFirst({ where: eq(matchMaps.id, source.currentMapId!) });
   const wireFixture = currentMap?.mapName === "de_nuke"
     ? JSON.parse(readFileSync("tests/fixtures/contracts/mizar-live-snapshot-v1.radar.json", "utf8")) : original;
+  const installation = await db.query.mizarInstallations.findFirst({ columns: { credentialHash: true }, where: eq(mizarInstallations.id, source.installationId) });
+  if (!installation) throw new Error("Missing local fixture installation");
   let sequence = Date.now();
   let ready = false;
   const deadline = Date.now() + 180000;
@@ -56,7 +58,7 @@ if (command === "prepare") {
     snapshot.teams.ct.entryId = match.entryAId; snapshot.teams.t.entryId = match.entryBId;
     snapshot.capability.lineupComplete = true;
     for (const player of snapshot.players) player.canonicalPlayerId = null;
-    const result = await ingestMizarLive(source.installationId, match.seasonId, parseLiveSnapshotV1(snapshot), source.authorityRevision);
+    const result = await ingestMizarLive(installation.credentialHash, parseLiveSnapshotV1(snapshot), source.authorityRevision);
     if (!result.accepted) throw new Error("Local Broadcast rejected");
     if (!ready) { console.log("PUBLIC_LIVE_READY"); ready = true; }
     await new Promise(resolve => setTimeout(resolve, 1000));
