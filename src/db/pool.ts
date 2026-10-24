@@ -1,10 +1,15 @@
 import { Pool, type PoolClient } from "pg";
 import { logEvent } from "../lib/observability/logger";
 
+import { createClientMeasurements, measureClient } from "./client-measurement";
+
 type ConnectCallback = Parameters<Pool["connect"]>[0];
 
 /** Covers both pool.query's callback checkout and Drizzle transaction checkout. */
 export class DatabasePool extends Pool {
+  private readonly clientMeasurements = createClientMeasurements();
+  getClientSnapshot() { return { ...this.clientMeasurements }; }
+
   private readonly acquire = {
     count: 0, failures: 0, totalMs: 0, maxMs: 0,
     states: { reuse: 0, connect: 0, queued: 0 },
@@ -38,14 +43,14 @@ export class DatabasePool extends Pool {
       } catch { /* Diagnostics must preserve checkout and release semantics. */ }
     };
     if (callback) {
-      super.connect((error, client, release) => { report(error); callback(error, client, release); });
+      super.connect((error, client, release) => { report(error); callback(error, client, !error && client ? measureClient(client, this.clientMeasurements) : release); });
       return;
     }
     return new Promise((resolve, reject) => {
       super.connect((error, client) => {
         report(error);
         if (error) reject(error);
-        else resolve(client!);
+        else { measureClient(client!, this.clientMeasurements); resolve(client!); }
       });
     });
   }
