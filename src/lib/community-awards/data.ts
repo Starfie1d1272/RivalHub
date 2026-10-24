@@ -117,6 +117,7 @@ export async function getAdminCommunityAwardBoardSummaries(executor: CommunityAw
 export async function getAdminCommunityAwardDetail(executor: CommunityAwardQueryable, args: {
   seasonId: string; awardId: string; stagePlan: StagePlan;
 }): Promise<CommunityAwardModel | null> {
+  if (!args.awardId) return null;
   const board = await loadAdminCommunityAwardBoardData(executor, args, args.awardId);
   return board.awards[0] ?? null;
 }

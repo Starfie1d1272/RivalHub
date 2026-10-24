@@ -63,6 +63,10 @@ it("keeps global readiness equivalent without transporting evidence bodies or fo
 
 it("loads one same-season detail, preserves identities/labels and leaves candidate options separate", async () => {
   const f = await fixture(), other = await fixture();
+  for (const awardId of ["", undefined as unknown as string]) {
+    const missing = await measure(() => getAdminCommunityAwardDetail(db, { seasonId: f.seasonId, awardId, stagePlan: [] }));
+    expect(missing.data).toBeNull(); expect(missing.footprint.queries).toBe(0);
+  }
   const full = await getAdminCommunityAwardBoardData(db, { seasonId: f.seasonId, stagePlan: [] });
   const detail = await measure(() => getAdminCommunityAwardDetail(db, { seasonId: f.seasonId, awardId: f.awards[0]!.id, stagePlan: [] }));
   expect(detail.data).toEqual(full.awards[0]);
