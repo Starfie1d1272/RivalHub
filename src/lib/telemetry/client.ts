@@ -32,6 +32,9 @@ export function recordTelemetryVisibility() {
   attempt(() => {
     if (document.visibilityState === "hidden") hiddenSinceNavigation = true;
     else if (hiddenSinceNavigation && activeNavigation) activeNavigation.lifecycle.resumed = true;
+    if (activeNavigation?.lifecycle.navigationType === "prerender") {
+      activeNavigation.lifecycle.activationMs = navigationLifecycle("hard", activeNavigation.started).activationMs;
+    }
   });
 }
 export function restoreTelemetryPage(event: PageTransitionEvent) {

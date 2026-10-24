@@ -21,6 +21,7 @@ export function ProductTelemetry({ config }: { config: Bootstrap | null }) {
     window.addEventListener("error", recordClientError);
     window.addEventListener("unhandledrejection", recordClientError);
     document.addEventListener("visibilitychange", hidden);
+    document.addEventListener("prerenderingchange", hidden);
     return () => {
       clearInterval(timer);
       window.removeEventListener("popstate", markHistoryNavigation);
@@ -29,6 +30,7 @@ export function ProductTelemetry({ config }: { config: Bootstrap | null }) {
       window.removeEventListener("error", recordClientError);
       window.removeEventListener("unhandledrejection", recordClientError);
       document.removeEventListener("visibilitychange", hidden);
+      document.removeEventListener("prerenderingchange", hidden);
     };
   }, [config]);
   useReportWebVitals(recordWebVital);
