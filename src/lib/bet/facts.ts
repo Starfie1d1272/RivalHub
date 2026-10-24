@@ -12,12 +12,23 @@ import type { EventFact, VetoFact } from "./domain";
 export interface BetFactScope {
   matchId?: string;
   event?: boolean;
+  headerOnly?: boolean;
   // Undefined loads the complete roster for lifecycle owners; null loads none.
   rosterUserId?: string | null;
 }
 export async function loadBetFacts(tx: TxDb,seasonId: string, scope: BetFactScope = {}) {
   const season = await tx.query.seasons.findFirst({where:eq(seasons.id,seasonId)});
   if (!season) throw new AppError(ErrorCode.NOT_FOUND,"赛事不存在");
+  if (scope.headerOnly) {
+    const entries = await tx.select({id:competitionEntries.id,name:competitionEntries.name,logoUrl:competitionEntries.logoUrl}).from(competitionEntries).where(eq(competitionEntries.competitionId,seasonId));
+    return {season,entries,official:[] as Awaited<ReturnType<typeof loadMatchFacts>>["official"],
+      maps:[] as (typeof matchMaps.$inferSelect)[],vetoByMatch:new Map<string,VetoFact>(),roster:[],players:[],
+      event:{entryIds:[],playerIds:[],started:false,champion:null,kills:null} as EventFact,
+      runs:[] as (typeof majorStageRuns.$inferSelect)[],eventPublication:{entrantsReady:false,rostersReady:false,seedsConfirmed:false}};
+  }
+  return loadMatchFacts(tx,seasonId,season,scope);
+}
+async function loadMatchFacts(tx: TxDb, seasonId: string, season: typeof seasons.$inferSelect, scope: BetFactScope) {
   const matchCondition = and(officialMatchCondition(), eq(matches.seasonId,seasonId), scope.matchId ? eq(matches.id,scope.matchId) : undefined);
   const officialRows = await tx.select().from(matches).where(matchCondition).orderBy(asc(matches.createdAt)).then(rows=>rows.map(requireCompetitionMatch).map(m=>({...m,operationalStartedAt:m.startedAt,startedAt:m.gameplayStartedAt})));
   const maps = await tx.select({map:matchMaps}).from(matchMaps).innerJoin(matches,eq(matches.id,matchMaps.matchId)).where(matchCondition).then(rows=>rows.map(r=>r.map));

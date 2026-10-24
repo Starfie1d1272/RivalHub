@@ -1,9 +1,7 @@
 import { stageTasks, rankPickEmAchievements } from "./achievements";
 import { withDisplayScores } from "@/lib/matches/display-score-data";
-import { matches as officialMatches } from "@/db/schema";
-import { inArray } from "drizzle-orm";
 import "server-only";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
   predictionPrograms as programs,
@@ -25,30 +23,33 @@ import {
   coinLevel,
   judgePick,
 } from "./rules";
-import { loadBaseline } from "./baseline";
+import { loadBaselineRead } from "./baseline";
 
-import { loadQualificationContext } from "./qualification-baseline";
+import { loadQualificationRead } from "./qualification-baseline";
 import type { SimulationContext } from "./types";
 import { simulateMajor } from "./simulator";
 import { officialPickEmStages, pickEmWindowState, samePredictionEntrants } from "./lifecycle";
 
 /** Only this projection reaches public RSC/actions; no private roster or account credentials. */
-export async function predictionBoard(
+export async function readPredictionSnapshot(
   tx: TxDb,
   seasonId: string,
   userId: string | null,
   view: "sim" | "points" | "record" | "all" = "all",
+  detail = true,
 ) {
   const [program] = await tx
     .select()
     .from(programs)
     .where(eq(programs.seasonId, seasonId));
-  const base = await loadBaseline(tx, seasonId);
-  const qualification = await loadQualificationContext(tx, seasonId, base.name);
+  const {baseline:base,official}=await loadBaselineRead(tx,seasonId);
+  const qualificationRead=detail ? await loadQualificationRead(tx,seasonId,base.name) : {context:null,official:[]};
+  const qualification=qualificationRead.context;
   const contexts: SimulationContext[] = [{ kind: "major", baseline: base }];
   if (qualification) contexts.unshift(qualification);
-  const visibleIds = contexts.flatMap(context => context.baseline.matches.filter(match => match.format === "bo1" && match.status === "finished").map(match => match.id));
-  const scoreFacts = visibleIds.length ? await tx.select({ id: officialMatches.id, format: officialMatches.format, status: officialMatches.status, isForfeit: officialMatches.isForfeit, resultDisposition: officialMatches.resultDisposition, scoreA: officialMatches.scoreA, scoreB: officialMatches.scoreB }).from(officialMatches).where(inArray(officialMatches.id, visibleIds)) : [];
+  const visibleIds = !detail ? [] : contexts.flatMap(context => context.baseline.matches.filter(match => match.format === "bo1" && match.status === "finished").map(match => match.id));
+  const visible=new Set(visibleIds);
+  const scoreFacts=[...official,...qualificationRead.official].filter(match=>visible.has(match.id));
   const displayById = new Map((await withDisplayScores(scoreFacts, tx)).map(match => [match.id, match.displayScore]));
   for (const context of contexts) context.baseline.matches = context.baseline.matches.map(match => ({ ...match, displayScore: displayById.get(match.id) }));
   const defaultContext = qualification && !base.teams.length ? "qualification-short-swiss" as const : "major" as const;
@@ -60,7 +61,6 @@ export async function predictionBoard(
   );
   const now = new Date(databaseClock.rows[0]!.now).getTime();
   const rules = program?.rules ?? defaultPredictionRules(base.stages);
-  const eligible = officialPickEmStages(base);
   const allAccounts = records || userId ? await tx
     .select({
       id: accounts.id,
@@ -78,15 +78,16 @@ export async function predictionBoard(
   const allPicks = records || me ? await tx
     .selectDistinctOn([picks.accountId, picks.contestId, picks.submitted])
     .from(picks)
-    .where(and(eq(picks.seasonId, seasonId), records ? undefined : me ? eq(picks.accountId, me.id) : sql`false`))
+    .where(and(eq(picks.seasonId, seasonId), records ? or(eq(picks.submitted, true), me ? eq(picks.accountId, me.id) : undefined) : me ? eq(picks.accountId, me.id) : sql`false`))
     .orderBy(picks.accountId, picks.contestId, picks.submitted, desc(picks.version)) : [];
   const history = (records || !!me) && windows.length
     ? await tx
-        .select()
+        .selectDistinctOn([judgements.contestId], { prediction_judgements: judgements,
+          revisionCount: sql<number>`count(*) over (partition by ${judgements.contestId})::int` })
         .from(judgements)
         .innerJoin(contests, eq(contests.id, judgements.contestId))
         .where(eq(contests.seasonId, seasonId))
-        .orderBy(desc(judgements.createdAt))
+        .orderBy(judgements.contestId, desc(judgements.createdAt), desc(judgements.id))
     : [];
   const totals = betRecords || (poolsVisible && !!me) ? await tx
     .select({
@@ -97,6 +98,57 @@ export async function predictionBoard(
     .from(ledger)
     .where(and(eq(ledger.seasonId, seasonId), betRecords ? undefined : me ? eq(ledger.accountId, me.id) : sql`false`))
     .groupBy(ledger.accountId) : [];
+  const pools = poolsVisible ? await tx
+    .select()
+    .from(markets)
+    .where(eq(markets.seasonId, seasonId)) : [];
+  const allOptions = poolsVisible ? await tx
+    .select()
+    .from(options)
+    .innerJoin(markets, eq(options.marketId, markets.id))
+    .where(eq(markets.seasonId, seasonId)) : [];
+  // Only aggregate pool totals leave PostgreSQL; never materialize other viewers' stakes.
+  const investments = poolsVisible ? await tx
+    .select({ marketId: stakes.marketId, optionId: stakes.optionId,
+      total: sql<string>`sum(${stakes.amount})::text`,
+      mine: sql<string>`coalesce(sum(${stakes.amount}) filter (where ${stakes.accountId} = ${me?.id ?? null}), 0)::text`,
+    })
+    .from(stakes).where(eq(stakes.seasonId, seasonId))
+    .groupBy(stakes.marketId, stakes.optionId) : [];
+  const participants = poolsVisible ? await tx
+    .select({ marketId: stakes.marketId, count: sql<number>`count(distinct ${stakes.accountId})::int` })
+    .from(stakes).where(eq(stakes.seasonId, seasonId)).groupBy(stakes.marketId) : [];
+  const batches = poolsVisible ? await tx
+    .select()
+    .from(settlements)
+    .innerJoin(markets, eq(markets.id, settlements.marketId))
+    .where(eq(markets.seasonId, seasonId))
+    .orderBy(desc(settlements.createdAt)) : [];
+  const myLedger = betRecords && me
+    ? await tx
+        .select({
+          id: ledger.id,
+          amount: ledger.amount,
+          profit: ledger.profit,
+          kind: ledger.kind,
+          createdAt: ledger.createdAt,
+        })
+        .from(ledger)
+        .where(eq(ledger.accountId, me.id))
+        .orderBy(desc(ledger.createdAt))
+        .limit(100)
+    : [];
+  return { view, program, base, contexts, defaultContext, records, poolsVisible, betRecords,
+    now, rules, allAccounts, me, windows, allPicks, history, totals, pools, allOptions,
+    investments, participants, batches, myLedger };
+}
+
+/** Only immutable snapshot values are consumed after releasing the RR connection. */
+export function projectPredictionBoard(snapshot: Awaited<ReturnType<typeof readPredictionSnapshot>>) {
+  const { view, program, base, contexts, defaultContext, records, betRecords, now, rules,
+    allAccounts, me, windows, allPicks, history, totals, pools, allOptions, investments,
+    participants, batches, myLedger } = snapshot;
+  const eligible = officialPickEmStages(base);
   const latestPicks = new Map<string, (typeof allPicks)[number]>();
   const submissions = new Map<string, (typeof allPicks)[number]>();
   for (const pick of allPicks) {
@@ -163,52 +215,12 @@ export async function predictionBoard(
       })
       .slice(0, 100);
   };
-  const pools = poolsVisible ? await tx
-    .select()
-    .from(markets)
-    .where(eq(markets.seasonId, seasonId)) : [];
-  const allOptions = poolsVisible ? await tx
-    .select()
-    .from(options)
-    .innerJoin(markets, eq(options.marketId, markets.id))
-    .where(eq(markets.seasonId, seasonId)) : [];
-  // Only aggregate pool totals leave PostgreSQL; never materialize other viewers' stakes.
-  const investments = poolsVisible ? await tx
-    .select({ marketId: stakes.marketId, optionId: stakes.optionId,
-      total: sql<string>`sum(${stakes.amount})::text`,
-      mine: sql<string>`coalesce(sum(${stakes.amount}) filter (where ${stakes.accountId} = ${me?.id ?? null}), 0)::text`,
-    })
-    .from(stakes).where(eq(stakes.seasonId, seasonId))
-    .groupBy(stakes.marketId, stakes.optionId) : [];
-  const participants = poolsVisible ? await tx
-    .select({ marketId: stakes.marketId, count: sql<number>`count(distinct ${stakes.accountId})::int` })
-    .from(stakes).where(eq(stakes.seasonId, seasonId)).groupBy(stakes.marketId) : [];
-  const batches = poolsVisible ? await tx
-    .select()
-    .from(settlements)
-    .innerJoin(markets, eq(markets.id, settlements.marketId))
-    .where(eq(markets.seasonId, seasonId))
-    .orderBy(desc(settlements.createdAt)) : [];
-  const myLedger = betRecords && me
-    ? await tx
-        .select({
-          id: ledger.id,
-          amount: ledger.amount,
-          profit: ledger.profit,
-          kind: ledger.kind,
-          createdAt: ledger.createdAt,
-        })
-        .from(ledger)
-        .where(eq(ledger.accountId, me.id))
-        .orderBy(desc(ledger.createdAt))
-        .limit(100)
-    : [];
   return {
     view,
     contexts,
     defaultContext,
     base,
-    simulation: simulateMajor(base, {}, true),
+    simulation: view === "all" || view === "points" ? simulateMajor(base, {}, true) : null,
     enabled: !!program,
     paused: program?.paused ?? false,
     rules,
@@ -246,9 +258,7 @@ export async function predictionBoard(
             }
           : null,
         draft: draft?.pick ?? null,
-        judgementRevisions: history.filter(
-          (h) => h.prediction_judgements.contestId === c.id,
-        ).length,
+        judgementRevisions: history.find(h => h.prediction_judgements.contestId === c.id)?.revisionCount ?? 0,
       };
     }),
     markets: pools.map((m) => {
@@ -310,6 +320,19 @@ export async function predictionBoard(
     pickLeaderboard: records ? rankPickEmAchievements(achievements, me?.id) : [],
   };
 }
+/** Compatibility reader for internal callers already owning a transaction. */
+export async function predictionBoard(tx: TxDb, seasonId: string, userId: string | null,
+  view: "sim" | "points" | "record" | "all" = "all") {
+  return projectPredictionBoard(await readPredictionSnapshot(tx, seasonId, userId, view));
+}
+
+export function projectPickEmSummary(snapshot: Awaited<ReturnType<typeof readPredictionSnapshot>>) {
+  const { achievement, pickLeaderboard } = projectPredictionBoard(snapshot);
+  return { achievement, pickLeaderboard: pickLeaderboard.slice(0, 100),
+    mine: pickLeaderboard.find(row => row.isMe) ?? null };
+}
+export type PickEmSummary = ReturnType<typeof projectPickEmSummary>;
+
 export type PredictionBoardData = Awaited<ReturnType<typeof predictionBoard>>;
 
 /** Prediction/Pick’Em transport excludes Bet balances, markets and ledgers. */

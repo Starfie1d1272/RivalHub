@@ -46,10 +46,10 @@ export function officialWinner(
   }
   return match.scoreA > match.scoreB ? match.entryAId : match.entryBId;
 }
-export async function loadBaseline(
+export async function loadBaselineRead(
   db: DB | TxDb,
   seasonId: string,
-): Promise<Baseline> {
+): Promise<{baseline:Baseline;official:(typeof matches.$inferSelect)[]}> {
   const [season] = await db
     .select()
     .from(seasons)
@@ -171,5 +171,8 @@ export async function loadBaseline(
       }),
     )
     .digest("hex");
-  return baseline;
+  return {baseline,official:rawOfficial};
+}
+export async function loadBaseline(db: DB | TxDb, seasonId: string): Promise<Baseline> {
+  return (await loadBaselineRead(db,seasonId)).baseline;
 }

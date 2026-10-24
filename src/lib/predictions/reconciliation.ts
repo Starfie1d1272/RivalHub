@@ -4,7 +4,7 @@ import { asc, desc, sql } from "drizzle-orm";
 import { db, type DB } from "@/db/client";
 import { predictionJobs } from "@/db/schema";
 import { captureException } from "@/lib/observability/server";
-import { lockPredictionProgram, reconcilePredictionProgram } from "./service";
+import { lockPredictionProgram, reconcileDuePredictionProgram } from "./service";
 
 export async function runPredictionReconciliationJob(database: DB = db) {
   const jobs = await database
@@ -19,7 +19,7 @@ export async function runPredictionReconciliationJob(database: DB = db) {
     try {
       await database.transaction(async (tx) => {
         const program = await lockPredictionProgram(tx, job.seasonId);
-        await reconcilePredictionProgram(tx, program);
+        await reconcileDuePredictionProgram(tx, program);
       });
       completed++;
     } catch (error) {

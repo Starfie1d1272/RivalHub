@@ -1,8 +1,10 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+vi.mock("@/components/telemetry/ContentReady",()=>({ContentReady:()=>null}));
 const mocks = vi.hoisted(() => ({ read: vi.fn(), count: vi.fn() }));
-vi.mock("@/actions/predictions", () => ({ getPredictionBoard: mocks.read, mutatePrediction: vi.fn() }));
+vi.mock("@/actions/predictions", () => ({ mutatePrediction: vi.fn() }));
+vi.mock("@/lib/predictions/http-client", () => ({ fetchPredictionBoard: mocks.read, fetchPickEmSummary: vi.fn() }));
 vi.mock("@/actions/online", () => ({ heartbeatOnline: mocks.count }));
 vi.mock("@/lib/telemetry/client", () => ({ observeAction: (_name: string, fn: unknown) => fn, observeTask: (_name: string, fn: unknown) => fn }));
 vi.mock("@/components/predictions/share-image", () => ({ exportPredictionImage: vi.fn() }));

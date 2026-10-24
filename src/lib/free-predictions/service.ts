@@ -17,7 +17,7 @@ export async function submitFreePredictionInTx(tx: TxDb, input: SubmitFreePredic
   if (match.seasonId !== input.seasonId || match.testConfig) invalid("比赛不可预测");
   const [user] = await tx.select().from(users).where(eq(users.id,input.userId)).for("share");
   if (!user || user.status !== "active" || !user.emailVerifiedAt) throw new AppError(ErrorCode.FORBIDDEN,"请先完成邮箱验证");
-  const f = await loadBetFacts(tx,input.seasonId);
+  const f = await loadBetFacts(tx,input.seasonId,{matchId:input.matchId,event:false,rosterUserId:null});
   const official = f.official.find(m => m.id === input.matchId);
   const qualificationRun = official?.qualificationRunId ? await tx.query.competitionQualificationRuns.findFirst({
     where: and(eq(competitionQualificationRuns.id, official.qualificationRunId), eq(competitionQualificationRuns.seasonId, input.seasonId)),
