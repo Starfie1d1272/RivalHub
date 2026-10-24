@@ -8,7 +8,7 @@ import {
   matchRosters,
   seasons,
 } from "@/db/schema";
-import { ok, type ActionResult } from "@/types/action";
+import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
 import { getMatchOrThrow, actionError } from "@/lib/action-utils";
@@ -158,7 +158,7 @@ export async function adminSelectMatchRoster(
  */
 export async function confirmMatchRoster(
   rosterId: string
-): Promise<ActionResult<{ alreadyConfirmed: boolean; matchId: string; entryId: string }>> {
+): Promise<ActionResult<{ alreadyConfirmed: boolean; matchId: string; entryId: string; refreshPending: boolean }>> {
   try {
     const [existing] = await db
       .select({ matchId: matchRosters.matchId })
@@ -174,11 +174,10 @@ export async function confirmMatchRoster(
       confirmMatchRosterInTx(tx, { rosterId, actorId: auditActorId(admin) }),
     );
 
-    if (!outcome.alreadyConfirmed) {
-      await revalidateAfterRosterChange({ seasonId: match.seasonId, id: match.id });
-    }
+    const refreshPending = await revalidateAfterRosterChange({ seasonId: match.seasonId, id: match.id });
 
     return ok({
+      refreshPending,
       alreadyConfirmed: outcome.alreadyConfirmed,
       matchId: outcome.matchId,
       entryId: outcome.entryId,
@@ -193,7 +192,7 @@ export async function confirmMatchRoster(
  */
 export async function unlockMatchRoster(
   rosterId: string,
-): Promise<ActionResult<void>> {
+): Promise<ActionResult<{ refreshPending: boolean }>> {
   try {
     const roster = await db.query.matchRosters.findFirst({
       where: eq(matchRosters.id, rosterId),
@@ -224,12 +223,23 @@ export async function unlockMatchRoster(
       });
     });
 
-    await revalidateAfterRosterChange(match);
+    const refreshPending = await revalidateAfterRosterChange(match);
 
-    return ok(undefined);
+    return ok({ refreshPending });
   } catch (e) {
     return actionError("unlockMatchRoster", e);
   }
+}
+
+/** Retry cache work only, freshly authorized for either roster representative or season admin. */
+export async function retryMatchRosterRefresh(matchId: string): Promise<ActionResult<void>> {
+  try {
+    const session = await requireAuth();
+    const match = await getMatchOrThrow(matchId);
+    if (!await getEntryIdForRepresentative(session.userId, match)) await requireSeasonAdmin(match.seasonId);
+    if (await revalidateAfterRosterChange(match)) return fail({ code: ErrorCode.INTERNAL_ERROR, message: "名单已提交，刷新仍未完成，请稍后重试刷新。" });
+    return ok(undefined);
+  } catch (error) { return actionError("retryMatchRosterRefresh", error); }
 }
 
 /**

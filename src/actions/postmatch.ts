@@ -35,6 +35,14 @@ async function run(matchId: string, work: (actorId: string) => Promise<void>): P
     return ok({ refreshPending });
   } catch (error) { return actionError("postmatch", error); }
 }
+/** Fresh authorization and invalidation only; no postmatch command is repeated. */
+export async function retryPostMatchRefresh(matchId: string): Promise<ActionResult<void>> {
+  try {
+    const { match, season } = await matchAndAdminOrThrow(matchId);
+    revalidateMatchPaths(season.slug, match.id, { statistics: false });
+    return ok(undefined);
+  } catch (error) { return actionError("retryPostMatchRefresh", error); }
+}
 export async function addMatchCommentator(input: unknown) { const p = z.object({ matchId: uuid, userId: uuid }).safeParse(input); return p.success ? run(p.data.matchId, async (actorId) => { await db.transaction((tx) => addMatchCommentatorInTx(tx, { ...p.data, actorId })); }) : failValidation("解说参数无效。"); }
 export async function claimMatchCommentary(input: unknown): Promise<ActionResult<void>> {
   const parsed = z.object({ matchId: uuid }).strict().safeParse(input);
