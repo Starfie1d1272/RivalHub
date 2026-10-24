@@ -149,4 +149,10 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm verify:services
 
 `execution-budget.mjs` 只读取当前 `run_id` / `run_attempt` 的分页 job/step 计时。每个 job 累计真实执行的 step 区间（重叠部分仅算一次），不把 job `started_at` 到第一条 step 之间的 runner 排队或 step 间调度空档当作执行。CI 图按 `max(plan + max(static, postgres, system), dependency-graph-build, dependency-review) + gate` 计算实际关键路径；matrix 各片取最长执行耗时，保留并行语义。gate 的本地计时在计时 API 请求前冻结，截止到核验步骤开始，不包含该次 GitHub API 等待及核验后的报告/runner post-cleanup。
 
+CI workflow 显式通过 `RIVALHUB_CI_BUDGET_ENABLED=1` 启用能力 lane 的 `timing.mjs` command wrapper 截止机制；其它 workflow 复用 timing 时保持原行为。wrapper 在启动前读取当前 run/attempt 的 GitHub job/step 元数据，扣除 planner 与本 lane 已执行的 step 区间，只给当前命令剩余预算；并行 lane 不相加，runner 排队和 step 间空档不计入。元数据缺失、step 身份不匹配或预算耗尽时，记录失败并拒绝启动。单次查询限时 5 秒，元数据滞后时最多重读 15 秒；该等待属于当前 step 的执行耗时。所用独立只读 Actions metadata token 只在查询子进程映射为 `GH_TOKEN`，不传给工作负载；调用者原有 GitHub 凭据保持原语义。最终 gate 的 180 秒算法仍是统一验收 owner；主动截止不预留或减免 gate、后续报告与清理耗时。
+
+wrapper 同时等待 leader 和 stdio 关闭，因此 leader 退出 0、测试打印通过但 detached 后代持有 stdout 时仍受截止约束。每次顶层命令生成独立环境 token，嵌套 timing 命令继承同一 owner；只扫描并终止该 token 的进程与原进程组，不按进程名或端口清理。截止或取消先写失败证据，再 TERM，最多 2 秒后 KILL 并关闭残留管道；超时返回 124，取消与清理错误也保留非零结果。Linux runner 通过 `/proc` 查归属，macOS 本地通过 `ps`；进程环境只在内存中匹配，不写入日志。
+
+system browser 结束后独立执行有界 `cleanup-e2e`，复用本 workspace 既有 fixture manifest 与 cleanup owner；每项成功清理后才移除 manifest，失败保留以供诊断。该清理最多 15 秒加 2 秒进程回收，不覆盖测试原失败，也不延长最终 180 秒预算。能力 job 的 10 分钟平台超时仅作为 bootstrap/action 或 supervisor 失效的兜底；正常 workload 使用剩余执行预算主动截止。失败或取消后仍尝试上传脱敏 system artifacts 与 machine-readable timing；平台强制结束 runner 时，远端 artifact 上传本身无法保证完成。
+
 原 workflow wall time 仍写入报告，供排队和整体交付延迟诊断；合并门禁使用 180 秒执行预算。GitHub 计时元数据暂未补齐时有限重读，等待不计入执行预算；已测得超时立即阻断，不重试。读取持续失败、缺失 required lane/step 或 CI 图出现未知 job 均失败，不用缺失值、旧 attempt 或跳过 evidence 达成速度预算。修改 CI 图时同改此执行路径 owner 与边界测试。
