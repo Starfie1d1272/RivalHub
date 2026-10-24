@@ -61,7 +61,7 @@ rm src/lib/admin/matches/overview-list-baseline.ts src/lib/admin/matches/postmat
 
 ## 接口与限制
 
-正式基于main `7b619d2b17ef7c089184b922991ce312404fb9c3`，accounts、stats、public摘要/详情API均已合入。公告consumer在SQL固定季赛scope并只用summary/count，详情保留完整正文。教育overview/page独立返回受控错误，fresh授权在父page，证据过期owner不变。prestart union IDs只读一次不限定平台的raw bundle，再按profile/fallback投影。
+正式分支已安全rebase到main `c0d49610bd7a95ec8b529a48a3d7eaf7c1d1beb8`；下述22项PG与浏览器证据基于公共API已合的main7b619d2b临时集成，accounts、stats、public摘要/详情API均已合入。公告consumer在SQL固定季赛scope并只用summary/count，详情保留完整正文。教育overview/page独立返回受控错误，fresh授权在父page，证据过期owner不变。prestart union IDs只读一次不限定平台的raw bundle，再按profile/fallback投影。
 
 Play-in reader来自独立PR #1096。临时集成验证pin `b820d4b6bac7fd690c05f9c9628f6886cfe976bf`；已对比最新候选 `dbb5eb8124fc5e52053f951c4f48fd11f0979dfb`，相关reader、presentation、PG测试无差异。app/tests类型、受影响ESLint、architecture与9个定向PG文件22例全部通过。#1096仍待父会审查合入，之后必须同步main并以最新head的required CI收口；临时验证不是正式分支独立编译成功的声明。#1094保持Ready，不设置Draft门槛。
 

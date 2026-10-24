@@ -324,7 +324,7 @@
   "dependencies": {
     "playInSwissPR1096": "dbb5eb8124fc5e52053f951c4f48fd11f0979dfb"
   },
-  "codeBase": "7b619d2b17ef7c089184b922991ce312404fb9c3",
+  "codeBase": "c0d49610bd7a95ec8b529a48a3d7eaf7c1d1beb8",
   "resolvedDependencies": {
     "accounts": "main7f1b9d5a",
     "stats": "main051ab5c7",
