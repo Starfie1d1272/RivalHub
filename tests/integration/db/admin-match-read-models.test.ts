@@ -12,7 +12,7 @@ vi.mock("@/lib/auth/session", () => ({
   requireSeasonAdmin: requireSeasonAdminMock,
 }));
 
-import { loadAdminPostMatchTasks } from "@/lib/admin/matches/postmatch-tasks";
+import { loadAdminPostMatchTasks, loadAdminPostMatchTaskPage } from "@/lib/admin/matches/postmatch-tasks";
 import { loadAdminMatchOperations } from "@/lib/admin/matches/operations";
 import { loadAdminMatchCommentary } from "@/lib/admin/matches/commentary";
 import { loadSeasonWorkspaceOverview } from "@/lib/admin/season-workspace/overview";
@@ -367,16 +367,54 @@ describe("admin match read models PostgreSQL integration", () => {
         await pool.query(`INSERT INTO matches (id,season_id,entry_a_id,entry_b_id,stage,format,status)
           SELECT id,$2,$3,$4,CASE WHEN n % 2 = 0 THEN 'later' ELSE 'round_robin' END,'bo3','scheduled'
           FROM unnest($1::uuid[]) WITH ORDINALITY AS rows(id,n)`, [extra, ids.seasonA, ids.entryA, ids.entryB]);
+        await pool.query("UPDATE matches SET status='finished',completed_at=now() WHERE id=$1", [scaleMatchIds[0]]);
         const first = await loadAdminMatchOverview({ seasonSlug: seasonASlug, stage: "round_robin" });
         expect(first?.matchCount).toBe(globalBefore + size);
-        expect(first?.matches.filter(match => match.stage === "round_robin")).toHaveLength(size / 2 + 1);
+        expect(first?.matches.filter(match => match.stage === "round_robin")).toHaveLength(25);
+        expect(first?.pagination).toMatchObject({ total: size / 2 + 1, page: 1, pageSize: 25 });
         expect(first?.matches.filter(match => match.stage === "later")).toHaveLength(0);
         expect(first?.unconfiguredMatches.map(match => match.id)).toContain(ids.operationMatch);
         const later = await loadAdminMatchOverview({ seasonSlug: seasonASlug, stage: "later" });
-        expect(later?.matches.filter(match => match.stage === "later")).toHaveLength(size / 2);
+        expect(later?.matches.filter(match => match.stage === "later")).toHaveLength(25);
+        expect(later?.pagination?.total).toBe(size / 2);
         expect(later?.matches.filter(match => match.stage === "round_robin")).toHaveLength(0);
         expect(later?.matchCount).toBe(first?.matchCount);
+        const pagedIds: string[] = [];
+        for (let page = 1; page <= first!.pagination!.totalPages; page++) {
+          const result = await loadAdminMatchOverview({ seasonSlug: seasonASlug, stage: "round_robin", page: String(page) });
+          expect(result?.matches.length).toBeLessThanOrEqual(25);
+          pagedIds.push(...result!.matches.map(match => match.id));
+        }
+        expect(new Set(pagedIds).size).toBe(size / 2 + 1);
+        expect(pagedIds).toHaveLength(size / 2 + 1);
+        expect(pagedIds).toContain(ids.matchA);
+        const clamped = await loadAdminMatchOverview({ seasonSlug: seasonASlug, stage: "round_robin", page: "999" });
+        expect(clamped?.pagination?.page).toBe(first?.pagination?.totalPages);
+        const finishedOnly = await loadAdminMatchOverview({ seasonSlug: seasonASlug, stage: "round_robin", status: "finished" });
+        expect(finishedOnly?.pagination?.total).toBe(1);
+        expect(finishedOnly?.matches.map(match => match.id)).toEqual([scaleMatchIds[0]]);
+
       }
+
+      await pool.query("UPDATE matches SET status='finished',completed_at=now() WHERE id=ANY($1::uuid[])", [scaleMatchIds.slice(0, 100)]);
+      const allTasks = await loadAdminPostMatchTasks(ids.seasonA);
+      for (const stage of ["round_robin", "later"]) {
+        const scopedTasks = allTasks.filter(row => row.stage === stage);
+        const pages: string[] = [];
+        const firstPage = await loadAdminPostMatchTaskPage(ids.seasonA, { stage, team: ids.entryA });
+        expect(firstPage.total).toBe(scopedTasks.length);
+        expect(firstPage.rows.length).toBeLessThanOrEqual(25);
+        for (let page = 1; page <= firstPage.totalPages; page++) {
+          const result = await loadAdminPostMatchTaskPage(ids.seasonA, { stage, team: ids.entryA, page: String(page) });
+          expect(result.total).toBe(scopedTasks.length);
+          pages.push(...result.rows.map(row => row.id));
+        }
+        expect(pages).toEqual(scopedTasks.map(row => row.id));
+        expect(new Set(pages).size).toBe(pages.length);
+        const last = await loadAdminPostMatchTaskPage(ids.seasonA, { stage, page: "999" });
+        expect(last.page).toBe(firstPage.totalPages);
+      }
+      expect(await loadAdminPostMatchTaskPage(ids.seasonA, { team: "invalid-team" })).toMatchObject({ rows: [], total: 0, page: 1 });
 
     } finally {
       const cleanupClient = await pool.connect();

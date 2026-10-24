@@ -82,7 +82,7 @@ describe("Demo metadata PostgreSQL egress boundary", () => {
 
     try {
       await pool.query("INSERT INTO users (id, email) VALUES ($1, $2)", [ids.user, `${ids.user}@local.test`]);
-      await pool.query("INSERT INTO seasons (id, slug, name, kind, status) VALUES ($1, $2, 'Egress test', 'Custom', 'playing')", [ids.season, slug]);
+      await pool.query("INSERT INTO seasons (id, slug, name, kind, status, stage_plan) VALUES ($1, $2, 'Egress test', 'Custom', 'playing', $3::json)", [ids.season, slug, JSON.stringify([{ key: "fixture-stage", name: "Fixture", type: "round_robin", teamCount: 2, advanceTiers: [] }])]);
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
