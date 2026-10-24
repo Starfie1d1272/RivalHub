@@ -75,8 +75,8 @@ export async function projectVetoRoomView(
       .select({ id: competitionEntries.id, name: competitionEntries.name, representativeUserId: competitionEntries.representativeUserId })
       .from(competitionEntries)
       .where(and(
-      eq(competitionEntries.competitionId, core.match.seasonId),
-      orEntryId(core.match.entryAId, core.match.entryBId),
+        eq(competitionEntries.competitionId, core.match.seasonId),
+        orEntryId(core.match.entryAId, core.match.entryBId),
       )),
     db
       .select({

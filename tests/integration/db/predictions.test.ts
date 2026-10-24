@@ -768,6 +768,7 @@ describe("spectator prediction PostgreSQL contracts", () => {
       await db
         .delete(schema.matches)
         .where(eq(schema.matches.majorStageRunId, next.stageRunId));
+      await db.delete(schema.majorStageEntrants).where(eq(schema.majorStageEntrants.stageRunId, next.stageRunId));
       await db
         .delete(schema.majorStageRuns)
         .where(eq(schema.majorStageRuns.id, next.stageRunId));
@@ -784,6 +785,7 @@ describe("spectator prediction PostgreSQL contracts", () => {
 
       // Official stage recovery invalidates dependent picks without a Pick’Em moderator.
       await db.delete(schema.matches).where(eq(schema.matches.majorStageRunId, f.runId));
+      await db.delete(schema.majorStageEntrants).where(eq(schema.majorStageEntrants.stageRunId, f.runId));
       await db.delete(schema.majorStageRuns).where(eq(schema.majorStageRuns.id, f.runId));
       await reconcile(f);
       const voided = await db.transaction((tx) =>
