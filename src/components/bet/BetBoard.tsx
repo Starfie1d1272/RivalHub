@@ -82,7 +82,7 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
   return <div ref={boardRef} className="space-y-5" aria-busy={interactionBusy}>
     {interactive&&<ContentReady module="bet" phase="primary"/>}
     {matchFilter && <nav aria-label="单场竞猜位置" className="flex flex-wrap gap-4 text-sm text-[var(--color-fg-mid)]"><Link href={`/${slug}/matches/${matchFilter}` as never} className="hover:text-[var(--color-accent)]">← 返回比赛详情</Link><Link href={`/${slug}/bet` as never} className="hover:text-[var(--color-accent)]">全部竞猜 →</Link></nav>}
-    <PageHeader title="预测与竞猜" description={interactive?undefined:<span role="status">正在准备操作…</span>} actions={<>
+    <PageHeader title="预测与竞猜" description={<span role="status">{interactive?"免费预测不扣积分":"正在准备操作…"}</span>} actions={<>
       <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
         <Metric label="可用积分" value={data.joined?formatPoints(data.balance):"—"} accent help="首次领取 1,000 积分；加入后的 Main Event 新阶段各补给 300，不补历史阶段。管理员可以参与，但本人参赛队伍相关盘口不可参与。排名按净收益，不按余额；至少一次已结算参与才上榜。使用赛事积分参与无抽水社区奖池。积分不能购买、交易、转账、提现或兑换现实价值；只能追加原选项，不能换边或撤回。无胜方投入、全部投入均获胜或弃权时原额退款。预计回报随奖池变化。"/>
         <Metric label="净收益" value={data.joined?`${BigInt(data.profit)>BigInt(0)?"+":""}${formatPoints(data.profit)}`:"—"}/>
