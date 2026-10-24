@@ -171,7 +171,7 @@ export async function confirmMatchRoster(
     const admin = await requireSeasonAdmin(match.seasonId);
 
     const outcome = await db.transaction((tx) =>
-      confirmMatchRosterInTx(tx, { rosterId, actorId: auditActorId(admin) }),
+      confirmMatchRosterInTx(tx, { rosterId, actorId: auditActorId(admin), expectedMatchId: match.id, expectedSeasonId: match.seasonId }),
     );
 
     const refreshPending = await revalidateAfterRosterChange({ seasonId: match.seasonId, id: match.id });
