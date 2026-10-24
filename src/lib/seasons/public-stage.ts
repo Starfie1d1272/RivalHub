@@ -1,6 +1,7 @@
 import { loadOfficialMatchStages } from "@/lib/matches/read-official";
 import "server-only";
 
+import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionQualificationRuns, majorStageRuns, matches } from "@/db/schema";
@@ -66,26 +67,30 @@ export function buildPublicStagePresentation(
   };
 }
 
-export async function getPublicSeasonStagePresentation(
-  season: PublicStageSeason,
-): Promise<PublicStagePresentation> {
-  const [stageRuns, matchStageRows, qualificationRows] = await Promise.all([
-    season.competitionTemplate === "major"
+// Primitive keys let layout and page share reads even with distinct season objects.
+const loadPublicStageFacts = cache(async (seasonId: string, template: PublicStageSeason["competitionTemplate"]) => {
+  return Promise.all([
+    template === "major"
       ? db
         .select({ stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot, startedAt: majorStageRuns.startedAt })
         .from(majorStageRuns)
-        .where(eq(majorStageRuns.seasonId, season.id))
+        .where(eq(majorStageRuns.seasonId, seasonId))
       : Promise.resolve([] as { stageKey: string; ruleSnapshot: unknown }[]),
-    loadOfficialMatchStages(eq(matches.seasonId, season.id)),
+    loadOfficialMatchStages(eq(matches.seasonId, seasonId)),
     db.select({ id: competitionQualificationRuns.id, format: competitionQualificationRuns.format,
       targetEntrantCount: competitionQualificationRuns.targetEntrantCount,
       candidateCount: competitionQualificationRuns.candidateCount,
       playInEntryCount: competitionQualificationRuns.playInEntryCount,
       qualifierCount: competitionQualificationRuns.qualifierCount, startedAt: competitionQualificationRuns.startedAt,
       completedAt: competitionQualificationRuns.completedAt }).from(competitionQualificationRuns)
-      .where(eq(competitionQualificationRuns.seasonId, season.id)).limit(1),
+      .where(eq(competitionQualificationRuns.seasonId, seasonId)).limit(1),
   ]);
+});
 
+export async function getPublicSeasonStagePresentation(
+  season: PublicStageSeason,
+): Promise<PublicStagePresentation> {
+  const [stageRuns, matchStageRows, qualificationRows] = await loadPublicStageFacts(season.id, season.competitionTemplate);
   return {
     ...buildPublicStagePresentation(
       season,

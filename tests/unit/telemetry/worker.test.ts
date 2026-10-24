@@ -18,7 +18,10 @@ it("executes the real Worker and D1 API: concurrent ACK deduplication, usage and
     const now = Date.now(); const session = crypto.randomUUID();
     const account = await accountKey("fixture-user", "rivalhub-only");
     const ticket = await signTicket({ v: 1, id: crypto.randomUUID(), account, role: "user", release: "test", environment: "preview", origin: bindings.ALLOWED_ORIGIN, exp: now + 3600000 }, bindings.SIGNING_KEY);
-    const body = JSON.stringify({ v: 1, id: crypto.randomUUID(), ticket, events: [{ id: crypto.randomUUID(), at: now, session, route: "/", scene: "site", kind: "page" }] });
+    const body = JSON.stringify({ v: 1, id: crypto.randomUUID(), ticket, events: [
+      { id: crypto.randomUUID(), at: now, session, route: "/", scene: "site", kind: "page" },
+      { id: crypto.randomUUID(), at: now, session, route: "/stats", scene: "site", kind: "performance", metricName: "NAV_COMMIT", durationMs: 321 },
+    ] });
     const send = () => mf.dispatchFetch("https://worker.invalid/v1/batches", { method: "POST", headers: { origin: bindings.ALLOWED_ORIGIN }, body });
     const responses = await Promise.all([send(), send(), send()]);
     expect(responses.map(r => r.status)).toEqual([204, 204, 204]);
@@ -28,7 +31,8 @@ it("executes the real Worker and D1 API: concurrent ACK deduplication, usage and
     expect(response.status).toBe(200);
     expect(await response.text()).toContain(session);
     await maintain({ ...bindings, DB: db as unknown as Env["DB"] }, now + 86400000);
-    expect(await db.prepare("SELECT events FROM summaries").first()).toEqual({ events: 1 });
+    expect(await db.prepare("SELECT sum(events) AS events FROM summaries").first()).toEqual({ events: 2 });
+    expect(await db.prepare("SELECT variant,events,duration_ms FROM summaries WHERE kind='performance'").first()).toEqual({ variant: "NAV_COMMIT", events: 1, duration_ms: 321 });
     const usage = await db.prepare("SELECT * FROM usage").all();
     expect(usage.meta.rows_read).toBeGreaterThan(0);
     await maintain({ ...bindings, DB: db as unknown as Env["DB"] }, now + 7 * 86400000);

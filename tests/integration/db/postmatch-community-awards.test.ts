@@ -67,8 +67,15 @@ describe("postmatch PostgreSQL invariants", () => {
       const beforeMove = (await readRecordings()).recordings.filter(row => row.commentatorUserId === adminA);
       await db.transaction(tx => mutateMatchRecordingInTx(tx, { matchId, actorId: adminA, command: { kind: "move", id: beforeMove[1]!.id, direction: "up" } }));
       expect((await readRecordings()).recordings.filter(row => row.commentatorUserId === adminA)[0]!.id).toBe(beforeMove[1]!.id);
+      await pool.query("UPDATE matches SET video_url=NULL WHERE id=$1", [matchId]);
+      const { hasMatchRecordingCondition } = await import("../../../src/lib/postmatch/recording-query");
+      const { and, eq } = await import("drizzle-orm");
+      const withMaterial = () => db.select({ id: schema.matches.id }).from(schema.matches).where(and(eq(schema.matches.id, matchId), hasMatchRecordingCondition()));
+      expect(await withMaterial()).toHaveLength(1);
       for (const recording of records) await db.transaction(tx => mutateMatchRecordingInTx(tx, { matchId, actorId: adminA, command: { kind: "remove", id: recording.id } }));
       expect((await readRecordings()).recordings).toEqual([]);
+      expect(await withMaterial()).toHaveLength(0);
+      await pool.query("UPDATE matches SET video_url='https://video.example/match' WHERE id=$1", [matchId]);
       await pool.query("INSERT INTO match_maps (id,match_id,map_order,map_name,score_a,score_b) VALUES ($1,$2,1,'de_inferno',13,10)", [statsMapId, matchId]);
       await pool.query("INSERT INTO match_player_stats (match_id,map_id,perfect_name,user_id,kills,deaths,adr,rating_pro,verified_by_admin,verified_at) VALUES ($1,$2,'解说甲',$3,20,10,80,1.2,$4,now())", [matchId, statsMapId, adminA, adminA]);
       const { readReopenedPostMatchIds } = await import("../../../src/lib/postmatch/read");

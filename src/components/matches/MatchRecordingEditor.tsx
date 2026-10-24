@@ -2,10 +2,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { mutateMatchRecording } from "@/actions/postmatch";
+import { observeAction } from "@/lib/telemetry/client";
+import { mutateMatchRecording as recordingAction } from "@/actions/postmatch";
 import type { MatchRecording } from "@/lib/postmatch/recording-types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
+const mutateMatchRecording = observeAction("postmatch.mutateMatchRecording", recordingAction);
 
 function RecordingForm({ matchId, person, existing, onCancel }: { matchId: string; person: { userId: string; name: string }; existing?: MatchRecording; onCancel?: () => void }) {
   const [id, setId] = useState(existing?.id ?? "");

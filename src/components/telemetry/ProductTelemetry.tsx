@@ -1,8 +1,9 @@
 "use client";
 import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useReportWebVitals } from "next/web-vitals";
 import type { Bootstrap } from "@/lib/telemetry/protocol";
-import { configureTelemetry, flushTelemetry, markHistoryNavigation, recordClientError, recordPage, renewTelemetryIfNeeded, setTelemetryScene, telemetryFlushInterval } from "@/lib/telemetry/client";
+import { configureTelemetry, flushTelemetry, markHistoryNavigation, recordClientError, recordPage, recordWebVital, renewTelemetryIfNeeded, setTelemetryScene, telemetryFlushInterval } from "@/lib/telemetry/client";
 
 export function ProductTelemetry({ config }: { config: Bootstrap | null }) {
   const pathname = usePathname();
@@ -28,6 +29,7 @@ export function ProductTelemetry({ config }: { config: Bootstrap | null }) {
       document.removeEventListener("visibilitychange", hidden);
     };
   }, [config]);
+  useReportWebVitals(recordWebVital);
   useEffect(() => {
     // Layout scene effects settle first; no DOM scanning, click stream, or input listeners.
     const timer = setTimeout(recordPage, 0);

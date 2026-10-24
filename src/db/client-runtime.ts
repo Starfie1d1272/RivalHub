@@ -29,7 +29,8 @@ function createPool(): Pool {
     // 回退 Session Pooler (port 5432) 时删除 prepare: false 并调回 max: 1
     prepare: false,
     max: process.env.NODE_ENV === "production" ? 3 : 10,
-    idleTimeoutMillis: 5000,
+    // Persistent Node hosts reuse TLS connections between page visits.
+    idleTimeoutMillis: process.env.NEXT_RUNTIME === "nodejs" && process.env.VERCEL !== "1" ? 30000 : 5000,
     connectionTimeoutMillis: 10000,
   };
 
@@ -38,6 +39,18 @@ function createPool(): Pool {
 
 let pool: Pool | null = null;
 let _db: DB | null = null;
+
+interface DatabasePoolSnapshot {
+  total: number;
+  idle: number;
+  waiting: number;
+  max: number | null;
+}
+
+/** Read current counters without initializing the pool or opening a connection. */
+export function getDatabasePoolSnapshot(): DatabasePoolSnapshot | null {
+  return pool ? { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount, max: pool.options.max ?? null } : null;
+}
 
 // Proxy 确保 Pool 重建后 db 始终指向新 drizzle 实例
 export const db = new Proxy({} as DB, {
@@ -115,7 +128,22 @@ function setupPoolGuard(p: Pool) {
             "db.operation": queryOperation,
             "rivalhub.attempt": attempt,
           },
-        }, () => queryFn(...args));
+        }, async (span) => {
+          const activePool = attempt === 0 ? p : pool;
+          try {
+            span.setAttributes({
+              "rivalhub.db.pool.total": activePool?.totalCount ?? 0,
+              "rivalhub.db.pool.idle": activePool?.idleCount ?? 0,
+              "rivalhub.db.pool.waiting": activePool?.waitingCount ?? 0,
+            });
+          } catch { /* Diagnostics cannot change a query result. */ }
+          const result = await queryFn(...args);
+          if (Number.isInteger(result?.rowCount) && result.rowCount >= 0) {
+            try { span.setAttribute("rivalhub.db.result.rows", result.rowCount); }
+            catch { /* Diagnostics cannot change a query result. */ }
+          }
+          return result;
+        });
       } catch (err: unknown) {
         if (attempt === 0 && isPreConnectionError(err)) {
           logEvent({

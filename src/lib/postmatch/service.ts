@@ -82,7 +82,7 @@ export async function setMatchVideoUrlInTx(tx: TxDb, args: { matchId: string; vi
   await writeAuditInTx(tx, {
     seasonId: match.seasonId, action: "postmatch.video.update", actorId: args.actorId, targetId: match.id,
     meta: {
-      hasVideoUrl: Boolean(args.videoUrl),
+      hasVideoUrl: hasMatchRecording({ ...match, videoUrl: args.videoUrl }),
       before: { hasVideoUrl: hasMatchRecording(match), rosterReopened },
       after: { hasVideoUrl: hasMatchRecording({ ...match, videoUrl: args.videoUrl }), rosterReopened },
       videoChange: match.videoUrl === args.videoUrl ? "unchanged" : !args.videoUrl ? "cleared" : !match.videoUrl ? "added" : "replaced",

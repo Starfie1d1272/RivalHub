@@ -1,3 +1,4 @@
+import { hasMatchRecording } from "@/lib/postmatch/recording-types";
 import { MatchRecordings } from "@/components/matches/MatchRecordings";
 import { hasActivePublicSanction } from "@/lib/discipline/public-query";
 import { projectDisplayScore } from "@/lib/matches/display-score";
@@ -116,7 +117,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
   const phase = publicContext.phase;
   const afterVeto = phase === "awaiting_gameplay" || phase === "gameplay" || phase === "inter_map";
   const isFinished = match.status === "finished";
-  const hasReplay = isFinished && Boolean(match.videoUrl || match.recordings.length);
+  const hasReplay = isFinished && hasMatchRecording(match);
   const hasCompletedMaps = maps.some(canConfirmMapScoreboard);
 
   // Keep scouting available throughout an unfinished match, including loss of live data.

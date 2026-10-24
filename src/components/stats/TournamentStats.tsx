@@ -1,20 +1,22 @@
 "use client";
 import { StatsNavigationProvider } from "./StatsNavigationContext";
-import React from "react";
+import React, { Suspense } from "react";
+import dynamic from "next/dynamic";
 
 import type { Route } from "next";
 import { EmptyState } from "@/components/rivalhub";
 import type { TournamentMapDetail, TournamentStats } from "@/lib/stats/tournament-query";
 import { statsHref, type StatsQuery } from "@/lib/stats/view-state";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
-import { Records } from "./Records";
 import { StatsShell } from "./StatsShell";
-import { OverviewStats } from "./overview/OverviewStats";
-import { PlayersExplorer } from "./players/PlayersExplorer";
-import { TeamsExplorer } from "./teams/TeamsExplorer";
-import { MapsExplorer } from "./maps/MapsExplorer";
-import { MapWorkspace } from "./maps/MapWorkspace";
-import { WeaponsExplorer } from "./weapons/WeaponsExplorer";
+
+const Records = dynamic(() => import("./Records").then((module) => module.Records));
+const OverviewStats = dynamic(() => import("./overview/OverviewStats").then((module) => module.OverviewStats));
+const PlayersExplorer = dynamic(() => import("./players/PlayersExplorer").then((module) => module.PlayersExplorer));
+const TeamsExplorer = dynamic(() => import("./teams/TeamsExplorer").then((module) => module.TeamsExplorer));
+const MapsExplorer = dynamic(() => import("./maps/MapsExplorer").then((module) => module.MapsExplorer));
+const MapWorkspace = dynamic(() => import("./maps/MapWorkspace").then((module) => module.MapWorkspace));
+const WeaponsExplorer = dynamic(() => import("./weapons/WeaponsExplorer").then((module) => module.WeaponsExplorer));
 
 export function TournamentStatsView({
   data,
@@ -68,7 +70,7 @@ export function TournamentStatsView({
       directoryHref={directoryHref}
       directoryLabel={directoryLabel}
     >
-      {content}
+      <Suspense fallback={<p role="status" className="py-6 text-sm text-[var(--color-fg-mid)]">正在加载统计视图…</p>}>{content}</Suspense>
     </StatsShell></StatsNavigationProvider>
   );
 }

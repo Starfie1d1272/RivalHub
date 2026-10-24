@@ -1,0 +1,25 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { expect, it, vi } from "vitest";
+import { MatchRecordingEditor } from "@/components/matches/MatchRecordingEditor";
+const save = vi.hoisted(() => vi.fn().mockResolvedValue({ success: true, data: undefined }));
+const refresh = vi.hoisted(() => vi.fn());
+vi.mock("@/actions/postmatch", () => ({ mutateMatchRecording: save }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+it("adds explicit per-person labels, cancels edits, and confirms removal without replacing the list", async () => {
+  render(<MatchRecordingEditor matchId="match" commentators={[{ userId: "a", name: "解说甲" }]} recordings={[{ id: "existing", commentatorUserId: "a", title: "图一", url: "https://video.example/1" }]} />);
+  fireEvent.change(screen.getByLabelText("解说甲录像标题"), { target: { value: "图二" } });
+  fireEvent.change(screen.getByLabelText("解说甲录像链接"), { target: { value: "https://video.example/2" } });
+  fireEvent.click(screen.getByRole("button", { name: "添加录像" }));
+  await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+  expect(save.mock.calls[0]![0]).toMatchObject({ matchId: "match", command: { kind: "save", recording: { commentatorUserId: "a", title: "图二", url: "https://video.example/2" } } });
+  await waitFor(() => expect(refresh).toHaveBeenCalled());
+  fireEvent.click(screen.getByRole("button", { name: "编辑" }));
+  fireEvent.click(screen.getByRole("button", { name: "取消" }));
+  expect(save).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole("button", { name: "移除", exact: true }));
+  expect(save).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole("button", { name: "确认移除" }));
+  await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+  expect(save.mock.calls[1]![0]).toEqual({ matchId: "match", command: { kind: "remove", id: "existing" } });
+});
