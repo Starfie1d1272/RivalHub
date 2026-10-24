@@ -82,14 +82,24 @@ if [[ $# != 2 ]]; then
   [[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ && $sha =~ ^[a-f0-9]{40}$ && $previous_tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ && $previous_sha =~ ^[a-f0-9]{40}$ ]] || exit 1
   [[ $env_file == "$config" ]] || { echo 'Release requires the installed production environment.' >&2; exit 1; }
 fi
-name=$(basename "$archive" .tar.gz)
-[[ $name =~ ^rivalhub-production-[a-f0-9]{40}-[a-f0-9]{12}$ ]] || exit 1
 (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$archive").sha256")
 archive_sha=$(sha256sum "$archive" | cut -d ' ' -f 1)
+staging=$(mktemp -d "$root/releases/.staging.XXXXXXXX")
+if [[ $archive == *.layers.json ]]; then
+  name=$(basename "$archive" .layers.json)
+  [[ $name =~ ^rivalhub-production-[a-f0-9]{40}-[a-f0-9]{12}$ && -n $tag && -n $sha ]] || exit 1
+  # Layered updates bootstrap with the installed runtime; first installation retains the whole-tar path.
+  bootstrap="$root/current/runtime/node"
+  [[ -x $bootstrap ]] || { echo 'Layered update requires an existing runtime.' >&2; exit 1; }
+  assembled_sha=$("$bootstrap" "$script_dir/layers.mjs" assemble "$archive" "$(dirname "$archive")" "$root/layers" "$staging" "$tag" "$sha")
+  [[ $assembled_sha == "$archive_sha" ]] || exit 1
+else
+  name=$(basename "$archive" .tar.gz)
+  [[ $name =~ ^rivalhub-production-[a-f0-9]{40}-[a-f0-9]{12}$ ]] || exit 1
+  tar -xzf "$archive" -C "$staging" --no-same-owner
+fi
 release_name="$name-${archive_sha:0:12}"
 release="$root/releases/$release_name"
-staging=$(mktemp -d "$root/releases/.staging.XXXXXXXX")
-tar -xzf "$archive" -C "$staging" --no-same-owner
 node="$staging/runtime/node"
 read -r tag sha < <("$node" "$helper" manifest "$staging/standby.json" "$name" "$tag" "$sha")
 [[ -n $tag && -n $sha ]] || exit 1

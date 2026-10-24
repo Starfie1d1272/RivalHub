@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, symlinkSync, rmSync, existsSync, realpathSync, readlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, symlinkSync, rmSync, existsSync, realpathSync, readlinkSync, readdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { packageLayers, packageProduction, loadLayerManifest, missingLayers } from './layers.mjs';
 
 test('host promotion, failed restart recovery, immutable retry and explicit rollback', () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'rivalhub-host-')));
@@ -20,10 +21,10 @@ test('host promotion, failed restart recovery, immutable retry and explicit roll
       .replaceAll('/opt/rivalhub-production', root).replaceAll('/etc/rivalhub-production/production.env', config)
       .replaceAll('/etc/systemd/system/rivalhub-production.service', unit).replaceAll('/etc/rivalhub-production', dirname(config));
     writeFileSync(join(dir, 'install-production.sh'), installer);
-    for (const file of ['production-host.mjs', 'rivalhub-production.service']) writeFileSync(join(dir, file), readFileSync(join(source, file)));
+    for (const file of ['production-host.mjs', 'rivalhub-production.service', 'layers.mjs']) writeFileSync(join(dir, file), readFileSync(join(source, file)));
     const old = 'a'.repeat(40), next = 'b'.repeat(40), hash = 'c'.repeat(64);
     const name = sha => `rivalhub-production-${sha}-${hash.slice(0, 12)}`;
-    const manifest = (sha, tag) => JSON.stringify({ sourceCommit: sha, releaseTag: tag, configurationSha256: hash });
+    const manifest = (sha, tag) => JSON.stringify({ sourceCommit: sha, releaseTag: tag, configurationSha256: hash, operatorCommit: 'd'.repeat(40), platform: 'linux', architecture: 'x64', nodeVersion: process.version });
     const previous = join(root, 'releases', name(old));
     mkdirSync(join(previous, 'runtime'), { recursive: true });
     symlinkSync(process.execPath, join(previous, 'runtime/node'));
@@ -95,6 +96,125 @@ else throw Error(cmd);
     assert.equal(run(rollback).status, 0);
     assert.equal(run(rollback).status, 0);
     assert.equal(readFileSync(config, 'utf8'), oldEnv);
+    // Layered deployment is a different transport into the SAME recovery transaction.
+    // A tiny executable wrapper keeps these fault fixtures independent of the real Node binary size.
+    rmSync(join(candidate, 'runtime/node'));
+    writeFileSync(join(candidate, 'runtime/node'), `#!/bin/sh\nexec '${process.execPath}' "$@"\n`, { mode: 0o755 });
+    mkdirSync(join(candidate, 'node_modules/pkg'), { recursive: true });
+    writeFileSync(join(candidate, 'node_modules/pkg/index.js'), 'export default 1;');
+    symlinkSync('pkg', join(candidate, 'node_modules/pkg-link'));
+    mkdirSync(join(candidate, '.next/node_modules'));
+    symlinkSync('../../node_modules/pkg', join(candidate, '.next/node_modules/pkg'));
+    const incoming = join(dir, 'layers');
+    const metadata = JSON.parse(manifest(next, 'v1.0.1'));
+    const fullOutput = join(dir, 'whole-output');
+    assert.equal(packageProduction(candidate, fullOutput, metadata).format, 'whole-tar');
+    assert.deepEqual(readdirSync(fullOutput).sort(), [`${name(next)}.json`, `${name(next)}.tar.gz`, `${name(next)}.tar.gz.sha256`]);
+    assert.throws(() => packageProduction(candidate, join(dir, 'invalid-mode'), metadata, '--unknown'));
+    assert.ok(!existsSync(join(dir, 'invalid-mode')));
+    assert.equal(packageProduction(candidate, incoming, metadata, '--layers').format, 'layers');
+    assert.ok(!readdirSync(incoming).some(path => path.startsWith('rivalhub-production-') && path.endsWith('.tar.gz')));
+    const layered = loadLayerManifest(join(incoming, `${name(next)}.layers.json`));
+    const layeredPath = join(incoming, `${name(next)}.layers.json`);
+    const updateManifest = value => {
+      writeFileSync(layeredPath, JSON.stringify(value));
+      writeFileSync(`${layeredPath}.sha256`, `${createHash('sha256').update(readFileSync(layeredPath)).digest('hex')}  ${name(next)}.layers.json\n`);
+    };
+    const cache = join(root, 'layers');
+    const layeredArgs = [layeredPath, ...deployArgs.slice(1)];
+    assert.deepEqual(missingLayers(layered, cache), layered.layers.map(layer => layer.archive));
+    // Interrupted transfer: a truncated/missing layer must leave the previous version/config untouched.
+    const runtimePath = join(incoming, layered.layers[0].archive);
+    const runtimeArchive = readFileSync(runtimePath);
+    writeFileSync(runtimePath, runtimeArchive.subarray(0, 12));
+    result = run(layeredArgs);
+    assert.equal(result.status, 1);
+    assert.equal(readlinkSync(join(root, 'current')), `releases/${name(old)}`);
+    assert.equal(readFileSync(config, 'utf8'), oldEnv);
+    assert.ok(!readdirSync(join(root, 'releases')).some(path => path.startsWith('.staging.')));
+    writeFileSync(runtimePath, runtimeArchive);
+    writeFileSync(join(dir, 'fail'), '');
+    result = run(layeredArgs);
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, /previous state restored/);
+    assert.equal(readFileSync(config, 'utf8'), oldEnv);
+    assert.deepEqual(missingLayers(layered, cache), []);
+    result = run(layeredArgs);
+    assert.equal(result.status, 0, result.stderr);
+    const layeredRelease = join(root, readlinkSync(join(root, 'current')));
+    assert.equal(statSync(layeredRelease).mode & 0o050, 0o050);
+    assert.equal(statSync(join(layeredRelease, 'runtime/node')).mode & 0o050, 0o050);
+    const cachedNode = join(cache, `runtime-${layered.layers[0].treeSha256}`, 'runtime/node');
+    assert.notEqual(statSync(cachedNode).ino, statSync(join(layeredRelease, 'runtime/node')).ino);
+    assert.equal(readlinkSync(join(layeredRelease, 'node_modules/pkg-link')), 'pkg');
+    writeFileSync(join(layeredRelease, '.next/cache/live-value'), 'not a build input');
+    assert.equal(run(layeredArgs).status, 1); // stale previous identity is rejected before mutation
+    assert.equal(run(rollback).status, 0);
+    result = run(layeredArgs); // retry the identical immutable package from its frozen previous version
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(run(rollback).status, 0);
+    // Warm deploy needs only a changed app layer; corrupt cache is a miss, never silently reused.
+    writeFileSync(join(candidate, '.next/BUILD_ID'), 'second-layered-build');
+    const warm = packageLayers(candidate, incoming, metadata);
+    assert.deepEqual(missingLayers(warm, cache), [warm.layers[2].archive]);
+    writeFileSync(cachedNode, 'corrupt cache');
+    assert.deepEqual(missingLayers(warm, cache), [warm.layers[0].archive, warm.layers[2].archive]);
+    assert.ok(readFileSync(join(layeredRelease, 'runtime/node'), 'utf8').startsWith('#!/bin/sh'));
+    result = run(layeredArgs);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(missingLayers(warm, cache), []);
+    assert.equal(run(rollback).status, 0);
+    // Missing upload fails even if some layers are already committed; no release is activated.
+    const appPath = join(incoming, warm.layers[2].archive);
+    const appArchive = readFileSync(appPath);
+    rmSync(join(cache, `app-${warm.layers[2].treeSha256}`), { recursive: true });
+    rmSync(appPath);
+    result = run(layeredArgs);
+    assert.equal(result.status, 1);
+    assert.equal(readFileSync(config, 'utf8'), oldEnv);
+    writeFileSync(appPath, appArchive);
+    // A forged compressed checksum cannot bypass the extracted-content digest.
+    writeFileSync(join(candidate, '.next/BUILD_ID'), 'tampered');
+    const tampered = packageLayers(candidate, incoming, metadata);
+    writeFileSync(appPath, readFileSync(join(incoming, tampered.layers[2].archive)));
+    const frozen = { ...warm, layers: warm.layers.map((layer, index) => index === 2 ? { ...layer, sha256: tampered.layers[2].sha256, bytes: tampered.layers[2].bytes } : layer) };
+    updateManifest(frozen);
+    assert.equal(loadLayerManifest(layeredPath).sourceCommit, next);
+    result = run(layeredArgs);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Extracted layer checksum mismatch/);
+    assert.equal(readFileSync(config, 'utf8'), oldEnv);
+    assert.ok(!readdirSync(cache).some(path => path.startsWith('.incoming-')));
+    // Even a checksum-updated tar cannot substitute an escaping link for the typed build inventory.
+    const deps = warm.layers[1];
+    rmSync(join(candidate, 'node_modules/pkg-link'));
+    symlinkSync('/etc/passwd', join(candidate, 'node_modules/pkg-link'));
+    const depsArchive = join(incoming, deps.archive);
+    execFileSync('tar', ['-czf', depsArchive, '-C', candidate, 'node_modules']);
+    const unsafe = { ...warm, layers: warm.layers.map((layer, index) => index === 1 ? { ...layer, bytes: statSync(depsArchive).size, sha256: createHash('sha256').update(readFileSync(depsArchive)).digest('hex') } : layer) };
+    updateManifest(unsafe);
+    rmSync(join(cache, `deps-${deps.treeSha256}`), { recursive: true });
+    result = run(layeredArgs);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /tar type or link mismatch/);
+    assert.equal(readFileSync(config, 'utf8'), oldEnv);
+    rmSync(join(candidate, 'node_modules/pkg-link'));
+    symlinkSync('pkg', join(candidate, 'node_modules/pkg-link'));
+    // Source/config changes are bound in standby.json, even with identical runtime/dependencies.
+    writeFileSync(join(candidate, 'standby.json'), JSON.stringify({ ...metadata, sourceCommit: 'e'.repeat(40), configurationSha256: 'f'.repeat(64) }));
+    const changed = packageLayers(candidate, incoming, { ...metadata, sourceCommit: 'e'.repeat(40), configurationSha256: 'f'.repeat(64) });
+    assert.equal(changed.layers[0].treeSha256, warm.layers[0].treeSha256);
+    assert.equal(changed.layers[1].treeSha256, warm.layers[1].treeSha256);
+    assert.notEqual(changed.layers[2].treeSha256, warm.layers[2].treeSha256);
+    writeFileSync(join(candidate, 'runtime/node'), readFileSync(join(candidate, 'runtime/node'), 'utf8') + '# upgraded runtime\n');
+    const upgraded = packageLayers(candidate, incoming, { ...metadata, sourceCommit: 'e'.repeat(40), configurationSha256: 'f'.repeat(64) });
+    assert.notEqual(upgraded.layers[0].treeSha256, changed.layers[0].treeSha256);
+    // Cross-layer/absolute links cannot be published, nor can descendants of a symlink be extracted.
+    for (const target of ['../../runtime/node', '/etc/passwd', '../../../outside']) {
+      symlinkSync(target, join(candidate, 'node_modules/escape'));
+      assert.throws(() => packageLayers(candidate, incoming, metadata));
+      rmSync(join(candidate, 'node_modules/escape'));
+    }
     writeFileSync(join(rebuiltRelease, 'standby.json'), '{}');
     assert.equal(run(deployArgs).status, 1);
     assert.equal(readFileSync(config, 'utf8'), oldEnv);

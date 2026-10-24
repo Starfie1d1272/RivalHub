@@ -4,6 +4,7 @@ import { appendFileSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFi
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { loadLayerManifest } from "../standby/layers.mjs";
 import { assertReleaseCapabilities } from "./capability-contract";
 import { assertReleaseIdentity, type ReleaseIdentity } from "../../src/lib/release/identity";
 
@@ -64,13 +65,18 @@ async function main() {
   const knownHosts = process.env.LINUX_DEPLOY_KNOWN_HOSTS;
   if (!key?.includes("PRIVATE KEY") || !knownHosts?.includes("[47.103.131.158]:52222")) throw new Error("Protected Linux SSH credential and pinned host key required.");
   const packageDir = resolve(".agent-tmp/standby-production-package");
-  const archives = readdirSync(packageDir).filter(name => name.endsWith(".tar.gz"));
-  if (archives.length !== 1 || !/^rivalhub-production-[a-f0-9]{40}-[a-f0-9]{12}\.tar\.gz$/.test(archives[0])) throw new Error("Exactly one immutable Linux package required.");
-  const archive = archives[0];
-  const manifest = JSON.parse(readFileSync(join(packageDir, archive.replace(/\.tar\.gz$/, ".json")), "utf8"));
+  const files = readdirSync(packageDir);
+  const layers = files.filter(name => /^rivalhub-production-[a-f0-9]{40}-[a-f0-9]{12}\.layers\.json$/.test(name));
+  if (layers.length > 1) throw new Error("Exactly one layered Linux package required.");
+  const layered = layers.length === 1 ? loadLayerManifest(join(packageDir, layers[0])) : undefined;
+  const archives = files.filter(name => /^rivalhub-production-[a-f0-9]{40}-[a-f0-9]{12}\.tar\.gz$/.test(name));
+  if (!layered && archives.length !== 1) throw new Error("Exactly one immutable Linux package required.");
+  const archive = layered ? layers[0] : archives[0];
+  const manifest = layered ?? JSON.parse(readFileSync(join(packageDir, archive.replace(/\.tar\.gz$/, ".json")), "utf8"));
   const hash = createHash("sha256").update(readFileSync(join(packageDir, archive))).digest("hex");
-  if (manifest.sourceCommit !== candidate.releaseCommit || manifest.releaseTag !== candidate.releaseTag || manifest.sha256 !== hash
-    || readFileSync(join(packageDir, `${archive}.sha256`), "utf8").trim() !== `${hash}  ${archive}`) throw new Error("Package checksum or candidate identity mismatch.");
+  const operator = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  if (manifest.sourceCommit !== candidate.releaseCommit || manifest.releaseTag !== candidate.releaseTag || manifest.operatorCommit !== operator
+    || (!layered && manifest.sha256 !== hash) || readFileSync(join(packageDir, `${archive}.sha256`), "utf8").trim() !== `${hash}  ${archive}`) throw new Error("Package checksum or candidate identity mismatch.");
   const temp = mkdtempSync(join(tmpdir(), "rivalhub-release-"));
   const remote = `/root/rivalhub-release-${candidate.releaseCommit}-${randomUUID()}`;
   writeFileSync(join(temp, "key"), key + "\n", { mode: 0o600 });
@@ -82,7 +88,16 @@ async function main() {
   try {
     // Setup failures occur before any application mutation.
     ssh(`mkdir -m 700 ${remote}`);
-    execFileSync("scp", [...options, "-P", "52222", join(packageDir, archive), join(packageDir, `${archive}.sha256`), "scripts/standby/install-production.sh", "scripts/standby/production-host.mjs", "scripts/standby/rivalhub-production.service", `${host}:${remote}/`], { stdio: "inherit", timeout: 300_000 });
+    const tools = ["scripts/standby/install-production.sh", "scripts/standby/production-host.mjs", "scripts/standby/rivalhub-production.service", "scripts/standby/layers.mjs"];
+    execFileSync("scp", [...options, "-P", "52222", join(packageDir, archive), join(packageDir, `${archive}.sha256`), ...tools, `${host}:${remote}/`], { stdio: "inherit", timeout: 300_000 });
+    if (layered) {
+      const missing: unknown = JSON.parse(execFileSync("ssh", [...options, "-p", "52222", host,
+        `/opt/rivalhub-production/current/runtime/node ${remote}/layers.mjs missing ${remote}/${archive} /opt/rivalhub-production/layers`], { encoding: "utf8", timeout: 300_000 }));
+      if (!Array.isArray(missing) || missing.some(name => typeof name !== "string" || !layered.layers.some(layer => layer.archive === name)) || new Set(missing).size !== missing.length) throw new Error("Invalid remote layer inventory.");
+      if (missing.length) execFileSync("scp", [...options, "-P", "52222", ...missing.map(name => join(packageDir, name)), `${host}:${remote}/`], { stdio: "inherit", timeout: 300_000 });
+      const bytes = layered.layers.filter(layer => missing.includes(layer.archive)).reduce((sum, layer) => sum + layer.bytes, 0);
+      console.log(JSON.stringify({ event: "linux.layer_transfer", layers: missing.length, compressedBytes: bytes, reusedLayers: 3 - missing.length }));
+    }
     await promoteLinux({
       assertCapabilities: () => assertReleaseCapabilities(process.cwd(), previous.releaseCommit, candidate.releaseCommit),
       verifyPrevious: () => verifyCanonical(previous, false),
