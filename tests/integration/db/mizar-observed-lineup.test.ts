@@ -104,8 +104,8 @@ describe("observed lineup display without official attribution", () => {
       { ...snapshot, matchId: randomUUID() },
       { ...snapshot, cursor: { ...snapshot.cursor, mapEpoch: 2 } },
       { ...snapshot, players: [...snapshot.players.slice(0, 9), snapshot.players[0]!] },
-    ]) await expect(ingestMizarLive(f.installationId, f.seasonId, invalid, f.authorityRevision)).rejects.toBeInstanceOf(AppError);
-    await expect(ingestMizarLive(f.installationBId, f.seasonId, snapshot, f.authorityRevision)).rejects.toMatchObject({ code: ErrorCode.FORBIDDEN });
+    ]) await expect(ingestMizarLive(f.credentialHash, invalid, f.authorityRevision)).rejects.toBeInstanceOf(AppError);
+    await expect(ingestMizarLive(f.credentialBHash, snapshot, f.authorityRevision)).rejects.toMatchObject({ code: ErrorCode.FORBIDDEN });
     const previousUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const previousKey = process.env.SUPABASE_SECRET_KEY;
     process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:1";
@@ -113,7 +113,7 @@ describe("observed lineup display without official attribution", () => {
     try {
       // Provider delivery is verified separately against Local Supabase in CI.
       // This real-DB check must reach the transport rather than fail authorization.
-      const outcome = await ingestMizarLive(f.installationId, f.seasonId, snapshot, f.authorityRevision).catch((error: unknown) => error);
+      const outcome = await ingestMizarLive(f.credentialHash, snapshot, f.authorityRevision).catch((error: unknown) => error);
       expect(outcome).toEqual({ accepted: false, reason: "broadcast_unavailable" });
     } finally {
       if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL; else process.env.NEXT_PUBLIC_SUPABASE_URL = previousUrl;

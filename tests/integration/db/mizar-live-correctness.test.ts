@@ -2,7 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { and, eq, isNull } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { api, state, pool, monitor, publications, snapshot, prepared, upload, reports } from "./harness/live-capacity";
-const { db, schema, POST, ingestMizarLive, ingestMizarReliable, RELIABLE_EVENT_SCHEMA_VERSION, revokeMizarInstallation, claimMizarSource, takeOverCurrentMap, loadMizarMatchDocumentInTx, recordCanonicalMapResultInTx } = api;
+const { db, schema, hashCredential, POST, ingestMizarLive, ingestMizarReliable, RELIABLE_EVENT_SCHEMA_VERSION, revokeMizarInstallation, claimMizarSource, takeOverCurrentMap, loadMizarMatchDocumentInTx, recordCanonicalMapResultInTx } = api;
 
 describe("LIVE correctness: real PostgreSQL and loopback HTTP faults", () => {
   it.each([false, true])("accepts fresh LIVE at 95ms SQL RTT with observed lineup=%s", async observedLineup => {
@@ -30,6 +30,8 @@ describe("LIVE correctness: real PostgreSQL and loopback HTTP faults", () => {
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ accepted: true });
       expect(publications).toHaveLength(before + 1);
+      // BEGIN + gate + locked authority + COMMIT; no separate credential SELECT.
+      expect(state.sqlRoundTrips).toBe(4);
       reports.push({ scenario: "hosted-sql-rtt", sqlRttMs: 95, observedLineup, sqlRoundTrips: state.sqlRoundTrips, accepted: true });
     } finally { state.sqlDelayMs = 0; }
   });
@@ -38,39 +40,67 @@ describe("LIVE correctness: real PostgreSQL and loopback HTTP faults", () => {
     const f = await prepared();
     await delay(1500);
     state.mode = fault;
-    expect(await ingestMizarLive(f.installationId, f.seasonId, snapshot(f, 1), 1)).toEqual({ accepted: false, reason: "broadcast_unavailable" });
+    expect(await ingestMizarLive(f.credentialHash, snapshot(f, 1), 1)).toEqual({ accepted: false, reason: "broadcast_unavailable" });
     await delay(1000);
     state.mode = "fast";
-    expect(await ingestMizarLive(f.installationId, f.seasonId, snapshot(f, 2), 1)).toEqual({ accepted: true });
+    expect(await ingestMizarLive(f.credentialHash, snapshot(f, 2), 1)).toEqual({ accepted: true });
   });
 
-it("rotates synchronous sources even while credential authentication waits on PostgreSQL", async () => {
+it("bounds credential-lock waits, rotates blocked sources and accepts fresh recovery", async () => {
     const fixtures = await Promise.all(Array.from({ length: 4 }, () => prepared()));
-    await delay(1500); // Prior scenarios have stopped; expire their demand leases.
-    const accepted = [0, 0, 0, 0];
+    await delay(1500);
+    const contended = [0, 0, 0, 0];
     state.mode = "fast";
+    const before = publications.length;
     for (let tick = 0; tick < 4; tick++) {
       const blocker = await monitor.connect();
       try {
         await blocker.query("BEGIN");
         await blocker.query("LOCK TABLE mizar_installations IN ACCESS EXCLUSIVE MODE");
-        const batch = fixtures.map(async (f, i) => {
+        // Keep the conflicting lock until all requests finish: credential lookup
+        // now shares the transaction's 25ms lock budget instead of queuing outside it.
+        const outcomes = await Promise.all(fixtures.map(async (f, i) => {
           const response = await upload(f, tick + 1);
-          if ((await response.json()).accepted) accepted[i]!++;
-        });
-        // A database barrier, not an arbitrary sleep: both fair permits must be
-        // occupied by the actual credential SELECT before releasing authentication.
-        await expect.poll(async () => {
-          const result = await pool.query("SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%mizar_installations%'");
-          return result.rows[0].n;
-        }, { timeout: 3000, interval: 5 }).toBe(2);
-        await blocker.query("COMMIT");
-        await Promise.all(batch);
+          const outcome = await response.json();
+          expect(outcome.accepted).toBe(false);
+          expect(["contended", "capacity"]).toContain(outcome.reason);
+          if (outcome.reason === "contended") contended[i]!++;
+          return outcome.reason;
+        }));
+        expect(outcomes.filter(reason => reason === "contended")).toHaveLength(2);
       } finally { await blocker.query("ROLLBACK"); blocker.release(); }
       if (tick < 3) await delay(500);
     }
-    expect(accepted).toEqual([2, 2, 2, 2]);
-    reports.push({ scenario: "blocked-authentication", perMatch: fixtures.map((f, i) => ({ matchId: f.matchId, accepted: accepted[i] })) });
+    expect(contended).toEqual([2, 2, 2, 2]);
+    expect(publications).toHaveLength(before);
+    await delay(1500);
+    for (const f of fixtures) expect(await (await upload(f, 5)).json()).toEqual({ accepted: true });
+    reports.push({ scenario: "bounded-credential-lock", contended, recovered: fixtures.length });
+  });
+
+  it("rejects unknown, revoked, other-installation and cross-competition HTTP credentials before publication", async () => {
+    const f = await prepared();
+    const other = await prepared();
+    const sameCompetitionToken = `rh_mizar_${f.installationBId}_${"c".repeat(64)}`;
+    await db.update(schema.mizarInstallations).set({ credentialHash: hashCredential(sameCompetitionToken) }).where(eq(schema.mizarInstallations.id, f.installationBId));
+    await delay(1500);
+    const before = publications.length;
+    const post = (token: string, input = snapshot(f)) => POST(new Request("http://local.test/api/mizar/live", {
+      method: "POST", headers: { authorization: `Bearer ${token}`, "x-rivalhub-authority": "1" }, body: JSON.stringify(input),
+    }), { params: Promise.resolve({ operation: "live" }) });
+    const unknown = f.token.slice(0, -64) + "b".repeat(64);
+    // Expire earlier demand tickets between different credentials so these
+    // assertions exercise database authority rather than the fairness gate.
+    expect((await post(unknown)).status).toBe(403);
+    await delay(1500);
+    expect((await post(sameCompetitionToken)).status).toBe(403);
+    await delay(1500);
+    expect((await post(other.token)).status).toBe(403);
+    await delay(1500);
+    expect((await post(f.token, { ...snapshot(f), competitionId: other.seasonId })).status).toBe(403);
+    await db.update(schema.mizarInstallations).set({ revokedAt: new Date() }).where(eq(schema.mizarInstallations.id, f.installationId));
+    expect((await post(f.token)).status).toBe(403);
+    expect(publications).toHaveLength(before);
   });
 
 it("releases ingress after malicious bodies and rejects expired waiters without publication", async () => {
@@ -118,12 +148,12 @@ it("serves four staggered 2 Hz sources and preserves unchanged 1 Hz heartbeats a
     await delay(1000);
     state.mode = "disconnect";
     expect(
-      await ingestMizarLive(f.installationId, f.seasonId, snapshot(f, 5), 1),
+      await ingestMizarLive(f.credentialHash, snapshot(f, 5), 1),
     ).toEqual({ accepted: false, reason: "broadcast_unavailable" });
     await delay(1000);
     state.mode = "fast";
     expect(
-      await ingestMizarLive(f.installationId, f.seasonId, snapshot(f, 5), 1),
+      await ingestMizarLive(f.credentialHash, snapshot(f, 5), 1),
     ).toEqual({ accepted: true });
     reports.push({
       scenario: "staggered",
@@ -149,7 +179,7 @@ it(
           [`mizar-live:${f.matchId}`],
         );
         expect(
-          await ingestMizarLive(f.installationId, f.seasonId, snapshot(f), 1),
+          await ingestMizarLive(f.credentialHash, snapshot(f), 1),
         ).toEqual({ accepted: false, reason: "contended" });
         await client.query("ROLLBACK");
         for (const [table, id] of [
@@ -163,7 +193,7 @@ it(
           ]);
           const start = performance.now();
           expect(
-            await ingestMizarLive(f.installationId, f.seasonId, snapshot(f), 1),
+            await ingestMizarLive(f.credentialHash, snapshot(f), 1),
           ).toEqual({ accepted: false, reason: "contended" });
           expect(performance.now() - start).toBeLessThan(500);
           await client.query("ROLLBACK");
@@ -203,12 +233,7 @@ it("holds authority fencing through send while revoke, handover and manual resul
       let releaseSend!: () => void;
       state.sendBarrier = new Promise<void>((resolve) => { releaseSend = resolve; });
       const before = publications.length;
-      const live = ingestMizarLive(
-        f.installationId,
-        f.seasonId,
-        snapshot(f),
-        1,
-      );
+      const live = ingestMizarLive(f.credentialHash, snapshot(f), 1);
       await vi.waitFor(() =>
         expect(publications.length).toBeGreaterThan(before),
       );
@@ -279,7 +304,7 @@ it("holds authority fencing through send while revoke, handover and manual resul
       });
       if (change !== "manual")
         await expect(
-          ingestMizarLive(f.installationId, f.seasonId, snapshot(f, 2), 1),
+          ingestMizarLive(f.credentialHash, snapshot(f, 2), 1),
         ).rejects.toMatchObject({ code: "FORBIDDEN" });
       else {
         const [m] = await db

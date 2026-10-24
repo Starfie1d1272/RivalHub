@@ -19,9 +19,9 @@ const LIVE_FRAME_BUDGET_MS = 500;
 export const matchLiveTopic = (matchId: string) => `match-live:${matchId}`;
 
 /** Read/validate/broadcast only. Share locks keep handover atomic with publication. */
-export async function ingestMizarLive(installationId: string, competitionId: string, input: unknown, authorityRevision: number, receivedAt = performance.now()) {
+export async function ingestMizarLive(credentialHash: string, input: unknown, authorityRevision: number, receivedAt = performance.now()) {
   const snapshot = parseLiveSnapshotV1(input);
-  if (snapshot.competitionId !== competitionId || snapshot.cursor.liveSessionId === null) throw new AppError(ErrorCode.FORBIDDEN, "制播数据不属于当前连接。");
+  if (snapshot.cursor.liveSessionId === null) throw new AppError(ErrorCode.FORBIDDEN, "制播数据不属于当前连接。");
   let cleanup: (() => Promise<unknown>) | undefined;
   let outcome: LiveIngestOutcome = "error";
   try {
@@ -43,14 +43,14 @@ export async function ingestMizarLive(installationId: string, competitionId: str
         mapMatches: boolean;
         identities: Record<string, string>;
       }>(sql`WITH installation AS MATERIALIZED (
-        SELECT ${mizarInstallations.id} AS id FROM ${mizarInstallations}
-        WHERE ${mizarInstallations.id}=${installationId} AND ${mizarInstallations.competitionId}=${competitionId}
+        SELECT ${mizarInstallations.id} AS id, ${mizarInstallations.competitionId} AS "competitionId" FROM ${mizarInstallations}
+        WHERE ${mizarInstallations.credentialHash}=${credentialHash}
           AND ${mizarInstallations.revokedAt} IS NULL FOR SHARE
       ), current_match AS MATERIALIZED (
         SELECT ${matches.id} AS id, ${matches.status} AS status, ${matches.format} AS format,
           ${matches.entryAId} AS "entryAId", ${matches.entryBId} AS "entryBId"
-        FROM ${matches} WHERE ${matches.id}=${snapshot.matchId} AND ${matches.seasonId}=${competitionId}
-          AND EXISTS (SELECT 1 FROM installation) FOR SHARE
+        FROM ${matches} WHERE ${matches.id}=${snapshot.matchId} AND ${matches.seasonId}=(SELECT "competitionId" FROM installation)
+          AND ${matches.seasonId}=${snapshot.competitionId} FOR SHARE
       ), current_source AS MATERIALIZED (
         SELECT ${matchLiveSessions.installationId} AS "installationId", ${matchLiveSessions.authorityRevision} AS "authorityRevision",
           ${matchLiveSessions.producerInstanceId} AS "producerInstanceId", ${matchLiveSessions.liveSessionId} AS "liveSessionId",
@@ -72,8 +72,8 @@ export async function ingestMizarLive(installationId: string, competitionId: str
         CASE WHEN (SELECT "lineupHealth" FROM current_source)=${LINEUP_REVIEW_REQUIRED}
           THEN COALESCE((SELECT jsonb_object_agg("steam64", "userId") FROM roster WHERE "steam64" IS NOT NULL), '{}'::jsonb)
           ELSE '{}'::jsonb END AS identities`);
-      const { match, source, mapMatches, identities: identityRows } = authority.rows[0]!;
-      if (!authority.rows[0]?.installationId) throw new AppError(ErrorCode.FORBIDDEN, "制播设备连接已撤销。");
+      const { installationId, match, source, mapMatches, identities: identityRows } = authority.rows[0]!;
+      if (!installationId) throw new AppError(ErrorCode.FORBIDDEN, "制播设备连接已撤销。");
       const observedLineup = source?.identityHealth === "healthy" && source.lineupHealth === LINEUP_REVIEW_REQUIRED
         && source.continuityHealth === "healthy" && !source.autoCanonicalizationArmed
         && source.mapExecutionPhase === "gameplay" && source.currentMapId === snapshot.map.mapId
