@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import Link from "next/link";
@@ -78,7 +79,7 @@ export default async function RecruitmentLobbyPage({ searchParams }: { searchPar
         description="找到正在补充队员的队伍，或公开当前找队意向"
         actions={session ? activeView === "players" && captainTeam ? <Button size="sm" asChild><Link href="/my/teams#team-recruitment">管理队伍招募</Link></Button> : <PlayerLftEditorDialog targetSeasons={targetSeasons} existing={ownLft} /> : <Button size="sm" asChild><Link href={loginHref as never}>登录后发布找队</Link></Button>}
       />
-      <TeamSectionNav active="recruitment" />
+      <ContentReady module="team" phase="primary" /><TeamSectionNav active="recruitment" />
       <RecruitmentLobbyControls
         view={activeView}
         normalizedFilters={normalizedFilters}

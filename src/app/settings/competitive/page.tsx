@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { Suspense } from "react";
 import { RegistrationReturnLink } from "@/components/settings/RegistrationReturnLink";
 import { eq } from "drizzle-orm";
@@ -45,7 +46,7 @@ export default async function CompetitiveProfileSettingsPage({ searchParams }: P
       facts: facts.filter((item) => item.platform === platform.key).map((item) => ({ kind: item.kind, platformSeasonKey: item.platformSeasonKey, status: item.status, rank: item.rank, rating: item.rating === null ? null : String(item.rating), stars: item.stars, achievedSeasonKey: item.achievedSeasonKey })),
     };
   });
-  return <div className="space-y-5"><RegistrationReturnLink href={rawSearchParams.returnTo} /><div><p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">PARTICIPANT PROFILE</p><h1 className="mt-1 text-3xl font-semibold">竞技档案</h1></div><CompetitiveProfileForm contexts={contexts} initialTarget={{ platform: requestedPlatform, season: requestedSeason }} /><Suspense fallback={<div className="min-h-28" role="status">正在读取常用位置…</div>}><RolesSettings userId={session.userId} /></Suspense><Suspense fallback={<div className="min-h-28" role="status">正在读取地图熟练度…</div>}><MapSettings userId={session.userId} /></Suspense></div>;
+  return <div className="space-y-5"><RegistrationReturnLink href={rawSearchParams.returnTo} /><div><p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">PARTICIPANT PROFILE</p><h1 className="mt-1 text-3xl font-semibold">竞技档案</h1></div><ContentReady module="account" phase="form" /><CompetitiveProfileForm contexts={contexts} initialTarget={{ platform: requestedPlatform, season: requestedSeason }} /><Suspense fallback={<div className="min-h-28" role="status">正在读取常用位置…</div>}><RolesSettings userId={session.userId} /></Suspense><Suspense fallback={<div className="min-h-28" role="status">正在读取地图熟练度…</div>}><MapSettings userId={session.userId} /></Suspense></div>;
 }
 
 async function RolesSettings({ userId }: { userId: string }) {
