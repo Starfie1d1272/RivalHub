@@ -1,0 +1,131 @@
+{
+  "bodyCandidate": "836d1bcd",
+  "leafCandidate": "3d16f395f2b1a383cce422c649636b2387dc84ac",
+  "bodyBudget": {
+    "transportAttemptsBeforeGuidance": 3,
+    "imageBudgetMiB": 7,
+    "envelopeBytes": 9786741,
+    "accepted": 200,
+    "paced": 200,
+    "rejected": 500,
+    "pacedElapsedMs": 7711.311916999999,
+    "pacedChunkBytes": 65536,
+    "pacedChunkIntervalMs": 50,
+    "productionProxyVerified": false
+  },
+  "settings": {
+    "runtime": "canonical-runner-runtime-not-assumed-production",
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "samples": [
+      {
+        "route": "/settings/security",
+        "enabledFormReadyMs": 5752.699999999255,
+        "shifts": [
+          {
+            "startTime": 5459.5999999996275,
+            "value": 0.02730856153700087,
+            "hadRecentInput": false,
+            "sourceTags": [
+              "FOOTER",
+              "A",
+              "DIV",
+              "A",
+              "A"
+            ]
+          },
+          {
+            "startTime": 6078.4000000003725,
+            "value": 0.0001282820701599121,
+            "hadRecentInput": false,
+            "sourceTags": [
+              "A",
+              "DIV",
+              "A",
+              "A"
+            ]
+          }
+        ]
+      },
+      {
+        "route": "/settings/competitive",
+        "enabledFormReadyMs": 1593.2000000011176,
+        "shifts": [
+          {
+            "startTime": 1088.800000000745,
+            "value": 9.597439236111112e-05,
+            "hadRecentInput": false,
+            "sourceTags": [
+              "A",
+              "DIV",
+              "A",
+              "A"
+            ]
+          },
+          {
+            "startTime": 1458.5999999996275,
+            "value": 0.07916666666666666,
+            "hadRecentInput": false,
+            "sourceTags": [
+              "FOOTER"
+            ]
+          },
+          {
+            "startTime": 1645.5,
+            "value": 0.0001282820701599121,
+            "hadRecentInput": false,
+            "sourceTags": [
+              "A",
+              "DIV",
+              "A",
+              "A"
+            ]
+          },
+          {
+            "startTime": 2070.7000000011176,
+            "value": 0.0005393981933593749,
+            "hadRecentInput": false,
+            "sourceTags": [
+              "SECTION",
+              "DIV"
+            ]
+          }
+        ]
+      },
+      {
+        "route": "/settings/education",
+        "enabledFormReadyMs": 1039.2000000011176,
+        "shifts": [
+          {
+            "startTime": 918.7000000011176,
+            "value": 0.04344428168402778,
+            "hadRecentInput": false,
+            "sourceTags": [
+              "FOOTER",
+              "DIV"
+            ]
+          },
+          {
+            "startTime": 1164.300000000745,
+            "value": 0.0001282820701599121,
+            "hadRecentInput": false,
+            "sourceTags": [
+              "A",
+              "DIV",
+              "A",
+              "A"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "browserCases": {
+    "bodyCandidate": 4,
+    "leafCandidate": 3
+  },
+  "realPostgresTests": 6,
+  "productionBuildOrProxyVerified": false
+}
