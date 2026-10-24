@@ -59,6 +59,8 @@ DB/internal facts
 
 Public profile routes compose server-only read models; scope selection and derived metrics stay in the read model instead of the route entrypoint.
 
+赛事阶段 read model 在 React Server Component 单次请求内，按赛事 ID 与模板复用 StageRun、正式比赛阶段和资格赛事实读取；每个调用仍使用自己的赛事 stagePlan 生成展示。此请求级复用由 `src/lib/seasons/public-stage.ts` 拥有，请求结束后失效，不产生跨用户或跨请求的业务状态缓存。
+
 公开赛事、选手生涯、长期队伍与赛事队伍统计共同消费经过确认的每图统计投影。Demo 晋级 owner 在同一事务中保存版本化 `match_demo_stat_projections`，复用 DAK 的中间统计与组合规则；来源 import、Evidence revision、身份绑定和计算版本共同决定投影是否适用。原始 Evidence 保留用于审计、重检及显式回填；公开冷读只加载有效投影，不回退读取完整 payload。身份撤销或账号归并在原事务中将依赖旧归属的 import 标为待重检，避免已撤销的事实继续进入公开统计。Demo 提交、重检、补建与 gameplay identity 变更共用 `src/lib/identity/write-lock.ts` 的事务级排他 gate；先取 identity gate，再取地图 lineage、user/season 及业务行锁，持有到提交。管理员补身份再确认复用同一 gate，不做共享锁升级；公开读不取该锁。这样撤销必定先于确认校验，或在确认提交后扫描到并使其待重检。
 
 公开页面默认不暴露 email、QQ、`studentId`、`authId`、管理员授权范围、教育证据或内部备注。不能把内部查询对象直接序列化给浏览器。
@@ -123,6 +125,8 @@ Major Swiss 不经过通用 provider adapter：它由 `majorStageEntrants`、off
 BET 公共积分池、参与人数和免费预测支持率由 `src/lib/bet/public-stats-read.ts` 输出显式聚合 DTO，经 `use cache: remote` 按赛事、比赛及规范化视图范围跨用户复用，服务端硬过期为 15 秒。客户端保留单一 15 秒轮询；轮询间隔与缓存年龄会叠加，不能据此承诺外部变化在 15 秒内显示。缓存填充独立读取公共统计，首次读取会增加工作量，收益取决于同一窗口的复用次数。缓存不保存 voter、个人选择、账户或原始赛事事实；草稿赛事绕过共享缓存。每次请求仍在 read-only repeatable-read 事务中读取个人余额、积分记录、下注、排名、封盘与资格事实，写入和结算继续调用原事务 owner。免费预测个人读取包含 canonical viewer 的归并来源，沿用直接选择优先的投影规则；公共支持率绑定对阵、run、赛制、地图池与有效状态，事实更正时直接重算。竞猜与免费预测 action 提交后立即失效单届 BET tag；赛事与统计 tag 覆盖赛果更正和身份归并。
 
 Prediction mutations serialize by canonical user → season lifecycle guard → relevant official match rows → prediction outbox → event program. Settlement workers read official facts without taking tournament row locks. Lightweight triggers enqueue durable work in the same transaction as official edits and permanently close affected windows; settlement failures leave retryable work and do not execute inside official result transactions. The protected reconciliation endpoint runs through the shared scheduler registry/execution/health owner; its worker and authorized mutations consume the same reconciliation owner. Spectator reads run in read-only repeatable-read transactions and never reconcile or acquire program/outbox row locks. Simulation, pools and records select their own projections: simulation reads only the current spectator’s picks, pools aggregate stakes in PostgreSQL, and achievement/leaderboard work is reserved for the records view. Deadline expiry is projected as closed immediately while durable locking and settlement remain worker/mutation responsibilities. Partial worker failure is reported to scheduler health, and no parser or Demo submission can directly settle a market. Browser clocks are presentation only.
+
+BET 排行榜由 `src/lib/free-predictions/ranking.ts` 在单个 read-only repeatable-read 事务内载入一次全赛事总体，再生成收益、命中数与准确率三个投影。每个投影独立复制并赋值 rank/group，保留各自资格门槛、并列与筛选后排名语义；单榜 action 复用同一总体读取和投影 owner。
 
 ## Security and operations
 
