@@ -160,6 +160,7 @@ export const OPERATIONS = [
   "postmatch.revokePostMatchSubmission",
   "postmatch.submitPostMatchReport",
   "postmatch.updateMatchVideoUrl",
+  "postmatch.mutateMatchRecording",
   "predictions.mutatePrediction",
   "recruitment.closePlayerLft",
   "recruitment.closeTeamRecruitment",

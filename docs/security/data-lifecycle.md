@@ -89,3 +89,5 @@ A 为已有 contract/自动证据；B 为 contract 已定但当前 provider 配�
 - D 修复保留正式结论/历史：教育物理清理延迟不再允许新的到期证据读取/签名，删除仍只有原 retention owner。
 
 本页不授权生产 purge，不宣称通用账号删除或所有 provider 的实时 retention 已验收。
+
+比赛分图/完整回放与历史录像均属于公开赛事资料，由 postmatch owner 管理。`matches.recordings` 的解说归属、标题、链接随比赛保留；管理员可逐条移除，数据库备份仍遵循现有恢复保留期。导出 Preview 时排除该字段并使用空列表，原录像地址同样排除；不额外保存视频内容或建立外部抓取任务。

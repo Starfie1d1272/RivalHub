@@ -1,6 +1,6 @@
 export type PostMatchCompletion = "pending_collection" | "waiting_video" | "completed";
 /** The registered roster is the default; only an explicit reopen needs renewed confirmation. */
-export function getPostMatchCompletion(submittedAt: Date | null, videoUrl: string | null, reopened = false): PostMatchCompletion {
+export function getPostMatchCompletion(submittedAt: Date | null, videoUrl: string | boolean | null, reopened = false): PostMatchCompletion {
   return projectPostMatchCompletion({ submitted: Boolean(submittedAt), hasVideo: Boolean(videoUrl), reopened });
 }
 export function projectPostMatchCompletion(input: { submitted: boolean; hasVideo: boolean; reopened?: boolean }): PostMatchCompletion {

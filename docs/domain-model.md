@@ -268,3 +268,11 @@ Public and admin server read models explicitly adapt their own authorized facts 
 ## 免费赛果与 BP 预测
 
 `src/lib/free-predictions/` 拥有独立免费选择和幂等修订；不属于 BET 金融账本、自由推演 Prediction 或 Pick’Em。截止捕获 Match/Map 游戏开始与 Veto BP 开始的永久事实，回退不重开；判定只消费 canonical 官方结果，BP 全集合命中独立于赛果排行。公开仅匿名支持率、个人公开成绩与会话本人的选择。详见 [免费预测契约](decisions/free-predictions.md)。
+
+## 比赛回放
+
+赛后回放由 `src/lib/postmatch/` 拥有。`matches.recordings` 保存带稳定 ID、实际解说 userId、显式标题和 http(s) URL 的有序记录；不把数组序号猜成地图序号，不设每位解说业务条数上限。历史 `matches.video_url` 独立保留为未归属的原有录像，不猜测解说身份，不复制为新记录。新增和编辑必须引用本场登记解说，赛事管理员经当前权限校验后可维护；逐条 mutation 在同一比赛行锁内读改写，避免不同解说并发追加互相覆盖。名单更正不删除录像，旧归属在公开页面显示通用解说回放标签。
+
+比赛页在原回放入口展开按解说分组的列表；赛后待办与有效解说材料统一使用 `hasMatchRecording` / 同等 SQL 存在性条件，将旧录像或至少一条新录像视为已有材料。名单确认与重开语义保持不变，录像变更不改比分、Demo、统计或名单提交事实。标题与链接为公开赛事材料，沿比赛资料保留和数据库备份/恢复；Preview 镜像排除原始链接与 recordings，使用空列表默认值，避免复制自由文本或 URL 中的私有信息。审计只记录动作、记录 ID 与数量，不写链接正文。
+
+新回放 action 的产品遥测沿用白名单注册表，不发送链接或标题正文。发布前须将包含该操作名与页面性能事件的兼容 Worker 一并部署，再发布网站，避免旧接收端拒绝新事件批次。

@@ -1,3 +1,4 @@
+import { hasMatchRecording } from "@/lib/postmatch/recording-types";
 import "server-only";
 import { readReopenedPostMatchIds } from "@/lib/postmatch/read";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
@@ -65,7 +66,7 @@ export async function readAdminPostMatchTasks(database: DB | TxDb, seasonId: str
       roster: rosterByMatch.get(match.id) ?? [], imports: importsByMatch.get(match.id) ?? [],
       scoreboards: scoresByMatch.get(match.id) ?? [] });
     const tasks = projectOperatorPostMatchTasks({ status: match.status, isForfeit: match.isForfeit, maps: operatorMaps,
-      commentatorCount: people.length, submitted: submitted.has(match.id), reopened: reopenedIds.has(match.id), hasVideo: Boolean(match.videoUrl) });
+      commentatorCount: people.length, submitted: submitted.has(match.id), reopened: reopenedIds.has(match.id), hasVideo: hasMatchRecording(match) });
     if (tasks.length === 0 || !match.entryAId || !match.entryBId) return [];
     return [{ id: match.id, stage: match.stage ?? "", entryAId: match.entryAId, entryBId: match.entryBId,
       teamAName: names.get(match.entryAId) ?? "未知队伍", teamBName: names.get(match.entryBId) ?? "未知队伍",

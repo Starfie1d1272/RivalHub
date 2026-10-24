@@ -98,7 +98,7 @@ export const OMITTED_COLUMNS: Record<string, string> = {
   competition_qualification_runs: "configured_by started_by eligibility_policy",
   major_prestart_states: "seed_override_reason",
   draft_picks: "client_request_id",
-  matches: "video_url",
+  matches: "video_url recordings",
   seasons: "logo_url",
   community_awards: "supplementary_note review_note",
   match_veto_steps: "client_request_id",

@@ -1,3 +1,4 @@
+import { hasMatchRecording, recordingInput, type MatchRecording } from "./recording-types";
 import { commentaryAdminEligibility } from "./eligibility";
 import { commentaryCancellationBlocker } from "./commentary-policy";
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
@@ -81,9 +82,9 @@ export async function setMatchVideoUrlInTx(tx: TxDb, args: { matchId: string; vi
   await writeAuditInTx(tx, {
     seasonId: match.seasonId, action: "postmatch.video.update", actorId: args.actorId, targetId: match.id,
     meta: {
-      hasVideoUrl: Boolean(args.videoUrl),
-      before: { hasVideoUrl: Boolean(match.videoUrl), rosterReopened },
-      after: { hasVideoUrl: Boolean(args.videoUrl), rosterReopened },
+      hasVideoUrl: hasMatchRecording({ ...match, videoUrl: args.videoUrl }),
+      before: { hasVideoUrl: hasMatchRecording(match), rosterReopened },
+      after: { hasVideoUrl: hasMatchRecording({ ...match, videoUrl: args.videoUrl }), rosterReopened },
       videoChange: match.videoUrl === args.videoUrl ? "unchanged" : !args.videoUrl ? "cleared" : !match.videoUrl ? "added" : "replaced",
     },
   });
@@ -100,8 +101,8 @@ export async function submitPostMatchReportInTx(tx: TxDb, args: { matchId: strin
     seasonId: match.seasonId, action: "postmatch.report.submit", actorId: args.actorId, targetId: match.id,
     meta: {
       submittedByUserId: args.actorId,
-      before: { submitted: false, hasVideoUrl: Boolean(match.videoUrl) },
-      after: { submitted: true, hasVideoUrl: Boolean(match.videoUrl) },
+      before: { submitted: false, hasVideoUrl: hasMatchRecording(match) },
+      after: { submitted: true, hasVideoUrl: hasMatchRecording(match) },
     },
   });
   return { seasonId: match.seasonId };
@@ -114,8 +115,8 @@ export async function revokePostMatchSubmissionInTx(tx: TxDb, args: { matchId: s
     if ((await readReopenedPostMatchIds(tx, [match.id])).has(match.id))
       throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "本场解说名单已经开放更正。");
     await writeAuditInTx(tx, { seasonId: match.seasonId, action: "postmatch.report.revoke", actorId: args.actorId,
-      targetId: match.id, meta: { before: { submitted: false, hasVideoUrl: Boolean(match.videoUrl), rosterReopened: false },
-        after: { submitted: false, hasVideoUrl: Boolean(match.videoUrl), rosterReopened: true },
+      targetId: match.id, meta: { before: { submitted: false, hasVideoUrl: hasMatchRecording(match), rosterReopened: false },
+        after: { submitted: false, hasVideoUrl: hasMatchRecording(match), rosterReopened: true },
         ...(args.reason?.trim() ? { reason: args.reason.trim() } : {}) } });
     return { seasonId: match.seasonId };
   }
@@ -125,8 +126,8 @@ export async function revokePostMatchSubmissionInTx(tx: TxDb, args: { matchId: s
     meta: {
       submittedByUserId: submission.submittedByUserId,
       originalSubmittedAt: submission.submittedAt.toISOString(),
-      before: { submitted: true, hasVideoUrl: Boolean(match.videoUrl) },
-      after: { submitted: false, hasVideoUrl: Boolean(match.videoUrl) },
+      before: { submitted: true, hasVideoUrl: hasMatchRecording(match) },
+      after: { submitted: false, hasVideoUrl: hasMatchRecording(match) },
       ...(args.reason?.trim() ? { reason: args.reason.trim() } : {}),
     },
   });
@@ -135,3 +136,39 @@ export async function revokePostMatchSubmissionInTx(tx: TxDb, args: { matchId: s
 export { getPostMatchCompletion, POST_MATCH_COMPLETION_LABEL, type PostMatchCompletion } from "./completion";
 
 export { getPublicLiveCommentators } from "@/lib/matches/presentation";
+
+/** Match lock serializes individual edits; never replace another commentator's list. */
+export async function mutateMatchRecordingInTx(tx: TxDb, args: {
+  matchId: string; actorId: string;
+  command: { kind: "save"; recording: MatchRecording } | { kind: "remove"; id: string } | { kind: "move"; id: string; direction: "up" | "down" };
+}) {
+  const match = await lockMatchInTx(tx, args.matchId);
+  assertCompetitionMatch(match);
+  await assertCommentatorEligibleInTx(tx, match.seasonId, args.actorId, "只有赛事管理员可以管理录像。");
+  if (match.status !== "finished") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束比赛可以记录录像链接。");
+  const recordings = [...match.recordings];
+  const command = args.command;
+  const id = command.kind === "save" ? command.recording.id : command.id;
+  const index = recordings.findIndex(row => row.id === id);
+  if (command.kind === "save") {
+    const parsed = recordingInput.safeParse(command.recording);
+    if (!parsed.success) throw new AppError(ErrorCode.VALIDATION_FAILED, "录像参数无效。");
+    const [person] = await tx.select({ userId: matchCommentators.userId }).from(matchCommentators)
+      .where(and(eq(matchCommentators.matchId, match.id), eq(matchCommentators.userId, parsed.data.commentatorUserId)));
+    if (!person) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先登记本场实际解说。");
+    if (index >= 0) recordings[index] = parsed.data; else recordings.push(parsed.data);
+  } else if (index >= 0) {
+    if (command.kind === "remove") recordings.splice(index, 1);
+    else {
+      // Reorder within the person's group; other groups keep their order.
+      const step = command.direction === "up" ? -1 : 1;
+      let other = index + step;
+      while (other >= 0 && other < recordings.length && recordings[other]!.commentatorUserId !== recordings[index]!.commentatorUserId) other += step;
+      if (other >= 0 && other < recordings.length) [recordings[index], recordings[other]] = [recordings[other]!, recordings[index]!];
+    }
+  }
+  await tx.update(matches).set({ recordings, updatedAt: new Date() }).where(eq(matches.id, match.id));
+  await writeAuditInTx(tx, { seasonId: match.seasonId, action: `postmatch.recording.${command.kind}`,
+    actorId: args.actorId, targetId: match.id, meta: { recordingId: id, count: recordings.length, hasVideoUrl: hasMatchRecording({ ...match, recordings }) } });
+  return { seasonId: match.seasonId };
+}

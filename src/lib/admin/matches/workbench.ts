@@ -1,3 +1,4 @@
+import { hasMatchRecording } from "@/lib/postmatch/recording-types";
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 import { readBilibiliStatus, BROADCAST_STATUS_LABEL } from "@/lib/production/bilibili";
@@ -299,7 +300,8 @@ export async function loadAdminMatchWorkbench({
         rosterReopened,
         canConfirm: commentatorRows.some(row => row.userId === admin.userId),
         videoUrl: match.videoUrl,
-        completionLabel: commentatorRows.length ? POST_MATCH_COMPLETION_LABEL[getPostMatchCompletion(submittedAt, match.videoUrl, rosterReopened)] : "未登记解说，无需提交名单或录像",
+        recordings: match.recordings,
+        completionLabel: commentatorRows.length ? POST_MATCH_COMPLETION_LABEL[getPostMatchCompletion(submittedAt, hasMatchRecording(match), rosterReopened)] : "未登记解说，无需提交名单或录像",
         canSubmit: match.status === "finished",
       };
 
@@ -319,7 +321,7 @@ export async function loadAdminMatchWorkbench({
   ]);
   return {
     broadcasts, uploaderDownloads,
-    completion: projectOperatorCompletion({ status: match.status, isForfeit: match.isForfeit, maps: operator.workflow.completedMaps, commentatorCount: commentatorRows.length, submitted: Boolean(submittedAt), reopened: rosterReopened, hasVideo: Boolean(match.videoUrl) }),
+    completion: projectOperatorCompletion({ status: match.status, isForfeit: match.isForfeit, maps: operator.workflow.completedMaps, commentatorCount: commentatorRows.length, submitted: Boolean(submittedAt), reopened: rosterReopened, hasVideo: hasMatchRecording(match) }),
     season: { id: season.id, slug: season.slug, name: season.name },
     stageName: match.testConfig ? "测试赛" : stage?.name ?? null,
     match,

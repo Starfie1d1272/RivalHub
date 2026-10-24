@@ -65,10 +65,13 @@ export const matches = pgTable("matches", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
   // 赛后公开录像链接；赛果、地图和玩家数据仍由各自的 canonical table 持有。
   videoUrl: text("video_url"),
+  /** Per-commentator public recordings; legacy videoUrl remains unattributed. */
+  recordings: jsonb("recordings").$type<import("@/lib/postmatch/recording-types").MatchRecording[]>().notNull().default([]),
   mvpWinnerUserId: uuid("mvp_winner_user_id"), // 投票截止后锁定的 MVP 胜者
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
+  recordingsShape: check("matches_recordings_array", sql`jsonb_typeof(${t.recordings}) = 'array'`),
   testShape: check("matches_test_shape", sql`${t.testConfig} IS NULL OR (${t.seasonId} IS NOT NULL AND ${t.stage} = 'test' AND ${t.ownership} = 'manual' AND ${t.majorStageRunId} IS NULL AND ${t.qualificationRunId} IS NULL AND ${t.bracketNodeId} IS NULL AND ${t.managedKey} IS NULL AND jsonb_typeof(${t.testConfig}) = 'object' AND jsonb_typeof(${t.testConfig}->'mapPool') = 'array' AND jsonb_array_length(${t.testConfig}->'mapPool') = 7 AND jsonb_typeof(${t.testConfig}->'operatorAId') = 'string' AND jsonb_typeof(${t.testConfig}->'operatorBId') = 'string' AND ${t.testConfig}->>'operatorAId' <> ${t.testConfig}->>'operatorBId') IS TRUE`),
   contextShape: check("matches_execution_context_shape", sql`(${t.seasonId} IS NOT NULL AND ${t.entryAId} IS NOT NULL AND ${t.entryBId} IS NOT NULL AND ${t.stage} IS NOT NULL AND ${t.executionContext} IS NULL) OR (${t.seasonId} IS NULL AND ${t.entryAId} IS NULL AND ${t.entryBId} IS NULL AND ${t.stage} IS NULL AND ${t.executionContext} IS NOT NULL AND ${t.majorStageRunId} IS NULL AND ${t.qualificationRunId} IS NULL AND ${t.bracketNodeId} IS NULL)`),
   resultDispositionShape: check("matches_result_disposition_shape", sql`${t.resultDisposition} IS NULL OR (${t.resultDisposition} IN ('pending', 'recorded', 'omitted') AND ${t.status} = 'finished' AND ((${t.resultDisposition} = 'recorded' AND ${t.scoreA} IS NOT NULL AND ${t.scoreB} IS NOT NULL) OR (${t.resultDisposition} IN ('pending', 'omitted') AND ${t.scoreA} IS NULL AND ${t.scoreB} IS NULL)))`),
