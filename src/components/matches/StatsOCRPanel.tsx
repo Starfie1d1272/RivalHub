@@ -97,6 +97,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   const [drafts, setDrafts] = useState<DraftRow[]>(() => savedDrafts(initialRows ?? []));
   const [canonicalDrafts, setCanonicalDrafts] = useState<DraftRow[]>(() => savedDrafts(initialRows ?? []));
   const [playerOptions, setPlayerOptions] = useState<PlayerOption[]>([]);
+  const optionsLoaded = useRef(false);
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setErrorMessage] = useState<string | null>(null);
@@ -178,6 +179,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
       if (generation !== readGeneration.current) return;
       if (!result.success) { setError(result.error.message); return; }
       adoptSnapshot(result.data.snapshot);
+      optionsLoaded.current = true;
       setPlayerOptions(result.data.playerOptions);
       setViewMode(false);
     } catch { setError("选手及已保存数据暂时无法读取，请重试。"); }
@@ -261,6 +263,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
       setCanonicalDrafts(saved);
       setDrafts(mergeScreenshotDrafts(result.data.drafts, saved));
       setViewMode(false);
+      optionsLoaded.current = true;
       setPlayerOptions(result.data.playerOptions);
     } catch {
       setError(imageRead ? "OCR 请求未完成，请检查网络连接后重试。" : "截图文件读取失败，请重新选择图片后重试。");
@@ -290,20 +293,26 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   }
 
   async function handleAddRow() {
-    let current = drafts;
-    if (!baseVersion) {
-      try {
+    if (saving || recovery || readFailed) return;
+    setSaving(true);
+    const generation = ++readGeneration.current;
+    try {
+      let current = drafts;
+      if (!baseVersion || !optionsLoaded.current) {
         const result = await getScoreboardEditorState(mapId);
+        if (generation !== readGeneration.current) return;
         if (!result.success) { setError(result.error.message); return; }
         adoptSnapshot(result.data.snapshot);
+        optionsLoaded.current = true;
         setPlayerOptions(result.data.playerOptions);
         current = savedDrafts(result.data.snapshot.rows);
-      } catch { setError("请先读取当前计分板和阵容，再添加选手。"); return; }
-    }
-    setViewMode(false);
-    setDrafts([...current,
-      { perfectName: "", userId: null, kills: null, deaths: null, assists: null, hsPercent: null, firstKills: null, multiKills: null, clutches: null, adr: null, rws: null, ratingPro: null, we: null },
-    ]);
+      }
+      setViewMode(false);
+      setDrafts([...current,
+        { perfectName: "", userId: null, kills: null, deaths: null, assists: null, hsPercent: null, firstKills: null, multiKills: null, clutches: null, adr: null, rws: null, ratingPro: null, we: null },
+      ]);
+    } catch { setError("请先读取当前计分板和阵容，再添加选手。"); }
+    finally { setSaving(false); }
   }
 
   async function handleSave() {

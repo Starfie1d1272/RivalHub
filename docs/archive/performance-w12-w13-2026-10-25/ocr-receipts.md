@@ -1,6 +1,6 @@
 # OCR 提交回执与内容版本
 
-本补充实现尚依赖 W03 的 `operator_scoreboard_receipts` active migration。应用/测试类型、changed ESLint、architecture、2 项内容版本/摘要与 7 项恢复组件通过；真实 PG 测试已编写，未执行，不能将组件模拟结果计作并发或原子性证据。
+本补充实现尚依赖 W03 的 `operator_scoreboard_receipts` active migration。应用/测试类型、changed ESLint、architecture、2 项内容版本/摘要与 8 项恢复组件通过；真实 PG 测试已编写，未执行，不能将组件模拟结果计作并发或原子性证据。
 
 - 保存/清除必须携带 UUID operationId 与安全快照返回的不透明内容版本。版本覆盖全部内部计分板字段及精确 PG 时间戳，浏览器只获得安全 editor DTO 与 SHA256。
 - 原 match SHARE → map UPDATE → stats 锁序保留。锁后检查版本，事实、审计和 actor/operation 唯一回执同事务提交；同编号同上下文只返回原回执，不重复事实或审计；跨 map/kind/digest 复用拒绝。
