@@ -47,3 +47,39 @@ it.each([false, true])("locks season before match and observes archive after the
     a.release(); b.release(); observer.release(); await pool.end();
   }
 });
+
+it("reproduces the incompatible old match-first / season-first cycle without replay", async () => {
+  const f = await seedFixture();
+  const pool = createLocalPool({ max: 3 });
+  const a = await pool.connect(); const b = await pool.connect(); const observer = await pool.connect();
+  let pending: Promise<{ code?: string }> | undefined;
+  try {
+    await a.query("SET statement_timeout = '5s'");
+    await b.query("SET statement_timeout = '5s'");
+    await a.query("BEGIN"); await b.query("BEGIN");
+    await b.query("SELECT id FROM seasons WHERE id=$1 FOR UPDATE", [f.seasonId]);
+    await a.query("SELECT id FROM matches WHERE id=$1 FOR UPDATE", [f.matchId]);
+    const aPid = (await a.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    const bPid = (await b.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    pending = a.query("SELECT id FROM seasons WHERE id=$1 FOR UPDATE", [f.seasonId])
+      .then(() => ({}), error => ({ code: error.code }));
+    const deadline = performance.now() + 3000;
+    let blocked = false;
+    while (performance.now() < deadline) {
+      const result = await observer.query("SELECT $2::integer = ANY(pg_blocking_pids($1::integer)) AS blocked", [aPid, bPid]);
+      if (result.rows[0].blocked) { blocked = true; break; }
+      await delay(10);
+    }
+    expect(blocked).toBe(true);
+    const bResult = await b.query("SELECT id FROM matches WHERE id=$1 FOR SHARE", [f.matchId])
+      .then(() => ({} as { code?: string }), error => ({ code: error.code }));
+    await b.query("ROLLBACK");
+    const aResult = await pending;
+    expect([aResult.code, bResult.code].filter(Boolean)).toEqual(["40P01"]);
+  } finally {
+    await b.query("ROLLBACK");
+    if (pending) await pending;
+    await a.query("ROLLBACK");
+    a.release(); b.release(); observer.release(); await pool.end();
+  }
+});
