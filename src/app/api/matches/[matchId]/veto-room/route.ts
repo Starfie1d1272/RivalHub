@@ -23,8 +23,8 @@ export async function GET(request: Request, context: Context) {
     try {
       const parsed = z.uuid().safeParse((await context.params).matchId);
       if (!parsed.success) throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛编号无效。");
-      await assertVetoRoomReadable(parsed.data);
-      return Response.json(ok(await getVetoRoomView(parsed.data)), { headers });
+      const access = await assertVetoRoomReadable(parsed.data);
+      return Response.json(ok(await getVetoRoomView(parsed.data, access.authorization, access.seasonId)), { headers });
     } catch (error) { return failure(error); }
   }, { captureServerErrorResponse: false });
 }

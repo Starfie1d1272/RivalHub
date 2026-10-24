@@ -1,3 +1,4 @@
+import { projectRecordingCommand } from "./recording-projection";
 import { lockMatchForInspectionInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { hasMatchRecording, recordingInput, type MatchRecording } from "./recording-types";
 import { commentaryAdminEligibility } from "./eligibility";
@@ -142,27 +143,16 @@ export async function mutateMatchRecordingInTx(tx: TxDb, args: {
   assertCompetitionMatch(match);
   await assertCommentatorEligibleInTx(tx, match.seasonId, args.actorId, "只有赛事管理员可以管理录像。");
   if (match.status !== "finished") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束比赛可以记录录像链接。");
-  const recordings = [...match.recordings];
   const command = args.command;
   const id = command.kind === "save" ? command.recording.id : command.id;
-  const index = recordings.findIndex(row => row.id === id);
   if (command.kind === "save") {
     const parsed = recordingInput.safeParse(command.recording);
     if (!parsed.success) throw new AppError(ErrorCode.VALIDATION_FAILED, "录像参数无效。");
     const [person] = await tx.select({ userId: matchCommentators.userId }).from(matchCommentators)
       .where(and(eq(matchCommentators.matchId, match.id), eq(matchCommentators.userId, parsed.data.commentatorUserId)));
     if (!person) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先登记本场实际解说。");
-    if (index >= 0) recordings[index] = parsed.data; else recordings.push(parsed.data);
-  } else if (index >= 0) {
-    if (command.kind === "remove") recordings.splice(index, 1);
-    else {
-      // Reorder within the person's group; other groups keep their order.
-      const step = command.direction === "up" ? -1 : 1;
-      let other = index + step;
-      while (other >= 0 && other < recordings.length && recordings[other]!.commentatorUserId !== recordings[index]!.commentatorUserId) other += step;
-      if (other >= 0 && other < recordings.length) [recordings[index], recordings[other]] = [recordings[other]!, recordings[index]!];
-    }
   }
+  const recordings = projectRecordingCommand(match.recordings, command);
   await tx.update(matches).set({ recordings, updatedAt: new Date() }).where(eq(matches.id, match.id));
   await writeAuditInTx(tx, { seasonId: match.seasonId, action: `postmatch.recording.${command.kind}`,
     actorId: args.actorId, targetId: match.id, meta: { recordingId: id, count: recordings.length, hasVideoUrl: hasMatchRecording({ ...match, recordings }) } });

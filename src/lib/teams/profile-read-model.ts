@@ -2,7 +2,7 @@ import "server-only";
 
 import { getPublicLineupStyle } from "./lineup-style-query";
 
-import { getPublicEventTeamMatchFacts, type PublicEventTeamContext } from "@/lib/competition-entries/public-team-context";
+import { getPublicEventTeamMatchFactsBatch, type PublicEventTeamContext } from "@/lib/competition-entries/public-team-context";
 import { getPublicSeasonCatalog, type PublicSeason } from "@/lib/data/public-seasons";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
 import { getPublicLongTeamCareerDetail, getPublicTournamentTeamDetail } from "@/lib/stats/cached-query";
@@ -36,18 +36,19 @@ export async function getPublicLongTeamProfileReadModel(
   const completedMaps = performance?.official.maps.filter((map) => map.completedAt !== null && map.scoreA !== null && map.scoreB !== null) ?? [];
   const preview = performance ? aggregatePublicTeamMapProfile(entryIds, performance.official.matches, completedMaps) : undefined;
   const entriesBySeason = Map.groupBy(profile.entries, entry => entry.seasonId);
-  const [lineupStyle, mapProfile, seasonCatalog, matchesBySeason] = await Promise.all([
+  const [lineupStyle, mapProfile, seasonCatalog, matchFactsBySeason] = await Promise.all([
     lineupStylePromise,
     getPublicTeamMapProfile(entryIds, profile.currentMembers.map((member) => member.userId), preview),
     getPublicSeasonCatalog(),
-    Promise.all([...entriesBySeason].map(async ([seasonId, entries]) => {
-      const facts = await getPublicEventTeamMatchFacts(seasonId, entries.map(entry => entry.id));
-      return entries.flatMap(entry => (facts.get(entry.id)?.matches ?? []).map(match => ({
-        ...match, seasonSlug: entry.seasonSlug, seasonName: entry.seasonName,
-      })));
-    })),
+    getPublicEventTeamMatchFactsBatch([...entriesBySeason].map(([seasonId, entries]) => ({
+      seasonId, entryIds: entries.map(entry => entry.id),
+    }))),
   ]);
-  const matches = [...new Map(matchesBySeason.flat().map(match => [match.id, match])).values()];
+  const matchesBySeason = [...entriesBySeason].flatMap(([seasonId, entries]) => entries.flatMap(entry =>
+    (matchFactsBySeason.get(seasonId)?.get(entry.id)?.matches ?? []).map(match => ({
+      ...match, seasonSlug: entry.seasonSlug, seasonName: entry.seasonName,
+    }))));
+  const matches = [...new Map(matchesBySeason.map(match => [match.id, match])).values()];
   const profileEntryRecords = new Map(performance?.official.entries.map((entry) => [entry.entryId, entry]) ?? []);
   const careerResults = await Promise.all(seasonCatalog.filter((season) => historicalSeasonIds.has(season.id)).map(async (season) => [season.id, await getPublicSeasonResults(season)] as const));
   const resultBySeason = new Map(careerResults);

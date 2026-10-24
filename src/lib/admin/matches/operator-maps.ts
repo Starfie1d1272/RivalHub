@@ -10,7 +10,8 @@ import type { OperatorMap } from "./operator-workflow";
 
 /** Shared by the authorized overview and workbench; no persistence or completion rule duplication. */
 export function projectOperatorMaps(input: {
-  match: Match; maps: readonly MatchMap[]; imports: readonly DemoImportMetadata[];
+  match: Pick<Match, "id" | "seasonId" | "stage" | "majorStageRunId" | "status" | "entryAId" | "entryBId">;
+  maps: readonly Pick<MatchMap, "id" | "mapOrder" | "mapName" | "teamAStartSide" | "scoreA" | "scoreB" | "completedAt">[]; imports: readonly DemoImportMetadata[];
   roster: readonly EffectiveMatchRosterPlayer[]; scoreboards: readonly ScoreboardRow[];
 }): OperatorMap[] {
   const { match, maps, roster, scoreboards } = input;

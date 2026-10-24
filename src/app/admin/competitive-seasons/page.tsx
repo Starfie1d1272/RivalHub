@@ -8,7 +8,7 @@ import { PageLayout } from "@/components/rivalhub";
 
 export default async function CompetitiveSeasonsAdminPage() {
   if (!(await resolveAdminPageAccess(requireSuperAdmin))) return <AdminAccessDenied />;
-  const platforms = await loadCompetitivePlatformCatalog(db);
+  const platforms = await loadCompetitivePlatformCatalog(db, { concurrent: true });
   return (
     <PageLayout variant="wide" className="space-y-5">
       <div>

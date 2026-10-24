@@ -31,6 +31,33 @@ export async function getStatsLeaderboard(
   database: DB | TxDb = db,
   options: StatsLeaderboardOptions = {},
 ) {
+  return (await queryStatsLeaderboard(scope, currentImportIds, roster, database, options)).rows;
+}
+
+/** Overall and per-map rows share the exact weighted expressions and fact filters. */
+export async function getPlayerStatsScoreboards(
+  scope: StatsLeaderboardFilters,
+  currentImportIds: string[],
+  roster: EffectiveMatchRosterPlayer[],
+  database: DB | TxDb,
+  options: Omit<StatsLeaderboardOptions, "groupByMap" | "groupByTeam"> & { userId: string },
+) {
+  const result = await queryStatsLeaderboard(scope, currentImportIds, roster, database,
+    { ...options, groupByMap: true, groupByTeam: false }, true);
+  return {
+    scoreboard: result.rows.filter((_, index) => result.overall[index]),
+    scoreboardMaps: result.rows.filter((_, index) => !result.overall[index]),
+  };
+}
+
+async function queryStatsLeaderboard(
+  scope: StatsLeaderboardFilters,
+  currentImportIds: string[],
+  roster: EffectiveMatchRosterPlayer[],
+  database: DB | TxDb = db,
+  options: StatsLeaderboardOptions = {},
+  includeOverall = false,
+) {
   // ADR：回合加权（正确方式）；HS%：击杀数加权（正确方式）
   const adrExpr    = roundWeightedAvg("mps.adr");
   const hsExpr     = killWeightedAvg("mps.hs_percent");
@@ -63,12 +90,18 @@ export async function getStatsLeaderboard(
   const teamGroup = options.groupByTeam === false ? sql`` : sql`, entrant.name, entrant.id`;
   const teamOrder = options.groupByTeam === false ? sql`` : sql`, entrant.id`;
 
+  const playerGroup = sql`mps.user_id, u.display_name, sp.persona_name, u.perfect_name ${teamGroup}`;
+  const grouping = includeOverall
+    ? sql`GROUPING SETS ((${playerGroup}), (${playerGroup}, mm.map_name))`
+    : sql`${playerGroup} ${mapGroup}`;
+
   const { rows } = await database.execute(sql`
     SELECT
       mps.user_id,
       u.display_name, sp.persona_name, u.perfect_name,
       ${teamColumns}
       ${mapName}
+      ${includeOverall ? sql`GROUPING(mm.map_name)::int AS map_grouping,` : sql``}
       count(*)::int                                                          AS maps,
       count(mps.rating_pro)::int                                              AS rating_samples,
       ${completeSum(roundsExpr)}                                              AS rounds,
@@ -108,13 +141,13 @@ export async function getStatsLeaderboard(
       ${teamFilter}
       ${userFilter}
       ${rosterMatchFilter}
-    GROUP BY mps.user_id, u.display_name, sp.persona_name, u.perfect_name ${teamGroup} ${mapGroup}
+    GROUP BY ${grouping}
     ORDER BY mps.user_id ${teamOrder} ${options.groupByMap ? sql`, mm.map_name` : sql``}
   `);
 
   const toNumOrNull = (v: unknown) => (v == null ? null : Number(v));
 
-  return rows.map((r) => ({
+  const projectedRows = rows.map((r) => ({
     mapName: r.map_name as string | null,
     userId:     r.user_id as string | null,
     perfectName: getPublicDisplayName({ displayName: r.display_name as string | null, personaName: r.persona_name as string | null, perfectName: r.perfect_name as string | null }),
@@ -137,4 +170,5 @@ export async function getStatsLeaderboard(
     fdpr: toNumOrNull(r.fdpr), tradeKpr: toNumOrNull(r.trade_kpr), kast: toNumOrNull(r.kast),
   }));
 
+  return { rows: projectedRows, overall: rows.map(row => Number(row.map_grouping) === 1) };
 }

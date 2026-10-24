@@ -1,0 +1,13 @@
+# 后台社区奖consumer
+
+依赖public owner #1106 `6c14db733dc438127680a28256ca6f2354dc9489`。领域文件只合入临时验证分支，consumer分支不复制provider代码。首屏只消费summary/progress/counts与canonical settlementReady；完整condition/说明/证据在打开单奖后读取，候选和比赛选项首次打开后按当前RSC快照共享一次。
+
+两个只读action分别验证UUID并fresh requireSeasonAdmin，在权限通过后读取当前season的stagePlan/功能开关。详情交provider固定seasonId+awardId，跨季/未知奖拒绝。每个新snapshot、viewer或重试都有独立fresh状态；未成功时旧表单fieldset禁用，实例与草稿保留。关闭已激活区域不卸载。写入继续调用原community-awards actions，未复制settlement/权限/纠错规则。primary ContentReady只有整页摘要一个，不用最早某个detail冒充整页ready。
+
+临时集成app/tests类型、目标ESLint、architecture通过；组件3例证明闭合零读、跨奖项options共享、关闭草稿保留、fresh pending/撤权门禁、身份变化重读。真实PG consumer1例覆盖完整详情与canonical等价、跨季/未知/功能关闭拒绝、授权失败0DB读；provider原3例一并通过。该fixture的provider对照为11→8SQL、59→7行、74397→866结果JSON bytes（这是provider footprint，不能归因成新consumer独有优化）。
+
+真实Chromium流程通过（21.9秒，retry=0，显式trace）：首屏Flight无长条件/证据marker，展开两奖保留完整证据，关闭再打开保留审核草稿，实际审核仅改变该fixture奖为approved并刷新分组，另一奖仍pending，撤权新请求拒绝。业务写入仅针对该隔离fixture，结束后按ID清理。未进行生产写入、发布或部署。
+
+此证据不证明生产LCP/p95，不把mock权限依赖说成真实session权限实验。组件测试使用action替身，PG权限拒绝用例注入授权边界；真实session与RSC边界由上述浏览器路径验证。原始trace/认证资料不提交。
+
+详情子树按seasonId/currentUserId/awardId隔离；切换身份或赛事即清除上一scope的私有详情与未保存草稿，新scope需重新展开并授权读取。同viewer的RSC刷新仍保留草稿并在fresh/loading/error门禁内等待。新增回归先复现3失败，再验证新viewer成功/拒绝及跨season均无旧草稿DOM；原同viewer刷新保草稿用例继续通过。

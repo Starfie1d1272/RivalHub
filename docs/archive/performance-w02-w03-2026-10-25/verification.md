@@ -18,7 +18,7 @@ known veto_step and conservative legacy veto/map_plan behavior.
 | Ready / stage / fingerprint | Consumers implemented | Real body ContentReady, fixed stage boundaries, local error fingerprint; local telemetry cohort disabled, no production ready/LCP claim. |
 | Mizar heartbeat | Implemented, tested | Timestamp update outside authority transaction; database-clock throttle; pool-busy skip; SHARE authority and Broadcast remain inside authority lock. |
 | Repeated BET trigger dirtying | Implemented, tested | Same locked five-market fixture: old repeated UPDATEs 6, new 0; exact lock timestamp unchanged and dirty remains true. BP delivery generation adds its own intentional durable writes. |
-| Complete writer/trigger lock protocol | Follow-up in progress | Season-first candidates retain UPDATE; requires roster/Demo/correction/worker closure and coordinated old-worker drain before release. |
+| Complete writer/trigger lock protocol | Implemented and merged; rollout pending | #1093 includes roster/OCR/Demo/correction/postevent/identity/Mizar callers and real PG barriers; UPDATE retained. Executable release quiescence is a separate prerequisite, not evidence that deployment occurred. |
 
 Relevant local evidence (overlapping suites are not additive): 42 component,
 action, API and cache-contract tests passed; the latest formal-contract PG batch
@@ -39,10 +39,10 @@ The browser fault harness is a temporary private fixture, not a production hook
 or a permanent mock of PostgreSQL. Neither injected fault code nor credentials
 are committed. No production mutation or deployment was performed.
 
-BP-03 remaining evidence is explicit: the 2+1 SELECT measurement above covers
-core/projection only, not an entire HTTP request, outer auth or BEGIN/COMMIT.
-Start actors and timing are batched; command RETURNING reuses locked steps
-(2 step reads verified). Start/command reuse request authorization in projection.
-GET/reconcile still perform visibility/scope work before snapshot; draft auth
-reuse and complete HTTP footprint remain follow-up work, not a claimed HTTP
-query-count improvement in this PR.
+BP-03 is now implemented and measured in the independent request-scope change.
+The [complete HTTP comparison](./bp03-http-footprint.md) includes outer auth,
+scope, BEGIN/COMMIT and a replayable opt-in Next/PG fixture. Public GET and
+reconcile remove one scope SELECT; authorized draft requests additionally reuse
+one current-request authorization (three SELECTs). No transaction, lock, clock
+or command replay guard was removed. Start actors/timing and command RETURNING
+remain covered by the original real-PG cases.

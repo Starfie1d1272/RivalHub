@@ -18,7 +18,7 @@ const STATUS_SORT_ORDER: Record<string, number> = {
   cancelled: 3,
 };
 
-export function projectAdminMatchSummary(match: Match & { displayScore?: import("@/lib/matches/display-score").DisplayScore }, demoNeedsAttentionCount = 0): AdminMatchSummary {
+export function projectAdminMatchSummary(match: Pick<Match, "id" | "entryAId" | "entryBId" | "stage" | "round" | "format" | "entryRound" | "scoreA" | "scoreB" | "status" | "isForfeit" | "ownership" | "scheduledAt"> & { displayScore?: import("@/lib/matches/display-score").DisplayScore }, demoNeedsAttentionCount = 0): AdminMatchSummary {
   return {
     id: match.id,
     entryAId: match.entryAId,
