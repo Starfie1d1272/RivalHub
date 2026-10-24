@@ -72,7 +72,7 @@ it("keeps other metric choices available when the current LCP is missing", async
   render(<TelemetryDashboard initial={initial} />);
   await user.click(screen.getByRole("tab", { name: "页面性能" }));
   expect(screen.getByText("当前数据缺少所选指标或分布，请选择其他指标或刷新分析。")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: /INP.*P75/ }));
+  await user.click(screen.getByRole("button", { name: /交互响应.*P75/ }));
   expect(screen.queryByText("当前数据缺少所选指标或分布，请选择其他指标或刷新分析。")).not.toBeInTheDocument();
   expect(screen.getByText("交互响应分布")).toBeInTheDocument();
 });

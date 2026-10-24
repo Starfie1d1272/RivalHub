@@ -8,7 +8,7 @@ import type { CompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 import { readReopenedPostMatchIds } from "@/lib/postmatch/read";
 
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, notInArray, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
@@ -186,9 +186,28 @@ export async function loadAdminMatchOverview({
   if (!context) return null;
   const { season, allTeams, stageRunRows, qualificationRun, stagePlan } = context;
   const isMajor = season.competitionTemplate === "major";
+  const scope = and(officialMatchCondition(), eq(matches.seasonId, season.id));
+  // Execution discovers stages/counts without fetching every historical match body.
+  const stageCounts = view === "execution"
+    ? await db.select({ stage: matches.stage, count: count() }).from(matches).where(scope).groupBy(matches.stage)
+    : null;
+  const stageKeys = [...(qualificationRun ? ["play-in"] : []), ...stagePlan.map(stage => stage.key)];
+  const chooseStage = (facts: readonly { stage: string }[]) => filterStage && stageKeys.includes(filterStage)
+    ? filterStage
+    : isMajor
+      ? stageRunRows.filter(run => run.startedAt).sort((a, b) => b.startedAt!.getTime() - a.startedAt!.getTime())[0]?.stageKey
+        ?? (qualificationRun ? "play-in" : stagePlan[0]?.key ?? null)
+      : resolveDefaultStageKey(stagePlan, facts, filterStage);
+  const executionStage = stageCounts ? chooseStage(stageCounts.map(row => ({ stage: row.stage ?? "" }))) : null;
+  const configuredKeys = stagePlan.map(stage => stage.key);
+  const executionScope = and(scope, or(
+    executionStage ? eq(matches.stage, executionStage) : undefined,
+    configuredKeys.length ? notInArray(matches.stage, configuredKeys) : undefined,
+  ));
   const [allMatchesRaw, finalResult] = await Promise.all([
-    db.query.matches.findMany({
-      where: and(officialMatchCondition(), eq(matches.seasonId, season.id)), orderBy: [asc(matches.createdAt)],
+    stageCounts?.length === 0 ? Promise.resolve([]) : db.query.matches.findMany({
+      where: view === "execution" && configuredKeys.length ? executionScope : scope,
+      orderBy: [asc(matches.createdAt)],
     }),
     isMajor && view === "schedule" ? db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }) : Promise.resolve(undefined),
   ]);
@@ -202,13 +221,7 @@ export async function loadAdminMatchOverview({
         finalResultStatus: finalResult?.status,
       })
     : { swissRuntime: null, playoffRuntime: null };
-  const stageKeys = [...(qualificationRun ? ["play-in"] : []), ...stagePlan.map(stage => stage.key)];
-  const defaultStageKey = filterStage && stageKeys.includes(filterStage)
-    ? filterStage
-    : isMajor
-      ? stageRunRows.filter(run => run.startedAt).sort((a, b) => b.startedAt!.getTime() - a.startedAt!.getTime())[0]?.stageKey
-        ?? (qualificationRun ? "play-in" : stagePlan[0]?.key ?? null)
-      : resolveDefaultStageKey(stagePlan, allMatches, filterStage);
+  const defaultStageKey = executionStage ?? chooseStage(allMatches);
   const demoNeedsAttentionByMatch = view === "execution"
     ? await loadDemoNeedsAttentionCounts(allMatches.filter(match => (match.stage === defaultStageKey || !stageKeys.includes(match.stage))
       && (!filterStatus || filterStatus === "all" || match.status === filterStatus)
@@ -273,13 +286,14 @@ export async function loadAdminMatchOverview({
         }),
       ]),
   );
-  const matchCount = allMatches.length;
+  const matchCount = stageCounts ? stageCounts.reduce((sum, row) => sum + Number(row.count), 0) : allMatches.length;
   const hasSwissStage = stagePlan.some((stage) => stage.type === "swiss");
   const canGenerate = season.status === "playing" && matchCount === 0 && allTeams.length >= 2 && !hasSwissStage;
 
   return {
     ...projectWorkspace(context),
     matches: projectedMatches,
+    matchCount,
     stageViews,
     unconfiguredMatches: unconfiguredMatches.map((match) => projectAdminMatchSummary(match, demoNeedsAttentionByMatch.get(match.id) ?? 0)),
     standingsByStage,

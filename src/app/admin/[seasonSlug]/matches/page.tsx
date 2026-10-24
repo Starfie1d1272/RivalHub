@@ -42,7 +42,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
     materials ? loadAdminPostMatchTasks(data.season.id) : Promise.resolve([]),
   ]);
   const operations = commentary ? await loadAdminMatchOperations(data.season.id, commentary) : [];
-  const matchCount = overview?.matches.length ?? 0;
+  const matchCount = overview?.matchCount ?? 0;
   const teamNameById = new Map(data.teams.map((team) => [team.id, team.name]));
   const stages = [
     ...(data.qualificationRun ? [{ key: "play-in", name: "PLAY-IN" }] : []),

@@ -139,6 +139,8 @@ export interface AdminMatchOverviewData {
   teams: Pick<CompetitionEntry, "id" | "name">[];
   stagePlan: StagePlan;
   matches: AdminMatchSummary[];
+  /** All official matches, independent of the selected stage/list scope. */
+  matchCount: number;
   stageViews: { stage: StageConfig; matches: AdminMatchSummary[] }[];
   qualificationRun: Pick<CompetitionQualificationRun, "id" | "format" | "playInEntryCount"> | null;
   unconfiguredMatches: AdminMatchSummary[];
