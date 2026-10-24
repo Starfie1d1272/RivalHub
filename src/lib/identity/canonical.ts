@@ -86,7 +86,7 @@ export async function resolveOrCreateCanonicalUserInTx(
     ));
 
   const canonicalIds = new Set<string>();
-  for (const candidate of [...identityRows.map((row) => row.userId), ...legacyRows.map((row) => row.id)]) {
+  for (const candidate of new Set([...identityRows.map((row) => row.userId), ...legacyRows.map((row) => row.id)])) {
     const canonicalId = await resolveCanonicalUserId(tx, candidate);
     if (canonicalId) canonicalIds.add(canonicalId);
   }

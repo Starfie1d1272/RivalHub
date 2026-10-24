@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { RegistrationReturnLink } from "@/components/settings/RegistrationReturnLink";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
@@ -7,7 +8,8 @@ import { CompetitiveProfileForm, type CompetitiveSeasonContext } from "@/compone
 import { CompetitiveRolesForm } from "@/components/settings/CompetitiveRolesForm";
 import { MapPreferencesForm } from "@/components/settings/MapPreferencesForm";
 import { getUserSession } from "@/lib/auth/session";
-import { loadCompetitivePlatformCatalog, resolveCatalogSeasonRoles } from "@/lib/competitive/catalog";
+import { getPublicCompetitiveCatalog } from "@/lib/competitive/public-catalog";
+import { resolveCatalogSeasonRoles } from "@/lib/competitive/catalog";
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -19,11 +21,9 @@ export default async function CompetitiveProfileSettingsPage({ searchParams }: P
   const rawSearchParams = await searchParams;
   const requestedPlatform = typeof rawSearchParams.platform === "string" ? rawSearchParams.platform : null;
   const requestedSeason = typeof rawSearchParams.season === "string" ? rawSearchParams.season : null;
-  const [catalog, facts, roles, mapPreferences] = await Promise.all([
-    loadCompetitivePlatformCatalog(db),
-    db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, session.userId)),
-    db.select().from(userCompetitiveRoles).where(eq(userCompetitiveRoles.userId, session.userId)),
-    db.select().from(userMapPreferences).where(eq(userMapPreferences.userId, session.userId)),
+  const [catalog, facts] = await Promise.all([
+    getPublicCompetitiveCatalog(),
+    db.select({ platform: competitiveRankFacts.platform, kind: competitiveRankFacts.kind, platformSeasonKey: competitiveRankFacts.platformSeasonKey, status: competitiveRankFacts.status, rank: competitiveRankFacts.rank, rating: competitiveRankFacts.rating, stars: competitiveRankFacts.stars, achievedSeasonKey: competitiveRankFacts.achievedSeasonKey }).from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, session.userId)),
   ]);
   const contexts: CompetitiveSeasonContext[] = catalog.map((platform) => {
     const { current, previous } = resolveCatalogSeasonRoles(platform);
@@ -45,5 +45,14 @@ export default async function CompetitiveProfileSettingsPage({ searchParams }: P
       facts: facts.filter((item) => item.platform === platform.key).map((item) => ({ kind: item.kind, platformSeasonKey: item.platformSeasonKey, status: item.status, rank: item.rank, rating: item.rating === null ? null : String(item.rating), stars: item.stars, achievedSeasonKey: item.achievedSeasonKey })),
     };
   });
-  return <div className="space-y-5"><RegistrationReturnLink href={rawSearchParams.returnTo} /><div><p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">PARTICIPANT PROFILE</p><h1 className="mt-1 text-3xl font-semibold">竞技档案</h1></div><CompetitiveProfileForm contexts={contexts} initialTarget={{ platform: requestedPlatform, season: requestedSeason }} /><CompetitiveRolesForm initialRoles={roles.map((role) => role.role)} initialPrimaryRole={roles.find((role) => role.isPrimary)?.role ?? null} /><MapPreferencesForm initialPreferences={mapPreferences[0]?.mapPreferences ?? []} /></div>;
+  return <div className="space-y-5"><RegistrationReturnLink href={rawSearchParams.returnTo} /><div><p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">PARTICIPANT PROFILE</p><h1 className="mt-1 text-3xl font-semibold">竞技档案</h1></div><CompetitiveProfileForm contexts={contexts} initialTarget={{ platform: requestedPlatform, season: requestedSeason }} /><Suspense fallback={<div className="min-h-28" role="status">正在读取常用位置…</div>}><RolesSettings userId={session.userId} /></Suspense><Suspense fallback={<div className="min-h-28" role="status">正在读取地图熟练度…</div>}><MapSettings userId={session.userId} /></Suspense></div>;
+}
+
+async function RolesSettings({ userId }: { userId: string }) {
+  const roles = await db.select({ role: userCompetitiveRoles.role, isPrimary: userCompetitiveRoles.isPrimary }).from(userCompetitiveRoles).where(eq(userCompetitiveRoles.userId, userId));
+  return <CompetitiveRolesForm initialRoles={roles.map(role => role.role)} initialPrimaryRole={roles.find(role => role.isPrimary)?.role ?? null} />;
+}
+async function MapSettings({ userId }: { userId: string }) {
+  const rows = await db.select({ mapPreferences: userMapPreferences.mapPreferences }).from(userMapPreferences).where(eq(userMapPreferences.userId, userId));
+  return <MapPreferencesForm initialPreferences={rows[0]?.mapPreferences ?? []} />;
 }

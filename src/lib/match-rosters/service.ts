@@ -439,8 +439,8 @@ export interface PersistedRosterSummary {
 }
 
 /**
- * Upsert the explicit lineup for (match, team). Callers must have validated the
- * lineup first; this only records the fact.
+ * Upsert the explicit lineup for (match, team). This owner locks the current
+ * event roster before authoritative qualification and frozen-policy validation.
  */
 export async function persistMatchRosterInTx(
   tx: TxDb,

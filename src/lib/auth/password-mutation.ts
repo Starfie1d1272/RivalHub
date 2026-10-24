@@ -1,4 +1,5 @@
 import "server-only";
+import { traceOperation } from "@/lib/observability/server";
 import { db } from "@/db/client";
 import { beginPasswordMutationInTx, finishPasswordMutationInTx } from "./session-registry";
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -11,15 +12,15 @@ export async function mutatePassword(
   action: "user.change_password" | "user.reset_password",
   update: () => Promise<{ error: unknown }>,
 ): Promise<void> {
-  const mutationId = await db.transaction(async (tx) => {
+  const mutationId = await traceOperation("password.begin", { scope: "action", operation: "password.begin" }, () => db.transaction(async (tx) => {
     const id = await beginPasswordMutationInTx(tx, userId, startedAt);
     await writeAuditInTx(tx, { action: "user.password_update_started", actorId: userId, targetId: userId, meta: { operation: action, mutationId: id } });
     return id;
-  });
+  }));
   // Thrown/unknown provider outcomes deliberately retain the block for operator reconciliation.
   let result: { error: unknown };
   try {
-    result = await update();
+    result = await traceOperation("password.provider_update", { scope: "provider", operation: "password.update", provider: "supabase-auth" }, update);
   } catch (cause) {
     throw new PasswordMutationError("unknown", cause);
   }
@@ -30,13 +31,13 @@ export async function mutatePassword(
     }
   }
   try {
-    await db.transaction(async (tx) => {
+    await traceOperation("password.finalize", { scope: "action", operation: "password.finalize" }, () => db.transaction(async (tx) => {
       await finishPasswordMutationInTx(tx, userId, mutationId);
       await writeAuditInTx(tx, {
         seasonId: null, action: result.error ? "user.password_update_failed" : action,
         actorId: userId, targetId: userId, meta: { mutationId },
       });
-    });
+    }));
   } catch (cause) {
     // A rollback keeps the fence; a lost COMMIT acknowledgement is ambiguous.
     // Never retry Auth, clear the fence, or report the known provider result as unknown.

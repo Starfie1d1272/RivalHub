@@ -26,9 +26,12 @@ import {
   savePlayerStats as telemetry_savePlayerStats,
   getPlayerStatsByMap,
   getMatchPlayerOptions,
+  retryPlayerStatsRefresh,
   deletePlayerStatsByMap as telemetry_deletePlayerStatsByMap,
   type PlayerOption,
 } from "@/actions/player-stats";
+import type { OperatorScoreboardRow } from "@/lib/matches/operator-scoreboard";
+import { OCR_MAX_IMAGE_BYTES, OCR_IMAGE_SIZE_MESSAGE, isOCRImageMimeType } from "@/lib/ocr/input-contract";
 import { isStatOutOfRange } from "@/lib/config/stat-ranges";
 import { InlineConfirm } from "@/components/rivalhub";
 import { toast } from "sonner";
@@ -43,11 +46,13 @@ const deletePlayerStatsByMap = observeAction("player-stats.deletePlayerStatsByMa
 interface Props {
   mapId: string;
   mapName: string;
+  /** Already-authorized editor DTO from the workbench; no mount action when supplied. */
+  initialRows?: OperatorScoreboardRow[];
 }
 
 type DraftRow = ScoreboardDraft;
 const OPERATOR_FIELDS = new Set<string>(["ratingPro", "rws", "we"]);
-function savedDrafts(rows: Awaited<ReturnType<typeof getPlayerStatsByMap>>): DraftRow[] {
+function savedDrafts(rows: OperatorScoreboardRow[]): DraftRow[] {
   return rows.map(row => ({
     perfectName: row.perfectName,
     userId: row.userId,
@@ -82,12 +87,12 @@ const NUM_FIELDS = [
 
 type NumFieldKey = typeof NUM_FIELDS[number]["key"];
 
-export function StatsOCRPanel({ mapId, mapName }: Props) {
+export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [drafts, setDrafts] = useState<DraftRow[]>([]);
-  const [canonicalDrafts, setCanonicalDrafts] = useState<DraftRow[]>([]);
+  const [drafts, setDrafts] = useState<DraftRow[]>(() => savedDrafts(initialRows ?? []));
+  const [canonicalDrafts, setCanonicalDrafts] = useState<DraftRow[]>(() => savedDrafts(initialRows ?? []));
   const [playerOptions, setPlayerOptions] = useState<PlayerOption[]>([]);
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -98,34 +103,60 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
     setOCRDetails(null);
   }
   // viewMode=true：只读展示；false：编辑录入
-  const [viewMode, setViewMode] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [viewMode, setViewMode] = useState(Boolean(initialRows?.length));
+  const [initialLoading, setInitialLoading] = useState(initialRows === undefined);
+  const [recovery, setRecovery] = useState<"unknown" | "refresh_pending" | null>(null);
+  const [readFailed, setReadFailed] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  // 挂载时加载已保存数据
+  // Each mounted map owns its state; the workbench keys panels by map ID.
   useEffect(() => {
+    if (initialRows !== undefined) return;
     let cancelled = false;
-    getPlayerStatsByMap(mapId)
-      .then((rows) => {
-        if (cancelled) return;
-        if (rows.length > 0) {
-          const saved = savedDrafts(rows);
-          setDrafts(saved);
-          setCanonicalDrafts(saved);
-          setViewMode(true);
-        }
-        setInitialLoading(false);
-      })
-      .catch(() => {
-        if (!cancelled) setInitialLoading(false);
-      });
+    getPlayerStatsByMap(mapId).then(result => {
+      if (cancelled) return;
+      if (!result.success) {
+        setError(result.error.message);
+        setReadFailed(true);
+        return;
+      }
+      const saved = savedDrafts(result.data);
+      setDrafts(saved);
+      setCanonicalDrafts(saved);
+      setViewMode(saved.length > 0);
+    }).catch(() => {
+      if (!cancelled) { setReadFailed(true); setError("已保存数据暂时无法读取，请重试读取。"); }
+    }).finally(() => { if (!cancelled) setInitialLoading(false); });
     return () => { cancelled = true; };
-  }, [mapId]);
+  }, [mapId, initialRows]);
 
   async function enterEditMode() {
-    const options = await getMatchPlayerOptions(mapId);
-    setPlayerOptions(options);
-    setViewMode(false);
+    try {
+      const result = await getMatchPlayerOptions(mapId);
+      if (!result.success) { setError(result.error.message); return; }
+      setPlayerOptions(result.data);
+      setViewMode(false);
+    } catch { setError("选手列表暂时无法读取，请重试。"); }
+  }
+
+  async function reloadSavedData() {
+    setSaving(true);
+    try {
+      if (recovery === "refresh_pending") {
+        const refresh = await retryPlayerStatsRefresh(mapId);
+        if (!refresh.success) { setError("写入已确认，缓存刷新仍未完成，请稍后重试读取。"); return; }
+      }
+      const result = await getPlayerStatsByMap(mapId);
+      if (!result.success) { setError(result.error.message); return; }
+      const saved = savedDrafts(result.data);
+      setCanonicalDrafts(saved);
+      setDrafts(saved);
+      setViewMode(saved.length > 0);
+      setRecovery(null);
+      setReadFailed(false);
+      setError(null);
+    } catch { setError("已保存数据暂时无法读取，当前草稿已保留。"); }
+    finally { setSaving(false); }
   }
 
   async function handleExtract() {
@@ -134,11 +165,12 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
       setError("请先选择截图文件");
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError("文件大小不超过 10MB");
+    if (file.size > OCR_MAX_IMAGE_BYTES) {
+      setError(OCR_IMAGE_SIZE_MESSAGE);
       return;
     }
 
+    if (!isOCRImageMimeType(file.type)) { setError("请选择 JPEG、PNG 或 WebP 图片。"); return; }
     setError(null);
     setExtracting(true);
     let imageRead = false;
@@ -146,7 +178,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
     try {
       const base64 = await fileToBase64(file);
       imageRead = true;
-      const mimeType = file.type as "image/jpeg" | "image/png" | "image/webp";
+      const mimeType = file.type;
       const result = await extractStatsFromScreenshot({ mapId, base64Image: base64, mimeType });
 
       if (!result.success) {
@@ -197,20 +229,31 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
   }
 
   async function handleSave() {
+    if (recovery || readFailed) return;
     setSaving(true);
     setError(null);
-    const result = await savePlayerStats(mapId, { rows: drafts });
-    setSaving(false);
-
-    if (!result.success) {
-      setError(result.error.message);
-      return;
-    }
-    const saved = savedDrafts(await getPlayerStatsByMap(mapId));
-    setCanonicalDrafts(saved);
-    setDrafts(saved);
-    setViewMode(true);
-    router.refresh();
+    let committed = false;
+    try {
+      const result = await savePlayerStats(mapId, { rows: drafts });
+      if (!result.success) {
+        setError(result.error.message);
+        if (result.error.code === "INTERNAL_ERROR") setRecovery("unknown");
+        return;
+      }
+      committed = true;
+      setRecovery("refresh_pending");
+      const read = await getPlayerStatsByMap(mapId);
+      if (!read.success) { setError("已保存，读取最新数据失败。当前草稿已保留，请勿重复保存。"); return; }
+      const saved = savedDrafts(read.data);
+      setCanonicalDrafts(saved);
+      setDrafts(saved);
+      setViewMode(true);
+      if (!result.data.refreshPending) setRecovery(null);
+      router.refresh();
+    } catch {
+      setRecovery(committed ? "refresh_pending" : "unknown");
+      setError(committed ? "已保存，刷新尚未完成。请读取最新数据核对。" : "提交结果尚未确认，草稿已保留。请先读取当前已保存数据核对，不要重复提交。");
+    } finally { setSaving(false); }
   }
 
   const assignedUserIdsByRow = useMemo(
@@ -245,20 +288,32 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
   );
 
   async function handleClear() {
+    if (recovery || readFailed) return;
     setSaving(true);
-    const result = await deletePlayerStatsByMap(mapId);
-    setSaving(false);
-    if (!result.success) {
-      toast.error(result.error.message);
-    } else {
-      const saved = savedDrafts(await getPlayerStatsByMap(mapId));
+    let committed = false;
+    try {
+      const result = await deletePlayerStatsByMap(mapId);
+      if (!result.success) {
+        setError(result.error.message);
+        if (result.error.code === "INTERNAL_ERROR") setRecovery("unknown");
+        return;
+      }
+      committed = true;
+      setRecovery("refresh_pending");
+      setShowClearConfirm(false);
+      const read = await getPlayerStatsByMap(mapId);
+      if (!read.success) { setError("清除已提交，读取最新数据失败。请勿重复清除。"); return; }
+      const saved = savedDrafts(read.data);
       setCanonicalDrafts(saved);
       setDrafts(saved);
       setViewMode(saved.length > 0);
-      setShowClearConfirm(false);
+      if (!result.data.refreshPending) setRecovery(null);
       toast.success("计分板输入已清除");
       router.refresh();
-    }
+    } catch {
+      setRecovery(committed ? "refresh_pending" : "unknown");
+      setError(committed ? "清除已提交，刷新尚未完成。" : "清除结果尚未确认，请读取当前已保存数据核对，不要重复清除。");
+    } finally { setSaving(false); }
   }
 
   if (initialLoading) {
@@ -271,6 +326,10 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
 
   return (
     <div className="mt-4 space-y-4">
+      {(recovery || readFailed) && <div role="status" className="space-y-2 text-sm">
+        <p>{recovery === "unknown" ? "提交结果待核对；当前草稿已保留。" : recovery === "refresh_pending" ? "写入已确认，刷新待完成。" : "无法读取已保存数据。"}</p>
+        <Button size="sm" variant="outline" disabled={saving} onClick={reloadSavedData}>载入当前已保存数据（替换草稿）</Button>
+      </div>}
       <div className="flex items-center justify-between gap-2">
         <h4 className="font-semibold text-sm">
           {mapLabel(mapName)} — 玩家数据
@@ -285,13 +344,14 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
                 onCancel={() => setShowClearConfirm(false)}
               />
             ) : (
-              <Button size="sm" variant="outline" onClick={enterEditMode}>重新录入</Button>
+              <Button size="sm" variant="outline" onClick={enterEditMode} disabled={saving || Boolean(recovery) || readFailed}>重新录入</Button>
             )}
             {!showClearConfirm && (
               <Button
                 size="sm"
                 variant="ghost"
                 className="text-[var(--color-danger)]"
+                disabled={saving || Boolean(recovery) || readFailed}
                 onClick={() => setShowClearConfirm(true)}
               >
                 清除计分板输入
@@ -326,7 +386,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
             size="sm"
             variant={selectedFile ? "default" : "outline"}
             onClick={handleExtract}
-            disabled={extracting || !selectedFile}
+            disabled={extracting || saving || Boolean(recovery) || readFailed || !selectedFile}
           >
             {extracting ? "识别中…" : "OCR 识别截图"}
           </Button>
@@ -473,7 +533,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
                 <Button
                   size="sm"
                   onClick={handleSave}
-                  disabled={saving || errorCount > 0 || unmatchedCount > 0}
+                  disabled={saving || Boolean(recovery) || readFailed || errorCount > 0 || unmatchedCount > 0}
                 >
                   {saving ? "保存中…" : "确认保存"}
                 </Button>

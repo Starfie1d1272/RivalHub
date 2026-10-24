@@ -34,7 +34,7 @@ import { isSoloRegistration } from "@/lib/utils/season";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { CompetitionEntryFlow } from "@/components/register/CompetitionEntryFlow";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { evaluateRosterQualificationFromFacts, getParticipantReadinessBatch, isHomeAffiliatedMember, loadParticipantQualificationFacts, resolveCompetitiveContext, resolveSeasonEducationVerification, type ParticipantQualificationFacts } from "@/lib/qualification/service";
+import { evaluateRosterQualificationFromFacts, getParticipantReadinessBatch, isHomeAffiliatedMember, loadParticipantQualificationFacts, resolveCompetitiveContext, resolveSeasonEducationVerification } from "@/lib/qualification/service";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { presentRegistrationSchedule } from "@/lib/seasons/presentation";
 import { RegistrationScheduleCountdown } from "@/components/seasons/RegistrationScheduleCountdown";
@@ -151,6 +151,7 @@ export default async function RegisterPage({ params, searchParams }: RegisterPag
     const transferFrom = previousEntry ? { id: previousEntry.id, name: previousEntry.name, canRelease: await canReleaseEliminatedParticipationInTx(db, season, previousEntry.id) } : null;
     let capabilities = getCompetitionEntryCapabilities({ season, entry: null, revision: null, rosterFrozen: false });
     if (entry) {
+
       const [qualificationRun, finalEntrant] = season.competitionTemplate === "major" ? await Promise.all([
         db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) }),
         db.query.majorTournamentEntrants.findFirst({ where: and(eq(majorTournamentEntrants.seasonId, season.id), eq(majorTournamentEntrants.competitionEntryId, entry.id)) }),
@@ -161,7 +162,7 @@ export default async function RegisterPage({ params, searchParams }: RegisterPag
         qualificationCompleted: Boolean(qualificationRun?.completedAt),
         finalEntrant: Boolean(finalEntrant),
       });
-      const [[revision], [eventRoster], [entryTeam]] = await Promise.all([
+      const [[revision], [eventRoster], [entryTeam], approvedRoster] = await Promise.all([
         db.select({ id: competitionEntryRosterRevisions.id, status: competitionEntryRosterRevisions.status, origin: competitionEntryRosterRevisions.origin })
           .from(competitionEntryRosterRevisions)
           .where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id)))
@@ -170,26 +171,30 @@ export default async function RegisterPage({ params, searchParams }: RegisterPag
         entry.teamId
           ? db.select({ logoUrl: teams.logoUrl }).from(teams).where(eq(teams.id, entry.teamId)).limit(1)
           : Promise.resolve([]),
+        entry.approvedRosterRevisionId && entry.approvedRosterRevisionId !== entry.currentRosterRevisionId
+        ? db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName }).from(competitionEntryRosterMembers).innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(eq(competitionEntryRosterMembers.revisionId, entry.approvedRosterRevisionId))
+        : Promise.resolve(null),
       ]);
       capabilities = getCompetitionEntryCapabilities({ season, entry: { status: entry.registrationStatus, hasApprovedRoster: !!entry.approvedRosterRevisionId }, revision: revision ?? null, rosterFrozen: eventRoster?.status === "frozen", majorAdjustmentPhaseOpen, eliminatedParticipationRelease: await canReleaseEliminatedParticipationInTx(db, season, entry.id) });
-      const candidateRows = entry.teamId
-        ? await db.select({ membershipId: teamMemberships.id, userId: teamMemberships.userId, status: teamMemberships.status, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
+      const [candidateRows, rosterRows] = await Promise.all([
+        entry.teamId
+        ? db.select({ membershipId: teamMemberships.id, userId: teamMemberships.userId, status: teamMemberships.status, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
             .from(teamMemberships).innerJoin(users, eq(users.id, teamMemberships.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
             .where(and(eq(teamMemberships.teamId, entry.teamId), isNull(teamMemberships.endedAt), inArray(teamMemberships.status, ["active", "benched"])))
-        : [];
-      const rosterRows = revision
-        ? await db.select({ participantId: competitionEntryParticipants.id, userId: competitionEntryRosterMembers.userId, confirmation: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter, membershipId: competitionEntryRosterMembers.teamMembershipId, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, membershipStatus: teamMemberships.status })
+        : [],
+        revision
+        ? db.select({ participantId: competitionEntryParticipants.id, userId: competitionEntryRosterMembers.userId, confirmation: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter, membershipId: competitionEntryRosterMembers.teamMembershipId, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, membershipStatus: teamMemberships.status })
             .from(competitionEntryRosterMembers)
             .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
             .innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId))
             .leftJoin(teamMemberships, eq(teamMemberships.id, competitionEntryRosterMembers.teamMembershipId))
             .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
             .where(eq(competitionEntryRosterMembers.revisionId, revision.id))
-        : [];
+        : [],
+      ]);
       const userIds = [...new Set([...candidateRows.map((row) => row.userId), ...rosterRows.map((row) => row.userId)])];
       const unconfirmedUserIds = rosterRows.filter(row => row.confirmation !== "confirmed").map(row => row.userId);
-      const otherClaims = unconfirmedUserIds.length ? await db.select({ userId: competitionEntryActiveClaims.userId }).from(competitionEntryActiveClaims).where(and(eq(competitionEntryActiveClaims.competitionId, season.id), inArray(competitionEntryActiveClaims.userId, unconfirmedUserIds), ne(competitionEntryActiveClaims.entryId, entry.id))) : [];
-      const claimedByOtherEntry = new Set(otherClaims.map(row => row.userId));
+
       const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
       const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
       const hasCompetitiveProfile = Boolean(teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile);
@@ -197,13 +202,18 @@ export default async function RegisterPage({ params, searchParams }: RegisterPag
         ? await resolveCompetitiveContext(teamConfig.competitiveProfile!)
         : undefined;
       const needsQualificationFacts = hasCompetitiveProfile || affiliationRules.length > 0;
-      const qualificationFacts: Map<string, ParticipantQualificationFacts> = needsQualificationFacts
-        ? await loadParticipantQualificationFacts(userIds, {
+      const [qualificationFacts, otherClaims, roleRows] = await Promise.all([
+        needsQualificationFacts
+        ? loadParticipantQualificationFacts(userIds, {
             platform: competitiveContext?.platform ?? teamConfig.competitiveProfile?.platform,
             fallbackPlatform: competitiveContext?.fallbackConversion?.sourcePlatform,
             includeCompetitiveFacts: hasCompetitiveProfile,
           })
-        : new Map();
+        : new Map(),
+        unconfirmedUserIds.length ? db.select({ userId: competitionEntryActiveClaims.userId }).from(competitionEntryActiveClaims).where(and(eq(competitionEntryActiveClaims.competitionId, season.id), inArray(competitionEntryActiveClaims.userId, unconfirmedUserIds), ne(competitionEntryActiveClaims.entryId, entry.id))) : [],
+        userIds.length ? db.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role, isPrimary: userCompetitiveRoles.isPrimary }).from(userCompetitiveRoles).where(inArray(userCompetitiveRoles.userId, userIds)) : [],
+      ]);
+      const claimedByOtherEntry = new Set(otherClaims.map(row => row.userId));
       const readinessByUser = hasCompetitiveProfile
         ? await getParticipantReadinessBatch(userIds, teamConfig.competitiveProfile!, { facts: qualificationFacts })
         : new Map();
@@ -226,7 +236,7 @@ export default async function RegisterPage({ params, searchParams }: RegisterPag
             competitiveProfile: competitiveContext,
             primaryStarterUserIds: rosterRows.filter((member) => member.primary).map((member) => member.userId),
           });
-      const roleRows = userIds.length ? await db.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role, isPrimary: userCompetitiveRoles.isPrimary }).from(userCompetitiveRoles).where(inArray(userCompetitiveRoles.userId, userIds)) : [];
+
       const rolesByUser = new Map<string, Array<(typeof roleRows)[number]["role"]>>();
       const primaryRoleByUser = new Map<string, (typeof roleRows)[number]["role"]>();
       for (const role of roleRows) {
@@ -234,9 +244,7 @@ export default async function RegisterPage({ params, searchParams }: RegisterPag
         if (role.isPrimary) primaryRoleByUser.set(role.userId, role.role);
       }
       const candidates = candidateRows.map((row) => ({ membershipId: row.membershipId, userId: row.userId, label: getPublicDisplayName(row), status: row.status as "active" | "benched", roles: rolesByUser.get(row.userId) ?? [], primaryRole: primaryRoleByUser.get(row.userId) ?? null, readiness: readinessByUser.get(row.userId) }));
-      const approvedRoster = entry.approvedRosterRevisionId && entry.approvedRosterRevisionId !== entry.currentRosterRevisionId
-        ? await db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName }).from(competitionEntryRosterMembers).innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(eq(competitionEntryRosterMembers.revisionId, entry.approvedRosterRevisionId))
-        : null;
+
       entryView = {
         id: entry.id,
         name: entry.name,
