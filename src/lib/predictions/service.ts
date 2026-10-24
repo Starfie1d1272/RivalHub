@@ -101,9 +101,8 @@ export async function balanceOf(tx: TxDb, accountId: string): Promise<bigint> {
   return BigInt(row?.amount ?? "0");
 }
 /** Window publication is separate from judging/Bet settlement: official transitions never wait for those. */
-async function syncPickEmWindowsInTx(tx: TxDb, base: Baseline, now: Date) {
+async function syncPickEmWindowsInTx(tx: TxDb, base: Baseline, now: Date, eligible=officialPickEmStages(base)) {
   const seasonId = base.seasonId;
-  const eligible = officialPickEmStages(base);
   for (const stage of eligible) {
     const state = pickEmWindowState(base, { stageKey: stage.key, deadline: null, lockedAt: null }, now);
     await tx.insert(contests).values({
@@ -149,10 +148,10 @@ export async function reconcilePredictionProgram(
   const seasonId = program.seasonId;
   const now = await databaseTime(tx);
   const base = await loadBaseline(tx, seasonId);
-  const due = await tx.execute<{ due: boolean }>(
+  const due = force ? undefined : await tx.execute<{ due: boolean }>(
     sql`select public.prediction_reconciliation_is_due(${seasonId}::uuid) as due`,
   );
-  if (!force && !due.rows[0]?.due) {
+  if (!force && !due?.rows[0]?.due) {
     await tx
       .update(jobs)
       .set({ updatedAt: now })
@@ -179,13 +178,14 @@ export async function reconcilePredictionProgram(
     .select()
     .from(milestones)
     .where(eq(milestones.seasonId, seasonId));
+  const ledgerRows:(typeof ledger.$inferInsert)[]=[];
   for (const run of launches) {
     const stage = base.stages.find((s) => s.key === run.stageKey);
     if (!stage?.previousKey || !program.rules.stagePoints) continue;
     for (const account of allAccounts.filter(
       (a) => a.joinedAt < run.openedAt,
     )) {
-      await writeLedger(tx, {
+      ledgerRows.push({
         seasonId,
         accountId: account.id,
         amount: BigInt(program.rules.stagePoints),
@@ -194,8 +194,8 @@ export async function reconcilePredictionProgram(
       });
     }
   }
-  await syncPickEmWindowsInTx(tx, base, now);
   const stageResults = simulateMajor(base, {});
+  await syncPickEmWindowsInTx(tx, base, now,officialPickEmStages(base,stageResults));
   const allContests = await tx.select().from(contests).where(eq(contests.seasonId, seasonId));
   for (const contest of allContests) {
     const run = base.runs.find((r) => r.key === contest.stageKey);
@@ -227,7 +227,7 @@ export async function reconcilePredictionProgram(
         .from(picks)
         .where(and(eq(picks.contestId, contest.id), eq(picks.submitted, true)));
       for (const accountId of new Set(submissions.map((p) => p.accountId)))
-        await writeLedger(tx, {
+        ledgerRows.push({
           seasonId,
           accountId,
           amount: BigInt(program.rules.participationPoints),
@@ -246,7 +246,7 @@ export async function reconcilePredictionProgram(
           ),
         );
       for (const reward of rewards)
-        await writeLedger(tx, {
+        ledgerRows.push({
           seasonId,
           accountId: reward.accountId,
           amount: -reward.amount,
@@ -259,6 +259,11 @@ export async function reconcilePredictionProgram(
     .select()
     .from(markets)
     .where(eq(markets.seasonId, seasonId));
+  const marketIds=allMarkets.map(market=>market.id);
+  const allStakes=marketIds.length?await tx.select().from(stakes).where(inArray(stakes.marketId,marketIds)):[];
+  const allOptions=marketIds.length?await tx.select().from(options).where(inArray(options.marketId,marketIds)):[];
+  const latestSettlements=marketIds.length?await tx.selectDistinctOn([settlements.marketId]).from(settlements).where(inArray(settlements.marketId,marketIds)).orderBy(settlements.marketId,desc(settlements.createdAt),desc(settlements.id)):[];
+  const oldLedger=latestSettlements.length?await tx.select().from(ledger).where(and(eq(ledger.seasonId,seasonId),inArray(ledger.source,latestSettlements.map(batch=>`settlement/${batch.id}`)))):[];
   for (const market of allMarkets) {
     const match = official.find((m) => m.id === market.matchId);
     const voided =
@@ -285,14 +290,8 @@ export async function reconcilePredictionProgram(
                 m.entryRound === "final",
             )
           : final?.status === "confirmed";
-    const rows = await tx
-      .select()
-      .from(stakes)
-      .where(eq(stakes.marketId, market.id));
-    const marketOptions = await tx
-      .select()
-      .from(options)
-      .where(eq(options.marketId, market.id));
+    const rows=allStakes.filter(row=>row.marketId===market.id);
+    const marketOptions=allOptions.filter(option=>option.marketId===market.id);
     // Resolver registry is deliberately closed: a new market requires a confirmed-fact adapter.
     if (market.resolver !== "match_winner")
       throw new Error(`Unsupported prediction resolver: ${market.resolver}`);
@@ -339,12 +338,7 @@ export async function reconcilePredictionProgram(
       winningOptionIds,
       factRevision: resolution.factRevision,
     });
-    const [previous] = await tx
-      .select()
-      .from(settlements)
-      .where(eq(settlements.marketId, market.id))
-      .orderBy(desc(settlements.createdAt))
-      .limit(1);
+    const previous=latestSettlements.find(batch=>batch.marketId===market.id);
     if (previous?.fingerprint === fingerprint) continue;
     const [batch] = await tx
       .insert(settlements)
@@ -358,17 +352,9 @@ export async function reconcilePredictionProgram(
       .returning();
     if (!batch) throw new Error("Settlement insert failed");
     if (previous) {
-      const old = await tx
-        .select()
-        .from(ledger)
-        .where(
-          and(
-            eq(ledger.seasonId, seasonId),
-            eq(ledger.source, `settlement/${previous.id}`),
-          ),
-        );
+      const old=oldLedger.filter(row=>row.source===`settlement/${previous.id}`);
       for (const row of old)
-        await writeLedger(tx, {
+        ledgerRows.push({
           seasonId,
           accountId: row.accountId,
           amount: -row.amount,
@@ -391,7 +377,7 @@ export async function reconcilePredictionProgram(
         const invested = rows
           .filter((s) => s.accountId === accountId)
           .reduce((n, s) => n + s.amount, zero);
-        await writeLedger(tx, {
+        ledgerRows.push({
           seasonId,
           accountId,
           amount,
@@ -402,6 +388,7 @@ export async function reconcilePredictionProgram(
       }
     }
   }
+  for(let start=0;start<ledgerRows.length;start+=1000)await tx.insert(ledger).values(ledgerRows.slice(start,start+1000)).onConflictDoNothing({target:[ledger.accountId,ledger.source]});
   await tx
     .update(jobs)
     .set({ dirty: false, updatedAt: now })
@@ -429,6 +416,25 @@ async function ensurePredictionAccountInTx(
     });
   return account ?? accountFor(tx, input.seasonId, input.userId);
 }
+/** Worker due checks do not force a baseline read on an already-consumed job. */
+export async function reconcileDuePredictionProgram(tx:TxDb,program:typeof programs.$inferSelect) {
+  const due=await tx.execute<{due:boolean}>(sql`select public.prediction_reconciliation_is_due(${program.seasonId}::uuid) as due`);
+  if(!due.rows[0]?.due)return false;
+  await reconcilePredictionProgram(tx,program,true);
+  return true;
+}
+/** Caller holds lifecycle, relevant official rows, outbox and program locks.
+ * Window publication/voiding/deadline latches remain synchronous; judging and
+ * monetary corrections stay with the durable worker and never run on admission.
+ */
+async function ensurePickEmAdmissionSnapshotInTx(tx: TxDb, seasonId: string) {
+  const base=await loadBaseline(tx,seasonId);
+  const eligible=officialPickEmStages(base);
+  await syncPickEmWindowsInTx(tx,base,await databaseTime(tx),eligible);
+  // A newly latched deadline must remain due even if no official edit follows.
+  await tx.update(jobs).set({dirty:true,updatedAt:sql`clock_timestamp()`}).where(eq(jobs.seasonId,seasonId));
+  return {base,eligible};
+}
 export async function joinPredictionsInTx(
   tx: TxDb,
   input: { seasonId: string; userId: string },
@@ -436,7 +442,7 @@ export async function joinPredictionsInTx(
   await activeUser(tx, input.userId);
   await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
   const program = await lockPredictionProgram(tx, input.seasonId);
-  await reconcilePredictionProgram(tx, program);
+  await ensurePickEmAdmissionSnapshotInTx(tx, input.seasonId);
   await ensurePredictionAccountInTx(tx, input, program.rules.initialPoints);
   return { joined: true };
 }
@@ -475,7 +481,6 @@ export async function savePickInTx(
     .orderBy(asc(matches.id))
     .for("share");
   const program = await lockPredictionProgram(tx, input.seasonId);
-  const base = await reconcilePredictionProgram(tx, program);
   const account = await ensurePredictionAccountInTx(tx, { seasonId: input.seasonId, userId: input.userId }, program.rules.initialPoints);
   const [replay] = await tx
     .select()
@@ -499,11 +504,12 @@ export async function savePickInTx(
       at: replay.createdAt.toISOString(),
     };
   }
+  const {base,eligible} = await ensurePickEmAdmissionSnapshotInTx(tx, input.seasonId);
   const [contest] = await tx
     .select()
     .from(contests)
     .where(eq(contests.id, input.contestId));
-  const current = officialPickEmStages(base).find((stage) => stage.key === target.stageKey);
+  const current = eligible.find((stage) => stage.key === target.stageKey);
   if (
     !contest ||
     contest.voidedAt ||
@@ -543,6 +549,7 @@ export async function savePickInTx(
       version: (latest?.version ?? 0) + 1,
     })
     .returning();
+  await tx.update(jobs).set({dirty:true,updatedAt:sql`clock_timestamp()`}).where(eq(jobs.seasonId,input.seasonId));
   return {
     version: saved!.version,
     submitted: saved!.submitted,
@@ -775,8 +782,9 @@ export async function openPredictionMarketInTx(
 /** Called after official transitions, never from a public read. */
 export async function syncAutomaticPickEmInTx(tx: TxDb, seasonId: string) {
   const base = await loadBaseline(tx, seasonId);
-  if (!officialPickEmStages(base).length) return;
+  const eligible=officialPickEmStages(base);
+  if (!eligible.length) return;
   await tx.insert(programs).values({ seasonId, rules: defaultPredictionRules(base.stages) }).onConflictDoNothing();
   await lockPredictionProgram(tx, seasonId);
-  await syncPickEmWindowsInTx(tx, base, await databaseTime(tx));
+  await syncPickEmWindowsInTx(tx, base, await databaseTime(tx),eligible);
 }

@@ -9,9 +9,9 @@ import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { ok } from "@/types/action";
-import { getBetPublicStats } from "@/lib/bet/public-stats-cache";
+import { betBoardRequestInput, readBetBoardRequest } from "@/lib/bet/request-read";
 import { publicBetTag } from "@/lib/cache/tags";
-import { readUnifiedBetBoard } from "@/lib/bet/board-read";
+import { readBetStakeReceipt } from "@/lib/bet/receipt-read";
 import { joinBetInTx, stakeBetInTx, operateBetInTx, claimBetReliefInTx } from "@/lib/bet/service";
 import { lockMatchInTx } from "@/lib/match-rosters/service";
 import { startCanonicalMapInTx } from "@/lib/matches/map-start";
@@ -23,16 +23,11 @@ async function publicSeason(seasonId:string) {
   if(!season || season.competitionTemplate!=="major" || !await getPublicOrAuthorizedDraftSeason(season.slug)) throw new AppError(ErrorCode.NOT_FOUND,"赛事不存在");
   return season;
 }
-function refresh(slug:string,seasonId:string) {updateTag(publicBetTag(seasonId));revalidatePath(`/${slug}/bet`);revalidatePath(`/admin/${slug}/bet`);}
+function refresh(slug:string,seasonId:string) {try {updateTag(publicBetTag(seasonId));revalidatePath(`/${slug}/bet`);revalidatePath(`/admin/${slug}/bet`);} catch(error) {actionError("bet.postcommit_refresh",error);}}
 export async function getUnifiedBetBoard(input:unknown) {
-  const p=scope.extend({matchId:z.guid().optional(),view:z.enum(["open","mine","settled","event","leaderboard","records"]).default("open")}).safeParse(input);
+  const p=betBoardRequestInput.safeParse(input);
   if(!p.success)return failValidation("赛事参数无效");
-  try {
-    const season=await publicSeason(p.data.seasonId);
-    const publicStats=await getBetPublicStats(season,p.data);
-    const user=await getUserSession();
-    return ok(await db.transaction(tx=>readUnifiedBetBoard(tx,p.data.seasonId,user?.userId??null,p.data,publicStats),{accessMode:"read only",isolationLevel:"repeatable read"}));
-  }catch(e){return actionError("bet.unified_read",e);}
+  try{return ok(await readBetBoardRequest(p.data));}catch(error){return actionError("bet.unified_read",error);}
 }
 const spectator=z.discriminatedUnion("operation",[scope.extend({operation:z.literal("join")}),scope.extend({operation:z.literal("stake"),marketId:z.guid(),optionId:z.guid(),amount:z.union([z.literal("all"),z.string().regex(/^[1-9]\d{0,14}$/)]),requestId:z.guid()})]);
 export async function mutateBet(input:unknown) {
@@ -69,4 +64,15 @@ export async function claimBetRelief(input: unknown) {
     refresh(season.slug,season.id);
     return ok(receipt);
   } catch (error) { return actionError("bet.relief.claim", error); }
+}
+
+/** Absence is unconfirmed: a transport failure does not prove the writer rolled back. */
+export async function getBetStakeReceipt(input: unknown) {
+  const parsed=spectator.options[1].safeParse(input);
+  if (!parsed.success) return failValidation("投入参数无效");
+  try {
+    const user=await requireAuth();
+    await publicSeason(parsed.data.seasonId);
+    return ok(await readBetStakeReceipt(db,{...parsed.data,userId:user.userId}));
+  } catch(error) { return actionError("bet.receipt",error); }
 }
