@@ -183,7 +183,7 @@ async function prepared() {
     .update(schema.mizarInstallations)
     .set({ credentialHash: hashCredential(token) })
     .where(eq(schema.mizarInstallations.id, f.installationId));
-  return { ...f, token };
+  return { ...f, token, credentialHash: hashCredential(token) };
 }
 async function upload(f: Awaited<ReturnType<typeof prepared>>, seq: number) {
   return POST(
@@ -268,4 +268,4 @@ afterAll(async () => {
 export { state, measured, pool, monitor, publications, snapshot, prepared, upload, summary, reports, baseline };
 // Export a concrete harness value. Vitest's import rewriting must not turn
 // imported production bindings into undefined indirect re-exports.
-export const api = { db, schema, POST, ingestMizarLive, ingestMizarReliable, RELIABLE_EVENT_SCHEMA_VERSION, revokeMizarInstallation, claimMizarSource, takeOverCurrentMap, loadMizarMatchDocumentInTx, recordCanonicalMapResultInTx };
+export const api = { db, schema, hashCredential, POST, ingestMizarLive, ingestMizarReliable, RELIABLE_EVENT_SCHEMA_VERSION, revokeMizarInstallation, claimMizarSource, takeOverCurrentMap, loadMizarMatchDocumentInTx, recordCanonicalMapResultInTx };

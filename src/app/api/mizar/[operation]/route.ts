@@ -55,12 +55,10 @@ export async function POST(request: Request, context: Context) {
         releaseIngress();
         releaseIngress = null;
         if (!releaseLive) return Response.json({ accepted: false, reason: "capacity" }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "1" } });
-        diagnostics.phase = "auth";
-        const installation = await authenticateMizar(request.headers.get("authorization"));
         diagnostics.phase = "validate";
         const revision = z.coerce.number().int().positive().parse(request.headers.get("x-rivalhub-authority"));
         diagnostics.phase = "domain";
-        return Response.json(await ingestMizarLive(installation.id, installation.competitionId, input, revision, receivedAt));
+        return Response.json(await ingestMizarLive(credentialHash, input, revision, receivedAt));
       }
       if (operation === "disconnect") {
         const installation = await authenticateMizar(request.headers.get("authorization"), { allowRevoked: true });

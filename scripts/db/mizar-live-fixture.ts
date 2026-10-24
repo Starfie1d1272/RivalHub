@@ -64,7 +64,9 @@ async function publish(authorityRevision: number, score: number) {
   fixture.map.mapId = source.currentMapId;
   fixture.map.scoreCT = score;
   fixture.teams.ct.entryId = match.entryAId; fixture.teams.t.entryId = match.entryBId;
-  return ingestMizarLive(source.installationId, seasonId, fixture, authorityRevision);
+  const [installation] = await db.select({ credentialHash: schema.mizarInstallations.credentialHash }).from(schema.mizarInstallations).where(eq(schema.mizarInstallations.id, source.installationId));
+  if (!installation) throw new Error("Missing local fixture installation");
+  return ingestMizarLive(installation.credentialHash, fixture, authorityRevision);
 }
 async function handover() {
   const { match } = await binding();

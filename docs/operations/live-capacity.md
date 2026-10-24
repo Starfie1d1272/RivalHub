@@ -4,7 +4,7 @@
 
 ## 准入、互斥与授权
 
-接收分成两个资源阶段。读取/解析最多两个活跃请求，最多 256 个尚未解析的入口等待者，FIFO 等待最多 500ms；body 最多 256 KiB、读取最多 2 秒。入口满载或等待超时返回 429。这个短入口队列不查询数据库、不等待鉴权或广播、不保存解析后的 snapshot；没有重试或历史/快照仓库。释放入口后，最多两个请求进入鉴权查询与 LIVE 事务，因此 LIVE 自身最多使用生产三连接池中的两个连接，保留一个给其它业务。
+接收分成两个资源阶段。读取/解析最多两个活跃请求，最多 256 个尚未解析的入口等待者，FIFO 等待最多 500ms；body 最多 256 KiB、读取最多 2 秒。入口满载或等待超时返回 429。这个短入口队列不查询数据库、不等待鉴权或广播、不保存解析后的 snapshot；没有重试或历史/快照仓库。释放入口后，最多两个请求进入 LIVE 授权与广播事务，因此 LIVE 自身最多使用生产三连接池中的两个连接，保留一个给其它业务。
 
 广播准入按 **credential hash + match**（正常凭据与 installation 一一对应） 保存最多 256 个需求票据；同一安装下的不同比赛也独立轮转。调度 key 经过凭据语法和比赛 UUID 检查，但仍是不可信的输入，不代表合法比赛。票据只有 key 和最后到达的单调时间，不持有帧、请求或 promise。先前被拒绝的源保留顺序；后来的源不能越过已等待的源占用空闲名额。被拒绝的当前帧立即丢弃，下一份新 heartbeat 取得轮到的名额；同一个 key 不能同时占用两个名额。停止发送的票据最多保留 1.5 秒，避免静默源永久占位。
 
@@ -14,9 +14,9 @@
 
 每个获准请求仍在事务中重新验证 installation → match → active source，包括比赛状态、session、authority revision、generation、epoch、reliable sequence floor、identity/lineup、队伍映射及能力字段。入口票据不授予任何权限。**广播仍在原 installation/match/source share locks 内完成**：LIVE 先持锁则撤销/交接/人工结果等待广播返回；mutation 先持锁则本帧在锁预算后丢弃或重新验证新事实。不把发送移出事务，也不通过 Promise.race 提前放开锁。
 
-生产接收链在跨区数据库下须控制 SQL 往返数。两个事务超时设置与 advisory 准入合并为一条 SELECT；随后一个带 MATERIALIZED 依赖的语句按 installation → match → source 顺序获取共享锁，只投影授权所需字段。observed-lineup 的当前地图匹配与有效名单身份也在这条语句内读取，名单条件复用 effective roster owner。JSON 投影没有日期字段，保持 pg 对布尔值/整数/JSON 的原生解码。HTTP 外层凭据鉴权、事务 BEGIN/COMMIT、500ms 检查与锁内广播继续保留；不缓存授权，不放宽过期预算。正常 HTTP 路径从鉴权到完成锁内验证由至少八轮降为四轮 SQL 往返（COMMIT/发送在验证之后），减少跨区 RTT 累加。冷建连接、队列或单语句仍可使本帧过期，后续新帧重新检查。
+生产接收链在跨区数据库下须控制 SQL 往返数。HTTP 外层只校验凭据格式并生成 hash；LIVE owner 在每帧的 installation 共享锁查询中按 hash 验证有效凭据，设备与赛事 scope 均从该受锁事实派生，payload 赛事必须匹配。两个事务超时设置与 advisory 准入合并为一条 SELECT；随后一个带 MATERIALIZED 依赖的语句按 installation → match → source 顺序获取共享锁，只投影授权所需字段。observed-lineup 的当前地图匹配与有效名单身份也在这条语句内读取，名单条件复用 effective roster owner。JSON 投影没有日期字段，保持 pg 对布尔值/整数/JSON 的原生解码。正常 HTTP 路径到完成锁内验证包含 BEGIN 与两条语句，共三轮 SQL 往返；COMMIT/发送在验证之后。不缓存授权，不放宽 500ms 过期预算；冷建连接、队列或单语句仍可使本帧过期，后续新帧重新检查。
 
-`mizar.live.outcome_window` 在活动调用触发、至少一分钟的进程窗口后，为每个非空固定结果输出次数与平均完整 ingest 耗时（包含事务结束/清理），safeContext.durationMs 是该窗口跨度。结果包括 accepted/frame_expired/contended/delivery_dropped/broadcast_unavailable/rejected/error；范围是已进入 ingest 的调用，入口容量拒绝与外层鉴权失败不计入。聚合没有帧、账号、凭据、玩家、match/session/request/trace 标识，没有 timer 或持久化计数；空闲尾窗、重启和日志链路故障会丢失汇总。accepted 只表示投递端接受，不证明 viewer 收到/渲染；窗口均值不能替代 p95 或逐请求关联。Linux 使用 journal 查询该固定事件，沿用主机日志保留策略。
+`mizar.live.outcome_window` 在活动调用触发、至少一分钟的进程窗口后，为每个非空固定结果输出次数与平均完整 ingest 耗时（包含事务结束/清理），safeContext.durationMs 是该窗口跨度。结果包括 accepted/frame_expired/contended/delivery_dropped/broadcast_unavailable/rejected/error；范围是已进入 ingest 的调用，入口容量拒绝、凭据语法或协议解析失败不计入。聚合没有帧、账号、凭据、玩家、match/session/request/trace 标识，没有 timer 或持久化计数；空闲尾窗、重启和日志链路故障会丢失汇总。accepted 只表示投递端接受，不证明 viewer 收到/渲染；窗口均值不能替代 p95 或逐请求关联。Linux 使用 journal 查询该固定事件，沿用主机日志保留策略。
 
 跨实例同场互斥由 PostgreSQL `pg_try_advisory_xact_lock` 提供，争用立即丢弃。它不是跨比赛公平调度，也不是 project-wide provider 限流。SQL statement 预算 1 秒、单次锁等待 25ms；接收到完成授权的 freshness 预算仍为 500ms，连接池 acquisition timeout 仍为 10 秒。HTTP 发送仍使用 SDK 的 2 秒 abort，错误响应体取消逻辑不变。网络异常可能有未知投递结果；不重试、不宣称能撤回 provider 已接收的消息。
 

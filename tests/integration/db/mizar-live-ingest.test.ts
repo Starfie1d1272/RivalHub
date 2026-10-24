@@ -486,7 +486,7 @@ describe("Mizar live snapshot ingest boundary", () => {
     try {
       // Transport availability is not part of this boundary. A healthy frame must pass
       // authorization and only then degrade or fail at Broadcast, never before it.
-      const outcome = await ingestMizarLive(fixture.installationId, fixture.seasonId, snapshot(fixture), fixture.authorityRevision)
+      const outcome = await ingestMizarLive(fixture.credentialHash, snapshot(fixture), fixture.authorityRevision)
         .catch((error: unknown) => error);
       expect(outcome).not.toBeInstanceOf(AppError);
     } finally {
@@ -501,29 +501,29 @@ describe("Mizar live snapshot ingest boundary", () => {
     const fixture = await seedFixture();
     await db.update(schema.matchLiveSessions).set({ lastReliableSeq: 5 }).where(eq(schema.matchLiveSessions.id, fixture.sessionId));
     await expectCode(
-      () => ingestMizarLive(fixture.installationId, fixture.seasonId, snapshot(fixture, { cursor: { ...snapshot(fixture).cursor, runtimeSeq: 1 } }), fixture.authorityRevision),
+      () => ingestMizarLive(fixture.credentialHash, snapshot(fixture, { cursor: { ...snapshot(fixture).cursor, runtimeSeq: 1 } }), fixture.authorityRevision),
       ErrorCode.FORBIDDEN,
     );
     // Restore the water mark so the remaining cases exercise their own boundary.
     await db.update(schema.matchLiveSessions).set({ lastReliableSeq: -1 }).where(eq(schema.matchLiveSessions.id, fixture.sessionId));
     await expectCode(
-      () => ingestMizarLive(fixture.installationId, fixture.seasonId, snapshot(fixture, { cursor: { ...snapshot(fixture).cursor, mapEpoch: 4 } }), fixture.authorityRevision),
+      () => ingestMizarLive(fixture.credentialHash, snapshot(fixture, { cursor: { ...snapshot(fixture).cursor, mapEpoch: 4 } }), fixture.authorityRevision),
       ErrorCode.FORBIDDEN,
     );
     await expectCode(
-      () => ingestMizarLive(fixture.installationId, fixture.seasonId, snapshot(fixture, { cursor: { ...snapshot(fixture).cursor, programSourceGeneration: 4 } }), fixture.authorityRevision),
+      () => ingestMizarLive(fixture.credentialHash, snapshot(fixture, { cursor: { ...snapshot(fixture).cursor, programSourceGeneration: 4 } }), fixture.authorityRevision),
       ErrorCode.FORBIDDEN,
     );
     await expectCode(
-      () => ingestMizarLive(fixture.installationBId, fixture.seasonId, snapshot(fixture), fixture.authorityRevision),
+      () => ingestMizarLive(fixture.credentialBHash, snapshot(fixture), fixture.authorityRevision),
       ErrorCode.FORBIDDEN,
     );
     await expectCode(
-      () => ingestMizarLive(fixture.installationId, fixture.seasonId, snapshot(fixture, { competitionId: randomUUID() }), fixture.authorityRevision),
+      () => ingestMizarLive(fixture.credentialHash, snapshot(fixture, { competitionId: randomUUID() }), fixture.authorityRevision),
       ErrorCode.FORBIDDEN,
     );
     await expectCode(
-      () => ingestMizarLive(fixture.installationId, fixture.seasonId, snapshot(fixture, { teams: { ct: { entryId: fixture.entryAId, name: "A" }, t: { entryId: fixture.entryAId, name: "A" } } }), fixture.authorityRevision),
+      () => ingestMizarLive(fixture.credentialHash, snapshot(fixture, { teams: { ct: { entryId: fixture.entryAId, name: "A" }, t: { entryId: fixture.entryAId, name: "A" } } }), fixture.authorityRevision),
       ErrorCode.VALIDATION_FAILED,
     );
   });
@@ -532,13 +532,13 @@ describe("Mizar live snapshot ingest boundary", () => {
     const fixture = await seedFixture();
     await db.update(schema.matchLiveSessions).set({ identityHealth: "conflict" }).where(eq(schema.matchLiveSessions.id, fixture.sessionId));
     await expectCode(
-      () => ingestMizarLive(fixture.installationId, fixture.seasonId, snapshot(fixture), fixture.authorityRevision),
+      () => ingestMizarLive(fixture.credentialHash, snapshot(fixture), fixture.authorityRevision),
       ErrorCode.FORBIDDEN,
     );
     await db.update(schema.matchLiveSessions).set({ identityHealth: "healthy" }).where(eq(schema.matchLiveSessions.id, fixture.sessionId));
     const staleTelemetry = snapshot(fixture, { capability: { ...snapshot(fixture).capability, telemetryFresh: false } });
     await expectCode(
-      () => ingestMizarLive(fixture.installationId, fixture.seasonId, staleTelemetry, fixture.authorityRevision),
+      () => ingestMizarLive(fixture.credentialHash, staleTelemetry, fixture.authorityRevision),
       ErrorCode.FORBIDDEN,
     );
   });
@@ -547,7 +547,7 @@ describe("Mizar live snapshot ingest boundary", () => {
     const fixture = await seedFixture();
     await db.update(schema.mizarInstallations).set({ revokedAt: NOW }).where(eq(schema.mizarInstallations.id, fixture.installationId));
     await expectCode(
-      () => ingestMizarLive(fixture.installationId, fixture.seasonId, snapshot(fixture), fixture.authorityRevision),
+      () => ingestMizarLive(fixture.credentialHash, snapshot(fixture), fixture.authorityRevision),
       ErrorCode.FORBIDDEN,
     );
   });
@@ -596,7 +596,7 @@ describe("Mizar source authority", () => {
       ErrorCode.FORBIDDEN,
     );
     await expectCode(
-      () => ingestMizarLive(fixture.installationId, fixture.seasonId, snapshotForAuthority(fixture), fixture.authorityRevision),
+      () => ingestMizarLive(fixture.credentialHash, snapshotForAuthority(fixture), fixture.authorityRevision),
       ErrorCode.FORBIDDEN,
     );
   });
