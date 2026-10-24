@@ -1,0 +1,161 @@
+{
+  "comparison": "exact git baseline module vs compact batch",
+  "seasons": 2,
+  "honorsPerSeason": 12,
+  "finishedMatchesPerSeason": 20,
+  "runs": [
+    {
+      "run": 0,
+      "baseline": {
+        "queries": 10,
+        "rows": 69,
+        "jsonBytes": 18444,
+        "durationMs": 65.09928300000047
+      },
+      "candidate": {
+        "queries": 4,
+        "rows": 7,
+        "jsonBytes": 688,
+        "durationMs": 12.643248999999741
+      }
+    },
+    {
+      "run": 1,
+      "baseline": {
+        "queries": 10,
+        "rows": 69,
+        "jsonBytes": 18444,
+        "durationMs": 34.22297299999991
+      },
+      "candidate": {
+        "queries": 4,
+        "rows": 7,
+        "jsonBytes": 688,
+        "durationMs": 10.735762999999679
+      }
+    },
+    {
+      "run": 2,
+      "baseline": {
+        "queries": 10,
+        "rows": 69,
+        "jsonBytes": 18444,
+        "durationMs": 26.32430900000054
+      },
+      "candidate": {
+        "queries": 4,
+        "rows": 7,
+        "jsonBytes": 688,
+        "durationMs": 39.99647200000072
+      }
+    },
+    {
+      "run": 3,
+      "baseline": {
+        "queries": 10,
+        "rows": 69,
+        "jsonBytes": 18444,
+        "durationMs": 57.944328000000496
+      },
+      "candidate": {
+        "queries": 4,
+        "rows": 7,
+        "jsonBytes": 688,
+        "durationMs": 5.093095000000176
+      }
+    },
+    {
+      "run": 4,
+      "baseline": {
+        "queries": 10,
+        "rows": 69,
+        "jsonBytes": 18444,
+        "durationMs": 50.826296000000184
+      },
+      "candidate": {
+        "queries": 4,
+        "rows": 7,
+        "jsonBytes": 688,
+        "durationMs": 35.363342999999986
+      }
+    },
+    {
+      "run": 5,
+      "baseline": {
+        "queries": 10,
+        "rows": 69,
+        "jsonBytes": 18444,
+        "durationMs": 50.43838700000015
+      },
+      "candidate": {
+        "queries": 4,
+        "rows": 7,
+        "jsonBytes": 688,
+        "durationMs": 10.735673999999563
+      }
+    },
+    {
+      "run": 6,
+      "baseline": {
+        "queries": 10,
+        "rows": 69,
+        "jsonBytes": 18444,
+        "durationMs": 138.5385320000005
+      },
+      "candidate": {
+        "queries": 4,
+        "rows": 7,
+        "jsonBytes": 688,
+        "durationMs": 25.028255000000172
+      }
+    },
+    {
+      "run": 7,
+      "baseline": {
+        "queries": 10,
+        "rows": 69,
+        "jsonBytes": 18444,
+        "durationMs": 31.810606000000007
+      },
+      "candidate": {
+        "queries": 4,
+        "rows": 7,
+        "jsonBytes": 688,
+        "durationMs": 10.507096000000274
+      }
+    },
+    {
+      "run": 8,
+      "baseline": {
+        "queries": 10,
+        "rows": 69,
+        "jsonBytes": 18444,
+        "durationMs": 83.31632700000046
+      },
+      "candidate": {
+        "queries": 4,
+        "rows": 7,
+        "jsonBytes": 688,
+        "durationMs": 42.44598600000063
+      }
+    },
+    {
+      "run": 9,
+      "baseline": {
+        "queries": 10,
+        "rows": 69,
+        "jsonBytes": 18444,
+        "durationMs": 46.64487999999983
+      },
+      "candidate": {
+        "queries": 4,
+        "rows": 7,
+        "jsonBytes": 688,
+        "durationMs": 27.83607900000061
+      }
+    }
+  ],
+  "baselineCommit": "4ebecf5d5e1b629371c7d0c8851b6bab9c31d7f8",
+  "measurement": "isolated PostgreSQL; returned SELECT rows serialized as JSON, not network compression or LCP",
+  "candidateSourceSha256": "0d24f26cb24b0aa405cb8ed0299eb6bb1d5f4e4a38f6c899f4e5b15b9dc7b501"
+}

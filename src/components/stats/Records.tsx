@@ -1,4 +1,5 @@
 "use client";
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -96,5 +97,6 @@ export function Records({ records, query, seasonSlug, coverage, events, counts, 
         {events.page < events.pages ? <Link href={`${statsHref(seasonSlug, query, { eventPage: events.page + 1 })}#record-events` as Route} className={`${linkStyle} py-2`}>下一页</Link> : <span />}
       </nav>}
     </section>
+    <ContentReady module="statistics" phase="primary" />
   </section>;
 }

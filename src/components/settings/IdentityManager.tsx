@@ -18,17 +18,21 @@ type Identity = { id: string; email: string; primary: boolean; verifiedAt: strin
 export function IdentityManager({ identities }: { identities: Identity[] }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [sendGuidance, setSendGuidance] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function requestLink() {
     startTransition(async () => {
+      try {
       const result = await requestSecondaryEmailIdentity(email);
       if (!result.success) {
+        if (result.error.meta?.outcome === "unknown") setSendGuidance(result.error.message);
         toast.error(result.error.message);
         return;
       }
       setEmail("");
-      toast.success("验证邮件已发送。完成验证后会绑定身份，或进入重复账号安全预检。");
+      toast.success("验证邮件请求已提交。完成验证后会绑定身份，或进入重复账号安全预检。");
+      } catch { setSendGuidance("验证邮件请求结果尚未确认，请先检查邮箱，不要立即重复发送。"); }
     });
   }
 
@@ -67,7 +71,8 @@ export function IdentityManager({ identities }: { identities: Identity[] }) {
           <Label htmlFor="secondary-email-input">邮箱</Label>
           <Input id="secondary-email-input" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="student@school.example" />
         </div>
-        <Button type="button" disabled={pending || !email.trim()} onClick={requestLink}>{pending ? "发送中…" : "发送验证邮件"}</Button>
+        {sendGuidance && <p role="alert" className="text-sm text-[var(--color-danger)]">{sendGuidance}</p>}
+        <Button type="button" disabled={pending || sendGuidance !== null || !email.trim()} onClick={requestLink}>{pending ? "发送中…" : "发送验证邮件"}</Button>
         </div>
       </Panel>
     </div>

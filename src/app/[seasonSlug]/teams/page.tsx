@@ -1,6 +1,6 @@
 import { getPublicCompetitionEntryDirectory } from "@/lib/competition-entries/public-directory";
 import Link from "next/link";
-import { connection } from "next/server";
+import { io } from "next/cache";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
 import { ParticipantDirectoryToolbar } from "@/components/season/ParticipantDirectoryToolbar";
 import { parseParticipantDirectoryQuery, matchesDirectorySearch } from "@/lib/players/directory-query";
@@ -14,20 +14,19 @@ import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { getMajorPublicParticipantSummary } from "@/lib/major/public-participants";
 
 export default function CompetitionEntriesPage(props: { params: Promise<{ seasonSlug: string }>; searchParams?: Promise<{ q?: string }> }) {
-  return <Suspense fallback={<PageLayout variant="wide"><p role="status">正在加载…</p></PageLayout>}><CompetitionEntriesPageContent {...props} /></Suspense>;
+  return <Suspense fallback={<PageLayout variant="wide" aria-busy="true"><span className="sr-only">正在加载参赛阵容…</span><div className="h-28" /><div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{[0, 1, 2, 3, 4, 5, 6, 7].map(index => <div key={index} className="h-64 animate-pulse border border-[var(--color-border)] bg-[var(--color-panel-low)]" />)}</div></PageLayout>}><CompetitionEntriesPageContent {...props} /></Suspense>;
 }
 export async function CompetitionEntriesPageContent({ params, searchParams }: { params: Promise<{ seasonSlug: string }>; searchParams?: Promise<{ q?: string }> }) {
-  await connection();
+  await io();
   const { seasonSlug } = await params;
   const { q } = parseParticipantDirectoryQuery(await searchParams);
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
   if (season.competitionTemplate === "major") {
-    const summary = await getMajorPublicParticipantSummary(season);
+    const [summary, results] = await Promise.all([getMajorPublicParticipantSummary(season), getPublicSeasonResults(season)]);
 
     const visibleTeams = summary.teams.filter((team) => matchesDirectorySearch(q, team.entry.name, ...team.roster.map((member) => member.name)));
-    const results = await getPublicSeasonResults(season);
     return <PageLayout as="div" variant="wide" className="space-y-6">
       <PageHeader
         title="参赛阵容"
@@ -57,11 +56,10 @@ export async function CompetitionEntriesPageContent({ params, searchParams }: { 
     </PageLayout>;
   }
 
-  const { entries, members, matchSummary, teamCount, playerCount } = await getPublicCompetitionEntryDirectory(season);
+  const [{ entries, members, matchSummary, teamCount, playerCount }, results] = await Promise.all([getPublicCompetitionEntryDirectory(season), getPublicSeasonResults(season)]);
   const membersByEntry = new Map<string, typeof members>();
   for (const member of members) membersByEntry.set(member.entryId, [...(membersByEntry.get(member.entryId) ?? []), member]);
   const visibleEntries = entries.filter((entry) => matchesDirectorySearch(q, entry.name, ...(membersByEntry.get(entry.id) ?? []).map(getPublicDisplayName)));
-  const results = await getPublicSeasonResults(season);
   return <PageLayout as="div" variant="wide" className="space-y-6">
     <PageHeader title="参赛阵容" eyebrow={season.name} actions={<Suspense fallback={null}><AdminShortcutSlot href={`/admin/${seasonSlug}/settings`} label="赛事管理" /></Suspense>} />
     <div className="flex flex-wrap items-center justify-between gap-3 text-sm">

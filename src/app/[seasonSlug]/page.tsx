@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { getOfficialUpcomingMatches, getQualificationMatchProgress } from "@/lib/seasons/overview-read-model";
 import { getOfficialSeasonMatchSummary } from "@/lib/matches/read-official";
 import { getApprovedCompetitionEntryCount } from "@/lib/competition-entries/counts";
@@ -67,22 +68,16 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   const isHistorical = ["finished", "archived"].includes(season.status);
   const isMajor = season.competitionTemplate === "major";
   const stagePresentationRead = getPublicSeasonStagePresentation(season);
-  const [latestSeasonAnnouncement, seasonInfo, results, stagePresentation,
+  const [stagePresentation,
     majorParticipantOverview, teamCount, participantSummary, matchCountRow,
-    upcomingMatches, standings, captainVoting, draftData, qualificationProgress] = await Promise.all([
-    getLatestSeasonAnnouncement(season.id),
-    getPublicSeasonInfo(season.id),
-    isHistorical ? getPublicSeasonResults(season) : Promise.resolve(null),
+    upcomingMatches, qualificationProgress] = await Promise.all([
     stagePresentationRead,
     isMajor ? getMajorPublicParticipantOverview(season) : Promise.resolve(null),
     isMajor ? Promise.resolve(0) : getApprovedCompetitionEntryCount(season.id),
     isMajor ? Promise.resolve(null) : getParticipantSummary(season),
     getOfficialSeasonMatchSummary(season.id),
     season.hasOfficialMatches && !isHistorical ? getOfficialUpcomingMatches(season.id) : Promise.resolve([]),
-    season.status === "playing" && !isMajor ? getStandings(season.id) : Promise.resolve([]),
-    season.status === "voting" && season.hasCaptainVoting ? getPublicCaptainVotingData(season.id) : Promise.resolve(null),
-    season.status === "drafting" && season.hasDraft ? getPublicDraftSummary(season.id) : Promise.resolve(null),
-    stagePresentationRead.then(presentation => isMajor && presentation.qualificationRun
+    stagePresentationRead.then(presentation => isMajor && presentation.qualificationRun && !presentation.stagePlan.some(stage => stage.key === presentation.currentStageKey || presentation.initializedStageKeys.includes(stage.key))
       ? getQualificationMatchProgress(presentation.qualificationRun.id) : null),
   ]);
   const stagePlan = stagePresentation.stagePlan;
@@ -169,13 +164,11 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   if (currentPhaseIdx === -1 && !qualificationBeforeMainStart) currentPhaseIdx = phases.length - 1;
 
   const primaryAction = buildSeasonPrimaryAction({ ...season, hasMatches });
-  const primaryHref = primaryAction.href === `/${seasonSlug}` && results ? "#results" : primaryAction.href;
+  const primaryHref = primaryAction.href === `/${seasonSlug}` && isHistorical ? "#results" : primaryAction.href;
   const registrationSchedule = !season.hasOfficialMatches && !qualificationRun ? presentRegistrationSchedule(season) : null;
   const participationState = presentSeasonParticipationState(season);
   const heroStageLabel = !isHistorical ? stagePresentation.currentStageLabel : null;
   const teamCountLabel = majorParticipantOverview?.phase === "approved_candidates" ? "已审核队伍" : "参赛队伍";
-  const hasSeasonInfo = hasPublicSeasonInfo(seasonInfo);
-  const groupCount = activeGroupCount(seasonInfo);
   const showCurrentMatches = !isHistorical && Boolean(season.hasOfficialMatches || qualificationRun);
   const showRegistrationSummary = season.status === "registration" && !season.hasOfficialMatches && !qualificationRun && primaryAction.key !== "teams";
   const entryIcons = { captains: Vote, draft: Shuffle, matches: Swords, teams: Users, players: UserRoundSearch, stats: BarChart3, awards: Trophy, bet: Trophy, predictions: Shuffle, info: Info, overview: Swords };
@@ -191,6 +184,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
 
   return (
     <PageLayout variant="wide" className="space-y-5">
+      <ContentReady module="public" phase="primary" />
       <section aria-labelledby="season-title" className="home-event-hero relative overflow-hidden rounded-[var(--radius-display)] border border-[var(--color-border)] px-5 py-5 sm:px-7">
         <div className="relative z-10 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div className="min-w-0">
@@ -266,11 +260,9 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
 
       <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.42fr)]">
         <div className="min-w-0 space-y-4">
-          {results && (
-            <div id="results" className="scroll-mt-28">
-              <SeasonResults results={results} slug={seasonSlug} />
-            </div>
-          )}
+          {isHistorical && <Suspense fallback={<section id="results" aria-busy="true" className="min-h-64">赛事结果加载中…</section>}>
+            <SeasonHistoricalResults season={season} />
+          </Suspense>}
 
           {showCurrentMatches && (
             <Panel label={
@@ -308,22 +300,12 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
             </Panel>
           )}
 
-          {captainVoting && (
-            <Panel label={
-              <div className="flex w-full items-center justify-between gap-3">
-                <h2>队长投票</h2>
-                <Link href={`/${seasonSlug}/captains`} className="inline-flex min-h-7 items-center text-[var(--color-accent)] hover:underline">全部候选 <span aria-hidden className="ml-1">→</span></Link>
-              </div>
-            }>
-              <SeasonVotingPreview candidates={captainVoting.candidates.slice(0, 4).map((candidate) => ({ userId: candidate.userId, name: candidate.displayName, voteCount: candidate.voteCount }))} />
-            </Panel>
-          )}
-
-          {season.status === "drafting" && season.hasDraft && (
-            <Panel label={<h2>选秀进度</h2>}>
-              <SeasonDraftPreview seasonSlug={seasonSlug} draftData={draftData} />
-            </Panel>
-          )}
+          {season.status === "voting" && season.hasCaptainVoting && <Suspense fallback={<div role="status" className="min-h-48">队长投票加载中…</div>}>
+            <SeasonVotingHighlight season={season} />
+          </Suspense>}
+          {season.status === "drafting" && season.hasDraft && <Suspense fallback={<div role="status" className="min-h-48">选秀进度加载中…</div>}>
+            <SeasonDraftHighlight season={season} />
+          </Suspense>}
 
           {showRegistrationSummary && (
             <Panel label={<h2>参赛方式</h2>}>
@@ -349,16 +331,9 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
             <SeasonPersonalNextStep season={season} />
           </Suspense>
 
-          {standings.length > 0 && (
-            <Panel label={
-              <div className="flex w-full items-center justify-between gap-3">
-                <h2>当前排名 · TOP 4</h2>
-                <Link href={`/${seasonSlug}/matches`} className="inline-flex min-h-7 items-center text-[var(--color-accent)] hover:underline">完整排名 <span aria-hidden className="ml-1">→</span></Link>
-              </div>
-            }>
-              <StandingsTable standings={standings.slice(0, 4)} seasonSlug={seasonSlug} isFinal={false} />
-            </Panel>
-          )}
+          {season.status === "playing" && !isMajor && <Suspense fallback={<div role="status" className="min-h-48">当前排名加载中…</div>}>
+            <SeasonStandingsHighlight season={season} />
+          </Suspense>}
 
           {relatedGroups.length > 0 && (
             <Panel label={<h2>相关入口</h2>} contentClassName="grid gap-4 sm:grid-cols-2">
@@ -383,6 +358,40 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
           )}
         </div>
 
+        <Suspense fallback={<aside aria-label="赛事公告与相关信息" aria-busy="true" className="min-h-64" />}>
+          <SeasonInformation season={season} />
+        </Suspense>
+      </div>
+    </PageLayout>
+  );
+}
+
+async function SeasonPersonalNextStep({ season }: { season: PublicSeason }) {
+  const task = await getSeasonPersonalNextStep(season);
+  return <SeasonNextStep task={task} />;
+}
+
+function SeasonPageFallback() {
+  return (
+    <PageLayout variant="wide" className="min-h-[60vh]" aria-busy="true">
+      <span className="sr-only">正在加载赛事首页…</span>
+    </PageLayout>
+  );
+}
+
+async function SeasonHistoricalResults({ season }: { season: PublicSeason }) {
+  const results = await getPublicSeasonResults(season);
+  return <div id="results" className="scroll-mt-28"><SeasonResults results={results} slug={season.slug} /></div>;
+}
+
+async function SeasonInformation({ season }: { season: PublicSeason }) {
+  const seasonSlug = season.slug;
+  const [latestSeasonAnnouncement, seasonInfo] = await Promise.all([
+    getLatestSeasonAnnouncement(season.id), getPublicSeasonInfo(season.id),
+  ]);
+  const hasSeasonInfo = hasPublicSeasonInfo(seasonInfo);
+  const groupCount = activeGroupCount(seasonInfo);
+  return (
         <aside aria-label="赛事公告与相关信息" className="min-w-0 space-y-4">
           {latestSeasonAnnouncement && (
             <Panel label={
@@ -411,20 +420,35 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
             </Panel>
           )}
         </aside>
-      </div>
-    </PageLayout>
   );
 }
 
-async function SeasonPersonalNextStep({ season }: { season: PublicSeason }) {
-  const task = await getSeasonPersonalNextStep(season);
-  return <SeasonNextStep task={task} />;
+async function SeasonVotingHighlight({ season }: { season: PublicSeason }) {
+  const data = await getPublicCaptainVotingData(season.id);
+  return <Panel label={<div className="flex w-full items-center justify-between gap-3"><h2>队长投票</h2>
+    <Link href={`/${season.slug}/captains`} className="inline-flex min-h-7 items-center text-[var(--color-accent)] hover:underline">全部候选 →</Link></div>}>
+    <SeasonVotingPreview candidates={data.candidates.slice(0, 4).map(candidate => ({ userId: candidate.userId, name: candidate.displayName, voteCount: candidate.voteCount }))} />
+  </Panel>;
 }
 
-function SeasonPageFallback() {
-  return (
-    <PageLayout variant="wide" className="min-h-[60vh]" aria-busy="true">
-      <span className="sr-only">正在加载赛事首页…</span>
-    </PageLayout>
-  );
+async function SeasonDraftHighlight({ season }: { season: PublicSeason }) {
+  const draftData = await getPublicDraftSummary(season.id);
+  return <Panel label={<h2>选秀进度</h2>}><SeasonDraftPreview seasonSlug={season.slug} draftData={draftData} /></Panel>;
+}
+
+async function SeasonStandingsHighlight({ season }: { season: PublicSeason }) {
+  const standings = await getStandings(season.id);
+  const seasonSlug = season.slug;
+  return <>
+          {standings.length > 0 && (
+            <Panel label={
+              <div className="flex w-full items-center justify-between gap-3">
+                <h2>当前排名 · TOP 4</h2>
+                <Link href={`/${seasonSlug}/matches`} className="inline-flex min-h-7 items-center text-[var(--color-accent)] hover:underline">完整排名 <span aria-hidden className="ml-1">→</span></Link>
+              </div>
+            }>
+              <StandingsTable standings={standings.slice(0, 4)} seasonSlug={seasonSlug} isFinal={false} />
+            </Panel>
+          )}
+  </>;
 }

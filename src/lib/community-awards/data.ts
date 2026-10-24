@@ -70,24 +70,22 @@ type CommunityAwardBoardData = {
 };
 
 async function getMatchOptions(executor: CommunityAwardQueryable, seasonId: string, stagePlan: StagePlan) {
-  const rawMatchRows = await executor.select({ id: matches.id, stage: matches.stage, round: matches.round, entryRound: matches.entryRound, aName: competitionEntries.name, bId: matches.entryBId }).from(matches).innerJoin(competitionEntries, eq(matches.entryAId, competitionEntries.id)).where(and(officialMatchCondition(), eq(matches.seasonId, seasonId)));
-  const matchRows = rawMatchRows.flatMap(row => row.stage === null || row.bId === null ? [] : [{ ...row, stage: row.stage, bId: row.bId }]);
-  const bIds = [...new Set(matchRows.map((row) => row.bId))];
-  const bRows = bIds.length ? await executor.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(inArray(competitionEntries.id, bIds)) : [];
-  const bNames = new Map(bRows.map((row) => [row.id, row.name]));
-  return matchRows.map((row) => ({ id: row.id, label: presentMatchLabel({ stage: row.stage, stageName: stagePlan.find((stage) => stage.key === row.stage)?.name, round: row.round, entryRound: row.entryRound, teamAName: row.aName, teamBName: bNames.get(row.bId) ?? "待定" }) }));
+  const entryB = alias(competitionEntries, "award_match_entry_b");
+  const rows = await executor.select({ id: matches.id, stage: matches.stage, round: matches.round, entryRound: matches.entryRound, aName: competitionEntries.name, bName: entryB.name })
+    .from(matches).innerJoin(competitionEntries, eq(matches.entryAId, competitionEntries.id))
+    .innerJoin(entryB, eq(matches.entryBId, entryB.id))
+    .where(and(officialMatchCondition(), eq(matches.seasonId, seasonId)));
+  return rows.flatMap(row => row.stage === null ? [] : [{ id: row.id, label: presentMatchLabel({ stage: row.stage, stageName: stagePlan.find(stage => stage.key === row.stage)?.name, round: row.round, entryRound: row.entryRound, teamAName: row.aName, teamBName: row.bName }) }]);
 }
 
 export async function getPublicCommunityAwardBoardData(executor: CommunityAwardQueryable, args: { seasonId: string; currentUserId: string | null; stagePlan: StagePlan }): Promise<CommunityAwardBoardData> {
   const publicAward = or(inArray(communityAwards.status, PUBLIC_COMMUNITY_AWARD_STATUSES), and(eq(communityAwards.status, "withdrawn"), isNotNull(communityAwards.reviewedAt)));
-  const [rows, candidates, matchOptions] = await Promise.all([
-    executor.select({ id: communityAwards.id, recipientPolicy: communityAwards.recipientPolicy, recipientLimit: communityAwards.recipientLimit, settlementPolicy: communityAwards.settlementPolicy, settlementStageKey: communityAwards.settlementStageKey, resultVersion: communityAwards.resultVersion, submittedByUserId: communityAwards.submittedByUserId, name: communityAwards.name, condition: communityAwards.condition, prize: communityAwards.prize, supplementaryNote: communityAwards.supplementaryNote, publicNote: communityAwards.publicNote, reviewNote: communityAwards.reviewNote, reviewedAt: communityAwards.reviewedAt, status: communityAwards.status, outcomeNote: communityAwards.outcomeNote, submitter: { displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName } }).from(communityAwards).innerJoin(users, eq(communityAwards.submittedByUserId, users.id)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(and(eq(communityAwards.seasonId, args.seasonId), args.currentUserId ? or(publicAward, eq(communityAwards.submittedByUserId, args.currentUserId)) : publicAward)).orderBy(asc(communityAwards.createdAt)),
-    getSeasonAwardCandidates(executor, args.seasonId),
-    getMatchOptions(executor, args.seasonId, args.stagePlan),
-  ]);
-  const recipientsByAward = await loadRecipients(executor, rows.map(row => row.id));
-  const playerUserIdSet = await getPublicPlayerIdentityIds(executor,
-    [...new Set(rows.flatMap(row => [row.submittedByUserId]))]);
+  const rows = await (
+    executor.select({ id: communityAwards.id, recipientPolicy: communityAwards.recipientPolicy, recipientLimit: communityAwards.recipientLimit, settlementPolicy: communityAwards.settlementPolicy, settlementStageKey: communityAwards.settlementStageKey, resultVersion: communityAwards.resultVersion, submittedByUserId: communityAwards.submittedByUserId, name: communityAwards.name, condition: communityAwards.condition, prize: communityAwards.prize, supplementaryNote: communityAwards.supplementaryNote, publicNote: communityAwards.publicNote, reviewNote: communityAwards.reviewNote, reviewedAt: communityAwards.reviewedAt, status: communityAwards.status, outcomeNote: communityAwards.outcomeNote, submitter: { displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName } }).from(communityAwards).innerJoin(users, eq(communityAwards.submittedByUserId, users.id)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(and(eq(communityAwards.seasonId, args.seasonId), args.currentUserId ? or(publicAward, eq(communityAwards.submittedByUserId, args.currentUserId)) : publicAward)).orderBy(asc(communityAwards.createdAt))
+  );
+  const { recipients: recipientsByAward, players: playerUserIdSet } = await loadRecipients(
+    executor, rows.map(row => row.id), rows.map(row => row.submittedByUserId),
+  );
 
   return {
     awards: rows.filter((row) => row.submittedByUserId === args.currentUserId || isPublicCommunityAward(row.status, row.reviewedAt)).map((row) => ({
@@ -109,9 +107,17 @@ export async function getPublicCommunityAwardBoardData(executor: CommunityAwardQ
       recipientTarget: recipientsByAward.get(row.id)?.[0]?.target ?? null,
       outcomeNote: row.outcomeNote,
     })),
-    candidates,
-    matches: matchOptions,
+    candidates: [],
+    matches: [],
   };
+}
+
+/** Form-only public options; entrypoints must authorize the visible event first. */
+export async function getCommunityAwardFormOptions(executor: CommunityAwardQueryable, seasonId: string, stagePlan: StagePlan) {
+  const [candidates, matches] = await Promise.all([
+    getSeasonAwardCandidates(executor, seasonId), getMatchOptions(executor, seasonId, stagePlan),
+  ]);
+  return { candidates, matches };
 }
 
 export async function getAdminCommunityAwardBoardData(executor: CommunityAwardQueryable, args: { seasonId: string; stagePlan: StagePlan }): Promise<CommunityAwardBoardData> {
@@ -126,11 +132,13 @@ export async function getAdminCommunityAwardBoardData(executor: CommunityAwardQu
     getSeasonAwardCandidates(executor, args.seasonId),
     getMatchOptions(executor, args.seasonId, args.stagePlan),
   ]);
-  const recipientsByAward = await loadRecipients(executor, awardRows.map(row => row.id));
-  const progress = await getCommunityAwardProgress(executor, args.seasonId);
-  const playerUserIdSet = await getPublicPlayerIdentityIds(executor,
-    [...new Set([...awardRows.flatMap(row => [row.submittedByUserId]),
-      ...evidenceRows.flatMap(row => [row.submittedByUserId, ...(row.candidateUserId ? [row.candidateUserId] : [])])])]);
+  const [{ recipients: recipientsByAward, players: playerUserIdSet }, progress] = await Promise.all([
+    loadRecipients(executor, awardRows.map(row => row.id), [
+      ...awardRows.map(row => row.submittedByUserId),
+      ...evidenceRows.flatMap(row => [row.submittedByUserId, ...(row.candidateUserId ? [row.candidateUserId] : [])]),
+    ]),
+    getCommunityAwardProgress(executor, args.seasonId),
+  ]);
   const matchLabels = new Map(matchOptions.map((match) => [match.id, match.label]));
   const evidenceByAward = new Map<string, CommunityAwardEvidenceModel[]>();
   for (const row of evidenceRows) {
@@ -145,15 +153,14 @@ export async function getAdminCommunityAwardBoardData(executor: CommunityAwardQu
 
 }
 
-async function loadRecipients(executor: CommunityAwardQueryable, awardIds: string[]) {
+async function loadRecipients(executor: CommunityAwardQueryable, awardIds: string[], relatedUserIds: string[]) {
   const result = new Map<string, CommunityAwardModel["recipients"]>();
-  if (!awardIds.length) return result;
-  const rows = await executor.select({ awardId: communityAwardRecipients.awardId, userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName }).from(communityAwardRecipients).innerJoin(users, eq(communityAwardRecipients.userId, users.id)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(communityAwardRecipients.awardId, awardIds)).orderBy(asc(communityAwardRecipients.position), asc(communityAwardRecipients.userId));
-  const players = await getPublicPlayerIdentityIds(executor, rows.map(row => row.userId));
+  const rows = awardIds.length ? await executor.select({ awardId: communityAwardRecipients.awardId, userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName }).from(communityAwardRecipients).innerJoin(users, eq(communityAwardRecipients.userId, users.id)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(communityAwardRecipients.awardId, awardIds)).orderBy(asc(communityAwardRecipients.position), asc(communityAwardRecipients.userId)) : [];
+  const players = await getPublicPlayerIdentityIds(executor, [...new Set([...relatedUserIds, ...rows.map(row => row.userId)])]);
   for (const row of rows) {
     const list = result.get(row.awardId) ?? [];
     list.push({ userId: row.userId, name: getPublicDisplayName(row), target: players.has(row.userId) ? `/players/${row.userId}` : null });
     result.set(row.awardId, list);
   }
-  return result;
+  return { recipients: result, players };
 }

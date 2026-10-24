@@ -1,0 +1,53 @@
+import { randomUUID } from "node:crypto";
+import { writeFileSync } from "node:fs";
+import { Pool } from "pg";
+import { expect, it, vi } from "vitest";
+import { getRecruitmentLobbyData } from "@/lib/recruitment/data";
+import { getRecruitmentLobbyData as baselineLobby } from "./w12-baseline-recruitment";
+import { loadParticipantQualificationFacts as baselineFacts } from "./w12-baseline-qualification";
+import { loadParticipantQualificationRawBundle, projectParticipantQualificationFacts } from "@/lib/qualification/service";
+import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
+import { competitiveRankFacts } from "@/db/schema";
+import { db } from "@/db/client";
+import { eq } from "drizzle-orm";
+import { localDatabaseUrl } from "./harness/database";
+vi.mock("next/cache", () => ({ cacheLife: vi.fn(), cacheTag: vi.fn() }));
+it("records alternating real PG baseline/candidate reads with synthetic fixture", async () => {
+ const pool = new Pool({ connectionString: localDatabaseUrl(), ssl: false, max: 2 });
+ const ids = Array.from({length:1000},()=>randomUUID()); const label=`probe-${randomUUID()}`;
+ const raw:any[]=[];
+ const original=Pool.prototype.query; let count=0; let rows=0;
+ (Pool.prototype as any).query=function(...args:any[]) {
+   count++;
+   const result=Reflect.apply(original,this,args);
+   if(result && typeof result.then==='function') return result.then((r:any)=> {rows+=r?.rows?.length??0;return r;});
+   return result;
+ };
+ async function measure(task:string, variant:string, run:number, work:()=>Promise<any>) {
+   count=0;rows=0;const start=performance.now();const result=await work();const durationMs=performance.now()-start;
+   raw.push({task,variant,run,durationMs,sql:count,rows,cardCount:result?.playerLfts?.length??null,
+    cardBytes:result?.playerLfts?Buffer.byteLength(JSON.stringify(result.playerLfts)):null,
+    poolAcquireMs:null,txHoldMs:null,browserReadyMs:null,lcpMs:null,cls:null});return result;
+ }
+ try {
+   await pool.query("insert into users(id,email,display_name) select id,id::text||'@local.test',$2 from unnest($1::uuid[]) id",[ids,label]);
+   await pool.query("insert into recruitment_intents(kind,user_id,expires_at) select 'player_lft',id,now()+interval '1 day' from unnest($1::uuid[]) id",[ids]);
+   await pool.query("insert into competitive_rank_facts(user_id,platform,kind,rank,rating) values($1,'perfect_world','historical_peak','A',1.2),($1,'fivee','historical_peak','B',2.3)",[ids[0]]);
+   const platforms=['perfect_world','fivee'];
+   for(let run=0;run<10;run++) for(const variant of run%2?['candidate','baseline']:['baseline','candidate']) {
+    if(variant==='baseline') await measure('recruitment',variant,run,()=>baselineLobby({q:label}));
+    else await measure('recruitment',variant,run,()=>getRecruitmentLobbyData({q:label},null,{view:'players',pageSize:24}));
+    await measure('settings-readiness',variant,run,async()=> {
+     if(variant==='baseline') {
+      const [base,catalog,distinct]=await Promise.all([baselineFacts([ids[0]!]),loadCompetitivePlatformCatalog(db),db.selectDistinct({platform:competitiveRankFacts.platform}).from(competitiveRankFacts).where(eq(competitiveRankFacts.userId,ids[0]!))]);
+      const projected=await Promise.all(distinct.map(row=>baselineFacts([ids[0]!],{platform:row.platform})));return {base,catalog,projected};
+     }
+     const [bundle,catalog]=await Promise.all([loadParticipantQualificationRawBundle([ids[0]!]),loadCompetitivePlatformCatalog(db,{concurrent:true})]);
+     const projected=platforms.map(platform=>projectParticipantQualificationFacts(bundle,{platform}));return {catalog,projected};
+    });
+   }
+   expect(raw.filter(r=>r.task==='recruitment'&&r.variant==='candidate').every(r=>r.cardCount===24)).toBe(true);
+   expect(raw.filter(r=>r.task==='settings-readiness'&&r.variant==='candidate').every(r=>r.sql===7)).toBe(true);
+   writeFileSync(process.env.RIVALHUB_W12_EVIDENCE_OUTPUT ?? '.agent-tmp/w12-before-after-pg.json',JSON.stringify({baseline:'4ebecf5d',fixture:{intents:1000,platforms:2},environment:'isolated loopback PG; Next cache directives mocked; no browser; no network latency injection',runs:raw},null,2));
+ } finally { await pool.query('delete from users where id = any($1::uuid[])',[ids]);Pool.prototype.query=original; await pool.end(); }
+});

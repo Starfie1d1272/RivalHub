@@ -89,4 +89,20 @@ describe("OCR response-body failure boundary", () => {
     expect(error).toMatchObject({ kind: "upstream", phase: "response", httpStatus: 503 });
     expect(fetchProvider).toHaveBeenCalledTimes(1);
   });
+  it("shares the original deadline with the explicit response-format fallback", async () => {
+    vi.useFakeTimers();
+    let attempt = 0;
+    fetchProvider.mockImplementation((_url: string, options: RequestInit) => {
+      attempt++;
+      if (attempt === 1) return new Promise(resolve => setTimeout(() => resolve(new Response(
+        '{"error":{"message":"response_format is not supported"}}', { status: 400 })), 100000));
+      return new Promise((_resolve, reject) => options.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true }));
+    });
+    const pending = run().catch((failure: unknown) => failure);
+    await vi.advanceTimersByTimeAsync(100000);
+    expect(fetchProvider).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(80000);
+    expect(await pending).toMatchObject({ kind: "timeout" });
+  });
+
 });

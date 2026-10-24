@@ -1,4 +1,7 @@
 "use client";
+import { ContentReady } from "@/components/telemetry/ContentReady";
+
+
 import { StatsExplorerTable } from "@/components/stats/StatsExplorerTable";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import React from "react";
@@ -10,6 +13,7 @@ import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { StatsSideSplit } from "@/components/stats/StatsSideSplit";
 import { type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
+type ViewData = Pick<TournamentStats, "coverage" | "options" | "teamLinks" | "selection" | "veto"> & { analytics: Pick<TournamentStats["analytics"], "maps">; results: Pick<TournamentStats["results"], "maps"> };
 import { navigateStatsScope, statsHref, type StatsQuery } from "@/lib/stats/view-state";
 import { compareStatsValues, type StatsSortDirection, type StatsSortValue } from "@/lib/stats/sorting";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
@@ -48,7 +52,7 @@ function orderedMaps(maps: readonly string[]) {
   return [...maps].sort((left, right) => (order.get(left) ?? 999) - (order.get(right) ?? 999) || mapLabel(left).localeCompare(mapLabel(right)));
 }
 
-function rowsFor(data: TournamentStats): MapDirectoryRow[] {
+function rowsFor(data: ViewData): MapDirectoryRow[] {
   const results = new Map(data.results.maps.map((row) => [row.mapName, row]));
   const selections = new Map(data.selection.map((row) => [row.mapName, row]));
   const analytics = new Map(data.analytics.maps.map((row) => [row.mapName, row]));
@@ -74,7 +78,7 @@ function rowsFor(data: TournamentStats): MapDirectoryRow[] {
   });
 }
 
-function vetoRowsFor(data: TournamentStats, maps: readonly string[]): VetoMatrixRow[] {
+function vetoRowsFor(data: ViewData, maps: readonly string[]): VetoMatrixRow[] {
   const selectionByMap = new Map(data.selection.map((row) => [row.mapName, row]));
   return data.veto.teams.map((team) => ({
     ...team,
@@ -219,7 +223,7 @@ function VetoMatrix({
   );
 }
 
-export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStats; query: StatsQuery; seasonSlug: string }) {
+export function MapsExplorer({ data, query, seasonSlug }: { data: ViewData; query: StatsQuery; seasonSlug: string }) {
   const router = useRouter();
   const params = useSearchParams();
   const search = String(params.get("q") ?? "").slice(0, 128);
@@ -253,6 +257,7 @@ export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStat
   ];
 
   return (
+    <>
     <section className="space-y-4">
       <MetricFamilyTabs
         label="Map stats"
@@ -292,5 +297,7 @@ export function MapsExplorer({ data, query, seasonSlug }: { data: TournamentStat
         </>
       )}
     </section>
+      <ContentReady module="statistics" phase="primary" />
+    </>
   );
 }

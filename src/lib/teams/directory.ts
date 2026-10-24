@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, gt, ilike, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { recruitmentIntents, seasons, steamProfiles, teamMemberships, teams, users } from "@/db/schema";
 import { escapeLikePattern } from "@/lib/db/search";
@@ -73,7 +73,7 @@ export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamD
         ? [desc(memberCount), asc(teams.name), asc(teams.id)]
         : [desc(hasOpenRecruitment), asc(teams.name), asc(teams.id)];
 
-  const [rows, [totalRow], [allTeamsRow]] = await Promise.all([
+  const [rows, allTeamsRows] = await Promise.all([
     db.select({
       id: teams.id,
       slug: teams.slug,
@@ -96,14 +96,7 @@ export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamD
       .leftJoin(memberCounts, eq(memberCounts.teamId, teams.id))
       .where(where)
       .orderBy(...orderBy),
-    db.select({ count: count() })
-      .from(teams)
-      .leftJoin(users, and(eq(users.id, teams.captainUserId), eq(users.status, "active")))
-      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .leftJoin(recruitmentIntents, openRecruitment)
-      .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
-      .where(where),
-    db.select({ count: count() }).from(teams),
+    db.select({ id: teams.id }).from(teams).limit(1),
   ]);
 
   return {
@@ -111,8 +104,8 @@ export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamD
       ...row,
       captainName: getPublicDisplayName({ displayName: captainDisplayName, personaName: captainPersonaName, perfectName: captainPerfectName }),
     })),
-    total: Number(totalRow?.count ?? 0),
-    hasAnyTeams: Number(allTeamsRow?.count ?? 0) > 0,
+    total: rows.length,
+    hasAnyTeams: allTeamsRows.length > 0,
     normalizedQuery: query,
   };
 }
