@@ -1,0 +1,50 @@
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, expect, it, vi } from "vitest";
+const boundary = vi.hoisted(() => ({ read: vi.fn() }));
+vi.mock("@/app/admin/[seasonSlug]/matches/actions", () => ({ readMatchDemoReview: boundary.read }));
+vi.mock("next/dynamic", () => ({ default: () => ({ reviews }: { reviews: { message: string }[] }) => <input aria-label="review draft" defaultValue={reviews[0]?.message} /> }));
+import { DeferredDemoReview } from "@/components/matches/DeferredDemoReview";
+const summary = { importId: "import", matchMapId: "map", mapOrder: 1, mapName: "de_nuke" };
+beforeEach(() => { boundary.read.mockReset(); boundary.read.mockResolvedValue({ success: true, data: { review: { message: "canonical" }, quality: {} } }); });
+it("does not read closed details, retains activated drafts and refreshes after new RSC props", async () => {
+  const { container, rerender } = render(<DeferredDemoReview seasonId="season" matchId="match" summary={summary} />);
+  expect(boundary.read).not.toHaveBeenCalled();
+  const details = container.querySelector("details")!;
+  await act(async () => { details.open = true; fireEvent(details, new Event("toggle")); });
+  const input = await screen.findByRole("textbox", { name: "review draft" });
+  fireEvent.change(input, { target: { value: "unsaved" } });
+  await act(async () => { details.open = false; fireEvent(details, new Event("toggle")); details.open = true; fireEvent(details, new Event("toggle")); });
+  expect(boundary.read).toHaveBeenCalledTimes(1);
+  expect(input).toHaveValue("unsaved");
+  rerender(<DeferredDemoReview seasonId="season" matchId="match" summary={{ ...summary }} />);
+  await waitFor(() => expect(boundary.read).toHaveBeenCalledTimes(2));
+  expect(input).toHaveValue("unsaved");
+});
+it("shows a controlled rejection and allows an explicit retry", async () => {
+  boundary.read.mockResolvedValueOnce({ success: false, error: { message: "scope changed" } });
+  const { container } = render(<DeferredDemoReview seasonId="season" matchId="match" summary={summary} />);
+  await act(async () => { const details = container.querySelector("details")!; details.open = true; fireEvent(details, new Event("toggle")); });
+  expect(await screen.findByRole("alert")).toHaveTextContent("scope changed");
+  fireEvent.click(screen.getByRole("button", { name: "重试" }));
+  await screen.findByRole("textbox", { name: "review draft" });
+  expect(boundary.read).toHaveBeenCalledTimes(2);
+});
+
+it("disables stale actions throughout fresh loading and denial without discarding draft", async () => {
+  const { container, rerender } = render(<DeferredDemoReview seasonId="season" matchId="match" summary={summary} />);
+  await act(async () => { const details = container.querySelector("details")!; details.open = true; fireEvent(details, new Event("toggle")); });
+  const input = await screen.findByRole("textbox", { name: "review draft" });
+  fireEvent.change(input, { target: { value: "unsaved" } });
+  expect(input).not.toBeDisabled();
+  let resolve!: (result: unknown) => void;
+  boundary.read.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+  rerender(<DeferredDemoReview seasonId="season" matchId="match" summary={{ ...summary }} />);
+  expect(input).toBeDisabled();
+  expect(input).toHaveValue("unsaved");
+  await act(async () => { resolve({ success: false, error: { message: "permission revoked" } }); });
+  expect(await screen.findByRole("alert")).toHaveTextContent("permission revoked");
+  expect(input).toBeDisabled(); expect(input).toHaveValue("unsaved");
+  fireEvent.click(screen.getByRole("button", { name: "重试" }));
+  await waitFor(() => expect(input).not.toBeDisabled());
+  expect(input).toHaveValue("unsaved");
+});

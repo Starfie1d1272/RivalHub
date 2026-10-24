@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { CAPTAIN_TEAM_COUNT } from "@/lib/captains/rules";
 import { positionLabel } from "@/lib/validators/registration";
-import type { PublicCaptainCandidate } from "@/lib/captains/data";
+import type { AdminCaptainSeed } from "@/lib/captains/data";
 import { observeAction } from "@/lib/telemetry/client";
 
 const confirmCaptains = observeAction("captains.confirmCaptains", telemetry_confirmCaptains);
@@ -29,7 +29,8 @@ interface CaptainConfirmPanelProps {
   seasonId: string;
   seasonStatus: string;
   teamCount: number;
-  candidates: PublicCaptainCandidate[];
+  candidates: AdminCaptainSeed[];
+  candidateCount: number;
 }
 
 export function CaptainConfirmPanel({
@@ -37,6 +38,7 @@ export function CaptainConfirmPanel({
   seasonStatus,
   teamCount,
   candidates,
+  candidateCount,
 }: CaptainConfirmPanelProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -120,7 +122,7 @@ export function CaptainConfirmPanel({
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--color-fg-mid)]">候选人数</span>
-                <span>{candidates.length}</span>
+                <span>{candidateCount}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--color-fg-mid)]">已生成队伍</span>

@@ -27,7 +27,7 @@ export function readMatchMvpResults(matchId: string, database: Pick<TxDb, "selec
 export async function settleExpiredMatchMvpVotes(now = new Date(), database: DB = db) {
   const cutoff = new Date(now.getTime() - MVP_DEADLINE_MS);
   const candidates = await database
-    .select({ matchId: matches.id, seasonSlug: seasons.slug })
+    .select({ matchId: matches.id, seasonId: seasons.id, seasonSlug: seasons.slug })
     .from(matches)
     .innerJoin(seasons, eq(seasons.id, matches.seasonId))
     .where(and(
@@ -47,6 +47,11 @@ export async function settleExpiredMatchMvpVotes(now = new Date(), database: DB 
   for (const candidate of candidates) {
     try {
       const settled = await database.transaction(async (tx) => {
+        // Keep nonblocking worker admission while ordering the season before
+        // the match and the audit row's season foreign-key check.
+        const [season] = await tx.select({ id: seasons.id }).from(seasons)
+          .where(eq(seasons.id, candidate.seasonId)).for("update", { skipLocked: true });
+        if (!season) return false;
         const [match] = await tx.select({
           id: matches.id,
           seasonId: matches.seasonId,
@@ -54,7 +59,7 @@ export async function settleExpiredMatchMvpVotes(now = new Date(), database: DB 
           status: matches.status,
           winner: matches.mvpWinnerUserId,
         }).from(matches).where(eq(matches.id, candidate.matchId)).for("update", { skipLocked: true });
-        if (!match || match.status !== "finished" || match.winner || !match.completedAt
+        if (!match || match.seasonId !== candidate.seasonId || match.status !== "finished" || match.winner || !match.completedAt
           || match.completedAt.getTime() > cutoff.getTime()) return false;
 
         const results = await readMatchMvpResults(match.id, tx);
@@ -72,7 +77,7 @@ export async function settleExpiredMatchMvpVotes(now = new Date(), database: DB 
         });
         return true;
       });
-      if (settled) affectedMatches.push(candidate);
+      if (settled) affectedMatches.push({ matchId: candidate.matchId, seasonSlug: candidate.seasonSlug });
     } catch (error) {
       failures.push(error);
     }

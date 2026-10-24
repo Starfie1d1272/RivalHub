@@ -1,3 +1,4 @@
+import { lockMatchInTx } from "./locking";
 import { assertCompetitionMatch } from "./competition-context";
 import "server-only";
 
@@ -39,7 +40,7 @@ export async function runMatchTimeAutoAwardCron(
   for (const match of dueLineups) {
     try {
       const outcome = await db.transaction(async tx => {
-        const [locked] = await tx.select().from(matches).where(eq(matches.id, match.id)).for("update");
+        const locked = await lockMatchInTx(tx, match.id);
         assertCompetitionMatch(locked);
         const created = await materializeDefaultLineupsInTx(tx, locked, clock());
         if (!created) return null;
@@ -130,8 +131,9 @@ async function autoAcceptSingleProposal(
   clock: () => Date,
 ): Promise<{ awarded: false; matchId: string } | { awarded: true; matchId: string; seasonSlug: string }> {
   return db.transaction<{ awarded: false; matchId: string } | { awarded: true; matchId: string; seasonSlug: string }>(async (tx) => {
-    const [match] = await tx.select().from(matches).where(eq(matches.id, matchId)).for("update");
-    if (!match) return { awarded: false, matchId };
+    const existing = await tx.query.matches.findFirst({ where: eq(matches.id, matchId), columns: { id: true } });
+    if (!existing) return { awarded: false, matchId };
+    const match = await lockMatchInTx(tx, matchId);
     assertCompetitionMatch(match);
     const proposal = await tx.query.matchTimeProposals.findFirst({
       where: and(

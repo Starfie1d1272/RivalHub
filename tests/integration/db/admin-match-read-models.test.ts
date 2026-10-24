@@ -1,5 +1,8 @@
 import { getPublicTeamMapProfile } from "@/lib/teams/map-profile";
 import { getPublicPlayerMapExperienceContext } from "@/lib/stats/public-query";
+import { db } from "@/db/client";
+import { Pool } from "pg";
+import { loadAdminMatchPanels } from "@/lib/admin/matches/panels";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { createLocalPool } from "./harness/database";
@@ -12,7 +15,7 @@ vi.mock("@/lib/auth/session", () => ({
   requireSeasonAdmin: requireSeasonAdminMock,
 }));
 
-import { loadAdminPostMatchTasks } from "@/lib/admin/matches/postmatch-tasks";
+import { loadAdminPostMatchTasks, loadAdminPostMatchTaskPage } from "@/lib/admin/matches/postmatch-tasks";
 import { loadAdminMatchOperations } from "@/lib/admin/matches/operations";
 import { loadAdminMatchCommentary } from "@/lib/admin/matches/commentary";
 import { loadSeasonWorkspaceOverview } from "@/lib/admin/season-workspace/overview";
@@ -269,6 +272,12 @@ describe("admin match read models PostgreSQL integration", () => {
       expect(overview).not.toHaveProperty("mapPool");
       expect(overview?.swissRuntime).toBeNull();
       expect(overview?.playoffRuntime).toBeNull();
+      const scheduledOverview = await loadAdminMatchOverview({ seasonSlug: seasonASlug, view: "schedule" });
+      expect(scheduledOverview?.standingsByStage.get("round_robin")).toEqual([
+        expect.objectContaining({ teamId: ids.entryA, wins: 1, losses: 0, netRounds: 5, totalRoundsWon: 13 }),
+        expect.objectContaining({ teamId: ids.entryB, wins: 0, losses: 1, netRounds: -5, totalRoundsWon: 8 }),
+      ]);
+
       const workspace = await loadSeasonWorkspaceOverview(seasonASlug);
       expect(workspace?.summary).toMatchObject({ approvedEntries: 2, entrantCount: 0, frozenEntrantCount: 0 });
       expect(await loadAdminCommentaryEffectiveness(ids.seasonA)).toEqual([
@@ -333,6 +342,26 @@ describe("admin match read models PostgreSQL integration", () => {
       expect(ops).toHaveLength(1);
       expect(ops[0]?.scheduling).toMatchObject({ state:'reschedule_pending',autoAcceptAt:null });
       expect(ops[0]?.conflicts).toEqual([expect.objectContaining({userId:ids.admin,matchId:ids.testMatch,isTest:true})]);
+      const applicationPool = (db as typeof db & { $client: Pool }).$client;
+      const originalQuery = applicationPool.query;
+      async function measure<T>(read: () => Promise<T>) {
+        const cost = { queries: 0, rows: 0, jsonBytes: 0 };
+        const spy = vi.spyOn(applicationPool, "query").mockImplementation((function(this: Pool, ...args: unknown[]) {
+          const result = Reflect.apply(originalQuery, this, args);
+          if (!result || typeof result.then !== "function") return result;
+          return result.then((value: { rows: unknown[] }) => { cost.queries++; cost.rows += value.rows.length; cost.jsonBytes += Buffer.byteLength(JSON.stringify(value.rows)); return value; });
+        }) as typeof originalQuery);
+        try { return { value: await read(), cost }; } finally { spy.mockRestore(); }
+      }
+      const independent = await measure(async () => {
+        const commentary = await loadAdminMatchCommentary(ids.seasonA, { historicalMatchIds: [ids.matchA] });
+        return { commentary, operations: await loadAdminMatchOperations(ids.seasonA, commentary) };
+      });
+      const coordinated = await measure(() => loadAdminMatchPanels(ids.seasonA, [ids.matchA]));
+      expect(coordinated.value).toEqual(independent.value);
+      expect(coordinated.cost.queries).toBe(independent.cost.queries - 1);
+      expect(coordinated.value.operations[0]?.conflicts).toEqual([expect.objectContaining({ userId: ids.admin, matchId: ids.testMatch, isTest: true })]);
+      console.info("ADMIN_SHARED_ACTIVE_COST", JSON.stringify({ independent: independent.cost, coordinated: coordinated.cost }));
       await pool.query("UPDATE matches SET scheduled_at=scheduled_at+interval '1 minute' WHERE id=$1",[ids.testMatch]);
       expect((await loadAdminMatchOperations(ids.seasonA,await loadAdminMatchCommentary(ids.seasonA)))[0]?.conflicts).toEqual([]);
       const authorizedCommentary = await loadAdminMatchCommentary(ids.seasonA);
@@ -367,16 +396,66 @@ describe("admin match read models PostgreSQL integration", () => {
         await pool.query(`INSERT INTO matches (id,season_id,entry_a_id,entry_b_id,stage,format,status)
           SELECT id,$2,$3,$4,CASE WHEN n % 2 = 0 THEN 'later' ELSE 'round_robin' END,'bo3','scheduled'
           FROM unnest($1::uuid[]) WITH ORDINALITY AS rows(id,n)`, [extra, ids.seasonA, ids.entryA, ids.entryB]);
+        await pool.query("UPDATE matches SET status='finished',completed_at=now() WHERE id=$1", [scaleMatchIds[0]]);
         const first = await loadAdminMatchOverview({ seasonSlug: seasonASlug, stage: "round_robin" });
         expect(first?.matchCount).toBe(globalBefore + size);
-        expect(first?.matches.filter(match => match.stage === "round_robin")).toHaveLength(size / 2 + 1);
+        expect(first?.matches.filter(match => match.stage === "round_robin")).toHaveLength(25);
+        expect(first?.pagination).toMatchObject({ total: size / 2 + 1, page: 1, pageSize: 25 });
         expect(first?.matches.filter(match => match.stage === "later")).toHaveLength(0);
         expect(first?.unconfiguredMatches.map(match => match.id)).toContain(ids.operationMatch);
         const later = await loadAdminMatchOverview({ seasonSlug: seasonASlug, stage: "later" });
-        expect(later?.matches.filter(match => match.stage === "later")).toHaveLength(size / 2);
+        expect(later?.matches.filter(match => match.stage === "later")).toHaveLength(25);
+        expect(later?.pagination?.total).toBe(size / 2);
         expect(later?.matches.filter(match => match.stage === "round_robin")).toHaveLength(0);
         expect(later?.matchCount).toBe(first?.matchCount);
+        const schedule = await loadAdminMatchOverview({ seasonSlug: seasonASlug, view: "schedule", stage: "round_robin" });
+        expect(schedule?.pagination?.total).toBe(size / 2 + 1);
+        expect(schedule?.stageViews.find(view => view.stage.key === "round_robin")?.matches).toHaveLength(25);
+        expect(schedule?.matchCount).toBe(first?.matchCount);
+        const pagedIds: string[] = [];
+        for (let page = 1; page <= first!.pagination!.totalPages; page++) {
+          const result = await loadAdminMatchOverview({ seasonSlug: seasonASlug, stage: "round_robin", page: String(page) });
+          expect(result?.matches.length).toBeLessThanOrEqual(25);
+          pagedIds.push(...result!.matches.map(match => match.id));
+        }
+        expect(new Set(pagedIds).size).toBe(size / 2 + 1);
+        expect(pagedIds).toHaveLength(size / 2 + 1);
+        expect(pagedIds).toContain(ids.matchA);
+        const clamped = await loadAdminMatchOverview({ seasonSlug: seasonASlug, stage: "round_robin", page: "999" });
+        expect(clamped?.pagination?.page).toBe(first?.pagination?.totalPages);
+        const finishedOnly = await loadAdminMatchOverview({ seasonSlug: seasonASlug, stage: "round_robin", status: "finished" });
+        expect(finishedOnly?.pagination?.total).toBe(1);
+        expect(finishedOnly?.matches.map(match => match.id)).toEqual([scaleMatchIds[0]]);
+
       }
+
+      await pool.query("UPDATE matches SET status='finished',completed_at=now() WHERE id=ANY($1::uuid[])", [scaleMatchIds.slice(0, 100)]);
+      const allTasks = await loadAdminPostMatchTasks(ids.seasonA);
+      for (const stage of ["round_robin", "later"]) {
+        const scopedTasks = allTasks.filter(row => row.stage === stage);
+        const pages: string[] = [];
+        const firstPage = await loadAdminPostMatchTaskPage(ids.seasonA, { stage, team: ids.entryA });
+        expect(firstPage.total).toBe(scopedTasks.length);
+        expect(firstPage.rows.length).toBeLessThanOrEqual(25);
+        for (let page = 1; page <= firstPage.totalPages; page++) {
+          const result = await loadAdminPostMatchTaskPage(ids.seasonA, { stage, team: ids.entryA, page: String(page) });
+          expect(result.total).toBe(scopedTasks.length);
+          pages.push(...result.rows.map(row => row.id));
+        }
+        expect(pages).toEqual(scopedTasks.map(row => row.id));
+        expect(new Set(pages).size).toBe(pages.length);
+        const last = await loadAdminPostMatchTaskPage(ids.seasonA, { stage, page: "999" });
+        expect(last.page).toBe(firstPage.totalPages);
+      }
+      expect(await loadAdminPostMatchTaskPage(ids.seasonA, { team: "invalid-team" })).toMatchObject({ rows: [], total: 0, page: 1 });
+      // Custom tournaments may legitimately name an ordinary configured stage
+      // "play-in" without owning a qualification run.
+      await pool.query("UPDATE seasons SET stage_plan=$2::json WHERE id=$1", [ids.seasonA, JSON.stringify([{ key: "play-in", name: "Custom play-in", type: "round_robin", teamCount: 2, advanceTiers: [] }])]);
+      await pool.query("UPDATE matches SET stage='play-in' WHERE id=$1", [scaleMatchIds[0]]);
+      const customPlayIn = await loadAdminMatchOverview({ seasonSlug: seasonASlug, stage: "play-in" });
+      expect(customPlayIn?.pagination?.total).toBe(2);
+      expect(new Set(customPlayIn?.stageViews[0]?.matches.map(row => row.id))).toEqual(new Set([scaleMatchIds[0], ids.operationMatch]));
+
 
     } finally {
       const cleanupClient = await pool.connect();

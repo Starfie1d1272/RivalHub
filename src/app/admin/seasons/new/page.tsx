@@ -11,7 +11,7 @@ export default async function NewSeasonPage() {
   if (!(await resolveAdminPageAccess(requireSuperAdmin))) return <AdminAccessDenied />;
 
   const major = createCompetitionTemplate("major");
-  const catalog = await loadCompetitivePlatformCatalog(db);
+  const catalog = await loadCompetitivePlatformCatalog(db, { concurrent: true });
 
   return (
     <PageLayout variant="narrow">
