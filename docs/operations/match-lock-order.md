@@ -23,8 +23,8 @@ recheck. Scope changes fail closed instead of continuing under the wrong event.
 | Mizar revoke | installation UPDATE → season UPDATE → complete active source scope UPDATE → audit; installation fence excludes ingress/LIVE, season fence excludes manual source writers |
 | Mizar reliable/source | installation SHARE → canonical season/match boundary → live source; display heartbeat is separately committed by the W02 implementation, never upgraded under authority SHARE |
 | LIVE broadcast | installation SHARE → match/source SHARE and broadcast inside authority; no event write or lock weakening |
-| Roster confirmation (consumer prerequisite) | discover roster parent → season/match → roster UPDATE and recheck association; old child-first entry is incompatible |
-| OCR save/clear (consumer prerequisite) | `lockMatchForEvidenceInTx`: season UPDATE → match SHARE → map UPDATE/stat rows, preserving post-event evidence policy; no KEY SHARE substitution |
+| Roster confirmation | discover roster parent → season/match → roster UPDATE and recheck association; old child-first entry is incompatible |
+| OCR save/clear | `lockMatchForEvidenceInTx`: season UPDATE → match SHARE → map UPDATE/stat rows, preserving post-event evidence policy; no KEY SHARE substitution |
 
 `lockMatchInTx` enforces mutation archive policy. `lockMatchForInspectionInTx`
 retains UPDATE but permits explicit archived inspection/adjudication.
@@ -150,7 +150,7 @@ confirmation waits on season first, commits its confirmation and audit, and the
 actual archive transition then succeeds. Existing P1–P20 postevent invariants
 verify the result, adjudication, honor, audit and archive policies remain intact.
 
-Consumer prerequisites above remain release requirements. Before final review,
+Integrated consumer and dependency verification remain release requirements. Before final review,
 read active trigger definitions and all candidate writers against the exact
 integrated source, and run roster/OCR/Demo/financial races. This document and
 local barrier success do not claim the Production drain or rollout occurred.
@@ -187,3 +187,21 @@ event outside the input page, proving complete cross-event discovery. New merge
 rolls back before invalidating imports and succeeds only after fresh preflight;
 new retirement waits before import/program writes and retains global hard
 attribution invalidation. These tests do not mock a PostgreSQL concurrency result.
+
+The PR includes the accounts consumer's roster parent-discovery/authorization
+recheck and OCR save/clear parent/map scope checks, adapted to the current main
+interface without importing the separate receipt business branch. `castMvpVote`
+retains its existing match SHARE implementation. The consumer PG barrier checks
+season-first entry before any roster/map child can be retained; archived OCR
+remains admitted, mismatched roster scope is rejected, and existing MVP settled
+and deadline refusals remain intact. Receipt/CAS behavior is verified separately
+in the temporary exact-dependency integration and must be reconciled when that
+independent PR lands.
+
+Merge's mutable person-fact rows are also acquired with NOWAIT under the parent
+fences before any reparenting. This uses the existing reference-policy registry,
+skips preserved actor history and immutable financial accounts, and aborts if a
+child-first person-fact owner is busy. A second fingerprint/executable check
+under these fences rejects facts changed during unlocked discovery. These
+extra reads are a correctness cost for rare identity administration, not a
+claimed reduction in merge latency.
