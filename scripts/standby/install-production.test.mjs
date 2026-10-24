@@ -22,6 +22,14 @@ test('host promotion, failed restart recovery, immutable retry and explicit roll
       .replaceAll('/etc/systemd/system/rivalhub-production.service', unit).replaceAll('/etc/rivalhub-production', dirname(config));
     writeFileSync(join(dir, 'install-production.sh'), installer);
     for (const file of ['production-host.mjs', 'rivalhub-production.service', 'layers.mjs']) writeFileSync(join(dir, file), readFileSync(join(source, file)));
+    // DB owner is exercised separately against PostgreSQL. This host fixture
+    // records ordering and injects drain failures without touching a real host.
+    writeFileSync(join(dir, 'production-quiescence.mjs'), String.raw`
+      import fs from 'node:fs';
+      const dir = ${JSON.stringify(dir)}, root = ${JSON.stringify(root)}, config = ${JSON.stringify(config)};
+      fs.appendFileSync(dir + '/events', 'drain ' + fs.readlinkSync(root + '/current') + '\n');
+      if (fs.existsSync(dir + '/fail-drain')) process.exit(1);
+    `);
     const old = 'a'.repeat(40), next = 'b'.repeat(40), hash = 'c'.repeat(64);
     const name = sha => `rivalhub-production-${sha}-${hash.slice(0, 12)}`;
     const manifest = (sha, tag) => JSON.stringify({ sourceCommit: sha, releaseTag: tag, configurationSha256: hash, operatorCommit: 'd'.repeat(40), platform: 'linux', architecture: 'x64', nodeVersion: process.version });
@@ -54,7 +62,7 @@ const cmd = path.basename(process.argv[1]), args = process.argv.slice(2), dir = 
 if (cmd === 'id') { if (args[0] === '-u') console.log('0'); }
 else if (cmd === 'flock') { if(fs.existsSync(dir + '/locked')) process.exit(1); }
 else if (['chown','sleep'].includes(cmd)) {}
-else if (cmd === 'systemctl') { if(args[0] === 'restart' && fs.existsSync(dir + '/fail')) {fs.unlinkSync(dir + '/fail'); process.exit(1);} }
+else if (cmd === 'systemctl') { fs.appendFileSync(dir + '/events', args[0] + '\\n'); if(args[0] === 'restart' && fs.existsSync(dir + '/fail')) {fs.unlinkSync(dir + '/fail'); process.exit(1);} }
 else if (cmd === 'curl') { if(fs.existsSync(dir + '/fail-health') && fs.readFileSync(config,'utf8').includes('RIVALHUB_RELEASE_TAG=v1.0.1')) process.exit(22); if(args.at(-1).endsWith('/api/system/release')) {const env = fs.readFileSync(config, 'utf8'); const get = k => env.match(new RegExp('^'+k+'=(.*)$','m'))[1]; console.log(JSON.stringify({releaseTag:get('RIVALHUB_RELEASE_TAG'),releaseCommit:get('RIVALHUB_RELEASE_COMMIT')}));} }
 else if (cmd === 'mv') {fs.renameSync(args.at(-2), args.at(-1));}
 else if (cmd === 'sha256sum') { const crypto = require('crypto'); if(args[0] === '-c') {const [hash, file] = fs.readFileSync(args[1],'utf8').trim().split(/\\s+/); if(crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex') !== hash) process.exit(1);} else console.log(crypto.createHash('sha256').update(fs.readFileSync(args[0])).digest('hex')+'  '+args[0]);}
@@ -65,12 +73,22 @@ else throw Error(cmd);
     const deployArgs = [archive, config, '--release', 'v1.0.1', next, 'v1.0.0', old];
     const run = args => spawnSync('bash', [join(dir, 'install-production.sh'), ...args], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
     assert.equal(run(['--rollback', 'v1.0.1', next, 'v1.0.0', old]).status, 0);
-    writeFileSync(join(dir, 'fail'), '');
+    writeFileSync(join(dir, 'fail-drain'), '');
     let result = run(deployArgs);
+    assert.equal(result.status, 1);
+    assert.equal(readFileSync(config, 'utf8'), oldEnv);
+    assert.equal(readlinkSync(join(root, 'current')), `releases/${name(old)}`);
+    assert.match(result.stderr, /application remains stopped/);
+    assert.ok(!readFileSync(join(dir, 'events'), 'utf8').includes('restart'));
+    rmSync(join(dir, 'fail-drain'));
+    writeFileSync(join(dir, 'events'), '');
+    writeFileSync(join(dir, 'fail'), '');
+    result = run(deployArgs);
     assert.equal(result.status, 1, result.stderr);
     assert.equal(readFileSync(config, 'utf8'), oldEnv);
     assert.equal(readFileSync(unit, 'utf8'), 'old service');
     assert.match(result.stderr, /previous state restored/);
+    assert.match(readFileSync(join(dir, 'events'), 'utf8'), /stop\ndrain [^\n]+\ndaemon-reload\nreset-failed\nrestart\nstop\ndrain [^\n]+\ndaemon-reload\nreset-failed\nstart/);
     assert.ok(!result.stderr.includes('never-print-me'));
     writeFileSync(join(failedRelease, '.next/server/route-cache/cached-route'), 'runtime response');
     writeFileSync(join(failedRelease, '.next/cache/cached-fetch'), 'runtime fetch');
@@ -93,6 +111,11 @@ else throw Error(cmd);
     assert.match(readFileSync(config, 'utf8'), /RIVALHUB_RELEASE_TAG=v1.0.1/);
     assert.equal(execFileSync(process.execPath, [join(dir, 'production-host.mjs'), 'manifest', join(rebuiltRelease, 'standby.json'), rebuiltRelease.split('/').at(-1)], { encoding: 'utf8' }).trim(), `v1.0.1 ${next}`);
     const rollback = ['--rollback', 'v1.0.1', next, 'v1.0.0', old];
+    writeFileSync(join(dir, 'fail-drain'), '');
+    assert.equal(run(rollback).status, 1);
+    assert.match(readFileSync(config, 'utf8'), /RIVALHUB_RELEASE_TAG=v1.0.1/);
+    assert.equal(readlinkSync(join(root, 'current')), `releases/${rebuiltRelease.split('/').at(-1)}`);
+    rmSync(join(dir, 'fail-drain'));
     assert.equal(run(rollback).status, 0);
     assert.equal(run(rollback).status, 0);
     assert.equal(readFileSync(config, 'utf8'), oldEnv);

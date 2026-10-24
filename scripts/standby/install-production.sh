@@ -28,8 +28,24 @@ wait_identity() {
   done
   return 1
 }
-restore() {
+quiesce() {
+  # Identity checks run while the old HTTP app is alive. Only after those
+  # checks may we stop admission (including HTTP cron) and drain pooler work.
+  local active
+  active=$(readlink "$root/current" || true)
+  # First install has no previous writer or registered unit to stop.
+  if [[ -z $active && ! -f $unit ]]; then return 0; fi
   systemctl stop rivalhub-production || return 1
+  [[ -n $active ]] || return 1
+  if [[ -n $active ]]; then
+    [[ $active == releases/rivalhub-production-* && -f $config ]] || return 1
+    env -i "$root/$active/runtime/node" --env-file="$config" \
+      "$script_dir/production-quiescence.mjs" "$root/$active" "$script_dir/postgres-connection.ts" || return 1
+  fi
+}
+restore() {
+  # Also drain a failed/new candidate before allowing the old writer to start.
+  quiesce || return 1
   if [[ -n $previous ]]; then
     cp -p "$snapshot/production.env" "$config" || return 1
     cp -p "$snapshot/service" "$unit" || return 1
@@ -148,6 +164,9 @@ chown -R rivalhub-production:rivalhub-production "$release/.next/cache" "$releas
 # Persist recovery evidence before the first mutation, including interrupted SSH sessions.
 printf '%s\n' "$snapshot" > "$root/previous-snapshot.next"
 mv -Tf "$root/previous-snapshot.next" "$root/previous-snapshot"
+# A failed drain must leave the current environment/pointer intact and the
+# service stopped. Do not enter automatic restore until the drain succeeded.
+quiesce || { echo 'Writer drain failed; application remains stopped, release unchanged.' >&2; exit 1; }
 trap failed ERR HUP INT TERM
 install -m 600 "$snapshot/candidate.env" "$config"
 install -m 644 "$script_dir/rivalhub-production.service" "$unit"
