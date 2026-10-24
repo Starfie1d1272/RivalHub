@@ -51,7 +51,7 @@ test("后台三 view 的可见内容、CLS 与分页保持真实范围", async (
         const url = `/admin/${fixture.slug}/matches?view=${view}&stage=stage1`;
         await page.goto(url);
         const rows = view === "materials" ? page.locator('li[id^="material-"]') : page.locator('section[aria-labelledby="match-list-scope"] div[id^="match-"]');
-        await expect(rows).toHaveCount(view === "schedule" || baseline ? size + (view === "materials" ? 0 : 8) : 25);
+        await expect(rows).toHaveCount(baseline ? size + (view === "materials" ? 0 : 8) : 25);
         await page.waitForLoadState("networkidle");
         const metrics = await page.evaluate(() => {
           const state = (window as unknown as { __adminReadiness: { primaryDomReadyMs: number | null; lcpMs: number | null; shifts: { start: number; value: number }[] } }).__adminReadiness;
@@ -67,7 +67,7 @@ test("后台三 view 的可见内容、CLS 与分页保持真实范围", async (
         expect(metrics.primaryDomReadyMs).not.toBeNull();
         samples.push({ version: process.env.RIVALHUB_ADMIN_READINESS_VERSION ?? "candidate", finishedMatches: size,
           activeMatches: 8, view, navigation: "hard", cache: "dev server warm; fixture/data fresh", ...metrics });
-        if (!baseline && view !== "schedule") {
+        if (!baseline) {
           await page.getByRole("button", { name: "下一页", exact: true }).click();
           await expect(page).toHaveURL(/page=2/);
           await expect(rows).toHaveCount(25);

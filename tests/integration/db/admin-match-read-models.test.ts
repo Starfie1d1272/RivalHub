@@ -379,6 +379,10 @@ describe("admin match read models PostgreSQL integration", () => {
         expect(later?.pagination?.total).toBe(size / 2);
         expect(later?.matches.filter(match => match.stage === "round_robin")).toHaveLength(0);
         expect(later?.matchCount).toBe(first?.matchCount);
+        const schedule = await loadAdminMatchOverview({ seasonSlug: seasonASlug, view: "schedule", stage: "round_robin" });
+        expect(schedule?.pagination?.total).toBe(size / 2 + 1);
+        expect(schedule?.stageViews.find(view => view.stage.key === "round_robin")?.matches).toHaveLength(25);
+        expect(schedule?.matchCount).toBe(first?.matchCount);
         const pagedIds: string[] = [];
         for (let page = 1; page <= first!.pagination!.totalPages; page++) {
           const result = await loadAdminMatchOverview({ seasonSlug: seasonASlug, stage: "round_robin", page: String(page) });

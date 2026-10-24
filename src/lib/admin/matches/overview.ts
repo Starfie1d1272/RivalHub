@@ -310,14 +310,23 @@ export async function loadAdminMatchOverview({
   const hasSwissStage = stagePlan.some((stage) => stage.type === "swiss");
   const canGenerate = season.status === "playing" && matchCount === 0 && allTeams.length >= 2 && !hasSwissStage;
 
+  const scheduleRows = stageViews.find(stageView => stageView.stage.key === defaultStageKey)?.matches ?? [];
+  const scheduleTotalPages = Math.ceil(scheduleRows.length / 25);
+  const schedulePage = scheduleTotalPages ? Math.min(Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1, scheduleTotalPages) : 1;
+  // Runtime/standings/batch groups above retain the whole frozen stage. Only
+  // the ordinary rendered schedule list is paged.
+  const renderedStageViews = view === "schedule" ? stageViews.map(stageView => ({ ...stageView,
+    matches: stageView.stage.key === defaultStageKey ? stageView.matches.slice((schedulePage - 1) * 25, schedulePage * 25) : [],
+  })) : stageViews;
   return {
     ...projectWorkspace(context),
     matches: projectedMatches,
     matchCount,
-    stageViews,
+    stageViews: renderedStageViews,
     unconfiguredMatches: (executionFacts ? executionFacts.filter(match => !configuredKeys.includes(match.stage ?? "") && !isQualificationMatch(match)) : unconfiguredMatches)
       .map(match => ({ id: match.id, stage: match.stage ?? "" })),
-    pagination: view === "execution" ? { total: executionCandidates.length, page, pageSize: 25, totalPages } : null,
+    pagination: view === "execution" ? { total: executionCandidates.length, page, pageSize: 25, totalPages }
+      : { total: scheduleRows.length, page: schedulePage, pageSize: 25, totalPages: scheduleTotalPages },
     standingsByStage,
     batchDeadlineGroups: view === "schedule" ? buildBatchDeadlineGroups(allMatches, stagePlan) : [],
     canGenerate,

@@ -6,7 +6,7 @@ import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { PageHeader, PageLayout } from "@/components/rivalhub";
 import { requireAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
-import { listAnnouncementsForAdmin } from "@/lib/announcements/read-model";
+import { loadAdminAnnouncementPage } from "@/lib/admin/announcement-page";
 import type { Announcement } from "@/db/schema";
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -30,9 +30,9 @@ export default async function AnnouncementsAdminPage({ searchParams }: { searchP
   const params = await searchParams;
   const status = parseStatus(first(params.status));
   const scope = parseScope(first(params.scope));
-  const [rows, seasonRows] = await Promise.all([
-    listAnnouncementsForAdmin({ role, seasonIds: admin.seasonIds, status, scope }),
+  const [result, seasonRows] = await Promise.all([
+    loadAdminAnnouncementPage({ role, seasonIds: admin.seasonIds, status, scope, page: first(params.page) }),
     db.select({ id: seasons.id, name: seasons.name }).from(seasons).where(role === "super_admin" ? undefined : admin.seasonIds.length ? inArray(seasons.id, admin.seasonIds) : inArray(seasons.id, [] as string[])).orderBy(asc(seasons.name)),
   ]);
-  return <PageLayout variant="standard" className="space-y-6"><PageHeader title="公告" description="管理全站与赛事公告；发布前先确认范围和主动提醒语义。" /><AnnouncementManager rows={rows} seasons={seasonRows} canManageSite={role === "super_admin"} /></PageLayout>;
+  return <PageLayout variant="standard" className="space-y-6"><PageHeader title="公告" description="管理全站与赛事公告；发布前先确认范围和主动提醒语义。" /><AnnouncementManager rows={result.items} total={result.total} page={result.page} pageSize={result.pageSize} seasons={seasonRows} canManageSite={role === "super_admin"} /></PageLayout>;
 }
