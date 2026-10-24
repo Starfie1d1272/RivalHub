@@ -164,7 +164,7 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
               {[...(qualificationRun ? [{ key: "play-in", label: "PLAY-IN" }] : []), ...stagePlan.map(stage => ({ key: stage.key, label: stagePresentation.labels[stage.key] ?? stage.name }))].map(stage => {
                 const query = new URLSearchParams({ stage: stage.key });
                 if (filterTeamId) query.set("team", filterTeamId);
-                return <Link key={stage.key} href={`/${seasonSlug}/matches?${query}`} aria-current={defaultStageKey === stage.key ? "page" : undefined}
+                return <Link prefetch={false} key={stage.key} href={`/${seasonSlug}/matches?${query}`} aria-current={defaultStageKey === stage.key ? "page" : undefined}
                   className="shrink-0 rounded px-3 py-2 text-sm font-medium aria-[current=page]:bg-[var(--color-accent)] aria-[current=page]:text-[var(--color-accent-fg)]">{stage.label}</Link>;
               })}
             </nav>

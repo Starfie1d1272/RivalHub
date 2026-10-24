@@ -12,5 +12,5 @@ export default function AnnouncementsPage({ searchParams }: { searchParams: Prom
 async function AnnouncementsContent({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   await io();
   const history = await getPublicAnnouncementPage(undefined, Number((await searchParams).page));
-  return <PageLayout variant="standard" className="space-y-6"><PageHeader title="公告" description="RivalHub 的公开公告历史。" /><AnnouncementList announcements={history.announcements} /><nav aria-label="公告分页" className="flex gap-4">{history.page > 1 && <Link href={`/announcements?page=${history.page - 1}`}>上一页</Link>}{history.hasNext && <Link href={`/announcements?page=${history.page + 1}`}>下一页</Link>}</nav></PageLayout>;
+  return <PageLayout variant="standard" className="space-y-6"><PageHeader title="公告" description="RivalHub 的公开公告历史。" /><AnnouncementList announcements={history.announcements} /><nav aria-label="公告分页" className="flex gap-4">{history.page > 1 && <Link prefetch={false} href={`/announcements?page=${history.page - 1}`}>上一页</Link>}{history.hasNext && <Link prefetch={false} href={`/announcements?page=${history.page + 1}`}>下一页</Link>}</nav></PageLayout>;
 }

@@ -10,5 +10,5 @@ export default async function SeasonAnnouncementsPage({ params, searchParams }: 
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
   const history = await getPublicAnnouncementPage(season.id, Number((await searchParams).page));
-  return <PageLayout variant="standard" className="space-y-6"><PageHeader title={`${season.name} · 公告`} description="本届赛事已发布公告历史。" /><AnnouncementList announcements={history.announcements} /><nav aria-label="公告分页" className="flex gap-4">{history.page > 1 && <Link href={`/${seasonSlug}/announcements?page=${history.page - 1}`}>上一页</Link>}{history.hasNext && <Link href={`/${seasonSlug}/announcements?page=${history.page + 1}`}>下一页</Link>}</nav></PageLayout>;
+  return <PageLayout variant="standard" className="space-y-6"><PageHeader title={`${season.name} · 公告`} description="本届赛事已发布公告历史。" /><AnnouncementList announcements={history.announcements} /><nav aria-label="公告分页" className="flex gap-4">{history.page > 1 && <Link prefetch={false} href={`/${seasonSlug}/announcements?page=${history.page - 1}`}>上一页</Link>}{history.hasNext && <Link prefetch={false} href={`/${seasonSlug}/announcements?page=${history.page + 1}`}>下一页</Link>}</nav></PageLayout>;
 }

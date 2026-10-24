@@ -51,9 +51,9 @@ async function SeasonsContent({ searchParams }: { searchParams: Promise<{ page?:
         </section> : null;
       })}
       {pages > 1 && <nav aria-label="历届赛事分页" className="flex items-center gap-4">
-        {page > 1 && <Link href={page === 2 ? "/seasons" : `/seasons?page=${page - 1}`}>上一页</Link>}
+        {page > 1 && <Link prefetch={false} href={page === 2 ? "/seasons" : `/seasons?page=${page - 1}`}>上一页</Link>}
         <span>历届赛事 · 第 {page} / {pages} 页</span>
-        {page < pages && <Link href={`/seasons?page=${page + 1}`}>下一页</Link>}
+        {page < pages && <Link prefetch={false} href={`/seasons?page=${page + 1}`}>下一页</Link>}
       </nav>}
     </div>}
   </PageLayout>;
