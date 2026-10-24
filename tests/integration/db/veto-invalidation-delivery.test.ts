@@ -122,7 +122,7 @@ it("hard-invalidates map catalog consumers when a BP plan is rewound or maps are
     await tx.insert(schema.matchMaps).values({ matchId: f.matchId, mapOrder: 1, mapName: "de_vertigo" });
     await tx.update(schema.matchVetoSessions).set({ revision: sql`${schema.matchVetoSessions.revision}+1` }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
   });
-  expect((await watermark(f.matchId))!.affectedFacts).toEqual(expect.arrayContaining(["map_plan", "veto"]));
+  expect((await watermark(f.matchId))!.affectedFacts).toEqual(expect.arrayContaining(["map_plan", "veto_step"]));
   expect(await deliverVetoInvalidation(f.matchId, "route")).toBe("complete");
   expect(cache.revalidateTag.mock.calls.some(call => call[0] === PUBLIC_STATS_TAG)).toBe(true);
 });
