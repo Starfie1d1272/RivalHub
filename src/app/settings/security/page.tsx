@@ -8,7 +8,11 @@ import { PageHeader, Panel } from "@/components/rivalhub";
 import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
 import { IdentityManager } from "@/components/settings/IdentityManager";
 
-export default async function AccountSecurityPage() {
+export default function AccountSecurityPage() {
+  return <Suspense fallback={<p role="status" aria-busy="true">正在读取账号资料…</p>}><AccountSecurityContent /></Suspense>;
+}
+
+async function AccountSecurityContent() {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/settings/security");
 
