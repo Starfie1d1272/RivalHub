@@ -52,7 +52,7 @@ performance 事件的白名单 `metricName` 为 TTFB/FCP/LCP/INP/NAV_COMMIT/CLS�
 
 v1 的 page/operation/error/ready/NAV_COMMIT 携带随机 navigationId、构建冻结的 clientRelease 和上报时 visibility。签名票据 release 仍表示签发服务器版本，两者不得混用。Web Vitals 保留原生来源路由与 navigationType/startTime 的有限投影，使用每个指标样本自己的随机 correlation ID（随样本更新保持），不附当前 SPA 导航 ID；该 ID 不表示不同指标已被归并成同一次导航，避免将晚到样本串到当前页面。v1 的导航上下文另带 lifecycle：hard/soft/bfcache/prerender/unknown、采集时的 startedHidden、隐藏后恢复标志、单调时钟起点和 activation 相对毫秒。BFCache pageshow(persisted) 创建新导航并拒绝旧 ready token，普通 visibility 恢复保持导航；这些生命周期字段来自当前 collector，不能推断 observer 挂载前未观察到的隐藏转换。Web Vital 原始异常值仍保留；完整浏览器 cohort 与旧客户端对照尚需集成实验。ready 作为独立 kind 保存于既有七天 raw 数据，不混入 LCP/NAV_COMMIT 或现有面板分位数。
 
-客户端错误 v1 附固定 source（window_error/unhandled_rejection/boundary）、异常类别及可选 s1 fingerprint。fingerprint 只取自身 data property stack 的前 8192 字符中至多五个 Next 静态 chunk basename/数字行列；无此 data property 时可用 ErrorEvent 的文件/行列元数据。仅对归一化 frame 计算有界 64-bit hash，原文、URL、函数名、message 和 stack 均不上传、不持久化，也不调用任意 stack getter。没有受控 frame 时缺省 fingerprint；它是排查线索而非唯一根因证明。四个历史错误路由仍由页面 owner 复现关闭。新增字段不扩大接收端访问权限、保留时长、批次或队列预算。
+局部 error boundary 通过 `recordClientBoundaryError(error)` 复用同一投影；无需自行读取或上传异常内容。客户端错误 v1 附固定 source（window_error/unhandled_rejection/boundary）、异常类别及可选 s1 fingerprint。fingerprint 只取自身 data property stack 的前 8192 字符中至多五个 Next 静态 chunk basename/数字行列；无此 data property 时可用 ErrorEvent 的文件/行列元数据。仅对归一化 frame 计算有界 64-bit hash，原文、URL、函数名、message 和 stack 均不上传、不持久化，也不调用任意 stack getter。没有受控 frame 时缺省 fingerprint；它是排查线索而非唯一根因证明。四个历史错误路由仍由页面 owner 复现关闭。新增字段不扩大接收端访问权限、保留时长、批次或队列预算。
 
 ## 数据字段与身份
 

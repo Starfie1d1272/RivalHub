@@ -194,10 +194,11 @@ export function recordFilter(key: string, value: string) {
     if (Object.keys(filters).length) record({ kind: "filter", filters });
   });
 }
-export function recordClientError(event?: Event) {
+export function recordClientBoundaryError(error: unknown) { recordClientError(undefined, error); }
+export function recordClientError(event?: Event, boundaryError?: unknown) {
   attempt(() => {
     if (bootstrap?.measurementVersion !== 1) { record({ kind: "error", errorCode: "CLIENT_UNHANDLED" }); return; }
-    const error: unknown = event instanceof ErrorEvent ? event.error : typeof PromiseRejectionEvent !== "undefined" && event instanceof PromiseRejectionEvent ? event.reason : undefined;
+    const error: unknown = event instanceof ErrorEvent ? event.error : typeof PromiseRejectionEvent !== "undefined" && event instanceof PromiseRejectionEvent ? event.reason : boundaryError;
     // Read only an own data property: never invoke arbitrary getters or collect message/stack/URL.
     const name = error && typeof error === "object" ? Object.getOwnPropertyDescriptor(error, "name")?.value : undefined;
     const category = ["TypeError", "RangeError", "ReferenceError", "SyntaxError", "Error"].includes(name) ? name : error instanceof TypeError ? "TypeError" : error instanceof Error ? "Error" : "unknown";

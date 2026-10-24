@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { beginTelemetryNavigation, captureTelemetryNavigation, recordContentReady, restoreTelemetryPage, recordTelemetryVisibility, recordClientError, configureTelemetry, flushTelemetry, observeAction, recordPage, recordWebVital, renewTelemetryIfNeeded, resetTelemetryIdentity, setTelemetryScene } from "@/lib/telemetry/client";
+import { beginTelemetryNavigation, captureTelemetryNavigation, recordContentReady, restoreTelemetryPage, recordTelemetryVisibility, recordClientError, recordClientBoundaryError, configureTelemetry, flushTelemetry, observeAction, recordPage, recordWebVital, renewTelemetryIfNeeded, resetTelemetryIdentity, setTelemetryScene } from "@/lib/telemetry/client";
 import { TelemetryQueue } from "@/lib/telemetry/queue";
 import type { Bootstrap, TelemetryEvent } from "@/lib/telemetry/protocol";
 
@@ -295,4 +295,15 @@ it("refreshes activation timing after prerender activation without replacing the
     const event = JSON.parse(send.mock.calls[0][1].body).events[0] as TelemetryEvent;
     expect(event.measurement).toMatchObject({ navigationId: token, lifecycle: { navigationType: "prerender", activationMs: 321 } });
   } finally { entries.mockRestore(); Object.defineProperty(document, "prerendering", { configurable: true, value: false }); }
+});
+
+it("lets a local boundary provide its error through the same privacy projection", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", send); configureTelemetry({ ...config, measurementVersion: 1 });
+  recordClientBoundaryError({ name: "TypeError", message: "PRIVATE", stack: "TypeError: PRIVATE\n at x (https://private.invalid/_next/static/chunks/boundary-fixture.js:10:20)" });
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const events = JSON.parse(send.mock.calls[0][1].body).events as TelemetryEvent[];
+  expect(events[0].clientError).toMatchObject({ source: "boundary", category: "TypeError" });
+  expect(events[0].clientError?.fingerprint).toMatch(/^s1:[0-9a-f]{16}$/);
+  expect(JSON.stringify(events)).not.toMatch(/PRIVATE|private.invalid|boundary-fixture/);
 });
