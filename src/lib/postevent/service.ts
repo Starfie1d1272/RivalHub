@@ -1,3 +1,4 @@
+import { lockSeasonForTournamentInTx } from "./guard";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { and, eq } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -64,6 +65,7 @@ async function parsePlacementGroupsInTx(
 }
 
 async function lockFinalResultInTx(tx: TxDb, seasonId: string) {
+  await lockSeasonForTournamentInTx(tx, seasonId);
   const [result] = await tx.select().from(majorFinalResults)
     .where(eq(majorFinalResults.seasonId, seasonId)).for("update");
   if (!result) throw new AppError(ErrorCode.NOT_FOUND, "该赛事尚未形成正式最终结果。");
@@ -119,6 +121,7 @@ export async function createPostEventAdjudicationInTx(
     actorId: string;
   },
 ): Promise<{ adjudicationId: string; created: boolean }> {
+  await lockSeasonForTournamentInTx(tx, args.seasonId);
   const [existing] = await tx.select().from(postEventAdjudications)
     .where(eq(postEventAdjudications.clientRequestId, args.clientRequestId)).for("update");
   if (existing) {
@@ -175,9 +178,14 @@ export async function revokePostEventAdjudicationInTx(
   tx: TxDb,
   args: { adjudicationId: string; actorId: string; reason: string },
 ): Promise<{ adjudicationId: string; alreadyRevoked: boolean }> {
+  const [scope] = await tx.select({ seasonId: postEventAdjudications.seasonId }).from(postEventAdjudications)
+    .where(eq(postEventAdjudications.id, args.adjudicationId));
+  if (!scope) throw new AppError(ErrorCode.NOT_FOUND, "赛后裁决不存在。");
+  await lockSeasonForTournamentInTx(tx, scope.seasonId);
   const [adjudication] = await tx.select().from(postEventAdjudications)
     .where(eq(postEventAdjudications.id, args.adjudicationId)).for("update");
   if (!adjudication) throw new AppError(ErrorCode.NOT_FOUND, "赛后裁决不存在。");
+  if (adjudication.seasonId !== scope.seasonId) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛后裁决所属赛事已变化，请重新读取。");
   if (adjudication.status === "revoked") return { adjudicationId: adjudication.id, alreadyRevoked: true };
   await tx.update(postEventAdjudications).set({
     status: "revoked",
@@ -238,6 +246,7 @@ export async function grantTournamentHonorInTx(
     actorId: string;
   },
 ): Promise<{ honorId: string; created: boolean }> {
+  await lockSeasonForTournamentInTx(tx, args.seasonId);
   const [existing] = await tx.select().from(tournamentHonors)
     .where(eq(tournamentHonors.clientRequestId, args.clientRequestId)).for("update");
   if (existing) {
@@ -318,9 +327,14 @@ export async function revokeTournamentHonorInTx(
   tx: TxDb,
   args: { honorId: string; actorId: string; reason: string },
 ): Promise<{ honorId: string; alreadyRevoked: boolean }> {
+  const [scope] = await tx.select({ seasonId: tournamentHonors.seasonId }).from(tournamentHonors)
+    .where(eq(tournamentHonors.id, args.honorId));
+  if (!scope) throw new AppError(ErrorCode.NOT_FOUND, "赛事荣誉不存在。");
+  await lockSeasonForTournamentInTx(tx, scope.seasonId);
   const [honor] = await tx.select().from(tournamentHonors)
     .where(eq(tournamentHonors.id, args.honorId)).for("update");
   if (!honor) throw new AppError(ErrorCode.NOT_FOUND, "赛事荣誉不存在。");
+  if (honor.seasonId !== scope.seasonId) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事荣誉所属赛事已变化，请重新读取。");
   if (honor.state === "revoked") return { honorId: honor.id, alreadyRevoked: true };
   if (honor.state !== "valid") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有有效荣誉可以撤销。");
   await tx.update(tournamentHonors).set({
