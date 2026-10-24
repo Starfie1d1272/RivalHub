@@ -46,10 +46,12 @@ rm tests/integration/db/w12-performance.tmp.test.ts tests/integration/db/w12-bas
 | AS-10 | 已实现已测 | OCR 窄 map/match join，先 fresh admin，再 players/provider 并行；typed 回读不伪空 | app types/architecture/组件；付费模型未调用，生产 provider 时间与字段精度尚不宣称 |
 | AS-11 | 待具体实验 | fallback 共用原 180s monotonic deadline；真实 decoded imageBytes；既有关 thinking/tuple/body timeout 不重复计功 | 当前默认 Qwen3.5-9B 与 thinking 配置未改；仓内只有响应/输入契约测试，没有标注截图精度基线。压缩/换模型属条件实验，需至少20张脱敏标注图与费用授权；没有新增付费调用 |
 | AS-12 | 已实现已测 | typed read/finally、actor 绑定、版本 CAS、原子 durable receipt、非敏感 locator 与未知草稿互斥 | #1091 已合 main；非空 save/重放/CAS/superseded PG + 原生浏览器关闭重开、实际 HTTP 丢响应、missing/权限变化通过；adapter COMMIT 模拟与网络故障分别记录，见 ocr-receipts.md |
-| AS-13 | 已交付独立 Ready #1110 | 保留锁后完整准入；fresh 授权完整名单/代表/内容版本核对 | 组件与真实 PG 通过；当前状态相同不当提交归属凭据、不自动重放，见 operation-readback.md；合并由父会话控制 |
+| AS-13 | 已合并已测 #1110 | 保留锁后完整准入；fresh 授权完整名单/代表/内容版本核对 | 组件与真实 PG 通过；当前状态相同不当提交归属凭据、不自动重放，见 operation-readback.md |
 | AS-14 | 已测真实 leaf；生产指标待验 | 设置窄事实/辅助 leaf；请求读取在真实表单边界内，fallback 不报 ready | 三个实际可编辑表单与 shift source tag 已测，竞技锚点为保存按钮；设置/报名 uncached-data 警告移除；不宣称生产 p75/p95 或 CLS 达标，见 bounded-proof.json |
-| AS-15 | 已交付独立 Ready #1110 | 录像原 ID/内容/相对顺序与版本授权核对；保留未知草稿 | 单测/组件与真实 PG 通过；状态匹配仍不证明原提交归属，仅明确提交后的失效允许单独重试，见 operation-readback.md |
-| AS-16 | 已交付独立 Ready #1110 | 原 proposalId/status/resolution/proposedTime/scheduledAt/reason 与版本核对 | 相同排期不同原提议不能判完成；fresh 代表/管理员授权，保留锁序/deadline/coverage；单测/组件/真实 PG 通过，见 operation-readback.md |
+| AS-15 | 已合并已测 #1110 | 录像原 ID/内容/相对顺序与版本授权核对；保留未知草稿 | 单测/组件与真实 PG 通过；状态匹配仍不证明原提交归属，仅明确提交后的失效允许单独重试，见 operation-readback.md |
+| AS-16 | 已合并已测 #1110 | 原 proposalId/status/resolution/proposedTime/scheduledAt/reason 与版本核对 | 相同排期不同原提议不能判完成；fresh 代表/管理员授权，保留锁序/deadline/coverage；单测/组件/真实 PG 通过，见 operation-readback.md |
+
+AS13/15/16 已纳入真实授权补验原提交 [`27e8f15d`](https://github.com/Starfie1d1272/RivalHub/commit/27e8f15d7d4da9a3fd5a6971cb13d6a110a47246)：实际 iron-session/application registry/DB role 与 grant 链，删除 grant 后三入口 FORBIDDEN/私有 SQL 0，保留签名 cookie 撤销 registry 后三入口 UNAUTHORIZED。仅 Next cookie/connection 平台传输适配，未声称 provider 登录或真实 HTTP；详见 [真实应用授权链撤销补验](readback-auth-chain.md)。该证据与原管理员 auth mock 拒绝测试分开记录。
 
 ## 路由审查范围
 
