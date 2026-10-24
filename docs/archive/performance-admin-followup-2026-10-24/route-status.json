@@ -97,9 +97,9 @@
       "route": "/admin/[seasonSlug]/registrations",
       "task": "A-REGADMIN",
       "status": "experiment_pending",
-      "implemented": "复用请求内season",
-      "evidence": "保留资格与全局derived total",
-      "remainingExperiment": "accounts提供仅current revision facts、derived筛选前total、solo drafts分页",
+      "implemented": "复用request season，消费签名不变的getTeamRegistrationReview/Progress；accounts已合current revision-only事实及derived筛选先于分页",
+      "evidence": "accounts main7f1b9d5a owner证据；prestart/current revision真实PG金样",
+      "remainingExperiment": "team/solo真实规模与combined filters计划；页面primary-ready/CLS",
       "owner": "accounts+admin"
     },
     {
@@ -207,7 +207,7 @@
       "status": "implemented_tested",
       "implemented": "目录仅消费groupCount/contactCount；两详情沿用owner单season direct read及稳定排序",
       "evidence": "public-entrypoint真实PG摘要无联系明细、零授权与scope检查；临时集成类型检查",
-      "remainingExperiment": "依赖合main的CI；联系人修改失效/权限浏览器验证",
+      "remainingExperiment": "public合main后的精确head CI；联系人编辑失效/撤权浏览器",
       "owner": "public-info+admin"
     },
     {
@@ -216,7 +216,7 @@
       "status": "implemented_tested",
       "implemented": "目录仅消费groupCount/contactCount；两详情沿用owner单season direct read及稳定排序",
       "evidence": "public-entrypoint真实PG摘要无联系明细、零授权与scope检查；临时集成类型检查",
-      "remainingExperiment": "依赖合main的CI；联系人修改失效/权限浏览器验证",
+      "remainingExperiment": "public合main后的精确head CI；联系人编辑失效/撤权浏览器",
       "owner": "public-info+admin"
     },
     {
@@ -225,7 +225,7 @@
       "status": "implemented_tested",
       "implemented": "目录仅消费groupCount/contactCount；两详情沿用owner单season direct read及稳定排序",
       "evidence": "public-entrypoint真实PG摘要无联系明细、零授权与scope检查；临时集成类型检查",
-      "remainingExperiment": "依赖合main的CI；联系人修改失效/权限浏览器验证",
+      "remainingExperiment": "public合main后的精确head CI；联系人编辑失效/撤权浏览器",
       "owner": "public-info+admin"
     },
     {
@@ -277,9 +277,9 @@
       "route": "/admin/operations/announcements/new",
       "task": "A-ANNOUNCEADMIN",
       "status": "experiment_pending",
-      "implemented": "保留授权season options与完整编辑状态",
-      "evidence": "未无证据拆editor bundle",
-      "remainingExperiment": "public共享owner接口落定；新建表单payload/profile",
+      "implemented": "fresh授权赛事选项；不读取历史公告正文；新建表单未做无profile的bundle重构",
+      "evidence": "入口/消费者核对及临时依赖集成type-check；summary/detail接口已闭环到相邻列表/详情",
+      "remainingExperiment": "新建表单dirty/权限撤销的浏览器smoke；没有editor bundle归因时不拆分",
       "owner": "public+admin"
     },
     {
@@ -304,9 +304,9 @@
       "route": "/admin/[seasonSlug]/announcements/new",
       "task": "A-ANNOUNCEADMIN",
       "status": "experiment_pending",
-      "implemented": "窄content context复用season",
-      "evidence": "固定season表单保留",
-      "remainingExperiment": "表单dirty/权限撤销回归；无历史list读取",
+      "implemented": "fresh授权赛事选项；不读取历史公告正文；新建表单未做无profile的bundle重构",
+      "evidence": "入口/消费者核对及临时依赖集成type-check；summary/detail接口已闭环到相邻列表/详情",
+      "remainingExperiment": "新建表单dirty/权限撤销的浏览器smoke；没有editor bundle归因时不拆分",
       "owner": "public+admin"
     },
     {
@@ -322,8 +322,60 @@
   "integrationBase": "d58ab7c4fb97cef7795ee2de9d9b5d6a2e208eaf",
   "betDependency": "a94b96ef5be2857c6518b460deedfcb3623437c4",
   "dependencies": {
-    "public": "e7a7ae264b1ed63ffb8f12828ea2979b33f157c1",
-    "accounts": "c602550eb6d6c7580c5daf2122c782bf3ceddf85",
-    "stats": "ec0989a502b08f71f1a917e07b88e3cf02e13b17"
-  }
+    "public": "e7a7ae264b1ed63ffb8f12828ea2979b33f157c1"
+  },
+  "codeBase": "49c6c7fdf87972d9514b6f81015452ec604accd9",
+  "resolvedDependencies": {
+    "accounts": "main7f1b9d5a",
+    "stats": "main051ab5c7"
+  },
+  "tasks": [
+    {
+      "id": "A-WB-5-rosters",
+      "status": "implemented_tested",
+      "consumer": "workbench两队名单",
+      "evidence": "#1083复用#1081单语句canonical owner，真实PG正式/测试scope"
+    },
+    {
+      "id": "A-WB-5-main-swiss",
+      "status": "implemented_tested",
+      "consumer": "operator roomGuide record/stageName only",
+      "evidence": "同frozen run与full reader对照；4→3SQL，14019→2967结果JSON bytes；缺失/跨scope/不完整finalized round回退"
+    },
+    {
+      "id": "A-WB-5-playin-swiss",
+      "status": "owner_interface_pending",
+      "consumer": "operator roomGuide record/stageName only",
+      "owner": "public canonical qualification-stage-read-model",
+      "requiredAPI": "loadQualificationSwissMatchRecord(seasonId,matchId) -> {stageName,record}|null；保留完整seed/pairing校验，跳过name/logo/display score"
+    },
+    {
+      "id": "A-WB-5-commentary",
+      "status": "partially_implemented",
+      "consumer": "当前场分配+全active的我的下一场/认领队列",
+      "evidence": "#1083工作台仅active+当前历史，PG全局队列等价",
+      "remaining": "list commentary/operations重复active读取的共享coordinator；先测真实active规模，不以UI filters缩小全局冲突"
+    },
+    {
+      "id": "A-MATCHLIST-execution",
+      "status": "implemented_tested",
+      "evidence": "100/500finished+8active，完整match展示最多25；PG遍历/筛选/clamp；500场Flight gzip822586→56831、decoded2184601→156138 bytes",
+      "remaining": "当前阶段窄排序事实仍O(N)，新增1SQL；500active全局操作队列不在该fixture范围"
+    },
+    {
+      "id": "A-MATCHLIST-schedule",
+      "status": "implemented_tested",
+      "serverFacts": "full frozen stage用于runtime/standings/batch groups，未截断权威事实",
+      "clientConsumers": "MajorSwissRuntimeManagement/PlayoffManagement接有界run摘要；BatchDeadlineCard接group/count；AdminMatchStageTabs只包含当前25条Server rows",
+      "evidence": "500场DOM9849→677；完整root Flight gzip717946→49570、decoded2054900→128929 bytes；DB query/result量不变"
+    },
+    {
+      "id": "A-MATCHLIST-materials",
+      "status": "implemented_tested",
+      "serverFacts": "canonical精确待办在scope中全量派生，计分板、revision、reopened与forfeit不改",
+      "clientConsumers": "当前25条任务链接与分页count；未展开effectiveness/资源不读详细",
+      "evidence": "500场Flight gzip120063→19080、decoded586157→67642 bytes；PG 9SQL不变、结果JSON1009622→97122",
+      "remaining": "metadata扫描仍O(N)；未引入无依据持久summary/索引"
+    }
+  ]
 }

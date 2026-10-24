@@ -6,7 +6,7 @@
 
 ## 浏览器配对
 
-Chromium desktop、hard navigation、开发服务器预热、等价独立生成fixture（不同UUID）、8 active + 100/500 finished，每个size/view各1样本。before/after完整数值见 `browser-before.json` / `browser-after.json`。不是p75/p95，不是生产数据。primaryDomReadyMs是可见普通行出现的MutationObserver时间，**不是产品CONTENT_READY或hydration完成时间**。next/back均在真实页面上验证，trace只保留本地fixture产物。
+Chromium desktop、hard navigation、开发服务器预热、等价独立生成fixture（不同UUID）、8 active + 100/500 finished，每个size/view各1样本。首轮仅文档的before/after数值见 `browser-document-before.json` / `browser-document-after.json`。不是p75/p95，不是生产数据。primaryDomReadyMs是可见普通行出现的MutationObserver时间，**不是产品CONTENT_READY或hydration完成时间**。next/back均在真实页面上验证，trace只保留本地fixture产物。
 
 | finished | view | 解码文档 bytes before→after | DOM before→after | 单次LCP ms before→after |
 | --- | --- | --- | --- | --- |
@@ -18,6 +18,21 @@ Chromium desktop、hard navigation、开发服务器预热、等价独立生成f
 | 500 | materials | 1110946→125783 | 3166→322 | 3580→776 |
 
 解码文档包含HTML和内嵌RSC流，不能冒充独立RSC或wire bytes。CLS精确值约0.000184–0.000335，部分after样本轻微增加；保留session-window最大值算法和原值，不宣称零CLS或已证明无回退。
+
+## 独立 Flight 编码与解码
+
+另一次同形fixture对照基于共同main7f1b9d5a与候选72838d31，原值见 `browser-before.json` / `browser-after.json`。授权浏览器对**实际页面URL**发 `RSC:1` / `cache:no-store`，每次验证200与`text/x-component`，decoded取response ArrayBuffer字节，encoded取同源Resource Timing encodedBodySize，响应编码均gzip。它是完整root Flight探测，不是特定Next-Router-State-Tree的差量导航；没有把普通文档当Flight。
+
+| finished | view | Flight gzip bytes before→after | Flight decoded bytes before→after |
+| --- | --- | --- | --- |
+| 100 | execution | 188231→56939 | 502179→156291 |
+| 100 | schedule | 174878→49647 | 454860→128730 |
+| 100 | materials | 33483→19062 | 142340→67608 |
+| 500 | execution | 822586→56831 | 2184601→156138 |
+| 500 | schedule | 717946→49570 | 2054900→128929 |
+| 500 | materials | 120063→19080 | 586157→67642 |
+
+DOM、文档encoded/decoded、LCP与精确CLS仍分别记录在每个sample；没有合并口径。schedule的完整server facts没有原样下发：runtime组件消费有界stage/run DTO，批量排期只消费group/count，普通Server rows只渲染当前25条。500场root Flight解码从2.05MB降至129KB是直接证据。所有数据仍是每cohort一个开发样本，没有部署p75/p95结论。
 
 ## PostgreSQL配对
 
@@ -43,3 +58,5 @@ rm src/lib/admin/matches/overview-list-baseline.ts src/lib/admin/matches/postmat
 public `e7a7ae264b1ed63ffb8f12828ea2979b33f157c1`、accounts `c602550eb6d6c7580c5daf2122c782bf3ceddf85`、stats `ec0989a502b08f71f1a917e07b88e3cf02e13b17`仅用于临时集成验证：app/tests类型和架构通过；10个reader PG及8个qualification/prestart PG通过。公告consumer在SQL固定季赛scope并只用summary/count，详情保留完整正文。教育overview/page独立返回受控错误，fresh授权在父page，证据过期owner不变。prestart union IDs读一次不限定平台的raw bundle，再按profile/fallback投影。
 
 最终依赖合入main后必须rebase并让最新head CI验证。35页逐项状态见 `route-status.json`，精确文件与依赖见 `scope-files.json`。仍缺真实部署cohort、混合pool预算、500 active全局队列、Play-in record窄API及慢教育overview的浏览器隔离；没有把这些写成已完成。未发布、未部署、未做生产写入。
+
+后续正式代码已跟进包含accounts和stats的main；public API仍待合入。最新临时集成app/tests类型、受影响ESLint与架构检查通过；8个定向PG文件的19用例中，自定义play-in fixture修正后单独重跑通过，其他18例通过。RSC测试已去除额外探测query，使用实际页面参数。当前A-WB-5四子项与三个view分别列在route-status tasks，不能按一个route状态冒充全部完成。

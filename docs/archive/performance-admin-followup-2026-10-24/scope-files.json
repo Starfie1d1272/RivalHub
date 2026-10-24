@@ -1,10 +1,12 @@
 {
-  "base": "06d0ea5074e15b866e2695b34e8f43ab761a9851",
+  "base": "49c6c7fdf87972d9514b6f81015452ec604accd9",
   "files": [
     ".changeset/admin-windowed-lists.md",
     "docs/archive/performance-admin-followup-2026-10-24/README.md",
     "docs/archive/performance-admin-followup-2026-10-24/browser-after.json",
     "docs/archive/performance-admin-followup-2026-10-24/browser-before.json",
+    "docs/archive/performance-admin-followup-2026-10-24/browser-document-after.json",
+    "docs/archive/performance-admin-followup-2026-10-24/browser-document-before.json",
     "docs/archive/performance-admin-followup-2026-10-24/read-cost.json",
     "docs/archive/performance-admin-followup-2026-10-24/route-status.json",
     "docs/archive/performance-admin-followup-2026-10-24/scope-files.json",
@@ -13,6 +15,7 @@
     "src/app/admin/[seasonSlug]/announcements/page.tsx",
     "src/app/admin/[seasonSlug]/matches/page.tsx",
     "src/app/admin/education-verifications/page.tsx",
+    "src/app/admin/operations/announcements/[announcementId]/page.tsx",
     "src/app/admin/operations/announcements/page.tsx",
     "src/app/admin/operations/season-info/page.tsx",
     "src/components/admin/AnnouncementManager.tsx",
@@ -38,9 +41,7 @@
     "tests/integration/db/demo-import-egress.test.ts"
   ],
   "dependencies": {
-    "public": "e7a7ae264b1ed63ffb8f12828ea2979b33f157c1",
-    "accounts": "c602550eb6d6c7580c5daf2122c782bf3ceddf85",
-    "stats": "ec0989a502b08f71f1a917e07b88e3cf02e13b17"
+    "public": "e7a7ae264b1ed63ffb8f12828ea2979b33f157c1"
   },
   "note": "候选领域代码仅在临时集成分支合入；本分支不复制它们。"
 }
