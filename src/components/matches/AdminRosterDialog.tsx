@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { adminSelectMatchRoster as telemetry_adminSelectMatchRoster, confirmMatchRoster as telemetry_confirmMatchRoster } from "@/actions/matches/roster";
+import { retryMatchRosterRefresh, adminSelectMatchRoster as telemetry_adminSelectMatchRoster, confirmMatchRoster as telemetry_confirmMatchRoster } from "@/actions/matches/roster";
 import type { RosterData } from "@/lib/admin/matches/types";
 import type { MatchRosterStatus } from "@/db/schema";
 import { observeAction } from "@/lib/telemetry/client";
@@ -78,6 +78,7 @@ function RosterTeamSection({
 }: RosterTeamSectionProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [recovery, setRecovery] = useState<"unknown" | "refresh_pending" | null>(null);
   // Two-step explicit flow: first pick, then review the exact five and confirm.
   const [pendingLineup, setPendingLineup] = useState<{ starterIds: string[]; substituteIds: string[]; vetoRepresentativeEventRosterMemberId: string | null } | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>(() => {
@@ -136,7 +137,9 @@ function RosterTeamSection({
 
   function executeSave() {
     if (!pendingLineup) return;
+    if (recovery) return;
     startTransition(async () => {
+      try {
       const result = await adminSelectMatchRoster(
         matchId,
         teamId,
@@ -148,28 +151,50 @@ function RosterTeamSection({
       );
       setPendingLineup(null);
       if (result.success) {
+        if (result.data.refreshPending) setRecovery("refresh_pending");
         toast.success(`${teamName} 名单已保存，开赛前需另行确认`);
         router.refresh();
       } else {
+        if (result.error.code === "INTERNAL_ERROR") setRecovery("unknown");
         toast.error(result.error.message);
       }
+      } catch { setRecovery("unknown"); }
     });
   }
 
   function handleConfirm(rosterId: string) {
+    if (recovery) return;
     startTransition(async () => {
+      try {
       const result = await confirmMatchRoster(rosterId);
       if (result.success) {
+        if (result.data.refreshPending) setRecovery("refresh_pending");
         toast.success(result.data.alreadyConfirmed ? `${teamName} 名单此前已确认` : `${teamName} 名单已确认，可以开始比赛`);
         router.refresh();
       } else {
+        if (result.error.code === "INTERNAL_ERROR") setRecovery("unknown");
         toast.error(result.error.message);
       }
+      } catch { setRecovery("unknown"); }
     });
   }
 
   return (
     <div className="space-y-3">
+      {recovery && <div role="alert" className="space-y-2 text-sm">
+        <p>{recovery === "unknown" ? "名单操作结果尚未确认，请刷新页面核对，不要重复提交。" : "名单已提交，页面刷新待完成。"}</p>
+        <Button size="sm" variant="outline" disabled={isPending} onClick={() => {
+          if (recovery === "unknown") { window.location.reload(); return; }
+          startTransition(async () => {
+            try {
+              const result = await retryMatchRosterRefresh(matchId);
+              if (!result.success) { toast.error(result.error.message); return; }
+              setRecovery(null);
+              window.location.reload();
+            } catch { toast.error("刷新仍未完成，请稍后重试刷新。"); }
+          });
+        }}>{recovery === "unknown" ? "刷新页面核对名单" : "重试刷新（不重复提交）"}</Button>
+      </div>}
       <h4 className="font-semibold text-[var(--color-fg)]"><TeamProfileLink entryId={teamId}>{teamName}</TeamProfileLink></h4>
       {existingRoster && (
         <div className="flex items-center gap-2">
@@ -181,7 +206,7 @@ function RosterTeamSection({
             {existingRoster.status && ` · ${STATUS_LABELS[existingRoster.status]}`}
           </p>
           {existingRoster.rosterId && existingRoster.status !== "confirmed" && (
-            <Button size="sm" variant="secondary" onClick={() => handleConfirm(existingRoster.rosterId!)} disabled={isPending}>
+            <Button size="sm" variant="secondary" onClick={() => handleConfirm(existingRoster.rosterId!)} disabled={Boolean(recovery) || isPending}>
               确认名单
             </Button>
           )}
@@ -213,10 +238,10 @@ function RosterTeamSection({
             保存后仍需点击「确认名单」，否则该场比赛无法开始。
           </p>
           <div className="flex gap-2 pt-1">
-            <Button size="sm" onClick={executeSave} disabled={isPending}>
+            <Button size="sm" onClick={executeSave} disabled={Boolean(recovery) || isPending}>
               {isPending ? "保存中..." : "确认保存"}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setPendingLineup(null)} disabled={isPending}>
+            <Button size="sm" variant="outline" onClick={() => setPendingLineup(null)} disabled={Boolean(recovery) || isPending}>
               返回修改
             </Button>
           </div>
@@ -347,7 +372,7 @@ function RosterTeamSection({
           <Button
             size="sm"
             onClick={handleSave}
-            disabled={isPending || starterIds.length !== 5}
+            disabled={Boolean(recovery) || isPending || starterIds.length !== 5}
           >
             {isPending ? "处理中..." : `核对并保存 ${teamName} 名单`}
           </Button>

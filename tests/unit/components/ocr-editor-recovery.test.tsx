@@ -47,6 +47,22 @@ it("does not treat a failed initial read as an empty editable scoreboard", async
   expect(screen.getByRole("button", { name: "OCR 识别截图" })).toBeDisabled();
 });
 
+it("does not overwrite an explicitly recovered edit with a late initial prop snapshot", async () => {
+  mocks.read.mockResolvedValueOnce({ success: false, error: { code: "INTERNAL_ERROR", message: "unavailable" } })
+    .mockResolvedValueOnce({ success: true, data: [saved] });
+  const user = userEvent.setup();
+  const { rerender } = render(<StatsOCRPanel mapId="map" mapName="de_mirage" />);
+  await screen.findByText("无法读取已保存数据。");
+  await user.click(screen.getByRole("button", { name: "载入当前已保存数据（替换草稿）" }));
+  await user.click(await screen.findByRole("button", { name: "重新录入" }));
+  const rating = await screen.findByLabelText("Retained player Rating");
+  await user.clear(rating);
+  await user.type(rating, "1.4");
+  rerender(<StatsOCRPanel mapId="map" mapName="de_mirage" initialRows={[{ ...saved, ratingPro: 9 }]} />);
+  expect(rating).toHaveValue(1.4);
+  expect(screen.getByRole("button", { name: "确认保存" })).toBeVisible();
+});
+
 it("keeps the draft after an unknown save and exits busy without replay", async () => {
   mocks.save.mockRejectedValue(new TypeError("connection lost"));
   const user = userEvent.setup();

@@ -108,17 +108,19 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
   const [recovery, setRecovery] = useState<"unknown" | "refresh_pending" | null>(null);
   const [readFailed, setReadFailed] = useState(false);
   const initialReadComplete = useRef(initialRows !== undefined);
+  const readGeneration = useRef(0);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // Each mounted map owns its state; the workbench keys panels by map ID.
   useEffect(() => {
+    const generation = ++readGeneration.current;
     let cancelled = false;
     if (initialRows !== undefined) {
       // A prefetched snapshot may arrive while the mount read is in flight.
       // Adopt it once; later RSC refresh props must not overwrite an edited draft.
       if (!initialReadComplete.current) {
         queueMicrotask(() => {
-          if (cancelled) return;
+          if (cancelled || generation !== readGeneration.current) return;
           const saved = savedDrafts(initialRows);
           initialReadComplete.current = true;
           setDrafts(saved);
@@ -132,7 +134,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
       return () => { cancelled = true; };
     }
     getPlayerStatsByMap(mapId).then(result => {
-      if (cancelled) return;
+      if (cancelled || generation !== readGeneration.current) return;
       if (!result.success) {
         setError(result.error.message);
         setReadFailed(true);
@@ -144,8 +146,8 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
       setCanonicalDrafts(saved);
       setViewMode(saved.length > 0);
     }).catch(() => {
-      if (!cancelled) { setReadFailed(true); setError("已保存数据暂时无法读取，请重试读取。"); }
-    }).finally(() => { if (!cancelled) setInitialLoading(false); });
+      if (!cancelled && generation === readGeneration.current) { setReadFailed(true); setError("已保存数据暂时无法读取，请重试读取。"); }
+    }).finally(() => { if (!cancelled && generation === readGeneration.current) setInitialLoading(false); });
     return () => { cancelled = true; };
   }, [mapId, initialRows]);
 
@@ -159,6 +161,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
   }
 
   async function reloadSavedData() {
+    const generation = ++readGeneration.current;
     setSaving(true);
     try {
       if (recovery === "refresh_pending") {
@@ -166,16 +169,19 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
         if (!refresh.success) { setError("写入已确认，缓存刷新仍未完成，请稍后重试读取。"); return; }
       }
       const result = await getPlayerStatsByMap(mapId);
+      if (generation !== readGeneration.current) return;
       if (!result.success) { setError(result.error.message); return; }
+      initialReadComplete.current = true;
       const saved = savedDrafts(result.data);
       setCanonicalDrafts(saved);
       setDrafts(saved);
       setViewMode(saved.length > 0);
       setRecovery(null);
       setReadFailed(false);
+      setInitialLoading(false);
       setError(null);
     } catch { setError("已保存数据暂时无法读取，当前草稿已保留。"); }
-    finally { setSaving(false); }
+    finally { if (generation === readGeneration.current) setSaving(false); }
   }
 
   async function handleExtract() {
@@ -263,6 +269,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
       setRecovery("refresh_pending");
       const read = await getPlayerStatsByMap(mapId);
       if (!read.success) { setError("已保存，读取最新数据失败。当前草稿已保留，请勿重复保存。"); return; }
+      initialReadComplete.current = true;
       const saved = savedDrafts(read.data);
       setCanonicalDrafts(saved);
       setDrafts(saved);
@@ -322,6 +329,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
       setShowClearConfirm(false);
       const read = await getPlayerStatsByMap(mapId);
       if (!read.success) { setError("清除已提交，读取最新数据失败。请勿重复清除。"); return; }
+      initialReadComplete.current = true;
       const saved = savedDrafts(read.data);
       setCanonicalDrafts(saved);
       setDrafts(saved);

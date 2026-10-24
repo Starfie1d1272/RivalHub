@@ -3,7 +3,7 @@
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React, { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { submitMatchRoster as telemetry_submitMatchRoster } from "@/actions/matches/roster";
+import { retryMatchRosterRefresh, submitMatchRoster as telemetry_submitMatchRoster } from "@/actions/matches/roster";
 import { Button } from "@/components/ui/button";
 import { PosChip } from "@/components/rivalhub";
 
@@ -48,6 +48,7 @@ export function MatchRosterForm({
   const isMatchStarted = matchStatus !== "scheduled";
   const rosterLocked = rosterStatus === "confirmed";
   const [isPending, startTransition] = useTransition();
+  const [recovery, setRecovery] = useState<"unknown" | "refresh_pending" | null>(null);
 
   function playerBtnClass(isSelected: boolean, isDisabled = false) {
     const base = "flex flex-col items-start gap-1 rounded border p-2 text-left transition-colors";
@@ -93,22 +94,41 @@ export function MatchRosterForm({
       toast.error("请选择一名首发担任本场 BP 负责人");
       return;
     }
+    if (recovery) return;
     startTransition(async () => {
+      try {
       const result = await submitMatchRoster(matchId, {
         starterIds: selectedStarterIds,
         substituteIds: allowSubstitutes ? selectedSubstituteIds : [],
         vetoRepresentativeEventRosterMemberId: vetoRepresentativeId,
       });
       if (result.success) {
+        if (result.data.refreshPending) setRecovery("refresh_pending");
         toast.success("名单提交成功");
       } else {
+        if (result.error.code === "INTERNAL_ERROR") setRecovery("unknown");
         toast.error(result.error.message ?? "提交失败");
       }
+      } catch { setRecovery("unknown"); }
     });
   };
 
   return (
     <div className="space-y-4">
+      {recovery && <div role="alert" className="space-y-2 text-sm">
+        <p>{recovery === "unknown" ? "名单操作结果尚未确认，请刷新页面核对，不要重复提交。" : "名单已提交，页面刷新待完成。"}</p>
+        <Button size="sm" variant="outline" disabled={isPending} onClick={() => {
+          if (recovery === "unknown") { window.location.reload(); return; }
+          startTransition(async () => {
+            try {
+              const result = await retryMatchRosterRefresh(matchId);
+              if (!result.success) { toast.error(result.error.message); return; }
+              setRecovery(null);
+              window.location.reload();
+            } catch { toast.error("刷新仍未完成，请稍后重试刷新。"); }
+          });
+        }}>{recovery === "unknown" ? "刷新页面核对名单" : "重试刷新（不重复提交）"}</Button>
+      </div>}
       {isMatchStarted ? (
         <div className="rounded border p-3" style={{ borderColor: "var(--color-danger-edge)", background: "var(--color-danger-soft)" }}>
           <p className="text-sm text-[var(--color-fg)]">{matchStatus === "cancelled" ? "比赛已取消，名单不可修改" : matchStatus === "finished" ? "比赛已结束，名单不可修改" : "比赛已开始，名单不可修改"}</p>
@@ -201,7 +221,7 @@ export function MatchRosterForm({
       {!rosterLocked && !isMatchStarted && (
         <Button
           onClick={handleSubmit}
-          disabled={isPending || selectedStarterIds.length !== 5}
+          disabled={Boolean(recovery) || isPending || selectedStarterIds.length !== 5}
           size="sm"
         >
           提交名单
