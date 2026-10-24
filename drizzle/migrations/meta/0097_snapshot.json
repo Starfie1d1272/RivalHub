@@ -16225,7 +16225,7 @@
         },
         "match_veto_invalidations_facts_check": {
           "name": "match_veto_invalidations_facts_check",
-          "value": "jsonb_typeof(\"match_veto_invalidations\".\"affected_facts\") = 'array' AND \"match_veto_invalidations\".\"affected_facts\" <@ '[\"lineups\",\"appeals\",\"veto_step\",\"map_plan\",\"veto\"]'::jsonb AND jsonb_array_length(\"match_veto_invalidations\".\"affected_facts\") <= 4"
+          "value": "jsonb_typeof(\"match_veto_invalidations\".\"affected_facts\") = 'array' AND \"match_veto_invalidations\".\"affected_facts\" <@ '[\"lineups\",\"appeals\",\"veto_step\",\"map_plan\",\"veto\"]'::jsonb AND jsonb_array_length(\"match_veto_invalidations\".\"affected_facts\") <= 5"
         }
       },
       "isRLSEnabled": true

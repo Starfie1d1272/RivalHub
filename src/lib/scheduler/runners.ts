@@ -160,6 +160,10 @@ export async function runMatchVetoTimeoutJob() {
   for (const candidate of work.values()) {
     try {
       if (candidate.lifecycleDue && await reconcileVetoRoom(candidate.matchId) === "applied") changed += 1;
+    } catch (error) { firstFailure ??= error; }
+    // A lifecycle rejection does not revoke a previously committed cache duty.
+    // Report the domain error, but independently attempt delivery for this room.
+    try {
       // Paused/completed/archived rooms can have delivery work without an
       // ordinary domain transition. Do not run their mutation guard merely to
       // deliver already committed cache obligations.
