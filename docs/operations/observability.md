@@ -15,7 +15,7 @@ canonical event + critical span ──► Vercel Runtime Logs / OTEL traces
         └──────────── OTLP logs/traces ─────┴──► Better Stack sink
 ```
 
-- Vercel 保留为部署、Runtime Logs、Runtime Error Groups、Analytics 和 Speed Insights 的平台入口。
+- Linux 承载时，从 systemd 服务日志读取结构化标准输出；Vercel 承载时使用其 Runtime Logs、Runtime Error Groups、Analytics 和 Speed Insights 入口。实际承载身份以正式 release read-back 为准。
 - Better Stack 只作为外部长历史、trace/error 查询和告警 sink；RivalHub 不建立自有 log database，也不使用 Vercel Drain。
 - OTel 在服务端通过 `@vercel/otel` 初始化。Node runtime 将结构化 log 和 trace 以批处理 OTLP 发往 Better Stack；所有 runtime 在 auto/export processor 前先经过进程内 span sanitizer，删除异常 message/stack、状态 message、SQL/query/params、请求凭证与 body/header 属性；Route Handler 在响应后通过 Next `after()` 触发一次 bounded flush，避免 serverless 实例在 batch delay 前冻结；Edge runtime 仍只使用 Vercel 原生 OTel，不挂载 Better Stack exporter。
 - Development 和 test 默认不向外部 Better Stack 发送 telemetry。exporter 或 sink 故障只影响观测，不改变核心请求结果。
@@ -24,7 +24,7 @@ canonical event + critical span ──► Vercel Runtime Logs / OTEL traces
 
 ## 环境变量
 
-Preview 与 Production 使用相同变量名、不同的 Vercel Environment 值：
+Preview 与 Production 使用相同变量名，在各自部署环境中独立配置：
 
 ```text
 BETTER_STACK_SOURCE_TOKEN=<server-only Better Stack source token>
@@ -33,7 +33,15 @@ BETTER_STACK_INGESTING_HOST=<server-only Better Stack OTLP ingest host>
 
 `BETTER_STACK_INGESTING_HOST` 只接受 HTTPS origin（可带或不带 `https://`，不能带 path、query、用户名或密码）。代码会自动分别发送到 `/v1/traces` 与 `/v1/logs`。不要把 token 写入 issue、PR、日志、fixture、Client props 或任何 `NEXT_PUBLIC_*` 变量。
 
-如果 Preview/Production 只配置了一个变量，或 host/token 不合法，应用继续使用 Vercel/stdout 观测并将配置状态记录为不含凭证的结构化事件。Development 未配置外部 telemetry 是正常状态。
+如果 Preview/Production 只配置了一个变量，或 host/token 不合法，应用继续使用部署平台的标准输出观测并将配置状态记录为不含凭证的结构化事件。Development 未配置外部 telemetry 是正常状态。
+
+## 管理员进程快照
+
+`/admin/settings` 在现有 `requireSuperAdmin` 成功后，才从 server-only observability facade 读取当前 Node 进程的数值快照：采样时间、Node 版本、uptime、RSS、V8 堆已用/容量/上限、操作系统提供的内存约束、自启动累计事件循环利用率。环境内存约束为零时显示“未提供”，不能当作零容量或剩余可用内存；V8 堆上限也不等于整个进程的 RSS 上限。事件循环利用率不是 CPU 使用率或最近一分钟的指标。
+
+数据库连接池数值由 `src/db/client-runtime.ts` 的 `getDatabasePoolSnapshot()` 拥有，经 `src/db/client.ts` 的 server-only facade 返回；读取 total/idle/waiting/max 不初始化 Pool、不连接数据库、不执行探测 SQL，也不返回连接地址或凭据。等待数只是当前连接请求队列长度，单次为零不能证明高峰期间没有等待。
+
+此页面只在打开/刷新时读取当前实例，不代表整台主机、多实例汇总或历史告警；无新增轮询、常驻采样 timer、持久化记录、公开 health endpoint 或外部发送。进程 API 读取失败显示不可用，保留其它系统状态。访问和数据目的沿用超级管理员运行诊断边界。
 
 ## 事件 contract
 
