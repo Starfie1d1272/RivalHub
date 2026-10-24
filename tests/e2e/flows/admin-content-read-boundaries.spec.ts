@@ -24,6 +24,7 @@ test("后台3信息+6公告入口使用摘要和scoped完整详情，教育权�
   const school = `school-marker-${randomUUID()}`;
   const code = randomUUID().replaceAll("-", "").slice(0, 16).toUpperCase();
   async function flightText() {
+    await page.waitForLoadState("networkidle");
     return page.evaluate(async () => {
       const response = await fetch(window.location.href, { headers: { RSC: "1" }, cache: "no-store" });
       if (!response.ok || !response.headers.get("content-type")?.includes("text/x-component")) throw new Error("未得到授权Flight响应");
@@ -65,7 +66,7 @@ test("后台3信息+6公告入口使用摘要和scoped完整详情，教育权�
       await page.goto(path); await expect(page.locator(`input[value="${contact}"]`)).toBeVisible();
     }
     await page.goto("/admin/education-verifications");
-    await expect(page.getByRole("alert")).toContainText("没有访问此管理页面所需的权限");
+    await expect(page.getByRole("alert").filter({ hasText: "FORBIDDEN" })).toContainText("没有访问此管理页面所需的权限");
     expect(await flightText()).not.toContain(code);
     await signInProgrammatically(page, superAdmin, scenario, "/admin/education-verifications");
     await page.goto(`/admin/education-verifications?q=${school}&status=all`);
