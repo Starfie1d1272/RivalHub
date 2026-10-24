@@ -138,8 +138,11 @@ export function revalidateVetoRoomPaths(
 ): void {
   if (!receipt.changed) return;
   const facts = receipt.affectedFacts;
+  // Legacy veto receipts also include map-plan completion/rebuild. Those maps
+  // feed warm statistics selection/options even before a match is finished.
+  // Keep them broad until the domain contract distinguishes that canonical fact.
   const nonHistorical = (context.matchStatus === "scheduled" || context.matchStatus === "in_progress")
-    && Array.isArray(facts) && facts.length > 0 && facts.every(fact => ["lineups", "appeals", "veto"].includes(fact));
+    && Array.isArray(facts) && facts.length > 0 && facts.every(fact => ["lineups", "appeals"].includes(fact));
   revalidateMatchPaths(context.slug, context.matchId, {
     mode: options.mode,
     // statistics:true is the explicit emergency fallback; never bypass unknown facts.
