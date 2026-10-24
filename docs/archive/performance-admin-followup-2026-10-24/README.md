@@ -63,6 +63,6 @@ rm src/lib/admin/matches/overview-list-baseline.ts src/lib/admin/matches/postmat
 
 正式分支已安全rebase到main `c0d49610bd7a95ec8b529a48a3d7eaf7c1d1beb8`；下述22项PG与浏览器证据基于公共API已合的main7b619d2b临时集成，accounts、stats、public摘要/详情API均已合入。公告consumer在SQL固定季赛scope并只用summary/count，详情保留完整正文。教育overview/page独立返回受控错误，fresh授权在父page，证据过期owner不变。prestart union IDs只读一次不限定平台的raw bundle，再按profile/fallback投影。
 
-Play-in reader来自独立PR #1096。临时集成验证pin `b820d4b6bac7fd690c05f9c9628f6886cfe976bf`；已对比最新候选 `dbb5eb8124fc5e52053f951c4f48fd11f0979dfb`，相关reader、presentation、PG测试无差异。app/tests类型、受影响ESLint、architecture与9个定向PG文件22例全部通过。#1096仍待父会审查合入，之后必须同步main并以最新head的required CI收口；临时验证不是正式分支独立编译成功的声明。#1094保持Ready，不设置Draft门槛。
+Play-in reader来自独立PR #1096。临时集成验证pin `b820d4b6bac7fd690c05f9c9628f6886cfe976bf`；已对比最新候选 `dbb5eb8124fc5e52053f951c4f48fd11f0979dfb`，相关reader、presentation、PG测试无差异。该集成的app/tests类型、受影响ESLint、architecture与9个定向PG文件22例全部通过。最新main c0d49610 + #1096 dbb5eb81临时集成再次通过app/tests类型、测试文件ESLint、architecture及3个受影响PG文件5例；新fixture Main Swiss为4→3SQL/14003→2967结果JSON bytes，Play-in为4→3SQL/11→9行/1435→955 bytes，与历史样本分开记录。#1096仍待父会审查合入，之后必须同步main并以最新head的required CI收口；临时验证不是正式分支独立编译成功的声明。#1094保持Ready，不设置Draft门槛。
 
 35页逐项状态见 `route-status.json`，精确文件与依赖见 `scope-files.json`。A-WB-5四子项与三个view分别列项。仍缺真实部署cohort、混合pool预算、500 active全局队列、慢教育overview的浏览器隔离；这些没有标为完成。未发布、未部署、未做生产写入。

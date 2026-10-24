@@ -47,7 +47,7 @@
     "tests/integration/db/demo-import-egress.test.ts"
   ],
   "dependencies": {
-    "playinReader": "b820d4b6bac7fd690c05f9c9628f6886cfe976bf (#1096)"
+    "playinReader": "dbb5eb8124fc5e52053f951c4f48fd11f0979dfb (#1096)"
   },
   "note": "候选领域代码仅在临时集成分支合入；本分支不复制它们。",
   "sharedTypeOnly": [
