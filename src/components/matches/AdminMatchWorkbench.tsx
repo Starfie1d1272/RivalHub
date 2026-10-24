@@ -128,7 +128,7 @@ export function AdminMatchWorkbench({
     maps: operator.workflow.completedMaps,
     commentatorCount: postMatch?.commentators.length ?? 0,
     submitted: Boolean(postMatch?.submittedAt),
-    hasVideo: Boolean(postMatch?.videoUrl), reopened: postMatch?.rosterReopened,
+    hasVideo: Boolean(postMatch?.videoUrl || postMatch?.recordings.length), reopened: postMatch?.rosterReopened,
   });
   const taskTitle = match.status === "finished" && operator.workflow.reviewReasons.length === 0
     ? (postMatchTasks.length ? "补齐赛后资料" : "本场已完成")

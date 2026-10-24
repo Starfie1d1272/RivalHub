@@ -10,7 +10,7 @@ describe("postmatch PostgreSQL invariants", () => {
   it("limits commentators, freezes a submitted roster, and derives completion from video", async () => {
     const databaseUrl = localDatabaseUrl(); process.env.DATABASE_URL = process.env.DATABASE_URL ?? databaseUrl;
     const schema = await import("../../../src/db/schema");
-    const { addMatchCommentatorInTx, removeMatchCommentatorInTx, revokePostMatchSubmissionInTx, submitPostMatchReportInTx, setMatchVideoUrlInTx, getPostMatchCompletion } = await import("../../../src/lib/postmatch/service");
+    const { mutateMatchRecordingInTx, addMatchCommentatorInTx, removeMatchCommentatorInTx, revokePostMatchSubmissionInTx, submitPostMatchReportInTx, setMatchVideoUrlInTx, getPostMatchCompletion } = await import("../../../src/lib/postmatch/service");
     const { applyMatchStatusTransitionInTx } = await import("../../../src/lib/match-rosters/service");
     const { addCommunityAwardEvidenceInTx, requestCommunityAwardSupplementInTx, resolveCommunityAwardInTx, reviewCommunityAwardInTx, reviseCommunityAwardInTx, submitCommunityAwardInTx, withdrawCommunityAwardInTx } = await import("../../../src/lib/community-awards/service");
     const { isPublicCommunityAward } = await import("../../../src/lib/community-awards/read-model");
@@ -54,6 +54,21 @@ describe("postmatch PostgreSQL invariants", () => {
       await pool.query("UPDATE matches SET status='finished' WHERE id=$1", [matchId]);
       const frozen = await pool.query("DELETE FROM match_commentators WHERE match_id=$1 AND user_id=$2", [matchId, adminA]).then(() => undefined, (error: { code?: string }) => error); expect(frozen?.code).toBe("23514");
       await db.transaction((tx) => setMatchVideoUrlInTx(tx, { matchId, videoUrl: "https://video.example/match", actorId: adminA })); expect(getPostMatchCompletion(new Date(), "https://video.example/match")).toBe("completed");
+      // More than five recordings per commentator, serialized edits, legacy retention and permissions.
+      const records = Array.from({ length: 12 }, (_, i) => ({ id: randomUUID(), commentatorUserId: i < 6 ? adminA : adminB, title: `片段 ${i + 1}`, url: `https://video.example/part-${i}` }));
+      await Promise.all(records.map(recording => db.transaction(tx => mutateMatchRecordingInTx(tx, { matchId, actorId: adminA, command: { kind: "save", recording } }))));
+      const readRecordings = async () => (await db.select({ recordings: schema.matches.recordings, videoUrl: schema.matches.videoUrl }).from(schema.matches).where((await import("drizzle-orm")).eq(schema.matches.id, matchId)))[0]!;
+      expect((await readRecordings()).recordings).toHaveLength(12);
+      expect((await readRecordings()).videoUrl).toBe("https://video.example/match");
+      await expect(db.transaction(tx => mutateMatchRecordingInTx(tx, { matchId, actorId: outsider, command: { kind: "save", recording: records[0]! } }))).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(db.transaction(tx => mutateMatchRecordingInTx(tx, { matchId, actorId: adminA, command: { kind: "save", recording: { ...records[0]!, commentatorUserId: adminC } } }))).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+      await db.transaction(tx => mutateMatchRecordingInTx(tx, { matchId, actorId: adminB, command: { kind: "save", recording: { ...records[0]!, title: "修改后的标题" } } }));
+      expect((await readRecordings()).recordings.find(row => row.id === records[0]!.id)?.title).toBe("修改后的标题");
+      const beforeMove = (await readRecordings()).recordings.filter(row => row.commentatorUserId === adminA);
+      await db.transaction(tx => mutateMatchRecordingInTx(tx, { matchId, actorId: adminA, command: { kind: "move", id: beforeMove[1]!.id, direction: "up" } }));
+      expect((await readRecordings()).recordings.filter(row => row.commentatorUserId === adminA)[0]!.id).toBe(beforeMove[1]!.id);
+      for (const recording of records) await db.transaction(tx => mutateMatchRecordingInTx(tx, { matchId, actorId: adminA, command: { kind: "remove", id: recording.id } }));
+      expect((await readRecordings()).recordings).toEqual([]);
       await pool.query("INSERT INTO match_maps (id,match_id,map_order,map_name,score_a,score_b) VALUES ($1,$2,1,'de_inferno',13,10)", [statsMapId, matchId]);
       await pool.query("INSERT INTO match_player_stats (match_id,map_id,perfect_name,user_id,kills,deaths,adr,rating_pro,verified_by_admin,verified_at) VALUES ($1,$2,'解说甲',$3,20,10,80,1.2,$4,now())", [matchId, statsMapId, adminA, adminA]);
       const { readReopenedPostMatchIds } = await import("../../../src/lib/postmatch/read");

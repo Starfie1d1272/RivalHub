@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const mutateMatchRecordingInTxMock = vi.hoisted(() => vi.fn());
 const matchesFindFirstMock = vi.hoisted(() => vi.fn());
 const seasonsFindFirstMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
@@ -28,6 +29,7 @@ vi.mock("@/lib/auth/session", () => ({
 
 vi.mock("@/lib/postmatch/service", () => ({
   addMatchCommentatorInTx: vi.fn(),
+  mutateMatchRecordingInTx: mutateMatchRecordingInTxMock,
   cancelMatchCommentaryInTx: cancelMatchCommentaryInTxMock,
   claimMatchCommentaryInTx: claimMatchCommentaryInTxMock,
   removeMatchCommentatorInTx: vi.fn(),
@@ -40,7 +42,7 @@ vi.mock("@/lib/revalidation", () => ({
   revalidateMatchPaths: revalidateMatchPathsMock,
 }));
 
-import { cancelMatchCommentary, claimMatchCommentary } from "@/actions/postmatch";
+import { cancelMatchCommentary, claimMatchCommentary, mutateMatchRecording } from "@/actions/postmatch";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 describe("post-match action revalidation", () => {
@@ -80,6 +82,19 @@ describe("post-match action revalidation", () => {
     expect(await claimMatchCommentary({ matchId })).toMatchObject({ success: false, error: { code } });
     expect(transactionMock).not.toHaveBeenCalled();
     expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
+  });
+
+  it("validates recording data and derives the actor from the current season session", async () => {
+    const recording = { id: matchId, commentatorUserId: matchId, title: "图一", url: "https://video.example/1" };
+    expect(await mutateMatchRecording({ matchId, command: { kind: "save", recording } })).toEqual({ success: true, data: undefined });
+    expect(mutateMatchRecordingInTxMock).toHaveBeenCalledWith({}, { matchId, actorId: "admin-1", command: { kind: "save", recording } });
+    vi.clearAllMocks();
+    expect(await mutateMatchRecording({ matchId, actorId: "forged", command: { kind: "save", recording } })).toMatchObject({ success: false });
+    expect(await mutateMatchRecording({ matchId, command: { kind: "save", recording: { ...recording, url: "javascript:alert(1)" } } })).toMatchObject({ success: false });
+    expect(transactionMock).not.toHaveBeenCalled();
+    requireSeasonAdminMock.mockRejectedValueOnce(new AppError(ErrorCode.FORBIDDEN, "无权操作。"));
+    expect(await mutateMatchRecording({ matchId, command: { kind: "remove", id: matchId } })).toMatchObject({ success: false, error: { code: "FORBIDDEN" } });
+    expect(transactionMock).not.toHaveBeenCalled();
   });
 
 });

@@ -1,3 +1,4 @@
+import { MatchRecordings } from "@/components/matches/MatchRecordings";
 import { hasActivePublicSanction } from "@/lib/discipline/public-query";
 import { projectDisplayScore } from "@/lib/matches/display-score";
 import type { Metadata } from "next";
@@ -16,7 +17,6 @@ import { loadPublicMatchPhase } from "@/lib/matches/public-phase";
 import { MatchLiveViewing } from "@/components/matches/MatchLiveViewing";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { eq, and, inArray, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
@@ -70,7 +70,6 @@ import { MatchHeroHeader } from "@/components/matches/MatchHeroHeader";
 import { MatchMapTabsNavigation } from "@/components/matches/MatchMapTabsNavigation";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { supportsRegistrationPositionDirectory } from "@/lib/players/directory-query";
-import { isHttpUrl } from "@/lib/external-url";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { getPublicMatchPlayerDetail } from "@/lib/stats/cached-query";
@@ -117,7 +116,7 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
   const phase = publicContext.phase;
   const afterVeto = phase === "awaiting_gameplay" || phase === "gameplay" || phase === "inter_map";
   const isFinished = match.status === "finished";
-  const replayUrl = isFinished && match.videoUrl && isHttpUrl(match.videoUrl) ? match.videoUrl : null;
+  const hasReplay = isFinished && Boolean(match.videoUrl || match.recordings.length);
   const hasCompletedMaps = maps.some(canConfirmMapScoreboard);
 
   // Keep scouting available throughout an unfinished match, including loss of live data.
@@ -491,15 +490,13 @@ export default async function MatchDetailPage({ params, searchParams }: MatchDet
         currentMapId={publicContext.currentMapId} entryAId={match.entryAId} entryBId={match.entryBId} phase={phase} seriesProgress={isFinished && match.scoreA !== null && match.scoreB !== null ? { scoreA: match.scoreA, scoreB: match.scoreB } : publicContext.seriesProgress}
         teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} finished={isFinished}
       />}
-      {(afterVeto || isFinished) && (maps.length > 0 || replayUrl) && (
+      {(afterVeto || isFinished) && (maps.length > 0 || hasReplay) && (
         <div className="flex flex-wrap items-start gap-3">
           {maps.length > 0 && <details className="min-w-0 flex-1 basis-64 text-sm" data-testid="match-bp-record">
             <summary className="flex min-h-11 w-fit cursor-pointer items-center rounded-sm border border-[var(--color-border)] px-4 text-[var(--color-fg-mid)] hover:border-[var(--color-border-hover)]">BP 记录</summary>
             <div className="mt-3"><VetoView seasonSlug={seasonSlug} matchId={match.id} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} entryAId={match.entryAId} entryBId={match.entryBId} /></div>
           </details>}
-          {replayUrl && <Button asChild className="min-h-11 shrink-0">
-            <a href={replayUrl} target="_blank" rel="noopener noreferrer">观看回放 ↗</a>
-          </Button>}
+          {hasReplay && <MatchRecordings recordings={match.recordings} legacyUrl={match.videoUrl} commentators={publicCommentators.map(person => ({ userId: person.userId, name: getPublicDisplayName(person) }))} />}
         </div>
       )}
       <MatchLiveViewing status={match.status} commentators={publicCommentators} showEmpty={afterVeto} />

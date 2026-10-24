@@ -1,0 +1,3 @@
+ALTER TABLE "matches" ADD COLUMN "recordings" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
+-- rivalhub:migration-risk: locking-reviewed Additive array check on default-empty public recording metadata; existing rows receive [] and the current application remains compatible.
+ALTER TABLE "matches" ADD CONSTRAINT "matches_recordings_array" CHECK (jsonb_typeof("matches"."recordings") = 'array');

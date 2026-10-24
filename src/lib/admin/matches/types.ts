@@ -45,6 +45,7 @@ export interface AdminPostMatchRecordData {
   rosterReopened: boolean;
   canConfirm: boolean;
   videoUrl: string | null;
+  recordings: import("@/lib/postmatch/recording-types").MatchRecording[];
   completionLabel: string;
   canSubmit: boolean;
 }

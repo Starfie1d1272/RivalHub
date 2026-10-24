@@ -1,3 +1,4 @@
+import { hasMatchRecording } from "@/lib/postmatch/recording-types";
 import { withDisplayScores } from "@/lib/matches/display-score-data";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionMatch } from "@/lib/matches/competition-context";
@@ -5,7 +6,7 @@ import type { CompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 import { readReopenedPostMatchIds } from "@/lib/postmatch/read";
 
-import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
@@ -78,7 +79,7 @@ async function loadCommentaryEffectiveness(
   allMatches: readonly Match[],
 ): Promise<AdminCommentaryEffectiveness[]> {
   const candidateMatchIds = allMatches
-    .filter((match) => match.status === "finished" && Boolean(match.videoUrl))
+    .filter((match) => match.status === "finished" && hasMatchRecording(match))
     .map((match) => match.id);
   if (candidateMatchIds.length === 0) return [];
 
@@ -133,7 +134,7 @@ async function loadCommentaryEffectiveness(
 export async function loadAdminCommentaryEffectiveness(seasonId: string): Promise<AdminCommentaryEffectiveness[]> {
   await requireSeasonAdmin(seasonId);
   const completed = await db.query.matches.findMany({
-    where: and(officialMatchCondition(), eq(matches.seasonId, seasonId), eq(matches.status, "finished"), isNotNull(matches.videoUrl)),
+    where: and(officialMatchCondition(), eq(matches.seasonId, seasonId), eq(matches.status, "finished"), sql`(${matches.videoUrl} is not null OR jsonb_array_length(${matches.recordings}) > 0)`),
     orderBy: [asc(matches.createdAt)],
   });
   return loadCommentaryEffectiveness(seasonId, completed.map(requireCompetitionMatch));

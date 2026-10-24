@@ -1,4 +1,6 @@
 "use server";
+import { recordingInput } from "@/lib/postmatch/recording-types";
+import { mutateMatchRecordingInTx } from "@/lib/postmatch/service";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
@@ -48,4 +50,14 @@ export async function revokePostMatchSubmission(input: unknown) {
   return run(parsed.data.matchId, async (actorId) => {
     await db.transaction((tx) => revokePostMatchSubmissionInTx(tx, { ...parsed.data, actorId }));
   });
+}
+
+export async function mutateMatchRecording(input: unknown) {
+  const parsed = z.object({ matchId: uuid, command: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("save"), recording: recordingInput }).strict(),
+    z.object({ kind: z.literal("remove"), id: uuid }).strict(),
+    z.object({ kind: z.literal("move"), id: uuid, direction: z.enum(["up", "down"]) }).strict(),
+  ]) }).strict().safeParse(input);
+  if (!parsed.success) return failValidation("录像参数无效，请检查链接和标题。");
+  return run(parsed.data.matchId, async actorId => { await db.transaction(tx => mutateMatchRecordingInTx(tx, { ...parsed.data, actorId })); });
 }
