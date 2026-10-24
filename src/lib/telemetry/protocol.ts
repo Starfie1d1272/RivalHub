@@ -10,9 +10,20 @@ export const ROLES = ["anonymous", "user", "season_admin", "super_admin"] as con
 export type Role = typeof ROLES[number];
 export type Scene = "major" | "rivals" | "other" | "site";
 export const PERFORMANCE_METRICS = ["TTFB", "FCP", "LCP", "INP", "NAV_COMMIT", "CLS"] as const;
+export const READY_MODULES = ["match", "schedule", "statistics", "player", "team", "bet", "prediction", "admin", "account", "public"] as const;
+export const READY_PHASES = ["primary", "advanced", "form"] as const;
+export interface MeasurementContext {
+  v: 1; navigationId: string; clientRelease: string;
+  visibility: "visible" | "hidden";
+  lifecycle?: { navigationType: "hard" | "soft" | "bfcache" | "prerender" | "unknown"; startedHidden: boolean; resumed: boolean; startMs: number; activationMs: number };
+
+}
 export interface TelemetryEvent {
+  clientError?: { fingerprint?: string; source: "window_error" | "unhandled_rejection" | "boundary"; category: "TypeError" | "RangeError" | "ReferenceError" | "SyntaxError" | "Error" | "unknown" };
+  measurement?: MeasurementContext;
+  ready?: { module: typeof READY_MODULES[number]; phase: typeof READY_PHASES[number] };
   id: string; at: number; session: string; route: string; scene: Scene;
-  kind: "page" | "filter" | "operation" | "error" | "performance";
+  kind: "page" | "filter" | "operation" | "error" | "performance" | "ready";
   metricName?: typeof PERFORMANCE_METRICS[number];
   score?: number;
   client?: ClientContext;
@@ -27,7 +38,7 @@ export interface Ticket {
   v: 1; id: string; account: string | null; role: Role; release: string;
   environment: "preview" | "production"; origin: string; exp: number;
 }
-export interface Bootstrap { endpoint: string; ticket: string; identity: string; expiresAt: number }
+export interface Bootstrap { endpoint: string; ticket: string; identity: string; expiresAt: number; measurementVersion?: 1 }
 
 /** Exact route templates only: invitation tokens, slugs and arbitrary 404 paths never leave the page. */
 export function routeTemplate(pathname: string): string {
@@ -69,7 +80,7 @@ const operationSet = new Set<string>(OPERATIONS);
 const routes = new Set<string>([...ROUTES, "/unknown"]);
 const allowedErrors = new Set<string>([...Object.values(ErrorCode), "UNCLASSIFIED", "INVALID_RESULT", "TRANSPORT_OR_THROW", "CLIENT_UNHANDLED"]);
 export const VARIANTS = ["join", "stake", "enable", "pause", "resume", "retry", "close", "void", "pick_save", "pick_submit", "result", "bp", "ban", "pick", "side_pick", "role_select"] as const;
-const fields = new Set(["id", "at", "session", "route", "scene", "kind", "phase", "operation", "operationId", "durationMs", "errorCode", "requestId", "navigation", "filters", "eventId", "outcome", "variant", "metricName", "score", "client"]);
+const fields = new Set(["id", "at", "session", "route", "scene", "kind", "phase", "operation", "operationId", "durationMs", "errorCode", "requestId", "navigation", "filters", "eventId", "outcome", "variant", "metricName", "score", "client", "measurement", "ready", "clientError"]);
 /** Receiver rejects unknown fields instead of persisting arbitrary client objects. */
 export function validEvent(value: unknown, now: number): value is TelemetryEvent {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -78,9 +89,23 @@ export function validEvent(value: unknown, now: number): value is TelemetryEvent
   if (typeof e.id !== "string" || !UUID.test(e.id) || typeof e.session !== "string" || !UUID.test(e.session)) return false;
   if (typeof e.at !== "number" || !Number.isInteger(e.at) || e.at < now - LIMITS.ageMs || e.at > now + 60000) return false;
   if (!routes.has(String(e.route)) || !["major", "rivals", "other", "site"].includes(String(e.scene))) return false;
-  if (!["page", "filter", "operation", "error", "performance"].includes(String(e.kind))) return false;
+  if (!["page", "filter", "operation", "error", "performance", "ready"].includes(String(e.kind))) return false;
   if (e.kind !== "operation" && ["operation", "operationId", "phase", "outcome", "variant"].some(key => e[key] !== undefined)) return false;
-  if (e.kind !== "operation" && e.kind !== "performance" && e.durationMs !== undefined) return false;
+  if (e.kind !== "operation" && e.kind !== "performance" && e.kind !== "ready" && e.durationMs !== undefined) return false;
+  if (e.clientError !== undefined) {
+    const c = e.clientError as NonNullable<TelemetryEvent["clientError"]>;
+    if (e.kind !== "error" || !c || typeof c !== "object" || Array.isArray(c) || !["category,source", "category,fingerprint,source"].includes(Object.keys(c).sort().join()) || (c.fingerprint !== undefined && (typeof c.fingerprint !== "string" || !/^s1:[0-9a-f]{16}$/.test(c.fingerprint))) || !["window_error", "unhandled_rejection", "boundary"].includes(c.source) || !["TypeError", "RangeError", "ReferenceError", "SyntaxError", "Error", "unknown"].includes(c.category)) return false;
+  }
+  if (e.measurement !== undefined) {
+    const m = e.measurement as MeasurementContext;
+    if (!m || typeof m !== "object" || Array.isArray(m) || !["clientRelease,navigationId,v,visibility", "clientRelease,lifecycle,navigationId,v,visibility"].includes(Object.keys(m).sort().join()) || m.v !== 1 || !UUID.test(String(m.navigationId)) || typeof m.clientRelease !== "string" || !/^[A-Za-z0-9._-]{1,80}$/.test(m.clientRelease) || !["visible", "hidden"].includes(m.visibility)) return false;
+  }
+  const lifecycle = (e.measurement as MeasurementContext | undefined)?.lifecycle;
+  if (lifecycle !== undefined && (!lifecycle || typeof lifecycle !== "object" || Array.isArray(lifecycle) || Object.keys(lifecycle).sort().join() !== "activationMs,navigationType,resumed,startMs,startedHidden" || !["hard", "soft", "bfcache", "prerender", "unknown"].includes(lifecycle.navigationType) || typeof lifecycle.startedHidden !== "boolean" || typeof lifecycle.resumed !== "boolean" || ![lifecycle.startMs, lifecycle.activationMs].every(value => typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 86400000))) return false;
+  if (e.kind === "ready") {
+    const r = e.ready as TelemetryEvent["ready"];
+    if (!r || typeof r !== "object" || Array.isArray(r) || Object.keys(r).sort().join() !== "module,phase" || !(READY_MODULES as readonly string[]).includes(r.module) || !(READY_PHASES as readonly string[]).includes(r.phase) || e.durationMs === undefined || e.measurement === undefined) return false;
+  } else if (e.ready !== undefined) return false;
   if (e.kind === "performance") {
     if (!(PERFORMANCE_METRICS as readonly string[]).includes(String(e.metricName))) return false;
     if (e.metricName === "CLS") {

@@ -21,6 +21,6 @@ export async function telemetryBootstrap(viewer: { userId: string; isAdmin: bool
       role: viewer?.isSuperAdmin ? "super_admin" : viewer?.isAdmin ? "season_admin" : viewer ? "user" : "anonymous",
       release, environment: environment as Ticket["environment"], origin, exp: Date.now() + 86400000,
     };
-    return { endpoint: endpoint.href, ticket: await signTicket(ticket, secret), identity: ticket.account ?? "anonymous", expiresAt: ticket.exp };
+    return { ...(process.env.PRODUCT_TELEMETRY_MEASUREMENT_V1 === "1" ? { measurementVersion: 1 as const } : {}), endpoint: endpoint.href, ticket: await signTicket(ticket, secret), identity: ticket.account ?? "anonymous", expiresAt: ticket.exp };
   } catch { return null; }
 }
