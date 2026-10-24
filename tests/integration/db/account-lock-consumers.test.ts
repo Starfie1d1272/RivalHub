@@ -60,10 +60,10 @@ it("takes the season fence before roster/match/map children for confirm, save, c
     await db.update(schema.seasons).set({ status: "archived" }).where(eq(schema.seasons.id, f.seasonId));
     const snapshot = await getOperatorScoreboardSnapshot(f.mapOneId);
     if (!snapshot.success) throw new Error("fixture scoreboard unavailable");
-    expect(await underFence(() => savePlayerStats(f.mapOneId, { operationId: randomUUID(), expectedVersion: snapshot.data.version, rows: [] }))).toMatchObject({ success: true });
+    expect(await underFence(() => savePlayerStats(f.mapOneId, { operationId: randomUUID(), expectedActor: state.actorId, expectedVersion: snapshot.data.version, rows: [] }))).toMatchObject({ success: true });
     const saved = await getOperatorScoreboardSnapshot(f.mapOneId);
     if (!saved.success) throw new Error("fixture saved scoreboard unavailable");
-    expect(await underFence(() => deletePlayerStatsByMap(f.mapOneId, { operationId: randomUUID(), expectedVersion: saved.data.version }))).toMatchObject({ success: true });
+    expect(await underFence(() => deletePlayerStatsByMap(f.mapOneId, { operationId: randomUUID(), expectedActor: state.actorId, expectedVersion: saved.data.version }))).toMatchObject({ success: true });
     expect(await underFence(() => castMatchMvpVote(f.matchId, state.actorId))).toMatchObject({ success: true });
     await db.update(schema.matches).set({ mvpWinnerUserId: state.actorId }).where(eq(schema.matches.id, f.matchId));
     expect(await castMatchMvpVote(f.matchId, state.actorId)).toMatchObject({ success: false, error: { code: "MATCH_INVALID_TRANSITION" } });
