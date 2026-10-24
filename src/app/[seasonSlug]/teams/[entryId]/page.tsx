@@ -4,7 +4,7 @@ import { TeamMapProfile } from "@/components/teams/TeamMapProfile";
 import { TeamWorkspace, TeamRosterMapContext } from "@/components/stats/teams/TeamWorkspace";
 import { safeStatsReturn } from "@/lib/stats/return-context";
 import type { StatsSearch } from "@/lib/stats/view-state";
-import { connection } from "next/server";
+import { io } from "next/cache";
 import { Suspense } from "react";
 import { StatsReturnLink } from "@/components/stats/StatsNavigationContext";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
@@ -22,7 +22,7 @@ export default function CompetitionEntryDetailPage(props: { params: Promise<{ se
   return <Suspense fallback={<PageLayout variant="wide"><p role="status">正在加载…</p></PageLayout>}><CompetitionEntryDetailPageContent {...props} /></Suspense>;
 }
 export async function CompetitionEntryDetailPageContent({ params, searchParams }: { params: Promise<{ seasonSlug: string; entryId: string }>; searchParams?: Promise<StatsSearch> }) {
-  await connection();
+  await io();
   const [{ seasonSlug, entryId }, rawSearch] = await Promise.all([params, searchParams ?? Promise.resolve({} as StatsSearch)]);
   const fromStats = safeStatsReturn(typeof rawSearch.fromStats === "string" ? rawSearch.fromStats : null);
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);

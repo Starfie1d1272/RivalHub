@@ -21,8 +21,10 @@ import {
   getTournamentStats,
   getTournamentTeamDetail,
   type TournamentStatsScope,
+  type PlatformStatsScope,
 } from "./tournament-query";
 
+type TournamentViewScope = TournamentStatsScope & Pick<PlatformStatsScope, "view" | "mapDetail" | "weaponTeamId">;
 type Visibility = "public" | "draft";
 type PlayerCareerScope = Parameters<typeof getPlayerCareerDetail>[0];
 type TeamScope = Parameters<typeof getTournamentTeamDetail>[0];
@@ -64,7 +66,7 @@ function statsCachePolicy(): void {
   cacheLife({ stale: 60, revalidate: 3600, expire: 86400 });
 }
 
-async function cachedTournamentStats(scope: TournamentStatsScope) {
+async function cachedTournamentStats(scope: TournamentViewScope) {
   "use cache: remote";
   statsCachePolicy();
   return traceOperation("stats.public.read", { scope: "statistics", operation: "tournament" }, () => getTournamentStats(scope));
@@ -83,11 +85,12 @@ async function cachedTournamentMap(scope: MapScope) {
 }
 
 /** Entrypoints authorize draft access before calling; draft results never enter the remote cache. */
-export async function getPublicTournamentStats(scope: TournamentStatsScope, visibility: Visibility) {
+export async function getPublicTournamentStats(scope: TournamentViewScope, visibility: Visibility) {
   if (visibility === "draft") return getTournamentStats(scope);
   const season = await requirePublicSeason(scope.seasonId);
   if (scope.teamFilter) await requirePublicEntry(scope.seasonId, scope.teamFilter);
-  return cachedTournamentStats(await normalizeScope(scope, season));
+  if (scope.weaponTeamId) await requirePublicEntry(scope.seasonId, scope.weaponTeamId);
+  return cachedTournamentStats({ ...await normalizeScope(scope, season), view: scope.view, mapDetail: scope.mapDetail, weaponTeamId: scope.weaponTeamId });
 }
 
 export async function getPublicTournamentTeamDetail(scope: TeamScope, visibility: Visibility) {

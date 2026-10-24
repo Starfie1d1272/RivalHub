@@ -1,6 +1,6 @@
 import { getPublicCompetitionEntryDirectory } from "@/lib/competition-entries/public-directory";
 import Link from "next/link";
-import { connection } from "next/server";
+import { io } from "next/cache";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
 import { ParticipantDirectoryToolbar } from "@/components/season/ParticipantDirectoryToolbar";
 import { parseParticipantDirectoryQuery, matchesDirectorySearch } from "@/lib/players/directory-query";
@@ -17,7 +17,7 @@ export default function CompetitionEntriesPage(props: { params: Promise<{ season
   return <Suspense fallback={<PageLayout variant="wide" aria-busy="true"><span className="sr-only">正在加载参赛阵容…</span><div className="h-28" /><div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{[0, 1, 2, 3, 4, 5, 6, 7].map(index => <div key={index} className="h-64 animate-pulse border border-[var(--color-border)] bg-[var(--color-panel-low)]" />)}</div></PageLayout>}><CompetitionEntriesPageContent {...props} /></Suspense>;
 }
 export async function CompetitionEntriesPageContent({ params, searchParams }: { params: Promise<{ seasonSlug: string }>; searchParams?: Promise<{ q?: string }> }) {
-  await connection();
+  await io();
   const { seasonSlug } = await params;
   const { q } = parseParticipantDirectoryQuery(await searchParams);
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
