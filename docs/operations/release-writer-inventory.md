@@ -9,9 +9,10 @@ Keep output private; never publish argv, environment, cron bodies or SQL text.
 | --- | --- |
 | Actions, Mizar, identity merge and domain HTTP writes | Installer stops the complete `rivalhub-production` unit. |
 | pg_cron / Actions watchdog | `cron.yml` sends HTTP wake-ups; stopped service prevents business execution. |
-| Migration, competitive-profile repair apply, Steam backfill apply, stats-projection backfill apply, scheduler provision | Current release prerequisites must finish before finalize; no second run/terminal may execute these protected wrappers. |
+| Migration, competitive-profile repair apply, Steam backfill apply, stats-projection backfill apply | Current release prerequisites must finish before finalize; no second run/terminal may execute these protected wrappers. |
+| Scheduler provision/verify | The current release runs this **after** candidate identity succeeds, from its immutable source. Hold independent/old-source provision calls; do not demand this post-deploy step finish before finalize. |
 | Manual psql, import, recovery restore, custom script | Record owner, host, PID/run; finish/stop through its existing owner and hold admission closed. |
-| Backup, verify, coverage, identity-merge-preflight | Read-only but may hold transactions; finish conflicting work before outage. |
+| Backup, verify, coverage, Steam remediation, identity-merge-preflight | Read-only but may hold transactions; finish conflicting work before outage. |
 
 `db:production:identity-merge-preflight` is read-only; package.json has no canonical
 standalone identity-merge apply CLI. Do not invent such a writer. Finalize's
