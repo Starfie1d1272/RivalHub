@@ -321,14 +321,13 @@
   ],
   "integrationBase": "7b619d2b17ef7c089184b922991ce312404fb9c3",
   "betDependency": "a94b96ef5be2857c6518b460deedfcb3623437c4",
-  "dependencies": {
-    "playInSwissPR1096": "dbb5eb8124fc5e52053f951c4f48fd11f0979dfb"
-  },
-  "codeBase": "c0d49610bd7a95ec8b529a48a3d7eaf7c1d1beb8",
+  "dependencies": {},
+  "codeBase": "6867f2346b254eb06e233d6ed4b0ebd5e2767bbe",
   "resolvedDependencies": {
     "accounts": "main7f1b9d5a",
     "stats": "main051ab5c7",
-    "public": "main7b619d2b"
+    "public": "main7b619d2b",
+    "playInSwiss": "main6867f234"
   },
   "tasks": [
     {
@@ -345,10 +344,11 @@
     },
     {
       "id": "A-WB-5-playin-swiss",
-      "status": "implemented_tested_pending_dependency_merge",
+      "status": "implemented_tested",
       "consumer": "operator roomGuide record/stageName only",
       "owner": "public canonical qualification-stage-read-model",
-      "evidence": "operator-context已直接消费#1096窄reader；main7b619d2b+ b820d4b6临时集成type/PG22例通过"
+      "evidence": "正式分支已接入canonical窄API，scope与完整seed/pairing规则不变；正式main9个PG文件22例含Play-in三例通过",
+      "dependency": "merged main6867f234"
     },
     {
       "id": "A-WB-5-commentary",

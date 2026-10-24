@@ -1,5 +1,5 @@
 {
-  "base": "c0d49610bd7a95ec8b529a48a3d7eaf7c1d1beb8",
+  "base": "6867f2346b254eb06e233d6ed4b0ebd5e2767bbe",
   "files": [
     ".changeset/admin-windowed-lists.md",
     "docs/archive/performance-admin-followup-2026-10-24/README.md",
@@ -46,10 +46,8 @@
     "tests/integration/db/admin-swiss-record.test.ts",
     "tests/integration/db/demo-import-egress.test.ts"
   ],
-  "dependencies": {
-    "playinReader": "dbb5eb8124fc5e52053f951c4f48fd11f0979dfb (#1096)"
-  },
-  "note": "候选领域代码仅在临时集成分支合入；本分支不复制它们。",
+  "dependencies": {},
+  "note": "accounts/stats/public/Play-in接口均已在main；本PR仅含后台consumer与本组投影，不复制领域owner文件。",
   "sharedTypeOnly": [
     "src/lib/standings.ts",
     "src/lib/matches/stage-standings.ts"
