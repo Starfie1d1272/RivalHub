@@ -54,7 +54,7 @@ describe("timing command CI boundary", () => {
         } });
       expect(result.status, result.stderr).toBe(1);
       expect(existsSync(join(dir, "launched"))).toBe(false);
-      expect(readFileSync(join(dir, "timing"), "utf8")).toContain('"failure":');
+      expect(readFileSync(join(dir, "timing"), "utf8")).toContain("CI execution budget exhausted before command start");
       expect(readFileSync(join(dir, "args"), "utf8")).toContain("repos/owner/repo/actions/runs/123/attempts/2/jobs?per_page=100");
     } finally { rmSync(dir, { force: true, recursive: true }); }
   });

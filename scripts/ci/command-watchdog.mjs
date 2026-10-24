@@ -20,12 +20,14 @@ function ownedProcesses(token) {
 }
 
 function signalOwned(token, child, signal) {
-  const pids = ownedProcesses(token).filter(pid => pid !== process.pid);
+  let pids = []; let failure;
+  try { pids = ownedProcesses(token).filter(pid => pid !== process.pid); } catch (error) { failure = error; }
   for (const pid of pids) {
-    try { process.kill(pid, signal); } catch (error) { if (error.code !== "ESRCH") throw error; }
+    try { process.kill(pid, signal); } catch (error) { if (error.code !== "ESRCH") failure ??= error; }
   }
-  // Also cover descendants that kept our group but removed the environment marker.
-  if (child.pid) try { process.kill(-child.pid, signal); } catch (error) { if (error.code !== "ESRCH") throw error; }
+  // Group cleanup remains available even if ownership enumeration fails.
+  if (child.pid) try { process.kill(-child.pid, signal); } catch (error) { if (error.code !== "ESRCH") failure ??= error; }
+  if (failure) throw failure;
   return pids.length;
 }
 

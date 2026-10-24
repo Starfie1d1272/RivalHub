@@ -87,7 +87,10 @@ async function runCommand(label, command, args, { cleanup = false, timeoutMs } =
     }
     const result = await runOwnedCommand(command, args, { timeoutMs,
       ownershipToken: env.RIVALHUB_CI_WATCHDOG_OWNER === "1" ? env.RIVALHUB_CI_COMMAND_TOKEN : undefined,
-      onTimeout: details => appendRecord({ kind: "command-failure", label, command, ...details, budget }),
+      onTimeout: details => {
+        console.error(`${label}: ${details.timedOut ? "execution deadline exceeded" : "command cancelled"}; terminating owned processes`);
+        appendRecord({ kind: "command-failure", label, command, ...details, budget });
+      },
     });
     record(label, performance.now() - started, { command, counts: parseTestCounts(result.output, env.RIVALHUB_TIMING_TEST_KIND),
       exitCode: result.exitCode, exitSignal: result.exitSignal, timedOut: result.timedOut, cancelled: result.cancelled,
