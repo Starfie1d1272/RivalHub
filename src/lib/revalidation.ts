@@ -6,6 +6,7 @@ import {
   PUBLIC_SEASON_CATALOG_TAG,
   PUBLIC_STATS_TAG,
   publicPlayerTag,
+  publicBetTag,
   publicAnnouncementsSeasonTag,
   publicSeasonTag,
   publicSeasonInfoTag,
@@ -127,4 +128,29 @@ export function revalidateMatchPaths(
   revalidatePath(`/admin/${slug}/test-matches`);
   revalidatePath("/my/competitions");
   revalidatePath(`/${slug}/matches/${matchId}`);
+}
+
+/** Postcommit BP-only path. Unknown/finished facts retain the global safety invalidation. */
+export function revalidateVetoRoomPaths(
+  context: { slug: string; seasonId: string; matchId: string; matchStatus: string },
+  receipt: { changed: boolean; affectedFacts?: readonly string[] },
+  options: RevalidationOptions = {},
+): void {
+  if (!receipt.changed) return;
+  const facts = receipt.affectedFacts;
+  // Legacy veto receipts also include map-plan completion/rebuild. Those maps
+  // feed warm statistics selection/options even before a match is finished.
+  // Only the canonical veto_step fact proves that no map-plan rewrite occurred;
+  // legacy veto/map_plan and unknown facts always retain the broad safety tag.
+  const nonHistorical = (context.matchStatus === "scheduled" || context.matchStatus === "in_progress")
+    && Array.isArray(facts) && facts.length > 0 && facts.every(fact => ["lineups", "appeals", "veto_step"].includes(fact));
+  revalidateMatchPaths(context.slug, context.matchId, {
+    mode: options.mode,
+    // statistics:true is the explicit emergency fallback; never bypass unknown facts.
+    statistics: !nonHistorical || options.statistics === true,
+  });
+  // The public BET snapshot includes live BP support/market facts. Unlike the
+  // generic route SWR tags this must expire before the next authoritative read.
+  if (options.mode === "route") revalidateTag(publicBetTag(context.seasonId), { expire: 0 });
+  else updateTag(publicBetTag(context.seasonId));
 }
