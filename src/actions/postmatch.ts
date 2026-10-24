@@ -11,11 +11,30 @@ import { addMatchCommentatorInTx, cancelMatchCommentaryInTx, claimMatchCommentar
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { isHttpUrl } from "@/lib/external-url";
+import { captureException, traceOperation } from "@/lib/observability/server";
 import { revalidateMatchPaths } from "@/lib/revalidation";
 const uuid = z.guid();
 const url = z.string().trim().max(2000).refine(isHttpUrl, "录像链接必须是 http 或 https URL");
-async function matchAndAdminOrThrow(matchId: string) { const match = await db.query.matches.findFirst({ where: eq(matches.id, matchId), columns: { id: true, seasonId: true } }); if (!match || !match.seasonId) throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。"); const season = await db.query.seasons.findFirst({ where: eq(seasons.id, match.seasonId), columns: { slug: true } }); if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在。"); return { match, season, admin: await requireSeasonAdmin(match.seasonId) }; }
-async function run(matchId: string, work: (actorId: string) => Promise<void>): Promise<ActionResult<void>> { try { const { match, season, admin } = await matchAndAdminOrThrow(matchId); await work(auditActorId(admin)); revalidateMatchPaths(season.slug, match.id, { statistics: false }); return ok(undefined); } catch (error) { return actionError("postmatch", error); } }
+async function matchAndAdminOrThrow(matchId: string) {
+  const [row] = await db.select({ id: matches.id, seasonId: matches.seasonId, slug: seasons.slug })
+    .from(matches).leftJoin(seasons, eq(seasons.id, matches.seasonId)).where(eq(matches.id, matchId)).limit(1);
+  if (!row?.seasonId) throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。");
+  if (!row.slug) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在。");
+  return { match: { id: row.id, seasonId: row.seasonId }, season: { slug: row.slug }, admin: await requireSeasonAdmin(row.seasonId) };
+}
+async function run(matchId: string, work: (actorId: string) => Promise<void>): Promise<ActionResult<{ refreshPending: boolean }>> {
+  try {
+    const { match, season, admin } = await matchAndAdminOrThrow(matchId);
+    await traceOperation("postmatch.commit", { scope: "action", operation: "postmatch.commit" }, () => work(auditActorId(admin)));
+    let refreshPending = false;
+    try { revalidateMatchPaths(season.slug, match.id, { statistics: false }); }
+    catch (error) {
+      refreshPending = true;
+      captureException("action.postmatch_refresh_failure", error, { scope: "action", operation: "postmatch.refresh" });
+    }
+    return ok({ refreshPending });
+  } catch (error) { return actionError("postmatch", error); }
+}
 export async function addMatchCommentator(input: unknown) { const p = z.object({ matchId: uuid, userId: uuid }).safeParse(input); return p.success ? run(p.data.matchId, async (actorId) => { await db.transaction((tx) => addMatchCommentatorInTx(tx, { ...p.data, actorId })); }) : failValidation("解说参数无效。"); }
 export async function claimMatchCommentary(input: unknown): Promise<ActionResult<void>> {
   const parsed = z.object({ matchId: uuid }).strict().safeParse(input);

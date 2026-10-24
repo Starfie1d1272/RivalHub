@@ -29,17 +29,28 @@ export function ResetPasswordForm() {
       return;
     }
     startTransition(async () => {
+      let submitted = false;
+      let committed = false;
+      try {
       const supabase = createBrowserClient();
       const { data } = await supabase.auth.getSession();
+      submitted = true;
       const result = await resetUserPassword(data.session?.access_token ?? "", password);
       if (!result.success) {
         if (result.error.code === "PASSWORD_UPDATE_OUTCOME_UNKNOWN") setRecoveryGuidance(result.error.message);
         toast.error(result.error.message);
       } else {
+        committed = true;
         await supabase.auth.signOut({ scope: "local" });
         toast.success("密码已重置，所有旧登录已退出，请用新密码登录");
         router.replace("/login");
         router.refresh();
+      }
+      } catch {
+        if (submitted) setRecoveryGuidance(committed
+          ? "密码更新已确认，本地退出或导航未完成。请停止提交并关闭此页面；如登录受阻，请联系平台管理员。"
+          : "密码更新结果尚未确认。请停止提交，勿重复重置或尝试新旧密码；联系平台管理员核查账号服务与安全状态。");
+        else toast.error("无法读取密码恢复会话，请检查网络后重新打开恢复链接。");
       }
     });
   };
