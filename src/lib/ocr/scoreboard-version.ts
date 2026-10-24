@@ -23,6 +23,6 @@ export function scoreboardVersion(mapId: string, rows: readonly ScoreboardVersio
   return digest({ scope: "operator-scoreboard-v1", mapId, rows: [...rows].sort((a, b) => a.id.localeCompare(b.id)) });
 }
 export function scoreboardPayloadDigest(mapId: string, operation: ScoreboardOperation, command: ScoreboardCommand, rows: readonly { userId: string | null }[] = []): string {
-  return digest({ scope: "operator-scoreboard-command-v1", mapId, operation, expectedVersion: command.expectedVersion,
+  return digest({ scope: "operator-scoreboard-command-v1", mapId, operation, expectedVersion: command.expectedVersion, expectedActor: command.expectedActor,
     rows: [...rows].sort((a, b) => (a.userId ?? "").localeCompare(b.userId ?? "")) });
 }

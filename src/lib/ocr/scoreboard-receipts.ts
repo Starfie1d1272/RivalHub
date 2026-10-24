@@ -10,6 +10,10 @@ export class ScoreboardConflict extends AppError {
     super(ErrorCode.VALIDATION_FAILED, message);
   }
 }
+/** Fresh request authorization must agree with the snapshot/locator owner. */
+export function assertScoreboardActor(expectedActor: string, actualActor: string): void {
+  if (expectedActor !== actualActor) throw new AppError(ErrorCode.FORBIDDEN, "登录身份已变化，请重新读取计分板后再操作。");
+}
 /** Internal table contract coordinated by W03; no raw input/image persistence. */
 export async function findScoreboardReceipt(executor: DB | TxDb, actorUserId: string, operationId: string): Promise<ReceiptRow | null> {
   const result = await executor.execute<ReceiptRow>(sql`select actor_user_id as "actorUserId", operation_id as "operationId", map_id as "mapId",

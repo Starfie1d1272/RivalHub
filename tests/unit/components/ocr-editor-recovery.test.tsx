@@ -169,7 +169,7 @@ it("releases busy ownership after an in-flight recovery is superseded by initial
 
 it("does not restore another actor's persisted operation", async () => {
   const { rememberScoreboardOperation } = await import("@/lib/ocr/scoreboard-recovery");
-  rememberScoreboardOperation({ mapId: "map", actorScope: "00000000-0000-4000-8000-000000000099", operationId: crypto.randomUUID(), operation: "clear", expectedVersion: "a".repeat(64) });
+  rememberScoreboardOperation({ mapId: "map", actorScope: "00000000-0000-4000-8000-000000000099", expectedActor: "00000000-0000-4000-8000-000000000099", operationId: crypto.randomUUID(), operation: "clear", expectedVersion: "a".repeat(64) });
   mocks.read.mockResolvedValue({ success: true, data: { rows: [saved], version: "b".repeat(64), actorScope: saved.userId } });
   render(<StatsOCRPanel mapId="map" mapName="de_mirage" initialRows={[saved]} />);
   await waitFor(() => expect(mocks.read).toHaveBeenCalled());
@@ -188,4 +188,39 @@ it("does not send a write if its non-sensitive recovery locator cannot be persis
     expect(await screen.findByText(/操作恢复编号无法保存/)).toBeVisible();
     expect(mocks.save).not.toHaveBeenCalled();
   } finally { unavailable.mockRestore(); }
+});
+
+it("binds the submitted command to the editor actor and clears a known actor rejection", async () => {
+  mocks.save.mockResolvedValue({ success: false, error: { code: "FORBIDDEN", message: "登录身份已变化" } });
+  const user = userEvent.setup();
+  render(<StatsOCRPanel mapId="map" mapName="de_mirage" initialRows={[saved]} />);
+  await user.click(screen.getByRole("button", { name: "重新录入" }));
+  await user.click(await screen.findByRole("button", { name: "确认保存" }));
+  expect(await screen.findByText("登录身份已变化")).toBeVisible();
+  expect(mocks.save).toHaveBeenCalledWith("map", expect.objectContaining({ expectedActor: saved.userId }));
+  expect(localStorage.length).toBe(0);
+});
+
+it("serializes a deferred OCR with save so its late result cannot overwrite an unknown submission", async () => {
+  let finishOCR!: (result: unknown) => void;
+  mocks.extract.mockReturnValue(new Promise(resolve => { finishOCR = resolve; }));
+  mocks.save.mockRejectedValue(new TypeError("lost ACK"));
+  const user = userEvent.setup();
+  render(<StatsOCRPanel mapId="map" mapName="de_mirage" initialRows={[saved]} />);
+  await user.click(screen.getByRole("button", { name: "重新录入" }));
+  await user.upload(screen.getByLabelText("记分板截图"), new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], "synthetic.png", { type: "image/png" }));
+  await user.click(screen.getByRole("button", { name: "OCR 识别截图" }));
+  await waitFor(() => expect(mocks.extract).toHaveBeenCalledOnce());
+  const save = screen.getByRole("button", { name: "确认保存" });
+  expect(save).toBeDisabled();
+  await user.click(save);
+  expect(mocks.save).not.toHaveBeenCalled();
+  await act(async () => finishOCR({ success: true, data: { drafts: [{ ...saved, ratingPro: 9 }], playerOptions: [{ userId: saved.userId, perfectName: saved.perfectName }], snapshot: { rows: [saved], version: "a".repeat(64), actorScope: saved.userId } } }));
+  const rating = screen.getByLabelText("Retained player Rating");
+  await user.clear(rating);
+  await user.type(rating, "1.2");
+  await user.click(save);
+  await screen.findByText("提交结果待核对；当前草稿和操作编号已保留。");
+  expect(rating).toHaveValue(1.2);
+  expect(mocks.save).toHaveBeenCalledOnce();
 });
