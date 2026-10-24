@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { getOfficialUpcomingMatches, getQualificationMatchProgress } from "@/lib/seasons/overview-read-model";
 import { getOfficialSeasonMatchSummary } from "@/lib/matches/read-official";
 import { getApprovedCompetitionEntryCount } from "@/lib/competition-entries/counts";
@@ -186,6 +187,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
 
   return (
     <PageLayout variant="wide" className="space-y-5">
+      <ContentReady module="public" phase="primary" />
       <section aria-labelledby="season-title" className="home-event-hero relative overflow-hidden rounded-[var(--radius-display)] border border-[var(--color-border)] px-5 py-5 sm:px-7">
         <div className="relative z-10 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div className="min-w-0">

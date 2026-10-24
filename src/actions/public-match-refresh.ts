@@ -1,5 +1,6 @@
 "use server";
 
+import { traceOperation } from "@/lib/observability/server";
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -27,7 +28,7 @@ export async function readPublicMatchRefreshToken(input: unknown): Promise<Actio
       });
       if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
     }
-    return ok(await loadPublicMatchRefreshToken(season.id, scope));
+    return ok(await traceOperation("match.refresh", { scope: "match", operation: "public_token", stage: "read" }, () => loadPublicMatchRefreshToken(season.id, scope)));
   } catch (error) {
     return actionError("readPublicMatchRefreshToken", error);
   }

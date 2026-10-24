@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { getPublicDraftSummary } from "@/lib/draft/data";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import Link from "next/link";
@@ -82,6 +83,7 @@ async function HomeContent() {
 
   return (
     <PageLayout variant="wide" className="grid gap-7">
+      <ContentReady module="public" phase="primary" />
       <HomeHero
         season={featured}
         eyebrow={eyebrow}

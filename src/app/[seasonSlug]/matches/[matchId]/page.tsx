@@ -1,3 +1,5 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
+import { traceOperation } from "@/lib/observability/server";
 import MatchDetailLoading from "./loading";
 import { hasMatchRecording } from "@/lib/postmatch/recording-types";
 import { MatchRecordings } from "@/components/matches/MatchRecordings";
@@ -74,7 +76,7 @@ import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { supportsRegistrationPositionDirectory } from "@/lib/players/directory-query";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { getPublicMatchPlayerDetail } from "@/lib/stats/cached-query";
+import { getPublicMatchPlayerDetail, getPublicMatchMvpSummary } from "@/lib/stats/cached-query";
 import { readOptionalPublicStats } from "@/lib/stats/availability";
 import { PlayerWorkspace } from "@/components/stats/players/PlayerWorkspace";
 
@@ -126,7 +128,7 @@ export default function MatchDetailPage(props: MatchDetailPageProps) {
 }
 
 async function MatchDetailShell({ params, searchParams }: MatchDetailPageProps) {
-  const core = await loadMatchCore(params);
+  const core = await traceOperation("match.core", { scope: "match", operation: "detail_core", stage: "read" }, () => loadMatchCore(params));
   const { seasonSlug, season, match, teamA, teamB, maps } = core;
   return <PageLayout variant="wide" className="space-y-8">
     {match.testConfig && <p className="text-sm text-[var(--color-fg-mid)]">测试赛 · 不计入正式赛程与统计</p>}
@@ -144,7 +146,7 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
   const statsQuery = await searchParams;
   const mapPool = match.testConfig?.mapPool ?? normalizeRegistrationConfig(season.registrationConfig).mapPool;
   const preAnalysisRead = match.status !== "finished"
-    ? loadMatchPreAnalysis(season.id, match.entryAId, match.entryBId, mapPool) : Promise.resolve(null);
+    ? traceOperation("match.scouting", { scope: "match", operation: "scouting", stage: "read" }, () => loadMatchPreAnalysis(season.id, match.entryAId, match.entryBId, mapPool)) : Promise.resolve(null);
   const [publicContext, userSession] = await Promise.all([loadPublicMatchPhase(match, maps), getUserSession()]);
   const adminRead = userSession && (match.status === "scheduled" || match.status === "in_progress") ? requireSeasonAdmin(season.id).then(() => true).catch(error => {
     if (!isExpectedAuthFailure(error)) throw error;
@@ -237,7 +239,7 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
     userIdToMember.set(member.userId, member);
   }
 
-  const scoreboardRead = needScoreboard ? loadMatchScoreboard(match, maps, userIdToTeamId) : Promise.resolve(null);
+  const scoreboardRead = needScoreboard ? traceOperation("match.scoreboard", { scope: "match", operation: "scoreboard", stage: "read" }, () => loadMatchScoreboard(match, maps, userIdToTeamId)) : Promise.resolve(null);
 
   // 队长 / 管理员权限检查
   let isCaptainA = false;
@@ -467,7 +469,9 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
             <Panel contentClassName="p-0 overflow-hidden">
-              <Suspense fallback={<div role="status" className="min-h-64 p-4">阵容对照加载中…</div>}>
+              <Suspense fallback={<div aria-busy="true" className="min-h-64 p-4"><p role="status">生涯对照加载中…</p>
+                <MatchRosterView entryAId={match.entryAId} entryBId={match.entryBId} teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} teamARoster={teamARoster} teamBRoster={teamBRoster} />
+              </div>}>
                 <MatchLineupDetails
                   a={{ entryId: match.entryAId, name: teamA?.name ?? "队伍 A", logoUrl: teamA?.logoUrl ?? null, ...lineupA }}
                   b={{ entryId: match.entryBId, name: teamB?.name ?? "队伍 B", logoUrl: teamB?.logoUrl ?? null, ...lineupB }}
@@ -581,6 +585,7 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
 
       {isFinished && matchBet}
 
+      <ContentReady module="match" phase="primary" />
       {scoreboard && scoreboard.detailedPlayerIds.size > 0 && (
         <Suspense fallback={<section aria-label="详细统计" aria-busy="true" className="min-h-96"><p role="status">详细统计加载中…</p></section>}>
           <AdvancedMatchStats core={core} scoreboard={scoreboard} statsQuery={statsQuery} />
@@ -685,6 +690,7 @@ async function AdvancedMatchStats({ core, scoreboard, statsQuery }: {
             ))}
           </nav>
           <PlayerWorkspace detail={detailed} hideMaps />
+          <ContentReady module="match" phase="advanced" />
         </section>
       )}
   </>;
@@ -696,26 +702,25 @@ async function MatchMvpPanel({ core, candidates, userId, scoreboard }: {
 }) {
   const { seasonSlug, season, match } = core;
   const winnerHasDetail = match.mvpWinnerUserId !== null && scoreboard.detailedPlayerIds.has(match.mvpWinnerUserId);
-  const [votes, existingVote, winnerDetail] = await Promise.all([
+  const [votes, existingVote, winnerSummary] = await Promise.all([
     getMatchMvpResults(match.id),
     userId ? db.query.matchMvpVotes.findFirst({
       where: and(eq(matchMvpVotes.matchId, match.id), eq(matchMvpVotes.voterUserId, userId)),
       columns: { playerName: true },
     }) : Promise.resolve(null),
-    winnerHasDetail ? readOptionalPublicStats("match_player", async () => ({
-      detail: await loadPlayerDetail(match.id, match.mvpWinnerUserId!, undefined, season.status === "draft" ? "draft" : "public"),
-    })) : Promise.resolve(null),
+    winnerHasDetail ? readOptionalPublicStats("match_mvp", () => getPublicMatchMvpSummary(
+      match.id, match.mvpWinnerUserId!, season.status === "draft" ? "draft" : "public",
+    )) : Promise.resolve(null),
   ]);
-  const slice = winnerDetail?.detail?.performance?.slices.overall;
-  const winnerPerformance: MvpPerformance | null = slice ? {
-    playerId: match.mvpWinnerUserId!, rounds: slice.sample.rounds, kast: slice.kast,
-    trade: slice.trade.tradeKillsPerRound, utility: slice.utility.utilityDamagePerRound,
-    flashAssist: slice.utility.flashAssistsPerRound,
+  const winnerPerformance: MvpPerformance | null = winnerSummary ? {
+    playerId: match.mvpWinnerUserId!, rounds: winnerSummary.rounds, kast: winnerSummary.kast,
+    trade: winnerSummary.tradeKillsPerRound, utility: winnerSummary.utilityDamagePerRound,
+    flashAssist: winnerSummary.flashAssistsPerRound,
   } : null;
-  return <MatchMvpVote matchId={match.id} candidates={candidates} currentVotes={votes}
+  return <><MatchMvpVote matchId={match.id} candidates={candidates} currentVotes={votes}
     userVotedPlayerName={existingVote?.playerName ?? null} completedAt={match.completedAt?.toISOString() ?? null}
     winnerUserId={match.mvpWinnerUserId} winnerPerformance={winnerPerformance}
-    winnerDetailsHref={winnerHasDetail ? `/${seasonSlug}/matches/${match.id}?statsPlayer=${match.mvpWinnerUserId}#detailed-stats` : undefined} />;
+    winnerDetailsHref={winnerHasDetail ? `/${seasonSlug}/matches/${match.id}?statsPlayer=${match.mvpWinnerUserId}#detailed-stats` : undefined} /><ContentReady module="match" phase="form" /></>;
 }
 
 async function MatchLineupDetails({ a, b, matchId, cutoff, allowExpected }: {
@@ -724,10 +729,10 @@ async function MatchLineupDetails({ a, b, matchId, cutoff, allowExpected }: {
   matchId: string; cutoff: Date | null; allowExpected: boolean;
 }) {
   const careers = allowExpected || cutoff
-    ? await readOptionalPublicStats("match-lineup-comparison", () => getLineupCareers(
+    ? await readOptionalPublicStats("match-lineup-comparison", () => traceOperation("match.lineup", { scope: "match", operation: "lineup_career", stage: "read" }, () => getLineupCareers(
       [...new Set([...(a.players ?? []), ...(b.players ?? [])].filter(player => player.isStarter)
         .flatMap(player => player.userId ? [player.userId] : []))].sort(), matchId, cutoff?.toISOString() ?? null,
-    )) : [];
+    ))) : [];
   return <MatchLineupComparison a={a} b={b} careers={careers ?? []} historical={cutoff !== null} unavailable={careers === null} />;
 }
 

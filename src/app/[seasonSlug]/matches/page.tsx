@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { projectBracketDisplayScores } from "@/lib/bracket/display-scores";
 import { withDisplayScores } from "@/lib/matches/display-score-data";
 import { officialMatchCondition } from "@/lib/matches/scope";
@@ -83,6 +84,9 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
   ]);
   const bracketDataByStage = new Map(bracketState && selectedStage ? [[selectedStage.key, serializeStageBracket(bracketState)]] : []);
   const swissReadModels = new Map(swissEntries.filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null));
+  const selectedBracket = defaultStageKey ? bracketDataByStage.get(defaultStageKey) : null;
+  const waitsForBracket = (selectedStage?.type === "single_elim" || selectedStage?.type === "double_elim") &&
+    Boolean(selectedBracket?.stage.length && selectedBracket?.match.length);
   const teamMap = new Map(allTeams.map(team => [team.id, team.name]));
   const qualificationMatches = qualificationRun
     ? allMatches.filter((match) => match.qualificationRunId === qualificationRun.id &&
@@ -238,6 +242,7 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
                         <section className="space-y-3">
                           <h2 className="text-lg font-semibold text-[var(--color-fg)]">对阵图</h2>
                           <BracketView
+                            reportScheduleReady={waitsForBracket}
                             data={projectBracketDisplayScores(bracketData, allStageMatches)}
                             themeColor={season.themeColor}
                             matchNodeMap={matchNodeMap}
@@ -274,6 +279,7 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
           </div>
         </Panel>
       )}
+      {!waitsForBracket && <ContentReady module="schedule" phase="primary" />}
     </PageLayout>
   );
 }
