@@ -506,6 +506,7 @@ async function reconcileVetoSessionInTx(
   initialSession: VetoSession,
   now: Date,
   actorId = SYSTEM_ACTOR_ID,
+  initialSteps?: VetoStepRow[],
 ): Promise<VetoSession> {
   let session = await tryStartSessionInTx(tx, match, initialSession, now, actorId);
   let timedOutTurns = 0;
@@ -518,7 +519,7 @@ async function reconcileVetoSessionInTx(
   ) return session;
 
   for (let processed = 0; processed < MAX_RECONCILE_TURNS; processed += 1) {
-    const steps = await readStepsInTx(tx, match.id);
+    const steps = processed === 0 && initialSteps ? initialSteps : await readStepsInTx(tx, match.id);
     const turn = currentTurn(match, session, steps);
     if (!turn) {
       session = await completeMapPlanInTx(tx, match, session, steps, now);
@@ -967,8 +968,8 @@ export async function submitVetoCommand(input: {
   expectedTurnKey: string;
   clientRequestId: string;
   command: { kind: "role_select"; entryId: string } | { kind: "step"; actionType: VetoActionType; mapName?: string; side?: Side };
-}): Promise<VetoMutationOutcome> {
-  return db.transaction(async (tx) => {
+}, database: DB = db): Promise<VetoMutationOutcome> {
+  return database.transaction(async (tx) => {
     const receivedAt = await databaseNow(tx);
     const match = await lockMatchInTx(tx, input.matchId);
     await materializeDefaultLineupsInTx(tx, match);
@@ -982,8 +983,10 @@ export async function submitVetoCommand(input: {
       if (existingRequest) return "idempotent";
     }
 
-    session = await reconcileVetoSessionInTx(tx, match, session, receivedAt, input.actorId);
-    const steps = await readStepsInTx(tx, match.id);
+    const initialSteps = await readStepsInTx(tx, match.id);
+    const initialRevision = session.revision;
+    session = await reconcileVetoSessionInTx(tx, match, session, receivedAt, input.actorId, initialSteps);
+    const steps = session.revision === initialRevision ? initialSteps : await readStepsInTx(tx, match.id);
     const turn = currentTurn(match, session, steps);
     if (session.revision !== input.expectedRevision) {
       logStaleVetoCommand("revision");
@@ -1025,7 +1028,7 @@ export async function submitVetoCommand(input: {
         targetId: match.id,
         meta: { entryId: input.command.entryId },
       });
-      await reconcileVetoSessionInTx(tx, match, session, receivedAt, input.actorId);
+      await reconcileVetoSessionInTx(tx, match, session, receivedAt, input.actorId, steps);
       return "applied";
     }
 
@@ -1061,7 +1064,7 @@ export async function submitVetoCommand(input: {
     }
 
     const stepOrder = steps.reduce((max, step) => Math.max(max, step.stepOrder), 0) + 1;
-    await tx.insert(matchVetoSteps).values({
+    const [insertedStep] = await tx.insert(matchVetoSteps).values({
       matchId: match.id,
       stepOrder,
       actionType: turn.actionType,
@@ -1073,9 +1076,9 @@ export async function submitVetoCommand(input: {
       clientRequestId: input.clientRequestId,
       turnKey: turn.key,
       createdAt: receivedAt,
-    });
+    }).returning();
 
-    const afterSteps = await readStepsInTx(tx, match.id);
+    const afterSteps = [...steps, insertedStep!];
     const next = currentTurn(match, session, afterSteps);
     let sessionPatch: Partial<VetoSession> = { currentTurnKey: turn.key };
     if (!next) {
@@ -1097,7 +1100,7 @@ export async function submitVetoCommand(input: {
       targetId: match.id,
       meta: { actionType: turn.actionType, turnKey: turn.key },
     });
-    await reconcileVetoSessionInTx(tx, match, session, receivedAt, input.actorId);
+    await reconcileVetoSessionInTx(tx, match, session, receivedAt, input.actorId, afterSteps);
     return "applied";
   });
 }
