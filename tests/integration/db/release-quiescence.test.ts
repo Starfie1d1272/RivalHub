@@ -18,11 +18,12 @@ describe("release database writer drain", () => {
       writeFileSync(join(dir, "postgres-connection.ts"), readFileSync("src/db/postgres-connection.ts", "utf8")
         .replace('from "./supabase-ca"', 'from "./supabase-ca.ts"'));
       const run = promisify(execFile);
-      const result = await run(process.execPath, [join(dir, "production-quiescence.mjs"), process.cwd()], {
+      const args = [join(dir, "production-quiescence.mjs"), process.cwd(), join(dir, "postgres-connection.ts")];
+      const result = await run(process.execPath, args, {
         env: { NODE_ENV: "test", DATABASE_URL: localDatabaseUrl() }, timeout: 10_000,
       });
       expect(result.stdout).toContain("two server observations");
-      await expect(run(process.execPath, [join(dir, "production-quiescence.mjs"), process.cwd()], {
+      await expect(run(process.execPath, args, {
         env: { NODE_ENV: "test", DATABASE_URL: "postgresql://user:do-not-log-this@invalid.invalid/db" }, timeout: 10_000,
       })).rejects.toMatchObject({ stderr: expect.not.stringContaining("do-not-log-this") });
     } finally { rmSync(dir, { recursive: true, force: true }); }

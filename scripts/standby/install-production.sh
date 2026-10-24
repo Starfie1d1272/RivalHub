@@ -40,7 +40,7 @@ quiesce() {
   if [[ -n $active ]]; then
     [[ $active == releases/rivalhub-production-* && -f $config ]] || return 1
     env -i "$root/$active/runtime/node" --env-file="$config" \
-      "$script_dir/production-quiescence.mjs" "$root/$active" || return 1
+      "$script_dir/production-quiescence.mjs" "$root/$active" "$script_dir/postgres-connection.ts" || return 1
   fi
 }
 restore() {

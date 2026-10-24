@@ -37,7 +37,8 @@ async function main() {
   // additional credential is needed on the host. TLS tooling is uploaded by
   // linux-routing alongside this helper from the canonical connection owner.
   const { Client } = createRequire(`${root}/server.js`)('pg');
-  const { postgresConnection } = await import('./postgres-connection.ts');
+  if (!process.argv[3]) throw new Error('Canonical TLS tooling path required.');
+  const { postgresConnection } = await import(pathToFileURL(resolve(process.argv[3])).href);
   const client = new Client({ ...postgresConnection(process.env.DATABASE_URL),
     application_name: 'rivalhub-release-drain', connectionTimeoutMillis: 5_000,
     statement_timeout: 5_000, query_timeout: 6_000 });
