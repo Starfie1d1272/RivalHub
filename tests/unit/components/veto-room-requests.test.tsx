@@ -4,12 +4,14 @@ import { afterEach, expect, it, vi } from "vitest";
 import type { VetoRoomView } from "@/lib/matches/veto-room/read-model";
 const read = vi.hoisted(() => vi.fn());
 const send = vi.hoisted(() => vi.fn());
+const appealSubmit = vi.hoisted(() => vi.fn());
+const appealResolve = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/matches/veto-room/client", async original => ({ ...await original<typeof import("@/lib/matches/veto-room/client")>(), fetchVetoRoom: read, sendVetoInteraction: send }));
 vi.mock("@/components/telemetry/ContentReady", () => ({ ContentReady: () => null }));
 vi.mock("@/lib/telemetry/client", () => ({ observeAction: (_name: string, action: unknown) => action }));
 vi.mock("@/actions/matches/veto-room", () => ({
-  claimVetoRepresentativeAction: vi.fn(), pauseVetoRoomAction: vi.fn(), resolveVetoRoomAppeal: vi.fn(), resumeVetoRoomAction: vi.fn(),
-  rewindVetoRoomAction: vi.fn(), setManualVetoPrivilege: vi.fn(), submitVetoRoomAppeal: vi.fn(), updateVetoRepresentative: vi.fn(),
+  claimVetoRepresentativeAction: vi.fn(), pauseVetoRoomAction: vi.fn(), resolveVetoRoomAppeal: appealResolve, resumeVetoRoomAction: vi.fn(),
+  rewindVetoRoomAction: vi.fn(), setManualVetoPrivilege: vi.fn(), submitVetoRoomAppeal: appealSubmit, updateVetoRepresentative: vi.fn(),
 }));
 import { VetoRoom } from "@/components/matches/VetoRoom";
 const now = "2026-10-24T12:00:00.000Z";
@@ -90,4 +92,57 @@ it("keeps a confirmed commit distinct from a failed room refresh and waits for i
   await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
   expect(screen.queryByRole("button", { name: "由 A 先禁图" })).not.toBeInTheDocument();
   expect(send).toHaveBeenCalledOnce();
+});
+
+it.each(["lost", "internal", "committed-refresh-failed"] as const)("confirms a same-revision appeal submission after %s without replay", async fault => {
+  vi.useFakeTimers(); vi.setSystemTime(now);
+  Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+  const initial = room(1);
+  initial.session.paused = true;
+  initial.permissions.isAdmin = true; initial.permissions.canResume = true;
+  initial.incidents = [{ id: "incident-1", entryId: "a", entryName: "A", selected: [], selectedEntities: [], sourceLabel: "超时自动选择", appeal: null, mayAppeal: true }];
+  read.mockResolvedValue({ success: true, data: initial });
+  if (fault === "lost") appealSubmit.mockRejectedValueOnce(new Error("response lost"));
+  else if (fault === "internal") appealSubmit.mockResolvedValueOnce({ success: false, error: { code: "INTERNAL_ERROR", message: "projection unavailable" } });
+  else appealSubmit.mockResolvedValueOnce({ success: true, data: { outcome: "applied", room: null, refreshFailed: true } });
+  render(<VetoRoom initialRoom={initial} />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  fireEvent.change(screen.getByLabelText("申诉原因"), { target: { value: "fixture appeal reason" } });
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "提交申诉" })); });
+  expect(screen.getByRole("button", { name: "继续 BP" })).toBeDisabled();
+  const restored = structuredClone(initial);
+  restored.incidents[0]!.mayAppeal = false;
+  restored.incidents[0]!.appeal = { id: "appeal-1", status: "pending", statusLabel: "待裁定", submittedByViewer: true, resolvedByViewer: false, resolutionScope: null, reason: "fixture appeal reason", resolutionNote: null, mayResolve: true };
+  read.mockResolvedValue({ success: true, data: restored });
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "更新 BP 信息" })); });
+  expect(screen.getByRole("button", { name: "继续 BP" })).toBeEnabled();
+  expect(screen.getByText("申诉：fixture appeal reason")).toBeInTheDocument();
+  expect(appealSubmit).toHaveBeenCalledOnce();
+});
+
+it.each(["lost", "internal", "committed-refresh-failed"] as const)("confirms a same-revision rejected resolution after %s without replay", async fault => {
+  vi.useFakeTimers(); vi.setSystemTime(now);
+  Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+  const initial = room(1);
+  initial.session.paused = true;
+  initial.permissions.isAdmin = true; initial.permissions.canResume = true;
+  initial.incidents = [{ id: "incident-1", entryId: "a", entryName: "A", selected: [], selectedEntities: [], sourceLabel: "超时自动选择", mayAppeal: false,
+    appeal: { id: "appeal-1", status: "pending", statusLabel: "待裁定", submittedByViewer: true, resolvedByViewer: false, resolutionScope: null, reason: "fixture reason", resolutionNote: null, mayResolve: true } }];
+  read.mockResolvedValue({ success: true, data: initial });
+  if (fault === "lost") appealResolve.mockRejectedValueOnce(new Error("response lost"));
+  else if (fault === "internal") appealResolve.mockResolvedValueOnce({ success: false, error: { code: "INTERNAL_ERROR", message: "projection unavailable" } });
+  else appealResolve.mockResolvedValueOnce({ success: true, data: { outcome: "applied", room: null, refreshFailed: true } });
+  render(<VetoRoom initialRoom={initial} />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  fireEvent.change(screen.getByLabelText("处理说明"), { target: { value: "fixture decision note" } });
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "结束申诉（不恢复 BP）" })); });
+  expect(screen.getByRole("button", { name: "继续 BP" })).toBeDisabled();
+  const restored = structuredClone(initial);
+  restored.incidents[0]!.appeal = { ...restored.incidents[0]!.appeal!, status: "rejected", statusLabel: "已驳回", resolvedByViewer: true,
+    resolutionScope: "participant_or_unverified", resolutionNote: "fixture decision note", mayResolve: false };
+  read.mockResolvedValue({ success: true, data: restored });
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "更新 BP 信息" })); });
+  expect(screen.getByRole("button", { name: "继续 BP" })).toBeEnabled();
+  expect(screen.getByText("已驳回")).toBeInTheDocument();
+  expect(appealResolve).toHaveBeenCalledOnce();
 });

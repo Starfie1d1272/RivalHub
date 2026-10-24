@@ -26,7 +26,7 @@ import {
   submitVetoRoomAppeal as telemetry_submitVetoRoomAppeal,
   updateVetoRepresentative as telemetry_updateVetoRepresentative,
 } from "@/actions/matches/veto-room";
-import { fetchVetoRoom, sendVetoInteraction, isCurrentVetoResponse, vetoClockUpperBound } from "@/lib/matches/veto-room/client";
+import { fetchVetoRoom, sendVetoInteraction, isCurrentVetoResponse, vetoClockUpperBound, hasVetoRecoveryFact, type VetoRecoveryFact } from "@/lib/matches/veto-room/client";
 import { observeAction } from "@/lib/telemetry/client";
 
 const claimVetoRepresentativeAction = observeAction("matches.veto-room.claimVetoRepresentativeAction", telemetry_claimVetoRepresentativeAction);
@@ -43,6 +43,18 @@ const updateVetoRepresentative = observeAction("matches.veto-room.updateVetoRepr
 type MutationData = { outcome: string; room: VetoRoomView | null; refreshFailed?: boolean; receipt?: { committedRevision: number | null } };
 type MutationResult = ActionResult<MutationData>;
 type MutationAction = (input: unknown) => Promise<MutationResult>;
+
+function recoveryFactFor(action: MutationAction, input: unknown, current: VetoRoomView): VetoRecoveryFact | undefined {
+  const data = input as Record<string, unknown>;
+  if (action === submitVetoRoomAppeal && typeof data.incidentId === "string" && typeof data.reason === "string") {
+    return { kind: "appeal_submit", incidentId: data.incidentId, reason: data.reason.trim(),
+      previousAppealId: current.incidents.find(incident => incident.id === data.incidentId)?.appeal?.id ?? null };
+  }
+  if (action === resolveVetoRoomAppeal && typeof data.appealId === "string" && typeof data.resolutionNote === "string"
+    && (data.resolutionScope === "platform_or_organizer" || data.resolutionScope === "participant_or_unverified")) {
+    return { kind: "appeal_resolve", appealId: data.appealId, scope: data.resolutionScope, note: data.resolutionNote.trim() };
+  }
+}
 
 const timeLabel = (value: string | null) => value
   ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Shanghai" }).format(new Date(value))
@@ -78,7 +90,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
   const [resolutionNote, setResolutionNote] = useState("");
   const [appealReasons, setAppealReasons] = useState<Record<string, string>>({});
   const boundaryAttempt = useRef({ key: "", confirmed: false, attempts: 0, retryAt: 0 });
-  const uncertainCommand = useRef<{ revision: number; input: unknown; commitKnown?: boolean } | null>(null);
+  const uncertainCommand = useRef<{ revision: number; input: unknown; fact?: VetoRecoveryFact; commitKnown?: boolean } | null>(null);
   const [uncertainRevision, setUncertainRevision] = useState<number | null>(null);
   const latestRoom = useRef(initialRoom);
   const pendingRef = useRef(false);
@@ -87,9 +99,13 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
   const reconcileInFlight = useRef(false);
   const applyRoom = useCallback((next: VetoRoomView) => {
     if (!isCurrentVetoResponse(latestRoom.current, next)) return false;
-    if (uncertainCommand.current && (next.session.revision > uncertainCommand.current.revision || uncertainCommand.current.commitKnown && next.session.revision >= uncertainCommand.current.revision)) {
+    const uncertain = uncertainCommand.current;
+    if (uncertain && (uncertain.fact ? hasVetoRecoveryFact(next, uncertain.fact)
+      : uncertain.commitKnown ? next.session.revision >= uncertain.revision : next.session.revision > uncertain.revision)) {
       uncertainCommand.current = null;
       setUncertainRevision(null);
+      setError("");
+      setNotice("操作状态已核对，BP 信息已更新。");
     }
     setClockSynchronized(true);
     latestRoom.current = next;
@@ -214,18 +230,19 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     setPending(true);
     setError("");
     setNotice("");
+    const fact = recoveryFactFor(action, input, latestRoom.current);
     try {
       const result = await action(input);
       if (!result.success) {
         if (result.error.code === "INTERNAL_ERROR") {
-          uncertainCommand.current = { revision: latestRoom.current.session.revision, input };
+          uncertainCommand.current = { revision: latestRoom.current.session.revision, input, fact };
           setUncertainRevision(latestRoom.current.session.revision);
         }
         setError(result.error.message);
         return;
       }
       if (!result.data.room) {
-        uncertainCommand.current = { revision: result.data.receipt?.committedRevision ?? latestRoom.current.session.revision, input, commitKnown: true };
+        uncertainCommand.current = { revision: result.data.receipt?.committedRevision ?? latestRoom.current.session.revision, input, fact, commitKnown: true };
         setUncertainRevision(latestRoom.current.session.revision);
         setNotice("操作已确认，房间刷新暂未完成，正在重新同步。");
         return;
@@ -235,7 +252,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
       setManualPrivilege(result.data.room.session.privilegedEntryId ?? "");
       setNotice(result.data.outcome === "stale" ? "BP 状态已更新，请按当前步骤重新选择。" : successMessage);
     } catch {
-      uncertainCommand.current = { revision: latestRoom.current.session.revision, input };
+      uncertainCommand.current = { revision: latestRoom.current.session.revision, input, fact };
       setUncertainRevision(latestRoom.current.session.revision);
       setError("操作结果暂未确认，正在核对；确认新进度前请勿重复提交。");
     } finally {

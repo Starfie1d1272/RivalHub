@@ -4,6 +4,21 @@ import type { VetoMutationReceipt } from "./service";
 
 export type VetoInteractionResponse = { outcome: string; room: VetoRoomView | null; receipt?: VetoMutationReceipt; refreshFailed?: boolean };
 
+export type VetoRecoveryFact =
+  | { kind: "appeal_submit"; incidentId: string; reason: string; previousAppealId: string | null }
+  | { kind: "appeal_resolve"; appealId: string; scope: "platform_or_organizer" | "participant_or_unverified"; note: string };
+
+/** Authorized response facts can confirm writes which do not change session revision. */
+export function hasVetoRecoveryFact(room: VetoRoomView, fact: VetoRecoveryFact): boolean {
+  if (fact.kind === "appeal_submit") {
+    const appeal = room.incidents.find(incident => incident.id === fact.incidentId)?.appeal;
+    return Boolean(appeal && appeal.id !== fact.previousAppealId && appeal.submittedByViewer && appeal.reason === fact.reason);
+  }
+  const appeal = room.incidents.find(incident => incident.appeal?.id === fact.appealId)?.appeal;
+  return Boolean(appeal && appeal.resolvedByViewer && appeal.resolutionScope === fact.scope && appeal.resolutionNote === fact.note
+    && appeal.status === (fact.scope === "platform_or_organizer" ? "accepted" : "rejected"));
+}
+
 // Request duration is an uncertainty bound, not an assumption of symmetric RTT.
 // It stays local to this response and never becomes a server admission time.
 const responseDurations = new WeakMap<VetoRoomView, number>();

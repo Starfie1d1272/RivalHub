@@ -6,9 +6,17 @@ const publicSeasonMock = vi.hoisted(() => vi.fn());
 const readViewMock = vi.hoisted(() => vi.fn());
 const reconcileRoomMock = vi.hoisted(() => vi.fn());
 const seasonMock = vi.hoisted(() => vi.fn());
+const submitAppealMock = vi.hoisted(() => vi.fn());
+const resolveAppealMock = vi.hoisted(() => vi.fn());
 const cacheMock = vi.hoisted(() => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn(), updateTag: vi.fn() }));
 
 vi.mock("next/cache", () => cacheMock);
+vi.mock("@/lib/auth/session", async original => ({
+  ...await original<typeof import("@/lib/auth/session")>(),
+  requireAuth: async () => ({ userId: "actor-fixture", email: "fixture@local.test" }),
+  requireSeasonAdmin: async () => ({ userId: "actor-fixture", email: "fixture@local.test", role: "super_admin", seasonIds: [] }),
+  auditActorId: (actor: { userId: string }) => actor.userId,
+}));
 
 vi.mock("@/db/client", () => ({
   db: {
@@ -35,16 +43,16 @@ vi.mock("@/lib/matches/veto-room/service", () => ({
   pauseVetoRoom: vi.fn(),
   reconcileVetoRoomReceipt: reconcileRoomMock,
   requestVetoStartReceipt: vi.fn(),
-  resolveVetoAppeal: vi.fn(),
+  resolveVetoAppeal: resolveAppealMock,
   resumeVetoRoom: vi.fn(),
   rewindVetoRoom: vi.fn(),
   setManualPrivilegedEntry: vi.fn(),
   setVetoRepresentative: vi.fn(),
-  submitVetoAppeal: vi.fn(),
+  submitVetoAppeal: submitAppealMock,
   submitVetoCommandReceipt: vi.fn(),
 }));
 
-import { readVetoRoom, reconcileVetoRoomAction } from "@/actions/matches/veto-room";
+import { readVetoRoom, reconcileVetoRoomAction, submitVetoRoomAppeal, resolveVetoRoomAppeal } from "@/actions/matches/veto-room";
 import { runVetoInteraction } from "@/lib/matches/veto-room/interaction";
 import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
 
@@ -138,4 +146,20 @@ describe("Veto Room action read authorization", () => {
     expect(cacheMock.revalidatePath).toHaveBeenCalledWith(`/draft-season/matches/${matchId}`);
     expect(readViewMock).toHaveBeenCalledWith(matchId);
   });
+});
+
+it("preserves a committed appeal submission when its response projection fails", async () => {
+  submitAppealMock.mockResolvedValueOnce(undefined);
+  readViewMock.mockRejectedValueOnce(new Error("projection unavailable"));
+  const result = await submitVetoRoomAppeal({ matchId, incidentId: matchId, reason: "fixture reason" });
+  expect(result).toMatchObject({ success: true, data: { outcome: "applied", room: null, refreshFailed: true } });
+  expect(submitAppealMock).toHaveBeenCalledTimes(1);
+});
+
+it("preserves a committed rejection when its response projection fails", async () => {
+  resolveAppealMock.mockResolvedValueOnce(undefined);
+  readViewMock.mockRejectedValueOnce(new Error("projection unavailable"));
+  const result = await resolveVetoRoomAppeal({ matchId, appealId: matchId, resolutionScope: "participant_or_unverified", resolutionNote: "fixture decision" });
+  expect(result).toMatchObject({ success: true, data: { outcome: "applied", room: null, refreshFailed: true } });
+  expect(resolveAppealMock).toHaveBeenCalledTimes(1);
 });
