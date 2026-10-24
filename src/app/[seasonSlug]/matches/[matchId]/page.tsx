@@ -1,3 +1,5 @@
+import MatchDetailLoading from "./loading";
+import { loadPublicMatchRefreshToken } from "@/lib/matches/public-refresh";
 import { hasMatchRecording } from "@/lib/postmatch/recording-types";
 import { MatchRecordings } from "@/components/matches/MatchRecordings";
 import { hasActivePublicSanction } from "@/lib/discipline/public-query";
@@ -82,6 +84,8 @@ interface MatchDetailPageProps {
   searchParams: Promise<{ statsPlayer?: string; statsMap?: string; scheduling?: string }>;
 }
 
+const loadPlayerDetail = cache(getPublicMatchPlayerDetail);
+
 const loadMatch = cache((matchId: string) => db.query.matches.findFirst({ where: eq(matches.id, matchId) }));
 
 export async function generateMetadata({ params }: MatchDetailPageProps): Promise<Metadata> {
@@ -103,22 +107,25 @@ async function loadMatchCore(params: MatchDetailPageProps["params"]) {
   if (!match || match.seasonId !== season.id) notFound();
   assertCompetitionMatch(match);
 
-  const [teamA, teamB, maps] = await Promise.all([
-    db.query.competitionEntries.findFirst({ where: eq(competitionEntries.id, match.entryAId) }),
-    db.query.competitionEntries.findFirst({ where: eq(competitionEntries.id, match.entryBId) }),
+  const [teams, maps, refreshToken] = await Promise.all([
+    db.query.competitionEntries.findMany({ where: and(eq(competitionEntries.competitionId, season.id), inArray(competitionEntries.id, [match.entryAId, match.entryBId])) }),
     db.query.matchMaps.findMany({
       where: eq(matchMaps.matchId, matchId),
       orderBy: (t, { asc }) => [asc(t.mapOrder)],
     }),
+    match.status === "scheduled" || match.status === "in_progress"
+      ? loadPublicMatchRefreshToken(season.id, { matchId: match.id }) : Promise.resolve(""),
   ]);
 
-  return { seasonSlug, season, match, teamA, teamB, maps };
+  const teamA = teams.find(team => team.id === match.entryAId);
+  const teamB = teams.find(team => team.id === match.entryBId);
+  return { seasonSlug, season, match, teamA, teamB, maps, refreshToken };
 }
 
 type MatchCore = Awaited<ReturnType<typeof loadMatchCore>>;
 
 export default function MatchDetailPage(props: MatchDetailPageProps) {
-  return <Suspense fallback={<PageLayout variant="wide"><p role="status">比赛加载中…</p></PageLayout>}><MatchDetailShell {...props} /></Suspense>;
+  return <Suspense fallback={<MatchDetailLoading />}><MatchDetailShell {...props} /></Suspense>;
 }
 
 async function MatchDetailShell({ params, searchParams }: MatchDetailPageProps) {
@@ -126,7 +133,7 @@ async function MatchDetailShell({ params, searchParams }: MatchDetailPageProps) 
   const { seasonSlug, season, match, teamA, teamB, maps } = core;
   return <PageLayout variant="wide" className="space-y-8">
     {match.testConfig && <p className="text-sm text-[var(--color-fg-mid)]">测试赛 · 不计入正式赛程与统计</p>}
-    <MatchContextRefresh enabled={match.status === "scheduled" || match.status === "in_progress"} />
+    <MatchContextRefresh enabled={match.status === "scheduled" || match.status === "in_progress"} seasonSlug={seasonSlug} scope={{ matchId: match.id }} initialToken={core.refreshToken} />
     <MatchHeroHeader seasonSlug={seasonSlug} stageName={presentMatchStage(match.stage, season.stagePlan)}
       match={{ ...match, displayScore: projectDisplayScore(match, maps) }} teamA={teamA} teamB={teamB} isFinished={match.status === "finished"} />
     <Suspense fallback={<div role="status" className="min-h-80 text-sm text-[var(--color-fg-mid)]">比赛内容加载中…</div>}>
@@ -139,7 +146,13 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
   const { seasonSlug, season, match, teamA, teamB, maps } = core;
   const statsQuery = await searchParams;
   const mapPool = match.testConfig?.mapPool ?? normalizeRegistrationConfig(season.registrationConfig).mapPool;
+  const preAnalysisRead = match.status !== "finished"
+    ? loadMatchPreAnalysis(season.id, match.entryAId, match.entryBId, mapPool) : Promise.resolve(null);
   const [publicContext, userSession] = await Promise.all([loadPublicMatchPhase(match, maps), getUserSession()]);
+  const adminRead = userSession && (match.status === "scheduled" || match.status === "in_progress") ? requireSeasonAdmin(season.id).then(() => true).catch(error => {
+    if (!isExpectedAuthFailure(error)) throw error;
+    return false;
+  }) : Promise.resolve(false);
   const phase = publicContext.phase;
   const afterVeto = phase === "awaiting_gameplay" || phase === "gameplay" || phase === "inter_map";
   const isFinished = match.status === "finished";
@@ -148,13 +161,11 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
 
   // Keep scouting available throughout an unfinished match, including loss of live data.
   // POST scoreboard is queried only when finished or when maps have been completed.
-  const needPreAnalysis = !isFinished;
   const needScoreboard = isFinished || hasCompletedMaps;
 
   const [
     rosters,
     allTeamMemberRows,
-    preAnalysis,
     commentatorRows,
     timeProposals,
   ] = await Promise.all([
@@ -186,15 +197,14 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
             .where(eq(matchRosters.matchId, match.id))),
         ),
       )),
-    needPreAnalysis
-      ? loadMatchPreAnalysis(season.id, match.entryAId, match.entryBId, mapPool)
-      : null,
     db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, liveStreamUrl: users.liveStreamUrl })
       .from(matchCommentators)
       .innerJoin(users, eq(matchCommentators.userId, users.id))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(eq(matchCommentators.matchId, match.id)),
-    getMatchTimeProposalViews(match.id, userSession?.userId),
+    match.status === "scheduled" && userSession
+      ? adminRead.then(admin => admin || teamA?.representativeUserId === userSession.userId || teamB?.representativeUserId === userSession.userId
+        ? getMatchTimeProposalViews(match.id, userSession.userId) : []) : Promise.resolve([]),
   ]);
 
   const rosterA = rosters.get(match.entryAId) ?? null;
@@ -213,13 +223,6 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
     primaryPosition: positionByUserId.get(row.userId) ?? "",
   }));
 
-  const mapProfileRows = preAnalysis?.mapProfileRows ?? [];
-  const recentResultsA = preAnalysis?.recentResultsA ?? [];
-  const recentResultsB = preAnalysis?.recentResultsB ?? [];
-  const h2hMatches = preAnalysis?.h2hMatches ?? [];
-  const h2hWinsA = preAnalysis?.h2hWinsA ?? 0;
-  const h2hWinsB = preAnalysis?.h2hWinsB ?? 0;
-
   // 建立 userId 集合
   const matchRosterMemberIds = new Set([
     ...(rosterA?.players.map((player) => player.eventRosterMemberId) ?? []),
@@ -237,6 +240,8 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
     userIdToMember.set(member.userId, member);
   }
 
+  const scoreboardRead = needScoreboard ? loadMatchScoreboard(match, maps, userIdToTeamId) : Promise.resolve(null);
+
   // 队长 / 管理员权限检查
   let isCaptainA = false;
   let isCaptainB = false;
@@ -244,13 +249,7 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
   let captainTeamMembers: { userId: string; id: string; personaName: string | null; avatarUrl: string | null; displayName: string | null; perfectName: string | null; primaryPosition: string }[] = [];
 
   if (userSession?.userId) {
-    try {
-      await requireSeasonAdmin(season.id);
-      isSeasonAdmin = true;
-    } catch (error) {
-      if (!isExpectedAuthFailure(error)) throw error;
-      isSeasonAdmin = false;
-    }
+    isSeasonAdmin = await adminRead;
 
     isCaptainA = teamA?.representativeUserId === userSession.userId;
     isCaptainB = teamB?.representativeUserId === userSession.userId;
@@ -288,13 +287,6 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
   const lineupA = resolveLineup(teamARoster, registeredLineup(match.entryAId), allowExpected);
   const lineupB = resolveLineup(teamBRoster, registeredLineup(match.entryBId), allowExpected);
   const comparisonCutoff = lineupComparisonCutoff(match);
-  const lineupCareers = !isFinished && (allowExpected || comparisonCutoff)
-    ? await readOptionalPublicStats("match-lineup-comparison", () => getLineupCareers(
-      [...new Set([...(lineupA.players ?? []), ...(lineupB.players ?? [])]
-        .filter((player) => player.isStarter).flatMap((player) => player.userId ? [player.userId] : []))].sort(),
-      match.id, comparisonCutoff?.toISOString() ?? null,
-    )) : [];
-
   // MVP 投票 + 整场汇总数据（已结束比赛）
   let mvpCandidates: {
     userId: string | null;
@@ -312,35 +304,11 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
     we: number | null;
     avatarUrl: string | null;
   }[] = [];
-  let mvpVoteResults: Awaited<ReturnType<typeof getMatchMvpResults>> = [];
-  let userVoted: string | null = null;
   let summaryPlayers: SummaryPlayer[] = [];
 
-  const scoreboard = needScoreboard
-    ? await loadMatchScoreboard(match, maps, userIdToTeamId)
-    : null;
+  const scoreboard = await scoreboardRead;
 
-  let detailed: Awaited<ReturnType<typeof getPublicMatchPlayerDetail>> = null;
-  let detailedUnavailable = false;
-  let detailedPlayerId: string | null = null;
-  let detailedMap: (typeof maps)[number] | undefined = undefined;
-
-  if (scoreboard) {
-    summaryPlayers = scoreboard.summaryPlayers;
-    detailedPlayerId = scoreboard.detailedPlayerIds.has(statsQuery.statsPlayer ?? "")
-      ? statsQuery.statsPlayer!
-      : scoreboard.detailedPlayerIds.has(match.mvpWinnerUserId ?? "") ? match.mvpWinnerUserId : [...scoreboard.detailedPlayerIds][0] ?? null;
-    detailedMap = maps.find((map) => map.id === statsQuery.statsMap && scoreboard.detailedMapIds.has(map.id));
-    if (detailedPlayerId) {
-      const playerId = detailedPlayerId;
-      const result = await readOptionalPublicStats("match_player", async () => ({
-        detail: await getPublicMatchPlayerDetail(match.id, playerId, detailedMap?.mapName, season.status === "draft" ? "draft" : "public"),
-      }));
-      detailed = result?.detail ?? null;
-      detailedUnavailable = result === null;
-    }
-  }
-
+  summaryPlayers = scoreboard?.summaryPlayers ?? [];
   if (isFinished && scoreboard) {
     mvpCandidates = scoreboard.mvpCandidates.map((candidate) => ({
       ...candidate,
@@ -348,29 +316,6 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
       avatarUrl: candidate.userId ? userIdToMember.get(candidate.userId)?.avatarUrl ?? null : null,
     }));
 
-    mvpVoteResults = await getMatchMvpResults(match.id);
-
-    if (userSession?.userId) {
-      const existingVote = await db.query.matchMvpVotes.findFirst({
-        where: and(
-          eq(matchMvpVotes.matchId, match.id),
-          eq(matchMvpVotes.voterUserId, userSession.userId),
-        ),
-      });
-      if (existingVote) userVoted = existingVote.playerName;
-    }
-  }
-
-  // Winner metrics always use the whole-match public cache, independent of the detail tabs.
-  let winnerPerformance: MvpPerformance | null = null;
-  const winnerHasDetail = isFinished && match.mvpWinnerUserId !== null && scoreboard?.detailedPlayerIds.has(match.mvpWinnerUserId);
-  if (winnerHasDetail) {
-    const winnerId = match.mvpWinnerUserId!;
-    const winnerDetail = detailedPlayerId === winnerId && !detailedMap
-      ? detailed
-      : (await readOptionalPublicStats("match_player", async () => ({ detail: await getPublicMatchPlayerDetail(match.id, winnerId, undefined, season.status === "draft" ? "draft" : "public") })))?.detail;
-    const slice = winnerDetail?.performance?.slices.overall;
-    if (slice) winnerPerformance = { playerId: winnerId, rounds: slice.sample.rounds, kast: slice.kast, trade: slice.trade.tradeKillsPerRound, utility: slice.utility.utilityDamagePerRound, flashAssist: slice.utility.flashAssistsPerRound };
   }
 
   const pendingTimeProposal = timeProposals.find(proposal => proposal.status === "pending") ?? null;
@@ -383,11 +328,13 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
 
   const showBpPrimary = phase === "veto" || phase === "awaiting_veto" || phase === "preparation";
   const matchBet = !match.testConfig && season.competitionTemplate === "major" ? (
-    <Suspense fallback={null}>
+    <div data-match-bet className="min-h-40">
+    <Suspense fallback={<div role="status" className="min-h-40" aria-busy="true">竞猜信息加载中…</div>}>
       <MatchBetLink seasonId={season.id} matchId={match.id} slug={seasonSlug}
         teamA={{ entryId: match.entryAId, name: teamA?.name ?? "队伍 A" }}
         teamB={{ entryId: match.entryBId, name: teamB?.name ?? "队伍 B" }} />
     </Suspense>
+    </div>
   ) : null;
 
   return (
@@ -460,7 +407,7 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
       )}
 
       {(showBpPrimary || (!isFinished && matchBet)) && (
-        <div className={`grid min-w-0 gap-4 ${showBpPrimary ? "lg:has-[>[data-match-bet]]:grid-cols-2" : ""}`}>
+        <div className={`grid min-w-0 gap-4 ${showBpPrimary && matchBet ? "lg:grid-cols-2" : ""}`}>
           {showBpPrimary && <section className="min-w-0" data-testid="match-bp-primary">
             <Panel label="BP 与开赛" className="flex h-full flex-col" contentClassName="flex flex-1 flex-col justify-center">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -523,45 +470,18 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
             <Panel contentClassName="p-0 overflow-hidden">
-              <MatchLineupComparison
-                a={{ entryId: match.entryAId, name: teamA?.name ?? "队伍 A", logoUrl: teamA?.logoUrl ?? null, ...lineupA }}
-                b={{ entryId: match.entryBId, name: teamB?.name ?? "队伍 B", logoUrl: teamB?.logoUrl ?? null, ...lineupB }}
-                careers={lineupCareers ?? []}
-                historical={comparisonCutoff !== null}
-                unavailable={lineupCareers === null}
-              />
+              <Suspense fallback={<div role="status" className="min-h-64 p-4">阵容对照加载中…</div>}>
+                <MatchLineupDetails
+                  a={{ entryId: match.entryAId, name: teamA?.name ?? "队伍 A", logoUrl: teamA?.logoUrl ?? null, ...lineupA }}
+                  b={{ entryId: match.entryBId, name: teamB?.name ?? "队伍 B", logoUrl: teamB?.logoUrl ?? null, ...lineupB }}
+                  matchId={match.id} cutoff={comparisonCutoff} allowExpected={allowExpected} />
+              </Suspense>
             </Panel>
           </section>
 
-          {mapProfileRows.length > 0 && (
-            <MatchMapProfile entryAId={match.entryAId} entryBId={match.entryBId} seasonSlug={seasonSlug}
-              rows={mapProfileRows}
-              teamAName={teamA?.name ?? "队伍 A"}
-              teamBName={teamB?.name ?? "队伍 B"}
-            />
-          )}
-
-          {(recentResultsA.length > 0 || recentResultsB.length > 0) && (
-            <MatchRecentResults entryAId={match.entryAId} entryBId={match.entryBId}
-              teamAName={teamA?.name ?? "队伍 A"}
-              teamBName={teamB?.name ?? "队伍 B"}
-              teamA={recentResultsA}
-              teamB={recentResultsB}
-              seasonSlug={seasonSlug}
-            />
-          )}
-
-          {h2hMatches.length > 0 && (
-            <MatchHeadToHead stagePlan={season.stagePlan} entryAId={match.entryAId} entryBId={match.entryBId}
-              teamAName={teamA?.name ?? "队伍 A"}
-              teamBName={teamB?.name ?? "队伍 B"}
-              teamAWins={h2hWinsA}
-              teamBWins={h2hWinsB}
-              matches={h2hMatches}
-              seasonSlug={seasonSlug}
-            />
-          )}
-
+          <Suspense fallback={<section role="status" className="min-h-64">赛前分析加载中…</section>}>
+            <MatchScouting core={core} analysis={preAnalysisRead} />
+          </Suspense>
 
         </PreMatchContext>
       )}
@@ -664,7 +584,72 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
 
       {isFinished && matchBet}
 
-      {/* 详细统计 */}
+      {scoreboard && scoreboard.detailedPlayerIds.size > 0 && (
+        <Suspense fallback={<section aria-label="详细统计" aria-busy="true" className="min-h-96"><p role="status">详细统计加载中…</p></section>}>
+          <AdvancedMatchStats core={core} scoreboard={scoreboard} statsQuery={statsQuery} />
+        </Suspense>
+      )}
+      {isFinished && mvpCandidates.length > 0 && (
+        <Suspense fallback={<section aria-label="MVP 投票" aria-busy="true" className="min-h-64"><p role="status">MVP 投票加载中…</p></section>}>
+          <MatchMvpPanel core={core} candidates={mvpCandidates} userId={userSession?.userId ?? null} scoreboard={scoreboard!} />
+        </Suspense>
+      )}
+
+      {/* 弃赛且没有实际地图或阵容时，不展示空名单。 */}
+      {isFinished && (!match.isForfeit || maps.length > 0 || Boolean(teamARoster?.length || teamBRoster?.length)) && (
+        <>
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
+            <Panel contentClassName="p-4">
+              <MatchRosterView entryAId={match.entryAId} entryBId={match.entryBId}
+                teamAName={teamA?.name ?? "队伍 A"}
+                teamARoster={teamARoster}
+                teamBName={teamB?.name ?? "队伍 B"}
+                teamBRoster={teamBRoster}
+              />
+            </Panel>
+          </section>
+        </>
+      )}
+
+      {/* 赛后解说名单；回放入口与 BP 记录同处顶部操作区。 */}
+      {isFinished && commentatorRows.length > 0 && (
+        <Panel label="解说" contentClassName="space-y-2 p-4">
+          <p className="text-sm">解说：{publicCommentators.map((person, index) => <React.Fragment key={person.userId}>{index > 0 ? "、" : null}{person.playerUserId ? <PlayerProfileLink userId={person.playerUserId}>{getPublicDisplayName(person)}</PlayerProfileLink> : getPublicDisplayName(person)}</React.Fragment>)}</p>
+        </Panel>
+      )}
+    </>
+  );
+}
+
+
+type Scoreboard = NonNullable<Awaited<ReturnType<typeof loadMatchScoreboard>>>;
+
+async function AdvancedMatchStats({ core, scoreboard, statsQuery }: {
+  core: MatchCore; scoreboard: Scoreboard;
+  statsQuery: Awaited<MatchDetailPageProps["searchParams"]>;
+}) {
+  const { seasonSlug, season, match, maps } = core;
+  let detailed: Awaited<ReturnType<typeof getPublicMatchPlayerDetail>> = null;
+  let detailedUnavailable = false;
+  let detailedPlayerId: string | null = null;
+  let detailedMap: (typeof maps)[number] | undefined = undefined;
+
+  if (scoreboard) {
+    detailedPlayerId = scoreboard.detailedPlayerIds.has(statsQuery.statsPlayer ?? "")
+      ? statsQuery.statsPlayer!
+      : scoreboard.detailedPlayerIds.has(match.mvpWinnerUserId ?? "") ? match.mvpWinnerUserId : [...scoreboard.detailedPlayerIds][0] ?? null;
+    detailedMap = maps.find((map) => map.id === statsQuery.statsMap && scoreboard.detailedMapIds.has(map.id));
+    if (detailedPlayerId) {
+      const playerId = detailedPlayerId;
+      const result = await readOptionalPublicStats("match_player", async () => ({
+        detail: await loadPlayerDetail(match.id, playerId, detailedMap?.mapName, season.status === "draft" ? "draft" : "public"),
+      }));
+      detailed = result?.detail ?? null;
+      detailedUnavailable = result === null;
+    }
+  }
+  return <>
       {detailedUnavailable && <p role="status">高级统计暂时无法加载，请稍后重试。</p>}
       {detailed && detailedPlayerId && (
         <section id="detailed-stats" className="min-w-0 space-y-4">
@@ -705,44 +690,91 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
           <PlayerWorkspace detail={detailed} hideMaps />
         </section>
       )}
+  </>;
+}
 
-      {/* MVP 投票（2×2） */}
-      {isFinished && mvpCandidates.length > 0 && (
-        <MatchMvpVote
-          matchId={match.id}
-          candidates={mvpCandidates}
-          currentVotes={mvpVoteResults}
-          userVotedPlayerName={userVoted}
-          completedAt={match.completedAt?.toISOString() ?? null}
-          winnerUserId={match.mvpWinnerUserId}
-          winnerPerformance={winnerPerformance}
-          winnerDetailsHref={winnerHasDetail ? `/${seasonSlug}/matches/${match.id}?statsPlayer=${match.mvpWinnerUserId}#detailed-stats` : undefined}
-        />
-      )}
+async function MatchMvpPanel({ core, candidates, userId, scoreboard }: {
+  core: MatchCore; candidates: React.ComponentProps<typeof MatchMvpVote>["candidates"];
+  userId: string | null; scoreboard: Scoreboard;
+}) {
+  const { seasonSlug, season, match } = core;
+  const winnerHasDetail = match.mvpWinnerUserId !== null && scoreboard.detailedPlayerIds.has(match.mvpWinnerUserId);
+  const [votes, existingVote, winnerDetail] = await Promise.all([
+    getMatchMvpResults(match.id),
+    userId ? db.query.matchMvpVotes.findFirst({
+      where: and(eq(matchMvpVotes.matchId, match.id), eq(matchMvpVotes.voterUserId, userId)),
+      columns: { playerName: true },
+    }) : Promise.resolve(null),
+    winnerHasDetail ? readOptionalPublicStats("match_player", async () => ({
+      detail: await loadPlayerDetail(match.id, match.mvpWinnerUserId!, undefined, season.status === "draft" ? "draft" : "public"),
+    })) : Promise.resolve(null),
+  ]);
+  const slice = winnerDetail?.detail?.performance?.slices.overall;
+  const winnerPerformance: MvpPerformance | null = slice ? {
+    playerId: match.mvpWinnerUserId!, rounds: slice.sample.rounds, kast: slice.kast,
+    trade: slice.trade.tradeKillsPerRound, utility: slice.utility.utilityDamagePerRound,
+    flashAssist: slice.utility.flashAssistsPerRound,
+  } : null;
+  return <MatchMvpVote matchId={match.id} candidates={candidates} currentVotes={votes}
+    userVotedPlayerName={existingVote?.playerName ?? null} completedAt={match.completedAt?.toISOString() ?? null}
+    winnerUserId={match.mvpWinnerUserId} winnerPerformance={winnerPerformance}
+    winnerDetailsHref={winnerHasDetail ? `/${seasonSlug}/matches/${match.id}?statsPlayer=${match.mvpWinnerUserId}#detailed-stats` : undefined} />;
+}
 
-      {/* 弃赛且没有实际地图或阵容时，不展示空名单。 */}
-      {isFinished && (!match.isForfeit || maps.length > 0 || Boolean(teamARoster?.length || teamBRoster?.length)) && (
-        <>
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-[var(--color-fg)]">本场阵容</h2>
-            <Panel contentClassName="p-4">
-              <MatchRosterView entryAId={match.entryAId} entryBId={match.entryBId}
-                teamAName={teamA?.name ?? "队伍 A"}
-                teamARoster={teamARoster}
-                teamBName={teamB?.name ?? "队伍 B"}
-                teamBRoster={teamBRoster}
-              />
-            </Panel>
-          </section>
-        </>
-      )}
+async function MatchLineupDetails({ a, b, matchId, cutoff, allowExpected }: {
+  a: React.ComponentProps<typeof MatchLineupComparison>["a"];
+  b: React.ComponentProps<typeof MatchLineupComparison>["b"];
+  matchId: string; cutoff: Date | null; allowExpected: boolean;
+}) {
+  const careers = allowExpected || cutoff
+    ? await readOptionalPublicStats("match-lineup-comparison", () => getLineupCareers(
+      [...new Set([...(a.players ?? []), ...(b.players ?? [])].filter(player => player.isStarter)
+        .flatMap(player => player.userId ? [player.userId] : []))].sort(), matchId, cutoff?.toISOString() ?? null,
+    )) : [];
+  return <MatchLineupComparison a={a} b={b} careers={careers ?? []} historical={cutoff !== null} unavailable={careers === null} />;
+}
 
-      {/* 赛后解说名单；回放入口与 BP 记录同处顶部操作区。 */}
-      {isFinished && commentatorRows.length > 0 && (
-        <Panel label="解说" contentClassName="space-y-2 p-4">
-          <p className="text-sm">解说：{publicCommentators.map((person, index) => <React.Fragment key={person.userId}>{index > 0 ? "、" : null}{person.playerUserId ? <PlayerProfileLink userId={person.playerUserId}>{getPublicDisplayName(person)}</PlayerProfileLink> : getPublicDisplayName(person)}</React.Fragment>)}</p>
-        </Panel>
-      )}
-    </>
-  );
+async function MatchScouting({ core, analysis }: {
+  core: MatchCore; analysis: Promise<Awaited<ReturnType<typeof loadMatchPreAnalysis>> | null>;
+}) {
+  const { seasonSlug, season, match, teamA, teamB } = core;
+  const preAnalysis = await analysis;
+  const mapProfileRows = preAnalysis?.mapProfileRows ?? [];
+  const recentResultsA = preAnalysis?.recentResultsA ?? [];
+  const recentResultsB = preAnalysis?.recentResultsB ?? [];
+  const h2hMatches = preAnalysis?.h2hMatches ?? [];
+  const h2hWinsA = preAnalysis?.h2hWinsA ?? 0;
+  const h2hWinsB = preAnalysis?.h2hWinsB ?? 0;
+
+  return <>
+          {mapProfileRows.length > 0 && (
+            <MatchMapProfile entryAId={match.entryAId} entryBId={match.entryBId} seasonSlug={seasonSlug}
+              rows={mapProfileRows}
+              teamAName={teamA?.name ?? "队伍 A"}
+              teamBName={teamB?.name ?? "队伍 B"}
+            />
+          )}
+
+          {(recentResultsA.length > 0 || recentResultsB.length > 0) && (
+            <MatchRecentResults entryAId={match.entryAId} entryBId={match.entryBId}
+              teamAName={teamA?.name ?? "队伍 A"}
+              teamBName={teamB?.name ?? "队伍 B"}
+              teamA={recentResultsA}
+              teamB={recentResultsB}
+              seasonSlug={seasonSlug}
+            />
+          )}
+
+          {h2hMatches.length > 0 && (
+            <MatchHeadToHead stagePlan={season.stagePlan} entryAId={match.entryAId} entryBId={match.entryBId}
+              teamAName={teamA?.name ?? "队伍 A"}
+              teamBName={teamB?.name ?? "队伍 B"}
+              teamAWins={h2hWinsA}
+              teamBWins={h2hWinsB}
+              matches={h2hMatches}
+              seasonSlug={seasonSlug}
+            />
+          )}
+
+  </>;
 }

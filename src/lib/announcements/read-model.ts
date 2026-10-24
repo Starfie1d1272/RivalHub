@@ -52,7 +52,40 @@ export async function listPublicAnnouncements(seasonId?: string): Promise<Public
   cacheLife("minutes");
   cacheTag(PUBLIC_ANNOUNCEMENTS_TAG, ...(seasonId ? [publicAnnouncementsSeasonTag(seasonId)] : []));
 
-  const rows = await db
+  const rows = await readPublicAnnouncementRows(seasonId);
+
+  return rows.map(toPublic);
+}
+
+export async function listAllPublicAnnouncements(): Promise<PublicAnnouncement[]> {
+  "use cache: remote";
+  cacheLife("minutes");
+  cacheTag(PUBLIC_ANNOUNCEMENTS_TAG);
+
+  const rows = await readPublicAnnouncementRows();
+
+  return rows.map(toPublic);
+}
+
+export async function getLatestSeasonAnnouncement(seasonId: string): Promise<PublicAnnouncement | null> {
+  "use cache: remote";
+  cacheLife("minutes");
+  cacheTag(PUBLIC_ANNOUNCEMENTS_TAG, publicAnnouncementsSeasonTag(seasonId));
+  const [row] = await readPublicAnnouncementRows(seasonId, { limit: 1, offset: 0 });
+  return row ? toPublic(row) : null;
+}
+
+export async function getPublicAnnouncementPage(seasonId: string | undefined, page: number) {
+  "use cache: remote";
+  cacheLife("minutes");
+  cacheTag(PUBLIC_ANNOUNCEMENTS_TAG, ...(seasonId ? [publicAnnouncementsSeasonTag(seasonId)] : []));
+  const current = Number.isSafeInteger(page) && page > 0 && page <= 10000 ? page : 1;
+  const rows = await readPublicAnnouncementRows(seasonId, { limit: 21, offset: (current - 1) * 20 });
+  return { announcements: rows.slice(0, 20).map(toPublic), page: current, hasNext: rows.length > 20 };
+}
+
+async function readPublicAnnouncementRows(seasonId?: string, pagination?: { limit: number; offset: number }) {
+  const query = db
     .select({
       announcement: {
         id: announcements.id,
@@ -76,40 +109,7 @@ export async function listPublicAnnouncements(seasonId?: string): Promise<Public
       seasonId ? eq(announcements.seasonId, seasonId) : undefined,
     ))
     .orderBy(...publicAnnouncementOrder());
-  return rows.map(toPublic);
-}
-
-export async function listAllPublicAnnouncements(): Promise<PublicAnnouncement[]> {
-  "use cache: remote";
-  cacheLife("minutes");
-  cacheTag(PUBLIC_ANNOUNCEMENTS_TAG);
-
-  const rows = await db
-    .select({
-      announcement: {
-        id: announcements.id,
-        scope: announcements.scope,
-        type: announcements.type,
-        title: announcements.title,
-        body: announcements.body,
-        status: announcements.status,
-        requiresAttention: announcements.requiresAttention,
-        attentionUntil: announcements.attentionUntil,
-        publishedAt: announcements.publishedAt,
-        updatedAt: announcements.updatedAt,
-      },
-      season: { slug: seasons.slug, name: seasons.name },
-    })
-    .from(announcements)
-    .leftJoin(seasons, eq(announcements.seasonId, seasons.id))
-    .where(and(eq(announcements.status, "published"), publicAnnouncementSeasonCondition()))
-    .orderBy(...publicAnnouncementOrder());
-  return rows.map(toPublic);
-}
-
-export async function getLatestSeasonAnnouncement(seasonId: string): Promise<PublicAnnouncement | null> {
-  const rows = await listPublicAnnouncements(seasonId);
-  return rows[0] ?? null;
+  return pagination ? query.limit(pagination.limit).offset(pagination.offset) : query;
 }
 
 export async function getLatestSiteAnnouncement(): Promise<PublicAnnouncement | null> {

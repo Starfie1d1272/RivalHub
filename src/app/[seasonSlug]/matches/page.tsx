@@ -1,3 +1,4 @@
+import { loadPublicMatchRefreshToken } from "@/lib/matches/public-refresh";
 import { projectBracketDisplayScores } from "@/lib/bracket/display-scores";
 import { withDisplayScores } from "@/lib/matches/display-score-data";
 import { officialMatchCondition } from "@/lib/matches/scope";
@@ -11,9 +12,9 @@ import { notFound } from "next/navigation";
 import { and, eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { majorFinalResults, matches, competitionEntries, competitionQualificationRuns } from "@/db/schema";
-import { loadStageBracketViews } from "@/lib/bracket";
+import { loadStageBracketState, serializeStageBracket } from "@/lib/bracket";
 import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Link from "next/link";
 import { BracketView } from "@/components/matches/BracketView";
 import { SwissBracket } from "@/components/matches/SwissBracket";
 import { MatchTeamFilter } from "@/components/matches/MatchTeamFilter";
@@ -48,29 +49,41 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
-  const [allTeams, allMatchesRaw, finalResult, stagePresentation, qualificationRun] = await Promise.all([
+  const [allTeams, finalResult, stagePresentation, qualificationRun] = await Promise.all([
     db.query.competitionEntries.findMany({
       where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryIdentityCondition()),
       orderBy: [asc(competitionEntries.formationOrder)],
-    }),
-    db.query.matches.findMany({
-      where: and(officialMatchCondition(), eq(matches.seasonId, season.id)),
-      orderBy: [asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
     }),
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
     getPublicSeasonStagePresentation(season),
     db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) }),
   ]);
-  const allMatches = await withDisplayScores(allMatchesRaw.map(requireCompetitionMatch));
-
   const stagePlan = stagePresentation.stagePlan;
-  const [liveContexts, roundScoresByMatchId, swissEntries, qualificationSwissReadModel, bracketDataByStage] = await Promise.all([
+  const requestedMajorStageKey = requestedStage && stagePlan.some(stage => stage.key === requestedStage) ? requestedStage : null;
+  const defaultStageKey = requestedStage === "play-in" && qualificationRun
+    ? "play-in"
+    : season.competitionTemplate === "major"
+      ? requestedMajorStageKey ?? stagePresentation.currentStageKey ?? (qualificationRun ? "play-in" : stagePlan[0]?.key ?? null)
+      : resolveDefaultStageKey(stagePlan, stagePresentation.initializedStageKeys.map(stage => ({ stage })), requestedStage);
+  const selectedStage = stagePlan.find(stage => stage.key === defaultStageKey);
+  const refreshTokenRead = defaultStageKey ? loadPublicMatchRefreshToken(season.id, { stage: defaultStageKey }) : Promise.resolve("");
+  const allMatchesRaw = defaultStageKey ? await db.query.matches.findMany({
+    where: and(officialMatchCondition(), eq(matches.seasonId, season.id), eq(matches.stage, defaultStageKey)),
+    orderBy: [asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
+  }) : [];
+  const allMatches = await withDisplayScores(allMatchesRaw.map(requireCompetitionMatch));
+  const needsBracket = selectedStage && ["round_robin", "single_elim", "double_elim"].includes(selectedStage.type);
+  const [liveContexts, roundScoresByMatchId, swissEntries, qualificationSwissReadModel, bracketState] = await Promise.all([
     loadPublicMatchContexts(allMatches),
-    getMatchMapRoundScores(allMatches.filter(match => match.status === "finished").map(match => match.id)),
-    Promise.all(stagePlan.filter(stage => stage.type === "swiss").map(async stage => [stage.key, await loadMajorSwissStageReadModel(season.id, stage.key, allMatches)] as const)),
-    qualificationRun?.format === "short_swiss_2w2l" ? loadQualificationSwissStageReadModel(season.id) : Promise.resolve(null),
-    loadStageBracketViews(db, season.id),
+    selectedStage?.type === "round_robin"
+      ? getMatchMapRoundScores(allMatches.filter(match => match.status === "finished").map(match => match.id)) : Promise.resolve(new Map()),
+    selectedStage?.type === "swiss"
+      ? loadMajorSwissStageReadModel(season.id, selectedStage.key, allMatches).then(model => [[selectedStage.key, model] as const]) : Promise.resolve([]),
+    defaultStageKey === "play-in" && qualificationRun?.format === "short_swiss_2w2l"
+      ? loadQualificationSwissStageReadModel(season.id, { run: qualificationRun, displayedMatches: allMatches }) : Promise.resolve(null),
+    needsBracket ? loadStageBracketState(db, season.id, selectedStage.key) : Promise.resolve(null),
   ]);
+  const bracketDataByStage = new Map(bracketState && selectedStage ? [[selectedStage.key, serializeStageBracket(bracketState)]] : []);
   const swissReadModels = new Map(swissEntries.filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null));
   const teamMap = new Map(allTeams.map(team => [team.id, team.name]));
   const qualificationMatches = qualificationRun
@@ -80,7 +93,8 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
     : [];
   const qualificationMatchIds = new Set(qualificationMatches.map((match) => match.id));
   const majorStageMatches = allMatches.filter((match) => !qualificationMatchIds.has(match.id));
-  const { views: stageViews, unconfiguredMatches } = buildStageViews<typeof allMatches[number]>(stagePlan, majorStageMatches);
+  const { views: stageViews } = buildStageViews<typeof allMatches[number]>(stagePlan, majorStageMatches);
+  const hasUnconfiguredMatches = stagePresentation.initializedStageKeys.some(key => key !== "play-in" && !stagePlan.some(stage => stage.key === key));
   const sortActiveMatches = (stageMatches: typeof allMatches) =>
     [...stageMatches].sort((a, b) => {
       const timeDifference = (a.scheduledAt?.getTime() ?? Infinity) - (b.scheduledAt?.getTime() ?? Infinity);
@@ -101,16 +115,9 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
     ),
   });
 
-  const requestedMajorStageKey = requestedStage && stagePlan.some((stage) => stage.key === requestedStage)
-    ? requestedStage
-    : null;
-  const defaultStageKey = requestedStage === "play-in" && qualificationRun
-    ? "play-in"
-    : season.competitionTemplate === "major"
-      ? requestedMajorStageKey ?? stagePresentation.currentStageKey ?? (qualificationRun ? "play-in" : stagePlan[0]?.key ?? null)
-      : resolveDefaultStageKey(stagePlan, majorStageMatches, requestedStage);
 
-  if (allMatches.length === 0 && allTeams.length === 0) {
+  const refreshToken = await refreshTokenRead;
+  if (stagePresentation.initializedStageKeys.length === 0 && allTeams.length === 0) {
     return (
       <PageLayout variant="wide" className="py-16 text-center text-[var(--color-fg-mid)]">
         赛程尚未生成，敬请期待
@@ -120,7 +127,7 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
 
   return (
     <PageLayout as="div" variant="standard" className="space-y-8">
-      <MatchContextRefresh enabled={allMatches.some(match => match.status === "in_progress" || match.status === "scheduled")} />
+      <MatchContextRefresh enabled={defaultStageKey !== null && !["finished", "archived"].includes(season.status)} seasonSlug={seasonSlug} scope={{ stage: defaultStageKey ?? "" }} initialToken={refreshToken} />
       <PageHeader
         title="赛程"
         eyebrow={season.name}
@@ -135,7 +142,7 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
         <MatchTeamFilter teams={allTeams.map((team) => ({ id: team.id, name: team.name }))} />
       )}
 
-      {unconfiguredMatches.length > 0 && (
+      {hasUnconfiguredMatches && (
         <Panel contentClassName="p-4" className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">
             部分赛程数据与当前阶段配置不一致。
@@ -151,26 +158,18 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
 
       {defaultStageKey && (
         <Panel contentClassName="p-6">
-          <Tabs defaultValue={defaultStageKey} className="w-full">
-            <TabsList className="mb-6 h-auto min-h-10 max-w-full justify-start overflow-x-auto overflow-y-hidden bg-[var(--color-panel)] border border-[var(--color-border)] p-1">
-              {qualificationRun && <TabsTrigger
-                value="play-in"
-                className="data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]"
-              >PLAY-IN</TabsTrigger>}
-              {qualificationRun && stageViews.length > 0 && <span aria-hidden="true" className="mx-1 h-6 w-px shrink-0 bg-[var(--color-border)]" />}
-              {stageViews.map(({ stage }) => (
-                <TabsTrigger
-                  key={stage.key}
-                  value={stage.key}
-                  className="data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]"
-                >
-                  {stagePresentation.labels[stage.key]}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+          <div className="w-full">
+            <nav aria-label="赛事阶段" className="mb-6 flex min-h-10 max-w-full items-center gap-1 overflow-x-auto overflow-y-hidden rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-1">
+              {[...(qualificationRun ? [{ key: "play-in", label: "PLAY-IN" }] : []), ...stagePlan.map(stage => ({ key: stage.key, label: stagePresentation.labels[stage.key] ?? stage.name }))].map(stage => {
+                const query = new URLSearchParams({ stage: stage.key });
+                if (filterTeamId) query.set("team", filterTeamId);
+                return <Link key={stage.key} href={`/${seasonSlug}/matches?${query}`} aria-current={defaultStageKey === stage.key ? "page" : undefined}
+                  className="shrink-0 rounded px-3 py-2 text-sm font-medium aria-[current=page]:bg-[var(--color-accent)] aria-[current=page]:text-[var(--color-accent-fg)]">{stage.label}</Link>;
+              })}
+            </nav>
 
-            {qualificationRun && (
-              <TabsContent value="play-in" className="space-y-8">
+            {qualificationRun && defaultStageKey === "play-in" && (
+              <div className="space-y-8">
                 {qualificationSwissReadModel && <SwissBracket data={qualificationSwissReadModel} seasonSlug={seasonSlug} />}
                 {qualificationRun.format === "direct_bo3" && (() => {
                   const resolved = qualificationMatches.filter((match) => match.status === "finished" && match.scoreA !== null && match.scoreB !== null && match.scoreA !== match.scoreB).length;
@@ -196,10 +195,10 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
                     unknownTeamName="未知队伍"
                   />;
                 })() : <div className="py-10 text-center text-sm text-[var(--color-fg-mid)]">Play-in 比赛尚未生成</div>}
-              </TabsContent>
+              </div>
             )}
 
-            {stageViews.map(({ stage, matches: allStageMatches }) => {
+            {stageViews.filter(view => view.stage.key === defaultStageKey).map(({ stage, matches: allStageMatches }) => {
               const stageLabel = stagePresentation.labels[stage.key] ?? stage.name;
               const stageMatches = [...allStageMatches];
               const { active, done } = splitMatches(stageMatches);
@@ -220,7 +219,7 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
               );
 
               return (
-                <TabsContent key={stage.key} value={stage.key} className="space-y-8">
+                <div key={stage.key} className="space-y-8">
                   <>
                       {swissReadModel && (
                         <SwissBracket data={swissReadModel} seasonSlug={seasonSlug} />
@@ -272,10 +271,10 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
                         </div>
                       )}
                   </>
-                </TabsContent>
+                </div>
               );
             })}
-          </Tabs>
+          </div>
         </Panel>
       )}
     </PageLayout>

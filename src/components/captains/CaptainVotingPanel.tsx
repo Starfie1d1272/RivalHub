@@ -1,8 +1,8 @@
 "use client";
 
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
-import { useTransition } from "react";
-import { useRoutePolling } from "@/components/use-visible-polling";
+import { useState, useTransition } from "react";
+import { useVisiblePolling } from "@/components/use-visible-polling";
 import { RefreshCw, Undo2, Vote } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -18,11 +18,14 @@ import type {
   PublicCaptainVoter,
 } from "@/lib/captains/data";
 import { observeAction } from "@/lib/telemetry/client";
+import { readPublicCaptainVoting, type CaptainVotingSnapshot } from "@/actions/public-captain-voting";
 
 const castVote = observeAction("captains.castVote", telemetry_castVote);
 const retractVote = observeAction("captains.retractVote", telemetry_retractVote);
 
 interface CaptainVotingPanelProps {
+  seasonSlug: string;
+  viewerPending?: boolean;
   seasonName: string;
   seasonStatus: string;
   currentVoter: PublicCaptainVoter | null;
@@ -32,16 +35,30 @@ interface CaptainVotingPanelProps {
 
 export function CaptainVotingPanel({
   seasonName,
-  seasonStatus,
-  currentVoter,
-  candidates,
-  votes,
+  seasonStatus: initialStatus,
+  currentVoter: initialVoter,
+  candidates: initialCandidates,
+  votes: initialVotes,
+  seasonSlug,
+  viewerPending = false,
 }: CaptainVotingPanelProps) {
   const router = useRouter();
+  const [polled, setPolled] = useState<{ source: typeof initialCandidates; sourceStatus: string; sourceVoter: typeof initialVoter; sourceVotes: typeof initialVotes; data: CaptainVotingSnapshot } | null>(null);
+  // New RSC props supersede any response started against the old candidate set.
+  const { seasonStatus, currentVoter, candidates, votes } = polled?.source === initialCandidates && polled.sourceStatus === initialStatus && polled.sourceVoter === initialVoter && polled.sourceVotes === initialVotes
+    ? polled.data : { seasonStatus: initialStatus, currentVoter: initialVoter, candidates: initialCandidates, votes: initialVotes };
   const [isPending, startTransition] = useTransition();
   const isVotingOpen = seasonStatus === "voting";
 
-  useRoutePolling(isVotingOpen ? 10_000 : null, isPending);
+  useVisiblePolling(async () => {
+    if (isPending) return;
+    const result = await readPublicCaptainVoting(seasonSlug).catch(() => null);
+    if (result?.success) {
+      setPolled({ source: initialCandidates, sourceStatus: initialStatus, sourceVoter: initialVoter, sourceVotes: initialVotes, data: result.data });
+      if (result.data.seasonStatus !== seasonStatus) router.refresh();
+    }
+    else router.refresh();
+  }, isVotingOpen && !viewerPending ? 10_000 : null);
 
   // votes 已在服务端按当前用户过滤
   const votedCandidateIds = new Set(votes.map((vote) => vote.candidateRegistrationId));
@@ -114,7 +131,7 @@ export function CaptainVotingPanel({
 
         {!currentVoter && (
           <p className="text-xs text-[var(--color-fg-mid)] border border-[var(--color-border)] rounded-sm px-3 py-2">
-            请先登录并通过报名审核后方可投票。
+            {viewerPending ? "正在核对投票资格…" : "请先登录并通过报名审核后方可投票。"}
           </p>
         )}
 
@@ -233,7 +250,7 @@ export function CaptainVotingPanel({
                 </>
               ) : (
                 <p className="rounded-md border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]">
-                  请先登录并通过报名审核后方可投票。
+                  {viewerPending ? "正在核对投票资格…" : "请先登录并通过报名审核后方可投票。"}
                 </p>
               )}
 

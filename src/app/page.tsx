@@ -12,6 +12,7 @@ import {
   buildHomeNavEntries,
   buildSeasonPrimaryAction,
   selectHomeNavTiers,
+  selectFeaturedSeason,
 } from "@/lib/home/navigation";
 import { getPublicHomeProjection } from "@/lib/home/read-model";
 import { HomeHero } from "@/components/home/HomeHero";
@@ -32,8 +33,7 @@ export default function HomePage() {
 async function HomeContent() {
   await io();
   const allSeasons = await getPublicSeasonCatalog();
-  const projection = await getPublicHomeProjection(allSeasons);
-  const featured = projection.featured;
+  const featured = selectFeaturedSeason(allSeasons);
 
   if (!featured) {
     return (
@@ -49,9 +49,10 @@ async function HomeContent() {
   }
 
   const eyebrow = buildHomeEyebrow(featured);
-  const [stage, draftData] = await Promise.all([
+  const [stage, draftData, projection] = await Promise.all([
     getPublicSeasonStagePresentation(featured),
     featured.status === "drafting" && featured.hasDraft ? getPublicDraftSummary(featured.id) : Promise.resolve(null),
+    getPublicHomeProjection(allSeasons),
   ]);
   const { tier1Entry, tier2Entries, tier3Entries } = selectHomeNavTiers(
     buildHomeNavEntries(featured),

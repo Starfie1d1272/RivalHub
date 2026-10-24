@@ -54,8 +54,10 @@ async function readSeasonInfo(
   const info = publicInfo === undefined
     ? (await db.select().from(seasonPublicInfo).where(eq(seasonPublicInfo.seasonId, seasonId)).limit(1))[0] ?? null
     : publicInfo;
-  const groups = await db.select().from(communityGroups).where(eq(communityGroups.seasonId, seasonId)).orderBy(asc(communityGroups.sortOrder), asc(communityGroups.createdAt), asc(communityGroups.id));
-  const contacts = await db.select().from(seasonContacts).where(eq(seasonContacts.seasonId, seasonId)).orderBy(asc(seasonContacts.sortOrder), asc(seasonContacts.createdAt), asc(seasonContacts.id));
+  const [groups, contacts] = await Promise.all([
+    db.select().from(communityGroups).where(eq(communityGroups.seasonId, seasonId)).orderBy(asc(communityGroups.sortOrder), asc(communityGroups.createdAt), asc(communityGroups.id)),
+    db.select().from(seasonContacts).where(eq(seasonContacts.seasonId, seasonId)).orderBy(asc(seasonContacts.sortOrder), asc(seasonContacts.createdAt), asc(seasonContacts.id)),
+  ]);
   return toPublicSeasonInfo(info ?? null, groups, contacts, seasonSlug);
 }
 
