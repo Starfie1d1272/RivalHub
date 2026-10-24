@@ -29,11 +29,11 @@ it("keeps a previous session's timeline out of a newly selected session", async 
   await user.click(screen.getByRole("tab", { name: "会话路径" }));
   const a: Analysis = { ...initial, timeline: [{ at: Date.now(), label: "A 专属操作", kind: "page", phase: "", route: "首页", detail: "", duration: null, requestId: null }] };
   query.mockResolvedValueOnce({ status: "ready", data: a });
-  await user.click(screen.getByRole("button", { name: "会话 001", exact: true }));
+  await user.click(screen.getByRole("button", { name: /^会话 001$/ }));
   expect(await screen.findByText("A 专属操作")).toBeInTheDocument();
   let fail!: (error: Error) => void;
   query.mockImplementationOnce(() => new Promise((_, reject) => { fail = reject; }));
-  await user.click(screen.getByRole("button", { name: "会话 002", exact: true }));
+  await user.click(screen.getByRole("button", { name: /^会话 002$/ }));
   await waitFor(() => expect(query).toHaveBeenCalledTimes(2));
   expect(screen.queryByText("A 专属操作")).not.toBeInTheDocument();
   await act(async () => fail(new Error("fixture failure")));
