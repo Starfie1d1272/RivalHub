@@ -47,7 +47,7 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 
 `PageLayout` 是 page width、horizontal gutter 和 base vertical padding 的唯一 owner。route page、loading、error、fallback 应复用同一个 route-level `PageLayout` variant；已经由父级 `PageLayout` 包裹的子页面只声明 section、grid、spacing、`min-w-0`、局部 overflow，以及真实阅读/表单所需的 inner `max-w-*`。
 
-赛事 layout 的共享 shell 在异步读取前后保留一个 small viewport 的最小内容高度；该槽位位于 Suspense 外，fallback 不单独估算半屏高度。短内容保留同一槽位，长内容自然撑高，footer 始终保留在正常文档流并可滚动到达；不为降低位移隐藏 footer，也不设置超出内容的固定高度。页面内部仍由各自 `PageLayout` 管理宽度与留白。
+赛事 layout 的共享 shell 在异步读取前后保留一个 small viewport 的最小内容高度；该槽位位于 Suspense 外，fallback 不单独估算半屏高度。短内容保留同一槽位，长内容自然撑高，footer 始终保留在正常文档流并可滚动到达。该取舍让 footer 在初始内容读取期间位于首屏之外，短页因此增加一个 header 与 footer 合计高度的滚动距离；它不保证 footer 的文档坐标不变，也不代表全页布局位移已消除。不隐藏 footer，不继续加大预留高度；验收同时检查总 CLS、真实主内容 ready 和长短页 footer 可达性。页面内部仍由各自 `PageLayout` 管理宽度与留白。
 
 不要在页面级重新组合 `container`、`mx-auto`、`max-w-*`、`px-*`、`py-*`。局部表单或长文的 inner width 可以保留，但不能再次拥有整页 gutter。赛事导航条和 breadcrumb 等 full-bleed/navigation surface 内部的 alignment frame 是例外：它只对齐导航内容，不负责 page body 的宽度或垂直几何。
 

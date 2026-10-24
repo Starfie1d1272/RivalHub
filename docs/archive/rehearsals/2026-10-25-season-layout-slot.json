@@ -2,7 +2,7 @@
   "environment": "Chromium / Next dev / dedicated migrated local PostgreSQL fixture; controlled layout geometry, not production or LCP acceptance",
   "baselineRef": "daf263b3be95a101358446569bd7264f59dce3bf",
   "candidateLayoutSha256": "6d1bf92a099d763c5f8d194c450910d5e81c02904332795f42d402e12932f407",
-  "contract": "One small-viewport minimum season content slot persists outside Suspense. Natural document flow and long-content growth remain enabled; footer has no visibility/position/height change.",
+  "contract": "One small-viewport minimum season content slot persists outside Suspense. The footer remains in natural flow with unchanged CSS visibility/position/height properties, but its document coordinates change. It starts below the viewport, so zero footer-source CLS does not imply an unchanged document position or elimination of whole-page layout movement.",
   "fixture": {
     "kind": "custom playing event",
     "longRoute": "20 published season announcements, each 80 repetitions of a short public fixture sentence",
@@ -305,6 +305,35 @@
   ],
   "limits": [
     "The header-only production-candidate trace reported by W07 is independent evidence; its CLS number is not reused as this fixture baseline.",
-    "No end-to-end production CLS budget, final integrated candidate or LCP improvement is inferred from these development fixture runs."
-  ]
+    "No end-to-end production CLS budget, final integrated candidate or LCP improvement is inferred from these development fixture runs.",
+    "Development fixture total CLS does not measure the final integrated candidate, and primary-content ready latency was not measured by this geometry experiment."
+  ],
+  "layoutTradeoff": {
+    "desktopInitialFooterTopPx": {
+      "before": 942.5,
+      "after": 1064
+    },
+    "shortDocumentHeightPx": {
+      "desktop": {
+        "before": 1000,
+        "after": 1122,
+        "additionalScroll": 122
+      },
+      "mobile": {
+        "before": 844,
+        "after": 1008,
+        "additionalScroll": 164
+      }
+    },
+    "interpretation": "One content viewport plus natural header/footer defers initial footer visibility. Additional short-page scrolling is intentional and must be assessed alongside the CLS score. Do not enlarge the reservation merely to suppress a score."
+  },
+  "finalIntegratedAcceptance": {
+    "state": "pending",
+    "sameFinalCandidateRequired": true,
+    "measurements": [
+      "Total page CLS including all sources",
+      "Genuine primary-content ready; never fallback readiness",
+      "Desktop/mobile short-page footer link reachability and additional scrolling"
+    ]
+  }
 }
