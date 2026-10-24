@@ -2,12 +2,6 @@
 
 ## [2.21.13]
 
-### Fixed
-
-- 修复自托管反向代理后遥测票据续签被误判为跨域的问题，使用已配置的公网 HTTPS 来源并继续拒绝跨域、内部地址及无效来源配置。
-
-## [2.21.12]
-
 ### Added
 
 - Cloudflare 产品遥测增加页面性能指标和站内导航提交耗时，继续使用现有批量通道、七天保留与接收预算。
@@ -21,6 +15,7 @@
 
 ### Fixed
 
+- 修复自托管反向代理后遥测票据续签被误判为跨域的问题，使用已配置的公网 HTTPS 来源并继续拒绝跨域、内部地址及无效来源配置。
 - 自托管服务延长闲置数据库连接的复用时间，减少连续浏览时重复建立连接的等待，并增加查询返回行数和连接池排队诊断。
 - BET 三类排行榜共用一次总体读取；批量读取预测结算输入，缩短选手统计保存及 Demo 导入等待。
 
@@ -3431,6 +3426,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [2.21.11]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.10...v2.21.11
 
-[2.21.12]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.11...v2.21.12
-
-[2.21.13]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.12...v2.21.13
+[2.21.13]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.11...v2.21.13
