@@ -1,3 +1,4 @@
+import { deliverExistingFixtureVetoInvalidations } from "./harness/veto-delivery";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
@@ -115,7 +116,7 @@ describe("BP appeal gameplay lifecycle", () => {
       const due = async () => (await pool.query("SELECT public.scheduler_job_is_due('resolve-match-veto-timeouts', $1::boolean) AS due", [canPublishVetoAppealClosure()])).rows[0].due;
       // Fresh fixture facts also create delivery work; drain that before
       // isolating the gameplay/closure due signal. No lifecycle fact changes.
-      expect(await runMatchVetoTimeoutJob()).toMatchObject({ result: { changed: 0 } });
+      await deliverExistingFixtureVetoInvalidations();
       expect(await due()).toBe(false);
       await db.update(schema.matchMaps).set({ startedAt: NOW }).where(eq(schema.matchMaps.id, f.mapOneId));
       expect(await due()).toBe(true);

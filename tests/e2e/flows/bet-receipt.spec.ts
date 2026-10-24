@@ -51,6 +51,8 @@ test("断流投入只读核对原回执，刷新等待不阻塞确认，撤回�
     expect(stakes.map(stake=>stake.amount.toString())).toEqual(["25"]);
     const fresh=await page.request.get(`/api/bet/${fixture.seasonId}?matchId=${market.matchId}`);
     expect((await fresh.json()).data.bet.balance).toBe("975");
+    const repositoryLink=page.getByRole("contentinfo").getByRole("link",{name:/GITHUB/});
+    await repositoryLink.scrollIntoViewIfNeeded();await expect(repositoryLink).toBeVisible();
     await db.update(schema.seasons).set({status:"draft"}).where(eq(schema.seasons.id,fixture.seasonId));
     expect((await request.get(`/api/bet/${fixture.seasonId}`)).status()).toBe(404);
     expect((await page.request.get(`/api/bet/${fixture.seasonId}`)).status()).toBe(404);

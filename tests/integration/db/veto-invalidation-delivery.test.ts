@@ -1,3 +1,4 @@
+import { deliverExistingFixtureVetoInvalidations } from "./harness/veto-delivery";
 import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -145,4 +146,33 @@ it.each(["in_progress", "scheduled"] as const)("delivers pending obligations whe
   expect(after.publishedGeneration).toBe(after.generation);
   expect(cache.revalidateTag.mock.calls.some(call => call[0] === publicBetTag(f.seasonId))).toBe(true);
   expect((await readVetoRoomSnapshot(f.matchId)).session).toEqual(session);
+  // This intentionally due archived fixture must not remain a global domain
+  // candidate for another spec reusing this worker database.
+  await db.update(schema.matchVetoSessions).set({ completedAt: new Date(), entryAStartRequestedAt: null, entryAStartRequestedBy: null })
+    .where(eq(schema.matchVetoSessions.matchId, f.matchId));
+  await deliverVetoInvalidation(f.matchId, "route");
+});
+
+it("restores the watermark cascade skipped by another fixture's replica teardown", async () => {
+  const f = await seedFixture();
+  await deliverExistingFixtureVetoInvalidations();
+  const [match] = await db.select().from(schema.matches).where(eq(schema.matches.id, f.matchId));
+  const { randomUUID } = await import("node:crypto");
+  const id = randomUUID();
+  await db.insert(schema.matches).values({ ...match!, id });
+  await db.insert(schema.matchVetoSessions).values({ matchId: id });
+  expect(await watermark(id)).toBeDefined();
+  await db.transaction(async tx => {
+    await tx.execute(sql`SET LOCAL session_replication_role = replica`);
+    await tx.delete(schema.matchVetoSessions).where(eq(schema.matchVetoSessions.matchId, id));
+    await tx.delete(schema.matches).where(eq(schema.matches.id, id));
+  });
+  // FK cascade triggers were disabled by teardown; ordinary delivery cannot
+  // project a deleted parent and must not fabricate a cache context for it.
+  expect(await watermark(id)).toBeDefined();
+  await deliverExistingFixtureVetoInvalidations();
+  expect(await watermark(id)).toBeUndefined();
+  const retained = (await watermark(f.matchId))!;
+  expect(retained).toBeDefined();
+  expect(retained.publishedGeneration).toBe(retained.generation);
 });
