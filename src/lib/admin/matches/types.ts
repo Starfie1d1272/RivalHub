@@ -181,6 +181,7 @@ export interface AdminMatchWorkbenchData {
   officialMapStart?: { mapId: string; mapName: string } | null;
   postMatch: AdminPostMatchRecordData | null;
   demoReviews?: AdminDemoReviewMap[];
+  demoReviewSummaries?: Pick<AdminDemoQuality, "importId" | "matchMapId" | "mapOrder" | "mapName">[];
   demoQuality?: AdminDemoQuality[];
   demoQualitySummaries?: Pick<AdminDemoQuality, "importId" | "matchMapId" | "mapOrder" | "mapName">[];
   operator: {

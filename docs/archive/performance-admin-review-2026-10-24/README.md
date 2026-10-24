@@ -1,0 +1,9 @@
+# needs_attention 首读边界
+
+工作台首屏只保留当前needs_attention import的地图/状态摘要与待处理入口。闭合的详细核对不读取artifact、不执行详细identity-review、不取Steam persona。首次展开的action重新校验赛事权限和season/match/map/import范围，在只读repeatable-read快照内确认current import仍是needs_attention后仅读这一份artifact，复用原loadAdminDemoReview；persona在事务结束后补充，缓存/DB/provider失败仍只降级展示。
+
+确认身份、撤销、重新检查、拒绝等mutation及其锁内canonical重验未改。已激活区域关闭再打开保留实例与草稿；新RSC摘要props到达后重读当前review。详细核对anchor移到可展开区域，首屏仍显示需要处理。
+
+证据：app/tests类型、文件级ESLint、architecture通过。组件2例验证闭合零调用、激活一次、草稿保留、新RSC刷新、错误重试；persona故障隔离4例通过。真实PG egress用例验证三个needs_attention的首屏artifact读取1SQL/3行→0，展开只读选定import1行；跨季、旧import与注入的fresh授权拒绝均在artifact读取前失败。质量异常安全降级、lineage/revalidation原用例仍通过。
+
+PG fixture真实；canonical-review结果和persona异常有明确注入，因此不是完整身份校验、真实PG超时或并发证据。未测生产LCP/p95，不把缺失详细内容之前的状态摘要当作完整review ready。完整证据脚本为tests/integration/db/demo-import-egress.test.ts和tests/unit/components/deferred-demo-review.test.tsx。
