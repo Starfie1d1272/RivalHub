@@ -67,6 +67,7 @@ interface CallParams {
   mimeType: string;
   withResponseFormat: boolean;
   requestId: string;
+  deadline: number;
 }
 
 async function readFailureReason(response: Response, sensitiveValues: readonly string[]) {
@@ -132,7 +133,9 @@ async function callAPI(params: CallParams) {
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 180000);
+  const remaining = params.deadline - performance.now();
+  if (remaining <= 0) throw new OCRFailure("timeout", "request", "request_timeout", undefined, { requestId: params.requestId });
+  const timer = setTimeout(() => controller.abort(), remaining);
 
   return traceOperation("provider.siliconflow.chat_completion", {
     scope: "provider",
@@ -218,10 +221,10 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
       scope: "provider",
       operation: "ocr.extract",
       requestId,
-      safeContext: { provider: "siliconflow", imageBytes: base64Image.length, mimeType },
+      safeContext: { provider: "siliconflow", imageBytes: Buffer.byteLength(base64Image, "base64"), mimeType },
     });
 
-    const callParams: CallParams = { apiUrl, apiKey, model, base64Image, mimeType, withResponseFormat: true, requestId };
+    const callParams: CallParams = { apiUrl, apiKey, model, base64Image, mimeType, withResponseFormat: true, requestId, deadline: performance.now() + 180000 };
 
     let result;
     try {

@@ -14,6 +14,11 @@ const revalidateMatchPathsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/db/client", () => ({
   db: {
+    select: () => ({ from: () => ({ leftJoin: () => ({ where: () => ({ limit: async () => {
+      const match = await matchesFindFirstMock();
+      const season = await seasonsFindFirstMock();
+      return match ? [{ ...match, slug: season?.slug ?? null }] : [];
+    } }) }) }) }),
     query: {
       matches: { findFirst: matchesFindFirstMock },
       seasons: { findFirst: seasonsFindFirstMock },
@@ -86,7 +91,7 @@ describe("post-match action revalidation", () => {
 
   it("validates recording data and derives the actor from the current season session", async () => {
     const recording = { id: matchId, commentatorUserId: matchId, title: "图一", url: "https://video.example/1" };
-    expect(await mutateMatchRecording({ matchId, command: { kind: "save", recording } })).toEqual({ success: true, data: undefined });
+    expect(await mutateMatchRecording({ matchId, command: { kind: "save", recording } })).toEqual({ success: true, data: { refreshPending: false } });
     expect(mutateMatchRecordingInTxMock).toHaveBeenCalledWith({}, { matchId, actorId: "admin-1", command: { kind: "save", recording } });
     vi.clearAllMocks();
     expect(await mutateMatchRecording({ matchId, actorId: "forged", command: { kind: "save", recording } })).toMatchObject({ success: false });
@@ -95,6 +100,13 @@ describe("post-match action revalidation", () => {
     requireSeasonAdminMock.mockRejectedValueOnce(new AppError(ErrorCode.FORBIDDEN, "无权操作。"));
     expect(await mutateMatchRecording({ matchId, command: { kind: "remove", id: matchId } })).toMatchObject({ success: false, error: { code: "FORBIDDEN" } });
     expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps a recording COMMIT successful when postcommit invalidation fails", async () => {
+    revalidateMatchPathsMock.mockImplementationOnce(() => { throw new Error("cache unavailable"); });
+    const result = await mutateMatchRecording({ matchId, command: { kind: "remove", id: matchId } });
+    expect(result).toEqual({ success: true, data: { refreshPending: true } });
+    expect(transactionMock).toHaveBeenCalledOnce();
   });
 
 });

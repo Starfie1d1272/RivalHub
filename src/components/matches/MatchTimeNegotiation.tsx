@@ -37,6 +37,7 @@ export function MatchTimeNegotiation({
   initialProposals,
   hasSubmittedRoster = false,
 }: MatchTimeNegotiationProps) {
+  const [outcomeGuidance, setOutcomeGuidance] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [now, setNow] = useState(() => Date.now());
   const [proposedTime, setProposedTime] = useState("");
@@ -98,16 +99,21 @@ export function MatchTimeNegotiation({
   };
 
   const handleRespond = (proposalId: string, action: "accept" | "reject") => {
+    if (outcomeGuidance) return;
     startTransition(async () => {
+      try {
       const reason = action === "reject" ? rejectReasons[proposalId] : undefined;
       const result = await respondToTimeProposal(proposalId, action, reason);
       if (result.success) {
+        if (result.data?.refreshPending) setOutcomeGuidance("回应已提交，刷新待完成。请刷新页面核对当前提议状态。");
         toast.success(action === "accept" ? "已接受提议" : "已拒绝提议");
         setRejectReasons((prev) => ({ ...prev, [proposalId]: "" }));
         setRejectingId(null);
       } else {
+        if (result.error.code === "INTERNAL_ERROR") setOutcomeGuidance("回应结果尚未确认，请刷新页面核对提议状态，不要重复回应。");
         toast.error(result.error.message ?? "操作失败");
       }
+      } catch { setOutcomeGuidance("回应结果尚未确认，请刷新页面核对提议状态，不要重复回应。"); }
     });
   };
 
@@ -128,6 +134,7 @@ export function MatchTimeNegotiation({
 
   return (
     <div className="space-y-4">
+      {outcomeGuidance && <p role="alert" className="text-sm text-[var(--color-danger)]">{outcomeGuidance}</p>}
       {isCaptain && !hasSubmittedRoster && (
         <div className="rounded border p-3" style={{ borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)" }}>
           <p className="text-sm text-[var(--color-fg)]">请尽早提交本场首发及 BP 负责人</p>
@@ -200,7 +207,7 @@ export function MatchTimeNegotiation({
                     <Button
                       size="sm"
                       onClick={() => handleRespond(proposal.id, "accept")}
-                      disabled={isPending || isNegotiationClosed || !scheduling.pending}
+                      disabled={Boolean(outcomeGuidance) || isPending || isNegotiationClosed || !scheduling.pending}
                     >
                       接受
                     </Button>
@@ -208,7 +215,7 @@ export function MatchTimeNegotiation({
                       size="sm"
                       variant="outline"
                       onClick={() => setRejectingId(rejectingId === proposal.id ? null : proposal.id)}
-                      disabled={isPending || isNegotiationClosed}
+                      disabled={Boolean(outcomeGuidance) || isPending || isNegotiationClosed}
                     >
                       拒绝
                     </Button>
@@ -226,7 +233,7 @@ export function MatchTimeNegotiation({
                           size="sm"
                           variant="destructive"
                           onClick={() => handleRespond(proposal.id, "reject")}
-                          disabled={isPending || isNegotiationClosed || !(rejectReasons[proposal.id] ?? "").trim()}
+                          disabled={Boolean(outcomeGuidance) || isPending || isNegotiationClosed || !(rejectReasons[proposal.id] ?? "").trim()}
                         >
                           确认拒绝
                         </Button>
@@ -254,7 +261,7 @@ export function MatchTimeNegotiation({
             />
             <Button
               onClick={handlePropose}
-              disabled={isPending || !proposedTime}
+              disabled={Boolean(outcomeGuidance) || isPending || !proposedTime}
             >
               提议
             </Button>
@@ -298,7 +305,7 @@ export function MatchTimeNegotiation({
             <Button
               variant="destructive"
               onClick={handleForceSet}
-              disabled={isPending || !proposedTime}
+              disabled={Boolean(outcomeGuidance) || isPending || !proposedTime}
             >
               强制设定
             </Button>

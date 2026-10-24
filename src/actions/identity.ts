@@ -17,6 +17,7 @@ import {
   type CompleteIdentityLinkOutcome,
 } from "@/lib/identity/linking";
 import { normalizeEmail } from "@/lib/utils/email";
+import { traceOperation, logEvent } from "@/lib/observability/server";
 import { ErrorCode } from "@/lib/errors";
 import { fail, ok, type ActionResult } from "@/types/action";
 
@@ -26,6 +27,7 @@ const uuidSchema = z.uuid();
 export async function requestSecondaryEmailIdentity(emailInput: string): Promise<ActionResult<void>> {
   const parsed = emailSchema.safeParse(emailInput.trim());
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址。" });
+  let deliveryStarted = false;
   try {
     const session = await requireAuth();
     const email = normalizeEmail(parsed.data);
@@ -46,20 +48,29 @@ export async function requestSecondaryEmailIdentity(emailInput: string): Promise
     });
     if (!request) throw new Error("无法创建邮箱绑定请求");
 
-    const { error } = await createPublicAuthClient().auth.signInWithOtp({
+    deliveryStarted = true;
+    const { error } = await traceOperation("provider.supabase.auth.link_email", { scope: "provider", operation: "identity.link_email", provider: "supabase-auth" }, () => createPublicAuthClient().auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: true,
         emailRedirectTo: identityConfirmationUrl(request.id, stateToken),
       },
-    });
+    }));
     if (error) {
+      // SDK 5xx/transport failures do not prove that no mail was accepted.
+      // Retain the pending request and its token so a late email remains valid.
+      if (typeof error.status !== "number" || error.status < 400 || error.status >= 500 || error.status === 408) {
+        logEvent({ level: "warn", event: "identity.link_email.unknown", scope: "provider", operation: "identity.link_email", errorClass: "dependency", retryable: false,
+          safeContext: { provider: "supabase-auth", outcome: "unknown", httpStatus: error.status } });
+        return fail({ code: ErrorCode.INTERNAL_ERROR, message: "验证邮件请求结果尚未确认，请先检查邮箱，不要立即重新发起绑定。", meta: { outcome: "unknown" } });
+      }
       await db.update(identityLinkRequests).set({ status: "cancelled", completedAt: new Date() })
         .where(and(eq(identityLinkRequests.id, request.id), eq(identityLinkRequests.status, "pending")));
       return fail({ code: ErrorCode.INTERNAL_ERROR, message: "验证邮件暂时无法发送，请稍后重试。" });
     }
     return ok(undefined);
   } catch (error) {
+    if (deliveryStarted) return fail({ code: ErrorCode.INTERNAL_ERROR, message: "验证邮件请求结果尚未确认，请先检查邮箱，不要立即重新发起绑定。", meta: { outcome: "unknown" } });
     return actionError("requestSecondaryEmailIdentity", error);
   }
 }

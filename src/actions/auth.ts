@@ -38,7 +38,7 @@ export async function loginWithPassword(
   const normalizedEmail = normalizeEmail(email);
 
   try {
-    const authenticationStartedAt = await beginAuthentication(db);
+    const authenticationStartedAt = await traceOperation("auth.clock", { scope: "action", operation: "auth.clock" }, () => beginAuthentication(db));
     const supabase = createPublicAuthClient();
     const { data, error } = await traceOperation("provider.supabase.auth.sign_in", {
       scope: "provider",
@@ -48,7 +48,7 @@ export async function loginWithPassword(
 
     if (error) return signInFailure(error, "auth.sign_in");
 
-    const userRow = await db.transaction(async (tx) => {
+    const userRow = await traceOperation("auth.canonical", { scope: "action", operation: "auth.canonical" }, () => db.transaction(async (tx) => {
       const canonicalUser = await resolveOrCreateCanonicalUserInTx(tx, {
         authenticationStartedAt,
         authId: data.user.id,
@@ -58,14 +58,14 @@ export async function loginWithPassword(
         allowCreate: true,
       });
       return bootstrapConfiguredOwnerInTx(tx, canonicalUser);
-    });
+    }));
 
     if (!userRow) return fail({ code: ErrorCode.UNAUTHORIZED, message: "账号不存在，请重新登录。" });
 
-    await createUserSession({
+    await traceOperation("auth.session", { scope: "action", operation: "auth.session" }, () => createUserSession({
       userId: userRow.id,
       email: userRow.email,
-    }, authenticationStartedAt);
+    }, authenticationStartedAt));
 
     return ok({ email: normalizedEmail });
   } catch (e) {
