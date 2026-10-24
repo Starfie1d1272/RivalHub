@@ -3,7 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
-import { readVetoRoomSnapshot, reconcileVetoRoom, submitVetoCommandReceipt, requestVetoStartReceipt } from "@/lib/matches/veto-room/service";
+import { readVetoRoomSnapshot, reconcileVetoRoom, reconcileVetoRoomReceipt, submitVetoCommandReceipt, requestVetoStartReceipt } from "@/lib/matches/veto-room/service";
 import { seedFixture } from "./harness/mizar";
 
 // Real transactions protect the outcome used to decide cache invalidation.
@@ -92,4 +92,20 @@ it("reports an actual start commit when an already-ready request returns idempot
   expect(receipt).toMatchObject({ outcome: "idempotent", changed: true, affectedFacts: ["veto"] });
   expect(await requestVetoStartReceipt(input)).toMatchObject({ outcome: "idempotent", changed: false, affectedFacts: [] });
   expect(await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.matchId), eq(schema.auditLogs.action, "match.veto.start")))).toHaveLength(1);
+});
+
+
+it("reports map_plan independently when timeout catch-up completes and replaces the map catalog", async () => {
+  const f = await seedFixture({ isTest: true });
+  const match = (await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) }))!;
+  await db.update(schema.matches).set({ format: "bo1" }).where(eq(schema.matches.id, f.matchId));
+  await db.update(schema.matchVetoSessions).set({ completedAt: null, privilegedEntryId: f.entryAId, vetoTeamAEntryId: null,
+    mapPoolSnapshot: match.testConfig!.mapPool, currentTurnKey: "choose-veto-team-a",
+    turnStartedAt: sql`clock_timestamp() - interval '1 day'`, turnDeadlineAt: sql`clock_timestamp() - interval '1 day' + interval '45 seconds'`,
+  }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
+  const receipt = await reconcileVetoRoomReceipt(f.matchId);
+  expect(receipt).toMatchObject({ changed: true, outcome: "applied" });
+  expect(receipt.affectedFacts).toEqual(expect.arrayContaining(["veto", "map_plan"]));
+  expect((await readVetoRoomSnapshot(f.matchId)).session.completedAt).not.toBeNull();
+  expect(await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId))).toHaveLength(1);
 });
