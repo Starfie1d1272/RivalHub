@@ -51,3 +51,5 @@ export * from "./application-sessions";
 export * from "./bet";
 
 export * from "./free-predictions";
+
+export * from "./scoreboard-receipts";

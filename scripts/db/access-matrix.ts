@@ -512,6 +512,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "申诉与裁定只通过服务端 Veto Room action 读写，不直接开放 browser Data API。",
   ),
   serverOnly(
+    "operator_scoreboard_receipts",
+    "比赛 / OCR 回执",
+    "当前 actor 的操作编号、输入摘要、内容版本、数量与提交时间；无原图或输入正文",
+    "src/lib/ocr/scoreboard-receipts.ts",
+    "服务端授权恢复回执，随 actor 或地图删除；无 Data API 或 Realtime consumer。",
+  ),
+  serverOnly(
     "match_veto_invalidations",
     "比赛 / BP 缓存交付",
     "按比赛合并的失效 generation 与已交付 watermark，不含身份或申诉正文",

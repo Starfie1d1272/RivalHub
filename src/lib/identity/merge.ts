@@ -62,6 +62,7 @@ interface UserReferenceRule {
 
 /** Every direct FK to users.id has an explicit owner and merge policy. */
 export const USER_REFERENCE_RULES: readonly UserReferenceRule[] = [
+  { table: "operator_scoreboard_receipts", column: "actor_user_id", label: "OCR 原始提交回执操作人", mode: "preserve" },
   { table: "admin_invite_claims", column: "user_id", label: "管理员邀请领取", mode: "special" },
   { table: "announcements", column: "created_by", label: "公告创建人", mode: "preserve" },
   { table: "announcements", column: "updated_by", label: "公告最后更新人", mode: "preserve" },
