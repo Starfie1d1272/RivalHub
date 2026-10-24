@@ -52,6 +52,10 @@ test("目录实际RSC去重与撤权新请求；审计直接URL和back-forward�
       await pool.query("insert into audit_logs(id,season_id,action,actor_id,target_type,target_id,created_at) values($1,$2,'fixture.audit.view',$3,$4,$5,'2051-01-01'::timestamptz+$6*interval '1 second')", [logIds[i], fixture.seasonId, admin.userId, target.type, target.id, i]);
     }
     await signInProgrammatically(page, admin, scenario, "/admin/logs");
+    await page.goto(`/admin/logs?seasonId=${fixture.seasonId}&page=999`);
+    await expect(page.locator("tbody tr")).toHaveCount(15);
+    await expect(page.getByRole("button", { name: "下一页", exact: true })).toBeDisabled();
+    await expect(page.getByRole("navigation", { name: "列表分页" })).toContainText("第 2 / 2 页");
     await page.goto(`/admin/logs?seasonId=${fixture.seasonId}&page=2`);
     await expect(page.locator("tbody tr")).toHaveCount(15);
     await page.goto(`/admin/logs?seasonId=${fixture.seasonId}`);

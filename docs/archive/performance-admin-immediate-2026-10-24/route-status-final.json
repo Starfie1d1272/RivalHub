@@ -1,6 +1,6 @@
 {
   "routeCount": 35,
-  "asOfMain": "4380f41db5a5baab27a1a4fc33552d039ab0a188",
+  "asOfMain": "28f0a74ce56b77f7d10154069413a6558e82a741",
   "note": "35 source entrypoints, not51 visited URLs. This is a factual delivery snapshot, not release/performance success. Separate implementation, delivery, immediate evidence and long-term observation. Historical matrices remain historical.",
   "routes": [
     {
@@ -43,7 +43,7 @@
       "evidence": "真实PG confirmed QA初读无artifact、展开一图/旧import/跨scope拒绝；persona故障注入4例；OCR组件测试；commentary全局队列与局部历史等价；真实PG old/full parity，4→3SQL，14019→2967结果JSON字节；#1102真实PG首读artifact 3→0，展开1份；3组件+4persona故障注入；独立P2点击门禁审查闭合",
       "owner": "admin",
       "implementationState": "implemented_tested",
-      "delivery": "merged #1083/#1094/#1096; #1102 0c892790 pending parent merge, exact ci-gate40138775978 success",
+      "delivery": "merged #1083/#1094/#1096/#1102; exact1102 CI40138775978 success",
       "immediateAcceptance": "Targeted PG/component boundaries passed. Paired provider-delay browser ready/CLS not established.",
       "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
     },
@@ -94,12 +94,12 @@
     {
       "route": "/admin/[seasonSlug]/logs",
       "task": "A-AUDIT",
-      "implemented": "searchParams→固定scope RSC，移除第二套action读；标签pool按3类型有界",
+      "implemented": "searchParams→固定scope RSC，移除第二套action读；标签pool按3类型有界；越界page按同一scope/count回读末页，UI同步clamp；不安全整数降为默认页",
       "evidence": "PGscope/privacy/fallback；RSC新props组件测试；同match/map/import共享request-local标签只读一次；Chromium direct URL/back/forward 50/15行、30 distinct IDs/2types标签；PG50refs/30types（12现存18fallback）串行vs有界逐值等价",
       "owner": "admin",
       "implementationState": "implemented_tested",
-      "delivery": "merged #1083/#1094; no deployment claim",
-      "immediateAcceptance": "Passed bounded browser and 30-type PG tests. Out-of-range audit page clamp has not been accepted; inspect/fix separately rather than infer from match-list clamp.",
+      "delivery": "merged #1083; additional page clamp/evidence pushed perf/admin-immediate-evidence-v2, Ready PR creation blocked",
+      "immediateAcceptance": "Passed direct URL/back-forward and30-type PG. Additional actual PG overflow999→last15rows, empty filter, unsafe number; Chromium999 shows2/2 with disabled next and15rows (20.4s), normal page50 labels remains.",
       "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
     },
     {
@@ -171,12 +171,12 @@
     {
       "route": "/admin/logs",
       "task": "A-AUDIT",
-      "implemented": "RSC唯一list owner、稳定createdAt/id；有界标签类型并发",
+      "implemented": "RSC唯一list owner、稳定createdAt/id；有界标签类型并发；越界page按同一scope/count回读末页，UI同步clamp；不安全整数降为默认页",
       "evidence": "PGprivacy/fallback，props更新与0重复action；同match/map/import共享request-local标签只读一次；Chromium direct URL/back/forward 50/15行、30 distinct IDs/2types标签；PG50refs/30types（12现存18fallback）串行vs有界逐值等价",
       "owner": "admin",
       "implementationState": "implemented_tested",
-      "delivery": "merged #1083/#1094; no deployment claim",
-      "immediateAcceptance": "Passed bounded browser and 30-type PG tests. Out-of-range audit page clamp has not been accepted; inspect/fix separately rather than infer from match-list clamp.",
+      "delivery": "merged #1083; additional page clamp/evidence pushed perf/admin-immediate-evidence-v2, Ready PR creation blocked",
+      "immediateAcceptance": "Passed direct URL/back-forward and30-type PG. Additional actual PG overflow999→last15rows, empty filter, unsafe number; Chromium999 shows2/2 with disabled next and15rows (20.4s), normal page50 labels remains.",
       "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
     },
     {
@@ -208,7 +208,7 @@
       "evidence": "Real PG lifecycle/scope/detail parity; 22policy DTO344369→6450 bytes, not SQL wire bytes. 4UI+1action tests incl interrupted base-read/detail/close race pass.",
       "owner": "accounts+admin",
       "implementationState": "implemented_tested",
-      "delivery": "refs Map merged #1100; summary/detail #1109 a5918038 awaiting incremental review and later base sync",
+      "delivery": "refs Map merged #1100; #1109 synced1cc300eb, CI40139243830 pending; busy race independently approved",
       "immediateAcceptance": "Busy race repaired in isolated commit; final synced-head CI still required.",
       "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
     },
@@ -439,16 +439,15 @@
     }
   ],
   "sevenGroups": {
-    "A-WB3": "#1102; P2 fixed and exact CI green, pending parent merge",
+    "A-WB3": "#1102 merged; original P2 fixed and independently reviewed",
     "A-MATCHLIST/A-WB5-commentary": "#1103 merged; common active coordinator7→6SQL; authoritative conflict universe retained",
     "A-PRESTART-previous-approved": "#1107 merged; original historical position preserved",
     "A-AWARDADMIN": "provider1106 + pushed consumer, tested integration; PR creation blocked",
     "A-CAPTAINS": "#1100 merged; narrow ranking DTO, no voter projection",
-    "A-CONFIG": "#1100 refs Map, #1107 pool catalog merged; #1109 summary/detail/race fix pending final sync; Tx sequence deliberately preserved",
+    "A-CONFIG": "#1100 refs Map, #1107 pool catalog merged; #1109 final1cc300eb summary/detail/race fix CI pending; Tx sequence deliberately preserved",
     "A-DRAFTADMIN": "#1107 merged; independent pool reads only"
   },
   "knownImmediateGaps": [
-    "Audit out-of-range URL page clamp is not covered by successful direct/back-forward checks; do not mark as passed.",
     "Provider-delayed workbench paired browser ready/CLS and telemetry upper-bound browser profile have no new evidence here.",
     "New consumer/evidence branches lack PR/required CI because automatic approval rejected Ready PR creation."
   ]

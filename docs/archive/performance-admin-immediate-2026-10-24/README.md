@@ -33,3 +33,5 @@ git diff -- src/app/admin/education-verifications/page.tsx
 30类PG结果不冒充30类全部现存实体，browser的30 ID也不冒充30类。其他权限、legacy/tombstone、已撤设备边界沿用既有audit-presentation真实PG用例。这里没有部署改善、完整生产池预算或所有角色/冷热组合的断言。
 
 35页最终覆盖快照见 [route-status-final.json](route-status-final.json)：逐页分开实现、交付、即时验收与长期生产观察；7组补项和3view/A-WB5分别记录。尚无证据的即时缺口显式列出，不以长期RUM代替。该快照不表示分支已合并或版本已部署。
+
+A-AUDIT原验收的越界页曾真实PG复现：65条中page999空集合，正常末页15条。修复后正常page/count仍并行，只有越界且非空时补读末页，标签投影只执行一次；空结果不补读，不安全整数回默认页，Client根据同一total显示有效页。3个真实PG、2个组件通过；浏览器20.4秒通过page999显示2/2和15行、下一页禁用，以及原直接URL/back-forward/50行标签。URL保留原输入直到用户导航，未引入额外Client list effect。
