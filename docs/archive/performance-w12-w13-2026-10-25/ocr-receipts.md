@@ -1,11 +1,29 @@
-# OCR 提交回执与内容版本
+# OCR 提交回执与恢复验收
 
-本补充实现尚依赖 W03 的 `operator_scoreboard_receipts` active migration。应用/测试类型、changed ESLint、architecture、2 项内容版本/摘要与 12 项恢复组件通过；真实 PG 测试已编写，未执行，不能将组件模拟结果计作并发或原子性证据。
+验收源码候选为 `1e8b54e431c670b8bda1843206ffd738762e4977`：main `49c6c7fd` + W03 locks `0e4b2ea9`、migration `0f1cdaa3`、BP fixture `7e58a816` + 自有 consumer + actor/OCR 竞态修复。0097/0098 snapshot 五类 facts 与上限 5 对齐，正式 revalidation 导出已接入。候选在独立组合分支验证，不应整分支合并；最终 main 须核对相同补丁、依赖及 required CI。
 
-- 保存/清除必须携带 UUID operationId 与安全快照返回的不透明内容版本。版本覆盖全部内部计分板字段及精确 PG 时间戳，浏览器只获得安全 editor DTO 与 SHA256。
-- 原 match SHARE → map UPDATE → stats 锁序保留。锁后检查版本，事实、审计和 actor/operation 唯一回执同事务提交；同编号同上下文只返回原回执，不重复事实或审计；跨 map/kind/digest 复用拒绝。
-- recovery 必须 fresh season-admin，只查询当前 actor/map 的原 operation。未找到回执保持 unconfirmed，不证明 rollback；有回执但当前 hash 不同为 superseded，不用原草稿覆盖后续事实。
-- unknown 时当前编辑器保留草稿；仅将 actor/map/operationId、操作类型和基准版本 locator 放入 localStorage，按 map/actor/operation 独立键保存，不保存草稿、截图或凭据。重新挂载先 fresh 授权核对当前 actor，再按原编号查持久回执；locator 存储失败时不发送写入。确认后只删除当前操作 locator，不删除其他 actor/操作。未找到回执继续阻止写入，不能把缺失解释为回滚。重挂载、跨 actor 与存储失败组件测试已过，真实浏览器关闭重开仍由父统一验证；不宣称恢复丢失草稿。
-- 回执只保存输入摘要、版本、数量和时间，不持久化原输入/图片/凭据。RLS/权限/迁移 replay 与 N+1 由迁移 owner 验证；业务 PG 文件覆盖同编号并发、双 command CAS、原子回滚、真实 COMMIT 后丢失响应、权限与 superseded。
+## 完成行为
 
-迁移集成后使用 canonical local runner 执行 `tests/integration/db/scoreboard-receipts.test.ts`。不绕过迁移链创建生产或测试业务表，不启用 provider，不做生产写入。
+- 保存/清除携带 operationId、expectedVersion、expectedActor。fresh season-admin 授权后 actor 不同则 fail closed；请求不能按新 actor 提交却把 locator 存在旧 actor 下。原权限拒绝保留。
+- 原 match SHARE → map UPDATE → stats 顺序由 canonical season fence 包含；锁后版本比较，facts/audit/receipt 同事务。摘要绑定原 actor/map/kind/base/input；原编号重放仅返回原回执。
+- 版本覆盖同一读取快照的完整内部计分板事实和精确 PG 时间戳；只返回不透明 hash 与 editor DTO。DAK lineage/审核来源不下发。
+- OCR、save、clear 同步互斥；异步 OCR 应用结果前还检查 epoch、操作 owner 和 pending operation。不会在 save unknown 后用晚到 OCR 覆盖草稿。
+- 仅持久化 actor/map/operation、类型与基准版本 locator，按 actor/map/operation 独立键保存在 localStorage，不保存草稿、图片或凭据。原页面 unknown 保留内存草稿；重开明确只恢复编号，未持久化关闭前草稿。locator 写入失败不发送 mutation。
+- 重开先 fresh 授权核对 actor，再查原 operation 回执。missing 不证明回滚，不清编号或重写；superseded 明确原提交成功且已有后续更改，只载入当前事实。确认后仅清当前 locator，单独重试缓存失效。
+
+## 验证
+
+- app/tests types、architecture、changed ESLint 通过；组件 14 项 + version/digest 2 项通过。包括 deferred OCR/save 互斥、actor 绑定、late props/busy owner、跨 actor 和持久 locator。
+- Canonical 真实隔离 PG 五文件 9 项通过：非空 save 实际写统计，同 op 并发仅一次 audit/receipt，双非空 command CAS 只通过一个；旧 op 在 superseded 后 replay 不覆写；原子回滚、fresh actor 拒绝、名单安全、旧新 worker 40P01 对照及完整 DAK/OCR 兼容。不是用 mock 替代 PG 并发。
+- 真实 Chromium 四项通过。使用原生 persistent context 的磁盘 profile，关闭整个浏览器进程后重启，未用 storageState 导出/注入模拟重开。覆盖真实非空提交后丢 HTTP 响应、actor/权限变化、missing 和另一管理员真实提交后的 superseded。测试最终等到可继续编辑，包含回执确认后的失效阶段。
+- 故障边界严格区分：PG 用例在真实 COMMIT 完成后由 adapter 抛错，模拟丢 acknowledgement，并非实际 PG wire 断连接；浏览器用例以 route.fetch 执行真实 HTTP Server Action，再 route.abort 丢弃浏览器响应。missing 在转发前中止请求。没有调用付费 OCR provider。
+
+[机器可读结果](ocr-browser-proof.json) 从实际 canonical runner 成功日志提取；测试位于 `tests/e2e/flows/ocr-receipt-recovery.spec.ts`。复现：
+
+```sh
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm db:local:bootstrap-services
+pnpm exec playwright install chromium
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm test:e2e -- tests/e2e/flows/ocr-receipt-recovery.spec.ts --project=chromium --workers=1 --reporter=list --max-failures=1
+```
+
+仅本地隔离 fixture 与 Next dev 功能证据，不宣称生产改善、LCP、移动端或模型精度。两个首轮测试修正只涉及 fixture approved revision、等待完整失效恢复及 Node fixture 回调命名，未放宽领域门禁、timeout 或 retry。profiles、fixture 用户与数据在 teardown 清理；不提交凭据、profile 或原始运行日志。
