@@ -1,12 +1,14 @@
 "use client";
 
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
-import React, { useState, useTransition } from "react";
+import React, { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { retryMatchRosterRefresh, submitMatchRoster as telemetry_submitMatchRoster } from "@/actions/matches/roster";
+import { getMatchRosterReadback, retryMatchRosterRefresh, submitMatchRoster as telemetry_submitMatchRoster } from "@/actions/matches/roster";
 import { Button } from "@/components/ui/button";
 import { PosChip } from "@/components/rivalhub";
 
+import { rosterReadbackVersion, type RosterReadback } from "@/lib/matches/operation-readback";
+import { OperationReadbackNotice } from "./OperationReadbackNotice";
 import { positionLabel } from "@/lib/validators/registration";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { observeAction } from "@/lib/telemetry/client";
@@ -48,6 +50,8 @@ export function MatchRosterForm({
   const isMatchStarted = matchStatus !== "scheduled";
   const rosterLocked = rosterStatus === "confirmed";
   const [isPending, startTransition] = useTransition();
+  const expectedVersion = useRef<string | null>(null);
+  const [readback, setReadback] = useState<(RosterReadback & { matches: boolean }) | null>(null);
   const [recovery, setRecovery] = useState<"unknown" | "refresh_pending" | null>(null);
 
   function playerBtnClass(isSelected: boolean, isDisabled = false) {
@@ -97,6 +101,9 @@ export function MatchRosterForm({
     if (recovery) return;
     startTransition(async () => {
       try {
+      expectedVersion.current = await rosterReadbackVersion(matchId, { status: "submitted", starterIds: selectedStarterIds,
+        substituteIds: allowSubstitutes ? selectedSubstituteIds : [], vetoRepresentativeEventRosterMemberId: vetoRepresentativeId });
+      setReadback(null);
       const result = await submitMatchRoster(matchId, {
         starterIds: selectedStarterIds,
         substituteIds: allowSubstitutes ? selectedSubstituteIds : [],
@@ -116,9 +123,18 @@ export function MatchRosterForm({
   return (
     <div className="space-y-4">
       {recovery && <div role="alert" className="space-y-2 text-sm">
-        <p>{recovery === "unknown" ? "名单操作结果尚未确认，请刷新页面核对，不要重复提交。" : "名单已提交，页面刷新待完成。"}</p>
+        <p>{recovery === "unknown" ? "名单操作结果尚未确认，请读取当前名单核对，不要重复提交。" : "名单已提交，页面刷新待完成。"}</p>
         <Button size="sm" variant="outline" disabled={isPending} onClick={() => {
-          if (recovery === "unknown") { window.location.reload(); return; }
+          if (recovery === "unknown") {
+            startTransition(async () => {
+              try {
+                const result = await getMatchRosterReadback(matchId);
+                if (!result.success) { toast.error(result.error.message); return; }
+                setReadback({ ...result.data, matches: result.data.version === expectedVersion.current });
+              } catch { toast.error("当前名单暂时无法核对，草稿已保留。"); }
+            });
+            return;
+          }
           startTransition(async () => {
             try {
               const result = await retryMatchRosterRefresh(matchId);
@@ -127,8 +143,12 @@ export function MatchRosterForm({
               window.location.reload();
             } catch { toast.error("刷新仍未完成，请稍后重试刷新。"); }
           });
-        }}>{recovery === "unknown" ? "刷新页面核对名单" : "重试刷新（不重复提交）"}</Button>
+        }}>{recovery === "unknown" ? "读取当前名单核对" : "重试刷新（不重复提交）"}</Button>
       </div>}
+      {readback && <OperationReadbackNotice matches={readback.matches} version={readback.version}>
+        <p>首发：{readback.value.starterIds.map(id => getDisplayName(teamMembers.find(member => member.id === id) ?? {})).join("、") || "无"}</p>
+        <p>替补：{readback.value.substituteIds.map(id => getDisplayName(teamMembers.find(member => member.id === id) ?? {})).join("、") || "无"}；BP 负责人：{getDisplayName(teamMembers.find(member => member.id === readback.value.vetoRepresentativeEventRosterMemberId) ?? {})}</p>
+      </OperationReadbackNotice>}
       {isMatchStarted ? (
         <div className="rounded border p-3" style={{ borderColor: "var(--color-danger-edge)", background: "var(--color-danger-soft)" }}>
           <p className="text-sm text-[var(--color-fg)]">{matchStatus === "cancelled" ? "比赛已取消，名单不可修改" : matchStatus === "finished" ? "比赛已结束，名单不可修改" : "比赛已开始，名单不可修改"}</p>

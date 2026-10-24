@@ -1,7 +1,8 @@
 "use server";
+import { recordingReadbackVersion, type RecordingReadback } from "@/lib/matches/operation-readback";
 import { recordingInput } from "@/lib/postmatch/recording-types";
 import { mutateMatchRecordingInTx } from "@/lib/postmatch/service";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { matches, seasons } from "@/db/schema";
@@ -87,4 +88,18 @@ export async function mutateMatchRecording(input: unknown) {
   ]) }).strict().safeParse(input);
   if (!parsed.success) return failValidation("录像参数无效，请检查链接和标题。");
   return run(parsed.data.matchId, async actorId => { await db.transaction(tx => mutateMatchRecordingInTx(tx, { ...parsed.data, actorId })); });
+}
+
+/** Fresh authorized canonical content and relative order; malformed data is not an empty list. */
+export async function getMatchRecordingReadback(matchId: string): Promise<ActionResult<RecordingReadback>> {
+  if (!uuid.safeParse(matchId).success) return failValidation("比赛编号无效。");
+  try {
+    const { match } = await matchAndAdminOrThrow(matchId);
+    const [row] = await db.select({ recordings: matches.recordings }).from(matches)
+      .where(and(eq(matches.id, match.id), eq(matches.seasonId, match.seasonId)));
+    if (!row) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
+    const parsed = recordingInput.array().safeParse(row.recordings);
+    if (!parsed.success) throw new AppError(ErrorCode.INTERNAL_ERROR, "当前录像数据暂时无法核对。");
+    return ok({ matchId, value: parsed.data, version: await recordingReadbackVersion(matchId, parsed.data) });
+  } catch (error) { return actionError("getMatchRecordingReadback", error); }
 }

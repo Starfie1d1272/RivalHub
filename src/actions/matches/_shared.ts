@@ -10,7 +10,7 @@ import { getMatchOrThrow } from "@/lib/action-utils";
  */
 export async function getEntryIdForRepresentative(
   userId: string,
-  match: Awaited<ReturnType<typeof getMatchOrThrow>>,
+  match: Pick<Awaited<ReturnType<typeof getMatchOrThrow>>, "seasonId" | "entryAId" | "entryBId">,
 ): Promise<string | null> {
   const [team] = await db
     .select({ id: competitionEntries.id })
