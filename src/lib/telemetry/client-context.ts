@@ -14,7 +14,7 @@ export function classifyClient(userAgent: string, touchPoints: number, referrer:
       if (url.protocol === "https:" || url.protocol === "http:") {
         const host = url.hostname;
         source = url.origin === origin ? "internal"
-          : /(^|\.)(google\.[a-z.]+|bing\.com|baidu\.com|sogou\.com|duckduckgo\.com)$/.test(host) ? "search"
+          : /(^|\.)(google\.(?:com|cn|com\.hk|co\.jp|co\.uk|de|fr|ca|com\.au|co\.in|com\.sg|com\.tw)|bing\.com|baidu\.com|sogou\.com|duckduckgo\.com)$/.test(host) ? "search"
           : /(^|\.)(weibo\.com|zhihu\.com|bilibili\.com|twitter\.com|x\.com|facebook\.com|reddit\.com|t\.co)$/.test(host) ? "social" : "external";
       }
     } catch { /* Invalid referrers remain unknown. */ }

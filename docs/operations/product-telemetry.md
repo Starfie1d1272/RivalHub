@@ -34,9 +34,9 @@ Worker 仅使用独立 D1：一个批次一行、服务端校验后写入、按�
 
 `src/instrumentation-client.ts` 使用 Next.js `onRouterTransitionStart` 捕获本站导航起点，现有 pathname/search observer 在目标路由提交后记录 NAV_COMMIT；新的起点替换被放弃的导航，身份变更丢弃在途测量。它覆盖可观察的 App Router 导航到提交的等待，包含同路径筛选导航；Suspense 内容可能尚未完成，不等于完整内容就绪或 LCP。无匹配提交、observer 未加载或超过一小时的测量不补造。
 
-performance 事件的白名单 `metricName` 为 TTFB/FCP/LCP/INP/NAV_COMMIT/CLS。前五项的 `durationMs` 为毫秒；CLS 只使用 `score`。同批 summary 前九列兼容原布局，原 variant 维度在 performance kind 下保存 metricName，第九列始终为毫秒总和（CLS 为零）；可选第十列保存 CLS score 总和（其他指标为 null），第十一列保存固定 client 分类。旧无 client 的毫秒行仍只有九列。分类不同的报告分组，日汇总仍跨分类合并；旧 `duration_ms` 日汇总暂不写 CLS，避免单位混用。次数/耗时总和表示接收的观察报告；跨批指标更新可能重复贡献，不能把 summary 平均值当作每次导航的最终 Web Vital 或 p75。受控 raw 分析应先按 session/id 取最新 at，且说明映射边界与采集缺口。保留、访问、DNT/GPC、队列/批次和免费预算沿用原规则，采集不逐次发送。
+performance 事件的白名单 `metricName` 为 TTFB/FCP/LCP/INP/NAV_COMMIT/CLS。前五项的 `durationMs` 为毫秒；CLS 只使用 `score`。同批 summary 前九列兼容原布局，原 variant 维度在 performance kind 下保存 metricName，第九列始终为毫秒总和（CLS 为零）；可选第十列保存 CLS score 总和（其他指标为 null），第十一列保存固定 client 分类或 null；性能行追加第十二列随机样本 ID 与第十三列报告时间，并保留每个样本。旧行继续可读。分类不同的报告分组，日汇总仍跨分类合并；旧 `duration_ms` 日汇总暂不写 CLS，避免单位混用。面板对当前样本内同账号/会话、指标 ID 取最新报告时间的值后求均值；缺少样本 ID 的旧报告单列数量，不混入均值。日汇总的次数/耗时总和仍是接收报告口径，不用于最终 Web Vital/p75。保留、访问、DNT/GPC、队列/批次和免费预算沿用原规则，采集不逐次发送。
 
-协议升级时先部署兼容新旧事件的独立 Worker，再按正式 release 流程发布网站采集端；旧 Worker 会拒绝含未识别字段或指标的整批。此次扩展已校验事件、可选固定分类与兼容尾列，无 D1 schema migration，不重跑初始化 SQL。回滚网站可继续使用新 Worker；若回滚 Worker，先停用新版网站采集，避免整批被拒。
+协议升级时先部署兼容新旧事件的独立 Worker，再按正式 release 流程发布网站采集端；旧 Worker 会拒绝含未识别字段或指标的整批。采集协议扩展不改 D1 表结构；面板另有添加索引的独立迁移，按下文执行，不重跑初始化 SQL。回滚网站可继续使用新 Worker；若回滚 Worker，先停用新版网站采集，避免整批被拒。
 
 ## 设备与入口分类
 
@@ -95,9 +95,17 @@ Worker 验证 JSON 白名单后，用原生 `CompressionStream("gzip")` 压缩�
 
 `RETENTION_APPROVED=0` 时既不接收也不运行持久清理；线上一旦启用后紧急停收只改 ACCEPTING，必须保留清理。不得在已存数据时取消维护而声称仍执行七天保留。
 
+## 管理后台分析
+
+`/admin/telemetry` 仅向超级管理员开放，复用当前授权后由 server-only adapter 查询独立 Worker 的 `GET /admin/dashboard`。服务端使用 `PRODUCT_TELEMETRY_ENDPOINT` 与独立 `PRODUCT_TELEMETRY_ADMIN_KEY`；浏览器只收到聚合 DTO。部署时先更新接收端，再为网站配置同一接收端的查询凭据；缺少配置、接收端版本不支持或连通失败时显示明确状态，不回退到公开 D1 查询。查询不记录凭据、账号、会话或原始事件，不改变数据保留与恢复政策。
+
+分析范围为 production 环境最近 6 小时、24 小时或 7 天，支持精确版本与路由模板筛选；所有读取排除到期批次。每次最多读取按 received DESC、ticket/id 稳定排序的最新 1,000 个匹配版本批次摘要，再筛选页面，超过时明确标为部分样本。D1 内先分组聚合 summary，接收端仅整理聚合行与现有 usage/cleanup 投影，不解压 raw，也不返回 identity。趋势按 UTC 接收小时分组，截断时从实际选中批次的最早接收小时开始，窗口首尾小时可能不完整；访问、操作开始、终态分别统计。性能按账号/会话内随机样本 ID 取报告时间最新值后展示样本均值与数量，INP 下降与乱序送达均不以最大值或接收时间覆盖最新样本；旧摘要缺少样本 ID 时单独显示历史报告数，不混入均值。当前访问仍可能更新，不代表最终导航值或 p75。CLS 使用独立的无单位分数均值，不进入毫秒均值；旧批次无此指标时不补零。存在可选 client 尾列时按 page 报告统计设备、浏览器、系统与来源类别，旧批次无分类显示未采集；none 只表示无 referrer。
+
+网站进程缓存最多 12 个筛选结果，每份至多 60 秒且不超过该样本最早到期时刻；读取缓存前仍核对超级管理员授权。接收端响应限制 1 MiB，超时五秒且拒绝重定向。服务器无法直接连通接收端时，可配置仅用于此查询的 `PRODUCT_TELEMETRY_QUERY_PROXY_URL`（HTTP/HTTPS 代理 origin，无凭据、路径、query 或 hash）。它使用 Node HTTPS 局部 Agent 的 proxyEnv，保留 TLS 校验、五秒总超时、1 MiB 响应上限及非 200 拒绝，不修改全局代理或浏览器出口。部署负责人可在现有生产主机使用已配置的 loopback HTTP 代理；本变更不修改线上配置。后台按手动查询刷新，不增加常驻采样、数据库写入、自动轮询或长期留存。接收用量和清理积压是全站状态，不受页面筛选限制；原始正文预算不等于 D1 磁盘空间。
+
 ## 基本查询与版本比较
 
-运维凭据仅在受控终端注入 `PRODUCT_TELEMETRY_ENDPOINT`、`PRODUCT_TELEMETRY_ADMIN_KEY`；按账号定位额外需要同环境 `PRODUCT_TELEMETRY_ACCOUNT_KEY`。工具不创建/打印凭据，不跟随重定向。
+运维 CLI 凭据在受控终端注入 `PRODUCT_TELEMETRY_ENDPOINT`、`PRODUCT_TELEMETRY_ADMIN_KEY`；按账号定位额外需要同环境 `PRODUCT_TELEMETRY_ACCOUNT_KEY`。工具不创建/打印凭据，不跟随重定向。
 
 ```sh
 pnpm telemetry:query session <diagnostic-session-uuid>
@@ -173,7 +181,7 @@ pnpm dlx wrangler@4.151.1 deploy --dry-run \
 | --- | --- | --- | --- |
 | 接收票据验签 | secret `SIGNING_KEY` | Secret `PRODUCT_TELEMETRY_SIGNING_KEY`，与该 Worker 相同 | 不需要 |
 | RivalHub 账号 HMAC | 不需要 | Secret `PRODUCT_TELEMETRY_ACCOUNT_KEY` | 仅账号定位时使用同值 |
-| 查询授权 | secret `ADMIN_KEY` | 不设置 | `PRODUCT_TELEMETRY_ADMIN_KEY` |
+| 查询授权 | secret `ADMIN_KEY` | 仅服务端启用面板时配置 Secret `PRODUCT_TELEMETRY_ADMIN_KEY` | `PRODUCT_TELEMETRY_ADMIN_KEY` |
 | 接收 URL | 路径 `/v1/batches` | Config `PRODUCT_TELEMETRY_ENDPOINT=https://<worker>.<subdomain>.workers.dev/v1/batches` | 同 URL |
 | 允许的网站 | `ALLOWED_ORIGIN` | Config `PRODUCT_TELEMETRY_ORIGIN`，必须与 Worker 相同 | 同 origin |
 | 开关 | `ACCEPTING`、`RETENTION_APPROVED`、`SUMMARY_RETENTION_DAYS` | Config `PRODUCT_TELEMETRY_ENABLED=0`，经开流量许可后才为 `1` | 不需要 |
@@ -199,3 +207,5 @@ pnpm exec tsx scripts/telemetry/verify-live.ts
 真实用量证据需记录同一测试窗口前后 Workers 请求与 CPU 分位、D1 reads/writes/size（含索引）、网站新增请求/字节及 hydrate 影响。`/admin/usage` 的批数/未压缩 bytes 不是 provider 账单；5000 批是接收上限，不是承诺共享账户能承受的正常流量。缺少共享余量或实际 CPU/查询开销证据时保持停收，不能升级付费来补证据。汇总 `0` 时只可比较七天内仍可读的同长窗口；跨版本更长期比较必须另行批准具体汇总天数后启用，不能回补已经过期的原始事件。
 
 性能批次摘要还保留浏览器生成的随机指标样本 ID 与报告时间（不是原始 web-vitals ID），只随原批次保留七天。查询端按该 ID 选时间最新的值，避免 CLS/INP 在隐藏、恢复后重复更新而被当成多次访问；INP 允许下降，不能使用最大值代替最新值。旧摘要没有样本 ID 时仅能作为历史报告计数，不能混入去重指标样本均值。
+
+面板部署前，对既有 D1 单独执行 `workers/telemetry/migrations/0001_dashboard_index.sql`，再更新 Worker，最后发布网站；该迁移只新增接收顺序索引，不重放 `schema.sql`、不修改留存设置。新库 schema 包含同一索引。面板按同一账号/会话内随机样本 ID 和报告时间选择最新性能值，乱序送达不回退；旧摘要缺少样本 ID 时单独显示数量，不混入均值。1,000 批是最近批次截断而非随机抽样，页面须明确显示不完整；查询索引优化接收顺序，但版本筛选仍可能扫描更多批次，不能把 LIMIT 当扫描成本上限。

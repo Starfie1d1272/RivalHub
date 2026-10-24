@@ -66,7 +66,7 @@ const ADMIN_NAV_GROUPS: readonly AdminNavGroupDefinition[] = [
     key: "system-status",
     label: "系统状态",
     superAdminOnly: true,
-    items: [{ href: "/admin/settings", label: "环境与服务状态" }],
+    items: [{ href: "/admin/settings", label: "环境与服务状态" }, { href: "/admin/telemetry", label: "遥测分析" }],
   },
 ];
 
