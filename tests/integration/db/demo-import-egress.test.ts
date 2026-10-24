@@ -32,10 +32,12 @@ vi.mock("@/lib/admin/matches/demo-review", () => ({
 }));
 
 import { db } from "@/db/client";
+import { requireSeasonAdmin } from "@/lib/auth/session";
 import { resolveAuditTargets, auditTargetKey } from "@/lib/audit/targets";
 import { loadAdminMatchOverview, loadAdminMatchWorkspace } from "@/lib/admin/matches/overview";
 import { loadAdminMatchWorkbench } from "@/lib/admin/matches/workbench";
 import { loadAdminDemoReview } from "@/lib/admin/matches/demo-review";
+import { readAdminDemoReview } from "@/lib/admin/matches/demo-review-read";
 import { readAdminDemoQuality } from "@/lib/admin/matches/demo-quality-read";
 import { readRivalHubEvents } from "@/lib/demo-integration/read";
 import { resolveDemoImportLineageInTx } from "@/lib/demo-integration/promotion";
@@ -144,12 +146,23 @@ describe("Demo metadata PostgreSQL egress boundary", () => {
 
       observation.queries.length = 0;
       const workbench = await loadAdminMatchWorkbench({ seasonSlug: slug, matchId: ids.match });
-      expect(workbench?.demoReviews?.map((row) => row.importId).sort()).toEqual([related, other, invalid].sort());
-      expect(payloadReads()).toHaveLength(1);
-      expect(payloadReads()[0]?.params).toEqual([related, other, invalid]);
-      expect(workbench?.demoQuality?.map((row) => row.importId)).toEqual([related, other, invalid]);
+      expect(workbench?.demoReviewSummaries?.map(row => row.importId).sort()).toEqual([related, other, invalid].sort());
+      expect(payloadReads()).toHaveLength(0);
+      expect(vi.mocked(loadAdminDemoReview)).not.toHaveBeenCalled();
+      expect(personaBoundary.read).not.toHaveBeenCalled();
       expect(workbench?.demoQualitySummaries?.map(row => row.importId)).toEqual([confirmed]);
-      expect(workbench?.demoQuality?.every((row) => !("payload" in row))).toBe(true);
+      const scope = { seasonId: ids.season, matchId: ids.match, mapId: ids.maps[2]!, importId: related };
+      vi.mocked(requireSeasonAdmin).mockRejectedValueOnce(new Error("revoked fixture"));
+      await expect(readAdminDemoReview(scope)).rejects.toThrow("revoked fixture");
+      expect(payloadReads()).toHaveLength(0);
+      const detail = await readAdminDemoReview(scope);
+      expect(detail.review.importId).toBe(related);
+      expect(payloadReads()).toHaveLength(1);
+      expect(payloadReads()[0]?.params).toEqual([related]);
+      observation.queries.length = 0;
+      await expect(readAdminDemoReview({ ...scope, seasonId: randomUUID() })).rejects.toThrow();
+      await expect(readAdminDemoReview({ ...scope, importId: confirmed })).rejects.toThrow();
+      expect(payloadReads()).toHaveLength(0);
 
       // The database/fixture is real; only the display dependency failure and
       // canonical-review result are injected. This is failure containment,
@@ -164,10 +177,8 @@ describe("Demo metadata PostgreSQL egress boundary", () => {
         }],
       });
       personaBoundary.read.mockRejectedValueOnce(new Error("upsert timeout"));
-      const degraded = await loadAdminMatchWorkbench({ seasonSlug: slug, matchId: ids.match });
-      expect(degraded?.match.id).toBe(ids.match);
-      expect(degraded?.demoReviews?.find(row => row.blockingIssues?.includes("保留权威检查结果")))
-        .toMatchObject({ blockingIssues: ["保留权威检查结果"], participants: [{ state: "confirmable", observedSteamProfile: null }] });
+      const degraded = await readAdminDemoReview(scope);
+      expect(degraded.review).toMatchObject({ blockingIssues: ["保留权威检查结果"], participants: [{ state: "confirmable", observedSteamProfile: null }] });
 
       observation.queries.length = 0;
       const quality = await readAdminDemoQuality({ seasonId: ids.season, matchId: ids.match, mapId: ids.maps[0]!, importId: confirmed });
