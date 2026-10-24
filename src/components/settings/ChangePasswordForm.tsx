@@ -28,8 +28,11 @@ export function ChangePasswordForm() {
     }
 
     startTransition(async () => {
+      let committed = false;
+      try {
       const result = await changeUserPassword(oldPassword, newPassword);
       if (result.success) {
+        committed = true;
         toast.success("密码已更新，所有旧登录已退出，请重新登录");
         router.replace("/login");
         router.refresh();
@@ -39,6 +42,11 @@ export function ChangePasswordForm() {
       } else {
         if (result.error.code === "PASSWORD_UPDATE_OUTCOME_UNKNOWN") setRecoveryGuidance(result.error.message);
         toast.error(result.error.message);
+      }
+      } catch {
+        setRecoveryGuidance(committed
+          ? "密码更新已确认，导航未完成。请停止提交；如登录受阻，请联系平台管理员。"
+          : "密码更新结果尚未确认。请停止提交，勿重复更新或尝试新旧密码；联系平台管理员核查账号服务与安全状态。");
       }
     });
   }

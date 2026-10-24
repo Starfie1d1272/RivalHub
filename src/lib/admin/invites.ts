@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, count, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { adminInviteClaims, adminInvites, seasons } from "@/db/schema";
 import {
@@ -69,94 +69,42 @@ export function resolveAdminInviteState(
   return "usable";
 }
 
-export async function getAdminInviteHistory(query: AdminInviteQuery): Promise<AdminInviteHistoryResult> {
+export async function getAdminInviteHistory(query: AdminInviteQuery, now = new Date()): Promise<AdminInviteHistoryResult> {
+  const claims = db.select({ inviteId: adminInviteClaims.inviteId, count: count(adminInviteClaims.userId).as("claim_count") })
+    .from(adminInviteClaims).groupBy(adminInviteClaims.inviteId).as("claims");
+  const claimCount = sql<number>`coalesce(${claims.count}, 0)`;
+  // Same precedence as resolveAdminInviteState, evaluated before pagination using one clock.
+  const state = sql<Exclude<AdminInviteState, "all">>`case
+    when not ${adminInvites.isActive} then 'revoked'
+    when ${adminInvites.expiresAt} <= ${now} then 'expired'
+    when ${claimCount} >= ${adminInvites.maxUses} then 'exhausted'
+    else 'usable' end`;
   const conditions = [];
   if (query.role !== "all") conditions.push(eq(adminInvites.role, query.role));
   if (query.season) conditions.push(eq(adminInvites.seasonId, query.season));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
-
-  const [rows, [datasetCount]] = await Promise.all([
-    db
-      .select({
-        id: adminInvites.id,
-        code: adminInvites.code,
-        role: adminInvites.role,
-        seasonId: adminInvites.seasonId,
-        seasonName: seasons.name,
-        maxUses: adminInvites.maxUses,
-        expiresAt: adminInvites.expiresAt,
-        createdAt: adminInvites.createdAt,
-        claimCount: count(adminInviteClaims.userId),
-        isActive: adminInvites.isActive,
-      })
-      .from(adminInvites)
-      .leftJoin(adminInviteClaims, eq(adminInviteClaims.inviteId, adminInvites.id))
-      .leftJoin(seasons, eq(seasons.id, adminInvites.seasonId))
-      .where(where)
-      .groupBy(
-        adminInvites.id,
-        adminInvites.code,
-        adminInvites.role,
-        adminInvites.seasonId,
-        seasons.name,
-        adminInvites.maxUses,
-        adminInvites.expiresAt,
-        adminInvites.createdAt,
-        adminInvites.isActive,
-      ),
-    db.select({ count: count() }).from(adminInvites),
+  if (query.state !== "all") conditions.push(eq(state, query.state));
+  const where = and(...conditions);
+  const order = query.sort === "expires_soon"
+    ? [sql`${adminInvites.expiresAt} asc nulls last`, desc(adminInvites.createdAt), desc(adminInvites.id)]
+    : [query.sort === "oldest" ? asc(adminInvites.createdAt) : desc(adminInvites.createdAt), desc(adminInvites.id)];
+  const readPage = (page: number) => db.select({
+    id: adminInvites.id, code: adminInvites.code, role: adminInvites.role, seasonId: adminInvites.seasonId,
+    seasonName: seasons.name, maxUses: adminInvites.maxUses, claimCount, state,
+    expiresAt: adminInvites.expiresAt, createdAt: adminInvites.createdAt,
+  }).from(adminInvites).leftJoin(claims, eq(claims.inviteId, adminInvites.id))
+    .leftJoin(seasons, eq(seasons.id, adminInvites.seasonId)).where(where).orderBy(...order)
+    .limit(ADMIN_INVITE_PAGE_SIZE).offset((page - 1) * ADMIN_INVITE_PAGE_SIZE);
+  const [[totalRow], initialRows] = await Promise.all([
+    db.select({ count: count(), datasetCount: sql<number>`(select count(*) from ${adminInvites})` })
+      .from(adminInvites).leftJoin(claims, eq(claims.inviteId, adminInvites.id)).where(where),
+    readPage(query.page),
   ]);
-
-  const now = new Date();
-  const projected = rows
-    .map((row) => {
-      const claimCount = Number(row.claimCount);
-      return {
-        id: row.id,
-        code: row.code,
-        role: row.role,
-        seasonId: row.seasonId,
-        seasonName: row.seasonName,
-        maxUses: row.maxUses,
-        claimCount,
-        state: resolveAdminInviteState(row, now),
-        expiresAt: row.expiresAt?.toISOString() ?? null,
-        createdAt: row.createdAt.toISOString(),
-      };
-    })
-    .filter((row) => query.state === "all" || row.state === query.state)
-    .sort((left, right) => {
-      if (query.sort === "expires_soon") {
-        if (left.expiresAt === null && right.expiresAt !== null) return 1;
-        if (left.expiresAt !== null && right.expiresAt === null) return -1;
-        if (left.expiresAt !== null && right.expiresAt !== null) {
-          const expiryOrder = left.expiresAt.localeCompare(right.expiresAt);
-          if (expiryOrder !== 0) return expiryOrder;
-        }
-        const createdOrder = right.createdAt.localeCompare(left.createdAt);
-        if (createdOrder !== 0) return createdOrder;
-      } else if (query.sort === "oldest") {
-        const createdOrder = left.createdAt.localeCompare(right.createdAt);
-        if (createdOrder !== 0) return createdOrder;
-      } else {
-        const createdOrder = right.createdAt.localeCompare(left.createdAt);
-        if (createdOrder !== 0) return createdOrder;
-      }
-      return right.id.localeCompare(left.id);
-    });
-
-  const total = projected.length;
+  const total = Number(totalRow?.count ?? 0);
   const totalPages = Math.ceil(total / ADMIN_INVITE_PAGE_SIZE);
   const page = totalPages > 0 ? Math.min(query.page, totalPages) : 1;
-  const start = (page - 1) * ADMIN_INVITE_PAGE_SIZE;
-
-  return {
-    rows: projected.slice(start, start + ADMIN_INVITE_PAGE_SIZE),
-    total,
-    page,
-    pageSize: ADMIN_INVITE_PAGE_SIZE,
-    totalPages,
-    normalizedQuery: { ...query, page },
-    hasAnyRecords: Number(datasetCount?.count ?? 0) > 0,
-  };
+  const rows = page === query.page ? initialRows : await readPage(page);
+  return { rows: rows.map(row => ({ ...row, claimCount: Number(row.claimCount),
+    expiresAt: row.expiresAt?.toISOString() ?? null, createdAt: row.createdAt.toISOString() })),
+    total, page, pageSize: ADMIN_INVITE_PAGE_SIZE, totalPages, normalizedQuery: { ...query, page },
+    hasAnyRecords: Number(totalRow?.datasetCount ?? 0) > 0 };
 }

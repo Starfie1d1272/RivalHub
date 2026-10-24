@@ -1,9 +1,9 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadAdminPostMatchTasks } from "@/lib/admin/matches/postmatch-tasks";
 import { loadAdminMatchOperations } from "@/lib/admin/matches/operations";
-import { loadMatchResources } from "@/lib/admin/matches/resources";
-import { loadAdminCommentaryEffectiveness, loadAdminMatchOverview, loadAdminMatchWorkspace } from "@/lib/admin/matches/overview";
+import { loadAdminMatchOverview, loadAdminMatchWorkspace } from "@/lib/admin/matches/overview";
 import { loadAdminMatchCommentary } from "@/lib/admin/matches/commentary";
 import { AdminPostMatchTasks } from "@/components/matches/AdminPostMatchTasks";
 import { AdminMatchOperations } from "@/components/matches/AdminMatchOperations";
@@ -19,7 +19,7 @@ import { MajorSwissRuntimeManagement } from "@/components/admin/MajorSwissRuntim
 import { PageHeader, Panel, Section } from "@/components/rivalhub";
 import { AdminMatchStageTabs } from "@/components/matches/AdminMatchStageTabs";
 import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { presentMatchLabel } from "@/lib/matches/presentation";
+import { CommentaryEffectivenessDetails } from "@/components/matches/CommentaryEffectivenessDetails";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
 import { MatchCommentaryQueue, MyCommentaryMatches } from "@/components/matches/MatchCommentaryQueue";
 
@@ -37,14 +37,12 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   const overview = materials ? null : await loadAdminMatchOverview({ ...filters, seasonSlug, view: scheduling ? "schedule" : "execution" });
   const data = materials ? await loadAdminMatchWorkspace(seasonSlug) : overview;
   if (!data) notFound();
-  const [commentary, resources, postMatchTasks, effectiveness] = await Promise.all([
-    view === "execution" ? loadAdminMatchCommentary(data.season.id) : Promise.resolve(null),
-    loadMatchResources(data.season.id),
+  const [commentary, postMatchTasks] = await Promise.all([
+    view === "execution" ? loadAdminMatchCommentary(data.season.id, { historicalMatchIds: overview?.matches.map(match => match.id) ?? [] }) : Promise.resolve(null),
     materials ? loadAdminPostMatchTasks(data.season.id) : Promise.resolve([]),
-    materials ? loadAdminCommentaryEffectiveness(data.season.id) : Promise.resolve([]),
   ]);
   const operations = commentary ? await loadAdminMatchOperations(data.season.id, commentary) : [];
-  const matchCount = overview?.matches.length ?? 0;
+  const matchCount = overview?.matchCount ?? 0;
   const teamNameById = new Map(data.teams.map((team) => [team.id, team.name]));
   const stages = [
     ...(data.qualificationRun ? [{ key: "play-in", name: "PLAY-IN" }] : []),
@@ -58,7 +56,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         title={`${scheduling ? "赛程与阶段" : materials ? "赛后资料" : "比赛执行"} · ${data.season.name}`}
         description={materials ? "按资料缺口找到比赛，补齐计分板、Demo 与解说回放。" : scheduling ? "编排赛程、查看积分并推进赛事阶段。" : "处理认领与排期，进入单场继续工作。"}
         actions={<>
-          <MatchResources seasonId={data.season.id} data={resources} />
+          <MatchResources key={data.season.id} seasonId={data.season.id} />
           {!materials && data.teams.length >= 2 && data.stagePlan.length > 0 && <CreateMatchForm
             seasonId={data.season.id} teams={data.teams}
             stages={data.stagePlan.map((stage) => ({ key: stage.key, name: stage.name }))}
@@ -109,20 +107,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         {overview.playoffRuntime && <MajorPlayoffRuntimeManagement data={overview.playoffRuntime} />}
       </>}
 
-      {materials && effectiveness.length > 0 && <details className="rounded border border-[var(--color-border)] px-4 py-3">
-        <summary className="cursor-pointer text-sm font-medium">解说有效场次统计</summary>
-        <div className="mt-3 space-y-3 text-sm">
-          {effectiveness.map(({ admin, matches }) => <div key={admin.userId}>
-            <strong>{admin.name}</strong> · {matches.length} 场
-            <ul className="mt-1 list-disc space-y-1 pl-5 text-[var(--color-fg-mid)]">
-              {matches.map((match) => <li key={match.id}>{presentMatchLabel({
-                stage: match.stage, stageName: stageNames[match.stage], round: match.round, entryRound: match.entryRound,
-                teamAName: teamNameById.get(match.entryAId) ?? "待定", teamBName: teamNameById.get(match.entryBId) ?? "待定",
-              })}</li>)}
-            </ul>
-          </div>)}
-        </div>
-      </details>}
+      {materials && <CommentaryEffectivenessDetails key={data.season.id} seasonId={data.season.id} teamNames={Object.fromEntries(teamNameById)} stageNames={stageNames} />}
 
       {overview && (matchCount > 0 || data.qualificationRun) && overview.defaultStageKey && <section aria-labelledby="match-list-scope" className="space-y-4">
         <h2 id="match-list-scope" className="text-base font-semibold">{scheduling ? "阶段赛程" : "比赛列表"}</h2>
@@ -131,7 +116,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
             {overview.stageViews.map(({ stage }) => <TabsTrigger key={stage.key} value={stage.key}>{stage.name}</TabsTrigger>)}
           </TabsList>
           <div className="mt-4"><AdminMatchFilter stages={stages} teams={data.teams} showStage={false} /></div>
-          {overview.stageViews.map(({ stage, matches }) => {
+          {overview.stageViews.filter(({ stage }) => stage.key === overview.defaultStageKey).map(({ stage, matches }) => {
             const standings = overview.standingsByStage.get(stage.key) ?? [];
             const isPlayoff = stage.type === "double_elim" || stage.type === "single_elim";
             return <TabsContent key={stage.key} value={stage.key} className="mt-4 space-y-6">
@@ -153,6 +138,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         </AdminMatchStageTabs>
       </section>}
       {!materials && matchCount === 0 && <Panel contentClassName="p-8 text-center text-[var(--color-fg-mid)]">暂无比赛记录</Panel>}
+      <ContentReady module="admin" phase="primary" />
     </div>
   );
 }

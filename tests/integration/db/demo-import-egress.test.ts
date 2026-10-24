@@ -22,13 +22,21 @@ vi.mock("@/db/client", async (importOriginal) => {
   };
 });
 vi.mock("@/lib/auth/session", () => ({ requireSeasonAdmin: vi.fn(async () => ({ userId: observation.userId })) }));
+const personaBoundary = vi.hoisted(() => ({ read: vi.fn().mockResolvedValue(new Map()) }));
+vi.mock("@/lib/steam-profiles", async importOriginal => ({
+  ...await importOriginal<typeof import("@/lib/steam-profiles")>(),
+  loadOrFetchSteamProfiles: personaBoundary.read,
+}));
 vi.mock("@/lib/admin/matches/demo-review", () => ({
-  loadAdminDemoReview: vi.fn(async (_tx: unknown, row: { id: string }) => ({ importId: row.id })),
+  loadAdminDemoReview: vi.fn(async (_tx: unknown, row: { id: string }) => ({ importId: row.id, participants: [] })),
 }));
 
 import { db } from "@/db/client";
+import { resolveAuditTargets, auditTargetKey } from "@/lib/audit/targets";
 import { loadAdminMatchOverview, loadAdminMatchWorkspace } from "@/lib/admin/matches/overview";
 import { loadAdminMatchWorkbench } from "@/lib/admin/matches/workbench";
+import { loadAdminDemoReview } from "@/lib/admin/matches/demo-review";
+import { readAdminDemoQuality } from "@/lib/admin/matches/demo-quality-read";
 import { readRivalHubEvents } from "@/lib/demo-integration/read";
 import { resolveDemoImportLineageInTx } from "@/lib/demo-integration/promotion";
 import { revalidateNeedsAttentionImportsForSteam64, revalidateSeasonNeedsAttentionImports } from "@/lib/demo-integration/revalidation";
@@ -138,9 +146,51 @@ describe("Demo metadata PostgreSQL egress boundary", () => {
       const workbench = await loadAdminMatchWorkbench({ seasonSlug: slug, matchId: ids.match });
       expect(workbench?.demoReviews?.map((row) => row.importId).sort()).toEqual([related, other, invalid].sort());
       expect(payloadReads()).toHaveLength(1);
-      expect(payloadReads()[0]?.params).toEqual([confirmed, related, other, invalid]);
-      expect(workbench?.demoQuality?.map((row) => row.importId)).toEqual([confirmed, related, other, invalid]);
+      expect(payloadReads()[0]?.params).toEqual([related, other, invalid]);
+      expect(workbench?.demoQuality?.map((row) => row.importId)).toEqual([related, other, invalid]);
+      expect(workbench?.demoQualitySummaries?.map(row => row.importId)).toEqual([confirmed]);
       expect(workbench?.demoQuality?.every((row) => !("payload" in row))).toBe(true);
+
+      // The database/fixture is real; only the display dependency failure and
+      // canonical-review result are injected. This is failure containment,
+      // not evidence of an actual PostgreSQL upsert timeout/concurrency race.
+      vi.mocked(loadAdminDemoReview).mockResolvedValueOnce({
+        importId: related, matchMapId: ids.maps[2]!, mapOrder: 3, mapName: "de_nuke",
+        invalidPayload: false, message: "需要处理", resolvedCount: 0,
+        blockingIssues: ["保留权威检查结果"], participants: [{
+          entryId: ids.entries[0]!, observedSteam64: steam64, demoName: "fixture", teamName: "Alpha",
+          state: "confirmable", currentPlayer: null, retirableIdentityId: null,
+          observedSteamProfile: null, note: null, candidates: [],
+        }],
+      });
+      personaBoundary.read.mockRejectedValueOnce(new Error("upsert timeout"));
+      const degraded = await loadAdminMatchWorkbench({ seasonSlug: slug, matchId: ids.match });
+      expect(degraded?.match.id).toBe(ids.match);
+      expect(degraded?.demoReviews?.find(row => row.blockingIssues?.includes("保留权威检查结果")))
+        .toMatchObject({ blockingIssues: ["保留权威检查结果"], participants: [{ state: "confirmable", observedSteamProfile: null }] });
+
+      observation.queries.length = 0;
+      const quality = await readAdminDemoQuality({ seasonId: ids.season, matchId: ids.match, mapId: ids.maps[0]!, importId: confirmed });
+      expect(quality.importId).toBe(confirmed);
+      expect(payloadReads()).toHaveLength(1);
+      expect(payloadReads()[0]?.params[0]).toBe(confirmed);
+      expect(quality).not.toHaveProperty("payload");
+      observation.queries.length = 0;
+      await expect(readAdminDemoQuality({ seasonId: randomUUID(), matchId: ids.match, mapId: ids.maps[0]!, importId: confirmed })).rejects.toThrow();
+      expect(payloadReads()).toHaveLength(0);
+      await expect(readAdminDemoQuality({ seasonId: ids.season, matchId: ids.match, mapId: ids.maps[0]!, importId: related })).rejects.toThrow();
+      expect(payloadReads()).toHaveLength(0);
+
+      observation.queries.length = 0;
+      const targets = await resolveAuditTargets([
+        { targetType: "match", targetId: ids.match },
+        { targetType: "match_map", targetId: ids.maps[0] },
+        { targetType: "match_demo_import", targetId: confirmed },
+      ]);
+      for (const target of Object.values(targets)) expect(target.found).toBe(true);
+      expect(targets[auditTargetKey("match", ids.match)]?.label).toBe("Entry 0 vs Entry 1");
+      expect(observation.queries.filter(({ sql }) => /from "matches"/i.test(sql))).toHaveLength(1);
+      expect(observation.queries.filter(({ sql }) => /from "competition_entries"/i.test(sql))).toHaveLength(1);
 
       observation.queries.length = 0;
       const lineage = await db.transaction((tx) => resolveDemoImportLineageInTx(tx, {

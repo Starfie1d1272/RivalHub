@@ -9,6 +9,7 @@ import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { getMatchOrThrow, getSeasonOrThrow, actionError } from "@/lib/action-utils";
+import { captureException } from "@/lib/observability/server";
 import { revalidateMatchPaths } from "@/lib/revalidation";
 import {
   assertProposedTimeFitsDeadline,
@@ -80,11 +81,11 @@ export async function respondToTimeProposal(
   proposalId: string,
   action: "accept" | "reject",
   rejectReason?: string,
-): Promise<ActionResult<void>> {
+): Promise<ActionResult<{ refreshPending: boolean }>> {
   try {
     const session = await requireAuth();
     const outcome = await db.transaction(async (tx) => {
-      const candidate = await tx.query.matchTimeProposals.findFirst({ where: eq(matchTimeProposals.id, proposalId) });
+      const candidate = await tx.query.matchTimeProposals.findFirst({ where: eq(matchTimeProposals.id, proposalId), columns: { matchId: true } });
       if (!candidate) throw new AppError(ErrorCode.NOT_FOUND, "提议不存在");
       const match = await lockMatchInTx(tx, candidate.matchId);
       if (match.status !== "scheduled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛已经开始。");
@@ -92,7 +93,7 @@ export async function respondToTimeProposal(
         .where(eq(matchTimeProposals.id, proposalId)).for("update");
       if (!proposal) throw new AppError(ErrorCode.NOT_FOUND, "提议不存在");
       if (proposal.status !== "pending") throw new AppError(ErrorCode.VALIDATION_FAILED, "提议已失效");
-      const [season] = await tx.select().from(seasons).where(eq(seasons.id, match.seasonId));
+      const [season] = await tx.select({ slug: seasons.slug }).from(seasons).where(eq(seasons.id, match.seasonId));
       if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
       if (action === "accept") assertProposedTimeFitsDeadline(proposal.proposedTime, match.completionDeadline);
       if (proposal.proposedBy === session.userId) throw new AppError(ErrorCode.FORBIDDEN, "不能回应自己的提议");
@@ -153,8 +154,13 @@ export async function respondToTimeProposal(
       return { seasonSlug: season.slug, matchId: match.id };
     });
 
-    revalidateMatchPaths(outcome.seasonSlug, outcome.matchId, { statistics: false });
-    return ok(undefined);
+    let refreshPending = false;
+    try { revalidateMatchPaths(outcome.seasonSlug, outcome.matchId, { statistics: false }); }
+    catch (error) {
+      refreshPending = true;
+      captureException("action.scheduling_refresh_failure", error, { scope: "action", operation: "scheduling.refresh" });
+    }
+    return ok({ refreshPending });
   } catch (e) {
     return actionError("respondToTimeProposal", e);
   }
