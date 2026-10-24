@@ -166,7 +166,7 @@ describe("Demo metadata PostgreSQL egress boundary", () => {
       personaBoundary.read.mockRejectedValueOnce(new Error("upsert timeout"));
       const degraded = await loadAdminMatchWorkbench({ seasonSlug: slug, matchId: ids.match });
       expect(degraded?.match.id).toBe(ids.match);
-      expect(degraded?.demoReviews.find(row => row.blockingIssues?.includes("保留权威检查结果")))
+      expect(degraded?.demoReviews?.find(row => row.blockingIssues?.includes("保留权威检查结果")))
         .toMatchObject({ blockingIssues: ["保留权威检查结果"], participants: [{ state: "confirmable", observedSteamProfile: null }] });
 
       observation.queries.length = 0;
