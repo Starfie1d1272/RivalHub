@@ -873,6 +873,12 @@ describe("DAK evidence submit persistence", () => {
       expect(platformStats.leaderboard).toHaveLength(10);
       expect(platformStats.leaderboard.every((row) => row.maps === 2)).toBe(true);
       expect(platformStats.analytics.teams).toHaveLength(4); // Same names do not merge event-native entries.
+      for (const tab of Object.keys(STATS_TABS) as Array<keyof typeof STATS_TABS>) {
+        const query = parseStatsQuery({ tab }, []);
+        const scoped = await getTournamentStats({ ...platformScope, view: tab }, observedDatabase);
+        expect(publicStatsView(scoped, query)).toEqual(publicStatsView(platformStats, query));
+      }
+
       expect(platformStats.options.teams).toEqual([]);
       expect(platformStats.leaderboard.find((row) => row.userId === userIds[0])?.teamIds?.sort()).toEqual([ids.entryA, ids.careerEntryA].sort());
       queryLog.length = 0;

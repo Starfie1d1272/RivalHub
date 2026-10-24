@@ -545,7 +545,7 @@ export async function getTournamentStats(scope: PlatformStatsScope, database: DB
     const loaded = { ...original, selected, entries, matches: original.matches.map((match) => ({ ...match, entryAId: remap(match.entryAId), entryBId: remap(match.entryBId) })), labels: { ...original.labels, teams: Object.fromEntries(entries.map((e) => [e.id, e.name])) } };
     const veto = await loadVetoData(tx, scope, entries, remap);
     const unifiedPlayers = platform || scope.publicOnly;
-    const leaderboard = needs("overview", "players", "teams") ? await getStatsLeaderboard({ ...scope, matchIds: loaded.matchIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx, { groupByTeam: !unifiedPlayers }) : [];
+    const leaderboard = (needs("overview", "players") || (!unifiedPlayers && needs("teams"))) ? await getStatsLeaderboard({ ...scope, matchIds: loaded.matchIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx, { groupByTeam: !unifiedPlayers }) : [];
     const teamScoreboard = unifiedPlayers && needs("overview", "teams") ? await getStatsLeaderboard({ ...scope, matchIds: loaded.matchIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx) : leaderboard;
     return { original, platform, mapping, teamLinks, loaded, veto, leaderboard, teamScoreboard };
   }, { isolationLevel: "repeatable read", accessMode: "read only" }));
