@@ -240,6 +240,7 @@ export async function projectVetoRoomView(
 
   const map = (value: string) => mapLabel(value);
   return {
+    pendingInvalidation: Boolean(core.pendingInvalidation),
     seasonSlug: context.seasonSlug,
     seasonName: context.seasonName,
     match: {

@@ -1,14 +1,11 @@
 import "server-only";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { matches, seasons } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { getCurrentUserAuthorization } from "@/lib/auth/session";
-import { revalidateMatchPaths } from "@/lib/revalidation";
 import { logEvent, traceOperation } from "@/lib/observability/server";
 import { assertVetoRoomReadable } from "./access";
 import { getVetoRoomView } from "./read-model";
+import { deliverVetoInvalidation } from "./invalidation";
 import { reconcileVetoRoomReceipt, requestVetoStartReceipt, submitVetoCommandReceipt } from "./service";
 
 const base = z.object({ matchId: z.uuid() });
@@ -41,23 +38,25 @@ export async function runVetoInteraction(input: z.infer<typeof vetoInteractionIn
       ? requestVetoStartReceipt({ ...input, actorId: actor.userId })
       : submitVetoCommandReceipt({ ...input, actorId: actor.userId }));
   }
-  try {
-    const result = await finishVetoInteraction(input.matchId, outcome.outcome, outcome.changed, mode, authorization);
-    return { ...result, receipt: outcome, refreshFailed: false };
-  } catch {
-    logEvent({ level: "warn", event: "match.veto.refresh_failed", scope: "match", operation: "veto.refresh", retryable: false });
-    return { outcome: outcome.outcome, room: null, receipt: outcome, refreshFailed: true };
-  }
+  return { ...await finishVetoInteraction(input.matchId, outcome.outcome, outcome.changed, mode, authorization), receipt: outcome };
 }
 
-/** Invalidate committed facts before the fallible response projection. */
-export async function finishVetoInteraction<T>(matchId: string, outcome: T, changed: boolean, mode: "action" | "route" = "action", authorization?: Awaited<ReturnType<typeof getCurrentUserAuthorization>>) {
-  if (changed) await traceOperation("match.veto.invalidate", { scope: "match", operation: "invalidate", stage: "invalidate" }, async () => {
-    const [context] = await db.select({ slug: seasons.slug }).from(matches).innerJoin(seasons, eq(seasons.id, matches.seasonId))
-      .where(eq(matches.id, matchId)).limit(1);
-    if (!context) throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。");
-    revalidateMatchPaths(context.slug, matchId, { mode });
-  });
-  return { outcome, room: await traceOperation("match.veto.project", { scope: "match", operation: "project", stage: "project" },
-    () => authorization === undefined ? getVetoRoomView(matchId) : getVetoRoomView(matchId, authorization)) };
+/** Domain commit, cache delivery and response projection have independent outcomes. */
+export async function finishVetoInteraction<T>(matchId: string, outcome: T, _changed: boolean, mode: "action" | "route" = "action", authorization?: Awaited<ReturnType<typeof getCurrentUserAuthorization>>) {
+  let invalidation: "complete" | "pending" = "pending";
+  try {
+    invalidation = await traceOperation("match.veto.invalidate", { scope: "match", operation: "invalidate", stage: "invalidate" },
+      () => deliverVetoInvalidation(matchId, mode));
+  } catch {
+    // The durable generation stays pending. Even a no-op reconcile retries it.
+    logEvent({ level: "warn", event: "match.veto.invalidation_pending", scope: "match", operation: "veto.invalidate", retryable: true });
+  }
+  try {
+    const room = await traceOperation("match.veto.project", { scope: "match", operation: "project", stage: "project" },
+      () => authorization === undefined ? getVetoRoomView(matchId) : getVetoRoomView(matchId, authorization));
+    return { outcome, room, refreshFailed: invalidation === "pending", postCommit: { invalidation, projection: "complete" as const } };
+  } catch {
+    logEvent({ level: "warn", event: "match.veto.projection_pending", scope: "match", operation: "veto.project", retryable: true });
+    return { outcome, room: null, refreshFailed: true, postCommit: { invalidation, projection: "pending" as const } };
+  }
 }

@@ -40,7 +40,7 @@ const setManualVetoPrivilege = observeAction("matches.veto-room.setManualVetoPri
 const submitVetoRoomAppeal = observeAction("matches.veto-room.submitVetoRoomAppeal", telemetry_submitVetoRoomAppeal);
 const updateVetoRepresentative = observeAction("matches.veto-room.updateVetoRepresentative", telemetry_updateVetoRepresentative);
 
-type MutationData = { outcome: string; room: VetoRoomView | null; refreshFailed?: boolean; receipt?: { committedRevision: number | null } };
+type MutationData = { outcome: string; room: VetoRoomView | null; refreshFailed?: boolean; receipt?: { committedRevision: number | null }; postCommit?: { invalidation: "complete" | "pending"; projection: "complete" | "pending" } };
 type MutationResult = ActionResult<MutationData>;
 type MutationAction = (input: unknown) => Promise<MutationResult>;
 
@@ -68,6 +68,7 @@ function formatRemaining(milliseconds: number): string {
 export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
   const [room, setRoom] = useState(initialRoom);
   const [pending, setPending] = useState(false);
+  const [invalidationPending, setInvalidationPending] = useState(Boolean(initialRoom.pendingInvalidation));
   const [clockSynchronized, setClockSynchronized] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -107,6 +108,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
       setError("");
       setNotice("操作状态已核对，BP 信息已更新。");
     }
+    setInvalidationPending(Boolean(next.pendingInvalidation));
     setClockSynchronized(true);
     latestRoom.current = next;
     setRoom(next);
@@ -159,13 +161,14 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
       const result = await sendVetoInteraction("reconcile", { matchId: room.match.id });
       if (generation !== readGeneration.current) return false;
       if (!result.success) { setError(result.error.message); return false; }
-      if (!result.data.room) { setNotice("BP 处理已确认，正在重新同步房间。"); return false; }
+      if (result.data.postCommit) setInvalidationPending(result.data.postCommit.invalidation === "pending");
+      if (!result.data.room) { setNotice("BP 处理已确认，房间投影暂未同步，正在重读。"); void refresh(); return false; }
       const accepted = applyRoom(result.data.room);
       if (accepted && result.data.outcome === "applied") setNotice("BP 进度已更新。");
-      return accepted && new Date(result.data.room.session.serverNow).getTime() >= boundaryMs;
+      return accepted && result.data.postCommit?.invalidation !== "pending" && new Date(result.data.room.session.serverNow).getTime() >= boundaryMs;
     } catch { if (generation === readGeneration.current) setError("BP 同步暂未完成，正在重试。"); return false; }
     finally { reconcileInFlight.current = false; }
-  }, [room.match.id, applyRoom]);
+  }, [room.match.id, applyRoom, refresh]);
 
   // Keep a slow recovery read after completion/pause: administrators may rewind
   // or resume BP. Hidden tabs stop reads; returning to the tab resynchronizes.
@@ -191,11 +194,14 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
   }, [refresh]);
 
   useEffect(() => {
-    if (pending || quietRoom || document.visibilityState === "hidden") return;
+    if (pending || quietRoom && !invalidationPending || document.visibilityState === "hidden") return;
     const { currentTurnKey, turnDeadlineAt, startedAt, previousMatchBlocker, effectiveForceAt, revision } = room.session;
     let key: string;
     let boundaryMs: number;
-    if (room.match.statusKey === "in_progress" && startedAt && currentTurnKey && turnDeadlineAt) {
+    if (invalidationPending) {
+      key = `invalidation:${revision}`;
+      boundaryMs = 0;
+    } else if (room.match.statusKey === "in_progress" && startedAt && currentTurnKey && turnDeadlineAt) {
       boundaryMs = new Date(turnDeadlineAt).getTime() + 2_000;
       key = `turn:${currentTurnKey}:${boundaryMs}`;
     } else if (room.match.statusKey === "scheduled" && !startedAt && !previousMatchBlocker) {
@@ -220,7 +226,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
       attempt.retryAt = performance.now() + Math.min(4_000, 500 * 2 ** Math.min(attempt.attempts - 1, 3)) + Math.random() * 200;
     }); }, 0);
     return () => window.clearTimeout(timer);
-  }, [serverNowMs, pending, quietRoom, room, clockAnchor, reconcileRoomBoundary]);
+  }, [serverNowMs, pending, quietRoom, invalidationPending, room, clockAnchor, reconcileRoomBoundary]);
 
   const mutate = useCallback(async (action: MutationAction, input: unknown, successMessage = "已保存。") => {
     if (pendingRef.current || uncertainCommand.current) return;
@@ -241,6 +247,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
         setError(result.error.message);
         return;
       }
+      if (result.data.postCommit) setInvalidationPending(result.data.postCommit.invalidation === "pending");
       if (!result.data.room) {
         uncertainCommand.current = { revision: result.data.receipt?.committedRevision ?? latestRoom.current.session.revision, input, fact, commitKnown: true };
         setUncertainRevision(latestRoom.current.session.revision);

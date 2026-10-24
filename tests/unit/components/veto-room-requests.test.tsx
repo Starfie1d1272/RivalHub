@@ -146,3 +146,17 @@ it.each(["lost", "internal", "committed-refresh-failed"] as const)("confirms a s
   expect(screen.getByText("已驳回")).toBeInTheDocument();
   expect(appealResolve).toHaveBeenCalledOnce();
 });
+
+it("retries durable invalidation via reconcile while a room is paused, without replaying a user command", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(now);
+  Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+  const initial = room(1); initial.session.paused = true; initial.pendingInvalidation = true;
+  const restored = structuredClone(initial); restored.pendingInvalidation = false;
+  read.mockResolvedValue({ success: true, data: initial });
+  send.mockResolvedValueOnce({ success: true, data: { outcome: "idempotent", room: initial, postCommit: { invalidation: "pending", projection: "complete" } } })
+    .mockResolvedValue({ success: true, data: { outcome: "idempotent", room: restored, postCommit: { invalidation: "complete", projection: "complete" } } });
+  render(<VetoRoom initialRoom={initial} />);
+  for (let tick = 0; tick < 8; tick++) await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+  expect(send).toHaveBeenCalledTimes(2);
+  expect(send.mock.calls.every(call => call[0] === "reconcile")).toBe(true);
+});

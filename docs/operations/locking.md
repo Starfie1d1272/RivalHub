@@ -73,3 +73,38 @@ safe to mix. The release owner must drain old HTTP/scheduler/worker writers
 before switching order and must use the same coordinated boundary on rollback.
 No production lock timeout increase, blind retry, manual schema patch or
 disabled financial trigger substitutes for that rollout proof.
+
+## BP postcommit delivery
+
+`match_veto_invalidations` is a BP-owned, server-only delivery watermark. Its
+match key, generation, published generation, transaction-coalescing ID and
+bounded fact categories contain no actor, reason, credential or business
+payload. Rows follow match retention and cascade on actual match deletion;
+normal database backups include them. A restore must follow the existing
+public-cache reset/hard-expire procedure before traffic resumes: a historical
+published watermark is not proof that a surviving external cache matches the
+restored database. Browser Data API and Realtime have no grants or policies.
+
+Triggers register session/step/timeout/appeal/lineup/map changes in the same
+transaction as those facts. Generation advances once per match/transaction;
+additional categories in that transaction are merged. Unpublished categories
+are retained until delivery. In particular, map creation, replacement and
+rewind deletion register `map_plan`, which always retains broad statistics
+invalidation because map catalog/options also consume unfinished match maps.
+
+The postcommit owner reads current server season/status and persisted facts,
+then invokes the canonical revalidation owner. It acknowledges only the
+captured generation with CAS after all invalidations return successfully. A
+new concurrent generation, cache exception or acknowledgement failure remains
+pending. No user command is replayed. The HTTP response distinguishes cache
+`invalidation: pending` from room `projection: pending`; a safe reconcile can
+recover delivery even when its domain outcome is idempotent.
+
+Ordinary GET remains read-only and exposes only a pending boolean, allowing a
+visible client to retry reconcile with its existing in-flight/backoff gate.
+The existing veto scheduler also drains at most fifty pending deliveries per
+invocation, independently of paused/completed/archived lifecycle transitions.
+Delivery exceptions remain durable and cause scheduler execution to fail;
+they are not reported as a successful cache publication. Old applications can
+ignore the additive table; old workers do not acknowledge it. Rollback keeps
+the obligation for a compatible forward worker rather than deleting facts.

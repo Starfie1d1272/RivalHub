@@ -512,6 +512,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "申诉与裁定只通过服务端 Veto Room action 读写，不直接开放 browser Data API。",
   ),
   serverOnly(
+    "match_veto_invalidations",
+    "比赛 / BP 缓存交付",
+    "按比赛合并的失效 generation 与已交付 watermark，不含身份或申诉正文",
+    "src/lib/matches/veto-room/invalidation.ts; src/lib/scheduler/runners.ts",
+    "同事务登记 BP 事实失效，提交后幂等交付；随比赛删除，不向 Data API 或 Realtime 开放。",
+  ),
+  serverOnly(
     "match_veto_sessions",
     "比赛 / BP",
     "开赛请求、冻结先手、地图池与倒计时事实",

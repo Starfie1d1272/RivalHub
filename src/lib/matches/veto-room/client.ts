@@ -2,7 +2,7 @@ import type { ActionResult } from "@/types/action";
 import type { VetoRoomView } from "./read-model";
 import type { VetoMutationReceipt } from "./service";
 
-export type VetoInteractionResponse = { outcome: string; room: VetoRoomView | null; receipt?: VetoMutationReceipt; refreshFailed?: boolean };
+export type VetoInteractionResponse = { outcome: string; room: VetoRoomView | null; receipt?: VetoMutationReceipt; refreshFailed?: boolean; postCommit?: { invalidation: "complete" | "pending"; projection: "complete" | "pending" } };
 
 export type VetoRecoveryFact =
   | { kind: "appeal_submit"; incidentId: string; reason: string; previousAppealId: string | null }

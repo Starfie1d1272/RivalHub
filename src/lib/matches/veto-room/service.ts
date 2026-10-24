@@ -18,6 +18,7 @@ import {
   matchRosters,
   matches,
   matchVetoAppeals,
+  matchVetoInvalidations,
   matchVetoSessions,
   matchVetoSteps,
   matchVetoTimeoutIncidents,
@@ -79,6 +80,7 @@ export interface VetoRoomCoreSnapshot {
   gameplayStarted: boolean;
   effectiveForceAt: Date | null;
   previousMatchBlocker: boolean;
+  pendingInvalidation?: boolean;
 }
 
 export type VetoMutationOutcome = "applied" | "idempotent" | "stale";
@@ -87,7 +89,7 @@ export interface VetoMutationReceipt {
   outcome: VetoMutationOutcome;
   changed: boolean;
   committedRevision: number | null;
-  affectedFacts: Array<"lineups" | "appeals" | "veto">;
+  affectedFacts: Array<"lineups" | "appeals" | "veto" | "map_plan">;
 }
 
 function mutationReceipt(outcome: VetoMutationOutcome, session: VetoSession | undefined, facts: VetoMutationReceipt["affectedFacts"]): VetoMutationReceipt {
@@ -641,7 +643,7 @@ async function loadCoreSnapshotInTx(
   tx: TxDb,
   match: VetoMatch,
   session: VetoSession,
-  loaded?: { steps: VetoStepRow[]; serverNow: Date; gameplayStarted: boolean },
+  loaded?: { steps: VetoStepRow[]; serverNow: Date; gameplayStarted: boolean; pendingInvalidation: boolean },
 ): Promise<VetoRoomCoreSnapshot> {
   const steps = loaded?.steps ?? await readStepsInTx(tx, match.id);
   const incidentRows = await tx.select({ incident: matchVetoTimeoutIncidents, appeal: matchVetoAppeals })
@@ -655,6 +657,9 @@ async function loadCoreSnapshotInTx(
     ? { effectiveForceAt: null, previousMatchBlocker: false } : await loadStartTimingInTx(tx, match);
   const serverNow = loaded?.serverNow ?? await databaseNow(tx);
   const gameplayStarted = loaded?.gameplayStarted ?? await hasVetoGameplayInTx(tx, match.id);
+  const pendingInvalidation = loaded?.pendingInvalidation ?? (await tx.execute<{ pending: boolean }>(sql`SELECT EXISTS (
+    SELECT 1 FROM ${matchVetoInvalidations} WHERE ${matchVetoInvalidations.matchId}=${match.id}
+      AND ${matchVetoInvalidations.generation}>${matchVetoInvalidations.publishedGeneration}) AS pending`)).rows[0]!.pending;
   return {
     match,
     session,
@@ -666,6 +671,7 @@ async function loadCoreSnapshotInTx(
     gameplayStarted,
     effectiveForceAt: timing.effectiveForceAt,
     previousMatchBlocker: timing.previousMatchBlocker,
+    pendingInvalidation,
   };
 }
 
@@ -687,6 +693,8 @@ export async function readVetoRoomSnapshot(matchId: string, database: DB = db): 
     const rows = await tx.select({ match: matches, session: matchVetoSessions, step: matchVetoSteps,
       serverNow: sql<string>`clock_timestamp()`.mapWith(value => new Date(value)),
       gameplayStarted: vetoGameplayExists(matchId),
+      pendingInvalidation: sql<boolean>`EXISTS (SELECT 1 FROM ${matchVetoInvalidations} WHERE ${matchVetoInvalidations.matchId}=${matches.id}
+        AND ${matchVetoInvalidations.generation}>${matchVetoInvalidations.publishedGeneration})`,
     }).from(matches)
       .leftJoin(matchVetoSessions, eq(matchVetoSessions.matchId, matches.id))
       .leftJoin(matchVetoSteps, eq(matchVetoSteps.matchId, matches.id))
@@ -697,7 +705,7 @@ export async function readVetoRoomSnapshot(matchId: string, database: DB = db): 
     const session = await getSessionForReadInTx(tx, first.match, first.session);
     return loadCoreSnapshotInTx(tx, first.match, session, {
       steps: rows.flatMap(row => row.step ? [row.step] : []),
-      serverNow: first.serverNow, gameplayStarted: first.gameplayStarted,
+      serverNow: first.serverNow, gameplayStarted: first.gameplayStarted, pendingInvalidation: first.pendingInvalidation,
     });
   }, { accessMode: "read only", isolationLevel: "repeatable read" });
 }
@@ -717,6 +725,7 @@ export async function reconcileVetoRoomReceipt(matchId: string): Promise<VetoMut
       .where(eq(matchVetoSessions.matchId, match.id)).for("update");
     const reconciled = session ? await reconcileVetoSessionInTx(tx, match, session, await databaseNow(tx)) : undefined;
     if (reconciled && reconciled.revision !== session?.revision) facts.push("veto");
+    if (reconciled?.completedAt && !session?.completedAt) facts.push("map_plan");
     return mutationReceipt(facts.length ? "applied" : "idempotent", reconciled, facts);
   });
 }
@@ -897,8 +906,10 @@ export async function requestVetoStartReceipt(input: {
     if (await materializeDefaultLineupsInTx(tx, match, receivedAt, match.scheduledAt === null) > 0) facts.push("lineups");
     let session = await getSessionForUpdateInTx(tx, match, () => facts.push("veto"));
     const initialRevision = session.revision;
+    const initialCompleted = Boolean(session.completedAt);
     const receipt = (outcome: VetoMutationOutcome) => mutationReceipt(outcome, session,
-      session.revision !== initialRevision ? [...facts, "veto"] : facts);
+      [...facts, ...(session.revision !== initialRevision ? ["veto" as const] : []),
+        ...(Boolean(session.completedAt) !== initialCompleted ? ["map_plan" as const] : [])]);
     const processingNow = await databaseNow(tx);
     session = await reconcileVetoSessionInTx(tx, match, session, processingNow, input.actorId);
     if (session.startedAt) return receipt("idempotent");
@@ -975,8 +986,10 @@ export async function submitVetoCommandReceipt(input: {
     if (await materializeDefaultLineupsInTx(tx, match) > 0) facts.push("lineups");
     let session = await getSessionForUpdateInTx(tx, match, () => facts.push("veto"));
     const originalRevision = session.revision;
+    const initialCompleted = Boolean(session.completedAt);
     const receipt = (outcome: VetoMutationOutcome) => mutationReceipt(outcome, session,
-      session.revision !== originalRevision ? [...facts, "veto"] : facts);
+      [...facts, ...(session.revision !== originalRevision ? ["veto" as const] : []),
+        ...(Boolean(session.completedAt) !== initialCompleted ? ["map_plan" as const] : [])]);
 
     if (input.command.kind === "step") {
       const [existingRequest] = await tx.select({ id: matchVetoSteps.id })
