@@ -27,6 +27,7 @@ it.each(["scheduled", "in_progress"])("preserves historical stats but hard-expir
   try {
     revalidateVetoRoomPaths(scoped, { changed: true, affectedFacts: ["lineups", "appeals"] }, { mode: "route" });
     await Promise.all(updates);
+    await new Promise(resolve => setTimeout(resolve, 2));
     expect(cache.revalidateTag).not.toHaveBeenCalledWith(PUBLIC_STATS_TAG, expect.anything());
     expect(await handler.get("history", [])).toBeDefined();
     expect(await handler.get("support", [])).toBeUndefined();
