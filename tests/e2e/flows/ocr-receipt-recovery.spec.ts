@@ -12,7 +12,7 @@ type OCRFixture = {
   page: Page; restart: () => Promise<Page>; newTab: () => Promise<Page>;
 };
 const test = base.extend<{ ocr: OCRFixture }>({
-  ocr: async ({ scenario, baseURL }, use, info) => {
+  ocr: async ({ scenario, baseURL }, applyFixture, info) => {
     const pool = new Pool({ connectionString: assertLocalDatabaseUrl(process.env.DATABASE_URL, "OCR browser fixture"), ssl: false });
     const profile = info.outputPath("persistent-browser-profile");
     let context: BrowserContext | undefined;
@@ -32,6 +32,7 @@ const test = base.extend<{ ocr: OCRFixture }>({
         mapId = match.map_id; matchId = match.id;
         name = (await client.query<{ perfect_name: string }>("SELECT perfect_name FROM users WHERE id=$1", [other.userId])).rows[0]!.perfect_name;
         await client.query("UPDATE match_maps SET score_a=13,score_b=8,completed_at=now() WHERE id=$1", [mapId]);
+        await client.query("UPDATE competition_entries SET approved_roster_revision_id=current_roster_revision_id WHERE id=$1", [match.entry_a_id]);
         await client.query("INSERT INTO event_rosters(id,entry_id,source_roster_revision_id) VALUES ($1,$2,$3)", [eventRosterId, match.entry_a_id, match.current_roster_revision_id]);
         await client.query("INSERT INTO event_roster_members(event_roster_id,user_id,is_primary_starter) VALUES ($1,$2,true)", [eventRosterId, other.userId]);
         await client.query("UPDATE event_rosters SET status='confirmed',confirmed_at=now(),confirmed_by=$2 WHERE id=$1", [eventRosterId, admin.userId]);
@@ -49,7 +50,7 @@ const test = base.extend<{ ocr: OCRFixture }>({
         return context.pages()[0] ?? await context.newPage();
       };
       const page = await launch();
-      await use({ pool, mapId: mapId!, matchId: matchId!, name: name!, admin, other, page,
+      await applyFixture({ pool, mapId: mapId!, matchId: matchId!, name: name!, admin, other, page,
         url: `/admin/${scenario.slug}/matches/${matchId}`,
         restart: async () => { await context!.close(); return launch(); },
         newTab: async () => context!.newPage(),
