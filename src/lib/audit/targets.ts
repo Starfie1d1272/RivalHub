@@ -209,6 +209,20 @@ const RESOLVABLE_TARGET_TYPES = new Set([
   "season_public_info", "team", "team_application", "tournament_honor", "user", "user_gameplay_steam_id",
 ]);
 
+/** Request-local identity labels; overlapping map/import/match targets share each match read. */
+function createMatchLabelReader() {
+  const cache = new Map<string, Promise<string | undefined>>();
+  return async (ids: readonly string[]) => {
+    const missing = [...new Set(ids)].filter(id => !cache.has(id));
+    if (missing.length) {
+      const pending = resolveMatchLabels(db, missing);
+      for (const id of missing) cache.set(id, pending.then(labels => labels.get(id)));
+    }
+    const labels = await Promise.all(ids.map(async id => [id, await cache.get(id)!] as const));
+    return new Map(labels.flatMap(([id, label]) => label === undefined ? [] : [[id, label]]));
+  };
+}
+
 /** Pool reads resolve at most three target types concurrently; transaction reads stay serial. */
 export async function resolveAuditTargets(
   refs: readonly AuditTargetRef[],
@@ -224,9 +238,10 @@ export async function resolveAuditTargets(
     groups.set(type, group);
   }
   const batches = [...groups.values()];
+  const matchLabels = createMatchLabelReader();
   const result: Record<string, AuditTargetPresentation> = {};
   for (let offset = 0; offset < batches.length; offset += 3) {
-    const resolved = await Promise.all(batches.slice(offset, offset + 3).map(group => resolveAuditTargetGroups(group, db)));
+    const resolved = await Promise.all(batches.slice(offset, offset + 3).map(group => resolveAuditTargetGroups(group, db, matchLabels)));
     for (const targets of resolved) Object.assign(result, targets);
   }
   return result;
@@ -235,6 +250,7 @@ export async function resolveAuditTargets(
 async function resolveAuditTargetGroups(
   refs: readonly AuditTargetRef[],
   executor: AuditDatabaseExecutor,
+  matchLabels: (ids: readonly string[]) => Promise<Map<string, string>> = ids => resolveMatchLabels(executor, ids),
 ): Promise<Record<string, AuditTargetPresentation>> {
   const normalizedRefs = refs.map(normalizeAuditTarget);
   const targetIdSets = new Map<string, Set<string>>();
@@ -374,7 +390,7 @@ async function resolveAuditTargetGroups(
 
   const matchIds = grouped.get("match") ?? [];
   if (matchIds.length) {
-    const labels = await resolveMatchLabels(executor, matchIds);
+    const labels = await matchLabels(matchIds);
     for (const [id, label] of labels) setTarget(result, "match", id, label);
   }
 
@@ -382,7 +398,7 @@ async function resolveAuditTargetGroups(
   if (mapIds.length) {
     const rows = await executor.select({ id: matchMaps.id, matchId: matchMaps.matchId, mapName: matchMaps.mapName, mapOrder: matchMaps.mapOrder })
       .from(matchMaps).where(inArray(matchMaps.id, mapIds));
-    const labels = await resolveMatchLabels(executor, [...new Set(rows.map((row) => row.matchId))]);
+    const labels = await matchLabels([...new Set(rows.map((row) => row.matchId))]);
     for (const row of rows) {
       const order = Number.isFinite(row.mapOrder) ? `第 ${row.mapOrder} 图 · ` : "";
       setTarget(result, "match_map", row.id, `${order}${compactLabel(mapLabel(row.mapName))} · ${labels.get(row.matchId) ?? "比赛"}`);
@@ -401,7 +417,7 @@ async function resolveAuditTargetGroups(
       mapName: matchMaps.mapName,
       mapOrder: matchMaps.mapOrder,
     }).from(matchMaps).where(inArray(matchMaps.id, [...new Set(rows.map((row) => row.matchMapId))]));
-    const labels = await resolveMatchLabels(executor, [...new Set(maps.map((row) => row.matchId))]);
+    const labels = await matchLabels([...new Set(maps.map((row) => row.matchId))]);
     const mapById = new Map(maps.map((row) => [row.id, row]));
     for (const row of rows) {
       const map = mapById.get(row.matchMapId);
@@ -436,7 +452,7 @@ async function resolveAuditTargetGroups(
   if (proposalIds.length) {
     const rows = await executor.select({ id: matchTimeProposals.id, matchId: matchTimeProposals.matchId })
       .from(matchTimeProposals).where(inArray(matchTimeProposals.id, proposalIds));
-    const labels = await resolveMatchLabels(executor, [...new Set(rows.map((row) => row.matchId))]);
+    const labels = await matchLabels([...new Set(rows.map((row) => row.matchId))]);
     for (const row of rows) setTarget(result, "match_time_proposal", row.id, `时间提议 · ${labels.get(row.matchId) ?? "比赛"}`);
   }
 

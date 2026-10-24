@@ -27,6 +27,7 @@ vi.mock("@/lib/admin/matches/demo-review", () => ({
 }));
 
 import { db } from "@/db/client";
+import { resolveAuditTargets, auditTargetKey } from "@/lib/audit/targets";
 import { loadAdminMatchOverview, loadAdminMatchWorkspace } from "@/lib/admin/matches/overview";
 import { loadAdminMatchWorkbench } from "@/lib/admin/matches/workbench";
 import { readRivalHubEvents } from "@/lib/demo-integration/read";
@@ -141,6 +142,17 @@ describe("Demo metadata PostgreSQL egress boundary", () => {
       expect(payloadReads()[0]?.params).toEqual([confirmed, related, other, invalid]);
       expect(workbench?.demoQuality?.map((row) => row.importId)).toEqual([confirmed, related, other, invalid]);
       expect(workbench?.demoQuality?.every((row) => !("payload" in row))).toBe(true);
+
+      observation.queries.length = 0;
+      const targets = await resolveAuditTargets([
+        { targetType: "match", targetId: ids.match },
+        { targetType: "match_map", targetId: ids.maps[0] },
+        { targetType: "match_demo_import", targetId: confirmed },
+      ]);
+      for (const target of Object.values(targets)) expect(target.found).toBe(true);
+      expect(targets[auditTargetKey("match", ids.match)]?.label).toBe("Entry 0 vs Entry 1");
+      expect(observation.queries.filter(({ sql }) => /from "matches"/i.test(sql))).toHaveLength(1);
+      expect(observation.queries.filter(({ sql }) => /from "competition_entries"/i.test(sql))).toHaveLength(1);
 
       observation.queries.length = 0;
       const lineage = await db.transaction((tx) => resolveDemoImportLineageInTx(tx, {
