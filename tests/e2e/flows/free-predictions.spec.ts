@@ -121,10 +121,14 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
     await expect(free.getByText("已锁定", { exact: true })).toBeVisible();
     await expect(choices.first()).toBeDisabled();
     await page.clock.resume();
-    await page.reload();await openFree(); await expect(choices.first()).toBeDisabled();
+    await page.reload();
+    await expect(card.getByText(/我的免费赛果：/)).toBeVisible();
+    await expect(card.locator("button[data-bet-option],button[data-prediction-key]")).toHaveCount(0);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await db.update(schema.matches).set({ status: "finished", scoreA: 1, scoreB: 0 }).where(eq(schema.matches.id, match!.id));
-    await page.goto(`/${fixture.slug}/bet?view=settled`);await openFree();
-    await expect(free).toContainText("已命中");
+    await page.goto(`/${fixture.slug}/bet?view=settled`);
+    await expect(card.getByText(/我的免费赛果：.*已命中/)).toBeVisible();
+    await expect(card.locator("button[data-bet-option],button[data-prediction-key]")).toHaveCount(0);
     await page.goto(`/${fixture.slug}/bet?view=leaderboard`);
     const ranking = page.getByRole("region", { name: "竞猜排行榜", exact: true });
     for (const label of ["净收益", "赛果命中次数", "赛果命中率"]) {
@@ -139,12 +143,12 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
       await page.screenshot({ path: ".agent-tmp/911/real-ranking-320.png", fullPage: true, style: "nextjs-portal, [data-sonner-toaster] {visibility:hidden;}" });
     }
     await db.update(schema.matches).set({ status: "cancelled" }).where(eq(schema.matches.id, match!.id));
-    await page.goto(`/${fixture.slug}/bet?view=settled`);await openFree();
-    await expect(free).toContainText("已作废");
-    await expect(free).toContainText("比赛已取消");
-    await expect(choices.first()).toBeDisabled();
-    await page.goto(`/${fixture.slug}/bet?view=mine`);await openFree();
-    await expect(free).toContainText("已作废");
+    await page.goto(`/${fixture.slug}/bet?view=settled`);
+    await expect(card.getByText(/我的免费赛果：.*已作废/)).toBeVisible();
+    await expect(card.locator("button[data-bet-option],button[data-prediction-key]")).toHaveCount(0);
+    await page.goto(`/${fixture.slug}/bet?view=mine`);
+    await expect(card.getByText(/我的免费赛果：.*已作废/)).toBeVisible();
+    await expect(card.locator("button[data-bet-option],button[data-prediction-key]")).toHaveCount(0);
   } finally {
     const predictions = await db.select({ id: schema.freePredictionChoices.id }).from(schema.freePredictionChoices).where(eq(schema.freePredictionChoices.seasonId, fixture.seasonId));
     if (predictions.length) await db.delete(schema.freePredictionRequests).where(inArray(schema.freePredictionRequests.choiceId, predictions.map(row => row.id)));

@@ -4,7 +4,7 @@ import "server-only";
 import { randomInt } from "node:crypto";
 import { and, asc, eq, gte, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
 import { sql } from "drizzle-orm";
-import type { TxDb } from "@/db/client";
+import type { DB, TxDb } from "@/db/client";
 import { db } from "@/db/client";
 import type { Match as DbMatch } from "@/db/schema";
 import {
@@ -29,7 +29,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import { logEvent } from "@/lib/observability/server";
 import { AppError, ErrorCode } from "@/lib/errors";
 import type { Side, VetoActionType } from "@/types/match";
-import { closeVetoAppealsAfterGameplayInTx, hasVetoGameplayInTx } from "./appeal-lifecycle";
+import { closeVetoAppealsAfterGameplayInTx, hasVetoGameplayInTx, vetoGameplayExists } from "./appeal-lifecycle";
 import {
   chooseVetoOptions,
   deriveHigherSeedEntry,
@@ -76,6 +76,7 @@ export interface VetoRoomCoreSnapshot {
   appeals: Array<typeof matchVetoAppeals.$inferSelect>;
   currentTurn: CurrentVetoTurn | null;
   serverNow: Date;
+  gameplayStarted: boolean;
   effectiveForceAt: Date | null;
   previousMatchBlocker: boolean;
 }
@@ -170,10 +171,7 @@ async function getSessionForUpdateInTx(tx: TxDb, match: VetoMatch): Promise<Veto
   return raced;
 }
 
-async function getSessionForReadInTx(tx: TxDb, match: VetoMatch): Promise<VetoSession> {
-  const [existing] = await tx.select().from(matchVetoSessions)
-    .where(eq(matchVetoSessions.matchId, match.id))
-    .limit(1);
+async function getSessionForReadInTx(tx: TxDb, match: VetoMatch, existing: VetoSession | null): Promise<VetoSession> {
   if (existing) return existing;
 
   const privilegedEntryId = await resolveFrozenPrivilegedEntryInTx(tx, match);
@@ -652,18 +650,20 @@ async function loadCoreSnapshotInTx(
   tx: TxDb,
   match: VetoMatch,
   session: VetoSession,
+  loaded?: { steps: VetoStepRow[]; serverNow: Date; gameplayStarted: boolean },
 ): Promise<VetoRoomCoreSnapshot> {
-  const steps = await readStepsInTx(tx, match.id);
-  const incidents = await tx.select().from(matchVetoTimeoutIncidents)
+  const steps = loaded?.steps ?? await readStepsInTx(tx, match.id);
+  const incidentRows = await tx.select({ incident: matchVetoTimeoutIncidents, appeal: matchVetoAppeals })
+    .from(matchVetoTimeoutIncidents)
+    .leftJoin(matchVetoAppeals, eq(matchVetoTimeoutIncidents.id, matchVetoAppeals.timeoutIncidentId))
     .where(eq(matchVetoTimeoutIncidents.matchId, match.id))
     .orderBy(asc(matchVetoTimeoutIncidents.createdAt));
-  const appealRows = await tx.select({ appeal: matchVetoAppeals })
-    .from(matchVetoAppeals)
-    .innerJoin(matchVetoTimeoutIncidents, eq(matchVetoTimeoutIncidents.id, matchVetoAppeals.timeoutIncidentId))
-    .where(eq(matchVetoTimeoutIncidents.matchId, match.id));
-  const appeals = appealRows.map((row) => row.appeal);
-  const timing = await loadStartTimingInTx(tx, match);
-  const serverNow = await databaseNow(tx);
+  const incidents = [...new Map(incidentRows.map(row => [row.incident.id, row.incident])).values()];
+  const appeals = incidentRows.flatMap(row => row.appeal ? [row.appeal] : []);
+  const timing = loaded && (session.startedAt || session.completedAt || match.status !== "scheduled")
+    ? { effectiveForceAt: null, previousMatchBlocker: false } : await loadStartTimingInTx(tx, match);
+  const serverNow = loaded?.serverNow ?? await databaseNow(tx);
+  const gameplayStarted = loaded?.gameplayStarted ?? await hasVetoGameplayInTx(tx, match.id);
   return {
     match,
     session,
@@ -672,6 +672,7 @@ async function loadCoreSnapshotInTx(
     appeals,
     currentTurn: currentTurn(match, session, steps),
     serverNow,
+    gameplayStarted,
     effectiveForceAt: timing.effectiveForceAt,
     previousMatchBlocker: timing.previousMatchBlocker,
   };
@@ -690,14 +691,24 @@ export async function readVetoRoomCore(matchId: string): Promise<VetoRoomCoreSna
 }
 
 /** Public display reads do not reconcile, initialize, or lock match/session rows. */
-export async function readVetoRoomSnapshot(matchId: string): Promise<VetoRoomCoreSnapshot> {
-  return db.transaction(async (tx) => {
-    const match = await tx.query.matches.findFirst({ where: eq(matches.id, matchId) });
-    if (!match) throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。");
-    assertCompetitionMatch(match);
-    const session = await getSessionForReadInTx(tx, match);
-    return loadCoreSnapshotInTx(tx, match, session);
-  });
+export async function readVetoRoomSnapshot(matchId: string, database: DB = db): Promise<VetoRoomCoreSnapshot> {
+  return database.transaction(async (tx) => {
+    const rows = await tx.select({ match: matches, session: matchVetoSessions, step: matchVetoSteps,
+      serverNow: sql<string>`clock_timestamp()`.mapWith(value => new Date(value)),
+      gameplayStarted: vetoGameplayExists(matchId),
+    }).from(matches)
+      .leftJoin(matchVetoSessions, eq(matchVetoSessions.matchId, matches.id))
+      .leftJoin(matchVetoSteps, eq(matchVetoSteps.matchId, matches.id))
+      .where(eq(matches.id, matchId)).orderBy(asc(matchVetoSteps.stepOrder));
+    const first = rows[0];
+    if (!first) throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。");
+    assertCompetitionMatch(first.match);
+    const session = await getSessionForReadInTx(tx, first.match, first.session);
+    return loadCoreSnapshotInTx(tx, first.match, session, {
+      steps: rows.flatMap(row => row.step ? [row.step] : []),
+      serverNow: first.serverNow, gameplayStarted: first.gameplayStarted,
+    });
+  }, { accessMode: "read only", isolationLevel: "repeatable read" });
 }
 
 /** Reconcile a deterministic lifecycle boundary without making ordinary polling take row locks. */
