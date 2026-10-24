@@ -24,12 +24,14 @@ import {
 import {
   extractStatsFromScreenshot as telemetry_extractStatsFromScreenshot,
   savePlayerStats as telemetry_savePlayerStats,
-  getPlayerStatsByMap,
-  getMatchPlayerOptions,
+  getOperatorScoreboardSnapshot,
+  getScoreboardEditorState,
+  getScoreboardOperationReceipt,
   retryPlayerStatsRefresh,
   deletePlayerStatsByMap as telemetry_deletePlayerStatsByMap,
   type PlayerOption,
 } from "@/actions/player-stats";
+import type { ScoreboardCommand, ScoreboardSnapshot } from "@/lib/ocr/scoreboard-contract";
 import type { OperatorScoreboardRow } from "@/lib/matches/operator-scoreboard";
 import { OCR_MAX_IMAGE_BYTES, OCR_IMAGE_SIZE_MESSAGE, isOCRImageMimeType } from "@/lib/ocr/input-contract";
 import { isStatOutOfRange } from "@/lib/config/stat-ranges";
@@ -48,6 +50,7 @@ interface Props {
   mapName: string;
   /** Already-authorized editor DTO from the workbench; no mount action when supplied. */
   initialRows?: OperatorScoreboardRow[];
+  initialVersion?: string;
 }
 
 type DraftRow = ScoreboardDraft;
@@ -87,7 +90,7 @@ const NUM_FIELDS = [
 
 type NumFieldKey = typeof NUM_FIELDS[number]["key"];
 
-export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
+export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: Props) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -105,14 +108,28 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
   // viewMode=true：只读展示；false：编辑录入
   const [viewMode, setViewMode] = useState(Boolean(initialRows?.length));
   const [initialLoading, setInitialLoading] = useState(initialRows === undefined);
-  const [recovery, setRecovery] = useState<"unknown" | "refresh_pending" | null>(null);
+  const [recovery, setRecovery] = useState<"unknown" | "refresh_pending" | "conflict" | null>(null);
   const [readFailed, setReadFailed] = useState(false);
   const initialReadComplete = useRef(initialRows !== undefined);
   const readGeneration = useRef(0);
+  const [baseVersion, setBaseVersion] = useState<string | null>(initialVersion ?? null);
+  const pendingOperation = useRef<(ScoreboardCommand & { operation: "save" | "clear"; rows?: DraftRow[] }) | null>(null);
+  function adoptSnapshot(snapshot: ScoreboardSnapshot) {
+    initialReadComplete.current = true;
+    const saved = savedDrafts(snapshot.rows);
+    setBaseVersion(snapshot.version);
+    setDrafts(saved);
+    setCanonicalDrafts(saved);
+    setViewMode(saved.length > 0);
+    setReadFailed(false);
+    setInitialLoading(false);
+  }
+
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // Each mounted map owns its state; the workbench keys panels by map ID.
   useEffect(() => {
+    if (initialRows !== undefined && initialReadComplete.current) return;
     const generation = ++readGeneration.current;
     let cancelled = false;
     if (initialRows !== undefined) {
@@ -123,6 +140,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
           if (cancelled || generation !== readGeneration.current) return;
           const saved = savedDrafts(initialRows);
           initialReadComplete.current = true;
+          setBaseVersion(initialVersion ?? null);
           setDrafts(saved);
           setCanonicalDrafts(saved);
           setViewMode(saved.length > 0);
@@ -133,7 +151,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
       }
       return () => { cancelled = true; };
     }
-    getPlayerStatsByMap(mapId).then(result => {
+    getOperatorScoreboardSnapshot(mapId).then(result => {
       if (cancelled || generation !== readGeneration.current) return;
       if (!result.success) {
         setError(result.error.message);
@@ -141,7 +159,8 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
         return;
       }
       initialReadComplete.current = true;
-      const saved = savedDrafts(result.data);
+      setBaseVersion(result.data.version);
+      const saved = savedDrafts(result.data.rows);
       setDrafts(saved);
       setCanonicalDrafts(saved);
       setViewMode(saved.length > 0);
@@ -149,38 +168,57 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
       if (!cancelled && generation === readGeneration.current) { setReadFailed(true); setError("已保存数据暂时无法读取，请重试读取。"); }
     }).finally(() => { if (!cancelled && generation === readGeneration.current) setInitialLoading(false); });
     return () => { cancelled = true; };
-  }, [mapId, initialRows]);
+  }, [mapId, initialRows, initialVersion]);
 
   async function enterEditMode() {
+    setSaving(true);
+    const generation = ++readGeneration.current;
     try {
-      const result = await getMatchPlayerOptions(mapId);
+      const result = await getScoreboardEditorState(mapId);
+      if (generation !== readGeneration.current) return;
       if (!result.success) { setError(result.error.message); return; }
-      setPlayerOptions(result.data);
+      adoptSnapshot(result.data.snapshot);
+      setPlayerOptions(result.data.playerOptions);
       setViewMode(false);
-    } catch { setError("选手列表暂时无法读取，请重试。"); }
+    } catch { setError("选手及已保存数据暂时无法读取，请重试。"); }
+    finally { setSaving(false); }
   }
 
   async function reloadSavedData() {
     const generation = ++readGeneration.current;
     setSaving(true);
     try {
+      if (recovery === "unknown") {
+        const original = pendingOperation.current;
+        if (!original) { setError("原操作上下文缺失，请联系管理员核对，不要重复提交。"); return; }
+        const status = await getScoreboardOperationReceipt(mapId, original);
+        if (generation !== readGeneration.current) return;
+        if (!status.success) { setError(status.error.message); return; }
+        if (status.data.status === "unconfirmed") {
+          setError("尚未找到原请求的提交凭据；请求可能仍在处理中。草稿和原编号已保留，请稍后再次核对，不要重新提交。");
+          return;
+        }
+        adoptSnapshot(status.data.snapshot);
+        setRecovery("refresh_pending");
+        const refresh = await retryPlayerStatsRefresh(mapId);
+        if (!refresh.success) { setError("原提交已确认，缓存刷新仍未完成，请重试刷新。"); return; }
+        pendingOperation.current = null;
+        setRecovery(null);
+        setError(status.data.superseded ? "原提交已确认，但已有后续更改；已载入当前数据，请核对后再编辑。" : null);
+        return;
+      }
       if (recovery === "refresh_pending") {
         const refresh = await retryPlayerStatsRefresh(mapId);
         if (!refresh.success) { setError("写入已确认，缓存刷新仍未完成，请稍后重试读取。"); return; }
       }
-      const result = await getPlayerStatsByMap(mapId);
+      const result = await getOperatorScoreboardSnapshot(mapId);
       if (generation !== readGeneration.current) return;
       if (!result.success) { setError(result.error.message); return; }
-      initialReadComplete.current = true;
-      const saved = savedDrafts(result.data);
-      setCanonicalDrafts(saved);
-      setDrafts(saved);
-      setViewMode(saved.length > 0);
+      adoptSnapshot(result.data);
+      pendingOperation.current = null;
       setRecovery(null);
-      setReadFailed(false);
-      setInitialLoading(false);
       setError(null);
-    } catch { setError("已保存数据暂时无法读取，当前草稿已保留。"); }
+    } catch { setError("提交状态暂时无法核对，原草稿和操作编号已保留。"); }
     finally { if (generation === readGeneration.current) setSaving(false); }
   }
 
@@ -198,6 +236,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
     if (!isOCRImageMimeType(file.type)) { setError("请选择 JPEG、PNG 或 WebP 图片。"); return; }
     setError(null);
     setExtracting(true);
+    ++readGeneration.current;
     let imageRead = false;
 
     try {
@@ -216,7 +255,11 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
         return;
       }
 
-      setDrafts(mergeScreenshotDrafts(result.data.drafts, canonicalDrafts));
+      const saved = savedDrafts(result.data.snapshot.rows);
+      initialReadComplete.current = true;
+      setBaseVersion(result.data.snapshot.version);
+      setCanonicalDrafts(saved);
+      setDrafts(mergeScreenshotDrafts(result.data.drafts, saved));
       setViewMode(false);
       setPlayerOptions(result.data.playerOptions);
     } catch {
@@ -246,35 +289,49 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
     setDrafts((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  function handleAddRow() {
-    setDrafts((prev) => [
-      ...prev,
+  async function handleAddRow() {
+    let current = drafts;
+    if (!baseVersion) {
+      try {
+        const result = await getScoreboardEditorState(mapId);
+        if (!result.success) { setError(result.error.message); return; }
+        adoptSnapshot(result.data.snapshot);
+        setPlayerOptions(result.data.playerOptions);
+        current = savedDrafts(result.data.snapshot.rows);
+      } catch { setError("请先读取当前计分板和阵容，再添加选手。"); return; }
+    }
+    setViewMode(false);
+    setDrafts([...current,
       { perfectName: "", userId: null, kills: null, deaths: null, assists: null, hsPercent: null, firstKills: null, multiKills: null, clutches: null, adr: null, rws: null, ratingPro: null, we: null },
     ]);
   }
 
   async function handleSave() {
-    if (recovery || readFailed) return;
+    if (recovery || readFailed || !baseVersion) return;
+    const command = { operationId: crypto.randomUUID(), expectedVersion: baseVersion, operation: "save" as const, rows: drafts };
+    pendingOperation.current = command;
     setSaving(true);
     setError(null);
     let committed = false;
     try {
-      const result = await savePlayerStats(mapId, { rows: drafts });
+      const result = await savePlayerStats(mapId, command);
       if (!result.success) {
         setError(result.error.message);
         if (result.error.code === "INTERNAL_ERROR") setRecovery("unknown");
+        else { pendingOperation.current = null; if (result.error.meta?.outcome === "conflict") setRecovery("conflict"); }
         return;
       }
       committed = true;
       setRecovery("refresh_pending");
-      const read = await getPlayerStatsByMap(mapId);
+      const read = await getOperatorScoreboardSnapshot(mapId);
       if (!read.success) { setError("已保存，读取最新数据失败。当前草稿已保留，请勿重复保存。"); return; }
       initialReadComplete.current = true;
-      const saved = savedDrafts(read.data);
+      setBaseVersion(read.data.version);
+      const saved = savedDrafts(read.data.rows);
       setCanonicalDrafts(saved);
       setDrafts(saved);
       setViewMode(true);
-      if (!result.data.refreshPending) setRecovery(null);
+      if (!result.data.refreshPending) { setRecovery(null); pendingOperation.current = null; }
       router.refresh();
     } catch {
       setRecovery(committed ? "refresh_pending" : "unknown");
@@ -314,27 +371,31 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
   );
 
   async function handleClear() {
-    if (recovery || readFailed) return;
+    if (recovery || readFailed || !baseVersion) return;
+    const command = { operationId: crypto.randomUUID(), expectedVersion: baseVersion, operation: "clear" as const };
+    pendingOperation.current = command;
     setSaving(true);
     let committed = false;
     try {
-      const result = await deletePlayerStatsByMap(mapId);
+      const result = await deletePlayerStatsByMap(mapId, command);
       if (!result.success) {
         setError(result.error.message);
         if (result.error.code === "INTERNAL_ERROR") setRecovery("unknown");
+        else { pendingOperation.current = null; if (result.error.meta?.outcome === "conflict") setRecovery("conflict"); }
         return;
       }
       committed = true;
       setRecovery("refresh_pending");
       setShowClearConfirm(false);
-      const read = await getPlayerStatsByMap(mapId);
+      const read = await getOperatorScoreboardSnapshot(mapId);
       if (!read.success) { setError("清除已提交，读取最新数据失败。请勿重复清除。"); return; }
       initialReadComplete.current = true;
-      const saved = savedDrafts(read.data);
+      setBaseVersion(read.data.version);
+      const saved = savedDrafts(read.data.rows);
       setCanonicalDrafts(saved);
       setDrafts(saved);
       setViewMode(saved.length > 0);
-      if (!result.data.refreshPending) setRecovery(null);
+      if (!result.data.refreshPending) { setRecovery(null); pendingOperation.current = null; }
       toast.success("计分板输入已清除");
       router.refresh();
     } catch {
@@ -354,8 +415,8 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
   return (
     <div className="mt-4 space-y-4">
       {(recovery || readFailed) && <div role="status" className="space-y-2 text-sm">
-        <p>{recovery === "unknown" ? "提交结果待核对；当前草稿已保留。" : recovery === "refresh_pending" ? "写入已确认，刷新待完成。" : "无法读取已保存数据。"}</p>
-        <Button size="sm" variant="outline" disabled={saving} onClick={reloadSavedData}>载入当前已保存数据（替换草稿）</Button>
+        <p>{recovery === "unknown" ? "提交结果待核对；当前草稿和操作编号已保留。" : recovery === "conflict" ? "计分板存在后续更改，请读取当前数据核对。" : recovery === "refresh_pending" ? "写入已确认，刷新待完成。" : "无法读取已保存数据。"}</p>
+        <Button size="sm" variant="outline" disabled={saving} onClick={reloadSavedData}>{recovery === "unknown" ? "核对原操作提交凭据" : "载入当前已保存数据（替换草稿）"}</Button>
       </div>}
       <div className="flex items-center justify-between gap-2">
         <h4 className="font-semibold text-sm">
@@ -405,7 +466,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
             }}
           />
           <Button type="button" size="sm" variant={selectedFile ? "outline" : "default"}
-            disabled={extracting} onClick={() => fileRef.current?.click()}>
+            disabled={extracting || saving || Boolean(recovery)} onClick={() => fileRef.current?.click()}>
             {selectedFile ? "更换截图" : viewMode ? "补传计分板截图" : "选择截图"}
           </Button>
           {selectedFile && <span className="max-w-48 truncate text-sm text-[var(--color-fg-mid)]" title={selectedFile.name}>{selectedFile.name}</span>}
@@ -418,7 +479,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
             {extracting ? "识别中…" : "OCR 识别截图"}
           </Button>
           {drafts.some(row => row.gameplayLocked) && <p className="text-xs text-[var(--color-fg-mid)]">Demo 已确认的选手只能修正 Rating / RWS / WE。</p>}
-          {!viewMode && <Button size="sm" variant="outline" onClick={handleAddRow}>
+          {!viewMode && <Button size="sm" variant="outline" disabled={saving || extracting || Boolean(recovery) || readFailed} onClick={handleAddRow}>
             添加行
           </Button>}
         </div>
@@ -496,7 +557,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
                         </TableCell>
                         <TableCell className="min-w-56">
                           <Select
-                            disabled={row.gameplayLocked}
+                            disabled={saving || Boolean(recovery) || row.gameplayLocked}
                             value={row.userId ?? "__none__"}
                             onValueChange={(v) => handleUserChange(idx, v)}
                           >
@@ -529,7 +590,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
                                   "border-[var(--color-danger)] text-[var(--color-danger)]",
                               )}
                               aria-label={`${row.perfectName} ${f.label}`}
-                              disabled={row.gameplayLocked && !OPERATOR_FIELDS.has(f.key)}
+                              disabled={saving || Boolean(recovery) || (row.gameplayLocked && !OPERATOR_FIELDS.has(f.key))}
                               type="number"
                               value={(row[f.key] as number | null) ?? ""}
                               onChange={(e) =>
@@ -544,7 +605,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
                             size="sm"
                             className="h-7 w-7 p-0 text-[var(--color-danger)]"
                             onClick={() => handleDeleteRow(idx)}
-                            disabled={row.gameplayLocked}
+                            disabled={saving || Boolean(recovery) || row.gameplayLocked}
                             title="删除此行"
                           >
                             ×
@@ -560,7 +621,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
                 <Button
                   size="sm"
                   onClick={handleSave}
-                  disabled={saving || Boolean(recovery) || readFailed || errorCount > 0 || unmatchedCount > 0}
+                  disabled={saving || Boolean(recovery) || readFailed || !baseVersion || errorCount > 0 || unmatchedCount > 0}
                 >
                   {saving ? "保存中…" : "确认保存"}
                 </Button>
@@ -579,7 +640,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
                     size="sm"
                     variant="ghost"
                     onClick={() => { setDrafts(canonicalDrafts); setSelectedFile(null); setError(null); setViewMode(canonicalDrafts.length > 0); }}
-                    disabled={saving}
+                    disabled={saving || Boolean(recovery)}
                   >
                     取消
                   </Button>

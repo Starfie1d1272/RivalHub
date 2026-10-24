@@ -34,9 +34,21 @@ import {
   loadScoreboardPlayers,
   clearOperatorScoreboardInTx,
   loadOperatorScoreboard,
+  loadOperatorScoreboardSnapshot,
   type OperatorScoreboardRow,
 } from "@/lib/matches/operator-scoreboard";
 import { applyOcrScoreboardEnrichment } from "@/lib/matches/scoreboard-ownership";
+
+import type { ScoreboardCommand, ScoreboardOperation, ScoreboardReceiptStatus, ScoreboardSnapshot } from "@/lib/ocr/scoreboard-contract";
+import { ScoreboardConflict, assertScoreboardReplay, assertScoreboardVersion, commitScoreboardReceipt, findScoreboardReceipt, presentScoreboardReceipt } from "@/lib/ocr/scoreboard-receipts";
+import { scoreboardPayloadDigest, scoreboardVersion, scoreboardVersionColumns } from "@/lib/ocr/scoreboard-version";
+
+const scoreboardCommandSchema = z.object({ operationId: z.uuid(), expectedVersion: z.string().regex(/^[a-f0-9]{64}$/) });
+function scoreboardFailure(operation: string, error: unknown) {
+  return error instanceof ScoreboardConflict
+    ? fail({ code: error.code, message: error.message, meta: { outcome: "conflict" } })
+    : actionError(operation, error);
+}
 
 export type PlayerStatsDraft = PlayerRowOCR & {
   userId: string | null;
@@ -55,8 +67,8 @@ async function loadAuthorizedScoreboardContext(mapId: string) {
   }).from(matchMaps).innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(eq(matchMaps.id, mapId)).limit(1);
   if (!match) throw new AppError(ErrorCode.NOT_FOUND, "地图或比赛记录不存在");
   assertCompetitionMatch(match);
-  await requireSeasonAdmin(match.seasonId);
-  return match;
+  const session = await requireSeasonAdmin(match.seasonId);
+  return { ...match, actorUserId: session.userId };
   });
 }
 
@@ -96,10 +108,11 @@ export async function extractStatsFromScreenshot(
   const { mapId, base64Image, mimeType } = input;
   try {
     const match = await loadAuthorizedScoreboardContext(mapId);
-    const [seasonPlayers, ocrResult] = await Promise.all([
+    const [seasonPlayers, ocrResult, snapshot] = await Promise.all([
       traceOperation("ocr.players.load", { scope: "action", operation: "ocr.players.load", stage: "read" },
         () => loadScoreboardPlayers(db, match.id, [match.entryAId, match.entryBId])),
       extractScoreboardFromBase64(base64Image, mimeType),
+      loadOperatorScoreboardSnapshot(db, mapId),
     ]);
 
     const nameToUserId = new Map<string, string>();
@@ -123,7 +136,7 @@ export async function extractStatsFromScreenshot(
       perfectName: p.perfectName ?? "(未填写昵称)",
     }));
 
-    return ok({ drafts, playerOptions });
+    return ok({ drafts, playerOptions, snapshot });
   } catch (e) {
     if (e instanceof OCRFailure) {
       captureException("provider.siliconflow.ocr_failure", e, {
@@ -164,10 +177,10 @@ export async function extractStatsFromScreenshot(
  */
 export async function savePlayerStats(
   mapId: string,
-  input: { rows: PlayerStatsDraft[] }
+  input: { rows: PlayerStatsDraft[] } & ScoreboardCommand
 ) {
   try {
-    const parsed = z.object({ rows: z.array(playerRowSchema.extend({ perfectName: z.string().trim().min(1).max(128), userId: z.uuid().nullable() })).max(20) }).safeParse(input);
+    const parsed = scoreboardCommandSchema.extend({ rows: z.array(playerRowSchema.extend({ perfectName: z.string().trim().min(1).max(128), userId: z.uuid().nullable() })).max(20) }).safeParse(input);
     if (!parsed.success) throw new AppError(ErrorCode.VALIDATION_FAILED, "选手数据格式不合法");
     const stats = parsed.data.rows;
     if (stats.some(row => row.userId === null)) throw new AppError(ErrorCode.VALIDATION_FAILED, "每行选手都必须匹配本场出场阵容");
@@ -183,9 +196,6 @@ export async function savePlayerStats(
     });
     if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛记录不存在");
     assertCompetitionMatch(match);
-    if (!canConfirmMapScoreboard(map)) {
-      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束的地图可以确认选手数据。");
-    }
     const session = await requireSeasonAdmin(match.seasonId);
     const actor = auditActorId(session);
 
@@ -205,15 +215,23 @@ export async function savePlayerStats(
       );
     }
 
-    await db.transaction(async (tx) => {
+    const payloadDigest = scoreboardPayloadDigest(mapId, "save", parsed.data, stats);
+    const outcome = await db.transaction(async (tx) => {
       const [currentMatch] = await tx.select({ id: matches.id }).from(matches).where(eq(matches.id, map.matchId)).for("share");
       const [currentMap] = await tx.select({ scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB, completedAt: matchMaps.completedAt }).from(matchMaps).where(eq(matchMaps.id, mapId)).for("update");
-      if (!currentMap || !currentMatch || !canConfirmMapScoreboard(currentMap)) throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束的地图可以确认选手数据。");
+      if (!currentMap || !currentMatch) throw new AppError(ErrorCode.NOT_FOUND, "地图或比赛记录不存在");
+      const priorReceipt = await findScoreboardReceipt(tx, actor, parsed.data.operationId);
+      if (priorReceipt) {
+        assertScoreboardReplay(priorReceipt, mapId, "save", payloadDigest);
+        return { receipt: presentScoreboardReceipt(priorReceipt), replayed: true };
+      }
+      if (!canConfirmMapScoreboard(currentMap)) throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束的地图可以确认选手数据。");
       const allowed = await loadScoreboardPlayers(tx, match.id, [match.entryAId, match.entryBId]);
       const userPerfectNames = new Map(allowed.map(row => [row.userId, row.perfectName]));
       if (userIds.some(id => !userPerfectNames.has(id))) throw new AppError(ErrorCode.VALIDATION_FAILED, "选手不属于本场出场阵容");
       const normalizedStats = stats.map(row => ({ ...row, perfectName: (row.userId && userPerfectNames.get(row.userId)) || row.perfectName }));
-      const existing = await tx.select().from(matchPlayerStats).where(eq(matchPlayerStats.mapId, mapId)).for("update");
+      const existing = await tx.select(scoreboardVersionColumns).from(matchPlayerStats).where(eq(matchPlayerStats.mapId, mapId)).for("update");
+      assertScoreboardVersion(scoreboardVersion(mapId, existing), parsed.data.expectedVersion);
       const existingByUser = new Map(existing.filter((row) => row.userId != null).map((row) => [row.userId!, row]));
       const existingByName = new Map(existing.map((row) => [row.perfectName, row]));
       const matchedIds = new Set<string>();
@@ -289,13 +307,17 @@ export async function savePlayerStats(
         seasonId: match.seasonId,
         action: "match.save_player_stats",
         actorId: actor,
-        targetId: mapId, meta: { playerCount: stats.length, matchId: map.matchId },
+        targetId: mapId, meta: { playerCount: stats.length, matchId: map.matchId, operationId: parsed.data.operationId },
       });
+      const snapshot = await loadOperatorScoreboardSnapshot(tx, mapId);
+      const receipt = await commitScoreboardReceipt(tx, { actorUserId: actor, mapId, operation: "save", command: parsed.data,
+        payloadDigest, resultVersion: snapshot.version, resultCount: snapshot.rows.length });
+      return { receipt, replayed: false };
     });
 
-    return ok({ saved: stats.length, refreshPending: refreshScoreboardAfterCommit() });
+    return ok({ saved: stats.length, ...outcome, refreshPending: refreshScoreboardAfterCommit() });
   } catch (e) {
-    return actionError("savePlayerStats", e);
+    return scoreboardFailure("savePlayerStats", e);
   }
 }
 
@@ -321,6 +343,41 @@ export async function getMatchPlayerOptions(mapId: string): Promise<ActionResult
   } catch (error) {
     return actionError("getMatchPlayerOptions", error);
   }
+}
+
+export async function getOperatorScoreboardSnapshot(mapId: string): Promise<ActionResult<ScoreboardSnapshot>> {
+  try {
+    await loadAuthorizedScoreboardContext(mapId);
+    return ok(await loadOperatorScoreboardSnapshot(db, mapId));
+  } catch (error) { return actionError("getOperatorScoreboardSnapshot", error); }
+}
+
+export async function getScoreboardEditorState(mapId: string) {
+  try {
+    const match = await loadAuthorizedScoreboardContext(mapId);
+    const [snapshot, players] = await Promise.all([
+      loadOperatorScoreboardSnapshot(db, mapId),
+      loadScoreboardPlayers(db, match.id, [match.entryAId, match.entryBId]),
+    ]);
+    return ok({ snapshot, playerOptions: players.map(player => ({ userId: player.userId, perfectName: player.perfectName ?? "(未填写昵称)" })) });
+  } catch (error) { return actionError("getScoreboardEditorState", error); }
+}
+
+export async function getScoreboardOperationReceipt(mapId: string, input: ScoreboardCommand & { operation: ScoreboardOperation; rows?: PlayerStatsDraft[] }): Promise<ActionResult<ScoreboardReceiptStatus>> {
+  try {
+    const parsed = scoreboardCommandSchema.extend({ operation: z.enum(["save", "clear"]),
+      rows: z.array(playerRowSchema.extend({ perfectName: z.string().trim().min(1).max(128), userId: z.uuid().nullable() })).max(20).optional(),
+    }).safeParse(input);
+    if (!parsed.success || (parsed.data.operation === "save" && !parsed.data.rows)) throw new AppError(ErrorCode.VALIDATION_FAILED, "原操作编号或内容无效");
+    const match = await loadAuthorizedScoreboardContext(mapId);
+    const receipt = await findScoreboardReceipt(db, match.actorUserId, parsed.data.operationId);
+    if (!receipt || receipt.mapId !== mapId) return ok({ status: "unconfirmed" });
+    const digest = scoreboardPayloadDigest(mapId, parsed.data.operation, parsed.data, parsed.data.operation === "save" ? parsed.data.rows : []);
+    assertScoreboardReplay(receipt, mapId, parsed.data.operation, digest);
+    // Sequential read: never compare the receipt to an older parallel snapshot.
+    const snapshot = await loadOperatorScoreboardSnapshot(db, mapId);
+    return ok({ status: "committed", receipt: presentScoreboardReceipt(receipt), snapshot, superseded: receipt.resultVersion !== snapshot.version });
+  } catch (error) { return scoreboardFailure("getScoreboardOperationReceipt", error); }
 }
 
 export async function castMatchMvpVote(
@@ -436,8 +493,10 @@ export async function castMatchMvpVote(
 /**
  * 清除管理员记分板输入；保留 DAK gameplay projection 与确认事实。
  */
-export async function deletePlayerStatsByMap(mapId: string): Promise<ActionResult<{ refreshPending: boolean }>> {
+export async function deletePlayerStatsByMap(mapId: string, command: ScoreboardCommand) {
   try {
+    const parsed = scoreboardCommandSchema.safeParse(command);
+    if (!parsed.success) throw new AppError(ErrorCode.VALIDATION_FAILED, "计分板操作编号或版本无效");
     const map = await db.query.matchMaps.findFirst({ where: eq(matchMaps.id, mapId) });
     if (!map) throw new AppError(ErrorCode.NOT_FOUND, "地图记录不存在");
     const match = await db.query.matches.findFirst({ where: eq(matches.id, map.matchId) });
@@ -445,21 +504,35 @@ export async function deletePlayerStatsByMap(mapId: string): Promise<ActionResul
     assertCompetitionMatch(match);
     const session = await requireSeasonAdmin(match.seasonId);
 
-    await db.transaction(async (tx) => {
-      await tx.select({ id: matches.id }).from(matches).where(eq(matches.id, map.matchId)).for("share");
-      await tx.select({ id: matchMaps.id }).from(matchMaps).where(eq(matchMaps.id, mapId)).for("update");
+    const actor = auditActorId(session);
+    const payloadDigest = scoreboardPayloadDigest(mapId, "clear", parsed.data);
+    const outcome = await db.transaction(async (tx) => {
+      const [currentMatch] = await tx.select({ id: matches.id }).from(matches).where(eq(matches.id, map.matchId)).for("share");
+      const [currentMap] = await tx.select({ id: matchMaps.id }).from(matchMaps).where(eq(matchMaps.id, mapId)).for("update");
+      if (!currentMatch || !currentMap) throw new AppError(ErrorCode.NOT_FOUND, "地图或比赛记录不存在");
+      const priorReceipt = await findScoreboardReceipt(tx, actor, parsed.data.operationId);
+      if (priorReceipt) {
+        assertScoreboardReplay(priorReceipt, mapId, "clear", payloadDigest);
+        return { receipt: presentScoreboardReceipt(priorReceipt), replayed: true };
+      }
+      const existing = await tx.select(scoreboardVersionColumns).from(matchPlayerStats).where(eq(matchPlayerStats.mapId, mapId)).for("update");
+      assertScoreboardVersion(scoreboardVersion(mapId, existing), parsed.data.expectedVersion);
       await clearOperatorScoreboardInTx(tx, mapId);
       await writeAuditInTx(tx, {
         seasonId: match.seasonId,
         action: "match.clear_operator_scoreboard",
         actorId: auditActorId(session),
-        targetId: mapId, meta: { mapId },
+        targetId: mapId, meta: { mapId, operationId: parsed.data.operationId },
       });
+      const snapshot = await loadOperatorScoreboardSnapshot(tx, mapId);
+      const receipt = await commitScoreboardReceipt(tx, { actorUserId: actor, mapId, operation: "clear", command: parsed.data,
+        payloadDigest, resultVersion: snapshot.version, resultCount: snapshot.rows.length });
+      return { receipt, replayed: false };
     });
 
-    return ok({ refreshPending: refreshScoreboardAfterCommit() });
+    return ok({ ...outcome, refreshPending: refreshScoreboardAfterCommit() });
   } catch (e) {
-    return actionError("deletePlayerStatsByMap", e);
+    return scoreboardFailure("deletePlayerStatsByMap", e);
   }
 }
 
