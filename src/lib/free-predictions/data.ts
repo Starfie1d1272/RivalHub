@@ -46,13 +46,17 @@ export function choiceFact(row: typeof choices.$inferSelect, f: BetFacts) {
   return predictionInput(row.subject,{match:f.official.find(m=>m.id===row.matchId),maps:f.maps.filter(m=>m.matchId===row.matchId),veto:f.vetoByMatch.get(row.matchId),event:f.event});
 }
 /** Only mine contains selections; anonymous payload contains no voter identity. */
-export async function readFreePredictionBoard(tx: TxDb, seasonId: string, userId: string | null, scope: FreePredictionReadScope = {}): Promise<{seasonId:string;matches:FreePredictionMatchDTO[]}> {
+export async function readFreePredictionSnapshot(tx: TxDb, seasonId: string, userId: string | null, scope: FreePredictionReadScope = {}) {
   const facts = scope.facts ?? await loadBetFacts(tx,seasonId,{matchId:scope.matchId,event:false,rosterUserId:null});
   const support = scope.publicSupport?.signature === freePredictionSupportSignature(facts) ? scope.publicSupport : undefined;
   const {facts:f,rows} = await loadFreePredictionPopulation(tx,seasonId,{...scope,facts,populationUserId:support ? userId : undefined});
   const fences = await tx.select().from(locks).where(and(eq(locks.seasonId,seasonId),scope.matchId ? eq(locks.matchId,scope.matchId) : undefined));
   const qualificationRuns = await tx.select().from(competitionQualificationRuns).where(eq(competitionQualificationRuns.seasonId, seasonId));
   const user = userId ? await tx.query.users.findFirst({where:(u,{eq})=>eq(u.id,userId),columns:{status:true,emailVerifiedAt:true}}) : undefined;
+  return {seasonId,userId,f,rows,support,fences,qualificationRuns,user};
+}
+export function projectFreePredictionBoard(snapshot: Awaited<ReturnType<typeof readFreePredictionSnapshot>>): {seasonId:string;matches:FreePredictionMatchDTO[]} {
+  const {seasonId,userId,f,rows,support,fences,qualificationRuns,user}=snapshot;
   const result: FreePredictionMatchDTO[] = [];
   for (const m of f.official) {
     if (!m.majorStageRunId && !m.qualificationRunId) continue;
@@ -61,11 +65,8 @@ export async function readFreePredictionBoard(tx: TxDb, seasonId: string, userId
     const subject: FreePredictionSubject = {entryIds:[m.entryAId,m.entryBId],runId:(m.majorStageRunId??m.qualificationRunId)!,format:m.format,mapPool:[]};
     const fact = predictionInput(subject,{match:m,maps:f.maps.filter(map=>map.matchId===m.id),veto,event:f.event});
     const fence = fences.find(l=>l.matchId===m.id);
-    const valid = rows.filter(r=>r.matchId===m.id && subjectMatches({...r.subject,kind:"match"},m,fact.maps,veto) && !m.isForfeit && m.status !== "cancelled");
+    const publicCounts = freeSupportForMatch(m,f,rows);
     const shared = support?.matches.find(row=>row.matchId===m.id);
-    const votes = valid.filter(r=>r.kind === "result");
-    const bp = valid.filter(r=>r.kind === "bp");
-    const counts: [number,number] = [votes.filter(r=>r.selection[0]===m.entryAId).length,votes.filter(r=>r.selection[0]===m.entryBId).length];
     const myResult = rows.find(r=>r.matchId===m.id && r.kind === "result" && r.userId===userId);
     const myBp = rows.find(r=>r.matchId===m.id && r.kind === "bp" && r.userId===userId);
     const resultLocked = !!fence?.resultLockedAt || marketIsLocked(fact);
@@ -76,12 +77,31 @@ export async function readFreePredictionBoard(tx: TxDb, seasonId: string, userId
     const bpRestriction=freePredictionRestriction({...eligibility,locked:bpLocked,validMapPool:mapPool.length>=Number(m.format.slice(2))});
     result.push({matchId:m.id,status:m.status,displayScore:projectDisplayScore(m,f.maps.filter(map=>map.matchId===m.id)),isForfeit:m.isForfeit,a:f.entries.find(e=>e.id===m.entryAId)?.name??"队伍",b:f.entries.find(e=>e.id===m.entryBId)?.name??"队伍",logoA:f.entries.find(e=>e.id===m.entryAId)?.logoUrl??null,logoB:f.entries.find(e=>e.id===m.entryBId)?.logoUrl??null,stage:m.qualificationRunId?"PLAY-IN":f.season.stagePlan.find(s=>s.key===m.stage)?.name??"正赛",scheduledAt:m.scheduledAt?.toISOString()??null,entryIds:subject.entryIds,format:m.format,mapPool,
       result:{locked:resultLocked,canSubmit:!resultRestriction,restriction:resultRestriction,mine:myResult?.selection[0]??null,grade:myResult?gradePrediction("result",myResult.selection,choiceFact(myResult,f)):null,
-        support:shared?.result ?? {total:votes.length,counts,percentages:votes.length?[counts[0]*100/votes.length,counts[1]*100/votes.length]:null}},
+        support:shared?.result ?? publicCounts.result},
       bp:{locked:bpLocked,canSubmit:!bpRestriction,restriction:bpRestriction,mine:myBp?.selection??null,grade:myBp?gradePrediction("bp",myBp.selection,choiceFact(myBp,f)):null,
-        support:shared?.bp ?? {total:bp.length,maps:mapPool.map(name=>({name,count:bp.filter(r=>r.selection.includes(name)).length}))}}});
+        support:shared?.bp ?? publicCounts.bp}});
   }
   return {seasonId,matches:result};
 }
+export async function readFreePredictionBoard(tx: TxDb, seasonId: string, userId: string | null, scope: FreePredictionReadScope = {}) {
+  return projectFreePredictionBoard(await readFreePredictionSnapshot(tx,seasonId,userId,scope));
+}
 export async function readFreeMatchSupport(tx: TxDb, seasonId: string, matchId: string) {
   return (await readFreePredictionBoard(tx,seasonId,null,{matchId})).matches.find(m=>m.matchId===matchId)?.result.support ?? null;
+}
+
+/** Shared support owns canonical vote validity without building viewer panels. */
+function freeSupportForMatch(m: BetFacts["official"][number], f: BetFacts, rows: Awaited<ReturnType<typeof loadFreePredictionPopulation>>["rows"]) {
+  const veto=f.vetoByMatch.get(m.id);
+  const maps=f.maps.filter(map=>map.matchId===m.id);
+  const mapPool=veto?.mapPoolSnapshot??normalizeRegistrationConfig(f.season.registrationConfig).mapPool;
+  const valid=rows.filter(row=>row.matchId===m.id && subjectMatches({...row.subject,kind:"match"},m,maps,veto) && !m.isForfeit && m.status!=="cancelled");
+  const votes=valid.filter(row=>row.kind==="result"), bp=valid.filter(row=>row.kind==="bp");
+  const counts: [number,number]=[votes.filter(row=>row.selection[0]===m.entryAId).length,votes.filter(row=>row.selection[0]===m.entryBId).length];
+  return {result:{total:votes.length,counts,percentages:votes.length?[counts[0]*100/votes.length,counts[1]*100/votes.length] as [number,number]:null},
+    bp:{total:bp.length,maps:mapPool.map(name=>({name,count:bp.filter(row=>row.selection.includes(name)).length}))}};
+}
+export function projectFreePredictionSupport({facts,rows}: Awaited<ReturnType<typeof loadFreePredictionPopulation>>) {
+  return {signature:freePredictionSupportSignature(facts),matches:facts.official.filter(m=>m.majorStageRunId||m.qualificationRunId)
+    .map(m=>({matchId:m.id,...freeSupportForMatch(m,facts,rows)}))};
 }
