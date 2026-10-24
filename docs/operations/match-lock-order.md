@@ -18,6 +18,8 @@ recheck. Scope changes fail closed instead of continuing under the wrong event.
 | MVP settlement | season UPDATE SKIP LOCKED → match UPDATE SKIP LOCKED → votes read and winner/audit write; preserves nonblocking admission |
 | Time auto-award/default lineup | season UPDATE → match UPDATE → proposal/coverage/lineups; ordinary archive guard applies |
 | Demo submit/review/recheck/projection repair | existing identity gate → lineage advisory → season UPDATE before any import or match row. Existing import/match suborder is safe only while this exclusive event fence is retained. Empty-lineage advisory and unavailable-target classification remain canonical. |
+| Identity retirement | identity gate → discover all confirmed-import identity dependencies across events plus audit event → sorted season UPDATE and affected match UPDATE → identity row recheck → imports/program → audit; scope is not restricted to the page season |
+| Identity merge | identity gate → sorted user UPDATE → existing fingerprint/authority guards → installation UPDATE NOWAIT → full cross-event closure discovery → sorted season/match UPDATE NOWAIT → reparent/import/stat/MVP writes; contention rolls back before any facts change and requires fresh preflight |
 | Mizar revoke | installation UPDATE → season UPDATE → complete active source scope UPDATE → audit; installation fence excludes ingress/LIVE, season fence excludes manual source writers |
 | Mizar reliable/source | installation SHARE → canonical season/match boundary → live source; display heartbeat is separately committed by the W02 implementation, never upgraded under authority SHARE |
 | LIVE broadcast | installation SHARE → match/source SHARE and broadcast inside authority; no event write or lock weakening |
@@ -164,3 +166,24 @@ locks and contends on source rows. The old revoker's real audit FK closes a
 40P01 cycle; the new revoker waits at season before touching any source. The
 fixture includes two active sources for the revoked installation and another
 installation's source: the former both close, the latter remains open.
+
+Identity merge deliberately uses NOWAIT for the installation/event/match fence
+while retaining its existing user locks. Waiting for season while holding user
+UPDATE would introduce a new inversion against user SHARE → season admission
+and actor foreign-key checks. A busy fence therefore rejects the entire
+transaction with a validation error; there is no background or automatic replay.
+The preflight fingerprint, authority, immutable actor references, frozen-roster
+merge guards and financial-account blockers remain unchanged. Discovery covers
+Demo identity dependencies through the canonical predicate and the roster,
+participant, registration, stat, MVP, commentator, honor, adjudication, sanction,
+award, grant and installation facts that merge can reparent. It includes whole
+events and independent match parents; no raw Evidence payload leaves PostgreSQL.
+
+The actual merge and season-retirement callers are driven against real
+PostgreSQL in old/new tests. Only the new fence is bypassed in the legacy mode;
+all original domain guards, mutations, triggers and wait graphs execute normally.
+Both legacy callers reproduce 40P01. New caller contention is placed in a second
+event outside the input page, proving complete cross-event discovery. New merge
+rolls back before invalidating imports and succeeds only after fresh preflight;
+new retirement waits before import/program writes and retains global hard
+attribution invalidation. These tests do not mock a PostgreSQL concurrency result.
