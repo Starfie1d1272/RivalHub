@@ -11,6 +11,7 @@ import {
 import { assertLocalContainerAccess } from "./local-container-guard";
 import { acquireLocalVerificationLock } from "./local-lock";
 import { replayActiveMigrationChain } from "./migration-replay";
+import { recordE2EExitStage } from "../ci/playwright-exit-reporter";
 
 const PROJECT_ID = "rivalhub";
 const DOCKER_NETWORK = "rivalhub-local";
@@ -285,12 +286,17 @@ function runLocalE2E(args: readonly string[]): void {
   let testFailure: unknown;
   let cleanupFailure: unknown;
   try {
-    run(playwrightBin, ["test", ...readEvidenceSpecs(env.RIVALHUB_E2E_SPECS), ...normalizeCliArgs(args)], { env });
+    recordE2EExitStage("playwright.start");
+    try { run(playwrightBin, ["test", ...readEvidenceSpecs(env.RIVALHUB_E2E_SPECS), ...normalizeCliArgs(args)], { env }); }
+    finally { recordE2EExitStage("playwright.return"); }
   } catch (error) {
     testFailure = error;
   } finally {
+    recordE2EExitStage("fixture-cleanup.start");
     try { cleanupLocalE2E(env); } catch (error) { cleanupFailure = error; }
+    finally { recordE2EExitStage("fixture-cleanup.return"); }
   }
+  recordE2EExitStage("wrapper.return");
   if (testFailure) throw testFailure;
   if (cleanupFailure) throw cleanupFailure;
 }
