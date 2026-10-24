@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadAdminPostMatchTasks } from "@/lib/admin/matches/postmatch-tasks";
@@ -137,6 +138,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         </AdminMatchStageTabs>
       </section>}
       {!materials && matchCount === 0 && <Panel contentClassName="p-8 text-center text-[var(--color-fg-mid)]">暂无比赛记录</Panel>}
+      <ContentReady module="admin" phase="primary" />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -42,6 +43,7 @@ export default async function SeasonAuditLogPage({ params, searchParams }: {
         routeBase={`/admin/${seasonSlug}/logs`}
         seasonScopeId={season.id}
       />
+      <ContentReady module="admin" phase="primary" />
     </div>
   );
 }

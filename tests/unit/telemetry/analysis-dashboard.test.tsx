@@ -5,6 +5,8 @@ import TelemetryDashboard from "@/components/telemetry/TelemetryDashboard";
 import { analyzeTelemetry, type Analysis } from "@/lib/telemetry/analysis-model";
 import { analysisDefaults } from "@/lib/telemetry/analysis-query";
 
+vi.mock("@/components/telemetry/ContentReady", () => ({ ContentReady: () => null }));
+
 const query = vi.hoisted(() => vi.fn());
 vi.mock("@/app/admin/telemetry/actions", () => ({ getTelemetryAnalysisAction: query }));
 afterEach(() => { cleanup(); query.mockReset(); });

@@ -1,4 +1,5 @@
 import "server-only";
+import { traceOperation } from "@/lib/observability/server";
 
 import { and, count, countDistinct, eq, gt, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -153,9 +154,10 @@ async function loadGrowth(now: Date): Promise<PlatformOperationsGrowthDay[]> {
 }
 
 export async function getPlatformOperationsOverview(now = new Date()): Promise<PlatformOperationsOverview> {
-  const [population, teamSummary, playerPool, recruitment, growth] = await Promise.all([
-    loadPopulation(now), loadTeamSummary(), loadPlayerPool(), loadRecruitmentCounts(now), loadGrowth(now),
-  ]);
+  const [population, teamSummary, playerPool, recruitment, growth] = await traceOperation("admin.operations.summary",
+    { scope: "admin", operation: "operations.summary", stage: "read" }, () => Promise.all([
+      loadPopulation(now), loadTeamSummary(), loadPlayerPool(), loadRecruitmentCounts(now), loadGrowth(now),
+    ]));
   return { asOf: now.toISOString(), population: { ...population, activeTeams: teamSummary.activeTeamCount },
     playerPool: { ...playerPool, ...recruitment }, teams: teamSummary, growth };
 }

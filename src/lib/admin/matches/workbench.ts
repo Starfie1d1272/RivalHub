@@ -1,3 +1,4 @@
+import { traceOperation } from "@/lib/observability/server";
 import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { hasMatchRecording } from "@/lib/postmatch/recording-types";
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
@@ -255,13 +256,13 @@ export async function loadAdminMatchWorkbench({
   });
   for (const map of mapRecords) {
     const row = currentImportByMap.get(map.id);
-    if (row?.status === "needs_attention") demoReviews.push(await db.transaction((tx) => loadAdminDemoReview(
+    if (row?.status === "needs_attention") demoReviews.push(await db.transaction((tx) => traceOperation("admin.match.demo-review", { scope: "admin", operation: "match.demo-review", stage: "transaction" }, () => loadAdminDemoReview(
       tx,
       row,
       { match, map, roster: effectiveRosterRows },
       entryName,
       eventRosterUserIdsByEntry,
-    )));
+    ))));
   }
   const submittedAt = submission?.submittedAt ?? null;
   const rosterReopened = reopenedIds.has(match.id) && !submission;
@@ -299,7 +300,8 @@ export async function loadAdminMatchWorkbench({
   ]);
 
   // Persona is display enrichment, never part of canonical validation or its transaction.
-  const profiles = await loadOrFetchSteamProfiles(db, demoReviews.flatMap(review => review.participants.map(participant => participant.observedSteam64)));
+  const profiles = await traceOperation("admin.match.persona", { scope: "admin", operation: "match.persona", stage: "provider", provider: "steam" },
+    () => loadOrFetchSteamProfiles(db, demoReviews.flatMap(review => review.participants.map(participant => participant.observedSteam64))));
   for (const review of demoReviews) for (const participant of review.participants) {
     const profile = profiles.get(participant.observedSteam64);
     if (profile) participant.observedSteamProfile = { personaName: profile.personaName, profileUrl: profile.profileUrl, avatarUrl: profile.avatarUrl };

@@ -1,3 +1,4 @@
+import { ContentReady } from "@/components/telemetry/ContentReady";
 import Link from "next/link";
 import { listAdminSeasonDirectory } from "@/lib/admin/season-context";
 import { requireAdmin } from "@/lib/auth/session";
@@ -87,6 +88,7 @@ export default async function AdminDashboardPage() {
           })}
         </div>
       )}
+      <ContentReady module="admin" phase="primary" />
     </PageLayout>
   );
 }
