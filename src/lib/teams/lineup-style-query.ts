@@ -1,3 +1,4 @@
+import { preservePublicStatsDependencyFailure } from "@/lib/stats/availability";
 import "server-only";
 
 import { cacheLife, cacheTag } from "next/cache";
@@ -12,11 +13,13 @@ async function getCareerAttributes(playerIds: string[]) {
   "use cache: remote";
   cacheTag(PUBLIC_STATS_TAG);
   cacheLife({ stale: 60, revalidate: 3600, expire: 86400 });
+  return preservePublicStatsDependencyFailure(async () => {
   const [careers, benchmark] = await Promise.all([getPlayerCareerPerformances(playerIds), getPlayerAttributeBenchmark()]);
   return careers.map(({ playerId, maps, rounds, performance }) => ({
     userId: playerId, maps, rounds,
     attributes: performance ? projectPlayerAttributeProfile(performance, benchmark).attributes.map(({ key, score, status }) => ({ key, score, status })) : [],
   }));
+  });
 }
 
 export async function getPublicLineupStyle(members: readonly PublicPlayerIdentity[]): Promise<LineupStyleMember[]> {

@@ -1,4 +1,7 @@
 "use client";
+import { ContentReady } from "@/components/telemetry/ContentReady";
+
+
 import { StatsExplorerTable } from "@/components/stats/StatsExplorerTable";
 import React from "react";
 import { TeamIdentityLinks } from "../TeamIdentityLinks";
@@ -12,6 +15,7 @@ import { type StatsDataColumn } from "@/components/stats/StatsDataTable";
 import { openingDeathTraded } from "@/lib/stats/derived-metrics";
 import { statsRateDenominator, statsRateNumerator } from "@/lib/stats/presentation";
 import type { TournamentStats } from "@/lib/stats/tournament-query";
+type ViewData = Pick<TournamentStats, "coverage" | "options" | "teamLinks" | "leaderboard"> & { performance: Pick<TournamentStats["performance"], "players" | "teams"> };
 import type { StatsQuery } from "@/lib/stats/view-state";
 import { navigateStatsScope } from "@/lib/stats/view-state";
 
@@ -89,7 +93,7 @@ function DAKColumns(family: Exclude<Family, "overall">, teamNames: ReadonlyMap<s
   return [...identity, ...columns[family]];
 }
 
-export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentStats; query: StatsQuery; seasonSlug: string }) {
+export function PlayersExplorer({ data, query, seasonSlug }: { data: ViewData; query: StatsQuery; seasonSlug: string }) {
   const router = useRouter();
   function setReadingState(key: string, value: string) {
     const next = new URLSearchParams(params.toString());
@@ -159,6 +163,7 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
   }
 
   return (
+    <>
     <section className="space-y-3">
       <MetricFamilyTabs label="Player metrics" value={family} options={families} onChange={setFamily} />
 
@@ -183,5 +188,7 @@ export function PlayersExplorer({ data, query, seasonSlug }: { data: TournamentS
 
       {table}
     </section>
+      <ContentReady module="statistics" phase="primary" />
+    </>
   );
 }

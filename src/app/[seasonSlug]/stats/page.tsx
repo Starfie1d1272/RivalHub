@@ -40,8 +40,9 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     } else {
       data = await readOptionalPublicStats("tournament", () => getPublicTournamentStats({
         ...scope,
+        view: query.tab,
         mapFilter: query.tab === "players" || query.tab === "teams" || query.tab === "weapons" || query.tab === "records" ? query.mapFilter || undefined : undefined,
-        teamFilter: query.tab === "players" || query.tab === "weapons" ? query.teamFilter || undefined : undefined,
+        weaponTeamId: query.tab === "weapons" ? query.teamFilter || undefined : undefined,
       }, visibility)) ?? undefined;
       if (data && query.tab === "records") {
         data = { ...data, records: buildRecords(data.recordTies ?? [], query.recordPage),
