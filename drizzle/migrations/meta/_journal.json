@@ -673,6 +673,20 @@
       "when": 1792812758151,
       "tag": "0095_match_commentator_recordings",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1792868312159,
+      "tag": "0096_bet_locked_market_noop",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1792870221774,
+      "tag": "0097_veto_invalidation_delivery",
+      "breakpoints": true
     }
   ]
 }

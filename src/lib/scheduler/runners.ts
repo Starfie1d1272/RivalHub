@@ -3,10 +3,10 @@ import { canPublishVetoAppealClosure } from "@/lib/matches/veto-room/lifecycle-p
 import { runPredictionReconciliationJob } from "@/lib/predictions/reconciliation";
 
 import { refreshSteamProfiles } from "@/lib/steam-profiles";
-import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
-import { matchVetoSessions, matchVetoAppeals, matchVetoTimeoutIncidents, matchMaps, matches, seasons } from "@/db/schema";
+import { matchVetoInvalidations, matchVetoSessions, matchVetoAppeals, matchVetoTimeoutIncidents, matchMaps, matches, seasons } from "@/db/schema";
 import { maybeAdvanceFromRegistration } from "@/lib/seasons/transitions";
 import { runDraftTimeoutCron } from "@/lib/draft/operations";
 import { runMatchTimeAutoAwardCron } from "@/lib/matches/time-auto-award";
@@ -15,6 +15,7 @@ import { purgeExpiredEducationEvidence } from "@/lib/education/retention";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
 import { revalidateMatchPaths, revalidatePublicSeasonTags, revalidatePublicStatsTag, revalidateSeasonPaths } from "@/lib/revalidation";
 import { reconcileVetoRoom } from "@/lib/matches/veto-room/service";
+import { deliverVetoInvalidation } from "@/lib/matches/veto-room/invalidation";
 import { settleExpiredMatchMvpVotes } from "@/lib/matches/mvp";
 import { reconcileMissingStatisticsProjections } from "@/lib/stats/projection-backfill";
 import type { SchedulerJobKey } from "./definitions";
@@ -147,18 +148,35 @@ export async function runMatchVetoTimeoutJob() {
           AND (played_map.started_at IS NOT NULL OR played_map.score_a IS NOT NULL OR played_map.score_b IS NOT NULL OR played_map.completed_at IS NOT NULL)))`,
     ));
 
+  const pending = await db.select({ matchId: matchVetoInvalidations.matchId })
+    .from(matchVetoInvalidations)
+    .where(gt(matchVetoInvalidations.generation, matchVetoInvalidations.publishedGeneration))
+    .orderBy(asc(matchVetoInvalidations.updatedAt)).limit(50);
+  const work = new Map(candidates.map(candidate => [candidate.matchId, { matchId: candidate.matchId, lifecycleDue: true }]));
+  for (const row of pending) if (!work.has(row.matchId)) work.set(row.matchId, { matchId: row.matchId, lifecycleDue: false });
   let changed = 0;
-  for (const candidate of candidates) {
-    const outcome = await reconcileVetoRoom(candidate.matchId);
-    if (outcome === "applied") {
-      changed += 1;
-      revalidateMatchPaths(candidate.seasonSlug, candidate.matchId, { mode: "route" });
-    }
+  let deliveryPending = 0;
+  let firstFailure: unknown;
+  for (const candidate of work.values()) {
+    try {
+      if (candidate.lifecycleDue && await reconcileVetoRoom(candidate.matchId) === "applied") changed += 1;
+    } catch (error) { firstFailure ??= error; }
+    // A lifecycle rejection does not revoke a previously committed cache duty.
+    // Report the domain error, but independently attempt delivery for this room.
+    try {
+      // Paused/completed/archived rooms can have delivery work without an
+      // ordinary domain transition. Do not run their mutation guard merely to
+      // deliver already committed cache obligations.
+      if (await deliverVetoInvalidation(candidate.matchId, "route") === "pending") deliveryPending += 1;
+    } catch (error) { firstFailure ??= error; }
   }
+  // Durable work remains pending and scheduler execution/health records fail.
+  // Other rooms were still allowed to recover during this invocation.
+  if (firstFailure) throw firstFailure;
   return {
-    result: { processed: candidates.length, changed },
+    result: { processed: work.size, changed, deliveryPending },
     businessTransitions: changed,
-  } satisfies SchedulerRunnerResult<{ processed: number; changed: number }>;
+  } satisfies SchedulerRunnerResult<{ processed: number; changed: number; deliveryPending: number }>;
 }
 
 export async function runSchedulerJobByKey(key: SchedulerJobKey): Promise<SchedulerRunnerResult<unknown>> {

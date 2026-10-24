@@ -18,6 +18,7 @@ import {
   submitVetoAppeal,
 } from "@/lib/matches/veto-room/service";
 import { getVetoRoomView } from "@/lib/matches/veto-room/read-model";
+import { logEvent } from "@/lib/observability/server";
 
 const uuid = z.string().uuid();
 const base = z.object({ matchId: uuid });
@@ -29,7 +30,12 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
 }
 
 async function finishMutation<T>(matchId: string, outcome: T, changed = true) {
-  return ok(await finishVetoInteraction(matchId, outcome, changed));
+  try {
+    return ok(await finishVetoInteraction(matchId, outcome, changed));
+  } catch {
+    logEvent({ level: "warn", event: "match.veto.refresh_failed", scope: "match", operation: "veto.refresh", retryable: false });
+    return ok({ outcome, room: null, refreshFailed: true });
+  }
 }
 
 export async function readVetoRoom(matchIdInput: unknown) {
