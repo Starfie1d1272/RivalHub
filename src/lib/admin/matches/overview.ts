@@ -149,6 +149,7 @@ async function loadWorkspaceContext(seasonSlug: string) {
   await requireSeasonAdmin(season.id);
   const [allTeams, stageRunRows, qualificationRun] = await Promise.all([
     db.query.competitionEntries.findMany({
+      columns: { id: true, name: true, formationOrder: true },
       where: eq(competitionEntries.competitionId, season.id), orderBy: [asc(competitionEntries.formationOrder)],
     }),
     season.competitionTemplate === "major" ? db.select({
@@ -226,6 +227,10 @@ export async function loadAdminMatchOverview({
   const pageIds = executionCandidates.slice((page - 1) * 25, page * 25).map(match => match.id);
   const [allMatchesRaw, finalResult] = await Promise.all([
     view === "execution" && pageIds.length === 0 ? Promise.resolve([]) : db.query.matches.findMany({
+      columns: { id: true, seasonId: true, entryAId: true, entryBId: true, stage: true, round: true,
+        format: true, entryRound: true, scoreA: true, scoreB: true, status: true, isForfeit: true,
+        ownership: true, majorStageRunId: true, qualificationRunId: true, managedKey: true,
+        bracketNodeId: true, scheduledAt: true, completedAt: true, resultDisposition: true },
       where: view === "execution" ? and(scope, inArray(matches.id, pageIds)) : scope,
       orderBy: [asc(matches.createdAt), asc(matches.id)],
     }),
