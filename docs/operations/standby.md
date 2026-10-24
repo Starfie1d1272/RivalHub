@@ -35,6 +35,40 @@ curl --fail http://127.0.0.1:3031/api/system/release
 
 本机不设置第二份 cron。Preview 没有生产邮件/OCR 等 provider 凭据，对应功能保持现有 fail-closed 行为；日志保留在 journal，尚未配置远端日志 exporter。
 
+## 应用日志容量与只读量测
+
+Linux 应用默认将结构化 stdout/stderr 交给主机 journal。`scripts/standby/log-capacity.py` 只读输出 JSON：根分区容量、日志/应用目录已分配字节，以及最近两个完整 24 小时窗口的日志正文计数与字节聚合。它跨 default 与独立 journal namespace 读取；仅输出固定服务分类，其他来源合并为 other，不输出 message、账号、地址或日志原文。需要 Linux、Python 3、GNU du 与支持 namespace 的 systemd；以 root 运行才能覆盖全部可读日志。命令失败、权限不足、每窗口 60 秒超时或 200,000 条上限会限制结果；available=false/possiblyTruncated=true 时不能当作完整用量。
+
+```bash
+python3 scripts/standby/log-capacity.py
+# 从操作员 checkout 直接送入已核实主机执行；不安装 agent 或定时任务
+ssh -p 52222 47.103.131.158 'python3 -' < scripts/standby/log-capacity.py
+```
+
+日志正文大小不包含 journal 索引、元数据和压缩开销，不能当作磁盘增长。比赛前后分别保存这份脱敏快照，比较实际目录占用、正文量与根分区余量；轮转删除、其它服务和应用包也会改变磁盘值。此工具不清理、不导出原始日志，也不创建历史数据库。
+
+应用专用容量策略由 `scripts/standby/journal/` 模板拥有，通过 `configure-journal.sh` 在已安装的主机上独立 opt-in；正式/Preview 安装器与 Release 不自动启用。要求 systemd >=245 与 journal namespace 支持。两个应用可共用 rivalhub namespace：持久日志容量目标 256MiB、单文件 16MiB、保留目标七天、至少给磁盘其它用途留 2GiB；运行时日志目标 16MiB，关闭该 namespace 的 syslog/kmsg/console/wall 转发。容量约束可能使日志早于七天淘汰；journal 按文件轮转和删除，活跃文件与文件粒度可能使容量/时限暂时超出目标，不能承诺精确七天物理删除。这项设置只管理启用后该 namespace 的日志，不清理既有全机 journal 或其它服务文件。
+
+```bash
+# 在已获授权的配置窗口，复制脚本与相邻 journal/ 模板后执行
+bash scripts/standby/configure-journal.sh --check rivalhub-production
+bash scripts/standby/configure-journal.sh --apply rivalhub-production
+# Preview 如需同一策略，单独选中；两者共享上述容量
+bash scripts/standby/configure-journal.sh --apply rivalhub-standby
+```
+
+工具只接受这两个服务，拒绝覆盖内容不同的现有配置。`--apply` 安装 namespace 配置与应用独立 systemd drop-in 并 daemon-reload，保留应用/日志进程；随后在下一次已授权的发布或维护重启时启用新的 stdout/stderr 路由，namespace 会按 systemd 依赖启动。它增加一个专用 journald 实例，启用后应量测其内存。应用包更新与 rollback 只替换基础 service，保留主机 drop-in，因此两条路径使用相同日志策略。读取新日志时指定 namespace；全机默认 journal 中的旧日志继续按原策略保留：
+
+```bash
+journalctl --namespace=rivalhub -u rivalhub-production --since '10 minutes ago'
+journalctl --namespace=rivalhub --disk-usage
+systemctl show rivalhub-production -p LogNamespace -p MainPID
+```
+
+`systemctl show` 只证明加载的配置；重启后还须通过新 namespace 实际读回结构化应用事件，才能完成启用验收。恢复默认路由时，在维护窗口移除对应应用的 `50-rivalhub-journal.conf` drop-in、daemon-reload，并重启该应用；保留 namespace 配置与旧日志供到期轮转，不执行 vacuum 或目录删除。主机日志不属于数据库/Storage DR 备份；独立配置应随主机配置备份保存，恢复时复核 namespace 与查询入口，遥测 D1 的保留策略不受影响。
+
+依据：[systemd journal namespaces](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#LogNamespace=)、[journald 容量与轮转](https://www.freedesktop.org/software/systemd/man/latest/journald.conf.html#SystemMaxUse=)。
+
 ## Production 打包与安装
 
 `standby-package.yml` 的 `production_release_tag` 非空时，只运行受保护 production job；`production_public_configuration` 是从实际 Production 核实的公开配置 JSON，仅接受 `production-config.mjs` 声明的键。不要放入数据库、会话或 provider secret。
