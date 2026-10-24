@@ -1,0 +1,119 @@
+// Local fixture evidence only. No business actions, credentials or deploy steps.
+const { createRequire } = require('node:module');
+const { readFileSync, writeFileSync } = require('node:fs');
+const { resolve } = require('node:path');
+const assert = require('node:assert/strict');
+function clsWindowMaximum(entries) {
+  let max = 0, sum = 0, first = 0, last = 0;
+  for (const e of entries.filter(e => !e.hadRecentInput).sort((a, b) => a.at - b.at)) {
+    if (!sum || e.at - last >= 1000 || e.at - first >= 5000) { sum = e.value; first = e.at; }
+    else sum += e.value;
+    last = e.at; max = Math.max(max, sum);
+  }
+  return max;
+}
+if (process.argv[2] === '--self-check') {
+  assert.equal(clsWindowMaximum([{ at: 0, value: .02 }, { at: 500, value: .03 }, { at: 2000, value: .04 }]), .05);
+  assert.equal(clsWindowMaximum([{ at: 0, value: .2, hadRecentInput: true }]), 0);
+  assert.equal(clsWindowMaximum([{ at: 0, value: .02 }, { at: 1000, value: .03 }]), .03);
+  console.log('CLS session-window and recent-input exclusion checks passed');
+} else main().catch(() => { console.error('Local cohort failed; inspect private runtime evidence. No raw error serialized.'); process.exitCode = 1; });
+async function main() {
+  const config = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+  const origin = new URL(config.origin);
+  if (!['127.0.0.1', 'localhost', '[::1]'].includes(origin.hostname)) throw new Error('Local origin required');
+  if (!config.sourceSha?.match(/^[a-f0-9]{40}$/) || !config.sourceTree?.match(/^[a-f0-9]{40}$/)) throw new Error('Frozen source required');
+  if (![1, 10, 20].includes(config.activePages) || !config.routes?.length) throw new Error('Bounded cohort required');
+  for (const r of config.routes) if (!r.path.startsWith('/') || new URL(r.path, origin).origin !== origin.origin || !r.selector || !/^[a-z0-9_-]+$/.test(r.label)) throw new Error('Invalid local route');
+  const repoRequire = createRequire(resolve(process.cwd(), 'package.json'));
+  const { chromium } = repoRequire('@playwright/test');
+  const browser = await chromium.launch({ headless: true, executablePath: config.browserExecutable });
+  const results = [];
+  const receiverWindows = [];
+  const receiverSnapshot = async () => {
+    if (!config.receiverEvidence) return null;
+    const endpoint = new URL(config.receiverEvidence);
+    if (!['127.0.0.1', 'localhost', '[::1]'].includes(endpoint.hostname)) throw new Error('Local evidence receiver required');
+    return (await fetch(endpoint)).json();
+  };
+  try {
+    const pages = await Promise.all(Array.from({ length: config.activePages }, async (_, index) => {
+      const context = await browser.newContext({ viewport: config.viewport });
+      const page = await context.newPage();
+      return { context, page, index };
+    }));
+    // Same contexts persist across cold-browser and browser-warm rounds. Server
+    // cache state must be established and recorded independently by the runner.
+    for (const round of ['cold-browser', 'warm-browser']) {
+      const receiverBefore = await receiverSnapshot();
+      await Promise.all(pages.map(async ({ page, index }) => {
+        const route = config.routes[index % config.routes.length];
+        const counts = { pageErrors: 0, failedRequests: 0, canceledRequests: 0 };
+        const failureGroups = {};
+        const httpFailureGroups = {};
+        const ready = [];
+        const transportObserver = { postRequests: 0, jsonBodies: 0, parseFailures: 0, readyEvents: 0 };
+        const onError = () => counts.pageErrors++;
+        const onFailure = request => {
+          const error = request.failure()?.errorText ?? '';
+          const canceled = /ERR_ABORTED|cancelled|canceled/i.test(error);
+          if (canceled) counts.canceledRequests++; else counts.failedRequests++;
+          const url = new URL(request.url());
+          const provider = url.origin === origin.origin ? 'application' : ['fonts.googleapis.com', 'fonts.gstatic.com'].includes(url.hostname) ? 'font-provider' : ['127.0.0.1', 'localhost'].includes(url.hostname) ? 'local-service' : 'external';
+          const reason = canceled ? 'canceled' : /ERR_CONNECTION_REFUSED/.test(error) ? 'connection-refused' : /ERR_NAME_NOT_RESOLVED/.test(error) ? 'dns' : /ERR_CERT/.test(error) ? 'certificate' : 'network-other';
+          const key = `${provider}:${request.resourceType()}:${reason}`;
+          failureGroups[key] = (failureGroups[key] ?? 0) + 1;
+        };
+        const onRequest = request => {
+          // Never persist ticket, account, session, raw URL, stack or payload.
+          if (request.method() !== 'POST') return;
+          transportObserver.postRequests++;
+          try { const body = request.postDataJSON();
+            if (body) transportObserver.jsonBodies++;
+            for (const e of Array.isArray(body?.events) ? body.events : []) if (e.kind === 'ready' && e.ready && typeof e.durationMs === 'number') { ready.push({ module: e.ready.module, phase: e.ready.phase, durationMs: e.durationMs }); transportObserver.readyEvents++; }
+          } catch { transportObserver.parseFailures++; }
+        };
+        const onResponse = response => {
+          if (response.status() < 400) return;
+          const url = new URL(response.url());
+          const endpoint = url.origin === origin.origin ? url.pathname.startsWith('/_vercel/') ? 'application-vercel-metrics' : url.pathname === '/api/product-telemetry' ? 'application-telemetry' : 'application-other' : 'external';
+          const key = `${endpoint}:${response.request().resourceType()}:${response.status()}`;
+          httpFailureGroups[key] = (httpFailureGroups[key] ?? 0) + 1;
+        };
+        page.on('response', onResponse);
+        page.on('pageerror', onError); page.on('requestfailed', onFailure); page.context().on('request', onRequest);
+        await page.addInitScript(() => {
+          if (window.__cohort) return;
+          window.__cohort = { shifts: [], lcpMs: null, longTaskMs: 0 };
+          new PerformanceObserver(list => { for (const e of list.getEntries()) window.__cohort.shifts.push({ at: e.startTime, value: e.value, hadRecentInput: e.hadRecentInput, sources: (e.sources || []).map(s => s.node?.closest?.('footer') ? 'footer' : s.node?.closest?.('header') ? 'header' : 'content') }); }).observe({ type: 'layout-shift', buffered: true });
+          new PerformanceObserver(list => { for (const e of list.getEntries()) window.__cohort.lcpMs = e.startTime; }).observe({ type: 'largest-contentful-paint', buffered: true });
+          try { new PerformanceObserver(list => { for (const e of list.getEntries()) window.__cohort.longTaskMs += e.duration; }).observe({ type: 'longtask', buffered: true }); } catch {}
+        });
+        const response = await page.goto(new URL(route.path, origin).href, { waitUntil: 'domcontentloaded', timeout: 90000 });
+        await page.locator(route.selector).first().waitFor({ state: 'visible', timeout: 90000 });
+        const domUsableObservedMs = await page.evaluate(() => performance.now());
+        await page.waitForTimeout(config.settleMs ?? 2000);
+        const measurement = await page.evaluate(() => {
+          const resources = {};
+          for (const e of performance.getEntriesByType('resource')) {
+            const key = e.initiatorType; const sum = resources[key] ||= { count: 0, encodedBodyBytes: 0, decodedBodyBytes: 0, transferBytes: 0 };
+            sum.count++; sum.encodedBodyBytes += e.encodedBodySize; sum.decodedBodyBytes += e.decodedBodySize; sum.transferBytes += e.transferSize;
+          }
+          const nav = performance.getEntriesByType('navigation')[0];
+          return { ...window.__cohort, resources, document: nav ? { transferBytes: nav.transferSize, encodedBodyBytes: nav.encodedBodySize, decodedBodyBytes: nav.decodedBodySize, ttfbMs: nav.responseStart - nav.requestStart } : null, scrollHeight: document.documentElement.scrollHeight, visibility: document.visibilityState };
+        });
+        const footer = page.locator('footer').first();
+        let footerVisibleAfterScroll = null;
+        if (await footer.count()) { await footer.scrollIntoViewIfNeeded(); footerVisibleAfterScroll = await footer.evaluate(e => { const r = e.getBoundingClientRect(); return r.top < innerHeight && r.bottom > 0; }); }
+        await page.goto('about:blank'); // Native pagehide flush, no manufactured telemetry event.
+        await page.waitForTimeout(1200);
+        results.push({ round, label: route.label, index, httpStatus: response?.status(), domUsableObservedMs, ...measurement, clsSessionWindowMaximum: clsWindowMaximum(measurement.shifts), footerVisibleAfterScroll, readyEventsObserved: ready, transportObserver, ...counts, failureGroups, httpFailureGroups });
+        page.off('pageerror', onError); page.off('requestfailed', onFailure); page.context().off('request', onRequest); page.off('response', onResponse);
+      }));
+      const receiverAfter = await receiverSnapshot();
+      if (receiverBefore && receiverAfter) receiverWindows.push({ round, batchDelta: receiverAfter.batches - receiverBefore.batches, statuses: receiverAfter.statuses.slice(receiverBefore.statuses.length), ready: receiverAfter.ready.slice(receiverBefore.ready.length) });
+    }
+    for (const { context } of pages) await context.close();
+    writeFileSync(config.output, JSON.stringify({ sourceSha: config.sourceSha, sourceTree: config.sourceTree, mode: config.mode, activePages: config.activePages, viewport: config.viewport, browser: await browser.version(), results, receiverWindows, limitations: ['DOM usable observer is separate from actual emitted ready.', 'Browser request listeners can miss keepalive requests after pagehide; receiverWindows is authoritative for accepted ready.', 'Headless foreground/background scheduling is part of the cohort.', 'LCP observed before footer interaction; no INP claim without actual interaction.', 'No p95 claim for fewer than 30 independent samples.', 'Server-cache state and same-process pool/RSS snapshots require separate runner evidence.'] }, null, 2), { mode: 0o600 });
+  } finally { await browser.close(); }
+}
