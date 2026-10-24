@@ -34,15 +34,15 @@ describe("timing command CI boundary", () => {
     } finally { rmSync(dir, { force: true, recursive: true }); }
   });
 
-  it.each(["exhausted", "missing"])("rejects %s metadata before launching work and persists failure", mode => {
+  it.each(["exhausted", "delayed"])("rejects %s metadata before launching work and persists failure", mode => {
     const dir = mkdtempSync(join(tmpdir(), "timing-active-"));
     try {
       const now = Date.now();
       const step = { name: "body", status: "in_progress", started_at: new Date(now - 190000).toISOString() };
       const plan = { name: "plan", conclusion: "success", steps: [{ started_at: new Date(now - 300000).toISOString(), completed_at: new Date(now - 299000).toISOString() }] };
-      const rows = mode === "missing" ? [] : [plan, { name: "system / browser-4", steps: [step] }];
+      const rows = [plan, { name: "system / browser-4", steps: [step] }];
       writeFileSync(join(dir, "jobs"), rows.map(row => JSON.stringify(row)).join("\n"));
-      writeFileSync(join(dir, "gh"), '#!/bin/sh\nprintf "%s\\n" "$@" > "$CI_TEST_ARGS"\ncat "$CI_TEST_JOBS"\n');
+      writeFileSync(join(dir, "gh"), '#!/bin/sh\nprintf "%s\\n" "$@" > "$CI_TEST_ARGS"\nif [ "$CI_TEST_MODE" = delayed ] && [ ! -f "$CI_TEST_FIRST" ]; then touch "$CI_TEST_FIRST"; exit 0; fi\ncat "$CI_TEST_JOBS"\n');
       chmodSync(join(dir, "gh"), 0o755);
       const result = spawnSync(process.execPath, ["scripts/ci/timing.mjs", "body", "--", process.execPath, "-e",
         `require('node:fs').writeFileSync(${JSON.stringify(join(dir, "launched"))},'yes')`], { encoding: "utf8", timeout: 5000,
@@ -50,7 +50,7 @@ describe("timing command CI boundary", () => {
           RIVALHUB_TIMING_STDOUT_ONLY: "0", RIVALHUB_TIMING_FILE: join(dir, "timing"),
           GITHUB_REPOSITORY: "owner/repo", GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "2",
           RIVALHUB_CI_JOB_NAME: "system / browser-4", RIVALHUB_CI_STEP_NAME: "body", RIVALHUB_CI_EXECUTION_BUDGET_MS: "180000",
-          CI_TEST_ARGS: join(dir, "args"), CI_TEST_JOBS: join(dir, "jobs"),
+          CI_TEST_MODE: mode, CI_TEST_FIRST: join(dir, "first"), CI_TEST_ARGS: join(dir, "args"), CI_TEST_JOBS: join(dir, "jobs"),
         } });
       expect(result.status, result.stderr).toBe(1);
       expect(existsSync(join(dir, "launched"))).toBe(false);

@@ -57,14 +57,23 @@ function parseTestCounts(output, kind) {
   return counts;
 }
 
-function activeCommandBudget() {
-  const route = `repos/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}/attempts/${env.GITHUB_RUN_ATTEMPT}/jobs?per_page=100`;
-  const result = spawnSync("gh", ["api", "--paginate", "-H", "Cache-Control: no-cache", route,
-    "--jq", ".jobs[] | {name,conclusion,steps} | tojson"], { encoding: "utf8", env: { ...env, GH_TOKEN: env.RIVALHUB_CI_METADATA_TOKEN }, timeout: 5000, killSignal: "SIGKILL", maxBuffer: 5 * 1024 * 1024 });
-  if (result.error || result.status !== 0) throw new Error("CI execution metadata unavailable");
-  const jobs = result.stdout.split("\n").filter(Boolean).map(line => JSON.parse(line));
-  return remainingExecutionBudget(jobs, { jobName: env.RIVALHUB_CI_JOB_NAME, stepName: env.RIVALHUB_CI_STEP_NAME,
-    now: Date.now(), budgetMilliseconds: Number(env.RIVALHUB_CI_EXECUTION_BUDGET_MS) });
+async function activeCommandBudget() {
+  const deadline = performance.now() + 15000;
+  let failure;
+  do {
+    try {
+      const route = `repos/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}/attempts/${env.GITHUB_RUN_ATTEMPT}/jobs?per_page=100`;
+      const result = spawnSync("gh", ["api", "--paginate", "-H", "Cache-Control: no-cache", route,
+        "--jq", ".jobs[] | {name,conclusion,steps} | tojson"], { encoding: "utf8", env: { ...env, GH_TOKEN: env.RIVALHUB_CI_METADATA_TOKEN }, timeout: Math.max(1, Math.floor(Math.min(5000, deadline - performance.now()))), killSignal: "SIGKILL", maxBuffer: 5 * 1024 * 1024 });
+      if (result.error || result.status !== 0) throw new Error("CI execution metadata unavailable");
+      const jobs = result.stdout.split("\n").filter(Boolean).map(line => JSON.parse(line));
+      return remainingExecutionBudget(jobs, { jobName: env.RIVALHUB_CI_JOB_NAME, stepName: env.RIVALHUB_CI_STEP_NAME,
+        now: Date.now(), budgetMilliseconds: Number(env.RIVALHUB_CI_EXECUTION_BUDGET_MS) });
+    } catch (error) { failure = error; }
+    const remaining = deadline - performance.now();
+    if (remaining > 0) await new Promise(resolve => setTimeout(resolve, Math.min(1000, remaining)));
+  } while (performance.now() < deadline);
+  throw failure;
 }
 
 async function runCommand(label, command, args, { cleanup = false, timeoutMs } = {}) {
@@ -72,7 +81,7 @@ async function runCommand(label, command, args, { cleanup = false, timeoutMs } =
   let budget;
   try {
     if (env.GITHUB_ACTIONS === "true" && env.RIVALHUB_CI_BUDGET_ENABLED === "1" && env.RIVALHUB_CI_WATCHDOG_OWNER !== "1" && !cleanup) {
-      budget = activeCommandBudget();
+      budget = await activeCommandBudget();
       if (budget.remainingMilliseconds <= 0) throw new Error("CI execution budget exhausted before command start");
       timeoutMs = Math.min(timeoutMs ?? Infinity, budget.remainingMilliseconds);
     }
