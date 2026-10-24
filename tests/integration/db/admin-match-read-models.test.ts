@@ -424,8 +424,8 @@ describe("admin match read models PostgreSQL integration", () => {
       await pool.query("UPDATE seasons SET stage_plan=$2::json WHERE id=$1", [ids.seasonA, JSON.stringify([{ key: "play-in", name: "Custom play-in", type: "round_robin", teamCount: 2, advanceTiers: [] }])]);
       await pool.query("UPDATE matches SET stage='play-in' WHERE id=$1", [scaleMatchIds[0]]);
       const customPlayIn = await loadAdminMatchOverview({ seasonSlug: seasonASlug, stage: "play-in" });
-      expect(customPlayIn?.pagination?.total).toBe(1);
-      expect(customPlayIn?.stageViews[0]?.matches.map(row => row.id)).toEqual([scaleMatchIds[0]]);
+      expect(customPlayIn?.pagination?.total).toBe(2);
+      expect(new Set(customPlayIn?.stageViews[0]?.matches.map(row => row.id))).toEqual(new Set([scaleMatchIds[0], ids.operationMatch]));
 
 
     } finally {

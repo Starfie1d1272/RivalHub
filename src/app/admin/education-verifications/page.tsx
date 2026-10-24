@@ -42,21 +42,23 @@ export default async function EducationVerificationsAdminPage({ searchParams }: 
 }
 
 async function EducationOverviewRegion() {
-  try { return <EducationReviewOverview overview={await getEducationReviewOverview()} />; }
+  let overview: Awaited<ReturnType<typeof getEducationReviewOverview>> | null = null;
+  try { overview = await getEducationReviewOverview(); }
   catch (error) {
     captureException("education.review_overview.load_failed", error, { scope: "admin", operation: "education.review_overview.load", errorClass: "database", retryable: true });
-    return <ErrorState code="EDUCATION_OVERVIEW_LOAD_FAILED" title="无法加载认证概览" sub="审核队列仍可独立读取，请稍后刷新概览。" />;
   }
+  if (overview === null) return <ErrorState code="EDUCATION_OVERVIEW_LOAD_FAILED" title="无法加载认证概览" sub="审核队列仍可独立读取，请稍后刷新概览。" />;
+  return <EducationReviewOverview overview={overview} />;
 }
 
 async function EducationQueueRegion({ query }: { query: EducationReviewQuery }) {
-  try {
-    const queue = await getEducationReviewPage(query);
-    const emptyState: EducationReviewEmptyState = !queue.hasAnyRecords ? "no-records"
-      : isDefaultPendingQuery(queue.normalizedQuery) ? "no-pending" : "no-results";
-    return <><EducationReviewWorkspace queue={queue} emptyState={emptyState} /><ContentReady module="admin" phase="primary" /></>;
-  } catch (error) {
+  let queue: Awaited<ReturnType<typeof getEducationReviewPage>> | null = null;
+  try { queue = await getEducationReviewPage(query); }
+  catch (error) {
     captureException("education.review_queue.load_failed", error, { scope: "admin", operation: "education.review_queue.load", errorClass: "database", retryable: true });
-    return <ErrorState code="EDUCATION_REVIEW_LOAD_FAILED" title="无法加载教育认证审核队列" sub="请稍后重试；如果问题持续，请联系系统管理员。" />;
   }
+  if (queue === null) return <ErrorState code="EDUCATION_REVIEW_LOAD_FAILED" title="无法加载教育认证审核队列" sub="请稍后重试；如果问题持续，请联系系统管理员。" />;
+  const emptyState: EducationReviewEmptyState = !queue.hasAnyRecords ? "no-records"
+    : isDefaultPendingQuery(queue.normalizedQuery) ? "no-pending" : "no-results";
+  return <><EducationReviewWorkspace queue={queue} emptyState={emptyState} /><ContentReady module="admin" phase="primary" /></>;
 }
