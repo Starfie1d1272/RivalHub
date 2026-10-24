@@ -107,12 +107,30 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
   const [initialLoading, setInitialLoading] = useState(initialRows === undefined);
   const [recovery, setRecovery] = useState<"unknown" | "refresh_pending" | null>(null);
   const [readFailed, setReadFailed] = useState(false);
+  const initialReadComplete = useRef(initialRows !== undefined);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // Each mounted map owns its state; the workbench keys panels by map ID.
   useEffect(() => {
-    if (initialRows !== undefined) return;
     let cancelled = false;
+    if (initialRows !== undefined) {
+      // A prefetched snapshot may arrive while the mount read is in flight.
+      // Adopt it once; later RSC refresh props must not overwrite an edited draft.
+      if (!initialReadComplete.current) {
+        queueMicrotask(() => {
+          if (cancelled) return;
+          const saved = savedDrafts(initialRows);
+          initialReadComplete.current = true;
+          setDrafts(saved);
+          setCanonicalDrafts(saved);
+          setViewMode(saved.length > 0);
+          setReadFailed(false);
+          setInitialLoading(false);
+          setError(null);
+        });
+      }
+      return () => { cancelled = true; };
+    }
     getPlayerStatsByMap(mapId).then(result => {
       if (cancelled) return;
       if (!result.success) {
@@ -120,6 +138,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows }: Props) {
         setReadFailed(true);
         return;
       }
+      initialReadComplete.current = true;
       const saved = savedDrafts(result.data);
       setDrafts(saved);
       setCanonicalDrafts(saved);
