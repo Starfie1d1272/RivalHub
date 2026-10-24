@@ -5,6 +5,35 @@ import { api, state, pool, monitor, publications, snapshot, prepared, upload, re
 const { db, schema, POST, ingestMizarLive, ingestMizarReliable, RELIABLE_EVENT_SCHEMA_VERSION, revokeMizarInstallation, claimMizarSource, takeOverCurrentMap, loadMizarMatchDocumentInTx, recordCanonicalMapResultInTx } = api;
 
 describe("LIVE correctness: real PostgreSQL and loopback HTTP faults", () => {
+  it.each([false, true])("accepts fresh LIVE at 95ms SQL RTT with observed lineup=%s", async observedLineup => {
+    const f = await prepared();
+    await delay(1500);
+    state.mode = "fast";
+    const input = snapshot(f, 1);
+    if (observedLineup) {
+      await db.update(schema.matchLiveSessions).set({ lineupHealth: "review_required", autoCanonicalizationArmed: false,
+        identityHealth: "healthy", continuityHealth: "healthy", currentMapId: f.mapOneId, mapExecutionPhase: "gameplay" })
+        .where(eq(schema.matchLiveSessions.id, f.sessionId));
+      input.map = { ...input.map, mapId: f.mapOneId, name: "de_ancient" };
+      input.series = { ...input.series, currentMapOrder: 1 };
+      input.players = input.players.map((player: Record<string, unknown>, index: number) => ({ ...player, sourcePlayerId: f.steam64[index]! }));
+      input.radar = null;
+      input.capability = { ...input.capability, radarCurrent: false };
+    }
+    const before = publications.length;
+    state.sqlDelayMs = 95;
+    state.sqlRoundTrips = 0;
+    try {
+      const response = await POST(new Request("http://local.test/api/mizar/live", {
+        method: "POST", headers: { authorization: `Bearer ${f.token}`, "x-rivalhub-authority": "1" }, body: JSON.stringify(input),
+      }), { params: Promise.resolve({ operation: "live" }) });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ accepted: true });
+      expect(publications).toHaveLength(before + 1);
+      reports.push({ scenario: "hosted-sql-rtt", sqlRttMs: 95, observedLineup, sqlRoundTrips: state.sqlRoundTrips, accepted: true });
+    } finally { state.sqlDelayMs = 0; }
+  });
+
   it.each(["timeout", "429", "stalled-body", "invalid-body"] as const)("releases ingress after %s and accepts a fresh frame", async fault => {
     const f = await prepared();
     await delay(1500);

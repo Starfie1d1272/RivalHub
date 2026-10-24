@@ -38,6 +38,13 @@ export async function loadEffectiveMatchRoster(
 ): Promise<EffectiveMatchRosterPlayer[]> {
   if (matchIds.length === 0) return [];
 
+  return effectiveMatchRosterQuery(database, matchIds, includeSubstitutes);
+}
+
+/** Composable read; projections sharing effective roster rules can remain in one SQL round trip. */
+export function effectiveMatchRosterQuery(
+  database: MatchRosterExecutor, matchIds: readonly string[], includeSubstitutes = false,
+) {
   return database.select({
     matchId: matchRosters.matchId,
     entryId: matchRosters.entryId,

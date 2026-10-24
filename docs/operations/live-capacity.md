@@ -14,6 +14,10 @@
 
 每个获准请求仍在事务中重新验证 installation → match → active source，包括比赛状态、session、authority revision、generation、epoch、reliable sequence floor、identity/lineup、队伍映射及能力字段。入口票据不授予任何权限。**广播仍在原 installation/match/source share locks 内完成**：LIVE 先持锁则撤销/交接/人工结果等待广播返回；mutation 先持锁则本帧在锁预算后丢弃或重新验证新事实。不把发送移出事务，也不通过 Promise.race 提前放开锁。
 
+生产接收链在跨区数据库下须控制 SQL 往返数。两个事务超时设置与 advisory 准入合并为一条 SELECT；随后一个带 MATERIALIZED 依赖的语句按 installation → match → source 顺序获取共享锁，只投影授权所需字段。observed-lineup 的当前地图匹配与有效名单身份也在这条语句内读取，名单条件复用 effective roster owner。JSON 投影没有日期字段，保持 pg 对布尔值/整数/JSON 的原生解码。HTTP 外层凭据鉴权、事务 BEGIN/COMMIT、500ms 检查与锁内广播继续保留；不缓存授权，不放宽过期预算。正常 HTTP 路径从鉴权到完成锁内验证由至少八轮降为四轮 SQL 往返（COMMIT/发送在验证之后），减少跨区 RTT 累加。冷建连接、队列或单语句仍可使本帧过期，后续新帧重新检查。
+
+`mizar.live.outcome_window` 在活动调用触发、至少一分钟的进程窗口后，为每个非空固定结果输出次数与平均完整 ingest 耗时（包含事务结束/清理），safeContext.durationMs 是该窗口跨度。结果包括 accepted/frame_expired/contended/delivery_dropped/broadcast_unavailable/rejected/error；范围是已进入 ingest 的调用，入口容量拒绝与外层鉴权失败不计入。聚合没有帧、账号、凭据、玩家、match/session/request/trace 标识，没有 timer 或持久化计数；空闲尾窗、重启和日志链路故障会丢失汇总。accepted 只表示投递端接受，不证明 viewer 收到/渲染；窗口均值不能替代 p95 或逐请求关联。Linux 使用 journal 查询该固定事件，沿用主机日志保留策略。
+
 跨实例同场互斥由 PostgreSQL `pg_try_advisory_xact_lock` 提供，争用立即丢弃。它不是跨比赛公平调度，也不是 project-wide provider 限流。SQL statement 预算 1 秒、单次锁等待 25ms；接收到完成授权的 freshness 预算仍为 500ms，连接池 acquisition timeout 仍为 10 秒。HTTP 发送仍使用 SDK 的 2 秒 abort，错误响应体取消逻辑不变。网络异常可能有未知投递结果；不重试、不宣称能撤回 provider 已接收的消息。
 
 已授权投递的 cursor/timestamp/token bucket 元数据仍最多 256 条，10 秒过期；容量 2、补充 2/s 吸收到达抖动，不保存 snapshot。跨实例/重启后的旧帧与重复帧仍由现有 viewer cursor/producedAt 规则处理。相同 gameplay sequence 的较新 heartbeat 合法，官方赛果不消费 LIVE。

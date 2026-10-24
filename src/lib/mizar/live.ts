@@ -2,12 +2,11 @@ import "server-only";
 import { createHmac } from "node:crypto";
 import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, matchMaps, matchLiveSessions, seasons, competitionQualificationRuns } from "@/db/schema";
+import { matches, matchMaps, matchLiveSessions, mizarInstallations, seasons, competitionQualificationRuns } from "@/db/schema";
 import { createServiceClient } from "@/lib/auth/supabase-server";
-import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
-import { logEvent } from "@/lib/observability/server";
+import { effectiveMatchRosterQuery } from "@/lib/match-rosters/effective";
+import { logEvent, recordLiveIngestOutcome, type LiveIngestOutcome } from "@/lib/observability/server";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { assertInstallationInTx } from "./installation";
 import { parseLiveSnapshotV1 } from "./protocol";
 import { projectPublicLive } from "./live-projection";
 import { admitLiveDelivery } from "./live-admission";
@@ -24,17 +23,57 @@ export async function ingestMizarLive(installationId: string, competitionId: str
   const snapshot = parseLiveSnapshotV1(input);
   if (snapshot.competitionId !== competitionId || snapshot.cursor.liveSessionId === null) throw new AppError(ErrorCode.FORBIDDEN, "制播数据不属于当前连接。");
   let cleanup: (() => Promise<unknown>) | undefined;
+  let outcome: LiveIngestOutcome = "error";
   try {
-    return await db.transaction(async tx => {
+    const result = await db.transaction(async tx => {
       // No stale frame may sit in the shared pool and later become fresh again.
       if (performance.now() - receivedAt > LIVE_FRAME_BUDGET_MS) return { accepted: false, reason: "frame_expired" };
-      await tx.execute(sql`SET LOCAL lock_timeout = '25ms'`);
-      await tx.execute(sql`SET LOCAL statement_timeout = '1000ms'`);
-      const gate = await tx.execute<{ acquired: boolean }>(sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${'mizar-live:' + snapshot.matchId}, 0)) AS acquired`);
+      const gate = await tx.execute<{ acquired: boolean }>(sql`SELECT
+        set_config('lock_timeout', '25ms', true), set_config('statement_timeout', '1000ms', true),
+        pg_try_advisory_xact_lock(hashtextextended(${'mizar-live:' + snapshot.matchId}, 0)) AS acquired`);
       if (!gate.rows[0]?.acquired) return { accepted: false, reason: "contended" };
-      await assertInstallationInTx(tx, installationId, competitionId);
-      const [match] = await tx.select().from(matches).where(and(eq(matches.id, snapshot.matchId), eq(matches.seasonId, competitionId))).for("share");
-      const [source] = await tx.select().from(matchLiveSessions).where(and(eq(matchLiveSessions.matchId, snapshot.matchId), isNull(matchLiveSessions.closedAt))).for("share");
+      // Materialized dependencies preserve installation → match → source lock order in one round trip.
+      const authority = await tx.execute<{
+        installationId: string | null;
+        match: { id: string; status: string; format: string; entryAId: string; entryBId: string } | null;
+        source: { installationId: string; authorityRevision: number; producerInstanceId: string; liveSessionId: string;
+          programSourceGeneration: number; mapEpoch: number; lastReliableSeq: number; identityHealth: string;
+          lineupHealth: string; continuityHealth: string; autoCanonicalizationArmed: boolean;
+          mapExecutionPhase: string; currentMapId: string | null; manualTakeoverMapEpoch: number | null } | null;
+        mapMatches: boolean;
+        identities: Record<string, string>;
+      }>(sql`WITH installation AS MATERIALIZED (
+        SELECT ${mizarInstallations.id} AS id FROM ${mizarInstallations}
+        WHERE ${mizarInstallations.id}=${installationId} AND ${mizarInstallations.competitionId}=${competitionId}
+          AND ${mizarInstallations.revokedAt} IS NULL FOR SHARE
+      ), current_match AS MATERIALIZED (
+        SELECT ${matches.id} AS id, ${matches.status} AS status, ${matches.format} AS format,
+          ${matches.entryAId} AS "entryAId", ${matches.entryBId} AS "entryBId"
+        FROM ${matches} WHERE ${matches.id}=${snapshot.matchId} AND ${matches.seasonId}=${competitionId}
+          AND EXISTS (SELECT 1 FROM installation) FOR SHARE
+      ), current_source AS MATERIALIZED (
+        SELECT ${matchLiveSessions.installationId} AS "installationId", ${matchLiveSessions.authorityRevision} AS "authorityRevision",
+          ${matchLiveSessions.producerInstanceId} AS "producerInstanceId", ${matchLiveSessions.liveSessionId} AS "liveSessionId",
+          ${matchLiveSessions.programSourceGeneration} AS "programSourceGeneration", ${matchLiveSessions.mapEpoch} AS "mapEpoch",
+          ${matchLiveSessions.lastReliableSeq} AS "lastReliableSeq", ${matchLiveSessions.identityHealth} AS "identityHealth",
+          ${matchLiveSessions.lineupHealth} AS "lineupHealth", ${matchLiveSessions.continuityHealth} AS "continuityHealth",
+          ${matchLiveSessions.autoCanonicalizationArmed} AS "autoCanonicalizationArmed", ${matchLiveSessions.mapExecutionPhase} AS "mapExecutionPhase",
+          ${matchLiveSessions.currentMapId} AS "currentMapId", ${matchLiveSessions.manualTakeoverMapEpoch} AS "manualTakeoverMapEpoch"
+        FROM ${matchLiveSessions} WHERE ${matchLiveSessions.matchId}=(SELECT id FROM current_match)
+          AND ${matchLiveSessions.closedAt} IS NULL FOR SHARE
+      ), roster("matchId", "entryId", "rosterId", "eventRosterMemberId", "userId", "steam64", "displayName", "personaName", "perfectName", "isStarter") AS MATERIALIZED (
+        ${effectiveMatchRosterQuery(tx, [snapshot.matchId])}
+      ) SELECT (SELECT id FROM installation) AS "installationId",
+        (SELECT row_to_json(current_match) FROM current_match) AS match,
+        (SELECT row_to_json(current_source) FROM current_source) AS source,
+        EXISTS (SELECT 1 FROM ${matchMaps} WHERE ${matchMaps.id}=(SELECT "currentMapId" FROM current_source)
+          AND ${matchMaps.matchId}=${snapshot.matchId} AND ${matchMaps.mapName}=${snapshot.map.name ?? ""}
+          AND ${matchMaps.mapOrder}=${snapshot.series.currentMapOrder ?? -1} AND ${matchMaps.completedAt} IS NULL) AS "mapMatches",
+        CASE WHEN (SELECT "lineupHealth" FROM current_source)=${LINEUP_REVIEW_REQUIRED}
+          THEN COALESCE((SELECT jsonb_object_agg("steam64", "userId") FROM roster WHERE "steam64" IS NOT NULL), '{}'::jsonb)
+          ELSE '{}'::jsonb END AS identities`);
+      const { match, source, mapMatches, identities: identityRows } = authority.rows[0]!;
+      if (!authority.rows[0]?.installationId) throw new AppError(ErrorCode.FORBIDDEN, "制播设备连接已撤销。");
       const observedLineup = source?.identityHealth === "healthy" && source.lineupHealth === LINEUP_REVIEW_REQUIRED
         && source.continuityHealth === "healthy" && !source.autoCanonicalizationArmed
         && source.mapExecutionPhase === "gameplay" && source.currentMapId === snapshot.map.mapId
@@ -43,18 +82,11 @@ export async function ingestMizarLive(installationId: string, competitionId: str
       if (!match || match.status !== "in_progress" || match.format !== snapshot.format || !source || source.installationId !== installationId || source.authorityRevision !== authorityRevision || source.producerInstanceId !== snapshot.cursor.producerInstanceId || source.liveSessionId !== snapshot.cursor.liveSessionId || source.programSourceGeneration !== snapshot.cursor.programSourceGeneration || source.mapEpoch !== snapshot.cursor.mapEpoch || snapshot.cursor.runtimeSeq < source.lastReliableSeq || source.identityHealth !== "healthy" || (source.lineupHealth !== "healthy" && !observedLineup) || !snapshot.capability.telemetryFresh || !snapshot.capability.contextFresh || (snapshot.capability.identity !== "matched" && !observedLineup) || !snapshot.capability.lineupComplete || !snapshot.capability.canonicalTeams) {
         throw new AppError(ErrorCode.FORBIDDEN, "实时数据源或本场首发校验未通过。");
       }
-      if (observedLineup) {
-        const [map] = await tx.select({ id: matchMaps.id }).from(matchMaps).where(and(
-          eq(matchMaps.id, source!.currentMapId!), eq(matchMaps.matchId, match.id),
-          eq(matchMaps.mapName, snapshot.map.name ?? ""), eq(matchMaps.mapOrder, snapshot.series.currentMapOrder ?? -1),
-          isNull(matchMaps.completedAt),
-        ));
-        if (!map) throw new AppError(ErrorCode.FORBIDDEN, "实时地图不匹配。");
-      }
+      if (observedLineup && !mapMatches) throw new AppError(ErrorCode.FORBIDDEN, "实时地图不匹配。");
       if (![match.entryAId, match.entryBId].includes(snapshot.teams.ct.entryId ?? "") || ![match.entryAId, match.entryBId].includes(snapshot.teams.t.entryId ?? "") || snapshot.teams.ct.entryId === snapshot.teams.t.entryId) throw new AppError(ErrorCode.VALIDATION_FAILED, "实时队伍不匹配。");
       if (performance.now() - receivedAt > LIVE_FRAME_BUDGET_MS) return { accepted: false, reason: "frame_expired" };
       const identities = observedLineup
-        ? new Map((await loadEffectiveMatchRoster(tx, [match.id])).filter(player => player.steam64 && player.isStarter).map(player => [player.steam64!, player.userId]))
+        ? new Map(Object.entries(identityRows))
         : undefined;
       if (performance.now() - receivedAt > LIVE_FRAME_BUDGET_MS) return { accepted: false, reason: "frame_expired" };
       const payload = projectPublicLive(snapshot, authorityRevision, new Date().toISOString(), identities);
@@ -76,16 +108,19 @@ export async function ingestMizarLive(installationId: string, competitionId: str
         return { accepted: false, reason: "broadcast_unavailable" };
       }
     });
+    outcome = result.accepted ? "accepted" : result.reason as LiveIngestOutcome;
+    return result;
   } catch (error) {
     // Lock/statement budgets drop this frame. No DB/HTTP replay, including
     // ambiguous connection failures (the shared DB retry owner is unchanged).
     const cause = error instanceof Error && error.cause ? error.cause : error;
     const code = cause && typeof cause === "object" && "code" in cause ? cause.code : undefined;
-    if (code === "55P03" || code === "57014") return { accepted: false, reason: "contended" };
+    if (code === "55P03" || code === "57014") { outcome = "contended"; return { accepted: false, reason: "contended" }; }
+    if (error instanceof AppError) outcome = "rejected";
     throw error;
   } finally {
     // Channel never subscribes. Disposal cannot hold DB/authority locks; send did.
-    await cleanup?.();
+    try { await cleanup?.(); } finally { recordLiveIngestOutcome(outcome, performance.now() - receivedAt); }
   }
 }
 

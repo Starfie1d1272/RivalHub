@@ -35,6 +35,10 @@ BETTER_STACK_INGESTING_HOST=<server-only Better Stack OTLP ingest host>
 
 如果 Preview/Production 只配置了一个变量，或 host/token 不合法，应用继续使用部署平台的标准输出观测并将配置状态记录为不含凭证的结构化事件。Development 未配置外部 telemetry 是正常状态。
 
+## LIVE 投递结果聚合
+
+`src/lib/observability/live-outcomes.ts` 通过 server facade 接收固定结果与数值耗时，每分钟由后续活动触发 `mizar.live.outcome_window`。日志与 exporter 沿用现有 runtime owner；聚合在 ROOT_CONTEXT 下输出，避免继承触发请求的 requestId/traceId。它只在内存保存七类结果的次数与耗时总和，不保存帧或身份，不创建 timer/数据库，重启与空闲尾窗可能丢数。结果范围、窗口/平均值口径与 viewer 验收边界见 [LIVE 接收容量](live-capacity.md)。
+
 ## 管理员进程快照
 
 `/admin/settings` 在现有 `requireSuperAdmin` 成功后，才从 server-only observability facade 读取当前 Node 进程的数值快照：采样时间、Node 版本、uptime、RSS、V8 堆已用/容量/上限、操作系统提供的内存约束、自启动累计事件循环利用率。环境内存约束为零时显示“未提供”，不能当作零容量或剩余可用内存；V8 堆上限也不等于整个进程的 RSS 上限。事件循环利用率不是 CPU 使用率或最近一分钟的指标。
