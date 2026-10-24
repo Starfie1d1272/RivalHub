@@ -9,6 +9,7 @@ export function createClientMeasurements() {
 
 /** Per-lease instrumentation: restore pg methods before returning the client to the pool. */
 export function measureClient(client: PoolClient, totals: ReturnType<typeof createClientMeasurements>): PoolClient["release"] {
+  const originalQueryDescriptor = Object.getOwnPropertyDescriptor(client, "query");
   const originalQuery = client.query;
   const originalRelease = client.release;
   const heldAt = performance.now();
@@ -79,7 +80,8 @@ export function measureClient(client: PoolClient, totals: ReturnType<typeof crea
   const release: PoolClient["release"] = (error) => {
     if (!released) {
       released = true;
-      client.query = originalQuery;
+      if (originalQueryDescriptor) Object.defineProperty(client, "query", originalQueryDescriptor);
+      else Reflect.deleteProperty(client, "query");
       client.release = originalRelease;
       totals.checkouts++;
       totals.holdMs += performance.now() - heldAt;

@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Client, Pool } from "pg";
 import { trace } from "@opentelemetry/api";
 import { expect, it, vi } from "vitest";
 import { DatabasePool } from "@/db/pool";
@@ -107,4 +107,19 @@ it("records an interleaved real-PG diagnostic for measurement overhead without a
     expect(after.getClientSnapshot().queries).toBe(201);
     console.info(JSON.stringify({ diagnostic: "pg-client-measurement-overhead", scope: "loopback PostgreSQL; no-op OTel; 10 interleaved batches per implementation; not page LCP or production exporter cost", runs }));
   } finally { await before.end(); await after.end(); }
+});
+
+it("restores inherited query dispatch so later driver instrumentation and fault injection remain observable", async () => {
+  const pool = new DatabasePool({ connectionString: localDatabaseUrl(), ssl: false, max: 1 });
+  try {
+    const first = await pool.connect();
+    first.release();
+    expect(Object.hasOwn(first, "query")).toBe(false);
+    const spy = vi.spyOn(Client.prototype, "query");
+    try {
+      expect((await pool.query("select 42 as n")).rows).toEqual([{ n: 42 }]);
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(Object.hasOwn(first, "query")).toBe(false);
+    } finally { spy.mockRestore(); }
+  } finally { await pool.end(); }
 });
