@@ -24,7 +24,7 @@
 | 管理员 grants/邀请；[access](../../src/lib/auth/admin-access.ts)、[invites](../../src/lib/auth/admin-invites.ts) | PostgreSQL 保存授权边界、邀请/认领与撤销事实 | private/sensitive，授权后台/server-only；关系展示不输出邀请 token |
 | 反馈；[schema](../../src/db/schema/feedback.ts)、[commands](../../src/lib/feedback/commands.ts) | PostgreSQL 保存文本、最小 pathname、版本、triage 状态、内部去重指纹 | private，超级管理员处理；自由文本可能 sensitive；指纹不入 DTO，不保存完整 URL query/raw logs |
 | 业务 audit；[write owner](../../src/lib/audit/write.ts) | PostgreSQL 保存谁改变哪些业务事实 | private，按全局/赛事权限投影；不展开 raw meta，不补造未知历史 |
-| 产品遥测；[owner/部署清单](../operations/product-telemetry.md) | 独立、默认关闭的 Worker/D1 保存白名单事件；七天账号/会话排障、页面毫秒耗时与版本基线 | private/operator-only；产品专用 HMAC 账号、随机诊断 session；不含鉴权 session/凭据/正文 |
+| 产品遥测；[owner/部署清单](../operations/product-telemetry.md) | 独立、默认关闭的 Worker/D1 保存白名单事件；七天账号/会话排障、页面性能（毫秒耗时/无单位 CLS）、粗粒度设备/浏览器/系统/来源类别与版本基线 | private/operator-only；产品专用 HMAC 账号、随机诊断 session；不含鉴权 session/凭据/正文 |
 | Runtime telemetry；[observability](../operations/observability.md) | Vercel/Better Stack 保存脱敏日志、trace、运行诊断 | private，运维授权；不成为业务审计，不复制到 application DB |
 | Cache/projection/scheduler health；[统计](../operations/statistics-projections.md)、[scheduler](../deployment.md) | PostgreSQL/runtime cache 保存可重建统计、Steam profile cache、有界当前健康 | 仍按 DTO 输出；freshness/失效不等于物理删除，projection 不是 source fact |
 | 浏览器上一帧；[previous view owner](../../src/lib/mizar/live-previous-view.ts) | 同标签页 sessionStorage 暂存最多两场匿名公开计分表，减少连接期间的空白 | 仅 public display values 与 opaque revision；不存 token、cookie、用户/source 身份、雷达或运行时钟，不是正式赛果或事件 replay |

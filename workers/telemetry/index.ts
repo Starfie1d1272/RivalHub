@@ -1,5 +1,7 @@
 import { LIMITS, UUID, validEvent, type TelemetryEvent } from "../../src/lib/telemetry/protocol";
 import { verifyTicket } from "../../src/lib/telemetry/ticket";
+import { parseDashboardFilters } from "../../src/lib/telemetry/dashboard-query";
+import { dashboard } from "./dashboard";
 import { batchSummary, compressEvents, decompressEvents } from "./storage";
 
 export interface Statement {
@@ -80,6 +82,11 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
     if (url.pathname.startsWith("/admin/")) {
       if (!env.ADMIN_KEY || env.ADMIN_KEY.length < 32 || request.headers.get("authorization") !== `Bearer ${env.ADMIN_KEY}`) return response(401);
       if (request.method !== "GET") return response(405);
+      if (url.pathname === "/admin/dashboard") {
+        const filters = parseDashboardFilters(Object.fromEntries(url.searchParams));
+        if (!filters) return response(400);
+        return response(200, undefined, await dashboard(env.DB, filters, now, BUDGET));
+      }
       if (url.pathname === "/admin/events") {
         const session = url.searchParams.get("session");
         const account = url.searchParams.get("account");
@@ -142,6 +149,7 @@ export async function maintain(env: Env, now = Date.now()) {
         json_extract(e.value,'$[2]'),json_extract(e.value,'$[3]'),json_extract(e.value,'$[4]'),json_extract(e.value,'$[5]'),json_extract(e.value,'$[6]'),
         sum(json_extract(e.value,'$[7]')),sum(json_extract(e.value,'$[8]')),?
       FROM batches b,json_each(b.summary) e WHERE b.day=? AND b.expires>?
+        AND NOT (json_extract(e.value,'$[2]')='performance' AND json_extract(e.value,'$[6]')='CLS')
       GROUP BY 1,2,3,4,5,6,7,8,9,10,11`).bind(Date.parse(pending.day) + (retention + 1) * DAY, pending.day, now),
     env.DB.prepare("INSERT INTO rollups(day) VALUES(?) ON CONFLICT DO NOTHING").bind(pending.day),
   ]);

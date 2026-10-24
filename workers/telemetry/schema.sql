@@ -8,6 +8,7 @@ CREATE TABLE batches (
 ) WITHOUT ROWID;
 CREATE INDEX batches_account ON batches(account, received);
 CREATE INDEX batches_session ON batches(session, received);
+CREATE INDEX batches_dashboard_received ON batches(environment, received DESC, ticket DESC, id DESC);
 CREATE INDEX batches_expiry ON batches(expires);
 CREATE INDEX batches_ticket_received ON batches(ticket, received);
 CREATE TABLE usage (day TEXT PRIMARY KEY, batches INTEGER NOT NULL DEFAULT 0, bytes INTEGER NOT NULL DEFAULT 0) WITHOUT ROWID;

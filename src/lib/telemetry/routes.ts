@@ -22,6 +22,7 @@ export const ROUTES = [
   "/my/competitions",
   "/reset-password",
   "/admin/settings",
+  "/admin/telemetry",
   "/announcements",
   "/admin/invites",
   "/rules/spring",
