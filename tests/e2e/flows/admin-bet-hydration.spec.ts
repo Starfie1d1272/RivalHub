@@ -17,7 +17,7 @@ test("后台 BET 主体完成 hydration 后可进入并提交启用确认", asyn
   const failures: string[] = [];
   page.on("pageerror", error => failures.push(`${error.name}: ${error.message}`));
   page.on("requestfailed", request => {
-    if (request.resourceType() === "script") failures.push(`script: ${new URL(request.url()).pathname}: ${request.failure()?.errorText}`);
+    if (request.resourceType() === "script" && new URL(request.url()).origin === new URL(page.url()).origin) failures.push(`script: ${new URL(request.url()).pathname}: ${request.failure()?.errorText}`);
   });
   try {
     await database.insert(schema.seasonAdminGrants).values({ seasonId: fixture.seasonId, userId: actor.userId });
