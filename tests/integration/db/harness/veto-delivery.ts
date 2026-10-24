@@ -1,6 +1,6 @@
-import { gt } from "drizzle-orm";
+import { gt, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matchVetoInvalidations } from "@/db/schema";
+import { matches, matchVetoInvalidations } from "@/db/schema";
 import { deliverVetoInvalidation } from "@/lib/matches/veto-room/invalidation";
 
 /** Workers retain fixtures from earlier specs. A scheduler pass drains only 50
@@ -8,6 +8,12 @@ import { deliverVetoInvalidation } from "@/lib/matches/veto-room/invalidation";
  * test asserts the independent global lifecycle due signal. No reset/ack bypass.
  */
 export async function deliverExistingFixtureVetoInvalidations() {
+  // Some existing fixture teardowns disable triggers with replica mode. Restore
+  // only the ON DELETE CASCADE they skipped for actually deleted parents.
+  // Never erase an obligation whose authoritative match still exists.
+  await db.delete(matchVetoInvalidations).where(sql`NOT EXISTS (
+    SELECT 1 FROM ${matches} WHERE ${matches.id}=${matchVetoInvalidations.matchId}
+  )`);
   const pending = await db.select({ matchId: matchVetoInvalidations.matchId }).from(matchVetoInvalidations)
     .where(gt(matchVetoInvalidations.generation, matchVetoInvalidations.publishedGeneration));
   for (const row of pending) {
