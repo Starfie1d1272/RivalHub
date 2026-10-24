@@ -30,6 +30,7 @@ import { db } from "@/db/client";
 import { resolveAuditTargets, auditTargetKey } from "@/lib/audit/targets";
 import { loadAdminMatchOverview, loadAdminMatchWorkspace } from "@/lib/admin/matches/overview";
 import { loadAdminMatchWorkbench } from "@/lib/admin/matches/workbench";
+import { readAdminDemoQuality } from "@/lib/admin/matches/demo-quality-read";
 import { readRivalHubEvents } from "@/lib/demo-integration/read";
 import { resolveDemoImportLineageInTx } from "@/lib/demo-integration/promotion";
 import { revalidateNeedsAttentionImportsForSteam64, revalidateSeasonNeedsAttentionImports } from "@/lib/demo-integration/revalidation";
@@ -139,9 +140,22 @@ describe("Demo metadata PostgreSQL egress boundary", () => {
       const workbench = await loadAdminMatchWorkbench({ seasonSlug: slug, matchId: ids.match });
       expect(workbench?.demoReviews?.map((row) => row.importId).sort()).toEqual([related, other, invalid].sort());
       expect(payloadReads()).toHaveLength(1);
-      expect(payloadReads()[0]?.params).toEqual([confirmed, related, other, invalid]);
-      expect(workbench?.demoQuality?.map((row) => row.importId)).toEqual([confirmed, related, other, invalid]);
+      expect(payloadReads()[0]?.params).toEqual([related, other, invalid]);
+      expect(workbench?.demoQuality?.map((row) => row.importId)).toEqual([related, other, invalid]);
+      expect(workbench?.demoQualitySummaries?.map(row => row.importId)).toEqual([confirmed]);
       expect(workbench?.demoQuality?.every((row) => !("payload" in row))).toBe(true);
+
+      observation.queries.length = 0;
+      const quality = await readAdminDemoQuality({ seasonId: ids.season, matchId: ids.match, mapId: ids.maps[0]!, importId: confirmed });
+      expect(quality.importId).toBe(confirmed);
+      expect(payloadReads()).toHaveLength(1);
+      expect(payloadReads()[0]?.params[0]).toBe(confirmed);
+      expect(quality).not.toHaveProperty("payload");
+      observation.queries.length = 0;
+      await expect(readAdminDemoQuality({ seasonId: randomUUID(), matchId: ids.match, mapId: ids.maps[0]!, importId: confirmed })).rejects.toThrow();
+      expect(payloadReads()).toHaveLength(0);
+      await expect(readAdminDemoQuality({ seasonId: ids.season, matchId: ids.match, mapId: ids.maps[0]!, importId: related })).rejects.toThrow();
+      expect(payloadReads()).toHaveLength(0);
 
       observation.queries.length = 0;
       const targets = await resolveAuditTargets([

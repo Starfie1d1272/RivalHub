@@ -179,6 +179,7 @@ export interface AdminMatchWorkbenchData {
   postMatch: AdminPostMatchRecordData | null;
   demoReviews?: AdminDemoReviewMap[];
   demoQuality?: AdminDemoQuality[];
+  demoQualitySummaries?: Pick<AdminDemoQuality, "importId" | "matchMapId" | "mapOrder" | "mapName">[];
   operator: {
     liveScope?: { authorityRevision: number; generation: number; epoch: number; mapId: string | null } | null;
     problemRecovery?: { sessionId: string; mapEpoch: number; mapId: string; recoverMapBinding: boolean; mapLabel: string; reportContext: { programSourceGeneration: number; lastReliableSeq: number; currentMapId: string | null } } | null;

@@ -239,12 +239,14 @@ export async function loadAdminMatchWorkbench({
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const entryName = new Map(entries.map((entry) => [entry.id, entry.name]));
   const reviewImportIds: string[] = [];
+  const demoQualitySummaries: NonNullable<AdminMatchWorkbenchData["demoQualitySummaries"]> = [];
   for (const map of mapRecords) {
     const rows = demoImportRows.filter((row) => row.matchMapId === map.id);
     const current = selectCurrentDemoImport(rows);
-    if (current?.status === "needs_attention" || current?.status === "confirmed") reviewImportIds.push(current.id);
+    if (current?.status === "needs_attention") reviewImportIds.push(current.id);
+    else if (current?.status === "confirmed") demoQualitySummaries.push({ importId: current.id, matchMapId: map.id, mapOrder: map.mapOrder, mapName: map.mapName });
   }
-  // Read only the selected current artifacts; quality warnings also matter after confirmation.
+  // Active reviews need authoritative details now; confirmed QA is advisory and loaded on expansion.
   const reviewImports = reviewImportIds.length
     ? await db.select().from(matchDemoImports).where(inArray(matchDemoImports.id, reviewImportIds))
     : [];
@@ -328,6 +330,7 @@ export async function loadAdminMatchWorkbench({
     postMatch,
     demoReviews,
     demoQuality,
+    demoQualitySummaries,
     operator,
     commentary,
   };

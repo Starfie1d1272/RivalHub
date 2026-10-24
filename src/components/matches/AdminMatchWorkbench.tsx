@@ -19,6 +19,7 @@ import { ScheduledAtInput } from "@/components/matches/ScheduledAtInput";
 import { VetoInputDialog } from "@/components/matches/VetoInputDialog";
 import { AdminRosterDialog } from "@/components/matches/AdminRosterDialog";
 import { ResultCorrectionPanel } from "@/components/matches/ResultCorrectionPanel";
+import { DeferredDemoQuality } from "./DeferredDemoQuality";
 import { ActivatedStatsOCRPanel } from "@/components/matches/ActivatedStatsOCRPanel";
 import { ForfeitButton } from "@/components/matches/ForfeitButton";
 import { MapScoreCorrectInput } from "@/components/matches/MapScoreCorrectInput";
@@ -110,6 +111,7 @@ export function AdminMatchWorkbench({
   postMatch,
   demoReviews = [],
   demoQuality = [],
+  demoQualitySummaries = [],
   operator,
   commentary,
 }: AdminMatchWorkbenchProps) {
@@ -244,7 +246,12 @@ export function AdminMatchWorkbench({
         </div>)}
       </details>}
 
-      {match.status !== "cancelled" && <DemoDataReviewPanel reviews={demoReviews} quality={demoQuality} />}
+      {match.status !== "cancelled" && <>
+        <DemoDataReviewPanel reviews={demoReviews} quality={demoQuality} />
+        {demoQualitySummaries.length > 0 && <section aria-label="已确认 Demo 质量" className="space-y-3">
+          {demoQualitySummaries.map(summary => <DeferredDemoQuality key={summary.importId} seasonId={season.id} matchId={match.id} summary={summary} />)}
+        </section>}
+      </>}
 
       {match.status !== "cancelled" && <details id="match-lineups" className="space-y-4 rounded border border-[var(--color-border)] p-4" open={match.status === "scheduled"}>
         <summary className="cursor-pointer font-semibold">首发、BP 与赛程管理</summary>
