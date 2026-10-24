@@ -1,3 +1,4 @@
+import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { hasMatchRecordingCondition } from "@/lib/postmatch/recording-query";
 import { hasMatchRecording } from "@/lib/postmatch/recording-types";
 import { withDisplayScores } from "@/lib/matches/display-score-data";
@@ -7,7 +8,7 @@ import type { CompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 import { readReopenedPostMatchIds } from "@/lib/postmatch/read";
 
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, notInArray, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
@@ -18,7 +19,6 @@ import {
   matchDemoImports,
   matchMaps,
   matches,
-  seasons,
   steamProfiles,
   users,
 } from "@/db/schema";
@@ -143,7 +143,7 @@ export async function loadAdminCommentaryEffectiveness(seasonId: string): Promis
 
 /** Shared authorized configuration; materials do not need the schedule substrate. */
 async function loadWorkspaceContext(seasonSlug: string) {
-  const season = await db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) });
+  const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) return null;
   await requireSeasonAdmin(season.id);
   const [allTeams, stageRunRows, qualificationRun] = await Promise.all([
@@ -186,13 +186,32 @@ export async function loadAdminMatchOverview({
   if (!context) return null;
   const { season, allTeams, stageRunRows, qualificationRun, stagePlan } = context;
   const isMajor = season.competitionTemplate === "major";
+  const scope = and(officialMatchCondition(), eq(matches.seasonId, season.id));
+  // Execution discovers stages/counts without fetching every historical match body.
+  const stageCounts = view === "execution"
+    ? await db.select({ stage: matches.stage, count: count() }).from(matches).where(scope).groupBy(matches.stage)
+    : null;
+  const stageKeys = [...(qualificationRun ? ["play-in"] : []), ...stagePlan.map(stage => stage.key)];
+  const chooseStage = (facts: readonly { stage: string }[]) => filterStage && stageKeys.includes(filterStage)
+    ? filterStage
+    : isMajor
+      ? stageRunRows.filter(run => run.startedAt).sort((a, b) => b.startedAt!.getTime() - a.startedAt!.getTime())[0]?.stageKey
+        ?? (qualificationRun ? "play-in" : stagePlan[0]?.key ?? null)
+      : resolveDefaultStageKey(stagePlan, facts, filterStage);
+  const executionStage = stageCounts ? chooseStage(stageCounts.map(row => ({ stage: row.stage ?? "" }))) : null;
+  const configuredKeys = stagePlan.map(stage => stage.key);
+  const executionScope = and(scope, or(
+    executionStage ? eq(matches.stage, executionStage) : undefined,
+    configuredKeys.length ? notInArray(matches.stage, configuredKeys) : undefined,
+  ));
   const [allMatchesRaw, finalResult] = await Promise.all([
-    db.query.matches.findMany({
-      where: and(officialMatchCondition(), eq(matches.seasonId, season.id)), orderBy: [asc(matches.createdAt)],
+    stageCounts?.length === 0 ? Promise.resolve([]) : db.query.matches.findMany({
+      where: view === "execution" && configuredKeys.length ? executionScope : scope,
+      orderBy: [asc(matches.createdAt)],
     }),
     isMajor && view === "schedule" ? db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }) : Promise.resolve(undefined),
   ]);
-  const allMatches = await withDisplayScores(allMatchesRaw.map(requireCompetitionMatch));
+  const allMatches = await withDisplayScores(allMatchesRaw.map(row => requireCompetitionMatch(row)));
 
   const { swissRuntime, playoffRuntime } = isMajor && view === "schedule"
     ? buildMajorRuntimeData({
@@ -202,8 +221,12 @@ export async function loadAdminMatchOverview({
         finalResultStatus: finalResult?.status,
       })
     : { swissRuntime: null, playoffRuntime: null };
+  const defaultStageKey = executionStage ?? chooseStage(allMatches);
   const demoNeedsAttentionByMatch = view === "execution"
-    ? await loadDemoNeedsAttentionCounts(allMatches.map((match) => match.id)) : new Map<string, number>();
+    ? await loadDemoNeedsAttentionCounts(allMatches.filter(match => (match.stage === defaultStageKey || !stageKeys.includes(match.stage))
+      && (!filterStatus || filterStatus === "all" || match.status === filterStatus)
+      && (!filterTeam || filterTeam === "all" || match.entryAId === filterTeam || match.entryBId === filterTeam))
+      .map(match => match.id)) : new Map<string, number>();
 
   const statusFilter = (match: { status: string }) =>
     !filterStatus || filterStatus === "all" || match.status === filterStatus;
@@ -241,15 +264,16 @@ export async function loadAdminMatchOverview({
   const stageViews = [...(qualificationStageView ? [qualificationStageView] : []), ...configuredStageViews];
   const projectedMatches = allMatches.map((match) => projectAdminMatchSummary(match, demoNeedsAttentionByMatch.get(match.id) ?? 0));
 
-  const finishedMatchIds = allMatches
+  const roundRobinViews = allStageViews.filter((view) => view.stage.key === defaultStageKey && view.stage.type === "round_robin" && view.matches.length > 0);
+  const finishedMatchIds = roundRobinViews.flatMap((view) => view.matches)
     .filter((match) => match.status === "finished")
     .map((match) => match.id);
-  const [roundScoresByMatchId, stageEntrantIdsByKey] = view === "schedule"
+  const [roundScoresByMatchId, stageEntrantIdsByKey] = view === "schedule" && roundRobinViews.length > 0
     ? await Promise.all([getMatchMapRoundScores(finishedMatchIds), loadStageBracketEntrantIds(db, season.id)])
     : [new Map(), new Map()];
 
   const standingsByStage = new Map(
-    (view === "schedule" ? allStageViews : [])
+    (view === "schedule" ? roundRobinViews : [])
       .filter((view) => view.stage.type === "round_robin" && view.matches.length > 0)
       .map((view) => [
         view.stage.key,
@@ -262,25 +286,21 @@ export async function loadAdminMatchOverview({
         }),
       ]),
   );
-  const matchCount = allMatches.length;
+  const matchCount = stageCounts ? stageCounts.reduce((sum, row) => sum + Number(row.count), 0) : allMatches.length;
   const hasSwissStage = stagePlan.some((stage) => stage.type === "swiss");
   const canGenerate = season.status === "playing" && matchCount === 0 && allTeams.length >= 2 && !hasSwissStage;
 
   return {
     ...projectWorkspace(context),
     matches: projectedMatches,
+    matchCount,
     stageViews,
     unconfiguredMatches: unconfiguredMatches.map((match) => projectAdminMatchSummary(match, demoNeedsAttentionByMatch.get(match.id) ?? 0)),
     standingsByStage,
     batchDeadlineGroups: view === "schedule" ? buildBatchDeadlineGroups(allMatches, stagePlan) : [],
     canGenerate,
     hasSwissStage,
-    defaultStageKey: filterStage && stageViews.some(({ stage }) => stage.key === filterStage)
-      ? filterStage
-      : isMajor
-        ? stageRunRows.filter((run) => run.startedAt).sort((a, b) => b.startedAt!.getTime() - a.startedAt!.getTime())[0]?.stageKey
-          ?? (qualificationRun ? "play-in" : stagePlan[0]?.key ?? null)
-        : resolveDefaultStageKey(stagePlan, allMatches, filterStage),
+    defaultStageKey,
     swissRuntime,
     playoffRuntime,
   };

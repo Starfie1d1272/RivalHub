@@ -1,9 +1,7 @@
 import { TelemetryScene } from "@/components/telemetry/ProductTelemetry";
 import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
-import { eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
+import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
@@ -25,20 +23,7 @@ async function AdminSeasonContent({
   params: Promise<{ seasonSlug: string }>;
 }) {
   const { seasonSlug } = await params;
-  const season = await db.query.seasons.findFirst({
-    where: eq(seasons.slug, seasonSlug),
-    columns: {
-      id: true,
-      name: true,
-      competitionTemplate: true,
-      registrationMode: true,
-      hasCaptainVoting: true,
-      hasDraft: true,
-      hasCommunityAwards: true,
-      stagePlan: true,
-      status: true,
-    },
-  });
+  const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) notFound();
 
   const admin = await resolveAdminPageAccess(() => requireSeasonAdmin(season.id));

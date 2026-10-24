@@ -77,7 +77,7 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
         .select()
         .from(auditLogs)
         .where(where)
-        .orderBy(desc(auditLogs.createdAt))
+        .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
         .limit(safePageSize)
         .offset((safePage - 1) * safePageSize),
       db.select({ count: count() }).from(auditLogs).where(where),

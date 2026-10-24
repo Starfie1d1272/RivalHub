@@ -1,0 +1,33 @@
+{
+  "scope": "isolated local fixture; Chromium desktop; retry=0; explicit trace=on",
+  "base": "6697cb5cdace762297085cf7c6ed542d0c434cc1",
+  "adminCode": "1bc4c2d7b69be7bd7ed22ea42a8b03f31192bfd6",
+  "betDependency": "a94b96ef5be2857c6518b460deedfcb3623437c4",
+  "integratedCode": "63147fba",
+  "conditions": [
+    "createPredictionBrowserFixture",
+    "first match changed to BO3",
+    "seasonAdminGrant for scenario user",
+    "programmatic sign-in to admin BET",
+    "enable is enabled within existing20s bound",
+    "confirmation opens and enable submitted",
+    "pause enabled and program exists"
+  ],
+  "result": "passed",
+  "elapsedTestSuiteSeconds": 25.3,
+  "traceCaptured": true,
+  "privateTraceCommitted": false,
+  "limits": [
+    "n=1; development compilation; not LCP or production latency",
+    "same-origin application scripts/pageerrors remain failure assertions; external debug script local certificate failures separated",
+    "original W07 120s failure not reproduced; root cause remains unproven",
+    "Edge instrumentation Node API compile warnings present"
+  ],
+  "frozenMainRepeat": {
+    "base": "d58ab7c4fb97cef7795ee2de9d9b5d6a2e208eaf",
+    "code": "35b9c4e7cdbef988b85b5ba8f48ad973632000ca",
+    "result": "passed",
+    "elapsedTestSuiteSeconds": 15.1,
+    "trace": "explicit on; private fixture artifact only"
+  }
+}
