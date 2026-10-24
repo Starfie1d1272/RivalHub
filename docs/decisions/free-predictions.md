@@ -8,7 +8,7 @@
 
 当前有效选择保存在 `free_prediction_choices`，冻结双方、run、赛制及 BP 地图池；重选覆盖当前选择并追加 `free_prediction_requests` 修订。相同用户/requestId 重放返回原 receipt，不恢复旧选择；不同参数重用同一键拒绝。所有写入在一个事务，唯一约束兜底。
 
-赛果消费既有 `resolveBetFact` 正式赛果投影，取消/弃权/更换对阵或缺失比赛不记有效次数。BP 消费完整合法 BP 集合，不依赖实际已打地图数量；待申诉或尚未完成时 pending，无效结果 void。成绩从当前 canonical facts 读取时计算，更正自动改变成绩，不持久化另一份官方答案。
+赛果消费既有 `resolveBetFact` 正式赛果投影，取消/弃权/更换对阵或缺失比赛不记有效次数。BP 与 BET 共用 `src/lib/matches/veto-result.ts`，从已完成 session 的正式 pick/decider 步骤投影完整集合，不依赖 `match_maps` 行数或实际已打地图数量；待申诉、尚未完成或缺少完整合法步骤时 pending，subject 变更、取消和弃权沿原规则 void。成绩从当前 canonical facts 读取时计算，更正自动改变成绩，不持久化另一份官方答案。
 
 `readFreePredictionBoard` 安全地返回 canonical 比赛 status/isForfeit、各类 restriction(code/message)、当前会话本人的选择和成绩、双方匿名赛果人数/比例以及 BP 地图计数。访客 mine/grade 为 null；零人数的比例为 null。`getFreePredictionRanking({seasonId,sort,userIds?})` 的 sort 为 profit/hits/accuracy，同表保留三列；没有已判定赛果时 hits/judged/accuracy 为 null。只计算赛果，BP 永不入榜。命中次数榜至少一场有效已判定赛果即可参与正式排名，包括零命中者；命中率榜才以完整赛事总体经 `partitionRankingPopulation` 计算 P75 × 25% 动态资格线。两榜均先确定资格与排名，再筛选用户；净收益沿用 BET 的资格、并列排名与有效净收益投影。
 

@@ -4,7 +4,7 @@ import { hasVetoGameplayInTx } from "@/lib/matches/veto-room/appeal-lifecycle";
 import "server-only";
 import { and, eq, inArray, isNotNull, asc } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { seasons, matches, matchMaps, matchVetoSessions, matchVetoAppeals, matchVetoTimeoutIncidents, competitionEntries, majorFinalResults, majorPrestartStates, majorTournamentEntrants, competitionQualificationRuns, eventRosterMembers, eventRosters, users, steamProfiles, matchPlayerStats, matchDemoImports, majorStageRuns } from "@/db/schema";
+import { seasons, matches, matchMaps, matchVetoSessions, matchVetoSteps, matchVetoAppeals, matchVetoTimeoutIncidents, competitionEntries, majorFinalResults, majorPrestartStates, majorTournamentEntrants, competitionQualificationRuns, eventRosterMembers, eventRosters, users, steamProfiles, matchPlayerStats, matchDemoImports, majorStageRuns } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { resolveManagedMajorProfile } from "@/lib/competition/definition";
@@ -27,12 +27,14 @@ export async function loadBetFacts(tx: TxDb,seasonId: string, scope: BetFactScop
     .map(map=>map.startedAt ?? map.completedAt!)
     .sort((a,b)=>a.getTime()-b.getTime())[0] ?? null}));
   const vetos = await tx.select({veto:matchVetoSessions}).from(matchVetoSessions).innerJoin(matches,eq(matches.id,matchVetoSessions.matchId)).where(matchCondition).then(rows=>rows.map(r=>r.veto));
+  const vetoSteps = await tx.select({matchId:matchVetoSteps.matchId,stepOrder:matchVetoSteps.stepOrder,actionType:matchVetoSteps.actionType,mapName:matchVetoSteps.mapName})
+    .from(matchVetoSteps).innerJoin(matches,eq(matches.id,matchVetoSteps.matchId)).where(matchCondition).orderBy(asc(matchVetoSteps.stepOrder));
   const appeals = await tx.select({matchId:matchVetoTimeoutIncidents.matchId}).from(matchVetoAppeals).innerJoin(matchVetoTimeoutIncidents,eq(matchVetoTimeoutIncidents.id,matchVetoAppeals.timeoutIncidentId)).innerJoin(matches,eq(matches.id,matchVetoTimeoutIncidents.matchId)).where(and(matchCondition,eq(matchVetoAppeals.status,"pending")));
   // Reader-only rollout retains pending history. Gameplay ends its BP recovery
   // effect even before the closed producer is shipped; settlement must continue.
   const recoverableAppeals = new Set((await Promise.all([...new Set(appeals.map(a=>a.matchId))]
     .map(async matchId => await hasVetoGameplayInTx(tx, matchId) ? null : matchId))).filter(id=>id!==null));
-  const vetoByMatch = new Map<string,VetoFact>(vetos.map(v=>[v.matchId,{...v,pendingAppeal:recoverableAppeals.has(v.matchId)}]));
+  const vetoByMatch = new Map<string,VetoFact>(vetos.map(v=>[v.matchId,{...v,steps:vetoSteps.filter(step=>step.matchId===v.matchId),pendingAppeal:recoverableAppeals.has(v.matchId)}]));
   const entries = await tx.select({id:competitionEntries.id,name:competitionEntries.name,logoUrl:competitionEntries.logoUrl}).from(competitionEntries).where(eq(competitionEntries.competitionId,seasonId));
   const roster = scope.rosterUserId === null ? [] : await tx.select({entryId:eventRosters.entryId,userId:eventRosterMembers.userId,name:users.displayName,perfectName:users.perfectName,personaName:steamProfiles.personaName,current:eventRosterMembers.isCurrent}).from(eventRosterMembers).innerJoin(eventRosters,eq(eventRosters.id,eventRosterMembers.eventRosterId)).innerJoin(competitionEntries,eq(competitionEntries.id,eventRosters.entryId)).innerJoin(users,eq(users.id,eventRosterMembers.userId)).leftJoin(steamProfiles,eq(steamProfiles.steam64,users.steam64)).where(and(eq(competitionEntries.competitionId,seasonId),inArray(eventRosters.status,["confirmed","frozen"]), scope.rosterUserId ? eq(eventRosterMembers.userId,scope.rosterUserId) : undefined));
   if (scope.event === false) {

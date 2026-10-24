@@ -51,10 +51,12 @@ BO1 不生成重复的单图胜者；总回合仍独立开放。BO3/BO5 的单�
 
 BET catalog 的 reader-first 发布门禁由 Release Plan 消费 candidate 与 frozen previous Production commit 的 `src/lib/bet/catalog-contract.json`。新增 subject 的 publisher version 不得超过 previous Production reader version；必须先独立发布兼容读取版本，再启用新 subject，不能把两阶段合并为一次发布。兼容 v1 publisher 遇到同图序的新池时不重复开池；兼容 v2 publisher 遇到同一比赛曾创建的 BO3 `veto_present` 时不补开首图/决胜图池，即使原池因对阵、run 或地图池更正而不再匹配 subject、已锁或已作废。它们与新 worker 复用同一金融结算 owner。
 
-BO3 三图积分市场的兼容 reader 支持 `veto_present`：冻结七张不同地图的 match subject，每账户选择一张；完整合法 BP 的三张无序地图全部作为中奖选项，不依赖第三图实际进行。BP 未完成、结果集合缺失/重复/不在冻结地图池或有待处理申诉时保持 pending；取消、弃权或 subject 更正沿现有规则退款。结果更正追加 reversal/settlement，已锁盘不重开；仅地图顺序变化不改变中奖集合。选项支持率仍以该选项投入 / 全池投入计算，三张中奖图不会各分一个奖池。
+BO3 三图积分市场的兼容 reader 支持 `veto_present`：冻结七张不同地图的 match subject，每账户选择一张；完整合法 BP 的三张无序地图全部作为中奖选项，不依赖第三图实际进行。BET 与免费 BP 成绩共用 `src/lib/matches/veto-result.ts`，从已完成 session 的正式 `match_veto_steps` 依序投影 pick 与 decider；`match_maps` 只表达地图对局，不承担 BP 答案来源。BP 未完成、步骤或结果集合缺失/重复/不在冻结地图池或有待处理申诉时保持 pending；取消、弃权或 subject 更正沿现有规则退款。正式 BP 步骤更正追加 reversal/settlement，已锁盘不重开；仅地图顺序变化不改变中奖集合。选项支持率仍以该选项投入 / 全池投入计算，三张中奖图不会各分一个奖池。
 
 BO3 publisher 只读取独立的 `capabilities.bo3BpPresence` publisher 开关；全局 catalog 或 ledger 升级不授权新市场。只在合法赛前窗口、冻结七张不同地图且本场从未创建任何 BP 市场时生成一个 `veto_present`。任何已创建的旧 BP 池（即使无人投入、已锁或已结算、官方身份后来更正）保留条款与入口，不转换、不补三图池；BO1/BO5 保持原逻辑。目录 generation 与追加 migration 中 `scheduler_job_is_due` 的 BET 版本门槛同步推进，旧 worker 清理 dirty 后仍会由新 worker 恢复待处理工作。页面显示七选一、逐选项资金支持率及实际返还；赛前不提供独胜收益估算，原位规则说明三张地图共用一个奖池和退款条件。
 
 缺失能力声明的旧版本视为 0/0；Release Plan 对每个能力单独验证 frozen previous Production reader 与 candidate publisher，并禁止回退到不兼容 reader。BO3 reader1/publisher0 必须先独立上线 Production，再发布 publisher1；合 main 或一次混合发布不能替代这一步。追加目录 migration 仍按 Release Plan 完成 PG17 rehearsal、N/N+1 兼容与条件 checkpoint。
 
 金融 ledger kind 使用独立 `ledger-contract.json` 维度，缺失声明视为 reader/publisher 0。ledger v1 reader 将 relief 显示为低保补给，未知 kind 显示为积分变动，余额/净收益继续消费 amount/profit。低保 producer 必须等待 ledger reader1/publisher0 独立上线后才能启用 publisher1；市场全局或 `bo3BpPresence` reader 的发布不授权新 ledger kind，低保 reader 也不授权新市场。
+
+纯结算规则修复不会自动把已清理 dirty 的历史项目重新入队。部署后如需修复历史待结算盘，管理员使用原 BET「重试」操作，经既有项目锁与 reconciliation owner 重新读取正式事实；不直接修改答案、余额或地图记录。同项目重复执行不会重复返还。
