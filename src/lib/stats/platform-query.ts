@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
@@ -17,18 +18,17 @@ import { publicStatsView } from "./public-view";
 import { parseStatsQuery, type StatsSearch } from "./view-state";
 
 /** Fresh public membership is part of the cache key, including historical archived events. */
-export async function getFreshStatsEvents() {
+export const getFreshStatsEvents = cache(async function getFreshStatsEvents() {
   return db.select({ id: seasons.id, slug: seasons.slug, name: seasons.name, status: seasons.status, stagePlan: seasons.stagePlan, competitionTemplate: seasons.competitionTemplate })
     .from(seasons).where(ne(seasons.status, "draft")).orderBy(seasons.id);
-}
+});
 /** Map/BP discovery shares the formal scope of the statistics it filters. */
 export async function getOfficialStatsMapCatalog(seasonIds: string[]) {
-  const maps = seasonIds.length ? await db.selectDistinct({ name: matchMaps.mapName, seasonId: matches.seasonId }).from(matchMaps)
-    .innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(officialMatchCondition(), inArray(matches.seasonId, seasonIds))) : [];
-  const vetoMaps = seasonIds.length ? await db.selectDistinct({ name: matchVetoSteps.mapName, seasonId: matches.seasonId }).from(matchVetoSteps)
-    .innerJoin(matches, eq(matches.id, matchVetoSteps.matchId)).where(and(officialMatchCondition(), inArray(matches.seasonId, seasonIds))) : [];
-  maps.push(...vetoMaps);
-  return maps;
+  if (!seasonIds.length) return [];
+  return db.selectDistinct({ name: matchMaps.mapName, seasonId: matches.seasonId }).from(matchMaps)
+    .innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(officialMatchCondition(), inArray(matches.seasonId, seasonIds)))
+    .unionAll(db.selectDistinct({ name: matchVetoSteps.mapName, seasonId: matches.seasonId }).from(matchVetoSteps)
+    .innerJoin(matches, eq(matches.id, matchVetoSteps.matchId)).where(and(officialMatchCondition(), inArray(matches.seasonId, seasonIds))));
 }
 async function cachedPlatformStats(scope: PlatformStatsScope, versions: string) {
   "use cache: remote";
@@ -43,16 +43,18 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
   if (requestedEvent !== undefined && (typeof requestedEvent !== "string" || !/^[a-z0-9][a-z0-9-]{0,127}$/.test(requestedEvent))) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
   const event = events.find((e) => e.slug === requestedEvent);
   if (requestedEvent && !event) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
-  const stages = event ? (await getPublicSeasonStagePresentation(event)).officialStages.map(({ key, name }) => ({ key, name })) : [];
   for (const key of ["stage", "format", "mapFilter", "map", "teamFilter"]) {
     const value = raw[key];
     if (value !== undefined && (typeof value !== "string" || value.length > 128)) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
   }
   if (raw.format && !["bo1", "bo3", "bo5"].includes(raw.format as string)) throw new AppError(ErrorCode.NOT_FOUND, "赛制范围不可用。");
+  const [stages, maps] = await Promise.all([
+    event ? getPublicSeasonStagePresentation(event).then(presentation => presentation.officialStages.map(({ key, name }) => ({ key, name }))) : Promise.resolve([]),
+    getOfficialStatsMapCatalog(events.map(e => e.id)),
+  ]);
   const query = parseStatsQuery(raw, stages.map((s) => s.key));
   if ((!event && (raw.stage || raw.teamFilter)) || query.stage === "__invalid__" || query.mapFilter === "__invalid__") throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
   const ids = event ? [event.id] : events.map((e) => e.id);
-  const maps = await getOfficialStatsMapCatalog(events.map(e => e.id));
   const allowedMaps = [...new Set(maps.filter((m) => m.seasonId !== null && ids.includes(m.seasonId)).map((m) => m.name))].sort();
   if ((raw.map && !/^de_[a-z0-9_]+$/.test(raw.map as string)) || (raw.map && query.tab !== "maps")
     || (query.map && !allowedMaps.includes(query.map)) || (query.mapFilter && !allowedMaps.includes(query.mapFilter))

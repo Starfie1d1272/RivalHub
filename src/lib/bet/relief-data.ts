@@ -11,18 +11,25 @@ export async function betReliefDay(tx: TxDb): Promise<string> {
 }
 /** Pure reads, including for unjoined viewers: never opens an account or reconciles. */
 export async function readBetRelief(tx: TxDb, seasonId: string, userId: string | null, day?: string): Promise<BetReliefDTO> {
-  const currentDay = day ?? await betReliefDay(tx);
-  const season = await tx.query.seasons.findFirst({where: eq(seasons.id, seasonId), columns: {status: true, competitionTemplate: true}});
-  const program = await tx.query.betPrograms.findFirst({where: eq(betPrograms.seasonId, seasonId)});
-  const user = userId ? await tx.query.users.findFirst({where: eq(users.id, userId), columns: {status: true, emailVerifiedAt: true}}) : undefined;
-  const account = userId ? await tx.query.betAccounts.findFirst({where: and(eq(betAccounts.seasonId, seasonId), eq(betAccounts.userId, userId))}) : undefined;
-  const [totals] = account ? await tx.select({
-    balance: sql<string>`coalesce(sum(${betLedger.amount}), 0)::text`,
-    granted: sql<string>`coalesce(sum(${betLedger.amount}) filter (where ${betLedger.kind} = 'relief'), 0)::text`,
-    claimedToday: sql<boolean>`coalesce(bool_or(${betLedger.kind} = 'relief' and ${betLedger.source} = ${`relief/${currentDay}`}), false)`,
-  }).from(betLedger).where(and(eq(betLedger.accountId, account.id), eq(betLedger.seasonId, seasonId))) : [];
-  const eligibility = projectBetRelief({day: currentDay, loggedIn: !!userId, activeVerified: !!user && user.status === "active" && !!user.emailVerifiedAt,
-    enabled: !!program, paused: program?.paused ?? false, seasonOpen: !!season && season.competitionTemplate === "major" && !["finished", "archived"].includes(season.status),
-    joined: !!account, balance: BigInt(totals?.balance ?? "0"), granted: BigInt(totals?.granted ?? "0"), claimedToday: totals?.claimedToday ?? false});
+  // One statement holds the same snapshot and clock while avoiding per-fact round trips.
+  const currentDay = sql<string>`relief_clock.day`;
+  const totals = tx.select({
+    balance: sql<string>`coalesce(sum(${betLedger.amount}), 0)::text`.as("balance"),
+    granted: sql<string>`coalesce(sum(${betLedger.amount}) filter (where ${betLedger.kind} = 'relief'), 0)::text`.as("granted"),
+    claimedToday: sql<boolean>`coalesce(bool_or(${betLedger.kind} = 'relief' and ${betLedger.source} = 'relief/' || ${currentDay}), false)`.as("claimed_today"),
+  }).from(betLedger).where(and(eq(betLedger.accountId, betAccounts.id), eq(betLedger.seasonId, seasonId))).as("relief_totals");
+  const [facts] = await tx.select({
+    day: currentDay, seasonStatus: seasons.status, template: seasons.competitionTemplate,
+    programId: betPrograms.seasonId, paused: betPrograms.paused, userStatus: users.status, verifiedAt: users.emailVerifiedAt,
+    accountId: betAccounts.id, balance: totals.balance, granted: totals.granted, claimedToday: totals.claimedToday,
+  }).from(sql`(select coalesce(${day ?? null}::text, to_char(clock_timestamp() at time zone 'Asia/Shanghai', 'YYYY-MM-DD')) as day) as relief_clock`)
+    .leftJoin(seasons, eq(seasons.id, seasonId))
+    .leftJoin(betPrograms, eq(betPrograms.seasonId, seasonId))
+    .leftJoin(users, sql`${users.id} = ${userId}`)
+    .leftJoin(betAccounts, and(eq(betAccounts.seasonId, seasonId), eq(betAccounts.userId, users.id)))
+    .leftJoinLateral(totals, sql`true`);
+  const eligibility = projectBetRelief({day: facts!.day, loggedIn: !!userId, activeVerified: facts!.userStatus === "active" && !!facts!.verifiedAt,
+    enabled: !!facts!.programId, paused: facts!.paused ?? false, seasonOpen: facts!.template === "major" && !["finished", "archived"].includes(facts!.seasonStatus ?? ""),
+    joined: !!facts!.accountId, balance: BigInt(facts!.balance ?? "0"), granted: BigInt(facts!.granted ?? "0"), claimedToday: facts!.claimedToday ?? false});
   return canPublishBetRelief() ? eligibility : { ...eligibility, canClaim: false, amount: "0", reason: "publication_unavailable" };
 }

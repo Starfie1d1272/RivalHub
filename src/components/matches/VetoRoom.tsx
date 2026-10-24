@@ -18,10 +18,6 @@ import type { ActionResult } from "@/types/action";
 import {
   claimVetoRepresentativeAction as telemetry_claimVetoRepresentativeAction,
   pauseVetoRoomAction as telemetry_pauseVetoRoomAction,
-  performVetoRoomCommand as telemetry_performVetoRoomCommand,
-  readVetoRoom,
-  reconcileVetoRoomAction,
-  requestVetoRoomStart as telemetry_requestVetoRoomStart,
   resolveVetoRoomAppeal as telemetry_resolveVetoRoomAppeal,
   resumeVetoRoomAction as telemetry_resumeVetoRoomAction,
   rewindVetoRoomAction as telemetry_rewindVetoRoomAction,
@@ -29,12 +25,13 @@ import {
   submitVetoRoomAppeal as telemetry_submitVetoRoomAppeal,
   updateVetoRepresentative as telemetry_updateVetoRepresentative,
 } from "@/actions/matches/veto-room";
+import { fetchVetoRoom, sendVetoInteraction, isCurrentVetoResponse } from "@/lib/matches/veto-room/client";
 import { observeAction } from "@/lib/telemetry/client";
 
 const claimVetoRepresentativeAction = observeAction("matches.veto-room.claimVetoRepresentativeAction", telemetry_claimVetoRepresentativeAction);
 const pauseVetoRoomAction = observeAction("matches.veto-room.pauseVetoRoomAction", telemetry_pauseVetoRoomAction);
-const performVetoRoomCommand = observeAction("matches.veto-room.performVetoRoomCommand", telemetry_performVetoRoomCommand);
-const requestVetoRoomStart = observeAction("matches.veto-room.requestVetoRoomStart", telemetry_requestVetoRoomStart);
+const performVetoRoomCommand = observeAction("matches.veto-room.performVetoRoomCommand", (input: unknown) => sendVetoInteraction("command", input));
+const requestVetoRoomStart = observeAction("matches.veto-room.requestVetoRoomStart", (input: unknown) => sendVetoInteraction("start", input));
 const resolveVetoRoomAppeal = observeAction("matches.veto-room.resolveVetoRoomAppeal", telemetry_resolveVetoRoomAppeal);
 const resumeVetoRoomAction = observeAction("matches.veto-room.resumeVetoRoomAction", telemetry_resumeVetoRoomAction);
 const rewindVetoRoomAction = observeAction("matches.veto-room.rewindVetoRoomAction", telemetry_rewindVetoRoomAction);
@@ -80,49 +77,66 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
   const [appealReasons, setAppealReasons] = useState<Record<string, string>>({});
   const reconciledDeadlineRef = useRef<string | null>(null);
   const reconciledStartBoundaryRef = useRef<string | null>(null);
+  const latestRoom = useRef(initialRoom);
+  const pendingRef = useRef(false);
+  const readGeneration = useRef(0);
+  const refreshController = useRef<AbortController | null>(null);
+  const reconcileInFlight = useRef(false);
+  const applyRoom = useCallback((next: VetoRoomView) => {
+    if (!isCurrentVetoResponse(latestRoom.current, next)) return false;
+    latestRoom.current = next;
+    setRoom(next);
+    setClockAnchor({ serverNowMs: new Date(next.session.serverNow).getTime(), performanceNowMs: performance.now() });
+    return true;
+  }, []);
   const refreshInFlight = useRef(false);
   const explicitRefresh = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const refresh = useCallback(async (announce = false) => {
     if (announce) { explicitRefresh.current = true; setRefreshing(true); setNotice(""); }
-    if (refreshInFlight.current) return;
+    if (refreshInFlight.current || pendingRef.current) return;
     refreshInFlight.current = true;
+    const generation = readGeneration.current;
+    const controller = new AbortController();
+    refreshController.current = controller;
     try {
-      const result = await readVetoRoom(room.match.id);
+      const result = await fetchVetoRoom(room.match.id, AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]));
+      if (generation !== readGeneration.current) return;
       if (!result.success) {
         setError(result.error.message);
         return;
       }
       const next = result.data;
       if (explicitRefresh.current) { setError(""); setNotice("BP 信息已更新。"); }
-      setRoom(next);
-      setClockAnchor({ serverNowMs: new Date(next.session.serverNow).getTime(), performanceNowMs: performance.now() });
+      applyRoom(next);
     } catch {
-      setError("同步失败，请稍后重试。");
+      if (generation === readGeneration.current) setError("同步失败，请稍后重试。");
     } finally {
       refreshInFlight.current = false;
       explicitRefresh.current = false;
       setRefreshing(false);
     }
-  }, [room.match.id]);
+  }, [room.match.id, applyRoom]);
 
   const reconcileRoomBoundary = useCallback(async () => {
-    const result = await reconcileVetoRoomAction({ matchId: room.match.id });
-    if (!result.success) {
-      setError(result.error.message);
-      return;
-    }
-    setRoom(result.data.room);
-    setClockAnchor({ serverNowMs: new Date(result.data.room.session.serverNow).getTime(), performanceNowMs: performance.now() });
-    if (result.data.outcome === "applied") setNotice("BP 进度已更新。");
-  }, [room.match.id]);
+    if (pendingRef.current || reconcileInFlight.current) return;
+    reconcileInFlight.current = true;
+    const generation = readGeneration.current;
+    try {
+      const result = await sendVetoInteraction("reconcile", { matchId: room.match.id });
+      if (generation !== readGeneration.current) return;
+      if (!result.success) { setError(result.error.message); return; }
+      if (applyRoom(result.data.room) && result.data.outcome === "applied") setNotice("BP 进度已更新。");
+    } catch { if (generation === readGeneration.current) setError("BP 同步暂未完成，请更新 BP 信息。"); }
+    finally { reconcileInFlight.current = false; }
+  }, [room.match.id, applyRoom]);
 
   // Keep a slow recovery read after completion/pause: administrators may rewind
   // or resume BP. Hidden tabs stop reads; returning to the tab resynchronizes.
   const quietRoom = room.session.completedAt || room.session.paused
     || room.match.statusKey === "finished" || room.match.statusKey === "cancelled";
-  useVisiblePolling(refresh, quietRoom ? 60_000 : room.session.startedAt ? 2_000 : 5_000);
+  useVisiblePolling(refresh, pending ? null : quietRoom ? 60_000 : room.session.startedAt ? 2_000 : 5_000);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -135,6 +149,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
   }, [clockAnchor, room.session.turnDeadlineAt]);
 
   useEffect(() => {
+    if (pending) return;
     const { currentTurnKey, turnDeadlineAt, startedAt, completedAt, paused } = room.session;
     if (room.match.statusKey !== "in_progress" || !currentTurnKey || !turnDeadlineAt || !startedAt || completedAt || paused) return;
     const deadlineMs = new Date(turnDeadlineAt).getTime();
@@ -143,7 +158,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     const estimatedServerNow = clockAnchor.serverNowMs + (performance.now() - clockAnchor.performanceNowMs);
     const delay = Math.max(0, deadlineMs + 2_000 - estimatedServerNow);
     const timer = window.setTimeout(() => {
-      if (reconciledDeadlineRef.current === attemptKey) return;
+      if (pendingRef.current || reconciledDeadlineRef.current === attemptKey) return;
       reconciledDeadlineRef.current = attemptKey;
       void reconcileRoomBoundary();
     }, delay);
@@ -153,10 +168,12 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     reconcileRoomBoundary,
     room.session,
     room.match.statusKey,
+    pending,
   ]);
 
 
   useEffect(() => {
+    if (pending) return;
     const { effectiveForceAt, startedAt, completedAt, previousMatchBlocker, revision } = room.session;
     if (room.match.statusKey !== "scheduled" || startedAt || completedAt || previousMatchBlocker) return;
     const requestedCount = room.entries.filter((entry) => entry.startRequested).length;
@@ -180,7 +197,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     if (reconciledStartBoundaryRef.current === attemptKey) return;
     const delay = Math.max(0, boundaryMs - estimatedServerNow);
     const timer = window.setTimeout(() => {
-      if (reconciledStartBoundaryRef.current === attemptKey) return;
+      if (pendingRef.current || reconciledStartBoundaryRef.current === attemptKey) return;
       reconciledStartBoundaryRef.current = attemptKey;
       void reconcileRoomBoundary();
     }, delay);
@@ -192,9 +209,14 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     room.match.scheduledAt,
     room.match.statusKey,
     room.session,
+    pending,
   ]);
 
   const mutate = useCallback(async (action: MutationAction, input: unknown, successMessage = "已保存。") => {
+    if (pendingRef.current) return;
+    pendingRef.current = true;
+    readGeneration.current++;
+    refreshController.current?.abort();
     setPending(true);
     setError("");
     setNotice("");
@@ -204,17 +226,19 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
         setError(result.error.message);
         return;
       }
-      setRoom(result.data.room);
-      setClockAnchor({ serverNowMs: new Date(result.data.room.session.serverNow).getTime(), performanceNowMs: performance.now() });
+      if (!applyRoom(result.data.room)) return;
       setRepresentatives(Object.fromEntries(result.data.room.entries.map((entry) => [entry.id, entry.vetoRepresentativeMemberId ?? ""])));
       setManualPrivilege(result.data.room.session.privilegedEntryId ?? "");
       setNotice(result.data.outcome === "stale" ? "BP 状态已更新，请按当前步骤重新选择。" : successMessage);
     } catch {
-      setError("操作未完成，请更新 BP 信息后重试。");
+      setError("操作结果暂未确认，请更新 BP 信息核对后再操作。");
     } finally {
+      pendingRef.current = false;
       setPending(false);
     }
-  }, []);
+  }, [applyRoom]);
+
+  useEffect(() => () => { readGeneration.current++; refreshController.current?.abort(); }, []);
 
   const turn = room.session;
   const match = room.match;

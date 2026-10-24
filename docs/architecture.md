@@ -65,7 +65,7 @@ Public profile routes compose server-only read models; scope selection and deriv
 
 公开页面默认不暴露 email、QQ、`studentId`、`authId`、管理员授权范围、教育证据或内部备注。不能把内部查询对象直接序列化给浏览器。
 
-公开导航使用 app-level Partial Prefetching；`params` / `searchParams` 驱动的内容留在最小 Suspense 区域，使同一路由可以复用 URL 无关的 shell。首页公共投影、公共选手资料、已发布公告候选和赛事公开介绍复用部署平台已有的 remote cache，保留各自生命周期、DTO 与语义 tag；公告候选仅按公共 scope 缓存，分钟截止筛选在缓存外执行。展示身份与身份归并同时失效选手和首页投影；报名审核也立即失效首页。草稿赛事介绍仅在共享缓存外授权后直接读取；公开公告排除草稿赛事，发布、撤回、删除与名称/slug 修改由赛事 action 精确失效公告和介绍 tag；比赛/BP 与赛程更新不驱逐这两个缓存。删除与关闭后的失效先于外部存储清理，清理失败不保留旧公开内容。规则文件的纯本地缓存不变。公开统计和编译后的全站基准通过 `use cache: remote` 使用部署平台的共享运行时缓存；普通 `use cache` 的实例内存不能作为跨实例或长期保存保证。所有统计组合结果共享语义统计 tag；Demo、正式赛果、阵容、身份、参赛归属、公开状态和展示身份变更都使它失效。Server Action 使用 `updateTag()`，Route Handler、webhook 与 scheduler 使用 `revalidateTag(tag, { expire: 0 })`，撤回或归属更正不返回旧统计。队伍邀请的发送、拒绝、撤销只刷新邀请 UI，不失效统计；队伍资料、Logo 与成员/队长变更继续保守失效统计。公开玩家资料与招募列表通过独立竞技目录 tag 共享只读目录，目录 mutation 提交后立即失效；资格校验、管理页与发布冻结继续使用直接/事务内读取。公开赛事目录与 slug lookup 使用 remote cache，保留短生命周期和 draft 授权隔离。允许短时旧值的非统计 read model 才使用 `revalidateTag(tag, "max")`。
+比赛详情先流式返回已完成可见性校验的对阵与比分，权限、阵容和统计内容在独立 Suspense 区域完成；赛程的独立池级读取并行，单事务内仍串行。公开导航使用 app-level Partial Prefetching；`params` / `searchParams` 驱动的内容留在最小 Suspense 区域，使同一路由可以复用 URL 无关的 shell。首页公共投影、公共选手资料、已发布公告候选和赛事公开介绍复用部署平台已有的 remote cache，保留各自生命周期、DTO 与语义 tag；公告候选仅按公共 scope 缓存，分钟截止筛选在缓存外执行。展示身份与身份归并同时失效选手和首页投影；报名审核也立即失效首页。草稿赛事介绍仅在共享缓存外授权后直接读取；公开公告排除草稿赛事，发布、撤回、删除与名称/slug 修改由赛事 action 精确失效公告和介绍 tag；比赛/BP 与赛程更新不驱逐这两个缓存。删除与关闭后的失效先于外部存储清理，清理失败不保留旧公开内容。规则文件的纯本地缓存不变。公开统计和编译后的全站基准通过 `use cache: remote` 使用部署平台的共享运行时缓存；普通 `use cache` 的实例内存不能作为跨实例或长期保存保证。所有统计组合结果共享语义统计 tag；Demo、正式赛果、阵容、身份、参赛归属、公开状态和展示身份变更都使它失效。Server Action 使用 `updateTag()`，Route Handler、webhook 与 scheduler 使用 `revalidateTag(tag, { expire: 0 })`，撤回或归属更正不返回旧统计。队伍邀请的发送、拒绝、撤销只刷新邀请 UI，不失效统计；队伍资料、Logo 与成员/队长变更继续保守失效统计。公开玩家资料与招募列表通过独立竞技目录 tag 共享只读目录，目录 mutation 提交后立即失效；资格校验、管理页与发布冻结继续使用直接/事务内读取。公开赛事目录与 slug lookup 使用 remote cache，保留短生命周期和 draft 授权隔离。允许短时旧值的非统计 read model 才使用 `revalidateTag(tag, "max")`。
 
 session、authorization、admin 与 draft facts 不进入共享 public cache；统计缓存外读取 fresh public membership；平台/单届聚合的 key 包含规范化 scope、有效公开赛事集合以及投影/规则版本。撤回公开状态或新增公开赛事改变 membership key；域 mutation 仍通过同一个 semantic tag 立即失效全部统计、benchmark、Records 和 Insights。单次 repeatable-read 聚合再次限定公开范围，实体文本搜索不进入共享缓存 key。Records分页仅在共享aggregate后的最大值并列集合切片，不用页码生成完整聚合缓存变体；全并列集合留服务器。公共 DTO 只发送当前 tab 的聚合摘要和有界纪录页，不发送历史逐图 payload 或 internal provenance。统计中心的 Client shell 按当前 tab 动态加载视图组件，保留服务端预渲染；视图拆分不改变统计读取与授权边界。授权草稿读取绕过共享缓存，request boundary 由 `cookies()` / `headers()` 提供。公开身份页面将个人操作与共享统计分开，统计依赖暂时不可用时保留基础资料并明确显示不可用，不把失败解释为零样本，也不绕过远程缓存重新放大源站读取。需要保持 production build 与 runtime 数据源隔离、由首次 runtime request 填充的 public cache，可在最小 Suspense leaf 使用 `io()`；它不会把真实 request / prefetch 推迟到完整 navigation。`connection()` 只用于确实要求真实用户 navigation 的语义。
 
@@ -73,6 +73,7 @@ session、authorization、admin 与 draft facts 不进入共享 public cache；�
 
 - `src/db/schema/` 表达当前应用 schema；`drizzle/migrations/` 是唯一 active migration chain。
 - `pnpm db:push` 被阻止；远程 schema write 只能走受保护的 staging/release path。
+- 常驻 Node 与 Vercel serverless 使用各自有界的应用连接池；连接获取覆盖普通查询与显式事务，慢获取/失败保留耗时、入队前池计数及复用/建连/排队状态。事务内读取优先合并 SQL，避免跨区往返长期占用连接。
 - 应用代码通过 server-only DB facade 取得 Drizzle client；CLI/runtime exception 使用显式共享 runtime boundary。Pool query 仅对明确建立连接前的失败自动重试一次；连接中断导致结果不明时记录告警并向调用方抛错，不依据 SQL 首词重放，后续恢复由 command 的幂等/状态回读契约负责。显式事务不自动重跑。
 - Pool-level `DB` 可以并行执行互相独立的查询；单个 transaction 的 `TxDb` 共用一个 `pg.Client`，查询必须逐个 `await`，或合并为单条 SQL，不能在同一事务上用 `Promise.all` / `Promise.allSettled` 重叠执行。需要同时支持 pool 与 transaction 的 read model 必须暴露明确分开的 pool / `InTx` 执行入口，不能只依赖 TypeScript 结构类型收窄来区分执行器。
 - 需要历史复现、审计或恢复的 snapshot 是领域事实，不因与 live data 重复而去重。
@@ -162,5 +163,7 @@ BET 排行榜由 `src/lib/free-predictions/ranking.ts` 在单个 read-only repea
 ## 指标读取边界
 
 页面和组件消费领域 read model，不直接定义数据库 count/sum/avg/min/max 聚合；`ARCH_PAGE_AGGREGATE` 检查聚合导入及 SQL 模板。相同含义的指标只有一个 owner：正式赛事完成/总场数归 `matches/read-official`，已审核参赛队数归 `competition-entries/counts`，参赛人数的单赛事入口复用批量入口的注册方式规则。选秀形成队伍数、审核通过数、Major 正赛名单人数等不同含义必须保留明确的领域范围，不能用同名函数掩盖差异。UI 搜索结果数量、编辑中选择数及图形宽度属于展示状态，不替代领域事实。
+
+公开赛程的瑞士轮 read model 可复用当前请求已读取的比赛与展示比分，投影前仍按赛事、阶段、StageRun 和 `major_stage` ownership 筛选；管理入口独立读取时沿用相同范围。双方赛前地图统计共享地图与 BP 批量读取，每队独立保留历史比赛集合以及 pick/ban 分母。公开统计在 read-only repeatable-read 事务内完成事实与排行榜读取；事务结束后计算结果、分析、纪录与洞察摘要，避免纯计算继续占用连接。
 
 测试赛保留共用执行流程与显式测试入口；公开正式列表、统计及其地图/BP筛选目录均从正式比赛范围读取。不得把当前晋级名单当成赛事历史范围。

@@ -501,7 +501,7 @@ function buildCoverage(
 }
 
 export async function getTournamentStats(scope: PlatformStatsScope, database: DB = db) {
-  return database.transaction(async (tx) => {
+  const snapshot = await database.transaction(async (tx) => {
     if (!scope.seasonId || scope.publicOnly) {
       const publicEvents = await tx.select({ id: seasons.id }).from(seasons).where(and(ne(seasons.status, "draft"),
         scope.seasonIds ? inArray(seasons.id, scope.seasonIds) : undefined,
@@ -523,71 +523,75 @@ export async function getTournamentStats(scope: PlatformStatsScope, database: DB
     } })) : original.selected;
     const loaded = { ...original, selected, entries, matches: original.matches.map((match) => ({ ...match, entryAId: remap(match.entryAId), entryBId: remap(match.entryBId) })), labels: { ...original.labels, teams: Object.fromEntries(entries.map((e) => [e.id, e.name])) } };
     const veto = await loadVetoData(tx, scope, entries, remap);
-    const results = buildTournamentResults(resultMatchesForMapScope(loaded.matches, loaded.scopedMaps, scope.mapFilter), loaded.scopedMaps, loaded.entries);
-    const coverage = buildCoverage(loaded, results);
-    const mapNames = [...new Set([...loaded.maps.map((map) => map.mapName), ...veto.rows.map((row) => row.mapName)])].sort();
     const unifiedPlayers = platform || scope.publicOnly;
     const leaderboard = await getStatsLeaderboard({ ...scope, matchIds: loaded.matchIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx, { groupByTeam: !unifiedPlayers });
     const teamScoreboard = unifiedPlayers ? await getStatsLeaderboard({ ...scope, matchIds: loaded.matchIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx) : leaderboard;
-    const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
-    const performance = buildTournamentPerformanceAnalytics(performanceFactsForScope(loaded, scope.teamFilter), { labels: loaded.labels });
-    const scopeLabel = [scope.seasonId ? original.entryRows[0]?.eventName ?? "所选赛事" : "全部公开赛事", scope.stage, scope.format?.toUpperCase(), scope.mapFilter].filter(Boolean).join(" · ");
-    const perMap = loaded.selected.map((row) => ({ mapKey: row.facts.performance.mapKey, performance: buildTournamentPerformanceAnalytics([row.facts.performance], { labels: loaded.labels }) }));
-    const insights = buildScopeInsights(analytics, performance, perMap, teamLinks, scopeLabel);
-    const mapsById = new Map(original.scopedMaps.map((map) => [map.id, map]));
-    const matchesById = new Map(original.matches.map((match) => [match.id, match]));
-    const entriesById = new Map(original.entryRows.map((entry) => [entry.id, entry]));
-    const occurrences: RecordOccurrence[] = original.selected.flatMap((row) => {
-      const map = mapsById.get(row.facts.tournament.mapKey)!;
-      const match = matchesById.get(map.matchId)!;
-      return (row.facts.records?.candidates ?? []).map((candidate) => {
-        const entry = entriesById.get(candidate.entryId)!;
-        const isTeam = candidate.kind === "economy";
-        const id = isTeam ? remap(candidate.entityId) : candidate.entityId;
-        const opponent = entriesById.get(candidate.entryId === match.entryAId ? match.entryBId : match.entryAId)?.name ?? "—";
-        return { ...candidate, entityId: id, eventName: entry.eventName, eventSlug: entry.eventSlug, matchId: match.id, mapId: map.id, mapName: map.mapName,
-          score: `${map.scoreA}-${map.scoreB}`, rounds: map.scoreA! + map.scoreB!, entityName: isTeam ? entry.name : original.labels.players[id] ?? "选手",
-          entityHref: isTeam ? teamLinks[id]! : `/players/${id}`, opponent };
-      });
-    });
-    // Cumulative leaders aggregate every player-map count, not just map extrema.
-    const totals = new Map<string, { fourKills: number; aces: number; sources: RecordOccurrence[] }>();
-    for (const row of original.selected) for (const player of row.facts.records?.multiKills ?? []) {
-      const total = totals.get(player.entityId) ?? { fourKills: 0, aces: 0, sources: [] };
-      total.fourKills += player.fourKills; total.aces += player.aces;
-      const map = mapsById.get(row.facts.tournament.mapKey)!;
-      const entry = entriesById.get(player.entryId)!;
-      const match = matchesById.get(map.matchId)!;
-      for (const [kind, count] of [["fourKillsTotal", player.fourKills], ["acesTotal", player.aces]] as const) if (count) {
-        total.sources.push({ kind, entityId: player.entityId, entryId: player.entryId, numerator: count, denominator: 1,
-          eventName: entry.eventName, eventSlug: entry.eventSlug, matchId: match.id, mapId: map.id, mapName: map.mapName,
-          score: `${map.scoreA}-${map.scoreB}`, rounds: map.scoreA! + map.scoreB!, entityName: original.labels.players[player.entityId] ?? "选手",
-          entityHref: `/players/${player.entityId}`, opponent: entriesById.get(player.entryId === match.entryAId ? match.entryBId : match.entryAId)?.name ?? "—" });
-      }
-      totals.set(player.entityId, total);
-    }
-    for (const total of totals.values()) for (const source of total.sources) occurrences.push({ ...source,
-      numerator: source.kind === "fourKillsTotal" ? total.fourKills : total.aces });
-    const eventCounts = Object.fromEntries(Object.keys(RECORD_EVENT_NAMES).map(kind => [kind,
-      original.selected.reduce((sum, row) => sum + (row.facts.records?.eventCounts?.[kind as RecordEventKind] ?? 0), 0)])) as Record<RecordEventKind, number>;
-    const eventMaps = original.selected.filter(row => row.facts.records?.eventCounts).length;
-    const recordTies = collectRecordTies(occurrences);
-    const records = buildRecords(recordTies);
-    const recordCoverage = { maps: original.selected.filter((r) => r.facts.records).length, economyRounds: original.selected.reduce((sum, r) => sum + (r.facts.records?.economyKnownRounds ?? 0), 0) };
-    return {
-      leaderboard,
-      teamRatings: buildTeamRatings(teamScoreboard.map((row) => ({ ...row, teamId: row.teamId ? remap(row.teamId) : null }))),
-      ...({ teamLinks } as { teamLinks?: Record<string, string> }),
-      analytics,
-      performance: scope.weaponTeamId ? buildTournamentPerformanceAnalytics(performanceFactsForScope(loaded, scope.weaponTeamId), { labels: loaded.labels }) : performance,
-      ...({ insights, records, recordTies, recordCoverage, recordEvents: undefined, eventCounts, eventMaps } as { recordEvents?: RecordEventPage; eventCounts?: Record<RecordEventKind, number>; eventMaps?: number; insights?: Insight[]; records?: RecordSummary[]; recordTies?: RecordOccurrence[]; recordCoverage?: { maps: number; economyRounds: number } }),
-      results,
-      selection: buildVetoSelection(veto.participants, veto.rows, mapNames, scope.mapFilter),
-      veto: { teams: veto.teams, sample: veto.sample },
-      coverage,
-      options: { teams: platform ? [] : loaded.participantEntries, maps: mapNames },
-    };
+    return { original, platform, mapping, teamLinks, loaded, veto, leaderboard, teamScoreboard };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
+  // Release the snapshot connection before building the CPU-only public summaries.
+  const { original, platform, mapping, teamLinks, loaded, veto, leaderboard, teamScoreboard } = snapshot;
+  const remap = (id: string) => mapping.get(id) ?? id;
+  const results = buildTournamentResults(resultMatchesForMapScope(loaded.matches, loaded.scopedMaps, scope.mapFilter), loaded.scopedMaps, loaded.entries);
+  const coverage = buildCoverage(loaded, results);
+  const mapNames = [...new Set([...loaded.maps.map((map) => map.mapName), ...veto.rows.map((row) => row.mapName)])].sort();
+  const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
+  const performance = buildTournamentPerformanceAnalytics(performanceFactsForScope(loaded, scope.teamFilter), { labels: loaded.labels });
+  const scopeLabel = [scope.seasonId ? original.entryRows[0]?.eventName ?? "所选赛事" : "全部公开赛事", scope.stage, scope.format?.toUpperCase(), scope.mapFilter].filter(Boolean).join(" · ");
+  const perMap = loaded.selected.map((row) => ({ mapKey: row.facts.performance.mapKey, performance: buildTournamentPerformanceAnalytics([row.facts.performance], { labels: loaded.labels }) }));
+  const insights = buildScopeInsights(analytics, performance, perMap, teamLinks, scopeLabel);
+  const mapsById = new Map(original.scopedMaps.map((map) => [map.id, map]));
+  const matchesById = new Map(original.matches.map((match) => [match.id, match]));
+  const entriesById = new Map(original.entryRows.map((entry) => [entry.id, entry]));
+  const occurrences: RecordOccurrence[] = original.selected.flatMap((row) => {
+    const map = mapsById.get(row.facts.tournament.mapKey)!;
+    const match = matchesById.get(map.matchId)!;
+    return (row.facts.records?.candidates ?? []).map((candidate) => {
+      const entry = entriesById.get(candidate.entryId)!;
+      const isTeam = candidate.kind === "economy";
+      const id = isTeam ? remap(candidate.entityId) : candidate.entityId;
+      const opponent = entriesById.get(candidate.entryId === match.entryAId ? match.entryBId : match.entryAId)?.name ?? "—";
+      return { ...candidate, entityId: id, eventName: entry.eventName, eventSlug: entry.eventSlug, matchId: match.id, mapId: map.id, mapName: map.mapName,
+        score: `${map.scoreA}-${map.scoreB}`, rounds: map.scoreA! + map.scoreB!, entityName: isTeam ? entry.name : original.labels.players[id] ?? "选手",
+        entityHref: isTeam ? teamLinks[id]! : `/players/${id}`, opponent };
+    });
+  });
+  // Cumulative leaders aggregate every player-map count, not just map extrema.
+  const totals = new Map<string, { fourKills: number; aces: number; sources: RecordOccurrence[] }>();
+  for (const row of original.selected) for (const player of row.facts.records?.multiKills ?? []) {
+    const total = totals.get(player.entityId) ?? { fourKills: 0, aces: 0, sources: [] };
+    total.fourKills += player.fourKills; total.aces += player.aces;
+    const map = mapsById.get(row.facts.tournament.mapKey)!;
+    const entry = entriesById.get(player.entryId)!;
+    const match = matchesById.get(map.matchId)!;
+    for (const [kind, count] of [["fourKillsTotal", player.fourKills], ["acesTotal", player.aces]] as const) if (count) {
+      total.sources.push({ kind, entityId: player.entityId, entryId: player.entryId, numerator: count, denominator: 1,
+        eventName: entry.eventName, eventSlug: entry.eventSlug, matchId: match.id, mapId: map.id, mapName: map.mapName,
+        score: `${map.scoreA}-${map.scoreB}`, rounds: map.scoreA! + map.scoreB!, entityName: original.labels.players[player.entityId] ?? "选手",
+        entityHref: `/players/${player.entityId}`, opponent: entriesById.get(player.entryId === match.entryAId ? match.entryBId : match.entryAId)?.name ?? "—" });
+    }
+    totals.set(player.entityId, total);
+  }
+  for (const total of totals.values()) for (const source of total.sources) occurrences.push({ ...source,
+    numerator: source.kind === "fourKillsTotal" ? total.fourKills : total.aces });
+  const eventCounts = Object.fromEntries(Object.keys(RECORD_EVENT_NAMES).map(kind => [kind,
+    original.selected.reduce((sum, row) => sum + (row.facts.records?.eventCounts?.[kind as RecordEventKind] ?? 0), 0)])) as Record<RecordEventKind, number>;
+  const eventMaps = original.selected.filter(row => row.facts.records?.eventCounts).length;
+  const recordTies = collectRecordTies(occurrences);
+  const records = buildRecords(recordTies);
+  const recordCoverage = { maps: original.selected.filter((r) => r.facts.records).length, economyRounds: original.selected.reduce((sum, r) => sum + (r.facts.records?.economyKnownRounds ?? 0), 0) };
+  return {
+    leaderboard,
+    teamRatings: buildTeamRatings(teamScoreboard.map((row) => ({ ...row, teamId: row.teamId ? remap(row.teamId) : null }))),
+    ...({ teamLinks } as { teamLinks?: Record<string, string> }),
+    analytics,
+    performance: scope.weaponTeamId ? buildTournamentPerformanceAnalytics(performanceFactsForScope(loaded, scope.weaponTeamId), { labels: loaded.labels }) : performance,
+    ...({ insights, records, recordTies, recordCoverage, recordEvents: undefined, eventCounts, eventMaps } as { recordEvents?: RecordEventPage; eventCounts?: Record<RecordEventKind, number>; eventMaps?: number; insights?: Insight[]; records?: RecordSummary[]; recordTies?: RecordOccurrence[]; recordCoverage?: { maps: number; economyRounds: number } }),
+    results,
+    selection: buildVetoSelection(veto.participants, veto.rows, mapNames, scope.mapFilter),
+    veto: { teams: veto.teams, sample: veto.sample },
+    coverage,
+    options: { teams: platform ? [] : loaded.participantEntries, maps: mapNames },
+  };
 }
 
 

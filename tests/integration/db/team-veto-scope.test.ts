@@ -5,11 +5,14 @@ import { expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
 import type { DB } from "../../../src/db/client";
 import { getLongTeamCareerDetail, getTournamentStats, getTournamentTeamDetail } from "../../../src/lib/stats/tournament-query";
+import { getTeamMapProfiles } from "@/lib/teams/data";
+import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { createLocalPool } from "./harness/database";
 
 it("keeps a team's deciders and BP samples separate from unrelated matches in the same event", async () => {
   const pool = createLocalPool();
-  const database = drizzle(pool, { schema });
+  const queries: string[] = [];
+  const database = drizzle(pool, { schema, logger: { logQuery: query => queries.push(query) } });
   const rollback = new Error("rollback fixture");
   try {
     await expect(database.transaction(async tx => {
@@ -32,6 +35,22 @@ it("keeps a team's deciders and BP samples separate from unrelated matches in th
         { matchId: otherMatch!, stepOrder: 0, actionType: "pick", mapName: "de_dust2", entryId: entries[2]!.id },
         { matchId: otherMatch!, stepOrder: 1, actionType: "decider", mapName: "de_ancient" },
       ]);
+      await tx.insert(schema.matchMaps).values([
+        { matchId: ownMatch!, mapOrder: 1, mapName: "de_mirage", scoreA: 13, scoreB: 8 },
+        { matchId: otherMatch!, mapOrder: 1, mapName: "de_dust2", scoreA: 8, scoreB: 13 },
+      ]);
+      const matchRows = (await tx.select().from(schema.matches).where(sql`${schema.matches.seasonId} = ${seasonId}`)).map(requireCompetitionMatch);
+      // Shared reads retain each opponent's own matches and action-specific denominator.
+      const before = queries.length;
+      const profiles = await getTeamMapProfiles(entries.map(entry => ({
+        entryId: entry.id, matches: matchRows.filter(match => match.entryAId === entry.id || match.entryBId === entry.id),
+      })), tx);
+      expect(queries.slice(before).filter(query => query.startsWith("select"))).toHaveLength(2);
+      expect(profiles[0]!.mapWins).toEqual(new Map([["de_mirage", { wins: 1, played: 1 }]]));
+      expect(profiles[0]!.picks).toEqual({ count: new Map([["de_mirage", 1]]), bpMatchCount: 1 });
+      expect(profiles[1]!.picks).toEqual({ count: new Map(), bpMatchCount: 1 });
+      expect(profiles[2]!.bans).toEqual({ count: new Map(), bpMatchCount: 0 });
+      expect(profiles[3]!.mapWins).toEqual(new Map([["de_dust2", { wins: 1, played: 1 }]]));
       const detail = await getTournamentTeamDetail({ seasonId, teamId: entries[0]!.id }, tx as unknown as DB);
       expect(detail.selection.find(row => row.mapName === "de_ancient")?.deciders).toBe(1);
       expect(detail.selection.find(row => row.mapName === "de_dust2")?.picks ?? 0).toBe(0);
