@@ -2,7 +2,7 @@ import { computeSeriesProgress } from "@/lib/matches/result-rules";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
 import { createHash } from "node:crypto";
-import { and, eq, desc, asc, sql, or, lt } from "drizzle-orm";
+import { and, eq, desc, asc, sql, or, lt, inArray } from "drizzle-orm";
 import { db, type DB, type TxDb } from "@/db/client";
 import { betPrograms as programs, betAccounts as accounts, betMarkets as markets, betOptions as options, betStakes as stakes, betLedger as ledger, betSettlements as settlements, betStageMilestones as milestones, users, matches, matchMaps, matchVetoSessions, majorStageRuns } from "@/db/schema";
 import { betRosterRestriction } from "./admission";
@@ -123,6 +123,23 @@ export async function reconcileBetInTx(tx: TxDb,seasonId: string) {
   await publishMarkets(tx,f);
   const now=new Date();
   const all=await tx.select().from(markets).where(eq(markets.seasonId,seasonId));
+  // Keep database round trips bounded while the shared program lock is held.
+  const marketIds=all.map(market=>market.id);
+  const allChoices=marketIds.length ? await tx.select().from(options).where(inArray(options.marketId,marketIds)) : [];
+  const allStakes=marketIds.length ? await tx.select().from(stakes).where(inArray(stakes.marketId,marketIds)) : [];
+  const latest=marketIds.length ? await tx.selectDistinctOn([settlements.marketId]).from(settlements)
+    .where(inArray(settlements.marketId,marketIds)).orderBy(asc(settlements.marketId),desc(settlements.revision)) : [];
+  const choicesByMarket=new Map<string,typeof allChoices>();
+  for(const choice of allChoices) {
+    const rows=choicesByMarket.get(choice.marketId) ?? [];
+    rows.push(choice);choicesByMarket.set(choice.marketId,rows);
+  }
+  const stakesByMarket=new Map<string,typeof allStakes>();
+  for(const stake of allStakes) {
+    const rows=stakesByMarket.get(stake.marketId) ?? [];
+    rows.push(stake);stakesByMarket.set(stake.marketId,rows);
+  }
+  const previousByMarket=new Map(latest.map(batch=>[batch.marketId,batch]));
   for(const market of all) {
     // A pre-seeding admin rollback temporarily removes the frozen player set.
     // Do not terminally void an otherwise valid no-stake Top Fragger market
@@ -133,15 +150,15 @@ export async function reconcileBetInTx(tx: TxDb,seasonId: string) {
     if (!market.lockedAt && (marketIsLocked(input) || fact.state!=="pending")) await tx.update(markets).set({lockedAt:now}).where(eq(markets.id,market.id));
     // A changed subject is permanently void, even if the official facts later revert.
     if (fact.state==="void" && !market.voidedAt) await tx.update(markets).set({voidedAt:now,voidReason:"官方事实更正或比赛取消"}).where(eq(markets.id,market.id));
-    const choices=await tx.select().from(options).where(eq(options.marketId,market.id));
-    const rows=await tx.select().from(stakes).where(eq(stakes.marketId,market.id));
+    const choices=choicesByMarket.get(market.id) ?? [];
+    const rows=stakesByMarket.get(market.id) ?? [];
     const resolved=resolveMarketOptions(choices,fact);
     const total=rows.reduce((n,s)=>n+s.amount,BigInt(0));
     const winning=rows.filter(s=>resolved.winningOptionIds.includes(s.optionId)).reduce((n,s)=>n+s.amount,BigInt(0));
     const state=resolved.state==="settled" && (winning===BigInt(0) || winning===total)?"refunded":resolved.state;
     const winningOptionIds=resolved.state==="settled"?resolved.winningOptionIds:[];
     const fingerprint=JSON.stringify({state,winningOptionIds,fact:resolved.factRevision});
-    const previous=await tx.query.betSettlements.findFirst({where:eq(settlements.marketId,market.id),orderBy:desc(settlements.revision)});
+    const previous=previousByMarket.get(market.id);
     if(previous?.fingerprint===fingerprint) continue;
     const [batch]=await tx.insert(settlements).values({marketId:market.id,revision:(previous?.revision??0)+1,state,winningOptionIds,fingerprint}).returning();
     if(previous) {
