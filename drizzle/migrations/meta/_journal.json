@@ -687,6 +687,13 @@
       "when": 1792870221774,
       "tag": "0097_veto_invalidation_delivery",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1792871830616,
+      "tag": "0098_operator_scoreboard_receipts",
+      "breakpoints": true
     }
   ]
 }

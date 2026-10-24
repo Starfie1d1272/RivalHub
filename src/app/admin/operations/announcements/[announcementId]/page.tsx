@@ -9,7 +9,7 @@ import { PageHeader, PageLayout } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { requireAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
-import { getAnnouncementForAdmin } from "@/lib/announcements/read-model";
+import { getAdminAnnouncementDetail } from "@/lib/admin/announcement-page";
 
 export default async function EditAnnouncementPage({
   params,
@@ -22,7 +22,7 @@ export default async function EditAnnouncementPage({
   const { announcementId } = await params;
 
   const [announcement, seasonRows] = await Promise.all([
-    getAnnouncementForAdmin(announcementId, { role, seasonIds: admin.seasonIds }),
+    getAdminAnnouncementDetail(announcementId, { role, seasonIds: admin.seasonIds }),
     db
       .select({ id: seasons.id, name: seasons.name })
       .from(seasons)

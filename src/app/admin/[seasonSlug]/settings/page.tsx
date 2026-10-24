@@ -21,7 +21,7 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
   const { seasonSlug } = await params;
   const seasonPromise = findAdminSeasonBySlug(seasonSlug);
   const [season, catalog, conversionPolicyProvenance] = await Promise.all([
-    seasonPromise, loadCompetitivePlatformCatalog(db),
+    seasonPromise, loadCompetitivePlatformCatalog(db, { concurrent: true }),
     seasonPromise.then(season => season ? loadConversionPolicyProvenance(db, season.teamRegistrationConfig) : null),
   ]);
   if (!season) notFound();

@@ -1,4 +1,3 @@
-import { traceOperation } from "@/lib/observability/server";
 import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { hasMatchRecording } from "@/lib/postmatch/recording-types";
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
@@ -36,10 +35,7 @@ import { loadMatchRosters } from "@/lib/match-rosters/read-model";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { demoImportMetadataSelection } from "@/lib/demo-integration/metadata";
 import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
-import { enrichAdminDemoReviewPersonas } from "./demo-personas";
-import { loadAdminDemoReview } from "./demo-review";
-import { projectAdminDemoQuality } from "./demo-quality";
-import type { AdminDemoReviewMap, AdminMatchWorkbenchData, RosterData, TeamMemberData } from "@/lib/admin/matches/types";
+import type { AdminMatchWorkbenchData, RosterData, TeamMemberData } from "@/lib/admin/matches/types";
 import { mapCompletedMaps, mapFinishedMaps, mapPendingMaps } from "@/lib/admin/matches/shared";
 import { projectOperatorCompletion } from "./operator-workflow";
 import { loadOperatorContext } from "./operator-context";
@@ -196,14 +192,6 @@ export async function loadAdminMatchWorkbench({
       .orderBy(desc(matchDemoImports.createdAt))
     : [];
 
-  const eventRosterUserIdsByEntry = new Map<string, Set<string>>();
-  for (const member of memberRows) {
-    if (member.eventRosterStatus !== "confirmed" && member.eventRosterStatus !== "frozen") continue;
-    const ids = eventRosterUserIdsByEntry.get(member.entryId) ?? new Set<string>();
-    ids.add(member.userId);
-    eventRosterUserIdsByEntry.set(member.entryId, ids);
-  }
-
   const members = memberRows.map(projectTeamMember);
   const membersByEntry = new Map<string, TeamMemberData[]>();
   for (const member of members) {
@@ -238,33 +226,13 @@ export async function loadAdminMatchWorkbench({
 
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const entryName = new Map(entries.map((entry) => [entry.id, entry.name]));
-  const reviewImportIds: string[] = [];
+  const demoReviewSummaries: NonNullable<AdminMatchWorkbenchData["demoReviewSummaries"]> = [];
   const demoQualitySummaries: NonNullable<AdminMatchWorkbenchData["demoQualitySummaries"]> = [];
   for (const map of mapRecords) {
-    const rows = demoImportRows.filter((row) => row.matchMapId === map.id);
-    const current = selectCurrentDemoImport(rows);
-    if (current?.status === "needs_attention") reviewImportIds.push(current.id);
-    else if (current?.status === "confirmed") demoQualitySummaries.push({ importId: current.id, matchMapId: map.id, mapOrder: map.mapOrder, mapName: map.mapName });
-  }
-  // Active reviews need authoritative details now; confirmed QA is advisory and loaded on expansion.
-  const reviewImports = reviewImportIds.length
-    ? await db.select().from(matchDemoImports).where(inArray(matchDemoImports.id, reviewImportIds))
-    : [];
-  const currentImportByMap = new Map(reviewImports.map((row) => [row.matchMapId, row]));
-  const demoReviews: AdminDemoReviewMap[] = [];
-  const demoQuality = mapRecords.flatMap((map) => {
-    const row = currentImportByMap.get(map.id);
-    return row ? [projectAdminDemoQuality(row, { mapOrder: map.mapOrder, mapName: map.mapName })] : [];
-  });
-  for (const map of mapRecords) {
-    const row = currentImportByMap.get(map.id);
-    if (row?.status === "needs_attention") demoReviews.push(await db.transaction((tx) => traceOperation("admin.match.demo-review", { scope: "admin", operation: "match.demo-review", stage: "transaction" }, () => loadAdminDemoReview(
-      tx,
-      row,
-      { match, map, roster: effectiveRosterRows },
-      entryName,
-      eventRosterUserIdsByEntry,
-    ))));
+    const current = selectCurrentDemoImport(demoImportRows.filter(row => row.matchMapId === map.id));
+    const summary = current ? { importId: current.id, matchMapId: map.id, mapOrder: map.mapOrder, mapName: map.mapName } : null;
+    if (current?.status === "needs_attention" && summary) demoReviewSummaries.push(summary);
+    else if (current?.status === "confirmed" && summary) demoQualitySummaries.push(summary);
   }
   const submittedAt = submission?.submittedAt ?? null;
   const rosterReopened = reopenedIds.has(match.id) && !submission;
@@ -301,8 +269,6 @@ export async function loadAdminMatchWorkbench({
     readAdminMatchCommentary(db, { seasonId: season.id, currentUserId: admin.userId, excludeMatchId: match.id, historicalMatchIds: [match.id] }),
   ]);
 
-  // Persona is display enrichment, never part of canonical validation or its transaction.
-  await enrichAdminDemoReviewPersonas(demoReviews);
   return {
     completion: projectOperatorCompletion({ status: match.status, isForfeit: match.isForfeit, maps: operator.workflow.completedMaps, commentatorCount: commentatorRows.length, submitted: Boolean(submittedAt), reopened: rosterReopened, hasVideo: hasMatchRecording(match) }),
     season: { id: season.id, slug: season.slug, name: season.name },
@@ -323,8 +289,7 @@ export async function loadAdminMatchWorkbench({
     finishedMaps: mapFinishedMaps(mapRecords),
     vetoCompletedAt: vetoSession?.completedAt ?? null,
     postMatch,
-    demoReviews,
-    demoQuality,
+    demoReviewSummaries,
     demoQualitySummaries,
     operator,
     commentary,

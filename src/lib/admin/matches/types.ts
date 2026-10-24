@@ -143,7 +143,8 @@ export interface AdminMatchOverviewData {
   matchCount: number;
   stageViews: { stage: StageConfig; matches: AdminMatchSummary[] }[];
   qualificationRun: Pick<CompetitionQualificationRun, "id" | "format" | "playInEntryCount"> | null;
-  unconfiguredMatches: AdminMatchSummary[];
+  unconfiguredMatches: Pick<AdminMatchSummary, "id" | "stage">[];
+  pagination: { total: number; page: number; pageSize: number; totalPages: number } | null;
   standingsByStage: Map<string, TeamStanding[]>;
   batchDeadlineGroups: {
     label: string;
@@ -180,6 +181,7 @@ export interface AdminMatchWorkbenchData {
   officialMapStart?: { mapId: string; mapName: string } | null;
   postMatch: AdminPostMatchRecordData | null;
   demoReviews?: AdminDemoReviewMap[];
+  demoReviewSummaries?: Pick<AdminDemoQuality, "importId" | "matchMapId" | "mapOrder" | "mapName">[];
   demoQuality?: AdminDemoQuality[];
   demoQualitySummaries?: Pick<AdminDemoQuality, "importId" | "matchMapId" | "mapOrder" | "mapName">[];
   operator: {

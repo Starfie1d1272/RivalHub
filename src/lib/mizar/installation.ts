@@ -1,3 +1,4 @@
+import { lockSeasonForTournamentInTx } from "@/lib/postevent/guard";
 import "server-only";
 import { mizarAuditActorId } from "@/lib/audit/people";
 import { randomBytes } from "node:crypto";
@@ -120,7 +121,10 @@ export async function assertInstallationInTx(tx: TxDb, installationId: string, c
 }
 
 export async function revokeMizarInstallation(installationId: string, competitionId: string, actorId: string, reason = "") {
-  return await db.transaction(async tx => {
+  return db.transaction(tx => revokeMizarInstallationInTx(tx, installationId, competitionId, actorId, reason));
+}
+
+export async function revokeMizarInstallationInTx(tx: TxDb, installationId: string, competitionId: string, actorId: string, reason = "") {
     const [installation] = await tx.select().from(mizarInstallations).where(and(eq(mizarInstallations.id, installationId), eq(mizarInstallations.competitionId, competitionId))).for("update");
     if (!installation) throw new AppError(ErrorCode.NOT_FOUND, "制播设备不存在。");
     // The authenticated producer disconnect route uses its own installation ID.
@@ -130,10 +134,12 @@ export async function revokeMizarInstallation(installationId: string, competitio
       if (!reason.trim() || reason.length > 500) throw new AppError(ErrorCode.VALIDATION_FAILED, "请填写撤销他人设备授权的原因（500 字以内）。");
     }
     if (installation.revokedAt !== null) return { revoked: true, alreadyRevoked: true };
+    // Installation first excludes ingress/LIVE. The event fence must precede
+    // source UPDATE and audit's season FK, matching manual takeover/results.
+    await lockSeasonForTournamentInTx(tx, competitionId);
     const now = new Date();
     await tx.update(mizarInstallations).set({ revokedAt: now }).where(eq(mizarInstallations.id, installationId));
     await tx.update(matchLiveSessions).set({ closedAt: now, closeReason: "revoked", autoCanonicalizationArmed: false }).where(and(eq(matchLiveSessions.installationId, installationId), isNull(matchLiveSessions.closedAt)));
     await writeAuditInTx(tx, { seasonId: competitionId, actorId: actorId === installation.id ? mizarAuditActorId(installation.id) : actorId, action: "mizar.installation.revoke", targetId: installationId, meta: { authorizedByUserId: installation.authorizedByUserId, reason: reason.trim() } });
     return { revoked: true, alreadyRevoked: false };
-  });
 }

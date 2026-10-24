@@ -12,11 +12,10 @@ import type { FreePredictionKind, FreePredictionSubject } from "./types";
 export interface SubmitFreePrediction { seasonId: string; matchId: string; userId: string; kind: FreePredictionKind; selection: string[]; requestId: string }
 function invalid(message: string): never { throw new AppError(ErrorCode.VALIDATION_FAILED, message); }
 export async function submitFreePredictionInTx(tx: TxDb, input: SubmitFreePrediction) {
-  // Same first lock as canonical game/BP transitions. No BET program/account lock.
-  const match = await lockMatchInTx(tx, input.matchId);
-  if (match.seasonId !== input.seasonId || match.testConfig) invalid("比赛不可预测");
   const [user] = await tx.select().from(users).where(eq(users.id,input.userId)).for("share");
   if (!user || user.status !== "active" || !user.emailVerifiedAt) throw new AppError(ErrorCode.FORBIDDEN,"请先完成邮箱验证");
+  const match = await lockMatchInTx(tx, input.matchId);
+  if (match.seasonId !== input.seasonId || match.testConfig) invalid("比赛不可预测");
   const f = await loadBetFacts(tx,input.seasonId,{matchId:input.matchId,event:false,rosterUserId:null});
   const official = f.official.find(m => m.id === input.matchId);
   const qualificationRun = official?.qualificationRunId ? await tx.query.competitionQualificationRuns.findFirst({

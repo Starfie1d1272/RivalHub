@@ -186,18 +186,22 @@ function collectMatchFacts(
   return { factsByEntryId, total, finished };
 }
 
-async function loadMatchRows(seasonId: string, entryIds: readonly string[]) {
-  const targetIds = uniqueIds(entryIds);
-  return targetIds.length === 0
+type PublicEventTeamMatchScope = { seasonId: string; entryIds: readonly string[] };
+
+async function loadMatchRows(scopes: readonly PublicEventTeamMatchScope[]) {
+  const targets = scopes.map(scope => ({ seasonId: scope.seasonId, entryIds: uniqueIds(scope.entryIds) }))
+    .filter(scope => scope.entryIds.length > 0);
+  return targets.length === 0
     ? []
     : db.query.matches.findMany({
       where: and(
         officialMatchCondition(),
-        eq(matches.seasonId, seasonId),
-        or(inArray(matches.entryAId, targetIds), inArray(matches.entryBId, targetIds)),
+        or(...targets.map(scope => and(eq(matches.seasonId, scope.seasonId),
+          or(inArray(matches.entryAId, scope.entryIds), inArray(matches.entryBId, scope.entryIds))))),
       ),
       columns: {
         id: true,
+        seasonId: true,
         stage: true,
         entryAId: true,
         entryBId: true,
@@ -210,7 +214,7 @@ async function loadMatchRows(seasonId: string, entryIds: readonly string[]) {
         scoreA: true,
         scoreB: true,
       },
-      orderBy: [asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
+      orderBy: [asc(matches.seasonId), asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
     }).then(rows => rows.map(requireCompetitionFields));
 }
 
@@ -219,29 +223,49 @@ export async function getPublicEventTeamMatchFacts(
   seasonId: string,
   entryIds: readonly string[],
 ): Promise<Map<string, PublicEventTeamMatchFacts>> {
-  const targetIds = uniqueIds(entryIds);
-  if (targetIds.length === 0) return new Map();
-  const entryMatches = await withDisplayScores(await loadMatchRows(seasonId, targetIds));
-  const targetIdSet = new Set(targetIds);
-  const opponentIds = uniqueIds(entryMatches.flatMap((match) => [
-    ...(targetIdSet.has(match.entryAId) ? [match.entryBId] : []),
-    ...(targetIdSet.has(match.entryBId) ? [match.entryAId] : []),
-  ]));
+  return (await getPublicEventTeamMatchFactsBatch([{ seasonId, entryIds }])).get(seasonId)!;
+}
+
+/** One scoped match read, one BO1 display batch and one public opponent-identity batch,
+ * independent of the number of seasons. Callers supply their public entry scopes.
+ */
+export async function getPublicEventTeamMatchFactsBatch(
+  scopes: readonly PublicEventTeamMatchScope[],
+): Promise<Map<string, Map<string, PublicEventTeamMatchFacts>>> {
+  const targetIdsBySeason = new Map<string, Set<string>>();
+  for (const { seasonId, entryIds } of scopes) {
+    const ids = targetIdsBySeason.get(seasonId) ?? new Set<string>();
+    for (const id of entryIds) ids.add(id);
+    targetIdsBySeason.set(seasonId, ids);
+  }
+  const normalized = [...targetIdsBySeason].map(([seasonId, ids]) => ({ seasonId, entryIds: [...ids] }));
+  const entryMatches = await withDisplayScores(await loadMatchRows(normalized));
+  const opponentIds = uniqueIds(entryMatches.flatMap(match => {
+    const targets = targetIdsBySeason.get(match.seasonId)!;
+    return [
+      ...(targets.has(match.entryAId) ? [match.entryBId] : []),
+      ...(targets.has(match.entryBId) ? [match.entryAId] : []),
+    ];
+  }));
   const opponents = opponentIds.length
     ? await db.query.competitionEntries.findMany({
       where: and(inArray(competitionEntries.id, opponentIds), publicCompetitionEntryIdentityCondition()),
       columns: { id: true, name: true },
     })
     : [];
-  const publicEntryIds = new Set([...targetIds, ...opponents.map((opponent) => opponent.id)]);
-  return collectMatchFacts(
-    entryMatches,
-    targetIds,
-    {
-      publicEntryIds,
-      opponentNames: new Map(opponents.map((opponent) => [opponent.id, opponent.name])),
-    },
-  ).factsByEntryId;
+  const opponentNames = new Map(opponents.map(opponent => [opponent.id, opponent.name]));
+  const matchesBySeason = new Map<string, typeof entryMatches>();
+  for (const match of entryMatches) {
+    const rows = matchesBySeason.get(match.seasonId) ?? [];
+    rows.push(match);
+    matchesBySeason.set(match.seasonId, rows);
+  }
+  return new Map(normalized.map(({ seasonId, entryIds }) => [seasonId,
+    collectMatchFacts(matchesBySeason.get(seasonId) ?? [], entryIds, {
+      publicEntryIds: new Set([...entryIds, ...opponentNames.keys()]),
+      opponentNames,
+    }).factsByEntryId,
+  ]));
 }
 
 /** Load only the record/count data needed by a public team list or overview. */
@@ -255,7 +279,7 @@ export async function getPublicEventTeamMatchSummary(
     return { records: new Map(), total: 0, finished: 0 };
   }
   const collected = collectMatchFacts(
-    await loadMatchRows(seasonId, targetIds),
+    await loadMatchRows([{ seasonId, entryIds: targetIds }]),
     targetIds,
     { publicEntryIds: new Set(publicEntryIds) },
   );

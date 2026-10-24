@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 
 import { CaptainConfirmPanel } from "@/components/captains/CaptainConfirmPanel";
 import { PageHeader, Panel } from "@/components/rivalhub";
-import { getPublicCaptainVotingData, getSeasonTeamCount } from "@/lib/captains/data";
+import { getAdminCaptainRanking, getSeasonTeamCount } from "@/lib/captains/data";
 
 interface AdminCaptainsPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -29,7 +29,7 @@ export default async function AdminCaptainsPage({ params }: AdminCaptainsPagePro
   }
 
   const [data, teamCount] = await Promise.all([
-    getPublicCaptainVotingData(season.id),
+    getAdminCaptainRanking(season.id),
     getSeasonTeamCount(season.id),
   ]);
 
@@ -41,7 +41,8 @@ export default async function AdminCaptainsPage({ params }: AdminCaptainsPagePro
         seasonId={season.id}
         seasonStatus={season.status}
         teamCount={teamCount}
-        candidates={data.candidates}
+        candidates={data.seeds}
+        candidateCount={data.candidateCount}
       />
     </div>
   );

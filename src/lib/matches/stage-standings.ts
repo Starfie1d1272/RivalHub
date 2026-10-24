@@ -13,8 +13,8 @@ import type { StageConfig } from "@/types/season";
  */
 export function calculateStageRoundRobinStandings(input: {
   stage: Pick<StageConfig, "type" | "teamCount">;
-  stageMatches: readonly Match[];
-  entries: readonly CompetitionEntry[];
+  stageMatches: readonly Pick<Match, "id" | "seasonId" | "entryAId" | "entryBId" | "stage" | "status" | "scoreA" | "scoreB">[];
+  entries: readonly Pick<CompetitionEntry, "id" | "name" | "formationOrder">[];
   roundScoresByMatchId: ReadonlyMap<string, readonly MatchRoundScore[]>;
   stageEntrantIds?: readonly string[];
 }): TeamStanding[] {

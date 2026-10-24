@@ -9,7 +9,7 @@ import { PROPOSAL_RESPONSE_HOURS } from "@/lib/matches/time-rules";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { projectMatchScheduling } from "@/lib/matches/time-rules";
-import type { AdminMatchCommentaryData } from "./commentary";
+import type { AdminMatchPanelFact, AdminMatchCommentaryData } from "./commentary";
 import { proposingEntryId } from "@/lib/matches/time-proposal-side";
 
 export interface AdminMatchOperationsRow {
@@ -29,9 +29,12 @@ export interface AdminMatchOperationsRow {
 }
 
 /** Admin-only bounded facts. Public DTOs never import this contact projection. */
-export async function loadAdminMatchOperations(seasonId: string, commentary: AdminMatchCommentaryData): Promise<AdminMatchOperationsRow[]> {
+export async function loadAdminMatchOperations(seasonId: string, commentary: AdminMatchCommentaryData, preloaded?: readonly AdminMatchPanelFact[]): Promise<AdminMatchOperationsRow[]> {
   await requireSeasonAdmin(seasonId);
-  const matchRows = await db.select({
+  const matchRows = preloaded ? preloaded.filter(row => row.status === "scheduled" || row.status === "in_progress")
+    .map(row => ({ ...row, isTest: Boolean(row.testConfig) }))
+    .sort((a, b) => (a.scheduledAt?.getTime() ?? Infinity) - (b.scheduledAt?.getTime() ?? Infinity) || a.createdAt.getTime() - b.createdAt.getTime())
+    : await db.select({
     id: matches.id, stage: matches.stage, round: matches.round,
     entryAId: matches.entryAId, entryBId: matches.entryBId,
     status: matches.status, scheduledAt: matches.scheduledAt, completionDeadline: matches.completionDeadline,

@@ -1,6 +1,6 @@
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { requireSuperAdmin } from "@/lib/auth/session";
-import { loadConversionPolicyAdminRows } from "@/lib/competitive/conversion-policy-admin";
+import { loadConversionPolicyAdminSummaries } from "@/lib/competitive/conversion-policy-admin";
 import { db } from "@/db/client";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { ConversionPolicyManager } from "@/components/admin/ConversionPolicyManager";
@@ -8,7 +8,7 @@ import { PageHeader, PageLayout, Section } from "@/components/rivalhub";
 
 export default async function ConversionPoliciesAdminPage() {
   if (!(await resolveAdminPageAccess(requireSuperAdmin))) return <AdminAccessDenied />;
-  const policies = await loadConversionPolicyAdminRows(db);
+  const policies = await loadConversionPolicyAdminSummaries(db);
   return (
     <PageLayout variant="wide" className="space-y-8">
       <PageHeader

@@ -1,6 +1,8 @@
 import "server-only";
-import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
+import { scoreboardVersion, scoreboardVersionColumns } from "@/lib/ocr/scoreboard-version";
+import type { ScoreboardSnapshot } from "@/lib/ocr/scoreboard-contract";
 import { eventRosterMembers, eventRosters, matchRosters, matchRosterPlayers, matchPlayerStats, users } from "@/db/schema";
 
 /** Effective MatchRoster starters own identity; legacy matches use current EventRoster only when no lineup exists. */
@@ -81,5 +83,19 @@ export async function loadOperatorScoreboard(database: DB | TxDb, mapId: string)
     .from(matchPlayerStats)
     .where(eq(matchPlayerStats.mapId, mapId))
     .orderBy(desc(matchPlayerStats.ratingPro));
-  return rows.map(({ dakImportId, ...row }) => ({ ...row, gameplayLocked: dakImportId !== null }));
+  return presentOperatorScoreboardRows(rows);
+}
+
+/** One projection owner for both narrow legacy reads and versioned full-fact reads. */
+function presentOperatorScoreboardRows(rows: readonly Pick<typeof matchPlayerStats.$inferSelect,
+  "perfectName" | "userId" | "kills" | "deaths" | "assists" | "hsPercent" | "firstKills" | "multiKills" | "clutches" | "adr" | "rws" | "ratingPro" | "we" | "dakImportId">[]): OperatorScoreboardRow[] {
+  return rows.map(row => ({ perfectName: row.perfectName, userId: row.userId, kills: row.kills, deaths: row.deaths,
+    assists: row.assists, hsPercent: row.hsPercent, firstKills: row.firstKills, multiKills: row.multiKills,
+    clutches: row.clutches, adr: row.adr, rws: row.rws, ratingPro: row.ratingPro, we: row.we, gameplayLocked: row.dakImportId !== null }));
+}
+
+/** Facts and version come from the same statement; hash-only lineage stays opaque. */
+export async function loadOperatorScoreboardSnapshot(database: DB | TxDb, mapId: string): Promise<ScoreboardSnapshot> {
+  const rows = await database.select(scoreboardVersionColumns).from(matchPlayerStats).where(eq(matchPlayerStats.mapId, mapId)).orderBy(desc(matchPlayerStats.ratingPro), asc(matchPlayerStats.id));
+  return { rows: presentOperatorScoreboardRows(rows), version: scoreboardVersion(mapId, rows) };
 }

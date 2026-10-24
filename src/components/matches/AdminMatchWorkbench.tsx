@@ -27,7 +27,7 @@ import { DeleteMatchButton } from "@/components/matches/DeleteMatchButton";
 import { CompletedAtInput } from "@/components/matches/CompletedAtInput";
 import { projectOperatorPostMatchTasks } from "@/lib/admin/matches/operator-workflow";
 import { PostMatchRecordPanel } from "@/components/matches/PostMatchRecordPanel";
-import { DemoDataReviewPanel } from "@/components/matches/DemoDataReviewPanel";
+import { DeferredDemoReview } from "@/components/matches/DeferredDemoReview";
 import { SOURCE_MODE_LABEL, SOURCE_HEALTH_LABEL } from "@/lib/admin/matches/source-state";
 import { ManualMapTakeover } from "@/components/matches/ManualMapTakeover";
 import { PerfectRoomGuide } from "@/components/matches/PerfectRoomGuide";
@@ -109,8 +109,7 @@ export function AdminMatchWorkbench({
   vetoCompletedAt,
   officialMapStart,
   postMatch,
-  demoReviews = [],
-  demoQuality = [],
+  demoReviewSummaries = [],
   demoQualitySummaries = [],
   operator,
   commentary,
@@ -247,7 +246,7 @@ export function AdminMatchWorkbench({
       </details>}
 
       {match.status !== "cancelled" && <>
-        <DemoDataReviewPanel reviews={demoReviews} quality={demoQuality} />
+        {demoReviewSummaries.map(summary => <DeferredDemoReview key={summary.importId} seasonId={season.id} matchId={match.id} summary={summary} />)}
         {demoQualitySummaries.length > 0 && <section aria-label="已确认 Demo 质量" className="space-y-3">
           {demoQualitySummaries.map(summary => <DeferredDemoQuality key={summary.importId} seasonId={season.id} matchId={match.id} summary={summary} />)}
         </section>}

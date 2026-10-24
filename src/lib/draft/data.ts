@@ -200,14 +200,14 @@ interface DraftBaseData {
   captainRegistrationIds: Set<string>;
 }
 
-async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "query"> = db): Promise<DraftBaseData> {
+async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "query"> = db, concurrent = false): Promise<DraftBaseData> {
   const maxPicks = DRAFT_TEAMS * DRAFT_TOTAL_ROUNDS;
 
-  const state = await executor.query.draftState.findFirst({
+  const stateQuery = executor.query.draftState.findFirst({
     where: eq(draftState.seasonId, seasonId),
   });
 
-  const draftTeamRows = await executor
+  const teamQuery = executor
     .select({
       id: competitionEntries.id,
       name: competitionEntries.name,
@@ -223,6 +223,35 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
       ),
     )
     .orderBy(asc(competitionEntries.formationOrder));
+  const pickQuery = executor
+    .select({
+      entryId: draftPicks.entryId,
+      registrationId: draftPicks.registrationId,
+      userId: users.id,
+      round: draftPicks.round,
+      pickNumber: draftPicks.pickNumber,
+      autoPicked: draftPicks.autoPicked,
+      personaName: steamProfiles.personaName,
+      avatarUrl: steamProfiles.avatarUrl,
+      hasActivePublicSanction: hasActivePublicSanction(users.id),
+      displayName: users.displayName,
+      perfectName: users.perfectName,
+      primaryPosition: seasonRegistrations.primaryPosition,
+    })
+    .from(draftPicks)
+    .innerJoin(
+      seasonRegistrations,
+      eq(draftPicks.registrationId, seasonRegistrations.id),
+    )
+    .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+    .where(eq(draftPicks.seasonId, seasonId))
+    .orderBy(asc(draftPicks.pickNumber));
+
+  // Only the admin pool consumer opts in; Tx readers keep the original sequence.
+  const parallel = concurrent ? await Promise.all([stateQuery, teamQuery, pickQuery]) : null;
+  const state = parallel ? parallel[0] : await stateQuery;
+  const draftTeamRows = parallel ? parallel[1] : await teamQuery;
   const teamRows = draftTeamRows.filter(
     (team): team is typeof team & { draftOrder: number; captainRegistrationId: string } =>
       team.draftOrder !== null && team.captainRegistrationId !== null,
@@ -254,30 +283,7 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
           .where(and(inArray(eventRosters.entryId, entryIds), eq(eventRosterMembers.isCurrent, true)))
       : [];
 
-  const pickRows = await executor
-    .select({
-      entryId: draftPicks.entryId,
-      registrationId: draftPicks.registrationId,
-      userId: users.id,
-      round: draftPicks.round,
-      pickNumber: draftPicks.pickNumber,
-      autoPicked: draftPicks.autoPicked,
-      personaName: steamProfiles.personaName,
-      avatarUrl: steamProfiles.avatarUrl,
-      hasActivePublicSanction: hasActivePublicSanction(users.id),
-      displayName: users.displayName,
-      perfectName: users.perfectName,
-      primaryPosition: seasonRegistrations.primaryPosition,
-    })
-    .from(draftPicks)
-    .innerJoin(
-      seasonRegistrations,
-      eq(draftPicks.registrationId, seasonRegistrations.id),
-    )
-    .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
-    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-    .where(eq(draftPicks.seasonId, seasonId))
-    .orderBy(asc(draftPicks.pickNumber));
+  const pickRows = parallel ? parallel[2] : await pickQuery;
 
   const pickedRegistrationIds = new Set(pickRows.map((pick) => pick.registrationId));
   const captainRegistrationIds = new Set(
@@ -530,8 +536,8 @@ export async function getCaptainDraftData(seasonId: string): Promise<CaptainDraf
   };
 }
 
-export async function getDraftAdminData(seasonId: string): Promise<DraftAdminData> {
-  const base = await loadDraftBase(seasonId);
+export async function getDraftAdminData(seasonId: string, options: { concurrent?: boolean } = {}): Promise<DraftAdminData> {
+  const base = await loadDraftBase(seasonId, db, options.concurrent !== false);
   const remainingIds = remainingRegistrationIds(base);
   const where = [
     eq(seasonRegistrations.seasonId, seasonId),
