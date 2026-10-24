@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.22.0]
+
+### Added
+
+- 超级管理员后台新增遥测分析页，支持时间、版本与页面筛选，展示访问趋势、操作结果、性能和接收用量。
+- 遥测补充布局偏移 CLS，以及设备、浏览器、系统和入口来源粗分类，沿用七天保留。
+- Linux 运维新增独立启用的应用日志容量配置和只读磁盘、日志量测工具。
+
+### Changed
+
+- 自托管在线人数每分钟更新近两分钟活跃登录账号，合并心跳请求，保留后台活跃统计。
+
 ## [2.21.13]
 
 ### Added
@@ -3427,3 +3439,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.21.11]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.10...v2.21.11
 
 [2.21.13]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.11...v2.21.13
+
+[2.22.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.13...v2.22.0
