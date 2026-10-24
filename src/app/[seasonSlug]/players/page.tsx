@@ -94,7 +94,7 @@ export async function PlayersPageContent({ params, searchParams }: PlayersPagePr
         eq(seasonRegistrations.status, "approved"),
       );
 
-  const registrations = await db
+  const registrationsPromise = db
     .select({
       userId: seasonRegistrations.userId,
       registrationId: seasonRegistrations.id,
@@ -116,7 +116,7 @@ export async function PlayersPageContent({ params, searchParams }: PlayersPagePr
     .orderBy(asc(seasonRegistrations.primaryPosition), asc(users.perfectName));
 
   // 查询已有队伍的成员（用于显示队伍归属）
-  const teamMemberRows = await db
+  const teamMemberRowsPromise = db
     .select({
       registrationId: seasonRegistrations.id,
       teamId: competitionEntries.id,
@@ -127,6 +127,8 @@ export async function PlayersPageContent({ params, searchParams }: PlayersPagePr
     .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
     .leftJoin(seasonRegistrations, and(eq(seasonRegistrations.userId, eventRosterMembers.userId), eq(seasonRegistrations.seasonId, season.id)))
     .where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition(), eq(eventRosterMembers.isCurrent, true)));
+
+  const [registrations, teamMemberRows] = await Promise.all([registrationsPromise, teamMemberRowsPromise]);
 
   const teamByRegId = new Map(teamMemberRows.flatMap((row) => row.registrationId ? [[row.registrationId, row.teamName] as const] : []));
 

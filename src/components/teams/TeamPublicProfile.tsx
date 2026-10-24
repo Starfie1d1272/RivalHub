@@ -24,6 +24,7 @@ import { presentTeamMembershipStatus, presentTeamStatus } from "@/lib/teams/pres
 
 export interface TeamPublicProfileProps {
   team: PublicTeamProfile | null;
+  linkedTeam?: { name: string; slug: string } | null;
   lineupStyle?: LineupStyleMember[] | null;
   mapProfile?: PublicTeamMapProfile;
   results?: PublicSeasonResults;
@@ -32,9 +33,13 @@ export interface TeamPublicProfileProps {
   career?: PublicLongTeamProfileReadModel["career"];
   matches?: PublicLongTeamProfileReadModel["matches"];
   statsUnavailable?: boolean;
+  summaryContent?: React.ReactNode;
+  lineupContent?: React.ReactNode;
+  mapContent?: React.ReactNode;
+  advancedContent?: React.ReactNode;
 }
 
-export function TeamPublicProfile({ lineupStyle, team, event = null, mapProfile, results, performance, career = [], matches = [], statsUnavailable = false }: TeamPublicProfileProps) {
+export function TeamPublicProfile({ lineupStyle, team, linkedTeam, event = null, mapProfile, results, performance, career = [], matches = [], statsUnavailable = false, summaryContent, lineupContent, mapContent, advancedContent }: TeamPublicProfileProps) {
   const identity = event?.entry ?? team?.team;
   if (!identity) return null;
 
@@ -48,15 +53,6 @@ export function TeamPublicProfile({ lineupStyle, team, event = null, mapProfile,
   const eventHonors = event ? results?.honors.filter((honor) => honor.entryId === event.entry.id) ?? [] : [];
   const eventDetail = event && performance && !("linkedEntries" in performance) ? performance : null;
   const longDetail = !event && performance && "linkedEntries" in performance ? performance : null;
-  const headline = event ? {
-    matches: eventDetail?.results ? `${eventDetail.results.matchWins}-${eventDetail.results.matchLosses}` : `${event.record.wins}-${event.record.losses}`,
-    maps: eventDetail?.results ? `${eventDetail.results.mapWins}-${eventDetail.results.mapLosses}` : "—",
-    mapCount: eventDetail?.results?.maps ?? "—",
-  } : {
-    matches: longDetail ? `${longDetail.results.wins}-${longDetail.results.losses}` : `${team?.wins ?? 0}-${Math.max((team?.playedCount ?? 0) - (team?.wins ?? 0), 0)}`,
-    maps: longDetail ? `${longDetail.results.mapWins}-${longDetail.results.mapLosses}` : "—",
-    mapCount: longDetail?.results.maps ?? "—",
-  };
   const hasOwnMaps = eventDetail
     ? eventDetail.maps.some((row) => (row.results?.played ?? 0) > 0)
     : longDetail
@@ -102,7 +98,7 @@ export function TeamPublicProfile({ lineupStyle, team, event = null, mapProfile,
             )}
             actions={event ? (
               <div className="flex flex-wrap items-center gap-3">
-                {team && <TeamProfileLink slug={team.team.slug} className="text-sm text-[var(--color-accent)] hover:underline">队伍主页 · {team.team.name}</TeamProfileLink>}
+                {(linkedTeam ?? team?.team) && <TeamProfileLink slug={(linkedTeam ?? team!.team).slug} className="text-sm text-[var(--color-accent)] hover:underline">队伍主页 · {(linkedTeam ?? team!.team).name}</TeamProfileLink>}
                 <Link href={`/${event.season.slug}/teams`} className="text-sm text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)]">返回参赛阵容</Link>
               </div>
             ) : (team && currentUserMembership && team.team.status === "active") ? (
@@ -112,6 +108,42 @@ export function TeamPublicProfile({ lineupStyle, team, event = null, mapProfile,
           {eventHonors.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{eventHonors.map((honor) => <span key={honor.id} className="text-sm font-semibold text-[var(--color-accent)]">{honor.label}</span>)}</div>}
           {event && results && results.honorHistory.filter((honor) => honor.entryId === event.entry.id).map((honor) => <p key={honor.id} className="mt-2 text-xs text-[var(--color-fg-dim)]">{honor.label} · {HONOR_STATE_LABELS[honor.state]}</p>)}
         </div>
+        {summaryContent ?? <TeamProfileMetrics team={team} event={event} performance={performance} />}
+      </div>
+
+      {statsUnavailable && <p role="status" className="text-sm text-[var(--color-fg-mid)]">竞技统计暂时无法加载，请稍后重试。</p>}
+
+      {!event && currentEntries.length > 0 && <div className="border-y border-[var(--color-border)] py-3"><p className="mb-2 text-xs font-medium text-[var(--color-fg-dim)]">当前赛事</p><div className="space-y-2">{currentEntries.map(entry => <TeamProfileLink key={entry.id} className="flex items-center justify-between gap-3 text-sm hover:text-[var(--color-accent)]" seasonSlug={entry.seasonSlug} entryId={entry.id}><span><span className="font-medium">{entry.seasonName}</span><span className="ml-2 text-[var(--color-fg-mid)]">{entry.name}</span></span><span>→</span></TeamProfileLink>)}</div></div>}
+      {event && results && <PublicAdjudications adjudications={results.adjudications.filter((ruling) => ruling.targetEntryId === event.entry.id)} seasonSlug={event.season.slug} />}
+      <TeamRoster title={event ? eventRosterHeading : "当前成员"} members={members} />
+      {lineupContent ?? <TeamLineupStyle members={lineupStyle} />}
+      {!event && team && <TeamRecruitment team={team} />}
+      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+        {mapContent ?? (detail && <TeamMapProfile title={event ? "本届地图画像" : "生涯地图画像"} maps={detail.maps.map(({ mapName, results, selection }) => ({ mapName, results, selection }))} samples={detail.vetoActionSamples} />)}
+        <TeamMatches matches={matchRows} />
+      </div>
+      {advancedContent ?? <>
+      {detail && <section className="space-y-4"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">PERFORMANCE</p><h2 className="mt-1 text-lg font-semibold">竞技表现</h2></div><TeamWorkspace detail={{ teamId: detail.teamId, analytics: detail.analytics, performance: detail.performance, economyMatrix: detail.economyMatrix, selection: detail.selection, maps: detail.maps, scoreboard: detail.scoreboard, detailedPlayers: detail.detailedPlayers }} /></section>}
+      {mapProfile && <TeamRosterMapContext mapProfile={mapProfile} hasOwnMaps={hasOwnMaps} />}
+      </>}
+      {!event && team && <><TeamCareer career={career} /><TeamHistory team={team} /></>}
+    </div>
+  );
+}
+
+export function TeamProfileMetrics({ team, event, performance }: Pick<TeamPublicProfileProps, "team" | "event" | "performance">) {
+  const eventDetail = event && performance && !("linkedEntries" in performance) ? performance : null;
+  const longDetail = !event && performance && "linkedEntries" in performance ? performance : null;
+  const headline = event ? {
+    matches: eventDetail?.results ? `${eventDetail.results.matchWins}-${eventDetail.results.matchLosses}` : `${event.record.wins}-${event.record.losses}`,
+    maps: eventDetail?.results ? `${eventDetail.results.mapWins}-${eventDetail.results.mapLosses}` : "—",
+    mapCount: eventDetail?.results?.maps ?? "—",
+  } : {
+    matches: longDetail ? `${longDetail.results.wins}-${longDetail.results.losses}` : `${team?.wins ?? 0}-${Math.max((team?.playedCount ?? 0) - (team?.wins ?? 0), 0)}`,
+    maps: longDetail ? `${longDetail.results.mapWins}-${longDetail.results.mapLosses}` : "—",
+    mapCount: longDetail?.results.maps ?? "—",
+  };
+  return (
         <div className="grid grid-cols-2 border-t border-[var(--color-border)] sm:grid-cols-4">
           {[
             { label: "Match W-L", value: headline.matches },
@@ -125,22 +157,5 @@ export function TeamPublicProfile({ lineupStyle, team, event = null, mapProfile,
             </div>
           ))}
         </div>
-      </div>
-
-      {statsUnavailable && <p role="status" className="text-sm text-[var(--color-fg-mid)]">竞技统计暂时无法加载，请稍后重试。</p>}
-
-      {!event && currentEntries.length > 0 && <div className="border-y border-[var(--color-border)] py-3"><p className="mb-2 text-xs font-medium text-[var(--color-fg-dim)]">当前赛事</p><div className="space-y-2">{currentEntries.map(entry => <TeamProfileLink key={entry.id} className="flex items-center justify-between gap-3 text-sm hover:text-[var(--color-accent)]" seasonSlug={entry.seasonSlug} entryId={entry.id}><span><span className="font-medium">{entry.seasonName}</span><span className="ml-2 text-[var(--color-fg-mid)]">{entry.name}</span></span><span>→</span></TeamProfileLink>)}</div></div>}
-      {event && results && <PublicAdjudications adjudications={results.adjudications.filter((ruling) => ruling.targetEntryId === event.entry.id)} seasonSlug={event.season.slug} />}
-      <TeamRoster title={event ? eventRosterHeading : "当前成员"} members={members} />
-      <TeamLineupStyle members={lineupStyle} />
-      {!event && team && <TeamRecruitment team={team} />}
-      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        {detail && <TeamMapProfile title={event ? "本届地图画像" : "生涯地图画像"} maps={detail.maps.map(({ mapName, results, selection }) => ({ mapName, results, selection }))} samples={detail.vetoActionSamples} />}
-        <TeamMatches matches={matchRows} />
-      </div>
-      {detail && <section className="space-y-4"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-fg-dim)]">PERFORMANCE</p><h2 className="mt-1 text-lg font-semibold">竞技表现</h2></div><TeamWorkspace detail={detail} /></section>}
-      {mapProfile && <TeamRosterMapContext mapProfile={mapProfile} hasOwnMaps={hasOwnMaps} />}
-      {!event && team && <><TeamCareer career={career} /><TeamHistory team={team} /></>}
-    </div>
   );
 }
