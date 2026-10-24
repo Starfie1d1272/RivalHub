@@ -10,7 +10,7 @@ vi.mock("@/lib/auth/session", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
-import { castMatchMvpVote, deletePlayerStatsByMap, savePlayerStats } from "@/actions/player-stats";
+import { castMatchMvpVote, deletePlayerStatsByMap, getOperatorScoreboardSnapshot, savePlayerStats } from "@/actions/player-stats";
 import { confirmMatchRosterInTx } from "@/lib/match-rosters/service";
 import { seedFixture } from "./harness/mizar";
 import { createLocalPool } from "./harness/database";
@@ -59,8 +59,12 @@ it("takes the season fence before roster/match/map children for confirm, save an
     await expect(db.transaction(tx => confirmMatchRosterInTx(tx, { rosterId: rosters[0]!.id, actorId: state.actorId, expectedSeasonId: randomUUID() }))).rejects.toThrow("重新授权");
     await db.update(schema.matches).set({ status: "finished", scoreA: 2, scoreB: 0, completedAt: new Date() }).where(eq(schema.matches.id, f.matchId));
     await db.update(schema.seasons).set({ status: "archived" }).where(eq(schema.seasons.id, f.seasonId));
-    expect(await underFence(() => savePlayerStats(f.mapOneId, { rows: [] }))).toMatchObject({ success: true });
-    expect(await underFence(() => deletePlayerStatsByMap(f.mapOneId))).toMatchObject({ success: true });
+    const initial = await getOperatorScoreboardSnapshot(f.mapOneId);
+    if (!initial.success) throw new Error("fixture snapshot unavailable");
+    expect(await underFence(() => savePlayerStats(f.mapOneId, { operationId: randomUUID(), expectedActor: state.actorId, expectedVersion: initial.data.version, rows: [] }))).toMatchObject({ success: true });
+    const saved = await getOperatorScoreboardSnapshot(f.mapOneId);
+    if (!saved.success) throw new Error("fixture snapshot unavailable");
+    expect(await underFence(() => deletePlayerStatsByMap(f.mapOneId, { operationId: randomUUID(), expectedActor: state.actorId, expectedVersion: saved.data.version }))).toMatchObject({ success: true });
     // Casting has no audit/season FK. Retain its existing archived acceptance
     // rather than introducing an unnecessary event-wide vote serialization.
     expect(await castMatchMvpVote(f.matchId, state.actorId)).toMatchObject({ success: true });
