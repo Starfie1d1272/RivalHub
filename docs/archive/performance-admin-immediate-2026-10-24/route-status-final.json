@@ -1,0 +1,455 @@
+{
+  "routeCount": 35,
+  "asOfMain": "4380f41db5a5baab27a1a4fc33552d039ab0a188",
+  "note": "35 source entrypoints, not51 visited URLs. This is a factual delivery snapshot, not release/performance success. Separate implementation, delivery, immediate evidence and long-term observation. Historical matrices remain historical.",
+  "routes": [
+    {
+      "route": "/admin",
+      "task": "A-DIRECTORY",
+      "implemented": "授权窄目录与侧栏共享 request cache",
+      "evidence": "Actual authenticated root Flight: sidebar/page directory SQL count 1; fresh request after grant revoke denied; Chromium retry=0.",
+      "owner": "admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1083; Suspense/evidence pushed perf/admin-immediate-evidence-v2, PR creation blocked",
+      "immediateAcceptance": "Passed bounded directory and revoke experiment.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]",
+      "task": "A-OVERVIEW",
+      "implemented": "已开赛生命周期 SQL 摘要，跳过成员身份/seed snapshot/readiness",
+      "evidence": "Canonical selected/synced/frozen 32 entries/160 members: PG counts and Chromium 32 / 32, no sampled member ID in root Flight; no claim of formal start transition.",
+      "owner": "admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1083/#1094; no deployment claim",
+      "immediateAcceptance": "Passed nonempty frozen fixture experiment; not only empty entrants.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/matches",
+      "task": "A-MATCHLIST",
+      "implemented": "三view普通列表25行；execution窄排序事实→当前25场完整字段；materials阶段/队伍先下推、canonical全范围待办派生后分页，地图/计分板/录像字段缩窄；schedule完整所需runtime/积分榜事实不截断，去除未用录像/entry私有列，仅当前25条渲染；#1103 active commentary/operations共享facts coordinator",
+      "evidence": "真实PG100/500场遍历/筛选/clamp/未配置诊断；Chromium三view/两规模/next+back通过；精确前后文档/DOM/LCP/CLS与同fixture PG对照见同目录",
+      "owner": "admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1094/#1103",
+      "immediateAcceptance": "Three views independently measured at100/500 finished +8active; pagination next/back; root Flight compressed/decoded bytes and DOM measured; not a500active queue load claim.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/matches/[matchId]",
+      "task": "A-WB",
+      "implemented": "canonical roster；OCR激活保草稿；persona出事务且DB/provider失败局部降级；Bili/download独立Suspense；confirmed Demo质量按图展开读取；commentary仅active+当前图历史；Main Swiss单场record窄读，复用frozen投影；Play-in窄reader consumer已接#1096；needs_attention详细artifact按首次展开读取，每次fresh scope/current import校验；stale/pending/denied gate保留草稿",
+      "evidence": "真实PG confirmed QA初读无artifact、展开一图/旧import/跨scope拒绝；persona故障注入4例；OCR组件测试；commentary全局队列与局部历史等价；真实PG old/full parity，4→3SQL，14019→2967结果JSON字节；#1102真实PG首读artifact 3→0，展开1份；3组件+4persona故障注入；独立P2点击门禁审查闭合",
+      "owner": "admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1083/#1094/#1096; #1102 0c892790 pending parent merge, exact ci-gate40138775978 success",
+      "immediateAcceptance": "Targeted PG/component boundaries passed. Paired provider-delay browser ready/CLS not established.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/telemetry",
+      "task": "A-TELEMETRY",
+      "implemented": "150ms合批、active-tab派生与JSX；缺当前指标仍可选择其它有效指标；route boundary安全fingerprint；保留#1082唯一条件ready",
+      "evidence": "4组件用例：旧会话隔离/合批/空指标/partial metric切换；新main type-check",
+      "owner": "observability+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1083/#1094; no deployment claim",
+      "immediateAcceptance": "Existing targeted evidence above; no claim of complete browser role/filter coverage.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/operations",
+      "task": "A-OPS",
+      "implemented": "activity条件计数、team-size histogram/player-pool SQL、recruitment count、CST日历史aggregate",
+      "evidence": "真实PG生命周期/时窗/认证去重；1000user 10轮配对",
+      "owner": "admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1083/#1094; no deployment claim",
+      "immediateAcceptance": "Existing targeted evidence above; no claim of complete browser role/filter coverage.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/prestart",
+      "task": "A-PRESTART",
+      "implemented": "union candidate/frozen/current Main IDs一次不限平台raw bundle，再按profile/fallback纯投影；不改冻结事实；previous-approved SQL window按原revision顺序取position2",
+      "evidence": "精确accounts契约临时集成，7prestart+1跨平台raw bundle真实PG通过；100历史revision返回100→1，语义与原排序倒数第二一致",
+      "owner": "accounts+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1094/#1107",
+      "immediateAcceptance": "Canonical freeze and seven PG cases passed; history DB scan may remain O(history).",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/users",
+      "task": "A-USERS",
+      "implemented": "参与筛选EXISTS，当前页distinct-season计数；管理员tab窄season字段",
+      "evidence": "PG参与2季/1季/0季与page clamp",
+      "owner": "admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1083/#1094; no deployment claim",
+      "immediateAcceptance": "Existing targeted evidence above; no claim of complete browser role/filter coverage.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/logs",
+      "task": "A-AUDIT",
+      "implemented": "searchParams→固定scope RSC，移除第二套action读；标签pool按3类型有界",
+      "evidence": "PGscope/privacy/fallback；RSC新props组件测试；同match/map/import共享request-local标签只读一次；Chromium direct URL/back/forward 50/15行、30 distinct IDs/2types标签；PG50refs/30types（12现存18fallback）串行vs有界逐值等价",
+      "owner": "admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1083/#1094; no deployment claim",
+      "immediateAcceptance": "Passed bounded browser and 30-type PG tests. Out-of-range audit page clamp has not been accepted; inspect/fix separately rather than infer from match-list clamp.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/education-verifications",
+      "task": "A-EDUREVIEW",
+      "implemented": "分别消费page/overview，两个独立Suspense与受控错误区域；核心审核队列旁唯一ready；证据寿命owner不变",
+      "evidence": "临时集成type-check、architecture，真实PG分离与组合DTO等价、过期搜索/展示hard-expire；真实Chromium季赛管理员拒绝且无证据code，超级管理员同fixture证据可见；临时overview5000ms受控延迟，实际队列已显示且筛选导航时overview仍fallback；源码已恢复",
+      "owner": "accounts",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1094; immediate fixture evidence pushed, PR creation blocked",
+      "immediateAcceptance": "Passed slow-overview interactive queue experiment; not an injected production timeout feature.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/registrations",
+      "task": "A-REGADMIN",
+      "implemented": "复用request season，消费签名不变的getTeamRegistrationReview/Progress；accounts已合current revision-only事实及derived筛选先于分页",
+      "evidence": "accounts main7f1b9d5a owner证据；prestart/current revision真实PG金样",
+      "owner": "accounts+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1083/#1094; no deployment claim",
+      "immediateAcceptance": "Existing targeted evidence above; no claim of complete browser role/filter coverage.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/settings",
+      "task": "A-CONFIG",
+      "implemented": "season就绪后即开始provenance，与catalog并行；admin pool catalog opt-in concurrent:true，事务默认顺序保持",
+      "evidence": "Real PG catalog exact DTO parity: 3SQL unchanged, max inflight1→3; injected25ms per-read single fixture80.229→27.562ms. Not production pool budget.",
+      "owner": "accounts+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1107",
+      "immediateAcceptance": "Pool concurrency verified; freeze/Tx path intentionally sequential, no new InTx optimization asserted.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/operations/announcements",
+      "task": "A-ANNOUNCEADMIN",
+      "implemented": "消费canonical20条summary/count；当前actor scope保持，越界页clamp重读；完整正文在editor详情",
+      "evidence": "临时精确依赖集成type-check；真实PG65条/同时间ID稳定排序/正文不随列表返回/越权零行/跨季详情拒绝；真实Chromium两个列表20条、global next/back、列表Flight无正文、两个详情完整正文及跨季拒绝",
+      "owner": "public+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "public #1088 + admin #1094 merged; exact final1094 CI40135647360 success",
+      "immediateAcceptance": "PG scope/order/count/detail parity and Chromium list/detail/root Flight assertions passed; editor mutation dirty/revoke browser flows not claimed.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/test-matches",
+      "task": "A-TESTMATCH",
+      "implemented": "复用请求内season",
+      "evidence": "假设“测试赛未分页全表”被已有limit100/窄投影否定；PG正式/测试隔离",
+      "owner": "admin+matches",
+      "implementationState": "conditional_no_additional_change",
+      "delivery": "merged #1083/#1094; no deployment claim",
+      "immediateAcceptance": "Existing narrow projection and limit100 disprove unbounded first-read hypothesis; official/test separation retained. >100-history navigation is not performance acceptance.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/community-awards",
+      "task": "A-AWARDADMIN",
+      "implemented": "summary首屏保留全局settlementReady；每奖项首次打开fresh admin+season scope detail，候选选项同snapshot共享一次；关闭保草稿，fresh/pending/denied gate；原写入协议保留",
+      "evidence": "Temporary exact-provider integration:3components+4realPG passed; Chromium21.9s initial Flight no evidence, open2details, draft close/reopen, actual fixture approve+DB check, revoke denies. Provider footprint11→8SQL/59→7rows/74397→866JSONbytes attributed to provider.",
+      "owner": "public+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "provider #1106 6c14db73 pending merge; consumer pushed perf/admin-awards-consumer, Ready PR creation blocked",
+      "immediateAcceptance": "Consumer tested with exact provider; final main dependency integration/CI remains blocked on delivery, not an absent API.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/logs",
+      "task": "A-AUDIT",
+      "implemented": "RSC唯一list owner、稳定createdAt/id；有界标签类型并发",
+      "evidence": "PGprivacy/fallback，props更新与0重复action；同match/map/import共享request-local标签只读一次；Chromium direct URL/back/forward 50/15行、30 distinct IDs/2types标签；PG50refs/30types（12现存18fallback）串行vs有界逐值等价",
+      "owner": "admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1083/#1094; no deployment claim",
+      "immediateAcceptance": "Passed bounded browser and 30-type PG tests. Out-of-range audit page clamp has not been accepted; inspect/fix separately rather than infer from match-list clamp.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/invites",
+      "task": "A-INVITES",
+      "implemented": "SQL状态筛选/排序/分页；常规count/page并行、越界clamp后回查",
+      "evidence": "65历史状态/expiry==now/null/claims/page；1000历史10轮配对",
+      "owner": "admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1083/#1094; no deployment claim",
+      "immediateAcceptance": "Existing targeted evidence above; no claim of complete browser role/filter coverage.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/competitive-seasons",
+      "task": "A-CONFIG",
+      "implemented": "未复制catalog owner；admin pool catalog opt-in concurrent:true，事务默认顺序保持",
+      "evidence": "Real PG catalog exact DTO parity: 3SQL unchanged, max inflight1→3; injected25ms per-read single fixture80.229→27.562ms. Not production pool budget.",
+      "owner": "accounts+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1107",
+      "immediateAcceptance": "Pool concurrency verified; freeze/Tx path intentionally sequential, no new InTx optimization asserted.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/competitive-seasons/conversion-policies",
+      "task": "A-CONFIG",
+      "implemented": "一次policy→refs Map；目录summary排除mapping/notes；fresh superadmin action按policy/平台对读取完整detail与复制基准；取消保留token门禁并正确释放busy",
+      "evidence": "Real PG lifecycle/scope/detail parity; 22policy DTO344369→6450 bytes, not SQL wire bytes. 4UI+1action tests incl interrupted base-read/detail/close race pass.",
+      "owner": "accounts+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "refs Map merged #1100; summary/detail #1109 a5918038 awaiting incremental review and later base sync",
+      "immediateAcceptance": "Busy race repaired in isolated commit; final synced-head CI still required.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/seasons/new",
+      "task": "A-CONFIG",
+      "implemented": "保留静态template与fresh catalog；admin pool catalog opt-in concurrent:true，事务默认顺序保持",
+      "evidence": "Real PG catalog exact DTO parity: 3SQL unchanged, max inflight1→3; injected25ms per-read single fixture80.229→27.562ms. Not production pool budget.",
+      "owner": "accounts+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1107",
+      "immediateAcceptance": "Pool concurrency verified; freeze/Tx path intentionally sequential, no new InTx optimization asserted.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/settings",
+      "task": "A-SYSTEMSTATUS",
+      "implemented": "保留按请求runtime/health读取与只显示凭据存在性",
+      "evidence": "假设“该GET运行scheduler job”被reader源码否定",
+      "owner": "admin",
+      "implementationState": "conditional_no_additional_change",
+      "delivery": "merged #1083/#1094; no deployment claim",
+      "immediateAcceptance": "Reader does not execute scheduler job; only request-time health/status and credential-presence flags. No measured slow scheduler read justifies new panel work.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/operations/feedback",
+      "task": "A-FEEDBACK",
+      "implemented": "DB稳定25条摘要分页、中文body前160字；详情按ID/limit1独立fresh超级管理员授权、完整正文与重试",
+      "evidence": "真实PG65条/4000字中文、筛选/稳定同时间ID排序/clamp/完整详情/授权拒绝/安全fingerprint不泄漏；真实删除身份后userId/userLabel为空且正文完整",
+      "owner": "admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1083/#1094; no deployment claim",
+      "immediateAcceptance": "Existing targeted evidence above; no claim of complete browser role/filter coverage.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/operations/season-info",
+      "task": "A-INFOADMIN",
+      "implemented": "目录仅消费groupCount/contactCount；两详情沿用owner单season direct read及稳定排序",
+      "evidence": "public-entrypoint真实PG摘要无联系明细、零授权与scope检查；临时集成类型检查；真实Chromium目录准确group/contact计数且Flight无联系方式，两处详情保留完整联系方式",
+      "owner": "public-info+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "public #1088 + admin #1094 merged; exact final1094 CI40135647360 success",
+      "immediateAcceptance": "PG scope/order/count/detail parity and Chromium list/detail/root Flight assertions passed; editor mutation dirty/revoke browser flows not claimed.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/operations/season-info/[seasonSlug]",
+      "task": "A-INFOADMIN",
+      "implemented": "目录仅消费groupCount/contactCount；两详情沿用owner单season direct read及稳定排序",
+      "evidence": "public-entrypoint真实PG摘要无联系明细、零授权与scope检查；临时集成类型检查；真实Chromium目录准确group/contact计数且Flight无联系方式，两处详情保留完整联系方式",
+      "owner": "public-info+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "public #1088 + admin #1094 merged; exact final1094 CI40135647360 success",
+      "immediateAcceptance": "PG scope/order/count/detail parity and Chromium list/detail/root Flight assertions passed; editor mutation dirty/revoke browser flows not claimed.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/information",
+      "task": "A-INFOADMIN",
+      "implemented": "目录仅消费groupCount/contactCount；两详情沿用owner单season direct read及稳定排序",
+      "evidence": "public-entrypoint真实PG摘要无联系明细、零授权与scope检查；临时集成类型检查；真实Chromium目录准确group/contact计数且Flight无联系方式，两处详情保留完整联系方式",
+      "owner": "public-info+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "public #1088 + admin #1094 merged; exact final1094 CI40135647360 success",
+      "immediateAcceptance": "PG scope/order/count/detail parity and Chromium list/detail/root Flight assertions passed; editor mutation dirty/revoke browser flows not claimed.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/discipline",
+      "task": "A-DISCIPLINE",
+      "implemented": "active subject join；canonical JS时窗/搜索/排序保留；窄事实过滤分页后仅当前25条读取完整证据，两段只读RR同snapshot",
+      "evidence": "真实PG67case全状态/now边界/中文英文搜索/merged subject/跨season/clamp；完整证据保留",
+      "owner": "admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1083/#1094; no deployment claim",
+      "immediateAcceptance": "Existing targeted evidence above; no claim of complete browser role/filter coverage.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/captains",
+      "task": "A-CAPTAINS",
+      "implemented": "SQL approved/active/willing candidate scope；canonical seed/rank复用，不生成admin未消费voter DTO；Client8必要字段+total count",
+      "evidence": "Real PG100active/12candidates, merged/pending exclusions; 2SQL unchanged,101→13rows, resultJSON14535→1775bytes, ClientDTO20795→1623bytes; canonical eight seeds parity.",
+      "owner": "public+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1100",
+      "immediateAcceptance": "Candidate/rank parity verified; public voter DTO and confirm mutation unchanged.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/draft",
+      "task": "A-DRAFTADMIN",
+      "implemented": "admin pool state/teams/picks独立并行；members依赖teams；remaining count依赖canonical picks/captains；Tx/public默认顺序保留",
+      "evidence": "Real PG nonempty2teams/1pick/remcount3 exact DTO parity;5SQL unchanged,max inflight1→3; injected25ms read latency117.668→67.279ms single fixture.",
+      "owner": "public+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1107",
+      "immediateAcceptance": "Dependency experiment passed; not a pick concurrency/production latency claim.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/bet",
+      "task": "A-BETADMIN",
+      "implemented": "消费#1086 readBetOperationsSnapshot，RR释放后project；pending取同snapshot dirty，无第二program读取",
+      "evidence": "临时集成main6697cb5c+#1086 a94b96ef真实PG read-footprint；Chromium后台登录/hydration/启用确认/DBprogram创建通过；首场BO3/retry0/显式trace后台确认启用再次通过25.3s，未复现W07持续未hydration；#1086合main后正式分支type-check/PG与BO3浏览器流程通过15.1s",
+      "owner": "bet+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "merged #1083/#1094; no deployment claim",
+      "immediateAcceptance": "Existing targeted evidence above; no claim of complete browser role/filter coverage.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/post-event",
+      "task": "A-POSTEVENT",
+      "implemented": "复用season；保留finalResult关联frozen run",
+      "evidence": "假设“独立资料全部串行”被已有并行否定",
+      "owner": "admin",
+      "implementationState": "conditional_no_additional_change",
+      "delivery": "merged #1083/#1094; no deployment claim",
+      "immediateAcceptance": "Existing independent reads already parallel; frozen finalResult/run association necessary. No attributable scale evidence supports new pagination.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/operations/announcements/new",
+      "task": "A-ANNOUNCEADMIN",
+      "implemented": "fresh授权赛事选项；不读取历史公告正文；新建表单未做无profile的bundle重构",
+      "evidence": "真实Chromium两处空新建表单；Flight无历史长正文；源码无历史正文reader；未发现可归因bundle收益",
+      "owner": "public+admin",
+      "implementationState": "conditional_no_additional_change",
+      "delivery": "merged #1083/#1094; no deployment claim",
+      "immediateAcceptance": "No historical announcement body reader; empty form browser Flight excludes historical body. No measured editor bundle bottleneck.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/operations/announcements/[announcementId]",
+      "task": "A-ANNOUNCEADMIN",
+      "implemented": "复用owner direct scoped detail；季赛consumer将seasonId/scope固定进SQL，保留返回后校验",
+      "evidence": "真实PG完整长正文及同ID跨季拒绝；真实Chromium两个列表20条、global next/back、列表Flight无正文、两个详情完整正文及跨季拒绝",
+      "owner": "public+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "public #1088 + admin #1094 merged; exact final1094 CI40135647360 success",
+      "immediateAcceptance": "PG scope/order/count/detail parity and Chromium list/detail/root Flight assertions passed; editor mutation dirty/revoke browser flows not claimed.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/announcements",
+      "task": "A-ANNOUNCEADMIN",
+      "implemented": "消费canonical20条summary/count；当前actor scope保持，越界页clamp重读；完整正文在editor详情",
+      "evidence": "临时精确依赖集成type-check；真实PG65条/同时间ID稳定排序/正文不随列表返回/越权零行/跨季详情拒绝；真实Chromium两个列表20条、global next/back、列表Flight无正文、两个详情完整正文及跨季拒绝",
+      "owner": "public+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "public #1088 + admin #1094 merged; exact final1094 CI40135647360 success",
+      "immediateAcceptance": "PG scope/order/count/detail parity and Chromium list/detail/root Flight assertions passed; editor mutation dirty/revoke browser flows not claimed.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/announcements/new",
+      "task": "A-ANNOUNCEADMIN",
+      "implemented": "fresh授权赛事选项；不读取历史公告正文；新建表单未做无profile的bundle重构",
+      "evidence": "真实Chromium两处空新建表单；Flight无历史长正文；源码无历史正文reader；未发现可归因bundle收益",
+      "owner": "public+admin",
+      "implementationState": "conditional_no_additional_change",
+      "delivery": "merged #1083/#1094; no deployment claim",
+      "immediateAcceptance": "No historical announcement body reader; empty form browser Flight excludes historical body. No measured editor bundle bottleneck.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    },
+    {
+      "route": "/admin/[seasonSlug]/announcements/[announcementId]",
+      "task": "A-ANNOUNCEADMIN",
+      "implemented": "复用owner direct scoped detail；季赛consumer将seasonId/scope固定进SQL，保留返回后校验",
+      "evidence": "真实PG完整长正文及同ID跨季拒绝；真实Chromium两个列表20条、global next/back、列表Flight无正文、两个详情完整正文及跨季拒绝",
+      "owner": "public+admin",
+      "implementationState": "implemented_tested",
+      "delivery": "public #1088 + admin #1094 merged; exact final1094 CI40135647360 success",
+      "immediateAcceptance": "PG scope/order/count/detail parity and Chromium list/detail/root Flight assertions passed; editor mutation dirty/revoke browser flows not claimed.",
+      "longTermObservation": "Production latency, cost and primary-ready/CLS by comparable cohort after release; local evidence is not production acceptance."
+    }
+  ],
+  "explicitSubtasks": [
+    {
+      "id": "A-WB-5-rosters",
+      "status": "implemented_tested",
+      "consumer": "workbench两队名单",
+      "evidence": "#1083复用#1081单语句canonical owner，真实PG正式/测试scope"
+    },
+    {
+      "id": "A-WB-5-main-swiss",
+      "status": "implemented_tested",
+      "consumer": "operator roomGuide record/stageName only",
+      "evidence": "同frozen run与full reader对照；4→3SQL，14019→2967结果JSON bytes；缺失/跨scope/不完整finalized round回退"
+    },
+    {
+      "id": "A-WB-5-playin-swiss",
+      "status": "implemented_tested",
+      "consumer": "operator roomGuide record/stageName only",
+      "owner": "public canonical qualification-stage-read-model",
+      "evidence": "正式分支已接入canonical窄API，scope与完整seed/pairing规则不变；正式main9个PG文件22例含Play-in三例通过",
+      "dependency": "merged main6867f234"
+    },
+    {
+      "id": "A-WB-5-commentary",
+      "status": "implemented_tested",
+      "consumer": "当前场分配+全active的我的下一场/认领队列",
+      "evidence": "#1103 merged common active facts coordinator; exact output parity;7→6SQL/12→10rows/2187→1818JSONbytes; testing conflict retained"
+    },
+    {
+      "id": "A-MATCHLIST-execution",
+      "status": "implemented_tested",
+      "evidence": "100/500finished+8active，完整match展示最多25；PG遍历/筛选/clamp；500场Flight gzip822586→56831、decoded2184601→156138 bytes；最终必要列查询PG结果1043520→112655 JSON bytes",
+      "remaining": "当前阶段窄排序事实仍O(N)，新增1SQL；500active全局操作队列不在该fixture范围"
+    },
+    {
+      "id": "A-MATCHLIST-schedule",
+      "status": "implemented_tested",
+      "serverFacts": "full frozen stage用于runtime/standings/batch groups，未截断权威事实",
+      "clientConsumers": "Swiss Runtime 13标量、Playoff Runtime 7标量；BatchDeadline group/count；当前25条Server rows，未传完整match数组/ruleSnapshot",
+      "evidence": "500场DOM9849→677；完整root Flight gzip717946→49570、decoded2054900→128929 bytes；DB query/result量不变；最终窄列PG 6SQL/542行不变，1043502→139679 JSON bytes"
+    },
+    {
+      "id": "A-MATCHLIST-materials",
+      "status": "implemented_tested",
+      "serverFacts": "canonical精确待办在scope中全量派生，计分板、revision、reopened与forfeit不改",
+      "clientConsumers": "当前25条任务链接与分页count；未展开effectiveness/资源不读详细",
+      "evidence": "500场Flight gzip120063→19080、decoded586157→67642 bytes；PG 9SQL不变、结果JSON1009622→97122",
+      "remaining": "metadata扫描仍O(N)；未引入无依据持久summary/索引"
+    }
+  ],
+  "sevenGroups": {
+    "A-WB3": "#1102; P2 fixed and exact CI green, pending parent merge",
+    "A-MATCHLIST/A-WB5-commentary": "#1103 merged; common active coordinator7→6SQL; authoritative conflict universe retained",
+    "A-PRESTART-previous-approved": "#1107 merged; original historical position preserved",
+    "A-AWARDADMIN": "provider1106 + pushed consumer, tested integration; PR creation blocked",
+    "A-CAPTAINS": "#1100 merged; narrow ranking DTO, no voter projection",
+    "A-CONFIG": "#1100 refs Map, #1107 pool catalog merged; #1109 summary/detail/race fix pending final sync; Tx sequence deliberately preserved",
+    "A-DRAFTADMIN": "#1107 merged; independent pool reads only"
+  },
+  "knownImmediateGaps": [
+    "Audit out-of-range URL page clamp is not covered by successful direct/back-forward checks; do not mark as passed.",
+    "Provider-delayed workbench paired browser ready/CLS and telemetry upper-bound browser profile have no new evidence here.",
+    "New consumer/evidence branches lack PR/required CI because automatic approval rejected Ready PR creation."
+  ]
+}
