@@ -62,11 +62,25 @@ test("后台三 view 的可见内容、CLS 与分页保持真实范围", async (
             score += shift.value; max = Math.max(max, score); last = shift.start;
           }
           return { primaryDomReadyMs: state.primaryDomReadyMs, lcpMs: state.lcpMs, cls: max,
-            documentDecodedBodySize: nav.decodedBodySize, responseEndMs: nav.responseEnd, domNodes: document.getElementsByTagName("*").length };
+            documentDecodedBodySize: nav.decodedBodySize, documentEncodedBodySize: nav.encodedBodySize, responseEndMs: nav.responseEnd, domNodes: document.getElementsByTagName("*").length };
         });
         expect(metrics.primaryDomReadyMs).not.toBeNull();
+        const rsc = await page.evaluate(async () => {
+          const url = new URL(window.location.href); url.searchParams.set("__admin_readiness_probe", "rsc");
+          const response = await fetch(url, { headers: { RSC: "1" }, cache: "no-store" });
+          const decodedBytes = (await response.arrayBuffer()).byteLength;
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          const resource = performance.getEntriesByName(url.href, "resource").at(-1) as PerformanceResourceTiming | undefined;
+          return { rscStatus: response.status, rscContentType: response.headers.get("content-type"),
+            rscContentEncoding: response.headers.get("content-encoding"), rscDecodedBodySize: decodedBytes,
+            rscEncodedBodySize: resource?.encodedBodySize ?? null };
+        });
+        expect(rsc.rscStatus).toBe(200);
+        expect(rsc.rscContentType).toContain("text/x-component");
+        expect(rsc.rscEncodedBodySize).toBeGreaterThan(0);
+
         samples.push({ version: process.env.RIVALHUB_ADMIN_READINESS_VERSION ?? "candidate", finishedMatches: size,
-          activeMatches: 8, view, navigation: "hard", cache: "dev server warm; fixture/data fresh", ...metrics });
+          activeMatches: 8, view, navigation: "hard", cache: "dev server warm; fixture/data fresh", ...metrics, ...rsc });
         if (!baseline) {
           await page.getByRole("button", { name: "下一页", exact: true }).click();
           await expect(page).toHaveURL(/page=2/);
@@ -78,7 +92,7 @@ test("后台三 view 的可见内容、CLS 与分页保持真实范围", async (
       }
     }
   } finally {
-    const report = { environment: "isolated local fixture; desktop Chromium; development server", limitations: ["DOM row milestone, not Product CONTENT_READY or hydrated interaction time", "single sample per size/view; not p75/p95", "hard document includes HTML and RSC stream; bytes are decoded document size, not isolated RSC or wire size", "no production improvement claim"], samples };
+    const report = { environment: "isolated local fixture; desktop Chromium; development server", limitations: ["DOM row milestone, not Product CONTENT_READY or hydrated interaction time", "single sample per size/view; not p75/p95", "hard document includes HTML and RSC stream; independent RSC probe is full-root Flight (RSC:1), not a router diff; encoded body excludes headers", "no production improvement claim"], samples };
     await testInfo.attach("admin-view-readiness", { body: JSON.stringify(report), contentType: "application/json" });
     if (process.env.RIVALHUB_ADMIN_READINESS_OUTPUT) writeFileSync(process.env.RIVALHUB_ADMIN_READINESS_OUTPUT, JSON.stringify(report, null, 2));
     await removePredictionBrowserFixture(fixture.seasonId);
