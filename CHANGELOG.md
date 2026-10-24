@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.23.1]
+
+### Fixed
+
+- 修复 BP 后台同步排队阻塞禁图、选图的问题，并防止晚到响应覆盖新回合。
+
+### Changed
+
+- 减少赛程、比赛详情、BET 与数据中心的数据读取往返和连接占用，比赛详情优先显示对阵与比分。
+- 调整常驻服务的数据库连接池容量，记录慢获取和排队失败的诊断信息。
+
 ## [2.23.0]
 
 ### Added
@@ -3474,3 +3485,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.22.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.22.0...v2.22.1
 
 [2.23.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.22.1...v2.23.0
+
+[2.23.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.0...v2.23.1
