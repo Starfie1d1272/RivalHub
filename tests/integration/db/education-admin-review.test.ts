@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { getEducationReviewQueue, normalizeEducationReviewQuery } from "../../../src/lib/education/admin-review";
+import { getEducationReviewQueue, getEducationReviewPage, getEducationReviewOverview, normalizeEducationReviewQuery } from "../../../src/lib/education/admin-review";
 import { createLocalPool } from "./harness/database";
 
 function loadQueue(params: Record<string, string>) {
@@ -22,7 +22,11 @@ describe("education review queue PostgreSQL read model", () => {
         ($1,$4,$7,'enrolled','chsi_enrollment_report','pending',$8,NULL,NULL),
         ($2,$5,$7,'enrolled','chsi_enrollment_report','approved',$9,NULL,now()-interval '8 days'),
         ($3,$6,$7,'enrolled','manual_other','rejected',NULL,'private-fixture-key',now()-interval '8 days')`, [...ids,...userIds,institutionId,...codes]);
-      const queue = await loadQueue({ q: marker, status: "all" });
+      const query = normalizeEducationReviewQuery(new URLSearchParams({ q: marker, status: "all" }));
+      const queue = await getEducationReviewQueue(query);
+      const [page, overview] = await Promise.all([getEducationReviewPage(query), getEducationReviewOverview()]);
+      expect({ ...page, overview }).toEqual(queue);
+      expect(overview.institutionDistribution.find(row => row.id === institutionId)?.identityCount).toBe(1);
       const byId = new Map(queue.rows.map(row => [row.id,row]));
       expect(byId.get(ids[0]!)).toMatchObject({ chsiEvidenceCode: codes[0] });
       expect(byId.get(ids[1]!)).toMatchObject({ chsiEvidenceCode: null, status: "approved" });

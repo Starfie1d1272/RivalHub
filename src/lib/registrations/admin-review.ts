@@ -249,6 +249,7 @@ async function projectTeamRegistrationRows(
   includeOverrides: boolean,
 ) {
   const entryIds = entries.map((entry) => entry.id);
+  const revisionIds = entries.flatMap(entry => entry.currentRosterRevisionId ? [entry.currentRosterRevisionId] : []);
   const [overrideRows, rosterRows] = entryIds.length === 0
     ? [[], []]
     : await Promise.all([
@@ -282,7 +283,7 @@ async function projectTeamRegistrationRows(
           .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
         .innerJoin(users, and(eq(users.id, competitionEntryRosterMembers.userId), eq(users.status, "active")))
         .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-          .where(inArray(competitionEntryRosterRevisions.entryId, entryIds)),
+          .where(and(inArray(competitionEntryRosterRevisions.entryId, entryIds), inArray(competitionEntryRosterRevisions.id, revisionIds))),
       ]);
 
   const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
