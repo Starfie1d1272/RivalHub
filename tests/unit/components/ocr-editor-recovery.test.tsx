@@ -114,3 +114,12 @@ it("keeps the original unknown command blocked until its durable receipt is conf
   expect(mocks.invalidate).toHaveBeenCalledOnce();
   expect(screen.getByRole("button", { name: "重新录入" })).toBeEnabled();
 });
+
+it("loads the authorized roster and current version before manually adding to a prefetched empty board", async () => {
+  const user = userEvent.setup();
+  render(<StatsOCRPanel mapId="map" mapName="de_mirage" initialRows={[]} initialVersion={"a".repeat(64)} />);
+  await user.click(screen.getByRole("button", { name: "添加行" }));
+  expect(await screen.findByLabelText("Retained player K")).toHaveValue(20);
+  expect(mocks.options).toHaveBeenCalledOnce();
+  expect(mocks.read).not.toHaveBeenCalled();
+});
