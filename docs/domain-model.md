@@ -14,7 +14,7 @@ credential linking 只证明并绑定新的 identity，不复制或移动赛事�
 
 登录在用户行锁内重新确认已验证凭据仍属于该 canonical user；锁前查询只用于发现候选。时间戳 fence 独立阻止旧 proof 和密码更新期间的会话颁发，不能替代凭据归属复核。备用邮箱撤销同时撤销相关 provider identity、会话及该邮箱未完成的绑定请求；旧 provider subject 不能借随后重新绑定的邮箱恢复权限。用户可以新发起显式绑定以恢复同一凭据，或绑定新的 provider subject。普通密码登录也允许首次同步账号，但已撤销的 provider subject 不得借此创建新账号或借重用邮箱登录另一账号。没有既有 owner 的新 provider subject 仍可走正常注册；撤销的是具体凭据绑定，不是永久封禁邮箱。
 
-登录、撤销和绑定均先锁用户，再访问可变凭据；绑定涉及两个 owner 时与归并一样按用户 ID 排序取锁，再锁绑定请求。发现 owner 已变化或账号已归并时 fail closed，由新的请求重新解析。重复登录按 credential advisory lock 串行，重复绑定请求由一次性状态拒绝；active-only 唯一索引仍是冲突兜底，不承担撤销语义。
+登录、撤销和绑定均先锁用户，再访问可变凭据；绑定涉及两个 owner 时与归并一样按用户 ID 排序取锁，再锁绑定请求。发现 owner 已变化或账号已归并时 fail closed，由新的请求重新解析。重复登录按 credential advisory lock 串行，重复绑定请求由一次性状态拒绝。同一用户和邮箱的有效 pending 发信请求在 user→request 锁序下保持唯一，依据 DB 时钟判断原链接有效期；provider 未确认接收结果时保留原请求，页面刷新或双击不得取消它再发信，到期后才允许重建。active-only 唯一索引仍是冲突兜底，不承担撤销语义。
 
 应用登录凭据的生命周期由 `application_sessions` 与 `application_session_controls` 表达，前者是可撤销的注册记录，后者是跨请求颁发 fence 和密码更新状态；在线心跳 `user_sessions` 不提供认证。账号归并保留撤销边界、撤销双方登录，旧会话不 reparent。详见 [鉴权与权限](auth-and-permissions.md#session)。
 
