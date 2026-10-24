@@ -31,7 +31,11 @@ const ALLOWED_ATTRIBUTES = new Set([
   "server.address",
 ]);
 
-const erroredSpans = new WeakSet<object>();
+// A shared DB guard may mark a parent span owned by another API/RSC graph.
+// Weak references preserve that status without retaining spans or event data.
+const ERROR_FLAGS = Symbol.for("rivalhub.observability.errored-spans.v1");
+const spanFlags = globalThis as unknown as Record<symbol, WeakSet<object> | undefined>;
+const erroredSpans = spanFlags[ERROR_FLAGS] ??= new WeakSet<object>();
 
 export function markSpanErrored(span: Span): void {
   erroredSpans.add(span);

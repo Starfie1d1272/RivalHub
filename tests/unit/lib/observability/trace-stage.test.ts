@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { trace } from "@opentelemetry/api";
+import { trace, SpanStatusCode } from "@opentelemetry/api";
 import { traceOperation } from "@/lib/observability/tracing";
 
 it("does not let arbitrary attributes override or introduce the canonical finite stage", async () => {
@@ -10,5 +10,21 @@ it("does not let arbitrary attributes override or introduce the canonical finite
     expect(start.mock.calls[0][1].attributes["rivalhub.stage"]).toBe("compute");
     await traceOperation("fixture", { attributes: { "rivalhub.stage": "PRIVATE" } }, async () => 42);
     expect(start.mock.calls[1][1].attributes).not.toHaveProperty("rivalhub.stage");
+  } finally { spy.mockRestore(); }
+});
+
+it("preserves a handled error marked by a shared guard from another runtime graph", async () => {
+  vi.resetModules(); const guardGraph = await import("@/lib/observability/tracing");
+  vi.resetModules(); const requestGraph = await import("@/lib/observability/tracing");
+  const status = vi.fn();
+  const span = { setStatus: status, setAttribute() {}, end() {} };
+  const spy = vi.spyOn(trace, "getTracer").mockReturnValue({ startSpan: () => span } as unknown as ReturnType<typeof trace.getTracer>);
+  try {
+    expect(await requestGraph.traceOperation("fixture", {}, async () => {
+      guardGraph.markSpanErrored(span as unknown as Parameters<typeof guardGraph.markSpanErrored>[0]);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      return "handled";
+    })).toBe("handled");
+    expect(status.mock.calls.at(-1)?.[0]).toEqual({ code: SpanStatusCode.ERROR });
   } finally { spy.mockRestore(); }
 });
