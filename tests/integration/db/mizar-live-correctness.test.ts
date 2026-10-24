@@ -17,6 +17,8 @@ describe("LIVE correctness: real PostgreSQL and loopback HTTP faults", () => {
       input.map = { ...input.map, mapId: f.mapOneId, name: "de_ancient" };
       input.series = { ...input.series, currentMapOrder: 1 };
       input.players = input.players.map((player: Record<string, unknown>, index: number) => ({ ...player, sourcePlayerId: f.steam64[index]! }));
+      input.radar = null;
+      input.capability = { ...input.capability, radarCurrent: false };
     }
     const before = publications.length;
     state.sqlDelayMs = 95;
