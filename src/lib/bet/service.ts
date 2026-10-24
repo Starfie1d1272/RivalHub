@@ -234,9 +234,10 @@ export async function stakeBetInTx(tx:TxDb,input:{seasonId:string;userId:string;
   if(!target) invalid("盘口不存在");
   // Official mutation lock order: user → lifecycle → match → map/veto → Bet program.
   const matchRows=await tx.select().from(matches).where(and(officialMatchCondition(), target.matchId?eq(matches.id,target.matchId):eq(matches.seasonId,input.seasonId))).orderBy(asc(matches.id)).for("share");
-  for(const m of matchRows) {
-    await tx.select({id:matchMaps.id}).from(matchMaps).where(eq(matchMaps.matchId,m.id)).orderBy(asc(matchMaps.id)).for("share");
-    await tx.select({id:matchVetoSessions.matchId}).from(matchVetoSessions).where(eq(matchVetoSessions.matchId,m.id)).for("share");
+  const matchIds = matchRows.map(match => match.id);
+  if (matchIds.length > 0) {
+    await tx.select({id:matchMaps.id}).from(matchMaps).where(inArray(matchMaps.matchId,matchIds)).orderBy(asc(matchMaps.id)).for("share");
+    await tx.select({id:matchVetoSessions.matchId}).from(matchVetoSessions).where(inArray(matchVetoSessions.matchId,matchIds)).orderBy(asc(matchVetoSessions.matchId)).for("share");
   }
   const program=await lockBetProgram(tx,input.seasonId);
   const account=await tx.query.betAccounts.findFirst({where:and(eq(accounts.seasonId,input.seasonId),eq(accounts.userId,input.userId))});
