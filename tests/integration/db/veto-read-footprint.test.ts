@@ -41,8 +41,14 @@ it("reads an active BP snapshot in two SELECTs without changing session or expos
     expect(snapshot.effectiveForceAt).toBeNull();expect(snapshot.previousMatchBlocker).toBe(false);
     const bounds=await db.execute(sql`select clock_timestamp() as now`);
     expect(snapshot.serverNow.getTime()).toBeLessThanOrEqual(new Date(bounds.rows[0]!.now as string).getTime());
+    // Auth/projection may finish much later than the core snapshot.
+    await db.execute(sql`select pg_sleep(0.05)`);
+    const responseBoundary=await db.execute(sql`select clock_timestamp() as now`);
     const anonymous=await projectVetoRoomView(snapshot,null,null);
-    expect(JSON.stringify(anonymous)).not.toContain("private");expect(anonymous.session.serverNow).toBe(snapshot.serverNow.toISOString());
+    const responseNow=new Date(anonymous.session.serverNow).getTime();
+    expect(responseNow).toBeGreaterThan(snapshot.serverNow.getTime());
+    expect(responseNow).toBeGreaterThanOrEqual(new Date(responseBoundary.rows[0]!.now as string).getTime());
+    expect(JSON.stringify(anonymous)).not.toContain("private");
     expect(anonymous.permissions.canOperateCurrentTurn).toBe(false);expect(anonymous.permissions.canRewind).toBe(false);
     const admin=await projectVetoRoomView(snapshot,entry.representativeUserId,{userId:entry.representativeUserId,email:"fixture@local.test",role:"super_admin",seasonIds:[]});
     expect(admin.permissions.isAdmin).toBe(true);expect(JSON.stringify(admin)).toContain("private");

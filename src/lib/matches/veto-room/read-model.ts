@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
@@ -60,17 +60,7 @@ export async function projectVetoRoomView(
   viewerId: string | null,
   authorization: Awaited<ReturnType<typeof getCurrentUserAuthorization>>,
  ) {
-  const [contextRows, entryRows, rosterRows, operatorRows, completedMaps] = await Promise.all([
-    db
-      .select({
-        seasonSlug: seasons.slug,
-        seasonName: seasons.name,
-        stagePlan: seasons.stagePlan,
-        registrationConfig: seasons.registrationConfig,
-      })
-      .from(seasons)
-      .where(eq(seasons.id, core.match.seasonId))
-      .limit(1),
+  const [entryRows, rosterRows, operatorRows, completedMaps] = await Promise.all([
     db
       .select({ id: competitionEntries.id, name: competitionEntries.name, representativeUserId: competitionEntries.representativeUserId })
       .from(competitionEntries)
@@ -104,10 +94,17 @@ export async function projectVetoRoomView(
       id: matchMaps.id, mapOrder: matchMaps.mapOrder, mapName: matchMaps.mapName, teamAStartSide: matchMaps.teamAStartSide,
     }).from(matchMaps).where(eq(matchMaps.matchId, core.match.id)) : Promise.resolve([])
   ]);
-  const context = contextRows[0];
+  // Sample the response clock after auth and the other projection reads finish.
+  const [context] = await db.select({
+    seasonSlug: seasons.slug,
+    seasonName: seasons.name,
+    stagePlan: seasons.stagePlan,
+    registrationConfig: seasons.registrationConfig,
+    serverNow: sql<string>`clock_timestamp()`.mapWith(value => new Date(value)),
+  }).from(seasons).where(eq(seasons.id, core.match.seasonId)).limit(1);
   if (!context) throw new Error("赛事不存在。");
   const entryById = new Map(entryRows.map((entry) => [entry.id, entry]));
-  const serverNow = core.serverNow;
+  const serverNow = context.serverNow;
 
   const rosterByEntry = new Map<string, typeof rosterRows>();
   for (const row of rosterRows) {
