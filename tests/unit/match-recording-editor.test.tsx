@@ -17,7 +17,7 @@ it("adds explicit per-person labels, cancels edits, and confirms removal without
   fireEvent.click(screen.getByRole("button", { name: "编辑" }));
   fireEvent.click(screen.getByRole("button", { name: "取消" }));
   expect(save).toHaveBeenCalledTimes(1);
-  fireEvent.click(screen.getByRole("button", { name: "移除", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: /^移除$/ }));
   expect(save).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole("button", { name: "确认移除" }));
   await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
