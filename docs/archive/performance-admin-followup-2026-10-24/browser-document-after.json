@@ -1,0 +1,95 @@
+{
+  "environment": "isolated local fixture; desktop Chromium; development server",
+  "limitations": [
+    "DOM row milestone, not Product CONTENT_READY or hydrated interaction time",
+    "single sample per size/view; not p75/p95",
+    "hard document includes HTML and RSC stream; bytes are decoded document size, not isolated RSC or wire size",
+    "no production improvement claim"
+  ],
+  "samples": [
+    {
+      "version": "followup-final",
+      "finishedMatches": 100,
+      "activeMatches": 8,
+      "view": "execution",
+      "navigation": "hard",
+      "cache": "dev server warm; fixture/data fresh",
+      "primaryDomReadyMs": 1339.5,
+      "lcpMs": 1372,
+      "cls": 0.00018414062923855252,
+      "documentDecodedBodySize": 356717,
+      "responseEndMs": 1021.4000000003725,
+      "domNodes": 1172
+    },
+    {
+      "version": "followup-final",
+      "finishedMatches": 100,
+      "activeMatches": 8,
+      "view": "schedule",
+      "navigation": "hard",
+      "cache": "dev server warm; fixture/data fresh",
+      "primaryDomReadyMs": 1313.7000000001863,
+      "lcpMs": 1400,
+      "cls": 0.0003233821656968859,
+      "documentDecodedBodySize": 253426,
+      "responseEndMs": 846.2999999998137,
+      "domNodes": 677
+    },
+    {
+      "version": "followup-final",
+      "finishedMatches": 100,
+      "activeMatches": 8,
+      "view": "materials",
+      "navigation": "hard",
+      "cache": "dev server warm; fixture/data fresh",
+      "primaryDomReadyMs": 1066.7000000001863,
+      "lcpMs": 1120,
+      "cls": 0.0003233821656968859,
+      "documentDecodedBodySize": 125836,
+      "responseEndMs": 592.4000000003725,
+      "domNodes": 322
+    },
+    {
+      "version": "followup-final",
+      "finishedMatches": 500,
+      "activeMatches": 8,
+      "view": "execution",
+      "navigation": "hard",
+      "cache": "dev server warm; fixture/data fresh",
+      "primaryDomReadyMs": 1134,
+      "lcpMs": 1168,
+      "cls": 0.0003233821656968859,
+      "documentDecodedBodySize": 356776,
+      "responseEndMs": 751.0999999996275,
+      "domNodes": 1172
+    },
+    {
+      "version": "followup-final",
+      "finishedMatches": 500,
+      "activeMatches": 8,
+      "view": "schedule",
+      "navigation": "hard",
+      "cache": "dev server warm; fixture/data fresh",
+      "primaryDomReadyMs": 1019.5999999996275,
+      "lcpMs": 1048,
+      "cls": 0.00033542474110921227,
+      "documentDecodedBodySize": 253373,
+      "responseEndMs": 678.7999999998137,
+      "domNodes": 677
+    },
+    {
+      "version": "followup-final",
+      "finishedMatches": 500,
+      "activeMatches": 8,
+      "view": "materials",
+      "navigation": "hard",
+      "cache": "dev server warm; fixture/data fresh",
+      "primaryDomReadyMs": 747.2999999998137,
+      "lcpMs": 776,
+      "cls": 0.0003233821656968859,
+      "documentDecodedBodySize": 125783,
+      "responseEndMs": 371.1000000005588,
+      "domNodes": 322
+    }
+  ]
+}

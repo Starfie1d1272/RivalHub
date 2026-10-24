@@ -39,8 +39,8 @@ export interface TeamStanding {
  * 这是一个纯函数，不访问数据库。调用方负责传入已完成比赛。
  */
 export function calculateStandings(
-  competitionEntries: CompetitionEntry[],
-  finishedMatches: Match[],
+  competitionEntries: readonly Pick<CompetitionEntry, "id" | "name" | "formationOrder">[],
+  finishedMatches: readonly Pick<Match, "id" | "entryAId" | "entryBId" | "scoreA" | "scoreB">[],
   roundScoresByMatchId: ReadonlyMap<string, readonly MatchRoundScore[]>,
 ): TeamStanding[] {
   // 初始化每支队伍的数据

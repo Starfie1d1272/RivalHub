@@ -38,7 +38,8 @@ import {
   getSeedRecommendationSnapshotStatus,
 } from "@/lib/major/seed-recommendation-snapshot";
 import {
-  loadParticipantQualificationFacts,
+  loadParticipantQualificationRawBundle,
+  projectParticipantQualificationFacts,
   resolveCompetitiveContext,
   toPlayerStrengthInput,
 } from "@/lib/qualification/service";
@@ -292,13 +293,15 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     ...rosterRows.map(member => member.userId),
     ...mainEventMembers.map(member => member.userId),
   ])];
-  const qualificationFacts = competitiveProfile
-    ? await loadParticipantQualificationFacts(qualificationUserIds, {
+  const qualificationBundle = competitiveProfile
+    ? await loadParticipantQualificationRawBundle(qualificationUserIds, {
+      includePlatformChronology: true, includeCompetitiveFacts: true,
+    }) : null;
+  const qualificationFacts = qualificationBundle && competitiveProfile
+    ? projectParticipantQualificationFacts(qualificationBundle, {
       platform: competitiveProfile.platform,
       fallbackPlatform: competitiveProfile.fallbackConversion?.sourcePlatform,
-      includeCompetitiveFacts: true,
-    })
-    : new Map();
+    }) : new Map();
   const liveStrengthInputs = candidateEntries.map((entry) => ({
     teamId: entry.id,
     teamName: entry.name,

@@ -4,21 +4,21 @@ import Link from "next/link";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { setAnnouncementStatus as telemetry_setAnnouncementStatus } from "@/actions/announcements";
-import { ClearFilters, ListToolbar, useListQueryParams } from "@/components/rivalhub";
+import { ClearFilters, ListToolbar, useListQueryParams, PaginationControls, ResultSummary } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
-import { ANNOUNCEMENT_TYPE_LABELS, toAnnouncementExcerpt } from "@/lib/announcements/presentation";
-import type { AnnouncementAdminRow } from "@/lib/announcements/read-model";
+import { ANNOUNCEMENT_TYPE_LABELS } from "@/lib/announcements/presentation";
+import type { AnnouncementAdminSummary } from "@/lib/announcements/read-model";
 import { observeAction } from "@/lib/telemetry/client";
 
 const setAnnouncementStatus = observeAction("announcements.setAnnouncementStatus", telemetry_setAnnouncementStatus);
 
 type SeasonOption = { id: string; name: string };
-type Row = AnnouncementAdminRow;
+type Row = AnnouncementAdminSummary;
 
 const FILTER_DEFAULTS = { status: "all", scope: "all" } as const;
 const SELECT_CLASS_NAME = "h-9 w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]";
 
-export function AnnouncementManager({ rows, routeBase = "/admin/operations/announcements", seasonScoped = false }: { rows: Row[]; seasons: SeasonOption[]; canManageSite: boolean; routeBase?: string; seasonScoped?: boolean }) {
+export function AnnouncementManager({ rows, routeBase = "/admin/operations/announcements", seasonScoped = false, total, page, pageSize }: { total: number; page: number; pageSize: number; rows: Row[]; seasons: SeasonOption[]; canManageSite: boolean; routeBase?: string; seasonScoped?: boolean }) {
   const [pending, startTransition] = useTransition();
   const { searchParams, update } = useListQueryParams({ routeBase, defaults: FILTER_DEFAULTS });
   const currentStatus = isAnnouncementStatus(searchParams.get("status")) ? searchParams.get("status")! : "all";
@@ -84,7 +84,7 @@ export function AnnouncementManager({ rows, routeBase = "/admin/operations/annou
                   <p className="text-xs text-[var(--color-fg-mid)]">
                     {row.scope === "site" ? "全站" : row.seasonName ?? "赛事"} · {row.updatedAt.toLocaleString("zh-CN")}
                   </p>
-                  <p className="line-clamp-2 whitespace-pre-wrap text-sm text-[var(--color-fg-mid)]">{toAnnouncementExcerpt(row.body)}</p>
+
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
                   <Button size="sm" variant="outline" asChild>
@@ -104,6 +104,8 @@ export function AnnouncementManager({ rows, routeBase = "/admin/operations/annou
           ))
         )}
       </div>
+      <ResultSummary total={total} page={page} pageSize={pageSize} />
+      <PaginationControls page={page} totalPages={Math.ceil(total / pageSize)} onPageChange={page => update({ page }, { history: "push", defaults: { page: 1 } })} />
     </>
   );
 }

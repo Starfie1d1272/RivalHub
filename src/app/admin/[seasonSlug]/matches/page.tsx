@@ -1,7 +1,8 @@
+import { AdminMatchPagination } from "@/components/matches/AdminMatchPagination";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { loadAdminPostMatchTasks } from "@/lib/admin/matches/postmatch-tasks";
+import { loadAdminPostMatchTaskPage } from "@/lib/admin/matches/postmatch-tasks";
 import { loadAdminMatchOperations } from "@/lib/admin/matches/operations";
 import { loadAdminMatchOverview, loadAdminMatchWorkspace } from "@/lib/admin/matches/overview";
 import { loadAdminMatchCommentary } from "@/lib/admin/matches/commentary";
@@ -25,7 +26,7 @@ import { MatchCommentaryQueue, MyCommentaryMatches } from "@/components/matches/
 
 interface AdminMatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
-  searchParams: Promise<{ stage?: string; status?: string; team?: string; view?: string; ops?: string }>;
+  searchParams: Promise<{ stage?: string; status?: string; team?: string; view?: string; ops?: string; page?: string }>;
 }
 
 export default async function AdminMatchesPage({ params, searchParams }: AdminMatchesPageProps) {
@@ -39,7 +40,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   if (!data) notFound();
   const [commentary, postMatchTasks] = await Promise.all([
     view === "execution" ? loadAdminMatchCommentary(data.season.id, { historicalMatchIds: overview?.matches.map(match => match.id) ?? [] }) : Promise.resolve(null),
-    materials ? loadAdminPostMatchTasks(data.season.id) : Promise.resolve([]),
+    materials ? loadAdminPostMatchTaskPage(data.season.id, filters) : Promise.resolve(null),
   ]);
   const operations = commentary ? await loadAdminMatchOperations(data.season.id, commentary) : [];
   const matchCount = overview?.matchCount ?? 0;
@@ -89,7 +90,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       {materials && <section aria-labelledby="materials-scope" className="space-y-4">
         <h2 id="materials-scope" className="text-base font-semibold">资料缺口</h2>
         <AdminMatchFilter stages={stages} teams={data.teams} showStatus={false} />
-        <AdminPostMatchTasks rows={postMatchTasks} seasonSlug={seasonSlug} stage={filters.stage} team={filters.team} stageNames={stageNames} />
+        <AdminPostMatchTasks rows={postMatchTasks?.rows ?? []} total={postMatchTasks?.total} mineCount={postMatchTasks?.mineCount} seasonSlug={seasonSlug} stage={filters.stage} team={filters.team} stageNames={stageNames} />
+        {postMatchTasks && <AdminMatchPagination {...postMatchTasks} />}
       </section>}
 
       {!materials && unconfiguredMatchNotice(overview?.unconfiguredMatches ?? [])}
@@ -136,6 +138,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
             </TabsContent>;
           })}
         </AdminMatchStageTabs>
+        {overview.pagination && <AdminMatchPagination {...overview.pagination} />}
       </section>}
       {!materials && matchCount === 0 && <Panel contentClassName="p-8 text-center text-[var(--color-fg-mid)]">暂无比赛记录</Panel>}
       <ContentReady module="admin" phase="primary" />
