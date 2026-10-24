@@ -1,6 +1,6 @@
 import { getTeamDirectory } from "@/lib/teams/directory";
 import { normalizeTeamDirectoryQuery } from "@/lib/teams/directory-contract";
-import { getPublicTeamProfileBasics, getPublicTeamProfileCore } from "@/lib/teams/public-profile";
+import { getPublicTeamProfileBasics, getPublicTeamProfileCore, getPublicTeamProfileLink } from "@/lib/teams/public-profile";
 import { compilePlayerAttributeBenchmark } from "@/lib/stats/player-attributes";
 import { publicStatsView } from "@/lib/stats/public-view";
 import { parseStatsQuery, STATS_TABS } from "@/lib/stats/view-state";
@@ -947,6 +947,8 @@ describe("DAK evidence submit persistence", () => {
         expect(directory.rows.find(row => row.id === linkedTeamId)?.memberCount).toBe(1);
         const missingDirectory = await getTeamDirectory(normalizeTeamDirectoryQuery({ q: randomUUID() }));
         expect(missingDirectory).toMatchObject({ rows: [], total: 0, hasAnyTeams: true });
+        expect(await getPublicTeamProfileLink(linkedTeamId)).toEqual({ id: linkedTeamId, slug: linkedTeamId, name: "Explicit cross-event team" });
+        expect(await getPublicTeamProfileLink(randomUUID())).toBeNull();
         const basics = await getPublicTeamProfileBasics(linkedTeamId);
         expect(basics?.currentMembers.map(row => row.userId)).toContain(userIds[0]);
         expect(await getPublicTeamProfileCore(linkedTeamId, undefined, longDetail.official.matches, basics!))
