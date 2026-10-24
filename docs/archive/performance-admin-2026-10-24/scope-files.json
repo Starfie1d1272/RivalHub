@@ -1,6 +1,6 @@
 {
   "owner": "W10/W11 admin",
-  "base": "6697cb5cdace762297085cf7c6ed542d0c434cc1",
+  "base": "d58ab7c4fb97cef7795ee2de9d9b5d6a2e208eaf",
   "files": [
     ".changeset/admin-read-boundaries.md",
     "docs/archive/performance-admin-2026-10-24/README.md",
@@ -75,7 +75,7 @@
   ],
   "sharedContracts": [
     "#1082 ContentReady/stage/recordClientBoundaryError consumed from main",
-    "#1086 readBetOperationsSnapshot/projectBetBoard dependency only; no domain files copied",
+    "#1086 readBetOperationsSnapshot/projectBetBoard now on main; no domain files copied",
     "OCR mapId/mapName unchanged; activated mount owned here; initial/read owner accounts",
     "qualification/current revision/catalog: accounts canonical owner",
     "announcements/season-public-info/awards/captains/draft: public canonical owner"

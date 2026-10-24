@@ -260,8 +260,8 @@
       "task": "A-BETADMIN",
       "status": "experiment_pending",
       "implemented": "消费#1086 readBetOperationsSnapshot，RR释放后project；pending取同snapshot dirty，无第二program读取",
-      "evidence": "临时集成main6697cb5c+#1086 a94b96ef真实PG read-footprint；Chromium后台登录/hydration/启用确认/DBprogram创建通过；首场BO3/retry0/显式trace后台确认启用再次通过25.3s，未复现W07持续未hydration",
-      "remainingExperiment": "等待#1086合并后正式分支检查；复杂市场筛选规模及RSC/ready测量；锁盘/更正由BETowner测试",
+      "evidence": "临时集成main6697cb5c+#1086 a94b96ef真实PG read-footprint；Chromium后台登录/hydration/启用确认/DBprogram创建通过；首场BO3/retry0/显式trace后台确认启用再次通过25.3s，未复现W07持续未hydration；#1086合main后正式分支type-check/PG与BO3浏览器流程通过15.1s",
+      "remainingExperiment": "复杂市场筛选规模及RSC/ready测量；锁盘/更正由BETowner测试",
       "owner": "bet+admin"
     },
     {
@@ -319,6 +319,6 @@
       "owner": "public+admin"
     }
   ],
-  "integrationBase": "6697cb5cdace762297085cf7c6ed542d0c434cc1",
+  "integrationBase": "d58ab7c4fb97cef7795ee2de9d9b5d6a2e208eaf",
   "betDependency": "a94b96ef5be2857c6518b460deedfcb3623437c4"
 }

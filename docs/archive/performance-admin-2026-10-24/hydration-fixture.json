@@ -22,5 +22,12 @@
     "same-origin application scripts/pageerrors remain failure assertions; external debug script local certificate failures separated",
     "original W07 120s failure not reproduced; root cause remains unproven",
     "Edge instrumentation Node API compile warnings present"
-  ]
+  ],
+  "frozenMainRepeat": {
+    "base": "d58ab7c4fb97cef7795ee2de9d9b5d6a2e208eaf",
+    "code": "35b9c4e7cdbef988b85b5ba8f48ad973632000ca",
+    "result": "passed",
+    "elapsedTestSuiteSeconds": 15.1,
+    "trace": "explicit on; private fixture artifact only"
+  }
 }
