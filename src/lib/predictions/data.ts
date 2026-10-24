@@ -61,7 +61,7 @@ export async function predictionBoard(
   const now = new Date(databaseClock.rows[0]!.now).getTime();
   const rules = program?.rules ?? defaultPredictionRules(base.stages);
   const eligible = officialPickEmStages(base);
-  const allAccounts = await tx
+  const allAccounts = records || userId ? await tx
     .select({
       id: accounts.id,
       userId: accounts.userId,
@@ -69,17 +69,17 @@ export async function predictionBoard(
     })
     .from(accounts)
     .innerJoin(users, eq(users.id, accounts.userId))
-    .where(and(eq(accounts.seasonId, seasonId), records ? undefined : userId ? eq(accounts.userId, userId) : sql`false`));
+    .where(and(eq(accounts.seasonId, seasonId), records ? undefined : eq(accounts.userId, userId!))) : [];
   const me = allAccounts.find((a) => a.userId === userId);
   const windows = await tx
     .select()
     .from(contests)
     .where(eq(contests.seasonId, seasonId));
-  const allPicks = await tx
+  const allPicks = records || me ? await tx
     .selectDistinctOn([picks.accountId, picks.contestId, picks.submitted])
     .from(picks)
     .where(and(eq(picks.seasonId, seasonId), records ? undefined : me ? eq(picks.accountId, me.id) : sql`false`))
-    .orderBy(picks.accountId, picks.contestId, picks.submitted, desc(picks.version));
+    .orderBy(picks.accountId, picks.contestId, picks.submitted, desc(picks.version)) : [];
   const history = (records || !!me) && windows.length
     ? await tx
         .select()

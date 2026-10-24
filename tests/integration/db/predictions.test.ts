@@ -306,9 +306,9 @@ describe("spectator prediction PostgreSQL contracts", () => {
         await locker.query("BEGIN");
         await locker.query("select season_id from prediction_programs where season_id = $1 for update", [seasonId]);
         await locker.query("select season_id from prediction_jobs where season_id = $1 for update", [seasonId]);
-        const read = (view: "sim" | "points" | "record") => db.transaction(async (tx) => {
+        const read = (view: "sim" | "points" | "record", viewerId: string | null = userId) => db.transaction(async (tx) => {
           await tx.execute(sql`set local statement_timeout = '2000ms'`);
-          return predictionBoard(tx, seasonId, userId, view);
+          return predictionBoard(tx, seasonId, viewerId, view);
         }, { accessMode: "read only", isolationLevel: "repeatable read" });
         const sim = await read("sim");
         expect(sim.markets).toEqual([]);
@@ -316,6 +316,11 @@ describe("spectator prediction PostgreSQL contracts", () => {
         expect(sim.pickLeaderboard).toEqual([]);
         expect(sim.achievement?.challenges).toBe(0);
         expect(sim.achievement?.progress[0]?.tasks).toHaveLength(2);
+        const anonymous = await read("sim", null);
+        expect(anonymous).toMatchObject({ joined: false, achievement: null, markets: [], ledger: [], pickLeaderboard: [] });
+        expect(anonymous.contests.every(contest => contest.draft === null && contest.submitted === null)).toBe(true);
+        const outsider = await read("sim", randomUUID());
+        expect(outsider).toMatchObject({ joined: false, achievement: null, markets: [], ledger: [] });
         const points = await read("points");
         expect(points.markets[0]).toMatchObject({
           participants: 2,

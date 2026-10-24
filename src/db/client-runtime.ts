@@ -28,6 +28,9 @@ function createPool(): Pool {
     ...connection,
     // Persistent hosts serve concurrent pages, transactions and LIVE in one pool.
     max: process.env.NODE_ENV === "production" && process.env.VERCEL === "1" ? 3 : 10,
+    // Retain two established application connections across quiet page visits.
+    // CLI and serverless pools retain their existing shutdown behavior.
+    min: process.env.NODE_ENV === "production" && process.env.NEXT_RUNTIME === "nodejs" && process.env.VERCEL !== "1" ? 2 : 0,
     // Persistent Node hosts reuse TLS connections between page visits.
     idleTimeoutMillis: process.env.NEXT_RUNTIME === "nodejs" && process.env.VERCEL !== "1" ? 30000 : 5000,
     connectionTimeoutMillis: 10000,

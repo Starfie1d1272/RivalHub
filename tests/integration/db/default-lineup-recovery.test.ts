@@ -4,6 +4,8 @@
  * same authorized manual runner and workbench read owner prove recovery.
  * Only session and Next cache boundaries are substituted, never domain/DB.
  */
+import { drizzle } from "drizzle-orm/node-postgres";
+import { loadMatchRosters } from "@/lib/match-rosters/read-model";
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
@@ -95,6 +97,21 @@ it("distinguishes legitimate waiting, PG failure, manual recovery and repeated r
     for (const roster of rosters) await db.transaction(tx => confirmMatchRosterInTx(tx, { rosterId: roster.id, actorId: auth.userId }));
     const confirmed = await db.select().from(schema.matchRosters).where(rosterWhere);
     const players = await db.select().from(schema.matchRosterPlayers).where(inArray(schema.matchRosterPlayers.rosterId, confirmed.map(row => row.id)));
+    // A single scoped batch preserves frozen lineup facts for both sides.
+    const reads: string[] = [];
+    const measured = drizzle(pool, { schema, logger: { logQuery: query => reads.push(query) } });
+    const lineups = await loadMatchRosters(match.id, [fixture.entryAId, fixture.entryBId], measured);
+    expect(reads.filter(query => query.startsWith("select"))).toHaveLength(1);
+    for (const roster of confirmed) {
+      expect(lineups.get(roster.entryId)).toMatchObject(roster);
+      expect(lineups.get(roster.entryId)!.players).toEqual(expect.arrayContaining(players.filter(player => player.rosterId === roster.id)));
+      expect(lineups.get(roster.entryId)!.players).toHaveLength(players.filter(player => player.rosterId === roster.id).length);
+    }
+    expect(await loadMatchRosters(randomUUID(), [fixture.entryAId], measured)).toEqual(new Map());
+    expect(await loadMatchRosters(match.id, [randomUUID()], measured)).toEqual(new Map());
+    const beforeEmpty = reads.length;
+    expect(await loadMatchRosters(match.id, [], measured)).toEqual(new Map());
+    expect(reads).toHaveLength(beforeEmpty);
     expect(await db.select().from(schema.auditLogs).where(defaultAuditWhere)).toHaveLength(2);
     for (let attempt = 0; attempt < 2; attempt++) {
       expect(await runSchedulerJobManually({ jobKey: "match-time-auto-award" })).toMatchObject({ success: true, data: { businessTransitions: 0 } });
