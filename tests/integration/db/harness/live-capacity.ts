@@ -67,7 +67,16 @@ const fixtureWire = JSON.parse(
 const pool = (db as typeof db & { $client: ReturnType<typeof createLocalPool> })
   .$client;
 const monitor = createLocalPool({ max: 1 });
-const state: { mode: "fast" | "slow" | "timeout" | "disconnect" | "429" | "invalid-body" | "stalled-body" ; sendBarrier?: Promise<void>; sent: number; bytes: number; activeHttp: number; maxHttp: number } = { mode: "fast", sent: 0, bytes: 0, activeHttp: 0, maxHttp: 0 };
+const state: { mode: "fast" | "slow" | "timeout" | "disconnect" | "429" | "invalid-body" | "stalled-body" ; sendBarrier?: Promise<void>; sqlDelayMs?: number; sqlRoundTrips?: number; sent: number; bytes: number; activeHttp: number; maxHttp: number } = { mode: "fast", sent: 0, bytes: 0, activeHttp: 0, maxHttp: 0 };
+// Model hosted per-command RTT while preserving real PostgreSQL transactions and locks.
+pool.on("connect", client => {
+  const query = client.query;
+  client.query = ((...args: unknown[]) => {
+    if (!state.sqlDelayMs) return Reflect.apply(query, client, args);
+    state.sqlRoundTrips = (state.sqlRoundTrips ?? 0) + 1;
+    return delay(state.sqlDelayMs).then(() => Reflect.apply(query, client, args));
+  }) as typeof client.query;
+});
 const publications: Array<{ at: number; payload: Record<string, unknown> }> =
   [];
 const server = createServer(async (req, res) => {
