@@ -2,6 +2,8 @@ import { LIMITS, UUID, validEvent, type TelemetryEvent } from "../../src/lib/tel
 import { verifyTicket } from "../../src/lib/telemetry/ticket";
 import { parseDashboardFilters } from "../../src/lib/telemetry/dashboard-query";
 import { dashboard } from "./dashboard";
+import { analysis } from "./analysis";
+import { parseAnalysisQuery } from "../../src/lib/telemetry/analysis-query";
 import { batchSummary, compressEvents, decompressEvents } from "./storage";
 
 export interface Statement {
@@ -83,9 +85,14 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
     if (url.pathname.startsWith("/admin/")) {
       const authorization = request.headers.get("authorization");
       const operator = env.ADMIN_KEY?.length >= 32 && authorization === `Bearer ${env.ADMIN_KEY}`;
-      const dashboardReader = url.pathname === "/admin/dashboard" && (env.DASHBOARD_KEY?.length ?? 0) >= 32 && authorization === `Bearer ${env.DASHBOARD_KEY}`;
+      const dashboardReader = ["/admin/dashboard", "/admin/analysis"].includes(url.pathname) && (env.DASHBOARD_KEY?.length ?? 0) >= 32 && authorization === `Bearer ${env.DASHBOARD_KEY}`;
       if (!operator && !dashboardReader) return response(401);
       if (request.method !== "GET") return response(405);
+      if (url.pathname === "/admin/analysis") {
+        const query = parseAnalysisQuery(Object.fromEntries(url.searchParams));
+        if (!query) return response(400);
+        return response(200, undefined, await analysis(env.DB, query.filters, query.session, now, BUDGET));
+      }
       if (url.pathname === "/admin/dashboard") {
         const filters = parseDashboardFilters(Object.fromEntries(url.searchParams));
         if (!filters) return response(400);
