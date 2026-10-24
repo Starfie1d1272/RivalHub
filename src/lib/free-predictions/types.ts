@@ -1,3 +1,4 @@
+import type { DisplayScore } from "@/lib/matches/display-score";
 export type FreePredictionKind = "result" | "bp";
 export interface FreePredictionSubject {
   entryIds: [string, string]; runId: string; format: "bo1" | "bo3" | "bo5"; mapPool: string[];
@@ -11,6 +12,7 @@ export interface FreePredictionRestrictionDTO {
   message: string;
 }
 export interface FreePredictionMatchDTO {
+  displayScore?: DisplayScore;
   matchId: string; status: "scheduled" | "in_progress" | "finished" | "cancelled"; isForfeit: boolean; a: string; b: string; logoA: string | null; logoB: string | null; stage: string; scheduledAt: string | null; entryIds: [string, string]; format: "bo1" | "bo3" | "bo5"; mapPool: string[];
   result: { locked: boolean; canSubmit: boolean; restriction: FreePredictionRestrictionDTO | null; mine: string | null; grade: FreePredictionResultDTO | null;
     support: { total: number; counts: [number, number]; percentages: [number, number] | null } };

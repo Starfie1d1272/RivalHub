@@ -1,3 +1,4 @@
+import type { DisplayScore } from "@/lib/matches/display-score";
 export const MARKET_TYPES = ["champion", "top_fragger", "match_winner", "exact_score", "total_maps", "veto_map", "veto_first", "veto_decider", "veto_present", "map_winner", "total_rounds"] as const;
 export type MarketType = typeof MARKET_TYPES[number];
 export type BetSubject =
@@ -21,5 +22,5 @@ export interface BetBoardDTO {
   recordsHasMore?: boolean;
   records: { createdAt: string; amount: string; label: string; context: string | null }[];
   markets: BetMarketDTO[];
-  matches: { id: string; entryAId: string; entryBId: string; a: string; b: string; logoA: string | null; logoB: string | null; stage: string; format: string; scheduledAt: string | null }[];
+  matches: { id: string; entryAId: string; entryBId: string; a: string; b: string; logoA: string | null; logoB: string | null; stage: string; format: string; scheduledAt: string | null; status?: "scheduled" | "in_progress" | "finished" | "cancelled"; displayScore?: DisplayScore }[];
 }
