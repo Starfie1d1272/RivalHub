@@ -13,6 +13,7 @@ export interface Statement {
 export interface Database { prepare(sql: string): Statement; batch(statements: Statement[]): Promise<unknown[]> }
 export interface Env {
   DB: Database; SIGNING_KEY: string; ADMIN_KEY: string; ALLOWED_ORIGIN: string;
+  DASHBOARD_KEY?: string;
   ACCEPTING?: string; RETENTION_APPROVED?: string; SUMMARY_RETENTION_DAYS?: string;
 }
 const DAY = 86400000;
@@ -80,7 +81,10 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
       return response(accepted ? 204 : 429, origin);
     }
     if (url.pathname.startsWith("/admin/")) {
-      if (!env.ADMIN_KEY || env.ADMIN_KEY.length < 32 || request.headers.get("authorization") !== `Bearer ${env.ADMIN_KEY}`) return response(401);
+      const authorization = request.headers.get("authorization");
+      const operator = env.ADMIN_KEY?.length >= 32 && authorization === `Bearer ${env.ADMIN_KEY}`;
+      const dashboardReader = url.pathname === "/admin/dashboard" && (env.DASHBOARD_KEY?.length ?? 0) >= 32 && authorization === `Bearer ${env.DASHBOARD_KEY}`;
+      if (!operator && !dashboardReader) return response(401);
       if (request.method !== "GET") return response(405);
       if (url.pathname === "/admin/dashboard") {
         const filters = parseDashboardFilters(Object.fromEntries(url.searchParams));
