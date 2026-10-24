@@ -1,5 +1,5 @@
 import { spawnSync, type SpawnSyncOptions } from "node:child_process";
-import { mkdirSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   buildLocalAppEnvironment,
@@ -37,6 +37,7 @@ const CONTAINER_GUARDED_COMMANDS = new Set([
   "verify-migrations",
   "test-integration",
   "test-e2e",
+  "cleanup-e2e",
   "verify-services",
   "bootstrap",
   "bootstrap-db",
@@ -55,6 +56,7 @@ const LOCKED_COMMANDS = new Set([
   "verify-migrations",
   "test-integration",
   "test-e2e",
+  "cleanup-e2e",
   "verify-services",
   "bootstrap",
   "bootstrap-db",
@@ -106,6 +108,9 @@ try {
     case "test-integration":
       runLocalIntegrationSuite(process.argv.slice(3));
       break;
+    case "cleanup-e2e":
+      cleanupLocalE2E();
+      break;
     case "test-e2e":
       runLocalE2E(process.argv.slice(3));
       break;
@@ -149,7 +154,7 @@ try {
       break;
     default:
       throw new Error(
-        "未知命令。可用命令：start | start-db | start-services | status | migrate | seed | verify | verify-db | verify-supabase | verify-migrations | test-integration | test-e2e | verify-services | bootstrap | bootstrap-db | bootstrap-services | reset | stop | studio | dev | build",
+        "未知命令。可用命令：start | start-db | start-services | status | migrate | seed | verify | verify-db | verify-supabase | verify-migrations | test-integration | test-e2e | cleanup-e2e | verify-services | bootstrap | bootstrap-db | bootstrap-services | reset | stop | studio | dev | build",
       );
   }
 } catch (error) {
@@ -284,17 +289,30 @@ function runLocalE2E(args: readonly string[]): void {
   } catch (error) {
     testFailure = error;
   } finally {
-    for (const name of readdirSync(attemptDirectory, { withFileTypes: true }).filter((entry) => entry.isFile() && entry.name.endsWith(".credentials.json")).map((entry) => entry.name)) {
-      const scenarioId = name.slice(0, -".credentials.json".length);
-      try {
-        run(tsxBin, ["scripts/db/major-browser-fixture.ts", "cleanup", scenarioId, resolve(attemptDirectory, name)], { env });
-        rmSync(resolve(attemptDirectory, name), { force: true });
-      } catch (error) {
-        cleanupFailure ??= error;
-      }
-    }
+    try { cleanupLocalE2E(env); } catch (error) { cleanupFailure = error; }
   }
   if (testFailure) throw testFailure;
+  if (cleanupFailure) throw cleanupFailure;
+}
+
+/** Retry only fixture manifests owned by this local E2E workspace after interrupted teardown. */
+function cleanupLocalE2E(environment?: NodeJS.ProcessEnv): void {
+  const attemptDirectory = resolve(projectRoot, ".agent-tmp/e2e-attempts");
+  if (!existsSync(attemptDirectory)) return;
+  const manifests = readdirSync(attemptDirectory, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".credentials.json"));
+  if (!manifests.length) return;
+  const env = environment ?? buildLocalAppEnvironment(readLocalStatus(), sanitizedEnvironment());
+  let cleanupFailure: unknown;
+  for (const { name } of manifests) {
+    const scenarioId = name.slice(0, -".credentials.json".length);
+    try {
+      run(tsxBin, ["scripts/db/major-browser-fixture.ts", "cleanup", scenarioId, resolve(attemptDirectory, name)], { env });
+      rmSync(resolve(attemptDirectory, name), { force: true });
+    } catch (error) {
+      cleanupFailure ??= error;
+    }
+  }
   if (cleanupFailure) throw cleanupFailure;
 }
 
