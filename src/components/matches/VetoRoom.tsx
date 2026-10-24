@@ -333,9 +333,9 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
         </div>
       </header>
 
-      {(notice || error) && (
+      {(notice || error || invalidationPending) && (
         <div role={error ? "alert" : "status"} aria-live="polite" className={`rounded border px-4 py-3 text-sm ${error ? "border-[var(--color-danger-edge)] text-[var(--color-danger)]" : "border-[var(--color-ok-edge)] text-[var(--color-ok)]"}`}>
-          {error || notice}
+          {error || (invalidationPending ? "关联页面缓存同步未完成，正在重试。" : notice)}
         </div>
       )}
 

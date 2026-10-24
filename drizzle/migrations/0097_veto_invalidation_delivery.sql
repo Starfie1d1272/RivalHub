@@ -18,7 +18,7 @@ CREATE INDEX "match_veto_invalidations_pending_idx" ON "match_veto_invalidations
 ALTER TABLE public.match_veto_invalidations ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.match_veto_invalidations FROM PUBLIC, anon, authenticated;
 --> statement-breakpoint
--- Cache delivery metadata is coalesced once per match per transaction. The
+-- Cache delivery generation is coalesced once per match per transaction. The
 -- authoritative facts and their pending generation commit or roll back together.
 CREATE FUNCTION public.enqueue_match_veto_invalidation() RETURNS trigger
 LANGUAGE plpgsql SET search_path = public, pg_catalog AS $$

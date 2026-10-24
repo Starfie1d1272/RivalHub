@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 // Future immutable producer build; production remains reader1/publisher0.
 vi.mock("@/lib/matches/veto-room/lifecycle-contract.json", () => ({ default: { readerVersion: 1, publisherVersion: 1 } }));
-vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn(), revalidatePublicSeasonTags: vi.fn(), revalidatePublicStatsTag: vi.fn(), revalidateSeasonPaths: vi.fn() }));
+vi.mock("@/lib/revalidation", () => ({ revalidateVetoRoomPaths: vi.fn(), revalidateMatchPaths: vi.fn(), revalidatePublicSeasonTags: vi.fn(), revalidatePublicStatsTag: vi.fn(), revalidateSeasonPaths: vi.fn() }));
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { lockMatchInTx } from "@/lib/matches/locking";

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn(), revalidatePublicSeasonTags: vi.fn(), revalidatePublicStatsTag: vi.fn(), revalidateSeasonPaths: vi.fn() }));
+vi.mock("@/lib/revalidation", () => ({ revalidateVetoRoomPaths: vi.fn(), revalidateMatchPaths: vi.fn(), revalidatePublicSeasonTags: vi.fn(), revalidatePublicStatsTag: vi.fn(), revalidateSeasonPaths: vi.fn() }));
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { loadBetFacts } from "@/lib/bet/facts";
@@ -76,6 +76,9 @@ describe("veto lifecycle shipped reader1/publisher0", () => {
     const maps = (await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId))).sort((a, b) => a.id.localeCompare(b.id));
     expect(maps.find(m => m.id === f.mapOneId)!.startedAt).not.toBeNull();
     await readVetoRoomCore(f.matchId); await reconcileVetoRoom(f.matchId);
+    // A delivery-only invocation may drain durable cache work, without
+    // publishing the independently disabled appeal-closure transition.
+    expect(await runMatchVetoTimeoutJob()).toMatchObject({ result: { changed: 0 } });
     expect(await runMatchVetoTimeoutJob()).toMatchObject({ result: { processed: 0, changed: 0 } });
     const pool = createLocalPool();
     try {
