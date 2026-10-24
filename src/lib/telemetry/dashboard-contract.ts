@@ -5,7 +5,7 @@ import { ROUTES } from "./routes";
 
 const count = z.number().int().nonnegative();
 export const DashboardData = z.object({
-  generatedAt: count, validUntil: count, from: count, sampledBatches: count, truncated: z.boolean(), latestReceived: count.nullable(),
+  generatedAt: count, validUntil: count, from: count, sampledBatches: count, legacyPerformanceReports: count, truncated: z.boolean(), latestReceived: count.nullable(),
   totals: z.object({ page: count, filter: count, error: count, start: count, success: count, rejected: count, unknown: count }),
   trend: z.array(z.object({ at: count, page: count, start: count, error: count })).max(169),
   routes: z.array(z.object({ route: z.string().max(160), pages: count, errors: count })).max(ROUTES.length + 1),

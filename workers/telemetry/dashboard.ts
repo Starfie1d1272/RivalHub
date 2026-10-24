@@ -7,16 +7,16 @@ const HOUR = 3600000;
 const METRICS = new Set(["TTFB", "FCP", "LCP", "INP", "NAV_COMMIT", "CLS"]);
 interface Group {
   at: number; route: string; kind: string; operation: string; phase: string; metric: string;
-  n: number; duration: number; score: number | null;
+  n: number; duration: number; score: number | null; legacy: number;
   device: string | null; browser: string | null; os: string | null; source: string | null;
 }
 
 /** Aggregate in D1 so the receiver does not parse every batch summary on its CPU budget. */
 export async function dashboard(db: Database, filters: DashboardFilters, now: number, budget: DashboardData["budget"]): Promise<DashboardData> {
   const from = now - Number(filters.hours) * HOUR;
-  const sample = `SELECT received,expires,summary FROM batches WHERE expires>? AND received>=?
+  const sample = `SELECT ticket,id,account,session,received,expires,summary FROM batches WHERE expires>? AND received>=? AND received<=?
     AND environment='production' AND (?='' OR release=?) ORDER BY received DESC,ticket DESC,id DESC LIMIT ?`;
-  const args = [now, from, filters.release, filters.release];
+  const args = [now, from, now, filters.release, filters.release];
   const statements = [
     db.prepare(`SELECT count(*) AS batches,max(received) AS latestReceived,min(expires) AS earliestExpiry,
       min(CASE WHEN sample_rank<=${DASHBOARD_BATCH_LIMIT} THEN received END) AS earliestReceived
@@ -27,6 +27,8 @@ export async function dashboard(db: Database, filters: DashboardFilters, now: nu
         json_extract(j.value,'$[3]') AS operation,json_extract(j.value,'$[4]') AS phase,
         json_extract(j.value,'$[6]') AS metric,json_extract(j.value,'$[7]') AS n,
         json_extract(j.value,'$[8]') AS duration,json_extract(j.value,'$[9]') AS score,
+        json_extract(j.value,'$[11]') AS sample_id,json_extract(j.value,'$[12]') AS reported_at,
+        b.received,b.ticket,b.id,b.account,b.session,
         CASE WHEN json_extract(j.value,'$[2]')='page' THEN json_extract(j.value,'$[10].device') END AS device,
         CASE WHEN json_extract(j.value,'$[2]')='page' THEN json_extract(j.value,'$[10].browser') END AS browser,
         CASE WHEN json_extract(j.value,'$[2]')='page' THEN json_extract(j.value,'$[10].os') END AS os,
@@ -34,15 +36,21 @@ export async function dashboard(db: Database, filters: DashboardFilters, now: nu
       FROM (${sample}) b,json_each(b.summary) j WHERE (?='' OR json_extract(j.value,'$[1]')=?)
         AND (json_extract(j.value,'$[2]')!='performance' OR json_extract(j.value,'$[6]')!='CLS'
           OR (json_type(j.value,'$[9]') IN ('integer','real') AND json_extract(j.value,'$[9]')>=0))
-    ) SELECT at,route,kind,operation,phase,metric,device,browser,os,source,sum(n) AS n,
-      sum(duration) AS duration,sum(score) AS score FROM expanded
-      GROUP BY at,route,kind,operation,phase,metric,device,browser,os,source`)
+    ) , ranked AS (
+      SELECT *, row_number() OVER (PARTITION BY account,session,metric,sample_id ORDER BY reported_at DESC,received DESC,ticket DESC,id DESC) AS sample_rank
+      FROM expanded
+    ) SELECT at,route,kind,operation,phase,metric,device,browser,os,source,
+      CASE WHEN kind='performance' AND sample_id IS NULL THEN 1 ELSE 0 END AS legacy,sum(n) AS n,
+      sum(duration) AS duration,sum(score) AS score FROM ranked
+      WHERE kind!='performance' OR sample_id IS NULL OR sample_rank=1
+      GROUP BY at,route,kind,operation,phase,metric,device,browser,os,source,legacy`)
       .bind(...args, DASHBOARD_BATCH_LIMIT, filters.route, filters.route),
     db.prepare("SELECT day,batches,bytes FROM usage ORDER BY day DESC LIMIT 8"),
     db.prepare("SELECT count(*) AS expiredBatches,min(expires) AS oldestExpiry FROM batches WHERE expires<=?").bind(now),
   ];
   const results = await db.batch(statements) as Array<{ results: unknown[] }>;
   const meta = results[0].results[0] as { batches: number; latestReceived: number | null; earliestExpiry: number | null; earliestReceived: number | null };
+  let legacyPerformanceReports = 0;
   const totals = { page: 0, filter: 0, error: 0, start: 0, success: 0, rejected: 0, unknown: 0 };
   const trend = new Map<number, DashboardData["trend"][number]>();
   const trendFrom = meta.batches > DASHBOARD_BATCH_LIMIT ? Math.max(from, meta.earliestReceived ?? from) : from;
@@ -76,6 +84,7 @@ export async function dashboard(db: Database, filters: DashboardFilters, now: nu
       operations.set(operation, o);
     }
     if (kind === "performance" && METRICS.has(metric)) {
+      if (group.legacy) { legacyPerformanceReports += n; continue; }
       if (metric === "CLS" && (score === null || !Number.isFinite(score) || score < 0)) continue;
       const key = `${route}:${metric}`;
       const p = performance.get(key) ?? { route, metric: metric as DashboardData["performance"][number]["metric"], reports: 0, durationMs: 0 };
@@ -88,7 +97,7 @@ export async function dashboard(db: Database, filters: DashboardFilters, now: nu
   return {
     generatedAt: now, validUntil: Math.min(now + 60000, meta.earliestExpiry ?? now + 60000), from,
     sampledBatches: Math.min(meta.batches, DASHBOARD_BATCH_LIMIT), truncated: meta.batches > DASHBOARD_BATCH_LIMIT,
-    latestReceived: meta.latestReceived, totals, trend: [...trend.values()],
+    latestReceived: meta.latestReceived, legacyPerformanceReports, totals, trend: [...trend.values()],
     routes: [...routes.values()].filter(r => r.pages || r.errors).sort((a, b) => b.pages - a.pages),
     operations: [...operations.values()].sort((a, b) => b.start - a.start),
     performance: [...performance.values()].sort((a, b) => b.durationMs / b.reports - a.durationMs / a.reports),

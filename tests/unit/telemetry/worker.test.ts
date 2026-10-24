@@ -21,6 +21,7 @@ it("executes the real Worker and D1 API: concurrent ACK deduplication, usage and
     const body = JSON.stringify({ v: 1, id: crypto.randomUUID(), ticket, events: [
       { id: crypto.randomUUID(), at: now, session, route: "/", scene: "site", kind: "page" },
       { id: crypto.randomUUID(), at: now, session, route: "/stats", scene: "site", kind: "performance", metricName: "NAV_COMMIT", durationMs: 321 },
+      { id: crypto.randomUUID(), at: now, session, route: "/stats", scene: "site", kind: "performance", metricName: "CLS", score: 0.125, client: { device: "mobile", browser: "safari", os: "ios", source: "none" } },
     ] });
     const send = () => mf.dispatchFetch("https://worker.invalid/v1/batches", { method: "POST", headers: { origin: bindings.ALLOWED_ORIGIN }, body });
     const responses = await Promise.all([send(), send(), send()]);
@@ -29,7 +30,9 @@ it("executes the real Worker and D1 API: concurrent ACK deduplication, usage and
     expect(await db.prepare("SELECT count(*) AS n FROM batches").first()).toEqual({ n: 1 });
     const response = await mf.dispatchFetch(`https://worker.invalid/admin/events?account=${account}`, { headers: { authorization: `Bearer ${bindings.ADMIN_KEY}` } });
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain(session);
+    const events = await response.text();
+    expect(events).toContain(session);
+    expect(events).toContain("0.125");
     await maintain({ ...bindings, DB: db as unknown as Env["DB"] }, now + 86400000);
     expect(await db.prepare("SELECT sum(events) AS events FROM summaries").first()).toEqual({ events: 2 });
     expect(await db.prepare("SELECT variant,events,duration_ms FROM summaries WHERE kind='performance'").first()).toEqual({ variant: "NAV_COMMIT", events: 1, duration_ms: 321 });

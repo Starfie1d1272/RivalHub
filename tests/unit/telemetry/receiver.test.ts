@@ -53,8 +53,36 @@ describe("independent receiver privacy, budget and lifecycle", () => {
     expect((await post(env, await batch(env, [sample]))).status).toBe(204);
     const stored = sqlite.prepare("SELECT events_gzip,summary,expires FROM batches").get()!;
     expect(JSON.parse(gunzipSync(stored.events_gzip as Uint8Array).toString())).toEqual([sample]);
-    expect(JSON.parse(String(stored.summary))).toEqual([["site", "/stats", "performance", "", "", "", "LCP", 1, 1250]]);
+    expect(JSON.parse(String(stored.summary))).toEqual([["site", "/stats", "performance", "", "", "", "LCP", 1, 1250, null, null, sample.id, sample.at]]);
     expect(stored.expires).toBe(now + 7 * 86400000);
+  });
+  it("validates unitless CLS and coarse client categories without arbitrary metadata", async () => {
+    const { env, sqlite } = fixture();
+    const sample: TelemetryEvent = { id: crypto.randomUUID(), at: now, session: crypto.randomUUID(), route: "/", scene: "site", kind: "performance", metricName: "CLS", score: 0.1254,
+      client: { device: "mobile", browser: "safari", os: "ios", source: "none" } };
+    expect(validEvent(sample, now)).toBe(true);
+    for (const extra of [{ score: NaN }, { score: -1 }, { score: 101 }, { score: undefined }, { durationMs: 4 }, { metricName: "LCP" },
+      { client: { ...sample.client, userAgent: "PRIVATE" } }, { client: { ...sample.client, source: "PRIVATE" } }, { client: {} }]) {
+      expect(validEvent({ ...sample, ...extra }, now)).toBe(false);
+    }
+    expect(validEvent({ ...sample, kind: "page", metricName: undefined }, now)).toBe(false);
+    expect((await post(env, await batch(env, [sample]))).status).toBe(204);
+    const stored = sqlite.prepare("SELECT events_gzip,summary FROM batches").get()!;
+    expect(JSON.parse(gunzipSync(stored.events_gzip as Uint8Array).toString())).toEqual([sample]);
+    expect(JSON.parse(String(stored.summary))).toEqual([["site", "/", "performance", "", "", "", "CLS", 1, 0, 0.1254, sample.client, sample.id, sample.at]]);
+    await maintain(env, now + 86400000);
+    expect(sqlite.prepare("SELECT count(*) AS n FROM summaries").get()?.n).toBe(0);
+  });
+  it("keeps category breakdowns within seven-day batches and merges legacy daily dimensions", async () => {
+    const { env, sqlite } = fixture(); const session = crypto.randomUUID();
+    const samples: TelemetryEvent[] = ["mobile", "desktop"].map(device => ({ id: crypto.randomUUID(), at: now, session, route: "/", scene: "site", kind: "page", client: { device: device as "mobile" | "desktop", browser: "chrome", os: "other", source: "none" } }));
+    expect((await post(env, await batch(env, samples))).status).toBe(204);
+    const summary = JSON.parse(String(sqlite.prepare("SELECT summary FROM batches").get()?.summary));
+    expect(summary).toHaveLength(2);
+    expect(summary.map((row: unknown[]) => row[10])).toEqual(samples.map(sample => sample.client));
+    await maintain(env, now + 86400000);
+    expect(sqlite.prepare("SELECT events FROM summaries").get()?.events).toBe(2);
+    expect(JSON.stringify(sqlite.prepare("SELECT * FROM summaries").all())).not.toMatch(/mobile|desktop/);
   });
   it("deduplicates lost ACK retries, reads by account/session, and never persists ingest credentials", async () => {
     const { env, sqlite } = fixture(); const body = await batch(env);

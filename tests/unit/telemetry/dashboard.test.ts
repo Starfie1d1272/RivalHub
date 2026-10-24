@@ -16,9 +16,10 @@ it("protects dashboard queries and bounds D1 summaries without exposing identiti
     const now = Date.now();
     const summary = JSON.stringify([
       ["site", "/", "page", "", "", "", "", 2, 0, null, { device: "mobile", browser: "safari", os: "ios", source: "none" }],
-      ["site", "/stats", "performance", "", "", "", "LCP", 1, 123],
-      ["site", "/stats", "performance", "", "", "", "CLS", 1, 0, 0.1],
+      ["site", "/stats", "performance", "", "", "", "LCP", 1, 123, null, null, "sample-lcp", now - 1000],
+      ["site", "/stats", "performance", "", "", "", "CLS", 1, 0, 0.1, null, "sample-cls", now - 1000],
       ["site", "/", "performance", "", "", "", "CLS", 1, 0],
+      ["site", "/stats", "performance", "", "", "", "LCP", 2, 999],
       ["site", "/", "operation", "auth.loginWithPassword", "start", "", "", 1, 0],
       ["site", "/", "operation", "auth.loginWithPassword", "success", "", "", 1, 150],
     ]);
@@ -37,6 +38,7 @@ it("protects dashboard queries and bounds D1 summaries without exposing identiti
     expect(text).not.toMatch(/private-|events_gzip|SIGNING_KEY|ADMIN_KEY/);
     const data = JSON.parse(text);
     expect(data.sampledBatches).toBe(1);
+    expect(data.legacyPerformanceReports).toBe(2);
     expect(data.performance.filter((row: { metric: string }) => row.metric === "CLS")).toHaveLength(1);
     expect(data.clients).toContainEqual({ dimension: "device", value: "mobile", pages: 2 });
     expect(data.totals).toMatchObject({ page: 2, start: 1, success: 1 });
@@ -44,6 +46,14 @@ it("protects dashboard queries and bounds D1 summaries without exposing identiti
     expect(data.performance).toContainEqual({ route: "/stats", metric: "CLS", reports: 1, durationMs: 0, score: 0.1 });
     const filtered = await mf.dispatchFetch("https://worker.invalid/admin/dashboard?route=/stats", { headers });
     expect((await filtered.json() as { totals: { page: number } }).totals.page).toBe(0);
+    // A later report may decrease (INP), and an older value can arrive later.
+    for (const [id, received, at, value] of [["new", now - 5, now - 10, 80], ["late-old", now - 1, now - 100, 900]] as const) {
+      const report = JSON.stringify([["site", "/stats", "performance", "", "", "", "LCP", 1, value, null, null, "sample-lcp", at]]);
+      await db.prepare("INSERT INTO batches VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)")
+        .bind("private-ticket", id, received, now + 1200000, new Date(now).toISOString().slice(0, 10), "private-account", "private-session", "user", "test", "production", 100, new Uint8Array([0]), report).run();
+    }
+    const updated = await (await mf.dispatchFetch("https://worker.invalid/admin/dashboard", { headers })).json() as { performance: unknown[] };
+    expect(updated.performance).toContainEqual({ route: "/stats", metric: "LCP", reports: 1, durationMs: 80 });
     const newerSummary = JSON.parse(summary);
     newerSummary[0][7] = 3;
     await db.prepare(`WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<1000)
