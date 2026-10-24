@@ -1,6 +1,6 @@
 import type { SwissStageReadModel, StageSwissMatchRow, StageSwissRoundColumn } from "@/lib/matches/stage-read-model";
 import { SHORT_SWISS_MAX_ROUNDS } from "./policy";
-import type { SwissCompletedMatch, SwissEntrant, SwissProjection } from "@/lib/swiss/types";
+import type { SwissCompletedMatch, SwissEntrant, SwissProjection, SwissRecord } from "@/lib/swiss/types";
 import { generateShortSwissRoundPairings, projectShortSwissStage } from "./swiss";
 
 export interface QualificationSwissEntrant {
@@ -31,12 +31,16 @@ function pairKey(entryAId: string, entryBId: string): string {
   return [entryAId, entryBId].sort().join(":");
 }
 
-/** Build a public Swiss read model only when persisted Play-in facts match the canonical round rules. */
-export function buildQualificationSwissReadModel(input: {
+type QualificationSwissFacts = {
   directEntryCount: number;
-  entrants: readonly QualificationSwissEntrant[];
+  entrants: readonly Pick<QualificationSwissEntrant, "entryId" | "preliminarySeed">[];
   matches: readonly QualificationSwissMatch[];
-}): SwissStageReadModel | null {
+};
+
+const stageName = "Play-in · Short Swiss";
+
+/** One canonical validation/projection boundary for full and single-match reads. */
+function projectQualificationSwissFacts(input: QualificationSwissFacts) {
   const ordered = [...input.entrants].sort((a, b) => a.preliminarySeed - b.preliminarySeed);
   if (ordered.some((entrant, index) => entrant.preliminarySeed !== index + 1)) return null;
   const entrants: SwissEntrant[] = ordered
@@ -86,8 +90,38 @@ export function buildQualificationSwissReadModel(input: {
     return null;
   }
 
-  const logoByEntryId = new Map(ordered.map(entrant => [entrant.entryId, entrant.logoUrl]));
-  const nameByEntryId = new Map(ordered.map((entrant) => [entrant.entryId, entrant.teamName]));
+  return { entrants, matchRows, projection, projections };
+}
+
+function matchRecord(match: Pick<QualificationSwissMatch, "entryAId" | "entryBId">, states: ReadonlyMap<string, SwissRecord>) {
+  const teamA = states.get(match.entryAId);
+  const teamB = states.get(match.entryBId);
+  const recordA = teamA ? `${teamA.wins}:${teamA.losses}` : "待定";
+  const recordB = teamB ? `${teamB.wins}:${teamB.losses}` : "待定";
+  return recordA === recordB ? recordA : `${recordA} | ${recordB}`;
+}
+
+/** Validates the complete frozen run before projecting one pre-round record. */
+export function buildQualificationSwissMatchRecord(input: QualificationSwissFacts, matchId: string): { stageName: string; record: string } | null {
+  const facts = projectQualificationSwissFacts(input);
+  if (!facts) return null;
+  const match = facts.matchRows.find(row => row.id === matchId);
+  if (!match) return null;
+  const beforeRound = match.round! <= facts.projection.completedRound ? facts.projections[match.round! - 1] : facts.projection;
+  return { stageName, record: matchRecord(match, new Map(beforeRound?.teams.map(team => [team.teamId, team]) ?? [])) };
+}
+
+/** Build a public Swiss read model only when persisted Play-in facts match the canonical round rules. */
+export function buildQualificationSwissReadModel(input: {
+  directEntryCount: number;
+  entrants: readonly QualificationSwissEntrant[];
+  matches: readonly QualificationSwissMatch[];
+}): SwissStageReadModel | null {
+  const facts = projectQualificationSwissFacts(input);
+  if (!facts) return null;
+  const { entrants, matchRows, projection, projections } = facts;
+  const logoByEntryId = new Map(input.entrants.map(entrant => [entrant.entryId, entrant.logoUrl]));
+  const nameByEntryId = new Map(input.entrants.map((entrant) => [entrant.entryId, entrant.teamName]));
   const rows: StageSwissMatchRow[] = matchRows.map((match) => ({
     matchId: match.id,
     entryAId: match.entryAId,
@@ -110,11 +144,7 @@ export function buildQualificationSwissReadModel(input: {
     const stateByEntryId = new Map(beforeRound?.teams.map((team) => [team.teamId, team]) ?? []);
     const groups = new Map<string, StageSwissMatchRow[]>();
     for (const row of roundRows) {
-      const teamA = stateByEntryId.get(row.entryAId);
-      const teamB = stateByEntryId.get(row.entryBId);
-      const recordA = teamA ? `${teamA.wins}:${teamA.losses}` : "待定";
-      const recordB = teamB ? `${teamB.wins}:${teamB.losses}` : "待定";
-      const key = recordA === recordB ? recordA : `${recordA} | ${recordB}`;
+      const key = matchRecord(row, stateByEntryId);
       const group = groups.get(key) ?? [];
       group.push(row);
       groups.set(key, group);
@@ -127,7 +157,7 @@ export function buildQualificationSwissReadModel(input: {
   }
 
   return {
-    stageName: "Play-in · Short Swiss",
+    stageName,
     stageKey: "play-in",
     seedPrefix: "P",
     finalizedRound: projection.completedRound,
