@@ -25,6 +25,20 @@ it("uses an explicitly empty initial snapshot without a mount read", () => {
   expect(screen.queryByText("加载中…")).toBeNull();
 });
 
+it("adopts a late initial snapshot once without leaving loading stuck or replacing later edits", async () => {
+  mocks.read.mockReturnValue(new Promise(() => {}));
+  const user = userEvent.setup();
+  const { rerender } = render(<StatsOCRPanel mapId="map" mapName="de_mirage" />);
+  rerender(<StatsOCRPanel mapId="map" mapName="de_mirage" initialRows={[saved]} />);
+  await user.click(await screen.findByRole("button", { name: "重新录入" }));
+  const rating = await screen.findByLabelText("Retained player Rating");
+  await user.clear(rating);
+  await user.type(rating, "1.4");
+  rerender(<StatsOCRPanel mapId="map" mapName="de_mirage" initialRows={[{ ...saved, ratingPro: 9 }]} />);
+  expect(rating).toHaveValue(1.4);
+  expect(mocks.read).toHaveBeenCalledOnce();
+});
+
 it("does not treat a failed initial read as an empty editable scoreboard", async () => {
   mocks.read.mockResolvedValue({ success: false, error: { code: "FORBIDDEN", message: "读取失败" } });
   render(<StatsOCRPanel mapId="map" mapName="de_mirage" />);
