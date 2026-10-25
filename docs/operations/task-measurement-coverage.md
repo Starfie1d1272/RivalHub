@@ -37,7 +37,7 @@ task.complete(captured);
 task.step("result", captured);
 ```
 
-complete 同步、幂等，保留有界 terminal receipt 允许 result/ready；取消后的 token 不再呈现。异步路径必须传 captured token。旧 scope 不完成新 scope，卸载不伪造取消或成功；同类多 scope 时 observeAction 不擅自选一个任务。所有未决和 terminal token 合计最多 8 个；从 start 按任务窗口 TTL 淘汰，expired/capacity/forgotten/reset 原因仅留内存计数。身份/隐私重置清除所有 token；不持久化 name/scope/密码/表单原文。每个 attempt 同时持有原 queue、session 与已规范化的 route/scene/eventId/measurement 安全快照，和 token 共用 8 条/TTL 存储；跨导航后的确认保持原上下文，跨身份则丢弃。原 session 与新页 session 不同的事件仍按 queue 原协议分批，不能为凑批重写归因。
+complete 同步、幂等，保留有界 terminal receipt 允许 result/ready；取消后的 token 不再呈现。异步路径必须传 captured token。旧 scope 不完成新 scope，卸载不伪造取消或成功；同类多 scope 时 observeAction 不擅自选一个任务；附着明确唯一 attempt 的操作沿用其原 session/context，避免超过 30 分钟静默后断链。独立新任务仍捕获当前 session，不建立跨账号关联。所有未决和 terminal token 合计最多 8 个；从 start 按任务窗口 TTL 淘汰，expired/capacity/forgotten/reset 原因仅留内存计数。身份/隐私重置清除所有 token；不持久化 name/scope/密码/表单原文。每个 attempt 同时持有原 queue、session 与已规范化的 route/scene/eventId/measurement 安全快照，和 token 共用 8 条/TTL 存储；跨导航后的确认保持原上下文，跨身份则丢弃。原 session 与新页 session 不同的事件仍按 queue 原协议分批，不能为凑批重写归因。
 
 登录仅在原 queue 和原捕获 attempt 下确认并 flush，随后 reset。换账号或 logout 后的旧异步成功不清空新账号 queue。result 不携带到另一个账号。
 

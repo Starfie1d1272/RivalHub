@@ -78,12 +78,15 @@ export class TelemetryTasks<Context = undefined> {
     this.report(a, phase); a.terminal = phase; a.activity = null;
   }
   capture(name: TaskName, scopePrefix?: string): TaskMeasurement | undefined {
+    return this.captureWithContext(name, scopePrefix)?.task;
+  }
+  captureWithContext(name: TaskName, scopePrefix?: string): Pick<TaskReport<Context>, "task" | "context"> | undefined {
     // An action without an explicit token cannot choose among concurrent scopes.
     this.prune();
     const candidates = [...this.attempts.values()].filter(a => a.name === name && !a.terminal && (scopePrefix === undefined || a.scope.startsWith(scopePrefix)));
     if (candidates.length !== 1) return;
     this.accumulate(candidates[0]);
-    return this.payload(candidates[0], "step");
+    return { task: this.payload(candidates[0], "step"), context: candidates[0].context };
   }
   pause() { this.prune(); for (const a of this.attempts.values()) { this.accumulate(a); a.activity = null; } }
   checkpoint() {

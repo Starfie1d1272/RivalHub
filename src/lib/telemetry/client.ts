@@ -323,10 +323,17 @@ export function observeAction<A extends unknown[], R>(operation: Operation, acti
       operationId = crypto.randomUUID(); started = performance.now(); captured = context();
       variant = variantFor(operation, args[0]); filters = safeFilters(new URLSearchParams(window.location.search));
       const taskName = taskForOperation(operation);
-      operationTask = taskName ? tasks.capture(taskName, `${window.location.pathname}:`) : undefined;
-      record({ ...captured, ...(operationTask ? { task: operationTask } : {}), kind: "operation", operation, operationId, phase: "start", ...(variant ? { variant } : {}) });
-      operationSession = session;
-      operationMeasurement = measurementContext();
+      const taskAttempt = taskName ? tasks.captureWithContext(taskName, `${window.location.pathname}:`) : undefined;
+      if (taskAttempt?.context?.queue === actionQueue) {
+        const original = taskAttempt.context;
+        operationTask = taskAttempt.task;
+        captured = { route: original.route, scene: original.scene, eventId: original.eventId };
+        operationSession = original.session;
+        operationMeasurement = original.measurement;
+      }
+      record({ ...captured, ...(operationMeasurement ? { measurement: operationMeasurement } : {}), ...(operationTask ? { task: operationTask } : {}), kind: "operation", operation, operationId, phase: "start", ...(variant ? { variant } : {}) }, operationSession);
+      operationSession ??= session;
+      operationMeasurement ??= measurementContext();
     });
     const finish = (phase: TelemetryEvent["phase"], errorCode?: string, requestId?: string, outcome?: TelemetryEvent["outcome"]) => attempt(() => {
       // Do not attribute an old user's pending result to a new identity.
