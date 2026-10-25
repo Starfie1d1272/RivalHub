@@ -7,7 +7,7 @@ import {analyzeTelemetry} from "@/lib/telemetry/analysis-model";
 import {analysisDefaults} from "@/lib/telemetry/analysis-query";
 import { getTelemetryWorkflowsAction } from "@/app/admin/telemetry/actions";
 import type { HistoryData } from "@/lib/telemetry/history-contract";
-import { getTelemetryAnalysis, getTelemetryHistory } from "@/lib/telemetry/dashboard";
+import { getLongWindowSummary, getTelemetryAnalysis, getTelemetryHistory } from "@/lib/telemetry/dashboard";
 
 afterEach(() => vi.unstubAllEnvs());
 beforeEach(() => { vi.restoreAllMocks(); requireSuperAdmin.mockReset(); loadWorkflowMetrics.mockReset(); });
@@ -79,7 +79,7 @@ it("revoked authorization cannot reuse a cached history result", async () => {
   expect(fetch).toHaveBeenCalledTimes(1);
 });
 
-it.each([{ days: "7" }, { eventId: "private-value" }, { session: "a".repeat(32) }, { days: 28 }])("rejects invalid history input before provider access: %j", async input => {
+it.each([{ days: "8" }, { eventId: "private-value" }, { session: "a".repeat(32) }, { days: 28 }])("rejects invalid history input before provider access: %j", async input => {
   requireSuperAdmin.mockResolvedValue({ userId: "fixture" });
   const fetch = vi.spyOn(globalThis, "fetch");
   await expect(getTelemetryHistory(input)).rejects.toThrow("Invalid telemetry history filters");
@@ -107,4 +107,14 @@ it("passes only validated workflow filters to the database owner after authoriza
   });
   expect((await getTelemetryWorkflowsAction({})).status).toBe("ready");
   expect(loadWorkflowMetrics).toHaveBeenCalledExactlyOnceWith({ days: "7", eventId: "" });
+});
+
+
+it("authorizes and validates the independent long-window query before provider access", async () => {
+  const fetch = vi.spyOn(globalThis, "fetch");
+  requireSuperAdmin.mockRejectedValueOnce(new Error("FORBIDDEN"));
+  await expect(getLongWindowSummary({})).rejects.toThrow("FORBIDDEN");
+  requireSuperAdmin.mockResolvedValue({ userId: "fixture" });
+  await expect(getLongWindowSummary({ browser: "private-value" })).rejects.toThrow("Invalid telemetry long-window filters");
+  expect(fetch).not.toHaveBeenCalled();
 });
