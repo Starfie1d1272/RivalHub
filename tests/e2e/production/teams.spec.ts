@@ -19,6 +19,8 @@ test("队伍目录 production 直达、预取导航和搜索保持可用", async
   await page.getByLabel("队伍状态").selectOption("history");
   await expect(page).toHaveURL(/status=history/);
   await page.goBack();
-  await expect(page.getByLabel("队伍状态")).toHaveValue("active");
+  await expect(page).toHaveURL(/\/$/);
+  await page.goForward();
+  await expect(page.getByLabel("队伍状态")).toHaveValue("history");
   expect(errors).toEqual([]);
 });
