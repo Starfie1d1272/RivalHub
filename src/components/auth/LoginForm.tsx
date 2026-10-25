@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { loginWithPassword as telemetry_loginWithPassword, resendSignupConfirmation as telemetry_resendSignupConfirmation, signUp as telemetry_signUp } from "@/actions/auth";
 import { TurnstileWidget, type TurnstileFailure } from "@/components/auth/TurnstileWidget";
 import { EMAIL_RESEND_COOLDOWN_SECONDS, isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
+import { isDeploymentUpdateRequired, preserveLoginUpdateEmail, takeLoginUpdateEmail } from "@/lib/auth/login-update-draft";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { clearPreviousLiveViews } from "@/lib/mizar/live-viewer-cache-reset";
 import { TaskBoundary } from "@/components/telemetry/TaskBoundary";
@@ -25,6 +26,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
   const [confirmPassword, setConfirmPassword] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string>("");
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [needsUpdate, setNeedsUpdate] = useState(false);
   const [mode, setMode] = useState<Mode>(initialMode);
   const [awaitingEmail, setAwaitingEmail] = useState<string | null>(null);
   const [resendAvailableAt, setResendAvailableAt] = useState<number | null>(null);
@@ -32,6 +34,23 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
   const [isResendPending, startResendTransition] = useTransition();
   const receiptToken = useRef<string | null>(null);
   const redirectRef = useRef(safeLocalRedirect(redirectTo));
+
+  useEffect(() => {
+    const restored = takeLoginUpdateEmail();
+    // One-time browser restoration follows the identical SSR/first client render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (restored) setEmail(current => current || restored);
+  }, []);
+
+  const requirePageUpdate = useCallback((error: unknown) => {
+    if (!isDeploymentUpdateRequired(error)) return false;
+    setNeedsUpdate(true);
+    setPassword("");
+    setConfirmPassword("");
+    setTurnstileToken("");
+    setTurnstileResetKey(key => key + 1);
+    return true;
+  }, []);
 
   const handleTurnstileError = (failure: TurnstileFailure) => {
     setTurnstileToken("");
@@ -58,6 +77,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
+    if (needsUpdate) return;
     const taskToken = beginTelemetryTask(mode === "login" ? "login" : "account", "", "submit");
     if (mode === "register") {
       if (!isPasswordPolicySatisfied(password)) {
@@ -97,18 +117,29 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
         }
         toast.error(result.error.message);
       }
-      } catch { toast.error(mode === "login" ? "登录请求未完成，请检查网络连接后重试。" : "注册请求结果尚未确认，请先检查邮件，不要立即重复注册。"); }
+      } catch (error) {
+        if (!requirePageUpdate(error)) toast.error(mode === "login" ? "登录请求未完成，请检查网络连接后重试。" : "注册请求结果尚未确认，请先检查邮件，不要立即重复注册。");
+      }
     });
-  }, [email, password, confirmPassword, mode, turnstileToken]);
+  }, [email, password, confirmPassword, mode, turnstileToken, needsUpdate, requirePageUpdate]);
 
   useEffect(() => {
     if (awaitingEmail && receiptToken.current) stepTelemetryTask("account", "result", receiptToken.current);
   }, [awaitingEmail]);
 
+  const updatePrompt = needsUpdate && <div role="status" className="space-y-2 rounded-sm border border-[var(--color-border)] p-4 text-sm">
+    <p>页面版本已更新。更新后将恢复邮箱，请重新输入密码并确认操作。</p>
+    <Button type="button" variant="outline" onClick={() => {
+      if (preserveLoginUpdateEmail(awaitingEmail ?? email)) window.location.reload();
+      else toast.error("无法保留邮箱草稿，请复制邮箱后刷新页面。");
+    }}>保留邮箱并更新页面</Button>
+  </div>;
+
   if (awaitingEmail) {
     const isResendCoolingDown = resendAvailableAt !== null;
     return (
       <div className="space-y-4">
+        {updatePrompt}
         <div className="rounded-sm border border-[var(--color-border)] p-4">
           <h2 className="font-semibold">继续完成账号设置</h2>
           <p className="mt-2 break-all text-sm text-[var(--color-fg-mid)]">请检查邮箱：{awaitingEmail}</p>
@@ -124,7 +155,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
           <Link href="/forgot-password" className="block w-full text-center text-sm underline hover:text-[var(--color-fg)]">
             找回密码
           </Link>
-          <Button type="button" variant="outline" className="w-full" disabled={isResendPending || isResendCoolingDown} onClick={() => startResendTransition(async () => {
+          <Button type="button" variant="outline" className="w-full" disabled={needsUpdate || isResendPending || isResendCoolingDown} onClick={() => startResendTransition(async () => {
             try {
             const result = await resendSignupConfirmation(awaitingEmail, redirectRef.current);
             if (result.success) {
@@ -133,7 +164,8 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
             } else {
               toast.error(result.error.message);
             }
-            } catch {
+            } catch (error) {
+              if (requirePageUpdate(error)) return;
               setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
               toast.error("发送结果尚未确认，请先检查邮箱，稍后再显式重试。");
             }
@@ -150,6 +182,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
 
   return (
     <TaskBoundary task={mode === "login" ? "login" : "account"}><form onSubmit={handleSubmit} className="space-y-4">
+      {updatePrompt}
       <div className="flex rounded-sm bg-[var(--color-panel-low)] p-0.5">
         <button
           type="button"
@@ -227,7 +260,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
 
       {mode === "register" && <p className="text-xs text-[var(--color-fg-mid)]">注册后需要验证邮箱才能完成注册和登录。</p>}
 
-      <Button type="submit" variant="outline" className="w-full" disabled={isPending || (mode === "register" && !turnstileToken)}>
+      <Button type="submit" variant="outline" className="w-full" disabled={isPending || needsUpdate || (mode === "register" && !turnstileToken)}>
         {isPending ? "处理中…" : mode === "login" ? "登录" : "注册"}
       </Button>
 
