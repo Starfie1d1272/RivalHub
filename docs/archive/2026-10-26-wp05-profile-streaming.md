@@ -33,7 +33,7 @@
 
 首个浏览器样本因本地数据库缺少 `matches.test_config` 失败，已通过仓库 `db:local:migrate` 对齐后重跑；该失败未计入收益。首次 Chromium 版本不匹配，安装锁定 Playwright 所需浏览器后重跑。PG 测试的单连接并行查询产生 pg 弃用提示，没有把它当成生产池容量证据。
 
-A 已提供 #1138 的资源计数接口约定、C 已提供模块需求 token 约定；provider/core 精确代码尚未同步，未自建替代实现。现有 `ContentReady player/primary` 仍等完整共享 sections，保留原测量语义等待 C 接线。没有采到生产/本地组合负载峰值，不能声称资源预算已验收。有效详细 performance 的多赛事浏览器组合尚未跑；对应 scoped 语义由 unit 和现有真实 PG scoreboard 回归覆盖，不能冒充浏览器证明。
+A 已提供 #1138 的资源计数接口约定、C 已提供模块需求 token 约定；provider/core 精确代码尚未同步，未自建替代实现。现有 `ContentReady player/primary` 仍等完整共享 sections，保留原测量语义等待 C 接线。没有采到生产/本地组合负载峰值，不能声称资源预算已验收。有效详细 performance 的多赛事浏览器组合仍未跑；已补单赛事双地图的真实 browser 正反例，见后续补证。
 
 回退本 PR 的页面分区与 request composition 即恢复原等待边界，统计 owner、schema、权限、公开缓存身份边界不变。未合并、tag、部署或修改生产。
 
@@ -42,4 +42,31 @@ A 已提供 #1138 的资源计数接口约定、C 已提供模块需求 token �
 
 撤回了初版 `lineup-style-query.ts` 的整项变更，最终队伍源码与 main 一致，保持 careers 与 benchmark 并行；不再宣称空阵容节省或队伍收益。基本资料、公开制裁和 Career Stats 保留原同一外层分组，组内独立流式读取；无属性时不插入空 DOM，避免 `space-y` 额外留白。
 
-无注入本地 production build 的桌面 1360×1000、窄屏 390×844 截图对照逐像素一致（四个文件见 `evidence/wp05-screenshots/`；每对 SHA256 相同）。identity/basic/overview/history/performance 的矩形坐标完全一致。截图是无历史本地 fixture，不能代替活跃制裁与有效详细 performance 的浏览器覆盖；后者仍列未跑。公开制裁的 JSX 位置与原包裹间距已恢复。
+无注入本地 production build 的桌面 1360×1000、窄屏 390×844 截图对照逐像素一致（四个文件见 `evidence/wp05-screenshots/`；每对 SHA256 相同）。identity/basic/overview/history/performance 的矩形坐标完全一致。这组截图是无历史本地 fixture；有效详细 performance 和活跃制裁由下面新增的真实浏览器补证覆盖。公开制裁的 JSX 位置与原包裹间距已恢复。
+
+
+## 必要浏览器边界补证（根复审后）
+
+源码 exact SHA `82e9f936d80f160d994aafa38cf01dac4fc7f944`，真实本地独立 PostgreSQL 数据库（从 template1 创建，回放仓库 active migrations）、Next 16.4.2 无注入 production build/start、Chromium。资料为现有 `seedFixture` 和仓库 `normal-map-v1.json` 构造的 synthetic 官方统计范围，使用完整 Evidence parser、canonical `loadCanonicalTarget` / `validateCanonicalTarget`（无 issue）/ `materializeStatisticsProjectionInTx` 写入有效投影，不是真实运营比赛，也未调用 OCR。
+
+实际 reader 预检：All-time 2 图、44 回合，detailed coverage 2/2，performance 非空；Event=wp05-detailed、Map=de_mirage 为 1 图、22 回合、coverage 1/1，performance 非空。浏览器实际渲染打法画像；全部六个场景通过、无 pageerror：
+
+1. 双地图详细表现 + 活跃公开制裁横幅、禁赛头像标记与公开说明可见；横幅位于生涯统计之前。
+2. 真正操作 Event/Map 下拉框：表现切为 1 图，生涯头部仍为 2 图；打法画像保留。
+3. 390×844 窄屏：活跃制裁和双图生涯/表现仍存在。
+4. 请求该赛事没有的合法地图 de_nuke：恢复赛事范围 URL，不混入其它地图过滤语义。
+5. 无历史、无制裁选手：0 图，未伪造属性画像或制裁。
+6. 同一个 Next 服务进程中将本地 case 改为 revoked 后重新请求：当前横幅和禁赛头像标记消失，纪律历史显示“已撤销”，详细统计保持；不借助服务重启清缓存证明即时撤销读取。
+
+正反例均检查响应 HTML 和实际 DOM 不含内部证据、草稿说明、未来生效说明标记。只验证公开 read-model 的状态投影，不声称覆盖管理员签发/撤销 mutation 的授权流程。
+
+原始结果和两屏截图位于 `evidence/wp05-rich-browser/`。fixture 准备失败保留在本地原始日志：首次 TSX CJS 不支持顶层 await，未执行 DB 创建；改为 async main 后首次数据准备违反 `(map_id,perfect_name)` 唯一约束，事务回滚，随后删除该任务独占的失败数据库，以唯一 synthetic 名称重建成功。补充完整合同校验时又发现可选 stageRunId 写 null、participant resolution 仍引用原始 fixture entry 的问题，均在写入确认投影前被解析器拒绝；修正 synthetic 目标引用后重建任务独占数据库，完整 parser/canonical validator 和 reader 预检通过。上述早期结果不作为最终合同合法数据的证据。未更改约束或重试真实提交。
+
+归档脚本为本次手工受控证据，不新增 workflow：`fixture.ts` 复制到仓库 `.agent-tmp/wp05-rich-fixture.ts` 后经现有 `run-server-cli.ts` 执行，必须用 loopback 环境；`create` 记录独占数据库名，`drop` 只允许 `rh_wp05_browser_<12 hex>` 形状的该 manifest 数据库。浏览器脚本从当前 loopback DATABASE_URL 推导该 manifest 独占库；WP05_BUILD_SOURCE_SHA 必须填写实际 production build 的 exact 源码，WP05_EVIDENCE_DIR 指定输出目录，本地 helper 将该独占库注入 app 环境，不连接生产。该隔离数据库将在本轮取证后删除。
+
+
+## 已准备、尚未执行的 provider 接线
+
+根提供的 #1138 API 为 `beginRuntimeResource(name): () => void`。合入后的计划接点是 shared profile eager request 的 `profile.public.read`，以及现有公共统计 cache 函数真正执行的 `stats.public.fill`（先与根确认 shared stats owner 的统一范围）。done 在 finally 结束；不在每个 RSC 消费者重复计数、不将 cache hit 包成 fill、不带 user/URL，不复制 provider，也不自行实现预算。
+
+C #1140 core 仍待精确合并 SHA。当前页面分区、赛事队伍 advanced 都由导航 eager 启动，保留既有导航首次 ready；原生 details 和已有 DTO 视图切换不会启动新后端工作，不插入虚构 demand。若 core 变更要求 consumer 接线，按根确认的模块合同接入；将来主动展开才发起读取时，在启动事件保存 beginTelemetryDemand token，实际 UI 呈现后 recordDemandReady，同一 token 的取消/旧身份/幂等由 core 负责。未把这份待办当作已经完成的 runtime/ready 集成。
