@@ -38,7 +38,7 @@ test("public match consumes private Broadcast and recovers across navigation and
   const pending = new Map<BrowserRequest, Pending>();
   const actionOwners = new Map<string, string>();
   const actionOwner = (request: BrowserRequest): string | undefined => {
-    // Inspect only this public build reference; never retain any header values.
+    // Inspect only this public build reference; never serialize headers or reference values.
     const reference = request.headers()["next-action"];
     if (!reference) return;
     const known = actionOwners.get(reference);

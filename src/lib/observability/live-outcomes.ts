@@ -5,7 +5,7 @@ import { registerRuntimeHealthFlush } from "./runtime-health";
 const OUTCOMES = ["accepted", "frame_expired", "contended", "delivery_dropped", "broadcast_unavailable", "rejected", "error"] as const;
 export type LiveIngestOutcome = typeof OUTCOMES[number];
 const STAGES = ["received", "admitted", "authorized", "send_success", "expired", "capacity", "contended", "unknown_send"] as const;
-export type LiveIngestStage = typeof STAGES[number];
+type LiveIngestStage = typeof STAGES[number];
 type Totals = { count: number; duration: number };
 type WindowState = { start: number; outcomes: Map<LiveIngestOutcome, Totals>; stages: Map<LiveIngestStage, Totals> };
 const KEY = Symbol.for("rivalhub.live-outcome-window.v1");

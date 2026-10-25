@@ -1,0 +1,43 @@
+{
+  "sha": "2486322da1fd4a943adb7d2c81e03713dcb9cee6",
+  "environment": "same Next HTTP application + loopback PostgreSQL + real Local Supabase Auth/Realtime",
+  "observations": [
+    {
+      "operation": "anonymous-viewer-token",
+      "startedMs": 3.2174449999997705,
+      "finishedMs": 1043.168819,
+      "status": 200,
+      "bytes": 421
+    },
+    {
+      "operation": "authenticated-veto-read",
+      "startedMs": 2.997783999999683,
+      "finishedMs": 1182.6318820000001,
+      "status": 200,
+      "bytes": 4841
+    },
+    {
+      "operation": "live-2",
+      "startedMs": 2.3605459999998857,
+      "finishedMs": 1703.7503689999999,
+      "status": 200,
+      "bytes": 17
+    },
+    {
+      "operation": "live-1",
+      "startedMs": 1.6202829999997448,
+      "finishedMs": 1710.9559560000002,
+      "status": 200,
+      "bytes": 17
+    },
+    {
+      "operation": "reliable-map-end",
+      "startedMs": 2.7118539999996756,
+      "finishedMs": 1724.1926520000002,
+      "status": 200,
+      "bytes": 45
+    }
+  ],
+  "commonInFlightMs": 1039.9513740000002,
+  "note": "Five overlapping client HTTP requests. No claim that database statements or provider delivery overlapped for this full interval. No tokens, payloads or credentials retained."
+}
