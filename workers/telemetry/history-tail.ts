@@ -28,8 +28,8 @@ function merge(old: Sample | undefined, next: Sample, now: number): Sample {
     expires: Math.min(old.expires, next.expires), start: Math.max(old.start, next.start),
     phase: terminal && latest ? next.phase : old.phase,
     value: replaceValue ? next.value : old.value, bucket: replaceValue ? next.bucket : old.bucket,
-    active: latest && next.active !== null ? next.active : old.active,
-    activeBucket: latest && next.active !== null ? next.activeBucket : old.activeBucket,
+    active: latest && (next.active !== null || next.kind === "task" && next.phase === "complete") ? next.active : old.active,
+    activeBucket: latest && (next.active !== null || next.kind === "task" && next.phase === "complete") ? next.activeBucket : old.activeBucket,
     at: Math.max(old.at, next.at), received: Math.max(old.received, next.received),
     client: Math.max(old.client, next.client), enhanced: Math.max(old.enhanced, next.enhanced),
   };

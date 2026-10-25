@@ -17,7 +17,7 @@ function distribution(value?: number, metric = "") {
   return d;
 }
 function qualifiers(e: EventRow) {
-  return { basis: e.kind === "ready" ? Reflect.get(e.ready ?? {}, "basis") === "demand" ? "demand" : "navigation" : "", elapsedCensored: e.task?.elapsedCensored === true, activeCensored: e.task?.activeCensored === true, reports: 1 };
+  return { basis: e.kind === "ready" ? Reflect.get(e.ready ?? {}, "basis") === "demand" ? "demand" : "navigation" : "", elapsedCensored: e.kind === "task" && e.task?.elapsedCensored === true, activeCensored: e.kind === "task" && e.task?.activeCensored === true, reports: 1 };
 }
 /** Counts are observed additive facts; unknown coverage and unsupported distincts never become zero. */
 export async function longWindowSummary(env: Env, f: AnalysisFilters, session: string, now: number, budget: { batches: number; bytes: number }): Promise<LongWindowSummary> {
@@ -114,7 +114,7 @@ export async function longWindowSummary(env: Env, f: AnalysisFilters, session: s
     if (counts.taskExposure !== null) counts.taskExposure += new Set(rows.filter(e => e.kind === "task" && e.task?.phase === "exposure").map(e => `${e.account}:${e.session}:${e.task!.definitionVersion}:${e.task!.attemptId}`)).size;
     function metric(e: EventRow, name: string, value?: number, active?: number) {
       addMetric(Object.assign({ kind: e.kind as HistoryTimingRow["kind"], name, phase: e.kind === "task" ? e.task?.phase ?? "" : e.phase ?? "", release: e.measurement?.clientRelease ?? "missing", measurementVersion: e.measurement?.v ?? 0, definitionVersion: e.task?.definitionVersion ?? 0,
-        navigationType: e.measurement?.lifecycle?.navigationType ?? "missing", duration: distribution(e.task?.elapsedCensored ? undefined : value, name), active: distribution(e.task?.activeCensored ? undefined : active) }, qualifiers(e)));
+        navigationType: e.measurement?.lifecycle?.navigationType ?? "missing", duration: distribution(e.kind === "task" && e.task?.elapsedCensored ? undefined : value, name), active: distribution(e.kind === "task" && e.task?.activeCensored ? undefined : active) }, qualifiers(e)));
     }
     const metricIds = new Set(snapshot.metricIds);
     const eligible = rows.filter(e => e.kind === "ready" || e.kind === "performance" && metricIds.has(e.id));
