@@ -9,9 +9,9 @@ import {readPredictionSnapshot,projectPredictionBoard,publicPickEmBoard,projectP
 export const predictionRequestInput=z.object({seasonId:z.guid(),view:z.enum(["sim","record"]).default("sim")}).strict();
 export const pickEmSummaryRequestInput=z.object({seasonId:z.guid(),view:z.enum(["tasks","ranking"])}).strict();
 async function snapshot(input:{seasonId:string;view:"sim"|"record"},detail:boolean) {
-  await authorizePublicMajorRead(input.seasonId);
-  const user=await getUserSession();
-  return traceOperation("predictions.board.transaction",{scope:"predictions",operation:"board",stage:"transaction"},()=>db.transaction(async tx=>{
+  await traceOperation("predictions.board.authorize",{scope:"predictions",operation:"board",stage:"authorize"},()=>authorizePublicMajorRead(input.seasonId));
+  const user=await traceOperation("predictions.board.session",{scope:"predictions",operation:"board",stage:"authorize"},()=>getUserSession());
+  return traceOperation("predictions.board.transaction",{scope:"predictions",operation:"board",stage:"transaction",attributes:{"rivalhub.workflow":`predictions.${input.view}`}},()=>db.transaction(async tx=>{
     await tx.execute(sql`set local statement_timeout = '5000ms'`);
     return readPredictionSnapshot(tx,input.seasonId,user?.userId??null,input.view,detail);
   },{accessMode:"read only",isolationLevel:"repeatable read"}));

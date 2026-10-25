@@ -357,7 +357,11 @@ jobs:
           PLAYWRIGHT_CHANNEL: chrome
           PLAYWRIGHT_WORKERS: 2
           RIVALHUB_E2E_SPECS: ${{ toJSON(matrix.specs) }}
-        run: node scripts/ci/timing.mjs "system/E2E body" -- pnpm test:e2e ${{ matrix.project && format('--project={0}', matrix.project) || '' }}
+          RIVALHUB_E2E_GREP: ${{ matrix.grep || '' }}
+        run: |
+          args=()
+          if [[ -n "$RIVALHUB_E2E_GREP" ]]; then args+=(--grep "$RIVALHUB_E2E_GREP"); fi
+          node scripts/ci/timing.mjs "system/E2E body" -- pnpm test:e2e ${{ matrix.project && format('--project={0}', matrix.project) || '' }} "${args[@]}"
 
       - name: Production browser smoke
         if: matrix.task == 'production'

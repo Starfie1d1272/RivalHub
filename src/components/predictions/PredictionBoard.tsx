@@ -37,7 +37,7 @@ import { usePredictionConfirmation } from "./usePredictionConfirmation";
 import styles from "@/components/tournament/tournament.module.css";
 import { fetchPredictionBoard as getPredictionBoard } from "@/lib/predictions/http-client";
 import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
-import { observeAction, observeTask } from "@/lib/telemetry/client";
+import { observeAction, observeTask, beginTelemetryDemand, recordDemandReady, type TelemetryDemandToken } from "@/lib/telemetry/client";
 
 const exportPredictionImage = observeTask("predictions.exportImage", unobservedExportPredictionImage);
 const mutatePrediction = observeAction("predictions.mutatePrediction", telemetry_mutatePrediction);
@@ -69,6 +69,7 @@ export function PredictionBoard({
   );
   const [stageKey, setStageKey] = useState(() => defaultStage(context));
   const task = useTelemetryTask("predictions", `${initial.base.seasonId}:${stageKey}`);
+  const taskStep=task.step;
   const [choices, setChoices] = useState<Choices>({});
   const [undo, setUndo] = useState<Choices[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Pick>>({});
@@ -77,6 +78,9 @@ export function PredictionBoard({
   const [view, setView] = useState<TournamentView>("flow");
   const [savedSimulation, setSavedSimulation] = useState<Record<string, Pick>>({});
   const [sidebar, setSidebar] = useState(false);
+  const dockRef=useRef<HTMLElement|null>(null);
+  const [demand,setDemand]=useState<TelemetryDemandToken|null>(null);
+  const [receipt,setReceipt]=useState<{token:string|null;contestId:string;pick:Pick}|null>(null);
   const [pending, start] = useTransition();
   const readAbort=useRef<AbortController|null>(null);
   const readSequence = useRef(0);
@@ -210,6 +214,7 @@ export function PredictionBoard({
         toast.error(r.error.message);
         return;
       }
+      if(submitted){task.complete(taskToken);setReceipt({token:taskToken,contestId:contest.id,pick:nextPick});}
       requests.current.delete(key);
       if (fromSimulation) {
         setDrafts((old) => ({ ...old, [contest.id]: nextPick }));
@@ -218,10 +223,16 @@ export function PredictionBoard({
         setSidebar(true);
       }
       toast.success(submitted ? "正式提交成功" : "草稿已保存");
-      if (submitted) task.complete(taskToken);
       void reload().catch(()=>{setRefreshFailed(true);toast.error("预测已提交，读取更新失败，请刷新后查看。");});
     });
   }
+  const submittedShown=!!receipt&&receipt.contestId===contest?.id&&!!contest.submitted&&samePick(receipt.pick,contest.submitted.pick);
+  useEffect(()=>{
+    if(dockRef.current?.getClientRects().length){
+      if(submittedShown&&receipt)taskStep("result",receipt.token);
+      recordDemandReady(demand,"form");
+    }
+  },[submittedShown,receipt,demand,mobile,sidebar,dockVisible,contest?.id,taskStep]);
   const displayedPick = stage?.resultPick ?? stage?.pick;
   const simulationPick = displayedPick
     ? "perfect" in displayedPick
@@ -332,7 +343,7 @@ export function PredictionBoard({
               <Button size="sm" variant="ghost" disabled={!undo.length || pending} onClick={() => { setChoices(undo.at(-1)!); setUndo(undo.slice(0, -1)); }}>撤销</Button>
               <Button size="sm" variant="ghost" disabled={pending} onClick={() => { setChoices({}); setUndo([]); }}>恢复官方赛况</Button>
               {dockVisible && <>
-                <Button size="sm" variant="outline" className={`hidden lg:inline-flex ${styles.dockToggle}`} aria-expanded={sidebar} aria-controls="prediction-dock" onClick={() => setSidebar(!sidebar)}>
+                <Button size="sm" variant="outline" className={`hidden lg:inline-flex ${styles.dockToggle}`} aria-expanded={sidebar} aria-controls="prediction-dock" onClick={() => {if(!sidebar)setDemand(beginTelemetryDemand("prediction"));setSidebar(!sidebar);}}>
                   {sidebar ? "收起预测单" : "展开预测单"}
                 </Button>
                 {signedIn ? <Button size="sm" disabled={!simulationPick || !contest || !stage || !samePredictionEntrants(stage.entrants, contest.entrants) || contest.locked || !!contest.voidReason || pending} onClick={importPick}>
@@ -349,7 +360,7 @@ export function PredictionBoard({
           </div>
           {dockVisible && <div className="flex gap-2 lg:hidden">
             <Button variant={mobile === "sim" ? "default" : "outline"} onClick={() => setMobile("sim")}>推演</Button>
-            <Button variant={mobile === "pick" ? "default" : "outline"} onClick={() => setMobile("pick")}>我的预测单</Button>
+            <Button variant={mobile === "pick" ? "default" : "outline"} onClick={() => {if(mobile!=="pick")setDemand(beginTelemetryDemand("prediction"));setMobile("pick");}}>我的预测单</Button>
           </div>}
           <div
             className={`${styles.workspaceCanvas} grid items-start gap-4 ${dockVisible && sidebar ? "lg:grid-cols-[minmax(0,1fr)_350px]" : ""}`}
@@ -402,7 +413,7 @@ export function PredictionBoard({
               </p>
             )}
             {dockVisible && contest && (
-              <aside
+              <aside ref={dockRef}
                 id="prediction-dock"
                 aria-label="我的预测单"
                 className={`${styles.predictionDock} min-w-0 ${mobile !== "pick" ? "hidden lg:block" : ""} ${!sidebar ? "lg:hidden" : ""}`}

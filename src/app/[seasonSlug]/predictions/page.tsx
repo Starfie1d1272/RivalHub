@@ -31,10 +31,10 @@ async function PredictionContent({
   params: Promise<{ seasonSlug: string }>;
 }) {
   const { seasonSlug } = await params;
-  const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
+  const season = await traceOperation("predictions.page.authorize",{scope:"predictions",operation:"page",stage:"authorize"},()=>getPublicOrAuthorizedDraftSeason(seasonSlug));
   if (!season || season.competitionTemplate !== "major") notFound();
-  const user = await getUserSession();
-  const data = await traceOperation("predictions.page.transaction",{scope:"predictions",operation:"page",stage:"transaction"},()=>db.transaction((tx) =>
+  const user = await traceOperation("predictions.page.session",{scope:"predictions",operation:"page",stage:"authorize"},()=>getUserSession());
+  const data = await traceOperation("predictions.page.transaction",{scope:"predictions",operation:"page",stage:"transaction",attributes:{"rivalhub.workflow":`predictions.${"sim"}`}},()=>db.transaction((tx) =>
     readPredictionSnapshot(tx, season.id, user?.userId ?? null, "sim"),
     { accessMode: "read only", isolationLevel: "repeatable read" },
   ));
