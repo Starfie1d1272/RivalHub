@@ -46,6 +46,28 @@ describe("changed-surface planner", () => {
     expect(jobs.filter(job => job.project).every(job => job.specs.length === 1 && [ocr, evidence].includes(job.specs[0]))).toBe(true);
   });
 
+  it("partitions all six BET views exactly once without losing ordinary BET or receipts", () => {
+    const stages = "tests/e2e/flows/bet-read-stages.spec.ts";
+    const ordinary = ["tests/e2e/flows/bet.spec.ts", "tests/e2e/flows/bet-receipt.spec.ts"];
+    const views = ["open", "mine", "settled", "event", "leaderboard", "records"];
+    for (const full of [false, true]) {
+      const jobs = systemMatrixFor({ runSystem: true, full, e2eSpecs: [stages, ...ordinary, stages] }, false);
+      const lanes = jobs.filter(job => job.specs.includes(stages));
+      expect(lanes).toHaveLength(3);
+      for (const view of views) expect(lanes.filter(job => new RegExp(job.grep).test(`BET ${view} retains privacy`))).toHaveLength(1);
+      for (const lane of lanes) {
+        expect(lane.specs).toEqual([stages]);
+        expect(views.filter(view => new RegExp(lane.grep).test(`BET ${view} retains privacy`))).toHaveLength(2);
+      }
+      for (const spec of ordinary) {
+        const selected = jobs.filter(job => job.specs.includes(spec));
+        expect(selected).toHaveLength(1);
+        expect(selected[0].grep).toBeUndefined();
+      }
+      expect(jobs.every(job => job.specs.length > 0 || ["provider", "production"].includes(job.task))).toBe(true);
+    }
+  });
+
   it("covers every selected runnable (spec, project) exactly once in full and affected plans", () => {
     const files = readdirSync("tests/e2e/flows").filter(name => name.endsWith(".spec.ts")).map(name => `tests/e2e/flows/${name}`).sort();
     // The current project exclusions are literal spec basenames or whole
@@ -58,8 +80,9 @@ describe("changed-surface planner", () => {
     for (const full of [false, true]) {
       const selected = full ? files : files.filter((_, index) => index % 2 === 0);
       const jobs = systemMatrixFor({ runSystem: true, full, e2eSpecs: [...selected, ...selected] }, true).filter(job => job.task.startsWith("browser-"));
-      const actual = jobs.flatMap(job => job.specs.flatMap(spec => playwrightConfig.projects.filter(project => (!job.project || job.project === project.name) && runnable(spec, project)).map(project => `${spec}:${project.name}`)));
-      const expected = selected.flatMap(spec => playwrightConfig.projects.filter(project => runnable(spec, project)).map(project => `${spec}:${project.name}`));
+      const names = spec => spec.endsWith("/bet-read-stages.spec.ts") ? ["open", "mine", "settled", "event", "leaderboard", "records"].map(view => `BET ${view} retains privacy`) : ["spec"];
+      const actual = jobs.flatMap(job => job.specs.flatMap(spec => names(spec).filter(name => !job.grep || new RegExp(job.grep).test(name)).flatMap(name => playwrightConfig.projects.filter(project => (!job.project || job.project === project.name) && runnable(spec, project)).map(project => `${spec}:${project.name}:${name}`))));
+      const expected = selected.flatMap(spec => names(spec).flatMap(name => playwrightConfig.projects.filter(project => runnable(spec, project)).map(project => `${spec}:${project.name}:${name}`)));
       expect(actual.sort()).toEqual(expected.sort());
       expect(new Set(actual).size).toBe(actual.length);
       expect(jobs.every(job => job.specs.length > 0 && job.specs.length <= 2)).toBe(true);

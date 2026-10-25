@@ -556,6 +556,13 @@ export function systemMatrixFor(plan, liveEvidence) {
   for (const [spec, task] of isolated) {
     if (specs.includes(spec)) matrix.push({ task, live: false, specs: [spec] });
   }
+  // The six view tests preserve 54 cells, but cold CI routes need three lanes.
+  const betReadSpec = "tests/e2e/flows/bet-read-stages.spec.ts";
+  if (specs.includes(betReadSpec)) {
+    for (const [index, views] of ["open|mine", "settled|event", "leaderboard|records"].entries()) {
+      matrix.push({ task: `browser-bet-read-stages-${index + 1}`, live: false, specs: [betReadSpec], grep: `BET (${views}) ` });
+    }
+  }
   // OCR has four cases in each project, including whole-browser recovery.
   // A spec-only singleton still executes eight cases; partition the projects.
   const ocrSpec = "tests/e2e/flows/ocr-receipt-recovery.spec.ts";
@@ -574,7 +581,7 @@ export function systemMatrixFor(plan, liveEvidence) {
       matrix.push({ task: `browser-admin-evidence-${project}`, live: false, specs: [adminEvidenceSpec], project });
     }
   }
-  const ordinary = specs.filter(spec => spec !== liveSpec && spec !== seriesSpec && spec !== sessionSpec && spec !== ocrSpec && spec !== adminEvidenceSpec && !isolated.has(spec));
+  const ordinary = specs.filter(spec => spec !== liveSpec && spec !== seriesSpec && spec !== sessionSpec && spec !== ocrSpec && spec !== adminEvidenceSpec && spec !== betReadSpec && !isolated.has(spec));
   // Keep remaining combinations bounded as coverage grows instead of packing
   // every new spec into a fixed seven-runner ceiling. No duration scheduler.
   const shards = [];
