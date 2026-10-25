@@ -36,10 +36,15 @@ export const HistoryRow = z.object({
   duration: distribution, active: distribution,
 });
 export type HistoryRow = z.infer<typeof HistoryRow>;
+export const historyCountFields = ["views", "operations", "success", "rejected", "unknown", "pending", "taskStarts", "taskComplete", "taskExposure", "errors"] as const;
+const historyCounts = z.object({ views: count, operations: count, success: count, rejected: count, unknown: count, pending: count, taskStarts: count, taskComplete: count, taskExposure: count, errors: count });
+export const HistoryTimingRow = HistoryRow.pick({ kind: true, name: true, phase: true, release: true, measurementVersion: true, definitionVersion: true, navigationType: true, duration: true, active: true });
+export type HistoryTimingRow = z.infer<typeof HistoryTimingRow>;
 export const HistoryData = z.object({
   enabled: z.boolean(), retentionDays: count.max(90), generatedAt: count, coverageStart: count.nullable(), processedThrough: count.nullable(),
   pendingBatches: count, truncated: z.boolean(), correctionDays: z.literal(6),
-  days: z.array(z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), complete: z.boolean(), sealed: z.boolean(), rows: z.array(HistoryRow).max(500) })).max(90),
+  days: z.array(historyCounts.extend({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), complete: z.boolean(), sealed: z.boolean() })).max(90),
+  timingRows: z.array(HistoryTimingRow).max(512),
 });
 export type HistoryData = z.infer<typeof HistoryData>;
 export function historyDay(at: number) { return new Date(at + HISTORY_OFFSET).toISOString().slice(0, 10); }
@@ -71,32 +76,12 @@ export function mergeHistoryDistributions(rows: HistoryRow["duration"][], metric
 }
 export function summarizeHistory(data: HistoryData) {
   const totals = { views: 0, operations: 0, success: 0, rejected: 0, unknown: 0, pending: 0, taskStarts: 0, taskComplete: 0, taskExposure: 0, errors: 0 };
-  const byDay = data.days.map(day => {
-    const point = { day: day.day, complete: day.complete, sealed: day.sealed, views: 0, operations: 0, success: 0, rejected: 0, unknown: 0, pending: 0, taskStarts: 0, taskComplete: 0, taskExposure: 0, errors: 0 };
-    for (const row of day.rows) {
-      if (row.kind === "page") point.views += row.n;
-      if (row.kind === "error") point.errors += row.n;
-      if (row.kind === "operation") {
-        point.operations += row.starts;
-        if (row.phase === "success") point.success += row.starts;
-        else if (row.phase === "rejected") point.rejected += row.starts;
-        else if (row.phase === "unknown") point.unknown += row.starts;
-        else point.pending += row.starts;
-      }
-      if (row.kind === "task") { point.taskStarts += row.starts; if (row.phase === "complete") point.taskComplete += row.starts; if (row.phase === "exposure") point.taskExposure += row.n; }
-    }
-    for (const key of Object.keys(totals) as (keyof typeof totals)[]) totals[key] += point[key];
-    return point;
-  });
-  const groups = new Map<string, { kind: HistoryRow["kind"]; name: string; phase: string; measurementVersion: number; definitionVersion: number; navigationType: string; n: number; distributions: HistoryRow["duration"][] }>();
-  for (const day of data.days) for (const row of day.rows) {
-    if (!row.duration.n) continue;
-    const key = `${row.kind}:${row.name}:${row.phase}:${row.measurementVersion}:${row.definitionVersion}:${row.navigationType}`;
-    const group = groups.get(key) ?? { kind: row.kind, name: row.name, phase: row.phase, measurementVersion: row.measurementVersion, definitionVersion: row.definitionVersion, navigationType: row.navigationType, n: 0, distributions: [] };
-    group.n += row.n; group.distributions.push(row.duration); groups.set(key, group);
-  }
-  return { totals, byDay, timings: [...groups.values()].map(g => {
-    const distribution = mergeHistoryDistributions(g.distributions, g.name);
-    return { kind: g.kind, name: g.name, phase: g.phase, measurementVersion: g.measurementVersion, definitionVersion: g.definitionVersion, navigationType: g.navigationType, n: distribution.n, mean: distribution.n ? distribution.sum / distribution.n : null, p50: historyQuantile(distribution, .5, g.name), p90: historyQuantile(distribution, .9, g.name), distribution };
-  }) };
+  for (const day of data.days) for (const key of historyCountFields) totals[key] += day[key];
+  return { totals, byDay: data.days, timings: data.timingRows.map(row => ({
+    kind: row.kind, name: row.name, phase: row.phase, release: row.release,
+    measurementVersion: row.measurementVersion, definitionVersion: row.definitionVersion, navigationType: row.navigationType,
+    n: row.duration.n, mean: row.duration.n ? row.duration.sum / row.duration.n : null,
+    p50: historyQuantile(row.duration, .5, row.name), p90: historyQuantile(row.duration, .9, row.name),
+    distribution: row.duration, active: row.active,
+  })) };
 }
