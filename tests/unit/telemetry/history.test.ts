@@ -1,9 +1,14 @@
+import { gzipSync } from "node:zlib";
+import { LongWindowSummary } from "@/lib/telemetry/long-window-contract";
+import { analysisDefaults } from "@/lib/telemetry/analysis-query";
+import { analysis } from "../../../workers/telemetry/analysis";
 import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import { expect, it } from "vitest";
-import { handle, maintain, type Env } from "../../../workers/telemetry/index";
-import { maintainHistory } from "../../../workers/telemetry/history";
+import { handle, maintain, type Env, type Statement } from "../../../workers/telemetry/index";
+import { maintainHistory, sample, type Sample } from "../../../workers/telemetry/history";
+import { batchSummary } from "../../../workers/telemetry/storage";
 import { HistoryData, historyDay, historyDayStart, historyDefaults, historyQuantile, emptyHistoryDistribution, parseHistoryQuery, summarizeHistory, HISTORY_DAY as DAY } from "@/lib/telemetry/history-contract";
 import { signTicket } from "@/lib/telemetry/ticket";
 import type { TelemetryEvent } from "@/lib/telemetry/protocol";
@@ -28,7 +33,13 @@ async function fixture() {
     expect(response.status).toBe(200);
     return HistoryData.parse(await response.json());
   }
-  return { mf, db, env, post, read };
+  async function long(from: number, to: number, now = to) {
+    const query = new URLSearchParams({ from: new Date(from).toISOString(), to: new Date(to).toISOString() });
+    const response = await handle(new Request("https://worker.invalid/admin/long-window?" + query, { headers: { authorization: `Bearer ${env.DASHBOARD_KEY}` } }), env, now);
+    expect(response.status).toBe(200);
+    return LongWindowSummary.parse(await response.json());
+  }
+  return { mf, db, env, post, read, long };
 }
 
 it("keeps history opt-in, validates filters and limits the dashboard credential to reads", async () => {
@@ -44,6 +55,9 @@ it("keeps history opt-in, validates filters and limits the dashboard credential 
       ["/admin/history", "GET", "", 401],
       ["/admin/history", "POST", `Bearer ${f.env.DASHBOARD_KEY}`, 405],
       ["/admin/events", "GET", `Bearer ${f.env.DASHBOARD_KEY}`, 401],
+      ["/admin/long-window", "GET", "", 401],
+      ["/admin/long-window", "POST", `Bearer ${f.env.DASHBOARD_KEY}`, 405],
+      ["/admin/long-window?browser=private-value", "GET", `Bearer ${f.env.DASHBOARD_KEY}`, 400],
       ["/admin/history?days=100", "GET", `Bearer ${f.env.DASHBOARD_KEY}`, 400],
     ] as const) expect((await handle(new Request("https://worker.invalid" + path, { method, headers: { authorization } }), f.env, now)).status).toBe(expected);
   } finally { await f.mf.dispose(); }
@@ -100,7 +114,7 @@ it("marks bounded backlog and pauses incomplete, seals before sample expiry, and
     await maintainHistory(f.env, day);
     for (let i = 1; i <= 17; i++) expect((await f.post([{ kind: "page" }], day + i * 1000)).status).toBe(204);
     await maintainHistory(f.env, day + 18000);
-    expect(await f.read(day + 19000)).toMatchObject({ pendingBatches: 1, days: [{ complete: false }] });
+    expect(await f.read(day + 19000)).toMatchObject({ pendingBatches: 1, days: [{ complete: true, views: 17 }], coverage: { tailBatches: 1, tailTruncated: false } });
     await maintainHistory(f.env, day + 20000);
     expect(summarizeHistory(await f.read(day + 21000)).totals.views).toBe(17);
     await maintainHistory({ ...f.env, HISTORY_RETENTION_DAYS: "0" }, day + 22000);
@@ -234,15 +248,226 @@ it("limits timing groups after filtering while keeping daily totals complete and
       const duration = emptyHistoryDistribution(); duration.n = 1; duration.sum = 100; duration.min = 100; duration.max = 100; duration.counts[1] = 1;
       return { kind: "performance", name: "LCP", phase: "", release: `release-${i.toString().padStart(4, "0")}`, measurementVersion: 1, definitionVersion: 0, navigationType: "navigate", route: "/stats", scene: "site", role: "user", device: "desktop", eventId: "", task: "", n: 1, starts: 0, clientCovered: 1, enhancedCovered: 1, duration, active: emptyHistoryDistribution() };
     });
-    await f.db.prepare("UPDATE history_days SET payload=?,complete=1 WHERE day=?").bind(JSON.stringify(rows), historyDay(day)).run();
+    await f.db.prepare("UPDATE history_days SET payload=?,complete=1,sealed=1 WHERE day=?").bind(JSON.stringify(rows), historyDay(day)).run();
     const unfiltered = await f.read(day + 1000);
     expect(unfiltered.truncated).toBe(true);
     expect(unfiltered.timingRows).toHaveLength(512);
     expect(unfiltered.days[0].complete).toBe(true);
     const row = structuredClone(rows[519]); row.n = 9; row.duration = { n: 9, sum: 18000, min: 2000, max: 2000, counts: emptyHistoryDistribution().counts }; row.duration.counts[5] = 9;
-    await f.db.prepare("INSERT INTO history_days(day,payload,complete,sealed,captured_at,expires) VALUES(?,?,1,0,?,?)").bind(historyDay(day + DAY), JSON.stringify([row]), day + DAY, day + 91 * DAY).run();
+    await f.db.prepare("INSERT INTO history_days(day,payload,complete,sealed,captured_at,expires) VALUES(?,?,1,1,?,?)").bind(historyDay(day + DAY), JSON.stringify([row]), day + DAY, day + 91 * DAY).run();
     const selected = await f.read(day + DAY + 1000, "release=release-0519");
     expect(selected.truncated).toBe(false);
     expect(summarizeHistory(selected).timings[0]).toMatchObject({ n: 10, mean: 1810, p50: 2000, p90: 2000 });
+  } finally { await f.mf.dispose(); }
+}, 30000);
+
+
+it("overlays an unprocessed cross-day result and latest metric without changing maintenance state", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25");
+  try {
+    await maintainHistory(f.env, day);
+    const id = crypto.randomUUID(), attemptId = crypto.randomUUID();
+    await f.post([{ id, kind: "performance", metricName: "LCP", durationMs: 500 },
+      { kind: "task", task: { name: "registration", definitionVersion: 1, attemptId, phase: "start", step: "start" } }], day + DAY - 1000);
+    await maintainHistory(f.env, day + DAY - 500);
+    await f.post([{ id, kind: "performance", metricName: "LCP", durationMs: 250 },
+      { kind: "task", durationMs: 2000, task: { name: "registration", definitionVersion: 1, attemptId, phase: "complete", step: "confirm", activeMs: 1500 } }], day + DAY + 1000);
+    const before = await f.db.prepare("SELECT * FROM history_state").first();
+    const data = await f.read(day + DAY + 2000, "days=7");
+    const summary = summarizeHistory(data);
+    expect(summary.totals).toMatchObject({ taskStarts: 1, taskComplete: 1 });
+    expect(summary.byDay.find(d => d.day === "2026-10-25")).toMatchObject({ taskStarts: 1, taskComplete: 1 });
+    expect(summary.timings.find(t => t.name === "LCP")).toMatchObject({ n: 1, mean: 250 });
+    expect(data.coverage).toMatchObject({ tailBatches: 1, tailTruncated: false, summaryComplete: false, timeZone: "Asia/Shanghai" });
+    expect(data.coverage!.unavailable).toContain("distinctSessions");
+    expect(await f.db.prepare("SELECT * FROM history_state").first()).toEqual(before);
+    expect(data.pendingBatches).toBe(1);
+    const query = new URLSearchParams({ from: new Date(day - 12 * 3600000).toISOString(), to: new Date(day + DAY + 2000).toISOString() });
+    const response = await handle(new Request("https://worker.invalid/admin/long-window?" + query, { headers: { authorization: `Bearer ${f.env.DASHBOARD_KEY}` } }), f.env, day + DAY + 2000);
+    expect(response.status).toBe(200);
+    const combined = LongWindowSummary.parse(await response.json());
+    expect(combined.metrics.filter(m => m.name === "LCP").reduce((n, m) => n + m.duration.n, 0)).toBe(1);
+    expect(combined.metrics.find(m => m.name === "LCP")?.duration.sum).toBe(250);
+    expect(combined.counts).toMatchObject({ taskStarts: 1, taskComplete: 1 });
+  } finally { await f.mf.dispose(); }
+}, 30000);
+
+
+it("keeps rolling edges explicit and bypasses raw 2000-batch/2MiB limits for complete middle days", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-15"), now = day + 7 * DAY + 12 * 3600000;
+  try {
+    await maintainHistory(f.env, day);
+    const session = crypto.randomUUID(); const tickets = Array.from({ length: 21 }, () => crypto.randomUUID()); let rawBytes = 0;
+    const input = []; const samples: Sample[] = [];
+    for (let i = 0; i < 2001; i++) {
+      const received = day + 2 * DAY + i * 1000;
+      const events = Array.from({ length: 2 }, () => ({ id: crypto.randomUUID(), at: received, session, route: "/stats", scene: "site", kind: "page", filters: { tab: "players", ops: "conflict", position: "all", stage: "playoffs", source: "official", sort: "ratingPro", order: "desc", side: "all", status: "finished", map: "de_mirage", view: "sim", format: "bo3", mapsView: "pool", mapFilter: "de_anubis", q: "selected", search: "selected", team: "selected", event: "selected", player: "selected", weapon: "selected", minMaps: "selected", teamFilter: "selected", recordPage: "selected" }, measurement: { v: 1, navigationId: crypto.randomUUID(), clientRelease: "a".repeat(80), visibility: "visible" } }));
+      const encoded = JSON.stringify(events); rawBytes += Buffer.byteLength(encoded);
+      const ticket = tickets[Math.floor(i / 100)], id = crypto.randomUUID(), expires = received + 7 * DAY;
+      const compressed = gzipSync(encoded);
+      input.push(f.db.prepare("INSERT INTO batches(ticket,id,received,expires,day,account,session,role,release,environment,bytes,events_gzip,summary) VALUES(?,?,?,?,?,NULL,?,?,?,'production',?,X'" + compressed.toString("hex") + "',?)").bind(ticket, id, received, expires, historyDay(received), session, "user", "fixture", Buffer.byteLength(encoded), batchSummary(events as TelemetryEvent[])));
+      for (const e of events) samples.push(await sample(e as TelemetryEvent, { ticket, id, received, expires, account: null, role: "user", release: "fixture", bytes: Buffer.byteLength(encoded), events_gzip: compressed }));
+    }
+    for (let i = 0; i < input.length; i += 100) await f.db.batch(input.slice(i, i + 100));
+    expect(rawBytes).toBeGreaterThan(2 * 1024 * 1024);
+    for (let i = 0; i < samples.length; i += 256) await f.db.prepare(`INSERT INTO history_samples(sample_key,day,kind,dimensions,latest_at,received,expires,closes,has_start,phase,value,bucket,active,active_bucket,client_covered,enhanced_covered)
+      SELECT json_extract(value,'$.key'),json_extract(value,'$.day'),json_extract(value,'$.kind'),json_extract(value,'$.dimensions'),json_extract(value,'$.at'),json_extract(value,'$.received'),json_extract(value,'$.expires'),json_extract(value,'$.closes'),json_extract(value,'$.start'),json_extract(value,'$.phase'),json_extract(value,'$.value'),json_extract(value,'$.bucket'),json_extract(value,'$.active'),json_extract(value,'$.activeBucket'),json_extract(value,'$.client'),json_extract(value,'$.enhanced') FROM json_each(?)`).bind(JSON.stringify(samples.slice(i, i + 256))).run();
+    for (let i = 1; i <= 6; i++) {
+      const rows = i === 2 ? [{ kind: "page", name: "", task: "", route: "/stats", scene: "site", role: "user", device: "missing", release: "a".repeat(80), eventId: "", phase: "", measurementVersion: 1, definitionVersion: 0, navigationType: "missing", n: 4002, starts: 0, clientCovered: 0, enhancedCovered: 4002, duration: emptyHistoryDistribution(), active: emptyHistoryDistribution() }] : [];
+      await f.db.prepare("INSERT INTO history_days(day,payload,complete,sealed,captured_at,expires) VALUES(?,?,1,?,?,?)").bind(historyDay(day + i * DAY), JSON.stringify(rows), now >= day + (i + 6) * DAY ? 1 : 0, now, now + 90 * DAY).run();
+    }
+    await f.db.prepare("UPDATE history_state SET cursor_received=?,last_run=? WHERE id=1").bind(day + 7 * DAY - 1, now).run();
+    await f.post([{ kind: "page" }], day + 14 * 3600000);
+    await f.post([{ kind: "page" }], day + 7 * DAY + 3600000);
+    let statements = 0, rowsRead = 0;
+    const originals = new WeakMap<Statement, Statement>();
+    const record = (meta?: Record<string, number>) => { statements++; rowsRead += Number(meta?.rows_read ?? 0); };
+    const wrap = (statement: Statement): Statement => {
+      const wrapped: Statement = {
+        bind: (...args) => wrap(statement.bind(...args)),
+        all: async <T>() => { const r = await statement.all<T>(); record(r.meta); return r; },
+        first: async <T>() => { const r = await statement.all<T>(); record(r.meta); return r.results[0] ?? null; },
+        run: async () => { const r = await statement.run(); record(r.meta); return r; },
+      }; originals.set(wrapped, statement); return wrapped;
+    };
+    const traced: Env = { ...f.env, DB: { prepare: sql => wrap(f.env.DB.prepare(sql)), batch: async input => {
+      const results = await f.env.DB.batch(input.map(s => originals.get(s)!)) as { meta?: Record<string, number> }[];
+      for (const r of results) record(r.meta); return results;
+    } } };
+    const response = await handle(new Request("https://worker.invalid/admin/long-window", { headers: { authorization: `Bearer ${f.env.DASHBOARD_KEY}` } }), traced, now);
+    expect(response.status).toBe(200);
+    const data = LongWindowSummary.parse(await response.json());
+    expect(data.requestedRange).toEqual({ from: now - 7 * DAY, to: now });
+    expect(data.counts.views).toBe(4004);
+    expect(data.completionBasis).toBe("observed_not_matured");
+    expect(data.counts.taskExposure).toBeNull();
+    expect(statements).toBeLessThanOrEqual(25);
+    console.info(JSON.stringify({ fixture: "long_window_2001_batches", rawBytes, statements, rowsRead, responseBytes: Buffer.byteLength(JSON.stringify(data)), observedViews: data.counts.views }));
+    expect(data.distinctSessions).toBeNull(); expect(data.distinctAccounts).toBeNull();
+    expect(data.coverage.rawBudgetTruncated).toBe(false);
+    expect(data.coverage.retentionUnknown).toBe(true);
+    expect(data.coverage.segments.filter(s => s.source === "history+tail").every(s => s.status === "complete")).toBe(true);
+    expect(data.coverage.segments.find(s => s.from === now - 7 * DAY)).toMatchObject({ source: "raw_edge", status: "partial", reason: "raw_retention_boundary" });
+    const raw = await analysis(f.env.DB, analysisDefaults, "", now, { batches: 5000, bytes: 8388608 });
+    expect(raw.meta.truncated).toBe(true);
+    const unsupported = await handle(new Request("https://worker.invalid/admin/long-window?browser=chrome", { headers: { authorization: `Bearer ${f.env.DASHBOARD_KEY}` } }), f.env, now);
+    expect(LongWindowSummary.parse(await unsupported.json())).toMatchObject({ coverage: { status: "unsupported" }, counts: { views: null }, unsupportedDimensions: ["browser"] });
+    const ticketBasis = await handle(new Request("https://worker.invalid/admin/long-window?releaseBasis=ticket", { headers: { authorization: `Bearer ${f.env.DASHBOARD_KEY}` } }), f.env, now);
+    expect(LongWindowSummary.parse(await ticketBasis.json())).toMatchObject({ coverage: { status: "unsupported" }, counts: { views: null }, unsupportedDimensions: ["ticketRelease"] });
+    expect(Buffer.byteLength(JSON.stringify(data))).toBeLessThan(1024 * 1024);
+  } finally { await f.mf.dispose(); }
+}, 60000);
+
+
+it("preserves the inclusive requested upper tick when it falls exactly on BJT midnight", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25"), now = day + DAY;
+  try {
+    await maintainHistory(f.env, day);
+    expect((await f.post([{ kind: "page" }], now)).status).toBe(204);
+    const query = new URLSearchParams({ from: new Date(day).toISOString(), to: new Date(now).toISOString() });
+    const response = await handle(new Request("https://worker.invalid/admin/long-window?" + query, { headers: { authorization: `Bearer ${f.env.DASHBOARD_KEY}` } }), f.env, now);
+    expect(response.status).toBe(200);
+    const data = LongWindowSummary.parse(await response.json());
+    expect(data.counts.views).toBe(1);
+    expect(data.coverage.segments.find(s => s.source === "raw_edge")).toMatchObject({ from: now, to: now, status: "complete" });
+  } finally { await f.mf.dispose(); }
+}, 30000);
+
+
+it("keeps v2 censor coverage and ready basis separate in persisted distributions", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25");
+  try {
+    await maintainHistory(f.env, day);
+    const attemptId = crypto.randomUUID(), navigationId = crypto.randomUUID();
+    const task = { name: "registration" as const, definitionVersion: 2 as const, attemptId, phase: "start" as const, step: "start" as const };
+    await f.post([{ kind: "task", task }], day + 1000);
+    await maintainHistory(f.env, day + 2000);
+    const measurement = { v: 1 as const, navigationId, clientRelease: "fixture", visibility: "visible" as const };
+    const ready = { module: "match" as const, phase: "advanced" as const };
+    expect((await f.post([
+      { kind: "task", task: { ...task, phase: "complete", step: "confirm", elapsedCensored: true, activeCensored: true, activeMs: 3600000 }, durationMs: 3600000 },
+      { kind: "ready", measurement, ready, durationMs: 3600000 },
+      { kind: "ready", measurement, ready: { ...ready, basis: "demand" }, durationMs: 100 },
+      { kind: "ready", measurement, ready: { ...ready, basis: "demand" }, durationMs: 200 },
+    ], day + 7201000)).status).toBe(204);
+    await maintainHistory(f.env, day + 7202000);
+    const data = await f.read(day + 7203000);
+    const rows = summarizeHistory(data).timings;
+    expect(rows.find(r => r.kind === "task")).toMatchObject({ definitionVersion: 2, elapsedCensored: true, activeCensored: true, reports: 1, n: 0 });
+    expect(rows.find(r => r.kind === "ready" && r.basis === "navigation")).toMatchObject({ n: 1, mean: 3600000 });
+    expect(rows.find(r => r.kind === "ready" && r.basis === "demand")).toMatchObject({ n: 2, mean: 150 });
+    for (const summary of [await f.long(day, day + 7203000), await f.long(day, day + DAY, day + DAY + 1000)]) {
+      expect(summary.metrics.find(r => r.kind === "task")).toMatchObject({ definitionVersion: 2, elapsedCensored: true, activeCensored: true, reports: 1, duration: { n: 0 } });
+      expect(summary.metrics.find(r => r.kind === "ready" && r.basis === "navigation")).toMatchObject({ duration: { n: 1, sum: 3600000 } });
+      expect(summary.metrics.find(r => r.kind === "ready" && r.basis === "demand")).toMatchObject({ duration: { n: 2, sum: 300 } });
+    }
+  } finally { await f.mf.dispose(); }
+}, 30000);
+
+
+it("keeps confirmed history completion across cross-day result-first delivery, duplicates and cancellation", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25");
+  try {
+    await maintainHistory(f.env, day);
+    const task = { name: "registration" as const, definitionVersion: 2 as const, attemptId: crypto.randomUUID(), phase: "start" as const, step: "start" as const };
+    await f.post([{ kind: "task", task }], day + DAY - 1000);
+    await maintainHistory(f.env, day + DAY - 500);
+    await f.post([{ kind: "task", task: { ...task, phase: "step", step: "result" }, durationMs: 3000 }], day + DAY + 2000);
+    await maintainHistory(f.env, day + DAY + 2500);
+    const completion = { kind: "task" as const, at: day + DAY + 1000, task: { ...task, phase: "complete" as const, step: "confirm" as const }, durationMs: 2000 };
+    await f.post([completion], day + DAY + 3000);
+    await f.post([completion], day + DAY + 3500);
+    await f.post([{ kind: "task", task: { ...task, phase: "cancel" }, durationMs: 5000 }], day + DAY + 4000);
+    await maintainHistory(f.env, day + DAY + 5000);
+    await maintainHistory(f.env, day + DAY + 6000);
+    const summary = summarizeHistory(await f.read(day + DAY + 7000));
+    expect(summary.byDay.find(d => d.day === "2026-10-25")).toMatchObject({ taskStarts: 1, taskComplete: 1 });
+    expect(summary.timings.find(t => t.kind === "task")).toMatchObject({ phase: "complete", n: 1, mean: 2000 });
+  } finally { await f.mf.dispose(); }
+}, 30000);
+
+
+it("retains short operation timing inside a censored task and clears earlier active on censored complete", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25");
+  try {
+    await maintainHistory(f.env, day);
+    const task = { name: "registration" as const, definitionVersion: 2 as const, attemptId: crypto.randomUUID(), phase: "start" as const, step: "start" as const };
+    await f.post([{ kind: "task", task }], day + 1000);
+    await f.post([{ kind: "task", durationMs: 19000, task: { ...task, phase: "step", step: "edit", activeMs: 10000 } }], day + 20000);
+    await maintainHistory(f.env, day + 21000);
+    const censored = { ...task, elapsedCensored: true as const, activeCensored: true as const, activeMs: 3600000 };
+    const operationId = crypto.randomUUID();
+    await f.post([{ kind: "operation", operation: "register.submitRegistration", operationId, phase: "start", task: { ...censored, phase: "step", step: "submit" } }], day + 7200900);
+    expect((await f.post([{ kind: "operation", operation: "register.submitRegistration", operationId, phase: "success", durationMs: 100, task: { ...censored, phase: "step", step: "submit" } }], day + 7201000)).status).toBe(204);
+    await f.post([{ kind: "task", durationMs: 3600000, task: { ...censored, phase: "complete", step: "confirm" } }], day + 7201100);
+    await f.post([{ kind: "task", durationMs: 3600000, task: { ...censored, phase: "step", step: "result" } }], day + 7201200);
+    await maintainHistory(f.env, day + 7202000);
+    const data = await f.read(day + 7203000);
+    expect(data.timingRows.find(r => r.kind === "task")).toMatchObject({ phase: "complete", elapsedCensored: true, activeCensored: true, duration: { n: 0 }, active: { n: 0 } });
+    expect(summarizeHistory(data).timings.find(r => r.kind === "operation")).toMatchObject({ mean: 100, n: 1, elapsedCensored: false });
+    for (const summary of [await f.long(day, day + 7203000), await f.long(day, day + DAY, day + DAY + 1000)]) {
+      expect(summary.counts).toMatchObject({ taskStarts: 1, taskComplete: 1, operations: 1, success: 1 });
+      expect(summary.metrics.find(r => r.kind === "task")).toMatchObject({ phase: "complete", elapsedCensored: true, activeCensored: true, duration: { n: 0 }, active: { n: 0 } });
+      expect(summary.metrics.find(r => r.kind === "operation")).toMatchObject({ definitionVersion: 2, elapsedCensored: false, duration: { n: 1, sum: 100 } });
+    }
+  } finally { await f.mf.dispose(); }
+}, 30000);
+
+it("keeps explicit v1/v2 and unassociated operation cohorts across raw and full-day summaries", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25");
+  try {
+    await maintainHistory(f.env, day);
+    const tasks = ([1, 2] as const).map(definitionVersion => ({ name: "registration" as const, definitionVersion, attemptId: crypto.randomUUID(), phase: "start" as const, step: "start" as const }));
+    const calls = tasks.map(() => crypto.randomUUID()); const unknownCall = crypto.randomUUID();
+    expect((await f.post([...tasks.flatMap((task, i) => [{ kind: "task" as const, task }, { kind: "operation" as const, operation: "register.submitRegistration" as const, operationId: calls[i], phase: "start" as const, task: { ...task, phase: "step" as const, step: "submit" as const } }]), { kind: "operation", operation: "register.submitRegistration", operationId: unknownCall, phase: "start" }], day + 1000)).status).toBe(204);
+    expect((await f.post([...tasks.flatMap((task, i) => [{ kind: "task" as const, task: { ...task, phase: "complete" as const, step: "confirm" as const }, durationMs: 100 }, { kind: "operation" as const, operation: "register.submitRegistration" as const, operationId: calls[i], phase: "success" as const, durationMs: 100, task: { ...task, phase: "step" as const, step: "submit" as const } }]), { kind: "operation", operation: "register.submitRegistration", operationId: unknownCall, phase: "success", durationMs: 100 }], day + 1100)).status).toBe(204);
+    await maintainHistory(f.env, day + 2000);
+    for (const summary of [await f.long(day, day + 3000), await f.long(day, day + DAY, day + DAY + 1000)]) {
+      expect(summary.counts).toMatchObject({ taskStarts: 2, taskComplete: 2, operations: 3, success: 3 });
+      const operations = summary.metrics.filter(m => m.kind === "operation");
+      expect(operations.map(m => m.definitionVersion).sort()).toEqual([0, 1, 2]);
+      expect(operations.reduce((n, m) => n + m.duration.n, 0)).toBe(3);
+      expect(summary.metrics.filter(m => m.kind === "task").map(m => m.definitionVersion).sort()).toEqual([1, 2]);
+    }
   } finally { await f.mf.dispose(); }
 }, 30000);

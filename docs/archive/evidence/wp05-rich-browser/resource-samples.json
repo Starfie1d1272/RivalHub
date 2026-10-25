@@ -1,0 +1,149 @@
+{
+  "sourceSha": "3e2202d5fe7fec624f90916025e4763ee0b6ec9c",
+  "samples": [
+    {
+      "profile": {
+        "timestamp": "2026-10-25T18:00:53.573Z",
+        "level": "info",
+        "event": "runtime.resource.sample",
+        "scope": "runtime",
+        "operation": "profile.public.read",
+        "environment": "production",
+        "safeContext": {
+          "totalMs": 358.72059499999295,
+          "maxMs": 138.69512299999997,
+          "inFlight": 0,
+          "peak": 1,
+          "count": 8
+        }
+      },
+      "stats": {
+        "timestamp": "2026-10-25T18:00:53.573Z",
+        "level": "info",
+        "event": "runtime.resource.sample",
+        "scope": "runtime",
+        "operation": "stats.public.fill",
+        "environment": "production",
+        "safeContext": {
+          "totalMs": 341.1897950000066,
+          "maxMs": 128.91850200000044,
+          "inFlight": 0,
+          "peak": 1,
+          "count": 6
+        }
+      },
+      "health": {
+        "timestamp": "2026-10-25T18:00:53.571Z",
+        "level": "info",
+        "event": "runtime.health.sample",
+        "scope": "runtime",
+        "operation": "health.sample",
+        "environment": "production",
+        "safeContext": {
+          "sampledAt": 1792951253571,
+          "uptimeSeconds": 60.361698208,
+          "rssBytes": 214007808,
+          "heapUsedBytes": 87366168,
+          "heapTotalBytes": 95825920,
+          "externalBytes": 7274069,
+          "arrayBuffersBytes": 3134946,
+          "heapLimitBytes": 4496293888,
+          "constrainedMemoryBytes": 17179869184,
+          "eventLoopUtilization": 0.035591499728655294,
+          "eventLoopDelayP99Ms": 22.413311,
+          "eventLoopDelayMaxMs": 212.598783
+        }
+      },
+      "pool": {
+        "timestamp": "2026-10-25T18:00:53.573Z",
+        "level": "info",
+        "event": "runtime.pool.sample",
+        "scope": "runtime",
+        "operation": "pool.sample",
+        "environment": "production",
+        "safeContext": {
+          "generation": 1,
+          "retiringTotal": 0,
+          "poolTotal": 10,
+          "poolIdle": 10,
+          "poolWaiting": 0,
+          "poolMax": 10
+        }
+      }
+    },
+    {
+      "profile": {
+        "timestamp": "2026-10-25T18:01:53.572Z",
+        "level": "info",
+        "event": "runtime.resource.sample",
+        "scope": "runtime",
+        "operation": "profile.public.read",
+        "environment": "production",
+        "safeContext": {
+          "totalMs": 421.9546109999951,
+          "maxMs": 138.69512299999997,
+          "inFlight": 0,
+          "peak": 1,
+          "count": 9
+        }
+      },
+      "stats": {
+        "timestamp": "2026-10-25T18:01:53.572Z",
+        "level": "info",
+        "event": "runtime.resource.sample",
+        "scope": "runtime",
+        "operation": "stats.public.fill",
+        "environment": "production",
+        "safeContext": {
+          "totalMs": 341.1897950000066,
+          "maxMs": 128.91850200000044,
+          "inFlight": 0,
+          "peak": 1,
+          "count": 6
+        }
+      },
+      "health": {
+        "timestamp": "2026-10-25T18:01:53.571Z",
+        "level": "info",
+        "event": "runtime.health.sample",
+        "scope": "runtime",
+        "operation": "health.sample",
+        "environment": "production",
+        "safeContext": {
+          "sampledAt": 1792951313571,
+          "uptimeSeconds": 120.361725824,
+          "rssBytes": 216453120,
+          "heapUsedBytes": 85429288,
+          "heapTotalBytes": 96321536,
+          "externalBytes": 7575730,
+          "arrayBuffersBytes": 3436119,
+          "heapLimitBytes": 4496293888,
+          "constrainedMemoryBytes": 17179869184,
+          "eventLoopUtilization": 0.0055121019609473305,
+          "eventLoopDelayP99Ms": 20.611071,
+          "eventLoopDelayMaxMs": 51.052543
+        }
+      },
+      "pool": {
+        "timestamp": "2026-10-25T18:01:53.572Z",
+        "level": "info",
+        "event": "runtime.pool.sample",
+        "scope": "runtime",
+        "operation": "pool.sample",
+        "environment": "production",
+        "safeContext": {
+          "generation": 1,
+          "retiringTotal": 0,
+          "poolTotal": 9,
+          "poolIdle": 9,
+          "poolWaiting": 0,
+          "poolMax": 10
+        }
+      }
+    }
+  ],
+  "warmNavigation": {
+    "status": 200,
+    "errors": []
+  }
+}

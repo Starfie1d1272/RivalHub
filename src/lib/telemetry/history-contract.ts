@@ -16,7 +16,7 @@ export function parseHistoryQuery(input: unknown): HistoryQuery | null {
   const p = input as Record<string, unknown>;
   if (Object.keys(p).some(k => !(historyFields as readonly string[]).includes(k)) || Object.values(p).some(v => typeof v !== "string")) return null;
   const f = { ...historyDefaults, ...p } as HistoryQuery;
-  if (!["28", "90"].includes(f.days) || !["", "major", "rivals", "other", "site"].includes(f.scene) || !["", ...ROLES].includes(f.role)) return null;
+  if (!["7", "28", "90"].includes(f.days) || !["", "major", "rivals", "other", "site"].includes(f.scene) || !["", ...ROLES].includes(f.role)) return null;
   if (f.route && !["/unknown", ...ROUTES].includes(f.route)) return null;
   if (f.device && !["missing", ...CLIENT_CATEGORIES.device].includes(f.device)) return null;
   if (!/^[A-Za-z0-9._-]{0,80}$/.test(f.release) || (f.eventId && !UUID.test(f.eventId))) return null;
@@ -31,17 +31,19 @@ const distribution = z.object({ n: count, sum: value, min: value.nullable(), max
 export const HistoryRow = z.object({
   kind: z.enum(["page", "filter", "error", "operation", "performance", "ready", "task"]), name: text, task: text,
   route: text, scene: text, role: text, device: text, release: text, eventId: text, phase: text,
-  measurementVersion: count.max(1), definitionVersion: count.max(1), navigationType: text,
+  measurementVersion: count.max(1), definitionVersion: count.max(2), navigationType: text, basis: text.optional(), elapsedCensored: z.boolean().optional(), activeCensored: z.boolean().optional(),
   n: count, starts: count, clientCovered: count, enhancedCovered: count,
   duration: distribution, active: distribution,
 });
 export type HistoryRow = z.infer<typeof HistoryRow>;
 export const historyCountFields = ["views", "operations", "success", "rejected", "unknown", "pending", "taskStarts", "taskComplete", "taskExposure", "errors"] as const;
 const historyCounts = z.object({ views: count, operations: count, success: count, rejected: count, unknown: count, pending: count, taskStarts: count, taskComplete: count, taskExposure: count, errors: count });
-export const HistoryTimingRow = HistoryRow.pick({ kind: true, name: true, phase: true, release: true, measurementVersion: true, definitionVersion: true, navigationType: true, duration: true, active: true });
+export const HistoryTimingRow = HistoryRow.pick({ kind: true, name: true, phase: true, release: true, measurementVersion: true, definitionVersion: true, navigationType: true, basis: true, elapsedCensored: true, activeCensored: true, duration: true, active: true }).extend({ reports: count.optional() });
 export type HistoryTimingRow = z.infer<typeof HistoryTimingRow>;
 export const HistoryData = z.object({
-  enabled: z.boolean(), retentionDays: count.max(90), generatedAt: count, coverageStart: count.nullable(), processedThrough: count.nullable(),
+  validUntil: count.optional(), enabled: z.boolean(), retentionDays: count.max(90), generatedAt: count, coverageStart: count.nullable(), processedThrough: count.nullable(),
+  coverage: z.object({ from: count, to: count, tailBatches: count, tailBytes: count, tailTruncated: z.boolean(),
+    summaryComplete: z.boolean(), timingRowsTruncated: z.boolean(), unavailable: z.array(z.string()).max(10), timeZone: z.literal("Asia/Shanghai") }).optional(),
   pendingBatches: count, truncated: z.boolean(), correctionDays: z.literal(6),
   days: z.array(historyCounts.extend({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), complete: z.boolean(), sealed: z.boolean() })).max(90),
   timingRows: z.array(HistoryTimingRow).max(512),
@@ -79,7 +81,7 @@ export function summarizeHistory(data: HistoryData) {
   for (const day of data.days) for (const key of historyCountFields) totals[key] += day[key];
   return { totals, byDay: data.days, timings: data.timingRows.map(row => ({
     kind: row.kind, name: row.name, phase: row.phase, release: row.release,
-    measurementVersion: row.measurementVersion, definitionVersion: row.definitionVersion, navigationType: row.navigationType,
+    measurementVersion: row.measurementVersion, definitionVersion: row.definitionVersion, navigationType: row.navigationType, basis: row.basis, elapsedCensored: row.elapsedCensored, activeCensored: row.activeCensored, reports: row.reports,
     n: row.duration.n, mean: row.duration.n ? row.duration.sum / row.duration.n : null,
     p50: historyQuantile(row.duration, .5, row.name), p90: historyQuantile(row.duration, .9, row.name),
     distribution: row.duration, active: row.active,

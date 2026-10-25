@@ -1,0 +1,33 @@
+{
+  "sourceSha": "bca936a445e70196bdeba47f75be37ab4b0aacaf",
+  "profile": {
+    "timestamp": "2026-10-25T18:21:49.292Z",
+    "level": "info",
+    "event": "runtime.resource.sample",
+    "scope": "runtime",
+    "operation": "profile.public.read",
+    "environment": "production",
+    "safeContext": {
+      "totalMs": 447.2828350000034,
+      "maxMs": 137.31486900000004,
+      "inFlight": 0,
+      "peak": 1,
+      "count": 9
+    }
+  },
+  "stats": {
+    "timestamp": "2026-10-25T18:21:49.292Z",
+    "level": "info",
+    "event": "runtime.resource.sample",
+    "scope": "runtime",
+    "operation": "stats.public.fill",
+    "environment": "production",
+    "safeContext": {
+      "totalMs": 398.65179300000113,
+      "maxMs": 128.0260179999998,
+      "inFlight": 0,
+      "peak": 1,
+      "count": 7
+    }
+  }
+}
