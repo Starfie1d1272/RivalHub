@@ -67,7 +67,7 @@ export async function verifyBetReadStages(
     await expect(admin.getByRole("button",{name:"暂停投入",exact:true})).toBeEnabled();
     const preparationMs=performance.now()-started;
     mark("preparation.complete");
-    const report=[];
+    const report:{view:string;viewer:string;state:string;runtime:string;apiMs:number;apiBytes:number;rscMs:number;rscBytes:number;publicCacheKey:string;rscCacheState:string}[]=[];
     for(const viewer of production?["anonymous","joined"]:["anonymous","unjoined","joined"]){
       if(viewer==="joined"){
         phase="viewer.join";
