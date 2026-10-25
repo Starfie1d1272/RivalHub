@@ -1,0 +1,115 @@
+{
+  "baselineSha": "1ec1f818a974e360e2f5aa732ced47640786502a",
+  "environment": "Local Supabase PostgreSQL 17; Next 16.4.2 production build/start; Playwright Chromium headless 156.0.8078.4; loopback only",
+  "injection": "Force benchmark consumption for no-history local fixture and delay cached benchmark body by 1500ms; temporary query logger. All injections removed.",
+  "profileNavigations": [
+    {
+      "navigationId": "baseline",
+      "status": 200,
+      "timings": {
+        "identity": 666.7999999999884,
+        "overview": 2329.2999999999884,
+        "history": 2329.4000000000233,
+        "performance": 2329.4000000000233,
+        "basic": 2329.4000000000233
+      },
+      "errors": [],
+      "sql": 35
+    },
+    {
+      "navigationId": "candidate",
+      "status": 200,
+      "timings": {
+        "identity": 787.4000000000233,
+        "overview": 787.5,
+        "history": 787.5,
+        "performance": 787.5,
+        "basic": 787.5,
+        "attributes": 1880.7000000000698
+      },
+      "errors": [],
+      "sql": 35
+    }
+  ],
+  "concurrentNavigations": [
+    {
+      "navigationId": "cold-a",
+      "status": 200,
+      "timings": {
+        "identity": 776.6999999999534,
+        "overview": 776.8000000000466,
+        "history": 776.8000000000466,
+        "performance": 776.8000000000466,
+        "basic": 776.8000000000466,
+        "attributes": 1984.0999999999767
+      },
+      "errors": []
+    },
+    {
+      "navigationId": "cold-b",
+      "status": 200,
+      "timings": {
+        "identity": 721.1999999999534,
+        "overview": 721.1999999999534,
+        "history": 721.1999999999534,
+        "performance": 721.1999999999534,
+        "basic": 721.1999999999534,
+        "attributes": 1967.2999999999302
+      },
+      "errors": []
+    }
+  ],
+  "concurrentBenchmarkFills": 1,
+  "candidateTeamRegression": [
+    {
+      "kind": "event-team",
+      "status": 200,
+      "primaryMs": 496,
+      "advancedAndIdleMs": 1041,
+      "sql": 38,
+      "errors": [],
+      "headings": [
+        "AAlpha 886cd1658a7e",
+        "已审核报名名单",
+        "Player Styles",
+        "本届地图画像",
+        "近期比赛",
+        "竞技表现"
+      ]
+    },
+    {
+      "kind": "long-team",
+      "status": 200,
+      "primaryMs": 403,
+      "advancedAndIdleMs": 931,
+      "sql": 22,
+      "errors": [],
+      "headings": [
+        "EE2E 邀请队伍 65b7abdf26a0",
+        "当前成员",
+        "Player Styles",
+        "生涯地图画像",
+        "近期比赛",
+        "竞技表现",
+        "赛事履历",
+        "队伍资料"
+      ]
+    }
+  ],
+  "pgSections": {
+    "firstQueryCount": 13,
+    "secondQueryCount": 12,
+    "publicRows": 2,
+    "withdrawnRows": 0
+  },
+  "failures": [
+    "First browser baseline failed: browser database lacked matches.test_config; local canonical migration replay fixed local schema; discarded run retained outside repository.",
+    "Initial browser dependency was missing matching Chromium; installed lockfile-matched browser."
+  ],
+  "notMeasured": [
+    "Production performance or memory/peak",
+    "Valid detailed-performance browser fixture",
+    "Baseline team-page comparison",
+    "A budget interface and C ready-contract integration"
+  ]
+}

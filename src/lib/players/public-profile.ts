@@ -5,7 +5,7 @@ import { and, asc, desc, eq, inArray, isNull, max, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, educationVerifications, eventRosterMembers, eventRosters, institutions, matches, seasonRegistrations, seasons, teamMemberships, teams, userCompetitiveRoles, userMapPreferences, competitiveRankFacts } from "@/db/schema";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
-import { getPublicPlayerById } from "@/lib/data/public-players";
+import type { getPublicPlayerById } from "@/lib/data/public-players";
 import { getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { getPublicSeasonResults } from "@/lib/seasons/public-results";
 import type { PlayerStatsEventOption } from "@/lib/stats/tournament-query";
@@ -18,7 +18,7 @@ import { getPublicCompetitiveCatalog } from "@/lib/competitive/public-catalog";
 import { presentCompetitiveRole, presentPublicCompetitiveProfile } from "@/lib/competitive/presentation";
 import { presentPublicEducationIdentities } from "@/lib/education/presentation";
 import { getPublicPlayerLft } from "@/lib/recruitment/data";
-import { getPublicPlayerSanctions } from "@/lib/discipline/public-query";
+import type { getPublicPlayerSanctions } from "@/lib/discipline/public-query";
 
 export type PublicPlayerCareerEvent = {
   seasonId: string;
@@ -33,22 +33,23 @@ export type PublicPlayerCareerEvent = {
   record: { wins: number; losses: number; played: number };
 };
 
-export async function getPublicPlayerProfileReadModel(
-  userId: string,
+type KnownPublicPlayer = {
+  user: NonNullable<Awaited<ReturnType<typeof getPublicPlayerById>>>;
+  sanctions: Awaited<ReturnType<typeof getPublicPlayerSanctions>>;
+};
+
+/** Create once after canonical identity checks; share only within this request. */
+export function createPublicPlayerProfileSections(
+  { user, sanctions }: KnownPublicPlayer,
   scope: { eventSlug?: string; mapFilter?: string } = {},
-  known?: { user: NonNullable<Awaited<ReturnType<typeof getPublicPlayerById>>>; sanctions: Awaited<ReturnType<typeof getPublicPlayerSanctions>> },
 ) {
-  const user = known?.user.id === userId ? known.user : await getPublicPlayerById(userId);
-  if (!user) return null;
+  const userId = user.id;
   // Reuse the same cached read for an unfiltered profile; scoped performance
   // and the lifetime header are independent and can load concurrently.
   const lifetimePromise = readOptionalPublicStats("player_career", () => getPublicPlayerCareerDetail({ playerId: userId }));
   const performancePromise = scope.eventSlug || scope.mapFilter
     ? readOptionalPublicStats("player_career", () => getPublicPlayerCareerDetail({ playerId: userId, eventSlug: scope.eventSlug, mapFilter: scope.mapFilter }))
     : lifetimePromise;
-  const benchmarkPromise = performancePromise.then(career => career?.performance
-    ? readOptionalPublicStats("player_benchmark", getPlayerAttributeBenchmark)
-    : null);
   const registrationsPromise = db.select({
       id: seasonRegistrations.id,
       seasonId: seasonRegistrations.seasonId,
@@ -77,7 +78,8 @@ export async function getPublicPlayerProfileReadModel(
       .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
       .innerJoin(seasons, eq(competitionEntries.competitionId, seasons.id))
       .where(and(eq(eventRosterMembers.userId, userId), eq(eventRosterMembers.isCurrent, true), inArray(eventRosters.status, ["confirmed", "frozen"]), ne(seasons.status, "draft"), publicCompetitionEntryCondition()))
-      .orderBy(desc(seasons.createdAt), asc(competitionEntries.name), asc(competitionEntries.id)).execute();
+      .orderBy(desc(seasons.createdAt), asc(competitionEntries.name), asc(competitionEntries.id)).execute()
+      .then(rows => [...new Map(rows.map(entry => [`${entry.seasonId}:${entry.teamId}`, entry])).values()]);
   const registrationCompletionPromise = registrationsPromise.then(registrations => registrations.length > 0
     ? db.select({ seasonId: matches.seasonId, lastCompletedAt: max(matches.completedAt) })
       .from(matches)
@@ -95,12 +97,10 @@ export async function getPublicPlayerProfileReadModel(
     }
     return resultBySeason;
   });
-  const [career, currentTeams, registrations, competitiveFacts, competitiveRoles, mapPreferences, competitiveCatalog, educationRows, playerLft, teamMemberRows, careerRecords, lifetime, sanctions, registrationCompletionRows, resultBySeason, benchmark] = await Promise.all([
-    performancePromise,
+  const basic = Promise.all([
     db.select({ slug: teams.slug, name: teams.name }).from(teamMemberships)
       .innerJoin(teams, eq(teams.id, teamMemberships.teamId))
       .where(and(eq(teamMemberships.userId, userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))),
-    registrationsPromise,
     db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, userId)),
     db.select().from(userCompetitiveRoles).where(eq(userCompetitiveRoles.userId, userId)),
     db.select().from(userMapPreferences).where(eq(userMapPreferences.userId, userId)),
@@ -118,75 +118,77 @@ export async function getPublicPlayerProfileReadModel(
       .orderBy(asc(institutions.name), asc(educationVerifications.institutionId), desc(educationVerifications.submittedAt), asc(educationVerifications.id)),
     getPublicPlayerLft(userId),
     teamMemberRowsPromise,
-    getPublicPlayerRecords(userId),
-    lifetimePromise,
-    known?.user.id === userId ? Promise.resolve(known.sanctions) : getPublicPlayerSanctions(userId),
-    registrationCompletionPromise,
-    resultBySeasonPromise,
-    benchmarkPromise,
-  ]);
-
-  const uniqueHistoryEntries = [...new Map(teamMemberRows.map((entry) => [`${entry.seasonId}:${entry.teamId}`, entry])).values()];
-
-  const careerHistory: PublicPlayerCareerEvent[] = uniqueHistoryEntries
-    .filter((entry) => ["finished", "archived"].includes(entry.seasonStatus))
-    .map((entry) => {
-      const results = resultBySeason.get(entry.seasonId);
-      const honorLabels = results?.honors.filter((honor) => honor.entryId === entry.teamId || honor.userId === userId).map((honor) => honor.label) ?? [];
-      return {
-        seasonId: entry.seasonId,
-        seasonSlug: entry.seasonSlug,
-        seasonName: entry.seasonName,
-        seasonStatus: entry.seasonStatus,
-        teamId: entry.teamId,
-        teamName: entry.teamName,
-        placement: results?.placements.find((placement) => placement.entryId === entry.teamId)?.label ?? null,
-        honors: [...new Set(honorLabels)],
-        honorHistory: results?.honorHistory.filter((honor) => honor.entryId === entry.teamId || honor.userId === userId).map(({ label, state }) => ({ label, state })) ?? [],
-        record: careerRecords.get(entry.seasonId) ?? { wins: 0, losses: 0, played: 0 },
-      };
-    });
-  const completionBySeasonId = new Map(registrationCompletionRows.map((row) => [row.seasonId, row.lastCompletedAt]));
-  const registrationSnapshots = [...registrations].sort((left, right) => {
-    const leftTime = completionBySeasonId.get(left.seasonId)?.getTime() ?? Number.NEGATIVE_INFINITY;
-    const rightTime = completionBySeasonId.get(right.seasonId)?.getTime() ?? Number.NEGATIVE_INFINITY;
-    return rightTime - leftTime || left.seasonName.localeCompare(right.seasonName) || left.id.localeCompare(right.id);
+  ]).then(([currentTeams, competitiveFacts, competitiveRoles, mapPreferences, competitiveCatalog, educationRows, playerLft, teamMemberRows]) => {
+    const uniqueHistoryEntries = teamMemberRows;
+    return {
+      user, sanctions, currentTeams,
+      eventTeams: uniqueHistoryEntries,
+      currentEventTeams: uniqueHistoryEntries.filter((entry) => !["finished", "archived"].includes(entry.seasonStatus)),
+      publicCompetitiveProfile: presentPublicCompetitiveProfile(competitiveCatalog, competitiveFacts),
+      publicCompetitiveRoles: competitiveRoles
+        .sort((left, right) => Number(right.isPrimary) - Number(left.isPrimary))
+        .map((role) => presentCompetitiveRole(role.role))
+        .filter((role): role is string => role !== null),
+      publicEducationIdentities: presentPublicEducationIdentities(educationRows),
+      mapPreferences: mapPreferences[0]?.mapPreferences ?? [],
+      playerLft,
+    };
   });
-  const publicCompetitiveRoles = competitiveRoles
-    .sort((left, right) => Number(right.isPrimary) - Number(left.isPrimary))
-    .map((role) => presentCompetitiveRole(role.role))
-    .filter((role): role is string => role !== null);
-  const publicEducationIdentities = presentPublicEducationIdentities(educationRows);
-  const currentEventTeams = uniqueHistoryEntries.filter((entry) => !["finished", "archived"].includes(entry.seasonStatus));
-  const attributes = career?.performance && benchmark
-    ? projectPlayerAttributeProfile(career.performance, benchmark)
-    : null;
+  const history = Promise.all([
+    registrationsPromise, teamMemberRowsPromise, getPublicPlayerRecords(userId),
+    registrationCompletionPromise, resultBySeasonPromise,
+  ]).then(([registrations, teamMemberRows, careerRecords, registrationCompletionRows, resultBySeason]) => {
+    const uniqueHistoryEntries = teamMemberRows;
 
-  return {
-    user,
-    sanctions,
-    career,
+    const careerHistory: PublicPlayerCareerEvent[] = uniqueHistoryEntries
+      .filter((entry) => ["finished", "archived"].includes(entry.seasonStatus))
+      .map((entry) => {
+        const results = resultBySeason.get(entry.seasonId);
+        const honorLabels = results?.honors.filter((honor) => honor.entryId === entry.teamId || honor.userId === userId).map((honor) => honor.label) ?? [];
+        return {
+          seasonId: entry.seasonId,
+          seasonSlug: entry.seasonSlug,
+          seasonName: entry.seasonName,
+          seasonStatus: entry.seasonStatus,
+          teamId: entry.teamId,
+          teamName: entry.teamName,
+          placement: results?.placements.find((placement) => placement.entryId === entry.teamId)?.label ?? null,
+          honors: [...new Set(honorLabels)],
+          honorHistory: results?.honorHistory.filter((honor) => honor.entryId === entry.teamId || honor.userId === userId).map(({ label, state }) => ({ label, state })) ?? [],
+          record: careerRecords.get(entry.seasonId) ?? { wins: 0, losses: 0, played: 0 },
+        };
+      });
+    const completionBySeasonId = new Map(registrationCompletionRows.map((row) => [row.seasonId, row.lastCompletedAt]));
+    const registrationSnapshots = [...registrations].sort((left, right) => {
+      const leftTime = completionBySeasonId.get(left.seasonId)?.getTime() ?? Number.NEGATIVE_INFINITY;
+      const rightTime = completionBySeasonId.get(right.seasonId)?.getTime() ?? Number.NEGATIVE_INFINITY;
+      return rightTime - leftTime || left.seasonName.localeCompare(right.seasonName) || left.id.localeCompare(right.id);
+    });
+    return { careerHistory, registrationSnapshots };
+  });
+  const overview = lifetimePromise.then(lifetime => ({
     careerOverview: {
       rating: lifetime?.scoreboard[0]?.avgRating ?? null,
       adr: lifetime?.scoreboard[0]?.avgAdr ?? null,
       kd: lifetime?.scoreboard[0]?.kdRatio ?? null,
       maps: lifetime?.summary.maps ?? null,
     },
-    currentTeams,
-    eventTeams: uniqueHistoryEntries,
-    currentEventTeams,
-    careerHistory,
-    registrationSnapshots,
-    publicCompetitiveProfile: presentPublicCompetitiveProfile(competitiveCatalog, competitiveFacts),
-    publicCompetitiveRoles,
-    publicEducationIdentities,
-    mapPreferences: mapPreferences[0]?.mapPreferences ?? [],
-    playerLft,
-    attributes,
-    statsUnavailable: career === null,
-    benchmarkUnavailable: Boolean(career?.performance && !benchmark),
-  };
+  }));
+  const performance = performancePromise.then(career => ({ career, statsUnavailable: career === null }));
+  // Start only when an attribute consumer renders. No private identity is cached.
+  let attributesPromise: ReturnType<typeof readAttributes> | undefined;
+  async function readAttributes() {
+    const career = await performancePromise;
+    const benchmark = career?.performance
+      ? await readOptionalPublicStats("player_benchmark", getPlayerAttributeBenchmark)
+      : null;
+    return {
+      attributes: career?.performance && benchmark ? projectPlayerAttributeProfile(career.performance, benchmark) : null,
+      benchmarkUnavailable: Boolean(career?.performance && !benchmark),
+    };
+  }
+  return { basic, overview, history, performance, attributes: () => attributesPromise ??= readAttributes() };
 }
 
-export type PublicPlayerProfileReadModel = NonNullable<Awaited<ReturnType<typeof getPublicPlayerProfileReadModel>>>;
+export type PublicPlayerProfileSections = ReturnType<typeof createPublicPlayerProfileSections>;
 export type PublicPlayerPerformanceEvent = PlayerStatsEventOption;

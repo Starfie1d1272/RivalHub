@@ -57,7 +57,7 @@ DB/internal facts
 → public RSC payload / Client props
 ```
 
-Public profile routes compose server-only read models; scope selection and derived metrics stay in the read model instead of the route entrypoint.
+Public profile routes compose server-only read models; scope selection and derived metrics stay in the read model instead of the route entrypoint. Player profiles create one request-scoped set of shared promises after canonical identity and public sanction checks. Basics, lifetime overview, history, scoped performance and attributes stream independently; unfiltered performance shares the lifetime read, while only attribute consumers await the public benchmark. Concurrent cold benchmark consumers reuse the existing no-argument public cache and its framework-managed cross-request fill deduplication; private identity and education facts remain outside shared caches.
 
 赛事阶段 read model 在 React Server Component 单次请求内，按赛事 ID 与模板复用 StageRun、正式比赛阶段和资格赛事实读取；每个调用仍使用自己的赛事 stagePlan 生成展示。此请求级复用由 `src/lib/seasons/public-stage.ts` 拥有，请求结束后失效，不产生跨用户或跨请求的业务状态缓存。
 
