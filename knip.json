@@ -65,6 +65,7 @@
     "scripts/db/major-browser-fixture.ts!",
     "scripts/db/bet-browser-fixture.ts!",
     "scripts/db/mizar-live-fixture.ts!",
+    "scripts/db/mizar-http-resource-fixture.ts!",
     "scripts/db/seed-local-fixtures.ts!",
     "scripts/db/verify-db.ts!",
     "scripts/db/verify-local.ts!",

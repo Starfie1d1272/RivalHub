@@ -6,9 +6,12 @@ const read = vi.hoisted(() => vi.fn());
 const send = vi.hoisted(() => vi.fn());
 const appealSubmit = vi.hoisted(() => vi.fn());
 const appealResolve = vi.hoisted(() => vi.fn());
+const beginTask = vi.hoisted(() => vi.fn(() => "captured-veto-attempt"));
+const completeTask = vi.hoisted(() => vi.fn());
+const stepTask = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/matches/veto-room/client", async original => ({ ...await original<typeof import("@/lib/matches/veto-room/client")>(), fetchVetoRoom: read, sendVetoInteraction: send }));
 vi.mock("@/components/telemetry/ContentReady", () => ({ ContentReady: () => null }));
-vi.mock("@/lib/telemetry/client", async original => ({ ...await original<typeof import("@/lib/telemetry/client")>(), observeAction: (_name: string, action: unknown) => action }));
+vi.mock("@/lib/telemetry/client", async original => ({ ...await original<typeof import("@/lib/telemetry/client")>(), observeAction: (_name: string, action: unknown) => action, beginTelemetryTask: beginTask, completeTelemetryTask: completeTask, stepTelemetryTask: stepTask }));
 vi.mock("@/actions/matches/veto-room", () => ({
   claimVetoRepresentativeAction: vi.fn(), pauseVetoRoomAction: vi.fn(), resolveVetoRoomAppeal: appealResolve, resumeVetoRoomAction: vi.fn(),
   rewindVetoRoomAction: vi.fn(), setManualVetoPrivilege: vi.fn(), submitVetoRoomAppeal: appealSubmit, updateVetoRepresentative: vi.fn(),
@@ -25,7 +28,7 @@ function room(revision: number): VetoRoomView {
     maps:[],steps:[],incidents:[],permissions:{canOperateCurrentTurn:true,isAdmin:false},
   } as unknown as VetoRoomView;
 }
-afterEach(()=>{cleanup();vi.useRealTimers();vi.clearAllMocks();});
+afterEach(()=>{cleanup();vi.useRealTimers();vi.clearAllMocks();stepTask.mockReset();});
 it("submits while a poll is pending and ignores its late old room after the command commits", async()=>{
   vi.useFakeTimers();vi.setSystemTime(now);
   Object.defineProperty(document,"visibilityState",{value:"visible",configurable:true});
@@ -76,9 +79,12 @@ it("immediately reads an unknown command result and blocks resubmission of the o
   await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
   expect(screen.queryByRole("button", { name: "由 A 先禁图" })).not.toBeInTheDocument();
   expect(send).toHaveBeenCalledOnce();
+  expect(completeTask).not.toHaveBeenCalled();
+  expect(stepTask).not.toHaveBeenCalled();
 });
 
 it("keeps a confirmed commit distinct from a failed room refresh and waits for its committed revision", async () => {
+  stepTask.mockImplementation(() => { expect(screen.queryByRole("button", { name: "由 A 先禁图" })).not.toBeInTheDocument(); });
   vi.useFakeTimers(); vi.setSystemTime(now);
   Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
   read.mockResolvedValue({ success: true, data: room(1) });
@@ -86,12 +92,17 @@ it("keeps a confirmed commit distinct from a failed room refresh and waits for i
   render(<VetoRoom initialRoom={room(1)} />);
   await act(async () => { await vi.advanceTimersByTimeAsync(1); });
   await act(async () => { fireEvent.click(screen.getByRole("button", { name: "由 A 先禁图" })); });
+  expect(completeTask).toHaveBeenCalledWith("veto", "captured-veto-attempt");
+  expect(stepTask).not.toHaveBeenCalled();
   expect(screen.getByText("操作已确认，房间刷新暂未完成，正在重新同步。")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "由 A 先禁图" })).toBeDisabled();
   read.mockResolvedValue({ success: true, data: room(2) });
   await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
   expect(screen.queryByRole("button", { name: "由 A 先禁图" })).not.toBeInTheDocument();
   expect(send).toHaveBeenCalledOnce();
+  expect(completeTask).toHaveBeenCalledTimes(1);
+  expect(stepTask).toHaveBeenCalledWith("veto", "result", "captured-veto-attempt");
+  expect(completeTask.mock.invocationCallOrder[0]).toBeLessThan(stepTask.mock.invocationCallOrder[0]!);
 });
 
 it.each(["lost", "internal", "committed-refresh-failed"] as const)("confirms a same-revision appeal submission after %s without replay", async fault => {
@@ -118,6 +129,8 @@ it.each(["lost", "internal", "committed-refresh-failed"] as const)("confirms a s
   expect(screen.getByRole("button", { name: "继续 BP" })).toBeEnabled();
   expect(screen.getByText("申诉：fixture appeal reason")).toBeInTheDocument();
   expect(appealSubmit).toHaveBeenCalledOnce();
+  expect(completeTask).toHaveBeenCalledWith("veto", "captured-veto-attempt");
+  expect(stepTask).toHaveBeenCalledWith("veto", "result", "captured-veto-attempt");
 });
 
 it.each(["lost", "internal", "committed-refresh-failed"] as const)("confirms a same-revision rejected resolution after %s without replay", async fault => {
@@ -145,6 +158,8 @@ it.each(["lost", "internal", "committed-refresh-failed"] as const)("confirms a s
   expect(screen.getByRole("button", { name: "继续 BP" })).toBeEnabled();
   expect(screen.getByText("已驳回")).toBeInTheDocument();
   expect(appealResolve).toHaveBeenCalledOnce();
+  expect(completeTask).toHaveBeenCalledWith("veto", "captured-veto-attempt");
+  expect(stepTask).toHaveBeenCalledWith("veto", "result", "captured-veto-attempt");
 });
 
 it("retries durable invalidation via reconcile while a room is paused, without replaying a user command", async () => {
@@ -174,4 +189,19 @@ it("immediately resynchronizes a persisted pageshow without replaying a mutation
   await act(async () => { window.dispatchEvent(restored); });
   expect(read.mock.calls.length).toBe(reads + 1);
   expect(send).not.toHaveBeenCalled();
+});
+
+
+it("does not complete a stale command after its room is recovered", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(now);
+  read.mockResolvedValue({ success: true, data: room(1) });
+  send.mockResolvedValue({ success: true, data: { outcome: "stale", receipt: { committedRevision: 2 }, room: null } });
+  render(<VetoRoom initialRoom={room(1)} />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "由 A 先禁图" })); });
+  read.mockResolvedValue({ success: true, data: room(2) });
+  await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
+  expect(send).toHaveBeenCalledOnce();
+  expect(completeTask).not.toHaveBeenCalled();
+  expect(stepTask).not.toHaveBeenCalled();
 });

@@ -37,7 +37,17 @@ BETTER_STACK_INGESTING_HOST=<server-only Better Stack OTLP ingest host>
 
 ## LIVE 投递结果聚合
 
-`src/lib/observability/live-outcomes.ts` 通过 server facade 接收固定结果与数值耗时，每分钟由后续活动触发 `mizar.live.outcome_window`。日志与 exporter 沿用现有 runtime owner；聚合在 ROOT_CONTEXT 下输出，避免继承触发请求的 requestId/traceId。它只在内存保存七类结果的次数与耗时总和，不保存帧或身份，不创建 timer/数据库，重启与空闲尾窗可能丢数。结果范围、窗口/平均值口径与 viewer 验收边界见 [LIVE 接收容量](live-capacity.md)。
+`src/lib/observability/live-outcomes.ts` 通过 server facade 接收固定结果与数值耗时。窗口与 A 的采样器均以 `process` 的固定 Symbol 为 owner，跨 Next API/RSC/Instrumentation 模块图共享。模块使用唯一 `live_ingest` key 注册 `() => flushLiveIngestOutcomes()`，由共享进程 sampler 的 60 秒 tick 刷新到期非空窗口，不安装第二个 timer。启用常驻 Node 进程采样时，停止活动后的尾窗仍由后续 tick 输出；没有启用该采样器的环境保留同接口的活动兜底，空闲尾窗仍可能等待下次活动。
+
+`mizar.live.outcome_window` 保留七类 ingest 结果的原分母；`mizar.live.stage_window` 单独记录 received/admitted/authorized/send_success/expired/capacity/contended/unknown_send 八个固定里程碑。阶段可重叠，不能相加作请求分母。两个聚合共享进程 singleton，只保存 15 类次数与耗时总和，不保存帧或身份；在 ROOT_CONTEXT 输出，避免继承 requestId/traceId。重启、SIGKILL、日志链路故障仍可能丢失开放窗口；不承诺退出 flush 或持久审计。结果范围、窗口/平均值口径与 viewer 验收边界见 [LIVE 接收容量](live-capacity.md)。
+
+LIVE 与可靠事件分别在 canonical ingest 的解析/基本 scope 检查通过后，进入 `mizar.live` / `mizar.reliable` 资源计数；两者只包一层，均在 finally 结束计数。LIVE 耗时包含授权事务、发送与清理，reliable 包含事务和既有非关键心跳；重复、拒绝或依赖失败不残留 inFlight。该观测不创建准入 gate、不获取连接，也不改变锁、重试或业务结果。
+
+## BP 超时与确认口径
+
+`match.veto.timeout_resolved.durationMs` 保留从 deadline 到处理使用的数据库时间差；`safeContext.configuredGraceMs` 是既定 2000ms 宽限，`actualOverdueMs = max(0, durationMs - configuredGraceMs)` 是扣除宽限后的额外逾期。宽限、数据库时钟、锁序、revision 和命令幂等不因观测改变。authorize/transaction/invalidate/project 仍沿用现有 span，不能把包含关系的耗时相加。
+
+浏览器指令 acknowledgement 与房间呈现是独立目标：HTTP 响应包含既有投影处理，DOM 应用该响应或恢复读之后才算呈现。VetoRoom 保存原 `beginTask()` 返回的 token，已知成功提交即确认任务，房间投影与呈现另行观察；未知提交只在读到相同恢复事实后闭合原 attempt；仅 revision 前进不足以宣称本次未知写入成功。stale 不算成功，也不重放未知提交。VetoRoom 在实际房间 React commit 后，使用原捕获 token 独立记录 result step；仅 revision 前进不记录本次未知写入的确认或呈现。任务 core 的身份、scope、取消与确认后 result 保护由产品遥测 owner 维护。
 
 ## 管理员进程快照
 

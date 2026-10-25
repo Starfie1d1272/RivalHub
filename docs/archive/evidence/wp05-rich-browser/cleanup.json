@@ -1,0 +1,6 @@
+{
+  "environment": "loopback isolated PostgreSQL",
+  "appStopped": true,
+  "ownedDatabaseDropped": true,
+  "completedAtUtc": "2026-10-25T18:24:14.574885+00:00"
+}
