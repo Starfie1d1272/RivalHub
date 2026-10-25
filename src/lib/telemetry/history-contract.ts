@@ -16,7 +16,7 @@ export function parseHistoryQuery(input: unknown): HistoryQuery | null {
   const p = input as Record<string, unknown>;
   if (Object.keys(p).some(k => !(historyFields as readonly string[]).includes(k)) || Object.values(p).some(v => typeof v !== "string")) return null;
   const f = { ...historyDefaults, ...p } as HistoryQuery;
-  if (!["28", "90"].includes(f.days) || !["", "major", "rivals", "other", "site"].includes(f.scene) || !["", ...ROLES].includes(f.role)) return null;
+  if (!["7", "28", "90"].includes(f.days) || !["", "major", "rivals", "other", "site"].includes(f.scene) || !["", ...ROLES].includes(f.role)) return null;
   if (f.route && !["/unknown", ...ROUTES].includes(f.route)) return null;
   if (f.device && !["missing", ...CLIENT_CATEGORIES.device].includes(f.device)) return null;
   if (!/^[A-Za-z0-9._-]{0,80}$/.test(f.release) || (f.eventId && !UUID.test(f.eventId))) return null;
@@ -41,7 +41,9 @@ const historyCounts = z.object({ views: count, operations: count, success: count
 export const HistoryTimingRow = HistoryRow.pick({ kind: true, name: true, phase: true, release: true, measurementVersion: true, definitionVersion: true, navigationType: true, basis: true, elapsedCensored: true, activeCensored: true, duration: true, active: true }).extend({ reports: count.optional() });
 export type HistoryTimingRow = z.infer<typeof HistoryTimingRow>;
 export const HistoryData = z.object({
-  enabled: z.boolean(), retentionDays: count.max(90), generatedAt: count, coverageStart: count.nullable(), processedThrough: count.nullable(),
+  validUntil: count.optional(), enabled: z.boolean(), retentionDays: count.max(90), generatedAt: count, coverageStart: count.nullable(), processedThrough: count.nullable(),
+  coverage: z.object({ from: count, to: count, tailBatches: count, tailBytes: count, tailTruncated: z.boolean(),
+    summaryComplete: z.boolean(), timingRowsTruncated: z.boolean(), unavailable: z.array(z.string()).max(10), timeZone: z.literal("Asia/Shanghai") }).optional(),
   pendingBatches: count, truncated: z.boolean(), correctionDays: z.literal(6),
   days: z.array(historyCounts.extend({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), complete: z.boolean(), sealed: z.boolean() })).max(90),
   timingRows: z.array(HistoryTimingRow).max(512),

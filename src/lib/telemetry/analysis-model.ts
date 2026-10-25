@@ -15,6 +15,8 @@ import type { TelemetryEvent } from "./protocol";
 import { TASKS, TASK_NAMES } from "./task-contract";
 import { analyzeProduct, bucketStart, eventRelease, operationCalls, operationKey, selectProductEvents } from "./product-analysis";
 export interface EventRow {
+  /** Receiver-internal correlation for raw/aggregate overlap; never projected to the app. */
+  historyKey?: string;
   id: string;
   at: number;
   received: number;
