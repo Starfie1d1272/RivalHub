@@ -1,7 +1,7 @@
 /** Preparation smoke only. Formal comparisons require root-frozen source SHAs. */
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { chromium, expect, type BrowserContext, type Page } from "@playwright/test";
@@ -15,32 +15,46 @@ import { db, disposeDatabaseBinding } from "../../src/db/client-runtime";
 import { createLocalTelemetryResourceFixture } from "./local-telemetry-resource-fixture";
 import { parseResourceReading } from "./resource-readings";
 import { createMizarResourceDriver } from "./mizar-resource-driver";
+import { assertResourceTelemetryQuery, resourceTelemetryEndpoint, RESOURCE_TELEMETRY_VIEWS, type ResourceTelemetryMode, type ResourceTelemetryQuery } from "./resource-telemetry-contract";
 import type { ResourceHttpFixture } from "./resource-integration-contract";
 
 const base = "http://127.0.0.1:3107";
 type RequestResult = { kind: string; phase: string; producer?: number; startedMs: number; durationMs: number; status: number | null; bytes: number; requestBytes?: number; outcome?: string; reason?: string; error?: string };
 type ResourceSample = ReturnType<typeof parseResourceReading>;
 const workload = { version: 1, liveProducers: 2, documents: ["bet", "profile", "telemetry"], warmRounds: 1, concurrentRounds: 2, idleMs: 65_000 };
-const execute = (file: string, args: string[], env?: NodeJS.ProcessEnv) => execFileSync(file, args, { encoding: "utf8", env, stdio: ["ignore", "pipe", "pipe"] }).trim();
+const execute = (file: string, args: string[], env?: NodeJS.ProcessEnv, cwd?: string) => execFileSync(file, args, { encoding: "utf8", env, cwd, stdio: ["ignore", "pipe", "pipe"] }).trim();
 
-export async function runResourceIntegrationSmoke(image: string, seed: string, adapter?: string, build = false) {
+export async function runResourceIntegrationSmoke(image: string, seed: string, adapter?: string, build = false, options: { phase?: "preparation" | "baseline" | "integrated"; telemetry?: ResourceTelemetryMode; appRoot?: string; expectedSha?: string } = {}) {
   if (!/^sha256:[0-9a-f]{64}$/.test(image) || !/^[a-z0-9-]{1,48}$/.test(seed)) throw new Error("INVALID_LOCAL_SMOKE_ARGUMENTS");
   process.umask(0o077);
   const { assertBaselineReadiness } = await import("./resource-baseline.mjs");
   const root = process.cwd();
-  const sha = execute("git", ["rev-parse", "HEAD"]);
+  const appRoot = resolve(options.appRoot ?? root);
+  const sha = execute("git", ["rev-parse", "HEAD"], undefined, appRoot);
+  const phaseKind = options.phase ?? "preparation";
+  const telemetryMode = options.telemetry ?? "raw";
+  if (phaseKind === "integrated" && telemetryMode !== "summary") throw new Error("INTEGRATED_SUMMARY_REQUIRED");
+  if (phaseKind !== "preparation") {
+    if (!/^[a-f0-9]{40}$/.test(options.expectedSha ?? "") || options.expectedSha !== sha) throw new Error("FROZEN_APP_SHA_REQUIRED");
+    if (execute("git", ["status", "--porcelain"], undefined, appRoot)) throw new Error("FROZEN_APP_SOURCE_NOT_CLEAN");
+  }
+  const countersPresent = existsSync(resolve(appRoot, "src/lib/observability/runtime-resources.ts"));
+  const requireCounters = phaseKind !== "baseline";
   const releaseTag = "v0.0.0-local-resource";
   const directory = resolve(".agent-tmp", `resource-smoke-${seed}-${Date.now()}`);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const started = performance.now();
-  const sourceFiles = ["resource-integration.ts", "resource-integration-contract.ts", "mizar-resource-driver.ts", "local-telemetry-resource-fixture.ts", "resource-readings.ts", "resource-baseline.mjs"];
+  const sourceFiles = ["resource-integration.ts", "resource-integration-contract.ts", "mizar-resource-driver.ts", "local-telemetry-resource-fixture.ts", "resource-readings.ts", "resource-telemetry-contract.ts", "resource-baseline.mjs"];
   const harnessHashes = Object.fromEntries(sourceFiles.map(file => [file, createHash("sha256").update(readFileSync(resolve("scripts/observability", file))).digest("hex")]));
-  const report = { appNode: execute(realpathSync("node_modules/.bin/node"), ["--version"]), buildId: "", browserVersion: "", mizarFixtureSource: "", harnessHashes, purpose: "harness-preparation-not-optimization-evidence", sha, releaseTag, seed, workload,
+  const report = { phaseKind, telemetryMode, expectedTelemetryEndpoint: resourceTelemetryEndpoint(telemetryMode),
+    counterCapability: countersPresent ? "present" : "absent_in_app_source", countersRequired: requireCounters,
+    harnessSha: execute("git", ["rev-parse", "HEAD"]), telemetryWorkerHash: "",
+    appNode: execute(realpathSync(resolve(appRoot, "node_modules/.bin/node")), ["--version"]), buildId: "", browserVersion: "", mizarFixtureSource: "", harnessHashes, purpose: phaseKind === "preparation" ? "harness-preparation-not-optimization-evidence" : "frozen-comparison-run", sha, releaseTag, seed, workload,
     workloadHash: createHash("sha256").update(JSON.stringify(workload)).digest("hex"),
     requests: [] as RequestResult[], resources: [] as ResourceSample[], runtime: [] as Record<string, unknown>[],
     logins: [] as { role: string; hydrationVerified: boolean; statuses: number[]; finalRoute: string; feedback: string[] }[],
     timeline: [] as { phase: string; atMs: number }[], errors: [] as { phase: string; name: string; message: string }[], blockers: [] as string[],
-    telemetry: [] as { path: string; status: number; bytes: number }[], verification: {} as Record<string, number | boolean>,
+    telemetry: [] as ResourceTelemetryQuery[], verification: {} as Record<string, number | boolean>,
     appState: {} as Record<string, number | boolean | string>, observedResourceNames: [] as string[], unobservedResourceNames: [] as string[],
     cleanup: {} as Record<string, boolean>, coverage: {} as Record<string, boolean>, passed: false };
   const observeBrowser = (page: Page, kind: string) => {
@@ -116,7 +130,15 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
         await expect(page.getByRole("heading", { name: "长期资料", exact: true })).toBeVisible();
         await expect(page.getByText("竞技统计暂时无法加载，请稍后重试。", { exact: true })).toHaveCount(0);
       }
-      if (kind === "telemetry") await expect(page.getByText(/尚未配置遥测查询|暂时无法读取遥测分析/)).toHaveCount(0);
+      if (kind === "telemetry") {
+        await expect(page.getByText(/尚未配置遥测查询|暂时无法读取遥测分析|暂时无法读取长窗口汇总/)).toHaveCount(0);
+        const accessStat = page.getByText("页面访问", { exact: true }).first().locator("..");
+        await expect(accessStat.locator("p").nth(1)).toHaveText(String(RESOURCE_TELEMETRY_VIEWS));
+        if (telemetryMode === "summary") {
+          await expect(page.getByRole("heading", { name: "长窗口汇总", exact: true })).toBeVisible();
+          await expect(page.getByText("当前请求范围覆盖不完整", { exact: true })).toBeVisible();
+        }
+      }
       record.bytes = (await response!.body()).byteLength;
       record.durationMs = performance.now() - at;
     } catch (error) { record.durationMs = performance.now() - at; record.error = error instanceof Error ? error.name : "UnknownError"; throw error; }
@@ -148,13 +170,13 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     phase = "fixture.telemetry";
     telemetry = await createLocalTelemetryResourceFixture(directory, seed);
     sensitive.push(telemetry.secret);
-    report.telemetry = telemetry.requests;
+    report.telemetry = telemetry.requests; report.telemetryWorkerHash = telemetry.workerHash;
     mark("fixture.ready");
     if (build) {
       phase = "build";
-      execute("pnpm", ["build:local"], { ...process.env, ...env });
+      execute("pnpm", ["build:local"], { ...process.env, ...env }, appRoot);
     }
-    report.buildId = readFileSync(resolve(".next/BUILD_ID"), "utf8").trim();
+    report.buildId = readFileSync(resolve(appRoot, ".next/BUILD_ID"), "utf8").trim();
     const appEnv = { ...env, NODE_EXTRA_CA_CERTS: telemetry.ca, PRODUCT_TELEMETRY_ADMIN_KEY: telemetry.secret,
       PRODUCT_TELEMETRY_ENDPOINT: telemetry.endpoint, RIVALHUB_RUNTIME_HEALTH_ENABLED: "1" };
     const envFile = resolve(directory, "application.env");
@@ -162,8 +184,8 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     phase = "application.start";
     docker("run", "--detach", "--name", container, "--user", `${uid}:${gid}`, "--network", "host",
       "--memory", "512m", "--memory-swap", "512m", "--cpus", "1", "--pids-limit", "128", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-      "--env-file", envFile, "--volume", `${root}:${root}`, "--workdir", root, "--entrypoint", realpathSync("node_modules/.bin/node"), image,
-      resolve("node_modules/next/dist/bin/next"), "start", "-p", "3107", "-H", "127.0.0.1");
+      "--env-file", envFile, "--volume", `${appRoot}:${appRoot}`, ...(appRoot !== root ? ["--volume", `${root}:${root}`] : []), "--workdir", appRoot, "--entrypoint", realpathSync(resolve(appRoot, "node_modules/.bin/node")), image,
+      resolve(appRoot, "node_modules/next/dist/bin/next"), "start", "-p", "3107", "-H", "127.0.0.1");
     applicationCreated = true;
     appLogs = spawn("docker", ["logs", "--follow", container], { stdio: ["ignore", "pipe", "pipe"] });
     let partial = "";
@@ -239,13 +261,20 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     phase = "idle";
     await delay(workload.idleMs); sample(); mark("idle.end");
     if (live) report.verification = await live.verify();
-    report.observedResourceNames = [...new Set(report.runtime.filter(event => event.event === "runtime.resource.sample").map(event => String(event.operation)))];
+    report.observedResourceNames = [...new Set(report.runtime.filter(event => event.event === "runtime.resource.sample" && Number((event.safeContext as { count?: number } | undefined)?.count) > 0).map(event => String(event.operation)))];
     report.unobservedResourceNames = RUNTIME_RESOURCE_NAMES.filter(name => !report.observedResourceNames.includes(name));
-    report.coverage = { runtimeHealth: report.runtime.some(event => event.event === "runtime.health.sample"),
-      poolWaiting: report.runtime.some(event => event.event === "runtime.pool.waiting"), telemetryHttps: report.telemetry.some(request => request.path === "/admin/analysis" && request.status === 200),
+    const queries = report.telemetry.filter(request => request.path === resourceTelemetryEndpoint(telemetryMode));
+    if (!queries.length) throw new Error("TELEMETRY_EXPECTED_QUERY_MISSING");
+    for (const query of queries) assertResourceTelemetryQuery(query, telemetryMode);
+    report.coverage = { telemetryHttps: true, externalMemory: report.resources.length > 0,
       twoHttpProducers: report.requests.some(request => request.kind === "live" && request.producer === 0 && request.outcome === "accepted") && report.requests.some(request => request.kind === "live" && request.producer === 1 && request.outcome === "accepted"),
-      reliableHttp: report.requests.some(request => request.kind === "reliable" && request.status === 200) };
-    if (!report.coverage.runtimeHealth || !report.coverage.poolWaiting || !report.coverage.telemetryHttps) throw new Error("OBSERVATION_COVERAGE_MISSING");
+      reliableHttp: report.requests.filter(request => request.kind === "reliable" && request.outcome === "canonicalized").length === 2 };
+    if (requireCounters) {
+      report.coverage.runtimeHealth = report.runtime.some(event => event.event === "runtime.health.sample");
+      report.coverage.poolWaiting = report.runtime.some(event => event.event === "runtime.pool.waiting");
+      report.coverage.namedResources = report.unobservedResourceNames.length === 0;
+      if (!report.coverage.runtimeHealth || !report.coverage.poolWaiting || !report.coverage.namedResources) throw new Error("OBSERVATION_COVERAGE_MISSING");
+    }
     report.passed = report.blockers.length === 0 && report.errors.length === 0 && Object.values(report.coverage).every(Boolean);
   } catch (error) { report.errors.push({ phase, ...safeError(error) }); }
   finally {
@@ -277,9 +306,16 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve("scripts/observability/resource-integration.ts")) {
-  const [image, seed = "resource-prepare-v1", adapter] = process.argv.slice(2).filter(value => value !== "--build");
+  const args = process.argv.slice(2);
+  const [image, seed = "resource-prepare-v1", adapter] = args.filter(value => !value.startsWith("--"));
+  const option = (name: string) => args.find(value => value.startsWith(`--${name}=`))?.split("=").slice(1).join("=");
+  const phase = option("phase") ?? "preparation"; const telemetry = option("telemetry") ?? "raw";
+  if (!["preparation", "baseline", "integrated"].includes(phase) || !["raw", "summary"].includes(telemetry)) throw new Error("INVALID_COMPARISON_MODE");
   if (!image) throw new Error("Expected existing Docker image ID, optional seed and complete G fixture worktree");
-  void runResourceIntegrationSmoke(image, seed, adapter, process.argv.includes("--build")).then(result => {
+  void runResourceIntegrationSmoke(image, seed, adapter, args.includes("--build"), { phase: phase as "preparation" | "baseline" | "integrated", telemetry: telemetry as ResourceTelemetryMode, appRoot: option("app-root"), expectedSha: option("expected-sha") }).then(result => {
     process.exitCode = result.passed ? 0 : result.errors.length ? 1 : 2;
-  }).catch(() => { console.error("RESOURCE_PREPARATION_FAILED"); process.exitCode = 1; });
+  }).catch(error => {
+    console.error(error instanceof Error && /^[A-Z_]{1,80}$/.test(error.message) ? error.message : "RESOURCE_PREPARATION_FAILED");
+    process.exitCode = 1;
+  });
 }

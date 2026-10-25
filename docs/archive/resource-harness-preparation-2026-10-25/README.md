@@ -114,3 +114,66 @@ cover missing/invalid resource accounting and strict identity/HTTP failure prese
 Pure development tooling/test evidence changes shipped behavior nowhere, so no Changeset
 is needed for this follow-up under CONTRIBUTING.md. Revert this PR to remove the driver;
 the #1138 runtime observation provider remains independent.
+
+## Review follow-up: exact telemetry data and version capabilities
+
+The original six reports above are historical preparation reports under the original
+coverage rules. Their bytes and `passed` fields are retained; they cannot satisfy the
+stricter final integrated acceptance rules below. They did not assert 20 visible views.
+
+The revised driver accepts explicit `--telemetry=raw|summary` and
+`--phase=preparation|baseline|integrated`. The default is preparation/raw; modes never
+silently switch to make a run pass. Raw expects actual `/admin/analysis` with
+`totals.views=20`; summary expects actual `/admin/long-window` with `counts.views=20`.
+Both also require the rendered **页面访问** statistic to equal 20. Summary additionally
+requires the actual **长窗口汇总** data region and its incomplete-range notice. Both old
+and new error fallbacks fail. Response metadata records the actual endpoint, views,
+coverage status and count of non-complete segments; no response bodies are retained.
+Comparisons must explicitly describe the product's raw-analysis → long-window-summary
+semantic change rather than require the new version to call the old endpoint.
+
+The same current Worker bundle/schema runs for both app versions. Its bundle hash is
+recorded per run. Local history retention is opted in for 90 days; the canonical
+`maintainHistory` function initializes and advances the real D1 checkpoint around the
+20-batch seed. No complete history rows or coverage are fabricated. A fresh checkpoint
+has genuine missing earlier history; the summary must be partial with at least one
+non-complete segment. The new HTTPS fixture test verifies exact 20-view raw data and
+this genuinely partial summary against the real Worker/D1. Guards reject arbitrary 200s,
+wrong endpoints/counts and false complete history.
+
+For a formal comparison, run this tooling checkout with `--app-root=/path/to/app-checkout`
+and build that separate app checkout. This leaves old production source untouched and
+uses the same fixture/driver for both versions. Non-preparation modes require
+`--expected-sha=<root-frozen-40-character-app-SHA>` equal to that clean checkout's HEAD.
+The report separately identifies application SHA, harness SHA/file hashes, G provider
+SHA and telemetry Worker bundle hash. Do not transplant instrumentation into v2.24.3.
+
+New preparation/integrated runs require actual completed samples (`count>0`) for all
+five fixed B/E/G resource names, plus runtime-health and pool-waiting coverage; merely
+listing unobserved names cannot pass. Baseline mode keeps the external RSS/cgroup/HTTP
+and exact telemetry checks but does not require new internal counters. Their availability
+is explicitly reported from the baseline app source; absence is a version capability,
+not a business regression or a zero. Compare shared external measurements across versions.
+Final integrated acceptance still requires all new named counters and real summary data.
+
+Integrated mode also rejects `--telemetry=raw` before creating fixtures: final integrated
+acceptance requires summary. A mismatched frozen SHA was replayed through the real CLI,
+which exited 1 with `FROZEN_APP_SHA_REQUIRED` before any fixture or app started.
+
+Revised production preparation runs passed (same logical seed/workload hash and identical
+Worker bundle hash, same app resource limits; both retain full raw reports):
+
+| Report | Exact app source | Actual query | Visible/data views | History | Named resources |
+| --- | --- | --- | --- | --- | --- |
+| `08-raw-exact-data-and-counters.json` | `c2a0fdb66fe93db1f46f50505addfaea6dbd8c74` (A tooling + main a1c6deb4) | `/admin/analysis` | 20 / 20 | raw | all five completed |
+| `09-summary-exact-data-and-counters.json` | `594457bfc3183a3de2d657396c91920a35cdddba` (main after #1147) | `/admin/long-window` | 20 / 20 | partial; 7 non-complete segments | all five completed |
+
+Each run had nine successful document navigations, eight accepted LIVE requests, two
+canonicalized reliable requests, two verified receipts/maps, no errors/OOM and all six
+cleanup categories successful. The summary run exercised the separate `--app-root`
+path on an unchanged, clean main checkout. The recorded query payloads were respectively
+48,062 and 2,080 bytes; this is a raw → summary representation change on a small fixture,
+not final memory/net optimization benefit. Both remain **preparation**, not frozen final
+before/after trials. Seven targeted unit tests, scripts/tests type checking, scoped lint
+and Knip passed after the review corrections. The first new fixture test caught a missing
+`now` argument to `maintainHistory`; it was corrected before both production runs.
