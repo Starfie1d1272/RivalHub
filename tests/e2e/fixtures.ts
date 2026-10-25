@@ -66,8 +66,18 @@ export const test = base.extend<{ scenario: E2EFixtureCredentials; scenarioProfi
     let cleanupError: unknown;
     try {
       setupAttempted = true;
-      await runFixtureCommand(["create", scenarioId, credentialsPath, scenarioProfile], env, scenarioId);
-      const scenario = readCredentials(credentialsPath, scenarioId);
+      const scenario = await base.step("准备隔离测试场景（本地 Auth / DB）", async () => {
+        const output = await runFixtureCommand(["create", scenarioId, credentialsPath, scenarioProfile], env, scenarioId);
+        const phases = output.split("\n").filter(line => line.startsWith("E2E_FIXTURE_PHASE "))
+          .map(line => JSON.parse(line.slice("E2E_FIXTURE_PHASE ".length)) as { phase: string; durationMs: number });
+        if (phases.length) {
+          console.info("E2E_FIXTURE_PHASES", JSON.stringify(phases));
+          await testInfo.attach("fixture-phase-timings", {
+            body: Buffer.from(JSON.stringify(phases)), contentType: "application/json",
+          });
+        }
+        return readCredentials(credentialsPath, scenarioId);
+      });
       await applyFixture(scenario);
     } catch (error) {
       operationError = error;
@@ -112,14 +122,15 @@ function buildScenarioId(testInfo: TestInfo): string {
   return `e2e-${readable || "test"}-${hash}-w${testInfo.workerIndex}-r${testInfo.retry}-x${testInfo.repeatEachIndex}-p${process.pid}`;
 }
 
-async function runFixtureCommand(args: readonly string[], env: NodeJS.ProcessEnv, scenarioId: string): Promise<void> {
+async function runFixtureCommand(args: readonly string[], env: NodeJS.ProcessEnv, scenarioId: string): Promise<string> {
   const operation = args[0] ?? "unknown";
   try {
-    await execFileAsync(tsxBin, [fixtureScript, ...args], {
+    const { stdout } = await execFileAsync(tsxBin, [fixtureScript, ...args], {
       cwd: projectRoot,
       env,
       maxBuffer: 64 * 1024,
     });
+    return stdout;
   } catch (error) {
     const detail = error instanceof Error && "stderr" in error && typeof error.stderr === "string" && error.stderr.trim()
       ? error.stderr
