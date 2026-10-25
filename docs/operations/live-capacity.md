@@ -16,11 +16,19 @@
 
 生产接收链在跨区数据库下须控制 SQL 往返数。HTTP 外层只校验凭据格式并生成 hash；LIVE owner 在每帧的 installation 共享锁查询中按 hash 验证有效凭据，设备与赛事 scope 均从该受锁事实派生，payload 赛事必须匹配。两个事务超时设置与 advisory 准入合并为一条 SELECT；随后一个带 MATERIALIZED 依赖的语句按 installation → match → source 顺序获取共享锁，只投影授权所需字段。observed-lineup 的当前地图匹配与有效名单身份也在这条语句内读取，名单条件复用 effective roster owner。JSON 投影没有日期字段，保持 pg 对布尔值/整数/JSON 的原生解码。正常 HTTP 路径到完成锁内验证包含 BEGIN 与两条语句，共三轮 SQL 往返；COMMIT/发送在验证之后。不缓存授权，不放宽 500ms 过期预算；冷建连接、队列或单语句仍可使本帧过期，后续新帧重新检查。
 
-`mizar.live.outcome_window` 在活动调用触发、至少一分钟的进程窗口后，为每个非空固定结果输出次数与平均完整 ingest 耗时（包含事务结束/清理），safeContext.durationMs 是该窗口跨度。结果包括 accepted/frame_expired/contended/delivery_dropped/broadcast_unavailable/rejected/error；范围是已进入 ingest 的调用，入口容量拒绝、凭据语法或协议解析失败不计入。聚合没有帧、账号、凭据、玩家、match/session/request/trace 标识，没有 timer 或持久化计数；空闲尾窗、重启和日志链路故障会丢失汇总。accepted 只表示投递端接受，不证明 viewer 收到/渲染；窗口均值不能替代 p95 或逐请求关联。Linux 使用 journal 查询该固定事件，沿用主机日志保留策略。
+`mizar.live.outcome_window` 保留 accepted/frame_expired/contended/delivery_dropped/broadcast_unavailable/rejected/error 七类结果，范围仍是进入 ingest 的调用，平均完整 ingest 耗时包含事务结束/清理。单独的 `mizar.live.stage_window` 记录 HTTP LIVE received、获得两级准入且 revision 语法合法的 admitted、锁内全部授权通过的 authorized、SDK 返回成功的 send_success、过期 expired、入口或需求准入拒绝 capacity、数据库争用 contended，以及发送阶段 timeout/transport/未知失败的 unknown_send。阶段是可重叠的里程碑，不是互斥结果；例如 send_success 后事务结果仍可能未知。received 包含后续凭据语法或协议拒绝，不能与原 ingest 分母混用。
+
+阶段均值为从接收到该阶段的单调耗时，received 为零；safeContext.durationMs 是窗口实际跨度。进程 singleton 保存至多 15 类次数与耗时，不保存帧、账号、凭据、玩家或 match/session/request/trace 标识。窗口以 process 固定 Symbol 跨模块图共享；G 使用唯一 `live_ingest` hook 注册 `flushLiveIngestOutcomes()`，由 A 的共享 sampler 到期 tick 调用，不安装第二套 timer。启用进程采样时，空闲尾窗由后续 tick 输出；未启用采样的环境仍依靠活动记录调用同一接口兜底。重启、SIGKILL 和日志链路故障仍可丢数。accepted/send_success 不证明 viewer 收到或渲染，窗口均值不能替代 p95。Linux 使用 journal 查询固定事件，沿用主机日志保留策略。
 
 跨实例同场互斥由 PostgreSQL `pg_try_advisory_xact_lock` 提供，争用立即丢弃。它不是跨比赛公平调度，也不是 project-wide provider 限流。SQL statement 预算 1 秒、单次锁等待 25ms；接收到完成授权的 freshness 预算仍为 500ms，连接池 acquisition timeout 仍为 10 秒。HTTP 发送仍使用 SDK 的 2 秒 abort，错误响应体取消逻辑不变。网络异常可能有未知投递结果；不重试、不宣称能撤回 provider 已接收的消息。
 
 已授权投递的 cursor/timestamp/token bucket 元数据仍最多 256 条，10 秒过期；容量 2、补充 2/s 吸收到达抖动，不保存 snapshot。跨实例/重启后的旧帧与重复帧仍由现有 viewer cursor/producedAt 规则处理。相同 gameplay sequence 的较新 heartbeat 合法，官方赛果不消费 LIVE。
+
+## 完赛来源与恢复回执
+
+地图结果与来源连接是不同生命周期。最终 `map_ended` 可以把比赛推进到 finished，同时保留数据库中的 `inter_map` 来源行和 producer sequence/receipt；它不表示 Node 仍持有该行对应的网络连接或帧缓存。finished 比赛不能继续通过 LIVE 授权或取得 viewer token。当前来源仍可走 `releaseMizarSource` 显式释放，精确重试 release 为幂等；handover/revoke 关闭的旧来源不能释放新 authority。关闭来源不删除既有可靠回执。
+
+可靠事件在原事务中保存赛果、sequence、receipt 与审计。提交后响应丢失时，仍持有当前来源的同一 producer 可以重连后提交完全相同的事件，由 receipt 返回原结果；这不是重放一次业务写入。来源已经释放、交接或撤销后，旧来源仍按权限边界拒绝。没有发现可复现的资源释放缺口时，不因历史行 `closed_at=null` 批量关闭来源，也不把这类数据库行视为 OOM 根因。
 
 ## 证据分层
 
@@ -89,7 +97,33 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 RIVALHUB_LIVE_EVIDENCE=1 \
 pnpm db:local:verify-supabase
 ```
 
+BP 指令与呈现使用既有 opt-in HTTP evidence 入口，增加真实 Chromium 的单次区分观察；只在 Local Supabase Auth 可用的隔离环境运行：
+
+```bash
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 RIVALHUB_BP_HTTP_EVIDENCE=1 \
+RIVALHUB_BP_BROWSER_EVIDENCE=1 pnpm test:integration \
+  tests/integration/db/veto-http-footprint-evidence.test.ts
+```
+
+输出 `.agent-tmp/bp-browser/command-presentation.json` 保留 SHA、样本数和两种耗时。普通 PG CI 不启动该 opt-in Next/browser 进程。
+
 上例密码只属于 disposable 本地容器；wrapper 隔离目标，不注入远程 URL/key。CI system lane 根据 Mizar changed surface 强制 Local Supabase evidence，并验证 pinned Mizar adapter/parser。
+
+## 本地 HTTP resource fixture
+
+`脚本 scripts/db/mizar-http-resource-fixture.ts` 复用既有完整 Mizar fixture 与纯 snapshot 工厂，创建两个独立 synthetic test match / producer。只接受明确的 local target 与 loopback `DATABASE_URL`；manifest 绑定该数据库指纹，使用 0600，stdout 只输出路径和状态。运行时使用同一提交的完整 worktree，避免只复制 CLI 而遗漏 fixture 工厂。
+
+在调用方已提供本地环境的情况下：
+
+```bash
+pnpm exec tsx scripts/db/run-server-cli.ts scripts/db/mizar-http-resource-fixture.ts create .agent-tmp/mizar-http-resource.json
+pnpm exec tsx scripts/db/run-server-cli.ts scripts/db/mizar-http-resource-fixture.ts verify .agent-tmp/mizar-http-resource.json --require-receipts
+pnpm exec tsx scripts/db/run-server-cli.ts scripts/db/mizar-http-resource-fixture.ts cleanup .agent-tmp/mizar-http-resource.json
+```
+
+HTTP driver 在内存读取 `producers[]`：`fixture.matchId`、`fixture.authorityRevision`、`credential`、`liveTemplate`、`reliableEnvelope`。只对 loopback SUT POST `/api/mizar/live` / `/api/mizar/reliable`，构造 Bearer 与 x-rivalhub-authority，不打印 manifest 或请求 headers。每份新 LIVE 更新 producedAt 并递增 cursor.runtimeSeq；可靠 envelope 预留 sequence=1,000,000，须在 LIVE 阶段停止后发送，之后低于该 floor 的 LIVE 不能继续发送。遇未知提交先只读 verify，不能重放旧 LIVE 或重新生成同一 idempotency key 的 envelope。
+
+15 分钟是 fixture 使用 deadline，并非现有 credential 的服务器 TTL；不改变线上 auth。driver 必须 finally 停止发送并 cleanup，删除 tagged local authority、合成事实和 manifest。verify 使用 repeatable-read/read-only transaction，`--require-receipts` 要求两个唯一 canonicalized receipt 及合成比分；没有 receipt 时不代发、不补写。cleanup 不接受无 fixture namespace、错误数据库或不匹配的本地用户集合。
 
 ## 尚未证明的事实
 

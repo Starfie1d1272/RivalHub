@@ -25,7 +25,7 @@ export interface Fixture {
   steam64: string[];
 }
 
-export async function seedFixture(options: { isTest?: boolean; matchStatus?: "scheduled" | "in_progress"; freezeEventRoster?: boolean; unboundSource?: boolean } = {}): Promise<Fixture> {
+export async function seedFixture(options: { isTest?: boolean; matchStatus?: "scheduled" | "in_progress"; freezeEventRoster?: boolean; unboundSource?: boolean; seasonSlug?: string } = {}): Promise<Fixture & { fixtureUserIds: string[] }> {
   const seasonId = randomUUID();
   const entryAId = randomUUID();
   const entryBId = randomUUID();
@@ -56,7 +56,7 @@ export async function seedFixture(options: { isTest?: boolean; matchStatus?: "sc
 
   await db.transaction(async (tx) => {
     await tx.insert(schema.users).values(userIds.map((id, index) => ({ id, email: `${id}@local.test`, steam64: steam64[index]! })));
-    await tx.insert(schema.seasons).values({ id: seasonId, slug: seasonId, name: "Mizar live boundary", kind: "custom", status: "playing" });
+    await tx.insert(schema.seasons).values({ id: seasonId, slug: options.seasonSlug ?? seasonId, name: "Mizar live boundary", kind: "custom", status: "playing" });
     await tx.insert(schema.competitionEntries).values([
       { id: entryAId, competitionId: seasonId, source: "event_native", name: "Provider A", representativeUserId: userIds[0]!, registrationStatus: "approved", currentRosterRevisionId: revisionA, approvedRosterRevisionId: revisionA, reviewReason: "private-review-marker", perfectTeamId: "private-perfect-marker" },
       { id: entryBId, competitionId: seasonId, source: "event_native", name: "Provider B", representativeUserId: userIds[5]!, registrationStatus: "approved", currentRosterRevisionId: revisionB, approvedRosterRevisionId: revisionB },
@@ -149,5 +149,5 @@ export async function seedFixture(options: { isTest?: boolean; matchStatus?: "sc
       mapExecutionPhase: options.unboundSource ? "waiting" : "gameplay",
     }).returning({ id: schema.matchLiveSessions.id });
   });
-  return { seasonId, entryAId, entryBId, matchId, mapOneId, mapTwoId, installationId, installationBId, credentialHash, credentialBHash, sessionId: session![0]!.id, producerInstanceId, liveSessionId, contextRevision, authorityRevision, steam64 };
+  return { fixtureUserIds: userIds, seasonId, entryAId, entryBId, matchId, mapOneId, mapTwoId, installationId, installationBId, credentialHash, credentialBHash, sessionId: session![0]!.id, producerInstanceId, liveSessionId, contextRevision, authorityRevision, steam64 };
 }

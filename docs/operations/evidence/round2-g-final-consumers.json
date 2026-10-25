@@ -1,0 +1,2370 @@
+{
+  "applicationHead": "f2c2f5cb8e6912d29771d43cf550ca7ba7cfa95b",
+  "consumerCommit": "b8a85d1ebd41b92a1427faa8d3ecdd3e579adcff",
+  "coreMain": "6f60b37b4b1200cefb898f026d25c0748916eb0f",
+  "environment": "disposable loopback PostgreSQL, Local Supabase, Next dev HTTP, Chromium; no production writes",
+  "fixture": {
+    "sha": "b8a85d1ebd41b92a1427faa8d3ecdd3e579adcff",
+    "environment": "same Next dev HTTP + real Local Supabase",
+    "privateMode": "0600",
+    "differentMatches": true,
+    "liveAccepted": 2,
+    "reliableCanonicalized": 2,
+    "receipts": {
+      "verified": true,
+      "expired": false,
+      "results": [
+        {
+          "label": "producer-1",
+          "receiptCount": 1,
+          "outcome": "canonicalized",
+          "mapCompleted": true,
+          "scoreA": 13,
+          "scoreB": 9
+        },
+        {
+          "label": "producer-2",
+          "receiptCount": 1,
+          "outcome": "canonicalized",
+          "mapCompleted": true,
+          "scoreA": 13,
+          "scoreB": 9
+        }
+      ]
+    }
+  },
+  "fixtureTestSource": "b8a85d1ebd41b92a1427faa8d3ecdd3e579adcff plus fixture working diff subsequently committed at f2c2f5cb8e6912d29771d43cf550ca7ba7cfa95b; final tiny metadata adjustment credentialHash mirrors saved canonical hash",
+  "fixtureResults": {
+    "pgCliTestsPassed": 1,
+    "httpTestsPassed": 1,
+    "cleanup": "both tests finally-cleaned their own synthetic fixtures; manifest removed",
+    "permissions": "0600 accepted; 0644 rejected; production target rejected; duplicate readonly verify stable",
+    "pgCliTestsPassedAfterRecovery": 2,
+    "injectedFailures": 8,
+    "phases": [
+      "seed returned",
+      "parse",
+      "transaction",
+      "save"
+    ],
+    "producers": [
+      1,
+      2
+    ],
+    "scopeProof": "season and user ID sets equal to pre-failure snapshot after all 8 failures; separate complete fixture verifies after each failure"
+  },
+  "consumerResults": {
+    "passed": 27,
+    "coverage": "captured attempt commit/recovery/stale, React result phase; task lifecycle core/pipeline",
+    "types": "app/tests passed"
+  },
+  "presenceProbeSource": {
+    "applicationHead": "f2c2f5cb8e6912d29771d43cf550ca7ba7cfa95b",
+    "observerWorkingDiff": true,
+    "testFileSHA256": "675f5b79003d37bd7265de5d46598300b9e5fd2e88ac17c17e38984672f425eb",
+    "instrumentation": "test opt-in served development JS logpoints only; no production source control-flow change; observer may perturb timing"
+  },
+  "presenceSamples": [
+    {
+      "sha": "f2c2f5cb8e6912d29771d43cf550ca7ba7cfa95b",
+      "environment": "local Next HTTP + Local Supabase + Chromium",
+      "failed": true,
+      "elapsedMs": 32102,
+      "viewerRequests": {
+        "started": 0,
+        "responses": 0,
+        "finished": 0,
+        "failed": 0
+      },
+      "presenceProbe": {
+        "enabled": true,
+        "patchedChunks": 36,
+        "mounts": 72,
+        "cleanups": 36,
+        "visibilityChanges": 0,
+        "intervals": [
+          300000,
+          300000
+        ],
+        "events": [
+          {
+            "phase": "mount",
+            "elapsedMs": 3900
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 3903
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 3903
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 4898
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 4898
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 4898
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 5389,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 6239
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 6240
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 6240
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 7151
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 7153
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 7153
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 7990
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 7991
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 7991
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 8938
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 8939
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 8939
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 9746
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 9746
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 9746
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 10643
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 10644
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 10644
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 11464
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 11466
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 11466
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 12372
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 12373
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 12373
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 13172
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 13173
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 13174
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 14042
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 14045
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 14045
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 14819
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 14819
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 14819
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 15645
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 15645
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 15645
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 16950
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 16950
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 16950
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 17661
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 17662
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 17662
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 18353
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 18354
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 18354
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 19057
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 19057
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 19057
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 19723
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 19723
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 19724
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 20456
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 20457
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 20457
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 21182
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 21183
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 21183
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 21889
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 21890
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 21890
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 22550
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 22550
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 22550
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 23297
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 23297
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 23297
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 23948
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 23954
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 23954
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 24641
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 24641
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 24642
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 25315
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 25316
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 25316
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 26030
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 26030
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 26030
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 26902
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 26903
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 26903
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 27559
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 27561
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 27561
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 28345
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 28346
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 28346
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 29094
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 29094
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 29095
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 29297,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 29764
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 29764
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 29765
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 30488
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 30488
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 30489
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 31222
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 31222
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 31222
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 31942
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 31942
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 31943
+          }
+        ]
+      },
+      "cdpRequests": {
+        "events": 38,
+        "unique": 38,
+        "duplicate": 0,
+        "overflow": 0,
+        "startedMs": [
+          3908,
+          4906,
+          5390,
+          6243,
+          7155,
+          7994,
+          8941,
+          9753,
+          10647,
+          11470,
+          12380,
+          13176,
+          14046,
+          14824,
+          15647,
+          16953,
+          17662,
+          18357,
+          19057,
+          19725,
+          20458,
+          21189,
+          21893,
+          22551,
+          23297,
+          23954,
+          24644,
+          25320,
+          26030,
+          26908,
+          27565,
+          28348,
+          29095,
+          29230,
+          29766,
+          30491,
+          31225,
+          31943
+        ]
+      },
+      "samePageRequestIntervals": {
+        "count": 38,
+        "spanMs": 28035,
+        "minMs": 135,
+        "medianMs": 734,
+        "p95Ms": 947,
+        "maxMs": 1306
+      },
+      "context": "one fresh anonymous Chromium context, one page; separate Node producer; only POSTs to original match pathname",
+      "observerLimit": "served JS logpoints may perturb timings; cleanup may omit document-unload callbacks; interval samples are resolved heartbeat responses only",
+      "pending": [
+        {
+          "method": "GET",
+          "path": "/__nextjs_font/geist-latin.woff2",
+          "resourceType": "font",
+          "navigation": false,
+          "startedMs": 3857
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 3909,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 5392,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 6243,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 7155,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "GET",
+          "path": "/__nextjs_font/geist-latin.woff2",
+          "resourceType": "font",
+          "navigation": false,
+          "startedMs": 7981
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 7994,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 8941,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 9753,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "GET",
+          "path": "/__nextjs_font/geist-latin.woff2",
+          "resourceType": "font",
+          "navigation": false,
+          "startedMs": 10634
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 10647,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "GET",
+          "path": "/__nextjs_font/geist-latin.woff2",
+          "resourceType": "font",
+          "navigation": false,
+          "startedMs": 11463
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 11470,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 12380,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 13177,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 14046,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 14824,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 15648,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 16954,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 17663,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 18357,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "GET",
+          "path": "/__nextjs_font/geist-latin.woff2",
+          "resourceType": "font",
+          "navigation": false,
+          "startedMs": 19045
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 19057,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 19726,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 20459,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 21189,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_ancient.1dea314b9eba.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 21289
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_nuke.3639de870587.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 21289
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_mirage.fd875833a6b6.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 21289
+        },
+        {
+          "method": "GET",
+          "path": "/__nextjs_font/geist-latin.woff2",
+          "resourceType": "font",
+          "navigation": false,
+          "startedMs": 21878
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 21894,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 22551,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_ancient.1dea314b9eba.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 22603
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_nuke.3639de870587.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 22603
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_mirage.fd875833a6b6.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 22603
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 23306,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_mirage.fd875833a6b6.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 23308,
+          "responseStatus": 200
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 23955,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 24644,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 25320,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 26030,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 26907,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 27565,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "GET",
+          "path": "/__nextjs_font/geist-latin.woff2",
+          "resourceType": "font",
+          "navigation": false,
+          "startedMs": 28342
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 28348,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 29097,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 29232,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 29770,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_ancient.1dea314b9eba.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 29839
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_nuke.3639de870587.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 29839
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_mirage.fd875833a6b6.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 29839
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 30491,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 31225,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "GET",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "document",
+          "navigation": true,
+          "startedMs": 31944
+        },
+        {
+          "method": "POST",
+          "path": "/923e8f6a-2559-410f-8faa-5604fb3075f4/matches/5485e20f-cb46-4cb0-9b39-775b3e5a2bb9",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 31944,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_ancient.1dea314b9eba.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 31952
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_nuke.3639de870587.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 31952
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_mirage.fd875833a6b6.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 31952
+        }
+      ],
+      "additionalObserverFailure": "apiResponse.text: Response has been disposed during teardown after original viewer response timeout; final observer unregisters routes with ignoreErrors at cleanup"
+    },
+    {
+      "sha": "f2c2f5cb8e6912d29771d43cf550ca7ba7cfa95b",
+      "environment": "local Next HTTP + Local Supabase + Chromium",
+      "failed": false,
+      "elapsedMs": 24242,
+      "viewerRequests": {
+        "started": 4,
+        "responses": 4,
+        "finished": 4,
+        "failed": 0
+      },
+      "presenceProbe": {
+        "enabled": true,
+        "patchedChunks": 5,
+        "mounts": 10,
+        "cleanups": 5,
+        "visibilityChanges": 0,
+        "intervals": [
+          300000,
+          300000,
+          300000,
+          300000,
+          300000,
+          300000,
+          300000,
+          300000,
+          300000
+        ],
+        "events": [
+          {
+            "phase": "mount",
+            "elapsedMs": 5636
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 5638
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 5640
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 5714,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 5746,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 16052
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 16053
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 16053
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 16121,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 16160,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 18188
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 18189
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 18189
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 18346,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 18931
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 18931
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 18932
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 19030,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 19063,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 22675
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 22677
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 22677
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 22722,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 22759,
+            "intervalMs": 300000
+          }
+        ]
+      },
+      "cdpRequests": {
+        "events": 8,
+        "unique": 8,
+        "duplicate": 0,
+        "overflow": 0,
+        "startedMs": [
+          5644,
+          5715,
+          16056,
+          16121,
+          18934,
+          19032,
+          22681,
+          22723
+        ]
+      },
+      "samePageRequestIntervals": {
+        "count": 8,
+        "spanMs": 17079,
+        "minMs": 42,
+        "medianMs": 98,
+        "p95Ms": 3649,
+        "maxMs": 10341
+      },
+      "context": "one fresh anonymous Chromium context, one page; separate Node producer; only POSTs to original match pathname",
+      "observerLimit": "served JS logpoints may perturb timings; cleanup may omit document-unload callbacks; interval samples are resolved heartbeat responses only"
+    },
+    {
+      "sha": "f2c2f5cb8e6912d29771d43cf550ca7ba7cfa95b",
+      "environment": "local Next HTTP + Local Supabase + Chromium",
+      "failed": true,
+      "elapsedMs": 32009,
+      "viewerRequests": {
+        "started": 0,
+        "responses": 0,
+        "finished": 0,
+        "failed": 0
+      },
+      "presenceProbe": {
+        "enabled": true,
+        "patchedChunks": 38,
+        "mounts": 76,
+        "cleanups": 38,
+        "visibilityChanges": 0,
+        "intervals": [
+          300000,
+          300000,
+          300000,
+          300000,
+          300000,
+          300000,
+          300000,
+          300000
+        ],
+        "events": [
+          {
+            "phase": "mount",
+            "elapsedMs": 3076
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 3080
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 3081
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 3872
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 3878
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 3878
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 4721
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 4722
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 4722
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 5490
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 5491
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 5491
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 6438
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 6438
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 6439
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 7333
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 7335
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 7335
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 8150
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 8153
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 8153
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 8914
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 8914
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 8915
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 9845
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 9846
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 9847
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 10620
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 10622
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 10622
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 11465
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 11469
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 11470
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 11689,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 12299
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 12300
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 12300
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 12958
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 12959
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 12959
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 13708
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 13708
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 13709
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 13830,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 15144
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 15144
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 15145
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 15778
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 15779
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 15779
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 16381
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 16382
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 16383
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 16912
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 16912
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 16913
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 17633
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 17634
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 17636
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 18343
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 18345
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 18345
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 18993
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 18993
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 18993
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 19281,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 19843
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 19844
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 19844
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 20049,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 20596
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 20597
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 20598
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 21239
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 21240
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 21240
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 21953
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 21953
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 21954
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 22633
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 22634
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 22634
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 23333
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 23333
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 23333
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 23986
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 23987
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 23988
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 24724
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 24726
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 24726
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 25456
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 25456
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 25457
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 26095
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 26096
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 26096
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 26235,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 26781
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 26782
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 26782
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 26959,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 27510
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 27512
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 27512
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 27717,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 28218
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 28219
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 28219
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 28913
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 28914
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 28914
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 29680
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 29682
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 29682
+          },
+          {
+            "phase": "response",
+            "elapsedMs": 29912,
+            "intervalMs": 300000
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 30405
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 30407
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 30407
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 31584
+          },
+          {
+            "phase": "cleanup",
+            "elapsedMs": 31584
+          },
+          {
+            "phase": "mount",
+            "elapsedMs": 31586
+          }
+        ]
+      },
+      "cdpRequests": {
+        "events": 47,
+        "unique": 47,
+        "duplicate": 0,
+        "overflow": 0,
+        "startedMs": [
+          3095,
+          3878,
+          4722,
+          5491,
+          6439,
+          7338,
+          8157,
+          8921,
+          9848,
+          10623,
+          10886,
+          11470,
+          11677,
+          12303,
+          12960,
+          13722,
+          13830,
+          15146,
+          15786,
+          16388,
+          16915,
+          17637,
+          18346,
+          18993,
+          19187,
+          19846,
+          20008,
+          20602,
+          21243,
+          21956,
+          22637,
+          23334,
+          23991,
+          24729,
+          25458,
+          26097,
+          26220,
+          26784,
+          26919,
+          27514,
+          27667,
+          28221,
+          28917,
+          29683,
+          29834,
+          30409,
+          31586
+        ]
+      },
+      "samePageRequestIntervals": {
+        "count": 47,
+        "spanMs": 28491,
+        "minMs": 108,
+        "medianMs": 657.0,
+        "p95Ms": 927,
+        "maxMs": 1316
+      },
+      "context": "one fresh anonymous Chromium context, one page; separate Node producer; only POSTs to original match pathname",
+      "observerLimit": "served JS logpoints may perturb timings; cleanup may omit document-unload callbacks; interval samples are resolved heartbeat responses only",
+      "pending": [
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 3096,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 3878,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "GET",
+          "path": "/__nextjs_font/geist-latin.woff2",
+          "resourceType": "font",
+          "navigation": false,
+          "startedMs": 4701
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 4722,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 5493,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 6439,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 7341,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 8157,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 8922,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 9849,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 10625,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 10893,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 11472,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 11678,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 12303,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 12962,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_ancient.1dea314b9eba.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 13062
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_nuke.3639de870587.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 13062
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_mirage.fd875833a6b6.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 13062
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 13836,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 15146,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_ancient.1dea314b9eba.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 15193
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_nuke.3639de870587.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 15193
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_mirage.fd875833a6b6.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 15193
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 15786,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "GET",
+          "path": "/__nextjs_font/geist-latin.woff2",
+          "resourceType": "font",
+          "navigation": false,
+          "startedMs": 16381
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 16388,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_ancient.1dea314b9eba.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 16460
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_nuke.3639de870587.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 16460
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_mirage.fd875833a6b6.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 16460
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 16915,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_ancient.1dea314b9eba.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 17012
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_nuke.3639de870587.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 17012
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_mirage.fd875833a6b6.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 17012
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 17637,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_nuke.3639de870587.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 17670,
+          "responseStatus": 200
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_mirage.fd875833a6b6.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 17670
+        },
+        {
+          "method": "GET",
+          "path": "/__nextjs_font/geist-latin.woff2",
+          "resourceType": "font",
+          "navigation": false,
+          "startedMs": 18336
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 18346,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_ancient.1dea314b9eba.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 18407
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_nuke.3639de870587.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 18407
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_mirage.fd875833a6b6.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 18407
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 19000,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 19188,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 19847,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 20009,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 20603,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_ancient.1dea314b9eba.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 20648
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_nuke.3639de870587.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 20649
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_mirage.fd875833a6b6.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 20649
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 21243,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_ancient.1dea314b9eba.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 21301
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_nuke.3639de870587.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 21301
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_mirage.fd875833a6b6.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 21301
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 21956,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 22637,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_ancient.1dea314b9eba.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 22693
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_nuke.3639de870587.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 22693
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_mirage.fd875833a6b6.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 22693
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 23335,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 23991,
+          "serverAction": "src/actions/online.ts:heartbeatOnline"
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_ancient.1dea314b9eba.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 24074
+        },
+        {
+          "method": "GET",
+          "path": "/images/maps/de_nuke.3639de870587.jpg",
+          "resourceType": "image",
+          "navigation": false,
+          "startedMs": 24074
+        },
+        {
+          "method": "POST",
+          "path": "/16d5cc57-d866-4924-9bcd-3530f725a00a/matches/cbc810ba-f1ee-4eec-b411-ebf210228e62",
+          "resourceType": "fetch",
+          "navigation": false,
+          "startedMs": 25458,
+          "serverAction": "src/actions/online.ts:heartbeatOnline",
+          "responseStatus": 200
+        }
+      ],
+      "additionalObserverFailure": "apiResponse.text: Response has been disposed during teardown after original viewer response timeout; final observer unregisters routes with ignoreErrors at cleanup"
+    }
+  ],
+  "ci": {
+    "head": "f2c2f5cb8e6912d29771d43cf550ca7ba7cfa95b",
+    "run": 40222216536,
+    "result": "failure",
+    "failedJobs": [
+      "system / browser-major-entry",
+      "system / browser-5"
+    ],
+    "reason": "each initial failure passed retry; failOnFlakyTests rejects; no out-of-owner login/education repair attempted",
+    "failureDetails": {
+      "major-entry": "email field empty after fill, line30, 10000ms; retry passed",
+      "education-manual-fallback": "test timeout30000ms; retry passed"
+    }
+  },
+  "rawLogs": {
+    "g-cli-fixture-fixed.log": {
+      "sha256": "cc5901ac72f7f4299e69f31b332ea968284aa5b3044b4a5691f13ff208df849e"
+    },
+    "g-cli-actual-http.log": {
+      "sha256": "8108aa194b07aa8201db733fedefdb5a258de21cfd611f02b7003f798b691aef"
+    },
+    "g-presence-probe.log": {
+      "sha256": "fcdb5f6d7650fa8a455b0a1a494c4a944c33b38323a9ce6945fb69766b703ffa"
+    },
+    "g-cli-failure-boundary.log": {
+      "sha256": "4d3ff05a71467c93af2f1a01de0a1779db2acf564205d4085f52d18a27d697b6"
+    },
+    "g-cli-fixed-http.log": {
+      "sha256": "c0745f06064eed2e3e16f7638a5fb97a8cb3ba7c0c4ca8597ff0d84cc4a3b01e"
+    },
+    "g-presence-combo.log": {
+      "sha256": "49e49cd73258c47acd8a5615289bdfaa4caa45c8e8fb152b4c67a8e9efd411cf"
+    }
+  },
+  "fixtureRecoveryCommit": "a21966e607691b43a155bf82ef3543e3b45235b8",
+  "fixtureAfterRecovery": {
+    "sha": "a21966e607691b43a155bf82ef3543e3b45235b8",
+    "environment": "same Next dev HTTP + real Local Supabase",
+    "privateMode": "0600",
+    "differentMatches": true,
+    "liveAccepted": 2,
+    "reliableCanonicalized": 2,
+    "receipts": {
+      "verified": true,
+      "expired": false,
+      "results": [
+        {
+          "label": "producer-1",
+          "receiptCount": 1,
+          "outcome": "canonicalized",
+          "mapCompleted": true,
+          "scoreA": 13,
+          "scoreB": 9
+        },
+        {
+          "label": "producer-2",
+          "receiptCount": 1,
+          "outcome": "canonicalized",
+          "mapCompleted": true,
+          "scoreA": 13,
+          "scoreB": 9
+        }
+      ]
+    }
+  },
+  "presenceCombination": {
+    "result": "4 failed: 2 admin commentary, 2 LIVE; no retries/timeouts relaxed",
+    "liveFailure": "expected viewer response was not received within30000ms, token started0",
+    "adminFailure": "first missing commentary details after10000ms; second original120000ms test deadline",
+    "conclusion": "frequent mounts and refetched OnlineCounter chunk observed, zero visibility events, unique requestIds; root owns cause and cross-owner repair; no production inference"
+  }
+}
