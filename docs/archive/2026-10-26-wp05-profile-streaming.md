@@ -95,3 +95,6 @@ C #1140 core 已按根指定 main `6f60b37b4b1200cefb898f026d25c0748916eb0f` 同
 按根指定同步 main `6f60b37b4b1200cefb898f026d25c0748916eb0f`（C #1140）。实际核对 `ContentReady` consumer props 未改变，E 所有现有 profile/statistics 分区与赛事队伍 advanced 仍由导航 eager 启动；当前 E 读取范围不存在 submit mutation，也不存在展开后才启动新后端工作的入口，因此没有虚构 task.complete/result 或 demand token 调用。继续消费共享导航首次 ready；v2/basis 发射仍关闭。
 
 C 现有 `gates ready collection...`、`captures demand start...` 两个定向测试复验通过，另28项未被该定向命令选择，不冒充全套C验收。E相关6项unit、应用/测试类型、架构和定向lint通过；同步C后的七项真实跨赛事浏览器检查通过、无pageerror。归档浏览器脚本改为ESM并通过Node语法/ESLint检查，未修改生产配置或接收端开关。
+
+
+最终无注入 build/browser exact source 为 `bca936a445e70196bdeba47f75be37ab4b0aacaf`，ESM归档脚本实际执行的七项跨赛事/详细表现/制裁正反例全部通过、无pageerror，见 `after-core-results.json` 和 after-core-active 两屏截图。该进程原有 sampler 观察到 profile count=9、stats fill count=7，均 inFlight=0、peak=1（`after-core-resource-sample.json`），与新增历史赛事 scope 的真实填充相符。之前单赛事 cold/warm 对照保留其独立的 source3e2202d5，未混为同一采样。最终临时app和任务独占数据库已清理；仍未做生产容量/生产运营复查。
