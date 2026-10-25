@@ -1,6 +1,7 @@
 import {
   analyzeTelemetry,
   type EventRow,
+  type AnalysisSnapshot,
 } from "../../src/lib/telemetry/analysis-model";
 import {
   ANALYSIS_BATCH_LIMIT,
@@ -13,6 +14,7 @@ import {
   validEvent,
   type TelemetryEvent,
 } from "../../src/lib/telemetry/protocol";
+import { sample } from "./history";
 import { decompressEvents } from "./storage";
 import type { Database } from "./index";
 interface Batch {
@@ -39,17 +41,20 @@ async function sessionAlias(session: string) {
     .join("");
 }
 /** Read-only bounded analysis. Raw batches and identity keys never leave the receiver. */
-export async function analysis(
+export async function readAnalysisSnapshot(
   db: Database,
   filters: AnalysisFilters,
-  session: string,
   now: number,
   budget: { batches: number; bytes: number },
-) {
+  byteLimit = ANALYSIS_BYTES_LIMIT,
+  batchLimit = ANALYSIS_BATCH_LIMIT,
+  followups = true,
+  historyKeys = false,
+): Promise<AnalysisSnapshot> {
   const window = analysisWindow(filters, now);
   const from = window.from;
   // Follow-up reports settle starts in a fixed window; presentation remains scoped to that window.
-  const readTo = Math.min(now, window.to + 86400000 + LIMITS.ageMs);
+  const readTo = followups ? Math.min(now, window.to + 86400000 + LIMITS.ageMs) : window.to;
   const ticketRelease = filters.releaseBasis === "ticket" ? filters.release : "";
   const base = `SELECT ticket,id,received,expires,bytes FROM batches WHERE environment='production' AND expires>? AND received>=? AND received<=? AND (?='' OR release=?) ORDER BY received DESC,ticket DESC,id DESC LIMIT ?`;
   const args = [
@@ -58,7 +63,7 @@ export async function analysis(
     readTo,
     ticketRelease,
     ticketRelease,
-    ANALYSIS_BATCH_LIMIT + 1,
+    batchLimit + 1,
   ];
   const results = (await db.batch([
     db
@@ -68,7 +73,7 @@ export async function analysis(
       .prepare(
         `WITH selected AS (SELECT *,sum(bytes) OVER (ORDER BY received DESC,ticket DESC,id DESC) AS accumulated,row_number() OVER (ORDER BY received DESC,ticket DESC,id DESC) AS rn FROM (${base})) SELECT b.ticket,b.id,b.received,b.expires,b.bytes,b.account,b.session,b.role,b.release,b.summary,b.events_gzip FROM selected s JOIN batches b ON b.ticket=s.ticket AND b.id=s.id WHERE s.rn<=? AND s.accumulated<=? ORDER BY b.received,b.ticket,b.id`,
       )
-      .bind(...args, ANALYSIS_BATCH_LIMIT, ANALYSIS_BYTES_LIMIT),
+      .bind(...args, batchLimit, byteLimit),
     db.prepare("SELECT day,batches,bytes FROM usage ORDER BY day DESC LIMIT 8"),
     db
       .prepare(
@@ -76,7 +81,7 @@ export async function analysis(
       )
       .bind(now),
     db.prepare("SELECT release FROM batches WHERE environment='production' AND expires>? AND received>=? AND received<=? ORDER BY received DESC,ticket DESC,id DESC LIMIT ?")
-      .bind(now, from, window.to, ANALYSIS_BATCH_LIMIT + 1),
+      .bind(now, from, window.to, batchLimit + 1),
   ])) as Array<{ results: unknown[] }>;
   const meta = results[0].results[0] as { n: number; bytes: number | null };
   const batches = results[1].results as Batch[];
@@ -87,7 +92,7 @@ export async function analysis(
   for (const b of batches) {
     const body = await decompressEvents(b.events_gzip);
     decodedBytes += new TextEncoder().encode(body).byteLength;
-    if (decodedBytes > ANALYSIS_BYTES_LIMIT)
+    if (decodedBytes > byteLimit)
       throw new Error("Telemetry analysis exceeds byte budget");
     const raw: unknown = JSON.parse(body);
     if (
@@ -113,6 +118,7 @@ export async function analysis(
     for (const e of raw as TelemetryEvent[])
       events.push({
         ...e,
+        ...(historyKeys ? { historyKey: (await sample(e, b)).key } : {}),
         session: alias,
         account: b.account,
         role: b.role,
@@ -123,8 +129,7 @@ export async function analysis(
       });
   }
   const validUntil = Math.min(now + 60000, ...batches.map((b) => b.expires));
-  return analyzeTelemetry(
-    {
+  return {
       capturedAt: now,
       batches: batches.length,
       bytes: batches.reduce((n, b) => n + b.bytes, 0),
@@ -143,10 +148,11 @@ export async function analysis(
       },
       truncated: meta.n > batches.length,
       validUntil,
-      ticketReleases: (results[4].results as { release: string }[]).slice(0, ANALYSIS_BATCH_LIMIT).map(r => r.release),
-      releaseDirectoryTruncated: results[4].results.length > ANALYSIS_BATCH_LIMIT || meta.n > batches.length,
-    },
-    filters,
-    session,
-  );
+      ticketReleases: (results[4].results as { release: string }[]).slice(0, batchLimit).map(r => r.release),
+      releaseDirectoryTruncated: results[4].results.length > batchLimit || meta.n > batches.length,
+    };
+}
+
+export async function analysis(db: Database, filters: AnalysisFilters, session: string, now: number, budget: { batches: number; bytes: number }) {
+  return analyzeTelemetry(await readAnalysisSnapshot(db, filters, now, budget), filters, session);
 }

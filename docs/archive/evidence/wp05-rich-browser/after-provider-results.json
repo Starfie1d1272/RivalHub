@@ -1,0 +1,211 @@
+{
+  "sourceSha": "3e2202d5fe7fec624f90916025e4763ee0b6ec9c",
+  "preflight": {
+    "all": {
+      "summary": {
+        "matches": 1,
+        "wins": 1,
+        "losses": 0,
+        "mvp": 0,
+        "maps": 2,
+        "rounds": 44
+      },
+      "coverage": {
+        "detailedMaps": 2,
+        "completedMaps": 2,
+        "maps": [
+          {
+            "mapName": "de_ancient",
+            "completedMaps": 1,
+            "detailedMaps": 1
+          },
+          {
+            "mapName": "de_mirage",
+            "completedMaps": 1,
+            "detailedMaps": 1
+          }
+        ]
+      },
+      "performance": true
+    },
+    "filtered": {
+      "summary": {
+        "matches": 1,
+        "wins": 1,
+        "losses": 0,
+        "mvp": 0,
+        "maps": 1,
+        "rounds": 22
+      },
+      "coverage": {
+        "detailedMaps": 1,
+        "completedMaps": 1,
+        "maps": [
+          {
+            "mapName": "de_mirage",
+            "completedMaps": 1,
+            "detailedMaps": 1
+          }
+        ]
+      },
+      "performance": true
+    }
+  },
+  "results": [
+    {
+      "case": "valid-detailed-active",
+      "status": 200,
+      "geometry": {
+        "identity": {
+          "x": 312,
+          "y": 96,
+          "width": 318.390625,
+          "height": 36
+        },
+        "sanction": {
+          "x": 218,
+          "y": 300.703125,
+          "width": 926,
+          "height": 24
+        },
+        "overview": {
+          "x": 200,
+          "y": 501.203125,
+          "width": 960,
+          "height": 74.5
+        },
+        "performance": {
+          "x": 200,
+          "y": 745.703125,
+          "width": 142.953125,
+          "height": 28
+        },
+        "attributes": {
+          "x": 200,
+          "y": 910.703125,
+          "width": 64,
+          "height": 24
+        }
+      },
+      "career": [
+        "1.25",
+        "85.0",
+        "2.05",
+        "2",
+        "1",
+        "2",
+        "44",
+        "—",
+        "1.25",
+        "85.0",
+        "2.05",
+        "0.93",
+        "—",
+        "—",
+        "—",
+        "—",
+        "81.8%36/44 rounds",
+        "57.1%8/14 openings",
+        "13.66/44 rounds",
+        "27.312/44 rounds",
+        "3.82168/44 rounds",
+        "50.0%2/4 attempts"
+      ],
+      "overview": "Rating\n?\n1.25\nADR\n?\n85.0\nK/D\n?\n2.05\nMaps\n2",
+      "summary": "Matches\n1\n\n1–0 · 100%\n\nMaps\n2\nRounds\n44\nMVP\n—"
+    },
+    {
+      "case": "valid-event-map",
+      "url": "/players/c5ae0074-e0d4-4160-b8de-aa9b0368a4f7?event=wp05-detailed&map=de_mirage",
+      "career": [
+        "1.25",
+        "85.0",
+        "2.05",
+        "2",
+        "1",
+        "1",
+        "22",
+        "—",
+        "1.25",
+        "85.0",
+        "2.10",
+        "0.95",
+        "—",
+        "—",
+        "—",
+        "—",
+        "81.8%18/22 rounds",
+        "57.1%4/7 openings",
+        "13.63/22 rounds",
+        "27.36/22 rounds",
+        "3.8284/22 rounds",
+        "50.0%1/2 attempts"
+      ],
+      "overview": "Rating\n?\n1.25\nADR\n?\n85.0\nK/D\n?\n2.05\nMaps\n2",
+      "summary": "Matches\n1\n\n1–0 · 100%\n\nMaps\n1\nRounds\n22\nMVP\n—"
+    },
+    {
+      "case": "active-mobile",
+      "status": 200
+    },
+    {
+      "case": "unavailable-map-normalized",
+      "url": "?event=wp05-detailed"
+    },
+    {
+      "case": "no-history-no-sanction",
+      "status": 200,
+      "career": [
+        "—",
+        "—",
+        "—",
+        "0",
+        "0",
+        "0",
+        "0",
+        "—",
+        "—",
+        "—",
+        "—",
+        "—",
+        "—",
+        "—",
+        "—",
+        "—"
+      ],
+      "overview": "Rating\n?\n—\nADR\n?\n—\nK/D\n?\n—\nMaps\n0",
+      "summary": "Matches\n0\n\n0–0 · —\n\nMaps\n0\nRounds\n0\nMVP\n—"
+    },
+    {
+      "case": "revocation-fresh-without-server-restart",
+      "status": 200,
+      "career": [
+        "1.25",
+        "85.0",
+        "2.05",
+        "2",
+        "1",
+        "2",
+        "44",
+        "—",
+        "1.25",
+        "85.0",
+        "2.05",
+        "0.93",
+        "—",
+        "—",
+        "—",
+        "—",
+        "81.8%36/44 rounds",
+        "57.1%8/14 openings",
+        "13.66/44 rounds",
+        "27.312/44 rounds",
+        "3.82168/44 rounds",
+        "50.0%2/4 attempts"
+      ],
+      "overview": "Rating\n?\n1.25\nADR\n?\n85.0\nK/D\n?\n2.05\nMaps\n2",
+      "summary": "Matches\n1\n\n1–0 · 100%\n\nMaps\n2\nRounds\n44\nMVP\n—"
+    }
+  ],
+  "pageErrors": []
+}
