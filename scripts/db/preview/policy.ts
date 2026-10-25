@@ -218,6 +218,7 @@ export const EXCLUDED_TABLES = new Set(`identity_link_requests user_identities u
   free_prediction_choices free_prediction_requests free_prediction_locks
   bet_programs bet_accounts bet_markets bet_options bet_stakes bet_settlements bet_ledger bet_stage_milestones
   scheduled_job_health feedback_reports coverage_allocations coverage_holds match_lineup_incidents
+  match_veto_invalidations operator_scoreboard_receipts
   official_coverage_slots match_live_sessions mizar_installations mizar_pairing_intents mizar_reliable_receipts`.split(/\s+/));
 
 export interface PreviewTablePolicy {
