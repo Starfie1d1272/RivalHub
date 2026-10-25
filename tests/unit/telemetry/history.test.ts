@@ -246,3 +246,29 @@ it("limits timing groups after filtering while keeping daily totals complete and
     expect(summarizeHistory(selected).timings[0]).toMatchObject({ n: 10, mean: 1810, p50: 2000, p90: 2000 });
   } finally { await f.mf.dispose(); }
 }, 30000);
+
+
+it("keeps v2 censor coverage and ready basis separate in persisted distributions", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25");
+  try {
+    await maintainHistory(f.env, day);
+    const attemptId = crypto.randomUUID(), navigationId = crypto.randomUUID();
+    const task = { name: "registration" as const, definitionVersion: 2 as const, attemptId, phase: "start" as const, step: "start" as const };
+    await f.post([{ kind: "task", task }], day + 1000);
+    await maintainHistory(f.env, day + 2000);
+    const measurement = { v: 1 as const, navigationId, clientRelease: "fixture", visibility: "visible" as const };
+    const ready = { module: "match" as const, phase: "advanced" as const };
+    expect((await f.post([
+      { kind: "task", task: { ...task, phase: "complete", step: "confirm", elapsedCensored: true, activeCensored: true, activeMs: 3600000 }, durationMs: 3600000 },
+      { kind: "ready", measurement, ready, durationMs: 3600000 },
+      { kind: "ready", measurement, ready: { ...ready, basis: "demand" }, durationMs: 100 },
+      { kind: "ready", measurement, ready: { ...ready, basis: "demand" }, durationMs: 200 },
+    ], day + 7201000)).status).toBe(204);
+    await maintainHistory(f.env, day + 7202000);
+    const data = await f.read(day + 7203000);
+    const rows = summarizeHistory(data).timings;
+    expect(rows.find(r => r.kind === "task")).toMatchObject({ definitionVersion: 2, elapsedCensored: true, activeCensored: true, reports: 1, n: 0 });
+    expect(rows.find(r => r.kind === "ready" && r.basis === "navigation")).toMatchObject({ n: 1, mean: 3600000 });
+    expect(rows.find(r => r.kind === "ready" && r.basis === "demand")).toMatchObject({ n: 2, mean: 150 });
+  } finally { await f.mf.dispose(); }
+}, 30000);

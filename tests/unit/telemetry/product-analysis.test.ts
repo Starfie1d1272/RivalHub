@@ -133,3 +133,25 @@ it("separates exception categories when a controlled fingerprint is unavailable"
   expect(data.errorGroups).toHaveLength(2);
   expect(data.errorGroups.map(g => g.category).sort()).toEqual(["RangeError", "TypeError"]);
 });
+
+
+it("separates v1/v2 cohorts, excludes censored timers and separates navigation from repeated demand", () => {
+  const attemptId = id(900);
+  const start = now - 2 * 86400000, end = start + 7200000;
+  const events: EventRow[] = [
+    row(800, { kind: "task", at: start, received: start, task: { name: "registration", definitionVersion: 1, attemptId, phase: "start", step: "start" } }),
+    row(801, { kind: "task", at: end, received: end, durationMs: 3600000, task: { name: "registration", definitionVersion: 1, attemptId, phase: "complete", step: "confirm", activeMs: 3600000 } }),
+    row(802, { kind: "task", at: start, received: start, task: { name: "registration", definitionVersion: 2, attemptId, phase: "start", step: "start" } }),
+    row(803, { kind: "task", at: end, received: end, durationMs: 3600000, task: { name: "registration", definitionVersion: 2, attemptId, phase: "complete", step: "confirm", activeMs: 3600000, elapsedCensored: true, activeCensored: true } }),
+    row(804, { kind: "ready", measurement, ready: { module: "match", phase: "advanced" }, durationMs: 900000 }),
+    row(805, { kind: "ready", measurement, ready: { module: "match", phase: "advanced", basis: "demand" }, durationMs: 100 }),
+    row(806, { kind: "ready", measurement, ready: { module: "match", phase: "advanced", basis: "demand" }, durationMs: 200 }),
+  ];
+  const data = AnalysisData.parse(analyze(events));
+  const tasks = data.product.tasks.filter(t => t.key === "registration");
+  expect(tasks.map(t => t.definitionVersion)).toEqual([1, 2]);
+  expect(tasks[0]).toMatchObject({ completed: 1, elapsed: { n: 1 }, active: { n: 1 } });
+  expect(tasks[1]).toMatchObject({ completed: 1, elapsedCensored: 1, activeCensored: 1, elapsed: { n: 0 }, active: { n: 0 } });
+  expect(data.product.ready.find(r => r.basis === "navigation")).toMatchObject({ n: 1, p50: 900000 });
+  expect(data.product.ready.find(r => r.basis === "demand")).toMatchObject({ n: 2, p50: 100, mean: 150 });
+});

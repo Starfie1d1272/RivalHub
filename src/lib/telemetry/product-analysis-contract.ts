@@ -28,9 +28,10 @@ export const ProductAnalysisData = z.object({
     views: count, sessions: count, eligibleExposures: count, eligibleSessions: count, ...results, ...attemptResults,
     repeatUsage: z.object({ accounts: count, repeatedAccounts: count, accountDays: count, unlinkedReports: count, basis: z.literal("selected_window_distinct_beijing_days") }),
     validations: z.array(z.object({ reason: text, label: text, reports: count, attempts: count })).max(7),
+    elapsedCensored: count.optional(), activeCensored: count.optional(),
     elapsed: TimingData, active: TimingData,
     steps: z.array(z.object({ key: text, label: text, reached: count, elapsed: TimingData })).max(30),
-    trend: z.array(z.object({ at: count, ...attemptResults, elapsed: TimingData, active: TimingData, ...results })).max(169),
+    trend: z.array(z.object({ at: count, ...attemptResults, elapsedCensored: count.optional(), activeCensored: count.optional(), elapsed: TimingData, active: TimingData, ...results })).max(169),
   })).max(40),
   operationTrends: z.array(z.object({
     operation: text, label: text, task: text, ...results,
@@ -41,7 +42,7 @@ export const ProductAnalysisData = z.object({
     metric: text, label: text, points: z.array(timingPoint).max(169),
   })).max(6),
   ready: z.array(z.object({
-    route: text, label: text, module: text, moduleLabel: text, phase: text, phaseLabel: text,
+    basis: z.enum(["navigation", "demand"]).optional(), route: text, label: text, module: text, moduleLabel: text, phase: text, phaseLabel: text,
     ...TimingData.shape, points: z.array(timingPoint).max(169),
   })).max(60),
   releases: z.array(z.object({

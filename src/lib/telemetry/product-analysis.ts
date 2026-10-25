@@ -87,7 +87,7 @@ export function analyzeProduct(
     const matured = capturedAt >= start.received + limit;
     const elapsed = completed && end ? end.at - start.at : null;
     const active = completed && end && typeof end.task?.activeMs === "number" ? Math.min(end.task.activeMs, elapsed!) : null;
-    return { start, candidates, completed, cancelled, matured, elapsed, active,
+    return { start, candidates, completed, cancelled, matured, elapsed, active, elapsedCensored: end?.task?.elapsedCensored === true, activeCensored: end?.task?.activeCensored === true,
       late: !end && candidates.some(e => e.task?.phase === "complete" && e.at > start.at + limit) };
   });
   type Attempt = typeof attempts[number];
@@ -102,13 +102,15 @@ export function analyzeProduct(
   };
   // Match the completion-rate cohort: only completed attempts with a full observation window.
   const attemptTimings = (all: Attempt[]) => { const as = all.filter(a => a.matured); return ({
-    elapsed: timing(as.flatMap(a => a.elapsed === null ? [] : [a.elapsed])),
-    active: timing(as.flatMap(a => a.active === null ? [] : [a.active])),
+    elapsedCensored: as.filter(a => a.completed && a.elapsedCensored).length,
+    activeCensored: as.filter(a => a.completed && a.activeCensored).length,
+    elapsed: timing(as.flatMap(a => a.elapsed === null || a.elapsedCensored ? [] : [a.elapsed])),
+    active: timing(as.flatMap(a => a.active === null || a.activeCensored ? [] : [a.active])),
   }); };
   const readyRows = [...new Map(group(rows.filter(e => e.kind === "ready" && e.ready && e.measurement?.navigationId),
-    e => `${e.account ?? ""}:${e.session}:${e.measurement!.navigationId}:${e.route}:${e.ready!.module}:${e.ready!.phase}`)
+    e => `${e.account ?? ""}:${e.session}:${e.measurement!.navigationId}:${e.route}:${e.ready!.module}:${e.ready!.phase}:${e.ready!.basis ?? "navigation"}:${e.ready!.basis === "demand" ? e.id : ""}`)
     .map(([key, rr]) => [key, rr.sort((a, b) => a.at - b.at)[0]])).values()];
-  const readyGroups = group(readyRows, e => `${e.route}|${e.ready!.module}|${e.ready!.phase}`).sort((a, b) => b[1].length - a[1].length);
+  const readyGroups = group(readyRows, e => `${e.route}|${e.ready!.module}|${e.ready!.phase}|${e.ready!.basis ?? "navigation"}`).sort((a, b) => b[1].length - a[1].length);
   const performance = rows.filter(e => e.kind === "performance" && metricIds.has(e.id) && (e.metricName === "CLS" ? typeof e.score === "number" : typeof e.durationMs === "number"));
   const sampleValues = (rr: EventRow[]) => rr.flatMap(e => e.metricName === "CLS" ? typeof e.score === "number" ? [e.score] : [] : duration(e));
   const pages = rows.filter(e => e.kind === "page");
@@ -120,11 +122,11 @@ export function analyzeProduct(
       ready: readyRows.length, task: rows.filter(e => e.kind === "task").length,
       clientVersionMissing: rows.filter(e => !e.measurement?.clientRelease || e.measurement.clientRelease === "unknown").length,
       firstEnhancedAt: rows.filter(e => e.measurement).reduce<number | null>((n, e) => n === null ? e.received : Math.min(n, e.received), null) },
-    tasks: TASK_NAMES.filter(name => !f.task || name === f.task).map(key => {
+    tasks: TASK_NAMES.filter(name => !f.task || name === f.task).flatMap(key => ([1, 2] as const).filter(version => version === 1 || rows.some(e => eventTask(e) === key && e.task?.definitionVersion === version)).map(definitionVersion => {
       const definition = TASKS[key];
-      const rr = rows.filter(e => eventTask(e) === key);
-      const cs = calls.filter(c => eventTask(c.start) === key);
-      const as = attempts.filter(a => a.start.task!.name === key);
+      const rr = rows.filter(e => eventTask(e) === key && (e.task?.definitionVersion ?? 1) === definitionVersion);
+      const cs = calls.filter(c => eventTask(c.start) === key && (c.start.task?.definitionVersion ?? 1) === definitionVersion);
+      const as = attempts.filter(a => a.start.task!.name === key && a.start.task!.definitionVersion === definitionVersion);
       const exposures = rr.filter(e => e.kind === "task" && e.task?.phase === "exposure");
       // Account identifiers exist only during this bounded raw-history calculation.
       // A use is a task start or content page view, not background performance delivery.
@@ -135,7 +137,7 @@ export function analyzeProduct(
         const matching = as.map(a => a.candidates.filter(e => e.task?.step === "validation" && e.task.validationReason === reason && e.at <= a.start.at + definition.windowMs));
         return { reason, label: validationLabels[reason], reports: matching.reduce((n, es) => n + es.length, 0), attempts: matching.filter(es => es.length).length };
       }).filter(v => v.reports);
-      return { key, label: definition.label, definitionVersion: 1, windowMs: definition.windowMs,
+      return { key, label: definition.label, definitionVersion, windowMs: definition.windowMs,
         views: rr.filter(e => e.kind === "page").length, sessions: unique(rr),
         eligibleExposures: group(exposures, taskKey).length, eligibleSessions: unique(exposures),
         repeatUsage: { accounts: accountDays.length, repeatedAccounts: accountDays.filter(n => n >= 2).length,
@@ -156,7 +158,7 @@ export function analyzeProduct(
         }),
         trend: rr.length ? times.map(at => { const aa = as.filter(a => inBucket(a.start, at)); return { at, ...attemptResults(aa), ...attemptTimings(aa), ...callResults(cs.filter(c => inBucket(c.start, at))) }; }) : [],
       };
-    }),
+    })),
     operationTrends: operationGroups.slice(0, 12).map(([operation, cs]) => ({
       operation, label: opName(operation), task: taskForOperation(operation) ?? "", ...callResults(cs), ...callTimings(cs),
       points: times.map(at => { const cc = cs.filter(c => inBucket(c.start, at)); return { at, ...callResults(cc), ...callTimings(cc) }; }),
@@ -165,7 +167,7 @@ export function analyzeProduct(
       points: times.map(at => ({ at, ...timing(sampleValues(performance.filter(e => e.metricName === metric && inBucket(e, at)))) })),
     })),
     ready: readyGroups.slice(0, 60).map(([, rr], i) => ({
-      route: rr[0].route, label: routeName(rr[0].route), module: rr[0].ready!.module,
+      basis: rr[0].ready!.basis ?? "navigation", route: rr[0].route, label: routeName(rr[0].route), module: rr[0].ready!.module,
       moduleLabel: readyModules[rr[0].ready!.module] ?? "其他内容", phase: rr[0].ready!.phase,
       phaseLabel: readyPhases[rr[0].ready!.phase] ?? "内容可用", ...timing(rr.flatMap(duration)),
       points: i < 12 ? times.map(at => ({ at, ...timing(rr.filter(e => inBucket(e, at)).flatMap(duration)) })) : [],

@@ -16,7 +16,7 @@ const TIMING_LIMIT = 512;
 const CORRECTION_DAYS = 6;
 interface State { started_at: number; cursor_received: number; cursor_ticket: string; cursor_id: string; last_run: number; paused_at: number | null }
 interface Batch { ticket: string; id: string; received: number; expires: number; account: string | null; role: string; release: string; bytes: number; events_gzip: number[] | Uint8Array }
-type Dimensions = Pick<HistoryRow, "kind" | "name" | "task" | "route" | "scene" | "role" | "device" | "release" | "eventId" | "measurementVersion" | "definitionVersion" | "navigationType">;
+type Dimensions = Pick<HistoryRow, "kind" | "name" | "task" | "route" | "scene" | "role" | "device" | "release" | "eventId" | "measurementVersion" | "definitionVersion" | "navigationType" | "basis" | "elapsedCensored" | "activeCensored">;
 interface Sample { key: string; day: string; kind: string; dimensions: string; at: number; received: number; expires: number; closes: number; start: number; phase: string; value: number | null; bucket: number; active: number | null; activeBucket: number; client: number; enhanced: number }
 const afterCursor = `(received>? OR (received=? AND (ticket>? OR (ticket=? AND id>?))))`;
 const cursorArgs = (s: State) => [s.cursor_received, s.cursor_received, s.cursor_ticket, s.cursor_ticket, s.cursor_id];
@@ -33,19 +33,19 @@ async function sample(e: TelemetryEvent, b: Batch): Promise<Sample> {
   const kind = e.kind;
   const task = e.task?.name ?? (e.operation ? taskForOperation(e.operation) : taskForRoute(e.route)) ?? "";
   const name = kind === "performance" ? e.metricName! : kind === "ready" ? `${e.ready!.module}:${e.ready!.phase}` : kind === "operation" ? e.operation! : kind === "task" ? e.task!.name : "";
-  const identity = kind === "operation" ? `${e.operation}:${e.operationId}` : kind === "task" ? `${e.task!.name}:${e.task!.definitionVersion}:${e.task!.attemptId}` : kind === "ready" ? `${e.measurement?.navigationId ?? e.id}:${name}` : `${name}:${e.id}`;
+  const identity = kind === "operation" ? `${e.operation}:${e.operationId}` : kind === "task" ? `${e.task!.name}:${e.task!.definitionVersion}:${e.task!.attemptId}` : kind === "ready" ? `${e.measurement?.navigationId ?? e.id}:${name}${e.ready?.basis === "demand" ? ":demand:" + e.id : ""}` : `${name}:${e.id}`;
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`history-v1:${b.account ?? ""}:${e.session}:${kind}:${identity}`));
   const key = Array.from(new Uint8Array(digest), x => x.toString(16).padStart(2, "0")).join("");
   const isStart = kind === "operation" ? e.phase === "start" : kind === "task" && e.task!.phase === "start";
   const elapsed = kind === "operation" || kind === "task" ? e.durationMs ?? 0 : 0;
   const day = historyDay(b.received - (isStart ? 0 : elapsed));
   const dimensions: Dimensions = { kind, name, task, route: e.route, scene: e.scene, role: b.role,
-    device: e.client?.device ?? "missing", release: e.measurement?.clientRelease ?? "missing", eventId: e.eventId ?? "", measurementVersion: e.measurement?.v ?? 0, definitionVersion: e.task?.definitionVersion ?? 0, navigationType: e.measurement?.lifecycle?.navigationType ?? "missing" };
+    device: e.client?.device ?? "missing", release: e.measurement?.clientRelease ?? "missing", eventId: e.eventId ?? "", measurementVersion: e.measurement?.v ?? 0, definitionVersion: e.task?.definitionVersion ?? 0, navigationType: e.measurement?.lifecycle?.navigationType ?? "missing", basis: e.ready ? e.ready.basis ?? "navigation" : "", elapsedCensored: e.task?.elapsedCensored === true, activeCensored: e.task?.activeCensored === true };
   const phase = kind === "operation" ? (e.phase === "start" ? "pending" : e.phase!) : kind === "task" ? (["complete", "cancel", "exposure"].includes(e.task!.phase) ? e.task!.phase : "pending") : "";
-  const value = kind === "performance" ? (name === "CLS" ? e.score! : e.durationMs!) : kind === "ready" || kind === "operation" && !isStart || kind === "task" && ["complete", "cancel"].includes(phase) ? e.durationMs ?? null : null;
+  const value = e.task?.elapsedCensored ? null : kind === "performance" ? (name === "CLS" ? e.score! : e.durationMs!) : kind === "ready" || kind === "operation" && !isStart || kind === "task" && ["complete", "cancel"].includes(phase) ? e.durationMs ?? null : null;
   return { key, day, kind, dimensions: JSON.stringify(dimensions), at: e.at, received: b.received, expires: b.expires,
     closes: historyDayStart(day) + CORRECTION_DAYS * DAY, start: isStart ? 1 : 0, phase, value, bucket: bucket(value, name),
-    active: kind === "task" ? e.task!.activeMs ?? null : null, activeBucket: bucket(kind === "task" ? e.task!.activeMs ?? null : null),
+    active: kind === "task" && !e.task!.activeCensored ? e.task!.activeMs ?? null : null, activeBucket: bucket(kind === "task" && !e.task!.activeCensored ? e.task!.activeMs ?? null : null),
     client: e.client ? 1 : 0, enhanced: e.measurement ? 1 : 0 };
 }
 const upsertSamples = `INSERT INTO history_samples(sample_key,day,kind,dimensions,latest_at,received,expires,closes,has_start,phase,value,bucket,active,active_bucket,client_covered,enhanced_covered)
@@ -54,7 +54,9 @@ const upsertSamples = `INSERT INTO history_samples(sample_key,day,kind,dimension
  day=CASE WHEN excluded.has_start=1 AND history_samples.has_start=0 THEN excluded.day WHEN history_samples.has_start=1 THEN history_samples.day ELSE min(history_samples.day,excluded.day) END,
  closes=CASE WHEN excluded.has_start=1 AND history_samples.has_start=0 THEN excluded.closes WHEN history_samples.has_start=1 THEN history_samples.closes ELSE min(history_samples.closes,excluded.closes) END,expires=min(history_samples.expires,excluded.expires),
  has_start=max(history_samples.has_start,excluded.has_start),
- dimensions=CASE WHEN excluded.has_start=1 AND history_samples.has_start=0 THEN excluded.dimensions ELSE history_samples.dimensions END,
+ dimensions=json_set(CASE WHEN excluded.has_start=1 AND history_samples.has_start=0 THEN excluded.dimensions ELSE history_samples.dimensions END,
+ '$.elapsedCensored',CASE WHEN excluded.latest_at>=history_samples.latest_at AND excluded.phase<>'pending' THEN coalesce(json_extract(excluded.dimensions,'$.elapsedCensored'),0) ELSE coalesce(json_extract(history_samples.dimensions,'$.elapsedCensored'),0) END,
+ '$.activeCensored',CASE WHEN excluded.latest_at>=history_samples.latest_at AND excluded.phase<>'pending' THEN coalesce(json_extract(excluded.dimensions,'$.activeCensored'),0) ELSE coalesce(json_extract(history_samples.dimensions,'$.activeCensored'),0) END),
  phase=CASE WHEN excluded.phase<>'pending' AND excluded.latest_at>=history_samples.latest_at THEN excluded.phase ELSE history_samples.phase END,
  value=CASE WHEN excluded.latest_at>=history_samples.latest_at AND (excluded.phase<>'pending' OR excluded.kind NOT IN ('operation','task')) THEN excluded.value ELSE history_samples.value END,
  bucket=CASE WHEN excluded.latest_at>=history_samples.latest_at AND (excluded.phase<>'pending' OR excluded.kind NOT IN ('operation','task')) THEN excluded.bucket ELSE history_samples.bucket END,
@@ -97,6 +99,7 @@ async function writeDay(env: Env, day: string, state: State, firstPending: numbe
   const rows = new Map<string, HistoryRow>();
   for (const group of result.results.slice(0, GROUP_LIMIT)) {
     const dimensions = JSON.parse(group.dimensions) as Dimensions;
+    dimensions.elapsedCensored = !!dimensions.elapsedCensored; dimensions.activeCensored = !!dimensions.activeCensored;
     const key = group.dimensions + ":" + group.phase;
     const row = rows.get(key) ?? { ...dimensions, phase: group.phase, n: 0, starts: 0, clientCovered: 0, enhancedCovered: 0, duration: emptyHistoryDistribution(dimensions.name), active: emptyHistoryDistribution() };
     row.n += group.n; row.starts += group.starts; row.clientCovered += group.client; row.enhancedCovered += group.enhanced;
@@ -206,7 +209,7 @@ export async function readHistory(env: Env, f: HistoryQuery, now: number): Promi
   if (f.operation) { filters.push("json_extract(e.value,'$.kind')='operation' AND json_extract(e.value,'$.name')=?"); args.push(f.operation); }
   const selected = `WITH selected AS (SELECT day,payload,complete,sealed FROM history_days WHERE day>=? AND expires>?),
     filtered AS (SELECT d.day,e.value FROM selected d,json_each(d.payload) e ${filters.length ? "WHERE " + filters.join(" AND ") : ""})`;
-  const get = (key: string) => `json_extract(f.value,'$.${key}')`;
+  const get = (key: string) => key === "basis" ? `coalesce(json_extract(f.value,'$.basis'),CASE WHEN json_extract(f.value,'$.kind')='ready' THEN 'navigation' ELSE '' END)` : ["elapsedCensored", "activeCensored"].includes(key) ? `coalesce(json_extract(f.value,'$.${key}'),0)` : `json_extract(f.value,'$.${key}')`;
   const conditionCount = (condition: string, field = "n") => `coalesce(sum(CASE WHEN ${condition} THEN ${get(field)} ELSE 0 END),0)`;
   const kind = get("kind"), phase = get("phase");
   const points = await env.DB.prepare(`${selected}
@@ -223,26 +226,26 @@ export async function readHistory(env: Env, f: HistoryQuery, now: number): Promi
       ${conditionCount(`${kind}='task' AND ${phase}='exposure'`)} taskExposure
     FROM selected d LEFT JOIN filtered f ON f.day=d.day GROUP BY d.day ORDER BY d.day`).bind(...args).all<Omit<HistoryData["days"][number], "complete" | "sealed"> & { complete: number; sealed: number }>();
   base.days = points.results.map(d => ({ ...d, complete: !!d.complete && (!!d.sealed || base.pendingBatches === 0), sealed: !!d.sealed }));
-  const dimensions = ["kind", "name", "phase", "release", "measurementVersion", "definitionVersion", "navigationType"] as const;
+  const dimensions = ["kind", "name", "phase", "release", "measurementVersion", "definitionVersion", "navigationType", "basis", "elapsedCensored", "activeCensored"] as const;
   const aggregates: string[] = [];
   for (const metric of ["duration", "active"] as const) {
     for (const [field, op] of [["n", "sum"], ["sum", "sum"], ["min", "min"], ["max", "max"]] as const) aggregates.push(`${op}(${get(`${metric}.${field}`)}) ${metric}_${field}`);
     for (let i = 0; i <= historyBounds("").length; i++) aggregates.push(`coalesce(sum(${get(`${metric}.counts[${i}]`)}),0) ${metric}_${i}`);
   }
   const groups = await env.DB.prepare(`${selected}
-    SELECT ${dimensions.map(key => `${get(key)} AS ${key}`).join(",")},${aggregates.join(",")}
-    FROM filtered f WHERE ${get("duration.n")}>0 OR ${get("active.n")}>0
+    SELECT ${dimensions.map(key => `${get(key)} AS ${key}`).join(",")},sum(${get("n")}) reports,${aggregates.join(",")}
+    FROM filtered f WHERE ${get("duration.n")}>0 OR ${get("active.n")}>0 OR ${get("elapsedCensored")}=1 OR ${get("activeCensored")}=1
     GROUP BY ${dimensions.map(get).join(",")} ORDER BY ${dimensions.map(get).join(",")} LIMIT ?`)
     .bind(...args, TIMING_LIMIT + 1).all<Record<string, string | number | null>>();
   base.truncated = groups.results.length > TIMING_LIMIT;
   base.timingRows = groups.results.slice(0, TIMING_LIMIT).map(group => {
-    const row = Object.fromEntries(dimensions.map(key => [key, group[key]])) as Omit<HistoryTimingRow, "duration" | "active">;
+    const row = Object.fromEntries(dimensions.map(key => [key, group[key]])) as Omit<HistoryTimingRow, "duration" | "active" | "elapsedCensored" | "activeCensored">;
     const distribution = (metric: "duration" | "active") => ({
       n: Number(group[metric + "_n"]), sum: Number(group[metric + "_sum"]),
       min: group[metric + "_min"] as number | null, max: group[metric + "_max"] as number | null,
       counts: Array.from({ length: historyBounds(metric === "duration" ? row.name : "").length + 1 }, (_, i) => Number(group[metric + "_" + i])),
     });
-    return { ...row, duration: distribution("duration"), active: distribution("active") };
+    return { ...row, reports: Number(group.reports), elapsedCensored: !!group.elapsedCensored, activeCensored: !!group.activeCensored, duration: distribution("duration"), active: distribution("active") };
   });
   return base;
 }
