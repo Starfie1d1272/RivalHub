@@ -7,8 +7,9 @@ export default defineConfig({
   testIgnore: [],
   projects: core.projects?.map(project => ({ ...project, testIgnore: [] })),
   webServer: {
-    command: "pnpm build:local && pnpm exec next start",
+    command: "node tests/e2e/helpers/production-server.mjs",
     url: "http://localhost:3000/favicon.ico",
+    stdout: "pipe",
     reuseExistingServer: false,
     timeout: 180_000,
   },

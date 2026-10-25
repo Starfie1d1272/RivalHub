@@ -13,9 +13,12 @@ export async function verifyBetReadStages(
   info:TestInfo, production=false, views?:readonly string[],
 ){
   const started=performance.now();
+  const mark=(phase:string)=>{if(production)console.info("BET_PRODUCTION_STAGE",JSON.stringify({project:info.project.name,phase,elapsedMs:performance.now()-started}));};
+  mark("fixture.start");
   const user=scenario.accounts[0]!;
   const fixture=await createPredictionBrowserFixture(user.userId);
   const fixtureMs=performance.now()-started;
+  mark("fixture.complete");
   const pool=new Pool({connectionString:assertLocalDatabaseUrl(process.env.DATABASE_URL),ssl:false});
   const db=drizzle(pool,{schema});
   const admin=page;
@@ -36,6 +39,7 @@ export async function verifyBetReadStages(
     await db.insert(schema.seasonAdminGrants).values({seasonId:fixture.seasonId,userId:user.userId});
     const destination=`/admin/${fixture.slug}/bet`;
     phase="login";
+    mark("login.start");
     if(production){
       // The test bootstrap endpoint is deliberately disabled in production.
       // Exercise the existing canonical login UI and local Turnstile test key.
@@ -45,6 +49,7 @@ export async function verifyBetReadStages(
       await page.locator('button[type="submit"]').click();
       await expect(page).toHaveURL(url=>url.pathname===destination);
     }else await signInProgrammatically(page,user,scenario,destination);
+    mark("login.complete");
     // Login already navigated this page to the admin destination.
     async function operate(label:string){
       phase=`admin.${label}`;
@@ -67,6 +72,7 @@ export async function verifyBetReadStages(
       await request.get(`/${fixture.slug}/bet`);
     }
     const preparationMs=performance.now()-started;
+    mark("preparation.complete");
     const report=[];
     for(const viewer of production?["anonymous","joined"]:["anonymous","unjoined","joined"]){
       if(viewer==="joined"){
@@ -107,10 +113,12 @@ export async function verifyBetReadStages(
           const rscBody=await rsc.body();
           expect(rsc.status()).toBe(200);
           expect(rsc.headers()["content-type"]).toContain("text/x-component");
+          mark(`${viewer}.${view}.${state}.complete`);
           report.push({view,viewer,state,runtime:production?"production":"development",apiMs,apiBytes:body.length,rscMs:performance.now()-rscStart,rscBytes:rscBody.length,rscCacheState:"after API read"});
         }
       }
     }
+    mark("matrix.complete");
     // Actual Pick'Em views remain independent of BET financial data.
     if(production){
     for(const reader of [request,page.request])for(const view of ["sim","record","tasks","ranking"]){
