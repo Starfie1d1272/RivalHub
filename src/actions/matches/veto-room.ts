@@ -41,8 +41,8 @@ async function finishMutation<T>(matchId: string, outcome: T, changed = true) {
 export async function readVetoRoom(matchIdInput: unknown) {
   try {
     const { matchId } = parse(base, { matchId: matchIdInput });
-    await assertVetoRoomReadable(matchId);
-    return ok(await getVetoRoomView(matchId));
+    const access = await assertVetoRoomReadable(matchId);
+    return ok(await getVetoRoomView(matchId, access.authorization, access.seasonId));
   } catch (error) {
     return actionError("readVetoRoom", error);
   }

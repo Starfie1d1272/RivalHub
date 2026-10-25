@@ -1,0 +1,42 @@
+# Browser matrix execution budget partition
+
+The system watchdog remains 180,000 ms, including setup. Runs 40143081538
+and 40144055247 left approximately 81–97 seconds for the E2E body after local
+stack startup, bootstrap and dependency installation. Alphabetical round-robin
+into at most seven ordinary runners put admin workbench readiness, Major
+qualification and test-match flows together; another runner combined bet receipt
+and eight OCR recovery cases. Both exhausted the outer deadline while tests
+were still executing. A passed assertion or Playwright summary is not an
+execution-budget completion signal.
+
+This change isolates the measured expensive admin readiness, admin content,
+qualification and test-match specs. OCR recovery has four cases per project:
+its Chromium and mobile Chrome projects get separate runners. Remaining
+ordinary specs form deterministic groups of at most two rather than growing
+without bound inside seven shards. Existing LIVE, correction and session
+isolation remains. Provider and production smoke still run once.
+
+No test, project, success assertion, worker count, retry policy, forbid-flaky
+setting or execution deadline is removed or relaxed. The unit test expands each
+matrix entry through the actual Playwright project exclusions and checks each
+selected runnable `(spec, project)` exactly once, for both full and affected
+plans. OCR project selection is passed to Playwright by the workflow. Each
+runner still owns its own local fixture stack.
+
+Target E2E-body duration is approximately 65–70 seconds, leaving margin within
+the observed worst remaining budget. This partition is based on observed costs,
+not a guarantee: the exact candidate's required CI must establish its duration.
+Additional runners increase aggregate setup cost; they reduce per-runner packing.
+
+The older 40140698481 four-pass/40-second exit stall remains unconfirmed:
+40143081538 reran those same four cases and returned normally (HTML 70 ms,
+onExit less than 1 ms, Playwright return 35 ms, fixture cleanup 1 ms). This
+partition does not claim to repair that distinct, unreproduced stall.
+
+A separate local cold-cache diagnostic reproduced the test-match heading's
+10-second expectation failure: creation returned in 156 ms (transaction 84 ms,
+invalidation 2 ms), target RSC first response followed about 7.6 seconds after
+its request, and workbench loading continued. The warm retry reached the heading
+about 2.7 seconds after clicking. That diagnostic run remained failed under
+forbid-flaky; it is not green acceptance or proof of the original CI request's
+cause. No database-lock or business-behavior fix is included here.

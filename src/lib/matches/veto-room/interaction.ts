@@ -27,9 +27,12 @@ export const vetoInteractionInput = z.discriminatedUnion("operation", [
 export async function runVetoInteraction(input: z.infer<typeof vetoInteractionInput>, mode: "action" | "route") {
   let outcome;
   let authorization: Awaited<ReturnType<typeof getCurrentUserAuthorization>> | undefined;
+  let readableSeasonId: string | undefined;
   if (input.operation === "reconcile") {
-    await traceOperation("match.veto.authorize", { scope: "match", operation: "reconcile", stage: "authorize" }, () => assertVetoRoomReadable(input.matchId));
-    outcome = await traceOperation("match.veto.transaction", { scope: "match", operation: "reconcile", stage: "transaction" }, () => reconcileVetoRoomReceipt(input.matchId));
+    const access = await traceOperation("match.veto.authorize", { scope: "match", operation: "reconcile", stage: "authorize" }, () => assertVetoRoomReadable(input.matchId));
+    authorization = access.authorization;
+    readableSeasonId = access.seasonId;
+    outcome = await traceOperation("match.veto.transaction", { scope: "match", operation: "reconcile", stage: "transaction" }, () => reconcileVetoRoomReceipt(input.matchId, readableSeasonId));
   } else {
     authorization = await traceOperation("match.veto.authorize", { scope: "match", operation: input.operation, stage: "authorize" }, () => getCurrentUserAuthorization());
     if (!authorization) throw new AppError(ErrorCode.UNAUTHORIZED, "请先登录。");
@@ -38,11 +41,11 @@ export async function runVetoInteraction(input: z.infer<typeof vetoInteractionIn
       ? requestVetoStartReceipt({ ...input, actorId: actor.userId })
       : submitVetoCommandReceipt({ ...input, actorId: actor.userId }));
   }
-  return { ...await finishVetoInteraction(input.matchId, outcome.outcome, outcome.changed, mode, authorization), receipt: outcome };
+  return { ...await finishVetoInteraction(input.matchId, outcome.outcome, outcome.changed, mode, authorization, readableSeasonId), receipt: outcome };
 }
 
 /** Domain commit, cache delivery and response projection have independent outcomes. */
-export async function finishVetoInteraction<T>(matchId: string, outcome: T, _changed: boolean, mode: "action" | "route" = "action", authorization?: Awaited<ReturnType<typeof getCurrentUserAuthorization>>) {
+export async function finishVetoInteraction<T>(matchId: string, outcome: T, _changed: boolean, mode: "action" | "route" = "action", authorization?: Awaited<ReturnType<typeof getCurrentUserAuthorization>>, expectedSeasonId?: string) {
   let invalidation: "complete" | "pending" = "pending";
   try {
     invalidation = await traceOperation("match.veto.invalidate", { scope: "match", operation: "invalidate", stage: "invalidate" },
@@ -53,7 +56,7 @@ export async function finishVetoInteraction<T>(matchId: string, outcome: T, _cha
   }
   try {
     const room = await traceOperation("match.veto.project", { scope: "match", operation: "project", stage: "project" },
-      () => authorization === undefined ? getVetoRoomView(matchId) : getVetoRoomView(matchId, authorization));
+      () => authorization === undefined ? getVetoRoomView(matchId) : getVetoRoomView(matchId, authorization, expectedSeasonId));
     return { outcome, room, refreshFailed: invalidation === "pending", postCommit: { invalidation, projection: "complete" as const } };
   } catch {
     logEvent({ level: "warn", event: "match.veto.projection_pending", scope: "match", operation: "veto.project", retryable: true });
