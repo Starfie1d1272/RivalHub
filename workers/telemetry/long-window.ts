@@ -27,7 +27,7 @@ export async function longWindowSummary(env: Env, f: AnalysisFilters, session: s
   if (session) unsupported.push("session");
   if (f.release && f.releaseBasis === "ticket") unsupported.push("ticketRelease");
   if (f.eventId === "missing") unsupported.push("eventIdMissing");
-  const result: LongWindowSummary = { generatedAt: now, validUntil: now + 60000,
+  const result: LongWindowSummary = { generatedAt: now, validUntil: now + 60000, completionBasis: "observed_not_matured",
     requestedRange: { from: window.requestedFrom, to: window.requestedTo }, effectiveRange: { from: window.from, to: window.to },
     coveredRanges: [], source: "history+tail+raw_edges", coverage: { status: "partial", segments: [], pendingTailBatches: 0,
       tailBudgetTruncated: false, metricGroupsTruncated: false, rawBudgetTruncated: false, retentionUnknown: window.requestedFrom < now - 7 * DAY, seriesOmitted: true },

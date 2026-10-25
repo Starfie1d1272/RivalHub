@@ -3,7 +3,7 @@ import { HistoryTimingRow, historyCountFields } from "./history-contract";
 const count = z.number().int().nonnegative();
 const range = z.object({ from: count, to: count });
 export const LongWindowSummary = z.object({
-  generatedAt: count, validUntil: count, requestedRange: range, effectiveRange: range,
+  generatedAt: count, validUntil: count, completionBasis: z.literal("observed_not_matured"), requestedRange: range, effectiveRange: range,
   coveredRanges: z.array(range).max(10), source: z.literal("history+tail+raw_edges"),
   coverage: z.object({ status: z.enum(["complete", "partial", "unsupported"]),
     segments: z.array(range.extend({ source: z.enum(["history+tail", "raw_edge"]), status: z.enum(["complete", "partial", "unknown"]), reason: z.string().max(80) })).max(10),

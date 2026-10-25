@@ -327,6 +327,7 @@ it("keeps rolling edges explicit and bypasses raw 2000-batch/2MiB limits for com
     const data = LongWindowSummary.parse(await response.json());
     expect(data.requestedRange).toEqual({ from: now - 7 * DAY, to: now });
     expect(data.counts.views).toBe(4004);
+    expect(data.completionBasis).toBe("observed_not_matured");
     expect(data.counts.taskExposure).toBeNull();
     expect(statements).toBeLessThanOrEqual(25);
     console.info(JSON.stringify({ fixture: "long_window_2001_batches", rawBytes, statements, rowsRead, responseBytes: Buffer.byteLength(JSON.stringify(data)), observedViews: data.counts.views }));
