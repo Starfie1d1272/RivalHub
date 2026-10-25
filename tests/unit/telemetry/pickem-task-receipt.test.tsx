@@ -34,12 +34,16 @@ async function events(){await act(async()=>{});const before=send.mock.calls.leng
 it("separates formal receipt from refreshed, visible Pick'Em and captures demand only on explicit opening",async()=>{
   calls.mutate.mockResolvedValue({success:true});let resolve!:(value:unknown)=>void;calls.read.mockImplementationOnce(()=>new Promise(r=>{resolve=r;}));
   render(<PredictionBoard initial={initial} slug="event" signedIn/>);const user=userEvent.setup();
+  await act(async()=>{flushTelemetry();});
+  expect(send.mock.calls.flatMap(c=>JSON.parse(c[1].body).events as TelemetryEvent[]).some(e=>e.kind==="ready"&&e.ready?.phase==="form")).toBe(false);
   await user.click(screen.getByRole("button",{name:"展开预测单"}));
   await user.click(screen.getByRole("button",{name:"提交fixture预测"}));
   const receipt=await events();expect(receipt.filter(e=>e.task?.phase==="complete")).toHaveLength(1);expect(receipt.some(e=>e.task?.step==="result")).toBe(false);
-  expect(receipt.filter(e=>e.kind==="ready"&&e.ready?.phase==="form")).toHaveLength(1);expect(JSON.stringify(receipt)).not.toContain('"basis":"demand"');
+  expect(receipt.filter(e=>e.kind==="ready"&&e.ready?.module==="prediction"&&e.ready.phase==="form"&&(e.ready.basis??"navigation")==="navigation")).toHaveLength(1);
+  expect(receipt.filter(e=>e.kind==="ready"&&e.ready?.module==="prediction"&&e.ready.phase==="form"&&e.ready.basis==="demand")).toHaveLength(1);
   await act(async()=>resolve({success:true,data:{...initial,contests:[{...initial.contests[0]!,submitted:{pick,version:1,at:"2026-10-01T00:00:00Z"}}]}}));
   expect(screen.getByText("fixture已提交")).toBeVisible();const all=await events();expect(all.filter(e=>e.task?.step==="result")).toHaveLength(1);expect(calls.mutate).toHaveBeenCalledTimes(1);
+  expect(all.filter(e=>e.kind==="ready"&&e.ready?.module==="prediction"&&e.ready.phase==="form"&&e.ready.basis==="demand")).toHaveLength(1);
 });
 it("retains a formal receipt across unmount while withholding presentation",async()=>{
   let resolve!:(value:unknown)=>void;calls.mutate.mockImplementationOnce(()=>new Promise(r=>{resolve=r;}));calls.read.mockResolvedValue({success:true,data:initial});
