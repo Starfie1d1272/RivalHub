@@ -149,6 +149,7 @@ export async function extractStatsFromScreenshot(
         errorCode: `ocr.${e.kind}`,
         retryable: e.retryable,
         safeContext: {
+          ...e.responseSummary,
           phase: e.phase, reason: e.reason, httpStatus: e.httpStatus,
           // Aligned, bounded arrays preserve each sanitized cause through the
           // existing observability allowlist, exclusively in server diagnostics.

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { playerRowLenientSchema, type ScoreboardOCRResult, type OCRProvider, type PlayerRowOCR } from "./types";
-import { OCRFailure } from "./errors";
+import { OCRFailure, type OCRResponseSummary } from "./errors";
 import { extractOCRDiagnostics } from "./diagnostics";
 import { providerFetch } from "@/lib/observability/fetch";
 import { logEvent, traceOperation } from "@/lib/observability/server";
@@ -13,7 +13,8 @@ const DEFAULT_MODEL = "Qwen/Qwen3.5-9B";
 const SCOREBOARD_COLUMNS = ["perfectName", "kills", "deaths", "assists", "hsPercent", "firstKills", "multiKills", "clutches", "adr", "rws", "ratingPro", "we"] as const;
 const SYSTEM_PROMPT = `读取记分板全部10行。只返回JSON：{"players":[["昵称",20,10,5,30,3,2,1,85.5,12.34,1.25,10.5]]}。
 每行按截图列序：昵称、击杀、死亡、助攻、爆头率、首杀、多杀、残局、ADR、RWS、Rating、WE。
-跳过标题行。未知填null，数值不带单位。`;
+每行必须有12个值，未知填null，数值不带单位。跳过标题行，最多10行。
+输出紧凑JSON，字符串以外不加空格或换行；输出完players对象后立即结束。`;
 
 function expandPlayerRow(row: unknown): unknown {
   if (!Array.isArray(row)) return row;
@@ -120,12 +121,17 @@ async function callAPI(params: CallParams) {
         ],
       },
     ],
-    max_tokens: 4096,
+    max_tokens: 2048,
     temperature: 0,
   };
 
   if (params.model.startsWith("Qwen/Qwen3.5-")) {
+    // Qwen3.5 non-thinking recommendations; use SiliconFlow's documented knobs.
+    // https://huggingface.co/Qwen/Qwen3.5-9B#best-practices
     body.enable_thinking = false;
+    body.temperature = 0.7;
+    body.top_p = 0.8;
+    body.top_k = 20;
   }
 
   if (params.withResponseFormat) {
@@ -175,9 +181,17 @@ async function callAPI(params: CallParams) {
         // Body streams can fail after valid HTTP headers; preserve the transport boundary.
         throw error;
       }
-      const content = getResponseContent(json);
-      if (!content) throw new OCRFailure("upstream", "response", "empty_response", response.status, { requestId: params.requestId });
-      return { content, httpStatus: response.status };
+      const { content, summary } = readCompletion(json);
+      const failureOptions = { requestId: params.requestId, responseSummary: summary };
+      // Even syntactically valid JSON can be a partial scoreboard at the limit.
+      if (summary.finishReason === "length") {
+        throw new OCRFailure("upstream", "response", "output_truncated", response.status, failureOptions);
+      }
+      if (summary.finishReason === "content_filter" || summary.finishReason === "tool_calls") {
+        throw new OCRFailure("upstream", "response", "unexpected_finish_reason", response.status, failureOptions);
+      }
+      if (!content?.trim()) throw new OCRFailure("upstream", "response", "empty_response", response.status, failureOptions);
+      return { content, httpStatus: response.status, summary };
     } catch (error) {
       if (error instanceof OCRFailure) throw error;
       const timedOut = controller.signal.aborted;
@@ -245,14 +259,16 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
         if (!(fallbackError instanceof OCRFailure)) throw fallbackError;
         throw new OCRFailure(fallbackError.kind, fallbackError.phase, fallbackError.reason, fallbackError.httpStatus, {
           diagnostics: [...error.diagnostics.slice(0, 2), ...fallbackError.diagnostics],
+          responseSummary: fallbackError.responseSummary,
           requestId, cause: new Error(`siliconflow.http.${fallbackError.httpStatus ?? 0}.${fallbackError.reason}`, { cause: error }),
         });
       }
     }
 
+    const failureOptions = { requestId, responseSummary: result.summary };
     let parsed: unknown;
     try { parsed = extractJson(result.content); } catch {
-      throw new OCRFailure("upstream", "json_parse", "invalid_model_json", result.httpStatus, { requestId });
+      throw new OCRFailure("upstream", "json_parse", "invalid_model_json", result.httpStatus, failureOptions);
     }
 
     const parsedCount = Array.isArray(parsed)
@@ -271,11 +287,11 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
 
     let rawPlayers: unknown[];
     try { rawPlayers = extractPlayersArray(parsed); } catch (error) {
-      throw new OCRFailure("upstream", "shape", error instanceof OCRFailure ? error.reason : "invalid_result_shape", result.httpStatus, { requestId });
+      throw new OCRFailure("upstream", "shape", error instanceof OCRFailure ? error.reason : "invalid_result_shape", result.httpStatus, failureOptions);
     }
 
     if (rawPlayers.length === 0) {
-      throw new OCRFailure("upstream", "shape", "empty_players", result.httpStatus, { requestId });
+      throw new OCRFailure("upstream", "shape", "empty_players", result.httpStatus, failureOptions);
     }
     if (rawPlayers.length > 20) rawPlayers = rawPlayers.slice(0, 20);
 
@@ -291,7 +307,11 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
           operation: "ocr.validate",
           requestId,
           errorClass: "expected",
-          safeContext: { provider: "siliconflow", rowIndex: idx + 1, reason: "invalid_player_row" },
+          safeContext: {
+            provider: "siliconflow", rowIndex: idx + 1,
+            reason: Array.isArray(row) && row.length !== SCOREBOARD_COLUMNS.length ? "invalid_column_count" : "invalid_player_row",
+            count: Array.isArray(row) ? Math.min(row.length, 100) : undefined,
+          },
         });
       } else {
         validPlayers.push(r.data);
@@ -309,21 +329,35 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
     });
 
     if (validPlayers.length === 0) {
-      throw new OCRFailure("upstream", "shape", "invalid_player_rows", result.httpStatus, { requestId });
+      throw new OCRFailure("upstream", "shape", "invalid_player_rows", result.httpStatus, failureOptions);
     }
 
     return { players: validPlayers };
   });
 }
 
-function getResponseContent(value: unknown): string | null {
-  if (!value || typeof value !== "object") return null;
-  const choices = (value as Record<string, unknown>).choices;
-  if (!Array.isArray(choices) || !choices[0] || typeof choices[0] !== "object") return null;
-  const message = (choices[0] as Record<string, unknown>).message;
-  if (!message || typeof message !== "object") return null;
-  const content = (message as Record<string, unknown>).content;
-  return typeof content === "string" && content.trim() ? content : null;
+function readCompletion(value: unknown): { content: string | null; summary: OCRResponseSummary } {
+  const envelope = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const choices = envelope.choices;
+  const choice = Array.isArray(choices) && choices[0] && typeof choices[0] === "object"
+    ? choices[0] as Record<string, unknown> : {};
+  const message = choice.message && typeof choice.message === "object" ? choice.message as Record<string, unknown> : {};
+  const content = typeof message.content === "string" ? message.content : null;
+  const reason = choice.finish_reason;
+  // Provider strings are untrusted: only a fixed enum and bounded counts leave here.
+  const finishReason = reason === "stop" || reason === "eos" || reason === "length" || reason === "content_filter" || reason === "tool_calls"
+    ? reason : "unknown";
+  const usage = envelope.usage && typeof envelope.usage === "object" ? envelope.usage as Record<string, unknown> : {};
+  const tokens = usage.completion_tokens;
+  return {
+    content,
+    summary: {
+      finishReason,
+      outputChars: Math.min(content?.length ?? 0, 1_000_000),
+      outputWhitespacePercent: content?.length ? Math.round((content.match(/\s/g)?.length ?? 0) / content.length * 100) : 0,
+      completionTokens: typeof tokens === "number" && Number.isSafeInteger(tokens) && tokens >= 0 && tokens <= 1_000_000 ? tokens : undefined,
+    },
+  };
 }
 
 export const siliconflowProvider: OCRProvider = {

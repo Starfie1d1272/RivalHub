@@ -35,7 +35,45 @@ describe("OCR response-body failure boundary", () => {
   it("disables thinking for the default extraction model", async () => {
     fetchProvider.mockResolvedValue(Response.json({ choices: [{ message: { content: '{"players":[{"perfectName":"fixture"}]}' } }] }));
     await run();
-    expect(JSON.parse(fetchProvider.mock.calls[0][1].body)).toMatchObject({ model: "Qwen/Qwen3.5-9B", enable_thinking: false });
+    expect(JSON.parse(fetchProvider.mock.calls[0][1].body)).toMatchObject({
+      model: "Qwen/Qwen3.5-9B", enable_thinking: false,
+      temperature: 0.7, top_p: 0.8, top_k: 20, max_tokens: 2048,
+    });
+  });
+
+  // Provider output is private. Diagnose truncation without retaining content or
+  // exposing upstream metadata in the public action error, and never replay it.
+  it.each(['{"players":[{"perfectName":"fixture"}]}', '{"players":' + " ".repeat(10_000)])(
+    "rejects length-limited output even if it happens to parse (case %#)",
+    async (content) => {
+      fetchProvider.mockResolvedValue(Response.json({
+        choices: [{ finish_reason: "length", message: { content } }],
+        usage: { completion_tokens: 2048 },
+      }));
+      const error = await run().catch((failure: unknown) => failure);
+      expect(error).toMatchObject({ kind: "upstream", phase: "response", reason: "output_truncated",
+        responseSummary: { finishReason: "length", completionTokens: 2048, outputChars: content.length } });
+      expect(fetchProvider).toHaveBeenCalledTimes(1);
+      expect(presentOCRFailure(error as OCRFailure).message).toContain("未完整生成");
+      expect(presentOCRFailure(error as OCRFailure).message).not.toContain("HTTP 200");
+      expect(JSON.stringify(presentOCRFailure(error as OCRFailure))).not.toMatch(/completionTokens|outputChars|finishReason/);
+      expect(JSON.stringify(error)).not.toContain(content);
+    },
+  );
+
+  it("projects bounded counters and fixed finish reasons from private malformed output", async () => {
+    const content = `private-output ${key} ${image} `;
+    fetchProvider.mockResolvedValue(Response.json({
+      choices: [{ finish_reason: `${key} ${image}`, message: { content } }],
+      usage: { completion_tokens: key },
+    }));
+    const error = await run().catch((failure: unknown) => failure);
+    expect(error).toMatchObject({ reason: "invalid_model_json", responseSummary: {
+      finishReason: "unknown", outputChars: content.length, completionTokens: undefined,
+      outputWhitespacePercent: Math.round(3 / content.length * 100),
+    } });
+    expect(JSON.stringify(error)).not.toContain(key);
+    expect(JSON.stringify(error)).not.toContain(image);
   });
 
   it("retains a redacted transport cause when a successful HTTP response body fails", async () => {
