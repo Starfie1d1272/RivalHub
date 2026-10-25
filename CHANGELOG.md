@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.24.0]
+
+### Added
+
+- 产品使用与体验后台增加任务完成、操作响应、内容就绪与浏览器性能趋势，支持具体赛事、版本、设备和等长窗口比较。
+- 关键任务增加步骤、固定校验原因及活跃用时采集；后台提供报名审核、教育认证、约赛、BP 与赛后资料的业务聚合。
+- 独立遥测接收端增加可修订的日聚合与长期趋势，展示覆盖、缺口、积压及封存状态；启用时单独配置保留天数。
+
+### Changed
+
+- 遥测分析明确区分调用结果、个人任务完成和多人流程等待；成熟完成样本与完成率使用相同观察窗口，缺失与小样本保持可见。
+
 ## [2.23.2]
 
 ### Fixed
@@ -3506,3 +3518,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [2.23.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.1...v2.23.2
 [2.23.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.0...v2.23.1
+
+[2.24.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.2...v2.24.0
