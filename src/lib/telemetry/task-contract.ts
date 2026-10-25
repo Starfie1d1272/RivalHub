@@ -28,13 +28,19 @@ export const TASKS = {
 } as const;
 export type TaskName = keyof typeof TASKS;
 export const TASK_NAMES = Object.keys(TASKS) as TaskName[];
+/** Receiver support must precede emitting the current definition from clients. */
+export const TASK_DEFINITION_VERSION = 2 as const;
+export const TASK_DURATION_CAP_MS = 3600_000;
 export interface TaskMeasurement {
   name: TaskName;
-  definitionVersion: 1;
+  definitionVersion: 1 | 2;
   attemptId: string;
   step: TaskStep;
   phase: "exposure" | "start" | "step" | "complete" | "cancel";
   activeMs?: number;
+  /** v2 only: the corresponding measured clock exceeded TASK_DURATION_CAP_MS. */
+  elapsedCensored?: true;
+  activeCensored?: true;
   validationReason?: TaskValidationReason;
 }
 const registered = new Set<string>(OPERATIONS);
