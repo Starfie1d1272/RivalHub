@@ -24,7 +24,7 @@ it("recovers the durable receipt after SIGKILL loses the response, then releases
   };
   const children: ChildProcess[] = [];
   const invoke = async () => {
-    const child = fork("tests/integration/db/harness/mizar-receipt-child.ts", [], {
+    const child = fork(new URL("./harness/mizar-receipt-child.ts", import.meta.url), [], {
       execPath: process.execPath, execArgv: ["--conditions=react-server", "--import", "tsx"],
       env: { ...process.env, NODE_ENV: "test" }, stdio: ["ignore", "pipe", "pipe", "ipc"],
     });
