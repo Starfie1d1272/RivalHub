@@ -51,6 +51,16 @@ BETTER_STACK_INGESTING_HOST=<server-only Better Stack OTLP ingest host>
 
 `/admin/settings` 在现有 `requireSuperAdmin` 成功后，才从 server-only observability facade 读取当前 Node 进程的数值快照：采样时间、Node 版本、uptime、RSS、V8 堆已用/容量/上限、操作系统提供的内存约束、自启动累计事件循环利用率。环境内存约束为零时显示“未提供”，不能当作零容量或剩余可用内存；V8 堆上限也不等于整个进程的 RSS 上限。事件循环利用率不是 CPU 使用率或最近一分钟的指标。
 
+常驻 production Node 服务由既有 instrumentation owner 启动进程共享的 `runtime-health` 采样器：每 60 秒输出一次 `runtime.health.sample`，timer 为 unref，`RIVALHUB_RUNTIME_HEALTH_ENABLED=0` 可在下次启动关闭；测试/HMR 可调用 `stopRuntimeHealthSampling()`，重复 start/stop 不叠加 timer。Vercel、development 与 production build 不自动启动。采样 RSS、heapUsed/heapTotal、external、arrayBuffers、V8 heap limit、Node constrainedMemory，以及窗口 ELU、20ms 分辨率的 event-loop delay P99/max；不是额外启动进程测量自身。arrayBuffers 包含于 external，heap/external/RSS 也不是可相加的独立预算；constrainedMemory 为 Node 已知限制，未知时不输出，不能直接当作 cgroup 峰值。事件只有固定数值诊断，沿用既有 logger/exporter，脱离请求 trace，不保存请求、URL、正文或环境变量值。SIGKILL/重启会丢失未采样峰值，60 秒采样不能证明不存在短时峰值或泄漏。
+
+共享 sampler 支持 `registerRuntimeHealthFlush(name: "live_ingest", callback: () => void): () => void`：仅接受这个固定 key，同 key 替换旧回调，返回幂等 unregister，旧 unregister 不会删掉新注册。回调必须同步；60 秒 tick 在 ROOT_CONTEXT 内各自隔离异常，读取回调副本以避免注册变更形成无界迭代。注册不创建 timer；停止采样即停止调度，显式 unregister 用于模块/测试清理，重载最多保留一个该 key 的回调。业务 owner 自行注册，不由 sampler 反向 import 业务模块。
+
+同一采样周期输出 `runtime.pool.sample/acquire/hold/waiting`：只读现有 owner，不初始化 Pool 或执行 SQL；acquire/hold 为当前 pool generation 创建以来的累计计数和非累积桶（≤1/10/100/1000/>1000ms），pool 重建会归零。hold 在 release 时完成计数，inFlight/peak 包括仍持有的 lease；waitingPeak/waitingTotal 为每次 checkout 入队时观察到的等待人数（queued 含本次自己）的峰值/总和，不是时间加权等待人数，也不是等待时长。waiting 事件的固定人数桶为 0、1、2–4、5–10、>10；count 为 checkout 开始数，包含仍在等待的请求。当前 waiting 来自 pg 的瞬时队列。retiringTotal 单列旧池排空量，不把新旧 generation 累计值相加。原慢 acquire 日志与未知提交不重放、池配置均保留。
+
+共享资源观测由 server-only `src/lib/observability/runtime-resources.ts` 的 `beginRuntimeResource(name): () => void` 拥有；调用者在 finally 调用幂等 completion。固定 name 为 `telemetry.dashboard.fill`、`stats.public.fill`、`profile.public.read`、`mizar.live`、`mizar.reliable`，不接受动态 route/user/cache key。`getRuntimeResourceSnapshot()` 返回副本，只有进程生命周期的 inFlight、peak、完成 count、totalMs/maxMs；周期输出 `runtime.resource.sample`，operation 为该固定 name。本接口不改变准入/并发或业务语义，只有接入的 owner 才有覆盖，未接入不能解释为零负载。缓存 owner 的 resident 字节与填充 in-flight 峰值分别测量，不相加或据计数推算字节。
+
+隔离资源复现可使用 `scripts/observability/resource-baseline.mjs`：输入 canonical local wrapper 生成的本地 env 文件、已存在且兼容锁定 Node 的 Docker image ID 和证据目录；只接受 loopback DB/Supabase。构建前为本地 fixture 设置合法的专用 releaseTag（如 `v0.0.0-local-resource`）与当前 checkout exact SHA 的 releaseCommit，并将同一身份放入本地 env 文件；不创建 Git tag。readiness 只接受 release endpoint 的 2xx 与相同身份，身份缺失、旧构建或 HTTP 错误均失败；每个 fixture 请求只接受 200，错误样本先保留再使该轮/脚本失败。它启动实际 production Next build，在 512MiB、1 CPU、128 tasks、无 swap 下按交替顺序进行 sampler 开/关各三轮 process-cold、warm、12 并发匿名读取及 65 秒空闲恢复；原始结果标明 artifact cache 保留、cgroup observer 自身微小开销及 HTTP 状态。该 fixture 不替代带身份的 BET/profile、两路 LIVE、后台长查询组合或浏览器验收；需要各 domain fixture 接入后再做整轮资源集成。不要以测试中未 OOM 宣称已修复生产 OOM。
+
 数据库连接池数值由 `src/db/client-runtime.ts` 的 `getDatabasePoolSnapshot()` 拥有，经 `src/db/client.ts` 的 server-only facade 返回；读取 total/idle/waiting/max 不初始化 Pool、不连接数据库、不执行探测 SQL，也不返回连接地址或凭据。等待数只是当前连接请求队列长度，单次为零不能证明高峰期间没有等待。
 
 此页面只在打开/刷新时读取当前实例，不代表整台主机、多实例汇总或历史告警；无新增轮询、常驻采样 timer、持久化记录、公开 health endpoint 或外部发送。进程 API 读取失败显示不可用，保留其它系统状态。访问和数据目的沿用超级管理员运行诊断边界。

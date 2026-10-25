@@ -1,0 +1,356 @@
+[
+  {
+    "run": "1-1",
+    "event": {
+      "timestamp": "2026-10-25T17:20:08.784Z",
+      "level": "info",
+      "event": "runtime.health.sample",
+      "scope": "runtime",
+      "operation": "health.sample",
+      "environment": "production",
+      "safeContext": {
+        "sampledAt": 1792948808783,
+        "uptimeSeconds": 60.802041446,
+        "rssBytes": 190119936,
+        "heapUsedBytes": 72500624,
+        "heapTotalBytes": 77185024,
+        "externalBytes": 4825902,
+        "arrayBuffersBytes": 693050,
+        "heapLimitBytes": 271581184,
+        "constrainedMemoryBytes": 536870912,
+        "eventLoopUtilization": 0.0408582951251735,
+        "eventLoopDelayP99Ms": 26.902527,
+        "eventLoopDelayMaxMs": 201.457663
+      }
+    }
+  },
+  {
+    "run": "1-1",
+    "event": {
+      "timestamp": "2026-10-25T17:20:08.785Z",
+      "level": "info",
+      "event": "runtime.pool.sample",
+      "scope": "runtime",
+      "operation": "pool.sample",
+      "environment": "production",
+      "safeContext": {
+        "generation": 1,
+        "retiringTotal": 0,
+        "poolTotal": 2,
+        "poolIdle": 2,
+        "poolWaiting": 0,
+        "poolMax": 10
+      }
+    }
+  },
+  {
+    "run": "1-1",
+    "event": {
+      "timestamp": "2026-10-25T17:20:08.785Z",
+      "level": "info",
+      "event": "runtime.pool.acquire",
+      "scope": "runtime",
+      "operation": "pool.sample",
+      "environment": "production",
+      "safeContext": {
+        "generation": 1,
+        "failures": 0,
+        "totalMs": 835.6127940000001,
+        "maxMs": 210.71393499999976,
+        "reuse": 32,
+        "connect": 4,
+        "queued": 0,
+        "waitingPeak": 1,
+        "waitingTotal": 11,
+        "bucketLe1": 26,
+        "bucketLe10": 6,
+        "bucketLe100": 0,
+        "bucketLe1000": 4,
+        "bucketGt1000": 0,
+        "count": 36
+      }
+    }
+  },
+  {
+    "run": "1-1",
+    "event": {
+      "timestamp": "2026-10-25T17:20:08.786Z",
+      "level": "info",
+      "event": "runtime.pool.waiting",
+      "scope": "runtime",
+      "operation": "pool.sample",
+      "environment": "production",
+      "safeContext": {
+        "generation": 1,
+        "waitingPeak": 1,
+        "waitingTotal": 11,
+        "bucketLe0": 25,
+        "bucketLe4": 0,
+        "bucketGt10": 0,
+        "bucketLe1": 11,
+        "bucketLe10": 0,
+        "count": 36
+      }
+    }
+  },
+  {
+    "run": "1-1",
+    "event": {
+      "timestamp": "2026-10-25T17:20:08.786Z",
+      "level": "info",
+      "event": "runtime.pool.hold",
+      "scope": "runtime",
+      "operation": "pool.sample",
+      "environment": "production",
+      "safeContext": {
+        "generation": 1,
+        "totalMs": 515.1959449999981,
+        "maxMs": 95.37514800000008,
+        "bucketLe1": 1,
+        "bucketLe10": 22,
+        "bucketLe100": 13,
+        "bucketLe1000": 0,
+        "bucketGt1000": 0,
+        "inFlight": 0,
+        "peak": 4,
+        "count": 36
+      }
+    }
+  },
+  {
+    "run": "2-1",
+    "event": {
+      "timestamp": "2026-10-25T17:21:19.059Z",
+      "level": "info",
+      "event": "runtime.health.sample",
+      "scope": "runtime",
+      "operation": "health.sample",
+      "environment": "production",
+      "safeContext": {
+        "sampledAt": 1792948879058,
+        "uptimeSeconds": 60.40366237,
+        "rssBytes": 192241664,
+        "heapUsedBytes": 72855080,
+        "heapTotalBytes": 78233600,
+        "externalBytes": 4929195,
+        "arrayBuffersBytes": 796343,
+        "heapLimitBytes": 271581184,
+        "constrainedMemoryBytes": 536870912,
+        "eventLoopUtilization": 0.030373531422305762,
+        "eventLoopDelayP99Ms": 20.905983,
+        "eventLoopDelayMaxMs": 128.647167
+      }
+    }
+  },
+  {
+    "run": "2-1",
+    "event": {
+      "timestamp": "2026-10-25T17:21:19.059Z",
+      "level": "info",
+      "event": "runtime.pool.sample",
+      "scope": "runtime",
+      "operation": "pool.sample",
+      "environment": "production",
+      "safeContext": {
+        "generation": 1,
+        "retiringTotal": 0,
+        "poolTotal": 2,
+        "poolIdle": 2,
+        "poolWaiting": 0,
+        "poolMax": 10
+      }
+    }
+  },
+  {
+    "run": "2-1",
+    "event": {
+      "timestamp": "2026-10-25T17:21:19.060Z",
+      "level": "info",
+      "event": "runtime.pool.acquire",
+      "scope": "runtime",
+      "operation": "pool.sample",
+      "environment": "production",
+      "safeContext": {
+        "generation": 1,
+        "failures": 0,
+        "totalMs": 753.7067849999996,
+        "maxMs": 263.4162349999999,
+        "reuse": 31,
+        "connect": 4,
+        "queued": 0,
+        "waitingPeak": 1,
+        "waitingTotal": 10,
+        "bucketLe1": 26,
+        "bucketLe10": 4,
+        "bucketLe100": 0,
+        "bucketLe1000": 5,
+        "bucketGt1000": 0,
+        "count": 35
+      }
+    }
+  },
+  {
+    "run": "2-1",
+    "event": {
+      "timestamp": "2026-10-25T17:21:19.060Z",
+      "level": "info",
+      "event": "runtime.pool.waiting",
+      "scope": "runtime",
+      "operation": "pool.sample",
+      "environment": "production",
+      "safeContext": {
+        "generation": 1,
+        "waitingPeak": 1,
+        "waitingTotal": 10,
+        "bucketLe0": 25,
+        "bucketLe4": 0,
+        "bucketGt10": 0,
+        "bucketLe1": 10,
+        "bucketLe10": 0,
+        "count": 35
+      }
+    }
+  },
+  {
+    "run": "2-1",
+    "event": {
+      "timestamp": "2026-10-25T17:21:19.060Z",
+      "level": "info",
+      "event": "runtime.pool.hold",
+      "scope": "runtime",
+      "operation": "pool.sample",
+      "environment": "production",
+      "safeContext": {
+        "generation": 1,
+        "totalMs": 532.7572529999991,
+        "maxMs": 104.51181099999985,
+        "bucketLe1": 1,
+        "bucketLe10": 27,
+        "bucketLe100": 6,
+        "bucketLe1000": 1,
+        "bucketGt1000": 0,
+        "inFlight": 0,
+        "peak": 4,
+        "count": 35
+      }
+    }
+  },
+  {
+    "run": "3-1",
+    "event": {
+      "timestamp": "2026-10-25T17:24:47.507Z",
+      "level": "info",
+      "event": "runtime.health.sample",
+      "scope": "runtime",
+      "operation": "health.sample",
+      "environment": "production",
+      "safeContext": {
+        "sampledAt": 1792949087506,
+        "uptimeSeconds": 60.430158428,
+        "rssBytes": 190242816,
+        "heapUsedBytes": 72855896,
+        "heapTotalBytes": 77447168,
+        "externalBytes": 4994739,
+        "arrayBuffersBytes": 861887,
+        "heapLimitBytes": 271581184,
+        "constrainedMemoryBytes": 536870912,
+        "eventLoopUtilization": 0.033765719485482015,
+        "eventLoopDelayP99Ms": 21.331967,
+        "eventLoopDelayMaxMs": 139.329535
+      }
+    }
+  },
+  {
+    "run": "3-1",
+    "event": {
+      "timestamp": "2026-10-25T17:24:47.508Z",
+      "level": "info",
+      "event": "runtime.pool.sample",
+      "scope": "runtime",
+      "operation": "pool.sample",
+      "environment": "production",
+      "safeContext": {
+        "generation": 1,
+        "retiringTotal": 0,
+        "poolTotal": 2,
+        "poolIdle": 2,
+        "poolWaiting": 0,
+        "poolMax": 10
+      }
+    }
+  },
+  {
+    "run": "3-1",
+    "event": {
+      "timestamp": "2026-10-25T17:24:47.508Z",
+      "level": "info",
+      "event": "runtime.pool.acquire",
+      "scope": "runtime",
+      "operation": "pool.sample",
+      "environment": "production",
+      "safeContext": {
+        "generation": 1,
+        "failures": 0,
+        "totalMs": 1608.5978919999993,
+        "maxMs": 300.58506099999977,
+        "reuse": 29,
+        "connect": 6,
+        "queued": 0,
+        "waitingPeak": 1,
+        "waitingTotal": 9,
+        "bucketLe1": 26,
+        "bucketLe10": 2,
+        "bucketLe100": 0,
+        "bucketLe1000": 7,
+        "bucketGt1000": 0,
+        "count": 35
+      }
+    }
+  },
+  {
+    "run": "3-1",
+    "event": {
+      "timestamp": "2026-10-25T17:24:47.508Z",
+      "level": "info",
+      "event": "runtime.pool.waiting",
+      "scope": "runtime",
+      "operation": "pool.sample",
+      "environment": "production",
+      "safeContext": {
+        "generation": 1,
+        "waitingPeak": 1,
+        "waitingTotal": 9,
+        "bucketLe0": 26,
+        "bucketLe4": 0,
+        "bucketGt10": 0,
+        "bucketLe1": 9,
+        "bucketLe10": 0,
+        "count": 35
+      }
+    }
+  },
+  {
+    "run": "3-1",
+    "event": {
+      "timestamp": "2026-10-25T17:24:47.509Z",
+      "level": "info",
+      "event": "runtime.pool.hold",
+      "scope": "runtime",
+      "operation": "pool.sample",
+      "environment": "production",
+      "safeContext": {
+        "generation": 1,
+        "totalMs": 260.39810599999987,
+        "maxMs": 40.66739799999982,
+        "bucketLe1": 2,
+        "bucketLe10": 28,
+        "bucketLe100": 5,
+        "bucketLe1000": 0,
+        "bucketGt1000": 0,
+        "inFlight": 0,
+        "peak": 4,
+        "count": 35
+      }
+    }
+  }
+]
