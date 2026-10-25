@@ -3,7 +3,7 @@ import type { PoolClient } from "pg";
 
 const OPERATIONS = ["select", "with", "insert", "update", "delete", "begin", "commit", "rollback", "rollback_to", "set", "savepoint", "release"];
 export function createClientMeasurements() {
-  return { queries: 0, failures: 0, rows: 0, queryMs: 0, unsupported: 0, checkouts: 0, holdMs: 0,
+  return { queries: 0, failures: 0, rows: 0, queryMs: 0, unsupported: 0, checkouts: 0, holdMs: 0, holdMaxMs: 0, holdBuckets: [0, 0, 0, 0, 0], inFlight: 0, peak: 0,
     transactions: 0, transactionMs: 0, committed: 0, rolledBack: 0, unfinished: 0 };
 }
 
@@ -13,6 +13,8 @@ export function measureClient(client: PoolClient, totals: ReturnType<typeof crea
   const originalQuery = client.query;
   const originalRelease = client.release;
   const heldAt = performance.now();
+  totals.inFlight++;
+  totals.peak = Math.max(totals.peak, totals.inFlight);
   let transaction: { started: number; span?: Span } | null = null;
   let released = false;
   function start(name: string, operation: string): Span | undefined {
@@ -84,7 +86,11 @@ export function measureClient(client: PoolClient, totals: ReturnType<typeof crea
       else Reflect.deleteProperty(client, "query");
       client.release = originalRelease;
       totals.checkouts++;
-      totals.holdMs += performance.now() - heldAt;
+      const heldMs = performance.now() - heldAt;
+      totals.inFlight--;
+      totals.holdMs += heldMs;
+      totals.holdMaxMs = Math.max(totals.holdMaxMs, heldMs);
+      totals.holdBuckets[heldMs <= 1 ? 0 : heldMs <= 10 ? 1 : heldMs <= 100 ? 2 : heldMs <= 1000 ? 3 : 4]++;
       if (transaction) {
         const held = performance.now() - transaction.started;
         totals.transactions++;
