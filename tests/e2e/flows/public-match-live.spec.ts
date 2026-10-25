@@ -58,11 +58,50 @@ test("public match consumes private Broadcast and recovers across navigation and
   let documentPath = "";
   const viewerRequests = { started: 0, responses: 0, finished: 0, failed: 0 };
   const isViewer = (url: string) => new URL(url).pathname.endsWith("/live-viewer");
+  const presenceProbe = { enabled: process.env.RIVALHUB_PRESENCE_DIAGNOSTICS === "1", patchedChunks: 0,
+    mounts: 0, cleanups: 0, visibilityChanges: 0, intervals: [] as number[], events: [] as Array<{ phase: string; elapsedMs: number; intervalMs?: number }> };
+  if (presenceProbe.enabled) {
+    await page.exposeFunction("__gPresenceObserve", (phase: string, intervalMs?: number) => {
+      if (phase === "mount") presenceProbe.mounts++;
+      else if (phase === "cleanup") presenceProbe.cleanups++;
+      else if (phase === "visibility") presenceProbe.visibilityChanges++;
+      else if (phase === "response" && Number.isFinite(intervalMs) && presenceProbe.intervals.length < 256) presenceProbe.intervals.push(intervalMs!);
+      if (presenceProbe.events.length < 256) presenceProbe.events.push({ phase, elapsedMs: Math.round(performance.now() - startedAt), ...(Number.isFinite(intervalMs) ? { intervalMs } : {}) });
+    });
+    await page.addInitScript(() => {
+      document.addEventListener("visibilitychange", () => {
+        const observer = (globalThis as typeof globalThis & { __gPresenceObserve?: (phase: string) => void }).__gPresenceObserve;
+        observer?.("visibility");
+      });
+    });
+    // Diagnostic-only logpoints in the served development chunk. Production sources
+    // and control flow stay unchanged; record observer installation explicitly.
+    await page.route("**/_next/static/chunks/*.js", async route => {
+      const response = await route.fetch();
+      const body = await response.text();
+      const start = body.indexOf("function OnlineCounter()");
+      const end = body.indexOf("_s(OnlineCounter", start);
+      if (start < 0 || end < start) { await route.fulfill({ response }); return; }
+      const original = body.slice(start, end);
+      const patched = original.replace("let active = true;", 'let active = true; globalThis.__gPresenceObserve?.("mount");')
+        .replace("intervalMs = data.intervalMs;", 'intervalMs = data.intervalMs; globalThis.__gPresenceObserve?.("response", data.intervalMs);')
+        .replace("active = false;", 'active = false; globalThis.__gPresenceObserve?.("cleanup");');
+      if (patched !== original) presenceProbe.patchedChunks++;
+      await route.fulfill({ response, body: body.slice(0, start) + patched + body.slice(end) });
+    });
+  }
+  const cdpRequests = { events: 0, unique: 0, duplicate: 0, overflow: 0, startedMs: [] as number[] };
+  const cdpRequestIds = new Set<string>();
   const postInitiators = new Map<string, { count: number; frames: Array<{ functionName: string; path: string; line: number }> }>();
   const diagnostics = await page.context().newCDPSession(page);
   await diagnostics.send("Network.enable");
   diagnostics.on("Network.requestWillBeSent", event => {
     if (event.request.method !== "POST" || new URL(event.request.url).pathname !== documentPath) return;
+    cdpRequests.events++;
+    if (cdpRequestIds.has(event.requestId)) { cdpRequests.duplicate++; return; }
+    if (cdpRequestIds.size >= 4096) { cdpRequests.overflow++; return; }
+    cdpRequestIds.add(event.requestId); cdpRequests.unique++;
+    if (cdpRequests.startedMs.length < 256) cdpRequests.startedMs.push(Math.round(performance.now() - startedAt));
     const frames = (event.initiator.stack?.callFrames ?? []).slice(0, 8).map(frame => ({
       functionName: frame.functionName.slice(0, 120), path: (() => { try { return new URL(frame.url).pathname.slice(0, 300); } catch { return "unknown"; } })(), line: frame.lineNumber,
     }));
@@ -196,9 +235,10 @@ test("public match consumes private Broadcast and recovers across navigation and
     failed = true;
     throw error;
   } finally {
+    if (presenceProbe.enabled) await page.unrouteAll({ behavior: "ignoreErrors" });
     const evidence = { sha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
       environment: "local Next HTTP + Local Supabase + Chromium", failed, elapsedMs: Math.round(performance.now() - startedAt),
-      pending: [...pending.values()], omitted, viewerRequests, postInitiators: [...postInitiators.values()], timeline };
+      pending: [...pending.values()], omitted, viewerRequests, presenceProbe, cdpRequests, postInitiators: [...postInitiators.values()], timeline };
     const directory = resolve(".agent-tmp/g-live-http", seasonId);
     mkdirSync(directory, { recursive: true });
     const evidencePath = resolve(directory, "requests.json");
