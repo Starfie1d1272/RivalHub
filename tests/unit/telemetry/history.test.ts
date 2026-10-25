@@ -7,7 +7,8 @@ import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import { expect, it } from "vitest";
 import { handle, maintain, type Env, type Statement } from "../../../workers/telemetry/index";
-import { maintainHistory } from "../../../workers/telemetry/history";
+import { maintainHistory, sample, type Sample } from "../../../workers/telemetry/history";
+import { batchSummary } from "../../../workers/telemetry/storage";
 import { HistoryData, historyDay, historyDayStart, historyDefaults, historyQuantile, emptyHistoryDistribution, parseHistoryQuery, summarizeHistory, HISTORY_DAY as DAY } from "@/lib/telemetry/history-contract";
 import { signTicket } from "@/lib/telemetry/ticket";
 import type { TelemetryEvent } from "@/lib/telemetry/protocol";
@@ -291,18 +292,23 @@ it("keeps rolling edges explicit and bypasses raw 2000-batch/2MiB limits for com
   try {
     await maintainHistory(f.env, day);
     const session = crypto.randomUUID(); const tickets = Array.from({ length: 21 }, () => crypto.randomUUID()); let rawBytes = 0;
-    const input = [];
+    const input = []; const samples: Sample[] = [];
     for (let i = 0; i < 2001; i++) {
       const received = day + 2 * DAY + i * 1000;
       const events = Array.from({ length: 2 }, () => ({ id: crypto.randomUUID(), at: received, session, route: "/stats", scene: "site", kind: "page", filters: { tab: "players", ops: "conflict", position: "all", stage: "playoffs", source: "official", sort: "ratingPro", order: "desc", side: "all", status: "finished", map: "de_mirage", view: "sim", format: "bo3", mapsView: "pool", mapFilter: "de_anubis", q: "selected", search: "selected", team: "selected", event: "selected", player: "selected", weapon: "selected", minMaps: "selected", teamFilter: "selected", recordPage: "selected" }, measurement: { v: 1, navigationId: crypto.randomUUID(), clientRelease: "a".repeat(80), visibility: "visible" } }));
       const encoded = JSON.stringify(events); rawBytes += Buffer.byteLength(encoded);
-      input.push(f.db.prepare("INSERT INTO batches(ticket,id,received,expires,day,account,session,role,release,environment,bytes,events_gzip,summary) VALUES(?,?,?,?,?,NULL,?,?,?,'production',?,X'" + gzipSync(encoded).toString("hex") + "','[]')").bind(tickets[Math.floor(i / 100)], crypto.randomUUID(), received, now + DAY, historyDay(received), session, "user", "fixture", Buffer.byteLength(encoded)));
+      const ticket = tickets[Math.floor(i / 100)], id = crypto.randomUUID(), expires = received + 7 * DAY;
+      const compressed = gzipSync(encoded);
+      input.push(f.db.prepare("INSERT INTO batches(ticket,id,received,expires,day,account,session,role,release,environment,bytes,events_gzip,summary) VALUES(?,?,?,?,?,NULL,?,?,?,'production',?,X'" + compressed.toString("hex") + "',?)").bind(ticket, id, received, expires, historyDay(received), session, "user", "fixture", Buffer.byteLength(encoded), batchSummary(events as TelemetryEvent[])));
+      for (const e of events) samples.push(await sample(e as TelemetryEvent, { ticket, id, received, expires, account: null, role: "user", release: "fixture", bytes: Buffer.byteLength(encoded), events_gzip: compressed }));
     }
     for (let i = 0; i < input.length; i += 100) await f.db.batch(input.slice(i, i + 100));
     expect(rawBytes).toBeGreaterThan(2 * 1024 * 1024);
+    for (let i = 0; i < samples.length; i += 256) await f.db.prepare(`INSERT INTO history_samples(sample_key,day,kind,dimensions,latest_at,received,expires,closes,has_start,phase,value,bucket,active,active_bucket,client_covered,enhanced_covered)
+      SELECT json_extract(value,'$.key'),json_extract(value,'$.day'),json_extract(value,'$.kind'),json_extract(value,'$.dimensions'),json_extract(value,'$.at'),json_extract(value,'$.received'),json_extract(value,'$.expires'),json_extract(value,'$.closes'),json_extract(value,'$.start'),json_extract(value,'$.phase'),json_extract(value,'$.value'),json_extract(value,'$.bucket'),json_extract(value,'$.active'),json_extract(value,'$.activeBucket'),json_extract(value,'$.client'),json_extract(value,'$.enhanced') FROM json_each(?)`).bind(JSON.stringify(samples.slice(i, i + 256))).run();
     for (let i = 1; i <= 6; i++) {
       const rows = i === 2 ? [{ kind: "page", name: "", task: "", route: "/stats", scene: "site", role: "user", device: "missing", release: "a".repeat(80), eventId: "", phase: "", measurementVersion: 1, definitionVersion: 0, navigationType: "missing", n: 4002, starts: 0, clientCovered: 0, enhancedCovered: 4002, duration: emptyHistoryDistribution(), active: emptyHistoryDistribution() }] : [];
-      await f.db.prepare("INSERT INTO history_days(day,payload,complete,sealed,captured_at,expires) VALUES(?,?,1,1,?,?)").bind(historyDay(day + i * DAY), JSON.stringify(rows), now, now + 90 * DAY).run();
+      await f.db.prepare("INSERT INTO history_days(day,payload,complete,sealed,captured_at,expires) VALUES(?,?,1,?,?,?)").bind(historyDay(day + i * DAY), JSON.stringify(rows), now >= day + (i + 6) * DAY ? 1 : 0, now, now + 90 * DAY).run();
     }
     await f.db.prepare("UPDATE history_state SET cursor_received=?,last_run=? WHERE id=1").bind(day + 7 * DAY - 1, now).run();
     await f.post([{ kind: "page" }], day + 14 * 3600000);
