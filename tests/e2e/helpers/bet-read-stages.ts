@@ -71,8 +71,12 @@ export async function verifyBetReadStages(
       const reader=viewer==="anonymous"?request:page.request;
       for(const view of views ?? (production?["open","mine","event"]:["open","mine","settled","event","leaderboard","records"])){
         let baseline:unknown;
+        let baselineFree:unknown;
         for(const state of ["cold","warm","invalidated"]){
-          if(state!=="warm"){await operate("暂停投入");await operate("恢复投入");}
+          if(state!=="warm"){
+            if(production){await operate("暂停投入");await operate("恢复投入");}
+            else await operate(state==="cold"?"暂停投入":"恢复投入");
+          }
           phase=`${viewer}.${view}.${state}.api`;
           const start=performance.now();
           const response=await reader.get(`/api/bet/${fixture.seasonId}?view=${view}`,{timeout:15000});
@@ -85,7 +89,11 @@ export async function verifyBetReadStages(
           expect(value.bet.balance).toBe(viewer==="joined"?"1000":"0");
           expect(value.bet.markets.every((m:{mine:unknown;canStake:boolean})=>m.mine===null && (viewer==="joined" || !m.canStake))).toBe(true);
           expect(value.free.matches.every((m:{result:{mine:unknown};bp:{mine:unknown}})=>m.result.mine===null && m.bp.mine===null)).toBe(true);
-          if(state==="cold")baseline=value;else expect(value).toEqual(baseline);
+          expect(value.bet.paused).toBe(!production && state!=="invalidated");
+          if(value.bet.paused)expect(value.bet.markets.every((m:{canStake:boolean})=>!m.canStake)).toBe(true);
+          if(state==="cold"){baseline=value;baselineFree=value.free;}
+          else if(state==="warm"||production)expect(value).toEqual(baseline);
+          else expect(value.free).toEqual(baselineFree); // BET pause never gates free predictions.
           phase=`${viewer}.${view}.${state}.rsc`;
           const rscStart=performance.now();
           const rsc=await reader.get(`/${fixture.slug}/bet?view=${view}`,{headers:{RSC:"1"},timeout:15000});
@@ -97,6 +105,7 @@ export async function verifyBetReadStages(
       }
     }
     // Actual Pick'Em views remain independent of BET financial data.
+    if(!views || views.includes("open")){
     for(const reader of [request,page.request])for(const view of ["sim","record","tasks","ranking"]){
       phase=`predictions.${view}`;
       const response=await reader.get(`/api/predictions/${fixture.seasonId}?view=${view}`,{timeout:15000});
@@ -105,6 +114,7 @@ export async function verifyBetReadStages(
       for(const key of ["balance","debt","markets","ledger"])expect(body).not.toContain(`"${key}":`);
     }
     expect((await request.get(`/api/predictions/${fixture.seasonId}?view=points`)).status()).toBe(400);
+    }
     await info.attach("bet-stage-browser-results",{body:JSON.stringify(report,null,2),contentType:"application/json"});
     console.info("BET_STAGE_BROWSER",JSON.stringify(report));
   }catch(error){
