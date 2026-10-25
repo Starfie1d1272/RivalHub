@@ -1,0 +1,99 @@
+{
+  "sha": "9da96b352a284bed510a2ffa4cfcf281abdcba57",
+  "baseline": false,
+  "node": "v24.22.0",
+  "platform": "linux",
+  "arch": "x64",
+  "cpus": 5,
+  "hostMemoryBytes": 18882674688,
+  "poolMax": 3,
+  "sourceSha256": {
+    "src/lib/mizar/live.ts": "101770a002bc9299bb44371cce85caab60b51e5f79bc66a538fb7fd8e097a7c1",
+    "src/lib/mizar/installation.ts": "47455acf798ee4b1d7bed0ccd1e668b5029f0f2ff54185029796a4eebc2bb243",
+    "src/lib/mizar/http.ts": "d2048eeb7cb0d5c6cda528875fe84f59c69ef3e4b02a66d7b212a79d43b5648d",
+    "src/lib/mizar/live-admission.ts": "10aa506744ac2ad7741cf9ba85a01d0b531d9c1cb23eb6f9bd9f9c1cf16b0c48",
+    "src/lib/mizar/live-broadcast.ts": "f528d61b16767070a83911abb71cbe9732c751b993862bff00c1d4f433034ad6",
+    "src/lib/auth/supabase-server.ts": "a3e6f153ce2fd58fff0e0354e9c3a6ef30af7f3d9a1315ac1c2c5e538919b0bf",
+    "src/app/api/mizar/[operation]/route.ts": "06f62ad9ad0b3f41b3728cbecf50b72f954c5525a4fe41462442aea831865258",
+    "tests/integration/db/mizar-live-correctness.test.ts": "73b6d06f6d8889bea4154bff626cf965194c4e33767d97e6715aeb6504baa470",
+    "tests/integration/db/harness/live-capacity.ts": "ccc18dd88523b27183e7fe7136971af1517aa69ff4e886714d0d3d7fd01114b6",
+    "tests/integration/db/harness/mizar.ts": "eb821bcdc8c31c863accb45d43a2fb8d4c41bd5497d172b5a90545cdbdb4ab08"
+  },
+  "reports": [
+    {
+      "scenario": "two-live-public-read-reliable-completion",
+      "livePermits": 2,
+      "poolMax": 3,
+      "nonLiveMs": 41.835387999999966,
+      "receipt": {
+        "outcome": "canonicalized",
+        "duplicate": false
+      },
+      "publicRead": true
+    },
+    {
+      "scenario": "hosted-sql-rtt",
+      "sqlRttMs": 95,
+      "observedLineup": false,
+      "sqlRoundTrips": 4,
+      "accepted": true
+    },
+    {
+      "scenario": "hosted-sql-rtt",
+      "sqlRttMs": 95,
+      "observedLineup": true,
+      "sqlRoundTrips": 4,
+      "accepted": true
+    },
+    {
+      "scenario": "bounded-credential-lock",
+      "contended": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "recovered": 4
+    },
+    {
+      "scenario": "staggered",
+      "matches": 4,
+      "inputs": 16,
+      "accepted": 16,
+      "perMatch": [
+        {
+          "matchId": "095a9f3c-2ae5-42d5-85ea-4b44998eecbb",
+          "accepted": 4
+        },
+        {
+          "matchId": "d12a2d98-9738-46a1-969f-d6f9f00519cf",
+          "accepted": 4
+        },
+        {
+          "matchId": "86a546f5-6332-4620-9651-f5b5ef90fa68",
+          "accepted": 4
+        },
+        {
+          "matchId": "00a581d2-e64c-4e53-8e7c-ba77f3701c0c",
+          "accepted": 4
+        }
+      ],
+      "heartbeatRecovery": true
+    },
+    {
+      "change": "revoke",
+      "mutationMs": 22.464061999999103,
+      "observedLockWaiters": 1
+    },
+    {
+      "change": "handover",
+      "mutationMs": 32.608494000000064,
+      "observedLockWaiters": 1
+    },
+    {
+      "change": "manual",
+      "mutationMs": 24.92902999999933,
+      "observedLockWaiters": 1
+    }
+  ]
+}

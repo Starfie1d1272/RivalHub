@@ -11,6 +11,7 @@ import { revalidateMatchPaths } from "@/lib/revalidation";
 import { db } from "@/db/client";
 import { eq } from "drizzle-orm";
 import { seasons } from "@/db/schema";
+import { recordLiveIngestStage } from "@/lib/observability/server";
 
 type Context = { params: Promise<{ operation: string }> };
 export async function GET(request: Request, context: Context) {
@@ -42,8 +43,12 @@ export async function POST(request: Request, context: Context) {
       const { operation } = await context.params;
       diagnostics.operation = ["live", "disconnect", "claim", "release", "reliable"].includes(operation) ? operation : "unknown";
       if (operation === "live") {
+        recordLiveIngestStage("received");
         releaseIngress = await admitLiveIngress();
-        if (!releaseIngress) return Response.json({ accepted: false, reason: "capacity" }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "1" } });
+        if (!releaseIngress) {
+          recordLiveIngestStage("capacity", performance.now() - receivedAt);
+          return Response.json({ accepted: false, reason: "capacity" }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "1" } });
+        }
         const credentialHash = readMizarCredentialHash(request.headers.get("authorization"));
         diagnostics.phase = "read";
         const input = await readBoundedMizarJson(request, 262_144, 2000);
@@ -54,9 +59,13 @@ export async function POST(request: Request, context: Context) {
         releaseLive = tryAdmitLiveRequest(`${credentialHash}:${matchId}`);
         releaseIngress();
         releaseIngress = null;
-        if (!releaseLive) return Response.json({ accepted: false, reason: "capacity" }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "1" } });
+        if (!releaseLive) {
+          recordLiveIngestStage("capacity", performance.now() - receivedAt);
+          return Response.json({ accepted: false, reason: "capacity" }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "1" } });
+        }
         diagnostics.phase = "validate";
         const revision = z.coerce.number().int().positive().parse(request.headers.get("x-rivalhub-authority"));
+        recordLiveIngestStage("admitted", performance.now() - receivedAt);
         diagnostics.phase = "domain";
         return Response.json(await ingestMizarLive(credentialHash, input, revision, receivedAt));
       }

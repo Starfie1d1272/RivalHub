@@ -5,7 +5,8 @@ import { db } from "@/db/client";
 import { matches, matchMaps, matchLiveSessions, mizarInstallations, seasons, competitionQualificationRuns } from "@/db/schema";
 import { createServiceClient } from "@/lib/auth/supabase-server";
 import { effectiveMatchRosterQuery } from "@/lib/match-rosters/effective";
-import { logEvent, recordLiveIngestOutcome, type LiveIngestOutcome } from "@/lib/observability/server";
+import { logEvent, recordLiveIngestOutcome, recordLiveIngestStage, type LiveIngestOutcome } from "@/lib/observability/server";
+import { beginRuntimeResource } from "@/lib/observability/runtime-resources";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { parseLiveSnapshotV1 } from "./protocol";
 import { projectPublicLive } from "./live-projection";
@@ -22,6 +23,7 @@ export const matchLiveTopic = (matchId: string) => `match-live:${matchId}`;
 export async function ingestMizarLive(credentialHash: string, input: unknown, authorityRevision: number, receivedAt = performance.now()) {
   const snapshot = parseLiveSnapshotV1(input);
   if (snapshot.cursor.liveSessionId === null) throw new AppError(ErrorCode.FORBIDDEN, "制播数据不属于当前连接。");
+  const finishResource = beginRuntimeResource("mizar.live");
   let cleanup: (() => Promise<unknown>) | undefined;
   let outcome: LiveIngestOutcome = "error";
   try {
@@ -84,6 +86,7 @@ export async function ingestMizarLive(credentialHash: string, input: unknown, au
       }
       if (observedLineup && !mapMatches) throw new AppError(ErrorCode.FORBIDDEN, "实时地图不匹配。");
       if (![match.entryAId, match.entryBId].includes(snapshot.teams.ct.entryId ?? "") || ![match.entryAId, match.entryBId].includes(snapshot.teams.t.entryId ?? "") || snapshot.teams.ct.entryId === snapshot.teams.t.entryId) throw new AppError(ErrorCode.VALIDATION_FAILED, "实时队伍不匹配。");
+      recordLiveIngestStage("authorized", performance.now() - receivedAt);
       if (performance.now() - receivedAt > LIVE_FRAME_BUDGET_MS) return { accepted: false, reason: "frame_expired" };
       const identities = observedLineup
         ? new Map(Object.entries(identityRows))
@@ -102,25 +105,34 @@ export async function ingestMizarLive(credentialHash: string, input: unknown, au
         stage = "send";
         const result = await channel.httpSend("snapshot", payload, { timeout: 2000 });
         if (!result.success) throw new Error("broadcast_unavailable");
+        recordLiveIngestStage("send_success", performance.now() - receivedAt);
         return { accepted: true };
       } catch (error) {
+        if (stage === "send" && ["timeout", "transport", "unknown"].includes(broadcast.evidence().reason)) {
+          // Abort/transport failure does not prove that the provider did not accept it.
+          recordLiveIngestStage("unknown_send", performance.now() - receivedAt);
+        }
         logEvent({ level: "warn", event: "mizar.live.broadcast_unavailable", scope: "match", operation: "broadcast", errorClass: "dependency", exception: broadcast.exception() ?? liveBroadcastException(error), retryable: false, durationMs: performance.now() - startedAt, safeContext: { provider: "supabase", stage, ...broadcast.evidence() } });
         return { accepted: false, reason: "broadcast_unavailable" };
       }
     });
     outcome = result.accepted ? "accepted" : result.reason as LiveIngestOutcome;
+    if (outcome === "frame_expired") recordLiveIngestStage("expired", performance.now() - receivedAt);
+    if (outcome === "contended") recordLiveIngestStage("contended", performance.now() - receivedAt);
     return result;
   } catch (error) {
     // Lock/statement budgets drop this frame. No DB/HTTP replay, including
     // ambiguous connection failures (the shared DB retry owner is unchanged).
     const cause = error instanceof Error && error.cause ? error.cause : error;
     const code = cause && typeof cause === "object" && "code" in cause ? cause.code : undefined;
-    if (code === "55P03" || code === "57014") { outcome = "contended"; return { accepted: false, reason: "contended" }; }
+    if (code === "55P03" || code === "57014") { outcome = "contended"; recordLiveIngestStage("contended", performance.now() - receivedAt); return { accepted: false, reason: "contended" }; }
     if (error instanceof AppError) outcome = "rejected";
     throw error;
   } finally {
     // Channel never subscribes. Disposal cannot hold DB/authority locks; send did.
-    try { await cleanup?.(); } finally { recordLiveIngestOutcome(outcome, performance.now() - receivedAt); }
+    try { await cleanup?.(); } finally {
+      try { recordLiveIngestOutcome(outcome, performance.now() - receivedAt); } finally { finishResource(); }
+    }
   }
 }
 
