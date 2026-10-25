@@ -12,8 +12,10 @@ export async function verifyBetReadStages(
   {page,context,scenario,request}:{page:Page;context:BrowserContext;scenario:E2EFixtureCredentials;request:APIRequestContext},
   info:TestInfo, production=false, views?:readonly string[],
 ){
+  const started=performance.now();
   const user=scenario.accounts[0]!;
   const fixture=await createPredictionBrowserFixture(user.userId);
+  const fixtureMs=performance.now()-started;
   const pool=new Pool({connectionString:assertLocalDatabaseUrl(process.env.DATABASE_URL),ssl:false});
   const db=drizzle(pool,{schema});
   const admin=await context.newPage();
@@ -57,9 +59,13 @@ export async function verifyBetReadStages(
     }
     await operate("启用 BET");
     await expect(admin.getByRole("button",{name:"暂停投入",exact:true})).toBeEnabled();
-    // Compile/initialize these routes before recording transport timings.
-    await request.get(`/api/bet/${fixture.seasonId}`);
-    await request.get(`/${fixture.slug}/bet`);
+    // Only the standalone production benchmark needs transport prewarming.
+    // The dev correctness cases already share one compiled route across views.
+    if(production){
+      await request.get(`/api/bet/${fixture.seasonId}`);
+      await request.get(`/${fixture.slug}/bet`);
+    }
+    const preparationMs=performance.now()-started;
     const report=[];
     for(const viewer of production?["anonymous","joined"]:["anonymous","unjoined","joined"]){
       if(viewer==="joined"){
@@ -105,7 +111,7 @@ export async function verifyBetReadStages(
       }
     }
     // Actual Pick'Em views remain independent of BET financial data.
-    if(!views || views.includes("open")){
+    if(production){
     for(const reader of [request,page.request])for(const view of ["sim","record","tasks","ranking"]){
       phase=`predictions.${view}`;
       const response=await reader.get(`/api/predictions/${fixture.seasonId}?view=${view}`,{timeout:15000});
@@ -115,6 +121,9 @@ export async function verifyBetReadStages(
     }
     expect((await request.get(`/api/predictions/${fixture.seasonId}?view=points`)).status()).toBe(400);
     }
+    const timing={views:views??(production?["open","mine","event"]:[]),fixtureMs,preparationMs,bodyMs:performance.now()-started};
+    console.info("BET_FIXTURE_TIMING",JSON.stringify(timing));
+    await info.attach("bet-stage-fixture-timing",{body:JSON.stringify(timing),contentType:"application/json"});
     await info.attach("bet-stage-browser-results",{body:JSON.stringify(report,null,2),contentType:"application/json"});
     console.info("BET_STAGE_BROWSER",JSON.stringify(report));
   }catch(error){
