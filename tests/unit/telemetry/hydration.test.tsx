@@ -6,6 +6,9 @@ import TelemetryDashboard from "@/components/telemetry/TelemetryDashboard";
 import { analyzeTelemetry } from "@/lib/telemetry/analysis-model";
 import { analysisDefaults } from "@/lib/telemetry/analysis-query";
 
+const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
+
 vi.mock("@/components/telemetry/ContentReady", () => ({ ContentReady: () => null }));
 vi.mock("@/app/admin/telemetry/actions", () => ({ getTelemetryAnalysisAction: vi.fn() }));
 

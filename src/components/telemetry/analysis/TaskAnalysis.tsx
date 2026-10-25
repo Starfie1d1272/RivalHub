@@ -7,21 +7,24 @@ import { Panel } from "@/components/rivalhub/Panel";
 import { Button } from "@/components/ui/button";
 import { Empty, Heading, Pick, Series, SmallSample, Stat, duration, number } from "./Elements";
 
-type Props = { data: Analysis; update: (key: keyof AnalysisFilters, value: string) => void };
-export function TaskAnalysis({ data, update }: Props) {
+import { sampledValue, taskGroupKey, taskDefinitionLabel } from "./group-presentation";
+
+type Props = { definitionVersion?: number | null; selectTask?: (name: string, version: number) => void; data: Analysis; update: (key: keyof AnalysisFilters, value: string) => void };
+export function TaskAnalysis({ data, update, definitionVersion = null, selectTask }: Props) {
   const [clock, setClock] = useState("elapsed");
-  const task = data.product.tasks.find(t => t.key === data.filters.task);
+  const candidates = data.product.tasks.filter(t => t.key === data.filters.task);
+  const task = definitionVersion === null ? candidates.length === 1 ? candidates[0] : undefined : candidates.find(t => t.definitionVersion === definitionVersion);
   const operation = data.product.operationTrends.find(o => o.operation === data.filters.operation) ?? data.product.operationTrends[0];
   return <div className="space-y-4">
     <Panel contentClassName="p-0"><Heading title="用户任务" note="先查看单项任务，再定位具体操作。浏览与提交分别统计。" />
       <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th className="p-4">任务</th><th>访问</th><th>操作调用</th><th>成功 / 拒绝</th><th>任务尝试</th><th>已完成 / 成熟尝试</th><th className="pr-4">典型完成用时</th></tr></thead><tbody>
-        {data.product.tasks.map(t => <tr key={t.key} className={`border-t border-border ${t.key === data.filters.task ? "bg-secondary" : ""}`}><td className="p-4"><button className="text-left hover:text-primary focus-visible:outline" onClick={() => update("task", t.key)}>{t.label} ↗</button></td>
+        {data.product.tasks.map(t => <tr key={taskGroupKey(t.key, t.definitionVersion)} className={`border-t border-border ${t === task ? "bg-secondary" : ""}`}><td className="p-4"><button className="text-left hover:text-primary focus-visible:outline" onClick={() => selectTask ? selectTask(t.key, t.definitionVersion) : update("task", t.key)}>{t.label} · {taskDefinitionLabel(t.definitionVersion)} ↗</button></td>
           <td className="tabular-nums">{number(t.views)}</td><td className="tabular-nums">{number(t.start)}</td><td className="tabular-nums">{number(t.success)} / {number(t.rejected)}</td><td className="tabular-nums">{t.attempts ? number(t.attempts) : "—"}</td>
-          <td className="tabular-nums">{t.matured ? `${number(t.maturedCompleted)} / ${number(t.matured)}` : "—"}</td><td className="pr-4 tabular-nums">{duration(t.elapsed.p50)}</td></tr>)}
+          <td className="tabular-nums">{t.matured ? `${number(t.maturedCompleted)} / ${number(t.matured)}` : "—"}</td><td className="pr-4 tabular-nums">{duration(sampledValue(t.elapsed.n, t.elapsed.p50))}</td></tr>)}
       </tbody></table></div>{!data.product.tasks.length && <Empty />}
     </Panel>
     {task ? <>
-      <Panel contentClassName="p-0"><Heading title={task.label} note={<>任务观察窗口 {duration(task.windowMs)} · 定义 v{task.definitionVersion}</>} action={<Button variant="ghost" size="sm" onClick={() => update("task", "")}>全部任务</Button>} />
+      <Panel contentClassName="p-0"><Heading title={task.label} note={<>任务观察窗口 {duration(task.windowMs)} · {taskDefinitionLabel(task.definitionVersion)}</>} action={<Button variant="ghost" size="sm" onClick={() => update("task", "")}>全部任务</Button>} />
         {task.attempts ? <div className="grid grid-cols-2 md:grid-cols-4">
           <Stat label="已开始尝试" value={number(task.attempts)} />
           <Stat label="观察窗口内完成" value={task.completionPct == null ? "—" : `${number(task.completionPct)}%`} note={`${task.maturedCompleted} / ${task.matured} 个成熟尝试`} help="按尝试开始时间归属。观察窗口已结束的尝试进入分母；完成也必须发生在该窗口内。" />
@@ -30,15 +33,16 @@ export function TaskAnalysis({ data, update }: Props) {
         </div> : <Empty>当前范围尚无关联的任务尝试；下方仍可查看各次调用的结果和耗时。</Empty>}
       </Panel>
       <Panel contentClassName="grid grid-cols-2 md:grid-cols-4 p-0"><Stat label="明确可参与曝光" value={task.eligibleExposures} note={`${task.eligibleSessions} 个会话；仅已接入资格判断的入口`} /><Stat label="使用账号" value={task.repeatUsage.accounts} /><Stat label="不同日再次使用" value={task.repeatUsage.repeatedAccounts} note="仅当前七天内窗口，不作为长期留存率" /><Stat label="未关联账号的使用报告" value={task.repeatUsage.unlinkedReports} /></Panel>
+      {(task.elapsedCensored != null || task.activeCensored != null) && <p className="text-sm">不可完整观测的耗时报告：经过时间 {task.elapsedCensored ?? "未提供"}，活跃时间 {task.activeCensored ?? "未提供"}；确认保留，截断耗时不计入分位数。</p>}
       {task.validations.length > 0 && <Panel contentClassName="p-0"><Heading title="填写与校验阻碍" note="固定原因分类；不采集输入内容。" /><div className="divide-y divide-border">{task.validations.map(v => <p key={v.reason} className="p-4 text-sm">{v.label} · {v.reports} 次报告 / {v.attempts} 个尝试</p>)}</div></Panel>}
       {task.attempts > 0 && <>
         <div className="grid gap-4 xl:grid-cols-2">
           <Series title="任务完成趋势" note="成熟尝试的完成率；展开查看每桶分母" label="完成率" format={v => v == null ? "—" : `${number(v)}%`} points={task.trend.map(p => ({ at: p.at, value: p.completionPct, n: p.matured }))} />
           <div className="space-y-2"><div className="flex gap-2">{[["elapsed", "经过时间"], ["active", "活跃操作时间"]].map(([v, l]) => <Button key={v} size="sm" variant={clock === v ? "secondary" : "ghost"} onClick={() => setClock(v)}>{l}</Button>)}</div>
-            <Series title="完成用时趋势" label="P50" secondaryLabel="P90" note="仅成熟尝试中的完成样本；结合完成率观察" format={duration} points={task.trend.map(p => { const s = clock === "active" ? p.active : p.elapsed; return { at: p.at, value: s.p50, secondary: s.n >= 20 ? s.p90 : null, n: s.n }; })} />
+            <Series title="完成用时趋势" label="P50" secondaryLabel="P90" note="仅成熟尝试中的完成样本；结合完成率观察" format={duration} points={task.trend.map(p => { const s = clock === "active" ? p.active : p.elapsed; return { at: p.at, value: sampledValue(s.n, s.p50), secondary: s.n >= 20 ? s.p90 : null, n: s.n }; })} />
           </div>
         </div>
-        <Panel contentClassName="p-0"><Heading title="任务步骤" note="各步骤按尝试去重；可选路径与重试可能跳过或重复步骤。" /><div className="grid gap-px bg-border sm:grid-cols-3 lg:grid-cols-5">{task.steps.map(step => <div key={step.key} className="bg-background p-4"><p className="text-xs text-muted-foreground">{step.label}</p><p className="mt-2 text-xl tabular-nums">{number(step.reached)} <span className="text-xs text-muted-foreground">次尝试</span></p><p className="mt-2 text-xs text-muted-foreground">阶段经过 P50 {duration(step.elapsed.p50)}</p></div>)}</div></Panel>
+        <Panel contentClassName="p-0"><Heading title="任务步骤" note="各步骤按尝试去重；可选路径与重试可能跳过或重复步骤。" /><div className="grid gap-px bg-border sm:grid-cols-3 lg:grid-cols-5">{task.steps.map(step => <div key={step.key} className="bg-background p-4"><p className="text-xs text-muted-foreground">{step.label}</p><p className="mt-2 text-xl tabular-nums">{number(step.reached)} <span className="text-xs text-muted-foreground">次尝试</span></p><p className="mt-2 text-xs text-muted-foreground">阶段经过 P50 {duration(sampledValue(step.elapsed.n, step.elapsed.p50))}</p></div>)}</div></Panel>
       </>}
     </> : <p className="text-sm text-muted-foreground">选择一项任务查看步骤、完成用时与相关操作。</p>}
     <Panel contentClassName="p-0"><Heading title="单次操作响应" note="从调用开始到收到结果；成功与拒绝、结果未知分别计算耗时。" action={<div className="w-64"><Pick label="操作" value={data.filters.operation} options={data.operations.map(o => ({ value: o.key, label: o.label }))} onChange={v => update("operation", v)} /></div>} />

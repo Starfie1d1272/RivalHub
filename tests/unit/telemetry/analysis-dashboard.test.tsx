@@ -1,9 +1,12 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import TelemetryDashboard from "@/components/telemetry/TelemetryDashboard";
 import { analyzeTelemetry, type Analysis } from "@/lib/telemetry/analysis-model";
 import { analysisDefaults } from "@/lib/telemetry/analysis-query";
+
+const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 vi.mock("@/components/telemetry/ContentReady", () => ({ ContentReady: () => null }));
 
@@ -79,4 +82,23 @@ it("ignores an old session result after history navigation and a new session sel
   await act(async () => resolveOld({ status: "ready", data: timeline("A 迟到结果") }));
   expect(screen.getByText("B 专属操作")).toBeInTheDocument();
   expect(screen.queryByText("A 迟到结果")).not.toBeInTheDocument();
+});
+
+// The provider deliberately returns the same task name in two definitions.
+// A selection must remain specific while its async filter read is pending.
+it("selects a task definition independently of another same-name row", async () => {
+  const user = userEvent.setup(); const base = sample();
+  const first = base.product.tasks[0]!;
+  const initial: Analysis = { ...base, filters: { ...base.filters, task: first.key }, product: { ...base.product, tasks: [
+    { ...first, definitionVersion: 1 }, { ...first, definitionVersion: 2 },
+  ] } };
+  query.mockResolvedValue({ status: "ready", data: initial });
+  render(<TelemetryDashboard initial={initial} initialView="tasks" events={[]} />);
+  expect(screen.queryByRole("heading", { name: first.label })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: `${first.label} · 定义 v2 ↗` }));
+  expect(await screen.findByRole("heading", { name: first.label })).toBeInTheDocument();
+  expect(window.location.search).toContain("taskDefinition=2");
+  const rows = screen.getAllByRole("row");
+  expect(within(rows[1]!).getByRole("button").textContent).toContain("定义 v1");
+  expect(within(rows[2]!).getByRole("button").textContent).toContain("定义 v2");
 });
