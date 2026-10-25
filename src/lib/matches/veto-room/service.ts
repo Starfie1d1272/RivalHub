@@ -575,7 +575,8 @@ async function reconcileVetoSessionInTx(
       scope: "match",
       operation: "veto.timeout",
       durationMs: now.getTime() - deadlineAt.getTime(),
-      safeContext: { reason: "deadline", workflow: "veto_room" },
+      safeContext: { reason: "deadline", workflow: "veto_room", configuredGraceMs: TIMEOUT_SETTLEMENT_MS,
+        actualOverdueMs: Math.max(0, now.getTime() - deadlineAt.getTime() - TIMEOUT_SETTLEMENT_MS) },
     });
 
     if (turn.actionType === "role_select") {

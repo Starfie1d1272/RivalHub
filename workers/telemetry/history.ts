@@ -1,4 +1,5 @@
 import type { Database, Env } from "./index";
+import { readHistoryTail } from "./history-tail";
 import { decompressEvents } from "./storage";
 import { LIMITS, validEvent, type TelemetryEvent } from "../../src/lib/telemetry/protocol";
 import { taskForOperation, taskForRoute } from "../../src/lib/telemetry/task-contract";
@@ -17,7 +18,7 @@ const CORRECTION_DAYS = 6;
 interface State { started_at: number; cursor_received: number; cursor_ticket: string; cursor_id: string; last_run: number; paused_at: number | null }
 interface Batch { ticket: string; id: string; received: number; expires: number; account: string | null; role: string; release: string; bytes: number; events_gzip: number[] | Uint8Array }
 type Dimensions = Pick<HistoryRow, "kind" | "name" | "task" | "route" | "scene" | "role" | "device" | "release" | "eventId" | "measurementVersion" | "definitionVersion" | "navigationType" | "basis" | "elapsedCensored" | "activeCensored">;
-interface Sample { key: string; day: string; kind: string; dimensions: string; at: number; received: number; expires: number; closes: number; start: number; phase: string; value: number | null; bucket: number; active: number | null; activeBucket: number; client: number; enhanced: number }
+export interface Sample { key: string; day: string; kind: string; dimensions: string; at: number; received: number; expires: number; closes: number; start: number; phase: string; value: number | null; bucket: number; active: number | null; activeBucket: number; client: number; enhanced: number }
 const afterCursor = `(received>? OR (received=? AND (ticket>? OR (ticket=? AND id>?))))`;
 const cursorArgs = (s: State) => [s.cursor_received, s.cursor_received, s.cursor_ticket, s.cursor_ticket, s.cursor_id];
 export function historyRetention(env: Pick<Env, "HISTORY_RETENTION_DAYS">) {
@@ -29,7 +30,7 @@ function bucket(value: number | null, metric = "") {
   const found = historyBounds(metric).findIndex(n => value <= n);
   return found < 0 ? historyBounds(metric).length : found;
 }
-async function sample(e: TelemetryEvent, b: Batch): Promise<Sample> {
+export async function sample(e: TelemetryEvent, b: Batch): Promise<Sample> {
   const kind = e.kind;
   const task = e.task?.name ?? (e.operation ? taskForOperation(e.operation) : taskForRoute(e.route)) ?? "";
   const name = kind === "performance" ? e.metricName! : kind === "ready" ? `${e.ready!.module}:${e.ready!.phase}` : kind === "operation" ? e.operation! : kind === "task" ? e.task!.name : "";
@@ -195,7 +196,7 @@ export async function maintainHistory(env: Env, now: number) {
 }
 
 /** Filter in D1 before aggregating; never transfer the 90-day dimension product. */
-export async function readHistory(env: Env, f: HistoryQuery, now: number): Promise<HistoryData> {
+export async function readHistory(env: Env, f: HistoryQuery, now: number, range?: { fromDay: string; toDay: string }): Promise<HistoryData> {
   const retention = historyRetention(env);
   const base: HistoryData = { enabled: retention > 0, retentionDays: retention, generatedAt: now, coverageStart: null, processedThrough: null, pendingBatches: 0, truncated: false, correctionDays: 6, days: [], timingRows: [] };
   if (!retention) return base;
@@ -203,14 +204,32 @@ export async function readHistory(env: Env, f: HistoryQuery, now: number): Promi
   if (!state) return base;
   base.coverageStart = state.started_at; base.processedThrough = state.cursor_received;
   base.pendingBatches = (await pending(env.DB, state, now)).n;
-  const from = historyDay(historyDayStart(historyDay(now)) - (Number(f.days) - 1) * DAY);
+  const from = range?.fromDay ?? historyDay(historyDayStart(historyDay(now)) - (Number(f.days) - 1) * DAY);
+  const to = range?.toDay ?? historyDay(now);
+  const tail = await readHistoryTail(env.DB, state, from, now, f);
+  const gaps = await env.DB.prepare("SELECT day FROM history_gaps WHERE day>=? AND expires>?").bind(from, now).all<{ day: string }>();
+  const gapDays = new Set(gaps.results.map(d => d.day));
+  const mutable = JSON.parse(tail.payload) as { day: string; payload: string }[];
+  const payloads = new Map(mutable.map(d => [d.day, d.payload]));
+  const live = [];
+  for (let start = Math.max(historyDayStart(from), historyDayStart(historyDay(state.started_at))); start <= Math.min(now, historyDayStart(to) + DAY - 1); start += DAY) {
+    const day = historyDay(start);
+    live.push({ day, payload: payloads.get(day) ?? "[]", complete: state.started_at <= start && now < start + 7 * DAY && !gapDays.has(day) && !tail.truncated && state.paused_at === null ? 1 : 0 });
+  }
+  const expiry = await env.DB.prepare("SELECT min(expires) AS expiry FROM (SELECT expires FROM history_samples WHERE day>=? AND day<=? AND expires>? UNION ALL SELECT expires FROM history_days WHERE day>=? AND day<=? AND expires>? UNION ALL SELECT expires FROM batches WHERE environment='production' AND expires>?)").bind(from, to, now, from, to, now, now).first<{ expiry: number | null }>();
+  base.validUntil = Math.min(now + 60000, expiry?.expiry ?? now + 60000);
+  base.coverage = { from: historyDayStart(from), to: now, tailBatches: tail.batches, tailBytes: tail.bytes,
+    tailTruncated: tail.truncated, summaryComplete: false, timingRowsTruncated: false,
+    unavailable: ["distinctSessions", "distinctAccounts", "browser", "source", "visibility", "clientVersion"], timeZone: "Asia/Shanghai" };
   const filters: string[] = [];
-  const args: (string | number)[] = [from, now];
+  const args: (string | number)[] = [from, to, now, JSON.stringify(live)];
   for (const key of ["scene", "role", "route", "device", "release", "eventId", "task"] as const) {
     if (f[key]) { filters.push(`json_extract(e.value,'$.${key}')=?`); args.push(f[key]); }
   }
   if (f.operation) { filters.push("json_extract(e.value,'$.kind')='operation' AND json_extract(e.value,'$.name')=?"); args.push(f.operation); }
-  const selected = `WITH selected AS (SELECT day,payload,complete,sealed FROM history_days WHERE day>=? AND expires>?),
+  const selected = `WITH stored AS (SELECT day,payload,complete,sealed FROM history_days WHERE day>=? AND day<=? AND expires>?),
+    selected AS (SELECT * FROM stored WHERE sealed=1 UNION ALL
+      SELECT json_extract(value,'$.day'),json_extract(value,'$.payload'),json_extract(value,'$.complete'),0 FROM json_each(?) WHERE json_extract(value,'$.day') NOT IN (SELECT day FROM stored WHERE sealed=1)),
     filtered AS (SELECT d.day,e.value FROM selected d,json_each(d.payload) e ${filters.length ? "WHERE " + filters.join(" AND ") : ""})`;
   const get = (key: string) => key === "basis" ? `coalesce(json_extract(f.value,'$.basis'),CASE WHEN json_extract(f.value,'$.kind')='ready' THEN 'navigation' ELSE '' END)` : ["elapsedCensored", "activeCensored"].includes(key) ? `coalesce(json_extract(f.value,'$.${key}'),0)` : `json_extract(f.value,'$.${key}')`;
   const conditionCount = (condition: string, field = "n") => `coalesce(sum(CASE WHEN ${condition} THEN ${get(field)} ELSE 0 END),0)`;
@@ -228,7 +247,7 @@ export async function readHistory(env: Env, f: HistoryQuery, now: number): Promi
       ${conditionCount(`${kind}='task' AND ${phase}='complete'`, "starts")} taskComplete,
       ${conditionCount(`${kind}='task' AND ${phase}='exposure'`)} taskExposure
     FROM selected d LEFT JOIN filtered f ON f.day=d.day GROUP BY d.day ORDER BY d.day`).bind(...args).all<Omit<HistoryData["days"][number], "complete" | "sealed"> & { complete: number; sealed: number }>();
-  base.days = points.results.map(d => ({ ...d, complete: !!d.complete && (!!d.sealed || base.pendingBatches === 0), sealed: !!d.sealed }));
+  base.days = points.results.map(d => ({ ...d, complete: !!d.complete, sealed: !!d.sealed }));
   const dimensions = ["kind", "name", "phase", "release", "measurementVersion", "definitionVersion", "navigationType", "basis", "elapsedCensored", "activeCensored"] as const;
   const aggregates: string[] = [];
   for (const metric of ["duration", "active"] as const) {
@@ -240,7 +259,9 @@ export async function readHistory(env: Env, f: HistoryQuery, now: number): Promi
     FROM filtered f WHERE ${get("duration.n")}>0 OR ${get("active.n")}>0 OR ${get("elapsedCensored")}=1 OR ${get("activeCensored")}=1
     GROUP BY ${dimensions.map(get).join(",")} ORDER BY ${dimensions.map(get).join(",")} LIMIT ?`)
     .bind(...args, TIMING_LIMIT + 1).all<Record<string, string | number | null>>();
-  base.truncated = groups.results.length > TIMING_LIMIT;
+  base.truncated = groups.results.length > TIMING_LIMIT || tail.truncated;
+  base.coverage.summaryComplete = base.days.length === Math.round((historyDayStart(to) - historyDayStart(from)) / DAY) + 1 && base.days.every(d => d.complete);
+  base.coverage.timingRowsTruncated = groups.results.length > TIMING_LIMIT;
   base.timingRows = groups.results.slice(0, TIMING_LIMIT).map(group => {
     const row = Object.fromEntries(dimensions.map(key => [key, group[key]])) as Omit<HistoryTimingRow, "duration" | "active" | "elapsedCensored" | "activeCensored">;
     const distribution = (metric: "duration" | "active") => ({

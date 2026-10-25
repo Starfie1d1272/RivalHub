@@ -1,0 +1,90 @@
+{
+  "base": "ed978ce1e4b8fdb8da63b41b595c4340d6fb1f95",
+  "implementationHead": "d8ea3d1077746019bb87f934973c64f418d292d9",
+  "environment": {
+    "target": "disposable loopback PostgreSQL / Local Supabase / Next dev / Chromium only",
+    "node": "v24.22.0 (pnpm execution runtime)",
+    "pnpm": "12.9.1",
+    "productionAccess": "none",
+    "ocr": "not invoked"
+  },
+  "library": {
+    "id": "libfile_290aa292597c8191a359aac8e15daedf",
+    "manifestFilesVerified": 41,
+    "failed": []
+  },
+  "sourceSha256": {
+    "src/lib/observability/live-outcomes.ts": "a7446e34e99d85b22ecc12c46dabc60d068ea21dedb49373b23d03d9ee79b63b",
+    "src/lib/mizar/live.ts": "101770a002bc9299bb44371cce85caab60b51e5f79bc66a538fb7fd8e097a7c1",
+    "src/app/api/mizar/[operation]/route.ts": "06f62ad9ad0b3f41b3728cbecf50b72f954c5525a4fe41462442aea831865258",
+    "src/lib/matches/veto-room/service.ts": "f81ae47095b24d823889bcb59188633348d6a7af0c2b6d48e1fda6d1860f63c8",
+    "src/components/matches/VetoRoom.tsx": "680f32f9f6f07b79df9e1ad20150a683fd0a06c9abfb03657e577c1d2e0211e9",
+    "tests/integration/db/veto-http-footprint-evidence.test.ts": "8b88e70af87e19c2c52cc9d2886814365141f160edef579663b0c39bb3a59187"
+  },
+  "postgres": {
+    "passed": 57,
+    "files": 7,
+    "sha": "9da96b352a284bed510a2ffa4cfcf281abdcba57",
+    "rawStdout": "$ tsx scripts/db/local.ts test-integration tests/integration/db/mizar-live-ingest.test.ts tests/integration/db/mizar-live-correctness.test.ts tests/integration/db/mizar-revoke-lock-order.test.ts tests/integration/db/postmatch-super-admin-confirmation.test.ts tests/integration/db/veto-reconcile.test.ts tests/integration/db/postmatch-task-readers.test.ts tests/integration/db/mizar-receipt-restart.test.ts\n{\"timestamp\":\"2026-10-25T17:21:01.502Z\",\"level\":\"info\",\"event\":\"seed.no_application_rows\",\"scope\":\"database\",\"operation\":\"seed\",\"environment\":\"unknown\",\"message\":\"No application seed rows configured.\"}\n种子脚本执行完成\n{\"timestamp\":\"2026-10-25T17:21:01.945Z\",\"level\":\"info\",\"event\":\"db.pool.created\",\"scope\":\"database\",\"operation\":\"pool.create\",\"environment\":\"unknown\",\"safeContext\":{\"host\":\"127.0.0.1\"}}\nLocal fixture ready: Local Major 2027 (local-major-2027)\nLocal PostgreSQL database access matrix passed: 126 public base tables, deny-by-default, RLS/policy/publication contract aligned.\nPostgreSQL verification passed: 100 migrations, fixture, full public access matrix.\nPostgreSQL integration isolation: cloned 2 worker databases from a migrated/seeded template1 baseline.\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.integration.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.5 /workspace/RivalHub\n\n{\"timestamp\":\"2026-10-25T17:21:04.787Z\",\"level\":\"info\",\"event\":\"db.pool.created\",\"scope\":\"database\",\"operation\":\"pool.create\",\"environment\":\"test\",\"safeContext\":{\"host\":\"127.0.0.1\"}}\n{\"timestamp\":\"2026-10-25T17:21:06.371Z\",\"level\":\"info\",\"event\":\"db.pool.created\",\"scope\":\"database\",\"operation\":\"pool.create\",\"environment\":\"test\",\"safeContext\":{\"host\":\"127.0.0.1\"}}\n{\"timestamp\":\"2026-10-25T17:21:06.684Z\",\"level\":\"warn\",\"event\":\"mizar.live.broadcast_unavailable\",\"scope\":\"match\",\"operation\":\"broadcast\",\"environment\":\"test\",\"errorClass\":\"dependency\",\"retryable\":false,\"durationMs\":6,\"exception\":{\"name\":\"TypeError\"},\"safeContext\":{\"provider\":\"supabase\",\"reason\":\"transport\",\"stage\":\"send\"}}\n{\"timestamp\":\"2026-10-25T17:21:06.723Z\",\"level\":\"warn\",\"event\":\"mizar.live.broadcast_unavailable\",\"scope\":\"match\",\"operation\":\"broadcast\",\"environment\":\"test\",\"errorClass\":\"dependency\",\"retryable\":false,\"durationMs\":1,\"exception\":{\"name\":\"TypeError\"},\"safeContext\":{\"provider\":\"supabase\",\"reason\":\"transport\",\"stage\":\"send\"}}\n{\"timestamp\":\"2026-10-25T17:21:07.520Z\",\"level\":\"warn\",\"event\":\"provider.steam.unconfigured\",\"scope\":\"provider\",\"operation\":\"steam.profile_lookup\",\"environment\":\"test\",\"errorClass\":\"dependency\",\"retryable\":false,\"safeContext\":{\"provider\":\"steam\"}}\n ✓ |integration-postgres| tests/integration/db/mizar-live-ingest.test.ts (32 tests) 2948ms\n{\"timestamp\":\"2026-10-25T17:21:08.400Z\",\"level\":\"info\",\"event\":\"db.pool.created\",\"scope\":\"database\",\"operation\":\"pool.create\",\"environment\":\"test\",\"safeContext\":{\"host\":\"127.0.0.1\"}}\n ✓ |integration-postgres| tests/integration/db/mizar-receipt-restart.test.ts (1 test) 1300ms\n   ✓ recovers the durable receipt after SIGKILL loses the response, then releases a finished source 1298ms\n{\"timestamp\":\"2026-10-25T17:21:10.249Z\",\"level\":\"info\",\"event\":\"db.pool.created\",\"scope\":\"database\",\"operation\":\"pool.create\",\"environment\":\"test\",\"safeContext\":{\"host\":\"127.0.0.1\"}}\n ✓ |integration-postgres| tests/integration/db/mizar-revoke-lock-order.test.ts (2 tests) 1196ms\n   ✓ revoke versus manual source lock barrier: legacy 1120ms\n{\"timestamp\":\"2026-10-25T17:21:12.059Z\",\"level\":\"info\",\"event\":\"db.pool.created\",\"scope\":\"database\",\"operation\":\"pool.create\",\"environment\":\"test\",\"safeContext\":{\"host\":\"127.0.0.1\"}}\n{\"timestamp\":\"2026-10-25T17:21:12.290Z\",\"level\":\"info\",\"event\":\"match.veto.timeout_resolved\",\"scope\":\"match\",\"operation\":\"veto.timeout\",\"environment\":\"test\",\"durationMs\":5012,\"safeContext\":{\"configuredGraceMs\":2000,\"actualOverdueMs\":3012,\"reason\":\"deadline\",\"workflow\":\"veto_room\"}}\n{\"timestamp\":\"2026-10-25T17:21:12.379Z\",\"level\":\"info\",\"event\":\"match.veto.timeout_resolved\",\"scope\":\"match\",\"operation\":\"veto.timeout\",\"environment\":\"test\",\"durationMs\":5006,\"safeContext\":{\"configuredGraceMs\":2000,\"actualOverdueMs\":3006,\"reason\":\"deadline\",\"workflow\":\"veto_room\"}}\n{\"timestamp\":\"2026-10-25T17:21:12.385Z\",\"level\":\"info\",\"event\":\"match.veto.command_stale\",\"scope\":\"match\",\"operation\":\"veto.command\",\"environment\":\"test\",\"safeContext\":{\"outcome\":\"stale\",\"reason\":\"revision\",\"workflow\":\"veto_room\"}}\n{\"timestamp\":\"2026-10-25T17:21:12.390Z\",\"level\":\"info\",\"event\":\"match.veto.command_stale\",\"scope\":\"match\",\"operation\":\"veto.command\",\"environment\":\"test\",\"safeContext\":{\"outcome\":\"stale\",\"reason\":\"revision\",\"workflow\":\"veto_room\"}}\n{\"timestamp\":\"2026-10-25T17:21:12.478Z\",\"level\":\"info\",\"event\":\"match.veto.timeout_resolved\",\"scope\":\"match\",\"operation\":\"veto.timeout\",\"environment\":\"test\",\"durationMs\":86355003,\"safeContext\":{\"configuredGraceMs\":2000,\"actualOverdueMs\":86353003,\"reason\":\"deadline\",\"workflow\":\"veto_room\"}}\n{\"timestamp\":\"2026-10-25T17:21:12.481Z\",\"level\":\"info\",\"event\":\"match.veto.timeout_resolved\",\"scope\":\"match\",\"operation\":\"veto.timeout\",\"environment\":\"test\",\"durationMs\":86295003,\"safeContext\":{\"configuredGraceMs\":2000,\"actualOverdueMs\":86293003,\"reason\":\"deadline\",\"workflow\":\"veto_room\"}}\n{\"timestamp\":\"2026-10-25T17:21:12.487Z\",\"level\":\"info\",\"event\":\"match.veto.timeout_resolved\",\"scope\":\"match\",\"operation\":\"veto.timeout\",\"environment\":\"test\",\"durationMs\":86220003,\"safeContext\":{\"configuredGraceMs\":2000,\"actualOverdueMs\":86218003,\"reason\":\"deadline\",\"workflow\":\"veto_room\"}}\n{\"timestamp\":\"2026-10-25T17:21:12.494Z\",\"level\":\"info\",\"event\":\"match.veto.timeout_resolved\",\"scope\":\"match\",\"operation\":\"veto.timeout\",\"environment\":\"test\",\"durationMs\":86175003,\"safeContext\":{\"configuredGraceMs\":2000,\"actualOverdueMs\":86173003,\"reason\":\"deadline\",\"workflow\":\"veto_room\"}}\n{\"timestamp\":\"2026-10-25T17:21:12.501Z\",\"level\":\"info\",\"event\":\"match.veto.timeout_catch_up\",\"scope\":\"match\",\"operation\":\"veto.timeout\",\"environment\":\"test\",\"safeContext\":{\"count\":4,\"phase\":\"timeout_catch_up\",\"workflow\":\"veto_room\"}}\n{\"timestamp\":\"2026-10-25T17:21:12.511Z\",\"level\":\"info\",\"event\":\"match.veto.timeout_resolved\",\"scope\":\"match\",\"operation\":\"veto.timeout\",\"environment\":\"test\",\"durationMs\":5003,\"safeContext\":{\"configuredGraceMs\":2000,\"actualOverdueMs\":3003,\"reason\":\"deadline\",\"workflow\":\"veto_room\"}}\n ✓ |integration-postgres| tests/integration/db/veto-reconcile.test.ts (6 tests) 468ms\n ✓ |integration-postgres| tests/integration/db/postmatch-super-admin-confirmation.test.ts (1 test) 398ms\n   ✓ confirms reopened nonempty rosters as the real super-admin while preserving ordinary authorization and atomicity 397ms\n{\"timestamp\":\"2026-10-25T17:21:13.864Z\",\"level\":\"warn\",\"event\":\"mizar.live.broadcast_unavailable\",\"scope\":\"match\",\"operation\":\"broadcast\",\"environment\":\"test\",\"errorClass\":\"dependency\",\"retryable\":false,\"durationMs\":2003,\"exception\":{\"name\":\"AbortError\"},\"safeContext\":{\"provider\":\"supabase\",\"reason\":\"timeout\",\"stage\":\"send\"}}\n{\"timestamp\":\"2026-10-25T17:21:14.062Z\",\"level\":\"info\",\"event\":\"db.pool.created\",\"scope\":\"database\",\"operation\":\"pool.create\",\"environment\":\"test\",\"safeContext\":{\"host\":\"127.0.0.1\"}}\n ✓ |integration-postgres| tests/integration/db/postmatch-task-readers.test.ts (1 test) 154ms\n{\"timestamp\":\"2026-10-25T17:21:16.418Z\",\"level\":\"warn\",\"event\":\"mizar.live.broadcast_unavailable\",\"scope\":\"match\",\"operation\":\"broadcast\",\"environment\":\"test\",\"errorClass\":\"dependency\",\"retryable\":false,\"durationMs\":9,\"exception\":{\"name\":\"Error\"},\"safeContext\":{\"httpStatus\":429,\"provider\":\"supabase\",\"reason\":\"rate_limited\",\"stage\":\"send\"}}\n{\"timestamp\":\"2026-10-25T17:21:18.963Z\",\"level\":\"warn\",\"event\":\"mizar.live.broadcast_unavailable\",\"scope\":\"match\",\"operation\":\"broadcast\",\"environment\":\"test\",\"errorClass\":\"dependency\",\"retryable\":false,\"durationMs\":3,\"exception\":{\"name\":\"Error\"},\"safeContext\":{\"httpStatus\":429,\"provider\":\"supabase\",\"reason\":\"rate_limited\",\"stage\":\"send\"}}\n{\"timestamp\":\"2026-10-25T17:21:21.521Z\",\"level\":\"warn\",\"event\":\"mizar.live.broadcast_unavailable\",\"scope\":\"match\",\"operation\":\"broadcast\",\"environment\":\"test\",\"errorClass\":\"dependency\",\"retryable\":false,\"durationMs\":7,\"exception\":{\"name\":\"Error\"},\"safeContext\":{\"httpStatus\":429,\"provider\":\"supabase\",\"reason\":\"rate_limited\",\"stage\":\"send\"}}\n{\"timestamp\":\"2026-10-25T17:21:39.881Z\",\"level\":\"warn\",\"event\":\"mizar.live.broadcast_unavailable\",\"scope\":\"match\",\"operation\":\"broadcast\",\"environment\":\"test\",\"errorClass\":\"dependency\",\"retryable\":false,\"durationMs\":3,\"exception\":{\"name\":\"TypeError\",\"code\":\"UND_ERR_SOCKET\"},\"safeContext\":{\"provider\":\"supabase\",\"reason\":\"transport\",\"stage\":\"send\"}}\n ✓ |integration-postgres| tests/integration/db/mizar-live-correctness.test.ts (14 tests) 37259ms\n   ✓ LIVE correctness: real PostgreSQL and loopback HTTP faults (14)\n     ✓ keeps a public read and reliable map completion available while both LIVE sends hold permits 1776ms\n     ✓ accepts fresh LIVE at 95ms SQL RTT with observed lineup=false 1946ms\n     ✓ accepts fresh LIVE at 95ms SQL RTT with observed lineup=true 1943ms\n     ✓ releases ingress after timeout and accepts a fresh frame 4558ms\n     ✓ releases ingress after 429 and accepts a fresh frame 2550ms\n     ✓ releases ingress after stalled-body and accepts a fresh frame 2551ms\n     ✓ releases ingress after invalid-body and accepts a fresh frame 2552ms\n     ✓ bounds credential-lock waits, rotates blocked sources and accepts fresh recovery 4758ms\n     ✓ rejects unknown, revoked, other-installation and cross-competition HTTP credentials before publication 6072ms\n     ✓ releases ingress after malicious bodies and rejects expired waiters without publication 2035ms\n     ✓ serves four staggered 2 Hz sources and preserves unchanged 1 Hz heartbeats after disconnect 5497ms\n     ✓ does not send requests that waited behind unrelated database work 573ms\n     ✓ holds authority fencing through send while revoke, handover and manual results contend 313ms\n\n Test Files  7 passed (7)\n      Tests  57 passed (57)\n   Start at  17:21:02\n   Duration  38.93s (tests 88%, import 8%, transform 3%)\n\n",
+    "note": "No browser assertion is included in this result. UI-only confirmation edits followed this run; PG owners and integration specs unchanged."
+  },
+  "unit": {
+    "outcomesAndRedaction": 13,
+    "vetoRequests": 13,
+    "capturedCompletion": "known commit confirms immediately; unknown appeal only after same authorized fact; stale and revision-only progress do not complete"
+  },
+  "static": [
+    "type-check:app passed",
+    "type-check:tests passed",
+    "changed-file ESLint passed",
+    "architecture:check passed",
+    "git diff --check passed"
+  ],
+  "bpEarlierSuccessfulObservation": {
+    "sha": "0f5f127b9ae195c0bc93d49777af04cb657467e9",
+    "environment": "isolated loopback PostgreSQL + Local Supabase Auth + Next dev + Chromium",
+    "samples": 1,
+    "commandAckMs": 232.63112699999965,
+    "roomPresentedMs": 278.0567199999996,
+    "outcome": "applied",
+    "note": "HTTP acknowledgement includes the existing projection workflow; room presentation is a distinct browser observation, not LCP or production SLO."
+  },
+  "latestBrowser": {
+    "sha": "d8ea3d1077746019bb87f934973c64f418d292d9",
+    "combination": "2 failed, 0 passed; workers=1; fixed source",
+    "adminCommentary": "Expected one details with 解说管理, received zero after subsequent navigation; observed navigation to overview. Cause unproven.",
+    "publicLive": "Page loaded but expected viewer-token response was not received within 30000ms; snapshot remained 正在读取赛事. Cause unproven.",
+    "bpRepeat": "locator.waitFor Timeout 30000ms waiting for 由 Provider A 先禁图; repeated document navigation; no command submitted.",
+    "otherDiagnostics": "Next dev logs repeatedly report Edge Instrumentation -> observability/server.ts -> runtime-health.ts node:v8/node:perf_hooks incompatibility. Not attributed as the failure cause.",
+    "earlierRuns": "Individual admin commentary and public LIVE runs passed earlier; current combined acceptance remains failed. Initial setup failures: missing current Chromium, then minimal Supabase stack without Realtime. Both setup gaps resolved."
+  },
+  "pendingIntegration": [
+    "A must register () => flushLiveIngestOutcomes() on its singleton/unref sampler using monotonic performance.now; G adds no timer. Without registration only activity fallback is active.",
+    "C captured-token core contract must be synced and integration-tested; G preserves the begin return value verbatim and changes no C core.",
+    "Browser rendering/auth/navigation failure needs A/F/root review before claiming final end-to-end acceptance."
+  ],
+  "netBenefit": "Fixed stage denominators and bounded flush callback; grace separated from extra overdue; known BP commit no longer depends on room projection to confirm the captured task. No production cost/latency/OOM improvement claimed.",
+  "rollback": "Revert G commits; no schema migration, dependency, permission, production config or business policy changed.",
+  "rawLogFingerprints": {
+    "pg": {
+      "sha256": "c95d0ed1d265e58018180a5b0ac91e69c210c01a9ef08a382f844c757404d357",
+      "bytes": 10380
+    },
+    "unit": {
+      "sha256": "c7fef3c2629c9b2e7c0b5ee687022a3f1067fe751e3ae996a902320e86984c48",
+      "bytes": 862
+    },
+    "captured": {
+      "sha256": "f8a6b0f565bcd82b7d0b39ad0d5497de46aee839fe497e280b6652ab085a033a",
+      "bytes": 766
+    },
+    "browser": {
+      "sha256": "ff34d2fcc2961b282461f224050233a20467996f7155653a5fb4f750cf35c808",
+      "bytes": 1789461
+    },
+    "bpCurrent": {
+      "sha256": "e0a37859523b054fa9c7bb7a4702c6fb556c5e1ead0f18d8667b86ee9a8e793a",
+      "bytes": 6479
+    }
+  }
+}

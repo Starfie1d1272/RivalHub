@@ -1,0 +1,21 @@
+[
+  {
+    "stage": "fixture transform",
+    "result": "failed before database creation",
+    "error": "Top-level await is currently not supported with the cjs output format"
+  },
+  {
+    "stage": "fixture scoreboard seed",
+    "result": "transaction rolled back; owned database dropped",
+    "sqlstate": "23505",
+    "constraint": "match_player_stats_map_id_perfect_name_unique"
+  },
+  {
+    "stage": "full Evidence parser",
+    "result": "rejected before confirmed projection write; owned database dropped",
+    "errors": [
+      "stageRunId optional UUID must be omitted rather than null",
+      "matched participant 的 entryId 必须属于 evidence target"
+    ]
+  }
+]
