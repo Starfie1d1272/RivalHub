@@ -12,14 +12,19 @@ const columns = { key: "sample_key", day: "day", kind: "kind", dimensions: "dime
 function merge(old: Sample | undefined, next: Sample, now: number): Sample {
   if (!old) return next;
   if (next.received > old.closes || old.expires <= now) return old;
-  const latest = next.at >= old.at;
+  const confirmed = old.kind === "task" && old.phase === "complete";
+  const newConfirmation = next.kind === "task" && next.phase === "complete" && !confirmed;
+  const latest = newConfirmation || !confirmed && next.at >= old.at;
   const terminal = next.phase !== "pending";
   const replaceValue = latest && (terminal || !["operation", "task"].includes(next.kind));
   const firstStart = next.start === 1 && old.start === 0;
+  const previousDimensions = JSON.parse(old.dimensions), incomingDimensions = JSON.parse(next.dimensions);
+  const dimensions = firstStart ? incomingDimensions : previousDimensions;
+  for (const flag of ["elapsedCensored", "activeCensored"]) if (flag in incomingDimensions || flag in previousDimensions) dimensions[flag] = !!(terminal && latest ? incomingDimensions[flag] : previousDimensions[flag]);
   return { ...old,
     day: firstStart ? next.day : old.start ? old.day : [old.day, next.day].sort()[0],
     closes: firstStart ? next.closes : old.start ? old.closes : Math.min(old.closes, next.closes),
-    dimensions: firstStart ? next.dimensions : old.dimensions,
+    dimensions: JSON.stringify(dimensions),
     expires: Math.min(old.expires, next.expires), start: Math.max(old.start, next.start),
     phase: terminal && latest ? next.phase : old.phase,
     value: replaceValue ? next.value : old.value, bucket: replaceValue ? next.bucket : old.bucket,
@@ -68,6 +73,7 @@ export async function readHistoryTail(db: Database, state: Cursor, from: string,
   const days = new Map<string, Map<string, HistoryRow>>();
   for (const g of groups.results.slice(0, MAX_GROUPS)) {
     const dimensions = JSON.parse(String(g.dimensions));
+    for (const flag of ["elapsedCensored", "activeCensored"]) if (flag in dimensions) dimensions[flag] = !!dimensions[flag];
     const day = String(g.day); const rows = days.get(day) ?? new Map<string, HistoryRow>(); days.set(day, rows);
     const key = String(g.dimensions) + ":" + g.phase;
     const r: HistoryRow = rows.get(key) ?? { ...dimensions, phase: g.phase, n: 0, starts: 0, clientCovered: 0, enhancedCovered: 0, duration: emptyHistoryDistribution(dimensions.name), active: emptyHistoryDistribution() };

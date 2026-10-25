@@ -7,12 +7,12 @@ import type { Analysis } from "./analysis-model";
 const RESPONSE_BYTES = 1024 * 1024;
 const CACHE_BYTES = 2 * RESPONSE_BYTES;
 const INFLIGHT_BYTES = 4 * RESPONSE_BYTES;
-const cache = new Map<string, { expires: number; body: Buffer }>();
+const cache = new Map<string, { expires: number; body: Buffer; bytes: number }>();
 let residentBytes = 0;
 let inflightBytes = 0;
 function evict(key: string) {
   const entry = cache.get(key);
-  if (entry) { residentBytes -= entry.body.byteLength; cache.delete(key); }
+  if (entry) { residentBytes -= entry.bytes; cache.delete(key); }
 }
 function pruneCache(now: number) {
   for (const [key, entry] of cache) if (entry.expires <= now) evict(key);
@@ -157,9 +157,10 @@ async function loadDashboard<T>(
     pruneCache(Date.now());
     evict(key);
     if (encoded.byteLength <= RESPONSE_BYTES) {
-      while (cache.size >= 12 || residentBytes + encoded.byteLength > CACHE_BYTES) evict(cache.keys().next().value!);
-      cache.set(key, { expires: Math.min(Date.now() + 60000, validUntil(data)), body: encoded });
-      residentBytes += encoded.byteLength;
+      const bytes = encoded.byteLength + Buffer.byteLength(key, "utf8");
+      while (cache.size >= 12 || residentBytes + bytes > CACHE_BYTES) evict(cache.keys().next().value!);
+      cache.set(key, { expires: Math.min(Date.now() + 60000, validUntil(data)), body: encoded, bytes });
+      residentBytes += bytes;
     }
     return { status: "ready", data };
   } catch {
@@ -186,7 +187,7 @@ export async function getTelemetryHistory(input: unknown) {
   const { HistoryData, parseHistoryQuery } = await import("./history-contract");
   const query = parseHistoryQuery(input);
   if (!query) throw new Error("Invalid telemetry history filters");
-  return readDashboard("/admin/history", query, value => HistoryData.parse(value), data => data.generatedAt + 60000);
+  return readDashboard("/admin/history", query, value => HistoryData.parse(value), data => data.validUntil ?? data.generatedAt + 60000);
 }
 
 

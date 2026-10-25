@@ -145,7 +145,17 @@ ready 的目标兼容合同是可选 basis=navigation|demand，缺省为旧 navi
 
 北京时间日桶在六天修正窗口内重算，封存后保持；未启用完整日、暂停、超预算或原始数据已丢失标记不完整。未处理批次与处理游标可查询，每轮最多处理 16 批/384 KiB，合并事务后公平刷新两个仍在保留范围内的日快照；七个修正日可能跨四轮维护才更新，受影响但未刷新的快照标为不完整。含原始清理与旧汇总的最坏 SQL 路径受 50 次预算测试保护，实际 provider CPU/扫描仍需部署验收。原始 TTL 清理独立于聚合成败。日分布可合并后取近似分位数，显示所在桶上界并以观测最大值裁剪；不能平均日分位数。长期只展示可加次数与分布，不相加日去重人数。关闭后停止新增但继续过期删除；恢复前先停收、执行过期清理，D1 恢复副本边界与原始数据一致。
 
-`GET /admin/history` 仅返回有界聚合与处理状态，默认关闭时明确返回 disabled。日快照最多 8,192 个分布桶组、1.5 MiB，超出标记不完整；查询在 D1 内先应用白名单条件，再返回最多 90 个每日计数及 512 个期间分布组。版本、采集/任务定义和导航类型保持独立，分布组达到预算时明确截断；指定条件后仍可读取较早的匹配分组。网站不接收完整的多维日快照，90 天趋势不受未筛选明细传输预算截断。两种长期聚合均须在部署时批准保留天数并检查 provider 预算；本实现不自动启用。
+`GET /admin/history` 仅返回有界聚合与处理状态，默认关闭时明确返回 disabled。未封存日从现存去重样本读取，并以最多 16 批/384 KiB 的未处理 raw 叠加，查询不移动维护游标、不写库；尾部超预算单独标记，pending 不自动等于故障。日快照最多 8,192 个分布桶组、1.5 MiB，超出标记不完整；查询在 D1 内先应用白名单条件，再返回最多 90 个每日计数及 512 个期间分布组。版本、采集/任务定义和导航类型保持独立，分布组达到预算时明确截断；指定条件后仍可读取较早的匹配分组。网站不接收完整的多维日快照，90 天趋势不受未筛选明细传输预算截断。两种长期聚合均须在部署时批准保留天数并检查 provider 预算；本实现不自动启用。
+
+### 独立滚动长窗口投影
+
+`getLongWindowSummary(input)`（`src/lib/telemetry/dashboard.ts`）与 `GET /admin/long-window` 使用原 analysis 筛选和 rolling 请求时间含义，独立输出 `LongWindowSummary`，不把 raw Analysis 的截断 totals 伪装为完整。`requestedRange` 保留请求，`effectiveRange` 表示留存限制后的窗口，`coveredRanges` 仅列可确认完整的范围。完整北京时间日读取日聚合与有界未封存尾部；首尾不足日读取有界 raw，半开边界不重复午夜事件。raw 边缘先读本段，再仅为存在 start 的任务/操作补读后续；同一查询的 raw/tail 共用最多 2 MiB/2,000 批预算。性能更新以用途隔离样本键排除聚合/边缘重叠，再跨两个 raw 边缘取最新值。样本键不投影到应用。
+
+`counts` 是实际读到的可加次数，覆盖不完整时只是 observed counts；`distinctSessions` / `distinctAccounts` 为 null，不累加日去重数。`metrics` 为可合并分布桶，不能平均日分位数。`coverage.segments` 分别说明 history+tail 与 raw_edge 的完整、partial、unknown 范围与原因；raw 留存最早边缘受批内最早事件 TTL 影响，缺口不补造。`pendingTailBatches`、`tailBudgetTruncated`、`metricGroupsTruncated`、`rawBudgetTruncated`、`retentionUnknown` 与 `seriesOmitted` 分开表达；该 summary 不提供 series，原 raw 的前 12 series 省略状态仍保留。
+
+历史不具备的 browser/source/visibility、scope、navigationType 条件，以及 ticket release、missing eventId 或单 session 条件，返回 unsupportedDimensions 与 unsupported 状态，counts 为 null；不把未过滤历史冒充匹配结果。原始账号/session 诊断保留既有 `/admin/events` 的有界 cursor；raw Analysis 仍受原预算保护。F 的 UI 消费应展示实际范围和覆盖分类，不能用这些独立 summary 替换所有 raw 诊断。
+
+后台常驻缓存只保存已校验结果的编码 Buffer，payload 与 key 的 UTF-8 字节合计最多 2 MiB / 12 项；过期和超预算立即逐出。返回调用者的解析对象不保存在缓存，缓存命中重新解析，避免调用方修改缓存。另有 4 MiB 在途响应预约、单响应 1 MiB 上限，保留按 key 的 singleflight；并发满时不新发查询。字节预算约束编码表示和响应读取，不是 V8 对象或进程 RSS 的上界。缓存有效期还受源数据最早 expiry 约束。
 
 ## 基本查询与版本比较
 

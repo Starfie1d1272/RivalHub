@@ -41,7 +41,7 @@ const historyCounts = z.object({ views: count, operations: count, success: count
 export const HistoryTimingRow = HistoryRow.pick({ kind: true, name: true, phase: true, release: true, measurementVersion: true, definitionVersion: true, navigationType: true, duration: true, active: true });
 export type HistoryTimingRow = z.infer<typeof HistoryTimingRow>;
 export const HistoryData = z.object({
-  enabled: z.boolean(), retentionDays: count.max(90), generatedAt: count, coverageStart: count.nullable(), processedThrough: count.nullable(),
+  validUntil: count.optional(), enabled: z.boolean(), retentionDays: count.max(90), generatedAt: count, coverageStart: count.nullable(), processedThrough: count.nullable(),
   coverage: z.object({ from: count, to: count, tailBatches: count, tailBytes: count, tailTruncated: z.boolean(),
     summaryComplete: z.boolean(), timingRowsTruncated: z.boolean(), unavailable: z.array(z.string()).max(10), timeZone: z.literal("Asia/Shanghai") }).optional(),
   pendingBatches: count, truncated: z.boolean(), correctionDays: z.literal(6),

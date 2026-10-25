@@ -208,8 +208,10 @@ export async function readHistory(env: Env, f: HistoryQuery, now: number, range?
   const live = [];
   for (let start = Math.max(historyDayStart(from), historyDayStart(historyDay(state.started_at))); start <= Math.min(now, historyDayStart(to) + DAY - 1); start += DAY) {
     const day = historyDay(start);
-    live.push({ day, payload: payloads.get(day) ?? "[]", complete: state.started_at <= start && !gapDays.has(day) && !tail.truncated && state.paused_at === null ? 1 : 0 });
+    live.push({ day, payload: payloads.get(day) ?? "[]", complete: state.started_at <= start && now < start + 7 * DAY && !gapDays.has(day) && !tail.truncated && state.paused_at === null ? 1 : 0 });
   }
+  const expiry = await env.DB.prepare("SELECT min(expires) AS expiry FROM (SELECT expires FROM history_samples WHERE day>=? AND day<=? AND expires>? UNION ALL SELECT expires FROM history_days WHERE day>=? AND day<=? AND expires>? UNION ALL SELECT expires FROM batches WHERE environment='production' AND expires>?)").bind(from, to, now, from, to, now, now).first<{ expiry: number | null }>();
+  base.validUntil = Math.min(now + 60000, expiry?.expiry ?? now + 60000);
   base.coverage = { from: historyDayStart(from), to: now, tailBatches: tail.batches, tailBytes: tail.bytes,
     tailTruncated: tail.truncated, summaryComplete: false, timingRowsTruncated: false,
     unavailable: ["distinctSessions", "distinctAccounts", "browser", "source", "visibility", "clientVersion"], timeZone: "Asia/Shanghai" };

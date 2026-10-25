@@ -1,8 +1,12 @@
+import { gzipSync } from "node:zlib";
+import { LongWindowSummary } from "@/lib/telemetry/long-window-contract";
+import { analysisDefaults } from "@/lib/telemetry/analysis-query";
+import { analysis } from "../../../workers/telemetry/analysis";
 import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import { expect, it } from "vitest";
-import { handle, maintain, type Env } from "../../../workers/telemetry/index";
+import { handle, maintain, type Env, type Statement } from "../../../workers/telemetry/index";
 import { maintainHistory } from "../../../workers/telemetry/history";
 import { HistoryData, historyDay, historyDayStart, historyDefaults, historyQuantile, emptyHistoryDistribution, parseHistoryQuery, summarizeHistory, HISTORY_DAY as DAY } from "@/lib/telemetry/history-contract";
 import { signTicket } from "@/lib/telemetry/ticket";
@@ -268,5 +272,69 @@ it("overlays an unprocessed cross-day result and latest metric without changing 
     expect(data.coverage!.unavailable).toContain("distinctSessions");
     expect(await f.db.prepare("SELECT * FROM history_state").first()).toEqual(before);
     expect(data.pendingBatches).toBe(1);
+    const query = new URLSearchParams({ from: new Date(day - 12 * 3600000).toISOString(), to: new Date(day + DAY + 2000).toISOString() });
+    const response = await handle(new Request("https://worker.invalid/admin/long-window?" + query, { headers: { authorization: `Bearer ${f.env.DASHBOARD_KEY}` } }), f.env, day + DAY + 2000);
+    expect(response.status).toBe(200);
+    const combined = LongWindowSummary.parse(await response.json());
+    expect(combined.metrics.filter(m => m.name === "LCP").reduce((n, m) => n + m.duration.n, 0)).toBe(1);
+    expect(combined.metrics.find(m => m.name === "LCP")?.duration.sum).toBe(250);
+    expect(combined.counts).toMatchObject({ taskStarts: 1, taskComplete: 1 });
   } finally { await f.mf.dispose(); }
 }, 30000);
+
+
+it("keeps rolling edges explicit and bypasses raw 2000-batch/2MiB limits for complete middle days", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-15"), now = day + 7 * DAY + 12 * 3600000;
+  try {
+    await maintainHistory(f.env, day);
+    const session = crypto.randomUUID(); let rawBytes = 0;
+    const input = [];
+    for (let i = 0; i < 2001; i++) {
+      const received = day + 2 * DAY + i;
+      const events = Array.from({ length: 2 }, () => ({ id: crypto.randomUUID(), at: received, session, route: "/stats", scene: "site", kind: "page", filters: { tab: "players", ops: "conflict", position: "all", stage: "playoffs", source: "official", sort: "ratingPro", order: "desc", side: "all", status: "finished", map: "de_mirage", view: "sim", format: "bo3", mapsView: "pool", mapFilter: "de_anubis", q: "selected", search: "selected", team: "selected", event: "selected", player: "selected", weapon: "selected", minMaps: "selected", teamFilter: "selected", recordPage: "selected" }, measurement: { v: 1, navigationId: crypto.randomUUID(), clientRelease: "a".repeat(80), visibility: "visible" } }));
+      const encoded = JSON.stringify(events); rawBytes += Buffer.byteLength(encoded);
+      input.push(f.db.prepare("INSERT INTO batches(ticket,id,received,expires,day,account,session,role,release,environment,bytes,events_gzip,summary) VALUES(?,?,?,?,?,NULL,?,?,?,'production',?,X'" + gzipSync(encoded).toString("hex") + "','[]')").bind("fixture-ticket", crypto.randomUUID(), received, now + DAY, historyDay(received), session, "user", "fixture", Buffer.byteLength(encoded)));
+    }
+    for (let i = 0; i < input.length; i += 100) await f.db.batch(input.slice(i, i + 100));
+    expect(rawBytes).toBeGreaterThan(2 * 1024 * 1024);
+    for (let i = 1; i <= 6; i++) {
+      const rows = i === 2 ? [{ kind: "page", name: "", task: "", route: "/stats", scene: "site", role: "user", device: "missing", release: "a".repeat(80), eventId: "", phase: "", measurementVersion: 1, definitionVersion: 0, navigationType: "missing", n: 4002, starts: 0, clientCovered: 0, enhancedCovered: 4002, duration: emptyHistoryDistribution(), active: emptyHistoryDistribution() }] : [];
+      await f.db.prepare("INSERT INTO history_days(day,payload,complete,sealed,captured_at,expires) VALUES(?,?,1,1,?,?)").bind(historyDay(day + i * DAY), JSON.stringify(rows), now, now + 90 * DAY).run();
+    }
+    await f.db.prepare("UPDATE history_state SET cursor_received=?,last_run=? WHERE id=1").bind(day + 7 * DAY - 1, now).run();
+    await f.post([{ kind: "page" }], day + 14 * 3600000);
+    await f.post([{ kind: "page" }], day + 7 * DAY + 3600000);
+    let statements = 0, rowsRead = 0;
+    const originals = new WeakMap<Statement, Statement>();
+    const record = (meta?: Record<string, number>) => { statements++; rowsRead += Number(meta?.rows_read ?? 0); };
+    const wrap = (statement: Statement): Statement => {
+      const wrapped: Statement = {
+        bind: (...args) => wrap(statement.bind(...args)),
+        all: async <T>() => { const r = await statement.all<T>(); record(r.meta); return r; },
+        first: async <T>() => { const r = await statement.all<T>(); record(r.meta); return r.results[0] ?? null; },
+        run: async () => { const r = await statement.run(); record(r.meta); return r; },
+      }; originals.set(wrapped, statement); return wrapped;
+    };
+    const traced: Env = { ...f.env, DB: { prepare: sql => wrap(f.env.DB.prepare(sql)), batch: async input => {
+      const results = await f.env.DB.batch(input.map(s => originals.get(s)!)) as { meta?: Record<string, number> }[];
+      for (const r of results) record(r.meta); return results;
+    } } };
+    const response = await handle(new Request("https://worker.invalid/admin/long-window", { headers: { authorization: `Bearer ${f.env.DASHBOARD_KEY}` } }), traced, now);
+    expect(response.status).toBe(200);
+    const data = LongWindowSummary.parse(await response.json());
+    expect(data.requestedRange).toEqual({ from: now - 7 * DAY, to: now });
+    expect(data.counts.views).toBe(4004);
+    expect(statements).toBeLessThanOrEqual(25);
+    console.info(JSON.stringify({ fixture: "long_window_2001_batches", rawBytes, statements, rowsRead, responseBytes: Buffer.byteLength(JSON.stringify(data)), observedViews: data.counts.views }));
+    expect(data.distinctSessions).toBeNull(); expect(data.distinctAccounts).toBeNull();
+    expect(data.coverage.rawBudgetTruncated).toBe(false);
+    expect(data.coverage.retentionUnknown).toBe(true);
+    expect(data.coverage.segments.filter(s => s.source === "history+tail").every(s => s.status === "complete")).toBe(true);
+    expect(data.coverage.segments.find(s => s.from === now - 7 * DAY)).toMatchObject({ source: "raw_edge", status: "partial", reason: "raw_retention_boundary" });
+    const raw = await analysis(f.env.DB, analysisDefaults, "", now, { batches: 5000, bytes: 8388608 });
+    expect(raw.meta.truncated).toBe(true);
+    const unsupported = await handle(new Request("https://worker.invalid/admin/long-window?browser=chrome", { headers: { authorization: `Bearer ${f.env.DASHBOARD_KEY}` } }), f.env, now);
+    expect(LongWindowSummary.parse(await unsupported.json())).toMatchObject({ coverage: { status: "unsupported" }, counts: { views: null }, unsupportedDimensions: ["browser"] });
+    expect(Buffer.byteLength(JSON.stringify(data))).toBeLessThan(1024 * 1024);
+  } finally { await f.mf.dispose(); }
+}, 60000);

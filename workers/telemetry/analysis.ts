@@ -14,6 +14,7 @@ import {
   validEvent,
   type TelemetryEvent,
 } from "../../src/lib/telemetry/protocol";
+import { sample } from "./history";
 import { decompressEvents } from "./storage";
 import type { Database } from "./index";
 interface Batch {
@@ -47,11 +48,13 @@ export async function readAnalysisSnapshot(
   budget: { batches: number; bytes: number },
   byteLimit = ANALYSIS_BYTES_LIMIT,
   batchLimit = ANALYSIS_BATCH_LIMIT,
+  followups = true,
+  historyKeys = false,
 ): Promise<AnalysisSnapshot> {
   const window = analysisWindow(filters, now);
   const from = window.from;
   // Follow-up reports settle starts in a fixed window; presentation remains scoped to that window.
-  const readTo = Math.min(now, window.to + 86400000 + LIMITS.ageMs);
+  const readTo = followups ? Math.min(now, window.to + 86400000 + LIMITS.ageMs) : window.to;
   const ticketRelease = filters.releaseBasis === "ticket" ? filters.release : "";
   const base = `SELECT ticket,id,received,expires,bytes FROM batches WHERE environment='production' AND expires>? AND received>=? AND received<=? AND (?='' OR release=?) ORDER BY received DESC,ticket DESC,id DESC LIMIT ?`;
   const args = [
@@ -115,6 +118,7 @@ export async function readAnalysisSnapshot(
     for (const e of raw as TelemetryEvent[])
       events.push({
         ...e,
+        ...(historyKeys ? { historyKey: (await sample(e, b)).key } : {}),
         session: alias,
         account: b.account,
         role: b.role,

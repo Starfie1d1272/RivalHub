@@ -51,6 +51,7 @@ export async function longWindowSummary(env: Env, f: AnalysisFilters, session: s
   if (middleFrom < middleTo) {
     const history = await readHistory(env, { ...historyDefaults, days: "7", scene: f.scene, role: f.role, route: f.route, device: f.device, release: f.release, eventId: f.eventId, task: f.task, operation: f.operation }, now,
       { fromDay: historyDay(middleFrom), toDay: historyDay(middleTo - 1) });
+    result.validUntil = Math.min(result.validUntil, history.validUntil ?? now + 60000);
     rawBytes -= history.coverage?.tailBytes ?? 0;
     rawBatches -= history.coverage?.tailBatches ?? 0;
     result.coverage.pendingTailBatches = history.pendingBatches;
@@ -71,9 +72,17 @@ export async function longWindowSummary(env: Env, f: AnalysisFilters, session: s
     ...(window.from < middleFrom ? [{ from: window.from, to: middleFrom }] : []),
     ...(middleTo < window.to ? [{ from: middleTo, to: window.to }] : []),
   ];
+  const rawMetrics = new Map<string, EventRow>();
   for (const edge of edges) {
-    const snapshot = await readAnalysisSnapshot(env.DB, { ...f, from: new Date(edge.from).toISOString(), to: new Date(edge.to).toISOString() }, now, budget, Math.max(0, rawBytes), Math.max(0, rawBatches));
+    const snapshot = await readAnalysisSnapshot(env.DB, { ...f, from: new Date(edge.from).toISOString(), to: new Date(edge.to).toISOString() }, now, budget, Math.max(0, rawBytes), Math.max(0, rawBatches), false, true);
     rawBytes -= snapshot.bytes; rawBatches -= snapshot.batches;
+    // Read the actual edge before optional cohort followups, so a busy next day cannot evict its pages.
+    if (edge.to < now && snapshot.events.some(e => e.received < edge.to && (e.kind === "operation" && e.phase === "start" || e.kind === "task" && e.task?.phase === "start"))) {
+      const followup = await readAnalysisSnapshot(env.DB, { ...f, from: new Date(edge.to).toISOString(), to: new Date(Math.min(now, edge.to + DAY + LIMITS.ageMs)).toISOString() }, now, budget, Math.max(0, rawBytes), Math.max(0, rawBatches), false, true);
+      rawBytes -= followup.bytes; rawBatches -= followup.batches;
+      snapshot.events.push(...followup.events); snapshot.truncated ||= followup.truncated;
+      snapshot.validUntil = Math.min(snapshot.validUntil, followup.validUntil);
+    }
     result.validUntil = Math.min(result.validUntil, snapshot.validUntil);
     const latest = new Map<string, EventRow>();
     for (const e of snapshot.events) {
@@ -102,13 +111,20 @@ export async function longWindowSummary(env: Env, f: AnalysisFilters, session: s
         navigationType: e.measurement?.lifecycle?.navigationType ?? "missing", duration: distribution(value, name), active: distribution(active) });
     }
     const metricIds = new Set(snapshot.metricIds);
-    for (const e of rows) {
-      if (e.kind === "performance" && metricIds.has(e.id)) metric(e, e.metricName!, e.metricName === "CLS" ? e.score : e.durationMs);
-      if (e.kind === "ready") metric(e, `${e.ready!.module}:${e.ready!.phase}`, e.durationMs);
+    const eligible = rows.filter(e => e.kind === "ready" || e.kind === "performance" && metricIds.has(e.id));
+    const keys = JSON.stringify(eligible.flatMap(e => e.historyKey ? [e.historyKey] : []));
+    const overlap = await env.DB.prepare("SELECT sample_key,day FROM history_samples WHERE expires>? AND sample_key IN (SELECT value FROM json_each(?))").bind(now, keys).all<{ sample_key: string; day: string }>();
+    const middleKeys = new Set(overlap.results.filter(r => historyDayStart(r.day) >= middleFrom && historyDayStart(r.day) < middleTo).map(r => r.sample_key));
+    for (const e of eligible) {
+      if (e.historyKey && middleKeys.has(e.historyKey)) continue;
+      const key = e.historyKey ?? `${e.session}:${e.id}`;
+      const previous = rawMetrics.get(key);
+      if (!previous || e.at > previous.at || e.at === previous.at && e.received >= previous.received) rawMetrics.set(key, e);
     }
     for (const c of calls) if (c.result) metric(c.result, c.start.operation!, c.result.durationMs);
     for (const a of attempts) if (a.completed) metric(a.candidates.find(e => e.task?.phase === "complete")!, a.start.task!.name, a.elapsed ?? undefined, a.active ?? undefined);
   }
+  for (const e of rawMetrics.values()) addMetric({ kind: e.kind as HistoryTimingRow["kind"], name: e.kind === "ready" ? `${e.ready!.module}:${e.ready!.phase}` : e.metricName!, phase: "", release: e.measurement?.clientRelease ?? "missing", measurementVersion: e.measurement?.v ?? 0, definitionVersion: 0, navigationType: e.measurement?.lifecycle?.navigationType ?? "missing", duration: distribution(e.kind === "ready" || e.metricName !== "CLS" ? e.durationMs : e.score, e.metricName), active: emptyHistoryDistribution() });
   result.metrics = [...metrics.values()];
   result.coverage.status = result.coverage.segments.length > 0 && result.coverage.segments.every(s => s.status === "complete") ? "complete" : "partial";
   return result;
