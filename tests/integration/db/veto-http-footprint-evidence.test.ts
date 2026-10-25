@@ -1,7 +1,7 @@
 // Opt-in full HTTP evidence; ordinary PG CI skips starting a Next server.
 import { randomUUID } from "node:crypto";
 import { spawn, execFileSync } from "node:child_process";
-import { mkdirSync, createWriteStream, readFileSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
+import { mkdirSync, createWriteStream, readFileSync, writeFileSync, existsSync, unlinkSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { request, chromium } from "@playwright/test";
@@ -12,7 +12,7 @@ import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { parseLocalSupabaseStatus, buildLocalAppEnvironment } from "../../../scripts/db/local-environment";
 import { createMajorBrowserScenarioFixture, cleanupMajorBrowserScenarioFixture } from "../../../scripts/db/major-browser-fixture";
-import { seedFixture } from "./harness/mizar";
+import { seedFixture, type Fixture } from "./harness/mizar";
 import { mizarSnapshot } from "./harness/mizar-snapshot";
 import { hashCredential } from "@/lib/mizar/installation";
 import { RELIABLE_EVENT_SCHEMA_VERSION } from "@/lib/mizar/protocol";
@@ -60,6 +60,32 @@ it.skipIf(process.env.RIVALHUB_BP_HTTP_EVIDENCE !== "1")("measures full BP HTTP 
     const auth = await context.post("/api/test/e2e/auth", { data: { email: admin.email, password: scenario.password } });
     expect(auth.status()).toBe(200);
     const endpoint = `/api/matches/${f.matchId}/veto-room`;
+    if (process.env.RIVALHUB_CLI_HTTP_FIXTURE_EVIDENCE === "1") {
+      const privateManifest = resolve(artifacts, `http-fixture-${randomUUID()}.json`);
+      const fixtureCli = (command: string, ...args: string[]) => {
+        try { return execFileSync(process.execPath, ["--conditions=react-server", "--import", "tsx", "scripts/db/mizar-http-resource-fixture.ts", command, privateManifest, ...args], { env: process.env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 30_000 }); }
+        catch { throw new Error("Local HTTP fixture CLI failed; private data omitted"); }
+      };
+      try {
+        fixtureCli("create");
+        expect(statSync(privateManifest).mode & 0o777).toBe(0o600);
+        const manifest = JSON.parse(readFileSync(privateManifest, "utf8")) as { producers: Array<{ fixture: Fixture; credential: string; liveTemplate: unknown; reliableEnvelope: unknown }> };
+        const post = async (operation: string, producer: typeof manifest.producers[number], data: unknown) => {
+          try {
+            const response = await context.post(`/api/mizar/${operation}`, { headers: { authorization: `Bearer ${producer.credential}`, "x-rivalhub-authority": String(producer.fixture.authorityRevision) }, data });
+            return { status: response.status(), body: await response.json() };
+          } catch { throw new Error("Local synthetic HTTP transport failed; headers and payload omitted"); }
+        };
+        const live = await Promise.all(manifest.producers.map(producer => post("live", producer, producer.liveTemplate)));
+        expect(live).toEqual([{ status: 200, body: { accepted: true } }, { status: 200, body: { accepted: true } }]);
+        const reliable = await Promise.all(manifest.producers.map(producer => post("reliable", producer, producer.reliableEnvelope)));
+        expect(reliable).toEqual([{ status: 200, body: { outcome: "canonicalized", duplicate: false } }, { status: 200, body: { outcome: "canonicalized", duplicate: false } }]);
+        const receipts = JSON.parse(fixtureCli("verify", "--require-receipts").trim().split("\n").at(-1)!);
+        const evidence = { sha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(), environment: "same Next dev HTTP + real Local Supabase", privateMode: "0600", differentMatches: true, liveAccepted: 2, reliableCanonicalized: 2, receipts };
+        writeFileSync(resolve(artifacts, "http-fixture-cli.json"), JSON.stringify(evidence, null, 2));
+        console.info("HTTP_FIXTURE_CLI", JSON.stringify(evidence));
+      } finally { fixtureCli("cleanup"); }
+    }
     if (process.env.RIVALHUB_LIVE_HTTP_EVIDENCE === "1") {
       const fixtures = await Promise.all(Array.from({ length: 3 }, () => seedFixture()));
       const credentials = fixtures.map(item => `rh_mizar_${item.installationId}_${"a".repeat(64)}`);

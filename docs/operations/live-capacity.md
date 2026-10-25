@@ -109,6 +109,22 @@ RIVALHUB_BP_BROWSER_EVIDENCE=1 pnpm test:integration \
 
 上例密码只属于 disposable 本地容器；wrapper 隔离目标，不注入远程 URL/key。CI system lane 根据 Mizar changed surface 强制 Local Supabase evidence，并验证 pinned Mizar adapter/parser。
 
+## 本地 HTTP resource fixture
+
+`脚本 scripts/db/mizar-http-resource-fixture.ts` 复用既有完整 Mizar fixture 与纯 snapshot 工厂，创建两个独立 synthetic test match / producer。只接受明确的 local target 与 loopback `DATABASE_URL`；manifest 绑定该数据库指纹，使用 0600，stdout 只输出路径和状态。运行时使用同一提交的完整 worktree，避免只复制 CLI 而遗漏 fixture 工厂。
+
+在调用方已提供本地环境的情况下：
+
+```bash
+pnpm exec tsx scripts/db/run-server-cli.ts scripts/db/mizar-http-resource-fixture.ts create .agent-tmp/mizar-http-resource.json
+pnpm exec tsx scripts/db/run-server-cli.ts scripts/db/mizar-http-resource-fixture.ts verify .agent-tmp/mizar-http-resource.json --require-receipts
+pnpm exec tsx scripts/db/run-server-cli.ts scripts/db/mizar-http-resource-fixture.ts cleanup .agent-tmp/mizar-http-resource.json
+```
+
+HTTP driver 在内存读取 `producers[]`：`fixture.matchId`、`fixture.authorityRevision`、`credential`、`liveTemplate`、`reliableEnvelope`。只对 loopback SUT POST `/api/mizar/live` / `/api/mizar/reliable`，构造 Bearer 与 x-rivalhub-authority，不打印 manifest 或请求 headers。每份新 LIVE 更新 producedAt 并递增 cursor.runtimeSeq；可靠 envelope 预留 sequence=1,000,000，须在 LIVE 阶段停止后发送，之后低于该 floor 的 LIVE 不能继续发送。遇未知提交先只读 verify，不能重放旧 LIVE 或重新生成同一 idempotency key 的 envelope。
+
+15 分钟是 fixture 使用 deadline，并非现有 credential 的服务器 TTL；不改变线上 auth。driver 必须 finally 停止发送并 cleanup，删除 tagged local authority、合成事实和 manifest。verify 使用 repeatable-read/read-only transaction，`--require-receipts` 要求两个唯一 canonicalized receipt 及合成比分；没有 receipt 时不代发、不补写。cleanup 不接受无 fixture namespace、错误数据库或不匹配的本地用户集合。
+
 ## 尚未证明的事实
 
 没有生产锁事故、生产压测、远程 Supabase 迁移、部署或权限变更。loopback 故障模型不等于 Supabase 故障实现。真实 provider 仍需验证：目标 project 的 quotas/modern-key Broadcast 支持、跨区 RTT/p99、429/timeout 后晚到包、撤销/接管与 viewer reducer 的 end-to-end reset、多实例热点/公平性、token renew/rejoin 高峰、最大复杂度 Radar payload、实际出站和账单。超时后 provider 已接受的消息无法靠数据库回滚撤回；这是现有 transport 的边界，不能用本次 mock/本地通过签署生产能力。
