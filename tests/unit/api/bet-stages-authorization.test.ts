@@ -1,0 +1,20 @@
+import { expect,it,vi,beforeEach } from "vitest";
+const calls=vi.hoisted(()=>({authorize:vi.fn(),session:vi.fn(),stages:vi.fn(),transaction:vi.fn()}));
+vi.mock("@/lib/bet/read-access",()=>({authorizePublicMajorRead:calls.authorize}));
+vi.mock("@/lib/auth/session",()=>({getUserSession:calls.session}));
+vi.mock("@/lib/bet/board-stages",()=>({readBetBoardStages:calls.stages}));
+vi.mock("@/db/client",()=>({db:{transaction:calls.transaction}}));
+import {readBetBoardRequest} from "@/lib/bet/request-read";
+const seasonId="00000000-0000-4000-8000-000000000001";
+beforeEach(()=>vi.clearAllMocks());
+it("does not start cache or private reads before fresh authorization and session succeed",async()=>{
+  const refused=new Error("refused");
+  calls.authorize.mockRejectedValueOnce(refused);
+  await expect(readBetBoardRequest({seasonId,view:"open"})).rejects.toBe(refused);
+  expect(calls.session).not.toHaveBeenCalled();
+  expect(calls.stages).not.toHaveBeenCalled();expect(calls.transaction).not.toHaveBeenCalled();
+  calls.authorize.mockResolvedValue({id:seasonId,slug:"fixture",status:"playing"});
+  calls.session.mockRejectedValueOnce(refused);
+  await expect(readBetBoardRequest({seasonId,view:"open"})).rejects.toBe(refused);
+  expect(calls.stages).not.toHaveBeenCalled();expect(calls.transaction).not.toHaveBeenCalled();
+});

@@ -1,3 +1,4 @@
+import {traceOperation} from "@/lib/observability/server";
 import {ok} from "@/types/action";
 import {AppError,ErrorCode} from "@/lib/errors";
 import {actionError} from "@/lib/action-utils";
@@ -13,11 +14,13 @@ export async function GET(request:Request,context:{params:Promise<{seasonId:stri
       if(input.view==="tasks"||input.view==="ranking") {
         const parsed=pickEmSummaryRequestInput.safeParse(input);
         if(!parsed.success)throw new AppError(ErrorCode.VALIDATION_FAILED,"读取参数无效");
-        return Response.json(ok(await readPickEmSummaryRequest(parsed.data)),{headers});
+        const data=await readPickEmSummaryRequest(parsed.data);
+        return await traceOperation("predictions.summary.response",{scope:"predictions",operation:"summary",stage:"serialize",attributes:{"rivalhub.workflow":`predictions.${parsed.data.view}`}},async()=>Response.json(ok(data),{headers}));
       }
       const parsed=predictionRequestInput.safeParse(input);
       if(!parsed.success)throw new AppError(ErrorCode.VALIDATION_FAILED,"读取参数无效");
-      return Response.json(ok(await readPredictionRequest(parsed.data)),{headers});
+      const data=await readPredictionRequest(parsed.data);
+      return await traceOperation("predictions.board.response",{scope:"predictions",operation:"board",stage:"serialize",attributes:{"rivalhub.workflow":`predictions.${parsed.data.view}`}},async()=>Response.json(ok(data),{headers}));
     }catch(error){
       const result=actionError("predictions.http_read",error);
       const code=!result.success?result.error.code:ErrorCode.INTERNAL_ERROR;

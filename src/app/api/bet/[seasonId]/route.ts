@@ -1,3 +1,4 @@
+import {traceOperation} from "@/lib/observability/server";
 import {ok} from "@/types/action";
 import {AppError,ErrorCode} from "@/lib/errors";
 import {actionError} from "@/lib/action-utils";
@@ -12,7 +13,8 @@ export async function GET(request:Request,context:{params:Promise<{seasonId:stri
       const input={...Object.fromEntries(url.searchParams),seasonId:(await context.params).seasonId};
       const parsed=betBoardRequestInput.safeParse(input);
       if(!parsed.success)throw new AppError(ErrorCode.VALIDATION_FAILED,"读取参数无效");
-      return Response.json(ok(await readBetBoardRequest(parsed.data)),{headers});
+      const data=await readBetBoardRequest(parsed.data);
+      return await traceOperation("bet.board.response",{scope:"bet",operation:"board",stage:"serialize",attributes:{"rivalhub.workflow":`bet.${parsed.data.view}`}},async()=>Response.json(ok(data),{headers}));
     }catch(error){
       const result=actionError("bet.http_read",error);
       const code=!result.success?result.error.code:ErrorCode.INTERNAL_ERROR;
