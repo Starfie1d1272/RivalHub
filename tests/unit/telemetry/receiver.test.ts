@@ -278,6 +278,24 @@ it("bounds lifecycle and fingerprint extensions without accepting arbitrary diag
 });
 
 
+it("accepts v1/v2 and ready basis while rejecting unbounded or falsely censored extensions", async () => {
+  const { env, sqlite } = fixture(); const session = crypto.randomUUID();
+  const task = { name: "registration" as const, definitionVersion: 2 as const, attemptId: crypto.randomUUID(), phase: "complete" as const, step: "confirm" as const, activeMs: 3600000, elapsedCensored: true as const, activeCensored: true as const };
+  const sample = event({ session, kind: "task", operation: undefined, operationId: undefined, phase: undefined, durationMs: 3600000, task });
+  expect(validEvent(sample, now)).toBe(true);
+  const operation = event({ session, durationMs: 100, task: { ...task, phase: "step" } });
+  expect(validEvent(operation, now)).toBe(true);
+  expect((await post(env, await batch(env, [operation]))).status).toBe(204);
+  for (const extra of [{ task: { ...task, definitionVersion: 1 } }, { task: { ...task, definitionVersion: 3 } }, { task: { ...task, activeCensored: false } }, { durationMs: 3600001 }, { durationMs: 10 }, { task: { ...task, activeMs: 10 } }, { task: { ...task, text: "PRIVATE" } }]) expect(validEvent({ ...sample, ...extra }, now)).toBe(false);
+  const ready = event({ session, kind: "ready", operation: undefined, operationId: undefined, phase: undefined, durationMs: 10, ready: { module: "match", phase: "advanced", basis: "demand" }, measurement: { v: 1, navigationId: crypto.randomUUID(), clientRelease: "fixture", visibility: "visible" } });
+  expect(validEvent(ready, now)).toBe(true);
+  expect(validEvent({ ...ready, ready: { ...ready.ready, basis: "PRIVATE" } }, now)).toBe(false);
+  const body = await batch(env, [sample, ready]);
+  expect((await post(env, body)).status).toBe(204);
+  const stored = sqlite.prepare("SELECT events_gzip FROM batches WHERE id=?").get(body.id)!;
+  expect(JSON.parse(gunzipSync(stored.events_gzip as Uint8Array).toString())).toEqual([sample, ready]);
+});
+
 it("delivers legal rich batches through queue/receiver and deduplicates a lost ACK", async () => {
   vi.useFakeTimers(); vi.setSystemTime(now);
   try {

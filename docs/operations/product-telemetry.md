@@ -123,13 +123,13 @@ Web Vitals 按同身份/会话、指标和样本标识取最新报告；ready �
 
 ### 测量合同兼容与接入顺序
 
-共享任务 wire type 读取 definitionVersion 1 和 2；当前定义常量为 2，计时 cap 仍为一小时。v2 的 elapsedCensored/activeCensored 只在对应计时**超过** cap 时传 true；等于 cap 不标记。报名观察窗口仍为 24 小时，不能从截断值推断真实时长。旧 v1 无标记样本独立归类，不追溯生成标记或混为 v2。业务确认回执使用 complete/confirm；真正呈现另记 result step 或 ready，不延迟 complete 等待 React 挂载。
+共享任务 wire type 读取 definitionVersion 1 和 2；当前定义常量为 2，计时 cap 仍为一小时。v2 的 elapsedCensored/activeCensored 只在对应计时**超过** cap 时传 true；等于 cap 不标记。报名观察窗口仍为 24 小时，不能从截断值推断真实时长。旧 v1 无标记样本独立归类，不追溯生成标记或混为 v2。业务确认回执使用 complete/confirm，已确认完成单调保持；同 attempt 后续 result step、cancel、重复 complete 或乱序重发都不能撤回完成事实。result 仍是独立可选呈现步骤，不替换业务确认耗时；真正呈现另记 result step 或 ready，不延迟 complete 等待 React 挂载。
 
-ready 的目标兼容合同是可选 basis=navigation|demand，缺省为旧 navigation。navigation 保留导航到首次可用及异常原始样本；demand 从本次用户请求模块开始，需求 token 的真实导航 ID、模块和单调时刻只留内存。两种 basis 分组，不混算分位数。Web Vital 仅在确证源导航时关联，否则保持未知，不用当前 SPA 导航或 metric ID 拼接。
+ready 的兼容合同是可选 basis=navigation|demand，缺省为旧 navigation。navigation 保留导航到首次可用及异常原始样本；demand 从本次用户请求模块开始，需求 token 的真实导航 ID、模块和单调时刻只留内存。两种 basis 分组，不混算分位数。Web Vital 仅在确证源导航时关联，否则保持未知，不用当前 SPA 导航或 metric ID 拼接。
 
 登录只在原 attempt/原 identity 记录已确认终态并进行既有 flush，随后 reset；不跨账号 carry。logout、换账号、DNT/GPC 或停收清除内存状态。任何交接不保存密码、表单内容或持久身份映射。
 
-类型 provider 本身不改变客户端 emit 或 receiver 校验。必须先同步 receiver 的逐字段校验、短期/长期分析按定义版本及 ready basis 分组，之后客户端后继变更才发送 v2/censored/basis；部署顺序为 receiver 先、app 后，不能凭共享类型已合并认定接收端已支持。
+receiver 逐字段兼容 v1/v2，censor 仅允许 v2 的 true 且task 自身对应 durationMs/activeMs 等于现有一小时 cap；operation snapshot 的 elapsedCensored 描述所属任务，不能拿本次调用 durationMs 校验或排除调用时长；更大的计时和额外字段仍拒绝。短期/长期分析按 definitionVersion 与 ready basis 独立分组；未关联 task 的 page/operation 归 definitionVersion=0（定义未采集），不伪装 v1，也不重复计入 v2 的调用分母；未知组不生成 task 完成率趋势。censor 覆盖按报告单列，对应 task 计时不进入完整耗时分布，censored complete 清空早期 step 计时；operation 调用时长仍保留。navigation ready 仍按导航/模块/阶段首次去重，demand 保留每次独立需求事件。旧无 basis 数据按 navigation 读取，旧无标记 v1 不补造。客户端后继变更在兼容 receiver 实际部署后才发送 v2/censored/basis；部署顺序为 receiver 先、app 后，不能凭共享类型已合并认定接收端已上线。
 
 ### 任务采集
 
@@ -154,6 +154,8 @@ ready 的目标兼容合同是可选 basis=navigation|demand，缺省为旧 navi
 `getLongWindowSummary(input)`（`src/lib/telemetry/dashboard.ts`）与 `GET /admin/long-window` 使用原 analysis 筛选和 rolling 请求时间含义，独立输出 `LongWindowSummary`，不把 raw Analysis 的截断 totals 伪装为完整。`requestedRange` 保留请求，`effectiveRange` 表示留存限制后的窗口，`coveredRanges` 仅列可确认完整的范围。完整北京时间日读取日聚合与有界未封存尾部；首尾不足日读取有界 raw，段间半开边界不重复午夜事件；查询最末上界沿用原 raw 的 inclusive 语义，恰逢北京时间午夜时由同 from/to 的 raw_edge 单独表示该毫秒端点。raw 边缘先读本段，再仅为存在 start 的任务/操作补读后续；同一查询的 raw/tail 共用最多 2 MiB/2,000 批预算。性能更新以用途隔离样本键排除聚合/边缘重叠，再跨两个 raw 边缘取最新值。样本键不投影到应用。
 
 `completionBasis=observed_not_matured` 明确 taskComplete 是观测到的确认终态，不是短期成熟 cohort 的完成率；该 DTO 不输出成熟完成率。`counts` 是实际读到的可加次数，覆盖不完整时只是 observed counts；`distinctSessions` / `distinctAccounts` 为 null，不累加日去重数。已有长期样本把 exposure/start/complete 合为一个 attempt，无法恢复总曝光；包含聚合日的 summary 因此将 taskExposure 返回 null，不能用最终仍处 exposure 的次数冒充全部曝光。`metrics` 为可合并分布桶，不能平均日分位数。`coverage.segments` 分别说明 history+tail 与 raw_edge 的完整、partial、unknown 范围与原因；raw 留存最早边缘受批内最早事件 TTL 影响，缺口不补造。`pendingTailBatches`、`tailBudgetTruncated`、`metricGroupsTruncated`、`rawBudgetTruncated`、`retentionUnknown` 与 `seriesOmitted` 分开表达；该 summary 不提供 series，原 raw 的前 12 series 省略状态仍保留。
+
+`metrics` 延续 receiver 合同，以 definitionVersion=0/1/2（未知/明确旧版/新版）、ready basis=navigation/demand 和 task censor flags 分组。缺 basis 的旧 ready 仅归 navigation；无 task 关联的 operation 仍保留 definitionVersion=0。elapsedCensored/activeCensored 只排除任务自身分布，长任务内短 operation 仍保留调用时长。complete 是单调确认事实，后续 result step、取消或乱序重发不撤回；censored complete 清空此前 active 值。raw 边界与 history+tail 使用相同规则。
 
 当前 long-summary 未实现的 browser/source/visibility、scope、navigationType 条件，以及 ticket release basis、missing eventId 或单 session 条件，返回 unsupportedDimensions 与 unsupported 状态，counts 为 null；不把未过滤历史冒充匹配结果。原始账号/session 诊断保留既有 canonical `/admin/events`：operator Bearer 下每页 20 批，按 received DESC/id DESC/ticket DESC 排序；before/id/ticket 复合 cursor 和 nextCursor 提供稳定下一页，各批 received 表示本页实际覆盖。此处 truncated 表示还有下一页，不是 raw Analysis 的预算截断。raw Analysis 仍受原预算保护。F 的 UI 消费应展示实际范围和覆盖分类，不能用这些独立 summary 替换所有 raw 诊断。
 

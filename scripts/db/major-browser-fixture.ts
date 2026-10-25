@@ -95,7 +95,7 @@ export async function createMajorBrowserScenarioFixture(
     scenario.authUserIds = [];
     const authIds = await runPhase(scenario, "Auth setup", () => createAuthUsers(scenario, auth));
     await runPhase(scenario, "DB setup", async () => {
-      const client = await pool.connect();
+      const client = await runPhase(scenario, "DB connection", () => pool.connect());
       try {
         await client.query("BEGIN");
         await insertFixture(client, scenario, authIds);
@@ -610,10 +610,13 @@ function createCapabilities(scenario: ScenarioDefinition) {
 }
 
 async function runPhase<T>(scenario: ScenarioDefinition, phase: string, operation: () => Promise<T>): Promise<T> {
+  const started = performance.now();
   try {
     return await operation();
   } catch (error) {
     throw new Error(`Major browser scenario ${scenario.scenarioId} failed during ${phase}: ${safeErrorSummary(error)}`, { cause: error });
+  } finally {
+    if (scenario.profile === "education") console.log(`E2E_FIXTURE_PHASE ${JSON.stringify({ phase, durationMs: Math.round(performance.now() - started) })}`);
   }
 }
 

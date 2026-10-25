@@ -33,7 +33,13 @@ async function fixture() {
     expect(response.status).toBe(200);
     return HistoryData.parse(await response.json());
   }
-  return { mf, db, env, post, read };
+  async function long(from: number, to: number, now = to) {
+    const query = new URLSearchParams({ from: new Date(from).toISOString(), to: new Date(to).toISOString() });
+    const response = await handle(new Request("https://worker.invalid/admin/long-window?" + query, { headers: { authorization: `Bearer ${env.DASHBOARD_KEY}` } }), env, now);
+    expect(response.status).toBe(200);
+    return LongWindowSummary.parse(await response.json());
+  }
+  return { mf, db, env, post, read, long };
 }
 
 it("keeps history opt-in, validates filters and limits the dashboard credential to reads", async () => {
@@ -364,5 +370,104 @@ it("preserves the inclusive requested upper tick when it falls exactly on BJT mi
     const data = LongWindowSummary.parse(await response.json());
     expect(data.counts.views).toBe(1);
     expect(data.coverage.segments.find(s => s.source === "raw_edge")).toMatchObject({ from: now, to: now, status: "complete" });
+  } finally { await f.mf.dispose(); }
+}, 30000);
+
+
+it("keeps v2 censor coverage and ready basis separate in persisted distributions", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25");
+  try {
+    await maintainHistory(f.env, day);
+    const attemptId = crypto.randomUUID(), navigationId = crypto.randomUUID();
+    const task = { name: "registration" as const, definitionVersion: 2 as const, attemptId, phase: "start" as const, step: "start" as const };
+    await f.post([{ kind: "task", task }], day + 1000);
+    await maintainHistory(f.env, day + 2000);
+    const measurement = { v: 1 as const, navigationId, clientRelease: "fixture", visibility: "visible" as const };
+    const ready = { module: "match" as const, phase: "advanced" as const };
+    expect((await f.post([
+      { kind: "task", task: { ...task, phase: "complete", step: "confirm", elapsedCensored: true, activeCensored: true, activeMs: 3600000 }, durationMs: 3600000 },
+      { kind: "ready", measurement, ready, durationMs: 3600000 },
+      { kind: "ready", measurement, ready: { ...ready, basis: "demand" }, durationMs: 100 },
+      { kind: "ready", measurement, ready: { ...ready, basis: "demand" }, durationMs: 200 },
+    ], day + 7201000)).status).toBe(204);
+    await maintainHistory(f.env, day + 7202000);
+    const data = await f.read(day + 7203000);
+    const rows = summarizeHistory(data).timings;
+    expect(rows.find(r => r.kind === "task")).toMatchObject({ definitionVersion: 2, elapsedCensored: true, activeCensored: true, reports: 1, n: 0 });
+    expect(rows.find(r => r.kind === "ready" && r.basis === "navigation")).toMatchObject({ n: 1, mean: 3600000 });
+    expect(rows.find(r => r.kind === "ready" && r.basis === "demand")).toMatchObject({ n: 2, mean: 150 });
+    for (const summary of [await f.long(day, day + 7203000), await f.long(day, day + DAY, day + DAY + 1000)]) {
+      expect(summary.metrics.find(r => r.kind === "task")).toMatchObject({ definitionVersion: 2, elapsedCensored: true, activeCensored: true, reports: 1, duration: { n: 0 } });
+      expect(summary.metrics.find(r => r.kind === "ready" && r.basis === "navigation")).toMatchObject({ duration: { n: 1, sum: 3600000 } });
+      expect(summary.metrics.find(r => r.kind === "ready" && r.basis === "demand")).toMatchObject({ duration: { n: 2, sum: 300 } });
+    }
+  } finally { await f.mf.dispose(); }
+}, 30000);
+
+
+it("keeps confirmed history completion across cross-day result-first delivery, duplicates and cancellation", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25");
+  try {
+    await maintainHistory(f.env, day);
+    const task = { name: "registration" as const, definitionVersion: 2 as const, attemptId: crypto.randomUUID(), phase: "start" as const, step: "start" as const };
+    await f.post([{ kind: "task", task }], day + DAY - 1000);
+    await maintainHistory(f.env, day + DAY - 500);
+    await f.post([{ kind: "task", task: { ...task, phase: "step", step: "result" }, durationMs: 3000 }], day + DAY + 2000);
+    await maintainHistory(f.env, day + DAY + 2500);
+    const completion = { kind: "task" as const, at: day + DAY + 1000, task: { ...task, phase: "complete" as const, step: "confirm" as const }, durationMs: 2000 };
+    await f.post([completion], day + DAY + 3000);
+    await f.post([completion], day + DAY + 3500);
+    await f.post([{ kind: "task", task: { ...task, phase: "cancel" }, durationMs: 5000 }], day + DAY + 4000);
+    await maintainHistory(f.env, day + DAY + 5000);
+    await maintainHistory(f.env, day + DAY + 6000);
+    const summary = summarizeHistory(await f.read(day + DAY + 7000));
+    expect(summary.byDay.find(d => d.day === "2026-10-25")).toMatchObject({ taskStarts: 1, taskComplete: 1 });
+    expect(summary.timings.find(t => t.kind === "task")).toMatchObject({ phase: "complete", n: 1, mean: 2000 });
+  } finally { await f.mf.dispose(); }
+}, 30000);
+
+
+it("retains short operation timing inside a censored task and clears earlier active on censored complete", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25");
+  try {
+    await maintainHistory(f.env, day);
+    const task = { name: "registration" as const, definitionVersion: 2 as const, attemptId: crypto.randomUUID(), phase: "start" as const, step: "start" as const };
+    await f.post([{ kind: "task", task }], day + 1000);
+    await f.post([{ kind: "task", durationMs: 19000, task: { ...task, phase: "step", step: "edit", activeMs: 10000 } }], day + 20000);
+    await maintainHistory(f.env, day + 21000);
+    const censored = { ...task, elapsedCensored: true as const, activeCensored: true as const, activeMs: 3600000 };
+    const operationId = crypto.randomUUID();
+    await f.post([{ kind: "operation", operation: "register.submitRegistration", operationId, phase: "start", task: { ...censored, phase: "step", step: "submit" } }], day + 7200900);
+    expect((await f.post([{ kind: "operation", operation: "register.submitRegistration", operationId, phase: "success", durationMs: 100, task: { ...censored, phase: "step", step: "submit" } }], day + 7201000)).status).toBe(204);
+    await f.post([{ kind: "task", durationMs: 3600000, task: { ...censored, phase: "complete", step: "confirm" } }], day + 7201100);
+    await f.post([{ kind: "task", durationMs: 3600000, task: { ...censored, phase: "step", step: "result" } }], day + 7201200);
+    await maintainHistory(f.env, day + 7202000);
+    const data = await f.read(day + 7203000);
+    expect(data.timingRows.find(r => r.kind === "task")).toMatchObject({ phase: "complete", elapsedCensored: true, activeCensored: true, duration: { n: 0 }, active: { n: 0 } });
+    expect(summarizeHistory(data).timings.find(r => r.kind === "operation")).toMatchObject({ mean: 100, n: 1, elapsedCensored: false });
+    for (const summary of [await f.long(day, day + 7203000), await f.long(day, day + DAY, day + DAY + 1000)]) {
+      expect(summary.counts).toMatchObject({ taskStarts: 1, taskComplete: 1, operations: 1, success: 1 });
+      expect(summary.metrics.find(r => r.kind === "task")).toMatchObject({ phase: "complete", elapsedCensored: true, activeCensored: true, duration: { n: 0 }, active: { n: 0 } });
+      expect(summary.metrics.find(r => r.kind === "operation")).toMatchObject({ definitionVersion: 2, elapsedCensored: false, duration: { n: 1, sum: 100 } });
+    }
+  } finally { await f.mf.dispose(); }
+}, 30000);
+
+it("keeps explicit v1/v2 and unassociated operation cohorts across raw and full-day summaries", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25");
+  try {
+    await maintainHistory(f.env, day);
+    const tasks = ([1, 2] as const).map(definitionVersion => ({ name: "registration" as const, definitionVersion, attemptId: crypto.randomUUID(), phase: "start" as const, step: "start" as const }));
+    const calls = tasks.map(() => crypto.randomUUID()); const unknownCall = crypto.randomUUID();
+    expect((await f.post([...tasks.flatMap((task, i) => [{ kind: "task" as const, task }, { kind: "operation" as const, operation: "register.submitRegistration" as const, operationId: calls[i], phase: "start" as const, task: { ...task, phase: "step" as const, step: "submit" as const } }]), { kind: "operation", operation: "register.submitRegistration", operationId: unknownCall, phase: "start" }], day + 1000)).status).toBe(204);
+    expect((await f.post([...tasks.flatMap((task, i) => [{ kind: "task" as const, task: { ...task, phase: "complete" as const, step: "confirm" as const }, durationMs: 100 }, { kind: "operation" as const, operation: "register.submitRegistration" as const, operationId: calls[i], phase: "success" as const, durationMs: 100, task: { ...task, phase: "step" as const, step: "submit" as const } }]), { kind: "operation", operation: "register.submitRegistration", operationId: unknownCall, phase: "success", durationMs: 100 }], day + 1100)).status).toBe(204);
+    await maintainHistory(f.env, day + 2000);
+    for (const summary of [await f.long(day, day + 3000), await f.long(day, day + DAY, day + DAY + 1000)]) {
+      expect(summary.counts).toMatchObject({ taskStarts: 2, taskComplete: 2, operations: 3, success: 3 });
+      const operations = summary.metrics.filter(m => m.kind === "operation");
+      expect(operations.map(m => m.definitionVersion).sort()).toEqual([0, 1, 2]);
+      expect(operations.reduce((n, m) => n + m.duration.n, 0)).toBe(3);
+      expect(summary.metrics.filter(m => m.kind === "task").map(m => m.definitionVersion).sort()).toEqual([1, 2]);
+    }
   } finally { await f.mf.dispose(); }
 }, 30000);

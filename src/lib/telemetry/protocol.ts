@@ -1,6 +1,6 @@
 import { ErrorCode } from "@/lib/errors";
 import { OPERATIONS } from "./operations";
-import { TASK_NAMES, TASK_STEPS, TASK_VALIDATION_REASONS, type TaskMeasurement } from "./task-contract";
+import { TASK_NAMES, TASK_STEPS, TASK_VALIDATION_REASONS, TASK_DURATION_CAP_MS, type TaskMeasurement } from "./task-contract";
 import { ROUTES } from "./routes";
 import { CLIENT_CATEGORIES, type ClientContext } from "./client-context-contract";
 export { CLIENT_CATEGORIES, type ClientContext } from "./client-context-contract";
@@ -23,7 +23,7 @@ export interface TelemetryEvent {
   clientError?: { fingerprint?: string; source: "window_error" | "unhandled_rejection" | "boundary"; category: "TypeError" | "RangeError" | "ReferenceError" | "SyntaxError" | "Error" | "unknown" };
   measurement?: MeasurementContext;
   task?: TaskMeasurement;
-  ready?: { module: typeof READY_MODULES[number]; phase: typeof READY_PHASES[number] };
+  ready?: { module: typeof READY_MODULES[number]; phase: typeof READY_PHASES[number]; basis?: "navigation" | "demand" };
   id: string; at: number; session: string; route: string; scene: Scene;
   kind: "page" | "filter" | "operation" | "error" | "performance" | "ready" | "task";
   metricName?: typeof PERFORMANCE_METRICS[number];
@@ -96,7 +96,9 @@ export function validEvent(value: unknown, now: number): value is TelemetryEvent
   if (e.kind !== "operation" && e.kind !== "performance" && e.kind !== "ready" && e.kind !== "task" && e.durationMs !== undefined) return false;
   if (e.task !== undefined) {
     const t = e.task as TaskMeasurement;
-    if (!["task", "operation"].includes(String(e.kind)) || !t || typeof t !== "object" || Array.isArray(t) || !Object.keys(t).every(key => ["attemptId", "definitionVersion", "name", "phase", "step", "activeMs", "validationReason"].includes(key)) || !(TASK_NAMES as readonly string[]).includes(t.name) || t.definitionVersion !== 1 || typeof t.attemptId !== "string" || !UUID.test(t.attemptId) || !(TASK_STEPS as readonly string[]).includes(t.step) || !["exposure", "start", "step", "complete", "cancel"].includes(t.phase) || (t.activeMs !== undefined && (typeof t.activeMs !== "number" || !Number.isInteger(t.activeMs) || t.activeMs < 0 || t.activeMs > 3600000))) return false;
+    if (!["task", "operation"].includes(String(e.kind)) || !t || typeof t !== "object" || Array.isArray(t) || !Object.keys(t).every(key => ["attemptId", "definitionVersion", "name", "phase", "step", "activeMs", "validationReason", "elapsedCensored", "activeCensored"].includes(key)) || !(TASK_NAMES as readonly string[]).includes(t.name) || ![1, 2].includes(t.definitionVersion) || typeof t.attemptId !== "string" || !UUID.test(t.attemptId) || !(TASK_STEPS as readonly string[]).includes(t.step) || !["exposure", "start", "step", "complete", "cancel"].includes(t.phase) || (t.activeMs !== undefined && (typeof t.activeMs !== "number" || !Number.isInteger(t.activeMs) || t.activeMs < 0 || t.activeMs > 3600000))) return false;
+    if ((t.elapsedCensored !== undefined && (t.definitionVersion !== 2 || t.elapsedCensored !== true || (e.kind === "task" && e.durationMs !== TASK_DURATION_CAP_MS))) ||
+      (t.activeCensored !== undefined && (t.definitionVersion !== 2 || t.activeCensored !== true || t.activeMs !== TASK_DURATION_CAP_MS))) return false;
     if (t.validationReason !== undefined && (t.step !== "validation" || !(TASK_VALIDATION_REASONS as readonly string[]).includes(t.validationReason))) return false;
     if (e.kind === "operation" && t.phase !== "step") return false;
   } else if (e.kind === "task") return false;
@@ -112,7 +114,7 @@ export function validEvent(value: unknown, now: number): value is TelemetryEvent
   if (lifecycle !== undefined && (!lifecycle || typeof lifecycle !== "object" || Array.isArray(lifecycle) || Object.keys(lifecycle).sort().join() !== "activationMs,navigationType,resumed,startMs,startedHidden" || !["hard", "soft", "bfcache", "prerender", "unknown"].includes(lifecycle.navigationType) || typeof lifecycle.startedHidden !== "boolean" || typeof lifecycle.resumed !== "boolean" || ![lifecycle.startMs, lifecycle.activationMs].every(value => typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 86400000))) return false;
   if (e.kind === "ready") {
     const r = e.ready as TelemetryEvent["ready"];
-    if (!r || typeof r !== "object" || Array.isArray(r) || Object.keys(r).sort().join() !== "module,phase" || !(READY_MODULES as readonly string[]).includes(r.module) || !(READY_PHASES as readonly string[]).includes(r.phase) || e.durationMs === undefined || e.measurement === undefined) return false;
+    if (!r || typeof r !== "object" || Array.isArray(r) || !Object.keys(r).every(key => ["module", "phase", "basis"].includes(key)) || (r.basis !== undefined && !["navigation", "demand"].includes(r.basis)) || !(READY_MODULES as readonly string[]).includes(r.module) || !(READY_PHASES as readonly string[]).includes(r.phase) || e.durationMs === undefined || e.measurement === undefined) return false;
   } else if (e.ready !== undefined) return false;
   if (e.kind === "performance") {
     if (!(PERFORMANCE_METRICS as readonly string[]).includes(String(e.metricName))) return false;
