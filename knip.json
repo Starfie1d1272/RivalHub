@@ -104,6 +104,7 @@
     "scripts/vercel-build.ts!",
     "scripts/report-build-footprint.mjs!",
     "scripts/observability/resource-baseline.mjs!",
+    "scripts/observability/resource-integration.ts!",
     "scripts/with-node-options.ts!",
     "scripts/mizar-contract-check.mjs!",
     "tests/mocks/server-only.ts",

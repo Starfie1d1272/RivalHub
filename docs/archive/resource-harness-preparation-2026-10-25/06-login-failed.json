@@ -1,0 +1,423 @@
+{
+  "appNode": "v24.22.0",
+  "buildId": "zYRVSn9o_iUoQmDOa4pGc",
+  "browserVersion": "156.0.8078.4",
+  "mizarFixtureSource": "286d0449f2d3de692c4e291bee52d6c3952d6e70",
+  "harnessHashes": {
+    "resource-integration.ts": "3355992b8be7202d61c46eee5b4718a2bcd2022af829d30d828244ba2ae566d6",
+    "resource-integration-contract.ts": "7d785c9648b3b9996da222ee6373b218118b0b46bb619e25bab0609458377eda",
+    "mizar-resource-driver.ts": "633f0533cb5b4c621e2c367388d10c68d9cb117258852251c17a057d1c8e3a97",
+    "local-telemetry-resource-fixture.ts": "c1edf76d4b89deb2277e615ad37e37d5b7dd6a15d8bc3fc62f998c8ddb37f57f",
+    "resource-readings.ts": "5925e0a3d157bfa84c1c91d8ee790c6b07cdfd43391f3aefcf891b3164683f25",
+    "resource-baseline.mjs": "501b72049a9f604ee28e126c0a1ad4e4c52803e06462ae85223758e7136a3548"
+  },
+  "purpose": "harness-preparation-not-optimization-evidence",
+  "sha": "6f60b37b4b1200cefb898f026d25c0748916eb0f",
+  "releaseTag": "v0.0.0-local-resource",
+  "seed": "resource-prepare-v1",
+  "workload": {
+    "version": 1,
+    "liveProducers": 2,
+    "documents": [
+      "bet",
+      "profile",
+      "telemetry"
+    ],
+    "warmRounds": 1,
+    "concurrentRounds": 2,
+    "idleMs": 65000
+  },
+  "workloadHash": "d6f16c5cd48972e34348efda4d7b9fb3874fa30108afe7efadb071ba5aba7c22",
+  "requests": [],
+  "resources": [
+    {
+      "atMs": 8001.652791999999,
+      "rssBytes": 153407488,
+      "rssPeakBytes": 153407488,
+      "cgroupBytes": 79781888,
+      "cgroupPeakBytes": 80044032,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 9070.234416,
+      "rssBytes": 184086528,
+      "rssPeakBytes": 184086528,
+      "cgroupBytes": 108658688,
+      "cgroupPeakBytes": 108658688,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 10063.449908,
+      "rssBytes": 184086528,
+      "rssPeakBytes": 184086528,
+      "cgroupBytes": 108904448,
+      "cgroupPeakBytes": 108920832,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 11057.338998,
+      "rssBytes": 184086528,
+      "rssPeakBytes": 184086528,
+      "cgroupBytes": 108646400,
+      "cgroupPeakBytes": 108920832,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 12070.948889,
+      "rssBytes": 184094720,
+      "rssPeakBytes": 184094720,
+      "cgroupBytes": 108642304,
+      "cgroupPeakBytes": 108920832,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 13070.615576,
+      "rssBytes": 187117568,
+      "rssPeakBytes": 187117568,
+      "cgroupBytes": 110047232,
+      "cgroupPeakBytes": 111718400,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 14069.458918,
+      "rssBytes": 187117568,
+      "rssPeakBytes": 187117568,
+      "cgroupBytes": 111726592,
+      "cgroupPeakBytes": 111726592,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 15057.145108,
+      "rssBytes": 187129856,
+      "rssPeakBytes": 187129856,
+      "cgroupBytes": 111702016,
+      "cgroupPeakBytes": 111726592,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 16081.017684999999,
+      "rssBytes": 187133952,
+      "rssPeakBytes": 187133952,
+      "cgroupBytes": 111689728,
+      "cgroupPeakBytes": 111726592,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 17055.040625999998,
+      "rssBytes": 187133952,
+      "rssPeakBytes": 187133952,
+      "cgroupBytes": 111673344,
+      "cgroupPeakBytes": 111726592,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 18065.767746999998,
+      "rssBytes": 187138048,
+      "rssPeakBytes": 187138048,
+      "cgroupBytes": 111681536,
+      "cgroupPeakBytes": 111726592,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 19065.707938,
+      "rssBytes": 187142144,
+      "rssPeakBytes": 187142144,
+      "cgroupBytes": 111673344,
+      "cgroupPeakBytes": 111943680,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 20070.202564,
+      "rssBytes": 187146240,
+      "rssPeakBytes": 187146240,
+      "cgroupBytes": 111689728,
+      "cgroupPeakBytes": 111943680,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 21075.579309,
+      "rssBytes": 180416512,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 104714240,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 22078.119496,
+      "rssBytes": 179425280,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 102219776,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 23067.822788999998,
+      "rssBytes": 179429376,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 103829504,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 24063.722514,
+      "rssBytes": 179429376,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 103829504,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 25065.62071,
+      "rssBytes": 179433472,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 104075264,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 26072.511645,
+      "rssBytes": 179437568,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 104050688,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 27089.708571,
+      "rssBytes": 179437568,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 102350848,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 28069.779586,
+      "rssBytes": 179441664,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 104009728,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 29067.405902,
+      "rssBytes": 179445760,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 103989248,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 30083.78329,
+      "rssBytes": 179445760,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 102297600,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 31064.592429,
+      "rssBytes": 179449856,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 103948288,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 32073.673432000003,
+      "rssBytes": 179453952,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 104001536,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 33072.304795,
+      "rssBytes": 179453952,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 103948288,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 34076.90116,
+      "rssBytes": 179458048,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 103952384,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 35062.890169,
+      "rssBytes": 179462144,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 103948288,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 36068.454767,
+      "rssBytes": 179462144,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 103931904,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 37080.872214,
+      "rssBytes": 179466240,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 103903232,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    },
+    {
+      "atMs": 38070.93584,
+      "rssBytes": 179470336,
+      "rssPeakBytes": 188968960,
+      "cgroupBytes": 103890944,
+      "cgroupPeakBytes": 112263168,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    }
+  ],
+  "runtime": [],
+  "timeline": [
+    {
+      "phase": "fixture.begin",
+      "atMs": 390.2765770000001
+    },
+    {
+      "phase": "fixture.ready",
+      "atMs": 6247.000315
+    },
+    {
+      "phase": "application.ready",
+      "atMs": 7929.050523
+    }
+  ],
+  "errors": [
+    {
+      "phase": "login",
+      "name": "Error",
+      "message": "expect(page).toHaveURL(expected) failed  Expected: \"http://127.0.0.1:3107/[REDACTED_URL_DETAILS]\" Received: \"http://127.0.0.1:3107/[REDACTED_URL_DETAILS]\" Timeout:  30000ms  Call log:   - Expect \"toHa"
+    }
+  ],
+  "blockers": [],
+  "telemetry": [],
+  "verification": {
+    "verified": true,
+    "expired": false,
+    "receiptCount": 0,
+    "canonicalized": 0,
+    "mapsCompleted": 0
+  },
+  "appState": {
+    "oomKilled": false,
+    "exitCode": 0,
+    "status": "running"
+  },
+  "observedResourceNames": [],
+  "unobservedResourceNames": [],
+  "cleanup": {
+    "browser": true,
+    "application": true,
+    "telemetry": true,
+    "mizar": true,
+    "bet": true,
+    "auth": true
+  },
+  "coverage": {},
+  "passed": false
+}
