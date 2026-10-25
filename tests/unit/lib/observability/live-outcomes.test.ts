@@ -1,3 +1,4 @@
+import { runInNewContext } from "node:vm";
 import { afterEach, expect, it, vi } from "vitest";
 import { ROOT_CONTEXT, context } from "@opentelemetry/api";
 
@@ -5,7 +6,7 @@ vi.mock("@/lib/observability/logger", () => ({ logEvent: vi.fn() }));
 import { logEvent } from "@/lib/observability/logger";
 
 afterEach(() => {
-  Reflect.deleteProperty(globalThis, Symbol.for("rivalhub.live-outcome-window.v1"));
+  Reflect.deleteProperty(process, Symbol.for("rivalhub.live-outcome-window.v1"));
   vi.restoreAllMocks(); vi.clearAllMocks(); vi.resetModules();
 });
 
@@ -49,6 +50,10 @@ it("shares bounded counters across module reloads without installing timers", as
   vi.resetModules();
   const second = await import("@/lib/observability/live-outcomes");
   second.recordLiveIngestStage("capacity", 15);
+  const otherView = runInNewContext('({ view: globalThis, window: process[Symbol.for("rivalhub.live-outcome-window.v1")] })', { process });
+  expect(otherView.view).not.toBe(globalThis);
+  expect(otherView.window).toBe(Reflect.get(process, Symbol.for("rivalhub.live-outcome-window.v1")));
+  expect(otherView.window.stages.get("capacity").count).toBe(2);
   second.flushLiveIngestOutcomes(60_000);
   expect(logEvent).toHaveBeenCalledWith(expect.objectContaining({
     durationMs: 10, safeContext: expect.objectContaining({ outcome: "capacity", count: 2 }),

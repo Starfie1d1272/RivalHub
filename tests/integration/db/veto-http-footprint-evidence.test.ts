@@ -13,6 +13,9 @@ import * as schema from "@/db/schema";
 import { parseLocalSupabaseStatus, buildLocalAppEnvironment } from "../../../scripts/db/local-environment";
 import { createMajorBrowserScenarioFixture, cleanupMajorBrowserScenarioFixture } from "../../../scripts/db/major-browser-fixture";
 import { seedFixture } from "./harness/mizar";
+import { mizarSnapshot } from "./harness/mizar-snapshot";
+import { hashCredential } from "@/lib/mizar/installation";
+import { RELIABLE_EVENT_SCHEMA_VERSION } from "@/lib/mizar/protocol";
 
 it.skipIf(process.env.RIVALHUB_BP_HTTP_EVIDENCE !== "1")("measures full BP HTTP application database footprint", async () => {
   const status = parseLocalSupabaseStatus(execFileSync(resolve("node_modules/.bin/supabase"), ["status", "-o", "json"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }));
@@ -57,6 +60,50 @@ it.skipIf(process.env.RIVALHUB_BP_HTTP_EVIDENCE !== "1")("measures full BP HTTP 
     const auth = await context.post("/api/test/e2e/auth", { data: { email: admin.email, password: scenario.password } });
     expect(auth.status()).toBe(200);
     const endpoint = `/api/matches/${f.matchId}/veto-room`;
+    if (process.env.RIVALHUB_LIVE_HTTP_EVIDENCE === "1") {
+      const fixtures = await Promise.all(Array.from({ length: 3 }, () => seedFixture()));
+      const credentials = fixtures.map(item => `rh_mizar_${item.installationId}_${"a".repeat(64)}`);
+      await Promise.all(fixtures.map((item, index) => db.update(schema.mizarInstallations)
+        .set({ credentialHash: hashCredential(credentials[index]!) }).where(eq(schema.mizarInstallations.id, item.installationId))));
+      const reliable = fixtures[2]!;
+      const event = { schemaVersion: RELIABLE_EVENT_SCHEMA_VERSION, idempotencyKey: `http-${randomUUID()}`,
+        cursor: { producerInstanceId: reliable.producerInstanceId, liveSessionId: reliable.liveSessionId, runtimeSeq: 1, programSourceGeneration: 0, programReceiveSequence: 1, mapEpoch: 1 },
+        observedAt: new Date().toISOString(), matchId: reliable.matchId, competitionId: reliable.seasonId, contextRevision: reliable.contextRevision,
+        mapId: reliable.mapOneId, mapName: "de_ancient", entryAId: reliable.entryAId, entryBId: reliable.entryBId,
+        evidence: { identity: "matched", telemetryFresh: true, contextFresh: true, source: "runtime-transition" },
+        kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 4, scoreT: 9 } };
+      const observations: Array<{ operation: string; startedMs: number; finishedMs: number; status: number; bytes: number }> = [];
+      const origin = performance.now();
+      const observe = async (operation: string, work: () => ReturnType<typeof context.get>) => {
+        const startedMs = performance.now() - origin;
+        const response = await work();
+        const body = await response.body();
+        observations.push({ operation, startedMs, finishedMs: performance.now() - origin, status: response.status(), bytes: body.length });
+        return JSON.parse(body.toString());
+      };
+      const machineHeaders = (index: number) => ({ authorization: `Bearer ${credentials[index]}`, "x-rivalhub-authority": "1" });
+      const anonymous = await request.newContext({ baseURL: env.NEXT_PUBLIC_APP_URL });
+      try {
+        const result = await Promise.all([
+          ...fixtures.slice(0, 2).map((item, index) => observe(`live-${index + 1}`, () => context.post("/api/mizar/live", { headers: machineHeaders(index), data: mizarSnapshot(item) }))),
+          observe("reliable-map-end", () => context.post("/api/mizar/reliable", { headers: machineHeaders(2), data: { event } })),
+          observe("authenticated-veto-read", () => context.get(endpoint)),
+          observe("anonymous-viewer-token", () => anonymous.get(`/api/matches/${fixtures[0]!.matchId}/live-viewer`)),
+        ]);
+        expect(result.slice(0, 2)).toEqual([{ accepted: true }, { accepted: true }]);
+        expect(result[2]).toEqual({ outcome: "canonicalized", duplicate: false });
+        expect(result[3]).toMatchObject({ success: true, data: { permissions: { isAdmin: true } } });
+        expect(typeof result[4].token).toBe("string");
+        const commonInFlightMs = Math.min(...observations.map(row => row.finishedMs)) - Math.max(...observations.map(row => row.startedMs));
+        expect(commonInFlightMs).toBeGreaterThan(0);
+        const evidence = { sha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
+          environment: "same Next HTTP application + loopback PostgreSQL + real Local Supabase Auth/Realtime", observations, commonInFlightMs,
+          note: "Five overlapping client HTTP requests. No claim that database statements or provider delivery overlapped for this full interval. No tokens, payloads or credentials retained." };
+        writeFileSync(resolve(artifacts, "mixed-http.json"), JSON.stringify(evidence, null, 2));
+        console.info("MIXED_HTTP_EVIDENCE", JSON.stringify(evidence));
+      } finally { await anonymous.dispose(); }
+    }
+
     await db.execute(sql`CREATE SCHEMA IF NOT EXISTS extensions`);
     await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pg_stat_statements WITH SCHEMA extensions`);
     const statementSnapshot = async () => (await db.execute<{ queryid: string; query: string; calls: string; rows: string }>(sql`

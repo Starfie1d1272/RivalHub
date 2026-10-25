@@ -1,9 +1,9 @@
-import { execFile, spawn, type ChildProcess } from "node:child_process";
+import { execFile, execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { redactText } from "../../../src/lib/observability/redact";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Request as BrowserRequest } from "@playwright/test";
 import { assertPageResponse, navigateAndWaitForResponse } from "../helpers/page-health";
 const execute = promisify(execFile);
 const tsx = resolve("node_modules/.bin/tsx");
@@ -26,10 +26,39 @@ const stream = (matchId: string) => new Promise<ChildProcess>((resolve, reject) 
     child.once("error", error => { clearTimeout(deadline); reject(error); });
   });
 
-test("public match consumes private Broadcast and recovers across navigation and map changes", async ({ page }) => {
+test("public match consumes private Broadcast and recovers across navigation and map changes", async ({ page }, testInfo) => {
   test.setTimeout(180000);
   const seasonId = randomUUID();
   let producer: ChildProcess | undefined;
+
+  // Observe only bounded transport metadata, never headers, credentials or payloads.
+  const startedAt = performance.now();
+  type Pending = { method: string; path: string; resourceType: string; navigation: boolean; startedMs: number; responseStatus?: number };
+  const pending = new Map<BrowserRequest, Pending>();
+  const timeline: Array<Pending & { phase: string; elapsedMs: number; error?: string }> = [];
+  let omitted = 0;
+  const record = (row: Pending, phase: string, error?: string) => {
+    if (timeline.length >= 256) { omitted++; return; }
+    timeline.push({ ...row, phase, elapsedMs: Math.round(performance.now() - startedAt), ...(error ? { error: redactText(error).slice(0, 300) } : {}) });
+  };
+  page.on("request", request => {
+    if (pending.size >= 64) { omitted++; return; }
+    const row = { method: request.method(), path: new URL(request.url()).pathname.slice(0, 300),
+      resourceType: request.resourceType(), navigation: request.isNavigationRequest(), startedMs: Math.round(performance.now() - startedAt) };
+    pending.set(request, row); record(row, "request");
+  });
+  page.on("response", response => {
+    const row = pending.get(response.request());
+    if (row) { row.responseStatus = response.status(); record(row, "response"); }
+  });
+  page.on("requestfinished", request => {
+    const row = pending.get(request);
+    if (row) { record(row, "finished"); pending.delete(request); }
+  });
+  page.on("requestfailed", request => {
+    const row = pending.get(request);
+    if (row) { record(row, "failed", request.failure()?.errorText); pending.delete(request); }
+  });
 
   try {
     const output = await run(fixture, "create", seasonId);
@@ -124,6 +153,13 @@ test("public match consumes private Broadcast and recovers across navigation and
     await expect(live.getByText("Ancient", { exact: true })).toHaveCount(0);
     producer?.kill(); producer = undefined;
 
+  } catch (error) {
+    const evidence = { sha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
+      environment: "local Next HTTP + Local Supabase + Chromium", elapsedMs: Math.round(performance.now() - startedAt),
+      pending: [...pending.values()], omitted, timeline };
+    await testInfo.attach("live-http-pending.json", { body: JSON.stringify(evidence, null, 2), contentType: "application/json" });
+    console.info("LIVE_HTTP_PENDING", JSON.stringify({ ...evidence, timeline: undefined }));
+    throw error;
   } finally {
     producer?.kill();
     await run(fixture, "cleanup", seasonId);

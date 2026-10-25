@@ -8,7 +8,8 @@ export type LiveIngestStage = typeof STAGES[number];
 type Totals = { count: number; duration: number };
 type WindowState = { start: number; outcomes: Map<LiveIngestOutcome, Totals>; stages: Map<LiveIngestStage, Totals> };
 const KEY = Symbol.for("rivalhub.live-outcome-window.v1");
-const processState = globalThis as typeof globalThis & { [KEY]?: WindowState };
+// Next module graphs can have distinct globalThis/VM views in one Node process.
+const processState = process as typeof process & { [KEY]?: WindowState };
 const state = processState[KEY] ??= { start: performance.now(), outcomes: new Map(), stages: new Map() };
 
 function record<K extends string>(counts: Map<K, Totals>, key: K, durationMs: number): void {
