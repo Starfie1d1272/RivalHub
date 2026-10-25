@@ -121,11 +121,21 @@ Web Vitals 按同身份/会话、指标和样本标识取最新报告；ready �
 
 错误按页面、操作、分类与受控指纹归并；最多 100 个问题组、每组最近 30 条、100 个会话和选定会话最多 100 条事件。原账号、票据、operationId、session UUID、gzip 不离开 Worker，排查使用用途隔离的 SHA-256 短标识；requestId 按需展开。网站传输 owner 缓存最多 12 个结果、最多 60 秒且在原始样本过期前失效；每次读取缓存前重新授权，五秒超时、拒绝重定向、响应 1 MiB、结构校验。无常驻轮询；用量与到期积压为不随筛选变化的 UTC 全站事实。返回预算不是 D1 扫描或费用上限。
 
+### 测量合同兼容与接入顺序
+
+共享任务 wire type 读取 definitionVersion 1 和 2；当前定义常量为 2，计时 cap 仍为一小时。v2 的 elapsedCensored/activeCensored 只在对应计时**超过** cap 时传 true；等于 cap 不标记。报名观察窗口仍为 24 小时，不能从截断值推断真实时长。旧 v1 无标记样本独立归类，不追溯生成标记或混为 v2。业务确认回执使用 complete/confirm；真正呈现另记 result step 或 ready，不延迟 complete 等待 React 挂载。
+
+ready 的目标兼容合同是可选 basis=navigation|demand，缺省为旧 navigation。navigation 保留导航到首次可用及异常原始样本；demand 从本次用户请求模块开始，需求 token 的真实导航 ID、模块和单调时刻只留内存。两种 basis 分组，不混算分位数。Web Vital 仅在确证源导航时关联，否则保持未知，不用当前 SPA 导航或 metric ID 拼接。
+
+登录只在原 attempt/原 identity 记录已确认终态并进行既有 flush，随后 reset；不跨账号 carry。logout、换账号、DNT/GPC 或停收清除内存状态。任何交接不保存密码、表单内容或持久身份映射。
+
+类型 provider 本身不改变客户端 emit 或 receiver 校验。必须先同步 receiver 的逐字段校验、短期/长期分析按定义版本及 ready basis 分组，之后客户端后继变更才发送 v2/censored/basis；部署顺序为 receiver 先、app 后，不能凭共享类型已合并认定接收端已支持。
+
 ### 任务采集
 
 `task-contract.ts` 是任务定义/步骤/观察窗口 owner，`task-client.ts` 是内存状态 owner；`TaskBoundary` 仅在首次输入或明确提交时开始。登录/注册、资料、教育、个人/团队报名、阵容、BP、预测和成绩录入接入有限步骤。个人报名仅具备提交资格时发独立 exposure，不把普通访问视为可参与曝光。固定 validationReason 不读取字段值。内容呈现继续复用 navigation/ready，不能解释为读懂或找到答案。
 
-任务报告携带随机 attemptId、定义版本、固定步骤与 phase；操作继续保留独立 operationId。OCR 重试共享当前地图尝试，BP/成绩保存完成要求相应 UI 投影确认。60 秒无交互暂停活跃计时，隐藏即暂停；异步结果切换步骤不重置交互时间，隐藏期间不恢复活跃计时；沿用分钟批量队列，无逐输入请求。attempt 仅内存，不跨刷新、组件卸载或身份变化恢复；登录请求在原身份结束。上报 durationMs/activeMs 保持协议一小时上限；短期个人经过时间按已关联起止时间差计算，活跃时间及长期聚合的 duration 达到上限时是截断观测。报名的观察窗口可更长，不能将 capped duration 当准确长周期。缺少完成只表示未观测；多人等待从业务记录读取。
+任务报告携带随机 attemptId、定义版本、固定步骤与 phase；操作继续保留独立 operationId。OCR 重试共享当前地图尝试，成绩保存完成要求相应 UI 投影确认；非 OCR 回执与结果呈现遵循上述兼容合同。60 秒无交互暂停活跃计时，隐藏即暂停；异步结果切换步骤不重置交互时间，隐藏期间不恢复活跃计时；沿用分钟批量队列，无逐输入请求。attempt 仅内存，不跨刷新或身份变化恢复；非 OCR 已确认事实不能依赖组件继续挂载，登录请求在原身份结束。上报 durationMs/activeMs 保持协议一小时上限；短期个人经过时间按已关联起止时间差计算，活跃时间及长期聚合的 duration 达到上限时是截断观测。报名的观察窗口可更长，不能将 capped duration 当准确长周期。缺少完成只表示未观测；多人等待从业务记录读取。
 
 ### 业务流程读模型
 
