@@ -28,3 +28,5 @@ cgroup charge 与 RSS 是不同口径；宿主与运行使用共享二进制/文
 验证：runtime-health/flush lifecycle 4项、redaction既有11项、runtime owner12项与真实本地PG pool7项；app/tests类型、changed-file ESLint、architecture、production build通过。PG验证回放99条迁移及126张public base table访问矩阵。原始本地日志保留于执行环境；前两次容器尝试分别在执行入口前因挂载目录权限、镜像ELF兼容性失败，应用未运行；改用兼容镜像并以workspace UID运行后完成六轮。较早未完成的预实验不并入该六轮数据。
 
 回退：下次启动设置 `RIVALHUB_RUNTIME_HEALTH_ENABLED=0` 关闭周期采样与hook调度；模块/测试调用stop与unregister清理。代码可整体回退，无migration/容量/业务语义变更。关闭采样不清除仍由业务owner持有的唯一hook，重载同key替换，显式unregister按注册身份清理。
+
+独立复审后的脚本修正：上述六轮由旧 readiness probe 驱动，它仅确认 release endpoint 可响应，没有核验状态/身份（普通 local build 未注入 release identity 时该端点会503）；因此该旧数据不提供 endpoint identity readiness 证据。120条业务HTTP原始样本确实全部200，未删除或改写。新脚本要求构建前设置合法local releaseTag与checkout exact SHA，并要求probe 2xx且身份匹配；非200业务响应先保存样本再使run与退出码失败，并等待全部并发结果以保留错误分母。补充两个guard测试，回放503 probe、错误/无效身份与500业务响应；脚本/测试改动不改变应用runtime，不重跑上述六轮。
