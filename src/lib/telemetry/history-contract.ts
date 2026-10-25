@@ -31,14 +31,14 @@ const distribution = z.object({ n: count, sum: value, min: value.nullable(), max
 export const HistoryRow = z.object({
   kind: z.enum(["page", "filter", "error", "operation", "performance", "ready", "task"]), name: text, task: text,
   route: text, scene: text, role: text, device: text, release: text, eventId: text, phase: text,
-  measurementVersion: count.max(1), definitionVersion: count.max(1), navigationType: text,
+  measurementVersion: count.max(1), definitionVersion: count.max(2), navigationType: text, basis: text.optional(), elapsedCensored: z.boolean().optional(), activeCensored: z.boolean().optional(),
   n: count, starts: count, clientCovered: count, enhancedCovered: count,
   duration: distribution, active: distribution,
 });
 export type HistoryRow = z.infer<typeof HistoryRow>;
 export const historyCountFields = ["views", "operations", "success", "rejected", "unknown", "pending", "taskStarts", "taskComplete", "taskExposure", "errors"] as const;
 const historyCounts = z.object({ views: count, operations: count, success: count, rejected: count, unknown: count, pending: count, taskStarts: count, taskComplete: count, taskExposure: count, errors: count });
-export const HistoryTimingRow = HistoryRow.pick({ kind: true, name: true, phase: true, release: true, measurementVersion: true, definitionVersion: true, navigationType: true, duration: true, active: true });
+export const HistoryTimingRow = HistoryRow.pick({ kind: true, name: true, phase: true, release: true, measurementVersion: true, definitionVersion: true, navigationType: true, basis: true, elapsedCensored: true, activeCensored: true, duration: true, active: true }).extend({ reports: count.optional() });
 export type HistoryTimingRow = z.infer<typeof HistoryTimingRow>;
 export const HistoryData = z.object({
   enabled: z.boolean(), retentionDays: count.max(90), generatedAt: count, coverageStart: count.nullable(), processedThrough: count.nullable(),
@@ -79,7 +79,7 @@ export function summarizeHistory(data: HistoryData) {
   for (const day of data.days) for (const key of historyCountFields) totals[key] += day[key];
   return { totals, byDay: data.days, timings: data.timingRows.map(row => ({
     kind: row.kind, name: row.name, phase: row.phase, release: row.release,
-    measurementVersion: row.measurementVersion, definitionVersion: row.definitionVersion, navigationType: row.navigationType,
+    measurementVersion: row.measurementVersion, definitionVersion: row.definitionVersion, navigationType: row.navigationType, basis: row.basis, elapsedCensored: row.elapsedCensored, activeCensored: row.activeCensored, reports: row.reports,
     n: row.duration.n, mean: row.duration.n ? row.duration.sum / row.duration.n : null,
     p50: historyQuantile(row.duration, .5, row.name), p90: historyQuantile(row.duration, .9, row.name),
     distribution: row.duration, active: row.active,
