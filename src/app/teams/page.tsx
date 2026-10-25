@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { io } from "next/cache";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { teamMemberships, teams } from "@/db/schema";
@@ -27,6 +28,8 @@ function TeamDirectoryFallback() {
 }
 
 async function TeamDirectoryContent({ searchParams }: { searchParams: Promise<TeamDirectorySearchParams> }) {
+  // The directory reads the current time before its asynchronous database query.
+  await io();
   const directory = await getTeamDirectory(normalizeTeamDirectoryQuery(await searchParams));
 
   return (
