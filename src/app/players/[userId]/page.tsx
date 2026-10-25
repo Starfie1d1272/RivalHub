@@ -449,7 +449,7 @@ async function PlayerDeclaredProfile({ sections }: SectionProps) {
 }
 
 async function PlayerProfileReady({ sections }: SectionProps) {
-  // Preserve the existing full-profile measurement until the shared ready contract lands.
+  // Preserve navigation-first full-profile ready while demand basis emission is disabled.
   await Promise.all([sections.basic, sections.overview, sections.history, sections.performance, sections.attributes()]);
   return <ContentReady module="player" phase="primary" />;
 }

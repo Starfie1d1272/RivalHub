@@ -33,7 +33,7 @@
 
 首个浏览器样本因本地数据库缺少 `matches.test_config` 失败，已通过仓库 `db:local:migrate` 对齐后重跑；该失败未计入收益。首次 Chromium 版本不匹配，安装锁定 Playwright 所需浏览器后重跑。PG 测试的单连接并行查询产生 pg 弃用提示，没有把它当成生产池容量证据。
 
-A 已提供 #1138 的资源计数接口约定、C 已提供模块需求 token 约定；A provider 已按根合并 SHA 同步接入；C core 尚待同步，未自建替代实现。现有 `ContentReady player/primary` 仍等完整共享 sections，保留原测量语义等待 C 接线。没有采到生产/本地组合负载峰值，不能声称资源预算已验收。有效详细 performance 的单赛事与多赛事浏览器组合均已补齐，见后续真实 browser 正反例和跨赛事补证。
+A 已提供 #1138 的资源计数接口约定、C 已提供模块需求 token 约定；A provider 已按根合并 SHA 同步接入；C core 已同步根指定的 main `6f60b37b4b1200cefb898f026d25c0748916eb0f`，未自建替代实现。现有 `ContentReady player/primary` 仍等完整共享 sections，保留原导航首次 ready 语义。没有采到生产/本地组合负载峰值，不能声称资源预算已验收。有效详细 performance 的单赛事与多赛事浏览器组合均已补齐，见后续真实 browser 正反例和跨赛事补证。
 
 回退本 PR 的页面分区与 request composition 即恢复原等待边界，统计 owner、schema、权限、公开缓存身份边界不变。未合并、tag、部署或修改生产。
 
@@ -69,7 +69,7 @@ A 已提供 #1138 的资源计数接口约定、C 已提供模块需求 token �
 
 根合入 #1138 / `2d162d20daa20bb2fd8b1b8e622b83336500ed9d` 后已使用其 `beginRuntimeResource(name): () => void`。shared profile eager request 的 basic/overview/history/performance 只计一次 `profile.public.read`，全部 settled 后 finally 完成；同步构造失败也在 finally 完成。可选 attributes 的实际重统计由独立 stats fill 观察。`cached-query.ts` 的公共 cache callback 与 benchmark callback 通过同一个轻量 `observePublicStatsFill` 包裹真正填充，成功、同步或异步错误均 finally 结束；不在 lookup、draft bypass 或 RSC 消费者上包 fill，不带 user/URL，不复制 provider，也不自行实现预算。
 
-C #1140 core 仍待精确合并 SHA。当前页面分区、赛事队伍 advanced 都由导航 eager 启动，保留既有导航首次 ready；原生 details 和已有 DTO 视图切换不会启动新后端工作，不插入虚构 demand。若 core 变更要求 consumer 接线，按根确认的模块合同接入；将来主动展开才发起读取时，在启动事件保存 beginTelemetryDemand token，实际 UI 呈现后 recordDemandReady，同一 token 的取消/旧身份/幂等由 core 负责。未把这份待办当作已经完成的 runtime/ready 集成。
+C #1140 core 已按根指定 main `6f60b37b4b1200cefb898f026d25c0748916eb0f` 同步。当前页面分区、赛事队伍 advanced 都由导航 eager 启动，保留既有导航首次 ready；原生 details 和已有 DTO 视图切换不会启动新后端工作，不插入虚构 demand。E 的 profile/stats 公开读取范围没有 submit 型业务操作，`task.complete`/`step(result)` 没有调用点；core 保留的 ContentReady API 不要求新参数，直接消费该共享实现。将来主动展开才发起读取时，在启动事件保存 beginTelemetryDemand token，实际 UI 呈现后 recordDemandReady，同一 token 的取消/旧身份/幂等由 core 负责。本轮没有启用 v2 或 demand basis 发射；未制造不存在的后端需求或提交任务。
 
 
 ## A 接入后的真实 cold/warm 核验
@@ -87,4 +87,11 @@ C #1140 core 仍待精确合并 SHA。当前页面分区、赛事队伍 advanced
 
 浏览器七场景全部通过、无 pageerror（`multi-event-results.json`）：All-time显示3图；实际操作当前 Event 后为2图；Map=Mirage后为1图；切换历史 Event 为1图，而生涯头部全部保持3图。历史事件/队伍保留在履历且为1场1胜0负，没有混入当前活动。无历史、无效地图归一化、窄屏活跃处罚、草稿/未来/内部说明不泄漏、同进程即时撤销反例均再次通过。截图见 multi-event-active-desktop/mobile.png。
 
-上述是 synthetic 数据上的真实 PostgreSQL + production build 浏览器证据，未扩张为生产运营、容量或历史 OOM 根因结论。C core 接线与生产复查仍未完成。
+上述是 synthetic 数据上的真实 PostgreSQL + production build 浏览器证据，未扩张为生产运营、容量或历史 OOM 根因结论。C core 的现有公开读取 consumer 合同已核对，生产复查仍未完成。
+
+
+## C core 同步核验
+
+按根指定同步 main `6f60b37b4b1200cefb898f026d25c0748916eb0f`（C #1140）。实际核对 `ContentReady` consumer props 未改变，E 所有现有 profile/statistics 分区与赛事队伍 advanced 仍由导航 eager 启动；当前 E 读取范围不存在 submit mutation，也不存在展开后才启动新后端工作的入口，因此没有虚构 task.complete/result 或 demand token 调用。继续消费共享导航首次 ready；v2/basis 发射仍关闭。
+
+C 现有 `gates ready collection...`、`captures demand start...` 两个定向测试复验通过，另28项未被该定向命令选择，不冒充全套C验收。E相关6项unit、应用/测试类型、架构和定向lint通过；同步C后的七项真实跨赛事浏览器检查通过、无pageerror。归档浏览器脚本改为ESM并通过Node语法/ESLint检查，未修改生产配置或接收端开关。

@@ -1,4 +1,9 @@
-const fs=require('fs');const assert=require('assert/strict');const {chromium,expect}=require('@playwright/test');const {Client}=require('pg');
+import fs from "node:fs";
+import assert from "node:assert/strict";
+import { chromium, expect } from "@playwright/test";
+import pg from "pg";
+const { Client } = pg;
+
 (async()=>{
 const output=process.env.WP05_EVIDENCE_DIR||'.agent-tmp/wp05-rich-evidence';fs.mkdirSync(output,{recursive:true});const buildSha=process.env.WP05_BUILD_SOURCE_SHA;if(!buildSha)throw new Error('WP05_BUILD_SOURCE_SHA must identify the actual production build');const m=JSON.parse(fs.readFileSync('.agent-tmp/wp05-rich-manifest.json'));const dsn=new URL(process.env.RIVALHUB_LOCAL_DATABASE_URL||process.env.DATABASE_URL);assert(['127.0.0.1','localhost'].includes(dsn.hostname));dsn.pathname='/'+m.database;
 const db=new Client({connectionString:dsn.href,ssl:false});await db.connect();const browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1360,height:1000},reducedMotion:'reduce'});const errors=[];page.on('pageerror',e=>errors.push(e.message));const results=[];
