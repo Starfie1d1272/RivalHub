@@ -22,7 +22,7 @@ import { PUBLIC_PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { getPublicPlayerById, type PublicPlayer } from "@/lib/data/public-players";
 import { getPublicPlayerSanctions } from "@/lib/discipline/public-query";
-import { getPublicPlayerProfileReadModel } from "@/lib/players/public-profile";
+import { createPublicPlayerProfileSections, type PublicPlayerProfileSections } from "@/lib/players/public-profile";
 import { parsePlayerPerformanceQuery, type PlayerPerformanceSearch } from "@/lib/players/performance-view-state";
 import { db } from "@/db/client";
 
@@ -58,90 +58,45 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
   const query = parsePlayerPerformanceQuery(rawSearch);
   const [user, sanctions] = await Promise.all([getPublicPlayerById(userId), getPublicPlayerSanctions(userId)]);
   if (!user) notFound();
-  const profilePromise = getPublicPlayerProfileReadModel(userId, {
+  const sections = createPublicPlayerProfileSections({ user, sanctions }, {
     eventSlug: query.event || undefined,
     mapFilter: query.map || undefined,
-  }, { user, sanctions });
+  });
   return <PageLayout variant="standard" className="space-y-6">
     <StatsReturnLink href={fromStats} />
     <PlayerIdentity user={user} hasActivePublicSanction={sanctions.some(sanction => sanction.status === "active")} />
-    <Suspense fallback={<div aria-busy="true" className="min-h-[40rem] animate-pulse border-y border-[var(--color-border)] bg-[var(--color-panel-low)]"><span className="sr-only">正在加载选手资料与统计…</span></div>}>
-      <PlayerProfileContent profilePromise={profilePromise} userId={userId} query={query} fromStats={fromStats} />
+    <section className="border-b border-[var(--color-border)] pb-4">
+      <Suspense fallback={<ProfileSectionSkeleton label="基本资料" height="min-h-48" />}>
+        <PlayerBasics sections={sections} />
+      </Suspense>
+      <div className="mt-4"><PlayerActiveSanctions sanctions={sanctions} /></div>
+      <Suspense fallback={<ProfileSectionSkeleton label="Career Stats" height="min-h-28" />}>
+        <PlayerCareerOverview sections={sections} />
+      </Suspense>
+    </section>
+    <Suspense fallback={<ProfileSectionSkeleton label="赛事履历" height="min-h-40" />}>
+      <PlayerCareerHistory sections={sections} />
     </Suspense>
+    <Suspense fallback={<ProfileSectionSkeleton label="竞技表现" height="min-h-96" />}>
+      <PlayerPerformance sections={sections} userId={userId} query={query} fromStats={fromStats} />
+    </Suspense>
+    <PlayerDisciplineHistory sanctions={sanctions} />
+    <Suspense fallback={<ProfileSectionSkeleton label="长期资料" height="min-h-48" />}>
+      <PlayerDeclaredProfile sections={sections} />
+    </Suspense>
+    <Suspense fallback={null}><PlayerProfileReady sections={sections} /></Suspense>
   </PageLayout>;
 }
 
-async function PlayerProfileContent({ profilePromise, userId, query, fromStats }: {
-  fromStats: ReturnType<typeof safeStatsReturn>;
-  profilePromise: ReturnType<typeof getPublicPlayerProfileReadModel>;
-  userId: string;
-  query: ReturnType<typeof parsePlayerPerformanceQuery>;
-}) {
-  const profile = await profilePromise;
-  if (!profile) notFound();
-  if (profile.career && query.event && !profile.career.selectedEvent) redirect(`/players/${userId}`);
-  if (profile.career && query.map && !profile.career.mapFilter) {
-    redirect(query.event
-      ? `/players/${userId}?event=${encodeURIComponent(query.event)}`
-      : `/players/${userId}`);
-  }
+type SectionProps = { sections: PublicPlayerProfileSections };
 
-  const { user, career } = profile;
-  const overview = profile.careerOverview;
-  const registrationBySeasonId = new Map(profile.registrationSnapshots.map((registration) => [registration.seasonId, registration]));
-  const careerSeasonIds = new Set(profile.careerHistory.map((entry) => entry.seasonId));
-  const standaloneRegistrationSnapshots = profile.registrationSnapshots.filter((registration) => !careerSeasonIds.has(registration.seasonId));
-  const teamBySeasonId = new Map(profile.eventTeams.map((entry) => [entry.seasonId, entry]));
-  const hasDeclaredProfile = profile.publicCompetitiveProfile.length > 0
-    || profile.mapPreferences.length > 0
-    || Boolean(user.gameplayStyle?.trim() || user.competitionHistory?.trim());
+function ProfileSectionSkeleton({ label, height }: { label: string; height: string }) {
+  return <div aria-busy="true" aria-label={`正在加载${label}`} className={`${height} animate-pulse border-y border-[var(--color-border)] bg-[var(--color-panel-low)]`} />;
+}
 
-  const renderRegistrationSnapshot = (registration: (typeof profile.registrationSnapshots)[number]) => {
-    const teamInfo = teamBySeasonId.get(registration.seasonId);
-    const position = POSITION_LABELS[registration.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? registration.primaryPosition;
-    const peak = [
-      registration.peakRank + " (" + registration.peakRankSeason + ")",
-      "Rating " + registration.peakRating.toFixed(2),
-    ];
-    if (registration.peakWe != null) peak.push("WE " + registration.peakWe.toFixed(1));
-
-    return (
-      <details className="group border-t border-[var(--color-border)] pt-3">
-        <summary className="cursor-pointer list-none text-xs text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-fg)]">
-          <span className="inline-flex items-center gap-2">
-            <span>报名时资料</span>
-            <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-          </span>
-        </summary>
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-[var(--color-fg-mid)]">
-          <PosChip pos={position} />
-          <span>{peak.join(" · ")}</span>
-          {teamInfo && (
-            <TeamProfileLink
-              seasonSlug={teamInfo.seasonSlug} entryId={teamInfo.teamId}
-              className="transition-colors hover:text-[var(--color-accent)]"
-            >
-              {teamInfo.teamName} ↗
-            </TeamProfileLink>
-          )}
-          {registration.highlightVideoUrl && (
-            <a
-              href={registration.highlightVideoUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[var(--color-accent)] hover:underline"
-            >
-              高光视频 ↗
-            </a>
-          )}
-        </div>
-      </details>
-    );
-  };
-
-  return (
-    <>
-      <section className="border-b border-[var(--color-border)] pb-4">
+async function PlayerBasics({ sections }: SectionProps) {
+  const profile = await sections.basic;
+  return <div data-profile-section="basic">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="min-w-0 flex-1 space-y-4">
 
@@ -214,7 +169,12 @@ async function PlayerProfileContent({ profilePromise, userId, query, fromStats }
           </div>
         </div>
 
-        <div className="mt-4"><PlayerActiveSanctions sanctions={profile.sanctions} /></div>
+  </div>;
+}
+
+async function PlayerCareerOverview({ sections }: SectionProps) {
+  const { careerOverview: overview } = await sections.overview;
+  return <div data-profile-section="overview">
         <div className="mt-4"><SectionHeading>Career Stats</SectionHeading></div>
         <dl aria-label="Career Stats" className="mt-2 grid grid-cols-2 border-y border-[var(--color-border)] sm:grid-cols-4">
           <div className="px-3 py-3 sm:first:pl-0">
@@ -234,7 +194,59 @@ async function PlayerProfileContent({ profilePromise, userId, query, fromStats }
             <dd className="mt-1 text-lg font-semibold tabular-nums">{overview.maps ?? "—"}</dd>
           </div>
         </dl>
-      </section>
+  </div>;
+}
+
+async function PlayerCareerHistory({ sections }: SectionProps) {
+  const [history, basic] = await Promise.all([sections.history, sections.basic]);
+  const profile = { ...history, ...basic };
+  const registrationBySeasonId = new Map(profile.registrationSnapshots.map((registration) => [registration.seasonId, registration]));
+  const careerSeasonIds = new Set(profile.careerHistory.map((entry) => entry.seasonId));
+  const standaloneRegistrationSnapshots = profile.registrationSnapshots.filter((registration) => !careerSeasonIds.has(registration.seasonId));
+  const teamBySeasonId = new Map(profile.eventTeams.map((entry) => [entry.seasonId, entry]));
+  const renderRegistrationSnapshot = (registration: (typeof profile.registrationSnapshots)[number]) => {
+    const teamInfo = teamBySeasonId.get(registration.seasonId);
+    const position = POSITION_LABELS[registration.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? registration.primaryPosition;
+    const peak = [
+      registration.peakRank + " (" + registration.peakRankSeason + ")",
+      "Rating " + registration.peakRating.toFixed(2),
+    ];
+    if (registration.peakWe != null) peak.push("WE " + registration.peakWe.toFixed(1));
+
+    return (
+      <details className="group border-t border-[var(--color-border)] pt-3">
+        <summary className="cursor-pointer list-none text-xs text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-fg)]">
+          <span className="inline-flex items-center gap-2">
+            <span>报名时资料</span>
+            <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
+          </span>
+        </summary>
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-[var(--color-fg-mid)]">
+          <PosChip pos={position} />
+          <span>{peak.join(" · ")}</span>
+          {teamInfo && (
+            <TeamProfileLink
+              seasonSlug={teamInfo.seasonSlug} entryId={teamInfo.teamId}
+              className="transition-colors hover:text-[var(--color-accent)]"
+            >
+              {teamInfo.teamName} ↗
+            </TeamProfileLink>
+          )}
+          {registration.highlightVideoUrl && (
+            <a
+              href={registration.highlightVideoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--color-accent)] hover:underline"
+            >
+              高光视频 ↗
+            </a>
+          )}
+        </div>
+      </details>
+    );
+  };
+  return <div data-profile-section="history">
 
       <section className="space-y-4" aria-labelledby="player-career-heading">
         <div className="space-y-1">
@@ -296,6 +308,23 @@ async function PlayerProfileContent({ profilePromise, userId, query, fromStats }
           </div>
         )}
       </section>
+  </div>;
+}
+
+async function PlayerPerformance({ sections, userId, query, fromStats }: SectionProps & {
+  userId: string;
+  query: ReturnType<typeof parsePlayerPerformanceQuery>;
+  fromStats: ReturnType<typeof safeStatsReturn>;
+}) {
+  const { career } = await sections.performance;
+  if (career && query.event && !career.selectedEvent) redirect(`/players/${userId}`);
+  if (career && query.map && !career.mapFilter) {
+    redirect(query.event
+      ? `/players/${userId}?event=${encodeURIComponent(query.event)}`
+      : `/players/${userId}`);
+  }
+
+  return <div data-profile-section="performance">
 
       {career ? <section className="space-y-4" aria-labelledby="player-performance-heading">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -334,14 +363,32 @@ async function PlayerProfileContent({ profilePromise, userId, query, fromStats }
           </div>
         </dl>
 
-        {profile.attributes && <PlayerAttributes profile={profile.attributes} />}
-        {profile.benchmarkUnavailable && <p role="status" className="text-sm text-[var(--color-fg-mid)]">选手属性暂时无法加载，请稍后重试。</p>}
+        <Suspense fallback={career.performance ? <ProfileSectionSkeleton label="选手属性" height="min-h-64" /> : null}>
+          <PlayerAttributeSection sections={sections} />
+        </Suspense>
 
         <PlayerWorkspace detail={career} compact />
       </section> : <p role="status" className="text-sm text-[var(--color-fg-mid)]">竞技统计暂时无法加载，请稍后重试。</p>}
+  </div>;
+}
 
-      <PlayerDisciplineHistory sanctions={profile.sanctions} />
+async function PlayerAttributeSection({ sections }: SectionProps) {
+  const profile = await sections.attributes();
+  if (!profile.attributes && !profile.benchmarkUnavailable) return null;
+  return <div data-profile-section="attributes">
+    {profile.attributes && <PlayerAttributes profile={profile.attributes} />}
+    {profile.benchmarkUnavailable && <p role="status" className="text-sm text-[var(--color-fg-mid)]">选手属性暂时无法加载，请稍后重试。</p>}
+  </div>;
+}
 
+async function PlayerDeclaredProfile({ sections }: SectionProps) {
+  const profile = await sections.basic;
+  const { user } = profile;
+  const hasDeclaredProfile = profile.publicCompetitiveProfile.length > 0
+    || profile.mapPreferences.length > 0
+    || Boolean(user.gameplayStyle?.trim() || user.competitionHistory?.trim());
+
+  return <>
       {hasDeclaredProfile && (
         <section className="space-y-4" aria-labelledby="player-profile-heading">
           <div className="space-y-1">
@@ -398,12 +445,13 @@ async function PlayerProfileContent({ profilePromise, userId, query, fromStats }
           )}
         </section>
       )}
+  </>;
+}
 
-
-
-      <ContentReady module="player" phase="primary" />
-    </>
-  );
+async function PlayerProfileReady({ sections }: SectionProps) {
+  // Preserve navigation-first full-profile ready while demand basis emission is disabled.
+  await Promise.all([sections.basic, sections.overview, sections.history, sections.performance, sections.attributes()]);
+  return <ContentReady module="player" phase="primary" />;
 }
 
 function PlayerPageFallback() {
