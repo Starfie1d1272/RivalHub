@@ -13,7 +13,11 @@ test("管理员从工作台管理赛前赛中解说，完赛须重开名单，�
   const actor = scenario.accounts.find(a => a.key === "admin")!;
   const other = scenario.accounts.find(a => a.key === "player2")!;
   const matchId = randomUUID();
+  const actorName = `Caster admin ${scenario.shortKey}`;
+  const otherName = `Caster peer ${scenario.shortKey}`;
   try {
+    await pool.query("UPDATE users SET display_name=$2 WHERE id=$1", [actor.userId, actorName]);
+    await pool.query("UPDATE users SET display_name=$2 WHERE id=$1", [other.userId, otherName]);
     const entries = await pool.query<{ id: string }>("SELECT id FROM competition_entries WHERE competition_id=$1 ORDER BY name", [scenario.seasonId]);
     await pool.query("INSERT INTO season_admin_grants (season_id,user_id) VALUES ($1,$2)", [scenario.seasonId, other.userId]);
     await pool.query("INSERT INTO matches (id,season_id,stage,entry_a_id,entry_b_id,format,status) VALUES ($1,$2,'stage1',$3,$4,'bo1','scheduled')", [matchId, scenario.seasonId, entries.rows[0].id, entries.rows[1].id]);
@@ -23,20 +27,21 @@ test("管理员从工作台管理赛前赛中解说，完赛须重开名单，�
     await expect(management).toHaveCount(1);
     await management.locator("summary").click();
     await expect(management.getByText("尚无解说", { exact: true })).toBeVisible();
-    await management.getByRole("button", { name: /^添加 Browser player2/ }).click();
-    await expect(management.getByRole("button", { name: "移除 Browser player2", exact: true })).toBeVisible();
+    await management.getByRole("button", { name: `添加 ${otherName}（无直播间）`, exact: true }).click();
+    await expect(management.getByRole("button", { name: `移除 ${otherName}`, exact: true })).toBeVisible();
     await expect(management.getByRole("button", { name: /添加录像|保存录像|确认名单更正|更正解说名单/ })).toHaveCount(0);
     await page.reload();
     await management.locator("summary").click();
-    await expect(management.getByRole("button", { name: "移除 Browser player2", exact: true })).toBeVisible();
+    await expect(management.getByRole("button", { name: `移除 ${otherName}`, exact: true })).toBeVisible();
 
     await pool.query("UPDATE matches SET status='in_progress' WHERE id=$1", [matchId]);
     await page.reload();
     await management.locator("summary").click();
-    await management.getByRole("button", { name: "移除 Browser player2", exact: true }).click();
+    await management.getByRole("button", { name: `移除 ${otherName}`, exact: true }).click();
     await expect(management.getByText("尚无解说", { exact: true })).toBeVisible();
-    await management.getByRole("button", { name: /^添加 Browser player2/ }).click();
-    await management.getByRole("button", { name: /^添加 Browser admin/ }).click();
+    await management.getByRole("button", { name: `添加 ${otherName}（无直播间）`, exact: true }).click();
+    await expect(management.getByRole("button", { name: `移除 ${otherName}`, exact: true })).toBeVisible();
+    await management.getByRole("button", { name: `添加 ${actorName}（无直播间）`, exact: true }).click();
     await expect(management.locator("summary")).toContainText("2/2");
     await expect(management.getByRole("button", { name: /^添加 / })).toHaveCount(0);
     await expect(management.getByRole("button", { name: "取消认领", exact: true })).toHaveCount(0);
@@ -45,7 +50,7 @@ test("管理员从工作台管理赛前赛中解说，完赛须重开名单，�
     await page.screenshot({ path: testInfo.outputPath("in-progress-commentary.png"), fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
-    await expect(management.getByRole("button", { name: "移除 Browser player2", exact: true })).toBeVisible();
+    await expect(management.getByRole("button", { name: `移除 ${otherName}`, exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("mobile-commentary.png"), fullPage: true });
     const audit = await pool.query("SELECT action,actor_id,meta->>'commentatorUserId' AS target FROM audit_logs WHERE target_id=$1 AND action IN ('postmatch.commentator.add','postmatch.commentator.remove')", [matchId]);
     expect(audit.rows).toContainEqual({ action: "postmatch.commentator.remove", actor_id: actor.userId, target: other.userId });
@@ -60,7 +65,7 @@ test("管理员从工作台管理赛前赛中解说，完赛须重开名单，�
     await expect(postmatch.getByRole("button", { name: "添加录像", exact: true })).toHaveCount(2);
     await postmatch.getByRole("button", { name: "更正解说名单", exact: true }).click();
     await postmatch.getByRole("button", { name: "重开名单", exact: true }).click();
-    await expect(postmatch.getByRole("button", { name: "移除 Browser player2", exact: true })).toBeVisible();
+    await expect(postmatch.getByRole("button", { name: `移除 ${otherName}`, exact: true })).toBeVisible();
     await postmatch.getByRole("button", { name: "确认名单更正", exact: true }).click();
     await expect(postmatch.getByRole("button", { name: /^移除 / })).toHaveCount(0);
     await expect(postmatch.getByRole("button", { name: "更正解说名单", exact: true })).toBeVisible();
