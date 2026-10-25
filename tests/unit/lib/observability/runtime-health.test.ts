@@ -50,10 +50,10 @@ it("retains only numeric resource diagnostics and rejects payloads through new k
   const snapshot = getRuntimeHealthSnapshot()!;
   expect(snapshot.rssBytes).toBeGreaterThan(0);
   expect(snapshot.heapLimitBytes).toBeGreaterThan(0);
-  const safe = sanitizeSafeContext({ ...snapshot, bucketLe1: 4, bucketGt1000: 2, waitingPeak: 3,
+  const safe = sanitizeSafeContext({ ...snapshot, bucketLe0: 5, bucketLe4: 3, bucketGt10: 1, bucketLe1: 4, bucketGt1000: 2, waitingPeak: 3,
     totalMs: 50, inFlight: 2, peak: 3, requestBody: "private", nodeVersion: "private", maxMs: "https://private.invalid" });
-  expect(safe).toMatchObject({ rssBytes: snapshot.rssBytes, externalBytes: snapshot.externalBytes,
-    arrayBuffersBytes: snapshot.arrayBuffersBytes, bucketLe1: 4, bucketGt1000: 2, waitingPeak: 3, totalMs: 50, inFlight: 2, peak: 3 });
+  expect(safe).toMatchObject({ bucketLe0: 5, bucketLe4: 3, bucketGt10: 1, rssBytes: snapshot.rssBytes, externalBytes: snapshot.externalBytes,
+    arrayBuffersBytes: snapshot.arrayBuffersBytes, bucketLe0: 5, bucketLe4: 3, bucketGt10: 1, bucketLe1: 4, bucketGt1000: 2, waitingPeak: 3, totalMs: 50, inFlight: 2, peak: 3 });
   expect(safe).not.toHaveProperty("requestBody");
   expect(safe).not.toHaveProperty("nodeVersion");
   expect(safe).not.toHaveProperty("maxMs");
