@@ -76,7 +76,8 @@ it("takes an explicit non-OCR receipt from observer through local receiver to a 
     expect(task).toMatchObject({ attempts: 1, matured: 1, maturedCompleted: 1, start: 1, success: 1 });
     expect(task.steps.find(s => s.key === "confirm")?.reached).toBe(1);
     expect(task.steps.find(s => s.key === "result")?.reached).toBe(1);
-    const html = renderToStaticMarkup(createElement(TaskAnalysis, { data, update: () => {} }));
+    const props = { data, update: () => {}, definitionVersion: 2 };
+    const html = renderToStaticMarkup(createElement(TaskAnalysis, props));
     expect(html).toContain("完善参赛资料"); expect(html).toContain("1 / 1 个成熟尝试");
     resetTelemetryIdentity();
   } finally { sqlite.close(); }
@@ -143,11 +144,13 @@ it("keeps an idle hour-old registration call in its original receiver session wh
     expect((await handle(new Request("https://receiver.invalid/v1/batches", { method: "POST", headers: { origin: env.ALLOWED_ORIGIN }, body: JSON.stringify({ v: 1, id: crypto.randomUUID(), ticket: await signTicket(ticket, env.SIGNING_KEY), events: legacyEvents }) }), env, wall + 1)).status).toBe(204);
     await maintainHistory(env, wall + 2);
     // Validate both live raw edges and full-day history + tail, using real receiver SQL.
-    for (const [to, readAt] of [[wall + 2, wall + 2], [day + HISTORY_DAY - 1, day + HISTORY_DAY + 1000]]) {
+    for (const [to, readAt] of [[wall + 2, wall + 2], [day + HISTORY_DAY, day + HISTORY_DAY + 1000]]) {
       const query = new URLSearchParams({ from: new Date(day).toISOString(), to: new Date(to).toISOString() });
       const response = await handle(new Request("https://receiver.invalid/admin/long-window?" + query, { headers: { authorization: `Bearer ${env.ADMIN_KEY}` } }), env, readAt);
       expect(response.status).toBe(200);
       const summary = LongWindowSummary.parse(await response.json());
+      expect(summary.coverage.status).toBe("complete");
+      expect(summary.coverage.segments.some(s => s.source === (to < day + HISTORY_DAY - 1 ? "raw_edge" : "history+tail"))).toBe(true);
       expect(summary.metrics.filter(m => m.kind === "task" && m.name === "registration").map(m => m.definitionVersion).sort()).toEqual([1, 2]);
       expect(summary.metrics.find(m => m.kind === "operation" && m.definitionVersion === 2)).toMatchObject({ elapsedCensored: false, duration: { n: 1, sum: 100 } });
       expect(summary.metrics.find(m => m.kind === "task" && m.definitionVersion === 2 && m.name === "registration")).toMatchObject({ elapsedCensored: true, duration: { n: 0 } });
