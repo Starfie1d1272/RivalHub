@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { context, ROOT_CONTEXT } from "@opentelemetry/api";
-import { getRuntimeHealthSnapshot, startRuntimeHealthSampling, stopRuntimeHealthSampling } from "@/lib/observability/runtime-health";
+import { getRuntimeHealthSnapshot, registerRuntimeHealthFlush, startRuntimeHealthSampling, stopRuntimeHealthSampling } from "@/lib/observability/runtime-health";
 import { beginRuntimeResource, getRuntimeResourceSnapshot } from "@/lib/observability/runtime-resources";
 import { sanitizeSafeContext } from "@/lib/observability/redact";
 import { logEvent } from "@/lib/observability/logger";
@@ -58,4 +58,29 @@ it("retains only numeric resource diagnostics and rejects payloads through new k
   expect(safe).not.toHaveProperty("nodeVersion");
   expect(safe).not.toHaveProperty("maxMs");
   expect(sanitizeSafeContext({ rssBytes: Infinity, heapUsedBytes: -1, totalMs: "secret", peak: NaN })).toEqual({});
+});
+
+
+it("shares a fixed flush hook across graphs, replaces without leaking, and isolates failures", async () => {
+  vi.useFakeTimers();
+  const old = vi.fn();
+  const removeOld = registerRuntimeHealthFlush("live_ingest", old);
+  vi.resetModules();
+  const other = await import("@/lib/observability/runtime-health");
+  const latest = vi.fn(() => { throw new Error("fixture flush failure"); });
+  const removeLatest = other.registerRuntimeHealthFlush("live_ingest", latest);
+  removeOld();
+  registerRuntimeHealthFlush("private-key" as never, old);
+  startRuntimeHealthSampling();
+  vi.advanceTimersByTime(60_000);
+  expect(old).not.toHaveBeenCalled();
+  expect(latest).toHaveBeenCalledTimes(1);
+  expect(logEvent).toHaveBeenCalledWith(expect.objectContaining({ event: "runtime.health.sample" }));
+  stopRuntimeHealthSampling();
+  vi.advanceTimersByTime(120_000);
+  expect(latest).toHaveBeenCalledTimes(1);
+  removeLatest(); removeLatest();
+  startRuntimeHealthSampling();
+  vi.advanceTimersByTime(60_000);
+  expect(latest).toHaveBeenCalledTimes(1);
 });

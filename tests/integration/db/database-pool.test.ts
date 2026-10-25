@@ -99,6 +99,10 @@ it("preserves promise/callback checkout, removes timed-out work and keeps the po
     expect(acquire.totalMs).toBeGreaterThanOrEqual(acquire.maxMs);
     expect(acquire.waitingPeak).toBe(1);
     expect(acquire.waitingTotal).toBe(1);
+    expect(acquire.waitingSamples).toBe(5);
+    expect(acquire.waitingBuckets).toEqual([4, 1, 0, 0, 0]);
+    acquire.waitingBuckets.fill(999);
+    expect(pool.getAcquireSnapshot().waitingBuckets).toEqual([4, 1, 0, 0, 0]);
     acquire.states.reuse = 999;
     acquire.buckets.fill(999);
     expect(pool.getAcquireSnapshot().states.reuse).toBe(3);

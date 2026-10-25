@@ -19,7 +19,7 @@ const MAX_STACK_LENGTH = 4_000;
 const MAX_CONTEXT_KEYS = 24;
 const MAX_ARRAY_ITEMS = 8;
 
-const RUNTIME_NUMERIC_KEYS = new Set(["sampledAt", "uptimeSeconds", "rssBytes", "heapUsedBytes", "heapTotalBytes", "externalBytes", "arrayBuffersBytes", "heapLimitBytes", "constrainedMemoryBytes", "eventLoopUtilization", "eventLoopDelayP99Ms", "eventLoopDelayMaxMs", "generation", "retiringTotal", "failures", "totalMs", "maxMs", "reuse", "connect", "queued", "waitingPeak", "waitingTotal", "bucketLe1", "bucketLe10", "bucketLe100", "bucketLe1000", "bucketGt1000", "inFlight", "peak"]);
+const RUNTIME_NUMERIC_KEYS = new Set(["sampledAt", "uptimeSeconds", "rssBytes", "heapUsedBytes", "heapTotalBytes", "externalBytes", "arrayBuffersBytes", "heapLimitBytes", "constrainedMemoryBytes", "eventLoopUtilization", "eventLoopDelayP99Ms", "eventLoopDelayMaxMs", "generation", "retiringTotal", "failures", "totalMs", "maxMs", "reuse", "connect", "queued", "waitingPeak", "waitingTotal", "bucketLe0", "bucketLe4", "bucketGt10", "bucketLe1", "bucketLe10", "bucketLe100", "bucketLe1000", "bucketGt1000", "inFlight", "peak"]);
 
 const SAFE_CONTEXT_KEYS = new Set([
   ...RUNTIME_NUMERIC_KEYS,

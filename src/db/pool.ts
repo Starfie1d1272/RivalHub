@@ -11,7 +11,7 @@ export class DatabasePool extends Pool {
   getClientSnapshot() { return { ...this.clientMeasurements, holdBuckets: [...this.clientMeasurements.holdBuckets] }; }
 
   private readonly acquire = {
-    count: 0, failures: 0, totalMs: 0, maxMs: 0, waitingPeak: 0, waitingTotal: 0,
+    count: 0, failures: 0, totalMs: 0, maxMs: 0, waitingPeak: 0, waitingTotal: 0, waitingSamples: 0, waitingBuckets: [0, 0, 0, 0, 0],
     states: { reuse: 0, connect: 0, queued: 0 },
     // Non-cumulative buckets: <=1, <=10, <=100, <=1000, >1000 ms.
     buckets: [0, 0, 0, 0, 0],
@@ -19,7 +19,7 @@ export class DatabasePool extends Pool {
 
   /** Complete process-local denominator, including fast and failed checkouts. */
   getAcquireSnapshot() {
-    return { ...this.acquire, states: { ...this.acquire.states }, buckets: [...this.acquire.buckets] };
+    return { ...this.acquire, states: { ...this.acquire.states }, buckets: [...this.acquire.buckets], waitingBuckets: [...this.acquire.waitingBuckets] };
   }
 
   connect(): Promise<PoolClient>;
@@ -31,6 +31,8 @@ export class DatabasePool extends Pool {
     const waiting = snapshot.poolWaiting + (connectionState === "queued" ? 1 : 0);
     this.acquire.waitingPeak = Math.max(this.acquire.waitingPeak, waiting);
     this.acquire.waitingTotal += waiting;
+    this.acquire.waitingSamples++;
+    this.acquire.waitingBuckets[waiting === 0 ? 0 : waiting === 1 ? 1 : waiting <= 4 ? 2 : waiting <= 10 ? 3 : 4]++;
     const report = (error?: Error) => {
       const durationMs = performance.now() - started;
       this.acquire.count++;

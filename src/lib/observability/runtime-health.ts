@@ -45,6 +45,21 @@ export function getRuntimeHealthSnapshot(): RuntimeHealthSnapshot | null {
 }
 
 const SLOT = Symbol.for("rivalhub.runtime-health-sampler.v1");
+type FlushHookName = "live_ingest";
+const HOOK_SLOT = Symbol.for("rivalhub.runtime-health-flush.v1");
+function hooks() {
+  const host = process as unknown as Record<symbol, Map<FlushHookName, () => void>>;
+  return host[HOOK_SLOT] ??= new Map();
+}
+
+/** Fixed singleton key; replacement unregister cannot remove a later registration. */
+export function registerRuntimeHealthFlush(name: FlushHookName, callback: () => void): () => void {
+  if (name !== "live_ingest") return () => {};
+  const registration = () => callback();
+  hooks().set(name, registration);
+  return () => { if (hooks().get(name) === registration) hooks().delete(name); };
+}
+
 type Sampler = { stop(): void };
 function samplerHost() { return process as unknown as Record<symbol, Sampler | undefined>; }
 
@@ -58,6 +73,9 @@ export function startRuntimeHealthSampling(): () => void {
   const timer = setInterval(() => {
     try {
       context.with(ROOT_CONTEXT, () => {
+        for (const flush of [...hooks().values()]) {
+          try { flush(); } catch { /* One hook cannot suppress other diagnostics. */ }
+        }
         const snapshot = getRuntimeHealthSnapshot();
         const next = performance.eventLoopUtilization();
         const window = performance.eventLoopUtilization(next, utilization);
@@ -80,6 +98,11 @@ export function startRuntimeHealthSampling(): () => void {
             waitingPeak: acquire.waitingPeak, waitingTotal: acquire.waitingTotal,
             bucketLe1: acquire.buckets[0], bucketLe10: acquire.buckets[1], bucketLe100: acquire.buckets[2],
             bucketLe1000: acquire.buckets[3], bucketGt1000: acquire.buckets[4],
+          } });
+          logEvent({ event: "runtime.pool.waiting", scope: "runtime", operation: "pool.sample", safeContext: {
+            generation: pool.generation, count: acquire.waitingSamples, waitingPeak: acquire.waitingPeak, waitingTotal: acquire.waitingTotal,
+            bucketLe0: acquire.waitingBuckets[0], bucketLe1: acquire.waitingBuckets[1], bucketLe4: acquire.waitingBuckets[2],
+            bucketLe10: acquire.waitingBuckets[3], bucketGt10: acquire.waitingBuckets[4],
           } });
           logEvent({ event: "runtime.pool.hold", scope: "runtime", operation: "pool.sample", safeContext: {
             generation: pool.generation, count: client.checkouts, totalMs: client.holdMs, maxMs: client.holdMaxMs,
