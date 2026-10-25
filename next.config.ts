@@ -18,7 +18,13 @@ const localStorageImagePatterns =
       ]
     : [];
 
+const isCIE2E = ["1", "true"].includes(process.env.CI ?? "")
+  && process.env.RIVALHUB_E2E_AUTH_BOOTSTRAP === "1";
+
 const nextConfig: NextConfig = {
+  // Keep the framework rendering indicator from intercepting fixture clicks.
+  // Next still surfaces compile/runtime errors when this indicator is disabled.
+  ...(isCIE2E ? { devIndicators: false as const } : {}),
   ...(process.env.RIVALHUB_STANDALONE === "1" ? { output: "standalone" as const } : {}),
   cacheComponents: true,
   partialPrefetching: true,
