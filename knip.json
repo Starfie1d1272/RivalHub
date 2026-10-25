@@ -113,6 +113,7 @@
     "scripts/db/public-live-browser-fixture.ts!",
     "src/lib/matches/creation.ts!",
     "playwright.production.config.ts!",
+    "tests/e2e/helpers/production-server.mjs!",
     "scripts/dependencies/snapshot.ts!",
     "scripts/dependencies/submit.mjs!",
     "workers/telemetry/index.ts!",
