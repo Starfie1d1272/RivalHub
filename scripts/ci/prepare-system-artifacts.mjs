@@ -18,6 +18,9 @@ writeFileSync(resolve(destination, "e2e-attempts.json"), `${JSON.stringify({
 copySafeTree(resolve(root, "test-results"), resolve(destination, "test-results"), false, { allowFailureScreenshots: true });
 copySafeTree(resolve(root, "playwright-report"), resolve(destination, "playwright-report"), true);
 
+const exitLog = resolve(root, ".agent-tmp", "e2e-exit-boundary.jsonl");
+if (existsSync(exitLog)) writeFileSync(resolve(destination, "e2e-exit-boundary.safe.jsonl"), redact(readFileSync(exitLog, "utf8")), "utf8");
+
 const nextLog = resolve(root, ".agent-tmp", "next-server.log");
 if (existsSync(nextLog)) {
   const safeLog = redact(readFileSync(nextLog, "utf8")).split("\n").slice(-2_000).join("\n");

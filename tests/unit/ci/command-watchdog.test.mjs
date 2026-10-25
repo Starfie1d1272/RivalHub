@@ -43,4 +43,21 @@ describe("command deadline and cleanup", () => {
     expect(result.code).toBe(124);
     expect(result.cleanupError).toBe("failure_evidence_write_failed");
   });
+
+  it("captures live owned topology before termination without argv or environment values", async () => {
+    let evidence;
+    const result = await runOwnedCommand(process.execPath, ["-e", "console.log(process.pid);setInterval(()=>{},1000)", "SyntheticPrivateArg7"], {
+      timeoutMs: 500, graceMs: 100,
+      env: { ...process.env, EXIT_DIAGNOSTIC_PRIVATE_VALUE: "SyntheticPrivateEnv7" },
+      onTimeout: details => { evidence = details; },
+    });
+    expect(result.code).toBe(124);
+    expect(evidence).toMatchObject({ exited: false, closed: false, exitCode: null });
+    if (process.platform === "linux") {
+      const pid = Number(result.output.trim());
+      expect(evidence.ownedProcesses.some(row => row.pid === pid)).toBe(true);
+      for (const row of evidence.ownedProcesses) expect(Object.keys(row).sort()).toEqual(["kind", "parentPid", "pid", "processGroup", "state", "stdio"]);
+    }
+    expect(JSON.stringify(evidence)).not.toMatch(/SyntheticPrivate|EXIT_DIAGNOSTIC_PRIVATE_VALUE|"argv"|"env"/);
+  });
 });
