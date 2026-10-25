@@ -1,14 +1,28 @@
 import { TASKS, type TaskMeasurement, type TaskName, type TaskStep, type TaskValidationReason } from "./task-contract";
 
-type Attempt = { name: TaskName; id: string; scope: string; started: number; checkpoint: number; activity: number | null; activeMs: number; step: TaskStep; reportedMs: number };
+type Attempt = { name: TaskName; id: string; scope: string; started: number; checkpoint: number; activity: number | null; activeMs: number; step: TaskStep; reportedMs: number; terminal?: "complete" | "cancel" };
 export type TaskReport = { task: TaskMeasurement; durationMs: number };
-/** Task identity and scope stay in memory; emitted fields are finite categories and random IDs. */
+/** Raw names/scopes and eviction diagnostics stay in memory, never in telemetry. */
 export class TelemetryTasks {
-  private attempts = new Map<TaskName, Attempt>();
+  private attempts = new Map<string, Attempt>();
+  readonly evictions = { expired: 0, capacity: 0, forgotten: 0, reset: 0 };
   constructor(private emit: (report: TaskReport) => void, private now = () => performance.now(), private id = () => crypto.randomUUID(), private visible = () => true) {}
+  private prune() {
+    for (const [id, a] of this.attempts) {
+      if (this.now() - a.started > TASKS[a.name].windowMs) { this.attempts.delete(id); this.evictions.expired++; }
+    }
+  }
+  private find(name: TaskName, expected?: string | null, scope?: string) {
+    this.prune();
+    if (expected === null) return;
+    const a = expected === undefined
+      ? [...this.attempts.values()].reverse().find(a => a.name === name && !a.terminal && (scope === undefined || a.scope === scope))
+      : this.attempts.get(expected);
+    return a?.name === name && (scope === undefined || a.scope === scope) ? a : undefined;
+  }
   private accumulate(a: Attempt) {
     const now = this.now();
-    if (a.activity !== null) a.activeMs += Math.max(0, Math.min(now, a.activity + 60_000) - a.checkpoint);
+    if (!a.terminal && a.activity !== null) a.activeMs += Math.max(0, Math.min(now, a.activity + 60_000) - a.checkpoint);
     a.activeMs = Math.min(3600_000, a.activeMs);
     a.checkpoint = now;
     return now;
@@ -22,58 +36,62 @@ export class TelemetryTasks {
     a.reportedMs = a.activeMs;
   }
   begin(name: TaskName, scope: string, step: TaskStep = "edit"): string {
-    let a = this.attempts.get(name);
+    let a = this.find(name, undefined, scope);
     const now = this.now();
-    if (a && (a.scope !== scope || now - a.started > TASKS[name].windowMs)) { this.attempts.delete(name); a = undefined; }
     if (!a) {
-      if (this.attempts.size >= 8) this.attempts.delete(this.attempts.keys().next().value!);
+      if (this.attempts.size >= 8) { this.attempts.delete(this.attempts.keys().next().value!); this.evictions.capacity++; }
       a = { name, scope, id: this.id(), started: now, checkpoint: now, activity: this.visible() ? now : null, activeMs: 0, step, reportedMs: 0 };
-      this.attempts.set(name, a);
+      this.attempts.set(a.id, a);
       this.report(a, "start");
-    } else this.activity(name);
+    } else this.activity(name, a.id, scope);
     return a.id;
   }
-  activity(name: TaskName) {
-    const a = this.attempts.get(name);
-    if (!a) return;
+  activity(name: TaskName, expected?: string | null, scope?: string) {
+    const a = this.find(name, expected, scope);
+    if (!a || a.terminal) return;
     this.accumulate(a); a.activity = this.visible() ? this.now() : null;
   }
-  step(name: TaskName, step: TaskStep, expected?: string | null) {
-    const a = this.attempts.get(name);
-    if (!a || (expected !== undefined && a.id !== expected)) return;
+  step(name: TaskName, step: TaskStep, expected?: string | null, scope?: string) {
+    const a = this.find(name, expected, scope);
+    if (!a || a.terminal === "cancel" || (a.terminal && step !== "result" && step !== "ready")) return;
     // An async response changes the step, not the last user-interaction time.
     this.accumulate(a);
     if (a.step === step) return;
     a.step = step; this.report(a, "step");
   }
-  validation(name: TaskName, reason: TaskValidationReason, expected?: string | null) {
-    const a = this.attempts.get(name);
-    if (!a || (expected !== undefined && a.id !== expected)) return;
-    this.activity(name); a.step = "validation";
+  validation(name: TaskName, reason: TaskValidationReason, expected?: string | null, scope?: string) {
+    const a = this.find(name, expected, scope);
+    if (!a || a.terminal) return;
+    this.activity(name, a.id, scope); a.step = "validation";
     this.emit({ task: { ...this.payload(a, "step"), validationReason: reason }, durationMs: Math.min(3600_000, Math.max(0, Math.round(this.now() - a.started))) });
   }
-  finish(name: TaskName, phase: "complete" | "cancel", expected?: string | null) {
-    const a = this.attempts.get(name);
-    if (!a || (expected !== undefined && a.id !== expected)) return;
-    a.step = phase === "complete" ? "result" : a.step;
-    this.report(a, phase); this.attempts.delete(name);
+  finish(name: TaskName, phase: "complete" | "cancel", expected?: string | null, scope?: string) {
+    const a = this.find(name, expected, scope);
+    if (!a || a.terminal) return;
+    // An acknowledged mutation is not evidence that React presented its result.
+    if (phase === "complete") a.step = "confirm";
+    this.report(a, phase); a.terminal = phase; a.activity = null;
   }
   capture(name: TaskName): TaskMeasurement | undefined {
-    const a = this.attempts.get(name);
-    if (!a) return;
-    this.accumulate(a);
-    return this.payload(a, "step");
+    // An action without an explicit token cannot choose among concurrent scopes.
+    this.prune();
+    const candidates = [...this.attempts.values()].filter(a => a.name === name && !a.terminal);
+    if (candidates.length !== 1) return;
+    this.accumulate(candidates[0]);
+    return this.payload(candidates[0], "step");
   }
-  pause() { for (const a of this.attempts.values()) { this.accumulate(a); a.activity = null; } }
+  pause() { this.prune(); for (const a of this.attempts.values()) { this.accumulate(a); a.activity = null; } }
   checkpoint() {
+    this.prune();
     for (const a of this.attempts.values()) {
+      if (a.terminal) continue;
       this.accumulate(a);
       if (a.activeMs > a.reportedMs) this.report(a, "step");
     }
   }
-  forget(name: TaskName, expected?: string | null) {
-    const a = this.attempts.get(name);
-    if (a && (expected === undefined || a.id === expected)) this.attempts.delete(name);
+  forget(name: TaskName, expected?: string | null, scope?: string) {
+    const a = this.find(name, expected, scope);
+    if (a) { this.attempts.delete(a.id); this.evictions.forgotten++; }
   }
-  reset() { this.attempts.clear(); }
+  reset() { this.evictions.reset += this.attempts.size; this.attempts.clear(); }
 }

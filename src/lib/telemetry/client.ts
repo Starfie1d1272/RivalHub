@@ -73,7 +73,11 @@ export function recordContentReady(token: string | null, module: typeof READY_MO
 }
 const errorCodes = new Set<string>(Object.values(ErrorCode));
 const storageKey = "rivalhub-product-session-v1";
-function attempt(callback: () => void) { try { callback(); } catch { /* Observability cannot alter a business result. */ } }
+function privacyDisabled() { return navigator.doNotTrack === "1" || (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true; }
+function attempt(callback: () => void) { try {
+  if (queue && privacyDisabled()) { tasks.reset(); taskExposures.clear(); queue = null; bootstrap = null; identity = null; session = ""; activeNavigation = null; pendingNavigation = null; vitalIds.clear(); }
+  callback();
+} catch { /* Observability cannot alter a business result. */ } }
 
 export function configureTelemetry(config: Bootstrap | null) {
   attempt(() => {
@@ -301,8 +305,8 @@ export function observeAction<A extends unknown[], R>(operation: Operation, acti
           const code = typeof value.error?.code === "string" && errorCodes.has(value.error.code) ? value.error.code : "UNCLASSIFIED";
           finish(code === "INTERNAL_ERROR" || code === "PASSWORD_UPDATE_OUTCOME_UNKNOWN" ? "unknown" : "rejected", code, typeof value.error?.requestId === "string" ? value.error.requestId : undefined);
         } else finish("unknown", "INVALID_RESULT");
-        if (value?.success === true && operation === "auth.loginWithPassword") completeTelemetryTask("login", operationTask?.attemptId ?? null);
-        if (value?.success === true && ["auth.loginWithPassword", "auth.logoutUser", "user-merge.executeSelfServiceUserMerge"].includes(operation)) resetTelemetryIdentity();
+        if (queue === actionQueue && value?.success === true && operation === "auth.loginWithPassword") completeTelemetryTask("login", operationTask?.attemptId ?? null);
+        if (queue === actionQueue && value?.success === true && ["auth.loginWithPassword", "auth.logoutUser", "user-merge.executeSelfServiceUserMerge"].includes(operation)) resetTelemetryIdentity();
       });
       return result;
     } catch (error) { finish("unknown", "TRANSPORT_OR_THROW"); throw error; }
@@ -321,7 +325,7 @@ export function beginTelemetryTask(name: TaskName, scope = "", step: TaskStep = 
   attempt(() => { if (queue && bootstrap?.measurementVersion === 1) token = tasks.begin(name, `${window.location.pathname}:${scope}`, step); });
   return token;
 }
-export function activityTelemetryTask(name: TaskName) { attempt(() => { if (queue) tasks.activity(name); }); }
+export function activityTelemetryTask(name: TaskName, token?: string | null) { attempt(() => { if (queue) tasks.activity(name, token); }); }
 export function stepTelemetryTask(name: TaskName, step: TaskStep, token?: string | null) { attempt(() => { if (queue) tasks.step(name, step, token); }); }
 export function completeTelemetryTask(name: TaskName, token?: string | null) { attempt(() => { if (queue) tasks.finish(name, "complete", token); }); }
 export function cancelTelemetryTask(name: TaskName, token?: string | null) { attempt(() => { if (queue) tasks.finish(name, "cancel", token); }); }

@@ -375,3 +375,28 @@ it("deduplicates eligible exposure separately from attempts and only reports fix
   expect(events.find(e => e.task?.validationReason)?.task).toMatchObject({ validationReason: "form_invalid", attemptId: token });
   expect(JSON.stringify(events)).not.toContain("PRIVATE");
 });
+
+it("flushes a login receipt with its anonymous attempt before resetting and ignores old identity results", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 })); vi.stubGlobal("fetch", send);
+  configureTelemetry({ ...config, identity: "anonymous", measurementVersion: 1 });
+  const token = beginTelemetryTask("login", "", "submit");
+  await observeAction("auth.loginWithPassword", async () => ({ success: true }))();
+  await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const events: TelemetryEvent[] = JSON.parse(send.mock.calls[0][1].body).events;
+  expect(events.filter(e => e.kind === "task").map(e => e.task?.phase)).toEqual(["start", "complete"]);
+  expect(events.at(-1)?.task).toMatchObject({ attemptId: token, step: "confirm" });
+  configureTelemetry({ ...config, identity: "account-a", measurementVersion: 1 });
+  let resolve!: (v: { success: true }) => void;
+  const pending = observeAction("auth.loginWithPassword", () => new Promise<{ success: true }>(done => { resolve = done; }))();
+  configureTelemetry({ ...config, identity: "account-b", measurementVersion: 1 });
+  const current = beginTelemetryTask("profile"); resolve({ success: true }); await pending;
+  completeTelemetryTask("profile", current); flushTelemetry();
+  await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+  expect(JSON.parse(send.mock.calls[1][1].body).events.filter((e: TelemetryEvent) => e.task?.phase === "complete")).toHaveLength(1);
+});
+it("discards a detached receipt when privacy closes collection", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 })); vi.stubGlobal("fetch", send);
+  configureTelemetry({ ...config, measurementVersion: 1 }); const token = beginTelemetryTask("profile");
+  vi.stubGlobal("navigator", { ...navigator, doNotTrack: "1" });
+  completeTelemetryTask("profile", token); flushTelemetry(); expect(send).not.toHaveBeenCalled();
+});

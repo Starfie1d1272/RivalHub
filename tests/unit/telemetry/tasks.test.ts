@@ -16,18 +16,43 @@ describe("task collection boundaries", () => {
     expect(OPERATIONS.every(op => Boolean(taskForOperation(op) && taskForOperation(op)! in TASKS))).toBe(true);
     expect(taskForOperation("private.input")).toBeUndefined();
   });
-  it("shares retries, separates another scope, and rejects a late completion", () => {
+  it("shares retries, retains independent scopes, and makes receipts idempotent", () => {
     const f = fixture();
     const first = f.tasks.begin("score_entry", "private-map-one");
     f.tasks.step("score_entry", "recognize");
     expect(f.tasks.begin("score_entry", "private-map-one")).toBe(first);
     const second = f.tasks.begin("score_entry", "private-map-two");
     f.tasks.finish("score_entry", "complete", first);
-    expect(f.reports.filter(r => r.task.phase === "complete")).toHaveLength(0);
-    f.tasks.finish("score_entry", "complete", second);
-    f.tasks.finish("score_entry", "complete", second);
     expect(f.reports.filter(r => r.task.phase === "complete")).toHaveLength(1);
+    expect(f.reports.at(-1)?.task.attemptId).toBe(first);
+    f.tasks.finish("score_entry", "complete", second);
+    f.tasks.finish("score_entry", "complete", second);
+    expect(f.reports.filter(r => r.task.phase === "complete")).toHaveLength(2);
     expect(JSON.stringify(f.reports)).not.toContain("private-map");
+  });
+  it("does not infer presentation from an acknowledgement or attach an ambiguous action", () => {
+    const f = fixture(); const a = f.tasks.begin("profile", "one");
+    f.tasks.begin("profile", "two");
+    expect(f.tasks.capture("profile")).toBeUndefined();
+    f.tasks.finish("profile", "complete", a, "two");
+    expect(f.reports.some(r => r.task.phase === "complete")).toBe(false);
+    f.tasks.finish("profile", "complete", a, "one");
+    expect(f.reports.at(-1)?.task).toMatchObject({ phase: "complete", step: "confirm" });
+    f.tasks.step("profile", "result", a, "one");
+    expect(f.reports.at(-1)?.task).toMatchObject({ phase: "step", step: "result" });
+  });
+  it("bounds detached attempts and records explicit local eviction reasons at the 24h boundary", () => {
+    const f = fixture(); const a = f.tasks.begin("registration", "one");
+    f.advance(24 * 3600_000); f.tasks.finish("registration", "complete", a);
+    expect(f.reports.at(-1)).toMatchObject({ durationMs: 3600_000, task: { phase: "complete" } });
+    f.advance(1); f.tasks.checkpoint();
+    expect(f.tasks.evictions.expired).toBe(1);
+    const b = f.tasks.begin("team_registration", "two");
+    f.advance(24 * 3600_000 + 1); f.tasks.finish("team_registration", "complete", b);
+    expect(f.reports.filter(r => r.task.phase === "complete")).toHaveLength(1);
+    for (let i = 0; i < 9; i++) f.tasks.begin("profile", String(i));
+    expect(f.tasks.evictions.capacity).toBe(1);
+    f.tasks.reset(); expect(f.tasks.evictions.reset).toBe(8);
   });
   it("counts visible recent activity once and pauses hidden or idle periods", () => {
     const f = fixture(); f.tasks.begin("profile", "scope");
