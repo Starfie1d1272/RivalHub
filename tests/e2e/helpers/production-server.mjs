@@ -11,7 +11,7 @@ child = spawn("pnpm", ["build:local"], { stdio: "inherit" });
 const [buildCode] = await once(child, "exit");
 if (buildCode !== 0) process.exit(buildCode ?? 1);
 mark("build.complete");
-child = spawn("pnpm", ["exec", "next", "start"], { stdio: ["inherit", "pipe", "inherit"] });
+child = spawn("pnpm", ["exec", "next", "start"], { stdio: ["inherit", "pipe", "inherit"], env: { ...process.env, NODE_ENV: "production" } });
 let ready = false;
 let output = "";
 child.stdout.on("data", chunk => {

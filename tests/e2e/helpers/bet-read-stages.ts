@@ -65,12 +65,6 @@ export async function verifyBetReadStages(
     }
     await operate("启用 BET");
     await expect(admin.getByRole("button",{name:"暂停投入",exact:true})).toBeEnabled();
-    // Only the standalone production benchmark needs transport prewarming.
-    // The dev correctness cases already share one compiled route across views.
-    if(production){
-      await request.get(`/api/bet/${fixture.seasonId}`);
-      await request.get(`/${fixture.slug}/bet`);
-    }
     const preparationMs=performance.now()-started;
     mark("preparation.complete");
     const report=[];
@@ -82,14 +76,9 @@ export async function verifyBetReadStages(
         await expect(viewerPage.getByRole("button",{name:"领取 1,000 积分",exact:true})).toHaveCount(0);
       }
       const reader=viewer==="anonymous"?request:page.request;
-      for(const view of views ?? (production?["open","mine","event"]:["open","mine","settled","event","leaderboard","records"])){
-        let baseline:unknown;
-        let baselineFree:unknown;
-        for(const state of ["cold","warm","invalidated"]){
-          if(state!=="warm"){
-            if(production){await operate("暂停投入");await operate("恢复投入");}
-            else await operate(state==="cold"?"暂停投入":"恢复投入");
-          }
+      const selectedViews=views ?? (production?["open","mine","event"]:["open","mine","settled","event","leaderboard","records"]);
+      const baselines=new Map<string,{value:unknown;free:unknown}>();
+      async function readCell(view:string,state:string){
           phase=`${viewer}.${view}.${state}.api`;
           const start=performance.now();
           const response=await reader.get(`/api/bet/${fixture.seasonId}?view=${view}`,{timeout:15000});
@@ -102,11 +91,11 @@ export async function verifyBetReadStages(
           expect(value.bet.balance).toBe(viewer==="joined"?"1000":"0");
           expect(value.bet.markets.every((m:{mine:unknown;canStake:boolean})=>m.mine===null && (viewer==="joined" || !m.canStake))).toBe(true);
           expect(value.free.matches.every((m:{result:{mine:unknown};bp:{mine:unknown}})=>m.result.mine===null && m.bp.mine===null)).toBe(true);
-          expect(value.bet.paused).toBe(!production && state!=="invalidated");
+          expect(value.bet.paused).toBe(state!=="invalidated");
           if(value.bet.paused)expect(value.bet.markets.every((m:{canStake:boolean})=>!m.canStake)).toBe(true);
-          if(state==="cold"){baseline=value;baselineFree=value.free;}
-          else if(state==="warm"||production)expect(value).toEqual(baseline);
-          else expect(value.free).toEqual(baselineFree); // BET pause never gates free predictions.
+          if(state==="cold")baselines.set(view,{value,free:value.free});
+          else if(state==="warm")expect(value).toEqual(baselines.get(view)!.value);
+          else expect(value.free).toEqual(baselines.get(view)!.free); // BET pause never gates free predictions.
           phase=`${viewer}.${view}.${state}.rsc`;
           const rscStart=performance.now();
           const rsc=await reader.get(`/${fixture.slug}/bet?view=${view}`,{headers:{RSC:"1"},timeout:15000});
@@ -114,10 +103,23 @@ export async function verifyBetReadStages(
           expect(rsc.status()).toBe(200);
           expect(rsc.headers()["content-type"]).toContain("text/x-component");
           mark(`${viewer}.${view}.${state}.complete`);
-          report.push({view,viewer,state,runtime:production?"production":"development",apiMs,apiBytes:body.length,rscMs:performance.now()-rscStart,rscBytes:rscBody.length,rscCacheState:"after API read"});
+          report.push({view,viewer,state,runtime:production?"production":"development",apiMs,apiBytes:body.length,rscMs:performance.now()-rscStart,rscBytes:rscBody.length,publicCacheKey:view==="open"?"match+free":["mine","settled"].includes(view)?"match+event+free":view==="event"?"event-only":"bypassed",rscCacheState:"after API read"});
+      }
+      if(production){
+        // All three publicStats argument keys are distinct. A season-wide tag
+        // invalidation clears them together; the RSC request follows its API read.
+        await operate("暂停投入");
+        for(const view of selectedViews)for(const state of ["cold","warm"])await readCell(view,state);
+        await operate("恢复投入");
+        for(const view of selectedViews)await readCell(view,"invalidated");
+      }else{
+        for(const view of selectedViews)for(const state of ["cold","warm","invalidated"]){
+          if(state!=="warm")await operate(state==="cold"?"暂停投入":"恢复投入");
+          await readCell(view,state);
         }
       }
     }
+    if(production)expect(report).toHaveLength(18);
     mark("matrix.complete");
     // Actual Pick'Em views remain independent of BET financial data.
     if(production){
