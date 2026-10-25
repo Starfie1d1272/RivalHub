@@ -67,8 +67,10 @@ function formatRemaining(milliseconds: number): string {
 }
 
 export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
-  const { begin: beginTask, complete: completeTask } = useTelemetryTask("veto", initialRoom.match.id);
+  const { begin: beginTask, complete: completeTask, step: stepTask } = useTelemetryTask("veto", initialRoom.match.id);
   const [room, setRoom] = useState(initialRoom);
+  const [presentedTask, setPresentedTask] = useState<ReturnType<typeof beginTask>>(null);
+  useEffect(() => { if (presentedTask) stepTask("result", presentedTask); }, [presentedTask, stepTask]);
   const [pending, setPending] = useState(false);
   const [invalidationPending, setInvalidationPending] = useState(Boolean(initialRoom.pendingInvalidation));
   const [clockSynchronized, setClockSynchronized] = useState(false);
@@ -93,7 +95,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
   const [resolutionNote, setResolutionNote] = useState("");
   const [appealReasons, setAppealReasons] = useState<Record<string, string>>({});
   const boundaryAttempt = useRef({ key: "", confirmed: false, attempts: 0, retryAt: 0 });
-  const uncertainCommand = useRef<{ revision: number; input: unknown; fact?: VetoRecoveryFact; commitKnown?: boolean; taskToken: ReturnType<typeof beginTask>; completeOnRecovery: boolean } | null>(null);
+  const uncertainCommand = useRef<{ revision: number; input: unknown; fact?: VetoRecoveryFact; commitKnown?: boolean; taskToken: ReturnType<typeof beginTask>; completeOnRecovery: boolean; resultOnRecovery: boolean } | null>(null);
   const [uncertainRevision, setUncertainRevision] = useState<number | null>(null);
   const latestRoom = useRef(initialRoom);
   const pendingRef = useRef(false);
@@ -106,6 +108,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
     if (uncertain && (uncertain.fact ? hasVetoRecoveryFact(next, uncertain.fact)
       : uncertain.commitKnown ? next.session.revision >= uncertain.revision : next.session.revision > uncertain.revision)) {
       if (uncertain.completeOnRecovery && uncertain.taskToken) completeTask(uncertain.taskToken);
+      if (uncertain.resultOnRecovery) setPresentedTask(uncertain.taskToken);
       uncertainCommand.current = null;
       setUncertainRevision(null);
       setError("");
@@ -247,7 +250,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
       const result = await action(input);
       if (!result.success) {
         if (result.error.code === "INTERNAL_ERROR") {
-          uncertainCommand.current = { revision: latestRoom.current.session.revision, input, fact, taskToken, completeOnRecovery: Boolean(fact) };
+          uncertainCommand.current = { revision: latestRoom.current.session.revision, input, fact, taskToken, completeOnRecovery: Boolean(fact), resultOnRecovery: Boolean(fact) };
           setUncertainRevision(latestRoom.current.session.revision);
         }
         setError(result.error.message);
@@ -257,17 +260,18 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
       // Business confirmation is independent of the room projection/presentation.
       if (result.data.outcome !== "stale") completeTask(taskToken);
       if (!result.data.room) {
-        uncertainCommand.current = { revision: result.data.receipt?.committedRevision ?? latestRoom.current.session.revision, input, fact, commitKnown: true, taskToken, completeOnRecovery: false };
+        uncertainCommand.current = { revision: result.data.receipt?.committedRevision ?? latestRoom.current.session.revision, input, fact, commitKnown: true, taskToken, completeOnRecovery: false, resultOnRecovery: result.data.outcome !== "stale" };
         setUncertainRevision(latestRoom.current.session.revision);
         setNotice("操作已确认，房间刷新暂未完成，正在重新同步。");
         return;
       }
       if (!applyRoom(result.data.room)) return;
+      if (result.data.outcome !== "stale") setPresentedTask(taskToken);
       setRepresentatives(Object.fromEntries(result.data.room.entries.map((entry) => [entry.id, entry.vetoRepresentativeMemberId ?? ""])));
       setManualPrivilege(result.data.room.session.privilegedEntryId ?? "");
       setNotice(result.data.outcome === "stale" ? "BP 状态已更新，请按当前步骤重新选择。" : successMessage);
     } catch {
-      uncertainCommand.current = { revision: latestRoom.current.session.revision, input, fact, taskToken, completeOnRecovery: Boolean(fact) };
+      uncertainCommand.current = { revision: latestRoom.current.session.revision, input, fact, taskToken, completeOnRecovery: Boolean(fact), resultOnRecovery: Boolean(fact) };
       setUncertainRevision(latestRoom.current.session.revision);
       setError("操作结果暂未确认，正在核对；确认新进度前请勿重复提交。");
     } finally {
