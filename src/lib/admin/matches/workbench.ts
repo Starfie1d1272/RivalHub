@@ -21,6 +21,7 @@ import {
   steamProfiles,
   users,
 } from "@/db/schema";
+import { canConfirmCommentaryRoster } from "@/lib/postmatch/commentary-policy";
 import { commentaryAdminEligibility } from "@/lib/postmatch/eligibility";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
@@ -252,7 +253,8 @@ export async function loadAdminMatchWorkbench({
         submittedAt,
         submittedByUserId: submission?.submittedByUserId ?? null,
         rosterReopened,
-        canConfirm: commentatorRows.some(row => row.userId === admin.userId),
+        canConfirm: canConfirmCommentaryRoster({ status: match.status, commentatorCount: commentatorRows.length,
+          isCommentator: commentatorRows.some(row => row.userId === admin.userId), isSuperAdmin: admin.role === "super_admin", rosterReopened }),
         videoUrl: match.videoUrl,
         recordings: match.recordings,
         completionLabel: commentatorRows.length ? POST_MATCH_COMPLETION_LABEL[getPostMatchCompletion(submittedAt, hasMatchRecording(match), rosterReopened)] : "未登记解说，无需提交名单或录像",
