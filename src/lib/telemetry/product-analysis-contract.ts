@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TASK_NAMES } from "./task-contract";
 const count = z.number().int().nonnegative();
 const value = z.number().finite().nonnegative();
 const text = z.string().max(256);
@@ -32,7 +33,7 @@ export const ProductAnalysisData = z.object({
     elapsed: TimingData, active: TimingData,
     steps: z.array(z.object({ key: text, label: text, reached: count, elapsed: TimingData })).max(30),
     trend: z.array(z.object({ at: count, ...attemptResults, elapsedCensored: count.optional(), activeCensored: count.optional(), elapsed: TimingData, active: TimingData, ...results })).max(169),
-  })).max(40),
+  })).max(TASK_NAMES.length * 3),
   operationTrends: z.array(z.object({
     operation: text, label: text, task: text, ...results,
     successTiming: TimingData, otherTiming: TimingData,

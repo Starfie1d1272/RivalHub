@@ -81,7 +81,7 @@ describe("product telemetry analysis", () => {
     expect(JSON.stringify(data.product)).not.toContain("private-account");
     expect(JSON.stringify(data.product)).not.toContain(id(10));
     const legacy = analyze([row(20, { kind: "operation", operation: "player-stats.extractStatsFromScreenshot", operationId: id(30), phase: "start" })]);
-    expect(legacy.product.tasks.find(t => t.key === "score_entry")).toMatchObject({ attempts: 0, completionPct: null, start: 1 });
+    expect(legacy.product.tasks.find(t => t.key === "score_entry" && t.definitionVersion === 0)).toMatchObject({ attempts: 0, completionPct: null, start: 1 });
     expect(TASKS.score_entry.windowMs).toBe(1800000);
   });
   it("aggregates only bounded different-day task usage and fixed validation reasons without exporting accounts", () => {
@@ -187,4 +187,25 @@ it("does not censor a 100ms operation attached to a long task snapshot and ignor
   const data = analyze(reports).product;
   expect(data.operationTrends[0].successTiming).toMatchObject({ n: 1, mean: 100 });
   expect(data.tasks.find(t => t.key === "registration" && t.definitionVersion === 2)).toMatchObject({ completed: 1, elapsedCensored: 1, activeCensored: 1, elapsed: { n: 0 }, active: { n: 0 } });
+});
+
+
+it("keeps unlinked operations/pages in definition 0 without inventing v1 or duplicating v2 denominators", () => {
+  const start = now - 2 * 86400000;
+  const events: EventRow[] = [row(1100, { kind: "page", route: "/[seasonSlug]/register", at: start, received: start })];
+  for (const version of [0, 1, 2] as const) {
+    const operationId = id(1110 + version), attemptId = id(1120 + version);
+    const task = version ? { name: "registration" as const, definitionVersion: version, attemptId, phase: "step" as const, step: "submit" as const } : undefined;
+    events.push(row(1130 + version, { kind: "operation", operation: "register.submitRegistration", operationId, phase: "start", at: start, received: start, task }),
+      row(1140 + version, { kind: "operation", operation: "register.submitRegistration", operationId, phase: "success", durationMs: 100 + version, at: start + 100, received: start + 100, task }));
+    if (task) events.push(row(1150 + version, { kind: "task", at: start, received: start, task: { ...task, phase: "start", step: "start" } }),
+      row(1160 + version, { kind: "task", at: start + 100, received: start + 100, durationMs: 100, task: { ...task, phase: "complete", step: "confirm" } }));
+  }
+  const data = AnalysisData.parse(analyze(events));
+  const cohorts = data.product.tasks.filter(t => t.key === "registration");
+  expect(cohorts.map(t => t.definitionVersion).sort()).toEqual([0, 1, 2]);
+  expect(cohorts.find(t => t.definitionVersion === 0)).toMatchObject({ views: 1, start: 1, success: 1, attempts: 0, completed: 0, completionPct: null, trend: [] });
+  for (const version of [1, 2]) expect(cohorts.find(t => t.definitionVersion === version)).toMatchObject({ views: 0, start: 1, success: 1, attempts: 1, completed: 1 });
+  expect(cohorts.reduce((n, t) => n + t.start, 0)).toBe(3);
+  expect(data.totals.starts).toBe(3);
 });

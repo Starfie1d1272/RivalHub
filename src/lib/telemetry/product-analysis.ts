@@ -123,10 +123,10 @@ export function analyzeProduct(
       ready: readyRows.length, task: rows.filter(e => e.kind === "task").length,
       clientVersionMissing: rows.filter(e => !e.measurement?.clientRelease || e.measurement.clientRelease === "unknown").length,
       firstEnhancedAt: rows.filter(e => e.measurement).reduce<number | null>((n, e) => n === null ? e.received : Math.min(n, e.received), null) },
-    tasks: TASK_NAMES.filter(name => !f.task || name === f.task).flatMap(key => ([1, 2] as const).filter(version => version === 1 || rows.some(e => eventTask(e) === key && e.task?.definitionVersion === version)).map(definitionVersion => {
+    tasks: TASK_NAMES.filter(name => !f.task || name === f.task).flatMap(key => ([1, 2, 0] as const).filter(version => version === 1 || rows.some(e => eventTask(e) === key && (e.task?.definitionVersion ?? 0) === version)).map(definitionVersion => {
       const definition = TASKS[key];
-      const rr = rows.filter(e => eventTask(e) === key && (e.task?.definitionVersion ?? 1) === definitionVersion);
-      const cs = calls.filter(c => eventTask(c.start) === key && (c.start.task?.definitionVersion ?? 1) === definitionVersion);
+      const rr = rows.filter(e => eventTask(e) === key && (e.task?.definitionVersion ?? 0) === definitionVersion);
+      const cs = calls.filter(c => eventTask(c.start) === key && (c.start.task?.definitionVersion ?? 0) === definitionVersion);
       const as = attempts.filter(a => a.start.task!.name === key && a.start.task!.definitionVersion === definitionVersion);
       const exposures = rr.filter(e => e.kind === "task" && e.task?.phase === "exposure");
       // Account identifiers exist only during this bounded raw-history calculation.
@@ -157,7 +157,7 @@ export function analyzeProduct(
           }
           return { key: step.key, label: step.label, reached, elapsed: timing(durations) };
         }),
-        trend: rr.length ? times.map(at => { const aa = as.filter(a => inBucket(a.start, at)); return { at, ...attemptResults(aa), ...attemptTimings(aa), ...callResults(cs.filter(c => inBucket(c.start, at))) }; }) : [],
+        trend: rr.length && definitionVersion !== 0 ? times.map(at => { const aa = as.filter(a => inBucket(a.start, at)); return { at, ...attemptResults(aa), ...attemptTimings(aa), ...callResults(cs.filter(c => inBucket(c.start, at))) }; }) : [],
       };
     })),
     operationTrends: operationGroups.slice(0, 12).map(([operation, cs]) => ({
