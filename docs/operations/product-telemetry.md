@@ -16,7 +16,7 @@ Worker 仅使用独立 D1：一个批次一行、服务端校验后写入、按�
 
 - Root Header 的单一 observer 覆盖所有页面，包括手机、登录、账号设置、公开赛事、统计、参赛工具与后台；动态 slug、用户/队伍 ID、邀请 token 只保留路由模板。新增页面要更新 `routes.ts`，未识别路径只记 `/unknown`。不抓 DOM、正文、鼠标移动、录屏、聊天、文件或网络请求内容。
 - pathname/query 提交后记录 page；同一路径允许的筛选变化记录 filter。浏览器 popstate 记 `navigation=history`（包含返回和前进，不伪称能区分方向）；刷新记 reload。恢复到同一 URL 的 history 仍记录。只在内存用原 URL 去重，不写到事件、存储或日志。
-- 统计 tab/stage/format/mapFilter/mapsView、名单/比赛 team/status、排序，以及共享 Tabs/MetricFamilyTabs 的选择有固定类别投影。查询词、具体队伍/人物、未知分类只记 selected，不记录值。恢复/刷新触发的 URL 变化是页面状态，不计业务动作。
+- 统计 tab/stage/format/mapFilter/mapsView、名单/比赛 team/status、排序，BET 的 open/mine/settled/event/leaderboard/records 与预测的 sim/points/record/tasks/ranking 有限 view，以及共享 Tabs/MetricFamilyTabs 的选择有固定类别投影。查询词、具体队伍/人物、未知分类只记 selected，不记录值。恢复/刷新触发的 URL 变化是页面状态，不计业务动作。
 - `operations.ts` 列出显式客户端动作：账号/认证/教育、队伍/招募/报名/阵容、队长投票/选秀、竞猜/免费预测/推演、比赛安排/BP/赛果/更正/截图识别、赛事管理/赛后/纪律/奖项/反馈，以及本站的 Mizar/DAK 授权。人工运行 scheduler 是人工操作；自动 scheduler、心跳、读取、轮询、边界 reconcile/recovery 不包装。
 - 同一调用的 start/result 共用随机 operationId，结果取真正的 ActionResult。success 代表业务 owner 明确返回成功（包括幂等结果），不代表有新数据写入；预期业务拒绝记 rejected；抛错、传输失败、INTERNAL_ERROR 或凭据结果未知记 unknown，不能假称失败未写入。BP stale 明确为 rejected，applied/noop 单列。内部自动重试仍是一次调用；用户再次提交是新 operationId。
 - bet join/stake、推演草稿/正式提交、免费 result/BP、BP ban/pick/side_pick 等只投影固定 discriminant，不复制其他输入。图片导出记录本地生成/触发下载是否完成，不能证明用户文件已写入磁盘。设备授权表单在业务 owner 返回成功后才导航，不拿 redirect 异常当成功证据。
@@ -79,7 +79,9 @@ v1 的 page/operation/error/ready/NAV_COMMIT 携带随机 navigationId、构建�
 
 ## 交付、预算与免费边界
 
-队列仅在内存保留最多 256 条；每批最多 32 条/24 KiB；没有本地事件文件、IndexedDB、录屏或离线长期补传。5 秒网络超时；同批 UUID 最多尝试三次，60/120 秒退避；超 15 分钟/溢出丢弃，不阻止业务。不额外 flush 每个点击。采集异常不更改返回结果，不重放业务调用。
+队列仅在内存保留最多 256 条；每批最多 32 条，按包含 ticket/id/v/events 的完整 UTF-8 envelope 贪心分批且不超过 24 KiB，同批 session 一致。单条超限只丢该条，后续合法事件继续投递；没有本地事件文件、IndexedDB、录屏或离线长期补传。5 秒网络超时；网络/5xx/429 同一 body、票据、endpoint 和 UUID 最多尝试三次，60/120 秒退避，客户端退避最多四分钟；429 的 Retry-After 是最早允许时刻，不能向前截短。超过事件/票据有效窗口时丢弃该批，但保留该延迟约束后续批次，同身份续票不解除限流。400/413 与其他永久 HTTP 拒绝不重试坏批；401 丢弃原批并暂停该票据的新批，等待既有 bootstrap 续签，绝不换票重放旧批。旧票据过期、事件超过 15 分钟或溢出时丢弃，不阻止业务。不额外 flush 每个点击。采集异常不更改返回结果，不重放业务调用。
+
+队列提供仅内存的固定枚举投递计数：eligible、accepted、queue_dropped、batch_oversize、schema_reject、ticket_expired、ticket_reject、network_retry、server_retry、rate_limit、http_reject、stale、identity_reset、retry_exhausted。eligible 按调用入队次数计，含尚未发送即被合并的性能更新；accepted/丢弃按事件计，retry 类按失败请求计，不能直接把这些不同单位相除。诊断无原始票据/身份/事件字段，不另发请求、不持久化。DNT/GPC 禁用时客户端不创建队列，也不发送 disabled 诊断；这些内存计数不代表生产端到端漏采率。
 
 接收逐字段拒绝未知数据；签名、来源和有效期都要匹配；管理员读取需独立 Bearer。全局每天至多 5,000 批、8 MiB 原始 JSON；每票据滚动一小时最多 120 批，使用 `(ticket, received)` 索引；正常每分钟一批不因累计活跃两小时停收。D1 事务内 INSERT 与 usage counter 同步更新，重试不重复计数；正常到期或清理积压不阻断新批次接收；查询持续排除到期数据，维护异常由独立任务失败暴露。实际 D1 读写/存储额度耗尽仍可能导致接收 503，不能声称维护失败永远不影响可用性。恶意/无效请求仍可能消耗 Worker 请求额；必须使用 Workers Free 的硬停机额度，不升级 Paid 或开超额计费。
 
@@ -119,11 +121,21 @@ Web Vitals 按同身份/会话、指标和样本标识取最新报告；ready �
 
 错误按页面、操作、分类与受控指纹归并；最多 100 个问题组、每组最近 30 条、100 个会话和选定会话最多 100 条事件。原账号、票据、operationId、session UUID、gzip 不离开 Worker，排查使用用途隔离的 SHA-256 短标识；requestId 按需展开。网站传输 owner 缓存最多 12 个结果、最多 60 秒且在原始样本过期前失效；每次读取缓存前重新授权，五秒超时、拒绝重定向、响应 1 MiB、结构校验。无常驻轮询；用量与到期积压为不随筛选变化的 UTC 全站事实。返回预算不是 D1 扫描或费用上限。
 
+### 测量合同兼容与接入顺序
+
+共享任务 wire type 读取 definitionVersion 1 和 2；当前定义常量为 2，计时 cap 仍为一小时。v2 的 elapsedCensored/activeCensored 只在对应计时**超过** cap 时传 true；等于 cap 不标记。报名观察窗口仍为 24 小时，不能从截断值推断真实时长。旧 v1 无标记样本独立归类，不追溯生成标记或混为 v2。业务确认回执使用 complete/confirm；真正呈现另记 result step 或 ready，不延迟 complete 等待 React 挂载。
+
+ready 的目标兼容合同是可选 basis=navigation|demand，缺省为旧 navigation。navigation 保留导航到首次可用及异常原始样本；demand 从本次用户请求模块开始，需求 token 的真实导航 ID、模块和单调时刻只留内存。两种 basis 分组，不混算分位数。Web Vital 仅在确证源导航时关联，否则保持未知，不用当前 SPA 导航或 metric ID 拼接。
+
+登录只在原 attempt/原 identity 记录已确认终态并进行既有 flush，随后 reset；不跨账号 carry。logout、换账号、DNT/GPC 或停收清除内存状态。任何交接不保存密码、表单内容或持久身份映射。
+
+类型 provider 本身不改变客户端 emit 或 receiver 校验。必须先同步 receiver 的逐字段校验、短期/长期分析按定义版本及 ready basis 分组，之后客户端后继变更才发送 v2/censored/basis；部署顺序为 receiver 先、app 后，不能凭共享类型已合并认定接收端已支持。
+
 ### 任务采集
 
 `task-contract.ts` 是任务定义/步骤/观察窗口 owner，`task-client.ts` 是内存状态 owner；`TaskBoundary` 仅在首次输入或明确提交时开始。登录/注册、资料、教育、个人/团队报名、阵容、BP、预测和成绩录入接入有限步骤。个人报名仅具备提交资格时发独立 exposure，不把普通访问视为可参与曝光。固定 validationReason 不读取字段值。内容呈现继续复用 navigation/ready，不能解释为读懂或找到答案。
 
-任务报告携带随机 attemptId、定义版本、固定步骤与 phase；操作继续保留独立 operationId。OCR 重试共享当前地图尝试，BP/成绩保存完成要求相应 UI 投影确认。60 秒无交互暂停活跃计时，隐藏即暂停；异步结果切换步骤不重置交互时间，隐藏期间不恢复活跃计时；沿用分钟批量队列，无逐输入请求。attempt 仅内存，不跨刷新、组件卸载或身份变化恢复；登录请求在原身份结束。上报 durationMs/activeMs 保持协议一小时上限；短期个人经过时间按已关联起止时间差计算，活跃时间及长期聚合的 duration 达到上限时是截断观测。报名的观察窗口可更长，不能将 capped duration 当准确长周期。缺少完成只表示未观测；多人等待从业务记录读取。
+任务报告携带随机 attemptId、定义版本、固定步骤与 phase；操作继续保留独立 operationId。OCR 重试共享当前地图尝试，成绩保存完成要求相应 UI 投影确认；非 OCR 回执与结果呈现遵循上述兼容合同。60 秒无交互暂停活跃计时，隐藏即暂停；异步结果切换步骤不重置交互时间，隐藏期间不恢复活跃计时；沿用分钟批量队列，无逐输入请求。attempt 仅内存，不跨刷新或身份变化恢复；非 OCR 已确认事实不能依赖组件继续挂载，登录请求在原身份结束。上报 durationMs/activeMs 保持协议一小时上限；短期个人经过时间按已关联起止时间差计算，活跃时间及长期聚合的 duration 达到上限时是截断观测。报名的观察窗口可更长，不能将 capped duration 当准确长周期。缺少完成只表示未观测；多人等待从业务记录读取。
 
 ### 业务流程读模型
 
