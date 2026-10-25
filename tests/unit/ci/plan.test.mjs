@@ -46,6 +46,19 @@ describe("changed-surface planner", () => {
     expect(jobs.filter(job => job.project).every(job => job.specs.length === 1 && [ocr, evidence].includes(job.specs[0]))).toBe(true);
   });
 
+  it("isolates the complete BET read matrix once without losing the ordinary BET flow", () => {
+    const stages = "tests/e2e/flows/bet-read-stages.spec.ts";
+    const bet = "tests/e2e/flows/bet.spec.ts";
+    for (const full of [false, true]) {
+      const jobs = systemMatrixFor({ runSystem: true, full, e2eSpecs: [stages, bet, stages] }, false);
+      expect(jobs.filter(job => job.specs.includes(stages))).toEqual([
+        { task: "browser-bet-read-stages", live: false, specs: [stages] },
+      ]);
+      expect(jobs.filter(job => job.specs.includes(bet))).toHaveLength(1);
+      expect(jobs.find(job => job.specs.includes(bet)).task).not.toBe("browser-bet-read-stages");
+    }
+  });
+
   it("covers every selected runnable (spec, project) exactly once in full and affected plans", () => {
     const files = readdirSync("tests/e2e/flows").filter(name => name.endsWith(".spec.ts")).map(name => `tests/e2e/flows/${name}`).sort();
     // The current project exclusions are literal spec basenames or whole
