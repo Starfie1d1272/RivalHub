@@ -79,7 +79,7 @@ it("revoked authorization cannot reuse a cached history result", async () => {
   expect(fetch).toHaveBeenCalledTimes(1);
 });
 
-it.each([{ days: "7" }, { eventId: "private-value" }, { session: "a".repeat(32) }, { days: 28 }])("rejects invalid history input before provider access: %j", async input => {
+it.each([{ days: "8" }, { eventId: "private-value" }, { session: "a".repeat(32) }, { days: 28 }])("rejects invalid history input before provider access: %j", async input => {
   requireSuperAdmin.mockResolvedValue({ userId: "fixture" });
   const fetch = vi.spyOn(globalThis, "fetch");
   await expect(getTelemetryHistory(input)).rejects.toThrow("Invalid telemetry history filters");

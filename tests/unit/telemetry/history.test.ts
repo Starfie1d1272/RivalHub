@@ -100,7 +100,7 @@ it("marks bounded backlog and pauses incomplete, seals before sample expiry, and
     await maintainHistory(f.env, day);
     for (let i = 1; i <= 17; i++) expect((await f.post([{ kind: "page" }], day + i * 1000)).status).toBe(204);
     await maintainHistory(f.env, day + 18000);
-    expect(await f.read(day + 19000)).toMatchObject({ pendingBatches: 1, days: [{ complete: false }] });
+    expect(await f.read(day + 19000)).toMatchObject({ pendingBatches: 1, days: [{ complete: true, views: 17 }], coverage: { tailBatches: 1, tailTruncated: false } });
     await maintainHistory(f.env, day + 20000);
     expect(summarizeHistory(await f.read(day + 21000)).totals.views).toBe(17);
     await maintainHistory({ ...f.env, HISTORY_RETENTION_DAYS: "0" }, day + 22000);
@@ -234,15 +234,39 @@ it("limits timing groups after filtering while keeping daily totals complete and
       const duration = emptyHistoryDistribution(); duration.n = 1; duration.sum = 100; duration.min = 100; duration.max = 100; duration.counts[1] = 1;
       return { kind: "performance", name: "LCP", phase: "", release: `release-${i.toString().padStart(4, "0")}`, measurementVersion: 1, definitionVersion: 0, navigationType: "navigate", route: "/stats", scene: "site", role: "user", device: "desktop", eventId: "", task: "", n: 1, starts: 0, clientCovered: 1, enhancedCovered: 1, duration, active: emptyHistoryDistribution() };
     });
-    await f.db.prepare("UPDATE history_days SET payload=?,complete=1 WHERE day=?").bind(JSON.stringify(rows), historyDay(day)).run();
+    await f.db.prepare("UPDATE history_days SET payload=?,complete=1,sealed=1 WHERE day=?").bind(JSON.stringify(rows), historyDay(day)).run();
     const unfiltered = await f.read(day + 1000);
     expect(unfiltered.truncated).toBe(true);
     expect(unfiltered.timingRows).toHaveLength(512);
     expect(unfiltered.days[0].complete).toBe(true);
     const row = structuredClone(rows[519]); row.n = 9; row.duration = { n: 9, sum: 18000, min: 2000, max: 2000, counts: emptyHistoryDistribution().counts }; row.duration.counts[5] = 9;
-    await f.db.prepare("INSERT INTO history_days(day,payload,complete,sealed,captured_at,expires) VALUES(?,?,1,0,?,?)").bind(historyDay(day + DAY), JSON.stringify([row]), day + DAY, day + 91 * DAY).run();
+    await f.db.prepare("INSERT INTO history_days(day,payload,complete,sealed,captured_at,expires) VALUES(?,?,1,1,?,?)").bind(historyDay(day + DAY), JSON.stringify([row]), day + DAY, day + 91 * DAY).run();
     const selected = await f.read(day + DAY + 1000, "release=release-0519");
     expect(selected.truncated).toBe(false);
     expect(summarizeHistory(selected).timings[0]).toMatchObject({ n: 10, mean: 1810, p50: 2000, p90: 2000 });
+  } finally { await f.mf.dispose(); }
+}, 30000);
+
+
+it("overlays an unprocessed cross-day result and latest metric without changing maintenance state", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25");
+  try {
+    await maintainHistory(f.env, day);
+    const id = crypto.randomUUID(), attemptId = crypto.randomUUID();
+    await f.post([{ id, kind: "performance", metricName: "LCP", durationMs: 500 },
+      { kind: "task", task: { name: "registration", definitionVersion: 1, attemptId, phase: "start", step: "start" } }], day + DAY - 1000);
+    await maintainHistory(f.env, day + DAY - 500);
+    await f.post([{ id, kind: "performance", metricName: "LCP", durationMs: 250 },
+      { kind: "task", durationMs: 2000, task: { name: "registration", definitionVersion: 1, attemptId, phase: "complete", step: "confirm", activeMs: 1500 } }], day + DAY + 1000);
+    const before = await f.db.prepare("SELECT * FROM history_state").first();
+    const data = await f.read(day + DAY + 2000, "days=7");
+    const summary = summarizeHistory(data);
+    expect(summary.totals).toMatchObject({ taskStarts: 1, taskComplete: 1 });
+    expect(summary.byDay.find(d => d.day === "2026-10-25")).toMatchObject({ taskStarts: 1, taskComplete: 1 });
+    expect(summary.timings.find(t => t.name === "LCP")).toMatchObject({ n: 1, mean: 250 });
+    expect(data.coverage).toMatchObject({ tailBatches: 1, tailTruncated: false, summaryComplete: false, timeZone: "Asia/Shanghai" });
+    expect(data.coverage!.unavailable).toContain("distinctSessions");
+    expect(await f.db.prepare("SELECT * FROM history_state").first()).toEqual(before);
+    expect(data.pendingBatches).toBe(1);
   } finally { await f.mf.dispose(); }
 }, 30000);

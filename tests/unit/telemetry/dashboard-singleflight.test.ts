@@ -37,12 +37,13 @@ afterEach(async () => {
   vi.unstubAllEnvs();
 });
 
-function respond(index: number, status = 200) {
+function respond(index: number, status = 200, pad = false) {
   const { url, response } = requests[index];
   const query = parseAnalysisQuery(Object.fromEntries(url.searchParams))!;
   const now = Date.now();
   const batches = query.session.startsWith("a") ? 11 : query.session.startsWith("b") ? 22 : 0;
   const data = analyzeTelemetry({ capturedAt: now, batches, bytes: 0, oldest: now, events: [], metricIds: [], usage: { usage: [], expiredBatches: 0, budget: { batches: 5000, bytes: 8388608 } }, truncated: false, validUntil: now + 60000 }, query.filters, query.session);
+  if (pad) data.product.releases = Array.from({ length: 2500 }, (_, i) => ({ release: String(i).padEnd(230, "x"), basis: "client" as const, reports: 1 }));
   response.writeHead(status, { "Content-Type": "application/json" });
   response.end(JSON.stringify(data));
 }
@@ -93,11 +94,31 @@ it("rejects revoked authorization before joining pending work or reusing cache",
 });
 
 it("bounds distinct pending queries while still joining an admitted key", async () => {
-  const calls = Array.from({ length: 12 }, (_, i) => getTelemetryAnalysis({ release: `singleflight-bound-${i}` }));
-  await vi.waitFor(() => expect(requests).toHaveLength(12));
+  const calls = Array.from({ length: 4 }, (_, i) => getTelemetryAnalysis({ release: `singleflight-bound-${i}` }));
+  await vi.waitFor(() => expect(requests).toHaveLength(4));
   expect(await getTelemetryAnalysis({ release: "singleflight-bound-overflow" })).toEqual({ status: "unavailable" });
   const joined = getTelemetryAnalysis({ release: "singleflight-bound-0" });
-  for (let i = 0; i < 12; i++) respond(i);
+  for (let i = 0; i < 4; i++) respond(i);
   expect((await Promise.all([...calls, joined])).every(result => result.status === "ready")).toBe(true);
-  expect(fetch).toHaveBeenCalledTimes(12);
+  expect(fetch).toHaveBeenCalledTimes(4);
+});
+
+
+it("evicts by encoded resident bytes and gives callers independently parsed cached data", async () => {
+  for (let i = 0; i < 4; i++) {
+    const loading = getTelemetryAnalysis({ release: `resident-bytes-${i}` });
+    await vi.waitFor(() => expect(requests).toHaveLength(i + 1));
+    respond(i, 200, true);
+    const loaded = await loading;
+    expect(loaded.status).toBe("ready");
+    if (loaded.status === "ready") loaded.data.product.releases.length = 0;
+  }
+  // Four ~700 KiB objects fit the entry-count bound but exceed the 2 MiB byte bound.
+  const cached = await getTelemetryAnalysis({ release: "resident-bytes-3" });
+  expect(cached.status).toBe("ready");
+  if (cached.status === "ready") expect(cached.data.product.releases).toHaveLength(2500);
+  expect(requests).toHaveLength(4);
+  const evicted = getTelemetryAnalysis({ release: "resident-bytes-0" });
+  await vi.waitFor(() => expect(requests).toHaveLength(5)); respond(4);
+  expect((await evicted).status).toBe("ready");
 });

@@ -4,7 +4,19 @@ import { requireSuperAdmin } from "@/lib/auth/session";
 import { AnalysisData } from "./analysis-contract";
 import { parseAnalysisQuery } from "./analysis-query";
 import type { Analysis } from "./analysis-model";
-const cache = new Map<string, { expires: number; data: unknown }>();
+const RESPONSE_BYTES = 1024 * 1024;
+const CACHE_BYTES = 2 * RESPONSE_BYTES;
+const INFLIGHT_BYTES = 4 * RESPONSE_BYTES;
+const cache = new Map<string, { expires: number; body: Buffer }>();
+let residentBytes = 0;
+let inflightBytes = 0;
+function evict(key: string) {
+  const entry = cache.get(key);
+  if (entry) { residentBytes -= entry.body.byteLength; cache.delete(key); }
+}
+function pruneCache(now: number) {
+  for (const [key, entry] of cache) if (entry.expires <= now) evict(key);
+}
 const pending = new Map<string, Promise<QueryResult<unknown>>>();
 
 async function queryThroughProxy(
@@ -34,7 +46,7 @@ async function queryThroughProxy(
           let bytes = 0;
           response.on("data", (chunk: Buffer) => {
             bytes += chunk.byteLength;
-            if (bytes > 1024 * 1024)
+            if (bytes > RESPONSE_BYTES)
               response.destroy(new Error("Telemetry response too large"));
             else chunks.push(chunk);
           });
@@ -59,18 +71,23 @@ async function readDashboard<T>(
   validUntil: (data: T) => number,
 ): Promise<QueryResult<T>> {
   const key = path + JSON.stringify(params);
+  pruneCache(Date.now());
   const hit = cache.get(key);
-  if (hit && hit.expires > Date.now())
-    return { status: "ready", data: hit.data as T };
+  if (hit) {
+    // Cache holds encoded bytes only; parsed graphs belong to the current caller.
+    return { status: "ready", data: parse(JSON.parse(hit.body.toString("utf8"))) };
+  }
   const active = pending.get(key);
   if (active) return active as Promise<QueryResult<T>>;
-  if (pending.size >= 12) return { status: "unavailable" };
+  if (pending.size >= 12 || inflightBytes + RESPONSE_BYTES > INFLIGHT_BYTES) return { status: "unavailable" };
+  inflightBytes += RESPONSE_BYTES;
   const loading = loadDashboard(key, path, params, parse, validUntil);
   pending.set(key, loading);
   try {
     return await loading;
   } finally {
     if (pending.get(key) === loading) pending.delete(key);
+    inflightBytes -= RESPONSE_BYTES;
   }
 }
 
@@ -127,7 +144,7 @@ async function loadDashboard<T>(
         const chunk = await reader.read();
         if (chunk.done) break;
         bytes += chunk.value.byteLength;
-        if (bytes > 1024 * 1024) {
+        if (bytes > RESPONSE_BYTES) {
           await reader.cancel();
           return { status: "unavailable" };
         }
@@ -136,11 +153,14 @@ async function loadDashboard<T>(
       body = Buffer.concat(chunks);
     }
     const data = parse(JSON.parse(body.toString("utf8")));
-    if (cache.size >= 12) cache.delete(cache.keys().next().value!);
-    cache.set(key, {
-      expires: Math.min(Date.now() + 60000, validUntil(data)),
-      data,
-    });
+    const encoded = Buffer.from(JSON.stringify(data), "utf8");
+    pruneCache(Date.now());
+    evict(key);
+    if (encoded.byteLength <= RESPONSE_BYTES) {
+      while (cache.size >= 12 || residentBytes + encoded.byteLength > CACHE_BYTES) evict(cache.keys().next().value!);
+      cache.set(key, { expires: Math.min(Date.now() + 60000, validUntil(data)), body: encoded });
+      residentBytes += encoded.byteLength;
+    }
     return { status: "ready", data };
   } catch {
     return { status: "unavailable" };
@@ -167,4 +187,13 @@ export async function getTelemetryHistory(input: unknown) {
   const query = parseHistoryQuery(input);
   if (!query) throw new Error("Invalid telemetry history filters");
   return readDashboard("/admin/history", query, value => HistoryData.parse(value), data => data.generatedAt + 60000);
+}
+
+
+export async function getLongWindowSummary(input: unknown) {
+  await requireSuperAdmin();
+  const { LongWindowSummary } = await import("./long-window-contract");
+  const query = parseAnalysisQuery(input);
+  if (!query) throw new Error("Invalid telemetry long-window filters");
+  return readDashboard("/admin/long-window", { ...query.filters, session: query.session }, value => LongWindowSummary.parse(value), data => data.validUntil);
 }

@@ -55,6 +55,23 @@ const duration = (e?: EventRow) => typeof e?.durationMs === "number" ? [e.durati
 const unique = (rows: EventRow[]) => new Set(rows.map(e => e.session)).size;
 const navigationNames: Record<string, string> = { hard: "首次加载与刷新", soft: "站内导航", bfcache: "页面恢复", prerender: "预渲染激活", unknown: "导航类型未知", missing: "未采集" };
 
+export function taskAttempts(events: EventRow[], rows: EventRow[], capturedAt: number) {
+  const taskGroups = new Map(group(events.filter(e => e.task), taskKey));
+  return group(rows.filter(e => e.kind === "task" && e.task?.phase === "start"), taskKey).map(([, starts]) => {
+    const start = starts.sort((a, b) => -latest(a, b))[0];
+    const candidates = (taskGroups.get(taskKey(start)) ?? []).filter(e => e.at >= start.at).sort((a, b) => -latest(a, b));
+    const limit = TASKS[start.task!.name].windowMs;
+    const end = candidates.find(e => e.kind === "task" && ["complete", "cancel"].includes(e.task!.phase) && e.at <= start.at + limit);
+    const completed = end?.task?.phase === "complete";
+    const cancelled = end?.task?.phase === "cancel";
+    const matured = capturedAt >= start.received + limit;
+    const elapsed = completed && end ? end.at - start.at : null;
+    const active = completed && end && typeof end.task?.activeMs === "number" ? Math.min(end.task.activeMs, elapsed!) : null;
+    return { start, candidates, completed, cancelled, matured, elapsed, active,
+      late: !end && candidates.some(e => e.task?.phase === "complete" && e.at > start.at + limit) };
+  });
+}
+
 export function analyzeProduct(
   events: EventRow[], rows: EventRow[], metricIds: Set<string>, f: AnalysisFilters,
   window: ProductAnalysis["window"], capturedAt: number,
@@ -77,19 +94,7 @@ export function analyzeProduct(
   });
   const operationGroups = group(calls, c => c.start.operation!).sort((a, b) => b[1].length - a[1].length);
   const taskGroups = new Map(group(events.filter(e => e.task), taskKey));
-  const attempts = group(rows.filter(e => e.kind === "task" && e.task?.phase === "start"), taskKey).map(([, starts]) => {
-    const start = starts.sort((a, b) => -latest(a, b))[0];
-    const candidates = (taskGroups.get(taskKey(start)) ?? []).filter(e => e.at >= start.at).sort((a, b) => -latest(a, b));
-    const limit = TASKS[start.task!.name].windowMs;
-    const end = candidates.find(e => e.kind === "task" && ["complete", "cancel"].includes(e.task!.phase) && e.at <= start.at + limit);
-    const completed = end?.task?.phase === "complete";
-    const cancelled = end?.task?.phase === "cancel";
-    const matured = capturedAt >= start.received + limit;
-    const elapsed = completed && end ? end.at - start.at : null;
-    const active = completed && end && typeof end.task?.activeMs === "number" ? Math.min(end.task.activeMs, elapsed!) : null;
-    return { start, candidates, completed, cancelled, matured, elapsed, active,
-      late: !end && candidates.some(e => e.task?.phase === "complete" && e.at > start.at + limit) };
-  });
+  const attempts = taskAttempts(events, rows, capturedAt);
   type Attempt = typeof attempts[number];
   const attemptResults = (as: Attempt[]) => {
     const matured = as.filter(a => a.matured).length;
