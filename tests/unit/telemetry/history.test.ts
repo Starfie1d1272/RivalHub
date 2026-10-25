@@ -171,3 +171,17 @@ it("bounds all scheduled D1 statements including full expiry cleanup and resume 
     expect((await f.db.prepare("SELECT count(*) AS n FROM history_days WHERE captured_at=?").bind(now + 1000).first())?.n).toBeLessThanOrEqual(2);
   } finally { await f.mf.dispose(); }
 }, 30000);
+
+it("refreshes live days with short retention instead of revisiting expired candidates forever", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25");
+  const env = { ...f.env, HISTORY_RETENTION_DAYS: "1" };
+  try {
+    await maintainHistory(env, day);
+    const now = day + 5 * DAY + 1000;
+    expect((await f.post([{ kind: "page" }], now)).status).toBe(204);
+    for (let i = 1; i <= 4; i++) await maintainHistory(env, now + i * 1000);
+    const response = await handle(new Request("https://worker.invalid/admin/history", { headers: { authorization: `Bearer ${env.DASHBOARD_KEY}` } }), env, now + 5000);
+    const data = HistoryData.parse(await response.json());
+    expect(data.days.find(d => d.day === historyDay(now))?.rows.find(r => r.kind === "page")?.n).toBe(1);
+  } finally { await f.mf.dispose(); }
+}, 30000);

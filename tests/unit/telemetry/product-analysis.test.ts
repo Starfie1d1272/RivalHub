@@ -124,3 +124,12 @@ describe("product telemetry analysis", () => {
     expect(data.metrics.find(m => m.key === "INP")).toMatchObject({ n: 1, p50: 40 });
   });
 });
+
+it("separates exception categories when a controlled fingerprint is unavailable", () => {
+  const data = analyze([
+    row(1, { kind: "error", errorCode: "CLIENT_UNHANDLED", clientError: { category: "TypeError", source: "window_error" } }),
+    row(2, { kind: "error", errorCode: "CLIENT_UNHANDLED", clientError: { category: "RangeError", source: "window_error" } }),
+  ]);
+  expect(data.errorGroups).toHaveLength(2);
+  expect(data.errorGroups.map(g => g.category).sort()).toEqual(["RangeError", "TypeError"]);
+});

@@ -5,7 +5,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ read: vi.fn(), options: vi.fn(), receipt: vi.fn(), save: vi.fn(), clear: vi.fn(), extract: vi.fn(), refresh: vi.fn(), invalidate: vi.fn() }));
 vi.mock("@/actions/player-stats", () => ({ getOperatorScoreboardSnapshot: mocks.read, getScoreboardEditorState: mocks.options, getScoreboardOperationReceipt: mocks.receipt,
   retryPlayerStatsRefresh: mocks.invalidate, savePlayerStats: mocks.save, deletePlayerStatsByMap: mocks.clear, extractStatsFromScreenshot: mocks.extract }));
-vi.mock("@/lib/telemetry/client", () => ({ observeAction: (_name: string, action: unknown) => action }));
+vi.mock("@/lib/telemetry/client", async original => ({ ...await original<typeof import("@/lib/telemetry/client")>(), observeAction: (_name: string, action: unknown) => action }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";

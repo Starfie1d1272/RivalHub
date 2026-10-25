@@ -37,6 +37,18 @@ describe("task collection boundaries", () => {
     f.tasks.activity("profile"); f.advance(5000); f.tasks.finish("profile", "complete");
     expect(f.reports.at(-1)).toMatchObject({ durationMs: 205_000, task: { activeMs: 75_000, phase: "complete" } });
   });
+  it("does not restart active time from asynchronous steps while idle or hidden", () => {
+    let now = 0, visible = true;
+    const reports: TaskReport[] = [];
+    const tasks = new TelemetryTasks(r => reports.push(r), () => now, () => id, () => visible);
+    tasks.begin("score_entry", "scope");
+    now = 90_000; tasks.step("score_entry", "review");
+    now = 100_000; tasks.pause(); visible = false;
+    now = 110_000; tasks.begin("score_entry", "scope");
+    tasks.step("score_entry", "submit");
+    now = 150_000; tasks.finish("score_entry", "complete");
+    expect(reports.at(-1)?.task.activeMs).toBe(60_000);
+  });
   it("drops task identity on reset and ages out unresolved attempts", () => {
     const f = fixture(); const first = f.tasks.begin("profile", "scope");
     f.advance(TASKS.profile.windowMs + 1);

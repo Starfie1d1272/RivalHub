@@ -284,7 +284,7 @@ export function analyzeTelemetry(
   const errorGroups = groups(
     [...errors, ...unknown, ...rejects],
     (e) =>
-      `${e.kind === "error" ? "client" : e.phase === "rejected" ? "rejected" : "unknown"}|${e.route}|${e.operation ?? ""}|${e.errorCode ?? ""}|${e.clientError?.fingerprint ?? ""}`,
+      `${e.kind === "error" ? "client" : e.phase === "rejected" ? "rejected" : "unknown"}|${e.route}|${e.operation ?? ""}|${e.errorCode ?? ""}|${e.clientError?.category ?? ""}|${e.clientError?.fingerprint ?? ""}`,
   )
     .map(([key, rr]) => ({
       key,

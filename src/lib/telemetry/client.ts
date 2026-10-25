@@ -12,7 +12,8 @@ let identity: string | null = null;
 let session = "";
 let activeAt = 0;
 const taskExposures = new Set<string>();
-const tasks = new TelemetryTasks(report => record({ kind: "task", ...report }));
+const tasks = new TelemetryTasks(report => record({ kind: "task", ...report }), undefined, undefined,
+  () => typeof document !== "undefined" && document.visibilityState !== "hidden");
 let sceneContext: { prefix: string; scene: Scene; eventId: string } | null = null;
 let previousPage = "";
 let historyNavigation = false;

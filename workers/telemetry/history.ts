@@ -158,8 +158,9 @@ async function accumulateHistory(env: Env, now: number) {
       state = { ...state, cursor_received: b.received, cursor_ticket: b.ticket, cursor_id: b.id };
     }
     const backlog = await pending(env.DB, state, now);
+    // Expired days must not occupy the bounded refresh slots on every run.
     const candidates: string[] = [];
-    for (let at = Math.max(historyDayStart(historyDay(state.started_at)), historyDayStart(historyDay(now)) - CORRECTION_DAYS * DAY); at <= now; at += DAY) candidates.push(historyDay(at));
+    for (let at = Math.max(historyDayStart(historyDay(state.started_at)), historyDayStart(historyDay(now)) - Math.min(CORRECTION_DAYS, retention) * DAY); at <= now; at += DAY) candidates.push(historyDay(at));
     // Oldest capture first ensures every mutable day is refreshed without letting
     // a large historical backlog exhaust D1's per-invocation query allowance.
     const days = await env.DB.prepare(`WITH candidates AS (

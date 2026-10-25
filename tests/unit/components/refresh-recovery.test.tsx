@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({ read: vi.fn(), count: vi.fn() }));
 vi.mock("@/actions/predictions", () => ({ mutatePrediction: vi.fn() }));
 vi.mock("@/lib/predictions/http-client", () => ({ fetchPredictionBoard: mocks.read, fetchPickEmSummary: vi.fn() }));
 vi.mock("@/actions/online", () => ({ heartbeatOnline: mocks.count }));
-vi.mock("@/lib/telemetry/client", () => ({ observeAction: (_name: string, fn: unknown) => fn, observeTask: (_name: string, fn: unknown) => fn }));
+vi.mock("@/lib/telemetry/client", async original => ({ ...await original<typeof import("@/lib/telemetry/client")>(), observeAction: (_name: string, fn: unknown) => fn, observeTask: (_name: string, fn: unknown) => fn }));
 vi.mock("@/components/predictions/share-image", () => ({ exportPredictionImage: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 import { PredictionBoard } from "@/components/predictions/PredictionBoard";
