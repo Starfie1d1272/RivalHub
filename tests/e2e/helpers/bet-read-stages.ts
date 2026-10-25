@@ -10,7 +10,7 @@ import * as schema from "@/db/schema";
 /** Isolated loopback fixtures only. No production bootstrap route or credentials. */
 export async function verifyBetReadStages(
   {page,context,scenario,request}:{page:Page;context:BrowserContext;scenario:E2EFixtureCredentials;request:APIRequestContext},
-  info:TestInfo, production=false,
+  info:TestInfo, production=false, views?:readonly string[],
 ){
   const user=scenario.accounts[0]!;
   const fixture=await createPredictionBrowserFixture(user.userId);
@@ -69,7 +69,7 @@ export async function verifyBetReadStages(
         await expect(page.getByRole("button",{name:"领取 1,000 积分",exact:true})).toHaveCount(0);
       }
       const reader=viewer==="anonymous"?request:page.request;
-      for(const view of production?["open","mine","event"]:["open","mine","settled","event","leaderboard","records"]){
+      for(const view of views ?? (production?["open","mine","event"]:["open","mine","settled","event","leaderboard","records"])){
         let baseline:unknown;
         for(const state of ["cold","warm","invalidated"]){
           if(state!=="warm"){await operate("暂停投入");await operate("恢复投入");}
