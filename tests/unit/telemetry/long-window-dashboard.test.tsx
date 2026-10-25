@@ -21,15 +21,15 @@ function fixture(): LongWindowSummary {
     distinctSessions: null, distinctAccounts: null, metrics: [], unsupportedDimensions: [] };
 }
 function metric(kind: "task" | "ready", version = 1, basis?: string): LongWindowSummary["metrics"][number] {
-  const name = kind === "task" ? "login" : "admin";
+  const name = kind === "task" ? "login" : "bet:form";
   const distribution = { n: 0, sum: 0, min: null, max: null, counts: historyBounds(name).map(() => 0).concat(0) };
-  return { kind, name, phase: "primary", release: "fixture", measurementVersion: 1, definitionVersion: version, navigationType: "hard", basis,
+  return { kind, name, phase: kind === "ready" ? "" : "complete", release: "fixture", measurementVersion: 1, definitionVersion: version, navigationType: "hard", basis,
     duration: distribution, active: distribution, elapsedCensored: true, activeCensored: true, reports: 4 };
 }
 it("keeps unsupported filters from displaying unfiltered counts, and explains partial coverage and nulls", () => {
   const data = fixture();
   const { rerender } = render(<LongWindowAnalysis data={data} />);
-  expect(screen.getByText(/不是按尝试起点归属的成熟完成率/)).toBeInTheDocument();
+  expect(screen.getByText(/不是成熟窗口完成率/)).toBeInTheDocument();
   expect(screen.getByText("请求范围：", { exact: false })).toBeInTheDocument();
   expect(screen.getByText(/原始边界 · 部分覆盖/)).toBeInTheDocument();
   expect(screen.getAllByText("跨段无法可靠去重")).toHaveLength(2);
