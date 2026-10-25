@@ -1,9 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ add: vi.fn(), retry: vi.fn(), refresh: vi.fn() }));
+const mocks = vi.hoisted(() => ({ add: vi.fn(), submit: vi.fn(), retry: vi.fn(), refresh: vi.fn() }));
 vi.mock("@/actions/postmatch", () => ({ addMatchCommentator: mocks.add, retryPostMatchRefresh: mocks.retry,
- removeMatchCommentator: vi.fn(), revokePostMatchSubmission: vi.fn(), submitPostMatchReport: vi.fn(), updateMatchVideoUrl: vi.fn() }));
+ removeMatchCommentator: vi.fn(), revokePostMatchSubmission: vi.fn(), submitPostMatchReport: mocks.submit, updateMatchVideoUrl: vi.fn() }));
 vi.mock("@/components/matches/MatchRecordingEditor", () => ({ MatchRecordingEditor: () => null }));
 vi.mock("@/lib/telemetry/client", () => ({ observeAction: (_name: string, work: unknown) => work }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
@@ -25,4 +25,38 @@ it("keeps an unknown postmatch command blocked without replay", async () => {
  mocks.add.mockRejectedValue(new TypeError("lost response")); const user = userEvent.setup();render(<PostMatchRecordPanel matchId="match" data={data} />);
  const add = screen.getByRole("button", { name: "添加 Fixture（无直播间）" }); await user.click(add);
  expect(await screen.findByRole("alert")).toHaveTextContent("不要重复提交");expect(add).toBeDisabled();await user.click(add);expect(mocks.add).toHaveBeenCalledOnce();
+});
+
+it.each(["unknown", "refresh_pending"] as const)("blocks correction confirmation replay during %s recovery", async (state) => {
+ const user = userEvent.setup();
+ if (state === "unknown") mocks.submit.mockRejectedValue(new TypeError("lost response"));
+ else mocks.submit.mockResolvedValue({ success: true, data: { refreshPending: true } });
+ mocks.retry.mockResolvedValue({ success: true });
+ const correction = { ...data, canSubmit: true, rosterReopened: true, canConfirm: true,
+   commentators: [{ userId: "peer", name: "Peer", hasLiveStream: false }] };
+ const view = render(<PostMatchRecordPanel matchId="match" data={correction} />);
+ const confirm = screen.getByRole("button", { name: "确认名单更正" });
+ await user.click(confirm);
+ expect(await screen.findByRole("alert")).toBeVisible();
+ expect(confirm).toBeDisabled(); await user.click(confirm); expect(mocks.submit).toHaveBeenCalledExactlyOnceWith({ matchId: "match" });
+ if (state === "refresh_pending") {
+   await user.click(screen.getByRole("button", { name: "重试刷新（不重复提交）" }));
+   await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+   view.rerender(<PostMatchRecordPanel matchId="match" data={{ ...correction, submittedAt: new Date() }} />);
+   expect(screen.queryByRole("button", { name: "确认名单更正" })).toBeNull();
+   expect(mocks.submit).toHaveBeenCalledOnce();
+ }
+});
+
+it("explains ordinary non-roster denial and hides confirmation for an empty or frozen roster", () => {
+ const correction = { ...data, canSubmit: true, rosterReopened: true,
+   commentators: [{ userId: "peer", name: "Peer", hasLiveStream: false }] };
+ const view = render(<PostMatchRecordPanel matchId="match" data={correction} />);
+ expect(screen.getByRole("button", { name: "确认名单更正" })).toBeDisabled();
+ expect(screen.getByText("至少保留一名实际解说，由名单内解说或超级管理员确认更正。")).toBeVisible();
+ view.rerender(<PostMatchRecordPanel matchId="match" data={{ ...correction, commentators: [] }} />);
+ expect(screen.queryByRole("button", { name: "确认名单更正" })).toBeNull();
+ view.rerender(<PostMatchRecordPanel matchId="match" data={{ ...correction, submittedAt: new Date() }} />);
+ expect(screen.queryByRole("button", { name: "确认名单更正" })).toBeNull();
+ expect(screen.getByRole("button", { name: "更正解说名单" })).toBeEnabled();
 });

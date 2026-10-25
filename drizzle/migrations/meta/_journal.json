@@ -694,6 +694,13 @@
       "when": 1792871830616,
       "tag": "0098_operator_scoreboard_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1792947205345,
+      "tag": "0099_super_admin_commentary_confirmation",
+      "breakpoints": true
     }
   ]
 }

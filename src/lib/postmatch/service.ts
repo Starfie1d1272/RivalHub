@@ -2,7 +2,7 @@ import { projectRecordingCommand } from "./recording-projection";
 import { lockMatchForInspectionInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { hasMatchRecording, recordingInput, type MatchRecording } from "./recording-types";
 import { commentaryAdminEligibility } from "./eligibility";
-import { commentaryCancellationBlocker } from "./commentary-policy";
+import { canConfirmCommentaryRoster, commentaryCancellationBlocker } from "./commentary-policy";
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import { and, eq, isNull } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -90,9 +90,13 @@ export async function setMatchVideoUrlInTx(tx: TxDb, args: { matchId: string; vi
 export async function submitPostMatchReportInTx(tx: TxDb, args: { matchId: string; actorId: string }) {
   const match = await lockMatchInTx(tx, args.matchId);
   if (match.status !== "finished") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛结束后才能提交赛后资料。");
-  const [commentator] = await tx.select({ userId: matchCommentators.userId }).from(matchCommentators).where(and(eq(matchCommentators.matchId, match.id), eq(matchCommentators.userId, args.actorId)));
-  if (!commentator) throw new AppError(ErrorCode.FORBIDDEN, "只有本场已登记的解说可以提交赛后资料。");
   if (await lockSubmissionInTx(tx, match.id)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "本场赛后资料已经提交。");
+  const commentators = await tx.select({ userId: matchCommentators.userId }).from(matchCommentators).where(eq(matchCommentators.matchId, match.id));
+  const [actor] = await tx.select({ role: users.role }).from(users).where(eq(users.id, args.actorId));
+  if (!canConfirmCommentaryRoster({ status: match.status, commentatorCount: commentators.length,
+    isCommentator: commentators.some(row => row.userId === args.actorId), isSuperAdmin: actor?.role === "super_admin",
+    rosterReopened: (await readReopenedPostMatchIds(tx, [match.id])).has(match.id),
+  })) throw new AppError(ErrorCode.FORBIDDEN, "仅名单内解说或超级管理员可确认已重开的非空名单。");
   await tx.insert(postMatchReports).values({ matchId: match.id, submittedByUserId: args.actorId });
   await writeAuditInTx(tx, {
     seasonId: match.seasonId, action: "postmatch.report.submit", actorId: args.actorId, targetId: match.id,

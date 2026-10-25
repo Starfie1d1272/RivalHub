@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const submitPostMatchReportInTxMock = vi.hoisted(() => vi.fn());
 const addMatchCommentatorInTxMock = vi.hoisted(() => vi.fn());
 const removeMatchCommentatorInTxMock = vi.hoisted(() => vi.fn());
 const mutateMatchRecordingInTxMock = vi.hoisted(() => vi.fn());
@@ -42,14 +43,14 @@ vi.mock("@/lib/postmatch/service", () => ({
   removeMatchCommentatorInTx: removeMatchCommentatorInTxMock,
   revokePostMatchSubmissionInTx: revokePostMatchSubmissionInTxMock,
   setMatchVideoUrlInTx: setMatchVideoUrlInTxMock,
-  submitPostMatchReportInTx: vi.fn(),
+  submitPostMatchReportInTx: submitPostMatchReportInTxMock,
 }));
 
 vi.mock("@/lib/revalidation", () => ({
   revalidateMatchPaths: revalidateMatchPathsMock,
 }));
 
-import { addMatchCommentator, removeMatchCommentator, cancelMatchCommentary, claimMatchCommentary, mutateMatchRecording } from "@/actions/postmatch";
+import { submitPostMatchReport, addMatchCommentator, removeMatchCommentator, cancelMatchCommentary, claimMatchCommentary, mutateMatchRecording } from "@/actions/postmatch";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 describe("post-match action revalidation", () => {
@@ -63,6 +64,22 @@ describe("post-match action revalidation", () => {
     auditActorIdMock.mockReturnValue("admin-1");
     setMatchVideoUrlInTxMock.mockResolvedValue(undefined);
     transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) => callback({}));
+  });
+
+  it("authorizes confirmation and derives its actor without accepting client privilege flags", async () => {
+    for (const code of [ErrorCode.UNAUTHORIZED, ErrorCode.FORBIDDEN]) {
+      requireSeasonAdminMock.mockRejectedValueOnce(new AppError(code, "无权操作。"));
+      expect(await submitPostMatchReport({ matchId })).toMatchObject({ success: false, error: { code } });
+    }
+    for (const forged of [{ actorId: "other" }, { isSuperAdmin: true }, { role: "super_admin" }]) {
+      expect(await submitPostMatchReport({ matchId, ...forged })).toMatchObject({ success: false, error: { code: "VALIDATION_FAILED" } });
+    }
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(await submitPostMatchReport({ matchId })).toEqual({ success: true, data: { refreshPending: false } });
+    expect(requireSeasonAdminMock).toHaveBeenLastCalledWith("season-1");
+    expect(submitPostMatchReportInTxMock).toHaveBeenCalledExactlyOnceWith({}, { matchId, actorId: "admin-1" });
+    revalidateMatchPathsMock.mockImplementationOnce(() => { throw new Error("cache unavailable"); });
+    expect(await submitPostMatchReport({ matchId })).toEqual({ success: true, data: { refreshPending: true } });
   });
 
   it("cancels only as the session user, rejects forged identities and preserves authorization failures", async () => {
