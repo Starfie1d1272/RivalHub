@@ -97,6 +97,8 @@ it("preserves promise/callback checkout, removes timed-out work and keeps the po
     expect(acquire).toMatchObject({ count: 5, failures: 1, states: { connect: 1, queued: 1, reuse: 3 } });
     expect(acquire.buckets.reduce((sum, count) => sum + count, 0)).toBe(acquire.count);
     expect(acquire.totalMs).toBeGreaterThanOrEqual(acquire.maxMs);
+    expect(acquire.waitingPeak).toBe(1);
+    expect(acquire.waitingTotal).toBe(1);
     acquire.states.reuse = 999;
     acquire.buckets.fill(999);
     expect(pool.getAcquireSnapshot().states.reuse).toBe(3);
@@ -134,6 +136,13 @@ it("counts statements once across pooled and checked-out callback/promise querie
       await next.query("COMMIT");
     } finally { next.release(); }
     expect(pool.getClientSnapshot()).toMatchObject({ queries: 11, transactions: 2, committed: 1, rolledBack: 1, unfinished: 0, checkouts: 4 });
+    const leases = pool.getClientSnapshot();
+    expect(leases.inFlight).toBe(0);
+    expect(leases.peak).toBe(1);
+    expect(leases.holdBuckets.reduce((sum, n) => sum + n, 0)).toBe(leases.checkouts);
+    expect(leases.holdMaxMs).toBeGreaterThan(0);
+    leases.holdBuckets.fill(999);
+    expect(pool.getClientSnapshot().holdBuckets.reduce((sum, n) => sum + n, 0)).toBe(leases.checkouts);
     expect(pool.getClientSnapshot().holdMs).toBeGreaterThan(0);
     expect(pool.getClientSnapshot().transactionMs).toBeGreaterThan(0);
   } finally { await pool.end(); }

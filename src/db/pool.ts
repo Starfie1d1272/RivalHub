@@ -8,10 +8,10 @@ type ConnectCallback = Parameters<Pool["connect"]>[0];
 /** Covers both pool.query's callback checkout and Drizzle transaction checkout. */
 export class DatabasePool extends Pool {
   private readonly clientMeasurements = createClientMeasurements();
-  getClientSnapshot() { return { ...this.clientMeasurements }; }
+  getClientSnapshot() { return { ...this.clientMeasurements, holdBuckets: [...this.clientMeasurements.holdBuckets] }; }
 
   private readonly acquire = {
-    count: 0, failures: 0, totalMs: 0, maxMs: 0,
+    count: 0, failures: 0, totalMs: 0, maxMs: 0, waitingPeak: 0, waitingTotal: 0,
     states: { reuse: 0, connect: 0, queued: 0 },
     // Non-cumulative buckets: <=1, <=10, <=100, <=1000, >1000 ms.
     buckets: [0, 0, 0, 0, 0],
@@ -28,6 +28,9 @@ export class DatabasePool extends Pool {
     const started = performance.now();
     const snapshot = { poolTotal: this.totalCount, poolIdle: this.idleCount, poolWaiting: this.waitingCount, poolMax: this.options.max };
     const connectionState = snapshot.poolIdle > 0 ? "reuse" : snapshot.poolTotal >= (snapshot.poolMax ?? 10) ? "queued" : "connect";
+    const waiting = snapshot.poolWaiting + (connectionState === "queued" ? 1 : 0);
+    this.acquire.waitingPeak = Math.max(this.acquire.waitingPeak, waiting);
+    this.acquire.waitingTotal += waiting;
     const report = (error?: Error) => {
       const durationMs = performance.now() - started;
       this.acquire.count++;
