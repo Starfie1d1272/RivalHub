@@ -155,3 +155,20 @@ it("separates v1/v2 cohorts, excludes censored timers and separates navigation f
   expect(data.product.ready.find(r => r.basis === "navigation")).toMatchObject({ n: 1, p50: 900000 });
   expect(data.product.ready.find(r => r.basis === "demand")).toMatchObject({ n: 2, p50: 100, mean: 150 });
 });
+
+
+it("keeps confirmed completion through result steps, duplicate completion, cancellation and delivery order", () => {
+  const attemptId = id(950), start = now - 2 * 86400000;
+  const task = { name: "registration" as const, definitionVersion: 2 as const, attemptId, phase: "start" as const, step: "start" as const };
+  const reports = [
+    row(950, { kind: "task", at: start, received: start, task }),
+    row(951, { kind: "task", at: start + 1000, received: start + 1000, durationMs: 1000, task: { ...task, phase: "complete", step: "confirm" } }),
+    row(952, { kind: "task", at: start + 1200, received: start + 1200, durationMs: 1200, task: { ...task, phase: "step", step: "result" } }),
+    row(953, { kind: "task", at: start + 2000, received: start + 2000, task: { ...task, phase: "cancel" } }),
+  ];
+  for (const events of [reports, [...reports].reverse(), [...reports, reports[1]]]) {
+    const data = analyze(events).product.tasks.find(t => t.key === "registration" && t.definitionVersion === 2)!;
+    expect(data).toMatchObject({ attempts: 1, completed: 1, cancelled: 0, elapsed: { n: 1, mean: 1000 } });
+    expect(data.steps.find(s => s.key === "result")?.reached).toBe(1);
+  }
+});

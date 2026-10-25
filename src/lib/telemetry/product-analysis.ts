@@ -81,7 +81,8 @@ export function analyzeProduct(
     const start = starts.sort((a, b) => -latest(a, b))[0];
     const candidates = (taskGroups.get(taskKey(start)) ?? []).filter(e => e.at >= start.at).sort((a, b) => -latest(a, b));
     const limit = TASKS[start.task!.name].windowMs;
-    const end = candidates.find(e => e.kind === "task" && ["complete", "cancel"].includes(e.task!.phase) && e.at <= start.at + limit);
+    const confirmed = candidates.find(e => e.kind === "task" && e.task!.phase === "complete" && e.at <= start.at + limit);
+    const end = confirmed ?? candidates.find(e => e.kind === "task" && e.task!.phase === "cancel" && e.at <= start.at + limit);
     const completed = end?.task?.phase === "complete";
     const cancelled = end?.task?.phase === "cancel";
     const matured = capturedAt >= start.received + limit;

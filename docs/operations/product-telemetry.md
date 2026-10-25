@@ -121,7 +121,7 @@ Web Vitals 按同身份/会话、指标和样本标识取最新报告；ready �
 
 ### 测量合同兼容与接入顺序
 
-共享任务 wire type 读取 definitionVersion 1 和 2；当前定义常量为 2，计时 cap 仍为一小时。v2 的 elapsedCensored/activeCensored 只在对应计时**超过** cap 时传 true；等于 cap 不标记。报名观察窗口仍为 24 小时，不能从截断值推断真实时长。旧 v1 无标记样本独立归类，不追溯生成标记或混为 v2。业务确认回执使用 complete/confirm；真正呈现另记 result step 或 ready，不延迟 complete 等待 React 挂载。
+共享任务 wire type 读取 definitionVersion 1 和 2；当前定义常量为 2，计时 cap 仍为一小时。v2 的 elapsedCensored/activeCensored 只在对应计时**超过** cap 时传 true；等于 cap 不标记。报名观察窗口仍为 24 小时，不能从截断值推断真实时长。旧 v1 无标记样本独立归类，不追溯生成标记或混为 v2。业务确认回执使用 complete/confirm，已确认完成单调保持；同 attempt 后续 result step、cancel、重复 complete 或乱序重发都不能撤回完成事实。result 仍是独立可选呈现步骤，不替换业务确认耗时；真正呈现另记 result step 或 ready，不延迟 complete 等待 React 挂载。
 
 ready 的兼容合同是可选 basis=navigation|demand，缺省为旧 navigation。navigation 保留导航到首次可用及异常原始样本；demand 从本次用户请求模块开始，需求 token 的真实导航 ID、模块和单调时刻只留内存。两种 basis 分组，不混算分位数。Web Vital 仅在确证源导航时关联，否则保持未知，不用当前 SPA 导航或 metric ID 拼接。
 

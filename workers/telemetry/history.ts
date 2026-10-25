@@ -48,6 +48,9 @@ async function sample(e: TelemetryEvent, b: Batch): Promise<Sample> {
     active: kind === "task" && !e.task!.activeCensored ? e.task!.activeMs ?? null : null, activeBucket: bucket(kind === "task" && !e.task!.activeCensored ? e.task!.activeMs ?? null : null),
     client: e.client ? 1 : 0, enhanced: e.measurement ? 1 : 0 };
 }
+const confirmedTask = "(history_samples.kind='task' AND history_samples.phase='complete')";
+const newConfirmation = "(excluded.kind='task' AND excluded.phase='complete' AND history_samples.phase<>'complete')";
+const preferResult = `(${newConfirmation} OR (NOT ${confirmedTask} AND excluded.latest_at>=history_samples.latest_at))`;
 const upsertSamples = `INSERT INTO history_samples(sample_key,day,kind,dimensions,latest_at,received,expires,closes,has_start,phase,value,bucket,active,active_bucket,client_covered,enhanced_covered)
  SELECT json_extract(value,'$.key'),json_extract(value,'$.day'),json_extract(value,'$.kind'),json_extract(value,'$.dimensions'),json_extract(value,'$.at'),json_extract(value,'$.received'),json_extract(value,'$.expires'),json_extract(value,'$.closes'),json_extract(value,'$.start'),json_extract(value,'$.phase'),json_extract(value,'$.value'),json_extract(value,'$.bucket'),json_extract(value,'$.active'),json_extract(value,'$.activeBucket'),json_extract(value,'$.client'),json_extract(value,'$.enhanced') FROM json_each(?) WHERE true
  ON CONFLICT(sample_key) DO UPDATE SET
@@ -55,13 +58,13 @@ const upsertSamples = `INSERT INTO history_samples(sample_key,day,kind,dimension
  closes=CASE WHEN excluded.has_start=1 AND history_samples.has_start=0 THEN excluded.closes WHEN history_samples.has_start=1 THEN history_samples.closes ELSE min(history_samples.closes,excluded.closes) END,expires=min(history_samples.expires,excluded.expires),
  has_start=max(history_samples.has_start,excluded.has_start),
  dimensions=json_set(CASE WHEN excluded.has_start=1 AND history_samples.has_start=0 THEN excluded.dimensions ELSE history_samples.dimensions END,
- '$.elapsedCensored',CASE WHEN excluded.latest_at>=history_samples.latest_at AND excluded.phase<>'pending' THEN coalesce(json_extract(excluded.dimensions,'$.elapsedCensored'),0) ELSE coalesce(json_extract(history_samples.dimensions,'$.elapsedCensored'),0) END,
- '$.activeCensored',CASE WHEN excluded.latest_at>=history_samples.latest_at AND excluded.phase<>'pending' THEN coalesce(json_extract(excluded.dimensions,'$.activeCensored'),0) ELSE coalesce(json_extract(history_samples.dimensions,'$.activeCensored'),0) END),
- phase=CASE WHEN excluded.phase<>'pending' AND excluded.latest_at>=history_samples.latest_at THEN excluded.phase ELSE history_samples.phase END,
- value=CASE WHEN excluded.latest_at>=history_samples.latest_at AND (excluded.phase<>'pending' OR excluded.kind NOT IN ('operation','task')) THEN excluded.value ELSE history_samples.value END,
- bucket=CASE WHEN excluded.latest_at>=history_samples.latest_at AND (excluded.phase<>'pending' OR excluded.kind NOT IN ('operation','task')) THEN excluded.bucket ELSE history_samples.bucket END,
- active=CASE WHEN excluded.latest_at>=history_samples.latest_at AND excluded.active IS NOT NULL THEN excluded.active ELSE history_samples.active END,
- active_bucket=CASE WHEN excluded.latest_at>=history_samples.latest_at AND excluded.active IS NOT NULL THEN excluded.active_bucket ELSE history_samples.active_bucket END,
+ '$.elapsedCensored',CASE WHEN ${preferResult} AND excluded.phase<>'pending' THEN coalesce(json_extract(excluded.dimensions,'$.elapsedCensored'),0) ELSE coalesce(json_extract(history_samples.dimensions,'$.elapsedCensored'),0) END,
+ '$.activeCensored',CASE WHEN ${preferResult} AND excluded.phase<>'pending' THEN coalesce(json_extract(excluded.dimensions,'$.activeCensored'),0) ELSE coalesce(json_extract(history_samples.dimensions,'$.activeCensored'),0) END),
+ phase=CASE WHEN excluded.phase<>'pending' AND ${preferResult} THEN excluded.phase ELSE history_samples.phase END,
+ value=CASE WHEN ${preferResult} AND (excluded.phase<>'pending' OR excluded.kind NOT IN ('operation','task')) THEN excluded.value ELSE history_samples.value END,
+ bucket=CASE WHEN ${preferResult} AND (excluded.phase<>'pending' OR excluded.kind NOT IN ('operation','task')) THEN excluded.bucket ELSE history_samples.bucket END,
+ active=CASE WHEN ${preferResult} AND excluded.active IS NOT NULL THEN excluded.active ELSE history_samples.active END,
+ active_bucket=CASE WHEN ${preferResult} AND excluded.active IS NOT NULL THEN excluded.active_bucket ELSE history_samples.active_bucket END,
  latest_at=max(history_samples.latest_at,excluded.latest_at),received=max(history_samples.received,excluded.received),
  client_covered=max(history_samples.client_covered,excluded.client_covered),enhanced_covered=max(history_samples.enhanced_covered,excluded.enhanced_covered)
  WHERE excluded.received<=history_samples.closes AND history_samples.expires>?`;

@@ -272,3 +272,25 @@ it("keeps v2 censor coverage and ready basis separate in persisted distributions
     expect(rows.find(r => r.kind === "ready" && r.basis === "demand")).toMatchObject({ n: 2, mean: 150 });
   } finally { await f.mf.dispose(); }
 }, 30000);
+
+
+it("keeps confirmed history completion across cross-day result-first delivery, duplicates and cancellation", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25");
+  try {
+    await maintainHistory(f.env, day);
+    const task = { name: "registration" as const, definitionVersion: 2 as const, attemptId: crypto.randomUUID(), phase: "start" as const, step: "start" as const };
+    await f.post([{ kind: "task", task }], day + DAY - 1000);
+    await maintainHistory(f.env, day + DAY - 500);
+    await f.post([{ kind: "task", task: { ...task, phase: "step", step: "result" }, durationMs: 3000 }], day + DAY + 2000);
+    await maintainHistory(f.env, day + DAY + 2500);
+    const completion = { kind: "task" as const, at: day + DAY + 1000, task: { ...task, phase: "complete" as const, step: "confirm" as const }, durationMs: 2000 };
+    await f.post([completion], day + DAY + 3000);
+    await f.post([completion], day + DAY + 3500);
+    await f.post([{ kind: "task", task: { ...task, phase: "cancel" }, durationMs: 5000 }], day + DAY + 4000);
+    await maintainHistory(f.env, day + DAY + 5000);
+    await maintainHistory(f.env, day + DAY + 6000);
+    const summary = summarizeHistory(await f.read(day + DAY + 7000));
+    expect(summary.byDay.find(d => d.day === "2026-10-25")).toMatchObject({ taskStarts: 1, taskComplete: 1 });
+    expect(summary.timings.find(t => t.kind === "task")).toMatchObject({ phase: "complete", n: 1, mean: 2000 });
+  } finally { await f.mf.dispose(); }
+}, 30000);
