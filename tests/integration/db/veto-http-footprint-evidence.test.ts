@@ -4,7 +4,7 @@ import { spawn, execFileSync } from "node:child_process";
 import { mkdirSync, createWriteStream, readFileSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { request } from "@playwright/test";
+import { request, chromium } from "@playwright/test";
 import { expect, it } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { eq, sql } from "drizzle-orm";
@@ -101,6 +101,36 @@ it.skipIf(process.env.RIVALHUB_BP_HTTP_EVIDENCE !== "1")("measures full BP HTTP 
     await measure('POST reconcile authenticated draft no-change warm', draftReconcile);
     writeFileSync(resolve(artifacts, `http-footprint-${process.env.BP_FOOTPRINT_LABEL}.json`), JSON.stringify(footprints, null, 2));
     console.info('BP_FULL_HTTP', JSON.stringify(footprints));
+    if (process.env.RIVALHUB_BP_BROWSER_EVIDENCE === "1") {
+      await db.update(schema.matchVetoSessions).set({ pausedAt: null, pausedBy: null, pauseReason: null,
+        turnStartedAt: sql`clock_timestamp()`, turnDeadlineAt: sql`clock_timestamp() + interval '45 seconds'`,
+      }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
+      const browser = await chromium.launch();
+      try {
+        const viewer = await browser.newContext({ storageState: await context.storageState() });
+        const page = await viewer.newPage();
+        await page.goto(`${env.NEXT_PUBLIC_APP_URL}/${f.seasonId}/matches/${f.matchId}/veto`);
+        const choose = page.getByRole("button", { name: "由 Provider A 先禁图", exact: true });
+        await expect(choose).toBeVisible();
+        const reply = page.waitForResponse(response => response.url().endsWith(endpoint) && response.request().method() === "POST"
+          && response.request().postDataJSON().operation === "command");
+        const started = performance.now();
+        await choose.click();
+        const response = await reply;
+        const body = await response.json();
+        const commandAckMs = performance.now() - started;
+        expect(response.status()).toBe(200);
+        expect(body).toMatchObject({ success: true, data: { outcome: "applied" } });
+        await expect(choose).toHaveCount(0);
+        const roomPresentedMs = performance.now() - started;
+        const measurement = { sha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
+          environment: "isolated loopback PostgreSQL + Local Supabase Auth + Next dev + Chromium", samples: 1,
+          commandAckMs, roomPresentedMs, outcome: body.data.outcome,
+          note: "HTTP acknowledgement includes the existing projection workflow; room presentation is a distinct browser observation, not LCP or production SLO." };
+        writeFileSync(resolve(artifacts, "command-presentation.json"), JSON.stringify(measurement, null, 2));
+        console.info("BP_COMMAND_PRESENTATION", JSON.stringify(measurement));
+      } finally { await browser.close(); }
+    }
   } finally {
     await context.dispose();
     server.kill('SIGTERM'); stream.end();
