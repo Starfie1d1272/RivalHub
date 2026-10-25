@@ -24,6 +24,12 @@
 
 已授权投递的 cursor/timestamp/token bucket 元数据仍最多 256 条，10 秒过期；容量 2、补充 2/s 吸收到达抖动，不保存 snapshot。跨实例/重启后的旧帧与重复帧仍由现有 viewer cursor/producedAt 规则处理。相同 gameplay sequence 的较新 heartbeat 合法，官方赛果不消费 LIVE。
 
+## 完赛来源与恢复回执
+
+地图结果与来源连接是不同生命周期。最终 `map_ended` 可以把比赛推进到 finished，同时保留数据库中的 `inter_map` 来源行和 producer sequence/receipt；它不表示 Node 仍持有该行对应的网络连接或帧缓存。finished 比赛不能继续通过 LIVE 授权或取得 viewer token。当前来源仍可走 `releaseMizarSource` 显式释放，精确重试 release 为幂等；handover/revoke 关闭的旧来源不能释放新 authority。关闭来源不删除既有可靠回执。
+
+可靠事件在原事务中保存赛果、sequence、receipt 与审计。提交后响应丢失时，仍持有当前来源的同一 producer 可以重连后提交完全相同的事件，由 receipt 返回原结果；这不是重放一次业务写入。来源已经释放、交接或撤销后，旧来源仍按权限边界拒绝。没有发现可复现的资源释放缺口时，不因历史行 `closed_at=null` 批量关闭来源，也不把这类数据库行视为 OOM 根因。
+
 ## 证据分层
 
 审查基线为 `09fe43a`，已合入 main `7b75b671`。原先仅 aggregate accepted>0 与错峰成功不能证明同步公平；[确定性 unit 回归](evidence/live-fairness-baseline.json)先在原准入函数上失败，再在轮转实现上通过。
