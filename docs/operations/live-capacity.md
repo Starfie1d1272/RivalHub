@@ -18,7 +18,7 @@
 
 `mizar.live.outcome_window` 保留 accepted/frame_expired/contended/delivery_dropped/broadcast_unavailable/rejected/error 七类结果，范围仍是进入 ingest 的调用，平均完整 ingest 耗时包含事务结束/清理。单独的 `mizar.live.stage_window` 记录 HTTP LIVE received、获得两级准入且 revision 语法合法的 admitted、锁内全部授权通过的 authorized、SDK 返回成功的 send_success、过期 expired、入口或需求准入拒绝 capacity、数据库争用 contended，以及发送阶段 timeout/transport/未知失败的 unknown_send。阶段是可重叠的里程碑，不是互斥结果；例如 send_success 后事务结果仍可能未知。received 包含后续凭据语法或协议拒绝，不能与原 ingest 分母混用。
 
-阶段均值为从接收到该阶段的单调耗时，received 为零；safeContext.durationMs 是窗口实际跨度。进程 singleton 保存至多 15 类次数与耗时，不保存帧、账号、凭据、玩家或 match/session/request/trace 标识。`flushLiveIngestOutcomes()` 供共享 sampler 到期 tick 调用，活动记录亦调用同一接口兜底；G owner 不安装第二套 timer。共享 sampler 接入前，空闲尾窗仍可能等待后续活动；接入后每个到期 tick 可输出非空尾窗。重启、SIGKILL 和日志链路故障仍可丢数。accepted/send_success 不证明 viewer 收到或渲染，窗口均值不能替代 p95。Linux 使用 journal 查询固定事件，沿用主机日志保留策略。
+阶段均值为从接收到该阶段的单调耗时，received 为零；safeContext.durationMs 是窗口实际跨度。进程 singleton 保存至多 15 类次数与耗时，不保存帧、账号、凭据、玩家或 match/session/request/trace 标识。窗口以 process 固定 Symbol 跨模块图共享；G 使用唯一 `live_ingest` hook 注册 `flushLiveIngestOutcomes()`，由 A 的共享 sampler 到期 tick 调用，不安装第二套 timer。启用进程采样时，空闲尾窗由后续 tick 输出；未启用采样的环境仍依靠活动记录调用同一接口兜底。重启、SIGKILL 和日志链路故障仍可丢数。accepted/send_success 不证明 viewer 收到或渲染，窗口均值不能替代 p95。Linux 使用 journal 查询固定事件，沿用主机日志保留策略。
 
 跨实例同场互斥由 PostgreSQL `pg_try_advisory_xact_lock` 提供，争用立即丢弃。它不是跨比赛公平调度，也不是 project-wide provider 限流。SQL statement 预算 1 秒、单次锁等待 25ms；接收到完成授权的 freshness 预算仍为 500ms，连接池 acquisition timeout 仍为 10 秒。HTTP 发送仍使用 SDK 的 2 秒 abort，错误响应体取消逻辑不变。网络异常可能有未知投递结果；不重试、不宣称能撤回 provider 已接收的消息。
 

@@ -37,9 +37,11 @@ BETTER_STACK_INGESTING_HOST=<server-only Better Stack OTLP ingest host>
 
 ## LIVE 投递结果聚合
 
-`src/lib/observability/live-outcomes.ts` 通过 server facade 接收固定结果与数值耗时。`flushLiveIngestOutcomes()` 是共享进程 sampler 的同步 tick 接口：每满 60 秒，为非空桶输出一次日志；活动记录也调用相同接口作为兼容兜底，不另建 timer。接入 sampler 后，即使活动停止，下一次到期 tick 也会输出尾窗。仅有活动兜底时，空闲尾窗仍要等下次活动；不能把接口已实现当作定期调度已启用。
+`src/lib/observability/live-outcomes.ts` 通过 server facade 接收固定结果与数值耗时。窗口与 A 的采样器均以 `process` 的固定 Symbol 为 owner，跨 Next API/RSC/Instrumentation 模块图共享。模块使用唯一 `live_ingest` key 注册 `() => flushLiveIngestOutcomes()`，由共享进程 sampler 的 60 秒 tick 刷新到期非空窗口，不安装第二个 timer。启用常驻 Node 进程采样时，停止活动后的尾窗仍由后续 tick 输出；没有启用该采样器的环境保留同接口的活动兜底，空闲尾窗仍可能等待下次活动。
 
 `mizar.live.outcome_window` 保留七类 ingest 结果的原分母；`mizar.live.stage_window` 单独记录 received/admitted/authorized/send_success/expired/capacity/contended/unknown_send 八个固定里程碑。阶段可重叠，不能相加作请求分母。两个聚合共享进程 singleton，只保存 15 类次数与耗时总和，不保存帧或身份；在 ROOT_CONTEXT 输出，避免继承 requestId/traceId。重启、SIGKILL、日志链路故障仍可能丢失开放窗口；不承诺退出 flush 或持久审计。结果范围、窗口/平均值口径与 viewer 验收边界见 [LIVE 接收容量](live-capacity.md)。
+
+LIVE 与可靠事件分别在 canonical ingest 的解析/基本 scope 检查通过后，进入 `mizar.live` / `mizar.reliable` 资源计数；两者只包一层，均在 finally 结束计数。LIVE 耗时包含授权事务、发送与清理，reliable 包含事务和既有非关键心跳；重复、拒绝或依赖失败不残留 inFlight。该观测不创建准入 gate、不获取连接，也不改变锁、重试或业务结果。
 
 ## BP 超时与确认口径
 
