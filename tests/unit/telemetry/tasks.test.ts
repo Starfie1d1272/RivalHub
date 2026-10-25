@@ -41,6 +41,12 @@ describe("task collection boundaries", () => {
     expect(f.reports.at(-1)?.task).toMatchObject({ phase: "complete", step: "confirm" });
     f.tasks.step("profile", "result", a, "one");
     expect(f.reports.at(-1)?.task).toMatchObject({ phase: "step", step: "result" });
+    f.tasks.finish("profile", "cancel", a, "one");
+    const afterCancel = f.reports.length;
+    f.tasks.step("profile", "ready", a, "one");
+    f.tasks.finish("profile", "complete", a, "one");
+    expect(f.reports).toHaveLength(afterCancel);
+
   });
   it("bounds detached attempts and records explicit local eviction reasons at the 24h boundary", () => {
     const f = fixture(); const a = f.tasks.begin("registration", "one");

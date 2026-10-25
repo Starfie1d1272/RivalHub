@@ -68,7 +68,11 @@ export class TelemetryTasks {
   }
   finish(name: TaskName, phase: "complete" | "cancel", expected?: string | null, scope?: string) {
     const a = this.find(name, expected, scope);
-    if (!a || a.terminal) return;
+    if (!a) return;
+    // Cancelling presentation after an ACK must not retract the confirmed fact,
+    // but it invalidates this token for every later UI step.
+    if (phase === "cancel" && a.terminal === "complete") { a.terminal = "cancel"; return; }
+    if (a.terminal) return;
     // An acknowledged mutation is not evidence that React presented its result.
     if (phase === "complete") a.step = name === "score_entry" ? "result" : "confirm";
     this.report(a, phase); a.terminal = phase; a.activity = null;
