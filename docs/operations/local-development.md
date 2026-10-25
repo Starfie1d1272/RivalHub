@@ -24,9 +24,9 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm dev:local
 本地 wrapper 不会把 `.env.local` 中的远程 `DATABASE_URL` 当作 fallback。
 默认 `pnpm check` / `pnpm verify` 只执行 host-only correctness、静态 guard、unit 和 production build，不启动 Docker、Local Supabase 或 PostgreSQL container。CI 运行重型 evidence；人工本地复现必须显式设置 `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1`。
 
-## Draft → Ready 迭代流程
+## PR 迭代流程
 
-日常开发默认在 Draft PR 中进行。每次 push 由 Evidence Planner 根据 changed surface 选择 affected evidence；本地只需运行与当前改动匹配的快速 host-only 检查。不要为了每次迭代重复启动 PostgreSQL、Local Supabase 或 browser 重型环境。
+PR 创建状态与交付规则统一遵循 [`CONTRIBUTING.md`](../../CONTRIBUTING.md#pr-交付与-ci)。每次 push 由 Evidence Planner 根据 changed surface 选择 affected evidence；本地只需运行与当前改动匹配的快速 host-only 检查。不要为了每次迭代重复启动 PostgreSQL、Local Supabase 或 browser 重型环境。
 
 常用匹配方式：
 
@@ -36,7 +36,7 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm dev:local
 - tests：`pnpm type-check:tests`；scripts：`pnpm type-check:scripts`；
 - 当前改动涉及的 TypeScript/JSON 文件：`pnpm exec eslint path/to/changed-file.ts`。
 
-`pnpm check` / `pnpm verify` 可以在需要时作为 broad host-only 检查，但不要求每次迭代或每次 push 都运行。真实 PostgreSQL、Local Supabase 和 browser evidence 由 CI 按需运行；服务层本地复现只在排查失败、验证 migration/constraint，或需要检查真实浏览器组合行为时启动最小层级。准备交付时将 PR 标记为 Ready for review，由 Evidence Planner 按变更风险产生 required 的 `ci-gate`；Ready 后的新 push 会使旧 commit 的 evidence 失效，需等待新 commit 的 CI 检查。
+`pnpm check` / `pnpm verify` 可以在需要时作为 broad host-only 检查，但不要求每次迭代或每次 push 都运行。真实 PostgreSQL、Local Supabase 和 browser evidence 由 CI 按需运行；服务层本地复现只在排查失败、验证 migration/constraint，或需要检查真实浏览器组合行为时启动最小层级。Ready PR 由 Evidence Planner 按变更风险产生 required 的 `ci-gate`；Ready 后的新 push 会使旧 commit 的 evidence 失效，需等待新 commit 的 CI 检查。
 
 ## 只启动需要的层级
 
