@@ -81,7 +81,7 @@ describe("product telemetry analysis", () => {
     expect(JSON.stringify(data.product)).not.toContain("private-account");
     expect(JSON.stringify(data.product)).not.toContain(id(10));
     const legacy = analyze([row(20, { kind: "operation", operation: "player-stats.extractStatsFromScreenshot", operationId: id(30), phase: "start" })]);
-    expect(legacy.product.tasks.find(t => t.key === "score_entry")).toMatchObject({ attempts: 0, completionPct: null, start: 1 });
+    expect(legacy.product.tasks.find(t => t.key === "score_entry" && t.definitionVersion === 0)).toMatchObject({ attempts: 0, completionPct: null, start: 1 });
     expect(TASKS.score_entry.windowMs).toBe(1800000);
   });
   it("aggregates only bounded different-day task usage and fixed validation reasons without exporting accounts", () => {
@@ -132,4 +132,80 @@ it("separates exception categories when a controlled fingerprint is unavailable"
   ]);
   expect(data.errorGroups).toHaveLength(2);
   expect(data.errorGroups.map(g => g.category).sort()).toEqual(["RangeError", "TypeError"]);
+});
+
+
+it("separates v1/v2 cohorts, excludes censored timers and separates navigation from repeated demand", () => {
+  const attemptId = id(900);
+  const start = now - 2 * 86400000, end = start + 7200000;
+  const events: EventRow[] = [
+    row(800, { kind: "task", at: start, received: start, task: { name: "registration", definitionVersion: 1, attemptId, phase: "start", step: "start" } }),
+    row(801, { kind: "task", at: end, received: end, durationMs: 3600000, task: { name: "registration", definitionVersion: 1, attemptId, phase: "complete", step: "confirm", activeMs: 3600000 } }),
+    row(802, { kind: "task", at: start, received: start, task: { name: "registration", definitionVersion: 2, attemptId, phase: "start", step: "start" } }),
+    row(803, { kind: "task", at: end, received: end, durationMs: 3600000, task: { name: "registration", definitionVersion: 2, attemptId, phase: "complete", step: "confirm", activeMs: 3600000, elapsedCensored: true, activeCensored: true } }),
+    row(804, { kind: "ready", measurement, ready: { module: "match", phase: "advanced" }, durationMs: 900000 }),
+    row(805, { kind: "ready", measurement, ready: { module: "match", phase: "advanced", basis: "demand" }, durationMs: 100 }),
+    row(806, { kind: "ready", measurement, ready: { module: "match", phase: "advanced", basis: "demand" }, durationMs: 200 }),
+  ];
+  const data = AnalysisData.parse(analyze(events));
+  const tasks = data.product.tasks.filter(t => t.key === "registration");
+  expect(tasks.map(t => t.definitionVersion)).toEqual([1, 2]);
+  expect(tasks[0]).toMatchObject({ completed: 1, elapsed: { n: 1 }, active: { n: 1 } });
+  expect(tasks[1]).toMatchObject({ completed: 1, elapsedCensored: 1, activeCensored: 1, elapsed: { n: 0 }, active: { n: 0 } });
+  expect(data.product.ready.find(r => r.basis === "navigation")).toMatchObject({ n: 1, p50: 900000 });
+  expect(data.product.ready.find(r => r.basis === "demand")).toMatchObject({ n: 2, p50: 100, mean: 150 });
+});
+
+
+it("keeps confirmed completion through result steps, duplicate completion, cancellation and delivery order", () => {
+  const attemptId = id(950), start = now - 2 * 86400000;
+  const task = { name: "registration" as const, definitionVersion: 2 as const, attemptId, phase: "start" as const, step: "start" as const };
+  const reports = [
+    row(950, { kind: "task", at: start, received: start, task }),
+    row(951, { kind: "task", at: start + 1000, received: start + 1000, durationMs: 1000, task: { ...task, phase: "complete", step: "confirm" } }),
+    row(952, { kind: "task", at: start + 1200, received: start + 1200, durationMs: 1200, task: { ...task, phase: "step", step: "result" } }),
+    row(953, { kind: "task", at: start + 2000, received: start + 2000, task: { ...task, phase: "cancel" } }),
+  ];
+  for (const events of [reports, [...reports].reverse(), [...reports, reports[1]]]) {
+    const data = analyze(events).product.tasks.find(t => t.key === "registration" && t.definitionVersion === 2)!;
+    expect(data).toMatchObject({ attempts: 1, completed: 1, cancelled: 0, elapsed: { n: 1, mean: 1000 } });
+    expect(data.steps.find(s => s.key === "result")?.reached).toBe(1);
+  }
+});
+
+
+it("does not censor a 100ms operation attached to a long task snapshot and ignores earlier active steps", () => {
+  const start = now - 2 * 86400000, attemptId = id(990), operationId = id(995);
+  const task = { name: "registration" as const, definitionVersion: 2 as const, attemptId, phase: "start" as const, step: "start" as const };
+  const censored = { ...task, elapsedCensored: true as const, activeCensored: true as const, activeMs: 3600000 };
+  const reports = [row(990, { kind: "task", at: start, received: start, task }),
+    row(991, { kind: "task", at: start + 20000, received: start + 20000, durationMs: 20000, task: { ...task, phase: "step", step: "edit", activeMs: 10000 } }),
+    row(992, { kind: "operation", operation: "register.submitRegistration", operationId, phase: "start", at: start + 7200000, received: start + 7200000, task: { ...censored, phase: "step", step: "submit" } }),
+    row(993, { kind: "operation", operation: "register.submitRegistration", operationId, phase: "success", durationMs: 100, at: start + 7200100, received: start + 7200100, task: { ...censored, phase: "step", step: "submit" } }),
+    row(994, { kind: "task", durationMs: 3600000, at: start + 7200100, received: start + 7200100, task: { ...censored, phase: "complete", step: "confirm" } }),
+    row(995, { kind: "task", durationMs: 3600000, at: start + 7200200, received: start + 7200200, task: { ...censored, phase: "step", step: "result" } })];
+  const data = analyze(reports).product;
+  expect(data.operationTrends[0].successTiming).toMatchObject({ n: 1, mean: 100 });
+  expect(data.tasks.find(t => t.key === "registration" && t.definitionVersion === 2)).toMatchObject({ completed: 1, elapsedCensored: 1, activeCensored: 1, elapsed: { n: 0 }, active: { n: 0 } });
+});
+
+
+it("keeps unlinked operations/pages in definition 0 without inventing v1 or duplicating v2 denominators", () => {
+  const start = now - 2 * 86400000;
+  const events: EventRow[] = [row(1100, { kind: "page", route: "/[seasonSlug]/register", at: start, received: start })];
+  for (const version of [0, 1, 2] as const) {
+    const operationId = id(1110 + version), attemptId = id(1120 + version);
+    const task = version ? { name: "registration" as const, definitionVersion: version, attemptId, phase: "step" as const, step: "submit" as const } : undefined;
+    events.push(row(1130 + version, { kind: "operation", operation: "register.submitRegistration", operationId, phase: "start", at: start, received: start, task }),
+      row(1140 + version, { kind: "operation", operation: "register.submitRegistration", operationId, phase: "success", durationMs: 100 + version, at: start + 100, received: start + 100, task }));
+    if (task) events.push(row(1150 + version, { kind: "task", at: start, received: start, task: { ...task, phase: "start", step: "start" } }),
+      row(1160 + version, { kind: "task", at: start + 100, received: start + 100, durationMs: 100, task: { ...task, phase: "complete", step: "confirm" } }));
+  }
+  const data = AnalysisData.parse(analyze(events));
+  const cohorts = data.product.tasks.filter(t => t.key === "registration");
+  expect(cohorts.map(t => t.definitionVersion).sort()).toEqual([0, 1, 2]);
+  expect(cohorts.find(t => t.definitionVersion === 0)).toMatchObject({ views: 1, start: 1, success: 1, attempts: 0, completed: 0, completionPct: null, trend: [] });
+  for (const version of [1, 2]) expect(cohorts.find(t => t.definitionVersion === version)).toMatchObject({ views: 0, start: 1, success: 1, attempts: 1, completed: 1 });
+  expect(cohorts.reduce((n, t) => n + t.start, 0)).toBe(3);
+  expect(data.totals.starts).toBe(3);
 });
