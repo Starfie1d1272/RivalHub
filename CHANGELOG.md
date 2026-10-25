@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.24.0]
+## [2.24.1]
 
 ### Added
 
@@ -11,6 +11,10 @@
 ### Changed
 
 - 遥测分析明确区分调用结果、个人任务完成和多人流程等待；成熟完成样本与完成率使用相同观察窗口，缺失与小样本保持可见。
+
+### Fixed
+
+- 修复多维长期数据提前截断的问题；在数据库中先筛选再合并期间分布，以紧凑响应返回完整日期趋势，保留客户端版本和采集口径。
 
 ## [2.23.2]
 
@@ -3519,4 +3523,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.23.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.1...v2.23.2
 [2.23.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.0...v2.23.1
 
-[2.24.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.2...v2.24.0
+[2.24.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.2...v2.24.1
