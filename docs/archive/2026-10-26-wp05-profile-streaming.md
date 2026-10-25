@@ -33,7 +33,7 @@
 
 首个浏览器样本因本地数据库缺少 `matches.test_config` 失败，已通过仓库 `db:local:migrate` 对齐后重跑；该失败未计入收益。首次 Chromium 版本不匹配，安装锁定 Playwright 所需浏览器后重跑。PG 测试的单连接并行查询产生 pg 弃用提示，没有把它当成生产池容量证据。
 
-A 已提供 #1138 的资源计数接口约定、C 已提供模块需求 token 约定；A provider 已按根合并 SHA 同步接入；C core 尚待同步，未自建替代实现。现有 `ContentReady player/primary` 仍等完整共享 sections，保留原测量语义等待 C 接线。没有采到生产/本地组合负载峰值，不能声称资源预算已验收。有效详细 performance 的多赛事浏览器组合仍未跑；已补单赛事双地图的真实 browser 正反例，见后续补证。
+A 已提供 #1138 的资源计数接口约定、C 已提供模块需求 token 约定；A provider 已按根合并 SHA 同步接入；C core 尚待同步，未自建替代实现。现有 `ContentReady player/primary` 仍等完整共享 sections，保留原测量语义等待 C 接线。没有采到生产/本地组合负载峰值，不能声称资源预算已验收。有效详细 performance 的单赛事与多赛事浏览器组合均已补齐，见后续真实 browser 正反例和跨赛事补证。
 
 回退本 PR 的页面分区与 request composition 即恢复原等待边界，统计 owner、schema、权限、公开缓存身份边界不变。未合并、tag、部署或修改生产。
 
@@ -70,3 +70,21 @@ A 已提供 #1138 的资源计数接口约定、C 已提供模块需求 token �
 根合入 #1138 / `2d162d20daa20bb2fd8b1b8e622b83336500ed9d` 后已使用其 `beginRuntimeResource(name): () => void`。shared profile eager request 的 basic/overview/history/performance 只计一次 `profile.public.read`，全部 settled 后 finally 完成；同步构造失败也在 finally 完成。可选 attributes 的实际重统计由独立 stats fill 观察。`cached-query.ts` 的公共 cache callback 与 benchmark callback 通过同一个轻量 `observePublicStatsFill` 包裹真正填充，成功、同步或异步错误均 finally 结束；不在 lookup、draft bypass 或 RSC 消费者上包 fill，不带 user/URL，不复制 provider，也不自行实现预算。
 
 C #1140 core 仍待精确合并 SHA。当前页面分区、赛事队伍 advanced 都由导航 eager 启动，保留既有导航首次 ready；原生 details 和已有 DTO 视图切换不会启动新后端工作，不插入虚构 demand。若 core 变更要求 consumer 接线，按根确认的模块合同接入；将来主动展开才发起读取时，在启动事件保存 beginTelemetryDemand token，实际 UI 呈现后 recordDemandReady，同一 token 的取消/旧身份/幂等由 core 负责。未把这份待办当作已经完成的 runtime/ready 集成。
+
+
+## A 接入后的真实 cold/warm 核验
+
+同步根给定 main `2d162d20daa20bb2fd8b1b8e622b83336500ed9d`；实现/production build exact source `3e2202d5fe7fec624f90916025e4763ee0b6ec9c`。无注入 build 成功，六个完整合法数据浏览器场景全部重跑通过（`after-provider-results.json`），公开撤回 PG 测试再次通过，SQL 仍为 13/12。类型、架构、定向 ESLint 和 6 个相关 unit 通过，其中异步失败、同步抛错与 profile 延迟工作均验证资源 finally 归还。
+
+仅使用 A 已有 60 秒单 sampler：18:00:53 UTC 的 profile count=8、stats.public.fill count=6；同 URL warm 导航后，18:01:53 UTC profile count=9，stats.public.fill 仍为6，均 inFlight=0。两类资源观察到的 peak 都是1；这批顺序导航不证明并发容量。warm 页面200且无 pageerror，说明 cache hit 没被重复计为 fill。
+
+同一进程的原始池/内存样本在 `runtime-samples.jsonl`，结构化对照在 `resource-samples.json`：pool max=10、hold peak=10、acquire waitingPeak=12、acquire maxMs≈128.25、hold maxMs≈54.73；两次采样 poolWaiting=0、retiringTotal=0。RSS 采样为214007808/216453120 bytes，较大值只是两个样本中的较大值，**不是过程 memory.peak 或生产峰值**；本地 constrainedMemory=16GiB，不能与生产512M限制直接比较。未增加池、队列、cache manager、sampler或容量/字节预算；资源观测已接 A，预算仍按根/A/B ownership 处理，不宣称 OOM 或生产容量验收。
+
+
+## 跨赛事与历史归属浏览器补证
+
+同一无注入 production build（exact source `3e2202d5fe7fec624f90916025e4763ee0b6ec9c`）另建任务独占本地数据库，`fixture.ts create multi` 在两个赛事中构造同一批首发：当前赛事2图、历史 archived 赛事1图。新赛事从空事实创建，没有改写已有冻结记录。每张 Evidence 都重新映射真实 fixture roster、通过完整 parser 与 canonical validation，再由现有 owner materialize；实际 reader 预检为 All-time 3图/66回合、coverage3/3，Mirage1图/22回合、coverage1/1。
+
+浏览器七场景全部通过、无 pageerror（`multi-event-results.json`）：All-time显示3图；实际操作当前 Event 后为2图；Map=Mirage后为1图；切换历史 Event 为1图，而生涯头部全部保持3图。历史事件/队伍保留在履历且为1场1胜0负，没有混入当前活动。无历史、无效地图归一化、窄屏活跃处罚、草稿/未来/内部说明不泄漏、同进程即时撤销反例均再次通过。截图见 multi-event-active-desktop/mobile.png。
+
+上述是 synthetic 数据上的真实 PostgreSQL + production build 浏览器证据，未扩张为生产运营、容量或历史 OOM 根因结论。C core 接线与生产复查仍未完成。

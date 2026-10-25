@@ -40,10 +40,35 @@ try {
   await db.update(s.seasons).set({name:'WP05 Detailed Event',slug:'wp05-detailed',status:'playing'}).where(eq(s.seasons.id,f.seasonId));
   const finish=new Date('2026-10-01T12:00:00Z');
   await db.update(s.matches).set({status:'finished',scoreA:2,scoreB:0,completedAt:finish}).where(eq(s.matches.id,f.matchId));
+  const jobs=[{event:f,mapIds:[f.mapOneId,f.mapTwoId]}];
+  let secondSlug: string | undefined;
+  if(process.argv[3]==='multi') {
+    secondSlug='wp05-detailed-second';
+    const seasonId=randomUUID(),matchId=randomUUID(),mapOneId=randomUUID();
+    const entryIds=[randomUUID(),randomUUID()],revisions=[randomUUID(),randomUUID()],rosters=[randomUUID(),randomUUID()],matchRosters=[randomUUID(),randomUUID()];
+    const orderedUsers=f.steam64.map(steam=>users.find(u=>u.steam64===steam)!.id);
+    const participants=orderedUsers.map(()=>randomUUID()),members=orderedUsers.map(()=>randomUUID());
+    await db.transaction(async tx=>{
+      await tx.insert(s.seasons).values({id:seasonId,name:'WP05 Historical Event',slug:secondSlug!,kind:'custom',status:'archived'});
+      await tx.insert(s.competitionEntries).values(entryIds.map((id,i)=>({id,competitionId:seasonId,source:'event_native' as const,name:'Historical '+(i?'B':'A'),representativeUserId:orderedUsers[i*5]!,registrationStatus:'approved' as const,currentRosterRevisionId:revisions[i]!,approvedRosterRevisionId:revisions[i]!})));
+      await tx.insert(s.competitionEntryRepresentativeChanges).values(entryIds.map((entryId,i)=>({entryId,toUserId:orderedUsers[i*5]!,changedByActorId:'local-fixture'})));
+      await tx.insert(s.competitionEntryRosterRevisions).values(entryIds.map((entryId,i)=>({id:revisions[i]!,entryId,revisionNumber:1,status:'approved' as const,createdBy:'local-fixture'})));
+      await tx.insert(s.competitionEntryParticipants).values(orderedUsers.map((userId,i)=>({id:participants[i]!,entryId:entryIds[i<5?0:1]!,userId,status:'confirmed' as const,invitedByUserId:orderedUsers[i<5?0:5]!,confirmedAt:finish})));
+      await tx.insert(s.competitionEntryRosterMembers).values(orderedUsers.map((userId,i)=>({revisionId:revisions[i<5?0:1]!,participantId:participants[i]!,userId,isPrimaryStarter:true})));
+      await tx.insert(s.eventRosters).values(entryIds.map((entryId,i)=>({id:rosters[i]!,entryId,sourceRosterRevisionId:revisions[i]!,status:'confirmed' as const,confirmedAt:finish,confirmedBy:'local-fixture'})));
+      await tx.insert(s.eventRosterMembers).values(orderedUsers.map((userId,i)=>({id:members[i]!,eventRosterId:rosters[i<5?0:1]!,userId,participantId:participants[i]!,isPrimaryStarter:true})));
+      await tx.insert(s.matches).values({id:matchId,seasonId,entryAId:entryIds[0]!,entryBId:entryIds[1]!,stage:'fixture-stage',format:'bo1',status:'finished',scoreA:1,scoreB:0,completedAt:finish});
+      await tx.insert(s.matchMaps).values({id:mapOneId,matchId,mapOrder:1,mapName:'de_ancient',scoreA:13,scoreB:9,completedAt:finish});
+      await tx.insert(s.matchRosters).values(entryIds.map((entryId,i)=>({id:matchRosters[i]!,matchId,entryId,source:'admin_select' as const,status:'submitted' as const})));
+      await tx.insert(s.matchRosterPlayers).values(orderedUsers.map((_id,i)=>({rosterId:matchRosters[i<5?0:1]!,eventRosterMemberId:members[i]!,isStarter:true})));
+    });
+    jobs.push({event:{...f,seasonId,matchId,mapOneId,entryAId:entryIds[0]!,entryBId:entryIds[1]!},mapIds:[mapOneId]});
+  }
   const pairingIntentId=randomUUID(),pairingId=randomUUID();
   await db.insert(s.dakPairingIntents).values({id:pairingIntentId,pollTokenHash:randomUUID(),expiresAt:new Date(Date.now()+600000)});
-  await db.insert(s.dakPairings).values({id:pairingId,pairingIntentId,userId,tokenHash:randomUUID(),scopes:['events:read','evidence:write'],seasonIds:[f.seasonId]});
-  for(const [index,mapId] of [f.mapOneId,f.mapTwoId].entries()) {
+  await db.insert(s.dakPairings).values({id:pairingId,pairingIntentId,userId,tokenHash:randomUUID(),scopes:['events:read','evidence:write'],seasonIds:jobs.map(job=>job.event.seasonId)});
+  for(const {event:f,mapIds} of jobs) {
+  for(const [index,mapId] of mapIds.entries()) {
    await db.update(s.matchMaps).set({scoreA:13,scoreB:9,completedAt:finish}).where(eq(s.matchMaps.id,mapId));
    await db.transaction(async tx=>{
     const target=await loadCanonicalTarget(tx,{seasonId:f.seasonId,matchId:f.matchId,matchMapId:mapId});
@@ -69,6 +94,7 @@ try {
     await tx.insert(s.matchPlayerStats).values(target.roster.map(m=>({matchId:f.matchId,mapId,userId:m.userId,perfectName:'Local fixture '+m.userId,dakImportId:importId,verifiedByAdmin:'wp05-local-fixture',kills:20+index,deaths:10,assists:3,adr:85,ratingPro:1.25})));
    });
   }
+  }
   const sanctionId=randomUUID();
   await db.insert(s.disciplinaryCases).values([
    {id:sanctionId,seasonId:f.seasonId,subjectUserId:userId,status:'active',effects:['match_participation_block'],publicExplanation:'WP05_PUBLIC_ACTIVE',internalEvidence:'WP05_PRIVATE_EVIDENCE_NEVER_PUBLIC',issuedBy:'local-fixture',effectiveFrom:new Date('2026-10-01')},
@@ -77,8 +103,8 @@ try {
   ]);
   const emptyId=randomUUID();await db.insert(s.users).values({id:emptyId,email:emptyId+'@local.test',displayName:'WP05 No History'});
   const all=await getPlayerCareerDetail({playerId:userId});const filtered=await getPlayerCareerDetail({playerId:userId,eventSlug:'wp05-detailed',mapFilter:'de_mirage'});
-  if(!all.performance||!filtered.performance||all.coverage.detailedMaps!==2||filtered.coverage.detailedMaps!==1)throw new Error('Detailed fixture did not pass actual reader');
-  const manifest={database,userId,emptyId,sanctionId,seasonId:f.seasonId,slug:'wp05-detailed',preflight:{all:{summary:all.summary,coverage:all.coverage,performance:!!all.performance},filtered:{summary:filtered.summary,coverage:filtered.coverage,performance:!!filtered.performance}}};
+  if(!all.performance||!filtered.performance||all.coverage.detailedMaps!==jobs.reduce((total,job)=>total+job.mapIds.length,0)||filtered.coverage.detailedMaps!==1)throw new Error('Detailed fixture did not pass actual reader');
+  const manifest={database,userId,emptyId,sanctionId,seasonId:f.seasonId,slug:'wp05-detailed',secondSlug,preflight:{all:{summary:all.summary,coverage:all.coverage,performance:!!all.performance},filtered:{summary:filtered.summary,coverage:filtered.coverage,performance:!!filtered.performance}}};
   writeFileSync(manifestPath,JSON.stringify(manifest,null,2));console.log(JSON.stringify({database,preflight:manifest.preflight}));
  } else throw new Error('Expected create/drop');
 } finally {await admin.end()}
