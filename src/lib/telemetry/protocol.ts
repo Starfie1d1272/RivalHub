@@ -61,7 +61,7 @@ const categories: Record<string, readonly string[]> = {
   order: ["asc", "desc"], side: ["all", "ct", "t"],
   status: ["all", "pending", "approved", "rejected", "scheduled", "ongoing", "finished"],
   map: ["de_dust2", "de_mirage", "de_inferno", "de_nuke", "de_ancient", "de_anubis", "de_train", "de_overpass", "de_vertigo"],
-  view: ["execution", "schedule", "materials", "performance", "veto", "all", "sim", "record", "flow", "compact", "list"],
+  view: ["execution", "schedule", "materials", "performance", "veto", "all", "sim", "record", "flow", "compact", "list", "open", "mine", "settled", "event", "leaderboard", "records", "points", "tasks", "ranking"],
   format: ["bo1", "bo3", "bo5"], mapsView: ["pool", "veto"],
   mapFilter: ["de_dust2", "de_mirage", "de_inferno", "de_nuke", "de_ancient", "de_anubis", "de_train", "de_overpass", "de_vertigo"],
 };
