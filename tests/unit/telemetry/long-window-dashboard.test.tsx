@@ -55,8 +55,9 @@ it("separates definition versions and ready bases, and never renders censored em
 });
 it("preserves exact query filters when navigating long-window views and custom dates", async () => {
   const user = userEvent.setup();
-  const filters = { ...analysisDefaults, role: "super_admin", from: "2026-10-20T00:00:00Z", to: "2026-10-25T00:00:00Z" };
+  const filters = { ...analysisDefaults, eventId: "11111111-1111-4111-8111-111111111111", role: "super_admin", from: "2026-10-20T00:00:00Z", to: "2026-10-25T00:00:00Z" };
   render(<TelemetryLongWindowDashboard data={fixture()} filters={filters} events={[]} view="tasks" />);
+  expect(screen.getByLabelText("赛事").textContent).toContain("所选赛事（目录未提供）");
   const href = new URL(screen.getByRole("link", { name: "页面体验" }).getAttribute("href")!, "http://local");
   expect(href.searchParams.get("from")).toBe(filters.from);
   expect(href.searchParams.get("role")).toBe("super_admin");
@@ -68,6 +69,7 @@ it("preserves exact query filters when navigating long-window views and custom d
   expect(request.searchParams.get("release")).toBe("fixture-build");
   expect(request.searchParams.get("to")).toBe(filters.to);
   expect(request.searchParams.get("view")).toBe("tasks");
+  expect(request.searchParams.get("eventId")).toBe(filters.eventId);
 });
 
 it.each(["UTC", "Asia/Shanghai", "America/Los_Angeles"])("hydrates the long-window snapshot in %s without recovery", async timezone => {

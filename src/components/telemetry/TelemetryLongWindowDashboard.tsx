@@ -29,7 +29,7 @@ export function TelemetryLongWindowDashboard({ data, filters, events, view }: {
     scene: categories(["major", "rivals", "other", "site"]), role: categories(ROLES),
     route: ["/unknown", ...ROUTES].map(value => ({ value, label: routeName(value) })),
     device: categories([...CLIENT_CATEGORIES.device, "missing"]), browser: categories([...CLIENT_CATEGORIES.browser, "missing"]),
-    source: categories([...CLIENT_CATEGORIES.source, "missing"]), release: [], eventId: [...events, { value: "missing", label: "赛事未提供" }],
+    source: categories([...CLIENT_CATEGORIES.source, "missing"]), release: [], eventId: [...events, ...(filters.eventId && filters.eventId !== "missing" && !events.some(event => event.value === filters.eventId) ? [{ value: filters.eventId, label: "所选赛事（目录未提供）" }] : []), { value: "missing", label: "赛事未提供" }],
     task: TASK_NAMES.map(value => ({ value, label: TASKS[value].label })),
     operation: OPERATIONS.map(value => ({ value, label: opName(value) })),
     navigationType: categories(["hard", "soft", "bfcache", "prerender", "unknown", "missing"]),
