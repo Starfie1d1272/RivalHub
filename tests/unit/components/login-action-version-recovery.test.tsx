@@ -74,3 +74,21 @@ it("keeps a transport error distinct and does not offer version recovery or repl
   expect(screen.queryByRole("status")).toBeNull();
   expect(actions.login).toHaveBeenCalledTimes(1); expect(sessionStorage.length).toBe(0);
 });
+
+it("keeps the page and email usable when explicit update cannot preserve the email", async () => {
+  actions.login.mockRejectedValue(new UnrecognizedActionError("fixture"));
+  const user = userEvent.setup(); render(<LoginForm />);
+  await user.type(screen.getByLabelText("邮箱地址"), "local@example.test");
+  await user.type(screen.getByLabelText("密码", { exact: true }), "PrivatePassword123!");
+  await user.click(screen.getAllByRole("button", { name: "登录" }).at(-1)!);
+  await screen.findByRole("status");
+  const reload = vi.fn(); const originalWindow = window;
+  vi.stubGlobal("window", new Proxy(originalWindow, { get(target, key) { return key === "location" ? { reload } : Reflect.get(target, key, target); } }));
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("fixture unavailable"); });
+  await user.click(screen.getByRole("button", { name: "保留邮箱并更新页面" }));
+  expect(reload).not.toHaveBeenCalled();
+  expect(actions.error).toHaveBeenCalledWith("无法保留邮箱草稿，请复制邮箱后刷新页面。");
+  expect(screen.getByLabelText("邮箱地址")).toHaveValue("local@example.test");
+  expect(screen.getByLabelText("密码", { exact: true })).toHaveValue("");
+  expect(actions.login).toHaveBeenCalledTimes(1);
+});
