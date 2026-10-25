@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Field } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { sendPasswordResetEmail as telemetry_sendPasswordResetEmail } from "@/actions/auth";
+import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { observeAction } from "@/lib/telemetry/client";
 
 const sendPasswordResetEmail = observeAction("auth.sendPasswordResetEmail", telemetry_sendPasswordResetEmail);
 
 export function ForgotPasswordForm() {
+  const task = useTelemetryTask("account", "password-reset-request");
+  const receiptToken = useRef<string | null>(null);
   const [email, setEmail] = useState("");
   const [sentEmail, setSentEmail] = useState<string | null>(null);
   const [guidance, setGuidance] = useState<string | null>(null);
@@ -17,11 +20,14 @@ export function ForgotPasswordForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const taskToken = task.begin("submit");
     const submittedEmail = email;
     startTransition(async () => {
       try {
       const result = await sendPasswordResetEmail(submittedEmail);
       if (result.success) {
+        task.complete(taskToken);
+        receiptToken.current = taskToken;
         setSentEmail(submittedEmail);
       } else {
         toast.error(result.error.message);
@@ -29,6 +35,11 @@ export function ForgotPasswordForm() {
       } catch { setGuidance("发送请求结果尚未确认，请先检查收件箱和垃圾邮件；不要立即重复发送。"); }
     });
   };
+
+  const presentResult = task.step;
+  useEffect(() => {
+    if (sentEmail !== null) presentResult("result", receiptToken.current);
+  }, [sentEmail, presentResult]);
 
   if (sentEmail !== null) {
     return (
@@ -45,7 +56,7 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onInputCapture={() => task.begin()} onInvalidCapture={() => { task.begin(); task.validation("form_invalid"); }} onSubmit={handleSubmit} className="space-y-4">
       <Field id="email" label="邮箱地址" type="email" placeholder="you@example.com" value={email} onChange={setEmail} required autoFocus />
       {guidance && <p role="alert" className="text-sm text-[var(--color-danger)]">{guidance}</p>}
       <Button type="submit" className="w-full" disabled={isPending}>{isPending ? "发送中…" : "发送重置链接"}</Button>

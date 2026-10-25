@@ -11,7 +11,7 @@ import { EMAIL_RESEND_COOLDOWN_SECONDS, isPasswordPolicySatisfied, MIN_PASSWORD_
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { clearPreviousLiveViews } from "@/lib/mizar/live-viewer-cache-reset";
 import { TaskBoundary } from "@/components/telemetry/TaskBoundary";
-import { beginTelemetryTask, completeTelemetryTask, recordTaskValidation, observeAction } from "@/lib/telemetry/client";
+import { beginTelemetryTask, completeTelemetryTask, recordTaskValidation, stepTelemetryTask, observeAction } from "@/lib/telemetry/client";
 
 const loginWithPassword = observeAction("auth.loginWithPassword", telemetry_loginWithPassword);
 const resendSignupConfirmation = observeAction("auth.resendSignupConfirmation", telemetry_resendSignupConfirmation);
@@ -30,6 +30,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
   const [resendAvailableAt, setResendAvailableAt] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isResendPending, startResendTransition] = useTransition();
+  const receiptToken = useRef<string | null>(null);
   const redirectRef = useRef(safeLocalRedirect(redirectTo));
 
   const handleTurnstileError = (failure: TurnstileFailure) => {
@@ -78,6 +79,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
       if (result.success) {
         if (mode === "register") {
           completeTelemetryTask("account", taskToken);
+          receiptToken.current = taskToken;
           setAwaitingEmail(email.trim());
           setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
         } else {
@@ -98,6 +100,10 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
       } catch { toast.error(mode === "login" ? "登录请求未完成，请检查网络连接后重试。" : "注册请求结果尚未确认，请先检查邮件，不要立即重复注册。"); }
     });
   }, [email, password, confirmPassword, mode, turnstileToken]);
+
+  useEffect(() => {
+    if (awaitingEmail && receiptToken.current) stepTelemetryTask("account", "result", receiptToken.current);
+  }, [awaitingEmail]);
 
   if (awaitingEmail) {
     const isResendCoolingDown = resendAvailableAt !== null;
