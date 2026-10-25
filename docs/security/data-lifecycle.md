@@ -11,6 +11,7 @@
 | 赛事、名单、比赛、赛果、奖项；[domain model](../domain-model.md) | PostgreSQL 保存正式历史与冻结归属 | 发布后的正式 DTO 为 public；报名、审核、后台操作字段为 private |
 | 长期 Team / Player 展示；[身份展示](../../src/lib/identity/display-name.ts) | PostgreSQL 保存当前昵称、自述与组织身份 | 允许公开的资料为 public；整行用户资料不是公开 DTO |
 | 账号、凭据绑定与归并；[users](../../src/db/schema/users.ts)、[identity](../../src/db/schema/identity.ts)、[auth](../auth-and-permissions.md) | PostgreSQL 保存 canonical person、邮箱归属、外部身份、provenance；Supabase Auth 拥有密码/provider 身份 | 邮箱、Auth subject、归并证据为 private/sensitive，self / 授权管理员 / server-only |
+| 登录页面更新草稿；[login-update-draft](../../src/lib/auth/login-update-draft.ts) | 用户明确点击更新时仅将当前邮箱存入同标签页 sessionStorage，供更新后一次恢复 | 不保存密码、验证码、Turnstile/session票据；15分钟后读端拒绝，读取时删除、关闭标签页清除，不进入服务端、日志或备份；不自动重放提交 |
 | 联系方式、报名草稿、legacy studentId；[users](../../src/db/schema/users.ts)、[drafts](../../src/db/schema/registration-drafts.ts) | PostgreSQL 保存报名/联系资料；studentId 不作为 Major 资格依据 | private/sensitive，按报名管理权限读取；主动公布的赛事联系方式不使账号联系方式成为公开数据 |
 | 高校目录与认证结论；[education](../../src/db/schema/education.ts) | PostgreSQL 保存目录来源、认证结论与审核历史 | 目录和允许公开的身份结论为 public；审核备注等为 private |
 | 教育核验材料；[retention policy](../../src/lib/education/retention-policy.ts)、[Storage](../../src/lib/education/storage.ts) | PostgreSQL 保存 CHSI code/private object reference；private Storage 保存人工材料 | sensitive；材料签名入口仅超级管理员。code、object key、文件、signed URL 不入 public DTO/log |
