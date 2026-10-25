@@ -5,9 +5,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, it, vi } from "vitest";
 import { handle, type Database, type Env, type Statement } from "../../../workers/telemetry/index";
 import { signTicket } from "@/lib/telemetry/ticket";
-import { beginTelemetryTask, completeTelemetryTask, configureTelemetry, flushTelemetry, observeAction, resetTelemetryIdentity, stepTelemetryTask } from "@/lib/telemetry/client";
+import { beginTelemetryDemand, recordDemandReady, exposeTelemetryTask, beginTelemetryTask, completeTelemetryTask, configureTelemetry, flushTelemetry, observeAction, resetTelemetryIdentity, stepTelemetryTask } from "@/lib/telemetry/client";
 import { TaskAnalysis } from "@/components/telemetry/analysis/TaskAnalysis";
 import { AnalysisData } from "@/lib/telemetry/analysis-contract";
+import { maintainHistory } from "../../../workers/telemetry/history";
+import { historyDayStart, HISTORY_DAY } from "@/lib/telemetry/history-contract";
+import { LongWindowSummary } from "@/lib/telemetry/long-window-contract";
 import type { Ticket } from "@/lib/telemetry/protocol";
 
 // This exercises the real queue, receiver SQL/validation/deduplication, analysis and
@@ -69,7 +72,7 @@ it("takes an explicit non-OCR receipt from observer through local receiver to a 
     const response = await handle(new Request("https://receiver.invalid/admin/analysis?task=profile&route=%2Fsettings", { headers: { authorization: `Bearer ${env.ADMIN_KEY}` } }), env, now + 31 * 60000);
     expect(response.status).toBe(200);
     const data = AnalysisData.parse(await response.json());
-    const task = data.product.tasks.find(t => t.key === "profile")!;
+    const task = data.product.tasks.find(t => t.key === "profile" && t.definitionVersion === 2)!;
     expect(task).toMatchObject({ attempts: 1, matured: 1, maturedCompleted: 1, start: 1, success: 1 });
     expect(task.steps.find(s => s.key === "confirm")?.reached).toBe(1);
     expect(task.steps.find(s => s.key === "result")?.reached).toBe(1);
@@ -81,11 +84,14 @@ it("takes an explicit non-OCR receipt from observer through local receiver to a 
 
 it("keeps an idle hour-old registration call in its original receiver session while a new task gets a new session", async () => {
   const { sqlite, env } = fixture();
-  let wall = Date.now(), monotonic = performance.now();
+  let wall = historyDayStart("2026-10-25") + 1000, monotonic = 0;
   vi.spyOn(Date, "now").mockImplementation(() => wall);
   vi.spyOn(performance, "now").mockImplementation(() => monotonic);
   try {
     const started = wall;
+    env.HISTORY_RETENTION_DAYS = "90";
+    const day = historyDayStart("2026-10-25");
+    await maintainHistory(env, day);
     const ticket: Ticket = { v: 1, id: crypto.randomUUID(), account: null, role: "anonymous", release: "local-fixture", environment: "production", origin: env.ALLOWED_ORIGIN, exp: wall + 86400000 };
     vi.stubGlobal("window", { location: new URL(`${env.ALLOWED_ORIGIN}/original/register`) });
     vi.stubGlobal("document", { visibilityState: "visible", referrer: "" });
@@ -100,6 +106,7 @@ it("keeps an idle hour-old registration call in its original receiver session wh
       statuses.push(response.status); return response;
     });
     configureTelemetry({ endpoint: "https://receiver.invalid/v1/batches", ticket: await signTicket(ticket, env.SIGNING_KEY), identity: "anonymous", expiresAt: ticket.exp, measurementVersion: 1 });
+    expect(exposeTelemetryTask("registration", "original")).toBe(true);
     const token = beginTelemetryTask("registration", "original", "edit");
     flushTelemetry(); await vi.waitFor(() => expect(statuses).toEqual([204]));
     const originalSession = batches[0].events[0].session;
@@ -110,16 +117,62 @@ it("keeps an idle hour-old registration call in its original receiver session wh
     completeTelemetryTask("profile", independent);
     flushTelemetry(); await vi.waitFor(() => expect(statuses).toEqual([204, 204]));
     const operation = batches[1].events.find(e => e.kind === "operation" && e.phase === "success")!;
-    expect(operation).toMatchObject({ session: originalSession, durationMs: 100, task: { attemptId: token } });
+    expect(operation).toMatchObject({ session: originalSession, durationMs: 100, task: { attemptId: token, definitionVersion: 2, elapsedCensored: true } });
     expect(batches[1].events.every(e => e.session === originalSession)).toBe(true);
+    expect(batches[0].events.find(e => e.task?.phase === "exposure")?.task?.definitionVersion).toBe(2);
+    expect(batches[1].events.find(e => e.task?.phase === "complete")).toMatchObject({ durationMs: 3600000, task: { definitionVersion: 2, elapsedCensored: true } });
     wall += 1000; monotonic += 1000; flushTelemetry();
     await vi.waitFor(() => expect(statuses).toEqual([204, 204, 204]));
     expect(batches[2].events[0].session).not.toBe(originalSession);
-    const response = await handle(new Request("https://receiver.invalid/admin/analysis?task=registration", { headers: { authorization: `Bearer ${env.ADMIN_KEY}` } }), env, started + 86400001);
+    // Same-navigation repeated demands stay distinct, each receipt is idempotent.
+    const demand = beginTelemetryDemand("player"); wall += 250; monotonic += 250;
+    recordDemandReady(demand, "advanced"); recordDemandReady(demand, "advanced");
+    const another = beginTelemetryDemand("player"); wall += 100; monotonic += 100;
+    recordDemandReady(another, "advanced");
+    // A genuine unknown transport result remains unknown and has no invented task.
+    await expect(observeAction("account.updateProfile", async () => { throw new Error("fixture transport"); })()).rejects.toThrow("fixture transport");
+    wall += 1000; monotonic += 1000; flushTelemetry();
+    await vi.waitFor(() => expect(statuses).toEqual([204, 204, 204, 204]));
+    const ready = batches[3].events.filter(e => e.kind === "ready");
+    expect(ready.filter(e => e.ready?.basis === "demand").map(e => e.durationMs)).toEqual([250, 100]);
+    expect(ready.filter(e => !e.ready?.basis).map(e => e.durationMs)).toEqual([3600000]);
+    // Seed an explicit historical v1 cohort through the same receiver, never relabel it.
+    const legacyId = crypto.randomUUID();
+    const legacy = batches[0].events.find(e => e.task?.phase === "start")!;
+    const legacyEvents = ["start", "complete"].map((phase, i) => ({ ...legacy, id: crypto.randomUUID(), at: wall + i, task: { name: "registration", definitionVersion: 1, attemptId: legacyId, phase, step: i ? "confirm" : "start" }, ...(i ? { durationMs: 100 } : {}) }));
+    expect((await handle(new Request("https://receiver.invalid/v1/batches", { method: "POST", headers: { origin: env.ALLOWED_ORIGIN }, body: JSON.stringify({ v: 1, id: crypto.randomUUID(), ticket: await signTicket(ticket, env.SIGNING_KEY), events: legacyEvents }) }), env, wall + 1)).status).toBe(204);
+    await maintainHistory(env, wall + 2);
+    // Validate both live raw edges and full-day history + tail, using real receiver SQL.
+    for (const [to, readAt] of [[wall + 2, wall + 2], [day + HISTORY_DAY - 1, day + HISTORY_DAY + 1000]]) {
+      const query = new URLSearchParams({ from: new Date(day).toISOString(), to: new Date(to).toISOString() });
+      const response = await handle(new Request("https://receiver.invalid/admin/long-window?" + query, { headers: { authorization: `Bearer ${env.ADMIN_KEY}` } }), env, readAt);
+      expect(response.status).toBe(200);
+      const summary = LongWindowSummary.parse(await response.json());
+      expect(summary.metrics.filter(m => m.kind === "task" && m.name === "registration").map(m => m.definitionVersion).sort()).toEqual([1, 2]);
+      expect(summary.metrics.find(m => m.kind === "operation" && m.definitionVersion === 2)).toMatchObject({ elapsedCensored: false, duration: { n: 1, sum: 100 } });
+      expect(summary.metrics.find(m => m.kind === "task" && m.definitionVersion === 2 && m.name === "registration")).toMatchObject({ elapsedCensored: true, duration: { n: 0 } });
+      expect(summary.metrics.find(m => m.kind === "operation" && m.definitionVersion === 0)).toMatchObject({ phase: "unknown", reports: 1 });
+      expect(summary.metrics.find(m => m.kind === "ready" && m.basis === "navigation")).toMatchObject({ duration: { n: 1, sum: 3600000, max: 3600000 } });
+      expect(summary.metrics.find(m => m.kind === "ready" && m.basis === "demand")).toMatchObject({ duration: { n: 2, sum: 350, max: 250 } });
+    }
+    const response = await handle(new Request("https://receiver.invalid/admin/analysis?task=registration", { headers: { authorization: `Bearer ${env.ADMIN_KEY}` } }), env, started + HISTORY_DAY + 7200000);
     expect(response.status).toBe(200);
     const data = AnalysisData.parse(await response.json());
-    expect(data.sessions).toHaveLength(1); expect(data.sessions[0].actions).toBe(1);
-    expect(data.product.tasks.find(t => t.key === "registration")).toMatchObject({ attempts: 1, matured: 1, maturedCompleted: 1, start: 1, success: 1 });
+    expect(data.sessions).toHaveLength(2);
+    expect(data.sessions.map(s => s.actions).sort()).toEqual([0, 1]);
+    expect(data.product.tasks.find(t => t.key === "registration" && t.definitionVersion === 1)).toMatchObject({ attempts: 1, maturedCompleted: 1 });
+    expect(data.product.tasks.find(t => t.key === "registration" && t.definitionVersion === 2)).toMatchObject({ attempts: 1, matured: 1, maturedCompleted: 1, start: 1, success: 1 });
+    const beforePrivacy = statuses.length;
+    const oldDemand = beginTelemetryDemand("team");
+    const oldTask = beginTelemetryTask("profile", "old-identity");
+    configureTelemetry({ endpoint: "https://receiver.invalid/v1/batches", ticket: await signTicket(ticket, env.SIGNING_KEY), identity: "different-account-fixture", expiresAt: ticket.exp, measurementVersion: 1 });
+    completeTelemetryTask("profile", oldTask); recordDemandReady(oldDemand, "advanced"); flushTelemetry();
+    expect(statuses).toHaveLength(beforePrivacy);
+    const privateTask = beginTelemetryTask("profile", "private");
+    const privateDemand = beginTelemetryDemand("team");
+    vi.stubGlobal("navigator", { userAgent: "fixture", maxTouchPoints: 0, doNotTrack: "1" });
+    completeTelemetryTask("profile", privateTask); recordDemandReady(privateDemand, "advanced"); flushTelemetry();
+    expect(statuses).toHaveLength(beforePrivacy);
     resetTelemetryIdentity();
   } finally { sqlite.close(); }
 });

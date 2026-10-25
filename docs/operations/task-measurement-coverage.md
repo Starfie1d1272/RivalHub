@@ -49,7 +49,7 @@ recordDemandReady(demand, "advanced");
 
 需求 token 为 memory-only 的 navigationId/module/单调 started；最多 32 个、1h TTL，跨导航/queue 身份或重复 ready 忽略。原 recordContentReady 继续保留 navigation 到首次 ready 与原始长尾；demand 不减去等待后覆写旧值。只有显式 native source URL、start、navigation kind 均匹配时，Web Vital 才复用导航 ID；否则其随机样本 ID 独立，关联未知。
 
-本 PR 的新 wire emit 保持关闭：task-client 默认发 v1，v2 censored 分支仅用于合同测试；demand API 当前只发兼容的原 navigation ready，不发 basis。B 完成逐字段校验与按 version/basis 分组后，后继提交才启用。不能将类型合并、客户端代码存在或本地解析成功当作 receiver 已部署。
+生产 client 的 task 与 exposure 使用 definitionVersion=2，超出原一小时 cap 显式标记 censored；纯 task-client 默认仍支持 v1。demand API 同时保留 navigation 首次 ready 并按每次捕获请求发 demand basis，重复回执不重复计数。发布前须完成 UI 分版本/分 basis 验收，并先部署兼容 receiver，再发布 app；代码合并和本地解析成功不代表 receiver 已部署。
 
 ## 其他 owner 精确接线
 

@@ -402,7 +402,7 @@ it("discards a detached receipt when privacy closes collection", async () => {
 });
 
 
-it("captures demand start independently, preserves navigation ready, and withholds unsupported basis", async () => {
+it("captures demand start independently, preserves navigation ready, and emits demand once per captured request", async () => {
   const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 })); vi.stubGlobal("fetch", send);
   configureTelemetry({ ...config, measurementVersion: 1 });
   const clock = vi.spyOn(performance, "now").mockReturnValue(0);
@@ -412,8 +412,9 @@ it("captures demand start independently, preserves navigation ready, and withhol
   clock.mockReturnValue(300450); recordDemandReady(token, "advanced"); recordDemandReady(token, "advanced");
   flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
   const ready = JSON.parse(send.mock.calls[0][1].body).events.filter((e: TelemetryEvent) => e.kind === "ready");
-  expect(ready).toHaveLength(1); expect(ready[0]).toMatchObject({ durationMs: 300450, ready: { module: "player", phase: "advanced" } });
+  expect(ready).toHaveLength(2); expect(ready[0]).toMatchObject({ durationMs: 300450, ready: { module: "player", phase: "advanced" } });
   expect(ready[0].ready).not.toHaveProperty("basis");
+  expect(ready[1]).toMatchObject({ durationMs: 450, ready: { module: "player", phase: "advanced", basis: "demand" } });
   const old = beginTelemetryDemand("team"); configureTelemetry({ ...config, identity: "another", measurementVersion: 1 });
   recordDemandReady(old, "advanced"); flushTelemetry(); expect(send).toHaveBeenCalledTimes(1);
   clock.mockRestore();
