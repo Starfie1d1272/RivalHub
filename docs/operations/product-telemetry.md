@@ -123,19 +123,19 @@ Web Vitals 按同身份/会话、指标和样本标识取最新报告；ready �
 
 ### 测量合同兼容与接入顺序
 
-共享任务 wire type 读取 definitionVersion 1 和 2；当前定义常量为 2，计时 cap 仍为一小时。v2 的 elapsedCensored/activeCensored 只在对应计时**超过** cap 时传 true；等于 cap 不标记。报名观察窗口仍为 24 小时，不能从截断值推断真实时长。旧 v1 无标记样本独立归类，不追溯生成标记或混为 v2。业务确认回执使用 complete/confirm；真正呈现另记 result step 或 ready，不延迟 complete 等待 React 挂载。
+共享任务 wire type 读取 definitionVersion 1 和 2；当前定义常量为 2，计时 cap 仍为一小时。v2 的 elapsedCensored/activeCensored 只在对应计时**超过** cap 时传 true；等于 cap 不标记。报名观察窗口仍为 24 小时，不能从截断值推断真实时长。旧 v1 无标记样本独立归类，不追溯生成标记或混为 v2。业务确认回执使用 complete/confirm，已确认完成单调保持；同 attempt 后续 result step、cancel、重复 complete 或乱序重发都不能撤回完成事实。result 仍是独立可选呈现步骤，不替换业务确认耗时；真正呈现另记 result step 或 ready，不延迟 complete 等待 React 挂载。
 
-ready 的目标兼容合同是可选 basis=navigation|demand，缺省为旧 navigation。navigation 保留导航到首次可用及异常原始样本；demand 从本次用户请求模块开始，需求 token 的真实导航 ID、模块和单调时刻只留内存。两种 basis 分组，不混算分位数。Web Vital 仅在确证源导航时关联，否则保持未知，不用当前 SPA 导航或 metric ID 拼接。
+ready 的兼容合同是可选 basis=navigation|demand，缺省为旧 navigation。navigation 保留导航到首次可用及异常原始样本；demand 从本次用户请求模块开始，需求 token 的真实导航 ID、模块和单调时刻只留内存。两种 basis 分组，不混算分位数。Web Vital 仅在确证源导航时关联，否则保持未知，不用当前 SPA 导航或 metric ID 拼接。
 
 登录只在原 attempt/原 identity 记录已确认终态并进行既有 flush，随后 reset；不跨账号 carry。logout、换账号、DNT/GPC 或停收清除内存状态。任何交接不保存密码、表单内容或持久身份映射。
 
-类型 provider 本身不改变客户端 emit 或 receiver 校验。必须先同步 receiver 的逐字段校验、短期/长期分析按定义版本及 ready basis 分组，之后客户端后继变更才发送 v2/censored/basis；部署顺序为 receiver 先、app 后，不能凭共享类型已合并认定接收端已支持。
+receiver 逐字段兼容 v1/v2，censor 仅允许 v2 的 true 且task 自身对应 durationMs/activeMs 等于现有一小时 cap；operation snapshot 的 elapsedCensored 描述所属任务，不能拿本次调用 durationMs 校验或排除调用时长；更大的计时和额外字段仍拒绝。短期/长期分析按 definitionVersion 与 ready basis 独立分组；未关联 task 的 page/operation 归 definitionVersion=0（定义未采集），不伪装 v1，也不重复计入 v2 的调用分母；未知组不生成 task 完成率趋势。censor 覆盖按报告单列，对应 task 计时不进入完整耗时分布，censored complete 清空早期 step 计时；operation 调用时长仍保留。navigation ready 仍按导航/模块/阶段首次去重，demand 保留每次独立需求事件。旧无 basis 数据按 navigation 读取，旧无标记 v1 不补造。客户端后继变更在兼容 receiver 实际部署后才发送 v2/censored/basis；部署顺序为 receiver 先、app 后，不能凭共享类型已合并认定接收端已上线。
 
 ### 任务采集
 
-`task-contract.ts` 是任务定义/步骤/观察窗口 owner，`task-client.ts` 是内存状态 owner；`TaskBoundary` 仅在首次输入或明确提交时开始。登录/注册、资料、教育、个人/团队报名、阵容、BP、预测和成绩录入接入有限步骤。个人报名仅具备提交资格时发独立 exposure，不把普通访问视为可参与曝光。固定 validationReason 不读取字段值。内容呈现继续复用 navigation/ready，不能解释为读懂或找到答案。
+非 OCR 逐入口覆盖与接线状态见 [任务覆盖表](task-measurement-coverage.md)。`task-contract.ts` 是任务定义/步骤/观察窗口 owner，`task-client.ts` 是内存状态 owner；`TaskBoundary` 仅在首次输入或明确提交时开始。登录/注册、资料、教育、个人/团队报名、阵容、BP、预测和成绩录入接入有限步骤。个人报名仅具备提交资格时发独立 exposure，不把普通访问视为可参与曝光。固定 validationReason 不读取字段值。内容呈现继续复用 navigation/ready，不能解释为读懂或找到答案。
 
-任务报告携带随机 attemptId、定义版本、固定步骤与 phase；操作继续保留独立 operationId。OCR 重试共享当前地图尝试，成绩保存完成要求相应 UI 投影确认；非 OCR 回执与结果呈现遵循上述兼容合同。60 秒无交互暂停活跃计时，隐藏即暂停；异步结果切换步骤不重置交互时间，隐藏期间不恢复活跃计时；沿用分钟批量队列，无逐输入请求。attempt 仅内存，不跨刷新或身份变化恢复；非 OCR 已确认事实不能依赖组件继续挂载，登录请求在原身份结束。上报 durationMs/activeMs 保持协议一小时上限；短期个人经过时间按已关联起止时间差计算，活跃时间及长期聚合的 duration 达到上限时是截断观测。报名的观察窗口可更长，不能将 capped duration 当准确长周期。缺少完成只表示未观测；多人等待从业务记录读取。
+任务报告携带随机 attemptId、定义版本、固定步骤与 phase；操作继续保留独立 operationId。OCR 重试共享当前地图尝试，成绩保存完成要求相应 UI 投影确认；非 OCR 回执与结果呈现遵循上述兼容合同。60 秒无交互暂停活跃计时，隐藏即暂停；异步结果切换步骤不重置交互时间，隐藏期间不恢复活跃计时；沿用分钟批量队列，无逐输入请求。attempt 仅内存，不跨刷新或身份变化恢复；非 OCR 已确认事实同步记录，组件卸载不删除未决 attempt；terminal receipt 保留在同一数量/TTL 边界内，以允许后续独立 result step，登录请求在原身份结束。上报 durationMs/activeMs 保持协议一小时上限；短期个人经过时间按已关联起止时间差计算，活跃时间及长期聚合的 duration 达到上限时是截断观测。报名的观察窗口可更长，不能将 capped duration 当准确长周期。缺少完成只表示未观测；多人等待从业务记录读取。
 
 ### 业务流程读模型
 
