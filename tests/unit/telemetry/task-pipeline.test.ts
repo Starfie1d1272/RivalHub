@@ -165,6 +165,8 @@ it("keeps an idle hour-old registration call in its original receiver session wh
     expect(data.sessions.map(s => s.actions).sort()).toEqual([0, 1]);
     expect(data.product.tasks.find(t => t.key === "registration" && t.definitionVersion === 1)).toMatchObject({ attempts: 1, maturedCompleted: 1 });
     expect(data.product.tasks.find(t => t.key === "registration" && t.definitionVersion === 2)).toMatchObject({ attempts: 1, matured: 1, maturedCompleted: 1, start: 1, success: 1 });
+    expect(data.product.ready.find(r => r.basis === "navigation")).toMatchObject({ n: 1, max: 3600000 });
+    expect(data.product.ready.find(r => r.basis === "demand")).toMatchObject({ n: 2, mean: 175, max: 250 });
     const beforePrivacy = statuses.length;
     const oldDemand = beginTelemetryDemand("team");
     const oldTask = beginTelemetryTask("profile", "old-identity");
