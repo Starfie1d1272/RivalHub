@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.24.3]
+
+### Fixed
+
+- 调整记分板 OCR 的采样参数并收紧异常生成预算，强化紧凑表格输出指令；识别结果达到长度上限时明确提示未完整生成，保留安全诊断以区分截断、空白输出与玩家行格式错误。
+
 ## [2.24.2]
 
 ### Fixed
@@ -3532,3 +3538,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.24.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.2...v2.24.1
 
 [2.24.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.1...v2.24.2
+
+[2.24.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.1...v2.24.3
