@@ -1,79 +1,105 @@
-import { TASKS, type TaskMeasurement, type TaskName, type TaskStep, type TaskValidationReason } from "./task-contract";
+import { TASKS, TASK_DURATION_CAP_MS, type TaskMeasurement, type TaskName, type TaskStep, type TaskValidationReason } from "./task-contract";
 
-type Attempt = { name: TaskName; id: string; scope: string; started: number; checkpoint: number; activity: number | null; activeMs: number; step: TaskStep; reportedMs: number };
-export type TaskReport = { task: TaskMeasurement; durationMs: number };
-/** Task identity and scope stay in memory; emitted fields are finite categories and random IDs. */
-export class TelemetryTasks {
-  private attempts = new Map<TaskName, Attempt>();
-  constructor(private emit: (report: TaskReport) => void, private now = () => performance.now(), private id = () => crypto.randomUUID(), private visible = () => true) {}
-  private accumulate(a: Attempt) {
+type Attempt<Context> = { context?: Context; name: TaskName; id: string; scope: string; started: number; checkpoint: number; activity: number | null; activeMs: number; step: TaskStep; reportedMs: number; activeCensored?: true; terminal?: "complete" | "cancel" };
+export type TaskReport<Context = undefined> = { task: TaskMeasurement; durationMs: number; context?: Context };
+/** Raw names/scopes and eviction diagnostics stay in memory, never in telemetry. */
+export class TelemetryTasks<Context = undefined> {
+  private attempts = new Map<string, Attempt<Context>>();
+  readonly evictions = { expired: 0, capacity: 0, forgotten: 0, reset: 0 };
+  constructor(private emit: (report: TaskReport<Context>) => void, private now = () => performance.now(), private id = () => crypto.randomUUID(), private visible = () => true, private definitionVersion: 1 | 2 = 1, private captureContext?: () => Context | undefined) {}
+  private prune() {
+    for (const [id, a] of this.attempts) {
+      if (this.now() - a.started > TASKS[a.name].windowMs) { this.attempts.delete(id); this.evictions.expired++; }
+    }
+  }
+  private find(name: TaskName, expected?: string | null, scope?: string) {
+    this.prune();
+    if (expected === null) return;
+    const a = expected === undefined
+      ? [...this.attempts.values()].reverse().find(a => a.name === name && !a.terminal && (scope === undefined || a.scope === scope))
+      : this.attempts.get(expected);
+    return a?.name === name && (scope === undefined || a.scope === scope) ? a : undefined;
+  }
+  private accumulate(a: Attempt<Context>) {
     const now = this.now();
-    if (a.activity !== null) a.activeMs += Math.max(0, Math.min(now, a.activity + 60_000) - a.checkpoint);
-    a.activeMs = Math.min(3600_000, a.activeMs);
+    if (!a.terminal && a.activity !== null) a.activeMs += Math.max(0, Math.min(now, a.activity + 60_000) - a.checkpoint);
+    if (a.activeMs > TASK_DURATION_CAP_MS) a.activeCensored = true;
+    a.activeMs = Math.min(TASK_DURATION_CAP_MS, a.activeMs);
     a.checkpoint = now;
     return now;
   }
-  private payload(a: Attempt, phase: TaskMeasurement["phase"]): TaskMeasurement {
-    return { name: a.name, definitionVersion: 1, attemptId: a.id, step: a.step, phase, activeMs: Math.round(a.activeMs) };
+  private payload(a: Attempt<Context>, phase: TaskMeasurement["phase"]): TaskMeasurement {
+    return { name: a.name, definitionVersion: this.definitionVersion, ...(this.definitionVersion === 2 && this.now() - a.started > TASK_DURATION_CAP_MS ? { elapsedCensored: true as const } : {}), ...(this.definitionVersion === 2 && a.activeCensored ? { activeCensored: true as const } : {}), attemptId: a.id, step: a.step, phase, activeMs: Math.round(a.activeMs) };
   }
-  private report(a: Attempt, phase: TaskMeasurement["phase"]) {
+  private report(a: Attempt<Context>, phase: TaskMeasurement["phase"]) {
     const now = this.accumulate(a);
-    this.emit({ task: this.payload(a, phase), durationMs: Math.min(3600_000, Math.max(0, Math.round(now - a.started))) });
+    this.emit({ ...(a.context ? { context: a.context } : {}), task: this.payload(a, phase), durationMs: Math.min(TASK_DURATION_CAP_MS, Math.max(0, Math.round(now - a.started))) });
     a.reportedMs = a.activeMs;
   }
   begin(name: TaskName, scope: string, step: TaskStep = "edit"): string {
-    let a = this.attempts.get(name);
+    let a = this.find(name, undefined, scope);
     const now = this.now();
-    if (a && (a.scope !== scope || now - a.started > TASKS[name].windowMs)) { this.attempts.delete(name); a = undefined; }
     if (!a) {
-      if (this.attempts.size >= 8) this.attempts.delete(this.attempts.keys().next().value!);
-      a = { name, scope, id: this.id(), started: now, checkpoint: now, activity: this.visible() ? now : null, activeMs: 0, step, reportedMs: 0 };
-      this.attempts.set(name, a);
+      if (this.attempts.size >= 8) { this.attempts.delete(this.attempts.keys().next().value!); this.evictions.capacity++; }
+      a = { context: this.captureContext?.(), name, scope, id: this.id(), started: now, checkpoint: now, activity: this.visible() ? now : null, activeMs: 0, step, reportedMs: 0 };
+      this.attempts.set(a.id, a);
       this.report(a, "start");
-    } else this.activity(name);
+    } else this.activity(name, a.id, scope);
     return a.id;
   }
-  activity(name: TaskName) {
-    const a = this.attempts.get(name);
-    if (!a) return;
+  activity(name: TaskName, expected?: string | null, scope?: string) {
+    const a = this.find(name, expected, scope);
+    if (!a || a.terminal) return;
     this.accumulate(a); a.activity = this.visible() ? this.now() : null;
   }
-  step(name: TaskName, step: TaskStep, expected?: string | null) {
-    const a = this.attempts.get(name);
-    if (!a || (expected !== undefined && a.id !== expected)) return;
+  step(name: TaskName, step: TaskStep, expected?: string | null, scope?: string) {
+    const a = this.find(name, expected, scope);
+    if (!a || a.terminal === "cancel" || (a.terminal && step !== "result" && step !== "ready")) return;
     // An async response changes the step, not the last user-interaction time.
     this.accumulate(a);
     if (a.step === step) return;
     a.step = step; this.report(a, "step");
   }
-  validation(name: TaskName, reason: TaskValidationReason, expected?: string | null) {
-    const a = this.attempts.get(name);
-    if (!a || (expected !== undefined && a.id !== expected)) return;
-    this.activity(name); a.step = "validation";
-    this.emit({ task: { ...this.payload(a, "step"), validationReason: reason }, durationMs: Math.min(3600_000, Math.max(0, Math.round(this.now() - a.started))) });
+  validation(name: TaskName, reason: TaskValidationReason, expected?: string | null, scope?: string) {
+    const a = this.find(name, expected, scope);
+    if (!a || a.terminal) return;
+    this.activity(name, a.id, scope); a.step = "validation";
+    this.emit({ ...(a.context ? { context: a.context } : {}), task: { ...this.payload(a, "step"), validationReason: reason }, durationMs: Math.min(TASK_DURATION_CAP_MS, Math.max(0, Math.round(this.now() - a.started))) });
   }
-  finish(name: TaskName, phase: "complete" | "cancel", expected?: string | null) {
-    const a = this.attempts.get(name);
-    if (!a || (expected !== undefined && a.id !== expected)) return;
-    a.step = phase === "complete" ? "result" : a.step;
-    this.report(a, phase); this.attempts.delete(name);
-  }
-  capture(name: TaskName): TaskMeasurement | undefined {
-    const a = this.attempts.get(name);
+  finish(name: TaskName, phase: "complete" | "cancel", expected?: string | null, scope?: string) {
+    const a = this.find(name, expected, scope);
     if (!a) return;
-    this.accumulate(a);
-    return this.payload(a, "step");
+    // Cancelling presentation after an ACK must not retract the confirmed fact,
+    // but it invalidates this token for every later UI step.
+    if (phase === "cancel" && a.terminal === "complete") { a.terminal = "cancel"; return; }
+    if (a.terminal) return;
+    // An acknowledged mutation is not evidence that React presented its result.
+    if (phase === "complete") a.step = name === "score_entry" ? "result" : "confirm";
+    this.report(a, phase); a.terminal = phase; a.activity = null;
   }
-  pause() { for (const a of this.attempts.values()) { this.accumulate(a); a.activity = null; } }
+  capture(name: TaskName, scopePrefix?: string): TaskMeasurement | undefined {
+    return this.captureWithContext(name, scopePrefix)?.task;
+  }
+  captureWithContext(name: TaskName, scopePrefix?: string): Pick<TaskReport<Context>, "task" | "context"> | undefined {
+    // An action without an explicit token cannot choose among concurrent scopes.
+    this.prune();
+    const candidates = [...this.attempts.values()].filter(a => a.name === name && !a.terminal && (scopePrefix === undefined || a.scope.startsWith(scopePrefix)));
+    if (candidates.length !== 1) return;
+    this.accumulate(candidates[0]);
+    return { task: this.payload(candidates[0], "step"), context: candidates[0].context };
+  }
+  pause() { this.prune(); for (const a of this.attempts.values()) { this.accumulate(a); a.activity = null; } }
   checkpoint() {
+    this.prune();
     for (const a of this.attempts.values()) {
+      if (a.terminal) continue;
       this.accumulate(a);
       if (a.activeMs > a.reportedMs) this.report(a, "step");
     }
   }
-  forget(name: TaskName, expected?: string | null) {
-    const a = this.attempts.get(name);
-    if (a && (expected === undefined || a.id === expected)) this.attempts.delete(name);
+  forget(name: TaskName, expected?: string | null, scope?: string) {
+    const a = this.find(name, expected, scope);
+    if (a) { this.attempts.delete(a.id); this.evictions.forgotten++; }
   }
-  reset() { this.attempts.clear(); }
+  reset() { this.evictions.reset += this.attempts.size; this.attempts.clear(); }
 }

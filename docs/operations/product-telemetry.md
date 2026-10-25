@@ -133,9 +133,9 @@ receiver 逐字段兼容 v1/v2，censor 仅允许 v2 的 true 且task 自身对�
 
 ### 任务采集
 
-`task-contract.ts` 是任务定义/步骤/观察窗口 owner，`task-client.ts` 是内存状态 owner；`TaskBoundary` 仅在首次输入或明确提交时开始。登录/注册、资料、教育、个人/团队报名、阵容、BP、预测和成绩录入接入有限步骤。个人报名仅具备提交资格时发独立 exposure，不把普通访问视为可参与曝光。固定 validationReason 不读取字段值。内容呈现继续复用 navigation/ready，不能解释为读懂或找到答案。
+非 OCR 逐入口覆盖与接线状态见 [任务覆盖表](task-measurement-coverage.md)。`task-contract.ts` 是任务定义/步骤/观察窗口 owner，`task-client.ts` 是内存状态 owner；`TaskBoundary` 仅在首次输入或明确提交时开始。登录/注册、资料、教育、个人/团队报名、阵容、BP、预测和成绩录入接入有限步骤。个人报名仅具备提交资格时发独立 exposure，不把普通访问视为可参与曝光。固定 validationReason 不读取字段值。内容呈现继续复用 navigation/ready，不能解释为读懂或找到答案。
 
-任务报告携带随机 attemptId、定义版本、固定步骤与 phase；操作继续保留独立 operationId。OCR 重试共享当前地图尝试，成绩保存完成要求相应 UI 投影确认；非 OCR 回执与结果呈现遵循上述兼容合同。60 秒无交互暂停活跃计时，隐藏即暂停；异步结果切换步骤不重置交互时间，隐藏期间不恢复活跃计时；沿用分钟批量队列，无逐输入请求。attempt 仅内存，不跨刷新或身份变化恢复；非 OCR 已确认事实不能依赖组件继续挂载，登录请求在原身份结束。上报 durationMs/activeMs 保持协议一小时上限；短期个人经过时间按已关联起止时间差计算，活跃时间及长期聚合的 duration 达到上限时是截断观测。报名的观察窗口可更长，不能将 capped duration 当准确长周期。缺少完成只表示未观测；多人等待从业务记录读取。
+任务报告携带随机 attemptId、定义版本、固定步骤与 phase；操作继续保留独立 operationId。OCR 重试共享当前地图尝试，成绩保存完成要求相应 UI 投影确认；非 OCR 回执与结果呈现遵循上述兼容合同。60 秒无交互暂停活跃计时，隐藏即暂停；异步结果切换步骤不重置交互时间，隐藏期间不恢复活跃计时；沿用分钟批量队列，无逐输入请求。attempt 仅内存，不跨刷新或身份变化恢复；非 OCR 已确认事实同步记录，组件卸载不删除未决 attempt；terminal receipt 保留在同一数量/TTL 边界内，以允许后续独立 result step，登录请求在原身份结束。上报 durationMs/activeMs 保持协议一小时上限；短期个人经过时间按已关联起止时间差计算，活跃时间及长期聚合的 duration 达到上限时是截断观测。报名的观察窗口可更长，不能将 capped duration 当准确长周期。缺少完成只表示未观测；多人等待从业务记录读取。
 
 ### 业务流程读模型
 

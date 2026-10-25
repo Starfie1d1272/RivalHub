@@ -4,7 +4,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ send: vi.fn(), error: vi.fn() }));
 vi.mock("@/actions/auth", () => ({ sendPasswordResetEmail: mocks.send }));
-vi.mock("@/lib/telemetry/client", () => ({ observeAction: (_name: string, action: unknown) => action }));
+vi.mock("@/lib/telemetry/client", async original => ({ ...await original<typeof import("@/lib/telemetry/client")>(), observeAction: (_name: string, action: unknown) => action }));
 vi.mock("sonner", () => ({ toast: { error: mocks.error } }));
 import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
 
