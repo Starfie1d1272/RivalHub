@@ -4,7 +4,7 @@ import { spawn, execFileSync } from "node:child_process";
 import { mkdirSync, createWriteStream, readFileSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { request, chromium } from "@playwright/test";
+import { request, chromium, expect as browserExpect } from "@playwright/test";
 import { expect, it } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { eq, sql } from "drizzle-orm";
@@ -111,7 +111,7 @@ it.skipIf(process.env.RIVALHUB_BP_HTTP_EVIDENCE !== "1")("measures full BP HTTP 
         const page = await viewer.newPage();
         await page.goto(`${env.NEXT_PUBLIC_APP_URL}/${f.seasonId}/matches/${f.matchId}/veto`);
         const choose = page.getByRole("button", { name: "由 Provider A 先禁图", exact: true });
-        await expect(choose).toBeVisible();
+        await browserExpect(choose).toBeVisible();
         const reply = page.waitForResponse(response => response.url().endsWith(endpoint) && response.request().method() === "POST"
           && response.request().postDataJSON().operation === "command");
         const started = performance.now();
@@ -121,7 +121,7 @@ it.skipIf(process.env.RIVALHUB_BP_HTTP_EVIDENCE !== "1")("measures full BP HTTP 
         const commandAckMs = performance.now() - started;
         expect(response.status()).toBe(200);
         expect(body).toMatchObject({ success: true, data: { outcome: "applied" } });
-        await expect(choose).toHaveCount(0);
+        await browserExpect(choose).toHaveCount(0);
         const roomPresentedMs = performance.now() - started;
         const measurement = { sha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
           environment: "isolated loopback PostgreSQL + Local Supabase Auth + Next dev + Chromium", samples: 1,
