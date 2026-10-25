@@ -44,10 +44,6 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
   const [receipt,setReceipt]=useState<StakeAttempt|{token:string|null;seasonId:string}|null>(null);
   const [demand,setDemand]=useState<TelemetryDemandToken|null>(null);
   const receiptMarket=receipt&&"marketId" in receipt?data.markets.find(m=>m.id===receipt.marketId):undefined;
-  const resultShown=!!receipt&&receipt.seasonId===data.seasonId&&("marketId" in receipt
-    ? receiptMarket?.mine?.optionId===receipt.optionId&&BigInt(receiptMarket.mine.amount)>BigInt(receipt.previousAmount)
-    : data.joined);
-  useEffect(()=>{if(resultShown&&receipt)taskStep("result",receipt.token);},[resultShown,receipt,taskStep]);
   const boardRef=useRef<HTMLDivElement|null>(null);
   const participationTitle=useRef<HTMLHeadingElement|null>(null);
   const participationOpener=useRef<HTMLElement|null>(null);
@@ -68,6 +64,10 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
   const active=filters.some(f=>f.key===view)?view:"open";
   const predictionMatches = predictions && predictionControls ? matches.filter(match => (!matchFilter || match.id === matchFilter) && predictions.some(panel => panel.matchId === match.id && (active === "mine" ? panel.own.length > 0 : active === "settled" ? panel.officialStatus === "finished" || panel.officialStatus === "cancelled" || panel.status === "void" : active === "open" && (Boolean(matchFilter) || panel.officialStatus !== "finished" && panel.officialStatus !== "cancelled" && panel.status !== "void")))) : [];
   const visible=data.markets.filter(m=>(!matchFilter||m.matchId===matchFilter) && (active==="event"?m.matchId===null:active==="mine"?!!m.mine:active==="settled"?["settled","refunded"].includes(m.state):m.matchId!==null && ["open","locked"].includes(m.state)));
+  const resultShown=!!receipt&&receipt.seasonId===data.seasonId&&("marketId" in receipt
+    ? !["records","leaderboard"].includes(active)&&visible.some(m=>m.id===receipt.marketId)&&receiptMarket?.mine?.optionId===receipt.optionId&&BigInt(receiptMarket.mine.amount)>BigInt(receipt.previousAmount)
+    : data.joined);
+  useEffect(()=>{if(resultShown&&receipt)taskStep("result",receipt.token);},[resultShown,receipt,taskStep]);
   const loginHref = `/login?next=${encodeURIComponent(`/${slug}/bet?${new URLSearchParams({view: active, ...(matchFilter ? {match: matchFilter} : {})})}`)}` as const;
   function loginFor(selection:Record<string,string>){const query=new URLSearchParams({...selection,view:active});const next=safeLocalRedirect(`/${slug}/bet?${query}`);router.push(`/login?next=${encodeURIComponent(next)}`);}
   function choose(market:BetMarketDTO,optionId:string){if(interactionBusy)return;if(!signedIn){loginFor({...(market.matchId?{match:market.matchId}:{}),market:market.id,option:optionId});return;}setDemand(beginTelemetryDemand("bet"));if(!selected&&!predictionTarget)participationOpener.current=document.activeElement as HTMLElement;setPredictionTarget(market.matchId?{matchId:market.matchId,kind:market.group==="比赛"||market.type==="total_rounds"&&matches.find(m=>m.id===market.matchId)?.format==="BO1"?"winner":"bp"}:null);setSelected({market,optionId});setAmount("");setAllIn(false);setAllConfirmed(false);setRequestId(crypto.randomUUID());setError(null);}

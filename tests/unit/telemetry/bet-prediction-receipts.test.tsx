@@ -43,12 +43,12 @@ it("keeps an unknown stake on one token, confirms by the original read receipt, 
   await user.click(await screen.findByRole("button",{name:"核对投入结果"}));
   const first=tasks(await events());expect(first.filter(e=>e.task?.phase==="start")).toHaveLength(1);expect(first.filter(e=>e.task?.phase==="complete")).toHaveLength(1);expect(first.some(e=>e.task?.step==="result")).toBe(false);
   expect(actions.mutate).toHaveBeenCalledTimes(1);expect(actions.receipt).toHaveBeenCalledTimes(1);
-  view.rerender(bet({...joined,balance:"975",markets:[{...market,mine:{optionId:"private-option",amount:"25",payout:null,profit:null}}]},undefined,true));
+  const settled={...joined,balance:"975",markets:[{...market,state:"settled" as const,canStake:false,mine:{optionId:"private-option",amount:"25",payout:null,profit:null}}]};
+  view.rerender(bet(settled,undefined,true)); // Fresh fact is filtered out of the open view.
+  const before=send.mock.calls.length;vi.spyOn(Date,"now").mockReturnValue(Date.now()+1100);flushTelemetry();await act(async()=>{});expect(send).toHaveBeenCalledTimes(before);
+  view.rerender(<BetBoard initial={settled} slug="event" signedIn view="settled" matchFilter="private-match" refreshAction={vi.fn().mockResolvedValue(false)}/>);
   const all=tasks(await events());expect(all.filter(e=>e.task?.step==="result")).toHaveLength(1);expect(new Set(all.filter(e=>e.task?.phase==="complete"||e.task?.step==="result").map(e=>e.task!.attemptId)).size).toBe(1);
-  expect(send.mock.calls.flatMap(call=>JSON.parse(call[1].body).events).some((e:TelemetryEvent)=>e.kind==="ready"&&e.ready?.phase==="form")).toBe(false);
-  await user.click(view.container.querySelector<HTMLButtonElement>('button[data-bet-option="private-option"]')!);
-  const demandEvents=await events();expect(demandEvents.filter(e=>e.kind==="ready"&&e.ready?.module==="bet"&&e.ready.phase==="form")).toHaveLength(1);
-  expect(actions.mutate).toHaveBeenCalledTimes(1);
+
 });
 
 it("completes free prediction before synchronous unmount without inventing presentation or replaying",async()=>{
@@ -75,4 +75,11 @@ it("records a free-prediction result only after its confirmed choice is rendered
   await user.click(screen.getByRole("button",{name:/甲队/}));await user.click(screen.getByRole("button",{name:"提交预测"}));
   expect(screen.getByText("已提交",{exact:true})).toBeVisible();
   const rows=tasks(await events());expect(rows.filter(e=>e.task?.phase==="complete")).toHaveLength(1);expect(rows.filter(e=>e.task?.step==="result")).toHaveLength(1);
+});
+
+it("captures BET form demand only when a user opens an eligible prediction",async()=>{
+  const data={...base,matches:[{id:model.matchId,entryAId:"private-A",entryBId:"private-B",a:"甲队",b:"乙队",logoA:null,logoB:null,stage:"正赛",format:"BO1",scheduledAt:null}]};
+  const view=render(<BetBoard initial={data} slug="event" signedIn view="open" matchFilter={model.matchId} predictions={[model]} predictionMatchRows={data.matches} predictionControls={{submitAction:vi.fn(),refreshAction:vi.fn()}} refreshAction={vi.fn()}/>);
+  const user=userEvent.setup();await user.click(view.container.querySelector<HTMLButtonElement>('button[data-prediction-key="private-A"]')!);
+  const rows=await events();expect(rows.filter(e=>e.kind==="ready"&&e.ready?.module==="bet"&&e.ready.phase==="form")).toHaveLength(1);expect(actions.mutate).not.toHaveBeenCalled();
 });
