@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, vi } from "vitest";
 import { createLocalPool } from "./database";
 import { seedFixture } from "./mizar";
-import { mizarSnapshot as snapshot } from "./mizar-snapshot";
+import { mizarSnapshot } from "./mizar-snapshot";
 
 const measured = vi.hoisted(() => ({ transactions: [] as number[] }));
 
@@ -104,6 +104,8 @@ const server = createServer(async (req, res) => {
   });
   res.end(current === "invalid-body" ? "not-json" : current === "429" ? '{"error":"quota"}' : "{}");
 });
+// Keep a concrete local export across Vitest module rewriting.
+function snapshot(...args: Parameters<typeof mizarSnapshot>) { return mizarSnapshot(...args); }
 async function prepared() {
   const f = await seedFixture();
   const token = `rh_mizar_${f.installationId}_${"a".repeat(64)}`;
