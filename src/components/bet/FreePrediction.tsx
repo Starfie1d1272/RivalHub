@@ -5,6 +5,7 @@ import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
 import { cn } from "@/lib/utils/cn";
+import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import type { FreePredictionControls, FreePredictionModel } from "./presentation-contract";
 
 function panelVersion(model: FreePredictionModel) {
@@ -20,6 +21,9 @@ export function FreePrediction({ model, signedIn, controls, onPendingChange, dis
   disabled?: boolean;
   onPendingChange?: (pending: boolean) => void;
 }) {
+  const task=useTelemetryTask("predictions",`free:${model.matchId}:${model.kind}`,signedIn&&model.canSubmit);
+  const taskStep=task.step;
+  const [receipt,setReceipt]=useState<{token:string|null;matchId:string;kind:FreePredictionModel["kind"];keys:string[]}|null>(null);
   const version = panelVersion(model);
   const [snapshot, setSnapshot] = useState<{ origin: string; source: FreePredictionModel; value: FreePredictionModel } | null>(null);
   const current = snapshot?.origin === version
@@ -31,6 +35,8 @@ export function FreePrediction({ model, signedIn, controls, onPendingChange, dis
   useEffect(() => { onPendingChange?.(pending); return () => onPendingChange?.(false); }, [pending, onPendingChange]);
   const [error, setError] = useState<string | null>(null);
   const changed = keys.length !== current.own.length || keys.some(key => !current.own.includes(key));
+  const resultShown=!!receipt&&receipt.matchId===current.matchId&&receipt.kind===current.kind&&receipt.keys.length===current.own.length&&receipt.keys.every(key=>current.own.includes(key));
+  useEffect(()=>{if(resultShown&&receipt)taskStep("result",receipt.token);},[resultShown,receipt,taskStep]);
   const title = current.kind === "winner" ? "免费赛果预测" : "免费 BP 预测";
   function choose(key: string) {
     if (pending || disabled) return;
@@ -41,10 +47,13 @@ export function FreePrediction({ model, signedIn, controls, onPendingChange, dis
   }
   function submit() {
     if (pending || disabled || !current.canSubmit || !signedIn || keys.length !== current.requiredChoices || !changed) return;
+    const token=task.begin("submit");
     startTransition(async () => {
       try {
         const result = await controls.submitAction(current, keys);
         if (result.success) {
+          task.complete(token);
+          setReceipt({token,matchId:current.matchId,kind:current.kind,keys:[...keys]});
           setSnapshot({ origin: version, source: model, value: result.data });
           setDraft(null);
           setError(null);

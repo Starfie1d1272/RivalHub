@@ -28,7 +28,8 @@ import type { BetBoardDTO, BetMarketDTO } from "@/lib/bet/types";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
 import { ErrorCode } from "@/lib/errors";
-import { observeAction } from "@/lib/telemetry/client";
+import { observeAction, beginTelemetryDemand, recordDemandReady, type TelemetryDemandToken } from "@/lib/telemetry/client";
+import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 
 const mutateBet = observeAction("bet.mutateBet", telemetry_mutateBet);
 
@@ -36,6 +37,17 @@ const filters=[{key:"open",label:"开放"},{key:"mine",label:"我的投入"},{ke
 export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,predictionControls,rankings,relief,predictionMatchRows,rankingRefreshAction,returnSelection,refreshAction,mutationPendingAction,recordsPage=0}:{initial:BetBoardDTO;mutationPendingAction?:(pending:boolean)=>void;refreshAction:()=>Promise<boolean>;recordsPage?:number;slug:string;signedIn:boolean;view:string;matchFilter:string|null;predictions?:FreePredictionModel[];predictionControls?:FreePredictionControls;rankings?:Record<PredictionRankingSort,PredictionRankingModel>;relief?:Omit<ComponentProps<typeof BetRelief>,"onClaimed">;predictionMatchRows?:BetBoardDTO["matches"];rankingRefreshAction?:ComponentProps<typeof PredictionLeaderboard>["refreshAction"];returnSelection?:{market?:string;option?:string;prediction?:string;choice?:string}}) {
   const router=useRouter();const data=initial;const [pending,startTransition]=useTransition();
   const interactive=useClientReady();
+  const task=useTelemetryTask("bet",data.seasonId,signedIn&&data.enabled&&(!data.joined?!!data.joinEligibility?.canJoin:data.markets.some(m=>m.canStake)));
+  const taskStep=task.step;
+  type StakeAttempt={token:string|null;seasonId:string;marketId:string;optionId:string;previousAmount:string};
+  const stakeAttempt=useRef<StakeAttempt|null>(null);
+  const [receipt,setReceipt]=useState<StakeAttempt|{token:string|null;seasonId:string}|null>(null);
+  const [demand,setDemand]=useState<TelemetryDemandToken|null>(null);
+  const receiptMarket=receipt&&"marketId" in receipt?data.markets.find(m=>m.id===receipt.marketId):undefined;
+  const resultShown=!!receipt&&receipt.seasonId===data.seasonId&&("marketId" in receipt
+    ? receiptMarket?.mine?.optionId===receipt.optionId&&BigInt(receiptMarket.mine.amount)>BigInt(receipt.previousAmount)
+    : data.joined);
+  useEffect(()=>{if(resultShown&&receipt)taskStep("result",receipt.token);},[resultShown,receipt,taskStep]);
   const boardRef=useRef<HTMLDivElement|null>(null);
   const participationTitle=useRef<HTMLHeadingElement|null>(null);
   const participationOpener=useRef<HTMLElement|null>(null);
@@ -58,15 +70,16 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
   const visible=data.markets.filter(m=>(!matchFilter||m.matchId===matchFilter) && (active==="event"?m.matchId===null:active==="mine"?!!m.mine:active==="settled"?["settled","refunded"].includes(m.state):m.matchId!==null && ["open","locked"].includes(m.state)));
   const loginHref = `/login?next=${encodeURIComponent(`/${slug}/bet?${new URLSearchParams({view: active, ...(matchFilter ? {match: matchFilter} : {})})}`)}` as const;
   function loginFor(selection:Record<string,string>){const query=new URLSearchParams({...selection,view:active});const next=safeLocalRedirect(`/${slug}/bet?${query}`);router.push(`/login?next=${encodeURIComponent(next)}`);}
-  function choose(market:BetMarketDTO,optionId:string){if(interactionBusy)return;if(!signedIn){loginFor({...(market.matchId?{match:market.matchId}:{}),market:market.id,option:optionId});return;}if(!selected&&!predictionTarget)participationOpener.current=document.activeElement as HTMLElement;setPredictionTarget(market.matchId?{matchId:market.matchId,kind:market.group==="比赛"||market.type==="total_rounds"&&matches.find(m=>m.id===market.matchId)?.format==="BO1"?"winner":"bp"}:null);setSelected({market,optionId});setAmount("");setAllIn(false);setAllConfirmed(false);setRequestId(crypto.randomUUID());setError(null);}
-  function join(){if(interactionBusy||!data.joinEligibility?.canJoin)return;startTransition(async()=>{try{const r=await mutateBet({operation:"join",seasonId:data.seasonId});if(!r.success){setError(r.error.message);toast.error(r.error.message);return;}setError(null);toast.success("积分已领取");void refreshAction().then(success=>{if(!success)toast.error("积分已领取，余额更新失败，请刷新后查看。");}).catch(()=>toast.error("积分已领取，余额更新失败，请刷新后查看。"));}catch{setError("领取结果暂未确认，请刷新后查看。");}});}
+  function choose(market:BetMarketDTO,optionId:string){if(interactionBusy)return;if(!signedIn){loginFor({...(market.matchId?{match:market.matchId}:{}),market:market.id,option:optionId});return;}setDemand(beginTelemetryDemand("bet"));if(!selected&&!predictionTarget)participationOpener.current=document.activeElement as HTMLElement;setPredictionTarget(market.matchId?{matchId:market.matchId,kind:market.group==="比赛"||market.type==="total_rounds"&&matches.find(m=>m.id===market.matchId)?.format==="BO1"?"winner":"bp"}:null);setSelected({market,optionId});setAmount("");setAllIn(false);setAllConfirmed(false);setRequestId(crypto.randomUUID());setError(null);}
+  function join(){if(interactionBusy||!data.joinEligibility?.canJoin)return;const token=task.begin("submit");startTransition(async()=>{try{const r=await mutateBet({operation:"join",seasonId:data.seasonId});if(!r.success){setError(r.error.message);toast.error(r.error.message);return;}task.complete(token);setReceipt({token,seasonId:data.seasonId});setError(null);toast.success("积分已领取");void refreshAction().then(success=>{if(!success)toast.error("积分已领取，余额更新失败，请刷新后查看。");}).catch(()=>toast.error("积分已领取，余额更新失败，请刷新后查看。"));}catch{setError("领取结果暂未确认，请刷新后查看。");}});}
   function refreshCommitted(){void refreshAction().then(success=>{if(!success)toast.error("投入已提交，数据更新失败，请刷新后查看。");}).catch(()=>toast.error("投入已提交，数据更新失败，请刷新后查看。"));}
-  function submitted(amount:string){setUncertain(null);toast.success(`已投入 ${formatPoints(amount)} 积分`);setSelected(null);setPredictionTarget(null);setError(null);refreshCommitted();}
+  function submitted(amount:string){const captured=stakeAttempt.current;if(captured){task.complete(captured.token);setReceipt(captured);}setUncertain(null);toast.success(`已投入 ${formatPoints(amount)} 积分`);setSelected(null);setPredictionTarget(null);setError(null);refreshCommitted();}
   function submit(){
     if(pending||freePending)return;
     if(uncertain){startTransition(async()=>{try{const result=await getBetStakeReceipt(uncertain);if(result.success&&result.data.status==="committed")submitted(result.data.amount);else setError("投入结果仍未确认，请稍后再次核对，暂勿重复投入。");}catch{setError("暂时无法核对投入结果，请稍后再次核对。");}});return;}
     if(!selected||!canStakeSelection)return;
     const payload={operation:"stake" as const,seasonId:data.seasonId,marketId:selected.market.id,optionId:selected.optionId,amount:allIn?"all":amount,requestId};
+    stakeAttempt.current={token:task.begin("submit"),seasonId:data.seasonId,marketId:payload.marketId,optionId:payload.optionId,previousAmount:selected.market.mine?.amount??"0"};
     startTransition(async()=>{try{const r=await mutateBet(payload);if(!r.success){if(r.error.code===ErrorCode.INTERNAL_ERROR){setUncertain(payload);setError("投入结果未确认，请核对原请求，暂勿重复投入。");}else setError(r.error.message);return;}submitted(r.data&&"amount" in r.data?r.data.amount:"0");}catch{setUncertain(payload);setError("投入结果未确认，请核对原请求，暂勿重复投入。");}});
   }
   const current=data.markets.find(m=>m.id===selected?.market.id);
@@ -76,8 +89,10 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
   const canEstimate=current && ["champion","top_fragger","match_winner","exact_score","total_maps","veto_map","veto_first","veto_decider","map_winner","total_rounds"].includes(current.type);
   const estimate=canEstimate && selectedOption && amountValue>BigInt(0)?(BigInt(current!.pool)+amountValue)*amountValue/(BigInt(selectedOption.pool)+amountValue):null;
   const selectedPrediction=predictions?.find(p=>p.matchId===predictionTarget?.matchId&&p.kind===predictionTarget.kind);
-  function openPrediction(model:FreePredictionModel,key:string){if(interactionBusy)return;if(!signedIn){loginFor({match:model.matchId,prediction:model.kind,choice:key});return;}participationOpener.current=document.activeElement as HTMLElement;const market=predictionMarket(data.markets,model,key);const option=market?.options.find(o=>predictionOption(o,model,key));setSelected(market?{market,optionId:option?.id??""}:null);setPredictionTarget({matchId:model.matchId,kind:model.kind});setAmount("");setAllIn(false);setAllConfirmed(false);setRequestId(crypto.randomUUID());setError(null);}
+  function openPrediction(model:FreePredictionModel,key:string){if(interactionBusy)return;if(!signedIn){loginFor({match:model.matchId,prediction:model.kind,choice:key});return;}setDemand(beginTelemetryDemand("bet"));participationOpener.current=document.activeElement as HTMLElement;const market=predictionMarket(data.markets,model,key);const option=market?.options.find(o=>predictionOption(o,model,key));setSelected(market?{market,optionId:option?.id??""}:null);setPredictionTarget({matchId:model.matchId,kind:model.kind});setAmount("");setAllIn(false);setAllConfirmed(false);setRequestId(crypto.randomUUID());setError(null);}
 
+  const participationOpen=!!selected||!!selectedPrediction;
+  useEffect(()=>{if(participationOpen&&interactive)recordDemandReady(demand,"form");},[participationOpen,interactive,demand]);
   function closeParticipation(){if(uncertain)return;setSelected(null);setPredictionTarget(null);setError(null);}
   return <div ref={boardRef} className="space-y-5" aria-busy={interactionBusy}>
     {interactive&&<ContentReady module="bet" phase="primary"/>}
