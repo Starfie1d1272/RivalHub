@@ -37,25 +37,45 @@ test("public match consumes private Broadcast and recovers across navigation and
   const pending = new Map<BrowserRequest, Pending>();
   const timeline: Array<Pending & { phase: string; elapsedMs: number; error?: string }> = [];
   let omitted = 0;
+  let documentPath = "";
+  const viewerRequests = { started: 0, responses: 0, finished: 0, failed: 0 };
+  const isViewer = (url: string) => new URL(url).pathname.endsWith("/live-viewer");
+  const postInitiators = new Map<string, { count: number; frames: Array<{ functionName: string; path: string; line: number }> }>();
+  const diagnostics = await page.context().newCDPSession(page);
+  await diagnostics.send("Network.enable");
+  diagnostics.on("Network.requestWillBeSent", event => {
+    if (event.request.method !== "POST" || new URL(event.request.url).pathname !== documentPath) return;
+    const frames = (event.initiator.stack?.callFrames ?? []).slice(0, 8).map(frame => ({
+      functionName: frame.functionName.slice(0, 120), path: (() => { try { return new URL(frame.url).pathname.slice(0, 300); } catch { return "unknown"; } })(), line: frame.lineNumber,
+    }));
+    const key = JSON.stringify(frames);
+    const previous = postInitiators.get(key);
+    if (previous) previous.count++;
+    else if (postInitiators.size < 8) postInitiators.set(key, { count: 1, frames });
+  });
   const record = (row: Pending, phase: string, error?: string) => {
-    if (timeline.length >= 256) { omitted++; return; }
+    if (timeline.length >= 256) { omitted++; timeline.shift(); }
     timeline.push({ ...row, phase, elapsedMs: Math.round(performance.now() - startedAt), ...(error ? { error: redactText(error).slice(0, 300) } : {}) });
   };
   page.on("request", request => {
+    if (isViewer(request.url())) viewerRequests.started++;
     if (pending.size >= 64) { omitted++; return; }
     const row = { method: request.method(), path: new URL(request.url()).pathname.slice(0, 300),
       resourceType: request.resourceType(), navigation: request.isNavigationRequest(), startedMs: Math.round(performance.now() - startedAt) };
     pending.set(request, row); record(row, "request");
   });
   page.on("response", response => {
+    if (isViewer(response.url())) viewerRequests.responses++;
     const row = pending.get(response.request());
     if (row) { row.responseStatus = response.status(); record(row, "response"); }
   });
   page.on("requestfinished", request => {
+    if (isViewer(request.url())) viewerRequests.finished++;
     const row = pending.get(request);
     if (row) { record(row, "finished"); pending.delete(request); }
   });
   page.on("requestfailed", request => {
+    if (isViewer(request.url())) viewerRequests.failed++;
     const row = pending.get(request);
     if (row) { record(row, "failed", request.failure()?.errorText); pending.delete(request); }
   });
@@ -67,6 +87,7 @@ test("public match consumes private Broadcast and recovers across navigation and
     const { matchId, otherMatchId } = JSON.parse(line.slice("LIVE_FIXTURE ".length)) as { matchId: string; otherMatchId: string };
     await run(browserFixture, "prepare", matchId);
     const url = `/${seasonId}/matches/${matchId}`;
+    documentPath = url;
     producer = await stream(matchId);
     let viewerJoins = 0;
     // Dev Strict Mode aborts its first token fetch. Count actual channel joins,
@@ -156,11 +177,12 @@ test("public match consumes private Broadcast and recovers across navigation and
   } catch (error) {
     const evidence = { sha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
       environment: "local Next HTTP + Local Supabase + Chromium", elapsedMs: Math.round(performance.now() - startedAt),
-      pending: [...pending.values()], omitted, timeline };
+      pending: [...pending.values()], omitted, viewerRequests, postInitiators: [...postInitiators.values()], timeline };
     await testInfo.attach("live-http-pending.json", { body: JSON.stringify(evidence, null, 2), contentType: "application/json" });
     console.info("LIVE_HTTP_PENDING", JSON.stringify({ ...evidence, timeline: undefined }));
     throw error;
   } finally {
+    await diagnostics.detach();
     producer?.kill();
     await run(fixture, "cleanup", seasonId);
   }
