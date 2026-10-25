@@ -4,7 +4,7 @@ import { Miniflare } from "miniflare";
 import { expect, it } from "vitest";
 import { handle, maintain, type Env } from "../../../workers/telemetry/index";
 import { maintainHistory } from "../../../workers/telemetry/history";
-import { HistoryData, historyDay, historyDayStart, historyDefaults, historyQuantile, parseHistoryQuery, summarizeHistory, HISTORY_DAY as DAY } from "@/lib/telemetry/history-contract";
+import { HistoryData, historyDay, historyDayStart, historyDefaults, historyQuantile, emptyHistoryDistribution, parseHistoryQuery, summarizeHistory, HISTORY_DAY as DAY } from "@/lib/telemetry/history-contract";
 import { signTicket } from "@/lib/telemetry/ticket";
 import type { TelemetryEvent } from "@/lib/telemetry/protocol";
 
@@ -63,8 +63,8 @@ it("deduplicates latest metric updates in their first day and merges duration bu
     const data = await f.read(day + DAY + 5000);
     const first = data.days.find(d => d.day === "2026-10-25")!;
     expect(first.complete).toBe(true);
-    const row = first.rows.find(r => r.name === "LCP")!;
-    expect(row).toMatchObject({ n: 1, release: "client-a", duration: { n: 1, sum: 750, min: 750, max: 750 } });
+    const persistedDay = await f.db.prepare("SELECT payload FROM history_days WHERE day=?").bind(first.day).first<{ payload: string }>();
+    expect(JSON.parse(persistedDay!.payload)[0]).toMatchObject({ n: 1, release: "client-a", duration: { n: 1, sum: 750, min: 750, max: 750 } });
     const merged = summarizeHistory(data).timings.find(t => t.name === "LCP")!;
     expect(merged).toMatchObject({ n: 2, mean: 1975, p50: 1000, p90: 3200 });
     expect(historyQuantile(merged.distribution, .95, "LCP")).toBe(3200);
@@ -182,6 +182,67 @@ it("refreshes live days with short retention instead of revisiting expired candi
     for (let i = 1; i <= 4; i++) await maintainHistory(env, now + i * 1000);
     const response = await handle(new Request("https://worker.invalid/admin/history", { headers: { authorization: `Bearer ${env.DASHBOARD_KEY}` } }), env, now + 5000);
     const data = HistoryData.parse(await response.json());
-    expect(data.days.find(d => d.day === historyDay(now))?.rows.find(r => r.kind === "page")?.n).toBe(1);
+    expect(data.days.find(d => d.day === historyDay(now))?.views).toBe(1);
+  } finally { await f.mf.dispose(); }
+}, 30000);
+
+
+it("persists 1200 dimension combinations and returns complete compact 90-day trends after filtering in D1", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-07-28");
+  try {
+    await maintainHistory(f.env, day);
+    const samples = Array.from({ length: 1200 }, (_, i) => ({
+      key: `capacity-${i}`, dimensions: JSON.stringify({ kind: "performance", name: "LCP", task: "", route: "/stats", scene: "site", role: "user", device: "desktop", release: i === 0 ? "old-release" : "new-release", eventId: `00000000-0000-4000-8000-${i.toString().padStart(12, "0")}`, measurementVersion: 1, definitionVersion: 0, navigationType: "navigate" }),
+      value: i === 0 ? 500 : 2000, bucket: i === 0 ? 3 : 5,
+    }));
+    await f.db.prepare(`INSERT INTO history_samples(sample_key,day,kind,dimensions,latest_at,received,expires,closes,has_start,phase,value,bucket,active,active_bucket,client_covered,enhanced_covered)
+      SELECT json_extract(value,'$.key'),?,'performance',json_extract(value,'$.dimensions'),?,?,?, ?,0,'',json_extract(value,'$.value'),json_extract(value,'$.bucket'),NULL,0,1,1 FROM json_each(?)`)
+      .bind(historyDay(day), day, day, day + 7 * DAY, day + 6 * DAY, JSON.stringify(samples)).run();
+    expect((await f.post([{ kind: "page" }], day + 500)).status).toBe(204);
+    await maintainHistory(f.env, day + 1000);
+    const snapshot = await f.db.prepare("SELECT payload,complete FROM history_days WHERE day=?").bind(historyDay(day)).first<{ payload: string; complete: number }>();
+    expect(snapshot?.complete).toBe(1);
+    expect(JSON.parse(snapshot!.payload)).toHaveLength(1201);
+    expect(new TextEncoder().encode(snapshot!.payload).length).toBeGreaterThan(384 * 1024);
+    const days = Array.from({ length: 90 }, (_, i) => historyDay(day + i * DAY));
+    await f.db.prepare(`INSERT INTO history_days(day,payload,complete,sealed,captured_at,expires)
+      SELECT value,?,1,1,?,? FROM json_each(?) WHERE true ON CONFLICT(day) DO UPDATE SET payload=excluded.payload,complete=1,sealed=1,expires=excluded.expires`)
+      .bind(snapshot!.payload, day + 89 * DAY, day + 91 * DAY, JSON.stringify(days)).run();
+    const now = day + 89 * DAY + 1000;
+    const data = await f.read(now, "days=90");
+    expect(data.truncated).toBe(false);
+    expect(data.days).toHaveLength(90);
+    expect(data.days.every(d => d.complete && d.views === 1)).toBe(true);
+    expect(summarizeHistory(data).totals.views).toBe(90);
+    expect(data.timingRows).toHaveLength(2);
+    expect(data.timingRows.reduce((sum, row) => sum + row.duration.n, 0)).toBe(108000);
+    expect(new TextEncoder().encode(JSON.stringify(data)).length).toBeLessThan(40 * 1024);
+    const selected = await f.read(now, "days=90&release=old-release");
+    expect(selected.truncated).toBe(false);
+    expect(selected.days).toHaveLength(90);
+    expect(summarizeHistory(selected).timings[0]).toMatchObject({ release: "old-release", n: 90, mean: 500, p50: 500, p90: 500 });
+    const event = await f.read(now, "days=90&eventId=00000000-0000-4000-8000-000000001199");
+    expect(summarizeHistory(event).timings[0]).toMatchObject({ n: 90, mean: 2000, p90: 2000 });
+  } finally { await f.mf.dispose(); }
+}, 60000);
+
+it("limits timing groups after filtering while keeping daily totals complete and merging unequal distributions", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25");
+  try {
+    await maintainHistory(f.env, day);
+    const rows = Array.from({ length: 520 }, (_, i) => {
+      const duration = emptyHistoryDistribution(); duration.n = 1; duration.sum = 100; duration.min = 100; duration.max = 100; duration.counts[1] = 1;
+      return { kind: "performance", name: "LCP", phase: "", release: `release-${i.toString().padStart(4, "0")}`, measurementVersion: 1, definitionVersion: 0, navigationType: "navigate", route: "/stats", scene: "site", role: "user", device: "desktop", eventId: "", task: "", n: 1, starts: 0, clientCovered: 1, enhancedCovered: 1, duration, active: emptyHistoryDistribution() };
+    });
+    await f.db.prepare("UPDATE history_days SET payload=?,complete=1 WHERE day=?").bind(JSON.stringify(rows), historyDay(day)).run();
+    const unfiltered = await f.read(day + 1000);
+    expect(unfiltered.truncated).toBe(true);
+    expect(unfiltered.timingRows).toHaveLength(512);
+    expect(unfiltered.days[0].complete).toBe(true);
+    const row = structuredClone(rows[519]); row.n = 9; row.duration = { n: 9, sum: 18000, min: 2000, max: 2000, counts: emptyHistoryDistribution().counts }; row.duration.counts[5] = 9;
+    await f.db.prepare("INSERT INTO history_days(day,payload,complete,sealed,captured_at,expires) VALUES(?,?,1,0,?,?)").bind(historyDay(day + DAY), JSON.stringify([row]), day + DAY, day + 91 * DAY).run();
+    const selected = await f.read(day + DAY + 1000, "release=release-0519");
+    expect(selected.truncated).toBe(false);
+    expect(summarizeHistory(selected).timings[0]).toMatchObject({ n: 10, mean: 1810, p50: 2000, p90: 2000 });
   } finally { await f.mf.dispose(); }
 }, 30000);

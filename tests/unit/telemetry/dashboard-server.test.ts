@@ -6,6 +6,7 @@ vi.mock("server-only", () => ({}));
 import {analyzeTelemetry} from "@/lib/telemetry/analysis-model";
 import {analysisDefaults} from "@/lib/telemetry/analysis-query";
 import { getTelemetryWorkflowsAction } from "@/app/admin/telemetry/actions";
+import type { HistoryData } from "@/lib/telemetry/history-contract";
 import { getTelemetryAnalysis, getTelemetryHistory } from "@/lib/telemetry/dashboard";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -67,8 +68,8 @@ it("revoked authorization cannot reuse a cached history result", async () => {
   vi.stubEnv("PRODUCT_TELEMETRY_ADMIN_KEY", "fixture-history-key".repeat(3));
   vi.stubEnv("PRODUCT_TELEMETRY_ENDPOINT", "https://worker.invalid/v1/batches");
   vi.stubEnv("PRODUCT_TELEMETRY_QUERY_PROXY_URL", "");
-  const data = { enabled: true, retentionDays: 90, generatedAt: Date.now(), coverageStart: null,
-    processedThrough: null, pendingBatches: 0, truncated: false, correctionDays: 6, days: [] };
+  const data: HistoryData = { enabled: true, retentionDays: 90, generatedAt: Date.now(), coverageStart: null,
+    processedThrough: null, pendingBatches: 0, truncated: false, correctionDays: 6, days: [], timingRows: [] };
   const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(data)));
   expect((await getTelemetryHistory({ days: "28" })).status).toBe("ready");
   expect((await getTelemetryHistory({ days: "28" })).status).toBe("ready");
