@@ -15,6 +15,7 @@ test("赛事 Logo 正常上传、更换与移除更新公开展示", async ({ pa
     await expect(viewer.getByAltText("赛事 Logo")).toHaveCount(0);
     await signInProgrammatically(page, admin, scenario, `/admin/operations/season-info/${scenario.slug}`);
     await expect(page.getByText("尚未上传赛事 Logo", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("上传赛事 Logo", { exact: true })).toBeEnabled();
     await page.getByLabel("上传赛事 Logo", { exact: true }).setInputFiles({ name: "logo.svg", mimeType: "image/svg+xml", buffer: Buffer.from("<svg/>") });
     await expect(page.getByText("请选择非空的 JPG、PNG 或 WebP 图片，最大 1 MB。", { exact: true })).toBeVisible();
     await expect(page.getByAltText("赛事 Logo")).toHaveCount(0);
@@ -27,6 +28,7 @@ test("赛事 Logo 正常上传、更换与移除更新公开展示", async ({ pa
     await expect(viewer.getByAltText("赛事 Logo")).toHaveAttribute("src", firstUrl!);
     await expect.poll(() => viewer.getByAltText("赛事 Logo").evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
 
+    await expect(page.getByLabel("更换赛事 Logo", { exact: true })).toBeEnabled();
     await page.getByLabel("更换赛事 Logo", { exact: true }).setInputFiles({ name: "replacement.png", mimeType: "image/png", buffer: png });
     await expect(adminLogo).not.toHaveAttribute("src", firstUrl!);
     const replacementUrl = await adminLogo.getAttribute("src");
