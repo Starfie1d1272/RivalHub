@@ -82,3 +82,18 @@ it.each(["UTC", "Asia/Shanghai", "America/Los_Angeles"])("hydrates the long-wind
   try { await act(async () => {}); expect(recovered).toEqual([]); }
   finally { await act(async () => root.unmount()); host.remove(); if (original === undefined) delete process.env.TZ; else process.env.TZ = original; }
 });
+
+it("uses the provider's merged bucket counts while preserving maximum observations", async () => {
+  const user = userEvent.setup(); const data = fixture(); const row = metric("task", 2);
+  const bounds = historyBounds(row.name);
+  row.elapsedCensored = false; row.activeCensored = false;
+  row.duration = { ...row.duration, n: 3, sum: bounds[0]! + 2 * bounds[1]!, min: bounds[0]!, max: bounds[1]!, counts: row.duration.counts.map((_, i) => i === 0 ? 1 : i === 1 ? 2 : 0) };
+  data.metrics = [row];
+  render(<LongWindowAnalysis data={data} />);
+  const table = screen.getAllByRole("table")[1]!;
+  const rows = within(table).getAllByRole("row");
+  expect(within(rows[1]!).getAllByRole("cell")[1]!.textContent).toBe("1");
+  expect(within(rows[2]!).getAllByRole("cell")[1]!.textContent).toBe("2");
+  await user.click(screen.getByRole("button", { name: "活跃操作时间" }));
+  expect(screen.getByText("此组没有有效时长样本。")).toBeInTheDocument();
+});
