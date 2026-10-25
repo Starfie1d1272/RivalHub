@@ -14,11 +14,10 @@ async function getCareerAttributes(playerIds: string[]) {
   cacheTag(PUBLIC_STATS_TAG);
   cacheLife({ stale: 60, revalidate: 3600, expire: 86400 });
   return preservePublicStatsDependencyFailure(async () => {
-  const careers = await getPlayerCareerPerformances(playerIds);
-  const benchmark = careers.some(career => career.performance) ? await getPlayerAttributeBenchmark() : null;
+  const [careers, benchmark] = await Promise.all([getPlayerCareerPerformances(playerIds), getPlayerAttributeBenchmark()]);
   return careers.map(({ playerId, maps, rounds, performance }) => ({
     userId: playerId, maps, rounds,
-    attributes: performance && benchmark ? projectPlayerAttributeProfile(performance, benchmark).attributes.map(({ key, score, status }) => ({ key, score, status })) : [],
+    attributes: performance ? projectPlayerAttributeProfile(performance, benchmark).attributes.map(({ key, score, status }) => ({ key, score, status })) : [],
   }));
   });
 }

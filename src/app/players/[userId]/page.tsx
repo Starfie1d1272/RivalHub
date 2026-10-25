@@ -65,13 +65,15 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
   return <PageLayout variant="standard" className="space-y-6">
     <StatsReturnLink href={fromStats} />
     <PlayerIdentity user={user} hasActivePublicSanction={sanctions.some(sanction => sanction.status === "active")} />
-    <Suspense fallback={<ProfileSectionSkeleton label="基本资料" height="min-h-48" />}>
-      <PlayerBasics sections={sections} />
-    </Suspense>
-    <PlayerActiveSanctions sanctions={sanctions} />
-    <Suspense fallback={<ProfileSectionSkeleton label="Career Stats" height="min-h-28" />}>
-      <PlayerCareerOverview sections={sections} />
-    </Suspense>
+    <section className="border-b border-[var(--color-border)] pb-4">
+      <Suspense fallback={<ProfileSectionSkeleton label="基本资料" height="min-h-48" />}>
+        <PlayerBasics sections={sections} />
+      </Suspense>
+      <div className="mt-4"><PlayerActiveSanctions sanctions={sanctions} /></div>
+      <Suspense fallback={<ProfileSectionSkeleton label="Career Stats" height="min-h-28" />}>
+        <PlayerCareerOverview sections={sections} />
+      </Suspense>
+    </section>
     <Suspense fallback={<ProfileSectionSkeleton label="赛事履历" height="min-h-40" />}>
       <PlayerCareerHistory sections={sections} />
     </Suspense>
@@ -95,7 +97,6 @@ function ProfileSectionSkeleton({ label, height }: { label: string; height: stri
 async function PlayerBasics({ sections }: SectionProps) {
   const profile = await sections.basic;
   return <div data-profile-section="basic">
-      <section className="border-b border-[var(--color-border)] pb-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="min-w-0 flex-1 space-y-4">
 
@@ -168,13 +169,12 @@ async function PlayerBasics({ sections }: SectionProps) {
           </div>
         </div>
 
-      </section>
   </div>;
 }
 
 async function PlayerCareerOverview({ sections }: SectionProps) {
   const { careerOverview: overview } = await sections.overview;
-  return <section data-profile-section="overview" className="border-b border-[var(--color-border)] pb-4">
+  return <div data-profile-section="overview">
         <div className="mt-4"><SectionHeading>Career Stats</SectionHeading></div>
         <dl aria-label="Career Stats" className="mt-2 grid grid-cols-2 border-y border-[var(--color-border)] sm:grid-cols-4">
           <div className="px-3 py-3 sm:first:pl-0">
@@ -194,7 +194,7 @@ async function PlayerCareerOverview({ sections }: SectionProps) {
             <dd className="mt-1 text-lg font-semibold tabular-nums">{overview.maps ?? "—"}</dd>
           </div>
         </dl>
-      </section>;
+  </div>;
 }
 
 async function PlayerCareerHistory({ sections }: SectionProps) {
@@ -374,6 +374,7 @@ async function PlayerPerformance({ sections, userId, query, fromStats }: Section
 
 async function PlayerAttributeSection({ sections }: SectionProps) {
   const profile = await sections.attributes();
+  if (!profile.attributes && !profile.benchmarkUnavailable) return null;
   return <div data-profile-section="attributes">
     {profile.attributes && <PlayerAttributes profile={profile.attributes} />}
     {profile.benchmarkUnavailable && <p role="status" className="text-sm text-[var(--color-fg-mid)]">选手属性暂时无法加载，请稍后重试。</p>}
