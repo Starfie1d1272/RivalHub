@@ -95,13 +95,35 @@ it.each([429, 500, 503, "network"])("bounds %s retries to three identical reques
   expect(q.delivery.retry_exhausted).toBe(1);
 });
 
-it("honors bounded Retry-After and drops stale/overflow without sending on add", async () => {
-  const send = vi.fn().mockImplementation(() => new Response(null, { status: 429, headers: { "Retry-After": "999999999" } }));
-  const q = new TelemetryQueue(config(), send); for (let i = 0; i < 257; i++) q.add(event());
-  expect(send).not.toHaveBeenCalled(); expect(q.delivery.queue_dropped).toBe(1);
-  await q.flush(); vi.advanceTimersByTime(239999); await q.flush(); expect(send).toHaveBeenCalledTimes(1);
+it.each([
+  ["120", 120000], ["0", 60000], ["-1", 60000], ["invalid", 60000],
+])("honors Retry-After %s without an earlier request", async (header, delay) => {
+  const send = vi.fn().mockImplementation(() => new Response(null, { status: 429, headers: { "Retry-After": header } }));
+  const q = new TelemetryQueue(config(), send); q.add(event()); await q.flush();
+  vi.advanceTimersByTime(Number(delay) - 1); await q.flush(); expect(send).toHaveBeenCalledTimes(1);
   vi.advanceTimersByTime(1); await q.flush(); expect(send).toHaveBeenCalledTimes(2);
-  vi.advanceTimersByTime(LIMITS.ageMs); await q.flush(); expect(q.delivery.stale).toBe(256);
+});
+
+it("honors HTTP-date, remaining attempts and subsequent batches after rate rejection", async () => {
+  const start = Math.floor(Date.now() / 1000) * 1000; vi.setSystemTime(start);
+  const send = vi.fn().mockImplementation(() => new Response(null, { status: 429, headers: { "Retry-After": new Date(start + 300000).toUTCString() } }));
+  const q = new TelemetryQueue(config(), send); q.add(event()); await q.flush();
+  vi.advanceTimersByTime(299999); await q.flush(); expect(send).toHaveBeenCalledTimes(1);
+  vi.advanceTimersByTime(1); await q.flush();
+  vi.advanceTimersByTime(120000); await q.flush(); expect(send).toHaveBeenCalledTimes(3);
+  expect(q.delivery.retry_exhausted).toBe(1);
+  q.add(event()); await q.flush(); expect(send).toHaveBeenCalledTimes(3);
+  vi.advanceTimersByTime(240000); send.mockImplementation(ack); await q.flush(); expect(send).toHaveBeenCalledTimes(4);
+});
+
+it.each(["999999999", "99999999999999999999999999999999999"])("drops an impossible delayed batch but never bypasses Retry-After %s", async header => {
+  const send = vi.fn().mockImplementation(() => new Response(null, { status: 429, headers: { "Retry-After": header } }));
+  const cfg = config(); const q = new TelemetryQueue(cfg, send);
+  for (let i = 0; i < 257; i++) q.add(event());
+  expect(send).not.toHaveBeenCalled(); expect(q.delivery.queue_dropped).toBe(1);
+  await q.flush(); expect(q.delivery.retry_exhausted).toBe(32);
+  q.configure({ ...cfg, ticket: "renewed" });
+  vi.advanceTimersByTime(LIMITS.ageMs + 1); q.add(event()); await q.flush(); expect(send).toHaveBeenCalledTimes(1);
 });
 
 it("clears old identity work even when its response is in flight", async () => {

@@ -88,8 +88,9 @@ export class TelemetryQueue {
         if (response.status === 429 || response.status >= 500) {
           this.delivery[response.status === 429 ? "rate_limit" : "server_retry"]++;
           const raw = response.status === 429 ? response.headers.get("Retry-After") : null;
-          const retryAfter = raw === null ? 0 : /^\d+$/.test(raw) ? Number(raw) * 1000 : Date.parse(raw) - Date.now();
-          this.retry(batch, Number.isFinite(retryAfter) ? retryAfter : 0);
+          const seconds = raw !== null && /^\d+$/.test(raw) ? Number(raw) * 1000 : null;
+          const retryAfter = seconds !== null ? Number.isSafeInteger(seconds) ? seconds : Number.MAX_SAFE_INTEGER - Date.now() : raw === null ? 0 : Date.parse(raw) - Date.now();
+          this.retry(batch, Number.isFinite(retryAfter) ? Math.max(0, retryAfter) : 0);
         } else {
           this.delivery[response.status === 400 ? "schema_reject" : response.status === 413 ? "batch_oversize" : response.status === 401 ? "ticket_reject" : "http_reject"] += batch.events.length;
           if (response.status === 401) this.rejectedTicket = batch.ticket;
@@ -104,8 +105,10 @@ export class TelemetryQueue {
   }
 
   private retry(batch: Batch, retryAfter = 0) {
-    this.nextAttempt = Date.now() + Math.min(4 * LIMITS.flushMs, Math.max(retryAfter, LIMITS.flushMs * 2 ** (batch.attempts - 1)));
-    if (batch.attempts >= 3) {
+    this.nextAttempt = Math.min(Number.MAX_SAFE_INTEGER, Date.now() + Math.max(retryAfter, Math.min(4 * LIMITS.flushMs, LIMITS.flushMs * 2 ** (batch.attempts - 1))));
+    const deadline = Math.min(batch.expiresAt, ...batch.events.map(event => event.at + LIMITS.ageMs));
+    // Release an undeliverable batch, but retain the server's admission delay for following batches.
+    if (batch.attempts >= 3 || (retryAfter > 0 && this.nextAttempt >= deadline)) {
       this.metrics.dropped += batch.events.length; this.delivery.retry_exhausted += batch.events.length; this.pending = null;
     }
   }

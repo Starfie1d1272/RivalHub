@@ -79,7 +79,7 @@ v1 的 page/operation/error/ready/NAV_COMMIT 携带随机 navigationId、构建�
 
 ## 交付、预算与免费边界
 
-队列仅在内存保留最多 256 条；每批最多 32 条，按包含 ticket/id/v/events 的完整 UTF-8 envelope 贪心分批且不超过 24 KiB，同批 session 一致。单条超限只丢该条，后续合法事件继续投递；没有本地事件文件、IndexedDB、录屏或离线长期补传。5 秒网络超时；网络/5xx/429 同一 body、票据、endpoint 和 UUID 最多尝试三次，60/120 秒退避，429 的 Retry-After 限制在最多四分钟。400/413 与其他永久 HTTP 拒绝不重试坏批；401 丢弃原批并暂停该票据的新批，等待既有 bootstrap 续签，绝不换票重放旧批。旧票据过期、事件超过 15 分钟或溢出时丢弃，不阻止业务。不额外 flush 每个点击。采集异常不更改返回结果，不重放业务调用。
+队列仅在内存保留最多 256 条；每批最多 32 条，按包含 ticket/id/v/events 的完整 UTF-8 envelope 贪心分批且不超过 24 KiB，同批 session 一致。单条超限只丢该条，后续合法事件继续投递；没有本地事件文件、IndexedDB、录屏或离线长期补传。5 秒网络超时；网络/5xx/429 同一 body、票据、endpoint 和 UUID 最多尝试三次，60/120 秒退避，客户端退避最多四分钟；429 的 Retry-After 是最早允许时刻，不能向前截短。超过事件/票据有效窗口时丢弃该批，但保留该延迟约束后续批次，同身份续票不解除限流。400/413 与其他永久 HTTP 拒绝不重试坏批；401 丢弃原批并暂停该票据的新批，等待既有 bootstrap 续签，绝不换票重放旧批。旧票据过期、事件超过 15 分钟或溢出时丢弃，不阻止业务。不额外 flush 每个点击。采集异常不更改返回结果，不重放业务调用。
 
 队列提供仅内存的固定枚举投递计数：eligible、accepted、queue_dropped、batch_oversize、schema_reject、ticket_expired、ticket_reject、network_retry、server_retry、rate_limit、http_reject、stale、identity_reset、retry_exhausted。eligible 按调用入队次数计，含尚未发送即被合并的性能更新；accepted/丢弃按事件计，retry 类按失败请求计，不能直接把这些不同单位相除。诊断无原始票据/身份/事件字段，不另发请求、不持久化。DNT/GPC 禁用时客户端不创建队列，也不发送 disabled 诊断；这些内存计数不代表生产端到端漏采率。
 
