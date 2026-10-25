@@ -290,13 +290,13 @@ it("keeps rolling edges explicit and bypasses raw 2000-batch/2MiB limits for com
   const f = await fixture(); const day = historyDayStart("2026-10-15"), now = day + 7 * DAY + 12 * 3600000;
   try {
     await maintainHistory(f.env, day);
-    const session = crypto.randomUUID(); let rawBytes = 0;
+    const session = crypto.randomUUID(); const tickets = Array.from({ length: 21 }, () => crypto.randomUUID()); let rawBytes = 0;
     const input = [];
     for (let i = 0; i < 2001; i++) {
-      const received = day + 2 * DAY + i;
+      const received = day + 2 * DAY + i * 1000;
       const events = Array.from({ length: 2 }, () => ({ id: crypto.randomUUID(), at: received, session, route: "/stats", scene: "site", kind: "page", filters: { tab: "players", ops: "conflict", position: "all", stage: "playoffs", source: "official", sort: "ratingPro", order: "desc", side: "all", status: "finished", map: "de_mirage", view: "sim", format: "bo3", mapsView: "pool", mapFilter: "de_anubis", q: "selected", search: "selected", team: "selected", event: "selected", player: "selected", weapon: "selected", minMaps: "selected", teamFilter: "selected", recordPage: "selected" }, measurement: { v: 1, navigationId: crypto.randomUUID(), clientRelease: "a".repeat(80), visibility: "visible" } }));
       const encoded = JSON.stringify(events); rawBytes += Buffer.byteLength(encoded);
-      input.push(f.db.prepare("INSERT INTO batches(ticket,id,received,expires,day,account,session,role,release,environment,bytes,events_gzip,summary) VALUES(?,?,?,?,?,NULL,?,?,?,'production',?,X'" + gzipSync(encoded).toString("hex") + "','[]')").bind("fixture-ticket", crypto.randomUUID(), received, now + DAY, historyDay(received), session, "user", "fixture", Buffer.byteLength(encoded)));
+      input.push(f.db.prepare("INSERT INTO batches(ticket,id,received,expires,day,account,session,role,release,environment,bytes,events_gzip,summary) VALUES(?,?,?,?,?,NULL,?,?,?,'production',?,X'" + gzipSync(encoded).toString("hex") + "','[]')").bind(tickets[Math.floor(i / 100)], crypto.randomUUID(), received, now + DAY, historyDay(received), session, "user", "fixture", Buffer.byteLength(encoded)));
     }
     for (let i = 0; i < input.length; i += 100) await f.db.batch(input.slice(i, i + 100));
     expect(rawBytes).toBeGreaterThan(2 * 1024 * 1024);

@@ -151,7 +151,7 @@ ready 的目标兼容合同是可选 basis=navigation|demand，缺省为旧 navi
 
 ### 独立滚动长窗口投影
 
-`getLongWindowSummary(input)`（`src/lib/telemetry/dashboard.ts`）与 `GET /admin/long-window` 使用原 analysis 筛选和 rolling 请求时间含义，独立输出 `LongWindowSummary`，不把 raw Analysis 的截断 totals 伪装为完整。`requestedRange` 保留请求，`effectiveRange` 表示留存限制后的窗口，`coveredRanges` 仅列可确认完整的范围。完整北京时间日读取日聚合与有界未封存尾部；首尾不足日读取有界 raw，半开边界不重复午夜事件。raw 边缘先读本段，再仅为存在 start 的任务/操作补读后续；同一查询的 raw/tail 共用最多 2 MiB/2,000 批预算。性能更新以用途隔离样本键排除聚合/边缘重叠，再跨两个 raw 边缘取最新值。样本键不投影到应用。
+`getLongWindowSummary(input)`（`src/lib/telemetry/dashboard.ts`）与 `GET /admin/long-window` 使用原 analysis 筛选和 rolling 请求时间含义，独立输出 `LongWindowSummary`，不把 raw Analysis 的截断 totals 伪装为完整。`requestedRange` 保留请求，`effectiveRange` 表示留存限制后的窗口，`coveredRanges` 仅列可确认完整的范围。完整北京时间日读取日聚合与有界未封存尾部；首尾不足日读取有界 raw，段间半开边界不重复午夜事件；查询最末上界沿用原 raw 的 inclusive 语义，恰逢北京时间午夜时由同 from/to 的 raw_edge 单独表示该毫秒端点。raw 边缘先读本段，再仅为存在 start 的任务/操作补读后续；同一查询的 raw/tail 共用最多 2 MiB/2,000 批预算。性能更新以用途隔离样本键排除聚合/边缘重叠，再跨两个 raw 边缘取最新值。样本键不投影到应用。
 
 `counts` 是实际读到的可加次数，覆盖不完整时只是 observed counts；`distinctSessions` / `distinctAccounts` 为 null，不累加日去重数。已有长期样本把 exposure/start/complete 合为一个 attempt，无法恢复总曝光；包含聚合日的 summary 因此将 taskExposure 返回 null，不能用最终仍处 exposure 的次数冒充全部曝光。`metrics` 为可合并分布桶，不能平均日分位数。`coverage.segments` 分别说明 history+tail 与 raw_edge 的完整、partial、unknown 范围与原因；raw 留存最早边缘受批内最早事件 TTL 影响，缺口不补造。`pendingTailBatches`、`tailBudgetTruncated`、`metricGroupsTruncated`、`rawBudgetTruncated`、`retentionUnknown` 与 `seriesOmitted` 分开表达；该 summary 不提供 series，原 raw 的前 12 series 省略状态仍保留。
 
