@@ -41,6 +41,12 @@ BETTER_STACK_INGESTING_HOST=<server-only Better Stack OTLP ingest host>
 
 `mizar.live.outcome_window` 保留七类 ingest 结果的原分母；`mizar.live.stage_window` 单独记录 received/admitted/authorized/send_success/expired/capacity/contended/unknown_send 八个固定里程碑。阶段可重叠，不能相加作请求分母。两个聚合共享进程 singleton，只保存 15 类次数与耗时总和，不保存帧或身份；在 ROOT_CONTEXT 输出，避免继承 requestId/traceId。重启、SIGKILL、日志链路故障仍可能丢失开放窗口；不承诺退出 flush 或持久审计。结果范围、窗口/平均值口径与 viewer 验收边界见 [LIVE 接收容量](live-capacity.md)。
 
+## BP 超时与确认口径
+
+`match.veto.timeout_resolved.durationMs` 保留从 deadline 到处理使用的数据库时间差；`safeContext.configuredGraceMs` 是既定 2000ms 宽限，`actualOverdueMs = max(0, durationMs - configuredGraceMs)` 是扣除宽限后的额外逾期。宽限、数据库时钟、锁序、revision 和命令幂等不因观测改变。authorize/transaction/invalidate/project 仍沿用现有 span，不能把包含关系的耗时相加。
+
+浏览器指令 acknowledgement 与房间呈现是独立目标：HTTP 响应包含既有投影处理，DOM 应用该响应或恢复读之后才算呈现。VetoRoom 保存原 `beginTask()` 返回的 token，已知成功提交等待当前投影确认，未知提交只在读到相同恢复事实后闭合原 attempt；仅 revision 前进不足以宣称本次未知写入成功。stale 不算成功，也不重放未知提交。任务 core 的身份、scope 与确认语义由产品遥测 owner 维护。
+
 ## 管理员进程快照
 
 `/admin/settings` 在现有 `requireSuperAdmin` 成功后，才从 server-only observability facade 读取当前 Node 进程的数值快照：采样时间、Node 版本、uptime、RSS、V8 堆已用/容量/上限、操作系统提供的内存约束、自启动累计事件循环利用率。环境内存约束为零时显示“未提供”，不能当作零容量或剩余可用内存；V8 堆上限也不等于整个进程的 RSS 上限。事件循环利用率不是 CPU 使用率或最近一分钟的指标。
