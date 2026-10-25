@@ -1,0 +1,50 @@
+{
+  "sourceCandidate": "1e8b54e431c670b8bda1843206ffd738762e4977",
+  "environment": "isolated local Supabase/PostgreSQL + Next dev + native Chromium persistent on-disk profile",
+  "command": "RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm test:e2e -- tests/e2e/flows/ocr-receipt-recovery.spec.ts --project=chromium --workers=1 --reporter=list --max-failures=1",
+  "runnerExitCode": 0,
+  "cases": [
+    {
+      "line": 137,
+      "title": "真实非空提交丢响应后关闭整个浏览器重开，fresh 权限与 actor 隔离后只读确认原回执",
+      "durationSeconds": 39.2,
+      "status": "passed"
+    },
+    {
+      "line": 161,
+      "title": "请求未发送时重开只报 missing，不把当前相似数据当提交成功或重写",
+      "durationSeconds": 11.5,
+      "status": "passed"
+    },
+    {
+      "line": 175,
+      "title": "原提交之后另一管理员真实保存，重开显示 superseded 且不覆盖后续统计",
+      "durationSeconds": 17.4,
+      "status": "passed"
+    },
+    {
+      "line": 193,
+      "title": "编辑后另一 tab 切换 actor，旧 command 真实请求被拒绝而不以新 actor 提交",
+      "durationSeconds": 9.2,
+      "status": "passed"
+    }
+  ],
+  "faultBoundary": {
+    "browser": "Actual HTTP Server Action executed via Playwright route.fetch, response discarded with route.abort after the server completed; missing case aborts before forwarding. Persistent Chromium process is closed and relaunched from the same profile.",
+    "postgresAdapter": "Separate PG test executes a real COMMIT, then a test adapter throws to simulate a lost acknowledgement; this is not an actual PG-wire disconnect."
+  },
+  "scope": "Functional recovery evidence; no production latency, LCP, provider/model accuracy or mobile claim.",
+  "postgresEvidence": {
+    "sourceCandidate": "1e8b54e431c670b8bda1843206ffd738762e4977",
+    "filesPassed": 5,
+    "testsPassed": 9,
+    "files": [
+      "scoreboard-receipts.test.ts",
+      "account-lock-consumers.test.ts",
+      "major-roster-safety.test.ts",
+      "match-lock-order.test.ts",
+      "demo-integration-submit.test.ts"
+    ],
+    "nonemptySave": "Real stats row write; actor-change denial; same-operation concurrent replay creates one audit/receipt; competing nonempty save CAS admits one; old-operation replay leaves superseding stats untouched."
+  }
+}

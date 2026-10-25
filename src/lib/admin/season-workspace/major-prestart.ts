@@ -1,3 +1,4 @@
+import { readPreviousApprovedRevisionIds } from "./previous-approved-revision";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
@@ -38,7 +39,8 @@ import {
   getSeedRecommendationSnapshotStatus,
 } from "@/lib/major/seed-recommendation-snapshot";
 import {
-  loadParticipantQualificationFacts,
+  loadParticipantQualificationRawBundle,
+  projectParticipantQualificationFacts,
   resolveCompetitiveContext,
   toPlayerStrengthInput,
 } from "@/lib/qualification/service";
@@ -292,13 +294,15 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     ...rosterRows.map(member => member.userId),
     ...mainEventMembers.map(member => member.userId),
   ])];
-  const qualificationFacts = competitiveProfile
-    ? await loadParticipantQualificationFacts(qualificationUserIds, {
+  const qualificationBundle = competitiveProfile
+    ? await loadParticipantQualificationRawBundle(qualificationUserIds, {
+      includePlatformChronology: true, includeCompetitiveFacts: true,
+    }) : null;
+  const qualificationFacts = qualificationBundle && competitiveProfile
+    ? projectParticipantQualificationFacts(qualificationBundle, {
       platform: competitiveProfile.platform,
       fallbackPlatform: competitiveProfile.fallbackConversion?.sourcePlatform,
-      includeCompetitiveFacts: true,
-    })
-    : new Map();
+    }) : new Map();
   const liveStrengthInputs = candidateEntries.map((entry) => ({
     teamId: entry.id,
     teamName: entry.name,
@@ -341,17 +345,8 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       })),
     };
 
-  const previousApprovedRevisions = entrantRows.length === 0 ? [] : await db.select({
-    id: competitionEntryRosterRevisions.id,
-    entryId: competitionEntryRosterRevisions.entryId,
-    revisionNumber: competitionEntryRosterRevisions.revisionNumber,
-  }).from(competitionEntryRosterRevisions)
-    .where(and(inArray(competitionEntryRosterRevisions.entryId, entrantRows.map((entrant) => entrant.teamId)), isNotNull(competitionEntryRosterRevisions.approvedAt)))
-    .orderBy(asc(competitionEntryRosterRevisions.entryId), asc(competitionEntryRosterRevisions.revisionNumber));
-  const previousRevisionIds = entrantRows.flatMap((entrant) => {
-    const revisions = previousApprovedRevisions.filter((revision) => revision.entryId === entrant.teamId);
-    return revisions.length > 1 ? [revisions[revisions.length - 2]!.id] : [];
-  });
+  const previousRevisionByEntry = await readPreviousApprovedRevisionIds(db, entrantRows.map(entrant => entrant.teamId));
+  const previousRevisionIds = [...previousRevisionByEntry.values()];
   const previousMemberRows = previousRevisionIds.length === 0 ? [] : await db.select({
     revisionId: competitionEntryRosterMembers.revisionId,
     userId: competitionEntryRosterMembers.userId,
@@ -366,8 +361,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     .where(inArray(competitionEntryRosterMembers.revisionId, previousRevisionIds));
   const recentRosterChangeByEntryId = new Map<string, { added: string[]; removed: string[]; primaryChanged: string[] }>();
   for (const entrant of entrantRows) {
-    const revisions = previousApprovedRevisions.filter((revision) => revision.entryId === entrant.teamId);
-    const previousRevisionId = revisions.length > 1 ? revisions[revisions.length - 2]!.id : null;
+    const previousRevisionId = previousRevisionByEntry.get(entrant.teamId);
     if (!previousRevisionId) continue;
     const previous = previousMemberRows.filter((member) => member.revisionId === previousRevisionId);
     const current = rosterRows.filter((member) => member.entrantId === entrant.id);

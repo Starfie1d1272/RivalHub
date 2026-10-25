@@ -10,6 +10,7 @@ export function AdminMatchStageTabs({ value, children }: { value: string; childr
   return <Tabs value={value} onValueChange={(stage) => {
     const query = new URLSearchParams(search.toString());
     query.set("stage", stage);
+    query.delete("page");
     router.replace(`${pathname}?${query}` as never, { scroll: false });
   }}>{children}</Tabs>;
 }

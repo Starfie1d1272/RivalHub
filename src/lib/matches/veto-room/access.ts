@@ -1,15 +1,22 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
-import { getMatchOrThrow } from "@/lib/action-utils";
+import { matches, seasons } from "@/db/schema";
+import { assertCompetitionMatch } from "@/lib/matches/competition-context";
+import { getCurrentUserAuthorization } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 
-export async function assertVetoRoomReadable(matchId: string): Promise<void> {
-  const match = await getMatchOrThrow(matchId);
-  const [season] = await db.select({ id: seasons.id, slug: seasons.slug }).from(seasons)
-    .where(eq(seasons.id, match.seasonId)).limit(1);
-  const readable = season ? await getPublicOrAuthorizedDraftSeason(season.slug) : null;
-  if (!season || readable?.id !== season.id) throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。");
+/** Scope and DB-derived authorization belong only to this request, never HTTP input. */
+export async function assertVetoRoomReadable(matchId: string) {
+  const [[season], authorization] = await Promise.all([
+    db.select({ id: seasons.id, slug: seasons.slug, seasonId: matches.seasonId,
+      entryAId: matches.entryAId, entryBId: matches.entryBId, stage: matches.stage }).from(matches)
+      .leftJoin(seasons, eq(seasons.id, matches.seasonId)).where(eq(matches.id, matchId)).limit(1),
+    getCurrentUserAuthorization(),
+  ]);
+  if (season) assertCompetitionMatch(season);
+  const readable = season?.slug ? await getPublicOrAuthorizedDraftSeason(season.slug, authorization) : null;
+  if (!season?.id || readable?.id !== season.id) throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。");
+  return { seasonId: season.id, authorization };
 }

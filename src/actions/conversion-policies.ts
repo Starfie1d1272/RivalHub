@@ -1,10 +1,12 @@
 "use server";
 
+import { db } from "@/db/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import {
+  loadConversionPolicyAdminDetail,
   approveConversionPolicy,
   createConversionPolicyDraft,
   retireConversionPolicy,
@@ -106,4 +108,15 @@ export async function retireConversionPolicyAction(input: unknown): Promise<Acti
   } catch (error) {
     return actionError("retireConversionPolicy", error);
   }
+}
+
+/** Fresh authorization for each directory-to-detail transition. */
+export async function readConversionPolicyDetail(input: unknown) {
+  const parsed = idSchema.safeParse(input);
+  if (!parsed.success) return invalid("换算策略标识无效。 ");
+  try {
+    const id = parsed.data;
+    await requireSuperAdmin();
+    return ok(await loadConversionPolicyAdminDetail(db, id));
+  } catch (error) { return actionError("readConversionPolicyDetail", error); }
 }

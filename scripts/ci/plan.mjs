@@ -542,12 +542,45 @@ export function systemMatrixFor(plan, liveEvidence) {
   // Four auth flows plus unrelated cold routes exceed the execution budget.
   // Match the spec's auth scenario profile on its own runner.
   if (specs.includes(sessionSpec)) matrix.push({ task: "browser-session", live: false, specs: [sessionSpec] });
-  const ordinary = specs.filter(spec => spec !== liveSpec && spec !== seriesSpec && spec !== sessionSpec);
-  const shards = Array.from({ length: Math.min(7, ordinary.length) }, () => []);
-  ordinary.forEach((spec, index) => shards[index % shards.length].push(spec));
+  // Actual 40143081538/40144055247 timings leave only 81–97 seconds
+  // after stack/bootstrap/install. Do not co-schedule these cold admin routes.
+  const isolated = new Map([
+    ["tests/e2e/flows/admin-match-readiness.spec.ts", "browser-match-readiness"],
+    ["tests/e2e/flows/admin-content-read-boundaries.spec.ts", "browser-admin-content"],
+    ["tests/e2e/flows/major-qualification.spec.ts", "browser-qualification"],
+    ["tests/e2e/flows/major-entry.spec.ts", "browser-major-entry"],
+    ["tests/e2e/flows/platform-stats.spec.ts", "browser-statistics"],
+    ["tests/e2e/flows/predictions.spec.ts", "browser-predictions"],
+    ["tests/e2e/flows/test-matches.spec.ts", "browser-test-matches"],
+  ]);
+  for (const [spec, task] of isolated) {
+    if (specs.includes(spec)) matrix.push({ task, live: false, specs: [spec] });
+  }
+  // OCR has four cases in each project, including whole-browser recovery.
+  // A spec-only singleton still executes eight cases; partition the projects.
+  const ocrSpec = "tests/e2e/flows/ocr-receipt-recovery.spec.ts";
+  if (specs.includes(ocrSpec)) {
+    for (const project of ["chromium", "mobile-chrome"]) {
+      matrix.push({ task: `browser-ocr-${project}`, live: false, specs: [ocrSpec], project });
+    }
+  }
+  // This spec measures database-wide pg_stat_statements deltas. A different
+  // admin flow in the same DB can increment its normalized SQL counters.
+  // Give each project its own runner/DB; its internal advisory lock still
+  // serializes the two measurement journeys within that project.
+  const adminEvidenceSpec = "tests/e2e/flows/admin-immediate-boundaries.spec.ts";
+  if (specs.includes(adminEvidenceSpec)) {
+    for (const project of ["chromium", "mobile-chrome"]) {
+      matrix.push({ task: `browser-admin-evidence-${project}`, live: false, specs: [adminEvidenceSpec], project });
+    }
+  }
+  const ordinary = specs.filter(spec => spec !== liveSpec && spec !== seriesSpec && spec !== sessionSpec && spec !== ocrSpec && spec !== adminEvidenceSpec && !isolated.has(spec));
+  // Keep remaining combinations bounded as coverage grows instead of packing
+  // every new spec into a fixed seven-runner ceiling. No duration scheduler.
+  const shards = [];
+  for (let index = 0; index < ordinary.length; index += 2) shards.push(ordinary.slice(index, index + 2));
   return [...matrix, ...shards.map((specs, index) => ({
-    task: `browser-${index + 1}`, specs,
-    live: specs.includes("tests/e2e/flows/public-match-live.spec.ts"),
+    task: `browser-${index + 1}`, specs, live: false,
   }))];
 }
 

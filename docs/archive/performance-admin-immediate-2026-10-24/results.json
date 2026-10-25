@@ -1,0 +1,58 @@
+{
+  "samplingBase": "2845bf979f08c7ab307335fe52cd57e6086bc8d4",
+  "environment": "isolated local PostgreSQL / Local Supabase / Chromium",
+  "retry": 0,
+  "directory": {
+    "rootFlightDirectorySql": 1,
+    "revokedNewRequestDenied": true
+  },
+  "auditBrowser": {
+    "totalRows": 65,
+    "pageRows": [
+      50,
+      15
+    ],
+    "distinctTargetIds": 30,
+    "targetTypes": 2,
+    "labelsContainFixtureTeams": true,
+    "matchLabelSql": 1,
+    "directUrlBackForward": true,
+    "durationSeconds": 14.4
+  },
+  "auditPostgres": {
+    "targetTypes": 30,
+    "refs": 50,
+    "resolvedTypes": 12,
+    "missingFallbackTypes": 18,
+    "before": {
+      "queries": 40,
+      "rows": 21,
+      "jsonBytes": 1434,
+      "maxInFlight": 1,
+      "elapsedMs": 523.754
+    },
+    "after": {
+      "queries": 39,
+      "rows": 18,
+      "jsonBytes": 1204,
+      "maxInFlight": 3,
+      "elapsedMs": 228.418
+    },
+    "injectedPgDelayMs": 25
+  },
+  "frozenOverview": {
+    "canonicalFreeze": true,
+    "entrants": 32,
+    "members": 160,
+    "countVisibleInBrowser": true,
+    "sampledMemberAbsentFromFlight": true,
+    "durationSeconds": 17.6
+  },
+  "education": {
+    "injectedOverviewDelayMs": 5000,
+    "pendingEvidenceVisible": true,
+    "queueFilterNavigatedWhileOverviewPending": true,
+    "durationSeconds": 9.1,
+    "productionHookCommitted": false
+  }
+}

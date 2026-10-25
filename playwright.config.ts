@@ -13,7 +13,7 @@ export default defineConfig({
   retries,
   failOnFlakyTests: !!process.env.CI,
   workers: process.env.CI ? Number(process.env.PLAYWRIGHT_WORKERS ?? 1) : undefined,
-  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "html",
+  reporter: process.env.CI ? [["list"], ["./scripts/ci/playwright-exit-reporter.ts", { phase: "before-html" }], ["html", { open: "never" }], ["./scripts/ci/playwright-exit-reporter.ts", { phase: "after-html" }]] : "html",
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
     trace: "on-first-retry",

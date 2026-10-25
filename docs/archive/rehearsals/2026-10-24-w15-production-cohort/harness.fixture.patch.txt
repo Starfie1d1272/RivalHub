@@ -1,0 +1,70 @@
+diff --git a/src/db/client-runtime.ts b/src/db/client-runtime.ts
+index 89317613..a675ea54 100644
+--- a/src/db/client-runtime.ts
++++ b/src/db/client-runtime.ts
+@@ -36,7 +36,16 @@ function createPool(): Pool {
+     connectionTimeoutMillis: 10000,
+   };
+ 
+-  return new DatabasePool(pgConfig);
++  const created = new DatabasePool(pgConfig);
++  // LOCAL W15 HARNESS ONLY: bridge Next's per-entrypoint module instances.
++  if (process.env.RIVALHUB_W15_TEST_SNAPSHOT === "1") {
++    const key = Symbol.for("rivalhub.w15.fixture-pools");
++    const registryProcess = process as unknown as Record<symbol, WeakRef<DatabasePool>[]>;
++    const refs = registryProcess[key] ??= [];
++    registryProcess[key] = refs.filter(ref => ref.deref()).slice(-63);
++    registryProcess[key].push(new WeakRef(created));
++  }
++  return created;
+ }
+ 
+ let pool: Pool | null = null;
+diff --git a/src/lib/telemetry/origin.ts b/src/lib/telemetry/origin.ts
+index bb74026e..bd6985b9 100644
+--- a/src/lib/telemetry/origin.ts
++++ b/src/lib/telemetry/origin.ts
+@@ -4,6 +4,7 @@ import "server-only";
+ export function configuredTelemetryOrigin(): string | null {
+   try {
+     const url = new URL(process.env.PRODUCT_TELEMETRY_ORIGIN ?? "");
+-    return url.protocol === "https:" && !url.username && !url.password && url.href === `${url.origin}/` ? url.origin : null;
++    const localFixture = process.env.RIVALHUB_W15_TEST_SNAPSHOT === "1" && url.protocol === "http:" && ["127.0.0.1", "localhost"].includes(url.hostname);
++    return (url.protocol === "https:" || localFixture) && !url.username && !url.password && url.href === `${url.origin}/` ? url.origin : null;
+   } catch { return null; }
+ }
+diff --git a/src/lib/telemetry/server.ts b/src/lib/telemetry/server.ts
+index 14cdaa8f..214adaae 100644
+--- a/src/lib/telemetry/server.ts
++++ b/src/lib/telemetry/server.ts
+@@ -13,7 +13,8 @@ export async function telemetryBootstrap(viewer: { userId: string; isAdmin: bool
+     const origin = configuredTelemetryOrigin();
+     if (!origin) return null;
+     const environment = process.env.VERCEL_ENV;
+-    if (secret.length < 32 || identitySecret.length < 32 || endpoint.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.search || endpoint.hash || !["preview", "production"].includes(environment ?? "")) return null;
++    const localFixture = process.env.RIVALHUB_W15_TEST_SNAPSHOT === "1" && endpoint.protocol === "http:" && ["127.0.0.1", "localhost"].includes(endpoint.hostname);
++    if (secret.length < 32 || identitySecret.length < 32 || (endpoint.protocol !== "https:" && !localFixture) || endpoint.username || endpoint.password || endpoint.search || endpoint.hash || !["preview", "production"].includes(environment ?? "")) return null;
+     const release = process.env.RIVALHUB_RELEASE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "unknown";
+     if (!/^[A-Za-z0-9._-]{1,80}$/.test(release)) return null;
+     const ticket: Ticket = {
+diff --git a/src/app/api/w15-local-snapshot/route.ts b/src/app/api/w15-local-snapshot/route.ts
+new file mode 100644
+index 00000000..44221728
+--- /dev/null
++++ b/src/app/api/w15-local-snapshot/route.ts
+@@ -0,0 +1,15 @@
++import { getDatabasePoolSnapshot } from "@/db/client";
++import { getRuntimeHealthSnapshot } from "@/lib/observability/server";
++import type { DatabasePool } from "@/db/pool";
++
++export function GET(request: Request) {
++  const allowed = ["127.0.0.1", "localhost", "[::1]"];
++  const host = request.headers.get("host");
++  if (process.env.RIVALHUB_W15_TEST_SNAPSHOT !== "1" || !allowed.includes(new URL(request.url).hostname) || !host || !allowed.includes(new URL(`http://${host}`).hostname)) return new Response(null, { status: 404 });
++  const refs = (process as unknown as Record<symbol, WeakRef<DatabasePool>[]>)[Symbol.for("rivalhub.w15.fixture-pools")] ?? [];
++  const pools = refs.flatMap(ref => {
++    const pool = ref.deref();
++    return pool ? [{ total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount, acquire: pool.getAcquireSnapshot(), client: pool.getClientSnapshot() }] : [];
++  });
++  return Response.json({ sampledAt: Date.now(), pid: process.pid, modulePool: getDatabasePoolSnapshot(), pools, runtime: getRuntimeHealthSnapshot() }, { headers: { "Cache-Control": "no-store" } });
++}

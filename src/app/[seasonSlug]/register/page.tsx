@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
@@ -58,7 +59,11 @@ export async function generateMetadata({ params }: RegisterPageProps): Promise<M
   return { title: season ? `报名 · ${season.name}` : "报名" };
 }
 
-export default async function RegisterPage({ params, searchParams }: RegisterPageProps) {
+export default function RegisterPage(props: RegisterPageProps) {
+  return <Suspense fallback={<p role="status" aria-busy="true">正在读取报名资料…</p>}><RegisterContent {...props} /></Suspense>;
+}
+
+async function RegisterContent({ params, searchParams }: RegisterPageProps) {
   const { seasonSlug } = await params;
 
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);

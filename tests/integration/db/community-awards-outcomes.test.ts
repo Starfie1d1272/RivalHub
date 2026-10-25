@@ -9,7 +9,7 @@ describe("community award outcomes and evidence", () => {
     const pool = new Pool({ connectionString: localDatabaseUrl(), ssl: false });
     const schema = await import("@/db/schema");
     const service = await import("@/lib/community-awards/service");
-    const { getPublicCommunityAwardBoardData, getAdminCommunityAwardBoardData } = await import("@/lib/community-awards/data");
+    const { getPublicCommunityAwardBoardData, getAdminCommunityAwardBoardData, getAdminCommunityAwardBoardSummaries } = await import("@/lib/community-awards/data");
     const db = drizzle(pool, { schema });
     const seasonId = randomUUID(), foreignSeasonId = randomUUID();
     const ids = Array.from({ length: 5 }, () => randomUUID());
@@ -58,6 +58,9 @@ describe("community award outcomes and evidence", () => {
       expect(publicAward.recipients.map(item => item.userId)).toEqual([first, second, third]);
       expect(JSON.stringify(publicBoard)).not.toMatch(/内部|verificationNote|verifiedByUserId|evidence/);
       const adminBoard = await getAdminCommunityAwardBoardData(db, { seasonId, stagePlan: [] });
+      const adminAward = adminBoard.awards.find(item => item.id === awardId)!;
+      const summaryAward = (await getAdminCommunityAwardBoardSummaries(db, { seasonId })).awards.find(item => item.id === awardId)!;
+      expect(summaryAward).toMatchObject({ recipients: adminAward.recipients, recipientUserId: first, resultVersion: adminAward.resultVersion, settlementReady: adminAward.settlementReady, nonAwardingReady: adminAward.nonAwardingReady });
       expect(adminBoard.awards.find(item => item.id === awardId)?.evidence).toEqual(expect.arrayContaining([expect.objectContaining({ verificationStatus: "eligible", verifiedByUserId: admin, verifiedAt: expect.any(String), verificationNote: "内部核验理由" })]));
       await db.transaction(async tx => service.verifyCommunityAwardEvidenceInTx(tx, { awardId, evidenceId: evidenceIds[0]!, status: "ineligible", note: "更正核验", actorId: second, expectedVersion: await version(awardId) }));
       await expect(resolve(awardId, [first])).rejects.toMatchObject({ code: "SEASON_INVALID_STATUS" });

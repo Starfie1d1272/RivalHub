@@ -25,6 +25,7 @@ function parseCSTNextDateStart(value: string) {
 function positiveInt(value: number | undefined, fallback: number, max?: number) {
   if (!Number.isFinite(value) || !value || value < 1) return fallback;
   const normalized = Math.floor(value);
+  if (!Number.isSafeInteger(normalized)) return fallback;
   return max ? Math.min(normalized, max) : normalized;
 }
 
@@ -72,20 +73,24 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
     if (dateTo) conditions.push(lt(auditLogs.createdAt, parseCSTNextDateStart(dateTo)));
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
-    const [rows, [totalRow]] = await Promise.all([
-      db
+    const readPage = (currentPage: number) => db
         .select()
         .from(auditLogs)
         .where(where)
         .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
         .limit(safePageSize)
-        .offset((safePage - 1) * safePageSize),
+        .offset((currentPage - 1) * safePageSize);
+    const [requestedRows, [totalRow]] = await Promise.all([
+      readPage(safePage),
       db.select({ count: count() }).from(auditLogs).where(where),
     ]);
-
+    const total = Number(totalRow?.count ?? 0);
+    const currentPage = Math.min(safePage, Math.max(1, Math.ceil(total / safePageSize)));
+    // Only an out-of-range request needs another page read; labels are resolved once.
+    const rows = currentPage === safePage ? requestedRows : total > 0 ? await readPage(currentPage) : [];
     const logs = await readAuditLogViews(rows);
 
-    return ok<AuditLogsData>({ logs, total: Number(totalRow?.count ?? 0) });
+    return ok<AuditLogsData>({ logs, total });
   } catch (e) {
     return actionError("fetchAuditLogs", e);
   }

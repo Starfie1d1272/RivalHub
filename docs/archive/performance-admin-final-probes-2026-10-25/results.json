@@ -1,0 +1,407 @@
+{
+  "sourceMain": "3830c0467d6811e426bf8787238d17d85a1b7d0f",
+  "sourceTree": "39199e89d8a98006afa17d97ca5d4656958fea39",
+  "environment": "loopback real PG/auth/Chromium; dev warm route; synthetic HTTPS provider",
+  "productionClaim": false,
+  "workbench": {
+    "injectedProviderMs": 3000,
+    "existingTimeoutMs": 2500,
+    "delayedRequests": 1,
+    "samples": [
+      {
+        "delayed": false,
+        "primaryDomMs": 664.0999999977648,
+        "advancedDomMs": 664.1999999992549,
+        "fallbackMs": 633,
+        "shifts": [
+          {
+            "at": 664.7999999970198,
+            "value": 2.517361111111111e-05
+          },
+          {
+            "at": 1005.6999999992549,
+            "value": 0.00018414062923855252
+          }
+        ],
+        "longTasks": [],
+        "ready": [
+          {
+            "module": "admin",
+            "phase": "primary",
+            "durationMs": 1143,
+            "navigationType": "hard",
+            "visibility": "visible"
+          }
+        ],
+        "cls": 0.00020931424034966364,
+        "primaryTask": "核对首发并进入 BP",
+        "authorityText": "核对首发并进入 BP刷新进入 BP"
+      },
+      {
+        "delayed": true,
+        "primaryDomMs": 663.9000000022352,
+        "advancedDomMs": 2850,
+        "fallbackMs": 362,
+        "shifts": [
+          {
+            "at": 567,
+            "value": 0.00013164409001668293
+          },
+          {
+            "at": 664.4000000022352,
+            "value": 3.385416666666667e-05
+          }
+        ],
+        "longTasks": [],
+        "ready": [
+          {
+            "module": "admin",
+            "phase": "primary",
+            "durationMs": 700,
+            "navigationType": "hard",
+            "visibility": "visible"
+          }
+        ],
+        "cls": 0.0001654982566833496,
+        "primaryTask": "核对首发并进入 BP",
+        "authorityText": "核对首发并进入 BP刷新进入 BP"
+      }
+    ]
+  },
+  "telemetry": {
+    "query": "hours=168",
+    "responseBytes": 1048576,
+    "schemaValidated": true,
+    "upstreamBudget": {
+      "capturedAt": 1792888563012,
+      "from": 1792283763012,
+      "oldest": 1792283763012,
+      "batches": 2000,
+      "bytes": 2097152,
+      "truncated": true,
+      "validUntil": 1792892163012,
+      "totalReports": 20000,
+      "uniqueEvents": 20000,
+      "selected": 20000,
+      "latest": 1792888563012,
+      "partial": false
+    },
+    "cardinalities": {
+      "routes": 200,
+      "operations": 300,
+      "variants": 2000,
+      "filterRows": 2000,
+      "performanceRoutes": 1200,
+      "metricSegments": 2919,
+      "errorGroups": 100,
+      "sessions": 100,
+      "timeline": 100
+    },
+    "serverHttpsQueries": 1,
+    "baseline": [
+      {
+        "name": "LayoutDuration",
+        "value": 5.5e-05
+      },
+      {
+        "name": "ScriptDuration",
+        "value": 0.00018
+      },
+      {
+        "name": "TaskDuration",
+        "value": 0.008639
+      },
+      {
+        "name": "JSHeapUsedSize",
+        "value": 13640512
+      }
+    ],
+    "phases": [
+      {
+        "label": "overview",
+        "automationInteractionMs": null,
+        "metrics": {
+          "LayoutDuration": 0.047737,
+          "ScriptDuration": 0.065882,
+          "TaskDuration": 0.535877,
+          "JSHeapUsedSize": 25989492
+        },
+        "dom": {
+          "documents": 10,
+          "nodes": 2215,
+          "jsEventListeners": 1308
+        },
+        "at": 1124.5999999977648,
+        "nodes": 412,
+        "longTasks": [
+          {
+            "at": 630.5,
+            "duration": 84
+          }
+        ]
+      },
+      {
+        "label": "使用行为",
+        "automationInteractionMs": 2000.2000000029802,
+        "metrics": {
+          "LayoutDuration": 0.167781,
+          "ScriptDuration": 1.242989,
+          "TaskDuration": 2.244069,
+          "JSHeapUsedSize": 55550980
+        },
+        "dom": {
+          "documents": 4,
+          "nodes": 29473,
+          "jsEventListeners": 3549
+        },
+        "at": 3138.5,
+        "nodes": 9266,
+        "longTasks": [
+          {
+            "at": 630.5,
+            "duration": 84
+          },
+          {
+            "at": 1259.7999999970198,
+            "duration": 950
+          },
+          {
+            "at": 2654.39999999851,
+            "duration": 281
+          }
+        ]
+      },
+      {
+        "label": "页面性能",
+        "automationInteractionMs": 723.5999999977648,
+        "metrics": {
+          "LayoutDuration": 0.222992,
+          "ScriptDuration": 1.459056,
+          "TaskDuration": 2.827627,
+          "JSHeapUsedSize": 73284096
+        },
+        "dom": {
+          "documents": 4,
+          "nodes": 46711,
+          "jsEventListeners": 4476
+        },
+        "at": 3905.2999999970198,
+        "nodes": 6030,
+        "longTasks": [
+          {
+            "at": 630.5,
+            "duration": 84
+          },
+          {
+            "at": 1259.7999999970198,
+            "duration": 950
+          },
+          {
+            "at": 2654.39999999851,
+            "duration": 281
+          },
+          {
+            "at": 3283.7999999970198,
+            "duration": 296
+          }
+        ]
+      },
+      {
+        "label": "异常与拒绝",
+        "automationInteractionMs": 455.9000000022352,
+        "metrics": {
+          "LayoutDuration": 0.228555,
+          "ScriptDuration": 1.714036,
+          "TaskDuration": 3.210693,
+          "JSHeapUsedSize": 83977240
+        },
+        "dom": {
+          "documents": 4,
+          "nodes": 49008,
+          "jsEventListeners": 4803
+        },
+        "at": 4389.5,
+        "nodes": 1044,
+        "longTasks": [
+          {
+            "at": 630.5,
+            "duration": 84
+          },
+          {
+            "at": 1259.7999999970198,
+            "duration": 950
+          },
+          {
+            "at": 2654.39999999851,
+            "duration": 281
+          },
+          {
+            "at": 3283.7999999970198,
+            "duration": 296
+          },
+          {
+            "at": 4006.7999999970198,
+            "duration": 264
+          }
+        ]
+      },
+      {
+        "label": "采集状态",
+        "automationInteractionMs": 166,
+        "metrics": {
+          "LayoutDuration": 0.232688,
+          "ScriptDuration": 1.7673,
+          "TaskDuration": 3.307864,
+          "JSHeapUsedSize": 76306916
+        },
+        "dom": {
+          "documents": 4,
+          "nodes": 49159,
+          "jsEventListeners": 5025
+        },
+        "at": 4567.099999997765,
+        "nodes": 261,
+        "longTasks": [
+          {
+            "at": 630.5,
+            "duration": 84
+          },
+          {
+            "at": 1259.7999999970198,
+            "duration": 950
+          },
+          {
+            "at": 2654.39999999851,
+            "duration": 281
+          },
+          {
+            "at": 3283.7999999970198,
+            "duration": 296
+          },
+          {
+            "at": 4006.7999999970198,
+            "duration": 264
+          },
+          {
+            "at": 4450,
+            "duration": 59
+          }
+        ]
+      },
+      {
+        "label": "访问概览",
+        "automationInteractionMs": 229.19999999925494,
+        "metrics": {
+          "LayoutDuration": 0.239209,
+          "ScriptDuration": 1.867784,
+          "TaskDuration": 3.47123,
+          "JSHeapUsedSize": 66943272
+        },
+        "dom": {
+          "documents": 4,
+          "nodes": 50326,
+          "jsEventListeners": 5610
+        },
+        "at": 4800.29999999702,
+        "nodes": 408,
+        "longTasks": [
+          {
+            "at": 630.5,
+            "duration": 84
+          },
+          {
+            "at": 1259.7999999970198,
+            "duration": 950
+          },
+          {
+            "at": 2654.39999999851,
+            "duration": 281
+          },
+          {
+            "at": 3283.7999999970198,
+            "duration": 296
+          },
+          {
+            "at": 4006.7999999970198,
+            "duration": 264
+          },
+          {
+            "at": 4450,
+            "duration": 59
+          },
+          {
+            "at": 4616.79999999702,
+            "duration": 78
+          }
+        ]
+      },
+      {
+        "label": "release-dropdown-2001-options",
+        "automationInteractionMs": 3659.699999999255,
+        "metrics": {
+          "LayoutDuration": 0.263674,
+          "ScriptDuration": 5.752516,
+          "TaskDuration": 8.199671,
+          "JSHeapUsedSize": 161635424
+        },
+        "dom": {
+          "documents": 1,
+          "nodes": 37529,
+          "jsEventListeners": 16329
+        },
+        "at": 12234.699999999255,
+        "nodes": 6449,
+        "longTasks": [
+          {
+            "at": 630.5,
+            "duration": 84
+          },
+          {
+            "at": 1259.7999999970198,
+            "duration": 950
+          },
+          {
+            "at": 2654.39999999851,
+            "duration": 281
+          },
+          {
+            "at": 3283.7999999970198,
+            "duration": 296
+          },
+          {
+            "at": 4006.7999999970198,
+            "duration": 264
+          },
+          {
+            "at": 4450,
+            "duration": 59
+          },
+          {
+            "at": 4616.79999999702,
+            "duration": 78
+          },
+          {
+            "at": 4850.39999999851,
+            "duration": 2171
+          },
+          {
+            "at": 8630.79999999702,
+            "duration": 2069
+          }
+        ]
+      }
+    ],
+    "cpuProfile": {
+      "samples": 13349,
+      "durationUs": 14133972
+    }
+  },
+  "limitations": [
+    "Single desktop Chromium development-mode sample, no CPU/network throttling; no p75/p95 or production performance claim.",
+    "Advanced is an actually visible DOM milestone; existing workbench has no advanced product marker. Primary is an accepted product ready event under the local signed-bootstrap fixture.",
+    "Telemetry data is a synthetic AnalysisData response-contract boundary, not a Worker/D1 query over 2000 real batches. The actual app reader authorizes the user, requests hours=168 over loopback HTTPS, enforces the1MiB transport cap and validates the schema.",
+    "Not all array caps fit simultaneously under the1MiB transport limit; all measured cardinalities are explicit.",
+    "Interaction timing includes automation/CDP scheduling and two animation frames, not INP. Heap is observed used heap without forced GC, not retained heap or leak evidence.",
+    "Telemetry events and HTTPS provider responses are local fixtures, not production receiver/third-party acceptance. Runtime source modifications were temporary and restored."
+  ]
+}
