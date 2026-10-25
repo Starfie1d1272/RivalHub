@@ -8,11 +8,13 @@ import { Field } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { createBrowserClient } from "@/lib/auth/supabase";
 import { isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
+import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { observeAction } from "@/lib/telemetry/client";
 
 const resetUserPassword = observeAction("password-recovery.resetUserPassword", telemetry_resetUserPassword);
 
 export function ResetPasswordForm() {
+  const task = useTelemetryTask("account", "password-reset");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -20,11 +22,14 @@ export function ResetPasswordForm() {
   const router = useRouter();
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const taskToken = task.begin("submit");
     if (!isPasswordPolicySatisfied(password)) {
+      task.validation("password_policy", taskToken);
       toast.error(PASSWORD_POLICY_MESSAGE);
       return;
     }
     if (password !== confirmPassword) {
+      task.validation("password_mismatch", taskToken);
       toast.error("两次输入的密码不一致");
       return;
     }
@@ -40,6 +45,7 @@ export function ResetPasswordForm() {
         if (result.error.code === "PASSWORD_UPDATE_OUTCOME_UNKNOWN") setRecoveryGuidance(result.error.message);
         toast.error(result.error.message);
       } else {
+        task.complete(taskToken);
         committed = true;
         await supabase.auth.signOut({ scope: "local" });
         toast.success("密码已重置，所有旧登录已退出，请用新密码登录");
@@ -56,7 +62,7 @@ export function ResetPasswordForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onInputCapture={() => task.begin()} onInvalidCapture={() => { task.begin(); task.validation("form_invalid"); }} onSubmit={handleSubmit} className="space-y-4">
       <Field id="password" label="新密码" type="password" placeholder={`至少 ${MIN_PASSWORD_LENGTH} 位，含大小写/数字/特殊字符`} value={password} onChange={setPassword} required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password" />
       <Field id="confirm-password" label="确认新密码" type="password" placeholder="再次输入密码" value={confirmPassword} onChange={setConfirmPassword} required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password" />
       <p className="text-xs text-[var(--color-fg-mid)]">{PASSWORD_POLICY_MESSAGE}。</p>

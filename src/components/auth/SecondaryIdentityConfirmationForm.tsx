@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { confirmSecondaryEmailIdentity as telemetry_confirmSecondaryEmailIdentity } from "@/actions/identity";
 import { Button } from "@/components/ui/button";
+import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { observeAction } from "@/lib/telemetry/client";
 
 const confirmSecondaryEmailIdentity = observeAction("identity.confirmSecondaryEmailIdentity", telemetry_confirmSecondaryEmailIdentity);
@@ -19,16 +20,19 @@ export function SecondaryIdentityConfirmationForm({
   stateToken: string;
   otpType: "email" | "magiclink";
 }) {
+  const task = useTelemetryTask("account", "confirm-secondary");
   const [pending, startTransition] = useTransition();
   const [failure, setFailure] = useState<string | null>(null);
 
   function confirm() {
+    const taskToken = task.begin("submit");
     startTransition(async () => {
       const result = await confirmSecondaryEmailIdentity({ tokenHash, requestId, stateToken, otpType });
       if (!result.success) {
         setFailure(result.error.message);
         return;
       }
+      task.complete(taskToken);
       window.location.assign(result.data.redirectTo);
     });
   }

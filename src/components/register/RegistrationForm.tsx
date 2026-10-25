@@ -76,6 +76,7 @@ export function RegistrationForm({
 }: RegistrationFormProps) {
   const { canSaveDraft, canSubmit, message: windowMessage } = windowState;
   const task = useTelemetryTask("registration", seasonId, canSubmit);
+  const receiptToken = useRef<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState("");
   const [savingDraft, setSavingDraft] = useState(false);
@@ -126,9 +127,10 @@ export function RegistrationForm({
     task.step("submit", taskToken);
     const result = await submitRegistration(data);
     if (result.success) {
+      task.complete(taskToken);
+      receiptToken.current = taskToken;
       setSubmittedEmail(data.email);
       setSubmitted(true);
-      task.complete(taskToken);
     } else {
       if (result.error.fieldErrors) {
         task.validation("server_validation", taskToken);
@@ -217,6 +219,11 @@ export function RegistrationForm({
       await loadDraftForEmail(email);
     },
   });
+
+  const presentResult = task.step;
+  useEffect(() => {
+    if (submitted) presentResult("result", receiptToken.current);
+  }, [submitted, presentResult]);
 
   // ── 提交成功页 ──
   if (submitted) {

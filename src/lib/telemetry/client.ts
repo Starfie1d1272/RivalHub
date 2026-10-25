@@ -12,8 +12,20 @@ let identity: string | null = null;
 let session = "";
 let activeAt = 0;
 const taskExposures = new Set<string>();
-const tasks = new TelemetryTasks(report => record({ kind: "task", ...report }), undefined, undefined,
-  () => typeof document !== "undefined" && document.visibilityState !== "hidden");
+type TaskAttemptContext = Pick<TelemetryEvent, "route" | "scene" | "eventId" | "measurement"> & { queue: TelemetryQueue; session: string };
+const tasks = new TelemetryTasks<TaskAttemptContext>(report => {
+  const { context: original, ...payload } = report;
+  // The in-memory queue owner is never serialized; a changed identity invalidates it.
+  if (!original || original.queue !== queue) return;
+  record({ kind: "task", ...payload, route: original.route, scene: original.scene,
+    eventId: original.eventId, measurement: original.measurement }, original.session);
+}, undefined, undefined,
+  () => typeof document !== "undefined" && document.visibilityState !== "hidden", 1,
+  () => {
+    if (!queue) return;
+    touchSession(Date.now());
+    return { ...context(), queue, session, measurement: measurementContext() };
+  });
 let sceneContext: { prefix: string; scene: Scene; eventId: string } | null = null;
 let previousPage = "";
 let historyNavigation = false;
@@ -71,17 +83,51 @@ export function recordContentReady(token: string | null, module: typeof READY_MO
     record({ kind: "ready", ready: { module, phase }, durationMs: Math.min(3600000, Math.max(0, Math.round(performance.now() - activeNavigation.started))) });
   });
 }
+/** Raw monotonic demand start and navigation identity are memory-only. */
+export type TelemetryDemandToken = Readonly<{ navigationId: string; module: typeof READY_MODULES[number]; started: number }>;
+const demands = new Map<TelemetryDemandToken, { queue: TelemetryQueue; phase?: typeof READY_PHASES[number] }>();
+// Enable only after B's receiver + analysis compatibility has landed. Never send an unknown wire field.
+const demandBasisEmissionEnabled = false;
+export function beginTelemetryDemand(module: typeof READY_MODULES[number]): TelemetryDemandToken | null {
+  let token: TelemetryDemandToken | null = null;
+  attempt(() => {
+    const navigationId = captureTelemetryNavigation();
+    if (!queue || !navigationId || !READY_MODULES.includes(module)) return;
+    for (const [key, owner] of demands) if (owner.queue !== queue || performance.now() - key.started > 3600000) demands.delete(key);
+    token = Object.freeze({ navigationId, module, started: performance.now() });
+    if (demands.size >= 32) demands.delete(demands.keys().next().value!);
+    demands.set(token, { queue });
+  });
+  return token;
+}
+export function recordDemandReady(token: TelemetryDemandToken | null, phase: typeof READY_PHASES[number]): void {
+  attempt(() => {
+    const owner = token && demands.get(token);
+    if (!token || !owner || owner.queue !== queue || token.navigationId !== captureTelemetryNavigation() || !READY_PHASES.includes(phase) || owner.phase || performance.now() - token.started > 3600000) return;
+    owner.phase = phase;
+    // Keep the navigation-to-first-ready observation, including late expansion/extrema.
+    recordContentReady(token.navigationId, token.module, phase);
+    if (!demandBasisEmissionEnabled) return;
+    const ready = { module: token.module, phase, basis: "demand" as const };
+    record({ kind: "ready", ready, durationMs: Math.max(0, Math.round(performance.now() - token.started)) });
+  });
+}
 const errorCodes = new Set<string>(Object.values(ErrorCode));
 const storageKey = "rivalhub-product-session-v1";
-function attempt(callback: () => void) { try { callback(); } catch { /* Observability cannot alter a business result. */ } }
+function privacyDisabled() { return navigator.doNotTrack === "1" || (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true; }
+function attempt(callback: () => void) { try {
+  if (queue && privacyDisabled()) { tasks.reset(); demands.clear(); taskExposures.clear(); queue = null; bootstrap = null; identity = null; session = ""; previousPage = ""; generation++; vitalNavigationAfter = performance.now(); activeNavigation = null; pendingNavigation = null; vitalIds.clear(); sessionStorage.removeItem(storageKey); }
+  callback();
+} catch { /* Observability cannot alter a business result. */ } }
 
 export function configureTelemetry(config: Bootstrap | null) {
   attempt(() => {
     generation++;
-    if (!config || config.identity !== identity) { activeNavigation = null; tasks.reset(); taskExposures.clear(); }
+    if (!config || config.identity !== identity) { activeNavigation = null; demands.clear(); tasks.reset(); taskExposures.clear(); }
     if (!config || navigator.doNotTrack === "1" || (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl) {
       if (queue) vitalNavigationAfter = performance.now();
-      tasks.reset(); queue = null; identity = null; bootstrap = null;
+      tasks.reset(); demands.clear(); queue = null; identity = null; bootstrap = null;
+      session = ""; previousPage = ""; sessionStorage.removeItem(storageKey);
       vitalIds.clear(); pendingNavigation = null;
       return;
     }
@@ -159,9 +205,11 @@ export function recordWebVital(metric: { name: string; value: number; id: string
         const kind = metric.navigationType === "soft-navigation" ? "soft" : metric.navigationType === "back-forward-cache" ? "bfcache" : metric.navigationType === "prerender" ? "prerender" : ["navigate", "reload", "back-forward"].includes(metric.navigationType ?? "") ? "hard" : "unknown";
         const lifecycle = navigationLifecycle(kind === "prerender" ? "hard" : kind, Number.isFinite(start) ? start : 0);
         lifecycle.navigationType = kind;
-        // Native metric lifecycle remains distinct from current SPA navigation.
-        // Its random correlation ID is per sample and stable across later reports.
-        sample.measurement = { v: 1, navigationId: crypto.randomUUID(), clientRelease: process.env.RIVALHUB_RELEASE_COMMIT || "unknown", ...(process.env.RIVALHUB_RELEASE_TAG ? { clientVersion: process.env.RIVALHUB_RELEASE_TAG } : {}), visibility: document.visibilityState === "hidden" ? "hidden" : "visible", lifecycle };
+        // No inferred association from the current URL or native metric ID.
+        const matchedNavigation = metric.navigationStartTime !== undefined && activeNavigation &&
+          activeNavigation.key === url.pathname + url.search && activeNavigation.started === start &&
+          activeNavigation.lifecycle.navigationType === kind ? activeNavigation.id : null;
+        sample.measurement = { v: 1, navigationId: matchedNavigation ?? crypto.randomUUID(), clientRelease: process.env.RIVALHUB_RELEASE_COMMIT || "unknown", ...(process.env.RIVALHUB_RELEASE_TAG ? { clientVersion: process.env.RIVALHUB_RELEASE_TAG } : {}), visibility: document.visibilityState === "hidden" ? "hidden" : "visible", lifecycle };
       }
       vitalIds.set(key, sample);
       if (vitalIds.size > 128) vitalIds.delete(vitalIds.keys().next().value!);
@@ -215,7 +263,7 @@ export function recordClientError(event?: Event, boundaryError?: unknown) {
 }
 export function flushTelemetry() { attempt(() => { tasks.checkpoint(); void queue?.flush().catch(() => {}); }); }
 export function resetTelemetryIdentity() {
-  flushTelemetry(); tasks.reset(); taskExposures.clear(); generation++; nextRenewalAttempt = 0; bootstrap = null; queue = null; identity = null; session = ""; previousPage = "";
+  flushTelemetry(); tasks.reset(); demands.clear(); taskExposures.clear(); generation++; nextRenewalAttempt = 0; bootstrap = null; queue = null; identity = null; session = ""; previousPage = "";
   vitalIds.clear(); pendingNavigation = null; activeNavigation = null;
   vitalNavigationAfter = performance.now();
   attempt(() => sessionStorage.removeItem(storageKey));
@@ -275,10 +323,17 @@ export function observeAction<A extends unknown[], R>(operation: Operation, acti
       operationId = crypto.randomUUID(); started = performance.now(); captured = context();
       variant = variantFor(operation, args[0]); filters = safeFilters(new URLSearchParams(window.location.search));
       const taskName = taskForOperation(operation);
-      operationTask = taskName ? tasks.capture(taskName) : undefined;
-      record({ ...captured, ...(operationTask ? { task: operationTask } : {}), kind: "operation", operation, operationId, phase: "start", ...(variant ? { variant } : {}) });
-      operationSession = session;
-      operationMeasurement = measurementContext();
+      const taskAttempt = taskName ? tasks.captureWithContext(taskName, `${window.location.pathname}:`) : undefined;
+      if (taskAttempt?.context?.queue === actionQueue) {
+        const original = taskAttempt.context;
+        operationTask = taskAttempt.task;
+        captured = { route: original.route, scene: original.scene, eventId: original.eventId };
+        operationSession = original.session;
+        operationMeasurement = original.measurement;
+      }
+      record({ ...captured, ...(operationMeasurement ? { measurement: operationMeasurement } : {}), ...(operationTask ? { task: operationTask } : {}), kind: "operation", operation, operationId, phase: "start", ...(variant ? { variant } : {}) }, operationSession);
+      operationSession ??= session;
+      operationMeasurement ??= measurementContext();
     });
     const finish = (phase: TelemetryEvent["phase"], errorCode?: string, requestId?: string, outcome?: TelemetryEvent["outcome"]) => attempt(() => {
       // Do not attribute an old user's pending result to a new identity.
@@ -301,8 +356,8 @@ export function observeAction<A extends unknown[], R>(operation: Operation, acti
           const code = typeof value.error?.code === "string" && errorCodes.has(value.error.code) ? value.error.code : "UNCLASSIFIED";
           finish(code === "INTERNAL_ERROR" || code === "PASSWORD_UPDATE_OUTCOME_UNKNOWN" ? "unknown" : "rejected", code, typeof value.error?.requestId === "string" ? value.error.requestId : undefined);
         } else finish("unknown", "INVALID_RESULT");
-        if (value?.success === true && operation === "auth.loginWithPassword") completeTelemetryTask("login", operationTask?.attemptId ?? null);
-        if (value?.success === true && ["auth.loginWithPassword", "auth.logoutUser", "user-merge.executeSelfServiceUserMerge"].includes(operation)) resetTelemetryIdentity();
+        if (queue === actionQueue && value?.success === true && operation === "auth.loginWithPassword") completeTelemetryTask("login", operationTask?.attemptId ?? null);
+        if (queue === actionQueue && value?.success === true && ["auth.loginWithPassword", "auth.logoutUser", "user-merge.executeSelfServiceUserMerge"].includes(operation)) resetTelemetryIdentity();
       });
       return result;
     } catch (error) { finish("unknown", "TRANSPORT_OR_THROW"); throw error; }
@@ -321,13 +376,13 @@ export function beginTelemetryTask(name: TaskName, scope = "", step: TaskStep = 
   attempt(() => { if (queue && bootstrap?.measurementVersion === 1) token = tasks.begin(name, `${window.location.pathname}:${scope}`, step); });
   return token;
 }
-export function activityTelemetryTask(name: TaskName) { attempt(() => { if (queue) tasks.activity(name); }); }
-export function stepTelemetryTask(name: TaskName, step: TaskStep, token?: string | null) { attempt(() => { if (queue) tasks.step(name, step, token); }); }
-export function completeTelemetryTask(name: TaskName, token?: string | null) { attempt(() => { if (queue) tasks.finish(name, "complete", token); }); }
-export function cancelTelemetryTask(name: TaskName, token?: string | null) { attempt(() => { if (queue) tasks.finish(name, "cancel", token); }); }
+export function activityTelemetryTask(name: TaskName, token?: string | null) { attempt(() => { if (queue) tasks.activity(name, token); }); }
+export function stepTelemetryTask(name: TaskName, step: TaskStep, token?: string | null) { attempt(() => { if (queue && token) tasks.step(name, step, token); }); }
+export function completeTelemetryTask(name: TaskName, token?: string | null) { attempt(() => { if (queue && token) tasks.finish(name, "complete", token); }); }
+export function cancelTelemetryTask(name: TaskName, token?: string | null) { attempt(() => { if (queue && token) tasks.finish(name, "cancel", token); }); }
 export function forgetTelemetryTask(name: TaskName, token?: string | null) { attempt(() => tasks.forget(name, token)); }
 
-export function recordTaskValidation(name: TaskName, reason: TaskValidationReason, token?: string | null) { attempt(() => { if (queue) tasks.validation(name, reason, token); }); }
+export function recordTaskValidation(name: TaskName, reason: TaskValidationReason, token?: string | null) { attempt(() => { if (queue && token) tasks.validation(name, reason, token); }); }
 
 /** Denominator only for an explicitly eligible, mounted entry; never inferred from all page views. */
 export function exposeTelemetryTask(name: TaskName, scope = ""): boolean {
