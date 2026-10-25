@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import { RegistrationReturnLink } from "@/components/settings/RegistrationReturnLink";
 import { and, desc, eq, inArray } from "drizzle-orm";
@@ -9,7 +10,11 @@ import { getUserSession } from "@/lib/auth/session";
 import { emailDomain } from "@/lib/education/validation";
 import { listVerifiedEmailIdentities } from "@/lib/identity/linking";
 
-export default async function EducationSettingsPage({ searchParams }: { searchParams?: Promise<{ returnTo?: string | string[] }> }) {
+export default function EducationSettingsPage(props: { searchParams?: Promise<{ returnTo?: string | string[] }> }) {
+  return <Suspense fallback={<p role="status" aria-busy="true">正在读取账号资料…</p>}><EducationSettingsContent {...props} /></Suspense>;
+}
+
+async function EducationSettingsContent({ searchParams }: { searchParams?: Promise<{ returnTo?: string | string[] }> }) {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/settings/education");
   const [user] = await db.select({ id: users.id, email: users.email, emailVerifiedAt: users.emailVerifiedAt }).from(users).where(and(eq(users.id, session.userId), eq(users.status, "active"))).limit(1);
