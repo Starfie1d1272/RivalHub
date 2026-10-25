@@ -1,3 +1,5 @@
+import providerFixture from "./fixtures/long-window-provider.json";
+import { LongWindowSummary as SummarySchema } from "@/lib/telemetry/long-window-contract";
 import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import { act, cleanup, render, screen, within } from "@testing-library/react";
@@ -98,4 +100,26 @@ it("uses the provider's merged bucket counts while preserving maximum observatio
   expect(within(rows[2]!).getAllByRole("cell")[1]!.textContent).toBe("2");
   await user.click(screen.getByRole("button", { name: "活跃操作时间" }));
   expect(screen.getByText("此组没有有效时长样本。")).toBeInTheDocument();
+});
+
+// Captured from the actual Worker/D1 read after seeding with canonical history.sample
+// dimensions. This protects the wire representation (ready name=module:phase).
+it("renders actual provider ready/operation group labels and measurement details", async () => {
+  const user = userEvent.setup(); const data = SummarySchema.parse(providerFixture);
+  render(<LongWindowAnalysis data={data} />);
+  const demand = screen.getAllByRole("row").find(row => row.textContent?.includes("从需求触发开始"))!;
+  expect(within(demand).getByRole("button").textContent).toContain("竞猜 · 表单可操作");
+  expect(screen.getByText(/已观测到确认的任务数，不是成熟窗口完成率/)).toBeInTheDocument();
+  for (const label of ["附属定义未关联/未知", "附属定义 v1", "附属定义 v2"]) expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+  const ops = screen.getAllByRole("row").filter(row => within(row).queryByText("附属定义 v2"));
+  const titles = [];
+  for (const row of ops) { await user.click(within(row).getByRole("button")); titles.push(screen.getAllByRole("heading").map(h => h.textContent).find(t => t?.includes("附属定义 v2"))); }
+  expect(titles.some(t => t?.includes("测量版本未知"))).toBe(true);
+  expect(titles.some(t => t?.includes("测量 v1"))).toBe(true);
+});
+it.each([["ticketRelease", "票据签发版本"], ["eventIdMissing", "未关联赛事"]])("explains the provider unsupported dimension %s", (dimension, label) => {
+  const data = SummarySchema.parse(providerFixture);
+  render(<LongWindowAnalysis data={{ ...data, coverage: { ...data.coverage, status: "unsupported" }, unsupportedDimensions: [dimension] }} />);
+  expect(screen.getByText(`不支持的筛选：${label}。`, { exact: false })).toBeInTheDocument();
+  expect(screen.queryByText("页面访问")).not.toBeInTheDocument();
 });
