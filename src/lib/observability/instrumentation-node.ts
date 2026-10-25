@@ -10,6 +10,8 @@ import { logEvent } from "@/lib/observability/server";
 import { SanitizingSpanProcessor } from "@/lib/observability/span-sanitizer";
 import { createTraceSampler } from "@/lib/observability/sampling";
 
+import { startRuntimeHealthSampling } from "./runtime-health";
+
 let registered = false;
 
 export function registerNodeObservability(): void {
@@ -42,6 +44,9 @@ export function registerNodeObservability(): void {
     instrumentationConfig: { fetch: getFetchInstrumentationConfig(betterStack.config) },
   });
   registered = true;
+  if (process.env.NODE_ENV === "production" && process.env.NEXT_RUNTIME === "nodejs" &&
+      process.env.VERCEL !== "1" && process.env.NEXT_PHASE !== "phase-production-build" &&
+      process.env.RIVALHUB_RUNTIME_HEALTH_ENABLED !== "0") startRuntimeHealthSampling();
 
   if (betterStack.reason !== "environment_disabled") {
     logEvent({

@@ -1,0 +1,1333 @@
+{
+  "sha": "356b1a53048672d70ddbad7679184157ba6362be",
+  "image": "sha256:dc1f22974dab4be31a8b56d58cb1f8fc218e83de83ccd831d885b3d7ac1223fb",
+  "scope": "loopback production Next build; local PG; process-cold, artifact cache retained; anonymous HTTP; observer cat included in cgroup peak; no browser or production evidence",
+  "runs": [
+    {
+      "round": 1,
+      "enabled": false,
+      "sha": "356b1a53048672d70ddbad7679184157ba6362be",
+      "limits": {
+        "memoryBytes": 536870912,
+        "cpus": 1,
+        "pids": 128
+      },
+      "phases": [
+        {
+          "phase": "started",
+          "elapsedMs": 2907,
+          "memoryCurrentBytes": 79265792,
+          "memoryPeakBytes": 79269888,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "cold",
+          "elapsedMs": 3695,
+          "memoryCurrentBytes": 109514752,
+          "memoryPeakBytes": 109514752,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "warm",
+          "elapsedMs": 3873,
+          "memoryCurrentBytes": 112431104,
+          "memoryPeakBytes": 112431104,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "concurrent12",
+          "elapsedMs": 4411,
+          "memoryCurrentBytes": 132964352,
+          "memoryPeakBytes": 132964352,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "idle30s",
+          "elapsedMs": 34509,
+          "memoryCurrentBytes": 112099328,
+          "memoryPeakBytes": 133718016,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "idle65s",
+          "elapsedMs": 69600,
+          "memoryCurrentBytes": 112394240,
+          "memoryPeakBytes": 133718016,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        }
+      ],
+      "requests": [
+        {
+          "route": "/stats",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 67834,
+          "durationMs": 547.7753639999996
+        },
+        {
+          "route": "/teams",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 41092,
+          "durationMs": 72.99160900000015
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 36798,
+          "durationMs": 73.48125200000004
+        },
+        {
+          "route": "/seasons",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 35.30700800000022
+        },
+        {
+          "route": "/stats",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 34.16193699999985
+        },
+        {
+          "route": "/teams",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 41092,
+          "durationMs": 30.55424600000015
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 34.57779500000015
+        },
+        {
+          "route": "/seasons",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 22.49526999999989
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 429.6761059999999
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 429.29729499999985
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 432.4494460000001
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36383,
+          "durationMs": 435.15320000000065
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 444.10786499999995
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 446.56193299999995
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 452.3579279999999
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 452.5982600000002
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 462.99978599999986
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 470.5211710000003
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 472.16682000000037
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36383,
+          "durationMs": 472.4991909999999
+        }
+      ],
+      "state": {
+        "Status": "running",
+        "Running": true,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 12086,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-25T17:17:58.17616598Z",
+        "FinishedAt": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "round": 1,
+      "enabled": true,
+      "sha": "356b1a53048672d70ddbad7679184157ba6362be",
+      "limits": {
+        "memoryBytes": 536870912,
+        "cpus": 1,
+        "pids": 128
+      },
+      "phases": [
+        {
+          "phase": "started",
+          "elapsedMs": 3163,
+          "memoryCurrentBytes": 79323136,
+          "memoryPeakBytes": 81993728,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "cold",
+          "elapsedMs": 4279,
+          "memoryCurrentBytes": 107773952,
+          "memoryPeakBytes": 109129728,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "warm",
+          "elapsedMs": 4466,
+          "memoryCurrentBytes": 112832512,
+          "memoryPeakBytes": 112836608,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "concurrent12",
+          "elapsedMs": 4985,
+          "memoryCurrentBytes": 126844928,
+          "memoryPeakBytes": 126844928,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "idle30s",
+          "elapsedMs": 35043,
+          "memoryCurrentBytes": 111562752,
+          "memoryPeakBytes": 129576960,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "idle65s",
+          "elapsedMs": 70101,
+          "memoryCurrentBytes": 112091136,
+          "memoryPeakBytes": 129576960,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        }
+      ],
+      "requests": [
+        {
+          "route": "/stats",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 67834,
+          "durationMs": 731.6897179999942
+        },
+        {
+          "route": "/teams",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 41092,
+          "durationMs": 139.66114399999788
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 36798,
+          "durationMs": 110.3527080000058
+        },
+        {
+          "route": "/seasons",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 38.44908299999952
+        },
+        {
+          "route": "/stats",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 38.1343840000045
+        },
+        {
+          "route": "/teams",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 41092,
+          "durationMs": 34.180913000003784
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 27.136232000004384
+        },
+        {
+          "route": "/seasons",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 22.681446000002325
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67791,
+          "durationMs": 386.0122080000001
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 399.19048000000475
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 399.6505519999919
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 407.54857600000105
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 410.2420770000026
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 415.3552630000049
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 421.1428089999972
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 421.4868870000064
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 435.4756430000125
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 450.3766059999907
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 451.3996349999943
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 451.33219299999473
+        }
+      ],
+      "state": {
+        "Status": "running",
+        "Running": true,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 13036,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-25T17:19:07.787339402Z",
+        "FinishedAt": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "round": 2,
+      "enabled": true,
+      "sha": "356b1a53048672d70ddbad7679184157ba6362be",
+      "limits": {
+        "memoryBytes": 536870912,
+        "cpus": 1,
+        "pids": 128
+      },
+      "phases": [
+        {
+          "phase": "started",
+          "elapsedMs": 2795,
+          "memoryCurrentBytes": 78917632,
+          "memoryPeakBytes": 80273408,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "cold",
+          "elapsedMs": 3452,
+          "memoryCurrentBytes": 110067712,
+          "memoryPeakBytes": 110067712,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "warm",
+          "elapsedMs": 3612,
+          "memoryCurrentBytes": 114548736,
+          "memoryPeakBytes": 114548736,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "concurrent12",
+          "elapsedMs": 4070,
+          "memoryCurrentBytes": 127758336,
+          "memoryPeakBytes": 127918080,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "idle30s",
+          "elapsedMs": 34130,
+          "memoryCurrentBytes": 113897472,
+          "memoryPeakBytes": 129536000,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "idle65s",
+          "elapsedMs": 69197,
+          "memoryCurrentBytes": 114364416,
+          "memoryPeakBytes": 129536000,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        }
+      ],
+      "requests": [
+        {
+          "route": "/stats",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 67791,
+          "durationMs": 458.9208579999977
+        },
+        {
+          "route": "/teams",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 41092,
+          "durationMs": 52.5982939999958
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 36798,
+          "durationMs": 48.08008700000937
+        },
+        {
+          "route": "/seasons",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 44.171971000003396
+        },
+        {
+          "route": "/stats",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 34.352419000002556
+        },
+        {
+          "route": "/teams",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 41092,
+          "durationMs": 28.184626999980537
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 21.221967999998014
+        },
+        {
+          "route": "/seasons",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 19.77915600000415
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 323.669584999996
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 331.599761999998
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 330.6277070000069
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 331.893344000011
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 366.97209699999075
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 367.5417439999874
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 374.56530499999644
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 380.7907730000152
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 385.06882700001006
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 385.4598160000169
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 393.92302600000403
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 394.37530700000934
+        }
+      ],
+      "state": {
+        "Status": "running",
+        "Running": true,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 14015,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-25T17:20:18.576998184Z",
+        "FinishedAt": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "round": 2,
+      "enabled": false,
+      "sha": "356b1a53048672d70ddbad7679184157ba6362be",
+      "limits": {
+        "memoryBytes": 536870912,
+        "cpus": 1,
+        "pids": 128
+      },
+      "phases": [
+        {
+          "phase": "started",
+          "elapsedMs": 1862,
+          "memoryCurrentBytes": 79077376,
+          "memoryPeakBytes": 79339520,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "cold",
+          "elapsedMs": 2549,
+          "memoryCurrentBytes": 108056576,
+          "memoryPeakBytes": 108056576,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "warm",
+          "elapsedMs": 2721,
+          "memoryCurrentBytes": 111755264,
+          "memoryPeakBytes": 111755264,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "concurrent12",
+          "elapsedMs": 3163,
+          "memoryCurrentBytes": 128532480,
+          "memoryPeakBytes": 128794624,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "idle30s",
+          "elapsedMs": 33224,
+          "memoryCurrentBytes": 111788032,
+          "memoryPeakBytes": 130416640,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "idle65s",
+          "elapsedMs": 68289,
+          "memoryCurrentBytes": 111792128,
+          "memoryPeakBytes": 130416640,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        }
+      ],
+      "requests": [
+        {
+          "route": "/stats",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 67791,
+          "durationMs": 491.73856500000693
+        },
+        {
+          "route": "/teams",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 41092,
+          "durationMs": 51.55114500000491
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 36798,
+          "durationMs": 66.68614499998512
+        },
+        {
+          "route": "/seasons",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 25.512091000011424
+        },
+        {
+          "route": "/stats",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 29.642637999990257
+        },
+        {
+          "route": "/teams",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 41092,
+          "durationMs": 27.65042600000743
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 23.125806999974884
+        },
+        {
+          "route": "/seasons",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 28.287080999987666
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 345.5654579999973
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 344.2584490000154
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 345.7577080000192
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 350.7585449999897
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 356.144598999992
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 356.4084960000182
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 370.65643900001305
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 371.22197100002086
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 372.09812099998817
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 375.96470599999884
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 379.15676400001394
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 381.6530239999993
+        }
+      ],
+      "state": {
+        "Status": "running",
+        "Running": true,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 14885,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-25T17:21:27.040493178Z",
+        "FinishedAt": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "round": 3,
+      "enabled": false,
+      "sha": "356b1a53048672d70ddbad7679184157ba6362be",
+      "limits": {
+        "memoryBytes": 536870912,
+        "cpus": 1,
+        "pids": 128
+      },
+      "phases": [
+        {
+          "phase": "started",
+          "elapsedMs": 3283,
+          "memoryCurrentBytes": 79380480,
+          "memoryPeakBytes": 79380480,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "cold",
+          "elapsedMs": 4137,
+          "memoryCurrentBytes": 108777472,
+          "memoryPeakBytes": 108777472,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "warm",
+          "elapsedMs": 4335,
+          "memoryCurrentBytes": 111415296,
+          "memoryPeakBytes": 111415296,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "concurrent12",
+          "elapsedMs": 4823,
+          "memoryCurrentBytes": 128086016,
+          "memoryPeakBytes": 128348160,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "idle30s",
+          "elapsedMs": 34885,
+          "memoryCurrentBytes": 111484928,
+          "memoryPeakBytes": 128348160,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "idle65s",
+          "elapsedMs": 69953,
+          "memoryCurrentBytes": 113381376,
+          "memoryPeakBytes": 128348160,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        }
+      ],
+      "requests": [
+        {
+          "route": "/stats",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 67791,
+          "durationMs": 538.7543730000034
+        },
+        {
+          "route": "/teams",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 41092,
+          "durationMs": 125.46836600004463
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 36798,
+          "durationMs": 97.21359200001461
+        },
+        {
+          "route": "/seasons",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 28.924454000021797
+        },
+        {
+          "route": "/stats",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 40.30283800000325
+        },
+        {
+          "route": "/teams",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 41092,
+          "durationMs": 28.287347999983467
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 42.008517000009306
+        },
+        {
+          "route": "/seasons",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 21.186945000023115
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 326.40214700001525
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 338.18852099997457
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 343.7657009999966
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 344.9272409999976
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 347.3853539999691
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 404.70480299997143
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 405.0484910000232
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 421.34192400000757
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 422.2971029999899
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 427.11960799997905
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 430.1963819999946
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 430.80612999998266
+        }
+      ],
+      "state": {
+        "Status": "running",
+        "Running": true,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 15931,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-25T17:22:36.729705115Z",
+        "FinishedAt": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "round": 3,
+      "enabled": true,
+      "sha": "356b1a53048672d70ddbad7679184157ba6362be",
+      "limits": {
+        "memoryBytes": 536870912,
+        "cpus": 1,
+        "pids": 128
+      },
+      "phases": [
+        {
+          "phase": "started",
+          "elapsedMs": 3108,
+          "memoryCurrentBytes": 79998976,
+          "memoryPeakBytes": 79998976,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "cold",
+          "elapsedMs": 3805,
+          "memoryCurrentBytes": 108703744,
+          "memoryPeakBytes": 108703744,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "warm",
+          "elapsedMs": 3968,
+          "memoryCurrentBytes": 112140288,
+          "memoryPeakBytes": 112140288,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "concurrent12",
+          "elapsedMs": 4470,
+          "memoryCurrentBytes": 125628416,
+          "memoryPeakBytes": 126287872,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "idle30s",
+          "elapsedMs": 34530,
+          "memoryCurrentBytes": 111960064,
+          "memoryPeakBytes": 131518464,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        },
+        {
+          "phase": "idle65s",
+          "elapsedMs": 69598,
+          "memoryCurrentBytes": 112513024,
+          "memoryPeakBytes": 131518464,
+          "memoryMax": "536870912",
+          "cpuMax": "100000 100000",
+          "pidsMax": "128"
+        }
+      ],
+      "requests": [
+        {
+          "route": "/stats",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 67791,
+          "durationMs": 495.397341999982
+        },
+        {
+          "route": "/teams",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 41092,
+          "durationMs": 48.17966299998807
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 36798,
+          "durationMs": 67.87468499998795
+        },
+        {
+          "route": "/seasons",
+          "phase": "process_cold",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 29.63896999997087
+        },
+        {
+          "route": "/stats",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 30.625705000013113
+        },
+        {
+          "route": "/teams",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 41092,
+          "durationMs": 30.52954600000521
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 23.56988300004741
+        },
+        {
+          "route": "/seasons",
+          "phase": "warm",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 19.959070999990217
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 368.629729999986
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 368.7967719999724
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 373.1647610000218
+        },
+        {
+          "route": "/stats",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 67748,
+          "durationMs": 377.0698329999577
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 417.13985099998536
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 423.50394700001925
+        },
+        {
+          "route": "/teams",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 41135,
+          "durationMs": 423.8907790000085
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 424.0828779999865
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 429.96293500001775
+        },
+        {
+          "route": "/local-major-2027/bet",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36755,
+          "durationMs": 437.85280299995793
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 442.04416599997785
+        },
+        {
+          "route": "/seasons",
+          "phase": "concurrent12",
+          "status": 200,
+          "bytes": 36340,
+          "durationMs": 442.38655200001085
+        }
+      ],
+      "state": {
+        "Status": "running",
+        "Running": true,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 16883,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-25T17:23:46.996166067Z",
+        "FinishedAt": "0001-01-01T00:00:00Z"
+      }
+    }
+  ]
+}

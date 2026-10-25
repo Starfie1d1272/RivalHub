@@ -75,12 +75,12 @@ export function Series({ title, note, points, label = "中位数", secondaryLabe
     {!values.length ? <Empty>此范围尚无可用样本。</Empty> : <div className="p-4">
       <div className="mb-3 flex flex-wrap gap-4 text-xs text-muted-foreground"><span>● {label}</span>{secondaryLabel && <span>┄ {secondaryLabel}</span>}<span>北京时间 · 空缺不补零</span></div>
       <svg viewBox="0 0 960 215" className="w-full" role="img" aria-labelledby={id}>
-        <title id={id}>{title}；下方可展开查看数据</title>
+        <title id={id}>{`${title}；下方可展开查看数据`}</title>
         {[0, .5, 1].map(t => <g key={t}><line x1="56" x2="920" y1={y(max * t)} y2={y(max * t)} stroke="var(--color-border)" strokeDasharray="3 5" />
           <text x="48" y={y(max * t) + 4} textAnchor="end" fontSize="11" fill="var(--color-fg-mid)">{format(max * t)}</text></g>)}
         <path d={paths("value")} fill="none" stroke="var(--color-accent)" strokeWidth="2.5" />
         {secondaryLabel && <path d={paths("secondary")} fill="none" stroke="var(--color-fg-mid)" strokeDasharray="5 4" strokeWidth="1.5" />}
-        {points.map((p, i) => <g key={p.at}>{p.value != null && <circle cx={x(i)} cy={y(p.value)} r="3.5" fill="var(--color-accent)" tabIndex={0} aria-label={`${date(p.at)}，${label} ${format(p.value)}，${p.n ?? "—"} 样本`}><title>{date(p.at)} · {label} {format(p.value)}{secondaryLabel ? ` · ${secondaryLabel} ${format(p.secondary)}` : ""}{p.n != null ? ` · ${p.n} 样本` : ""}</title></circle>}
+        {points.map((p, i) => <g key={p.at}>{p.value != null && <circle cx={x(i)} cy={y(p.value)} r="3.5" fill="var(--color-accent)" tabIndex={0} aria-label={`${date(p.at)}，${label} ${format(p.value)}，${p.n ?? "—"} 样本`}><title>{`${date(p.at)} · ${label} ${format(p.value)}${secondaryLabel ? ` · ${secondaryLabel} ${format(p.secondary)}` : ""}${p.n != null ? ` · ${p.n} 样本` : ""}`}</title></circle>}
           {(i === 0 || i === points.length - 1 || (points.length > 3 && i === Math.floor(points.length / 2))) && <text x={x(i)} y="205" textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"} fontSize="11" fill="var(--color-fg-mid)">{date(p.at)}</text>}
         </g>)}
       </svg>
