@@ -8,6 +8,14 @@ describe("observability redaction", () => {
       .toEqual({ poolTotal: 3, poolIdle: 0, poolWaiting: 7, poolMax: 3, connectionState: "queued" });
   });
 
+  it("retains only fixed OCR finish reasons and bounded numeric response summaries", () => {
+    expect(sanitizeSafeContext({ finishReason: "length", completionTokens: 2048, outputChars: 6000, outputWhitespacePercent: 95 }))
+      .toEqual({ finishReason: "length", completionTokens: 2048, outputChars: 6000, outputWhitespacePercent: 95 });
+    expect(sanitizeSafeContext({ finishReason: "private-player-name", completionTokens: "private-provider-value",
+      outputChars: { content: "private-image" }, outputWhitespacePercent: 101 })).toEqual({});
+    expect(sanitizeSafeContext({ completionTokens: Infinity, outputChars: 1_000_001, outputWhitespacePercent: -1 })).toEqual({});
+  });
+
   it("ignores accessor and hostile array context without losing other diagnostic fields", () => {
     let reads = 0;
     const context = Object.defineProperties({ provider: "steam", httpStatus: 503 }, {

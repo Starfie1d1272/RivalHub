@@ -27,6 +27,10 @@ const SAFE_CONTEXT_KEYS = new Set([
   "connectionState",
   "constraint",
   "count",
+  "completionTokens",
+  "finishReason",
+  "outputChars",
+  "outputWhitespacePercent",
   "durationMs",
   "errorClass",
   "errorDigest",
@@ -181,7 +185,16 @@ export function sanitizeSafeContext(context: Record<string, unknown> | undefined
     try {
       const descriptor = Object.getOwnPropertyDescriptor(context, key);
       if (!descriptor || !("value" in descriptor)) continue;
-      const safeValue = key === "errorDigest" ? safeErrorDigest(descriptor.value) : sanitizeContextValue(descriptor.value);
+      const value = descriptor.value;
+      let safeValue: unknown;
+      if (key === "finishReason") {
+        safeValue = typeof value === "string" && ["stop", "eos", "length", "content_filter", "tool_calls", "unknown"].includes(value) ? value : undefined;
+      } else if (key === "completionTokens" || key === "outputChars" || key === "outputWhitespacePercent") {
+        const max = key === "outputWhitespacePercent" ? 100 : 1_000_000;
+        safeValue = typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= max ? value : undefined;
+      } else {
+        safeValue = key === "errorDigest" ? safeErrorDigest(value) : sanitizeContextValue(value);
+      }
       if (safeValue !== undefined) {
         result[key] = safeValue;
         count += 1;

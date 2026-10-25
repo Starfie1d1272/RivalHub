@@ -8,6 +8,13 @@ import type { OCRDiagnostic } from "./diagnostics";
 type OCRFailureKind = "configuration" | "authentication" | "rate_limit" | "network" | "timeout" | "upstream" | "image";
 type OCRPhase = "configuration" | "image" | "request" | "response" | "json_parse" | "shape";
 
+export interface OCRResponseSummary {
+  finishReason: "stop" | "eos" | "length" | "content_filter" | "tool_calls" | "unknown";
+  outputChars: number;
+  outputWhitespacePercent: number;
+  completionTokens?: number;
+}
+
 const MESSAGES: Record<OCRFailureKind, string> = {
   configuration: "OCR 服务配置不完整，请联系超级管理员检查系统状态中的 OCR 配置。",
   authentication: "OCR 上游鉴权失败，请联系超级管理员检查环境绑定、凭据和上游账号权限。",
@@ -29,18 +36,20 @@ export class OCRFailure extends Error {
   readonly retryable: boolean;
   readonly errorChain: string[];
   readonly diagnostics: readonly OCRDiagnostic[];
+  readonly responseSummary?: OCRResponseSummary;
 
   constructor(
     readonly kind: OCRFailureKind,
     readonly phase: OCRPhase,
     readonly reason: string,
     readonly httpStatus?: number,
-    options?: { requestId?: string; cause?: Error; diagnostics?: readonly OCRDiagnostic[] },
+    options?: { requestId?: string; cause?: Error; diagnostics?: readonly OCRDiagnostic[]; responseSummary?: OCRResponseSummary },
   ) {
     super(`ocr.${phase}.${reason}`, { cause: options?.cause });
     this.name = "OCRFailure";
     this.requestId = options?.requestId ?? randomUUID();
     this.retryable = ["rate_limit", "network", "timeout", "upstream"].includes(kind);
+    this.responseSummary = options?.responseSummary;
     this.diagnostics = (options?.diagnostics ?? []).slice(0, 8);
     this.errorChain = [this.message];
     let cause = options?.cause;
@@ -54,7 +63,9 @@ export class OCRFailure extends Error {
 export function presentOCRFailure(error: OCRFailure): ActionError {
   return {
     code: error.kind === "image" ? ErrorCode.VALIDATION_FAILED : ErrorCode.OCR_UNAVAILABLE,
-    message: MESSAGES[error.kind] + (error.httpStatus ? `（HTTP ${error.httpStatus}）` : ""),
+    message: (error.reason === "output_truncated"
+      ? "OCR 识别结果未完整生成，请稍后重试；持续失败时请联系管理员并提供排查编号。"
+      : MESSAGES[error.kind]) + (error.httpStatus && error.httpStatus >= 400 ? `（HTTP ${error.httpStatus}）` : ""),
     requestId: error.requestId,
     meta: {
       requestId: error.requestId,
