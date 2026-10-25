@@ -89,14 +89,14 @@ it("keeps a confirmed commit distinct from a failed room refresh and waits for i
   render(<VetoRoom initialRoom={room(1)} />);
   await act(async () => { await vi.advanceTimersByTimeAsync(1); });
   await act(async () => { fireEvent.click(screen.getByRole("button", { name: "由 A 先禁图" })); });
-  expect(completeTask).not.toHaveBeenCalled();
+  expect(completeTask).toHaveBeenCalledWith("veto", "captured-veto-attempt");
   expect(screen.getByText("操作已确认，房间刷新暂未完成，正在重新同步。")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "由 A 先禁图" })).toBeDisabled();
   read.mockResolvedValue({ success: true, data: room(2) });
   await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
   expect(screen.queryByRole("button", { name: "由 A 先禁图" })).not.toBeInTheDocument();
   expect(send).toHaveBeenCalledOnce();
-  expect(completeTask).toHaveBeenCalledWith("veto", "captured-veto-attempt");
+  expect(completeTask).toHaveBeenCalledTimes(1);
 });
 
 it.each(["lost", "internal", "committed-refresh-failed"] as const)("confirms a same-revision appeal submission after %s without replay", async fault => {

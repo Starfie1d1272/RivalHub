@@ -45,7 +45,7 @@ BETTER_STACK_INGESTING_HOST=<server-only Better Stack OTLP ingest host>
 
 `match.veto.timeout_resolved.durationMs` 保留从 deadline 到处理使用的数据库时间差；`safeContext.configuredGraceMs` 是既定 2000ms 宽限，`actualOverdueMs = max(0, durationMs - configuredGraceMs)` 是扣除宽限后的额外逾期。宽限、数据库时钟、锁序、revision 和命令幂等不因观测改变。authorize/transaction/invalidate/project 仍沿用现有 span，不能把包含关系的耗时相加。
 
-浏览器指令 acknowledgement 与房间呈现是独立目标：HTTP 响应包含既有投影处理，DOM 应用该响应或恢复读之后才算呈现。VetoRoom 保存原 `beginTask()` 返回的 token，已知成功提交等待当前投影确认，未知提交只在读到相同恢复事实后闭合原 attempt；仅 revision 前进不足以宣称本次未知写入成功。stale 不算成功，也不重放未知提交。任务 core 的身份、scope 与确认语义由产品遥测 owner 维护。
+浏览器指令 acknowledgement 与房间呈现是独立目标：HTTP 响应包含既有投影处理，DOM 应用该响应或恢复读之后才算呈现。VetoRoom 保存原 `beginTask()` 返回的 token，已知成功提交即确认任务，房间投影与呈现另行观察；未知提交只在读到相同恢复事实后闭合原 attempt；仅 revision 前进不足以宣称本次未知写入成功。stale 不算成功，也不重放未知提交。任务 core 的身份、scope 与确认语义由产品遥测 owner 维护。
 
 ## 管理员进程快照
 

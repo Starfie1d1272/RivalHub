@@ -254,8 +254,10 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
         return;
       }
       if (result.data.postCommit) setInvalidationPending(result.data.postCommit.invalidation === "pending");
+      // Business confirmation is independent of the room projection/presentation.
+      if (result.data.outcome !== "stale") completeTask(taskToken);
       if (!result.data.room) {
-        uncertainCommand.current = { revision: result.data.receipt?.committedRevision ?? latestRoom.current.session.revision, input, fact, commitKnown: true, taskToken, completeOnRecovery: result.data.outcome !== "stale" };
+        uncertainCommand.current = { revision: result.data.receipt?.committedRevision ?? latestRoom.current.session.revision, input, fact, commitKnown: true, taskToken, completeOnRecovery: false };
         setUncertainRevision(latestRoom.current.session.revision);
         setNotice("操作已确认，房间刷新暂未完成，正在重新同步。");
         return;
@@ -264,7 +266,6 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
       setRepresentatives(Object.fromEntries(result.data.room.entries.map((entry) => [entry.id, entry.vetoRepresentativeMemberId ?? ""])));
       setManualPrivilege(result.data.room.session.privilegedEntryId ?? "");
       setNotice(result.data.outcome === "stale" ? "BP 状态已更新，请按当前步骤重新选择。" : successMessage);
-      if (result.data.outcome !== "stale") completeTask(taskToken);
     } catch {
       uncertainCommand.current = { revision: latestRoom.current.session.revision, input, fact, taskToken, completeOnRecovery: Boolean(fact) };
       setUncertainRevision(latestRoom.current.session.revision);
