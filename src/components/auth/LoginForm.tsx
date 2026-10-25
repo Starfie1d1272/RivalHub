@@ -10,7 +10,8 @@ import { TurnstileWidget, type TurnstileFailure } from "@/components/auth/Turnst
 import { EMAIL_RESEND_COOLDOWN_SECONDS, isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { clearPreviousLiveViews } from "@/lib/mizar/live-viewer-cache-reset";
-import { observeAction } from "@/lib/telemetry/client";
+import { TaskBoundary } from "@/components/telemetry/TaskBoundary";
+import { beginTelemetryTask, completeTelemetryTask, recordTaskValidation, observeAction } from "@/lib/telemetry/client";
 
 const loginWithPassword = observeAction("auth.loginWithPassword", telemetry_loginWithPassword);
 const resendSignupConfirmation = observeAction("auth.resendSignupConfirmation", telemetry_resendSignupConfirmation);
@@ -56,12 +57,15 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
+    const taskToken = beginTelemetryTask(mode === "login" ? "login" : "account", "", "submit");
     if (mode === "register") {
       if (!isPasswordPolicySatisfied(password)) {
+        recordTaskValidation("account", "password_policy", taskToken);
         toast.error(PASSWORD_POLICY_MESSAGE);
         return;
       }
       if (password !== confirmPassword) {
+        recordTaskValidation("account", "password_mismatch", taskToken);
         toast.error("两次输入的密码不一致");
         return;
       }
@@ -73,6 +77,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
         : await signUp(email, password, confirmPassword, turnstileToken, redirectRef.current);
       if (result.success) {
         if (mode === "register") {
+          completeTelemetryTask("account", taskToken);
           setAwaitingEmail(email.trim());
           setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
         } else {
@@ -138,7 +143,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <TaskBoundary task={mode === "login" ? "login" : "account"}><form onSubmit={handleSubmit} className="space-y-4">
       <div className="flex rounded-sm bg-[var(--color-panel-low)] p-0.5">
         <button
           type="button"
@@ -230,6 +235,6 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
           {mode === "register" ? "切换到登录" : "切换到注册"}
         </button>
       </p>
-    </form>
+    </form></TaskBoundary>
   );
 }

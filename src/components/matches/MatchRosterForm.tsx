@@ -1,5 +1,6 @@
 "use client";
 
+import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React, { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -47,6 +48,7 @@ export function MatchRosterForm({
   initialVetoRepresentativeEventRosterMemberId = null,
   allowSubstitutes = true,
 }: MatchRosterFormProps) {
+  const task = useTelemetryTask("roster", matchId);
   const isMatchStarted = matchStatus !== "scheduled";
   const rosterLocked = rosterStatus === "confirmed";
   const [isPending, startTransition] = useTransition();
@@ -66,6 +68,7 @@ export function MatchRosterForm({
   const [vetoRepresentativeId, setVetoRepresentativeId] = useState<string | null>(initialVetoRepresentativeEventRosterMemberId);
 
   const toggleStarter = (id: string) => {
+    task.begin();
     const removing = selectedStarterIds.includes(id);
     setSelectedStarterIds((prev) =>
       removing
@@ -79,6 +82,7 @@ export function MatchRosterForm({
   };
 
   const toggleSubstitute = (id: string) => {
+    task.begin();
     if (selectedStarterIds.includes(id)) return;
     setSelectedSubstituteIds((prev) =>
       prev.includes(id)
@@ -90,11 +94,15 @@ export function MatchRosterForm({
   };
 
   const handleSubmit = () => {
+    const taskToken = task.begin("submit");
+    task.step("submit", taskToken);
     if (selectedStarterIds.length !== 5) {
+      task.validation("required", taskToken);
       toast.error("请选择 5 名首发");
       return;
     }
     if (!vetoRepresentativeId || !selectedStarterIds.includes(vetoRepresentativeId)) {
+      task.validation("required", taskToken);
       toast.error("请选择一名首发担任本场 BP 负责人");
       return;
     }
@@ -112,6 +120,7 @@ export function MatchRosterForm({
       if (result.success) {
         if (result.data.refreshPending) setRecovery("refresh_pending");
         toast.success("名单提交成功");
+        task.complete(taskToken);
       } else {
         if (result.error.code === "INTERNAL_ERROR") setRecovery("unknown");
         toast.error(result.error.message ?? "提交失败");
@@ -121,7 +130,7 @@ export function MatchRosterForm({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" onInputCapture={() => task.begin()} onPointerDownCapture={task.activity} onKeyDownCapture={task.activity}>
       {recovery && <div role="alert" className="space-y-2 text-sm">
         <p>{recovery === "unknown" ? "名单操作结果尚未确认，请读取当前名单核对，不要重复提交。" : "名单已提交，页面刷新待完成。"}</p>
         <Button size="sm" variant="outline" disabled={isPending} onClick={() => {

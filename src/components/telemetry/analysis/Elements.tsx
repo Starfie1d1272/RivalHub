@@ -59,7 +59,7 @@ export function Series({ title, note, points, label = "中位数", secondaryLabe
   const id = useId();
   const values = points.flatMap(p => [p.value, p.secondary]).filter((v): v is number => v != null && Number.isFinite(v));
   const max = Math.max(1, ...values);
-  const x = (i: number) => 56 + i * 864 / Math.max(1, points.length - 1);
+  const x = (i: number) => 56 + (points[i].at - (points[0]?.at ?? 0)) * 864 / Math.max(1, (points.at(-1)?.at ?? 0) - (points[0]?.at ?? 0));
   const y = (n: number) => 172 - n / max * 140;
   const paths = (key: "value" | "secondary") => {
     let started = false;

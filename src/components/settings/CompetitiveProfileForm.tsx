@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Panel, StatusBanner } from "@/components/rivalhub";
+import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { observeAction } from "@/lib/telemetry/client";
 
 const saveCompetitiveProfile = observeAction("competitive-profile.saveCompetitiveProfile", telemetry_saveCompetitiveProfile);
@@ -46,6 +47,7 @@ export function CompetitiveProfileForm({
   contexts: CompetitiveSeasonContext[];
   initialTarget?: { platform?: string | null; season?: string | null };
 }) {
+  const task = useTelemetryTask("profile", "competitive");
   const [pending, startTransition] = useTransition();
   const requestedContext = initialTarget?.platform ? contexts.find((item) => item.platform === initialTarget.platform) : undefined;
   const first = requestedContext ?? contexts.find((item) => item.platform === "perfect_world") ?? contexts[0];
@@ -85,7 +87,7 @@ export function CompetitiveProfileForm({
   }
 
   const platformSelect = contexts.length > 1 ? <div className="space-y-1.5"><Label htmlFor="competitive-platform">竞技平台</Label><Select value={platform} onValueChange={choosePlatform}><SelectTrigger id="competitive-platform"><SelectValue /></SelectTrigger><SelectContent>{contexts.map((item) => <SelectItem key={item.platform} value={item.platform}>{item.platformDisplayName}</SelectItem>)}</SelectContent></Select></div> : null;
-  if (!context || context.ladder.length === 0 || !context.seasons.some((season) => season.isCurrent)) return <Panel label="竞技资料" contentClassName="p-5"><div className="space-y-5">{platformSelect}<StatusBanner tone="warn" title="当前竞技平台目录尚未完善" sub="管理员需要配置平台段位表和当前赛季后，才可维护这份长期竞技资料。" /></div></Panel>;
+  if (!context || context.ladder.length === 0 || !context.seasons.some((season) => season.isCurrent)) return <Panel label="竞技资料" contentClassName="p-5"><div className="space-y-5" onInputCapture={() => task.begin()} onPointerDownCapture={task.activity} onKeyDownCapture={task.activity}>{platformSelect}<StatusBanner tone="warn" title="当前竞技平台目录尚未完善" sub="管理员需要配置平台段位表和当前赛季后，才可维护这份长期竞技资料。" /></div></Panel>;
 
   const recentSeasons = context.seasons.filter((season) => season.isCurrent || season.isPrevious);
   const olderSeasons = context.seasons.filter((season) => !season.isCurrent && !season.isPrevious);
@@ -131,7 +133,7 @@ export function CompetitiveProfileForm({
     return !fact.rank || !fact.rating || needsStars;
   };
 
-  return <Panel label="竞技资料" contentClassName="p-5"><div className="space-y-5">
+  return <Panel label="竞技资料" contentClassName="p-5"><div className="space-y-5" onInputCapture={() => task.begin()} onPointerDownCapture={task.activity} onKeyDownCapture={task.activity}>
     {platformSelect}
     <StatusBanner tone="info" title={`${context.platformDisplayName} · 竞技资料`} sub="未录入表示尚未声明；未定级是有效事实；已定级必须填写段位、星段位的准确星数与 Rating。具体赛事会按当届冻结规则单独核验。" />
     {editor("历史最高", HISTORICAL_KEY, historical, setHistorical, false, { after: <div className="max-w-sm space-y-1.5"><Label htmlFor="competitive-achieved-season">历史最高达成赛季（可选）</Label><Select value={achievedSeasonKey} onValueChange={(value) => { setSaved(false); setAchievedSeasonKey(value); }}><SelectTrigger id="competitive-achieved-season"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unknown">不确定 / 暂不填写</SelectItem>{context.seasons.map((season) => <SelectItem key={season.seasonKey} value={season.seasonKey}>{season.label}</SelectItem>)}</SelectContent></Select></div> })}
@@ -160,6 +162,8 @@ export function CompetitiveProfileForm({
     {saveError && <StatusBanner tone="warn" title="竞技记录需要确认" sub={saveError} />}
     {saved && <StatusBanner tone="success" title="竞技档案已保存" sub="报名和赛务审核会使用你最新保存的资料。" />}
     <div className="flex flex-wrap items-center gap-3"><Button disabled={pending} onClick={() => {
+      const taskToken = task.begin("submit");
+      task.step("submit", taskToken);
       if (invalidRanked(HISTORICAL_KEY, historical)) { toast.error("历史最高需要填写段位、Rating，以及所选段位要求的星数。"); return; }
       const invalid = context.seasons.find((season) => invalidRanked(season.seasonKey, seasonFacts[season.seasonKey] ?? emptyFact()));
       if (invalid) { toast.error(`「${invalid.label}」已选择已定级，请补齐段位、Rating 与所需星数。`); return; }
@@ -172,7 +176,7 @@ export function CompetitiveProfileForm({
           setSeasonFacts(Object.fromEntries(result.data.seasonPeaks.map(peak => [peak.seasonKey, peak.status === "ranked" ? { status: peak.status, rank: peak.rank, stars: peak.stars === null ? "" : String(peak.stars), rating: String(peak.rating) } : peak.status === "unranked" ? { status: peak.status, rank: "", stars: "", rating: peak.rating === null ? "" : String(peak.rating) } : emptyFact()])));
           toast.success(["竞技档案已保存", ...result.data.notices].join("；"));
         } else toast.success("竞技档案已保存");
-        setSaveError(null); setSaved(true);
+        setSaveError(null); setSaved(true); task.complete(taskToken);
       } else { setSaveError(result.error.message); toast.error(result.error.message); } });
     }}>{pending ? "保存中…" : "保存竞技档案"}</Button><span className="font-mono text-[11px] text-[var(--color-fg-mid)]">把已存资料改回“未录入”会删除该赛季声明。</span></div>
   </div></Panel>;

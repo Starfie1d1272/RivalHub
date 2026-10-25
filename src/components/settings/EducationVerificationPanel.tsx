@@ -1,5 +1,7 @@
 "use client";
 
+import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
+
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -69,6 +71,7 @@ export function EducationVerificationPanel({
   institutionalIdentities: InstitutionalIdentity[];
   verifications: Verification[];
 }) {
+  const task = useTelemetryTask("education");
   const [pending, startTransition] = useTransition();
   const [academicStatus, setAcademicStatus] = useState<"enrolled" | "graduated">("enrolled");
   const [chsiInstitution, setChsiInstitution] = useState<EducationInstitutionOption | null>(null);
@@ -79,9 +82,11 @@ export function EducationVerificationPanel({
   const [manualFile, setManualFile] = useState<File | null>(null);
   const [manualFileError, setManualFileError] = useState<string | null>(null);
 
-  const run = <T,>(fn: () => Promise<ActionResult<T>>, message: string | ((data: T) => string)) => startTransition(async () => {
+  const run = <T,>(fn: () => Promise<ActionResult<T>>, message: string | ((data: T) => string), track = true) => startTransition(async () => {
+    const token = track ? task.begin("submit") : null;
+    if (track) task.step("submit", token);
     const result = await fn();
-    if (result.success) toast.success(typeof message === "function" ? message(result.data) : message);
+    if (result.success) { toast.success(typeof message === "function" ? message(result.data) : message); if (track) task.complete(token); }
     else toast.error(result.error.message ?? "操作失败，请稍后重试");
   });
 
@@ -119,7 +124,7 @@ export function EducationVerificationPanel({
   const chsiLabel = institutionalIdentities.length > 0 ? "2 · 学信网材料人工审核" : "1 · 学信网材料人工审核";
   const manualLabel = institutionalIdentities.length > 0 ? "3 · 录取通知书人工审核" : "2 · 录取通知书人工审核";
 
-  return <div className="space-y-5">
+  return <div className="space-y-5" onInputCapture={() => task.begin()} onPointerDownCapture={task.activity} onKeyDownCapture={task.activity}>
     <Panel label="认证记录" contentClassName="p-0">
       {verifications.length === 0 ? <p className="p-5 text-sm text-[var(--color-fg-mid)]">尚无教育认证记录。</p> : <Checklist items={verifications.map((item) => ({
         label: `${item.institution} · ${item.academicStatus === "enrolled" ? "在读" : "已毕业"} · ${statusLabel[item.status]}`,
@@ -136,7 +141,7 @@ export function EducationVerificationPanel({
       title={emailVerified ? "当前登录邮箱已验证" : "当前登录邮箱尚未验证"}
       sub={emailVerified ? `${email} 已完成邮箱所有权验证。其他已验证邮箱不会改变当前登录邮箱的验证状态。` : "请先验证当前登录邮箱，验证后才能参加新的赛事报名或提交教育认证。"}
     />
-    {!emailVerified && <Button disabled={pending} onClick={() => run(resendCurrentEmailVerification, "验证邮件已发送，请打开邮件完成验证")}>验证当前邮箱</Button>}
+    {!emailVerified && <Button disabled={pending} onClick={() => run(resendCurrentEmailVerification, "验证邮件已发送，请打开邮件完成验证", false)}>验证当前邮箱</Button>}
 
     {emailVerified && institutionalIdentities.length === 0 && <StatusBanner
       tone="info"

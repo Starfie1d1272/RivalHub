@@ -95,7 +95,7 @@ test("bounded provider delay and legal telemetry response browser profile", asyn
     await page.goto("about:blank");
     const before = await cdp.send("Performance.getMetrics");
     await page.goto("/admin/telemetry?hours=168", { waitUntil: "commit" });
-    await expect(page.getByRole("tab", { name: "访问概览", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "产品概况", exact: true })).toBeVisible();
     const phases: unknown[] = [];
     report.telemetry = { responseBytes: Buffer.byteLength(boundary.body), phases };
     const capture = async (label: string, interactionStart?: number) => {
@@ -106,14 +106,14 @@ test("bounded provider delay and legal telemetry response browser profile", asyn
       phases.push({ label, automationInteractionMs: interactionStart === undefined ? null : browser.at - interactionStart, metrics: Object.fromEntries(metrics.metrics.filter(m => ["TaskDuration", "ScriptDuration", "LayoutDuration", "JSHeapUsedSize"].includes(m.name)).map(m => [m.name, m.value])), dom, ...browser });
     };
     await capture("overview");
-    for (const label of ["使用行为", "页面性能", "异常与拒绝", "采集状态", "访问概览"]) {
-      const tab = page.getByRole("tab", { name: label, exact: false });
+    for (const label of ["用户任务", "页面体验", "问题排查", "数据质量", "产品概况"]) {
+      const tab = page.getByRole("navigation", { name: "分析视图" }).getByRole("button", { name: label, exact: true });
       const start = await page.evaluate(() => performance.now());
-      await tab.click(); await expect(tab).toHaveAttribute("data-state", "active"); await capture(label, start);
+      await tab.click(); await expect(tab).toHaveAttribute("aria-current", "page"); await capture(label, start);
     }
-    await page.getByRole("button", { name: /更多筛选/ }).click();
+    await page.locator("summary").filter({ hasText: "更多条件与自定义日期" }).click();
     const openStart = await page.evaluate(() => performance.now());
-    await page.getByRole("combobox", { name: "部署版本", exact: true }).click();
+    await page.getByRole("combobox", { name: "版本", exact: true }).click();
     await expect(page.getByRole("option")).toHaveCount(2001);
     await capture("release-dropdown-2001-options", openStart);
     await page.keyboard.press("Escape");

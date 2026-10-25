@@ -50,7 +50,7 @@ performance 事件的白名单 `metricName` 为 TTFB/FCP/LCP/INP/NAV_COMMIT/CLS�
 
 `ContentReady` 只挂载于真实可用内容旁，不放在 fallback。module 白名单为 match/schedule/statistics/player/team/bet/prediction/admin/account/public；phase 为 primary/advanced/form。同一导航、模块、阶段只记首次就绪。异步工作用 `captureTelemetryNavigation()` 在开始时捕获 token，结束时调用 `recordContentReady(token, module, phase)`；导航或身份改变后旧 token 被丢弃。此计时采用单调 performance 时钟，初次 document 从零开始，已观察的软导航从 router start 开始；没有 router start 时从首次观察开始，不解释为完整导航耗时。
 
-v1 的 page/operation/error/ready/NAV_COMMIT 携带随机 navigationId、构建冻结的 clientRelease 和上报时 visibility。签名票据 release 仍表示签发服务器版本，两者不得混用。Web Vitals 保留原生来源路由与 navigationType/startTime 的有限投影，使用每个指标样本自己的随机 correlation ID（随样本更新保持），不附当前 SPA 导航 ID；该 ID 不表示不同指标已被归并成同一次导航，避免将晚到样本串到当前页面。v1 的导航上下文另带 lifecycle：hard/soft/bfcache/prerender/unknown、采集时的 startedHidden、隐藏后恢复标志、单调时钟起点和 activation 相对毫秒。BFCache pageshow(persisted) 创建新导航并拒绝旧 ready token，普通 visibility 恢复保持导航；这些生命周期字段来自当前 collector，不能推断 observer 挂载前未观察到的隐藏转换。Web Vital 原始异常值仍保留；完整浏览器 cohort 与旧客户端对照尚需集成实验。ready 作为独立 kind 保存于既有七天 raw 数据，不混入 LCP/NAV_COMMIT 或现有面板分位数。
+v1 的 page/operation/error/ready/NAV_COMMIT 携带随机 navigationId、构建冻结的 clientRelease 和上报时 visibility。签名票据 release 仍表示签发服务器版本，两者不得混用。Web Vitals 保留原生来源路由与 navigationType/startTime 的有限投影，使用每个指标样本自己的随机 correlation ID（随样本更新保持），不附当前 SPA 导航 ID；该 ID 不表示不同指标已被归并成同一次导航，避免将晚到样本串到当前页面。v1 的导航上下文另带 lifecycle：hard/soft/bfcache/prerender/unknown、采集时的 startedHidden、隐藏后恢复标志、单调时钟起点和 activation 相对毫秒。BFCache pageshow(persisted) 创建新导航并拒绝旧 ready token，普通 visibility 恢复保持导航；这些生命周期字段来自当前 collector，不能推断 observer 挂载前未观察到的隐藏转换。Web Vital 原始异常值仍保留；完整浏览器 cohort 与旧客户端对照尚需集成实验。ready 作为独立 kind 保存于既有七天 raw 数据，以独立内容就绪指标进入面板，不混入 LCP/NAV_COMMIT。
 
 局部 error boundary 通过 `recordClientBoundaryError(error)` 复用同一投影；无需自行读取或上传异常内容。客户端错误 v1 附固定 source（window_error/unhandled_rejection/boundary）、异常类别及可选 s1 fingerprint。fingerprint 只取自身 data property stack 的前 8192 字符中至多五个 Next 静态 chunk basename/数字行列；无此 data property 时可用 ErrorEvent 的文件/行列元数据。仅对归一化 frame 计算有界 64-bit hash，原文、URL、函数名、message 和 stack 均不上传、不持久化，也不调用任意 stack getter。没有受控 frame 时缺省 fingerprint；它是排查线索而非唯一根因证明。四个历史错误路由仍由页面 owner 复现关闭。新增字段不扩大接收端访问权限、保留时长、批次或队列预算。
 
@@ -107,15 +107,35 @@ Worker 验证 JSON 白名单后，用原生 `CompressionStream("gzip")` 压缩�
 
 ## 管理后台分析
 
-`/admin/telemetry` 仅向超级管理员开放。RSC 首次读取与后续 Server Action 都经 server-only adapter 核对当前超级管理员授权，再读取缓存或查询独立 Worker 的 `GET /admin/analysis`。`PRODUCT_TELEMETRY_ENDPOINT` 与 `PRODUCT_TELEMETRY_ADMIN_KEY` 仍只存在服务端；网站查询密钥可使用 Worker 专用 `DASHBOARD_KEY`，它只允许 GET `/admin/dashboard` 和 `/admin/analysis`，不能调用原始事件、日汇总或用量 operator 端点。原 `ADMIN_KEY` 保留运维权限。旧 `/admin/dashboard` 保留原聚合协议，供网站与接收端分步更新；新面板要求先更新接收端，缺少配置或版本不支持时显示不可用，不回退到公开查询。
+`/admin/telemetry` 仅向超级管理员开放。RSC 首次读取与后续 Server Action 都经 server-only adapter 核对当前超级管理员授权，再读取缓存或查询独立 Worker 的 `GET /admin/analysis`。`PRODUCT_TELEMETRY_ENDPOINT` 与 `PRODUCT_TELEMETRY_ADMIN_KEY` 仍只存在服务端；网站查询密钥可使用 Worker 专用 `DASHBOARD_KEY`，它只允许 GET `/admin/dashboard`、`/admin/analysis` 和 `/admin/history`，不能调用原始事件、日汇总或用量 operator 端点。原 `ADMIN_KEY` 保留运维权限。旧 `/admin/dashboard` 保留原聚合协议，供网站与接收端分步更新；新面板要求先更新接收端，缺少配置或版本不支持时显示不可用，不回退到公开查询。
 
-面板按访问概览、使用行为、页面性能、异常与拒绝、采集状态组织。最近 6 小时、24 小时、7 天及工作范围、赛事场景、角色、页面、设备、浏览器、来源和精确版本由同一白名单 parser 校验并联动。输入时间窗口按接收时间选择，详情按客户端报告时间排序；页面和操作的有限注册表由类型化 presentation owner 映射为产品名称，错误码、路由和排查编号只进入主动展开的技术详情。设备缺失单列，不从同一会话推断补齐；none 只表示没有可用 referrer。
+面板以产品概况、用户任务、页面体验、问题排查和数据质量组织短期观测；业务流程与长期趋势各自独立筛选。默认最近七天，支持 6/24 小时及最多七天的自定义日期。全局白名单包括范围、具体赛事、任务/操作、角色、页面、设备/浏览器/来源、导航类型、可见性与版本口径，聚合条件进入 URL，会话凭据不进入 URL。赛事名仅经超管页面读取受控目录；目录缺失保留匿名赛事标签。
 
-接收端每次执行四条 D1 查询：匹配批次的有界元信息、预算内的原始批次、最近接收用量和到期积压。production 且未到期的候选按 received DESC、ticket/id 稳定排序，最多选择最新 2,000 批并同时受 2 MiB 未压缩正文预算限制；超出任一预算时返回截断标识与实际读取起点。接收端在内存逐批解压、检查事件协议并聚合，不持久化分析副本。性能只使用摘要中带随机样本标识的报告，按账号/会话/指标标识选择报告时间最新值，乱序到达与 INP 下降均保留最新观测；旧版缺少标识的报告单列。P50/P75/P95 使用 nearest-rank，分布、页面/设备/版本比较都从实际样本独立计算，不合并已有分位数，也不补零或声明为最终导航评分。
+短期窗口按接收时间选择，详情按客户端时间排序；北京时间自然日/小时分桶。读取最多最新 2,000 批、2 MiB 未压缩正文，额外独立版本目录保持未筛选的版本可选；命中预算明确截断。本次最早观测不证明之前数据已过期。客户端构建与票据签发版本分别查询，客户端版本缺失不回退成票据版本；已采集的构建标签与当前构建映射提供易读名称，未知提交保留短 SHA。没有可信发布时刻时不绘制发布时间标记。
 
-业务操作以窗口内开始的调用为基准，按账号、会话和 operationId 关联已接收的最新终态；未收到结果单列，不能推断为失败。拒绝和未知结果报告与该开始队列独立计数，异常总数不受问题组列表截断影响，避免跨窗口结果伪造成功率。异常按页面、操作和固定错误码归并；返回最多 100 个问题组、每组最近 30 条报告、最近 100 个会话与选定会话最多 100 条非性能事件。原账号、票据、调用标识、会话 UUID 和 gzip 正文不离开接收端；会话入口使用带用途前缀的 SHA-256 截断标识，展示名称使用面板编号，账号仅参与去重计数。关联 requestId 在技术详情中按需展示。访问控制、保留期限与恢复语义沿用原类别，不建立新身份映射表。
+Web Vitals 按同身份/会话、指标和样本标识取最新报告；ready 按同导航/模块/阶段去重，指标间不强行关联。旧性能样本缺标识单列。P50/P75/P90/P95 使用 nearest-rank；少于 20 个样本时隐藏趋势尾部分位数并标注少量样本。缺失不补零，窗口截断、覆盖、新鲜度、孤立报告和迟到结果各自显示。比较从两侧原始样本独立计算，展示双边样本量与设备构成，不平均分位数或自动作因果判断。
 
-网站进程共享传输 owner，最多缓存 12 个查询结果，每份最多 60 秒并在样本最早到期前失效，读取缓存前仍校验当前超级管理员权限。传输拒绝重定向、总超时五秒、响应上限 1 MiB，并通过结构化 schema 校验响应。`PRODUCT_TELEMETRY_QUERY_PROXY_URL` 仍仅允许无凭据、路径、query 或 hash 的 HTTP/HTTPS 代理 origin，使用局部 HTTPS Agent，保留 TLS 校验。筛选与会话数据只展示对应成功响应，加载或失败时不把旧结果标成新选择。筛选、会话选择和手动刷新触发查询，不增加常驻轮询、采样写入或业务 PostgreSQL 调用；缓存命中不请求接收端。用量与到期积压为全站事实，不随事件筛选改变，配额来自接收端既有 budget owner。四条查询和上述返回批次/字节预算为实现上界；版本筛选仍可能扫描更多行，不能把返回 LIMIT 当作 D1 扫描或费用上限。真实 Worker CPU 与共享 D1 额度仍需在接收端发布验收时测量，不能由本地模拟或 CI 代替。
+操作按窗口内 start 关联同身份/会话/operation/operationId 的最新终态，成功与其他结果耗时分开。任务以 start cohort 与注册表观察窗口计算成熟分母、窗口内完成、仍观察、明确取消和未观测完成；完成耗时只含成熟且窗口内完成的尝试。历史窗口允许读取窗口后至最长任务窗口加迟到余量的结果，用于同 cohort 跟随；全部读取仍受七天 TTL 与预算约束。七天内的重复使用仅按任务和北京时间不同日计数登录账号，不返回账号，不称长期留存率；匿名使用单列。
+
+错误按页面、操作、分类与受控指纹归并；最多 100 个问题组、每组最近 30 条、100 个会话和选定会话最多 100 条事件。原账号、票据、operationId、session UUID、gzip 不离开 Worker，排查使用用途隔离的 SHA-256 短标识；requestId 按需展开。网站传输 owner 缓存最多 12 个结果、最多 60 秒且在原始样本过期前失效；每次读取缓存前重新授权，五秒超时、拒绝重定向、响应 1 MiB、结构校验。无常驻轮询；用量与到期积压为不随筛选变化的 UTC 全站事实。返回预算不是 D1 扫描或费用上限。
+
+### 任务采集
+
+`task-contract.ts` 是任务定义/步骤/观察窗口 owner，`task-client.ts` 是内存状态 owner；`TaskBoundary` 仅在首次输入或明确提交时开始。登录/注册、资料、教育、个人/团队报名、阵容、BP、预测和成绩录入接入有限步骤。个人报名仅具备提交资格时发独立 exposure，不把普通访问视为可参与曝光。固定 validationReason 不读取字段值。内容呈现继续复用 navigation/ready，不能解释为读懂或找到答案。
+
+任务报告携带随机 attemptId、定义版本、固定步骤与 phase；操作继续保留独立 operationId。OCR 重试共享当前地图尝试，BP/成绩保存完成要求相应 UI 投影确认。60 秒无交互暂停活跃计时，隐藏即暂停；沿用分钟批量队列，无逐输入请求。attempt 仅内存，不跨刷新、组件卸载或身份变化恢复；登录请求在原身份结束。当前 durationMs/activeMs 保持协议一小时上限，达到上限的值是截断观测；报名的观察窗口可更长，不能将 capped duration 当准确长周期。缺少完成只表示未观测；多人等待从业务记录读取。
+
+### 业务流程读模型
+
+超管 Server Action 经独立 PostgreSQL read model 输出聚合，使用自身 7/28/90 天与赛事条件，不附设备/客户端版本。报名审核按正式提交记录，教育认证按提交/审核记录，约赛按 proposal 起止，BP 按当前房间周期。缺少可靠结束时间计入缺失时长；仍等待对象保持等待，不反推完成时间。测试比赛排除。赛后资料复用既有工作台待办与撤回记录，按窗口内完赛比赛输出当前齐备/待办/待更正；缺少完赛时间单列，不推算首次齐备或全部历史返工周期。持久记录当前状态无法重建任意历史时点，浏览器 task 与业务对象不未经定义联接。
+
+### 可修订长期聚合
+
+`history-contract.ts` 与独立 `history.ts` 拥有新日聚合；`HISTORY_RETENTION_DAYS` 默认 0，与旧 `SUMMARY_RETENTION_DAYS` 分开，合法范围 1–90。启用后从实际处理开始累积，无 raw 回填承诺。短期关联表保存用途隔离的 SHA-256 样本键与有限维度，不保存原账号/session；最早原批次到期即失效，重复报告不得续期。任务、操作、性能更新按单一样本合并；日聚合保留计数、分母与分布桶，按采集版本/任务定义/导航类型区分。
+
+北京时间日桶在六天修正窗口内重算，封存后保持；未启用完整日、暂停、超预算或原始数据已丢失标记不完整。未处理批次与处理游标可查询，每轮最多处理 16 批/384 KiB，合并事务后公平刷新两个日快照；七个修正日可能跨四轮维护才更新，受影响但未刷新的快照标为不完整。含原始清理与旧汇总的最坏 SQL 路径受 50 次预算测试保护，实际 provider CPU/扫描仍需部署验收。原始 TTL 清理独立于聚合成败。日分布可合并后取近似分位数，显示所在桶上界并以观测最大值裁剪；不能平均日分位数。长期只展示可加次数与分布，不相加日去重人数。关闭后停止新增但继续过期删除；恢复前先停收、执行过期清理，D1 恢复副本边界与原始数据一致。
+
+`GET /admin/history` 仅返回有界聚合与处理状态，默认关闭时明确返回 disabled。最多 90 天、每日报表 500 组，读取正文预算 384 KiB，超出显示截断。两种长期聚合均须在部署时批准保留天数并检查 provider 预算；本实现不自动启用。
 
 ## 基本查询与版本比较
 
@@ -130,7 +150,7 @@ pnpm telemetry:query usage
 
 `/admin/events` 必须指定 session 或 account，每页最多 20 批；按 received/id/ticket 三元 cursor 翻页，直接使用返回 nextCursor 的 before/id/ticket 参数，包含相同毫秒也不漏数。CLI 只展示第一页并保留 truncated/cursor，不暗示结果完整。`/admin/summary` 一次最多 31 天、5,000 组，truncated 时按更短时间窗口查询；`/admin/usage` 返回最近八个接收日的成功批数/未压缩字节量及到期清理积压。仅已关闭日期有汇总，接收时间是分桶依据。
 
-比较新旧版本时使用相同长度的完整 UTC 日、相同 environment/scene/role/route，分别计算 page/filter 次数、operation start 次数、success/rejected/unknown 次数、终态平均 duration_ms；BP stale/noop 和操作 variant 独立比较。不要将 start 和终态相加为操作量；成功率按终态分母并同时报告没有终态的 start 与每日停收/额度/采集覆盖情况。不能把客户端开始/结果之间的数量差完全解释为业务失败，也不能将不同规模用户群的总量变化直接当作转化率。
+旧 summary CLI 的 UTC 接收日仅用于报告次数与总和；任务与版本体验比较使用上述分析端点的明确定义、开始 cohort 和缺失标识，不从旧 summary 恢复任务完成率或分位数。
 
 ## 上线前交回确认的清单
 
@@ -173,7 +193,7 @@ pnpm dlx wrangler@4.151.1 d1 execute rivalhub-product-telemetry-production \
   --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'"
 ```
 
-确认 `version: production`、账户/UUID 匹配，并且上面的用户表列表为空；否则停止初始化，先检查已有 schema，不能使用 DROP/清库绕过。只对已批准的新空库应用以下文件，并查证四表和五个显式索引均存在。Preview 同样独立执行。
+确认 `version: production`、账户/UUID 匹配，并且上面的用户表列表为空；否则停止初始化，先检查已有 schema，不能使用 DROP/清库绕过。只对已批准的新空库应用以下文件，并核对当前 schema 中的表和显式索引均存在。Preview 同样独立执行。
 
 ```sh
 pnpm dlx wrangler@4.151.1 d1 execute rivalhub-product-telemetry-production \
@@ -223,4 +243,4 @@ pnpm exec tsx scripts/telemetry/verify-live.ts
 
 性能批次摘要还保留浏览器生成的随机指标样本 ID 与报告时间（不是原始 web-vitals ID），只随原批次保留七天。查询端按该 ID 选时间最新的值，避免 CLS/INP 在隐藏、恢复后重复更新而被当成多次访问；INP 允许下降，不能使用最大值代替最新值。旧摘要没有样本 ID 时仅能作为历史报告计数，不能混入去重指标样本均值。
 
-面板部署前，对既有 D1 单独执行 `workers/telemetry/migrations/0001_dashboard_index.sql`，再更新 Worker，最后发布网站；该迁移只新增接收顺序索引，不重放 `schema.sql`、不修改留存设置。新库 schema 包含同一索引。面板按同一账号/会话内随机样本 ID 和报告时间选择最新性能值，乱序送达不回退；旧摘要缺少样本 ID 时单独显示数量，不混入均值。1,000 批是最近批次截断而非随机抽样，页面须明确显示不完整；查询索引优化接收顺序，但版本筛选仍可能扫描更多批次，不能把 LIMIT 当扫描成本上限。
+面板部署前，对既有 D1 按顺序应用尚未执行的 `workers/telemetry/migrations/0001_dashboard_index.sql` 与 `0002_product_history.sql`，再更新 Worker，最后按正式 release 流程发布网站。第二项新增独立历史聚合表，新库 schema 已包含；不重放初始化 SQL，不更改留存开关。面板按同一账号/会话内随机样本 ID 和报告时间选择最新性能值，乱序送达不回退；旧摘要缺少样本 ID 时单独显示数量，不混入均值。2,000 批是最近批次截断而非随机抽样，页面须明确显示不完整；查询索引优化接收顺序，但版本筛选仍可能扫描更多批次，不能把 LIMIT 当扫描成本上限。

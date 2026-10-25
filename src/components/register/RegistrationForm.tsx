@@ -45,6 +45,7 @@ import {
   countMapPreferenceLevels,
   isPositionFull,
 } from "./registration-form-utils";
+import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { observeAction } from "@/lib/telemetry/client";
 
 const saveRegistrationDraft = observeAction("register.saveRegistrationDraft", telemetry_saveRegistrationDraft);
@@ -74,6 +75,7 @@ export function RegistrationForm({
   submitLabel,
 }: RegistrationFormProps) {
   const { canSaveDraft, canSubmit, message: windowMessage } = windowState;
+  const task = useTelemetryTask("registration", seasonId, canSubmit);
   const [submitted, setSubmitted] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState("");
   const [savingDraft, setSavingDraft] = useState(false);
@@ -120,12 +122,16 @@ export function RegistrationForm({
       return;
     }
 
+    const taskToken = task.begin("submit");
+    task.step("submit", taskToken);
     const result = await submitRegistration(data);
     if (result.success) {
       setSubmittedEmail(data.email);
       setSubmitted(true);
+      task.complete(taskToken);
     } else {
       if (result.error.fieldErrors) {
+        task.validation("server_validation", taskToken);
         toast.error("请检查表单填写");
       } else {
         toast.error(result.error.message);
@@ -266,7 +272,7 @@ export function RegistrationForm({
   const { playableCount, strongCount } = countMapPreferenceLevels(mapPreferences);
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+    <form onInputCapture={() => task.begin()} onPointerDownCapture={task.activity} onKeyDownCapture={task.activity} onSubmit={handleSubmit(onSubmit, () => { task.begin(); task.validation("form_invalid"); })} className="space-y-8">
       <input type="hidden" {...register("seasonId")} />
 
       {/* ═══════════════════════════════════════ 基础信息 ═══ */}

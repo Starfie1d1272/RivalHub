@@ -160,3 +160,11 @@ export async function getTelemetryAnalysis(
     (data) => data.meta.validUntil,
   );
 }
+
+export async function getTelemetryHistory(input: unknown) {
+  await requireSuperAdmin();
+  const { HistoryData, parseHistoryQuery } = await import("./history-contract");
+  const query = parseHistoryQuery(input);
+  if (!query) throw new Error("Invalid telemetry history filters");
+  return readDashboard("/admin/history", query, value => HistoryData.parse(value), data => data.generatedAt + 60000);
+}

@@ -9,6 +9,7 @@
     "ACCEPTING": "0",
     "RETENTION_APPROVED": "0",
     "SUMMARY_RETENTION_DAYS": "0",
+    "HISTORY_RETENTION_DAYS": "0",
     "ALLOWED_ORIGIN": "https://replace-with-approved-origin.invalid"
   },
   "d1_databases": [{ "binding": "DB", "database_name": "rivalhub-product-telemetry", "database_id": "REQUIRES_APPROVAL" }],

@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-const { requireSuperAdmin } = vi.hoisted(() => ({ requireSuperAdmin: vi.fn() }));
+const { requireSuperAdmin, loadWorkflowMetrics } = vi.hoisted(() => ({ requireSuperAdmin: vi.fn(), loadWorkflowMetrics: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ requireSuperAdmin }));
+vi.mock("@/lib/admin/product-experience/read", () => ({ loadWorkflowMetrics }));
 vi.mock("server-only", () => ({}));
 import {analyzeTelemetry} from "@/lib/telemetry/analysis-model";
 import {analysisDefaults} from "@/lib/telemetry/analysis-query";
-import { getTelemetryAnalysis } from "@/lib/telemetry/dashboard";
+import { getTelemetryWorkflowsAction } from "@/app/admin/telemetry/actions";
+import { getTelemetryAnalysis, getTelemetryHistory } from "@/lib/telemetry/dashboard";
 
 afterEach(() => vi.unstubAllEnvs());
-beforeEach(() => { vi.restoreAllMocks(); requireSuperAdmin.mockReset(); });
+beforeEach(() => { vi.restoreAllMocks(); requireSuperAdmin.mockReset(); loadWorkflowMetrics.mockReset(); });
 it("requires current super-admin authorization before reading configuration or querying the provider", async () => {
   requireSuperAdmin.mockRejectedValue(new Error("FORBIDDEN"));
   const fetch = vi.spyOn(globalThis, "fetch");
@@ -57,4 +59,51 @@ it("revoked authorization cannot reuse a cached analysis result",async()=>{
  requireSuperAdmin.mockRejectedValue(new Error("FORBIDDEN"));
  await expect(getTelemetryAnalysis({})).rejects.toThrow("FORBIDDEN");
  expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+
+it("revoked authorization cannot reuse a cached history result", async () => {
+  requireSuperAdmin.mockResolvedValue({ userId: "fixture" });
+  vi.stubEnv("PRODUCT_TELEMETRY_ADMIN_KEY", "fixture-history-key".repeat(3));
+  vi.stubEnv("PRODUCT_TELEMETRY_ENDPOINT", "https://worker.invalid/v1/batches");
+  vi.stubEnv("PRODUCT_TELEMETRY_QUERY_PROXY_URL", "");
+  const data = { enabled: true, retentionDays: 90, generatedAt: Date.now(), coverageStart: null,
+    processedThrough: null, pendingBatches: 0, truncated: false, correctionDays: 6, days: [] };
+  const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(data)));
+  expect((await getTelemetryHistory({ days: "28" })).status).toBe("ready");
+  expect((await getTelemetryHistory({ days: "28" })).status).toBe("ready");
+  expect(fetch).toHaveBeenCalledTimes(1);
+  requireSuperAdmin.mockRejectedValue(new Error("FORBIDDEN"));
+  await expect(getTelemetryHistory({ days: "28" })).rejects.toThrow("FORBIDDEN");
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it.each([{ days: "7" }, { eventId: "private-value" }, { session: "a".repeat(32) }, { days: 28 }])("rejects invalid history input before provider access: %j", async input => {
+  requireSuperAdmin.mockResolvedValue({ userId: "fixture" });
+  const fetch = vi.spyOn(globalThis, "fetch");
+  await expect(getTelemetryHistory(input)).rejects.toThrow("Invalid telemetry history filters");
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it("requires current super-admin authorization before workflow validation or database access", async () => {
+  requireSuperAdmin.mockRejectedValue(new Error("FORBIDDEN"));
+  await expect(getTelemetryWorkflowsAction({ days: "7" })).rejects.toThrow("FORBIDDEN");
+  await expect(getTelemetryWorkflowsAction({ private: "invalid" })).rejects.toThrow("FORBIDDEN");
+  expect(loadWorkflowMetrics).not.toHaveBeenCalled();
+});
+
+it.each([{ days: "365" }, { eventId: "private-value" }, { days: "7", sql: "private" }, { days: 7 }])("rejects invalid workflow input before database access: %j", async input => {
+  requireSuperAdmin.mockResolvedValue({ userId: "fixture" });
+  await expect(getTelemetryWorkflowsAction(input)).rejects.toThrow();
+  expect(loadWorkflowMetrics).not.toHaveBeenCalled();
+});
+
+it("passes only validated workflow filters to the database owner after authorization", async () => {
+  requireSuperAdmin.mockResolvedValue({ userId: "fixture" });
+  loadWorkflowMetrics.mockImplementation(async filters => {
+    expect(requireSuperAdmin).toHaveBeenCalledTimes(1);
+    return { capturedAt: Date.now(), from: 0, filters, rows: [], postmatch: { finished: 0, ready: 0, pending: 0, reopened: 0, missingCompletionTime: 0, note: "fixture" } };
+  });
+  expect((await getTelemetryWorkflowsAction({})).status).toBe("ready");
+  expect(loadWorkflowMetrics).toHaveBeenCalledExactlyOnceWith({ days: "7", eventId: "" });
 });

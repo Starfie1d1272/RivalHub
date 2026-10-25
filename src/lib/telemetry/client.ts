@@ -1,3 +1,5 @@
+import { TelemetryTasks } from "./task-client";
+import { taskForOperation, type TaskName, type TaskStep, type TaskValidationReason, type TaskMeasurement } from "./task-contract";
 import { clientErrorFingerprint } from "./error-fingerprint";
 import { ErrorCode } from "@/lib/errors";
 import { LIMITS, routeTemplate, safeFilters, UUID, VARIANTS, type Bootstrap, type Scene, type TelemetryEvent, type MeasurementContext, READY_MODULES, READY_PHASES } from "./protocol";
@@ -9,6 +11,8 @@ let queue: TelemetryQueue | null = null;
 let identity: string | null = null;
 let session = "";
 let activeAt = 0;
+const taskExposures = new Set<string>();
+const tasks = new TelemetryTasks(report => record({ kind: "task", ...report }));
 let sceneContext: { prefix: string; scene: Scene; eventId: string } | null = null;
 let previousPage = "";
 let historyNavigation = false;
@@ -30,7 +34,7 @@ function navigationLifecycle(kind: "hard" | "soft" | "bfcache" | "unknown", star
 }
 export function recordTelemetryVisibility() {
   attempt(() => {
-    if (document.visibilityState === "hidden") hiddenSinceNavigation = true;
+    if (document.visibilityState === "hidden") { hiddenSinceNavigation = true; tasks.pause(); }
     else if (hiddenSinceNavigation && activeNavigation) activeNavigation.lifecycle.resumed = true;
     if (activeNavigation?.lifecycle.navigationType === "prerender") {
       activeNavigation.lifecycle.activationMs = navigationLifecycle("hard", activeNavigation.started).activationMs;
@@ -73,13 +77,14 @@ function attempt(callback: () => void) { try { callback(); } catch { /* Observab
 export function configureTelemetry(config: Bootstrap | null) {
   attempt(() => {
     generation++;
-    if (!config || config.identity !== identity) activeNavigation = null;
+    if (!config || config.identity !== identity) { activeNavigation = null; tasks.reset(); taskExposures.clear(); }
     if (!config || navigator.doNotTrack === "1" || (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl) {
       if (queue) vitalNavigationAfter = performance.now();
-      queue = null; identity = null; bootstrap = null;
+      tasks.reset(); queue = null; identity = null; bootstrap = null;
       vitalIds.clear(); pendingNavigation = null;
       return;
     }
+    if (config.measurementVersion !== 1) tasks.reset();
     bootstrap = config;
     if (queue && identity === config.identity) { queue.configure(config); return; }
     if (queue) vitalNavigationAfter = performance.now();
@@ -106,7 +111,7 @@ function touchSession(now: number) {
 }
 function measurementContext(): MeasurementContext | undefined {
   const navigationId = captureTelemetryNavigation();
-  return navigationId ? { v: 1, navigationId, lifecycle: activeNavigation ? { ...activeNavigation.lifecycle } : undefined, clientRelease: process.env.RIVALHUB_RELEASE_COMMIT || "unknown", visibility: document.visibilityState === "hidden" ? "hidden" : "visible" } : undefined;
+  return navigationId ? { v: 1, navigationId, lifecycle: activeNavigation ? { ...activeNavigation.lifecycle } : undefined, clientRelease: process.env.RIVALHUB_RELEASE_COMMIT || "unknown", ...(process.env.RIVALHUB_RELEASE_TAG ? { clientVersion: process.env.RIVALHUB_RELEASE_TAG } : {}), visibility: document.visibilityState === "hidden" ? "hidden" : "visible" } : undefined;
 }
 function record(event: Omit<TelemetryEvent, "id" | "at" | "session" | "route" | "scene"> & Partial<Pick<TelemetryEvent, "route" | "scene">>, operationSession?: string, sampleId?: string) {
   attempt(() => {
@@ -155,7 +160,7 @@ export function recordWebVital(metric: { name: string; value: number; id: string
         lifecycle.navigationType = kind;
         // Native metric lifecycle remains distinct from current SPA navigation.
         // Its random correlation ID is per sample and stable across later reports.
-        sample.measurement = { v: 1, navigationId: crypto.randomUUID(), clientRelease: process.env.RIVALHUB_RELEASE_COMMIT || "unknown", visibility: document.visibilityState === "hidden" ? "hidden" : "visible", lifecycle };
+        sample.measurement = { v: 1, navigationId: crypto.randomUUID(), clientRelease: process.env.RIVALHUB_RELEASE_COMMIT || "unknown", ...(process.env.RIVALHUB_RELEASE_TAG ? { clientVersion: process.env.RIVALHUB_RELEASE_TAG } : {}), visibility: document.visibilityState === "hidden" ? "hidden" : "visible", lifecycle };
       }
       vitalIds.set(key, sample);
       if (vitalIds.size > 128) vitalIds.delete(vitalIds.keys().next().value!);
@@ -207,9 +212,9 @@ export function recordClientError(event?: Event, boundaryError?: unknown) {
     record({ kind: "error", errorCode: "CLIENT_UNHANDLED", clientError: { source: event?.type === "error" ? "window_error" : event?.type === "unhandledrejection" ? "unhandled_rejection" : "boundary", category, ...(fingerprint ? { fingerprint } : {}) } });
   });
 }
-export function flushTelemetry() { attempt(() => { void queue?.flush().catch(() => {}); }); }
+export function flushTelemetry() { attempt(() => { tasks.checkpoint(); void queue?.flush().catch(() => {}); }); }
 export function resetTelemetryIdentity() {
-  flushTelemetry(); generation++; nextRenewalAttempt = 0; bootstrap = null; queue = null; identity = null; session = ""; previousPage = "";
+  flushTelemetry(); tasks.reset(); taskExposures.clear(); generation++; nextRenewalAttempt = 0; bootstrap = null; queue = null; identity = null; session = ""; previousPage = "";
   vitalIds.clear(); pendingNavigation = null; activeNavigation = null;
   vitalNavigationAfter = performance.now();
   attempt(() => sessionStorage.removeItem(storageKey));
@@ -263,18 +268,21 @@ export function observeAction<A extends unknown[], R>(operation: Operation, acti
     let filters: Record<string, string> | undefined;
     let operationSession: string | undefined;
     let operationMeasurement: MeasurementContext | undefined;
+    let operationTask: TaskMeasurement | undefined;
     const actionQueue = queue;
     attempt(() => {
       operationId = crypto.randomUUID(); started = performance.now(); captured = context();
       variant = variantFor(operation, args[0]); filters = safeFilters(new URLSearchParams(window.location.search));
-      record({ ...captured, kind: "operation", operation, operationId, phase: "start", ...(variant ? { variant } : {}) });
+      const taskName = taskForOperation(operation);
+      operationTask = taskName ? tasks.capture(taskName) : undefined;
+      record({ ...captured, ...(operationTask ? { task: operationTask } : {}), kind: "operation", operation, operationId, phase: "start", ...(variant ? { variant } : {}) });
       operationSession = session;
       operationMeasurement = measurementContext();
     });
     const finish = (phase: TelemetryEvent["phase"], errorCode?: string, requestId?: string, outcome?: TelemetryEvent["outcome"]) => attempt(() => {
       // Do not attribute an old user's pending result to a new identity.
       if (!operationId || queue !== actionQueue) return;
-      record({ ...captured, ...(operationMeasurement ? { measurement: operationMeasurement } : {}), kind: "operation", operation, operationId, phase,
+      record({ ...captured, ...(operationMeasurement ? { measurement: operationMeasurement } : {}), ...(operationTask ? { task: operationTask } : {}), kind: "operation", operation, operationId, phase,
         ...(variant ? { variant } : {}), ...(phase !== "success" && filters && Object.keys(filters).length ? { filters } : {}),
         durationMs: Math.min(3600000, Math.max(0, Math.round(performance.now() - started))),
         ...(outcome ? { outcome } : {}), ...(errorCode ? { errorCode } : {}), ...(requestId && UUID.test(requestId) ? { requestId } : {}),
@@ -292,6 +300,7 @@ export function observeAction<A extends unknown[], R>(operation: Operation, acti
           const code = typeof value.error?.code === "string" && errorCodes.has(value.error.code) ? value.error.code : "UNCLASSIFIED";
           finish(code === "INTERNAL_ERROR" || code === "PASSWORD_UPDATE_OUTCOME_UNKNOWN" ? "unknown" : "rejected", code, typeof value.error?.requestId === "string" ? value.error.requestId : undefined);
         } else finish("unknown", "INVALID_RESULT");
+        if (value?.success === true && operation === "auth.loginWithPassword") completeTelemetryTask("login", operationTask?.attemptId ?? null);
         if (value?.success === true && ["auth.loginWithPassword", "auth.logoutUser", "user-merge.executeSelfServiceUserMerge"].includes(operation)) resetTelemetryIdentity();
       });
       return result;
@@ -303,4 +312,34 @@ export function observeAction<A extends unknown[], R>(operation: Operation, acti
 export function observeTask<A extends unknown[], R>(operation: Operation, task: (...args: A) => Promise<R>) {
   const observed = observeAction(operation, async (...args: A) => ({ success: true as const, data: await task(...args) }));
   return async (...args: A): Promise<R> => (await observed(...args)).data;
+}
+
+
+export function beginTelemetryTask(name: TaskName, scope = "", step: TaskStep = "edit"): string | null {
+  let token: string | null = null;
+  attempt(() => { if (queue && bootstrap?.measurementVersion === 1) token = tasks.begin(name, `${window.location.pathname}:${scope}`, step); });
+  return token;
+}
+export function activityTelemetryTask(name: TaskName) { attempt(() => { if (queue) tasks.activity(name); }); }
+export function stepTelemetryTask(name: TaskName, step: TaskStep, token?: string | null) { attempt(() => { if (queue) tasks.step(name, step, token); }); }
+export function completeTelemetryTask(name: TaskName, token?: string | null) { attempt(() => { if (queue) tasks.finish(name, "complete", token); }); }
+export function cancelTelemetryTask(name: TaskName, token?: string | null) { attempt(() => { if (queue) tasks.finish(name, "cancel", token); }); }
+export function forgetTelemetryTask(name: TaskName, token?: string | null) { attempt(() => tasks.forget(name, token)); }
+
+export function recordTaskValidation(name: TaskName, reason: TaskValidationReason, token?: string | null) { attempt(() => { if (queue) tasks.validation(name, reason, token); }); }
+
+/** Denominator only for an explicitly eligible, mounted entry; never inferred from all page views. */
+export function exposeTelemetryTask(name: TaskName, scope = ""): boolean {
+  let recorded = false;
+  attempt(() => {
+    const navigationId = captureTelemetryNavigation();
+    if (!navigationId || !queue) return;
+    const key = `${navigationId}:${name}:${scope}`;
+    if (taskExposures.has(key)) { recorded = true; return; }
+    if (taskExposures.size >= 100) taskExposures.delete(taskExposures.values().next().value!);
+    taskExposures.add(key);
+    record({ kind: "task", task: { name, definitionVersion: 1, attemptId: crypto.randomUUID(), step: "ready", phase: "exposure" } });
+    recorded = true;
+  });
+  return recorded;
 }

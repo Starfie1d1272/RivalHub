@@ -3,6 +3,7 @@ import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
 import TelemetryDashboard from "@/components/telemetry/TelemetryDashboard";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { requireSuperAdmin } from "@/lib/auth/session";
+import { loadTelemetryEventNames } from "@/lib/admin/product-experience/read";
 import { getTelemetryAnalysis } from "@/lib/telemetry/dashboard";
 import {
   analysisDefaults,
@@ -25,11 +26,13 @@ export default async function TelemetryPage({
     ),
   );
   const result = await getTelemetryAnalysis(query?.filters ?? analysisDefaults);
-  if (result.status === "ready")
-    return <TelemetryDashboard initial={result.data} />;
+  if (result.status === "ready") {
+    const catalog = await loadTelemetryEventNames().catch(() => ({ rows: [], truncated: false }));
+    return <TelemetryDashboard initial={result.data} events={catalog.rows} release={{ sha: process.env.RIVALHUB_RELEASE_COMMIT ?? "", tag: process.env.RIVALHUB_RELEASE_TAG ?? "当前构建" }} />;
+  }
   return (
     <PageLayout variant="workbench" className="space-y-6">
-      <PageHeader title="遥测分析" />
+      <PageHeader title="产品使用与体验" />
       <Panel>
         <p>
           {result.status === "unconfigured"

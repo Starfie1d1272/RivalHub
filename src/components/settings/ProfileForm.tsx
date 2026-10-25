@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { COMPETITION_HISTORY_MAX_LENGTH, GAMEPLAY_STYLE_MAX_LENGTH } from "@/lib/player-declared-profile";
+import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { observeAction } from "@/lib/telemetry/client";
 
 const updateProfile = observeAction("account.updateProfile", telemetry_updateProfile);
@@ -39,6 +40,7 @@ type SteamLookupState =
   | { status: "conflict" };
 
 export function ProfileForm({ current }: ProfileFormProps) {
+  const task = useTelemetryTask("profile");
   const [form, setForm] = useState<ProfileInput>({
     displayName: current.displayName ?? "",
     perfectName: current.perfectName ?? "",
@@ -58,6 +60,8 @@ export function ProfileForm({ current }: ProfileFormProps) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const taskToken = task.begin("submit");
+    task.step("submit", taskToken);
     const steam64 = form.steam64.trim();
     if (steam64 && (steamLookup?.status !== "ok" || steamLookup.profile.steam64 !== steam64)) {
       toast.error("请先查询并确认 Steam 官方资料");
@@ -67,6 +71,7 @@ export function ProfileForm({ current }: ProfileFormProps) {
       const result = await updateProfile(form);
       if (result.success) {
         toast.success("个人信息已更新");
+        task.complete(taskToken);
       } else {
         toast.error(result.error.message);
       }
@@ -98,7 +103,7 @@ export function ProfileForm({ current }: ProfileFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onInputCapture={() => task.begin()} onInvalidCapture={() => task.validation("form_invalid")} onPointerDownCapture={task.activity} onKeyDownCapture={task.activity} onSubmit={handleSubmit} className="space-y-4">
       <Field
         id="display-name"
         label="自定义昵称"

@@ -13,6 +13,16 @@ export function telemetryBoundary() {
   data.meta.selected = 20000; data.meta.uniqueEvents = 20000; data.meta.totalReports = 20000; data.meta.latest = now;
   data.totals.views = 20000; data.totals.performance = 12000; data.totals.errors = 100;
   data.metrics = keys.map(key => ({ key, label: key, ...stats }));
+  const timing = { ...stats, p90: 1 };
+  // Exercise the current trend/readiness presentation inside the same transport cap.
+  data.product.performanceTrends = keys.map(metric => ({ metric, label: metric,
+    points: Array.from({ length: 24 }, (_, i) => ({ at: now - (23 - i) * 3600000, ...timing })) }));
+  data.product.ready = Array.from({ length: 60 }, (_, i) => ({ route: `/fixture/${i}`, label: `fixture ${i}`,
+    module: "public", moduleLabel: "公开内容", phase: "primary", phaseLabel: "主要内容", ...timing,
+    points: [{ at: now, ...timing }] }));
+  data.product.coverage.ready = 60;
+  data.product.coverage.pages = 20000;
+  data.product.coverage.enhancedPages = 20000;
   data.routes = Array.from({ length: 200 }, (_, i) => ({ key: `/fixture/${i}`, label: `fixture ${i}`, views: 100, sessions: 1, errors: 0, share: 0.5 }));
   data.options.route = data.routes.map(r => ({ value: r.key, label: r.label }));
   data.options.release = Array.from({ length: 2000 }, (_, i) => ({ value: `fixture-${i}`, label: `fixture-${i}` }));
@@ -20,7 +30,7 @@ export function telemetryBoundary() {
   data.variants = Array.from({ length: 2000 }, (_, i) => ({ operation: `fixture-${i % 300}`, label: `fixture ${i}`, variant: `v${i}`, variantLabel: `v${i}`, n: 1 }));
   data.filterRows = Array.from({ length: 2000 }, (_, i) => ({ dimension: "route", value: `v${i}`, label: "route", valueLabel: `v${i}`, n: 1, sessions: 1 }));
   data.performanceRoutes = Array.from({ length: 1200 }, (_, i) => ({ route: `/fixture/${Math.floor(i / 6)}`, label: `fixture ${i}`, metric: keys[i % 6]!, ...stats }));
-  data.errorGroups = Array.from({ length: 100 }, (_, i) => ({ key: `error-${i}`, type: "client", route: `/fixture/${i}`, label: `fixture ${i}`, operation: "", operationLabel: "", code: "CLIENT_UNHANDLED", reason: "fixture", n: 1, sessions: 1, last: now, details: [] }));
+  data.errorGroups = Array.from({ length: 100 }, (_, i) => ({ key: `error-${i}`, type: "client", route: `/fixture/${i}`, label: `fixture ${i}`, operation: "", operationLabel: "", code: "CLIENT_UNHANDLED", fingerprint: "", category: "", reason: "fixture", n: 1, sessions: 1, last: now, details: [] }));
   data.sessions = Array.from({ length: 100 }, (_, i) => ({ key: i.toString(16).padStart(32, "0"), label: `session ${i}`, role: "user", pages: 1, actions: 1, errors: 0, first: now, last: now }));
   data.timeline = Array.from({ length: 100 }, (_, i) => ({ at: now, label: `fixture ${i}`, kind: "page", phase: "", route: "/", detail: "fixture", duration: null, requestId: null }));
   data.metricSegments = [];
