@@ -25,6 +25,8 @@ const SAFE_CONTEXT_KEYS = new Set([
   "backend",
   "column",
   "connectionState",
+  "configuredGraceMs",
+  "actualOverdueMs",
   "constraint",
   "count",
   "completionTokens",

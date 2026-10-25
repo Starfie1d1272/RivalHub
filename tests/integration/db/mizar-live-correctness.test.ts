@@ -1,10 +1,44 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { and, eq, isNull } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
+import { loadPublicMatchRefreshToken } from "@/lib/matches/public-refresh";
 import { api, state, pool, monitor, publications, snapshot, prepared, upload, reports } from "./harness/live-capacity";
 const { db, schema, hashCredential, POST, ingestMizarLive, ingestMizarReliable, RELIABLE_EVENT_SCHEMA_VERSION, revokeMizarInstallation, claimMizarSource, takeOverCurrentMap, loadMizarMatchDocumentInTx, recordCanonicalMapResultInTx } = api;
 
 describe("LIVE correctness: real PostgreSQL and loopback HTTP faults", () => {
+  it("keeps a public read and reliable map completion available while both LIVE sends hold permits", async () => {
+    const fixtures = await Promise.all(Array.from({ length: 3 }, () => prepared()));
+    await delay(1500);
+    const before = publications.length;
+    let release!: () => void;
+    state.sendBarrier = new Promise<void>(resolve => { release = resolve; });
+    const live = fixtures.slice(0, 2).map(f => upload(f, 1));
+    try {
+      await vi.waitFor(() => expect(publications.length).toBe(before + 2));
+      const f = fixtures[2]!;
+      const start = performance.now();
+      const [token, receipt] = await Promise.all([
+        loadPublicMatchRefreshToken(f.seasonId, { matchId: f.matchId }),
+        ingestMizarReliable(f.installationId, f.seasonId, {
+          schemaVersion: RELIABLE_EVENT_SCHEMA_VERSION, idempotencyKey: "mixed-map-end",
+          cursor: { producerInstanceId: f.producerInstanceId, liveSessionId: f.liveSessionId, runtimeSeq: 1, programSourceGeneration: 0, programReceiveSequence: 1, mapEpoch: 1 },
+          observedAt: new Date().toISOString(), matchId: f.matchId, competitionId: f.seasonId, contextRevision: f.contextRevision,
+          mapId: f.mapOneId, mapName: "de_ancient", entryAId: f.entryAId, entryBId: f.entryBId,
+          evidence: { identity: "matched", telemetryFresh: true, contextFresh: true, source: "runtime-transition" },
+          kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 4, scoreT: 9 },
+        }, f.authorityRevision),
+      ]);
+      const nonLiveMs = performance.now() - start;
+      expect(token).toMatch(/^[a-f0-9]{32}$/);
+      expect(receipt).toEqual({ outcome: "canonicalized", duplicate: false });
+      expect(nonLiveMs).toBeLessThan(1500);
+      reports.push({ scenario: "two-live-public-read-reliable-completion", livePermits: 2, poolMax: 3, nonLiveMs, receipt, publicRead: true });
+    } finally {
+      release(); state.sendBarrier = undefined;
+      expect(await Promise.all(live.map(async result => (await (await result).json()).accepted))).toEqual([true, true]);
+    }
+  });
+
   it.each([false, true])("accepts fresh LIVE at 95ms SQL RTT with observed lineup=%s", async observedLineup => {
     const f = await prepared();
     await delay(1500);
