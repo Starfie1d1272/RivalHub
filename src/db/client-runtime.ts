@@ -133,8 +133,10 @@ function setupPoolGuard(entry: RuntimeEntry, owner: DatabaseRuntimeOwner) {
   async function guardedQuery(args: unknown[]) {
     const queryOperation = getQueryOperation(args);
     for (let attempt = 0; attempt < 2; attempt++) {
+      // Capture the actual execution entry for this attempt. A concurrent
+      // recovery may replace owner.entry before this query rejects.
+      const active = attempt === 0 ? entry : owner.entry;
       try {
-        const active = attempt === 0 ? entry : owner.entry;
         const queryFn = active.query;
         return await traceOperation("db.pool.query", {
           scope: "database",
@@ -171,7 +173,7 @@ function setupPoolGuard(entry: RuntimeEntry, owner: DatabaseRuntimeOwner) {
             retryable: true,
             safeContext: { attempt, queryOperation },
           });
-          await owner.rebuild(p);
+          await owner.rebuild(active.pool);
           continue;
         }
         const outcomeUnknown = isConnectionError(err) && !isPreConnectionError(err);
@@ -183,7 +185,7 @@ function setupPoolGuard(entry: RuntimeEntry, owner: DatabaseRuntimeOwner) {
           safeContext: { attempt, queryOperation },
         });
         // Recover future requests, never replay a statement whose commit is unknown.
-        if (outcomeUnknown) void owner.rebuild(p).catch(() => {});
+        if (outcomeUnknown) void owner.rebuild(active.pool).catch(() => {});
         throw err;
       }
     }

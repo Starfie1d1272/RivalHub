@@ -108,6 +108,27 @@ it("re-reads same-scope credentials during recovery but never replays an unknown
   expect(JSON.stringify(fake.log.mock.calls)).not.toContain("rotated-fixture-password");
 });
 
+it("recovers the actual retry pool after a pre-connect failure followed by an unknown outcome without replay", async () => {
+  const a = await loadModule(); const old = client(a);
+  old.holdDrain(); old.failures.push({ code: "ECONNREFUSED" });
+  const pending = a.db.execute("insert retry with unknown outcome");
+  void pending.catch(() => {});
+  await vi.waitFor(() => expect(fake.pools).toHaveLength(2));
+  const replacement = fake.pools[1];
+  const unknown = { code: "ECONNRESET" }; replacement.failures.push(unknown);
+  old.finishDrain!();
+  await expect(pending).rejects.toBe(unknown);
+  await vi.waitFor(() => expect(fake.pools).toHaveLength(3));
+  expect(a.getDatabasePoolSnapshot()?.generation).toBe(3);
+  expect(old.calls).toHaveLength(1); expect(replacement.calls).toHaveLength(1);
+  expect(fake.pools[2].calls).toHaveLength(0);
+  old.emit("error", unknown); replacement.emit("error", unknown);
+  await Promise.resolve();
+  expect(fake.pools).toHaveLength(3); expect(fake.pools[2].endCalls).toBe(0);
+  await a.db.execute("select future request");
+  expect(fake.pools[2].calls).toHaveLength(1);
+});
+
 it.each([
   ["database", "DATABASE_URL", "postgresql://fixture:fixture-password@127.0.0.1:5432/another_db"],
   ["role", "DATABASE_URL", "postgresql://another_role:fixture-password@127.0.0.1:5432/runtime_fixture"],
