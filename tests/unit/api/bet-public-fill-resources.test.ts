@@ -1,0 +1,32 @@
+import { beforeEach,expect,it,vi } from "vitest";
+const calls=vi.hoisted(()=>({read:vi.fn(),transaction:vi.fn()}));
+vi.mock("next/cache",()=>({cacheLife:vi.fn(),cacheTag:vi.fn()}));
+vi.mock("@/db/client",()=>({db:{transaction:calls.transaction}}));
+vi.mock("@/lib/bet/public-stats-read",()=>({readBetPublicStatsSnapshot:calls.read,projectBetPublicStats:()=>({pools:{pool:[],counts:[]},free:undefined})}));
+import { getBetPublicStats } from "@/lib/bet/public-stats-cache";
+import { getRuntimeResourceSnapshot } from "@/lib/observability/runtime-resources";
+const season={id:"00000000-0000-4000-8000-000000000001",slug:"fixture",status:"playing"};
+const resource=()=>getRuntimeResourceSnapshot().find(row=>row.name==="stats.public.fill")!;
+beforeEach(()=>{
+  vi.clearAllMocks();
+  calls.transaction.mockImplementation(async work=>work({query:{seasons:{findFirst:async()=>({status:"playing",competitionTemplate:"major"})}}}));
+});
+it("counts only actual fill work and completes the shared resource on success and failure",async()=>{
+  const before=resource();
+  let release!:(value:unknown)=>void;
+  calls.read.mockImplementationOnce(()=>new Promise(resolve=>{release=resolve;}));
+  const filling=getBetPublicStats(season,{view:"open"});
+  await vi.waitFor(()=>expect(calls.read).toHaveBeenCalledOnce());
+  expect(resource().inFlight).toBe(before.inFlight+1);
+  release({});await filling;
+  expect(resource()).toMatchObject({inFlight:before.inFlight,count:before.count+1});
+  const failure=new Error("fixture read failed");
+  calls.read.mockRejectedValueOnce(failure);
+  await expect(getBetPublicStats(season,{view:"event"})).rejects.toBe(failure);
+  expect(resource()).toMatchObject({inFlight:before.inFlight,count:before.count+2});
+  await getBetPublicStats({...season,status:"draft"});
+  await getBetPublicStats(season,{view:"records"});
+  await getBetPublicStats(season,{view:"leaderboard"});
+  expect(resource().count).toBe(before.count+2);
+  expect(calls.transaction).toHaveBeenCalledTimes(2);
+});
