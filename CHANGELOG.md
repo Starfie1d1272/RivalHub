@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.24.2]
+
+### Fixed
+
+- 修复单场工作台在开赛后缺少管理员解说管理入口的问题，待进行与进行中的比赛均可添加或移除解说，完赛后继续沿用名单更正流程。
+
 ## [2.24.1]
 
 ### Added
@@ -3524,3 +3530,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.23.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.0...v2.23.1
 
 [2.24.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.2...v2.24.1
+
+[2.24.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.1...v2.24.2
