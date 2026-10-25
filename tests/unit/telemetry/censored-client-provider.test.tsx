@@ -14,19 +14,10 @@ vi.mock("@/lib/telemetry/task-client", async importOriginal => {
     construct(target, args) { args[4] = 2; return Reflect.construct(target, args); },
   }) };
 });
-import { TelemetryTasks } from "@/lib/telemetry/task-client";
 import { beginTelemetryTask, activityTelemetryTask, stepTelemetryTask, completeTelemetryTask, configureTelemetry, flushTelemetry, observeAction, resetTelemetryIdentity } from "@/lib/telemetry/client";
-// The receiver provider lands before C's client core. This becomes an ordinary
-// regression when that provider is present; the isolated composite run covers it now.
-const supportsV2 = (() => {
-  let clock = 0;
-  const tasks: TelemetryTasks = Reflect.construct(TelemetryTasks, [() => {}, () => clock, () => crypto.randomUUID(), () => true, 2]);
-  tasks.begin("registration", "fixture"); clock = 3600001;
-  return tasks.capture("registration")?.elapsedCensored === true;
-})();
 afterEach(() => { resetTelemetryIdentity(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
-it.skipIf(!supportsV2)("accepts the real v2 collector's 100ms call after 61 active registration minutes", async () => {
+it("accepts the real v2 collector's 100ms call after 61 active registration minutes", async () => {
   vi.stubGlobal("Blob", NodeBlob);
   vi.useFakeTimers({ toFake: ["Date"] }); vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible"); const start = Date.UTC(2026, 9, 25); vi.setSystemTime(start);
   let mono = 0; vi.spyOn(performance, "now").mockImplementation(() => mono);
