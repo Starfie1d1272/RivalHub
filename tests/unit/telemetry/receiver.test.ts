@@ -1,7 +1,8 @@
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { handle, maintain, BUDGET, type Database, type Env, type Statement } from "../../../workers/telemetry/index";
+import { TelemetryQueue } from "@/lib/telemetry/queue";
 import { signTicket, accountKey } from "@/lib/telemetry/ticket";
 import { gunzipSync } from "node:zlib";
 import { routeTemplate, safeFilters, validEvent, type TelemetryEvent, type Ticket } from "@/lib/telemetry/protocol";
@@ -274,4 +275,36 @@ it("bounds lifecycle and fingerprint extensions without accepting arbitrary diag
   expect(validEvent({ ...sample, measurement }, now)).toBe(true);
   for (const lifecycle of [{ ...measurement.lifecycle, url: "PRIVATE" }, { ...measurement.lifecycle, startMs: -1 }, { ...measurement.lifecycle, activationMs: Infinity }, { ...measurement.lifecycle, navigationType: "PRIVATE" }, { ...measurement.lifecycle, resumed: "yes" }]) expect(validEvent({ ...sample, measurement: { ...measurement, lifecycle } }, now)).toBe(false);
   for (const clientError of [{ ...sample.clientError, stack: "PRIVATE" }, { ...sample.clientError, fingerprint: "PRIVATE" }]) expect(validEvent({ ...sample, clientError }, now)).toBe(false);
+});
+
+
+it("delivers legal rich batches through queue/receiver and deduplicates a lost ACK", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(now);
+  try {
+    const { env, sqlite } = fixture(); const session = crypto.randomUUID();
+    const signed = await batch(env);
+    const statuses: number[] = []; let lost = false;
+    const send = vi.fn<typeof fetch>(async (_url, init) => {
+      const response = await handle(new Request("https://receiver.invalid/v1/batches", { ...init, headers: { origin: env.ALLOWED_ORIGIN } }), env, Date.now());
+      statuses.push(response.status);
+      if (!lost && response.ok) { lost = true; throw new Error("lost ACK"); }
+      return response;
+    });
+    const q = new TelemetryQueue({ endpoint: "https://receiver.invalid/v1/batches", ticket: signed.ticket, identity: "fixture", expiresAt: now + 3600000 }, send);
+    const filters = safeFilters(new URLSearchParams({ tab: "players", ops: "conflict", position: "all", stage: "playoffs", source: "official", sort: "ratingPro", order: "desc", side: "all", status: "finished", map: "de_mirage", view: "leaderboard", format: "bo3", mapsView: "pool", mapFilter: "de_anubis", q: "PRIVATE", search: "PRIVATE", team: "PRIVATE", event: "PRIVATE", player: "PRIVATE", weapon: "PRIVATE", minMaps: "10", teamFilter: "PRIVATE", recordPage: "1" }));
+    const samples = Array.from({ length: 33 }, () => event({ session, filters,
+      client: { device: "mobile", browser: "safari", os: "ios", source: "none" },
+      measurement: { v: 1, navigationId: crypto.randomUUID(), clientRelease: "a".repeat(80), clientVersion: "v2.24.3", visibility: "hidden", lifecycle: { navigationType: "bfcache", startedHidden: false, resumed: true, startMs: 86400000, activationMs: 0 } },
+    }));
+    expect(samples.every(e => validEvent(e, now))).toBe(true);
+    expect(Buffer.byteLength(JSON.stringify({ ...signed, events: samples.slice(0, 32) }))).toBeGreaterThan(24576);
+    samples.forEach(e => q.add(e));
+    for (let i = 0; i < 6; i++) { await q.flush(); vi.advanceTimersByTime(60000); }
+    expect(statuses.every(s => s === 204)).toBe(true);
+    expect(send.mock.calls[0][1]?.body).toBe(send.mock.calls[1][1]?.body);
+    const rows = sqlite.prepare("SELECT events_gzip FROM batches").all();
+    expect(rows.flatMap(r => JSON.parse(gunzipSync(r.events_gzip as Uint8Array).toString()))).toHaveLength(33);
+    expect(q.metrics.dropped).toBe(0);
+    expect(Number(sqlite.prepare("SELECT batches FROM usage").get()?.batches)).toBe(statuses.length - 1);
+  } finally { vi.useRealTimers(); }
 });
