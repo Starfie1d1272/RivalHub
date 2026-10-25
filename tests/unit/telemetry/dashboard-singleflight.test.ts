@@ -2,6 +2,7 @@ import { createServer, type Server, type ServerResponse } from "node:http";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { analyzeTelemetry } from "@/lib/telemetry/analysis-model";
 import { analysisDefaults, parseAnalysisQuery } from "@/lib/telemetry/analysis-query";
+import { getRuntimeResourceSnapshot } from "@/lib/observability/runtime-resources";
 import { getTelemetryAnalysis } from "@/lib/telemetry/dashboard";
 
 const { requireSuperAdmin } = vi.hoisted(() => ({ requireSuperAdmin: vi.fn() }));
@@ -49,15 +50,20 @@ function respond(index: number, status = 200, pad = false) {
 }
 
 it("coalesces ten simultaneous normalized misses into one actual upstream request", async () => {
+  const resource = () => getRuntimeResourceSnapshot().find(r => r.name === "telemetry.dashboard.fill")!;
+  const before = resource().count;
   const calls = Array.from({ length: 10 }, (_, i) => getTelemetryAnalysis(i % 2 ? { release: "singleflight-ten" } : { session: "", hours: analysisDefaults.hours, release: "singleflight-ten", route: "" }));
   await vi.waitFor(() => expect(requests).toHaveLength(1));
   expect(requireSuperAdmin).toHaveBeenCalledTimes(10);
   expect(fetch).toHaveBeenCalledTimes(1);
+  expect(resource().inFlight).toBe(1);
   respond(0);
   expect((await Promise.all(calls)).every(result => result.status === "ready")).toBe(true);
   expect(requests).toHaveLength(1);
+  expect(resource()).toMatchObject({ inFlight: 0, count: before + 1 });
   expect((await getTelemetryAnalysis({ release: "singleflight-ten" })).status).toBe("ready");
   expect(fetch).toHaveBeenCalledTimes(1);
+  expect(resource().count).toBe(before + 1);
 });
 
 it("clears failed pending work so the next authorized query retries", async () => {

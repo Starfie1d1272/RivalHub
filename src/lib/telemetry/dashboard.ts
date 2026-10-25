@@ -1,5 +1,6 @@
 import "server-only";
 import { Agent, get } from "node:https";
+import { beginRuntimeResource } from "@/lib/observability/runtime-resources";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { AnalysisData } from "./analysis-contract";
 import { parseAnalysisQuery } from "./analysis-query";
@@ -101,6 +102,7 @@ async function loadDashboard<T>(
   const secret = process.env.PRODUCT_TELEMETRY_ADMIN_KEY;
   if (!secret || secret.length < 32 || !process.env.PRODUCT_TELEMETRY_ENDPOINT)
     return { status: "unconfigured" };
+  let finish: (() => void) | undefined;
   try {
     const endpoint = new URL(process.env.PRODUCT_TELEMETRY_ENDPOINT);
     if (
@@ -127,8 +129,10 @@ async function loadDashboard<T>(
         proxy.hash
       )
         return { status: "unconfigured" };
+      finish = beginRuntimeResource("telemetry.dashboard.fill");
       body = await queryThroughProxy(endpoint, secret, proxy);
     } else {
+      finish = beginRuntimeResource("telemetry.dashboard.fill");
       const response = await fetch(endpoint, {
         headers: { Authorization: `Bearer ${secret}` },
         cache: "no-store",
@@ -165,7 +169,7 @@ async function loadDashboard<T>(
     return { status: "ready", data };
   } catch {
     return { status: "unavailable" };
-  }
+  } finally { finish?.(); }
 }
 
 export async function getTelemetryAnalysis(
