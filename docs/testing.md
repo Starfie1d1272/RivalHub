@@ -72,7 +72,7 @@ Vitest 的三个 project（domain Node、server Node、React jsdom）是独立 e
 
 对疑似 flake 的本地诊断可以显式运行 `pnpm exec vitest run --project unit-react-jsdom --retry 1 path/to/related.spec.tsx`；`repeats` 只作为聚焦诊断或手动/nightly 入口，不进入普通 PR 的 planner、required path 或 flaky allowlist。
 
-System failure/flaky 时 Playwright 生成 failure screenshot；artifact sanitizer 仅从 test-results 保留小型 PNG/JPEG，trace archive 与所有文本继续脱敏，成功 run 不上传大体积 artifacts。每条 stateful E2E 使用自己的 fixture profile 与 attempt namespace。认证 helper 的 predicate URL 断言仍会等待 document load；SSR可见与load不证明hydration，真实UI/持久化结果由后续断言验证。外部遥测/资源加载和dev编译仍可能影响浏览器耗时，不将一次CI成功视作稳定性证明。
+System failure/flaky 时 Playwright 生成 failure screenshot；artifact sanitizer 只保留限额内的 PNG/JPEG 与脱敏文本，不上传 trace archive。文件数、目录项/深度、单文件/累计输入输出字节及行长预算由 `scripts/ci/system-artifact-sanitizer.mjs` 统一声明；超限整文件或整行跳过，`sanitization-summary.json` 只记录固定原因计数，不包含被跳过原文或路径。Next 日志先读取有界尾部、丢弃可能不完整的首行并选取最近行，再脱敏；存在多行环境密钥且截尾/过滤可能破坏完整匹配时，整份候选日志不上传。正常的小报告与重试计数保留，成功 run 不上传大体积 artifacts。每条 stateful E2E 使用自己的 fixture profile 与 attempt namespace。认证 helper 的 predicate URL 断言仍会等待 document load；SSR可见与load不证明hydration，真实UI/持久化结果由后续断言验证。外部遥测/资源加载和dev编译仍可能影响浏览器耗时，不将一次CI成功视作稳定性证明。
 
 公开搜索的 required evidence 是一次真实 debounce/router/RSC 与历史恢复闭环。它不穷举共享输入组件的全部状态。`--repeat-each=10`、容量压测与截图不进入普通 PR 或 FULL required gate，也不得用 retry 隐藏失败。
 
