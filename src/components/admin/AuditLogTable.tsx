@@ -45,7 +45,8 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
   const update: typeof navigate = (...args) => startTransition(() => navigate(...args));
 
   const pageValue = Number(searchParams.get("page") ?? "1");
-  const currentPage = Number.isSafeInteger(pageValue) && pageValue > 0 ? pageValue : 1;
+  const requestedPage = Number.isSafeInteger(pageValue) && pageValue > 0 ? pageValue : 1;
+  const currentPage = Math.min(requestedPage, Math.max(1, Math.ceil(total / PAGE_SIZE)));
   const currentAction = searchParams.get("action") ?? "";
   const currentActor = searchParams.get("actor") ?? "";
   const currentSeason = searchParams.get("seasonId") ?? "";
