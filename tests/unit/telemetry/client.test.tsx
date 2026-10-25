@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { beginTelemetryNavigation, captureTelemetryNavigation, recordContentReady, restoreTelemetryPage, recordTelemetryVisibility, recordClientError, recordClientBoundaryError, configureTelemetry, flushTelemetry, observeAction, recordPage, recordWebVital, renewTelemetryIfNeeded, resetTelemetryIdentity, setTelemetryScene } from "@/lib/telemetry/client";
+import { exposeTelemetryTask, recordTaskValidation, beginTelemetryTask, completeTelemetryTask, beginTelemetryNavigation, captureTelemetryNavigation, recordContentReady, restoreTelemetryPage, recordTelemetryVisibility, recordClientError, recordClientBoundaryError, configureTelemetry, flushTelemetry, observeAction, recordPage, recordWebVital, renewTelemetryIfNeeded, resetTelemetryIdentity, setTelemetryScene } from "@/lib/telemetry/client";
 import { TelemetryQueue } from "@/lib/telemetry/queue";
 import type { Bootstrap, TelemetryEvent } from "@/lib/telemetry/protocol";
 
@@ -332,4 +332,46 @@ it("reports current visibility on completion and native metric updates while pre
     if (previous) Object.defineProperty(document, "visibilityState", previous);
     else Reflect.deleteProperty(document, "visibilityState");
   }
+});
+
+
+it("gates task collection, clears attempts on disable and keeps identities separate", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", send); configureTelemetry(config);
+  expect(beginTelemetryTask("profile", "PRIVATE")).toBeNull();
+  configureTelemetry({ ...config, measurementVersion: 1 });
+  const old = beginTelemetryTask("profile", "PRIVATE");
+  configureTelemetry({ ...config, identity: "second", measurementVersion: 1 });
+  completeTelemetryTask("profile", old);
+  const current = beginTelemetryTask("profile", "SECRET");
+  await observeAction("account.updateProfile", async () => ({ success: true }))();
+  completeTelemetryTask("profile", old);
+  completeTelemetryTask("profile", current);
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const events = JSON.parse(send.mock.calls[0][1].body).events as TelemetryEvent[];
+  expect(events.filter(e => e.kind === "task").map(e => e.task?.phase)).toEqual(["start", "complete"]);
+  expect(events.filter(e => e.kind === "operation").every(e => e.task?.attemptId === current)).toBe(true);
+  expect(JSON.stringify(events)).not.toMatch(/PRIVATE|SECRET/);
+  vi.setSystemTime(Date.now() + 1001);
+  beginTelemetryTask("profile");
+  configureTelemetry({ ...config, identity: "second" });
+  completeTelemetryTask("profile");
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+  expect(JSON.parse(send.mock.calls[1][1].body).events.filter((e: TelemetryEvent) => e.task?.phase === "complete")).toHaveLength(0);
+});
+
+
+it("deduplicates eligible exposure separately from attempts and only reports fixed validation categories", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", send); configureTelemetry({ ...config, measurementVersion: 1 });
+  exposeTelemetryTask("registration", "PRIVATE"); exposeTelemetryTask("registration", "PRIVATE");
+  const token = beginTelemetryTask("registration", "PRIVATE");
+  recordTaskValidation("registration", "form_invalid", token);
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const events = JSON.parse(send.mock.calls[0][1].body).events as TelemetryEvent[];
+  expect(events.filter(e => e.task?.phase === "exposure")).toHaveLength(1);
+  expect(events.filter(e => e.task?.phase === "start")).toHaveLength(1);
+  expect(events.find(e => e.task?.validationReason)?.task).toMatchObject({ validationReason: "form_invalid", attemptId: token });
+  expect(JSON.stringify(events)).not.toContain("PRIVATE");
 });

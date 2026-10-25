@@ -43,7 +43,7 @@ async function main() {
   await writeFile(output, `${JSON.stringify({
     name, account_id: account, main: resolve("workers/telemetry/index.ts"), compatibility_date: "2026-07-30",
     workers_dev: true, preview_urls: false, observability: { enabled: false },
-    vars: { ACCEPTING: "0", RETENTION_APPROVED: "0", SUMMARY_RETENTION_DAYS: "0", ALLOWED_ORIGIN: origin.origin },
+    vars: { ACCEPTING: "0", RETENTION_APPROVED: "0", SUMMARY_RETENTION_DAYS: "0", HISTORY_RETENTION_DAYS: "0", ALLOWED_ORIGIN: origin.origin },
     d1_databases: [{ binding: "DB", database_name: name, database_id: values.database }],
     triggers: { crons: ["0 * * * *"] },
   }, null, 2)}\n`, { flag: "wx", mode: 0o600 });

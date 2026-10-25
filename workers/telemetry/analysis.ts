@@ -6,6 +6,7 @@ import {
   ANALYSIS_BATCH_LIMIT,
   ANALYSIS_BYTES_LIMIT,
   type AnalysisFilters,
+  analysisWindow,
 } from "../../src/lib/telemetry/analysis-query";
 import {
   LIMITS,
@@ -45,14 +46,18 @@ export async function analysis(
   now: number,
   budget: { batches: number; bytes: number },
 ) {
-  const from = now - Number(filters.hours) * 3600000;
+  const window = analysisWindow(filters, now);
+  const from = window.from;
+  // Follow-up reports settle starts in a fixed window; presentation remains scoped to that window.
+  const readTo = Math.min(now, window.to + 86400000 + LIMITS.ageMs);
+  const ticketRelease = filters.releaseBasis === "ticket" ? filters.release : "";
   const base = `SELECT ticket,id,received,expires,bytes FROM batches WHERE environment='production' AND expires>? AND received>=? AND received<=? AND (?='' OR release=?) ORDER BY received DESC,ticket DESC,id DESC LIMIT ?`;
   const args = [
     now,
     from,
-    now,
-    filters.release,
-    filters.release,
+    readTo,
+    ticketRelease,
+    ticketRelease,
     ANALYSIS_BATCH_LIMIT + 1,
   ];
   const results = (await db.batch([
@@ -70,6 +75,8 @@ export async function analysis(
         "SELECT count(*) AS expiredBatches FROM batches WHERE expires<=?",
       )
       .bind(now),
+    db.prepare("SELECT release FROM batches WHERE environment='production' AND expires>? AND received>=? AND received<=? ORDER BY received DESC,ticket DESC,id DESC LIMIT ?")
+      .bind(now, from, window.to, ANALYSIS_BATCH_LIMIT + 1),
   ])) as Array<{ results: unknown[] }>;
   const meta = results[0].results[0] as { n: number; bytes: number | null };
   const batches = results[1].results as Batch[];
@@ -136,6 +143,8 @@ export async function analysis(
       },
       truncated: meta.n > batches.length,
       validUntil,
+      ticketReleases: (results[4].results as { release: string }[]).slice(0, ANALYSIS_BATCH_LIMIT).map(r => r.release),
+      releaseDirectoryTruncated: results[4].results.length > ANALYSIS_BATCH_LIMIT || meta.n > batches.length,
     },
     filters,
     session,

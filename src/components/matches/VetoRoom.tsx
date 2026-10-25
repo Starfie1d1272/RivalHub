@@ -4,6 +4,7 @@ import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 
 import Link from "next/link";
+import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
@@ -66,6 +67,7 @@ function formatRemaining(milliseconds: number): string {
 }
 
 export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
+  const { begin: beginTask, complete: completeTask } = useTelemetryTask("veto", initialRoom.match.id);
   const [room, setRoom] = useState(initialRoom);
   const [pending, setPending] = useState(false);
   const [invalidationPending, setInvalidationPending] = useState(Boolean(initialRoom.pendingInvalidation));
@@ -232,6 +234,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
 
   const mutate = useCallback(async (action: MutationAction, input: unknown, successMessage = "已保存。") => {
     if (pendingRef.current || uncertainCommand.current) return;
+    const taskToken = beginTask("submit");
     pendingRef.current = true;
     readGeneration.current++;
     refreshController.current?.abort();
@@ -260,6 +263,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
       setRepresentatives(Object.fromEntries(result.data.room.entries.map((entry) => [entry.id, entry.vetoRepresentativeMemberId ?? ""])));
       setManualPrivilege(result.data.room.session.privilegedEntryId ?? "");
       setNotice(result.data.outcome === "stale" ? "BP 状态已更新，请按当前步骤重新选择。" : successMessage);
+      if (result.data.outcome !== "stale") completeTask(taskToken);
     } catch {
       uncertainCommand.current = { revision: latestRoom.current.session.revision, input, fact };
       setUncertainRevision(latestRoom.current.session.revision);
@@ -269,7 +273,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
       setPending(false);
       if (uncertainCommand.current) void refresh();
     }
-  }, [applyRoom, refresh]);
+  }, [applyRoom, refresh, beginTask, completeTask]);
 
   useEffect(() => () => { readGeneration.current++; refreshController.current?.abort(); }, []);
 

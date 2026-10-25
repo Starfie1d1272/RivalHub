@@ -5,6 +5,8 @@ import { dashboard } from "./dashboard";
 import { analysis } from "./analysis";
 import { parseAnalysisQuery } from "../../src/lib/telemetry/analysis-query";
 import { batchSummary, compressEvents, decompressEvents } from "./storage";
+import { parseHistoryQuery } from "../../src/lib/telemetry/history-contract";
+import { maintainHistory, readHistory } from "./history";
 
 export interface Statement {
   bind(...args: (string | number | null | ArrayBuffer)[]): Statement;
@@ -16,7 +18,7 @@ export interface Database { prepare(sql: string): Statement; batch(statements: S
 export interface Env {
   DB: Database; SIGNING_KEY: string; ADMIN_KEY: string; ALLOWED_ORIGIN: string;
   DASHBOARD_KEY?: string;
-  ACCEPTING?: string; RETENTION_APPROVED?: string; SUMMARY_RETENTION_DAYS?: string;
+  ACCEPTING?: string; RETENTION_APPROVED?: string; SUMMARY_RETENTION_DAYS?: string; HISTORY_RETENTION_DAYS?: string;
 }
 const DAY = 86400000;
 // Deliberately below Workers Free/D1 allowances. Shared account headroom still needs approval.
@@ -85,9 +87,14 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
     if (url.pathname.startsWith("/admin/")) {
       const authorization = request.headers.get("authorization");
       const operator = env.ADMIN_KEY?.length >= 32 && authorization === `Bearer ${env.ADMIN_KEY}`;
-      const dashboardReader = ["/admin/dashboard", "/admin/analysis"].includes(url.pathname) && (env.DASHBOARD_KEY?.length ?? 0) >= 32 && authorization === `Bearer ${env.DASHBOARD_KEY}`;
+      const dashboardReader = ["/admin/dashboard", "/admin/analysis", "/admin/history"].includes(url.pathname) && (env.DASHBOARD_KEY?.length ?? 0) >= 32 && authorization === `Bearer ${env.DASHBOARD_KEY}`;
       if (!operator && !dashboardReader) return response(401);
       if (request.method !== "GET") return response(405);
+      if (url.pathname === "/admin/history") {
+        const query = parseHistoryQuery(Object.fromEntries(url.searchParams));
+        if (!query) return response(400);
+        return response(200, undefined, await readHistory(env, query, now));
+      }
       if (url.pathname === "/admin/analysis") {
         const query = parseAnalysisQuery(Object.fromEntries(url.searchParams));
         if (!query) return response(400);
@@ -138,6 +145,8 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
 /** Expiry commits independently before rollup, including when summary writes run out of space. */
 export async function maintain(env: Env, now = Date.now()) {
   if (env.RETENTION_APPROVED !== "1") return;
+  let historyError: unknown;
+  try { await maintainHistory(env, now); } catch (error) { historyError = error; }
   const today = new Date(now).toISOString().slice(0, 10);
   // Independent bounded commits drain a full daily allowance per hourly invocation.
   // A failure is surfaced by the scheduled invocation, never a global admission predicate.
@@ -150,6 +159,7 @@ export async function maintain(env: Env, now = Date.now()) {
     env.DB.prepare("DELETE FROM usage WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
     env.DB.prepare("DELETE FROM summaries WHERE expires<=?").bind(now),
   ]);
+  if (historyError) throw historyError;
   const retention = summaryRetention(env);
   if (retention === null) return; // Raw approval never opts into durable summaries.
   const pending = await env.DB.prepare("SELECT day FROM usage WHERE day<? AND day NOT IN (SELECT day FROM rollups) ORDER BY day LIMIT 1").bind(today).first<{ day: string }>();

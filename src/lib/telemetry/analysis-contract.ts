@@ -1,5 +1,8 @@
 import { z } from "zod";
 import type { Analysis } from "./analysis-model";
+import { analysisFields } from "./analysis-query";
+import { ProductAnalysisData } from "./product-analysis-contract";
+import { TASK_NAMES } from "./task-contract";
 const count = z.number().int().nonnegative();
 const value = z.number().finite().nonnegative();
 const text = z.string().max(256);
@@ -13,17 +16,7 @@ const stats = {
 };
 const dimension = z.object({ key: text, label: text, n: count, share: value });
 const option = z.object({ value: text, label: text });
-const filterKeys = [
-  "hours",
-  "scene",
-  "role",
-  "route",
-  "device",
-  "browser",
-  "source",
-  "release",
-  "scope",
-] as const;
+const filterKeys = analysisFields;
 const filters = z.object(
   Object.fromEntries(filterKeys.map((k) => [k, text])) as Record<
     (typeof filterKeys)[number],
@@ -32,6 +25,7 @@ const filters = z.object(
 );
 export const AnalysisData: z.ZodType<Analysis> = z.object({
   filters,
+  product: ProductAnalysisData,
   meta: z.object({
     capturedAt: count,
     from: count,
@@ -171,6 +165,8 @@ export const AnalysisData: z.ZodType<Analysis> = z.object({
         operation: text,
         operationLabel: text,
         code: text,
+        fingerprint: text,
+        category: text,
         reason: text,
         n: count,
         sessions: count,
@@ -232,6 +228,11 @@ export const AnalysisData: z.ZodType<Analysis> = z.object({
     device: z.array(option).max(10),
     browser: z.array(option).max(10),
     source: z.array(option).max(10),
-    release: z.array(option).max(2000),
+    release: z.array(option).max(2001),
+    eventId: z.array(option).max(2001),
+    task: z.array(z.object({ value: z.enum(TASK_NAMES), label: text })).max(40),
+    operation: z.array(option).max(300),
+    navigationType: z.array(option).max(10),
+    visibility: z.array(option).max(3),
   }),
 });

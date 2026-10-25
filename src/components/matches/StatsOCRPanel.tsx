@@ -40,6 +40,7 @@ import { InlineConfirm } from "@/components/rivalhub";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils/cn";
 import { assignScreenshotPlayer, mergeScreenshotDrafts, type ScoreboardDraft } from "./stats-ocr-drafts";
+import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { observeAction } from "@/lib/telemetry/client";
 
 const extractStatsFromScreenshot = observeAction("player-stats.extractStatsFromScreenshot", telemetry_extractStatsFromScreenshot);
@@ -93,6 +94,7 @@ type NumFieldKey = typeof NUM_FIELDS[number]["key"];
 
 export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: Props) {
   const router = useRouter();
+  const telemetryTask = useTelemetryTask("score_entry", mapId);
   const fileRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [drafts, setDrafts] = useState<DraftRow[]>(() => savedDrafts(initialRows ?? []));
@@ -287,6 +289,8 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
 
   async function handleExtract() {
     if (activeOperation.current || saving || recovery || readFailed) return;
+    const telemetryToken = telemetryTask.begin("recognize");
+    telemetryTask.step("recognize", telemetryToken);
     const file = selectedFile;
     if (!file) {
       setError("请先选择截图文件");
@@ -329,6 +333,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
       setBaseVersion(result.data.snapshot.version);
       setCanonicalDrafts(saved);
       setDrafts(mergeScreenshotDrafts(result.data.drafts, saved));
+      telemetryTask.step("review", telemetryToken);
       setViewMode(false);
       optionsLoaded.current = true;
       setPlayerOptions(result.data.playerOptions);
@@ -341,6 +346,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   }
 
   function handleNumChange(idx: number, field: NumFieldKey, raw: string) {
+    telemetryTask.begin("review");
     const val = raw === "" ? null : Number(raw);
     setDrafts((prev) =>
       prev.map((row, i) =>
@@ -350,6 +356,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   }
 
   function handleUserChange(idx: number, userId: string) {
+    telemetryTask.begin("review");
     const selectedPlayer = userId !== "__none__"
       ? playerOptions.find((p) => p.userId === userId)
       : null;
@@ -357,10 +364,12 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   }
 
   function handleDeleteRow(idx: number) {
+    telemetryTask.begin("review");
     setDrafts((prev) => prev.filter((_, i) => i !== idx));
   }
 
   async function handleAddRow() {
+    telemetryTask.begin("edit");
     if (activeOperation.current || saving || recovery || readFailed) return;
     setSaving(true);
     const generation = ++readGeneration.current;
@@ -385,6 +394,8 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
 
   async function handleSave() {
     if (activeOperation.current || recovery || readFailed || !baseVersion || !actorScope.current) return;
+    const telemetryToken = telemetryTask.begin("submit");
+    telemetryTask.step("submit", telemetryToken);
     const command = { operationId: crypto.randomUUID(), expectedActor: actorScope.current, expectedVersion: baseVersion, operation: "save" as const, rows: drafts };
     if (!persistOperation(command)) return;
     pendingOperation.current = command;
@@ -412,6 +423,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
       setCanonicalDrafts(saved);
       setDrafts(saved);
       setViewMode(true);
+      telemetryTask.complete(telemetryToken);
       if (!result.data.refreshPending) { setRecovery(null); clearPendingOperation(); }
       router.refresh();
     } catch {
@@ -510,7 +522,7 @@ export function StatsOCRPanel({ mapId, mapName, initialRows, initialVersion }: P
   }
 
   return (
-    <div className="mt-4 space-y-4">
+    <div className="mt-4 space-y-4" onInputCapture={() => telemetryTask.begin()} onPointerDownCapture={telemetryTask.activity} onKeyDownCapture={telemetryTask.activity}>
       {(recovery || readFailed) && <div role="status" className="space-y-2 text-sm">
         <p>{recovery === "unknown" ? (restoredOperation ? "原操作编号已恢复；关闭前的草稿未持久保存。" : "提交结果待核对；当前草稿和操作编号已保留。") : recovery === "conflict" ? "计分板存在后续更改，请读取当前数据核对。" : recovery === "refresh_pending" ? "写入已确认，刷新待完成。" : "无法读取已保存数据。"}</p>
         <Button size="sm" variant="outline" disabled={saving} onClick={reloadSavedData}>{recovery === "unknown" ? "核对原操作提交凭据" : "载入当前已保存数据（替换草稿）"}</Button>

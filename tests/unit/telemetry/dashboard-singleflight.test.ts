@@ -1,7 +1,7 @@
 import { createServer, type Server, type ServerResponse } from "node:http";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { analyzeTelemetry } from "@/lib/telemetry/analysis-model";
-import { parseAnalysisQuery } from "@/lib/telemetry/analysis-query";
+import { analysisDefaults, parseAnalysisQuery } from "@/lib/telemetry/analysis-query";
 import { getTelemetryAnalysis } from "@/lib/telemetry/dashboard";
 
 const { requireSuperAdmin } = vi.hoisted(() => ({ requireSuperAdmin: vi.fn() }));
@@ -48,7 +48,7 @@ function respond(index: number, status = 200) {
 }
 
 it("coalesces ten simultaneous normalized misses into one actual upstream request", async () => {
-  const calls = Array.from({ length: 10 }, (_, i) => getTelemetryAnalysis(i % 2 ? { release: "singleflight-ten" } : { session: "", hours: "24", release: "singleflight-ten", route: "" }));
+  const calls = Array.from({ length: 10 }, (_, i) => getTelemetryAnalysis(i % 2 ? { release: "singleflight-ten" } : { session: "", hours: analysisDefaults.hours, release: "singleflight-ten", route: "" }));
   await vi.waitFor(() => expect(requests).toHaveLength(1));
   expect(requireSuperAdmin).toHaveBeenCalledTimes(10);
   expect(fetch).toHaveBeenCalledTimes(1);

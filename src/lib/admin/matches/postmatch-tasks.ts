@@ -40,7 +40,8 @@ export async function loadAdminPostMatchTaskPage(seasonId: string, scope: { stag
 }
 
 /** Authorized caller supplies the season. Child reads use only IDs from this scoped official query. */
-export async function readAdminPostMatchTasks(database: DB | TxDb, seasonId: string, userId: string, scope: { stage?: string; team?: string } = {}): Promise<AdminPostMatchTaskRow[]> {
+export async function readAdminPostMatchTasks(database: DB | TxDb, seasonId: string, userId: string, scope: { stage?: string; team?: string; matchIds?: readonly string[] } = {}): Promise<AdminPostMatchTaskRow[]> {
+  if (scope.matchIds?.length === 0) return [];
   const matchRows = await database.select({
     id: matches.id, seasonId: matches.seasonId, stage: matches.stage,
     majorStageRunId: matches.majorStageRunId, status: matches.status,
@@ -48,6 +49,7 @@ export async function readAdminPostMatchTasks(database: DB | TxDb, seasonId: str
     hasVideo: hasMatchRecordingCondition().mapWith(Boolean),
   }).from(matches)
     .where(and(eq(matches.seasonId, seasonId), officialMatchCondition(), eq(matches.status, "finished"),
+      scope.matchIds ? inArray(matches.id, [...scope.matchIds]) : undefined,
       scope.stage && scope.stage !== "all" ? eq(matches.stage, scope.stage) : undefined,
       scope.team && scope.team !== "all" ? or(sql`${matches.entryAId}::text = ${scope.team}`, sql`${matches.entryBId}::text = ${scope.team}`) : undefined))
     .orderBy(desc(matches.completedAt), asc(matches.id));

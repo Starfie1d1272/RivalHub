@@ -36,6 +36,7 @@ import { exportPredictionImage as unobservedExportPredictionImage } from "./shar
 import { usePredictionConfirmation } from "./usePredictionConfirmation";
 import styles from "@/components/tournament/tournament.module.css";
 import { fetchPredictionBoard as getPredictionBoard } from "@/lib/predictions/http-client";
+import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { observeAction, observeTask } from "@/lib/telemetry/client";
 
 const exportPredictionImage = observeTask("predictions.exportImage", unobservedExportPredictionImage);
@@ -67,6 +68,7 @@ export function PredictionBoard({
     initial.contexts.find((c) => c.kind === initial.defaultContext)!,
   );
   const [stageKey, setStageKey] = useState(() => defaultStage(context));
+  const task = useTelemetryTask("predictions", `${initial.base.seasonId}:${stageKey}`);
   const [choices, setChoices] = useState<Choices>({});
   const [undo, setUndo] = useState<Choices[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Pick>>({});
@@ -191,6 +193,8 @@ export function PredictionBoard({
   }
   function savePick(submitted: boolean, nextPick = pick, fromSimulation = false) {
     if (!contest || !signedIn) return;
+    const taskToken = task.begin(submitted ? "submit" : "edit");
+    task.step(submitted ? "submit" : "edit", taskToken);
     run(async () => {
       const payload = { contestId: contest.id, pick: nextPick, submitted };
       const key = JSON.stringify(payload);
@@ -214,6 +218,7 @@ export function PredictionBoard({
         setSidebar(true);
       }
       toast.success(submitted ? "正式提交成功" : "草稿已保存");
+      if (submitted) task.complete(taskToken);
       void reload().catch(()=>{setRefreshFailed(true);toast.error("预测已提交，读取更新失败，请刷新后查看。");});
     });
   }
@@ -412,7 +417,7 @@ export function PredictionBoard({
                   contest={contest}
                   pick={pick}
                   onChange={(next) =>
-                    setDrafts({ ...drafts, [contest.id]: next })
+                    { task.begin("edit"); setDrafts({ ...drafts, [contest.id]: next }); }
                   }
                   onSave={savePick}
                   onExport={exportImage}

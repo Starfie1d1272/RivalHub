@@ -9,7 +9,7 @@ vi.mock("@/actions/postmatch", () => ({ mutateMatchRecording: mocks.recording, g
 vi.mock("@/actions/matches/scheduling", () => ({ respondToTimeProposal: mocks.respond, getTimeProposalReadback: mocks.proposal, proposeMatchTime: vi.fn(), forceSetMatchTime: vi.fn() }));
 vi.mock("@/actions/matches/roster", () => ({ submitMatchRoster: mocks.submit, getMatchRosterReadback: mocks.roster }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
-vi.mock("@/lib/telemetry/client", () => ({ observeAction: (_: string, action: unknown) => action }));
+vi.mock("@/lib/telemetry/client", async original => ({ ...await original<typeof import("@/lib/telemetry/client")>(), observeAction: (_: string, action: unknown) => action }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 import { MatchRecordingEditor } from "@/components/matches/MatchRecordingEditor";
 import { MatchTimeNegotiation } from "@/components/matches/MatchTimeNegotiation";

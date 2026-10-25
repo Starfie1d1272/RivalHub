@@ -394,6 +394,16 @@ export const categoryLabels: Record<string, string> = {
   pick_submit: "提交预测单",
   result: "赛果预测",
   bp: "禁选预测",
+  ban: "禁用地图",
+  pick: "选择地图",
+  side_pick: "选择阵营",
+  role_select: "选择先后手",
+  hard: "首次加载与刷新",
+  soft: "站内导航",
+  bfcache: "页面恢复",
+  prerender: "预渲染激活",
+  visible: "前台可见",
+  hidden: "后台隐藏",
   applied: "已应用",
   noop: "无需变更",
   stale: "状态已更新",
@@ -478,7 +488,7 @@ export const metricLabels: Record<string, string> = {
   CLS: "布局偏移",
   FCP: "首次内容显示",
   TTFB: "服务器响应",
-  NAV_COMMIT: "页面切换",
+  NAV_COMMIT: "路由提交",
 };
 export const routeName = (key: string) =>
   (routeLabels as Partial<Record<string, string>>)[key] ?? "其他页面";
@@ -488,3 +498,6 @@ export const cat = (key: string) =>
   categoryLabels[key] ??
   (errorLabels as Partial<Record<string, string>>)[key] ??
   "其他分类";
+
+export const readyModules: Record<string, string> = { match: "比赛", schedule: "赛程", statistics: "统计", player: "选手", team: "队伍", bet: "竞猜", prediction: "预测", admin: "后台", account: "账号与参赛", public: "公开内容" };
+export const readyPhases: Record<string, string> = { primary: "主体内容可用", advanced: "详细内容可用", form: "表单可操作" };

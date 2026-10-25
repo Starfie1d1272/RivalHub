@@ -8,7 +8,7 @@ const appealSubmit = vi.hoisted(() => vi.fn());
 const appealResolve = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/matches/veto-room/client", async original => ({ ...await original<typeof import("@/lib/matches/veto-room/client")>(), fetchVetoRoom: read, sendVetoInteraction: send }));
 vi.mock("@/components/telemetry/ContentReady", () => ({ ContentReady: () => null }));
-vi.mock("@/lib/telemetry/client", () => ({ observeAction: (_name: string, action: unknown) => action }));
+vi.mock("@/lib/telemetry/client", async original => ({ ...await original<typeof import("@/lib/telemetry/client")>(), observeAction: (_name: string, action: unknown) => action }));
 vi.mock("@/actions/matches/veto-room", () => ({
   claimVetoRepresentativeAction: vi.fn(), pauseVetoRoomAction: vi.fn(), resolveVetoRoomAppeal: appealResolve, resumeVetoRoomAction: vi.fn(),
   rewindVetoRoomAction: vi.fn(), setManualVetoPrivilege: vi.fn(), submitVetoRoomAppeal: appealSubmit, updateVetoRepresentative: vi.fn(),
