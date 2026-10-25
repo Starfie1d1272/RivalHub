@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtempSync, readFileSync, statSync, chmodSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, statSync, chmodSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inArray } from "drizzle-orm";
@@ -46,3 +46,28 @@ it("creates private scoped HTTP credentials, verifies receipts read-only, and re
     }
   }
 });
+
+
+it("reclaims either partially created producer after parse, transaction and manifest failures without deleting another fixture", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "mizar-http-partial-"));
+  const protectedPath = join(directory, "protected.json");
+  const failingPath = join(directory, "failing.json");
+  const run = (command: string, path: string, failAt?: string) => execute(process.execPath,
+    ["--conditions=react-server", "--import", "tsx", "scripts/db/mizar-http-resource-fixture.ts", command, path],
+    { env: { ...process.env, RIVALHUB_HTTP_FIXTURE_FAIL_AT: failAt }, timeout: 30_000 });
+  try {
+    await run("create", protectedPath);
+    const beforeSeasons = (await db.select({ id: seasons.id }).from(seasons)).map(row => row.id).sort();
+    const beforeUsers = (await db.select({ id: users.id }).from(users)).map(row => row.id).sort();
+    for (const producer of [1, 2]) for (const phase of ["seed", "parse", "transaction", "save"]) {
+      await expect(run("create", failingPath, `${producer}:${phase}`)).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("INJECTED_CREATE_FAILURE") });
+      expect(existsSync(failingPath)).toBe(false);
+      expect((await db.select({ id: seasons.id }).from(seasons)).map(row => row.id).sort()).toEqual(beforeSeasons);
+      expect((await db.select({ id: users.id }).from(users)).map(row => row.id).sort()).toEqual(beforeUsers);
+      expect((await run("verify", protectedPath)).stdout).toContain('"verified":true');
+    }
+  } finally {
+    for (const path of [failingPath, protectedPath]) if (existsSync(path)) await run("cleanup", path);
+    rmSync(directory, { recursive: true, force: true });
+  }
+}, 60_000);

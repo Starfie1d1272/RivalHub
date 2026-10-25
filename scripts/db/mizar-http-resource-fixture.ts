@@ -26,7 +26,8 @@ function privateFile(path: string) {
   const stat = lstatSync(path);
   if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o777) !== 0o600 || stat.size > 2_000_000) fail("PRIVATE_MANIFEST_REQUIRED");
 }
-function save(manifest: Manifest, create = false) {
+type CleanupManifest = Omit<Manifest, "producers"> & { producers: Array<Pick<Producer, "label" | "fixture" | "localUserIds">> };
+function save(manifest: Manifest | CleanupManifest, create = false) {
   if (!create) privateFile(manifestPath);
   const fd = openSync(manifestPath, constants.O_WRONLY | constants.O_NOFOLLOW | (create ? constants.O_CREAT | constants.O_EXCL : constants.O_TRUNC), 0o600);
   try { writeFileSync(fd, JSON.stringify(manifest, null, 2) + "\n"); } finally { closeSync(fd); }
@@ -39,7 +40,7 @@ function read(fingerprint: string): Manifest {
     || value.producers.some((p, index) => p.label !== `producer-${index + 1}` || !p.fixture || ![p.fixture.seasonId, p.fixture.matchId, p.fixture.installationId, p.fixture.sessionId, p.fixture.entryAId, p.fixture.entryBId, p.fixture.mapOneId, p.fixture.mapTwoId].every(id => UUID.test(id)) || !Array.isArray(p.localUserIds) || p.localUserIds.length !== 10 || !p.localUserIds.every(id => UUID.test(id)))) fail("MANIFEST_TARGET_MISMATCH");
   return value;
 }
-async function owned(database: DB, manifest: Manifest, producer: Producer, index: number) {
+async function owned(database: DB, manifest: Pick<Manifest, "fixtureId">, producer: CleanupManifest["producers"][number], index: number) {
   const [season] = await database.select({ slug: schema.seasons.slug }).from(schema.seasons).where(eq(schema.seasons.id, producer.fixture.seasonId));
   if (!season) return false;
   if (season.slug !== `mizar-http-${manifest.fixtureId}-${index + 1}`) fail("FIXTURE_OWNERSHIP_MISMATCH");
@@ -47,7 +48,7 @@ async function owned(database: DB, manifest: Manifest, producer: Producer, index
   if (!match || match.seasonId !== producer.fixture.seasonId || !match.testConfig) fail("FIXTURE_MATCH_MISMATCH");
   return true;
 }
-async function cleanup(database: DB, manifest: Manifest) {
+async function cleanup(database: DB, manifest: CleanupManifest) {
   for (const [index, p] of manifest.producers.entries()) {
     if (!await owned(database, manifest, p, index)) continue;
     const f = p.fixture;
@@ -103,33 +104,55 @@ async function main() {
     const { seedFixture } = await import("../../tests/integration/db/harness/mizar");
     const { hashCredential } = await import("../../src/lib/mizar/installation");
     const { parseLiveSnapshotV1, parseReliableEventV1, RELIABLE_EVENT_SCHEMA_VERSION } = await import("../../src/lib/mizar/protocol");
-    for (let index = 0; index < 2; index++) {
-      const f = await seedFixture({ isTest: true, freezeEventRoster: true });
-      f.producerInstanceId = `http-resource-${manifest.fixtureId}-${index + 1}`;
-      f.liveSessionId = randomUUID();
-      const credential = `rh_mizar_${f.installationId}_${randomBytes(32).toString("hex")}`;
-      f.credentialHash = hashCredential(credential);
-      const people = await db.select({ userId: schema.competitionEntryParticipants.userId }).from(schema.competitionEntryParticipants).where(inArray(schema.competitionEntryParticipants.entryId, [f.entryAId, f.entryBId]));
-      const liveTemplate = mizarSnapshot(f);
-      liveTemplate.map = { ...liveTemplate.map, mapId: f.mapOneId };
-      const event = { schemaVersion: RELIABLE_EVENT_SCHEMA_VERSION, idempotencyKey: `resource-${manifest.fixtureId}-${index + 1}`,
-        cursor: { ...liveTemplate.cursor, runtimeSeq: 1_000_000 }, observedAt: new Date().toISOString(), matchId: f.matchId, competitionId: f.seasonId,
-        contextRevision: f.contextRevision, mapId: f.mapOneId, mapName: "de_nuke", entryAId: f.entryAId, entryBId: f.entryBId,
-        evidence: { identity: "matched", telemetryFresh: true, contextFresh: true, source: "runtime-transition" }, kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 4, scoreT: 9 } };
-      parseLiveSnapshotV1(liveTemplate); parseReliableEventV1(event);
-      await db.transaction(async tx => {
-        await tx.update(schema.seasons).set({ slug: `mizar-http-${manifest.fixtureId}-${index + 1}`, name: "Disposable Mizar HTTP resource fixture" }).where(eq(schema.seasons.id, f.seasonId));
-        await tx.update(schema.mizarInstallations).set({ credentialHash: f.credentialHash }).where(eq(schema.mizarInstallations.id, f.installationId));
-        await tx.update(schema.matchLiveSessions).set({ producerInstanceId: f.producerInstanceId, liveSessionId: f.liveSessionId }).where(eq(schema.matchLiveSessions.id, f.sessionId));
-        await tx.update(schema.matchMaps).set({ mapName: "de_nuke", startedAt: new Date() }).where(eq(schema.matchMaps.id, f.mapOneId));
-      });
-      manifest.producers.push({ label: `producer-${index + 1}`, fixture: f, credential, localUserIds: people.map(row => row.userId), liveTemplate, reliableEnvelope: { event, lineupSteam64: [] } });
-      save(manifest);
+    const created: CleanupManifest["producers"] = [];
+    const inject = (index: number, phase: string) => {
+      if (process.env.RIVALHUB_HTTP_FIXTURE_FAIL_AT === `${index + 1}:${phase}`) fail("INJECTED_CREATE_FAILURE");
+    };
+    try {
+      for (let index = 0; index < 2; index++) {
+        const f = await seedFixture({ isTest: true, freezeEventRoster: true, seasonSlug: `mizar-http-${manifest.fixtureId}-${index + 1}` });
+        // Seed commits the namespace and synthetic user identities atomically. Track
+        // cleanup synchronously before any fallible parse, query, update or file I/O.
+        created.push({ label: `producer-${index + 1}`, fixture: f, localUserIds: f.fixtureUserIds });
+        inject(index, "seed");
+        f.producerInstanceId = `http-resource-${manifest.fixtureId}-${index + 1}`;
+        f.liveSessionId = randomUUID();
+        const credential = `rh_mizar_${f.installationId}_${randomBytes(32).toString("hex")}`;
+        f.credentialHash = hashCredential(credential);
+        const liveTemplate = mizarSnapshot(f);
+        liveTemplate.map = { ...liveTemplate.map, mapId: f.mapOneId };
+        const event = { schemaVersion: RELIABLE_EVENT_SCHEMA_VERSION, idempotencyKey: `resource-${manifest.fixtureId}-${index + 1}`,
+          cursor: { ...liveTemplate.cursor, runtimeSeq: 1_000_000 }, observedAt: new Date().toISOString(), matchId: f.matchId, competitionId: f.seasonId,
+          contextRevision: f.contextRevision, mapId: f.mapOneId, mapName: "de_nuke", entryAId: f.entryAId, entryBId: f.entryBId,
+          evidence: { identity: "matched", telemetryFresh: true, contextFresh: true, source: "runtime-transition" }, kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 4, scoreT: 9 } };
+        inject(index, "parse");
+        parseLiveSnapshotV1(liveTemplate); parseReliableEventV1(event);
+        await db.transaction(async tx => {
+          await tx.update(schema.seasons).set({ slug: `mizar-http-${manifest.fixtureId}-${index + 1}`, name: "Disposable Mizar HTTP resource fixture" }).where(eq(schema.seasons.id, f.seasonId));
+          inject(index, "transaction");
+          await tx.update(schema.mizarInstallations).set({ credentialHash: f.credentialHash }).where(eq(schema.mizarInstallations.id, f.installationId));
+          await tx.update(schema.matchLiveSessions).set({ producerInstanceId: f.producerInstanceId, liveSessionId: f.liveSessionId }).where(eq(schema.matchLiveSessions.id, f.sessionId));
+          await tx.update(schema.matchMaps).set({ mapName: "de_nuke", startedAt: new Date() }).where(eq(schema.matchMaps.id, f.mapOneId));
+        });
+        manifest.producers.push({ label: `producer-${index + 1}`, fixture: f, credential, localUserIds: f.fixtureUserIds, liveTemplate, reliableEnvelope: { event, lineupSteam64: [] } });
+        inject(index, "save");
+        save(manifest);
+      }
+    } catch (error) {
+      try {
+        await cleanup(db, { ...manifest, producers: created });
+        unlinkSync(manifestPath);
+      } catch {
+        // Preserve a private cleanup-only manifest when teardown itself fails.
+        try { save({ ...manifest, producers: created }); } catch { /* Report recovery required without printing credentials. */ }
+        fail("CREATE_FAILED_CLEANUP_REQUIRED");
+      }
+      throw error;
     }
     console.log(JSON.stringify({ created: true, manifestPath, producers: 2, differentMatches: true, expiresAt: manifest.expiresAt }));
   } else if (command === "verify") {
     const manifest = read(fingerprint);
-    if (manifest.producers.length !== 2) fail("PARTIAL_MANIFEST");
+    if (manifest.producers.length !== 2 || manifest.producers.some(p => !p.reliableEnvelope?.event || !p.liveTemplate)) fail("PARTIAL_MANIFEST");
     const results = await db.transaction(async tx => Promise.all(manifest.producers.map(async p => {
       const key = (p.reliableEnvelope.event as { idempotencyKey: string }).idempotencyKey;
       const receipts = await tx.select({ outcome: schema.mizarReliableReceipts.outcome }).from(schema.mizarReliableReceipts).where(and(eq(schema.mizarReliableReceipts.sessionId, p.fixture.sessionId), eq(schema.mizarReliableReceipts.idempotencyKey, key)));
