@@ -435,3 +435,12 @@ it("only shares native navigation identity with explicit matching source, kind a
   expect(events.find(e => e.metricName === "LCP")?.measurement?.navigationId).toBe(token);
   expect(events.find(e => e.metricName === "FCP")?.measurement?.navigationId).not.toBe(token);
 });
+
+it("never guesses a task receipt when an async caller omitted its captured token", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 })); vi.stubGlobal("fetch", send);
+  configureTelemetry({ ...config, measurementVersion: 1 });
+  beginTelemetryTask("profile", "one"); beginTelemetryTask("profile", "two");
+  completeTelemetryTask("profile"); flushTelemetry();
+  await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  expect(JSON.parse(send.mock.calls[0][1].body).events.some((e: TelemetryEvent) => e.task?.phase === "complete")).toBe(false);
+});

@@ -358,12 +358,12 @@ export function beginTelemetryTask(name: TaskName, scope = "", step: TaskStep = 
   return token;
 }
 export function activityTelemetryTask(name: TaskName, token?: string | null) { attempt(() => { if (queue) tasks.activity(name, token); }); }
-export function stepTelemetryTask(name: TaskName, step: TaskStep, token?: string | null) { attempt(() => { if (queue) tasks.step(name, step, token); }); }
-export function completeTelemetryTask(name: TaskName, token?: string | null) { attempt(() => { if (queue) tasks.finish(name, "complete", token); }); }
-export function cancelTelemetryTask(name: TaskName, token?: string | null) { attempt(() => { if (queue) tasks.finish(name, "cancel", token); }); }
+export function stepTelemetryTask(name: TaskName, step: TaskStep, token?: string | null) { attempt(() => { if (queue && token) tasks.step(name, step, token); }); }
+export function completeTelemetryTask(name: TaskName, token?: string | null) { attempt(() => { if (queue && token) tasks.finish(name, "complete", token); }); }
+export function cancelTelemetryTask(name: TaskName, token?: string | null) { attempt(() => { if (queue && token) tasks.finish(name, "cancel", token); }); }
 export function forgetTelemetryTask(name: TaskName, token?: string | null) { attempt(() => tasks.forget(name, token)); }
 
-export function recordTaskValidation(name: TaskName, reason: TaskValidationReason, token?: string | null) { attempt(() => { if (queue) tasks.validation(name, reason, token); }); }
+export function recordTaskValidation(name: TaskName, reason: TaskValidationReason, token?: string | null) { attempt(() => { if (queue && token) tasks.validation(name, reason, token); }); }
 
 /** Denominator only for an explicitly eligible, mounted entry; never inferred from all page views. */
 export function exposeTelemetryTask(name: TaskName, scope = ""): boolean {
