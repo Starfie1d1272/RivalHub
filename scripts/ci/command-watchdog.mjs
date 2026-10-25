@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, readlinkSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 
 const MARKER = "RIVALHUB_CI_COMMAND_TOKEN";
@@ -31,6 +31,23 @@ function signalOwned(token, child, signal) {
   return pids.length;
 }
 
+function ownedProcessSnapshot(token) {
+  if (process.platform !== "linux") return [];
+  try { return ownedProcesses(token).filter(pid => pid !== process.pid).flatMap(pid => {
+    try {
+      const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+      const comm = stat.slice(stat.indexOf("(") + 1, stat.lastIndexOf(")"));
+      const kind = comm.startsWith("next-server") ? "next" : comm.startsWith("chrome") ? "browser" : comm === "pnpm-native" ? "pnpm" : ["sh", "bash"].includes(comm) ? "shell" : ["node", "MainThread"].includes(comm) ? "node" : "other";
+      const fields = stat.slice(stat.lastIndexOf(")") + 2).trim().split(/\s+/);
+      const stdio = [0, 1, 2].map(fd => {
+        try { const target = readlinkSync(`/proc/${pid}/fd/${fd}`); return target.startsWith("pipe:") ? "pipe" : target.startsWith("socket:") ? "socket" : "file"; }
+        catch { return "closed"; }
+      });
+      return [{ pid, parentPid: Number(fields[1]), processGroup: Number(fields[2]), kind, state: fields[0], stdio }];
+    } catch { return []; }
+  }); } catch { return []; }
+}
+
 /** A zero leader exit is insufficient: inherited stdout can outlive it. */
 export async function runOwnedCommand(command, args, { timeoutMs, graceMs = 2000, env = process.env, ownershipToken, onOutput = () => {}, onTimeout = () => {} } = {}) {
   if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) throw new Error("Invalid command deadline");
@@ -59,7 +76,7 @@ export async function runOwnedCommand(command, args, { timeoutMs, graceMs = 2000
       if (timedOut || cancelled || settled) return;
       if (signal) cancelled = signal; else timedOut = true;
       // Persist the failure before attempting process or stream cleanup.
-      try { onTimeout({ timedOut, cancelled, exitCode, exitSignal, exited, closed, milliseconds: performance.now() - started }); }
+      try { onTimeout({ timedOut, cancelled, exitCode, exitSignal, exited, closed, milliseconds: performance.now() - started, ownedProcesses: ownedProcessSnapshot(token) }); }
       catch { cleanupError = "failure_evidence_write_failed"; }
       try { signalOwned(token, child, "SIGTERM"); } catch { cleanupError = "owned_process_signal_failed"; }
       escalation = setTimeout(() => {

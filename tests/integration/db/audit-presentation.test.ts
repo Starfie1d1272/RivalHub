@@ -13,6 +13,29 @@ import { requireSeasonAdmin, requireSuperAdmin } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 describe("audit presentation PostgreSQL readback", () => {
+  it("clamps scoped audit pages without losing filters or issuing oversized offsets", async () => {
+    const pool = createLocalPool();
+    const season = randomUUID();
+    const actor = `audit-page-${randomUUID()}`;
+    try {
+      await pool.query("INSERT INTO seasons(id,slug,name,kind) VALUES($1,$2,'Audit pages','major')", [season, actor]);
+      await pool.query("INSERT INTO audit_logs(season_id,action,actor_id,created_at) SELECT $1,'match.start',$2,'2055-01-01T00:00:00Z'::timestamptz FROM generate_series(1,65)", [season, actor]);
+      const read = (page: number, action = "match.start") => fetchAuditLogs({ seasonScopeId: season, actorId: actor, action, page, pageSize: 50 });
+      const last = await read(2);
+      const overflow = await read(999);
+      expect(last.success && overflow.success).toBe(true);
+      if (!last.success || !overflow.success) throw new Error("audit read failed");
+      expect(last.data.logs).toHaveLength(15);
+      expect(overflow.data).toEqual(last.data);
+      expect(await read(Number.MAX_VALUE)).toMatchObject({ success: true, data: { total: 65 } });
+      expect(await read(999, "no-such-action")).toMatchObject({ success: true, data: { total: 0, logs: [] } });
+    } finally {
+      await pool.query("DELETE FROM audit_logs WHERE season_id=$1", [season]);
+      await pool.query("DELETE FROM seasons WHERE id=$1", [season]);
+      await pool.end();
+    }
+  });
+
   // Canonical joins, scope predicates and DTO privacy require real PostgreSQL;
   // resolver mocks alone cannot catch a wrong relation or omitted WHERE scope.
   it("resolves machine relations and reauthorizes scoped details without exposing stored secrets", async () => {

@@ -21,3 +21,11 @@ it("renders fresh RSC props after URL navigation without a second list action", 
   expect(screen.queryByText("first")).not.toBeInTheDocument();
   expect(nav.read).not.toHaveBeenCalled();
 });
+
+it("uses the resolved last page with an out-of-range direct URL", () => {
+  nav.query = "page=999";
+  render(<AuditLogTable initialLogs={[row("last-page")]} initialTotal={65} seasons={[]} />);
+  expect(screen.getByText("last-page")).toBeInTheDocument();
+  expect(screen.queryByText(/999/)).not.toBeInTheDocument();
+  expect(nav.read).not.toHaveBeenCalled();
+});

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import Link from "next/link";
 import { listAdminSeasonDirectory } from "@/lib/admin/season-context";
@@ -14,7 +15,11 @@ import { PageHeader, PageLayout, Panel, StatusPill } from "@/components/rivalhub
 import { Button } from "@/components/ui/button";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 
-export default async function AdminDashboardPage() {
+export default function AdminDashboardPage() {
+  return <Suspense fallback={<div role="status" className="min-h-64 p-6">正在读取可管理的赛事…</div>}><AdminDashboardContent /></Suspense>;
+}
+
+async function AdminDashboardContent() {
   const admin = await resolveAdminPageAccess(requireAdmin);
   if (!admin) return <AdminAccessDenied />;
 
