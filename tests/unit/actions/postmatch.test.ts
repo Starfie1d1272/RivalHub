@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const addMatchCommentatorInTxMock = vi.hoisted(() => vi.fn());
+const removeMatchCommentatorInTxMock = vi.hoisted(() => vi.fn());
 const mutateMatchRecordingInTxMock = vi.hoisted(() => vi.fn());
 const matchesFindFirstMock = vi.hoisted(() => vi.fn());
 const seasonsFindFirstMock = vi.hoisted(() => vi.fn());
@@ -33,11 +35,11 @@ vi.mock("@/lib/auth/session", () => ({
 }));
 
 vi.mock("@/lib/postmatch/service", () => ({
-  addMatchCommentatorInTx: vi.fn(),
+  addMatchCommentatorInTx: addMatchCommentatorInTxMock,
   mutateMatchRecordingInTx: mutateMatchRecordingInTxMock,
   cancelMatchCommentaryInTx: cancelMatchCommentaryInTxMock,
   claimMatchCommentaryInTx: claimMatchCommentaryInTxMock,
-  removeMatchCommentatorInTx: vi.fn(),
+  removeMatchCommentatorInTx: removeMatchCommentatorInTxMock,
   revokePostMatchSubmissionInTx: revokePostMatchSubmissionInTxMock,
   setMatchVideoUrlInTx: setMatchVideoUrlInTxMock,
   submitPostMatchReportInTx: vi.fn(),
@@ -47,7 +49,7 @@ vi.mock("@/lib/revalidation", () => ({
   revalidateMatchPaths: revalidateMatchPathsMock,
 }));
 
-import { cancelMatchCommentary, claimMatchCommentary, mutateMatchRecording } from "@/actions/postmatch";
+import { addMatchCommentator, removeMatchCommentator, cancelMatchCommentary, claimMatchCommentary, mutateMatchRecording } from "@/actions/postmatch";
 import { AppError, ErrorCode } from "@/lib/errors";
 
 describe("post-match action revalidation", () => {
@@ -87,6 +89,24 @@ describe("post-match action revalidation", () => {
     expect(await claimMatchCommentary({ matchId })).toMatchObject({ success: false, error: { code } });
     expect(transactionMock).not.toHaveBeenCalled();
     expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["add", addMatchCommentator, addMatchCommentatorInTxMock],
+    ["remove", removeMatchCommentator, removeMatchCommentatorInTxMock],
+  ] as const)("authorizes admin %s for the match season and uses the session audit actor", async (_name, action, service) => {
+    const userId = "00000000-0000-0000-0000-000000000002";
+    for (const code of [ErrorCode.UNAUTHORIZED, ErrorCode.FORBIDDEN]) {
+      requireSeasonAdminMock.mockRejectedValueOnce(new AppError(code, "无权操作。"));
+      expect(await action({ matchId, userId })).toMatchObject({ success: false, error: { code } });
+    }
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(service).not.toHaveBeenCalled();
+    expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
+    expect(await action({ matchId, userId, actorId: "forged" })).toEqual({ success: true, data: { refreshPending: false } });
+    expect(requireSeasonAdminMock).toHaveBeenLastCalledWith("season-1");
+    expect(service).toHaveBeenCalledExactlyOnceWith({}, { matchId, userId, actorId: "admin-1" });
+    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("major", matchId, { statistics: false });
   });
 
   it("validates recording data and derives the actor from the current season session", async () => {

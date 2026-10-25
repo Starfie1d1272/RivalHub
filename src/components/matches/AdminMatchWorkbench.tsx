@@ -162,7 +162,11 @@ export function AdminMatchWorkbench({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2">
-        {commentary.byMatchId[match.id] && <MatchCommentaryStatus matchId={match.id} assignment={commentary.byMatchId[match.id]} />}
+        {postMatch && (match.status === "scheduled" || match.status === "in_progress") ? <details className="min-w-0 space-y-3">
+          <summary className="cursor-pointer text-sm font-medium">解说管理 · {postMatch.commentators.length}/2</summary>
+          {commentary.byMatchId[match.id] && <MatchCommentaryStatus matchId={match.id} assignment={commentary.byMatchId[match.id]} showCommentators={false} />}
+          <PostMatchRecordPanel matchId={match.id} data={postMatch} />
+        </details> : match.status === "cancelled" && commentary.byMatchId[match.id] && <MatchCommentaryStatus matchId={match.id} assignment={commentary.byMatchId[match.id]} />}
         {["scheduled", "in_progress"].includes(match.status) && <Suspense fallback={<p className="min-h-4 text-xs">正在读取转播状态…</p>}><MatchBroadcastStatus seasonId={season.id} matchId={match.id} /></Suspense>}
         </div>
       </header>

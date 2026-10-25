@@ -10,9 +10,9 @@ import type { AdminCommentaryMatch, AdminMatchCommentaryAssignment, AdminMatchCo
 import { formatCSTDateTime } from "@/lib/utils/date";
 import { presentMatchStatus } from "@/lib/matches/presentation";
 
-export function MatchCommentaryStatus({ matchId, assignment }: { matchId: string; assignment: AdminMatchCommentaryAssignment }) {
+export function MatchCommentaryStatus({ matchId, assignment, showCommentators = true }: { matchId: string; assignment: AdminMatchCommentaryAssignment; showCommentators?: boolean }) {
   return <div className="flex flex-wrap items-center gap-2 text-sm">
-    <span>{assignment.commentators.length === 0 ? "尚无解说" : <>解说：{assignment.commentators.map((person, index) => <React.Fragment key={person.userId}>{index > 0 ? "、" : null}{person.playerUserId ? <PlayerProfileLink userId={person.playerUserId}>{person.name}</PlayerProfileLink> : person.name}</React.Fragment>)}</>}</span>
+    {showCommentators && <span>{assignment.commentators.length === 0 ? "尚无解说" : <>解说：{assignment.commentators.map((person, index) => <React.Fragment key={person.userId}>{index > 0 ? "、" : null}{person.playerUserId ? <PlayerProfileLink userId={person.playerUserId}>{person.name}</PlayerProfileLink> : person.name}</React.Fragment>)}</>}</span>}
     {assignment.isMine && <span className="text-[var(--color-accent)]">你已认领本场解说</span>}
     {assignment.canCancel && <CancelCommentaryButton key={matchId} matchId={matchId} />}
     {assignment.cancellationBlockedReason && <span className="text-[var(--color-fg-mid)]">{assignment.cancellationBlockedReason}</span>}
