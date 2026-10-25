@@ -1,3 +1,5 @@
+export { unstable_isUnrecognizedActionError as isDeploymentUpdateRequired } from "next/navigation";
+
 const KEY = "rivalhub:login-update-email";
 const TTL_MS = 15 * 60_000;
 

@@ -2,7 +2,6 @@
 
 import { useState, useTransition, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
-import { unstable_isUnrecognizedActionError } from "next/navigation";
 import { toast } from "sonner";
 import { Field } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
@@ -10,7 +9,6 @@ import { loginWithPassword as telemetry_loginWithPassword, resendSignupConfirmat
 import { TurnstileWidget, type TurnstileFailure } from "@/components/auth/TurnstileWidget";
 import { EMAIL_RESEND_COOLDOWN_SECONDS, isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
-import { preserveLoginUpdateEmail, takeLoginUpdateEmail } from "@/lib/auth/login-update-draft";
 import { clearPreviousLiveViews } from "@/lib/mizar/live-viewer-cache-reset";
 import { TaskBoundary } from "@/components/telemetry/TaskBoundary";
 import { beginTelemetryTask, completeTelemetryTask, recordTaskValidation, observeAction } from "@/lib/telemetry/client";
@@ -28,19 +26,11 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
   const [turnstileToken, setTurnstileToken] = useState<string>("");
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [mode, setMode] = useState<Mode>(initialMode);
-  const [needsUpdate, setNeedsUpdate] = useState(false);
   const [awaitingEmail, setAwaitingEmail] = useState<string | null>(null);
   const [resendAvailableAt, setResendAvailableAt] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isResendPending, startResendTransition] = useTransition();
   const redirectRef = useRef(safeLocalRedirect(redirectTo));
-
-  useEffect(() => {
-    const restored = takeLoginUpdateEmail();
-    // Browser-only, one-time restoration must follow the identical SSR/first client render.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (restored) setEmail(current => current || restored);
-  }, []);
 
   const handleTurnstileError = (failure: TurnstileFailure) => {
     setTurnstileToken("");
@@ -67,7 +57,6 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    if (needsUpdate) return;
     const taskToken = beginTelemetryTask(mode === "login" ? "login" : "account", "", "submit");
     if (mode === "register") {
       if (!isPasswordPolicySatisfied(password)) {
@@ -106,16 +95,9 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
         }
         toast.error(result.error.message);
       }
-      } catch (error) {
-        if (unstable_isUnrecognizedActionError(error)) {
-          setNeedsUpdate(true);
-          setPassword("");
-          setConfirmPassword("");
-          setTurnstileToken("");
-        } else toast.error(mode === "login" ? "登录请求未完成，请检查网络连接后重试。" : "注册请求结果尚未确认，请先检查邮件，不要立即重复注册。");
-      }
+      } catch { toast.error(mode === "login" ? "登录请求未完成，请检查网络连接后重试。" : "注册请求结果尚未确认，请先检查邮件，不要立即重复注册。"); }
     });
-  }, [email, password, confirmPassword, mode, turnstileToken, needsUpdate]);
+  }, [email, password, confirmPassword, mode, turnstileToken]);
 
   if (awaitingEmail) {
     const isResendCoolingDown = resendAvailableAt !== null;
@@ -162,13 +144,6 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
 
   return (
     <TaskBoundary task={mode === "login" ? "login" : "account"}><form onSubmit={handleSubmit} className="space-y-4">
-      {needsUpdate && <div role="status" className="space-y-2 rounded-sm border border-[var(--color-border)] p-4 text-sm">
-        <p>页面版本已更新。更新后将恢复邮箱，请重新输入密码并确认操作。</p>
-        <Button type="button" variant="outline" onClick={() => {
-          if (preserveLoginUpdateEmail(email)) window.location.reload();
-          else toast.error("无法保留邮箱草稿，请复制邮箱后刷新页面。");
-        }}>保留邮箱并更新页面</Button>
-      </div>}
       <div className="flex rounded-sm bg-[var(--color-panel-low)] p-0.5">
         <button
           type="button"
@@ -246,7 +221,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
 
       {mode === "register" && <p className="text-xs text-[var(--color-fg-mid)]">注册后需要验证邮箱才能完成注册和登录。</p>}
 
-      <Button type="submit" variant="outline" className="w-full" disabled={isPending || needsUpdate || (mode === "register" && !turnstileToken)}>
+      <Button type="submit" variant="outline" className="w-full" disabled={isPending || (mode === "register" && !turnstileToken)}>
         {isPending ? "处理中…" : mode === "login" ? "登录" : "注册"}
       </Button>
 
