@@ -1,5 +1,6 @@
 import { preservePublicStatsDependencyFailure } from "./availability";
 import "server-only";
+import { observePublicStatsFill } from "./public-fill";
 
 import { cacheLife, cacheTag } from "next/cache";
 import { asc, ne } from "drizzle-orm";
@@ -14,7 +15,7 @@ export async function getPlayerAttributeBenchmark() {
   "use cache: remote";
   cacheLife({ stale: 60, revalidate: 3600, expire: 86400 });
   cacheTag(PUBLIC_STATS_TAG);
-  return preservePublicStatsDependencyFailure(() => traceOperation("stats.public.read", { scope: "statistics", operation: "benchmark" }, async () => {
+  return observePublicStatsFill(() => preservePublicStatsDependencyFailure(() => traceOperation("stats.public.read", { scope: "statistics", operation: "benchmark" }, async () => {
     const events = await db
       .select({ id: seasons.id })
       .from(seasons)
@@ -28,5 +29,5 @@ export async function getPlayerAttributeBenchmark() {
     }
 
     return compilePlayerAttributeBenchmark(populations.flat());
-  }));
+  })));
 }

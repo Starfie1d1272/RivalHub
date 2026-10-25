@@ -1,5 +1,6 @@
 import { officialMatchCondition } from "@/lib/matches/scope";
 import "server-only";
+import { beginRuntimeResource } from "@/lib/observability/runtime-resources";
 
 import { and, asc, desc, eq, inArray, isNull, max, ne } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -42,6 +43,24 @@ type KnownPublicPlayer = {
 export function createPublicPlayerProfileSections(
   { user, sanctions }: KnownPublicPlayer,
   scope: { eventSlug?: string; mapFilter?: string } = {},
+) {
+  const done = beginRuntimeResource("profile.public.read");
+  let completion: Promise<unknown> | undefined;
+  try {
+    const sections = startPublicPlayerProfileSections({ user, sanctions }, scope);
+    // These are the eager request reads. Optional attributes have their own
+    // public statistics fill observation when their cache callback executes.
+    completion = Promise.allSettled([sections.basic, sections.overview, sections.history, sections.performance]);
+    return sections;
+  } finally {
+    if (completion) void completion.finally(done);
+    else done();
+  }
+}
+
+function startPublicPlayerProfileSections(
+  { user, sanctions }: KnownPublicPlayer,
+  scope: { eventSlug?: string; mapFilter?: string },
 ) {
   const userId = user.id;
   // Reuse the same cached read for an unfiltered profile; scoped performance

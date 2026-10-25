@@ -33,7 +33,7 @@
 
 首个浏览器样本因本地数据库缺少 `matches.test_config` 失败，已通过仓库 `db:local:migrate` 对齐后重跑；该失败未计入收益。首次 Chromium 版本不匹配，安装锁定 Playwright 所需浏览器后重跑。PG 测试的单连接并行查询产生 pg 弃用提示，没有把它当成生产池容量证据。
 
-A 已提供 #1138 的资源计数接口约定、C 已提供模块需求 token 约定；provider/core 精确代码尚未同步，未自建替代实现。现有 `ContentReady player/primary` 仍等完整共享 sections，保留原测量语义等待 C 接线。没有采到生产/本地组合负载峰值，不能声称资源预算已验收。有效详细 performance 的多赛事浏览器组合仍未跑；已补单赛事双地图的真实 browser 正反例，见后续补证。
+A 已提供 #1138 的资源计数接口约定、C 已提供模块需求 token 约定；A provider 已按根合并 SHA 同步接入；C core 尚待同步，未自建替代实现。现有 `ContentReady player/primary` 仍等完整共享 sections，保留原测量语义等待 C 接线。没有采到生产/本地组合负载峰值，不能声称资源预算已验收。有效详细 performance 的多赛事浏览器组合仍未跑；已补单赛事双地图的真实 browser 正反例，见后续补证。
 
 回退本 PR 的页面分区与 request composition 即恢复原等待边界，统计 owner、schema、权限、公开缓存身份边界不变。未合并、tag、部署或修改生产。
 
@@ -65,8 +65,8 @@ A 已提供 #1138 的资源计数接口约定、C 已提供模块需求 token �
 归档脚本为本次手工受控证据，不新增 workflow：`fixture.ts` 复制到仓库 `.agent-tmp/wp05-rich-fixture.ts` 后经现有 `run-server-cli.ts` 执行，必须用 loopback 环境；`create` 记录独占数据库名，`drop` 只允许 `rh_wp05_browser_<12 hex>` 形状的该 manifest 数据库。浏览器脚本从当前 loopback DATABASE_URL 推导该 manifest 独占库；WP05_BUILD_SOURCE_SHA 必须填写实际 production build 的 exact 源码，WP05_EVIDENCE_DIR 指定输出目录，本地 helper 将该独占库注入 app 环境，不连接生产。该隔离数据库将在本轮取证后删除。
 
 
-## 已准备、尚未执行的 provider 接线
+## Provider 接线边界
 
-根提供的 #1138 API 为 `beginRuntimeResource(name): () => void`。合入后的计划接点是 shared profile eager request 的 `profile.public.read`，以及现有公共统计 cache 函数真正执行的 `stats.public.fill`（先与根确认 shared stats owner 的统一范围）。done 在 finally 结束；不在每个 RSC 消费者重复计数、不将 cache hit 包成 fill、不带 user/URL，不复制 provider，也不自行实现预算。
+根合入 #1138 / `2d162d20daa20bb2fd8b1b8e622b83336500ed9d` 后已使用其 `beginRuntimeResource(name): () => void`。shared profile eager request 的 basic/overview/history/performance 只计一次 `profile.public.read`，全部 settled 后 finally 完成；同步构造失败也在 finally 完成。可选 attributes 的实际重统计由独立 stats fill 观察。`cached-query.ts` 的公共 cache callback 与 benchmark callback 通过同一个轻量 `observePublicStatsFill` 包裹真正填充，成功、同步或异步错误均 finally 结束；不在 lookup、draft bypass 或 RSC 消费者上包 fill，不带 user/URL，不复制 provider，也不自行实现预算。
 
 C #1140 core 仍待精确合并 SHA。当前页面分区、赛事队伍 advanced 都由导航 eager 启动，保留既有导航首次 ready；原生 details 和已有 DTO 视图切换不会启动新后端工作，不插入虚构 demand。若 core 变更要求 consumer 接线，按根确认的模块合同接入；将来主动展开才发起读取时，在启动事件保存 beginTelemetryDemand token，实际 UI 呈现后 recordDemandReady，同一 token 的取消/旧身份/幂等由 core 负责。未把这份待办当作已经完成的 runtime/ready 集成。

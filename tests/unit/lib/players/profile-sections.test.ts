@@ -22,6 +22,7 @@ vi.mock("@/lib/recruitment/data", () => ({ getPublicPlayerLft: async () => null 
 vi.mock("@/lib/discipline/public-query", () => ({ getPublicPlayerSanctions: async () => [] }));
 vi.mock("@/lib/observability/server", () => ({ captureException: vi.fn() }));
 
+import { getRuntimeResourceSnapshot } from "@/lib/observability/runtime-resources";
 import { createPublicPlayerProfileSections } from "@/lib/players/public-profile";
 
 const known = { user: { id: "player" }, sanctions: [] } as unknown as Parameters<typeof createPublicPlayerProfileSections>[0];
@@ -43,7 +44,10 @@ it("streams basic facts before slow career/history, shares unfiltered performanc
   mocks.career.mockReturnValue(career.promise);
   mocks.records.mockReturnValue(history.promise);
   mocks.benchmark.mockReturnValue(benchmark.promise);
+  const resource = () => getRuntimeResourceSnapshot().find(value => value.name === "profile.public.read")!;
+  const before = resource();
   const sections = createPublicPlayerProfileSections(known);
+  expect(resource().inFlight).toBe(before.inFlight + 1);
   expect(await sections.basic).toMatchObject({ user: known.user, currentTeams: [], publicEducationIdentities: [] });
   expect(mocks.career).toHaveBeenCalledExactlyOnceWith({ playerId: "player" });
   expect(mocks.benchmark).not.toHaveBeenCalled();
@@ -58,6 +62,7 @@ it("streams basic facts before slow career/history, shares unfiltered performanc
   expect(mocks.benchmark).toHaveBeenCalledTimes(1);
   history.resolve(new Map<string, never>());
   expect(await sections.history).toEqual({ careerHistory: [], registrationSnapshots: [] });
+  await vi.waitFor(() => expect(resource()).toMatchObject({ inFlight: before.inFlight, count: before.count + 1 }));
 });
 
 it("keeps scoped performance separate from lifetime and skips benchmark for no performance", async () => {
