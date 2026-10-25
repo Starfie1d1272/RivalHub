@@ -25,7 +25,7 @@ export async function longWindowSummary(env: Env, f: AnalysisFilters, session: s
   const counts = Object.fromEntries(historyCountFields.map(k => [k, 0])) as LongWindowSummary["counts"];
   const unsupported = ["browser", "source", "visibility", "scope", "navigationType"].filter(k => !!f[k as keyof AnalysisFilters]);
   if (session) unsupported.push("session");
-  if (f.release && f.releaseBasis === "ticket") unsupported.push("ticketRelease");
+  if (f.releaseBasis === "ticket") unsupported.push("ticketRelease");
   if (f.eventId === "missing") unsupported.push("eventIdMissing");
   const result: LongWindowSummary = { generatedAt: now, validUntil: now + 60000, completionBasis: "observed_not_matured",
     requestedRange: { from: window.requestedFrom, to: window.requestedTo }, effectiveRange: { from: window.from, to: window.to },

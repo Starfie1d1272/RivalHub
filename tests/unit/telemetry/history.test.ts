@@ -340,6 +340,8 @@ it("keeps rolling edges explicit and bypasses raw 2000-batch/2MiB limits for com
     expect(raw.meta.truncated).toBe(true);
     const unsupported = await handle(new Request("https://worker.invalid/admin/long-window?browser=chrome", { headers: { authorization: `Bearer ${f.env.DASHBOARD_KEY}` } }), f.env, now);
     expect(LongWindowSummary.parse(await unsupported.json())).toMatchObject({ coverage: { status: "unsupported" }, counts: { views: null }, unsupportedDimensions: ["browser"] });
+    const ticketBasis = await handle(new Request("https://worker.invalid/admin/long-window?releaseBasis=ticket", { headers: { authorization: `Bearer ${f.env.DASHBOARD_KEY}` } }), f.env, now);
+    expect(LongWindowSummary.parse(await ticketBasis.json())).toMatchObject({ coverage: { status: "unsupported" }, counts: { views: null }, unsupportedDimensions: ["ticketRelease"] });
     expect(Buffer.byteLength(JSON.stringify(data))).toBeLessThan(1024 * 1024);
   } finally { await f.mf.dispose(); }
 }, 60000);
