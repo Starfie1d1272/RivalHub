@@ -37,6 +37,7 @@ test("public match consumes private Broadcast and recovers across navigation and
   const pending = new Map<BrowserRequest, Pending>();
   const timeline: Array<Pending & { phase: string; elapsedMs: number; error?: string }> = [];
   let omitted = 0;
+  let failed = false;
   let documentPath = "";
   const viewerRequests = { started: 0, responses: 0, finished: 0, failed: 0 };
   const isViewer = (url: string) => new URL(url).pathname.endsWith("/live-viewer");
@@ -175,14 +176,15 @@ test("public match consumes private Broadcast and recovers across navigation and
     producer?.kill(); producer = undefined;
 
   } catch (error) {
+    failed = true;
+    throw error;
+  } finally {
     const evidence = { sha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
-      environment: "local Next HTTP + Local Supabase + Chromium", elapsedMs: Math.round(performance.now() - startedAt),
+      environment: "local Next HTTP + Local Supabase + Chromium", failed, elapsedMs: Math.round(performance.now() - startedAt),
       pending: [...pending.values()], omitted, viewerRequests, postInitiators: [...postInitiators.values()], timeline };
     await testInfo.attach("live-http-pending.json", { body: JSON.stringify(evidence, null, 2), contentType: "application/json" });
     console.info("LIVE_HTTP_PENDING", JSON.stringify({ ...evidence, timeline: undefined }));
-    throw error;
-  } finally {
-    await diagnostics.detach();
+    await diagnostics.detach().catch(() => {});
     producer?.kill();
     await run(fixture, "cleanup", seasonId);
   }
