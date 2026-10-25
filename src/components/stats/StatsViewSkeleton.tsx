@@ -7,5 +7,6 @@ export function StatsViewSkeleton() {
       {[0, 1, 2].map(index => <div key={index} className="h-56 border-y border-[var(--color-border)] bg-[var(--color-panel-low)]" />)}
     </div>
     <div className="h-64 border-y border-[var(--color-border)] bg-[var(--color-panel-low)]" />
+    <div className="h-56 border-y border-[var(--color-border)] bg-[var(--color-panel-low)]" />
   </div>;
 }
