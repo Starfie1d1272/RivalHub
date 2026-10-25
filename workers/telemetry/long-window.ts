@@ -76,7 +76,7 @@ export async function longWindowSummary(env: Env, f: AnalysisFilters, session: s
   }
   const edges = middleFrom >= middleTo ? [{ from: window.from, to: window.to }] : [
     ...(window.from < middleFrom ? [{ from: window.from, to: middleFrom }] : []),
-    ...(middleTo < window.to ? [{ from: middleTo, to: window.to }] : []),
+    ...(middleTo <= window.to ? [{ from: middleTo, to: window.to }] : []),
   ];
   const rawMetrics = new Map<string, EventRow>();
   for (const edge of edges) {

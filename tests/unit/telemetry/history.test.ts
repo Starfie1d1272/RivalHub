@@ -342,3 +342,18 @@ it("keeps rolling edges explicit and bypasses raw 2000-batch/2MiB limits for com
     expect(Buffer.byteLength(JSON.stringify(data))).toBeLessThan(1024 * 1024);
   } finally { await f.mf.dispose(); }
 }, 60000);
+
+
+it("preserves the inclusive requested upper tick when it falls exactly on BJT midnight", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25"), now = day + DAY;
+  try {
+    await maintainHistory(f.env, day);
+    expect((await f.post([{ kind: "page" }], now)).status).toBe(204);
+    const query = new URLSearchParams({ from: new Date(day).toISOString(), to: new Date(now).toISOString() });
+    const response = await handle(new Request("https://worker.invalid/admin/long-window?" + query, { headers: { authorization: `Bearer ${f.env.DASHBOARD_KEY}` } }), f.env, now);
+    expect(response.status).toBe(200);
+    const data = LongWindowSummary.parse(await response.json());
+    expect(data.counts.views).toBe(1);
+    expect(data.coverage.segments.find(s => s.source === "raw_edge")).toMatchObject({ from: now, to: now, status: "complete" });
+  } finally { await f.mf.dispose(); }
+}, 30000);
