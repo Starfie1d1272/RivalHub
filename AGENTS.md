@@ -43,7 +43,7 @@ RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supaba
 
 按风险选择 [`docs/testing.md`](docs/testing.md) 中的最小 evidence。日常优先使用与 changed surface 匹配的 `pnpm type-check:*`、定向 Vitest 和文件级 ESLint；`pnpm type-check`、`pnpm lint`、`pnpm test`、`pnpm db:check`、`pnpm knip`、`pnpm knip --production`、`pnpm verify` 是按风险选择的 broad host-only 或最终检查，不是每次迭代默认全跑。提交前检查完整 diff、未跟踪文件、敏感信息和临时产物。
 
-进入 PR 交付范围时，按 [`CONTRIBUTING.md`](CONTRIBUTING.md#draft--ready-开发与-ci) 执行 Draft → Ready 和最新 commit 的 required checks；状态转换不自动扩大测试范围。本地只执行匹配改动的 host-only 快速检查，不为每次迭代默认启动 PostgreSQL、Local Supabase 或 browser 重型环境。
+进入 PR 交付范围时，按 [`CONTRIBUTING.md`](CONTRIBUTING.md#pr-交付与-ci) 执行 PR 状态、复审和最新 commit 的 required checks；状态转换不自动扩大测试范围。本地只执行匹配改动的 host-only 快速检查，不为每次迭代默认启动 PostgreSQL、Local Supabase 或 browser 重型环境。
 
 本地 `pnpm check` / `pnpm verify` 是可选 broad host-only gate，不是每次迭代或每次 push 的默认要求。需要真实数据库、Supabase 或 browser 复现时，按 [`docs/operations/local-development.md`](docs/operations/local-development.md) 只启动最小层级。
 
@@ -51,7 +51,7 @@ PR title、Changeset 与 closure 语义由 [`CONTRIBUTING.md`](CONTRIBUTING.md) 
 
 ## CI 等待
 
-- 完成本地验证、push 并将 PR 标记为 Ready 后，不手写循环或每 10–15 秒调用 `gh pr checks`、`gh run view`、GitHub API/MCP workflow 查询等主动轮询。
+- 完成本地验证、push 并创建或标记 PR 为 Ready 后，不手写循环或每 10–15 秒调用 `gh pr checks`、`gh run view`、GitHub API/MCP workflow 查询等主动轮询。
 - 优先使用 `gh pr checks <PR> --required --watch --interval 60 --fail-fast` 等单个阻塞 watch。若当前 runtime 无法阻塞，主动检查间隔至少约 60 秒；pending 状态不重复总结。
 - 成功时只确认 required checks（尤其 `ci-gate`）成功，不读成功 job 的全量日志或逐步复述。
 - 失败时先读取失败 check/job 摘要，只有摘要不足以定位才读取 `--log-failed` 等失败范围日志；本地修复和验证完成后再统一 push，避免边试边连续触发 CI。
