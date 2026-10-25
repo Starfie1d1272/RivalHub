@@ -1,0 +1,50 @@
+{
+  "purpose": "harness-preparation-not-optimization-evidence",
+  "sha": "6f60b37b4b1200cefb898f026d25c0748916eb0f",
+  "releaseTag": "v0.0.0-local-resource",
+  "seed": "resource-prepare-v1",
+  "workload": {
+    "version": 1,
+    "liveProducers": 2,
+    "documents": [
+      "bet",
+      "profile",
+      "telemetry"
+    ],
+    "warmRounds": 1,
+    "concurrentRounds": 2,
+    "idleMs": 65000
+  },
+  "workloadHash": "1fc615a330d01cb15c33a73ad8d2cf190c5f974a3bc55babc52ff23f6bcfcc34",
+  "requests": [],
+  "resources": [],
+  "runtime": [],
+  "timeline": [
+    {
+      "phase": "fixture.begin",
+      "atMs": 390.2013649999999
+    }
+  ],
+  "errors": [
+    {
+      "phase": "fixture.telemetry",
+      "name": "Error",
+      "message": "LOCAL_TELEMETRY_SEED_HTTP_400"
+    }
+  ],
+  "blockers": [
+    "G_HTTP_FIXTURE_NOT_SUPPLIED"
+  ],
+  "telemetry": [],
+  "verification": {},
+  "cleanup": {
+    "browser": true,
+    "application": true,
+    "telemetry": true,
+    "mizar": true,
+    "bet": true,
+    "auth": true
+  },
+  "coverage": {},
+  "passed": false
+}

@@ -1,0 +1,70 @@
+{
+  "purpose": "harness-preparation-not-optimization-evidence",
+  "sha": "6f60b37b4b1200cefb898f026d25c0748916eb0f",
+  "releaseTag": "v0.0.0-local-resource",
+  "seed": "resource-prepare-v1",
+  "workload": {
+    "version": 1,
+    "liveProducers": 2,
+    "documents": [
+      "bet",
+      "profile",
+      "telemetry"
+    ],
+    "warmRounds": 1,
+    "concurrentRounds": 2,
+    "idleMs": 65000
+  },
+  "workloadHash": "1fc615a330d01cb15c33a73ad8d2cf190c5f974a3bc55babc52ff23f6bcfcc34",
+  "requests": [],
+  "resources": [
+    {
+      "atMs": 31685.582606,
+      "rssBytes": 153706496,
+      "rssPeakBytes": 153706496,
+      "cgroupBytes": 80637952,
+      "cgroupPeakBytes": 80637952,
+      "memoryMax": 536870912,
+      "swapMax": 0,
+      "pidsMax": 128,
+      "cpuMax": "100000 100000"
+    }
+  ],
+  "runtime": [],
+  "timeline": [
+    {
+      "phase": "fixture.begin",
+      "atMs": 435.3138839999999
+    },
+    {
+      "phase": "fixture.ready",
+      "atMs": 4926.3823489999995
+    },
+    {
+      "phase": "application.ready",
+      "atMs": 31621.851723999996
+    }
+  ],
+  "errors": [
+    {
+      "phase": "application.start",
+      "name": "Error",
+      "message": "browserType.launch: Executable doesn't exist at /workspace/.onboarding/playwright/chromium_headless_shell-1248/chrome-headless-shell-linux64/chrome-headless-shell ╔════════════════════════════════════"
+    }
+  ],
+  "blockers": [
+    "G_HTTP_FIXTURE_NOT_SUPPLIED"
+  ],
+  "telemetry": [],
+  "verification": {},
+  "cleanup": {
+    "browser": true,
+    "application": true,
+    "telemetry": true,
+    "mizar": true,
+    "bet": true,
+    "auth": true
+  },
+  "coverage": {},
+  "passed": false
+}
