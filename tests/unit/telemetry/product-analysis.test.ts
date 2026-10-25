@@ -172,3 +172,19 @@ it("keeps confirmed completion through result steps, duplicate completion, cance
     expect(data.steps.find(s => s.key === "result")?.reached).toBe(1);
   }
 });
+
+
+it("does not censor a 100ms operation attached to a long task snapshot and ignores earlier active steps", () => {
+  const start = now - 2 * 86400000, attemptId = id(990), operationId = id(995);
+  const task = { name: "registration" as const, definitionVersion: 2 as const, attemptId, phase: "start" as const, step: "start" as const };
+  const censored = { ...task, elapsedCensored: true as const, activeCensored: true as const, activeMs: 3600000 };
+  const reports = [row(990, { kind: "task", at: start, received: start, task }),
+    row(991, { kind: "task", at: start + 20000, received: start + 20000, durationMs: 20000, task: { ...task, phase: "step", step: "edit", activeMs: 10000 } }),
+    row(992, { kind: "operation", operation: "register.submitRegistration", operationId, phase: "start", at: start + 7200000, received: start + 7200000, task: { ...censored, phase: "step", step: "submit" } }),
+    row(993, { kind: "operation", operation: "register.submitRegistration", operationId, phase: "success", durationMs: 100, at: start + 7200100, received: start + 7200100, task: { ...censored, phase: "step", step: "submit" } }),
+    row(994, { kind: "task", durationMs: 3600000, at: start + 7200100, received: start + 7200100, task: { ...censored, phase: "complete", step: "confirm" } }),
+    row(995, { kind: "task", durationMs: 3600000, at: start + 7200200, received: start + 7200200, task: { ...censored, phase: "step", step: "result" } })];
+  const data = analyze(reports).product;
+  expect(data.operationTrends[0].successTiming).toMatchObject({ n: 1, mean: 100 });
+  expect(data.tasks.find(t => t.key === "registration" && t.definitionVersion === 2)).toMatchObject({ completed: 1, elapsedCensored: 1, activeCensored: 1, elapsed: { n: 0 }, active: { n: 0 } });
+});

@@ -294,3 +294,25 @@ it("keeps confirmed history completion across cross-day result-first delivery, d
     expect(summary.timings.find(t => t.kind === "task")).toMatchObject({ phase: "complete", n: 1, mean: 2000 });
   } finally { await f.mf.dispose(); }
 }, 30000);
+
+
+it("retains short operation timing inside a censored task and clears earlier active on censored complete", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25");
+  try {
+    await maintainHistory(f.env, day);
+    const task = { name: "registration" as const, definitionVersion: 2 as const, attemptId: crypto.randomUUID(), phase: "start" as const, step: "start" as const };
+    await f.post([{ kind: "task", task }], day + 1000);
+    await f.post([{ kind: "task", durationMs: 19000, task: { ...task, phase: "step", step: "edit", activeMs: 10000 } }], day + 20000);
+    await maintainHistory(f.env, day + 21000);
+    const censored = { ...task, elapsedCensored: true as const, activeCensored: true as const, activeMs: 3600000 };
+    const operationId = crypto.randomUUID();
+    await f.post([{ kind: "operation", operation: "register.submitRegistration", operationId, phase: "start", task: { ...censored, phase: "step", step: "submit" } }], day + 7200900);
+    expect((await f.post([{ kind: "operation", operation: "register.submitRegistration", operationId, phase: "success", durationMs: 100, task: { ...censored, phase: "step", step: "submit" } }], day + 7201000)).status).toBe(204);
+    await f.post([{ kind: "task", durationMs: 3600000, task: { ...censored, phase: "complete", step: "confirm" } }], day + 7201100);
+    await f.post([{ kind: "task", durationMs: 3600000, task: { ...censored, phase: "step", step: "result" } }], day + 7201200);
+    await maintainHistory(f.env, day + 7202000);
+    const data = await f.read(day + 7203000);
+    expect(data.timingRows.find(r => r.kind === "task")).toMatchObject({ phase: "complete", elapsedCensored: true, activeCensored: true, duration: { n: 0 }, active: { n: 0 } });
+    expect(summarizeHistory(data).timings.find(r => r.kind === "operation")).toMatchObject({ mean: 100, n: 1, elapsedCensored: false });
+  } finally { await f.mf.dispose(); }
+}, 30000);

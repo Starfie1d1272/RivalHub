@@ -40,9 +40,9 @@ async function sample(e: TelemetryEvent, b: Batch): Promise<Sample> {
   const elapsed = kind === "operation" || kind === "task" ? e.durationMs ?? 0 : 0;
   const day = historyDay(b.received - (isStart ? 0 : elapsed));
   const dimensions: Dimensions = { kind, name, task, route: e.route, scene: e.scene, role: b.role,
-    device: e.client?.device ?? "missing", release: e.measurement?.clientRelease ?? "missing", eventId: e.eventId ?? "", measurementVersion: e.measurement?.v ?? 0, definitionVersion: e.task?.definitionVersion ?? 0, navigationType: e.measurement?.lifecycle?.navigationType ?? "missing", basis: e.ready ? e.ready.basis ?? "navigation" : "", elapsedCensored: e.task?.elapsedCensored === true, activeCensored: e.task?.activeCensored === true };
+    device: e.client?.device ?? "missing", release: e.measurement?.clientRelease ?? "missing", eventId: e.eventId ?? "", measurementVersion: e.measurement?.v ?? 0, definitionVersion: e.task?.definitionVersion ?? 0, navigationType: e.measurement?.lifecycle?.navigationType ?? "missing", basis: e.ready ? e.ready.basis ?? "navigation" : "", elapsedCensored: kind === "task" && e.task?.elapsedCensored === true, activeCensored: kind === "task" && e.task?.activeCensored === true };
   const phase = kind === "operation" ? (e.phase === "start" ? "pending" : e.phase!) : kind === "task" ? (["complete", "cancel", "exposure"].includes(e.task!.phase) ? e.task!.phase : "pending") : "";
-  const value = e.task?.elapsedCensored ? null : kind === "performance" ? (name === "CLS" ? e.score! : e.durationMs!) : kind === "ready" || kind === "operation" && !isStart || kind === "task" && ["complete", "cancel"].includes(phase) ? e.durationMs ?? null : null;
+  const value = kind === "task" && e.task?.elapsedCensored ? null : kind === "performance" ? (name === "CLS" ? e.score! : e.durationMs!) : kind === "ready" || kind === "operation" && !isStart || kind === "task" && ["complete", "cancel"].includes(phase) ? e.durationMs ?? null : null;
   return { key, day, kind, dimensions: JSON.stringify(dimensions), at: e.at, received: b.received, expires: b.expires,
     closes: historyDayStart(day) + CORRECTION_DAYS * DAY, start: isStart ? 1 : 0, phase, value, bucket: bucket(value, name),
     active: kind === "task" && !e.task!.activeCensored ? e.task!.activeMs ?? null : null, activeBucket: bucket(kind === "task" && !e.task!.activeCensored ? e.task!.activeMs ?? null : null),
@@ -63,8 +63,8 @@ const upsertSamples = `INSERT INTO history_samples(sample_key,day,kind,dimension
  phase=CASE WHEN excluded.phase<>'pending' AND ${preferResult} THEN excluded.phase ELSE history_samples.phase END,
  value=CASE WHEN ${preferResult} AND (excluded.phase<>'pending' OR excluded.kind NOT IN ('operation','task')) THEN excluded.value ELSE history_samples.value END,
  bucket=CASE WHEN ${preferResult} AND (excluded.phase<>'pending' OR excluded.kind NOT IN ('operation','task')) THEN excluded.bucket ELSE history_samples.bucket END,
- active=CASE WHEN ${preferResult} AND excluded.active IS NOT NULL THEN excluded.active ELSE history_samples.active END,
- active_bucket=CASE WHEN ${preferResult} AND excluded.active IS NOT NULL THEN excluded.active_bucket ELSE history_samples.active_bucket END,
+ active=CASE WHEN ${preferResult} AND (excluded.active IS NOT NULL OR (excluded.kind='task' AND excluded.phase='complete')) THEN excluded.active ELSE history_samples.active END,
+ active_bucket=CASE WHEN ${preferResult} AND (excluded.active IS NOT NULL OR (excluded.kind='task' AND excluded.phase='complete')) THEN excluded.active_bucket ELSE history_samples.active_bucket END,
  latest_at=max(history_samples.latest_at,excluded.latest_at),received=max(history_samples.received,excluded.received),
  client_covered=max(history_samples.client_covered,excluded.client_covered),enhanced_covered=max(history_samples.enhanced_covered,excluded.enhanced_covered)
  WHERE excluded.received<=history_samples.closes AND history_samples.expires>?`;
