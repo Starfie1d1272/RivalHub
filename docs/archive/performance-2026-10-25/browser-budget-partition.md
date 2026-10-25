@@ -40,3 +40,18 @@ its request, and workbench loading continued. The warm retry reached the heading
 about 2.7 seconds after clicking. That diagnostic run remained failed under
 forbid-flaky; it is not green acceptance or proof of the original CI request's
 cause. No database-lock or business-behavior fix is included here.
+
+## Account acceptance integration follow-up
+
+Run 40145170960 at account candidate 86d8858a passed all other shards, but
+Major entry and platform statistics shared browser-6. The Major cold attempt
+exhausted its original 30-second test budget after reaching the final personal
+competition page; its initial navigation took 10.2 seconds, while platform
+statistics concurrently took 28 seconds. The full warm retry passed in 6.2
+seconds, so forbid-flaky correctly failed the job. Embedded report steps show
+real login, team creation and entry creation completed before the timeout; this
+is not the old post-summary exit stall or an outer deadline.
+
+Major entry now gets its own runner like the other measured expensive flows.
+No journey assertion, fixture, test deadline or retry policy changes. The same
+full/affected project-coverage and no-duplicate tests cover this extra partition.

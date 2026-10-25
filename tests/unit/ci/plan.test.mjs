@@ -34,7 +34,7 @@ describe("changed-surface planner", () => {
   });
 
   it("isolates measured expensive routes and partitions both OCR projects", () => {
-    const heavy = ["admin-match-readiness", "admin-content-read-boundaries", "major-qualification", "test-matches"].map(name => `tests/e2e/flows/${name}.spec.ts`);
+    const heavy = ["admin-match-readiness", "admin-content-read-boundaries", "major-qualification", "major-entry", "test-matches"].map(name => `tests/e2e/flows/${name}.spec.ts`);
     const ocr = "tests/e2e/flows/ocr-receipt-recovery.spec.ts";
     const receipt = "tests/e2e/flows/bet-receipt.spec.ts";
     const jobs = systemMatrixFor({ runSystem: true, full: false, e2eSpecs: [...heavy, ocr, ocr, receipt] }, false).filter(job => job.task.startsWith("browser-"));
