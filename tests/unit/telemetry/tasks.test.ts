@@ -92,3 +92,21 @@ describe("task collection boundaries", () => {
     expect(validEvent({ ...event, task: { ...event.task, activeMs: -1 } }, 1000)).toBe(false);
   });
 });
+
+it("keeps v2 censor flags explicit without enlarging clocks and invalidates cancelled terminal tokens", () => {
+  let now = 0; const reports: TaskReport[] = [];
+  const tasks = new TelemetryTasks(r => reports.push(r), () => now, () => id, () => true, 2);
+  const token = tasks.begin("registration", "scope");
+  for (let minute = 1; minute <= 60; minute++) { now = minute * 60000; tasks.activity("registration", token); }
+  tasks.step("registration", "submit", token);
+  expect(reports.at(-1)?.task).toMatchObject({ definitionVersion: 2, activeMs: 3600000 });
+  expect(reports.at(-1)?.task).not.toHaveProperty("activeCensored");
+  expect(reports.at(-1)?.task).not.toHaveProperty("elapsedCensored");
+  now++; tasks.finish("registration", "complete", token);
+  expect(reports.at(-1)).toMatchObject({ durationMs: 3600000, task: { elapsedCensored: true, activeCensored: true } });
+  const count = reports.length; tasks.reset(); tasks.step("registration", "result", token);
+  expect(reports).toHaveLength(count);
+  const cancelled = tasks.begin("profile", "scope"); tasks.finish("profile", "cancel", cancelled);
+  const afterCancel = reports.length; tasks.step("profile", "result", cancelled); tasks.finish("profile", "complete", cancelled);
+  expect(reports).toHaveLength(afterCancel);
+});

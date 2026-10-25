@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { exposeTelemetryTask, recordTaskValidation, beginTelemetryTask, completeTelemetryTask, beginTelemetryNavigation, captureTelemetryNavigation, recordContentReady, restoreTelemetryPage, recordTelemetryVisibility, recordClientError, recordClientBoundaryError, configureTelemetry, flushTelemetry, observeAction, recordPage, recordWebVital, renewTelemetryIfNeeded, resetTelemetryIdentity, setTelemetryScene } from "@/lib/telemetry/client";
+import { beginTelemetryDemand, recordDemandReady, exposeTelemetryTask, recordTaskValidation, beginTelemetryTask, completeTelemetryTask, beginTelemetryNavigation, captureTelemetryNavigation, recordContentReady, restoreTelemetryPage, recordTelemetryVisibility, recordClientError, recordClientBoundaryError, configureTelemetry, flushTelemetry, observeAction, recordPage, recordWebVital, renewTelemetryIfNeeded, resetTelemetryIdentity, setTelemetryScene } from "@/lib/telemetry/client";
 import { TelemetryQueue } from "@/lib/telemetry/queue";
 import type { Bootstrap, TelemetryEvent } from "@/lib/telemetry/protocol";
 
@@ -399,4 +399,39 @@ it("discards a detached receipt when privacy closes collection", async () => {
   configureTelemetry({ ...config, measurementVersion: 1 }); const token = beginTelemetryTask("profile");
   vi.stubGlobal("navigator", { ...navigator, doNotTrack: "1" });
   completeTelemetryTask("profile", token); flushTelemetry(); expect(send).not.toHaveBeenCalled();
+});
+
+
+it("captures demand start independently, preserves navigation ready, and withholds unsupported basis", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 })); vi.stubGlobal("fetch", send);
+  configureTelemetry({ ...config, measurementVersion: 1 });
+  const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+  const navigation = captureTelemetryNavigation(); clock.mockReturnValue(300000);
+  const token = beginTelemetryDemand("player");
+  expect(token).toEqual({ navigationId: navigation, module: "player", started: 300000 });
+  clock.mockReturnValue(300450); recordDemandReady(token, "advanced"); recordDemandReady(token, "advanced");
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const ready = JSON.parse(send.mock.calls[0][1].body).events.filter((e: TelemetryEvent) => e.kind === "ready");
+  expect(ready).toHaveLength(1); expect(ready[0]).toMatchObject({ durationMs: 300450, ready: { module: "player", phase: "advanced" } });
+  expect(ready[0].ready).not.toHaveProperty("basis");
+  const old = beginTelemetryDemand("team"); configureTelemetry({ ...config, identity: "another", measurementVersion: 1 });
+  recordDemandReady(old, "advanced"); flushTelemetry(); expect(send).toHaveBeenCalledTimes(1);
+  clock.mockRestore();
+});
+
+it("only shares native navigation identity with explicit matching source, kind and monotonic start", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 })); vi.stubGlobal("fetch", send);
+  configureTelemetry({ ...config, measurementVersion: 1 });
+  const start = performance.now() + 100;
+  vi.spyOn(performance, "now").mockReturnValue(start);
+  beginTelemetryNavigation(`${window.location.origin}/teams?view=all`, "navigate");
+  window.history.replaceState(null, "", "/teams?view=all");
+  const token = captureTelemetryNavigation();
+  recordContentReady(token, "team", "primary");
+  recordWebVital({ name: "LCP", id: "matched", value: 900, navigationURL: window.location.href, navigationStartTime: start, navigationType: "soft-navigation" });
+  recordWebVital({ name: "FCP", id: "unmatched", value: 500, navigationURL: window.location.href, navigationStartTime: start - 1, navigationType: "soft-navigation" });
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const events: TelemetryEvent[] = JSON.parse(send.mock.calls[0][1].body).events;
+  expect(events.find(e => e.metricName === "LCP")?.measurement?.navigationId).toBe(token);
+  expect(events.find(e => e.metricName === "FCP")?.measurement?.navigationId).not.toBe(token);
 });

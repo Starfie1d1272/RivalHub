@@ -17,10 +17,10 @@ export function useTelemetryTask(task: TaskName, scope = "", eligible = false) {
     if (tokens.current.size > 8) tokens.current.delete(tokens.current.keys().next().value!);
     return captured;
   }, [task, scope, key]);
-  const step = useCallback((step: TaskStep, captured = tokens.current.get(key) ?? null) => stepTelemetryTask(task, step, captured), [task, key]);
-  const validation = useCallback((reason: TaskValidationReason, captured = tokens.current.get(key) ?? null) => recordTaskValidation(task, reason, captured), [task, key]);
+  const step = useCallback((step: TaskStep, captured = tokens.current.get(key) ?? null) => { if (tokens.current.get(key) === captured) stepTelemetryTask(task, step, captured); }, [task, key]);
+  const validation = useCallback((reason: TaskValidationReason, captured = tokens.current.get(key) ?? null) => { if (tokens.current.get(key) === captured) recordTaskValidation(task, reason, captured); }, [task, key]);
   // The receipt survives synchronous unmount; unfinished attempts expire without completion.
-  const complete = useCallback((captured = tokens.current.get(key) ?? null) => completeTelemetryTask(task, captured), [task, key]);
+  const complete = useCallback((captured = tokens.current.get(key) ?? null) => { if (tokens.current.get(key) === captured) completeTelemetryTask(task, captured); }, [task, key]);
   const cancel = useCallback(() => cancelTelemetryTask(task, tokens.current.get(key) ?? null), [task, key]);
   const activity = useCallback(() => activityTelemetryTask(task, tokens.current.get(key) ?? null), [task, key]);
   return { begin, step, validation, complete, cancel, activity };

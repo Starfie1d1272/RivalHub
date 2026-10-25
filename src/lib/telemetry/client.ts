@@ -71,21 +71,51 @@ export function recordContentReady(token: string | null, module: typeof READY_MO
     record({ kind: "ready", ready: { module, phase }, durationMs: Math.min(3600000, Math.max(0, Math.round(performance.now() - activeNavigation.started))) });
   });
 }
+/** Raw monotonic demand start and navigation identity are memory-only. */
+export type TelemetryDemandToken = Readonly<{ navigationId: string; module: typeof READY_MODULES[number]; started: number }>;
+const demands = new Map<TelemetryDemandToken, { queue: TelemetryQueue; phase?: typeof READY_PHASES[number] }>();
+// Enable only after B's receiver + analysis compatibility has landed. Never send an unknown wire field.
+const demandBasisEmissionEnabled = false;
+export function beginTelemetryDemand(module: typeof READY_MODULES[number]): TelemetryDemandToken | null {
+  let token: TelemetryDemandToken | null = null;
+  attempt(() => {
+    const navigationId = captureTelemetryNavigation();
+    if (!queue || !navigationId || !READY_MODULES.includes(module)) return;
+    for (const [key, owner] of demands) if (owner.queue !== queue || performance.now() - key.started > 3600000) demands.delete(key);
+    token = Object.freeze({ navigationId, module, started: performance.now() });
+    if (demands.size >= 32) demands.delete(demands.keys().next().value!);
+    demands.set(token, { queue });
+  });
+  return token;
+}
+export function recordDemandReady(token: TelemetryDemandToken | null, phase: typeof READY_PHASES[number]): void {
+  attempt(() => {
+    const owner = token && demands.get(token);
+    if (!token || !owner || owner.queue !== queue || token.navigationId !== captureTelemetryNavigation() || !READY_PHASES.includes(phase) || owner.phase || performance.now() - token.started > 3600000) return;
+    owner.phase = phase;
+    // Keep the navigation-to-first-ready observation, including late expansion/extrema.
+    recordContentReady(token.navigationId, token.module, phase);
+    if (!demandBasisEmissionEnabled) return;
+    const ready = { module: token.module, phase, basis: "demand" as const };
+    record({ kind: "ready", ready, durationMs: Math.max(0, Math.round(performance.now() - token.started)) });
+  });
+}
 const errorCodes = new Set<string>(Object.values(ErrorCode));
 const storageKey = "rivalhub-product-session-v1";
 function privacyDisabled() { return navigator.doNotTrack === "1" || (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true; }
 function attempt(callback: () => void) { try {
-  if (queue && privacyDisabled()) { tasks.reset(); taskExposures.clear(); queue = null; bootstrap = null; identity = null; session = ""; activeNavigation = null; pendingNavigation = null; vitalIds.clear(); }
+  if (queue && privacyDisabled()) { tasks.reset(); demands.clear(); taskExposures.clear(); queue = null; bootstrap = null; identity = null; session = ""; previousPage = ""; generation++; vitalNavigationAfter = performance.now(); activeNavigation = null; pendingNavigation = null; vitalIds.clear(); sessionStorage.removeItem(storageKey); }
   callback();
 } catch { /* Observability cannot alter a business result. */ } }
 
 export function configureTelemetry(config: Bootstrap | null) {
   attempt(() => {
     generation++;
-    if (!config || config.identity !== identity) { activeNavigation = null; tasks.reset(); taskExposures.clear(); }
+    if (!config || config.identity !== identity) { activeNavigation = null; demands.clear(); tasks.reset(); taskExposures.clear(); }
     if (!config || navigator.doNotTrack === "1" || (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl) {
       if (queue) vitalNavigationAfter = performance.now();
-      tasks.reset(); queue = null; identity = null; bootstrap = null;
+      tasks.reset(); demands.clear(); queue = null; identity = null; bootstrap = null;
+      session = ""; previousPage = ""; sessionStorage.removeItem(storageKey);
       vitalIds.clear(); pendingNavigation = null;
       return;
     }
@@ -163,9 +193,11 @@ export function recordWebVital(metric: { name: string; value: number; id: string
         const kind = metric.navigationType === "soft-navigation" ? "soft" : metric.navigationType === "back-forward-cache" ? "bfcache" : metric.navigationType === "prerender" ? "prerender" : ["navigate", "reload", "back-forward"].includes(metric.navigationType ?? "") ? "hard" : "unknown";
         const lifecycle = navigationLifecycle(kind === "prerender" ? "hard" : kind, Number.isFinite(start) ? start : 0);
         lifecycle.navigationType = kind;
-        // Native metric lifecycle remains distinct from current SPA navigation.
-        // Its random correlation ID is per sample and stable across later reports.
-        sample.measurement = { v: 1, navigationId: crypto.randomUUID(), clientRelease: process.env.RIVALHUB_RELEASE_COMMIT || "unknown", ...(process.env.RIVALHUB_RELEASE_TAG ? { clientVersion: process.env.RIVALHUB_RELEASE_TAG } : {}), visibility: document.visibilityState === "hidden" ? "hidden" : "visible", lifecycle };
+        // No inferred association from the current URL or native metric ID.
+        const matchedNavigation = metric.navigationStartTime !== undefined && activeNavigation &&
+          activeNavigation.key === url.pathname + url.search && activeNavigation.started === start &&
+          activeNavigation.lifecycle.navigationType === kind ? activeNavigation.id : null;
+        sample.measurement = { v: 1, navigationId: matchedNavigation ?? crypto.randomUUID(), clientRelease: process.env.RIVALHUB_RELEASE_COMMIT || "unknown", ...(process.env.RIVALHUB_RELEASE_TAG ? { clientVersion: process.env.RIVALHUB_RELEASE_TAG } : {}), visibility: document.visibilityState === "hidden" ? "hidden" : "visible", lifecycle };
       }
       vitalIds.set(key, sample);
       if (vitalIds.size > 128) vitalIds.delete(vitalIds.keys().next().value!);
@@ -219,7 +251,7 @@ export function recordClientError(event?: Event, boundaryError?: unknown) {
 }
 export function flushTelemetry() { attempt(() => { tasks.checkpoint(); void queue?.flush().catch(() => {}); }); }
 export function resetTelemetryIdentity() {
-  flushTelemetry(); tasks.reset(); taskExposures.clear(); generation++; nextRenewalAttempt = 0; bootstrap = null; queue = null; identity = null; session = ""; previousPage = "";
+  flushTelemetry(); tasks.reset(); demands.clear(); taskExposures.clear(); generation++; nextRenewalAttempt = 0; bootstrap = null; queue = null; identity = null; session = ""; previousPage = "";
   vitalIds.clear(); pendingNavigation = null; activeNavigation = null;
   vitalNavigationAfter = performance.now();
   attempt(() => sessionStorage.removeItem(storageKey));

@@ -7,11 +7,13 @@ import { changeUserPassword as telemetry_changeUserPassword } from "@/actions/ac
 import { Field } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
+import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { observeAction } from "@/lib/telemetry/client";
 
 const changeUserPassword = observeAction("account.changeUserPassword", telemetry_changeUserPassword);
 
 export function ChangePasswordForm() {
+  const task = useTelemetryTask("account", "password-change");
   const router = useRouter();
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -21,8 +23,10 @@ export function ChangePasswordForm() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const taskToken = task.begin("submit");
 
     if (newPassword !== confirmPassword) {
+      task.validation("password_mismatch", taskToken);
       toast.error("两次输入的新密码不一致");
       return;
     }
@@ -32,6 +36,7 @@ export function ChangePasswordForm() {
       try {
       const result = await changeUserPassword(oldPassword, newPassword);
       if (result.success) {
+        task.complete(taskToken);
         committed = true;
         toast.success("密码已更新，所有旧登录已退出，请重新登录");
         router.replace("/login");
@@ -52,7 +57,7 @@ export function ChangePasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onInputCapture={() => task.begin()} onInvalidCapture={() => { task.begin(); task.validation("form_invalid"); }} onSubmit={handleSubmit} className="space-y-4">
       <Field
         id="old-password"
         label="原密码"

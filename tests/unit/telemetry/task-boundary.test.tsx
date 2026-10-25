@@ -31,3 +31,20 @@ it("does not complete unfinished work on unmount", async () => {
   await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
   expect(JSON.parse(send.mock.calls[0][1].body).events.some((e: TelemetryEvent) => e.task?.phase === "complete")).toBe(false);
 });
+
+it("retains same-token presentation after completion but rejects presentation after cancel or identity change", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 })); vi.stubGlobal("fetch", send); configureTelemetry(config);
+  let tracker!: ReturnType<typeof useTelemetryTask>;
+  function Entry() { tracker = useTelemetryTask("registration"); return null; }
+  const view = render(<Entry />);
+  const a = tracker.begin("submit"); tracker.complete(a); tracker.step("result", a); tracker.step("result", a);
+  const b = tracker.begin("submit"); tracker.cancel(); tracker.step("result", b); tracker.complete(b);
+  configureTelemetry({ ...config, identity: "another-account" }); tracker.step("result", a); flushTelemetry();
+  expect(send).not.toHaveBeenCalled(); // Old queue was discarded without attributing its events to the new identity.
+  const c = tracker.begin("submit"); tracker.complete(c); tracker.step("result", c); flushTelemetry();
+  await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const events: TelemetryEvent[] = JSON.parse(send.mock.calls[0][1].body).events;
+  expect(events.filter(e => e.task?.phase === "complete")).toHaveLength(1);
+  expect(events.filter(e => e.task?.step === "result")).toHaveLength(1);
+  expect(events.every(e => e.task?.attemptId === c)).toBe(true); view.unmount();
+});

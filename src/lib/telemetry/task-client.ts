@@ -1,12 +1,12 @@
-import { TASKS, type TaskMeasurement, type TaskName, type TaskStep, type TaskValidationReason } from "./task-contract";
+import { TASKS, TASK_DURATION_CAP_MS, type TaskMeasurement, type TaskName, type TaskStep, type TaskValidationReason } from "./task-contract";
 
-type Attempt = { name: TaskName; id: string; scope: string; started: number; checkpoint: number; activity: number | null; activeMs: number; step: TaskStep; reportedMs: number; terminal?: "complete" | "cancel" };
+type Attempt = { name: TaskName; id: string; scope: string; started: number; checkpoint: number; activity: number | null; activeMs: number; step: TaskStep; reportedMs: number; activeCensored?: true; terminal?: "complete" | "cancel" };
 export type TaskReport = { task: TaskMeasurement; durationMs: number };
 /** Raw names/scopes and eviction diagnostics stay in memory, never in telemetry. */
 export class TelemetryTasks {
   private attempts = new Map<string, Attempt>();
   readonly evictions = { expired: 0, capacity: 0, forgotten: 0, reset: 0 };
-  constructor(private emit: (report: TaskReport) => void, private now = () => performance.now(), private id = () => crypto.randomUUID(), private visible = () => true) {}
+  constructor(private emit: (report: TaskReport) => void, private now = () => performance.now(), private id = () => crypto.randomUUID(), private visible = () => true, private definitionVersion: 1 | 2 = 1) {}
   private prune() {
     for (const [id, a] of this.attempts) {
       if (this.now() - a.started > TASKS[a.name].windowMs) { this.attempts.delete(id); this.evictions.expired++; }
@@ -23,16 +23,17 @@ export class TelemetryTasks {
   private accumulate(a: Attempt) {
     const now = this.now();
     if (!a.terminal && a.activity !== null) a.activeMs += Math.max(0, Math.min(now, a.activity + 60_000) - a.checkpoint);
-    a.activeMs = Math.min(3600_000, a.activeMs);
+    if (a.activeMs > TASK_DURATION_CAP_MS) a.activeCensored = true;
+    a.activeMs = Math.min(TASK_DURATION_CAP_MS, a.activeMs);
     a.checkpoint = now;
     return now;
   }
   private payload(a: Attempt, phase: TaskMeasurement["phase"]): TaskMeasurement {
-    return { name: a.name, definitionVersion: 1, attemptId: a.id, step: a.step, phase, activeMs: Math.round(a.activeMs) };
+    return { name: a.name, definitionVersion: this.definitionVersion, ...(this.definitionVersion === 2 && this.now() - a.started > TASK_DURATION_CAP_MS ? { elapsedCensored: true as const } : {}), ...(this.definitionVersion === 2 && a.activeCensored ? { activeCensored: true as const } : {}), attemptId: a.id, step: a.step, phase, activeMs: Math.round(a.activeMs) };
   }
   private report(a: Attempt, phase: TaskMeasurement["phase"]) {
     const now = this.accumulate(a);
-    this.emit({ task: this.payload(a, phase), durationMs: Math.min(3600_000, Math.max(0, Math.round(now - a.started))) });
+    this.emit({ task: this.payload(a, phase), durationMs: Math.min(TASK_DURATION_CAP_MS, Math.max(0, Math.round(now - a.started))) });
     a.reportedMs = a.activeMs;
   }
   begin(name: TaskName, scope: string, step: TaskStep = "edit"): string {
@@ -63,13 +64,13 @@ export class TelemetryTasks {
     const a = this.find(name, expected, scope);
     if (!a || a.terminal) return;
     this.activity(name, a.id, scope); a.step = "validation";
-    this.emit({ task: { ...this.payload(a, "step"), validationReason: reason }, durationMs: Math.min(3600_000, Math.max(0, Math.round(this.now() - a.started))) });
+    this.emit({ task: { ...this.payload(a, "step"), validationReason: reason }, durationMs: Math.min(TASK_DURATION_CAP_MS, Math.max(0, Math.round(this.now() - a.started))) });
   }
   finish(name: TaskName, phase: "complete" | "cancel", expected?: string | null, scope?: string) {
     const a = this.find(name, expected, scope);
     if (!a || a.terminal) return;
     // An acknowledged mutation is not evidence that React presented its result.
-    if (phase === "complete") a.step = "confirm";
+    if (phase === "complete") a.step = name === "score_entry" ? "result" : "confirm";
     this.report(a, phase); a.terminal = phase; a.activity = null;
   }
   capture(name: TaskName): TaskMeasurement | undefined {
