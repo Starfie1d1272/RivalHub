@@ -1,5 +1,17 @@
 import type { Match } from "@/db/schema";
 
+/** Only a platform super-admin may confirm a reopened roster on others' behalf. */
+export function canConfirmCommentaryRoster(facts: {
+  status: Match["status"];
+  commentatorCount: number;
+  isCommentator: boolean;
+  isSuperAdmin: boolean;
+  rosterReopened: boolean;
+}) {
+  return facts.status === "finished" && facts.commentatorCount > 0
+    && (facts.isCommentator || (facts.isSuperAdmin && facts.rosterReopened));
+}
+
 /** Shared self-service boundary; callers read these facts under the match lock before writing. */
 export function commentaryCancellationBlocker(facts: {
   status: Match["status"];

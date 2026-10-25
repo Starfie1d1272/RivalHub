@@ -13,9 +13,13 @@ test("管理员从工作台管理赛前赛中解说，完赛须重开名单，�
   const actor = scenario.accounts.find(a => a.key === "admin")!;
   const other = scenario.accounts.find(a => a.key === "player2")!;
   const matchId = randomUUID();
+  const third = randomUUID();
+  const thirdName = `Caster third ${scenario.shortKey}`;
   const actorName = `Caster admin ${scenario.shortKey}`;
   const otherName = `Caster peer ${scenario.shortKey}`;
   try {
+    await pool.query("INSERT INTO users (id,email,display_name) VALUES ($1,$2,$3)", [third, `${third}@local.test`, thirdName]);
+    await pool.query("INSERT INTO season_admin_grants (season_id,user_id) VALUES ($1,$2)", [scenario.seasonId, third]);
     await pool.query("UPDATE users SET display_name=$2 WHERE id=$1", [actor.userId, actorName]);
     await pool.query("UPDATE users SET display_name=$2 WHERE id=$1", [other.userId, otherName]);
     const entries = await pool.query<{ id: string }>("SELECT id FROM competition_entries WHERE competition_id=$1 ORDER BY name", [scenario.seasonId]);
@@ -66,14 +70,39 @@ test("管理员从工作台管理赛前赛中解说，完赛须重开名单，�
     await postmatch.getByRole("button", { name: "更正解说名单", exact: true }).click();
     await postmatch.getByRole("button", { name: "重开名单", exact: true }).click();
     await expect(postmatch.getByRole("button", { name: `移除 ${otherName}`, exact: true })).toBeVisible();
+    await postmatch.getByRole("button", { name: `移除 ${actorName}`, exact: true }).click();
+    await expect(postmatch.getByRole("button", { name: `移除 ${actorName}`, exact: true })).toHaveCount(0);
+    await expect(postmatch.getByRole("button", { name: "确认名单更正", exact: true })).toBeEnabled();
     await postmatch.getByRole("button", { name: "确认名单更正", exact: true }).click();
     await expect(postmatch.getByRole("button", { name: /^移除 / })).toHaveCount(0);
     await expect(postmatch.getByRole("button", { name: "更正解说名单", exact: true })).toBeVisible();
+
+    await page.reload();
+    if (!(await postmatch.evaluate(element => element.hasAttribute("open")))) await postmatch.locator("summary").click();
+    await postmatch.getByRole("button", { name: "更正解说名单", exact: true }).click();
+    await postmatch.getByRole("button", { name: "重开名单", exact: true }).click();
+    await postmatch.getByRole("button", { name: `添加 ${thirdName}（无直播间）`, exact: true }).click();
+    await expect(postmatch.getByRole("button", { name: `移除 ${thirdName}`, exact: true })).toBeVisible();
+    // The super-admin was absent from both names before changing two other casters to one.
+    await postmatch.getByRole("button", { name: `移除 ${thirdName}`, exact: true }).click();
+    await expect(postmatch.getByRole("button", { name: `移除 ${thirdName}`, exact: true })).toHaveCount(0);
+    await expect(postmatch.getByRole("button", { name: "确认名单更正", exact: true })).toBeEnabled();
+    await page.screenshot({ path: testInfo.outputPath("super-admin-one-caster-correction.png"), fullPage: true });
+    await postmatch.getByRole("button", { name: "确认名单更正", exact: true }).click();
+    await expect(postmatch.getByRole("button", { name: "更正解说名单", exact: true })).toBeVisible();
+    expect((await pool.query("SELECT submitted_by_user_id FROM post_match_reports WHERE match_id=$1", [matchId])).rows).toEqual([{ submitted_by_user_id: actor.userId }]);
+    expect((await pool.query("SELECT user_id FROM match_commentators WHERE match_id=$1", [matchId])).rows).toEqual([{ user_id: other.userId }]);
+    expect((await pool.query("SELECT actor_id FROM audit_logs WHERE target_id=$1 AND action='postmatch.report.submit'", [matchId])).rows).toEqual([{ actor_id: actor.userId }, { actor_id: actor.userId }]);
+    await page.screenshot({ path: testInfo.outputPath("super-admin-correction-confirmed.png"), fullPage: true });
 
     await pool.query("UPDATE matches SET status='cancelled' WHERE id=$1", [matchId]);
     await page.reload();
     await expect(management).toHaveCount(0);
     await expect(postmatch).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^添加 |^移除 |更正解说名单|确认名单更正/ })).toHaveCount(0);
-  } finally { await pool.end(); }
+  } finally {
+    await pool.query("DELETE FROM season_admin_grants WHERE user_id=$1", [third]).catch(() => undefined);
+    await pool.query("DELETE FROM users WHERE id=$1", [third]).catch(() => undefined);
+    await pool.end();
+  }
 });

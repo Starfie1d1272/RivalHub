@@ -61,6 +61,7 @@ export function PostMatchRecordPanel({ matchId, data }: { matchId: string; data:
     {data.canSubmit && <MatchRecordingEditor matchId={matchId} recordings={data.recordings} commentators={data.commentators} />}
     {data.canSubmit && data.videoUrl && <div className="flex flex-wrap gap-2"><Input className="max-w-sm" type="url" aria-label="原有比赛录像链接" placeholder="原有比赛录像链接" value={videoUrl} onChange={(event) => setVideoUrl(event.target.value)} /><Button type="button" size="sm" variant="outline" disabled={isPending || Boolean(recovery)} onClick={() => run(() => updateMatchVideoUrl({ matchId, videoUrl }), "录像链接已保存。")}>保存录像</Button></div>}
     {data.canSubmit && (frozen ? <Button type="button" size="sm" variant="outline" disabled={isPending || Boolean(recovery)} onClick={() => setConfirmRevoke(true)}>更正解说名单</Button> : data.commentators.length > 0 && <Button type="button" size="sm" disabled={isPending || Boolean(recovery) || !data.canConfirm} onClick={() => run(() => submitPostMatchReport({ matchId }), "解说名单更正已确认。")}>确认名单更正</Button>)}
+    {data.canSubmit && !frozen && <p className="text-xs text-[var(--color-fg-mid)]">至少保留一名实际解说，由名单内解说或超级管理员确认更正。</p>}
     {frozen && confirmRevoke && <div className="space-y-2">
       <label className="block space-y-1 text-sm">更正原因（选填）<Textarea maxLength={500} value={reason} disabled={isPending || Boolean(recovery)} onChange={(event) => setReason(event.target.value)} /></label>
       {isPending ? <p role="status" className="text-sm">正在重开名单…</p> : <InlineConfirm
