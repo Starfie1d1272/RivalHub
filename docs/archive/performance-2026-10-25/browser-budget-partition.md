@@ -65,3 +65,12 @@ took 56.4 seconds. These two measured cross-route journeys now also get separate
 runners. They were the same adjacent ordinary pair, so removing both preserves
 the remaining ordinary pair contents. All original assertions, including the
 statistics final focus assertion and prediction export, remain.
+
+After syncing main 3830c046, run 40146466403 exposed database-wide counter
+interference: new admin-immediate-boundaries shared browser-3 with admin BET
+hydration; the directory counter delta was 3 instead of exactly 1. The warm
+retry passed, and all other shards passed. The evidence spec's advisory lock
+only coordinates its own projects; the unrelated BET spec does not take it.
+The evidence spec now runs on an independent database for each project, like
+OCR project partitioning. Its exact SQL assertions, both viewport journeys,
+internal serialization, two configured workers and all deadlines remain.

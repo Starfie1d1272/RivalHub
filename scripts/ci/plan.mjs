@@ -564,7 +564,17 @@ export function systemMatrixFor(plan, liveEvidence) {
       matrix.push({ task: `browser-ocr-${project}`, live: false, specs: [ocrSpec], project });
     }
   }
-  const ordinary = specs.filter(spec => spec !== liveSpec && spec !== seriesSpec && spec !== sessionSpec && spec !== ocrSpec && !isolated.has(spec));
+  // This spec measures database-wide pg_stat_statements deltas. A different
+  // admin flow in the same DB can increment its normalized SQL counters.
+  // Give each project its own runner/DB; its internal advisory lock still
+  // serializes the two measurement journeys within that project.
+  const adminEvidenceSpec = "tests/e2e/flows/admin-immediate-boundaries.spec.ts";
+  if (specs.includes(adminEvidenceSpec)) {
+    for (const project of ["chromium", "mobile-chrome"]) {
+      matrix.push({ task: `browser-admin-evidence-${project}`, live: false, specs: [adminEvidenceSpec], project });
+    }
+  }
+  const ordinary = specs.filter(spec => spec !== liveSpec && spec !== seriesSpec && spec !== sessionSpec && spec !== ocrSpec && spec !== adminEvidenceSpec && !isolated.has(spec));
   // Keep remaining combinations bounded as coverage grows instead of packing
   // every new spec into a fixed seven-runner ceiling. No duration scheduler.
   const shards = [];
