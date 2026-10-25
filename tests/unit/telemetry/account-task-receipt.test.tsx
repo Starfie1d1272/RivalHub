@@ -1,0 +1,34 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, expect, it, vi } from "vitest";
+import { configureTelemetry, flushTelemetry, resetTelemetryIdentity } from "@/lib/telemetry/client";
+import type { TelemetryEvent } from "@/lib/telemetry/protocol";
+const action = vi.hoisted(() => vi.fn());
+vi.mock("@/actions/auth", () => ({ sendPasswordResetEmail: action }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
+
+afterEach(() => { resetTelemetryIdentity(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
+it("keeps form rejection/retry in one explicit attempt and presents only a confirmed receipt without input data", async () => {
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 })); vi.stubGlobal("fetch", send);
+  configureTelemetry({ endpoint: "https://receiver.invalid/v1/batches", ticket: "fixture", identity: "anonymous", measurementVersion: 1, expiresAt: Date.now() + 86400000 });
+  action.mockResolvedValueOnce({ success: false, error: { code: "VALIDATION_ERROR", message: "合成拒绝" } }).mockResolvedValueOnce({ success: true });
+  const user = userEvent.setup(); const view = render(<ForgotPasswordForm />);
+  await user.click(screen.getByRole("button", { name: "发送重置链接" }));
+  expect(action).not.toHaveBeenCalled();
+  await user.type(screen.getByLabelText("邮箱地址"), "private-address@example.test");
+  await user.click(screen.getByRole("button", { name: "发送重置链接" }));
+  expect(screen.queryByText("重置链接已发送")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "发送重置链接" }));
+  expect(await screen.findByText("重置链接已发送")).toBeTruthy();
+  view.unmount(); flushTelemetry();
+  await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const events: TelemetryEvent[] = JSON.parse(send.mock.calls[0][1].body).events;
+  expect(events.filter(e => e.kind === "task" && e.task?.phase === "start")).toHaveLength(1);
+  expect(events.filter(e => e.kind === "task" && e.task?.phase === "complete")).toHaveLength(1);
+  expect(events.filter(e => e.kind === "task" && e.task?.step === "result")).toHaveLength(1);
+  expect(events.some(e => e.task?.validationReason === "form_invalid")).toBe(true);
+  expect(events.filter(e => e.kind === "operation" && e.phase === "start")).toHaveLength(2);
+  expect(events.filter(e => e.kind === "operation" && e.phase === "success")).toHaveLength(1);
+  expect(JSON.stringify(events)).not.toMatch(/private-address|example.test|合成拒绝/);
+});

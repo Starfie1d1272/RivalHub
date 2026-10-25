@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ read: vi.fn(), revoke: vi.fn() }));
 vi.mock("@/actions/session-management", () => ({ getPasswordReconciliationState: mocks.read, revokeUserSessions: mocks.revoke }));
-vi.mock("@/lib/telemetry/client", () => ({ observeAction: (_name: string, fn: unknown) => fn }));
+vi.mock("@/lib/telemetry/client", async original => ({ ...await original<typeof import("@/lib/telemetry/client")>(), observeAction: (_name: string, fn: unknown) => fn }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 import { UserSessionControl } from "@/components/admin/UserSessionControl";
 const mutationId = "2d767019-0b0e-4684-9c89-994d631e786a";

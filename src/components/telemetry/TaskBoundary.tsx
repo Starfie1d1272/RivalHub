@@ -1,6 +1,6 @@
 "use client";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { exposeTelemetryTask, recordTaskValidation, activityTelemetryTask, beginTelemetryTask, cancelTelemetryTask, completeTelemetryTask, forgetTelemetryTask, stepTelemetryTask } from "@/lib/telemetry/client";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
+import { exposeTelemetryTask, recordTaskValidation, activityTelemetryTask, beginTelemetryTask, cancelTelemetryTask, completeTelemetryTask, stepTelemetryTask } from "@/lib/telemetry/client";
 import type { TaskName, TaskStep, TaskValidationReason } from "@/lib/telemetry/task-contract";
 
 export function useTelemetryTask(task: TaskName, scope = "", eligible = false) {
@@ -9,16 +9,20 @@ export function useTelemetryTask(task: TaskName, scope = "", eligible = false) {
     const timer = setTimeout(() => exposeTelemetryTask(task, scope), 0);
     return () => clearTimeout(timer);
   }, [task, scope, eligible]);
-  const token = useRef<string | null>(null);
-  const [completed, setCompleted] = useState<string | null>(null);
-  useEffect(() => () => { forgetTelemetryTask(task, token.current); token.current = null; }, [task, scope]);
-  useEffect(() => { if (completed) completeTelemetryTask(task, completed); }, [task, completed]);
-  const begin = useCallback((step: TaskStep = "edit") => { token.current = beginTelemetryTask(task, scope, step); return token.current; }, [task, scope]);
-  const step = useCallback((step: TaskStep, captured = token.current) => stepTelemetryTask(task, step, captured), [task]);
-  const validation = useCallback((reason: TaskValidationReason, captured = token.current) => recordTaskValidation(task, reason, captured), [task]);
-  const complete = useCallback((captured = token.current) => setCompleted(captured), []);
-  const cancel = useCallback(() => cancelTelemetryTask(task, token.current), [task]);
-  const activity = useCallback(() => activityTelemetryTask(task), [task]);
+  const tokens = useRef(new Map<string, string | null>());
+  const key = `${task}:${scope}`;
+  const begin = useCallback((step: TaskStep = "edit") => {
+    const captured = beginTelemetryTask(task, scope, step);
+    tokens.current.set(key, captured);
+    if (tokens.current.size > 8) tokens.current.delete(tokens.current.keys().next().value!);
+    return captured;
+  }, [task, scope, key]);
+  const step = useCallback((step: TaskStep, captured = tokens.current.get(key) ?? null) => { if (tokens.current.get(key) === captured) stepTelemetryTask(task, step, captured); }, [task, key]);
+  const validation = useCallback((reason: TaskValidationReason, captured = tokens.current.get(key) ?? null) => { if (tokens.current.get(key) === captured) recordTaskValidation(task, reason, captured); }, [task, key]);
+  // The receipt survives synchronous unmount; unfinished attempts expire without completion.
+  const complete = useCallback((captured = tokens.current.get(key) ?? null) => { if (tokens.current.get(key) === captured) completeTelemetryTask(task, captured); }, [task, key]);
+  const cancel = useCallback(() => cancelTelemetryTask(task, tokens.current.get(key) ?? null), [task, key]);
+  const activity = useCallback(() => activityTelemetryTask(task, tokens.current.get(key) ?? null), [task, key]);
   return { begin, step, validation, complete, cancel, activity };
 }
 

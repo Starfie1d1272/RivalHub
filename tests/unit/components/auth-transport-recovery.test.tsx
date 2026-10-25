@@ -8,7 +8,7 @@ vi.mock("@/actions/auth", () => ({ sendPasswordResetEmail: mocks.send }));
 vi.mock("@/actions/identity", () => ({ requestSecondaryEmailIdentity: mocks.link, revokeSecondaryEmailIdentity: vi.fn() }));
 vi.mock("@/lib/auth/supabase", () => ({ createBrowserClient: () => ({ auth: { getSession: async () => ({data:{session:{access_token:"synthetic-token"}}}), signOut: vi.fn() } }) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
-vi.mock("@/lib/telemetry/client", () => ({ observeAction: (_name: string, action: unknown) => action }));
+vi.mock("@/lib/telemetry/client", async original => ({ ...await original<typeof import("@/lib/telemetry/client")>(), observeAction: (_name: string, action: unknown) => action }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
 import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
