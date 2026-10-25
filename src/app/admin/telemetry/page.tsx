@@ -1,10 +1,12 @@
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
+import { TelemetryLongWindowDashboard } from "@/components/telemetry/TelemetryLongWindowDashboard";
+import { analysisSections, isLongWindow, readTaskDefinition } from "@/components/telemetry/analysis/navigation";
 import TelemetryDashboard from "@/components/telemetry/TelemetryDashboard";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { loadTelemetryEventNames } from "@/lib/admin/product-experience/read";
-import { getTelemetryAnalysis } from "@/lib/telemetry/dashboard";
+import { getTelemetryAnalysis, getLongWindowSummary } from "@/lib/telemetry/dashboard";
 import {
   analysisDefaults,
   analysisFields,
@@ -25,10 +27,20 @@ export default async function TelemetryPage({
       ),
     ),
   );
-  const result = await getTelemetryAnalysis(query?.filters ?? analysisDefaults);
+  const filters = query?.filters ?? analysisDefaults;
+  const view = analysisSections.find(([key]) => key === params.view)?.[0] ?? "overview";
+  const long = isLongWindow(filters) && params.analysisMode !== "bounded";
+  const catalogRead = loadTelemetryEventNames().catch(() => ({ rows: [], truncated: false }));
+  if (long) {
+    const summary = await getLongWindowSummary(filters);
+    const catalog = await catalogRead;
+    if (summary.status === "ready") return <TelemetryLongWindowDashboard key={JSON.stringify([filters, view])} data={summary.data} filters={filters} events={catalog.rows} view={view} />;
+    return <PageLayout variant="workbench"><PageHeader title="产品使用与体验" /><Panel>{summary.status === "unconfigured" ? "尚未配置遥测查询" : "暂时无法读取长窗口汇总，请稍后重试。"}</Panel></PageLayout>;
+  }
+  const result = await getTelemetryAnalysis(filters);
   if (result.status === "ready") {
-    const catalog = await loadTelemetryEventNames().catch(() => ({ rows: [], truncated: false }));
-    return <TelemetryDashboard initial={result.data} events={catalog.rows} release={{ sha: process.env.RIVALHUB_RELEASE_COMMIT ?? "", tag: process.env.RIVALHUB_RELEASE_TAG ?? "当前构建" }} />;
+    const catalog = await catalogRead;
+    return <TelemetryDashboard key={JSON.stringify(filters)} initialView={view} initialTaskDefinition={readTaskDefinition(typeof params.taskDefinition === "string" ? params.taskDefinition : null)} initial={result.data} events={catalog.rows} release={{ sha: process.env.RIVALHUB_RELEASE_COMMIT ?? "", tag: process.env.RIVALHUB_RELEASE_TAG ?? "当前构建" }} />;
   }
   return (
     <PageLayout variant="workbench" className="space-y-6">
