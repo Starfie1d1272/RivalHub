@@ -3504,4 +3504,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [2.23.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.22.1...v2.23.0
 
+[2.23.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.1...v2.23.2
 [2.23.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.0...v2.23.1
