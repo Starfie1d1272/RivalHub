@@ -444,3 +444,38 @@ it("never guesses a task receipt when an async caller omitted its captured token
   await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
   expect(JSON.parse(send.mock.calls[0][1].body).events.some((e: TelemetryEvent) => e.task?.phase === "complete")).toBe(false);
 });
+
+it.each([false, true])("keeps an A-route async receipt on its original context unless identity changed (%s)", async changedIdentity => {
+  vi.useFakeTimers(); const started = Date.now();
+  const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 })); vi.stubGlobal("fetch", send);
+  configureTelemetry({ ...config, identity: "account-a", expiresAt: started + 86400000, measurementVersion: 1 });
+  window.history.replaceState(null, "", "/original-season/register");
+  const a = captureTelemetryNavigation();
+  const token = beginTelemetryTask("registration", "original-scope", "submit");
+  let resolve!: (v: { success: true }) => void;
+  const pending = observeAction("register.submitRegistration", () => new Promise<{ success: true }>(done => { resolve = done; }))();
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const first: TelemetryEvent[] = JSON.parse(send.mock.calls[0][1].body).events;
+  const start = first.find(e => e.kind === "task" && e.task?.phase === "start")!;
+  vi.setSystemTime(started + 31 * 60000); // B starts a new session; the task's 24h window is still open.
+  beginTelemetryNavigation(`${window.location.origin}/teams`, "navigate");
+  window.history.replaceState(null, "", "/teams");
+  if (changedIdentity) configureTelemetry({ ...config, identity: "account-b", expiresAt: started + 86400000, measurementVersion: 1 });
+  recordPage();
+  resolve({ success: true }); await pending; completeTelemetryTask("registration", token);
+  flushTelemetry(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+  const second: TelemetryEvent[] = JSON.parse(send.mock.calls[1][1].body).events;
+  const b = second.find(e => e.kind === "page")!;
+  expect(b.route).toBe("/teams"); expect(b.session).not.toBe(start.session);
+  if (changedIdentity) expect(second.some(e => e.kind === "task" && e.task?.phase === "complete")).toBe(false);
+  else {
+    // Queue protocol keeps sessions in separate batches; A's receipt follows B's page batch.
+    vi.advanceTimersByTime(1000); flushTelemetry();
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(3));
+    const original: TelemetryEvent[] = JSON.parse(send.mock.calls[2][1].body).events;
+    const receipt = original.find(e => e.kind === "task" && e.task?.phase === "complete");
+    expect(receipt).toMatchObject({ route: "/[seasonSlug]/register", session: start.session, measurement: { navigationId: a }, task: { attemptId: token } });
+    expect(receipt?.measurement?.navigationId).not.toBe(b.measurement?.navigationId);
+  }
+  expect(JSON.stringify(second)).not.toContain("original-scope");
+});

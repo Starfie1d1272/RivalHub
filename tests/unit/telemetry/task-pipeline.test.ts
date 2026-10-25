@@ -51,6 +51,8 @@ it("takes an explicit non-OCR receipt from observer through local receiver to a 
     const token = beginTelemetryTask("profile", "local-fixture", "submit");
     let calls = 0;
     await observeAction("account.updateProfile", async () => { calls++; return { success: true as const }; })();
+    // Navigate away before the A task receipt; the receiver's A-route filter must still close it.
+    vi.stubGlobal("window", { location: new URL(`${env.ALLOWED_ORIGIN}/teams`) });
     completeTelemetryTask("profile", token); completeTelemetryTask("profile", token);
     stepTelemetryTask("profile", "result", token); flushTelemetry();
     await vi.waitFor(() => expect(statuses).toEqual([204]));
@@ -60,7 +62,7 @@ it("takes an explicit non-OCR receipt from observer through local receiver to a 
     const duplicate = await handle(new Request(config.endpoint, { method: "POST", headers: { origin: env.ALLOWED_ORIGIN }, body }), env, now + 1);
     expect(duplicate.status).toBe(204);
     expect(sqlite.prepare("SELECT count(*) AS n FROM batches").get()?.n).toBe(1);
-    const response = await handle(new Request("https://receiver.invalid/admin/analysis?task=profile", { headers: { authorization: `Bearer ${env.ADMIN_KEY}` } }), env, now + 31 * 60000);
+    const response = await handle(new Request("https://receiver.invalid/admin/analysis?task=profile&route=%2Fsettings", { headers: { authorization: `Bearer ${env.ADMIN_KEY}` } }), env, now + 31 * 60000);
     expect(response.status).toBe(200);
     const data = AnalysisData.parse(await response.json());
     const task = data.product.tasks.find(t => t.key === "profile")!;

@@ -1,12 +1,12 @@
 import { TASKS, TASK_DURATION_CAP_MS, type TaskMeasurement, type TaskName, type TaskStep, type TaskValidationReason } from "./task-contract";
 
-type Attempt = { name: TaskName; id: string; scope: string; started: number; checkpoint: number; activity: number | null; activeMs: number; step: TaskStep; reportedMs: number; activeCensored?: true; terminal?: "complete" | "cancel" };
-export type TaskReport = { task: TaskMeasurement; durationMs: number };
+type Attempt<Context> = { context?: Context; name: TaskName; id: string; scope: string; started: number; checkpoint: number; activity: number | null; activeMs: number; step: TaskStep; reportedMs: number; activeCensored?: true; terminal?: "complete" | "cancel" };
+export type TaskReport<Context = undefined> = { task: TaskMeasurement; durationMs: number; context?: Context };
 /** Raw names/scopes and eviction diagnostics stay in memory, never in telemetry. */
-export class TelemetryTasks {
-  private attempts = new Map<string, Attempt>();
+export class TelemetryTasks<Context = undefined> {
+  private attempts = new Map<string, Attempt<Context>>();
   readonly evictions = { expired: 0, capacity: 0, forgotten: 0, reset: 0 };
-  constructor(private emit: (report: TaskReport) => void, private now = () => performance.now(), private id = () => crypto.randomUUID(), private visible = () => true, private definitionVersion: 1 | 2 = 1) {}
+  constructor(private emit: (report: TaskReport<Context>) => void, private now = () => performance.now(), private id = () => crypto.randomUUID(), private visible = () => true, private definitionVersion: 1 | 2 = 1, private captureContext?: () => Context | undefined) {}
   private prune() {
     for (const [id, a] of this.attempts) {
       if (this.now() - a.started > TASKS[a.name].windowMs) { this.attempts.delete(id); this.evictions.expired++; }
@@ -20,7 +20,7 @@ export class TelemetryTasks {
       : this.attempts.get(expected);
     return a?.name === name && (scope === undefined || a.scope === scope) ? a : undefined;
   }
-  private accumulate(a: Attempt) {
+  private accumulate(a: Attempt<Context>) {
     const now = this.now();
     if (!a.terminal && a.activity !== null) a.activeMs += Math.max(0, Math.min(now, a.activity + 60_000) - a.checkpoint);
     if (a.activeMs > TASK_DURATION_CAP_MS) a.activeCensored = true;
@@ -28,12 +28,12 @@ export class TelemetryTasks {
     a.checkpoint = now;
     return now;
   }
-  private payload(a: Attempt, phase: TaskMeasurement["phase"]): TaskMeasurement {
+  private payload(a: Attempt<Context>, phase: TaskMeasurement["phase"]): TaskMeasurement {
     return { name: a.name, definitionVersion: this.definitionVersion, ...(this.definitionVersion === 2 && this.now() - a.started > TASK_DURATION_CAP_MS ? { elapsedCensored: true as const } : {}), ...(this.definitionVersion === 2 && a.activeCensored ? { activeCensored: true as const } : {}), attemptId: a.id, step: a.step, phase, activeMs: Math.round(a.activeMs) };
   }
-  private report(a: Attempt, phase: TaskMeasurement["phase"]) {
+  private report(a: Attempt<Context>, phase: TaskMeasurement["phase"]) {
     const now = this.accumulate(a);
-    this.emit({ task: this.payload(a, phase), durationMs: Math.min(TASK_DURATION_CAP_MS, Math.max(0, Math.round(now - a.started))) });
+    this.emit({ ...(a.context ? { context: a.context } : {}), task: this.payload(a, phase), durationMs: Math.min(TASK_DURATION_CAP_MS, Math.max(0, Math.round(now - a.started))) });
     a.reportedMs = a.activeMs;
   }
   begin(name: TaskName, scope: string, step: TaskStep = "edit"): string {
@@ -41,7 +41,7 @@ export class TelemetryTasks {
     const now = this.now();
     if (!a) {
       if (this.attempts.size >= 8) { this.attempts.delete(this.attempts.keys().next().value!); this.evictions.capacity++; }
-      a = { name, scope, id: this.id(), started: now, checkpoint: now, activity: this.visible() ? now : null, activeMs: 0, step, reportedMs: 0 };
+      a = { context: this.captureContext?.(), name, scope, id: this.id(), started: now, checkpoint: now, activity: this.visible() ? now : null, activeMs: 0, step, reportedMs: 0 };
       this.attempts.set(a.id, a);
       this.report(a, "start");
     } else this.activity(name, a.id, scope);
@@ -64,7 +64,7 @@ export class TelemetryTasks {
     const a = this.find(name, expected, scope);
     if (!a || a.terminal) return;
     this.activity(name, a.id, scope); a.step = "validation";
-    this.emit({ task: { ...this.payload(a, "step"), validationReason: reason }, durationMs: Math.min(TASK_DURATION_CAP_MS, Math.max(0, Math.round(this.now() - a.started))) });
+    this.emit({ ...(a.context ? { context: a.context } : {}), task: { ...this.payload(a, "step"), validationReason: reason }, durationMs: Math.min(TASK_DURATION_CAP_MS, Math.max(0, Math.round(this.now() - a.started))) });
   }
   finish(name: TaskName, phase: "complete" | "cancel", expected?: string | null, scope?: string) {
     const a = this.find(name, expected, scope);

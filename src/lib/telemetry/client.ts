@@ -12,8 +12,20 @@ let identity: string | null = null;
 let session = "";
 let activeAt = 0;
 const taskExposures = new Set<string>();
-const tasks = new TelemetryTasks(report => record({ kind: "task", ...report }), undefined, undefined,
-  () => typeof document !== "undefined" && document.visibilityState !== "hidden");
+type TaskAttemptContext = Pick<TelemetryEvent, "route" | "scene" | "eventId" | "measurement"> & { queue: TelemetryQueue; session: string };
+const tasks = new TelemetryTasks<TaskAttemptContext>(report => {
+  const { context: original, ...payload } = report;
+  // The in-memory queue owner is never serialized; a changed identity invalidates it.
+  if (!original || original.queue !== queue) return;
+  record({ kind: "task", ...payload, route: original.route, scene: original.scene,
+    eventId: original.eventId, measurement: original.measurement }, original.session);
+}, undefined, undefined,
+  () => typeof document !== "undefined" && document.visibilityState !== "hidden", 1,
+  () => {
+    if (!queue) return;
+    touchSession(Date.now());
+    return { ...context(), queue, session, measurement: measurementContext() };
+  });
 let sceneContext: { prefix: string; scene: Scene; eventId: string } | null = null;
 let previousPage = "";
 let historyNavigation = false;
