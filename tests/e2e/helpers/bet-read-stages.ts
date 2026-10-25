@@ -18,11 +18,12 @@ export async function verifyBetReadStages(
   const fixtureMs=performance.now()-started;
   const pool=new Pool({connectionString:assertLocalDatabaseUrl(process.env.DATABASE_URL),ssl:false});
   const db=drizzle(pool,{schema});
-  const admin=await context.newPage();
+  const admin=page;
+  const viewerPage=await context.newPage();
   let phase="setup";
   const pending=new Map<Request,{method:string;path:string;startedAt:number}>();
   const errors:{source:string;message:string}[]=[];
-  for(const target of [page,admin]){
+  for(const target of [admin,viewerPage]){
     target.setDefaultTimeout(15000);
     target.setDefaultNavigationTimeout(30000);
     target.on("request",r=>pending.set(r,{method:r.method(),path:new URL(r.url()).pathname,startedAt:performance.now()}));
@@ -44,7 +45,7 @@ export async function verifyBetReadStages(
       await page.locator('button[type="submit"]').click();
       await expect(page).toHaveURL(url=>url.pathname===destination);
     }else await signInProgrammatically(page,user,scenario,destination);
-    await admin.goto(destination,{waitUntil:"domcontentloaded"});
+    // Login already navigated this page to the admin destination.
     async function operate(label:string){
       phase=`admin.${label}`;
       const button=admin.getByRole("button",{name:label,exact:true});
@@ -70,9 +71,9 @@ export async function verifyBetReadStages(
     for(const viewer of production?["anonymous","joined"]:["anonymous","unjoined","joined"]){
       if(viewer==="joined"){
         phase="viewer.join";
-        await page.goto(`/${fixture.slug}/bet`);
-        await page.getByRole("button",{name:"领取 1,000 积分",exact:true}).click();
-        await expect(page.getByRole("button",{name:"领取 1,000 积分",exact:true})).toHaveCount(0);
+        await viewerPage.goto(`/${fixture.slug}/bet`);
+        await viewerPage.getByRole("button",{name:"领取 1,000 积分",exact:true}).click();
+        await expect(viewerPage.getByRole("button",{name:"领取 1,000 积分",exact:true})).toHaveCount(0);
       }
       const reader=viewer==="anonymous"?request:page.request;
       for(const view of views ?? (production?["open","mine","event"]:["open","mine","settled","event","leaderboard","records"])){
@@ -130,5 +131,5 @@ export async function verifyBetReadStages(
     const waits=await pool.query("select state,wait_event_type,wait_event,count(*)::int as count from pg_stat_activity where datname=current_database() group by state,wait_event_type,wait_event").then(r=>r.rows).catch(()=>"unavailable");
     await info.attach("bet-stage-failure-boundary",{body:JSON.stringify({phase,errors,pending:[...pending.values()].map(r=>({...r,elapsedMs:performance.now()-r.startedAt})),databaseWaits:waits},null,2),contentType:"application/json"});
     throw error;
-  }finally{await admin.close();await pool.end();await removePredictionBrowserFixture(fixture.seasonId);}
+  }finally{await viewerPage.close();await pool.end();await removePredictionBrowserFixture(fixture.seasonId);}
 }
