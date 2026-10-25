@@ -131,7 +131,7 @@ ready 的兼容合同是可选 basis=navigation|demand，缺省为旧 navigation
 
 登录只在原 attempt/原 identity 记录已确认终态并进行既有 flush，随后 reset；不跨账号 carry。logout、换账号、DNT/GPC 或停收清除内存状态。任何交接不保存密码、表单内容或持久身份映射。
 
-receiver 逐字段兼容 v1/v2，censor 仅允许 v2 的 true 且task 自身对应 durationMs/activeMs 等于现有一小时 cap；operation snapshot 的 elapsedCensored 描述所属任务，不能拿本次调用 durationMs 校验或排除调用时长；更大的计时和额外字段仍拒绝。短期/长期分析按 definitionVersion 与 ready basis 独立分组；未关联 task 的 page/operation 归 definitionVersion=0（定义未采集），不伪装 v1，也不重复计入 v2 的调用分母；未知组不生成 task 完成率趋势。censor 覆盖按报告单列，对应 task 计时不进入完整耗时分布，censored complete 清空早期 step 计时；operation 调用时长仍保留。navigation ready 仍按导航/模块/阶段首次去重，demand 保留每次独立需求事件。旧无 basis 数据按 navigation 读取，旧无标记 v1 不补造。客户端后继变更在兼容 receiver 实际部署后才发送 v2/censored/basis；部署顺序为 receiver 先、app 后，不能凭共享类型已合并认定接收端已上线。
+receiver 逐字段兼容 v1/v2，censor 仅允许 v2 的 true 且task 自身对应 durationMs/activeMs 等于现有一小时 cap；operation snapshot 的 elapsedCensored 描述所属任务，不能拿本次调用 durationMs 校验或排除调用时长；更大的计时和额外字段仍拒绝。短期/长期分析按 definitionVersion 与 ready basis 独立分组；未关联 task 的 page/operation 归 definitionVersion=0（定义未采集），不伪装 v1，也不重复计入 v2 的调用分母；未知组不生成 task 完成率趋势。censor 覆盖按报告单列，对应 task 计时不进入完整耗时分布，censored complete 清空早期 step 计时；operation 调用时长仍保留。navigation ready 仍按导航/模块/阶段首次去重，demand 保留每次独立需求事件。旧无 basis 数据按 navigation 读取，旧无标记 v1 不补造。生产 client 与 exposure 使用 v2，需求 ready 发 demand basis 并保留原 navigation 观测；该客户端只能在兼容 receiver 实际部署后发布；部署顺序为 receiver 先、app 后，不能凭共享类型已合并认定接收端已上线。
 
 ### 任务采集
 

@@ -7,13 +7,7 @@ import { maintainHistory, readHistory } from "../../../workers/telemetry/history
 import { historyDefaults } from "@/lib/telemetry/history-contract";
 import { signTicket } from "@/lib/telemetry/ticket";
 import { validEvent, type TelemetryEvent } from "@/lib/telemetry/protocol";
-// Exercise the future v2 mode through the real collector without enabling it in shipped code.
-vi.mock("@/lib/telemetry/task-client", async importOriginal => {
-  const original = await importOriginal<typeof import("@/lib/telemetry/task-client")>();
-  return { ...original, TelemetryTasks: new Proxy(original.TelemetryTasks, {
-    construct(target, args) { args[4] = 2; return Reflect.construct(target, args); },
-  }) };
-});
+// Use the shipped collector definition directly so a v1 regression cannot be hidden by a test override.
 import { beginTelemetryTask, activityTelemetryTask, stepTelemetryTask, completeTelemetryTask, configureTelemetry, flushTelemetry, observeAction, resetTelemetryIdentity } from "@/lib/telemetry/client";
 afterEach(() => { resetTelemetryIdentity(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 

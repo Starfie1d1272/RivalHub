@@ -98,6 +98,8 @@ it("records a free-prediction result only after its confirmed choice is rendered
 it("captures BET form demand only when a user opens an eligible prediction",async()=>{
   const data={...base,matches:[{id:model.matchId,entryAId:"private-A",entryBId:"private-B",a:"甲队",b:"乙队",logoA:null,logoB:null,stage:"正赛",format:"BO1",scheduledAt:null}]};
   const view=render(<BetBoard initial={data} slug="event" signedIn view="open" matchFilter={model.matchId} predictions={[model]} predictionMatchRows={data.matches} predictionControls={{submitAction:vi.fn(),refreshAction:vi.fn()}} refreshAction={vi.fn()}/>);
+  await act(async()=>{flushTelemetry();});
+  expect(send.mock.calls.flatMap(c=>JSON.parse(c[1].body).events as TelemetryEvent[]).some(e=>e.kind==="ready"&&e.ready?.phase==="form")).toBe(false);
   const user=userEvent.setup();await user.click(view.container.querySelector<HTMLButtonElement>('button[data-prediction-key="private-A"]')!);
-  const rows=await events();expect(rows.filter(e=>e.kind==="ready"&&e.ready?.module==="bet"&&e.ready.phase==="form")).toHaveLength(1);expect(actions.mutate).not.toHaveBeenCalled();
+  const rows=await events();expect(rows.filter(e=>e.kind==="ready"&&e.ready?.module==="bet"&&e.ready.phase==="form"&&(e.ready.basis??"navigation")==="navigation")).toHaveLength(1);expect(rows.filter(e=>e.kind==="ready"&&e.ready?.module==="bet"&&e.ready.phase==="form"&&e.ready.basis==="demand")).toHaveLength(1);expect(actions.mutate).not.toHaveBeenCalled();
 });

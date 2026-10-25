@@ -1,5 +1,5 @@
 import { TelemetryTasks } from "./task-client";
-import { taskForOperation, type TaskName, type TaskStep, type TaskValidationReason, type TaskMeasurement } from "./task-contract";
+import { TASK_DEFINITION_VERSION, taskForOperation, type TaskName, type TaskStep, type TaskValidationReason, type TaskMeasurement } from "./task-contract";
 import { clientErrorFingerprint } from "./error-fingerprint";
 import { ErrorCode } from "@/lib/errors";
 import { LIMITS, routeTemplate, safeFilters, UUID, VARIANTS, type Bootstrap, type Scene, type TelemetryEvent, type MeasurementContext, READY_MODULES, READY_PHASES } from "./protocol";
@@ -20,7 +20,7 @@ const tasks = new TelemetryTasks<TaskAttemptContext>(report => {
   record({ kind: "task", ...payload, route: original.route, scene: original.scene,
     eventId: original.eventId, measurement: original.measurement }, original.session);
 }, undefined, undefined,
-  () => typeof document !== "undefined" && document.visibilityState !== "hidden", 1,
+  () => typeof document !== "undefined" && document.visibilityState !== "hidden", TASK_DEFINITION_VERSION,
   () => {
     if (!queue) return;
     touchSession(Date.now());
@@ -86,8 +86,8 @@ export function recordContentReady(token: string | null, module: typeof READY_MO
 /** Raw monotonic demand start and navigation identity are memory-only. */
 export type TelemetryDemandToken = Readonly<{ navigationId: string; module: typeof READY_MODULES[number]; started: number }>;
 const demands = new Map<TelemetryDemandToken, { queue: TelemetryQueue; phase?: typeof READY_PHASES[number] }>();
-// Enable only after B's receiver + analysis compatibility has landed. Never send an unknown wire field.
-const demandBasisEmissionEnabled = false;
+// Receiver/analysis support must be deployed before this client release.
+const demandBasisEmissionEnabled = true;
 export function beginTelemetryDemand(module: typeof READY_MODULES[number]): TelemetryDemandToken | null {
   let token: TelemetryDemandToken | null = null;
   attempt(() => {
@@ -394,7 +394,7 @@ export function exposeTelemetryTask(name: TaskName, scope = ""): boolean {
     if (taskExposures.has(key)) { recorded = true; return; }
     if (taskExposures.size >= 100) taskExposures.delete(taskExposures.values().next().value!);
     taskExposures.add(key);
-    record({ kind: "task", task: { name, definitionVersion: 1, attemptId: crypto.randomUUID(), step: "ready", phase: "exposure" } });
+    record({ kind: "task", task: { name, definitionVersion: TASK_DEFINITION_VERSION, attemptId: crypto.randomUUID(), step: "ready", phase: "exposure" } });
     recorded = true;
   });
   return recorded;
