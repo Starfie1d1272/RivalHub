@@ -55,3 +55,13 @@ is not the old post-summary exit stall or an outer deadline.
 Major entry now gets its own runner like the other measured expensive flows.
 No journey assertion, fixture, test deadline or retry policy changes. The same
 full/affected project-coverage and no-duplicate tests cover this extra partition.
+
+Run 40145516127 verified the independent Major runner and every other runner
+except the next ordinary pair: platform statistics and predictions. Statistics
+cold navigation took 11.0 seconds, its later redirect/navigation took 5.3 seconds,
+and the unchanged 30-second budget expired before its final focus assertion;
+its warm full retry passed in 11.2 seconds. The co-scheduled prediction journey
+took 56.4 seconds. These two measured cross-route journeys now also get separate
+runners. They were the same adjacent ordinary pair, so removing both preserves
+the remaining ordinary pair contents. All original assertions, including the
+statistics final focus assertion and prediction export, remain.

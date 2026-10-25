@@ -549,6 +549,8 @@ export function systemMatrixFor(plan, liveEvidence) {
     ["tests/e2e/flows/admin-content-read-boundaries.spec.ts", "browser-admin-content"],
     ["tests/e2e/flows/major-qualification.spec.ts", "browser-qualification"],
     ["tests/e2e/flows/major-entry.spec.ts", "browser-major-entry"],
+    ["tests/e2e/flows/platform-stats.spec.ts", "browser-statistics"],
+    ["tests/e2e/flows/predictions.spec.ts", "browser-predictions"],
     ["tests/e2e/flows/test-matches.spec.ts", "browser-test-matches"],
   ]);
   for (const [spec, task] of isolated) {
