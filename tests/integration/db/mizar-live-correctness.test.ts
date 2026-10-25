@@ -1,12 +1,16 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { and, eq, isNull } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getRuntimeResourceSnapshot } from "@/lib/observability/runtime-resources";
 import { loadPublicMatchRefreshToken } from "@/lib/matches/public-refresh";
 import { api, state, pool, monitor, publications, snapshot, prepared, upload, reports } from "./harness/live-capacity";
 const { db, schema, hashCredential, POST, ingestMizarLive, ingestMizarReliable, RELIABLE_EVENT_SCHEMA_VERSION, revokeMizarInstallation, claimMizarSource, takeOverCurrentMap, loadMizarMatchDocumentInTx, recordCanonicalMapResultInTx } = api;
 
 describe("LIVE correctness: real PostgreSQL and loopback HTTP faults", () => {
+  afterEach(() => {
+    expect(getRuntimeResourceSnapshot().find(row => row.name === "mizar.live")?.inFlight).toBe(0);
+    expect(getRuntimeResourceSnapshot().find(row => row.name === "mizar.reliable")?.inFlight).toBe(0);
+  });
   it("keeps a public read and reliable map completion available while both LIVE sends hold permits", async () => {
     const fixtures = await Promise.all(Array.from({ length: 3 }, () => prepared()));
     await delay(1500);
