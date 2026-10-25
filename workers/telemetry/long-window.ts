@@ -16,6 +16,9 @@ function distribution(value?: number, metric = "") {
   }
   return d;
 }
+function qualifiers(e: EventRow) {
+  return { basis: e.kind === "ready" ? Reflect.get(e.ready ?? {}, "basis") === "demand" ? "demand" : "navigation" : "", elapsedCensored: e.task?.elapsedCensored === true, activeCensored: e.task?.activeCensored === true, reports: 1 };
+}
 /** Counts are observed additive facts; unknown coverage and unsupported distincts never become zero. */
 export async function longWindowSummary(env: Env, f: AnalysisFilters, session: string, now: number, budget: { batches: number; bytes: number }): Promise<LongWindowSummary> {
   const window = analysisWindow(f, now);
@@ -27,7 +30,7 @@ export async function longWindowSummary(env: Env, f: AnalysisFilters, session: s
   const result: LongWindowSummary = { generatedAt: now, validUntil: now + 60000,
     requestedRange: { from: window.requestedFrom, to: window.requestedTo }, effectiveRange: { from: window.from, to: window.to },
     coveredRanges: [], source: "history+tail+raw_edges", coverage: { status: "partial", segments: [], pendingTailBatches: 0,
-      tailBudgetTruncated: false, metricGroupsTruncated: false, rawBudgetTruncated: false, retentionUnknown: window.retentionClipped, seriesOmitted: true },
+      tailBudgetTruncated: false, metricGroupsTruncated: false, rawBudgetTruncated: false, retentionUnknown: window.requestedFrom < now - 7 * DAY, seriesOmitted: true },
     counts, distinctSessions: null, distinctAccounts: null, metrics: [], unsupportedDimensions: unsupported };
   if (unsupported.length) {
     result.coverage.status = "unsupported";
@@ -36,9 +39,10 @@ export async function longWindowSummary(env: Env, f: AnalysisFilters, session: s
   }
   const metrics = new Map<string, HistoryTimingRow>();
   function addMetric(row: HistoryTimingRow) {
-    const key = JSON.stringify([row.kind, row.name, row.phase, row.release, row.measurementVersion, row.definitionVersion, row.navigationType]);
+    const key = JSON.stringify([row.kind, row.name, row.phase, row.release, row.measurementVersion, row.definitionVersion, row.navigationType, Reflect.get(row, "basis") ?? (row.kind === "ready" ? "navigation" : ""), Reflect.get(row, "elapsedCensored") === true, Reflect.get(row, "activeCensored") === true]);
     const old = metrics.get(key);
     if (old) {
+      Object.assign(old, { reports: Number(Reflect.get(old, "reports") ?? old.duration.n) + Number(Reflect.get(row, "reports") ?? row.duration.n) });
       old.duration = mergeHistoryDistributions([old.duration, row.duration], row.name);
       old.active = mergeHistoryDistributions([old.active, row.active]);
     } else if (metrics.size < 512) metrics.set(key, row);
@@ -49,6 +53,8 @@ export async function longWindowSummary(env: Env, f: AnalysisFilters, session: s
   const middleTo = historyDayStart(historyDay(window.to));
   let rawBytes = ANALYSIS_BYTES_LIMIT, rawBatches = ANALYSIS_BATCH_LIMIT;
   if (middleFrom < middleTo) {
+    // Existing history collapses exposure/start/complete into one attempt sample; total exposures are unrecoverable.
+    counts.taskExposure = null;
     const history = await readHistory(env, { ...historyDefaults, days: "7", scene: f.scene, role: f.role, route: f.route, device: f.device, release: f.release, eventId: f.eventId, task: f.task, operation: f.operation }, now,
       { fromDay: historyDay(middleFrom), toDay: historyDay(middleTo - 1) });
     result.validUntil = Math.min(result.validUntil, history.validUntil ?? now + 60000);
@@ -63,7 +69,7 @@ export async function longWindowSummary(env: Env, f: AnalysisFilters, session: s
       const complete = !!day?.complete;
       result.coverage.segments.push({ from: at, to: at + DAY, source: "history+tail", status: complete ? "complete" : day ? "partial" : "unknown", reason: complete ? "" : !history.enabled ? "history_disabled" : !day ? "not_captured_or_retained" : result.coverage.tailBudgetTruncated ? "tail_budget" : "history_gap" });
       if (complete) result.coveredRanges.push({ from: at, to: at + DAY });
-      if (day) for (const key of historyCountFields) counts[key]! += day[key];
+      if (day) for (const key of historyCountFields) if (counts[key] !== null) counts[key]! += day[key];
     }
     if (history.days.length < expected) result.coverage.retentionUnknown = true;
     history.timingRows.forEach(addMetric);
@@ -105,10 +111,10 @@ export async function longWindowSummary(env: Env, f: AnalysisFilters, session: s
     for (const c of calls) counts[c.result?.phase === "success" ? "success" : c.result?.phase === "rejected" ? "rejected" : c.result?.phase === "unknown" ? "unknown" : "pending"]!++;
     const attempts = taskAttempts(events, rows, now);
     counts.taskStarts! += attempts.length; counts.taskComplete! += attempts.filter(a => a.completed).length;
-    counts.taskExposure! += new Set(rows.filter(e => e.kind === "task" && e.task?.phase === "exposure").map(e => `${e.account}:${e.session}:${e.task!.definitionVersion}:${e.task!.attemptId}`)).size;
+    if (counts.taskExposure !== null) counts.taskExposure += new Set(rows.filter(e => e.kind === "task" && e.task?.phase === "exposure").map(e => `${e.account}:${e.session}:${e.task!.definitionVersion}:${e.task!.attemptId}`)).size;
     function metric(e: EventRow, name: string, value?: number, active?: number) {
-      addMetric({ kind: e.kind as HistoryTimingRow["kind"], name, phase: e.kind === "task" ? e.task?.phase ?? "" : e.phase ?? "", release: e.measurement?.clientRelease ?? "missing", measurementVersion: e.measurement?.v ?? 0, definitionVersion: e.task?.definitionVersion ?? 0,
-        navigationType: e.measurement?.lifecycle?.navigationType ?? "missing", duration: distribution(value, name), active: distribution(active) });
+      addMetric(Object.assign({ kind: e.kind as HistoryTimingRow["kind"], name, phase: e.kind === "task" ? e.task?.phase ?? "" : e.phase ?? "", release: e.measurement?.clientRelease ?? "missing", measurementVersion: e.measurement?.v ?? 0, definitionVersion: e.task?.definitionVersion ?? 0,
+        navigationType: e.measurement?.lifecycle?.navigationType ?? "missing", duration: distribution(e.task?.elapsedCensored ? undefined : value, name), active: distribution(e.task?.activeCensored ? undefined : active) }, qualifiers(e)));
     }
     const metricIds = new Set(snapshot.metricIds);
     const eligible = rows.filter(e => e.kind === "ready" || e.kind === "performance" && metricIds.has(e.id));
@@ -124,7 +130,7 @@ export async function longWindowSummary(env: Env, f: AnalysisFilters, session: s
     for (const c of calls) if (c.result) metric(c.result, c.start.operation!, c.result.durationMs);
     for (const a of attempts) if (a.completed) metric(a.candidates.find(e => e.task?.phase === "complete")!, a.start.task!.name, a.elapsed ?? undefined, a.active ?? undefined);
   }
-  for (const e of rawMetrics.values()) addMetric({ kind: e.kind as HistoryTimingRow["kind"], name: e.kind === "ready" ? `${e.ready!.module}:${e.ready!.phase}` : e.metricName!, phase: "", release: e.measurement?.clientRelease ?? "missing", measurementVersion: e.measurement?.v ?? 0, definitionVersion: 0, navigationType: e.measurement?.lifecycle?.navigationType ?? "missing", duration: distribution(e.kind === "ready" || e.metricName !== "CLS" ? e.durationMs : e.score, e.metricName), active: emptyHistoryDistribution() });
+  for (const e of rawMetrics.values()) addMetric(Object.assign({ kind: e.kind as HistoryTimingRow["kind"], name: e.kind === "ready" ? `${e.ready!.module}:${e.ready!.phase}` : e.metricName!, phase: "", release: e.measurement?.clientRelease ?? "missing", measurementVersion: e.measurement?.v ?? 0, definitionVersion: 0, navigationType: e.measurement?.lifecycle?.navigationType ?? "missing", duration: distribution(e.kind === "ready" || e.metricName !== "CLS" ? e.durationMs : e.score, e.metricName), active: emptyHistoryDistribution() }, qualifiers(e)));
   result.metrics = [...metrics.values()];
   result.coverage.status = result.coverage.segments.length > 0 && result.coverage.segments.every(s => s.status === "complete") ? "complete" : "partial";
   return result;

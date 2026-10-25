@@ -7,7 +7,7 @@ import {analyzeTelemetry} from "@/lib/telemetry/analysis-model";
 import {analysisDefaults} from "@/lib/telemetry/analysis-query";
 import { getTelemetryWorkflowsAction } from "@/app/admin/telemetry/actions";
 import type { HistoryData } from "@/lib/telemetry/history-contract";
-import { getTelemetryAnalysis, getTelemetryHistory } from "@/lib/telemetry/dashboard";
+import { getLongWindowSummary, getTelemetryAnalysis, getTelemetryHistory } from "@/lib/telemetry/dashboard";
 
 afterEach(() => vi.unstubAllEnvs());
 beforeEach(() => { vi.restoreAllMocks(); requireSuperAdmin.mockReset(); loadWorkflowMetrics.mockReset(); });
@@ -107,4 +107,14 @@ it("passes only validated workflow filters to the database owner after authoriza
   });
   expect((await getTelemetryWorkflowsAction({})).status).toBe("ready");
   expect(loadWorkflowMetrics).toHaveBeenCalledExactlyOnceWith({ days: "7", eventId: "" });
+});
+
+
+it("authorizes and validates the independent long-window query before provider access", async () => {
+  const fetch = vi.spyOn(globalThis, "fetch");
+  requireSuperAdmin.mockRejectedValueOnce(new Error("FORBIDDEN"));
+  await expect(getLongWindowSummary({})).rejects.toThrow("FORBIDDEN");
+  requireSuperAdmin.mockResolvedValue({ userId: "fixture" });
+  await expect(getLongWindowSummary({ browser: "private-value" })).rejects.toThrow("Invalid telemetry long-window filters");
+  expect(fetch).not.toHaveBeenCalled();
 });

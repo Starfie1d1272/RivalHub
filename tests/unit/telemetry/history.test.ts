@@ -48,6 +48,9 @@ it("keeps history opt-in, validates filters and limits the dashboard credential 
       ["/admin/history", "GET", "", 401],
       ["/admin/history", "POST", `Bearer ${f.env.DASHBOARD_KEY}`, 405],
       ["/admin/events", "GET", `Bearer ${f.env.DASHBOARD_KEY}`, 401],
+      ["/admin/long-window", "GET", "", 401],
+      ["/admin/long-window", "POST", `Bearer ${f.env.DASHBOARD_KEY}`, 405],
+      ["/admin/long-window?browser=private-value", "GET", `Bearer ${f.env.DASHBOARD_KEY}`, 400],
       ["/admin/history?days=100", "GET", `Bearer ${f.env.DASHBOARD_KEY}`, 400],
     ] as const) expect((await handle(new Request("https://worker.invalid" + path, { method, headers: { authorization } }), f.env, now)).status).toBe(expected);
   } finally { await f.mf.dispose(); }
@@ -324,6 +327,7 @@ it("keeps rolling edges explicit and bypasses raw 2000-batch/2MiB limits for com
     const data = LongWindowSummary.parse(await response.json());
     expect(data.requestedRange).toEqual({ from: now - 7 * DAY, to: now });
     expect(data.counts.views).toBe(4004);
+    expect(data.counts.taskExposure).toBeNull();
     expect(statements).toBeLessThanOrEqual(25);
     console.info(JSON.stringify({ fixture: "long_window_2001_batches", rawBytes, statements, rowsRead, responseBytes: Buffer.byteLength(JSON.stringify(data)), observedViews: data.counts.views }));
     expect(data.distinctSessions).toBeNull(); expect(data.distinctAccounts).toBeNull();
