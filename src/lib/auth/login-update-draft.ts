@@ -6,7 +6,8 @@ const TTL_MS = 15 * 60_000;
 /** Only the email is eligible; passwords and provider/session tickets never enter storage. */
 export function preserveLoginUpdateEmail(email: string): boolean {
   try {
-    if (!email) { sessionStorage.removeItem(KEY); return true; }
+    sessionStorage.removeItem(KEY);
+    if (!email) return true;
     if (email.length > 254) return false;
     sessionStorage.setItem(KEY, JSON.stringify({ email, expiresAt: Date.now() + TTL_MS }));
     return true;

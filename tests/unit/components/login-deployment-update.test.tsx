@@ -32,3 +32,10 @@ it("fails closed for corrupt or unavailable storage", () => {
   vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("fixture unavailable"); });
   expect(preserveLoginUpdateEmail("local@example.test")).toBe(false);
 });
+
+it.each(["", "x".repeat(255)])("invalidates a previous email when the replacement is empty or too long", email => {
+  expect(preserveLoginUpdateEmail("previous@example.test")).toBe(true);
+  expect(preserveLoginUpdateEmail(email)).toBe(email === "");
+  expect(takeLoginUpdateEmail()).toBeNull();
+  expect(sessionStorage.length).toBe(0);
+});
