@@ -4,8 +4,10 @@ import { ROOT_CONTEXT, context } from "@opentelemetry/api";
 
 vi.mock("@/lib/observability/logger", () => ({ logEvent: vi.fn() }));
 import { logEvent } from "@/lib/observability/logger";
+import { stopRuntimeHealthSampling } from "@/lib/observability/runtime-health";
 
 afterEach(() => {
+  stopRuntimeHealthSampling(); vi.useRealTimers();
   Reflect.deleteProperty(process, Symbol.for("rivalhub.live-outcome-window.v1"));
   vi.restoreAllMocks(); vi.clearAllMocks(); vi.resetModules();
 });
@@ -59,4 +61,33 @@ it("shares bounded counters across module reloads without installing timers", as
     durationMs: 10, safeContext: expect.objectContaining({ outcome: "capacity", count: 2 }),
   }));
   expect(timer).not.toHaveBeenCalled();
+});
+
+
+it("flushes the same idle window through A's single sampler after a second G module graph registers", async () => {
+  vi.useFakeTimers();
+  let now = 0;
+  vi.spyOn(performance, "now").mockImplementation(() => now);
+  const first = await import("@/lib/observability/live-outcomes");
+  first.recordLiveIngestOutcome("accepted", 40);
+  vi.resetModules();
+  const second = await import("@/lib/observability/live-outcomes");
+  second.recordLiveIngestStage("send_success", 35);
+  const sampler = await import("@/lib/observability/runtime-health");
+  const stop = sampler.startRuntimeHealthSampling();
+  expect(sampler.startRuntimeHealthSampling()).toBe(stop);
+  expect(vi.getTimerCount()).toBe(1);
+  now = 60_000;
+  vi.advanceTimersByTime(60_000);
+  expect(logEvent).toHaveBeenCalledWith(expect.objectContaining({ event: "mizar.live.outcome_window",
+    durationMs: 40, safeContext: expect.objectContaining({ outcome: "accepted", count: 1 }) }));
+  expect(logEvent).toHaveBeenCalledWith(expect.objectContaining({ event: "mizar.live.stage_window",
+    durationMs: 35, safeContext: expect.objectContaining({ outcome: "send_success", count: 1 }) }));
+  const windowLogs = () => vi.mocked(logEvent).mock.calls.filter(([event]) => event.event.startsWith("mizar.live."));
+  expect(windowLogs()).toHaveLength(2);
+  now = 120_000;
+  vi.advanceTimersByTime(60_000);
+  expect(windowLogs()).toHaveLength(2);
+  stop();
+  expect(vi.getTimerCount()).toBe(0);
 });

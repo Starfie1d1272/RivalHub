@@ -1,6 +1,7 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { and, eq, isNull } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
+import { getRuntimeResourceSnapshot } from "@/lib/observability/runtime-resources";
 import { loadPublicMatchRefreshToken } from "@/lib/matches/public-refresh";
 import { api, state, pool, monitor, publications, snapshot, prepared, upload, reports } from "./harness/live-capacity";
 const { db, schema, hashCredential, POST, ingestMizarLive, ingestMizarReliable, RELIABLE_EVENT_SCHEMA_VERSION, revokeMizarInstallation, claimMizarSource, takeOverCurrentMap, loadMizarMatchDocumentInTx, recordCanonicalMapResultInTx } = api;
@@ -10,11 +11,13 @@ describe("LIVE correctness: real PostgreSQL and loopback HTTP faults", () => {
     const fixtures = await Promise.all(Array.from({ length: 3 }, () => prepared()));
     await delay(1500);
     const before = publications.length;
+    const resourceBefore = getRuntimeResourceSnapshot();
     let release!: () => void;
     state.sendBarrier = new Promise<void>(resolve => { release = resolve; });
     const live = fixtures.slice(0, 2).map(f => upload(f, 1));
     try {
       await vi.waitFor(() => expect(publications.length).toBe(before + 2));
+      expect(getRuntimeResourceSnapshot().find(row => row.name === "mizar.live")?.inFlight).toBe(2);
       const f = fixtures[2]!;
       const start = performance.now();
       const [token, receipt] = await Promise.all([
@@ -31,11 +34,15 @@ describe("LIVE correctness: real PostgreSQL and loopback HTTP faults", () => {
       const nonLiveMs = performance.now() - start;
       expect(token).toMatch(/^[a-f0-9]{32}$/);
       expect(receipt).toEqual({ outcome: "canonicalized", duplicate: false });
+      expect(getRuntimeResourceSnapshot().find(row => row.name === "mizar.reliable")).toMatchObject({ inFlight: 0,
+        count: resourceBefore.find(row => row.name === "mizar.reliable")!.count + 1 });
       expect(nonLiveMs).toBeLessThan(1500);
       reports.push({ scenario: "two-live-public-read-reliable-completion", livePermits: 2, poolMax: 3, nonLiveMs, receipt, publicRead: true });
     } finally {
       release(); state.sendBarrier = undefined;
       expect(await Promise.all(live.map(async result => (await (await result).json()).accepted))).toEqual([true, true]);
+      expect(getRuntimeResourceSnapshot().find(row => row.name === "mizar.live")).toMatchObject({ inFlight: 0,
+        count: resourceBefore.find(row => row.name === "mizar.live")!.count + 2 });
     }
   });
 

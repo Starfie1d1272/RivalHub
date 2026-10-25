@@ -1,6 +1,7 @@
 import { execFile, execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { redactText } from "../../../src/lib/observability/redact";
 import { test, expect, type Request as BrowserRequest } from "@playwright/test";
@@ -33,8 +34,24 @@ test("public match consumes private Broadcast and recovers across navigation and
 
   // Observe only bounded transport metadata, never headers, credentials or payloads.
   const startedAt = performance.now();
-  type Pending = { method: string; path: string; resourceType: string; navigation: boolean; startedMs: number; responseStatus?: number };
+  type Pending = { method: string; path: string; resourceType: string; navigation: boolean; startedMs: number; responseStatus?: number; serverAction?: string };
   const pending = new Map<BrowserRequest, Pending>();
+  const actionOwners = new Map<string, string>();
+  const actionOwner = (request: BrowserRequest): string | undefined => {
+    // Inspect only this public build reference; never retain any header values.
+    const reference = request.headers()["next-action"];
+    if (!reference) return;
+    const known = actionOwners.get(reference);
+    if (known) return known;
+    try {
+      const manifest = JSON.parse(readFileSync(".next/dev/server/server-reference-manifest.json", "utf8"));
+      const entry = manifest.node?.[reference];
+      const owner = typeof entry?.filename === "string" && typeof entry?.exportedName === "string"
+        ? `${entry.filename}:${entry.exportedName}`.slice(0, 300) : "unmapped_server_reference";
+      if (actionOwners.size < 16) actionOwners.set(reference, owner);
+      return owner;
+    } catch { return "manifest_unavailable"; }
+  };
   const timeline: Array<Pending & { phase: string; elapsedMs: number; error?: string }> = [];
   let omitted = 0;
   let failed = false;
@@ -62,7 +79,7 @@ test("public match consumes private Broadcast and recovers across navigation and
     if (isViewer(request.url())) viewerRequests.started++;
     if (pending.size >= 64) { omitted++; return; }
     const row = { method: request.method(), path: new URL(request.url()).pathname.slice(0, 300),
-      resourceType: request.resourceType(), navigation: request.isNavigationRequest(), startedMs: Math.round(performance.now() - startedAt) };
+      resourceType: request.resourceType(), navigation: request.isNavigationRequest(), startedMs: Math.round(performance.now() - startedAt), serverAction: actionOwner(request) };
     pending.set(request, row); record(row, "request");
   });
   page.on("response", response => {
@@ -182,7 +199,11 @@ test("public match consumes private Broadcast and recovers across navigation and
     const evidence = { sha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
       environment: "local Next HTTP + Local Supabase + Chromium", failed, elapsedMs: Math.round(performance.now() - startedAt),
       pending: [...pending.values()], omitted, viewerRequests, postInitiators: [...postInitiators.values()], timeline };
-    await testInfo.attach("live-http-pending.json", { body: JSON.stringify(evidence, null, 2), contentType: "application/json" });
+    const directory = resolve(".agent-tmp/g-live-http", seasonId);
+    mkdirSync(directory, { recursive: true });
+    const evidencePath = resolve(directory, "requests.json");
+    writeFileSync(evidencePath, JSON.stringify(evidence, null, 2));
+    await testInfo.attach("live-http-pending.json", { path: evidencePath, contentType: "application/json" });
     console.info("LIVE_HTTP_PENDING", JSON.stringify({ ...evidence, timeline: undefined }));
     await diagnostics.detach().catch(() => {});
     producer?.kill();

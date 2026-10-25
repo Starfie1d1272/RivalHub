@@ -6,6 +6,7 @@ import { matches, matchMaps, matchLiveSessions, mizarInstallations, seasons, com
 import { createServiceClient } from "@/lib/auth/supabase-server";
 import { effectiveMatchRosterQuery } from "@/lib/match-rosters/effective";
 import { logEvent, recordLiveIngestOutcome, recordLiveIngestStage, type LiveIngestOutcome } from "@/lib/observability/server";
+import { beginRuntimeResource } from "@/lib/observability/runtime-resources";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { parseLiveSnapshotV1 } from "./protocol";
 import { projectPublicLive } from "./live-projection";
@@ -22,6 +23,7 @@ export const matchLiveTopic = (matchId: string) => `match-live:${matchId}`;
 export async function ingestMizarLive(credentialHash: string, input: unknown, authorityRevision: number, receivedAt = performance.now()) {
   const snapshot = parseLiveSnapshotV1(input);
   if (snapshot.cursor.liveSessionId === null) throw new AppError(ErrorCode.FORBIDDEN, "制播数据不属于当前连接。");
+  const finishResource = beginRuntimeResource("mizar.live");
   let cleanup: (() => Promise<unknown>) | undefined;
   let outcome: LiveIngestOutcome = "error";
   try {
@@ -128,7 +130,9 @@ export async function ingestMizarLive(credentialHash: string, input: unknown, au
     throw error;
   } finally {
     // Channel never subscribes. Disposal cannot hold DB/authority locks; send did.
-    try { await cleanup?.(); } finally { recordLiveIngestOutcome(outcome, performance.now() - receivedAt); }
+    try { await cleanup?.(); } finally {
+      try { recordLiveIngestOutcome(outcome, performance.now() - receivedAt); } finally { finishResource(); }
+    }
   }
 }
 

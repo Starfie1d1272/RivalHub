@@ -1,5 +1,6 @@
 import { context, ROOT_CONTEXT } from "@opentelemetry/api";
 import { logEvent } from "./logger";
+import { registerRuntimeHealthFlush } from "./runtime-health";
 
 const OUTCOMES = ["accepted", "frame_expired", "contended", "delivery_dropped", "broadcast_unavailable", "rejected", "error"] as const;
 export type LiveIngestOutcome = typeof OUTCOMES[number];
@@ -59,3 +60,6 @@ export function flushLiveIngestOutcomes(now = performance.now()): void {
     });
   } catch { /* Logging failure drops this window; never replay delivery. */ }
 }
+
+// Register only; the shared Node instrumentation owner starts its single timer.
+registerRuntimeHealthFlush("live_ingest", () => flushLiveIngestOutcomes());
