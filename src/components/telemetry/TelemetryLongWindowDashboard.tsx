@@ -48,7 +48,7 @@ export function TelemetryLongWindowDashboard({ data, filters, events, view }: {
         if (key === "task") next.operation = "";
         apply(next);
       }} />
-      <Panel><p className="text-sm">长窗口使用历史与尾部汇总。需要逐条问题证据或变化比较时，可打开<Link className="ml-1 underline" href={analysisHref(filters, view, true)}>有界明细分析</Link>；其读取预算不代表完整长窗口。</p></Panel>
+      <Panel><p className="text-sm">长窗口使用历史与尾部汇总。需要逐条问题证据或变化比较时，可打开<Link prefetch={false} className="ml-1 underline" href={analysisHref(filters, view, true)}>有界明细分析</Link>；其读取预算不代表完整长窗口。</p></Panel>
       {view === "problems" && <p className="text-sm">问题排查的会话证据保留在有界明细分析中。下方是当前条件的汇总覆盖与已观测计数。</p>}
       <LongWindowAnalysis data={data} view={view} />
       <ContentReady module="admin" phase="primary" />
