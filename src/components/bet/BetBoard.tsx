@@ -40,7 +40,6 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
   const task=useTelemetryTask("bet",data.seasonId,signedIn&&data.enabled&&(!data.joined?!!data.joinEligibility?.canJoin:data.markets.some(m=>m.canStake)));
   const taskStep=task.step;
   type StakeAttempt={token:string|null;seasonId:string;marketId:string;optionId:string;previousAmount:string};
-  const stakeAttempt=useRef<StakeAttempt|null>(null);
   const [receipt,setReceipt]=useState<StakeAttempt|{token:string|null;seasonId:string}|null>(null);
   const [demand,setDemand]=useState<TelemetryDemandToken|null>(null);
   const receiptMarket=receipt&&"marketId" in receipt?data.markets.find(m=>m.id===receipt.marketId):undefined;
@@ -58,7 +57,7 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
   const [selected,setSelected]=useState<{market:BetMarketDTO;optionId:string}|null>(resumedMarket?{market:resumedMarket,optionId:resumedOptionId!}:null);
   useEffect(()=>{if(restoreFocusAfterPending.current&&!pending&&!freePending&&!selected&&!predictionTarget){restoreFocusAfterPending.current=false;participationOpener.current?.focus();}},[pending,freePending,selected,predictionTarget]);
   const [amount,setAmount]=useState("");const [allIn,setAllIn]=useState(false);const [allConfirmed,setAllConfirmed]=useState(false);
-  const [uncertain,setUncertain]=useState<Parameters<typeof getBetStakeReceipt>[0] | null>(null);
+  const [uncertain,setUncertain]=useState<{request:Parameters<typeof getBetStakeReceipt>[0];attempt:StakeAttempt} | null>(null);
   const [requestId,setRequestId]=useState(()=>resumedMarket?crypto.randomUUID():"");const [error,setError]=useState<string|null>(null);
   const matches = [...data.matches, ...(predictionMatchRows ?? []).filter(match => !data.matches.some(row => row.id === match.id))];
   const active=filters.some(f=>f.key===view)?view:"open";
@@ -73,14 +72,14 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
   function choose(market:BetMarketDTO,optionId:string){if(interactionBusy)return;if(!signedIn){loginFor({...(market.matchId?{match:market.matchId}:{}),market:market.id,option:optionId});return;}setDemand(beginTelemetryDemand("bet"));if(!selected&&!predictionTarget)participationOpener.current=document.activeElement as HTMLElement;setPredictionTarget(market.matchId?{matchId:market.matchId,kind:market.group==="比赛"||market.type==="total_rounds"&&matches.find(m=>m.id===market.matchId)?.format==="BO1"?"winner":"bp"}:null);setSelected({market,optionId});setAmount("");setAllIn(false);setAllConfirmed(false);setRequestId(crypto.randomUUID());setError(null);}
   function join(){if(interactionBusy||!data.joinEligibility?.canJoin)return;const token=task.begin("submit");startTransition(async()=>{try{const r=await mutateBet({operation:"join",seasonId:data.seasonId});if(!r.success){setError(r.error.message);toast.error(r.error.message);return;}task.complete(token);setReceipt({token,seasonId:data.seasonId});setError(null);toast.success("积分已领取");void refreshAction().then(success=>{if(!success)toast.error("积分已领取，余额更新失败，请刷新后查看。");}).catch(()=>toast.error("积分已领取，余额更新失败，请刷新后查看。"));}catch{setError("领取结果暂未确认，请刷新后查看。");}});}
   function refreshCommitted(){void refreshAction().then(success=>{if(!success)toast.error("投入已提交，数据更新失败，请刷新后查看。");}).catch(()=>toast.error("投入已提交，数据更新失败，请刷新后查看。"));}
-  function submitted(amount:string){const captured=stakeAttempt.current;if(captured){task.complete(captured.token);setReceipt(captured);}setUncertain(null);toast.success(`已投入 ${formatPoints(amount)} 积分`);setSelected(null);setPredictionTarget(null);setError(null);refreshCommitted();}
+  function submitted(amount:string,captured:StakeAttempt){task.complete(captured.token);setReceipt(captured);setUncertain(null);toast.success(`已投入 ${formatPoints(amount)} 积分`);setSelected(null);setPredictionTarget(null);setError(null);refreshCommitted();}
   function submit(){
     if(pending||freePending)return;
-    if(uncertain){startTransition(async()=>{try{const result=await getBetStakeReceipt(uncertain);if(result.success&&result.data.status==="committed")submitted(result.data.amount);else setError("投入结果仍未确认，请稍后再次核对，暂勿重复投入。");}catch{setError("暂时无法核对投入结果，请稍后再次核对。");}});return;}
+    if(uncertain){startTransition(async()=>{try{const result=await getBetStakeReceipt(uncertain.request);if(result.success&&result.data.status==="committed")submitted(result.data.amount,uncertain.attempt);else setError("投入结果仍未确认，请稍后再次核对，暂勿重复投入。");}catch{setError("暂时无法核对投入结果，请稍后再次核对。");}});return;}
     if(!selected||!canStakeSelection)return;
     const payload={operation:"stake" as const,seasonId:data.seasonId,marketId:selected.market.id,optionId:selected.optionId,amount:allIn?"all":amount,requestId};
-    stakeAttempt.current={token:task.begin("submit"),seasonId:data.seasonId,marketId:payload.marketId,optionId:payload.optionId,previousAmount:selected.market.mine?.amount??"0"};
-    startTransition(async()=>{try{const r=await mutateBet(payload);if(!r.success){if(r.error.code===ErrorCode.INTERNAL_ERROR){setUncertain(payload);setError("投入结果未确认，请核对原请求，暂勿重复投入。");}else setError(r.error.message);return;}submitted(r.data&&"amount" in r.data?r.data.amount:"0");}catch{setUncertain(payload);setError("投入结果未确认，请核对原请求，暂勿重复投入。");}});
+    const capturedAttempt:StakeAttempt={token:task.begin("submit"),seasonId:data.seasonId,marketId:payload.marketId,optionId:payload.optionId,previousAmount:selected.market.mine?.amount??"0"};
+    startTransition(async()=>{try{const r=await mutateBet(payload);if(!r.success){if(r.error.code===ErrorCode.INTERNAL_ERROR){setUncertain({request:payload,attempt:capturedAttempt});setError("投入结果未确认，请核对原请求，暂勿重复投入。");}else setError(r.error.message);return;}submitted(r.data&&"amount" in r.data?r.data.amount:"0",capturedAttempt);}catch{setUncertain({request:payload,attempt:capturedAttempt});setError("投入结果未确认，请核对原请求，暂勿重复投入。");}});
   }
   const current=data.markets.find(m=>m.id===selected?.market.id);
   const selectedOption=current?.options.find(o=>o.id===selected?.optionId);

@@ -51,6 +51,24 @@ it("keeps an unknown stake on one token, confirms by the original read receipt, 
 
 });
 
+it("does not complete a new season task with the previous season's delayed stake receipt",async()=>{
+  const market:BetBoardDTO["markets"][number]={id:"private-market",matchId:"private-match",type:"match_winner",title:"比赛胜者",help:"规则",group:"比赛",context:"",state:"open",pool:"0",participants:0,canStake:true,restriction:null,options:[{id:"private-option",label:"甲队",entity:null,pool:"0",percent:0,winner:false},{id:"other-option",label:"乙队",entity:null,pool:"0",percent:0,winner:false}],mine:null};
+  const joined={...base,joined:true,balance:"1000",markets:[market],matches:[{id:"private-match",entryAId:"a",entryBId:"b",a:"甲队",b:"乙队",logoA:null,logoB:null,stage:"正赛",format:"BO1",scheduledAt:null}]};
+  let resolve!:(value:unknown)=>void;
+  actions.mutate.mockImplementationOnce(()=>new Promise(r=>{resolve=r;})).mockResolvedValueOnce({success:true,data:{joined:true}});
+  const view=render(bet(joined,undefined,true));const user=userEvent.setup();
+  await user.type(screen.getByLabelText("投入积分",{exact:true}),"25");await user.click(screen.getByRole("button",{name:"确认投入"}));
+  view.rerender(bet({...base,seasonId:"next-season"}));
+  await act(async()=>resolve({success:true,data:{amount:"25"}}));
+  const stale=tasks(await events());expect(stale.filter(e=>e.task?.phase==="complete")).toHaveLength(1);expect(stale.some(e=>e.task?.step==="result")).toBe(false);
+  expect(stale.find(e=>e.task?.phase==="complete")!.task!.attemptId).toBe(stale.find(e=>e.task?.phase==="start")!.task!.attemptId);
+  await user.click(screen.getByRole("button",{name:"领取 1,000 积分"}));
+  const rows=tasks(await events());expect(rows.filter(e=>e.task?.phase==="complete")).toHaveLength(2);
+  const starts=rows.filter(e=>e.task?.phase==="start");expect(starts).toHaveLength(2);
+  expect(rows.filter(e=>e.task?.phase==="complete")[1].task!.attemptId).toBe(starts[1].task!.attemptId);
+  expect(actions.mutate).toHaveBeenCalledTimes(2);
+});
+
 it("completes free prediction before synchronous unmount without inventing presentation or replaying",async()=>{
   let resolve!:(value:ActionResult<FreePredictionModel>)=>void;const submitAction=vi.fn(()=>new Promise<ActionResult<FreePredictionModel>>(r=>{resolve=r;}));
   const view=render(<FreePrediction model={model} signedIn controls={{submitAction,refreshAction:vi.fn()}}/>);const user=userEvent.setup();
