@@ -34,6 +34,7 @@ describe("task collection boundaries", () => {
     const f = fixture(); const a = f.tasks.begin("profile", "one");
     f.tasks.begin("profile", "two");
     expect(f.tasks.capture("profile")).toBeUndefined();
+    expect(f.tasks.capture("profile", "one")?.attemptId).toBe(a);
     f.tasks.finish("profile", "complete", a, "two");
     expect(f.reports.some(r => r.task.phase === "complete")).toBe(false);
     f.tasks.finish("profile", "complete", a, "one");

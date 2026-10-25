@@ -73,10 +73,10 @@ export class TelemetryTasks {
     if (phase === "complete") a.step = name === "score_entry" ? "result" : "confirm";
     this.report(a, phase); a.terminal = phase; a.activity = null;
   }
-  capture(name: TaskName): TaskMeasurement | undefined {
+  capture(name: TaskName, scopePrefix?: string): TaskMeasurement | undefined {
     // An action without an explicit token cannot choose among concurrent scopes.
     this.prune();
-    const candidates = [...this.attempts.values()].filter(a => a.name === name && !a.terminal);
+    const candidates = [...this.attempts.values()].filter(a => a.name === name && !a.terminal && (scopePrefix === undefined || a.scope.startsWith(scopePrefix)));
     if (candidates.length !== 1) return;
     this.accumulate(candidates[0]);
     return this.payload(candidates[0], "step");

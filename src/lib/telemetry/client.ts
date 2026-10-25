@@ -311,7 +311,7 @@ export function observeAction<A extends unknown[], R>(operation: Operation, acti
       operationId = crypto.randomUUID(); started = performance.now(); captured = context();
       variant = variantFor(operation, args[0]); filters = safeFilters(new URLSearchParams(window.location.search));
       const taskName = taskForOperation(operation);
-      operationTask = taskName ? tasks.capture(taskName) : undefined;
+      operationTask = taskName ? tasks.capture(taskName, `${window.location.pathname}:`) : undefined;
       record({ ...captured, ...(operationTask ? { task: operationTask } : {}), kind: "operation", operation, operationId, phase: "start", ...(variant ? { variant } : {}) });
       operationSession = session;
       operationMeasurement = measurementContext();
