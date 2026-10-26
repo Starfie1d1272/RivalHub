@@ -133,11 +133,13 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
       record.status = response?.status() ?? null;
       if (record.status !== 200) throw new Error("DOCUMENT_HTTP_FAILURE");
       if (kind === "lineup") {
-        await expect(page.getByLabel("选手关键数据对比")).toBeVisible({ timeout: 30_000 });
+        const comparison = page.getByTestId("match-lineup-comparison").getByLabel("选手关键数据对比", { exact: true }).filter({ visible: true }).first();
+        await expect(comparison).toBeVisible({ timeout: 30_000 });
+        await expect(comparison.locator("dd").filter({ hasText: /\d/ }).nth(1)).toBeVisible();
         await expect(page.getByTestId("match-lineup-comparison").getByText("统计暂不可用", { exact: true })).toHaveCount(0);
       }
       else if (kind === "team") {
-        const style = page.getByLabel("阵容打法", { exact: true });
+        const style = page.getByLabel("阵容打法", { exact: true }).filter({ visible: true }).first();
         await expect(style.getByRole("group").first()).toBeVisible({ timeout: 30_000 });
         await expect(style.getByText(/暂无可用阵容画像|阵容打法暂时无法加载/)).toHaveCount(0);
       }
@@ -155,7 +157,7 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
       }
       if (kind === "profile") {
         await expect(page.locator('[data-profile-section="performance"]')).toBeVisible({ timeout: 30_000 });
-        if (statistics) await expect(page.getByLabel("Career Stats", { exact: true }).locator("div").filter({ has: page.getByText("Maps", { exact: true }) }).locator("dd"))
+        if (statistics) await expect(page.getByLabel("Career Stats", { exact: true }).filter({ visible: true }).first().locator("div").filter({ has: page.getByText("Maps", { exact: true }) }).locator("dd"))
           .toHaveText(String(statistics.measurement.projectionRows));
         await expect(page.getByText("Resource Player 01", { exact: true }).first()).toBeVisible({ timeout: 30_000 });
         await expect(page.getByText("竞技统计暂时无法加载，请稍后重试。", { exact: true })).toHaveCount(0);
