@@ -26,7 +26,8 @@ describe("changed-surface planner", () => {
     expect(matrix.find(job => job.task === "browser-live")?.specs).toEqual([live]);
     expect(matrix.find(job => job.task === "browser-session")?.specs).toEqual([session]);
     expect(matrix.filter(job => job.task.startsWith("browser-")).flatMap(job => job.specs).sort()).toEqual([ordinary, series, live, session].sort());
-    expect(matrix.filter(job => ["provider", "production"].includes(job.task))).toHaveLength(2);
+    expect(matrix.filter(job => job.task === "provider")).toHaveLength(1);
+    expect(matrix.filter(job => job.task.startsWith("production-")).map(job => job.project).sort()).toEqual(playwrightConfig.projects.map(project => project.name).sort());
     expect(systemMatrixFor({ runSystem: true, full: false, e2eSpecs: [ordinary] }, false).some(job => job.task === "browser-series")).toBe(false);
     expect(systemMatrixFor({ runSystem: true, full: false, e2eSpecs: [session] }, false).filter(job => job.task.startsWith("browser-"))).toEqual([
       { task: "browser-session", live: false, specs: [session] },
@@ -53,18 +54,18 @@ describe("changed-surface planner", () => {
     for (const full of [false, true]) {
       const jobs = systemMatrixFor({ runSystem: true, full, e2eSpecs: [stages, ...ordinary, stages] }, false);
       const lanes = jobs.filter(job => job.specs.includes(stages));
-      expect(lanes).toHaveLength(3);
+      expect(lanes).toHaveLength(6);
       for (const view of views) expect(lanes.filter(job => new RegExp(job.grep).test(`BET ${view} retains privacy`))).toHaveLength(1);
       for (const lane of lanes) {
         expect(lane.specs).toEqual([stages]);
-        expect(views.filter(view => new RegExp(lane.grep).test(`BET ${view} retains privacy`))).toHaveLength(2);
+        expect(views.filter(view => new RegExp(lane.grep).test(`BET ${view} retains privacy`))).toHaveLength(1);
       }
       for (const spec of ordinary) {
         const selected = jobs.filter(job => job.specs.includes(spec));
         expect(selected).toHaveLength(1);
         expect(selected[0].grep).toBeUndefined();
       }
-      expect(jobs.every(job => job.specs.length > 0 || ["provider", "production"].includes(job.task))).toBe(true);
+      expect(jobs.every(job => job.specs.length > 0 || job.task === "provider" || job.task.startsWith("production-"))).toBe(true);
     }
   });
 
