@@ -44,8 +44,9 @@ export async function createMizarResourceDriver(worktree: string, path: string, 
       { family: "match" as const, path: `/api/mizar/match?matchId=${producer.fixture.matchId}`, credential: producer.credential },
       { family: "schedule" as const, path: `/api/mizar/schedule?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, credential: producer.credential },
     ]), producers: manifest.producers.map(producer => {
-      const steps: ResourceHttpStep[] = Array.from({ length: 4 }, (_, index) => ({ operation: "live", authorityRevision: producer.fixture.authorityRevision,
-        body(now) { assertFresh(); const frame = structuredClone(producer.liveTemplate); frame.producedAt = now; frame.cursor.runtimeSeq = index + 1; return frame; },
+      let sequence = 0;
+      const steps: ResourceHttpStep[] = Array.from({ length: 4 }, () => ({ operation: "live", authorityRevision: producer.fixture.authorityRevision,
+        body(now) { assertFresh(); const frame = structuredClone(producer.liveTemplate); frame.producedAt = now; frame.cursor.runtimeSeq = ++sequence; return frame; },
         check(status, body) {
           const result = body as { accepted?: boolean; reason?: string };
           if (status === 200 && result.accepted === true) return "accepted";

@@ -25,7 +25,7 @@ import type { ResourceHttpFixture } from "./resource-integration-contract";
 const base = "http://127.0.0.1:3107";
 type RequestResult = { kind: string; phase: string; producer?: number; startedMs: number; durationMs: number; domReadyMs?: number; contentReadyMs?: number; status: number | null; bytes: number; requestBytes?: number; outcome?: string; reason?: string; error?: string };
 type ResourceSample = ReturnType<typeof parseResourceReading>;
-const workload = { version: 3, coldJourney: "sequential", mixedJourney: "warm", ioDelayTarget: "telemetry-https-loopback", databaseDelay: "none-loopback", ioDelayMs: 150, maxDelayedTelemetryRequests: 4, statsJourney: ["overview", "players", "weapons", "profile", "lineup"], processRestarts: 1, liveProducers: 2, documents: ["bet", "profile", "telemetry"], warmRounds: 1, concurrentRounds: 2, idleMs: 65_000 };
+const workload = { version: 4, coldMixedDocuments: ["bet", "stats", "telemetry"], coldJourney: "cold-mixed-then-remaining-single", mixedJourney: "cold-and-warm", ioDelayTarget: "telemetry-https-loopback", databaseDelay: "none-loopback", ioDelayMs: 150, maxDelayedTelemetryRequests: 4, statsJourney: ["overview", "players", "weapons", "profile", "lineup"], processRestarts: 1, liveProducers: 2, documents: ["bet", "profile", "telemetry"], warmRounds: 1, concurrentRounds: 2, idleMs: 65_000 };
 const execute = (file: string, args: string[], env?: NodeJS.ProcessEnv, cwd?: string) => execFileSync(file, args, { encoding: "utf8", env, cwd, stdio: ["ignore", "pipe", "pipe"] }).trim();
 
 export async function runResourceIntegrationSmoke(image: string, seed: string, adapter?: string, build = false, options: { phase?: "preparation" | "baseline" | "integrated"; telemetry?: ResourceTelemetryMode; appRoot?: string; expectedSha?: string } = {}) {
@@ -270,29 +270,12 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
       { page: await adminContext.newPage(), kind: "telemetry", path: `/admin/telemetry?hours=168${telemetryMode === "raw" ? "&analysisMode=bounded" : ""}`, title: "产品使用与体验" },
     ];
     for (const doc of documents) observeBrowser(doc.page, doc.kind);
-    phase = "documents.cold";
-    mark("documents.cold.begin");
-    for (const doc of documents) {
-      await document(doc.page, doc.kind, doc.path, doc.title, "cold-single");
-      if (doc.kind === "stats") for (const tab of ["players", "weapons"])
-        await document(doc.page, doc.kind, `${doc.path}&tab=${tab}`, doc.title, "cold-single");
-    }
-    mark("documents.cold.end"); sample();
-    phase = "combination";
-    mark("combination.barrier");
-    const tasks: Promise<unknown>[] = documents.map(async doc => {
-      for (let repeat = 0; repeat < workload.concurrentRounds; repeat++) {
-        const stage = `mixed-warm-${repeat + 1}`;
-        await document(doc.page, doc.kind, doc.path, doc.title, stage);
-        if (doc.kind === "stats") for (const tab of ["players", "weapons"])
-          await document(doc.page, doc.kind, `${doc.path}&tab=${tab}`, doc.title, stage);
-      }
-    });
-    for (const [producer, source] of (live?.producers ?? []).entries()) tasks.push((async () => {
-      mark(`producer.${producer}.start`);
-      for (const step of source.steps) {
+    function producerTasks(stage: string, liveOnly = false): Promise<void>[] {
+      return [...(live?.producers ?? []).entries()].map(async ([producer, source]) => {
+      mark(`${stage}.producer.${producer}.start`);
+      for (const step of source.steps.filter(step => !liveOnly || step.operation === "live")) {
         const at = performance.now();
-        const record: RequestResult = { kind: step.operation, phase: "combination", producer, startedMs: at - started, durationMs: 0, status: null, bytes: 0 };
+        const record: RequestResult = { kind: step.operation, phase: stage, producer, startedMs: at - started, durationMs: 0, status: null, bytes: 0 };
         report.requests.push(record);
         try {
           const body = JSON.stringify(step.body(new Date().toISOString()));
@@ -310,8 +293,40 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
         finally { record.durationMs = performance.now() - at; }
         await delay(source.intervalMs);
       }
-      mark(`producer.${producer}.end`);
-    })());
+      mark(`${stage}.producer.${producer}.end`);
+      });
+    }
+
+    phase = "cold-combination";
+    mark("cold-combination.barrier");
+    const coldDocuments = documents.filter(doc => ["bet", "stats", "telemetry"].includes(doc.kind));
+    const coldTasks = coldDocuments.map(async doc => {
+      await document(doc.page, doc.kind, doc.path, doc.title, "cold-combination");
+      if (doc.kind === "stats") for (const tab of ["players", "weapons"])
+        await document(doc.page, doc.kind, `${doc.path}&tab=${tab}`, doc.title, "cold-combination");
+    });
+    const coldResults = await Promise.allSettled([...coldTasks, ...producerTasks("cold-combination", true)]);
+    if (coldResults.some(result => result.status === "rejected")) throw new Error("COLD_COMBINATION_REQUEST_FAILED_NO_REPLAY");
+    mark("cold-combination.end"); sample();
+    phase = "documents.cold";
+    mark("documents.cold.begin");
+    for (const doc of documents) {
+      await document(doc.page, doc.kind, doc.path, doc.title, coldDocuments.includes(doc) ? "post-cold-mixed-single" : "cold-single");
+      if (doc.kind === "stats") for (const tab of ["players", "weapons"])
+        await document(doc.page, doc.kind, `${doc.path}&tab=${tab}`, doc.title, coldDocuments.includes(doc) ? "post-cold-mixed-single" : "cold-single");
+    }
+    mark("documents.cold.end"); sample();
+    phase = "combination";
+    mark("combination.barrier");
+    const tasks: Promise<unknown>[] = documents.map(async doc => {
+      for (let repeat = 0; repeat < workload.concurrentRounds; repeat++) {
+        const stage = `mixed-warm-${repeat + 1}`;
+        await document(doc.page, doc.kind, doc.path, doc.title, stage);
+        if (doc.kind === "stats") for (const tab of ["players", "weapons"])
+          await document(doc.page, doc.kind, `${doc.path}&tab=${tab}`, doc.title, stage);
+      }
+    });
+    tasks.push(...producerTasks("warm-combination"));
     const results = await Promise.allSettled(tasks);
     if (results.some(result => result.status === "rejected")) throw new Error("COMBINATION_REQUEST_FAILED_NO_REPLAY");
     mark("combination.end"); sample();
@@ -371,7 +386,9 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     if (!queries.length) throw new Error("TELEMETRY_EXPECTED_QUERY_MISSING");
     for (const query of queries) assertResourceTelemetryQuery(query, telemetryMode);
     report.localIoDelay = telemetry.ioDelay();
-    report.coverage = { tagInvalidation: true, processRestart: true, boundedTelemetryDelay: report.localIoDelay.delayedRequests > 0, telemetryHttps: true, externalMemory: report.resources.length > 0,
+    const acceptedPair = (stage: string) => [0, 1].every(producer => report.requests.some(request =>
+      request.phase === stage && request.kind === "live" && request.producer === producer && request.outcome === "accepted"));
+    report.coverage = { coldTwoHttpProducers: acceptedPair("cold-combination"), warmTwoHttpProducers: acceptedPair("warm-combination"), tagInvalidation: true, processRestart: true, boundedTelemetryDelay: report.localIoDelay.delayedRequests > 0, telemetryHttps: true, externalMemory: report.resources.length > 0,
       twoHttpProducers: report.requests.some(request => request.kind === "live" && request.producer === 0 && request.outcome === "accepted") && report.requests.some(request => request.kind === "live" && request.producer === 1 && request.outcome === "accepted"),
       reliableHttp: report.requests.filter(request => request.kind === "reliable" && request.outcome === "canonicalized").length === 2 };
     if (requireCounters) {
