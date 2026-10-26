@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import type { Route } from "next";
 import type { LongWindowSummary } from "@/lib/telemetry/long-window-contract";
 import { historyBounds, historyQuantile } from "@/lib/telemetry/history-contract";
 import { cat, metricLabels, opName, readyModules, readyPhases } from "@/lib/telemetry/analysis-presentation";
@@ -33,7 +35,7 @@ function metricKey(row: Metric) {
 const observed = (value: number | null) => value === null ? "未提供" : number(value);
 
 /** Displays provider-merged distributions; it never averages daily percentiles. */
-export function LongWindowAnalysis({ data, view = "overview" }: { data: LongWindowSummary; view?: string }) {
+export function LongWindowAnalysis({ data, view = "overview", problemHref }: { data: LongWindowSummary; view?: string; problemHref?: Route }) {
   const [selectedKey, setSelectedKey] = useState("");
   const [clock, setClock] = useState<"duration" | "active">("duration");
   const supported = data.coverage.status !== "unsupported";
@@ -73,12 +75,15 @@ export function LongWindowAnalysis({ data, view = "overview" }: { data: LongWind
       {view !== "problems" && <>
       {metrics.length > 0 && <Panel contentClassName="p-4"><Pick label="分布统计组" all={false} value={selected ? metricKey(selected) : ""} options={metrics.map(row => ({ value: metricKey(row), label: [metricName(row), metricPhase(row), versionLabel(row), basisLabel(row), row.measurementVersion ? `测量 v${row.measurementVersion}` : "测量版本未知", row.release ? row.release.slice(0, 7) : "版本未提供", cat(row.navigationType), row.elapsedCensored ? "经过截断" : "", row.activeCensored ? "活跃截断" : ""].filter(Boolean).join(" · ") }))} onChange={setSelectedKey} /></Panel>}
       {!selected && <Panel><Empty>当前范围没有有效时长分布。</Empty></Panel>}
-      {selected && <Panel contentClassName="p-0">
+      <div className={view === "overview" ? "grid items-start gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]" : ""}>
+      {selected && <Panel className="min-w-0" contentClassName="p-0">
         <Heading title={[kindLabels[selected.kind], metricName(selected), metricPhase(selected), versionLabel(selected), basisLabel(selected)].filter(Boolean).join(" · ")} note="仅当前统计组 · 桶计数分布" /><details className="px-4 pt-3 text-xs text-muted-foreground"><summary className="cursor-pointer">统计组口径与版本</summary><p className="mt-2 break-words">{selectedTitle}</p></details>
         {selected.kind === "task" && <div className="flex gap-2 p-4"><Button size="sm" variant={clock === "duration" ? "secondary" : "ghost"} onClick={() => setClock("duration")}>经过时间</Button><Button size="sm" variant={clock === "active" ? "secondary" : "ghost"} onClick={() => setClock("active")}>活跃操作时间</Button></div>}
         {(selected.elapsedCensored || selected.activeCensored) && <p className="px-4 text-sm">该组有不可完整观测的耗时报告；确认报告保留，截断耗时不计入分位数。</p>}
         {!distribution?.n ? <Empty>此组没有有效时长样本。</Empty> : <div className="p-4"><div className="mb-4 flex flex-wrap gap-4 text-xs text-muted-foreground"><SmallSample n={distribution.n} /><span>P50 桶上界估计 {duration(historyQuantile(distribution, .5, metric), metric)}</span><span>最大观测值 {duration(distribution.max, metric)}</span></div><Distribution counts={distribution.counts} bounds={bounds} metric={metric} /></div>}
       </Panel>}
+      {view === "overview" && problemHref && <Panel contentClassName="p-0"><Heading title="值得关注" note="异常与结果未知的客户端观测" /><div className="grid grid-cols-2"><Stat label="异常报告" value={observed(data.counts.errors)} /><Stat label="结果未知" value={observed(data.counts.unknown)} /></div><div className="space-y-3 border-t border-border p-4 text-sm"><p className="text-muted-foreground">{data.coverage.status === "partial" ? "当前范围覆盖不完整，可进入有界证据核对。" : "按页面、会话与请求线索查看问题证据。"}</p><Link prefetch={false} className="inline-flex rounded-md border border-border px-3 py-2 hover:bg-secondary focus-visible:outline-2 focus-visible:outline-primary" href={problemHref}>查看问题证据 →</Link></div></Panel>}
+      </div>
       <details className="text-xs text-muted-foreground"><summary className="cursor-pointer py-2">查看全部统计组与分位数口径</summary><div className="mt-3">      <Panel contentClassName="p-0"><Heading title="可合并时长分布" note="分位数按合并后的桶计数估计，不平均每日分位数；不同定义、口径和版本分别保留。" />
         {!metrics.length ? <Empty>当前范围没有有效时长分布。</Empty> : <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th className="p-4">统计组</th><th>定义 / 口径</th><th>时长样本</th><th>P50 桶上界估计</th><th className="pr-4">最大观测值</th></tr></thead><tbody>{metrics.map(row => <tr key={metricKey(row)} className="border-t border-border"><td className="p-4"><button className="text-left hover:text-primary" onClick={() => setSelectedKey(metricKey(row))}>{kindLabels[row.kind] ?? "统计"} · {metricName(row)} · {metricPhase(row)} ↗</button><p className="mt-1 text-xs text-muted-foreground">{row.release || "版本未提供"} · {cat(row.navigationType)}</p></td><td>{[versionLabel(row), basisLabel(row)].filter(Boolean).join(" · ") || "—"}{(row.elapsedCensored || row.activeCensored) && <p className="text-xs">不可完整观测的报告：{row.reports == null ? "未提供" : number(row.reports)}；经过时间{row.elapsedCensored ? "截断" : "有效"}，活跃时间{row.activeCensored ? "截断" : "有效"}</p>}</td><td><SmallSample n={row.duration.n} /></td><td>{row.duration.n ? duration(historyQuantile(row.duration, .5, row.name), row.name) : "无有效时长样本"}</td><td className="pr-4">{row.duration.n ? duration(row.duration.max, row.name) : "—"}</td></tr>)}</tbody></table></div>}
       </Panel>

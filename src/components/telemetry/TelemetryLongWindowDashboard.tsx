@@ -50,7 +50,7 @@ export function TelemetryLongWindowDashboard({ data, filters, events, view }: {
       }} />
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground"><span>长窗口汇总 · {data.coverage.seriesOmitted ? "此范围暂无趋势" : "使用已有汇总"}</span><div className="flex gap-4"><Link prefetch={false} className="underline" href={analysisHref(filters, "history")}>查看历史 →</Link><Link prefetch={false} className="underline" href={analysisHref(filters, view === "problems" ? "problems" : view, true)}>有界明细分析</Link></div></div>
       {view === "problems" && <Panel><p className="text-sm">下方是已观测异常计数；<Link prefetch={false} className="underline" href={analysisHref(filters, "problems", true)}>进入有界问题证据 →</Link></p></Panel>}
-      <LongWindowAnalysis data={data} view={view} />
+      <LongWindowAnalysis data={data} view={view} problemHref={analysisHref(filters, "problems", true)} />
       <AnalysisContentReady key={view} view={view} />
     </>}
     {view === "history" && <HistoryAnalysis events={events} />}
