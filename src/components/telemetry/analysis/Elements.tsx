@@ -76,9 +76,9 @@ export function Distribution({ counts, bounds, metric = "" }: { counts: readonly
   const labels = counts.map((_, i) => i === 0 ? `≤ ${duration(bounds[0], metric)}` : i === bounds.length ? `> ${duration(bounds[i - 1], metric)}` : `${duration(bounds[i - 1], metric)} – ${duration(bounds[i], metric)}`);
   const max = Math.max(1, ...counts), step = 864 / counts.length;
   return <div>
-    <p className="mb-3 min-h-5 text-xs text-muted-foreground" aria-live="polite">{active == null ? "按耗时区间查看样本分布" : `${labels[active]} · ${number(counts[active])} 样本`}</p>
+    <p className="mb-3 min-h-5 text-xs text-muted-foreground" aria-live="polite">{active == null ? metric === "CLS" ? "按布局偏移区间查看样本分布" : "按耗时区间查看样本分布" : `${labels[active]} · ${number(counts[active])} 样本`}</p>
     <div className="overflow-x-auto"><svg viewBox="0 0 960 240" className="w-full min-w-[640px] sm:min-w-0" role="img" aria-labelledby={id}>
-      <title id={id}>{"耗时区间样本分布；下方可展开查看数据"}</title>
+      <title id={id}>{metric === "CLS" ? "布局偏移区间样本分布；下方可展开查看数据" : "耗时区间样本分布；下方可展开查看数据"}</title>
       {[0, .5, 1].map(t => <g key={t}><line x1="56" x2="920" y1={180 - t * 140} y2={180 - t * 140} stroke="var(--color-border)" strokeDasharray="3 5" /><text x="48" y={184 - t * 140} textAnchor="end" fontSize="11" fill="var(--color-fg-mid)">{number(max * t)}</text></g>)}
       {counts.map((count, i) => <g key={i} tabIndex={0} aria-label={`${labels[i]}，${number(count)} 样本`} onFocus={() => setActive(i)} onBlur={() => setActive(null)} onMouseEnter={() => setActive(i)} onMouseLeave={() => setActive(null)} className="focus-visible:outline-2 focus-visible:outline-primary">
         <rect x={56 + i * step + 3} y={40} width={Math.max(1, step - 6)} height="140" fill="transparent" />
