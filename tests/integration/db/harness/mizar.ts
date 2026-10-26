@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { testSteam64 } from "./database";
@@ -23,6 +23,29 @@ export interface Fixture {
   contextRevision: string;
   authorityRevision: number;
   steam64: string[];
+}
+
+/** Bare schedule rows only: prevent large read fixtures from becoming cron work
+ * in later specs sharing this worker DB. The base fixture has its own lifetime. */
+export async function withExtraMizarScheduleMatches<T>(
+  fixture: Fixture,
+  work: (add: (count: number, scheduledAt: Date | null) => Promise<string[]>) => Promise<T>,
+): Promise<T> {
+  const ids: string[] = [];
+  try {
+    return await work(async (count, scheduledAt) => {
+      const addedIds = Array.from({ length: count }, () => randomUUID());
+      // Register before the fallible INSERT, including any earlier batch.
+      ids.push(...addedIds);
+      if (addedIds.length) await db.insert(schema.matches).values(addedIds.map(id => ({
+        id, seasonId: fixture.seasonId, entryAId: fixture.entryAId, entryBId: fixture.entryBId,
+        stage: "fixture-stage", format: "bo3" as const, status: "scheduled" as const, scheduledAt,
+      })));
+      return addedIds;
+    });
+  } finally {
+    if (ids.length) await db.delete(schema.matches).where(and(eq(schema.matches.seasonId, fixture.seasonId), inArray(schema.matches.id, ids)));
+  }
 }
 
 export async function seedFixture(options: { isTest?: boolean; matchStatus?: "scheduled" | "in_progress"; freezeEventRoster?: boolean; unboundSource?: boolean; seasonSlug?: string } = {}): Promise<Fixture & { fixtureUserIds: string[] }> {
