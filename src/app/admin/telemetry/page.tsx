@@ -1,17 +1,13 @@
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
 import { TelemetryLongWindowDashboard } from "@/components/telemetry/TelemetryLongWindowDashboard";
-import { analysisSections, isLongWindow, readTaskDefinition } from "@/components/telemetry/analysis/navigation";
+import { analysisSections, isLongWindow, readTaskDefinition, parseUIAnalysisQuery, uiAnalysisDefaults } from "@/components/telemetry/analysis/navigation";
 import TelemetryDashboard from "@/components/telemetry/TelemetryDashboard";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { loadTelemetryEventNames } from "@/lib/admin/product-experience/read";
 import { getTelemetryAnalysis, getLongWindowSummary } from "@/lib/telemetry/dashboard";
-import {
-  analysisDefaults,
-  analysisFields,
-  parseAnalysisQuery,
-} from "@/lib/telemetry/analysis-query";
+import { analysisFields } from "@/lib/telemetry/analysis-query";
 export default async function TelemetryPage({
   searchParams,
 }: {
@@ -20,14 +16,14 @@ export default async function TelemetryPage({
   const admin = await resolveAdminPageAccess(requireSuperAdmin);
   if (!admin) return <AdminAccessDenied />;
   const params = await searchParams;
-  const query = parseAnalysisQuery(
+  const query = parseUIAnalysisQuery(
     Object.fromEntries(
       Object.entries(params).filter(([key]) =>
         (analysisFields as readonly string[]).includes(key),
       ),
     ),
   );
-  const filters = query?.filters ?? analysisDefaults;
+  const filters = query?.filters ?? uiAnalysisDefaults;
   const view = analysisSections.find(([key]) => key === params.view)?.[0] ?? "overview";
   const long = isLongWindow(filters) && params.analysisMode !== "bounded";
   const catalogRead = loadTelemetryEventNames().catch(() => ({ rows: [], truncated: false }));

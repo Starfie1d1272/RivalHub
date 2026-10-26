@@ -56,6 +56,7 @@ it("handles schema-allowed empty trends and missing metrics without a render exc
   render(<TelemetryDashboard initial={initial} events={[]} />);
   await user.click(screen.getByRole("button", { name: "页面体验" }));
   expect(screen.getByRole("heading", { name: "浏览器性能" })).toBeInTheDocument();
+  await user.click(screen.getByText("设备样本与内容就绪详情"));
   expect(screen.getByText("尚无内容就绪样本；需要页面接入就绪标记并启用增强采集。")).toBeInTheDocument();
   expect(query).not.toHaveBeenCalled();
 });
@@ -109,8 +110,20 @@ it("keeps navigation and demand ready rows and chart selection separate", async 
   const row = { ...timing, route: "/stats", label: "数据中心", module: "stats", moduleLabel: "统计", phase: "primary", phaseLabel: "主要内容", points: [{ ...timing, at: base.meta.capturedAt }] };
   const initial: Analysis = { ...base, product: { ...base.product, ready: [row, { ...row, basis: "demand", p50: 999, points: [{ ...timing, p50: 999, at: base.meta.capturedAt }] }] } };
   render(<TelemetryDashboard initial={initial} initialView="experience" events={[]} />);
+  await user.click(screen.getByText("设备样本与内容就绪详情"));
   const demandRow = screen.getAllByRole("row").find(row => row.textContent?.includes("从需求触发开始"))!;
   await user.click(within(demandRow).getByRole("button"));
   expect(screen.getByRole("heading", { name: "数据中心 · 统计 · 主要内容 · 从需求触发开始" })).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "数据中心 · 统计 · 主要内容 · 从导航开始" })).not.toBeInTheDocument();
+});
+
+it("keeps different mature task definitions out of an overall completion percentage", () => {
+  const base = sample(), task = base.product.tasks[0]!;
+  const mature = { ...task, matured: 10, maturedCompleted: 8, completionPct: 80, definitionVersion: 1 };
+  const { rerender } = render(<TelemetryDashboard initial={{ ...base, product: { ...base.product, tasks: [mature, { ...mature, definitionVersion: 2 }] } }} events={[]} />);
+  expect(screen.getByRole("button", { name: /可评估任务/ })).toHaveTextContent("2");
+  expect(screen.queryByRole("button", { name: /成熟任务完成/ })).not.toBeInTheDocument();
+  rerender(<TelemetryDashboard key="single" initial={{ ...base, product: { ...base.product, tasks: [mature] } }} events={[]} />);
+  expect(screen.getByRole("button", { name: /成熟任务完成/ })).toHaveTextContent("80%");
+  expect(screen.getByRole("button", { name: /成熟任务完成/ })).toHaveTextContent("定义 v1");
 });

@@ -30,7 +30,7 @@ function metric(kind: "task" | "ready", version = 1, basis?: string): LongWindow
 }
 it("keeps unsupported filters from displaying unfiltered counts, and explains partial coverage and nulls", () => {
   const data = fixture();
-  const { rerender } = render(<LongWindowAnalysis data={data} />);
+  const { rerender } = render(<LongWindowAnalysis data={data} view="quality" />);
   expect(screen.getByText(/不是成熟窗口完成率/)).toBeInTheDocument();
   expect(screen.getByText("请求范围：", { exact: false })).toBeInTheDocument();
   expect(screen.getByText(/原始边界 · 部分覆盖/)).toBeInTheDocument();
@@ -44,6 +44,7 @@ it("separates definition versions and ready bases, and never renders censored em
   const user = userEvent.setup(); const data = fixture();
   data.metrics = [metric("task", 0), metric("task", 1), metric("task", 2), metric("ready", 0), metric("ready", 0, "demand")];
   render(<LongWindowAnalysis data={data} />);
+  await user.click(screen.getByText("查看全部统计组与分位数口径"));
   const rows = screen.getAllByRole("row").slice(1);
   expect(within(rows[0]!).getByText("定义版本未知")).toBeInTheDocument();
   expect(within(rows[2]!).getByText("定义 v2")).toBeInTheDocument();
@@ -59,6 +60,7 @@ it("preserves exact query filters when navigating long-window views and custom d
   const user = userEvent.setup();
   const filters = { ...analysisDefaults, eventId: "11111111-1111-4111-8111-111111111111", role: "super_admin", from: "2026-10-20T00:00:00Z", to: "2026-10-25T00:00:00Z" };
   render(<TelemetryLongWindowDashboard data={fixture()} filters={filters} events={[]} view="tasks" />);
+  await user.click(screen.getByText(/更多筛选与自定义日期/));
   expect(screen.getByLabelText("赛事").textContent).toContain("所选赛事（目录未提供）");
   const href = new URL(screen.getByRole("link", { name: "页面体验" }).getAttribute("href")!, "http://local");
   expect(href.searchParams.get("from")).toBe(filters.from);
@@ -94,8 +96,8 @@ it("uses the provider's merged bucket counts while preserving maximum observatio
   row.duration = { ...row.duration, n: 3, sum: bounds[0]! + 2 * bounds[1]!, min: bounds[0]!, max: bounds[1]!, counts: row.duration.counts.map((_, i) => i === 0 ? 1 : i === 1 ? 2 : 0) };
   data.metrics = [row];
   render(<LongWindowAnalysis data={data} />);
-  const table = screen.getAllByRole("table")[1]!;
-  const rows = within(table).getAllByRole("row");
+  await user.click(screen.getByText("查看分布数据"));
+  const rows = within(screen.getByRole("table", { name: "分布样本" })).getAllByRole("row");
   expect(within(rows[1]!).getAllByRole("cell")[1]!.textContent).toBe("1");
   expect(within(rows[2]!).getAllByRole("cell")[1]!.textContent).toBe("2");
   await user.click(screen.getByRole("button", { name: "活跃操作时间" }));
@@ -107,13 +109,15 @@ it("uses the provider's merged bucket counts while preserving maximum observatio
 it("renders actual provider ready/operation group labels and measurement details", async () => {
   const user = userEvent.setup(); const data = SummarySchema.parse(providerFixture);
   render(<LongWindowAnalysis data={data} />);
+  await user.click(screen.getByText("查看全部统计组与分位数口径"));
   const demand = screen.getAllByRole("row").find(row => row.textContent?.includes("从需求触发开始"))!;
   expect(within(demand).getByRole("button").textContent).toContain("竞猜 · 表单可操作");
   expect(screen.getByText(/已观测到确认的任务数，不是成熟窗口完成率/)).toBeInTheDocument();
   for (const label of ["附属定义未关联/未知", "附属定义 v1", "附属定义 v2"]) expect(screen.getAllByText(label).length).toBeGreaterThan(0);
   const ops = screen.getAllByRole("row").filter(row => within(row).queryByText("附属定义 v2"));
+  await user.click(screen.getByText("统计组口径与版本"));
   const titles = [];
-  for (const row of ops) { await user.click(within(row).getByRole("button")); titles.push(screen.getAllByRole("heading").map(h => h.textContent).find(t => t?.includes("附属定义 v2"))); }
+  for (const row of ops) { await user.click(within(row).getByRole("button")); titles.push(screen.getAllByText(/附属定义 v2/).map(h => h.textContent).find(t => t?.includes("测量"))); }
   expect(titles.some(t => t?.includes("测量版本未知"))).toBe(true);
   expect(titles.some(t => t?.includes("测量 v1"))).toBe(true);
 });
