@@ -17,14 +17,15 @@ import { operateBetInTx, joinBetInTx } from "../../src/lib/bet/service";
 import { db, disposeDatabaseBinding } from "../../src/db/client-runtime";
 import { createLocalTelemetryResourceFixture } from "./local-telemetry-resource-fixture";
 import { parseResourceReading } from "./resource-readings";
+import { createStatisticsResourceFixture } from "./statistics-resource-fixture";
 import { createMizarResourceDriver } from "./mizar-resource-driver";
 import { assertResourceTelemetryQuery, resourceTelemetryEndpoint, RESOURCE_TELEMETRY_VIEWS, type ResourceTelemetryMode, type ResourceTelemetryQuery } from "./resource-telemetry-contract";
 import type { ResourceHttpFixture } from "./resource-integration-contract";
 
 const base = "http://127.0.0.1:3107";
-type RequestResult = { kind: string; phase: string; producer?: number; startedMs: number; durationMs: number; status: number | null; bytes: number; requestBytes?: number; outcome?: string; reason?: string; error?: string };
+type RequestResult = { kind: string; phase: string; producer?: number; startedMs: number; durationMs: number; domReadyMs?: number; contentReadyMs?: number; status: number | null; bytes: number; requestBytes?: number; outcome?: string; reason?: string; error?: string };
 type ResourceSample = ReturnType<typeof parseResourceReading>;
-const workload = { version: 2, ioDelayMs: 150, maxDelayedTelemetryRequests: 4, statsJourney: ["overview", "players", "weapons", "profile", "lineup"], processRestarts: 1, liveProducers: 2, documents: ["bet", "profile", "telemetry"], warmRounds: 1, concurrentRounds: 2, idleMs: 65_000 };
+const workload = { version: 3, coldJourney: "sequential", mixedJourney: "warm", ioDelayTarget: "telemetry-https-loopback", databaseDelay: "none-loopback", ioDelayMs: 150, maxDelayedTelemetryRequests: 4, statsJourney: ["overview", "players", "weapons", "profile", "lineup"], processRestarts: 1, liveProducers: 2, documents: ["bet", "profile", "telemetry"], warmRounds: 1, concurrentRounds: 2, idleMs: 65_000 };
 const execute = (file: string, args: string[], env?: NodeJS.ProcessEnv, cwd?: string) => execFileSync(file, args, { encoding: "utf8", env, cwd, stdio: ["ignore", "pipe", "pipe"] }).trim();
 
 export async function runResourceIntegrationSmoke(image: string, seed: string, adapter?: string, build = false, options: { phase?: "preparation" | "baseline" | "integrated"; telemetry?: ResourceTelemetryMode; appRoot?: string; expectedSha?: string } = {}) {
@@ -47,9 +48,10 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
   const directory = resolve(".agent-tmp", `resource-smoke-${seed}-${Date.now()}`);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const started = performance.now();
-  const sourceFiles = ["resource-integration.ts", "resource-integration-contract.ts", "mizar-resource-driver.ts", "local-telemetry-resource-fixture.ts", "resource-readings.ts", "resource-telemetry-contract.ts", "resource-baseline.mjs"];
+  const sourceFiles = ["resource-integration.ts", "resource-integration-contract.ts", "mizar-resource-driver.ts", "local-telemetry-resource-fixture.ts", "resource-readings.ts", "resource-telemetry-contract.ts", "resource-baseline.mjs", "statistics-resource-fixture.ts"];
   const harnessHashes = Object.fromEntries(sourceFiles.map(file => [file, createHash("sha256").update(readFileSync(resolve("scripts/observability", file))).digest("hex")]));
   const report = { phaseKind, telemetryMode, expectedTelemetryEndpoint: resourceTelemetryEndpoint(telemetryMode),
+    byteSemantics: "Response bytes are decoded HTTP body bytes; requestBytes are JSON UTF-8 before HTTP compression. Neither is database/provider Egress.",
     counterCapability: countersPresent ? "present" : "absent_in_app_source", countersRequired: requireCounters,
     harnessSha: execute("git", ["rev-parse", "HEAD"]), telemetryWorkerHash: "",
     appNode: execute(realpathSync(resolve(appRoot, "node_modules/.bin/node")), ["--version"]), buildId: "", browserVersion: "", mizarFixtureSource: "", harnessHashes, purpose: phaseKind === "preparation" ? "harness-preparation-not-optimization-evidence" : "frozen-comparison-run", sha, releaseTag, seed, workload,
@@ -84,6 +86,7 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
   let applicationCreated = false;
   let predictionId: string | undefined;
   let live: ResourceHttpFixture | undefined;
+  let statistics: Awaited<ReturnType<typeof createStatisticsResourceFixture>> | undefined;
   let telemetry: Awaited<ReturnType<typeof createLocalTelemetryResourceFixture>> | undefined;
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
   let appLogs: ChildProcess | undefined;
@@ -126,13 +129,35 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     report.requests.push(record);
     try {
       const response = await page.goto(base + path, { waitUntil: "domcontentloaded", timeout: 45_000 });
+      record.domReadyMs = performance.now() - at;
       record.status = response?.status() ?? null;
       if (record.status !== 200) throw new Error("DOCUMENT_HTTP_FAILURE");
-      if (kind === "lineup") await expect(page.getByTestId("match-lineup-comparison")).toBeVisible({ timeout: 30_000 });
-      else if (kind === "team") await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 30_000 });
+      if (kind === "lineup") {
+        await expect(page.getByLabel("选手关键数据对比")).toBeVisible({ timeout: 30_000 });
+        await expect(page.getByTestId("match-lineup-comparison").getByText("统计暂不可用", { exact: true })).toHaveCount(0);
+      }
+      else if (kind === "team") {
+        const style = page.getByLabel("阵容打法", { exact: true });
+        await expect(style.getByRole("group").first()).toBeVisible({ timeout: 30_000 });
+        await expect(style.getByText(/暂无可用阵容画像|阵容打法暂时无法加载/)).toHaveCount(0);
+      }
       else await expect(page.getByRole("heading", { name: title, exact: true }).first()).toBeVisible({ timeout: 30_000 });
+      if (kind === "stats") {
+        if (!statistics) throw new Error("REPRESENTATIVE_STATISTICS_FIXTURE_REQUIRED");
+        const tab = new URL(base + path).searchParams.get("tab") ?? "overview";
+        if (tab === "overview") {
+          const map = page.getByRole("row").filter({ has: page.getByRole("link", { name: "Ancient", exact: true }) }).first();
+          await expect(map).toBeVisible({ timeout: 30_000 });
+          await expect(map).toContainText(String(statistics.measurement.projectionRows));
+        } else if (tab === "players") await expect(page.getByRole("row").filter({ hasText: statistics.playerName }).first()).toBeVisible({ timeout: 30_000 });
+        else if (tab === "weapons") await expect(page.getByRole("row").filter({ hasText: /Glock|AK-47/ }).first()).toBeVisible({ timeout: 30_000 });
+        await expect(page.getByText("统计暂时无法加载，请稍后重试。", { exact: true })).not.toBeVisible();
+      }
       if (kind === "profile") {
-        await expect(page.getByRole("heading", { name: "长期资料", exact: true })).toBeVisible();
+        await expect(page.locator('[data-profile-section="performance"]')).toBeVisible({ timeout: 30_000 });
+        if (statistics) await expect(page.getByLabel("Career Stats", { exact: true }).locator("div").filter({ has: page.getByText("Maps", { exact: true }) }).locator("dd"))
+          .toHaveText(String(statistics.measurement.projectionRows));
+        await expect(page.getByText("Resource Player 01", { exact: true }).first()).toBeVisible({ timeout: 30_000 });
         await expect(page.getByText("竞技统计暂时无法加载，请稍后重试。", { exact: true })).toHaveCount(0);
       }
       if (kind === "telemetry") {
@@ -144,9 +169,12 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
           await expect(page.getByText("当前请求范围覆盖不完整", { exact: true })).toBeVisible();
         }
       }
+      record.contentReadyMs = performance.now() - at;
       record.bytes = (await response!.body()).byteLength;
       record.durationMs = performance.now() - at;
-    } catch (error) { record.durationMs = performance.now() - at; record.error = error instanceof Error ? error.name : "UnknownError"; throw error; }
+    } catch (error) { record.durationMs = performance.now() - at; record.error = error instanceof Error ? error.name : "UnknownError";
+      if (report.errors.length < 32) report.errors.push({ phase: `${stage}.${kind}`, ...safeError(error) });
+      throw error; }
   }
   try {
     mark("fixture.begin"); phase = "fixture.auth";
@@ -171,13 +199,14 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
       }
       report.workloadHash = createHash("sha256").update(JSON.stringify({ workload, producerPlan: live.producers.map(producer => ({ intervalMs: producer.intervalMs, steps: producer.steps.map(step => step.operation) })) })).digest("hex");
     } else report.blockers.push("G_HTTP_FIXTURE_NOT_SUPPLIED");
+    if (live?.publicPaths) statistics = await createStatisticsResourceFixture(live.publicPaths.lineup.split("/").at(-1)!);
     const [statsMatch] = await db.select({ id: matches.id, mapId: matchMaps.id }).from(matches)
       .innerJoin(matchMaps, eq(matchMaps.matchId, matches.id)).where(eq(matches.seasonId, scenario.seasonId)).limit(1);
     if (!statsMatch) throw new Error("STATS_MATCH_FIXTURE_MISSING");
     const [fixtureStats] = await db.select({ projectionRows: sql<number>`count(*)::int`,
       projectionTextBytes: sql<string>`coalesce(sum(octet_length(${matchDemoStatProjections.facts}::text)),0)::text`,
     }).from(matchDemoStatProjections).where(eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION));
-    report.fixtureStats = { ...fixtureStats, investigationProjectionRows: 100, investigationProjectionTextBytes: 4231115 };
+    report.fixtureStats = { ...fixtureStats, ...(statistics?.measurement ?? {}), investigationProjectionRows: 100, investigationProjectionTextBytes: 4231115 };
     await disposeDatabaseBinding();
     phase = "fixture.telemetry";
     telemetry = await createLocalTelemetryResourceFixture(directory, seed, workload.ioDelayMs);
@@ -232,18 +261,26 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     mark("login.ready");
     const documents = [
       { page: await userContext.newPage(), kind: "bet", path: `/${prediction.slug}/bet`, title: "预测与竞猜" },
-      { page: await userContext.newPage(), kind: "stats", path: `/stats?event=${scenario.slug}`, title: "数据中心" },
+      { page: await userContext.newPage(), kind: "stats", path: `/stats?event=${live?.publicPaths?.lineup.split("/")[1] ?? scenario.slug}`, title: "数据中心" },
       { page: await userContext.newPage(), kind: "lineup", path: live?.publicPaths?.lineup ?? `/${scenario.slug}/matches/${statsMatch.id}`, title: "本场阵容" },
       ...(live?.publicPaths ? [{ page: await userContext.newPage(), kind: "team", path: live.publicPaths.team, title: "参赛队伍" }] : []),
-      { page: await userContext.newPage(), kind: "profile", path: `/players/${user.userId}`, title: "Browser player2" },
-      { page: await adminContext.newPage(), kind: "telemetry", path: "/admin/telemetry", title: "产品使用与体验" },
+      { page: await userContext.newPage(), kind: "profile", path: `/players/${statistics?.playerId ?? user.userId}`, title: statistics?.playerName ?? "Browser player2" },
+      { page: await adminContext.newPage(), kind: "telemetry", path: `/admin/telemetry?hours=168${telemetryMode === "raw" ? "&analysisMode=bounded" : ""}`, title: "产品使用与体验" },
     ];
     for (const doc of documents) observeBrowser(doc.page, doc.kind);
+    phase = "documents.cold";
+    mark("documents.cold.begin");
+    for (const doc of documents) {
+      await document(doc.page, doc.kind, doc.path, doc.title, "cold-single");
+      if (doc.kind === "stats") for (const tab of ["players", "weapons"])
+        await document(doc.page, doc.kind, `${doc.path}&tab=${tab}`, doc.title, "cold-single");
+    }
+    mark("documents.cold.end"); sample();
     phase = "combination";
     mark("combination.barrier");
     const tasks: Promise<unknown>[] = documents.map(async doc => {
       for (let repeat = 0; repeat < workload.concurrentRounds; repeat++) {
-        const stage = repeat === 0 ? "cold-combination" : "warm-combination";
+        const stage = `mixed-warm-${repeat + 1}`;
         await document(doc.page, doc.kind, doc.path, doc.title, stage);
         if (doc.kind === "stats") for (const tab of ["players", "weapons"])
           await document(doc.page, doc.kind, `${doc.path}&tab=${tab}`, doc.title, stage);
@@ -359,6 +396,7 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     try {
       if (live && !Object.keys(report.verification).length) report.verification = await live.verify(false);
     } catch { report.errors.push({ phase: "mizar.verify", name: "Error", message: "G_READ_ONLY_VERIFY_FAILED" }); }
+    try { await statistics?.cleanup(); report.cleanup.statistics = true; } catch { report.cleanup.statistics = false; }
     try { await live?.cleanup(); report.cleanup.mizar = true; } catch { report.cleanup.mizar = false; }
     try { if (predictionId) await removePredictionBrowserFixture(predictionId); report.cleanup.bet = true; } catch { report.cleanup.bet = false; }
     try { if (scenarioCreated) await cleanupMajorBrowserScenarioFixture(scenarioId, credentials, "stats", env); report.cleanup.auth = true; } catch { report.cleanup.auth = false; }
