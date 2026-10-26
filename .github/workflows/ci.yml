@@ -288,6 +288,8 @@ jobs:
       contents: read
       actions: read
     strategy:
+      # Bound concurrent cold pulls; execution budgets exclude queued time.
+      max-parallel: 4
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.system_matrix) }}

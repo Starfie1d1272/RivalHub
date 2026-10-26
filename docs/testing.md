@@ -114,4 +114,4 @@ Pure tests retain integer pool conservation, the first-match deadline, and one u
 
 LIVE 浏览器只保留一条匿名本地公开赛的真实 Broadcast、断流恢复、详情→赛程列表→详情→刷新、跨场导航与换图链路；真实 Link 往返检查同场只有一次 channel join 且继续写入更晚合法帧，保护五秒 receiver 复用的 proof。正式赛/测试赛及赛事阶段的 token 准入矩阵由 `tests/integration/db/test-matches.test.ts` 调用真实 `issueLiveViewerToken` 查询 PostgreSQL 承接；provider contract 使用报名阶段已启动的官方 Play-in 本地事实，证明 viewer 查询、有效上传、真实 private Broadcast 及跨场/写入隔离；通常 playing 准入由 PostgreSQL 矩阵继续覆盖。
 
-CI 使用固定 Supabase CLI 声明的 Docker Hub 官方上游镜像，服务版本由 CLI 的 catalog 维护；system job 通过官方 registry override 直接拉取，并沿用 GitHub runner 的 Docker Hub 认证。每次新建数据库、重放迁移并执行健康检查与 provider contract；不保存数据库或 Docker image tar 缓存。大镜像 tar 的远端加载实测比正常拉取更慢，已移除。
+CI 使用固定 Supabase CLI 声明的 Docker Hub 官方上游镜像，服务版本由 CLI 的 catalog 维护；system job 通过官方 registry override 直接拉取，并沿用 GitHub runner 的 Docker Hub 认证。系统矩阵至多四组并行以限制冷拉取压力，队列等待仍按现有执行预算契约排除。每次新建数据库、重放迁移并执行健康检查与 provider contract；不保存数据库或 Docker image tar 缓存。大镜像 tar 的远端加载实测比正常拉取更慢，已移除。
