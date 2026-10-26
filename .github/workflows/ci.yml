@@ -294,6 +294,8 @@ jobs:
     env:
       RIVALHUB_LIVE_EVIDENCE: ${{ matrix.live && '1' || '0' }}
       SUPABASE_USE_SLIM_IMAGES: "1"
+      # Kong has no slim build; use its original Docker Hub image.
+      SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
       RIVALHUB_LOCAL_SERVICE_PROFILE: ${{ (matrix.task == 'production' || matrix.task == 'browser-live' || matrix.task == 'browser-session') && 'auth' || 'full' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -319,7 +321,10 @@ jobs:
           RIVALHUB_CI_METADATA_TOKEN: ${{ github.token }}
           RIVALHUB_CI_STEP_NAME: Supabase startup
           RIVALHUB_CI_JOB_NAME: system / ${{ matrix.task }}
-        run: node scripts/ci/timing.mjs "system/Supabase startup" -- pnpm db:local:start-services
+        run: |
+          export RIVALHUB_CI_DOCKER_BINARY="$(command -v docker)"
+          export PATH="$PWD/scripts/ci/slim-registry:$PATH"
+          node scripts/ci/timing.mjs "system/Supabase startup" -- pnpm db:local:start-services
       - name: System bootstrap
         env:
           RIVALHUB_CI_METADATA_TOKEN: ${{ github.token }}
