@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { getReadBudgetSnapshot, recordBetAggregateFallback, recordMizarHttpResult } from "@/lib/observability/read-budget";
+import { getReadBudgetSnapshot, recordBetAggregateFallback, recordMizarFullBuild, recordMizarHttpResult } from "@/lib/observability/read-budget";
 import { mizarContextResponse, withMizarRequest } from "@/lib/mizar/http";
 import { sanitizeSafeContext } from "@/lib/observability/redact";
 vi.mock("@/lib/observability/route", () => ({ withRouteObservability: (_request: Request, _route: string, run: (ctx: object) => unknown) => run({}) }));
@@ -11,10 +11,12 @@ it("counts 304 without inferring saved database work, encoded UTF-8 only once, a
   const request = new Request("http://localhost/api/mizar/match");
   const response = await withMizarRequest(request, "/api/mizar/[operation]", "get", async diagnostics => {
     diagnostics.operation = "match";
+    recordMizarFullBuild("match");
     return mizarContextResponse(request, doc);
   });
   expect(response.headers.get("content-type")).toBe("application/json");
   expect(await response.json()).toEqual(doc);
+  recordMizarFullBuild("match");
   const cached = mizarContextResponse(new Request(request, { headers: { "if-none-match": '"fixture"' } }), doc);
   recordMizarHttpResult("match", cached.status);
   expect(cached.status).toBe(304);
@@ -28,7 +30,7 @@ it("counts 304 without inferring saved database work, encoded UTF-8 only once, a
   const after = other.getReadBudgetSnapshot();
   const a = after.mizar[0], b = before.mizar[0];
   expect(a).toMatchObject({ family: "match", requests: b.requests + 4, status200: b.status200 + 1, status304: b.status304 + 1,
-    failures: b.failures + 2, encodedResponses: b.encodedResponses + 2,
+    failures: b.failures + 2, fullBuilds: b.fullBuilds + 2, encodedResponses: b.encodedResponses + 2,
     encodedBodyBytes: b.encodedBodyBytes + Buffer.byteLength(JSON.stringify(doc)) });
   expect(after.mizar).toHaveLength(2);
   expect(after.betFallbacks).toBe(before.betFallbacks + 1);
@@ -38,7 +40,7 @@ it("counts 304 without inferring saved database work, encoded UTF-8 only once, a
 
 it("new metric fields accept numbers only, never identities or unknown as zero", () => {
   const fields = { cgroupCurrentBytes: 12, cgroupPeakBytes: 15, cgroupOom: 0, cgroupOomKill: 0,
-    returnedRows: 4, queryMs: 12, unsupported: 0, requests: 3, status200: 1, status304: 1, other: 0, failures: 1, encodedResponses: 2, encodedBodyBytes: 35 };
+    returnedRows: 4, queryMs: 12, unsupported: 0, requests: 3, status200: 1, status304: 1, other: 0, failures: 1, fullBuilds: 3, encodedResponses: 2, encodedBodyBytes: 35 };
   expect(sanitizeSafeContext(fields)).toEqual(fields);
   expect(sanitizeSafeContext(Object.fromEntries(Object.keys(fields).map(key => [key, "private-viewer"])))).toEqual({});
   expect(sanitizeSafeContext({ cgroupCurrentBytes: null, viewer: { userId: "private" }, displayName: "private" })).toEqual({});

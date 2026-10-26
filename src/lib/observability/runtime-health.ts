@@ -90,7 +90,7 @@ export function startRuntimeHealthSampling(): () => void {
           safeContext: getCgroupMemorySnapshot() });
         const budget = getReadBudgetSnapshot();
         for (const { family, ...value } of budget.mizar) {
-          if (value.requests) logEvent({ event: "runtime.read.sample", scope: "runtime",
+          if (value.requests || value.fullBuilds) logEvent({ event: "runtime.read.sample", scope: "runtime",
             operation: `mizar.${family}`, safeContext: value });
         }
         if (budget.betFallbacks) logEvent({ event: "runtime.read.sample", scope: "runtime",

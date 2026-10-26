@@ -3,13 +3,13 @@ import "server-only";
 const FAMILIES = ["match", "schedule"] as const;
 type Family = typeof FAMILIES[number];
 type ReadCounter = { requests: number; status200: number; status304: number; failures: number; other: number;
-  encodedResponses: number; encodedBodyBytes: number };
+  fullBuilds: number; encodedResponses: number; encodedBodyBytes: number };
 const SLOT = Symbol.for("rivalhub.read-budget.v1");
 function owner() {
   const host = process as unknown as Record<symbol, { mizar: Record<Family, ReadCounter>; betFallbacks: number }>;
   return host[SLOT] ??= { mizar: Object.fromEntries(FAMILIES.map(name => [name, {
     requests: 0, status200: 0, status304: 0, failures: 0, other: 0,
-    encodedResponses: 0, encodedBodyBytes: 0,
+    fullBuilds: 0, encodedResponses: 0, encodedBodyBytes: 0,
   }])) as Record<Family, ReadCounter>, betFallbacks: 0 };
 }
 
@@ -21,6 +21,11 @@ export function recordMizarHttpResult(family: Family, status: number | undefined
   else if (status === 304) value.status304++;
   else if (status === undefined || status >= 400) value.failures++;
   else value.other++;
+}
+
+/** Attempted provider builds, including non-GET claim/reliable consumers and failures. */
+export function recordMizarFullBuild(family: Family): void {
+  if (FAMILIES.includes(family)) owner().mizar[family].fullBuilds++;
 }
 
 /** Already encoded context body only; excludes errors, HTTP framing and compression. */
