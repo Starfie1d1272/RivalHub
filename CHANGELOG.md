@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.24.7]
+
+### Changed
+
+- 记分板 OCR 默认切换至 Qwen3.5-27B，识别结果继续由管理员确认后保存。
+
+### Added
+
+- 补充 OCR 生成与行校验失败的安全诊断信息，便于凭排查编号关联上游请求，排查截断、重复输出及昵称缺失。
+
 ## [2.24.6]
 
 ### Added
@@ -3595,3 +3605,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.24.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.4...v2.24.5
 
 [2.24.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.5...v2.24.6
+
+[2.24.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.6...v2.24.7
