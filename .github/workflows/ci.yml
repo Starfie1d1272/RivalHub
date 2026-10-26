@@ -294,7 +294,9 @@ jobs:
     env:
       RIVALHUB_LIVE_EVIDENCE: ${{ matrix.live && '1' || '0' }}
       SUPABASE_USE_SLIM_IMAGES: "1"
-      RIVALHUB_LOCAL_SERVICE_PROFILE: ${{ (matrix.task == 'production' || matrix.task == 'browser-live' || matrix.task == 'browser-session') && 'auth' || 'full' }}
+      # Slim references remain digest-pinned GHCR images; Kong uses Docker Hub.
+      SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
+      RIVALHUB_LOCAL_SERVICE_PROFILE: ${{ (startsWith(matrix.task, 'production-') || matrix.task == 'browser-live' || matrix.task == 'browser-session') && 'auth' || 'full' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -364,7 +366,7 @@ jobs:
           node scripts/ci/timing.mjs "system/E2E body" -- pnpm test:e2e ${{ matrix.project && format('--project={0}', matrix.project) || '' }} "${args[@]}"
 
       - name: Production browser smoke
-        if: matrix.task == 'production'
+        if: startsWith(matrix.task, 'production-')
         env:
           RIVALHUB_CI_METADATA_TOKEN: ${{ github.token }}
           RIVALHUB_CI_STEP_NAME: Production browser smoke
@@ -373,10 +375,10 @@ jobs:
           PLAYWRIGHT_CHANNEL: chrome
           PLAYWRIGHT_WORKERS: 2
           RIVALHUB_E2E_SPECS: '[]'
-        run: node scripts/ci/timing.mjs "system/production browser smoke" -- pnpm test:e2e -- --config=playwright.production.config.ts
+        run: node scripts/ci/timing.mjs "system/production browser smoke" -- pnpm test:e2e -- --config=playwright.production.config.ts --project=${{ matrix.project }}
 
       - name: Clean interrupted E2E fixtures
-        if: ${{ always() && (startsWith(matrix.task, 'browser-') || matrix.task == 'production') }}
+        if: ${{ always() && (startsWith(matrix.task, 'browser-') || startsWith(matrix.task, 'production-')) }}
         run: node scripts/ci/timing.mjs "system/fixture cleanup" --cleanup -- pnpm exec tsx scripts/db/local.ts cleanup-e2e
 
       - name: Prepare safe system artifacts

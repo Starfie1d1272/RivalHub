@@ -10,6 +10,7 @@ import {
 } from "./local-environment";
 import { assertLocalContainerAccess } from "./local-container-guard";
 import { acquireLocalVerificationLock } from "./local-lock";
+import { runSupabaseStartup } from "./local-supabase-start";
 import { replayActiveMigrationChain } from "./migration-replay";
 import { recordE2EExitStage } from "../ci/playwright-exit-reporter";
 
@@ -168,7 +169,7 @@ try {
 function startLocalDatabase(): void {
   ensureDockerReady();
   ensureLoopbackDockerNetwork();
-  runQuiet(
+  runSupabaseStartup(
     supabaseBin,
     ["db", "start", "--network-id", DOCKER_NETWORK, "--yes"],
     sanitizedEnvironment(),
@@ -179,7 +180,7 @@ function startLocalDatabase(): void {
 function startLocalStack(): void {
   ensureDockerReady();
   ensureLoopbackDockerNetwork();
-  runQuiet(
+  runSupabaseStartup(
     supabaseBin,
     ["start", "--network-id", DOCKER_NETWORK, "--yes"],
     sanitizedEnvironment(),
@@ -198,7 +199,7 @@ function startLocalServices(): void {
   if (process.env.RIVALHUB_LOCAL_SERVICE_PROFILE === "auth") {
     excludes += ",storage-api,postgrest";
   }
-  runQuiet(
+  runSupabaseStartup(
     supabaseBin,
     ["start", "--exclude", excludes, "--network-id", DOCKER_NETWORK, "--yes"],
     sanitizedEnvironment(),
@@ -534,27 +535,6 @@ function run(
   if (result.signal) throw new Error(`命令被信号 ${result.signal} 终止。`);
   if (result.status !== 0) {
     throw new Error(`命令执行失败（exit ${result.status ?? "unknown"}）。`);
-  }
-}
-
-function runQuiet(
-  executable: string,
-  args: readonly string[],
-  env: NodeJS.ProcessEnv,
-): void {
-  const result = spawnSync(executable, [...args], {
-    cwd: projectRoot,
-    env,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  if (result.error) throw result.error;
-  if (result.signal) throw new Error(`命令被信号 ${result.signal} 终止。`);
-  if (result.status !== 0) {
-    const detail = result.stderr.trim().slice(0, 2000);
-    throw new Error(
-      `Local Supabase 启动失败（exit ${result.status ?? "unknown"}）${detail ? `：${detail}` : ""}`,
-    );
   }
 }
 

@@ -8,6 +8,7 @@ vi.mock("@/lib/observability/server", () => ({
 }));
 
 import { siliconflowProvider } from "@/lib/ocr/siliconflow";
+import { logEvent } from "@/lib/observability/server";
 import { OCRFailure, presentOCRFailure } from "@/lib/ocr/errors";
 
 const image = "private-image-fixture";
@@ -17,6 +18,8 @@ const run = () => siliconflowProvider.extract(image, "image/png");
 describe("OCR response-body failure boundary", () => {
   beforeEach(() => {
     fetchProvider.mockReset();
+    vi.mocked(logEvent).mockClear();
+    vi.stubEnv("SILICONFLOW_MODEL", "");
     vi.stubEnv("SILICONFLOW_API_KEY", key);
   });
   afterEach(() => {
@@ -36,7 +39,7 @@ describe("OCR response-body failure boundary", () => {
     fetchProvider.mockResolvedValue(Response.json({ choices: [{ message: { content: '{"players":[{"perfectName":"fixture"}]}' } }] }));
     await run();
     expect(JSON.parse(fetchProvider.mock.calls[0][1].body)).toMatchObject({
-      model: "Qwen/Qwen3.5-9B", enable_thinking: false,
+      model: "Qwen/Qwen3.5-27B", enable_thinking: false,
       temperature: 0.7, top_p: 0.8, top_k: 20, max_tokens: 2048,
     });
   });
@@ -74,6 +77,42 @@ describe("OCR response-body failure boundary", () => {
     } });
     expect(JSON.stringify(error)).not.toContain(key);
     expect(JSON.stringify(error)).not.toContain(image);
+  });
+
+  it("diagnoses missing names and correlates requests without logging private input", async () => {
+    const content = JSON.stringify({ players: [[null, 20, 10, 5, 30, 3, 2, 1, 85.5, 12.34, 1.25, 10.5]] });
+    fetchProvider.mockResolvedValue(Response.json({
+      choices: [{ finish_reason: "stop", message: { content } }], usage: { prompt_tokens: 1200, completion_tokens: 400 },
+    }, { headers: { "x-siliconcloud-trace-id": "ti_fixture12345678" } }));
+    const error = await run().catch((failure: unknown) => failure);
+    expect(error).toMatchObject({ reason: "invalid_player_rows", responseSummary: {
+      providerTraceId: "ti_fixture12345678", promptTokens: 1200, rowCount: 1, emptyNameRows: 1,
+    } });
+    expect(logEvent).toHaveBeenCalledWith(expect.objectContaining({ event: "provider.siliconflow.request_started",
+      safeContext: expect.objectContaining({ model: "Qwen/Qwen3.5-27B", imageDigest: expect.stringMatching(/^[a-f0-9]{64}$/), configDigest: expect.stringMatching(/^[a-f0-9]{64}$/) }),
+    }));
+    expect(logEvent).toHaveBeenCalledWith(expect.objectContaining({ event: "provider.siliconflow.result",
+      safeContext: expect.objectContaining({ count: 0, rowCount: 1, emptyNameRows: 1, status: "rejected" }),
+    }));
+    expect(fetchProvider).toHaveBeenCalledTimes(1);
+    const exposed = JSON.stringify({ logs: vi.mocked(logEvent).mock.calls, error, publicError: presentOCRFailure(error as OCRFailure) });
+    expect(exposed).not.toContain(content);
+    expect(exposed).not.toContain(key);
+    expect(exposed).not.toContain(image);
+    expect(JSON.stringify(presentOCRFailure(error as OCRFailure))).not.toMatch(/providerTraceId|rowCount|emptyNameRows|promptTokens/);
+  });
+
+  it("retains response-header correlation on transport failure and discards hostile trace headers", async () => {
+    fetchProvider.mockResolvedValue(new Response(new ReadableStream({
+      start(controller) { controller.error(new TypeError("terminated")); },
+    }), { headers: { "x-siliconcloud-trace-id": "ti_fixture12345678" } }));
+    expect(await run().catch((error: unknown) => error)).toMatchObject({ responseSummary: { providerTraceId: "ti_fixture12345678" } });
+    fetchProvider.mockResolvedValue(Response.json({ choices: [{ finish_reason: "length", message: { content: "x".repeat(8192) } }],
+      usage: { prompt_tokens: key } }, { headers: { "x-siliconcloud-trace-id": `ti_${key}` } }));
+    const error = await run().catch((failure: unknown) => failure);
+    expect((error as OCRFailure).responseSummary).toMatchObject({ outputRepeatedChunkPercent: 100, promptTokens: undefined });
+    expect((error as OCRFailure).responseSummary?.providerTraceId).toBeUndefined();
+    expect(JSON.stringify(error)).not.toContain(key);
   });
 
   it("retains a redacted transport cause when a successful HTTP response body fails", async () => {

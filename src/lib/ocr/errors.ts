@@ -13,6 +13,11 @@ export interface OCRResponseSummary {
   outputChars: number;
   outputWhitespacePercent: number;
   completionTokens?: number;
+  promptTokens?: number;
+  providerTraceId?: string;
+  outputRepeatedChunkPercent?: number;
+  rowCount?: number;
+  emptyNameRows?: number;
 }
 
 const MESSAGES: Record<OCRFailureKind, string> = {
@@ -36,14 +41,14 @@ export class OCRFailure extends Error {
   readonly retryable: boolean;
   readonly errorChain: string[];
   readonly diagnostics: readonly OCRDiagnostic[];
-  readonly responseSummary?: OCRResponseSummary;
+  readonly responseSummary?: Partial<OCRResponseSummary>;
 
   constructor(
     readonly kind: OCRFailureKind,
     readonly phase: OCRPhase,
     readonly reason: string,
     readonly httpStatus?: number,
-    options?: { requestId?: string; cause?: Error; diagnostics?: readonly OCRDiagnostic[]; responseSummary?: OCRResponseSummary },
+    options?: { requestId?: string; cause?: Error; diagnostics?: readonly OCRDiagnostic[]; responseSummary?: Partial<OCRResponseSummary> },
   ) {
     super(`ocr.${phase}.${reason}`, { cause: options?.cause });
     this.name = "OCRFailure";

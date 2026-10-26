@@ -114,4 +114,4 @@ Pure tests retain integer pool conservation, the first-match deadline, and one u
 
 LIVE 浏览器只保留一条匿名本地公开赛的真实 Broadcast、断流恢复、详情→赛程列表→详情→刷新、跨场导航与换图链路；真实 Link 往返检查同场只有一次 channel join 且继续写入更晚合法帧，保护五秒 receiver 复用的 proof。正式赛/测试赛及赛事阶段的 token 准入矩阵由 `tests/integration/db/test-matches.test.ts` 调用真实 `issueLiveViewerToken` 查询 PostgreSQL 承接；provider contract 使用报名阶段已启动的官方 Play-in 本地事实，证明 viewer 查询、有效上传、真实 private Broadcast 及跨场/写入隔离；通常 playing 准入由 PostgreSQL 矩阵继续覆盖。
 
-CI 使用固定 Supabase CLI 版本提供的官方 slim 镜像（对应相同上游服务版本），每次新建数据库、重放迁移并执行健康检查与 provider contract；不保存数据库或 Docker image tar 缓存。大镜像 tar 的远端加载实测比正常拉取更慢，已移除。
+CI 使用固定 Supabase CLI 版本提供的官方 slim 镜像（对应相同上游服务版本），Kong 使用其官方 Docker Hub 上游镜像。CLI 镜像预拉取耗尽内部重试且明确返回 registry 限流时，启动入口最多再恢复两次并复用已下载镜像层；其它错误直接失败，所有尝试仍受原180秒实际执行截止约束。生产烟测按视口、BET读取按视图分片，覆盖集合保持完整且各执行一次。每次新建数据库、重放迁移并执行健康检查与 provider contract；不保存数据库或 Docker image tar 缓存。大镜像 tar 的远端加载实测比正常拉取更慢，已移除。

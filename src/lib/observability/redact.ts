@@ -33,6 +33,13 @@ const SAFE_CONTEXT_KEYS = new Set([
   "constraint",
   "count",
   "completionTokens",
+  "promptTokens",
+  "providerTraceId",
+  "imageDigest",
+  "configDigest",
+  "outputRepeatedChunkPercent",
+  "rowCount",
+  "emptyNameRows",
   "finishReason",
   "outputChars",
   "outputWhitespacePercent",
@@ -196,8 +203,12 @@ export function sanitizeSafeContext(context: Record<string, unknown> | undefined
         safeValue = typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
       } else if (key === "finishReason") {
         safeValue = typeof value === "string" && ["stop", "eos", "length", "content_filter", "tool_calls", "unknown"].includes(value) ? value : undefined;
-      } else if (key === "completionTokens" || key === "outputChars" || key === "outputWhitespacePercent") {
-        const max = key === "outputWhitespacePercent" ? 100 : 1_000_000;
+      } else if (key === "imageDigest" || key === "configDigest") {
+        safeValue = typeof value === "string" && /^[a-f0-9]{64}$/.test(value) ? value : undefined;
+      } else if (key === "providerTraceId") {
+        safeValue = typeof value === "string" && /^ti_[a-zA-Z0-9_-]{8,64}$/.test(value) ? value : undefined;
+      } else if (["completionTokens", "promptTokens", "outputChars", "outputWhitespacePercent", "outputRepeatedChunkPercent", "rowCount", "emptyNameRows"].includes(key)) {
+        const max = key === "outputWhitespacePercent" || key === "outputRepeatedChunkPercent" ? 100 : 1_000_000;
         safeValue = typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= max ? value : undefined;
       } else {
         safeValue = key === "errorDigest" ? safeErrorDigest(value) : sanitizeContextValue(value);

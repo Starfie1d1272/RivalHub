@@ -16,6 +16,14 @@ describe("observability redaction", () => {
     expect(sanitizeSafeContext({ completionTokens: Infinity, outputChars: 1_000_001, outputWhitespacePercent: -1 })).toEqual({});
   });
 
+  it("bounds OCR hashes, provider correlation and result counters", () => {
+    const valid = { providerTraceId: "ti_fixture12345678", imageDigest: "a".repeat(64), configDigest: "b".repeat(64),
+      promptTokens: 1200, rowCount: 10, emptyNameRows: 10, outputRepeatedChunkPercent: 99 };
+    expect(sanitizeSafeContext(valid)).toEqual(valid);
+    expect(sanitizeSafeContext({ providerTraceId: "private-body", imageDigest: "private-image", configDigest: "private-key",
+      promptTokens: "private-value", rowCount: -1, emptyNameRows: 1_000_001, outputRepeatedChunkPercent: 101 })).toEqual({});
+  });
+
   it("ignores accessor and hostile array context without losing other diagnostic fields", () => {
     let reads = 0;
     const context = Object.defineProperties({ provider: "steam", httpStatus: 503 }, {

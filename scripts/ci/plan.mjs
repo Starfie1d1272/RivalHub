@@ -521,14 +521,14 @@ function resultFor(requiredJobs, full, reason, evidence = {}) {
 }
 
 // Each matrix runner owns its entire local stack. Partition the selected set,
-// never rediscover FULL in an empty shard. Provider and production checks each
-// run once, independently of browser shards.
+// never rediscover FULL in an empty shard. Production viewports run once each,
+// independently of provider and browser shards.
 export function systemMatrixFor(plan, liveEvidence) {
   if (!plan.runSystem) return [];
   const specs = plan.full ? browserSpecs() : [...new Set(plan.e2eSpecs)].sort();
   const matrix = [
     { task: "provider", live: liveEvidence, specs: [] },
-    { task: "production", live: false, specs: [] },
+    ...["chromium", "mobile-chrome"].map(project => ({ task: `production-${project}`, live: false, specs: [], project })),
   ];
   const liveSpec = "tests/e2e/flows/public-match-live.spec.ts";
   // The real stale/recovery window is the longest indivisible browser flow.
@@ -556,10 +556,10 @@ export function systemMatrixFor(plan, liveEvidence) {
   for (const [spec, task] of isolated) {
     if (specs.includes(spec)) matrix.push({ task, live: false, specs: [spec] });
   }
-  // The six view tests preserve 54 cells, but cold CI routes need three lanes.
+  // Each view retains its nine transport cells on a separate cold-stack runner.
   const betReadSpec = "tests/e2e/flows/bet-read-stages.spec.ts";
   if (specs.includes(betReadSpec)) {
-    for (const [index, views] of ["open|mine", "settled|event", "leaderboard|records"].entries()) {
+    for (const [index, views] of ["open", "mine", "settled", "event", "leaderboard", "records"].entries()) {
       matrix.push({ task: `browser-bet-read-stages-${index + 1}`, live: false, specs: [betReadSpec], grep: `BET (${views}) ` });
     }
   }
