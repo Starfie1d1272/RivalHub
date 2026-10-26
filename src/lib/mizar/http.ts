@@ -6,6 +6,8 @@ import { withRouteObservability } from "@/lib/observability/route";
 import { captureException } from "@/lib/observability/server";
 import { classifyError } from "@/lib/observability/errors";
 
+import { recordMizarHttpResult, recordMizarEncodedBody } from "@/lib/observability/read-budget";
+
 type MizarPhase = "auth" | "read" | "validate" | "domain" | "revalidation";
 interface MizarDiagnostics { operation: string; phase: MizarPhase; requestId: string; route?: string }
 
@@ -13,10 +15,17 @@ interface MizarDiagnostics { operation: string; phase: MizarPhase; requestId: st
 export function withMizarRequest(request: Request, route: string, operation: string, handler: (diagnostics: MizarDiagnostics) => Promise<Response>): Promise<Response> {
   return withRouteObservability(request, route, async (requestContext) => {
     const diagnostics: MizarDiagnostics = { operation, phase: "auth", requestId: ensureRequestId(requestContext.requestId), route };
+    let response: Response | undefined;
     try {
-      return await handler(diagnostics);
+      response = await handler(diagnostics);
+      return response;
     } catch (error) {
-      return mizarHttpError(error, diagnostics);
+      response = mizarHttpError(error, diagnostics);
+      return response;
+    } finally {
+      if (request.method === "GET" && (diagnostics.operation === "match" || diagnostics.operation === "schedule")) {
+        recordMizarHttpResult(diagnostics.operation, response?.status);
+      }
     }
   }, { captureServerErrorResponse: false });
 }
@@ -94,9 +103,16 @@ export function mizarPairingHeaders(request: Request): Headers {
   return headers;
 }
 
-export function mizarContextResponse(request: Request, document: { revision: string }) {
-  if (new TextEncoder().encode(JSON.stringify(document)).length > 256 * 1024) throw new Error("context_payload_too_large");
+export function mizarContextResponse(request: Request, document: { revision: string; schemaVersion?: string }) {
+  const encoded = JSON.stringify(document);
+  const bytes = Buffer.byteLength(encoded, "utf8");
+  if (bytes > 256 * 1024) throw new Error("context_payload_too_large");
   const etag = `"${document.revision}"`;
   const headers = { ETag: etag, "Cache-Control": "private, no-cache", Vary: "Authorization" };
-  return request.headers.get("if-none-match") === etag ? new Response(null, { status: 304, headers }) : Response.json(document, { headers });
+  const unchanged = request.headers.get("if-none-match") === etag;
+  const family = document.schemaVersion === "rivalhub.broadcast-schedule-window.v1" ? "schedule"
+    : document.schemaVersion === "rivalhub.broadcast-manifest.v1" || document.schemaVersion === "rivalhub.broadcast-manifest.v2" ? "match" : undefined;
+  if (family) recordMizarEncodedBody(family, unchanged ? 0 : bytes);
+  return unchanged ? new Response(null, { status: 304, headers })
+    : new Response(encoded, { headers: { ...headers, "Content-Type": "application/json" } });
 }
