@@ -46,6 +46,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          policy_started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           if [[ "$GITHUB_EVENT_NAME" != "workflow_run" ]]; then
             echo "refresh=true" >> "$GITHUB_OUTPUT"
             exit 0
@@ -63,6 +64,21 @@ jobs:
           else
             echo "refresh=false" >> "$GITHUB_OUTPUT"
             echo "No migration marker; daily/manual Preview refresh is sufficient." >> "$GITHUB_STEP_SUMMARY"
+            python3 - "$policy_started_at" <<'PYTHON'
+          import datetime, json, os, re, sys
+          run = os.environ.get("GITHUB_RUN_ID", "")
+          summary = dict(format=1, consumer="preview", run_id=run if re.fullmatch(r"\d+", run) else None,
+                         github_run_id=run if re.fullmatch(r"\d+", run) else None,
+                         release=None, source_project="eurxkguokrkvpcsmxuru",
+                         started_at=sys.argv[1], ended_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                         status="skipped", rows=None, logical_payload_bytes=None, dump_file_bytes=None,
+                         snapshot_file_bytes=None, compressed_artifact_bytes=None,
+                         storage_download_bytes=None, storage_objects=None, tables=None)
+          encoded = json.dumps(summary, separators=(",", ":"))
+          print("offline_consumer_summary " + encoded)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as out:
+              out.write("\nOffline consumer accounting (not provider Egress):\n\n```json\n" + encoded + "\n```\n")
+          PYTHON
           fi
 
   export-production:

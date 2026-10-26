@@ -16,6 +16,16 @@ RivalHub 的所有 Vercel Preview 固定连接 `rivalhub-dev`，不连接 produc
 - `preview_mirror_state` 只记录 source tag/commit、refresh 时间和计数，供 Preview banner 诊断；它不是 availability 状态机。
 - refresh 先完成 dev Storage preflight，再 reset 并应用 snapshot source migrations。reset 同时移除本应用在 `realtime.messages` 上的 `rivalhub_match_live_receive` policy，由 active migration chain 重建，保留 provider 管理的表和其它 policies；随后，导入脱敏 production snapshot 和验证外键；manual dispatch 可通过 `apply_current_migrations` 选择是否把 `migration_ref` 的当前 migration 应用到这份 production-derived 数据并再次验证，最后才 provision persona、公共 assets 与 mirror state。命令只输出固定的 phase 名称和完成/失败状态，不输出 row value、asset path、credential 或 provider 原始错误。旧 Preview 因共享 schema/data 失效是可接受的 trade-off；daily/post-release refresh 始终用 `main`。
 
+## 离线消费者安全计量
+
+成功写入 snapshot 后，export owner 输出 `offline_consumer_summary` JSON/Step Summary。每张白名单表在现有单次查询返回后逐行累计 `rows` 与 `logical_payload_bytes`，只暂存单行 JSON 字符串；不增加查询、不复制整份 snapshot。该逻辑 bytes 是 **pg 已解码、SQL 已投影但尚未执行后续 JS 脱敏/URL 改写的每行 `JSON.stringify` UTF-8 字节之和**，不含数组分隔符、metadata 或 assets。它受驱动的 Date/number 转换及 JSON 转义影响，不是无损 canonical digest，也不是 PostgreSQL wire bytes。
+
+`dump_file_bytes=null`；`snapshot_file_bytes` 是同次实际写入的 JSON 文件大小，包含最终脱敏结果、metadata 和 base64 assets；`storage_download_bytes` 在既有 asset download 流中累计真实 Buffer bytes，未配置下载能力时保留 `null`，实际成功检查且没有对象才是 `0`。`storage_objects` 同样区分未采集与空集。GitHub artifact 的压缩大小在导出阶段未知，`compressed_artifact_bytes=null`，不能拿 snapshot 文件大小代替。Recovery 的压缩加密制品口径见 [disaster recovery](./disaster-recovery.md#离线消费者安全计量)。
+
+无 migration marker 的发布后刷新仍由不查询 production 的 policy job 决定；该分支输出 `status=skipped`，run/project/policy 开始结束时间可知，source release 与各数据计量为 `null`。这表示没有执行 export，不表示数据库为空；API 失败仍 fail closed，不转成成功 skip。daily/manual 与现有 migration marker 策略保持不变。只有完成导出/落盘才输出 `exported`，失败沿用安全 phase/code 报告，不能作为完成摘要统计。
+
+摘要不包含业务行、Auth hash、asset path、credential 或 signed URL。logical/file/compressed/storage 数值互不替代，也不作为供应商 Egress 或线上节费证据。
+
 ## Source schema compatibility and diagnostics
 
 Preview export 的 policy 以 source 的 Drizzle migration ledger 为输入，而不是无条件使用 latest `main` 的完整 table/column 清单。migration-keyed policy 只要求 source 已拥有的 table 与 exported column；source 尚未应用的 additive table/column 留在 future policy 中，不会被查询。reviewed-but-omitted column 不进入 export projection。Steam legacy shadow 由真实 cleanup migration 的 lifecycle marker 管理：source 尚未应用该 migration 时，Preview 允许这些物理列存在但不导出；migration 已应用后，若列重新出现则以 `REMOVED_MIRROR_COLUMNS` fail closed。source physical inventory 中的 unknown table/column、缺失 exported column 和不匹配的 migration prefix 仍 fail closed。

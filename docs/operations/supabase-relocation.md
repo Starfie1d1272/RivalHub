@@ -33,6 +33,20 @@ Free 项目名额不足时，可在授权后采用“暂停旧 Dev → 创建新
 
 旧模型迁入新模型时：先在独立本地实例恢复只读 source，按备份记录的 PG image version 操作；逐表声明映射和排除范围，执行 rollback-only dry-run。相同 PK/内容可幂等通过，内容冲突停止；时间戳采用无损表示，避免 JavaScript Date 截断微秒。历史迁移中的数据排除规则不能套用于新的全库迁移。
 
+### 离线有界 digest 原型（不替代正式门禁）
+
+[`offline-digest.sql`](../../scripts/db/recovery/offline-digest.sql) 是可复用的 **临时 fixture 表**服务端分块原型；没有生产 CLI、workflow 或迁库验收接线，拒绝任何非本会话临时表。正式迁库仍须完成上述计数、主键集合、canonical digest、FK 与业务 invariant 验收，不能用此原型摘要替换或缩小既有门禁。
+
+合同固定为：同一 PostgreSQL major/UTF-8、相同列名/顺序/内建类型声明、单列 bigint B-tree 主键递增。每次 `after_key` 开区间 keyset 最多 128 行，返回 count、last key、canonical bytes 和 SHA-256 小结果；下一块使用上一块的 `last_key`，空块结束。两端必须使用同一 snapshot/冻结窗口、相同 schema 和 chunk size；保存每块范围与 digest，累加 count，不能把不同分块结果直接比较。主键保留 bigint/text，不经 JS Number。行包含主键，digest 可发现同数量下的键/内容差异，但不能代替独立 PK 集合与业务规则验收。不一致时才在已定位的有界键范围内审查差异；不输出行正文到 CI/聊天。
+
+- numeric 在 PostgreSQL 中 `trim_scale` 后转十进制 text，无浮点舍入；整型、boolean、UUID 使用各自数据库文本表示。numeric 的 scale 不作为值差异，schema/typmod 仍由既有 schema 验收负责。
+- timestamptz 在数据库内转换 UTC，格式包含六位微秒与 AD/BC；infinity 单独保留文本。不会经过 JS Date，也不受 session timezone 影响。无时区 timestamp 尚无映射合同，拒绝。
+- text 按 UTF-8 原字节，不做 Unicode/case/locale 归一化；NULL 编码 `-1:`，非空值为 UTF-8 byte length、冒号、正文，空字符串与 NULL 不同。列名与类型进入摘要 header。排序只按 bigint 主键，无 locale/collation 比较；文本主键不支持。
+- JSON/JSONB（包括键序、嵌套 numeric 与 JSON null）、float、数组、domain、复合及其它未列明类型均在读行前 fail closed。当前没有经过验证的跨类型 canonical owner，不能将 `jsonb::text`、JSON.stringify 或未经验证的键排序当成相等证明。
+- 最多 64 列，单 cell 最多 64 KiB、单行最多 256 KiB；有界 page 最多约 32 MiB canonical text，聚合只排序最多 128 个固定长度 row hash，无全表 JSON 聚合或 payload 排序。超限报错，不截断、不跳过。大对象/复杂类型需要另行设计分片合同，不能以相同截断摘要放行。
+
+本地 PostgreSQL fixture 验证时，在同一个 disposable session 中顺序加载 prototype 与 [`tests/fixtures/recovery/offline-digest.sql`](../../tests/fixtures/recovery/offline-digest.sql)。fixture 用临时表、结束 rollback，验证乱序插入/keyset、超 JS 安全整数的 numeric、小数与微秒单字段变化、NULL/空字符串、UTF-8，以及 JSONB/永久表/超限拒绝。它只证明受支持 fixture 合同；没有生产全表验证，也没有减少线上流量的实测。
+
 ## 3. 同步配置与切流
 
 全仓搜索旧 project ref，更新有效 consumer；历史记录保留。重点检查 `scripts/db/*-environment.ts`、`src/lib/runtime/preview.ts`、Preview snapshot URL、release/backup/staging/refresh workflows 的目标校验。通过提交与 CI 更新 guard，禁止删除 guard 绕过失败。
