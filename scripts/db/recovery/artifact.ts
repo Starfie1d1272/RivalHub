@@ -19,6 +19,8 @@ import {
 } from "./manifest";
 import { assertR2ContentReadback, assertR2HeadReadback, buildRecoveryR2Keys, createR2Client } from "./r2";
 
+import { recoveryConsumerSummary, reportOfflineConsumer } from "./accounting";
+
 const projectRoot = resolve(process.cwd());
 
 export interface RecoveryArtifactInput {
@@ -106,6 +108,7 @@ export function publishRecoveryArtifact(input: RecoveryArtifactInput): RecoveryA
   verifyR2Object(r2, keys.completion, completionPath, join(tempRoot, "completion.readback"));
   console.log(`timing R2 upload/readback: ${Math.round(performance.now() - r2Start)}ms`);
 
+  reportOfflineConsumer(recoveryConsumerSummary(manifest, artifactBytes, new Date().toISOString()));
   return { artifactBytes, artifactSha256, keys };
 }
 
