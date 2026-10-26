@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import { playerRowLenientSchema, type ScoreboardOCRResult, type OCRProvider, type PlayerRowOCR } from "./types";
 import { OCRFailure, type OCRResponseSummary } from "./errors";
 import { extractOCRDiagnostics } from "./diagnostics";
@@ -7,7 +9,7 @@ import { providerFetch } from "@/lib/observability/fetch";
 import { logEvent, traceOperation } from "@/lib/observability/server";
 
 const DEFAULT_API_URL = "https://api.siliconflow.cn/v1/chat/completions";
-const DEFAULT_MODEL = "Qwen/Qwen3.5-9B";
+const DEFAULT_MODEL = "Qwen/Qwen3.5-27B";
 
 // Tuple columns follow the screenshot; expand them only after provider parsing.
 const SCOREBOARD_COLUMNS = ["perfectName", "kills", "deaths", "assists", "hsPercent", "firstKills", "multiKills", "clutches", "adr", "rws", "ratingPro", "we"] as const;
@@ -15,6 +17,8 @@ const SYSTEM_PROMPT = `读取记分板全部10行。只返回JSON：{"players":[
 每行按截图列序：昵称、击杀、死亡、助攻、爆头率、首杀、多杀、残局、ADR、RWS、Rating、WE。
 每行必须有12个值，未知填null，数值不带单位。跳过标题行，最多10行。
 输出紧凑JSON，字符串以外不加空格或换行；输出完players对象后立即结束。`;
+
+const USER_PROMPT = "请识别并返回这张完美平台记分板截图中所有玩家的数据。";
 
 function expandPlayerRow(row: unknown): unknown {
   if (!Array.isArray(row)) return row;
@@ -117,7 +121,7 @@ async function callAPI(params: CallParams) {
             type: "image_url",
             image_url: { url: `data:${params.mimeType};base64,${params.base64Image}` },
           },
-          { type: "text", text: "请识别并返回这张完美平台记分板截图中所有玩家的数据。" },
+          { type: "text", text: USER_PROMPT },
         ],
       },
     ],
@@ -149,7 +153,19 @@ async function callAPI(params: CallParams) {
     provider: "siliconflow",
     attributes: { "rivalhub.workflow": "ocr" },
   }, async () => {
+    logEvent({
+      level: "info", event: "provider.siliconflow.request_started", scope: "provider", operation: "ocr.extract",
+      requestId: params.requestId,
+      safeContext: {
+        provider: "siliconflow", model: [DEFAULT_MODEL, "Qwen/Qwen3.5-9B"].includes(params.model) ? params.model : "custom",
+        imageBytes: Buffer.byteLength(params.base64Image, "base64"), mimeType: params.mimeType,
+        imageDigest: createHash("sha256").update(Buffer.from(params.base64Image, "base64")).digest("hex"),
+        configDigest: createHash("sha256").update(JSON.stringify({ ...body, apiUrl: params.apiUrl, messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: USER_PROMPT }] })).digest("hex"),
+        responseFormat: params.withResponseFormat,
+      },
+    });
     let phase: "request" | "response" = "request";
+    let responseSummary: Partial<OCRResponseSummary> = {};
     try {
       const response = await providerFetch("siliconflow")(params.apiUrl, {
         method: "POST",
@@ -161,6 +177,11 @@ async function callAPI(params: CallParams) {
         signal: controller.signal,
       });
       phase = "response";
+      const providerTraceId = response.headers.get("x-siliconcloud-trace-id");
+      if (providerTraceId && /^ti_[a-zA-Z0-9_-]{8,64}$/.test(providerTraceId)
+        && ![params.apiKey, params.base64Image].some(value => value && providerTraceId.includes(value))) {
+        responseSummary.providerTraceId = providerTraceId;
+      }
       if (!response.ok) {
         const { reason, diagnostics } = await readFailureReason(response, [params.apiKey, params.base64Image]);
         const kind = response.status === 401 || response.status === 403 ? "authentication"
@@ -168,7 +189,7 @@ async function callAPI(params: CallParams) {
             : reason === "invalid_image" ? "image" : "upstream";
         throw new OCRFailure(kind, "response", reason, response.status, {
           requestId: params.requestId,
-          diagnostics,
+          diagnostics, responseSummary,
           cause: new Error(`siliconflow.http.${response.status}.${reason}`),
         });
       }
@@ -176,12 +197,14 @@ async function callAPI(params: CallParams) {
       let json: unknown;
       try { json = await response.json(); } catch (error) {
         if (!controller.signal.aborted && error instanceof SyntaxError) {
-          throw new OCRFailure("upstream", "json_parse", "invalid_response_json", response.status, { requestId: params.requestId });
+          throw new OCRFailure("upstream", "json_parse", "invalid_response_json", response.status, { requestId: params.requestId, responseSummary });
         }
         // Body streams can fail after valid HTTP headers; preserve the transport boundary.
         throw error;
       }
       const { content, summary } = readCompletion(json);
+      Object.assign(summary, responseSummary);
+      responseSummary = summary;
       const failureOptions = { requestId: params.requestId, responseSummary: summary };
       // Even syntactically valid JSON can be a partial scoreboard at the limit.
       if (summary.finishReason === "length") {
@@ -196,7 +219,7 @@ async function callAPI(params: CallParams) {
       if (error instanceof OCRFailure) throw error;
       const timedOut = controller.signal.aborted;
       throw new OCRFailure(timedOut ? "timeout" : "network", phase, timedOut ? (phase === "response" ? "response_timeout" : "request_timeout") : "network_failure", undefined, {
-        requestId: params.requestId,
+        requestId: params.requestId, responseSummary,
         // Preserve the real transport cause only after bounded projection and redaction.
         diagnostics: extractOCRDiagnostics(error, [params.apiKey, params.base64Image]),
       });
@@ -229,15 +252,6 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
     provider: "siliconflow",
     attributes: { "rivalhub.workflow": "ocr" },
   }, async () => {
-    logEvent({
-      level: "info",
-      event: "provider.siliconflow.request_started",
-      scope: "provider",
-      operation: "ocr.extract",
-      requestId,
-      safeContext: { provider: "siliconflow", imageBytes: Buffer.byteLength(base64Image, "base64"), mimeType },
-    });
-
     const callParams: CallParams = { apiUrl, apiKey, model, base64Image, mimeType, withResponseFormat: true, requestId, deadline: performance.now() + 180000 };
 
     let result;
@@ -290,6 +304,12 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
       throw new OCRFailure("upstream", "shape", error instanceof OCRFailure ? error.reason : "invalid_result_shape", result.httpStatus, failureOptions);
     }
 
+    result.summary.rowCount = Math.min(rawPlayers.length, 1_000_000);
+    result.summary.emptyNameRows = Math.min(rawPlayers.filter(row => {
+      const expanded = expandPlayerRow(row) as Record<string, unknown> | null;
+      return expanded && (typeof expanded.perfectName !== "string" || !expanded.perfectName.trim());
+    }).length, 1_000_000);
+
     if (rawPlayers.length === 0) {
       throw new OCRFailure("upstream", "shape", "empty_players", result.httpStatus, failureOptions);
     }
@@ -309,7 +329,8 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
           errorClass: "expected",
           safeContext: {
             provider: "siliconflow", rowIndex: idx + 1,
-            reason: Array.isArray(row) && row.length !== SCOREBOARD_COLUMNS.length ? "invalid_column_count" : "invalid_player_row",
+            reason: Array.isArray(row) && row.length !== SCOREBOARD_COLUMNS.length ? "invalid_column_count"
+              : Array.isArray(row) && (typeof row[0] !== "string" || !row[0].trim()) ? "missing_player_name" : "invalid_player_row",
             count: Array.isArray(row) ? Math.min(row.length, 100) : undefined,
           },
         });
@@ -325,7 +346,7 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
       scope: "provider",
       operation: "ocr.validate",
       requestId,
-      safeContext: { provider: "siliconflow", count: validPlayers.length, status: "completed" },
+      safeContext: { ...result.summary, provider: "siliconflow", count: validPlayers.length, status: validPlayers.length ? "completed" : "rejected" },
     });
 
     if (validPlayers.length === 0) {
@@ -349,10 +370,16 @@ function readCompletion(value: unknown): { content: string | null; summary: OCRR
     ? reason : "unknown";
   const usage = envelope.usage && typeof envelope.usage === "object" ? envelope.usage as Record<string, unknown> : {};
   const tokens = usage.completion_tokens;
+  const promptTokens = usage.prompt_tokens;
+  // Repeated 32-character chunks in the final 8192 characters are a signal, not a loop verdict.
+  const chunks = content?.slice(-8192).match(/[\s\S]{32}/g) ?? [];
+  const outputRepeatedChunkPercent = chunks.length ? Math.round((chunks.length - new Set(chunks).size) / chunks.length * 100) : 0;
   return {
     content,
     summary: {
       finishReason,
+      outputRepeatedChunkPercent,
+      promptTokens: typeof promptTokens === "number" && Number.isSafeInteger(promptTokens) && promptTokens >= 0 && promptTokens <= 1_000_000 ? promptTokens : undefined,
       outputChars: Math.min(content?.length ?? 0, 1_000_000),
       outputWhitespacePercent: content?.length ? Math.round((content.match(/\s/g)?.length ?? 0) / content.length * 100) : 0,
       completionTokens: typeof tokens === "number" && Number.isSafeInteger(tokens) && tokens >= 0 && tokens <= 1_000_000 ? tokens : undefined,
