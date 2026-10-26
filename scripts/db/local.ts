@@ -551,7 +551,9 @@ function runQuiet(
   if (result.error) throw result.error;
   if (result.signal) throw new Error(`命令被信号 ${result.signal} 终止。`);
   if (result.status !== 0) {
-    const detail = result.stderr.trim().slice(0, 2000);
+    const stderr = result.stderr.trim();
+    // Keep the final resolver error when pull progress fills the bounded excerpt.
+    const detail = stderr.length <= 2000 ? stderr : `${stderr.slice(0, 900)}\n…\n${stderr.slice(-1000)}`;
     throw new Error(
       `Local Supabase 启动失败（exit ${result.status ?? "unknown"}）${detail ? `：${detail}` : ""}`,
     );
