@@ -83,7 +83,8 @@ export async function loadMizarMatchDocumentInTx(tx: TxDb, matchId: string, comp
 
 export const loadMizarMatchDocument = (matchId: string, competitionId: string) => db.transaction(tx => loadMizarMatchDocumentInTx(tx, matchId, competitionId), { isolationLevel: "repeatable read", accessMode: "read only" });
 
-export async function loadMizarScheduleWindow(competitionId: string, from: Date, to: Date) {
+/** viewerUserId is the authenticated installation authorizer, never a client-selected identity. */
+export async function loadMizarScheduleWindow(competitionId: string, from: Date, to: Date, viewerUserId?: string) {
   if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || to <= from || to.getTime() - from.getTime() > 31 * 86400_000) throw new AppError(ErrorCode.VALIDATION_FAILED, "请选择不超过一个月的赛程窗口。");
   return db.transaction(async tx => {
     const season = await loadCompetitionInTx(tx, competitionId);
@@ -99,14 +100,27 @@ export async function loadMizarScheduleWindow(competitionId: string, from: Date,
       ? await tx.select(entrantFields).from(competitionEntries).where(inArray(competitionEntries.id, [...entryIds]))
       : [];
     const entryById = new Map(entrants.map(entry => [entry.entryId, entry]));
+    // One batch keeps the public identity and commentary assignments in this
+    // repeatable-read snapshot, independent of the number of schedule rows.
+    const viewerRows = viewerUserId === undefined ? [] : await tx.select({
+      userId: users.id, displayName: users.displayName, perfectName: users.perfectName,
+      personaName: steamProfiles.personaName, matchId: matchCommentators.matchId,
+    }).from(users)
+      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+      .leftJoin(matchCommentators, and(eq(matchCommentators.userId, users.id), inArray(matchCommentators.matchId, rows.map(match => match.id))))
+      .where(eq(users.id, viewerUserId));
+    const viewerRow = viewerRows[0];
+    if (viewerUserId !== undefined && !viewerRow) throw new AppError(ErrorCode.FORBIDDEN, "制播设备授权账号不存在。");
+    const viewer = viewerRow ? { userId: viewerRow.userId, displayName: getPublicDisplayName(viewerRow) } : undefined;
+    const assignedMatchIds = new Set(viewerRows.flatMap(row => row.matchId ? [row.matchId] : []));
     const result = [];
     for (const match of rows) {
       assertCompetitionMatch(match);
       const { stageKey: _stageKey, entryRound: _entryRound, stakesLabel: _stakesLabel, ...context } = matchContext(match, season);
       void _stageKey; void _entryRound; void _stakesLabel;
-      result.push({ ...context, entrantA: entryById.get(match.entryAId)!, entrantB: entryById.get(match.entryBId)! });
+      result.push({ ...context, entrantA: entryById.get(match.entryAId)!, entrantB: entryById.get(match.entryBId)!, ...(viewer ? { assignedToViewer: assignedMatchIds.has(match.id) } : {}) });
     }
-    const payload = { schemaVersion: "rivalhub.broadcast-schedule-window.v1" as const, competition: competition(season), from: from.toISOString(), to: to.toISOString(), matches: result };
+    const payload = { schemaVersion: "rivalhub.broadcast-schedule-window.v1" as const, competition: competition(season), from: from.toISOString(), to: to.toISOString(), matches: result, ...(viewer ? { viewer } : {}) };
     return { ...payload, revision: documentRevision(payload) };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }

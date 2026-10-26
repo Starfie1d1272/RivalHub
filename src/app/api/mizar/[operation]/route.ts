@@ -28,7 +28,7 @@ export async function GET(request: Request, context: Context) {
     }
     if (operation === "schedule") {
       diagnostics.phase = "domain";
-      return mizarContextResponse(request, await loadMizarScheduleWindow(installation.competitionId, new Date(query.get("from") ?? ""), new Date(query.get("to") ?? "")));
+      return mizarContextResponse(request, await loadMizarScheduleWindow(installation.competitionId, new Date(query.get("from") ?? ""), new Date(query.get("to") ?? ""), installation.authorizedByUserId));
     }
     return new Response(null, { status: 404 });
   });

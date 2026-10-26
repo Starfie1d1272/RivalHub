@@ -706,8 +706,21 @@ describe("Mizar source authority", () => {
 });
 
 describe("Tournament Context provider ownership", () => {
-  it("projects public-safe facts with the canonical event logoUrl and no private lineage", async () => {
+  it.each([10, 14])("projects %i public-safe players within a fixed SELECT budget and no private lineage", async playerCount => {
     const fixture = await seedFixture();
+    if (playerCount === 14) {
+      for (const entryId of [fixture.entryAId, fixture.entryBId]) {
+        const [eventRoster] = await db.select().from(schema.eventRosters).where(eq(schema.eventRosters.entryId, entryId));
+        const [matchRoster] = await db.select().from(schema.matchRosters).where(and(eq(schema.matchRosters.matchId, fixture.matchId), eq(schema.matchRosters.entryId, entryId)));
+        for (let index = 0; index < 2; index++) {
+          const userId = randomUUID();
+          await db.insert(schema.users).values({ id: userId, email: `${userId}@local.test`, steam64: testSteam64(userId) });
+          const [participant] = await db.insert(schema.competitionEntryParticipants).values({ entryId, userId, status: "confirmed", confirmedAt: NOW }).returning();
+          const [member] = await db.insert(schema.eventRosterMembers).values({ eventRosterId: eventRoster!.id, participantId: participant!.id, userId, isPrimaryStarter: false }).returning();
+          await db.insert(schema.matchRosterPlayers).values({ rosterId: matchRoster!.id, eventRosterMemberId: member!.id, isStarter: false });
+        }
+      }
+    }
     await db.update(schema.seasons).set({ logoUrl: "https://example.test/logo.png" }).where(eq(schema.seasons.id, fixture.seasonId));
     await db.insert(schema.steamProfiles).values({ steam64: fixture.steam64[0]!, personaName: "Avatar owner", profileUrl: "https://example.test/profile", avatarUrl: "https://example.test/avatar.png" });
     const queries: string[] = [];
@@ -717,12 +730,16 @@ describe("Tournament Context provider ownership", () => {
     const document = await observedDb.transaction((tx) => loadMizarMatchDocumentInTx(tx, fixture.matchId, fixture.seasonId));
     expect(document.schemaVersion).toBe("rivalhub.broadcast-manifest.v1");
     expect(document.match.competition.logoUrl).toBe("https://example.test/logo.png");
-    expect(document.entrants.a.roster.players).toHaveLength(5);
-    expect(document.entrants.a.roster.players.every((player) => player.isStarter)).toBe(true);
+    expect(document.entrants.a.roster.players).toHaveLength(playerCount / 2);
+    expect(document.entrants.a.roster.players.filter(player => player.isStarter)).toHaveLength(5);
     const players = [...document.entrants.a.roster.players, ...document.entrants.b.roster.players];
+    expect(players).toHaveLength(playerCount);
     expect(players.find(player => player.steam64 === fixture.steam64[0])?.avatarUrl).toBe("https://example.test/avatar.png");
     expect(players.filter(player => player.steam64 !== fixture.steam64[0]).every(player => player.avatarUrl === null)).toBe(true);
     // Protect the provider read budget against per-player round trips, using actual SQL execution.
+    const selectCount = queries.filter(query => /^select\b/i.test(query)).length;
+    expect(selectCount).toBeGreaterThan(0);
+    expect(selectCount).toBeLessThanOrEqual(8);
     expect(queries.filter(query => /from "steam_profiles"/.test(query))).toHaveLength(1);
     expect(queries.filter(query => /from "competition_entries"/.test(query))).toHaveLength(1);
     expect(await db.transaction(tx => loadMizarMatchDocumentInTx(tx, fixture.matchId, fixture.seasonId))).toEqual(document);
@@ -733,6 +750,7 @@ describe("Tournament Context provider ownership", () => {
     for (const forbidden of ["private-review-marker", "private-perfect-marker", "@local.test", "credentialHash", "installationId", "reviewReason"]) {
       expect(serialized).not.toContain(forbidden);
     }
+    console.info("MIZAR_MANIFEST_READ_COST", JSON.stringify({ playerCount, selectCount }));
   });
 
 });
