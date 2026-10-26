@@ -75,8 +75,11 @@ async function markGaps(db: Database, from: number, to: number, retention: numbe
   for (let at = Math.max(historyDayStart(historyDay(from)), historyDayStart(historyDay(to)) - 90 * DAY); at <= to; at += DAY) days.push(historyDay(at));
   await db.prepare(`INSERT INTO history_gaps(day,expires) SELECT value,? FROM json_each(?) WHERE true ON CONFLICT(day) DO UPDATE SET expires=max(history_gaps.expires,excluded.expires)`).bind(to + retention * DAY, JSON.stringify(days)).run();
 }
+function pendingStatement(db: Database, state: State, now: number) {
+  return db.prepare(`SELECT count(*) AS n,min(received) AS first_received FROM (SELECT received FROM batches WHERE environment='production' AND expires>? AND ${afterCursor} ORDER BY received,ticket,id LIMIT 1001)`).bind(now, ...cursorArgs(state));
+}
 async function pending(db: Database, state: State, now: number) {
-  return await db.prepare(`SELECT count(*) AS n,min(received) AS first_received FROM (SELECT received FROM batches WHERE environment='production' AND expires>? AND ${afterCursor} ORDER BY received,ticket,id LIMIT 1001)`).bind(now, ...cursorArgs(state)).first<{ n: number; first_received: number | null }>() ?? { n: 0, first_received: null };
+  return await pendingStatement(db, state, now).first<{ n: number; first_received: number | null }>() ?? { n: 0, first_received: null };
 }
 interface Group { dimensions: string; phase: string; bucket: number; active_bucket: number; n: number; starts: number; client: number; enhanced: number; value_n: number; value_sum: number | null; value_min: number | null; value_max: number | null; active_n: number; active_sum: number | null; active_min: number | null; active_max: number | null }
 async function writeDay(env: Env, day: string, state: State, firstPending: number | null, now: number, retention: number) {
@@ -203,11 +206,15 @@ export async function readHistory(env: Env, f: HistoryQuery, now: number, range?
   const state = await env.DB.prepare("SELECT * FROM history_state WHERE id=1").first<State>();
   if (!state) return base;
   base.coverageStart = state.started_at; base.processedThrough = state.cursor_received;
-  base.pendingBatches = (await pending(env.DB, state, now)).n;
   const from = range?.fromDay ?? historyDay(historyDayStart(historyDay(now)) - (Number(f.days) - 1) * DAY);
   const to = range?.toDay ?? historyDay(now);
-  const tail = await readHistoryTail(env.DB, state, from, now, f);
-  const gaps = await env.DB.prepare("SELECT day FROM history_gaps WHERE day>=? AND expires>?").bind(from, now).all<{ day: string }>();
+  const [backlog, gaps, expiry] = await env.DB.batch([
+    pendingStatement(env.DB, state, now),
+    env.DB.prepare("SELECT day FROM history_gaps WHERE day>=? AND expires>?").bind(from, now),
+    env.DB.prepare("SELECT min(expires) AS expiry FROM (SELECT expires FROM history_samples WHERE day>=? AND day<=? AND expires>? UNION ALL SELECT expires FROM history_days WHERE day>=? AND day<=? AND expires>? UNION ALL SELECT expires FROM batches WHERE environment='production' AND expires>?)").bind(from, to, now, from, to, now, now),
+  ]) as [{ results: { n: number }[] }, { results: { day: string }[] }, { results: { expiry: number | null }[] }];
+  base.pendingBatches = backlog.results[0]?.n ?? 0;
+  const tail = await readHistoryTail(env.DB, state, from, to, now, f);
   const gapDays = new Set(gaps.results.map(d => d.day));
   const mutable = JSON.parse(tail.payload) as { day: string; payload: string }[];
   const payloads = new Map(mutable.map(d => [d.day, d.payload]));
@@ -216,8 +223,7 @@ export async function readHistory(env: Env, f: HistoryQuery, now: number, range?
     const day = historyDay(start);
     live.push({ day, payload: payloads.get(day) ?? "[]", complete: state.started_at <= start && now < start + 7 * DAY && !gapDays.has(day) && !tail.truncated && state.paused_at === null ? 1 : 0 });
   }
-  const expiry = await env.DB.prepare("SELECT min(expires) AS expiry FROM (SELECT expires FROM history_samples WHERE day>=? AND day<=? AND expires>? UNION ALL SELECT expires FROM history_days WHERE day>=? AND day<=? AND expires>? UNION ALL SELECT expires FROM batches WHERE environment='production' AND expires>?)").bind(from, to, now, from, to, now, now).first<{ expiry: number | null }>();
-  base.validUntil = Math.min(now + 60000, expiry?.expiry ?? now + 60000);
+  base.validUntil = Math.min(now + 60000, expiry.results[0]?.expiry ?? now + 60000);
   base.coverage = { from: historyDayStart(from), to: now, tailBatches: tail.batches, tailBytes: tail.bytes,
     tailTruncated: tail.truncated, summaryComplete: false, timingRowsTruncated: false,
     unavailable: ["distinctSessions", "distinctAccounts", "browser", "source", "visibility", "clientVersion"], timeZone: "Asia/Shanghai" };
@@ -234,7 +240,7 @@ export async function readHistory(env: Env, f: HistoryQuery, now: number, range?
   const get = (key: string) => key === "basis" ? `coalesce(json_extract(f.value,'$.basis'),CASE WHEN json_extract(f.value,'$.kind')='ready' THEN 'navigation' ELSE '' END)` : ["elapsedCensored", "activeCensored"].includes(key) ? `coalesce(json_extract(f.value,'$.${key}'),0)` : `json_extract(f.value,'$.${key}')`;
   const conditionCount = (condition: string, field = "n") => `coalesce(sum(CASE WHEN ${condition} THEN ${get(field)} ELSE 0 END),0)`;
   const kind = get("kind"), phase = get("phase");
-  const points = await env.DB.prepare(`${selected}
+  const pointsQuery = env.DB.prepare(`${selected}
     SELECT d.day,d.complete,d.sealed,
       ${conditionCount(`${kind}='page'`)} views,
       ${conditionCount(`${kind}='error'`)} errors,
@@ -246,19 +252,23 @@ export async function readHistory(env: Env, f: HistoryQuery, now: number, range?
       ${conditionCount(`${kind}='task'`, "starts")} taskStarts,
       ${conditionCount(`${kind}='task' AND ${phase}='complete'`, "starts")} taskComplete,
       ${conditionCount(`${kind}='task' AND ${phase}='exposure'`)} taskExposure
-    FROM selected d LEFT JOIN filtered f ON f.day=d.day GROUP BY d.day ORDER BY d.day`).bind(...args).all<Omit<HistoryData["days"][number], "complete" | "sealed"> & { complete: number; sealed: number }>();
-  base.days = points.results.map(d => ({ ...d, complete: !!d.complete, sealed: !!d.sealed }));
+    FROM selected d LEFT JOIN filtered f ON f.day=d.day GROUP BY d.day ORDER BY d.day`).bind(...args);
   const dimensions = ["kind", "name", "phase", "release", "measurementVersion", "definitionVersion", "navigationType", "basis", "elapsedCensored", "activeCensored"] as const;
   const aggregates: string[] = [];
   for (const metric of ["duration", "active"] as const) {
     for (const [field, op] of [["n", "sum"], ["sum", "sum"], ["min", "min"], ["max", "max"]] as const) aggregates.push(`${op}(${get(`${metric}.${field}`)}) ${metric}_${field}`);
     for (let i = 0; i <= historyBounds("").length; i++) aggregates.push(`coalesce(sum(${get(`${metric}.counts[${i}]`)}),0) ${metric}_${i}`);
   }
-  const groups = await env.DB.prepare(`${selected}
+  const groupsQuery = env.DB.prepare(`${selected}
     SELECT ${dimensions.map(key => `${get(key)} AS ${key}`).join(",")},sum(${get("n")}) reports,${aggregates.join(",")}
     FROM filtered f WHERE ${get("duration.n")}>0 OR ${get("active.n")}>0 OR ${get("elapsedCensored")}=1 OR ${get("activeCensored")}=1
     GROUP BY ${dimensions.map(get).join(",")} ORDER BY ${dimensions.map(get).join(",")} LIMIT ?`)
-    .bind(...args, TIMING_LIMIT + 1).all<Record<string, string | number | null>>();
+    .bind(...args, TIMING_LIMIT + 1);
+  const [points, groups] = await env.DB.batch([pointsQuery, groupsQuery]) as [
+    { results: (Omit<HistoryData["days"][number], "complete" | "sealed"> & { complete: number; sealed: number })[] },
+    { results: Record<string, string | number | null>[] },
+  ];
+  base.days = points.results.map(d => ({ ...d, complete: !!d.complete, sealed: !!d.sealed }));
   base.truncated = groups.results.length > TIMING_LIMIT || tail.truncated;
   base.coverage.summaryComplete = base.days.length === Math.round((historyDayStart(to) - historyDayStart(from)) / DAY) + 1 && base.days.every(d => d.complete);
   base.coverage.timingRowsTruncated = groups.results.length > TIMING_LIMIT;

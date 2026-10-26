@@ -24,7 +24,7 @@ it("accepts the real v2 collector's 100ms call after 61 active registration minu
     run: async () => ({ meta: { changes: Number(sqlite.prepare(sql).run(...values.map(v => typeof v === "object" && v !== null ? new Uint8Array(v) : v)).changes) } }),
   });
   const env: Env = { SIGNING_KEY: "fixture-signing-".repeat(3), ADMIN_KEY: "fixture-admin-".repeat(3), ALLOWED_ORIGIN: "https://rivalhub.invalid", ACCEPTING: "1", RETENTION_APPROVED: "1", HISTORY_RETENTION_DAYS: "90", DB: { prepare: wrap, batch: async statements => {
-    sqlite.exec("BEGIN"); try { const results = []; for (const s of statements) results.push(await s.run()); sqlite.exec("COMMIT"); return results; }
+    sqlite.exec("BEGIN"); try { const results = []; for (const s of statements) results.push(await s.all()); sqlite.exec("COMMIT"); return results; }
     catch (error) { sqlite.exec("ROLLBACK"); throw error; }
   } } };
   const ticket = await signTicket({ v: 1, id: crypto.randomUUID(), account: null, role: "user", release: "fixture", environment: "production", origin: env.ALLOWED_ORIGIN, exp: start + 86400000 }, env.SIGNING_KEY);
