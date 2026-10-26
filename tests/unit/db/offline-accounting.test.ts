@@ -47,6 +47,24 @@ describe("offline consumer accounting", () => {
       expect(statSync(path).size).toBe(Buffer.byteLength(JSON.stringify(snapshot)));
       expect(gzipSync(bytes).length).toBeLessThan(bytes.length);
       expect(bytes.length).toBeGreaterThan(accounting.tables.users.logical_payload_bytes);
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      vi.spyOn(console, "log").mockImplementation(() => {});
+      for (const summaryPath of [directory, join(directory, "PRIVATE_PATH_SENTINEL", "summary")]) {
+        vi.stubEnv("GITHUB_STEP_SUMMARY", summaryPath);
+        expect(() => reportOfflineConsumer({
+          format: 1, consumer: "preview", run_id: null, github_run_id: null,
+          release: snapshot.sourceTag, source_project: "fixture", started_at: snapshot.refreshedAt, ended_at: snapshot.refreshedAt,
+          status: "exported", rows: 1, logical_payload_bytes: accounting.tables.users.logical_payload_bytes,
+          dump_file_bytes: null, snapshot_file_bytes: bytes.length, compressed_artifact_bytes: null,
+          storage_download_bytes: null, storage_objects: null, tables: accounting.tables,
+        })).not.toThrow();
+        expect(readFileSync(path)).toEqual(bytes);
+        expect(warn).toHaveBeenCalledExactlyOnceWith("offline_consumer_accounting_unavailable");
+        expect(state.query.mock.calls.filter(([sql]) => String(sql).startsWith("SELECT fixture"))).toHaveLength(names.length);
+        warn.mockClear();
+      }
+      // The observation catch never wraps the authoritative snapshot write.
+      expect(() => writeMirrorSnapshot(path, snapshot)).toThrow("Preview mirror snapshot write failed.");
     } finally { rmSync(directory, { recursive: true, force: true }); }
   });
 

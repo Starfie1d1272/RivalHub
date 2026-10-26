@@ -43,7 +43,7 @@ Free 项目名额不足时，可在授权后采用“暂停旧 Dev → 创建新
 - timestamptz 在数据库内转换 UTC，格式包含六位微秒与 AD/BC；infinity 单独保留文本。不会经过 JS Date，也不受 session timezone 影响。无时区 timestamp 尚无映射合同，拒绝。
 - text 按 UTF-8 原字节，不做 Unicode/case/locale 归一化；NULL 编码 `-1:`，非空值为 UTF-8 byte length、冒号、正文，空字符串与 NULL 不同。列名与类型进入摘要 header。排序只按 bigint 主键，无 locale/collation 比较；文本主键不支持。
 - JSON/JSONB（包括键序、嵌套 numeric 与 JSON null）、float、数组、domain、复合及其它未列明类型均在读行前 fail closed。当前没有经过验证的跨类型 canonical owner，不能将 `jsonb::text`、JSON.stringify 或未经验证的键排序当成相等证明。
-- 最多 64 列，单 cell 最多 64 KiB、单行最多 256 KiB；有界 page 最多约 32 MiB canonical text，聚合只排序最多 128 个固定长度 row hash，无全表 JSON 聚合或 payload 排序。超限报错，不截断、不跳过。大对象/复杂类型需要另行设计分片合同，不能以相同截断摘要放行。
+- 最多 64 列，单 cell 最多 64 KiB、单行最多 256 KiB；有界 page 最多约 32 MiB canonical text，聚合只排序最多 128 个固定长度 row hash，无全表 JSON 聚合或 payload 排序。超限报错，不截断、不跳过。这些是值完成文本编码后的检查，不是 PostgreSQL 进程的硬 RSS 上限，也不保证任意巨型 text 在解 TOAST、编码或拼接前就被限制；page 之外的执行器和临时分配另有开销。原型只用于已知大小的隔离 fixture，大对象/复杂类型需要另行设计分片合同，不能以相同截断摘要放行。
 
 本地 PostgreSQL fixture 验证时，在同一个 disposable session 中顺序加载 prototype 与 [`tests/fixtures/recovery/offline-digest.sql`](../../tests/fixtures/recovery/offline-digest.sql)。fixture 用临时表、结束 rollback，验证乱序插入/keyset、超 JS 安全整数的 numeric、小数与微秒单字段变化、NULL/空字符串、UTF-8，以及 JSONB/永久表/超限拒绝。它只证明受支持 fixture 合同；没有生产全表验证，也没有减少线上流量的实测。
 

@@ -59,6 +59,8 @@ DB-only release checkpoint 使用 `artifactKind=db-checkpoint` 与 `backupClass=
 
 ## 离线消费者安全计量
 
+计量输出为 best-effort：输出或 Step Summary 写入失败只尝试记录固定 `offline_consumer_accounting_unavailable` warning，不输出原始错误/路径，不把已完成的 artifact/read-back 或 snapshot 改判为失败。真实 dump、备份、read-back、export 或落盘错误仍遵循原失败门禁。
+
 成功完成 canonical artifact 的 R2 read-back 后，artifact owner 将已有 manifest 投影为 `offline_consumer_summary` JSON，并写入 GitHub Step Summary。只输出 consumer、run/GitHub run、source release/project、开始/结束时间、`exported` 状态与聚合数字；不输出 SQL/业务行、Auth hash、文件 checksum、对象路径或 credential。它不新增 dump、COUNT 或业务 SELECT，也不改变 full/checkpoint、retention、guard 或 completion contract。
 
 | 字段 | Recovery 口径 |

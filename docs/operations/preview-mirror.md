@@ -18,6 +18,8 @@ RivalHub 的所有 Vercel Preview 固定连接 `rivalhub-dev`，不连接 produc
 
 ## 离线消费者安全计量
 
+计量输出为 best-effort：输出或 Step Summary 写入失败只尝试记录固定 `offline_consumer_accounting_unavailable` warning，不输出原始错误/路径，不把已完成的 artifact/read-back 或 snapshot 改判为失败。真实 dump、备份、read-back、export 或落盘错误仍遵循原失败门禁。
+
 成功写入 snapshot 后，export owner 输出 `offline_consumer_summary` JSON/Step Summary。每张白名单表在现有单次查询返回后逐行累计 `rows` 与 `logical_payload_bytes`，只暂存单行 JSON 字符串；不增加查询、不复制整份 snapshot。该逻辑 bytes 是 **pg 已解码、SQL 已投影但尚未执行后续 JS 脱敏/URL 改写的每行 `JSON.stringify` UTF-8 字节之和**，不含数组分隔符、metadata 或 assets。它受驱动的 Date/number 转换及 JSON 转义影响，不是无损 canonical digest，也不是 PostgreSQL wire bytes。
 
 `dump_file_bytes=null`；`snapshot_file_bytes` 是同次实际写入的 JSON 文件大小，包含最终脱敏结果、metadata 和 base64 assets；`storage_download_bytes` 在既有 asset download 流中累计真实 Buffer bytes，未配置下载能力时保留 `null`，实际成功检查且没有对象才是 `0`。`storage_objects` 同样区分未采集与空集。GitHub artifact 的压缩大小在导出阶段未知，`compressed_artifact_bytes=null`，不能拿 snapshot 文件大小代替。Recovery 的压缩加密制品口径见 [disaster recovery](./disaster-recovery.md#离线消费者安全计量)。

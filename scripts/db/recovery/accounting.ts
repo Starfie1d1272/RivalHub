@@ -61,9 +61,15 @@ export function githubRunId(): string | null {
 
 /** Input must be an explicit safe projection, never a snapshot/manifest spread. */
 export function reportOfflineConsumer(summary: OfflineConsumerSummary): void {
-  const json = JSON.stringify(summary);
-  console.log(`offline_consumer_summary ${json}`);
-  if (process.env.GITHUB_STEP_SUMMARY) {
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\nOffline consumer accounting (not provider Egress):\n\n\`\`\`json\n${json}\n\`\`\`\n`);
+  try {
+    const json = JSON.stringify(summary);
+    console.log(`offline_consumer_summary ${json}`);
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\nOffline consumer accounting (not provider Egress):\n\n\`\`\`json\n${json}\n\`\`\`\n`);
+    }
+  } catch {
+    // Observation cannot invalidate an already completed artifact/export.
+    // Neither filesystem errors nor their paths are safe diagnostic context.
+    try { console.warn("offline_consumer_accounting_unavailable"); } catch { /* Output is best-effort too. */ }
   }
 }
