@@ -1,5 +1,6 @@
 import "server-only";
 import { Agent, get } from "node:https";
+import type { ClientRequest, IncomingMessage } from "node:http";
 import { beginRuntimeResource } from "@/lib/observability/runtime-resources";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { AnalysisData } from "./analysis-contract";
@@ -24,20 +25,30 @@ async function queryThroughProxy(
   endpoint: URL,
   secret: string,
   proxy: URL,
+  signal: AbortSignal,
 ): Promise<Buffer> {
   const agent = new Agent({
     proxyEnv: { NODE_ENV: process.env.NODE_ENV, HTTPS_PROXY: proxy.href },
   });
+  let request: ClientRequest | undefined;
+  let incoming: IncomingMessage | undefined;
+  const abort = () => {
+    const error = new Error("Telemetry query deadline exceeded");
+    incoming?.destroy(error);
+    request?.destroy(error);
+  };
+  signal.addEventListener("abort", abort, { once: true });
   try {
     return await new Promise<Buffer>((resolve, reject) => {
-      const request = get(
+      request = get(
         endpoint,
         {
           agent,
           headers: { Authorization: `Bearer ${secret}` },
-          signal: AbortSignal.timeout(5000),
+          signal,
         },
         (response) => {
+          incoming = response;
           if (response.statusCode !== 200) {
             response.destroy();
             reject(new Error("Telemetry query unavailable"));
@@ -56,9 +67,43 @@ async function queryThroughProxy(
         },
       );
       request.on("error", reject);
+      if (signal.aborted) abort();
     });
   } finally {
+    signal.removeEventListener("abort", abort);
     agent.destroy();
+  }
+}
+
+async function queryDirect(endpoint: URL, secret: string, signal: AbortSignal): Promise<Buffer> {
+  const response = await fetch(endpoint, {
+    headers: { Authorization: `Bearer ${secret}` }, cache: "no-store", redirect: "error", signal,
+  });
+  if (!response.ok) {
+    void response.body?.cancel().catch(() => {});
+    throw new Error("Telemetry query unavailable");
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Telemetry response unavailable");
+  const cancel = () => { void reader.cancel().catch(() => {}); };
+  signal.addEventListener("abort", cancel, { once: true });
+  try {
+    const chunks: Uint8Array[] = [];
+    let bytes = 0;
+    for (;;) {
+      signal.throwIfAborted();
+      const chunk = await reader.read();
+      signal.throwIfAborted();
+      if (chunk.done) break;
+      bytes += chunk.value.byteLength;
+      if (bytes > RESPONSE_BYTES) throw new Error("Telemetry response too large");
+      chunks.push(chunk.value);
+    }
+    return Buffer.concat(chunks);
+  } finally {
+    signal.removeEventListener("abort", cancel);
+    cancel();
+    reader.releaseLock();
   }
 }
 
@@ -103,6 +148,7 @@ async function loadDashboard<T>(
   if (!secret || secret.length < 32 || !process.env.PRODUCT_TELEMETRY_ENDPOINT)
     return { status: "unconfigured" };
   let finish: (() => void) | undefined;
+  let deadline: ReturnType<typeof setTimeout> | undefined;
   try {
     const endpoint = new URL(process.env.PRODUCT_TELEMETRY_ENDPOINT);
     if (
@@ -117,45 +163,16 @@ async function loadDashboard<T>(
     endpoint.pathname = path;
     endpoint.search = new URLSearchParams(params).toString();
     const proxyValue = process.env.PRODUCT_TELEMETRY_QUERY_PROXY_URL;
-    let body: Buffer;
-    if (proxyValue) {
-      const proxy = new URL(proxyValue);
-      if (
-        !["http:", "https:"].includes(proxy.protocol) ||
-        proxy.username ||
-        proxy.password ||
-        proxy.pathname !== "/" ||
-        proxy.search ||
-        proxy.hash
-      )
-        return { status: "unconfigured" };
-      finish = beginRuntimeResource("telemetry.dashboard.fill");
-      body = await queryThroughProxy(endpoint, secret, proxy);
-    } else {
-      finish = beginRuntimeResource("telemetry.dashboard.fill");
-      const response = await fetch(endpoint, {
-        headers: { Authorization: `Bearer ${secret}` },
-        cache: "no-store",
-        redirect: "error",
-        signal: AbortSignal.timeout(5000),
-      });
-      if (!response.ok) return { status: "unavailable" };
-      const reader = response.body?.getReader();
-      if (!reader) return { status: "unavailable" };
-      const chunks: Uint8Array[] = [];
-      let bytes = 0;
-      for (;;) {
-        const chunk = await reader.read();
-        if (chunk.done) break;
-        bytes += chunk.value.byteLength;
-        if (bytes > RESPONSE_BYTES) {
-          await reader.cancel();
-          return { status: "unavailable" };
-        }
-        chunks.push(chunk.value);
-      }
-      body = Buffer.concat(chunks);
-    }
+    const proxy = proxyValue ? new URL(proxyValue) : undefined;
+    if (proxy && (!["http:", "https:"].includes(proxy.protocol) || proxy.username || proxy.password
+      || proxy.pathname !== "/" || proxy.search || proxy.hash)) return { status: "unconfigured" };
+    // One total transport/body deadline; long-window does not change short query policy.
+    const controller = new AbortController();
+    deadline = setTimeout(() => controller.abort(), path === "/admin/long-window" ? 15_000 : 5_000);
+    finish = beginRuntimeResource("telemetry.dashboard.fill");
+    const body = proxy
+      ? await queryThroughProxy(endpoint, secret, proxy, controller.signal)
+      : await queryDirect(endpoint, secret, controller.signal);
     const data = parse(JSON.parse(body.toString("utf8")));
     const encoded = Buffer.from(JSON.stringify(data), "utf8");
     pruneCache(Date.now());
@@ -169,7 +186,7 @@ async function loadDashboard<T>(
     return { status: "ready", data };
   } catch {
     return { status: "unavailable" };
-  } finally { finish?.(); }
+  } finally { clearTimeout(deadline); finish?.(); }
 }
 
 export async function getTelemetryAnalysis(
