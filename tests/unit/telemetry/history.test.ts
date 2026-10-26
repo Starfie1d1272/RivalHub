@@ -7,7 +7,7 @@ import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import { expect, it } from "vitest";
 import { handle, maintain, type Env, type Statement } from "../../../workers/telemetry/index";
-import { maintainHistory, sample, type Sample } from "../../../workers/telemetry/history";
+import { maintainHistory, readHistory, sample, type Sample } from "../../../workers/telemetry/history";
 import { batchSummary } from "../../../workers/telemetry/storage";
 import { HistoryData, historyDay, historyDayStart, historyDefaults, historyQuantile, emptyHistoryDistribution, parseHistoryQuery, summarizeHistory, HISTORY_DAY as DAY } from "@/lib/telemetry/history-contract";
 import { signTicket } from "@/lib/telemetry/ticket";
@@ -113,6 +113,7 @@ it("marks bounded backlog and pauses incomplete, seals before sample expiry, and
   try {
     await maintainHistory(f.env, day);
     for (let i = 1; i <= 17; i++) expect((await f.post([{ kind: "page" }], day + i * 1000)).status).toBe(204);
+    expect(await f.read(day + 17500)).toMatchObject({ truncated: true, coverage: { tailTruncated: true, summaryComplete: false } });
     await maintainHistory(f.env, day + 18000);
     expect(await f.read(day + 19000)).toMatchObject({ pendingBatches: 1, days: [{ complete: true, views: 17 }], coverage: { tailBatches: 1, tailTruncated: false } });
     await maintainHistory(f.env, day + 20000);
@@ -469,5 +470,33 @@ it("keeps explicit v1/v2 and unassociated operation cohorts across raw and full-
       expect(operations.reduce((n, m) => n + m.duration.n, 0)).toBe(3);
       expect(summary.metrics.filter(m => m.kind === "task").map(m => m.definitionVersion).sort()).toEqual([1, 2]);
     }
+  } finally { await f.mf.dispose(); }
+}, 30000);
+
+
+it("bounds mutable cohort grouping to a narrow day while retaining next-day tail corrections", async () => {
+  const f = await fixture(); const day = historyDayStart("2026-10-25");
+  try {
+    await maintainHistory(f.env, day);
+    const id = crypto.randomUUID();
+    expect((await f.post([{ id, kind: "performance", metricName: "LCP", durationMs: 500 }], day + 1000)).status).toBe(204);
+    await maintainHistory(f.env, day + 2000);
+    const original = await f.db.prepare("SELECT * FROM history_samples").first<Record<string, string | number | null>>();
+    const dimensions = JSON.parse(String(original!.dimensions));
+    const future = Array.from({ length: 8193 }, (_, i) => ({ key: crypto.randomUUID(), dimensions: JSON.stringify({ ...dimensions, release: `future-${i}` }) }));
+    for (let i = 0; i < future.length; i += 200) await f.db.prepare(`INSERT INTO history_samples(sample_key,day,kind,dimensions,latest_at,received,expires,closes,has_start,phase,value,bucket,active,active_bucket,client_covered,enhanced_covered)
+      SELECT json_extract(value,'$.key'),?,'performance',json_extract(value,'$.dimensions'),?,?,?, ?,0,'',100,1,NULL,0,0,0 FROM json_each(?)`)
+      .bind(historyDay(day + DAY), day + DAY + 1000, day + DAY + 1000, day + 8 * DAY, day + 7 * DAY, JSON.stringify(future.slice(i, i + 200))).run();
+    expect((await f.post([{ kind: "page" }], day + DAY + 1000)).status).toBe(204);
+    expect((await f.post([{ id, kind: "performance", metricName: "LCP", durationMs: 250 }], day + DAY + 2000)).status).toBe(204);
+    const before = await f.db.prepare("SELECT * FROM history_state").first();
+    const data = await readHistory(f.env, { ...historyDefaults, days: "7" }, day + DAY + 3000,
+      { fromDay: historyDay(day), toDay: historyDay(day) });
+    expect(data).toMatchObject({ truncated: false, pendingBatches: 2, coverage: { tailTruncated: false, timingRowsTruncated: false, tailBatches: 2 } });
+    expect(data.days).toHaveLength(1);
+    expect(data.days[0]).toMatchObject({ day: historyDay(day), complete: true, views: 0 });
+    expect(summarizeHistory(data).timings).toHaveLength(1);
+    expect(summarizeHistory(data).timings[0]).toMatchObject({ name: "LCP", n: 1, mean: 250 });
+    expect(await f.db.prepare("SELECT * FROM history_state").first()).toEqual(before);
   } finally { await f.mf.dispose(); }
 }, 30000);

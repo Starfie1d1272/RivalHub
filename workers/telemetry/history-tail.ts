@@ -35,7 +35,7 @@ function merge(old: Sample | undefined, next: Sample, now: number): Sample {
   };
 }
 /** Mutable cohorts come from deduplicated samples plus a bounded unprocessed tail, never stale daily payloads. */
-export async function readHistoryTail(db: Database, state: Cursor, from: string, now: number, filters: HistoryQuery) {
+export async function readHistoryTail(db: Database, state: Cursor, from: string, to: string, now: number, filters: HistoryQuery) {
   const batches = await db.prepare(`SELECT ticket,id,received,expires,account,role,release,bytes,events_gzip FROM batches WHERE environment='production' AND expires>? AND received<=? AND (received>? OR (received=? AND (ticket>? OR (ticket=? AND id>?)))) ORDER BY received,ticket,id LIMIT ?`)
     .bind(now, now, state.cursor_received, state.cursor_received, state.cursor_ticket, state.cursor_ticket, state.cursor_id, MAX_BATCHES + 1).all<Batch>();
   const projected: Sample[] = []; let bytes = 0, count = 0;
@@ -53,7 +53,7 @@ export async function readHistoryTail(db: Database, state: Cursor, from: string,
   const updated = new Map(existing.results.map(s => [s.key, s]));
   for (const s of projected) updated.set(s.key, merge(updated.get(s.key), s, now));
   const overlay = JSON.stringify([...updated.values()]);
-  const source = `WITH samples AS (SELECT * FROM history_samples WHERE expires>? AND day>=? AND sample_key NOT IN (SELECT value FROM json_each(?)) UNION ALL SELECT ${Object.entries(columns).map(([key]) => `json_extract(value,'$.${key}')`).join(",")} FROM json_each(?) WHERE json_extract(value,'$.expires')>?)`;
+  const source = `WITH samples AS (SELECT * FROM history_samples WHERE expires>? AND day>=? AND day<=? AND sample_key NOT IN (SELECT value FROM json_each(?)) UNION ALL SELECT ${Object.entries(columns).map(([key]) => `json_extract(value,'$.${key}')`).join(",")} FROM json_each(?) WHERE json_extract(value,'$.expires')>?)`;
   // UNION columns follow table order, declared explicitly below rather than schema order.
   const explicitSource = source.replace("SELECT * FROM history_samples", `SELECT ${Object.values(columns).join(",")} FROM history_samples`);
   const conditions: string[] = []; const values: string[] = [];
@@ -68,8 +68,8 @@ export async function readHistoryTail(db: Database, state: Cursor, from: string,
     sum(CASE WHEN has_start=1 AND phase='complete' THEN active END) active_sum,
     min(CASE WHEN has_start=1 AND phase='complete' THEN active END) active_min,
     max(CASE WHEN has_start=1 AND phase='complete' THEN active END) active_max
-    FROM samples WHERE day>=? AND day NOT IN (SELECT day FROM history_days WHERE sealed=1) ${conditions.length ? "AND " + conditions.join(" AND ") : ""} GROUP BY day,dimensions,phase,bucket,active_bucket ORDER BY day,dimensions,phase,bucket,active_bucket LIMIT ?`)
-    .bind(now, from, keys, overlay, now, from, ...values, MAX_GROUPS + 1).all<Record<string, string | number | null>>();
+    FROM samples WHERE day>=? AND day<=? AND day NOT IN (SELECT day FROM history_days WHERE sealed=1) ${conditions.length ? "AND " + conditions.join(" AND ") : ""} GROUP BY day,dimensions,phase,bucket,active_bucket ORDER BY day,dimensions,phase,bucket,active_bucket LIMIT ?`)
+    .bind(now, from, to, keys, overlay, now, from, to, ...values, MAX_GROUPS + 1).all<Record<string, string | number | null>>();
   const days = new Map<string, Map<string, HistoryRow>>();
   for (const g of groups.results.slice(0, MAX_GROUPS)) {
     const dimensions = JSON.parse(String(g.dimensions));

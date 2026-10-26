@@ -118,7 +118,7 @@ export async function readAnalysisSnapshot(
     for (const e of raw as TelemetryEvent[])
       events.push({
         ...e,
-        ...(historyKeys ? { historyKey: (await sample(e, b)).key } : {}),
+        ...(historyKeys && (e.kind === "ready" || e.kind === "performance") ? { historyKey: (await sample(e, b)).key } : {}),
         session: alias,
         account: b.account,
         role: b.role,
