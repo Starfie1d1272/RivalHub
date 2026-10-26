@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.24.5]
+
+### Fixed
+
+- 修复长窗口遥测查询约 5.7 秒时被网站提前截断的问题，仅该端点的请求与响应体总截止调整为十五秒，直连与代理一致；其他分析查询仍为五秒，保留响应、缓存和并发预算，不自动重试超时请求。
+
+### Changed
+
+- 独立遥测 Worker 减少长窗口读取的数据库往返与重复处理，并限制未封存历史聚合到所选日期，保持迟到修正、覆盖缺口和读取预算语义。
+
+网站截止修复兼容 v2.24.4 接收端，可独立发布；Worker 查询优化需单独部署后生效，网站发布不会自动更新 Worker。
+
 ## [2.24.4]
 
 ### Added
@@ -3567,3 +3579,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.24.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.1...v2.24.3
 
 [2.24.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.3...v2.24.4
+
+[2.24.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.4...v2.24.5
