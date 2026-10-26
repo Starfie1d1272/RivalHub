@@ -287,6 +287,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -294,6 +295,9 @@ jobs:
     env:
       RIVALHUB_LIVE_EVIDENCE: ${{ matrix.live && '1' || '0' }}
       SUPABASE_USE_SLIM_IMAGES: "1"
+      # Slim refs stay pinned to GHCR; upstream-only Kong uses Docker Hub.
+      SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
+      DOCKER_CONFIG: ${{ runner.temp }}/rivalhub-docker-auth
       RIVALHUB_LOCAL_SERVICE_PROFILE: ${{ (matrix.task == 'production' || matrix.task == 'browser-live' || matrix.task == 'browser-session') && 'auth' || 'full' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -314,6 +318,17 @@ jobs:
       - name: Record bootstrap/install timing
         if: always()
         run: node scripts/ci/timing.mjs record --label "bootstrap/install" --start-ms "$RIVALHUB_BOOTSTRAP_STARTED_MS"
+      - name: Authenticate container image pulls
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$DOCKER_CONFIG"
+          # Preserve the runner's Docker Hub authentication.
+          if [ -f "$HOME/.docker/config.json" ]; then
+            cp "$HOME/.docker/config.json" "$DOCKER_CONFIG/config.json"
+          fi
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          chmod 600 "$DOCKER_CONFIG/config.json"
       - name: Supabase startup
         env:
           RIVALHUB_CI_METADATA_TOKEN: ${{ github.token }}
@@ -402,6 +417,10 @@ jobs:
       - name: Write timing summary
         if: always()
         run: node scripts/ci/timing.mjs summary
+
+      - name: Remove container registry credentials
+        if: always()
+        run: rm -f "$DOCKER_CONFIG/config.json"
 
   gate:
     name: ${{ needs.plan.outputs.gate_name }}
