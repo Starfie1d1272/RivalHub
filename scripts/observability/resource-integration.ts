@@ -4,6 +4,9 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { eq, sql } from "drizzle-orm";
+import { STATISTICS_PROJECTION_VERSION } from "../../src/lib/stats/projection-version";
+import { matches, matchMaps, matchDemoStatProjections } from "../../src/db/schema";
 import { chromium, expect, type BrowserContext, type Page } from "@playwright/test";
 import { buildLocalAppEnvironment, parseLocalSupabaseStatus } from "../db/local-environment";
 import { createMajorBrowserScenarioFixture, cleanupMajorBrowserScenarioFixture } from "../db/major-browser-fixture";
@@ -14,14 +17,15 @@ import { operateBetInTx, joinBetInTx } from "../../src/lib/bet/service";
 import { db, disposeDatabaseBinding } from "../../src/db/client-runtime";
 import { createLocalTelemetryResourceFixture } from "./local-telemetry-resource-fixture";
 import { parseResourceReading } from "./resource-readings";
+import { createStatisticsResourceFixture } from "./statistics-resource-fixture";
 import { createMizarResourceDriver } from "./mizar-resource-driver";
 import { assertResourceTelemetryQuery, resourceTelemetryEndpoint, RESOURCE_TELEMETRY_VIEWS, type ResourceTelemetryMode, type ResourceTelemetryQuery } from "./resource-telemetry-contract";
 import type { ResourceHttpFixture } from "./resource-integration-contract";
 
 const base = "http://127.0.0.1:3107";
-type RequestResult = { kind: string; phase: string; producer?: number; startedMs: number; durationMs: number; status: number | null; bytes: number; requestBytes?: number; outcome?: string; reason?: string; error?: string };
+type RequestResult = { kind: string; phase: string; producer?: number; startedMs: number; durationMs: number; domReadyMs?: number; contentReadyMs?: number; status: number | null; bytes: number; requestBytes?: number; outcome?: string; reason?: string; error?: string };
 type ResourceSample = ReturnType<typeof parseResourceReading>;
-const workload = { version: 1, liveProducers: 2, documents: ["bet", "profile", "telemetry"], warmRounds: 1, concurrentRounds: 2, idleMs: 65_000 };
+const workload = { version: 4, coldMixedDocuments: ["bet", "stats", "telemetry"], coldJourney: "cold-mixed-then-remaining-single", mixedJourney: "cold-and-warm", ioDelayTarget: "telemetry-https-loopback", databaseDelay: "none-loopback", ioDelayMs: 150, maxDelayedTelemetryRequests: 4, statsJourney: ["overview", "players", "weapons", "profile", "lineup"], processRestarts: 1, liveProducers: 2, documents: ["bet", "profile", "telemetry"], warmRounds: 1, concurrentRounds: 2, idleMs: 65_000 };
 const execute = (file: string, args: string[], env?: NodeJS.ProcessEnv, cwd?: string) => execFileSync(file, args, { encoding: "utf8", env, cwd, stdio: ["ignore", "pipe", "pipe"] }).trim();
 
 export async function runResourceIntegrationSmoke(image: string, seed: string, adapter?: string, build = false, options: { phase?: "preparation" | "baseline" | "integrated"; telemetry?: ResourceTelemetryMode; appRoot?: string; expectedSha?: string } = {}) {
@@ -44,9 +48,10 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
   const directory = resolve(".agent-tmp", `resource-smoke-${seed}-${Date.now()}`);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const started = performance.now();
-  const sourceFiles = ["resource-integration.ts", "resource-integration-contract.ts", "mizar-resource-driver.ts", "local-telemetry-resource-fixture.ts", "resource-readings.ts", "resource-telemetry-contract.ts", "resource-baseline.mjs"];
+  const sourceFiles = ["resource-integration.ts", "resource-integration-contract.ts", "mizar-resource-driver.ts", "local-telemetry-resource-fixture.ts", "resource-readings.ts", "resource-telemetry-contract.ts", "resource-baseline.mjs", "statistics-resource-fixture.ts"];
   const harnessHashes = Object.fromEntries(sourceFiles.map(file => [file, createHash("sha256").update(readFileSync(resolve("scripts/observability", file))).digest("hex")]));
   const report = { phaseKind, telemetryMode, expectedTelemetryEndpoint: resourceTelemetryEndpoint(telemetryMode),
+    byteSemantics: "Response bytes are decoded HTTP body bytes; requestBytes are JSON UTF-8 before HTTP compression. Neither is database/provider Egress.",
     counterCapability: countersPresent ? "present" : "absent_in_app_source", countersRequired: requireCounters,
     harnessSha: execute("git", ["rev-parse", "HEAD"]), telemetryWorkerHash: "",
     appNode: execute(realpathSync(resolve(appRoot, "node_modules/.bin/node")), ["--version"]), buildId: "", browserVersion: "", mizarFixtureSource: "", harnessHashes, purpose: phaseKind === "preparation" ? "harness-preparation-not-optimization-evidence" : "frozen-comparison-run", sha, releaseTag, seed, workload,
@@ -54,7 +59,7 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     requests: [] as RequestResult[], resources: [] as ResourceSample[], runtime: [] as Record<string, unknown>[],
     logins: [] as { role: string; hydrationVerified: boolean; statuses: number[]; finalRoute: string; feedback: string[] }[],
     timeline: [] as { phase: string; atMs: number }[], errors: [] as { phase: string; name: string; message: string }[], blockers: [] as string[],
-    telemetry: [] as ResourceTelemetryQuery[], verification: {} as Record<string, number | boolean>,
+    fixtureStats: {} as Record<string, number | string>, telemetry: [] as ResourceTelemetryQuery[], localIoDelay: {} as Record<string, number>, verification: {} as Record<string, number | boolean>,
     appState: {} as Record<string, number | boolean | string>, observedResourceNames: [] as string[], unobservedResourceNames: [] as string[],
     cleanup: {} as Record<string, boolean>, coverage: {} as Record<string, boolean>, passed: false };
   const observeBrowser = (page: Page, kind: string) => {
@@ -81,6 +86,7 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
   let applicationCreated = false;
   let predictionId: string | undefined;
   let live: ResourceHttpFixture | undefined;
+  let statistics: Awaited<ReturnType<typeof createStatisticsResourceFixture>> | undefined;
   let telemetry: Awaited<ReturnType<typeof createLocalTelemetryResourceFixture>> | undefined;
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
   let appLogs: ChildProcess | undefined;
@@ -123,11 +129,37 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     report.requests.push(record);
     try {
       const response = await page.goto(base + path, { waitUntil: "domcontentloaded", timeout: 45_000 });
+      record.domReadyMs = performance.now() - at;
       record.status = response?.status() ?? null;
       if (record.status !== 200) throw new Error("DOCUMENT_HTTP_FAILURE");
-      await expect(page.getByRole("heading", { name: title, exact: true }).first()).toBeVisible({ timeout: 30_000 });
+      if (kind === "lineup") {
+        const comparison = page.getByTestId("match-lineup-comparison").getByLabel("选手关键数据对比", { exact: true }).filter({ visible: true }).first();
+        await expect(comparison).toBeVisible({ timeout: 30_000 });
+        await expect(comparison.locator("dd").filter({ hasText: /\d/ }).nth(1)).toBeVisible();
+        await expect(page.getByTestId("match-lineup-comparison").getByText("统计暂不可用", { exact: true })).toHaveCount(0);
+      }
+      else if (kind === "team") {
+        const style = page.getByLabel("阵容打法", { exact: true }).filter({ visible: true }).first();
+        await expect(style.getByRole("group").first()).toBeVisible({ timeout: 30_000 });
+        await expect(style.getByText(/暂无可用阵容画像|阵容打法暂时无法加载/)).toHaveCount(0);
+      }
+      else await expect(page.getByRole("heading", { name: title, exact: true }).first()).toBeVisible({ timeout: 30_000 });
+      if (kind === "stats") {
+        if (!statistics) throw new Error("REPRESENTATIVE_STATISTICS_FIXTURE_REQUIRED");
+        const tab = new URL(base + path).searchParams.get("tab") ?? "overview";
+        if (tab === "overview") {
+          const map = page.getByRole("row").filter({ has: page.getByRole("link", { name: "Ancient", exact: true }) }).first();
+          await expect(map).toBeVisible({ timeout: 30_000 });
+          await expect(map).toContainText(String(statistics.measurement.projectionRows));
+        } else if (tab === "players") await expect(page.getByRole("row").filter({ hasText: statistics.playerName }).first()).toBeVisible({ timeout: 30_000 });
+        else if (tab === "weapons") await expect(page.getByRole("row").filter({ hasText: /Glock|AK-47/ }).first()).toBeVisible({ timeout: 30_000 });
+        await expect(page.getByText("统计暂时无法加载，请稍后重试。", { exact: true })).not.toBeVisible();
+      }
       if (kind === "profile") {
-        await expect(page.getByRole("heading", { name: "长期资料", exact: true })).toBeVisible();
+        await expect(page.locator('[data-profile-section="performance"]')).toBeVisible({ timeout: 30_000 });
+        if (statistics) await expect(page.getByLabel("Career Stats", { exact: true }).filter({ visible: true }).first().locator("div").filter({ has: page.getByText("Maps", { exact: true }) }).locator("dd"))
+          .toHaveText(String(statistics.measurement.projectionRows));
+        await expect(page.getByText("Resource Player 01", { exact: true }).first()).toBeVisible({ timeout: 30_000 });
         await expect(page.getByText("竞技统计暂时无法加载，请稍后重试。", { exact: true })).toHaveCount(0);
       }
       if (kind === "telemetry") {
@@ -139,9 +171,12 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
           await expect(page.getByText("当前请求范围覆盖不完整", { exact: true })).toBeVisible();
         }
       }
+      record.contentReadyMs = performance.now() - at;
       record.bytes = (await response!.body()).byteLength;
       record.durationMs = performance.now() - at;
-    } catch (error) { record.durationMs = performance.now() - at; record.error = error instanceof Error ? error.name : "UnknownError"; throw error; }
+    } catch (error) { record.durationMs = performance.now() - at; record.error = error instanceof Error ? error.name : "UnknownError";
+      if (report.errors.length < 32) report.errors.push({ phase: `${stage}.${kind}`, ...safeError(error) });
+      throw error; }
   }
   try {
     mark("fixture.begin"); phase = "fixture.auth";
@@ -166,9 +201,17 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
       }
       report.workloadHash = createHash("sha256").update(JSON.stringify({ workload, producerPlan: live.producers.map(producer => ({ intervalMs: producer.intervalMs, steps: producer.steps.map(step => step.operation) })) })).digest("hex");
     } else report.blockers.push("G_HTTP_FIXTURE_NOT_SUPPLIED");
+    if (live?.publicPaths) statistics = await createStatisticsResourceFixture(live.publicPaths.lineup.split("/").at(-1)!);
+    const [statsMatch] = await db.select({ id: matches.id, mapId: matchMaps.id }).from(matches)
+      .innerJoin(matchMaps, eq(matchMaps.matchId, matches.id)).where(eq(matches.seasonId, scenario.seasonId)).limit(1);
+    if (!statsMatch) throw new Error("STATS_MATCH_FIXTURE_MISSING");
+    const [fixtureStats] = await db.select({ projectionRows: sql<number>`count(*)::int`,
+      projectionTextBytes: sql<string>`coalesce(sum(octet_length(${matchDemoStatProjections.facts}::text)),0)::text`,
+    }).from(matchDemoStatProjections).where(eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION));
+    report.fixtureStats = { ...fixtureStats, ...(statistics?.measurement ?? {}), investigationProjectionRows: 100, investigationProjectionTextBytes: 4231115 };
     await disposeDatabaseBinding();
     phase = "fixture.telemetry";
-    telemetry = await createLocalTelemetryResourceFixture(directory, seed);
+    telemetry = await createLocalTelemetryResourceFixture(directory, seed, workload.ioDelayMs);
     sensitive.push(telemetry.secret);
     report.telemetry = telemetry.requests; report.telemetryWorkerHash = telemetry.workerHash;
     mark("fixture.ready");
@@ -178,7 +221,7 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     }
     report.buildId = readFileSync(resolve(appRoot, ".next/BUILD_ID"), "utf8").trim();
     const appEnv = { ...env, NODE_EXTRA_CA_CERTS: telemetry.ca, PRODUCT_TELEMETRY_ADMIN_KEY: telemetry.secret,
-      PRODUCT_TELEMETRY_ENDPOINT: telemetry.endpoint, RIVALHUB_RUNTIME_HEALTH_ENABLED: "1" };
+      PRODUCT_TELEMETRY_ENDPOINT: telemetry.endpoint, RIVALHUB_RUNTIME_HEALTH_ENABLED: "1", NODE_OPTIONS: "--max-old-space-size=320" };
     const envFile = resolve(directory, "application.env");
     writeFileSync(envFile, Object.entries(appEnv).filter(([, value]) => value !== undefined).map(([key, value]) => `${key}=${value}`).join("\n"), { mode: 0o600 });
     phase = "application.start";
@@ -220,20 +263,19 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     mark("login.ready");
     const documents = [
       { page: await userContext.newPage(), kind: "bet", path: `/${prediction.slug}/bet`, title: "预测与竞猜" },
-      { page: await userContext.newPage(), kind: "profile", path: `/players/${user.userId}`, title: "Browser player2" },
-      { page: await adminContext.newPage(), kind: "telemetry", path: "/admin/telemetry", title: "产品使用与体验" },
+      { page: await userContext.newPage(), kind: "stats", path: `/stats?event=${live?.publicPaths?.lineup.split("/")[1] ?? scenario.slug}`, title: "数据中心" },
+      { page: await userContext.newPage(), kind: "lineup", path: live?.publicPaths?.lineup ?? `/${scenario.slug}/matches/${statsMatch.id}`, title: "本场阵容" },
+      ...(live?.publicPaths ? [{ page: await userContext.newPage(), kind: "team", path: live.publicPaths.team, title: "参赛队伍" }] : []),
+      { page: await userContext.newPage(), kind: "profile", path: `/players/${statistics?.playerId ?? user.userId}`, title: statistics?.playerName ?? "Browser player2" },
+      { page: await adminContext.newPage(), kind: "telemetry", path: `/admin/telemetry?hours=168${telemetryMode === "raw" ? "&analysisMode=bounded" : ""}`, title: "产品使用与体验" },
     ];
     for (const doc of documents) observeBrowser(doc.page, doc.kind);
-    phase = "combination";
-    mark("combination.barrier");
-    const tasks: Promise<unknown>[] = documents.map(async doc => {
-      for (let repeat = 0; repeat < workload.concurrentRounds; repeat++) await document(doc.page, doc.kind, doc.path, doc.title, repeat === 0 ? "cold-combination" : "warm-combination");
-    });
-    for (const [producer, source] of (live?.producers ?? []).entries()) tasks.push((async () => {
-      mark(`producer.${producer}.start`);
-      for (const step of source.steps) {
+    function producerTasks(stage: string, liveOnly = false): Promise<void>[] {
+      return [...(live?.producers ?? []).entries()].map(async ([producer, source]) => {
+      mark(`${stage}.producer.${producer}.start`);
+      for (const step of source.steps.filter(step => !liveOnly || step.operation === "live")) {
         const at = performance.now();
-        const record: RequestResult = { kind: step.operation, phase: "combination", producer, startedMs: at - started, durationMs: 0, status: null, bytes: 0 };
+        const record: RequestResult = { kind: step.operation, phase: stage, producer, startedMs: at - started, durationMs: 0, status: null, bytes: 0 };
         report.requests.push(record);
         try {
           const body = JSON.stringify(step.body(new Date().toISOString()));
@@ -251,22 +293,102 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
         finally { record.durationMs = performance.now() - at; }
         await delay(source.intervalMs);
       }
-      mark(`producer.${producer}.end`);
-    })());
+      mark(`${stage}.producer.${producer}.end`);
+      });
+    }
+
+    phase = "cold-combination";
+    mark("cold-combination.barrier");
+    const coldDocuments = documents.filter(doc => ["bet", "stats", "telemetry"].includes(doc.kind));
+    const coldTasks = coldDocuments.map(async doc => {
+      await document(doc.page, doc.kind, doc.path, doc.title, "cold-combination");
+      if (doc.kind === "stats") for (const tab of ["players", "weapons"])
+        await document(doc.page, doc.kind, `${doc.path}&tab=${tab}`, doc.title, "cold-combination");
+    });
+    const coldResults = await Promise.allSettled([...coldTasks, ...producerTasks("cold-combination", true)]);
+    if (coldResults.some(result => result.status === "rejected")) throw new Error("COLD_COMBINATION_REQUEST_FAILED_NO_REPLAY");
+    mark("cold-combination.end"); sample();
+    phase = "documents.cold";
+    mark("documents.cold.begin");
+    for (const doc of documents) {
+      await document(doc.page, doc.kind, doc.path, doc.title, coldDocuments.includes(doc) ? "post-cold-mixed-single" : "cold-single");
+      if (doc.kind === "stats") for (const tab of ["players", "weapons"])
+        await document(doc.page, doc.kind, `${doc.path}&tab=${tab}`, doc.title, coldDocuments.includes(doc) ? "post-cold-mixed-single" : "cold-single");
+    }
+    mark("documents.cold.end"); sample();
+    phase = "combination";
+    mark("combination.barrier");
+    const tasks: Promise<unknown>[] = documents.map(async doc => {
+      for (let repeat = 0; repeat < workload.concurrentRounds; repeat++) {
+        const stage = `mixed-warm-${repeat + 1}`;
+        await document(doc.page, doc.kind, doc.path, doc.title, stage);
+        if (doc.kind === "stats") for (const tab of ["players", "weapons"])
+          await document(doc.page, doc.kind, `${doc.path}&tab=${tab}`, doc.title, stage);
+      }
+    });
+    tasks.push(...producerTasks("warm-combination"));
     const results = await Promise.allSettled(tasks);
     if (results.some(result => result.status === "rejected")) throw new Error("COMBINATION_REQUEST_FAILED_NO_REPLAY");
     mark("combination.end"); sample();
     phase = "documents.warm";
     for (const doc of documents) await document(doc.page, doc.kind, doc.path, doc.title, "warm-single");
+    phase = "mizar.context-reads";
+    for (const read of live?.reads ?? []) {
+      let etag: string | null = null;
+      for (const expectedStatus of [200, 304]) {
+        const at = performance.now();
+        const response: Response = await fetch(base + read.path, { headers: { authorization: `Bearer ${read.credential}`,
+          ...(etag ? { "if-none-match": etag } : {}) }, signal: AbortSignal.timeout(15_000) });
+        const bytes = (await response.arrayBuffer()).byteLength;
+        report.requests.push({ kind: `mizar.${read.family}`, phase, startedMs: at - started,
+          durationMs: performance.now() - at, status: response.status, bytes });
+        if (response.status !== expectedStatus || (expectedStatus === 304 && bytes !== 0)) throw new Error("MIZAR_CONTEXT_READ_STATUS_MISMATCH");
+        etag = response.headers.get("etag");
+        if (!etag) throw new Error("MIZAR_CONTEXT_ETAG_MISSING");
+      }
+    }
+    phase = "tag-invalidation";
+    // Exercise the existing authorized cache-only recovery action. No OCR or
+    // scoreboard mutation, and no test-only production endpoint.
+    const references = JSON.parse(readFileSync(resolve(appRoot, ".next/server/server-reference-manifest.json"), "utf8"));
+    const refreshActions = Object.entries(references.node as Record<string, { exportedName?: string }>)
+      .filter(([, entry]) => entry.exportedName === "retryPlayerStatsRefresh");
+    if (refreshActions.length !== 1) throw new Error("CACHE_RECOVERY_ACTION_UNAVAILABLE");
+    const refresh = await adminContext.request.post(`${base}/admin/${scenario.slug}/matches/${statsMatch.id}`, {
+      headers: { "Next-Action": refreshActions[0]![0], Origin: base, "Content-Type": "text/plain;charset=UTF-8" },
+      data: JSON.stringify([statsMatch.mapId]),
+    });
+    const refreshBody = await refresh.text();
+    if (refresh.status() !== 200 || !refreshBody.includes('"success":true')) throw new Error("CACHE_RECOVERY_ACTION_FAILED");
+    mark("tag-invalidation.completed");
+    for (const doc of documents.filter(doc => ["stats", "profile", "lineup"].includes(doc.kind)))
+      await document(doc.page, doc.kind, doc.path, doc.title, "tag-invalidated");
     phase = "idle";
     await delay(workload.idleMs); sample(); mark("idle.end");
+    phase = "restart";
+    mark("restart.begin");
+    docker("restart", container);
+    let restarted = false;
+    for (let attempt = 0; attempt < 60; attempt++) {
+      try {
+        await assertBaselineReadiness(await fetch(`${base}/api/system/release`, { signal: AbortSignal.timeout(2000) }), { releaseTag, releaseCommit: sha });
+        restarted = true; break;
+      } catch { await delay(500); }
+    }
+    if (!restarted) throw new Error("RESTART_EXACT_BUILD_NOT_READY");
+    mark("restart.ready");
+    for (const doc of documents.filter(doc => doc.kind !== "telemetry")) await document(doc.page, doc.kind, doc.path, doc.title, "restart-cold");
+    sample(); mark("restart.end");
     if (live) report.verification = await live.verify();
     report.observedResourceNames = [...new Set(report.runtime.filter(event => event.event === "runtime.resource.sample" && Number((event.safeContext as { count?: number } | undefined)?.count) > 0).map(event => String(event.operation)))];
     report.unobservedResourceNames = RUNTIME_RESOURCE_NAMES.filter(name => !report.observedResourceNames.includes(name));
     const queries = report.telemetry.filter(request => request.path === resourceTelemetryEndpoint(telemetryMode));
     if (!queries.length) throw new Error("TELEMETRY_EXPECTED_QUERY_MISSING");
     for (const query of queries) assertResourceTelemetryQuery(query, telemetryMode);
-    report.coverage = { telemetryHttps: true, externalMemory: report.resources.length > 0,
+    report.localIoDelay = telemetry.ioDelay();
+    const acceptedPair = (stage: string) => [0, 1].every(producer => report.requests.some(request =>
+      request.phase === stage && request.kind === "live" && request.producer === producer && request.outcome === "accepted"));
+    report.coverage = { coldTwoHttpProducers: acceptedPair("cold-combination"), warmTwoHttpProducers: acceptedPair("warm-combination"), tagInvalidation: true, processRestart: true, boundedTelemetryDelay: report.localIoDelay.delayedRequests > 0, telemetryHttps: true, externalMemory: report.resources.length > 0,
       twoHttpProducers: report.requests.some(request => request.kind === "live" && request.producer === 0 && request.outcome === "accepted") && report.requests.some(request => request.kind === "live" && request.producer === 1 && request.outcome === "accepted"),
       reliableHttp: report.requests.filter(request => request.kind === "reliable" && request.outcome === "canonicalized").length === 2 };
     if (requireCounters) {
@@ -293,6 +415,7 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     try {
       if (live && !Object.keys(report.verification).length) report.verification = await live.verify(false);
     } catch { report.errors.push({ phase: "mizar.verify", name: "Error", message: "G_READ_ONLY_VERIFY_FAILED" }); }
+    try { await statistics?.cleanup(); report.cleanup.statistics = true; } catch { report.cleanup.statistics = false; }
     try { await live?.cleanup(); report.cleanup.mizar = true; } catch { report.cleanup.mizar = false; }
     try { if (predictionId) await removePredictionBrowserFixture(predictionId); report.cleanup.bet = true; } catch { report.cleanup.bet = false; }
     try { if (scenarioCreated) await cleanupMajorBrowserScenarioFixture(scenarioId, credentials, "stats", env); report.cleanup.auth = true; } catch { report.cleanup.auth = false; }

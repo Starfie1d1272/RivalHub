@@ -1,5 +1,6 @@
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
+import { recordMizarFullBuild } from "@/lib/observability/read-budget";
 import { createHash } from "node:crypto";
 import { and, eq, asc, gte, lte, inArray, isNull, or } from "drizzle-orm";
 import { db, type TxDb } from "@/db/client";
@@ -51,6 +52,7 @@ async function loadExecutionFactsInTx(tx: TxDb, matchId: string) {
 
 /** Explicit provider DTO, independent of React/admin/internal persistence shape. */
 export async function loadMizarMatchDocumentInTx(tx: TxDb, matchId: string, competitionId: string) {
+  recordMizarFullBuild("match");
   const [match] = await tx.select(matchFields).from(matches).where(and(eq(matches.id, matchId), eq(matches.seasonId, competitionId)));
   if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
   assertCompetitionMatch(match);
@@ -87,6 +89,7 @@ export const loadMizarMatchDocument = (matchId: string, competitionId: string) =
 export async function loadMizarScheduleWindow(competitionId: string, from: Date, to: Date, viewerUserId?: string) {
   if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || to <= from || to.getTime() - from.getTime() > 31 * 86400_000) throw new AppError(ErrorCode.VALIDATION_FAILED, "请选择不超过一个月的赛程窗口。");
   return db.transaction(async tx => {
+    recordMizarFullBuild("schedule");
     const season = await loadCompetitionInTx(tx, competitionId);
     const rows = await tx.select(matchFields).from(matches).where(and(eq(matches.seasonId, competitionId), or(isNull(matches.scheduledAt), and(gte(matches.scheduledAt, from), lte(matches.scheduledAt, to))))).orderBy(asc(matches.scheduledAt), asc(matches.id)).limit(501);
     if (rows.length > 500) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛程窗口过大，请缩小日期范围。");
@@ -127,6 +130,7 @@ export async function loadMizarScheduleWindow(competitionId: string, from: Date,
 
 /** Internal provider adapter. A future transport must authorize this exact match before calling. */
 export async function loadUnassociatedMizarDocumentInTx(tx: TxDb, matchId: string) {
+  recordMizarFullBuild("match");
   const [match] = await tx.select({
     id: matches.id, executionContext: matches.executionContext, resultDisposition: matches.resultDisposition,
     status: matches.status, format: matches.format, scheduledAt: matches.scheduledAt,

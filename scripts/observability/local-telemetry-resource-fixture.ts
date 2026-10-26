@@ -1,3 +1,4 @@
+import { setTimeout as delay } from "node:timers/promises";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -19,7 +20,9 @@ const uuid = (seed: string) => {
 };
 
 /** Real Worker/D1 behind a temporary loopback TLS endpoint; never a hosted collector. */
-export async function createLocalTelemetryResourceFixture(directory: string, seed: string) {
+export async function createLocalTelemetryResourceFixture(directory: string, seed: string, ioDelayMs = 0) {
+  if (!Number.isInteger(ioDelayMs) || ioDelayMs < 0 || ioDelayMs > 1000) throw new Error("BOUNDED_LOCAL_IO_DELAY_REQUIRED");
+  let delayedRequests = 0;
   const key = resolve(directory, "telemetry.key");
   const cert = resolve(directory, "telemetry.pem");
   execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", key, "-out", cert,
@@ -32,6 +35,7 @@ export async function createLocalTelemetryResourceFixture(directory: string, see
   const server = createServer({ key: readFileSync(key), cert: readFileSync(cert) }, (request, response) => {
     void (async () => {
       const path = new URL(request.url ?? "/", "https://fixture.invalid").pathname;
+      if (ioDelayMs && delayedRequests < 4) { delayedRequests++; await delay(ioDelayMs); }
       const result = await worker.dispatchFetch(`https://fixture.invalid${request.url}`, {
         method: request.method, headers: { authorization: request.headers.authorization ?? "" },
       });
@@ -70,6 +74,7 @@ export async function createLocalTelemetryResourceFixture(directory: string, see
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("LOCAL_TLS_ADDRESS_UNAVAILABLE");
     return { workerHash: createHash("sha256").update(bundle.outputFiles[0].text).digest("hex"), endpoint: `https://127.0.0.1:${address.port}/v1/batches`, secret: bindings.ADMIN_KEY, ca: cert, requests,
+      ioDelay: () => ({ delayMs: ioDelayMs, delayedRequests }),
       async close() { server.closeAllConnections(); await new Promise<void>(done => server.close(() => done())); await worker.dispose(); } };
   } catch (error) { if (server.listening) { server.closeAllConnections(); server.close(); } await worker.dispose(); throw error; }
 }

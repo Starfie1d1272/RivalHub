@@ -5,6 +5,8 @@ import { getHeapStatistics } from "node:v8";
 import { context, ROOT_CONTEXT } from "@opentelemetry/api";
 import { databaseRuntimeSlot } from "@/db/runtime-owner";
 import { logEvent } from "./logger";
+import { getCgroupMemorySnapshot } from "./runtime-cgroup";
+import { getReadBudgetSnapshot } from "./read-budget";
 import { getRuntimeResourceSnapshot } from "./runtime-resources";
 
 interface RuntimeHealthSnapshot {
@@ -84,6 +86,15 @@ export function startRuntimeHealthSampling(): () => void {
           safeContext: { ...snapshot, eventLoopUtilization: window.utilization,
             eventLoopDelayP99Ms: delay.count ? delay.percentile(99) / 1e6 : 0,
             eventLoopDelayMaxMs: delay.count ? delay.max / 1e6 : 0 } });
+        logEvent({ event: "runtime.cgroup.sample", scope: "runtime", operation: "health.sample",
+          safeContext: getCgroupMemorySnapshot() });
+        const budget = getReadBudgetSnapshot();
+        for (const { family, ...value } of budget.mizar) {
+          if (value.requests || value.fullBuilds) logEvent({ event: "runtime.read.sample", scope: "runtime",
+            operation: `mizar.${family}`, safeContext: value });
+        }
+        logEvent({ event: "runtime.read.sample", scope: "runtime",
+          operation: "bet.aggregate_fallback", safeContext: { count: budget.betFallbacks } });
         const pool = databaseRuntimeSlot().snapshot();
         if (pool) {
           logEvent({ event: "runtime.pool.sample", scope: "runtime", operation: "pool.sample", safeContext: {
@@ -91,6 +102,10 @@ export function startRuntimeHealthSampling(): () => void {
             generation: pool.generation, retiringTotal: pool.retiring.total,
           } });
           const { acquire, client } = pool;
+          logEvent({ event: "runtime.pool.query", scope: "runtime", operation: "pool.sample", safeContext: {
+            generation: pool.generation, count: client.queries, failures: client.failures,
+            returnedRows: client.rows, queryMs: client.queryMs, unsupported: client.unsupported,
+          } });
           logEvent({ event: "runtime.pool.acquire", scope: "runtime", operation: "pool.sample", safeContext: {
             generation: pool.generation, count: acquire.count, failures: acquire.failures,
             totalMs: acquire.totalMs, maxMs: acquire.maxMs, reuse: acquire.states.reuse,

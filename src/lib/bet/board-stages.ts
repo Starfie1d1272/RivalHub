@@ -1,4 +1,5 @@
 import "server-only";
+import { recordBetAggregateFallback } from "@/lib/observability/read-budget";
 import { traceOperation } from "@/lib/observability/server";
 import { getBetPublicStats } from "./public-stats-cache";
 import { completeUnifiedBetSnapshot, type readUnifiedBetSnapshot, type UnifiedBoardScope } from "./board-read";
@@ -19,5 +20,6 @@ export async function readBetBoardStages<T extends {board:Snapshot}>(
   const [stats,data] = await Promise.all([getBetPublicStats(season,scope),read("deferred")]);
   const board = completeUnifiedBetSnapshot(data.board,stats);
   if (board) return {...data,board};
+  recordBetAggregateFallback();
   return traceOperation("bet.board.aggregate_fallback",{scope:"bet",operation:"board",stage:"read"},()=>read(undefined));
 }
