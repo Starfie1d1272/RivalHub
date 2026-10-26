@@ -3,7 +3,7 @@ import { analysisDefaults, analysisFields, parseAnalysisQuery, type AnalysisFilt
 /** Browser/page defaults only; Worker and CLI retain the shared seven-day contract. */
 export const uiAnalysisDefaults: AnalysisFilters = { ...analysisDefaults, hours: "24" };
 export function parseUIAnalysisQuery(input: Record<string, unknown>) {
-  return parseAnalysisQuery({ hours: uiAnalysisDefaults.hours, ...input });
+  return parseAnalysisQuery({ ...input, hours: input.hours === undefined ? uiAnalysisDefaults.hours : input.hours });
 }
 export const analysisSections = [["overview", "产品概况"], ["tasks", "用户任务"], ["experience", "页面体验"], ["problems", "问题排查"], ["workflows", "业务流程"], ["history", "长期趋势"], ["quality", "数据质量"]] as const;
 export const isLongWindow = (filters: AnalysisFilters) => filters.from

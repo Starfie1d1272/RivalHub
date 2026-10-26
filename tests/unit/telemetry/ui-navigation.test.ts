@@ -6,6 +6,7 @@ import { analysisHref, isLongWindow, parseUIAnalysisQuery, uiAnalysisDefaults } 
 it("round-trips UI defaults, six hours, seven days, and explicit custom ranges", () => {
   expect(analysisDefaults.hours).toBe("168");
   expect(parseUIAnalysisQuery({})?.filters.hours).toBe("24");
+  expect(parseUIAnalysisQuery({ hours: undefined })?.filters.hours).toBe("24");
   for (const hours of ["6", "24", "168"]) {
     const filters = { ...uiAnalysisDefaults, hours };
     const href = new URL(analysisHref(filters), "http://local");
