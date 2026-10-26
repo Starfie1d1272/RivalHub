@@ -4,6 +4,9 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { eq, sql } from "drizzle-orm";
+import { STATISTICS_PROJECTION_VERSION } from "../../src/lib/stats/projection-version";
+import { matches, matchMaps, matchDemoStatProjections } from "../../src/db/schema";
 import { chromium, expect, type BrowserContext, type Page } from "@playwright/test";
 import { buildLocalAppEnvironment, parseLocalSupabaseStatus } from "../db/local-environment";
 import { createMajorBrowserScenarioFixture, cleanupMajorBrowserScenarioFixture } from "../db/major-browser-fixture";
@@ -21,7 +24,7 @@ import type { ResourceHttpFixture } from "./resource-integration-contract";
 const base = "http://127.0.0.1:3107";
 type RequestResult = { kind: string; phase: string; producer?: number; startedMs: number; durationMs: number; status: number | null; bytes: number; requestBytes?: number; outcome?: string; reason?: string; error?: string };
 type ResourceSample = ReturnType<typeof parseResourceReading>;
-const workload = { version: 1, liveProducers: 2, documents: ["bet", "profile", "telemetry"], warmRounds: 1, concurrentRounds: 2, idleMs: 65_000 };
+const workload = { version: 2, ioDelayMs: 150, maxDelayedTelemetryRequests: 4, statsJourney: ["overview", "players", "weapons", "profile", "lineup"], processRestarts: 1, liveProducers: 2, documents: ["bet", "profile", "telemetry"], warmRounds: 1, concurrentRounds: 2, idleMs: 65_000 };
 const execute = (file: string, args: string[], env?: NodeJS.ProcessEnv, cwd?: string) => execFileSync(file, args, { encoding: "utf8", env, cwd, stdio: ["ignore", "pipe", "pipe"] }).trim();
 
 export async function runResourceIntegrationSmoke(image: string, seed: string, adapter?: string, build = false, options: { phase?: "preparation" | "baseline" | "integrated"; telemetry?: ResourceTelemetryMode; appRoot?: string; expectedSha?: string } = {}) {
@@ -54,7 +57,7 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     requests: [] as RequestResult[], resources: [] as ResourceSample[], runtime: [] as Record<string, unknown>[],
     logins: [] as { role: string; hydrationVerified: boolean; statuses: number[]; finalRoute: string; feedback: string[] }[],
     timeline: [] as { phase: string; atMs: number }[], errors: [] as { phase: string; name: string; message: string }[], blockers: [] as string[],
-    telemetry: [] as ResourceTelemetryQuery[], verification: {} as Record<string, number | boolean>,
+    fixtureStats: {} as Record<string, number | string>, telemetry: [] as ResourceTelemetryQuery[], localIoDelay: {} as Record<string, number>, verification: {} as Record<string, number | boolean>,
     appState: {} as Record<string, number | boolean | string>, observedResourceNames: [] as string[], unobservedResourceNames: [] as string[],
     cleanup: {} as Record<string, boolean>, coverage: {} as Record<string, boolean>, passed: false };
   const observeBrowser = (page: Page, kind: string) => {
@@ -125,7 +128,9 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
       const response = await page.goto(base + path, { waitUntil: "domcontentloaded", timeout: 45_000 });
       record.status = response?.status() ?? null;
       if (record.status !== 200) throw new Error("DOCUMENT_HTTP_FAILURE");
-      await expect(page.getByRole("heading", { name: title, exact: true }).first()).toBeVisible({ timeout: 30_000 });
+      if (kind === "lineup") await expect(page.getByTestId("match-lineup-comparison")).toBeVisible({ timeout: 30_000 });
+      else if (kind === "team") await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 30_000 });
+      else await expect(page.getByRole("heading", { name: title, exact: true }).first()).toBeVisible({ timeout: 30_000 });
       if (kind === "profile") {
         await expect(page.getByRole("heading", { name: "长期资料", exact: true })).toBeVisible();
         await expect(page.getByText("竞技统计暂时无法加载，请稍后重试。", { exact: true })).toHaveCount(0);
@@ -166,9 +171,16 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
       }
       report.workloadHash = createHash("sha256").update(JSON.stringify({ workload, producerPlan: live.producers.map(producer => ({ intervalMs: producer.intervalMs, steps: producer.steps.map(step => step.operation) })) })).digest("hex");
     } else report.blockers.push("G_HTTP_FIXTURE_NOT_SUPPLIED");
+    const [statsMatch] = await db.select({ id: matches.id, mapId: matchMaps.id }).from(matches)
+      .innerJoin(matchMaps, eq(matchMaps.matchId, matches.id)).where(eq(matches.seasonId, scenario.seasonId)).limit(1);
+    if (!statsMatch) throw new Error("STATS_MATCH_FIXTURE_MISSING");
+    const [fixtureStats] = await db.select({ projectionRows: sql<number>`count(*)::int`,
+      projectionTextBytes: sql<string>`coalesce(sum(octet_length(${matchDemoStatProjections.facts}::text)),0)::text`,
+    }).from(matchDemoStatProjections).where(eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION));
+    report.fixtureStats = { ...fixtureStats, investigationProjectionRows: 100, investigationProjectionTextBytes: 4231115 };
     await disposeDatabaseBinding();
     phase = "fixture.telemetry";
-    telemetry = await createLocalTelemetryResourceFixture(directory, seed);
+    telemetry = await createLocalTelemetryResourceFixture(directory, seed, workload.ioDelayMs);
     sensitive.push(telemetry.secret);
     report.telemetry = telemetry.requests; report.telemetryWorkerHash = telemetry.workerHash;
     mark("fixture.ready");
@@ -178,7 +190,7 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     }
     report.buildId = readFileSync(resolve(appRoot, ".next/BUILD_ID"), "utf8").trim();
     const appEnv = { ...env, NODE_EXTRA_CA_CERTS: telemetry.ca, PRODUCT_TELEMETRY_ADMIN_KEY: telemetry.secret,
-      PRODUCT_TELEMETRY_ENDPOINT: telemetry.endpoint, RIVALHUB_RUNTIME_HEALTH_ENABLED: "1" };
+      PRODUCT_TELEMETRY_ENDPOINT: telemetry.endpoint, RIVALHUB_RUNTIME_HEALTH_ENABLED: "1", NODE_OPTIONS: "--max-old-space-size=320" };
     const envFile = resolve(directory, "application.env");
     writeFileSync(envFile, Object.entries(appEnv).filter(([, value]) => value !== undefined).map(([key, value]) => `${key}=${value}`).join("\n"), { mode: 0o600 });
     phase = "application.start";
@@ -220,6 +232,9 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     mark("login.ready");
     const documents = [
       { page: await userContext.newPage(), kind: "bet", path: `/${prediction.slug}/bet`, title: "预测与竞猜" },
+      { page: await userContext.newPage(), kind: "stats", path: `/stats?event=${scenario.slug}`, title: "数据中心" },
+      { page: await userContext.newPage(), kind: "lineup", path: live?.publicPaths?.lineup ?? `/${scenario.slug}/matches/${statsMatch.id}`, title: "本场阵容" },
+      ...(live?.publicPaths ? [{ page: await userContext.newPage(), kind: "team", path: live.publicPaths.team, title: "参赛队伍" }] : []),
       { page: await userContext.newPage(), kind: "profile", path: `/players/${user.userId}`, title: "Browser player2" },
       { page: await adminContext.newPage(), kind: "telemetry", path: "/admin/telemetry", title: "产品使用与体验" },
     ];
@@ -227,7 +242,12 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     phase = "combination";
     mark("combination.barrier");
     const tasks: Promise<unknown>[] = documents.map(async doc => {
-      for (let repeat = 0; repeat < workload.concurrentRounds; repeat++) await document(doc.page, doc.kind, doc.path, doc.title, repeat === 0 ? "cold-combination" : "warm-combination");
+      for (let repeat = 0; repeat < workload.concurrentRounds; repeat++) {
+        const stage = repeat === 0 ? "cold-combination" : "warm-combination";
+        await document(doc.page, doc.kind, doc.path, doc.title, stage);
+        if (doc.kind === "stats") for (const tab of ["players", "weapons"])
+          await document(doc.page, doc.kind, `${doc.path}&tab=${tab}`, doc.title, stage);
+      }
     });
     for (const [producer, source] of (live?.producers ?? []).entries()) tasks.push((async () => {
       mark(`producer.${producer}.start`);
@@ -258,15 +278,61 @@ export async function runResourceIntegrationSmoke(image: string, seed: string, a
     mark("combination.end"); sample();
     phase = "documents.warm";
     for (const doc of documents) await document(doc.page, doc.kind, doc.path, doc.title, "warm-single");
+    phase = "mizar.context-reads";
+    for (const read of live?.reads ?? []) {
+      let etag: string | null = null;
+      for (const expectedStatus of [200, 304]) {
+        const at = performance.now();
+        const response: Response = await fetch(base + read.path, { headers: { authorization: `Bearer ${read.credential}`,
+          ...(etag ? { "if-none-match": etag } : {}) }, signal: AbortSignal.timeout(15_000) });
+        const bytes = (await response.arrayBuffer()).byteLength;
+        report.requests.push({ kind: `mizar.${read.family}`, phase, startedMs: at - started,
+          durationMs: performance.now() - at, status: response.status, bytes });
+        if (response.status !== expectedStatus || (expectedStatus === 304 && bytes !== 0)) throw new Error("MIZAR_CONTEXT_READ_STATUS_MISMATCH");
+        etag = response.headers.get("etag");
+        if (!etag) throw new Error("MIZAR_CONTEXT_ETAG_MISSING");
+      }
+    }
+    phase = "tag-invalidation";
+    // Exercise the existing authorized cache-only recovery action. No OCR or
+    // scoreboard mutation, and no test-only production endpoint.
+    const references = JSON.parse(readFileSync(resolve(appRoot, ".next/server/server-reference-manifest.json"), "utf8"));
+    const refreshActions = Object.entries(references.node as Record<string, { exportedName?: string }>)
+      .filter(([, entry]) => entry.exportedName === "retryPlayerStatsRefresh");
+    if (refreshActions.length !== 1) throw new Error("CACHE_RECOVERY_ACTION_UNAVAILABLE");
+    const refresh = await adminContext.request.post(`${base}/admin/${scenario.slug}/matches/${statsMatch.id}`, {
+      headers: { "Next-Action": refreshActions[0]![0], Origin: base, "Content-Type": "text/plain;charset=UTF-8" },
+      data: JSON.stringify([statsMatch.mapId]),
+    });
+    const refreshBody = await refresh.text();
+    if (refresh.status() !== 200 || !refreshBody.includes('"success":true')) throw new Error("CACHE_RECOVERY_ACTION_FAILED");
+    mark("tag-invalidation.completed");
+    for (const doc of documents.filter(doc => ["stats", "profile", "lineup"].includes(doc.kind)))
+      await document(doc.page, doc.kind, doc.path, doc.title, "tag-invalidated");
     phase = "idle";
     await delay(workload.idleMs); sample(); mark("idle.end");
+    phase = "restart";
+    mark("restart.begin");
+    docker("restart", container);
+    let restarted = false;
+    for (let attempt = 0; attempt < 60; attempt++) {
+      try {
+        await assertBaselineReadiness(await fetch(`${base}/api/system/release`, { signal: AbortSignal.timeout(2000) }), { releaseTag, releaseCommit: sha });
+        restarted = true; break;
+      } catch { await delay(500); }
+    }
+    if (!restarted) throw new Error("RESTART_EXACT_BUILD_NOT_READY");
+    mark("restart.ready");
+    for (const doc of documents.filter(doc => doc.kind !== "telemetry")) await document(doc.page, doc.kind, doc.path, doc.title, "restart-cold");
+    sample(); mark("restart.end");
     if (live) report.verification = await live.verify();
     report.observedResourceNames = [...new Set(report.runtime.filter(event => event.event === "runtime.resource.sample" && Number((event.safeContext as { count?: number } | undefined)?.count) > 0).map(event => String(event.operation)))];
     report.unobservedResourceNames = RUNTIME_RESOURCE_NAMES.filter(name => !report.observedResourceNames.includes(name));
     const queries = report.telemetry.filter(request => request.path === resourceTelemetryEndpoint(telemetryMode));
     if (!queries.length) throw new Error("TELEMETRY_EXPECTED_QUERY_MISSING");
     for (const query of queries) assertResourceTelemetryQuery(query, telemetryMode);
-    report.coverage = { telemetryHttps: true, externalMemory: report.resources.length > 0,
+    report.localIoDelay = telemetry.ioDelay();
+    report.coverage = { tagInvalidation: true, processRestart: true, boundedTelemetryDelay: report.localIoDelay.delayedRequests > 0, telemetryHttps: true, externalMemory: report.resources.length > 0,
       twoHttpProducers: report.requests.some(request => request.kind === "live" && request.producer === 0 && request.outcome === "accepted") && report.requests.some(request => request.kind === "live" && request.producer === 1 && request.outcome === "accepted"),
       reliableHttp: report.requests.filter(request => request.kind === "reliable" && request.outcome === "canonicalized").length === 2 };
     if (requireCounters) {

@@ -3,9 +3,9 @@ import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ResourceHttpFixture, ResourceHttpStep } from "./resource-integration-contract";
 
-type ManifestProducer = { credential: string; fixture: { authorityRevision: number; matchId: string };
+type ManifestProducer = { credential: string; fixture: { authorityRevision: number; matchId: string; entryAId: string };
   liveTemplate: { producedAt: string; cursor: { runtimeSeq: number } }; reliableEnvelope: unknown };
-type Manifest = { schemaVersion: string; expiresAt: string; producers: ManifestProducer[] };
+type Manifest = { schemaVersion: string; fixtureId: string; expiresAt: string; producers: ManifestProducer[] };
 
 /** Consumes G's complete checkout/CLI. Never copies its seed, authority or cleanup rules. */
 export async function createMizarResourceDriver(worktree: string, path: string, env: NodeJS.ProcessEnv): Promise<ResourceHttpFixture & { sourceSha: string }> {
@@ -36,7 +36,14 @@ export async function createMizarResourceDriver(worktree: string, path: string, 
     const assertFresh = () => { if (Date.now() >= Date.parse(manifest.expiresAt)) throw new Error("G_FIXTURE_WINDOW_EXPIRED"); };
     assertFresh();
     command("verify");
-    return { sourceSha, producers: manifest.producers.map(producer => {
+    const from = new Date(Date.now() - 86400_000).toISOString();
+    const to = new Date(Date.now() + 86400_000).toISOString();
+    const first = manifest.producers[0]!;
+    const slug = `mizar-http-${manifest.fixtureId}-1`;
+    return { sourceSha, publicPaths: { lineup: `/${slug}/matches/${first.fixture.matchId}`, team: `/${slug}/teams/${first.fixture.entryAId}` }, reads: manifest.producers.flatMap(producer => [
+      { family: "match" as const, path: `/api/mizar/match?matchId=${producer.fixture.matchId}`, credential: producer.credential },
+      { family: "schedule" as const, path: `/api/mizar/schedule?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, credential: producer.credential },
+    ]), producers: manifest.producers.map(producer => {
       const steps: ResourceHttpStep[] = Array.from({ length: 4 }, (_, index) => ({ operation: "live", authorityRevision: producer.fixture.authorityRevision,
         body(now) { assertFresh(); const frame = structuredClone(producer.liveTemplate); frame.producedAt = now; frame.cursor.runtimeSeq = index + 1; return frame; },
         check(status, body) {

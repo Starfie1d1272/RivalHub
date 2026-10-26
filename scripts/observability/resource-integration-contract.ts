@@ -7,6 +7,8 @@ export interface ResourceHttpStep {
 }
 
 export interface ResourceHttpFixture {
+  publicPaths?: { lineup: string; team: string };
+  reads?: readonly { family: "match" | "schedule"; path: string; credential: string }[];
   producers: readonly { credential: string; intervalMs: number; steps: readonly ResourceHttpStep[] }[];
   verify(requireReceipts?: boolean): Promise<Record<string, number | boolean>>;
   cleanup(): Promise<void>;

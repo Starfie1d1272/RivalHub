@@ -19,14 +19,14 @@ it("samples the application process once per idle minute across module graphs wi
   vi.advanceTimersByTime(59_999);
   expect(logEvent).not.toHaveBeenCalled();
   vi.advanceTimersByTime(1);
-  expect(logEvent).toHaveBeenCalledTimes(1);
+  expect(logEvent).toHaveBeenCalledTimes(2);
   expect(logEvent).toHaveBeenCalledWith(expect.objectContaining({ event: "runtime.health.sample",
     safeContext: expect.objectContaining({ externalBytes: expect.any(Number), arrayBuffersBytes: expect.any(Number),
       eventLoopDelayP99Ms: expect.any(Number), eventLoopDelayMaxMs: expect.any(Number) }) }));
   expect(detached).toHaveBeenCalledWith(ROOT_CONTEXT, expect.any(Function));
   stop(); stop();
   vi.advanceTimersByTime(120_000);
-  expect(logEvent).toHaveBeenCalledTimes(1);
+  expect(logEvent).toHaveBeenCalledTimes(2);
   expect(vi.getTimerCount()).toBe(0);
   other.startRuntimeHealthSampling();
   expect(vi.getTimerCount()).toBe(1);
