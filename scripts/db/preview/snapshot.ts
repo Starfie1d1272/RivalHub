@@ -1,6 +1,6 @@
 import { postgresConnection } from "../../../src/db/postgres-connection";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { Pool, type PoolClient } from "pg";
 import { createClient } from "@supabase/supabase-js";
@@ -12,6 +12,8 @@ import {
   previewPolicyFor,
   sanitizedRequiredFields,
 } from "./policy";
+import { githubRunId, measureExportRows, reportOfflineConsumer, type OfflineConsumerSummary } from "../recovery/accounting";
+import { PRODUCTION_PROJECT_REF } from "../recovery/environment";
 import { sourceDatabaseUrl } from "./environment";
 import { type PersonaCandidates } from "./personas";
 import {
@@ -53,7 +55,7 @@ export async function runPreviewExportPhase<T>(phase: PreviewExportPhase, operat
   }
 }
 
-export async function exportMirror(): Promise<MirrorSnapshot> {
+export async function exportMirror(accounting?: Pick<OfflineConsumerSummary, "tables" | "storage_download_bytes">): Promise<MirrorSnapshot> {
   const databaseUrl = await runPreviewExportPhase("source DB connection", async () => sourceDatabaseUrl());
   const identity = await runPreviewExportPhase("source identity", () => resolveProductionSourceIdentity());
   const pool = new Pool({ ...postgresConnection(databaseUrl), max: 1 });
@@ -104,6 +106,7 @@ export async function exportMirror(): Promise<MirrorSnapshot> {
       for (const table of Object.keys(policy.tables)) {
         try {
           exported[table] = (await client!.query(exportQuery(table, policy))).rows;
+          if (accounting?.tables) accounting.tables[table] = measureExportRows(exported[table]);
         } catch (error) {
           throw new PreviewMirrorError("PREVIEW_TABLE_EXPORT_FAILED", "Preview table export failed.", {
             cause: error,
@@ -135,7 +138,7 @@ export async function exportMirror(): Promise<MirrorSnapshot> {
     });
     const assets = await runPreviewExportPhase("public asset export", async () => {
       try {
-        return await exportPublicAssets(tables, allowedSeasonAssets);
+        return await exportPublicAssets(tables, allowedSeasonAssets, accounting);
       } catch (error) {
         if (error instanceof PreviewMirrorError) throw error;
         throw new PreviewMirrorError("PREVIEW_ASSET_EXPORT_FAILED", "Preview public asset export failed.", {
@@ -188,9 +191,10 @@ export async function selectPersonaCandidates(client: Pick<PoolClient, "query">,
   return { currentSeasonId: seasonId, playerUserId: participant, invitedUserId: invited, captainUserId: captain, seasonAdminUserId: seasonAdmin, superAdminUserId: superAdmin };
 }
 
-async function exportPublicAssets(tables: MirrorSnapshot["tables"], allowlistedSeasonAssets: Set<string>): Promise<MirrorAsset[]> {
+async function exportPublicAssets(tables: MirrorSnapshot["tables"], allowlistedSeasonAssets: Set<string>, accounting?: Pick<OfflineConsumerSummary, "storage_download_bytes">): Promise<MirrorAsset[]> {
   const secret = process.env.SUPABASE_SECRET_KEY;
   if (!secret) return [];
+  if (accounting) accounting.storage_download_bytes = 0;
   const supabaseUrl = process.env.RIVALHUB_PRODUCTION_SUPABASE_URL ?? "https://eurxkguokrkvpcsmxuru.supabase.co";
   const client = createClient(supabaseUrl, secret, { auth: { persistSession: false, autoRefreshToken: false } });
   const refs = new Map<string, MirrorAsset["bucket"]>();
@@ -220,6 +224,7 @@ async function exportPublicAssets(tables: MirrorSnapshot["tables"], allowlistedS
     if (!/^(image\/(?:png|jpe?g|webp)|application\/pdf)$/i.test(contentType)) throw new Error("Preview mirror rejected non-public asset type.");
     assets.push({ bucket: bucket as MirrorAsset["bucket"], path, contentType, sha256: createHash("sha256").update(bytes).digest("hex"), data: bytes.toString("base64") });
     total += bytes.length;
+    if (accounting) accounting.storage_download_bytes = total;
   }
   return assets;
 }
@@ -329,8 +334,21 @@ export function writeMirrorSnapshot(path: string, snapshot: MirrorSnapshot): voi
 }
 
 if (process.argv[1]?.endsWith("preview/snapshot.ts")) {
-  exportMirror().then((snapshot) => {
+  const startedAt = new Date().toISOString();
+  const accounting: Pick<OfflineConsumerSummary, "tables" | "storage_download_bytes"> = { tables: {}, storage_download_bytes: null };
+  exportMirror(accounting).then((snapshot) => {
     return runPreviewExportPhase("snapshot write", async () => writeMirrorSnapshot(process.argv[2], snapshot)).then(() => {
+      const tables = accounting.tables!;
+      reportOfflineConsumer({
+        format: 1, consumer: "preview", run_id: githubRunId(), github_run_id: githubRunId(),
+        release: snapshot.sourceTag, source_project: PRODUCTION_PROJECT_REF,
+        started_at: startedAt, ended_at: new Date().toISOString(), status: "exported",
+        rows: Object.values(tables).reduce((sum, table) => sum + table.rows, 0),
+        logical_payload_bytes: Object.values(tables).reduce((sum, table) => sum + table.logical_payload_bytes, 0),
+        dump_file_bytes: null, snapshot_file_bytes: statSync(process.argv[2]).size,
+        compressed_artifact_bytes: null, storage_download_bytes: accounting.storage_download_bytes,
+        storage_objects: accounting.storage_download_bytes === null ? null : snapshot.assets.length, tables,
+      });
       console.log(`Mirror export verified: source=${snapshot.sourceTag} commit=${snapshot.sourceCommit} tables=${Object.keys(snapshot.tables).length} assets=${snapshot.assets.length}`);
     });
   }).catch((error: unknown) => {

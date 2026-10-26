@@ -57,6 +57,21 @@ backup/
 
 DB-only release checkpoint 使用 `artifactKind=db-checkpoint` 与 `backupClass=release-db`，只包含 logical database dump、manifest/checksum、encrypted artifact、sidecar 与 completion marker；artifact 中没有 Storage snapshot，也不连接 Supabase Storage。`db:recovery:restore` 只接受 `artifactKind=full`，DB-only 产物必须使用显式的 `db:recovery:restore-db-checkpoint` 数据库恢复/验证 contract，不能把“未采集 Storage”伪装成空 Storage snapshot。`daily`、`manual` 和按需 `pre-release` artifact 才包含真实 Storage inventory/object copy，并使用 `artifactKind=full`。
 
+## 离线消费者安全计量
+
+计量输出为 best-effort：输出或 Step Summary 写入失败只尝试记录固定 `offline_consumer_accounting_unavailable` warning，不输出原始错误/路径，不把已完成的 artifact/read-back 或 snapshot 改判为失败。真实 dump、备份、read-back、export 或落盘错误仍遵循原失败门禁。
+
+成功完成 canonical artifact 的 R2 read-back 后，artifact owner 将已有 manifest 投影为 `offline_consumer_summary` JSON，并写入 GitHub Step Summary。只输出 consumer、run/GitHub run、source release/project、开始/结束时间、`exported` 状态与聚合数字；不输出 SQL/业务行、Auth hash、文件 checksum、对象路径或 credential。它不新增 dump、COUNT 或业务 SELECT，也不改变 full/checkpoint、retention、guard 或 completion contract。
+
+| 字段 | Recovery 口径 |
+| --- | --- |
+| `dump_file_bytes` | manifest 中 roles/schema/data 三个未压缩 SQL 文件的 bytes 之和，包含 COPY 转义与文件语法 |
+| `compressed_artifact_bytes` | 同次已验证的最终 `.tar.gz.age` 文件 bytes，含压缩和加密开销 |
+| `storage_download_bytes` / `storage_objects` | full manifest 已捕获对象的 bytes/count；DB-only 未采集，写 `null` |
+| `rows` / `logical_payload_bytes` / `snapshot_file_bytes` / `tables` | recovery 没有对应既有计量，写 `null`，不解析 dump 或补查生产 |
+
+这些数字分别描述文件、逻辑数据或对象内容，均不是供应商计费 Egress；不含 PostgreSQL/HTTP/TLS framing、重试、R2 read-back 等网络开销，不能相加推导官方账单。Preview 的同格式计量见 [Preview mirror](./preview-mirror.md#离线消费者安全计量)。生产费用改善仍需同负载窗口与供应商账单独立验收。
+
 ## Storage policy 与 retention 语义
 
 Storage inventory 只接受 `STANDARD` bucket，并且每个 bucket 必须命中以下 registry；缺失 type、unsupported type 或未知 bucket 一律 fail closed：
