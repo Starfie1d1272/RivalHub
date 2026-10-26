@@ -4,7 +4,8 @@ import { mizarAuditActorId } from "@/lib/audit/people";
 import { randomBytes } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, type TxDb } from "@/db/client";
-import { mizarInstallations, mizarPairingIntents, matchLiveSessions, seasons, users } from "@/db/schema";
+import { mizarInstallations, mizarPairingIntents, matchLiveSessions, seasons, users, steamProfiles } from "@/db/schema";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { hashOpaque, pairingProof, PAIRING_TTL_MS } from "@/lib/integrations/pairing-security";
@@ -21,7 +22,7 @@ export interface MizarPairingStart {
 
 export type MizarPairingPoll =
   | { status: "pending"; expiresAt: string }
-  | { status: "authorized"; expiresAt: string; installationId: string; competitionId: string; credential: string; displayName: string }
+  | { status: "authorized"; expiresAt: string; installationId: string; competitionId: string; credential: string; displayName: string; authorizedUser?: { userId: string; displayName: string } }
   | { status: "expired"; expiresAt: string };
 
 function installationCredential(intentId: string, pollTokenHash: string): string {
@@ -80,10 +81,14 @@ export async function pollMizarPairing(pairingId: string, pollToken: string): Pr
       id: mizarInstallations.id,
       competitionId: mizarInstallations.competitionId,
       revokedAt: mizarInstallations.revokedAt,
+      userId: users.id,
       displayName: users.displayName,
+      perfectName: users.perfectName,
+      personaName: steamProfiles.personaName,
     })
     .from(mizarInstallations)
     .innerJoin(users, eq(users.id, mizarInstallations.authorizedByUserId))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
     .where(eq(mizarInstallations.pairingIntentId, intent.id));
   if (!installation || installation.revokedAt) throw new AppError(ErrorCode.FORBIDDEN, "Mizar 连接已撤销。");
   if (!intent.deliveredAt) await db.update(mizarPairingIntents).set({ deliveredAt: new Date() }).where(and(eq(mizarPairingIntents.id, intent.id), isNull(mizarPairingIntents.deliveredAt)));
@@ -94,6 +99,7 @@ export async function pollMizarPairing(pairingId: string, pollToken: string): Pr
     competitionId: installation.competitionId,
     credential: installationCredential(intent.id, tokenHash),
     displayName: installation.displayName?.trim() || "赛事管理员",
+    authorizedUser: { userId: installation.userId, displayName: getPublicDisplayName(installation) },
   };
 }
 
@@ -106,7 +112,12 @@ export function readMizarCredentialHash(authorization: string | null): string {
 
 export async function authenticateMizar(authorization: string | null, options: { allowRevoked?: boolean } = {}) {
   const credentialHash = readMizarCredentialHash(authorization);
-  const [installation] = await db.select().from(mizarInstallations).where(eq(mizarInstallations.credentialHash, credentialHash));
+  const [installation] = await db.select({
+    id: mizarInstallations.id,
+    competitionId: mizarInstallations.competitionId,
+    revokedAt: mizarInstallations.revokedAt,
+    authorizedByUserId: mizarInstallations.authorizedByUserId,
+  }).from(mizarInstallations).where(eq(mizarInstallations.credentialHash, credentialHash));
   if (!installation) throw new AppError(ErrorCode.FORBIDDEN, "制播设备凭据无效。");
   if (!options.allowRevoked && installation.revokedAt !== null) {
     throw new AppError(ErrorCode.FORBIDDEN, "制播设备连接已撤销。");
@@ -115,7 +126,7 @@ export async function authenticateMizar(authorization: string | null, options: {
 }
 
 export async function assertInstallationInTx(tx: TxDb, installationId: string, competitionId: string) {
-  const [installation] = await tx.select().from(mizarInstallations).where(and(eq(mizarInstallations.id, installationId), eq(mizarInstallations.competitionId, competitionId), isNull(mizarInstallations.revokedAt))).for("share");
+  const [installation] = await tx.select({ id: mizarInstallations.id }).from(mizarInstallations).where(and(eq(mizarInstallations.id, installationId), eq(mizarInstallations.competitionId, competitionId), isNull(mizarInstallations.revokedAt))).for("share");
   if (!installation) throw new AppError(ErrorCode.FORBIDDEN, "制播设备连接已撤销。");
   return installation;
 }
