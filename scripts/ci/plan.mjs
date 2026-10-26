@@ -521,20 +521,15 @@ function resultFor(requiredJobs, full, reason, evidence = {}) {
 }
 
 // Each matrix runner owns its entire local stack. Partition the selected set,
-// never rediscover FULL in an empty shard. Production specs/projects are
-// independent runners so cold stack startup leaves time for each journey.
+// never rediscover FULL in an empty shard. Provider and production checks each
+// run once, independently of browser shards.
 export function systemMatrixFor(plan, liveEvidence) {
   if (!plan.runSystem) return [];
   const specs = plan.full ? browserSpecs() : [...new Set(plan.e2eSpecs)].sort();
   const matrix = [
     { task: "provider", live: liveEvidence, specs: [] },
+    { task: "production", live: false, specs: [] },
   ];
-  for (const spec of browserSpecs("tests/e2e/production")) {
-    for (const project of ["chromium", "mobile-chrome"]) {
-      const name = spec.split("/").at(-1).replace(".spec.ts", "");
-      matrix.push({ task: `production-${name}-${project}`, live: false, specs: [spec], project });
-    }
-  }
   const liveSpec = "tests/e2e/flows/public-match-live.spec.ts";
   // The real stale/recovery window is the longest indivisible browser flow.
   // Keep its runner free of unrelated route compilation and fixture work.
@@ -559,15 +554,12 @@ export function systemMatrixFor(plan, liveEvidence) {
     ["tests/e2e/flows/test-matches.spec.ts", "browser-test-matches"],
   ]);
   for (const [spec, task] of isolated) {
-    if (!specs.includes(spec)) continue;
-    if (task === "browser-match-readiness") {
-      for (const project of ["chromium", "mobile-chrome"]) matrix.push({ task: `${task}-${project}`, live: false, specs: [spec], project });
-    } else matrix.push({ task, live: false, specs: [spec] });
+    if (specs.includes(spec)) matrix.push({ task, live: false, specs: [spec] });
   }
-  // Each view keeps its 9 transport cells on a separate cold-stack runner.
+  // The six view tests preserve 54 cells, but cold CI routes need three lanes.
   const betReadSpec = "tests/e2e/flows/bet-read-stages.spec.ts";
   if (specs.includes(betReadSpec)) {
-    for (const [index, views] of ["open", "mine", "settled", "event", "leaderboard", "records"].entries()) {
+    for (const [index, views] of ["open|mine", "settled|event", "leaderboard|records"].entries()) {
       matrix.push({ task: `browser-bet-read-stages-${index + 1}`, live: false, specs: [betReadSpec], grep: `BET (${views}) ` });
     }
   }
