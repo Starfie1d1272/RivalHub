@@ -93,7 +93,7 @@ export function startRuntimeHealthSampling(): () => void {
           if (value.requests || value.fullBuilds) logEvent({ event: "runtime.read.sample", scope: "runtime",
             operation: `mizar.${family}`, safeContext: value });
         }
-        if (budget.betFallbacks) logEvent({ event: "runtime.read.sample", scope: "runtime",
+        logEvent({ event: "runtime.read.sample", scope: "runtime",
           operation: "bet.aggregate_fallback", safeContext: { count: budget.betFallbacks } });
         const pool = databaseRuntimeSlot().snapshot();
         if (pool) {
