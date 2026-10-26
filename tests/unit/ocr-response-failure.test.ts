@@ -110,8 +110,8 @@ describe("OCR response-body failure boundary", () => {
     fetchProvider.mockResolvedValue(Response.json({ choices: [{ finish_reason: "length", message: { content: "x".repeat(8192) } }],
       usage: { prompt_tokens: key } }, { headers: { "x-siliconcloud-trace-id": `ti_${key}` } }));
     const error = await run().catch((failure: unknown) => failure);
-    expect(error.responseSummary).toMatchObject({ outputRepeatedChunkPercent: 100, promptTokens: undefined });
-    expect(error.responseSummary.providerTraceId).toBeUndefined();
+    expect((error as OCRFailure).responseSummary).toMatchObject({ outputRepeatedChunkPercent: 100, promptTokens: undefined });
+    expect((error as OCRFailure).responseSummary?.providerTraceId).toBeUndefined();
     expect(JSON.stringify(error)).not.toContain(key);
   });
 
