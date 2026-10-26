@@ -20,6 +20,16 @@ it("overlaps isolated public/private reads, preserves all six views and falls ba
   const unjoined=randomUUID();
   await f.db.insert(schema.users).values({id:unjoined,email:`${unjoined}@example.test`,emailVerifiedAt:new Date(),emailVerificationSource:"admin_migration"});
   const match=(await f.db.query.matches.findFirst({where:eq(schema.matches.id,f.matchId)}))!;
+  // Hidden terminal history remains in the shared free-fact signature even
+  // though open market candidates no longer include its options/private rows.
+  const historyMatchId=randomUUID(),historyMarketId=randomUUID();
+  const market=(await f.db.query.betMarkets.findMany({where:eq(schema.betMarkets.matchId,f.matchId)})).find(m=>m.type==="match_winner")!;
+  await f.db.insert(schema.matches).values({id:historyMatchId,seasonId:f.seasonId,entryAId:f.entryIds[0]!,entryBId:f.entryIds[1]!,stage:"stage1",majorStageRunId:match.majorStageRunId,ownership:"major_stage",managedKey:"stage-history",round:1,format:"bo3",status:"finished",scoreA:2,scoreB:0});
+  await f.db.insert(schema.betMarkets).values({...market,id:historyMarketId,matchId:historyMatchId,marketKey:"stage-history"});
+  const choices=await f.db.query.betOptions.findMany({where:eq(schema.betOptions.marketId,market.id)});
+  const historyOptionId=randomUUID();
+  await f.db.insert(schema.betOptions).values(choices.map((option,i)=>({...option,id:i===0?historyOptionId:randomUUID(),marketId:historyMarketId})));
+  await f.db.insert(schema.betSettlements).values({marketId:historyMarketId,revision:1,state:"settled",fingerprint:"stage-history",winningOptionIds:[historyOptionId]});
   const voters=Array.from({length:40},()=>randomUUID());
   await f.db.insert(schema.users).values(voters.map(id=>({id,email:`${id}@example.test`}))); 
   await f.db.insert(schema.freePredictionChoices).values(voters.map((userId,i)=>({seasonId:f.seasonId,matchId:f.matchId,userId,kind:"result" as const,selection:[f.entryIds[i%2]!],subject:{entryIds:f.entryIds as [string,string],runId:match.majorStageRunId!,format:"bo3" as const,mapPool:[]}})));
@@ -55,7 +65,9 @@ it("overlaps isolated public/private reads, preserves all six views and falls ba
           const measure=async(parallel:boolean)=>{
             footprint.forEach(row=>Object.assign(row,{queries:0,rows:0,bytes:0}));publicMs=0;privateMs=0;
             const start=performance.now();
-            const data=parallel?await readBetBoardStages(season,scope,read):await read(skip?undefined:await cache.read());
+            const modes:unknown[]=[];
+            const data=parallel?await readBetBoardStages(season,scope,stats=>{modes.push(stats);return read(stats);}):await read(skip?undefined:await cache.read());
+            if(parallel)expect(modes).toEqual([skip?undefined:"deferred"]);
             const projectionStart=performance.now(),value=projectUnifiedBetBoard(data.board);
             return {value,publicMs,privateMs,projectionMs:performance.now()-projectionStart,wallMs:performance.now()-start,public:{...footprint[0]},private:{...footprint[1]},dtoBytes:Buffer.byteLength(JSON.stringify(value))};
           };

@@ -1,7 +1,7 @@
 import { projectDisplayScore } from "@/lib/matches/display-score";
 import { betOptionEntity } from "./option-entity";
 import "server-only";
-import { and, eq, asc, desc, sql, isNotNull, isNull, inArray } from "drizzle-orm";
+import { and, eq, asc, desc, sql, isNotNull, isNull, inArray, notInArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { betPrograms, betAccounts, betMarkets, betOptions, betStakes, betSettlements, betLedger, users } from "@/db/schema";
 import { betRosterRestriction } from "./admission";
@@ -51,6 +51,7 @@ export async function readBetBoardSnapshot(tx:TxDb,seasonId:string,userId:string
     options.view === "event" ? isNull(betMarkets.matchId) : undefined,
     options.view === "mine" ? account ? inArray(betMarkets.id,tx.select({id:betStakes.marketId}).from(betStakes).where(eq(betStakes.accountId,account.id))) : sql`false` : undefined,
     options.view === "settled" ? inArray(betMarkets.id,tx.select({id:settled.marketId}).from(settled).where(inArray(settled.state,["settled","refunded"]))) : undefined,
+    options.view === "open" ? notInArray(betMarkets.id,tx.select({id:settled.marketId}).from(settled).where(inArray(settled.state,["settled","refunded"]))) : undefined,
     options.matchId?eq(betMarkets.matchId,options.matchId):options.includeEvent===false?isNotNull(betMarkets.matchId):undefined);
   const headerOnly = ["records","leaderboard"].includes(options.view??"");
   const all=headerOnly ? [] : await tx.select().from(betMarkets).where(marketScope).orderBy(asc(betMarkets.createdAt),asc(betMarkets.id));
