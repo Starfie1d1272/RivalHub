@@ -297,7 +297,6 @@ jobs:
       SUPABASE_USE_SLIM_IMAGES: "1"
       # Slim refs stay pinned to GHCR; upstream-only Kong uses Docker Hub.
       SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
-      DOCKER_CONFIG: ${{ runner.temp }}/rivalhub-docker-auth
       RIVALHUB_LOCAL_SERVICE_PROFILE: ${{ (matrix.task == 'production' || matrix.task == 'browser-live' || matrix.task == 'browser-session') && 'auth' || 'full' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -322,6 +321,8 @@ jobs:
         env:
           GHCR_TOKEN: ${{ github.token }}
         run: |
+          export DOCKER_CONFIG="$RUNNER_TEMP/rivalhub-docker-auth"
+          printf 'DOCKER_CONFIG=%s\n' "$DOCKER_CONFIG" >> "$GITHUB_ENV"
           mkdir -p "$DOCKER_CONFIG"
           # Preserve the runner's Docker Hub authentication.
           if [ -f "$HOME/.docker/config.json" ]; then
@@ -420,7 +421,7 @@ jobs:
 
       - name: Remove container registry credentials
         if: always()
-        run: rm -f "$DOCKER_CONFIG/config.json"
+        run: rm -f "$RUNNER_TEMP/rivalhub-docker-auth/config.json"
 
   gate:
     name: ${{ needs.plan.outputs.gate_name }}
