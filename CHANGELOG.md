@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.24.6]
+
+### Added
+
+- Mizar 配对返回授权账号的公开昵称与身份，赛程标明该账号认领解说的比赛，便于客户端优先展示；昵称或认领变化后刷新会取得新版本，已撤销设备仍即时拒绝访问。
+- 补齐公开统计缓存填充与读取成本的低频观测，并记录当前应用 cgroup 内存和 OOM 计数，便于从本地日志核对资源使用。
+
+### Changed
+
+- BET 开放视图提前排除已结算和已退款的历史盘口读取，保留重新待结算与完赛未结算盘口，展示和积分规则保持一致。
+- 产品使用与体验默认展示最近 24 小时，以关键指标、趋势和关注问题组织概况；页面体验优先呈现 Web Vitals，长窗口展示真实分布并折叠覆盖与诊断详情。
+
 ## [2.24.5]
 
 ### Fixed
@@ -3581,3 +3593,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.24.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.3...v2.24.4
 
 [2.24.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.4...v2.24.5
+
+[2.24.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.5...v2.24.6
