@@ -1,17 +1,17 @@
 "use client";
 import { useEffect, useRef, useState, startTransition } from "react";
 import type { Analysis } from "@/lib/telemetry/analysis-model";
-import { analysisDefaults, analysisFields, parseAnalysisQuery, type AnalysisFilters } from "@/lib/telemetry/analysis-query";
+import { analysisFields, type AnalysisFilters } from "@/lib/telemetry/analysis-query";
 import { getTelemetryAnalysisAction } from "@/app/admin/telemetry/actions";
 import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TelemetryFilters } from "./TelemetryFilters";
-import { analysisHref, isLongWindow, readTaskDefinition } from "./analysis/navigation";
-import { taskGroupKey, taskDefinitionLabel, readyBasisLabel, sampledValue } from "./analysis/group-presentation";
-import { ContentReady } from "./ContentReady";
-import { Empty, Heading, Series, Stat, date, duration, number } from "./analysis/Elements";
+import { analysisHref, isLongWindow, readTaskDefinition, parseUIAnalysisQuery, uiAnalysisDefaults } from "./analysis/navigation";
+import { taskGroupKey, taskDefinitionLabel } from "./analysis/group-presentation";
+import { AnalysisContentReady } from "./AnalysisContentReady";
+import { Empty, Heading, Series, MetricCard, Bars, CoverageBadge, date, duration, number, vitalStatus } from "./analysis/Elements";
 import { TaskAnalysis } from "./analysis/TaskAnalysis";
 import { ExperienceAnalysis } from "./analysis/ExperienceAnalysis";
 import { ProblemsAnalysis, QualityAnalysis } from "./analysis/EvidenceAnalysis";
@@ -28,7 +28,7 @@ export default function TelemetryDashboard({ initial, events, release, initialVi
   const [compare, setCompare] = useState(false);
   const first = useRef(true);
   useEffect(() => {
-    const read = () => { const p = new URLSearchParams(location.search); const parsed = parseAnalysisQuery(Object.fromEntries(analysisFields.flatMap(k => p.has(k) ? [[k, p.get(k)]] : []))); if (parsed && isLongWindow(parsed.filters) && p.get("analysisMode") !== "bounded") { setData(null); router.refresh(); return; } setTaskDefinition(readTaskDefinition(p.get("taskDefinition"))); if (parsed) { setData(null); setError(false); setSession(""); setFilters(parsed.filters); } else { setData(null); setError(true); } const tab = p.get("view"); setSection(sections.some(([v]) => v === tab) ? tab! : "overview"); };
+    const read = () => { const p = new URLSearchParams(location.search); const parsed = parseUIAnalysisQuery(Object.fromEntries(analysisFields.flatMap(k => p.has(k) ? [[k, p.get(k)]] : []))); if (parsed && isLongWindow(parsed.filters) && p.get("analysisMode") !== "bounded") { setData(null); router.refresh(); return; } setTaskDefinition(readTaskDefinition(p.get("taskDefinition"))); if (parsed) { setData(null); setError(false); setSession(""); setFilters(parsed.filters); } else { setData(null); setError(true); } const tab = p.get("view"); setSection(sections.some(([v]) => v === tab) ? tab! : "overview"); };
     const timer = setTimeout(() => { const tab = new URLSearchParams(location.search).get("view"); if (sections.some(([v]) => v === tab)) setSection(tab!); }, 0);
     window.addEventListener("popstate", read); return () => { clearTimeout(timer); window.removeEventListener("popstate", read); };
   }, [router]);
@@ -41,7 +41,7 @@ export default function TelemetryDashboard({ initial, events, release, initialVi
   function persist(next: AnalysisFilters, view = section, definition = taskDefinition) { window.history.pushState(null, "", analysisHref(next, view, true, false, definition)); }
   function apply(next: AnalysisFilters, view = section, definition = taskDefinition) {
     setData(null); setError(false); setSession("");
-    if (isLongWindow(next)) { router.push(analysisHref(next, view), { scroll: false }); return; }
+    if (isLongWindow(next) && !(isLongWindow(filters) && new URLSearchParams(location.search).get("analysisMode") === "bounded")) { router.push(analysisHref(next, view), { scroll: false }); return; }
     setFilters(next); setSection(view); persist(next, view, definition);
   }
   function update(key: keyof AnalysisFilters, value: string, view = section) {
@@ -57,31 +57,49 @@ export default function TelemetryDashboard({ initial, events, release, initialVi
   const releaseOptions = options.release.map(o => ({ ...o, label: release?.sha === o.value ? `${release.tag} · ${o.value.slice(0, 7)}` : o.label }));
   const mapped = data ? { ...data, options: { ...data.options, release: releaseOptions, eventId: eventOptions } } : null;
   const independent = section === "history" || section === "workflows";
-  return <PageLayout variant="workbench" className="space-y-5"><PageHeader title="产品使用与体验" description="观察内容使用、任务完成与等待；沿着趋势定位需要改进的环节。" actions={<><Button variant="outline" onClick={() => setCompare(v => !v)} disabled={independent}>变化比较</Button><Button variant="outline" onClick={() => { setData(null); setError(false); setRefresh(n => n + 1); }} disabled={independent}>刷新</Button></>} />
+  return <PageLayout variant="workbench" className="space-y-4"><PageHeader title="产品使用与体验" description="从使用趋势出发，找到值得关注的体验与任务。" className="pb-3" actions={<><Button variant="outline" onClick={() => setCompare(v => !v)} disabled={independent}>变化比较</Button><Button variant="outline" onClick={() => { setData(null); setError(false); setRefresh(n => n + 1); }} disabled={independent}>刷新</Button></>} />
     <nav aria-label="分析视图" className="flex gap-1 overflow-x-auto border-b border-border pb-2">{sections.map(([value, label]) => <Button key={value} variant={section === value ? "secondary" : "ghost"} size="sm" aria-current={section === value ? "page" : undefined} onClick={() => navigate(value)}>{label}</Button>)}</nav>
-    {!independent && <><TelemetryFilters filters={filters} options={{ ...options, eventId: eventOptions, release: releaseOptions }} update={update} apply={apply} reset={() => { setTaskDefinition(null); apply({ ...analysisDefaults }, section, null); }} />
-    {isLongWindow(filters) && <p role="status" className="text-sm">有界明细分析：读取预算可能截断此窗口。<Link className="ml-1 underline" href={analysisHref(filters, section)}>返回长窗口汇总</Link></p>}
+    {!independent && <><TelemetryFilters filters={filters} options={{ ...options, eventId: eventOptions, release: releaseOptions }} update={update} apply={apply} reset={() => { setTaskDefinition(null); apply({ ...uiAnalysisDefaults }, section, null); }} />
+    {isLongWindow(filters) && <p role="status" className="text-sm">有界明细分析：读取预算可能截断此窗口。<Link prefetch={false} className="ml-1 underline" href={analysisHref(filters, section)}>返回长窗口汇总</Link></p>}
     {error ? <Panel><Empty>当前条件读取失败，请点击刷新重试。</Empty></Panel> : !mapped ? <Panel><Empty>正在读取当前条件的数据…</Empty></Panel> : <>
       <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground"><span>{date(mapped.product.window.from, true)} – {date(mapped.product.window.to, true)} · 北京时间</span><span>{mapped.meta.selected} 条报告 · 查询于 {date(mapped.meta.capturedAt)}</span></div>
-      {mapped.meta.partial && <p role="status" className="rounded-sm border border-border p-3 text-sm">当前观察范围不完整：{mapped.product.window.retentionClipped ? "日期已裁剪至七天保留范围。" : ""}{mapped.meta.truncated ? "读取达到批次或字节预算，请缩小条件。" : ""}</p>}
+      <CoverageBadge status={mapped.meta.partial ? "partial" : "complete"} detail={mapped.meta.partial ? "当前范围覆盖不完整，查看数据质量或缩小条件。" : "客户端观测"} />
       {compare && <Comparison data={mapped} />}
       {section === "overview" && <Overview data={mapped} navigate={navigate} update={update} selectTask={selectTask} />}
       {section === "tasks" && <TaskAnalysis data={mapped} update={update} definitionVersion={taskDefinition} selectTask={selectTask} />}
       {section === "experience" && <ExperienceAnalysis data={mapped} />}
       {section === "problems" && <ProblemsAnalysis data={mapped} session={session} selectSession={value => { setData(null); setError(false); setSession(value); }} />}
       {section === "quality" && <QualityAnalysis data={mapped} />}
-      <ContentReady module="admin" phase="primary" />
+      <AnalysisContentReady key={section} view={section} />
     </> }</>}
     {section === "workflows" && <WorkflowAnalysis events={events} />}{section === "history" && <HistoryAnalysis events={events} />}
   </PageLayout>;
 }
 function Overview({ data, navigate, update, selectTask }: { selectTask: (name: string, version: number) => void; data: Analysis; navigate: (view: string) => void; update: (key: keyof AnalysisFilters, value: string, view?: string) => void }) {
-  const ready = data.product.ready[0];
-  return <div className="space-y-4"><Panel contentClassName="grid grid-cols-2 lg:grid-cols-4 p-0"><Stat label="页面访问" value={number(data.totals.views)} /><Stat label="遥测会话" value={number(data.totals.sessions)} note={`${data.totals.accounts} 个登录账号；会话不等于人数`} /><Stat label={ready ? `${ready.moduleLabel}就绪 P50` : "内容就绪"} value={ready ? duration(sampledValue(ready.n, ready.p50)) : "尚无样本"} note={ready ? `${ready.n} 样本 · ${ready.label} · ${readyBasisLabel(ready.basis)}` : "增强采集开始后积累"} /><Stat label="异常影响会话" value={data.totals.affectedSessions} note={`${data.totals.errors} 条客户端异常 / ${data.totals.unknownReports} 条结果未知`} /></Panel>
-    <div className="grid gap-4 xl:grid-cols-2"><Series title="内容使用趋势" label="页面访问" secondaryLabel="会话" points={data.buckets.map(b => ({ at: b.at, value: b.views, secondary: b.sessions, n: b.views }))} /><Series title="主动操作趋势" label="操作调用" secondaryLabel="筛选使用" points={data.buckets.map(b => ({ at: b.at, value: b.operations, secondary: b.filters, n: b.operations }))} /></div>
-    <Panel contentClassName="p-0"><Heading title="任务使用与完成" action={<Button size="sm" variant="ghost" onClick={() => navigate("tasks")}>查看全部任务 →</Button>} /><div className="grid sm:grid-cols-2 xl:grid-cols-3">{data.product.tasks.filter(t => t.views || t.start || t.attempts).map(t => <button key={taskGroupKey(t.key, t.definitionVersion)} className="border-t border-border p-4 text-left hover:bg-secondary" onClick={() => { selectTask(t.key, t.definitionVersion); }}><p className="text-sm font-medium">{t.label} · {taskDefinitionLabel(t.definitionVersion)} ↗</p><p className="mt-2 text-xs text-muted-foreground">{t.views} 访问 · {t.start} 次调用 · {t.attempts} 次任务尝试</p><p className="mt-2 text-sm">{t.matured ? `${t.maturedCompleted}/${t.matured} 个成熟尝试完成` : "尚无成熟任务样本"}</p></button>)}</div></Panel>
-    <div className="grid gap-4 xl:grid-cols-2"><Panel contentClassName="p-0"><Heading title="内容访问" note="按页面查看触达；访问本身也是内容使用。" /><div className="divide-y divide-border">{data.routes.slice(0, 12).map(r => <button key={r.key} className="flex w-full justify-between gap-3 p-4 text-left text-sm hover:bg-secondary" onClick={() => { update("route", r.key, "experience"); }}><span>{r.label} ↗</span><span>{r.views} 访问 · {r.sessions} 会话</span></button>)}</div></Panel>
-      <Panel contentClassName="p-0"><Heading title="需要关注的问题" action={<Button variant="ghost" size="sm" onClick={() => navigate("problems")}>查看证据 →</Button>} />{data.errorGroups.slice(0, 6).map(g => <div key={g.key} className="border-t border-border p-4 text-sm"><p>{g.label} · {g.reason}</p><p className="mt-1 text-xs text-muted-foreground">{g.n} 次报告 · {g.sessions} 会话 · 最近 {date(g.last)}</p></div>)}{!data.errorGroups.length && <Empty>当前范围未观测到问题报告。</Empty>}</Panel></div>
-    <details className="text-sm text-muted-foreground"><summary className="cursor-pointer">查看筛选使用与操作类型</summary><div className="mt-3 grid gap-4 sm:grid-cols-2"><Panel><Heading title="筛选使用" />{data.filterRows.slice(0, 20).map(r => <p key={`${r.dimension}:${r.value}`} className="py-2 text-xs">{r.label} · {r.valueLabel}：{r.n} 次 / {r.sessions} 会话</p>)}</Panel><Panel><Heading title="操作类型" />{data.variants.slice(0, 20).map(r => <p key={`${r.operation}:${r.variant}`} className="py-2 text-xs">{r.label} · {r.variantLabel}：{r.n} 次</p>)}</Panel></div></details>
+  const lcp = data.metrics.find(m => m.key === "LCP");
+  const matureTasks = data.product.tasks.filter(t => t.matured > 0);
+  const task = matureTasks.length === 1 && matureTasks[0].definitionVersion > 0 ? matureTasks[0] : undefined;
+  const issues = [...data.errorGroups].sort((a, b) => b.sessions - a.sessions || b.n - a.n).slice(0, 4);
+  return <div className="space-y-4">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <MetricCard label="页面访问" value={number(data.totals.views)} note={`${number(data.totals.sessions)} 个观测会话`} onClick={() => navigate("overview")} />
+      <MetricCard label="异常影响会话" value={number(data.totals.affectedSessions)} note={data.totals.affectedSessions ? "有客户端异常或结果未知" : "未观测到异常报告"} tone={data.totals.affectedSessions ? "warn" : "neutral"} onClick={() => navigate("problems")} />
+      <MetricCard label="LCP P75" value={lcp && lcp.n >= 20 ? duration(lcp.p75) : "—"} note={vitalStatus("LCP", lcp?.n ?? 0, lcp?.p75, data.meta.partial).label} tone={vitalStatus("LCP", lcp?.n ?? 0, lcp?.p75, data.meta.partial).tone} onClick={() => navigate("experience")} />
+      <MetricCard label={task ? "成熟任务完成" : "可评估任务"} value={task ? `${number(task.completionPct)}%` : number(matureTasks.length)} note={task ? `${task.label} · ${taskDefinitionLabel(task.definitionVersion)} · ${task.maturedCompleted}/${task.matured}` : "按任务定义查看成熟样本 →"} onClick={() => task ? selectTask(task.key, task.definitionVersion) : navigate("tasks")} />
+    </div>
+    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+      <div className="min-w-0 space-y-4">
+        <Series title="访问与异常" label="页面访问" secondaryLabel="异常 / 结果未知" points={data.buckets.map(b => ({ at: b.at, value: b.views, secondary: b.errors, n: b.views }))} />
+        <Series title="主动操作趋势" label="操作调用" secondaryLabel="筛选使用" points={data.buckets.map(b => ({ at: b.at, value: b.operations, secondary: b.filters, n: b.operations }))} />
+      </div>
+      <div className="min-w-0 space-y-4">
+        <Panel contentClassName="p-0"><Heading title="值得关注" action={<Button variant="ghost" size="sm" onClick={() => navigate("problems")}>问题证据 →</Button>} />
+          {issues.map(g => <button key={g.key} className="block w-full border-t border-border p-4 text-left hover:bg-secondary focus-visible:outline focus-visible:outline-primary" onClick={() => navigate("problems")}><span className="flex items-start justify-between gap-3 text-sm"><span>{g.label}</span><span className="shrink-0 text-[var(--color-warn)]">{number(g.sessions)} 会话</span></span><span className="mt-2 block text-xs text-muted-foreground">{g.reason} · {number(g.n)} 次报告</span></button>)}
+          {!issues.length && <Empty>当前范围未观测到问题报告。</Empty>}
+        </Panel>
+        <Panel contentClassName="p-0"><Heading title="访问最多的页面" /><div className="p-4"><Bars rows={data.routes.slice(0, 5).map(r => ({ key: r.key, label: r.label, value: r.views, onClick: () => update("route", r.key, "experience") }))} unit="访问" /></div></Panel>
+      </div>
+    </div>
+    <details className="text-sm text-muted-foreground"><summary className="cursor-pointer">任务入口与操作明细</summary><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{data.product.tasks.filter(t => t.views || t.start || t.attempts).map(t => <button key={taskGroupKey(t.key, t.definitionVersion)} className="rounded-md border border-border p-4 text-left hover:bg-secondary focus-visible:outline" onClick={() => selectTask(t.key, t.definitionVersion)}><span className="text-sm font-medium">{t.label} · {taskDefinitionLabel(t.definitionVersion)} ↗</span><span className="mt-2 block text-xs">{t.views} 访问 · {t.attempts} 次任务尝试</span></button>)}</div></details>
   </div>;
 }

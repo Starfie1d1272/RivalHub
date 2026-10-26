@@ -9,8 +9,11 @@ vi.mock("@/lib/telemetry/dashboard", () => ({ getLongWindowSummary: mocks.summar
 vi.mock("@/components/telemetry/TelemetryDashboard", () => ({ default: () => null }));
 vi.mock("@/components/telemetry/TelemetryLongWindowDashboard", () => ({ TelemetryLongWindowDashboard: () => null }));
 beforeEach(() => { vi.clearAllMocks(); mocks.access.mockResolvedValue({ id: "fixture" }); mocks.summary.mockResolvedValue({ status: "ready", data: {} }); mocks.analysis.mockResolvedValue({ status: "ready", data: {} }); });
-it("uses the summary for the default seven-day window without a raw read for options", async () => {
+it("uses the 24-hour UI default while explicit seven days stays on the summary", async () => {
   await TelemetryPage({ searchParams: Promise.resolve({}) });
+  expect(mocks.analysis).toHaveBeenCalledWith({ ...analysisDefaults, hours: "24" });
+  mocks.analysis.mockClear();
+  await TelemetryPage({ searchParams: Promise.resolve({ hours: "168" }) });
   expect(mocks.summary).toHaveBeenCalledWith(analysisDefaults);
   expect(mocks.analysis).not.toHaveBeenCalled();
 });
@@ -21,7 +24,7 @@ it("keeps custom time and unsupported filters in the summary request", async () 
   expect(mocks.analysis).not.toHaveBeenCalled();
 });
 it("retains an explicit bounded diagnostic read and the short-window reader", async () => {
-  await TelemetryPage({ searchParams: Promise.resolve({ analysisMode: "bounded", browser: "safari" }) });
+  await TelemetryPage({ searchParams: Promise.resolve({ analysisMode: "bounded", hours: "168", browser: "safari" }) });
   expect(mocks.analysis).toHaveBeenLastCalledWith({ ...analysisDefaults, browser: "safari" });
   await TelemetryPage({ searchParams: Promise.resolve({ hours: "6" }) });
   expect(mocks.analysis).toHaveBeenLastCalledWith({ ...analysisDefaults, hours: "6" });
