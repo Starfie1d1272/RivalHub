@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { setTimeout as delay } from "node:timers/promises";
 import type { Pool } from "pg";
@@ -21,7 +21,7 @@ import * as schema from "@/db/schema";
 import { loadMizarScheduleWindow } from "@/lib/mizar/context";
 import { assertInstallationInTx, authenticateMizar, authorizeMizarPairing, hashCredential, pollMizarPairing, startMizarPairing } from "@/lib/mizar/installation";
 import { GET, POST } from "@/app/api/mizar/[operation]/route";
-import { seedFixture, NOW } from "./harness/mizar";
+import { seedFixture, withExtraMizarScheduleMatches, NOW } from "./harness/mizar";
 import { createLocalPool } from "./harness/database";
 
 const from = new Date("2026-09-28T00:00:00.000Z");
@@ -97,35 +97,47 @@ it("retains the transaction SHARE barrier and refuses a waiting check after revo
   }
 });
 
+it("cleans only its extra schedule matches even when the read callback fails", async () => {
+  const f = await seedFixture();
+  const other = await seedFixture();
+  const added: string[] = [];
+  await expect(withExtraMizarScheduleMatches(f, async add => {
+    added.push(...await add(2, new Date("2026-09-29T01:00:00.000Z")));
+    added.push(...await add(1, null));
+    expect(await db.select({ id: schema.matches.id }).from(schema.matches).where(inArray(schema.matches.id, added))).toHaveLength(3);
+    throw new Error("fixture read failed");
+  })).rejects.toThrow("fixture read failed");
+  expect(await db.select({ id: schema.matches.id }).from(schema.matches).where(inArray(schema.matches.id, added))).toEqual([]);
+  expect(await db.select({ id: schema.matches.id }).from(schema.matches).where(inArray(schema.matches.id, [f.matchId, other.matchId]))).toHaveLength(2);
+});
+
 it.each([2, 25, 500])("reads %i schedule matches in at most three SELECTs without per-match detail reads", async matchCount => {
   const f = await seedFixture();
-  await db.insert(schema.matches).values(Array.from({ length: matchCount - 1 }, () => ({
-    seasonId: f.seasonId, entryAId: f.entryAId, entryBId: f.entryBId,
-    stage: "fixture-stage", format: "bo3" as const, status: "scheduled" as const,
-    scheduledAt: new Date("2026-09-29T01:00:00.000Z"),
-  })));
-  observation.queries = [];
-  const document = await loadMizarScheduleWindow(f.seasonId, from, to);
-  const selects = selectCount();
-  expect(document.matches).toHaveLength(matchCount);
-  expect(selects).toBeGreaterThan(0);
-  expect(selects).toBeLessThanOrEqual(3);
-  expect(observation.queries.filter(query => /from "competition_entries"/.test(query))).toHaveLength(1);
-  expect(document).not.toHaveProperty("viewer");
-  expect(document.matches.every(match => !("assignedToViewer" in match))).toBe(true);
-  expect(await loadMizarScheduleWindow(f.seasonId, from, to)).toEqual(document);
-  observation.queries = [];
-  const personalized = await loadMizarScheduleWindow(f.seasonId, from, to, f.fixtureUserIds[0]);
-  const personalizedSelects = selectCount();
-  expect(personalizedSelects).toBeLessThanOrEqual(4);
-  expect(personalized.matches).toHaveLength(matchCount);
-  expect(personalized.matches.every(match => match.assignedToViewer === false)).toBe(true);
-  expect(personalized.viewer?.userId).toBe(f.fixtureUserIds[0]);
-  console.info("MIZAR_SCHEDULE_READ_COST", JSON.stringify({ matchCount, selectCount: selects, personalizedSelects }));
-  if (matchCount === 500) {
-    await db.insert(schema.matches).values({ seasonId: f.seasonId, entryAId: f.entryAId, entryBId: f.entryBId, stage: "fixture-stage", format: "bo3", status: "scheduled", scheduledAt: null });
-    await expect(loadMizarScheduleWindow(f.seasonId, from, to)).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
-  }
+  await withExtraMizarScheduleMatches(f, async add => {
+    await add(matchCount - 1, new Date("2026-09-29T01:00:00.000Z"));
+    observation.queries = [];
+    const document = await loadMizarScheduleWindow(f.seasonId, from, to);
+    const selects = selectCount();
+    expect(document.matches).toHaveLength(matchCount);
+    expect(selects).toBeGreaterThan(0);
+    expect(selects).toBeLessThanOrEqual(3);
+    expect(observation.queries.filter(query => /from "competition_entries"/.test(query))).toHaveLength(1);
+    expect(document).not.toHaveProperty("viewer");
+    expect(document.matches.every(match => !("assignedToViewer" in match))).toBe(true);
+    expect(await loadMizarScheduleWindow(f.seasonId, from, to)).toEqual(document);
+    observation.queries = [];
+    const personalized = await loadMizarScheduleWindow(f.seasonId, from, to, f.fixtureUserIds[0]);
+    const personalizedSelects = selectCount();
+    expect(personalizedSelects).toBeLessThanOrEqual(4);
+    expect(personalized.matches).toHaveLength(matchCount);
+    expect(personalized.matches.every(match => match.assignedToViewer === false)).toBe(true);
+    expect(personalized.viewer?.userId).toBe(f.fixtureUserIds[0]);
+    console.info("MIZAR_SCHEDULE_READ_COST", JSON.stringify({ matchCount, selectCount: selects, personalizedSelects }));
+    if (matchCount === 500) {
+      await add(1, null);
+      await expect(loadMizarScheduleWindow(f.seasonId, from, to)).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    }
+  });
 });
 
 it("keeps HTTP match 200/304 within nine SELECTs, personalized schedule within five, and fresh revocation across requests", async () => {
@@ -152,17 +164,17 @@ it("keeps HTTP match 200/304 within nine SELECTs, personalized schedule within f
   expect(notModifiedSelects).toBeGreaterThan(1);
   expect(notModifiedSelects).toBeLessThanOrEqual(9);
 
-  await db.insert(schema.matches).values(Array.from({ length: 24 }, () => ({
-    seasonId: f.seasonId, entryAId: f.entryAId, entryBId: f.entryBId,
-    stage: "fixture-stage", format: "bo3" as const, status: "scheduled" as const, scheduledAt: null,
-  })));
-  observation.queries = [];
-  const schedule = await GET(request(`http://localhost/api/mizar/schedule?from=${from.toISOString()}&to=${to.toISOString()}`), context("schedule"));
-  expect(schedule.status).toBe(200);
-  expect((await schedule.json()).matches).toHaveLength(25);
-  const scheduleSelects = selectCount();
-  expect(scheduleSelects).toBeGreaterThan(0);
-  expect(scheduleSelects).toBeLessThanOrEqual(5);
+  const scheduleSelects = await withExtraMizarScheduleMatches(f, async add => {
+    await add(24, null);
+    observation.queries = [];
+    const schedule = await GET(request(`http://localhost/api/mizar/schedule?from=${from.toISOString()}&to=${to.toISOString()}`), context("schedule"));
+    expect(schedule.status).toBe(200);
+    expect((await schedule.json()).matches).toHaveLength(25);
+    const scheduleSelects = selectCount();
+    expect(scheduleSelects).toBeGreaterThan(0);
+    expect(scheduleSelects).toBeLessThanOrEqual(5);
+    return scheduleSelects;
+  });
   const other = await seedFixture();
   expect((await GET(request(`http://localhost/api/mizar/match?matchId=${other.matchId}`), context("match"))).status).toBe(404);
   expect((await GET(new Request(matchUrl, { headers: { authorization: `Bearer rh_mizar_${randomUUID()}_${"b".repeat(64)}` } }), context("match"))).status).toBe(403);
