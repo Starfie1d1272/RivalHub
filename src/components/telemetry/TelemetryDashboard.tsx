@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import { TelemetryFilters } from "./TelemetryFilters";
 import { analysisHref, isLongWindow, readTaskDefinition, parseUIAnalysisQuery, uiAnalysisDefaults } from "./analysis/navigation";
 import { taskGroupKey, taskDefinitionLabel } from "./analysis/group-presentation";
-import { ContentReady } from "./ContentReady";
+import { AnalysisContentReady } from "./AnalysisContentReady";
 import { Empty, Heading, Series, MetricCard, Bars, CoverageBadge, date, duration, number, vitalStatus } from "./analysis/Elements";
 import { TaskAnalysis } from "./analysis/TaskAnalysis";
 import { ExperienceAnalysis } from "./analysis/ExperienceAnalysis";
@@ -70,7 +70,7 @@ export default function TelemetryDashboard({ initial, events, release, initialVi
       {section === "experience" && <ExperienceAnalysis data={mapped} />}
       {section === "problems" && <ProblemsAnalysis data={mapped} session={session} selectSession={value => { setData(null); setError(false); setSession(value); }} />}
       {section === "quality" && <QualityAnalysis data={mapped} />}
-      <span data-testid="telemetry-content-ready" data-view={section} hidden /><ContentReady module="admin" phase="primary" />
+      <AnalysisContentReady key={section} view={section} />
     </> }</>}
     {section === "workflows" && <WorkflowAnalysis events={events} />}{section === "history" && <HistoryAnalysis events={events} />}
   </PageLayout>;
