@@ -13,6 +13,77 @@ import { readUnifiedBetBoard } from "@/lib/bet/board-read";
 import { readFreePredictionBoard, readFreeMatchSupport } from "@/lib/free-predictions/data";
 import { submitFreePredictionInTx } from "@/lib/free-predictions/service";
 
+it("keeps open candidates independent of settled history using the latest settlement revision",async()=>fixture(async f=>{
+  const original=(await f.db.query.matches.findFirst({where:eq(schema.matches.id,f.matchId)}))!;
+  const market=(await f.db.query.betMarkets.findMany({where:eq(schema.betMarkets.matchId,f.matchId)})).find(m=>m.type==="match_winner")!;
+  const choices=await f.db.query.betOptions.findMany({where:eq(schema.betOptions.marketId,market.id)});
+  const account=(await f.db.query.betAccounts.findFirst({where:eq(schema.betAccounts.userId,f.userId)}))!;
+  await f.db.transaction(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId:f.userId,marketId:market.id,optionId:choices[0]!.id,amount:"10",requestId:randomUUID()}));
+  const client=await f.db.$client.connect(),measuredDb=drizzle(client,{schema});
+  async function measure(userId:string|null,view?:string,matchId?:string) {
+    const options={rows:0,logicalJsonBytes:0},query=client.query;
+    client.query=((...args:unknown[])=>{
+      const config=args[0] as string|{text:string},text=typeof config==="string"?config:config.text;
+      return Promise.resolve(Reflect.apply(query,client,args)).then(value=>{
+        if(text.includes('from "bet_options"')){options.rows+=value.rows.length;options.logicalJsonBytes+=Buffer.byteLength(JSON.stringify(value.rows));}
+        return value;
+      });
+    }) as typeof client.query;
+    try {
+      const snapshot=await measuredDb.transaction(tx=>readBetBoardSnapshot(tx,f.seasonId,userId,{view,matchId,includeEvent:false,records:false,leaderboard:false}),{accessMode:"read only",isolationLevel:"repeatable read"});
+      return {snapshot,board:projectBetBoard(snapshot),options};
+    }finally{client.query=query;}
+  }
+  try {
+    const current=await measure(f.userId,"open");
+    const history=Array.from({length:100},()=>({matchId:randomUUID(),marketId:randomUUID(),optionId:randomUUID(),settlementId:randomUUID()}));
+    await f.db.insert(schema.matches).values(history.map((h,i)=>({id:h.matchId,seasonId:f.seasonId,entryAId:f.entryIds[0]!,entryBId:f.entryIds[1]!,stage:"stage1",majorStageRunId:original.majorStageRunId,ownership:"major_stage" as const,managedKey:`open-history-${i}`,round:1,format:"bo3" as const,status:"finished" as const,scoreA:2,scoreB:0})));
+    await f.db.insert(schema.betMarkets).values(history.map(h=>({...market,id:h.marketId,matchId:h.matchId,marketKey:`open-history/${h.matchId}`,subject:market.subject,lockedAt:new Date()})));
+    await f.db.insert(schema.betOptions).values(history.flatMap(h=>choices.map((o,i)=>({...o,id:i===0?h.optionId:randomUUID(),marketId:h.marketId}))));
+    await f.db.insert(schema.betSettlements).values(history.map(h=>({id:h.settlementId,marketId:h.marketId,revision:1,state:"settled" as const,fingerprint:"history",winningOptionIds:[h.optionId]})));
+    await f.db.insert(schema.betStakes).values(history.map(h=>({seasonId:f.seasonId,accountId:account.id,marketId:h.marketId,optionId:h.optionId,amount:BigInt(1),requestId:randomUUID()})));
+    await f.db.insert(schema.betLedger).values(history.map(h=>({seasonId:f.seasonId,accountId:account.id,kind:"settlement" as const,source:`settlement/${h.settlementId}`,amount:BigInt(1),profit:BigInt(0)})));
+    const broad=await measure(f.userId),open=await measure(f.userId,"open");
+    expect(broad.snapshot.all).toHaveLength(current.snapshot.all.length+100);
+    expect(open.options).toEqual(current.options);
+    expect(open.board.markets).toEqual(broad.board.markets.filter(m=>["open","locked"].includes(m.state)));
+    expect(open.snapshot.myStakes).toEqual(current.snapshot.myStakes);
+    expect(open.snapshot.latestSettlements).toEqual(current.snapshot.latestSettlements);
+    expect(open.snapshot.myPayouts).toEqual(current.snapshot.myPayouts);
+    console.info("BET_OPEN_CANDIDATES",JSON.stringify({fixture:"one current match + 100 settled matches",current:current.options,oldUnfiltered:broad.options,open:open.options,unit:"returned option rows and UTF-8 JSON estimate of driver rows; not wire/provider egress"}));
+
+    // Revision, rather than creation time or any historical terminal state,
+    // owns reopening. Keep a finished match with no settlement as locked too.
+    await f.db.insert(schema.betSettlements).values([
+      {marketId:history[0]!.marketId,revision:2,state:"pending",fingerprint:"reopened",winningOptionIds:[],createdAt:new Date("2000-01-01")},
+      {marketId:history[1]!.marketId,revision:2,state:"refunded",fingerprint:"refunded",winningOptionIds:[]},
+    ]);
+    const unsettledMarketId=randomUUID(),finishedMatchId=randomUUID();
+    await f.db.insert(schema.matches).values({id:finishedMatchId,seasonId:f.seasonId,entryAId:f.entryIds[0]!,entryBId:f.entryIds[1]!,stage:"stage1",majorStageRunId:original.majorStageRunId,ownership:"major_stage",managedKey:"finished-unsettled",round:1,format:"bo3",status:"finished",scoreA:2,scoreB:0});
+    await f.db.insert(schema.betMarkets).values({...market,id:unsettledMarketId,matchId:finishedMatchId,marketKey:"finished-unsettled",subject:market.subject});
+    await f.db.insert(schema.betOptions).values(choices.map(o=>({...o,id:randomUUID(),marketId:unsettledMarketId})));
+    await f.db.update(schema.matches).set({entryAId:f.entryIds[1]!,entryBId:f.entryIds[0]!}).where(eq(schema.matches.id,history[2]!.matchId));
+    for(const userId of [f.userId,null]) {
+      const full=await measure(userId),next=await measure(userId,"open");
+      expect(next.board).toEqual({...full.board,markets:full.board.markets.filter(m=>["open","locked"].includes(m.state))});
+      for(const id of [history[0]!.marketId,unsettledMarketId])expect(next.board.markets.find(m=>m.id===id)).toMatchObject({state:"locked",canStake:false});
+      expect(next.snapshot.latestSettlements.find(s=>s.marketId===history[0]!.marketId)?.revision).toBe(2);
+      expect(next.board.markets.some(m=>m.id===history[1]!.marketId)).toBe(false);
+      for(const view of ["mine","settled","event"]) {
+        const scoped=await measure(userId,view);
+        expect(scoped.board).toEqual({...full.board,markets:full.board.markets.filter(m=>view==="mine"?!!m.mine:view==="settled"?["settled","refunded"].includes(m.state):m.matchId===null)});
+      }
+      const explicit=await measure(userId,undefined,history[2]!.matchId);
+      expect(explicit.board.markets).toEqual(full.board.markets.filter(m=>m.matchId===history[2]!.matchId));
+      expect(explicit.board.markets[0]?.mine?.payout).toBe(userId?"1":undefined);
+      const scopedOpen=await measure(userId,"open",history[0]!.matchId);
+      expect(scopedOpen.board.markets.map(m=>m.id)).toEqual([history[0]!.marketId]);
+      for(const rows of [next.snapshot.allOptions,next.snapshot.myStakes,next.snapshot.latestSettlements])expect(rows.every(row=>next.snapshot.all.some(m=>m.id===row.marketId))).toBe(true);
+      expect(next.snapshot.myPayouts.every(row=>next.snapshot.latestSettlements.some(s=>row.source===`settlement/${s.id}`))).toBe(true);
+    }
+  }finally{client.release();}
+}));
+
 // Real PG results protect scope/privacy/rank semantics and measure returned data.
 // The baseline preserves the former two full-fact entrypoints using current rule
 // owners. It is conservative: common SQL projection improvements benefit it too.
