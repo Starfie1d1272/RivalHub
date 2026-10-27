@@ -1,5 +1,7 @@
 import { expect, test, signInProgrammatically } from "../fixtures";
 
+test.use({ scenarioProfile: "stats" });
+
 test("超级管理员可查看健康证据及未核验状态", async ({ page, scenario }) => {
   await signInProgrammatically(page, scenario.accounts.find(account => account.key === "admin")!, scenario, "/admin/settings");
   const section = page.getByRole("region", { name: "服务健康与证据覆盖" });
