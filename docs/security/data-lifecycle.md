@@ -28,7 +28,7 @@
 | 产品遥测；[owner/部署清单](../operations/product-telemetry.md) | 独立、默认关闭的 Worker/D1 保存白名单事件；七天账号/会话排障、页面/任务步骤与活跃时长、有限校验原因及性能基线；可选无直接身份日聚合支持赛事周期分析 | private/operator-only；产品专用 HMAC 账号、随机诊断 session；不含鉴权 session/凭据/正文 |
 | Runtime telemetry；[observability](../operations/observability.md) | Vercel/Better Stack 保存脱敏日志、trace、运行诊断 | private，运维授权；不成为业务审计，不复制到 application DB |
 | Cache/projection/scheduler health；[统计](../operations/statistics-projections.md)、[scheduler](../deployment.md) | PostgreSQL/runtime cache 保存可重建统计、Steam profile cache、有界当前健康 | 仍按 DTO 输出；freshness/失效不等于物理删除，projection 不是 source fact |
-| Mizar 逐图临时数据；[match maps](../../src/db/schema/match-maps.ts) | 每张地图最多保留一份身份已匹配的基础计分板快照，供公开赛后展示 | 未核对且不参与正式统计；正式确认行优先；与比赛地图同寿命并随数据库备份/恢复，不设置计时过期 |
+| Mizar 逐图临时数据；[match maps](../../src/db/schema/match-maps.ts) | 每张地图最多保留一份身份已匹配的基础计分板快照，供公开赛后展示 | 未核对且不参与正式统计；正式确认行优先；与比赛地图同寿命并随数据库备份/恢复，不设置计时过期；回执保留事件关联用于幂等及来源核验 |
 | 浏览器上一帧；[previous view owner](../../src/lib/mizar/live-previous-view.ts) | 同标签页 sessionStorage 暂存最多两场匿名公开计分表，减少连接期间的空白 | 仅 public display values 与 opaque revision；不存 token、cookie、用户/source 身份、雷达或运行时钟，不是正式赛果或事件 replay |
 | 公开运营图片；[Storage registry](../../scripts/db/recovery/storage-policy.ts) | public Storage 保存队标、赛事 Logo/群二维码 | 对象为 public，上传权限与内部 inventory 仍 server-only |
 | 环境/provider secret；[部署](../deployment.md) | Vercel/GitHub protected configuration、Vault、provider 拥有运行凭据 | secret，不导出值到文档/PR/log/普通应用备份；DB 内 verifier hash 按上述设备/身份类别另行保护 |

@@ -1,5 +1,5 @@
 // Frozen producer contract, vendored from Mizar packages/protocol/src/output.ts.
-// Verified against Mizar 9d7e08c7455e8419cde15e62f7367a38dd4edf60 by
+// Verified against Mizar 65e30b9e673bd51b9d409ad31d3828a911cf3683 by
 // scripts/mizar-contract-check.mjs; change it only together with the producer.
 // RivalHub public projection lives in live-projection.ts.
 import { z } from 'zod';
@@ -210,6 +210,7 @@ export const reliableEventKindV1Schema = z.enum([
   'match_started',
   'map_started',
   'map_ended',
+  'map_player_snapshot',
   'series_ended',
   'source_generation_changed',
   'map_epoch_changed',
@@ -248,6 +249,12 @@ export const reliableEventV1Schema = z.discriminatedUnion('kind', [
       scoreB: nonNegativeInteger,
       scoreCT: nonNegativeInteger,
       scoreT: nonNegativeInteger,
+    }),
+  }),
+  reliableEventBase.extend({
+    kind: z.literal('map_player_snapshot'),
+    payload: z.strictObject({
+      mapEndedKey: id,
       players: z
         .array(
           z.strictObject({
@@ -259,8 +266,7 @@ export const reliableEventV1Schema = z.discriminatedUnion('kind', [
           }),
         )
         .min(1)
-        .max(10)
-        .optional(),
+        .max(10),
     }),
   }),
   reliableEventBase.extend({
