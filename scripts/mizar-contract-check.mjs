@@ -215,7 +215,8 @@ process.stdout.write("mizar-reliable-event-v1: eight kinds, version gate and sco
 const { z } = await import("zod");
 const oldScore = z.strictObject({ scoreA: z.number(), scoreB: z.number(), scoreCT: z.number(), scoreT: z.number() });
 const snapshotEvent = { ...mapEnded, kind: "map_player_snapshot", idempotencyKey: "fixture-snapshot", payload: { mapEndedKey: mapEnded.idempotencyKey, players: [{ sourcePlayerId: "76561198000000001", canonicalPlayerId: null, kills: 0, deaths: null, assists: 1 }] } };
-if (!oldScore.safeParse(mapEnded.payload).success || oldScore.safeParse({ ...mapEnded.payload, players: [] }).success) throw new Error("legacy score contract drift");
+const oldKinds = z.enum(["match_started", "map_started", "map_ended", "series_ended", "source_generation_changed", "map_epoch_changed", "identity_mismatch", "lineup_mismatch"]);
+if (!oldScore.safeParse(mapEnded.payload).success || oldScore.safeParse({ ...mapEnded.payload, players: [] }).success || oldKinds.safeParse(snapshotEvent.kind).success) throw new Error("legacy score contract drift");
 for (const parse of [output.parseReliableEventV1, rivalhubProtocol.parseReliableEventV1]) {
   if (parse(snapshotEvent).kind !== "map_player_snapshot") throw new Error("snapshot parser drift");
 }
