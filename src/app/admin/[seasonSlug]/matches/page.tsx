@@ -15,6 +15,7 @@ import { AdminMatchFilter } from "@/components/matches/AdminMatchFilter";
 import { AdminMatchRow } from "@/components/matches/AdminMatchRow";
 import { StandingsTable } from "@/components/matches/StandingsTable";
 import { MajorPlayoffRuntimeManagement } from "@/components/admin/MajorPlayoffRuntimeManagement";
+import { PlayInRoundControl } from "@/components/admin/PlayInRoundControl";
 import { MajorSwissRuntimeManagement } from "@/components/admin/MajorSwissRuntimeManagement";
 import { PageHeader, Panel, Section } from "@/components/rivalhub";
 import { AdminMatchStageTabs } from "@/components/matches/AdminMatchStageTabs";
@@ -95,6 +96,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       </section>}
 
       {!materials && unconfiguredMatchNotice(overview?.unconfiguredMatches ?? [])}
+
+      {!materials && data.qualificationRun?.format === "short_swiss_2w2l" && data.qualificationRun.startedAt && !data.qualificationRun.completedAt && <Panel label="Play-in 轮次推进"><p className="mb-3 text-sm text-[var(--color-fg-mid)]">完成本轮全部比赛后，预览并确认下一轮对阵。</p><PlayInRoundControl seasonId={data.season.id} runId={data.qualificationRun.id} /></Panel>}
 
       {scheduling && overview && <>
         {data.season.status !== "playing" && matchCount === 0 && <Panel contentClassName="p-4" className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
