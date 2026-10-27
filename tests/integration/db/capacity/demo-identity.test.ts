@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { setTimeout as delay } from "node:timers/promises";
 import { expect, it } from "vitest";
 import * as schema from "@/db/schema";
@@ -77,13 +77,15 @@ it.skipIf(process.env.RIVALHUB_DEMO_CAPACITY !== "1")("measures cross-event Demo
   const { execFileSync } = await import("node:child_process");
   const { writeFileSync, readFileSync } = await import("node:fs");
   const { createHash } = await import("node:crypto");
+  const identityMode = process.env.RIVALHUB_DEMO_IDENTITY_MODE ?? "distinct";
+  if (!["distinct", "shared"].includes(identityMode)) throw new Error("INVALID_IDENTITY_MODE");
   const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   if (!/^[a-f0-9]{40}$/.test(process.env.RIVALHUB_CAPACITY_SHA ?? "") || sha !== process.env.RIVALHUB_CAPACITY_SHA) throw new Error("EXACT_SHA_REQUIRED");
   execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/capacity/demo-identity.test.ts", "tests/integration/db/capacity/demo-fixture.ts"]);
   const paths = ["tests/integration/db/capacity/demo-identity.test.ts", "tests/integration/db/capacity/demo-fixture.ts", "src/lib/demo-integration/review.ts", "src/lib/identity/write-lock.ts"];
-  const report: { sha: string; hashes: Record<string, string>; dataset: string; limits: object; rounds: object[]; stopped?: string; cleanup?: boolean } = {
+  const report: { sha: string; hashes: Record<string, string>; dataset: string; identityMode: string; limits: object; rounds: object[]; stopped?: string; cleanup?: boolean } = {
     sha, hashes: Object.fromEntries(paths.map(path => [path, createHash("sha256").update(readFileSync(path)).digest("hex")])),
-    dataset: "fresh scratch database per round; 17 events, 10 players per event, one Demo each; first identity preconfirmed; gradient counts concurrent confirmations plus one retirement",
+    identityMode, dataset: "fresh scratch database per round; 17 events, 10 players per event, one Demo each; first identity preconfirmed; gradient counts concurrent confirmations plus one retirement",
     limits: { poolMax: 6, acquisitionTimeoutMs: 2000, statementTimeoutMs: 5000, lockTimeoutMs: 2000, sampledQueueStop: 8, stopOnAnyFailure: true }, rounds: [],
   };
   let stop = false;
@@ -98,7 +100,12 @@ it.skipIf(process.env.RIVALHUB_DEMO_CAPACITY !== "1")("measures cross-event Demo
           try {
             const connection = await pool.connect();
             const events: Array<Awaited<ReturnType<typeof seedDemoCapacity>>> = [];
-            try { for (let seed = 0; seed < 17; seed++) events.push(await seedDemoCapacity(connection, seed)); }
+            try {
+              for (let seed = 0; seed < 17; seed++) {
+                const shared = identityMode === "shared" && seed > 0 ? { userIds: events[0]!.userIds, steamSeed: 0, alternate: events[0]!.alternate } : undefined;
+                events.push(await seedDemoCapacity(connection, seed, shared));
+              }
+            }
             finally { connection.release(); }
             const db = drizzle(pool, { schema });
             const source = events[0]!;
@@ -150,10 +157,21 @@ it.skipIf(process.env.RIVALHUB_DEMO_CAPACITY !== "1")("measures cross-event Demo
                 const imported = await db.query.matchDemoImports.findFirst({ where: eq(schema.matchDemoImports.id, source.importId) });
                 return retiredIdentity?.status === "retired" && retiredIdentity.userId === source.userId && imported?.status === "needs_attention";
               }
+              if (identityMode === "shared") {
+                const audit = await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, request.event.importId), eq(schema.auditLogs.action, "match.demo.identity_confirm")));
+                return audit.length === 1;
+              }
               const row = await db.query.userGameplaySteamIds.findFirst({ where: eq(schema.userGameplaySteamIds.sourceImportId, request.event.importId) });
               const imported = await db.query.matchDemoImports.findFirst({ where: eq(schema.matchDemoImports.id, request.event.importId) });
               return row?.status === "active" && row.userId === request.event.userId && imported?.status === "confirmed";
             }));
+            if (identityMode === "shared") {
+              const aliases = await db.select().from(schema.userGameplaySteamIds).where(eq(schema.userGameplaySteamIds.steam64, source.alternate));
+              expect(aliases.every(row => row.userId === source.userId)).toBe(true);
+              expect(aliases.filter(row => row.status === "active").length).toBeLessThanOrEqual(1);
+              const imports = await Promise.all(events.map(event => db.query.matchDemoImports.findFirst({ where: eq(schema.matchDemoImports.id, event.importId) })));
+              if (imports.some(row => row?.status === "confirmed")) expect(aliases.some(row => row.status === "active")).toBe(true);
+            }
             expect(requests.some((request, index) => !request.error && !observed[index])).toBe(false);
             stop = requests.some(request => request.error) || maxQueue >= 8 || sampleError;
             if (stop) report.stopped = requests.some(request => request.error) ? "request_failure" : sampleError ? "sampling_failure" : "sampled_pool_queue";
