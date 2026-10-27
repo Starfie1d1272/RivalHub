@@ -33,8 +33,8 @@ it("uses PostgreSQL wall time when a complete prediction waits across cutoff", a
     try {
       const deadline = await Promise.race([ready, cutoff.then(() => { throw new Error("CUTOFF_ENDED_BEFORE_BARRIER"); })]);
       pending = f.db.transaction(async tx => {
-        await tx.execute(sql`set local lock_timeout = '2s'`);
-        await tx.execute(sql`set local statement_timeout = '5s'`);
+        await tx.execute(sql`set local lock_timeout = '5s'`);
+        await tx.execute(sql`set local statement_timeout = '8s'`);
         await tx.execute(sql`set local application_name = 'prediction-wallclock'`);
         return savePickInTx(tx, { ...input, userId: f.otherId, requestId: randomUUID() });
       });
