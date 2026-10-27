@@ -8,13 +8,14 @@ import { balanceOf, savePickInTx } from "@/lib/predictions/service";
 import { predictionCapacityFixture } from "./prediction-fixture";
 
 it.skipIf(process.env.RIVALHUB_PREDICTION_CAPACITY !== "1")("measures isolated prediction drafts before and after cutoff", async () => {
+  const complete = process.env.RIVALHUB_PREDICTION_COMPLETE === "1";
   const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   if (!/^[a-f0-9]{40}$/.test(process.env.RIVALHUB_CAPACITY_SHA ?? "") || sha !== process.env.RIVALHUB_CAPACITY_SHA) throw new Error("EXACT_SHA_REQUIRED");
   execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/capacity/prediction-fixture.ts", "tests/integration/db/capacity/prediction-capacity.test.ts"]);
   const paths = ["tests/integration/db/capacity/prediction-fixture.ts", "tests/integration/db/capacity/prediction-capacity.test.ts", "src/lib/predictions/service.ts"];
-  const report: { sha: string; hashes: Record<string, string>; dataset: string; limits: object; rounds: object[]; stopped?: string; cleanup?: boolean } = {
+  const report: { sha: string; hashes: Record<string, string>; dataset: string; complete: boolean; limits: object; rounds: object[]; stopped?: string; cleanup?: boolean } = {
     sha, hashes: Object.fromEntries(paths.map(path => [path, createHash("sha256").update(readFileSync(path)).digest("hex")])),
-    dataset: "fresh scratch database per round; one 24-team Major, two accounts, one PickEm contest, zero picks; alternating accounts, draft picks",
+    complete, dataset: "fresh scratch database per round; one 24-team Major, two accounts, one PickEm contest, zero picks; alternating accounts",
     limits: { poolMax: 6, acquisitionTimeoutMs: 2000, statementTimeoutMs: 5000, lockTimeoutMs: 2000, sampledQueueStop: 8, stopOnAnyFailure: true }, rounds: [],
   };
   let stop = false;
@@ -24,6 +25,8 @@ it.skipIf(process.env.RIVALHUB_PREDICTION_CAPACITY !== "1")("measures isolated p
         await predictionCapacityFixture(async f => {
           f.pool.options.connectionTimeoutMillis = 2000;
           const [contest] = await f.db.select().from(schema.predictionContests).where(eq(schema.predictionContests.seasonId, f.seasonId));
+          const entrants = contest!.entrants.map(item => item.teamId);
+          const pick = complete ? { perfect: entrants.slice(0, 2), advance: entrants.slice(2, 8), eliminated: entrants.slice(8, 10) } : { perfect: [], advance: [], eliminated: [] };
           const accounts = await f.db.select().from(schema.predictionAccounts).where(eq(schema.predictionAccounts.seasonId, f.seasonId));
           const accountFor = (userId: string) => accounts.find(a => a.userId === userId)!;
           expect(accounts).toHaveLength(2);
@@ -42,7 +45,7 @@ it.skipIf(process.env.RIVALHUB_PREDICTION_CAPACITY !== "1")("measures isolated p
                   const result = await tx.execute(sql`select set_config('statement_timeout','5s',true) as statement, set_config('lock_timeout','2s',true) as lock`);
                   request.settings = result.rows[0] as { statement: string; lock: string };
                   if (request.settings.statement !== "5s" || request.settings.lock !== "2s") throw new Error("TIMEOUT_CONFIGURATION_MISMATCH");
-                  await savePickInTx(tx, { seasonId: f.seasonId, userId: request.userId, contestId: contest!.id, pick: { perfect: [], advance: [], eliminated: [] }, submitted: false, requestId: request.id });
+                  await savePickInTx(tx, { seasonId: f.seasonId, userId: request.userId, contestId: contest!.id, pick, submitted: complete, requestId: request.id });
                 });
               } catch (error) {
                 const item = error as { code?: string; message?: string; cause?: { code?: string } };
@@ -58,7 +61,7 @@ it.skipIf(process.env.RIVALHUB_PREDICTION_CAPACITY !== "1")("measures isolated p
           const stored = await f.db.select().from(schema.predictionPicks);
           const outcomes = requests.map(request => {
             const row = stored.find(item => item.requestId === request.id);
-            if (row) expect(row.accountId).toBe(accountFor(request.userId).id);
+            if (row) { expect(row.accountId).toBe(accountFor(request.userId).id); expect(row.submitted).toBe(complete); }
             return { totalMs: request.totalMs, acquireAndBeginMs: request.acquireAndBeginMs, transactionMs: request.transactionMs, error: request.error, settings: request.settings, observedCommitted: !!row, outcome: row ? "committed" : request.error ? "unresolved" : "missing" };
           });
           expect(stored).toHaveLength(new Set(stored.map(row => row.requestId)).size);
@@ -69,7 +72,7 @@ it.skipIf(process.env.RIVALHUB_PREDICTION_CAPACITY !== "1")("measures isolated p
           if (stop) report.stopped = failed ? "request_failure" : "sampled_pool_queue";
           if (!failed) {
             await f.db.update(schema.predictionContests).set({ deadline: new Date(Date.now() - 1000) }).where(eq(schema.predictionContests.id, contest!.id));
-            await expect(f.db.transaction(tx => savePickInTx(tx, { seasonId: f.seasonId, userId: f.userId, contestId: contest!.id, pick: { perfect: [], advance: [], eliminated: [] }, submitted: false, requestId: randomUUID() }))).rejects.toThrow(/截止/);
+            await expect(f.db.transaction(tx => savePickInTx(tx, { seasonId: f.seasonId, userId: f.userId, contestId: contest!.id, pick, submitted: complete, requestId: randomUUID() }))).rejects.toThrow(/截止/);
             expect(await f.db.select().from(schema.predictionPicks)).toHaveLength(stored.length);
           }
           report.rounds.push({ concurrency, round, elapsedMs, maxPoolQueueSampled: maxQueue, outcomes, cutoffVerified: !failed });
