@@ -1,3 +1,4 @@
+import { loadMatchScoreboard } from "@/lib/matches/detail-scoreboard";
 import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
@@ -73,6 +74,35 @@ async function nextEpoch(fixture: Fixture, sequence = 10) {
 }
 
 describe("Mizar reliable event ingest ownership", () => {
+
+  it("retains a provisional map-one scoreboard while map two starts and confirmed rows take priority", async () => {
+    const f = await seedFixture();
+    await ingestMizarReliable(f.installationId, f.seasonId, reliableEvent(f), f.authorityRevision, f.steam64);
+    const roster = await loadEffectiveMatchRoster(db, [f.matchId]);
+    const players = roster.map((r, i) => ({ sourcePlayerId: r.steam64!, canonicalPlayerId: r.userId, kills: i, deaths: null, assists: 0 }));
+    const end = reliableEvent(f, { kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 13, scoreT: 9, players } });
+    end.cursor.runtimeSeq = 2;
+    await ingestMizarReliable(f.installationId, f.seasonId, end, f.authorityRevision);
+    expect(await ingestMizarReliable(f.installationId, f.seasonId, end, f.authorityRevision)).toMatchObject({ duplicate: true });
+    const context = await db.transaction(tx => loadMizarMatchDocumentInTx(tx, f.matchId, f.seasonId));
+    const boundary = reliableEvent(f, { contextRevision: context.revision, kind: "map_epoch_changed", payload: { previousMapEpoch: 1, reason: "next map" } });
+    boundary.cursor.mapEpoch = 2; boundary.cursor.runtimeSeq = 3;
+    await ingestMizarReliable(f.installationId, f.seasonId, boundary, f.authorityRevision);
+    const start = reliableEvent(f, { contextRevision: context.revision, mapId: f.mapTwoId, mapName: "de_mirage" });
+    start.cursor.mapEpoch = 2; start.cursor.runtimeSeq = 4;
+    await ingestMizarReliable(f.installationId, f.seasonId, start, f.authorityRevision, f.steam64);
+    const [match] = await db.select().from(schema.matches).where(eq(schema.matches.id, f.matchId));
+    const maps = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
+    const teams = new Map(roster.map(r => [r.userId, r.entryId]));
+    const provisional = await loadMatchScoreboard(match!, maps, teams);
+    expect(provisional.provisionalMapIds.has(f.mapOneId)).toBe(true);
+    expect(provisional.mapPlayers.get(f.mapOneId)).toHaveLength(10);
+    expect(provisional.mapPlayers.get(f.mapOneId)![0]).toMatchObject({ deaths: null, assists: 0, adr: null });
+    await db.insert(schema.matchPlayerStats).values({ matchId: f.matchId, mapId: f.mapOneId, userId: players[0]!.canonicalPlayerId, perfectName: "confirmed", kills: 42, verifiedByAdmin: "test" });
+    const updated = await loadMatchScoreboard(match!, maps, teams);
+    expect(updated.mapPlayers.get(f.mapOneId)?.find(p => p.userId === players[0]!.canonicalPlayerId)?.kills).toBe(42);
+    expect(updated.mapPlayers.get(f.mapOneId)).toHaveLength(10);
+  });
 
   it("accepts the current website revision after a map result without losing the next epoch", async () => {
     const f = await seedFixture();

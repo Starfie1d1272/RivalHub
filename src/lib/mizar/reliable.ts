@@ -140,6 +140,20 @@ export async function ingestMizarReliable(installationId: string, competitionId:
           updates.mapExecutionPhase = "inter_map";
           outcome = "canonicalized";
         }
+        // Store only identity-verified players for this execution, separately from
+        // official statistics. Empty observations cannot erase a prior snapshot.
+        if (sameExecution && fresh && !reviewRequired && event.payload.players?.length && (outcome === "canonicalized" || outcome === "consistent")) {
+          const roster = await loadEffectiveMatchRoster(tx, [match.id]);
+          const players = event.payload.players.flatMap(player => {
+            const candidates = roster.filter(r => r.userId === player.canonicalPlayerId && r.steam64 === player.sourcePlayerId);
+            if (candidates.length !== 1) return [];
+            const resolved = candidates[0]!;
+            return [{ userId: resolved.userId, name: getDisplayName(resolved), kills: player.kills, deaths: player.deaths, assists: player.assists }];
+          });
+          if (players.length && new Set(players.map(p => p.userId)).size === players.length) {
+            await tx.update(matchMaps).set({ provisionalPlayers: players }).where(eq(matchMaps.id, map!.id));
+          }
+        }
       } else if (event.kind === "series_ended") {
         const [current] = await tx.select().from(matches).where(eq(matches.id, match.id));
         outcome = current.status === "finished" && current.scoreA === event.payload.scoreA && current.scoreB === event.payload.scoreB ? "consistent" : "needs_attention";
@@ -159,7 +173,7 @@ export async function ingestMizarReliable(installationId: string, competitionId:
       }
       await tx.update(matchLiveSessions).set(updates).where(eq(matchLiveSessions.id, source.id));
       await tx.insert(mizarReliableReceipts).values({ sessionId: source.id, idempotencyKey: event.idempotencyKey, eventHash, kind: event.kind, outcome });
-      await writeAuditInTx(tx, { seasonId: competitionId, actorId: mizarAuditActorId(installationId), action: "mizar.reliable.accept", targetId: match.id, meta: { kind: event.kind, outcome, lineupDifference, ...(event.kind === "identity_mismatch" || event.kind === "lineup_mismatch" ? { reason: event.payload.reason } : {}), sessionId: source.id, mapEpoch: source.mapEpoch, currentMapId: source.currentMapId, receivedMapId: event.mapId, receivedMapName: event.mapName, continuityHealth: updates.continuityHealth ?? source.continuityHealth, ...(event.kind === "map_ended" ? event.payload : {}) } });
+      await writeAuditInTx(tx, { seasonId: competitionId, actorId: mizarAuditActorId(installationId), action: "mizar.reliable.accept", targetId: match.id, meta: { kind: event.kind, outcome, lineupDifference, ...(event.kind === "identity_mismatch" || event.kind === "lineup_mismatch" ? { reason: event.payload.reason } : {}), sessionId: source.id, mapEpoch: source.mapEpoch, currentMapId: source.currentMapId, receivedMapId: event.mapId, receivedMapName: event.mapName, continuityHealth: updates.continuityHealth ?? source.continuityHealth, ...(event.kind === "map_ended" ? { scoreA: event.payload.scoreA, scoreB: event.payload.scoreB, scoreCT: event.payload.scoreCT, scoreT: event.payload.scoreT } : {}) } });
       return { outcome, duplicate: false };
     });
     await touchMizarInstallation(installationId, competitionId);

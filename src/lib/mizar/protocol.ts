@@ -248,6 +248,19 @@ export const reliableEventV1Schema = z.discriminatedUnion('kind', [
       scoreB: nonNegativeInteger,
       scoreCT: nonNegativeInteger,
       scoreT: nonNegativeInteger,
+      players: z
+        .array(
+          z.strictObject({
+            sourcePlayerId: id,
+            canonicalPlayerId: nullableId,
+            kills: count,
+            assists: count,
+            deaths: count,
+          }),
+        )
+        .min(1)
+        .max(10)
+        .optional(),
     }),
   }),
   reliableEventBase.extend({
