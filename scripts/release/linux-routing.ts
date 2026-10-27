@@ -93,7 +93,7 @@ async function main() {
     writeFileSync(join(temp, "postgres-connection.ts"), readFileSync("src/db/postgres-connection.ts", "utf8")
       .replace('from "./supabase-ca"', 'from "./supabase-ca.ts"'));
     const tools = ["scripts/standby/install-production.sh", "scripts/standby/production-host.mjs", "scripts/standby/rivalhub-production.service", "scripts/standby/layers.mjs",
-      "scripts/standby/production-quiescence.mjs", join(temp, "postgres-connection.ts"), "src/db/supabase-ca.ts"];
+      "scripts/standby/production-quiescence.mjs", "scripts/standby/production-launcher.mjs", join(temp, "postgres-connection.ts"), "src/db/supabase-ca.ts"];
     execFileSync("scp", [...options, "-P", "52222", join(packageDir, archive), join(packageDir, `${archive}.sha256`), ...tools, `${host}:${remote}/`], { stdio: "inherit", timeout: 300_000 });
     if (layered) {
       const missing: unknown = JSON.parse(execFileSync("ssh", [...options, "-p", "52222", host,

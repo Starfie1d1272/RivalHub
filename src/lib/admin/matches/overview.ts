@@ -171,7 +171,7 @@ function projectWorkspace(context: NonNullable<Awaited<ReturnType<typeof loadWor
   return {
     season: { id: season.id, slug: season.slug, name: season.name, status: season.status, competitionTemplate: season.competitionTemplate },
     teams: allTeams.map(({ id, name }) => ({ id, name })), stagePlan,
-    qualificationRun: qualificationRun ? { id: qualificationRun.id, format: qualificationRun.format, playInEntryCount: qualificationRun.playInEntryCount } : null,
+    qualificationRun: qualificationRun ? { id: qualificationRun.id, format: qualificationRun.format, playInEntryCount: qualificationRun.playInEntryCount, startedAt: qualificationRun.startedAt, completedAt: qualificationRun.completedAt } : null,
   };
 }
 
