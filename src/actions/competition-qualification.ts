@@ -24,7 +24,7 @@ function revalidatePrestart(seasonSlug: string): void {
   updatePublicHomeTag();
   revalidatePath(`/admin/${seasonSlug}`);
   revalidatePath(`/admin/${seasonSlug}/prestart`);
-  revalidateSeasonPaths(seasonSlug, ["matches"]);
+  revalidateSeasonPaths(seasonSlug, ["matches", "adminMatches"]);
 }
 
 async function adminOrThrow(seasonId: string) {
