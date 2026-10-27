@@ -1,5 +1,5 @@
 // Frozen producer contract, vendored from Mizar packages/protocol/src/output.ts.
-// Verified against Mizar 65e30b9e673bd51b9d409ad31d3828a911cf3683 by
+// Verified against Mizar 88ba7001f8b3993c6cd2e6961dbf6968f29ec63b by
 // scripts/mizar-contract-check.mjs; change it only together with the producer.
 // RivalHub public projection lives in live-projection.ts.
 import { z } from 'zod';
