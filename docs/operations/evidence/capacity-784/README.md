@@ -17,3 +17,9 @@ pnpm test:integration:pg17 tests/integration/db/capacity/bet-capacity.test.ts
 ```
 
 尚未覆盖跨截止并发、不同账户、预测、Demo/身份撤销、多赛事、结算/更正交错、慢 SQL/持锁注入、锁等待采样、HTTP 和 provider 费用；issue 继续开放。不能从这些逻辑数据或响应字节推导 provider egress。后续预算由父任务根据完整证据判断。
+
+## 本次测量
+
+[原始脱敏结果](bet-service.json)记录代码提交 `e3d8bc7fef6b873ce95a557d5d9557c774867b33` 和文件哈希。2026-10-27 在本地 PostgreSQL 17.11（与本地其他服务共享实例，独立 scratch database）、Linux x86_64、5 个可见 CPU 上运行；这不是独占 DB 主机。1、2、4、8 并发各三轮，16 并发第一轮队列采样到 10，达到停止阈值 8 后未继续。61 个调用均观察到提交，余额、幂等和开赛拒绝通过。逐轮原始耗时及 timeout 读回见 JSON；这些小样本与共享环境不能用来确定退化点。
+
+同一版本还以真实 PG 行锁和占满的六连接池分别触发锁等待及连接获取超时，释放后成功查询；两个 integration test 均通过并清理数据库。此故障测试不模拟提交响应丢失；未观察到失败请求的首次只读查询不能证明写入永远不会稍后提交，仍保留 unresolved，且不重放。
