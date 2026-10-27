@@ -6,8 +6,6 @@ import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   configureCompetitionQualification as telemetry_configureCompetitionQualification,
-  generateCompetitionQualificationRound as telemetry_generateCompetitionQualificationRound,
-  previewCompetitionQualificationRound,
   resetCompetitionQualification as telemetry_resetCompetitionQualification,
   saveCompetitionQualificationDraft as telemetry_saveCompetitionQualificationDraft,
 } from "@/actions/competition-qualification";
@@ -25,28 +23,15 @@ import { MajorRankingWorkspace } from "./MajorRankingWorkspace";
 import { formatCST } from "@/lib/utils/date";
 import { initialPreliminaryOrder } from "@/lib/admin/season-workspace/ranking-order";
 import { observeAction } from "@/lib/telemetry/client";
+import { PlayInRoundControl } from "./PlayInRoundControl";
 
 const configureCompetitionQualification = observeAction("competition-qualification.configureCompetitionQualification", telemetry_configureCompetitionQualification);
-const generateCompetitionQualificationRound = observeAction("competition-qualification.generateCompetitionQualificationRound", telemetry_generateCompetitionQualificationRound);
 const resetCompetitionQualification = observeAction("competition-qualification.resetCompetitionQualification", telemetry_resetCompetitionQualification);
 const saveCompetitionQualificationDraft = observeAction("competition-qualification.saveCompetitionQualificationDraft", telemetry_saveCompetitionQualificationDraft);
 const selectMajorEntrants = observeAction("major-prestart.selectMajorEntrants", telemetry_selectMajorEntrants);
 const setMajorManagedProfile = observeAction("major-prestart.setMajorManagedProfile", telemetry_setMajorManagedProfile);
 
 type ManagementData = MajorPrestartPageData["management"];
-type QualificationRoundPreview = {
-  round: number;
-  format: "bo1" | "bo3";
-  matchups: Array<{
-    higherSeedTeamId: string;
-    higherSeedTeamName: string;
-    higherSeed: number;
-    lowerSeedTeamId: string;
-    lowerSeedTeamName: string;
-    lowerSeed: number;
-  }>;
-};
-
 async function reportResult(work: () => Promise<ActionResult<void>>, success: string): Promise<void> {
   const result = await work();
   if (result.success) toast.success(success);
@@ -62,7 +47,6 @@ export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; ph
   const [order, setOrder] = useState(initialPreliminaryOrder(data.qualification.draft && !data.qualification.draft.stale ? data.qualification.draft.order : data.initialPreliminaryOrderEntryIds, run?.entrants ?? null));
   const [confirmReset, setConfirmReset] = useState(false);
   const [configPreviewOpen, setConfigPreviewOpen] = useState(false);
-  const [roundPreview, setRoundPreview] = useState<QualificationRoundPreview | null>(null);
   const candidatesById = useMemo(() => new Map(data.approvedCandidates.map((candidate) => [candidate.id, candidate])), [data.approvedCandidates]);
 
   const plan = useMemo(() => {
@@ -100,15 +84,6 @@ export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; ph
     }));
   const cut = run?.directEntryCount ?? plan?.directEntryCount;
 
-  function previewNextRound() {
-    if (!run) return;
-    startTransition(async () => {
-      const result = await previewCompetitionQualificationRound({ seasonId: data.seasonId, runId: run.id });
-      if (!result.success) toast.error(result.error.message);
-      else setRoundPreview(result.data);
-    });
-  }
-
   function saveDraft() {
     startTransition(async () => {
       const result = await saveCompetitionQualificationDraft({ seasonId: data.seasonId, format, order, expectedVersion: savedDraft?.version ?? null });
@@ -130,23 +105,6 @@ export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; ph
       else {
         toast.success("Play-in 候选队伍与预排名已锁定");
         setConfigPreviewOpen(false);
-      }
-    });
-  }
-
-  function confirmRoundGeneration() {
-    if (!run || !roundPreview) return;
-    const preview = roundPreview;
-    startTransition(async () => {
-      const result = await generateCompetitionQualificationRound({
-        seasonId: data.seasonId,
-        runId: run.id,
-        expectedPairings: preview.matchups.map(({ higherSeedTeamId, lowerSeedTeamId }) => ({ higherSeedTeamId, lowerSeedTeamId })),
-      });
-      if (!result.success) toast.error(result.error.message);
-      else {
-        toast.success(result.data.created ? `第 ${result.data.round} 轮对阵已生成` : `第 ${result.data.round} 轮已存在`);
-        setRoundPreview(null);
       }
     });
   }
@@ -234,7 +192,7 @@ export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; ph
               </div>
               <div className="flex flex-wrap gap-2">
                 {!run.startedAt && run.matchCount === 0 && <Button size="sm" variant="outline" disabled={pending} onClick={() => setConfirmReset(true)}>重置配置</Button>}
-                {canGenerate && <Button size="sm" disabled={pending} onClick={previewNextRound}>{run.matchCount === 0 ? "预览首轮对阵" : `预览第 ${run.currentRound + 1} 轮`}</Button>}
+                {canGenerate && <PlayInRoundControl seasonId={data.seasonId} runId={run.id} label={run.matchCount === 0 ? "预览首轮对阵" : `预览第 ${run.currentRound + 1} 轮`} />}
               </div>
             </div>
             {confirmReset && <InlineConfirm
@@ -297,28 +255,6 @@ export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; ph
           <DialogFooter>
             <Button variant="outline" disabled={pending} onClick={() => setConfigPreviewOpen(false)}>返回调整</Button>
             <Button disabled={pending || !canConfigure || (format === "short_swiss_2w2l" && !shortSwissAllowed)} onClick={confirmConfiguration}>确认并锁定配置</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={Boolean(roundPreview)} onOpenChange={(open) => { if (!open) setRoundPreview(null); }}>
-        <DialogContent size="lg">
-          <DialogHeader>
-            <DialogTitle>{roundPreview ? `第 ${roundPreview.round} 轮对阵预览` : "Play-in 对阵预览"}</DialogTitle>
-            <DialogDescription>{roundPreview?.format === "bo3" ? "Direct BO3" : "Short Swiss BO1"} · 确认后开始本轮比赛</DialogDescription>
-          </DialogHeader>
-          <DialogBody>
-            <ol className="space-y-2">
-              {roundPreview?.matchups.map((matchup, index) => <li key={`${matchup.higherSeedTeamId}:${matchup.lowerSeedTeamId}`} className="flex items-center gap-3 border-b border-[var(--color-border)] py-2 text-sm">
-                <span className="w-8 text-[var(--color-fg-dim)]">{index + 1}.</span>
-                <span className="min-w-0 flex-1 text-right"><strong>P{matchup.higherSeed}</strong> {matchup.higherSeedTeamName}</span>
-                <span className="text-[var(--color-fg-dim)]">vs</span>
-                <span className="min-w-0 flex-1"><strong>P{matchup.lowerSeed}</strong> {matchup.lowerSeedTeamName}</span>
-              </li>)}
-            </ol>
-          </DialogBody>
-          <DialogFooter>
-            <Button variant="outline" disabled={pending} onClick={() => setRoundPreview(null)}>取消</Button>
-            <Button disabled={pending || !roundPreview} onClick={confirmRoundGeneration}>确认并生成对阵</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
