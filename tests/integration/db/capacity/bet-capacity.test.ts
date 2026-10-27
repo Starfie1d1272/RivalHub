@@ -21,7 +21,7 @@ function failureClass(error: unknown): string {
 }
 
 // This opt-in experiment uses only the fixture's scratch databases.
-it.skipIf(process.env.RIVALHUB_BET_CAPACITY !== "1")("measures independent same-account BET rounds and verifies committed outcomes", async () => {
+it.skipIf(process.env.RIVALHUB_BET_CAPACITY !== "1")("measures independent BET rounds and verifies committed outcomes", async () => {
   const accountMode = process.env.RIVALHUB_BET_ACCOUNTS ?? "same";
   if (!["same", "different"].includes(accountMode)) throw new Error("INVALID_ACCOUNT_MODE");
   const expectedSha = process.env.RIVALHUB_CAPACITY_SHA;
