@@ -205,7 +205,8 @@ full restore 必须运行在 exact shipped tag 的兼容 application release；�
 pnpm db:recovery:restore \
   --artifact /private/path/new-recovery-run/artifact.tar.gz.age \
   --manifest /private/path/new-recovery-run/sidecar.json \
-  --completion /private/path/new-recovery-run/completion.json
+  --completion /private/path/new-recovery-run/completion.json \
+  --record /private/path/new-restore-record.jsonl
 ```
 
 上面的 `db:recovery:restore` 是 full recovery restore，只接受 `artifactKind=full`，要求 isolated Supabase API/Storage target。DB-only checkpoint 使用下面的显式入口；它只接受 `artifactKind=db-checkpoint`，只要求 isolated PostgreSQL target，不读取或写入 Supabase Storage：
@@ -214,8 +215,15 @@ pnpm db:recovery:restore \
 pnpm db:recovery:restore-db-checkpoint \
   --artifact /private/path/new-recovery-run/artifact.tar.gz.age \
   --manifest /private/path/new-recovery-run/sidecar.json \
-  --completion /private/path/new-recovery-run/completion.json
+  --completion /private/path/new-recovery-run/completion.json \
+  --record /private/path/new-restore-record.jsonl
 ```
+
+每次恢复必须提供全新 `--record` 路径。记录在目标写入前独占创建，绑定新的恢复 run、快照 run、artifact hash、目标 endpoint 与 PostgreSQL system identifier/database OID 指纹及 migration terminal；成功后追加数据验证事件。失败或中断留下 started 记录，不得复用；复制整个 PostgreSQL cluster 可能保留 system identifier，不能单凭指纹证明实例未被替换。记录须保存在快照之外的受保护位置，不能作为当前撤销事实。
+
+`pnpm db:recovery:readiness` 当前始终拒绝放流：full 与 DB-only 校验都只是数据验证，provider 状态、对账覆盖水位以及独立于快照的当前撤销和角色事实均未实现。更换目标、重复恢复或证据缺失时不得沿用旧记录。切流仍由现有 protected owner 控制，必须保留 #1101 的写者排空与现有 exact migration-prefix；此命令不修改网络或代替这些门禁。
+
+后续验收接口须由现有 Auth/session、Mizar/DAK 配对、邀请及身份/角色各 owner 提供独立于快照的当前撤销和权威事实，对同一恢复 run、artifact、目标实例及 terminal 证明覆盖至明确水位，并验证 provider 状态；所有 owner 均需完成后才能设计放行。旧账号可能重新登录，清 session 或更换 cookie secret 不能替代对账。本批没有实现这些证明，#904 保持开放。
 
 顺序固定为：
 
