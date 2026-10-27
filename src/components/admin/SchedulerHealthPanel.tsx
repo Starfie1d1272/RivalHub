@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { runSchedulerJobManually as telemetry_runSchedulerJobManually } from "@/actions/scheduler";
 import { InlineConfirm, Panel, StatusPill } from "@/components/rivalhub";
+import { hasUnconfirmedDispatch } from "@/lib/service-health/contract";
 import type { SchedulerHealthView } from "@/lib/scheduler/admin";
 import { observeAction } from "@/lib/telemetry/client";
 
@@ -41,7 +42,7 @@ export function SchedulerHealthPanel({ jobs }: { jobs: SchedulerHealthView[] }) 
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-sm font-semibold text-[var(--color-fg)]">{job.label}</h3>
-                <StatusPill label={job.status === "normal" ? "正常" : "已降级"} tone={job.status === "normal" ? "success" : "warn"} />
+                <StatusPill label={job.status === "normal" ? "正常" : hasUnconfirmedDispatch(job) ? "需要关注" : "未核验"} tone={job.status === "normal" ? "success" : hasUnconfirmedDispatch(job) ? "warn" : "neutral"} />
               </div>
               <p className="mt-1 text-xs text-[var(--color-fg-mid)]">最近主调度唤醒：{formatHealthTime(job.primaryTriggeredAt)}</p>
             </div>

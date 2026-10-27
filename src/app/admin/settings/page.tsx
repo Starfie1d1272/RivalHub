@@ -6,6 +6,9 @@ import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { PageHeader, PageLayout, Panel, StatusPill } from "@/components/rivalhub";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
+import { ServiceHealthPanel } from "@/components/admin/ServiceHealthPanel";
+import { serviceHealth } from "@/lib/service-health/contract";
+import { getTelemetryAnalysis } from "@/lib/telemetry/dashboard";
 import { SchedulerHealthPanel } from "@/components/admin/SchedulerHealthPanel";
 import { getSchedulerHealthView } from "@/lib/scheduler/admin";
 import { getRuntimeHealthSnapshot } from "@/lib/observability/server";
@@ -69,10 +72,14 @@ function RuntimeHealthPanel() {
   );
 }
 
+function currentHealth(telemetry: Parameters<typeof serviceHealth>[0], jobs: Parameters<typeof serviceHealth>[1]) {
+  return serviceHealth(telemetry, jobs, Date.now());
+}
+
 export default async function AdminSettingsPage() {
   const admin = await resolveAdminPageAccess(requireSuperAdmin);
   if (!admin) return <AdminAccessDenied />;
-  const [[adminUser], schedulerHealth] = await Promise.all([
+  const [[adminUser], schedulerHealth, telemetry] = await Promise.all([
     db.select({
       personaName: steamProfiles.personaName,
       displayName: users.displayName,
@@ -82,13 +89,16 @@ export default async function AdminSettingsPage() {
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .where(eq(users.id, admin.userId))
       .limit(1),
-    getSchedulerHealthView(),
+    getSchedulerHealthView().catch(() => null),
+    getTelemetryAnalysis({ hours: "24" }).catch(() => ({ status: "unavailable" as const })),
   ]);
   const adminDisplayName = adminUser ? getDisplayName(adminUser) : admin.email;
 
   return (
     <PageLayout variant="narrow" className="space-y-10">
         <PageHeader title="系统状态" description={`当前登录：${adminDisplayName}`} />
+
+        <ServiceHealthPanel items={currentHealth(telemetry, schedulerHealth)} />
 
         <RuntimeHealthPanel />
 
@@ -144,7 +154,7 @@ export default async function AdminSettingsPage() {
             <h2 className="text-base font-semibold text-[var(--color-fg)]">定时任务健康</h2>
             <p className="text-xs text-[var(--color-fg-mid)]">展示当前健康投影；“立即运行一次”仅用于故障恢复，会检查并可能推进对应业务状态。</p>
           </div>
-          <SchedulerHealthPanel jobs={schedulerHealth} />
+          {schedulerHealth ? <SchedulerHealthPanel jobs={schedulerHealth} /> : <Panel>定时任务健康暂时无法读取，请稍后重试。</Panel>}
         </section>
     </PageLayout>
   );

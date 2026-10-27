@@ -201,6 +201,12 @@ return traceOperation("competition_entry.submit", {
 
 Scheduler 的 `scheduled_job_health` 只保存有界 current projection，不是 runtime log 或 execution ledger。primary trigger、primary endpoint start/success、watchdog fallback/manual success、最近业务推进和最近失败分别由 shared scheduler owner 更新；fresh watchdog no-op 不写 projection。失败只保存稳定 source/code/classification，不保存 raw error、URL、Authorization 或 Vault secret。`jobKey`、`source` 等 safeContext 仍必须经过 allowlist。
 
+## 服务健康与证据覆盖
+
+超级管理员在 `/admin/settings` 查看六组当前证据。认证、个人及团队报名提交、赛果更正分别使用产品遥测过去 24 小时的客户端 operation 聚合；成功、拒绝、未知与待定分列，拒绝不等于系统故障，未知或待定先核对业务事实，不自动重放。客户端结果不覆盖全部服务端终态，尚无可信生产阈值，因此即使有样本也不判为整体正常；无样本、截断或过期均为未核验。进一步按版本和操作查看 `/admin/telemetry` 与 runtime logs。
+
+定时任务直接使用现有 scheduler 投影和各任务的 freshness 判定；缺失、读取失败或过期显示未核验；未确认成功的派发显示需要关注，检查主调度、派发和业务状态。完整性使用 production 的 security/invariant 告警，由运维负责人在 Better Stack 查证；公共资源真实 GET、可信 full backup 验证及 provider 用量/预算由对应运维负责人查验现有恢复证据和 provider 控制台。这些外部证据未接入本页，显示未核验，不将缺失告警当正常。现有告警规则及其窗口见下节，生产基线仍需实际观测。
+
 ## 告警原则
 
 告警统计 canonical **结构化日志事件**，不能把通用 `label('error')='1'` 的 framework、child 或 DB span 数量当成应用故障数。所有规则先限制 `environment=production`，再应用下列条件：
