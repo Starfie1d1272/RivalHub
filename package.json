@@ -92,7 +92,7 @@
   "dependencies": {
     "@cs2dak/tournament": "1.1.1",
     "@fontsource-variable/noto-sans-sc": "5.3.1",
-    "@hookform/resolvers": "^5.9.2",
+    "@hookform/resolvers": "^6.0.0",
     "@mizar-hud/radar-view": "0.1.0",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/api-logs": "^0.223.0",
