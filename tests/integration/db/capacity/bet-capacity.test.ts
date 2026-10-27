@@ -107,3 +107,33 @@ it.skipIf(process.env.RIVALHUB_BET_CAPACITY !== "1")("measures independent same-
     if (process.env.RIVALHUB_CAPACITY_REPORT) writeFileSync(process.env.RIVALHUB_CAPACITY_REPORT, JSON.stringify(report, null, 2));
   }
 }, 180_000);
+
+it.skipIf(process.env.RIVALHUB_BET_CAPACITY !== "1")("bounds a held pool and a PostgreSQL row lock, then recovers", async () => {
+  await fixture(async f => {
+    const pool = f.db.$client;
+    pool.options.connectionTimeoutMillis = 100;
+    const clients = await Promise.all(Array.from({ length: 6 }, () => pool.connect()));
+    try {
+      let failure: unknown;
+      try { const extra = await pool.connect(); extra.release(); } catch (error) { failure = error; }
+      expect(failureClass(failure)).toBe("pool_acquisition_timeout");
+    } finally { for (const client of clients) client.release(); }
+    const holder = await pool.connect();
+    const waiter = await pool.connect();
+    try {
+      await holder.query("BEGIN");
+      await holder.query("SELECT id FROM matches WHERE id = $1 FOR UPDATE", [f.matchId]);
+      await waiter.query("BEGIN");
+      await waiter.query("SET LOCAL lock_timeout = '100ms'");
+      let failure: unknown;
+      try { await waiter.query("SELECT id FROM matches WHERE id = $1 FOR UPDATE", [f.matchId]); } catch (error) { failure = error; }
+      expect(failureClass(failure)).toBe("lock_timeout");
+    } finally {
+      await waiter.query("ROLLBACK");
+      await holder.query("ROLLBACK");
+      waiter.release();
+      holder.release();
+    }
+    expect((await pool.query("SELECT 1 AS ready")).rows[0]?.ready).toBe(1);
+  });
+}, 30000);
