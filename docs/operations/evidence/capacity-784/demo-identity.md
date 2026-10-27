@@ -1,6 +1,6 @@
 # #784 跨赛事 Demo 与身份撤销
 
-[脱敏原始结果](demo-identity.json)使用冻结代码 `800c15cfae34652bcd7f1588fb0ac723b603a0a4`。每轮新建 scratch database 并重放迁移，固定 17 场赛事、每场 10 位合成选手及一份 Demo；先确认第一场身份。各轮同时提交一次该身份撤销，以及 1、2、4、8 或 16 场其他赛事的 Demo 身份确认，因此实际事务数分别是 2、3、5、9、17。每赛事使用不同用户及 Steam64：本实验覆盖全局 identity advisory 锁跨赛事竞争，但不证明同一身份跨赛事失效传播。
+[脱敏原始结果](demo-identity.json)使用冻结代码 `3c095680efb7e60f8d7e4c63b7374880113a8e12`。每轮新建 scratch database 并重放迁移，固定 17 场赛事、每场 10 位合成选手及一份 Demo；先确认第一场身份。各轮同时提交一次该身份撤销，以及 1、2、4、8 或 16 场其他赛事的 Demo 身份确认，因此实际事务数分别是 2、3、5、9、17。每赛事使用不同用户及 Steam64：本实验覆盖全局 identity advisory 锁跨赛事竞争，但不证明同一身份跨赛事失效传播。
 
 池最大 6，连接获取 timeout 2s，每个事务读回 statement timeout 5s、lock timeout 2s；额外一个连接每 20ms 采样 PG advisory wait 和池队列。失败、采样失败或采样池队列达到 8 后停止升载；采样可能漏峰，无法提供单请求锁等待时间。结束后只读核对每个身份的状态、归属和 Demo 状态；未观察到的失败结果保留 unresolved，不重放。独立回归实际观察确认事务等待其他赛事撤销所持的 advisory 锁。试验没有 HTTP、provider、实际 egress 或生产测试。
 
