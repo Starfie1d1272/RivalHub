@@ -98,7 +98,7 @@ it.skipIf(process.env.RIVALHUB_BET_CAPACITY !== "1")("measures independent same-
       await f.db.transaction(tx => stakeBetInTx(tx, args));
       expect((await read(f.db, f.seasonId, f.userId)).balance).toBe("999");
       await f.db.update(schema.matches).set({ status: "in_progress", gameplayStartedAt: new Date() }).where(eq(schema.matches.id, f.matchId));
-      await expect(f.db.transaction(tx => stakeBetInTx(tx, { ...args, requestId: randomUUID() }))).rejects.toThrow();
+      await expect(f.db.transaction(tx => stakeBetInTx(tx, { ...args, requestId: randomUUID() }))).rejects.toThrow(/锁定/);
       expect((await read(f.db, f.seasonId, f.userId)).balance).toBe("999");
       report.boundary = { replayChargedOnce: true, rejectedAfterGameplay: true, balanceVerified: true };
     });
