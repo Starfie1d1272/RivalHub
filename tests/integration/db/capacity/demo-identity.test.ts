@@ -94,13 +94,13 @@ it.skipIf(process.env.RIVALHUB_DEMO_CAPACITY !== "1")("measures cross-event Demo
           for (const file of migrationFiles(name => /^\d{4}_.*\.sql$/.test(name))) await replayMigration(client, file);
           const url = new URL(localDatabaseUrl()); url.pathname = `/${(await client.query("select current_database() as name")).rows[0].name}`;
           const pool = new Pool({ connectionString: url.toString(), ssl: false, max: 6, connectionTimeoutMillis: 2000 });
+          const monitor = new Pool({ connectionString: url.toString(), ssl: false, max: 1, connectionTimeoutMillis: 2000 });
           try {
             const connection = await pool.connect();
             const events: Array<Awaited<ReturnType<typeof seedDemoCapacity>>> = [];
             try { for (let seed = 0; seed < 17; seed++) events.push(await seedDemoCapacity(connection, seed)); }
             finally { connection.release(); }
             const db = drizzle(pool, { schema });
-            const monitor = new Pool({ connectionString: url.toString(), ssl: false, max: 1, connectionTimeoutMillis: 2000 });
             const source = events[0]!;
             const input = (f: typeof source) => ({ importId: f.importId, observedSteam64: f.alternate, eventRosterMemberId: f.eventRosterMemberId, actorId: f.actorId });
             expect((await db.transaction(tx => confirmStoredDemoParticipantIdentityInTx(tx, input(source)))).status).toBe("confirmed");
@@ -119,6 +119,7 @@ it.skipIf(process.env.RIVALHUB_DEMO_CAPACITY !== "1")("measures cross-event Demo
                 .finally(() => { sampling = undefined; });
             }, 20);
             const start = performance.now();
+            let elapsedMs = 0;
             const requests = [source, ...actors].map((event, index) => ({ event, index, totalMs: 0, acquireAndBeginMs: null as number | null, transactionMs: null as number | null, error: null as string | null, settings: null as { statement: string; lock: string } | null }));
             try {
               await Promise.all(requests.map(async request => {
@@ -141,8 +142,8 @@ it.skipIf(process.env.RIVALHUB_DEMO_CAPACITY !== "1")("measures cross-event Demo
                   if (began !== undefined) request.transactionMs = end - began;
                 }
               }));
-            } finally { clearInterval(sampler); await sampling; await monitor.end(); }
-            const elapsedMs = performance.now() - start;
+              elapsedMs = performance.now() - start;
+            } finally { clearInterval(sampler); await sampling; }
             const observed = await Promise.all(requests.map(async request => {
               if (request.index === 0) {
                 const retiredIdentity = await db.query.userGameplaySteamIds.findFirst({ where: eq(schema.userGameplaySteamIds.id, identity!.id) });
@@ -158,7 +159,7 @@ it.skipIf(process.env.RIVALHUB_DEMO_CAPACITY !== "1")("measures cross-event Demo
             if (stop) report.stopped = requests.some(request => request.error) ? "request_failure" : sampleError ? "sampling_failure" : "sampled_pool_queue";
             report.rounds.push({ confirmConcurrency: concurrency, totalRequests: concurrency + 1, round, elapsedMs, maxPoolQueueSampled: maxQueue, maxAdvisoryWaitersSampled: maxAdvisoryWaiters, sampleError,
               outcomes: requests.map((request, index) => ({ index: request.index, totalMs: request.totalMs, acquireAndBeginMs: request.acquireAndBeginMs, transactionMs: request.transactionMs, error: request.error, settings: request.settings, observedCommitted: observed[index], outcome: observed[index] ? "committed" : request.error ? "unresolved" : "missing" })) });
-          } finally { await pool.end(); }
+          } finally { await monitor.end(); await pool.end(); }
         });
       }
       if (stop) break;
