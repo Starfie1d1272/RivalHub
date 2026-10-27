@@ -22,14 +22,16 @@ function failureClass(error: unknown): string {
 
 // This opt-in experiment uses only the fixture's scratch databases.
 it.skipIf(process.env.RIVALHUB_BET_CAPACITY !== "1")("measures independent same-account BET rounds and verifies committed outcomes", async () => {
+  const accountMode = process.env.RIVALHUB_BET_ACCOUNTS ?? "same";
+  if (!["same", "different"].includes(accountMode)) throw new Error("INVALID_ACCOUNT_MODE");
   const expectedSha = process.env.RIVALHUB_CAPACITY_SHA;
   const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   if (!expectedSha || expectedSha !== sha || !/^[a-f0-9]{40}$/.test(expectedSha)) throw new Error("EXACT_SHA_REQUIRED");
   execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/harness/bet-fixture.ts", "tests/integration/db/capacity/bet-capacity.test.ts"]);
   const source = ["src/lib/bet/service.ts", "tests/integration/db/harness/bet-fixture.ts", "tests/integration/db/capacity/bet-capacity.test.ts"];
-  const report: { sha: string; hashes: Record<string, string>; dataset: string; limits: object; rounds: object[]; stopped?: string; boundary?: object; cleanup?: boolean } = {
+  const report: { sha: string; hashes: Record<string, string>; dataset: string; accountMode: string; limits: object; rounds: object[]; stopped?: string; boundary?: object; cleanup?: boolean } = {
     sha, hashes: Object.fromEntries(source.map(path => [path, createHash("sha256").update(readFileSync(path)).digest("hex")])),
-    dataset: "fresh scratch database per round: one Major, one match, two joined accounts, seven markets, no stakes; one unit per request",
+    accountMode, dataset: "fresh scratch database per round: one Major, one match, two joined accounts, seven markets, no stakes; one unit per request",
     limits: { poolMax: 6, poolAcquireTimeoutMs: 2000, statementTimeoutMs: 5000, lockTimeoutMs: 2000, stopOnAnyFailure: true, stopAtSampledPoolQueue: 8 }, rounds: [],
   };
   let stopped = false;
@@ -41,12 +43,15 @@ it.skipIf(process.env.RIVALHUB_BET_CAPACITY !== "1")("measures independent same-
           pool.options.connectionTimeoutMillis = 2000;
           const market = (await read(f.db, f.seasonId, f.userId)).markets.find(m => m.type === "match_winner")!;
           const account = await f.db.query.betAccounts.findFirst({ where: eq(schema.betAccounts.userId, f.userId) });
+          const otherAccount = await f.db.query.betAccounts.findFirst({ where: eq(schema.betAccounts.userId, f.otherId) });
           expect(account).toBeDefined();
+          expect(otherAccount).toBeDefined();
+          expect(await f.db.transaction(tx => betBalance(tx, otherAccount!.id))).toBe(BigInt(1000));
           expect(await f.db.select().from(schema.betStakes)).toHaveLength(0);
           expect(await f.db.transaction(tx => betBalance(tx, account!.id))).toBe(BigInt(1000));
           let maxQueue = 0;
           const samples = setInterval(() => { maxQueue = Math.max(maxQueue, pool.waitingCount); }, 5);
-          const requests = Array.from({ length: concurrency }, () => ({ id: randomUUID(), totalMs: 0, acquireAndBeginMs: null as number | null, transactionMs: null as number | null, failure: null as string | null, effectiveTimeouts: null as { statement: string; lock: string } | null }));
+          const requests = Array.from({ length: concurrency }, (_, index) => ({ id: randomUUID(), userId: accountMode === "different" && index % 2 ? f.otherId : f.userId, totalMs: 0, acquireAndBeginMs: null as number | null, transactionMs: null as number | null, failure: null as string | null, effectiveTimeouts: null as { statement: string; lock: string } | null }));
           const started = performance.now();
           try {
             await Promise.all(requests.map(async request => {
@@ -60,7 +65,7 @@ it.skipIf(process.env.RIVALHUB_BET_CAPACITY !== "1")("measures independent same-
                   const row = settings.rows[0] as { statement: string; lock: string };
                   request.effectiveTimeouts = row;
                   if (row.statement !== "5s" || row.lock !== "2s") throw new Error("TIMEOUT_CONFIGURATION_MISMATCH");
-                  await stakeBetInTx(tx, { seasonId: f.seasonId, userId: f.userId, marketId: market.id, optionId: market.options[0]!.id, amount: "1", requestId: request.id });
+                  await stakeBetInTx(tx, { seasonId: f.seasonId, userId: request.userId, marketId: market.id, optionId: market.options[0]!.id, amount: "1", requestId: request.id });
                 });
               } catch (error) { request.failure = failureClass(error); }
               finally {
@@ -72,12 +77,20 @@ it.skipIf(process.env.RIVALHUB_BET_CAPACITY !== "1")("measures independent same-
           } finally { clearInterval(samples); }
           const elapsedMs = performance.now() - started;
           // Reconcile once, read-only, after all calls have settled. Never resend an unknown write.
-          const stored = await f.db.select({ requestId: schema.betStakes.requestId }).from(schema.betStakes).where(eq(schema.betStakes.accountId, account!.id));
+          const stored = await f.db.select({ requestId: schema.betStakes.requestId, accountId: schema.betStakes.accountId }).from(schema.betStakes);
           const committed = new Set(stored.map(row => row.requestId));
-          const outcomes = requests.map(({ id, ...request }) => ({ ...request, observedCommitted: committed.has(id), outcome: committed.has(id) ? "committed" : request.failure ? "unresolved" : "missing" }));
+          const outcomes = requests.map(request => ({ totalMs: request.totalMs, acquireAndBeginMs: request.acquireAndBeginMs, transactionMs: request.transactionMs, failure: request.failure, effectiveTimeouts: request.effectiveTimeouts, observedCommitted: committed.has(request.id), outcome: committed.has(request.id) ? "committed" : request.failure ? "unresolved" : "missing" }));
+          for (const request of requests) {
+            const row = stored.find(item => item.requestId === request.id);
+            if (row) expect(row.accountId).toBe(request.userId === f.userId ? account!.id : otherAccount!.id);
+          }
           expect(stored.length).toBe(committed.size);
           expect(outcomes.filter(item => !item.failure && !item.observedCommitted)).toHaveLength(0);
-          expect(await f.db.transaction(tx => betBalance(tx, account!.id))).toBe(BigInt(1000) - BigInt(stored.length));
+          const committedForUser = stored.filter(item => item.accountId === account!.id).length;
+          const committedForOther = stored.filter(item => item.accountId === otherAccount!.id).length;
+          expect(committedForUser + committedForOther).toBe(stored.length);
+          expect(await f.db.transaction(tx => betBalance(tx, account!.id))).toBe(BigInt(1000) - BigInt(committedForUser));
+          expect(await f.db.transaction(tx => betBalance(tx, otherAccount!.id))).toBe(BigInt(1000) - BigInt(committedForOther));
           const failure = outcomes.some(item => item.failure);
           stopped = failure || maxQueue >= 8;
           if (stopped) report.stopped = failure ? "request_failure" : "sampled_pool_queue";
@@ -85,7 +98,7 @@ it.skipIf(process.env.RIVALHUB_BET_CAPACITY !== "1")("measures independent same-
           // A fresh request establishes post-load recovery; it is not a replay of any failed request.
           if (!failure) {
             await f.db.transaction(tx => stakeBetInTx(tx, { seasonId: f.seasonId, userId: f.userId, marketId: market.id, optionId: market.options[0]!.id, amount: "1", requestId: randomUUID() }));
-            expect(await f.db.transaction(tx => betBalance(tx, account!.id))).toBe(BigInt(999) - BigInt(stored.length));
+            expect(await f.db.transaction(tx => betBalance(tx, account!.id))).toBe(BigInt(999) - BigInt(committedForUser));
           }
         });
       }
