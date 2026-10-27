@@ -22,7 +22,7 @@ import { AdminPlayerContact } from "@/components/admin/AdminPlayerContact";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import type { QualificationFinding } from "@/lib/qualification/finding";
-import { presentTeamQualificationFindings, presentTeamRegistrationSummary } from "@/lib/registrations/admin-review-presentation";
+import { presentTeamQualificationFindings, presentTeamRegistrationSummary, teamReviewCategory } from "@/lib/registrations/admin-review-presentation";
 import { formatCST } from "@/lib/utils/date";
 import {
   TEAM_REGISTRATION_REVIEW_DEFAULTS,
@@ -51,6 +51,7 @@ const STATUS_OPTIONS = [
   { value: "approved", label: "已通过" },
   { value: "waitlisted", label: "候补" },
   { value: "changes_requested", label: "需补正" },
+  { value: "self_change_draft", label: "草稿待提交" },
   { value: "rejected", label: "未通过" },
   { value: "withdrawn", label: "已撤回" },
   { value: "all", label: "全部状态" },
@@ -206,11 +207,17 @@ export function CompetitionEntryReviewList({
     ) : <div className="space-y-5">{entries.map((entry) => {
     const qualificationFindings = presentTeamQualificationFindings(entry);
     const summary = presentTeamRegistrationSummary(entry);
+    const category = teamReviewCategory(entry);
     return <Panel key={entry.id} label={`报名审核 · ${entry.name}`} contentClassName="p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold">{entry.status === "approved" ? <TeamProfileLink seasonSlug={seasonSlug} entryId={entry.id}>{entry.name}</TeamProfileLink> : entry.name}</h3><Badge variant="outline">{presentCompetitionEntryRegistration(entry.status).label}</Badge><Badge variant="outline">{entry.source === "linked_team" ? "队伍报名" : "赛事组队"}</Badge></div><p className="mt-2 text-sm text-[var(--color-fg-mid)]">负责人：{entry.representativeName} · 完美战队 ID（可选）：{entry.perfectTeamId ?? "未填写"}</p></div>
+        <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-semibold">{entry.status === "approved" ? <TeamProfileLink seasonSlug={seasonSlug} entryId={entry.id}>{entry.name}</TeamProfileLink> : entry.name}</h3><Badge variant="outline">{category === "self_change_draft" ? "草稿待提交" : presentCompetitionEntryRegistration(entry.status).label}</Badge><Badge variant="outline">{entry.source === "linked_team" ? "队伍报名" : "赛事组队"}</Badge></div><p className="mt-2 text-sm text-[var(--color-fg-mid)]">负责人：{entry.representativeName} · 完美战队 ID（可选）：{entry.perfectTeamId ?? "未填写"}</p></div>
         {(entry.status === "submitted" || entry.status === "waitlisted") && <div className="flex flex-wrap gap-2"><Button size="sm" disabled={pending} onClick={() => review(entry.id, "approved")}>批准</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => review(entry.id, "waitlisted")}>候补</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => review(entry.id, "changes_requested")}>要求补正</Button><Button size="sm" variant="destructive" disabled={pending} onClick={() => review(entry.id, "rejected")}>拒绝</Button></div>}
       </div>
+      {category === "self_change_draft" && <div className="mt-4 text-sm text-[var(--color-fg-mid)]">
+        <p>原名单已通过 · 新名单尚未提交审核</p>
+        <p className="mt-1">{entry.rosterChangeWindowOpen ? `下一步：负责人（${entry.representativeName}）提交新版名单` : entry.rosterChangeDeadlinePassed ? "名单调整已截止 · 须联系赛委会" : "当前无法自助提交 · 须联系赛委会"}{entry.rosterChangeDeadline ? ` · 名单调整截止：${formatCST(entry.rosterChangeDeadline)}` : ""}</p>
+      </div>}
+      {category === "changes_requested" && <p className="mt-4 text-sm text-[var(--color-fg-mid)]">下一步：待负责人补正</p>}
       <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label={`${entry.name}报名状态摘要`}>
         {summary.map((item) => <div key={item.label} className="border border-[var(--color-border)] px-3 py-2">
           <dt className="text-xs text-[var(--color-fg-mid)]">{item.label}</dt>

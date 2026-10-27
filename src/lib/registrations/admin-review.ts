@@ -1,9 +1,16 @@
 import "server-only";
 
+import { teamReviewCategory } from "./admin-review-presentation";
+import { isMajorRosterAdjustmentPhaseOpen } from "@/lib/major/roster-window";
+import { canSelfChangeApprovedRoster } from "@/lib/registration/window";
+
 import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
+  competitionQualificationRuns,
+  majorTournamentEntrants,
+  eventRosters,
   competitionEntryParticipants,
   competitionEntryRestrictionOverrides,
   competitionEntryRosterMembers,
@@ -78,7 +85,7 @@ export function normalizeTeamRegistrationReviewQuery(input: RegistrationReviewSe
   const statusValue = readParam(input, "status");
   const qualificationValue = readParam(input, "qualification");
   const sortValue = readParam(input, "sort");
-  const status: TeamRegistrationReviewStatus = statusValue === "attention" || statusValue === "all" || TEAM_REVIEW_STATUSES.includes(statusValue as typeof TEAM_REVIEW_STATUSES[number])
+  const status: TeamRegistrationReviewStatus = statusValue === "attention" || statusValue === "self_change_draft" || statusValue === "all" || TEAM_REVIEW_STATUSES.includes(statusValue as typeof TEAM_REVIEW_STATUSES[number])
     ? statusValue as TeamRegistrationReviewStatus
     : TEAM_REGISTRATION_REVIEW_DEFAULTS.status;
   const qualification: TeamQualificationFilter = qualificationValue === "ready" || qualificationValue === "blocked" || qualificationValue === "all"
@@ -124,7 +131,7 @@ export function normalizeSoloRegistrationReviewQuery(
 
 type TeamReviewSeason = Pick<
   Season,
-  "id" | "teamRegistrationConfig" | "affiliationRules" | "minTeamSize" | "maxTeamSize" | "starterCount"
+  "id" | "teamRegistrationConfig" | "affiliationRules" | "minTeamSize" | "maxTeamSize" | "starterCount" | "status" | "registrationOpensAt" | "registrationOpenedAt" | "registrationClosesAt" | "rosterChangeClosesAt" | "competitionTemplate"
 >;
 
 type TeamEntryForProjection = {
@@ -138,6 +145,8 @@ type TeamEntryForProjection = {
   logoUrl: string | null;
   updatedAt: Date;
   currentRosterRevisionId: string | null;
+  revisionOrigin: typeof competitionEntryRosterRevisions.$inferSelect.origin | null;
+  revisionStatus: typeof competitionEntryRosterRevisions.$inferSelect.status | null;
   representative: {
     displayName: string | null;
     perfectName: string | null;
@@ -155,7 +164,7 @@ export async function getTeamRegistrationReview(
     eq(users.status, "active"),
     (query.status === "all" || query.status === "attention")
       ? inArray(competitionEntries.registrationStatus, [...TEAM_REVIEW_STATUSES])
-      : eq(competitionEntries.registrationStatus, query.status),
+      : eq(competitionEntries.registrationStatus, query.status === "self_change_draft" ? "changes_requested" : query.status),
   ];
   if (query.q) {
     const pattern = `%${escapeLikePattern(query.q)}%`;
@@ -185,6 +194,8 @@ export async function getTeamRegistrationReview(
         logoUrl: competitionEntries.logoUrl,
         updatedAt: competitionEntries.updatedAt,
         currentRosterRevisionId: competitionEntries.currentRosterRevisionId,
+        revisionOrigin: competitionEntryRosterRevisions.origin,
+        revisionStatus: competitionEntryRosterRevisions.status,
         representative: {
           displayName: users.displayName,
           perfectName: users.perfectName,
@@ -195,6 +206,7 @@ export async function getTeamRegistrationReview(
       .from(competitionEntries)
       .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+      .leftJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
       .where(where)
       .orderBy(...orderBy),
     db
@@ -218,12 +230,14 @@ export async function getTeamRegistrationReview(
   const projectedRows = await projectTeamRegistrationRows(season, entries, true);
   const reviewRows = projectedRows.map((row) => ({
     ...row,
-    status: row.status as Exclude<TeamRegistrationReviewStatus, "all" | "attention">,
+    status: row.status as Exclude<TeamRegistrationReviewStatus, "all" | "attention" | "self_change_draft">,
   }));
+  const categoryRows = query.status === "self_change_draft" || query.status === "changes_requested"
+    ? reviewRows.filter((row) => teamReviewCategory(row) === query.status) : reviewRows;
   const statusRows = query.status === "attention"
     ? reviewRows.filter((row) => row.status === "submitted" || row.status === "changes_requested" || row.status === "waitlisted"
       || (row.status === "approved" && (row.qualificationFindings.length > 0 || row.members.some((member) => member.readiness?.ready === false))))
-    : reviewRows;
+    : categoryRows;
   const filteredRows = query.qualification === "all"
     ? statusRows
     : statusRows.filter((row) => (row.qualificationFindings.length === 0) === (query.qualification === "ready"));
@@ -286,6 +300,16 @@ async function projectTeamRegistrationRows(
           .where(and(inArray(competitionEntryRosterRevisions.entryId, entryIds), inArray(competitionEntryRosterRevisions.id, revisionIds))),
       ]);
 
+  const selfDraftIds = entries.filter((entry) => teamReviewCategory(entry) === "self_change_draft").map((entry) => entry.id);
+  const [frozenRows, qualificationRuns, entrants] = selfDraftIds.length === 0 ? [[], [], []] : await Promise.all([
+    db.select({ entryId: eventRosters.entryId }).from(eventRosters).where(and(inArray(eventRosters.entryId, selfDraftIds), eq(eventRosters.status, "frozen"))),
+    season.competitionTemplate === "major" ? db.select({ completedAt: competitionQualificationRuns.completedAt }).from(competitionQualificationRuns).where(eq(competitionQualificationRuns.seasonId, season.id)).limit(1) : Promise.resolve([]),
+    season.competitionTemplate === "major" ? db.select({ entryId: majorTournamentEntrants.competitionEntryId }).from(majorTournamentEntrants).where(and(eq(majorTournamentEntrants.seasonId, season.id), inArray(majorTournamentEntrants.competitionEntryId, selfDraftIds))) : Promise.resolve([]),
+  ]);
+  const frozenIds = new Set(frozenRows.map((row) => row.entryId));
+  const entrantIds = new Set(entrants.map((row) => row.entryId));
+  const run = qualificationRuns[0];
+
   const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
   const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
   const userIds = [...new Set(rosterRows.map((member) => member.userId))];
@@ -343,8 +367,17 @@ async function projectTeamRegistrationRows(
       id: entry.id,
       name: entry.name,
       source: entry.source,
-      status: entry.status as Exclude<TeamRegistrationReviewStatus, "all" | "attention">,
+      status: entry.status as Exclude<TeamRegistrationReviewStatus, "all" | "attention" | "self_change_draft">,
       reviewReason: entry.reviewReason,
+      revisionOrigin: entry.revisionOrigin,
+      revisionStatus: entry.revisionStatus,
+      rosterChangeDeadline: (season.rosterChangeClosesAt ?? season.registrationClosesAt)?.toISOString() ?? null,
+      rosterChangeDeadlinePassed: Boolean((season.rosterChangeClosesAt ?? season.registrationClosesAt) && (season.rosterChangeClosesAt ?? season.registrationClosesAt)!.getTime() <= Date.now()),
+      rosterChangeWindowOpen: canSelfChangeApprovedRoster(season) && !frozenIds.has(entry.id)
+        && (season.competitionTemplate !== "major" || isMajorRosterAdjustmentPhaseOpen({
+          registrationClosesAt: season.registrationClosesAt, qualificationConfigured: Boolean(run),
+          qualificationCompleted: Boolean(run?.completedAt), finalEntrant: entrantIds.has(entry.id),
+        })),
       perfectTeamId: normalizePerfectTeamId(entry.perfectTeamId),
       logoUrl: entry.logoUrl,
       updatedAt: entry.updatedAt.toISOString(),
@@ -392,6 +425,8 @@ export async function getTeamRegistrationProgress(season: TeamReviewSeason): Pro
       logoUrl: competitionEntries.logoUrl,
       updatedAt: competitionEntries.updatedAt,
       currentRosterRevisionId: competitionEntries.currentRosterRevisionId,
+      revisionOrigin: competitionEntryRosterRevisions.origin,
+      revisionStatus: competitionEntryRosterRevisions.status,
       representative: {
         displayName: users.displayName,
         perfectName: users.perfectName,
@@ -402,16 +437,22 @@ export async function getTeamRegistrationProgress(season: TeamReviewSeason): Pro
       .from(competitionEntries)
       .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+      .leftJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
       .where(and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "draft")))
       .orderBy(desc(competitionEntries.updatedAt), desc(competitionEntries.id)),
-    db.select({ status: competitionEntries.registrationStatus, count: count() })
+    db.select({ status: competitionEntries.registrationStatus, revisionOrigin: competitionEntryRosterRevisions.origin, revisionStatus: competitionEntryRosterRevisions.status, count: count() })
       .from(competitionEntries)
       .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
+      .leftJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
       .where(eq(competitionEntries.competitionId, season.id))
-      .groupBy(competitionEntries.registrationStatus),
+      .groupBy(competitionEntries.registrationStatus, competitionEntryRosterRevisions.origin, competitionEntryRosterRevisions.status),
   ]);
   const projectedDrafts = await projectTeamRegistrationRows(season, draftEntries, false);
-  const counts = new Map(statusRows.map((row) => [row.status, Number(row.count)]));
+  const counts = new Map<string, number>();
+  for (const row of statusRows) {
+    const category = teamReviewCategory(row);
+    counts.set(category, (counts.get(category) ?? 0) + Number(row.count));
+  }
   const draftUserIds = [...new Set(projectedDrafts.flatMap((entry) => entry.members.map((member) => member.userId)))];
   const draftTeamIds = [...new Set(draftEntries.flatMap((entry) => entry.teamId ? [entry.teamId] : []))];
   const [registrationBlocks, rosterBlocks, activeMemberships] = await Promise.all([
@@ -471,6 +512,7 @@ export async function getTeamRegistrationProgress(season: TeamReviewSeason): Pro
       submitted: counts.get("submitted") ?? 0,
       approved: counts.get("approved") ?? 0,
       changesRequested: counts.get("changes_requested") ?? 0,
+      selfChangeDraft: counts.get("self_change_draft") ?? 0,
       waitlisted: counts.get("waitlisted") ?? 0,
       rejected: counts.get("rejected") ?? 0,
       withdrawn: counts.get("withdrawn") ?? 0,
