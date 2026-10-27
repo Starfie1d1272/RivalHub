@@ -9,7 +9,7 @@ import * as demoEvidenceContract from "@/lib/demo-evidence/contract";
 import type { RivalHubEvidenceSubmission } from "@/lib/demo-integration/contracts";
 import { buildEvidenceRevision, sha256Json } from "@/lib/demo-integration/revision";
 
-export async function seedDemoCapacity(client: PoolClient, seed: number) {
+export async function seedDemoCapacity(client: PoolClient, seed: number, shared?: { userIds: string[]; steamSeed: number; alternate: string }) {
   const database = drizzle(client, { schema });
   const fixturePath = resolve(process.cwd(), "tests/fixtures/demo-evidence/normal-map-v1.json");
     const ids = {
@@ -45,8 +45,8 @@ export async function seedDemoCapacity(client: PoolClient, seed: number) {
       careerRosterA: randomUUID(),
       careerRosterB: randomUUID(),
     };
-    const steamFor = (index: number) => (BigInt("76561198000000000") + BigInt(seed * 100 + index + 1)).toString();
-    const userIds = Array.from({ length: 10 }, () => randomUUID());
+    const steamFor = (index: number) => (BigInt("76561198000000000") + BigInt((shared?.steamSeed ?? seed) * 100 + index + 1)).toString();
+    const userIds = shared?.userIds ?? Array.from({ length: 10 }, () => randomUUID());
     const participantIds = userIds.map(() => randomUUID());
     const eventMemberIds = userIds.map(() => randomUUID());
     const rosterMemberIds = userIds.map(() => randomUUID());
@@ -54,7 +54,7 @@ export async function seedDemoCapacity(client: PoolClient, seed: number) {
     const expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
     await client.query("BEGIN");
     try {
-      await database.insert(schema.users).values(userIds.map((id, index) => ({
+      if (!shared) await database.insert(schema.users).values(userIds.map((id, index) => ({
         id,
         email: `${id}@local.test`,
         steam64: steamFor(index),
@@ -216,7 +216,7 @@ export async function seedDemoCapacity(client: PoolClient, seed: number) {
           isStarter: true,
         })),
       });
-      const alternate = (BigInt("76561198900000000") + BigInt(seed)).toString();
+      const alternate = shared?.alternate ?? (BigInt("76561198900000000") + BigInt(seed)).toString();
       const aliasEvidence = demoEvidenceContract.parseRivalHubDemoEvidenceV1(JSON.parse(JSON.stringify(evidence).replaceAll(evidence.participants[0]!.steamId64, alternate)) as unknown);
       aliasEvidence.participants[0] = { ...aliasEvidence.participants[0]!, resolution: { status: "unresolved" } };
       const importId = randomUUID();
@@ -230,7 +230,7 @@ export async function seedDemoCapacity(client: PoolClient, seed: number) {
         submittedAt: now, confirmedAt: null, createdAt: now,
       });
       await client.query("COMMIT");
-      return { seasonId: ids.season, importId, actorId: userIds[0]!, userId: userIds[0]!, eventRosterMemberId: eventMemberIds[0]!, alternate };
+      return { seasonId: ids.season, importId, actorId: userIds[0]!, userId: userIds[0]!, userIds, eventRosterMemberId: eventMemberIds[0]!, alternate };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
