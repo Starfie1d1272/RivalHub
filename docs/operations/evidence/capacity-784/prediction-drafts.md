@@ -18,3 +18,7 @@ pnpm test:integration:pg17 tests/integration/db/capacity/prediction-capacity.tes
 ```
 
 未覆盖完整已提交预测、真实墙钟截止跨越、同一账户与不同账户分开对比、结算/更正并发梯度、慢 SQL 与持锁注入业务、HTTP、provider 或多实例。#784 继续开放。
+
+## 完整预测提交
+
+[完整预测原始结果](prediction-complete.json)使用冻结代码 `bf6f469acd6edf640197d997cc3b686c49f6ed59`：每轮相同独立夹具，两账户交替提交符合官方 2/6/2 槽位规则的完整 Swiss 预测。1/2/4/8 并发各三轮，16 首轮队列采样到 10 后停止；61 次提交观察到对应账户与 submitted 标记，余额不变，后续截止拒绝通过。可在复现命令中增加 `RIVALHUB_PREDICTION_COMPLETE=1`；此结果仍是两账户共享单一赛事的服务层实验。
