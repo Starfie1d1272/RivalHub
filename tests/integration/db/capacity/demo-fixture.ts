@@ -53,6 +53,7 @@ export async function seedDemoCapacity(client: PoolClient, seed: number) {
     const now = new Date("2026-09-13T05:00:00.000Z");
     const expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
     await client.query("BEGIN");
+    try {
       await database.insert(schema.users).values(userIds.map((id, index) => ({
         id,
         email: `${id}@local.test`,
@@ -230,4 +231,8 @@ export async function seedDemoCapacity(client: PoolClient, seed: number) {
       });
       await client.query("COMMIT");
       return { seasonId: ids.season, importId, actorId: userIds[0]!, userId: userIds[0]!, eventRosterMemberId: eventMemberIds[0]!, alternate };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
 }

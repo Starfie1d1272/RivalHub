@@ -83,7 +83,7 @@ it.skipIf(process.env.RIVALHUB_DEMO_CAPACITY !== "1")("measures cross-event Demo
   const paths = ["tests/integration/db/capacity/demo-identity.test.ts", "tests/integration/db/capacity/demo-fixture.ts", "src/lib/demo-integration/review.ts", "src/lib/identity/write-lock.ts"];
   const report: { sha: string; hashes: Record<string, string>; dataset: string; limits: object; rounds: object[]; stopped?: string; cleanup?: boolean } = {
     sha, hashes: Object.fromEntries(paths.map(path => [path, createHash("sha256").update(readFileSync(path)).digest("hex")])),
-    dataset: "fresh scratch database per round; 17 events, 10 players per event, one Demo each; first identity preconfirmed",
+    dataset: "fresh scratch database per round; 17 events, 10 players per event, one Demo each; first identity preconfirmed; gradient counts concurrent confirmations plus one retirement",
     limits: { poolMax: 6, acquisitionTimeoutMs: 2000, statementTimeoutMs: 5000, lockTimeoutMs: 2000, sampledQueueStop: 8, stopOnAnyFailure: true }, rounds: [],
   };
   let stop = false;
@@ -156,7 +156,7 @@ it.skipIf(process.env.RIVALHUB_DEMO_CAPACITY !== "1")("measures cross-event Demo
             expect(requests.some((request, index) => !request.error && !observed[index])).toBe(false);
             stop = requests.some(request => request.error) || maxQueue >= 8 || sampleError;
             if (stop) report.stopped = requests.some(request => request.error) ? "request_failure" : sampleError ? "sampling_failure" : "sampled_pool_queue";
-            report.rounds.push({ concurrency, round, elapsedMs, maxPoolQueueSampled: maxQueue, maxAdvisoryWaitersSampled: maxAdvisoryWaiters, sampleError,
+            report.rounds.push({ confirmConcurrency: concurrency, totalRequests: concurrency + 1, round, elapsedMs, maxPoolQueueSampled: maxQueue, maxAdvisoryWaitersSampled: maxAdvisoryWaiters, sampleError,
               outcomes: requests.map((request, index) => ({ index: request.index, totalMs: request.totalMs, acquireAndBeginMs: request.acquireAndBeginMs, transactionMs: request.transactionMs, error: request.error, settings: request.settings, observedCommitted: observed[index], outcome: observed[index] ? "committed" : request.error ? "unresolved" : "missing" })) });
           } finally { await pool.end(); }
         });
