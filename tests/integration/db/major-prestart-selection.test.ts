@@ -12,7 +12,7 @@ import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/compet
 import { rollbackMajorPrestartEntrantsInTx } from "../../../src/lib/major/prestart-rollback";
 import { loadMajorPrestartPageData } from "../../../src/lib/admin/season-workspace/major-prestart";
 import { reviewCompetitionEntryInTx, submitCompetitionEntryInTx } from "../../../src/lib/competition-entries/commands";
-import { getTeamRegistrationReview, normalizeTeamRegistrationReviewQuery } from "../../../src/lib/registrations/admin-review";
+import { getTeamRegistrationProgress, getTeamRegistrationReview, normalizeTeamRegistrationReviewQuery } from "../../../src/lib/registrations/admin-review";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
 import { checkStandardMajorCapabilities } from "../../../src/lib/competition/definition";
 import { createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
@@ -708,6 +708,53 @@ async function exerciseSuccessfulFreezeWorkflow(): Promise<void> {
 }
 
 describe("Major prestart final Entry selection", () => {
+  it("classifies the current self-change draft separately from remediation in the review and progress read models", async () => {
+    const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 4 });
+    let fixture: SelectionFixture | undefined;
+    try {
+      fixture = await prepareFixture(pool);
+      const client = await pool.connect();
+      const revisionId = randomUUID();
+      try {
+      await client.query("BEGIN");
+      await client.query(`INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, origin, created_by) VALUES ($1, $2, 2, 'draft', 'self_roster_change', $3)`, [revisionId, fixture.entryA.entryId, ACTOR]);
+      await client.query(`INSERT INTO competition_entry_roster_members (revision_id, participant_id, user_id, is_primary_starter) SELECT $1, participant_id, user_id, is_primary_starter FROM competition_entry_roster_members WHERE revision_id = $2`, [revisionId, fixture.entryA.revisionId]);
+      await client.query(`UPDATE competition_entries SET current_roster_revision_id = $1, registration_status = 'changes_requested' WHERE id = $2`, [revisionId, fixture.entryA.entryId]);
+      const remediationId = randomUUID();
+      await client.query(`INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, origin, created_by) VALUES ($1, $2, 2, 'draft', 'admin_remediation', $3)`, [remediationId, fixture.entryB.entryId, ACTOR]);
+      await client.query(`UPDATE competition_entries SET current_roster_revision_id = $1, registration_status = 'changes_requested', review_reason = '补充材料' WHERE id = $2`, [remediationId, fixture.entryB.entryId]);
+      await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+      const [season] = await drizzle(pool, { schema }).select().from(schema.seasons).where(eq(schema.seasons.id, fixture.seasonId));
+      const attention = await getTeamRegistrationReview(season!, normalizeTeamRegistrationReviewQuery({}));
+      expect(attention.rows.find(row => row.id === fixture!.entryA.entryId)).toMatchObject({ revisionOrigin: "self_roster_change", revisionStatus: "draft", status: "changes_requested" });
+      const drafts = await getTeamRegistrationReview(season!, normalizeTeamRegistrationReviewQuery({ status: "self_change_draft" }));
+      expect(drafts.rows.map(row => row.id)).toEqual([fixture.entryA.entryId]);
+      const remediation = await getTeamRegistrationReview(season!, normalizeTeamRegistrationReviewQuery({ status: "changes_requested" }));
+      expect(remediation.rows.map(row => row.id)).toEqual([fixture.entryB.entryId]);
+      expect(remediation.rows[0]).toMatchObject({ revisionOrigin: "admin_remediation", reviewReason: "补充材料" });
+      const phaseClosed = await getTeamRegistrationReview({ ...season!, registrationClosesAt: new Date(0), rosterChangeClosesAt: new Date(Date.now() + 86400000) }, normalizeTeamRegistrationReviewQuery({ status: "self_change_draft" }));
+      expect(phaseClosed.rows[0]).toMatchObject({ rosterChangeWindowOpen: false, rosterChangeDeadlinePassed: false });
+      const expired = await getTeamRegistrationReview({ ...season!, rosterChangeClosesAt: new Date(0) }, normalizeTeamRegistrationReviewQuery({ status: "self_change_draft" }));
+      expect(expired.rows[0]).toMatchObject({ rosterChangeWindowOpen: false, rosterChangeDeadlinePassed: true });
+      const progress = await getTeamRegistrationProgress(season!);
+      expect(progress.summary).toMatchObject({ selfChangeDraft: 1, changesRequested: 1 });
+      await pool.query(`UPDATE competition_entry_roster_revisions SET status = 'submitted' WHERE id = $1`, [revisionId]);
+      await pool.query(`UPDATE competition_entries SET registration_status = 'submitted' WHERE id = $1`, [fixture.entryA.entryId]);
+      const submitted = await getTeamRegistrationReview(season!, normalizeTeamRegistrationReviewQuery({ status: "submitted" }));
+      expect(submitted.rows.map(row => row.id)).toEqual([fixture.entryA.entryId]);
+      expect((await getTeamRegistrationProgress(season!)).summary).toMatchObject({ selfChangeDraft: 0, submitted: 1 });
+    } finally {
+      if (fixture) await cleanup(pool, fixture);
+      await pool.end();
+    }
+  });
+
   it("ranks the current entrant roster during correction and includes it in the default attention queue", async () => {
     const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 4 });
     const database = drizzle(pool, { schema });
