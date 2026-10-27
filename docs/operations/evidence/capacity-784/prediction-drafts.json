@@ -1,0 +1,870 @@
+{
+  "sha": "369d0b188547afa3440cf827f3381cc1895619ba",
+  "hashes": {
+    "tests/integration/db/capacity/prediction-fixture.ts": "6b17d146c213aa0a65812dccdd7f72f9646fb7cb44cf7cb28898c4a04d335a0e",
+    "tests/integration/db/capacity/prediction-capacity.test.ts": "55670740f22d659046a6e13e837f522832614f38d3291eea154266556d287cc7",
+    "src/lib/predictions/service.ts": "fbfde48495960f30a40465b29d720c53087a9bac20929ba4acdfb4300ff8f66f"
+  },
+  "dataset": "fresh scratch database per round; one 24-team Major, two accounts, one PickEm contest, zero picks; alternating accounts, draft picks",
+  "limits": {
+    "poolMax": 6,
+    "acquisitionTimeoutMs": 2000,
+    "statementTimeoutMs": 5000,
+    "lockTimeoutMs": 2000,
+    "sampledQueueStop": 8,
+    "stopOnAnyFailure": true
+  },
+  "rounds": [
+    {
+      "concurrency": 1,
+      "round": 1,
+      "elapsedMs": 17.374123000000054,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 17.25586599999997,
+          "acquireAndBeginMs": 0.45676400000002104,
+          "transactionMs": 16.799101999999948,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "cutoffVerified": true
+    },
+    {
+      "concurrency": 1,
+      "round": 2,
+      "elapsedMs": 14.744332000000213,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 14.718023000000358,
+          "acquireAndBeginMs": 0.31236800000033327,
+          "transactionMs": 14.405655000000024,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "cutoffVerified": true
+    },
+    {
+      "concurrency": 1,
+      "round": 3,
+      "elapsedMs": 12.727240000000165,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 12.711436000000504,
+          "acquireAndBeginMs": 0.315932999999859,
+          "transactionMs": 12.395503000000645,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "cutoffVerified": true
+    },
+    {
+      "concurrency": 2,
+      "round": 1,
+      "elapsedMs": 34.173305000000255,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 34.15766100000019,
+          "acquireAndBeginMs": 0.35189700000046287,
+          "transactionMs": 33.805763999999726,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 18.978006000000278,
+          "acquireAndBeginMs": 0.2939299999998184,
+          "transactionMs": 18.68407600000046,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "cutoffVerified": true
+    },
+    {
+      "concurrency": 2,
+      "round": 2,
+      "elapsedMs": 28.78368000000046,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 28.766203000000132,
+          "acquireAndBeginMs": 0.3177060000007259,
+          "transactionMs": 28.448496999999406,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 15.003045999999813,
+          "acquireAndBeginMs": 0.2606210000003557,
+          "transactionMs": 14.742424999999457,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "cutoffVerified": true
+    },
+    {
+      "concurrency": 2,
+      "round": 3,
+      "elapsedMs": 26.877152000000024,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 11.426101000000017,
+          "acquireAndBeginMs": 0.3616920000004029,
+          "transactionMs": 11.064408999999614,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 26.843842000000222,
+          "acquireAndBeginMs": 0.4247960000002422,
+          "transactionMs": 26.41904599999998,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "cutoffVerified": true
+    },
+    {
+      "concurrency": 4,
+      "round": 1,
+      "elapsedMs": 99.80416499999956,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 44.18319299999894,
+          "acquireAndBeginMs": 2.018373999999312,
+          "transactionMs": 42.164818999999625,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 27.865388000000166,
+          "acquireAndBeginMs": 2.1898909999999887,
+          "transactionMs": 25.675497000000178,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 69.89393200000086,
+          "acquireAndBeginMs": 12.967595000000074,
+          "transactionMs": 56.926337000000785,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 99.74136100000032,
+          "acquireAndBeginMs": 13.05160099999921,
+          "transactionMs": 86.68976000000112,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "cutoffVerified": true
+    },
+    {
+      "concurrency": 4,
+      "round": 2,
+      "elapsedMs": 59.646161999999094,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 31.178977999999915,
+          "acquireAndBeginMs": 1.11964799999987,
+          "transactionMs": 30.059330000000045,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 18.03662600000098,
+          "acquireAndBeginMs": 0.8357230000001437,
+          "transactionMs": 17.200903000000835,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 59.616368000000875,
+          "acquireAndBeginMs": 7.758636000000479,
+          "transactionMs": 51.8577320000004,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 44.90050800000063,
+          "acquireAndBeginMs": 7.8361820000009175,
+          "transactionMs": 37.06432599999971,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "cutoffVerified": true
+    },
+    {
+      "concurrency": 4,
+      "round": 3,
+      "elapsedMs": 64.73383000000103,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 16.466764000000694,
+          "acquireAndBeginMs": 1.002693000000363,
+          "transactionMs": 15.464071000000331,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 32.58003699999972,
+          "acquireAndBeginMs": 1.1392869999999675,
+          "transactionMs": 31.440749999999753,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 49.11204900000121,
+          "acquireAndBeginMs": 8.169004000001223,
+          "transactionMs": 40.943044999999984,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 64.70445599999948,
+          "acquireAndBeginMs": 8.727711999999883,
+          "transactionMs": 55.9767439999996,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "cutoffVerified": true
+    },
+    {
+      "concurrency": 8,
+      "round": 1,
+      "elapsedMs": 126.67190699999992,
+      "maxPoolQueueSampled": 2,
+      "outcomes": [
+        {
+          "totalMs": 21.239368999998987,
+          "acquireAndBeginMs": 1.142480999998952,
+          "transactionMs": 20.096888000000035,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 32.3761459999987,
+          "acquireAndBeginMs": 1.2585249999992811,
+          "transactionMs": 31.117620999999417,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 85.50209900000118,
+          "acquireAndBeginMs": 13.074500000000626,
+          "transactionMs": 72.42759900000055,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 103.11462000000029,
+          "acquireAndBeginMs": 13.133759000000282,
+          "transactionMs": 89.980861,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 46.06246399999873,
+          "acquireAndBeginMs": 12.304716999999073,
+          "transactionMs": 33.757746999999654,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 65.88822100000107,
+          "acquireAndBeginMs": 13.182792999999947,
+          "transactionMs": 52.70542800000112,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 115.10408400000051,
+          "acquireAndBeginMs": 21.54880299999968,
+          "transactionMs": 93.55528100000083,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 126.63952900000004,
+          "acquireAndBeginMs": 33.016616000000795,
+          "transactionMs": 93.62291299999924,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "cutoffVerified": true
+    },
+    {
+      "concurrency": 8,
+      "round": 2,
+      "elapsedMs": 135.0537430000004,
+      "maxPoolQueueSampled": 2,
+      "outcomes": [
+        {
+          "totalMs": 20.935249999998632,
+          "acquireAndBeginMs": 1.302481999999145,
+          "transactionMs": 19.632767999999487,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 36.2386690000003,
+          "acquireAndBeginMs": 1.590953000000809,
+          "transactionMs": 34.64771599999949,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 79.64162299999953,
+          "acquireAndBeginMs": 8.153016000000207,
+          "transactionMs": 71.48860699999932,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 60.713331999999355,
+          "acquireAndBeginMs": 7.513757999999143,
+          "transactionMs": 53.19957400000021,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 96.19215299999996,
+          "acquireAndBeginMs": 9.71694000000025,
+          "transactionMs": 86.47521299999971,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 111.72926299999926,
+          "acquireAndBeginMs": 11.325980999999956,
+          "transactionMs": 100.40328199999931,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 123.98377599999912,
+          "acquireAndBeginMs": 21.501247999998668,
+          "transactionMs": 102.48252800000046,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 135.0244789999997,
+          "acquireAndBeginMs": 37.14376600000105,
+          "transactionMs": 97.88071299999865,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "cutoffVerified": true
+    },
+    {
+      "concurrency": 8,
+      "round": 3,
+      "elapsedMs": 116.73660200000086,
+      "maxPoolQueueSampled": 2,
+      "outcomes": [
+        {
+          "totalMs": 21.28329500000109,
+          "acquireAndBeginMs": 1.0441140000002633,
+          "transactionMs": 20.239181000000826,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 34.539088999999876,
+          "acquireAndBeginMs": 1.0960230000000593,
+          "transactionMs": 33.44306599999982,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 81.3646719999997,
+          "acquireAndBeginMs": 9.280751999998756,
+          "transactionMs": 72.08392000000094,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 95.61283000000003,
+          "acquireAndBeginMs": 9.607491000000664,
+          "transactionMs": 86.00533899999937,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 65.92581699999937,
+          "acquireAndBeginMs": 9.068913999999495,
+          "transactionMs": 56.856902999999875,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 49.54522300000099,
+          "acquireAndBeginMs": 9.325639000000592,
+          "transactionMs": 40.219584000000395,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 106.32333899999867,
+          "acquireAndBeginMs": 21.680019999999786,
+          "transactionMs": 84.64331899999888,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 116.7055049999999,
+          "acquireAndBeginMs": 35.04534699999931,
+          "transactionMs": 81.66015800000059,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "cutoffVerified": true
+    },
+    {
+      "concurrency": 16,
+      "round": 1,
+      "elapsedMs": 221.62363899999946,
+      "maxPoolQueueSampled": 10,
+      "outcomes": [
+        {
+          "totalMs": 36.72889500000019,
+          "acquireAndBeginMs": 1.3855859999985114,
+          "transactionMs": 35.34330900000168,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 22.768496000000596,
+          "acquireAndBeginMs": 1.0240840000005846,
+          "transactionMs": 21.74441200000001,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 70.28873999999996,
+          "acquireAndBeginMs": 9.888977999999042,
+          "transactionMs": 60.39976200000092,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 52.88771700000143,
+          "acquireAndBeginMs": 9.859965000001466,
+          "transactionMs": 43.027751999999964,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 103.11117099999865,
+          "acquireAndBeginMs": 12.285668999998961,
+          "transactionMs": 90.82550199999969,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 87.28765100000055,
+          "acquireAndBeginMs": 9.132905000000392,
+          "transactionMs": 78.15474600000016,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 113.41901599999983,
+          "acquireAndBeginMs": 23.101826000000074,
+          "transactionMs": 90.31718999999975,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 124.44926899999882,
+          "acquireAndBeginMs": 37.252558999998655,
+          "transactionMs": 87.19671000000017,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 140.1890829999993,
+          "acquireAndBeginMs": 53.39209200000005,
+          "transactionMs": 86.79699099999925,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 153.56166100000155,
+          "acquireAndBeginMs": 70.67490900000121,
+          "transactionMs": 82.88675200000034,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 165.09195200000067,
+          "acquireAndBeginMs": 87.68900300000132,
+          "transactionMs": 77.40294899999935,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 175.90378299999975,
+          "acquireAndBeginMs": 103.80409999999938,
+          "transactionMs": 72.09968300000037,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 189.34337999999843,
+          "acquireAndBeginMs": 113.80397299999822,
+          "transactionMs": 75.53940700000021,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 200.56481500000154,
+          "acquireAndBeginMs": 124.95380600000135,
+          "transactionMs": 75.6110090000002,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 212.3007400000006,
+          "acquireAndBeginMs": 140.7209810000004,
+          "transactionMs": 71.5797590000002,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 221.58420000000115,
+          "acquireAndBeginMs": 153.92469500000152,
+          "transactionMs": 67.65950499999963,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "cutoffVerified": true
+    }
+  ],
+  "stopped": "sampled_pool_queue",
+  "cleanup": true
+}

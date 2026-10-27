@@ -1,0 +1,902 @@
+{
+  "sha": "0ecd6420cb25114a7904469f08205cfdd73599ad",
+  "order": "stake-holder",
+  "hashes": {
+    "tests/integration/db/capacity/prediction-settlement-capacity.test.ts": "ad0f0180fcba45ee360038c9c83ee7a783f4ae68cba67096b5d90308d5d0b69a",
+    "tests/integration/db/capacity/prediction-fixture.ts": "6b17d146c213aa0a65812dccdd7f72f9646fb7cb44cf7cb28898c4a04d335a0e",
+    "src/lib/predictions/service.ts": "fbfde48495960f30a40465b29d720c53087a9bac20929ba4acdfb4300ff8f66f",
+    "src/lib/major/swiss-runtime.ts": "2e1701276590c113f632109a970609d98edc316f2961bd585e1241249112bbcf"
+  },
+  "dataset": "fresh scratch per round; 32-team Major; two known committed 100-point opposite stakes; official first round finalized; settlement not yet applied",
+  "limits": {
+    "poolMax": 6,
+    "acquisitionTimeoutMs": 2000,
+    "statementTimeoutMs": 5000,
+    "lockTimeoutMs": 2000,
+    "sampledQueueStop": 8,
+    "stopOnUnexpected": true
+  },
+  "rounds": [
+    {
+      "concurrentTasks": 1,
+      "totalTransactions": 2,
+      "round": 1,
+      "elapsedMs": 30.817307000000028,
+      "holderMs": 37.9483459999999,
+      "phaseFailure": false,
+      "maxPoolQueueSampled": 0,
+      "lockObserved": true,
+      "settlementCount": 1,
+      "stakeCount": 2,
+      "settlementLedgerCount": 2,
+      "balancesVerified": true,
+      "requests": [
+        {
+          "totalMs": 30.689324999999826,
+          "acquireAndBeginMs": 2.6373519999999644,
+          "transactionMs": 28.05197299999986,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        }
+      ]
+    },
+    {
+      "concurrentTasks": 1,
+      "totalTransactions": 2,
+      "round": 2,
+      "elapsedMs": 15.733150000000023,
+      "holderMs": 25.438147999999728,
+      "phaseFailure": false,
+      "maxPoolQueueSampled": 0,
+      "lockObserved": true,
+      "settlementCount": 1,
+      "stakeCount": 2,
+      "settlementLedgerCount": 2,
+      "balancesVerified": true,
+      "requests": [
+        {
+          "totalMs": 15.726619999999912,
+          "acquireAndBeginMs": 1.419796999999562,
+          "transactionMs": 14.30682300000035,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        }
+      ]
+    },
+    {
+      "concurrentTasks": 1,
+      "totalTransactions": 2,
+      "round": 3,
+      "elapsedMs": 14.614525999999387,
+      "holderMs": 22.54734600000029,
+      "phaseFailure": false,
+      "maxPoolQueueSampled": 0,
+      "lockObserved": true,
+      "settlementCount": 1,
+      "stakeCount": 2,
+      "settlementLedgerCount": 2,
+      "balancesVerified": true,
+      "requests": [
+        {
+          "totalMs": 14.585622000000512,
+          "acquireAndBeginMs": 0.7557520000000295,
+          "transactionMs": 13.829870000000483,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        }
+      ]
+    },
+    {
+      "concurrentTasks": 2,
+      "totalTransactions": 3,
+      "round": 1,
+      "elapsedMs": 32.12124099999983,
+      "holderMs": 28.46291099999962,
+      "phaseFailure": false,
+      "maxPoolQueueSampled": 0,
+      "lockObserved": true,
+      "settlementCount": 1,
+      "stakeCount": 2,
+      "settlementLedgerCount": 2,
+      "balancesVerified": true,
+      "requests": [
+        {
+          "totalMs": 32.113179999999375,
+          "acquireAndBeginMs": 3.6784319999997024,
+          "transactionMs": 28.434747999999672,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 25.550250000000233,
+          "acquireAndBeginMs": 7.831500000000233,
+          "transactionMs": 17.71875,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        }
+      ]
+    },
+    {
+      "concurrentTasks": 2,
+      "totalTransactions": 3,
+      "round": 2,
+      "elapsedMs": 25.691977999999835,
+      "holderMs": 30.591158999999607,
+      "phaseFailure": false,
+      "maxPoolQueueSampled": 0,
+      "lockObserved": true,
+      "settlementCount": 1,
+      "stakeCount": 2,
+      "settlementLedgerCount": 2,
+      "balancesVerified": true,
+      "requests": [
+        {
+          "totalMs": 16.783008000000336,
+          "acquireAndBeginMs": 1.9954600000000937,
+          "transactionMs": 14.787548000000243,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 25.667962999999872,
+          "acquireAndBeginMs": 6.773849999999584,
+          "transactionMs": 18.89411300000029,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        }
+      ]
+    },
+    {
+      "concurrentTasks": 2,
+      "totalTransactions": 3,
+      "round": 3,
+      "elapsedMs": 25.873399999999492,
+      "holderMs": 24.24379300000055,
+      "phaseFailure": false,
+      "maxPoolQueueSampled": 0,
+      "lockObserved": true,
+      "settlementCount": 1,
+      "stakeCount": 2,
+      "settlementLedgerCount": 2,
+      "balancesVerified": true,
+      "requests": [
+        {
+          "totalMs": 17.729396000000634,
+          "acquireAndBeginMs": 1.0408690000003844,
+          "transactionMs": 16.68852700000025,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 25.84719000000041,
+          "acquireAndBeginMs": 6.869002000000364,
+          "transactionMs": 18.978188000000046,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        }
+      ]
+    },
+    {
+      "concurrentTasks": 4,
+      "totalTransactions": 5,
+      "round": 1,
+      "elapsedMs": 54.660868999999366,
+      "holderMs": 33.80723299999954,
+      "phaseFailure": false,
+      "maxPoolQueueSampled": 0,
+      "lockObserved": true,
+      "settlementCount": 1,
+      "stakeCount": 2,
+      "settlementLedgerCount": 2,
+      "balancesVerified": true,
+      "requests": [
+        {
+          "totalMs": 22.133293999999296,
+          "acquireAndBeginMs": 2.4998560000003636,
+          "transactionMs": 19.633437999998932,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 33.012314999999944,
+          "acquireAndBeginMs": 9.940345000000889,
+          "transactionMs": 23.071969999999055,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 42.445354999999836,
+          "acquireAndBeginMs": 9.67692999999963,
+          "transactionMs": 32.76842500000021,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 54.61483000000044,
+          "acquireAndBeginMs": 15.526169000000664,
+          "transactionMs": 39.088660999999775,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        }
+      ]
+    },
+    {
+      "concurrentTasks": 4,
+      "totalTransactions": 5,
+      "round": 2,
+      "elapsedMs": 59.00476400000116,
+      "holderMs": 31.84333500000139,
+      "phaseFailure": false,
+      "maxPoolQueueSampled": 0,
+      "lockObserved": true,
+      "settlementCount": 1,
+      "stakeCount": 2,
+      "settlementLedgerCount": 2,
+      "balancesVerified": true,
+      "requests": [
+        {
+          "totalMs": 29.525080999999773,
+          "acquireAndBeginMs": 1.3962719999999536,
+          "transactionMs": 28.12880899999982,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 22.384001000000353,
+          "acquireAndBeginMs": 8.787546999999904,
+          "transactionMs": 13.596454000000449,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 47.409654000000955,
+          "acquireAndBeginMs": 9.31370600000082,
+          "transactionMs": 38.095948000000135,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 58.97242399999959,
+          "acquireAndBeginMs": 11.636234999999942,
+          "transactionMs": 47.33618899999965,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        }
+      ]
+    },
+    {
+      "concurrentTasks": 4,
+      "totalTransactions": 5,
+      "round": 3,
+      "elapsedMs": 57.71650199999931,
+      "holderMs": 34.208779000000504,
+      "phaseFailure": false,
+      "maxPoolQueueSampled": 0,
+      "lockObserved": true,
+      "settlementCount": 1,
+      "stakeCount": 2,
+      "settlementLedgerCount": 2,
+      "balancesVerified": true,
+      "requests": [
+        {
+          "totalMs": 48.85229900000013,
+          "acquireAndBeginMs": 1.070173000000068,
+          "transactionMs": 47.78212600000006,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 27.543961999999738,
+          "acquireAndBeginMs": 11.539240000000063,
+          "transactionMs": 16.004721999999674,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 57.68270200000006,
+          "acquireAndBeginMs": 12.139299000000392,
+          "transactionMs": 45.54340299999967,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 41.26897800000006,
+          "acquireAndBeginMs": 11.463395999999193,
+          "transactionMs": 29.805582000000868,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        }
+      ]
+    },
+    {
+      "concurrentTasks": 8,
+      "totalTransactions": 9,
+      "round": 1,
+      "elapsedMs": 107.6302680000008,
+      "holderMs": 42.064424999998664,
+      "phaseFailure": false,
+      "maxPoolQueueSampled": 3,
+      "lockObserved": true,
+      "settlementCount": 1,
+      "stakeCount": 2,
+      "settlementLedgerCount": 2,
+      "balancesVerified": true,
+      "requests": [
+        {
+          "totalMs": 30.39618999999948,
+          "acquireAndBeginMs": 1.6006890000007843,
+          "transactionMs": 28.795500999998694,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 83.47551100000055,
+          "acquireAndBeginMs": 19.71759700000075,
+          "transactionMs": 63.7579139999998,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 40.585519000000204,
+          "acquireAndBeginMs": 15.48837900000035,
+          "transactionMs": 25.097139999999854,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 74.30310699999973,
+          "acquireAndBeginMs": 14.33389999999963,
+          "transactionMs": 59.9692070000001,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 64.02055699999983,
+          "acquireAndBeginMs": 16.452774999999747,
+          "transactionMs": 47.56778200000008,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 88.65538299999935,
+          "acquireAndBeginMs": 21.485215999999127,
+          "transactionMs": 67.17016700000022,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 94.5225559999999,
+          "acquireAndBeginMs": 30.84458199999972,
+          "transactionMs": 63.67797400000018,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 107.59519499999988,
+          "acquireAndBeginMs": 41.20724100000007,
+          "transactionMs": 66.38795399999981,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        }
+      ]
+    },
+    {
+      "concurrentTasks": 8,
+      "totalTransactions": 9,
+      "round": 2,
+      "elapsedMs": 99.52146300000095,
+      "holderMs": 34.17098700000133,
+      "phaseFailure": false,
+      "maxPoolQueueSampled": 3,
+      "lockObserved": true,
+      "settlementCount": 1,
+      "stakeCount": 2,
+      "settlementLedgerCount": 2,
+      "balancesVerified": true,
+      "requests": [
+        {
+          "totalMs": 40.533580999999685,
+          "acquireAndBeginMs": 3.212529000000359,
+          "transactionMs": 37.32105199999933,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 78.1519440000011,
+          "acquireAndBeginMs": 15.158896000000823,
+          "transactionMs": 62.99304800000027,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 66.94257099999959,
+          "acquireAndBeginMs": 14.265827999999601,
+          "transactionMs": 52.67674299999999,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 54.228879000000234,
+          "acquireAndBeginMs": 14.624706000000515,
+          "transactionMs": 39.60417299999972,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 28.680764000000636,
+          "acquireAndBeginMs": 13.883654999999635,
+          "transactionMs": 14.797109000001,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 85.4490939999996,
+          "acquireAndBeginMs": 18.642948000000615,
+          "transactionMs": 66.80614599999899,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 92.89674900000136,
+          "acquireAndBeginMs": 29.458760000001348,
+          "transactionMs": 63.437989000000016,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 99.48720099999991,
+          "acquireAndBeginMs": 41.12205300000096,
+          "transactionMs": 58.36514799999895,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        }
+      ]
+    },
+    {
+      "concurrentTasks": 8,
+      "totalTransactions": 9,
+      "round": 3,
+      "elapsedMs": 85.04801299999963,
+      "holderMs": 32.394169999999576,
+      "phaseFailure": false,
+      "maxPoolQueueSampled": 3,
+      "lockObserved": true,
+      "settlementCount": 1,
+      "stakeCount": 2,
+      "settlementLedgerCount": 2,
+      "balancesVerified": true,
+      "requests": [
+        {
+          "totalMs": 21.108157999999094,
+          "acquireAndBeginMs": 1.6524460000000545,
+          "transactionMs": 19.45571199999904,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 54.513332999998966,
+          "acquireAndBeginMs": 10.358300999998391,
+          "transactionMs": 44.155032000000574,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 33.63986699999987,
+          "acquireAndBeginMs": 9.544872000000396,
+          "transactionMs": 24.09499499999947,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 64.01729400000113,
+          "acquireAndBeginMs": 9.420706000000791,
+          "transactionMs": 54.59658800000034,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 43.73540300000059,
+          "acquireAndBeginMs": 11.32636100000127,
+          "transactionMs": 32.40904199999932,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 70.87296700000115,
+          "acquireAndBeginMs": 14.450721999999587,
+          "transactionMs": 56.42224500000157,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 78.32447200000024,
+          "acquireAndBeginMs": 21.619354000000385,
+          "transactionMs": 56.70511799999986,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 85.02053100000012,
+          "acquireAndBeginMs": 34.233635999999024,
+          "transactionMs": 50.786895000001095,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        }
+      ]
+    },
+    {
+      "concurrentTasks": 16,
+      "totalTransactions": 17,
+      "round": 1,
+      "elapsedMs": 153.4465029999992,
+      "holderMs": 38.443789000000834,
+      "phaseFailure": false,
+      "maxPoolQueueSampled": 11,
+      "lockObserved": true,
+      "settlementCount": 1,
+      "stakeCount": 2,
+      "settlementLedgerCount": 2,
+      "balancesVerified": true,
+      "requests": [
+        {
+          "totalMs": 23.116298000000825,
+          "acquireAndBeginMs": 1.6386849999998958,
+          "transactionMs": 21.47761300000093,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 42.57464600000094,
+          "acquireAndBeginMs": 9.366716000000451,
+          "transactionMs": 33.20793000000049,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 71.33068300000014,
+          "acquireAndBeginMs": 9.555277999999817,
+          "transactionMs": 61.77540500000032,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 55.534804999999324,
+          "acquireAndBeginMs": 10.260125000000698,
+          "transactionMs": 45.274679999998625,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 32.90155699999923,
+          "acquireAndBeginMs": 11.384218999999575,
+          "transactionMs": 21.517337999999654,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 84.35338299999967,
+          "acquireAndBeginMs": 16.153975999999602,
+          "transactionMs": 68.19940700000006,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 91.51356699999997,
+          "acquireAndBeginMs": 23.55213200000071,
+          "transactionMs": 67.96143499999926,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 101.61424699999952,
+          "acquireAndBeginMs": 33.276347999999416,
+          "transactionMs": 68.3378990000001,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 115.80459499999961,
+          "acquireAndBeginMs": 43.04541100000097,
+          "transactionMs": 72.75918399999864,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 108.8358530000005,
+          "acquireAndBeginMs": 56.0613229999999,
+          "transactionMs": 52.774530000000595,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 121.74086100000022,
+          "acquireAndBeginMs": 72.47392799999943,
+          "transactionMs": 49.26693300000079,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 127.73379100000056,
+          "acquireAndBeginMs": 85.46691099999953,
+          "transactionMs": 42.26688000000104,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 134.76031899999907,
+          "acquireAndBeginMs": 92.12291000000005,
+          "transactionMs": 42.637408999999025,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 140.80330399999912,
+          "acquireAndBeginMs": 102.19353000000046,
+          "transactionMs": 38.60977399999865,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 147.29139499999837,
+          "acquireAndBeginMs": 109.18947299999854,
+          "transactionMs": 38.10192199999983,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        },
+        {
+          "totalMs": 153.40698300000076,
+          "acquireAndBeginMs": 116.16917099999773,
+          "transactionMs": 37.23781200000303,
+          "result": "success",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "prediction-settlement-load"
+          }
+        }
+      ]
+    }
+  ],
+  "stopped": "sampled_pool_queue",
+  "cleanup": true
+}

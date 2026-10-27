@@ -1,0 +1,1201 @@
+{
+  "sha": "3c095680efb7e60f8d7e4c63b7374880113a8e12",
+  "hashes": {
+    "tests/integration/db/capacity/demo-identity.test.ts": "b326bcaa519cb3f1ee95fe385c88989e214dae5815829bdccad8de84b3c73406",
+    "tests/integration/db/capacity/demo-fixture.ts": "927c03926967742a14a8f550680f9486270a47b87433245100b23531234a7ee7",
+    "src/lib/demo-integration/review.ts": "006a3300f1300e70cf20170de7ddf1695879e2f48cbdf980d3290c2021f7a8e2",
+    "src/lib/identity/write-lock.ts": "f38e70907b910b9a3ae8d23103c845b4725bdaee8eb9823ab19e414a26099c9c"
+  },
+  "dataset": "fresh scratch database per round; 17 events, 10 players per event, one Demo each; first identity preconfirmed; gradient counts concurrent confirmations plus one retirement",
+  "limits": {
+    "poolMax": 6,
+    "acquisitionTimeoutMs": 2000,
+    "statementTimeoutMs": 5000,
+    "lockTimeoutMs": 2000,
+    "sampledQueueStop": 8,
+    "stopOnAnyFailure": true
+  },
+  "rounds": [
+    {
+      "confirmConcurrency": 1,
+      "totalRequests": 2,
+      "round": 1,
+      "elapsedMs": 77.7375549999997,
+      "maxPoolQueueSampled": 0,
+      "maxAdvisoryWaitersSampled": 0,
+      "sampleError": false,
+      "outcomes": [
+        {
+          "index": 0,
+          "totalMs": 11.759227000000465,
+          "acquireAndBeginMs": 1.40824000000066,
+          "transactionMs": 10.350986999999805,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 1,
+          "totalMs": 77.49928799999998,
+          "acquireAndBeginMs": 8.369597999999314,
+          "transactionMs": 69.12969000000066,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ]
+    },
+    {
+      "confirmConcurrency": 1,
+      "totalRequests": 2,
+      "round": 2,
+      "elapsedMs": 75.18749900000057,
+      "maxPoolQueueSampled": 0,
+      "maxAdvisoryWaitersSampled": 0,
+      "sampleError": false,
+      "outcomes": [
+        {
+          "index": 0,
+          "totalMs": 10.187445999999909,
+          "acquireAndBeginMs": 1.075471999999536,
+          "transactionMs": 9.111974000000373,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 1,
+          "totalMs": 75.14020699999946,
+          "acquireAndBeginMs": 8.302590999999666,
+          "transactionMs": 66.8376159999998,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ]
+    },
+    {
+      "confirmConcurrency": 1,
+      "totalRequests": 2,
+      "round": 3,
+      "elapsedMs": 74.90033200000107,
+      "maxPoolQueueSampled": 0,
+      "maxAdvisoryWaitersSampled": 0,
+      "sampleError": false,
+      "outcomes": [
+        {
+          "index": 0,
+          "totalMs": 10.892782999999326,
+          "acquireAndBeginMs": 1.0393979999989824,
+          "transactionMs": 9.853385000000344,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 1,
+          "totalMs": 74.8703170000008,
+          "acquireAndBeginMs": 9.693796000001385,
+          "transactionMs": 65.17652099999941,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ]
+    },
+    {
+      "confirmConcurrency": 2,
+      "totalRequests": 3,
+      "round": 1,
+      "elapsedMs": 132.23688700000093,
+      "maxPoolQueueSampled": 0,
+      "maxAdvisoryWaitersSampled": 1,
+      "sampleError": false,
+      "outcomes": [
+        {
+          "index": 0,
+          "totalMs": 12.817547999999078,
+          "acquireAndBeginMs": 1.2429229999997915,
+          "transactionMs": 11.574624999999287,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 1,
+          "totalMs": 132.19904999999926,
+          "acquireAndBeginMs": 7.057095000000118,
+          "transactionMs": 125.14195499999914,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 2,
+          "totalMs": 69.25784299999941,
+          "acquireAndBeginMs": 6.963254999998753,
+          "transactionMs": 62.29458800000066,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ]
+    },
+    {
+      "confirmConcurrency": 2,
+      "totalRequests": 3,
+      "round": 2,
+      "elapsedMs": 129.9969689999998,
+      "maxPoolQueueSampled": 0,
+      "maxAdvisoryWaitersSampled": 1,
+      "sampleError": false,
+      "outcomes": [
+        {
+          "index": 0,
+          "totalMs": 10.678783000001204,
+          "acquireAndBeginMs": 1.2634040000011737,
+          "transactionMs": 9.41537900000003,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 1,
+          "totalMs": 129.92764499999976,
+          "acquireAndBeginMs": 7.137185999999929,
+          "transactionMs": 122.79045899999983,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 2,
+          "totalMs": 69.06578400000035,
+          "acquireAndBeginMs": 7.029755000001387,
+          "transactionMs": 62.03602899999896,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ]
+    },
+    {
+      "confirmConcurrency": 2,
+      "totalRequests": 3,
+      "round": 3,
+      "elapsedMs": 137.5833679999996,
+      "maxPoolQueueSampled": 0,
+      "maxAdvisoryWaitersSampled": 1,
+      "sampleError": false,
+      "outcomes": [
+        {
+          "index": 0,
+          "totalMs": 12.2084849999992,
+          "acquireAndBeginMs": 0.8298230000000331,
+          "transactionMs": 11.378661999999167,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 1,
+          "totalMs": 73.63543100000061,
+          "acquireAndBeginMs": 9.6138260000007,
+          "transactionMs": 64.02160499999991,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 2,
+          "totalMs": 137.56103299999995,
+          "acquireAndBeginMs": 9.655118000000584,
+          "transactionMs": 127.90591499999937,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ]
+    },
+    {
+      "confirmConcurrency": 4,
+      "totalRequests": 5,
+      "round": 1,
+      "elapsedMs": 267.82745700000123,
+      "maxPoolQueueSampled": 0,
+      "maxAdvisoryWaitersSampled": 3,
+      "sampleError": false,
+      "outcomes": [
+        {
+          "index": 0,
+          "totalMs": 20.214006000000154,
+          "acquireAndBeginMs": 2.4114639999988867,
+          "transactionMs": 17.802542000001267,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 1,
+          "totalMs": 84.09673900000053,
+          "acquireAndBeginMs": 9.155119000000923,
+          "transactionMs": 74.9416199999996,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 2,
+          "totalMs": 203.7934580000001,
+          "acquireAndBeginMs": 12.115023999998812,
+          "transactionMs": 191.6784340000013,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 3,
+          "totalMs": 267.8052339999995,
+          "acquireAndBeginMs": 11.235625999999684,
+          "transactionMs": 256.5696079999998,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 4,
+          "totalMs": 143.1781520000004,
+          "acquireAndBeginMs": 10.281496999999945,
+          "transactionMs": 132.89665500000046,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ]
+    },
+    {
+      "confirmConcurrency": 4,
+      "totalRequests": 5,
+      "round": 2,
+      "elapsedMs": 340.28438200000164,
+      "maxPoolQueueSampled": 0,
+      "maxAdvisoryWaitersSampled": 3,
+      "sampleError": false,
+      "outcomes": [
+        {
+          "index": 0,
+          "totalMs": 21.524375000000873,
+          "acquireAndBeginMs": 2.892233999999007,
+          "transactionMs": 18.632141000001866,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 1,
+          "totalMs": 251.2291019999975,
+          "acquireAndBeginMs": 11.567293000000063,
+          "transactionMs": 239.66180899999745,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 2,
+          "totalMs": 81.8590409999997,
+          "acquireAndBeginMs": 9.235630000002857,
+          "transactionMs": 72.62341099999685,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 3,
+          "totalMs": 340.25868400000036,
+          "acquireAndBeginMs": 15.595580000001064,
+          "transactionMs": 324.6631039999993,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 4,
+          "totalMs": 175.28997099999833,
+          "acquireAndBeginMs": 11.444118999999773,
+          "transactionMs": 163.84585199999856,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ]
+    },
+    {
+      "confirmConcurrency": 4,
+      "totalRequests": 5,
+      "round": 3,
+      "elapsedMs": 347.95720300000175,
+      "maxPoolQueueSampled": 0,
+      "maxAdvisoryWaitersSampled": 3,
+      "sampleError": false,
+      "outcomes": [
+        {
+          "index": 0,
+          "totalMs": 23.777710999998817,
+          "acquireAndBeginMs": 1.4516549999971176,
+          "transactionMs": 22.3260560000017,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 1,
+          "totalMs": 106.63564499999848,
+          "acquireAndBeginMs": 15.195360999998229,
+          "transactionMs": 91.44028400000025,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 2,
+          "totalMs": 347.9229520000008,
+          "acquireAndBeginMs": 15.110173000000941,
+          "transactionMs": 332.81277899999986,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 3,
+          "totalMs": 276.07366600000023,
+          "acquireAndBeginMs": 15.221130000001722,
+          "transactionMs": 260.8525359999985,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 4,
+          "totalMs": 186.61170799999672,
+          "acquireAndBeginMs": 15.27636199999688,
+          "transactionMs": 171.33534599999984,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ]
+    },
+    {
+      "confirmConcurrency": 8,
+      "totalRequests": 9,
+      "round": 1,
+      "elapsedMs": 469.55505300000004,
+      "maxPoolQueueSampled": 2,
+      "maxAdvisoryWaitersSampled": 5,
+      "sampleError": false,
+      "outcomes": [
+        {
+          "index": 0,
+          "totalMs": 14.236953999999969,
+          "acquireAndBeginMs": 1.12022799999977,
+          "transactionMs": 13.116726000000199,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 1,
+          "totalMs": 70.95618800000011,
+          "acquireAndBeginMs": 9.803180999999313,
+          "transactionMs": 61.1530070000008,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 2,
+          "totalMs": 312.2986689999998,
+          "acquireAndBeginMs": 10.306273999998666,
+          "transactionMs": 301.9923950000011,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 3,
+          "totalMs": 252.2293150000005,
+          "acquireAndBeginMs": 10.143410000000586,
+          "transactionMs": 242.0859049999999,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 4,
+          "totalMs": 192.39135800000076,
+          "acquireAndBeginMs": 10.430100000001403,
+          "transactionMs": 181.96125799999936,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 5,
+          "totalMs": 131.7909580000014,
+          "acquireAndBeginMs": 10.567184999999881,
+          "transactionMs": 121.22377300000153,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 6,
+          "totalMs": 371.39319199999954,
+          "acquireAndBeginMs": 14.479106999999203,
+          "transactionMs": 356.91408500000034,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 7,
+          "totalMs": 421.2177190000002,
+          "acquireAndBeginMs": 71.47130000000107,
+          "transactionMs": 349.74641899999915,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 8,
+          "totalMs": 469.521893000001,
+          "acquireAndBeginMs": 132.14158400000088,
+          "transactionMs": 337.3803090000001,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ]
+    },
+    {
+      "confirmConcurrency": 8,
+      "totalRequests": 9,
+      "round": 2,
+      "elapsedMs": 470.5909000000029,
+      "maxPoolQueueSampled": 2,
+      "maxAdvisoryWaitersSampled": 5,
+      "sampleError": false,
+      "outcomes": [
+        {
+          "index": 0,
+          "totalMs": 16.952704000002996,
+          "acquireAndBeginMs": 1.3061180000004242,
+          "transactionMs": 15.646586000002571,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 1,
+          "totalMs": 256.5964499999973,
+          "acquireAndBeginMs": 10.201125999999931,
+          "transactionMs": 246.39532399999734,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 2,
+          "totalMs": 138.08118900000045,
+          "acquireAndBeginMs": 10.324179999999615,
+          "transactionMs": 127.75700900000083,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 3,
+          "totalMs": 195.2879240000002,
+          "acquireAndBeginMs": 10.807084000000032,
+          "transactionMs": 184.48084000000017,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 4,
+          "totalMs": 319.2698049999999,
+          "acquireAndBeginMs": 14.00734999999986,
+          "transactionMs": 305.26245500000005,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 5,
+          "totalMs": 80.72580200000084,
+          "acquireAndBeginMs": 10.271390999998403,
+          "transactionMs": 70.45441100000244,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 6,
+          "totalMs": 369.7625589999989,
+          "acquireAndBeginMs": 17.19313400000101,
+          "transactionMs": 352.56942499999786,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 7,
+          "totalMs": 419.20991499999946,
+          "acquireAndBeginMs": 81.18215599999894,
+          "transactionMs": 338.0277590000005,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 8,
+          "totalMs": 470.56143599999996,
+          "acquireAndBeginMs": 138.4782239999986,
+          "transactionMs": 332.08321200000137,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ]
+    },
+    {
+      "confirmConcurrency": 8,
+      "totalRequests": 9,
+      "round": 3,
+      "elapsedMs": 450.92689299999984,
+      "maxPoolQueueSampled": 2,
+      "maxAdvisoryWaitersSampled": 5,
+      "sampleError": false,
+      "outcomes": [
+        {
+          "index": 0,
+          "totalMs": 15.252395999999862,
+          "acquireAndBeginMs": 3.4205560000009427,
+          "transactionMs": 11.83183999999892,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 1,
+          "totalMs": 75.87493000000177,
+          "acquireAndBeginMs": 8.625271000000794,
+          "transactionMs": 67.24965900000097,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 2,
+          "totalMs": 315.91536199999973,
+          "acquireAndBeginMs": 10.506379999998899,
+          "transactionMs": 305.40898200000083,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 3,
+          "totalMs": 253.99254400000063,
+          "acquireAndBeginMs": 9.192831000000297,
+          "transactionMs": 244.79971300000034,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 4,
+          "totalMs": 132.3931569999986,
+          "acquireAndBeginMs": 8.849475999999413,
+          "transactionMs": 123.5436809999992,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 5,
+          "totalMs": 188.67883200000142,
+          "acquireAndBeginMs": 10.093300000000454,
+          "transactionMs": 178.58553200000097,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 6,
+          "totalMs": 358.9765350000016,
+          "acquireAndBeginMs": 15.461871000003157,
+          "transactionMs": 343.51466399999845,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 7,
+          "totalMs": 403.15554599999814,
+          "acquireAndBeginMs": 76.28680600000007,
+          "transactionMs": 326.86873999999807,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 8,
+          "totalMs": 450.89784900000086,
+          "acquireAndBeginMs": 132.8206879999998,
+          "transactionMs": 318.07716100000107,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ]
+    },
+    {
+      "confirmConcurrency": 16,
+      "totalRequests": 17,
+      "round": 1,
+      "elapsedMs": 1152.8437490000033,
+      "maxPoolQueueSampled": 11,
+      "maxAdvisoryWaitersSampled": 5,
+      "sampleError": false,
+      "outcomes": [
+        {
+          "index": 0,
+          "totalMs": 28.237112999999226,
+          "acquireAndBeginMs": 2.7239020000015444,
+          "transactionMs": 25.513210999997682,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 1,
+          "totalMs": 261.96766099999877,
+          "acquireAndBeginMs": 11.88495999999941,
+          "transactionMs": 250.08270099999936,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 2,
+          "totalMs": 112.22933099999864,
+          "acquireAndBeginMs": 11.942706000001635,
+          "transactionMs": 100.286624999997,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 3,
+          "totalMs": 409.6604640000005,
+          "acquireAndBeginMs": 14.948330999999598,
+          "transactionMs": 394.7121330000009,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 4,
+          "totalMs": 339.4668730000012,
+          "acquireAndBeginMs": 11.83666699999958,
+          "transactionMs": 327.63020600000164,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 5,
+          "totalMs": 192.76591100000223,
+          "acquireAndBeginMs": 12.142345000000205,
+          "transactionMs": 180.62356600000203,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 6,
+          "totalMs": 470.2832820000003,
+          "acquireAndBeginMs": 28.875459999999293,
+          "transactionMs": 441.40782200000103,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 7,
+          "totalMs": 540.8527319999994,
+          "acquireAndBeginMs": 112.54734800000006,
+          "transactionMs": 428.3053839999993,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 8,
+          "totalMs": 612.5599199999997,
+          "acquireAndBeginMs": 193.18927599999734,
+          "transactionMs": 419.37064400000236,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 9,
+          "totalMs": 680.7716110000001,
+          "acquireAndBeginMs": 262.32911199999944,
+          "transactionMs": 418.4424990000007,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 10,
+          "totalMs": 743.4899889999979,
+          "acquireAndBeginMs": 339.8273530000006,
+          "transactionMs": 403.6626359999973,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 11,
+          "totalMs": 811.932761,
+          "acquireAndBeginMs": 410.0872930000005,
+          "transactionMs": 401.8454679999995,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 12,
+          "totalMs": 882.4778289999995,
+          "acquireAndBeginMs": 470.72049699999843,
+          "transactionMs": 411.75733200000104,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 13,
+          "totalMs": 951.398836999997,
+          "acquireAndBeginMs": 541.4103269999978,
+          "transactionMs": 409.9885099999992,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 14,
+          "totalMs": 1013.7210679999989,
+          "acquireAndBeginMs": 613.4667789999985,
+          "transactionMs": 400.2542890000004,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 15,
+          "totalMs": 1086.1965020000025,
+          "acquireAndBeginMs": 681.1956960000025,
+          "transactionMs": 405.000806,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "index": 16,
+          "totalMs": 1152.7737340000022,
+          "acquireAndBeginMs": 743.9796229999993,
+          "transactionMs": 408.7941110000029,
+          "error": null,
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-capacity-load"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ]
+    }
+  ],
+  "stopped": "sampled_pool_queue",
+  "cleanup": true
+}
