@@ -10,9 +10,9 @@ import { finalizeMajorSwissRoundInTransaction } from "@/lib/major/swiss-runtime"
 import { balanceOf, lockPredictionProgram, openPredictionMarketInTx, reconcilePredictionProgram, stakeInTx } from "@/lib/predictions/service";
 import { predictionCapacityFixture } from "./prediction-fixture";
 
-it.skipIf(process.env.RIVALHUB_SETTLEMENT_CAPACITY !== "1")("measures settlement and known committed stake replays in both lock orders", async () => {
+it.skipIf(process.env.RIVALHUB_SETTLEMENT_CAPACITY !== "1")("measures settlement and known committed stake replays in both legitimate lock holders", async () => {
   const order = process.env.RIVALHUB_SETTLEMENT_ORDER;
-  if (order !== "settlement-first" && order !== "replay-first") throw new Error("SETTLEMENT_ORDER_REQUIRED");
+  if (order !== "reconcile-holder" && order !== "stake-holder") throw new Error("SETTLEMENT_ORDER_REQUIRED");
   const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   if (!/^[a-f0-9]{40}$/.test(process.env.RIVALHUB_CAPACITY_SHA ?? "") || sha !== process.env.RIVALHUB_CAPACITY_SHA) throw new Error("EXACT_SHA_REQUIRED");
   execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/capacity/prediction-fixture.ts", "tests/integration/db/capacity/prediction-settlement-capacity.test.ts"]);
@@ -46,11 +46,12 @@ it.skipIf(process.env.RIVALHUB_SETTLEMENT_CAPACITY !== "1")("measures settlement
             const holder = f.db.transaction(async tx => {
               const settings = await tx.execute(sql`select set_config('statement_timeout','5s',true) as statement, set_config('lock_timeout','2s',true) as lock`);
               expect(settings.rows[0]).toMatchObject({ statement: "5s", lock: "2s" });
-              if (order === "settlement-first") await reconcilePredictionProgram(tx, await lockPredictionProgram(tx, f.seasonId));
+              if (order === "reconcile-holder") await reconcilePredictionProgram(tx, await lockPredictionProgram(tx, f.seasonId));
               else expect(await stakeInTx(tx, stakes[0]!)).toMatchObject({ amount: "100" });
               ready(); await gate;
             }).finally(() => { holderMs = performance.now() - holderStarted; });
-            let tasks: Promise<void>[] = []; let maxQueue = 0; let lockObserved = false; let elapsedMs = 0;
+            void holder.catch(() => undefined);
+            let tasks: Promise<void>[] = []; let maxQueue = 0; let lockObserved = false; let elapsedMs = 0; let phaseFailure = false;
             const requests = Array.from({ length: concurrency }, () => ({ totalMs: 0, acquireAndBeginMs: null as number | null, transactionMs: null as number | null, result: "unknown", settings: null as { statement: string; lock: string } | null }));
             const sample = setInterval(() => { maxQueue = Math.max(maxQueue, f.pool.waitingCount); }, 5);
             try {
@@ -64,7 +65,7 @@ it.skipIf(process.env.RIVALHUB_SETTLEMENT_CAPACITY !== "1")("measures settlement
                     const values = await tx.execute(sql`select set_config('statement_timeout','5s',true) as statement, set_config('lock_timeout','2s',true) as lock, set_config('application_name','prediction-settlement-load',true) as application`);
                     request.settings = values.rows[0] as { statement: string; lock: string };
                     if (request.settings.statement !== "5s" || request.settings.lock !== "2s") throw new Error("TIMEOUT_CONFIGURATION_MISMATCH");
-                    if (order === "settlement-first") expect(await stakeInTx(tx, stakes[index % 2]!)).toMatchObject({ amount: "100" });
+                    if (order === "reconcile-holder") expect(await stakeInTx(tx, stakes[index % 2]!)).toMatchObject({ amount: "100" });
                     else await reconcilePredictionProgram(tx, await lockPredictionProgram(tx, f.seasonId));
                   });
                   request.result = "success";
@@ -80,7 +81,7 @@ it.skipIf(process.env.RIVALHUB_SETTLEMENT_CAPACITY !== "1")("measures settlement
                 await delay(10);
               }
               release(); await holder; await Promise.all(tasks); elapsedMs = performance.now() - at;
-            } finally { release(); clearInterval(sample); await holder.catch(() => undefined); await Promise.allSettled(tasks); }
+            } catch { phaseFailure = true; } finally { release(); clearInterval(sample); await holder.catch(() => undefined); await Promise.allSettled(tasks); }
             const settled = await f.db.select().from(schema.predictionSettlements).where(and(eq(schema.predictionSettlements.marketId, opened.id), eq(schema.predictionSettlements.state, "settled")));
             const ledger = await f.db.select().from(schema.predictionLedger).where(and(eq(schema.predictionLedger.seasonId, f.seasonId), eq(schema.predictionLedger.kind, "settlement")));
             const allStakes = await f.db.select().from(schema.predictionStakes).where(eq(schema.predictionStakes.marketId, opened.id));
@@ -88,15 +89,20 @@ it.skipIf(process.env.RIVALHUB_SETTLEMENT_CAPACITY !== "1")("measures settlement
             const balance = (userId: string) => f.db.transaction(tx => balanceOf(tx, accounts.find(a => a.userId === userId)!.id));
             const balances = await Promise.all([balance(f.userId), balance(f.otherId)]);
             const valid = settled.length === 1 && allStakes.length === 2 && ledger.length === 2 && new Set(ledger.map(row => row.accountId)).size === 2 && balances[0] === BigInt(1100) && balances[1] === BigInt(900);
-            const unexpected = !valid || !lockObserved || requests.some(request => request.result !== "success");
+            const unexpected = phaseFailure || !valid || !lockObserved || requests.some(request => request.result !== "success");
             stop = unexpected || maxQueue >= 8;
             if (stop) report.stopped = unexpected ? "unexpected_or_unknown" : "sampled_pool_queue";
-            report.rounds.push({ concurrency, round, elapsedMs, holderMs, maxPoolQueueSampled: maxQueue, lockObserved, settlementCount: settled.length, stakeCount: allStakes.length, settlementLedgerCount: ledger.length, balancesVerified: valid, requests });
+            report.rounds.push({ concurrentTasks: concurrency, totalTransactions: concurrency + 1, round, elapsedMs, holderMs, phaseFailure, maxPoolQueueSampled: maxQueue, lockObserved, settlementCount: settled.length, stakeCount: allStakes.length, settlementLedgerCount: ledger.length, balancesVerified: valid, requests });
             expect(valid).toBe(true);
-            // Reconcile once more and assert no duplicate financial facts.
-            await f.db.transaction(async tx => reconcilePredictionProgram(tx, await lockPredictionProgram(tx, f.seasonId)));
-            expect(await f.db.select().from(schema.predictionSettlements).where(and(eq(schema.predictionSettlements.marketId, opened.id), eq(schema.predictionSettlements.state, "settled")))).toHaveLength(1);
-            expect(await f.db.select().from(schema.predictionLedger).where(and(eq(schema.predictionLedger.seasonId, f.seasonId), eq(schema.predictionLedger.kind, "settlement")))).toHaveLength(2);
+            if (!unexpected) {
+              // All outcomes are known; a new reconciliation verifies idempotency.
+              await f.db.transaction(async tx => reconcilePredictionProgram(tx, await lockPredictionProgram(tx, f.seasonId)));
+              expect(await f.db.select().from(schema.predictionSettlements).where(and(eq(schema.predictionSettlements.marketId, opened.id), eq(schema.predictionSettlements.state, "settled")))).toHaveLength(1);
+              expect(await f.db.select().from(schema.predictionLedger).where(and(eq(schema.predictionLedger.seasonId, f.seasonId), eq(schema.predictionLedger.kind, "settlement")))).toHaveLength(2);
+              // A new key is not an idempotent replay; the already finished match cannot accept it.
+              await expect(f.db.transaction(tx => stakeInTx(tx, { ...stakes[0]!, requestId: randomUUID() }))).rejects.toThrow(/关闭/);
+              expect(await f.db.select().from(schema.predictionStakes).where(eq(schema.predictionStakes.marketId, opened.id))).toHaveLength(2);
+            }
           } finally { await monitor.end(); }
         }, 32);
       }
