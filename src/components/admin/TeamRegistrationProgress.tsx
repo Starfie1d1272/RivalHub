@@ -17,7 +17,7 @@ export function TeamRegistrationProgress({ progress }: { progress: TeamRegistrat
             <MiniStat label="草稿待提交" value={summary.selfChangeDraft} />
             <MiniStat label="需补正" value={summary.changesRequested} />
           </div>
-          <p className="text-xs text-[var(--color-fg-mid)]">共 {summary.total} 支队伍开始报名；草稿仅用于运营观察，不进入审核队列。</p>
+          <p className="text-xs text-[var(--color-fg-mid)]">共 {summary.total} 支队伍开始报名；首次报名草稿仅供运营观察；名单调整草稿仍列入待处理，等待负责人提交。</p>
         </div>
       </Panel>
 
