@@ -91,8 +91,11 @@ describe("Mizar reliable event ingest ownership", () => {
     const start = reliableEvent(f, { contextRevision: context.revision, mapId: f.mapTwoId, mapName: "de_mirage" });
     start.cursor.mapEpoch = 2; start.cursor.runtimeSeq = 4;
     await ingestMizarReliable(f.installationId, f.seasonId, start, f.authorityRevision, f.steam64);
+    const stale = { ...end, idempotencyKey: randomUUID(), cursor: { ...end.cursor, liveSessionId: "old-session", runtimeSeq: 9 } };
+    await expectCode(() => ingestMizarReliable(f.installationId, f.seasonId, stale, f.authorityRevision), ErrorCode.FORBIDDEN);
     const [match] = await db.select().from(schema.matches).where(eq(schema.matches.id, f.matchId));
     const maps = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
+    expect(maps.find(map => map.id === f.mapTwoId)?.provisionalPlayers).toBeNull();
     const teams = new Map(roster.map(r => [r.userId, r.entryId]));
     const provisional = await loadMatchScoreboard(match!, maps, teams);
     expect(provisional.provisionalMapIds.has(f.mapOneId)).toBe(true);

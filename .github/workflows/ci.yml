@@ -340,7 +340,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Starfie1d1272/Mizar
-          ref: 3c43f583f5aae9741a56c88e3a502b983f88f1d1 # Mizar #370, roster-only LIVE evidence
+          ref: 9d7e08c7455e8419cde15e62f7367a38dd4edf60 # Mizar #498, provisional post-map snapshot
           path: .mizar-checkout
       - name: Mizar cross-repo contract
         env:
