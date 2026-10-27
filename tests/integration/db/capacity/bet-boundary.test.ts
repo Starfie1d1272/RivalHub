@@ -22,10 +22,11 @@ it("serializes BET submission and gameplay start in both lock orders", async () 
     const market = (await read(f.db, f.seasonId, f.userId)).markets.find(m => m.type === "match_winner")!;
     const args = { seasonId: f.seasonId, userId: f.userId, marketId: market.id, optionId: market.options[0]!.id, amount: "1", requestId: randomUUID() };
     const holder = await f.db.$client.connect();
+    let submission: Promise<unknown> | undefined;
     try {
       await holder.query("BEGIN");
       await holder.query("UPDATE matches SET status = 'in_progress', gameplay_started_at = now() WHERE id = $1", [f.matchId]);
-      const submission = f.db.transaction(async tx => {
+      submission = f.db.transaction(async tx => {
         await tx.execute(sql`set local lock_timeout = '2s'`);
         await tx.execute(sql`set local application_name = 'bet-boundary-submit'`);
         return stakeBetInTx(tx, args);
@@ -35,7 +36,11 @@ it("serializes BET submission and gameplay start in both lock orders", async () 
       await holder.query("COMMIT");
       await expect(submission).rejects.toThrow(/锁定/);
       expect((await read(f.db, f.seasonId, f.userId)).balance).toBe("1000");
-    } finally { await holder.query("ROLLBACK"); holder.release(); }
+    } finally {
+      await holder.query("ROLLBACK");
+      holder.release();
+      await submission?.catch(() => undefined);
+    }
   });
   await fixture(async f => {
     const market = (await read(f.db, f.seasonId, f.userId)).markets.find(m => m.type === "match_winner")!;
@@ -53,18 +58,24 @@ it("serializes BET submission and gameplay start in both lock orders", async () 
     try {
       await Promise.race([locked, submission.then(() => { throw new Error("SUBMISSION_ENDED_BEFORE_BARRIER"); })]);
       const starter = await f.db.$client.connect();
+      let start: Promise<unknown> | undefined;
       try {
         await starter.query("BEGIN");
         await starter.query("SET LOCAL lock_timeout = '2s'");
         await starter.query("SET LOCAL application_name = 'bet-boundary-start'");
-        const start = starter.query("UPDATE matches SET status = 'in_progress', gameplay_started_at = now() WHERE id = $1", [f.matchId]);
+        start = starter.query("UPDATE matches SET status = 'in_progress', gameplay_started_at = now() WHERE id = $1", [f.matchId]);
         void start.catch(() => undefined);
         await waitForLock(f.db.$client, "bet-boundary-start");
         release();
         await submission;
         await start;
         await starter.query("COMMIT");
-      } finally { await starter.query("ROLLBACK"); starter.release(); }
+      } finally {
+        release();
+        await starter.query("ROLLBACK");
+        await start?.catch(() => undefined);
+        starter.release();
+      }
       expect((await read(f.db, f.seasonId, f.userId)).balance).toBe("999");
       await expect(f.db.transaction(tx => stakeBetInTx(tx, { ...args, requestId: randomUUID() }))).rejects.toThrow(/锁定/);
     } finally { release(); await submission.catch(() => undefined); }
