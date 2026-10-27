@@ -100,6 +100,7 @@ it.skipIf(process.env.RIVALHUB_DEMO_CAPACITY !== "1")("measures cross-event Demo
             try { for (let seed = 0; seed < 17; seed++) events.push(await seedDemoCapacity(connection, seed)); }
             finally { connection.release(); }
             const db = drizzle(pool, { schema });
+            const monitor = new Pool({ connectionString: url.toString(), ssl: false, max: 1, connectionTimeoutMillis: 2000 });
             const source = events[0]!;
             const input = (f: typeof source) => ({ importId: f.importId, observedSteam64: f.alternate, eventRosterMemberId: f.eventRosterMemberId, actorId: f.actorId });
             expect((await db.transaction(tx => confirmStoredDemoParticipantIdentityInTx(tx, input(source)))).status).toBe("confirmed");
@@ -107,7 +108,16 @@ it.skipIf(process.env.RIVALHUB_DEMO_CAPACITY !== "1")("measures cross-event Demo
             expect(identity?.userId).toBe(source.userId);
             const actors = events.slice(1, concurrency + 1);
             let maxQueue = 0;
-            const sampler = setInterval(() => { maxQueue = Math.max(maxQueue, pool.waitingCount); }, 5);
+            let maxAdvisoryWaiters = 0;
+            let sampleError = false;
+            let sampling: Promise<void> | undefined;
+            const sampler = setInterval(() => {
+              maxQueue = Math.max(maxQueue, pool.waitingCount);
+              if (!sampling) sampling = monitor.query("select count(*)::int as count from pg_stat_activity where datname = current_database() and application_name = 'demo-capacity-load' and wait_event = 'advisory'")
+                .then(result => { maxAdvisoryWaiters = Math.max(maxAdvisoryWaiters, Number(result.rows[0]?.count)); })
+                .catch(() => { sampleError = true; })
+                .finally(() => { sampling = undefined; });
+            }, 20);
             const start = performance.now();
             const requests = [source, ...actors].map((event, index) => ({ event, index, totalMs: 0, acquireAndBeginMs: null as number | null, transactionMs: null as number | null, error: null as string | null, settings: null as { statement: string; lock: string } | null }));
             try {
@@ -116,7 +126,7 @@ it.skipIf(process.env.RIVALHUB_DEMO_CAPACITY !== "1")("measures cross-event Demo
                 try {
                   await db.transaction(async tx => {
                     began = performance.now(); request.acquireAndBeginMs = began - at;
-                    const result = await tx.execute("select set_config('statement_timeout','5s',true) as statement, set_config('lock_timeout','2s',true) as lock");
+                    const result = await tx.execute("select set_config('statement_timeout','5s',true) as statement, set_config('lock_timeout','2s',true) as lock, set_config('application_name','demo-capacity-load',true) as application");
                     request.settings = result.rows[0] as { statement: string; lock: string };
                     if (request.settings.statement !== "5s" || request.settings.lock !== "2s") throw new Error("TIMEOUT_CONFIGURATION_MISMATCH");
                     if (request.index === 0) await retireSeasonGameplaySteamIdentityInTx(tx, { identityId: identity!.id, seasonId: source.seasonId, actorId: source.actorId, reason: "隔离容量实验" });
@@ -131,18 +141,22 @@ it.skipIf(process.env.RIVALHUB_DEMO_CAPACITY !== "1")("measures cross-event Demo
                   if (began !== undefined) request.transactionMs = end - began;
                 }
               }));
-            } finally { clearInterval(sampler); }
+            } finally { clearInterval(sampler); await sampling; await monitor.end(); }
             const elapsedMs = performance.now() - start;
             const observed = await Promise.all(requests.map(async request => {
-              if (request.index === 0) return (await db.query.userGameplaySteamIds.findFirst({ where: eq(schema.userGameplaySteamIds.id, identity!.id) }))?.status === "retired";
+              if (request.index === 0) {
+                const retiredIdentity = await db.query.userGameplaySteamIds.findFirst({ where: eq(schema.userGameplaySteamIds.id, identity!.id) });
+                const imported = await db.query.matchDemoImports.findFirst({ where: eq(schema.matchDemoImports.id, source.importId) });
+                return retiredIdentity?.status === "retired" && retiredIdentity.userId === source.userId && imported?.status === "needs_attention";
+              }
               const row = await db.query.userGameplaySteamIds.findFirst({ where: eq(schema.userGameplaySteamIds.sourceImportId, request.event.importId) });
               const imported = await db.query.matchDemoImports.findFirst({ where: eq(schema.matchDemoImports.id, request.event.importId) });
               return row?.status === "active" && row.userId === request.event.userId && imported?.status === "confirmed";
             }));
             expect(requests.some((request, index) => !request.error && !observed[index])).toBe(false);
-            stop = requests.some(request => request.error) || maxQueue >= 8;
-            if (stop) report.stopped = requests.some(request => request.error) ? "request_failure" : "sampled_pool_queue";
-            report.rounds.push({ concurrency, round, elapsedMs, maxPoolQueueSampled: maxQueue,
+            stop = requests.some(request => request.error) || maxQueue >= 8 || sampleError;
+            if (stop) report.stopped = requests.some(request => request.error) ? "request_failure" : sampleError ? "sampling_failure" : "sampled_pool_queue";
+            report.rounds.push({ concurrency, round, elapsedMs, maxPoolQueueSampled: maxQueue, maxAdvisoryWaitersSampled: maxAdvisoryWaiters, sampleError,
               outcomes: requests.map((request, index) => ({ index: request.index, totalMs: request.totalMs, acquireAndBeginMs: request.acquireAndBeginMs, transactionMs: request.transactionMs, error: request.error, settings: request.settings, observedCommitted: observed[index], outcome: observed[index] ? "committed" : request.error ? "unresolved" : "missing" })) });
           } finally { await pool.end(); }
         });
