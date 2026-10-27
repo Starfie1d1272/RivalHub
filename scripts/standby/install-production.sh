@@ -35,7 +35,7 @@ quiesce() {
   active=$(readlink "$root/current" || true)
   # First install has no previous writer or registered unit to stop.
   if [[ -z $active && ! -f $unit ]]; then return 0; fi
-  systemctl stop rivalhub-production || return 1
+  systemctl stop rivalhub-production || return 2
   [[ -n $active ]] || return 1
   if [[ -n $active ]]; then
     [[ $active == releases/rivalhub-production-* && -f $config ]] || return 1
@@ -101,7 +101,17 @@ const [path, run, artifact, target] = process.argv.slice(2);
 writeFileSync(path, JSON.stringify({version: 1, run, artifact, target, generation: randomUUID(), state: 'held'}) + '\n', {flag: 'wx', mode: 0o644});
 for (const entry of [path, dirname(path), dirname(dirname(path))]) { const fd = openSync(entry, 'r'); try { fsyncSync(fd); } finally { closeSync(fd); } }
 JS
-  quiesce || { echo 'Recovery writer drain failed; hold retained and application remains stopped.' >&2; exit 1; }
+  if quiesce; then
+    :
+  else
+    result=$?
+    if [[ $result == 2 ]]; then
+      echo 'Recovery service stop not confirmed; service state is unknown. Hold retained; target changes are prohibited.' >&2
+    else
+      echo 'Recovery writer drain failed after service stop; hold retained; target changes are prohibited.' >&2
+    fi
+    exit 1
+  fi
   echo 'Recovery hold registered and writers drained; traffic remains blocked.'
   exit 0
 fi
@@ -224,7 +234,17 @@ printf '%s\n' "$snapshot" > "$root/previous-snapshot.next"
 mv -Tf "$root/previous-snapshot.next" "$root/previous-snapshot"
 # A failed drain must leave the current environment/pointer intact and the
 # service stopped. Do not enter automatic restore until the drain succeeded.
-quiesce || { echo 'Writer drain failed; application remains stopped, release unchanged.' >&2; exit 1; }
+if quiesce; then
+  :
+else
+  result=$?
+  if [[ $result == 2 ]]; then
+    echo 'Service stop not confirmed; service state is unknown, release unchanged.' >&2
+  else
+    echo 'Writer drain failed after service stop; release unchanged.' >&2
+  fi
+  exit 1
+fi
 trap failed ERR HUP INT TERM
 install -m 600 "$snapshot/candidate.env" "$config"
 install -m 644 "$root/host/service" "$unit"

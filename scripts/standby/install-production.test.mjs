@@ -63,7 +63,7 @@ const cmd = path.basename(process.argv[1]), args = process.argv.slice(2), dir = 
 if (cmd === 'id') { if (args[0] === '-u') console.log('0'); }
 else if (cmd === 'flock') { if(fs.existsSync(dir + '/locked')) process.exit(1); }
 else if (['chown','sleep'].includes(cmd)) {}
-else if (cmd === 'systemctl') { fs.appendFileSync(dir + '/events', args[0] + '\\n'); if(args[0] === 'restart' && fs.existsSync(dir + '/hold-on-failure')) { fs.mkdirSync(${JSON.stringify(join(root, 'recovery-hold'))}); process.exit(1); } if(args[0] === 'restart' && fs.existsSync(dir + '/fail')) {fs.unlinkSync(dir + '/fail'); process.exit(1);} }
+else if (cmd === 'systemctl') { fs.appendFileSync(dir + '/events', args[0] + '\\n'); if(args[0] === 'stop' && fs.existsSync(dir + '/fail-stop')) process.exit(1); if(args[0] === 'restart' && fs.existsSync(dir + '/hold-on-failure')) { fs.mkdirSync(${JSON.stringify(join(root, 'recovery-hold'))}); process.exit(1); } if(args[0] === 'restart' && fs.existsSync(dir + '/fail')) {fs.unlinkSync(dir + '/fail'); process.exit(1);} }
 else if (cmd === 'curl') { if(fs.existsSync(dir + '/fail-health') && fs.readFileSync(config,'utf8').includes('RIVALHUB_RELEASE_TAG=v1.0.1')) process.exit(22); if(args.at(-1).endsWith('/api/system/release')) {const env = fs.readFileSync(config, 'utf8'); const get = k => env.match(new RegExp('^'+k+'=(.*)$','m'))[1]; console.log(JSON.stringify({releaseTag:get('RIVALHUB_RELEASE_TAG'),releaseCommit:get('RIVALHUB_RELEASE_COMMIT')}));} }
 else if (cmd === 'mv') {fs.renameSync(args.at(-2), args.at(-1));}
 else if (cmd === 'sha256sum') { const crypto = require('crypto'); if(args[0] === '-c') {const [hash, file] = fs.readFileSync(args[1],'utf8').trim().split(/\\s+/); if(crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex') !== hash) process.exit(1);} else console.log(crypto.createHash('sha256').update(fs.readFileSync(args[0])).digest('hex')+'  '+args[0]);}
@@ -79,7 +79,7 @@ else throw Error(cmd);
     assert.equal(result.status, 1);
     assert.equal(readFileSync(config, 'utf8'), oldEnv);
     assert.equal(readlinkSync(join(root, 'current')), `releases/${name(old)}`);
-    assert.match(result.stderr, /application remains stopped/);
+    assert.match(result.stderr, /Writer drain failed after service stop/);
     assert.ok(!readFileSync(join(dir, 'events'), 'utf8').includes('restart'));
     rmSync(join(dir, 'fail-drain'));
     writeFileSync(join(dir, 'events'), '');
@@ -285,6 +285,28 @@ else throw Error(cmd);
     writeFileSync(join(previous, 'scripts/standby/start-production.mjs'), `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(join(dir, 'launched'))}, 'yes');`);
     assert.equal(launch().status, 0, launch().stderr);
     assert.ok(existsSync(join(dir, 'launched')));
+    // stop failure is unknown, not a claim that the process stopped.
+    writeFileSync(join(dir, 'fail-stop'), '');
+    result = run(['--recovery-begin', recoveryRun, 'a'.repeat(64), 'b'.repeat(64)]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /service state is unknown/);
+    assert.match(result.stderr, /target changes are prohibited/);
+    assert.match(launch().stderr, /Recovery hold present/);
+    rmSync(join(dir, 'fail-stop'));
+    rmSync(hold, { recursive: true });
+    // Simulate process loss immediately after the durable record, before stop.
+    const installerPath = join(dir, 'install-production.sh');
+    const originalInstaller = readFileSync(installerPath, 'utf8');
+    writeFileSync(installerPath, originalInstaller.replace('  if quiesce; then\n    :', '  exit 91\n  if quiesce; then\n    :'));
+    writeFileSync(join(dir, 'events'), '');
+    result = run(['--recovery-begin', recoveryRun, 'a'.repeat(64), 'b'.repeat(64)]);
+    assert.equal(result.status, 91);
+    assert.ok(!readFileSync(join(dir, 'events'), 'utf8').split('\n').includes('stop'));
+    assert.ok(existsSync(join(hold, 'record.json')));
+    assert.match(launch().stderr, /Recovery hold present/);
+    assert.equal(run(deployArgs).status, 1);
+    writeFileSync(installerPath, originalInstaller);
+    rmSync(hold, { recursive: true });
     writeFileSync(join(dir, 'fail-drain'), '');
     result = run(['--recovery-begin', recoveryRun, 'a'.repeat(64), 'b'.repeat(64)]);
     assert.equal(result.status, 1);

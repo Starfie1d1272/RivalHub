@@ -223,7 +223,7 @@ pnpm db:recovery:restore-db-checkpoint \
 
 `pnpm db:recovery:readiness` 仍只是始终拒绝的占位检查，不能控制外部 provider 或 Vercel 切流：full 与 DB-only 校验都只是数据验证，provider 状态、对账覆盖水位以及独立于快照的当前撤销和角色事实均未实现。更换目标、重复恢复或证据缺失时不得沿用旧记录。切流仍由现有 protected owner 控制，必须保留 #1101 的写者排空与现有 exact migration-prefix；此命令不修改网络或代替这些门禁。
 
-受管 Linux 恢复在任何目标变更前由主机 owner 在受保护维护窗口调用 `install-production.sh --recovery-begin <run-uuid> <artifact-sha256> <target-sha256>`。它持有现有部署锁，先安装固定主机路径的启动入口，再创建独立于数据库和应用版本的 hold，停止服务并执行 #1101 写者排空。只有命令成功且独立写者均已停用时才能开始目标操作；失败或中断保持 hold，不得恢复服务。target hash 由 owner 按受保护的目标核验流程固定，单独声明的 hash 不证明目标实例或对账事实。记录中的 generation 每次重新生成；再次 begin 不得覆盖 hold。
+受管 Linux 恢复在任何目标变更前由主机 owner 在受保护维护窗口调用 `install-production.sh --recovery-begin <run-uuid> <artifact-sha256> <target-sha256>`。它持有现有部署锁，先安装固定主机路径的启动入口，再创建独立于数据库和应用版本的 hold，停止服务并执行 #1101 写者排空。只有命令成功且独立写者均已停用时才能开始目标操作；失败或中断保持 hold，不得操作目标或恢复服务。`systemctl stop` 失败或在 stop 前中断时，旧进程状态未知，必须确认停服并完成排空后才能继续；hold 会阻止后续启动，但不会自行终止已运行进程。target hash 由 owner 按受保护的目标核验流程固定，单独声明的 hash 不证明目标实例或对账事实。记录中的 generation 每次重新生成；再次 begin 不得覆盖 hold。
 
 正常 install、显式 rollback、失败恢复和 systemd 启动均受主机 hold 阻断；无 hold 的既有数据库普通发布继续沿用现有流程。`--recovery-promote <run> <generation> <artifact-sha256> <target-sha256>` 核对登记身份后仍一律拒绝，因为 owner 与 provider 证据尚未实现；没有 force 或手动 ready 状态。hold 缺失或损坏时不能作为允许恢复的证据。切勿手动删除 hold 来放流；当前没有自动解除路径。必须先在受管主机安装包含稳定入口的版本，再依照此流程登记；旧版安装脚本或站外手工 provider restore 不在本保证内，不能使用它们绕过门禁。仓库修改本身不会配置生产主机。
 
