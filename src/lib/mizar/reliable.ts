@@ -44,7 +44,7 @@ export async function ingestMizarReliable(installationId: string, competitionId:
         if (!scope || parent.kind !== "map_ended" || !["canonicalized", "consistent"].includes(parent.outcome)
           || scope.receivedMapId !== event.mapId || scope.mapName !== event.mapName || scope.contextRevision !== event.contextRevision
           || scope.producerInstanceId !== event.cursor.producerInstanceId || scope.liveSessionId !== event.cursor.liveSessionId
-          || scope.programSourceGeneration !== event.cursor.programSourceGeneration || scope.mapEpoch !== event.cursor.mapEpoch || scope.runtimeSeq !== event.cursor.runtimeSeq
+          || scope.programSourceGeneration !== event.cursor.programSourceGeneration || scope.programReceiveSequence !== event.cursor.programReceiveSequence || scope.mapEpoch !== event.cursor.mapEpoch || scope.runtimeSeq !== event.cursor.runtimeSeq
           || !event.evidence.telemetryFresh || !event.evidence.contextFresh || event.evidence.identity !== "matched") {
           throw new AppError(ErrorCode.VALIDATION_FAILED, "临时数据与已确认的地图结束事件不匹配。");
         }
@@ -169,7 +169,7 @@ export async function ingestMizarReliable(installationId: string, competitionId:
           outcome = "canonicalized";
         }
         if (sameExecution && (outcome === "canonicalized" || outcome === "consistent")) {
-          mapEndScope = { mapId: map!.id, receivedMapId: event.mapId, mapName: event.mapName, contextRevision: event.contextRevision, producerInstanceId: event.cursor.producerInstanceId, liveSessionId: event.cursor.liveSessionId, programSourceGeneration: event.cursor.programSourceGeneration, mapEpoch: event.cursor.mapEpoch, runtimeSeq: event.cursor.runtimeSeq };
+          mapEndScope = { mapId: map!.id, receivedMapId: event.mapId, mapName: event.mapName, contextRevision: event.contextRevision, producerInstanceId: event.cursor.producerInstanceId, liveSessionId: event.cursor.liveSessionId, programSourceGeneration: event.cursor.programSourceGeneration, programReceiveSequence: event.cursor.programReceiveSequence, mapEpoch: event.cursor.mapEpoch, runtimeSeq: event.cursor.runtimeSeq };
         }
       } else if (event.kind === "series_ended") {
         const [current] = await tx.select().from(matches).where(eq(matches.id, match.id));

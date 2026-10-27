@@ -65,7 +65,7 @@ export const mizarReliableReceipts = pgTable("mizar_reliable_receipts", {
   eventHash: text("event_hash").notNull(),
   kind: text("kind").notNull(),
   parentEventKey: text("parent_event_key"),
-  mapEndScope: jsonb("map_end_scope").$type<{ mapId: string; receivedMapId: string | null; mapName: string | null; contextRevision: string; producerInstanceId: string; liveSessionId: string | null; programSourceGeneration: number; mapEpoch: number; runtimeSeq: number }>(),
+  mapEndScope: jsonb("map_end_scope").$type<{ mapId: string; receivedMapId: string | null; mapName: string | null; contextRevision: string; producerInstanceId: string; liveSessionId: string | null; programSourceGeneration: number; programReceiveSequence: number | null; mapEpoch: number; runtimeSeq: number }>(),
   outcome: text("outcome").notNull(),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [uniqueIndex("mizar_reliable_receipt_dedupe").on(t.sessionId, t.idempotencyKey)]);

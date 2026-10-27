@@ -87,6 +87,7 @@ describe("Mizar reliable event ingest ownership", () => {
     const snapshot = { ...end, kind: "map_player_snapshot", idempotencyKey: randomUUID(), payload: { mapEndedKey: end.idempotencyKey, players } };
     await expectCode(() => ingestMizarReliable(f.installationId, f.seasonId, { ...snapshot, idempotencyKey: randomUUID(), mapId: f.mapTwoId }, f.authorityRevision), ErrorCode.VALIDATION_FAILED);
     await expectCode(() => ingestMizarReliable(f.installationId, f.seasonId, { ...snapshot, idempotencyKey: randomUUID(), cursor: { ...snapshot.cursor, runtimeSeq: 3 } }, f.authorityRevision), ErrorCode.VALIDATION_FAILED);
+    await expectCode(() => ingestMizarReliable(f.installationId, f.seasonId, { ...snapshot, idempotencyKey: randomUUID(), cursor: { ...snapshot.cursor, programReceiveSequence: 99 } }, f.authorityRevision), ErrorCode.VALIDATION_FAILED);
     const context = await db.transaction(tx => loadMizarMatchDocumentInTx(tx, f.matchId, f.seasonId));
     const boundary = reliableEvent(f, { contextRevision: context.revision, kind: "map_epoch_changed", payload: { previousMapEpoch: 1, reason: "next map" } });
     boundary.cursor.mapEpoch = 2; boundary.cursor.runtimeSeq = 3;
