@@ -19,7 +19,7 @@ export const SOLO_REGISTRATION_REVIEW_DEFAULTS = {
 } as const;
 
 export type RegistrationReviewSearchParams = Record<string, string | string[] | undefined> | URLSearchParams;
-export type TeamRegistrationReviewStatus = "attention" | "submitted" | "approved" | "waitlisted" | "changes_requested" | "rejected" | "withdrawn" | "all";
+export type TeamRegistrationReviewStatus = "attention" | "self_change_draft" | "submitted" | "approved" | "waitlisted" | "changes_requested" | "rejected" | "withdrawn" | "all";
 export type TeamQualificationFilter = "all" | "ready" | "blocked";
 export type TeamRegistrationReviewSort = "oldest" | "newest_updated";
 export type SoloRegistrationReviewStatus = "pending" | "approved" | "rejected" | "waitlisted" | "all";
@@ -93,7 +93,12 @@ export interface TeamRegistrationReviewRow {
   id: string;
   name: string;
   source: "linked_team" | "event_native";
-  status: Exclude<TeamRegistrationReviewStatus, "all" | "attention">;
+  status: Exclude<TeamRegistrationReviewStatus, "all" | "attention" | "self_change_draft">;
+  revisionOrigin: "initial" | "admin_remediation" | "self_roster_change" | null;
+  revisionStatus: "draft" | "submitted" | "approved" | "superseded" | null;
+  rosterChangeDeadline: string | null;
+  rosterChangeWindowOpen: boolean;
+  rosterChangeDeadlinePassed: boolean;
   reviewReason: string | null;
   perfectTeamId: string | null;
   logoUrl: string | null;
@@ -139,6 +144,7 @@ export interface TeamRegistrationProgressResult {
     submitted: number;
     approved: number;
     changesRequested: number;
+    selfChangeDraft: number;
     waitlisted: number;
     rejected: number;
     withdrawn: number;

@@ -142,7 +142,7 @@ export interface AdminMatchOverviewData {
   /** All official matches, independent of the selected stage/list scope. */
   matchCount: number;
   stageViews: { stage: StageConfig; matches: AdminMatchSummary[] }[];
-  qualificationRun: Pick<CompetitionQualificationRun, "id" | "format" | "playInEntryCount"> | null;
+  qualificationRun: Pick<CompetitionQualificationRun, "id" | "format" | "playInEntryCount" | "startedAt" | "completedAt"> | null;
   unconfiguredMatches: Pick<AdminMatchSummary, "id" | "stage">[];
   pagination: { total: number; page: number; pageSize: number; totalPages: number } | null;
   standingsByStage: Map<string, TeamStanding[]>;

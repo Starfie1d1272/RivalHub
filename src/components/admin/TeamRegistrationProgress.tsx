@@ -10,13 +10,14 @@ export function TeamRegistrationProgress({ progress }: { progress: TeamRegistrat
       <Panel label="报名进度" contentClassName="p-5">
         <div className="space-y-4">
           <h2 id="team-registration-progress-title" className="sr-only">组队报名运营进度</h2>
-          <div className="grid gap-2 sm:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-5">
             <MiniStat label="草稿" value={summary.draft} accent />
             <MiniStat label="待审核" value={summary.submitted} />
             <MiniStat label="已通过" value={summary.approved} />
+            <MiniStat label="草稿待提交" value={summary.selfChangeDraft} />
             <MiniStat label="需补正" value={summary.changesRequested} />
           </div>
-          <p className="text-xs text-[var(--color-fg-mid)]">共 {summary.total} 支队伍开始报名；草稿仅用于运营观察，不进入审核队列。</p>
+          <p className="text-xs text-[var(--color-fg-mid)]">共 {summary.total} 支队伍开始报名；首次报名草稿仅供运营观察；名单调整草稿仍列入待处理，等待负责人提交。</p>
         </div>
       </Panel>
 
