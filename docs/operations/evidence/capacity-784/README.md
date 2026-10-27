@@ -16,7 +16,7 @@ RIVALHUB_CAPACITY_SHA=$(git rev-parse HEAD) RIVALHUB_CAPACITY_REPORT=/tmp/bet-ca
 pnpm test:integration:pg17 tests/integration/db/capacity/bet-capacity.test.ts
 ```
 
-尚未覆盖跨截止并发、不同账户、预测、Demo/身份撤销、多赛事、结算/更正交错、慢 SQL/持锁注入、锁等待采样、HTTP 和 provider 费用；issue 继续开放。不能从这些逻辑数据或响应字节推导 provider egress。后续预算由父任务根据完整证据判断。
+尚未覆盖跨截止并发、不同账户、预测、Demo/身份撤销、多赛事、结算/更正交错、BET 业务事务下的慢 SQL/持锁注入、锁等待采样、HTTP 和 provider 费用；issue 继续开放。不能从这些逻辑数据或响应字节推导 provider egress。后续预算由父任务根据完整证据判断。
 
 ## 本次测量
 
