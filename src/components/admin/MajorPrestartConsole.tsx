@@ -2,7 +2,6 @@ import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import Link from "next/link";
 import { Marker, Panel } from "@/components/rivalhub";
 import type { MajorPrestartReadiness } from "@/lib/major/prestart";
-import { presentMajorPrestartReadiness } from "@/lib/major/prestart-presentation";
 import { deriveMajorPrestartPhase, MAJOR_PRESTART_PHASES } from "@/lib/admin/season-workspace/prestart-phase";
 import { MajorLiveRanking, MajorPrestartManagement, type MajorPrestartManagementData } from "./MajorPrestartManagement";
 import { MajorCompetitionFlow } from "./MajorCompetitionFlow";
@@ -31,7 +30,6 @@ export function MajorPrestartConsole({ seasonName, readiness, management, seedMa
     seedsConfirmed: seedManagement.seedsConfirmed,
   });
   const noPlayIn = !run && management.registrationClosed && (management.entrants.length > 0 || management.approvedCandidateCount === management.entrantCapacity);
-  const { tasks, systemBlockers } = presentMajorPrestartReadiness(readiness);
   const plannedStartOverdue = management.mainEventStartOverdue;
   const rankKey = `${run?.id ?? "new"}:${run?.entrants.map((entrant) => `${entrant.entryId}:${entrant.preliminarySeed}`).join(",") ?? management.initialPreliminaryOrderEntryIds.join(",")}`;
   const summaries = [
@@ -77,7 +75,6 @@ export function MajorPrestartConsole({ seasonName, readiness, management, seedMa
     })}
     <Panel label={`${phase}. ${MAJOR_PRESTART_PHASES[phase - 1]}`}>
       <p className="text-sm text-[var(--color-fg-mid)]">{summaries[phase - 1]}</p>
-      {phase >= 4 && !readiness.canStart && (tasks[0] || systemBlockers[0]) && <p className="mt-2 text-sm text-[var(--color-warn)]">当前阻塞：{(tasks[0] ?? systemBlockers[0])?.detail}</p>}
     </Panel>
     {plannedStartOverdue && <p className="border-l-2 border-[var(--color-warn)] pl-3 text-sm text-[var(--color-warn)]">Main Event 计划时间已过；{readiness.canStart ? "等待管理员确认开赛。" : "仍需处理赛前阻塞事项。"}</p>}
     {phase === 1 && <>

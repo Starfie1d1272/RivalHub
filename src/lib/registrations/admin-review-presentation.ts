@@ -54,3 +54,9 @@ export function presentTeamRegistrationSummary(
     { label: "资格", value: qualificationReady ? "已通过" : "待处理", state: qualificationReady ? "ready" : "pending" },
   ];
 }
+
+/** Shared operator classification for the current revision. */
+export function teamReviewCategory(entry: { status: string; revisionOrigin: string | null; revisionStatus: string | null }): string {
+  return entry.status === "changes_requested" && entry.revisionOrigin === "self_roster_change" && entry.revisionStatus === "draft"
+    ? "self_change_draft" : entry.status;
+}
