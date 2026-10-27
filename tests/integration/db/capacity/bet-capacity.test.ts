@@ -147,6 +147,14 @@ it.skipIf(process.env.RIVALHUB_BET_CAPACITY !== "1")("bounds a held pool and a P
       waiter.release();
       holder.release();
     }
+    const slow = await pool.connect();
+    try {
+      await slow.query("BEGIN");
+      await slow.query("SET LOCAL statement_timeout = '100ms'");
+      let failure: unknown;
+      try { await slow.query("SELECT pg_sleep(1)"); } catch (error) { failure = error; }
+      expect(failureClass(failure)).toBe("statement_timeout_or_cancel");
+    } finally { await slow.query("ROLLBACK"); slow.release(); }
     expect((await pool.query("SELECT 1 AS ready")).rows[0]?.ready).toBe(1);
   });
 }, 30000);
