@@ -159,7 +159,10 @@ it.skipIf(process.env.RIVALHUB_DEMO_CAPACITY !== "1")("measures cross-event Demo
             if (stop) report.stopped = requests.some(request => request.error) ? "request_failure" : sampleError ? "sampling_failure" : "sampled_pool_queue";
             report.rounds.push({ confirmConcurrency: concurrency, totalRequests: concurrency + 1, round, elapsedMs, maxPoolQueueSampled: maxQueue, maxAdvisoryWaitersSampled: maxAdvisoryWaiters, sampleError,
               outcomes: requests.map((request, index) => ({ index: request.index, totalMs: request.totalMs, acquireAndBeginMs: request.acquireAndBeginMs, transactionMs: request.transactionMs, error: request.error, settings: request.settings, observedCommitted: observed[index], outcome: observed[index] ? "committed" : request.error ? "unresolved" : "missing" })) });
-          } finally { await monitor.end(); await pool.end(); }
+          } finally {
+            const cleanup = await Promise.allSettled([monitor.end(), pool.end()]);
+            if (cleanup.some(item => item.status === "rejected")) throw new Error("POOL_CLEANUP_FAILED");
+          }
         });
       }
       if (stop) break;
