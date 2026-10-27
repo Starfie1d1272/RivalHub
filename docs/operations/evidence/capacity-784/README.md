@@ -27,3 +27,5 @@ pnpm test:integration:pg17 tests/integration/db/capacity/bet-capacity.test.ts
 ## 两账户扩展
 
 冻结代码 `c9fbc19929ed017a9a781d57b603898f8c0c5955` 的 [两账户结果](bet-service-two-accounts.json) 和 [同账户复跑](bet-service-same-accounts.json) 均完成 1/2/4/8 各三轮，在 16 并发第一轮采样队列达到 10 后停止；两账户模式 61 个请求均观察到提交，逐请求归属与两账户余额通过。两个账户仍属于同一赛事，提交共享 BET program 行锁；此实验不能隔离账户争用，也不是 16 个不同账户的实验。两次运行都在共享的本地 PostgreSQL 上，不能用于生产预算。
+
+[开赛边界并发回归](../../../../tests/integration/db/capacity/bet-boundary.test.ts)在真实 PostgreSQL 中观察到行锁等待，验证先提交的 gameplay 状态使排队下注被拒绝，以及下注先持锁并提交后开赛状态才能写入。它直接更新测试比赛的 gameplay 状态来构造交错，不覆盖真实开赛 workflow，也不是跨截止容量梯度。
