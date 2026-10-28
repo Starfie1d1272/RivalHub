@@ -24,3 +24,5 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 RIVALHUB_TEAM_FACTS_BASELINE="$PWD/.agent-tmp/
 ```
 
 Only the shared owner and tests change here. The statistics owner connects `teams/profile-read-model.ts` separately after this API is reviewed; the frozen public-entrypoint PR remains unchanged.
+
+历史说明：上述一次性基准入口已清理；记录保留当时的测量结果。
