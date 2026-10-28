@@ -69,7 +69,7 @@ PR 的 `dependency-graph-build` 只生成来源绑定 artifact；远端 main 图
 
 CI 遵循 L0–L4 风险分层与最低且足够可信证据原则：
 
-- **L0 Metadata**：docs、Changeset，以及只改变 `package.json` 顶层 `version` 的 release metadata（可伴随 `CHANGELOG.md` 与 Changeset），仅保留 planner + gate，不启动测试容器。package dependency、script、packageManager、lockfile 或任意 source 变化都不能走该 bypass。
+- **L0 Metadata**：docs、Changeset，以及只改变 `package.json` 顶层 `version` 的 release metadata（可伴随 `CHANGELOG.md` 与 Changeset），仅保留 planner + gate，不启动测试容器。消费 Changeset 时删除对应 Markdown 记录按 metadata 处理；与源码混合时仍按源码选择验证，其他删除保持 FULL。package dependency、script、packageManager、lockfile 或任意 source 变化都不能走该 bypass。
 - **L1 Static**：pure rule、formatter、presenter、component、UI/layout 等不跨 persistence/provider 边界的变化，运行 affected type/lint/architecture/unit。
 - **L2 PostgreSQL**：Server Action persistence、DB query、transaction、migration 等，运行 L1 + real PostgreSQL。
 - **L3 System**：Auth、Session、Storage provider 或 browser/provider glue，运行 L1/L2 + Local Supabase + targeted E2E。
