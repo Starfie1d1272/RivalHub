@@ -213,7 +213,7 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
 
   const liveCommentators = await Promise.all(publicCommentators.map(async person => ({
     ...person, broadcastStatus: ["scheduled", "in_progress"].includes(match.status)
-      ? await readBilibiliStatus(person.liveStreamUrl, { fresh: true }) : "unknown" as const,
+      ? await readBilibiliStatus(person.liveStreamUrl) : "unknown" as const,
   })));
 
   const registrationPositions = supportsRegistrationPositionDirectory(season.competitionTemplate)
