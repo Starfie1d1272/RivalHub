@@ -1,5 +1,4 @@
 import { Client, Pool } from "pg";
-import { trace } from "@opentelemetry/api";
 import { expect, it, vi } from "vitest";
 import { DatabasePool } from "@/db/pool";
 import { logEvent } from "@/lib/observability/logger";
@@ -152,17 +151,6 @@ it("counts statements once across pooled and checked-out callback/promise querie
   } finally { await pool.end(); }
 });
 
-it("keeps real PG results and errors intact when trace creation or span completion throws", async () => {
-  const pool = new DatabasePool({ connectionString: localDatabaseUrl(), ssl: false, max: 1 });
-  const tracer = vi.spyOn(trace, "getTracer").mockImplementation(() => { throw new Error("fixture exporter unavailable"); });
-  try {
-    expect((await pool.query("select 42 as n")).rows).toEqual([{ n: 42 }]);
-    tracer.mockReturnValue({ startSpan: () => ({ setAttribute() { throw new Error("fixture exporter unavailable"); } }) } as unknown as ReturnType<typeof trace.getTracer>);
-    await expect(pool.query("select 1/0")).rejects.toMatchObject({ code: "22012" });
-    expect((await pool.query("select 43 as n")).rows).toEqual([{ n: 43 }]);
-    expect(pool.getClientSnapshot()).toMatchObject({ queries: 3, failures: 1, checkouts: 3 });
-  } finally { tracer.mockRestore(); await pool.end(); }
-});
 
 it("restores inherited query dispatch so later driver instrumentation and fault injection remain observable", async () => {
   const pool = new DatabasePool({ connectionString: localDatabaseUrl(), ssl: false, max: 1 });

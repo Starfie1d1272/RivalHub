@@ -1,10 +1,8 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { providerFailureMetadata } from "@/lib/observability/provider-failure";
 import { sanitizeSafeContext } from "@/lib/observability/redact";
 const mocks = vi.hoisted(() => ({ log: vi.fn(), capture: vi.fn(), upload: vi.fn(), fetch: vi.fn() }));
-vi.mock("@/lib/observability/server", () => ({ logEvent: mocks.log, captureException: mocks.capture,
-  traceOperation: (_name: string, _options: unknown, callback: () => unknown) => callback() }));
-vi.mock("@/lib/observability/fetch", () => ({ providerFetch: () => mocks.fetch }));
+vi.mock("@/lib/observability/server", () => ({ logEvent: mocks.log, captureException: mocks.capture }));
 vi.mock("@/lib/auth/supabase-server", () => ({ createServiceClient: () => ({ storage: {
   from: () => ({ upload: mocks.upload }),
 } }) }));
@@ -13,7 +11,8 @@ import { educationEvidenceStorage } from "@/lib/education/storage";
 import { seasonPublicAssetsStorage } from "@/lib/season-public-info/storage";
 
 describe("provider diagnostics preserve safe causes without reading sensitive payloads", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => { vi.clearAllMocks(); vi.stubGlobal("fetch", mocks.fetch); });
+  afterEach(() => vi.unstubAllGlobals());
   it("projects bounded SDK status and nested network causes, surviving cycles and hostile getters", () => {
     const secret = vi.fn(() => { throw new Error("secret payload accessed"); });
     const cause = { code: "ECONNRESET" } as { code: string; cause?: unknown };

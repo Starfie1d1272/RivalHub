@@ -17,7 +17,7 @@ import {
   type CompleteIdentityLinkOutcome,
 } from "@/lib/identity/linking";
 import { normalizeEmail } from "@/lib/utils/email";
-import { traceOperation, logEvent } from "@/lib/observability/server";
+import { logEvent } from "@/lib/observability/server";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { fail, ok, type ActionResult } from "@/types/action";
 
@@ -63,13 +63,13 @@ export async function requestSecondaryEmailIdentity(emailInput: string): Promise
     if (!request) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "已有有效的邮箱绑定请求，请检查邮箱；原链接到期后再重新发起。", meta: { outcome: "unknown" } });
 
     deliveryStarted = true;
-    const { error } = await traceOperation("provider.supabase.auth.link_email", { scope: "provider", operation: "identity.link_email", provider: "supabase-auth" }, () => createPublicAuthClient().auth.signInWithOtp({
+    const { error } = await createPublicAuthClient().auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: true,
         emailRedirectTo: identityConfirmationUrl(request.id, stateToken),
       },
-    }));
+    });
     if (error) {
       // SDK 5xx/transport failures do not prove that no mail was accepted.
       // Retain the pending request and its token so a late email remains valid.

@@ -1,6 +1,6 @@
 import { runInNewContext } from "node:vm";
 import { afterEach, expect, it, vi } from "vitest";
-import { ROOT_CONTEXT, context } from "@opentelemetry/api";
+import { getObservabilityContext, withObservabilityContext } from "@/lib/observability/context";
 
 vi.mock("@/lib/observability/logger", () => ({ logEvent: vi.fn() }));
 import { logEvent } from "@/lib/observability/logger";
@@ -15,7 +15,8 @@ afterEach(() => {
 it("flushes the final idle window on a sampler tick, bounded and detached from request context", async () => {
   let now = 0;
   vi.spyOn(performance, "now").mockImplementation(() => now);
-  const detached = vi.spyOn(context, "with");
+  const contexts: unknown[] = [];
+  vi.mocked(logEvent).mockImplementation(() => { contexts.push(getObservabilityContext()); return {} as ReturnType<typeof logEvent>; });
   const { recordLiveIngestOutcome, recordLiveIngestStage, flushLiveIngestOutcomes } = await import("@/lib/observability/live-outcomes");
   recordLiveIngestOutcome("accepted", 100);
   recordLiveIngestOutcome("accepted", 300);
@@ -28,8 +29,9 @@ it("flushes the final idle window on a sampler tick, bounded and detached from r
   flushLiveIngestOutcomes(59_999);
   expect(logEvent).not.toHaveBeenCalled();
   now = 60_000;
-  flushLiveIngestOutcomes();
-  expect(detached).toHaveBeenCalledWith(ROOT_CONTEXT, expect.any(Function));
+  withObservabilityContext({ requestId: "request-fixture" }, () => flushLiveIngestOutcomes());
+  expect(contexts.length).toBeGreaterThan(0);
+  expect(contexts.every(value => Object.keys(value as object).length === 0)).toBe(true);
   expect(vi.mocked(logEvent).mock.calls.map(([value]) => value)).toEqual([
     { event: "mizar.live.outcome_window", scope: "match", operation: "live.ingest", durationMs: 200,
       safeContext: { outcome: "accepted", count: 2, phase: "periodic_window", durationMs: 60_000 } },

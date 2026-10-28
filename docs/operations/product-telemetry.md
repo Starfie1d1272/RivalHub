@@ -6,7 +6,7 @@ Owner：`src/lib/telemetry/`；页面接入 `src/components/telemetry/`；独立
 
 ## 与现有采集的关系
 
-Vercel Analytics/Speed Insights 继续负责既有匿名流量与性能；`src/lib/observability/` 的 OTel/Better Stack 继续负责服务端运行日志、脱敏异常和 requestId。产品遥测补足页面耗时、筛选和显式业务操作基线，不把 runtime logs 复制到业务 PostgreSQL，也不增加点击级 Server Action、Vercel Function、Runtime Cache 写入或线上缓存策略。
+`src/lib/observability/` 负责服务端本地结构化日志、脱敏异常和 requestId。产品遥测补足页面耗时、筛选和显式业务操作基线，不把 runtime logs 复制到业务 PostgreSQL，也不增加点击级 Server Action、Vercel Function、Runtime Cache 写入或线上缓存策略。
 
 浏览器在 Header 已有的 request/Suspense island 中获得限定 RivalHub 的签名接收票据；首次签发复用已读取的 Header 授权投影。可见的长开页面另通过 独立 `POST /api/product-telemetry` 每约 20 小时续签一次，重新读取当前授权（无 Runtime Cache 写入）；续签失败最多每小时一次有界重试。它不是用户动作，也不是每点击/每批发送一次的 Vercel 请求。每分钟把内存队列的最多 32 条事件直传独立 Worker。页面隐藏/退出触发一次 best-effort flush；请求使用 keepalive、omit credentials、no-referrer 和 text/plain，避免携带 Cookie、来源 URL 或逐批预检。空队列没有请求。
 
@@ -75,7 +75,7 @@ v1 的 page/operation/error/ready/NAV_COMMIT 携带随机 navigationId、构建�
 
 票据是仅接收可用的签名 envelope，最长 24 小时；不授予业务或查询权限，不写入 D1/日志/sessionStorage。浏览器不持有签名密钥、账号 HMAC 密钥或查询凭据。常规 Header 重渲染或约 20 小时的低频自动续签可更新票据。隐藏页面不续签，重新可见时检查；续签网络等待最多五秒，超时/暂时故障保留状态并最多每小时重试。真正过期且无法续签时才暂停入队，恢复后继续；过期期间和隐藏页离线丢失不补造。身份切换会忽略旧续签响应，旧账号待完成动作不会进入新账号；同身份续签保持诊断会话和队列，未 ACK 批次仍使用原票据/批次 ID。角色是签发时快照，不用遥测做权限判断。
 
-登录、退出、账号归并成功时尽力送出原身份的末批，然后清空队列及会话，等待新的 Header 身份。身份切换后尚未完成的旧调用不会计入新账号。匿名会话不与登录账号拼接；不同产品、Preview、Production 必须使用不同的 account key、signing key、D1 和 operator key；不复用 Mizar、Auth 或 Better Stack secret。账号 HMAC 可关联同产品账号，属于假名化而非匿名数据。
+登录、退出、账号归并成功时尽力送出原身份的末批，然后清空队列及会话，等待新的 Header 身份。身份切换后尚未完成的旧调用不会计入新账号。匿名会话不与登录账号拼接；不同产品、Preview、Production 必须使用不同的 account key、signing key、D1 和 operator key；不复用 Mizar 或 Auth secret。账号 HMAC 可关联同产品账号，属于假名化而非匿名数据。
 
 ## 交付、预算与免费边界
 

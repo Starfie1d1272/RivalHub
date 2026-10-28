@@ -5,7 +5,7 @@ import { enrichAdminDemoReviewPersonas } from "@/lib/admin/matches/demo-personas
 const boundary = vi.hoisted(() => ({ profiles: vi.fn(), report: vi.fn() }));
 vi.mock("@/db/client", () => ({ db: { displayPool: true } }));
 vi.mock("@/lib/steam-profiles", () => ({ loadOrFetchSteamProfiles: boundary.profiles }));
-vi.mock("@/lib/observability/server", () => ({ captureException: boundary.report, traceOperation: (_name: string, _options: unknown, run: () => Promise<unknown>) => run() }));
+vi.mock("@/lib/observability/server", () => ({ captureException: boundary.report }));
 afterEach(() => { vi.resetAllMocks(); });
 
 const review = (): AdminDemoReviewMap => ({ importId: "import", matchMapId: "map", mapOrder: 1, mapName: "de_nuke",

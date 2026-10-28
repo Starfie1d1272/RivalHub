@@ -6,7 +6,6 @@ vi.mock("@/db/pool", () => ({ DatabasePool: FakePool }));
 vi.mock("@/db/schema", () => ({}));
 vi.mock("drizzle-orm/node-postgres", () => ({ drizzle: fake.drizzle }));
 vi.mock("@/lib/observability/logger", () => ({ captureException: fake.capture, logEvent: fake.log }));
-vi.mock("@/lib/observability/tracing", () => ({ traceOperation: (_name: string, _options: unknown, run: (span: unknown) => unknown) => run({ setAttributes() {}, setAttribute() {} }) }));
 
 class FakePool extends EventEmitter {
   totalCount = 0; idleCount = 0; waitingCount = 0;

@@ -14,7 +14,6 @@ import {
   recordRecoveryAdjudicationInTx,
 } from "@/lib/match-corrections/service";
 import { presentResultCorrectionPlan, type ResultCorrectionPlanPresentation } from "@/lib/match-corrections/presentation";
-import { traceOperation } from "@/lib/observability/server";
 
 /**
  * G2 result-correction workflow: plan → review impact → explicit confirm.
@@ -29,13 +28,9 @@ export async function planMatchResultCorrection(
   try {
     const match = await getMatchOrThrow(matchId);
     await requireSeasonAdmin(match.seasonId);
-    const plan = await traceOperation("match.result_correction.plan", {
-      scope: "match",
-      operation: "result_correction.plan",
-      attributes: { "rivalhub.workflow": "match_recovery" },
-    }, () => db.transaction((tx) =>
+    const plan = await db.transaction((tx) =>
       planResultCorrectionInTx(tx, { matchId, proposal }),
-    ));
+    );
     return ok(presentResultCorrectionPlan(plan));
   } catch (e) {
     return actionError("planMatchResultCorrection", e);
@@ -61,11 +56,7 @@ export async function applyMatchResultCorrection(
     const match = await getMatchOrThrow(matchId);
     const admin = await requireSeasonAdmin(match.seasonId);
 
-    const applied = await traceOperation("match.result_correction.apply", {
-      scope: "match",
-      operation: "result_correction.apply",
-      attributes: { "rivalhub.workflow": "match_recovery" },
-    }, () => db.transaction((tx) =>
+    const applied = await db.transaction((tx) =>
       applyResultCorrectionInTx(tx, {
         matchId,
         proposal: {
@@ -76,7 +67,7 @@ export async function applyMatchResultCorrection(
         actorId: auditActorId(admin),
         confirmRecovery: input.confirmRecovery === true,
       }),
-    ));
+    );
 
     const season = await db.query.seasons.findFirst({
       where: eq(seasons.id, match.seasonId),
@@ -105,13 +96,9 @@ export async function recordMatchRecoveryAdjudication(
   try {
     const match = await getMatchOrThrow(matchId);
     const admin = await requireSeasonAdmin(match.seasonId);
-    const result = await traceOperation("match.result_correction.adjudicate", {
-      scope: "match",
-      operation: "result_correction.adjudicate",
-      attributes: { "rivalhub.workflow": "match_recovery" },
-    }, () => db.transaction((tx) =>
+    const result = await db.transaction((tx) =>
       recordRecoveryAdjudicationInTx(tx, { matchId, actorId: auditActorId(admin), note }),
-    ));
+    );
     return ok(result);
   } catch (e) {
     return actionError("recordMatchRecoveryAdjudication", e);

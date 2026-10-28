@@ -1,4 +1,3 @@
-import { traceOperation } from "@/lib/observability/server";
 import { io } from "next/cache";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
@@ -18,26 +17,26 @@ export default function BetPage(props:{params:Promise<{seasonSlug:string}>;searc
 }
 async function BetContent({params,searchParams}:{params:Promise<{seasonSlug:string}>;searchParams:Promise<{view?:string;match?:string;market?:string;option?:string;prediction?:string;choice?:string;page?:string;cursor?:string}>}) {
   await io();
-  const {seasonSlug}=await params;const season=await traceOperation("bet.page.authorize",{scope:"bet",operation:"page",stage:"authorize"},()=>getPublicOrAuthorizedDraftSeason(seasonSlug));
+  const {seasonSlug}=await params;const season=await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if(!season || season.competitionTemplate!=="major")notFound();
-  const user=await traceOperation("bet.page.session",{scope:"bet",operation:"page",stage:"authorize"},()=>getUserSession());const query=await searchParams;
+  const user=await getUserSession();const query=await searchParams;
   const view=["open","mine","settled","event","leaderboard","records"].includes(query.view??"")?query.view!:"open";
   const matchId=query.match ? z.guid().safeParse(query.match) : null;
   if(matchId && !matchId.success)notFound();
   const recordsPage=/^\d{1,6}$/.test(query.page??"")?Number(query.page):0;
   const scope={view,matchId:matchId?.data,recordsPage,recordsCursor:query.cursor};
-  const data=await readBetBoardStages(season,scope,publicStats=>traceOperation("bet.page.transaction",{scope:"bet",operation:"page",stage:"transaction",attributes:{"rivalhub.workflow":`bet.${view}`}},()=>db.transaction(async tx=>{
+  const data=await readBetBoardStages(season,scope,async publicStats=>db.transaction(async tx=>{
     const rankings=query.view==="leaderboard"?await readFreeRankingSnapshot(tx,season.id):undefined;
     const board=await readUnifiedBetSnapshot(tx,season.id,user?.userId??null,scope,publicStats,
       rankings?{facts:rankings.facts,financialPopulation:rankings.finances.financialPopulation}:undefined);
     const relief=await readBetRelief(tx,season.id,user?.userId??null);
     return {board,rankings,relief};
-  },{accessMode:"read only",isolationLevel:"repeatable read"})));
-  const {board,rankings}=await traceOperation("bet.page.project",{scope:"bet",operation:"page",stage:"project",attributes:{"rivalhub.workflow":`bet.${view}`}},async()=>{
+  },{accessMode:"read only",isolationLevel:"repeatable read"}));
+  const {board,rankings}=await (async()=>{
   const board=projectUnifiedBetBoard(data.board);
   const rankingData=data.rankings?projectFreeRankings(data.rankings):undefined;
   const rankings=rankingData?{profit:freeRankingModel(rankingData.profit),hits:freeRankingModel(rankingData.hits),accuracy:freeRankingModel(rankingData.accuracy)}:undefined;
     return {board,rankings};
-  });
+  })();
   return <PageLayout variant={query.match ? "standard" : "wide"}><UnifiedBetBoard initial={board.bet} freeMatches={board.free.matches} reliefModel={data.relief} rankings={rankings} slug={seasonSlug} signedIn={!!user} view={view} recordsPage={recordsPage} matchFilter={query.match??null} returnSelection={{market:query.market,option:query.option,prediction:query.prediction,choice:query.choice}}/></PageLayout>;
 }

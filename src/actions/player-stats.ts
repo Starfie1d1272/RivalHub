@@ -18,7 +18,7 @@ import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
 import { isPgUniqueViolation } from "@/db/errors";
-import { captureException, traceOperation } from "@/lib/observability/server";
+import { captureException } from "@/lib/observability/server";
 import { readMatchMvpResults } from "@/lib/matches/mvp";
 import { MVP_DEADLINE_MS } from "@/lib/utils/date";
 import { extractScoreboardFromBase64 } from "@/lib/ocr";
@@ -61,16 +61,14 @@ export type PlayerOption = {
 };
 
 async function loadAuthorizedScoreboardContext(mapId: string) {
-  return traceOperation("scoreboard.authorize", { scope: "action", operation: "scoreboard.authorize", stage: "authorize" }, async () => {
-  if (!z.uuid().safeParse(mapId).success) throw new AppError(ErrorCode.VALIDATION_FAILED, "地图记录无效");
-  const [match] = await db.select({ id: matches.id, seasonId: matches.seasonId,
-    entryAId: matches.entryAId, entryBId: matches.entryBId, stage: matches.stage,
-  }).from(matchMaps).innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(eq(matchMaps.id, mapId)).limit(1);
-  if (!match) throw new AppError(ErrorCode.NOT_FOUND, "地图或比赛记录不存在");
-  assertCompetitionMatch(match);
-  const session = await requireSeasonAdmin(match.seasonId);
-  return { ...match, actorUserId: session.userId };
-  });
+if (!z.uuid().safeParse(mapId).success) throw new AppError(ErrorCode.VALIDATION_FAILED, "地图记录无效");
+const [match] = await db.select({ id: matches.id, seasonId: matches.seasonId,
+  entryAId: matches.entryAId, entryBId: matches.entryBId, stage: matches.stage,
+}).from(matchMaps).innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(eq(matchMaps.id, mapId)).limit(1);
+if (!match) throw new AppError(ErrorCode.NOT_FOUND, "地图或比赛记录不存在");
+assertCompetitionMatch(match);
+const session = await requireSeasonAdmin(match.seasonId);
+return { ...match, actorUserId: session.userId };
 }
 
 /** COMMIT is already confirmed; cache failure must not turn it into an apparent rejected write. */
@@ -110,8 +108,7 @@ export async function extractStatsFromScreenshot(
   try {
     const match = await loadAuthorizedScoreboardContext(mapId);
     const [seasonPlayers, ocrResult, snapshot] = await Promise.all([
-      traceOperation("ocr.players.load", { scope: "action", operation: "ocr.players.load", stage: "read" },
-        () => loadScoreboardPlayers(db, match.id, [match.entryAId, match.entryBId])),
+      (async () => loadScoreboardPlayers(db, match.id, [match.entryAId, match.entryBId]))(),
       extractScoreboardFromBase64(base64Image, mimeType),
       loadOperatorScoreboardSnapshot(db, mapId),
     ]);

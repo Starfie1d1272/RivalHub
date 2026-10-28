@@ -30,7 +30,6 @@ import {
   validateMapScore,
 } from "@/lib/matches/result-rules";
 import { recordManualMapResultInTx } from "@/lib/matches/manual-result";
-import { traceOperation } from "@/lib/observability/server";
 import { completeCompetitionQualificationIfReadyInTx } from "@/lib/competition-qualification/runtime";
 import { assertGenericMatchCanBeDeleted, deleteScheduledMatchAndDependentsInTx } from "@/lib/matches/deletion";
 
@@ -75,11 +74,7 @@ export async function updateMatchStatus(
 
     const seasonForStatus = await getSeasonOrThrow(match.seasonId);
     let finishedSlug: string | null = null;
-    await traceOperation("match.status.transition", {
-      scope: "match",
-      operation: "status.transition",
-      attributes: { "rivalhub.workflow": "match_runtime" },
-    }, () => db.transaction(async (tx) => {
+    await db.transaction(async (tx) => {
       await applyMatchStatusTransitionInTx(tx, {
         matchId,
         nextStatus,
@@ -89,7 +84,7 @@ export async function updateMatchStatus(
       if (nextStatus === "cancelled" && !match.testConfig) {
         finishedSlug = await maybeFinishSeason(tx, match.seasonId);
       }
-    }));
+    });
 
     revalidateMatchPaths(seasonForStatus.slug, matchId);
     if (finishedSlug) {
@@ -145,15 +140,11 @@ export async function recordMapResult(
     let seriesFinished = false;
     let finishedSlug: string | null = null;
 
-    await traceOperation("match.result.record", {
-      scope: "match",
-      operation: "result.record",
-      attributes: { "rivalhub.workflow": "match_runtime" },
-    }, () => db.transaction(async (tx) => {
+    await db.transaction(async (tx) => {
       const result = await recordManualMapResultInTx(tx, { matchId, mapOrder, mapName, scoreA, scoreB, pickedByEntryId, teamAStartSide, actorId: auditActorId(session) });
       seriesFinished = result.seriesFinished;
       finishedSlug = result.finishedSlug;
-    }));
+    });
 
     revalidateMatchPaths(season.slug, matchId);
     if (finishedSlug) {

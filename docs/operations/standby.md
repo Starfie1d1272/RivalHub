@@ -93,7 +93,7 @@ systemctl show rivalhub-production -p LogNamespace -p MainPID
 
 Preview 先验证 401 访问保护；Production 验证公开入口可访问。随后依次验证 HTTPS release identity、首页和赛事、真实登录与会话、角色权限、可恢复写入及刷新回读、静态资源/图片、重启恢复。生产验证不得操作真实赛果或竞猜。竞猜只做读路径验收时，不得声称已验证下单、结算或资金一致性。Realtime 订阅成功只证明接收通道，Mizar 实际设备配对和事件推送仍需独立验收。账号不可用而由 owner 明确接受延后登录时，记录该验收缺口和接手人。
 
-运行日志先核对 journal，再确认 Better Stack 真正接收；`observability.exporter.enabled` 只表示配置完整。接收端 402/quota 等限制须保留为未恢复项，不因本地日志存在而声称远端监控正常。产品统计密钥轮换同时更新 Worker `SIGNING_KEY` 与应用 `PRODUCT_TELEMETRY_SIGNING_KEY`；`PRODUCT_TELEMETRY_ACCOUNT_KEY` 轮换会改变账号匿名标识，须按当次授权执行。Worker 的查询凭据、保留策略和清理任务保持原配置。
+运行日志从服务 journal 核对，应用不配置外部日志/trace exporter。产品统计密钥轮换同时更新 Worker `SIGNING_KEY` 与应用 `PRODUCT_TELEMETRY_SIGNING_KEY`；`PRODUCT_TELEMETRY_ACCOUNT_KEY` 轮换会改变账号匿名标识，须按当次授权执行。Worker 的查询凭据、保留策略和清理任务保持原配置。
 
 ## Vercel 停用后的切换顺序
 

@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { context, ROOT_CONTEXT } from "@opentelemetry/api";
+import { getObservabilityContext, withObservabilityContext } from "@/lib/observability/context";
 import { getRuntimeHealthSnapshot, registerRuntimeHealthFlush, startRuntimeHealthSampling, stopRuntimeHealthSampling } from "@/lib/observability/runtime-health";
 import { beginRuntimeResource, getRuntimeResourceSnapshot } from "@/lib/observability/runtime-resources";
 import { logEvent } from "@/lib/observability/logger";
@@ -9,7 +9,8 @@ afterEach(() => { stopRuntimeHealthSampling(); vi.useRealTimers(); vi.restoreAll
 
 it("samples the application process once per idle minute across module graphs without creating a pool", async () => {
   vi.useFakeTimers();
-  const detached = vi.spyOn(context, "with");
+  const contexts: unknown[] = [];
+  vi.mocked(logEvent).mockImplementation(() => { contexts.push(getObservabilityContext()); return {} as ReturnType<typeof logEvent>; });
   const stop = startRuntimeHealthSampling();
   vi.resetModules();
   const other = await import("@/lib/observability/runtime-health");
@@ -17,13 +18,14 @@ it("samples the application process once per idle minute across module graphs wi
   expect(vi.getTimerCount()).toBe(1);
   vi.advanceTimersByTime(59_999);
   expect(logEvent).not.toHaveBeenCalled();
-  vi.advanceTimersByTime(1);
+  withObservabilityContext({ requestId: "request-fixture" }, () => vi.advanceTimersByTime(1));
   expect(logEvent).toHaveBeenCalledTimes(3);
   expect(logEvent).toHaveBeenCalledWith(expect.objectContaining({ event: "runtime.health.sample",
     safeContext: expect.objectContaining({ externalBytes: expect.any(Number), arrayBuffersBytes: expect.any(Number),
       eventLoopDelayP99Ms: expect.any(Number), eventLoopDelayMaxMs: expect.any(Number) }) }));
   expect(logEvent).toHaveBeenCalledWith(expect.objectContaining({ event: "runtime.read.sample", operation: "bet.aggregate_fallback", safeContext: { count: 0 } }));
-  expect(detached).toHaveBeenCalledWith(ROOT_CONTEXT, expect.any(Function));
+  expect(contexts.length).toBeGreaterThan(0);
+  expect(contexts.every(value => Object.keys(value as object).length === 0)).toBe(true);
   stop(); stop();
   vi.advanceTimersByTime(120_000);
   expect(logEvent).toHaveBeenCalledTimes(3);

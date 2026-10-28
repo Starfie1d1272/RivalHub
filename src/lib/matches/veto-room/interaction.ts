@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { getCurrentUserAuthorization } from "@/lib/auth/session";
-import { logEvent, traceOperation } from "@/lib/observability/server";
+import { logEvent } from "@/lib/observability/server";
 import { assertVetoRoomReadable } from "./access";
 import { getVetoRoomView } from "./read-model";
 import { deliverVetoInvalidation } from "./invalidation";
@@ -29,15 +29,15 @@ export async function runVetoInteraction(input: z.infer<typeof vetoInteractionIn
   let authorization: Awaited<ReturnType<typeof getCurrentUserAuthorization>> | undefined;
   let readableSeasonId: string | undefined;
   if (input.operation === "reconcile") {
-    const access = await traceOperation("match.veto.authorize", { scope: "match", operation: "reconcile", stage: "authorize" }, () => assertVetoRoomReadable(input.matchId));
+    const access = await assertVetoRoomReadable(input.matchId);
     authorization = access.authorization;
     readableSeasonId = access.seasonId;
-    outcome = await traceOperation("match.veto.transaction", { scope: "match", operation: "reconcile", stage: "transaction" }, () => reconcileVetoRoomReceipt(input.matchId, readableSeasonId));
+    outcome = await reconcileVetoRoomReceipt(input.matchId, readableSeasonId);
   } else {
-    authorization = await traceOperation("match.veto.authorize", { scope: "match", operation: input.operation, stage: "authorize" }, () => getCurrentUserAuthorization());
+    authorization = await getCurrentUserAuthorization();
     if (!authorization) throw new AppError(ErrorCode.UNAUTHORIZED, "请先登录。");
     const actor = authorization;
-    outcome = await traceOperation("match.veto.transaction", { scope: "match", operation: input.operation, stage: "transaction" }, () => input.operation === "start"
+    outcome = await (input.operation === "start"
       ? requestVetoStartReceipt({ ...input, actorId: actor.userId })
       : submitVetoCommandReceipt({ ...input, actorId: actor.userId }));
   }
@@ -48,15 +48,13 @@ export async function runVetoInteraction(input: z.infer<typeof vetoInteractionIn
 export async function finishVetoInteraction<T>(matchId: string, outcome: T, _changed: boolean, mode: "action" | "route" = "action", authorization?: Awaited<ReturnType<typeof getCurrentUserAuthorization>>, expectedSeasonId?: string) {
   let invalidation: "complete" | "pending" = "pending";
   try {
-    invalidation = await traceOperation("match.veto.invalidate", { scope: "match", operation: "invalidate", stage: "invalidate" },
-      () => deliverVetoInvalidation(matchId, mode));
+    invalidation = await deliverVetoInvalidation(matchId, mode);
   } catch {
     // The durable generation stays pending. Even a no-op reconcile retries it.
     logEvent({ level: "warn", event: "match.veto.invalidation_pending", scope: "match", operation: "veto.invalidate", retryable: true });
   }
   try {
-    const room = await traceOperation("match.veto.project", { scope: "match", operation: "project", stage: "project" },
-      () => authorization === undefined ? getVetoRoomView(matchId) : getVetoRoomView(matchId, authorization, expectedSeasonId));
+    const room = await (authorization === undefined ? getVetoRoomView(matchId) : getVetoRoomView(matchId, authorization, expectedSeasonId));
     return { outcome, room, refreshFailed: invalidation === "pending", postCommit: { invalidation, projection: "complete" as const } };
   } catch {
     logEvent({ level: "warn", event: "match.veto.projection_pending", scope: "match", operation: "veto.project", retryable: true });

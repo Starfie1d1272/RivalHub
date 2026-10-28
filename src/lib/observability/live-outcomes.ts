@@ -1,4 +1,4 @@
-import { context, ROOT_CONTEXT } from "@opentelemetry/api";
+import { withoutObservabilityContext } from "./context";
 import { logEvent } from "./logger";
 import { registerRuntimeHealthFlush } from "./runtime-health";
 
@@ -48,8 +48,8 @@ export function flushLiveIngestOutcomes(now = performance.now()): void {
     state.outcomes.clear();
     state.stages.clear();
     state.start = now;
-    // Aggregates must not inherit whichever request/trace installed the sampler.
-    context.with(ROOT_CONTEXT, () => {
+    // Aggregates must not inherit whichever request installed the sampler.
+    withoutObservabilityContext(() => {
       for (const [event, entries] of [
         ["mizar.live.outcome_window", outcomes],
         ["mizar.live.stage_window", stages],

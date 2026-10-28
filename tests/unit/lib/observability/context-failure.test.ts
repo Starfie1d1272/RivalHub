@@ -12,3 +12,29 @@ it("a context accessor cannot hide the original exception or break direct event 
     expect(JSON.stringify(write.mock.calls)).not.toContain("private context");
   } finally { write.mockRestore(); }
 });
+
+it("isolates overlapping requests across awaits, nested scopes and module graphs", async () => {
+  const { withObservabilityContext, getObservabilityContext } = await import("@/lib/observability/context");
+  vi.resetModules();
+  const other = await import("@/lib/observability/context");
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const first = withObservabilityContext({ requestId: "first", route: "/first" }, async () => {
+    await gate;
+    expect(other.getObservabilityContext()).toEqual({ requestId: "first", route: "/first" });
+    await expect(other.withObservabilityContext({ route: "/nested" }, async () => {
+      await Promise.resolve();
+      expect(getObservabilityContext()).toEqual({ requestId: "first", route: "/nested" });
+      throw new Error("fixture rejection");
+    })).rejects.toThrow("fixture rejection");
+    expect(getObservabilityContext().route).toBe("/first");
+  });
+  await other.withObservabilityContext({ requestId: "second" }, async () => {
+    await Promise.resolve();
+    expect(getObservabilityContext()).toEqual({ requestId: "second" });
+    release();
+    await first;
+    expect(other.getObservabilityContext()).toEqual({ requestId: "second" });
+  });
+  expect(getObservabilityContext()).toEqual({});
+});

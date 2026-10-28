@@ -2,7 +2,7 @@ import "server-only";
 
 import { performance, monitorEventLoopDelay } from "node:perf_hooks";
 import { getHeapStatistics } from "node:v8";
-import { context, ROOT_CONTEXT } from "@opentelemetry/api";
+import { withoutObservabilityContext } from "./context";
 import { databaseRuntimeSlot } from "@/db/runtime-owner";
 import { logEvent } from "./logger";
 import { getCgroupMemorySnapshot } from "./runtime-cgroup";
@@ -74,7 +74,7 @@ export function startRuntimeHealthSampling(): () => void {
   delay.enable();
   const timer = setInterval(() => {
     try {
-      context.with(ROOT_CONTEXT, () => {
+      withoutObservabilityContext(() => {
         for (const flush of [...hooks().values()]) {
           try { flush(); } catch { /* One hook cannot suppress other diagnostics. */ }
         }

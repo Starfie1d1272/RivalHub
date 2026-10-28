@@ -10,7 +10,6 @@ import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entri
 import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
 import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { traceOperation } from "@/lib/observability/server";
 import { getPublicSeasonStagePresentation, type PublicStageSeason } from "@/lib/seasons/public-stage";
 import { isOfficialStageKey } from "@/lib/seasons/official-stages";
 import {
@@ -71,19 +70,19 @@ function statsCachePolicy(): void {
 async function cachedTournamentStats(scope: TournamentViewScope) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill(() => traceOperation("stats.public.read", { scope: "statistics", operation: "tournament" }, () => preservePublicStatsDependencyFailure(() => getTournamentStats(scope))));
+  return observePublicStatsFill(async () => preservePublicStatsDependencyFailure(() => getTournamentStats(scope)));
 }
 
 async function cachedTournamentTeam(scope: TeamScope) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill(() => traceOperation("stats.public.read", { scope: "statistics", operation: "event_team" }, () => preservePublicStatsDependencyFailure(() => getTournamentTeamDetail(scope))));
+  return observePublicStatsFill(async () => preservePublicStatsDependencyFailure(() => getTournamentTeamDetail(scope)));
 }
 
 async function cachedTournamentMap(scope: MapScope) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill(() => traceOperation("stats.public.read", { scope: "statistics", operation: "map" }, () => preservePublicStatsDependencyFailure(() => getTournamentMapDetail(scope))));
+  return observePublicStatsFill(async () => preservePublicStatsDependencyFailure(() => getTournamentMapDetail(scope)));
 }
 
 /** Entrypoints authorize draft access before calling; draft results never enter the remote cache. */
@@ -114,7 +113,7 @@ export async function getPublicTournamentMapDetail(scope: MapScope, visibility: 
 async function cachedPlayerCareerDetail(scope: PlayerCareerScope) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill(() => traceOperation("stats.public.read", { scope: "statistics", operation: "player_career" }, () => preservePublicStatsDependencyFailure(() => getPlayerCareerDetail(scope))));
+  return observePublicStatsFill(async () => preservePublicStatsDependencyFailure(() => getPlayerCareerDetail(scope)));
 }
 
 async function cachedPlayerFilterOptions(playerId: string) {
@@ -139,13 +138,13 @@ export async function getPublicPlayerCareerDetail(scope: PlayerCareerScope) {
 export async function getPublicLongTeamCareerDetail(teamId: string) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill(() => traceOperation("stats.public.read", { scope: "statistics", operation: "team_career" }, () => preservePublicStatsDependencyFailure(() => getLongTeamCareerDetail(teamId))));
+  return observePublicStatsFill(async () => preservePublicStatsDependencyFailure(() => getLongTeamCareerDetail(teamId)));
 }
 
 async function cachedMatchPlayerDetail(matchId: string, playerId: string, mapName?: string) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill(() => traceOperation("stats.public.read", { scope: "statistics", operation: "match_player" }, () => preservePublicStatsDependencyFailure(() => getMatchPlayerDetail(matchId, playerId, mapName))));
+  return observePublicStatsFill(async () => preservePublicStatsDependencyFailure(() => getMatchPlayerDetail(matchId, playerId, mapName)));
 }
 
 export async function getPublicMatchPlayerDetail(

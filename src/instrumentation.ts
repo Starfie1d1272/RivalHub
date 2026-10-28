@@ -2,13 +2,12 @@ import type { Instrumentation } from "next";
 import { extractErrorDigest } from "@/lib/observability/error-digest";
 
 export async function register(): Promise<void> {
-  if (process.env.NEXT_RUNTIME === "edge") {
-    const { registerEdgeObservability } = await import("@/lib/observability/instrumentation-edge");
-    registerEdgeObservability();
-    return;
+  if (process.env.NEXT_RUNTIME === "nodejs" && process.env.NODE_ENV === "production" &&
+      process.env.VERCEL !== "1" && process.env.NEXT_PHASE !== "phase-production-build" &&
+      process.env.RIVALHUB_RUNTIME_HEALTH_ENABLED !== "0") {
+    const { startRuntimeHealthSampling } = await import("@/lib/observability/runtime-health");
+    startRuntimeHealthSampling();
   }
-  const { registerNodeObservability } = await import("@/lib/observability/instrumentation-node");
-  registerNodeObservability();
 }
 
 export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {
