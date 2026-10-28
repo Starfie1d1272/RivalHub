@@ -162,8 +162,6 @@ describe("conversion policy admin lifecycle", () => {
       expect(await loadConversionPolicyAdminDetail(executor, base.id)).toEqual(baseAdminRow);
       expect(await loadConversionPolicyAdminDetail(executor, foreignPolicyId)).toBeNull();
       expect(await loadConversionPolicyAdminDetail(executor, randomUUID())).toBeNull();
-
-
       const provenance = await loadConversionPolicyProvenance(executor, JSON.parse(frozenConfig));
       expect(provenance).toMatchObject({ id: base.id, version: base.version, sourceNote: base.sourceNote, rationale: base.rationale, changeSummary: base.changeSummary });
       expect(provenance).not.toHaveProperty("internalNote");

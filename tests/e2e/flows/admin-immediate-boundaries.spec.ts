@@ -9,7 +9,7 @@ import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
 import { createPredictionBrowserFixture, removePredictionBrowserFixture } from "../helpers/prediction-fixture";
 
 // pg_stat_statements aggregates normalized SQL for the whole database. Keep
-// this spec's desktop/mobile probes and frozen-fixture navigation independent.
+// this spec's probes and frozen-fixture navigation independent.
 // A connection-owned local advisory lock releases even if a worker exits.
 const test = base.extend<{ adminEvidenceIsolation: void }>({
   adminEvidenceIsolation: [async ({ scenarioProfile }, applyEvidence) => {
