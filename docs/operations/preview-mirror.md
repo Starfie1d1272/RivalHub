@@ -36,7 +36,7 @@ Export 与 refresh 的失败都经过现有 `src/lib/observability/` safe except
 
 社区奖的 PostgreSQL integration 以当前真实 `information_schema` inventory 校验新增列与获奖者表，并执行公开获奖者导出查询。定向 policy 验证覆盖 `0090_yellow_blink` 前后的 source prefix、未知列拒绝和 artifact 中非公开获奖者拒绝；不把这些定向检查描述为全部历史 schema 的真实数据库验收。
 
-生产的 `application_sessions`、`application_session_controls`、统计修复游标、BP 缓存投递进度 `match_veto_invalidations` 和计分恢复回执 `operator_scoreboard_receipts` 不进入脱敏镜像。后两者分别绑定生产缓存代次/事务与原操作人/请求编号，不能作为测试库的运行状态；目标迁移创建表结构，记录由 Preview 自身的 BP 与计分操作生成。Preview persona 必须通过目标 Auth 重新登录，目标自行建立会话与维护进度。
+生产的 `application_sessions`、`application_session_controls`、统计修复游标、BP 缓存投递进度 `match_veto_invalidations` 和计分恢复回执 `operator_scoreboard_receipts` 不进入脱敏镜像。后两者分别绑定生产缓存代次/事务与原操作人/请求编号，不能作为测试库的运行状态；目标迁移创建表结构，记录由 Preview 自身的 BP 与计分操作生成。`match_maps.provisional_players` 从 `0100_ambitious_switch` 起归为已审查但不导出的列，丢弃含玩家身份的未核对快照；`mizar_reliable_receipts` 整表继续排除，包括 `parent_event_key` 与 `map_end_scope`，不复制生产来源会话和事件关联。Preview persona 必须通过目标 Auth 重新登录，目标自行建立会话与维护进度。
 
 ## Vercel Preview 必须配置
 
