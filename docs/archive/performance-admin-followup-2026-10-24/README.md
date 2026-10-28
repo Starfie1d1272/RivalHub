@@ -69,3 +69,5 @@ Play-in reader #1096已合main6867f234，正式consumer不再依赖未合export�
 
 
 35页逐项状态见 `route-status.json`，精确文件与依赖见 `scope-files.json`。A-WB-5四子项与三个view分别列项。仍缺真实部署cohort、混合pool预算、500 active全局队列、慢教育overview的浏览器隔离；这些没有标为完成。未发布、未部署、未做生产写入。
+
+后续测试清理保留了后台三个视图的分页行为验证，移除了该用例中的一次性性能采样与 baseline 参数；本记录保留为当时的实验结果，下文对应命令不再是当前入口。
