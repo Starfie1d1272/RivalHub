@@ -99,6 +99,7 @@ export const OMITTED_COLUMNS: Record<string, string> = {
   major_prestart_states: "seed_override_reason",
   draft_picks: "client_request_id",
   matches: "video_url recordings",
+  match_maps: "provisional_players",
   seasons: "logo_url",
   community_awards: "supplementary_note review_note",
   match_veto_steps: "client_request_id",
@@ -195,7 +196,10 @@ export const PREVIEW_SCHEMA_LIFECYCLE: readonly PreviewSchemaLifecycleTable[] = 
       { name: "test_config", introducedAt: "0079_test-matches" },
     ],
   },
-  { table: "match_maps", columns: [{ name: "started_at", introducedAt: "0075_lowly_sersi" }] },
+  { table: "match_maps", columns: [
+    { name: "started_at", introducedAt: "0075_lowly_sersi" },
+    { name: "provisional_players", introducedAt: "0100_ambitious_switch" },
+  ] },
   { table: "seasons", columns: [{ name: "logo_url", introducedAt: "0066_mizar_backend_contracts" }] },
   { table: "user_gameplay_steam_ids", introducedAt: "0052_gray_supernaut" },
   {
