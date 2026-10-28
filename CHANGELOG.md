@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.24.12]
+
+### Fixed
+
+- 比赛页面仅在确认解说开播时提供站内播放器，同时保留所有解说的直播间外链。
+
 ## [2.24.11]
 
 ### Fixed
@@ -3648,3 +3654,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.24.10]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.9...v2.24.10
 
 [2.24.11]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.10...v2.24.11
+
+[2.24.12]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.11...v2.24.12
