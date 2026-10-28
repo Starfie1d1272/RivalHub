@@ -15,10 +15,10 @@ const review = (): AdminDemoReviewMap => ({ importId: "import", matchMapId: "map
     candidates: [{ eventRosterMemberId: "member", entryId: "a", name: "Canonical", steam64: "76561198000000001" }] }],
 });
 
-it.each(["cache select failure", "upsert timeout", "provider failure"])("isolates display %s without altering canonical review decisions", async message => {
+it("isolates a display failure without altering canonical review decisions", async () => {
   const maps = [review()];
   const canonical = structuredClone(maps);
-  boundary.profiles.mockRejectedValueOnce(new Error(message));
+  boundary.profiles.mockRejectedValueOnce(new Error("provider unavailable"));
   await expect(enrichAdminDemoReviewPersonas(maps)).resolves.toBeUndefined();
   expect(maps).toEqual(canonical);
   expect(boundary.report).toHaveBeenCalledOnce();

@@ -1,3 +1,5 @@
+> 历史性能记录：下文一次性基准脚本已清理，命令保留为当时的证据，不再作为运行入口。
+
 # 后台后续窗口与摘要证据
 
 基线为已合 #1083 的 main `06d0ea5074e15b866e2695b34e8f43ab761a9851`。这份材料不修改第一批历史数值，也不证明生产已改善。
@@ -42,14 +44,7 @@ DOM、文档encoded/decoded、LCP与精确CLS仍分别记录在每个sample；�
 
 Main Swiss单场record与完整reader比较：已结束BO1的同一frozen run，4→3SQL，25→25行，14019→2967结果JSON字节。无run/跨scope/未知match/不完整finalized round均覆盖，原frozen规则与record投影函数复用；Play-in窄API已接入#1096 b820d4b6，临时集成验证其三个PG用例；保留原direct-BO3格式分支，不复制canonical pairing规则。
 
-复现PG配对：
-
-```bash
-git show 06d0ea5:src/lib/admin/matches/overview.ts > src/lib/admin/matches/overview-list-baseline.ts
-git show 06d0ea5:src/lib/admin/matches/postmatch-tasks.ts > src/lib/admin/matches/postmatch-tasks-list-baseline.ts
-RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 RIVALHUB_ADMIN_LIST_BENCHMARK=1 RIVALHUB_ADMIN_LIST_OUTPUT=/tmp/admin-list-cost.json pnpm test:integration -- tests/integration/db/admin-list-cost.benchmark.test.ts
-rm src/lib/admin/matches/overview-list-baseline.ts src/lib/admin/matches/postmatch-tasks-list-baseline.ts
-```
+历史配对实验的临时 benchmark 已移除；本页数值保留为当时的记录，不能直接复现。
 
 浏览器用 `tests/e2e/flows/admin-match-readiness.spec.ts`；before须在06d0ea5临时checkout放同一测试文件，设置 `RIVALHUB_ADMIN_READINESS_BASELINE=1`，after不设。两次均设置独立输出路径 `RIVALHUB_ADMIN_READINESS_OUTPUT`，只用本地fixture。
 
@@ -67,3 +62,5 @@ Play-in reader #1096已合main6867f234，正式consumer不再依赖未合export�
 
 
 35页逐项状态见 `route-status.json`，精确文件与依赖见 `scope-files.json`。A-WB-5四子项与三个view分别列项。仍缺真实部署cohort、混合pool预算、500 active全局队列、慢教育overview的浏览器隔离；这些没有标为完成。未发布、未部署、未做生产写入。
+
+后续测试清理保留了后台三个视图的分页行为验证，移除了该用例中的一次性性能采样与 baseline 参数；本记录保留为当时的实验结果，下文对应命令不再是当前入口。

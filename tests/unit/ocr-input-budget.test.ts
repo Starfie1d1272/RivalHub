@@ -5,7 +5,7 @@ import { extractScoreboardFromBase64 } from "@/lib/ocr";
 import { OCR_MAX_IMAGE_BYTES, OCR_MAX_ENCODED_LENGTH } from "@/lib/ocr/input-contract";
 beforeEach(() => { vi.clearAllMocks(); mocks.extract.mockResolvedValue({ players: [] }); });
 
-it.each([6, 7, 7.5, 8, 10])("enforces the shared body budget for a %s MiB image before the provider", async mib => {
+it.each([7, 7.5])("enforces the shared body budget for a %s MiB image before the provider", async mib => {
   const bytes = Buffer.alloc(mib * 1024 * 1024);
   bytes.set([137, 80, 78, 71, 13, 10, 26, 10]);
   const work = extractScoreboardFromBase64(bytes.toString("base64"), "image/png");

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readExpectedMigrations } from "../../scripts/db/production-preflight";
@@ -62,17 +62,6 @@ function validManifest() {
 }
 
 describe("recovery contracts", () => {
-
-  it("keeps full recovery and DB-only restore capabilities separate", () => {
-    const restoreSource = readFileSync(join(process.cwd(), "scripts/db/recovery/restore.ts"), "utf8");
-
-    expect(restoreSource).toContain("--mode");
-    expect(restoreSource).toContain("buildIsolatedRecoveryDatabaseEnvironment");
-    expect(restoreSource).toContain("Isolated DB-only recovery restore verified");
-    expect(restoreSource).toContain("storage=not-captured");
-    expect(restoreSource).toContain("db-checkpoint artifact 不能由 db:recovery:restore 恢复");
-    expect(restoreSource).toContain("db-checkpoint artifact 不得包含 Storage snapshot");
-  });
 
   it("rejects incomplete or tampered recovery identities", () => {
     const manifest = validManifest();

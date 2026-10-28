@@ -1,10 +1,9 @@
-import { execFile, execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { redactText } from "../../../src/lib/observability/redact";
-import { test, expect, type Request as BrowserRequest } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { assertPageResponse, navigateAndWaitForResponse } from "../helpers/page-health";
 const execute = promisify(execFile);
 const tsx = resolve("node_modules/.bin/tsx");
@@ -27,115 +26,10 @@ const stream = (matchId: string) => new Promise<ChildProcess>((resolve, reject) 
     child.once("error", error => { clearTimeout(deadline); reject(error); });
   });
 
-test("public match consumes private Broadcast and recovers across navigation and map changes", async ({ page }, testInfo) => {
+test("public match consumes private Broadcast and recovers across navigation and map changes", async ({ page }) => {
   test.setTimeout(180000);
   const seasonId = randomUUID();
   let producer: ChildProcess | undefined;
-
-  // Observe only bounded transport metadata, never headers, credentials or payloads.
-  const startedAt = performance.now();
-  type Pending = { method: string; path: string; resourceType: string; navigation: boolean; startedMs: number; responseStatus?: number; serverAction?: string };
-  const pending = new Map<BrowserRequest, Pending>();
-  const actionOwners = new Map<string, string>();
-  const actionOwner = (request: BrowserRequest): string | undefined => {
-    // Inspect only this public build reference; never serialize headers or reference values.
-    const reference = request.headers()["next-action"];
-    if (!reference) return;
-    const known = actionOwners.get(reference);
-    if (known) return known;
-    try {
-      const manifest = JSON.parse(readFileSync(".next/dev/server/server-reference-manifest.json", "utf8"));
-      const entry = manifest.node?.[reference];
-      const owner = typeof entry?.filename === "string" && typeof entry?.exportedName === "string"
-        ? `${entry.filename}:${entry.exportedName}`.slice(0, 300) : "unmapped_server_reference";
-      if (actionOwners.size < 16) actionOwners.set(reference, owner);
-      return owner;
-    } catch { return "manifest_unavailable"; }
-  };
-  const timeline: Array<Pending & { phase: string; elapsedMs: number; error?: string }> = [];
-  let omitted = 0;
-  let failed = false;
-  let documentPath = "";
-  const viewerRequests = { started: 0, responses: 0, finished: 0, failed: 0 };
-  const isViewer = (url: string) => new URL(url).pathname.endsWith("/live-viewer");
-  const presenceProbe = { enabled: process.env.RIVALHUB_PRESENCE_DIAGNOSTICS === "1", patchedChunks: 0,
-    mounts: 0, cleanups: 0, visibilityChanges: 0, intervals: [] as number[], events: [] as Array<{ phase: string; elapsedMs: number; intervalMs?: number }> };
-  if (presenceProbe.enabled) {
-    await page.exposeFunction("__gPresenceObserve", (phase: string, intervalMs?: number) => {
-      if (phase === "mount") presenceProbe.mounts++;
-      else if (phase === "cleanup") presenceProbe.cleanups++;
-      else if (phase === "visibility") presenceProbe.visibilityChanges++;
-      else if (phase === "response" && Number.isFinite(intervalMs) && presenceProbe.intervals.length < 256) presenceProbe.intervals.push(intervalMs!);
-      if (presenceProbe.events.length < 256) presenceProbe.events.push({ phase, elapsedMs: Math.round(performance.now() - startedAt), ...(Number.isFinite(intervalMs) ? { intervalMs } : {}) });
-    });
-    await page.addInitScript(() => {
-      document.addEventListener("visibilitychange", () => {
-        const observer = (globalThis as typeof globalThis & { __gPresenceObserve?: (phase: string) => void }).__gPresenceObserve;
-        observer?.("visibility");
-      });
-    });
-    // Diagnostic-only logpoints in the served development chunk. Production sources
-    // and control flow stay unchanged; record observer installation explicitly.
-    await page.route("**/_next/static/chunks/*.js", async route => {
-      const response = await route.fetch();
-      const body = await response.text();
-      const start = body.indexOf("function OnlineCounter()");
-      const end = body.indexOf("_s(OnlineCounter", start);
-      if (start < 0 || end < start) { await route.fulfill({ response }); return; }
-      const original = body.slice(start, end);
-      const patched = original.replace("let active = true;", 'let active = true; globalThis.__gPresenceObserve?.("mount");')
-        .replace("intervalMs = data.intervalMs;", 'intervalMs = data.intervalMs; globalThis.__gPresenceObserve?.("response", data.intervalMs);')
-        .replace("active = false;", 'active = false; globalThis.__gPresenceObserve?.("cleanup");');
-      if (patched !== original) presenceProbe.patchedChunks++;
-      await route.fulfill({ response, body: body.slice(0, start) + patched + body.slice(end) });
-    });
-  }
-  const cdpRequests = { events: 0, unique: 0, duplicate: 0, overflow: 0, startedMs: [] as number[] };
-  const cdpRequestIds = new Set<string>();
-  const postInitiators = new Map<string, { count: number; frames: Array<{ functionName: string; path: string; line: number }> }>();
-  const diagnostics = await page.context().newCDPSession(page);
-  await diagnostics.send("Network.enable");
-  diagnostics.on("Network.requestWillBeSent", event => {
-    if (event.request.method !== "POST" || new URL(event.request.url).pathname !== documentPath) return;
-    cdpRequests.events++;
-    if (cdpRequestIds.has(event.requestId)) { cdpRequests.duplicate++; return; }
-    if (cdpRequestIds.size >= 4096) { cdpRequests.overflow++; return; }
-    cdpRequestIds.add(event.requestId); cdpRequests.unique++;
-    if (cdpRequests.startedMs.length < 256) cdpRequests.startedMs.push(Math.round(performance.now() - startedAt));
-    const frames = (event.initiator.stack?.callFrames ?? []).slice(0, 8).map(frame => ({
-      functionName: frame.functionName.slice(0, 120), path: (() => { try { return new URL(frame.url).pathname.slice(0, 300); } catch { return "unknown"; } })(), line: frame.lineNumber,
-    }));
-    const key = JSON.stringify(frames);
-    const previous = postInitiators.get(key);
-    if (previous) previous.count++;
-    else if (postInitiators.size < 8) postInitiators.set(key, { count: 1, frames });
-  });
-  const record = (row: Pending, phase: string, error?: string) => {
-    if (timeline.length >= 256) { omitted++; timeline.shift(); }
-    timeline.push({ ...row, phase, elapsedMs: Math.round(performance.now() - startedAt), ...(error ? { error: redactText(error).slice(0, 300) } : {}) });
-  };
-  page.on("request", request => {
-    if (isViewer(request.url())) viewerRequests.started++;
-    if (pending.size >= 64) { omitted++; return; }
-    const row = { method: request.method(), path: new URL(request.url()).pathname.slice(0, 300),
-      resourceType: request.resourceType(), navigation: request.isNavigationRequest(), startedMs: Math.round(performance.now() - startedAt), serverAction: actionOwner(request) };
-    pending.set(request, row); record(row, "request");
-  });
-  page.on("response", response => {
-    if (isViewer(response.url())) viewerRequests.responses++;
-    const row = pending.get(response.request());
-    if (row) { row.responseStatus = response.status(); record(row, "response"); }
-  });
-  page.on("requestfinished", request => {
-    if (isViewer(request.url())) viewerRequests.finished++;
-    const row = pending.get(request);
-    if (row) { record(row, "finished"); pending.delete(request); }
-  });
-  page.on("requestfailed", request => {
-    if (isViewer(request.url())) viewerRequests.failed++;
-    const row = pending.get(request);
-    if (row) { record(row, "failed", request.failure()?.errorText); pending.delete(request); }
-  });
 
   try {
     const output = await run(fixture, "create", seasonId);
@@ -144,7 +38,6 @@ test("public match consumes private Broadcast and recovers across navigation and
     const { matchId, otherMatchId } = JSON.parse(line.slice("LIVE_FIXTURE ".length)) as { matchId: string; otherMatchId: string };
     await run(browserFixture, "prepare", matchId);
     const url = `/${seasonId}/matches/${matchId}`;
-    documentPath = url;
     producer = await stream(matchId);
     let viewerJoins = 0;
     // Dev Strict Mode aborts its first token fetch. Count actual channel joins,
@@ -209,12 +102,6 @@ test("public match consumes private Broadcast and recovers across navigation and
     await expect(previous.getByText("FalleN", { exact: true })).toBeVisible();
     await expect(live.getByText(/上次画面/)).toBeVisible();
     await expect(live.locator("canvas")).toHaveCount(0);
-    if (process.env.RIVALHUB_LIVE_SCREENSHOTS_DIR) {
-      await page.screenshot({ path: resolve(process.env.RIVALHUB_LIVE_SCREENSHOTS_DIR, "desktop-previous.png"), fullPage: true });
-      await page.setViewportSize({ width: 390, height: 844 });
-      await page.screenshot({ path: resolve(process.env.RIVALHUB_LIVE_SCREENSHOTS_DIR, "narrow-previous.png"), fullPage: true });
-      await page.setViewportSize({ width: 1280, height: 720 });
-    }
     producer = await stream(matchId);
     await expect(live.locator("canvas")).toBeVisible();
     await expect(previous).toHaveCount(0);
@@ -231,21 +118,7 @@ test("public match consumes private Broadcast and recovers across navigation and
     await expect(live.getByText("Ancient", { exact: true })).toHaveCount(0);
     producer?.kill(); producer = undefined;
 
-  } catch (error) {
-    failed = true;
-    throw error;
   } finally {
-    if (presenceProbe.enabled) await page.unrouteAll({ behavior: "ignoreErrors" });
-    const evidence = { sha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
-      environment: "local Next HTTP + Local Supabase + Chromium", failed, elapsedMs: Math.round(performance.now() - startedAt),
-      pending: [...pending.values()], omitted, viewerRequests, presenceProbe, cdpRequests, postInitiators: [...postInitiators.values()], timeline };
-    const directory = resolve(".agent-tmp/g-live-http", seasonId);
-    mkdirSync(directory, { recursive: true });
-    const evidencePath = resolve(directory, "requests.json");
-    writeFileSync(evidencePath, JSON.stringify(evidence, null, 2));
-    await testInfo.attach("live-http-pending.json", { path: evidencePath, contentType: "application/json" });
-    console.info("LIVE_HTTP_PENDING", JSON.stringify({ ...evidence, timeline: undefined }));
-    await diagnostics.detach().catch(() => {});
     producer?.kill();
     await run(fixture, "cleanup", seasonId);
   }

@@ -7,7 +7,7 @@ test.use({ scenarioProfile: "major-qualification" });
 test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对阵", async ({
   page,
   scenario,
-}, testInfo) => {
+}) => {
   test.setTimeout(120_000);
   const admin = scenario.accounts.find((account) => account.key === "admin");
   if (!admin)
@@ -92,7 +92,6 @@ test("管理员预览并确认 30 队到 Major 24 的 Play-in 配置与首轮对
   await page.getByRole("button", { name: "预览 Play-in 下一轮" }).click();
   const secondRound = page.getByRole("dialog", { name: "第 2 轮对阵预览" });
   await expect(secondRound.getByRole("listitem")).toHaveCount(6);
-  await testInfo.attach("playin-round2", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
   await secondRound.getByRole("button", { name: "确认并生成对阵" }).click();
   await expect(page.getByText("第 2 轮对阵已生成")).toBeVisible();
 

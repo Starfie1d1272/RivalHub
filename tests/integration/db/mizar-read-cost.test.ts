@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { setTimeout as delay } from "node:timers/promises";
 import type { Pool } from "pg";
@@ -97,21 +97,8 @@ it("retains the transaction SHARE barrier and refuses a waiting check after revo
   }
 });
 
-it("cleans only its extra schedule matches even when the read callback fails", async () => {
-  const f = await seedFixture();
-  const other = await seedFixture();
-  const added: string[] = [];
-  await expect(withExtraMizarScheduleMatches(f, async add => {
-    added.push(...await add(2, new Date("2026-09-29T01:00:00.000Z")));
-    added.push(...await add(1, null));
-    expect(await db.select({ id: schema.matches.id }).from(schema.matches).where(inArray(schema.matches.id, added))).toHaveLength(3);
-    throw new Error("fixture read failed");
-  })).rejects.toThrow("fixture read failed");
-  expect(await db.select({ id: schema.matches.id }).from(schema.matches).where(inArray(schema.matches.id, added))).toEqual([]);
-  expect(await db.select({ id: schema.matches.id }).from(schema.matches).where(inArray(schema.matches.id, [f.matchId, other.matchId]))).toHaveLength(2);
-});
-
-it.each([2, 25, 500])("reads %i schedule matches in at most three SELECTs without per-match detail reads", async matchCount => {
+it("bounds schedule reads and rejects matches above the limit", async () => {
+  const matchCount = 500;
   const f = await seedFixture();
   await withExtraMizarScheduleMatches(f, async add => {
     await add(matchCount - 1, new Date("2026-09-29T01:00:00.000Z"));

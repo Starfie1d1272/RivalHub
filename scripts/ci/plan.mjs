@@ -171,6 +171,13 @@ export function classifyChangedFiles(entries, options = {}) {
   };
   let docsOnly = true;
   for (const entry of entries) {
+    // Consuming a Changeset removes release notes, not executable code. Keep
+    // all other deletes fail-closed, including Changeset configuration/README.
+    if (entry.status === "D" && entry.paths?.length === 1
+      && /^\.changeset\/(?!README\.md$)[^/]+\.md$/.test(entry.paths[0])) {
+      reasons.add(`consumed Changeset: ${entry.paths[0]}`);
+      continue;
+    }
     if (entry.status === "R" || entry.status === "D" || entry.status.startsWith("R") || entry.status.startsWith("D")) {
       return result(CAPABILITIES, true, `检测到 ${entry.status} rename/delete：${entry.paths.join(" -> ")}`);
     }
@@ -563,23 +570,17 @@ export function systemMatrixFor(plan, liveEvidence) {
       matrix.push({ task: `browser-bet-read-stages-${index + 1}`, live: false, specs: [betReadSpec], grep: `BET (${views}) ` });
     }
   }
-  // OCR has four cases in each project, including whole-browser recovery.
-  // A spec-only singleton still executes eight cases; partition the projects.
+  // The persistent-profile recovery flow is desktop-only. Mobile UI recovery
+  // is covered by the component tests; avoid a runner that only skips cases.
   const ocrSpec = "tests/e2e/flows/ocr-receipt-recovery.spec.ts";
   if (specs.includes(ocrSpec)) {
-    for (const project of ["chromium", "mobile-chrome"]) {
-      matrix.push({ task: `browser-ocr-${project}`, live: false, specs: [ocrSpec], project });
-    }
+    matrix.push({ task: "browser-ocr-chromium", live: false, specs: [ocrSpec], project: "chromium" });
   }
-  // This spec measures database-wide pg_stat_statements deltas. A different
-  // admin flow in the same DB can increment its normalized SQL counters.
-  // Give each project its own runner/DB; its internal advisory lock still
-  // serializes the two measurement journeys within that project.
+  // The RSC, permission and navigation flow is viewport-independent. Its
+  // pg_stat_statements observations still need their own database runner.
   const adminEvidenceSpec = "tests/e2e/flows/admin-immediate-boundaries.spec.ts";
   if (specs.includes(adminEvidenceSpec)) {
-    for (const project of ["chromium", "mobile-chrome"]) {
-      matrix.push({ task: `browser-admin-evidence-${project}`, live: false, specs: [adminEvidenceSpec], project });
-    }
+    matrix.push({ task: "browser-admin-evidence-chromium", live: false, specs: [adminEvidenceSpec], project: "chromium" });
   }
   const ordinary = specs.filter(spec => spec !== liveSpec && spec !== seriesSpec && spec !== sessionSpec && spec !== ocrSpec && spec !== adminEvidenceSpec && spec !== betReadSpec && !isolated.has(spec));
   // Keep remaining combinations bounded as coverage grows instead of packing

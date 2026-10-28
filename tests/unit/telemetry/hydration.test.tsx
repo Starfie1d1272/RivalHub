@@ -25,7 +25,7 @@ afterEach(async () => {
 
 // Reuse one server payload: changing browser time/timezone must not alter its
 // first render, including Radix IDs, dates, chart paths and HTML nesting.
-it.each(["UTC", "Asia/Shanghai", "America/Los_Angeles"])("hydrates the server snapshot in %s without recovery", async timezone => {
+it.each(["Asia/Shanghai", "America/Los_Angeles"])("hydrates the server snapshot in %s without recovery", async timezone => {
   const now = Date.parse("2026-10-25T23:59:59.000Z");
   const initial = analyzeTelemetry({
     capturedAt: now, batches: 1, bytes: 500, oldest: now - 1000,

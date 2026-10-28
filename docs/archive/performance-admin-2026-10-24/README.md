@@ -1,3 +1,5 @@
+> 历史性能记录：下文一次性基准脚本已清理，命令保留为当时的证据，不再作为运行入口。
+
 # W10/W11 后台读取实验快照
 
 基线是已包含 #1081 的 `4ebecf5d5e1b629371c7d0c8851b6bab9c31d7f8`。未部署；这些实验不证明生产 LCP、CLS、核心可操作时间或混合负载下的 pool wait 已达预算。
@@ -16,20 +18,9 @@
 
 返回行/JSON bytes 是 PostgreSQL 驱动结果的计数/再序列化大小，不是压缩传输、RSC bytes 或数据库 wire bytes。N=10 的 nearest-rank p95 即最大值；operations 尾部没有证明改善。Major 空名单实验主要证实少 5 条查询，不能推断已减少多少真实名单 payload。邀请码越界页仍可能执行一次纠正页查询，正常页 count/page 并行。
 
-复现：
+历史配对实验的临时 benchmark 已移除；本页数值保留为当时的记录，不能直接复现。
 
-```bash
-source /workspace/.onboarding/activate.sh
-git show 4ebecf5d:src/lib/admin/platform-operations/overview.ts > src/lib/admin/platform-operations/overview-baseline.ts
-git show 4ebecf5d:src/lib/admin/season-workspace/overview.ts > src/lib/admin/season-workspace/overview-baseline.ts
-git show 4ebecf5d:src/lib/admin/invites.ts > src/lib/admin/invites-baseline.ts
-RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 RIVALHUB_ADMIN_READ_BENCHMARK=1 \
-  RIVALHUB_ADMIN_BENCHMARK_OUTPUT=/tmp/admin-read-cost.json \
-  pnpm test:integration -- tests/integration/db/admin-read-cost.benchmark.test.ts
-rm src/lib/admin/platform-operations/overview-baseline.ts src/lib/admin/season-workspace/overview-baseline.ts src/lib/admin/invites-baseline.ts
-```
-
-基线模块为临时文件，禁止提交；可选 benchmark 默认跳过。真实 PostgreSQL 约束、生命周期、时区和权限的定向 correctness suite 不依赖这些临时文件。
+真实 PostgreSQL 约束、生命周期、时区和权限的定向 correctness suite 不依赖这些临时文件。
 
 ## 验证与尚缺证据
 

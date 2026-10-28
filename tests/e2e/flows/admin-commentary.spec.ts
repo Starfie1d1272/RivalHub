@@ -7,7 +7,7 @@ test.use({ scenarioProfile: "stats" });
 
 // Protect the actual overview → workbench entry and lifecycle-specific controls.
 // Service/DB invariants and unknown-response recovery have separate focused owners.
-test("管理员从工作台管理赛前赛中解说，完赛须重开名单，取消不开放", async ({ page, scenario }, testInfo) => {
+test("管理员从工作台管理赛前赛中解说，完赛须重开名单，取消不开放", async ({ page, scenario }) => {
   test.setTimeout(120_000);
   const pool = new Pool({ connectionString: assertLocalDatabaseUrl(process.env.RIVALHUB_LOCAL_DATABASE_URL, "commentary browser"), ssl: false });
   const actor = scenario.accounts.find(a => a.key === "admin")!;
@@ -51,11 +51,7 @@ test("管理员从工作台管理赛前赛中解说，完赛须重开名单，�
     await expect(management.getByRole("button", { name: "取消认领", exact: true })).toHaveCount(0);
     await expect(management.getByText("BP 或比赛已开始，请联系管理员调整解说安排。", { exact: true })).toBeVisible();
     await expect(management.getByRole("button", { name: /添加录像|保存录像|确认名单更正|更正解说名单/ })).toHaveCount(0);
-    await page.screenshot({ path: testInfo.outputPath("in-progress-commentary.png"), fullPage: true });
-    await page.setViewportSize({ width: 390, height: 844 });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
     await expect(management.getByRole("button", { name: `移除 ${otherName}`, exact: true })).toBeVisible();
-    await page.screenshot({ path: testInfo.outputPath("mobile-commentary.png"), fullPage: true });
     const audit = await pool.query("SELECT action,actor_id,meta->>'commentatorUserId' AS target FROM audit_logs WHERE target_id=$1 AND action IN ('postmatch.commentator.add','postmatch.commentator.remove')", [matchId]);
     expect(audit.rows).toContainEqual({ action: "postmatch.commentator.remove", actor_id: actor.userId, target: other.userId });
 
@@ -87,13 +83,11 @@ test("管理员从工作台管理赛前赛中解说，完赛须重开名单，�
     await postmatch.getByRole("button", { name: `移除 ${thirdName}`, exact: true }).click();
     await expect(postmatch.getByRole("button", { name: `移除 ${thirdName}`, exact: true })).toHaveCount(0);
     await expect(postmatch.getByRole("button", { name: "确认名单更正", exact: true })).toBeEnabled();
-    await page.screenshot({ path: testInfo.outputPath("super-admin-one-caster-correction.png"), fullPage: true });
     await postmatch.getByRole("button", { name: "确认名单更正", exact: true }).click();
     await expect(postmatch.getByRole("button", { name: "更正解说名单", exact: true })).toBeVisible();
     expect((await pool.query("SELECT submitted_by_user_id FROM post_match_reports WHERE match_id=$1", [matchId])).rows).toEqual([{ submitted_by_user_id: actor.userId }]);
     expect((await pool.query("SELECT user_id FROM match_commentators WHERE match_id=$1", [matchId])).rows).toEqual([{ user_id: other.userId }]);
     expect((await pool.query("SELECT actor_id FROM audit_logs WHERE target_id=$1 AND action='postmatch.report.submit'", [matchId])).rows).toEqual([{ actor_id: actor.userId }, { actor_id: actor.userId }]);
-    await page.screenshot({ path: testInfo.outputPath("super-admin-correction-confirmed.png"), fullPage: true });
 
     await pool.query("UPDATE matches SET status='cancelled' WHERE id=$1", [matchId]);
     await page.reload();

@@ -34,16 +34,16 @@ describe("changed-surface planner", () => {
     ]);
   });
 
-  it("isolates measured expensive routes and partitions OCR and database evidence projects", () => {
+  it("isolates measured expensive routes and keeps desktop OCR and isolates database evidence", () => {
     const heavy = ["admin-match-readiness", "admin-content-read-boundaries", "major-qualification", "major-entry", "platform-stats", "predictions", "test-matches"].map(name => `tests/e2e/flows/${name}.spec.ts`);
     const ocr = "tests/e2e/flows/ocr-receipt-recovery.spec.ts";
     const receipt = "tests/e2e/flows/bet-receipt.spec.ts";
     const evidence = "tests/e2e/flows/admin-immediate-boundaries.spec.ts";
     const jobs = systemMatrixFor({ runSystem: true, full: false, e2eSpecs: [...heavy, ocr, ocr, receipt, evidence, evidence] }, false).filter(job => job.task.startsWith("browser-"));
     for (const spec of heavy) expect(jobs.filter(job => job.specs.includes(spec))).toEqual([expect.objectContaining({ specs: [spec] })]);
-    expect(jobs.filter(job => job.specs.includes(ocr)).map(job => job.project).sort()).toEqual(["chromium", "mobile-chrome"]);
+    expect(jobs.filter(job => job.specs.includes(ocr)).map(job => job.project)).toEqual(["chromium"]);
     expect(jobs.filter(job => job.specs.includes(receipt))).toHaveLength(1);
-    expect(jobs.filter(job => job.specs.includes(evidence)).map(job => job.project).sort()).toEqual(["chromium", "mobile-chrome"]);
+    expect(jobs.filter(job => job.specs.includes(evidence)).map(job => job.project)).toEqual(["chromium"]);
     expect(jobs.filter(job => job.project).every(job => job.specs.length === 1 && [ocr, evidence].includes(job.specs[0]))).toBe(true);
   });
 

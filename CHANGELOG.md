@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.24.8]
+
+### Added
+
+- 管理员可在比赛管理页预览并确认 Play-in Short Swiss 下一轮对阵。
+- 系统状态展示关键旅程的健康证据覆盖，并区分未核验与需要关注的调度情况；生产健康基线仍待验证。
+
+### Changed
+
+- 区分自主名单调整待提交草稿与管理员要求补正，保留待处理覆盖并明确负责人和截止提示。
+- 移除 Major 赛前阶段面板中重复的阻塞详情，让种子排序工作区更清晰。
+- 恢复流程区分数据验证与放流就绪；真实生产恢复与身份协调仍需独立验收。
+- 更新 Next.js 等生产依赖。
+- 简化普通补丁发布操作，保留部署身份校验、事务排空和失败回滚。
+
 ## [2.24.7]
 
 ### Changed
@@ -3607,3 +3622,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.24.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.5...v2.24.6
 
 [2.24.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.6...v2.24.7
+
+[2.24.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.7...v2.24.8
