@@ -4,8 +4,8 @@ export type BroadcastStatus = "live" | "offline" | "unknown";
 export const BROADCAST_STATUS_LABEL: Record<BroadcastStatus, string> = { live: "直播中", offline: "未开播", unknown: "无法确认" };
 const responseSchema = z.object({ code: z.literal(0), data: z.object({ live_status: z.number().int() }) });
 
-/** Allowlisted provider URL; 60s server cache, no browser polling of Bilibili. */
-export async function readBilibiliStatus(liveStreamUrl: string | null): Promise<BroadcastStatus> {
+/** Allowlisted provider URL; cached for 60s unless a fresh confirmation is required. */
+export async function readBilibiliStatus(liveStreamUrl: string | null, options?: { fresh?: boolean }): Promise<BroadcastStatus> {
   if (!liveStreamUrl) return "unknown";
   let room: string;
   try {
@@ -14,7 +14,7 @@ export async function readBilibiliStatus(liveStreamUrl: string | null): Promise<
     room = url.pathname.replaceAll("/", "");
   } catch { return "unknown"; }
   try {
-    const response = await fetch(`https://api.live.bilibili.com/room/v1/Room/room_init?id=${room}`, { next: { revalidate: 60 }, signal: AbortSignal.timeout(2500) });
+    const response = await fetch(`https://api.live.bilibili.com/room/v1/Room/room_init?id=${room}`, { ...(options?.fresh ? { cache: "no-store" as const } : { next: { revalidate: 60 } }), signal: AbortSignal.timeout(2500) });
     if (!response.ok) return "unknown";
     const parsed = responseSchema.safeParse(await response.json());
     if (!parsed.success) return "unknown";

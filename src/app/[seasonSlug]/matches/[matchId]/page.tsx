@@ -17,6 +17,7 @@ import { MatchLiveProvider } from "@/components/matches/MatchLiveProvider";
 import { MatchRealtime } from "@/components/matches/MatchRealtime";
 import { MatchMapSequence } from "@/components/matches/MatchMapSequence";
 import { loadPublicMatchPhase } from "@/lib/matches/public-phase";
+import { readBilibiliStatus } from "@/lib/production/bilibili";
 import { MatchLiveViewing } from "@/components/matches/MatchLiveViewing";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -209,6 +210,11 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
   const rosterB = rosters.get(match.entryBId) ?? null;
   const commentatorPlayerIds = await getPublicPlayerIdentityIds(db, commentatorRows.map(row => row.userId));
   const publicCommentators = commentatorRows.map(row => ({ ...row, playerUserId: commentatorPlayerIds.has(row.userId) ? row.userId : null }));
+
+  const liveCommentators = await Promise.all(publicCommentators.map(async person => ({
+    ...person, broadcastStatus: ["scheduled", "in_progress"].includes(match.status)
+      ? await readBilibiliStatus(person.liveStreamUrl, { fresh: true }) : "unknown" as const,
+  })));
 
   const registrationPositions = supportsRegistrationPositionDirectory(season.competitionTemplate)
     ? await db.select({ userId: seasonRegistrations.userId, position: seasonRegistrations.primaryPosition })
@@ -458,7 +464,7 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
           {hasReplay && <MatchRecordings recordings={match.recordings} legacyUrl={match.videoUrl} commentators={publicCommentators.map(person => ({ userId: person.userId, name: getPublicDisplayName(person) }))} />}
         </div>
       )}
-      <MatchLiveViewing status={match.status} commentators={publicCommentators} showEmpty={afterVeto} />
+      <MatchLiveViewing status={match.status} commentators={liveCommentators} showEmpty={afterVeto} />
       {afterVeto && <MatchRealtime matchId={match.id} phase={phase} currentMapId={publicContext.currentMapId} lastCompletedMap={publicContext.lastCompletedMap} seriesProgress={publicContext.seriesProgress} />}
 
 
