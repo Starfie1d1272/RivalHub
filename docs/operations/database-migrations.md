@@ -97,3 +97,7 @@ Production migration 只由正式 release workflow 通过 canonical protected wr
 - 在 release 之外单独推进 schema 而不推进对应应用版本。
 
 正式发布顺序见 [`release.md`](./release.md)。
+
+## 历史身份与 BP 兼容性
+
+涉及 additive 0096/0097/0098、durable generations 或 receipts 的迁移和恢复，应保留相应记录。旧 identity registry 不识别 receipt 外键时 merge 会失败，旧 BP worker 也不消费新 pending generation；恢复这些功能时需使用兼容版本并验证，不能仅凭首页恢复判断业务已经恢复。
