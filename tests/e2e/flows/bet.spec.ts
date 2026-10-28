@@ -97,15 +97,6 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     await expect(first).toContainText("已投 100");
     await page.reload();await openMaps();await expect(card.getByRole("tabpanel", {name:"地图", exact:true})).toBeVisible();
     await expect(first).toContainText("已投 100");
-    if(process.env.RIVALHUB_BET_SCREENSHOTS==="1") {
-      for(const [name,width,height] of [["desktop",1440,1000],["mobile",390,900],["narrow",320,900]] as const) {
-        await page.setViewportSize({width,height});
-        await page.evaluate(()=>window.scrollTo(0,0));
-        await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
-        expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
-        await page.screenshot({path:`.agent-tmp/bet-evidence/${name}-prematch.png`,fullPage:true,scale:"css",style:"nextjs-portal { visibility:hidden; }"});
-      }
-    }
     const maps=await db.insert(schema.matchMaps).values(["de_inferno","de_nuke","de_mirage"].map((mapName,i)=>({matchId:matches[0]!.id,mapOrder:i+1,mapName}))).returning();
     await page.reload();await openMaps();await expect(card.getByRole("tabpanel", {name:"地图", exact:true})).toBeVisible();
     await expect(rounds.filter({hasText:"第1图 · Inferno"})).toContainText("已投 100");

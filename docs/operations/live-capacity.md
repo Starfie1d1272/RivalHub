@@ -97,15 +97,7 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 RIVALHUB_LIVE_EVIDENCE=1 \
 pnpm db:local:verify-supabase
 ```
 
-BP 指令与呈现使用既有 opt-in HTTP evidence 入口，增加真实 Chromium 的单次区分观察；只在 Local Supabase Auth 可用的隔离环境运行：
-
-```bash
-RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 RIVALHUB_BP_HTTP_EVIDENCE=1 \
-RIVALHUB_BP_BROWSER_EVIDENCE=1 pnpm test:integration \
-  tests/integration/db/veto-http-footprint-evidence.test.ts
-```
-
-输出 `.agent-tmp/bp-browser/command-presentation.json` 保留 SHA、样本数和两种耗时。普通 PG CI 不启动该 opt-in Next/browser 进程。
+BP 指令与呈现的历史单次测量记录见 [归档](../archive/performance-w02-w03-2026-10-25/bp03-http-footprint.md)；原临时测量入口已移除。
 
 上例密码只属于 disposable 本地容器；wrapper 隔离目标，不注入远程 URL/key。CI system lane 根据 Mizar changed surface 强制 Local Supabase evidence，并验证 pinned Mizar adapter/parser。
 

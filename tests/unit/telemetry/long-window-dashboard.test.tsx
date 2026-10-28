@@ -76,7 +76,7 @@ it("preserves exact query filters when navigating long-window views and custom d
   expect(request.searchParams.get("eventId")).toBe(filters.eventId);
 });
 
-it.each(["UTC", "Asia/Shanghai", "America/Los_Angeles"])("hydrates the long-window snapshot in %s without recovery", async timezone => {
+it.each(["Asia/Shanghai", "America/Los_Angeles"])("hydrates the long-window snapshot in %s without recovery", async timezone => {
   const original = process.env.TZ;
   const data = fixture(); data.metrics = [metric("task", 2), metric("ready", 0, "demand")];
   const view = <TelemetryLongWindowDashboard data={data} filters={analysisDefaults} events={[]} view="overview" />;

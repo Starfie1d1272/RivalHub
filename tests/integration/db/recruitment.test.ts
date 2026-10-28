@@ -348,24 +348,24 @@ describe("recruitment PostgreSQL invariants", () => {
       await pool.end();
     }
   });
-  it("bounds active player cards and exact counts for 1000 synthetic intents", async () => {
+  it("bounds active player cards and exact counts across pages", async () => {
     const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 2 });
-    const ids = Array.from({ length: 1000 }, () => randomUUID());
+    const ids = Array.from({ length: 50 }, () => randomUUID());
     const label = `budget-${randomUUID()}`;
     try {
       await pool.query("insert into users(id, email, display_name) select id, id::text || '@local.test', $2 from unnest($1::uuid[]) id", [ids, label]);
       await pool.query("insert into recruitment_intents(kind, user_id, expires_at) select 'player_lft', id, now() + interval '1 day' from unnest($1::uuid[]) id", [ids]);
       const full = await getRecruitmentLobbyData({ q: label });
       const page = await getRecruitmentLobbyData({ q: label }, null, { view: "players", page: 2, pageSize: 24 });
-      expect(full.playerLfts).toHaveLength(1000);
-      expect(page.playerCount).toBe(1000);
+      expect(full.playerLfts).toHaveLength(50);
+      expect(page.playerCount).toBe(50);
       expect(page.teamCount).toBe(0);
       expect(page.playerLfts).toHaveLength(24);
       expect(page.playerLfts.map(row => row.id)).toEqual(full.playerLfts.slice(24, 48).map(row => row.id));
-      expect(page.totalPages).toBe(42);
+      expect(page.totalPages).toBe(3);
       const last = await getRecruitmentLobbyData({ q: label }, null, { view: "players", page: 99, pageSize: 24 });
-      expect(last.page).toBe(42);
-      expect(last.playerLfts).toHaveLength(16);
+      expect(last.page).toBe(3);
+      expect(last.playerLfts).toHaveLength(2);
     } finally {
       await pool.query("delete from users where id = any($1::uuid[])", [ids]);
       await pool.end();

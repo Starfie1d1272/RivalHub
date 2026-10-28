@@ -76,12 +76,6 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
     await close();
     await expect(card).toContainText("总回合");
 
-    if (process.env.RIVALHUB_BET_SCREENSHOTS === "1") for (const width of [320, 390, 1440]) {
-      await page.setViewportSize({ width, height: 1000 });
-      await page.evaluate(() => window.scrollTo(0, 0));
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-      await page.screenshot({ path: `.agent-tmp/911/real-actions-${width}.png`, fullPage: true, style: "nextjs-portal, [data-sonner-toaster] {visibility:hidden;}" });
-    }
     {
       const before = await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId));
       expect(before.filter(row => row.kind === "relief")).toHaveLength(0);
@@ -135,12 +129,6 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
       await ranking.getByRole("button", { name: label, exact: true }).click();
       await expect(ranking.getByRole("button", { name: label, exact: true })).toHaveAttribute("aria-pressed", "true");
       for (const column of ["净收益", "命中次数", "命中率"]) await expect(ranking.getByRole("columnheader", { name: column, exact: true })).toBeVisible();
-    }
-    if (process.env.RIVALHUB_BET_SCREENSHOTS === "1") {
-      await page.setViewportSize({ width: 320, height: 1000 });
-      await page.evaluate(() => window.scrollTo(0, 0));
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-      await page.screenshot({ path: ".agent-tmp/911/real-ranking-320.png", fullPage: true, style: "nextjs-portal, [data-sonner-toaster] {visibility:hidden;}" });
     }
     await db.update(schema.matches).set({ status: "cancelled" }).where(eq(schema.matches.id, match!.id));
     await page.goto(`/${fixture.slug}/bet?view=settled`);

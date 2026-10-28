@@ -1,6 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type { Pool, QueryResult } from "pg";
-import { performance } from "node:perf_hooks";
 import { and, eq, inArray } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
 import { db } from "@/db/client";
@@ -16,10 +14,6 @@ vi.mock("next/cache", () => ({ cacheTag: vi.fn(), cacheLife: vi.fn(), revalidate
 // Real queries protect scope, canonical vacancy and BO1 facts. The full reader
 // is a conservative comparison, not a mock of PostgreSQL or a production LCP.
 it("keeps compact results equivalent while batching history and excluding non-consumed data", async () => {
-  const baselineModule = process.env.RIVALHUB_PUBLIC_RESULTS_BASELINE;
-  const fullReader = baselineModule
-    ? ((await import(baselineModule)) as { getPublicSeasonResults: typeof getPublicSeasonResults }).getPublicSeasonResults
-    : getPublicSeasonResults;
   const a = await seedFixture();
   const b = await seedFixture();
   const seasons = await db.select().from(schema.seasons).where(inArray(schema.seasons.id, [a.seasonId, b.seasonId]));
@@ -33,7 +27,7 @@ it("keeps compact results equivalent while batching history and excluding non-co
     status: "finished" as const, isForfeit: true, scoreA: 1, scoreB: 0, completedAt: new Date(1700000000000 + i * 1000),
   }))));
   const compact = (full: Awaited<ReturnType<typeof getPublicSeasonResults>>) => ({ champion: full.champion, championVacant: full.championVacant, final: full.final, completedAt: full.completedAt, finishedMatches: full.finishedMatches });
-  const full = await Promise.all(seasons.map(fullReader));
+  const full = await Promise.all(seasons.map(getPublicSeasonResults));
   const summaries = await getPublicSeasonResultSummaries(seasons);
   seasons.forEach((season, index) => expect(summaries.get(season.id)).toEqual(compact(full[index]!)));
   expect(summaries.get(a.seasonId)?.champion?.entryId).toBe(a.entryAId);
@@ -41,31 +35,7 @@ it("keeps compact results equivalent while batching history and excluding non-co
   expect((await getPublicSeasonResultSummaries(seasons)).get(a.seasonId)).toMatchObject({ champion: null, championVacant: true });
   expect(await getPublicSeasonResultSummaries([])).toEqual(new Map());
 
-  const runs: unknown[] = [];
-  const pool = (db as typeof db & { $client: Pool }).$client;
-  async function measure(work: () => Promise<unknown>) {
-    const original = pool.query;
-    const footprint = { queries: 0, rows: 0, jsonBytes: 0, durationMs: 0 };
-    pool.query = ((...args: unknown[]) => Promise.resolve(Reflect.apply(original, pool, args) as Promise<QueryResult>).then(value => {
-      if (value.command === "SELECT") { footprint.queries++; footprint.rows += value.rows.length; footprint.jsonBytes += Buffer.byteLength(JSON.stringify(value.rows)); }
-      return value;
-    })) as typeof pool.query;
-    const start = performance.now();
-    try { await work(); } finally { footprint.durationMs = performance.now() - start; pool.query = original; }
-    return footprint;
-  }
-  for (let run = 0; run < 10; run++) {
-    const before = () => measure(() => Promise.all(seasons.map(fullReader)));
-    const after = () => measure(() => getPublicSeasonResultSummaries(seasons));
-    const [first, second] = run % 2 ? [after, before] : [before, after];
-    const x = await first(), y = await second();
-    const baseline = run % 2 ? y : x, candidate = run % 2 ? x : y;
-    expect(candidate.queries).toBeLessThan(baseline.queries);
-    expect(candidate.rows).toBeLessThan(baseline.rows);
-    expect(candidate.jsonBytes).toBeLessThan(baseline.jsonBytes);
-    runs.push({ run, baseline, candidate });
-  }
-  console.info("PUBLIC_DIRECTORY_AB", JSON.stringify({ comparison: baselineModule ? "exact git baseline module vs compact batch" : "full results vs compact batch using current canonical rules", seasons: 2, honorsPerSeason: 12, finishedMatchesPerSeason: 20, runs }));
+
 });
 
 it("bounds announcement history and latest reads without leaking drafts or losing full bodies", async () => {

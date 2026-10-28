@@ -54,14 +54,12 @@ it("keeps fresh education/entry withdrawal and multi-event history in independen
     expect(before.performance.statsUnavailable).toBe(true);
     expect(before.attributes).toEqual({ attributes: null, benchmarkUnavailable: false });
     expect(queries.filter(query => query.includes('from "event_roster_members"'))).toHaveLength(1);
-    const firstQueryCount = queries.length;
     await client.query("UPDATE education_verifications SET status='rejected'");
     await client.query("UPDATE competition_entries SET registration_status='withdrawn'");
     const after = await read();
     expect(after.basic.publicEducationIdentities).toEqual([]);
     expect(after.basic.eventTeams).toEqual([]);
     expect(after.history.careerHistory).toEqual([]);
-    console.info("PROFILE_SECTIONS_PG", JSON.stringify({ firstQueryCount, secondQueryCount: queries.length - firstQueryCount, publicRows: before.basic.eventTeams.length, withdrawnRows: after.basic.eventTeams.length }));
   } finally {
     await client.query("ROLLBACK");
     client.release();

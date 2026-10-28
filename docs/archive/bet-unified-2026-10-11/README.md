@@ -8,7 +8,7 @@
 
 ```sh
 RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm db:local:migrate
-RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 RIVALHUB_BET_SCREENSHOTS=1 pnpm test:e2e -- --project=mobile-chrome flows/free-predictions.spec.ts --reporter=list --workers=1
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm test:e2e -- --project=mobile-chrome flows/free-predictions.spec.ts --reporter=list --workers=1
 ```
 
 最终依赖组合默认 Action 流程通过（19.8 秒；截图轮20.3秒）：详情预测/BET空分母显示暂无而非50/50；BET停用时免费赛果/BP独立提交和取消改选；初始1000沿用原入口，ALL IN投入与免费选择不同队伍；余额0改选并确认正式读取；服务端GET不发低保，显式点击+10、同日刷新不重复、隔离账本只有一条amount10/profit0；BP与赛果各自官方开始信号拒绝缓存旧状态并回读锁定；完成后命中、取消后作废、本人历史保留；净收益/命中次数/命中率三排序同表三列。
@@ -18,3 +18,5 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 RIVALHUB_BET_SCREENSHOTS=1 pnpm test:e2e -- --
 截图：`mobile-320.png`、`mobile-390.png`、`desktop-1440.png` 为稳定零余额、免费甲/BET乙的同场卡片；`ranking-320.png` 为低保领取后的真实排行和钱包状态。三种视口均验证document无横向溢出；窄排行三列直接可见。
 
 配套证据：UI单测15/15（含旧poll不能覆盖fresh、新独立意图不复用历史requestId）；原BET真实浏览器通过；既有BET/历史兼容PG21/21；app/tests类型、定向lint和architecture通过。独立只读最终审查无新增P1/P2。BO3/5选择数与历史保留另经typed-fixture实际Chromium验证；未来多赢家/未知市场独胜收益估算显示—，publisher未在本线开启。
+
+历史一次性截图采集入口现已移除；原截图仅代表当时的本地结果。

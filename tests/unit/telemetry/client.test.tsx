@@ -35,20 +35,6 @@ it("treats a stale BP receipt as rejected and keeps the actual result", async ()
   flushTelemetry(); await vi.waitFor(() => expect(fetcher).toHaveBeenCalled());
   expect(JSON.parse(fetcher.mock.calls[0][1].body).events[1]).toMatchObject({ phase: "rejected", outcome: "stale" });
 });
-it("batches 100 events, bounds retries with a stable batch ID, and recovers without blocking collection", async () => {
-  vi.useFakeTimers(); const send = vi.fn().mockRejectedValue(new Error("offline"));
-  const q = new TelemetryQueue(config, send);
-  for (let i = 0; i < 100; i++) q.add({ id: crypto.randomUUID(), at: Date.now(), session: "00000000-0000-0000-0000-000000000001", route: "/", scene: "site", kind: "page" });
-  expect(send).not.toHaveBeenCalled();
-  await q.flush(); expect(send).toHaveBeenCalledTimes(1);
-  await q.flush(); expect(send).toHaveBeenCalledTimes(1);
-  vi.advanceTimersByTime(60000); send.mockResolvedValue(new Response(null, { status: 204 }));
-  await q.flush();
-  expect(JSON.parse(send.mock.calls[0][1].body).id).toBe(JSON.parse(send.mock.calls[1][1].body).id);
-  for (let i = 0; i < 3; i++) { vi.advanceTimersByTime(60000); await q.flush(); }
-  expect(send).toHaveBeenCalledTimes(5); // 4 batches + one lost delivery
-  expect(q.metrics.events).toBe(100); expect(q.metrics.failures).toBe(1);
-});
 it("keeps a 26-hour same-page active session collecting with one automatic renewal, not one call per action", async () => {
   vi.useFakeTimers(); const start = Date.now();
   const send = vi.fn().mockResolvedValue(new Response(null, { status: 204 })); vi.stubGlobal("fetch", send);

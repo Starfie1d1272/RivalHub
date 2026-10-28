@@ -164,25 +164,6 @@ it("keeps real PG results and errors intact when trace creation or span completi
   } finally { tracer.mockRestore(); await pool.end(); }
 });
 
-it("records an interleaved real-PG diagnostic for measurement overhead without asserting a noisy latency threshold", async () => {
-  const options = { connectionString: localDatabaseUrl(), ssl: false as const, max: 1 };
-  const before = new Pool(options); const after = new DatabasePool(options);
-  const runs: { implementation: string; statements: number; elapsedMs: number }[] = [];
-  try {
-    await before.query("select 1"); await after.query("select 1");
-    for (let round = 0; round < 10; round++) {
-      for (const [name, pool] of round % 2 ? [["after", after], ["before", before]] as const : [["before", before], ["after", after]] as const) {
-        const client = await pool.connect(); const start = performance.now();
-        try { for (let n = 0; n < 20; n++) await client.query("select 1"); }
-        finally { client.release(); }
-        runs.push({ implementation: name, statements: 20, elapsedMs: Math.round((performance.now() - start) * 1000) / 1000 });
-      }
-    }
-    expect(after.getClientSnapshot().queries).toBe(201);
-    console.info(JSON.stringify({ diagnostic: "pg-client-measurement-overhead", scope: "loopback PostgreSQL; no-op OTel; 10 interleaved batches per implementation; not page LCP or production exporter cost", runs }));
-  } finally { await before.end(); await after.end(); }
-});
-
 it("restores inherited query dispatch so later driver instrumentation and fault injection remain observable", async () => {
   const pool = new DatabasePool({ connectionString: localDatabaseUrl(), ssl: false, max: 1 });
   try {

@@ -37,18 +37,8 @@ Primary是现有producer实际产生的ready事件：本地bootstrap保留签名
 
 这是桌面Chromium、Next development单样本，未限制CPU/网络；交互耗时包含自动化调度与两帧，不能当INP。heap是未强制GC的observed used heap，不是retained heap或泄漏证据。生产LCP/INP、pool/cost及旧无栈异常仍需发布后的cohort证据。
 
-## 复跑与恢复
+## 历史记录
 
-验收代码位于`tests/e2e/acceptance/`，使用单独config，默认CI不执行需要临时HTTPS/bootstrap条件的实验。普通CI门禁和生产配置均未修改。代码类型和定向ESLint检查适用于这两个acceptance文件。没有shipped runtime变化，因此没有Changeset。
-
-在匹配上述源码的独立local worktree，使用仓库manifest的Node/pnpm并先准备Local Supabase；3000/9468端口须空闲。执行：
-
-```bash
-source /workspace/.onboarding/activate.sh
-bash docs/archive/performance-admin-final-probes-2026-10-25/replay.sh
-git diff --exit-code -- src/lib/production/bilibili.ts src/lib/telemetry/server.ts
-```
-
-脚本只临时应用[local-fixture.patch](local-fixture.patch)，创建一天有效的loopback证书，保持TLS校验，通过已有local-only runner运行，退出时反向恢复patch并清理key/cert。它不会修改数据库部署校验或连接远端。不要在production/preview进程执行。原始trace、cookie、完整telemetry ticket和原始fixture事件只留忽略目录；本归档结果已移除session/navigation/event IDs。
+一次性验收脚本、临时补丁和配置已移除；下述结果保留为历史记录，不可直接复跑。原始 trace 和凭据未存入归档。
 
 实际工作台数据来自修正flush后的单次延迟运行；telemetry因首次fixture路径写错而修正为`/admin/analysis`，之后只跑telemetry部分，保留前一工作台结果。最终telemetry部分24.9秒通过，retry=0；没有把失败的实验设置算成产品回归，也没有放宽功能断言。

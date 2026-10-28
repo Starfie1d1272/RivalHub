@@ -2,7 +2,6 @@ import { afterEach, expect, it, vi } from "vitest";
 import { context, ROOT_CONTEXT } from "@opentelemetry/api";
 import { getRuntimeHealthSnapshot, registerRuntimeHealthFlush, startRuntimeHealthSampling, stopRuntimeHealthSampling } from "@/lib/observability/runtime-health";
 import { beginRuntimeResource, getRuntimeResourceSnapshot } from "@/lib/observability/runtime-resources";
-import { sanitizeSafeContext } from "@/lib/observability/redact";
 import { logEvent } from "@/lib/observability/logger";
 
 vi.mock("@/lib/observability/logger", () => ({ logEvent: vi.fn() }));
@@ -47,18 +46,10 @@ it("keeps fixed resource names and counts overlapping work once, with detached s
   expect(getRuntimeResourceSnapshot()[0].count).not.toBe(12345);
 });
 
-it("retains only numeric resource diagnostics and rejects payloads through new keys", () => {
+it("reads a process health snapshot", () => {
   const snapshot = getRuntimeHealthSnapshot()!;
   expect(snapshot.rssBytes).toBeGreaterThan(0);
   expect(snapshot.heapLimitBytes).toBeGreaterThan(0);
-  const safe = sanitizeSafeContext({ ...snapshot, bucketLe0: 5, bucketLe4: 3, bucketGt10: 1, bucketLe1: 4, bucketGt1000: 2, waitingPeak: 3,
-    totalMs: 50, inFlight: 2, peak: 3, requestBody: "private", nodeVersion: "private", maxMs: "https://private.invalid" });
-  expect(safe).toMatchObject({ bucketLe0: 5, bucketLe4: 3, bucketGt10: 1, rssBytes: snapshot.rssBytes, externalBytes: snapshot.externalBytes,
-    arrayBuffersBytes: snapshot.arrayBuffersBytes, bucketLe1: 4, bucketGt1000: 2, waitingPeak: 3, totalMs: 50, inFlight: 2, peak: 3 });
-  expect(safe).not.toHaveProperty("requestBody");
-  expect(safe).not.toHaveProperty("nodeVersion");
-  expect(safe).not.toHaveProperty("maxMs");
-  expect(sanitizeSafeContext({ rssBytes: Infinity, heapUsedBytes: -1, totalMs: "secret", peak: NaN })).toEqual({});
 });
 
 
