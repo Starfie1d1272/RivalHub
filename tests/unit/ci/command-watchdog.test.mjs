@@ -29,9 +29,16 @@ describe("command deadline and cleanup", () => {
       expect(evidence.timedOut).toBe(true);
       expect(result.milliseconds).toBeLessThan(2500);
       const pid = Number(readFileSync(pidFile, "utf8"));
-      // Allow the kernel to reap the killed process; no unbounded process wait.
-      await new Promise(resolve => setTimeout(resolve, 100));
-      expect(() => process.kill(pid, 0)).toThrow();
+      // A killed orphan may remain as a zombie until PID 1 reaps it. It has
+      // exited and cannot hold the pipe; a live process must still fail.
+      if (process.platform === "linux") {
+        let state;
+        try { state = readFileSync(`/proc/${pid}/stat`, "utf8").split(") ")[1]?.split(" ")[0]; }
+        catch (error) { if (error.code !== "ENOENT") throw error; }
+        expect([undefined, "Z"]).toContain(state);
+      } else {
+        expect(() => process.kill(pid, 0)).toThrow();
+      }
       expect(() => process.kill(unrelated.pid, 0)).not.toThrow();
     } finally { unrelated.kill("SIGKILL"); rmSync(dir, { recursive: true, force: true }); }
   });
