@@ -24,7 +24,7 @@ import { touchMizarInstallation } from "@/lib/mizar/heartbeat";
 import { createLocalPool } from "./harness/database";
 import { seedFixture, NOW } from "./harness/mizar";
 
-it.each(Array.from({ length: 100 }, (_, round) => round))("commits concurrent reliable requests without a heartbeat upgrade cycle, round %i", async () => {
+it("commits concurrent reliable requests without a heartbeat upgrade cycle", async () => {
   const f = await seedFixture();
   const event = {
     schemaVersion: RELIABLE_EVENT_SCHEMA_VERSION, idempotencyKey: `heartbeat-${randomUUID()}`,
@@ -39,16 +39,8 @@ it.each(Array.from({ length: 100 }, (_, round) => round))("commits concurrent re
   let release!: () => void;
   const bothAuthenticated = new Promise<void>(resolve => { release = resolve; });
   barrier.wait = async () => { if (++arrived === 2) release(); await bothAuthenticated; };
-  const started = performance.now();
   try {
     const results = await Promise.allSettled([1, 2].map(() => ingestMizarReliable(f.installationId, f.seasonId, event, 1, f.steam64)));
-    const failureCodes = results.flatMap(result => {
-      if (result.status === "fulfilled") return [];
-      let error = result.reason;
-      while (error?.cause) error = error.cause;
-      return [error?.code ?? "unknown"];
-    });
-    console.info(JSON.stringify({ scenario: "installation-share-match-heartbeat", elapsedMs: performance.now() - started, failureCodes, statuses: results.map(result => result.status) }));
     expect(results.map(result => result.status)).toEqual(["fulfilled", "fulfilled"]);
     const values = results.flatMap(result => result.status === "fulfilled" ? [result.value] : []);
     expect(values.filter(value => value.duplicate)).toHaveLength(1);

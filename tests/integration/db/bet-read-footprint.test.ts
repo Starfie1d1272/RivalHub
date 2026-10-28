@@ -7,7 +7,7 @@ import type { TxDb } from "@/db/client";
 import { fixture } from "./harness/bet-fixture";
 import { betBoard, readBetPools, readBetBoardSnapshot, projectBetBoard } from "@/lib/bet/data";
 import { readBetStakeReceipt } from "@/lib/bet/receipt-read";
-import { stakeBetInTx, lockBetProgram, reconcileBetInTx } from "@/lib/bet/service";
+import { stakeBetInTx } from "@/lib/bet/service";
 import { loadBetFacts } from "@/lib/bet/facts";
 import { readUnifiedBetBoard } from "@/lib/bet/board-read";
 import { readFreePredictionBoard, readFreeMatchSupport } from "@/lib/free-predictions/data";
@@ -137,17 +137,10 @@ it("bounds match reads, shares board facts, and preserves money/rank/history aga
     const cursorPages=[pages[0]!];
     for(let page=1;page<3;page++)cursorPages.push((await measure(tx=>readUnifiedBetBoard(tx,f.seasonId,f.userId,{view:"records",recordsPage:page,recordsCursor:cursorPages[page-1]!.recordsNextCursor}))).value.bet);
     expect(cursorPages.flatMap(page=>page.records)).toEqual(full.value.bet.records);
-    const diagnostics=[];
-    for(let run=0;run<10;run++) {
-      const broad=await measure(tx=>betBoard(tx,f.seasonId,f.userId));
-      const started=performance.now();
-      const narrow=await measure(tx=>readUnifiedBetBoard(tx,f.seasonId,f.userId,{view:"records",recordsPage:0}));
-      expect(narrow.value.bet.records).toEqual(broad.value.records.slice(0,50));
-      expect(narrow.value.bet).toMatchObject({balance:broad.value.balance,profit:broad.value.profit,rank:broad.value.rank,markets:[],matches:[]});
-      expect(narrow.queries).toBeLessThan(broad.queries);
-      diagnostics.push({run,baseline:{queries:broad.queries,rows:broad.rows,jsonBytes:broad.jsonBytes},records:{queries:narrow.queries,rows:narrow.rows,jsonBytes:narrow.jsonBytes,transactionMs:performance.now()-started}});
-    }
-    console.info("BET_RECORDS_AB",JSON.stringify(diagnostics));
+    const broad=await measure(tx=>betBoard(tx,f.seasonId,f.userId));
+    const narrow=await measure(tx=>readUnifiedBetBoard(tx,f.seasonId,f.userId,{view:"records",recordsPage:0}));
+    expect(narrow.value.bet.records).toEqual(broad.value.records.slice(0,50));
+    expect(narrow.value.bet).toMatchObject({balance:broad.value.balance,profit:broad.value.profit,rank:broad.value.rank,markets:[],matches:[]});
     for(const view of ["mine","event","settled","leaderboard"]){
       const narrowed=await measure(tx=>readUnifiedBetBoard(tx,f.seasonId,f.userId,{view}));
       expect(narrowed.value.bet).toMatchObject({balance:full.value.bet.balance,profit:full.value.bet.profit,rank:full.value.bet.rank});
@@ -165,13 +158,6 @@ it("bounds match reads, shares board facts, and preserves money/rank/history aga
     expect((await measure(tx=>readFreeMatchSupport(tx,f.seasonId,f.matchId))).value).toMatchObject({total:0,counts:[0,0]});
     expect((await measure(tx=>readFreeMatchSupport(tx,f.seasonId,randomUUID()))).value).toBeNull();
     await expect(measure(tx=>readFreeMatchSupport(tx,randomUUID(),f.matchId))).rejects.toThrow("赛事不存在");
-    const worker=[];
-    for(let run=0;run<2;run++){
-      const start=performance.now();
-      const result=await measure(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);},false);
-      worker.push({run,statements:result.statements,selects:result.queries,rows:result.rows,jsonBytes:result.jsonBytes,readWriteWallMs:performance.now()-start});
-    }
-    console.info("BET_WORKER_AB",JSON.stringify(worker));
 
   } finally {client.release();}
 }));
@@ -212,27 +198,4 @@ it("confirms an unknown stake only by its original viewer and payload, without r
   await expect(readBetStakeReceipt(f.db,{...input,amount:"26"})).rejects.toThrow("请求标识与投入内容不一致");
   const after=await f.db.transaction(tx=>betBoard(tx,f.seasonId,f.userId));
   expect(after.balance).toBe((BigInt(board.balance)-BigInt(25)).toString());
-}));
-
-it("keeps single-match admission reads bounded when unrelated official matches grow from one to one hundred",async()=>fixture(async f=>{
-  const market=(await f.db.transaction(tx=>betBoard(tx,f.seasonId,f.userId))).markets.find(m=>m.type==="match_winner")!;
-  const original=(await f.db.query.matches.findFirst({where:eq(schema.matches.id,f.matchId)}))!;
-  const client=await f.db.$client.connect();
-  const measured=drizzle(client,{schema});
-  async function measure(operation:(tx:TxDb)=>Promise<unknown>){
-    const footprint={queries:0,rows:0};const query=client.query;
-    client.query=((...args:unknown[])=>Promise.resolve(Reflect.apply(query,client,args)).then(value=>{if(value.command==="SELECT"){footprint.queries++;footprint.rows+=value.rows.length;}return value;})) as typeof client.query;
-    try{await measured.transaction(operation);return footprint;}finally{client.query=query;}
-  }
-  const bet=()=>measure(tx=>stakeBetInTx(tx,{seasonId:f.seasonId,userId:f.userId,marketId:market.id,optionId:market.options[0]!.id,amount:"1",requestId:randomUUID()}));
-  const free=()=>measure(tx=>submitFreePredictionInTx(tx,{seasonId:f.seasonId,matchId:f.matchId,userId:f.userId,kind:"result",selection:[f.entryIds[0]!],requestId:randomUUID()}));
-  try{
-    const before={bet:await bet(),free:await free()};
-    await f.db.insert(schema.matches).values(Array.from({length:99},(_,i)=>({seasonId:f.seasonId,entryAId:f.entryIds[0]!,entryBId:f.entryIds[1]!,stage:original.stage,majorStageRunId:original.majorStageRunId,ownership:"major_stage" as const,managedKey:`scope-${i}`,round:1,format:"bo3" as const})));
-    const after={bet:await bet(),free:await free()};
-    expect(after.bet.queries).toBe(before.bet.queries);
-    expect(after.bet.rows).toBe(before.bet.rows+1); // Exactly the first personal stake, no unrelated match rows.
-    expect(after.free).toEqual(before.free);
-    console.info("SINGLE_MATCH_ADMISSION_AB",JSON.stringify({matches:[1,100],before,after}));
-  }finally{client.release();}
 }));

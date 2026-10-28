@@ -1,3 +1,5 @@
+> 历史记录：本文引用的临时测量入口已移除，以下命令不再可运行。
+
 # BP-03 complete HTTP comparison
 
 Baseline is main `125dbc9deba5f3c1c189e4435af991d25c8babe2`, including the

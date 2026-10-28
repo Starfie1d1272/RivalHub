@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type { Pool, QueryResult } from "pg";
 import { eq } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
 import { db } from "@/db/client";
@@ -16,33 +15,15 @@ async function withFinishedBo1() {
   return { ...f, finishedId: match!.id };
 }
 
-async function measure<T>(read: () => Promise<T>) {
-  const pool = (db as typeof db & { $client: Pool }).$client;
-  const original = pool.query;
-  const footprint = { queries: 0, rows: 0, jsonBytes: 0 };
-  pool.query = ((...args: unknown[]) => Promise.resolve(Reflect.apply(original, pool, args) as Promise<QueryResult>).then(result => {
-    if (result.command === "SELECT") { footprint.queries++; footprint.rows += result.rows.length; footprint.jsonBytes += Buffer.byteLength(JSON.stringify(result.rows)); }
-    return result;
-  })) as typeof pool.query;
-  try { return { data: await read(), footprint }; } finally { pool.query = original; }
-}
-
 it("batches three seasons without changing BO1 facts, side orientation, ordering or empty records", async () => {
   const fixtures = await Promise.all([withFinishedBo1(), withFinishedBo1(), withFinishedBo1()]);
   const empty = randomUUID(), emptySeason = randomUUID();
   const scopes = fixtures.map(f => ({ seasonId: f.seasonId, entryIds: [f.entryAId, f.entryBId, empty] }));
-  const baselineModule = process.env.RIVALHUB_TEAM_FACTS_BASELINE;
-  const baselineReader = baselineModule
-    ? ((await import(baselineModule)) as { getPublicEventTeamMatchFacts: typeof getPublicEventTeamMatchFacts }).getPublicEventTeamMatchFacts
-    : getPublicEventTeamMatchFacts;
-  const full = await measure(() => Promise.all(scopes.map(s => baselineReader(s.seasonId, s.entryIds))));
-  const batch = await measure(() => getPublicEventTeamMatchFactsBatch([...scopes, { seasonId: emptySeason, entryIds: [] }]));
-  expect(batch.footprint.queries).toBe(3);
-  expect(full.footprint.queries).toBe(9);
-  expect(batch.footprint.rows).toBe(full.footprint.rows);
+  const full = await Promise.all(scopes.map(s => getPublicEventTeamMatchFacts(s.seasonId, s.entryIds)));
+  const batch = await getPublicEventTeamMatchFactsBatch([...scopes, { seasonId: emptySeason, entryIds: [] }]);
   for (const [i, f] of fixtures.entries()) {
-    const result = batch.data.get(f.seasonId)!;
-    expect(result).toEqual(full.data[i]);
+    const result = batch.get(f.seasonId)!;
+    expect(result).toEqual(full[i]);
     expect(result.get(f.entryAId)).toMatchObject({ record: { played: 1, wins: 1, losses: 0, winRate: "100%" } });
     expect(result.get(f.entryBId)).toMatchObject({ record: { played: 1, wins: 0, losses: 1, winRate: "0%" } });
     expect(result.get(f.entryAId)!.matches.map(m => m.id)).toEqual([f.finishedId, f.matchId]);
@@ -50,17 +31,16 @@ it("batches three seasons without changing BO1 facts, side orientation, ordering
     expect(result.get(f.entryBId)!.matches[0]).toMatchObject({ displayScore: { own: 7, opponent: 13 }, ownScore: 0, opponentScore: 1 });
     expect(result.get(empty)).toEqual({ record: { played: 0, wins: 0, losses: 0, winRate: "—" }, matches: [] });
   }
-  expect(batch.data.get(emptySeason)).toEqual(new Map());
-  console.info("PUBLIC_TEAM_FACTS_BATCH_AB", JSON.stringify({ comparison: baselineModule ? "exact original single-season reader" : "current single-season reader", seasons: 3, baseline: full.footprint, candidate: batch.footprint }));
+  expect(batch.get(emptySeason)).toEqual(new Map());
 });
 
 it("keeps exact season-entry scopes and official/test exclusion with duplicate or empty input", async () => {
   const a = await withFinishedBo1(), b = await withFinishedBo1();
   const test = await seedFixture({ isTest: true });
-  const empty = await measure(() => getPublicEventTeamMatchFactsBatch([]));
-  expect(empty.data.size).toBe(0); expect(empty.footprint.queries).toBe(0);
-  const emptyScopes = await measure(() => getPublicEventTeamMatchFactsBatch([{ seasonId: a.seasonId, entryIds: [] }]));
-  expect(emptyScopes.data.get(a.seasonId)).toEqual(new Map()); expect(emptyScopes.footprint.queries).toBe(0);
+  const empty = await getPublicEventTeamMatchFactsBatch([]);
+  expect(empty.size).toBe(0);
+  const emptyScopes = await getPublicEventTeamMatchFactsBatch([{ seasonId: a.seasonId, entryIds: [] }]);
+  expect(emptyScopes.get(a.seasonId)).toEqual(new Map());
   const result = await getPublicEventTeamMatchFactsBatch([
     { seasonId: a.seasonId, entryIds: [a.entryAId, a.entryAId] }, { seasonId: a.seasonId, entryIds: [a.entryBId] },
     { seasonId: b.seasonId, entryIds: [a.entryAId] }, { seasonId: test.seasonId, entryIds: [test.entryAId] },

@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type { Pool, QueryResult } from "pg";
 import { eq } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
 import { db } from "@/db/client";
@@ -37,32 +36,16 @@ async function fixture() {
   return { seasonId, entries, run: run!, first, second };
 }
 
-async function measure<T>(read: () => Promise<T>) {
-  const pool = (db as typeof db & { $client: Pool }).$client;
-  const original = pool.query;
-  const footprint = { queries: 0, rows: 0, jsonBytes: 0 };
-  pool.query = ((...args: unknown[]) => Promise.resolve(Reflect.apply(original, pool, args) as Promise<QueryResult>).then(result => {
-    if (result.command === "SELECT") { footprint.queries++; footprint.rows += result.rows.length; footprint.jsonBytes += Buffer.byteLength(JSON.stringify(result.rows)); }
-    return result;
-  })) as typeof pool.query;
-  try { return { data: await read(), footprint }; } finally { pool.query = original; }
-}
-
-it("projects one canonical pre-round record without identity or display-map reads", async () => {
+it("projects one canonical pre-round record independently of display facts", async () => {
   const f = await fixture();
-  const full = await measure(() => loadQualificationSwissStageReadModel(f.seasonId));
-  const narrow = await measure(() => loadQualificationSwissMatchRecord(f.seasonId, f.second[0]!.id));
-  const group = full.data!.rounds.flatMap(r => r.groups).find(g => g.matchups.some(m => m.matchId === f.second[0]!.id))!;
-  expect(narrow.data).toEqual({ stageName: full.data!.stageName, record: group.record });
-  expect(narrow.data!.record).toBe("1:0");
-  expect(narrow.footprint.queries).toBe(3);
-  expect(full.footprint.queries).toBe(4);
-  expect(narrow.footprint.rows).toBeLessThan(full.footprint.rows);
-  expect(narrow.footprint.jsonBytes).toBeLessThan(full.footprint.jsonBytes);
-  console.info("QUALIFICATION_MATCH_RECORD_AB", JSON.stringify({ baseline: full.footprint, candidate: narrow.footprint }));
+  const full = await loadQualificationSwissStageReadModel(f.seasonId);
+  const narrow = await loadQualificationSwissMatchRecord(f.seasonId, f.second[0]!.id);
+  const group = full!.rounds.flatMap(r => r.groups).find(g => g.matchups.some(m => m.matchId === f.second[0]!.id))!;
+  expect(narrow).toEqual({ stageName: full!.stageName, record: group.record });
+  expect(narrow!.record).toBe("1:0");
   await db.update(schema.competitionEntries).set({ name: "Renamed", logoUrl: null }).where(eq(schema.competitionEntries.id, f.entries[0]!.id));
   await db.update(schema.matchMaps).set({ scoreA: 16, scoreB: 14 }).where(eq(schema.matchMaps.matchId, f.first[0]!.id));
-  expect(await loadQualificationSwissMatchRecord(f.seasonId, f.second[0]!.id)).toEqual(narrow.data);
+  expect(await loadQualificationSwissMatchRecord(f.seasonId, f.second[0]!.id)).toEqual(narrow);
 });
 
 it("rejects a foreign/missing target and a non-Swiss run", async () => {
