@@ -1,7 +1,6 @@
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { isCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
-import { traceOperation } from "@/lib/observability/server";
 
 import { and, count, desc, eq, inArray, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { buildTournamentAnalytics, buildTournamentPerformanceAnalyticsFromProjections as buildTournamentPerformanceAnalytics, remapTournamentPerformanceMapProjection, scopeTournamentPerformanceMapProjectionToTeam } from "@cs2dak/tournament";
@@ -16,7 +15,6 @@ import { loadEffectiveMatchRoster, type EffectiveMatchRosterPlayer } from "@/lib
 import { getPublicPlayerRecord } from "@/lib/players/public-record";
 import { getPlayerStatsScoreboards, getStatsLeaderboard } from "./leaderboard-query";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
-import { recordStatsProjectionRead } from "@/lib/observability/statistics";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { buildScopeInsights } from "./insight-facts";
 import { buildRecords, collectRecordTies, type RecordOccurrence, type RecordSummary } from "./records";
@@ -228,7 +226,6 @@ async function loadStatsEvidenceSelection<T extends ProjectionTargets>(
   const importIds = refs.map(({ current }) => current.id);
   const rows = importIds.length ? await tx.select({ importId: matchDemoStatProjections.importId, facts: factsSelection })
     .from(matchDemoStatProjections).where(and(inArray(matchDemoStatProjections.importId, importIds), eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION))) : [];
-  recordStatsProjectionRead(rows, context.currentRefs.length - refs.length);
   const factsByImport = new Map(rows.map((row) => [row.importId, row.facts]));
   const selected = refs.map(({ current, map, match }) => {
     const facts = factsByImport.get(current.id);
@@ -522,7 +519,7 @@ function buildCoverage(
 export async function getTournamentStats(scope: PlatformStatsScope, database: DB = db) {
   const needs = (...views: StatsTab[]) => !scope.view || views.includes(scope.view);
 
-  const snapshot = await traceOperation("stats.snapshot", { scope: "statistics", operation: "tournament", stage: "transaction" }, () => database.transaction(async (tx) => {
+  const snapshot = await database.transaction(async (tx) => {
     if (!scope.seasonId || scope.publicOnly) {
       const publicEvents = await tx.select({ id: seasons.id }).from(seasons).where(and(ne(seasons.status, "draft"),
         scope.seasonIds ? inArray(seasons.id, scope.seasonIds) : undefined,
@@ -548,8 +545,7 @@ export async function getTournamentStats(scope: PlatformStatsScope, database: DB
     const leaderboard = (needs("overview", "players") || (!unifiedPlayers && needs("teams"))) ? await getStatsLeaderboard({ ...scope, matchIds: loaded.matchIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx, { groupByTeam: !unifiedPlayers }) : [];
     const teamScoreboard = unifiedPlayers && needs("overview", "teams") ? await getStatsLeaderboard({ ...scope, matchIds: loaded.matchIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx) : leaderboard;
     return { original, platform, mapping, teamLinks, loaded, veto, leaderboard, teamScoreboard };
-  }, { isolationLevel: "repeatable read", accessMode: "read only" }));
-  return traceOperation("stats.compute", { scope: "statistics", operation: "tournament", stage: "compute" }, async () => {
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
   // Release the snapshot connection before building the CPU-only public summaries.
   const { original, platform, mapping, teamLinks, loaded, veto, leaderboard, teamScoreboard } = snapshot;
   const remap = (id: string) => mapping.get(id) ?? id;
@@ -563,46 +559,52 @@ export async function getTournamentStats(scope: PlatformStatsScope, database: DB
   const insights = needs("overview") ? buildScopeInsights(analytics, performance, perMap, teamLinks, scopeLabel) : undefined;
   const { records, recordTies, recordCoverage, eventCounts, eventMaps } = (() => {
     if (!needs("records")) return { records: undefined, recordTies: undefined, recordCoverage: undefined, eventCounts: undefined, eventMaps: undefined };
-  const mapsById = new Map(original.scopedMaps.map((map) => [map.id, map]));
-  const matchesById = new Map(original.matches.map((match) => [match.id, match]));
-  const entriesById = new Map(original.entryRows.map((entry) => [entry.id, entry]));
-  const occurrences: RecordOccurrence[] = original.selected.flatMap((row) => {
-    const map = mapsById.get(row.facts.tournament.mapKey)!;
-    const match = matchesById.get(map.matchId)!;
-    return (row.facts.records?.candidates ?? []).map((candidate) => {
-      const entry = entriesById.get(candidate.entryId)!;
-      const isTeam = candidate.kind === "economy";
-      const id = isTeam ? remap(candidate.entityId) : candidate.entityId;
-      const opponent = entriesById.get(candidate.entryId === match.entryAId ? match.entryBId : match.entryAId)?.name ?? "—";
-      return { ...candidate, entityId: id, eventName: entry.eventName, eventSlug: entry.eventSlug, matchId: match.id, mapId: map.id, mapName: map.mapName,
-        score: `${map.scoreA}-${map.scoreB}`, rounds: map.scoreA! + map.scoreB!, entityName: isTeam ? entry.name : original.labels.players[id] ?? "选手",
-        entityHref: isTeam ? teamLinks[id]! : `/players/${id}`, opponent };
+    const mapsById = new Map(original.scopedMaps.map((map) => [map.id, map]));
+    const matchesById = new Map(original.matches.map((match) => [match.id, match]));
+    const entriesById = new Map(original.entryRows.map((entry) => [entry.id, entry]));
+    const occurrences: RecordOccurrence[] = original.selected.flatMap((row) => {
+      const map = mapsById.get(row.facts.tournament.mapKey)!;
+      const match = matchesById.get(map.matchId)!;
+      return (row.facts.records?.candidates ?? []).map((candidate) => {
+        const entry = entriesById.get(candidate.entryId)!;
+        const isTeam = candidate.kind === "economy";
+        const id = isTeam ? remap(candidate.entityId) : candidate.entityId;
+        const opponent = entriesById.get(candidate.entryId === match.entryAId ? match.entryBId : match.entryAId)?.name ?? "—";
+        return {
+          ...candidate, entityId: id, eventName: entry.eventName, eventSlug: entry.eventSlug, matchId: match.id, mapId: map.id, mapName: map.mapName,
+          score: `${map.scoreA}-${map.scoreB}`, rounds: map.scoreA! + map.scoreB!, entityName: isTeam ? entry.name : original.labels.players[id] ?? "选手",
+          entityHref: isTeam ? teamLinks[id]! : `/players/${id}`, opponent
+        };
+      });
     });
-  });
-  // Cumulative leaders aggregate every player-map count, not just map extrema.
-  const totals = new Map<string, { fourKills: number; aces: number; sources: RecordOccurrence[] }>();
-  for (const row of original.selected) for (const player of row.facts.records?.multiKills ?? []) {
-    const total = totals.get(player.entityId) ?? { fourKills: 0, aces: 0, sources: [] };
-    total.fourKills += player.fourKills; total.aces += player.aces;
-    const map = mapsById.get(row.facts.tournament.mapKey)!;
-    const entry = entriesById.get(player.entryId)!;
-    const match = matchesById.get(map.matchId)!;
-    for (const [kind, count] of [["fourKillsTotal", player.fourKills], ["acesTotal", player.aces]] as const) if (count) {
-      total.sources.push({ kind, entityId: player.entityId, entryId: player.entryId, numerator: count, denominator: 1,
-        eventName: entry.eventName, eventSlug: entry.eventSlug, matchId: match.id, mapId: map.id, mapName: map.mapName,
-        score: `${map.scoreA}-${map.scoreB}`, rounds: map.scoreA! + map.scoreB!, entityName: original.labels.players[player.entityId] ?? "选手",
-        entityHref: `/players/${player.entityId}`, opponent: entriesById.get(player.entryId === match.entryAId ? match.entryBId : match.entryAId)?.name ?? "—" });
+    // Cumulative leaders aggregate every player-map count, not just map extrema.
+    const totals = new Map<string, { fourKills: number; aces: number; sources: RecordOccurrence[] }>();
+    for (const row of original.selected) for (const player of row.facts.records?.multiKills ?? []) {
+      const total = totals.get(player.entityId) ?? { fourKills: 0, aces: 0, sources: [] };
+      total.fourKills += player.fourKills; total.aces += player.aces;
+      const map = mapsById.get(row.facts.tournament.mapKey)!;
+      const entry = entriesById.get(player.entryId)!;
+      const match = matchesById.get(map.matchId)!;
+      for (const [kind, count] of [["fourKillsTotal", player.fourKills], ["acesTotal", player.aces]] as const) if (count) {
+        total.sources.push({
+          kind, entityId: player.entityId, entryId: player.entryId, numerator: count, denominator: 1,
+          eventName: entry.eventName, eventSlug: entry.eventSlug, matchId: match.id, mapId: map.id, mapName: map.mapName,
+          score: `${map.scoreA}-${map.scoreB}`, rounds: map.scoreA! + map.scoreB!, entityName: original.labels.players[player.entityId] ?? "选手",
+          entityHref: `/players/${player.entityId}`, opponent: entriesById.get(player.entryId === match.entryAId ? match.entryBId : match.entryAId)?.name ?? "—"
+        });
+      }
+      totals.set(player.entityId, total);
     }
-    totals.set(player.entityId, total);
-  }
-  for (const total of totals.values()) for (const source of total.sources) occurrences.push({ ...source,
-    numerator: source.kind === "fourKillsTotal" ? total.fourKills : total.aces });
-  const eventCounts = Object.fromEntries(Object.keys(RECORD_EVENT_NAMES).map(kind => [kind,
-    original.selected.reduce((sum, row) => sum + (row.facts.records?.eventCounts?.[kind as RecordEventKind] ?? 0), 0)])) as Record<RecordEventKind, number>;
-  const eventMaps = original.selected.filter(row => row.facts.records?.eventCounts).length;
-  const recordTies = collectRecordTies(occurrences);
-  const records = buildRecords(recordTies);
-  const recordCoverage = { maps: original.selected.filter((r) => r.facts.records).length, economyRounds: original.selected.reduce((sum, r) => sum + (r.facts.records?.economyKnownRounds ?? 0), 0) };
+    for (const total of totals.values()) for (const source of total.sources) occurrences.push({
+      ...source,
+      numerator: source.kind === "fourKillsTotal" ? total.fourKills : total.aces
+    });
+    const eventCounts = Object.fromEntries(Object.keys(RECORD_EVENT_NAMES).map(kind => [kind,
+      original.selected.reduce((sum, row) => sum + (row.facts.records?.eventCounts?.[kind as RecordEventKind] ?? 0), 0)])) as Record<RecordEventKind, number>;
+    const eventMaps = original.selected.filter(row => row.facts.records?.eventCounts).length;
+    const recordTies = collectRecordTies(occurrences);
+    const records = buildRecords(recordTies);
+    const recordCoverage = { maps: original.selected.filter((r) => r.facts.records).length, economyRounds: original.selected.reduce((sum, r) => sum + (r.facts.records?.economyKnownRounds ?? 0), 0) };
     return { records, recordTies, recordCoverage, eventCounts, eventMaps };
   })();
   return {
@@ -618,7 +620,6 @@ export async function getTournamentStats(scope: PlatformStatsScope, database: DB
     coverage,
     options: { teams: platform ? [] : loaded.participantEntries, maps: mapNames },
   };
-  });
 }
 
 
@@ -752,36 +753,32 @@ async function loadPerformanceEvidence(tx: TxDb, scope: PlatformStatsScope) {
 }
 
 export async function getTournamentPerformancePlayers(scope: TournamentStatsScope, database: DB = db) {
-  const loaded = await traceOperation("stats.snapshot", { scope: "statistics", operation: "benchmark_event", stage: "transaction" }, () => database.transaction(async (tx) => {
+  const loaded = await database.transaction(async (tx) => {
     // The benchmark consumes performance only; retain both target checks without
     // transferring tournament weapon facts or records for every public event.
     const loaded = await loadPerformanceEvidence(tx, scope);
     return loaded;
-  }, { isolationLevel: "repeatable read", accessMode: "read only" }));
-  return traceOperation("stats.compute", { scope: "statistics", operation: "benchmark_event", stage: "compute" }, async () => {
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
   return buildTournamentPerformanceAnalytics(
-      loaded.selected.map((row) => row.facts.performance),
-      { labels: loaded.labels },
-    ).players;
-  });
+    loaded.selected.map((row) => row.facts.performance),
+    { labels: loaded.labels },
+  ).players;
 }
 
 /** Bounded benchmark batches preserve one observation per player per public event. */
 export async function getTournamentPerformancePopulations(eventIds: readonly string[], database: DB = db) {
   if (!eventIds.length) return [];
-  const { events, loaded } = await traceOperation("stats.snapshot", { scope: "statistics", operation: "benchmark_batch", stage: "transaction" }, () => database.transaction(async tx => {
+  const { events, loaded } = await database.transaction(async tx => {
     const events = await tx.select({ id: seasons.id }).from(seasons)
       .where(and(inArray(seasons.id, [...eventIds]), ne(seasons.status, "draft")));
     const loaded = await loadPerformanceEvidence(tx, { seasonIds: events.map(event => event.id) });
     return { events, loaded };
-  }, { isolationLevel: "repeatable read", accessMode: "read only" }));
-  return traceOperation("stats.compute", { scope: "statistics", operation: "benchmark_batch", stage: "compute" }, async () => {
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
   const eventByMap = new Map(loaded.currentRefs.map(({ map, match }) => [map.id, match.seasonId]));
   return events.map(event => buildTournamentPerformanceAnalytics(
-    loaded.selected.filter(row => eventByMap.get(row.facts.performance.mapKey) === event.id).map(row => row.facts.performance),
+    loaded.selected.filter(row => eventByMap.get(row.facts.performance.mapKey)===event.id).map(row => row.facts.performance),
     { labels: loaded.labels },
   ).players);
-  });
 }
 
 export async function getTournamentPlayerDetail(scope: TournamentStatsScope & { playerId: string }, database: DB = db) {
@@ -806,7 +803,7 @@ export async function getMatchPlayerDetail(matchId: string, playerId: string, ma
 
 /** Whole-match MVP metrics without scoreboard, career record or per-map detail queries. */
 export async function getMatchMvpSummary(matchId: string, playerId: string, database: DB = db) {
-  const loaded = await traceOperation("stats.snapshot", { scope: "statistics", operation: "match_mvp", stage: "transaction" }, () => database.transaction(async tx => {
+  const loaded = await database.transaction(async tx => {
     const [match] = await tx.select({ seasonId: matches.seasonId }).from(matches).where(eq(matches.id, matchId));
     if (!match?.seasonId) return null;
     return loadStatsEvidenceSelection(tx, { seasonId: match.seasonId }, { matchIds: [matchId], includeTestMatch: true }, sql<PlayerDetailFacts>`jsonb_build_object(
@@ -817,16 +814,16 @@ export async function getMatchMvpSummary(matchId: string, playerId: string, data
       ),
       'performance', ${matchDemoStatProjections.facts}->'performance'
     )`);
-  }, { isolationLevel: "repeatable read", accessMode: "read only" }));
-  return traceOperation("stats.compute", { scope: "statistics", operation: "match_mvp", stage: "compute" }, async () => {
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
   if (!loaded) return null;
   const player = buildTournamentPerformanceAnalytics(loaded.selected.map(row => row.facts.performance), { labels: loaded.labels })
-    .players.find(row => row.player.entityKey === playerId);
-  if (!player) return null;
-  const slice = player.slices.overall;
-  return { rounds: slice.sample.rounds, kast: slice.kast, tradeKillsPerRound: slice.trade.tradeKillsPerRound,
-    utilityDamagePerRound: slice.utility.utilityDamagePerRound, flashAssistsPerRound: slice.utility.flashAssistsPerRound };
-  });
+    .players.find(row => row.player.entityKey===playerId);
+  if(!player) return null;
+  const slice=player.slices.overall;
+  return {
+    rounds: slice.sample.rounds,kast: slice.kast,tradeKillsPerRound: slice.trade.tradeKillsPerRound,
+    utilityDamagePerRound: slice.utility.utilityDamagePerRound,flashAssistsPerRound: slice.utility.flashAssistsPerRound
+  };
 }
 
 /** Small canonical option set, reused to bound public career cache keys. */
@@ -839,7 +836,7 @@ export async function getPlayerCareerDetail(
   scope: { playerId: string; eventSlug?: string; mapFilter?: string },
   database: DB = db,
 ) {
-  const snapshot = await traceOperation("stats.snapshot", { scope: "statistics", operation: "player_career", stage: "transaction" }, () => database.transaction(async (tx) => {
+  const snapshot = await database.transaction(async (tx) => {
     const playerScope = await loadPlayerAppearanceScope(tx, scope.playerId);
     const event = scope.eventSlug ? playerScope.events.find((candidate) => candidate.slug === scope.eventSlug) : undefined;
     const allMaps = new Set(playerScope.events.flatMap((candidate) => candidate.maps));
@@ -850,16 +847,14 @@ export async function getPlayerCareerDetail(
       : playerScope.matchIds;
     const detail = await loadTournamentPlayerSnapshot(tx, { playerId: scope.playerId, seasonId: event?.id, mapFilter }, matchIds, { requireCurrentImports: true, effectiveRoster: playerScope.effectiveRoster });
     return { detail, events: playerScope.events, selectedEvent: event ?? null, mapFilter };
-  }, { isolationLevel: "repeatable read", accessMode: "read only" }));
-  return traceOperation("stats.compute", { scope: "statistics", operation: "player_career", stage: "compute" }, async () => {
-  return { ...computeTournamentPlayerDetail(snapshot.detail), events: snapshot.events, selectedEvent: snapshot.selectedEvent, mapFilter: snapshot.mapFilter };
-  });
+  },{ isolationLevel: "repeatable read",accessMode: "read only" });
+  return { ...computeTournamentPlayerDetail(snapshot.detail),events: snapshot.events,selectedEvent: snapshot.selectedEvent,mapFilter: snapshot.mapFilter };
 }
 
 
 /** One read-only selection for the roster; each career retains its own effective appearances. */
 export async function getPlayerCareerPerformances(playerIds: readonly string[], database: DB = db) {
-  const { scopes, loaded } = await traceOperation("stats.snapshot", { scope: "statistics", operation: "lineup_career", stage: "transaction" }, () => database.transaction(async (tx) => {
+  const { scopes, loaded } = await database.transaction(async (tx) => {
     const scopes = await loadPlayerAppearanceScopes(tx, [...new Set(playerIds)].sort());
     const matchIds = [...new Set([...scopes.values()].flatMap((scope) => scope.matchIds))];
     const loaded = await loadStatsEvidenceSelection(tx, {}, { matchIds, effectiveRoster: scopes.values().next().value?.effectiveRoster }, sql<PlayerDetailFacts>`jsonb_build_object(
@@ -871,19 +866,17 @@ export async function getPlayerCareerPerformances(playerIds: readonly string[], 
       'performance', ${matchDemoStatProjections.facts}->'performance'
     )`);
     return { scopes, loaded };
-  }, { isolationLevel: "repeatable read", accessMode: "read only" }));
-  return traceOperation("stats.compute", { scope: "statistics", operation: "lineup_career", stage: "compute" }, async () => {
-    return [...scopes].map(([playerId, scope]) => {
-      const appearances = new Set(scope.matchIds);
-      const maps = loaded.scopedMaps.filter((map) => appearances.has(map.matchId)
-        && map.completedAt !== null && map.scoreA !== null && map.scoreB !== null);
-      const mapIds = new Set(maps.map((map) => map.id));
-      const performance = buildTournamentPerformanceAnalytics(
-        loaded.selected.filter((row) => mapIds.has(row.facts.tournament.mapKey)).map((row) => row.facts.performance),
-        { labels: loaded.labels },
-      ).players.find((row) => row.player.entityKey === playerId) ?? null;
-      return { playerId, maps: maps.length, rounds: maps.reduce((sum, map) => sum + map.scoreA! + map.scoreB!, 0), performance };
-    });
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+  return [...scopes].map(([playerId, scope]) => {
+    const appearances = new Set(scope.matchIds);
+    const maps = loaded.scopedMaps.filter((map) => appearances.has(map.matchId)
+      && map.completedAt !== null && map.scoreA !== null && map.scoreB !== null);
+    const mapIds = new Set(maps.map((map) => map.id));
+    const performance = buildTournamentPerformanceAnalytics(
+      loaded.selected.filter((row) => mapIds.has(row.facts.tournament.mapKey)).map((row) => row.facts.performance),
+      { labels: loaded.labels },
+    ).players.find((row) => row.player.entityKey === playerId) ?? null;
+    return { playerId, maps: maps.length, rounds: maps.reduce((sum, map) => sum + map.scoreA! + map.scoreB!, 0), performance };
   });
 }
 
@@ -962,7 +955,7 @@ function officialTeamFacts(loaded: Awaited<ReturnType<typeof loadStatsContext>>)
  * public linked entries first, then current-confirmed Evidence is selected once.
  */
 export async function getLongTeamCareerDetail(teamId: string, database: DB = db) {
-  const snapshot = await traceOperation("stats.snapshot", { scope: "statistics", operation: "team_career", stage: "transaction" }, () => database.transaction(async (tx) => {
+  const snapshot = await database.transaction(async (tx) => {
     const linkedEntries = await tx.select({
       id: competitionEntries.id,
       name: competitionEntries.name,
@@ -1000,181 +993,175 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
       entryId: matchVetoSteps.entryId,
     }).from(matchVetoSteps).where(inArray(matchVetoSteps.matchId, matchIds)) : [];
     return { linkedEntries, linkedEntryIds, loaded, scoreboard, vetoRows, empty: false as const };
-  }, { isolationLevel: "repeatable read", accessMode: "read only" }));
-  return traceOperation("stats.compute", { scope: "statistics", operation: "team_career", stage: "compute" }, async () => {
-  if (snapshot.empty) return {
-      teamId,
-      linkedEntries: snapshot.linkedEntries,
-      official: { matches: [], maps: [], entries: [] } as ReturnType<typeof officialTeamFacts>,
-      results: { played: 0, wins: 0, losses: 0, maps: 0, mapWins: 0, mapLosses: 0 },
-      analytics: null,
-      economyMatrix: [],
-      performance: null,
-      scoreboard: [],
-      teamRating: null,
-      detailedPlayers: [],
-      selection: [],
-      vetoActionSamples: { pick: 0, ban: 0 },
-      maps: [],
-      coverage: { detailedMaps: 0, completedMaps: 0, maps: [] },
-    };
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+  if(snapshot.empty) return {
+    teamId,
+    linkedEntries: snapshot.linkedEntries,
+    official: { matches: [],maps: [],entries: [] } as ReturnType<typeof officialTeamFacts>,
+    results: { played: 0,wins: 0,losses: 0,maps: 0,mapWins: 0,mapLosses: 0 },
+    analytics: null,
+    economyMatrix: [],
+    performance: null,
+    scoreboard: [],
+    teamRating: null,
+    detailedPlayers: [],
+    selection: [],
+    vetoActionSamples: { pick: 0, ban: 0 },
+    maps: [],
+    coverage: { detailedMaps: 0, completedMaps: 0, maps: [] },
+  };
   const { linkedEntries, linkedEntryIds, loaded, scoreboard, vetoRows } = snapshot;
-    const labels: StatsLabels = {
-      ...loaded.labels,
-      teams: { ...loaded.labels.teams, [teamId]: linkedEntries[0]?.name ?? teamId },
-    };
-    const longPerformance = buildLongTeamPerformanceProjection(loaded.selected, linkedEntryIds, teamId, labels);
-    const { remapped, teamPerformance, detailedPlayers } = longPerformance;
-    const analytics = buildTournamentAnalytics(remapped.map((row) => row.facts.tournament), { labels });
-    const teamAnalytics = analytics.teams.find((row) => row.team.entityKey === teamId) ?? null;
+  const labels: StatsLabels = {
+    ...loaded.labels,
+    teams: { ...loaded.labels.teams, [teamId]: linkedEntries[0]?.name ?? teamId },
+  };
+  const longPerformance = buildLongTeamPerformanceProjection(loaded.selected, linkedEntryIds, teamId, labels);
+  const { remapped, teamPerformance, detailedPlayers } = longPerformance;
+  const analytics = buildTournamentAnalytics(remapped.map((row) => row.facts.tournament), { labels });
+  const teamAnalytics = analytics.teams.find((row) => row.team.entityKey === teamId) ?? null;
 
-    const resultFacts = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries);
-    const ownResults = resultFacts.teams.filter((row) => linkedEntryIds.has(row.entryId));
-    const mapRows = resultFacts.teamMaps.flatMap((map) => map.teams
-      .filter((row) => linkedEntryIds.has(row.entryId))
-      .map((row) => ({ mapName: map.mapName, ...row })));
-    const mapResults = new Map<string, { played: number; wins: number; losses: number }>();
-    for (const row of mapRows) {
-      const current = mapResults.get(row.mapName) ?? { played: 0, wins: 0, losses: 0 };
-      current.played += row.played;
-      current.wins += row.wins;
-      current.losses += row.losses;
-      mapResults.set(row.mapName, current);
-    }
+  const resultFacts = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries);
+  const ownResults = resultFacts.teams.filter((row) => linkedEntryIds.has(row.entryId));
+  const mapRows = resultFacts.teamMaps.flatMap((map) => map.teams
+    .filter((row) => linkedEntryIds.has(row.entryId))
+    .map((row) => ({ mapName: map.mapName, ...row })));
+  const mapResults = new Map<string, { played: number; wins: number; losses: number }>();
+  for (const row of mapRows) {
+    const current = mapResults.get(row.mapName) ?? { played: 0, wins: 0, losses: 0 };
+    current.played += row.played;
+    current.wins += row.wins;
+    current.losses += row.losses;
+    mapResults.set(row.mapName, current);
+  }
 
-    const teamRating = buildTeamRatings(scoreboard.map((row) => ({ ...row, teamId })))[0] ?? null;
-    const remappedVeto = vetoRows.map((row) => ({
-      ...row,
-      entryId: row.entryId && linkedEntryIds.has(row.entryId) ? teamId : row.entryId,
-    }));
-    const selection = buildVetoSelection(
-      [{ id: teamId, name: labels.teams[teamId] ?? teamId }],
-      remappedVeto,
-      [...new Set([...loaded.maps.map((map) => map.mapName), ...remappedVeto.map((row) => row.mapName)])],
-    );
-    const analyticsByMap = aggregateEvidenceByMap(remapped, labels, { indexPlayers: true });
-    const coverage = buildCoverage({ ...loaded, selected: remapped }, resultFacts);
-    const coverageByMap = new Map(coverage.maps.map((row) => [row.mapName, row]));
-    const maps = [...new Set([...mapResults.keys(), ...analyticsByMap.map((row) => row.mapName), ...selection.map(row => row.mapName)])].sort().map((mapName) => {
-      const detail = analyticsByMap.find((row) => row.mapName === mapName);
-      return {
-        mapName,
-        results: mapResults.get(mapName) ?? null,
-        selection: selection.find(row => row.mapName === mapName)?.teams.find(row => row.entryId === teamId) ?? null,
-        coverage: coverageByMap.get(mapName) ?? { mapName, completedMaps: 0, detailedMaps: 0 },
-        analytics: detail?.analyticsTeams.get(teamId) ?? null,
-        performance: detail?.performanceTeams.get(teamId) ?? null,
-      };
-    });
-    const played = ownResults.reduce((sum, row) => sum + row.matches, 0);
-    const wins = ownResults.reduce((sum, row) => sum + row.matchWins, 0);
-    const losses = ownResults.reduce((sum, row) => sum + row.matchLosses, 0);
-    const mapWins = [...mapResults.values()].reduce((sum, row) => sum + row.wins, 0);
-    const mapLosses = [...mapResults.values()].reduce((sum, row) => sum + row.losses, 0);
-
+  const teamRating = buildTeamRatings(scoreboard.map((row) => ({ ...row, teamId })))[0] ?? null;
+  const remappedVeto = vetoRows.map((row) => ({
+    ...row,
+    entryId: row.entryId && linkedEntryIds.has(row.entryId) ? teamId : row.entryId,
+  }));
+  const selection = buildVetoSelection(
+    [{ id: teamId, name: labels.teams[teamId] ?? teamId }],
+    remappedVeto,
+    [...new Set([...loaded.maps.map((map) => map.mapName), ...remappedVeto.map((row) => row.mapName)])],
+  );
+  const analyticsByMap = aggregateEvidenceByMap(remapped, labels, { indexPlayers: true });
+  const coverage = buildCoverage({ ...loaded, selected: remapped }, resultFacts);
+  const coverageByMap = new Map(coverage.maps.map((row) => [row.mapName, row]));
+  const maps = [...new Set([...mapResults.keys(), ...analyticsByMap.map((row) => row.mapName), ...selection.map(row => row.mapName)])].sort().map((mapName) => {
+    const detail = analyticsByMap.find((row) => row.mapName === mapName);
     return {
-      teamId,
-      linkedEntries,
-      official: officialTeamFacts(loaded),
-      results: { played, wins, losses, maps: mapWins + mapLosses, mapWins, mapLosses },
-      analytics: teamAnalytics,
-      economyMatrix: analytics.economyMatrix,
-      performance: teamPerformance,
-      scoreboard,
-      teamRating,
-      detailedPlayers,
-      selection,
-      vetoActionSamples: vetoActionSamples(vetoRows),
-      maps,
-      coverage,
+      mapName,
+      results: mapResults.get(mapName) ?? null,
+      selection: selection.find(row => row.mapName === mapName)?.teams.find(row => row.entryId === teamId) ?? null,
+      coverage: coverageByMap.get(mapName) ?? { mapName, completedMaps: 0, detailedMaps: 0 },
+      analytics: detail?.analyticsTeams.get(teamId) ?? null,
+      performance: detail?.performanceTeams.get(teamId) ?? null,
     };
   });
+  const played = ownResults.reduce((sum, row) => sum + row.matches, 0);
+  const wins = ownResults.reduce((sum, row) => sum + row.matchWins, 0);
+  const losses = ownResults.reduce((sum, row) => sum + row.matchLosses, 0);
+  const mapWins = [...mapResults.values()].reduce((sum, row) => sum + row.wins, 0);
+  const mapLosses = [...mapResults.values()].reduce((sum, row) => sum + row.losses, 0);
+
+  return {
+    teamId,
+    linkedEntries,
+    official: officialTeamFacts(loaded),
+    results: { played, wins, losses, maps: mapWins + mapLosses, mapWins, mapLosses },
+    analytics: teamAnalytics,
+    economyMatrix: analytics.economyMatrix,
+    performance: teamPerformance,
+    scoreboard,
+    teamRating,
+    detailedPlayers,
+    selection,
+    vetoActionSamples: vetoActionSamples(vetoRows),
+    maps,
+    coverage,
+  };
 }
 
 export async function getTournamentTeamDetail(scope: TournamentStatsScope & { teamId: string }, database: DB = db) {
-  const snapshot = await traceOperation("stats.snapshot", { scope: "statistics", operation: "event_team", stage: "transaction" }, () => database.transaction(async (tx) => {
+  const snapshot = await database.transaction(async (tx) => {
     const loaded = await loadStatsDetailEvidence(tx, scope, { teamId: scope.teamId });
     const veto = await loadVetoData(tx, scope, loaded.entries);
     const scoreboard = await getStatsLeaderboard({ ...scope, teamFilter: scope.teamId }, loaded.selected.map((row) => row.importId), loaded.roster, tx);
     return { loaded, veto, scoreboard };
-  }, { isolationLevel: "repeatable read", accessMode: "read only" }));
-  return traceOperation("stats.compute", { scope: "statistics", operation: "event_team", stage: "compute" }, async () => {
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
   const { loaded, veto, scoreboard } = snapshot;
-    const results = buildTournamentResults(resultMatchesForMapScope(loaded.matches, loaded.scopedMaps, scope.mapFilter), loaded.scopedMaps, loaded.entries);
-    const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
-    const performanceProjection = buildCompetitionEntryPerformanceProjection(loaded.selected, scope.teamId, loaded.labels);
-    const teamRating = buildTeamRatings(scoreboard).find((row) => row.entryId === scope.teamId) ?? null;
-    const analyticsByMapName = new Map<string, ReturnType<typeof aggregateEvidenceByMap>[number]>();
-    for (const row of aggregateEvidenceByMap(loaded.selected, loaded.labels)) analyticsByMapName.set(row.mapName, row);
-    const resultByMapName = new Map<string, { entryId: string; played: number; wins: number; losses: number }>();
-    for (const map of results.teamMaps) {
-      for (const team of map.teams) {
-        if (team.entryId === scope.teamId) resultByMapName.set(map.mapName, { entryId: team.entryId, played: team.played, wins: team.wins, losses: team.losses });
-      }
+  const results = buildTournamentResults(resultMatchesForMapScope(loaded.matches, loaded.scopedMaps, scope.mapFilter), loaded.scopedMaps, loaded.entries);
+  const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
+  const performanceProjection = buildCompetitionEntryPerformanceProjection(loaded.selected, scope.teamId, loaded.labels);
+  const teamRating = buildTeamRatings(scoreboard).find((row) => row.entryId === scope.teamId) ?? null;
+  const analyticsByMapName = new Map<string, ReturnType<typeof aggregateEvidenceByMap>[number]>();
+  for (const row of aggregateEvidenceByMap(loaded.selected, loaded.labels)) analyticsByMapName.set(row.mapName, row);
+  const resultByMapName = new Map<string, { entryId: string; played: number; wins: number; losses: number }>();
+  for (const map of results.teamMaps) {
+    for (const team of map.teams) {
+      if (team.entryId === scope.teamId) resultByMapName.set(map.mapName, { entryId: team.entryId, played: team.played, wins: team.wins, losses: team.losses });
     }
-    const selection = buildVetoSelection(veto.participants, veto.rows, [...new Set([...loaded.maps.map((map) => map.mapName), ...veto.rows.map((row) => row.mapName)])], scope.mapFilter);
-    const coverage = buildCoverage(loaded, results);
-    const coverageByMapName = new Map(coverage.maps.map((row) => [row.mapName, row]));
-    const selectionByMapName = new Map<string, { picks: number; bans: number }>();
-    for (const map of selection) {
-      for (const team of map.teams) {
-        if (team.entryId === scope.teamId) selectionByMapName.set(map.mapName, team);
-      }
+  }
+  const selection = buildVetoSelection(veto.participants, veto.rows, [...new Set([...loaded.maps.map((map) => map.mapName), ...veto.rows.map((row) => row.mapName)])], scope.mapFilter);
+  const coverage = buildCoverage(loaded, results);
+  const coverageByMapName = new Map(coverage.maps.map((row) => [row.mapName, row]));
+  const selectionByMapName = new Map<string, { picks: number; bans: number }>();
+  for (const map of selection) {
+    for (const team of map.teams) {
+      if (team.entryId === scope.teamId) selectionByMapName.set(map.mapName, team);
     }
-    const teamAnalytics = indexStatsRows(analytics.teams, (row) => row.team.entityKey);
-    const mapNames = new Set([...resultByMapName.keys(), ...analyticsByMapName.keys(), ...selectionByMapName.keys()]);
-    const maps = [...mapNames].map((mapName) => {
-      const analyticsForMap = analyticsByMapName.get(mapName);
-      const selectionForMap = selectionByMapName.get(mapName);
-      return {
-        mapName,
-        results: resultByMapName.get(mapName) ?? null,
-        selection: selectionForMap ?? null,
-        coverage: coverageByMapName.get(mapName) ?? { mapName, completedMaps: 0, detailedMaps: 0 },
-        analytics: analyticsForMap?.analyticsTeams.get(scope.teamId) ?? null,
-        performance: analyticsForMap?.performanceTeams.get(scope.teamId) ?? null,
-      };
-    });
+  }
+  const teamAnalytics = indexStatsRows(analytics.teams, (row) => row.team.entityKey);
+  const mapNames = new Set([...resultByMapName.keys(), ...analyticsByMapName.keys(), ...selectionByMapName.keys()]);
+  const maps = [...mapNames].map((mapName) => {
+    const analyticsForMap = analyticsByMapName.get(mapName);
+    const selectionForMap = selectionByMapName.get(mapName);
     return {
-      teamId: scope.teamId,
-      vetoActionSamples: veto.actionSamples,
-      official: officialTeamFacts(loaded),
-      results: results.teams.find((row) => row.entryId === scope.teamId) ?? null,
-      selection,
-      analytics: teamAnalytics.get(scope.teamId) ?? null,
-      economyMatrix: analytics.economyMatrix,
-      performance: performanceProjection.teamPerformance,
-      scoreboard,
-      teamRating,
-      detailedPlayers: performanceProjection.detailedPlayers,
-      maps,
-      coverage,
-      entries: loaded.entries,
+      mapName,
+      results: resultByMapName.get(mapName) ?? null,
+      selection: selectionForMap ?? null,
+      coverage: coverageByMapName.get(mapName) ?? { mapName, completedMaps: 0, detailedMaps: 0 },
+      analytics: analyticsForMap?.analyticsTeams.get(scope.teamId) ?? null,
+      performance: analyticsForMap?.performanceTeams.get(scope.teamId) ?? null,
     };
   });
+  return {
+    teamId: scope.teamId,
+    vetoActionSamples: veto.actionSamples,
+    official: officialTeamFacts(loaded),
+    results: results.teams.find((row) => row.entryId === scope.teamId) ?? null,
+    selection,
+    analytics: teamAnalytics.get(scope.teamId) ?? null,
+    economyMatrix: analytics.economyMatrix,
+    performance: performanceProjection.teamPerformance,
+    scoreboard,
+    teamRating,
+    detailedPlayers: performanceProjection.detailedPlayers,
+    maps,
+    coverage,
+    entries: loaded.entries,
+  };
 }
 
 export async function getTournamentMapDetail(scope: Omit<TournamentStatsScope, "mapFilter" | "teamFilter"> & { map: string }, database: DB = db) {
-  const snapshot = await traceOperation("stats.snapshot", { scope: "statistics", operation: "map", stage: "transaction" }, () => database.transaction(async (tx) => {
+  const snapshot = await database.transaction(async (tx) => {
     const loaded = await loadStatsDetailEvidence(tx, scope, { mapName: scope.map });
     const vetoRows = await loadScopedVetoRows(tx, scope, scope.map);
     return { loaded, vetoRows };
-  }, { isolationLevel: "repeatable read", accessMode: "read only" }));
-  return traceOperation("stats.compute", { scope: "statistics", operation: "map", stage: "compute" }, async () => {
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
   const { loaded, vetoRows } = snapshot;
-    const results = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries);
-    const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
-    const performance = buildTournamentPerformanceAnalytics(loaded.selected.map((row) => row.facts.performance), { labels: loaded.labels });
-    return {
-      map: scope.map,
-      results,
-      selection: buildVetoSelection([], vetoRows.map(({ mapName, action, entryId }) => ({ mapName, action, entryId })), [scope.map], scope.map),
-      coverage: buildCoverage(loaded, results),
-      analytics,
-      performance,
-      entries: loaded.entries,
-    };
-  });
+  const results = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries);
+  const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
+  const performance = buildTournamentPerformanceAnalytics(loaded.selected.map((row) => row.facts.performance), { labels: loaded.labels });
+  return {
+    map: scope.map,
+    results,
+    selection: buildVetoSelection([], vetoRows.map(({ mapName, action, entryId }) => ({ mapName, action, entryId })), [scope.map], scope.map),
+    coverage: buildCoverage(loaded, results),
+    analytics,
+    performance,
+    entries: loaded.entries,
+  };
 }
 
 export type TournamentStats = Awaited<ReturnType<typeof getTournamentStats>>;

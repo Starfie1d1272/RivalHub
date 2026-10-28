@@ -1,10 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { fetchProvider } = vi.hoisted(() => ({ fetchProvider: vi.fn() }));
-vi.mock("@/lib/observability/fetch", () => ({ providerFetch: () => fetchProvider }));
 vi.mock("@/lib/observability/server", () => ({
   logEvent: vi.fn(),
-  traceOperation: (_name: string, _options: unknown, execute: () => unknown) => execute(),
 }));
 
 import { siliconflowProvider } from "@/lib/ocr/siliconflow";
@@ -18,6 +16,7 @@ const run = () => siliconflowProvider.extract(image, "image/png");
 describe("OCR response-body failure boundary", () => {
   beforeEach(() => {
     fetchProvider.mockReset();
+    vi.stubGlobal("fetch", fetchProvider);
     vi.mocked(logEvent).mockClear();
     vi.stubEnv("SILICONFLOW_MODEL", "");
     vi.stubEnv("SILICONFLOW_API_KEY", key);
@@ -25,6 +24,7 @@ describe("OCR response-body failure boundary", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
   it("maps compact scoreboard columns and rejects incomplete rows", async () => {

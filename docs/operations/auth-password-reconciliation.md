@@ -6,7 +6,7 @@ Supabase Auth 与应用 PostgreSQL 不能原子提交。`mutatePassword` 在调�
 
 ## 管理员只读核查
 
-1. 按部署与时间窗口在 Vercel Runtime Logs 或已配置的 Better Stack 中查询 `event=auth.password_update.failure`、页面给出的 `requestId`。区分 `outcome=unknown`（provider 结果不明）、`finalization_unknown`（应用最终事务不明，`phase=finalize`，`stage=succeeded/rejected` 为 provider 已知结果）与 `pending`（持久阻断拒绝新请求）。检查 HTTP 状态及有界 allowlist cause/SQLSTATE code；无日志不能推断操作未执行，先核对部署、sink 与留存。
+1. 按部署与时间窗口在 服务 journal 的结构化日志 中查询 `event=auth.password_update.failure`、页面给出的 `requestId`。区分 `outcome=unknown`（provider 结果不明）、`finalization_unknown`（应用最终事务不明，`phase=finalize`，`stage=succeeded/rejected` 为 provider 已知结果）与 `pending`（持久阻断拒绝新请求）。检查 HTTP 状态及有界 allowlist cause/SQLSTATE code；无日志不能推断操作未执行，先核对部署与 journal 留存。
 2. 由有权限的平台维护人员在应用审计记录中核对 `user.password_update_started` 与后续 `user.change_password`、`user.reset_password` 或 `user.password_update_failed`。这些记录不存密码；只有 started 不能确定 provider 结果。核对当前 `passwordMutationId` 与完成审计是否在同一事务提交；不得只因 provider 成功、旧会话失效或一次 DB 错误就断言 fence 已清除或必须清除。
 3. 由拥有对应 Supabase 项目权限的维护人员在 Auth 的 Audit Logs 核对同一身份、时间窗口与密码更新事件。应用 requestId 不传播给 Supabase，必须结合时间与受控身份映射核查，不宣称跨 provider 编号可直接检索。不要通过索取用户密码、重复调用更新或尝试新旧密码来“验证”。provider 结果仍无法确认时继续保持阻断，升级给项目维护人员核查。
 

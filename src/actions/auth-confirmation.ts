@@ -12,7 +12,6 @@ import { normalizeEmail } from "@/lib/utils/email";
 import { resolveOrCreateCanonicalUserInTx } from "@/lib/identity/canonical";
 import { fail, ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
-import { traceOperation } from "@/lib/observability/server";
 
 type ConfirmationFlow = "signup" | "reverify";
 
@@ -34,14 +33,10 @@ export async function confirmEmailVerification(
 
   try {
     const authenticationStartedAt = await beginAuthentication(db);
-    const { data, error } = await traceOperation("provider.supabase.auth.verify_email", {
-      scope: "provider",
-      operation: "auth.verify_email",
-      provider: "supabase-auth",
-    }, () => createPublicAuthClient().auth.verifyOtp({
+    const { data, error } = await createPublicAuthClient().auth.verifyOtp({
       token_hash: tokenHash,
       type: flow === "signup" ? "email" : "magiclink",
-    }));
+    });
     const confirmedEmail = data.user?.email;
     const confirmedAt = data.user?.email_confirmed_at;
     if (error || !data.user || !confirmedEmail || !confirmedAt) {

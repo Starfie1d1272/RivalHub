@@ -21,9 +21,8 @@ import {
   destroyUserSession,
 } from "@/lib/auth/session";
 import { claimAdminInviteInTx } from "@/lib/auth/admin-invites";
-import { providerFetch } from "@/lib/observability/fetch";
 import { signInFailure, authErrorCode, authServerFailure, isAuthServerFailure } from "@/lib/auth/sign-in-error";
-import { captureException, logEvent, traceOperation } from "@/lib/observability/server";
+import { captureException, logEvent } from "@/lib/observability/server";
 
 export async function loginWithPassword(
   email: string,
@@ -38,17 +37,13 @@ export async function loginWithPassword(
   const normalizedEmail = normalizeEmail(email);
 
   try {
-    const authenticationStartedAt = await traceOperation("auth.clock", { scope: "action", operation: "auth.clock", stage: "read" }, () => beginAuthentication(db));
+    const authenticationStartedAt = await beginAuthentication(db);
     const supabase = createPublicAuthClient();
-    const { data, error } = await traceOperation("provider.supabase.auth.sign_in", {
-      scope: "provider",
-      operation: "auth.sign_in",
-      provider: "supabase-auth",
-    }, () => supabase.auth.signInWithPassword({ email: normalizedEmail, password }));
+    const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
 
     if (error) return signInFailure(error, "auth.sign_in");
 
-    const userRow = await traceOperation("auth.canonical", { scope: "action", operation: "auth.canonical", stage: "transaction" }, () => db.transaction(async (tx) => {
+    const userRow = await db.transaction(async (tx) => {
       const canonicalUser = await resolveOrCreateCanonicalUserInTx(tx, {
         authenticationStartedAt,
         authId: data.user.id,
@@ -58,14 +53,14 @@ export async function loginWithPassword(
         allowCreate: true,
       });
       return bootstrapConfiguredOwnerInTx(tx, canonicalUser);
-    }));
+    });
 
     if (!userRow) return fail({ code: ErrorCode.UNAUTHORIZED, message: "账号不存在，请重新登录。" });
 
-    await traceOperation("auth.session", { scope: "action", operation: "auth.session", stage: "transaction" }, () => createUserSession({
+    await createUserSession({
       userId: userRow.id,
       email: userRow.email,
-    }, authenticationStartedAt));
+    }, authenticationStartedAt);
 
     return ok({ email: normalizedEmail });
   } catch (e) {
@@ -101,15 +96,11 @@ export async function signUp(
       return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请完成验证码校验" });
     }
     try {
-      const verifyResult = await traceOperation("provider.turnstile.verify", {
-        scope: "provider",
-        operation: "turnstile.verify",
-        provider: "turnstile",
-      }, () => providerFetch("turnstile")("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      const verifyResult = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ secret: secretKey, response: turnstileToken }),
-      }));
+      });
       const verifyData = await verifyResult.json() as {
         success: boolean;
         "error-codes"?: string[];
@@ -145,15 +136,11 @@ export async function signUp(
 
   try {
     const supabase = createPublicAuthClient();
-    const { error } = await traceOperation("provider.supabase.auth.sign_up", {
-      scope: "provider",
-      operation: "auth.sign_up",
-      provider: "supabase-auth",
-    }, () => supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
       options: { emailRedirectTo: confirmationUrl("signup", next) },
-    }));
+    });
 
     if (error) {
       if (isAuthServerFailure(error.status)) return authServerFailure("auth.sign_up", error.status);
@@ -179,15 +166,11 @@ export async function signUp(
 export async function resendSignupConfirmation(email: string, next?: string): Promise<ActionResult<void>> {
   if (!email || !email.includes("@")) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   try {
-    const { error } = await traceOperation("provider.supabase.auth.resend", {
-      scope: "provider",
-      operation: "auth.resend",
-      provider: "supabase-auth",
-    }, () => createPublicAuthClient().auth.resend({
+    const { error } = await createPublicAuthClient().auth.resend({
       type: "signup",
       email: normalizeEmail(email),
       options: { emailRedirectTo: confirmationUrl("signup", next) },
-    }));
+    });
     if (error) return emailSendFailure(error, "验证邮件");
     return ok(undefined);
   } catch (e) { return actionError("resendSignupConfirmation", e); }
@@ -200,14 +183,10 @@ export async function resendCurrentEmailVerification(): Promise<ActionResult<voi
     const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
     if (!user) return fail({ code: ErrorCode.UNAUTHORIZED, message: "账号不存在，请重新登录。" });
     if (user.emailVerifiedAt) return ok(undefined);
-    const { error } = await traceOperation("provider.supabase.auth.reverify", {
-      scope: "provider",
-      operation: "auth.reverify",
-      provider: "supabase-auth",
-    }, () => createServiceClient().auth.signInWithOtp({
+    const { error } = await createServiceClient().auth.signInWithOtp({
       email: user.email,
       options: { shouldCreateUser: false, emailRedirectTo: confirmationUrl("reverify") },
-    }));
+    });
     if (error) return emailSendFailure(error, "验证邮件");
     return ok(undefined);
   } catch (e) { return actionError("resendCurrentEmailVerification", e); }
@@ -238,13 +217,9 @@ export async function sendPasswordResetEmail(email: string): Promise<ActionResul
 
   try {
     const supabase = createServiceClient();
-    const { error } = await traceOperation("provider.supabase.auth.password_reset", {
-      scope: "provider",
-      operation: "auth.password_reset",
-      provider: "supabase-auth",
-    }, () => supabase.auth.resetPasswordForEmail(normalizedEmail, {
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
       redirectTo: new URL("/reset-password", process.env.NEXT_PUBLIC_APP_URL).toString(),
-    }));
+    });
 
     if (error) {
       // 不暴露邮箱是否存在（防枚举），但不能把真实的发信/配置失败伪装成成功。

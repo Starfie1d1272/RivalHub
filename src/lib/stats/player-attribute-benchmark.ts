@@ -9,13 +9,12 @@ import { seasons } from "@/db/schema";
 import { getTournamentPerformancePopulations } from "./tournament-query";
 import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
 import { compilePlayerAttributeBenchmark } from "./player-attributes";
-import { traceOperation } from "@/lib/observability/server";
 
 export async function getPlayerAttributeBenchmark() {
   "use cache: remote";
   cacheLife({ stale: 60, revalidate: 3600, expire: 86400 });
   cacheTag(PUBLIC_STATS_TAG);
-  return observePublicStatsFill(() => preservePublicStatsDependencyFailure(() => traceOperation("stats.public.read", { scope: "statistics", operation: "benchmark" }, async () => {
+  return observePublicStatsFill(() => preservePublicStatsDependencyFailure(async () => {
     const events = await db
       .select({ id: seasons.id })
       .from(seasons)
@@ -29,5 +28,5 @@ export async function getPlayerAttributeBenchmark() {
     }
 
     return compilePlayerAttributeBenchmark(populations.flat());
-  })));
+  }));
 }

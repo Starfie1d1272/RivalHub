@@ -1,5 +1,4 @@
 import "server-only";
-import { traceOperation } from "@/lib/observability/server";
 import { beginRuntimeResource } from "@/lib/observability/runtime-resources";
 import { cacheLife, cacheTag } from "next/cache";
 import { eq } from "drizzle-orm";
@@ -15,12 +14,12 @@ async function cachedStats(seasonId: string, slug: string, scope: BetPublicStats
   cacheTag(publicBetTag(seasonId),publicSeasonTag(slug),PUBLIC_STATS_TAG);
   const done=beginRuntimeResource("stats.public.fill");
   try {
-  const snapshot=await traceOperation("bet.public_stats.fill",{scope:"bet",operation:"public_stats",stage:"read"},()=>db.transaction(async tx=>{
+  const snapshot=await db.transaction(async tx=>{
     const season=await tx.query.seasons.findFirst({where:eq(seasons.id,seasonId),columns:{status:true,competitionTemplate:true}});
     if (!season || season.status === "draft" || season.competitionTemplate !== "major") return undefined;
     return readBetPublicStatsSnapshot(tx,seasonId,scope);
-  },{accessMode:"read only",isolationLevel:"repeatable read"}));
-  return await traceOperation("bet.public_stats.project",{scope:"bet",operation:"public_stats",stage:"project"},async()=>snapshot?projectBetPublicStats(snapshot):undefined);
+  },{accessMode:"read only",isolationLevel:"repeatable read"});
+  return await (snapshot?projectBetPublicStats(snapshot):undefined);
   } finally {done();}
 }
 
@@ -29,10 +28,10 @@ export async function getBetPublicStats(season: {id:string;slug:string;status:st
   if (season.status === "draft") return undefined;
   const view=scope.view ?? "open";
   if (["records","leaderboard"].includes(view)) return undefined;
-  return traceOperation("bet.public_stats.lookup",{scope:"bet",operation:"public_stats",stage:"read"},()=>cachedStats(season.id,season.slug,{
+  return cachedStats(season.id,season.slug,{
     matchId:scope.matchId,
     view:view==="event"?"event":undefined,
     includeEvent:!scope.matchId && ["event","mine","settled"].includes(view),
     includeFree:!["event","records","leaderboard"].includes(view),
-  }));
+  });
 }

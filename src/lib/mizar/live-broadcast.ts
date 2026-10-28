@@ -1,5 +1,4 @@
 import "server-only";
-import { providerFetch } from "@/lib/observability/fetch";
 import { extractSafeException } from "@/lib/observability/redact";
 
 type BroadcastFailure = "auth" | "request" | "rate_limited" | "upstream" | "endpoint" | "timeout" | "transport" | "unknown";
@@ -17,7 +16,7 @@ export function createLiveBroadcastFetch() {
   let exception: ReturnType<typeof liveBroadcastException> | undefined;
   const fetcher: typeof fetch = async (input, init) => {
     try {
-      const response = await providerFetch("supabase")(input, init);
+      const response = await fetch(input, init);
       httpStatus = response.status;
       failure = response.status === 401 || response.status === 403 ? "auth"
         : response.status === 429 ? "rate_limited"

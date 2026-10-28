@@ -1,4 +1,3 @@
-import { traceOperation } from "@/lib/observability/server";
 import { PageLayout } from "@/components/rivalhub";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
@@ -31,13 +30,13 @@ async function PredictionContent({
   params: Promise<{ seasonSlug: string }>;
 }) {
   const { seasonSlug } = await params;
-  const season = await traceOperation("predictions.page.authorize",{scope:"predictions",operation:"page",stage:"authorize"},()=>getPublicOrAuthorizedDraftSeason(seasonSlug));
+  const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season || season.competitionTemplate !== "major") notFound();
-  const user = await traceOperation("predictions.page.session",{scope:"predictions",operation:"page",stage:"authorize"},()=>getUserSession());
-  const data = await traceOperation("predictions.page.transaction",{scope:"predictions",operation:"page",stage:"transaction",attributes:{"rivalhub.workflow":`predictions.${"sim"}`}},()=>db.transaction((tx) =>
+  const user = await getUserSession();
+  const data = await db.transaction((tx) =>
     readPredictionSnapshot(tx, season.id, user?.userId ?? null, "sim"),
     { accessMode: "read only", isolationLevel: "repeatable read" },
-  ));
-  const board=await traceOperation("predictions.page.project",{scope:"predictions",operation:"page",stage:"project"},async()=>publicPickEmBoard(projectPredictionBoard(data)));
+  );
+  const board=await publicPickEmBoard(projectPredictionBoard(data));
   return <PredictionErrorBoundary key={`${season.id}/${user?.userId??"anonymous"}`}><PredictionBoard initial={board} slug={seasonSlug} signedIn={!!user} /></PredictionErrorBoundary>;
 }

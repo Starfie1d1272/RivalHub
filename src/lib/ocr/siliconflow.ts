@@ -5,8 +5,7 @@ import { createHash } from "node:crypto";
 import { playerRowLenientSchema, type ScoreboardOCRResult, type OCRProvider, type PlayerRowOCR } from "./types";
 import { OCRFailure, type OCRResponseSummary } from "./errors";
 import { extractOCRDiagnostics } from "./diagnostics";
-import { providerFetch } from "@/lib/observability/fetch";
-import { logEvent, traceOperation } from "@/lib/observability/server";
+import { logEvent } from "@/lib/observability/server";
 
 const DEFAULT_API_URL = "https://api.siliconflow.cn/v1/chat/completions";
 const DEFAULT_MODEL = "Qwen/Qwen3.5-27B";
@@ -147,87 +146,80 @@ async function callAPI(params: CallParams) {
   if (remaining <= 0) throw new OCRFailure("timeout", "request", "request_timeout", undefined, { requestId: params.requestId });
   const timer = setTimeout(() => controller.abort(), remaining);
 
-  return traceOperation("provider.siliconflow.chat_completion", {
-    scope: "provider",
-    operation: "ocr.chat_completion",
-    provider: "siliconflow",
-    attributes: { "rivalhub.workflow": "ocr" },
-  }, async () => {
-    logEvent({
-      level: "info", event: "provider.siliconflow.request_started", scope: "provider", operation: "ocr.extract",
-      requestId: params.requestId,
-      safeContext: {
-        provider: "siliconflow", model: [DEFAULT_MODEL, "Qwen/Qwen3.5-9B"].includes(params.model) ? params.model : "custom",
-        imageBytes: Buffer.byteLength(params.base64Image, "base64"), mimeType: params.mimeType,
-        imageDigest: createHash("sha256").update(Buffer.from(params.base64Image, "base64")).digest("hex"),
-        configDigest: createHash("sha256").update(JSON.stringify({ ...body, apiUrl: params.apiUrl, messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: USER_PROMPT }] })).digest("hex"),
-        responseFormat: params.withResponseFormat,
-      },
-    });
-    let phase: "request" | "response" = "request";
-    let responseSummary: Partial<OCRResponseSummary> = {};
-    try {
-      const response = await providerFetch("siliconflow")(params.apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${params.apiKey}`,
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-      phase = "response";
-      const providerTraceId = response.headers.get("x-siliconcloud-trace-id");
-      if (providerTraceId && /^ti_[a-zA-Z0-9_-]{8,64}$/.test(providerTraceId)
-        && ![params.apiKey, params.base64Image].some(value => value && providerTraceId.includes(value))) {
-        responseSummary.providerTraceId = providerTraceId;
-      }
-      if (!response.ok) {
-        const { reason, diagnostics } = await readFailureReason(response, [params.apiKey, params.base64Image]);
-        const kind = response.status === 401 || response.status === 403 ? "authentication"
-          : response.status === 429 ? "rate_limit"
-            : reason === "invalid_image" ? "image" : "upstream";
-        throw new OCRFailure(kind, "response", reason, response.status, {
-          requestId: params.requestId,
-          diagnostics, responseSummary,
-          cause: new Error(`siliconflow.http.${response.status}.${reason}`),
-        });
-      }
-
-      let json: unknown;
-      try { json = await response.json(); } catch (error) {
-        if (!controller.signal.aborted && error instanceof SyntaxError) {
-          throw new OCRFailure("upstream", "json_parse", "invalid_response_json", response.status, { requestId: params.requestId, responseSummary });
-        }
-        // Body streams can fail after valid HTTP headers; preserve the transport boundary.
-        throw error;
-      }
-      const { content, summary } = readCompletion(json);
-      Object.assign(summary, responseSummary);
-      responseSummary = summary;
-      const failureOptions = { requestId: params.requestId, responseSummary: summary };
-      // Even syntactically valid JSON can be a partial scoreboard at the limit.
-      if (summary.finishReason === "length") {
-        throw new OCRFailure("upstream", "response", "output_truncated", response.status, failureOptions);
-      }
-      if (summary.finishReason === "content_filter" || summary.finishReason === "tool_calls") {
-        throw new OCRFailure("upstream", "response", "unexpected_finish_reason", response.status, failureOptions);
-      }
-      if (!content?.trim()) throw new OCRFailure("upstream", "response", "empty_response", response.status, failureOptions);
-      return { content, httpStatus: response.status, summary };
-    } catch (error) {
-      if (error instanceof OCRFailure) throw error;
-      const timedOut = controller.signal.aborted;
-      throw new OCRFailure(timedOut ? "timeout" : "network", phase, timedOut ? (phase === "response" ? "response_timeout" : "request_timeout") : "network_failure", undefined, {
-        requestId: params.requestId, responseSummary,
-        // Preserve the real transport cause only after bounded projection and redaction.
-        diagnostics: extractOCRDiagnostics(error, [params.apiKey, params.base64Image]),
-      });
-    } finally {
-      // The deadline includes reading the response body, not only HTTP headers.
-      clearTimeout(timer);
-    }
+  logEvent({
+    level: "info", event: "provider.siliconflow.request_started", scope: "provider", operation: "ocr.extract",
+    requestId: params.requestId,
+    safeContext: {
+      provider: "siliconflow", model: [DEFAULT_MODEL, "Qwen/Qwen3.5-9B"].includes(params.model) ? params.model : "custom",
+      imageBytes: Buffer.byteLength(params.base64Image, "base64"), mimeType: params.mimeType,
+      imageDigest: createHash("sha256").update(Buffer.from(params.base64Image, "base64")).digest("hex"),
+      configDigest: createHash("sha256").update(JSON.stringify({ ...body, apiUrl: params.apiUrl, messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: USER_PROMPT }] })).digest("hex"),
+      responseFormat: params.withResponseFormat,
+    },
   });
+  let phase: "request" | "response" = "request";
+  let responseSummary: Partial<OCRResponseSummary> = {};
+  try {
+    const response = await fetch(params.apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${params.apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    phase = "response";
+    const providerTraceId = response.headers.get("x-siliconcloud-trace-id");
+    if (providerTraceId && /^ti_[a-zA-Z0-9_-]{8,64}$/.test(providerTraceId)
+      && ![params.apiKey, params.base64Image].some(value => value && providerTraceId.includes(value))) {
+      responseSummary.providerTraceId = providerTraceId;
+    }
+    if (!response.ok) {
+      const { reason, diagnostics } = await readFailureReason(response, [params.apiKey, params.base64Image]);
+      const kind = response.status === 401 || response.status === 403 ? "authentication"
+        : response.status === 429 ? "rate_limit"
+          : reason === "invalid_image" ? "image" : "upstream";
+      throw new OCRFailure(kind, "response", reason, response.status, {
+        requestId: params.requestId,
+        diagnostics, responseSummary,
+        cause: new Error(`siliconflow.http.${response.status}.${reason}`),
+      });
+    }
+
+    let json: unknown;
+    try { json = await response.json(); } catch (error) {
+      if (!controller.signal.aborted && error instanceof SyntaxError) {
+        throw new OCRFailure("upstream", "json_parse", "invalid_response_json", response.status, { requestId: params.requestId, responseSummary });
+      }
+      // Body streams can fail after valid HTTP headers; preserve the transport boundary.
+      throw error;
+    }
+    const { content, summary } = readCompletion(json);
+    Object.assign(summary, responseSummary);
+    responseSummary = summary;
+    const failureOptions = { requestId: params.requestId, responseSummary: summary };
+    // Even syntactically valid JSON can be a partial scoreboard at the limit.
+    if (summary.finishReason === "length") {
+      throw new OCRFailure("upstream", "response", "output_truncated", response.status, failureOptions);
+    }
+    if (summary.finishReason === "content_filter" || summary.finishReason === "tool_calls") {
+      throw new OCRFailure("upstream", "response", "unexpected_finish_reason", response.status, failureOptions);
+    }
+    if (!content?.trim()) throw new OCRFailure("upstream", "response", "empty_response", response.status, failureOptions);
+    return { content, httpStatus: response.status, summary };
+  } catch (error) {
+    if (error instanceof OCRFailure) throw error;
+    const timedOut = controller.signal.aborted;
+    throw new OCRFailure(timedOut ? "timeout" : "network", phase, timedOut ? (phase === "response" ? "response_timeout" : "request_timeout") : "network_failure", undefined, {
+      requestId: params.requestId, responseSummary,
+      // Preserve the real transport cause only after bounded projection and redaction.
+      diagnostics: extractOCRDiagnostics(error, [params.apiKey, params.base64Image]),
+    });
+  } finally {
+    // The deadline includes reading the response body, not only HTTP headers.
+    clearTimeout(timer);
+  }
 }
 
 async function extract(base64Image: string, mimeType: string): Promise<ScoreboardOCRResult> {
@@ -246,115 +238,108 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
   }
   const requestId = crypto.randomUUID();
 
-  return traceOperation("provider.siliconflow.ocr", {
-    scope: "provider",
-    operation: "ocr.extract",
-    provider: "siliconflow",
-    attributes: { "rivalhub.workflow": "ocr" },
-  }, async () => {
-    const callParams: CallParams = { apiUrl, apiKey, model, base64Image, mimeType, withResponseFormat: true, requestId, deadline: performance.now() + 180000 };
+  const callParams: CallParams = { apiUrl, apiKey, model, base64Image, mimeType, withResponseFormat: true, requestId, deadline: performance.now() + 180000 };
 
-    let result;
-    try {
-      result = await callAPI(callParams);
-    } catch (error) {
-      if (!(error instanceof OCRFailure) || error.httpStatus !== 400 || error.reason !== "response_format_rejected") throw error;
+  let result;
+  try {
+    result = await callAPI(callParams);
+  } catch (error) {
+    if (!(error instanceof OCRFailure) || error.httpStatus !== 400 || error.reason !== "response_format_rejected") throw error;
+    logEvent({
+      level: "info",
+      event: "provider.siliconflow.response_format_fallback",
+      scope: "provider",
+      operation: "ocr.extract",
+      requestId,
+      errorClass: "expected",
+      safeContext: { provider: "siliconflow", httpStatus: 400, reason: error.reason },
+    });
+    callParams.withResponseFormat = false;
+    try { result = await callAPI(callParams); } catch (fallbackError) {
+      if (!(fallbackError instanceof OCRFailure)) throw fallbackError;
+      throw new OCRFailure(fallbackError.kind, fallbackError.phase, fallbackError.reason, fallbackError.httpStatus, {
+        diagnostics: [...error.diagnostics.slice(0, 2), ...fallbackError.diagnostics],
+        responseSummary: fallbackError.responseSummary,
+        requestId, cause: new Error(`siliconflow.http.${fallbackError.httpStatus ?? 0}.${fallbackError.reason}`, { cause: error }),
+      });
+    }
+  }
+
+  const failureOptions = { requestId, responseSummary: result.summary };
+  let parsed: unknown;
+  try { parsed = extractJson(result.content); } catch {
+    throw new OCRFailure("upstream", "json_parse", "invalid_model_json", result.httpStatus, failureOptions);
+  }
+
+  const parsedCount = Array.isArray(parsed)
+    ? parsed.length
+    : parsed && typeof parsed === "object" && Array.isArray((parsed as Record<string, unknown>).players)
+      ? ((parsed as Record<string, unknown>).players as unknown[]).length
+      : 0;
+  logEvent({
+    level: "info",
+    event: "provider.siliconflow.response_received",
+    scope: "provider",
+    operation: "ocr.parse",
+    requestId,
+    safeContext: { provider: "siliconflow", count: parsedCount, responseFormat: callParams.withResponseFormat },
+  });
+
+  let rawPlayers: unknown[];
+  try { rawPlayers = extractPlayersArray(parsed); } catch (error) {
+    throw new OCRFailure("upstream", "shape", error instanceof OCRFailure ? error.reason : "invalid_result_shape", result.httpStatus, failureOptions);
+  }
+
+  result.summary.rowCount = Math.min(rawPlayers.length, 1_000_000);
+  result.summary.emptyNameRows = Math.min(rawPlayers.filter(row => {
+    const expanded = expandPlayerRow(row) as Record<string, unknown> | null;
+    return expanded && (typeof expanded.perfectName !== "string" || !expanded.perfectName.trim());
+  }).length, 1_000_000);
+
+  if (rawPlayers.length === 0) {
+    throw new OCRFailure("upstream", "shape", "empty_players", result.httpStatus, failureOptions);
+  }
+  if (rawPlayers.length > 20) rawPlayers = rawPlayers.slice(0, 20);
+
+  const validPlayers: PlayerRowOCR[] = [];
+  let idx = 0;
+  for (const row of rawPlayers) {
+    const r = playerRowLenientSchema.safeParse(expandPlayerRow(row));
+    if (!r.success) {
       logEvent({
-        level: "info",
-        event: "provider.siliconflow.response_format_fallback",
+        level: "warn",
+        event: "provider.siliconflow.row_rejected",
         scope: "provider",
-        operation: "ocr.extract",
+        operation: "ocr.validate",
         requestId,
         errorClass: "expected",
-        safeContext: { provider: "siliconflow", httpStatus: 400, reason: error.reason },
+        safeContext: {
+          provider: "siliconflow", rowIndex: idx + 1,
+          reason: Array.isArray(row) && row.length !== SCOREBOARD_COLUMNS.length ? "invalid_column_count"
+            : Array.isArray(row) && (typeof row[0] !== "string" || !row[0].trim()) ? "missing_player_name" : "invalid_player_row",
+          count: Array.isArray(row) ? Math.min(row.length, 100) : undefined,
+        },
       });
-      callParams.withResponseFormat = false;
-      try { result = await callAPI(callParams); } catch (fallbackError) {
-        if (!(fallbackError instanceof OCRFailure)) throw fallbackError;
-        throw new OCRFailure(fallbackError.kind, fallbackError.phase, fallbackError.reason, fallbackError.httpStatus, {
-          diagnostics: [...error.diagnostics.slice(0, 2), ...fallbackError.diagnostics],
-          responseSummary: fallbackError.responseSummary,
-          requestId, cause: new Error(`siliconflow.http.${fallbackError.httpStatus ?? 0}.${fallbackError.reason}`, { cause: error }),
-        });
-      }
+    } else {
+      validPlayers.push(r.data);
     }
+    idx++;
+  }
 
-    const failureOptions = { requestId, responseSummary: result.summary };
-    let parsed: unknown;
-    try { parsed = extractJson(result.content); } catch {
-      throw new OCRFailure("upstream", "json_parse", "invalid_model_json", result.httpStatus, failureOptions);
-    }
-
-    const parsedCount = Array.isArray(parsed)
-      ? parsed.length
-      : parsed && typeof parsed === "object" && Array.isArray((parsed as Record<string, unknown>).players)
-        ? ((parsed as Record<string, unknown>).players as unknown[]).length
-        : 0;
-    logEvent({
-      level: "info",
-      event: "provider.siliconflow.response_received",
-      scope: "provider",
-      operation: "ocr.parse",
-      requestId,
-      safeContext: { provider: "siliconflow", count: parsedCount, responseFormat: callParams.withResponseFormat },
-    });
-
-    let rawPlayers: unknown[];
-    try { rawPlayers = extractPlayersArray(parsed); } catch (error) {
-      throw new OCRFailure("upstream", "shape", error instanceof OCRFailure ? error.reason : "invalid_result_shape", result.httpStatus, failureOptions);
-    }
-
-    result.summary.rowCount = Math.min(rawPlayers.length, 1_000_000);
-    result.summary.emptyNameRows = Math.min(rawPlayers.filter(row => {
-      const expanded = expandPlayerRow(row) as Record<string, unknown> | null;
-      return expanded && (typeof expanded.perfectName !== "string" || !expanded.perfectName.trim());
-    }).length, 1_000_000);
-
-    if (rawPlayers.length === 0) {
-      throw new OCRFailure("upstream", "shape", "empty_players", result.httpStatus, failureOptions);
-    }
-    if (rawPlayers.length > 20) rawPlayers = rawPlayers.slice(0, 20);
-
-    const validPlayers: PlayerRowOCR[] = [];
-    let idx = 0;
-    for (const row of rawPlayers) {
-      const r = playerRowLenientSchema.safeParse(expandPlayerRow(row));
-      if (!r.success) {
-        logEvent({
-          level: "warn",
-          event: "provider.siliconflow.row_rejected",
-          scope: "provider",
-          operation: "ocr.validate",
-          requestId,
-          errorClass: "expected",
-          safeContext: {
-            provider: "siliconflow", rowIndex: idx + 1,
-            reason: Array.isArray(row) && row.length !== SCOREBOARD_COLUMNS.length ? "invalid_column_count"
-              : Array.isArray(row) && (typeof row[0] !== "string" || !row[0].trim()) ? "missing_player_name" : "invalid_player_row",
-            count: Array.isArray(row) ? Math.min(row.length, 100) : undefined,
-          },
-        });
-      } else {
-        validPlayers.push(r.data);
-      }
-      idx++;
-    }
-
-    logEvent({
-      level: "info",
-      event: "provider.siliconflow.result",
-      scope: "provider",
-      operation: "ocr.validate",
-      requestId,
-      safeContext: { ...result.summary, provider: "siliconflow", count: validPlayers.length, status: validPlayers.length ? "completed" : "rejected" },
-    });
-
-    if (validPlayers.length === 0) {
-      throw new OCRFailure("upstream", "shape", "invalid_player_rows", result.httpStatus, failureOptions);
-    }
-
-    return { players: validPlayers };
+  logEvent({
+    level: "info",
+    event: "provider.siliconflow.result",
+    scope: "provider",
+    operation: "ocr.validate",
+    requestId,
+    safeContext: { ...result.summary, provider: "siliconflow", count: validPlayers.length, status: validPlayers.length ? "completed" : "rejected" },
   });
+
+  if (validPlayers.length === 0) {
+    throw new OCRFailure("upstream", "shape", "invalid_player_rows", result.httpStatus, failureOptions);
+  }
+
+  return { players: validPlayers };
 }
 
 function readCompletion(value: unknown): { content: string | null; summary: OCRResponseSummary } {

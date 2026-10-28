@@ -1,4 +1,3 @@
-import { trace, SpanStatusCode, type Span } from "@opentelemetry/api";
 import type { PoolClient } from "pg";
 
 const OPERATIONS = ["select", "with", "insert", "update", "delete", "begin", "commit", "rollback", "rollback_to", "set", "savepoint", "release"];
@@ -15,20 +14,8 @@ export function measureClient(client: PoolClient, totals: ReturnType<typeof crea
   const heldAt = performance.now();
   totals.inFlight++;
   totals.peak = Math.max(totals.peak, totals.inFlight);
-  let transaction: { started: number; span?: Span } | null = null;
+  let transaction: { started: number } | null = null;
   let released = false;
-  function start(name: string, operation: string): Span | undefined {
-    try { return trace.getTracer("rivalhub").startSpan(name, { attributes: { "db.system": "postgresql", "db.operation": operation } }); }
-    catch { return undefined; }
-  }
-  function end(span: Span | undefined, duration: number, failed: boolean, rows?: number) {
-    try {
-      span?.setAttribute("rivalhub.duration_ms", duration);
-      if (rows !== undefined) span?.setAttribute("rivalhub.db.result.rows", rows);
-      span?.setStatus({ code: failed ? SpanStatusCode.ERROR : SpanStatusCode.OK });
-      span?.end();
-    } catch { /* An exporter cannot change database results. */ }
-  }
   client.query = function (...args: unknown[]) {
     const first = args[0];
     // Custom Query/Submittable objects own their callback/emitter semantics.
@@ -41,9 +28,8 @@ export function measureClient(client: PoolClient, totals: ReturnType<typeof crea
     const token = typeof text === "string" ? (text.trim().match(/^[a-z]+/i)?.[0].toLowerCase() ?? "unknown") : "unknown";
     const operation = token === "rollback" && typeof text === "string" && /^rollback\s+to\b/i.test(text.trim()) ? "rollback_to" : OPERATIONS.includes(token) ? token : "unknown";
     const started = performance.now();
-    const span = start("db.query", operation);
     totals.queries++;
-    if (operation === "begin" && !transaction) transaction = { started, span: start("db.transaction.hold", "transaction") };
+    if (operation === "begin" && !transaction) transaction = { started };
     let finished = false;
     const finish = (error: unknown, result?: unknown) => {
       if (finished) return;
@@ -54,7 +40,6 @@ export function measureClient(client: PoolClient, totals: ReturnType<typeof crea
       totals.failures += error ? 1 : 0;
       totals.rows += rows;
       totals.queryMs += elapsed;
-      end(span, elapsed, Boolean(error), rows);
       if (transaction && ((operation === "commit" || operation === "rollback") || (operation === "begin" && error))) {
         const held = performance.now() - transaction.started;
         totals.transactions++;
@@ -62,7 +47,6 @@ export function measureClient(client: PoolClient, totals: ReturnType<typeof crea
         if (error) totals.unfinished++;
         else if (operation === "commit" && !(result && typeof result === "object" && Object.getOwnPropertyDescriptor(result, "command")?.value === "ROLLBACK")) totals.committed++;
         else totals.rolledBack++;
-        end(transaction.span, held, Boolean(error));
         transaction = null;
       }
     };
@@ -96,7 +80,6 @@ export function measureClient(client: PoolClient, totals: ReturnType<typeof crea
         totals.transactions++;
         totals.transactionMs += held;
         totals.unfinished++;
-        end(transaction.span, held, true);
         transaction = null;
       }
     }

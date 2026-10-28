@@ -6,7 +6,7 @@ vi.mock("@/db/client", () => ({ db: {
   select: () => ({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) }),
   transaction: async (read: (tx: object) => unknown) => read({}),
 } }));
-vi.mock("@/lib/observability/server", () => ({ traceOperation: (_name: string, _options: object, read: () => unknown) => read(), captureException: vi.fn() }));
+vi.mock("@/lib/observability/server", () => ({ captureException: vi.fn() }));
 vi.mock("@/lib/stats/tournament-query", () => ({ getTournamentStats: reads.tournament, getPlayerCareerPerformances: reads.careers,
   getCurrentStatsSelectionInTx: reads.selection, getTournamentRecordEvents: vi.fn() }));
 vi.mock("@/lib/stats/player-attribute-benchmark", () => ({ getPlayerAttributeBenchmark: reads.benchmark }));

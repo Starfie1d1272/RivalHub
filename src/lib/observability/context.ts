@@ -1,11 +1,14 @@
-import { context as otelContext, createContextKey } from "@opentelemetry/api";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 export interface RequestContext {
   route?: string;
   requestId?: string;
 }
 
-const REQUEST_CONTEXT_KEY = createContextKey("rivalhub.request-context");
+// Share request context across Next API/RSC/instrumentation module graphs.
+const SLOT = Symbol.for("rivalhub.request-context.v1");
+const host = process as unknown as Record<symbol, AsyncLocalStorage<RequestContext> | undefined>;
+const requestContextStorage = host[SLOT] ??= new AsyncLocalStorage<RequestContext>();
 const REQUEST_ID_HEADERS = ["x-request-id", "x-correlation-id", "x-vercel-id"];
 const ROUTE_HEADERS = ["x-matched-path", "x-nextjs-matched-path"];
 const SAFE_ID = /^[A-Za-z0-9._:-]+$/;
@@ -48,7 +51,7 @@ export function requestContextFromHeaders(
 }
 
 export function getObservabilityContext(): RequestContext {
-  return (otelContext.active().getValue(REQUEST_CONTEXT_KEY) as RequestContext | undefined) ?? {};
+  return requestContextStorage.getStore() ?? {};
 }
 
 export function withObservabilityContext<T>(requestContext: RequestContext, callback: () => T): T {
@@ -59,7 +62,7 @@ export function withObservabilityContext<T>(requestContext: RequestContext, call
     route: requestContext.route ?? current.route,
     requestId: requestContext.requestId ?? current.requestId,
   };
-  return otelContext.with(otelContext.active().setValue(REQUEST_CONTEXT_KEY, merged), callback);
+  return requestContextStorage.run(merged, callback);
 }
 
 function readHeader(
@@ -87,4 +90,8 @@ export function ensureRequestId(requestId = getObservabilityContext().requestId)
 function createRequestId(): string {
   if (typeof globalThis.crypto?.randomUUID === "function") return globalThis.crypto.randomUUID();
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
+}
+
+export function withoutObservabilityContext<T>(callback: () => T): T {
+  return requestContextStorage.exit(callback);
 }

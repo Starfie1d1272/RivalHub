@@ -12,7 +12,7 @@ import { addMatchCommentatorInTx, cancelMatchCommentaryInTx, claimMatchCommentar
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { isHttpUrl } from "@/lib/external-url";
-import { captureException, traceOperation } from "@/lib/observability/server";
+import { captureException } from "@/lib/observability/server";
 import { revalidateMatchPaths } from "@/lib/revalidation";
 const uuid = z.guid();
 const url = z.string().trim().max(2000).refine(isHttpUrl, "录像链接必须是 http 或 https URL");
@@ -26,7 +26,7 @@ async function matchAndAdminOrThrow(matchId: string) {
 async function run(matchId: string, work: (actorId: string) => Promise<void>): Promise<ActionResult<{ refreshPending: boolean }>> {
   try {
     const { match, season, admin } = await matchAndAdminOrThrow(matchId);
-    await traceOperation("postmatch.commit", { scope: "action", operation: "postmatch.commit", stage: "transaction" }, () => work(auditActorId(admin)));
+    await work(auditActorId(admin));
     let refreshPending = false;
     try { revalidateMatchPaths(season.slug, match.id, { statistics: false }); }
     catch (error) {

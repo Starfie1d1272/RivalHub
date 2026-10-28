@@ -1,10 +1,6 @@
 import { expect, it, vi } from "vitest";
 import { logEvent } from "@/lib/observability/logger";
-vi.mock("@opentelemetry/api-logs", () => ({
-  logs: { getLogger: () => ({ emit() { throw Error("fixture provider unavailable"); } }) },
-  SeverityNumber: { INFO: 9 },
-}));
-it("retains the local numeric sample when the external exporter throws", () => {
+it("writes the local numeric sample to stdout", () => {
   const output: string[] = [];
   const write = vi.spyOn(process.stdout, "write").mockImplementation(value => { output.push(String(value)); return true; });
   try {

@@ -21,7 +21,6 @@ import { changePrimarySteam64InTx, assertSteam64Available } from "@/lib/identity
 import { getSteamProfileForPrimary, upsertSteamProfile } from "@/lib/steam-profiles";
 import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
 import { updatePublicHomeTag, updatePublicPlayerTag, updatePublicSeasonTags } from "@/lib/revalidation";
-import { traceOperation } from "@/lib/observability/server";
 import { normalizePlayerDeclaredProfile } from "@/lib/player-declared-profile";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
 
@@ -300,102 +299,96 @@ export async function submitRegistration(input: RegistrationFormData) {
     await assertSteam64Available(db, data.steam64, user.id);
     const steamProfile = await getSteamProfileForPrimary(db, user.steam64, data.steam64);
 
-    const registration = await traceOperation("registration.submit", {
-      scope: "registration",
-      operation: "submit",
-      attributes: { "rivalhub.workflow": "rivals_registration" },
-    }, async () => {
-      return db.transaction(async (tx) => {
-        await lockGameplayIdentityWriteInTx(tx);
-        const currentSeason = initialWindow.needsOpeningRecovery
-          ? (await ensureRegistrationOpenForParticipantInTx(tx, data.seasonId)).season
-          : season;
-        const currentWindow = getRegistrationWindowState(currentSeason);
-        if (!currentWindow.canSubmit) {
-          throw new AppError(ErrorCode.REGISTRATION_CLOSED, currentWindow.message);
-        }
-        const declaredProfile = normalizePlayerDeclaredProfile(data);
-        await changePrimarySteam64InTx(tx, {
-          userId: user.id,
-          nextSteam64: data.steam64,
-          actorId: session.userId,
-        });
-        await upsertSteamProfile(tx, steamProfile);
-        const [updatedUser] = await tx
-          .update(users)
-          .set({
-            qq: data.qq,
-            studentId: data.studentId,
-            perfectName: data.perfectName,
-            gameplayStyle: declaredProfile.gameplayStyle ?? data.gameplayStyle,
-            competitionHistory: declaredProfile.competitionHistory,
-            updatedAt: new Date(),
-          })
-          .where(eq(users.id, user.id))
-          .returning();
-
-        if (!updatedUser) {
-          throw new AppError(ErrorCode.INTERNAL_ERROR, ERROR_MESSAGES.INTERNAL_ERROR);
-        }
-
-        const registrationValues = {
-          playerType: data.playerType,
-          primaryPosition: data.primaryPosition,
-          secondaryPosition: data.secondaryPosition,
-          peakRank: data.peakRank,
-          peakRankSeason: data.peakRankSeason,
-          peakRating: data.peakRating,
-          peakWe: data.peakWe,
-          currentSeasonPeakRank: data.currentSeasonPeakRank,
-          currentRating: data.currentRating,
-          currentWe: data.currentWe,
-          screenshotUrls: data.screenshotUrls,
-          mapPreferences: data.mapPreferences,
+    const registration = await db.transaction(async (tx) => {
+      await lockGameplayIdentityWriteInTx(tx);
+      const currentSeason = initialWindow.needsOpeningRecovery
+        ? (await ensureRegistrationOpenForParticipantInTx(tx, data.seasonId)).season
+        : season;
+      const currentWindow = getRegistrationWindowState(currentSeason);
+      if (!currentWindow.canSubmit) {
+        throw new AppError(ErrorCode.REGISTRATION_CLOSED, currentWindow.message);
+      }
+      const declaredProfile = normalizePlayerDeclaredProfile(data);
+      await changePrimarySteam64InTx(tx, {
+        userId: user.id,
+        nextSteam64: data.steam64,
+        actorId: session.userId,
+      });
+      await upsertSteamProfile(tx, steamProfile);
+      const [updatedUser] = await tx
+        .update(users)
+        .set({
+          qq: data.qq,
+          studentId: data.studentId,
+          perfectName: data.perfectName,
           gameplayStyle: declaredProfile.gameplayStyle ?? data.gameplayStyle,
           competitionHistory: declaredProfile.competitionHistory,
-          highlightVideoUrl: data.highlightVideoUrl,
-          willingToBeCaptain: data.willingToBeCaptain,
-          notes: data.notes,
-        };
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, user.id))
+        .returning();
 
-        const [savedRegistration] = existing
-          ? await tx
-              .update(seasonRegistrations)
-              .set({
-                ...registrationValues,
-                status: "pending",
-                updatedAt: new Date(),
-              })
-              .where(eq(seasonRegistrations.id, existing.id))
-              .returning()
-          : await tx
-              .insert(seasonRegistrations)
-              .values({
-                userId: user.id,
-                seasonId: data.seasonId,
-                ...registrationValues,
-              })
-              .returning();
-        if (!savedRegistration) throw new AppError(ErrorCode.INTERNAL_ERROR, ERROR_MESSAGES.INTERNAL_ERROR);
+      if (!updatedUser) {
+        throw new AppError(ErrorCode.INTERNAL_ERROR, ERROR_MESSAGES.INTERNAL_ERROR);
+      }
 
-        await tx
-          .delete(registrationDrafts)
-          .where(
-            and(
-              eq(registrationDrafts.seasonId, data.seasonId),
-              eq(registrationDrafts.email, normalizedEmail),
-            ),
-          );
+      const registrationValues = {
+        playerType: data.playerType,
+        primaryPosition: data.primaryPosition,
+        secondaryPosition: data.secondaryPosition,
+        peakRank: data.peakRank,
+        peakRankSeason: data.peakRankSeason,
+        peakRating: data.peakRating,
+        peakWe: data.peakWe,
+        currentSeasonPeakRank: data.currentSeasonPeakRank,
+        currentRating: data.currentRating,
+        currentWe: data.currentWe,
+        screenshotUrls: data.screenshotUrls,
+        mapPreferences: data.mapPreferences,
+        gameplayStyle: declaredProfile.gameplayStyle ?? data.gameplayStyle,
+        competitionHistory: declaredProfile.competitionHistory,
+        highlightVideoUrl: data.highlightVideoUrl,
+        willingToBeCaptain: data.willingToBeCaptain,
+        notes: data.notes,
+      };
 
-        await writeAuditInTx(tx, {
-          seasonId: data.seasonId,
-          action: "registration.submit",
-          actorId: session.userId,
-          targetId: savedRegistration.id,meta: { email: data.email, primaryPosition: data.primaryPosition },
-        });
+      const [savedRegistration] = existing
+        ? await tx
+            .update(seasonRegistrations)
+            .set({
+              ...registrationValues,
+              status: "pending",
+              updatedAt: new Date(),
+            })
+            .where(eq(seasonRegistrations.id, existing.id))
+            .returning()
+        : await tx
+            .insert(seasonRegistrations)
+            .values({
+              userId: user.id,
+              seasonId: data.seasonId,
+              ...registrationValues,
+            })
+            .returning();
+      if (!savedRegistration) throw new AppError(ErrorCode.INTERNAL_ERROR, ERROR_MESSAGES.INTERNAL_ERROR);
 
-        return { registration: savedRegistration, seasonSlug: currentSeason.slug };
+      await tx
+        .delete(registrationDrafts)
+        .where(
+          and(
+            eq(registrationDrafts.seasonId, data.seasonId),
+            eq(registrationDrafts.email, normalizedEmail),
+          ),
+        );
+
+      await writeAuditInTx(tx, {
+        seasonId: data.seasonId,
+        action: "registration.submit",
+        actorId: session.userId,
+        targetId: savedRegistration.id,meta: { email: data.email, primaryPosition: data.primaryPosition },
       });
+
+      return { registration: savedRegistration, seasonSlug: currentSeason.slug };
     });
 
     updatePublicPlayerTag(user.id);

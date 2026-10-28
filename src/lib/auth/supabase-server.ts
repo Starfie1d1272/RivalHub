@@ -2,7 +2,6 @@ import "server-only";
 
 import { requireSupabasePublicKey, requireSupabaseSecretKey } from "@/lib/runtime/supabase-keys";
 import { createClient } from "@supabase/supabase-js";
-import { providerFetch } from "@/lib/observability/fetch";
 import { assertPreviewAuthEnvironment } from "@/lib/runtime/preview";
 
 /** Privileged Supabase client. This module is server-only because its key bypasses RLS. */
@@ -16,7 +15,7 @@ export function createServiceClient(options: { fetch?: typeof fetch } = {}) {
         autoRefreshToken: false,
         persistSession: false,
       },
-      global: { fetch: options.fetch ?? providerFetch("supabase") },
+      global: { fetch: options.fetch ?? fetch },
     },
   );
 }
@@ -29,7 +28,7 @@ export function createPublicAuthClient() {
     requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_URL),
     {
       auth: { autoRefreshToken: false, persistSession: false },
-      global: { fetch: providerFetch("supabase") },
+      global: { fetch },
     },
   );
 }

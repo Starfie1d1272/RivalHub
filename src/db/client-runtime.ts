@@ -8,7 +8,6 @@ import * as schema from "./schema";
 // This module is reserved for Node application/CLI entrypoints; the relative
 // imports intentionally bypass the Next server-only facade.
 import { captureException, logEvent } from "../lib/observability/logger";
-import { traceOperation } from "../lib/observability/tracing";
 import { assertPreviewDatabaseUrl } from "../lib/runtime/preview";
 
 let configurationCache: { source: string; value: RuntimeConfiguration } | null = null;
@@ -138,30 +137,7 @@ function setupPoolGuard(entry: RuntimeEntry, owner: DatabaseRuntimeOwner) {
       const active = attempt === 0 ? entry : owner.entry;
       try {
         const queryFn = active.query;
-        return await traceOperation("db.pool.query", {
-          scope: "database",
-          operation: "query",
-          attributes: {
-            "db.system": "postgresql",
-            "db.operation": queryOperation,
-            "rivalhub.attempt": attempt,
-          },
-        }, async (span) => {
-          const activePool = active.pool;
-          try {
-            span.setAttributes({
-              "rivalhub.db.pool.total": activePool?.totalCount ?? 0,
-              "rivalhub.db.pool.idle": activePool?.idleCount ?? 0,
-              "rivalhub.db.pool.waiting": activePool?.waitingCount ?? 0,
-            });
-          } catch { /* Diagnostics cannot change a query result. */ }
-          const result = await queryFn(...args);
-          if (Number.isInteger(result?.rowCount) && result.rowCount >= 0) {
-            try { span.setAttribute("rivalhub.db.result.rows", result.rowCount); }
-            catch { /* Diagnostics cannot change a query result. */ }
-          }
-          return result;
-        });
+        return await queryFn(...args);
       } catch (err: unknown) {
         if (attempt === 0 && isPreConnectionError(err) && !owner.disposed) {
           logEvent({

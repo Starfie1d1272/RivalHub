@@ -45,7 +45,7 @@ export function serviceHealth(telemetry: Telemetry, jobs: SchedulerHealthView[] 
     action: "查看下方定时任务健康与运行日志，核对主调度、派发和业务状态。",
   };
   return [...journeys, scheduler,
-    { label: "完整性", status: "未核验", source: "生产结构化日志与 Better Stack 告警", coverage: "本页未读取告警或事件", reason: "缺少当前权威结果，不能由无样本推断正常。", action: "在 Better Stack 检查 production security / invariant 告警，并核对审计事实。" },
+    { label: "完整性", status: "未核验", source: "生产结构化日志与审计事实", coverage: "本页未读取日志事件", reason: "缺少当前权威结果，不能由无样本推断正常。", action: "检查服务 journal 中的 production security / invariant 事件，并核对审计事实。" },
     { label: "依赖与备份保障", status: "未核验", source: "公共资源真实 GET、备份验证与 provider 控制台", coverage: "本页未读取这些证据", reason: "缺少当前资源、备份与配额证据。", action: "核对公共资源 GET、最近可信 full backup 验证及 provider 用量与预算。" },
   ];
 }
