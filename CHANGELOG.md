@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.24.9]
+
+### Added
+
+- 比赛详情可在正式统计确认前展示已结束地图的临时基础记分板，并标明待核对。
+
 ## [2.24.8]
 
 ### Added
@@ -3624,3 +3630,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.24.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.6...v2.24.7
 
 [2.24.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.7...v2.24.8
+
+[2.24.9]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.8...v2.24.9
