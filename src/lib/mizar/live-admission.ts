@@ -3,14 +3,14 @@ import { performance } from "node:perf_hooks";
 import type { LiveSnapshotV1 } from "./protocol";
 
 // Resource protection only; never an authorization or cross-instance state owner.
-export const LIVE_REQUEST_LIMIT = 2;
+export const LIVE_REQUEST_LIMIT = process.env.VERCEL === "1" ? 2 : 6;
 const pending = new Map<string, number>();
 const active = new Set<string>();
 const DEMAND_LIMIT = 256;
 const DEMAND_TTL_MS = 1500;
 /** Demand tickets contain no frame, promise or authority. Rejected frames are discarded.
  * A recurring source retains its place until a subsequent fresh request takes a turn.
- * With N recurring keys, two permits and bounded work, each gets a turn in finitely
+ * With N recurring keys, bounded permits and bounded work, each gets a turn in finitely
  * many releases. A silent source can reserve capacity for at most 1.5 seconds.
  */
 export function tryAdmitLiveRequest(key: string): (() => void) | null {
@@ -31,8 +31,8 @@ export function tryAdmitLiveRequest(key: string): (() => void) | null {
   };
 }
 
-// Two bounded body readers take no DB connection. Auth and broadcasting
-// share the two fair permits, leaving a third DB connection for other work.
+// Bounded body readers take no DB connection. Auth and broadcasting share fair
+// permits, leaving database connections available for other work.
 // FIFO here only covers body ingress, never authentication or slow broadcasts. Waiting requests expire
 // within the existing 500ms freshness budget; no parsed snapshot is queued.
 const INGRESS_WAIT_LIMIT = 256;
