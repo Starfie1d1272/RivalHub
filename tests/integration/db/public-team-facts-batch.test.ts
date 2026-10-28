@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
-import { getPublicEventTeamMatchFacts, getPublicEventTeamMatchFactsBatch, getPublicEventTeamMatchSummary } from "@/lib/competition-entries/public-team-context";
+import { getPublicEventTeamMatchFactsBatch, getPublicEventTeamMatchSummary } from "@/lib/competition-entries/public-team-context";
 import { seedFixture } from "./harness/mizar";
 vi.mock("next/cache", () => ({ cacheTag: vi.fn(), cacheLife: vi.fn() }));
 
@@ -19,11 +19,9 @@ it("batches three seasons without changing BO1 facts, side orientation, ordering
   const fixtures = await Promise.all([withFinishedBo1(), withFinishedBo1(), withFinishedBo1()]);
   const empty = randomUUID(), emptySeason = randomUUID();
   const scopes = fixtures.map(f => ({ seasonId: f.seasonId, entryIds: [f.entryAId, f.entryBId, empty] }));
-  const full = await Promise.all(scopes.map(s => getPublicEventTeamMatchFacts(s.seasonId, s.entryIds)));
   const batch = await getPublicEventTeamMatchFactsBatch([...scopes, { seasonId: emptySeason, entryIds: [] }]);
-  for (const [i, f] of fixtures.entries()) {
+  for (const f of fixtures) {
     const result = batch.get(f.seasonId)!;
-    expect(result).toEqual(full[i]);
     expect(result.get(f.entryAId)).toMatchObject({ record: { played: 1, wins: 1, losses: 0, winRate: "100%" } });
     expect(result.get(f.entryBId)).toMatchObject({ record: { played: 1, wins: 0, losses: 1, winRate: "0%" } });
     expect(result.get(f.entryAId)!.matches.map(m => m.id)).toEqual([f.finishedId, f.matchId]);

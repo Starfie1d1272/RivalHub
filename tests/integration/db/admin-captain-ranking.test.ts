@@ -24,6 +24,7 @@ it("keeps canonical eight seeds and total", async () => {
     expect(candidate.seeds.map(row => row.id)).toEqual(baseline.candidates.slice(0, 8).map(row => row.id));
     expect(candidate.seeds[0]?.id).toBe(registrations[5]);
     expect(candidate.seeds[0]).not.toHaveProperty("peakRank");
+
   } finally {
     await pool.query("delete from captain_votes where voter_registration_id=any($1::uuid[]) or candidate_registration_id=any($1::uuid[])", [registrations]);
     await pool.query("delete from season_registrations where season_id=$1", [season]);

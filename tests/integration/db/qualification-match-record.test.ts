@@ -36,7 +36,7 @@ async function fixture() {
   return { seasonId, entries, run: run!, first, second };
 }
 
-it("projects one canonical pre-round record independently of display facts", async () => {
+it("projects one canonical pre-round record", async () => {
   const f = await fixture();
   const full = await loadQualificationSwissStageReadModel(f.seasonId);
   const narrow = await loadQualificationSwissMatchRecord(f.seasonId, f.second[0]!.id);

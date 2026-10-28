@@ -4,7 +4,7 @@ import { createLocalPool } from "./harness/database";
 import { createPredictionBrowserFixture, removePredictionBrowserFixture } from "../../e2e/helpers/prediction-fixture";
 import { loadMajorSwissMatchRecord, loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
 
-it("keeps frozen Swiss record parity across scoped matches", async () => {
+it("keeps frozen Swiss record parity and rejects invalid match scope", async () => {
   const pool = createLocalPool();
   const user = randomUUID();
   await pool.query("insert into users(id,email) values($1,$2)", [user, `${user}@fixture.test`]);
