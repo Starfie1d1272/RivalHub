@@ -24,6 +24,7 @@ vi.mock("@/lib/auth/session", async () => {
 });
 vi.mock("next/cache", () => ({ updateTag: vi.fn(), revalidatePath: vi.fn() }));
 import { db } from "@/db/client";
+import { loadMatchScoreboard } from "@/lib/matches/detail-scoreboard";
 import * as schema from "@/db/schema";
 import { deletePlayerStatsByMap, getOperatorScoreboardSnapshot, getScoreboardOperationReceipt, savePlayerStats } from "@/actions/player-stats";
 import { seedFixture } from "./harness/mizar";
@@ -112,7 +113,13 @@ it("writes nonempty stats once, binds the fresh actor, then detects save CAS and
   const entryB = await db.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, f.entryBId) });
   const actorA = entryA!.representativeUserId;
   state.actor = actorA;
-  await db.update(schema.matchMaps).set({ scoreA: 13, scoreB: 8, completedAt: new Date() }).where(eq(schema.matchMaps.id, f.mapOneId));
+  await db.update(schema.matchMaps).set({ scoreA: 13, scoreB: 8, completedAt: new Date(), provisionalPlayers: [{ userId: actorA, name: "provisional", kills: 4, deaths: null, assists: 0 }] }).where(eq(schema.matchMaps.id, f.mapOneId));
+  const [match] = await db.select().from(schema.matches).where(eq(schema.matches.id, f.matchId));
+  const maps = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
+  const teams = new Map([[actorA, f.entryAId]]);
+  const before = await loadMatchScoreboard(match!, maps, teams);
+  expect(before.mapPlayers.get(f.mapOneId)).toMatchObject([{ userId: actorA, kills: 4, deaths: null, assists: 0 }]);
+  expect(before.provisionalMapIds.has(f.mapOneId)).toBe(true);
   const initial = await getOperatorScoreboardSnapshot(f.mapOneId);
   if (!initial.success) throw new Error("fixture snapshot unavailable");
   const row = { userId: actorA, perfectName: "Synthetic confirmed player", kills: 15, deaths: 10, assists: 4, hsPercent: 40,
@@ -134,6 +141,9 @@ it("writes nonempty stats once, binds the fresh actor, then detects save CAS and
   const firstFacts = await facts();
   expect(firstFacts).toHaveLength(1);
   expect(firstFacts[0]).toMatchObject({ userId: actorA, ratingPro: 1.2, kills: 15, verifiedByAdmin: actorA });
+  const confirmed = await loadMatchScoreboard(match!, maps, teams);
+  expect(confirmed.provisionalMapIds.has(f.mapOneId)).toBe(false);
+  expect(confirmed.mapPlayers.get(f.mapOneId)).toMatchObject([{ userId: actorA, kills: 15, ratingPro: 1.2 }]);
   expect(await audit()).toHaveLength(1);
   expect((await receipts()).rows).toHaveLength(1);
   const firstSnapshot = await getOperatorScoreboardSnapshot(f.mapOneId);
@@ -154,4 +164,30 @@ it("writes nonempty stats once, binds the fresh actor, then detects save CAS and
   expect(await facts()).toEqual(latestFacts);
   expect(await audit()).toHaveLength(2);
   expect((await receipts()).rows).toHaveLength(2);
+});
+
+
+it("keeps confirmed DAK gameplay above provisional data when OCR later enriches the same player", async () => {
+  state.allowed = true;
+  const f = await seedFixture({ unboundSource: true, freezeEventRoster: true });
+  const actor = f.fixtureUserIds[0]!;
+  state.actor = actor;
+  await db.update(schema.matchMaps).set({ scoreA: 13, scoreB: 8, completedAt: new Date(), provisionalPlayers: [{ userId: actor, name: "provisional", kills: 5, deaths: null, assists: 0 }] }).where(eq(schema.matchMaps.id, f.mapOneId));
+  const intent = randomUUID(), pairing = randomUUID(), importId = randomUUID();
+  await db.insert(schema.dakPairingIntents).values({ id: intent, pollTokenHash: randomUUID(), expiresAt: new Date(Date.now() + 60000) });
+  await db.insert(schema.dakPairings).values({ id: pairing, pairingIntentId: intent, userId: actor, tokenHash: randomUUID(), scopes: [], seasonIds: [f.seasonId] });
+  await db.insert(schema.matchDemoImports).values({ id: importId, seasonId: f.seasonId, matchId: f.matchId, matchMapId: f.mapOneId, stageKey: "fixture-stage", demoSha256: "a".repeat(64), payloadSha256: "b".repeat(64), contractVersion: "rivalhub-demo-evidence/1", semanticProfile: "fixture", analysisVersion: "fixture", evidenceRevision: "fixture", status: "confirmed", payload: {}, submittedByPairingId: pairing, confirmedAt: new Date() });
+  await db.insert(schema.matchPlayerStats).values({ matchId: f.matchId, mapId: f.mapOneId, userId: actor, perfectName: "confirmed DAK", kills: 20, deaths: 10, assists: 4, adr: 88, dakImportId: importId, verifiedByAdmin: "dak", verifiedAt: new Date() });
+  const snapshot = await getOperatorScoreboardSnapshot(f.mapOneId);
+  if (!snapshot.success) throw new Error("fixture snapshot unavailable");
+  const row = { userId: actor, perfectName: "confirmed DAK", kills: 1, deaths: 1, assists: 1, hsPercent: null, firstKills: null, multiKills: null, clutches: null, adr: 1, rws: 8, ratingPro: 1.2, we: 7 };
+  const result = await savePlayerStats(f.mapOneId, { operationId: randomUUID(), expectedActor: actor, expectedVersion: snapshot.data.version, rows: [row] });
+  expect(result.success).toBe(true);
+  const [match] = await db.select().from(schema.matches).where(eq(schema.matches.id, f.matchId));
+  const maps = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
+  const scoreboard = await loadMatchScoreboard(match!, maps, new Map([[actor, f.entryAId]]));
+  expect(scoreboard.provisionalMapIds.has(f.mapOneId)).toBe(false);
+  expect(scoreboard.mapPlayers.get(f.mapOneId)).toMatchObject([{ userId: actor, kills: 20, deaths: 10, assists: 4, adr: 88, rws: 8, ratingPro: 1.2, we: 7 }]);
+  const [stored] = await db.select().from(schema.matchPlayerStats).where(eq(schema.matchPlayerStats.mapId, f.mapOneId));
+  expect(stored).toMatchObject({ dakImportId: importId, verifiedByAdmin: "dak", kills: 20 });
 });

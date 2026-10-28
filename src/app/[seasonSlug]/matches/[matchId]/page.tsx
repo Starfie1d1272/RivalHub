@@ -541,7 +541,8 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
                       )}
                     </div>
                   </div>
-                  {scoreboard?.confirmedMapIds.has(map.id) && (
+                  {scoreboard?.provisionalMapIds.has(map.id) && <p className="text-xs text-[var(--color-fg-dim)]">临时数据，待核对</p>}
+                  {(scoreboard?.confirmedMapIds.has(map.id) || scoreboard?.provisionalMapIds.has(map.id)) && (
                     <PlayerStatsTable
                       players={scoreboard.mapPlayers.get(map.id) ?? []}
                       entryAId={match.entryAId}

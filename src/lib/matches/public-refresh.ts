@@ -25,7 +25,8 @@ export async function loadPublicMatchRefreshToken(seasonId: string, scope: Publi
       'season', (select jsonb_build_array(s.status, s.updated_at) from seasons s where s.id = ${seasonId}),
       'matches', (select jsonb_agg(to_jsonb(m) order by m.id) from scoped m),
       'maps', (select jsonb_agg(jsonb_build_array(mm.id, mm.map_order, mm.map_name, mm.picked_by_entry_id,
-        mm.team_a_start_side, mm.score_a, mm.score_b, mm.started_at, mm.completed_at) order by mm.id)
+        mm.team_a_start_side, mm.score_a, mm.score_b, mm.started_at, mm.completed_at,
+        ${scope.matchId ? sql`mm.provisional_players` : sql`null`}) order by mm.id)
         from match_maps mm join scoped m on m.id = mm.match_id),
       'veto', (select jsonb_agg(jsonb_build_array(v.match_id, v.revision, v.started_at, v.completed_at) order by v.match_id)
         from match_veto_sessions v join scoped m on m.id = v.match_id),

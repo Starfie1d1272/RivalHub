@@ -1,3 +1,4 @@
+import { loadMatchScoreboard } from "@/lib/matches/detail-scoreboard";
 import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
@@ -71,6 +72,78 @@ async function nextEpoch(fixture: Fixture, sequence = 10) {
 }
 
 describe("Mizar reliable event ingest ownership", () => {
+
+  it("retains a provisional map-one scoreboard while map two starts and confirmed rows take priority", async () => {
+    const f = await seedFixture();
+    await ingestMizarReliable(f.installationId, f.seasonId, reliableEvent(f), f.authorityRevision, f.steam64);
+    const roster = await loadEffectiveMatchRoster(db, [f.matchId]);
+    const players = roster.map((r, i) => ({ sourcePlayerId: r.steam64!, canonicalPlayerId: r.userId, kills: i, deaths: null, assists: 0 }));
+    const end = reliableEvent(f, { kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 13, scoreT: 9 } });
+    end.cursor.runtimeSeq = 2;
+    await ingestMizarReliable(f.installationId, f.seasonId, end, f.authorityRevision);
+    expect(await ingestMizarReliable(f.installationId, f.seasonId, end, f.authorityRevision)).toMatchObject({ duplicate: true });
+    const snapshot = { ...end, kind: "map_player_snapshot", idempotencyKey: randomUUID(), payload: { mapEndedKey: end.idempotencyKey, players } };
+    await expectCode(() => ingestMizarReliable(f.installationId, f.seasonId, { ...snapshot, idempotencyKey: randomUUID(), mapId: f.mapTwoId }, f.authorityRevision), ErrorCode.VALIDATION_FAILED);
+    await expectCode(() => ingestMizarReliable(f.installationId, f.seasonId, { ...snapshot, idempotencyKey: randomUUID(), cursor: { ...snapshot.cursor, runtimeSeq: 3 } }, f.authorityRevision), ErrorCode.VALIDATION_FAILED);
+    await expectCode(() => ingestMizarReliable(f.installationId, f.seasonId, { ...snapshot, idempotencyKey: randomUUID(), cursor: { ...snapshot.cursor, programReceiveSequence: 99 } }, f.authorityRevision), ErrorCode.VALIDATION_FAILED);
+    const context = await db.transaction(tx => loadMizarMatchDocumentInTx(tx, f.matchId, f.seasonId));
+    const boundary = reliableEvent(f, { contextRevision: context.revision, kind: "map_epoch_changed", payload: { previousMapEpoch: 1, reason: "next map" } });
+    boundary.cursor.mapEpoch = 2; boundary.cursor.runtimeSeq = 3;
+    await ingestMizarReliable(f.installationId, f.seasonId, boundary, f.authorityRevision);
+    const start = reliableEvent(f, { contextRevision: context.revision, mapId: f.mapTwoId, mapName: "de_mirage" });
+    start.cursor.mapEpoch = 2; start.cursor.runtimeSeq = 4;
+    await ingestMizarReliable(f.installationId, f.seasonId, start, f.authorityRevision, f.steam64);
+    expect(await ingestMizarReliable(f.installationId, f.seasonId, snapshot, f.authorityRevision)).toMatchObject({ outcome: "observed" });
+    expect(await ingestMizarReliable(f.installationId, f.seasonId, snapshot, f.authorityRevision)).toMatchObject({ duplicate: true });
+    await expectCode(() => ingestMizarReliable(f.installationId, f.seasonId, { ...snapshot, idempotencyKey: randomUUID() }, f.authorityRevision), ErrorCode.VALIDATION_FAILED);
+    const stale = { ...snapshot, idempotencyKey: randomUUID(), cursor: { ...snapshot.cursor, liveSessionId: "old-session", runtimeSeq: 9 } };
+    await expectCode(() => ingestMizarReliable(f.installationId, f.seasonId, stale, f.authorityRevision), ErrorCode.FORBIDDEN);
+    const [match] = await db.select().from(schema.matches).where(eq(schema.matches.id, f.matchId));
+    const maps = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
+    expect(maps.find(map => map.id === f.mapTwoId)?.provisionalPlayers).toBeNull();
+    const teams = new Map(roster.map(r => [r.userId, r.entryId]));
+    const provisional = await loadMatchScoreboard(match!, maps, teams);
+    expect(provisional.provisionalMapIds.has(f.mapOneId)).toBe(true);
+    expect(provisional.mapPlayers.get(f.mapOneId)).toHaveLength(10);
+    expect(provisional.mapPlayers.get(f.mapOneId)![0]).toMatchObject({ deaths: null, assists: 0, adr: null });
+    await db.insert(schema.matchPlayerStats).values({ matchId: f.matchId, mapId: f.mapOneId, userId: players[0]!.canonicalPlayerId, perfectName: "confirmed", kills: 42, verifiedByAdmin: "test" });
+    const updated = await loadMatchScoreboard(match!, maps, teams);
+    expect(updated.mapPlayers.get(f.mapOneId)?.find(p => p.userId === players[0]!.canonicalPlayerId)?.kills).toBe(42);
+    expect(updated.mapPlayers.get(f.mapOneId)).toHaveLength(10);
+  });
+
+  it("accepts an ordered two-boundary recovery and an independently retried old-map snapshot", async () => {
+    const f = await seedFixture();
+    const mapThreeId = randomUUID();
+    await db.insert(schema.matchMaps).values({ id: mapThreeId, matchId: f.matchId, mapOrder: 3, mapName: "de_nuke" });
+    const startOne = reliableEvent(f);
+    await ingestMizarReliable(f.installationId, f.seasonId, startOne, f.authorityRevision, f.steam64);
+    const endOne = reliableEvent(f, { kind: "map_ended", payload: { scoreA: 13, scoreB: 9, scoreCT: 13, scoreT: 9 } });
+    endOne.cursor.runtimeSeq = 2;
+    await ingestMizarReliable(f.installationId, f.seasonId, endOne, f.authorityRevision);
+    const epochTwo = reliableEvent(f, { kind: "map_epoch_changed", payload: { previousMapEpoch: 1, reason: "next" } });
+    epochTwo.cursor.mapEpoch = 2; epochTwo.cursor.runtimeSeq = 3;
+    await ingestMizarReliable(f.installationId, f.seasonId, epochTwo, f.authorityRevision);
+    const startTwo = reliableEvent(f, { mapId: f.mapTwoId, mapName: "de_mirage" });
+    startTwo.cursor.mapEpoch = 2; startTwo.cursor.runtimeSeq = 4;
+    expect((await ingestMizarReliable(f.installationId, f.seasonId, startTwo, f.authorityRevision, f.steam64)).outcome).toBe("armed");
+    const endTwo = reliableEvent(f, { kind: "map_ended", mapId: f.mapTwoId, mapName: "de_mirage", payload: { scoreA: 9, scoreB: 13, scoreCT: 9, scoreT: 13 } });
+    endTwo.cursor.mapEpoch = 2; endTwo.cursor.runtimeSeq = 5;
+    await ingestMizarReliable(f.installationId, f.seasonId, endTwo, f.authorityRevision);
+    const epochThree = reliableEvent(f, { kind: "map_epoch_changed", payload: { previousMapEpoch: 2, reason: "next" } });
+    epochThree.cursor.mapEpoch = 3; epochThree.cursor.runtimeSeq = 6;
+    await ingestMizarReliable(f.installationId, f.seasonId, epochThree, f.authorityRevision);
+    const startThree = reliableEvent(f, { mapId: mapThreeId, mapName: "de_nuke" });
+    startThree.cursor.mapEpoch = 3; startThree.cursor.runtimeSeq = 7;
+    expect((await ingestMizarReliable(f.installationId, f.seasonId, startThree, f.authorityRevision, f.steam64)).outcome).toBe("armed");
+    const roster = await loadEffectiveMatchRoster(db, [f.matchId]);
+    const player = roster[0]!;
+    const snapshot = { ...endOne, idempotencyKey: randomUUID(), kind: "map_player_snapshot", payload: { mapEndedKey: endOne.idempotencyKey, players: [{ sourcePlayerId: player.steam64, canonicalPlayerId: player.userId, kills: 5, deaths: null, assists: 0 }] } };
+    expect((await ingestMizarReliable(f.installationId, f.seasonId, snapshot, f.authorityRevision)).outcome).toBe("observed");
+    expect(await loadSource(f.sessionId)).toMatchObject({ mapEpoch: 3, currentMapId: mapThreeId, lastReliableSeq: 7 });
+    const [map] = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.id, f.mapOneId));
+    expect(map!.provisionalPlayers).toMatchObject([{ userId: player.userId, kills: 5, deaths: null }]);
+  });
 
   it("accepts the current website revision after a map result without losing the next epoch", async () => {
     const f = await seedFixture();

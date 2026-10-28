@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, text, timestamp, pgEnum, unique, check } from "drizzle-orm/pg-core";
+import { pgTable, uuid, integer, text, timestamp, pgEnum, unique, check, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { matches } from "./matches";
 import { competitionEntries } from "./competition-entries";
@@ -36,6 +36,9 @@ export const matchMaps = pgTable(
     /** 实际单图回合比分（未开始为 null）*/
     scoreA: integer("score_a"),
     scoreB: integer("score_b"),
+
+    /** Unverified, bounded Mizar post-map display only; never a statistics source. */
+    provisionalPlayers: jsonb("provisional_players").$type<Array<{ userId: string; name: string; kills: number | null; deaths: number | null; assists: number | null }>>(),
 
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),

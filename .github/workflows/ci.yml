@@ -312,11 +312,17 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Starfie1d1272/Mizar
-          ref: 3c43f583f5aae9741a56c88e3a502b983f88f1d1 # Mizar #370, roster-only LIVE evidence
+          ref: 05608cfc67be8955b1b69898f3efc13437dca590 # Mizar main, provisional post-map snapshot
           path: .mizar-checkout
       - name: Mizar cross-repo contract
         if: matrix.task == 'provider' && matrix.live
         run: node scripts/ci/timing.mjs "system/mizar contract" -- pnpm mizar:contract-check .mizar-checkout
+      - name: Mizar replay against RivalHub receiver
+        if: matrix.task == 'provider' && matrix.live
+        env:
+          RIVALHUB_MIZAR_CHECKOUT: ${{ github.workspace }}/.mizar-checkout
+          RIVALHUB_INTEGRATION_WORKERS: 1
+        run: pnpm test:integration -- tests/integration/db/mizar-cross-replay.test.ts
       - name: E2E body
         if: startsWith(matrix.task, 'browser-')
         env:

@@ -36,6 +36,33 @@ export async function ingestMizarReliable(installationId: string, competitionId:
         if (receipt.eventHash !== eventHash) throw new AppError(ErrorCode.VALIDATION_FAILED, "重复事件内容冲突。");
         return { outcome: receipt.outcome, duplicate: true };
       }
+      if (event.kind === "map_player_snapshot") {
+        const [parent] = await tx.select().from(mizarReliableReceipts).where(and(eq(mizarReliableReceipts.sessionId, source.id), eq(mizarReliableReceipts.idempotencyKey, event.payload.mapEndedKey)));
+        const scope = parent?.mapEndScope;
+        const [priorSnapshot] = await tx.select().from(mizarReliableReceipts).where(and(eq(mizarReliableReceipts.sessionId, source.id), eq(mizarReliableReceipts.parentEventKey, event.payload.mapEndedKey)));
+        if (priorSnapshot) throw new AppError(ErrorCode.VALIDATION_FAILED, "地图结束事件已有临时数据。");
+        if (!scope || parent.kind !== "map_ended" || !["canonicalized", "consistent"].includes(parent.outcome)
+          || scope.receivedMapId !== event.mapId || scope.mapName !== event.mapName || scope.contextRevision !== event.contextRevision
+          || scope.producerInstanceId !== event.cursor.producerInstanceId || scope.liveSessionId !== event.cursor.liveSessionId
+          || scope.programSourceGeneration !== event.cursor.programSourceGeneration || scope.programReceiveSequence !== event.cursor.programReceiveSequence || scope.mapEpoch !== event.cursor.mapEpoch || scope.runtimeSeq !== event.cursor.runtimeSeq
+          || !event.evidence.telemetryFresh || !event.evidence.contextFresh || event.evidence.identity !== "matched") {
+          throw new AppError(ErrorCode.VALIDATION_FAILED, "临时数据与已确认的地图结束事件不匹配。");
+        }
+        const [map] = await tx.select().from(matchMaps).where(and(eq(matchMaps.id, scope.mapId), eq(matchMaps.matchId, match.id)));
+        if (!map || map.completedAt === null) throw new AppError(ErrorCode.VALIDATION_FAILED, "临时数据地图不可用。");
+        const roster = await loadEffectiveMatchRoster(tx, [match.id]);
+        const players = event.payload.players.flatMap(player => {
+          const candidates = roster.filter(r => r.userId === player.canonicalPlayerId && r.steam64 === player.sourcePlayerId);
+          if (candidates.length !== 1) return [];
+          const resolved = candidates[0]!;
+          return [{ userId: resolved.userId, name: getDisplayName(resolved), kills: player.kills, deaths: player.deaths, assists: player.assists }];
+        });
+        if (players.length && new Set(players.map(p => p.userId)).size === players.length) await tx.update(matchMaps).set({ provisionalPlayers: players }).where(eq(matchMaps.id, map.id));
+        const outcome = players.length ? "observed" : "needs_attention";
+        await tx.insert(mizarReliableReceipts).values({ sessionId: source.id, idempotencyKey: event.idempotencyKey, eventHash, kind: event.kind, outcome, parentEventKey: event.payload.mapEndedKey });
+        await writeAuditInTx(tx, { seasonId: competitionId, actorId: mizarAuditActorId(installationId), action: "mizar.reliable.accept", targetId: match.id, meta: { kind: event.kind, outcome, sessionId: source.id, mapEpoch: scope.mapEpoch, currentMapId: map.id } });
+        return { outcome, duplicate: false };
+      }
       // A refreshed producer may advance to the current website document without
       // relinquishing its source. Never adopt an arbitrary or stale revision.
       if (event.contextRevision !== source.contextRevision) {
@@ -50,6 +77,7 @@ export async function ingestMizarReliable(installationId: string, competitionId:
       if ((!generationChanged && event.cursor.programSourceGeneration !== source.programSourceGeneration) || (!epochChanged && event.cursor.mapEpoch !== source.mapEpoch)) throw new AppError(ErrorCode.VALIDATION_FAILED, "对局数据已过期，请刷新数据源。");
       const now = new Date();
       let outcome = "observed";
+      let mapEndScope: typeof mizarReliableReceipts.$inferInsert.mapEndScope;
       const updates: Partial<typeof matchLiveSessions.$inferInsert> = { contextRevision: event.contextRevision, lastReliableSeq: event.cursor.runtimeSeq, lastReliableEventAt: now };
       const reviewRequired = source.lineupHealth === LINEUP_REVIEW_REQUIRED || event.kind === "lineup_mismatch" || isLineupMismatchOnly(event.evidence);
       if (reviewRequired) { updates.lineupHealth = LINEUP_REVIEW_REQUIRED; updates.autoCanonicalizationArmed = false; }
@@ -140,6 +168,9 @@ export async function ingestMizarReliable(installationId: string, competitionId:
           updates.mapExecutionPhase = "inter_map";
           outcome = "canonicalized";
         }
+        if (sameExecution && (outcome === "canonicalized" || outcome === "consistent")) {
+          mapEndScope = { mapId: map!.id, receivedMapId: event.mapId, mapName: event.mapName, contextRevision: event.contextRevision, producerInstanceId: event.cursor.producerInstanceId, liveSessionId: event.cursor.liveSessionId, programSourceGeneration: event.cursor.programSourceGeneration, programReceiveSequence: event.cursor.programReceiveSequence, mapEpoch: event.cursor.mapEpoch, runtimeSeq: event.cursor.runtimeSeq };
+        }
       } else if (event.kind === "series_ended") {
         const [current] = await tx.select().from(matches).where(eq(matches.id, match.id));
         outcome = current.status === "finished" && current.scoreA === event.payload.scoreA && current.scoreB === event.payload.scoreB ? "consistent" : "needs_attention";
@@ -158,8 +189,8 @@ export async function ingestMizarReliable(installationId: string, competitionId:
           meta: { sessionId: source.id, mapEpoch: source.mapEpoch, mapId: updates.currentMapId, programSourceGeneration: source.programSourceGeneration, runtimeSeq: event.cursor.runtimeSeq } });
       }
       await tx.update(matchLiveSessions).set(updates).where(eq(matchLiveSessions.id, source.id));
-      await tx.insert(mizarReliableReceipts).values({ sessionId: source.id, idempotencyKey: event.idempotencyKey, eventHash, kind: event.kind, outcome });
-      await writeAuditInTx(tx, { seasonId: competitionId, actorId: mizarAuditActorId(installationId), action: "mizar.reliable.accept", targetId: match.id, meta: { kind: event.kind, outcome, lineupDifference, ...(event.kind === "identity_mismatch" || event.kind === "lineup_mismatch" ? { reason: event.payload.reason } : {}), sessionId: source.id, mapEpoch: source.mapEpoch, currentMapId: source.currentMapId, receivedMapId: event.mapId, receivedMapName: event.mapName, continuityHealth: updates.continuityHealth ?? source.continuityHealth, ...(event.kind === "map_ended" ? event.payload : {}) } });
+      await tx.insert(mizarReliableReceipts).values({ sessionId: source.id, idempotencyKey: event.idempotencyKey, eventHash, kind: event.kind, outcome, mapEndScope });
+      await writeAuditInTx(tx, { seasonId: competitionId, actorId: mizarAuditActorId(installationId), action: "mizar.reliable.accept", targetId: match.id, meta: { kind: event.kind, outcome, lineupDifference, ...(event.kind === "identity_mismatch" || event.kind === "lineup_mismatch" ? { reason: event.payload.reason } : {}), sessionId: source.id, mapEpoch: source.mapEpoch, currentMapId: source.currentMapId, receivedMapId: event.mapId, receivedMapName: event.mapName, continuityHealth: updates.continuityHealth ?? source.continuityHealth, ...(event.kind === "map_ended" ? { scoreA: event.payload.scoreA, scoreB: event.payload.scoreB, scoreCT: event.payload.scoreCT, scoreT: event.payload.scoreT } : {}) } });
       return { outcome, duplicate: false };
     });
     await touchMizarInstallation(installationId, competitionId);

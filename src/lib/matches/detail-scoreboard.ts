@@ -34,7 +34,7 @@ export async function loadMatchScoreboard(
 ) {
   assertCompetitionMatch(match);
   const completed = maps.filter(canConfirmMapScoreboard);
-  if (completed.length === 0) return { completed, confirmedMapIds: new Set<string>(), mapPlayers: new Map<string, MatchScoreboardPlayer[]>(), detailedPlayers: [], detailedPlayerIds: new Set<string>(), detailedMapIds: new Set<string>(), mvpCandidates: [], summaryPlayers: [] };
+  if (completed.length === 0) return { completed, confirmedMapIds: new Set<string>(), provisionalMapIds: new Set<string>(), mapPlayers: new Map<string, MatchScoreboardPlayer[]>(), detailedPlayers: [], detailedPlayerIds: new Set<string>(), detailedMapIds: new Set<string>(), mvpCandidates: [], summaryPlayers: [] };
   const rows = await db.select().from(matchPlayerStats).where(and(
     eq(matchPlayerStats.matchId, match.id),
     inArray(matchPlayerStats.mapId, completed.map((map) => map.id)),
@@ -66,6 +66,20 @@ export async function loadMatchScoreboard(
     });
     mapPlayers.set(row.mapId, players);
   }
+  const confirmedMapIds = new Set(confirmedRows.map(row => row.mapId));
+  const provisionalMapIds = new Set<string>();
+  for (const map of completed) {
+    if (!map.provisionalPlayers?.length) continue;
+    const existing = mapPlayers.get(map.id) ?? [];
+    const confirmedUsers = new Set(existing.map(player => player.userId));
+    const players = map.provisionalPlayers.flatMap(player => {
+      const teamId = userIdToTeamId.get(player.userId);
+      if (confirmedUsers.has(player.userId)) return [];
+      if (teamId !== match.entryAId && teamId !== match.entryBId) return [];
+      return [{ userId: player.userId, perfectName: player.name, teamId, kills: player.kills, deaths: player.deaths, assists: player.assists, hsPercent: null, firstKills: null, multiKills: null, clutches: null, adr: null, rws: null, ratingPro: null, we: null, mapsPlayed: 1 }];
+    });
+    if (players.length) { mapPlayers.set(map.id, [...existing, ...players]); provisionalMapIds.add(map.id); }
+  }
   const rounds = new Map(completed.map((map) => [map.id, map.scoreA! + map.scoreB!]));
-  return { completed, confirmedMapIds: new Set(confirmedRows.map((row) => row.mapId)), mapPlayers, detailedPlayers: [...new Map(detailedRows.map((row) => [row.userId!, { userId: row.userId!, name: row.perfectName }])).values()], detailedPlayerIds: new Set(detailedRows.map((row) => row.userId!)), detailedMapIds: new Set(detailedRows.map((row) => row.mapId)), ...aggregateFinishedPlayerStats(confirmedRows, userIdToTeamId, match.entryAId, match.entryBId, rounds) };
+  return { completed, confirmedMapIds, provisionalMapIds, mapPlayers, detailedPlayers: [...new Map(detailedRows.map((row) => [row.userId!, { userId: row.userId!, name: row.perfectName }])).values()], detailedPlayerIds: new Set(detailedRows.map((row) => row.userId!)), detailedMapIds: new Set(detailedRows.map((row) => row.mapId)), ...aggregateFinishedPlayerStats(confirmedRows, userIdToTeamId, match.entryAId, match.entryBId, rounds) };
 }
