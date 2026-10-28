@@ -37,8 +37,13 @@ else
     sed 's/from "\.\/supabase-ca"/from "\.\/supabase-ca.ts"/' src/db/postgres-connection.ts > "$scratch/postgres-connection.ts"
     sed 's/from "\.\/remote-environment"/from "\.\/remote-environment.ts"/' scripts/db/production-environment.ts > "$scratch/production-environment.ts"
     if scp -q "${opts[@]}" -P 52222 scripts/standby/writer-inventory-host.py scripts/standby/writer-inventory-db.mjs "$scratch/postgres-connection.ts" "$scratch/production-environment.ts" scripts/db/remote-environment.ts src/db/supabase-ca.ts "root@47.103.131.158:$remote/" 2>/dev/null; then
-      if result=$(ssh "${opts[@]}" -p 52222 root@47.103.131.158 "timeout 30s python3 $remote/writer-inventory-host.py" 2>/dev/null) && jq -e '.host | [.unit,.outside,.unreadable,.unattributedTimers,.unattributedCronLines] | all(type == "number" and . >= 0)' <<<"$result" >/dev/null 2>&1; then
+      host_status=0
+      result=$(ssh "${opts[@]}" -p 52222 root@47.103.131.158 "timeout 30s python3 $remote/writer-inventory-host.py" 2>/dev/null) || host_status=$?
+      if jq -e '.host | [.unit,.outside,.unreadable,.unattributedTimers,.unattributedCronLines] | all(type == "number" and . >= 0)' <<<"$result" >/dev/null 2>&1; then
         printf -- '- Host counts: %s\n' "$(jq -c '.host | {unit,outside,unreadable,unattributedTimers,unattributedCronLines}' <<<"$result")" >> "$summary"
+        if (( host_status != 0 )) || [[ $(jq -r '.host.unreadable' <<<"$result") != 0 ]]; then
+          printf '%s\n' '- Host inventory: partial; unreadable or incomplete.' >> "$summary"; failed=1
+        fi
       else
         printf '%s\n' '- Host inventory: unavailable or incomplete.' >> "$summary"; failed=1
       fi

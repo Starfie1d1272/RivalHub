@@ -45,8 +45,9 @@ def inspect(proc=Path('/proc'), etc=Path('/etc'), runner=subprocess.run, own_pid
 
 def main():
     try:
-        print(json.dumps({'host': inspect()}))
-        return 0
+        counts = inspect()
+        print(json.dumps({'host': counts}))
+        return 1 if counts['unreadable'] else 0
     except Exception:
         print(json.dumps({'host': {'status': 'unavailable'}}))
         return 1
