@@ -25,9 +25,11 @@ export async function inspectDatabase(client) {
 
 async function main() {
   const root = resolve(process.argv[2]);
+  const { buildProductionEnvironment } = await import(pathToFileURL(resolve(process.argv[4])).href);
+  const production = buildProductionEnvironment(process.env, { requiresWriteAuthorization: false });
   const { Client } = createRequire(`${root}/server.js`)('pg');
   const { postgresConnection } = await import(pathToFileURL(resolve(process.argv[3])).href);
-  const client = new Client({ ...postgresConnection(process.env.DATABASE_URL), application_name: 'rivalhub-release-inventory', connectionTimeoutMillis: 5000, query_timeout: 6000 });
+  const client = new Client({ ...postgresConnection(production.DATABASE_URL), application_name: 'rivalhub-release-inventory', connectionTimeoutMillis: 5000, query_timeout: 6000 });
   try { await client.connect(); console.log(JSON.stringify({ database: await inspectDatabase(client) })); }
   finally { await client.end(); }
 }
