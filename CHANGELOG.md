@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.24.10]
+
+### Changed
+
+- 停用 Better Stack、OTel 与 Vercel 外部遥测，保留 D1 产品统计、本地脱敏日志、请求排查编号和服务运行健康诊断。
+
 ## [2.24.9]
 
 ### Added
@@ -3632,3 +3638,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.24.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.7...v2.24.8
 
 [2.24.9]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.8...v2.24.9
+
+[2.24.10]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.9...v2.24.10
