@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
-import { executionBudget, jobExecutionMilliseconds, remainingExecutionBudget } from "../../../scripts/ci/execution-budget.mjs";
+import { executionBudget, jobExecutionMilliseconds } from "../../../scripts/ci/execution-budget.mjs";
 
 const base = Date.parse("2026-10-20T00:00:00Z");
 const stamp = milliseconds => new Date(base + milliseconds).toISOString();
@@ -111,24 +111,5 @@ esac
       expect(readFileSync(join(dir, "args"), "utf8")).toContain('--paginate');
       if (exitCode === 0) expect(readFileSync(join(dir, "timing.jsonl"), "utf8")).toContain('"milliseconds":61000');
     } finally { rmSync(dir, { recursive: true, force: true }); }
-  });
-});
-
-
-describe("active command remaining budget", () => {
-  const running = { name: "body", status: "in_progress", started_at: stamp(3_600_000) };
-  const rows = () => [job("plan", 10_000), { name: "system / browser-4", steps: [
-    { ...step(100_000, 20_000), status: "completed" }, running,
-  ] }, job("system / other", 150_000)];
-  const active = { jobName: "system / browser-4", stepName: "body", now: base + 3_630_000, budgetMilliseconds: 180_000 };
-  it("subtracts the serial planner and actual current branch work, excluding gaps and other parallel lanes", () => {
-    expect(remainingExecutionBudget(rows(), active)).toEqual({ remainingMilliseconds: 120_000, planMilliseconds: 10_000, currentMilliseconds: 50_000 });
-    expect(remainingExecutionBudget(rows(), { ...active, now: base + 3_760_001 }).remainingMilliseconds).toBe(-10_001);
-  });
-  it("fails closed on stale, missing, ambiguous or unknown current timing", () => {
-    expect(() => remainingExecutionBudget(rows(), { ...active, stepName: "stale" })).toThrow(/unavailable/);
-    expect(() => remainingExecutionBudget(rows().slice(1), active)).toThrow(/Planner/);
-    expect(() => remainingExecutionBudget([...rows(), rows()[1]], active)).toThrow(/ambiguous/);
-    expect(() => remainingExecutionBudget([{ ...rows()[1], name: "other" }], { ...active, jobName: "other" })).toThrow(/Unknown/);
   });
 });

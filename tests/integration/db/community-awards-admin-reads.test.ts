@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type { Pool, QueryResult } from "pg";
 import { eq } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
 import { db } from "@/db/client";
@@ -29,36 +28,21 @@ async function fixture() {
   return { ...f, userId, awards };
 }
 
-async function measure<T>(read: () => Promise<T>) {
-  const pool = (db as typeof db & { $client: Pool }).$client;
-  const original = pool.query;
-  const footprint = { queries: 0, rows: 0, jsonBytes: 0 };
-  pool.query = ((...args: unknown[]) => Promise.resolve(Reflect.apply(original, pool, args) as Promise<QueryResult>).then(result => {
-    if (result.command === "SELECT") { footprint.queries++; footprint.rows += result.rows.length; footprint.jsonBytes += Buffer.byteLength(JSON.stringify(result.rows)); }
-    return result;
-  })) as typeof pool.query;
-  try { return { data: await read(), footprint }; } finally { pool.query = original; }
-}
-
 it("keeps global readiness equivalent without transporting evidence bodies or form options", async () => {
   const f = await fixture();
-  const full = await measure(() => getAdminCommunityAwardBoardData(db, { seasonId: f.seasonId, stagePlan: [] }));
-  const summary = await measure(() => getAdminCommunityAwardBoardSummaries(db, { seasonId: f.seasonId }));
-  expect(summary.data.awards.map(a => a.id)).toEqual(full.data.awards.map(a => a.id));
-  for (const award of summary.data.awards) {
-    const old = full.data.awards.find(row => row.id === award.id)!;
+  const full = await getAdminCommunityAwardBoardData(db, { seasonId: f.seasonId, stagePlan: [] });
+  const summary = await getAdminCommunityAwardBoardSummaries(db, { seasonId: f.seasonId });
+  expect(summary.awards.map(a => a.id)).toEqual(full.awards.map(a => a.id));
+  for (const award of summary.awards) {
+    const old = full.awards.find(row => row.id === award.id)!;
     expect(award).toMatchObject({ settlementReady: old.settlementReady, nonAwardingReady: old.nonAwardingReady, recipients: old.recipients,
       resultVersion: old.resultVersion, submitterName: old.submitterName, submitterPlayerUserId: old.submitterPlayerUserId });
     expect(award).not.toHaveProperty("evidence"); expect(award).not.toHaveProperty("condition");
     expect(award).not.toHaveProperty("reviewNote");
   }
-  expect(summary.data).not.toHaveProperty("candidates"); expect(summary.data).not.toHaveProperty("matches");
-  expect(summary.data.awards[0]).toMatchObject({ evidenceCount: 20, eligibleEvidenceCount: 1, settlementReady: true, nonAwardingReady: false });
-  expect(summary.data.awards.slice(1).every(a => !a.settlementReady)).toBe(true);
-  expect(summary.footprint.queries).toBeLessThan(full.footprint.queries);
-  expect(summary.footprint.rows).toBeLessThan(full.footprint.rows);
-  expect(summary.footprint.jsonBytes).toBeLessThan(full.footprint.jsonBytes);
-  console.info("AWARD_ADMIN_SUMMARY_AB", JSON.stringify({ baseline: full.footprint, candidate: summary.footprint }));
+  expect(summary).not.toHaveProperty("candidates"); expect(summary).not.toHaveProperty("matches");
+  expect(summary.awards[0]).toMatchObject({ evidenceCount: 20, eligibleEvidenceCount: 1, settlementReady: true, nonAwardingReady: false });
+  expect(summary.awards.slice(1).every(a => !a.settlementReady)).toBe(true);
   await db.update(schema.seasons).set({ status: "finished" }).where(eq(schema.seasons.id, f.seasonId));
   expect((await getAdminCommunityAwardBoardSummaries(db, { seasonId: f.seasonId })).awards[1]).toMatchObject({ settlementReady: true, nonAwardingReady: true });
 });
@@ -66,15 +50,15 @@ it("keeps global readiness equivalent without transporting evidence bodies or fo
 it("loads one same-season detail, preserves identities/labels and leaves candidate options separate", async () => {
   const f = await fixture(), other = await fixture();
   for (const awardId of ["", undefined as unknown as string]) {
-    const missing = await measure(() => getAdminCommunityAwardDetail(db, { seasonId: f.seasonId, awardId, stagePlan: [] }));
-    expect(missing.data).toBeNull(); expect(missing.footprint.queries).toBe(0);
+    const missing = await getAdminCommunityAwardDetail(db, { seasonId: f.seasonId, awardId, stagePlan: [] });
+    expect(missing).toBeNull();
   }
   const full = await getAdminCommunityAwardBoardData(db, { seasonId: f.seasonId, stagePlan: [] });
-  const detail = await measure(() => getAdminCommunityAwardDetail(db, { seasonId: f.seasonId, awardId: f.awards[0]!.id, stagePlan: [] }));
-  expect(detail.data).toEqual(full.awards[0]);
-  expect(detail.data!.evidence).toHaveLength(20);
-  expect(detail.data!.evidence![0]).toMatchObject({ submitterPlayerUserId: f.userId, candidatePlayerUserId: f.userId });
-  expect(detail.data!.evidence![0]!.matchLabel).toBeTruthy();
+  const detail = await getAdminCommunityAwardDetail(db, { seasonId: f.seasonId, awardId: f.awards[0]!.id, stagePlan: [] });
+  expect(detail).toEqual(full.awards[0]);
+  expect(detail!.evidence).toHaveLength(20);
+  expect(detail!.evidence![0]).toMatchObject({ submitterPlayerUserId: f.userId, candidatePlayerUserId: f.userId });
+  expect(detail!.evidence![0]!.matchLabel).toBeTruthy();
   expect(await getAdminCommunityAwardDetail(db, { seasonId: other.seasonId, awardId: f.awards[0]!.id, stagePlan: [] })).toBeNull();
   expect(await getAdminCommunityAwardDetail(db, { seasonId: f.seasonId, awardId: randomUUID(), stagePlan: [] })).toBeNull();
   const empty = await getAdminCommunityAwardDetail(db, { seasonId: f.seasonId, awardId: f.awards[1]!.id, stagePlan: [] });

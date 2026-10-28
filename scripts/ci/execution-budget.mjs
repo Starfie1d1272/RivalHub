@@ -27,27 +27,6 @@ export function jobExecutionMilliseconds(job) {
   return elapsed;
 }
 
-/** Remaining time in one active branch; completed-step gaps and job queues stay excluded. */
-export function remainingExecutionBudget(jobs, { jobName, stepName, now, budgetMilliseconds }) {
-  if (!Number.isFinite(now) || !Number.isFinite(budgetMilliseconds) || budgetMilliseconds <= 0) throw new Error("Invalid active budget input");
-  const current = jobs.filter(job => job.name === jobName);
-  if (current.length !== 1) throw new Error("Missing or ambiguous current job timing");
-  const running = current[0].steps?.filter(step => step.name === stepName && step.status === "in_progress");
-  if (running?.length !== 1) throw new Error("Current command step timing is unavailable");
-  const started = Date.parse(running[0].started_at);
-  if (!Number.isFinite(started) || started > now) throw new Error("Invalid active step timestamp");
-  const before = current[0].steps.filter(step => step.status === "completed" && step.conclusion !== "skipped");
-  const currentMilliseconds = jobExecutionMilliseconds({ name: jobName, steps: [...before, { ...running[0], completed_at: new Date(now).toISOString() }] });
-  const lane = lanes.find(key => jobName.startsWith(`${key} / `));
-  let planMilliseconds = 0;
-  if (lane) {
-    const plan = jobs.filter(job => job.name === "plan");
-    if (plan.length !== 1 || plan[0].conclusion !== "success") throw new Error("Planner execution timing is unavailable");
-    planMilliseconds = jobExecutionMilliseconds(plan[0]);
-  } else if (!["dependency-graph-build", "dependency-review"].includes(jobName)) throw new Error("Unknown active execution branch");
-  return { remainingMilliseconds: budgetMilliseconds - planMilliseconds - currentMilliseconds, planMilliseconds, currentMilliseconds };
-}
-
 /** CI's graph: plan -> parallel capability lanes; dependency jobs run independently -> gate. */
 export function executionBudget(jobs, { requiredJobs, requireReview, gateMilliseconds }) {
   if (!Array.isArray(jobs) || !Array.isArray(requiredJobs) || requiredJobs.some(lane => !lanes.includes(lane))
