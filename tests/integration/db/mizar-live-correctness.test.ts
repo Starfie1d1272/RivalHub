@@ -4,6 +4,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getRuntimeResourceSnapshot } from "@/lib/observability/runtime-resources";
 import { loadPublicMatchRefreshToken } from "@/lib/matches/public-refresh";
 import { api, state, pool, monitor, publications, snapshot, prepared, upload, reports } from "./harness/live-capacity";
+// These scenarios exercise the hosted two-permit admission limit.
+vi.hoisted(() => { vi.stubEnv("VERCEL", "1"); });
+
 const { db, schema, hashCredential, POST, ingestMizarLive, ingestMizarReliable, RELIABLE_EVENT_SCHEMA_VERSION, revokeMizarInstallation, claimMizarSource, takeOverCurrentMap, loadMizarMatchDocumentInTx, recordCanonicalMapResultInTx } = api;
 
 describe("LIVE correctness: real PostgreSQL and loopback HTTP faults", () => {

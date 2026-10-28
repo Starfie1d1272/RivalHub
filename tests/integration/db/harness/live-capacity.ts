@@ -11,11 +11,7 @@ import { createLocalPool } from "./database";
 import { seedFixture } from "./mizar";
 import { mizarSnapshot } from "./mizar-snapshot";
 
-// These scenarios exercise the hosted two-permit admission limit.
-const measured = vi.hoisted(() => {
-  vi.stubEnv("VERCEL", "1");
-  return { transactions: [] as number[] };
-});
+const measured = vi.hoisted(() => ({ transactions: [] as number[] }));
 
 // Real PostgreSQL with production's three-connection pool; only Next cache hooks
 // are stubbed. The real SDK sends HTTP to a loopback fault injector.
