@@ -171,6 +171,13 @@ export function classifyChangedFiles(entries, options = {}) {
   };
   let docsOnly = true;
   for (const entry of entries) {
+    // Consuming a Changeset removes release notes, not executable code. Keep
+    // all other deletes fail-closed, including Changeset configuration/README.
+    if (entry.status === "D" && entry.paths?.length === 1
+      && /^\.changeset\/(?!README\.md$)[^/]+\.md$/.test(entry.paths[0])) {
+      reasons.add(`consumed Changeset: ${entry.paths[0]}`);
+      continue;
+    }
     if (entry.status === "R" || entry.status === "D" || entry.status.startsWith("R") || entry.status.startsWith("D")) {
       return result(CAPABILITIES, true, `检测到 ${entry.status} rename/delete：${entry.paths.join(" -> ")}`);
     }
