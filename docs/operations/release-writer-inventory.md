@@ -123,3 +123,18 @@ and prepared work. Its 60-second drain cannot prove unknown roles/hosts will
 never start later. Hold the independent-writer stop window through exact
 candidate/rollback identity and acceptance. If scope cannot be established with
 existing access, report the missing owner/host/role and keep it blocked.
+
+## Manual diagnostic workflow
+
+After this workflow is merged, an authorized operator can run **Release writer
+inventory** using `workflow_dispatch` on `main`. It reuses the production
+Environment's existing pinned Linux deployment identity to collect bounded
+read-only Actions, host process/schedule, and database session/prepared-transaction
+counts. Remote diagnostic files are temporary; no credential, process arguments,
+environment values, schedule bodies, SQL text, account names or raw responses are
+published. Unavailable or incomplete observations cause the diagnostic to fail.
+
+Counts alone cannot attribute scheduled tasks, identify every external host, or
+establish a held independent-writer stop window. Its summary explicitly marks
+these as unproven. This workflow does not change or satisfy the release gate;
+the release coordinator still performs the documented attribution and hold.
