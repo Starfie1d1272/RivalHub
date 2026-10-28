@@ -17,14 +17,10 @@ vi.mock("@/lib/action-utils", () => ({failValidation:(message:string)=>({success
 import { claimBetRelief, getBetRelief } from "@/actions/bet";
 const seasonId="11111111-1111-4111-8111-111111111111";
 const day="2026-10-12";
-const tx={};
 describe("wallet relief action authorization boundary",()=>{
   beforeEach(()=>{
     vi.clearAllMocks();mocks.requireAuth.mockResolvedValue({userId:"trusted-session-user"});mocks.getUserSession.mockResolvedValue(null);
     mocks.findSeason.mockResolvedValue({slug:"test-event",competitionTemplate:"major"});mocks.publicSeason.mockResolvedValue({});
-    mocks.transaction.mockImplementation(async(callback:(value:unknown)=>unknown)=>callback(tx));
-    mocks.read.mockResolvedValue({day,reason:"login_required",canClaim:false,amount:"0",granted:"0",remaining:"100"});
-    mocks.claim.mockResolvedValue({day,amount:"7",replayed:false,eligibility:{day,reason:"claimed_today",canClaim:false,amount:"0",granted:"7",remaining:"93"}});
   });
   it("denies client identity, amounts or missing day before entering any transaction",async()=>{
     for(const input of [{seasonId,day,userId:"someone-else"},{seasonId,day,amount:"100"},{seasonId}]) expect((await claimBetRelief(input)).success).toBe(false);

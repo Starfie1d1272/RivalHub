@@ -20,3 +20,5 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm test:e2e -- tests/e2e/flows/account-form-
 JSON reporter 的 `settings-actual-form-readiness` 与 `local-action-body-budget` 附件包含有限测量结果，不含账号、密码、图片或草稿。原始运行日志和 fixture 凭据不入库。四个页面只移动 await 到各自 Suspense 子组件；授权与资格未延后到可编辑表单之后，ContentReady 仍在已读事实旁，fallback 不报告 ready。
 
 精确安全投影见 `bounded-proof.json`；body 候选四项浏览器通过，leaf 候选收紧竞技保存按钮并复验三项通过。生产目标未用这些单样本代替。
+
+后续测试清理保留设置表单可操作检查，移除了该用例的一次性 readiness 与 layout-shift 采样；本文保留为历史测量记录。

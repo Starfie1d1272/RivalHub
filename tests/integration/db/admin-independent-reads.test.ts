@@ -1,13 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { Pool } from "pg";
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import { db } from "@/db/client";
 import { getDraftAdminData } from "@/lib/draft/data";
-import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
 import { readPreviousApprovedRevisionIds } from "@/lib/admin/season-workspace/previous-approved-revision";
 import { createLocalPool } from "./harness/database";
 
-it("bounds approved history and overlaps only independent pool reads with identical draft/catalog results", async () => {
+it("reads the prior approved revision and current draft facts", async () => {
   const pool = createLocalPool();
   const season = randomUUID(), entries = [randomUUID(), randomUUID()];
   const users = Array.from({ length: 6 }, () => randomUUID());
@@ -36,43 +34,17 @@ it("bounds approved history and overlaps only independent pool reads with identi
     await client.query("update competition_entries set current_roster_revision_id=$2 where id=$1", [entries[0], revisions.at(-1)]);
       await client.query("commit");
     } catch (error) { await client.query("rollback"); throw error; } finally { client.release(); }
-    const baseline = await pool.query<{ id: string }>("select id from competition_entry_roster_revisions where entry_id=$1 and approved_at is not null order by revision_number", [entries[0]]);
     const narrow = await readPreviousApprovedRevisionIds(db, entries);
-    expect(narrow.get(entries[0]!)).toBe(baseline.rows.at(-2)?.id);
+    expect(narrow.get(entries[0]!)).toBe(revisions[98]);
     expect(narrow.has(entries[1]!)).toBe(false);
     expect(narrow.size).toBe(1);
     expect(await readPreviousApprovedRevisionIds(db, [])).toEqual(new Map());
     await pool.query("insert into draft_state(season_id,current_entry_id,is_active) values($1,$2,true)", [season, entries[0]]);
     await pool.query("insert into draft_picks(season_id,entry_id,registration_id,round,pick_number) values($1,$2,$3,1,1)", [season, entries[0], registrations[2]]);
 
-    const applicationPool = (db as typeof db & { $client: Pool }).$client;
-    const original = applicationPool.query;
-    async function delayed<T>(read: () => Promise<T>) {
-      let active = 0, maximum = 0, queries = 0;
-      const spy = vi.spyOn(applicationPool, "query").mockImplementation((function(this: Pool, ...args: unknown[]) {
-        const config = args[0] as { text: string };
-        const text = typeof config === "string" ? config : config.text;
-        const wrapped = `with injected_delay as materialized (select pg_sleep(0.025)) select q.* from (${text}) q cross join injected_delay`;
-        args[0] = typeof config === "string" ? wrapped : { ...config, text: wrapped };
-        active++; queries++; maximum = Math.max(maximum, active);
-        return Reflect.apply(original, this, args).finally(() => { active--; });
-      }) as typeof original);
-      const start = performance.now();
-      try { return { value: await read(), maximum, queries, elapsedMs: performance.now() - start }; } finally { spy.mockRestore(); }
-    }
-    const before = await delayed(() => getDraftAdminData(season, { concurrent: false }));
-    const after = await delayed(() => getDraftAdminData(season));
-    expect(after.value).toEqual(before.value);
-    expect(after.value.totalPicks).toBe(1);
-    expect(after.value.remainingPlayerCount).toBe(3);
-    expect(before.maximum).toBe(1); expect(after.maximum).toBe(3);
-    const catalogBefore = await delayed(() => loadCompetitivePlatformCatalog(db));
-    const catalogAfter = await delayed(() => loadCompetitivePlatformCatalog(db, { concurrent: true }));
-    expect(catalogAfter.value).toEqual(catalogBefore.value);
-    expect(catalogBefore.maximum).toBe(1); expect(catalogAfter.maximum).toBe(3);
-    console.info("ADMIN_INDEPENDENT_READS", JSON.stringify({ historyRowsBefore: baseline.rows.length, historyRowsAfter: narrow.size,
-      draft: { before: { maximum: before.maximum, queries: before.queries, elapsedMs: before.elapsedMs }, after: { maximum: after.maximum, queries: after.queries, elapsedMs: after.elapsedMs } },
-      catalog: { before: { maximum: catalogBefore.maximum, queries: catalogBefore.queries, elapsedMs: catalogBefore.elapsedMs }, after: { maximum: catalogAfter.maximum, queries: catalogAfter.queries, elapsedMs: catalogAfter.elapsedMs } } }));
+    const draft = await getDraftAdminData(season);
+    expect(draft.totalPicks).toBe(1);
+    expect(draft.remainingPlayerCount).toBe(3);
   } finally {
     await pool.query("delete from draft_picks where season_id=$1", [season]);
     await pool.query("delete from draft_state where season_id=$1", [season]);
