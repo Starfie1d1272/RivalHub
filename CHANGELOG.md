@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.24.11]
+
+### Fixed
+
+- 提高持久主机的比赛实时数据接收能力，减少多场比赛同时直播时的容量拒绝。
+
 ## [2.24.10]
 
 ### Changed
@@ -3640,3 +3646,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.24.9]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.8...v2.24.9
 
 [2.24.10]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.9...v2.24.10
+
+[2.24.11]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.10...v2.24.11
