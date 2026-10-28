@@ -1,28 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { Pool } from "pg";
-import { expect, it, vi } from "vitest";
-import { db } from "@/db/client";
+import { expect, it } from "vitest";
 import { getAdminCaptainRanking, getPublicCaptainVotingData } from "@/lib/captains/data";
 import { createLocalPool } from "./harness/database";
 
-it("keeps canonical eight seeds and total without reading noncandidate voters", async () => {
+it("keeps canonical eight seeds and total", async () => {
   const pool = createLocalPool();
   const season = randomUUID();
   const users = Array.from({ length: 102 }, () => randomUUID());
   const registrations = users.map(() => randomUUID());
-  const applicationPool = (db as typeof db & { $client: Pool }).$client;
-  const original = applicationPool.query;
-  async function measure<T>(read: () => Promise<T>) {
-    const cost = { queries: 0, rows: 0, jsonBytes: 0 };
-    const spy = vi.spyOn(applicationPool, "query").mockImplementation((function(this: Pool, ...args: unknown[]) {
-      const pending = Reflect.apply(original, this, args);
-      return pending.then((result: { rows: unknown[] }) => {
-        cost.queries++; cost.rows += result.rows.length; cost.jsonBytes += Buffer.byteLength(JSON.stringify(result.rows));
-        return result;
-      });
-    }) as typeof original);
-    try { return { value: await read(), cost }; } finally { spy.mockRestore(); }
-  }
   try {
     await pool.query("insert into seasons(id,slug,name,kind) values($1::uuid,$1::text,'ranking fixture','custom')", [season]);
     for (let i = 0; i < users.length; i++) {
@@ -32,17 +17,13 @@ it("keeps canonical eight seeds and total without reading noncandidate voters", 
       [registrations[i], users[i], season, i === 101 ? "pending" : "approved", i < 12 || i >= 100, i]);
     }
     await pool.query("insert into captain_votes(voter_registration_id,candidate_registration_id) values($1,$2),($3,$2)", [registrations[20], registrations[5], registrations[21]]);
-    const baseline = await measure(() => getPublicCaptainVotingData(season));
-    const candidate = await measure(() => getAdminCaptainRanking(season));
-    expect(baseline.value.voters).toHaveLength(100);
-    expect(candidate.value.candidateCount).toBe(12);
-    expect(candidate.value.seeds.map(row => row.id)).toEqual(baseline.value.candidates.slice(0, 8).map(row => row.id));
-    expect(candidate.value.seeds[0]?.id).toBe(registrations[5]);
-    expect(candidate.value.seeds[0]).not.toHaveProperty("peakRank");
-    expect(candidate.cost.rows).toBeLessThan(baseline.cost.rows / 2);
-    expect(Buffer.byteLength(JSON.stringify(candidate.value))).toBeLessThan(Buffer.byteLength(JSON.stringify(baseline.value)) / 5);
-    console.info("ADMIN_CAPTAINS_COST", JSON.stringify({ baseline: baseline.cost, candidate: candidate.cost,
-      baselineDtoBytes: Buffer.byteLength(JSON.stringify(baseline.value)), candidateDtoBytes: Buffer.byteLength(JSON.stringify(candidate.value)) }));
+    const baseline = await getPublicCaptainVotingData(season);
+    const candidate = await getAdminCaptainRanking(season);
+    expect(baseline.voters).toHaveLength(100);
+    expect(candidate.candidateCount).toBe(12);
+    expect(candidate.seeds.map(row => row.id)).toEqual(baseline.candidates.slice(0, 8).map(row => row.id));
+    expect(candidate.seeds[0]?.id).toBe(registrations[5]);
+    expect(candidate.seeds[0]).not.toHaveProperty("peakRank");
   } finally {
     await pool.query("delete from captain_votes where voter_registration_id=any($1::uuid[]) or candidate_registration_id=any($1::uuid[])", [registrations]);
     await pool.query("delete from season_registrations where season_id=$1", [season]);

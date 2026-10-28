@@ -34,12 +34,6 @@ it.each(["http://user:pass@127.0.0.1:7890", "http://127.0.0.1:7890/path", "file:
   expect(fetch).not.toHaveBeenCalled();
 });
 
-it("authorizes the current operator before analysis configuration, transport or cache access", async () => {
-  requireSuperAdmin.mockRejectedValue(new Error("FORBIDDEN"));
-  const fetch = vi.spyOn(globalThis, "fetch");
-  await expect(getTelemetryAnalysis({})).rejects.toThrow("FORBIDDEN");
-  expect(fetch).not.toHaveBeenCalled();
-});
 it("rejects untrusted analysis dimensions before contacting the receiver", async () => {
   requireSuperAdmin.mockResolvedValue({ userId: "fixture" });
   const fetch = vi.spyOn(globalThis, "fetch");

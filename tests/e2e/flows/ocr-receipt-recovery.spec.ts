@@ -1,12 +1,9 @@
-import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { rmSync } from "node:fs";
 import { chromium, type BrowserContext, type Page, type Route } from "@playwright/test";
 import { Pool } from "pg";
 import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
 import { test as base, expect, signInProgrammatically, type E2EFixtureCredentials } from "../fixtures";
-
-const sourceCandidate = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 
 type Locator = { operationId: string; actorScope: string; mapId: string; expectedVersion: string; operation: string };
 type OCRFixture = {
@@ -134,7 +131,7 @@ async function counts(ocr: OCRFixture) {
   return { receipts: receipts.rows, audits: audits.rows.length, ratings: facts.rows.map(row => row.rating_pro) };
 }
 
-test("真实非空提交丢响应后关闭整个浏览器重开，fresh 权限与 actor 隔离后只读确认原回执", async ({ ocr, scenario }, info) => {
+test("真实非空提交丢响应后关闭整个浏览器重开，fresh 权限与 actor 隔离后只读确认原回执", async ({ ocr, scenario }) => {
   await open(ocr.page, ocr, scenario);
   const locator = await submitWithoutResponse(ocr.page, ocr, true);
   expect(await counts(ocr)).toMatchObject({ receipts: [{ operation_id: locator.operationId, actor_user_id: ocr.admin.userId }], audits: 1, ratings: [1.4] });
@@ -155,10 +152,9 @@ test("真实非空提交丢响应后关闭整个浏览器重开，fresh 权限�
   expect(await counts(ocr)).toMatchObject({ audits: 1, ratings: [1.4] });
   await expect(panel.getByRole("button", { name: "重新录入", exact: true })).toBeEnabled();
   expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("rivalhub:scoreboard-operation:")))).toEqual([]);
-  await info.attach("receipt-proof", { body: JSON.stringify({ sourceCandidate, scenario: "committed-network-response-dropped", browserRestarts: 2, receiptCount: 1, auditCount: 1, actorIsolation: true, freshPermissionDenial: true }), contentType: "application/json" });
 });
 
-test("请求未发送时重开只报 missing，不把当前相似数据当提交成功或重写", async ({ ocr, scenario }, info) => {
+test("请求未发送时重开只报 missing，不把当前相似数据当提交成功或重写", async ({ ocr, scenario }) => {
   await open(ocr.page, ocr, scenario);
   const locator = await submitWithoutResponse(ocr.page, ocr, false);
   expect(await counts(ocr)).toMatchObject({ receipts: [], audits: 0, ratings: [1.2] });
@@ -169,10 +165,9 @@ test("请求未发送时重开只报 missing，不把当前相似数据当提交
   await expect(panel.getByRole("button", { name: "重新录入", exact: true })).toBeDisabled();
   expect((await originalLocator(page, ocr)).operationId).toBe(locator.operationId);
   expect(await counts(ocr)).toMatchObject({ receipts: [], audits: 0, ratings: [1.2] });
-  await info.attach("receipt-proof", { body: JSON.stringify({ sourceCandidate, scenario: "request-aborted-before-server", receiptCount: 0, auditCount: 0, originalLocatorRetained: true, replayCount: 0 }), contentType: "application/json" });
 });
 
-test("原提交之后另一管理员真实保存，重开显示 superseded 且不覆盖后续统计", async ({ ocr, scenario }, info) => {
+test("原提交之后另一管理员真实保存，重开显示 superseded 且不覆盖后续统计", async ({ ocr, scenario }) => {
   await open(ocr.page, ocr, scenario);
   await submitWithoutResponse(ocr.page, ocr, true);
   const otherPage = await ocr.newTab();
@@ -187,10 +182,9 @@ test("原提交之后另一管理员真实保存，重开显示 superseded 且�
   await expect(panel.getByText(/原提交已确认，但已有后续更改/)).toBeVisible();
   expect(await counts(ocr)).toMatchObject({ audits: 2, ratings: [1.6] });
   expect((await counts(ocr)).receipts).toHaveLength(2);
-  await info.attach("receipt-proof", { body: JSON.stringify({ sourceCandidate, scenario: "superseded-by-second-admin-save", receiptCount: 2, auditCount: 2, currentRating: 1.6, replayCount: 0 }), contentType: "application/json" });
 });
 
-test("编辑后另一 tab 切换 actor，旧 command 真实请求被拒绝而不以新 actor 提交", async ({ ocr, scenario }, info) => {
+test("编辑后另一 tab 切换 actor，旧 command 真实请求被拒绝而不以新 actor 提交", async ({ ocr, scenario }) => {
   await open(ocr.page, ocr, scenario);
   const panel = await edit(ocr.page, ocr, "1.4");
   const otherTab = await ocr.newTab();
@@ -199,5 +193,4 @@ test("编辑后另一 tab 切换 actor，旧 command 真实请求被拒绝而不
   await expect(panel.getByText("登录身份已变化，请重新读取计分板后再操作。", { exact: true })).toBeVisible();
   expect(await counts(ocr)).toMatchObject({ receipts: [], audits: 0, ratings: [1.2] });
   expect(await ocr.page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("rivalhub:scoreboard-operation:")))).toEqual([]);
-  await info.attach("receipt-proof", { body: JSON.stringify({ sourceCandidate, scenario: "actor-changed-in-other-tab-before-save", rejected: true, receiptCount: 0, auditCount: 0, currentRating: 1.2 }), contentType: "application/json" });
 });
