@@ -175,7 +175,7 @@ Scheduler 的 `scheduled_job_health` 只保存有界 current projection，不是
 
 查询形态 ID 由本机规范化 SQL 结构计算：保留标识符，移除注释并规范化字面量和参数，仅摘要进入 D1，不传 SQL 或标识符文本。超过 token 预算归为 unknown，不把截断前缀当成完整形态。结构可能碰撞或合并，不能当作精确 SQL 标识，也不是 pg_stat_statements 的 queryid；每窗口最多 80 个形态/来源组合，额外组合按来源归入 overflow，页面仅展示前 20。源码定位时 checkout 同一 release，在隔离测试中将候选的参数化 SQL 字符串传给 `src/lib/observability/db-traffic.ts` 的 `queryShape()`，只比较输出 hash；不要输出 SQL 或参数，也不能反推 SQL 或据指纹推断单个用户行为。
 
-预测与竞猜页面及其 API / Server Action 读取分别使用固定来源，缓存填充保留独立来源。没有请求上下文记为 `context.absent`，有上下文但未映射记为 `context.unmapped`；其他未覆盖的操作仍可能归入这些类别，不能视为完整归因。新增来源前须先部署接受该来源的遥测 Worker，否则旧 Worker 会拒绝整个批次。
+预测与竞猜页面及其 API / Server Action 读取、平台统计页面读取分别使用固定来源，缓存填充保留独立来源。没有请求上下文记为 `context.absent`，有上下文但未映射记为 `context.unmapped`；其他未覆盖的操作仍可能归入这些类别，不能视为完整归因。新增来源前须先部署接受该来源的遥测 Worker，否则旧 Worker 会拒绝整个批次。
 
 `pg` 建连完成后在驱动接收 stream 计量读入的 PostgreSQL 协议帧字节；TLS 时是解密后的协议流，非 TLS wire，包含通知和协议开销，不包含连接握手，无法可靠分配到单条 SQL。连接采样点可观察连接数与总连接数的比例仅说明连接覆盖，不是字节覆盖率。所有字节作为未分摊进程总量显示；供应商实际用量尚未接入，须另查供应商控制台，绝不将协议字节或 rowCount 当作账单。低频 `pg_stat_statements` 尚未接入：迁库后先检查扩展与权限、冻结 reset/重启边界及只读低频采样预算，在隔离环境验证增量与脱敏，再以独立变更接入；未完成前不能声称完整归因。
 

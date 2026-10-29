@@ -1,3 +1,4 @@
+import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { observePublicStatsFill } from "@/lib/stats/public-fill";
 import { preservePublicStatsDependencyFailure } from "./availability";
 import "server-only";
@@ -39,6 +40,7 @@ async function cachedPlatformStats(scope: PlatformStatsScope, versions: string) 
   return observePublicStatsFill("stats.platform", () => preservePublicStatsDependencyFailure(() => getTournamentStats(scope)));
 }
 export async function getPlatformStatsPage(raw: StatsSearch) {
+  return withDbTrafficSource("stats.platform.page", async () => {
   const events = await getFreshStatsEvents();
   const requestedEvent = raw.event;
   if (requestedEvent !== undefined && (typeof requestedEvent !== "string" || !/^[a-z0-9][a-z0-9-]{0,127}$/.test(requestedEvent))) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
@@ -85,4 +87,5 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
   }
   if (query.tab === "records") data = { ...data, recordEvents: await getTournamentRecordEvents(scope, query) };
   return { data: publicStatsView(data, query), query, event, stages, maps: allowedMaps, events: events.map(({ id, slug, name, status }) => ({ slug, name, status, maps: [...new Set(maps.filter((m) => m.seasonId === id).map((m) => m.name))].sort() })) };
+  });
 }
