@@ -69,7 +69,7 @@ jobs:
           run = os.environ.get("GITHUB_RUN_ID", "")
           summary = dict(format=1, consumer="preview", run_id=run if re.fullmatch(r"\d+", run) else None,
                          github_run_id=run if re.fullmatch(r"\d+", run) else None,
-                         release=None, source_project="eurxkguokrkvpcsmxuru",
+                         release=None, source_project="atjiukerfgqlwvnctigc",
                          started_at=sys.argv[1], ended_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                          status="skipped", rows=None, logical_payload_bytes=None, dump_file_bytes=None,
                          snapshot_file_bytes=None, compressed_artifact_bytes=None,
@@ -108,11 +108,11 @@ jobs:
       - name: Export read-only sanitized snapshot
         env:
           RIVALHUB_DB_TARGET: production
-          RIVALHUB_PRODUCTION_PROJECT_CONFIRM: eurxkguokrkvpcsmxuru
+          RIVALHUB_PRODUCTION_PROJECT_CONFIRM: atjiukerfgqlwvnctigc
           RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          RIVALHUB_PRODUCTION_SUPABASE_URL: https://eurxkguokrkvpcsmxuru.supabase.co
+          RIVALHUB_PRODUCTION_SUPABASE_URL: https://atjiukerfgqlwvnctigc.supabase.co
           RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST: ${{ vars.RIVALHUB_PREVIEW_PUBLIC_ASSET_ALLOWLIST }}
           RIVALHUB_PREVIEW_MIGRATION_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.migration_ref || 'main' }}
         run: pnpm db:preview:export .agent-tmp/preview-mirror.json

@@ -5,6 +5,7 @@ describe("Supabase organization Storage origin migration", () => {
   it.each([
     ["0070_supabase_organization_storage_urls.sql", "sucokfotkypwqkckfynp", "rrrebbxfghmgnoyyeqqd"],
     ["0094_supabase_relocation_nju_1_storage_urls.sql", "rrrebbxfghmgnoyyeqqd", "eurxkguokrkvpcsmxuru"],
+    ["0102_supabase_relocation_storage_origin.sql", "eurxkguokrkvpcsmxuru", "atjiukerfgqlwvnctigc"],
   ])("%s preserves paths and external origins", async (migration, sourceRef, targetRef) => {
     await withScratchDatabase("storage_origin", async (client) => {
       const oldOrigin = `https://${sourceRef}.supabase.co/storage/v1/object/public/`;
