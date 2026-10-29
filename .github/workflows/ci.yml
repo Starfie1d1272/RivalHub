@@ -435,39 +435,30 @@ jobs:
           # Freeze execution before GitHub timing API waits.
           gate_finished_ms=$(date +%s%3N)
           echo "RIVALHUB_GATE_FINISHED_MS=$gate_finished_ms" >> "$GITHUB_ENV"
-          if started=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .run_started_at) &&
-            node scripts/ci/timing.mjs record --label "required gate wall time" --start-iso "$started" --end-ms "$gate_finished_ms"; then
-            :
-          else
-            echo '::warning::Required gate wall time unavailable.'
-            echo 'Required gate wall time unavailable.' >> "$GITHUB_STEP_SUMMARY"
-          fi
-      - name: Report required gate execution budget
-        if: always()
+          started=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .run_started_at)
+          node scripts/ci/timing.mjs record --label "required gate wall time" --start-iso "$started" --end-ms "$gate_finished_ms"
+      - name: Enforce required gate execution budget
         env:
           GH_TOKEN: ${{ github.token }}
           REQUIRED_JOBS: ${{ needs.plan.outputs.required_jobs }}
         run: |
-          if gh api --paginate -H 'Cache-Control: no-cache' \
-            "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" \
-            --jq '.jobs[] | {name, conclusion, steps} | tojson' > "$RUNNER_TEMP/ci-execution-jobs.jsonl"; then
-            if node scripts/ci/execution-budget.mjs --jobs "$RUNNER_TEMP/ci-execution-jobs.jsonl" \
-              --gate-ms "$((RIVALHUB_GATE_FINISHED_MS - RIVALHUB_GATE_STARTED_MS))" --budget-ms 180000; then
-              :
-            else
-              status=$?
-              if [ "$status" -eq 1 ]; then
-                message='Required gate execution exceeded the 180 second budget.'
+          # GitHub job timing can lag behind completed needs; never substitute missing durations.
+          for attempt in 1 2 3 4 5 6; do
+            if gh api --paginate -H 'Cache-Control: no-cache' \
+              "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" \
+              --jq '.jobs[] | {name, conclusion, steps} | tojson' > "$RUNNER_TEMP/ci-execution-jobs.jsonl"; then
+              if node scripts/ci/execution-budget.mjs --jobs "$RUNNER_TEMP/ci-execution-jobs.jsonl" \
+                --gate-ms "$((RIVALHUB_GATE_FINISHED_MS - RIVALHUB_GATE_STARTED_MS))" --budget-ms 180000; then
+                exit 0
               else
-                message='Required gate execution timing unavailable.'
+                status=$?
+                if [ "$status" -ne 2 ]; then exit "$status"; fi
               fi
-              echo "::warning::$message"
-              echo "$message" >> "$GITHUB_STEP_SUMMARY"
             fi
-          else
-            echo '::warning::Required gate execution timing unavailable.'
-            echo 'Required gate execution timing unavailable.' >> "$GITHUB_STEP_SUMMARY"
-          fi
+            if [ "$attempt" -lt 6 ]; then sleep 5; fi
+          done
+          echo 'GitHub execution timing remained unavailable after bounded retries.' >&2
+          exit 1
 
       - name: Preserve machine-readable evidence
         if: always()
