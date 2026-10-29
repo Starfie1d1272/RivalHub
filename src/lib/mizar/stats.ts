@@ -12,7 +12,7 @@ import { getPlayerAttributeBenchmark } from "@/lib/stats/player-attribute-benchm
 import { projectPlayerAttributeProfile } from "@/lib/stats/player-attributes";
 import { buildTournamentResults } from "@/lib/stats/results";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { broadcastStatsCutoff } from "./stats-scope";
+import { broadcastStatsCutoff, playerStatsAvailable } from "./stats-scope";
 import { documentRevision, loadMizarMatchDocumentInTx } from "./context";
 import type { BroadcastStatsBundle, BroadcastStatsEntrant } from "./stats-contract";
 
@@ -33,7 +33,7 @@ export async function loadBroadcastStats(matchId: string, competitionId: string)
     const entries = await tx.select({ id: competitionEntries.id, name: competitionEntries.name, logoUrl: competitionEntries.logoUrl }).from(competitionEntries).where(eq(competitionEntries.competitionId, competitionId));
     const results = buildTournamentResults(history, maps, entries);
     const selection = await getCurrentStatsSelectionInTx(tx, { seasonId: competitionId, before: cutoffAt, excludeMatchId: matchId });
-    const performance = await getBroadcastPerformanceInTx(tx, competitionId, ids);
+    const detail = await getBroadcastPerformanceInTx(tx, competitionId, ids);
     const scoreboard = await getStatsLeaderboard({ seasonId: competitionId, matchIds: selection.matchIds }, selection.currentImportIds, selection.roster, tx, { groupByTeam: false, requireRosterMatch: true });
     const historyById = new Map(history.map(row => [row.id, row]));
     const entryById = new Map(entries.map(row => [row.id, row]));
@@ -53,12 +53,28 @@ export async function loadBroadcastStats(matchId: string, competitionId: string)
       }).sort((a, b) => b.completedAt.localeCompare(a.completedAt) || b.mapId.localeCompare(a.mapId)).slice(0, 5).map(({ mapId: _mapId, ...row }) => { void _mapId; return row; });
       const players: BroadcastStatsEntrant["playerPerformance"]["players"] = starters.map(starter => {
         const row = scoreboard.find(row => row.userId === starter.userId);
-        return { userId: starter.userId, sample: { maps: row?.maps ?? 0, rounds: row?.rounds ?? null, ratingMaps: row?.ratingSamples ?? 0, adrRounds: row?.adrRounds ?? null }, rating: row?.avgRating ?? null, adr: row?.avgAdr ?? null, attributes: { available: false, benchmark: "rivalhub-all-time-qualified", scope: "competition-before-match", sample: { rounds: 0 }, values: [] } };
+        const available = playerStatsAvailable(row);
+        return { userId: starter.userId, available, sample: { maps: row?.maps ?? 0, rounds: row?.rounds ?? null, ratingMaps: row?.ratingSamples ?? 0, adrRounds: row?.adrRounds ?? null }, rating: row?.avgRating ?? null, adr: row?.avgAdr ?? null, attributes: { available: false, benchmark: "rivalhub-all-time-qualified", scope: "competition-before-match", sample: { rounds: 0 }, values: [] } };
       });
-      return { entryId: entry.entryId, name: entry.name, logoUrl: entry.logoUrl, starters, mapPerformance: { available: mapStats.length > 0 && mapStats.every(row => row.played > 0), maps: mapStats }, recentResults: { available: recent.length > 0, granularity: "map", results: recent }, playerPerformance: { available: players.length === 5 && players.every(row => row.rating !== null && Number.isFinite(row.rating) && row.adr !== null && Number.isFinite(row.adr) && row.sample.maps > 0 && row.sample.ratingMaps === row.sample.maps && row.sample.rounds !== null && row.sample.rounds > 0 && row.sample.adrRounds === row.sample.rounds), players } };
+      const team = detail.analytics.teams.find(row => row.team.entityKey === entry.entryId);
+      const utility = detail.performance.teams.find(row => row.team.entityKey === entry.entryId)?.slices.overall.utility;
+      const completedMaps = results.teams.find(row => row.entryId === entry.entryId)?.maps ?? 0;
+      const coverage = { completedMaps, detailedMaps: detail.detailedMapsByTeam[entry.entryId] ?? 0 };
+      const winValid = (value: { opportunities: number; rate: number | null } | undefined) => !!value && value.opportunities > 0 && value.rate !== null && Number.isFinite(value.rate);
+      const quantityValid = (value: { attempts: number; rate: number | null } | undefined) => !!value && value.attempts > 0 && value.rate !== null && Number.isFinite(value.rate);
+      const covered = coverage.completedMaps > 0 && coverage.detailedMaps === coverage.completedMaps;
+      const scope = "competition-before-match" as const;
+      return { entryId: entry.entryId, name: entry.name, logoUrl: entry.logoUrl, starters,
+        mapPerformance: { available: mapStats.some(row => row.played > 0), maps: mapStats },
+        recentResults: { available: recent.length > 0, granularity: "map", results: recent },
+        playerPerformance: { available: players.some(row => row.available), players },
+        pistol: { scope, coverage, available: covered && winValid(team?.pistol), pistol: team?.pistol ?? null, conversion: team?.round2.conversion ?? null, break: team?.round2.break ?? null },
+        economy: { scope, coverage, available: covered && winValid(team?.ecoSemiUpset), ecoSemiUpset: team?.ecoSemiUpset ?? null },
+        utility: { scope, coverage, available: covered && quantityValid(utility?.utilityDamagePerRound) && quantityValid(utility?.flashAssistsPerRound), utilityDamagePerRound: utility?.utilityDamagePerRound ?? null, flashAssistsPerRound: utility?.flashAssistsPerRound ?? null, enemyBlindSecondsPerFlash: utility?.enemyBlindSecondsPerFlash ?? null, enemyBlindSecondsPerRound: utility?.enemyBlindSecondsPerRound ?? null },
+      };
     });
     const payload = { schemaVersion: "rivalhub.broadcast-stats.v1" as const, matchId, competitionId, scope: { kind: "competition-before-match" as const, cutoffAt: cutoffAt.toISOString(), cutoffSource }, entrants };
-    return { payload, performance };
+    return { payload, performance: detail.performance.players };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
   if (snapshot.performance.length) {
     const benchmark = await getPlayerAttributeBenchmark();
@@ -68,9 +84,6 @@ export async function loadBroadcastStats(matchId: string, competitionId: string)
       const values = projectPlayerAttributeProfile(performance, benchmark).attributes.map(({ key, score, status }) => ({ key, score, status }));
       player.attributes = { available: values.length === 7 && new Set(values.map(value => value.key)).size === 7 && values.every(value => value.score !== null && Number.isFinite(value.score) && value.status === "qualified"), benchmark: "rivalhub-all-time-qualified", scope: "competition-before-match", sample: { rounds: performance.slices.overall.sample.rounds }, values };
     }
-  }
-  if (!snapshot.payload.entrants.every(entrant => entrant.playerPerformance.available)) {
-    for (const entrant of snapshot.payload.entrants) entrant.playerPerformance.available = false;
   }
   return { ...snapshot.payload, generatedAt: generatedAt.toISOString(), revision: documentRevision(snapshot.payload) };
 }
