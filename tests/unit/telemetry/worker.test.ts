@@ -4,7 +4,7 @@ import { Miniflare } from "miniflare";
 import { expect, it } from "vitest";
 import { accountKey, signTicket } from "@/lib/telemetry/ticket";
 import { maintain, type Env } from "../../../workers/telemetry/index";
-import { maintainDbTraffic } from "../../../workers/telemetry/db-traffic-rollup";
+import { maintainDbTraffic, readDbTrafficHours } from "../../../workers/telemetry/db-traffic-rollup";
 
 it("executes the real Worker and D1 API: concurrent ACK deduplication, usage and closed-day rollup", async () => {
   const require = createRequire(import.meta.url);
@@ -83,6 +83,7 @@ it("executes the real Worker and D1 API: concurrent ACK deduplication, usage and
     expect(afterBurst.truncated).toBe(true);
     expect(afterBurst.sources[0].queries).toBe(2104);
     expect(afterBurst.byRows[0].template).toBe("q0000000000000014");
+
     await maintain({ ...bindings, DB: db as unknown as Env["DB"] }, now + 8 * 86400000);
     expect(await db.prepare("SELECT count(*) AS n FROM db_traffic_batches").first()).toEqual({ n: 0 });
     expect(await db.prepare("SELECT count(*) AS n FROM db_offline_runs").first()).toEqual({ n: 0 });
@@ -152,5 +153,45 @@ it("rejects stale pending selections after another consumer or expiry cleanup", 
         expect(JSON.parse(hour!.payload)).toMatchObject({ receivedBytes: 10, sources: [{ queries: 1, rows: 2, queryMs: 3 }] });
       }
     }
+  } finally { await mf.dispose(); }
+}, 30000);
+
+
+it("marks producer overflow as truncated even when hourly shape capacity remains", async () => {
+  const mf = new Miniflare({ modules: true, script: "export default { fetch() { return new Response() } }", compatibilityDate: "2026-07-30", d1Databases: ["DB"] });
+  try {
+    const db = await mf.getD1Database("DB");
+    const schema = (await readFile("workers/telemetry/schema.sql", "utf8")).replace(/^--.*$/gm, "").split(";").map(s => s.trim()).filter(Boolean);
+    await db.batch(schema.map(sql => db.prepare(sql)));
+    const now = Date.now();
+    const payload = JSON.stringify([{ source: "unknown", template: "overflow", queries: 2, failures: 0, rows: 5, queryMs: 7 }]);
+    await db.prepare("INSERT INTO db_traffic_batches(id,at,process,release,deployment,payload,expires,dropped,received_bytes,connections,observed_connections) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind("fixture", now, "process", "release", "deployment", payload, now + 86400000, 0, 0, 1, 1).run();
+    await maintainDbTraffic({ DB: db as unknown as Env["DB"] } as Env, now, 1);
+    const stored = await db.prepare("SELECT payload FROM db_traffic_hours").first<{ payload: string }>();
+    expect(JSON.parse(stored!.payload)).toMatchObject({ truncated: true, sources: [{ source: "unknown", queries: 2, overflow: 2 }] });
+  } finally { await mf.dispose(); }
+}, 30000);
+
+
+it("marks retained query totals as partial after a shape is evicted and reappears", async () => {
+  const mf = new Miniflare({ modules: true, script: "export default { fetch() { return new Response() } }", compatibilityDate: "2026-07-30", d1Databases: ["DB"] });
+  try {
+    const db = await mf.getD1Database("DB");
+    const schema = (await readFile("workers/telemetry/schema.sql", "utf8")).replace(/^--.*$/gm, "").split(";").map(s => s.trim()).filter(Boolean);
+    await db.batch(schema.map(sql => db.prepare(sql)));
+    const now = Date.now(); const currentHour = Math.floor(now / 3600000) * 3600000;
+    const x = "q000000000000ffff";
+    const row = (template: string, queries: number) => ({ source: "mizar", template, queries, failures: 0, rows: queries, queryMs: queries });
+    const initial = JSON.stringify([...Array.from({ length: 90 }, (_, i) => row("q" + i.toString(16).padStart(16, "0"), 100)), row(x, 99)]);
+    const insert = (id: string, at: number, payload: string) => db.prepare("INSERT INTO db_traffic_batches(id,at,process,release,deployment,payload,expires,dropped,received_bytes,connections,observed_connections) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(id, at, "process", "release", "deployment", payload, now + 86400000, 0, 0, 1, 1);
+    await db.batch([insert("first", currentHour - 3600000, initial), insert("second", currentHour, initial)]);
+    const env = { DB: db as unknown as Env["DB"] } as Env;
+    await maintainDbTraffic(env, now);
+    await insert("third", now, JSON.stringify([row(x, 1000)])).run();
+    await maintainDbTraffic(env, now);
+    const result = await readDbTrafficHours(env, now, 24);
+    expect(result.truncated).toBe(true);
+    expect(result.totals.find(item => item.template === x)?.queries).toBe(1000);
+    expect(result.sources.find(item => item.source === "mizar")?.queries).toBe(19198);
   } finally { await mf.dispose(); }
 }, 30000);

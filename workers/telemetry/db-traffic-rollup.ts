@@ -25,7 +25,7 @@ function incorporate(value: Rollup, batches: Batch[]): Rollup {
       const source = sources.get(row.source) ?? { source: row.source, queries: 0, failures: 0, rows: 0, queryMs: 0, unsupported: 0, overflow: 0 };
       source.queries += row.queries; source.failures += row.failures; source.rows += row.rows; source.queryMs += row.queryMs;
       if (row.template === "unsupported") source.unsupported += row.queries;
-      if (row.template === "overflow") source.overflow += row.queries;
+      if (row.template === "overflow") { source.overflow += row.queries; value.truncated = true; }
       sources.set(row.source, source); release.queries += row.queries; release.rows += row.rows;
       const key = `${row.source}:${row.template}`;
       const shape = shapes.get(key) ?? { source: row.source, template: row.template, queries: 0, failures: 0, rows: 0, queryMs: 0 };
