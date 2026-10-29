@@ -12,25 +12,38 @@ import type { LineupCareer } from "./lineup-comparison";
 /** One metadata selection and one aggregate for both lineups and the historical baseline.
  * No raw Evidence or per-player career/detail queries are read.
  */
-export async function loadLineupCareers(playerIds: readonly string[], matchId: string, before: Date, database: DB = db): Promise<LineupCareer[]> {
-  if (!playerIds.length) return [];
+export async function loadLineupPopulation(matchId: string, before: Date, database: DB = db): Promise<LineupCareer[]> {
   return database.transaction(async (tx) => {
     const selection = await getCurrentStatsSelectionInTx(tx, { before, excludeMatchId: matchId });
     const population = await getStatsLeaderboard({}, selection.currentImportIds, selection.roster, tx,
       { groupByTeam: false, requireCurrentImports: true, requireRosterMatch: true });
     const { ranked } = partitionRankingPopulation(population, (row) => row.avgRating, (row) => row.rounds);
     const qualified = new Set(ranked.map((row) => row.userId));
-    const requested = new Set(playerIds);
-    return population.filter((row) => row.userId && requested.has(row.userId)).map((row) => ({
+    return population.filter((row) => row.userId).map((row) => ({
       userId: row.userId!, maps: row.maps, rounds: row.rounds, qualified: qualified.has(row.userId),
       rating: row.avgRating, adr: row.avgAdr, kpr: row.kpr, kast: row.kast, firstKill: row.fkpr, trade: row.tradeKpr,
     }));
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
-export async function getLineupCareers(playerIds: string[], matchId: string, cutoff: string | null) {
+function projectLineupCareers(population: LineupCareer[], playerIds: readonly string[]) {
+  const requested = new Set(playerIds);
+  return population.filter(row => requested.has(row.userId));
+}
+
+export async function loadLineupCareers(playerIds: readonly string[], matchId: string, before: Date, database: DB = db): Promise<LineupCareer[]> {
+  if (!playerIds.length) return [];
+  return projectLineupCareers(await loadLineupPopulation(matchId, before, database), playerIds);
+}
+
+async function getLineupPopulation(matchId: string, cutoff: string | null) {
   "use cache: remote";
   cacheTag(PUBLIC_STATS_TAG);
   cacheLife({ stale: 60, revalidate: 60, expire: 3600 });
-  return observePublicStatsFill("stats.lineup", () => loadLineupCareers(playerIds, matchId, cutoff ? new Date(cutoff) : new Date()));
+  return observePublicStatsFill("stats.lineup", () => loadLineupPopulation(matchId, cutoff ? new Date(cutoff) : new Date()));
+}
+
+export async function getLineupCareers(playerIds: string[], matchId: string, cutoff: string | null) {
+  if (!playerIds.length) return [];
+  return projectLineupCareers(await getLineupPopulation(matchId, cutoff), playerIds);
 }
