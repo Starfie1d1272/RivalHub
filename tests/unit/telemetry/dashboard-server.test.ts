@@ -120,8 +120,8 @@ it("accepts database traffic summaries containing all allowed sources", async ()
   vi.stubEnv("PRODUCT_TELEMETRY_ADMIN_KEY", "fixture-query-key".repeat(3));
   vi.stubEnv("PRODUCT_TELEMETRY_ENDPOINT", "https://worker.invalid/v1/batches");
   vi.stubEnv("PRODUCT_TELEMETRY_QUERY_PROXY_URL", "");
-  const source = (name: string) => ({ source: name, queries: 1, failures: 0, rows: 0, queryMs: 1, unsupported: 0, overflow: 0 });
-  const body = { offline: [], offlineTruncated: false, generatedAt: Date.now(), start: 0, pending: 0, dropped: 0, receivedBytes: 0, connections: 0, observedConnections: 0, truncated: false, sources: DB_SOURCES.map(source), totals: [], byTime: [], byRows: [], hours: [] };
+  const source = (name: string) => ({ source: name, queries: 1, failures: 0, rows: 0, queryMs: 1, logicalRowJsonBytes: 0, logicalMeasuredQueries: 0, unsupported: 0, overflow: 0 });
+  const body = { offline: [], offlineTruncated: false, generatedAt: Date.now(), start: 0, pending: 0, dropped: 0, receivedBytes: 0, connections: 0, observedConnections: 0, truncated: false, sources: DB_SOURCES.map(source), totals: [], byTime: [], byRows: [], byBytes: [], hours: [] };
   vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(body)));
   expect((await getDbTraffic(72)).status).toBe("ready");
 });
