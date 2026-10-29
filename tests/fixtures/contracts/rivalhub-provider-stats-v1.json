@@ -4,12 +4,703 @@
   "generatedAt": "2026-10-29T12:00:00.000Z",
   "matchId": "00000000-0000-4000-8000-000000000001",
   "competitionId": "00000000-0000-4000-8000-000000000002",
-  "scope": { "kind": "competition-before-match", "cutoffAt": "2026-10-29T12:00:00.000Z", "cutoffSource": "generatedAt" },
-  "entrants": [{
-    "entryId": "00000000-0000-4000-8000-000000000003", "name": "Example", "logoUrl": null,
-    "starters": [{ "userId": "00000000-0000-4000-8000-000000000004", "nickname": "Player", "avatarUrl": null }],
-    "mapPerformance": { "available": true, "maps": [{ "mapName": "de_dust2", "played": 2, "wins": 1, "winRate": 0.5 }] },
-    "recentResults": { "available": false, "granularity": "map", "results": [] },
-    "playerPerformance": { "available": false, "players": [{ "userId": "00000000-0000-4000-8000-000000000004", "sample": { "maps": 0, "rounds": null, "ratingMaps": 0, "adrRounds": null }, "rating": null, "adr": null, "attributes": { "available": false, "benchmark": "rivalhub-all-time-qualified", "scope": "competition-before-match", "sample": { "rounds": 0 }, "values": [] } }] }
-  }]
+  "scope": {
+    "kind": "competition-before-match",
+    "cutoffAt": "2026-10-29T12:00:00.000Z",
+    "cutoffSource": "generatedAt"
+  },
+  "entrants": [
+    {
+      "entryId": "00000000-0000-4000-8000-000000000003",
+      "name": "Example 1",
+      "logoUrl": null,
+      "starters": [
+        {
+          "userId": "00000000-0000-4000-8001-000000000001",
+          "nickname": "Player 1",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000002",
+          "nickname": "Player 2",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000003",
+          "nickname": "Player 3",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000004",
+          "nickname": "Player 4",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000005",
+          "nickname": "Player 5",
+          "avatarUrl": null
+        }
+      ],
+      "mapPerformance": {
+        "available": true,
+        "maps": [
+          {
+            "mapName": "de_dust2",
+            "played": 2,
+            "wins": 1,
+            "winRate": 0.5
+          }
+        ]
+      },
+      "recentResults": {
+        "available": true,
+        "granularity": "map",
+        "results": [
+          {
+            "matchId": "00000000-0000-4000-8000-000000000010",
+            "mapName": "de_dust2",
+            "completedAt": "2026-10-28T10:00:00.000Z",
+            "opponent": {
+              "entryId": "00000000-0000-4000-8000-000000000004",
+              "name": "Example 2",
+              "logoUrl": null
+            },
+            "score": 13,
+            "opponentScore": 8
+          }
+        ]
+      },
+      "playerPerformance": {
+        "available": true,
+        "players": [
+          {
+            "userId": "00000000-0000-4000-8001-000000000001",
+            "sample": {
+              "maps": 3,
+              "rounds": 60,
+              "ratingMaps": 3,
+              "adrRounds": 60
+            },
+            "rating": 1.12,
+            "adr": 75.5,
+            "attributes": {
+              "available": true,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition-before-match",
+              "sample": {
+                "rounds": 60
+              },
+              "values": [
+                {
+                  "key": "firepower",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "entrying",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "trading",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "opening",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "clutching",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "sniping",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "utility",
+                  "score": 50,
+                  "status": "qualified"
+                }
+              ]
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000002",
+            "sample": {
+              "maps": 3,
+              "rounds": 60,
+              "ratingMaps": 3,
+              "adrRounds": 60
+            },
+            "rating": 1.12,
+            "adr": 75.5,
+            "attributes": {
+              "available": true,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition-before-match",
+              "sample": {
+                "rounds": 60
+              },
+              "values": [
+                {
+                  "key": "firepower",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "entrying",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "trading",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "opening",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "clutching",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "sniping",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "utility",
+                  "score": 50,
+                  "status": "qualified"
+                }
+              ]
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000003",
+            "sample": {
+              "maps": 3,
+              "rounds": 60,
+              "ratingMaps": 3,
+              "adrRounds": 60
+            },
+            "rating": 1.12,
+            "adr": 75.5,
+            "attributes": {
+              "available": true,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition-before-match",
+              "sample": {
+                "rounds": 60
+              },
+              "values": [
+                {
+                  "key": "firepower",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "entrying",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "trading",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "opening",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "clutching",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "sniping",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "utility",
+                  "score": 50,
+                  "status": "qualified"
+                }
+              ]
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000004",
+            "sample": {
+              "maps": 3,
+              "rounds": 60,
+              "ratingMaps": 3,
+              "adrRounds": 60
+            },
+            "rating": 1.12,
+            "adr": 75.5,
+            "attributes": {
+              "available": true,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition-before-match",
+              "sample": {
+                "rounds": 60
+              },
+              "values": [
+                {
+                  "key": "firepower",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "entrying",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "trading",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "opening",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "clutching",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "sniping",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "utility",
+                  "score": 50,
+                  "status": "qualified"
+                }
+              ]
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000005",
+            "sample": {
+              "maps": 3,
+              "rounds": 60,
+              "ratingMaps": 3,
+              "adrRounds": 60
+            },
+            "rating": 1.12,
+            "adr": 75.5,
+            "attributes": {
+              "available": true,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition-before-match",
+              "sample": {
+                "rounds": 60
+              },
+              "values": [
+                {
+                  "key": "firepower",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "entrying",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "trading",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "opening",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "clutching",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "sniping",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "utility",
+                  "score": 50,
+                  "status": "qualified"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "00000000-0000-4000-8000-000000000004",
+      "name": "Example 2",
+      "logoUrl": null,
+      "starters": [
+        {
+          "userId": "00000000-0000-4000-8001-000000000006",
+          "nickname": "Player 6",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000007",
+          "nickname": "Player 7",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000008",
+          "nickname": "Player 8",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000009",
+          "nickname": "Player 9",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000010",
+          "nickname": "Player 10",
+          "avatarUrl": null
+        }
+      ],
+      "mapPerformance": {
+        "available": true,
+        "maps": [
+          {
+            "mapName": "de_dust2",
+            "played": 2,
+            "wins": 1,
+            "winRate": 0.5
+          }
+        ]
+      },
+      "recentResults": {
+        "available": true,
+        "granularity": "map",
+        "results": [
+          {
+            "matchId": "00000000-0000-4000-8000-000000000010",
+            "mapName": "de_dust2",
+            "completedAt": "2026-10-28T10:00:00.000Z",
+            "opponent": {
+              "entryId": "00000000-0000-4000-8000-000000000003",
+              "name": "Example 1",
+              "logoUrl": null
+            },
+            "score": 8,
+            "opponentScore": 13
+          }
+        ]
+      },
+      "playerPerformance": {
+        "available": true,
+        "players": [
+          {
+            "userId": "00000000-0000-4000-8001-000000000006",
+            "sample": {
+              "maps": 3,
+              "rounds": 60,
+              "ratingMaps": 3,
+              "adrRounds": 60
+            },
+            "rating": 1.12,
+            "adr": 75.5,
+            "attributes": {
+              "available": true,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition-before-match",
+              "sample": {
+                "rounds": 60
+              },
+              "values": [
+                {
+                  "key": "firepower",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "entrying",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "trading",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "opening",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "clutching",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "sniping",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "utility",
+                  "score": 50,
+                  "status": "qualified"
+                }
+              ]
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000007",
+            "sample": {
+              "maps": 3,
+              "rounds": 60,
+              "ratingMaps": 3,
+              "adrRounds": 60
+            },
+            "rating": 1.12,
+            "adr": 75.5,
+            "attributes": {
+              "available": true,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition-before-match",
+              "sample": {
+                "rounds": 60
+              },
+              "values": [
+                {
+                  "key": "firepower",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "entrying",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "trading",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "opening",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "clutching",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "sniping",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "utility",
+                  "score": 50,
+                  "status": "qualified"
+                }
+              ]
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000008",
+            "sample": {
+              "maps": 3,
+              "rounds": 60,
+              "ratingMaps": 3,
+              "adrRounds": 60
+            },
+            "rating": 1.12,
+            "adr": 75.5,
+            "attributes": {
+              "available": true,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition-before-match",
+              "sample": {
+                "rounds": 60
+              },
+              "values": [
+                {
+                  "key": "firepower",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "entrying",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "trading",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "opening",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "clutching",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "sniping",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "utility",
+                  "score": 50,
+                  "status": "qualified"
+                }
+              ]
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000009",
+            "sample": {
+              "maps": 3,
+              "rounds": 60,
+              "ratingMaps": 3,
+              "adrRounds": 60
+            },
+            "rating": 1.12,
+            "adr": 75.5,
+            "attributes": {
+              "available": true,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition-before-match",
+              "sample": {
+                "rounds": 60
+              },
+              "values": [
+                {
+                  "key": "firepower",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "entrying",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "trading",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "opening",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "clutching",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "sniping",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "utility",
+                  "score": 50,
+                  "status": "qualified"
+                }
+              ]
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000010",
+            "sample": {
+              "maps": 3,
+              "rounds": 60,
+              "ratingMaps": 3,
+              "adrRounds": 60
+            },
+            "rating": 1.12,
+            "adr": 75.5,
+            "attributes": {
+              "available": true,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition-before-match",
+              "sample": {
+                "rounds": 60
+              },
+              "values": [
+                {
+                  "key": "firepower",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "entrying",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "trading",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "opening",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "clutching",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "sniping",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "utility",
+                  "score": 50,
+                  "status": "qualified"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
 }

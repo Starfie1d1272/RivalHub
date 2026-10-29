@@ -1,5 +1,7 @@
 /** Broadcast-only, bounded statistics. Values are scoped to completed formal
- * competition matches before cutoffAt; the current match is always excluded. */
+ * competition matches before cutoffAt; the current match is always excluded.
+ * Seven-dimensional scores use that same player scope with an independently
+ * identified all-time benchmark, not an all-time player sample. */
 export interface BroadcastStatsBundle {
   schemaVersion: "rivalhub.broadcast-stats.v1";
   revision: string;
@@ -33,6 +35,8 @@ export interface BroadcastStatsEntrant {
     available: boolean;
     players: Array<{
       userId: string;
+      /** maps/rounds cover scoreboard rows; ratingMaps counts known Rating values;
+       * adrRounds counts rounds with known ADR, the weighted denominator. */
       sample: { maps: number; rounds: number | null; ratingMaps: number; adrRounds: number | null };
       rating: number | null;
       adr: number | null;
