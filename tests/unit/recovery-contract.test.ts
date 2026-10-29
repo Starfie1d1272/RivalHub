@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readExpectedMigrations } from "../../scripts/db/production-preflight";
-import { assertProductionBackupEnvironment, buildIsolatedRecoveryEnvironment } from "../../scripts/db/recovery/environment";
+import { assertProductionBackupEnvironment, buildIsolatedRecoveryEnvironment, isProductionRecoverySource } from "../../scripts/db/recovery/environment";
 import { assertRecoveryCompletionMarker, assertRecoveryManifest, assertRecoverySidecar, sha256File, RECOVERY_FORMAT_VERSION } from "../../scripts/db/recovery/manifest";
 import { assertActiveStorageReferencesCaptured, assertActiveStorageReferencesStable } from "../../scripts/db/recovery/storage";
 import { buildRecoveryR2Keys, assertR2ContentReadback } from "../../scripts/db/recovery/r2";
@@ -62,6 +62,10 @@ function validManifest() {
 }
 
 describe("recovery contracts", () => {
+  it("accepts the previous production backup source without allowing arbitrary projects", () => {
+    expect(isProductionRecoverySource("eurxkguokrkvpcsmxuru")).toBe(true);
+    expect(isProductionRecoverySource("abcdefghijklmnopqrst")).toBe(false);
+  });
 
   it("rejects incomplete or tampered recovery identities", () => {
     const manifest = validManifest();
