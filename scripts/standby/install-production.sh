@@ -29,8 +29,7 @@ wait_identity() {
   return 1
 }
 quiesce() {
-  # Identity checks run while the old HTTP app is alive. Only after those
-  # checks may we stop admission (including HTTP cron) and drain pooler work.
+  # After identity checks, stop admission (including HTTP cron) and drain pooler work.
   local active
   active=$(readlink "$root/current" || true)
   # First install has no previous writer or registered unit to stop.
@@ -196,7 +195,7 @@ if [[ -n $previous ]]; then
     read -r previous_tag previous_sha < <("$node" "$helper" manifest "$root/$previous/standby.json" "${previous#releases/}")
   fi
   [[ -n $previous_tag && -n $previous_sha ]] || exit 1
-  check_identity "$node" "$previous_tag" "$previous_sha" || { echo 'Current host differs from frozen previous release.' >&2; exit 1; }
+  "$node" "$helper" manifest "$root/$previous/standby.json" "${previous#releases/}" "$previous_tag" "$previous_sha" >/dev/null || { echo 'Current host differs from frozen previous release.' >&2; exit 1; }
 elif [[ -n $previous_tag ]]; then
   echo 'Release requires an existing production instance.' >&2; exit 1
 fi
