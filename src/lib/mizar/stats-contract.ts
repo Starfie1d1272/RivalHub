@@ -19,6 +19,7 @@ export interface BroadcastStatsEntrant {
   name: string;
   logoUrl: string | null;
   starters: Array<{ userId: string; nickname: string; avatarUrl: string | null }>;
+  /** winRate is a fraction from 0 to 1; played is the map denominator. */
   mapPerformance: {
     available: boolean;
     maps: Array<{ mapName: string; played: number; wins: number; winRate: number | null }>;
@@ -32,12 +33,14 @@ export interface BroadcastStatsEntrant {
     available: boolean;
     players: Array<{
       userId: string;
-      sample: { maps: number; rounds: number | null; ratingMaps: number };
+      sample: { maps: number; rounds: number | null; ratingMaps: number; adrRounds: number | null };
       rating: number | null;
       adr: number | null;
       attributes: {
         available: boolean;
         benchmark: "rivalhub-all-time-qualified";
+        scope: "competition-before-match";
+        sample: { rounds: number };
         values: Array<{ key: "firepower" | "entrying" | "trading" | "opening" | "clutching" | "sniping" | "utility"; score: number | null; status: "qualified" | "limited" | "no-data" }>;
       };
     }>;

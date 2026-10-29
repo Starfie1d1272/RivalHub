@@ -205,6 +205,12 @@ async function loadStatsDetailEvidence(tx: TxDb, scope: StatsEvidenceScope, opti
   )`);
 }
 
+/** Broadcast uses the same confirmed projection and metric owner for a bounded match set. */
+export async function getBroadcastPerformanceInTx(tx: TxDb, seasonId: string, matchIds: readonly string[]) {
+  const loaded = await loadStatsDetailEvidence(tx, { seasonId }, { matchIds });
+  return buildTournamentPerformanceAnalytics(loaded.selected.map(row => row.facts.performance), { labels: loaded.labels }).players;
+}
+
 type PlayerDetailFacts = {
   tournament: Pick<typeof matchDemoStatProjections.$inferSelect.facts.tournament, "mapKey" | "matchKey" | "mapName">;
   performance: typeof matchDemoStatProjections.$inferSelect.facts.performance;

@@ -104,6 +104,7 @@ async function queryStatsLeaderboard(
       ${includeOverall ? sql`GROUPING(mm.map_name)::int AS map_grouping,` : sql``}
       count(*)::int                                                          AS maps,
       count(mps.rating_pro)::int                                              AS rating_samples,
+      sum(${roundsExpr}) FILTER (WHERE mps.adr IS NOT NULL AND ${roundsExpr} IS NOT NULL)::int AS adr_rounds,
       ${completeSum(roundsExpr)}                                              AS rounds,
       ${ratingExpr}                                                          AS avg_rating,
       ${adrExpr}                                                             AS avg_adr,
@@ -156,6 +157,7 @@ async function queryStatsLeaderboard(
     ...(options.groupByTeam === false ? { teamIds: (r.team_ids as string[] | null) ?? [] } : {}),
     maps:       Number(r.maps),
     ratingSamples: Number(r.rating_samples),
+    adrRounds: toNumOrNull(r.adr_rounds),
     rounds:     toNumOrNull(r.rounds),
     avgRating:  toNumOrNull(r.avg_rating),
     avgAdr:     toNumOrNull(r.avg_adr),
