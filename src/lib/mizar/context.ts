@@ -2,10 +2,10 @@ import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 import { recordMizarFullBuild } from "@/lib/observability/read-budget";
 import { createHash } from "node:crypto";
-import { and, eq, asc, gte, lte, inArray, isNull, or } from "drizzle-orm";
+import { and, eq, asc, gte, lte, inArray, isNull, or, sql } from "drizzle-orm";
 import { db, type TxDb } from "@/db/client";
 import { matches, seasons, competitionEntries, matchMaps, matchVetoSteps, matchCommentators, users, steamProfiles } from "@/db/schema";
-import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
+import { effectiveMatchRosterWithAvatarQuery } from "@/lib/match-rosters/effective";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -50,26 +50,45 @@ async function loadExecutionFactsInTx(tx: TxDb, matchId: string) {
     commentators: commentatorRows.map(row => ({ userId: row.userId, displayName: getPublicDisplayName(row), avatarUrl: row.avatarUrl, liveStreamUrl: row.liveStreamUrl })) };
 }
 
+type ManifestRoster = Awaited<ReturnType<typeof effectiveMatchRosterWithAvatarQuery>>;
+const rosterCache = new Map<string, { fingerprint: string; players: ManifestRoster }>();
+const MAX_ROSTER_CACHE = 64;
+const MAX_ROSTER_CACHE_ENTRY_BYTES = 64 * 1024;
+
+/** The fingerprint and any cache fill share the caller's repeatable-read snapshot. */
+async function loadManifestRoster(tx: TxDb, matchId: string, competitionId: string, reuse: boolean): Promise<ManifestRoster> {
+  const query = effectiveMatchRosterWithAvatarQuery(tx, [matchId]);
+  if (!reuse) return query;
+  const fingerprintRows = await tx.execute<{ fingerprint: string }>(sql`select encode(sha256(convert_to(coalesce(json_agg(row_to_json(r) order by row_to_json(r)::text)::text, '[]'), 'UTF8')), 'hex') as fingerprint
+    from (${query}) r
+  `);
+  const fingerprint = fingerprintRows.rows[0]!.fingerprint;
+  const key = `${competitionId}:${matchId}`;
+  const cached = rosterCache.get(key);
+  if (cached?.fingerprint === fingerprint) return cached.players;
+  const players = await query;
+  if (Buffer.byteLength(JSON.stringify(players), "utf8") <= MAX_ROSTER_CACHE_ENTRY_BYTES) {
+    if (!rosterCache.has(key) && rosterCache.size >= MAX_ROSTER_CACHE) rosterCache.delete(rosterCache.keys().next().value!);
+    rosterCache.set(key, { fingerprint, players });
+  } else rosterCache.delete(key);
+  return players;
+}
+
 /** Explicit provider DTO, independent of React/admin/internal persistence shape. */
-export async function loadMizarMatchDocumentInTx(tx: TxDb, matchId: string, competitionId: string) {
+export async function loadMizarMatchDocumentInTx(tx: TxDb, matchId: string, competitionId: string, reuseRoster = false) {
   recordMizarFullBuild("match");
   const [match] = await tx.select(matchFields).from(matches).where(and(eq(matches.id, matchId), eq(matches.seasonId, competitionId)));
   if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
   assertCompetitionMatch(match);
   const season = await loadCompetitionInTx(tx, competitionId);
-  const players = await loadEffectiveMatchRoster(tx, [match.id], true);
-  const steam64s = [...new Set(players.flatMap(player => player.steam64 ? [player.steam64] : []))];
-  const profiles = steam64s.length
-    ? await tx.select({ steam64: steamProfiles.steam64, avatarUrl: steamProfiles.avatarUrl }).from(steamProfiles).where(inArray(steamProfiles.steam64, steam64s))
-    : [];
-  const avatarBySteam64 = new Map(profiles.map(profile => [profile.steam64, profile.avatarUrl]));
+  const players = await loadManifestRoster(tx, match.id, competitionId, reuseRoster);
   const entries = await tx.select(entrantFields).from(competitionEntries).where(inArray(competitionEntries.id, [...new Set([match.entryAId, match.entryBId])]));
   const entryById = new Map(entries.map(entry => [entry.entryId, entry]));
   const entrant = (entryId: string) => {
     const entry = entryById.get(entryId);
     if (!entry) throw new AppError(ErrorCode.NOT_FOUND, "参赛队伍不存在。");
     const roster = players.filter(player => player.entryId === entryId);
-    const identities = roster.map(player => ({ playerId: player.userId, steam64: player.steam64, displayName: getPublicDisplayName(player), avatarUrl: player.steam64 ? avatarBySteam64.get(player.steam64) ?? null : null, isStarter: player.isStarter }));
+    const identities = roster.map(player => ({ playerId: player.userId, steam64: player.steam64, displayName: getPublicDisplayName(player), avatarUrl: player.avatarUrl, isStarter: player.isStarter }));
     return { ...entry, roster: { rosterId: roster[0]?.rosterId ?? null, players: identities } };
   };
   const a = entrant(match.entryAId);
@@ -83,7 +102,7 @@ export async function loadMizarMatchDocumentInTx(tx: TxDb, matchId: string, comp
   return { ...payload, revision: documentRevision(payload) };
 }
 
-export const loadMizarMatchDocument = (matchId: string, competitionId: string) => db.transaction(tx => loadMizarMatchDocumentInTx(tx, matchId, competitionId), { isolationLevel: "repeatable read", accessMode: "read only" });
+export const loadMizarMatchDocument = (matchId: string, competitionId: string) => db.transaction(tx => loadMizarMatchDocumentInTx(tx, matchId, competitionId, true), { isolationLevel: "repeatable read", accessMode: "read only" });
 
 /** viewerUserId is the authenticated installation authorizer, never a client-selected identity. */
 export async function loadMizarScheduleWindow(competitionId: string, from: Date, to: Date, viewerUserId?: string) {
