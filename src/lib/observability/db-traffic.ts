@@ -21,7 +21,7 @@ export function dbTrafficSource(route?: string): DbTrafficSource {
   const prefix = route?.startsWith("/api/cron/") ? "scheduler." : route?.startsWith("/api/integrations/dak/") ? "dak." : undefined;
   const candidate = prefix === "scheduler." ? prefix + route!.slice("/api/cron/".length) : undefined;
   if (candidate && (DB_SOURCES as readonly string[]).includes(candidate)) return candidate as DbTrafficSource;
-  return route?.startsWith("/api/mizar/") ? "mizar" : prefix === "dak." ? "dak" : prefix === "scheduler." ? "scheduler" : "unknown";
+  return route?.startsWith("/api/mizar/") ? "mizar" : prefix === "dak." ? "dak" : prefix === "scheduler." ? "scheduler" : route ? "context.unmapped" : "context.absent";
 }
 /** Digest a bounded normalized shape locally; identifiers never leave the process. */
 export function queryShape(sql: unknown): string {
