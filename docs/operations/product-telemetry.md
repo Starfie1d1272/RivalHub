@@ -251,7 +251,7 @@ Provider 权限与上表运行时密钥不同。先复用已有获批的访问�
 
 经批准可将只含 `SIGNING_KEY` / `ADMIN_KEY` 的受控 JSON 文件通过 `wrangler deploy --secrets-file <private-file>` 与全关配置一起部署，先检查未授权读取为 401、跨 origin 为 403、合法 origin 停收为 503。这个部署仍不接收事件。获得 raw 留存及 Preview 测试流量许可后，把 Preview 配置中的 `RETENTION_APPROVED`、`ACCEPTING` 改为 `1` 再部署；汇总仍为 `0`，Production 继续关闭。不能用默认全关文件覆盖已启用且有数据的接收端，否则会同时关闭清理。
 
-环境变量修改不会改变已经构建的 Vercel deployment。开流量需要为对应网站环境构建并部署新的候选，遵循 [发布规范](release.md) 的 smoke/routing 门槛；不可把已上线的 v2.18.0 当作 fresh retry 来绕过配置发布，same-tag resume 本就跳过构建。实际 Production 配置发布方式、exact commit/tag 和开流量时间须纳入同次确认。停收时先令 Worker `ACCEPTING=0`；已批准的 `RETENTION_APPROVED=1` 与小时清理应继续。
+环境变量修改不会改变已经构建的应用。开流量需要为对应网站环境构建并部署新的候选，遵循 [发布规范](release.md) 的 smoke/routing 门槛；不可把已上线的 v2.18.0 当作 fresh retry 来绕过配置发布，same-tag resume 本就跳过构建。实际 Production 配置发布方式、exact commit/tag 和开流量时间须纳入同次确认。停收时先令 Worker `ACCEPTING=0`；已批准的 `RETENTION_APPROVED=1` 与小时清理应继续。
 
 ### 如何证明浏览器、接收、存储和读取一致
 

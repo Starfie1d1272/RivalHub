@@ -50,7 +50,6 @@
     "release:freeze-identity": "tsx scripts/release/production-identity.ts",
     "release:notes": "tsx scripts/release/changelog.ts",
     "release:plan": "tsx scripts/release/plan.ts",
-    "release:routing": "tsx scripts/release/routing.ts",
     "db:recovery:backup": "tsx scripts/db/recovery/backup.ts",
     "db:recovery:fetch": "tsx scripts/db/recovery/fetch.ts",
     "db:recovery:restore": "tsx scripts/db/recovery/restore.ts",
