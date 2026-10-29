@@ -28,7 +28,23 @@ function signalOwned(token, child, signal) {
   // Group cleanup remains available even if ownership enumeration fails.
   if (child.pid) try { process.kill(-child.pid, signal); } catch (error) { if (error.code !== "ESRCH") failure ??= error; }
   if (failure) throw failure;
-  return pids.length;
+  return pids;
+}
+
+// SIGKILL is asynchronous. Do not claim cleanup until owned Linux processes
+// have exited (a zombie no longer owns descriptors), or the bounded wait fails.
+async function waitForKilledProcesses(pids, timeoutMs = 1000) {
+  if (process.platform !== "linux") return;
+  const deadline = performance.now() + timeoutMs;
+  for (;;) {
+    const alive = pids.some(pid => {
+      try { return readFileSync(`/proc/${pid}/stat`, "utf8").split(") ")[1]?.split(" ")[0] !== "Z"; }
+      catch (error) { if (error.code === "ENOENT") return false; throw error; }
+    });
+    if (!alive) return;
+    if (performance.now() >= deadline) throw new Error("Owned processes did not exit");
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
 }
 
 function ownedProcessSnapshot(token) {
@@ -63,7 +79,7 @@ export async function runOwnedCommand(command, args, { timeoutMs, graceMs = 2000
     chunks.push(String(chunk)); target.write(chunk); onOutput(String(chunk));
   });
   const result = await new Promise(resolve => {
-    let deadline; let escalation; let settled = false;
+    let deadline; let escalation; let settled = false; let killing = false;
     const finish = () => {
       if (settled) return;
       settled = true; clearTimeout(deadline); clearTimeout(escalation);
@@ -79,11 +95,15 @@ export async function runOwnedCommand(command, args, { timeoutMs, graceMs = 2000
       try { onTimeout({ timedOut, cancelled, exitCode, exitSignal, exited, closed, milliseconds: performance.now() - started, ownedProcesses: ownedProcessSnapshot(token) }); }
       catch { cleanupError = "failure_evidence_write_failed"; }
       try { signalOwned(token, child, "SIGTERM"); } catch { cleanupError = "owned_process_signal_failed"; }
-      escalation = setTimeout(() => {
-        try { signalOwned(token, child, "SIGKILL"); } catch { cleanupError = "owned_process_kill_failed"; }
-        child.stdout.destroy(); child.stderr.destroy(); child.unref();
-        finish();
-      }, graceMs);
+      escalation = setTimeout(() => { void killAndFinish(); }, graceMs);
+    };
+    const killAndFinish = async () => {
+      if (killing || settled) return;
+      killing = true; clearTimeout(escalation);
+      try { await waitForKilledProcesses(signalOwned(token, child, "SIGKILL")); }
+      catch { cleanupError = "owned_process_kill_failed"; }
+      child.stdout.destroy(); child.stderr.destroy(); child.unref();
+      finish();
     };
     const interrupt = () => stop("SIGINT");
     const terminate = () => stop("SIGTERM");
@@ -94,7 +114,8 @@ export async function runOwnedCommand(command, args, { timeoutMs, graceMs = 2000
       closed = true; exitCode = code; exitSignal = signal;
       if (timedOut || cancelled) {
         // A detached child may have redirected stdio; still clean its marker.
-        try { signalOwned(token, child, "SIGKILL"); } catch { cleanupError = "owned_process_kill_failed"; }
+        void killAndFinish();
+        return;
       }
       finish();
     });
