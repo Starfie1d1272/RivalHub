@@ -5,7 +5,7 @@ import { Agent, request } from "node:https";
 import { DB_SOURCES, type DbTrafficSource } from "./db-traffic-contract";
 export { DB_SOURCES, type DbTrafficSource } from "./db-traffic-contract";
 export type DbTemplate = string;
-type Row = { source: DbTrafficSource; template: string; queries: number; failures: number; rows: number; queryMs: number };
+type Row = { source: DbTrafficSource; template: string; queries: number; failures: number; rows: number; queryMs: number; logicalRowJsonBytes: number; logicalMeasuredQueries: number };
 type Context = { source: DbTrafficSource };
 type State = { context: AsyncLocalStorage<Context>; rows: Map<string, Row>; processId: string; pending: { body: string; at: number; dropped: number }[]; sending: boolean; dropped: number; receivedBytes: number; connections: number; observedConnections: number };
 const slot = Symbol.for("rivalhub.db-traffic.v2");
@@ -35,12 +35,12 @@ export function queryShape(sql: unknown): string {
   }).join(" ");
   return `q${createHash("sha256").update(shape).digest("hex").slice(0, 16)}`;
 }
-export function recordDbTraffic(source: DbTrafficSource, template: DbTemplate, rows: number, ms: number, failure: boolean) {
+export function recordDbTraffic(source: DbTrafficSource, template: DbTemplate, rows: number, ms: number, failure: boolean, logicalBytes?: number) {
   if (!dbTrafficEnabled()) return;
   const map = state().rows; let key = `${source}:${template}`;
-  if (!map.has(key) && map.size >= 80) { template = "overflow"; key = `${source}:${template}`; }
-  const row = map.get(key) ?? { source, template, queries: 0, failures: 0, rows: 0, queryMs: 0 };
-  row.queries++; row.failures += failure ? 1 : 0; row.rows += rows; row.queryMs += ms; map.set(key, row);
+  if (!map.has(key) && map.size >= 40) { template = "overflow"; key = `${source}:${template}`; }
+  const row = map.get(key) ?? { source, template, queries: 0, failures: 0, rows: 0, queryMs: 0, logicalRowJsonBytes: 0, logicalMeasuredQueries: 0 };
+  row.queries++; row.failures += failure ? 1 : 0; row.rows += rows; row.queryMs += ms; if (logicalBytes !== undefined) { row.logicalRowJsonBytes += logicalBytes; row.logicalMeasuredQueries++; } map.set(key, row);
 }
 export function observeDbStream(client: { once(event: string, callback: () => void): unknown }, stream: { on(event: string, callback: (...args: never[]) => void): unknown } | null) {
   const s = state(); s.connections++;
