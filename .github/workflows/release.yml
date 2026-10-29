@@ -326,20 +326,24 @@ jobs:
           [[ "$LINUX_DEPLOY_SSH_KEY" == *"PRIVATE KEY"* ]] || { echo 'Missing Linux deployment key.' >&2; exit 1; }
           [[ "$LINUX_DEPLOY_KNOWN_HOSTS" == *"[47.103.131.158]:52222"* ]] || { echo 'Missing pinned Linux host key.' >&2; exit 1; }
 
-      - name: Verify Linux failure recovery contract
-        run: pnpm exec tsx --test scripts/standby/install-production.test.mjs
-
       - name: Prepare immutable Linux application checkout
         run: |
           git worktree add --detach "$RUNNER_TEMP/rivalhub-production-source" "$RELEASE_SHA"
           cd "$RUNNER_TEMP/rivalhub-production-source"
           pnpm install --frozen-lockfile
 
-      - name: Build Linux production package
+      - name: Build Linux production package and verify recovery
         env:
           GITHUB_TOKEN: ${{ github.token }}
           RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION: ${{ vars.RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION }}
-        run: node scripts/ci/timing.mjs "Linux production build" -- pnpm exec tsx scripts/standby/build-production.mjs "$RUNNER_TEMP/rivalhub-production-source" --layers
+        run: |
+          env -u GITHUB_TOKEN -u RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION pnpm exec tsx --test scripts/standby/install-production.test.mjs &
+          recovery_pid=$!
+          build_status=0
+          node scripts/ci/timing.mjs "Linux production build" -- pnpm exec tsx scripts/standby/build-production.mjs "$RUNNER_TEMP/rivalhub-production-source" --layers || build_status=$?
+          recovery_status=0
+          wait "$recovery_pid" || recovery_status=$?
+          if (( build_status != 0 || recovery_status != 0 )); then exit 1; fi
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
         with:
