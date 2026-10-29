@@ -37,6 +37,7 @@ import { recordGameplaySteamIdentityInTx } from "../../../src/lib/identity/gamep
 import { getCurrentStatsSelectionInTx, getMatchMvpSummary, getTournamentPerformancePopulations, getLongTeamCareerDetail, getPlayerCareerDetail, getPlayerCareerPerformances, getTournamentTeamDetail, getTournamentMapDetail, getTournamentPerformancePlayers, getTournamentPlayerDetail, getTournamentStats, getTournamentRecordEvents } from "../../../src/lib/stats/tournament-query";
 import { adaptStatsEvidence } from "../../../src/lib/stats/evidence-adapter";
 import { loadLineupCareers, loadLineupPopulation } from "../../../src/lib/matches/lineup-comparison-query";
+import { partitionRankingPopulation } from "../../../src/lib/stats/ranking";
 import { getStatsLeaderboard } from "../../../src/lib/stats/leaderboard-query";
 import { getVerifiedPlayerStatsBySeason } from "../../../src/lib/stats/public-query";
 import { PREVIOUS_STATISTICS_PROJECTION_VERSION, STATISTICS_PROJECTION_VERSION } from "../../../src/lib/stats/projection-version";
@@ -943,6 +944,7 @@ describe("DAK evidence submit persistence", () => {
       expect((await getTournamentStats(platformScope, observedDatabase)).coverage.detailedMaps).toBe(1);
       await expect(getTournamentStats({ seasonId: ids.careerSeason, publicOnly: true }, observedDatabase)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND });
       expect(await getTournamentPerformancePopulations([ids.careerSeason], observedDatabase)).toEqual([]);
+      expect((await loadLineupCareers(userIds, randomUUID(), new Date(now.getTime() + 1), observedDatabase)).every(row => row.maps === 1)).toBe(true);
       await database.update(schema.seasons).set({ status: "playing" }).where(eq(schema.seasons.id, ids.careerSeason));
 
       const coverage = await database.transaction((tx) => inspectStatisticsProjectionCoverage(tx, { batchSize: 1 }),
@@ -1057,6 +1059,13 @@ describe("DAK evidence submit persistence", () => {
       const comparisonQueries = queryLog.length;
       const cutoff = new Date(now.getTime() + 1), excluded = randomUUID();
       const population = await loadLineupPopulation(excluded, cutoff, observedDatabase);
+      const ranked = await observedDatabase.transaction(async tx => {
+        const selection = await getCurrentStatsSelectionInTx(tx, {before:cutoff,excludeMatchId:excluded});
+        const rows = await getStatsLeaderboard({}, selection.currentImportIds, selection.roster, tx, {groupByTeam:false,requireCurrentImports:true,requireRosterMatch:true});
+        return partitionRankingPopulation(rows, row => row.avgRating, row => row.rounds).ranked;
+      }, {isolationLevel:"repeatable read",accessMode:"read only"});
+      const qualified = new Set(ranked.map(row => row.userId));
+      expect(population.every(row => row.qualified === qualified.has(row.userId))).toBe(true);
       for (const lineup of [userIds.slice(0, 5), userIds.slice(5)]) {
         const selected = await loadLineupCareers(lineup, excluded, cutoff, observedDatabase);
         expect(selected).toEqual(population.filter(row => new Set<string>(lineup).has(row.userId)));
