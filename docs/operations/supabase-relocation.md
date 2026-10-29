@@ -35,8 +35,8 @@ Free 项目名额不足时，可在授权后采用“暂停旧 Dev → 创建新
 1. **固定来源。** 获取一致 DB snapshot，记录文件 hash 和完整性。DB 与 Storage 不是跨系统原子快照；单独记录对象来源时间，复核业务引用及对象变化。
 2. **验证目标。** 确认 source 与 target 不同，目标业务为空，允许的静态 seed 明确。依据 Drizzle ledger 重建源精确 migration 前缀；CLI migration list 不能替代 Drizzle ledger。
 3. **导入数据。** 保留 UUID、Auth canonical users/identities、密码 hash、确认状态与角色；适配 managed schema 差异。跨项目会话策略须显式确定，不能直接复用旧 JWT/refresh token。
-4. **核对数据。** 比较计数、主键集合、canonical digest、外键和业务 invariant，保留时间戳及数字精度。按目标 release 升级 migrations，完成所需 backfill/coverage 后再接流量。
-5. **恢复文件。** 通过目标 Storage API 恢复真实 bytes，验证 hash、大小、MIME 和权限。若源 API 402，使用经验证的 full backup 并说明后续对象缺口；同数量、同大小不足以证明内容相同。DB-only dump 不能作为完整恢复产物。
+4. **核对数据。** 按[验收证据清单](#4-验收与回退)核对数据，保留时间戳及数字精度。按目标 release 升级 migrations，完成所需 backfill/coverage 后再接流量。
+5. **恢复文件。** 通过目标 Storage API 恢复真实 bytes，按[验收证据清单](#4-验收与回退)验证。若源 API 402，使用经验证的 full backup 并说明后续对象缺口；同数量、同大小不足以证明内容相同。DB-only dump 不能作为完整恢复产物。
 6. **修复引用。** 更新当前可变业务引用中的 Storage origin，保留 immutable audit provenance。按 recovery retention 策略处理教育证据，过期对象不重新激活。
 7. **恢复配置。** 重建 Auth/SMTP、Realtime、扩展、Vault 与 scheduler。邮件 credential 保存后回读模板和限流；切流前避免两套 scheduler 同时执行业务任务。
 
@@ -83,10 +83,10 @@ Free 项目名额不足时，可在授权后采用“暂停旧 Dev → 创建新
 
 ## 4. 验收与回退
 
-完成前逐项记录证据：
+完成前逐项记录以下证据；恢复及切流步骤引用同一份清单，冻结后最终对账须使用冻结后的结果：
 
-- 数据 digest、关系、不变量、ledger 与 coverage 通过。
-- 真实图片 GET、私有对象权限、登录与角色正确；邮件实际收件、找回/确认链接和跳转通过。
+- 数据计数、主键集合、canonical digest、外键、业务 invariant、ledger 与 coverage 通过。
+- 恢复文件的 hash、大小、MIME 和权限通过；真实图片 GET、私有对象权限、登录与角色正确；邮件实际收件、找回/确认链接和跳转通过。
 - Realtime 实际送达、跨场拒绝和 viewer 写入拒绝；scheduler 有新鲜成功记录。
 - 正式 release 与目标身份一致；Preview/备用机隔离正常；新库 full backup 可读取和校验。
 - 切流后观察实际用量与账单，按赛事负载复核约一周数据，迁库完成不等于费用下降已验证。
