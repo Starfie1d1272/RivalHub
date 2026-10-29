@@ -31,6 +31,13 @@ Free 项目名额不足时，可在授权后采用“暂停旧 Dev → 创建新
 6. **修复引用。** 更新当前可变业务引用中的 Storage origin，保留 immutable audit provenance。按 recovery retention 策略处理教育证据，过期对象不重新激活。
 7. **恢复配置。** 重建 Auth/SMTP、Realtime、扩展、Vault 与 scheduler。邮件 credential 保存后回读模板和限流；切流前避免两套 scheduler 同时执行业务任务。
 
+### 源 Storage 返回 402
+
+- 在 Production recovery backup 的成功记录中定位最近可信 full backup，核对 source ref、快照时间、对象数及 R2 completion、sidecar 和 artifact。使用 [只读 fetch](./disaster-recovery.md#offline-read-only-fetch) 获取并验证三件产物；检查已有授权的 R2 访问环境，也可通过官方控制台查找对象。使用离线 recovery kit 中与备份 recipient 匹配的 age 身份解密，不复制或记录私钥。
+- 官方控制台按钮若在响应体下载阶段失败，先核对下载列表；确认失败后，可在同一已登录浏览器直接打开该控制台提供的官方下载地址，完成后仍校验长度和 SHA-256。
+- 可使用最新一致 DB 快照与较早 full backup 的 Storage，分别记录时间和差异。将备份对象索引与当前 `storage.objects` 按 bucket/key、大小逐项比较，检查当前更新时间是否晚于备份；有备份时 DB 元数据和可比 ETag 时一并核对，并核对 bucket 配置、业务引用和 retention。数量或总大小相同不能替代逐项核对，元数据一致也不等于当前 bytes 的哈希证明。冻结后重新核对，明确新增、删除、变更和无法验证的对象缺口。
+- 恢复前验证备份内对象 hash；向目标上传后逐对象回读 hash，并验收权限和引用。若缺备份、读取权限、身份材料或存在未解决缺口，记录具体缺项，继续不依赖它的准备；不得把 DB-only dump 当作完整备份或跳过缺口切流。
+
 旧模型迁入新模型时：先在独立本地实例恢复只读 source，按备份记录的 PG image version 操作；逐表声明映射和排除范围，执行 rollback-only dry-run。相同 PK/内容可幂等通过，内容冲突停止；时间戳采用无损表示，避免 JavaScript Date 截断微秒。历史迁移中的数据排除规则不能套用于新的全库迁移。
 
 ### 离线有界 digest 原型（不替代正式门禁）
