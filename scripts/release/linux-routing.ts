@@ -38,15 +38,19 @@ export async function promoteLinux(deps: {
   }
 }
 
-async function verifyCanonical(expected: ReleaseIdentity, wait: boolean) {
-  const deadline = Date.now() + (wait ? 120_000 : 0);
+export async function verifyIdentity(expected: ReleaseIdentity) {
+  const response = await fetch(`${origin}/api/system/release`, { cache: "no-store", signal: AbortSignal.timeout(10_000) });
+  if (!response.ok) throw new Error(`Canonical release HTTP ${response.status}`);
+  const actual = assertReleaseIdentity(await response.json());
+  if (JSON.stringify(Object.keys(actual).sort()) !== '["releaseCommit","releaseTag"]'
+    || actual.releaseTag !== expected.releaseTag || actual.releaseCommit !== expected.releaseCommit) throw new Error("Canonical release identity differs from the frozen target.");
+}
+
+export async function verifyCanonical(expected: ReleaseIdentity) {
+  const deadline = Date.now() + 120_000;
   do {
     try {
-      const response = await fetch(`${origin}/api/system/release`, { cache: "no-store", signal: AbortSignal.timeout(10_000) });
-      if (!response.ok) throw new Error(`Canonical release HTTP ${response.status}`);
-      const actual = assertReleaseIdentity(await response.json());
-      if (JSON.stringify(Object.keys(actual).sort()) !== '["releaseCommit","releaseTag"]'
-        || actual.releaseTag !== expected.releaseTag || actual.releaseCommit !== expected.releaseCommit) throw new Error("Canonical release identity differs from the frozen target.");
+      await verifyIdentity(expected);
       const home = await fetch(`${origin}/`, { cache: "no-store", signal: AbortSignal.timeout(15_000) });
       await home.body?.cancel();
       if (!home.ok) throw new Error(`Canonical homepage HTTP ${home.status}`);
@@ -105,11 +109,11 @@ async function main() {
     }
     await promoteLinux({
       assertCapabilities: () => assertReleaseCapabilities(process.cwd(), previous.releaseCommit, candidate.releaseCommit),
-      verifyPrevious: () => verifyCanonical(previous, false),
+      verifyPrevious: () => verifyIdentity(previous),
       deploy: async () => { ssh(`bash ${remote}/install-production.sh ${remote}/${archive} /etc/rivalhub-production/production.env --release ${pair}`); },
-      verifyCandidate: () => verifyCanonical(candidate, true),
+      verifyCandidate: () => verifyCanonical(candidate),
       rollback: async () => { ssh(`bash ${remote}/install-production.sh --rollback ${pair}`); },
-      verifyRollback: () => verifyCanonical(previous, true),
+      verifyRollback: () => verifyCanonical(previous),
     });
     result = "canonical verified";
     console.log(`Linux Production verified: ${candidate.releaseTag} ${candidate.releaseCommit}`);

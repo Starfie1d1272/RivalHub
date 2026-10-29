@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { promoteLinux } from "../../../scripts/release/linux-routing";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { promoteLinux, verifyCanonical, verifyIdentity } from "../../../scripts/release/linux-routing";
 
 function harness() {
   return {
@@ -37,5 +37,30 @@ describe("Linux deployment recovery", () => {
     deps.verifyCandidate.mockRejectedValue(new Error("wrong identity"));
     deps.verifyRollback.mockRejectedValue(new Error("unavailable"));
     await expect(promoteLinux(deps)).rejects.toThrow("rollback unverified");
+  });
+});
+
+
+describe("canonical verification", () => {
+  const identity = { releaseTag: "v2.24.12", releaseCommit: "a".repeat(40) };
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+  it("verifies previous identity without requiring the homepage", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(identity)));
+    vi.stubGlobal("fetch", fetch);
+    await expect(verifyIdentity(identity)).resolves.toBeUndefined();
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch.mock.calls[0][0]).toContain("/api/system/release");
+  });
+
+  it("rejects a different previous identity", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ ...identity, releaseTag: "v2.24.11" }))));
+    await expect(verifyIdentity(identity)).rejects.toThrow("identity differs");
+  });
+
+  it("requires a healthy homepage after identity verification", async () => {
+    vi.spyOn(Date, "now").mockReturnValueOnce(0).mockReturnValue(120_000);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(identity))).mockResolvedValueOnce(new Response(null, { status: 503 })));
+    await expect(verifyCanonical(identity)).rejects.toThrow("Canonical homepage HTTP 503");
   });
 });

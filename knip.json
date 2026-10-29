@@ -81,6 +81,7 @@
     "scripts/db/scheduler.ts!",
     "scripts/db/scheduler-watchdog-plan.ts!",
     "scripts/db/production-preflight.ts!",
+    "scripts/db/realtime-preflight.ts!",
     "scripts/db/preview/snapshot.ts!",
     "scripts/db/preview/refresh.ts!",
     "scripts/db/production-identity-merge-preflight.ts!",

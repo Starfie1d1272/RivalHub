@@ -64,7 +64,7 @@ if (cmd === 'id') { if (args[0] === '-u') console.log('0'); }
 else if (cmd === 'flock') { if(fs.existsSync(dir + '/locked')) process.exit(1); }
 else if (['chown','sleep'].includes(cmd)) {}
 else if (cmd === 'systemctl') { fs.appendFileSync(dir + '/events', args[0] + '\\n'); if(args[0] === 'stop' && fs.existsSync(dir + '/fail-stop')) process.exit(1); if(args[0] === 'restart' && fs.existsSync(dir + '/hold-on-failure')) { fs.mkdirSync(${JSON.stringify(join(root, 'recovery-hold'))}); process.exit(1); } if(args[0] === 'restart' && fs.existsSync(dir + '/fail')) {fs.unlinkSync(dir + '/fail'); process.exit(1);} }
-else if (cmd === 'curl') { if(fs.existsSync(dir + '/fail-health') && fs.readFileSync(config,'utf8').includes('RIVALHUB_RELEASE_TAG=v1.0.1')) process.exit(22); if(args.at(-1).endsWith('/api/system/release')) {const env = fs.readFileSync(config, 'utf8'); const get = k => env.match(new RegExp('^'+k+'=(.*)$','m'))[1]; console.log(JSON.stringify({releaseTag:get('RIVALHUB_RELEASE_TAG'),releaseCommit:get('RIVALHUB_RELEASE_COMMIT')}));} }
+else if (cmd === 'curl') { if(fs.existsSync(dir + '/old-offline') && fs.readFileSync(config,'utf8').includes('RIVALHUB_RELEASE_TAG=v1.0.0')) process.exit(7); if(fs.existsSync(dir + '/fail-health') && fs.readFileSync(config,'utf8').includes('RIVALHUB_RELEASE_TAG=v1.0.1')) process.exit(22); if(args.at(-1).endsWith('/api/system/release')) {const env = fs.readFileSync(config, 'utf8'); const get = k => env.match(new RegExp('^'+k+'=(.*)$','m'))[1]; console.log(JSON.stringify({releaseTag:get('RIVALHUB_RELEASE_TAG'),releaseCommit:get('RIVALHUB_RELEASE_COMMIT')}));} }
 else if (cmd === 'mv') {fs.renameSync(args.at(-2), args.at(-1));}
 else if (cmd === 'sha256sum') { const crypto = require('crypto'); if(args[0] === '-c') {const [hash, file] = fs.readFileSync(args[1],'utf8').trim().split(/\\s+/); if(crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex') !== hash) process.exit(1);} else console.log(crypto.createHash('sha256').update(fs.readFileSync(args[0])).digest('hex')+'  '+args[0]);}
 else throw Error(cmd);
@@ -74,14 +74,20 @@ else throw Error(cmd);
     const deployArgs = [archive, config, '--release', 'v1.0.1', next, 'v1.0.0', old];
     const run = args => spawnSync('bash', [join(dir, 'install-production.sh'), ...args], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
     assert.equal(run(['--rollback', 'v1.0.1', next, 'v1.0.0', old]).status, 0);
+    writeFileSync(join(dir, 'old-offline'), '');
+    let result = run([archive, config, '--release', 'v1.0.1', next, 'v1.0.0', 'e'.repeat(40)]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Current host differs from frozen previous release/);
+    assert.equal(readlinkSync(join(root, 'current')), `releases/${name(old)}`);
     writeFileSync(join(dir, 'fail-drain'), '');
-    let result = run(deployArgs);
+    result = run(deployArgs);
     assert.equal(result.status, 1);
     assert.equal(readFileSync(config, 'utf8'), oldEnv);
     assert.equal(readlinkSync(join(root, 'current')), `releases/${name(old)}`);
     assert.match(result.stderr, /Writer drain failed after service stop/);
     assert.ok(!readFileSync(join(dir, 'events'), 'utf8').includes('restart'));
     rmSync(join(dir, 'fail-drain'));
+    rmSync(join(dir, 'old-offline'));
     writeFileSync(join(dir, 'events'), '');
     writeFileSync(join(dir, 'fail'), '');
     result = run(deployArgs);
@@ -103,8 +109,10 @@ else throw Error(cmd);
     writeFileSync(join(candidate, '.next/BUILD_ID'), 'new-build-same-source');
     const rebuiltRelease = pack();
     assert.notEqual(rebuiltRelease, failedRelease);
+    writeFileSync(join(dir, 'old-offline'), '');
     result = run(deployArgs);
     assert.equal(result.status, 0, result.stderr);
+    rmSync(join(dir, 'old-offline'));
     assert.ok(existsSync(failedRelease));
     assert.equal(readlinkSync(join(root, 'current')), `releases/${rebuiltRelease.split('/').at(-1)}`);
     const snapshot = readFileSync(join(root, 'previous-snapshot'), 'utf8').trim();
