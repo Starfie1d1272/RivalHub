@@ -23,10 +23,9 @@ export async function loadBroadcastStats(matchId: string, competitionId: string)
   const entrants: BroadcastStatsEntrant[] = entries.map((entry, index) => {
     const detail = details[index];
     const starters = entry.roster.players.filter(player => player.isStarter).map(player => ({ userId: player.playerId, nickname: player.displayName, avatarUrl: player.avatarUrl }));
-    const mapStats = document.match.mapPool.map(mapName => {
-      const result = detail.maps.find(row => row.mapName === mapName)?.results;
-      return { mapName, played: result?.played ?? 0, wins: result?.wins ?? 0, winRate: result?.played ? result.wins / result.played : null };
-    });
+    const mapStats = detail.maps.flatMap(({ mapName, results }) => results && results.played > 0 ? [{
+      mapName, played: results.played, wins: results.wins, winRate: results.wins / results.played,
+    }] : []);
     const historyById = new Map(detail.official.matches.filter(match => match.status === "finished").map(match => [match.id, match]));
     const recent = detail.official.maps.flatMap(map => {
       const match = historyById.get(map.matchId);
@@ -46,15 +45,14 @@ export async function loadBroadcastStats(matchId: string, competitionId: string)
     const team = detail.analytics;
     const utility = detail.performance?.slices.overall.utility;
     const coverage = { completedMaps: detail.coverage.completedMaps, detailedMaps: detail.coverage.detailedMaps };
-    const covered = coverage.completedMaps > 0 && coverage.detailedMaps === coverage.completedMaps;
     const scope = "competition" as const;
     return { entryId: entry.entryId, name: entry.name, logoUrl: entry.logoUrl, starters,
       mapPerformance: { available: mapStats.some(row => row.played > 0), maps: mapStats },
       recentResults: { available: recent.length > 0, granularity: "map", results: recent },
       playerPerformance: { available: players.some(row => row.available), players },
-      pistol: { scope, coverage, available: covered && winValid(team?.pistol), pistol: team?.pistol ?? null, conversion: team?.round2.conversion ?? null, break: team?.round2.break ?? null },
-      economy: { scope, coverage, available: covered && winValid(team?.ecoSemiUpset), ecoSemiUpset: team?.ecoSemiUpset ?? null },
-      utility: { scope, coverage, available: covered && quantityValid(utility?.utilityDamagePerRound) && quantityValid(utility?.flashAssistsPerRound), utilityDamagePerRound: utility?.utilityDamagePerRound ?? null, flashAssistsPerRound: utility?.flashAssistsPerRound ?? null, enemyBlindSecondsPerFlash: utility?.enemyBlindSecondsPerFlash ?? null, enemyBlindSecondsPerRound: utility?.enemyBlindSecondsPerRound ?? null },
+      pistol: { scope, coverage, available: winValid(team?.pistol), pistol: team?.pistol ?? null, conversion: team?.round2.conversion ?? null, break: team?.round2.break ?? null },
+      economy: { scope, coverage, available: winValid(team?.ecoSemiUpset), ecoSemiUpset: team?.ecoSemiUpset ?? null },
+      utility: { scope, coverage, available: [utility?.utilityDamagePerRound, utility?.flashAssistsPerRound, utility?.enemyBlindSecondsPerFlash, utility?.enemyBlindSecondsPerRound].some(quantityValid), utilityDamagePerRound: utility?.utilityDamagePerRound ?? null, flashAssistsPerRound: utility?.flashAssistsPerRound ?? null, enemyBlindSecondsPerFlash: utility?.enemyBlindSecondsPerFlash ?? null, enemyBlindSecondsPerRound: utility?.enemyBlindSecondsPerRound ?? null },
     };
   });
   const payload = { schemaVersion: "rivalhub.broadcast-stats.v1" as const, matchId, competitionId, scope: { kind: "competition" as const }, entrants };

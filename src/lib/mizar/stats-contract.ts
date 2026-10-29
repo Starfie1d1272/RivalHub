@@ -33,7 +33,7 @@ export interface BroadcastStatsEntrant {
     granularity: "map";
     results: Array<{ matchId: string; mapName: string; completedAt: string; opponent: { entryId: string; name: string; logoUrl: string | null }; score: number; opponentScore: number }>;
   };
-  /** Per-player availability reflects only that player’s Rating and ADR coverage. */
+  /** Per-player availability reflects a valid Rating sample; ADR may be null and has its own denominator. */
   playerPerformance: {
     available: boolean;
     players: Array<{

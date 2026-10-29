@@ -312,7 +312,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Starfie1d1272/Mizar
-          ref: 05608cfc67be8955b1b69898f3efc13437dca590 # Mizar main, provisional post-map snapshot
+          ref: 5958ccc9d09d9cc013f62556839b78088c465918 # Mizar PR 639 consumer with broadcast stats parser
           path: .mizar-checkout
       - name: Mizar cross-repo contract
         if: matrix.task == 'provider' && matrix.live

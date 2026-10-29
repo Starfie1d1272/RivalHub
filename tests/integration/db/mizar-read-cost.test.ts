@@ -19,6 +19,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn(), cach
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { loadMizarScheduleWindow } from "@/lib/mizar/context";
+import { getTournamentTeamDetail } from "@/lib/stats/tournament-query";
 import { assertInstallationInTx, authenticateMizar, authorizeMizarPairing, hashCredential, pollMizarPairing, startMizarPairing } from "@/lib/mizar/installation";
 import { GET, POST } from "@/app/api/mizar/[operation]/route";
 import { seedFixture, withExtraMizarScheduleMatches, NOW } from "./harness/mizar";
@@ -173,6 +174,36 @@ it("keeps HTTP match 200/304 within nine SELECTs, personalized schedule within f
   await expect(authenticateMizar(f.authorization, { allowRevoked: true })).resolves.toMatchObject({ id: f.installationId, revokedAt: NOW });
   expect((await POST(new Request("http://localhost/api/mizar/disconnect", { method: "POST", headers: { authorization: f.authorization } }), context("disconnect"))).status).toBe(200);
   console.info("MIZAR_HTTP_READ_COST", JSON.stringify({ matchSelects, notModifiedSelects, scheduleSelects }));
+});
+
+it("authorizes the stats route and projects canonical team samples", async () => {
+  const f = await authenticatedFixture();
+  const other = await seedFixture();
+  const context = { params: Promise.resolve({ operation: "stats" }) };
+  const request = (matchId: string) => new Request(`http://localhost/api/mizar/stats?matchId=${matchId}`, { headers: { authorization: f.authorization } });
+  observation.queries = [];
+  const response = await GET(request(f.matchId), context);
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  const selects = selectCount();
+  expect(body.matchId).toBe(f.matchId);
+  expect(body.competitionId).toBe(f.seasonId);
+  expect(JSON.stringify(body)).not.toContain(f.authorization);
+  expect(JSON.stringify(body)).not.toMatch(/credentialHash|@local\.test/);
+  for (const entrant of body.entrants) {
+    const canonical = await getTournamentTeamDetail({ seasonId: f.seasonId, teamId: entrant.entryId });
+    expect(entrant.mapPerformance.maps).toEqual(canonical.maps.flatMap(({ mapName, results }) => results && results.played > 0 ? [{ mapName, played: results.played, wins: results.wins, winRate: results.wins / results.played }] : []));
+    for (const player of entrant.playerPerformance.players) {
+      const row = canonical.scoreboard.find(row => row.userId === player.userId);
+      expect(player.rating).toBe(row?.avgRating ?? null);
+      expect(player.adr).toBe(row?.avgAdr ?? null);
+    }
+  }
+  expect((await GET(request(other.matchId), context)).status).toBe(404);
+  expect((await GET(request("invalid"), context)).status).toBe(400);
+  await db.update(schema.mizarInstallations).set({ revokedAt: NOW }).where(eq(schema.mizarInstallations.id, f.installationId));
+  expect((await GET(request(f.matchId), context)).status).toBe(403);
+  console.info("MIZAR_STATS_READ_COST", JSON.stringify({ selects, responseBytes: Buffer.byteLength(JSON.stringify(body)) }));
 });
 
 it("binds pairing and personalized schedule to the actual authorizer, keeps same-name people distinct and invalidates changed identity/assignments", async () => {
