@@ -1,6 +1,7 @@
 import "server-only";
 import { AppError } from "@/lib/errors";
 import { ZodError } from "zod";
+import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { ensureRequestId } from "@/lib/observability/context";
 import { withRouteObservability } from "@/lib/observability/route";
 import { captureException } from "@/lib/observability/server";
@@ -13,7 +14,7 @@ interface MizarDiagnostics { operation: string; phase: MizarPhase; requestId: st
 
 /** One capture owner for handled route failures; LIVE expected outcomes stay quiet. */
 export function withMizarRequest(request: Request, route: string, operation: string, handler: (diagnostics: MizarDiagnostics) => Promise<Response>): Promise<Response> {
-  return withRouteObservability(request, route, async (requestContext) => {
+  return withDbTrafficSource("mizar", () => withRouteObservability(request, route, async (requestContext) => {
     const diagnostics: MizarDiagnostics = { operation, phase: "auth", requestId: ensureRequestId(requestContext.requestId), route };
     let response: Response | undefined;
     try {
@@ -27,7 +28,7 @@ export function withMizarRequest(request: Request, route: string, operation: str
         recordMizarHttpResult(diagnostics.operation, response?.status);
       }
     }
-  }, { captureServerErrorResponse: false });
+  }, { captureServerErrorResponse: false }));
 }
 
 class MizarBodyError extends Error {

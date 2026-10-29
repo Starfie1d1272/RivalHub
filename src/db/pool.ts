@@ -1,5 +1,6 @@
 import { Pool, type PoolClient } from "pg";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { observeDbStream } from "../lib/observability/db-traffic";
 import { logEvent } from "../lib/observability/logger";
 
 import { createClientMeasurements, measureClient } from "./client-measurement";
@@ -9,6 +10,12 @@ type ConnectCallback = Parameters<Pool["connect"]>[0];
 /** Covers both pool.query's callback checkout and Drizzle transaction checkout. */
 export class DatabasePool extends Pool {
   private readonly clientMeasurements = createClientMeasurements();
+  constructor(options: ConstructorParameters<typeof Pool>[0]) {
+    super(options);
+    this.on("connect", client => {
+      try { observeDbStream(client, (client as unknown as { connection?: { stream?: Parameters<typeof observeDbStream>[1] } }).connection?.stream ?? null); } catch { /* Measurement must not affect a connection. */ }
+    });
+  }
   getClientSnapshot() { return { ...this.clientMeasurements, holdBuckets: [...this.clientMeasurements.holdBuckets] }; }
 
   private readonly acquire = {

@@ -54,14 +54,20 @@ it("executes the real Worker and D1 API: concurrent ACK deduplication, usage and
     const schema = (await readFile("workers/telemetry/schema.sql", "utf8")).replace(/^--.*$/gm, "").split(";").map(s => s.trim()).filter(Boolean);
     await db.batch(schema.map(sql => db.prepare(sql)));
     const now = Date.now();
-    const body = JSON.stringify({ id: crypto.randomUUID(), process: crypto.randomUUID(), at: now, release: "fixture", deployment: "fixture", dropped: 2, rows: [{ source: "mizar", template: "select", queries: 3, failures: 1, rows: 5, queryMs: 12 }] });
+    const body = JSON.stringify({ id: crypto.randomUUID(), process: crypto.randomUUID(), at: now, release: "fixture", deployment: "fixture", dropped: 2, receivedBytes: 123, connections: 1, observedConnections: 1, rows: [{ source: "mizar", template: "q1234567890abcdef", queries: 3, failures: 1, rows: 5, queryMs: 12 }] });
     const send = () => mf.dispatchFetch("https://worker.invalid/v1/db-traffic", { method: "POST", headers: { authorization: `Bearer ${bindings.DB_TRAFFIC_KEY}` }, body });
     expect((await Promise.all([send(), send()])).map(r => r.status)).toEqual([204, 204]);
     expect((await mf.dispatchFetch("https://worker.invalid/v1/db-traffic", { method: "POST", body })).status).toBe(401);
+    const future = JSON.parse(body); future.id = crypto.randomUUID(); future.at = now + 50000; future.rows[0].queries = 99;
+    expect((await mf.dispatchFetch("https://worker.invalid/v1/db-traffic", { method: "POST", headers: { authorization: `Bearer ${bindings.DB_TRAFFIC_KEY}` }, body: JSON.stringify(future) })).status).toBe(204);
+    const offline = { consumer: "preview", run: "123", release: "v1", started: now - 1000, ended: now, status: "exported", rows: 2, logicalBytes: 100, dumpBytes: null, snapshotBytes: 70, artifactBytes: null, storageBytes: null };
+    const sendOffline = () => mf.dispatchFetch("https://worker.invalid/v1/db-offline", { method: "POST", headers: { authorization: `Bearer ${bindings.DB_TRAFFIC_KEY}` }, body: JSON.stringify(offline) });
+    expect((await Promise.all([sendOffline(), sendOffline()])).map(r => r.status)).toEqual([204, 204]);
     const result = await mf.dispatchFetch("https://worker.invalid/admin/db-traffic", { headers: { authorization: `Bearer ${bindings.ADMIN_KEY}` } });
     expect(result.status).toBe(200);
-    expect(await result.json()).toMatchObject({ dropped: 2, totals: [{ source: "mizar", template: "select", queries: 3, failures: 1, rows: 5 }] });
+    expect(await result.json()).toMatchObject({ dropped: 2, receivedBytes: 123, offline: [offline], totals: [{ source: "mizar", template: "q1234567890abcdef", queries: 3, failures: 1, rows: 5 }] });
     await maintain({ ...bindings, DB: db as unknown as Env["DB"] }, now + 8 * 86400000);
     expect(await db.prepare("SELECT count(*) AS n FROM db_traffic_batches").first()).toEqual({ n: 0 });
+    expect(await db.prepare("SELECT count(*) AS n FROM db_offline_runs").first()).toEqual({ n: 0 });
   } finally { await mf.dispose(); }
 }, 30000);

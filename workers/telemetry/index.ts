@@ -1,4 +1,4 @@
-import { ingestDbTraffic, readDbTraffic } from "./db-traffic";
+import { ingestDbTraffic, readDbTraffic, ingestOffline } from "./db-traffic";
 import { LIMITS, UUID, validEvent, type TelemetryEvent } from "../../src/lib/telemetry/protocol";
 import { verifyTicket } from "../../src/lib/telemetry/ticket";
 import { parseDashboardFilters } from "../../src/lib/telemetry/dashboard-query";
@@ -56,6 +56,7 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
   const url = new URL(request.url);
   const origin = request.headers.get("origin");
   try {
+    if (url.pathname === "/v1/db-offline" && request.method === "POST") return await ingestOffline(request, env, now);
     if (url.pathname === "/v1/db-traffic" && request.method === "POST") return await ingestDbTraffic(request, env, now);
     if (url.pathname === "/v1/batches" && request.method === "POST") {
       if (origin !== env.ALLOWED_ORIGIN) return response(403);
@@ -168,6 +169,7 @@ export async function maintain(env: Env, now = Date.now()) {
     if ((result.meta?.changes ?? CLEANUP.chunk) < CLEANUP.chunk) break;
   }
   await env.DB.batch([
+    env.DB.prepare("DELETE FROM db_offline_runs WHERE expires<=?").bind(now),
     env.DB.prepare("DELETE FROM db_traffic_batches WHERE expires<=?").bind(now),
     env.DB.prepare("DELETE FROM db_traffic_usage WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
     env.DB.prepare("DELETE FROM rollups WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),

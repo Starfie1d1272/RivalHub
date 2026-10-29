@@ -70,19 +70,19 @@ function statsCachePolicy(): void {
 async function cachedTournamentStats(scope: TournamentViewScope) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill(async () => preservePublicStatsDependencyFailure(() => getTournamentStats(scope)));
+  return observePublicStatsFill("stats.tournament", async () => preservePublicStatsDependencyFailure(() => getTournamentStats(scope)));
 }
 
 async function cachedTournamentTeam(scope: TeamScope) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill(async () => preservePublicStatsDependencyFailure(() => getTournamentTeamDetail(scope)));
+  return observePublicStatsFill("stats.tournament", async () => preservePublicStatsDependencyFailure(() => getTournamentTeamDetail(scope)));
 }
 
 async function cachedTournamentMap(scope: MapScope) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill(async () => preservePublicStatsDependencyFailure(() => getTournamentMapDetail(scope)));
+  return observePublicStatsFill("stats.tournament", async () => preservePublicStatsDependencyFailure(() => getTournamentMapDetail(scope)));
 }
 
 /** Entrypoints authorize draft access before calling; draft results never enter the remote cache. */
@@ -113,13 +113,13 @@ export async function getPublicTournamentMapDetail(scope: MapScope, visibility: 
 async function cachedPlayerCareerDetail(scope: PlayerCareerScope) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill(async () => preservePublicStatsDependencyFailure(() => getPlayerCareerDetail(scope)));
+  return observePublicStatsFill("stats.career", async () => preservePublicStatsDependencyFailure(() => getPlayerCareerDetail(scope)));
 }
 
 async function cachedPlayerFilterOptions(playerId: string) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill(() => preservePublicStatsDependencyFailure(() => getPlayerCareerFilterOptions(playerId)));
+  return observePublicStatsFill("stats.career", () => preservePublicStatsDependencyFailure(() => getPlayerCareerFilterOptions(playerId)));
 }
 
 export async function getPublicPlayerCareerDetail(scope: PlayerCareerScope) {
@@ -138,13 +138,13 @@ export async function getPublicPlayerCareerDetail(scope: PlayerCareerScope) {
 export async function getPublicLongTeamCareerDetail(teamId: string) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill(async () => preservePublicStatsDependencyFailure(() => getLongTeamCareerDetail(teamId)));
+  return observePublicStatsFill("stats.career", async () => preservePublicStatsDependencyFailure(() => getLongTeamCareerDetail(teamId)));
 }
 
 async function cachedMatchPlayerDetail(matchId: string, playerId: string, mapName?: string) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill(async () => preservePublicStatsDependencyFailure(() => getMatchPlayerDetail(matchId, playerId, mapName)));
+  return observePublicStatsFill("stats.match", async () => preservePublicStatsDependencyFailure(() => getMatchPlayerDetail(matchId, playerId, mapName)));
 }
 
 export async function getPublicMatchPlayerDetail(
@@ -164,7 +164,7 @@ export async function getPublicMatchPlayerDetail(
 async function cachedMatchMvpSummary(matchId: string, playerId: string) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill(() => preservePublicStatsDependencyFailure(() => getMatchMvpSummary(matchId, playerId)));
+  return observePublicStatsFill("stats.match", () => preservePublicStatsDependencyFailure(() => getMatchMvpSummary(matchId, playerId)));
 }
 
 /** Entrypoints retain draft authorization; no draft facts enter shared caches. */

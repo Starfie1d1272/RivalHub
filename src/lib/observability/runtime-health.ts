@@ -79,7 +79,7 @@ export function startRuntimeHealthSampling(): () => void {
         for (const flush of [...hooks().values()]) {
           try { flush(); } catch { /* One hook cannot suppress other diagnostics. */ }
         }
-        flushDbTraffic();
+        try { flushDbTraffic(); } catch { /* Traffic delivery must not suppress health sampling. */ }
         const snapshot = getRuntimeHealthSnapshot();
         const next = performance.eventLoopUtilization();
         const window = performance.eventLoopUtilization(next, utilization);

@@ -107,6 +107,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Export read-only sanitized snapshot
         env:
+          DB_TRAFFIC_KEY: ${{ secrets.DB_TRAFFIC_KEY }}
+          PRODUCT_TELEMETRY_ENDPOINT: ${{ vars.PRODUCT_TELEMETRY_ENDPOINT }}
           RIVALHUB_DB_TARGET: production
           RIVALHUB_PRODUCTION_PROJECT_CONFIRM: eurxkguokrkvpcsmxuru
           RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
