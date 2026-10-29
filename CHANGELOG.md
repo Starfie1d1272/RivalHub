@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.24.13]
+
+### Changed
+
+- 管理员可查看数据库查询来源的短期聚合和版本趋势，以识别高流量读取及观测缺口。
+
+### Fixed
+
+- 迁移生产数据库与图片存储，保留现有业务数据与图片链接；生产切流和验收按迁库流程完成。
+
 ## [2.24.12]
 
 ### Fixed
@@ -3656,3 +3666,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.24.11]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.10...v2.24.11
 
 [2.24.12]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.11...v2.24.12
+
+[2.24.13]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.12...v2.24.13
