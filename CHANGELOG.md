@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.24.15]
+
+### Changed
+
+- 降低竞猜、阵容对比和制播数据读取的流量。
+- 缓存连接异常时，竞猜页面自动重新读取数据。
+
 ## [2.24.14]
 
 ### Changed
@@ -3683,3 +3690,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.24.13]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.12...v2.24.13
 
 [2.24.14]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.13...v2.24.14
+
+[2.24.15]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.14...v2.24.15
