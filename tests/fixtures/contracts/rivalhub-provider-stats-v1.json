@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "rivalhub.broadcast-stats.v1",
+  "revision": "example",
+  "generatedAt": "2026-10-29T12:00:00.000Z",
+  "matchId": "00000000-0000-4000-8000-000000000001",
+  "competitionId": "00000000-0000-4000-8000-000000000002",
+  "scope": { "kind": "competition-before-match", "cutoffAt": "2026-10-29T12:00:00.000Z", "cutoffSource": "generatedAt" },
+  "entrants": [{
+    "entryId": "00000000-0000-4000-8000-000000000003", "name": "Example", "logoUrl": null,
+    "starters": [{ "userId": "00000000-0000-4000-8000-000000000004", "nickname": "Player", "avatarUrl": null }],
+    "mapPerformance": { "available": true, "maps": [{ "mapName": "de_dust2", "played": 2, "wins": 1, "winRate": 0.5 }] },
+    "recentResults": { "available": false, "granularity": "map", "results": [] },
+    "playerPerformance": { "available": false, "players": [{ "userId": "00000000-0000-4000-8000-000000000004", "sample": { "maps": 0, "rounds": null, "ratingMaps": 0 }, "rating": null, "adr": null, "attributes": { "available": false, "benchmark": "rivalhub-all-time-qualified", "values": [] } }] }
+  }]
+}

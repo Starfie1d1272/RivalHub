@@ -1,0 +1,45 @@
+/** Broadcast-only, bounded statistics. Values are scoped to completed formal
+ * competition matches before cutoffAt; the current match is always excluded. */
+export interface BroadcastStatsBundle {
+  schemaVersion: "rivalhub.broadcast-stats.v1";
+  revision: string;
+  generatedAt: string;
+  matchId: string;
+  competitionId: string;
+  scope: {
+    kind: "competition-before-match";
+    cutoffAt: string;
+    cutoffSource: "startedAt" | "scheduledAt" | "generatedAt";
+  };
+  entrants: BroadcastStatsEntrant[];
+}
+
+export interface BroadcastStatsEntrant {
+  entryId: string;
+  name: string;
+  logoUrl: string | null;
+  starters: Array<{ userId: string; nickname: string; avatarUrl: string | null }>;
+  mapPerformance: {
+    available: boolean;
+    maps: Array<{ mapName: string; played: number; wins: number; winRate: number | null }>;
+  };
+  recentResults: {
+    available: boolean;
+    granularity: "map";
+    results: Array<{ matchId: string; mapName: string; completedAt: string; opponent: { entryId: string; name: string; logoUrl: string | null }; score: number; opponentScore: number }>;
+  };
+  playerPerformance: {
+    available: boolean;
+    players: Array<{
+      userId: string;
+      sample: { maps: number; rounds: number | null; ratingMaps: number };
+      rating: number | null;
+      adr: number | null;
+      attributes: {
+        available: boolean;
+        benchmark: "rivalhub-all-time-qualified";
+        values: Array<{ key: "firepower" | "entrying" | "trading" | "opening" | "clutching" | "sniping" | "utility"; score: number | null; status: "qualified" | "limited" | "no-data" }>;
+      };
+    }>;
+  };
+}
