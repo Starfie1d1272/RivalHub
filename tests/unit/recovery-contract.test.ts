@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readExpectedMigrations } from "../../scripts/db/production-preflight";
-import { assertProductionBackupEnvironment, buildIsolatedRecoveryEnvironment } from "../../scripts/db/recovery/environment";
+import { assertProductionBackupEnvironment, buildIsolatedRecoveryEnvironment, isProductionRecoverySource } from "../../scripts/db/recovery/environment";
 import { assertRecoveryCompletionMarker, assertRecoveryManifest, assertRecoverySidecar, sha256File, RECOVERY_FORMAT_VERSION } from "../../scripts/db/recovery/manifest";
 import { assertActiveStorageReferencesCaptured, assertActiveStorageReferencesStable } from "../../scripts/db/recovery/storage";
 import { buildRecoveryR2Keys, assertR2ContentReadback } from "../../scripts/db/recovery/r2";
@@ -24,7 +24,7 @@ function validManifest() {
     runId: RUN_ID,
     createdAt: CREATED_AT,
     sourceEnvironment: "production" as const,
-    sourceProjectRef: "eurxkguokrkvpcsmxuru",
+    sourceProjectRef: "atjiukerfgqlwvnctigc",
     postgresVersion: "17.6",
     supabaseCliVersion: "2.116.0",
     producer: {
@@ -62,6 +62,10 @@ function validManifest() {
 }
 
 describe("recovery contracts", () => {
+  it("accepts the previous production backup source without allowing arbitrary projects", () => {
+    expect(isProductionRecoverySource("eurxkguokrkvpcsmxuru")).toBe(true);
+    expect(isProductionRecoverySource("abcdefghijklmnopqrst")).toBe(false);
+  });
 
   it("rejects incomplete or tampered recovery identities", () => {
     const manifest = validManifest();
@@ -92,9 +96,9 @@ describe("recovery contracts", () => {
   it("keeps production backup read-only and rejects loopback/remote target confusion", () => {
     const environment = assertProductionBackupEnvironment({
       RIVALHUB_DB_TARGET: "production",
-      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "eurxkguokrkvpcsmxuru",
+      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "atjiukerfgqlwvnctigc",
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: "aws-0-ap-northeast-1.pooler.supabase.com:6543",
-      DATABASE_URL: "postgresql://postgres.eurxkguokrkvpcsmxuru:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
+      DATABASE_URL: "postgresql://postgres.atjiukerfgqlwvnctigc:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
       SUPABASE_SECRET_KEY: "sb_secret_modern",
       SUPABASE_SERVICE_ROLE_KEY: "service-role-secret",
       RIVALHUB_BACKUP_AGE_RECIPIENT: "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
@@ -104,7 +108,7 @@ describe("recovery contracts", () => {
       RIVALHUB_R2_SECRET_ACCESS_KEY: "secret-key",
     });
 
-    expect(environment.databaseUrl).toBe("postgresql://postgres.eurxkguokrkvpcsmxuru:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres");
+    expect(environment.databaseUrl).toBe("postgresql://postgres.atjiukerfgqlwvnctigc:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres");
     expect(environment.databaseUrl).not.toContain(":6543");
     expect(environment.databaseUrl).not.toContain("pgbouncer");
     expect(environment.supabaseSecretKey).toBe("sb_secret_modern");
@@ -115,7 +119,7 @@ describe("recovery contracts", () => {
     expect(() => buildIsolatedRecoveryEnvironment({
       RIVALHUB_RECOVERY_TARGET: "isolated",
       RIVALHUB_RECOVERY_DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/postgres",
-      RIVALHUB_RECOVERY_SUPABASE_URL: "https://eurxkguokrkvpcsmxuru.supabase.co",
+      RIVALHUB_RECOVERY_SUPABASE_URL: "https://atjiukerfgqlwvnctigc.supabase.co",
       RIVALHUB_RECOVERY_PUBLISHABLE_KEY: "publishable",
       RIVALHUB_RECOVERY_SERVICE_ROLE_KEY: "service-role",
     })).toThrow();
