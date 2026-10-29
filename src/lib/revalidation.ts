@@ -5,6 +5,7 @@ import {
   PUBLIC_HOME_TAG,
   PUBLIC_SEASON_CATALOG_TAG,
   PUBLIC_STATS_TAG,
+  broadcastStatsMatchTag,
   publicPlayerTag,
   publicBetTag,
   publicAnnouncementsSeasonTag,
@@ -123,6 +124,8 @@ export function revalidateMatchPaths(
   matchId: string,
   options: RevalidationOptions = {},
 ) {
+  if (options.mode === "route") revalidateTag(broadcastStatsMatchTag(matchId), { expire: 0 });
+  else updateTag(broadcastStatsMatchTag(matchId));
   revalidateSeasonPaths(slug, ["matches", "adminMatches"], options);
   revalidatePath(`/admin/${slug}/matches/${matchId}`);
   revalidatePath(`/admin/${slug}/test-matches`);

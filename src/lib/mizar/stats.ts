@@ -1,6 +1,6 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
-import { PUBLIC_STATS_TAG, seasonMatchesTag, seasonParticipantsTag } from "@/lib/cache/tags";
+import { PUBLIC_STATS_TAG, broadcastStatsMatchTag, seasonMatchesTag, seasonParticipantsTag } from "@/lib/cache/tags";
 import { and, asc, eq, inArray, lt, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, matchMaps, matches } from "@/db/schema";
@@ -19,7 +19,7 @@ import type { BroadcastStatsBundle, BroadcastStatsEntrant } from "./stats-contra
 export async function loadBroadcastStats(matchId: string, competitionId: string): Promise<BroadcastStatsBundle> {
   "use cache: remote";
   cacheLife({ stale: 60, revalidate: 60, expire: 300 });
-  cacheTag(PUBLIC_STATS_TAG, seasonMatchesTag(competitionId), seasonParticipantsTag(competitionId));
+  cacheTag(PUBLIC_STATS_TAG, broadcastStatsMatchTag(matchId), seasonMatchesTag(competitionId), seasonParticipantsTag(competitionId));
   const generatedAt = new Date();
   const snapshot = await db.transaction(async tx => {
     const document = await loadMizarMatchDocumentInTx(tx, matchId, competitionId);
