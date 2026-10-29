@@ -52,15 +52,21 @@ export async function maintainDbTraffic(env: Env, now: number, maxChunks = 4) {
     const first = await env.DB.prepare("SELECT at FROM db_traffic_batches WHERE processed=0 AND at>? AND at<=? ORDER BY at,id LIMIT 1").bind(now - 7 * 86400000, now).first<{ at: number }>();
     if (!first) return;
     const hour = Math.floor(first.at / HOUR) * HOUR;
+    // Read the version first: any concurrent consumer must advance it before
+    // this selection can be committed. Expiry cleanup may instead delete rows,
+    // so verify the complete selected set inside the same D1 transaction too.
+    const stored = await env.DB.prepare("SELECT version,payload FROM db_traffic_hours WHERE hour=?").bind(hour).first<{ version: number; payload: string }>();
     const pending = await env.DB.prepare("SELECT id,at,process,release,deployment,payload,received_bytes,connections,observed_connections,dropped FROM db_traffic_batches WHERE processed=0 AND at>=? AND at<? AND at<=? ORDER BY at,id LIMIT ?").bind(hour, hour + HOUR, now, CHUNK).all<Batch>();
     if (!pending.results.length) return;
-    const stored = await env.DB.prepare("SELECT version,payload FROM db_traffic_hours WHERE hour=?").bind(hour).first<{ version: number; payload: string }>();
     const merged = incorporate(stored ? JSON.parse(stored.payload) as Rollup : empty(), pending.results);
     const version = stored?.version ?? 0;
+    // Unary + keeps SQLite on the primary-key lookup rather than scanning the pending index.
+    const ids = JSON.stringify(pending.results.map(row => row.id));
+    const expected = pending.results.length;
     await env.DB.batch([
-      env.DB.prepare("INSERT OR IGNORE INTO db_traffic_hours(hour,version,payload,expires) VALUES(?,0,'{}',?)").bind(hour, hour + 7 * 86400000),
-      env.DB.prepare("UPDATE db_traffic_hours SET version=version+1,payload=? WHERE hour=? AND version=?").bind(JSON.stringify(merged), hour, version),
-      env.DB.prepare("UPDATE db_traffic_batches SET processed=1 WHERE processed=0 AND id IN (SELECT value FROM json_each(?)) AND changes()=1").bind(JSON.stringify(pending.results.map(row => row.id))),
+      env.DB.prepare("INSERT OR IGNORE INTO db_traffic_hours(hour,version,payload,expires) SELECT ?,0,'{}',? WHERE ?=0 AND (SELECT count(*) FROM db_traffic_batches WHERE +processed=0 AND id IN (SELECT value FROM json_each(?)))=?").bind(hour, hour + 7 * 86400000, version, ids, expected),
+      env.DB.prepare("UPDATE db_traffic_hours SET version=version+1,payload=? WHERE hour=? AND version=? AND (SELECT count(*) FROM db_traffic_batches WHERE +processed=0 AND id IN (SELECT value FROM json_each(?)))=?").bind(JSON.stringify(merged), hour, version, ids, expected),
+      env.DB.prepare("UPDATE db_traffic_batches SET processed=1 WHERE +processed=0 AND id IN (SELECT value FROM json_each(?)) AND changes()=1").bind(ids),
     ]);
   }
 }

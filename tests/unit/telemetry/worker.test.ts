@@ -107,3 +107,50 @@ it("atomically rolls up the same pending batches under concurrent workers", asyn
     expect(await db.prepare("SELECT count(*) AS n FROM db_traffic_batches WHERE processed=0").first()).toEqual({ n: 0 });
   } finally { await mf.dispose(); }
 }, 30000);
+
+it("rejects stale pending selections after another consumer or expiry cleanup", async () => {
+  const mf = new Miniflare({ modules: true, script: "export default { fetch() { return new Response() } }", compatibilityDate: "2026-07-30", d1Databases: ["DB"] });
+  try {
+    const db = await mf.getD1Database("DB");
+    const schema = (await readFile("workers/telemetry/schema.sql", "utf8")).replace(/^--.*$/gm, "").split(";").map(s => s.trim()).filter(Boolean);
+    await db.batch(schema.map(sql => db.prepare(sql)));
+    const now = Date.now();
+    const payload = JSON.stringify([{ source: "mizar", template: "q0000000000000001", queries: 1, failures: 0, rows: 2, queryMs: 3 }]);
+    for (const interference of ["consumer", "cleanup", "hour_cleanup"] as const) {
+      await db.batch([db.prepare("DELETE FROM db_traffic_hours"), db.prepare("DELETE FROM db_traffic_batches")]);
+      await db.prepare("INSERT INTO db_traffic_batches(id,at,process,release,deployment,payload,expires,dropped,received_bytes,connections,observed_connections) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind("fixture", now, "process", "release", "deployment", payload, now + 86400000, 0, 10, 1, 1).run();
+      if (interference === "hour_cleanup") {
+        await maintainDbTraffic({ DB: db as unknown as Env["DB"] } as Env, now, 1);
+        await db.prepare("UPDATE db_traffic_batches SET processed=0 WHERE id=?").bind("fixture").run();
+      }
+      let captured!: () => void; let resume!: () => void;
+      const selected = new Promise<void>(resolve => { captured = resolve; });
+      const released = new Promise<void>(resolve => { resume = resolve; });
+      const delayed = {
+        prepare(sql: string) {
+          return { bind(...values: (string | number | null | ArrayBuffer)[]) {
+            const native = db.prepare(sql).bind(...values);
+            return { native, first: () => native.first(), async all() {
+              const result = await native.all();
+              if (sql.startsWith("SELECT id,at,process")) { captured(); await released; }
+              return result;
+            } };
+          } };
+        },
+        batch(statements: Array<{ native: ReturnType<typeof db.prepare> }>) { return db.batch(statements.map(statement => statement.native)); },
+      } as unknown as Env["DB"];
+      const waiting = maintainDbTraffic({ DB: delayed } as Env, now, 1);
+      await selected;
+      if (interference === "consumer") await maintainDbTraffic({ DB: db as unknown as Env["DB"] } as Env, now, 1);
+      else if (interference === "cleanup") await db.prepare("DELETE FROM db_traffic_batches WHERE id=?").bind("fixture").run();
+      else await db.prepare("DELETE FROM db_traffic_hours").run();
+      resume(); await waiting;
+      const hour = await db.prepare("SELECT version,payload FROM db_traffic_hours").first<{ version: number; payload: string }>();
+      if (interference !== "consumer") expect(hour).toBeNull();
+      else {
+        expect(hour!.version).toBe(1);
+        expect(JSON.parse(hour!.payload)).toMatchObject({ receivedBytes: 10, sources: [{ queries: 1, rows: 2, queryMs: 3 }] });
+      }
+    }
+  } finally { await mf.dispose(); }
+}, 30000);
