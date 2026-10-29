@@ -12,7 +12,7 @@ export interface VetoFact extends OfficialVetoResult { startedAt: Date | null }
 export interface EventFact { entryIds: string[]; playerIds: string[]; started: boolean; champion: string | null; kills: { userId: string; kills: number }[] | null }
 export interface MarketFactInput { type: MarketType; subject: BetSubject; line: number | null; voidedAt: Date | null; match?: MatchFact; maps: MapFact[]; veto?: VetoFact; event: EventFact }
 export function sameIds(a: readonly string[],b: readonly string[]) { return [...a].sort().join(",") === [...b].sort().join(","); }
-export function subjectMatches(subject: BetSubject,match: MatchFact | undefined, maps: MapFact[],veto?: VetoFact): boolean {
+export function subjectMatches(subject: BetSubject,match: Pick<MatchFact, "entryAId" | "entryBId" | "majorStageRunId" | "qualificationRunId" | "format"> | undefined, maps: Pick<MapFact, "id" | "mapName" | "mapOrder">[],veto?: Pick<VetoFact, "mapPoolSnapshot">): boolean {
   if (subject.kind === "event") return true;
   if (!match || subject.entryIds[0] !== match.entryAId || subject.entryIds[1] !== match.entryBId || subject.runId !== (match.majorStageRunId ?? match.qualificationRunId) || subject.format !== match.format) return false;
   if (subject.kind === "map") return maps.some(m=>m.id===subject.mapId && m.mapName===subject.mapName && m.mapOrder===subject.mapOrder);

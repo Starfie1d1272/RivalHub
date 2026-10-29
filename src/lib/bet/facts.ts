@@ -78,3 +78,14 @@ async function loadMatchFacts(tx: TxDb, seasonId: string, season: typeof seasons
   return {season,official,maps,vetoByMatch,entries,roster,players,event,runs,eventPublication:{entrantsReady,rostersReady,seedsConfirmed:Boolean(prestart?.seedsConfirmedAt)}};
 }
 export type BetFacts = Awaited<ReturnType<typeof loadBetFacts>>;
+
+/** Public support needs subjects and frozen pools, not operational or private facts. */
+export async function loadBetPublicSupportFacts(tx: TxDb, seasonId: string, matchId?: string) {
+  const [season] = await tx.select({registrationConfig: seasons.registrationConfig}).from(seasons).where(eq(seasons.id,seasonId));
+  if (!season) throw new AppError(ErrorCode.NOT_FOUND,"赛事不存在");
+  const condition = and(officialMatchCondition(),eq(matches.seasonId,seasonId),matchId ? eq(matches.id,matchId) : undefined);
+  const official = await tx.select({id:matches.id,seasonId:matches.seasonId,stage:matches.stage,entryAId:matches.entryAId,entryBId:matches.entryBId,majorStageRunId:matches.majorStageRunId,qualificationRunId:matches.qualificationRunId,format:matches.format,status:matches.status,isForfeit:matches.isForfeit}).from(matches).where(condition).orderBy(asc(matches.createdAt)).then(rows=>rows.map(requireCompetitionMatch));
+  const vetos = await tx.select({matchId:matchVetoSessions.matchId,mapPoolSnapshot:matchVetoSessions.mapPoolSnapshot}).from(matchVetoSessions).innerJoin(matches,eq(matches.id,matchVetoSessions.matchId)).where(condition);
+  return {season,official,vetoByMatch:new Map(vetos.map(v=>[v.matchId,{mapPoolSnapshot:v.mapPoolSnapshot}]))};
+}
+export type BetPublicSupportFacts = Awaited<ReturnType<typeof loadBetPublicSupportFacts>>;
