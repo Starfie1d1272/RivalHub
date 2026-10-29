@@ -173,7 +173,7 @@ Scheduler 的 `scheduled_job_health` 只保存有界 current projection，不是
 
 常驻 Node 服务复用 60 秒 sampler 和 pg wrapper：Mizar manifest/schedule/live/reliable 等、DAK 入口、scheduler job、公开统计和 BET 的实际 cache fill 使用固定来源标签，其他为 unknown。请求排队时恢复提交者异步上下文，事务中的查询按发起上下文归属。采集 query 数、失败、pg rowCount 和耗时；自定义 Submittable 单列 unsupported。rowCount 包含写入影响行数，不等同返回行数。既有 `runtime.pool.query` 仍是 pool generation 分开的总分母。
 
-查询形态 ID 由固定 SQL 关键词与符号构成的规范化结构计算，仅摘要进入 D1；标识符、字面量、参数、结果和用户身份不进入摘要。结构可能碰撞或合并，不能当作精确 SQL 标识；每窗口最多 80 个形态/来源组合，额外组合按来源归入 overflow，页面仅展示前 20。源码定位需在隔离环境对候选查询使用相同规范化计算，不能反推 SQL 或据指纹推断单个用户行为。
+查询形态 ID 由本机规范化 SQL 结构计算：保留标识符，移除注释并规范化字面量和参数，仅摘要进入 D1，不传 SQL 或标识符文本。超过 token 预算归为 unknown，不把截断前缀当成完整形态。结构可能碰撞或合并，不能当作精确 SQL 标识，也不是 pg_stat_statements 的 queryid；每窗口最多 80 个形态/来源组合，额外组合按来源归入 overflow，页面仅展示前 20。源码定位需在隔离环境对候选查询使用相同规范化计算，不能反推 SQL 或据指纹推断单个用户行为。
 
 `pg` 建连完成后在驱动接收 stream 计量读入的 PostgreSQL 协议帧字节；TLS 时是解密后的协议流，非 TLS wire，包含通知和协议开销，不包含连接握手，无法可靠分配到单条 SQL。连接采样点可观察连接数与总连接数的比例仅说明连接覆盖，不是字节覆盖率。所有字节作为未分摊进程总量显示；供应商实际用量尚未接入，须另查供应商控制台，绝不将协议字节或 rowCount 当作账单。低频 `pg_stat_statements` 尚未接入：迁库后先检查扩展与权限、冻结 reset/重启边界及只读低频采样预算，在隔离环境验证增量与脱敏，再以独立变更接入；未完成前不能声称完整归因。
 

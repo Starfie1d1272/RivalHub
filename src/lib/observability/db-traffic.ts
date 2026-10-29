@@ -22,12 +22,16 @@ export function dbTrafficSource(route?: string): DbTrafficSource {
   if (candidate && (DB_SOURCES as readonly string[]).includes(candidate)) return candidate as DbTrafficSource;
   return route?.startsWith("/api/mizar/") ? "mizar" : prefix === "dak." ? "dak" : prefix === "scheduler." ? "scheduler" : "unknown";
 }
-const KEYWORDS = new Set("select from where join left right inner outer on and or not null is in exists as with recursive insert into values update set delete returning order by group having limit offset union all distinct case when then else end asc desc begin commit rollback savepoint release for share lock conflict do nothing true false array any over partition rows between current row using lateral cross intersect except cast like ilike count sum avg min max".split(" "));
-/** Only a fixed SQL keyword vocabulary and punctuation enter the digest; literals and identifiers never do. */
+/** Digest a bounded normalized shape locally; identifiers never leave the process. */
 export function queryShape(sql: unknown): string {
   if (typeof sql !== "string" || sql.length > 100000) return "unknown";
-  const tokens = sql.match(/--[^\n]*|\/\*[\s\S]*?\*\/|\$[A-Za-z_][A-Za-z_0-9]*\$[\s\S]*?\$[A-Za-z_][A-Za-z_0-9]*\$|\$\$[\s\S]*?\$\$|'(?:''|[^'])*'|"(?:""|[^"])*"|\$\d+|[A-Za-z_][A-Za-z_0-9]*|\d+(?:\.\d+)?|[(),;=<>+*/-]/g) ?? [];
-  const shape = tokens.slice(0, 4096).map(t => /^[A-Za-z_]/.test(t) ? (KEYWORDS.has(t.toLowerCase()) ? t.toLowerCase() : "i") : /^[(),;=<>+*/-]$/.test(t) ? t : "?").join(" ");
+  const tokens = sql.match(/--[^\n]*|\/\*[\s\S]*?\*\/|\$([A-Za-z_][A-Za-z_0-9]*)\$[\s\S]*?\$\1\$|\$\$[\s\S]*?\$\$|(?:[eE])?'(?:''|\\[\s\S]|[^'\\])*'|"(?:""|[^"])*"|\$\d+|[A-Za-z_][A-Za-z_0-9]*|\d+(?:\.\d+)?|[(),;=<>+*/-]/g) ?? [];
+  if (tokens.length > 4096) return "unknown";
+  const shape = tokens.flatMap(t => {
+    if (t.startsWith("--") || t.startsWith("/*")) return [];
+    if (t.startsWith("'") || /^[eE]'/.test(t) || t.startsWith("$") || /^\d/.test(t)) return ["?"];
+    return [t.startsWith('"') ? t : t.toLowerCase()];
+  }).join(" ");
   return `q${createHash("sha256").update(shape).digest("hex").slice(0, 16)}`;
 }
 export function recordDbTraffic(source: DbTrafficSource, template: DbTemplate, rows: number, ms: number, failure: boolean) {

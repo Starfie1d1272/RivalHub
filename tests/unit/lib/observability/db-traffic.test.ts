@@ -1,12 +1,15 @@
 import { expect, it } from "vitest";
 import { queryShape } from "@/lib/observability/db-traffic";
 
-it("fingerprints structure without preserving literals, identifiers or parameters", () => {
+it("distinguishes identifiers while normalizing literals, comments and parameters", () => {
   const first = queryShape("select account from users where id = $1 and name = 'secret-one'");
   expect(first).toMatch(/^q[0-9a-f]{16}$/);
-  expect(queryShape("select other from profiles where key = $2 and name = 'secret-two'")).toBe(first);
+  expect(queryShape("select account from users where id = $2 and name = 'secret-two'")).toBe(first);
+  expect(queryShape("select account from profiles where id = $2 and name = 'secret-two'")).not.toBe(first);
   expect(queryShape("select account from users where id = $1")).not.toBe(first);
-  expect(queryShape("-- secret-one\nselect 'secret-two'")).toBe(queryShape("-- other\nselect 'other'"));
+  expect(queryShape("-- secret-one\nselect 'secret-two'")).toBe(queryShape("select 'other'"));
+  expect(queryShape("select " + "a,".repeat(4097))).toBe("unknown");
+  expect(queryShape(String.raw`select E'one\'secret' from records`)).toBe(queryShape(String.raw`select E'two\'private' from records`));
 });
 
 it("bounds the retry queue, preserves FIFO identity and reports a dropped window", async () => {
