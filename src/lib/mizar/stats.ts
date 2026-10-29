@@ -1,4 +1,6 @@
 import "server-only";
+import { cacheLife, cacheTag } from "next/cache";
+import { PUBLIC_STATS_TAG, seasonMatchesTag, seasonParticipantsTag } from "@/lib/cache/tags";
 import { and, asc, eq, inArray, lt, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, matchMaps, matches } from "@/db/schema";
@@ -15,6 +17,9 @@ import { documentRevision, loadMizarMatchDocumentInTx } from "./context";
 import type { BroadcastStatsBundle, BroadcastStatsEntrant } from "./stats-contract";
 
 export async function loadBroadcastStats(matchId: string, competitionId: string): Promise<BroadcastStatsBundle> {
+  "use cache: remote";
+  cacheLife({ stale: 60, revalidate: 60, expire: 300 });
+  cacheTag(PUBLIC_STATS_TAG, seasonMatchesTag(competitionId), seasonParticipantsTag(competitionId));
   const generatedAt = new Date();
   const snapshot = await db.transaction(async tx => {
     const document = await loadMizarMatchDocumentInTx(tx, matchId, competitionId);
@@ -50,7 +55,7 @@ export async function loadBroadcastStats(matchId: string, competitionId: string)
         const row = scoreboard.find(row => row.userId === starter.userId);
         return { userId: starter.userId, sample: { maps: row?.maps ?? 0, rounds: row?.rounds ?? null, ratingMaps: row?.ratingSamples ?? 0, adrRounds: row?.adrRounds ?? null }, rating: row?.avgRating ?? null, adr: row?.avgAdr ?? null, attributes: { available: false, benchmark: "rivalhub-all-time-qualified", scope: "competition-before-match", sample: { rounds: 0 }, values: [] } };
       });
-      return { entryId: entry.entryId, name: entry.name, logoUrl: entry.logoUrl, starters, mapPerformance: { available: mapStats.length > 0 && mapStats.every(row => row.played > 0), maps: mapStats }, recentResults: { available: recent.length > 0, granularity: "map", results: recent }, playerPerformance: { available: players.length === 5 && players.every(row => row.rating !== null && row.adr !== null), players } };
+      return { entryId: entry.entryId, name: entry.name, logoUrl: entry.logoUrl, starters, mapPerformance: { available: mapStats.length > 0 && mapStats.every(row => row.played > 0), maps: mapStats }, recentResults: { available: recent.length > 0, granularity: "map", results: recent }, playerPerformance: { available: players.length === 5 && players.every(row => row.rating !== null && Number.isFinite(row.rating) && row.adr !== null && Number.isFinite(row.adr) && row.sample.maps > 0 && row.sample.ratingMaps === row.sample.maps && row.sample.rounds !== null && row.sample.rounds > 0 && row.sample.adrRounds === row.sample.rounds), players } };
     });
     const payload = { schemaVersion: "rivalhub.broadcast-stats.v1" as const, matchId, competitionId, scope: { kind: "competition-before-match" as const, cutoffAt: cutoffAt.toISOString(), cutoffSource }, entrants };
     return { payload, performance };
@@ -61,8 +66,11 @@ export async function loadBroadcastStats(matchId: string, competitionId: string)
       const performance = snapshot.performance.find(row => row.player.entityKey === player.userId);
       if (!performance) continue;
       const values = projectPlayerAttributeProfile(performance, benchmark).attributes.map(({ key, score, status }) => ({ key, score, status }));
-      player.attributes = { available: values.length === 7 && values.every(value => value.score !== null && value.status === "qualified"), benchmark: "rivalhub-all-time-qualified", scope: "competition-before-match", sample: { rounds: performance.slices.overall.sample.rounds }, values };
+      player.attributes = { available: values.length === 7 && new Set(values.map(value => value.key)).size === 7 && values.every(value => value.score !== null && Number.isFinite(value.score) && value.status === "qualified"), benchmark: "rivalhub-all-time-qualified", scope: "competition-before-match", sample: { rounds: performance.slices.overall.sample.rounds }, values };
     }
+  }
+  if (!snapshot.payload.entrants.every(entrant => entrant.playerPerformance.available)) {
+    for (const entrant of snapshot.payload.entrants) entrant.playerPerformance.available = false;
   }
   return { ...snapshot.payload, generatedAt: generatedAt.toISOString(), revision: documentRevision(snapshot.payload) };
 }

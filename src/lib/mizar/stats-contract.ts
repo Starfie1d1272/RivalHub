@@ -31,6 +31,8 @@ export interface BroadcastStatsEntrant {
     granularity: "map";
     results: Array<{ matchId: string; mapName: string; completedAt: string; opponent: { entryId: string; name: string; logoUrl: string | null }; score: number; opponentScore: number }>;
   };
+  /** Available only when both five-player starting lineups have finite Rating
+   * and ADR covering all scoreboard maps and rounds. */
   playerPerformance: {
     available: boolean;
     players: Array<{
@@ -40,6 +42,7 @@ export interface BroadcastStatsEntrant {
       sample: { maps: number; rounds: number | null; ratingMaps: number; adrRounds: number | null };
       rating: number | null;
       adr: number | null;
+      /** All seven unique values must be finite and qualified. */
       attributes: {
         available: boolean;
         benchmark: "rivalhub-all-time-qualified";

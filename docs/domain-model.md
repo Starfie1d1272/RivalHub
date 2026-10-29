@@ -277,4 +277,4 @@ Public and admin server read models explicitly adapt their own authorized facts 
 
 新回放 action 的产品遥测沿用白名单注册表，不发送链接或标题正文。发布前须将包含该操作名与页面性能事件的兼容 Worker 一并部署，再发布网站，避免旧接收端拒绝新事件批次。
 
-BroadcastStatsBundle 通过 `/api/mizar/stats?matchId=...` 按 installation 赛事授权读取，按本届截至开赛（未开赛时为生成时间与排期的较早者）的已结束正式比赛统计，排除当前比赛。响应标明截止来源；地图胜率为 0–1、分母为已结束地图数，近期结果最多五图；选手按当前首发 userId 精确关联，Rating 按已知地图均值、ADR 按已知回合加权。七维以同一赛事范围的选手数据和 RivalHub 全站历史合格样本基准计算，附资格及样本。缺失值保持 null，消费者应跳过不完整卡片。Revision 和 ETag 与现有 provider 一致，304 发生在构建后，并不免除数据库读取。
+BroadcastStatsBundle 通过 `/api/mizar/stats?matchId=...` 按 installation 赛事授权读取，按本届截至开赛（未开赛时为生成时间与排期的较早者）的已结束正式比赛统计，排除当前比赛。响应标明截止来源；地图胜率为 0–1、分母为已结束地图数，近期结果最多五图；选手按当前首发 userId 精确关联，Rating 按已知地图均值、ADR 按已知回合加权。七维以同一赛事范围的选手数据和 RivalHub 全站历史合格样本基准计算，附资格及样本。缺失值保持 null，双方首发齐全且各选手 Rating、ADR 覆盖完整时统计阵容卡才可用。生成的快照短时复用，赛事及统计变更会使缓存失效。Revision 和 ETag 与现有 provider 一致，304 发生在构建后，并不免除数据库读取。

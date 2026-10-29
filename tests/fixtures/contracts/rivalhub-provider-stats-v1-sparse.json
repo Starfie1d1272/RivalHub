@@ -381,7 +381,7 @@
         ]
       },
       "playerPerformance": {
-        "available": true,
+        "available": false,
         "players": [
           {
             "userId": "00000000-0000-4000-8001-000000000006",
