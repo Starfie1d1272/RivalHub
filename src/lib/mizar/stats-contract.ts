@@ -26,17 +26,22 @@ export interface BroadcastStatsEntrant {
     available: boolean;
     maps: Array<{ mapName: string; played: number; wins: number; winRate: number | null }>;
   };
+  /** All three blocks share the bundle scope; coverage counts this team’s
+   * completed and confirmed detailed maps. Rates carry their own denominators. */
+  pistol: BroadcastTeamRateBlock & { pistol: BroadcastWinRate | null; conversion: BroadcastWinRate | null; break: BroadcastWinRate | null };
+  economy: BroadcastTeamRateBlock & { ecoSemiUpset: BroadcastWinRate | null };
+  utility: BroadcastTeamRateBlock & { utilityDamagePerRound: BroadcastQuantityRate | null; flashAssistsPerRound: BroadcastQuantityRate | null; enemyBlindSecondsPerFlash: BroadcastQuantityRate | null; enemyBlindSecondsPerRound: BroadcastQuantityRate | null };
   recentResults: {
     available: boolean;
     granularity: "map";
     results: Array<{ matchId: string; mapName: string; completedAt: string; opponent: { entryId: string; name: string; logoUrl: string | null }; score: number; opponentScore: number }>;
   };
-  /** Available only when both five-player starting lineups have finite Rating
-   * and ADR covering all scoreboard maps and rounds. */
+  /** Per-player availability reflects only that player’s Rating and ADR coverage. */
   playerPerformance: {
     available: boolean;
     players: Array<{
       userId: string;
+      available: boolean;
       /** maps/rounds cover scoreboard rows; ratingMaps counts known Rating values;
        * adrRounds counts rounds with known ADR, the weighted denominator. */
       sample: { maps: number; rounds: number | null; ratingMaps: number; adrRounds: number | null };
@@ -53,3 +58,13 @@ export interface BroadcastStatsEntrant {
     }>;
   };
 }
+
+export interface BroadcastTeamRateBlock {
+  available: boolean;
+  scope: "competition-before-match";
+  coverage: { completedMaps: number; detailedMaps: number };
+}
+/** Win rates use 0..1; opportunities are the denominator. */
+export interface BroadcastWinRate { wins: number; opportunities: number; rate: number | null }
+/** Unformatted canonical per-round/per-event rate. */
+export interface BroadcastQuantityRate { successes: number; attempts: number; rate: number | null }
