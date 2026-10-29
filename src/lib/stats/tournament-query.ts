@@ -39,9 +39,12 @@ export interface PlayerStatsEventOption {
 
 export type StatsLabels = { teams: Record<string, string>; players: Record<string, string> };
 
+const statsMatchFields = {id:matches.id,seasonId:matches.seasonId,stage:matches.stage,entryAId:matches.entryAId,entryBId:matches.entryBId,majorStageRunId:matches.majorStageRunId,status:matches.status,testConfig:matches.testConfig,format:matches.format,scoreA:matches.scoreA,scoreB:matches.scoreB,completedAt:matches.completedAt};
+const statsMapFields = {id:matchMaps.id,matchId:matchMaps.matchId,mapOrder:matchMaps.mapOrder,mapName:matchMaps.mapName,scoreA:matchMaps.scoreA,scoreB:matchMaps.scoreB,completedAt:matchMaps.completedAt};
+
 async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean; effectiveRoster?: readonly EffectiveMatchRosterPlayer[] } = {}) {
   const selectedMapRows = options.mapName && options.matchIds?.length !== 0
-    ? await tx.select({ match: matches, map: matchMaps }).from(matchMaps).innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(
+    ? await tx.select({ match: statsMatchFields, map: statsMapFields }).from(matchMaps).innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(
       scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
       eq(matchMaps.mapName, options.mapName),
       options.matchIds ? inArray(matches.id, [...options.matchIds]) : undefined,
@@ -53,13 +56,13 @@ async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { 
   const matchRows = selectedMapRows
     ? [...new Map(selectedMapRows.map(({ match }) => [match.id, match])).values()]
     : options.matchIds
-      ? options.matchIds.length ? await tx.select().from(matches).where(and(
+      ? options.matchIds.length ? await tx.select(statsMatchFields).from(matches).where(and(
         inArray(matches.id, [...options.matchIds]),
         scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
         scope.stage ? eq(matches.stage, scope.stage) : undefined,
         scope.format ? eq(matches.format, scope.format) : undefined,
       )) : []
-      : scope.seasonId || scope.seasonIds ? await tx.select().from(matches).where(and(
+      : scope.seasonId || scope.seasonIds ? await tx.select(statsMatchFields).from(matches).where(and(
         scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
         scope.stage ? eq(matches.stage, scope.stage) : undefined,
         scope.format ? eq(matches.format, scope.format) : undefined,
@@ -79,7 +82,7 @@ async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { 
   const participantEntries = entries.filter((entry) => participantIds.has(entry.id));
   const maps = selectedMapRows
     ? selectedMapRows.filter(({ match }) => matchesById.has(match.id)).map(({ map }) => map)
-    : matchIds.length ? await tx.select().from(matchMaps).where(inArray(matchMaps.matchId, matchIds)) : [];
+    : matchIds.length ? await tx.select(statsMapFields).from(matchMaps).where(inArray(matchMaps.matchId, matchIds)) : [];
   const mapNameFilter = options.mapName ?? scope.mapFilter;
   const scopedMaps = maps.filter((map) => !mapNameFilter || map.mapName === mapNameFilter);
   const matchIdSet = new Set(matchIds);
