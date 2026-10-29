@@ -1,6 +1,6 @@
-# 应用备用机与 Vercel 故障切换
+# Linux 应用托管与 Preview 备用机
 
-本手册管理官方实例的 Linux 应用托管与 Vercel 故障切换。Production 使用正式域名与独立生产服务；Preview 使用 `preview-standby.starfie1d.top`，只连接 dev 项目，并保留独立访问密码。Supabase 继续提供数据库、Auth、Storage 和 Realtime。实际在线版本以正式 `/api/system/release` 回读为准；首次生产切换及验收缺口见 [2026-10-23 执行记录](../archive/rehearsals/2026-10-23-linux-hosting-cutover.md)。
+本手册管理官方实例的 Linux 应用托管。Production 使用正式域名与独立生产服务；Preview 使用 `preview-standby.starfie1d.top`，只连接 dev 项目，并保留独立访问密码。Supabase 继续提供数据库、Auth、Storage 和 Realtime。实际在线版本以正式 `/api/system/release` 回读为准；首次生产切换及验收缺口见 [2026-10-23 执行记录](../archive/rehearsals/2026-10-23-linux-hosting-cutover.md)。
 
 ## 环境隔离与生产切换前置条件
 
@@ -95,28 +95,11 @@ Preview 先验证 401 访问保护；Production 验证公开入口可访问。�
 
 运行日志从服务 journal 核对，应用不配置外部日志/trace exporter。产品统计密钥轮换同时更新 Worker `SIGNING_KEY` 与应用 `PRODUCT_TELEMETRY_SIGNING_KEY`；`PRODUCT_TELEMETRY_ACCOUNT_KEY` 轮换会改变账号匿名标识，须按当次授权执行。Worker 的查询凭据、保留策略和清理任务保持原配置。
 
-## Vercel 停用后的切换顺序
+## Production 更新
 
-此流程在 production standalone 前置条件完成后执行。Vercel 停服且无法回读 runtime identity 时，按 release 手册的应用托管故障切换门槛冻结最后成功的正式身份；完成独立生产构建和验收后切流。
+正式更新使用 [Release workflow](./release.md#3-protected-release-workflow) 的 Linux 路径，保持 migration、checkpoint 与 exact-SHA CI 门槛。构建公开配置写入 production Environment 的 `RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION`；`LINUX_DEPLOY_SSH_KEY` 为专用部署私钥，`LINUX_DEPLOY_KNOWN_HOSTS` 固定已验证主机公钥。SSH root 部署权限须经 owner 授权后建立，禁止把个人 SSH key 上传到 GitHub。安装采用单实例短暂停机切换，公网 canonical 检查失败也会回退上一包；制品、快照及 SSH 事务目录保留作恢复证据。
 
-1. **判定故障范围。** 从两个网络检查 `https://match.starfie1d.top/api/system/release`、主要页面、Vercel 状态及 Supabase 可用性。应用备用机能替代 Vercel 计算和静态资源；Supabase 配额/停服仍会影响两端。
-2. **冻结版本与源数据。** 使用最近一次成功的 canonical production read-back 和 immutable tag 校验 commit。确认候选包与现有 schema 兼容。切换本身不运行 migration、不导入备份、不修改 Supabase 项目。数据库故障走 [disaster recovery](./disaster-recovery.md)，新组织迁库走 [Supabase 迁库 SOP](./supabase-relocation.md)。
-3. **启动生产候选。** 使用独立 production 服务、端口和目录，保持当前 Preview 实例隔离。使用正式域名的构建参数和受保护生产 runtime 配置。先用 `curl --resolve match.starfie1d.top:443:<SERVER_IP>` 验证实际证书、release identity 和页面；TLS 证书必须提前准备（DNS challenge 或经授权的验证切换）。用浏览器 hosts/DNS 预演验证登录、Server Actions、图片和实时连接，记录原 DNS 以便恢复。
-4. **检查会话与请求边界。** 同域名、兼容版本和相同 session signing secret 才可能延续旧会话；使用不同 signing secret 时安排重新登录。核对 Supabase Auth redirect allowlist、Steam callback、代理转发 Host/Proto、上传大小限制与 Next image 配置。生产 Caddy 入口不能保留 Preview Basic Auth，否则用户和 scheduler 都会被拦截。
-5. **切 DNS。** 事前将正式域名 TTL 降到约 300 秒并等待旧 TTL 过期；故障时修改正式域名现有记录指向备用机，处理冲突的 CNAME/A/AAAA。保留旧 Vercel domain/project 和部署。不要提前停掉仍可服务的旧实例；传播期两个实例必须使用同一兼容版本与同一 Supabase。
-6. **读回与观察。** 多网络核对 DNS、证书、exact release identity；验收登录和核心读写，观察 5xx、延迟、数据库连接、内存与重启计数。第一波缓存冷启动需要重新查询，不能把 Preview 的低并发内存结果视为生产容量保证。
-7. **核对调度。** 生产 primary 为 Supabase pg_cron/pg_net，watchdog 为 GitHub Actions，二者经正式域名调用应用。正式域名和 CRON_SECRET 保持一致时 DNS 切换会改变落点；核对 Vault 中实际 base URL，以及 canonical scheduler health 中 fresh primary trigger 与 endpoint success。只保留既有调度 owner，不在服务器另加一份 cron。若需改变配置，走受保护 production provisioning path。
-
-调度健康使用部署版本的 `health-contract.ts`：空闲 job 的 fresh trigger 且没有未消费 dispatch 即为健康。等待一次自然到期的已配置 job 完成端点调用，记录 dispatch/success 时间；不能为了制造验收证据触发竞猜、MVP 或真实赛果结算。DNS 传播期仍可能命中暂停的 Vercel，最长观察原记录 TTL，并保留两种落点证据。
-
-Production 在 Linux 期间，正式更新使用 [Release workflow](./release.md#3-protected-release-workflow) 的默认 Linux 路径，保持 migration、checkpoint 与 exact-SHA CI 门槛。构建公开配置写入 production Environment 的 `RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION`；`LINUX_DEPLOY_SSH_KEY` 为专用部署私钥，`LINUX_DEPLOY_KNOWN_HOSTS` 固定已验证主机公钥。SSH root 部署权限须经 owner 授权后建立，禁止把个人 SSH key 上传到 GitHub。安装采用单实例短暂停机切换，公网 canonical 检查失败也会回退上一包；制品、快照及 SSH 事务目录保留作恢复证据。
-
-## 回退到 Vercel
-
-1. 确认 Vercel 已恢复；处于暂停状态时恢复 DNS 只恢复路由，服务仍可能返回 402。以候选部署 URL/受保护 smoke 验证与当前生产 schema 兼容的 exact release。不要把仅本地构建成功当作回退条件。
-2. 恢复切换前保存的正式域名 DNS 记录；保留备用应用运行至少一个旧 TTL 窗口，避免尚未更新 DNS 的客户端断开。
-3. 将 repository variable `RIVALHUB_RELEASE_HOSTING` 设为 `vercel`，后续正式发布恢复 Vercel candidate/OIDC/routing 路径。从两个网络读回正式 `/api/system/release`，验证登录、核心读写与 scheduler health。Supabase 持续使用同一份数据，不进行反向数据复制或数据库回滚。
-4. DNS 收敛、流量和调度恢复后，停止 production 备用服务并恢复其访问限制，保留包和脱敏运行证据。Preview 备用实例继续用于演练。
+## Preview 回退
 
 若仅 Preview 新包失败，可先停止服务，将 `current` 原子切回 `/opt/rivalhub-standby/previous-release` 中记录的相对路径，恢复匹配的 `preview.env.previous`，再启动并核对 `/api/system/release`。目标包为空或已移除时停止，不能猜测版本。
 

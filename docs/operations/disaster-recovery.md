@@ -100,38 +100,10 @@ GitHub `production` job 读取以下名称；值不得写入仓库、Issue、PR�
 | `RIVALHUB_R2_ACCOUNT_ID` / `RIVALHUB_R2_BUCKET` | environment variables | private recovery bucket identity |
 | `RIVALHUB_R2_ACCESS_KEY_ID` / `RIVALHUB_R2_SECRET_ACCESS_KEY` | secrets | 标准 R2 S3 API credentials，用于 backup 写入核验及 fetch 离线拉取 |
 | `CLOUDFLARE_API_TOKEN` | secret | 仅 R2 retention workflow 的 provider read/apply |
-| `VERCEL_TOKEN` | secret | project-scoped deploy credential，仅 release deploy |
 
 这次 hardening 不进行 PostgreSQL TLS 设置迁移，也不进行 `service_role` 全仓库改名或权限扩大；现有 backup connection 的 TLS 行为保持其既有 owner。`db:recovery:fetch` 复用标准 R2 credential（`RIVALHUB_R2_ACCESS_KEY_ID`、`RIVALHUB_R2_SECRET_ACCESS_KEY`、`RIVALHUB_R2_ACCOUNT_ID`、`RIVALHUB_R2_BUCKET`），在完全隔离的环境中抓取加密备份产物；脚本仅暴露 `head` 与 `download` 只读接口。
 
 age private key 只保存在离线 recovery kit/password manager。它不能进入 GitHub Environment、仓库或 R2；只在本地 isolated restore 时短暂提供给 `restore.ts`。
-
-### Vercel Trusted Source（owner-only）
-
-首次受保护 release 前，Vercel owner 必须在 `Settings → Deployment Protection → Trusted Sources → External Services → Add → GitHub Actions` 建立 Trusted Source。引导字段为：
-
-| Dashboard field | Value |
-| --- | --- |
-| GitHub account | `Starfie1d1272` |
-| Repository | `RivalHub` |
-| Branch | 留空（release 使用版本 tag） |
-| GitHub Actions environment | `production` |
-| Audience | `https://github.com/Starfie1d1272` |
-| Applies to environments | `Production` |
-
-issuer 固定为 `https://token.actions.githubusercontent.com`。切换 `Edit raw claims`，加入以下 exact values：
-
-| Raw claim | Exact value |
-| --- | --- |
-| `aud` | `https://github.com/Starfie1d1272` |
-| `repository` | `Starfie1d1272/RivalHub` |
-| `repository_id` | `1231811932` |
-| `workflow` | `Release` |
-| `environment` | `production` |
-| `sub` | `repo:Starfie1d1272/RivalHub:environment:production` |
-| `event_name` | `push`, `workflow_dispatch` |
-
-不填写 `ref` 或 `workflow_ref`，因为版本 tag 与手动 dispatch ref 都是变量；代码只能申请短期 OIDC token，不能代替 owner Dashboard 配置。
 
 ## R2 retention contract
 
@@ -162,7 +134,7 @@ pnpm db:recovery:checkpoint
 
 Storage inventory/download 失败只记录操作阶段和经过校验的 HTTP status，不输出 provider 原始错误、object key 或凭据。HTTP 402 时先在 Supabase Dashboard 核实账单、用量或 Spend Cap 限制；401/403 时检查受保护 workflow 的 Storage 凭据和权限。修复 provider 配置后重新运行受保护 backup workflow，并核实完整 artifact 的 completion 与 read-back；不得跳过 Storage、把失败伪装成空清单或依靠反复重试绕过限制。
 
-`pnpm db:recovery:checkpoint` 是不可逆 migration 的 DB-only gate：它只要求 database、age recipient 与 R2 credentials，不要求 Supabase Storage secret；完成 marker 出现前，Release 不得执行 production mutation。普通 application-only、forward-compatible migration 或仅 Vercel/release infra 的发布不自动执行上述 backup/checkpoint。
+`pnpm db:recovery:checkpoint` 是不可逆 migration 的 DB-only gate：它只要求 database、age recipient 与 R2 credentials，不要求 Supabase Storage secret；完成 marker 出现前，Release 不得执行 production mutation。普通 application-only、forward-compatible migration 或仅 release infra 的发布不自动执行上述 backup/checkpoint。
 
 ## Offline read-only fetch
 
@@ -221,7 +193,7 @@ pnpm db:recovery:restore-db-checkpoint \
 
 每次恢复必须提供全新 `--record` 路径。记录在目标写入前独占创建，绑定新的恢复 run、快照 run、artifact hash、目标 endpoint 与 PostgreSQL system identifier/database OID 指纹及 migration terminal；成功后追加数据验证事件。失败或中断留下 started 记录，不得复用；复制整个 PostgreSQL cluster 可能保留 system identifier，不能单凭指纹证明实例未被替换。记录须保存在快照之外的受保护位置，不能作为当前撤销事实。
 
-`pnpm db:recovery:readiness` 仍只是始终拒绝的占位检查，不能控制外部 provider 或 Vercel 切流：full 与 DB-only 校验都只是数据验证，provider 状态、对账覆盖水位以及独立于快照的当前撤销和角色事实均未实现。更换目标、重复恢复或证据缺失时不得沿用旧记录。切流仍由现有 protected owner 控制，必须保留 #1101 的写者排空与现有 exact migration-prefix；此命令不修改网络或代替这些门禁。
+`pnpm db:recovery:readiness` 仍只是始终拒绝的占位检查，不能控制外部 provider 切流：full 与 DB-only 校验都只是数据验证，provider 状态、对账覆盖水位以及独立于快照的当前撤销和角色事实均未实现。更换目标、重复恢复或证据缺失时不得沿用旧记录。切流仍由现有 protected owner 控制，必须保留 #1101 的写者排空与现有 exact migration-prefix；此命令不修改网络或代替这些门禁。
 
 受管 Linux 恢复在任何目标变更前由主机 owner 在受保护维护窗口调用 `install-production.sh --recovery-begin <run-uuid> <artifact-sha256> <target-sha256>`。它持有现有部署锁，先安装固定主机路径的启动入口，再创建独立于数据库和应用版本的 hold，停止服务并执行 #1101 写者排空。只有命令成功且独立写者均已停用时才能开始目标操作；失败或中断保持 hold，不得操作目标或恢复服务。`systemctl stop` 失败或在 stop 前中断时，旧进程状态未知，必须确认停服并完成排空后才能继续；hold 会阻止后续启动，但不会自行终止已运行进程。target hash 由 owner 按受保护的目标核验流程固定，单独声明的 hash 不证明目标实例或对账事实。记录中的 generation 每次重新生成；再次 begin 不得覆盖 hold。
 
@@ -276,8 +248,7 @@ Verifier 分为两层：
 | --- | --- |
 | Supabase | project/plan；physical backup/PITR capability 与 retention；Auth settings/API keys；Realtime settings；required DB extensions/settings；Storage bucket/config；Edge Functions/triggers/policies |
 | Cloudflare R2 | account/bucket identity；30d lifecycle/lock；managed/custom domain disabled；标准 S3 credentials presence |
-| Vercel | project/Production target；Trusted Source issuer/audience/claims；deployment protection remains enabled |
-| GitHub | `production` Environment；required secrets/vars presence；OIDC `id-token: write`；release/recovery workflow permissions；`rivalhub-release-lineage` 与 `rivalhub-production-state-serialization` concurrency groups |
+| GitHub | `production` Environment；required secrets/vars presence；release/recovery workflow permissions；`rivalhub-release-lineage` 与 `rivalhub-production-state-serialization` concurrency groups |
 | Scheduler | pg_cron/pg_net capability；named schedules；Vault secret names；provision/verify owner |
 
 Supabase database backup 不包含 Storage objects；clone/restore 还需人工重建上述 Storage/Auth/Realtime/extension/provider 配置。没有 provider read-back 时，不能把 automatic backup、PITR、scheduler 或 cutover 写成已可用；R2 logical snapshot 也不能代替 provider physical backup。

@@ -25,7 +25,7 @@ Provider SSL enforcement 是独立的第二阶段：先验证 Preview/runtime/to
 
 ## Release identity
 
-`main` 是唯一长期 releasable trunk；不可移动的 `vX.Y.Z` tag 才是 shipped production identity。正式发布在验证 exact tag SHA 拥有成功的 canonical CI 证据后，围绕同一个 tag commit 按 Release Plan 选择性完成 DB-only 或 release-time Storage mutation 所需的 full checkpoint、DB-only migration rehearsal、production migration/verify、Linux production 包构建与安装、应用 smoke、canonical domain smoke 与 GitHub Release；Vercel fallback 保留 staged deployment (`--prod --skip-domain`) 与 promotion；失败时重试同一安全步骤，不移动已公开 tag。
+`main` 是唯一长期 releasable trunk；不可移动的 `vX.Y.Z` tag 才是 shipped production identity。正式发布在验证 exact tag SHA 拥有成功的 canonical CI 证据后，围绕同一个 tag commit 按 Release Plan 选择性完成 DB-only 或 release-time Storage mutation 所需的 full checkpoint、DB-only migration rehearsal、production migration/verify、Linux production 包构建与安装、应用 smoke、canonical domain smoke 与 GitHub Release；失败时重试同一安全步骤，不移动已公开 tag。
 
 Production 对外提供 public、no-store 的 `/api/system/release` read-back endpoint，只返回 deployed `releaseTag` 与 `releaseCommit`；受保护 backup runner 以该响应作为 production source identity，并在本地 checkout 验证 tag 到 commit 的关系。
 
@@ -87,7 +87,7 @@ Release workflow 在 deployment smoke 成功后，使用受保护 production env
 - staging：[`operations/staging.md`](./operations/staging.md)
 - release：[`operations/release.md`](./operations/release.md)
 - Supabase 新组织迁库：[`operations/supabase-relocation.md`](./operations/supabase-relocation.md)
-- 应用备用机与 Vercel 故障切换：[`operations/standby.md`](./operations/standby.md)
+- Linux 应用托管与 Preview 备用机：[`operations/standby.md`](./operations/standby.md)
 - 测试证据：[`testing.md`](./testing.md)
 
 provider project ID、host、secret 和 workflow 具体实现由受保护配置/代码拥有，不在本文件复制。
