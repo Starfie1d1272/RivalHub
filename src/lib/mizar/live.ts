@@ -165,7 +165,8 @@ export async function issueLiveViewerToken(matchId: string, cachePartition: stri
   if (!secret) throw new AppError(ErrorCode.INTERNAL_ERROR, "实时连接暂时不可用。");
   const now = Math.floor(Date.now() / 1000);
   const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
-  const unsigned = `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ role: "authenticated", scope: "live-viewer", matchId, iat: now, exp: now + 300, iss: "rivalhub", aud: "authenticated" })}`;
+  const keyId = process.env.SUPABASE_JWT_KID;
+  const unsigned = `${encode({ alg: "HS256", typ: "JWT", ...(keyId ? { kid: keyId } : {}) })}.${encode({ role: "authenticated", scope: "live-viewer", matchId, iat: now, exp: now + 300, iss: "rivalhub", aud: "authenticated" })}`;
   const cacheContext = cachePartition && match.contextRevision && match.mapId && match.phase === "gameplay"
     && match.mapStartedAt && !match.mapCompletedAt && match.manualTakeoverEpoch !== match.epoch
     && match.identity === "healthy" && match.lineup === "healthy" && match.authorityRevision !== null

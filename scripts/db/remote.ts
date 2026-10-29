@@ -68,6 +68,7 @@ export function runProtectedRemoteCommand(
         run(tsxBin, ["scripts/db/local.ts", "verify-migrations"]);
       }
       target.beforeMigrate?.(environment);
+      run(tsxBin, ["scripts/db/realtime-preflight.ts"], { env: environment });
       runCanonicalMigrations(target.drizzleConfig, environment);
       run(tsxBin, ["scripts/db/verify-migrations.ts"], { env: environment });
       return;

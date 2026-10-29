@@ -9,6 +9,7 @@ import { assertProductionConfirmations, assertProductionDatabaseUrl } from "./pr
 import { isLegacyStandardMajorWithoutAffiliation } from "../../src/lib/competition/definition";
 import type { SeasonCapabilities } from "../../src/types/season";
 import { verifyDatabaseAccessMatrix } from "./access-matrix";
+import { verifyHostedRealtimePolicy } from "./realtime-policy";
 
 interface MigrationJournalEntry {
   tag: string;
@@ -114,6 +115,7 @@ async function main(): Promise<void> {
     await verifyEducationEvidenceBucket(pool);
     await verifySeasonPublicAssetsBucket(pool);
     await verifyDatabaseAccessMatrix(pool, `Migration verification (${target})`);
+    if (target === "production" || target === "staging") await verifyHostedRealtimePolicy(pool);
 
     console.log(`Migration verification passed for ${target}: ${expected.length} active migrations; active terminal schema contract is present.`);
   } finally {
