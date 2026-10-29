@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { createDefaultCacheHandler } from "next/dist/server/lib/cache-handlers/default";
 import type { CacheEntry } from "next/dist/server/lib/cache-handlers/types";
 import { revalidateVetoRoomPaths } from "@/lib/revalidation";
-import { PUBLIC_STATS_TAG, broadcastStatsMatchTag, publicBetTag } from "@/lib/cache/tags";
+import { PUBLIC_STATS_TAG, publicBetTag } from "@/lib/cache/tags";
 
 const cache = vi.hoisted(() => ({ updateTag: vi.fn(), revalidateTag: vi.fn(), revalidatePath: vi.fn() }));
 vi.mock("next/cache", () => cache);
@@ -19,7 +19,6 @@ it.each(["scheduled", "in_progress"])("preserves historical stats but hard-expir
   const entry = (tag: string): CacheEntry => ({ value: new Blob(["fixture"]).stream(), tags: [tag], timestamp, stale: 60, revalidate: 3600, expire: 86400 });
   await handler.set("history", Promise.resolve(entry(PUBLIC_STATS_TAG)));
   await handler.set("support", Promise.resolve(entry(publicBetTag(scoped.seasonId))));
-  await handler.set("broadcast", Promise.resolve(entry(broadcastStatsMatchTag(scoped.matchId))));
   expect(await handler.get("history", [])).toBeDefined(); expect(await handler.get("support", [])).toBeDefined();
   const updates: Promise<void>[] = [];
   cache.revalidateTag.mockImplementation((tag: string, durations: { expire: number } | string) => {
@@ -32,7 +31,6 @@ it.each(["scheduled", "in_progress"])("preserves historical stats but hard-expir
     expect(cache.revalidateTag).not.toHaveBeenCalledWith(PUBLIC_STATS_TAG, expect.anything());
     expect(await handler.get("history", [])).toBeDefined();
     expect(await handler.get("support", [])).toBeUndefined();
-    expect(await handler.get("broadcast", [])).toBeUndefined();
     expect(cache.revalidatePath).toHaveBeenCalledWith(`/${context.slug}/matches/${context.matchId}`);
   } finally { cache.revalidateTag.mockReset(); }
 });

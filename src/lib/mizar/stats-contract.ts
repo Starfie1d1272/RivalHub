@@ -1,5 +1,4 @@
-/** Broadcast-only, bounded statistics. Values are scoped to completed formal
- * competition matches before cutoffAt; the current match is always excluded.
+/** Broadcast-only, bounded statistics. Values use the website’s current competition statistics at generation time.
  * Seven-dimensional scores use that same player scope with an independently
  * identified all-time benchmark, not an all-time player sample. */
 export interface BroadcastStatsBundle {
@@ -9,9 +8,7 @@ export interface BroadcastStatsBundle {
   matchId: string;
   competitionId: string;
   scope: {
-    kind: "competition-before-match";
-    cutoffAt: string;
-    cutoffSource: "startedAt" | "scheduledAt" | "generatedAt";
+    kind: "competition";
   };
   entrants: BroadcastStatsEntrant[];
 }
@@ -51,7 +48,7 @@ export interface BroadcastStatsEntrant {
       attributes: {
         available: boolean;
         benchmark: "rivalhub-all-time-qualified";
-        scope: "competition-before-match";
+        scope: "competition";
         sample: { rounds: number };
         values: Array<{ key: "firepower" | "entrying" | "trading" | "opening" | "clutching" | "sniping" | "utility"; score: number | null; status: "qualified" | "limited" | "no-data" }>;
       };
@@ -61,7 +58,7 @@ export interface BroadcastStatsEntrant {
 
 export interface BroadcastTeamRateBlock {
   available: boolean;
-  scope: "competition-before-match";
+  scope: "competition";
   coverage: { completedMaps: number; detailedMaps: number };
 }
 /** Win rates use 0..1; opportunities are the denominator. */

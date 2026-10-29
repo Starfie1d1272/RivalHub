@@ -5,9 +5,7 @@
   "matchId": "00000000-0000-4000-8000-000000000001",
   "competitionId": "00000000-0000-4000-8000-000000000002",
   "scope": {
-    "kind": "competition-before-match",
-    "cutoffAt": "2026-10-29T12:00:00.000Z",
-    "cutoffSource": "generatedAt"
+    "kind": "competition"
   },
   "entrants": [
     {
@@ -86,7 +84,7 @@
             "attributes": {
               "available": true,
               "benchmark": "rivalhub-all-time-qualified",
-              "scope": "competition-before-match",
+              "scope": "competition",
               "sample": {
                 "rounds": 60
               },
@@ -143,7 +141,7 @@
             "attributes": {
               "available": true,
               "benchmark": "rivalhub-all-time-qualified",
-              "scope": "competition-before-match",
+              "scope": "competition",
               "sample": {
                 "rounds": 60
               },
@@ -200,7 +198,7 @@
             "attributes": {
               "available": true,
               "benchmark": "rivalhub-all-time-qualified",
-              "scope": "competition-before-match",
+              "scope": "competition",
               "sample": {
                 "rounds": 60
               },
@@ -257,7 +255,7 @@
             "attributes": {
               "available": true,
               "benchmark": "rivalhub-all-time-qualified",
-              "scope": "competition-before-match",
+              "scope": "competition",
               "sample": {
                 "rounds": 60
               },
@@ -314,7 +312,7 @@
             "attributes": {
               "available": true,
               "benchmark": "rivalhub-all-time-qualified",
-              "scope": "competition-before-match",
+              "scope": "competition",
               "sample": {
                 "rounds": 60
               },
@@ -361,7 +359,7 @@
         ]
       },
       "pistol": {
-        "scope": "competition-before-match",
+        "scope": "competition",
         "coverage": {
           "completedMaps": 3,
           "detailedMaps": 3
@@ -384,7 +382,7 @@
         }
       },
       "economy": {
-        "scope": "competition-before-match",
+        "scope": "competition",
         "coverage": {
           "completedMaps": 3,
           "detailedMaps": 3
@@ -397,7 +395,7 @@
         }
       },
       "utility": {
-        "scope": "competition-before-match",
+        "scope": "competition",
         "coverage": {
           "completedMaps": 3,
           "detailedMaps": 3
@@ -501,7 +499,7 @@
             "attributes": {
               "available": true,
               "benchmark": "rivalhub-all-time-qualified",
-              "scope": "competition-before-match",
+              "scope": "competition",
               "sample": {
                 "rounds": 60
               },
@@ -558,7 +556,7 @@
             "attributes": {
               "available": true,
               "benchmark": "rivalhub-all-time-qualified",
-              "scope": "competition-before-match",
+              "scope": "competition",
               "sample": {
                 "rounds": 60
               },
@@ -615,7 +613,7 @@
             "attributes": {
               "available": true,
               "benchmark": "rivalhub-all-time-qualified",
-              "scope": "competition-before-match",
+              "scope": "competition",
               "sample": {
                 "rounds": 60
               },
@@ -672,7 +670,7 @@
             "attributes": {
               "available": true,
               "benchmark": "rivalhub-all-time-qualified",
-              "scope": "competition-before-match",
+              "scope": "competition",
               "sample": {
                 "rounds": 60
               },
@@ -729,7 +727,7 @@
             "attributes": {
               "available": true,
               "benchmark": "rivalhub-all-time-qualified",
-              "scope": "competition-before-match",
+              "scope": "competition",
               "sample": {
                 "rounds": 60
               },
@@ -776,7 +774,7 @@
         ]
       },
       "pistol": {
-        "scope": "competition-before-match",
+        "scope": "competition",
         "coverage": {
           "completedMaps": 3,
           "detailedMaps": 3
@@ -799,7 +797,7 @@
         }
       },
       "economy": {
-        "scope": "competition-before-match",
+        "scope": "competition",
         "coverage": {
           "completedMaps": 3,
           "detailedMaps": 3
@@ -812,7 +810,7 @@
         }
       },
       "utility": {
-        "scope": "competition-before-match",
+        "scope": "competition",
         "coverage": {
           "completedMaps": 3,
           "detailedMaps": 3

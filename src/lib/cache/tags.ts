@@ -37,7 +37,3 @@ export function publicPlayerTag(userId: string): string {
 export function publicBetTag(seasonId: string): string {
   return `public-bet:${seasonId}`;
 }
-
-export function broadcastStatsMatchTag(matchId: string): string {
-  return `broadcast-stats:match:${matchId}`;
-}
