@@ -22,7 +22,7 @@ import { loadMizarScheduleWindow } from "@/lib/mizar/context";
 import { getTournamentTeamDetail } from "@/lib/stats/tournament-query";
 import { assertInstallationInTx, authenticateMizar, authorizeMizarPairing, hashCredential, pollMizarPairing, startMizarPairing } from "@/lib/mizar/installation";
 import { GET, POST } from "@/app/api/mizar/[operation]/route";
-import { seedFixture, withExtraMizarScheduleMatches, NOW } from "./harness/mizar";
+import { seedFixture, seedMizarStatsHistory, withExtraMizarScheduleMatches, NOW } from "./harness/mizar";
 import { createLocalPool } from "./harness/database";
 
 const from = new Date("2026-09-28T00:00:00.000Z");
@@ -179,6 +179,7 @@ it("keeps HTTP match 200/304 within nine SELECTs, personalized schedule within f
 it("authorizes the stats route and projects canonical team samples", async () => {
   const f = await authenticatedFixture();
   const other = await seedFixture();
+  await seedMizarStatsHistory(f);
   const context = { params: Promise.resolve({ operation: "stats" }) };
   const request = (matchId: string) => new Request(`http://localhost/api/mizar/stats?matchId=${matchId}`, { headers: { authorization: f.authorization } });
   observation.queries = [];
@@ -190,6 +191,10 @@ it("authorizes the stats route and projects canonical team samples", async () =>
   expect(body.competitionId).toBe(f.seasonId);
   expect(JSON.stringify(body)).not.toContain(f.authorization);
   expect(JSON.stringify(body)).not.toMatch(/credentialHash|@local\.test/);
+  const first = body.entrants.find((entrant: { entryId: string }) => entrant.entryId === f.entryAId);
+  expect(first.mapPerformance.maps).toHaveLength(2);
+  expect(first.playerPerformance.players.find((player: { userId: string }) => player.userId === f.fixtureUserIds[0])).toMatchObject({ available: true, rating: 1.5, adr: null, sample: { maps: 2, ratingMaps: 2, adrRounds: null } });
+  expect(first.playerPerformance.players.find((player: { userId: string }) => player.userId === f.fixtureUserIds[1])).toMatchObject({ available: true, rating: 1.25, adr: 80, sample: { maps: 1, ratingMaps: 1, adrRounds: 20 } });
   for (const entrant of body.entrants) {
     const canonical = await getTournamentTeamDetail({ seasonId: f.seasonId, teamId: entrant.entryId });
     expect(entrant.mapPerformance.maps).toEqual(canonical.maps.flatMap(({ mapName, results }) => results && results.played > 0 ? [{ mapName, played: results.played, wins: results.wins, winRate: results.wins / results.played }] : []));
