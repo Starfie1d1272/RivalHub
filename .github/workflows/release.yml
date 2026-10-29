@@ -272,6 +272,8 @@ jobs:
       - name: 创建 DB-only release checkpoint
         if: env.CHECKPOINT_KIND == 'db-only'
         env:
+          DB_TRAFFIC_KEY: ${{ secrets.DB_TRAFFIC_KEY }}
+          PRODUCT_TELEMETRY_ENDPOINT: ${{ vars.PRODUCT_TELEMETRY_ENDPOINT }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           RIVALHUB_BACKUP_AGE_RECIPIENT: ${{ vars.RIVALHUB_BACKUP_AGE_RECIPIENT }}
           RIVALHUB_R2_ACCOUNT_ID: ${{ vars.RIVALHUB_R2_ACCOUNT_ID }}
@@ -283,6 +285,8 @@ jobs:
       - name: 创建 full release checkpoint
         if: env.CHECKPOINT_KIND == 'full'
         env:
+          DB_TRAFFIC_KEY: ${{ secrets.DB_TRAFFIC_KEY }}
+          PRODUCT_TELEMETRY_ENDPOINT: ${{ vars.PRODUCT_TELEMETRY_ENDPOINT }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           RIVALHUB_BACKUP_AGE_RECIPIENT: ${{ vars.RIVALHUB_BACKUP_AGE_RECIPIENT }}

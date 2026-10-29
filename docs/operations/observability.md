@@ -168,3 +168,17 @@ Scheduler 的 `scheduled_job_health` 只保存有界 current projection，不是
 数据库故障继续使用 runtime owner 的稳定分类。`db.query.outcome_unknown` 表示结果无法确定，禁止自动重放；只有明确建立连接前的 ECONNREFUSED / ENOTFOUND 才可重试一次。已恢复 retry 与普通 SQL/schema 错误不能一概解释为连接性故障。
 
 代码验证使用现有类型检查、定向测试与构建。发布后回读实际服务 journal，确认 requestId、脱敏异常、runtime health、DB 计数和 LIVE 窗口输出；同时独立确认 D1 产品遥测。没有运行环境证据时，不将本地验证称为 production 验收。
+
+## 数据库流量短期分析
+
+常驻 Node 服务复用 60 秒 sampler 和 pg wrapper：Mizar manifest/schedule/live/reliable 等、DAK 入口、scheduler job、公开统计和 BET 的实际 cache fill 使用固定来源标签，其他为 unknown。请求排队时恢复提交者异步上下文，事务中的查询按发起上下文归属。采集 query 数、失败、pg rowCount 和耗时；自定义 Submittable 单列 unsupported。rowCount 包含写入影响行数，不等同返回行数。既有 `runtime.pool.query` 仍是 pool generation 分开的总分母。
+
+查询形态 ID 由本机规范化 SQL 结构计算：保留标识符，移除注释并规范化字面量和参数，仅摘要进入 D1，不传 SQL 或标识符文本。超过 token 预算归为 unknown，不把截断前缀当成完整形态。结构可能碰撞或合并，不能当作精确 SQL 标识，也不是 pg_stat_statements 的 queryid；每窗口最多 80 个形态/来源组合，额外组合按来源归入 overflow，页面仅展示前 20。源码定位时 checkout 同一 release，在隔离测试中将候选的参数化 SQL 字符串传给 `src/lib/observability/db-traffic.ts` 的 `queryShape()`，只比较输出 hash；不要输出 SQL 或参数，也不能反推 SQL 或据指纹推断单个用户行为。
+
+`pg` 建连完成后在驱动接收 stream 计量读入的 PostgreSQL 协议帧字节；TLS 时是解密后的协议流，非 TLS wire，包含通知和协议开销，不包含连接握手，无法可靠分配到单条 SQL。连接采样点可观察连接数与总连接数的比例仅说明连接覆盖，不是字节覆盖率。所有字节作为未分摊进程总量显示；供应商实际用量尚未接入，须另查供应商控制台，绝不将协议字节或 rowCount 当作账单。低频 `pg_stat_statements` 尚未接入：迁库后先检查扩展与权限、冻结 reset/重启边界及只读低频采样预算，在隔离环境验证增量与脱敏，再以独立变更接入；未完成前不能声称完整归因。
+
+投递使用独立 `DB_TRAFFIC_KEY`（应用、Worker 和受保护的备份/Preview workflow 配置同一至少 32 字符随机值）及 `PRODUCT_TELEMETRY_ENDPOINT`，复用产品遥测 Worker/D1、现有采集及留存开关。已有 D1 先应用 `workers/telemetry/migrations/0003_db_traffic.sql` 再更新 Worker 与应用，新库 schema 已包含该表。禁用或缺配置时不积累窗口；最多五个待发窗口，重试保持 batch ID 和 FIFO，超龄及队列满的已知损失在后续送达批次报告。重启、不可达及未送达尾窗仍可能丢失。Worker 合计每天最多接收 5000 批，保存七天并按既有维护任务分块清理（批次与离线摘要各最多 500 条/小时，积压可能延后物理删除）；过期数据不再读取，不写业务数据库。备份和 Preview 正常导出完成时投递已有安全摘要，仅包含 run、时间、release 和数值，不保存 project ref、表、行或文件路径，也不增加读取；skipped Preview 保留原 workflow 摘要，未接入 D1。受保护 workflow 未配置凭据时不投递，不影响产物。
+
+Worker 在接收时尽力处理 1 个最多 32 批的分块，每小时维护最多处理 4 个分块：先读取小时版本，再选择待处理批次；同一 D1 事务比较版本并确认所有选中 ID 仍待处理后，原子更新小时汇总和原批次 processed 标记。并发处理或过期清理使快照失效时不提交，避免重复或幽灵累计。积压按原采样小时处理，页面显示待处理数量（超过 512 时仅显示下限）；聚合失败不阻断产品遥测的维护。每小时最多保留 90 个形态，以次数、耗时和行数各自的前 30 项合并保留，超过上限或 producer 原窗口 overflow 时显式标记截断；形态数值仅是保留片段的下界，不能保证全窗口 Top 20。来源总次数、耗时、行数与失败仍按已汇总批次完整累计。进程和 release 维度也有上限，超限明确标记。每日最多接收 5000 批；接收时的滚动汇总与小时维护共同推进，失败、竞争和突发可能产生积压和过期损失。Workers Free 的 CPU 限额与账户共享余量须在隔离 Preview 实测；本地 wall time 和 D1 行数不能替代 provider CPU 验收。
+
+`/admin/telemetry?view=database` 仅超级管理员可读，每次只读取最多 72 个小时汇总、最多 513 个未处理批次的索引项与 101 条离线摘要，不展开 72 小时原始批次。可分别按查询次数、累计耗时和 rowCount 排序后取前 20；来源汇总包含三种数值。时间按北京时间显示，窗口从小时起点对齐，当前小时可能未完整；未处理和被淘汰的形态不能当作零。查询排除未来批次。没有数据、网络错误与未配置分别显示。采样窗口以完成时刻归属，起止边缘的跨窗口查询和关闭前尾窗存在不确定性。生产启用后需核对 D1 和供应商实际用量、覆盖缺口及来源分类，以实际启用时间起算 24/72 小时分析；本地 fixture 不是生产验收。

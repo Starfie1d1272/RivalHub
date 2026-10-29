@@ -28,6 +28,8 @@ jobs:
       RIVALHUB_PRODUCTION_PROJECT_CONFIRM: atjiukerfgqlwvnctigc
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
       RIVALHUB_PRODUCTION_SUPABASE_URL: https://atjiukerfgqlwvnctigc.supabase.co
+      DB_TRAFFIC_KEY: ${{ secrets.DB_TRAFFIC_KEY }}
+      PRODUCT_TELEMETRY_ENDPOINT: ${{ vars.PRODUCT_TELEMETRY_ENDPOINT }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
       RIVALHUB_BACKUP_AGE_RECIPIENT: ${{ vars.RIVALHUB_BACKUP_AGE_RECIPIENT }}

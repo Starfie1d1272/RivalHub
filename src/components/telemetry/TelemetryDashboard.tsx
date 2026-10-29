@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useRef, useState, startTransition } from "react";
 import type { Analysis } from "@/lib/telemetry/analysis-model";
 import { analysisFields, type AnalysisFilters } from "@/lib/telemetry/analysis-query";
@@ -57,7 +58,7 @@ export default function TelemetryDashboard({ initial, events, release, initialVi
   const releaseOptions = options.release.map(o => ({ ...o, label: release?.sha === o.value ? `${release.tag} · ${o.value.slice(0, 7)}` : o.label }));
   const mapped = data ? { ...data, options: { ...data.options, release: releaseOptions, eventId: eventOptions } } : null;
   const independent = section === "history" || section === "workflows";
-  return <PageLayout variant="workbench" className="space-y-4"><PageHeader title="产品使用与体验" description="从使用趋势出发，找到值得关注的体验与任务。" className="pb-3" actions={<><Button variant="outline" onClick={() => setCompare(v => !v)} disabled={independent}>变化比较</Button><Button variant="outline" onClick={() => { setData(null); setError(false); setRefresh(n => n + 1); }} disabled={independent}>刷新</Button></>} />
+  return <PageLayout variant="workbench" className="space-y-4"><Link href="/admin/telemetry?view=database">数据库流量来源</Link><PageHeader title="产品使用与体验" description="从使用趋势出发，找到值得关注的体验与任务。" className="pb-3" actions={<><Button variant="outline" onClick={() => setCompare(v => !v)} disabled={independent}>变化比较</Button><Button variant="outline" onClick={() => { setData(null); setError(false); setRefresh(n => n + 1); }} disabled={independent}>刷新</Button></>} />
     <nav aria-label="分析视图" className="flex gap-1 overflow-x-auto border-b border-border pb-2">{sections.map(([value, label]) => <Button key={value} variant={section === value ? "secondary" : "ghost"} size="sm" aria-current={section === value ? "page" : undefined} onClick={() => navigate(value)}>{label}</Button>)}</nav>
     {!independent && <><TelemetryFilters filters={filters} options={{ ...options, eventId: eventOptions, release: releaseOptions }} update={update} apply={apply} reset={() => { setTaskDefinition(null); apply({ ...uiAnalysisDefaults }, section, null); }} />
     {isLongWindow(filters) && <p role="status" className="text-sm">有界明细分析：读取预算可能截断此窗口。<Link prefetch={false} className="ml-1 underline" href={analysisHref(filters, section)}>返回长窗口汇总</Link></p>}

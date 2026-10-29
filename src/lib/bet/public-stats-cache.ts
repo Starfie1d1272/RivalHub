@@ -1,4 +1,5 @@
 import "server-only";
+import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { beginRuntimeResource } from "@/lib/observability/runtime-resources";
 import { cacheLife, cacheTag } from "next/cache";
 import { eq } from "drizzle-orm";
@@ -14,12 +15,14 @@ async function cachedStats(seasonId: string, slug: string, scope: BetPublicStats
   cacheTag(publicBetTag(seasonId),publicSeasonTag(slug),PUBLIC_STATS_TAG);
   const done=beginRuntimeResource("stats.public.fill");
   try {
+  return await withDbTrafficSource("bet.fill", async () => {
   const snapshot=await db.transaction(async tx=>{
     const season=await tx.query.seasons.findFirst({where:eq(seasons.id,seasonId),columns:{status:true,competitionTemplate:true}});
     if (!season || season.status === "draft" || season.competitionTemplate !== "major") return undefined;
     return readBetPublicStatsSnapshot(tx,seasonId,scope);
   },{accessMode:"read only",isolationLevel:"repeatable read"});
   return await (snapshot?projectBetPublicStats(snapshot):undefined);
+  });
   } finally {done();}
 }
 

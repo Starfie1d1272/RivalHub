@@ -14,7 +14,7 @@ export async function getPlayerAttributeBenchmark() {
   "use cache: remote";
   cacheLife({ stale: 60, revalidate: 3600, expire: 86400 });
   cacheTag(PUBLIC_STATS_TAG);
-  return observePublicStatsFill(() => preservePublicStatsDependencyFailure(async () => {
+  return observePublicStatsFill("stats.benchmark", () => preservePublicStatsDependencyFailure(async () => {
     const events = await db
       .select({ id: seasons.id })
       .from(seasons)
