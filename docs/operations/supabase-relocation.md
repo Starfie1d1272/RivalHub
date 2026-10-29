@@ -34,6 +34,7 @@ Free 项目名额不足时，可在授权后采用“暂停旧 Dev → 创建新
 ### 源 Storage 返回 402
 
 - 在 Production recovery backup 的成功记录中定位最近可信 full backup，核对 source ref、快照时间、对象数及 R2 completion、sidecar 和 artifact。使用 [只读 fetch](./disaster-recovery.md#offline-read-only-fetch) 获取并验证三件产物；检查已有授权的 R2 访问环境，也可通过官方控制台查找对象。使用离线 recovery kit 中与备份 recipient 匹配的 age 身份解密，不复制或记录私钥。
+- 官方控制台按钮若在响应体下载阶段失败，先核对下载列表；确认失败后，可在同一已登录浏览器直接打开该控制台提供的官方下载地址，完成后仍校验长度和 SHA-256。
 - 可使用最新一致 DB 快照与较早 full backup 的 Storage，分别记录时间和差异。将备份对象索引与当前 `storage.objects` 按 bucket/key、大小逐项比较，检查当前更新时间是否晚于备份；有备份时 DB 元数据和可比 ETag 时一并核对，并核对 bucket 配置、业务引用和 retention。数量或总大小相同不能替代逐项核对，元数据一致也不等于当前 bytes 的哈希证明。冻结后重新核对，明确新增、删除、变更和无法验证的对象缺口。
 - 恢复前验证备份内对象 hash；向目标上传后逐对象回读 hash，并验收权限和引用。若缺备份、读取权限、身份材料或存在未解决缺口，记录具体缺项，继续不依赖它的准备；不得把 DB-only dump 当作完整备份或跳过缺口切流。
 
