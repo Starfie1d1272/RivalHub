@@ -36,7 +36,7 @@ async function cachedPlatformStats(scope: PlatformStatsScope, versions: string) 
   cacheTag(PUBLIC_STATS_TAG);
   cacheLife({ stale: 60, revalidate: 3600, expire: 86400 });
   void versions;
-  return observePublicStatsFill(() => preservePublicStatsDependencyFailure(() => getTournamentStats(scope)));
+  return observePublicStatsFill("stats.platform", () => preservePublicStatsDependencyFailure(() => getTournamentStats(scope)));
 }
 export async function getPlatformStatsPage(raw: StatsSearch) {
   const events = await getFreshStatsEvents();

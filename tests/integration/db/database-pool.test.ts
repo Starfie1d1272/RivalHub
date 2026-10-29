@@ -166,3 +166,47 @@ it("restores inherited query dispatch so later driver instrumentation and fault 
     } finally { spy.mockRestore(); }
   } finally { await pool.end(); }
 });
+
+it("attributes queued pooled queries to their submitting contexts", async () => {
+  const { withDbTrafficSource, flushDbTraffic, recordDbTraffic } = await import("@/lib/observability/db-traffic");
+  const previousEndpoint = process.env.PRODUCT_TELEMETRY_ENDPOINT;
+  const previousKey = process.env.DB_TRAFFIC_KEY;
+  process.env.PRODUCT_TELEMETRY_ENDPOINT = "https://telemetry.invalid/v1/batches";
+  process.env.DB_TRAFFIC_KEY = "fixture-key".repeat(4);
+  const sent: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init: { body: string }) => { sent.push(init.body); return new Response(null, { status: 204 }); }));
+  const pool = new DatabasePool({ connectionString: localDatabaseUrl(), ssl: false, max: 1 });
+  try {
+    const held = await pool.connect();
+    let received = 0;
+    const stream = (held as unknown as { connection: { stream: NodeJS.ReadableStream } }).connection.stream;
+    stream.on("data", (chunk: Buffer) => { received += chunk.length; });
+    const first = withDbTrafficSource("mizar", () => pool.query("select 1"));
+    const second = withDbTrafficSource("dak", () => pool.query("select 2"));
+    withDbTrafficSource("bet.fill", () => held.release());
+    await Promise.all([first, second]);
+    flushDbTraffic();
+    await vi.waitFor(() => expect(sent.length).toBeGreaterThan(0));
+    const batch = JSON.parse(sent[0]);
+    expect(batch.rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: "mizar", template: expect.stringMatching(/^q[0-9a-f]{16}$/), queries: 1 }),
+      expect.objectContaining({ source: "dak", template: expect.stringMatching(/^q[0-9a-f]{16}$/), queries: 1 }),
+    ]));
+    expect(batch.receivedBytes).toBeGreaterThan(0);
+    expect(batch.receivedBytes).toBe(received);
+    expect(batch).toMatchObject({ connections: 1, observedConnections: 1 });
+    expect(sent[0]).not.toContain("select 1");
+    const ended = new Promise<void>(resolve => held.once("end", resolve));
+    await pool.end();
+    await ended;
+    recordDbTraffic("unknown", "unknown", 0, 1, false);
+    flushDbTraffic();
+    await vi.waitFor(() => expect(sent.length).toBeGreaterThan(1));
+    expect(JSON.parse(sent[1])).toMatchObject({ connections: 0, observedConnections: 0 });
+  } finally {
+    if (!pool.ended) await pool.end();
+    if (previousEndpoint === undefined) delete process.env.PRODUCT_TELEMETRY_ENDPOINT; else process.env.PRODUCT_TELEMETRY_ENDPOINT = previousEndpoint;
+    if (previousKey === undefined) delete process.env.DB_TRAFFIC_KEY; else process.env.DB_TRAFFIC_KEY = previousKey;
+    vi.unstubAllGlobals();
+  }
+});

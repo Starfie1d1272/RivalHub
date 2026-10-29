@@ -1,3 +1,4 @@
+import { setDbTrafficSource } from "@/lib/observability/db-traffic";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { authenticateMizar, readMizarCredentialHash, revokeMizarInstallation } from "@/lib/mizar/installation";
@@ -18,6 +19,7 @@ export async function GET(request: Request, context: Context) {
   return withMizarRequest(request, "/api/mizar/[operation]", "get", async (diagnostics) => {
     const { operation } = await context.params;
     diagnostics.operation = operation === "match" || operation === "schedule" ? operation : "unknown";
+    setDbTrafficSource(operation === "match" ? "mizar.manifest" : operation === "schedule" ? "mizar.schedule" : "mizar");
     const installation = await authenticateMizar(request.headers.get("authorization"));
     const query = new URL(request.url).searchParams;
     diagnostics.phase = "validate";
@@ -42,6 +44,7 @@ export async function POST(request: Request, context: Context) {
     try {
       const { operation } = await context.params;
       diagnostics.operation = ["live", "disconnect", "claim", "release", "reliable"].includes(operation) ? operation : "unknown";
+      setDbTrafficSource(operation === "live" ? "mizar.live" : operation === "reliable" ? "mizar.reliable" : operation === "claim" ? "mizar.claim" : operation === "release" ? "mizar.release" : operation === "disconnect" ? "mizar.disconnect" : "mizar");
       if (operation === "live") {
         recordLiveIngestStage("received");
         releaseIngress = await admitLiveIngress();

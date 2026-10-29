@@ -1,5 +1,6 @@
 import "server-only";
 
+import { withDbTrafficSource, DB_SOURCES, type DbTrafficSource } from "@/lib/observability/db-traffic";
 import { ensureRequestId } from "@/lib/observability/context";
 import { withRouteObservability } from "@/lib/observability/route";
 import { captureException } from "@/lib/observability/server";
@@ -16,14 +17,16 @@ export function withIntegrationRequest(
   operation: string,
   handler: (diagnostics: IntegrationDiagnostics) => Promise<Response>,
 ): Promise<Response> {
-  return withRouteObservability(request, route, async (requestContext) => {
+  const candidate = `dak.${operation}`;
+  const source: DbTrafficSource = (DB_SOURCES as readonly string[]).includes(candidate) ? candidate as DbTrafficSource : "dak";
+  return withDbTrafficSource(source, () => withRouteObservability(request, route, async (requestContext) => {
     const diagnostics: IntegrationDiagnostics = { operation, phase: "auth", requestId: ensureRequestId(requestContext.requestId), route };
     try {
       return await handler(diagnostics);
     } catch (error) {
       return integrationError(request, error, diagnostics);
     }
-  }, { captureServerErrorResponse: false });
+  }, { captureServerErrorResponse: false }));
 }
 
 const ALLOWED_METHODS = "GET, POST, DELETE, OPTIONS";
