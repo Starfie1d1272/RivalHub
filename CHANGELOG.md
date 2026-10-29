@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.24.14]
+
+### Changed
+
+- 管理员可按查询结果的逻辑 JSON 字节分析数据库流量，并查看测量覆盖率；细化预测、竞猜和统计的来源分类。生产用量与覆盖率仍待实测。
+- 正式发布使用 Linux 流程，并行执行候选构建与恢复事务测试。
+
+### Fixed
+
+- 更新迁库后的 Preview 镜像目标。
+
 ## [2.24.13]
 
 ### Changed
@@ -3670,3 +3681,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.24.12]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.11...v2.24.12
 
 [2.24.13]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.12...v2.24.13
+
+[2.24.14]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.13...v2.24.14
