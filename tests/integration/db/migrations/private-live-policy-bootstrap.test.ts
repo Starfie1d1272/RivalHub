@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { replayMigration, withScratchDatabase } from "../harness/migration-replay";
 
 describe("hosted Realtime receive policy bootstrap", () => {
-  it("is repeatable and permits only scoped Broadcast reads, never viewer writes", async () => {
+  it.each(["0071_restore_private_live_broadcast_policy.sql", "0103_restore_realtime_after_relocation.sql"])("%s is repeatable and permits only scoped Broadcast reads, never viewer writes", async (migration) => {
     await withScratchDatabase("live_policy", async (client) => {
       await client.query(`
         CREATE SCHEMA auth; CREATE SCHEMA realtime;
@@ -16,8 +16,8 @@ describe("hosted Realtime receive policy bootstrap", () => {
         GRANT USAGE ON SCHEMA auth, realtime TO authenticated;
         GRANT SELECT, INSERT ON realtime.messages TO authenticated;
       `);
-      await replayMigration(client, "0071_restore_private_live_broadcast_policy.sql");
-      await replayMigration(client, "0071_restore_private_live_broadcast_policy.sql");
+      await replayMigration(client, migration);
+      await replayMigration(client, migration);
       const matchId = "11111111-1111-4111-8111-111111111111";
       await client.query("SELECT set_config('request.jwt.claims', $1, false), set_config('request.topic', $2, false)", [JSON.stringify({ scope: "live-viewer", matchId }), `match-live:${matchId}`]);
       await client.query("SET ROLE authenticated");

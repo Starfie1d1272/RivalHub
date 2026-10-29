@@ -9,7 +9,7 @@
 开工前按实际盘点填好以下清单，一次向用户确认；范围不变时不重复询问，新增目标或风险再单独说明：
 
 - **目标与成本：** 源项目和组织、目标组织及新项目名称、区域、套餐和名额；默认不购买套餐、不永久删除。
-- **凭据与目的地：** 列出需要使用或生成的数据库密码、API/JWT、SMTP、任务凭据和流量归因 `DB_TRAFFIC_KEY`，以及各自的安全来源和用途；列出实际写入的新 Supabase Auth/Vault、自托管生产服务器、GitHub production/staging environment、现用 telemetry Worker 和其他现用 consumer。只写名称与来源，不展示密钥值。
+- **凭据与目的地：** 列出需要使用或生成的数据库密码、API/JWT、SMTP、任务凭据和流量归因 `DB_TRAFFIC_KEY`，以及各自的安全来源和用途；列出实际写入的新 Supabase Auth/Vault、自托管生产服务器、GitHub production/staging environment、现用 telemetry Worker 和其他现用 consumer；若归因发送需要现有代理，列明代理与目标、凭据和传输用途。只写名称与来源，不展示密钥值。
 - **迁移与中断：** 暂停 Dev 腾名额及旧 Production 的安排和窗口；DB/Auth/Storage 的备份、恢复、冻结对账、切流、验收与旧库保留/回退范围。
 
 

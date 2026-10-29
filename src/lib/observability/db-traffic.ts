@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
+import { Agent, request } from "node:https";
 
 import { DB_SOURCES, type DbTrafficSource } from "./db-traffic-contract";
 export { DB_SOURCES, type DbTrafficSource } from "./db-traffic-contract";
@@ -58,6 +59,27 @@ export function dbTrafficEnabled(): boolean {
   try { const url = new URL(endpoint ?? ""); enabled = url.protocol === "https:" && !url.username && !url.password && !url.search && !url.hash && url.pathname === "/v1/batches"; } catch { /* Disabled on invalid configuration. */ }
   return enabled;
 }
+async function sendDbTraffic(endpoint: URL, body: string, key: string): Promise<boolean> {
+  const proxyValue = process.env.PRODUCT_TELEMETRY_QUERY_PROXY_URL;
+  if (!proxyValue) {
+    const response = await fetch(endpoint, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body, signal: AbortSignal.timeout(5000), redirect: "error" });
+    void response.body?.cancel().catch(() => {});
+    return response.ok;
+  }
+  const proxy = new URL(proxyValue);
+  if (!["http:", "https:"].includes(proxy.protocol) || proxy.username || proxy.password || proxy.pathname !== "/" || proxy.search || proxy.hash) throw new Error("Invalid telemetry proxy");
+  const agent = new Agent({ proxyEnv: { NODE_ENV: process.env.NODE_ENV, HTTPS_PROXY: proxy.href } });
+  try {
+    return await new Promise<boolean>((resolve, reject) => {
+      const req = request(endpoint, { method: "POST", agent, signal: AbortSignal.timeout(5000), headers: { authorization: `Bearer ${key}`, "content-type": "application/json" } }, response => {
+        response.resume();
+        resolve((response.statusCode ?? 0) >= 200 && (response.statusCode ?? 0) < 300);
+      });
+      req.on("error", reject);
+      req.end(body);
+    });
+  } finally { agent.destroy(); }
+}
 /** Best effort, bounded retry queue. Batch identity remains unchanged after a lost ACK. */
 export function flushDbTraffic() {
   const s = state();
@@ -77,7 +99,7 @@ export function flushDbTraffic() {
   if (s.sending || !s.pending.length) return;
   endpoint.pathname = "/v1/db-traffic"; s.sending = true;
   const sending = s.pending[0];
-  void Promise.resolve().then(() => fetch(endpoint, { method: "POST", headers: { authorization: `Bearer ${process.env.DB_TRAFFIC_KEY}`, "content-type": "application/json" }, body: sending.body, signal: AbortSignal.timeout(5000), redirect: "error" })).then(response => {
-    if (response.ok && s.pending[0] === sending) s.pending.shift();
+  void Promise.resolve().then(() => sendDbTraffic(endpoint, sending.body, process.env.DB_TRAFFIC_KEY!)).then(ok => {
+    if (ok && s.pending[0] === sending) s.pending.shift();
   }).catch(() => {}).finally(() => { s.sending = false; });
 }
