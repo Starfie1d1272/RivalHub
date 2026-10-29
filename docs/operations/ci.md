@@ -145,14 +145,14 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm verify:services
 4. PostgreSQL / system 失败时确认是测试本身、环境启动还是 cleanup；
 5. 只有 planner 分类错误时才修改 planner，不要为了缩短 CI 把必要证据降级成 skipped。
 
-## 执行耗时报告
+## 执行耗时门禁
 
 `execution-budget.mjs` 只读取当前 `run_id` / `run_attempt` 的分页 job/step 计时。每个 job 累计真实执行的 step 区间（重叠部分仅算一次），不把 job `started_at` 到第一条 step 之间的 runner 排队或 step 间调度空档当作执行。CI 图按 `max(plan + max(static, postgres, system), dependency-graph-build, dependency-review) + gate` 计算实际关键路径；matrix 各片取最长执行耗时，保留并行语义。gate 的本地计时在计时 API 请求前冻结，截止到核验步骤开始，不包含该次 GitHub API 等待及核验后的报告/runner post-cleanup。
 
-`timing.mjs` 直接执行验证命令并记录本地耗时，不依赖 GitHub job/step 元数据才能启动。CI 命令未指定超时时使用本地 180 秒上限，显式超时和 job 平台超时仍生效；最终 gate 另行报告执行预算，远端计时不可用时不得声称速度达标。
+`timing.mjs` 直接执行验证命令并记录本地耗时，不依赖 GitHub job/step 元数据才能启动。CI 命令未指定超时时使用本地 180 秒上限，显式超时和 job 平台超时仍生效；最终 gate 另行核验执行预算，远端计时不可用时不得声称速度达标。
 
 wrapper 同时等待 leader 和 stdio 关闭，因此 leader 退出 0、测试打印通过但 detached 后代持有 stdout 时仍受截止约束。每次顶层命令生成独立环境 token，嵌套 timing 命令继承同一 owner；只扫描并终止该 token 的进程与原进程组，不按进程名或端口清理。截止或取消先写失败证据，再 TERM，最多 2 秒后 KILL 并关闭残留管道；超时返回 124，取消与清理错误也保留非零结果。Linux runner 通过 `/proc` 查归属，macOS 本地通过 `ps`；进程环境只在内存中匹配，不写入日志。
 
 system browser 结束后独立执行有界 `cleanup-e2e`，复用本 workspace 既有 fixture manifest 与 cleanup owner；每项成功清理后才移除 manifest，失败保留以供诊断。该清理最多 15 秒加 2 秒进程回收，不覆盖测试原失败，也不延长最终 180 秒预算。能力 job 的 10 分钟平台超时约束整个 job；命令按显式超时或默认 180 秒上限运行。失败或取消后仍尝试上传脱敏 system artifacts 与 machine-readable timing；平台强制结束 runner 时，远端 artifact 上传本身无法保证完成。
 
-workflow wall time 与 180 秒执行预算用于报告和诊断，不阻断合并。GitHub 计时只读取一次；超预算或元数据不可用时显示警告，不用缺失值、旧 attempt 或跳过 evidence 声称速度达标。required evidence gate 与命令超时保持不变。修改 CI 图时同改此执行路径 owner 与边界测试。
+原 workflow wall time 仍写入报告，供排队和整体交付延迟诊断；合并门禁使用 180 秒执行预算。GitHub 计时元数据暂未补齐时有限重读，等待不计入执行预算；已测得超时立即阻断，不重试。读取持续失败、缺失 required lane/step 或 CI 图出现未知 job 均失败，不用缺失值、旧 attempt 或跳过 evidence 达成速度预算。修改 CI 图时同改此执行路径 owner 与边界测试。
