@@ -5,6 +5,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { and, desc, eq, inArray, max, ne, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
+import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { matches, seasons } from "@/db/schema";
 import type { Season } from "@/db/schema/seasons";
 import { getCurrentUserAuthorization } from "@/lib/auth/session";
@@ -93,20 +94,22 @@ export async function getPublicSeasonCatalog(): Promise<PublicSeasonWithCompleti
   cacheLife(PUBLIC_CACHE_LIFE);
   cacheTag(PUBLIC_SEASON_CATALOG_TAG);
 
-  const rows = await db
-    .select(publicSeasonColumns)
-    .from(seasons)
-    .where(ne(seasons.status, "draft"))
-    .orderBy(desc(seasons.registrationOpenedAt), seasons.id);
-  if (rows.length === 0) return [];
+  return withDbTrafficSource("season.catalog.fill", async () => {
+    const rows = await db
+      .select(publicSeasonColumns)
+      .from(seasons)
+      .where(ne(seasons.status, "draft"))
+      .orderBy(desc(seasons.registrationOpenedAt), seasons.id);
+    if (rows.length === 0) return [];
 
-  const completionRows = await db
-    .select({ seasonId: matches.seasonId, lastCompletedAt: max(matches.completedAt) })
-    .from(matches)
-    .where(and(officialMatchCondition(), and(inArray(matches.seasonId, rows.map((row) => row.id)), eq(matches.status, "finished"))))
-    .groupBy(matches.seasonId);
-  const lastCompletedAtBySeasonId = new Map(completionRows.map((row) => [row.seasonId, row.lastCompletedAt]));
-  return rows.map((row) => ({ ...row, lastCompletedAt: lastCompletedAtBySeasonId.get(row.id) ?? null }));
+    const completionRows = await db
+      .select({ seasonId: matches.seasonId, lastCompletedAt: max(matches.completedAt) })
+      .from(matches)
+      .where(and(officialMatchCondition(), and(inArray(matches.seasonId, rows.map((row) => row.id)), eq(matches.status, "finished"))))
+      .groupBy(matches.seasonId);
+    const lastCompletedAtBySeasonId = new Map(completionRows.map((row) => [row.seasonId, row.lastCompletedAt]));
+    return rows.map((row) => ({ ...row, lastCompletedAt: lastCompletedAtBySeasonId.get(row.id) ?? null }));
+  });
 }
 
 export async function getPublicSeasonBySlug(slug: string): Promise<PublicSeason | null> {

@@ -69,10 +69,10 @@ it("keeps nested stats attribution and restores the match page scope across asyn
     await Promise.resolve();
     const before = dbTrafficSource();
     const lazy = await Promise.resolve({ then: (resolve: (value: string) => void) => resolve(dbTrafficSource()) });
-    const nested = await Promise.all(["stats.match", "stats.lineup"].map(source =>
-      withDbTrafficSource(source as "stats.match" | "stats.lineup", async () => { await Promise.resolve(); return dbTrafficSource(); }),
+    const nested = await Promise.all(["stats.match", "stats.lineup", "season.catalog.fill"].map(source =>
+      withDbTrafficSource(source as "stats.match" | "stats.lineup" | "season.catalog.fill", async () => { await Promise.resolve(); return dbTrafficSource(); }),
     ));
     return [before, lazy, ...nested, dbTrafficSource()];
-  })).toEqual(["match.page", "match.page", "stats.match", "stats.lineup", "match.page"]);
+  })).toEqual(["match.page", "match.page", "stats.match", "stats.lineup", "season.catalog.fill", "match.page"]);
   expect(dbTrafficSource()).toBe("context.absent");
 });
