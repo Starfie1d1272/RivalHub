@@ -67,11 +67,12 @@ describe("CI execution budget", () => {
   });
 
   it.each([
-    ["ready", 0, 0, 1], ["delayed", 2, 0, 3], ["missing", 6, 1, 6], ["over-budget", 0, 1, 1],
-  ])("runs the workflow against the exact attempt with bounded metadata waiting: %s", (mode, missingReads, exitCode, reads) => {
+    ["ready", 0, 0, 1], ["missing", 1, 0, 1], ["over-budget", 0, 0, 1],
+    ["wall-api-failure", 0, 0, 1], ["jobs-api-failure", 0, 0, 1],
+  ])("reports the exact attempt without blocking on timing: %s", (mode, missingReads, exitCode, reads) => {
     const workflow = parse(readFileSync(resolve(".github/workflows/ci.yml"), "utf8"));
     const record = workflow.jobs.gate.steps.find(s => s.name === "Record required gate wall time").run;
-    const enforce = workflow.jobs.gate.steps.find(s => s.name === "Enforce required gate execution budget").run;
+    const enforce = workflow.jobs.gate.steps.find(s => s.name === "Report required gate execution budget").run;
     const command = `${record}\nset -a\nsource "$GITHUB_ENV"\nset +a\n${enforce}`;
     const dir = mkdtempSync(join(tmpdir(), "ci-budget-workflow-"));
     try {
@@ -90,9 +91,10 @@ case "$*" in
     count=$(cat "$CI_TEST_READS")
     count=$((count + 1))
     printf '%s' "$count" > "$CI_TEST_READS"
+    if [ "$CI_TEST_MODE" = jobs-api-failure ]; then exit 1; fi
     if [ "$count" -le "$CI_TEST_MISSING_READS" ]; then printf '{"name":"plan","steps":[]}\\n'; else cat "$CI_TEST_JOBS"; fi
     ;;
-  *) printf '1970-01-01T00:00:00Z';;
+  *) if [ "$CI_TEST_MODE" = wall-api-failure ]; then exit 1; fi; printf '1970-01-01T00:00:00Z';;
 esac
 `);
       writeFileSync(join(dir, "sleep"), '#!/bin/sh\nexit 0\n');
@@ -100,16 +102,17 @@ esac
       chmodSync(join(dir, "date"), 0o755); chmodSync(join(dir, "gh"), 0o755);
       const result = spawnSync("bash", ["-e", "-c", command], { encoding: "utf8", env: { ...process.env,
         PATH: `${dir}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_ENV: join(dir, "github-env"), RIVALHUB_GATE_STARTED_MS: "0",
-        GITHUB_REPOSITORY: "owner/repo", GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "2", GITHUB_EVENT_NAME: "pull_request",
+        GITHUB_STEP_SUMMARY: join(dir, "summary"), GITHUB_REPOSITORY: "owner/repo", GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "2", GITHUB_EVENT_NAME: "pull_request",
         REQUIRED_JOBS: '["static","postgres"]', RIVALHUB_TIMING_STDOUT_ONLY: "0", RIVALHUB_TIMING_FILE: join(dir, "timing.jsonl"),
-        CI_TEST_CLOCK: clock, CI_TEST_ARGS: join(dir, "args"), CI_TEST_JOBS: join(dir, "jobs.json"),
+        CI_TEST_MODE: mode, CI_TEST_CLOCK: clock, CI_TEST_ARGS: join(dir, "args"), CI_TEST_JOBS: join(dir, "jobs.json"),
         CI_TEST_READS: join(dir, "reads"), CI_TEST_MISSING_READS: String(missingReads),
       } });
       expect(result.status, result.stderr).toBe(exitCode);
       expect(Number(readFileSync(join(dir, "reads"), "utf8"))).toBe(reads);
       expect(readFileSync(join(dir, "args"), "utf8")).toContain('repos/owner/repo/actions/runs/123/attempts/2/jobs?per_page=100');
       expect(readFileSync(join(dir, "args"), "utf8")).toContain('--paginate');
-      if (exitCode === 0) expect(readFileSync(join(dir, "timing.jsonl"), "utf8")).toContain('"milliseconds":61000');
+      if (!["missing", "jobs-api-failure"].includes(mode)) expect(readFileSync(join(dir, "timing.jsonl"), "utf8")).toContain('"label":"required gate execution critical path"');
+      if (mode !== "ready") expect(readFileSync(join(dir, "summary"), "utf8")).toContain(mode === "over-budget" ? "exceeded" : "unavailable");
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
