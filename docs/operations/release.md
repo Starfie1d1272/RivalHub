@@ -14,7 +14,7 @@ pnpm exec changeset version
 
 ## 2. Release commit 与 tag
 
-合并后从远端 `main` read back 实际 squash commit SHA，并确认该 exact commit 在 `main` 上的 canonical CI workflow run（event=push, branch=main, head_sha=RELEASE_SHA）已通过。只在这个 commit 上创建 immutable `vX.Y.Z` 或显式 semver prerelease tag；普通 `main` merge 不会自动 production deploy。即使提前打 tag，Release workflow 自身的 preflight 也会 machine-enforce 此项 exact-SHA prerequisite。
+合并后从远端 `main` read back 实际 squash commit SHA，只在这个 commit 上创建 immutable `vX.Y.Z` 或显式 semver prerelease tag；普通 `main` merge 不会自动 production deploy。Release workflow 的 preflight 自动等待并验证该 exact commit 的 canonical CI workflow run（event=push, branch=main, head_sha=RELEASE_SHA）成功。
 
 ## 3. Protected Release workflow
 
