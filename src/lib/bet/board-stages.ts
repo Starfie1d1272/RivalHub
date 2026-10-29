@@ -2,6 +2,7 @@ import "server-only";
 import { recordBetAggregateFallback } from "@/lib/observability/read-budget";
 import { getBetPublicStats } from "./public-stats-cache";
 import { completeUnifiedBetSnapshot, type readUnifiedBetSnapshot, type UnifiedBoardScope } from "./board-read";
+import { isBetCacheTransportFailure } from "./public-stats-failure";
 import type { BetPublicStats } from "./public-stats-read";
 
 type Snapshot = Awaited<ReturnType<typeof readUnifiedBetSnapshot>>;
@@ -16,7 +17,10 @@ export async function readBetBoardStages<T extends {board:Snapshot}>(
   read:(stats:BetPublicStats | "deferred" | undefined)=>Promise<T>,
 ):Promise<T> {
   if (season.status === "draft" || ["records","leaderboard"].includes(scope.view ?? "open")) return read(undefined);
-  const [stats,data] = await Promise.all([getBetPublicStats(season,scope),read("deferred")]);
+  const [stats,data] = await Promise.all([getBetPublicStats(season,scope).catch(error=>{
+    if (!isBetCacheTransportFailure(error)) throw error;
+    return undefined;
+  }),read("deferred")]);
   const board = completeUnifiedBetSnapshot(data.board,stats);
   if (board) return {...data,board};
   recordBetAggregateFallback();

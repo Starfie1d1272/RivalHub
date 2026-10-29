@@ -10,7 +10,8 @@ import { readBetStakeReceipt } from "@/lib/bet/receipt-read";
 import { stakeBetInTx } from "@/lib/bet/service";
 import { loadBetFacts } from "@/lib/bet/facts";
 import { readUnifiedBetBoard } from "@/lib/bet/board-read";
-import { readFreePredictionBoard, readFreeMatchSupport } from "@/lib/free-predictions/data";
+import { loadFreePredictionPopulation, projectFreePredictionSupport, readFreePredictionBoard, readFreeMatchSupport } from "@/lib/free-predictions/data";
+import { readBetPublicStats } from "@/lib/bet/public-stats-read";
 import { submitFreePredictionInTx } from "@/lib/free-predictions/service";
 
 it("keeps open candidates independent of settled history using the latest settlement revision",async()=>fixture(async f=>{
@@ -160,6 +161,36 @@ it("bounds match reads, shares board facts, and preserves money/rank/history aga
     await expect(measure(tx=>readFreeMatchSupport(tx,randomUUID(),f.matchId))).rejects.toThrow("赛事不存在");
 
   } finally {client.release();}
+}));
+
+// Compare the complete public fill under the same snapshot and fixture, using PostgreSQL socket bytes.
+it("preserves public support while reducing fill protocol bytes", async () => fixture(async f => {
+  const match = (await f.db.query.matches.findFirst({where:eq(schema.matches.id,f.matchId)}))!;
+  await f.db.insert(schema.freePredictionChoices).values([f.userId,f.otherId].map((userId,i)=>({seasonId:f.seasonId,matchId:f.matchId,userId,kind:"result" as const,selection:[f.entryIds[i]!],subject:{entryIds:f.entryIds as [string,string],runId:match.majorStageRunId!,format:"bo3" as const,mapPool:[]}})));
+  const client=await f.db.$client.connect(), measured=drizzle(client,{schema});
+  const stream=(client as unknown as {connection:{stream:NodeJS.ReadableStream}}).connection.stream;
+  let bytes=0; const count=(chunk:Uint8Array)=>{bytes+=chunk.byteLength;}; stream.on("data",count);
+  try {
+    const run=async (narrow:boolean)=>{bytes=0; const value=await measured.transaction(async tx=>{
+      if (narrow) return readBetPublicStats(tx,f.seasonId,{includeFree:true,includeEvent:false});
+      const pools=await readBetPools(tx,f.seasonId,{includeEvent:false});
+      const facts=await loadBetFacts(tx,f.seasonId,{event:false,rosterUserId:null});
+      return {pools,free:projectFreePredictionSupport(await loadFreePredictionPopulation(tx,f.seasonId,{facts}))};
+    },{accessMode:"read only",isolationLevel:"repeatable read"}); return {value,bytes};};
+    const baseline=await run(false), narrow=await run(true);
+    expect(narrow.value).toEqual(baseline.value); expect(narrow.bytes).toBeLessThan(baseline.bytes);
+    const request=async (stats:typeof narrow.value,userId:string|null)=>{bytes=0; const value=await measured.transaction(tx=>readUnifiedBetBoard(tx,f.seasonId,userId,{},stats),{accessMode:"read only",isolationLevel:"repeatable read"}); return {value,bytes};};
+    for (const userId of [null,f.userId]) {
+      const oldRequest=await request(baseline.value,userId), newRequest=await request(narrow.value,userId);
+      expect(newRequest.value).toEqual(oldRequest.value);
+      console.info("BET_PUBLIC_REQUEST_PROTOCOL_BYTES",JSON.stringify({viewer:userId?"signed-in":"anonymous",baseline:oldRequest.bytes,new:newRequest.bytes}));
+    }
+    await f.db.update(schema.users).set({status:"merged",mergedIntoUserId:f.otherId,mergedAt:new Date()}).where(eq(schema.users.id,f.userId));
+    expect((await run(true)).value).toEqual((await run(false)).value);
+    await f.db.update(schema.matches).set({status:"cancelled"}).where(eq(schema.matches.id,f.matchId));
+    expect((await run(true)).value).toEqual((await run(false)).value);
+    console.info("BET_PUBLIC_FILL_PROTOCOL_BYTES",JSON.stringify({baseline:baseline.bytes,narrow:narrow.bytes}));
+  } finally {stream.removeListener("data",count);client.release();}
 }));
 
 // Real SQL protects bigint precision and distinct participants across options.
