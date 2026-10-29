@@ -7,7 +7,8 @@ import {analyzeTelemetry} from "@/lib/telemetry/analysis-model";
 import {analysisDefaults} from "@/lib/telemetry/analysis-query";
 import { getTelemetryWorkflowsAction } from "@/app/admin/telemetry/actions";
 import type { HistoryData } from "@/lib/telemetry/history-contract";
-import { getLongWindowSummary, getTelemetryAnalysis, getTelemetryHistory } from "@/lib/telemetry/dashboard";
+import { DB_SOURCES } from "@/lib/observability/db-traffic-contract";
+import { getDbTraffic, getLongWindowSummary, getTelemetryAnalysis, getTelemetryHistory } from "@/lib/telemetry/dashboard";
 
 afterEach(() => vi.unstubAllEnvs());
 beforeEach(() => { vi.restoreAllMocks(); requireSuperAdmin.mockReset(); loadWorkflowMetrics.mockReset(); });
@@ -111,4 +112,16 @@ it("authorizes and validates the independent long-window query before provider a
   requireSuperAdmin.mockResolvedValue({ userId: "fixture" });
   await expect(getLongWindowSummary({ browser: "private-value" })).rejects.toThrow("Invalid telemetry long-window filters");
   expect(fetch).not.toHaveBeenCalled();
+});
+
+
+it("accepts database traffic summaries containing all allowed sources", async () => {
+  requireSuperAdmin.mockResolvedValue({ userId: "fixture" });
+  vi.stubEnv("PRODUCT_TELEMETRY_ADMIN_KEY", "fixture-query-key".repeat(3));
+  vi.stubEnv("PRODUCT_TELEMETRY_ENDPOINT", "https://worker.invalid/v1/batches");
+  vi.stubEnv("PRODUCT_TELEMETRY_QUERY_PROXY_URL", "");
+  const source = (name: string) => ({ source: name, queries: 1, failures: 0, rows: 0, queryMs: 1, logicalRowJsonBytes: 0, logicalMeasuredQueries: 0, unsupported: 0, overflow: 0 });
+  const body = { offline: [], offlineTruncated: false, generatedAt: Date.now(), start: 0, pending: 0, dropped: 0, receivedBytes: 0, connections: 0, observedConnections: 0, truncated: false, sources: DB_SOURCES.map(source), totals: [], byTime: [], byRows: [], byBytes: [], hours: [] };
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(body)));
+  expect((await getDbTraffic(72)).status).toBe("ready");
 });

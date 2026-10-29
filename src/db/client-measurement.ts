@@ -8,6 +8,43 @@ export function createClientMeasurements() {
     transactions: 0, transactionMs: 0, committed: 0, rolledBack: 0, unfinished: 0 };
 }
 
+// Bound traversal before serialization, including nested values and strings. Unusual
+// objects, cycles, accessors and oversized results are deliberately left unmeasured.
+function logicalBytes(result: unknown): number | undefined {
+  try {
+    const results = Array.isArray(result) ? result : [result];
+    let budget = 100000, bytes = 0;
+    const seen = new Set<object>();
+    const inspect = (value: unknown): boolean => {
+      if (--budget < 0) return false;
+      if (typeof value === "string") { budget -= value.length; return budget >= 0; }
+      if (value === null || typeof value === "number" || typeof value === "boolean") return true;
+      if (typeof value !== "object" || seen.has(value)) return false;
+      if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) return false;
+      seen.add(value);
+      for (const key of Object.keys(value)) {
+        budget -= key.length;
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (budget < 0 || !descriptor || !("value" in descriptor) || !inspect(descriptor.value)) return false;
+      }
+      seen.delete(value);
+      return true;
+    };
+    for (const item of results) {
+      if (!item || typeof item !== "object") return undefined;
+      const rows = Object.getOwnPropertyDescriptor(item, "rows")?.value;
+      if (!Array.isArray(rows)) return undefined;
+      for (const row of rows) {
+        if (!inspect(row)) return undefined;
+        const json = JSON.stringify(row);
+        if (json === undefined) return undefined;
+        bytes += Buffer.byteLength(json, "utf8");
+      }
+    }
+    return bytes;
+  } catch { return undefined; }
+}
+
 /** Per-lease instrumentation: restore pg methods before returning the client to the pool. */
 export function measureClient(client: PoolClient, totals: ReturnType<typeof createClientMeasurements>): PoolClient["release"] {
   const originalQueryDescriptor = Object.getOwnPropertyDescriptor(client, "query");
@@ -45,7 +82,7 @@ export function measureClient(client: PoolClient, totals: ReturnType<typeof crea
       totals.failures += error ? 1 : 0;
       totals.rows += rows;
       totals.queryMs += elapsed;
-      try { if (dbTrafficEnabled()) recordDbTraffic(source, queryShape(text), rows, elapsed, !!error); } catch { /* Observation is best effort. */ }
+      try { if (dbTrafficEnabled()) recordDbTraffic(source, queryShape(text), rows, elapsed, !!error, error ? undefined : logicalBytes(result)); } catch { /* Observation is best effort. */ }
       if (transaction && ((operation === "commit" || operation === "rollback") || (operation === "begin" && error))) {
         const held = performance.now() - transaction.started;
         totals.transactions++;

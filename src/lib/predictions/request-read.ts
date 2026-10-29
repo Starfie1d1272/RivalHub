@@ -1,5 +1,6 @@
 import "server-only";
 import {z} from "zod";
+import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import {sql} from "drizzle-orm";
 import {db} from "@/db/client";
 import {getUserSession} from "@/lib/auth/session";
@@ -16,10 +17,14 @@ async function snapshot(input:{seasonId:string;view:"sim"|"record"},detail:boole
   },{accessMode:"read only",isolationLevel:"repeatable read"});
 }
 export async function readPredictionRequest(input:z.infer<typeof predictionRequestInput>) {
-  const read=await snapshot(input,true);
-  return publicPickEmBoard(projectPredictionBoard(read));
+  return withDbTrafficSource("predictions.read", async () => {
+    const read=await snapshot(input,true);
+    return publicPickEmBoard(projectPredictionBoard(read));
+  });
 }
 export async function readPickEmSummaryRequest(input:z.infer<typeof pickEmSummaryRequestInput>) {
-  const read=await snapshot({...input,view:input.view==="ranking"?"record":"sim"},false);
-  return projectPickEmSummary(read);
+  return withDbTrafficSource("predictions.read", async () => {
+    const read=await snapshot({...input,view:input.view==="ranking"?"record":"sim"},false);
+    return projectPickEmSummary(read);
+  });
 }
