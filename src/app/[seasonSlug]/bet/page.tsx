@@ -1,3 +1,4 @@
+import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { io } from "next/cache";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
@@ -16,6 +17,7 @@ export default function BetPage(props:{params:Promise<{seasonSlug:string}>;searc
   return <Suspense fallback={<PageLayout variant="wide"><p role="status">正在加载 BET…</p></PageLayout>}><BetContent {...props}/></Suspense>;
 }
 async function BetContent({params,searchParams}:{params:Promise<{seasonSlug:string}>;searchParams:Promise<{view?:string;match?:string;market?:string;option?:string;prediction?:string;choice?:string;page?:string;cursor?:string}>}) {
+  return withDbTrafficSource("bet.page", async () => {
   await io();
   const {seasonSlug}=await params;const season=await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if(!season || season.competitionTemplate!=="major")notFound();
@@ -39,4 +41,5 @@ async function BetContent({params,searchParams}:{params:Promise<{seasonSlug:stri
     return {board,rankings};
   })();
   return <PageLayout variant={query.match ? "standard" : "wide"}><UnifiedBetBoard initial={board.bet} freeMatches={board.free.matches} reliefModel={data.relief} rankings={rankings} slug={seasonSlug} signedIn={!!user} view={view} recordsPage={recordsPage} matchFilter={query.match??null} returnSelection={{market:query.market,option:query.option,prediction:query.prediction,choice:query.choice}}/></PageLayout>;
+  });
 }

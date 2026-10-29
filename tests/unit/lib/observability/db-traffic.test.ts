@@ -50,3 +50,15 @@ it("does not retain disabled observations for later delivery", async () => {
     expect(fetchMock).not.toHaveBeenCalled();
   } finally { delete host[slot]; vi.unstubAllEnvs(); vi.unstubAllGlobals(); }
 });
+
+it("classifies missing and unmapped context without emitting route data", async () => {
+  const { dbTrafficSource, withDbTrafficSource } = await import("@/lib/observability/db-traffic");
+  expect(dbTrafficSource()).toBe("context.absent");
+  expect(dbTrafficSource("/private/user-id?token=secret")).toBe("context.unmapped");
+  expect(dbTrafficSource("/api/mizar/match")).toBe("mizar");
+  expect(await withDbTrafficSource("predictions.read", async () => {
+    await Promise.resolve();
+    return dbTrafficSource("/private/user-id");
+  })).toBe("predictions.read");
+  expect(dbTrafficSource()).toBe("context.absent");
+});

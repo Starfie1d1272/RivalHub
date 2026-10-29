@@ -4,6 +4,7 @@ import { Miniflare } from "miniflare";
 import { expect, it } from "vitest";
 import { accountKey, signTicket } from "@/lib/telemetry/ticket";
 import { maintain, type Env } from "../../../workers/telemetry/index";
+import { DB_SOURCES } from "@/lib/observability/db-traffic-contract";
 import { maintainDbTraffic, readDbTrafficHours } from "../../../workers/telemetry/db-traffic-rollup";
 
 it("executes the real Worker and D1 API: concurrent ACK deduplication, usage and closed-day rollup", async () => {
@@ -62,6 +63,25 @@ it("executes the real Worker and D1 API: concurrent ACK deduplication, usage and
     const heavy = JSON.parse(body); heavy.id = crypto.randomUUID(); heavy.dropped = 0; heavy.receivedBytes = 0;
     heavy.rows = Array.from({ length: 21 }, (_, i) => ({ source: "mizar", template: "q" + i.toString(16).padStart(16, "0"), queries: i < 20 ? 100 : 1, failures: 0, rows: i < 20 ? 1 : 1000000, queryMs: i < 20 ? 1 : 60000 }));
     expect((await mf.dispatchFetch("https://worker.invalid/v1/db-traffic", { method: "POST", headers: { authorization: `Bearer ${bindings.DB_TRAFFIC_KEY}` }, body: JSON.stringify(heavy) })).status).toBe(204);
+    // Maximum producer cardinality and legal numeric values stay below ingress limit.
+    const maximum = JSON.parse(body); maximum.id = crypto.randomUUID();
+    maximum.release = "r".repeat(80); maximum.deployment = "d".repeat(80);
+    maximum.dropped = 1000000; maximum.receivedBytes = 1e12; maximum.connections = 1000; maximum.observedConnections = 1000;
+    const longest = [...DB_SOURCES].sort ( (a, b) => b.length - a.length )[0];
+    const metric = (source: string, template: string) => ({ source, template, queries: 1e12, failures: 1e12, rows: 1e12, queryMs: 1e12, logicalRowJsonBytes: 1e12, logicalMeasuredQueries: 1e12 });
+    maximum.rows = [...Array.from({ length: 40 }, (_, i) => metric(longest, "q" + i.toString(16).padStart(16, "0"))), ...DB_SOURCES.map(source => metric(source, "overflow"))];
+    const maximumBody = JSON.stringify(maximum);
+    expect(Buffer.byteLength(maximumBody)).toBeLessThanOrEqual(24000);
+    expect((await mf.dispatchFetch("https://worker.invalid/v1/db-traffic", { method: "POST", headers: { authorization: `Bearer ${bindings.DB_TRAFFIC_KEY}` }, body: maximumBody })).status).toBe(204);
+    // Remove this independent fixture before checking the small mixed-version totals.
+    await db.prepare("DELETE FROM db_traffic_batches WHERE id=?").bind(maximum.id).run();
+    await db.prepare("DELETE FROM db_traffic_hours").run();
+    await db.prepare("UPDATE db_traffic_batches SET processed=0").run();
+    heavy.rows[20].logicalRowJsonBytes = 999999; heavy.rows[20].logicalMeasuredQueries = 1;
+    // This shape was already ingested above; add a new versioned batch to an old hour.
+    const mixed = JSON.parse(body); mixed.id = crypto.randomUUID(); mixed.receivedBytes = 0; mixed.dropped = 0;
+    mixed.rows = [{ source: "context.absent", template: "qabcdef0123456789", queries: 2, failures: 0, rows: 1, queryMs: 1, logicalRowJsonBytes: 10, logicalMeasuredQueries: 1 }];
+    expect((await mf.dispatchFetch("https://worker.invalid/v1/db-traffic", { method: "POST", headers: { authorization: `Bearer ${bindings.DB_TRAFFIC_KEY}` }, body: JSON.stringify(mixed) })).status).toBe(204);
     const future = JSON.parse(body); future.id = crypto.randomUUID(); future.at = now + 50000; future.rows[0].queries = 99;
     expect((await mf.dispatchFetch("https://worker.invalid/v1/db-traffic", { method: "POST", headers: { authorization: `Bearer ${bindings.DB_TRAFFIC_KEY}` }, body: JSON.stringify(future) })).status).toBe(204);
     const offline = { consumer: "preview", run: "123", release: "v1", started: now - 1000, ended: now, status: "exported", rows: 2, logicalBytes: 100, dumpBytes: null, snapshotBytes: 70, artifactBytes: null, storageBytes: null };
@@ -72,7 +92,7 @@ it("executes the real Worker and D1 API: concurrent ACK deduplication, usage and
     const result = await mf.dispatchFetch("https://worker.invalid/admin/db-traffic", { headers: { authorization: `Bearer ${bindings.ADMIN_KEY}` } });
     expect(result.status).toBe(200);
     const data = await result.json() as { dropped: number; receivedBytes: number; offline: unknown[]; sources: Array<{ queries: number; rows: number; queryMs: number }>; byTime: Array<{ template: string }>; byRows: Array<{ template: string }> };
-    expect(data).toMatchObject({ dropped: 2, receivedBytes: 123, offline: [offline], sources: [{ queries: 2004, rows: 1000025, queryMs: 60032 }] });
+    expect(data).toMatchObject({ dropped: 2, receivedBytes: 123, offline: [offline], sources: expect.arrayContaining([expect.objectContaining({ queries: 2004, rows: 1000025, queryMs: 60032 }), expect.objectContaining({ queries: 2, logicalRowJsonBytes: 10, logicalMeasuredQueries: 1 })]) });
     expect(data.byTime[0].template).toBe("q0000000000000014");
     expect(data.byRows[0].template).toBe("q0000000000000014");
     const burst = JSON.parse(body); burst.id = crypto.randomUUID(); burst.dropped = 0; burst.receivedBytes = 0;
@@ -81,7 +101,7 @@ it("executes the real Worker and D1 API: concurrent ACK deduplication, usage and
     const truncated = await mf.dispatchFetch("https://worker.invalid/admin/db-traffic", { headers: { authorization: `Bearer ${bindings.ADMIN_KEY}` } });
     const afterBurst = await truncated.json() as { truncated: boolean; sources: Array<{ queries: number }>; byRows: Array<{ template: string }> };
     expect(afterBurst.truncated).toBe(true);
-    expect(afterBurst.sources[0].queries).toBe(2104);
+    expect(afterBurst.sources.find(row => row.queries === 2104)?.queries).toBe(2104);
     expect(afterBurst.byRows[0].template).toBe("q0000000000000014");
 
     await maintain({ ...bindings, DB: db as unknown as Env["DB"] }, now + 8 * 86400000);
@@ -182,7 +202,7 @@ it("marks retained query totals as partial after a shape is evicted and reappear
     const now = Date.now(); const currentHour = Math.floor(now / 3600000) * 3600000;
     const x = "q000000000000ffff";
     const row = (template: string, queries: number) => ({ source: "mizar", template, queries, failures: 0, rows: queries, queryMs: queries });
-    const initial = JSON.stringify([...Array.from({ length: 90 }, (_, i) => row("q" + i.toString(16).padStart(16, "0"), 100)), row(x, 99)]);
+    const initial = JSON.stringify([...Array.from({ length: 120 }, (_, i) => row("q" + i.toString(16).padStart(16, "0"), 100)), row(x, 99)]);
     const insert = (id: string, at: number, payload: string) => db.prepare("INSERT INTO db_traffic_batches(id,at,process,release,deployment,payload,expires,dropped,received_bytes,connections,observed_connections) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(id, at, "process", "release", "deployment", payload, now + 86400000, 0, 0, 1, 1);
     await db.batch([insert("first", currentHour - 3600000, initial), insert("second", currentHour, initial)]);
     const env = { DB: db as unknown as Env["DB"] } as Env;
@@ -192,6 +212,25 @@ it("marks retained query totals as partial after a shape is evicted and reappear
     const result = await readDbTrafficHours(env, now, 24);
     expect(result.truncated).toBe(true);
     expect(result.totals.find(item => item.template === x)?.queries).toBe(1000);
-    expect(result.sources.find(item => item.source === "mizar")?.queries).toBe(19198);
+    expect(result.sources.find(item => item.source === "mizar")?.queries).toBe(25198);
+  } finally { await mf.dispose(); }
+}, 30000);
+
+
+it("retains a low-frequency byte leader through hourly truncation", async () => {
+  const mf = new Miniflare({ modules: true, script: "export default { fetch() { return new Response() } }", compatibilityDate: "2026-07-30", d1Databases: ["DB"] });
+  try {
+    const db = await mf.getD1Database("DB");
+    const schema = (await readFile("workers/telemetry/schema.sql", "utf8")).replace(/^--.*$/gm, "").split(";").map(s => s.trim()).filter(Boolean);
+    await db.batch(schema.map(sql => db.prepare(sql)));
+    const now = Date.now();
+    const rows = Array.from({ length: 121 }, (_, i) => ({ source: "mizar", template: "q" + i.toString(16).padStart(16, "0"), queries: i === 120 ? 1 : 100, failures: 0, rows: i === 120 ? 1 : 100, queryMs: i === 120 ? 1 : 100, logicalRowJsonBytes: i === 120 ? 999999 : 1, logicalMeasuredQueries: 1 }));
+    await db.prepare("INSERT INTO db_traffic_batches(id,at,process,release,deployment,payload,expires,dropped,received_bytes,connections,observed_connections) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind("fixture", now, "process", "release", "deployment", JSON.stringify(rows), now + 86400000, 0, 0, 1, 1).run();
+    const env = { DB: db as unknown as Env["DB"] } as Env;
+    await maintainDbTraffic(env, now);
+    const result = await readDbTrafficHours(env, now, 24);
+    expect(result.truncated).toBe(true);
+    expect(result.byBytes[0]).toMatchObject({ template: "q0000000000000078", logicalRowJsonBytes: 999999 });
+    expect(result.sources[0].logicalRowJsonBytes).toBe(1000119);
   } finally { await mf.dispose(); }
 }, 30000);

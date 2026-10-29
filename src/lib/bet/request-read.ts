@@ -1,5 +1,6 @@
 import "server-only";
 import {z} from "zod";
+import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import {sql} from "drizzle-orm";
 import {db} from "@/db/client";
 import {getUserSession} from "@/lib/auth/session";
@@ -8,6 +9,7 @@ import {readBetBoardStages} from "./board-stages";
 import {readUnifiedBetSnapshot,projectUnifiedBetBoard} from "./board-read";
 export const betBoardRequestInput=z.object({seasonId:z.guid(),matchId:z.guid().optional(),view:z.enum(["open","mine","settled","event","leaderboard","records"]).default("open")}).strict();
 export async function readBetBoardRequest(input:z.infer<typeof betBoardRequestInput>) {
+  return withDbTrafficSource("bet.read", async () => {
   const season=await authorizePublicMajorRead(input.seasonId);
   const user=await getUserSession();
   const {board:snapshot}=await readBetBoardStages(season,input,async publicStats=>db.transaction(async tx=>{
@@ -15,4 +17,5 @@ export async function readBetBoardRequest(input:z.infer<typeof betBoardRequestIn
     return {board:await readUnifiedBetSnapshot(tx,input.seasonId,user?.userId??null,input,publicStats)};
   },{accessMode:"read only",isolationLevel:"repeatable read"}));
   return projectUnifiedBetBoard(snapshot);
+  });
 }

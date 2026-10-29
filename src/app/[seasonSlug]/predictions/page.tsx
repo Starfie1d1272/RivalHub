@@ -1,3 +1,4 @@
+import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { PageLayout } from "@/components/rivalhub";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
@@ -29,6 +30,7 @@ async function PredictionContent({
 }: {
   params: Promise<{ seasonSlug: string }>;
 }) {
+  return withDbTrafficSource("predictions.page", async () => {
   const { seasonSlug } = await params;
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season || season.competitionTemplate !== "major") notFound();
@@ -39,4 +41,5 @@ async function PredictionContent({
   );
   const board=await publicPickEmBoard(projectPredictionBoard(data));
   return <PredictionErrorBoundary key={`${season.id}/${user?.userId??"anonymous"}`}><PredictionBoard initial={board} slug={seasonSlug} signedIn={!!user} /></PredictionErrorBoundary>;
+  });
 }
