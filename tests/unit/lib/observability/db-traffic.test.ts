@@ -62,3 +62,17 @@ it("classifies missing and unmapped context without emitting route data", async 
   })).toBe("predictions.read");
   expect(dbTrafficSource()).toBe("context.absent");
 });
+
+it("keeps nested stats attribution and restores the match page scope across async work", async () => {
+  const { dbTrafficSource, withDbTrafficSource } = await import("@/lib/observability/db-traffic");
+  expect(await withDbTrafficSource("match.page", async () => {
+    await Promise.resolve();
+    const before = dbTrafficSource();
+    const lazy = await Promise.resolve({ then: (resolve: (value: string) => void) => resolve(dbTrafficSource()) });
+    const nested = await Promise.all(["stats.match", "stats.lineup"].map(source =>
+      withDbTrafficSource(source as "stats.match" | "stats.lineup", async () => { await Promise.resolve(); return dbTrafficSource(); }),
+    ));
+    return [before, lazy, ...nested, dbTrafficSource()];
+  })).toEqual(["match.page", "match.page", "stats.match", "stats.lineup", "match.page"]);
+  expect(dbTrafficSource()).toBe("context.absent");
+});
