@@ -36,20 +36,19 @@ release lineage gate (`rivalhub-release-lineage`)
 → if requiresSteamProfileBackfill: protected Steam profile backfill → read-only coverage verify
 → if requiresStatsProjectionBackfill: protected per-map statistics backfill → read-only coverage verify
 → if fresh: Linux package verification → restart / smoke / rollback
-  (Vercel fallback: OIDC exact candidate smoke → `scripts/release/routing.ts`)
 → if requiresSchedulerProvision: scheduler provision + verify
 → publish/update Production-delta GitHub Release notes
 ```
 
-PG17 rehearsal、checkpoint 与 candidate build 在 preflight 完成后并行；candidate build 只负责 build/deploy，不等待数据库证据，也不在旧 schema 上做 runtime smoke。Release workflow 使用独立的 `rivalhub-release-lineage` workflow-level concurrency；其 `production_migration` job，以及仅在确实需要 scheduler provisioning 时的 `finalize` job，共享 `rivalhub-production-state-serialization` 与 daily backup，application-only release 不因 daily backup 排队。migration release 在 production migration/verify 完成后，先完成任何被 Release Plan 要求的 Steam profile backfill/coverage，再由同一 `finalize` job 执行所选平台的部署、smoke / routing、conditional scheduler 与 GitHub Release。
+PG17 rehearsal、checkpoint 与 candidate build 在 preflight 完成后并行；candidate build 只负责构建，不等待数据库证据，也不在旧 schema 上做 runtime smoke。Release workflow 使用独立的 `rivalhub-release-lineage` workflow-level concurrency；其 `production_migration` job，以及仅在确实需要 scheduler provisioning 时的 `finalize` job，共享 `rivalhub-production-state-serialization` 与 daily backup，application-only release 不因 daily backup 排队。migration release 在 production migration/verify 完成后，先完成任何被 Release Plan 要求的 Steam profile backfill/coverage，再由同一 `finalize` job 执行Linux 部署、smoke / routing、conditional scheduler 与 GitHub Release。
 
-`scripts/release/plan.ts` 是 Release Plan 的唯一 owner。它只使用已冻结的 `previousReleaseCommit` 与当前 `RELEASE_SHA`，输出 `applicationChanged`、`migrationChanged`、`migrationRisk`、`storageMutationChanged`、`schedulerChanged`、`recoveryInfraChanged`、`releaseInfraChanged` 以及 `requiresMigrationRehearsal`、`requiresProductionMigration`、`requiresSteamProfileBackfill`、`requiresStatsProjectionBackfill`、`requiresCompetitiveProfileRepair`、`requiresDbCheckpoint`、`requiresFullCheckpoint`、`requiresSchedulerProvision`。当 `src/lib/competitive/profile-repair.ts` 变化时，`requiresCompetitiveProfileRepair=true`，在受保护数据库阶段运行 dry-run → only-missing apply → read-only verify；只有明确达成赛季但没有 season row 的有效 historical fact 可复制，已有冲突保留、每条修复原子写 audit，不更新 historical 或冻结赛事事实。无需 schema replay；zero eligible missing 才允许 candidate smoke/routing。当新增统计投影表或更新 `src/lib/stats/projection-version.ts` 时，`requiresStatsProjectionBackfill=true`，必须在 candidate smoke/routing 前经 protected wrapper 分图幂等回填并通过只读 coverage；缺失投影阻止切换，不把首次访客作为重建任务。仅算法版本变化也进入受保护的数据库阶段，但没有 schema 变化时不要求 migration rehearsal。详见 [`statistics-projections.md`](statistics-projections.md)。当 changed migration 创建 `steam_profiles` 时，`requiresSteamProfileBackfill=true`；该 gate 必须在 production migration/verify 后、candidate smoke/routing 前完成。`scripts/release/release-time-capabilities.json` 是 release-time capability 的显式声明：当前 `storageMutation=false`，只有 Release/operation 确实会不可逆写入既有 Production Storage object 时才允许改为 `true`；业务上传、Storage retention 或普通 Vercel/source 变更不会通过路径推断触发 full checkpoint。无法识别的 migration SQL 按 `irreversible` 处理并要求 DB checkpoint；不根据 commit message 猜测风险。scheduler definition、provisioning/verification owner、cron/auth、相关 secret contract 或生产数据库目标 owner `scripts/db/production-environment.ts` 变化会触发 provision；生产项目 ref 切换必须在新目标重新 provision/verify，即使 scheduler definition 未变；现有 endpoint implementation、health/admin UI 不触发，canonical scheduler namespace 中无法识别的文件则 fail closed 到 provision。
+`scripts/release/plan.ts` 是 Release Plan 的唯一 owner。它只使用已冻结的 `previousReleaseCommit` 与当前 `RELEASE_SHA`，输出 `applicationChanged`、`migrationChanged`、`migrationRisk`、`storageMutationChanged`、`schedulerChanged`、`recoveryInfraChanged`、`releaseInfraChanged` 以及 `requiresMigrationRehearsal`、`requiresProductionMigration`、`requiresSteamProfileBackfill`、`requiresStatsProjectionBackfill`、`requiresCompetitiveProfileRepair`、`requiresDbCheckpoint`、`requiresFullCheckpoint`、`requiresSchedulerProvision`。当 `src/lib/competitive/profile-repair.ts` 变化时，`requiresCompetitiveProfileRepair=true`，在受保护数据库阶段运行 dry-run → only-missing apply → read-only verify；只有明确达成赛季但没有 season row 的有效 historical fact 可复制，已有冲突保留、每条修复原子写 audit，不更新 historical 或冻结赛事事实。无需 schema replay；zero eligible missing 才允许 candidate smoke/routing。当新增统计投影表或更新 `src/lib/stats/projection-version.ts` 时，`requiresStatsProjectionBackfill=true`，必须在 candidate smoke/routing 前经 protected wrapper 分图幂等回填并通过只读 coverage；缺失投影阻止切换，不把首次访客作为重建任务。仅算法版本变化也进入受保护的数据库阶段，但没有 schema 变化时不要求 migration rehearsal。详见 [`statistics-projections.md`](statistics-projections.md)。当 changed migration 创建 `steam_profiles` 时，`requiresSteamProfileBackfill=true`；该 gate 必须在 production migration/verify 后、candidate smoke/routing 前完成。`scripts/release/release-time-capabilities.json` 是 release-time capability 的显式声明：当前 `storageMutation=false`，只有 Release/operation 确实会不可逆写入既有 Production Storage object 时才允许改为 `true`；业务上传、Storage retention 或普通 source 变更不会通过路径推断触发 full checkpoint。无法识别的 migration SQL 按 `irreversible` 处理并要求 DB checkpoint；不根据 commit message 猜测风险。scheduler definition、provisioning/verification owner、cron/auth、相关 secret contract 或生产数据库目标 owner `scripts/db/production-environment.ts` 变化会触发 provision；生产项目 ref 切换必须在新目标重新 provision/verify，即使 scheduler definition 未变；现有 endpoint implementation、health/admin UI 不触发，canonical scheduler namespace 中无法识别的文件则 fail closed 到 provision。
 
 BET 金融 subject 使用 reader-first upgrade。Release Plan 在任何 mutation 前，从同一 frozen previous Production commit 与 candidate commit 读取 `src/lib/bet/catalog-contract.json`；缺失声明视为旧 v1。Candidate publisher version 超过 previous reader version，或 candidate reader 低于 previous publisher version时，preflight fail closed。兼容读取版本须作为独立 Production release 先上线；将兼容 PR 与新 publisher PR 同时合并并一次发布仍会被拒绝。新 publisher 上线后，候选或回滚目标必须保留对应读取能力，不能退回兼容版本之前的应用。该门禁复用正式 Production identity，不依据 main ancestry、定时等待或 dirty 标记推断线上兼容性。独立金融功能可在同一 contract 的 `capabilities` 下声明各自 reader/publisher 版本，缺失声明视为 0/0；Release Plan 逐项执行相同门禁。全局或其他能力的 publisher 升级不授权未验收的独立能力，例如 BO3 新市场只使用 `bo3BpPresence` 专属 publisher 开关。金融 ledger kind 另外通过 `src/lib/bet/ledger-contract.json` 的独立 reader/publisher 维度校验（缺失声明视为 0/0）；market catalog、named capability 与 ledger 共用同一门禁，但不能互相授权新 producer。
 
 Veto 申诉生命周期独立使用 `src/lib/matches/veto-room/lifecycle-contract.json` 的 reader/publisher 能力，缺失声明视为 0/0。reader1 必须同时理解 `closed` 说明和实际开赛后的恢复/裁定边界；publisher0 保留历史读取与安全保护，但不写新的 `closed`。publisher1 只有在冻结的真实 previous Production reader1 已上线后才可发布，可与下一阶段 BET 能力一起切换，不能由其它能力授权。`scripts/release/capability-contract.ts` 是这些 immutable Git contract 的共同读取/门禁 owner，Release Plan 与 routing 复用它。Routing 在 promotion 前、每次 mutation/retry 及补偿 rollback 前重新验证同一 frozen previous/candidate commit；contract 不兼容或无法读取时 fail closed。若候选可能已被 promote，补偿能力验证失败则不发送 rollback，保留 `capability_incompatible`、目标身份及可能副作用的诊断状态并要求人工介入；不得继续 scheduler/publish，也不得把口头“禁止回滚”作为此门禁的替代。
 
-因此，application-only 或纯 release metadata 发布不会启动 PostgreSQL 17、Local Supabase、Storage snapshot、生产 migration 或备份；普通 source/migration/Vercel deploy 也不会触发 full checkpoint，除非发布过程自身具备会不可逆修改既有 Production Storage object 的 release-time capability。破坏性/不可逆数据库变更要求 DB-only checkpoint。
+因此，application-only 或纯 release metadata 发布不会启动 PostgreSQL 17、Local Supabase、Storage snapshot、生产 migration 或备份；普通 source/migration 发布 也不会触发 full checkpoint，除非发布过程自身具备会不可逆修改既有 Production Storage object 的 release-time capability。破坏性/不可逆数据库变更要求 DB-only checkpoint。
 
 关键安全与执行边界：
 
@@ -58,21 +57,21 @@ Veto 申诉生命周期独立使用 `src/lib/matches/veto-room/lifecycle-contrac
 3. **PG17 migration rehearsal**：`migration_rehearsal` job 使用 plain `postgres:17` service，调用 `pnpm db:release-rehearsal`；该入口复用 `preparePg17Database()` 与 `scripts/db/migration-replay.ts`。Release 的 `production_migration` 只有在该 job 成功后才传入受保护的 `RIVALHUB_RELEASE_MIGRATION_REHEARSAL=pg17`，由 `scripts/db/remote.ts` 跳过 legacy Local PostgreSQL replay，继续执行 production preflight、remote migrate 与 exact verify；直接/手工 production migration 不携带该 marker，仍保留 self-contained local replay safety path。对于 immutable tag 的 fresh `workflow_dispatch` retry，preflight 必须从 `refs/heads/main` 发起，并冻结当时的 exact `origin/main` HEAD 为 `releaseOperatorSha`；该 operator SHA 还必须拥有 canonical `main` push CI success evidence。`production_migration` 后续只 checkout 这份 frozen operator SHA，不再直接消费可变的 `github.sha`，并在远程写入前证明 tag 与 operator 的 candidate migration inputs 完全一致；tag push 的正常 release 仍使用 candidate tag。Release rehearsal 不启动 Local Supabase 的 Auth/Storage/browser 服务。
 4. **Conditional recovery checkpoint**：`checkpoint` 是独立 protected job。DB-only checkpoint 只执行 logical DB dump、manifest/checksum、age 加密、private R2 PUT/HEAD/real GET read-back；full checkpoint 才读取 Storage inventory/objects。两者共用 `scripts/db/recovery/artifact.ts` 的 artifact/sidecar/completion owner。
 5. **Hermetic production build**：`scripts/ci/hermetic-production-build.mjs` 在 CI 中真实走 `VERCEL_ENV=production` 的 `vercel.json → scripts/vercel-build.ts` 分支，注入有效的 synthetic release markers，并显式移除 DB/Supabase privileged credentials；该分支只构建，不连接 live production DB。DB compatibility、migration/verify 和 exact candidate smoke 分别由 Release workflow 的对应 gate 负责。
-6. **Linux production deployment**：默认平台为 `linux`，由 preflight 冻结 repository variable `RIVALHUB_RELEASE_HOSTING`（允许 `linux` / `vercel`，缺省 `linux`）。`candidate_build` 在 Linux runner 的独立 clean worktree 构建 immutable tag，应用与 operator SHA 分别记录；tag retry 使用已验证的 frozen operator tooling。公开构建配置来自 production Environment variable `RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION`，仅接受 `production-config.mjs` allowlist。构建不消费 runtime secrets；服务端保留私有 runtime 配置，只更新 release markers。
+6. **Linux production deployment**：正式发布使用 Linux。`candidate_build` 在 Linux runner 的独立 clean worktree 构建 immutable tag，应用与 operator SHA 分别记录；tag retry 使用已验证的 frozen operator tooling。公开构建配置来自 production Environment variable `RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION`，仅接受 `production-config.mjs` allowlist。构建不消费 runtime secrets；服务端保留私有 runtime 配置，只更新 release markers。
 
    正式 Release 以 `build-production.mjs SOURCE --layers` 只生成 runtime/deps/app 三层制品；不传模式的手工打包入口继续生成完整 tar。分层 manifest 绑定 exact source/operator SHA、公开配置 hash、平台/架构、实际 Node 版本、完整组装树摘要及各层压缩字节数/归档 SHA/typed inventory/内容树摘要。finalize 通过固定 SSH 复核 `/opt/rivalhub-production/layers` 的每个缓存命中，只传缺失层，并记录实际传输压缩字节数；deps 按真实 standalone 文件识别，不能仅依据 lockfile。
 
    服务端先校验 manifest/归档 SHA 与 tar 路径、类型及相对链接，再解包到独立临时目录并重算内容树；复制组装全新、自包含的 release，规范化服务组读取/执行权限。保留 Next 生成的 app→deps 相对链接，并在完整组装后校验链接链不越出 release；不链接已安装版本或运行时 cache。完整树与 `standby.json` 身份校验通过才进入原安装事务；损坏缓存视为 miss，缺失/中断/校验失败不切换 current。缓存由部署 root 独占，只保存公开构建制品，不含 runtime secret、不备份、不作为回退依赖；首版不自动回收，可在无安装进行时删除后于下次部署重建。首次主机安装及历史制品继续使用完整 tar 入口，分层更新使用已安装 Node 引导。
-7. **Promotion / rollback boundary**：Linux owner 为 `scripts/release/linux-routing.ts` 与 `scripts/standby/install-production.sh`。controller 在安装前仅核对 canonical previous identity 与 immutable capability contract，不要求旧版首页健康；候选和回退仍须通过 canonical identity 与首页健康检查。主机锁定安装事务并根据 current 指向的已安装 manifest 再次核对本机身份，保存旧包指针、环境与 service。身份核验成功后，installer 停止 `rivalhub-production`，用该版本现有 runtime DB 凭据执行 `production-quiescence.mjs`：读取真实 PostgreSQL application login/database 的 active、idle-in-transaction、aborted 与 prepared 事务，排除观察连接自身，要求相隔一秒的两次零观测，最长等待 60 秒（单次查询另有 5 秒限制）。服务停止同时阻断旧 HTTP action、Mizar ingress 与 HTTP cron/watchdog；pooler 后端仍有事务时不得仅凭进程退出继续切换。排空成功后才写新环境、unit、current 并启动 candidate，检查首页与 exact release identity。自动失败恢复与显式 rollback 也先停止当前 candidate 并完成同样排空，再恢复 previous。排空失败保留当前指针与配置、保持停机并报告失败，不自动杀事务、扩大 DB 权限或启动另一版。该过程会有短暂不可用，不同时运行两个生产实例。主机失败自动恢复；SSH 结果不明或公网 canonical 验证失败时，controller 重新验证 capability 后调用幂等回退并回读 previous identity。失败的 Release 不继续 scheduler/publish，不回滚数据库。Vercel fallback 保留 `vercel deploy --prod --skip-domain`、OIDC smoke 与 `scripts/release/routing.ts` 的 project-scoped promotion/rollback 流程；切回 Vercel 承载须先执行独立 provider cutover，修改发布平台变量本身不变更 DNS。
+7. **Promotion / rollback boundary**：Linux owner 为 `scripts/release/linux-routing.ts` 与 `scripts/standby/install-production.sh`。controller 在安装前仅核对 canonical previous identity 与 immutable capability contract，不要求旧版首页健康；候选和回退仍须通过 canonical identity 与首页健康检查。主机锁定安装事务并根据 current 指向的已安装 manifest 再次核对本机身份，保存旧包指针、环境与 service。身份核验成功后，installer 停止 `rivalhub-production`，用该版本现有 runtime DB 凭据执行 `production-quiescence.mjs`：读取真实 PostgreSQL application login/database 的 active、idle-in-transaction、aborted 与 prepared 事务，排除观察连接自身，要求相隔一秒的两次零观测，最长等待 60 秒（单次查询另有 5 秒限制）。服务停止同时阻断旧 HTTP action、Mizar ingress 与 HTTP cron/watchdog；pooler 后端仍有事务时不得仅凭进程退出继续切换。排空成功后才写新环境、unit、current 并启动 candidate，检查首页与 exact release identity。自动失败恢复与显式 rollback 也先停止当前 candidate 并完成同样排空，再恢复 previous。排空失败保留当前指针与配置、保持停机并报告失败，不自动杀事务、扩大 DB 权限或启动另一版。该过程会有短暂不可用，不同时运行两个生产实例。主机失败自动恢复；SSH 结果不明或公网 canonical 验证失败时，controller 重新验证 capability 后调用幂等回退并回读 previous identity。失败的 Release 不继续 scheduler/publish，不回滚数据库。
    数据迁移和恢复按各自操作文档处理；普通 patch 使用上述身份核验、服务停止、事务排空与回滚流程，不增加逐主机人工清单。
 
 8. **Same-tag resume**：若某次 run 已完成 promote，canonical Production 已等于 candidate，但后续 scheduler 或 GitHub Release 步骤失败，retry 不得把 candidate 自己当作 previous，也不得重新执行 checkpoint/migration/deploy/routing。此时 workflow dispatch 必须显式提供首次 run 冻结的 `previous_release_tag` / `previous_release_commit`；脚本验证 canonical 已精确等于 candidate、previous pair 合法且位于 candidate ancestry 后设置 `RIVALHUB_RELEASE_MODE=resume`，仅继续幂等的 post-promotion 步骤。若 canonical 仍是旧版，则这些 resume inputs 反而是错误配置并 fail closed，正常走 fresh path。
 9. **Protected Steam profile gate**：当 Release Plan 要求 backfill 时，production migration/verify 成功后必须使用 protected `STEAM_API_KEY` 和显式 cache-write confirmation 执行完整 current-primary backfill，再以 `REPEATABLE READ READ ONLY` coverage verify 确认 current-primary profile cache coverage；任一 provider、backfill 或 coverage failure 都阻止 candidate smoke/routing，旧 Production 保持为当前线上版本。
 10. **Phase timing evidence**：各阶段耗时由 `scripts/ci/timing.mjs` 统一记录并写入 Step Summary，至少区分 Release Plan、bootstrap、PG17 replay、DB-only/full checkpoint、production migration、Steam profile backfill/coverage、candidate build/smoke、routing、scheduler、GitHub Release 与 Total。最终 publish job 使用调用 workflow 的 `github.run_started_at` 作为 `Total` 起点，覆盖 job waiting 与并行阶段。
 
-production secrets、target confirmations 与 remote-write authorization 只存在于 protected production Environment/canonical wrappers。Linux 通过 `LINUX_DEPLOY_SSH_KEY` 与 `LINUX_DEPLOY_KNOWN_HOSTS` 连接固定主机 `47.103.131.158:52222`，严格校验已核实的 host key；本路径部署身份为 root，配置新凭据必须获得相应授权。禁止复用操作员个人私钥。runtime secrets 保留在服务器 `/etc/rivalhub-production/production.env`，不复制到 CI；安装权限及文件位置见 [standby.md](./standby.md)。以下 Vercel 配置仅在选择该平台时使用。`VERCEL_TOKEN` 必须是 project-scoped credential，仅用于 exact production deployment、project-scoped promotion/rollback API calls；不得为了解决 CLI scope lookup 改用 Full Account/user/team token。Vercel `finalize` job 使用 `id-token: write`，在运行时向 GitHub OIDC endpoint 申请短期 token，audience 为 `https://github.com/Starfie1d1272`；protected exact `https://<deployment>.vercel.app` smoke 只发送 `x-vercel-trusted-oidc-idp-token`。canonical `https://match.starfie1d.top` 使用普通 HTTPS read-back，不携带 OIDC header。
+production secrets、target confirmations 与 remote-write authorization 只存在于 protected production Environment/canonical wrappers。Linux 通过 `LINUX_DEPLOY_SSH_KEY` 与 `LINUX_DEPLOY_KNOWN_HOSTS` 连接固定主机 `47.103.131.158:52222`，严格校验已核实的 host key；本路径部署身份为 root，配置新凭据必须获得相应授权。禁止复用操作员个人私钥。runtime secrets 保留在服务器 `/etc/rivalhub-production/production.env`，不复制到 CI；安装权限及文件位置见 [standby.md](./standby.md)。
 
-不得使用长期 bypass secret、Full Account/user/team token 或降低 Deployment Protection 代替 Trusted Source。deployment URL 与 canonical domain 的 `/api/system/release` 都必须严格只返回 `releaseTag`、`releaseCommit`，并精确等于对应 immutable tag 与 tag commit；任一失败都阻止后续 release。要求 checkpoint 的 release 中，checkpoint 失败会阻止 production migration；没有相应 mutation 时不创建 checkpoint。
+canonical domain 的 `/api/system/release` 必须严格只返回 `releaseTag`、`releaseCommit`，并精确等于 immutable tag 与 tag commit；失败阻止后续 release。要求 checkpoint 的 release 中，checkpoint 失败会阻止 production migration；没有相应 mutation 时不创建 checkpoint。
 
 ### Previous Production identity
 
@@ -87,43 +86,6 @@ v2.9.5 canonical Production
 则 `v2.9.7` 的 previous Production 必须仍是 `v2.9.5`，migration compatibility 与 GitHub Release notes 都覆盖 `v2.9.5 → v2.9.7`。`RIVALHUB_PRODUCTION_STABLE_REF` 与 Git-derived recent-stable helper 仅供 developer/CI rehearsal 使用，Production Release 设置 explicit identity hard gate，不允许 silent fallback。
 
 如果同一个 tag 已经完成 promote、canonical identity 已经是 candidate，canonical read-back 只能证明“candidate 已在线”，不能恢复 promote 之前的历史 baseline。因此 same-tag resume 要求 operator 从首次 run 的 freeze log/summary 提供原始 previous tag/SHA；这组值仅用于恢复该 immutable run 的历史 baseline，不成为新的 Production truth source，也不允许在 fresh path 覆盖 canonical read-back。
-
-### Vercel fallback routing controller
-
-`scripts/release/routing.ts` 是 Vercel release routing 的 executable owner；`scripts/release/vercel-routing.ts` 是它使用的 Vercel provider adapter，不是额外的 workflow entrypoint。两者保留当前 production release endpoint、project-scoped Vercel credential 和 release identity contract；workflow 不再在 YAML/Bash 中复制 deployment parsing、alias wait、semantic smoke 或 rollback state machine。
-
-provider adapter 为每个 HTTP request 设置 request-level timeout；GET 的 network failure、429 和选定的 5xx 只在有限 attempt 内重试，并与业务状态等待分开。Promote/rollback POST 只把 HTTP 201/202 视为 accepted；429 明确按 `Retry-After`/backoff 做一次 bounded retry，timeout/5xx 等 ambiguous outcome 则进入短的 bounded reconciliation observation window。完整 observation window 内持续观察 previous routing；只有窗口结束、至少有两次有效 observation 且全程都是 exact previous + succeeded、没有 transient/unknown/unrelated state 时才允许一次 retry；发现目标已被 provider 接受时立即 reconciled 且绝不重复 POST，observation 仍不明确则 fail closed。
-
-promotion accepted 后，controller 分别等待 provider alias operation 和 canonical `/`、`/api/system/release`。HTTP 200 但 release identity 仍是合法旧值是 `not_converged`，不是立即失败；只有 exact `releaseTag`/`releaseCommit` 才算成功。provider alias convergence 保持 180 秒 deadline；canonical semantic convergence 使用独立的 120 秒 deadline，poll interval 为 2 秒，ambiguous reconciliation 默认 observation window 为 15 秒。malformed identity、401/403 和不可重试 provider contract 直接 fail fast，deadline 到期归类为 `convergence_timeout`。
-
-promote 后的 terminal failure 会以 mutation 前冻结的 previous deployment 为唯一 rollback target。Rollback accepted 后仍必须等待 alias operation，并等待 canonical identity 精确恢复 previous tag/SHA；恢复未确认时 Release 保持 failed，controller 输出 `rollback_failed` 与人工介入提示，不继续 scheduler/GitHub Release，也不自动 reverse PostgreSQL migration。每次 controller run 都写入低敏 Step Summary，至少包含 candidate/previous deployment、promotion、canonical convergence、rollback outcome 和 terminal classification。
-
-### Vercel Trusted Source（owner-only）
-
-首次受保护 release 前，Vercel owner 必须在 `Settings → Deployment Protection → Trusted Sources → External Services → Add → GitHub Actions` 建立 Trusted Source。引导字段和 raw claims 使用以下真实值：
-
-| Dashboard field | Value |
-| --- | --- |
-| GitHub account | `Starfie1d1272` |
-| Repository | `RivalHub` |
-| Branch | 留空（release 使用版本 tag） |
-| GitHub Actions environment | `production` |
-| Audience | `https://github.com/Starfie1d1272` |
-| Applies to environments | `Production` |
-
-issuer 固定为 `https://token.actions.githubusercontent.com`。切换 `Edit raw claims`，加入以下 exact matching claims（名称和值区分大小写）：
-
-| Raw claim | Exact value |
-| --- | --- |
-| `aud` | `https://github.com/Starfie1d1272` |
-| `repository` | `Starfie1d1272/RivalHub` |
-| `repository_id` | `1231811932` |
-| `workflow` | `Release` |
-| `environment` | `production` |
-| `sub` | `repo:Starfie1d1272/RivalHub:environment:production` |
-| `event_name` | `push`, `workflow_dispatch` |
-
-不填写 `ref` 或 `workflow_ref`：tag push 的 ref 是变量 `refs/tags/v<version>`，workflow dispatch 的 ref 也不是固定值，Trusted Source claim matching 使用 exact match。workflow 自己验证 tag commit 属于 `main`；Trusted Source 用 repository、repository id、workflow、environment、sub 和 event_name 收窄范围。代码只能申请 OIDC token 和发送 header，不能替代 owner Dashboard 配置；在 Dashboard 配置存在且 exact deployment smoke 真实通过前，protected smoke 保持未验收。
 
 ## 4. Recovery capability release gate
 
@@ -152,7 +114,7 @@ workflow dispatch 只能从当前 `main` HEAD 发起；preflight 会冻结该 op
 
 ## 6. Cold-start 配置 read-back
 
-Recovery acceptance 还要人工确认 Supabase plan/physical backup/PITR、Auth/API keys、Realtime、required DB extensions/settings、Storage config、Vercel Trusted Source、GitHub Environment/OIDC/secrets/vars、R2 30d lifecycle/lock/private domains 和 scheduler pg_cron/pg_net/Vault names。只记录 presence/owner/capability/retention，不记录 secret value、PII、signed URL 或 dump。Supabase database backup 不包含 Storage objects，provider clone/restore 后必须单独重建这些配置。
+Recovery acceptance 还要人工确认 Supabase plan/physical backup/PITR、Auth/API keys、Realtime、required DB extensions/settings、Storage config、GitHub Environment/secrets/vars、R2 30d lifecycle/lock/private domains 和 scheduler pg_cron/pg_net/Vault names。只记录 presence/owner/capability/retention，不记录 secret value、PII、signed URL 或 dump。Supabase database backup 不包含 Storage objects，provider clone/restore 后必须单独重建这些配置。
 
 PostgreSQL TLS contract 由 `src/db/postgres-connection.ts` 统一维护，详见 `../deployment.md`；Hosted recovery/backup 只使用现代 `SUPABASE_SECRET_KEY`，不接受 legacy fallback；loopback Local Supabase adapter 保持独立。offline fetch 复用标准 R2 credential；该 credential 本身可能具备写权限，但 fetch path 只暴露 `HEAD/GET`，不调用 R2 write API，也不读取 DB、deploy 或 age private-key credential。
 
@@ -162,20 +124,10 @@ PostgreSQL TLS contract 由 `src/db/postgres-connection.ts` 统一维护，详�
 
 - tag、实际 release commit、production deployment identity 对齐；
 - previous Production tag/SHA 已冻结并校验，migration compatibility、routing 与 release notes 使用同一 baseline；
-- Release Plan 要求的 DB-only 或 full checkpoint 已完成并通过 R2 HEAD/real GET/hash read-back；application-only、metadata-only、普通 source/migration/Vercel deploy 与普通 forward-compatible migration 不机械创建 full checkpoint；
-- 仅在 Release Plan 标记时执行 production migration/verify、Steam profile backfill/coverage、scheduler provision/verify 或 Storage full checkpoint；若要求 Steam profile gate，则 backfill 与 read-only coverage verify 必须在 candidate smoke/routing 前成功；所选平台的应用 smoke、canonical identity read-back 始终通过；
+- Release Plan 要求的 DB-only 或 full checkpoint 已完成并通过 R2 HEAD/real GET/hash read-back；application-only、metadata-only、普通 source/migration 发布与普通 forward-compatible migration 不机械创建 full checkpoint；
+- 仅在 Release Plan 标记时执行 production migration/verify、Steam profile backfill/coverage、scheduler provision/verify 或 Storage full checkpoint；若要求 Steam profile gate，则 backfill 与 read-only coverage verify 必须在 candidate smoke/routing 前成功；Linux 应用 smoke、canonical identity read-back 始终通过；
 - GitHub Release notes 使用真实 previous Production → current Production delta，failed intermediate tag 不被表述为曾上线；
-- Linux 的包、SSH 主机身份、主机 smoke 与恢复事务均已验证；选择 Vercel 时，其 Trusted Source 已由 owner 配置并以短期 GitHub OIDC exact deployment smoke 证明；
+- Linux 的包、SSH 主机身份、主机 smoke 与恢复事务均已验证；
 - 需要 production acceptance 的 Issue 具备真实 evidence 后再关闭。
 
 Production destructive restore、provider cutover、incident freeze 和 Issue close 不是普通 release retry 的隐含副作用；必须满足各自明确授权与独立证据门槛。
-
-## 8. 已授权的应用托管故障切换
-
-同一正式版本从 Vercel 迁到备用 Linux 属于独立 provider cutover，须有明确授权，执行细节由 [`standby.md`](./standby.md) 维护。此路径复用已有正式 tag 与数据库，不创建新 tag、不运行无关 migration、不恢复备份。
-
-若 canonical endpoint 因 provider 暂停返回 402，冻结最近一次成功 Release run 的 canonical convergence 记录，并与 immutable tag、exact-SHA main CI、GitHub Release 及 provider deployment metadata 交叉核对。将无法实时读取旧 endpoint 的事实和原路由状态保留为故障证据，禁止仅凭最大 tag 推断曾上线版本。
-
-受保护 production package job 使用原 release 的 clean source、实际 Production public configuration 与 canonical build entrypoint，记录应用和 operator tooling 的独立 SHA、配置 hash 与包 checksum。runtime 凭据单独通过现有受保护渠道交付。候选以正式 Host 和有效 TLS 验证 release identity、核心页面、登录/session、Server Actions、Realtime/Mizar 及调度配置后，才允许变更正式 DNS；本次 owner 明确接受延后的项目须记录缺口，不能标为全量验收通过。切换后再次验收业务和资源。原 Vercel project/config 保留，回退 DNS 前确认 Vercel 可服务。
-
-Linux 承载期间，正式 Release 默认更新 Linux 服务。回退到 Vercel 时，先恢复并验收 Vercel runtime、凭据与正式 DNS，再将 `RIVALHUB_RELEASE_HOSTING` 设置为 `vercel`。Vercel 暂停或 canonical 未收敛时，回退保持未完成。
