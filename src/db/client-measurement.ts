@@ -1,4 +1,6 @@
 import type { PoolClient } from "pg";
+import { dbTrafficSource, recordDbTraffic, type DbTemplate } from "../lib/observability/db-traffic";
+import { getObservabilityContext } from "../lib/observability/context";
 
 const OPERATIONS = ["select", "with", "insert", "update", "delete", "begin", "commit", "rollback", "rollback_to", "set", "savepoint", "release"];
 export function createClientMeasurements() {
@@ -18,10 +20,13 @@ export function measureClient(client: PoolClient, totals: ReturnType<typeof crea
   let released = false;
   client.query = function (...args: unknown[]) {
     const first = args[0];
+    let source: ReturnType<typeof dbTrafficSource> = "unknown";
+    try { source = dbTrafficSource(getObservabilityContext().route); } catch { /* Observation is best effort. */ }
     // Custom Query/Submittable objects own their callback/emitter semantics.
     // Preserve them verbatim and explicitly report the coverage gap.
     if (first && typeof first === "object" && ("submit" in first || "callback" in first)) {
       totals.unsupported++;
+      try { recordDbTraffic(source, "unsupported", 0, 0, false); } catch { /* Observation is best effort. */ }
       return Reflect.apply(originalQuery, client, args);
     }
     const text = typeof first === "string" ? first : first && typeof first === "object" ? Object.getOwnPropertyDescriptor(first, "text")?.value : undefined;
@@ -40,6 +45,7 @@ export function measureClient(client: PoolClient, totals: ReturnType<typeof crea
       totals.failures += error ? 1 : 0;
       totals.rows += rows;
       totals.queryMs += elapsed;
+      try { recordDbTraffic(source, operation as DbTemplate, rows, elapsed, !!error); } catch { /* Observation is best effort. */ }
       if (transaction && ((operation === "commit" || operation === "rollback") || (operation === "begin" && error))) {
         const held = performance.now() - transaction.started;
         totals.transactions++;

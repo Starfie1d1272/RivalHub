@@ -7,6 +7,7 @@ import { databaseRuntimeSlot } from "@/db/runtime-owner";
 import { logEvent } from "./logger";
 import { getCgroupMemorySnapshot } from "./runtime-cgroup";
 import { getReadBudgetSnapshot } from "./read-budget";
+import { flushDbTraffic } from "./db-traffic";
 import { getRuntimeResourceSnapshot } from "./runtime-resources";
 
 interface RuntimeHealthSnapshot {
@@ -78,6 +79,7 @@ export function startRuntimeHealthSampling(): () => void {
         for (const flush of [...hooks().values()]) {
           try { flush(); } catch { /* One hook cannot suppress other diagnostics. */ }
         }
+        flushDbTraffic();
         const snapshot = getRuntimeHealthSnapshot();
         const next = performance.eventLoopUtilization();
         const window = performance.eventLoopUtilization(next, utilization);

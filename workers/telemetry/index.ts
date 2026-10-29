@@ -1,3 +1,4 @@
+import { ingestDbTraffic, readDbTraffic } from "./db-traffic";
 import { LIMITS, UUID, validEvent, type TelemetryEvent } from "../../src/lib/telemetry/protocol";
 import { verifyTicket } from "../../src/lib/telemetry/ticket";
 import { parseDashboardFilters } from "../../src/lib/telemetry/dashboard-query";
@@ -18,7 +19,7 @@ export interface Statement {
 export interface Database { prepare(sql: string): Statement; batch(statements: Statement[]): Promise<unknown[]> }
 export interface Env {
   DB: Database; SIGNING_KEY: string; ADMIN_KEY: string; ALLOWED_ORIGIN: string;
-  DASHBOARD_KEY?: string;
+  DASHBOARD_KEY?: string; DB_TRAFFIC_KEY?: string;
   ACCEPTING?: string; RETENTION_APPROVED?: string; SUMMARY_RETENTION_DAYS?: string; HISTORY_RETENTION_DAYS?: string;
 }
 const DAY = 86400000;
@@ -55,6 +56,7 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
   const url = new URL(request.url);
   const origin = request.headers.get("origin");
   try {
+    if (url.pathname === "/v1/db-traffic" && request.method === "POST") return await ingestDbTraffic(request, env, now);
     if (url.pathname === "/v1/batches" && request.method === "POST") {
       if (origin !== env.ALLOWED_ORIGIN) return response(403);
       if (env.ACCEPTING !== "1" || env.RETENTION_APPROVED !== "1") return response(503, origin);
@@ -88,9 +90,14 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
     if (url.pathname.startsWith("/admin/")) {
       const authorization = request.headers.get("authorization");
       const operator = env.ADMIN_KEY?.length >= 32 && authorization === `Bearer ${env.ADMIN_KEY}`;
-      const dashboardReader = ["/admin/dashboard", "/admin/analysis", "/admin/history", "/admin/long-window"].includes(url.pathname) && (env.DASHBOARD_KEY?.length ?? 0) >= 32 && authorization === `Bearer ${env.DASHBOARD_KEY}`;
+      const dashboardReader = ["/admin/dashboard", "/admin/analysis", "/admin/history", "/admin/long-window", "/admin/db-traffic"].includes(url.pathname) && (env.DASHBOARD_KEY?.length ?? 0) >= 32 && authorization === `Bearer ${env.DASHBOARD_KEY}`;
       if (!operator && !dashboardReader) return response(401);
       if (request.method !== "GET") return response(405);
+      if (url.pathname === "/admin/db-traffic") {
+        const hours = url.searchParams.get("hours") ?? "72";
+        if (hours !== "24" && hours !== "72") return response(400);
+        return response(200, undefined, await readDbTraffic(env, now, Number(hours) as 24 | 72));
+      }
       if (url.pathname === "/admin/history") {
         const query = parseHistoryQuery(Object.fromEntries(url.searchParams));
         if (!query) return response(400);
@@ -161,6 +168,8 @@ export async function maintain(env: Env, now = Date.now()) {
     if ((result.meta?.changes ?? CLEANUP.chunk) < CLEANUP.chunk) break;
   }
   await env.DB.batch([
+    env.DB.prepare("DELETE FROM db_traffic_batches WHERE expires<=?").bind(now),
+    env.DB.prepare("DELETE FROM db_traffic_usage WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
     env.DB.prepare("DELETE FROM rollups WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
     env.DB.prepare("DELETE FROM usage WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
     env.DB.prepare("DELETE FROM summaries WHERE expires<=?").bind(now),

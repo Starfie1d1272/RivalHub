@@ -16,6 +16,10 @@ export default async function TelemetryPage({
   const admin = await resolveAdminPageAccess(requireSuperAdmin);
   if (!admin) return <AdminAccessDenied />;
   const params = await searchParams;
+  if (params.view === "database") {
+    const { DatabaseTraffic } = await import("@/components/telemetry/DatabaseTraffic");
+    return <DatabaseTraffic hours={params.hours === "24" ? 24 : 72} />;
+  }
   const query = parseUIAnalysisQuery(
     Object.fromEntries(
       Object.entries(params).filter(([key]) =>

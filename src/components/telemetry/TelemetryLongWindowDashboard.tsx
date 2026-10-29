@@ -1,5 +1,6 @@
 "use client";
 
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { LongWindowSummary } from "@/lib/telemetry/long-window-contract";
@@ -38,7 +39,7 @@ export function TelemetryLongWindowDashboard({ data, filters, events, view }: {
   const apply = (next: AnalysisFilters) => router.push(analysisHref(next, view), { scroll: false });
   const independent = view === "history" || view === "workflows";
   return <PageLayout variant="workbench" className="space-y-4">
-    <PageHeader title="产品使用与体验" description="从使用分布出发，查看当前范围值得关注的体验。" className="pb-3" actions={<Button variant="outline" onClick={() => router.refresh()}>刷新</Button>} />
+    <Link href="/admin/telemetry?view=database">数据库流量来源</Link><PageHeader title="产品使用与体验" description="从使用分布出发，查看当前范围值得关注的体验。" className="pb-3" actions={<Button variant="outline" onClick={() => router.refresh()}>刷新</Button>} />
     <nav aria-label="分析视图" className="flex gap-3 overflow-x-auto border-b border-border pb-2">{analysisSections.map(([key, label]) => <Link prefetch={false} className={`shrink-0 rounded-md px-3 py-2 text-sm ${key === view ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`} key={key} href={analysisHref(filters, key)} aria-current={key === view ? "page" : undefined}>{label}</Link>)}</nav>
     {!independent && <>
       <TelemetryFilters filters={filters} options={options} exactRelease apply={apply} reset={() => apply({ ...uiAnalysisDefaults })} update={(key, value) => {

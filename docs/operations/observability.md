@@ -168,3 +168,11 @@ Scheduler 的 `scheduled_job_health` 只保存有界 current projection，不是
 数据库故障继续使用 runtime owner 的稳定分类。`db.query.outcome_unknown` 表示结果无法确定，禁止自动重放；只有明确建立连接前的 ECONNREFUSED / ENOTFOUND 才可重试一次。已恢复 retry 与普通 SQL/schema 错误不能一概解释为连接性故障。
 
 代码验证使用现有类型检查、定向测试与构建。发布后回读实际服务 journal，确认 requestId、脱敏异常、runtime health、DB 计数和 LIVE 窗口输出；同时独立确认 D1 产品遥测。没有运行环境证据时，不将本地验证称为 production 验收。
+
+## 数据库流量短期分析
+
+常驻 Node 服务的 60 秒采样器在已有 pg client wrapper 完成普通查询时聚合来源、固定 SQL 操作类别、次数、rowCount、耗时与失败；自定义 Submittable 单列 unsupported。Mizar、DAK 和 scheduler 使用已接入 route context；公开统计和 BET 使用各自 cache body 的 fill context，其他为 unknown。类别仅为 select/with/写入/事务等固定类别，不是逐 SQL 模板或单条语句排行。没有保存 SQL、参数、结果、用户或请求 ID。连接排队时恢复提交者异步上下文；事务内每次查询按发起上下文归属。当前页面和人工/MCP、离线消费者不完整，不能以 unknown 为零解释。既有 `runtime.pool.query` 仍是进程总分母，池 generation 分开；rowCount 不总是 SELECT 返回行数，包含写入影响行数。
+
+投递使用独立的 `DB_TRAFFIC_KEY`（应用和 Worker 各自安全配置相同的至少 32 字符随机值），复用产品遥测 endpoint 与既有 Worker/D1、运行开关和七天过期清理；先对已有 D1 应用 `workers/telemetry/migrations/0003_db_traffic.sql`，再部署 Worker 与应用。新建 D1 的 schema 已包含该表。每进程最多保留五个待投递窗口，重试沿用 batch ID；队列满或超龄丢弃在后续送达的批次中报告，进程终止、长期不可达和未送达尾窗仍可能丢失。Worker 每 UTC 日最多接收 5000 个批次，且受现有采集/留存开关控制；停用时不创建新平台或写业务数据库。`/admin/telemetry?view=database` 仅超级管理员可读，提供 24/72 小时汇总、小时趋势及 release/deployment、进程数。留存与删除跟随该 D1 的七天策略，备份与恢复遵循产品遥测 D1 的现有运维边界。
+
+网络字节和供应商实际用量尚未接入。驱动连接级计数包含协议及连接开销，多查询共享连接时不能可靠分摊；不把 rowCount、JSON 大小或 socket 字节当作供应商账单。备份和 Preview 继续使用原有离线摘要；未接入 pg_stat_statements。实际启用后需核对 D1 用量、窗口缺口及供应商控制台，并以实际启用时间起算 24/72 小时分析；本地 fixture 不是生产验收。

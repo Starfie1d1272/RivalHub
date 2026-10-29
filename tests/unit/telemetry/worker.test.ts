@@ -42,3 +42,26 @@ it("executes the real Worker and D1 API: concurrent ACK deduplication, usage and
     expect(await db.prepare("SELECT count(*) AS n FROM batches").first()).toEqual({ n: 0 });
   } finally { await mf.dispose(); }
 }, 30000);
+
+ it("stores bounded database windows idempotently and expires them", async () => {
+  const require = createRequire(import.meta.url);
+  const { build } = createRequire(require.resolve("tsx/package.json"))("esbuild") as { build(options: object): Promise<{ outputFiles: { text: string }[] }> };
+  const built = await build({ entryPoints: ["workers/telemetry/index.ts"], bundle: true, write: false, format: "esm", platform: "browser" });
+  const bindings = { SIGNING_KEY: "fixture-signing-key".repeat(3), ADMIN_KEY: "fixture-admin-key".repeat(3), DB_TRAFFIC_KEY: "fixture-db-key".repeat(3), ALLOWED_ORIGIN: "https://rivalhub.invalid", ACCEPTING: "1", RETENTION_APPROVED: "1" };
+  const mf = new Miniflare({ modules: true, script: built.outputFiles[0].text, compatibilityDate: "2026-07-30", bindings, d1Databases: ["DB"] });
+  try {
+    const db = await mf.getD1Database("DB");
+    const schema = (await readFile("workers/telemetry/schema.sql", "utf8")).replace(/^--.*$/gm, "").split(";").map(s => s.trim()).filter(Boolean);
+    await db.batch(schema.map(sql => db.prepare(sql)));
+    const now = Date.now();
+    const body = JSON.stringify({ id: crypto.randomUUID(), process: crypto.randomUUID(), at: now, release: "fixture", deployment: "fixture", dropped: 2, rows: [{ source: "mizar", template: "select", queries: 3, failures: 1, rows: 5, queryMs: 12 }] });
+    const send = () => mf.dispatchFetch("https://worker.invalid/v1/db-traffic", { method: "POST", headers: { authorization: `Bearer ${bindings.DB_TRAFFIC_KEY}` }, body });
+    expect((await Promise.all([send(), send()])).map(r => r.status)).toEqual([204, 204]);
+    expect((await mf.dispatchFetch("https://worker.invalid/v1/db-traffic", { method: "POST", body })).status).toBe(401);
+    const result = await mf.dispatchFetch("https://worker.invalid/admin/db-traffic", { headers: { authorization: `Bearer ${bindings.ADMIN_KEY}` } });
+    expect(result.status).toBe(200);
+    expect(await result.json()).toMatchObject({ dropped: 2, totals: [{ source: "mizar", template: "select", queries: 3, failures: 1, rows: 5 }] });
+    await maintain({ ...bindings, DB: db as unknown as Env["DB"] }, now + 8 * 86400000);
+    expect(await db.prepare("SELECT count(*) AS n FROM db_traffic_batches").first()).toEqual({ n: 0 });
+  } finally { await mf.dispose(); }
+}, 30000);

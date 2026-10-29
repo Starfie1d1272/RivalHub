@@ -1,5 +1,6 @@
 import "server-only";
 import { Agent, get } from "node:https";
+import { z } from "zod";
 import type { ClientRequest, IncomingMessage } from "node:http";
 import { beginRuntimeResource } from "@/lib/observability/runtime-resources";
 import { requireSuperAdmin } from "@/lib/auth/session";
@@ -218,4 +219,10 @@ export async function getLongWindowSummary(input: unknown) {
   const query = parseAnalysisQuery(input);
   if (!query) throw new Error("Invalid telemetry long-window filters");
   return readDashboard("/admin/long-window", { ...query.filters, session: query.session }, value => LongWindowSummary.parse(value), data => data.validUntil);
+}
+
+const DbTrafficData = z.object({ generatedAt: z.number(), dropped: z.number(), truncated: z.boolean(), totals: z.array(z.object({ source: z.string(), template: z.string(), queries: z.number(), failures: z.number(), rows: z.number(), queryMs: z.number() })).max(84), hours: z.array(z.object({ hour: z.number(), release: z.string(), deployment: z.string(), batches: z.number(), processes: z.number(), queries: z.number(), rows: z.number() })).max(1000) });
+export async function getDbTraffic(hours: 24 | 72) {
+  await requireSuperAdmin();
+  return readDashboard("/admin/db-traffic", { hours: String(hours) }, value => DbTrafficData.parse(value), data => data.generatedAt + 60000);
 }

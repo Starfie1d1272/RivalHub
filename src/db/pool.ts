@@ -1,4 +1,5 @@
 import { Pool, type PoolClient } from "pg";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { logEvent } from "../lib/observability/logger";
 
 import { createClientMeasurements, measureClient } from "./client-measurement";
@@ -25,6 +26,7 @@ export class DatabasePool extends Pool {
   connect(): Promise<PoolClient>;
   connect(callback: ConnectCallback): void;
   connect(callback?: ConnectCallback): Promise<PoolClient> | void {
+    const runInContext = AsyncLocalStorage.snapshot();
     const started = performance.now();
     const snapshot = { poolTotal: this.totalCount, poolIdle: this.idleCount, poolWaiting: this.waitingCount, poolMax: this.options.max };
     const connectionState = snapshot.poolIdle > 0 ? "reuse" : snapshot.poolTotal >= (snapshot.poolMax ?? 10) ? "queued" : "connect";
@@ -48,7 +50,7 @@ export class DatabasePool extends Pool {
       } catch { /* Diagnostics must preserve checkout and release semantics. */ }
     };
     if (callback) {
-      super.connect((error, client, release) => { report(error); callback(error, client, !error && client ? measureClient(client, this.clientMeasurements) : release); });
+      super.connect((error, client, release) => runInContext(() => { report(error); callback(error, client, !error && client ? measureClient(client, this.clientMeasurements) : release); }));
       return;
     }
     return new Promise((resolve, reject) => {
