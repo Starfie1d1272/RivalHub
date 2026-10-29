@@ -5,6 +5,10 @@ import { unstable_rethrow } from "next/navigation";
 const FILL_FAILURE = "RIVALHUB_BET_PUBLIC_FILL_FAILURE_V1";
 export function preserveBetPublicFillFailure(error: unknown): never {
   unstable_rethrow(error);
+  if (error instanceof Error && !("digest" in error) && Object.isExtensible(error)) {
+    Object.defineProperty(error, "digest", {value:FILL_FAILURE, configurable:true});
+    throw error;
+  }
   throw Object.assign(new Error("BET public fill failed", {cause:error}), {digest:FILL_FAILURE});
 }
 export function isBetCacheTransportFailure(error: unknown): boolean {
