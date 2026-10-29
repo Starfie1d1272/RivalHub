@@ -1,4 +1,5 @@
 import type { Env } from "./index";
+import { maintainDbTraffic, readDbTrafficHours } from "./db-traffic-rollup";
 
 import { DB_SOURCES, DB_TEMPLATE_PATTERN } from "../../src/lib/observability/db-traffic-contract";
 const sources = new Set<string>(DB_SOURCES);
@@ -21,29 +22,16 @@ export async function ingestDbTraffic(request: Request, env: Env, now: number): 
     env.DB.prepare("UPDATE db_traffic_usage SET batches=batches+1 WHERE day=? AND changes()=1").bind(day),
   ]);
   const stored = await env.DB.prepare("SELECT id FROM db_traffic_batches WHERE id=?").bind(batch.id).first();
+  if (stored) {
+    // Make progress during normal traffic; a failed rollup never rejects an accepted batch.
+    try { await maintainDbTraffic(env, now, 1); } catch { /* The queued batch remains available for hourly retry. */ }
+  }
   return new Response(null, { status: stored ? 204 : 429 });
 }
 export async function readDbTraffic(env: Env, now: number, hours: 24 | 72) {
-  const from = now - hours * 3600000;
-  const totals = await env.DB.prepare(`SELECT json_extract(j.value,'$.source') AS source, json_extract(j.value,'$.template') AS template,
-    sum(json_extract(j.value,'$.queries')) AS queries, sum(json_extract(j.value,'$.failures')) AS failures,
-    sum(json_extract(j.value,'$.rows')) AS rows, sum(json_extract(j.value,'$.queryMs')) AS queryMs
-    FROM db_traffic_batches b,json_each(b.payload) j WHERE b.at>=? AND b.at<=? AND b.expires>? GROUP BY 1,2 ORDER BY queries DESC LIMIT 20`).bind(from, now, now).all();
-  const sourceTotals = await env.DB.prepare(`SELECT json_extract(j.value,'$.source') AS source, sum(json_extract(j.value,'$.queries')) AS queries, sum(CASE WHEN json_extract(j.value,'$.template')='unsupported' THEN json_extract(j.value,'$.queries') ELSE 0 END) AS unsupported, sum(CASE WHEN json_extract(j.value,'$.template')='overflow' THEN json_extract(j.value,'$.queries') ELSE 0 END) AS overflow FROM db_traffic_batches b,json_each(b.payload) j WHERE b.at>=? AND b.at<=? AND b.expires>? GROUP BY 1 ORDER BY 2 DESC`).bind(from, now, now).all();
-  const hourly = await env.DB.prepare(`WITH traffic AS (
-    SELECT CAST(at / 3600000 AS INTEGER) * 3600000 AS hour, release, deployment, count(*) AS batches,
-      count(DISTINCT process) AS processes, sum(received_bytes) AS receivedBytes
-    FROM db_traffic_batches WHERE at>=? AND at<=? AND expires>? GROUP BY 1,2,3
-  ), query_counts AS (
-    SELECT CAST(b.at / 3600000 AS INTEGER) * 3600000 AS hour, b.release, b.deployment,
-      sum(json_extract(j.value,'$.queries')) AS queries, sum(json_extract(j.value,'$.rows')) AS rows
-    FROM db_traffic_batches b,json_each(b.payload) j WHERE b.at>=? AND b.at<=? AND b.expires>? GROUP BY 1,2,3
-  ) SELECT t.*, coalesce(q.queries,0) AS queries, coalesce(q.rows,0) AS rows FROM traffic t
-    LEFT JOIN query_counts q ON q.hour=t.hour AND q.release=t.release AND q.deployment=t.deployment
-    ORDER BY t.hour DESC LIMIT 1001`).bind(from, now, now, from, now, now).all();
-  const coverage = await env.DB.prepare("SELECT coalesce(sum(dropped),0) AS dropped, coalesce(sum(received_bytes),0) AS receivedBytes, coalesce(sum(connections),0) AS connections, coalesce(sum(observed_connections),0) AS observedConnections FROM db_traffic_batches WHERE at>=? AND at<=? AND expires>?").bind(from, now, now).first();
-  const offline = await env.DB.prepare("SELECT payload FROM db_offline_runs WHERE ended>=? AND ended<=? AND expires>? ORDER BY ended DESC LIMIT 101").bind(from, now, now).all<{ payload: string }>();
-  return { offline: offline.results.slice(0, 100).map(row => JSON.parse(row.payload)), offlineTruncated: offline.results.length > 100, totals: totals.results, sources: sourceTotals.results, hours: hourly.results.slice(0, 1000), truncated: hourly.results.length > 1000, dropped: coverage?.dropped ?? 0, receivedBytes: coverage?.receivedBytes ?? 0, connections: coverage?.connections ?? 0, observedConnections: coverage?.observedConnections ?? 0, generatedAt: now };
+  const rollup = await readDbTrafficHours(env, now, hours);
+  const offline = await env.DB.prepare("SELECT payload FROM db_offline_runs WHERE ended>=? AND ended<=? AND expires>? ORDER BY ended DESC LIMIT 101").bind(rollup.start, now, now).all<{ payload: string }>();
+  return { ...rollup, offline: offline.results.slice(0, 100).map(row => JSON.parse(row.payload)), offlineTruncated: offline.results.length > 100, generatedAt: now };
 }
 
 export async function ingestOffline(request: Request, env: Env, now: number): Promise<Response> {
