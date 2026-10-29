@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { PUBLIC_STATS_TAG, publicSeasonTag, publicBetTag } from "@/lib/cache/tags";
+import { preserveBetPublicFillFailure } from "./public-stats-failure";
 import type { UnifiedBoardScope } from "./board-read";
 import { readBetPublicStatsSnapshot, projectBetPublicStats, type BetPublicStatsScope } from "./public-stats-read";
 
@@ -23,6 +24,8 @@ async function cachedStats(seasonId: string, slug: string, scope: BetPublicStats
   },{accessMode:"read only",isolationLevel:"repeatable read"});
   return await (snapshot?projectBetPublicStats(snapshot):undefined);
   });
+  } catch (error) {
+    preserveBetPublicFillFailure(error);
   } finally {done();}
 }
 

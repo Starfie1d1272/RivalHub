@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, eq, inArray } from "drizzle-orm";
 
 import type { DB, TxDb } from "@/db/client";
+import type { SelectedFields } from "drizzle-orm/pg-core";
 import {
   eventRosterMembers,
   matchRosterPlayers,
@@ -45,6 +46,15 @@ export async function loadEffectiveMatchRoster(
 export function effectiveMatchRosterQuery(
   database: MatchRosterExecutor, matchIds: readonly string[], includeSubstitutes = false,
 ) {
+  return rosterQuery(database, matchIds, includeSubstitutes, {});
+}
+
+/** Same effective-lineup rules with the avatar needed by the broadcast manifest. */
+export function effectiveMatchRosterWithAvatarQuery(database: MatchRosterExecutor, matchIds: readonly string[]) {
+  return rosterQuery(database, matchIds, true, { avatarUrl: steamProfiles.avatarUrl });
+}
+
+function rosterQuery<T extends SelectedFields>(database: MatchRosterExecutor, matchIds: readonly string[], includeSubstitutes: boolean, extra: T) {
   return database.select({
     matchId: matchRosters.matchId,
     entryId: matchRosters.entryId,
@@ -56,6 +66,7 @@ export function effectiveMatchRosterQuery(
     personaName: steamProfiles.personaName,
     perfectName: users.perfectName,
     isStarter: matchRosterPlayers.isStarter,
+    ...extra,
   }).from(matchRosterPlayers)
     .innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
     .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))

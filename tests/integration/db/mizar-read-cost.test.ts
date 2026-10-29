@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { setTimeout as delay } from "node:timers/promises";
 import type { Pool } from "pg";
@@ -18,7 +18,8 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn(), cach
 
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
-import { loadMizarScheduleWindow } from "@/lib/mizar/context";
+import { loadMizarMatchDocumentInTx, loadMizarScheduleWindow } from "@/lib/mizar/context";
+import { effectiveMatchRosterWithAvatarQuery } from "@/lib/match-rosters/effective";
 import { assertInstallationInTx, authenticateMizar, authorizeMizarPairing, hashCredential, pollMizarPairing, startMizarPairing } from "@/lib/mizar/installation";
 import { GET, POST } from "@/app/api/mizar/[operation]/route";
 import { seedFixture, withExtraMizarScheduleMatches, NOW } from "./harness/mizar";
@@ -127,7 +128,7 @@ it("bounds schedule reads and rejects matches above the limit", async () => {
   });
 });
 
-it("keeps HTTP match 200/304 within nine SELECTs, personalized schedule within five, and fresh revocation across requests", async () => {
+it("keeps HTTP match 200/304 within nine cold and eight warm SELECTs, personalized schedule within five, and fresh revocation across requests", async () => {
   const f = await authenticatedFixture();
   const matchUrl = `http://localhost/api/mizar/match?matchId=${f.matchId}`;
   const context = (operation: string) => ({ params: Promise.resolve({ operation }) });
@@ -149,7 +150,7 @@ it("keeps HTTP match 200/304 within nine SELECTs, personalized schedule within f
   expect(await unchanged.text()).toBe("");
   const notModifiedSelects = selectCount();
   expect(notModifiedSelects).toBeGreaterThan(1);
-  expect(notModifiedSelects).toBeLessThanOrEqual(9);
+  expect(notModifiedSelects).toBe(8);
 
   const scheduleSelects = await withExtraMizarScheduleMatches(f, async add => {
     await add(24, null);
@@ -173,6 +174,74 @@ it("keeps HTTP match 200/304 within nine SELECTs, personalized schedule within f
   await expect(authenticateMizar(f.authorization, { allowRevoked: true })).resolves.toMatchObject({ id: f.installationId, revokedAt: NOW });
   expect((await POST(new Request("http://localhost/api/mizar/disconnect", { method: "POST", headers: { authorization: f.authorization } }), context("disconnect"))).status).toBe(200);
   console.info("MIZAR_HTTP_READ_COST", JSON.stringify({ matchSelects, notModifiedSelects, scheduleSelects }));
+});
+
+it("reuses the roster only while its complete snapshot matches and reads scores freshly", async () => {
+  const f = await authenticatedFixture();
+  const url = `http://localhost/api/mizar/match?matchId=${f.matchId}`;
+  const request = () => GET(new Request(url, { headers: { authorization: f.authorization } }), { params: Promise.resolve({ operation: "match" }) });
+  const read = async () => {
+    observation.queries = [];
+    const response = await request();
+    expect(response.status).toBe(200);
+    const selects = selectCount();
+    const document = await response.json();
+    const fresh = await db.transaction(tx => loadMizarMatchDocumentInTx(tx, f.matchId, f.seasonId), { isolationLevel: "repeatable read", accessMode: "read only" });
+    expect(document).toEqual(fresh);
+    return { document, selects };
+  };
+  const first = await read();
+  expect(first.selects).toBe(9);
+  expect((await read()).selects).toBe(8);
+  await db.update(schema.users).set({ displayName: "changed player" }).where(eq(schema.users.id, f.fixtureUserIds[0]!));
+  const renamed = await read();
+  expect(renamed.selects).toBe(9);
+  expect(renamed.document.revision).not.toBe(first.document.revision);
+  await db.insert(schema.steamProfiles).values({ steam64: f.steam64[0]!, personaName: "player", profileUrl: "https://example.test/profile", avatarUrl: "https://example.test/avatar" });
+  const avatar = await read();
+  expect(avatar.selects).toBe(9);
+  expect(avatar.document.revision).not.toBe(renamed.document.revision);
+  const [member] = await db.select({ id: schema.eventRosterMembers.id }).from(schema.eventRosterMembers).where(eq(schema.eventRosterMembers.userId, f.fixtureUserIds[0]!));
+  await db.update(schema.matchRosterPlayers).set({ isStarter: false }).where(eq(schema.matchRosterPlayers.eventRosterMemberId, member!.id));
+  const lineup = await read();
+  expect(lineup.selects).toBe(9);
+  expect(lineup.document.revision).not.toBe(avatar.document.revision);
+  await db.update(schema.users).set({ steam64: null }).where(eq(schema.users.id, f.fixtureUserIds[0]!));
+  const unlinked = await read();
+  expect(unlinked.selects).toBe(9);
+  expect(unlinked.document.revision).not.toBe(lineup.document.revision);
+  await db.delete(schema.matchRosterPlayers).where(eq(schema.matchRosterPlayers.eventRosterMemberId, member!.id));
+  const removed = await read();
+  expect(removed.selects).toBe(9);
+  expect(removed.document.revision).not.toBe(unlinked.document.revision);
+  await db.update(schema.matchMaps).set({ scoreA: 13, scoreB: 9 }).where(eq(schema.matchMaps.id, f.mapOneId));
+  const score = await read();
+  expect(score.selects).toBe(8);
+  expect(score.document.maps[0].scoreA).toBe(13);
+  expect(score.document.revision).not.toBe(removed.document.revision);
+});
+
+it("reduces PostgreSQL response bytes for a warm roster against the full projection", async () => {
+  const f = await seedFixture();
+  const pool = createLocalPool({ max: 1 });
+  const client = await pool.connect();
+  const measured = drizzle(client, { schema });
+  const stream = (client as unknown as { connection: { stream: NodeJS.ReadableStream } }).connection.stream;
+  let bytes = 0;
+  const count = (chunk: Uint8Array) => { bytes += chunk.byteLength; };
+  stream.on("data", count);
+  try {
+    const query = effectiveMatchRosterWithAvatarQuery(measured, [f.matchId]);
+    const rows = await query;
+    const fullBytes = bytes;
+    bytes = 0;
+    const hash = await measured.execute<{ fingerprint: string }>(sql`select encode(sha256(convert_to(coalesce(json_agg(row_to_json(r) order by row_to_json(r)::text)::text, '[]'), 'UTF8')), 'hex') as fingerprint from (${query}) r`);
+    const hashBytes = bytes;
+    expect(rows).toHaveLength(10);
+    expect(hash.rows[0]!.fingerprint).toHaveLength(64);
+    expect(hashBytes).toBeLessThan(fullBytes);
+    console.info("MIZAR_ROSTER_RESPONSE_BYTES", JSON.stringify({ players: rows.length, fullBytes, hashBytes }));
+  } finally { stream.removeListener("data", count); client.release(); await pool.end(); }
 });
 
 it("binds pairing and personalized schedule to the actual authorizer, keeps same-name people distinct and invalidates changed identity/assignments", async () => {

@@ -8,6 +8,7 @@ import { fixture } from "./harness/bet-fixture";
 import { readUnifiedBetSnapshot, projectUnifiedBetBoard, completeUnifiedBetSnapshot } from "@/lib/bet/board-read";
 import { readBetPublicStats, type BetPublicStats } from "@/lib/bet/public-stats-read";
 import { readBetBoardStages } from "@/lib/bet/board-stages";
+import { preserveBetPublicFillFailure } from "@/lib/bet/public-stats-failure";
 import { submitFreePredictionInTx } from "@/lib/free-predictions/service";
 
 const cache = vi.hoisted(()=>({read:vi.fn()}));
@@ -108,6 +109,22 @@ it("overlaps isolated public/private reads, preserves all six views and falls ba
     expect(modes).toEqual(["deferred",undefined]);
     expect(projectUnifiedBetBoard(recovered.board)).toEqual(projectUnifiedBetBoard((await read(undefined)).board));
     expect(projectUnifiedBetBoard(recovered.board).free.matches[0]!.result.support.total).toBe(0);
+    // Transport failure discards the deferred private snapshot; DB failures still propagate.
+    cache.read.mockRejectedValueOnce(Object.assign(new Error("cache disconnected"),{code:"ECONNRESET"}));
+    const failureModes:unknown[]=[];
+    const fallback=await readBetBoardStages(season,{view:"open"},async mode=>{failureModes.push(mode);return read(mode);});
+    expect(failureModes).toEqual(["deferred",undefined]);
+    expect(projectUnifiedBetBoard(fallback.board)).toEqual(projectUnifiedBetBoard((await read(undefined)).board));
+    cache.read.mockRejectedValueOnce(Object.assign(new Error("cache disconnected"),{code:"ECONNRESET"}));
+    const dbError=new Error("private database failure");
+    await expect(readBetBoardStages(season,{view:"open"},async()=>{throw dbError;})).rejects.toBe(dbError);
+    cache.read.mockRejectedValueOnce(Object.assign(new Error("cache disconnected"),{code:"ECONNRESET"}));
+    await expect(readBetBoardStages(season,{view:"open"},async mode=>{if (mode === undefined) throw dbError; return read(mode);})).rejects.toBe(dbError);
+    let fillError:unknown; try { preserveBetPublicFillFailure(Object.assign(new Error("database disconnected"),{code:"ECONNRESET"})); } catch (error) { fillError=error; }
+    cache.read.mockRejectedValueOnce(fillError);
+    await expect(readBetBoardStages(season,{view:"open"},read)).rejects.toBe(fillError);
+    cache.read.mockRejectedValueOnce(new Error("unexpected cache bug"));
+    await expect(readBetBoardStages(season,{view:"open"},read)).rejects.toThrow("unexpected cache bug");
     // Authorized drafts retain their uncached complete snapshot path.
     cache.read.mockClear();
     const draftModes:unknown[]=[];
