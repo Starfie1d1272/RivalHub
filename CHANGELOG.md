@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.24.15]
+
+### Changed
+
+- 减少竞猜公共支持度填充的数据库读取，同时保持投票身份归并和主题校验；缓存连接故障时回退到新鲜快照。
+- 减少阵容比较历史统计的重复读取，并保留全局资格门槛。
+- 减少制播详情重复读取阵容和头像时的数据库出站流量，并保持身份及比赛事实更新及时可见。
+
+局部 PostgreSQL 测试中，公共支持度填充的协议接收量为 7,118 → 2,274 字节；十人阵容完整投影与摘要分别为 2,822 和 142 字节；阵容比较冷构建为 20,139 → 18,986 字节。这些是特定测试数据的局部测量，并非整页流量或供应商计费；生产收益和每日额度仍待观察。
+
 ## [2.24.14]
 
 ### Changed
@@ -3683,3 +3693,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.24.13]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.12...v2.24.13
 
 [2.24.14]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.13...v2.24.14
+
+[2.24.15]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.14...v2.24.15
