@@ -9,8 +9,12 @@ type Connection = { attachListeners?: (stream: Stream) => unknown; on: (event: s
 type PgClient = PoolClient & { _activeQuery?: Query | null; _queryQueue?: Query[]; _sentQueryQueue?: Query[]; pipeline?: boolean; connection?: Connection };
 type Hooks = { enabled: () => boolean; raw: (bytes: number) => void; attribute: (owner: Owner | "no_owner" | "async" | "partial" | "instrumentation", bytes: number) => void };
 type Observer = { ignored: number; pending: number; prepaid: number; owner: Owner | "no_owner" | null; hooks?: Hooks; valid: boolean; attached: boolean };
-const observers = new WeakMap<object, Observer>();
-const owners = new WeakMap<object, Owner>();
+// Next can load the pool and sampler in different server module graphs. Both
+// must settle the same observers and resolve the same Query identities.
+type Registry = { observers: WeakMap<object, Observer>; owners: WeakMap<object, Owner> };
+const registrySlot = Symbol.for("rivalhub.pg-traffic-adapter.v1");
+const host = process as unknown as Record<symbol, Registry | undefined>;
+const { observers, owners } = host[registrySlot] ??= { observers: new WeakMap(), owners: new WeakMap() };
 const asyncMessages = new Set(["notice", "notification", "parameterStatus"]);
 
 /** Install before pg attaches its parser, including on the final decrypted TLS stream. */

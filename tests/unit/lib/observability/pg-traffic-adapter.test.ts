@@ -64,3 +64,22 @@ it("keeps bytes for partial settlement on instrumentation errors and stops attri
   expect(raw).toBe(13);
   expect(classified).toEqual([["partial", 13]]);
 });
+
+it("shares observer and Query ownership across separately loaded module graphs", async () => {
+  vi.resetModules();
+  const first = await import("@/lib/observability/pg-traffic-adapter");
+  vi.resetModules();
+  const second = await import("@/lib/observability/pg-traffic-adapter");
+  const stream = new EventEmitter();
+  const connection = Object.assign(new EventEmitter(), { attachListeners: vi.fn() });
+  const client = Object.assign(new EventEmitter(), { connection, _activeQuery: null as object | null, _queryQueue: [], _sentQueryQueue: [] });
+  const pg = client as unknown as PoolClient;
+  first.preparePgTraffic(pg); connection.attachListeners(stream);
+  const classified: Array<[unknown, number]> = [];
+  expect(second.observePgTraffic(pg, { enabled: () => true, raw: () => {}, attribute: (owner, n) => { classified.push([owner, n]); } })).toBe(true);
+  const before = first.capturePgQuery(pg); client._activeQuery = {};
+  second.bindPgQuery(pg, before, { source: "mizar", template: "q0000000000000000" });
+  stream.emit("data", Buffer.alloc(10)); connection.emit("message", { name: "commandComplete", length: 9 });
+  expect(classified).toEqual([[{ source: "mizar", template: "q0000000000000000" }, 10]]);
+  vi.resetModules();
+});
