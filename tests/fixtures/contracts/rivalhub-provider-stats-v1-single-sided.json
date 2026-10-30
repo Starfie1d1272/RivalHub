@@ -44,9 +44,9 @@
         "maps": [
           {
             "mapName": "de_dust2",
-            "played": 2,
+            "played": 1,
             "wins": 1,
-            "winRate": 0.5
+            "winRate": 1
           }
         ]
       },
@@ -74,10 +74,10 @@
           {
             "userId": "00000000-0000-4000-8001-000000000001",
             "sample": {
-              "maps": 3,
-              "rounds": 60,
-              "ratingMaps": 3,
-              "adrRounds": 60
+              "maps": 1,
+              "rounds": 21,
+              "ratingMaps": 1,
+              "adrRounds": 21
             },
             "rating": 1.12,
             "adr": 75.5,
@@ -86,7 +86,7 @@
               "benchmark": "rivalhub-all-time-qualified",
               "scope": "competition",
               "sample": {
-                "rounds": 60
+                "rounds": 21
               },
               "values": [
                 {
@@ -131,10 +131,10 @@
           {
             "userId": "00000000-0000-4000-8001-000000000002",
             "sample": {
-              "maps": 3,
-              "rounds": 60,
-              "ratingMaps": 3,
-              "adrRounds": 60
+              "maps": 1,
+              "rounds": 21,
+              "ratingMaps": 1,
+              "adrRounds": 21
             },
             "rating": 1.12,
             "adr": 75.5,
@@ -143,7 +143,7 @@
               "benchmark": "rivalhub-all-time-qualified",
               "scope": "competition",
               "sample": {
-                "rounds": 60
+                "rounds": 21
               },
               "values": [
                 {
@@ -188,10 +188,10 @@
           {
             "userId": "00000000-0000-4000-8001-000000000003",
             "sample": {
-              "maps": 3,
-              "rounds": 60,
-              "ratingMaps": 3,
-              "adrRounds": 60
+              "maps": 1,
+              "rounds": 21,
+              "ratingMaps": 1,
+              "adrRounds": 21
             },
             "rating": 1.12,
             "adr": 75.5,
@@ -200,7 +200,7 @@
               "benchmark": "rivalhub-all-time-qualified",
               "scope": "competition",
               "sample": {
-                "rounds": 60
+                "rounds": 21
               },
               "values": [
                 {
@@ -245,10 +245,10 @@
           {
             "userId": "00000000-0000-4000-8001-000000000004",
             "sample": {
-              "maps": 3,
-              "rounds": 60,
-              "ratingMaps": 3,
-              "adrRounds": 60
+              "maps": 1,
+              "rounds": 21,
+              "ratingMaps": 1,
+              "adrRounds": 21
             },
             "rating": 1.12,
             "adr": 75.5,
@@ -257,7 +257,7 @@
               "benchmark": "rivalhub-all-time-qualified",
               "scope": "competition",
               "sample": {
-                "rounds": 60
+                "rounds": 21
               },
               "values": [
                 {
@@ -302,10 +302,10 @@
           {
             "userId": "00000000-0000-4000-8001-000000000005",
             "sample": {
-              "maps": 3,
-              "rounds": 60,
-              "ratingMaps": 3,
-              "adrRounds": 60
+              "maps": 1,
+              "rounds": 21,
+              "ratingMaps": 1,
+              "adrRounds": 21
             },
             "rating": 1.12,
             "adr": 75.5,
@@ -314,7 +314,7 @@
               "benchmark": "rivalhub-all-time-qualified",
               "scope": "competition",
               "sample": {
-                "rounds": 60
+                "rounds": 21
               },
               "values": [
                 {
@@ -361,8 +361,8 @@
       "pistol": {
         "scope": "competition",
         "coverage": {
-          "completedMaps": 3,
-          "detailedMaps": 3
+          "completedMaps": 1,
+          "detailedMaps": 1
         },
         "available": true,
         "pistol": {
@@ -384,8 +384,8 @@
       "economy": {
         "scope": "competition",
         "coverage": {
-          "completedMaps": 3,
-          "detailedMaps": 3
+          "completedMaps": 1,
+          "detailedMaps": 1
         },
         "available": true,
         "ecoSemiUpset": {
@@ -397,43 +397,43 @@
       "utility": {
         "scope": "competition",
         "coverage": {
-          "completedMaps": 3,
-          "detailedMaps": 3
+          "completedMaps": 1,
+          "detailedMaps": 1
         },
         "available": true,
         "utilityDamagePerRound": {
           "successes": 60,
-          "attempts": 60,
-          "rate": 1
+          "attempts": 21,
+          "rate": 2.857142857142857
         },
         "flashAssistsPerRound": {
-          "successes": 60,
-          "attempts": 60,
-          "rate": 1
+          "successes": 3,
+          "attempts": 21,
+          "rate": 0.14285714285714285
         },
         "enemyBlindSecondsPerFlash": {
-          "successes": 60,
-          "attempts": 60,
-          "rate": 1
+          "successes": 20,
+          "attempts": 10,
+          "rate": 2.0
         },
         "enemyBlindSecondsPerRound": {
-          "successes": 60,
-          "attempts": 60,
-          "rate": 1
+          "successes": 20,
+          "attempts": 21,
+          "rate": 0.9523809523809523
         }
       },
       "facts": {
         "source": "competition-canonical",
         "coverage": {
-          "completedMaps": 2,
+          "completedMaps": 1,
           "detailedMaps": 1
         },
         "results": {
           "matches": 1,
           "matchWins": 1,
           "matchLosses": 0,
-          "maps": 2,
-          "mapWins": 2,
+          "maps": 1,
+          "mapWins": 1,
           "mapLosses": 0
         },
         "maps": [
@@ -445,18 +445,18 @@
               "losses": 0
             },
             "rounds": {
-              "wins": 6,
-              "rounds": 10,
-              "rate": 0.6,
+              "wins": 13,
+              "rounds": 21,
+              "rate": 0.6190476190476191,
               "ct": {
-                "wins": 6,
-                "opportunities": 10,
-                "rate": 0.6
+                "wins": 7,
+                "opportunities": 12,
+                "rate": 0.5833333333333334
               },
               "t": {
                 "wins": 6,
-                "opportunities": 10,
-                "rate": 0.6
+                "opportunities": 9,
+                "rate": 0.6666666666666666
               }
             },
             "selection": {
@@ -465,7 +465,7 @@
               "deciders": 0
             },
             "coverage": {
-              "completedMaps": 2,
+              "completedMaps": 1,
               "detailedMaps": 1
             }
           }
@@ -484,7 +484,7 @@
                 "name": "Example 2",
                 "logoUrl": null
               },
-              "score": 2,
+              "score": 1,
               "opponentScore": 0,
               "maps": [
                 {
@@ -498,22 +498,22 @@
           ]
         },
         "teamRating": {
-          "rating": 1.2,
-          "ratingSamples": 2
+          "rating": 1.12,
+          "ratingSamples": 5
         },
         "rounds": {
-          "wins": 6,
-          "rounds": 10,
-          "rate": 0.6,
+          "wins": 13,
+          "rounds": 21,
+          "rate": 0.6190476190476191,
           "ct": {
-            "wins": 6,
-            "opportunities": 10,
-            "rate": 0.6
+            "wins": 7,
+            "opportunities": 12,
+            "rate": 0.5833333333333334
           },
           "t": {
             "wins": 6,
-            "opportunities": 10,
-            "rate": 0.6
+            "opportunities": 9,
+            "rate": 0.6666666666666666
           }
         },
         "manAdvantage": {
@@ -541,72 +541,72 @@
         "opening": {
           "successRate": {
             "successes": 3,
-            "attempts": 10,
-            "rate": 0.3
+            "attempts": 6,
+            "rate": 0.5
           },
           "winAfterOpening": {
-            "successes": 3,
-            "attempts": 10,
-            "rate": 0.3
+            "successes": 2,
+            "attempts": 3,
+            "rate": 0.6666666666666666
           },
           "tradeKillsPerRound": {
             "successes": 3,
-            "attempts": 10,
-            "rate": 0.3
+            "attempts": 21,
+            "rate": 0.14285714285714285
           },
-          "tradedOpeningDeaths": 3,
-          "firstDeaths": 10,
+          "tradedOpeningDeaths": 1,
+          "firstDeaths": 3,
           "openingDeathTraded": {
-            "successes": 3,
-            "attempts": 10,
-            "rate": 0.3
+            "successes": 1,
+            "attempts": 3,
+            "rate": 0.3333333333333333
           },
           "comebackRate": {
-            "successes": 3,
-            "attempts": 10,
-            "rate": 0.3
+            "successes": 1,
+            "attempts": 3,
+            "rate": 0.3333333333333333
           }
         },
         "utility": {
           "sample": {
-            "rounds": 10
+            "rounds": 21
           },
           "flashesThrown": 10,
           "utilityDamagePerRound": {
-            "successes": 3,
-            "attempts": 10,
-            "rate": 0.3
+            "successes": 60,
+            "attempts": 21,
+            "rate": 2.857142857142857
           },
           "flashAssistsPerRound": {
             "successes": 3,
-            "attempts": 10,
-            "rate": 0.3
+            "attempts": 21,
+            "rate": 0.14285714285714285
           },
           "utilityKillsPerRound": {
-            "successes": 3,
-            "attempts": 10,
-            "rate": 0.3
+            "successes": 1,
+            "attempts": 21,
+            "rate": 0.047619047619047616
           },
           "enemyBlindSecondsPerFlash": {
-            "successes": 3,
+            "successes": 20,
             "attempts": 10,
-            "rate": 0.3
+            "rate": 2.0
           },
           "enemyBlindSecondsPerRound": {
-            "successes": 3,
-            "attempts": 10,
-            "rate": 0.3
+            "successes": 20,
+            "attempts": 21,
+            "rate": 0.9523809523809523
           },
           "teamBlindSecondsPerRound": {
-            "successes": 3,
-            "attempts": 10,
-            "rate": 0.3
+            "successes": 2,
+            "attempts": 21,
+            "rate": 0.09523809523809523
           }
         },
         "plantConversions": {
           "successes": 3,
-          "attempts": 10,
-          "rate": 0.3
+          "attempts": 5,
+          "rate": 0.6
         },
         "weapons": [
           {
@@ -614,92 +614,412 @@
             "kills": 3,
             "killShare": {
               "successes": 3,
-              "attempts": 10,
-              "rate": 0.3
+              "attempts": 15,
+              "rate": 0.2
             },
             "killsPerRound": {
               "successes": 3,
-              "attempts": 10,
-              "rate": 0.3
+              "attempts": 21,
+              "rate": 0.14285714285714285
             }
           }
         ],
         "players": [
           {
             "userId": "00000000-0000-4000-8001-000000000001",
-            "maps": 2,
-            "ratingMaps": 2,
-            "rounds": 10,
-            "adrRounds": 10,
-            "rating": 1.2,
-            "adr": 80,
-            "kd": 1.1,
+            "maps": 1,
+            "ratingMaps": 1,
+            "rounds": 21,
+            "adrRounds": 21,
+            "rating": 1.12,
+            "adr": 75.5,
+            "kd": 1.0,
             "detailed": {
               "sample": {
-                "rounds": 10
+                "rounds": 21
               },
               "kast": {
-                "successes": 3,
-                "attempts": 10,
-                "rate": 0.3
+                "successes": 15,
+                "attempts": 21,
+                "rate": 0.7142857142857143
               },
               "killsPerRound": {
                 "successes": 3,
-                "attempts": 10,
-                "rate": 0.3
+                "attempts": 21,
+                "rate": 0.14285714285714285
               },
               "headshotRate": {
-                "successes": 3,
-                "attempts": 10,
-                "rate": 0.3
+                "successes": 1,
+                "attempts": 3,
+                "rate": 0.3333333333333333
               },
-              "twoKillRounds": 2,
-              "threeKillRounds": 1,
+              "twoKillRounds": 1,
+              "threeKillRounds": 0,
               "fourKillRounds": 0,
               "fiveKillRounds": 0,
               "openingSuccess": {
-                "successes": 3,
-                "attempts": 10,
-                "rate": 0.3
+                "successes": 1,
+                "attempts": 2,
+                "rate": 0.5
               },
               "tradeKillsPerRound": {
-                "successes": 3,
-                "attempts": 10,
-                "rate": 0.3
+                "successes": 1,
+                "attempts": 21,
+                "rate": 0.047619047619047616
               },
               "clutch": {
-                "attempts": 10,
-                "wins": 3,
+                "attempts": 1,
+                "wins": 1,
                 "winRate": {
-                  "successes": 3,
-                  "attempts": 10,
-                  "rate": 0.3
+                  "successes": 1,
+                  "attempts": 1,
+                  "rate": 1.0
                 },
                 "byOpponentCount": {
                   "1": {
-                    "successes": 3,
-                    "attempts": 10,
-                    "rate": 0.3
+                    "successes": 1,
+                    "attempts": 1,
+                    "rate": 1.0
                   },
                   "2": {
-                    "successes": 3,
-                    "attempts": 10,
-                    "rate": 0.3
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
                   },
                   "3": {
-                    "successes": 3,
-                    "attempts": 10,
-                    "rate": 0.3
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
                   },
                   "4": {
-                    "successes": 3,
-                    "attempts": 10,
-                    "rate": 0.3
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
                   },
                   "5": {
-                    "successes": 3,
-                    "attempts": 10,
-                    "rate": 0.3
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000002",
+            "maps": 1,
+            "ratingMaps": 1,
+            "rounds": 21,
+            "adrRounds": 21,
+            "rating": 1.12,
+            "adr": 75.5,
+            "kd": 1.0,
+            "detailed": {
+              "sample": {
+                "rounds": 21
+              },
+              "kast": {
+                "successes": 15,
+                "attempts": 21,
+                "rate": 0.7142857142857143
+              },
+              "killsPerRound": {
+                "successes": 3,
+                "attempts": 21,
+                "rate": 0.14285714285714285
+              },
+              "headshotRate": {
+                "successes": 1,
+                "attempts": 3,
+                "rate": 0.3333333333333333
+              },
+              "twoKillRounds": 1,
+              "threeKillRounds": 0,
+              "fourKillRounds": 0,
+              "fiveKillRounds": 0,
+              "openingSuccess": {
+                "successes": 1,
+                "attempts": 2,
+                "rate": 0.5
+              },
+              "tradeKillsPerRound": {
+                "successes": 1,
+                "attempts": 21,
+                "rate": 0.047619047619047616
+              },
+              "clutch": {
+                "attempts": 1,
+                "wins": 1,
+                "winRate": {
+                  "successes": 1,
+                  "attempts": 1,
+                  "rate": 1.0
+                },
+                "byOpponentCount": {
+                  "1": {
+                    "successes": 1,
+                    "attempts": 1,
+                    "rate": 1.0
+                  },
+                  "2": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "3": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "4": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "5": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000003",
+            "maps": 1,
+            "ratingMaps": 1,
+            "rounds": 21,
+            "adrRounds": 21,
+            "rating": 1.12,
+            "adr": 75.5,
+            "kd": 1.0,
+            "detailed": {
+              "sample": {
+                "rounds": 21
+              },
+              "kast": {
+                "successes": 15,
+                "attempts": 21,
+                "rate": 0.7142857142857143
+              },
+              "killsPerRound": {
+                "successes": 3,
+                "attempts": 21,
+                "rate": 0.14285714285714285
+              },
+              "headshotRate": {
+                "successes": 1,
+                "attempts": 3,
+                "rate": 0.3333333333333333
+              },
+              "twoKillRounds": 1,
+              "threeKillRounds": 0,
+              "fourKillRounds": 0,
+              "fiveKillRounds": 0,
+              "openingSuccess": {
+                "successes": 1,
+                "attempts": 2,
+                "rate": 0.5
+              },
+              "tradeKillsPerRound": {
+                "successes": 1,
+                "attempts": 21,
+                "rate": 0.047619047619047616
+              },
+              "clutch": {
+                "attempts": 1,
+                "wins": 1,
+                "winRate": {
+                  "successes": 1,
+                  "attempts": 1,
+                  "rate": 1.0
+                },
+                "byOpponentCount": {
+                  "1": {
+                    "successes": 1,
+                    "attempts": 1,
+                    "rate": 1.0
+                  },
+                  "2": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "3": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "4": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "5": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000004",
+            "maps": 1,
+            "ratingMaps": 1,
+            "rounds": 21,
+            "adrRounds": 21,
+            "rating": 1.12,
+            "adr": 75.5,
+            "kd": 1.0,
+            "detailed": {
+              "sample": {
+                "rounds": 21
+              },
+              "kast": {
+                "successes": 15,
+                "attempts": 21,
+                "rate": 0.7142857142857143
+              },
+              "killsPerRound": {
+                "successes": 3,
+                "attempts": 21,
+                "rate": 0.14285714285714285
+              },
+              "headshotRate": {
+                "successes": 1,
+                "attempts": 3,
+                "rate": 0.3333333333333333
+              },
+              "twoKillRounds": 1,
+              "threeKillRounds": 0,
+              "fourKillRounds": 0,
+              "fiveKillRounds": 0,
+              "openingSuccess": {
+                "successes": 1,
+                "attempts": 2,
+                "rate": 0.5
+              },
+              "tradeKillsPerRound": {
+                "successes": 1,
+                "attempts": 21,
+                "rate": 0.047619047619047616
+              },
+              "clutch": {
+                "attempts": 1,
+                "wins": 1,
+                "winRate": {
+                  "successes": 1,
+                  "attempts": 1,
+                  "rate": 1.0
+                },
+                "byOpponentCount": {
+                  "1": {
+                    "successes": 1,
+                    "attempts": 1,
+                    "rate": 1.0
+                  },
+                  "2": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "3": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "4": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "5": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  }
+                }
+              }
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000005",
+            "maps": 1,
+            "ratingMaps": 1,
+            "rounds": 21,
+            "adrRounds": 21,
+            "rating": 1.12,
+            "adr": 75.5,
+            "kd": 1.0,
+            "detailed": {
+              "sample": {
+                "rounds": 21
+              },
+              "kast": {
+                "successes": 15,
+                "attempts": 21,
+                "rate": 0.7142857142857143
+              },
+              "killsPerRound": {
+                "successes": 3,
+                "attempts": 21,
+                "rate": 0.14285714285714285
+              },
+              "headshotRate": {
+                "successes": 1,
+                "attempts": 3,
+                "rate": 0.3333333333333333
+              },
+              "twoKillRounds": 1,
+              "threeKillRounds": 0,
+              "fourKillRounds": 0,
+              "fiveKillRounds": 0,
+              "openingSuccess": {
+                "successes": 1,
+                "attempts": 2,
+                "rate": 0.5
+              },
+              "tradeKillsPerRound": {
+                "successes": 1,
+                "attempts": 21,
+                "rate": 0.047619047619047616
+              },
+              "clutch": {
+                "attempts": 1,
+                "wins": 1,
+                "winRate": {
+                  "successes": 1,
+                  "attempts": 1,
+                  "rate": 1.0
+                },
+                "byOpponentCount": {
+                  "1": {
+                    "successes": 1,
+                    "attempts": 1,
+                    "rate": 1.0
+                  },
+                  "2": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "3": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "4": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "5": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
                   }
                 }
               }
