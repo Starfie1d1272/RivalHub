@@ -35,3 +35,21 @@ it("distinguishes an empty current Worker from one without scoped data", async (
   render(await DatabaseTraffic({ hours: 24, sort: "bytes", selection: {} }));
   expect(screen.getByText("当前 Worker 未提供按版本拆分的来源排行。")).toBeInTheDocument();
 });
+
+it("filters retained shapes before limiting, reports overflow and preserves the selected scope in every sort", async () => {
+  const metric = (source: string, template: string, rxBytes: number) => ({ source, template, queries: 2, failures: 1, rows: 1, queryMs: 1, logicalRowJsonBytes: 1, logicalMeasuredQueries: 1, rxBytes, skipReasons: { budget: 0, unsupported_value: 0, error: 0 }, rxComplete: true, logicalComplete: true, skipReasonsComplete: true });
+  const shapes = [...Array.from({ length: 21 }, (_, i) => metric("dak", `q${i}`, 10)), metric("dak", "overflow", 20), metric("mizar", "other", 500)];
+  const selected = { hour: 3600000, release: "v2", deployment: "unknown", batches: 1, processes: 1, queries: 46, rows: 1, receivedBytes: 780, dropped: 0, connections: 1, observedConnections: 1, remainingRxBytes: 0, remaining: { async: 0, no_owner: 0, partial: 0, unsupported: 0, instrumentation: 0 }, rxComplete: true, logicalComplete: true, skipReasonsComplete: true, scopedComplete: true, sources: [{ ...metric("dak", "", 280), overflow: 2, unsupported: 0 }, { ...metric("mizar", "", 500), overflow: 0, unsupported: 0 }], shapes, truncated: true };
+  const earlier = { ...selected, hour: 0, release: "v1", shapes: [metric("mizar", "old", 3)] };
+  read.mockResolvedValue({ status: "ready", data: { start: 0, generatedAt: 7200000, receivedBytes: 783, pending: 0, dropped: 0, offline: [], offlineTruncated: false, windows: [earlier, selected] } });
+  render(await DatabaseTraffic({ hours: 24, sort: "bytes", selection: { hour: "3600000", release: "v2", deployment: "unknown", source: "dak" } }));
+  expect(screen.getByText(/App release v2 · deployment unknown/)).toBeInTheDocument();
+  expect(screen.getByText("dak · q20")).toBeInTheDocument();
+  expect(screen.queryByText("mizar · other")).not.toBeInTheDocument();
+  expect(screen.getByText(/保留形态 230 字节（其中保留的 overflow 20）；来源总量与保留形态的差额 50 字节。overflow 查询 2 次/)).toBeInTheDocument();
+  expect(screen.getByText(/280 协议字节 · 2 次 · 失败 1 · overflow 2 次/)).toBeInTheDocument();
+  for (const [label, order] of [["协议字节", "bytes"], ["次数", "queries"], ["耗时", "time"], ["行数", "rows"]]) {
+    const url = new URL(screen.getByRole("link", { name: `按${label}` }).getAttribute("href")!, "https://example.test");
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({ hour: "3600000", release: "v2", deployment: "unknown", sort: order, source: "dak" });
+  }
+});

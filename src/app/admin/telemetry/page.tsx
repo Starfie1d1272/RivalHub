@@ -18,7 +18,7 @@ export default async function TelemetryPage({
   const params = await searchParams;
   if (params.view === "database") {
     const { DatabaseTraffic } = await import("@/components/telemetry/DatabaseTraffic");
-    return <DatabaseTraffic hours={params.hours === "24" ? 24 : 72} sort={params.sort === "time" || params.sort === "rows" || params.sort === "queries" ? params.sort : "bytes"} selection={{ hour: typeof params.hour === "string" ? params.hour : undefined, release: typeof params.release === "string" ? params.release : undefined, deployment: typeof params.deployment === "string" ? params.deployment : undefined }} />;
+    return <DatabaseTraffic hours={params.hours === "24" ? 24 : 72} sort={params.sort === "time" || params.sort === "rows" || params.sort === "queries" ? params.sort : "bytes"} selection={{ hour: typeof params.hour === "string" ? params.hour : undefined, release: typeof params.release === "string" ? params.release : undefined, deployment: typeof params.deployment === "string" ? params.deployment : undefined, source: typeof params.source === "string" ? params.source : undefined }} />;
   }
   const query = parseUIAnalysisQuery(
     Object.fromEntries(

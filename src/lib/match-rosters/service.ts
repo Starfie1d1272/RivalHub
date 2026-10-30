@@ -1,3 +1,4 @@
+import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { and, eq, inArray } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 
@@ -235,116 +236,117 @@ async function loadTeamLineupContextInTx(
   match: Match,
   entryId: string,
 ): Promise<TeamLineupContext> {
-  const canonicalEntry = await tx
-    .select({ id: competitionEntries.id })
-    .from(competitionEntries)
-    .where(and(eq(competitionEntries.competitionId, match.seasonId), eq(competitionEntries.id, entryId)));
-  if (canonicalEntry.length === 0 || (match.entryAId !== entryId && match.entryBId !== entryId)) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "参赛队伍不属于本场比赛的赛季。");
-  }
-
-  let rules: readonly InstitutionAffiliationRule[] = [];
-  let frozenRosterUserIds: ReadonlySet<string> | null = null;
-  let verificationsByUser: Map<string, LineupMemberFact["verification"]> | null = null;
-  let competitiveProfile: CompetitiveProfileConfig | null = null;
-  let frozenCompetitiveFactsByUser: Map<string, PlayerStrengthInput> | null = null;
-  let frozenRosterRevisionId: string | null = null;
-  let externalStrengthGapEnabled = false;
-  let frozenRestrictionOverrides: readonly FrozenRestrictionOverrideSnapshot[] = [];
-  const [season] = await tx
-    .select({ starterCount: seasons.starterCount, competitionTemplate: seasons.competitionTemplate })
-    .from(seasons)
-    .where(eq(seasons.id, match.seasonId));
-  if (!season) throw new AppError(ErrorCode.INTERNAL_ERROR, "比赛所属赛季不存在。");
-  let policy: MatchLineupPolicy;
-  if (match.ownership !== "major_stage") {
-    policy = resolveMatchLineupPolicy({ ownership: match.ownership, seasonStarterCount: season.starterCount });
-  } else {
-    // Assigned below after the canonical StageRun snapshot has been loaded.
-    policy = { starterCount: 0, maxSubstitutes: 0 };
-  }
-
-  if (match.ownership === "major_stage") {
-    if (!match.majorStageRunId) {
-      throw new AppError(ErrorCode.INTERNAL_ERROR, "托管比赛缺少对应的 StageRun。");
+  return withDbTrafficSource("match.lineup.read", async () => {
+    const canonicalEntry = await tx
+      .select({ id: competitionEntries.id })
+      .from(competitionEntries)
+      .where(and(eq(competitionEntries.competitionId, match.seasonId), eq(competitionEntries.id, entryId)));
+    if (canonicalEntry.length === 0 || (match.entryAId !== entryId && match.entryBId !== entryId)) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "参赛队伍不属于本场比赛的赛季。");
     }
-    const [stageRun] = await tx
-      .select({ ruleSnapshot: majorStageRuns.ruleSnapshot, stageKey: majorStageRuns.stageKey })
-      .from(majorStageRuns)
-      .where(eq(majorStageRuns.id, match.majorStageRunId));
-    if (!stageRun) {
-      throw new AppError(ErrorCode.INTERNAL_ERROR, "托管比赛缺少对应的 StageRun。");
-    }
-    // Parse once before every frozen consumer; never use mutable season rules.
-    const frozenSnapshot = parseMajorRunSnapshot(stageRun.ruleSnapshot, stageRun.stageKey);
-    externalStrengthGapEnabled = frozenSnapshot.qualificationPolicy?.externalStrengthGap?.enabled === true;
-    frozenRestrictionOverrides = frozenSnapshot.frozenRestrictionOverrides ?? [];
-    policy = resolveMatchLineupPolicy({
-      ownership: match.ownership,
-      seasonStarterCount: season.starterCount,
-      majorStageRun: stageRun,
-    });
-    // Frozen at StageRun creation; never read from mutable season configuration.
-    rules = frozenStageRunAffiliationRules(stageRun.ruleSnapshot);
-    const configuredCompetitiveProfile = frozenCompetitiveProfile(stageRun.ruleSnapshot);
-    // The StageRun policy is the runtime authority.  Keep the profile's
-    // platform/rank facts, but consume the threshold that was frozen with
-    // this run instead of a mutable or merely duplicated profile value.
-    competitiveProfile = configuredCompetitiveProfile && frozenSnapshot.qualificationPolicy?.externalStrengthGap
-      ? {
-          ...configuredCompetitiveProfile,
-          externalStrengthMaxStarGap: frozenSnapshot.qualificationPolicy.externalStrengthGap.maxGap,
-        }
-      : configuredCompetitiveProfile;
-    frozenCompetitiveFactsByUser = competitiveProfile ? frozenCompetitiveFacts(stageRun.ruleSnapshot) : null;
-    const frozen = await loadEventRosterUserIdsInTx(tx, match.seasonId, entryId, ["frozen"]);
-    frozenRosterUserIds = frozen.ids;
-    verificationsByUser = frozen.verificationsByUser;
-    frozenRosterRevisionId = frozen.rosterRevisionId;
-    if (externalStrengthGapEnabled && !competitiveProfile) {
-      throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 启用了外校星差规则但缺少冻结竞技档案。 ");
-    }
-  }
 
-  if (match.qualificationRunId || (match.testConfig && season.competitionTemplate === "major")) {
-    const coherent = await assertSinglePrestartEntryCoherenceInTx(tx, match.seasonId, { competitionEntryId: entryId });
-    if (coherent.eventRoster.status !== "confirmed" && coherent.eventRoster.status !== "frozen") {
-      throw new AppError(ErrorCode.INTERNAL_ERROR, "Play-in 队伍缺少已确认的赛事名单，无法校验本场阵容。");
+    let rules: readonly InstitutionAffiliationRule[] = [];
+    let frozenRosterUserIds: ReadonlySet<string> | null = null;
+    let verificationsByUser: Map<string, LineupMemberFact["verification"]> | null = null;
+    let competitiveProfile: CompetitiveProfileConfig | null = null;
+    let frozenCompetitiveFactsByUser: Map<string, PlayerStrengthInput> | null = null;
+    let frozenRosterRevisionId: string | null = null;
+    let externalStrengthGapEnabled = false;
+    let frozenRestrictionOverrides: readonly FrozenRestrictionOverrideSnapshot[] = [];
+    const [season] = await tx
+      .select({ starterCount: seasons.starterCount, competitionTemplate: seasons.competitionTemplate })
+      .from(seasons)
+      .where(eq(seasons.id, match.seasonId));
+    if (!season) throw new AppError(ErrorCode.INTERNAL_ERROR, "比赛所属赛季不存在。");
+    let policy: MatchLineupPolicy;
+    if (match.ownership !== "major_stage") {
+      policy = resolveMatchLineupPolicy({ ownership: match.ownership, seasonStarterCount: season.starterCount });
+    } else {
+      // Assigned below after the canonical StageRun snapshot has been loaded.
+      policy = { starterCount: 0, maxSubstitutes: 0 };
     }
-    const roster = await loadEventRosterUserIdsInTx(tx, match.seasonId, entryId, ["confirmed", "frozen"]);
-    frozenRosterUserIds = roster.ids;
-    verificationsByUser = roster.verificationsByUser;
-    frozenRosterRevisionId = roster.rosterRevisionId;
-    const run = match.qualificationRunId ? (await tx.select().from(competitionQualificationRuns).where(and(eq(competitionQualificationRuns.id, match.qualificationRunId), eq(competitionQualificationRuns.seasonId, match.seasonId))))[0] : null;
-    const snapshot = match.testConfig ? match.testConfig.eligibility?.[entryId === match.entryAId ? "a" : "b"] : coherent.eventRoster.eligibilitySnapshot;
-    if (!snapshot || snapshot.version !== 1 || snapshot.entryId !== entryId || snapshot.rosterRevisionId !== roster.rosterRevisionId ||
-        (match.qualificationRunId && (!run?.eligibilityPolicy || JSON.stringify(snapshot.policy) !== JSON.stringify(run.eligibilityPolicy)))) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, match.testConfig ? "测试赛资格快照与当前名单不一致，请按最新名单重新创建测试赛。" : "Play-in 资格快照缺失或名单版本已变化，请先同步已批准名单。");
+
+    if (match.ownership === "major_stage") {
+      if (!match.majorStageRunId) {
+        throw new AppError(ErrorCode.INTERNAL_ERROR, "托管比赛缺少对应的 StageRun。");
+      }
+      const [stageRun] = await tx
+        .select({ ruleSnapshot: majorStageRuns.ruleSnapshot, stageKey: majorStageRuns.stageKey })
+        .from(majorStageRuns)
+        .where(eq(majorStageRuns.id, match.majorStageRunId));
+      if (!stageRun) {
+        throw new AppError(ErrorCode.INTERNAL_ERROR, "托管比赛缺少对应的 StageRun。");
+      }
+      // Parse once before every frozen consumer; never use mutable season rules.
+      const frozenSnapshot = parseMajorRunSnapshot(stageRun.ruleSnapshot, stageRun.stageKey);
+      externalStrengthGapEnabled = frozenSnapshot.qualificationPolicy?.externalStrengthGap?.enabled === true;
+      frozenRestrictionOverrides = frozenSnapshot.frozenRestrictionOverrides ?? [];
+      policy = resolveMatchLineupPolicy({
+        ownership: match.ownership,
+        seasonStarterCount: season.starterCount,
+        majorStageRun: stageRun,
+      });
+      // Frozen at StageRun creation; never read from mutable season configuration.
+      rules = frozenStageRunAffiliationRules(stageRun.ruleSnapshot);
+      const configuredCompetitiveProfile = frozenCompetitiveProfile(stageRun.ruleSnapshot);
+      // The StageRun policy is the runtime authority.  Keep the profile's
+      // platform/rank facts, but consume the threshold that was frozen with
+      // this run instead of a mutable or merely duplicated profile value.
+      competitiveProfile = configuredCompetitiveProfile && frozenSnapshot.qualificationPolicy?.externalStrengthGap
+        ? {
+            ...configuredCompetitiveProfile,
+            externalStrengthMaxStarGap: frozenSnapshot.qualificationPolicy.externalStrengthGap.maxGap,
+          }
+        : configuredCompetitiveProfile;
+      frozenCompetitiveFactsByUser = competitiveProfile ? frozenCompetitiveFacts(stageRun.ruleSnapshot) : null;
+      const frozen = await loadEventRosterUserIdsInTx(tx, match.seasonId, entryId, ["frozen"]);
+      frozenRosterUserIds = frozen.ids;
+      verificationsByUser = frozen.verificationsByUser;
+      frozenRosterRevisionId = frozen.rosterRevisionId;
+      if (externalStrengthGapEnabled && !competitiveProfile) {
+        throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 启用了外校星差规则但缺少冻结竞技档案。 ");
+      }
     }
-    rules = snapshot.policy.affiliationRules;
-    competitiveProfile = snapshot.policy.competitiveProfile;
-    externalStrengthGapEnabled = snapshot.policy.externalStrengthGapEnabled;
-    frozenCompetitiveFactsByUser = new Map(snapshot.competitiveFacts.map(fact => [fact.userId, fact]));
-    frozenRestrictionOverrides = snapshot.restrictionOverrides;
-    policy = { starterCount: snapshot.policy.starterCount, maxSubstitutes: snapshot.policy.maxSubstitutes };
-  }
 
-  const acceptedRosterStatuses = match.qualificationRunId || match.testConfig ? ["confirmed", "frozen"] as const : ["frozen"] as const;
-  const memberRows = await tx
-    .select({ id: eventRosterMembers.id, userId: eventRosterMembers.userId })
-    .from(eventRosterMembers)
-    .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
-    .where(and(
-      eq(eventRosters.entryId, entryId),
-      inArray(eventRosters.status, acceptedRosterStatuses),
-      eq(eventRosterMembers.isCurrent, true),
-    ));
+    if (match.qualificationRunId || (match.testConfig && season.competitionTemplate === "major")) {
+      const coherent = await assertSinglePrestartEntryCoherenceInTx(tx, match.seasonId, { competitionEntryId: entryId });
+      if (coherent.eventRoster.status !== "confirmed" && coherent.eventRoster.status !== "frozen") {
+        throw new AppError(ErrorCode.INTERNAL_ERROR, "Play-in 队伍缺少已确认的赛事名单，无法校验本场阵容。");
+      }
+      const roster = await loadEventRosterUserIdsInTx(tx, match.seasonId, entryId, ["confirmed", "frozen"]);
+      frozenRosterUserIds = roster.ids;
+      verificationsByUser = roster.verificationsByUser;
+      frozenRosterRevisionId = roster.rosterRevisionId;
+      const run = match.qualificationRunId ? (await tx.select().from(competitionQualificationRuns).where(and(eq(competitionQualificationRuns.id, match.qualificationRunId), eq(competitionQualificationRuns.seasonId, match.seasonId))))[0] : null;
+      const snapshot = match.testConfig ? match.testConfig.eligibility?.[entryId === match.entryAId ? "a" : "b"] : coherent.eventRoster.eligibilitySnapshot;
+      if (!snapshot || snapshot.version !== 1 || snapshot.entryId !== entryId || snapshot.rosterRevisionId !== roster.rosterRevisionId ||
+          (match.qualificationRunId && (!run?.eligibilityPolicy || JSON.stringify(snapshot.policy) !== JSON.stringify(run.eligibilityPolicy)))) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, match.testConfig ? "测试赛资格快照与当前名单不一致，请按最新名单重新创建测试赛。" : "Play-in 资格快照缺失或名单版本已变化，请先同步已批准名单。");
+      }
+      rules = snapshot.policy.affiliationRules;
+      competitiveProfile = snapshot.policy.competitiveProfile;
+      externalStrengthGapEnabled = snapshot.policy.externalStrengthGapEnabled;
+      frozenCompetitiveFactsByUser = new Map(snapshot.competitiveFacts.map(fact => [fact.userId, fact]));
+      frozenRestrictionOverrides = snapshot.restrictionOverrides;
+      policy = { starterCount: snapshot.policy.starterCount, maxSubstitutes: snapshot.policy.maxSubstitutes };
+    }
 
-  // H1: active match-participation sanctions apply to every ownership mode.
-  const participationBans = await loadActiveSanctionsInTx(tx, {
-    seasonId: match.seasonId,
-    effect: "match_participation_block",
-    subjectUserIds: memberRows.map((row) => row.userId),
+    const acceptedRosterStatuses = match.qualificationRunId || match.testConfig ? ["confirmed", "frozen"] as const : ["frozen"] as const;
+    const memberRows = await tx
+      .select({ id: eventRosterMembers.id, userId: eventRosterMembers.userId })
+      .from(eventRosterMembers)
+      .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
+      .where(and(
+        eq(eventRosters.entryId, entryId),
+        inArray(eventRosters.status, acceptedRosterStatuses),
+        eq(eventRosterMembers.isCurrent, true),
+      ));
+
+    // H1: active match-participation sanctions apply to every ownership mode.
+    const participationBans = await loadActiveSanctionsInTx(tx, {
+      seasonId: match.seasonId,
+      effect: "match_participation_block",
+      subjectUserIds: memberRows.map((row) => row.userId),
   });
 
   const memberFacts = new Map<string, LineupMemberFact>();
@@ -359,6 +361,7 @@ async function loadTeamLineupContextInTx(
   }
 
   return { rules, frozenRosterUserIds, memberFacts, competitiveProfile, frozenCompetitiveFacts: frozenCompetitiveFactsByUser, frozenRosterRevisionId, externalStrengthGapEnabled, frozenRestrictionOverrides, policy };
+  });
 }
 
 export async function assertStartingLineupAllowedInTx(
