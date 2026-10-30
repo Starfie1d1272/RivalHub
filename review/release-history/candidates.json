@@ -885,246 +885,246 @@
     "id": 336168602,
     "tag_name": "v1.30.1",
     "original_body_sha256": "bcda8eebb203ac61a1e5fcbb53166dca5a19689598555946af785496f0b41a43",
-    "candidate_body": "\n### Fixed\n\n- 排行榜和个人页面因 OCR+Demo 双录导致的 maps 数双倍计数，过滤 `source=manual_ocr`\n- 队伍页面选手 maps 数双倍计数（同图 OCR+Demo 双录），补充 `source=manual_ocr` 过滤，与排行榜/个人页对齐\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Fixed\n\n- 修复排行榜、个人页和队伍页因 OCR 与 Demo 双录导致的地图数重复统计。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 331142638,
     "tag_name": "v1.26.1",
     "original_body_sha256": "1b4a9a0aa43ecd078e64f16650ca3cc6f65bce3930e5274f0ea82dc846047eb4",
-    "candidate_body": "\n### Added\n\n- **HLTV Rating 2.0 计算模块**：新建 `lib/demo/hltv-rating.ts`，基于社区逆向公式（R²≈0.995）从 demo 指标实时计算 rating，导入时自动回填 `ratingPro` 字段\n- **AdminMatchRow 反向入口**：已完成图旁加「导入 Demo →」跳转链接，与独立 demos 管理页双向导航\n\n### Fixed\n\n- **契约 E 通路**：主榜（`stats/page.tsx`）和六维图（`hexagon.ts`）查询改为按 `active_stat_source` 区分数据来源，防止同一张图 OCR/demo 行双重计入；历史纯 OCR 图自动 fallback 不受影响\n- **demo-import 回填补全**：backfill 到 `matchPlayerStats` 补充 `verifiedByAdmin` 和 `ratingPro`（HLTV 2.0 补算）；`onConflictDoUpdate` 同步更新；清理 13 处冗余 `JSON.parse(JSON.stringify(...))`\n- **revalidatePath 路径修复**：修复导入后刷新路径 `/admin/matches/${matchId}` 不存在，改为正确的 `/admin/${slug}/demos` 和 `/${slug}/matches/${matchId}`\n- **真实回合数分母**：`season-demo-stats` FKPR 由硬编码 `maps × 24` 改为 JOIN `demo_rounds` 统计真实回合数；`player-demo-stats` 同步修复 `mapRounds` 假分母（`PlayerStatRow` 加 `rounds?` 字段，向后兼容）\n- **multiKills 口径统一**：`to-match-player-stats` 补入 `twoKillCount`，统一为 2K 及以上（2+3+4+5）\n- **team-demo-stats 多处错误**：补 `\"use server\"`；成员查询改用 Drizzle ORM；eco 查询修复列名 `di.active_stat_source` → `mm.active_stat_source`；经济转化率按 teamId 过滤并区分主客队；整体包裹 `ok()/fail()`\n- **六维图权重重归一化**：无 demo 数据时 demo-only 子指标权重自动重分配到同维度 OCR 指标；demo 维度 mean/std 仅从有 demo 数据的选手计算；30 场纯 OCR 比赛分数与修复前完全一致\n- **demos 页「已导入」badge**：修复 `inArray(demoImports.mapId, matchIds)` 错误用 matchId 查 mapId，改用正确的 mapId 集合\n- **UI 色彩合规**：13 个 demo/队伍组件硬编码 Tailwind 调色板全换 CSS 变量；`EconomyConversionPanel` 移除多余 `\"use client\"` 并补空态；`PlayerUtilityStats` 空态改为提示文字；`HighlightLeaderboard` emoji 加 `aria-hidden`\n- **player-demo-stats 清理**：删除 `mapCount` 死代码\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n现存 `v1.26.1` 标签指向 1.30.1 的提交；本条比较链接使用当时的 1.26.1 版本提交。\n\n### Added\n\n- Demo 导入时使用基于社区逆向公式的 HLTV Rating 2.0 估算，并回填 Rating Pro；后台比赛行增加 Demo 导入入口。\n\n### Fixed\n\n- 修复 OCR 与 Demo 双来源重复计入，保留历史纯 OCR 数据；导入后正确回填认证状态与评分并刷新相关页面。\n- 首杀率改用真实回合数，多杀统计计入 2K；修复队伍经济转化率的队伍归属和统计读取。\n- 无 Demo 数据时重新分配六维评分权重；修复 Demo 管理页已导入状态和空数据提示。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 336169300,
     "tag_name": "v1.30.0",
     "original_body_sha256": "90e1f924cf95b1e90559fa87a1cf069f4b781b8e4cc67f156a0114361b9f7b7e",
-    "candidate_body": "\n> **1.x 收官版本**：移除 Demo 导入相关全部功能，回归无-demo 形态（整体基于 `v1.25.6`）。Demo 体系转入 2.0.0 开发线（`release/2.0.0` 分支）继续。生产数据库中 demo 相关表（`stat_source` / `demo_import_tables` / `active_stat_source`）保留空置、不删除。\n\n### Removed\n- **Demo 导入与解析**：移除 demo 导出包导入、批量 ZIP 导入、demo 明细数据写入与重算\n- **Demo 数据面板高级模块**：击杀热力图、武器使用细分、经济转化图、Entry 逐回合、残局列表、击杀 feed、回合时间线\n- **评分体系 demo 维度**：RR / PRISM 八维能力雷达、队伍风格画像、T-CT 半场胜率、选手 Demo 进阶卡片\n- **外部依赖**：`@cs2dak/core`、`@rivalhub/rival-rating`、`cs2-demo-format`、`jszip`\n\n### Fixed\n- **整场汇总排序**：比赛「整场汇总」选手列表改为按 Rating 降序、空值排末尾（此前靠上游 SQL 顺序兜底，是 v1.25.6 即存在的潜伏 bug）\n- **逐图录入完赛后赛季未自动结束**：`recordMapResult` 在系列赛打完时补调 `maybeFinishSeason`，与 `recordMatchResult` 对齐（修复赛季卡在 `playing` 的根因）\n\n### Changed\n- **发版流程引入 changeset**：版本号与 CHANGELOG 改由 `@changesets/cli` 管理，`release.yml` 兼容 `## [ver]` 与 `## ver` 两种标题。详见 `.claude/skills/release.md`\n- 比赛页保留 `error.tsx` / `loading.tsx` 错误与加载边界（v1.25.6 之后引入的独立健壮性改进）\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n> **1.x 收官版本**：移除 Demo 导入相关全部功能，回归无-demo 形态（整体基于 `v1.25.6`）。Demo 体系转入 2.0.0 开发线（`release/2.0.0` 分支）继续。生产数据库中 demo 相关表（`stat_source` / `demo_import_tables` / `active_stat_source`）保留空置、不删除。\n\n### Removed\n\n- **Demo 导入与解析**：移除 demo 导出包导入、批量 ZIP 导入、demo 明细数据写入与重算\n- **Demo 数据面板高级模块**：击杀热力图、武器使用细分、经济转化图、Entry 逐回合、残局列表、击杀 feed、回合时间线\n- **评分体系 demo 维度**：RR / PRISM 八维能力雷达、队伍风格画像、T-CT 半场胜率、选手 Demo 进阶卡片\n- **外部依赖**：`@cs2dak/core`、`@rivalhub/rival-rating`、`cs2-demo-format`、`jszip`\n\n### Fixed\n\n- **整场汇总排序**：比赛「整场汇总」选手列表改为按 Rating 降序、空值排末尾（此前靠上游 SQL 顺序兜底，是 v1.25.6 即存在的潜伏 bug）\n- **逐图录入完赛后赛季未自动结束**：`recordMapResult` 在系列赛打完时补调 `maybeFinishSeason`，与 `recordMatchResult` 对齐（修复赛季卡在 `playing` 的根因）\n\n### Changed\n\n- 比赛页保留 `error.tsx` / `loading.tsx` 错误与加载边界（v1.25.6 之后引入的独立健壮性改进）\n",
+    "status": "changed-review-required"
   },
   {
     "id": 331973800,
     "tag_name": "v1.29.0",
     "original_body_sha256": "00cc14a0cc5088696d2643a33de9a9e3caa3a046f8ff4406d48e8a2c29279bb0",
     "candidate_body": "\n### Changed\n- **评分与 demo 解析模块迁移至外部包**：删除本地 `src/lib/rating/{rr,prism,types,weights}` 与 `src/lib/demo/{parse-package,schemas}`，评分实现改从 `@rivalhub/rival-rating` 导入、demo 解析改从 `cs2-demo-format` 导入，核心仓库不再维护这部分实现，权重/解析逻辑更新走对应外部仓库打 tag → `pnpm update` 流程\n- **默认权重 JSON 直引**：`@rivalhub/rival-rating` 增加 `weights/*` 到 exports map，`src/lib/rating/index.ts` 直接 import `rr-v1.json` / `prism-v1.json`，规避上游 ESM `with { type: \"json\" }` 兼容问题\n\n### Added\n- **校准数据导出脚本**：`scripts/calibration/export-indicators.ts` 读取 demo ZIP 解析并导出 RRIndicators（player-map / player-season / parse-report），供 rival-rating 做数据 QA 与权重校准\n\n### Fixed\n- **排行榜多列排序失效**：Advanced / Demo 视图下多列排序未生效\n- **经济类型 `\"full\"` 漏计**：`recomputeSeasonRatings` 未将 `\"full\"` 归入 fullBuyRounds，导致 RR 重算 fullBuy 统计偏低\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 331906031,
     "tag_name": "v1.28.2",
     "original_body_sha256": "1af77136544a29c6dbf55f45ab9fd6ed1a06911549fddf87989aea8f342cfe2c",
     "candidate_body": "\n### Added\n- **接入 @rivalhub/rival-rating 外部仓库**：评分计算逻辑（RR 标量 + PRISM 八维画像）独立为 `github:Starfie1d1272/rival-rating`，`src/lib/rating/index.ts` 统一入口，权重更新无需改动 RivalHub 核心代码\n- **MatchRadarSection 双 Tab 组件**：赛前能力雷达支持 PRISM 八维 / 六维 Tab 切换，不再互斥回退\n\n### Fixed\n- **RR 重算数据分裂**：多 steamId64 指向同一 userId 时，`recomputeSeasonRatings` 按 steamId64 分组导致数据被拆成多份各自评分，修复为按 userId 合并所有 steam 数据后统一计算\n- **选手页 500 错误**：`getOcrAveragesBySeason` 查询 `SELECT seasons.id` 但未 JOIN `seasons` 表，Drizzle 报 `seasons is not part of the query`，改为 `matches.seasonId`\n- **赛前能力雷达修复**：六维数据源从 starters 改为全队成员，修复无 roster 时只显示一队；八维/六维条件互斥改为双 Tab\n- **排行榜 Rating Pro 排序乱序**：ORDER BY `avg(rating_pro)` 对 demo 源为 NULL 导致排序失效，改为 `COALESCE(avg(...), min(ocr.avg_rating_ocr))` 与 SELECT 对齐\n- **Demo 导入 NaN 全链路修复**：JSON.parse 前清洗 NaN/Infinity、vec3 Zod schema 允许 null 坐标、DB 兜底\n- **force 导入模式 DELETE ANY(array) 语法错误**：`= ANY(ARRAY[...])` → `sql.join` 避免 Postgres malformed array literal\n- **min(uuid) → min(uuid::text)**：Postgres 不支持 UUID 类型的 min() 聚合\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 331893149,
     "tag_name": "v1.28.1",
     "original_body_sha256": "8b89602d0424f60e1ef0dd29b042a19b859078168491a99a191c76e10b906d0f",
     "candidate_body": "\n### Fixed\n- **Stats 页 500 错误**：`getSeasonDemoStats`/`getSeasonWeaponStats`/`getSeasonHighlightStats` SQL GROUP BY `dps.user_id` 不匹配导致 Postgres 报错\n- **赛程详情页 Server Component 渲染错误**：`buildPrismScores` 从 `\"use client\"` 模块导出被 Server Component 调用，提取到 `lib/stats/prism.ts` 修复\n- **Demo 批量导入**：新增覆盖已有导入选项（`force` 参数），支持重新导入已存在的数据\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 331890676,
     "tag_name": "v1.28.0",
     "original_body_sha256": "bc59655d941c13fbffe536058046f07fea042c03935a7f268203dfb24eb8aaa8",
-    "candidate_body": "\n### Added\n- **比赛页赛前情报**：赛季风格对比 + 双队同图能力雷达（八维 PRISM / 六维回退）\n- **队伍页赛季风格分析**：T/CT 半场胜率 + 风格画像 + 经济转化率\n- **队伍能力图升级**：`TeamRadarPanel` Tab 切换六维 / PRISM 八维\n- **选手页 Demo 进阶卡片**：`PlayerDemoCard`（KAST/ADR/Entry/残局 + 武器 + 多杀 + 高光）\n- **Stats 武器榜重设计**：拆为 AWP 狙击榜 + 武器使用画像\n- **共享工具函数**：`buildPrismScores` / `averagePrismScores`（match/team/player 复用）\n\n### Changed\n- **全量颜色规范化**：硬编码 `rgba()` → `color-mix()`，23 文件\n- **OCR 回退去重**：`ocrFallbackCte` / `getOcrAveragesBySeason` 三页面共用\n- **经济标签统一**：`economyLabelCn` + `ECONOMY_TYPES` 公开导出\n- **武器名去重**：`weaponFullName` 导出，消除 3 处内联映射\n- **经济图例重构**：SVG → HTML（完整 5 种类型 + 半区说明）\n- **Entry 面板重构**：全员排行 + 选手下钻逐回合明细\n- **热力图守卫**：全零坐标时显示空态而非误导红圈\n\n### Fixed\n- **队伍 Rating Pro = 0.0**：demo 源 NULL 时 COALESCE OCR 源回填\n- **赛前首杀/残局为空**：Drizzle enum 类型转换改用 raw SQL\n- **M4A1 武器名**：`m4a1_silencer` 映射修正为 \"M4A1-S\"\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- **比赛页赛前情报**：赛季风格对比 + 双队同图能力雷达（八维 PRISM / 六维回退）\n- **队伍页赛季风格分析**：T/CT 半场胜率 + 风格画像 + 经济转化率\n- **队伍能力图升级**：`TeamRadarPanel` Tab 切换六维 / PRISM 八维\n- **选手页 Demo 进阶卡片**：`PlayerDemoCard`（KAST/ADR/Entry/残局 + 武器 + 多杀 + 高光）\n- **Stats 武器榜重设计**：拆为 AWP 狙击榜 + 武器使用画像\n\n### Changed\n\n- **经济图例重构**：SVG → HTML（完整 5 种类型 + 半区说明）\n- **Entry 面板重构**：全员排行 + 选手下钻逐回合明细\n- **热力图守卫**：全零坐标时显示空态而非误导红圈\n\n### Fixed\n\n- **队伍 Rating Pro = 0.0**：demo 源 NULL 时 COALESCE OCR 源回填\n- **赛前首杀/残局为空**：Drizzle enum 类型转换改用 raw SQL\n- **M4A1 武器名**：`m4a1_silencer` 映射修正为 \"M4A1-S\"\n",
+    "status": "changed-review-required"
   },
   {
     "id": 331871270,
     "tag_name": "v1.27.8",
     "original_body_sha256": "5440ee6e91f123aa626435c6144035b75c7776c9047d0f4da1314b0b875b7e06",
     "candidate_body": "\n### Fixed\n- **Stats 页 500 错误**：`demo_player_stats` 查询中 `COALESCE(dps.user_id, dp.name)` 类型不匹配（uuid vs text），4 处 GROUP BY 全部加 `::text` 显式 cast 修复\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 331806882,
     "tag_name": "v1.27.7",
     "original_body_sha256": "ca8a2eaa7e2b1ec018a277084060a4d7c0979b025945b614611de84ae11e101b",
     "candidate_body": "\n### Added\n- **Demo 导入覆盖模式**：管理后台导入面板新增「覆盖导入」复选框，勾选后跳过哈希查重、先删旧记录再导入，方便 exporter 重新导出后重导\n- **经济分类最终版**：`full` 优先级提到首位（`equipment_value >= 4000`）、`eco` 追加 `equipment_value < 2000` 限制避免存活装备误判、`semi` 作为兜底\n\n### Fixed\n- **排行榜选手重复**：所有 GROUP BY 改为 `COALESCE(dps.user_id, dp.name)`，同名不同 steamId 选手绑定后正确合并\n- **武器榜链接 404**：选手链接从 `/${slug}/players/{id}` 修正为 `/players/{id}`\n- **武器别名缺漏**：补充 `m4a1_silencer` → `M4A1` 映射\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 331782974,
     "tag_name": "v1.27.6",
     "original_body_sha256": "ecfd1ebce6012b78afbeffb6c0ec955d3c4efcd1571b2ec754fb11161be17113",
-    "candidate_body": "\n### Fixed\n- **Stats 页 GROUP BY SQL 错误**：OCR fallback CTE 引用 `ocr.avg_rating_ocr` 未用聚合函数包裹，PostgreSQL 拒绝运行；改用 `min()` 包裹解决\n- **CI 测试失败**：PlayerStatsTable 测试 mock 补全 `statSourceEnum`、`matchMaps` 和 `db.query.matchMaps`\n\n### Added\n- **weapon-names 别名映射测试**：新增 `src/lib/demo/weapon-names.test.ts` 覆盖 13 个映射和 fallthrough 场景\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Fixed\n\n- **Stats 页 GROUP BY SQL 错误**：OCR fallback CTE 引用 `ocr.avg_rating_ocr` 未用聚合函数包裹，PostgreSQL 拒绝运行；改用 `min()` 包裹解决\n",
+    "status": "changed-review-required"
   },
   {
     "id": 331774495,
     "tag_name": "v1.27.5",
     "original_body_sha256": "38705c3cfc9ebfea741e001cc7dee05a1e5d1682cc8c587c968d99e664da4438",
-    "candidate_body": "\n### Added\n- **赛后详情页布局重构**：将 Demo 面板从地图 Tab 内抽取到 MVP 下方独立区域，自带地图切换 Tab，用户无需展开地图即可查看 Demo 数据\n- **多账号 Steam ID 别名绑定系统**：新增 `user_steam_aliases` 表，管理员可在 Demos 页面直接绑定未关联用户的 Steam ID 至注册选手，自动回填历史数据\n- **Demo 排行榜差分指标**：新增 Entry%（首杀胜率）和 AWP%（AWP 击杀占比）列；残局胜率改为 1v1% 更有实际意义\n- **赛季风格分析接入**：比赛详情页新增 TeamHalfSideStats（T/CT 半场胜率）和 TeamStyleProfile（首杀率/残局胜率）面板\n- **Stats 页 OCR fallback**：`ratingPro`/`rws`/`we` 通过 CTE + COALESCE 回退到 OCR 行，Demo 图不影响这些 OCR 专属字段\n- **经济类型回填系统**：通过 `demo_player_economies` 的 `start_money`/`money_spent`/`equipment_value` 自动计算每回合队伍经济类型（eco/semi/force/full）并回填 `demo_rounds`，新导入自动触发\n- **八维图英文标签**：PRISM 轴标签改为 Firepower/Opening/Entry/Trading/Clutch/Sniping/Utility/Survival\n- **武器别名映射**：AK47/M4A4/M4A1/SSG 08/FN57/CZ75/UMP45/野牛/SG553/XM1014 等常用简称\n- **PlayerEntryStats 汇总卡**：选手首杀页顶部新增首杀数/首死数/Entry% 三卡片摘要\n- **PlayerWeaponBreakdown 击杀条**：新增进度条可视化，直观显示武器击杀分布\n\n### Changed\n- **DemoPlayerStatsTable 上下排列**：A/B 队从左右并排改为上下布局，列数不受限\n- **隐藏 Demo 空列**：Utility(Plant/Defuse)、Entry/Trade(Trade K/D)、Highlight(Wallbang 等)全空时自动隐藏\n- **Demo 面板 UI 优化**：Kill Feed 卡片式 + 限高滚动、武器别名、PlayerEntryStats 汇总卡片\n\n### Fixed\n- **PRISM 狙击维度畸变**：无狙击信号选手直接置 0（非百分位排名）；全等值返回 50\n- **Stats 页默认排序**：`ratingPro`(全 null) → `RR`\n- **选手主页 RWS/WE/ratingPro 归零**：OCR 专属查询回填，Demo 图不影响\n- **KAST 数据翻倍(**×100)**：修复聚合层多余的乘法\n- **HS 爆头数→爆头率(%)**：语义更正\n- **选手列表双行**：PlayerStatsTable 补充 `source` 过滤\n- **Kill Feed 布局**：改为卡片+限高滚动\n- **toolkit 图标误用**：移除 🔧 emoji\n\n### Fixed\n- **批量导入 OCR 确认弹窗阻塞**：每张已有 OCR 数据的图导入前都会返回 OCR 确认提示，批量导入模式下 24 个文件因此静默失败；改为自动传入 `confirmOverwriteOcr: true`，跳过逐条确认弹窗（OCR 数据保留不删除，只是 `active_stat_source` 切到 demo）\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- **赛后详情页布局重构**：将 Demo 面板从地图 Tab 内抽取到 MVP 下方独立区域，自带地图切换 Tab，用户无需展开地图即可查看 Demo 数据\n- **多账号 Steam ID 别名绑定系统**：新增 `user_steam_aliases` 表，管理员可在 Demos 页面直接绑定未关联用户的 Steam ID 至注册选手，自动回填历史数据\n- **Demo 排行榜差分指标**：新增 Entry%（首杀胜率）和 AWP%（AWP 击杀占比）列；残局胜率改为 1v1% 更有实际意义\n- **赛季风格分析接入**：比赛详情页新增 TeamHalfSideStats（T/CT 半场胜率）和 TeamStyleProfile（首杀率/残局胜率）面板\n- **Stats 页 OCR fallback**：`ratingPro`/`rws`/`we` 通过 CTE + COALESCE 回退到 OCR 行，Demo 图不影响这些 OCR 专属字段\n- **经济类型回填系统**：通过 `demo_player_economies` 的 `start_money`/`money_spent`/`equipment_value` 自动计算每回合队伍经济类型（eco/semi/force/full）并回填 `demo_rounds`，新导入自动触发\n- **八维图英文标签**：PRISM 轴标签改为 Firepower/Opening/Entry/Trading/Clutch/Sniping/Utility/Survival\n- **武器别名映射**：AK47/M4A4/M4A1/SSG 08/FN57/CZ75/UMP45/野牛/SG553/XM1014 等常用简称\n- **PlayerEntryStats 汇总卡**：选手首杀页顶部新增首杀数/首死数/Entry% 三卡片摘要\n- **PlayerWeaponBreakdown 击杀条**：新增进度条可视化，直观显示武器击杀分布\n\n### Changed\n\n- **DemoPlayerStatsTable 上下排列**：A/B 队从左右并排改为上下布局，列数不受限\n- **隐藏 Demo 空列**：Utility(Plant/Defuse)、Entry/Trade(Trade K/D)、Highlight(Wallbang 等)全空时自动隐藏\n- **Demo 面板 UI 优化**：Kill Feed 卡片式 + 限高滚动、武器别名、PlayerEntryStats 汇总卡片\n\n### Fixed\n\n- **PRISM 狙击维度畸变**：无狙击信号选手直接置 0（非百分位排名）；全等值返回 50\n- **Stats 页默认排序**：`ratingPro`(全 null) → `RR`\n- **选手主页 RWS/WE/ratingPro 归零**：OCR 专属查询回填，Demo 图不影响\n- **KAST 数据翻倍**：修复聚合层多余的乘法\n- **HS 爆头数 → 爆头率(%)**：语义更正\n- **选手列表双行**：PlayerStatsTable 补充 `source` 过滤\n- **Kill Feed 布局**：改为卡片+限高滚动\n- **toolkit 图标误用**：移除 🔧 emoji\n",
+    "status": "changed-review-required"
   },
   {
     "id": 331692324,
     "tag_name": "v1.27.4",
     "original_body_sha256": "6e8297ce3542a01e045bb8b47499c8352389325b1a6c3ca38a1e2e530ed19a2d",
     "candidate_body": "\n### Fixed\n- **批量导入 OCR 确认弹窗阻塞**：每张已有 OCR 数据的图导入前都会返回 OCR 确认提示，批量导入模式下 24 个文件因此静默失败；改为自动传入 `confirmOverwriteOcr: true`，跳过逐条确认弹窗（OCR 数据保留不删除，只是 `active_stat_source` 切到 demo）\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 331683176,
     "tag_name": "v1.27.3",
     "original_body_sha256": "2af1c0a1cd0e9d9eb52f0a3867aed6718e38edaf8d3348194fe7aa7ad0ce5c94",
     "candidate_body": "\n### Fixed\n- **Demo 导入 schemaVersion 拒绝**：`manifestSchema` 改为同时接受 `\"rivalhub-demo-export/1\"` 和 `\"cs2-demo-format/1.0\"`，修复 43 个 demo ZIP 全部被 Zod 拒绝导致导入失败\n- **steamId 队伍匹配 SQL 列名**：`u.steam_id64` → `u.steam64`，修复 steamId 模糊匹配从未真正生效的问题\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 331679501,
     "tag_name": "v1.27.2",
     "original_body_sha256": "0655a3e65171e9055f369aea47aba7c6b32b8211b0aa03d476e19c48d63db61e",
     "candidate_body": "\n### Fixed\n- **Demo 批量导入 steamId 模糊匹配 fallback**：新增 `players.json` 选手 steamId64 → 队伍归属查询，作为日期、队名匹配都失败后的最终收窄手段；只要任一选手匹配候选比赛的某支队伍即保留，大幅减少需手动选择的情况\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 331667769,
     "tag_name": "v1.27.1",
     "original_body_sha256": "a9aad448e1ca0bf6bd179af175d4aeeb2531e6464d5637fbf58c4878492207ec",
     "candidate_body": "\n### Fixed\n- **Demo 批量导入队名读取路径**：`match.json` 中 `teamAName`/`teamBName` 为嵌套字段 `teamA.name` / `teamB.name`，修正读取路径；新增文件名日期提取（`rivalhub-{map}-{YYYY-MM-DD}.zip`）与 `completedAt` 日期匹配 fallback，解决所有 demo ZIP 均显示\"选择候选\"无法自动匹配的问题\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 331514040,
     "tag_name": "v1.27.0",
     "original_body_sha256": "b2058672bf853e93fefc8c9cde305a45c101dcab6f25e34e38456979a2fa7904",
     "candidate_body": "\n### Added\n- **RR/PRISM 评分系统（框架）**：引入 `rival-rating` 算法引擎，新增 `player_ratings` 表；`recomputeSeasonRatings` Server Action 读取全赛季 demo 数据、计算每名选手的 RR 绝对刻度标量与 PRISM 八维风格百分位，管理员在 Demo 页面一键重算\n- **Demo 批量导入**：管理后台新增\"批量导入\"折叠区域，支持一次选择多个 zip；客户端自动解析 manifest + match.json 提取地图/队名，服务端按 mapName + 队名模糊匹配到对应 matchMap，匹配结果表格支持手动修正，逐个顺序导入并实时显示进度\n- **全站 RR 门面评分体系**：排行榜 RR 列提升为首位（Core/Impact/Advanced 三视图通用）；选手目录/队伍卡片/队伍详情新增 RR 列；选手主页生涯总计 RR 加权计算；队伍详情综合统计以 RR 替换 WE 作为门面指标\n- **通用 N 轴 RadarChart 组件**：支持任意轴数，现有六维雷达图保持兼容；选手主页按赛季检测 PRISM 数据 → 有则渲染 PRISM 八维（火力/开局/首攻/补枪/残局/狙击/道具/生存），否则回退六维\n\n### Changed\n- **评分标签统一**：全站「完美 Rating」/「完美 RT」/孤立的「Rating」标签统一为 `Rating Pro`；OCR `matchPlayerStats.ratingPro` 均明确标注为第三方数据（非平台自有评分），不再与 RR 混淆\n- **全站数据来源过滤修复**：选手主页生涯查询、选手目录、队伍目录、队伍详情 4 处聚合查询补充 `source = COALESCE(active_stat_source, 'manual_ocr')` 过滤，消除同一地图 OCR/demo 双来源行同时计入导致的均值和地图数翻倍；队伍详情 `count(*)` → `count(distinct map_id)` 修复地图数双算\n- **比赛详情 OCR 汇总表**：表头列「Rating」→「Rating Pro」，与全站标签保持一致\n\n### Fixed\n- **Demo 解析 totalRounds 误差**：`playerStatsRowSchema` 补充 `rounds` 字段（exporter v2.1.2+），修复 fallback 用 kills+deaths 估算导致 per-round 指标偏低约 20%\n- **Demo 暖场数据污染**：`parseDemoPackage` 过滤 `roundNumber=0` 的击杀、投掷物等事件，防止暖场数据进入统计\n- **时间协商 Banner 显示错误 + 竞态**：修复\"比赛时间已自动设定\"提示使用 proposal 记录时间而非 match 实际时间导致的不一致；`autoAcceptExpiredProposals` 改为按 matchId 分组只处理最早提议，消除并行处理同场多条超时提议时的非确定性锁竞争\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 331147106,
     "tag_name": "v1.26.2",
     "original_body_sha256": "c03f97a10e1e6c675eb6b799e3f513af190a6298fb9bfced4c3c404abf4df621",
-    "candidate_body": "\n### Fixed\n- **Stats 页面 500 错误**：修复 `season-demo-stats.ts` 中 4 个函数对 `db.execute()` 返回结果未解构 `rows`，直接调用 `.map()` 报 `(intermediate value).map is not a function`\n- **Demo 导入页面 BO1 不显示**：移除 `isNotNull(matchMaps.scoreA)` 过滤，使排位赛阶段 BP 产出的无比分地图记录也能展示\n- **公开页面移除 OCR/Demo 导入**：从比赛详情页移除管理员可见的 OCR/Demo 导入面板，统一放在后台比赛管理行（AdminMatchRow 直接嵌入 DemoImportPanel）\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Fixed\n\n- **Stats 页面 500 错误**：修复 `season-demo-stats.ts` 中 4 个函数对 `db.execute()` 返回结果未解构 `rows`，直接调用 `.map()` 报 `(intermediate value).map is not a function`\n- **Demo 导入页面 BO1 不显示**：移除 `isNotNull(matchMaps.scoreA)` 过滤，使排位赛阶段 BP 产出的无比分地图记录也能展示\n### Changed\n\n- OCR 与 Demo 导入从公开比赛详情移至后台比赛管理。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 331134787,
     "tag_name": "v1.26.0",
     "original_body_sha256": "68576750e76eab4b522c5806b34681049eaf17ca8e45cc052ea810ffd0118ffb",
-    "candidate_body": "\n### Added\n- **集成测试覆盖**：新增 `tests/integration/db/demo-pipeline.test.ts`（12 tests），使用真实 example zip 驱动 parseDemoPackage→schema 验证→toMatchPlayerStat 转换→batchInsert 分片逻辑全管道验证\n\n### Fixed\n- **依赖安全升级**：next@15.5.15→15.5.18（修复 4 个高严重性 CVE，含 Middleware 绕过、DoS、缓存投毒、RSC 破坏）；drizzle-orm@0.43.1→0.45.2（修复 SQL 注入漏洞）\n- **CSS 变量补充**：新增 5 个缺失的 CSS 变量 — `bg-mid`/`bg-secondary`/`border-subtle`/`fg-muted`/`surface-raised`，修复暗色模式下 Demo 模块渲染异常\n- **a11y 键盘可访问性**：`DemoHeatmap` 模式切换按钮组添加 `role=radio`/`aria-checked`/`onKeyDown` 键盘支持\n- **DemoEconomyChart 渲染精度**：最后一个柱状图宽度改用等比例 `xScale` 间隔而非 `CHART_W / series.length`\n- **match 详情页错误边界**：新增 `loading.tsx`（骨架屏）和 `error.tsx`（重试按钮），修复慢网络/后端错误时空白页问题\n- **空 Demo 数据引导**：根据 `isSeasonAdmin` 显示差异提示（管理员→「请在上方导入 Demo」/ 普通用户→「可联系管理员导入」）\n- **契约 E 修复**：player-demo-stats 查询补充 `activeStatSource` 过滤条件\n- **getDemoDetail 错误处理**：改用已注册的错误码 `ErrorCode.INTERNAL_ERROR`，统一错误响应格式\n\n### Security\n- 依赖安全审计：漏洞总数 19→5（高严重性 8→0），5 个中等严重性均为间接依赖 uuid@9.0.1 通过 brackets-manager 引入，等待上游修复\n\n### Added\n- **Demo 导入体系**：完整的 demo 导入、校验、解包、数据回填流程（Zod schema + Server Action + ZIP 解包校验）\n- **Demo 明细数据查询**：14 张明细表 schema 定义 + 查询层，支持导入批次追踪\n- **Demo 数据展示面板**：\n  - `DemoPlayerStatsTable` — 选手 demo 数据汇总表\n  - `DemoRoundTimeline` — 回合时间线展示\n  - `DemoKillFeed` — 击杀 Feed 时间线\n  - `DemoEconomyChart` — 经济曲线（含经济类型背景色块）\n  - `DemoClutchList` — 残局复盘列表\n  - `PlayerKillHeatmap` — 击杀热力图（含地图坐标变换）\n  - `PlayerWeaponBreakdown` — 选手武器偏好与命中率\n  - `PlayerEntryStats` — 首杀倾向分析\n  - `PlayerClutchStats` — 残局能力统计\n  - `PlayerUtilityStats` — 道具效用统计\n  - `EconomyConversionPanel` — 经济转化率\n- **队伍 Demo 分析**：`TeamHalfSideStats`（T/CT 半场胜率）、`TeamStyleProfile`（队伍风格画像）\n- **赛季 Demo Leaderboard**：`WeaponLeaderboard` + `season-demo-stats` 聚合层\n- **MVP 系统**：系统推荐 MVP 纯函数、按赛季 rankMetric 排序、StatProfile 类型体系\n- **OCR 面板**：按赛季 inputFields 动态渲染列\n\n### Fixed\n- **Hive 分支合并修复**：`team-demo-stats` 列名修正（clutchWinCount→vsXxxWonCount）、Panel `title`→`label` 统一、`activeStatSource` 查询路径修复\n- **首次击杀率计算修复**：`firstKillRate` 分母从 `totalClutchPlayed` 改为 `totalFirstKills + totalFirstDeaths`\n- **WeaponKillRow 重复声明合并**：`season-demo-stats.ts` 同名 interface 修复\n- **WeaponLeaderboard**：`hsPercent` 排序改用 `getSortValue` 函数 + `Panel label` 修复\n- **PlayerUtilityStats**：类型修复 + `avgUtilityDamagePerRound` 列名修正\n- **UI 一致性**：所有英文标签统一规范\n- **空数据兜底**：各组件均含 `null`/空数组保护\n- **PG 参数溢出**：批量 insert 改为 `batchInsert()` 分块插入，防止 18k+ rows 触发 PG `max_parameters=65535` 限制\n- **batchInsert 安全上限**：chunk size 从 3000 降为 1000，修复 25 列表 3000 行/批时 75000 params 溢出\n- **并发安全**：`matchPlayerStats` 回填从 `DELETE+INSERT` 改为 `ON CONFLICT DO UPDATE` 消除幽灵删除竞争\n- **契约 E 违反**：`savePlayerStats` delete 改为仅清 `source=manual_ocr`，保护 `demo_import` 来源\n- **空导入 activeStatSource**：仅 `stats.length > 0` 时设置 `activeStatSource=demo_import`\n- **getDemoDetail try/catch**：8 路并行 `Promise.all` 增加错误兜底\n- **season-demo-stats 重复字段**：`DemoLeaderboardData` 去掉 `clutchWinRateVal`/`utilityPerRound` 冗余\n- **season-demo-stats INNER JOIN**：`getSeasonWeaponStats` 改为 `LEFT JOIN` 防止丢击杀\n- **demo 表缺索引**：14 张表新增 `(importBatchId, mapId)` 复合索引\n- **空热力图 UX**：`DemoHeatmap` 无数据时显示占位文本\n- **CSS 变量补充**：添加缺失的 `--color-bg-subtle` CSS 变量\n- **样式主题一致性**：`DemoImportPanel` 按钮样式统一\n- **WeaponLeaderboard**：补回 `\"use client\"` 声明\n- **未使用导入删除**：移除未使用的 `DemoHeatmap` 导入\n\n### Changed\n- **README 更新**：新增 Demo 模块功能描述与技术栈说明\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- 新增 Demo 导入、校验与数据回填，支持按导入批次追踪明细。\n- 新增选手数据、回合时间线、击杀记录、经济曲线、残局、热力图及武器、首杀、道具统计；队伍页展示半场胜率和风格，赛季数据页增加武器榜。\n- 增加系统推荐 MVP，OCR 面板按赛季配置显示录入字段。\n\n### Fixed\n\n- 修复暗色模式下 Demo 模块显示异常，支持键盘切换热力图模式，并改善经济图、空数据提示和英文标签。\n- 比赛详情在加载和出错时显示骨架屏或重试入口。\n- 修复 Demo 与 OCR 数据来源过滤及回填，避免重复统计、误删或空导入改变数据来源；改善大批量导入和并发保存。\n- 修正首杀率、武器爆头率、道具伤害和队伍经济统计，并避免武器统计遗漏击杀。\n\n### Security\n\n- 更新 Next.js 15.5.18 与 Drizzle ORM 0.45.2，修复所列高危依赖漏洞及 SQL 注入问题。当时审计仍有五项通过 brackets-manager 引入的 uuid 间接依赖中危漏洞，等待上游修复。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 331016714,
     "tag_name": "v1.25.6",
     "original_body_sha256": "472a8f3348860b9f39d35eed2387166c13b73b84e34d8b134f8ae6c25d1e29c9",
     "candidate_body": "\n### Fixed\n- **双败淘汰赛制决赛赛制修复**：`finalFormat`（BO5 覆写）现在只作用于总决赛（grand final），不再误套到胜者组决赛。根因为赛制解析逻辑将胜者组最后一轮局部轮号与 log2(队数) 比较来判定决赛，导致胜者组决赛被错误标记为 BO5；单淘汰赛制行为保持不变\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 330680427,
     "tag_name": "v1.25.5",
     "original_body_sha256": "e6a6b739aecd530d2086bd3d9a1b6024ec891bbbce1d997a365abf6907d6e892",
     "candidate_body": "\n### Added\n- **自动采纳提示及页面轮询**：提议被 cron 自动采纳后，页面绿色提示条公开显示「比赛时间已自动设定」，不再只靠手动刷新才能看到状态变化；pending 提议存在时每 30 秒自动轮询\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 330667991,
     "tag_name": "v1.25.4",
     "original_body_sha256": "c1a03c769978f96d497dff64f902a4c2caed73b6b3734283c0f0bcfa064081db",
     "candidate_body": "\n### Fixed\n- **幽灵提议修复**：管理员后台直接设置比赛时间时未联动清理同场 pending 提议，导致提议永远显示「即将自动采纳」。`updateMatchScheduledAt` 现在在事务内同步将 pending 提议标为 expired；cron 的 `autoAcceptSingleProposal` 增加兜底逻辑，比赛不再是 scheduled 状态或已有 scheduledAt 时直接清理残留 pending 提议\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 329577024,
     "tag_name": "v1.25.3",
     "original_body_sha256": "897ca38723845d485b8cde668c9a18c589182b4cb4108ceb7c3a80579a88a633",
     "candidate_body": "\n### Fixed\n- **Bracket 比赛自动创建修复**：`advanceMatch` 中 `prevResolved` 快照必须在 `manager.update.match()` 之前完成；`InMemoryDatabase.setData()` 存引用导致更新后 `currentData` 同步变化，diff 永远为空，下一轮比赛从未被自动创建\n- **移除重复的「查看对阵图」导航按钮**：与「返回赛程总览」指向同一页面（`#bracket` 锚点无感知），去掉冗余入口\n- **数据汇总表列统一缩写并重排**：去掉「图数」列，新增 MK（多杀）、WE；列顺序调整为 Rating → K/D/A → ADR → HS% → FK → MK → CL → WE，标签全部改为英文缩写\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 328960763,
     "tag_name": "v1.25.2",
     "original_body_sha256": "c6e34660f8a41c86164246d8549b718bc03bab3a66874471d44b7526cc905e00",
-    "candidate_body": "\n### Added\n- **BO1 启用整场汇总**：已结束的 BO1 比赛现在也显示整场汇总 Tab，与其他赛制一致\n\n### Changed\n- **单图数据列扩展为完整 10 列**：PlayerStatsTable 从旧 6 列（选手/K/D/A/ADR/Rating）扩展为完整 10 列（图数/Rating/ADR/K/D/A/HS%/FK/残局），复用 MatchSummaryStats 组件\n\n### Fixed\n- **BP pick 选边改为对手视角**：A pick 图 → B 选边（而非 A 选边），匹配 CS2 标准 BP 流程\n- **BP decider 支持选边方及 side 录入**：图三现在可以指定哪支队选边及选哪边，公开页面正确显示起始边\n- **移除 SideSelect 重复代码**：pick 与 decider 的 side 选择器提取为共用组件\n- **移除 PlayerStatsTable 闲置 matchId 参数**：重构后不再需要内部查询 matches 表\n- **选边 \"自动\" → \"未选择\"**：避免误导（不存在自动逻辑）\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- **BO1 启用整场汇总**：已结束的 BO1 比赛现在也显示整场汇总 Tab，与其他赛制一致\n\n### Changed\n\n- **单图数据列扩展为完整 10 列**：PlayerStatsTable 从旧 6 列（选手/K/D/A/ADR/Rating）扩展为完整 10 列（图数/Rating/ADR/K/D/A/HS%/FK/残局），复用 MatchSummaryStats 组件\n\n### Fixed\n\n- **BP pick 选边改为对手视角**：A pick 图 → B 选边（而非 A 选边），匹配 CS2 标准 BP 流程\n- **BP decider 支持选边方及 side 录入**：图三现在可以指定哪支队选边及选哪边，公开页面正确显示起始边\n- **选边 \"自动\" → \"未选择\"**：避免误导（不存在自动逻辑）\n",
+    "status": "changed-review-required"
   },
   {
     "id": 328799971,
     "tag_name": "v1.25.1",
     "original_body_sha256": "e1039baf41a5a0469c27a9bea5633cffabecbd6de6f9f29336f6887b3224cf54",
     "candidate_body": "\n### Fixed\n- **公开页面赛程状态显示\"待排期\"而非\"待进行\"**：`MatchCard` 漏传 `scheduledAt` prop 给 `MatchStatusBadge`，1.23.5 引入该 prop 时仅传了 `AdminMatchRow` 和 `MatchHeroHeader`，公开赛程页遗漏\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 328765922,
     "tag_name": "v1.25.0",
     "original_body_sha256": "e4da478e3a021ea8b43f61e818eb0653fa04f0e81ec41b63ea5e4e024be3e5af",
     "candidate_body": "\n### Added\n- **赛季自动结束**：所有比赛完成后自动将赛季从 playing 推进到 finished（`maybeFinishSeason`）\n- **赛季状态迁移操作**：赛季设置页新增撤回至草稿、撤回至报名、手动结束赛季、归档赛季四个管理操作\n- **4 个新 Server Action**：`revertSeasonToDraft`、`revertSeasonToRegistration`、`forceFinishSeason`、`archiveSeason`\n\n### Changed\n- **文档全面精简**：error-reference(540→31行)、data-model(443→291)、code-map(74→29)、architecture(163→145)，合并 ui-design + ui-tokens → ui-system.md，归档 launch-readiness\n- **修正文档偏差**：state-machines（DraftState 实现方式、Season 迁移表）、data-integrity（位置满员公式）、auth-and-permissions（UserSession 接口）\n\n### Fixed\n- **online-count API Route 合规**：迁移为 Server Action，删除 `src/app/api/online-count/route.ts`\n- **bracket Database 类型统一**：6 处 `import type { Database } from \"brackets-manager\"` 改为走 `@/lib/bracket` 适配层\n- **approved→pending 限制**：只允许 registration 阶段操作（此前 voting 阶段也允许，现已有个人信息修改功能不再需要）\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 328661676,
     "tag_name": "v1.24.0",
     "original_body_sha256": "aabc531c89f765e8c5c7e7ecaacc49d33391d173e1cd41fa3b467c2e217e8dee",
-    "candidate_body": "\n### Added\n- **排行榜按赛季阶段筛选**：数据统计页新增 Stage 筛选 Tab，多阶段赛季可按阶段查看选手数据\n\n### Changed\n- **去除最少 3 图门槛**：排行榜不再过滤低图数选手，全量展示\n- **统一数据计算模块**：新建 `src/lib/stats/` 作为全项目统计聚合入口，替换全项目散落的计算逻辑\n\n### Fixed\n- **ADR 改为回合加权平均**：修复各页面对 ADR 使用简单平均（mean of means）导致的统计偏差\n- **HS% 改为击杀数加权平均**：修复多图统计时 HS% 计算偏差\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- **排行榜按赛季阶段筛选**：数据统计页新增 Stage 筛选 Tab，多阶段赛季可按阶段查看选手数据\n\n### Changed\n\n- **去除最少 3 图门槛**：排行榜不再过滤低图数选手，全量展示\n\n### Fixed\n\n- **ADR 改为回合加权平均**：修复各页面对 ADR 使用简单平均（mean of means）导致的统计偏差\n- **HS% 改为击杀数加权平均**：修复多图统计时 HS% 计算偏差\n",
+    "status": "changed-review-required"
   },
   {
     "id": 328563867,
     "tag_name": "v1.23.7",
     "original_body_sha256": "24f756decc9368b74c9bad780e9fb35bf9d655d817f576f47b58caf21cf33932",
     "candidate_body": "\n### Added\n- **队伍页地图表现新增 pick 率列**：在\"地图表现\"表格中新增 pick 率列，与胜率、ban 率并排展示\n\n### Fixed\n- **pick 率分母被 BO1 比赛稀释**：`getTeamVetoActionStats` 中 `bpMatchCount` 原统计所有有 veto 步骤的比赛（含 BO1），但 BO1 只有 ban/decider 无 pick 步骤，导致 pick 率百分比很低；改为只统计有对应 actionType 步骤的比赛，pick 率分母仅 BO3/BO5\n- **管理后台\"参赛过\"统计漏掉参赛的管理员**：stats 卡片子查询中 `WHERE u.role = 'user'` 排除了 season_admin/super_admin 角色的玩家，导致 56 人参赛但只显示 49 人\"参赛过\"；去掉 stats 子查询的 role 过滤\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 328552266,
     "tag_name": "v1.23.5",
     "original_body_sha256": "8e814ff57bff9170ec4d5fda066ee0441febbf7b9a628d4fbb3c2627e7b4f1cb",
     "candidate_body": "\n### Fixed\n- **弃赛状态公开页面不显示**：`MatchCard`、`MatchTabsSection`、队伍页 `MatchCard` 均未传递 `isForfeit`，导致公开赛程列表和队伍历史战绩的状态 badge 始终显示\"已结束\"而非\"弃赛\"；补全传递链路\n- **弃赛详情页状态 badge 不显示**：`MatchHeroHeader` 未在 `MatchHeroMatch` 接口声明 `isForfeit`，且未传给 `MatchStatusBadge`；补全后详情页 badge 正确显示\"弃赛\"\n- **弃赛详情页\"比赛结果\"文案错误**：无地图记录的已结束比赛显示\"BO3 系列赛总分：0 : 2\"，弃赛语义不符；`isForfeit` 为 true 时改为显示\"本场比赛以弃赛结束，未进行实际对局。\"\n\n### Changed\n- **比赛状态标签区分排期状态**：`MatchStatusBadge` 新增 `scheduledAt` prop，`scheduled` 状态下有排期时间显示\"待进行\"，无排期时间显示\"待排期\"（原统一显示\"待进行\"）；后台 `AdminMatchRow` 和详情页 `MatchHeroHeader` 均已传入\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 328548757,
     "tag_name": "v1.23.4",
     "original_body_sha256": "3835103faa27c8dd0666c8f4f51a6993d91045fb56a7853890082b9ce2d8bebb",
     "candidate_body": "\n### Fixed\n- **Bracket LB minor round 标签错误**：`computeSlotLabel` 中 LB minor round 的 op1/op2 来源写反（UB 降组者应为 op1，LB 晋级者应为 op2），且 UB 场次索引顺序也相反；修正槽位分配与反向索引，LB R2/R4 等 minor round 的待定提示现可正确显示\n- **已结束源比赛仍显示「A vs B 胜者」**：`winnerLabel`/`loserLabel` 在源比赛有 result 时直接返回胜者/败者队名，不再展示冗余格式\n- **赛程 Tab 默认不跳到当前赛段**：公开页和后台赛程页改为自动选中 stagePlan 中最靠后且已有比赛记录的阶段，支持任意阶段数，进入正赛后无需手动切换 Tab\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 328542408,
     "tag_name": "v1.23.3",
     "original_body_sha256": "5474d75bc2bfbd32fcf8f1951ee8dba9d50b5dc1c2aa1d0f9681dff492951185",
     "candidate_body": "\n### Fixed\n- **OCR 昵称可手动篡改**：`StatsOCRPanel` 左列「昵称」Input 改为只读展示，管理员无法手动编辑 OCR 识别结果；右列选中用户后，左列自动同步为 `users.perfectName`\n- **OCR 录入昵称与注册昵称不一致**：`savePlayerStats` 保存前对有 `userId` 的行从 `users` 表查真实 `perfectName` 并覆盖，确保 `matchPlayerStats.perfectName` 始终与 `users.perfectName` 一致\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 328331159,
     "tag_name": "v1.23.0",
     "original_body_sha256": "90302ce3253abab698d5bf43fda5aa02e7d418ee755a24d06a4945ba2581100d",
-    "candidate_body": "\n### Added\n- **弃赛系统**：新增 `forfeitMatch` action，管理员可在赛程页对 scheduled / in_progress 比赛判负弃赛；弃赛方选择后按格式写入标准比分（BO1 13:0 / BO3 2:0 / BO5 3:0）并推进 bracket；`MatchStatusBadge` 弃赛场次显示\"弃赛\"而非\"已结束\"；`matches` 表新增 `is_forfeit` 列（需执行 `pnpm db:push`）\n- **逐图比分修正**：新增 `correctMapScore` action，赛后可修改已录入的单图回合数，大比分自动重算；后台赛程页有逐图记录时以逐图修改入口替换旧的直接改大比分入口\n\n### Changed\n- **逐图录入绑定 format**：`MapByMapInput` 改为在 BO3 / BO5 格式比赛进行时展示，不再限于淘汰赛阶段\n- **MapByMapInput UX**：BP 已记录选边时不再重复展示选边下拉框；比分输入框上方新增队伍名标签；决胜图选边标签统一为\"{队伍名} 起始边\"\n- **图三 OCR 过滤**：BO3 系列赛 2:0 结束后，BP 预占的第三图占位行不再出现在 OCR 录入面板\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- **弃赛系统**：新增 `forfeitMatch` action，管理员可在赛程页对 scheduled / in_progress 比赛判负弃赛；弃赛方选择后按格式写入标准比分（BO1 13:0 / BO3 2:0 / BO5 3:0）并推进 bracket；`MatchStatusBadge` 弃赛场次显示\"弃赛\"而非\"已结束\"；新增弃赛记录字段\n- **逐图比分修正**：新增 `correctMapScore` action，赛后可修改已录入的单图回合数，大比分自动重算；后台赛程页有逐图记录时以逐图修改入口替换旧的直接改大比分入口\n\n### Changed\n\n- **逐图录入绑定 format**：`MapByMapInput` 改为在 BO3 / BO5 格式比赛进行时展示，不再限于淘汰赛阶段\n- **MapByMapInput UX**：BP 已记录选边时不再重复展示选边下拉框；比分输入框上方新增队伍名标签；决胜图选边标签统一为\"{队伍名} 起始边\"\n- **图三 OCR 过滤**：BO3 系列赛 2:0 结束后，BP 预占的第三图占位行不再出现在 OCR 录入面板\n",
+    "status": "changed-review-required"
   },
   {
     "id": 328324029,
     "tag_name": "v1.22.1",
     "original_body_sha256": "2254f5a7520b77a184d80ac5fbc8b7f101f2b289d5b642eaaa8e65d2589b724a",
     "candidate_body": "\n### Fixed\n- **OCR 未匹配用户阻止保存**：`StatsOCRPanel` 新增 `unmatchedCount` 计算，未匹配行的「匹配用户」下拉框高亮红色边框，有未匹配行时禁用保存按钮并显示提示，防止错误数据写入数据库\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 328155901,
     "tag_name": "v1.22.0",
     "original_body_sha256": "ba2772f73745094d3fc6ef512131d95236c819e3820486002dbb67b74e50d99d",
     "candidate_body": "\n### Added\n- **Bracket 空槽位显示**：`BracketView` 在 brackets-viewer 渲染后注入对阵来源标签——UB R2+ 显示「队伍A vs 队伍B 胜者」，LB 各轮显示「胜者/败者」，未确定则显示 TBD；同时把对阵卡片加宽到 280px、原生 hint 翻译为中文\n- **正赛推荐解说时段**：协商面板在正赛阶段新增软提示，列出 14:00–17:00 / 19:00–22:00 两个推荐时段；队长提议落在区间外时即时给出「可正常进行但不保证解说」的警告\n- **阶段感知的协商缓冲**：`getTimeBufferHoursForStage` 让排位赛沿用 24h 缓冲，正赛改为 0（与最晚完成时间一致），`proposeMatchTime` / `respondToTimeProposal` / `autoAwardMatchTime` 均按阶段读取\n\n### Fixed\n- **Bracket 右侧 \"null\"**：`serializeBracket` 之前把 `undefined` 比分写成 `null`，brackets-viewer 用 `void 0 === e.score` 判空导致渲染成字符串 \"null\"；改为透传 `undefined`\n- **Bracket 比赛无法点击 / hover 异常**：`BracketMatch` 缺少 `child_count` 字段导致 brackets-viewer 把每场比赛误识别为 match-game，DOM 挂的是 `data-match-game-id` 而非 `data-match-id`，跳转 map 和 hover 样式全部失效；补齐字段后点击跳转、hover 橙色都恢复\n- **默认 tab 留在排位赛**：进入正赛阶段（排位赛全部完赛或正赛已有比赛）后公开赛程页面默认切换到正赛 tab，不需要手动再点一次\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 327991682,
     "tag_name": "v1.21.1",
     "original_body_sha256": "ac2ed7f92f09d63a798bb22cbb53692a70b156eb91325c7f7e2f1576e0f4580f",
     "candidate_body": "\n### Fixed\n- **正赛生成兼容手动创建的排位赛**：当排位赛通过手动创建赛程录入时，`season.bracketData` 不会预生成；现在 `double_elim` / `single_elim` 在 `bracketData` 缺失时会用积分榜或 qualifier 顺序现场构建 playoff bracket，不再报“请先一键生成赛程”\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 327192205,
     "tag_name": "v1.21.0",
     "original_body_sha256": "0502352489cc98e3e4d756f547427b99dd63b14dac38d9c993a314913f7f6065",
     "candidate_body": "\n### Added\n- **赛季名录摘要**：队伍页与选手页新增赛事阶段、参赛规模和统计覆盖摘要，帮助快速浏览当前赛季阵容与数据完成度\n\n### Changed\n- **队伍页信息密度**：队伍目录按排位赛积分或正赛种子排序，收紧队伍卡片布局并补充队伍地图、战绩和成员数据\n- **选手页信息密度**：选手卡片改为更紧凑的展示，补齐当前与巅峰段位/RT 信息，并按地图数、赛事 RT 和兜底顺序排序\n- **数据统计桌面布局**：排行榜视图和排序控件改为更紧凑的横向布局，位置筛选改用英文位置标记，桌面端减少横向滚动\n- **赛季导航排序**：队伍与选手入口并列收拢，重排赛季导航顺序以匹配浏览路径\n\n### Fixed\n- **数据统计排序兼容**：历史排行榜排序链接自动归一到当前排序参数，避免旧查询参数落入错误视图\n- **瑞士轮队伍目录排序**：正赛阶段按种子顺序展示队伍，选手筛选摘要按实际队伍范围统计\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 326191531,

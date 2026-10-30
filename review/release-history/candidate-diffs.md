@@ -643,6 +643,338 @@
 +- 队伍报名与含 Swiss 阶段的赛季在完整运营闭环落地前保持关闭，避免误用个人报名和自动状态迁移。
 ```
 
+## v1.30.1
+
+```diff
+--- 原文
++++ 候选
+@@ -1,6 +1,4 @@
+
+ ### Fixed
+
+-- 排行榜和个人页面因 OCR+Demo 双录导致的 maps 数双倍计数，过滤 `source=manual_ocr`
+-- 队伍页面选手 maps 数双倍计数（同图 OCR+Demo 双录），补充 `source=manual_ocr` 过滤，与排行榜/个人页对齐
+-
++- 修复排行榜、个人页和队伍页因 OCR 与 Demo 双录导致的地图数重复统计。
+```
+
+## v1.26.1
+
+```diff
+--- 原文
++++ 候选
+@@ -1,19 +1,12 @@
++
++现存 `v1.26.1` 标签指向 1.30.1 的提交；本条比较链接使用当时的 1.26.1 版本提交。
+
+ ### Added
+
+-- **HLTV Rating 2.0 计算模块**：新建 `lib/demo/hltv-rating.ts`，基于社区逆向公式（R²≈0.995）从 demo 指标实时计算 rating，导入时自动回填 `ratingPro` 字段
+-- **AdminMatchRow 反向入口**：已完成图旁加「导入 Demo →」跳转链接，与独立 demos 管理页双向导航
++- Demo 导入时使用基于社区逆向公式的 HLTV Rating 2.0 估算，并回填 Rating Pro；后台比赛行增加 Demo 导入入口。
+
+ ### Fixed
+
+-- **契约 E 通路**：主榜（`stats/page.tsx`）和六维图（`hexagon.ts`）查询改为按 `active_stat_source` 区分数据来源，防止同一张图 OCR/demo 行双重计入；历史纯 OCR 图自动 fallback 不受影响
+-- **demo-import 回填补全**：backfill 到 `matchPlayerStats` 补充 `verifiedByAdmin` 和 `ratingPro`（HLTV 2.0 补算）；`onConflictDoUpdate` 同步更新；清理 13 处冗余 `JSON.parse(JSON.stringify(...))`
+-- **revalidatePath 路径修复**：修复导入后刷新路径 `/admin/matches/${matchId}` 不存在，改为正确的 `/admin/${slug}/demos` 和 `/${slug}/matches/${matchId}`
+-- **真实回合数分母**：`season-demo-stats` FKPR 由硬编码 `maps × 24` 改为 JOIN `demo_rounds` 统计真实回合数；`player-demo-stats` 同步修复 `mapRounds` 假分母（`PlayerStatRow` 加 `rounds?` 字段，向后兼容）
+-- **multiKills 口径统一**：`to-match-player-stats` 补入 `twoKillCount`，统一为 2K 及以上（2+3+4+5）
+-- **team-demo-stats 多处错误**：补 `"use server"`；成员查询改用 Drizzle ORM；eco 查询修复列名 `di.active_stat_source` → `mm.active_stat_source`；经济转化率按 teamId 过滤并区分主客队；整体包裹 `ok()/fail()`
+-- **六维图权重重归一化**：无 demo 数据时 demo-only 子指标权重自动重分配到同维度 OCR 指标；demo 维度 mean/std 仅从有 demo 数据的选手计算；30 场纯 OCR 比赛分数与修复前完全一致
+-- **demos 页「已导入」badge**：修复 `inArray(demoImports.mapId, matchIds)` 错误用 matchId 查 mapId，改用正确的 mapId 集合
+-- **UI 色彩合规**：13 个 demo/队伍组件硬编码 Tailwind 调色板全换 CSS 变量；`EconomyConversionPanel` 移除多余 `"use client"` 并补空态；`PlayerUtilityStats` 空态改为提示文字；`HighlightLeaderboard` emoji 加 `aria-hidden`
+-- **player-demo-stats 清理**：删除 `mapCount` 死代码
+-
++- 修复 OCR 与 Demo 双来源重复计入，保留历史纯 OCR 数据；导入后正确回填认证状态与评分并刷新相关页面。
++- 首杀率改用真实回合数，多杀统计计入 2K；修复队伍经济转化率的队伍归属和统计读取。
++- 无 Demo 数据时重新分配六维评分权重；修复 Demo 管理页已导入状态和空数据提示。
+```
+
+## v1.30.0
+
+```diff
+--- 原文
++++ 候选
+@@ -2,16 +2,17 @@
+ > **1.x 收官版本**：移除 Demo 导入相关全部功能，回归无-demo 形态（整体基于 `v1.25.6`）。Demo 体系转入 2.0.0 开发线（`release/2.0.0` 分支）继续。生产数据库中 demo 相关表（`stat_source` / `demo_import_tables` / `active_stat_source`）保留空置、不删除。
+
+ ### Removed
++
+ - **Demo 导入与解析**：移除 demo 导出包导入、批量 ZIP 导入、demo 明细数据写入与重算
+ - **Demo 数据面板高级模块**：击杀热力图、武器使用细分、经济转化图、Entry 逐回合、残局列表、击杀 feed、回合时间线
+ - **评分体系 demo 维度**：RR / PRISM 八维能力雷达、队伍风格画像、T-CT 半场胜率、选手 Demo 进阶卡片
+ - **外部依赖**：`@cs2dak/core`、`@rivalhub/rival-rating`、`cs2-demo-format`、`jszip`
+
+ ### Fixed
++
+ - **整场汇总排序**：比赛「整场汇总」选手列表改为按 Rating 降序、空值排末尾（此前靠上游 SQL 顺序兜底，是 v1.25.6 即存在的潜伏 bug）
+ - **逐图录入完赛后赛季未自动结束**：`recordMapResult` 在系列赛打完时补调 `maybeFinishSeason`，与 `recordMatchResult` 对齐（修复赛季卡在 `playing` 的根因）
+
+ ### Changed
+-- **发版流程引入 changeset**：版本号与 CHANGELOG 改由 `@changesets/cli` 管理，`release.yml` 兼容 `## [ver]` 与 `## ver` 两种标题。详见 `.claude/skills/release.md`
++
+ - 比赛页保留 `error.tsx` / `loading.tsx` 错误与加载边界（v1.25.6 之后引入的独立健壮性改进）
+-
+```
+
+## v1.28.0
+
+```diff
+--- 原文
++++ 候选
+@@ -1,23 +1,20 @@
+
+ ### Added
++
+ - **比赛页赛前情报**：赛季风格对比 + 双队同图能力雷达（八维 PRISM / 六维回退）
+ - **队伍页赛季风格分析**：T/CT 半场胜率 + 风格画像 + 经济转化率
+ - **队伍能力图升级**：`TeamRadarPanel` Tab 切换六维 / PRISM 八维
+ - **选手页 Demo 进阶卡片**：`PlayerDemoCard`（KAST/ADR/Entry/残局 + 武器 + 多杀 + 高光）
+ - **Stats 武器榜重设计**：拆为 AWP 狙击榜 + 武器使用画像
+-- **共享工具函数**：`buildPrismScores` / `averagePrismScores`（match/team/player 复用）
+
+ ### Changed
+-- **全量颜色规范化**：硬编码 `rgba()` → `color-mix()`，23 文件
+-- **OCR 回退去重**：`ocrFallbackCte` / `getOcrAveragesBySeason` 三页面共用
+-- **经济标签统一**：`economyLabelCn` + `ECONOMY_TYPES` 公开导出
+-- **武器名去重**：`weaponFullName` 导出，消除 3 处内联映射
++
+ - **经济图例重构**：SVG → HTML（完整 5 种类型 + 半区说明）
+ - **Entry 面板重构**：全员排行 + 选手下钻逐回合明细
+ - **热力图守卫**：全零坐标时显示空态而非误导红圈
+
+ ### Fixed
++
+ - **队伍 Rating Pro = 0.0**：demo 源 NULL 时 COALESCE OCR 源回填
+ - **赛前首杀/残局为空**：Drizzle enum 类型转换改用 raw SQL
+ - **M4A1 武器名**：`m4a1_silencer` 映射修正为 "M4A1-S"
+-
+```
+
+## v1.27.6
+
+```diff
+--- 原文
++++ 候选
+@@ -1,8 +1,4 @@
+
+ ### Fixed
++
+ - **Stats 页 GROUP BY SQL 错误**：OCR fallback CTE 引用 `ocr.avg_rating_ocr` 未用聚合函数包裹，PostgreSQL 拒绝运行；改用 `min()` 包裹解决
+-- **CI 测试失败**：PlayerStatsTable 测试 mock 补全 `statSourceEnum`、`matchMaps` 和 `db.query.matchMaps`
+-
+-### Added
+-- **weapon-names 别名映射测试**：新增 `src/lib/demo/weapon-names.test.ts` 覆盖 13 个映射和 fallthrough 场景
+-
+```
+
+## v1.27.5
+
+```diff
+--- 原文
++++ 候选
+@@ -1,5 +1,6 @@
+
+ ### Added
++
+ - **赛后详情页布局重构**：将 Demo 面板从地图 Tab 内抽取到 MVP 下方独立区域，自带地图切换 Tab，用户无需展开地图即可查看 Demo 数据
+ - **多账号 Steam ID 别名绑定系统**：新增 `user_steam_aliases` 表，管理员可在 Demos 页面直接绑定未关联用户的 Steam ID 至注册选手，自动回填历史数据
+ - **Demo 排行榜差分指标**：新增 Entry%（首杀胜率）和 AWP%（AWP 击杀占比）列；残局胜率改为 1v1% 更有实际意义
+@@ -12,20 +13,18 @@
+ - **PlayerWeaponBreakdown 击杀条**：新增进度条可视化，直观显示武器击杀分布
+
+ ### Changed
++
+ - **DemoPlayerStatsTable 上下排列**：A/B 队从左右并排改为上下布局，列数不受限
+ - **隐藏 Demo 空列**：Utility(Plant/Defuse)、Entry/Trade(Trade K/D)、Highlight(Wallbang 等)全空时自动隐藏
+ - **Demo 面板 UI 优化**：Kill Feed 卡片式 + 限高滚动、武器别名、PlayerEntryStats 汇总卡片
+
+ ### Fixed
++
+ - **PRISM 狙击维度畸变**：无狙击信号选手直接置 0（非百分位排名）；全等值返回 50
+ - **Stats 页默认排序**：`ratingPro`(全 null) → `RR`
+ - **选手主页 RWS/WE/ratingPro 归零**：OCR 专属查询回填，Demo 图不影响
+-- **KAST 数据翻倍(**×100)**：修复聚合层多余的乘法
+-- **HS 爆头数→爆头率(%)**：语义更正
++- **KAST 数据翻倍**：修复聚合层多余的乘法
++- **HS 爆头数 → 爆头率(%)**：语义更正
+ - **选手列表双行**：PlayerStatsTable 补充 `source` 过滤
+ - **Kill Feed 布局**：改为卡片+限高滚动
+ - **toolkit 图标误用**：移除 🔧 emoji
+-
+-### Fixed
+-- **批量导入 OCR 确认弹窗阻塞**：每张已有 OCR 数据的图导入前都会返回 OCR 确认提示，批量导入模式下 24 个文件因此静默失败；改为自动传入 `confirmOverwriteOcr: true`，跳过逐条确认弹窗（OCR 数据保留不删除，只是 `active_stat_source` 切到 demo）
+-
+```
+
+## v1.26.2
+
+```diff
+--- 原文
++++ 候选
+@@ -1,6 +1,8 @@
+
+ ### Fixed
++
+ - **Stats 页面 500 错误**：修复 `season-demo-stats.ts` 中 4 个函数对 `db.execute()` 返回结果未解构 `rows`，直接调用 `.map()` 报 `(intermediate value).map is not a function`
+ - **Demo 导入页面 BO1 不显示**：移除 `isNotNull(matchMaps.scoreA)` 过滤，使排位赛阶段 BP 产出的无比分地图记录也能展示
+-- **公开页面移除 OCR/Demo 导入**：从比赛详情页移除管理员可见的 OCR/Demo 导入面板，统一放在后台比赛管理行（AdminMatchRow 直接嵌入 DemoImportPanel）
++### Changed
+
++- OCR 与 Demo 导入从公开比赛详情移至后台比赛管理。
+```
+
+## v1.26.0
+
+```diff
+--- 原文
++++ 候选
+@@ -1,63 +1,17 @@
+
+ ### Added
+-- **集成测试覆盖**：新增 `tests/integration/db/demo-pipeline.test.ts`（12 tests），使用真实 example zip 驱动 parseDemoPackage→schema 验证→toMatchPlayerStat 转换→batchInsert 分片逻辑全管道验证
++
++- 新增 Demo 导入、校验与数据回填，支持按导入批次追踪明细。
++- 新增选手数据、回合时间线、击杀记录、经济曲线、残局、热力图及武器、首杀、道具统计；队伍页展示半场胜率和风格，赛季数据页增加武器榜。
++- 增加系统推荐 MVP，OCR 面板按赛季配置显示录入字段。
+
+ ### Fixed
+-- **依赖安全升级**：next@15.5.15→15.5.18（修复 4 个高严重性 CVE，含 Middleware 绕过、DoS、缓存投毒、RSC 破坏）；drizzle-orm@0.43.1→0.45.2（修复 SQL 注入漏洞）
+-- **CSS 变量补充**：新增 5 个缺失的 CSS 变量 — `bg-mid`/`bg-secondary`/`border-subtle`/`fg-muted`/`surface-raised`，修复暗色模式下 Demo 模块渲染异常
+-- **a11y 键盘可访问性**：`DemoHeatmap` 模式切换按钮组添加 `role=radio`/`aria-checked`/`onKeyDown` 键盘支持
+-- **DemoEconomyChart 渲染精度**：最后一个柱状图宽度改用等比例 `xScale` 间隔而非 `CHART_W / series.length`
+-- **match 详情页错误边界**：新增 `loading.tsx`（骨架屏）和 `error.tsx`（重试按钮），修复慢网络/后端错误时空白页问题
+-- **空 Demo 数据引导**：根据 `isSeasonAdmin` 显示差异提示（管理员→「请在上方导入 Demo」/ 普通用户→「可联系管理员导入」）
+-- **契约 E 修复**：player-demo-stats 查询补充 `activeStatSource` 过滤条件
+-- **getDemoDetail 错误处理**：改用已注册的错误码 `ErrorCode.INTERNAL_ERROR`，统一错误响应格式
++
++- 修复暗色模式下 Demo 模块显示异常，支持键盘切换热力图模式，并改善经济图、空数据提示和英文标签。
++- 比赛详情在加载和出错时显示骨架屏或重试入口。
++- 修复 Demo 与 OCR 数据来源过滤及回填，避免重复统计、误删或空导入改变数据来源；改善大批量导入和并发保存。
++- 修正首杀率、武器爆头率、道具伤害和队伍经济统计，并避免武器统计遗漏击杀。
+
+ ### Security
+-- 依赖安全审计：漏洞总数 19→5（高严重性 8→0），5 个中等严重性均为间接依赖 uuid@9.0.1 通过 brackets-manager 引入，等待上游修复
+
+-### Added
+-- **Demo 导入体系**：完整的 demo 导入、校验、解包、数据回填流程（Zod schema + Server Action + ZIP 解包校验）
+-- **Demo 明细数据查询**：14 张明细表 schema 定义 + 查询层，支持导入批次追踪
+-- **Demo 数据展示面板**：
+-  - `DemoPlayerStatsTable` — 选手 demo 数据汇总表
+-  - `DemoRoundTimeline` — 回合时间线展示
+-  - `DemoKillFeed` — 击杀 Feed 时间线
+-  - `DemoEconomyChart` — 经济曲线（含经济类型背景色块）
+-  - `DemoClutchList` — 残局复盘列表
+-  - `PlayerKillHeatmap` — 击杀热力图（含地图坐标变换）
+-  - `PlayerWeaponBreakdown` — 选手武器偏好与命中率
+-  - `PlayerEntryStats` — 首杀倾向分析
+-  - `PlayerClutchStats` — 残局能力统计
+-  - `PlayerUtilityStats` — 道具效用统计
+-  - `EconomyConversionPanel` — 经济转化率
+-- **队伍 Demo 分析**：`TeamHalfSideStats`（T/CT 半场胜率）、`TeamStyleProfile`（队伍风格画像）
+-- **赛季 Demo Leaderboard**：`WeaponLeaderboard` + `season-demo-stats` 聚合层
+-- **MVP 系统**：系统推荐 MVP 纯函数、按赛季 rankMetric 排序、StatProfile 类型体系
+-- **OCR 面板**：按赛季 inputFields 动态渲染列
+-
+-### Fixed
+-- **Hive 分支合并修复**：`team-demo-stats` 列名修正（clutchWinCount→vsXxxWonCount）、Panel `title`→`label` 统一、`activeStatSource` 查询路径修复
+-- **首次击杀率计算修复**：`firstKillRate` 分母从 `totalClutchPlayed` 改为 `totalFirstKills + totalFirstDeaths`
+-- **WeaponKillRow 重复声明合并**：`season-demo-stats.ts` 同名 interface 修复
+-- **WeaponLeaderboard**：`hsPercent` 排序改用 `getSortValue` 函数 + `Panel label` 修复
+-- **PlayerUtilityStats**：类型修复 + `avgUtilityDamagePerRound` 列名修正
+-- **UI 一致性**：所有英文标签统一规范
+-- **空数据兜底**：各组件均含 `null`/空数组保护
+-- **PG 参数溢出**：批量 insert 改为 `batchInsert()` 分块插入，防止 18k+ rows 触发 PG `max_parameters=65535` 限制
+-- **batchInsert 安全上限**：chunk size 从 3000 降为 1000，修复 25 列表 3000 行/批时 75000 params 溢出
+-- **并发安全**：`matchPlayerStats` 回填从 `DELETE+INSERT` 改为 `ON CONFLICT DO UPDATE` 消除幽灵删除竞争
+-- **契约 E 违反**：`savePlayerStats` delete 改为仅清 `source=manual_ocr`，保护 `demo_import` 来源
+-- **空导入 activeStatSource**：仅 `stats.length > 0` 时设置 `activeStatSource=demo_import`
+-- **getDemoDetail try/catch**：8 路并行 `Promise.all` 增加错误兜底
+-- **season-demo-stats 重复字段**：`DemoLeaderboardData` 去掉 `clutchWinRateVal`/`utilityPerRound` 冗余
+-- **season-demo-stats INNER JOIN**：`getSeasonWeaponStats` 改为 `LEFT JOIN` 防止丢击杀
+-- **demo 表缺索引**：14 张表新增 `(importBatchId, mapId)` 复合索引
+-- **空热力图 UX**：`DemoHeatmap` 无数据时显示占位文本
+-- **CSS 变量补充**：添加缺失的 `--color-bg-subtle` CSS 变量
+-- **样式主题一致性**：`DemoImportPanel` 按钮样式统一
+-- **WeaponLeaderboard**：补回 `"use client"` 声明
+-- **未使用导入删除**：移除未使用的 `DemoHeatmap` 导入
+-
+-### Changed
+-- **README 更新**：新增 Demo 模块功能描述与技术栈说明
+-
++- 更新 Next.js 15.5.18 与 Drizzle ORM 0.45.2，修复所列高危依赖漏洞及 SQL 注入问题。当时审计仍有五项通过 brackets-manager 引入的 uuid 间接依赖中危漏洞，等待上游修复。
+```
+
+## v1.25.2
+
+```diff
+--- 原文
++++ 候选
+@@ -1,14 +1,14 @@
+
+ ### Added
++
+ - **BO1 启用整场汇总**：已结束的 BO1 比赛现在也显示整场汇总 Tab，与其他赛制一致
+
+ ### Changed
++
+ - **单图数据列扩展为完整 10 列**：PlayerStatsTable 从旧 6 列（选手/K/D/A/ADR/Rating）扩展为完整 10 列（图数/Rating/ADR/K/D/A/HS%/FK/残局），复用 MatchSummaryStats 组件
+
+ ### Fixed
++
+ - **BP pick 选边改为对手视角**：A pick 图 → B 选边（而非 A 选边），匹配 CS2 标准 BP 流程
+ - **BP decider 支持选边方及 side 录入**：图三现在可以指定哪支队选边及选哪边，公开页面正确显示起始边
+-- **移除 SideSelect 重复代码**：pick 与 decider 的 side 选择器提取为共用组件
+-- **移除 PlayerStatsTable 闲置 matchId 参数**：重构后不再需要内部查询 matches 表
+ - **选边 "自动" → "未选择"**：避免误导（不存在自动逻辑）
+-
+```
+
+## v1.24.0
+
+```diff
+--- 原文
++++ 候选
+@@ -1,12 +1,13 @@
+
+ ### Added
++
+ - **排行榜按赛季阶段筛选**：数据统计页新增 Stage 筛选 Tab，多阶段赛季可按阶段查看选手数据
+
+ ### Changed
++
+ - **去除最少 3 图门槛**：排行榜不再过滤低图数选手，全量展示
+-- **统一数据计算模块**：新建 `src/lib/stats/` 作为全项目统计聚合入口，替换全项目散落的计算逻辑
+
+ ### Fixed
++
+ - **ADR 改为回合加权平均**：修复各页面对 ADR 使用简单平均（mean of means）导致的统计偏差
+ - **HS% 改为击杀数加权平均**：修复多图统计时 HS% 计算偏差
+-
+```
+
+## v1.23.0
+
+```diff
+--- 原文
++++ 候选
+@@ -1,10 +1,11 @@
+
+ ### Added
+-- **弃赛系统**：新增 `forfeitMatch` action，管理员可在赛程页对 scheduled / in_progress 比赛判负弃赛；弃赛方选择后按格式写入标准比分（BO1 13:0 / BO3 2:0 / BO5 3:0）并推进 bracket；`MatchStatusBadge` 弃赛场次显示"弃赛"而非"已结束"；`matches` 表新增 `is_forfeit` 列（需执行 `pnpm db:push`）
++
++- **弃赛系统**：新增 `forfeitMatch` action，管理员可在赛程页对 scheduled / in_progress 比赛判负弃赛；弃赛方选择后按格式写入标准比分（BO1 13:0 / BO3 2:0 / BO5 3:0）并推进 bracket；`MatchStatusBadge` 弃赛场次显示"弃赛"而非"已结束"；新增弃赛记录字段
+ - **逐图比分修正**：新增 `correctMapScore` action，赛后可修改已录入的单图回合数，大比分自动重算；后台赛程页有逐图记录时以逐图修改入口替换旧的直接改大比分入口
+
+ ### Changed
++
+ - **逐图录入绑定 format**：`MapByMapInput` 改为在 BO3 / BO5 格式比赛进行时展示，不再限于淘汰赛阶段
+ - **MapByMapInput UX**：BP 已记录选边时不再重复展示选边下拉框；比分输入框上方新增队伍名标签；决胜图选边标签统一为"{队伍名} 起始边"
+ - **图三 OCR 过滤**：BO3 系列赛 2:0 结束后，BP 预占的第三图占位行不再出现在 OCR 录入面板
+-
+```
+
 ## v1.20.2
 
 ```diff
