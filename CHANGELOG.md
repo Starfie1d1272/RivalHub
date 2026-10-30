@@ -5,6 +5,17 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.0]
+
+### Added
+
+- Mizar 可获取赛事播出统计，包含地图池、系列赛、队伍、首发选手表现及比赛积分支持。
+- 首页页脚新增 ICP 备案号及工信部查询链接。
+
+### Changed
+
+- 管理页按小时和版本展示数据库下行协议字节来源及覆盖缺口；生产数据仍待验证。
+
 ## [2.24.16]
 
 ### Changed
@@ -3461,6 +3472,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.25.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.16...v2.25.0
 [2.24.16]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.15...v2.24.16
 [2.24.15]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.14...v2.24.15
 [2.24.14]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.13...v2.24.14
