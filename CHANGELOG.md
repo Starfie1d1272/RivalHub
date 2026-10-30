@@ -1271,6 +1271,10 @@ Steam 官方资料缓存统一使用 `steam_profiles` 保存；玩家头像改�
 
 新增平台运营概览，聚合展示有效用户、活跃度、教育认证、队伍生态、组队供给与最近 7 天增长趋势，并将平台事实与赛事总览明确分开。
 
+### Fixed
+
+- 完善生产发布切流与回滚的状态核验；结果不明确时先核对实际状态，未确认恢复时停止后续发布。
+
 ## [2.9.5]
 
 ### Added
@@ -2169,7 +2173,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ### Changed
 
-- 统一赛事模板、参赛资格上下文和管理员赛事生命周期工作流。
+- 统一赛事模板、参赛资格上下文和管理员赛事生命周期工作流（来源：[b2b7ae4](https://github.com/Starfie1d1272/RivalHub/commit/b2b7ae4c403152a36ce8384e47de51ea49e26498)）。
 
 ## [2.0.0-rc.3]
 
@@ -2198,10 +2202,11 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 ### Added
 
 - RivalHub 2.0 候选版引入 Major 赛事运营能力，并完善认证、报名、赛程与数据完整性。
-- 新增隔离旧远程数据库配置的本地 Supabase 开发入口，并验证迁移、认证、存储与数据 API 默认拒绝策略。
+- 新增隔离旧远程数据库配置的本地 Supabase 开发入口，并验证迁移、认证、存储与数据 API 默认拒绝策略（来源：[dabc985](https://github.com/Starfie1d1272/RivalHub/commit/dabc985fc085fd57e7cb34166bcbf46647e62b69)）。
 
 ### Changed
-- 队伍报名与含 Swiss 阶段的赛季在完整运营闭环落地前保持关闭，避免误用个人报名和自动状态迁移。
+
+- 队伍报名与含 Swiss 阶段的赛季在完整运营闭环落地前保持关闭，避免误用个人报名和自动状态迁移（来源：[ed1f9cb](https://github.com/Starfie1d1272/RivalHub/commit/ed1f9cb002509df89830d1161307e21fcf3dc834)）。
 
 ## [1.30.2] - 2026-08-11
 
@@ -2239,19 +2244,10 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ## [1.29.0] - 2026-05-31
 
-### Changed
-
-- **评分与 demo 解析模块迁移至外部包**：删除本地 `src/lib/rating/{rr,prism,types,weights}` 与 `src/lib/demo/{parse-package,schemas}`，评分实现改从 `@rivalhub/rival-rating` 导入、demo 解析改从 `cs2-demo-format` 导入，核心仓库不再维护这部分实现，权重/解析逻辑更新走对应外部仓库打 tag → `pnpm update` 流程
-- **默认权重 JSON 直引**：`@rivalhub/rival-rating` 增加 `weights/*` 到 exports map，`src/lib/rating/index.ts` 直接 import `rr-v1.json` / `prism-v1.json`，规避上游 ESM `with { type: "json" }` 兼容问题
-
-### Added
-
-- **校准数据导出脚本**：`scripts/calibration/export-indicators.ts` 读取 demo ZIP 解析并导出 RRIndicators（player-map / player-season / parse-report），供 rival-rating 做数据 QA 与权重校准
-
 ### Fixed
 
-- **排行榜多列排序失效**：Advanced / Demo 视图下多列排序未生效
-- **经济类型 `"full"` 漏计**：`recomputeSeasonRatings` 未将 `"full"` 归入 fullBuyRounds，导致 RR 重算 fullBuy 统计偏低
+- 修复高级和 Demo 排行榜的多列排序。
+- 修复 RR 重算遗漏 full 经济类型导致的全枪局统计偏低。
 
 ## [1.28.2] - 2026-05-30
 
@@ -2415,7 +2411,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ## [1.26.1] - 2026-05-29
 
-现存 `v1.26.1` 标签指向 1.30.1 的提交；本条比较链接使用当时的 1.26.1 版本提交。
+现存 `v1.26.1` 标签指向 1.30.1 的提交；[本条比较](https://github.com/Starfie1d1272/RivalHub/compare/v1.26.0...f04fac913dfd152d92eb968d5c279cbe69b88252)使用当时的 1.26.1 版本提交。
 
 ### Added
 
@@ -2498,20 +2494,11 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ### Added
 
-- **赛季自动结束**：所有比赛完成后自动将赛季从 playing 推进到 finished（`maybeFinishSeason`）
-- **赛季状态迁移操作**：赛季设置页新增撤回至草稿、撤回至报名、手动结束赛季、归档赛季四个管理操作
-- **4 个新 Server Action**：`revertSeasonToDraft`、`revertSeasonToRegistration`、`forceFinishSeason`、`archiveSeason`
+- 所有比赛完成后自动结束赛季；管理员可将赛季撤回至草稿或报名、手动结束或归档。
 
 ### Changed
 
-- **文档全面精简**：error-reference(540→31 行)、data-model(443→291)、code-map(74→29)、architecture(163→145)，合并 ui-design + ui-tokens → ui-system.md，归档 launch-readiness
-- **修正文档偏差**：state-machines（DraftState 实现方式、Season 迁移表）、data-integrity（位置满员公式）、auth-and-permissions（UserSession 接口）
-
-### Fixed
-
-- **online-count API Route 合规**：迁移为 Server Action，删除 `src/app/api/online-count/route.ts`
-- **bracket Database 类型统一**：6 处 `import type { Database } from "brackets-manager"` 改为走 `@/lib/bracket` 适配层
-- **approved→pending 限制**：只允许 registration 阶段操作（此前 voting 阶段也允许，现已有个人信息修改功能不再需要）
+- 已审核通过的报名仅可在报名阶段撤回至待审核。
 
 ## [1.24.0] - 2026-05-25
 
@@ -2598,7 +2585,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ### Added
 
-- **弃赛系统**：新增 `forfeitMatch` action，管理员可在赛程页对 scheduled / in_progress 比赛判负弃赛；弃赛方选择后按格式写入标准比分（BO1 13:0 / BO3 2:0 / BO5 3:0）并推进 bracket；`MatchStatusBadge` 弃赛场次显示"弃赛"而非"已结束"；新增弃赛记录字段
+- **弃赛系统**：新增 `forfeitMatch` action，管理员可在赛程页对 scheduled / in_progress 比赛判负弃赛；弃赛方选择后按格式写入标准比分（BO1 13:0 / BO3 2:0 / BO5 3:0）并推进 bracket；`MatchStatusBadge` 弃赛场次显示"弃赛"而非"已结束"；新增弃赛记录字段；升级需要执行 `0019_is_forfeit` 数据库迁移。
 - **逐图比分修正**：新增 `correctMapScore` action，赛后可修改已录入的单图回合数，大比分自动重算；后台赛程页有逐图记录时以逐图修改入口替换旧的直接改大比分入口
 
 ### Changed
@@ -2655,14 +2642,14 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ### Fixed
 
-- **DB Pool 重建后重试查询**：连接失败重建 Pool 后自动重试当次查询，并发重建合并去重，避免冷启动首请求 Load failed
+- OCR 请求增加 60 秒超时保护和响应错误日志，避免上游请求长时间无响应。
 
 ## [1.20.4] - 2026-05-21
 
 ### Fixed
 
 - **OCR 静默失败**：前端 `handleExtract` 补上缺失的 catch 块，Server Action 调用抛异常时显示错误信息而非静默吞掉
-- **DB 冷启动自愈**：Vercel 函数冷启动时 `DATABASE_URL` 偶发为空/残值导致 pg Pool 绑定错误地址，现连接失败自动重建 Pool 并重读环境变量
+- **数据库冷启动恢复**：连接失败时重读环境配置、重建连接池并重试查询；并发重建会合并，减少首个请求失败。
 - **OCR 日志可诊断性**：`siliconflow.ts` 每个处理步骤（JSON 解析 →players 提取 → 逐行校验）设独立 try/catch + 日志，失败时精确定位
 
 ## [1.20.3] - 2026-05-20
@@ -3210,6 +3197,8 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - 管理后台报名草稿查看：`DraftRegistrationTable` 展示邮箱、Steam 昵称、位置、段位、最后保存时间
 - 修改密码功能：`changeUserPassword` Server Action（验证原密码 + Supabase Admin API 更新）+ `/settings/password` 页面
 - `revokeUserAdminRole` Server Action：super_admin 可撤销其他管理员权限（写 audit_log）
+- 比赛时间协商到截止时间后自动裁定。
+- 队长可修改队伍名称；选秀池和队长面板提供选手个人主页链接。
 
 ### Changed
 
@@ -3228,9 +3217,6 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 - 报名地图熟练度：赛季图池配置 + 每图 5 档熟练度（不会/认路/能打/熟练/强图）
 - Steam 头像缓存（`users.avatar_url`，Header 不再每次调 Steam API）
-- 比赛时间协商截止自动裁定（`autoAwardMatchTime` + Cron API）
-- 队长修改队伍名称（`TeamNameForm` + `updateTeamName`）
-- 选秀池 + 队长面板选手主页链接（`/players/[userId]`）
 
 ### Changed
 
@@ -3271,13 +3257,13 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 ### Fixed
 
 - 时区显示问题（统一 UTC 存储 + Asia/Shanghai 展示）
-- 首页空赛季列表不崩溃
 - 报名表单多项交互细节
 
 ## [1.0.2] - 2026-05-13
 
 ### Fixed
 
+- 修复首页在赛季列表为空时崩溃的问题。
 - 邀请码使用异常
 - 版本号显示与 semver 策略
 
