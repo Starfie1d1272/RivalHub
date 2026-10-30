@@ -42,6 +42,8 @@ export function collect(probe) {
   const mode = probe.property('StateDirectoryMode');
   const stateModeConfigured = Number.parseInt(mode, 8) === 0o700 || Number(mode) === 0o700;
   const serviceActive = probe.property('ActiveState') === 'active';
+  const managedUnit = probe.property('FragmentPath') === '/etc/systemd/system/rivalhub-production.service';
+  const dropInsPresent = Boolean(probe.property('DropInPaths'));
   const protectionEnabled = probe.property('ProtectSystem') === 'strict';
   const serviceUser = probe.property('User') === service;
   const processSpoolPath = env.DB_TRAFFIC_SPOOL_DIRECTORY === directory;
@@ -53,7 +55,7 @@ export function collect(probe) {
   const spoolReadable = state?.version === 1 && Array.isArray(state?.batches) && Array.isArray(state?.gaps);
   const spoolLocked = probe.lockHeld(`${directory}/owner.sqlite`);
   const lockOwnedByMain = spoolLocked && probe.lockOwnedBy(pid, `${directory}/owner.sqlite`);
-  return { event: 'db_traffic.host_readback', available: true, release: probe.release(), serviceActive, stateDirectory, stateModeConfigured, protectionEnabled, serviceUser, processSpoolPath, singleNode, directoryPrivate, samplingEnabled, collectionConfigured, spoolReadable, spoolLocked, lockOwnedByMain, coverageUnknown: spoolReadable ? state.coverageUnknownSince != null : null };
+  return { event: 'db_traffic.host_readback', available: true, release: probe.release(), serviceActive, managedUnit, dropInsPresent, stateDirectory, stateModeConfigured, protectionEnabled, serviceUser, processSpoolPath, singleNode, directoryPrivate, samplingEnabled, collectionConfigured, spoolReadable, spoolLocked, lockOwnedByMain, coverageUnknown: spoolReadable ? state.coverageUnknownSince != null : null };
 }
 
 const actual = {
