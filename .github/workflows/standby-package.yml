@@ -96,7 +96,7 @@ jobs:
           cache: true
           require-lockfile: true
       - name: Verify environment isolation
-        run: pnpm exec tsx --test scripts/standby/start.test.mjs scripts/standby/production.test.mjs scripts/standby/install-production.test.mjs
+        run: pnpm exec tsx --test scripts/standby/start.test.mjs scripts/standby/production.test.mjs scripts/standby/install-production.test.mjs scripts/standby/production-traffic-status.test.mjs
       - name: Prepare exact immutable application checkout
         run: |
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
