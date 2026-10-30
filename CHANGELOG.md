@@ -5,6 +5,18 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.2]
+
+### Changed
+
+- 制播可靠事件拒绝时提供兼容的原因与排查编号，帮助客户端判断后续处理并协助管理员定位问题。
+
+### Fixed
+
+- 修复 Mizar 来源会话核对与赛后清理：设备可精确查询自己的来源状态，赛事管理员可查看未释放来源，由授权人或超级管理员逐条核对并关闭符合条件的已完赛来源。
+- 修复数据库流量批次异常时后续统计受阻的问题，保留隔离证据与投递缺口，并在服务重启后继续投递；生产流量与投递状态仍待验证。
+- 修复制播审计中地图选手临时数据事件显示为未记录的问题，并区分未知事件与缺失记录。
+
 ## [2.25.1]
 
 ### Changed
@@ -3298,6 +3310,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.25.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.1...v2.25.2
 [2.25.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.0...v2.25.1
 [2.25.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.16...v2.25.0
 [2.24.16]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.15...v2.24.16
