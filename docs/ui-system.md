@@ -289,3 +289,5 @@ Swiss Pick’Em retains logo slots and a visible team pool, keyboard/tap assignm
 Visual regression 只锁定少量 deterministic reference；功能 E2E 继续验证真实任务。baseline 使用固定 viewport、关闭动画/caret，并尽量排除实时人数、动态时间和其它非确定内容。只有 presentation contract 有预期变化时更新 baseline。
 
 新增 UI pattern 前先确认现有 primitive 是否已经拥有该职责；如果新模式确实跨页面稳定，再收口 shared contract，而不是在每个 consumer 各写一份样式和交互。
+
+页面版本失效时保留当前页面输入并暂停受影响的后台更新；通用更新入口先提示未保存内容会丢失并请求确认，登录页沿用邮箱恢复流程。

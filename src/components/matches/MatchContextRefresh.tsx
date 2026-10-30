@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { reportDeploymentUpdate } from "@/lib/deployment-update";
 import { useGuardedVisiblePolling } from "@/components/use-visible-polling";
 import { readPublicMatchRefreshToken } from "@/actions/public-match-refresh";
 import type { PublicMatchRefreshScope } from "@/lib/matches/public-refresh";
@@ -24,7 +25,7 @@ export function MatchContextRefresh({ enabled, seasonSlug, scope }: {
   useGuardedVisiblePolling(async (isCurrent) => {
     if (pending) return;
     const requestedScope = requestScope;
-    const result = await readPublicMatchRefreshToken({ seasonSlug, scope }).catch(() => null);
+    const result = await readPublicMatchRefreshToken({ seasonSlug, scope }).catch(error => { reportDeploymentUpdate(error); return null; });
     if (!isCurrent() || currentScope.current !== requestedScope) return;
     const now = Date.now();
     if (lastFullSync.current === 0) lastFullSync.current = now;
@@ -38,6 +39,6 @@ export function MatchContextRefresh({ enabled, seasonSlug, scope }: {
       lastFullSync.current = now;
       startRefresh(() => router.refresh());
     }
-  }, enabled ? 15_000 : null, requestScope);
+  }, enabled ? 15_000 : null, requestScope, true);
   return null;
 }

@@ -2,20 +2,21 @@
 
 import { useEffect, useEffectEvent, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { deploymentUpdateRequired, subscribeDeploymentUpdate } from "@/lib/deployment-update";
 
 /** Poll only visible pages, with at most one asynchronous read in flight. */
-export function useGuardedVisiblePolling(poll: (isCurrent: () => boolean) => void | Promise<void>, intervalMs: number | null, identityKey?: string) {
+export function useGuardedVisiblePolling(poll: (isCurrent: () => boolean) => void | Promise<void>, intervalMs: number | null, identityKey?: string, pauseOnDeploymentUpdate = false) {
   const inFlight = useRef(false);
   const generation = useRef(0);
   const recheckAfterFlight = useRef(false);
   const runPoll = useEffectEvent(async (recheck = false) => {
-    if (intervalMs === null || document.visibilityState === "hidden") return;
+    if (intervalMs === null || document.visibilityState === "hidden" || (pauseOnDeploymentUpdate && deploymentUpdateRequired())) return;
     if (inFlight.current) {
       if (recheck) recheckAfterFlight.current = true;
       return;
     }
     const startedGeneration = generation.current;
-    const isCurrent = () => generation.current === startedGeneration && document.visibilityState !== "hidden";
+    const isCurrent = () => generation.current === startedGeneration && document.visibilityState !== "hidden" && (!pauseOnDeploymentUpdate || !deploymentUpdateRequired());
     inFlight.current = true;
     try {
       await poll(isCurrent);
@@ -39,7 +40,7 @@ export function useGuardedVisiblePolling(poll: (isCurrent: () => boolean) => voi
     };
     const resume = () => {
       stop();
-      if (document.visibilityState === "hidden") return;
+      if (document.visibilityState === "hidden" || (pauseOnDeploymentUpdate && deploymentUpdateRequired())) return;
       timer = setInterval(() => void runPoll(), intervalMs);
     };
     const onVisibility = () => {
@@ -48,15 +49,17 @@ export function useGuardedVisiblePolling(poll: (isCurrent: () => boolean) => voi
       resume();
       if (document.visibilityState !== "hidden") void runPoll(true);
     };
+    const unsubscribe = pauseOnDeploymentUpdate ? subscribeDeploymentUpdate(stop) : () => {};
     resume();
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       generation.current += 1;
       recheckAfterFlight.current = false;
       stop();
+      unsubscribe();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [intervalMs, identityKey]);
+  }, [intervalMs, identityKey, pauseOnDeploymentUpdate]);
 }
 
 /** Keep the legacy zero-argument callback contract (some callbacks accept an optional UI flag). */

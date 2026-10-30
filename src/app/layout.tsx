@@ -1,3 +1,4 @@
+import { DeploymentUpdateNotice } from "@/components/layout/DeploymentUpdateNotice";
 import type { Metadata } from "next";
 import { Geist, JetBrains_Mono } from "next/font/google";
 import "@fontsource-variable/noto-sans-sc/wght.css";
@@ -54,6 +55,7 @@ export default function RootLayout({
         <OperationsProvider>
           <Suspense fallback={null}><PreviewMirrorBanner /></Suspense>
           <Header />
+          <Suspense fallback={null}><DeploymentUpdateNotice /></Suspense>
           <main className="flex-1">{children}</main>
           <Footer />
           <Suspense fallback={null}>
