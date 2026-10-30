@@ -8,7 +8,8 @@ import { db } from "@/db/client";
 import { competitionQualificationRuns, majorStageRuns, matches } from "@/db/schema";
 import type { CompetitionQualificationRun } from "@/db/schema/competition-qualification";
 import { buildOfficialStageDirectory, type OfficialStage, type QualificationStageFact } from "./official-stages";
-import { resolveMajorStagePlan } from "@/lib/major/run-snapshot";
+import { parseMajorRunPresentation, resolveMajorStagePlanFromPresentations, type MajorRunPresentation } from "@/lib/major/run-snapshot";
+import { majorRunPresentationSelection } from "@/lib/major/run-snapshot-query";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { presentStageMarker } from "@/lib/seasons/presentation";
 import type { PublicSeason } from "@/lib/data/public-seasons";
@@ -33,16 +34,16 @@ export interface PublicStagePresentation {
  * for a Stage identity. */
 export function resolvePublicStagePlan(
   season: PublicStageSeason,
-  stageRuns: readonly { stageKey: string; ruleSnapshot: unknown; startedAt?: Date }[] = [],
+  stageRuns: readonly { stageKey: string; presentation: MajorRunPresentation; startedAt?: Date }[] = [],
 ): StagePlan {
   return season.competitionTemplate === "major"
-    ? resolveMajorStagePlan(normalizeStagePlan(season.stagePlan), stageRuns)
+    ? resolveMajorStagePlanFromPresentations(normalizeStagePlan(season.stagePlan), stageRuns)
     : normalizeStagePlan(season.stagePlan);
 }
 
 export function buildPublicStagePresentation(
   season: PublicStageSeason,
-  stageRuns: readonly { stageKey: string; ruleSnapshot: unknown; startedAt?: Date }[] = [],
+  stageRuns: readonly { stageKey: string; presentation: MajorRunPresentation; startedAt?: Date }[] = [],
   initializedStageKeys: readonly string[] = [],
   qualification: QualificationStageFact | null = null,
 ): PublicStagePresentation {
@@ -74,10 +75,10 @@ const loadPublicStageFacts = cache(async (seasonId: string, template: PublicStag
     return Promise.all([
       template === "major"
         ? db
-          .select({ stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot, startedAt: majorStageRuns.startedAt })
+          .select({ stageKey: majorStageRuns.stageKey, presentationInput: majorRunPresentationSelection(majorStageRuns.ruleSnapshot), startedAt: majorStageRuns.startedAt })
           .from(majorStageRuns)
           .where(eq(majorStageRuns.seasonId, seasonId))
-        : Promise.resolve([] as { stageKey: string; ruleSnapshot: unknown }[]),
+        : Promise.resolve([] as { stageKey: string; presentationInput: unknown; startedAt: Date }[]),
       loadOfficialMatchStages(eq(matches.seasonId, seasonId)),
       db.select({ id: competitionQualificationRuns.id, format: competitionQualificationRuns.format,
         targetEntrantCount: competitionQualificationRuns.targetEntrantCount,
@@ -97,7 +98,7 @@ export async function getPublicSeasonStagePresentation(
   return {
     ...buildPublicStagePresentation(
       season,
-      stageRuns,
+      stageRuns.map((run) => ({ ...run, presentation: parseMajorRunPresentation(run.presentationInput, run.stageKey) })),
       matchStageRows.flatMap((row) => row.stage === null ? [] : [row.stage]),
       qualificationRows[0] ?? null,
     ),
