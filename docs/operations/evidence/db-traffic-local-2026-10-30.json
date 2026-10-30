@@ -1,0 +1,72 @@
+{
+  "scope": "Local loopback PostgreSQL integration, not production or provider billing",
+  "baseCommit": "9ea4e695b6c29988903211f13c2753bf7e343189",
+  "postgresVersion": "17.11",
+  "pgVersion": "8.23.1",
+  "test": "tests/integration/db/db-traffic-attribution.test.ts",
+  "command": "RIVALHUB_LOCAL_DATABASE_URL=<loopback local database URL> pnpm exec vitest run --config vitest.integration.config.ts tests/integration/db/db-traffic-attribution.test.ts",
+  "result": "passed",
+  "testDurationMs": 401,
+  "filesSha256AtRun": {
+    "src/lib/observability/pg-traffic-adapter.ts": "0f749b47882a4bfb7672d9edfd8b6a377cc4de2b7a5bd91d3c62ae452dff106a",
+    "src/db/client-measurement.ts": "94c466f1dc690d4aab4b56215bedc849605f701336d502914d250119f35a7817",
+    "src/lib/observability/db-traffic.ts": "ce167c1defdda9d00e77379f73bbe5bc6fb40539e8456bcc58ae131aa2004b5c",
+    "tests/integration/db/db-traffic-attribution.test.ts": "d471db844a4dff7dabc1736436686883bbba1e841b543a11260859fabd08ac2b",
+    "src/db/pool.ts": "25fc1691de41d7df2197eef256e14b602d567e9da8fc8946ea4f3091c1ea2e8e"
+  },
+  "scenarios": [
+    "concurrent connections",
+    "same-connection source queue",
+    "transaction",
+    "empty result",
+    "query error",
+    "notice",
+    "notification",
+    "parameter status",
+    "custom query",
+    "query timeout and later response",
+    "large result logical budget",
+    "shape overflow",
+    "connection interruption",
+    "actual frame split across flush and hour",
+    "lost ACK retries identical batch payload and ID",
+    "custom Client constructor identity, arguments and new.target"
+  ],
+  "firstWindow": {
+    "receivedBytes": 132938,
+    "sourceRxBytes": {
+      "bet.fill": 4182,
+      "mizar": 2340,
+      "dak": 123196,
+      "stats.platform": 2960
+    },
+    "attributedBytes": 132678,
+    "remaining": {
+      "async": 188,
+      "no_owner": 0,
+      "partial": 0,
+      "unsupported": 72,
+      "instrumentation": 0
+    },
+    "differenceBytes": 0,
+    "reportedDroppedBatches": 0,
+    "droppedReceivedBytes": 0,
+    "unconfirmedBatches": 0,
+    "unconfirmedReceivedBytes": 0
+  },
+  "splitFrame": {
+    "receivedBytes": 5068,
+    "earlierHour": {
+      "receivedBytes": 3,
+      "attributedBytes": 0,
+      "partialBytes": 3
+    },
+    "laterHour": {
+      "receivedBytes": 5065,
+      "attributedBytes": 5065,
+      "remainingBytes": 0
+    },
+    "differenceBytes": 0
+  },
+  "limitations": "Local test uses an injected split of bytes read from the actual socket. It does not demonstrate production delivery, provider billing coverage, or durable delivery after process termination."
+}

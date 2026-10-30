@@ -1,17 +1,22 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import { Agent, request } from "node:https";
+import type { PoolClient } from "pg";
+import { observePgTraffic, resetPgTraffic, settlePgTraffic } from "./pg-traffic-adapter";
 
 import { DB_SOURCES, type DbTrafficSource } from "./db-traffic-contract";
 export { DB_SOURCES, type DbTrafficSource } from "./db-traffic-contract";
 export type DbTemplate = string;
-type Row = { source: DbTrafficSource; template: string; queries: number; failures: number; rows: number; queryMs: number; logicalRowJsonBytes: number; logicalMeasuredQueries: number };
+type Row = { source: DbTrafficSource; template: string; queries: number; failures: number; rows: number; queryMs: number; logicalRowJsonBytes: number; logicalMeasuredQueries: number; rxBytes: number; skipReasons: { budget: number; unsupported_value: number; error: number } };
 type Context = { source: DbTrafficSource };
-type State = { context: AsyncLocalStorage<Context>; rows: Map<string, Row>; processId: string; pending: { body: string; at: number; dropped: number }[]; sending: boolean; dropped: number; receivedBytes: number; connections: number; observedConnections: number };
-const slot = Symbol.for("rivalhub.db-traffic.v2");
+type State = { context: AsyncLocalStorage<Context>; rows: Map<string, Row>; processId: string; pending: { body: string; at: number; dropped: number; droppedReceivedBytes: number; unconfirmedReceivedBytes: number; unconfirmedBatches: number; receivedBytes: number; attempted: boolean }[]; sending: boolean; dropped: number; droppedReceivedBytes: number; unconfirmedReceivedBytes: number; unconfirmedBatches: number; receivedBytes: number; connections: number; observedConnections: number; clients: Set<PoolClient>; hour: number; remaining: Remaining };
+type Remaining = { async: number; no_owner: number; partial: number; unsupported: number; instrumentation: number };
+function emptyRemaining(): Remaining { return { async: 0, no_owner: 0, partial: 0, unsupported: 0, instrumentation: 0 }; }
+const HOUR = 3600000;
+const slot = Symbol.for("rivalhub.db-traffic.v3");
 function state(): State {
   const host = process as unknown as Record<symbol, State | undefined>;
-  return host[slot] ??= { context: new AsyncLocalStorage(), rows: new Map(), processId: crypto.randomUUID(), pending: [], sending: false, dropped: 0, receivedBytes: 0, connections: 0, observedConnections: 0 };
+  return host[slot] ??= { context: new AsyncLocalStorage(), rows: new Map(), processId: crypto.randomUUID(), pending: [], sending: false, dropped: 0, droppedReceivedBytes: 0, unconfirmedReceivedBytes: 0, unconfirmedBatches: 0, receivedBytes: 0, connections: 0, observedConnections: 0, clients: new Set(), hour: Math.floor(Date.now() / HOUR) * HOUR, remaining: emptyRemaining() };
 }
 export function withDbTrafficSource<T>(source: DbTrafficSource, fn: () => T): T { return state().context.run({ source }, fn); }
 export function setDbTrafficSource(source: DbTrafficSource) { const context = state().context.getStore(); if (context) context.source = source; }
@@ -35,20 +40,44 @@ export function queryShape(sql: unknown): string {
   }).join(" ");
   return `q${createHash("sha256").update(shape).digest("hex").slice(0, 16)}`;
 }
-export function recordDbTraffic(source: DbTrafficSource, template: DbTemplate, rows: number, ms: number, failure: boolean, logicalBytes?: number) {
-  if (!dbTrafficEnabled()) return;
+function ensureWindow() {
+  const s = state();
+  if (Math.floor(Date.now() / HOUR) * HOUR !== s.hour) flushDbTraffic();
+}
+function getRow(source: DbTrafficSource, template: string): Row {
   const map = state().rows; let key = `${source}:${template}`;
   if (!map.has(key) && map.size >= 40) { template = "overflow"; key = `${source}:${template}`; }
-  const row = map.get(key) ?? { source, template, queries: 0, failures: 0, rows: 0, queryMs: 0, logicalRowJsonBytes: 0, logicalMeasuredQueries: 0 };
-  row.queries++; row.failures += failure ? 1 : 0; row.rows += rows; row.queryMs += ms; if (logicalBytes !== undefined) { row.logicalRowJsonBytes += logicalBytes; row.logicalMeasuredQueries++; } map.set(key, row);
+  let row = map.get(key);
+  if (!row) { row = { source, template, queries: 0, failures: 0, rows: 0, queryMs: 0, logicalRowJsonBytes: 0, logicalMeasuredQueries: 0, rxBytes: 0, skipReasons: { budget: 0, unsupported_value: 0, error: 0 } }; map.set(key, row); }
+  return row;
 }
-export function observeDbStream(client: { once(event: string, callback: () => void): unknown }, stream: { on(event: string, callback: (...args: never[]) => void): unknown } | null) {
+export type LogicalSkipReason = "budget" | "unsupported_value" | "error";
+export function recordDbTraffic(source: DbTrafficSource, template: DbTemplate, rows: number, ms: number, failure: boolean, logicalBytes?: number, skipReason?: LogicalSkipReason) {
+  if (!dbTrafficEnabled()) return;
+  ensureWindow();
+  const row = getRow(source, template);
+  row.queries++; row.failures += failure ? 1 : 0; row.rows += rows; row.queryMs += ms;
+  if (logicalBytes !== undefined) { row.logicalRowJsonBytes += logicalBytes; row.logicalMeasuredQueries++; }
+  else if (skipReason) row.skipReasons[skipReason]++;
+}
+export function observeDbStream(client: PoolClient) {
   const s = state(); s.connections++;
-  const observed = !!stream && typeof stream.on === "function";
-  if (observed) s.observedConnections++;
-  client.once("end", () => { s.connections--; if (observed) s.observedConnections--; });
-  if (!observed || !stream) return;
-  stream.on("data", ((chunk: unknown) => { try { if (dbTrafficEnabled() && (chunk instanceof Uint8Array)) s.receivedBytes += chunk.byteLength; } catch { /* Preserve the driver stream. */ } }) as (...args: never[]) => void);
+  let observed = false;
+  try {
+    observed = observePgTraffic(client, {
+      enabled: dbTrafficEnabled,
+      raw(bytes) { ensureWindow(); s.receivedBytes += bytes; },
+      attribute(owner, bytes) {
+        if (typeof owner === "object") getRow(owner.source, owner.template).rxBytes += bytes;
+        else s.remaining[owner] += bytes;
+      },
+    });
+  } catch { /* Preserve the driver connection. */ }
+  if (observed) { s.observedConnections++; s.clients.add(client); }
+  client.once("end", () => {
+    try { settlePgTraffic(client); } catch { /* Preserve connection shutdown. */ }
+    s.connections--; if (observed) { s.observedConnections--; s.clients.delete(client); }
+  });
 }
 let lastKey: string | undefined; let lastEndpoint: string | undefined; let lastHealth: string | undefined; let enabled = false;
 export function dbTrafficEnabled(): boolean {
@@ -83,22 +112,34 @@ async function sendDbTraffic(endpoint: URL, body: string, key: string): Promise<
 /** Best effort, bounded retry queue. Batch identity remains unchanged after a lost ACK. */
 export function flushDbTraffic() {
   const s = state();
-  if (!dbTrafficEnabled()) { s.rows.clear(); s.pending.length = 0; s.dropped = 0; s.receivedBytes = 0; return; }
-  while (!s.sending && s.pending[0] && s.pending[0].at < Date.now() - 23 * 3600000) { const expired = s.pending.shift()!; s.dropped += 1 + expired.dropped; }
-  if (s.rows.size || s.receivedBytes) {
+  if (!dbTrafficEnabled()) { for (const client of s.clients) resetPgTraffic(client); s.rows.clear(); s.pending.length = 0; s.dropped = 0; s.droppedReceivedBytes = 0; s.unconfirmedReceivedBytes = 0; s.unconfirmedBatches = 0; s.receivedBytes = 0; s.remaining = emptyRemaining(); s.hour = Math.floor(Date.now() / HOUR) * HOUR; return; }
+  for (const client of s.clients) settlePgTraffic(client);
+  while (!s.sending && s.pending[0] && s.pending[0].at < Date.now() - 23 * 3600000) {
+    const expired = s.pending.shift()!;
+    if (expired.attempted) {
+      // A lost ACK may mean the worker already stored this batch. Do not claim loss.
+      s.unconfirmedBatches += 1 + expired.dropped + expired.unconfirmedBatches;
+      s.unconfirmedReceivedBytes += expired.receivedBytes + expired.droppedReceivedBytes + expired.unconfirmedReceivedBytes;
+    } else {
+      s.dropped += 1 + expired.dropped; s.droppedReceivedBytes += expired.receivedBytes + expired.droppedReceivedBytes;
+      s.unconfirmedBatches += expired.unconfirmedBatches; s.unconfirmedReceivedBytes += expired.unconfirmedReceivedBytes;
+    }
+  }
+  if (s.rows.size || s.receivedBytes || (s.pending.length < 5 && (s.dropped || s.droppedReceivedBytes || s.unconfirmedBatches || s.unconfirmedReceivedBytes))) {
     const release = process.env.RIVALHUB_RELEASE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "unknown";
     const deploymentValue = process.env.VERCEL_DEPLOYMENT_ID || "unknown";
     const deployment = /^[A-Za-z0-9._-]{1,80}$/.test(deploymentValue) ? deploymentValue : "unknown";
-    const batch = { deployment, dropped: s.dropped, id: crypto.randomUUID(), process: s.processId, at: Date.now(), release: /^[A-Za-z0-9._-]{1,80}$/.test(release) ? release : "unknown", rows: [...s.rows.values()], receivedBytes: s.receivedBytes, connections: s.connections, observedConnections: s.observedConnections };
-    s.rows.clear(); s.receivedBytes = 0;
-    if (s.pending.length < 5) { s.pending.push({ body: JSON.stringify(batch), at: batch.at, dropped: batch.dropped }); s.dropped = 0; }
-    else s.dropped++;
+    const batch = { deployment, dropped: s.dropped, droppedReceivedBytes: s.droppedReceivedBytes, unconfirmedReceivedBytes: s.unconfirmedReceivedBytes, unconfirmedBatches: s.unconfirmedBatches, id: crypto.randomUUID(), process: s.processId, at: s.rows.size || s.receivedBytes ? Math.min(Date.now(), s.hour + HOUR - 1) : Date.now(), release: /^[A-Za-z0-9._-]{1,80}$/.test(release) ? release : "unknown", rows: [...s.rows.values()], receivedBytes: s.receivedBytes, remaining: s.remaining, remainingRxBytes: Object.values(s.remaining).reduce((sum, value) => sum + value, 0), connections: s.connections, observedConnections: s.observedConnections };
+    s.rows.clear(); s.receivedBytes = 0; s.remaining = emptyRemaining();
+    if (s.pending.length < 5) { s.pending.push({ body: JSON.stringify(batch), at: batch.at, dropped: batch.dropped, droppedReceivedBytes: batch.droppedReceivedBytes, unconfirmedReceivedBytes: batch.unconfirmedReceivedBytes, unconfirmedBatches: batch.unconfirmedBatches, receivedBytes: batch.receivedBytes, attempted: false }); s.dropped = 0; s.droppedReceivedBytes = 0; s.unconfirmedReceivedBytes = 0; s.unconfirmedBatches = 0; }
+    else { s.dropped++; s.droppedReceivedBytes += batch.receivedBytes; }
   }
+  s.hour = Math.floor(Date.now() / HOUR) * HOUR;
   let endpoint: URL;
   try { endpoint = new URL(process.env.PRODUCT_TELEMETRY_ENDPOINT ?? ""); } catch { return; }
   if (s.sending || !s.pending.length) return;
   endpoint.pathname = "/v1/db-traffic"; s.sending = true;
-  const sending = s.pending[0];
+  const sending = s.pending[0]; sending.attempted = true;
   void Promise.resolve().then(() => sendDbTraffic(endpoint, sending.body, process.env.DB_TRAFFIC_KEY!)).then(ok => {
     if (ok && s.pending[0] === sending) s.pending.shift();
   }).catch(() => {}).finally(() => { s.sending = false; });

@@ -73,6 +73,11 @@ it("executes the real Worker and D1 API: concurrent ACK deduplication, usage and
     const maximumBody = JSON.stringify(maximum);
     expect(Buffer.byteLength(maximumBody)).toBeLessThanOrEqual(24000);
     expect((await mf.dispatchFetch("https://worker.invalid/v1/db-traffic", { method: "POST", headers: { authorization: `Bearer ${bindings.DB_TRAFFIC_KEY}` }, body: maximumBody })).status).toBe(204);
+    const newMaximum = { ...maximum, id: crypto.randomUUID(), receivedBytes: maximum.rows.length, remainingRxBytes: 0, remaining: { async: 0, no_owner: 0, partial: 0, unsupported: 0, instrumentation: 0 }, droppedReceivedBytes: 1e12, unconfirmedReceivedBytes: 1e12, unconfirmedBatches: 1000000, rows: maximum.rows.map((row: object) => ({ ...row, rxBytes: 1, skipReasons: { budget: 0, unsupported_value: 0, error: 0 } })) };
+    const newMaximumBody = JSON.stringify(newMaximum);
+    expect(Buffer.byteLength(newMaximumBody)).toBeLessThanOrEqual(40000);
+    expect((await mf.dispatchFetch("https://worker.invalid/v1/db-traffic", { method: "POST", headers: { authorization: `Bearer ${bindings.DB_TRAFFIC_KEY}` }, body: newMaximumBody })).status).toBe(204);
+    await db.prepare("DELETE FROM db_traffic_batches WHERE id=?").bind(newMaximum.id).run();
     // Remove this independent fixture before checking the small mixed-version totals.
     await db.prepare("DELETE FROM db_traffic_batches WHERE id=?").bind(maximum.id).run();
     await db.prepare("DELETE FROM db_traffic_hours").run();
@@ -232,5 +237,43 @@ it("retains a low-frequency byte leader through hourly truncation", async () => 
     expect(result.truncated).toBe(true);
     expect(result.byBytes[0]).toMatchObject({ template: "q0000000000000078", logicalRowJsonBytes: 999999 });
     expect(result.sources[0].logicalRowJsonBytes).toBe(1000119);
+  } finally { await mf.dispose(); }
+}, 30000);
+
+it("keeps attributed bytes idempotent and scoped to one hour and deployment while identifying legacy gaps", async () => {
+  const require = createRequire(import.meta.url);
+  const { build } = createRequire(require.resolve("tsx/package.json"))("esbuild") as { build(options: object): Promise<{ outputFiles: { text: string }[] }> };
+  const built = await build({ entryPoints: ["workers/telemetry/index.ts"], bundle: true, write: false, format: "esm", platform: "browser" });
+  const bindings = { SIGNING_KEY: "fixture-signing-key".repeat(3), ADMIN_KEY: "fixture-admin-key".repeat(3), DB_TRAFFIC_KEY: "fixture-db-key".repeat(3), ALLOWED_ORIGIN: "https://rivalhub.invalid", ACCEPTING: "1", RETENTION_APPROVED: "1" };
+  const mf = new Miniflare({ modules: true, script: built.outputFiles[0].text, compatibilityDate: "2026-07-30", bindings, d1Databases: ["DB"] });
+  try {
+    const db = await mf.getD1Database("DB");
+    const schema = (await readFile("workers/telemetry/schema.sql", "utf8")).replace(/^--.*$/gm, "").split(";").map(s => s.trim()).filter(Boolean);
+    await db.batch(schema.map(sql => db.prepare(sql)));
+    const hour = Math.floor(Date.now() / 3600000) * 3600000 - 3600000;
+    const base = { id: crypto.randomUUID(), process: crypto.randomUUID(), at: hour + 1000, release: "v1", deployment: "d1", dropped: 1, droppedReceivedBytes: 50, unconfirmedReceivedBytes: 30, unconfirmedBatches: 1, receivedBytes: 125, connections: 1, observedConnections: 1, remainingRxBytes: 25, remaining: { async: 2, no_owner: 3, partial: 4, unsupported: 6, instrumentation: 10 }, rows: [{ source: "mizar", template: "q0000000000000001", queries: 0, failures: 0, rows: 0, queryMs: 0, logicalRowJsonBytes: 0, logicalMeasuredQueries: 0, rxBytes: 100, skipReasons: { budget: 0, unsupported_value: 0, error: 0 } }] };
+    const send = (body: unknown) => mf.dispatchFetch("https://worker.invalid/v1/db-traffic", { method: "POST", headers: { authorization: `Bearer ${bindings.DB_TRAFFIC_KEY}` }, body: JSON.stringify(body) });
+    expect((await Promise.all([send(base), send(base)])).map(r => r.status)).toEqual([204, 204]);
+    const invalid = { ...base, id: crypto.randomUUID(), receivedBytes: 126 };
+    expect((await send(invalid)).status).toBe(400);
+    const second = { ...base, id: crypto.randomUUID(), release: "v2", deployment: "d2", receivedBytes: 125 };
+    expect((await send(second)).status).toBe(204);
+    const legacy = { id: crypto.randomUUID(), process: crypto.randomUUID(), at: hour + 2000, release: "v1", deployment: "d1", dropped: 0, receivedBytes: 10, connections: 1, observedConnections: 1, rows: [{ source: "mizar", template: "q0000000000000001", queries: 1, failures: 0, rows: 1, queryMs: 1 }] };
+    expect((await send(legacy)).status).toBe(204);
+    await maintainDbTraffic({ ...bindings, DB: db as unknown as Env["DB"] }, Date.now());
+    const response = await mf.dispatchFetch("https://worker.invalid/admin/db-traffic?hours=24", { headers: { authorization: `Bearer ${bindings.ADMIN_KEY}` } });
+    const data = await response.json() as { windows: Array<{ hour: number; release: string; deployment: string; batches: number; receivedBytes: number; remainingRxBytes: number; rxComplete: boolean; logicalComplete: boolean; lossComplete: boolean; droppedReceivedBytes: number; unconfirmedReceivedBytes: number; unconfirmedBatches: number; sources: Array<{ source: string; queries: number; rxBytes: number }> }> };
+    expect(data.windows).toHaveLength(2);
+    const v1 = data.windows.find(w => w.release === "v1")!;
+    const selectedResponse = await mf.dispatchFetch(`https://worker.invalid/admin/db-traffic?hours=24&hour=${hour}&release=v2&deployment=d2`, { headers: { authorization: `Bearer ${bindings.ADMIN_KEY}` } });
+    const selectedData = await selectedResponse.json() as typeof data;
+    const v2 = selectedData.windows.find(w => w.release === "v2")!;
+    expect(v1).toMatchObject({ hour, deployment: "d1", batches: 2, receivedBytes: 135, remainingRxBytes: 25, rxComplete: false, logicalComplete: false, lossComplete: false, droppedReceivedBytes: 50, unconfirmedReceivedBytes: 30, unconfirmedBatches: 1, sources: [{ source: "mizar", queries: 1, rxBytes: 100 }] });
+    expect(v2).toMatchObject({ hour, deployment: "d2", batches: 1, receivedBytes: 125, remainingRxBytes: 25, rxComplete: true, logicalComplete: true, lossComplete: true, droppedReceivedBytes: 50, unconfirmedReceivedBytes: 30, unconfirmedBatches: 1, sources: [{ source: "mizar", queries: 0, rxBytes: 100 }] });
+    expect(v2.sources[0].rxBytes + v2.remainingRxBytes).toBe(v2.receivedBytes);
+    const oldHour = hour - 3600000;
+    await db.prepare("INSERT INTO db_traffic_hours(hour,version,payload,expires) VALUES(?,1,?,?)").bind(oldHour, JSON.stringify({ sources: [], shapes: [], releases: [], receivedBytes: 4, connections: 0, observedConnections: 0, dropped: 0, truncated: false }), Date.now() + 86400000).run();
+    const withHistory = await mf.dispatchFetch("https://worker.invalid/admin/db-traffic?hours=24", { headers: { authorization: `Bearer ${bindings.ADMIN_KEY}` } });
+    expect(await withHistory.json()).toMatchObject({ unscopedHours: [oldHour], lossComplete: false });
   } finally { await mf.dispose(); }
 }, 30000);

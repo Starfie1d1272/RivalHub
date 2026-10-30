@@ -2,6 +2,7 @@ import { Pool, type PoolClient } from "pg";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { observeDbStream } from "../lib/observability/db-traffic";
 import { logEvent } from "../lib/observability/logger";
+import { preparePgTraffic } from "../lib/observability/pg-traffic-adapter";
 
 import { createClientMeasurements, measureClient } from "./client-measurement";
 
@@ -12,8 +13,20 @@ export class DatabasePool extends Pool {
   private readonly clientMeasurements = createClientMeasurements();
   constructor(options: ConstructorParameters<typeof Pool>[0]) {
     super(options);
+    // Preserve pg-pool's selected constructor, including custom clients and
+    // their prototype, constructor identity, arguments and new.target.
+    try {
+      const internals = this as unknown as { Client: new (...args: never[]) => PoolClient };
+      internals.Client = new Proxy(internals.Client, {
+        construct(target, args) {
+          const client = Reflect.construct(target, args, target) as PoolClient;
+          try { preparePgTraffic(client); } catch { /* Observation must not affect connection setup. */ }
+          return client;
+        },
+      });
+    } catch { /* A nonstandard Client must retain its original behavior. */ }
     this.on("connect", client => {
-      try { observeDbStream(client, (client as unknown as { connection?: { stream?: Parameters<typeof observeDbStream>[1] } }).connection?.stream ?? null); } catch { /* Measurement must not affect a connection. */ }
+      try { observeDbStream(client); } catch { /* Measurement must not affect a connection. */ }
     });
   }
   getClientSnapshot() { return { ...this.clientMeasurements, holdBuckets: [...this.clientMeasurements.holdBuckets] }; }

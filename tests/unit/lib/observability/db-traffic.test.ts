@@ -16,7 +16,7 @@ it("bounds the retry queue, preserves FIFO identity and reports a dropped window
   const { vi } = await import("vitest");
   const { recordDbTraffic, flushDbTraffic } = await import("@/lib/observability/db-traffic");
   const host = process as unknown as Record<symbol, unknown>;
-  const slot = Symbol.for("rivalhub.db-traffic.v2"); delete host[slot];
+  const slot = Symbol.for("rivalhub.db-traffic.v3"); delete host[slot];
   vi.stubEnv("DB_TRAFFIC_KEY", "fixture-secret".repeat(3));
   vi.stubEnv("PRODUCT_TELEMETRY_ENDPOINT", "https://telemetry.invalid/v1/batches");
   const sent: Array<{ id: string; dropped: number }> = []; let succeeds = false;
@@ -37,7 +37,7 @@ it("does not retain disabled observations for later delivery", async () => {
   const { vi } = await import("vitest");
   const { recordDbTraffic, flushDbTraffic } = await import("@/lib/observability/db-traffic");
   const host = process as unknown as Record<symbol, unknown>;
-  const slot = Symbol.for("rivalhub.db-traffic.v2"); delete host[slot];
+  const slot = Symbol.for("rivalhub.db-traffic.v3"); delete host[slot];
   vi.stubEnv("DB_TRAFFIC_KEY", "");
   vi.stubEnv("PRODUCT_TELEMETRY_ENDPOINT", "https://telemetry.invalid/v1/batches");
   const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);

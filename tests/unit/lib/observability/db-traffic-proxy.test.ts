@@ -15,7 +15,7 @@ vi.mock("node:https", () => ({
 it("uses the configured HTTPS proxy for authenticated database telemetry", async () => {
   const { flushDbTraffic, recordDbTraffic } = await import("@/lib/observability/db-traffic");
   const host = process as unknown as Record<symbol, unknown>;
-  const slot = Symbol.for("rivalhub.db-traffic.v2"); delete host[slot];
+  const slot = Symbol.for("rivalhub.db-traffic.v3"); delete host[slot];
   vi.stubEnv("DB_TRAFFIC_KEY", "test-key-".repeat(5));
   vi.stubEnv("PRODUCT_TELEMETRY_ENDPOINT", "https://telemetry.invalid/v1/batches");
   vi.stubEnv("PRODUCT_TELEMETRY_QUERY_PROXY_URL", "http://127.0.0.1:7890");
