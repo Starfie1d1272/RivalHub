@@ -3,7 +3,7 @@ export type DbTrafficSource = typeof DB_SOURCES[number];
 export const DB_TEMPLATE_PATTERN = /^(?:q[0-9a-f]{16}|unknown|unsupported|overflow)$/;
 
 /** Canonical v1 digest input preserves omitted legacy properties and array order. */
-export function canonicalDbTraffic(value: unknown): string {
+function canonicalDbTraffic(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalDbTraffic).join(",")}]`;
   if (value && typeof value === "object") return `{${Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, item]) => `${JSON.stringify(key)}:${canonicalDbTraffic(item)}`).join(",")}}`;
   return JSON.stringify(value);
