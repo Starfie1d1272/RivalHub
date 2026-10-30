@@ -10,7 +10,7 @@ export { DB_SOURCES, type DbTrafficSource } from "./db-traffic-contract";
 export type DbTemplate = string;
 type Row = { source: DbTrafficSource; template: string; queries: number; failures: number; rows: number; queryMs: number; logicalRowJsonBytes: number; logicalMeasuredQueries: number; rxBytes: number; skipReasons: { budget: number; unsupported_value: number; error: number } };
 type Context = { source: DbTrafficSource };
-type State = { delivery?: Promise<DbTrafficDelivery>; deliveryStarted?: boolean; flushAgain?: boolean; diskNextAttemptAt?: number; coverageUnknownSince?: number; budgetStartedAt?: number; budgetSent?: number; sealing?: { body: string; rows: Row[]; receivedBytes: number; remaining: Remaining; at: number }; context: AsyncLocalStorage<Context>; rows: Map<string, Row>; processId: string; sending: boolean; receivedBytes: number; connections: number; observedConnections: number; clients: Set<PoolClient>; hour: number; remaining: Remaining };
+type State = { delivery?: Promise<DbTrafficDelivery>; deliveryStarted?: boolean; flushAgain?: boolean; diskNextAttemptAt?: number; coverageUnknownSince?: number; budgetStartedAt?: number; budgetSent?: number; sealing?: { body: string; rows: Row[]; receivedBytes: number; remaining: Remaining; at: number }; context: AsyncLocalStorage<Context>; rows: Map<string, Row>; shapeScores?: Map<string, number>; processId: string; sending: boolean; receivedBytes: number; connections: number; observedConnections: number; clients: Set<PoolClient>; hour: number; remaining: Remaining };
 type Remaining = { async: number; no_owner: number; partial: number; unsupported: number; instrumentation: number };
 function emptyRemaining(): Remaining { return { async: 0, no_owner: 0, partial: 0, unsupported: 0, instrumentation: 0 }; }
 const HOUR = 3600000;
@@ -45,12 +45,36 @@ function ensureWindow() {
   const s = state();
   if (Math.floor(Date.now() / HOUR) * HOUR !== s.hour) flushDbTraffic();
 }
-function getRow(source: DbTrafficSource, template: string): Row {
-  const map = state().rows; let key = `${source}:${template}`;
-  if (!map.has(key) && map.size >= 40) { template = "overflow"; key = `${source}:${template}`; }
-  let row = map.get(key);
-  if (!row) { row = { source, template, queries: 0, failures: 0, rows: 0, queryMs: 0, logicalRowJsonBytes: 0, logicalMeasuredQueries: 0, rxBytes: 0, skipReasons: { budget: 0, unsupported_value: 0, error: 0 } }; map.set(key, row); }
-  return row;
+function scores(s: State): Map<string, number> {
+  return s.shapeScores ??= new Map([...s.rows].filter(([, row]) => row.template !== "overflow").map(([key, row]) => [key, row.rxBytes]));
+}
+function mergeMeasuredRow(target: Row, source: Row) {
+  for (const field of ["queries", "failures", "rows", "queryMs", "logicalRowJsonBytes", "logicalMeasuredQueries", "rxBytes"] as const) target[field] += source[field];
+  for (const field of ["budget", "unsupported_value", "error"] as const) target.skipReasons[field] += source.skipReasons[field];
+}
+function getRow(source: DbTrafficSource, template: string, rxWeight = 0): Row {
+  const s = state(); const map = s.rows; const ranking = scores(s);
+  const makeRow = (rowSource: DbTrafficSource, rowTemplate: string): Row => {
+    const key = `${rowSource}:${rowTemplate}`;
+    let row = map.get(key);
+    if (!row) { row = { source: rowSource, template: rowTemplate, queries: 0, failures: 0, rows: 0, queryMs: 0, logicalRowJsonBytes: 0, logicalMeasuredQueries: 0, rxBytes: 0, skipReasons: { budget: 0, unsupported_value: 0, error: 0 } }; map.set(key, row); }
+    return row;
+  };
+  if (template === "overflow") return makeRow(source, template);
+  const key = `${source}:${template}`; const existing = map.get(key);
+  if (existing) { ranking.set(key, (ranking.get(key) ?? existing.rxBytes) + rxWeight); return existing; }
+  if (ranking.size >= 40) {
+    if (!rxWeight || s.sealing) return makeRow(source, "overflow");
+    let victim: string | undefined; let minimum = Infinity;
+    for (const [candidate, score] of ranking) if (score < minimum) { victim = candidate; minimum = score; }
+    if (victim !== undefined) {
+      const row = map.get(victim)!;
+      mergeMeasuredRow(makeRow(row.source, "overflow"), row);
+      map.delete(victim); ranking.delete(victim);
+    }
+    ranking.set(key, minimum + rxWeight);
+  } else ranking.set(key, rxWeight);
+  return makeRow(source, template);
 }
 export type LogicalSkipReason = "budget" | "unsupported_value" | "error";
 export function recordDbTraffic(source: DbTrafficSource, template: DbTemplate, rows: number, ms: number, failure: boolean, logicalBytes?: number, skipReason?: LogicalSkipReason) {
@@ -69,7 +93,7 @@ export function observeDbStream(client: PoolClient) {
       enabled: dbTrafficEnabled,
       raw(bytes) { ensureWindow(); s.receivedBytes += bytes; },
       attribute(owner, bytes) {
-        if (typeof owner === "object") getRow(owner.source, owner.template).rxBytes += bytes;
+        if (typeof owner === "object") getRow(owner.source, owner.template, bytes).rxBytes += bytes;
         else s.remaining[owner] += bytes;
       },
     });
@@ -199,6 +223,7 @@ export function flushDbTraffic() {
       s.receivedBytes = Number.isFinite(s.receivedBytes) && Number.isFinite(sealing.receivedBytes) ? Math.max(0, s.receivedBytes - sealing.receivedBytes) : 0;
       for (const field of ["async", "no_owner", "partial", "unsupported", "instrumentation"] as const) s.remaining[field] = Number.isFinite(s.remaining[field]) && Number.isFinite(sealing.remaining[field]) ? Math.max(0, s.remaining[field] - sealing.remaining[field]) : 0;
       s.sealing = undefined;
+      s.shapeScores = new Map([...s.rows].filter(([, row]) => row.template !== "overflow").map(([key, row]) => [key, row.rxBytes]));
       if (s.rows.size || s.receivedBytes) s.flushAgain = true;
     }
     if (!dbTrafficEnabled()) return;

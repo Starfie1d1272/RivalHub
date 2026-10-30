@@ -175,7 +175,7 @@ Scheduler 的 `scheduled_job_health` 只保存有界 current projection，不是
 
 常驻 Node 服务复用 60 秒 sampler 和 pg wrapper：Mizar manifest/schedule/live/reliable 等、DAK 入口、scheduler job、公开统计和 BET 的实际 cache fill 使用固定来源标签，其他为 unknown。请求排队时恢复提交者异步上下文，事务中的查询按发起上下文归属。采集 query 数、失败、pg rowCount 和耗时；自定义 Submittable 单列 unsupported。rowCount 包含写入影响行数，不等同返回行数。既有 `runtime.pool.query` 仍是 pool generation 分开的总分母。
 
-查询形态 ID 由本机规范化 SQL 结构计算：保留标识符，移除注释并规范化字面量和参数，仅摘要进入 D1，不传 SQL 或标识符文本。超过 token 预算归为 unknown，不把截断前缀当成完整形态。结构可能碰撞或合并，不能当作精确 SQL 标识，也不是 pg_stat_statements 的 queryid；每窗口最多 40 个形态/来源组合，额外组合按来源归入 overflow，页面仅展示前 20。源码定位时 checkout 同一 release，在隔离测试中将候选的参数化 SQL 字符串传给 `src/lib/observability/db-traffic.ts` 的 `queryShape()`，只比较输出 hash；不要输出 SQL 或参数，也不能反推 SQL 或据指纹推断单个用户行为。
+查询形态 ID 由本机规范化 SQL 结构计算：保留标识符，移除注释并规范化字面量和参数，仅摘要进入 D1，不传 SQL 或标识符文本。超过 token 预算归为 unknown，不把截断前缀当成完整形态。结构可能碰撞或合并，不能当作精确 SQL 标识，也不是 pg_stat_statements 的 queryid；每窗口最多保留 40 个形态/来源候选，按观察到的协议字节近似竞争；淘汰片段归入原来源的 overflow，封存期间暂停替换。重新入选只代表后续保留片段，形态值是下界而非精确排名；页面仅展示前 20。源码定位时 checkout 同一 release，在隔离测试中将候选的参数化 SQL 字符串传给 `src/lib/observability/db-traffic.ts` 的 `queryShape()`，只比较输出 hash；不要输出 SQL 或参数，也不能反推 SQL 或据指纹推断单个用户行为。
 
 比赛详情页面、预测与竞猜页面及其 API / Server Action 读取、平台统计页面读取分别使用固定来源；公开赛事目录和统计等缓存填充保留独立来源。没有请求上下文记为 `context.absent`，有上下文但未映射记为 `context.unmapped`；其他未覆盖的操作仍可能归入这些类别，不能视为完整归因。新批次格式及新增来源必须先部署兼容新旧数据的遥测 Worker，再上线应用；旧 Worker 会拒绝新批次。
 
