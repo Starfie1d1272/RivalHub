@@ -2,6 +2,7 @@ import { setDbTrafficSource } from "@/lib/observability/db-traffic";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { authenticateMizar, readMizarCredentialHash, revokeMizarInstallation } from "@/lib/mizar/installation";
+import { loadBroadcastStats } from "@/lib/mizar/stats";
 import { loadMizarMatchDocument, loadMizarScheduleWindow } from "@/lib/mizar/context";
 import { claimMizarSource, releaseMizarSource, sourceClaimSchema, sourceReleaseSchema } from "@/lib/mizar/source";
 import { ingestMizarReliable } from "@/lib/mizar/reliable";
@@ -27,6 +28,11 @@ export async function GET(request: Request, context: Context) {
       const matchId = z.uuid().parse(query.get("matchId"));
       diagnostics.phase = "domain";
       return mizarContextResponse(request, await loadMizarMatchDocument(matchId, installation.competitionId));
+    }
+    if (operation === "stats") {
+      const matchId = z.uuid().parse(query.get("matchId"));
+      diagnostics.phase = "domain";
+      return mizarContextResponse(request, await loadBroadcastStats(matchId, installation.competitionId));
     }
     if (operation === "schedule") {
       diagnostics.phase = "domain";

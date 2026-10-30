@@ -1,0 +1,1506 @@
+{
+  "schemaVersion": "rivalhub.broadcast-stats.v1",
+  "revision": "example",
+  "generatedAt": "2026-10-29T12:00:00.000Z",
+  "matchId": "00000000-0000-4000-8000-000000000001",
+  "competitionId": "00000000-0000-4000-8000-000000000002",
+  "scope": {
+    "kind": "competition"
+  },
+  "entrants": [
+    {
+      "entryId": "00000000-0000-4000-8000-000000000003",
+      "name": "Example 1",
+      "logoUrl": null,
+      "starters": [
+        {
+          "userId": "00000000-0000-4000-8001-000000000001",
+          "nickname": "Player 1",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000002",
+          "nickname": "Player 2",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000003",
+          "nickname": "Player 3",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000004",
+          "nickname": "Player 4",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000005",
+          "nickname": "Player 5",
+          "avatarUrl": null
+        }
+      ],
+      "mapPerformance": {
+        "available": true,
+        "maps": [
+          {
+            "mapName": "de_dust2",
+            "played": 1,
+            "wins": 1,
+            "winRate": 1
+          }
+        ]
+      },
+      "recentResults": {
+        "available": true,
+        "granularity": "map",
+        "results": [
+          {
+            "matchId": "00000000-0000-4000-8000-000000000010",
+            "mapName": "de_dust2",
+            "completedAt": "2026-10-28T10:00:00.000Z",
+            "opponent": {
+              "entryId": "00000000-0000-4000-8000-000000000004",
+              "name": "Example 2",
+              "logoUrl": null
+            },
+            "score": 13,
+            "opponentScore": 8
+          }
+        ]
+      },
+      "playerPerformance": {
+        "available": true,
+        "players": [
+          {
+            "userId": "00000000-0000-4000-8001-000000000001",
+            "sample": {
+              "maps": 1,
+              "rounds": 21,
+              "ratingMaps": 1,
+              "adrRounds": 21
+            },
+            "rating": 1.12,
+            "adr": 75.5,
+            "attributes": {
+              "available": true,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 21
+              },
+              "values": [
+                {
+                  "key": "firepower",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "entrying",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "trading",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "opening",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "clutching",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "sniping",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "utility",
+                  "score": 50,
+                  "status": "qualified"
+                }
+              ]
+            },
+            "available": true
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000002",
+            "sample": {
+              "maps": 1,
+              "rounds": 21,
+              "ratingMaps": 1,
+              "adrRounds": 21
+            },
+            "rating": 1.12,
+            "adr": 75.5,
+            "attributes": {
+              "available": true,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 21
+              },
+              "values": [
+                {
+                  "key": "firepower",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "entrying",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "trading",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "opening",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "clutching",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "sniping",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "utility",
+                  "score": 50,
+                  "status": "qualified"
+                }
+              ]
+            },
+            "available": true
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000003",
+            "sample": {
+              "maps": 1,
+              "rounds": 21,
+              "ratingMaps": 1,
+              "adrRounds": 21
+            },
+            "rating": 1.12,
+            "adr": 75.5,
+            "attributes": {
+              "available": true,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 21
+              },
+              "values": [
+                {
+                  "key": "firepower",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "entrying",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "trading",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "opening",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "clutching",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "sniping",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "utility",
+                  "score": 50,
+                  "status": "qualified"
+                }
+              ]
+            },
+            "available": true
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000004",
+            "sample": {
+              "maps": 1,
+              "rounds": 21,
+              "ratingMaps": 1,
+              "adrRounds": 21
+            },
+            "rating": 1.12,
+            "adr": 75.5,
+            "attributes": {
+              "available": true,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 21
+              },
+              "values": [
+                {
+                  "key": "firepower",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "entrying",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "trading",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "opening",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "clutching",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "sniping",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "utility",
+                  "score": 50,
+                  "status": "qualified"
+                }
+              ]
+            },
+            "available": true
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000005",
+            "sample": {
+              "maps": 1,
+              "rounds": 21,
+              "ratingMaps": 1,
+              "adrRounds": 21
+            },
+            "rating": 1.12,
+            "adr": 75.5,
+            "attributes": {
+              "available": true,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 21
+              },
+              "values": [
+                {
+                  "key": "firepower",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "entrying",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "trading",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "opening",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "clutching",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "sniping",
+                  "score": 50,
+                  "status": "qualified"
+                },
+                {
+                  "key": "utility",
+                  "score": 50,
+                  "status": "qualified"
+                }
+              ]
+            },
+            "available": true
+          }
+        ]
+      },
+      "pistol": {
+        "scope": "competition",
+        "coverage": {
+          "completedMaps": 1,
+          "detailedMaps": 1
+        },
+        "available": true,
+        "pistol": {
+          "wins": 2,
+          "opportunities": 3,
+          "rate": 0.6666666666666666
+        },
+        "conversion": {
+          "wins": 2,
+          "opportunities": 3,
+          "rate": 0.6666666666666666
+        },
+        "break": {
+          "wins": 2,
+          "opportunities": 3,
+          "rate": 0.6666666666666666
+        }
+      },
+      "economy": {
+        "scope": "competition",
+        "coverage": {
+          "completedMaps": 1,
+          "detailedMaps": 1
+        },
+        "available": true,
+        "ecoSemiUpset": {
+          "wins": 2,
+          "opportunities": 3,
+          "rate": 0.6666666666666666
+        }
+      },
+      "utility": {
+        "scope": "competition",
+        "coverage": {
+          "completedMaps": 1,
+          "detailedMaps": 1
+        },
+        "available": true,
+        "utilityDamagePerRound": {
+          "successes": 60,
+          "attempts": 21,
+          "rate": 2.857142857142857
+        },
+        "flashAssistsPerRound": {
+          "successes": 3,
+          "attempts": 21,
+          "rate": 0.14285714285714285
+        },
+        "enemyBlindSecondsPerFlash": {
+          "successes": 20,
+          "attempts": 10,
+          "rate": 2.0
+        },
+        "enemyBlindSecondsPerRound": {
+          "successes": 20,
+          "attempts": 21,
+          "rate": 0.9523809523809523
+        }
+      },
+      "facts": {
+        "source": "competition-canonical",
+        "coverage": {
+          "completedMaps": 1,
+          "detailedMaps": 1
+        },
+        "results": {
+          "matches": 1,
+          "matchWins": 1,
+          "matchLosses": 0,
+          "maps": 1,
+          "mapWins": 1,
+          "mapLosses": 0
+        },
+        "maps": [
+          {
+            "mapName": "de_dust2",
+            "results": {
+              "played": 1,
+              "wins": 1,
+              "losses": 0
+            },
+            "rounds": {
+              "wins": 13,
+              "rounds": 21,
+              "rate": 0.6190476190476191,
+              "ct": {
+                "wins": 7,
+                "opportunities": 12,
+                "rate": 0.5833333333333334
+              },
+              "t": {
+                "wins": 6,
+                "opportunities": 9,
+                "rate": 0.6666666666666666
+              }
+            },
+            "selection": {
+              "picks": 1,
+              "bans": 0,
+              "deciders": 0
+            },
+            "coverage": {
+              "completedMaps": 1,
+              "detailedMaps": 1
+            }
+          }
+        ],
+        "series": {
+          "total": 1,
+          "truncated": false,
+          "matches": [
+            {
+              "matchId": "00000000-0000-4000-8000-000000000010",
+              "stage": "swiss",
+              "round": 1,
+              "completedAt": "2026-10-28T10:00:00.000Z",
+              "opponent": {
+                "entryId": "00000000-0000-4000-8000-000000000004",
+                "name": "Example 2",
+                "logoUrl": null
+              },
+              "score": 1,
+              "opponentScore": 0,
+              "maps": [
+                {
+                  "mapName": "de_dust2",
+                  "completedAt": "2026-10-28T10:00:00.000Z",
+                  "score": 13,
+                  "opponentScore": 8
+                }
+              ]
+            }
+          ]
+        },
+        "teamRating": {
+          "rating": 1.12,
+          "ratingSamples": 5
+        },
+        "rounds": {
+          "wins": 13,
+          "rounds": 21,
+          "rate": 0.6190476190476191,
+          "ct": {
+            "wins": 7,
+            "opportunities": 12,
+            "rate": 0.5833333333333334
+          },
+          "t": {
+            "wins": 6,
+            "opportunities": 9,
+            "rate": 0.6666666666666666
+          }
+        },
+        "manAdvantage": {
+          "5v4": {
+            "wins": 6,
+            "opportunities": 10,
+            "rate": 0.6
+          },
+          "4v5": {
+            "wins": 6,
+            "opportunities": 10,
+            "rate": 0.6
+          },
+          "5v3": {
+            "wins": 6,
+            "opportunities": 10,
+            "rate": 0.6
+          },
+          "3v5": {
+            "wins": 6,
+            "opportunities": 10,
+            "rate": 0.6
+          }
+        },
+        "opening": {
+          "successRate": {
+            "successes": 3,
+            "attempts": 6,
+            "rate": 0.5
+          },
+          "winAfterOpening": {
+            "successes": 2,
+            "attempts": 3,
+            "rate": 0.6666666666666666
+          },
+          "tradeKillsPerRound": {
+            "successes": 3,
+            "attempts": 21,
+            "rate": 0.14285714285714285
+          },
+          "tradedOpeningDeaths": 1,
+          "firstDeaths": 3,
+          "openingDeathTraded": {
+            "successes": 1,
+            "attempts": 3,
+            "rate": 0.3333333333333333
+          },
+          "comebackRate": {
+            "successes": 1,
+            "attempts": 3,
+            "rate": 0.3333333333333333
+          }
+        },
+        "utility": {
+          "sample": {
+            "rounds": 21
+          },
+          "flashesThrown": 10,
+          "utilityDamagePerRound": {
+            "successes": 60,
+            "attempts": 21,
+            "rate": 2.857142857142857
+          },
+          "flashAssistsPerRound": {
+            "successes": 3,
+            "attempts": 21,
+            "rate": 0.14285714285714285
+          },
+          "utilityKillsPerRound": {
+            "successes": 1,
+            "attempts": 21,
+            "rate": 0.047619047619047616
+          },
+          "enemyBlindSecondsPerFlash": {
+            "successes": 20,
+            "attempts": 10,
+            "rate": 2.0
+          },
+          "enemyBlindSecondsPerRound": {
+            "successes": 20,
+            "attempts": 21,
+            "rate": 0.9523809523809523
+          },
+          "teamBlindSecondsPerRound": {
+            "successes": 2,
+            "attempts": 21,
+            "rate": 0.09523809523809523
+          }
+        },
+        "plantConversions": {
+          "successes": 3,
+          "attempts": 5,
+          "rate": 0.6
+        },
+        "weapons": [
+          {
+            "weapon": "awp",
+            "kills": 3,
+            "killShare": {
+              "successes": 3,
+              "attempts": 15,
+              "rate": 0.2
+            },
+            "killsPerRound": {
+              "successes": 3,
+              "attempts": 21,
+              "rate": 0.14285714285714285
+            }
+          }
+        ],
+        "players": [
+          {
+            "userId": "00000000-0000-4000-8001-000000000001",
+            "maps": 1,
+            "ratingMaps": 1,
+            "rounds": 21,
+            "adrRounds": 21,
+            "rating": 1.12,
+            "adr": 75.5,
+            "kd": 1.0,
+            "detailed": {
+              "sample": {
+                "rounds": 21
+              },
+              "kast": {
+                "successes": 15,
+                "attempts": 21,
+                "rate": 0.7142857142857143
+              },
+              "killsPerRound": {
+                "successes": 3,
+                "attempts": 21,
+                "rate": 0.14285714285714285
+              },
+              "headshotRate": {
+                "successes": 1,
+                "attempts": 3,
+                "rate": 0.3333333333333333
+              },
+              "twoKillRounds": 1,
+              "threeKillRounds": 0,
+              "fourKillRounds": 0,
+              "fiveKillRounds": 0,
+              "openingSuccess": {
+                "successes": 1,
+                "attempts": 2,
+                "rate": 0.5
+              },
+              "tradeKillsPerRound": {
+                "successes": 1,
+                "attempts": 21,
+                "rate": 0.047619047619047616
+              },
+              "clutch": {
+                "attempts": 1,
+                "wins": 1,
+                "winRate": {
+                  "successes": 1,
+                  "attempts": 1,
+                  "rate": 1.0
+                },
+                "byOpponentCount": {
+                  "1": {
+                    "successes": 1,
+                    "attempts": 1,
+                    "rate": 1.0
+                  },
+                  "2": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "3": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "4": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "5": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  }
+                }
+              }
+            },
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.14285714285714285,
+                "rounds": 21
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "kast": {
+                "value": 0.7142857142857143,
+                "rounds": 21
+              },
+              "avgHs": {
+                "value": 33.333333333333336,
+                "kills": 3
+              },
+              "kd": {
+                "value": 1.0,
+                "deaths": 3
+              }
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000002",
+            "maps": 1,
+            "ratingMaps": 1,
+            "rounds": 21,
+            "adrRounds": 21,
+            "rating": 1.12,
+            "adr": 75.5,
+            "kd": 1.0,
+            "detailed": {
+              "sample": {
+                "rounds": 21
+              },
+              "kast": {
+                "successes": 15,
+                "attempts": 21,
+                "rate": 0.7142857142857143
+              },
+              "killsPerRound": {
+                "successes": 3,
+                "attempts": 21,
+                "rate": 0.14285714285714285
+              },
+              "headshotRate": {
+                "successes": 1,
+                "attempts": 3,
+                "rate": 0.3333333333333333
+              },
+              "twoKillRounds": 1,
+              "threeKillRounds": 0,
+              "fourKillRounds": 0,
+              "fiveKillRounds": 0,
+              "openingSuccess": {
+                "successes": 1,
+                "attempts": 2,
+                "rate": 0.5
+              },
+              "tradeKillsPerRound": {
+                "successes": 1,
+                "attempts": 21,
+                "rate": 0.047619047619047616
+              },
+              "clutch": {
+                "attempts": 1,
+                "wins": 1,
+                "winRate": {
+                  "successes": 1,
+                  "attempts": 1,
+                  "rate": 1.0
+                },
+                "byOpponentCount": {
+                  "1": {
+                    "successes": 1,
+                    "attempts": 1,
+                    "rate": 1.0
+                  },
+                  "2": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "3": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "4": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "5": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  }
+                }
+              }
+            },
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.14285714285714285,
+                "rounds": 21
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "kast": {
+                "value": 0.7142857142857143,
+                "rounds": 21
+              },
+              "avgHs": {
+                "value": 33.333333333333336,
+                "kills": 3
+              },
+              "kd": {
+                "value": 1.0,
+                "deaths": 3
+              }
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000003",
+            "maps": 1,
+            "ratingMaps": 1,
+            "rounds": 21,
+            "adrRounds": 21,
+            "rating": 1.12,
+            "adr": 75.5,
+            "kd": 1.0,
+            "detailed": {
+              "sample": {
+                "rounds": 21
+              },
+              "kast": {
+                "successes": 15,
+                "attempts": 21,
+                "rate": 0.7142857142857143
+              },
+              "killsPerRound": {
+                "successes": 3,
+                "attempts": 21,
+                "rate": 0.14285714285714285
+              },
+              "headshotRate": {
+                "successes": 1,
+                "attempts": 3,
+                "rate": 0.3333333333333333
+              },
+              "twoKillRounds": 1,
+              "threeKillRounds": 0,
+              "fourKillRounds": 0,
+              "fiveKillRounds": 0,
+              "openingSuccess": {
+                "successes": 1,
+                "attempts": 2,
+                "rate": 0.5
+              },
+              "tradeKillsPerRound": {
+                "successes": 1,
+                "attempts": 21,
+                "rate": 0.047619047619047616
+              },
+              "clutch": {
+                "attempts": 1,
+                "wins": 1,
+                "winRate": {
+                  "successes": 1,
+                  "attempts": 1,
+                  "rate": 1.0
+                },
+                "byOpponentCount": {
+                  "1": {
+                    "successes": 1,
+                    "attempts": 1,
+                    "rate": 1.0
+                  },
+                  "2": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "3": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "4": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "5": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  }
+                }
+              }
+            },
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.14285714285714285,
+                "rounds": 21
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "kast": {
+                "value": 0.7142857142857143,
+                "rounds": 21
+              },
+              "avgHs": {
+                "value": 33.333333333333336,
+                "kills": 3
+              },
+              "kd": {
+                "value": 1.0,
+                "deaths": 3
+              }
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000004",
+            "maps": 1,
+            "ratingMaps": 1,
+            "rounds": 21,
+            "adrRounds": 21,
+            "rating": 1.12,
+            "adr": 75.5,
+            "kd": 1.0,
+            "detailed": {
+              "sample": {
+                "rounds": 21
+              },
+              "kast": {
+                "successes": 15,
+                "attempts": 21,
+                "rate": 0.7142857142857143
+              },
+              "killsPerRound": {
+                "successes": 3,
+                "attempts": 21,
+                "rate": 0.14285714285714285
+              },
+              "headshotRate": {
+                "successes": 1,
+                "attempts": 3,
+                "rate": 0.3333333333333333
+              },
+              "twoKillRounds": 1,
+              "threeKillRounds": 0,
+              "fourKillRounds": 0,
+              "fiveKillRounds": 0,
+              "openingSuccess": {
+                "successes": 1,
+                "attempts": 2,
+                "rate": 0.5
+              },
+              "tradeKillsPerRound": {
+                "successes": 1,
+                "attempts": 21,
+                "rate": 0.047619047619047616
+              },
+              "clutch": {
+                "attempts": 1,
+                "wins": 1,
+                "winRate": {
+                  "successes": 1,
+                  "attempts": 1,
+                  "rate": 1.0
+                },
+                "byOpponentCount": {
+                  "1": {
+                    "successes": 1,
+                    "attempts": 1,
+                    "rate": 1.0
+                  },
+                  "2": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "3": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "4": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "5": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  }
+                }
+              }
+            },
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.14285714285714285,
+                "rounds": 21
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "kast": {
+                "value": 0.7142857142857143,
+                "rounds": 21
+              },
+              "avgHs": {
+                "value": 33.333333333333336,
+                "kills": 3
+              },
+              "kd": {
+                "value": 1.0,
+                "deaths": 3
+              }
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000005",
+            "maps": 1,
+            "ratingMaps": 1,
+            "rounds": 21,
+            "adrRounds": 21,
+            "rating": 1.12,
+            "adr": 75.5,
+            "kd": 1.0,
+            "detailed": {
+              "sample": {
+                "rounds": 21
+              },
+              "kast": {
+                "successes": 15,
+                "attempts": 21,
+                "rate": 0.7142857142857143
+              },
+              "killsPerRound": {
+                "successes": 3,
+                "attempts": 21,
+                "rate": 0.14285714285714285
+              },
+              "headshotRate": {
+                "successes": 1,
+                "attempts": 3,
+                "rate": 0.3333333333333333
+              },
+              "twoKillRounds": 1,
+              "threeKillRounds": 0,
+              "fourKillRounds": 0,
+              "fiveKillRounds": 0,
+              "openingSuccess": {
+                "successes": 1,
+                "attempts": 2,
+                "rate": 0.5
+              },
+              "tradeKillsPerRound": {
+                "successes": 1,
+                "attempts": 21,
+                "rate": 0.047619047619047616
+              },
+              "clutch": {
+                "attempts": 1,
+                "wins": 1,
+                "winRate": {
+                  "successes": 1,
+                  "attempts": 1,
+                  "rate": 1.0
+                },
+                "byOpponentCount": {
+                  "1": {
+                    "successes": 1,
+                    "attempts": 1,
+                    "rate": 1.0
+                  },
+                  "2": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "3": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "4": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  },
+                  "5": {
+                    "successes": 0,
+                    "attempts": 0,
+                    "rate": null
+                  }
+                }
+              }
+            },
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.14285714285714285,
+                "rounds": 21
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "kast": {
+                "value": 0.7142857142857143,
+                "rounds": 21
+              },
+              "avgHs": {
+                "value": 33.333333333333336,
+                "kills": 3
+              },
+              "kd": {
+                "value": 1.0,
+                "deaths": 3
+              }
+            }
+          }
+        ],
+        "weaponsCoverage": {
+          "completeness": "unknown",
+          "completedMaps": 1,
+          "detailedMaps": 1,
+          "totalKills": 15,
+          "rounds": 21
+        }
+      }
+    },
+    {
+      "entryId": "00000000-0000-4000-8000-000000000004",
+      "name": "Example 2",
+      "logoUrl": null,
+      "starters": [
+        {
+          "userId": "00000000-0000-4000-8001-000000000006",
+          "nickname": "Player 6",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000007",
+          "nickname": "Player 7",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000008",
+          "nickname": "Player 8",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000009",
+          "nickname": "Player 9",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000010",
+          "nickname": "Player 10",
+          "avatarUrl": null
+        }
+      ],
+      "mapPerformance": {
+        "available": false,
+        "maps": []
+      },
+      "recentResults": {
+        "available": false,
+        "granularity": "map",
+        "results": []
+      },
+      "playerPerformance": {
+        "available": false,
+        "players": [
+          {
+            "userId": "00000000-0000-4000-8001-000000000006",
+            "available": false,
+            "sample": {
+              "maps": 0,
+              "rounds": null,
+              "ratingMaps": 0,
+              "adrRounds": null
+            },
+            "rating": null,
+            "adr": null,
+            "attributes": {
+              "available": false,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 0
+              },
+              "values": []
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000007",
+            "available": false,
+            "sample": {
+              "maps": 0,
+              "rounds": null,
+              "ratingMaps": 0,
+              "adrRounds": null
+            },
+            "rating": null,
+            "adr": null,
+            "attributes": {
+              "available": false,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 0
+              },
+              "values": []
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000008",
+            "available": false,
+            "sample": {
+              "maps": 0,
+              "rounds": null,
+              "ratingMaps": 0,
+              "adrRounds": null
+            },
+            "rating": null,
+            "adr": null,
+            "attributes": {
+              "available": false,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 0
+              },
+              "values": []
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000009",
+            "available": false,
+            "sample": {
+              "maps": 0,
+              "rounds": null,
+              "ratingMaps": 0,
+              "adrRounds": null
+            },
+            "rating": null,
+            "adr": null,
+            "attributes": {
+              "available": false,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 0
+              },
+              "values": []
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000010",
+            "available": false,
+            "sample": {
+              "maps": 0,
+              "rounds": null,
+              "ratingMaps": 0,
+              "adrRounds": null
+            },
+            "rating": null,
+            "adr": null,
+            "attributes": {
+              "available": false,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 0
+              },
+              "values": []
+            }
+          }
+        ]
+      },
+      "pistol": {
+        "available": false,
+        "scope": "competition",
+        "coverage": {
+          "completedMaps": 0,
+          "detailedMaps": 0
+        },
+        "pistol": null,
+        "conversion": null,
+        "break": null
+      },
+      "economy": {
+        "available": false,
+        "scope": "competition",
+        "coverage": {
+          "completedMaps": 0,
+          "detailedMaps": 0
+        },
+        "ecoSemiUpset": null
+      },
+      "utility": {
+        "available": false,
+        "scope": "competition",
+        "coverage": {
+          "completedMaps": 0,
+          "detailedMaps": 0
+        },
+        "utilityDamagePerRound": null,
+        "flashAssistsPerRound": null,
+        "enemyBlindSecondsPerFlash": null,
+        "enemyBlindSecondsPerRound": null
+      },
+      "facts": {
+        "source": "competition-canonical",
+        "coverage": {
+          "completedMaps": 0,
+          "detailedMaps": 0
+        },
+        "results": null,
+        "maps": [],
+        "series": {
+          "total": 0,
+          "truncated": false,
+          "matches": []
+        },
+        "teamRating": null,
+        "rounds": null,
+        "manAdvantage": null,
+        "opening": null,
+        "utility": null,
+        "plantConversions": null,
+        "weapons": null,
+        "players": [
+          {
+            "userId": "00000000-0000-4000-8001-000000000006",
+            "maps": 0,
+            "ratingMaps": 0,
+            "rounds": null,
+            "adrRounds": null,
+            "rating": null,
+            "adr": null,
+            "kd": null,
+            "detailed": null,
+            "scoreboard": null
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000007",
+            "maps": 0,
+            "ratingMaps": 0,
+            "rounds": null,
+            "adrRounds": null,
+            "rating": null,
+            "adr": null,
+            "kd": null,
+            "detailed": null,
+            "scoreboard": null
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000008",
+            "maps": 0,
+            "ratingMaps": 0,
+            "rounds": null,
+            "adrRounds": null,
+            "rating": null,
+            "adr": null,
+            "kd": null,
+            "detailed": null,
+            "scoreboard": null
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000009",
+            "maps": 0,
+            "ratingMaps": 0,
+            "rounds": null,
+            "adrRounds": null,
+            "rating": null,
+            "adr": null,
+            "kd": null,
+            "detailed": null,
+            "scoreboard": null
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000010",
+            "maps": 0,
+            "ratingMaps": 0,
+            "rounds": null,
+            "adrRounds": null,
+            "rating": null,
+            "adr": null,
+            "kd": null,
+            "detailed": null,
+            "scoreboard": null
+          }
+        ],
+        "weaponsCoverage": null
+      }
+    }
+  ],
+  "mapPool": [
+    "de_dust2",
+    "de_nuke"
+  ],
+  "support": null
+}

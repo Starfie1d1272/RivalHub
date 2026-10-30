@@ -1,0 +1,1141 @@
+{
+  "schemaVersion": "rivalhub.broadcast-stats.v1",
+  "revision": "example",
+  "generatedAt": "2026-10-29T12:00:00.000Z",
+  "matchId": "00000000-0000-4000-8000-000000000001",
+  "competitionId": "00000000-0000-4000-8000-000000000002",
+  "scope": {
+    "kind": "competition"
+  },
+  "entrants": [
+    {
+      "entryId": "00000000-0000-4000-8000-000000000003",
+      "name": "Example 1",
+      "logoUrl": null,
+      "starters": [
+        {
+          "userId": "00000000-0000-4000-8001-000000000001",
+          "nickname": "Player 1",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000002",
+          "nickname": "Player 2",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000003",
+          "nickname": "Player 3",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000004",
+          "nickname": "Player 4",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000005",
+          "nickname": "Player 5",
+          "avatarUrl": null
+        }
+      ],
+      "mapPerformance": {
+        "available": true,
+        "maps": [
+          {
+            "mapName": "de_dust2",
+            "played": 1,
+            "wins": 1,
+            "winRate": 1
+          },
+          {
+            "mapName": "de_nuke",
+            "played": 1,
+            "wins": 1,
+            "winRate": 1
+          }
+        ]
+      },
+      "recentResults": {
+        "available": true,
+        "granularity": "map",
+        "results": [
+          {
+            "matchId": "00000000-0000-4000-8000-000000000010",
+            "mapName": "de_nuke",
+            "completedAt": "2026-10-28T10:00:00.000Z",
+            "opponent": {
+              "entryId": "00000000-0000-4000-8000-000000000004",
+              "name": "Example 2",
+              "logoUrl": null
+            },
+            "score": 13,
+            "opponentScore": 7
+          },
+          {
+            "matchId": "00000000-0000-4000-8000-000000000010",
+            "mapName": "de_dust2",
+            "completedAt": "2026-10-28T09:00:00.000Z",
+            "opponent": {
+              "entryId": "00000000-0000-4000-8000-000000000004",
+              "name": "Example 2",
+              "logoUrl": null
+            },
+            "score": 13,
+            "opponentScore": 7
+          }
+        ]
+      },
+      "playerPerformance": {
+        "available": true,
+        "players": [
+          {
+            "userId": "00000000-0000-4000-8001-000000000001",
+            "sample": {
+              "maps": 2,
+              "rounds": 40,
+              "ratingMaps": 2,
+              "adrRounds": null
+            },
+            "rating": 1.12,
+            "adr": null,
+            "attributes": {
+              "available": false,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 0
+              },
+              "values": []
+            },
+            "available": true
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000002",
+            "sample": {
+              "maps": 2,
+              "rounds": 40,
+              "ratingMaps": 2,
+              "adrRounds": null
+            },
+            "rating": 1.12,
+            "adr": null,
+            "attributes": {
+              "available": false,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 0
+              },
+              "values": []
+            },
+            "available": true
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000003",
+            "sample": {
+              "maps": 2,
+              "rounds": 40,
+              "ratingMaps": 2,
+              "adrRounds": null
+            },
+            "rating": 1.12,
+            "adr": null,
+            "attributes": {
+              "available": false,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 0
+              },
+              "values": []
+            },
+            "available": true
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000004",
+            "sample": {
+              "maps": 2,
+              "rounds": 40,
+              "ratingMaps": 2,
+              "adrRounds": null
+            },
+            "rating": 1.12,
+            "adr": null,
+            "attributes": {
+              "available": false,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 0
+              },
+              "values": []
+            },
+            "available": true
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000005",
+            "sample": {
+              "maps": 2,
+              "rounds": 40,
+              "ratingMaps": 2,
+              "adrRounds": null
+            },
+            "rating": 1.12,
+            "adr": null,
+            "attributes": {
+              "available": false,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 0
+              },
+              "values": []
+            },
+            "available": true
+          }
+        ]
+      },
+      "pistol": {
+        "scope": "competition",
+        "coverage": {
+          "completedMaps": 2,
+          "detailedMaps": 0
+        },
+        "available": false,
+        "pistol": null,
+        "conversion": null,
+        "break": null
+      },
+      "economy": {
+        "scope": "competition",
+        "coverage": {
+          "completedMaps": 2,
+          "detailedMaps": 0
+        },
+        "available": false,
+        "ecoSemiUpset": null
+      },
+      "utility": {
+        "scope": "competition",
+        "coverage": {
+          "completedMaps": 2,
+          "detailedMaps": 0
+        },
+        "available": false,
+        "utilityDamagePerRound": null,
+        "flashAssistsPerRound": null,
+        "enemyBlindSecondsPerFlash": null,
+        "enemyBlindSecondsPerRound": null
+      },
+      "facts": {
+        "source": "competition-canonical",
+        "coverage": {
+          "completedMaps": 2,
+          "detailedMaps": 0
+        },
+        "results": {
+          "matches": 1,
+          "matchWins": 1,
+          "matchLosses": 0,
+          "maps": 2,
+          "mapWins": 2,
+          "mapLosses": 0
+        },
+        "maps": [
+          {
+            "mapName": "de_dust2",
+            "results": {
+              "played": 1,
+              "wins": 1,
+              "losses": 0
+            },
+            "rounds": null,
+            "selection": null,
+            "coverage": {
+              "completedMaps": 1,
+              "detailedMaps": 0
+            }
+          },
+          {
+            "mapName": "de_nuke",
+            "results": {
+              "played": 1,
+              "wins": 1,
+              "losses": 0
+            },
+            "rounds": null,
+            "selection": null,
+            "coverage": {
+              "completedMaps": 1,
+              "detailedMaps": 0
+            }
+          }
+        ],
+        "series": {
+          "total": 1,
+          "truncated": false,
+          "matches": [
+            {
+              "matchId": "00000000-0000-4000-8000-000000000010",
+              "stage": "swiss",
+              "round": 1,
+              "completedAt": "2026-10-28T10:00:00.000Z",
+              "opponent": {
+                "entryId": "00000000-0000-4000-8000-000000000004",
+                "name": "Example 2",
+                "logoUrl": null
+              },
+              "score": 2,
+              "opponentScore": 0,
+              "maps": [
+                {
+                  "mapName": "de_dust2",
+                  "completedAt": "2026-10-28T09:00:00.000Z",
+                  "score": 13,
+                  "opponentScore": 7
+                },
+                {
+                  "mapName": "de_nuke",
+                  "completedAt": "2026-10-28T10:00:00.000Z",
+                  "score": 13,
+                  "opponentScore": 7
+                }
+              ]
+            }
+          ]
+        },
+        "teamRating": {
+          "rating": 1.12,
+          "ratingSamples": 10
+        },
+        "rounds": null,
+        "manAdvantage": null,
+        "opening": null,
+        "utility": null,
+        "plantConversions": null,
+        "weapons": null,
+        "players": [
+          {
+            "userId": "00000000-0000-4000-8001-000000000001",
+            "maps": 2,
+            "ratingMaps": 2,
+            "rounds": 40,
+            "adrRounds": null,
+            "rating": 1.12,
+            "adr": null,
+            "kd": 1.25,
+            "detailed": null,
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.5,
+                "rounds": 40
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.1,
+                "rounds": 20
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.15,
+                "rounds": 20
+              },
+              "kast": {
+                "value": 0.5,
+                "rounds": 20
+              },
+              "avgHs": {
+                "value": 50,
+                "kills": 10
+              },
+              "kd": {
+                "value": 1.25,
+                "deaths": 16
+              }
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000002",
+            "maps": 2,
+            "ratingMaps": 2,
+            "rounds": 40,
+            "adrRounds": null,
+            "rating": 1.12,
+            "adr": null,
+            "kd": 1.25,
+            "detailed": null,
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.5,
+                "rounds": 40
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.1,
+                "rounds": 20
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.15,
+                "rounds": 20
+              },
+              "kast": {
+                "value": 0.5,
+                "rounds": 20
+              },
+              "avgHs": {
+                "value": 50,
+                "kills": 10
+              },
+              "kd": {
+                "value": 1.25,
+                "deaths": 16
+              }
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000003",
+            "maps": 2,
+            "ratingMaps": 2,
+            "rounds": 40,
+            "adrRounds": null,
+            "rating": 1.12,
+            "adr": null,
+            "kd": 1.25,
+            "detailed": null,
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.5,
+                "rounds": 40
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.1,
+                "rounds": 20
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.15,
+                "rounds": 20
+              },
+              "kast": {
+                "value": 0.5,
+                "rounds": 20
+              },
+              "avgHs": {
+                "value": 50,
+                "kills": 10
+              },
+              "kd": {
+                "value": 1.25,
+                "deaths": 16
+              }
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000004",
+            "maps": 2,
+            "ratingMaps": 2,
+            "rounds": 40,
+            "adrRounds": null,
+            "rating": 1.12,
+            "adr": null,
+            "kd": 1.25,
+            "detailed": null,
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.5,
+                "rounds": 40
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.1,
+                "rounds": 20
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.15,
+                "rounds": 20
+              },
+              "kast": {
+                "value": 0.5,
+                "rounds": 20
+              },
+              "avgHs": {
+                "value": 50,
+                "kills": 10
+              },
+              "kd": {
+                "value": 1.25,
+                "deaths": 16
+              }
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000005",
+            "maps": 2,
+            "ratingMaps": 2,
+            "rounds": 40,
+            "adrRounds": null,
+            "rating": 1.12,
+            "adr": null,
+            "kd": 1.25,
+            "detailed": null,
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.5,
+                "rounds": 40
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.1,
+                "rounds": 20
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.15,
+                "rounds": 20
+              },
+              "kast": {
+                "value": 0.5,
+                "rounds": 20
+              },
+              "avgHs": {
+                "value": 50,
+                "kills": 10
+              },
+              "kd": {
+                "value": 1.25,
+                "deaths": 16
+              }
+            }
+          }
+        ],
+        "weaponsCoverage": null
+      }
+    },
+    {
+      "entryId": "00000000-0000-4000-8000-000000000004",
+      "name": "Example 2",
+      "logoUrl": null,
+      "starters": [
+        {
+          "userId": "00000000-0000-4000-8001-000000000006",
+          "nickname": "Player 6",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000007",
+          "nickname": "Player 7",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000008",
+          "nickname": "Player 8",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000009",
+          "nickname": "Player 9",
+          "avatarUrl": null
+        },
+        {
+          "userId": "00000000-0000-4000-8001-000000000010",
+          "nickname": "Player 10",
+          "avatarUrl": null
+        }
+      ],
+      "mapPerformance": {
+        "available": true,
+        "maps": [
+          {
+            "mapName": "de_dust2",
+            "played": 1,
+            "wins": 0,
+            "winRate": 0
+          },
+          {
+            "mapName": "de_nuke",
+            "played": 1,
+            "wins": 0,
+            "winRate": 0
+          }
+        ]
+      },
+      "recentResults": {
+        "available": true,
+        "granularity": "map",
+        "results": [
+          {
+            "matchId": "00000000-0000-4000-8000-000000000010",
+            "mapName": "de_nuke",
+            "completedAt": "2026-10-28T10:00:00.000Z",
+            "opponent": {
+              "entryId": "00000000-0000-4000-8000-000000000003",
+              "name": "Example 1",
+              "logoUrl": null
+            },
+            "score": 7,
+            "opponentScore": 13
+          },
+          {
+            "matchId": "00000000-0000-4000-8000-000000000010",
+            "mapName": "de_dust2",
+            "completedAt": "2026-10-28T09:00:00.000Z",
+            "opponent": {
+              "entryId": "00000000-0000-4000-8000-000000000003",
+              "name": "Example 1",
+              "logoUrl": null
+            },
+            "score": 7,
+            "opponentScore": 13
+          }
+        ]
+      },
+      "playerPerformance": {
+        "available": true,
+        "players": [
+          {
+            "userId": "00000000-0000-4000-8001-000000000006",
+            "sample": {
+              "maps": 2,
+              "rounds": 40,
+              "ratingMaps": 2,
+              "adrRounds": null
+            },
+            "rating": 1.12,
+            "adr": null,
+            "attributes": {
+              "available": false,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 0
+              },
+              "values": []
+            },
+            "available": true
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000007",
+            "sample": {
+              "maps": 2,
+              "rounds": 40,
+              "ratingMaps": 2,
+              "adrRounds": null
+            },
+            "rating": 1.12,
+            "adr": null,
+            "attributes": {
+              "available": false,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 0
+              },
+              "values": []
+            },
+            "available": true
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000008",
+            "sample": {
+              "maps": 2,
+              "rounds": 40,
+              "ratingMaps": 2,
+              "adrRounds": null
+            },
+            "rating": 1.12,
+            "adr": null,
+            "attributes": {
+              "available": false,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 0
+              },
+              "values": []
+            },
+            "available": true
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000009",
+            "sample": {
+              "maps": 2,
+              "rounds": 40,
+              "ratingMaps": 2,
+              "adrRounds": null
+            },
+            "rating": 1.12,
+            "adr": null,
+            "attributes": {
+              "available": false,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 0
+              },
+              "values": []
+            },
+            "available": true
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000010",
+            "sample": {
+              "maps": 2,
+              "rounds": 40,
+              "ratingMaps": 2,
+              "adrRounds": null
+            },
+            "rating": 1.12,
+            "adr": null,
+            "attributes": {
+              "available": false,
+              "benchmark": "rivalhub-all-time-qualified",
+              "scope": "competition",
+              "sample": {
+                "rounds": 0
+              },
+              "values": []
+            },
+            "available": true
+          }
+        ]
+      },
+      "pistol": {
+        "scope": "competition",
+        "coverage": {
+          "completedMaps": 2,
+          "detailedMaps": 0
+        },
+        "available": false,
+        "pistol": null,
+        "conversion": null,
+        "break": null
+      },
+      "economy": {
+        "scope": "competition",
+        "coverage": {
+          "completedMaps": 2,
+          "detailedMaps": 0
+        },
+        "available": false,
+        "ecoSemiUpset": null
+      },
+      "utility": {
+        "scope": "competition",
+        "coverage": {
+          "completedMaps": 2,
+          "detailedMaps": 0
+        },
+        "available": false,
+        "utilityDamagePerRound": null,
+        "flashAssistsPerRound": null,
+        "enemyBlindSecondsPerFlash": null,
+        "enemyBlindSecondsPerRound": null
+      },
+      "facts": {
+        "source": "competition-canonical",
+        "coverage": {
+          "completedMaps": 2,
+          "detailedMaps": 0
+        },
+        "results": {
+          "matches": 1,
+          "matchWins": 0,
+          "matchLosses": 1,
+          "maps": 2,
+          "mapWins": 0,
+          "mapLosses": 2
+        },
+        "maps": [
+          {
+            "mapName": "de_dust2",
+            "results": {
+              "played": 1,
+              "wins": 0,
+              "losses": 1
+            },
+            "rounds": null,
+            "selection": null,
+            "coverage": {
+              "completedMaps": 1,
+              "detailedMaps": 0
+            }
+          },
+          {
+            "mapName": "de_nuke",
+            "results": {
+              "played": 1,
+              "wins": 0,
+              "losses": 1
+            },
+            "rounds": null,
+            "selection": null,
+            "coverage": {
+              "completedMaps": 1,
+              "detailedMaps": 0
+            }
+          }
+        ],
+        "series": {
+          "total": 1,
+          "truncated": false,
+          "matches": [
+            {
+              "matchId": "00000000-0000-4000-8000-000000000010",
+              "stage": "swiss",
+              "round": 1,
+              "completedAt": "2026-10-28T10:00:00.000Z",
+              "opponent": {
+                "entryId": "00000000-0000-4000-8000-000000000003",
+                "name": "Example 1",
+                "logoUrl": null
+              },
+              "score": 0,
+              "opponentScore": 2,
+              "maps": [
+                {
+                  "mapName": "de_dust2",
+                  "completedAt": "2026-10-28T09:00:00.000Z",
+                  "score": 7,
+                  "opponentScore": 13
+                },
+                {
+                  "mapName": "de_nuke",
+                  "completedAt": "2026-10-28T10:00:00.000Z",
+                  "score": 7,
+                  "opponentScore": 13
+                }
+              ]
+            }
+          ]
+        },
+        "teamRating": {
+          "rating": 1.12,
+          "ratingSamples": 10
+        },
+        "rounds": null,
+        "manAdvantage": null,
+        "opening": null,
+        "utility": null,
+        "plantConversions": null,
+        "weapons": null,
+        "players": [
+          {
+            "userId": "00000000-0000-4000-8001-000000000006",
+            "maps": 2,
+            "ratingMaps": 2,
+            "rounds": 40,
+            "adrRounds": null,
+            "rating": 1.12,
+            "adr": null,
+            "kd": 1.25,
+            "detailed": null,
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.5,
+                "rounds": 40
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.1,
+                "rounds": 20
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.15,
+                "rounds": 20
+              },
+              "kast": {
+                "value": 0.5,
+                "rounds": 20
+              },
+              "avgHs": {
+                "value": 50,
+                "kills": 10
+              },
+              "kd": {
+                "value": 1.25,
+                "deaths": 16
+              }
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000007",
+            "maps": 2,
+            "ratingMaps": 2,
+            "rounds": 40,
+            "adrRounds": null,
+            "rating": 1.12,
+            "adr": null,
+            "kd": 1.25,
+            "detailed": null,
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.5,
+                "rounds": 40
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.1,
+                "rounds": 20
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.15,
+                "rounds": 20
+              },
+              "kast": {
+                "value": 0.5,
+                "rounds": 20
+              },
+              "avgHs": {
+                "value": 50,
+                "kills": 10
+              },
+              "kd": {
+                "value": 1.25,
+                "deaths": 16
+              }
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000008",
+            "maps": 2,
+            "ratingMaps": 2,
+            "rounds": 40,
+            "adrRounds": null,
+            "rating": 1.12,
+            "adr": null,
+            "kd": 1.25,
+            "detailed": null,
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.5,
+                "rounds": 40
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.1,
+                "rounds": 20
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.15,
+                "rounds": 20
+              },
+              "kast": {
+                "value": 0.5,
+                "rounds": 20
+              },
+              "avgHs": {
+                "value": 50,
+                "kills": 10
+              },
+              "kd": {
+                "value": 1.25,
+                "deaths": 16
+              }
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000009",
+            "maps": 2,
+            "ratingMaps": 2,
+            "rounds": 40,
+            "adrRounds": null,
+            "rating": 1.12,
+            "adr": null,
+            "kd": 1.25,
+            "detailed": null,
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.5,
+                "rounds": 40
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.1,
+                "rounds": 20
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.15,
+                "rounds": 20
+              },
+              "kast": {
+                "value": 0.5,
+                "rounds": 20
+              },
+              "avgHs": {
+                "value": 50,
+                "kills": 10
+              },
+              "kd": {
+                "value": 1.25,
+                "deaths": 16
+              }
+            }
+          },
+          {
+            "userId": "00000000-0000-4000-8001-000000000010",
+            "maps": 2,
+            "ratingMaps": 2,
+            "rounds": 40,
+            "adrRounds": null,
+            "rating": 1.12,
+            "adr": null,
+            "kd": 1.25,
+            "detailed": null,
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.5,
+                "rounds": 40
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.1,
+                "rounds": 20
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.15,
+                "rounds": 20
+              },
+              "kast": {
+                "value": 0.5,
+                "rounds": 20
+              },
+              "avgHs": {
+                "value": 50,
+                "kills": 10
+              },
+              "kd": {
+                "value": 1.25,
+                "deaths": 16
+              }
+            }
+          }
+        ],
+        "weaponsCoverage": null
+      }
+    }
+  ],
+  "mapPool": [
+    "de_dust2",
+    "de_nuke"
+  ],
+  "support": null
+}
