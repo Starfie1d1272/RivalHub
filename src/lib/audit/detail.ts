@@ -56,5 +56,14 @@ export function describeAuditDetail(action: string, meta: unknown, names: Readon
     fields.push({ label: "事件", value: lookup(kinds, values.kind, values.kind == null || values.kind === "" ? "未记录" : "未知事件") });
     fields.push({ label: "处理结果", value: lookup(outcomes, values.outcome, "未记录") });
   }
+  if (action === "mizar.source.admin_cleanup") {
+    description = "经人工核对后关闭已完赛来源；比赛、地图和历史回执保留。";
+    for (const [key, label] of [["sessionId", "来源会话"], ["installationId", "设备"], ["authorityRevision", "权限版本"], ["receiptCount", "回执数"], ["requestId", "批次"]] as const) {
+      const value = values[key];
+      if (typeof value === "string" || typeof value === "number") fields.push({ label, value: String(value).slice(0, 128) });
+    }
+    const reason = typeof values.reason === "string" ? redactText(values.reason.replace(/https?:\/\/\S+/gi, "[链接已隐藏]"), 500).trim() : "";
+    fields.push({ label: "关闭原因", value: reason || "未填写" });
+  }
   return { description, fields };
 }
