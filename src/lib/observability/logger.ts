@@ -93,18 +93,34 @@ function buildStructuredEvent(input: LogEventInput, now = new Date()): Structure
 
 export function logEvent(input: LogEventInput): StructuredEvent {
   const event = buildStructuredEvent(input);
-  const serialized = safeSerialize(event);
+  writeEvent(event, safeSerialize(event));
+  return event;
+}
+
+/** True means the structured event was handed to the local stream; downstream delivery remains best effort. */
+export function tryLogEvent(input: LogEventInput): boolean {
+  try {
+    const event = buildStructuredEvent(input);
+    return writeEvent(event, JSON.stringify(event));
+  } catch {
+    return false;
+  }
+}
+
+function writeEvent(event: StructuredEvent, serialized: string): boolean {
   try {
     const streams = getRuntimeStreams();
     const stream = event.level === "debug" || event.level === "info"
       ? streams?.stdout
       : streams?.stderr;
-    stream?.write(`${serialized}\n`);
+    if (!stream) return false;
+    // A false return means backpressure, not a rejected write.
+    stream.write(`${serialized}\n`);
+    return true;
   } catch {
     // Logging is best effort and must never change the core request result.
+    return false;
   }
-
-  return event;
 }
 
 interface RuntimeStreams {

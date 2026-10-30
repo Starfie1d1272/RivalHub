@@ -76,10 +76,11 @@ export function mizarHttpError(error: unknown, diagnostics?: MizarDiagnostics) {
   let reason: ReliableReason | undefined;
   if (reliable && error instanceof ReliableRejection) reason = error.reason;
   else if (reliable && (error instanceof ZodError && diagnostics.phase === "validate" || error instanceof MizarBodyError && error.code === "invalid_body")) reason = "invalid_schema";
-  const extras = reason ? { reason, requestId: ensureRequestId(diagnostics?.requestId), recovery: reliableRecovery(reason) } : {};
+  let logged = false;
   if (reliable && (error instanceof AppError && error.code !== "INTERNAL_ERROR" || error instanceof MizarBodyError || error instanceof ZodError && (diagnostics.phase === "validate" || diagnostics.phase === "domain"))) {
-    recordMizarReliableRejection(reason ?? (diagnostics.phase === "auth" ? "auth_failed" : "other"), diagnostics.phase, diagnostics.requestId, error instanceof ReliableRejection ? error.details : undefined);
+    logged = recordMizarReliableRejection(reason ?? (diagnostics.phase === "auth" ? "auth_failed" : "other"), diagnostics.phase, diagnostics.requestId, error instanceof ReliableRejection ? error.details : undefined);
   }
+  const extras = reason ? { reason, ...(logged ? { requestId: diagnostics!.requestId } : {}), recovery: reliableRecovery(reason) } : {};
   if (error instanceof AppError && error.code !== "INTERNAL_ERROR") {
     const status = error.code === "UNAUTHORIZED" ? 401 : error.code === "FORBIDDEN" ? 403 : ["NOT_FOUND", "MATCH_NOT_FOUND", "SEASON_NOT_FOUND"].includes(error.code) ? 404 : 400;
     return Response.json({ error: error.presentation?.message ?? error.message, code: error.code, ...extras }, { status, headers });

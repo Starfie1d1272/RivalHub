@@ -25,7 +25,7 @@ canonical event ──► stdout / stderr ──► systemd journal
 
 `mizar.live.outcome_window` 保留七类 ingest 结果的原分母；`mizar.live.stage_window` 单独记录 received/admitted/authorized/send_success/expired/capacity/contended/unknown_send 八个固定里程碑。阶段可重叠，不能相加作请求分母。两个聚合共享进程 singleton，只保存 15 类次数与耗时总和，不保存帧或身份；在空请求上下文输出，避免继承 requestId。重启、SIGKILL、日志链路故障仍可能丢失开放窗口；不承诺退出 flush 或持久审计。结果范围、窗口/平均值口径与 viewer 验收边界见 [LIVE 接收容量](live-capacity.md)。
 
-可靠事件的受控拒绝在事务回滚后由 HTTP 边界记录 `mizar.reliable.reject`，不依赖成功审计。首条包含固定原因、阶段和服务端生成的 requestId（不采信请求头编号）；授权及范围核验成功后的事件可包含事件种类、比赛 UUID 的截断 SHA-256 和有关围栏的接收／存储数值，不记录正文、凭据、名单或 SQL。固定原因桶每 60 秒首条立即输出，其余合并为首末时间和包含首条在内的次数；共享 sampler 刷新空闲尾窗，未启用采样器时由下次同原因请求刷新。进程退出或日志故障可丢失窗口，日志复用既有本地访问和留存策略，不能作为持久审计。
+可靠事件的受控拒绝在事务回滚后由 HTTP 边界记录 `mizar.reliable.reject`，不依赖成功审计。首条包含固定原因、阶段和服务端生成的 requestId（不采信请求头编号）；授权及范围核验成功后的事件可包含事件种类、比赛 UUID 的截断 SHA-256 和有关围栏的接收／存储数值，不记录正文、凭据、名单或 SQL。固定原因桶每 60 秒首条立即输出，其余合并为首末时间和包含首条在内的次数；只有首条成功交给本地日志流时其响应才附带同一 requestId，被聚合的请求不返回编号，也不关联到其他范围的首条日志；共享 sampler 刷新空闲尾窗，未启用采样器时由下次同原因请求刷新。进程退出或日志故障可丢失窗口，日志复用既有本地访问和留存策略，不能作为持久审计。
 
 LIVE 与可靠事件分别在 canonical ingest 的解析/基本 scope 检查通过后，进入 `mizar.live` / `mizar.reliable` 资源计数；两者只包一层，均在 finally 结束计数。LIVE 耗时包含授权事务、发送与清理，reliable 包含事务和既有非关键心跳；重复、拒绝或依赖失败不残留 inFlight。该观测不创建准入 gate、不获取连接，也不改变锁、重试或业务结果。
 

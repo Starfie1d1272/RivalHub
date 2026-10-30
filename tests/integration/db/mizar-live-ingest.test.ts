@@ -87,7 +87,9 @@ describe("Mizar reliable event ingest ownership", () => {
     event.cursor.programSourceGeneration = 1;
     const rejected = await post(JSON.stringify({ event }));
     expect(rejected.status).toBe(400);
-    expect(await rejected.json()).toMatchObject({ code: "VALIDATION_FAILED", reason: "generation_fence", requestId: expect.stringMatching(/^[0-9a-f-]{36}$/), recovery: "reconcile" });
+    const rejectedBody = await rejected.json();
+    expect(rejectedBody).toMatchObject({ code: "VALIDATION_FAILED", reason: "generation_fence", recovery: "reconcile" });
+    if (rejectedBody.requestId !== undefined) expect(rejectedBody.requestId).toMatch(/^[0-9a-f-]{36}$/);
     const malformed = await post("{");
     expect(malformed.status).toBe(400);
     expect(await malformed.json()).toMatchObject({ code: "invalid_body", reason: "invalid_schema" });
@@ -111,7 +113,7 @@ describe("Mizar reliable event ingest ownership", () => {
       const response = await call(event, revision);
       expect(response.status).toBe(status);
       const body = await response.json();
-      expect(body).toMatchObject({ code: status === 403 ? "FORBIDDEN" : "VALIDATION_FAILED", error: expect.any(String), reason, requestId: expect.stringMatching(/^[0-9a-f-]{36}$/), recovery });
+      expect(body).toMatchObject({ code: status === 403 ? "FORBIDDEN" : "VALIDATION_FAILED", error: expect.any(String), reason, recovery });
       // A v1 consumer reads only the existing fields and can ignore additions.
       expect({ code: body.code, error: body.error }).toEqual({ code: status === 403 ? "FORBIDDEN" : "VALIDATION_FAILED", error: expect.any(String) });
     };

@@ -1,4 +1,4 @@
-import { logEvent } from "./logger";
+import { logEvent, tryLogEvent } from "./logger";
 import { withoutObservabilityContext } from "./context";
 import { registerRuntimeHealthFlush } from "./runtime-health";
 import type { ReliableReason } from "@/lib/mizar/rejection";
@@ -12,19 +12,19 @@ const host = process as unknown as Record<symbol, Map<Reason, Window> | undefine
 const windows = host[slot] ??= new Map<Reason, Window>();
 
 /** Fixed reason buckets bound memory and log volume even for unauthenticated floods. */
-export function recordMizarReliableRejection(reason: Reason, phase: Phase, requestId: string, details?: Details): void {
+export function recordMizarReliableRejection(reason: Reason, phase: Phase, requestId: string, details?: Details): boolean {
   try {
     const now = Date.now();
     const previous = windows.get(reason);
     if (previous && now - previous.firstAt < 60_000) {
       previous.lastAt = now;
       previous.count = Math.min(previous.count + 1, Number.MAX_SAFE_INTEGER);
-      return;
+      return false;
     }
     if (previous) flushWindow(reason, previous);
     windows.set(reason, { firstAt: now, lastAt: now, count: 1 });
-    logEvent({ event: "mizar.reliable.reject", scope: "mizar", operation: "reliable", requestId, safeContext: { reason, phase, count: 1, ...details } });
-  } catch { /* Best effort diagnostics must not change the HTTP response. */ }
+    return tryLogEvent({ event: "mizar.reliable.reject", scope: "mizar", operation: "reliable", requestId, safeContext: { reason, phase, count: 1, ...details } });
+  } catch { return false; /* Best effort diagnostics must not change the HTTP response. */ }
 }
 
 function flushWindow(reason: Reason, window: Window): void {
