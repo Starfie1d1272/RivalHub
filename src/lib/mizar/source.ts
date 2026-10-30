@@ -3,7 +3,7 @@ import { mizarAuditActorId } from "@/lib/audit/people";
 import { and, eq, isNull, desc, asc } from "drizzle-orm";
 import { z } from "zod";
 import { db, type TxDb } from "@/db/client";
-import { matchLiveSessions, matchMaps, matchVetoSessions, mizarInstallations, users, type Match } from "@/db/schema";
+import { matchLiveSessions, matchMaps, matchVetoSessions, mizarInstallations, matches, users, type Match } from "@/db/schema";
 import { lockMatchInTx, materializeDefaultLineupsInTx } from "@/lib/match-rosters/service";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -26,6 +26,33 @@ export const sourceReleaseSchema = z.strictObject({
   producerInstanceId: z.string().min(1).max(128),
   liveSessionId: z.string().min(1).max(128),
 });
+
+export const sourceStatusSchema = sourceReleaseSchema.extend({
+  authorityRevision: z.coerce.number().int().positive().optional(),
+});
+
+/** Resolve only the caller's exact intent; repeated tuples are deliberately ambiguous. */
+export async function readMizarSourceStatus(installationId: string, competitionId: string, rawInput: z.input<typeof sourceStatusSchema>) {
+  const input = sourceStatusSchema.parse(rawInput);
+  return db.transaction(async tx => {
+    await assertInstallationInTx(tx, installationId, competitionId);
+    const rows = await tx.select({
+      sessionId: matchLiveSessions.id, installationId: matchLiveSessions.installationId,
+      matchId: matchLiveSessions.matchId, producerInstanceId: matchLiveSessions.producerInstanceId,
+      liveSessionId: matchLiveSessions.liveSessionId, authorityRevision: matchLiveSessions.authorityRevision,
+      closedAt: matchLiveSessions.closedAt, closeReason: matchLiveSessions.closeReason, matchStatus: matches.status,
+    }).from(matchLiveSessions).innerJoin(matches, eq(matches.id, matchLiveSessions.matchId)).where(and(
+      eq(matches.seasonId, competitionId), eq(matchLiveSessions.installationId, installationId),
+      eq(matchLiveSessions.matchId, input.matchId), eq(matchLiveSessions.producerInstanceId, input.producerInstanceId),
+      eq(matchLiveSessions.liveSessionId, input.liveSessionId),
+      input.authorityRevision === undefined ? undefined : eq(matchLiveSessions.authorityRevision, input.authorityRevision),
+    )).limit(2);
+    if (!rows.length) return { status: "not_found" as const };
+    if (rows.length > 1) return { status: "ambiguous" as const };
+    const { closedAt, ...source } = rows[0];
+    return { status: "found" as const, source: { ...source, competitionId, state: closedAt ? "closed" as const : "open" as const } };
+  });
+}
 
 export async function validateObservedLineupInTx(tx: TxDb, match: Match, steam64s: readonly string[]) {
   const players = await loadEffectiveMatchRoster(tx, [match.id]);

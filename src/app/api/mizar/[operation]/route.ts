@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { authenticateMizar, readMizarCredentialHash, revokeMizarInstallation } from "@/lib/mizar/installation";
 import { loadBroadcastStats } from "@/lib/mizar/stats";
 import { loadMizarMatchDocument, loadMizarScheduleWindow } from "@/lib/mizar/context";
-import { claimMizarSource, releaseMizarSource, sourceClaimSchema, sourceReleaseSchema } from "@/lib/mizar/source";
+import { claimMizarSource, releaseMizarSource, readMizarSourceStatus, sourceClaimSchema, sourceReleaseSchema, sourceStatusSchema } from "@/lib/mizar/source";
 import { ingestMizarReliable } from "@/lib/mizar/reliable";
 import { admitLiveIngress, tryAdmitLiveRequest } from "@/lib/mizar/live-admission";
 import { ingestMizarLive } from "@/lib/mizar/live";
@@ -19,11 +19,16 @@ type Context = { params: Promise<{ operation: string }> };
 export async function GET(request: Request, context: Context) {
   return withMizarRequest(request, "/api/mizar/[operation]", "get", async (diagnostics) => {
     const { operation } = await context.params;
-    diagnostics.operation = operation === "match" || operation === "schedule" ? operation : "unknown";
+    diagnostics.operation = operation === "match" || operation === "schedule" || operation === "source-status" ? operation : "unknown";
     setDbTrafficSource(operation === "match" ? "mizar.manifest" : operation === "schedule" ? "mizar.schedule" : "mizar");
     const installation = await authenticateMizar(request.headers.get("authorization"));
     const query = new URL(request.url).searchParams;
     diagnostics.phase = "validate";
+    if (operation === "source-status") {
+      const input = sourceStatusSchema.parse({ matchId: query.get("matchId"), producerInstanceId: query.get("producerInstanceId"), liveSessionId: query.get("liveSessionId"), authorityRevision: query.get("authorityRevision") ?? undefined });
+      diagnostics.phase = "domain";
+      return Response.json(await readMizarSourceStatus(installation.id, installation.competitionId, input), { headers: { "Cache-Control": "no-store" } });
+    }
     if (operation === "match") {
       const matchId = z.uuid().parse(query.get("matchId"));
       diagnostics.phase = "domain";

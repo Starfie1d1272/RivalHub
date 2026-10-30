@@ -13,5 +13,5 @@ export async function loadMatchResources(seasonId: string) {
     readUploaderDownloads(),
   ]);
   const active = await db.select({ installationId: matchLiveSessions.installationId, matchId: matches.id, round: matches.round }).from(matchLiveSessions).innerJoin(matches, eq(matches.id, matchLiveSessions.matchId)).where(and(eq(matches.seasonId, seasonId), isNull(matchLiveSessions.closedAt)));
-  return { installations: rows.map(row => ({ id: row.id, canRevoke: row.ownerId === actor.userId || actor.role === "super_admin", owned: row.ownerId === actor.userId, activeMatches: active.filter(item => item.installationId === row.id).map(item => ({ id: item.matchId, label: item.round ? `第 ${item.round} 轮比赛` : "进行中的比赛" })), name: getDisplayName(row), lastSeenAt: row.lastSeenAt?.toISOString() ?? null })), downloads };
+  return { installations: rows.map(row => ({ id: row.id, canRevoke: row.ownerId === actor.userId || actor.role === "super_admin", owned: row.ownerId === actor.userId, activeMatches: active.filter(item => item.installationId === row.id).map(item => ({ id: item.matchId, label: item.round ? `第 ${item.round} 轮比赛` : "比赛" })), name: getDisplayName(row), lastSeenAt: row.lastSeenAt?.toISOString() ?? null })), downloads };
 }

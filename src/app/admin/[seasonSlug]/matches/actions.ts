@@ -5,6 +5,7 @@ import { actionError } from "@/lib/action-utils";
 import { readAdminDemoReview } from "@/lib/admin/matches/demo-review-read";
 import { readAdminDemoQuality } from "@/lib/admin/matches/demo-quality-read";
 import { loadMatchResources } from "@/lib/admin/matches/resources";
+import { listSourceSessions } from "@/lib/mizar/source-management";
 import { loadAdminCommentaryEffectiveness } from "@/lib/admin/matches/overview";
 import { ok } from "@/types/action";
 
@@ -12,6 +13,11 @@ export async function readMatchResources(seasonId: string) {
   try {
     return ok(await loadMatchResources(z.uuid().parse(seasonId)));
   } catch (error) { return actionError("readMatchResources", error); }
+}
+
+export async function readSourceSessions(seasonId: string, cursor?: string) {
+  try { return ok(await listSourceSessions(z.uuid().parse(seasonId), cursor ? z.uuid().parse(cursor) : undefined)); }
+  catch (error) { return actionError("readSourceSessions", error); }
 }
 
 export async function readCommentaryEffectiveness(seasonId: string) {
