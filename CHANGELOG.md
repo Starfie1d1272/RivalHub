@@ -2448,7 +2448,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ### Security
 
-- 更新 Next.js 15.5.18 与 Drizzle ORM 0.45.2，修复所列高危依赖漏洞及 SQL 注入问题。当时审计仍有五项通过 brackets-manager 引入的 uuid 间接依赖中危漏洞，等待上游修复。
+- 更新 Next.js 15.5.18 与 Drizzle ORM 0.45.2，修复中间件绕过、拒绝服务、缓存投毒、RSC 缓存和 SQL 注入问题。当时依赖审计从 19 项降至 5 项，高危从 8 项降至零；剩余五项为 brackets-manager 引入的 uuid 间接依赖中危漏洞，等待上游修复。
 
 ## [1.25.6] - 2026-05-29
 
@@ -2833,7 +2833,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 ### Added
 
 - 首页按报名、投票和比赛阶段展示不同主题，增加归档赛季入口和导航层级；赛季页展示近期比赛与积分榜。
-- 队伍页新增地图胜率与禁图率表现面板，并用颜色区分胜率；后台赛季卡片提供快捷操作。
+- 队伍页新增地图胜率与禁图率表现面板，胜率达到 60% 显示绿色、低于或等于 40% 显示红色；后台赛季卡片提供快捷操作。
 - 首页投票排行改用卡片展示，赛事步骤显示进度和连接线。
 
 ### Changed
@@ -2885,7 +2885,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ### Changed
 
-- 数据库连接改用 Transaction Pooler，端口由 5432 调整为 6543。
+- 数据库连接改用 Transaction Pooler，端口由 5432 调整为 6543，关闭 prepared statements 并将连接池上限由 1 调整为 3。
 
 ## [1.14.2] - 2026-05-17
 
@@ -2945,7 +2945,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ### Added
 
-- BO1 支持逐图记录；比赛详情按地图切换结果并展示地图计划。
+- BO1 支持逐图记录并从待进行进入比赛；比赛详情按地图切换结果并展示地图计划。
 - 管理员可按 BO1、BO3、BO5 模板录入 BP，查看正式选图过程，并管理五名首发和两名替补。
 - 比赛详情已结束地图下提供管理员 OCR 录入入口；管理员可确认删除非淘汰赛生成的比赛及关联数据。
 
