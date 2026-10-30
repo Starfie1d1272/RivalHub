@@ -43,6 +43,8 @@ presentation owner 对有限集合使用穷举映射（新增状态必须同时�
 | `EmptyState` / `ErrorState` / `Skeleton` | empty/error/loading 的明确三态 |
 | `InlineConfirm` | 高影响 mutation 的影响说明与二次确认；可用宽度不足时操作区换到说明下方，不挤窄说明列 |
 
+首页备案信息位于共享页脚的最下方，独立一行相对页面居中，使用 12px 常规中文字体与次要灰色文字，链接支持悬停和键盘聚焦。仅首页展示已确认适用的备案信息，其他路由不占用该行空间。
+
 ### Page geometry ownership
 
 `PageLayout` 是 page width、horizontal gutter 和 base vertical padding 的唯一 owner。route page、loading、error、fallback 应复用同一个 route-level `PageLayout` variant；已经由父级 `PageLayout` 包裹的子页面只声明 section、grid、spacing、`min-w-0`、局部 overflow，以及真实阅读/表单所需的 inner `max-w-*`。
