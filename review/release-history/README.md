@@ -1,6 +1,7 @@
 # GitHub Release 历史审查材料（未完成）
 
 - `releases-original.json` 为 GitHub Releases API 全量快照，包含正文及非正文元数据和资产清单。读取于 2026-10-30 UTC；快照包含 203 个 Release，资产列表均为空。写入前须重新读取并比较原正文哈希、元数据及资产，避免覆盖并发修改。
+- `audit-2.10-2.18.md` 记录上一批版本的证据与处理。
 - `audit-2.19-2.24.md` 记录本批逐版比较区间、提交和 Release 处理。
 - `inventory.md` 按 218 个日志版本列出 tag commit、原日志日期和 GitHub Release 快照时间；索引不是内容审阅。
 - `candidate-diffs.md` 展示 已变更的正文候选与原文的逐行差异。

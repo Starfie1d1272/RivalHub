@@ -298,7 +298,7 @@
     "tag_name": "v2.18.0",
     "original_body_sha256": "ea78609e89197a3d0e6fc991b999d68d01cd6768f77740bb9c34cc6877aadab9",
     "candidate_body": "本次生产发布 v2.18.0 相对权威上一生产版本 v2.17.6 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.18.0]\n\n### Added\n\n- 新增默认关闭的轻量产品遥测能力，支持页面与筛选基线、关联操作结果，以及按独立账号标识或会话排障。云端采集尚未启用，部署、凭据与最终留存方案须单独确认。\n\n### Fixed\n\n- 修正地图首杀转化、首死翻盘及选手 1v1/1v2 残局指标的说明与样本口径，统一 R2、下包转化和 HE/Fire 伤害指标名称。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 411967007,
@@ -312,7 +312,7 @@
     "tag_name": "v2.17.5",
     "original_body_sha256": "298f206ba0023ac31d98d35385d4727fa4a933810e4b099e0ee7d55aefacf292",
     "candidate_body": "本次生产发布 v2.17.5 相对权威上一生产版本 v2.17.4 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.17.5]\n\n### Fixed\n\n- BP 房间重复协调且事实无变化时保留缓存；真实推进、申诉关闭等变化继续及时刷新页面和统计。\n- Watchdog 只重试暂时性故障，并以最后一次 HTTP 响应判定任务成功；Preview 镜像故障可安全地按文档重跑。\n\n### Changed\n\n- 公共首页、选手资料、公告与赛事介绍复用共享远程缓存；公告提醒仍按分钟过期，资料变更、身份归并、报名审核和删除及时刷新。草稿内容仍受权限控制。\n- Major 公开名单、赛事首页与目录减少重复名单和计数读取，保留原有展示与排序。\n- 选手、队伍、地图统计详情与 Mizar 赛程、制播资料减少数据库读取量，保持现有结果和权限语义。\n- 赛后资料与解说操作不再驱逐未变化的公开统计缓存。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 411316194,
@@ -340,35 +340,35 @@
     "tag_name": "v2.17.1",
     "original_body_sha256": "6c1cf5233a1de60ddbb1190f7b0ee115cab7033058691c80fe8566fbf7cff43d",
     "candidate_body": "本次生产发布 v2.17.1 相对权威上一生产版本 v2.17.0 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.17.1]\n\n### Fixed\n\n- 恢复预测比赛卡片的赛果／地图切换与队名共用入口；免费预测和积分竞猜在上下分区弹窗中独立操作，BO1 大小分保留清晰阈值和标准选项，历史盘口折叠查看。\n- 修复登录返回、初始积分领取后的选择保留与余额更新、提交忙碌状态和关闭焦点；人数与积分支持率采用不同分母的双色摘要。\n- 修复免费赛果命中次数榜误用命中率榜样本门槛：至少一场有效已判定预测即可参与命中次数排名，命中率榜继续保留赛事总体动态样本门槛。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 410143436,
     "tag_name": "v2.17.0",
     "original_body_sha256": "5d8ef29cbfbc5b1f90045a7a167563d11485a785df9a08a059355b539cf8f79d",
     "candidate_body": "本次生产发布 v2.17.0 相对权威上一生产版本 v2.16.0 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.17.0]\n\n### Added\n\n- 启用本人主动领取有限低保：已加入本届 BET 且非负余额不足 10 时只补至 10，北京时间每日最多一次、每届累计最多 100；发放不计净收益，不消除更正债务。\n- 未来尚未创建 BP 积分盘口的 BO3 使用一个七选一三图盘口，最终三张地图共同中奖；保留历史图序盘口及 BO5 规则，沿用共同奖池退款、永久锁盘与官方更正。\n\n### Changed\n\n- 在 v2.16.0 的兼容 reader 已实际上线后启用 ledger 与 BO3 两项 publisher；技术申诉生命周期继续保持兼容读取，不写新的关闭记录。\n\n### Migration\n\n- 0088 将竞猜目录待处理门槛推进至 catalog3，使已存在项目通过正常调度补齐合法新窗口；保留单参数普通待处理判断和双参数 false 的技术申诉安全边界。\n- 发布保留 PG17、N/N+1 兼容、条件加密 checkpoint、protected migrate/verify 与 scheduler 验证。新 producer 的生产部署及只读业务验收尚待本次 Release 完成；发布后回滚目标必须保留对应 reader。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 410117069,
     "tag_name": "v2.16.0",
     "original_body_sha256": "be60ac8a1dcd84e4556937bdcc151464a29465a4c3f60b97ae530021bc9caaa2",
     "candidate_body": "本次生产发布 v2.16.0 相对权威上一生产版本 v2.15.12 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.16.0]\n\n### Added\n\n- 新增独立免费赛果与 BP 预测服务、实际开始后的永久截止、匿名支持率及赛果成绩三排序排行。免费预测不要求领取 BET 积分；官方更正自动重新投影成绩。\n- 竞猜页按赛果和地图统一组织同场玩法，直接展示 BO1 胜负与大小分，保留历史及多图盘口；增加独立免费预测、赛果双支持率、三排序排行榜。\n\n### Changed\n\n- 本阶段保留已有低保流水的读取能力，服务端拒绝低保领取，钱包返回不可领取状态；领取启用须在兼容 reader 独立上线后通过下一次发布验收。\n- BET 流水兼容有限低保补给及未来积分类型，避免将补给误显示为结算；本阶段不开放领取。\n- 准备读取 BO3 三图多赢家积分市场，保留历史图序盘口与原奖池结算规则；本次不启用新市场创建，须独立后续发布。\n- Mizar 新操作记录使用明确的机器身份，避免与用户身份混淆；设备授权人独立展示，历史记录保持兼容且不回填。\n- 将会话解密与认证状态读取明确延后到真实请求，避免部分预取时 cookie 过期时钟中断预渲染，同时保留匿名、过期及已撤销会话的现有校验。\n- BP 技术申诉兼容对局开始后关闭恢复窗口的记录，禁止恢复或覆盖裁定；本阶段不自动写入新的关闭记录。队长和 BP 负责人获得明确的参与入口与准备后留在页面指引。\n- 技术申诉先提供兼容读取，暂不自动改写既有待处理记录；正式对局开始后仍禁止恢复 BP 或覆盖裁定，积分结算可继续。发布和失败回退同时核对应用能力，阻止切换到不能安全处理新申诉事实的版本。\n\n### Fixed\n\n- 登录限流、网络与未知账号服务错误不再误报密码错误，并提供重试指引及排查编号。密码更新结果未知时继续暂停登录，页面保留管理员核查指引与编号并阻止重复提交；服务端保留安全原因分类，不把未知结果当作成功或失败。\n- 登录与注册时账号服务返回 5xx 不再误报邮箱密码或输入错误，并提供排查编号；注册结果无法确认时提示先检查验证邮件。\n- 后台统计修复与 Demo 关联重检失败保留安全原因及阶段，便于管理员核对部分成功结果与后续恢复。\n- 修复兼容旧 worker 在 BO3 三图盘口官方身份或地图池更正后补开首图/决胜图的问题；保留原盘口条款与更正退款，不启用新 publisher。\n- 默认首发补齐区分名单资格等待与系统故障；故障保留脱敏原因和排查编号，任务健康显示失败。管理员可先核对比赛工作台，再在服务恢复后运行既有任务；成功补齐同步刷新比赛页面；后续提议读取失败仍刷新已提交结果并提示先核对首发与排期，重复运行保留已有首发。\n- Demo 重新检查遇到数据库或系统故障时保留原始安全原因与排查编号，回滚本次失败的变更，避免误报为目标数据失效。单份和批量检查提供现有待处理数据的重检入口；已确认部分保留，提交后刷新失败提示先核对结果，不重复上传或确认身份。\n- 教育认证材料在审核完成七天后不再出现在管理员列表、验证码搜索或新签名链接中；清理延迟时仍保护到期材料，审核结论继续保留。\n- 修复报名阶段已启动 Play-in 无法免费预测赛果和 BP 的问题；未启动、已完成或已归档的赛事继续关闭预测，BP 开始后的永久截止不变。\n- 短暂离开后重新进入同场比赛时复用仍在接收的实时连接，减少重复连接等待；断线、失鲜和跨场隔离规则保持有效。\n- 修复先上传 Demo 后补传计分板截图时重复行占满选手候选的问题；管理员可明确把未匹配截图指标合并到已有选手，保留 Demo 比赛数据，取消恢复原数据。指标不齐时直接提供补传截图入口。\n- 验证原密码遇到限流或账号服务故障时不再误报密码错误。密码服务已完成更新但应用安全状态无法确认时，保留核查原因并提示停止提交；刷新后的待核查操作继续阻止重复更新与登录，避免误导用户重试。\n- 短时间刷新或返回比赛详情时，在公开资格与比赛版本校验通过后显示上次接收的公开选手表格，明确标注正在连接；旧画面不会显示为实时状态，最多保留 30 秒。\n- 统计与比赛详情加载失败时显示安全排查编号及重新加载指引，并在服务端将编号关联到请求日志，避免错误页面暴露内部原因。\n- DAK 集成异常提供可检索的排查编号；Demo 提交后刷新失败时提示先核对导入状态，避免重复上传。\n\n- 修复仅兼容读取阶段仍持续触发后台空请求的问题，保留正常 BP 超时和开始协调。\n\n### Migration\n\n- 新增免费预测选择、请求幂等记录和永久截止事实，并按已有开赛事实建立截止保护；扩展低保流水约束但保持领取 producer 关闭。\n- 更新调度待处理判断，兼容读取阶段不因待关闭技术申诉永久触发空请求，保留普通 BP 超时与开始协调。\n- 迁移由受保护 Release 流程执行，必须完成 PG17 回放、N/N+1 兼容、真实 DB-only 加密 checkpoint 和生产 migrate/verify；生产部署、scheduler 与兼容 reader 验收尚待正式发布完成。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 409606931,
     "tag_name": "v2.15.12",
     "original_body_sha256": "5f89dabc39934c35513bac2fb565564adc66758daafa8a50d2451cd7299df5d6",
     "candidate_body": "本次生产发布 v2.15.12 相对权威上一生产版本 v2.15.11 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.12]\n\n### Changed\n\n- BO1、BO3、BO5 的单图总回合大分/小分积分预测在赛前即可按第几图参与；BP 后补地图名并保留原盘口、分界线和投入。实际开图锁盘，未打地图等待正式结束退款，已有盘口沿用原条款。\n\n### Migration\n\n- 增加竞猜目录版本并更新待处理判定，既有项目也会通过正常流程补齐合法赛前窗口；迁移不改用户余额、投入、已有盘口条款或结算历史。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 409597072,
     "tag_name": "v2.15.11",
     "original_body_sha256": "49a751524215f31e7ac1ec339b715a3d8409f199786770209499b4b353016206",
     "candidate_body": "本次生产发布 v2.15.11 相对权威上一生产版本 v2.15.10 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.11]\n\n### Changed\n\n- BP 完成后保留管理员与队长的房间入口，明确恢复、暂停和申诉的原因要求；计分板截图使用中文选择、更换按钮，展示所选文件并在选择后启用 OCR，取消选择保留原截图。\n- 赛后默认沿用已登记解说名单，按已有地图数据与录像判断资料齐备；保留显式名单更正与审计，显式重开后仍需重新确认。\n\n### Fixed\n\n- Demo 待办按实际首发一致判断资料齐备，避免名单包含替补时比赛总览和单场工作台误报需要处理。\n- Demo 审核保留当前及上传时的安全检查编号和字段；读取失败显示与脱敏服务端日志一致的排查编号。\n- 系列赛已确认胜场达到获胜条件后立即锁定剩余图竞猜，比分更正不重开已锁盘口；未打地图仍等待正式比赛结束退款。继续沿用现有盘口开放方式。\n\n### Migration\n\n- 更新竞猜官方事实的锁盘规则，由受保护 Release 流程执行；迁移不重写已有盘口条款或积分流水。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 409403425,
@@ -382,154 +382,154 @@
     "tag_name": "v2.15.9",
     "original_body_sha256": "028ed4795175ba83f380758db2cf9436a474a335f7206cff30eac505503d9bbd",
     "candidate_body": "本次生产发布 v2.15.9 相对权威上一生产版本 v2.15.8 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.9]\n\n### Added\n\n- 管理员比赛总览增加排期赛务待办、当前赛事负责人联系与催办复制、解说覆盖和同刻撞档提示；隔离测试赛统计，联系方式仅供有权限的管理员使用。\n\n### Changed\n\n- 队长 BP 页面明确禁用与选取阶段、行动队伍和本轮次数，以语义颜色及动作文字区分按钮，提交前确认当前地图动作；轮次变化后清除旧选择。\n\n### Fixed\n\n- 修复报名期 PLAY-IN 队长的个人赛务入口；首次排期等待完整 24 小时回应且自动采纳时至少保留两小时，双方可明确确认短通知约赛；改期保留原定时间并等待双方确认。\n- 修复负责人交接后可回应本队时间提议的问题，统一个人入口、比赛详情和后台待办的提议方归属；历史提议无法确认归属时拒绝代为确认。\n- 自动排期在比赛和转播资源锁等待后重新校验两小时余量，防止过期或已回收的转播预留重复分配；恢复已确认比赛赛前两小时自动准备合法首发的调度唤醒。\n- 已结束测试赛隐藏重复的“不提交结果”操作，保留首次结束、待补结果与后续比分更正。\n\n### Migration\n\n- 新增可空的时间提议参赛方关联，保留历史提议且不回填；更新调度到期判定。迁移由受保护的 Release 流程执行。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 406661918,
     "tag_name": "v2.15.8",
     "original_body_sha256": "ff75ea873f6b71262dbfa1c4d7ae426e2fcbb5a63cba4f9ab211342d4a7c40e6",
-    "candidate_body": "本次生产发布 v2.15.8 相对权威上一生产版本 v2.15.7 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.8]\n\n### Fixed\n\n- 中文字体改为本地按需加载，避免远端字体响应引发页面编译失败；保留 Noto Sans SC 字体及现有字重。\n- 修复超级管理员看到空的解说待认领队列且无法认领的问题：超级管理员无需额外赛事授权即可认领、取消自己的认领或登记为解说，空位列表与数据库资格校验保持一致。\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "本次生产发布 v2.15.8 相对权威上一生产版本 v2.15.7 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.8]\n\n### Fixed\n\n- 中文字体改为本地按需加载，避免远端字体响应引发页面编译失败；保留 Noto Sans SC 字体及现有字重。LIVE 页面编译失败时直接报告错误，避免误报超时。\n- 修复超级管理员看到空的解说待认领队列且无法认领的问题：超级管理员无需额外赛事授权即可认领、取消自己的认领或登记为解说，空位列表与数据库资格校验保持一致。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 406538070,
     "tag_name": "v2.15.7",
     "original_body_sha256": "819b0aaab999a4f4f23641d4d421ca1d24365b0827ee2f3390eaae63abf3dd0b",
     "candidate_body": "本次生产发布 v2.15.7 相对权威上一生产版本 v2.15.6 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.7]\n\n### Added\n\n- 支持解说在 BP 和制作准备开始前取消自己的认领并释放名额，保留其他解说安排与操作记录；已进入 BP、比赛或 Mizar 制作准备时提示联系管理员。\n\n### Fixed\n\n- 修复竞技赛季目录删除检查：已被赛事冻结换算规则引用的来源平台赛季不可删除，即使赛事使用了不同的主平台。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 406452862,
     "tag_name": "v2.15.6",
     "original_body_sha256": "ae2ac115bb67410affbbcd6db87371bec6b916333a5b7a68486d413565fb944b",
     "candidate_body": "本次生产发布 v2.15.6 相对权威上一生产版本 v2.15.5 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.6]\n\n### Fixed\n\n- 修复队长在尚未提交本场阵容时看不到首发选择入口的问题。赛前可从「你的赛务」选择首发及 BP 负责人，已提交阵容仍可通过原入口查看或调整。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 406398565,
     "tag_name": "v2.15.5",
     "original_body_sha256": "ab1daa34225021b95102a45b53664855264a6cfc8760d86a3db804dcffa844ed",
     "candidate_body": "本次生产发布 v2.15.5 相对权威上一生产版本 v2.15.4 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.5]\n\n### Fixed\n\n- 修复公共选项框长列表超出屏幕、无法上下滚动的问题。队伍等选项较多时，桌面和手机均可在列表内部滚动并选择，关闭后恢复页面操作。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 406371074,
     "tag_name": "v2.15.4",
     "original_body_sha256": "f9e4226c58bb9881047c010b548ffb5551508463215d6aec61dd8d3c8e1d591d",
     "candidate_body": "本次生产发布 v2.15.4 相对权威上一生产版本 v2.15.3 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.4]\n\n### Fixed\n\n- 修复桌面赛程日期较长时状态标签换行的问题。\n- 预测对阵改为每场一个比赛详情入口，避免遮挡胜者和比分；无对应真实比赛的模拟对阵不显示跳转。移除 Pick’Em 选队格子中的重复队伍跳转，保留选队、清空和锁定操作。\n- 测试赛可选择本届全部已批准队伍，包括直通正赛队伍；创建时自动复用已批准名单准备比赛数据，无需额外同步或确认，也无需等待 Play-in 完成，不改变正式参赛路径。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 406336313,
     "tag_name": "v2.15.3",
     "original_body_sha256": "7fd8f85ed4bbc835e8757c1c296b9d3bb66262339aea5e028250abbab06acf51",
     "candidate_body": "本次生产发布 v2.15.3 相对权威上一生产版本 v2.15.2 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.3]\n\n### Added\n\n#### 赛事测试赛\n\n管理员可创建测试赛，双方队长通过原流程提交首发，指定操作人完成双端 BP，复用解说、Mizar LIVE 与 DAK 赛后上传流程。比赛凭链接免登录观看，不进入正式赛程、晋级、竞猜及累计统计。创建只读取已确认正式名单，报名阶段即可进行匿名 LIVE 彩排。\n\n测试赛支持无结果结束、待补结果和后续补录；已有逐图比分与总比分可原子更正，保留原因、版本校验、审计与首次结束时间。\n\n### Changed\n\n#### 比赛执行与结果\n\n比赛底层支持不关联赛事、未预报阵容及不提交赛果，并提供对应转播资料。支持只有总比分的结果与结束后补录，拒绝与已知单图事实冲突的结论；结果更正保留原结束时间，转播资料区分结果待补与不提交结果。现有正式赛事的名单、BP、赛果更正及晋级约束保持不变，本次不新增约战入口。\n\n数据库补充比赛执行上下文、结果处置和不可转换的测试用途约束，历史赛事比赛保持原有身份。\n\n#### 活跃赛事导航\n\n顶部导航恢复最多一个当前活跃赛事入口，桌面与手机均可直达；赛事页移除重复切换框，通过面包屑进入赛事目录。\n\n### 验收说明\n\n自动化覆盖测试赛创建、权限、BP、结果、正式事实隔离和报名阶段真实 LIVE 浏览器订阅。双账号完整浏览器彩排、Windows + CS2 + Mizar + OBS、B站嵌入与真实 DAK 上传仍待通过测试赛现场验收。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 405987685,
     "tag_name": "v2.15.2",
     "original_body_sha256": "6d3705800665da40ec2bd626e24931a2233fb1e3c174a8ef280ba0e03430fb6d",
     "candidate_body": "本次生产发布 v2.15.2 相对权威上一生产版本 v2.15.1 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.2]\n\n### Fixed\n\n#### 队伍与选手资料入口\n\n补齐 BET、预测、Pick’Em、排名、选秀、比赛分析、近期赛果、BP 房间与后台名单的资料入口，保留下注、选择和排名操作，锁定状态下仍可查看资料。赛事队伍进入对应赛事资料，长期队伍进入队伍主页。\n\nBET 用户、解说与社区奖相关人员具有历史公开参赛记录或已填写选手资料时可查看长期选手页，不限本届；仅普通昵称、联系方式或直播间不算选手资料。\n\n#### 第二名解说认领\n\n修复已有一名解说时第二名无法自助认领的问题；比赛总览展示可认领的比赛及解说 0/2、1/2 坑位状态。\n\n#### 赛事推演就绪状态\n\n修复客户端尚未就绪时推演按钮可点击却不记录选择的问题。\n\n### Changed\n\n#### 依赖维护\n\n升级 Next.js、OpenTelemetry 与界面组件至最新稳定版本，并同步更新兼容的传递依赖，保持 Node 24 稳定运行环境。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 405700298,
     "tag_name": "v2.15.1",
     "original_body_sha256": "748bd4b391dfc6448f9f2ea813aae8a63bf3e1c78513309f5a859a98627caede",
     "candidate_body": "本次生产发布 v2.15.1 相对权威上一生产版本 v2.15.0 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.1]\n\n### Added\n\n#### BET 排行榜与账户记录\n\n补齐按净收益计算的完整排行榜与本人积分记录。只有当前有效结算参与者上榜，同净收益并列排名；账户记录解释初始积分、阶段补给、投入、退款与赛果更正，公开榜不暴露他人流水。\n\n### Fixed\n\n#### Swiss 赛程与手机推演\n\n公开 Swiss 赛程复用赛事推演的晋级路径、紧凑对阵和轮次列表，保留正式比赛链接及赛果，未来轮次只展示战绩路径。修复 Play-in 首轮战绩分组、轮次无障碍名称、阶段标签纵向溢出及解说待认领列表截断。手机紧凑布局可完整访问首轮与最终结果，桌面保留自适应列宽。\n\n#### 首页报名状态\n\n首页报名提示与入口统一按实际报名窗口判断，截止后不再显示报名开放或继续推荐报名；报名截止不会擅自推进赛事生命周期。\n\n#### BET 参与与阶段补给\n\n管理员可参与不涉及本人参赛队伍的盘口，当前相关名单成员限制保持。阶段补给从真实 Main Event 阶段事实恢复，消除启用顺序依赖；晚加入不补历史阶段积分，重复协调不重复发放。\n\n### Changed\n\n#### BP 权益说明\n\n选择先禁图方时，现有问号按 BO1、BO3、BO5 解释整场禁选与选边权益，保留原有规则与简洁操作按钮。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 405107749,
     "tag_name": "v2.15.0",
     "original_body_sha256": "c961a66f7a02cf64cb640355636cd50e6db964398c5c2d502bfc61dc58e72996",
     "candidate_body": "本次生产发布 v2.15.0 相对权威上一生产版本 v2.14.4 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.0]\n\n### Added\n\n#### 独立竞猜平台\n\n新增赛事、比赛、BP 与单图社区积分盘口，支持 Play-in、大小分、同向追加和 ALL IN 确认。盘口由正式 BP、对局与单图事实开放、锁定及结算；赛果更正自动冲销重算，弃权退款。积分不能购买、交易、提现或兑换现实价值，与 Pick’Em 独立。\n\n管理员按比赛和赛事盘分组管理，可搜索、组合筛选和分页；支持启用、暂停／恢复、永久提前锁盘、带原因退款及异常重试。\n\n### Changed\n\n#### 赛事推演与 Pick’Em\n\n赛事推演支持横向晋级路径、紧凑战绩分组和纵向轮次卡片三种布局，窄屏支持双列卡片与轮次切换；Play-in Short Swiss 复用官方配对与晋级规则。选择只保留在当前页面内存，刷新恢复最新官方赛况，取消保存和分享快照。\n\nMain Event 的推演与 Pick’Em 保留同页体验。Pick’Em 由正式名单、阶段确认和首场排期自动驱动，未排期可提交，截止后延期不重开；删除手动开窗等管理操作，截止后仅向已提交观众显示只读预测单。积分竞猜通过独立平台参与。\n\n#### 依赖维护\n\n更新图标及构建／测试依赖的稳定补丁版本。\n\n### Fixed\n\n#### 竞猜锁盘与预览兼容\n\n统一官方事实更新和竞猜管理／结算的锁顺序，避免并发操作死锁。漏记独立开局标记时，已确认的单图开始或赛果仍锁定系列及赛事盘口，防止已知部分赛果后继续投入。预览镜像排除竞猜账户、投入与流水，并按源迁移版本读取公开开局事实。\n\n### Migration\n\n移除未开放的推演快照表；新增独立竞猜表与永久开局字段，保留旧预测金融历史。发布要求加密数据库检查点、PostgreSQL 17 演练、生产迁移及调度验证。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 404670147,
     "tag_name": "v2.14.4",
     "original_body_sha256": "5fdd896aabac9c4b70695fed7343fa541d36c74d7cc46c0d7c4f2ca87c95091b",
     "candidate_body": "本次生产发布 v2.14.4 相对权威上一生产版本 v2.14.3 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.14.4]\n\n### Fixed\n\n#### 未定级 S 段系统推荐\n\n修复未定级降档估算仍为 S 段时缺少代表星数、导致整支队伍没有系统推荐排名的问题。估算采用目标低一档的上界星数（钻石 49、黄金 24、青铜 9），保留估算来源标记；证据详情展示估算段位及代表星数，不修改申报事实或冻结推荐。\n\n### Changed\n\n#### 排名总览缩放\n\nMajor 排名工作台恢复 50%、60%、75% 总览缩放，默认仍为 100%，缩放不改变队伍顺序。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 404618176,
     "tag_name": "v2.14.3",
     "original_body_sha256": "679bf3c09cd0ecc9228e337235eeaaec2af541d85568538935cc561ae55e3bc2",
     "candidate_body": "本次生产发布 v2.14.3 相对权威上一生产版本 v2.14.2 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.14.3]\n\n### Fixed\n\n#### 竞技资料事实一致性\n\n保存历史最高时自动同步明确达成赛季的缺失记录，更高的逐赛季事实自动提升历史最高；段位、星数或 Rating 冲突显示两条记录，供确认后一起保存。受保护发布仅安全补齐既有资料中无歧义的缺失赛季记录，保留已有冲突、历史最高和冻结赛事事实。\n\n### Changed\n\n#### Major 综合实力与排名工作台\n\n系统参考使用连续 S 星数的综合实力段位，保留历史/近期/参考赛季权重与五名主力算术均值。排名总表恢复五个固定主力列和替补区，默认仅显示昵称和综合段位；排名数字支持拖动，上下移动与精确移位按需显示。桌面选手证据在侧边查看，移动端保留详情弹窗。共享排序草稿、冲突保护、最终锁定与已有冻结推荐模型保持。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 404536815,
     "tag_name": "v2.14.2",
     "original_body_sha256": "8574bff240f72db547534dd8e373b6cae1a0c719968b8a8dd5a886a75ffe2eee",
     "candidate_body": "本次生产发布 v2.14.2 相对权威上一生产版本 v2.14.1 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.14.2]\n\n### Fixed\n\n#### Play-in 首发资格\n\n补齐 Play-in 首发的校籍与外校实力校验，使用当前已批准名单版本的资格快照和对应特批，避免个人资料变化影响比赛资格。\n\n### Added\n\n#### 共享预排名草稿\n\nMajor 预排名可保存为跨管理员共享的服务器草稿，保留操作人、时间、版本和审计；最终确认只消费最新已保存版本并锁定赛制与排序，首轮前可显式重置返回草稿。\n\n### Changed\n\n#### Major 排名总表\n\n以紧凑阵容证据展示所有主力与替补，默认保留昵称和统一段位，主力同时显示历史最高与可比较 Rating；完整来源明细可按需查看，人工排名与非并列系统参考的差异清晰显示。系统种子算法仍只计算 5 名主力，50/20/30 权重不变。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 403600471,
     "tag_name": "v2.14.1",
     "original_body_sha256": "82667b7587331a3516ee3435789abc2727b42b034aa6b80a53673f631164a161",
     "candidate_body": "本次生产发布 v2.14.1 相对权威上一生产版本 v2.14.0 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.14.1]\n\n### Security\n\n#### 数据库连接身份校验\n\n正式与预览环境的数据库连接、迁移、调度和灾备统一校验 Supabase 官方 CA 与目标主机身份，不再接受未经验证的远程 TLS。灾备导出同样使用 verify-full，避免 CLI 丢弃连接参数后绕过身份校验；本地 loopback 数据库保持独立。\n\n#### Supabase API keys\n\nHosted 环境仅接受对应的现代 publishable/secret keys，缺少配置或类型不匹配时明确拒绝，移除旧 anon/service-role 变量回退。浏览器与服务端特权仍保持分离；Local Supabase 官方工具输出的 JWT 格式 key 仅允许在 loopback adapter 使用，不改变用户 session 或 LIVE viewer signing key。\n\n### Fixed\n\n#### Preview 镜像刷新\n\nPreview 重置时先移除本应用的 Realtime 接收 policy，再由 active migration chain 重建，避免重复 policy 导致镜像恢复失败。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 403511844,
     "tag_name": "v2.14.0",
     "original_body_sha256": "67526053c9cfec3412216042f3509c1b028aa2b9bd092c8c6d351a5992d0d259",
     "candidate_body": "本次生产发布 v2.14.0 相对权威上一生产版本 v2.13.4 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.14.0]\n\n### Added\n\n#### 赛事 Logo\n\n赛事管理员可上传、更换或移除赛事 Logo，公开赛事页与首页卡片复用同一图标；修改后 Mizar 比赛与赛程上下文同步更新，历史无 Logo 赛事保持可用。\n\n#### Major 观赛预测\n\nMajor 赛事新增观赛预测入口：观众可在完整 Swiss 战绩棋盘与淘汰赛连线上即时推演、撤销选择，通过队徽槽位独立提交阶段 Pick’Em、分享推演并查看挑战纪念币。支持 24 队与 32 队赛制，默认纪念币门槛随本届阶段数调整。系统补全的未来路径明确标记为预览，不计入用户选择。正式提交在截止或提前开赛后锁定，草稿与图片导出不改变有效提交。\n\n新增免费单场积分池、阶段补给、积分流水及净收益排行榜；支持并发投入保护、取消退款和官方改判后的冲正重算。赛事方可冻结本届预测规则、开放窗口或暂停新参与。\n\n#### Mizar 制播集成\n\nMizar 制播集成收敛为明确的 server-only 边界：赛事管理员在浏览器授权页为一次赛事创建 installation credential，Mizar 之后只能经 provider 读取该赛事的 Tournament Context 与赛程窗口，RivalHub 不下发 Drizzle 行、后台私有 read model、凭据或内部诊断；连接可被 canonical revoke，撤销后凭据立即 fail closed。\n\nMizar 的可靠事件与实时画面都要先通过 installation、比赛、authority revision、session、generation、map epoch、序列、身份与首发证据校验。可靠事件只是候选：`map_ended` 的 `scoreA`/`scoreB` 是 entrant-relative 候选，`scoreCT`/`scoreT` 仅作证据，正式结果仍由唯一 canonical map result owner 在事务内写入，`series_ended` 不会在没有正式地图结果时推进系列赛。单场同一时刻只有一个 authoritative source，换机接管递增 authority revision 并使旧数据源 fail closed，人工接管只作用于当前地图执行。\n\n公开实时画面只经校验后投射为有硬上限的 public payload，并通过私有 Supabase Realtime Broadcast 投递，不写入 PostgreSQL、不保存历史、不引入 replay store；浏览器只持有单场、短寿命、receive-only 的 viewer token，无 INSERT policy，不能发布可信帧或跨场订阅。\n\nMizar 实机 producer 接入与完整赛务验收仍需独立完成；本条不将 backend/provider smoke 视为实机验收。\n\n#### 平台数据中心\n\n新增平台数据中心，统一全部公开历史赛事与单届筛选，收敛全站导航并迁移旧统计入口。选手统计增加首死被补枪与每颗净致盲两列，新增可追溯并列纪录和有明确样本、范围及解释的数据观察。修正跨赛事与本届队伍跳转、未完成和禁选地图入口，纪录翻页复用聚合；观察使用独立样本线与相对差距，首死组合保留两项事实并按需解释。 UI 使用 CS 常见短标签与按需解释，空态保持事实化；窄屏 Side Split 随卡片伸缩。\n\n#### 比赛 LIVE 画面\n\n公开比赛页按 BP、等待对局、比赛中和图间组织内容，接入私有实时数据与共享战术雷达；断流时冻结并回退正式比赛信息，保留赛前分析、整场竞猜和赛后统计。详情页顶部仅赛后展示最终比分，地图区区分本图回合与地图胜场；赛程列表接入可见比赛的实时比分与失鲜降级。\n\n加宽桌面赛程与比赛详情，统一列表行高并紧凑展示地图胜场与回合比分；等待、图间和实时不可用时展开赛前资料，地图结果采用地图封面，优化暂停雷达底图。图间保留自动采纳或人工记录的上一图比分与地图胜场，雷达和选手表共用数字编号；统一 Armor / Money / K-D-A 表头并简化 C4 状态。MVP 补充关键表现及已有统计投影提供的整场进阶指标，使用统一英文指标与问号说明。BP 记录在赛后也固定于顶部地图区，采用禁选标记和简短英文过程叙述。\n\n#### 系列赛比分更正恢复\n\n管理员工作台增加进行中系列因地图比分更正而提前结束的专用恢复流程。先预览实际地图与后续赛程影响，再填写原因并确认；安全完成比赛、更新实际完成时间和晋级结果，保留比分更正、采集与 Demo 审计事实。\n\n已经开打或有结果、比赛数据的后续地图，以及已经生成的下游赛程会阻止本操作。未打地图保留 BP 计划，不再生成建房、计分板或 Demo 待办；原始 OCR 与 Demo 保留，更正后的旧 Demo 数据按现有规则重新核验。\n\n#### 赛务工作台与解说认领\n\n赛事管理增加解说自助认领和个人当前、下一场比赛入口，沿用本届管理员授权与每场两位解说上限。\n\n单场工作台按当前正式比赛事实提示赛务下一步，提供 Perfect 建房核对与六项复制、图间平台计分板 OCR 和经过时间、赛后 Demo 上传器及同步状态入口。OCR 可以晚补，不阻断下一图或赛后整理；系列赛结束后不再提示未进行的决胜图，未实际比赛的弃赛无需 OCR 或 Demo。\n\n工作台区分自动记录时的比赛状态、正常人工赛务与异常优先处理，人工接管仅限当前地图且与服务端赛果权限一致；错图事件保留可信对局并进入异常处理，缺失绑定可在核对正式地图后审计恢复，已人工接管后因数据源重启丢失的绑定也可显式恢复，下一图开打后不再提示图间超时。完整计分板按实际阵容与全部基础字段核验；官方完赛、比赛数据与解说名单与录像分别收尾。新增非阻塞图间 10 分钟提示、按解说认领的 B 站状态和稳定 Uploader 下载入口。\n\n异常面板展示本站记录、未采纳的地图与比分报告及核对步骤；手动录分明确说明操作范围，刷新显示反馈。Perfect 指引修复 Direct BO3 Play-in 的轮次生成，准备房间时优先展示建房信息。\n\n整理工作台与 BP 页面层级，以具体比赛状态、差异和处理动作呈现运营流程。赛前首发摘要与真实开赛校验对齐，直接进入既有 BP 页面，首发详情按需展开。BP 页面按观众、首发、负责人和管理员权限展示内容，建房引导留在管理员工作台，完成后汇总正式地图顺序和起始阵营，取消时停止倒计时。异常采集通过完整本图开始证据重新核验后恢复自动记录，保留明确的手动录分选择；阵容异常按 Steam 昵称和主页链接展示缺少、额外及重复玩家。恢复 BP 先手选择后重新生成倒计时，队长可以继续操作。BP 与公开记录统一使用 BAN / PICK / SIDE / DECIDER，中文解释通过问号提示按需查看。\n\n支持在系列赛进行中更正已完成地图比分，保存原因、核验旧比分并保护地图结束时间及 Demo 来源。设备撤销权限收敛为授权人或填写原因的超级管理员，确认时展示活动连接影响。\n\n工作台按当前 LIVE 投递显示采集状态；静默失联或尚未完成采集核验时，管理员可登记已确认的问题并在服务端重验后接管本图，过期确认不会影响新数据源状态。上一图人工完成后保留冲突核对，同时开放下一图建房与上一图计分板整理。\n\n### Changed\n\n#### 观赛预测视图与读取\n\n观赛预测新增晋级路径、紧凑对阵与轮次列表视图，压缩比赛卡和 Pick’Em 选队区域；积分池增加筛选与快捷投入。\n\n公开预测读取不再触发结算或争用赛事级行锁，按当前页面读取个人预测、积分池或战绩；积分投入改为数据库聚合，并补充查询索引。后台标签暂停自动刷新。\n\n#### 比赛执行与正式赛果\n\n比赛首发默认值、开赛定格、时间提议来源、官方转播名额与统一地图结果入口收敛为 canonical match runtime：系统可在计划开赛前两小时从本届 EventRoster 自动采用五名主力首发，开赛事务重新校验并定格历史 MatchRoster 与 `startedAt`；每场至多一个待回应时间提议，并保留接受/超时/截止/管理员指定来源；地图结果收敛到单一 owner，供人工录入与后续可靠数据源复用。\n\n#### 公开比赛赛前与赛后\n\n收敛公开比赛详情页的赛前（PRE）与赛后（POST）展示体验：\n- 赛前提供双方阵容、地图胜选禁率分析（MatchMapProfile）、近期赛果（MatchRecentResults）、积分预测（MatchPrediction）、历史交锋（MatchHeadToHead）及 Veto 入口，移除旧重型对阵与六维雷达图；\n- 赛后提供单图比分与记分板（PlayerStatsTable）、整场数据汇总（MatchSummaryStats）、详细指标深链（PlayerWorkspace）、MVP 投票（MatchMvpVote）与录像解说；\n- 剥离公共页面上直接挂载的计分板 OCR 编辑器，保持公开浏览与后台管理严格分离。\n\n#### 计分板与 DAK 数据所有权\n\n逐图记分板、OCR/手填数据与 DAK gameplay facts 收敛为字段级明确的赛后所有权：单图具备正式比分与完成时间后即可确认该图数据，不必等待整场系列赛结束；OCR 只拥有 Rating / RWS / WE，不得覆盖 DAK 的 K/D/A、ADR、HS、FK、MK、残局等 gameplay facts，DAK 晋级也不清空已有 Rating / RWS / WE。清除计分板输入改为只删除仅由 OCR 持有的行并清空 DAK 行的 Rating / RWS / WE，保留 Demo lineage 与确认事实；后台编辑器读取改由 server-only 读模型返回 sanitized DTO，并按赛季显式授权，不再向浏览器下发 DAK lineage 与审核字段。\n\n#### 统计投影有界修复\n\n统计投影后台修复改为持久化游标分批推进，限制每轮扫描和重建工作量，过期候选不再阻塞后续地图。发布前完整性检查分批读取同一快照，超出扫描或时间预算时明确阻止发布，避免把未检查完误报为可上线。\n\n#### DAK 判负与弃权合同\n\nDAK 赛事目录支持显式请求判负 / 弃权事实，避免合法无地图场次被误认为缺少 BP 或 Demo，同时保持已发布客户端的严格合同兼容。\n\n#### 公开目录与缓存失效\n\n队伍邀请的发送、拒绝与撤销不再清空全站统计缓存；公开玩家资料与招募列表共享竞技目录缓存，赛事目录使用共享缓存，减少重复数据库读取。正式赛果、身份及展示资料变更仍及时刷新统计。\n\n#### 统计样本资格\n\n赛事概览的最佳情境数据与统计表格统一使用动态样本资格，避免极少量样本的高成功率被展示为最佳表现。\n\n#### 统计投影与数据库出站\n\n降低赛事统计、选手和队伍主页的数据库出站流量：确认 Demo 时保存可复用的每图统计，公开访问共享缓存和全站基准，目录及后台状态查询不再读取整批原始 Evidence。补齐数据更正和身份变更后的统计刷新，统一队伍已完成地图口径，并减少隐藏页面轮询；赛后 MVP 改由到期任务确认。\n\n#### Supabase modern API keys\n\n支持新版 Supabase publishable/secret API key，并保留旧配置回退；隔离本地验证环境的密钥，防止特权 key 误用于公开客户端，补齐日志与 CI 产物中的新版密钥脱敏。\n\n#### Supabase 组织与项目迁移\n\n将 Production 与 Preview 的 Supabase target 切换到独立的新组织项目，并通过 active migration 将公开 Storage 图片 URL 指向新 Production，保留对象路径和外部图片来源。\n\n#### 定时任务 trace 与故障告警\n\n将生产环境定时任务请求的 trace 采样率设为 5%，保留其他请求及 Preview 的完整 trace 和所有结构化错误日志；补齐查询重试期间连接池重建失败的告警事件，并明确 Better Stack 基于真实故障事件的告警与验收规则。\n\n### Fixed\n\n#### 历史操作日志上下文\n\n修复历史操作日志中的未知操作和机器来源误标，补全队长与赛事代表转移、处罚、身份合并的安全人名上下文，并改善 Demo 比赛地图与缺失目标的可读展示。\n\n#### PostgreSQL enum migration 回放\n\n完整 migration replay、Preview mirror 与 recovery restore 在 PostgreSQL enum 扩展后提交事务，使后续 migration 可以安全使用新增 enum value，保留原始 active chain SQL 和 ledger hash。\n\n#### 托管 Realtime 接收权限初始化\n\n新托管 Supabase 的 Realtime tenant 初始化后，通过 active migration 补齐仅接收、单场限定的 LIVE Broadcast policy，保留浏览器写入拒绝。\n\n#### 定时任务发布版本对齐\n\n生产定时任务兜底按实际已部署版本选择任务，避免 main 提前加入的新任务持续请求未发布接口；人工执行与健康读取失败共用完整已部署清单，单个任务失败不阻塞其它任务。\n\n#### 多源 LIVE 接收公平性\n\n实时画面接收按安装与比赛轮转准入，避免同步多源持续饥饿；解析鉴权与广播分别限制资源，慢广播或突发输入时有界丢弃，避免堆积占用数据库连接；保留数据源撤销与接管的授权锁，并防止广播错误响应体拖延事务。正式比分、观众权限和公开实时协议保持不变。\n\n#### 操作日志筛选与名称\n\n补齐历史发布公告导入、身份修复与比赛阵容修正的操作日志名称和筛选项。\n\n#### 数据库未知写入结果\n\n数据库连接中断且写入结果不明时不再自动重放查询，避免重复写入；保留连接建立前失败的一次恢复重试，并单独记录结果不明告警。\n\n### Security\n\n#### 可撤销的应用登录\n\n应用登录支持服务端撤销：退出立即使当前 cookie 失效，改密、找回、撤销登录凭据及账号归并会退出相关旧登录。升级后需重新登录；密码更新期间阻止并发旧凭据补发会话，无法确认的更新结果保持登录阻断，供管理员核实恢复。\n\n#### 备用登录凭据撤销\n\n修复备用登录凭据撤销与并发登录之间的归属复核，并统一重新绑定的用户锁顺序，防止等待撤销事务的登录恢复旧凭据。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 397637402,
     "tag_name": "v2.13.4",
     "original_body_sha256": "2e6f762b13410df9690d8ec80ffbb7b951898bf11e43abddae22bd2cf2b3349d",
     "candidate_body": "本次生产发布 v2.13.4 相对权威上一生产版本 v2.13.3 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.13.4]\n\n### Fixed\n\n#### Major 系统参考\n\n修复未定级选手较多时部分队伍系统参考整体缺失的问题。明确未定级赛季不等同 D，也不等同资料缺失：优先使用同赛季等价证据，否则按最近一个更早的真实已定级赛季下一档估算；没有此前逐赛季已定级记录时，以历史最高下一档作为保守参考。估算值始终保留来源说明，不会使用后来的赛季反推更早赛季。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 397626823,
     "tag_name": "v2.13.3",
     "original_body_sha256": "a427e02f7be7915a98b3e3c55bba895a4c1c34636600c0f809276279091a0682",
     "candidate_body": "本次生产发布 v2.13.3 相对权威上一生产版本 v2.13.2 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.13.3]\n\n### Fixed\n\n#### Major 赛前排名与队伍身份\n\nMajor 排名矩阵支持缩小至 50%。未定级赛季不再等同最低 D 段位：在没有同赛季可用等价证据时，按最近一个此前已定级赛季向低一档生成明确标识的实力参考；连续未定级不会重复降档。长期队伍改名会同步仍在进行中的赛事参赛名称，并回填现有未结束赛事中的旧名称。\n\n#### 赛前数据镜像与设置边界\n\n补齐 Main Event 计划开始时间的 Preview Mirror 生命周期声明，并验证 Major 的报名截止与最终名单调整截止继续由赛前工作区管理，不被通用赛季设置覆盖。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 397614681,
     "tag_name": "v2.13.2",
     "original_body_sha256": "f82e0b128d7da338fc406114bb52d2bd5a2c1a9a540943d1e108a146db634ae6",
     "candidate_body": "本次生产发布 v2.13.2 相对权威上一生产版本 v2.13.1 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.13.2]\n\n### Changed\n\n#### Major 赛前工作区\n\nMajor 赛前管理按报名收口、资格方案、资格赛、正赛名单、正赛种子和开赛确认六阶段推进；报名期、预排名与最终种子共用完整队伍排名矩阵，并按资格赛生命周期冻结、重开和最终锁定名单调整。报名截止、最终名单调整截止与 Main Event 计划开始分别由对应阶段管理。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 397566306,
     "tag_name": "v2.13.1",
     "original_body_sha256": "122da4b69e53ba1edfad85f80078e18bfda991de6f971bec00e37ffe96d3546e",
     "candidate_body": "本次生产发布 v2.13.1 相对权威上一生产版本 v2.13.0 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.13.1]\n\n### Fixed\n\n#### BP 超时调度\n\n修复 Production 数据库拒绝派发 Veto Room 超时任务的问题，并补齐 BP 操作人账号归并与 Preview schema 策略。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 397361929,
     "tag_name": "v2.12.3",
     "original_body_sha256": "f123159844c97d627b823452dd6b0c40fb8970526774c4c6a0b5d392fd5e496c",
     "candidate_body": "本次生产发布 v2.12.3 相对权威上一生产版本 v2.12.2 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.12.3]\n\n### Added\n\n#### Major 资格赛\n\n新增独立 Qualification / Play-in 流程，支持 Direct BO3 与 Short Swiss，并将晋级结果纳入正赛名单确认。\n\n### Changed\n\n#### 队伍报名资料补全\n\n改善报名资格缺口的恢复与行动路径，支持精确赛季资料链接、院校搜索无结果恢复，以及管理员补充院校目录。\n\n#### Steam 官方资料缓存\n\n移除已停用的用户资料兼容列，统一使用 `steam_profiles` 保存 Steam 官方资料缓存。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 396531467,
     "tag_name": "v2.12.2",
     "original_body_sha256": "02de482d8e77b3cba592bcd4575f10d5ceca6f8bd893fe9eeb19f91f90b3f7bc",
     "candidate_body": "本次生产发布 v2.12.2 相对权威上一生产版本 v2.12.1 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.12.2]\n\n### Added\n\n#### Demo 身份复核中的 Steam 官方资料\n\n管理员现在可以在 Demo 复核中查看陌生或历史观测 Steam64 对应的官方头像、昵称和个人主页；资料获取失败时仍可继续核对。\n\n### Changed\n\n#### Steam 资料缓存与玩家头像\n\nSteam 官方资料缓存统一使用 `steam_profiles` 保存；玩家头像改为直连 Steam CDN 展示。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 396439826,
     "tag_name": "v2.12.1",
     "original_body_sha256": "d4193cb080ea24e731d71ae8283cbddc94f05fc6fd3a1203ad1c8b8b157b1215",
     "candidate_body": "本次生产发布 v2.12.1 相对权威上一生产版本 v2.12.0 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.12.1]\n\n### Changed\n\n#### 队伍公开页与选手统计表\n\n调整赛事队伍公开页的信息层级，并改善移动端选手统计表中长名称的展示。\n\n### Fixed\n\n#### 队伍邀请与调度器\n\n修复队伍邀请和加入意向的状态冲突，并修正 Scheduler watchdog planner 在 GitHub Actions 中的执行问题。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 395882985,
@@ -542,64 +542,64 @@
     "id": 394921251,
     "tag_name": "v2.11.0",
     "original_body_sha256": "c92ca4c531ff322a87dcc540b00e8d2746f26c14e070d6f1ca57a674b0d8a2f5",
-    "candidate_body": "本次生产发布 v2.11.0 相对权威上一生产版本 v2.10.7 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.11.0]\n\n### Added\n\n#### 赛事统计中心\n\n赛事统计整理为 Overview、Players、Teams、Maps 和 Weapons 五个入口，并支持 Stage、Best-of、Map 与 Team 等可分享筛选。新增地图池与 BP 视图、队伍 Rating 汇总、赛事经济摘要和 Situation Highlights；正式赛果、BP 暴露及已确认 DAK 详细覆盖继续分开呈现。\n\n### Fixed\n\n#### 公开页面缓存与加载\n\n首页、公告和赛季信息改用可定向失效的共享缓存，公开路由复用 App Shell，同时保持 viewer 专属任务独立加载。更新 Next.js 与 eslint-config-next 安全补丁，并记录 Vercel build footprint。\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "本次生产发布 v2.11.0 相对权威上一生产版本 v2.10.7 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.11.0]\n\n### Added\n\n#### 赛事统计中心\n\n赛事统计整理为 Overview、Players、Teams、Maps 和 Weapons 五个入口，并支持 Stage、Best-of、Map 与 Team 等可分享筛选。新增地图池与 BP 视图、队伍 Rating 汇总、赛事经济摘要和 Situation Highlights；正式赛果、BP 暴露及已确认 DAK 详细覆盖继续分开呈现。\n\n### Changed\n\n#### 公开页面缓存与加载\n\n首页、公告和赛季信息改用可定向失效的共享缓存，公开路由复用页面框架，同时保持用户专属任务独立加载。\n\n### Security\n\n更新 Next.js 与 eslint-config-next 安全补丁。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 393642630,
     "tag_name": "v2.10.7",
     "original_body_sha256": "94950671c6cf4993cc12f2123c71d8122a774118c3ba9d018da7e723b7d3c21a",
     "candidate_body": "本次生产发布 v2.10.7 相对权威上一生产版本 v2.10.6 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.10.7]\n\n### Fixed\n\n#### Demo 审核与身份重检\n\n比赛 Steam 身份确认后会自动重新检查同赛事中受同一 Steam64 影响的待处理 Demo，并为管理员提供按当前资料手动重检入口；同时将真实出场名单差异与 Steam 身份冲突分开呈现，避免错误改绑。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 393606620,
     "tag_name": "v2.10.6",
     "original_body_sha256": "9e77162198776cb1597822183a12972ffe3119ba5e779d4e28754e4fb7662fe3",
     "candidate_body": "本次生产发布 v2.10.6 相对权威上一生产版本 v2.10.5 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.10.6]\n\n### Fixed\n\n#### Demo 审核与身份纠错\n\n比赛后台 Demo 审核聚焦异常选手并说明比分、QA 等阻塞原因，正常身份改为人数摘要。支持填写原因并确认撤销本赛事比赛确认产生的错误 Steam 关联，刷新后重新核对；保留既有身份校验和审计边界。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 392746624,
     "tag_name": "v2.10.5",
     "original_body_sha256": "03e4dfce15779285fbfb14cd2914c6d1ec35c3d048348b127671ed456160da32",
-    "candidate_body": "本次生产发布 v2.10.5 相对权威上一生产版本 v2.10.4 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.10.5]\n\n### Fixed\n\n#### Product Language Boundary\n\n收紧动态状态与预期业务错误的用户文案边界：状态通过类型化展示映射输出，未知值不再回退为内部键，业务错误的内部诊断与用户提示分离。\n\n#### Demo Steam 身份复核\n\n管理员现在可以在单场比赛工作台处理 `/3` Demo 中需要核对的 Steam 身份：确认后会复用完整 Demo 校验并自动重检，其他问题仍会保留；无效或不应接收的 Demo 可拒绝。比赛中观察到的 Steam64 会作为可审计的 gameplay alternate identity 保存，不会修改登录或报名资料中的当前 Steam64。\n\n#### 账号归并预检\n\n修正账号归并对已批准参赛条目的误判：只有双方同时出现在已批准或已冻结的正式名单中才阻断归并；已退出的历史参与记录不再错误阻断。归并预检同时改用面向用户的中文领域名称，不再显示 `competition`、`team`、`stats` 等内部键。\n\n#### Preview mirror schema 兼容性\n\n修复 Preview mirror 在 production 与 `main` schema 处于 N/N+1 时的兼容性，并为 `Refresh Preview Data` 提供可诊断且不泄漏敏感数据的失败日志。\n\n#### 后台选手身份下钻\n\n统一后台选手身份下钻、联系方式操作，以及教育认证、队伍和最近活跃状态筛选。\n\n#### Immutable release retry operator identity\n\n收紧 immutable release retry 的 operator identity：手动重试只能从当前 main HEAD 发起，operator commit 必须具备 canonical main CI evidence，production migration 只消费 preflight 冻结的 operator SHA。\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "本次生产发布 v2.10.5 相对权威上一生产版本 v2.10.4 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.10.5]\n\n### Fixed\n\n#### Product Language Boundary\n\n收紧动态状态与预期业务错误的用户文案边界：状态通过类型化展示映射输出，未知值不再回退为内部键，业务错误的内部诊断与用户提示分离。\n\n#### 账号归并预检\n\n修正账号归并对已批准参赛条目的误判：只有双方同时出现在已批准或已冻结的正式名单中才阻断归并；已退出的历史参与记录不再错误阻断。归并预检同时改用面向用户的中文领域名称，不再显示 `competition`、`team`、`stats` 等内部键。\n\n#### Preview mirror schema 兼容性\n\n修复 Preview mirror 在 production 与 `main` schema 处于 N/N+1 时的兼容性，并为 `Refresh Preview Data` 提供可诊断且不泄漏敏感数据的失败日志。\n\n#### Immutable release retry operator identity\n\n收紧 immutable release retry 的 operator identity：手动重试只能从当前 main HEAD 发起，operator commit 必须具备 canonical main CI evidence，production migration 只消费 preflight 冻结的 operator SHA。\n\n### Added\n\n#### Demo Steam 身份复核\n\n管理员可在单场比赛工作台复核 `/3` Demo 中的 Steam 身份：确认后自动重检，其他问题仍会保留；无效或不应接收的 Demo 可拒绝。比赛中观察到的 Steam64 作为可审计的替代游戏身份保存，不修改当前登录或报名资料。\n\n#### 后台选手身份下钻\n\n统一后台选手身份下钻、联系方式操作，以及教育认证、队伍和最近活跃状态筛选。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 391226883,
     "tag_name": "v2.10.4",
     "original_body_sha256": "1a21aa8501bf145ac2b8976d098d1a8ae2066f60f2959c8c75fe29389f9f7d21",
-    "candidate_body": "本次生产发布 v2.10.4 相对权威上一生产版本 v2.10.3 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.10.4]\n\n### Fixed\n\n#### 私有 QQ 联系链路\n\n恢复 `/my/teams` 当前队伍成员的 QQ 与选手资料入口，并让队长在处理有效招募意向时看到对应选手的 QQ；公开选手、队伍和招募视图继续不暴露私有联系方式。\n\n#### Steam 官方资料与 Steam64 身份\n\n统一以 Steam64 保存当前 Steam 身份，Steam 昵称、头像和资料链接改由 Steam 官方资料缓存展示；Steam64 更换会保留可审计、可撤销的历史游戏身份。\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "本次生产发布 v2.10.4 相对权威上一生产版本 v2.10.3 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.10.4]\n\n### Fixed\n\n#### 私有 QQ 联系链路\n\n恢复 `/my/teams` 当前队伍成员的 QQ 与选手资料入口，并让队长在处理有效招募意向时看到对应选手的 QQ；公开选手、队伍和招募视图继续不暴露私有联系方式。\n\n### Changed\n\n#### Steam 官方资料与 Steam64 身份\n\n统一以 Steam64 保存当前 Steam 身份，Steam 昵称、头像和资料链接改由 Steam 官方资料缓存展示；Steam64 更换会保留可审计、可撤销的历史游戏身份。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 390453471,
     "tag_name": "v2.10.3",
     "original_body_sha256": "4ecea8f0c4ef52ba1c83618524cb9056353a9b2695866867b23b0fbb1f88cdfe",
     "candidate_body": "本次生产发布 v2.10.3 相对权威上一生产版本 v2.10.2 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.10.3]\n\n### Fixed\n\n#### DAK Demo Evidence 武器击杀完整性校验\n\n修正 `dak-stable/3` Demo Evidence 的武器击杀完整性校验：`sourceFacts.kills` 继续保留 teamkill 原始事件，`playerWeapons` 仅按 enemy-player offensive credit 校验；历史 Stable profile 保持原有口径。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 390419957,
     "tag_name": "v2.10.2",
     "original_body_sha256": "21bec5728e9139e0e40e7ef9a8ab9777d3e2dc7858f70dc7ca3245fa69095ef8",
     "candidate_body": "本次生产发布 v2.10.2 相对权威上一生产版本 v2.10.1 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.10.2]\n\n### Fixed\n\n#### DAK Demo Evidence 语义基线\n\n将 DAK Demo Evidence 的 canonical semantic profile 切换到 `dak-stable/3`：`dak-stable/1` 与 `dak-stable/2` 保留为只读历史，并通过现有 lineage 支持同一 Demo 重新生成 `/3` 后安全 supersede，保持 Evidence V1 wire contract 不变。\n\n#### 列表搜索 hydration\n\n修复列表搜索框在首次冷加载 hydration 完成前可能接受输入但没有触发 React `onChange`，导致 URL 搜索状态不更新的问题。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 390066330,
     "tag_name": "v2.10.1",
     "original_body_sha256": "5db68a5206cd447520fab75070316cd2c29e225c0fe1a6ee93a555a12d2e8d58",
     "candidate_body": "本次生产发布 v2.10.1 相对权威上一生产版本 v2.10.0 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.10.1]\n\n### Fixed\n\n#### DAK Demo Evidence 自杀事件武器汇总\n\n修正 Demo Evidence V1 对自杀事件的武器汇总校验，避免 `dak-stable/2` 重基线把 `world` suicide 错误要求为选手武器击杀。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 389925313,
     "tag_name": "v2.10.0",
     "original_body_sha256": "338bc8b7ba3a8c87eb5751ad16a09aed032d8eea5f68815886fc699805f75f11",
     "candidate_body": "本次生产发布 v2.10.0 相对权威上一生产版本 v2.9.7 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.10.0]\n\n### Added\n\n#### 队伍报名与运营信息\n\n补齐队伍报名模式赛事总览的报名统计、审核入口和报名时间；收口队伍图标直出与赛事快照提示，并在管理员解说资料中展示与快捷复制 Steam64、直播间信息。\n\n### Fixed\n\n#### DAK Demo Evidence 语义基线\n\n将 DAK Demo Evidence 的 canonical semantic profile 切换到 `dak-stable/2`：`dak-stable/1` 保留为只读历史，并在同一 Demo 重生成时通过现有 lineage 安全 supersede，避免旧 profile 回退为当前统计基线。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 389275795,

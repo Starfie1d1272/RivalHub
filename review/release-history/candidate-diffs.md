@@ -331,6 +331,20 @@
 +- 优化后台操作记录与赛后确认的窄屏和长内容布局。
 ```
 
+## v2.15.8
+
+```diff
+--- 原文
++++ 候选
+@@ -6,5 +6,5 @@
+
+ ### Fixed
+
+-- 中文字体改为本地按需加载，避免远端字体响应引发页面编译失败；保留 Noto Sans SC 字体及现有字重。
++- 中文字体改为本地按需加载，避免远端字体响应引发页面编译失败；保留 Noto Sans SC 字体及现有字重。LIVE 页面编译失败时直接报告错误，避免误报超时。
+ - 修复超级管理员看到空的解说待认领队列且无法认领的问题：超级管理员无需额外赛事授权即可认领、取消自己的认领或登记为解说，空位列表与数据库资格校验保持一致。
+```
+
 ## v2.12.0
 
 ```diff
@@ -347,6 +361,83 @@
 +重组选手主页信息层级和竞技数据工作区，拆分 Opening、Teamplay、Maps 与 Weapons；赛事统计指标说明统一通过提示入口查看，移除重复的区块解释。队伍公开主页重组阵容、比赛表现和历史记录，提供地图、选手与武器数据。
 
  ### Fixed
+```
+
+## v2.11.0
+
+```diff
+--- 原文
++++ 候选
+@@ -10,8 +10,12 @@
+
+ 赛事统计整理为 Overview、Players、Teams、Maps 和 Weapons 五个入口，并支持 Stage、Best-of、Map 与 Team 等可分享筛选。新增地图池与 BP 视图、队伍 Rating 汇总、赛事经济摘要和 Situation Highlights；正式赛果、BP 暴露及已确认 DAK 详细覆盖继续分开呈现。
+
+-### Fixed
++### Changed
+
+ #### 公开页面缓存与加载
+
+-首页、公告和赛季信息改用可定向失效的共享缓存，公开路由复用 App Shell，同时保持 viewer 专属任务独立加载。更新 Next.js 与 eslint-config-next 安全补丁，并记录 Vercel build footprint。
++首页、公告和赛季信息改用可定向失效的共享缓存，公开路由复用页面框架，同时保持用户专属任务独立加载。
++
++### Security
++
++更新 Next.js 与 eslint-config-next 安全补丁。
+```
+
+## v2.10.5
+
+```diff
+--- 原文
++++ 候选
+@@ -10,10 +10,6 @@
+
+ 收紧动态状态与预期业务错误的用户文案边界：状态通过类型化展示映射输出，未知值不再回退为内部键，业务错误的内部诊断与用户提示分离。
+
+-#### Demo Steam 身份复核
+-
+-管理员现在可以在单场比赛工作台处理 `/3` Demo 中需要核对的 Steam 身份：确认后会复用完整 Demo 校验并自动重检，其他问题仍会保留；无效或不应接收的 Demo 可拒绝。比赛中观察到的 Steam64 会作为可审计的 gameplay alternate identity 保存，不会修改登录或报名资料中的当前 Steam64。
+-
+ #### 账号归并预检
+
+ 修正账号归并对已批准参赛条目的误判：只有双方同时出现在已批准或已冻结的正式名单中才阻断归并；已退出的历史参与记录不再错误阻断。归并预检同时改用面向用户的中文领域名称，不再显示 `competition`、`team`、`stats` 等内部键。
+@@ -22,10 +18,16 @@
+
+ 修复 Preview mirror 在 production 与 `main` schema 处于 N/N+1 时的兼容性，并为 `Refresh Preview Data` 提供可诊断且不泄漏敏感数据的失败日志。
+
++#### Immutable release retry operator identity
++
++收紧 immutable release retry 的 operator identity：手动重试只能从当前 main HEAD 发起，operator commit 必须具备 canonical main CI evidence，production migration 只消费 preflight 冻结的 operator SHA。
++
++### Added
++
++#### Demo Steam 身份复核
++
++管理员可在单场比赛工作台复核 `/3` Demo 中的 Steam 身份：确认后自动重检，其他问题仍会保留；无效或不应接收的 Demo 可拒绝。比赛中观察到的 Steam64 作为可审计的替代游戏身份保存，不修改当前登录或报名资料。
++
+ #### 后台选手身份下钻
+
+ 统一后台选手身份下钻、联系方式操作，以及教育认证、队伍和最近活跃状态筛选。
+-
+-#### Immutable release retry operator identity
+-
+-收紧 immutable release retry 的 operator identity：手动重试只能从当前 main HEAD 发起，operator commit 必须具备 canonical main CI evidence，production migration 只消费 preflight 冻结的 operator SHA。
+```
+
+## v2.10.4
+
+```diff
+--- 原文
++++ 候选
+@@ -10,6 +10,8 @@
+
+ 恢复 `/my/teams` 当前队伍成员的 QQ 与选手资料入口，并让队长在处理有效招募意向时看到对应选手的 QQ；公开选手、队伍和招募视图继续不暴露私有联系方式。
+
++### Changed
++
+ #### Steam 官方资料与 Steam64 身份
+
+ 统一以 Steam64 保存当前 Steam 身份，Steam 昵称、头像和资料链接改由 Steam 官方资料缓存展示；Steam64 更换会保留可审计、可撤销的历史游戏身份。
 ```
 
 ## v2.0.0-rc.4
