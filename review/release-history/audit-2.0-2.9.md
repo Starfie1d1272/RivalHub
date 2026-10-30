@@ -5,7 +5,7 @@
 ## 2.9.7
 
 - [Git 区间](https://github.com/Starfie1d1272/RivalHub/compare/v2.9.6...v2.9.7)：172996bc chore(release): 发布 v2.9.7；a7f20103 fix(release): 接受 Vercel canonical alias readback。
-- [Release](https://github.com/Starfie1d1272/RivalHub/releases/tag/v2.9.7)：原文与日志核对后保留。
+- [Release](https://github.com/Starfie1d1272/RivalHub/releases/tag/v2.9.7)：有正文候选，待独立审阅。
 
 ## 2.9.6
 

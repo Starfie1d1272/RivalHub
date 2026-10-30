@@ -12,7 +12,7 @@
 ## 1.20.4
 
 - [Git 区间](https://github.com/Starfie1d1272/RivalHub/compare/v1.20.3...v1.20.4)：966ca757 fix: pool 重建后重试查询，防止冷启动首请求 Load failed；f90ca1c1 fix: 修复 db/client Proxy 类型错误，确保无增量缓存的 CI 环境通过；885f66cc fix: 修复 DB 类型循环引用导致 CI type-check 失败；aa4afc8f 1.20.4；7b48659c fix: OCR 静默失败修复 + Vercel 冷启动 DB 连接自愈。
-- [Release](https://github.com/Starfie1d1272/RivalHub/releases/tag/v1.20.4)：原文与日志核对后保留。
+- [Release](https://github.com/Starfie1d1272/RivalHub/releases/tag/v1.20.4)：有正文候选，待独立审阅。
 
 ## 1.20.3
 

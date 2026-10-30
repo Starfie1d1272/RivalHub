@@ -22,7 +22,7 @@
 ## 1.29.0
 
 - [Git 区间](https://github.com/Starfie1d1272/RivalHub/compare/v1.28.2...v1.29.0)：b8098087 fix: 构建配置支持外部 TS 源码包；0823b7fd chore: 覆盖率 lines 阈值 27% → 26%；f08869c0 1.29.0；3f69e032 docs: 同步文档至 v1.29.0 — AGENTS.md；a6148d16 docs: CHANGELOG 1.29.0；b86f754a refactor: rating/demo 模块迁移至外部包；aa92d739 feat: add weights/* to exports map for JSON direct import；4c4d73a8 fix: 排行榜 Advanced/Demo 视图多列排序失效；1df094bf fix: CI 构建失败 — 回退 rival-rating 外部依赖为本地文件。
-- [Release](https://github.com/Starfie1d1272/RivalHub/releases/tag/v1.29.0)：原文与日志核对后保留。
+- [Release](https://github.com/Starfie1d1272/RivalHub/releases/tag/v1.29.0)：有正文候选，待独立审阅。
 
 ## 1.28.2
 
@@ -132,7 +132,7 @@
 ## 1.25.0
 
 - [Git 区间](https://github.com/Starfie1d1272/RivalHub/compare/v1.24.0...v1.25.0)：2e9046ec 1.25.0；d9d861a6 docs: CHANGELOG 1.25.0；f62276ec chore: gitignore 忽略 .codegraph/ 和 .cursor/；2dd86543 refactor: 代码合规 + 赛季状态迁移 + 文档全面精简。
-- [Release](https://github.com/Starfie1d1272/RivalHub/releases/tag/v1.25.0)：原文与日志核对后保留。
+- [Release](https://github.com/Starfie1d1272/RivalHub/releases/tag/v1.25.0)：有正文候选，待独立审阅。
 
 ## 1.24.0
 

@@ -612,8 +612,8 @@
     "id": 389275795,
     "tag_name": "v2.9.7",
     "original_body_sha256": "d9948e5456080deb47f4ad4311821f0778f831af093207450283bd64fdfc9084",
-    "candidate_body": "\n### Fixed\n\n#### Vercel 自定义域名 deployment read-back\n\n修复生产发布 routing 对 Vercel 自定义域名 deployment identity 的误判，确保候选发布能够通过安全的 production read-back 校验。\n\n",
-    "status": "reviewed-unchanged"
+    "candidate_body": "本次生产发布相对上一生产版本 v2.9.5 的变更如下。2.9.6 为中间版本条目，不表示其曾单独上线。\n\n## 2.9.6（中间版本）\n\n### Added\n\n#### 平台运营概览\n\n新增平台运营概览，聚合展示有效用户、活跃度、教育认证、队伍生态、组队供给与最近 7 天增长趋势，并将平台事实与赛事总览明确分开。\n\n### Fixed\n\n- 完善生产发布切流与回滚的状态核验；结果不明确时先核对实际状态，未确认恢复时停止后续发布。\n\n## 2.9.7\n\n### Fixed\n\n#### Vercel 自定义域名 deployment read-back\n\n修复生产发布 routing 对 Vercel 自定义域名 deployment identity 的误判，确保候选发布能够通过安全的 production read-back 校验。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 388439805,
@@ -857,7 +857,7 @@
     "id": 379035252,
     "tag_name": "v2.0.0-rc.4",
     "original_body_sha256": "19d74634921ece3c7b9fd5d754d9e2547d454bc2197c5f21f5a8a1f4d6186b2e",
-    "candidate_body": "\n### Changed\n\n- 统一赛事模板、参赛资格上下文和管理员赛事生命周期工作流。\n",
+    "candidate_body": "\n### Changed\n\n- 统一赛事模板、参赛资格上下文和管理员赛事生命周期工作流（来源：[b2b7ae4](https://github.com/Starfie1d1272/RivalHub/commit/b2b7ae4c403152a36ce8384e47de51ea49e26498)）。\n",
     "status": "changed-review-required"
   },
   {
@@ -885,7 +885,7 @@
     "id": 378556767,
     "tag_name": "v2.0.0-rc.0",
     "original_body_sha256": "bf09e5001f7785f0ceefd01a8342f0df6842c65a194aea408dad46b2317fa1c0",
-    "candidate_body": "\n### Added\n\n- RivalHub 2.0 候选版引入 Major 赛事运营能力，并完善认证、报名、赛程与数据完整性。\n- 新增隔离旧远程数据库配置的本地 Supabase 开发入口，并验证迁移、认证、存储与数据 API 默认拒绝策略。\n\n### Changed\n- 队伍报名与含 Swiss 阶段的赛季在完整运营闭环落地前保持关闭，避免误用个人报名和自动状态迁移。\n",
+    "candidate_body": "\n### Added\n\n- RivalHub 2.0 候选版引入 Major 赛事运营能力，并完善认证、报名、赛程与数据完整性。\n- 新增隔离旧远程数据库配置的本地 Supabase 开发入口，并验证迁移、认证、存储与数据 API 默认拒绝策略（来源：[dabc985](https://github.com/Starfie1d1272/RivalHub/commit/dabc985fc085fd57e7cb34166bcbf46647e62b69)）。\n\n### Changed\n\n- 队伍报名与含 Swiss 阶段的赛季在完整运营闭环落地前保持关闭，避免误用个人报名和自动状态迁移（来源：[ed1f9cb](https://github.com/Starfie1d1272/RivalHub/commit/ed1f9cb002509df89830d1161307e21fcf3dc834)）。\n",
     "status": "changed-review-required"
   },
   {
@@ -899,7 +899,7 @@
     "id": 331142638,
     "tag_name": "v1.26.1",
     "original_body_sha256": "1b4a9a0aa43ecd078e64f16650ca3cc6f65bce3930e5274f0ea82dc846047eb4",
-    "candidate_body": "\n现存 `v1.26.1` 标签指向 1.30.1 的提交；本条比较链接使用当时的 1.26.1 版本提交。\n\n### Added\n\n- Demo 导入时使用基于社区逆向公式的 HLTV Rating 2.0 估算，并回填 Rating Pro；后台比赛行增加 Demo 导入入口。\n\n### Fixed\n\n- 修复 OCR 与 Demo 双来源重复计入，保留历史纯 OCR 数据；导入后正确回填认证状态与评分并刷新相关页面。\n- 首杀率改用真实回合数，多杀统计计入 2K；修复队伍经济转化率的队伍归属和统计读取。\n- 无 Demo 数据时重新分配六维评分权重；修复 Demo 管理页已导入状态和空数据提示。\n",
+    "candidate_body": "\n现存 `v1.26.1` 标签指向 1.30.1 的提交；[本条比较](https://github.com/Starfie1d1272/RivalHub/compare/v1.26.0...f04fac913dfd152d92eb968d5c279cbe69b88252)使用当时的 1.26.1 版本提交。\n\n### Added\n\n- Demo 导入时使用基于社区逆向公式的 HLTV Rating 2.0 估算，并回填 Rating Pro；后台比赛行增加 Demo 导入入口。\n\n### Fixed\n\n- 修复 OCR 与 Demo 双来源重复计入，保留历史纯 OCR 数据；导入后正确回填认证状态与评分并刷新相关页面。\n- 首杀率改用真实回合数，多杀统计计入 2K；修复队伍经济转化率的队伍归属和统计读取。\n- 无 Demo 数据时重新分配六维评分权重；修复 Demo 管理页已导入状态和空数据提示。\n",
     "status": "changed-review-required"
   },
   {
@@ -913,8 +913,8 @@
     "id": 331973800,
     "tag_name": "v1.29.0",
     "original_body_sha256": "00cc14a0cc5088696d2643a33de9a9e3caa3a046f8ff4406d48e8a2c29279bb0",
-    "candidate_body": "\n### Changed\n- **评分与 demo 解析模块迁移至外部包**：删除本地 `src/lib/rating/{rr,prism,types,weights}` 与 `src/lib/demo/{parse-package,schemas}`，评分实现改从 `@rivalhub/rival-rating` 导入、demo 解析改从 `cs2-demo-format` 导入，核心仓库不再维护这部分实现，权重/解析逻辑更新走对应外部仓库打 tag → `pnpm update` 流程\n- **默认权重 JSON 直引**：`@rivalhub/rival-rating` 增加 `weights/*` 到 exports map，`src/lib/rating/index.ts` 直接 import `rr-v1.json` / `prism-v1.json`，规避上游 ESM `with { type: \"json\" }` 兼容问题\n\n### Added\n- **校准数据导出脚本**：`scripts/calibration/export-indicators.ts` 读取 demo ZIP 解析并导出 RRIndicators（player-map / player-season / parse-report），供 rival-rating 做数据 QA 与权重校准\n\n### Fixed\n- **排行榜多列排序失效**：Advanced / Demo 视图下多列排序未生效\n- **经济类型 `\"full\"` 漏计**：`recomputeSeasonRatings` 未将 `\"full\"` 归入 fullBuyRounds，导致 RR 重算 fullBuy 统计偏低\n\n",
-    "status": "reviewed-unchanged"
+    "candidate_body": "\n### Fixed\n\n- 修复高级和 Demo 排行榜的多列排序。\n- 修复 RR 重算遗漏 full 经济类型导致的全枪局统计偏低。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 331906031,
@@ -1060,8 +1060,8 @@
     "id": 328765922,
     "tag_name": "v1.25.0",
     "original_body_sha256": "e4da478e3a021ea8b43f61e818eb0653fa04f0e81ec41b63ea5e4e024be3e5af",
-    "candidate_body": "\n### Added\n- **赛季自动结束**：所有比赛完成后自动将赛季从 playing 推进到 finished（`maybeFinishSeason`）\n- **赛季状态迁移操作**：赛季设置页新增撤回至草稿、撤回至报名、手动结束赛季、归档赛季四个管理操作\n- **4 个新 Server Action**：`revertSeasonToDraft`、`revertSeasonToRegistration`、`forceFinishSeason`、`archiveSeason`\n\n### Changed\n- **文档全面精简**：error-reference(540→31行)、data-model(443→291)、code-map(74→29)、architecture(163→145)，合并 ui-design + ui-tokens → ui-system.md，归档 launch-readiness\n- **修正文档偏差**：state-machines（DraftState 实现方式、Season 迁移表）、data-integrity（位置满员公式）、auth-and-permissions（UserSession 接口）\n\n### Fixed\n- **online-count API Route 合规**：迁移为 Server Action，删除 `src/app/api/online-count/route.ts`\n- **bracket Database 类型统一**：6 处 `import type { Database } from \"brackets-manager\"` 改为走 `@/lib/bracket` 适配层\n- **approved→pending 限制**：只允许 registration 阶段操作（此前 voting 阶段也允许，现已有个人信息修改功能不再需要）\n\n",
-    "status": "reviewed-unchanged"
+    "candidate_body": "\n### Added\n\n- 所有比赛完成后自动结束赛季；管理员可将赛季撤回至草稿或报名、手动结束或归档。\n\n### Changed\n\n- 已审核通过的报名仅可在报名阶段撤回至待审核。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 328661676,
@@ -1102,7 +1102,7 @@
     "id": 328331159,
     "tag_name": "v1.23.0",
     "original_body_sha256": "90302ce3253abab698d5bf43fda5aa02e7d418ee755a24d06a4945ba2581100d",
-    "candidate_body": "\n### Added\n\n- **弃赛系统**：新增 `forfeitMatch` action，管理员可在赛程页对 scheduled / in_progress 比赛判负弃赛；弃赛方选择后按格式写入标准比分（BO1 13:0 / BO3 2:0 / BO5 3:0）并推进 bracket；`MatchStatusBadge` 弃赛场次显示\"弃赛\"而非\"已结束\"；新增弃赛记录字段\n- **逐图比分修正**：新增 `correctMapScore` action，赛后可修改已录入的单图回合数，大比分自动重算；后台赛程页有逐图记录时以逐图修改入口替换旧的直接改大比分入口\n\n### Changed\n\n- **逐图录入绑定 format**：`MapByMapInput` 改为在 BO3 / BO5 格式比赛进行时展示，不再限于淘汰赛阶段\n- **MapByMapInput UX**：BP 已记录选边时不再重复展示选边下拉框；比分输入框上方新增队伍名标签；决胜图选边标签统一为\"{队伍名} 起始边\"\n- **图三 OCR 过滤**：BO3 系列赛 2:0 结束后，BP 预占的第三图占位行不再出现在 OCR 录入面板\n",
+    "candidate_body": "\n### Added\n\n- **弃赛系统**：新增 `forfeitMatch` action，管理员可在赛程页对 scheduled / in_progress 比赛判负弃赛；弃赛方选择后按格式写入标准比分（BO1 13:0 / BO3 2:0 / BO5 3:0）并推进 bracket；`MatchStatusBadge` 弃赛场次显示\"弃赛\"而非\"已结束\"；新增弃赛记录字段；升级需要执行 `0019_is_forfeit` 数据库迁移。\n- **逐图比分修正**：新增 `correctMapScore` action，赛后可修改已录入的单图回合数，大比分自动重算；后台赛程页有逐图记录时以逐图修改入口替换旧的直接改大比分入口\n\n### Changed\n\n- **逐图录入绑定 format**：`MapByMapInput` 改为在 BO3 / BO5 格式比赛进行时展示，不再限于淘汰赛阶段\n- **MapByMapInput UX**：BP 已记录选边时不再重复展示选边下拉框；比分输入框上方新增队伍名标签；决胜图选边标签统一为\"{队伍名} 起始边\"\n- **图三 OCR 过滤**：BO3 系列赛 2:0 结束后，BP 预占的第三图占位行不再出现在 OCR 录入面板\n",
     "status": "changed-review-required"
   },
   {
@@ -1137,15 +1137,15 @@
     "id": 326191531,
     "tag_name": "v1.20.5",
     "original_body_sha256": "fc978f8f38460e601583b0dcb8a8b641de7df86d86b9ad8c0c6ceab4bff24eca",
-    "candidate_body": "\n### Fixed\n\n- **DB Pool 重建后重试查询**：连接失败重建 Pool 后自动重试当次查询，并发重建合并去重，避免冷启动首请求 Load failed\n",
+    "candidate_body": "\n### Fixed\n\n- OCR 请求增加 60 秒超时保护和响应错误日志，避免上游请求长时间无响应。\n",
     "status": "changed-review-required"
   },
   {
     "id": 326160827,
     "tag_name": "v1.20.4",
     "original_body_sha256": "4b01aee44c7d3096a43e24247ca30a9520a70036cffa96459a799ee4a3dd4fb4",
-    "candidate_body": "\n### Fixed\n- **OCR 静默失败**：前端 `handleExtract` 补上缺失的 catch 块，Server Action 调用抛异常时显示错误信息而非静默吞掉\n- **DB 冷启动脆弱性**：Vercel 函数冷启动时 `DATABASE_URL` 偶发为空/残值导致 pg Pool 绑定错误地址，现连接失败自动重建 Pool 并重读环境变量\n- **OCR 日志可诊断性**：`siliconflow.ts` 每个处理步骤（JSON 解析→players 提取→逐行校验）设独立 try/catch + 日志，失败时精确定位\n\n",
-    "status": "reviewed-unchanged"
+    "candidate_body": "\n### Fixed\n\n- **OCR 静默失败**：前端 `handleExtract` 补上缺失的 catch 块，Server Action 调用抛异常时显示错误信息而非静默吞掉\n- **数据库冷启动恢复**：连接失败时重读环境配置、重建连接池并重试查询；并发重建会合并，减少首个请求失败。\n- **OCR 日志可诊断性**：`siliconflow.ts` 每个处理步骤（JSON 解析 →players 提取 → 逐行校验）设独立 try/catch + 日志，失败时精确定位\n",
+    "status": "changed-review-required"
   },
   {
     "id": 325963654,
@@ -1424,7 +1424,7 @@
     "id": 322279403,
     "tag_name": "v1.3.0",
     "original_body_sha256": "c3d8de4e2d5ddea4998209929c2b3148904d0a031751daee9c1ac2df6356841c",
-    "candidate_body": "\n### Added\n\n- 队伍图标上传：`TeamLogoUpload` 组件 + `uploadTeamLogo` Server Action + Supabase Storage `team-logos` bucket（公开，1 MB / jpg+png+webp）\n- 管理后台报名草稿查看：`DraftRegistrationTable` 展示邮箱、Steam 昵称、位置、段位、最后保存时间\n- 修改密码功能：`changeUserPassword` Server Action（验证原密码 + Supabase Admin API 更新）+ `/settings/password` 页面\n- `revokeUserAdminRole` Server Action：super_admin 可撤销其他管理员权限（写 audit_log）\n\n### Changed\n\n- `MatchRosterForm` 视觉重设计：PosChip 位置标签、CSS 变量卡片样式、StatusPill 锁定态\n- 管理员用户列表改为查询 `users` 表（role ≠ \"user\"），正确展示所有管理员\n- `teams` 表新增 `logo_url` 列（nullable）\n- Header：super_admin 隐藏邀请码入口；所有已登录用户新增修改密码入口\n\n### Fixed\n\n- 上传失败回退竞态：`lastConfirmedUrlRef` 替代 stale prop 快照\n",
+    "candidate_body": "\n### Added\n\n- 队伍图标上传：`TeamLogoUpload` 组件 + `uploadTeamLogo` Server Action + Supabase Storage `team-logos` bucket（公开，1 MB / jpg+png+webp）\n- 管理后台报名草稿查看：`DraftRegistrationTable` 展示邮箱、Steam 昵称、位置、段位、最后保存时间\n- 修改密码功能：`changeUserPassword` Server Action（验证原密码 + Supabase Admin API 更新）+ `/settings/password` 页面\n- `revokeUserAdminRole` Server Action：super_admin 可撤销其他管理员权限（写 audit_log）\n- 比赛时间协商到截止时间后自动裁定。\n- 队长可修改队伍名称；选秀池和队长面板提供选手个人主页链接。\n\n### Changed\n\n- `MatchRosterForm` 视觉重设计：PosChip 位置标签、CSS 变量卡片样式、StatusPill 锁定态\n- 管理员用户列表改为查询 `users` 表（role ≠ \"user\"），正确展示所有管理员\n- `teams` 表新增 `logo_url` 列（nullable）\n- Header：super_admin 隐藏邀请码入口；所有已登录用户新增修改密码入口\n\n### Fixed\n\n- 上传失败回退竞态：`lastConfirmedUrlRef` 替代 stale prop 快照\n",
     "status": "changed-review-required"
   }
 ]
