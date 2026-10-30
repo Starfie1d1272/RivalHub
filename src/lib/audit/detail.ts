@@ -51,9 +51,9 @@ export function describeAuditDetail(action: string, meta: unknown, names: Readon
     description = "录像登记可单独更新。历史未保存的链接内容和前后状态无法从当前资料还原。";
   }
   if (action === "mizar.reliable.accept") {
-    const kinds: Readonly<Record<string, string>> = { match_started: "比赛开始", map_started: "地图开始", map_ended: "地图结束", series_ended: "系列赛结束", identity_mismatch: "比赛身份不一致", lineup_mismatch: "出场名单不一致", source_generation_changed: "采集来源代次变化", map_epoch_changed: "地图轮次变化" };
+    const kinds: Readonly<Record<string, string>> = { match_started: "比赛开始", map_started: "地图开始", map_ended: "地图结束", map_player_snapshot: "地图选手临时数据", series_ended: "系列赛结束", identity_mismatch: "比赛身份不一致", lineup_mismatch: "出场名单不一致", source_generation_changed: "采集来源代次变化", map_epoch_changed: "地图轮次变化" };
     const outcomes: Readonly<Record<string, string>> = { observed: "已接收观察", armed: "已核验并允许记录赛果", canonicalized: "已写入正式赛果", consistent: "与正式赛果一致", needs_attention: "需要人工核对" };
-    fields.push({ label: "事件", value: lookup(kinds, values.kind, "未记录") });
+    fields.push({ label: "事件", value: lookup(kinds, values.kind, values.kind == null || values.kind === "" ? "未记录" : "未知事件") });
     fields.push({ label: "处理结果", value: lookup(outcomes, values.outcome, "未记录") });
   }
   return { description, fields };
