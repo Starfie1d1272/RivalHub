@@ -1,0 +1,170 @@
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { expect, it } from "vitest";
+import { DbTrafficSpool } from "@/lib/observability/db-traffic-spool";
+import { digestDbTraffic } from "@/lib/observability/db-traffic-contract";
+
+it("restores the sealed identity and attempted state and refuses corrupt state", async () => {
+  const root = await mkdtemp(join(tmpdir(), "traffic-spool-"));
+  try {
+    const spool = await DbTrafficSpool.open(root);
+    const state = spool.snapshot();
+    const body = { id: "test", at: 1 };
+    state.batches.push({ id: body.id, body: JSON.stringify(body), digest: await digestDbTraffic(body), at: 1, attempted: true, nextAttemptAt: 2, attempts: 1 });
+    await spool.commit(state);
+    spool.close();
+    const restored = await DbTrafficSpool.open(root);
+    expect(restored.snapshot()).toEqual(state); restored.close();
+    await writeFile(join(root, "state.json"), "{broken");
+    await expect(DbTrafficSpool.open(root)).rejects.toThrow();
+    expect(await readFile(join(root, "state.json"), "utf8")).toBe("{broken");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it("persists attempted identity across a lost acknowledgement and drains after restart", async () => {
+  const { DbTrafficDelivery } = await import("@/lib/observability/db-traffic-delivery");
+  const root = await mkdtemp(join(tmpdir(), "traffic-delivery-"));
+  const identity = { process: crypto.randomUUID(), release: "v1", deployment: "d1" };
+  let now = 1_800_000_000_000;
+  try {
+    let spool = await DbTrafficSpool.open(root);
+    let delivery = new DbTrafficDelivery(spool, identity);
+    await delivery.start(now);
+    const batch = { id: crypto.randomUUID(), ...identity, at: now, receivedBytes: 12 };
+    await delivery.seal(JSON.stringify(batch), now);
+    await delivery.drain(async () => ({ ok: false, status: null, retryAfter: null, limit: null }), () => now);
+    expect(spool.snapshot().batches[0]).toMatchObject({ id: batch.id, attempted: true, attempts: 1 });
+    spool.close(); spool = await DbTrafficSpool.open(root); delivery = new DbTrafficDelivery(spool, identity);
+    now += 600000;
+    const sent: string[] = [];
+    await delivery.drain(async item => { sent.push(item.id); return { ok: true, status: 200, retryAfter: null, limit: null }; }, () => now);
+    expect(sent).toEqual([batch.id]);
+    spool.close(); const finalSpool = await DbTrafficSpool.open(root);
+    expect(finalSpool.snapshot().batches).toHaveLength(0); finalSpool.close();
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it("evicts an unsent oldest batch and commits its loss evidence with the replacement", async () => {
+  const { DbTrafficDelivery } = await import("@/lib/observability/db-traffic-delivery");
+  const root = await mkdtemp(join(tmpdir(), "traffic-capacity-"));
+  const identity = { process: crypto.randomUUID(), release: "v1", deployment: "d1" };
+  const now = 1_800_000_000_000;
+  try {
+    const spool = await DbTrafficSpool.open(root); const state = spool.snapshot();
+    for (let i = 0; i < 256; i++) { const body = { id: crypto.randomUUID(), ...identity, at: now + i, receivedBytes: 1 }; state.batches.push({ id: body.id, body: JSON.stringify(body), digest: await digestDbTraffic(body), at: body.at, attempted: false, nextAttemptAt: now, attempts: 0 }); }
+    const evicted = state.batches[0].id;
+    await spool.commit(state);
+    const delivery = new DbTrafficDelivery(spool, identity);
+    await delivery.seal(JSON.stringify({ id: crypto.randomUUID(), ...identity, at: now + 256, receivedBytes: 2 }), now + 256);
+    await delivery.seal(JSON.stringify({ id: crypto.randomUUID(), ...identity, at: now + 257, receivedBytes: 2 }), now + 257);
+    spool.close(); const reopened = await DbTrafficSpool.open(root); const restored = reopened.snapshot(); reopened.close();
+    expect(restored.batches).toHaveLength(256);
+    expect(restored.batches.some(item => item.id === evicted)).toBe(false);
+    expect(JSON.parse(restored.gaps[0].body)).toMatchObject({ reason: "overflow", certainty: "lost", batches: 2, receivedBytes: 2 });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it("keeps the old committed state when a later file commit fails", async () => {
+  const { chmod } = await import("node:fs/promises");
+  const root = await mkdtemp(join(tmpdir(), "traffic-write-failure-"));
+  try {
+    const spool = await DbTrafficSpool.open(root); const state = spool.snapshot();
+    state.openWindowSince = 100; await spool.commit(state);
+    const next = spool.snapshot(); next.openWindowSince = 200;
+    await chmod(root, 0o500);
+    await expect(spool.commit(next)).rejects.toThrow();
+    await chmod(root, 0o700);
+    spool.close(); const reopened = await DbTrafficSpool.open(root);
+    expect(reopened.snapshot().openWindowSince).toBe(100); reopened.close();
+  } finally { await chmod(root, 0o700); await rm(root, { recursive: true, force: true }); }
+});
+
+it("restores an attempted batch after the owner process is killed", async () => {
+  const { spawn } = await import("node:child_process");
+  const root = await mkdtemp(join(tmpdir(), "traffic-sigkill-"));
+  const script = `const { DbTrafficSpool } = require('./src/lib/observability/db-traffic-spool.ts');
+    (async () => { const spool = await DbTrafficSpool.open(process.argv[1]); const state = spool.snapshot();
+    const { digestDbTraffic } = require('./src/lib/observability/db-traffic-contract.ts'); const body = { id: 'retained', at: 1 };
+    state.batches.push({ id: body.id, body: JSON.stringify(body), digest: await digestDbTraffic(body), at: 1, attempted: true, nextAttemptAt: 2, attempts: 1 });
+    await spool.commit(state); process.stdout.write('ready\\n'); setInterval(() => {}, 1000); })().catch(error => { console.error(error); process.exit(1); });`;
+  const child = spawn(process.execPath, ["--import", "tsx", "-e", script, root], { stdio: ["ignore", "pipe", "pipe"] });
+  try {
+    await new Promise<void>((resolve, reject) => { child.stdout.once("data", () => resolve()); child.once("error", reject); child.once("exit", code => reject(new Error(`child exited ${code}`))); });
+    child.kill("SIGKILL");
+    await new Promise<void>(resolve => child.once("exit", () => resolve()));
+    const reopened = await DbTrafficSpool.open(root);
+    expect(reopened.snapshot().batches[0]).toMatchObject({ id: "retained", attempted: true }); reopened.close();
+  } finally { child.kill("SIGKILL"); await rm(root, { recursive: true, force: true }); }
+}, 10000);
+
+it("excludes a second owner until the first releases its lock", async () => {
+  const root = await mkdtemp(join(tmpdir(), "traffic-owner-"));
+  try {
+    const first = await DbTrafficSpool.open(root);
+    await expect(DbTrafficSpool.open(root)).rejects.toThrow();
+    first.close(); const second = await DbTrafficSpool.open(root); second.close();
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it("keeps the earliest unknown coverage marker when diagnostic capacity is exhausted", async () => {
+  const { DbTrafficDelivery } = await import("@/lib/observability/db-traffic-delivery");
+  const root = await mkdtemp(join(tmpdir(), "traffic-gap-full-"));
+  const identity = { process: crypto.randomUUID(), release: "v1", deployment: "d1" }; const now = 1_800_000_000_000;
+  try {
+    const spool = await DbTrafficSpool.open(root); const state = spool.snapshot();
+    for (let i = 0; i < 32; i++) { const value = { id: crypto.randomUUID(), reportedAt: now, reason: "overflow" }; state.gaps.push({ id: value.id, body: JSON.stringify(value), digest: await digestDbTraffic(value), at: now, attempted: true, nextAttemptAt: now + 10000, attempts: 1 }); }
+    for (let i = 0; i < 256; i++) { const value = { id: crypto.randomUUID(), ...identity, at: now + i, receivedBytes: 1 }; state.batches.push({ id: value.id, body: JSON.stringify(value), digest: await digestDbTraffic(value), at: value.at, attempted: false, nextAttemptAt: now, attempts: 0 }); }
+    await spool.commit(state); const delivery = new DbTrafficDelivery(spool, identity);
+    await delivery.seal(JSON.stringify({ id: crypto.randomUUID(), ...identity, at: now + 256, receivedBytes: 1 }), now + 256);
+    await delivery.seal(JSON.stringify({ id: crypto.randomUUID(), ...identity, at: now + 257, receivedBytes: 1 }), now + 257);
+    expect(spool.snapshot().coverageUnknownSince).toBe(now);
+    expect(spool.snapshot().gaps).toHaveLength(32);
+    spool.close(); const reopened = await DbTrafficSpool.open(root); expect(reopened.snapshot().coverageUnknownSince).toBe(now); reopened.close();
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it("detects a valid JSON state whose sealed body has changed", async () => {
+  const root = await mkdtemp(join(tmpdir(), "traffic-corrupt-"));
+  try {
+    const spool = await DbTrafficSpool.open(root); const state = spool.snapshot();
+    const body = { id: "batch", at: 1, receivedBytes: 5 };
+    state.batches.push({ id: body.id, body: JSON.stringify(body), digest: await digestDbTraffic(body), at: 1, attempted: false, nextAttemptAt: 1, attempts: 0 });
+    await spool.commit(state); spool.close();
+    state.batches[0].body = JSON.stringify({ ...body, receivedBytes: 6 });
+    const corrupt = JSON.stringify(state); await writeFile(join(root, "state.json"), corrupt);
+    await expect(DbTrafficSpool.open(root)).rejects.toThrow("integrity mismatch");
+    expect(await readFile(join(root, "state.json"), "utf8")).toBe(corrupt);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it("keeps the previous snapshot when killed before the replacement file is synced", async () => {
+  const { spawn } = await import("node:child_process");
+  const root = await mkdtemp(join(tmpdir(), "traffic-midcommit-"));
+  try {
+    const initial = await DbTrafficSpool.open(root); const state = initial.snapshot(); state.openWindowSince = 100; await initial.commit(state); initial.close();
+    const script = `const fs = require('node:fs/promises'); const originalOpen = fs.open;
+      fs.open = async (...args) => { const file = await originalOpen(...args); if (String(args[0]).endsWith('.tmp')) file.sync = async () => { process.stdout.write('before-sync\\n'); await new Promise(() => {}); }; return file; };
+      const { DbTrafficSpool } = require('./src/lib/observability/db-traffic-spool.ts');
+      (async () => { const spool = await DbTrafficSpool.open(process.argv[1]); const next = spool.snapshot(); next.openWindowSince = 200; await spool.commit(next); })().catch(error => { console.error(error); process.exit(1); });`;
+    const child = spawn(process.execPath, ["--import", "tsx", "-e", script, root], { stdio: ["ignore", "pipe", "pipe"] });
+    try {
+      await new Promise<void>((resolve, reject) => { child.stdout.once("data", () => resolve()); child.once("error", reject); child.once("exit", code => reject(new Error(`child exited ${code}`))); });
+      child.kill("SIGKILL"); await new Promise<void>(resolve => child.once("exit", () => resolve()));
+      const restored = await DbTrafficSpool.open(root); expect(restored.snapshot().openWindowSince).toBe(100); restored.close();
+    } finally { child.kill("SIGKILL"); }
+  } finally { await rm(root, { recursive: true, force: true }); }
+}, 10000);
+
+it("marks unknown coverage before removing an orphaned temporary state", async () => {
+  const { DbTrafficDelivery } = await import("@/lib/observability/db-traffic-delivery");
+  const root = await mkdtemp(join(tmpdir(), "traffic-orphan-"));
+  try {
+    const name = `.state-${crypto.randomUUID()}.tmp`; await writeFile(join(root, name), "unsealed");
+    const spool = await DbTrafficSpool.open(root); const delivery = new DbTrafficDelivery(spool, { process: crypto.randomUUID(), release: "v1", deployment: "d1" });
+    await delivery.start(Date.now());
+    expect(spool.snapshot().coverageUnknownSince).not.toBeNull();
+    expect(JSON.parse(spool.snapshot().gaps[0].body)).toMatchObject({ reason: "unknown_tail", certainty: "unknown", truncated: true });
+    await expect(readFile(join(root, name), "utf8")).rejects.toThrow(); spool.close();
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

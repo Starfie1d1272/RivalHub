@@ -337,7 +337,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION: ${{ vars.RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION }}
         run: |
-          env -u GITHUB_TOKEN -u RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION pnpm exec tsx --test scripts/standby/install-production.test.mjs &
+          env -u GITHUB_TOKEN -u RIVALHUB_PRODUCTION_PUBLIC_CONFIGURATION pnpm exec tsx --test scripts/standby/install-production.test.mjs scripts/standby/production-traffic-status.test.mjs &
           recovery_pid=$!
           build_status=0
           node scripts/ci/timing.mjs "Linux production build" -- pnpm exec tsx scripts/standby/build-production.mjs "$RUNNER_TEMP/rivalhub-production-source" --layers || build_status=$?

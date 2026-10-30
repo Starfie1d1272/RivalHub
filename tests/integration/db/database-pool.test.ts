@@ -3,6 +3,7 @@ import { expect, it, vi } from "vitest";
 import { DatabasePool } from "@/db/pool";
 import { logEvent } from "@/lib/observability/logger";
 import { localDatabaseUrl } from "./harness/database";
+import { trafficAck, trafficFixture } from "./harness/traffic";
 import { db } from "@/db/client";
 
 vi.mock("@/lib/observability/logger", () => ({ logEvent: vi.fn(), captureException: vi.fn() }));
@@ -169,12 +170,13 @@ it("restores inherited query dispatch so later driver instrumentation and fault 
 
 it("attributes queued pooled queries to their submitting contexts", async () => {
   const { withDbTrafficSource, flushDbTraffic, recordDbTraffic } = await import("@/lib/observability/db-traffic");
+  const cleanupTraffic = await trafficFixture();
   const previousEndpoint = process.env.PRODUCT_TELEMETRY_ENDPOINT;
   const previousKey = process.env.DB_TRAFFIC_KEY;
   process.env.PRODUCT_TELEMETRY_ENDPOINT = "https://telemetry.invalid/v1/batches";
   process.env.DB_TRAFFIC_KEY = "fixture-key".repeat(4);
   const sent: string[] = [];
-  vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init: { body: string }) => { sent.push(init.body); return new Response(null, { status: 204 }); }));
+  vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init: { body: string }) => { sent.push(init.body); return trafficAck(init.body); }));
   const pool = new DatabasePool({ connectionString: localDatabaseUrl(), ssl: false, max: 1 });
   try {
     const held = await pool.connect();
@@ -207,6 +209,6 @@ it("attributes queued pooled queries to their submitting contexts", async () => 
     if (!pool.ended) await pool.end();
     if (previousEndpoint === undefined) delete process.env.PRODUCT_TELEMETRY_ENDPOINT; else process.env.PRODUCT_TELEMETRY_ENDPOINT = previousEndpoint;
     if (previousKey === undefined) delete process.env.DB_TRAFFIC_KEY; else process.env.DB_TRAFFIC_KEY = previousKey;
-    vi.unstubAllGlobals();
+    await cleanupTraffic(); vi.unstubAllGlobals();
   }
 });

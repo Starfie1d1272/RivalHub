@@ -2,21 +2,22 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import { Agent, request } from "node:https";
 import type { PoolClient } from "pg";
-import { observePgTraffic, resetPgTraffic, settlePgTraffic } from "./pg-traffic-adapter";
+import { observePgTraffic, settlePgTraffic } from "./pg-traffic-adapter";
+import type { DbTrafficDelivery } from "./db-traffic-delivery";
 
-import { DB_SOURCES, type DbTrafficSource } from "./db-traffic-contract";
+import { DB_SOURCES, digestDbTraffic, isSafeDbTrafficBatch, type DbTrafficSource } from "./db-traffic-contract";
 export { DB_SOURCES, type DbTrafficSource } from "./db-traffic-contract";
 export type DbTemplate = string;
 type Row = { source: DbTrafficSource; template: string; queries: number; failures: number; rows: number; queryMs: number; logicalRowJsonBytes: number; logicalMeasuredQueries: number; rxBytes: number; skipReasons: { budget: number; unsupported_value: number; error: number } };
 type Context = { source: DbTrafficSource };
-type State = { context: AsyncLocalStorage<Context>; rows: Map<string, Row>; processId: string; pending: { body: string; at: number; dropped: number; droppedReceivedBytes: number; unconfirmedReceivedBytes: number; unconfirmedBatches: number; receivedBytes: number; attempted: boolean }[]; sending: boolean; dropped: number; droppedReceivedBytes: number; unconfirmedReceivedBytes: number; unconfirmedBatches: number; receivedBytes: number; connections: number; observedConnections: number; clients: Set<PoolClient>; hour: number; remaining: Remaining };
+type State = { delivery?: Promise<DbTrafficDelivery>; deliveryStarted?: boolean; flushAgain?: boolean; diskNextAttemptAt?: number; coverageUnknownSince?: number; budgetStartedAt?: number; budgetSent?: number; sealing?: { body: string; rows: Row[]; receivedBytes: number; remaining: Remaining; at: number }; context: AsyncLocalStorage<Context>; rows: Map<string, Row>; processId: string; sending: boolean; receivedBytes: number; connections: number; observedConnections: number; clients: Set<PoolClient>; hour: number; remaining: Remaining };
 type Remaining = { async: number; no_owner: number; partial: number; unsupported: number; instrumentation: number };
 function emptyRemaining(): Remaining { return { async: 0, no_owner: 0, partial: 0, unsupported: 0, instrumentation: 0 }; }
 const HOUR = 3600000;
 const slot = Symbol.for("rivalhub.db-traffic.v3");
 function state(): State {
   const host = process as unknown as Record<symbol, State | undefined>;
-  return host[slot] ??= { context: new AsyncLocalStorage(), rows: new Map(), processId: crypto.randomUUID(), pending: [], sending: false, dropped: 0, droppedReceivedBytes: 0, unconfirmedReceivedBytes: 0, unconfirmedBatches: 0, receivedBytes: 0, connections: 0, observedConnections: 0, clients: new Set(), hour: Math.floor(Date.now() / HOUR) * HOUR, remaining: emptyRemaining() };
+  return host[slot] ??= { context: new AsyncLocalStorage(), rows: new Map(), processId: crypto.randomUUID(), sending: false, receivedBytes: 0, connections: 0, observedConnections: 0, clients: new Set(), hour: Math.floor(Date.now() / HOUR) * HOUR, remaining: emptyRemaining() };
 }
 export function withDbTrafficSource<T>(source: DbTrafficSource, fn: () => T): T { return state().context.run({ source }, fn); }
 export function setDbTrafficSource(source: DbTrafficSource) { const context = state().context.getStore(); if (context) context.source = source; }
@@ -88,76 +89,122 @@ export function dbTrafficEnabled(): boolean {
   try { const url = new URL(endpoint ?? ""); enabled = url.protocol === "https:" && !url.username && !url.password && !url.search && !url.hash && url.pathname === "/v1/batches"; } catch { /* Disabled on invalid configuration. */ }
   return enabled;
 }
-type SendResult = { ok: boolean; status: number | null };
+type SendResult = { ok: boolean; status: number | null; retryAfter: number | null; limit: string | null };
 function statusCode(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599 ? value : null;
 }
-// Process-local and bounded: report the first failure, then at most once a minute.
 const diagnosticSlot = Symbol.for("rivalhub.db-traffic.send-diagnostic.v1");
-function reportSendFailure(s: State, status: number | null, retrySameHead: boolean) {
+function reportSendFailure(status: number | null) {
   try {
     const host = process as unknown as Record<symbol, { last: number; suppressed: number } | undefined>;
     const now = Date.now(); const window = host[diagnosticSlot];
     if (window && now >= window.last && now - window.last < 60000) { window.suppressed++; return; }
-    const dropped = s.dropped + s.pending.reduce((sum, item) => sum + item.dropped, 0);
-    process.stderr.write(`${JSON.stringify({ event: "db_traffic.send_failure", httpStatus: status, retrySameHead, queued: s.pending.length, dropped, suppressed: window?.suppressed ?? 0 })}\n`);
+    process.stderr.write(`${JSON.stringify({ event: "db_traffic.send_failure", httpStatus: status, suppressed: window?.suppressed ?? 0 })}\n`);
     host[diagnosticSlot] = { last: now, suppressed: 0 };
   } catch { /* Diagnostics must not change delivery or retry. */ }
 }
 async function sendDbTraffic(endpoint: URL, body: string, key: string): Promise<SendResult> {
+  const parsed = JSON.parse(body) as { id: string };
+  const digest = await digestDbTraffic(parsed);
+  const parse = (status: number | null, text: string, retryAfter: string | null, limit: string | null): SendResult => {
+    let ack: { protocol?: unknown; id?: unknown; digest?: unknown; status?: unknown } = {};
+    try { ack = JSON.parse(text); } catch { /* Missing or malformed ACK is uncertain. */ }
+    const delay = Number(retryAfter);
+    return { ok: status === 200 && ack.protocol === 2 && ack.id === parsed.id && ack.digest === digest && (ack.status === "accepted" || ack.status === "quarantined"), status, retryAfter: retryAfter && Number.isFinite(delay) && delay >= 0 ? Math.min(delay, 86400) : null, limit };
+  };
+  const headers = { authorization: `Bearer ${key}`, "content-type": "application/json", "x-db-traffic-protocol": "2" };
   const proxyValue = process.env.PRODUCT_TELEMETRY_QUERY_PROXY_URL;
   if (!proxyValue) {
-    const response = await fetch(endpoint, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body, signal: AbortSignal.timeout(5000), redirect: "error" });
-    void response.body?.cancel().catch(() => {});
-    return { ok: response.ok, status: statusCode(response.status) };
+    const response = await fetch(endpoint, { method: "POST", headers, body, signal: AbortSignal.timeout(5000), redirect: "error" });
+    const reader = response.body?.getReader(); let size = 0; const chunks: Uint8Array[] = [];
+    if (reader) for (;;) { const part = await reader.read(); if (part.done) break; size += part.value.length; if (size > 4096) { await reader.cancel(); return parse(statusCode(response.status), "", response.headers.get("retry-after"), response.headers.get("x-db-traffic-limit")); } chunks.push(part.value); }
+    const data = new Uint8Array(size); let offset = 0; for (const chunk of chunks) { data.set(chunk, offset); offset += chunk.length; }
+    return parse(statusCode(response.status), new TextDecoder().decode(data), response.headers.get("retry-after"), response.headers.get("x-db-traffic-limit"));
   }
   const proxy = new URL(proxyValue);
   if (!["http:", "https:"].includes(proxy.protocol) || proxy.username || proxy.password || proxy.pathname !== "/" || proxy.search || proxy.hash) throw new Error("Invalid telemetry proxy");
   const agent = new Agent({ proxyEnv: { NODE_ENV: process.env.NODE_ENV, HTTPS_PROXY: proxy.href } });
   try {
     return await new Promise<SendResult>((resolve, reject) => {
-      const req = request(endpoint, { method: "POST", agent, signal: AbortSignal.timeout(5000), headers: { authorization: `Bearer ${key}`, "content-type": "application/json" } }, response => {
-        response.resume();
-        resolve({ ok: (response.statusCode ?? 0) >= 200 && (response.statusCode ?? 0) < 300, status: statusCode(response.statusCode) });
+      const req = request(endpoint, { method: "POST", agent, signal: AbortSignal.timeout(5000), headers }, response => {
+        const chunks: Buffer[] = []; let size = 0;
+        response.on("data", (chunk: Buffer) => { size += chunk.length; if (size > 4096) response.destroy(new Error("ACK too large")); else chunks.push(chunk); });
+        response.on("error", reject);
+        response.on("end", () => resolve(parse(statusCode(response.statusCode), Buffer.concat(chunks).toString("utf8"), typeof response.headers["retry-after"] === "string" ? response.headers["retry-after"] : null, typeof response.headers["x-db-traffic-limit"] === "string" ? response.headers["x-db-traffic-limit"] : null)));
       });
-      req.on("error", reject);
-      req.end(body);
+      req.on("error", reject); req.end(body);
     });
   } finally { agent.destroy(); }
 }
-/** Best effort, bounded retry queue. Batch identity remains unchanged after a lost ACK. */
+function hasUnsealedResidual(s: State): boolean {
+  const sealing = s.sealing; if (!sealing) return false;
+  if (s.receivedBytes !== sealing.receivedBytes || s.rows.size !== sealing.rows.length) return true;
+  for (const field of ["async", "no_owner", "partial", "unsupported", "instrumentation"] as const) if (s.remaining[field] !== sealing.remaining[field]) return true;
+  for (const snapshot of sealing.rows) {
+    const row = s.rows.get(`${snapshot.source}:${snapshot.template}`); if (!row) return true;
+    for (const field of ["queries", "failures", "rows", "queryMs", "logicalRowJsonBytes", "logicalMeasuredQueries", "rxBytes"] as const) if (row[field] !== snapshot[field]) return true;
+    for (const field of ["budget", "unsupported_value", "error"] as const) if (row.skipReasons[field] !== snapshot.skipReasons[field]) return true;
+  }
+  return false;
+}
+
+/** Seal before clearing measurements; the shared owner serializes disk and network. */
 export function flushDbTraffic() {
   const s = state();
-  if (!dbTrafficEnabled()) { for (const client of s.clients) resetPgTraffic(client); s.rows.clear(); s.pending.length = 0; s.dropped = 0; s.droppedReceivedBytes = 0; s.unconfirmedReceivedBytes = 0; s.unconfirmedBatches = 0; s.receivedBytes = 0; s.remaining = emptyRemaining(); s.hour = Math.floor(Date.now() / HOUR) * HOUR; return; }
-  for (const client of s.clients) settlePgTraffic(client);
-  while (!s.sending && s.pending[0] && s.pending[0].at < Date.now() - 23 * 3600000) {
-    const expired = s.pending.shift()!;
-    if (expired.attempted) {
-      // A lost ACK may mean the worker already stored this batch. Do not claim loss.
-      s.unconfirmedBatches += 1 + expired.dropped + expired.unconfirmedBatches;
-      s.unconfirmedReceivedBytes += expired.receivedBytes + expired.droppedReceivedBytes + expired.unconfirmedReceivedBytes;
-    } else {
-      s.dropped += 1 + expired.dropped; s.droppedReceivedBytes += expired.receivedBytes + expired.droppedReceivedBytes;
-      s.unconfirmedBatches += expired.unconfirmedBatches; s.unconfirmedReceivedBytes += expired.unconfirmedReceivedBytes;
-    }
+  const enabled = dbTrafficEnabled();
+  const now = Date.now();
+  if (enabled && s.sealing && Math.floor(now / HOUR) * HOUR !== s.hour) {
+    if (hasUnsealedResidual(s)) s.coverageUnknownSince = Math.min(s.coverageUnknownSince ?? s.hour, s.hour);
+    s.hour = Math.floor(now / HOUR) * HOUR;
   }
-  if (s.rows.size || s.receivedBytes || (s.pending.length < 5 && (s.dropped || s.droppedReceivedBytes || s.unconfirmedBatches || s.unconfirmedReceivedBytes))) {
-    const release = process.env.RIVALHUB_RELEASE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "unknown";
+  if ((!enabled && !process.env.DB_TRAFFIC_SPOOL_DIRECTORY) || now < (s.diskNextAttemptAt ?? 0)) return;
+  if (enabled && !s.sealing) for (const client of s.clients) settlePgTraffic(client);
+  if (enabled && !s.sealing && !s.rows.size && !s.receivedBytes) s.hour = Math.floor(now / HOUR) * HOUR;
+  if (enabled && !s.sealing && (s.rows.size || s.receivedBytes)) {
+    const releaseValue = process.env.RIVALHUB_RELEASE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "unknown";
     const deploymentValue = process.env.VERCEL_DEPLOYMENT_ID || "unknown";
+    const release = /^[A-Za-z0-9._-]{1,80}$/.test(releaseValue) ? releaseValue : "unknown";
     const deployment = /^[A-Za-z0-9._-]{1,80}$/.test(deploymentValue) ? deploymentValue : "unknown";
-    const batch = { deployment, dropped: s.dropped, droppedReceivedBytes: s.droppedReceivedBytes, unconfirmedReceivedBytes: s.unconfirmedReceivedBytes, unconfirmedBatches: s.unconfirmedBatches, id: crypto.randomUUID(), process: s.processId, at: s.rows.size || s.receivedBytes ? Math.min(Date.now(), s.hour + HOUR - 1) : Date.now(), release: /^[A-Za-z0-9._-]{1,80}$/.test(release) ? release : "unknown", rows: [...s.rows.values()], receivedBytes: s.receivedBytes, remaining: s.remaining, remainingRxBytes: Object.values(s.remaining).reduce((sum, value) => sum + value, 0), connections: s.connections, observedConnections: s.observedConnections };
-    s.rows.clear(); s.receivedBytes = 0; s.remaining = emptyRemaining();
-    if (s.pending.length < 5) { s.pending.push({ body: JSON.stringify(batch), at: batch.at, dropped: batch.dropped, droppedReceivedBytes: batch.droppedReceivedBytes, unconfirmedReceivedBytes: batch.unconfirmedReceivedBytes, unconfirmedBatches: batch.unconfirmedBatches, receivedBytes: batch.receivedBytes, attempted: false }); s.dropped = 0; s.droppedReceivedBytes = 0; s.unconfirmedReceivedBytes = 0; s.unconfirmedBatches = 0; }
-    else { s.dropped++; s.droppedReceivedBytes += batch.receivedBytes; }
+    const rows = structuredClone([...s.rows.values()]); const remaining = { ...s.remaining };
+    const at = Math.min(now, s.hour + HOUR - 1);
+    const batch = { id: crypto.randomUUID(), process: s.processId, at, release, deployment, dropped: 0, receivedBytes: s.receivedBytes, connections: s.connections, observedConnections: s.observedConnections, rows, remainingRxBytes: Object.values(remaining).reduce((sum, value) => sum + value, 0), remaining, droppedReceivedBytes: 0, unconfirmedReceivedBytes: 0, unconfirmedBatches: 0 };
+    s.sealing = { body: JSON.stringify(batch), rows, receivedBytes: s.receivedBytes, remaining, at };
+    s.hour = Math.floor(now / HOUR) * HOUR;
   }
-  s.hour = Math.floor(Date.now() / HOUR) * HOUR;
-  let endpoint: URL;
-  try { endpoint = new URL(process.env.PRODUCT_TELEMETRY_ENDPOINT ?? ""); } catch { return; }
-  if (s.sending || !s.pending.length) return;
-  endpoint.pathname = "/v1/db-traffic"; s.sending = true;
-  const sending = s.pending[0]; const retrySameHead = sending.attempted; sending.attempted = true;
-  void Promise.resolve().then(() => sendDbTraffic(endpoint, sending.body, process.env.DB_TRAFFIC_KEY!)).then(result => {
-    if (result.ok && s.pending[0] === sending) s.pending.shift();
-    else if (!result.ok) reportSendFailure(s, result.status, retrySameHead);
-  }).catch(() => { reportSendFailure(s, null, retrySameHead); }).finally(() => { s.sending = false; });
+  if (s.sending) { s.flushAgain = true; return; }
+  s.sending = true;
+  void (async () => {
+    if (!s.delivery) {
+      const directory = process.env.DB_TRAFFIC_SPOOL_DIRECTORY;
+      if (!directory) throw new Error("database traffic spool directory is not configured");
+      s.delivery = Promise.all([import("./db-traffic-spool"), import("./db-traffic-delivery")]).then(async ([{ DbTrafficSpool }, { DbTrafficDelivery }]) => { const spool = await DbTrafficSpool.open(directory); const rawRelease = process.env.RIVALHUB_RELEASE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "unknown"; const rawDeployment = process.env.VERCEL_DEPLOYMENT_ID || "unknown"; const identity = { process: s.processId, release: /^[A-Za-z0-9._-]{1,80}$/.test(rawRelease) ? rawRelease : "unknown", deployment: /^[A-Za-z0-9._-]{1,80}$/.test(rawDeployment) ? rawDeployment : "unknown" }; return new DbTrafficDelivery(spool, identity); });
+    }
+    let delivery: DbTrafficDelivery;
+    try { delivery = await s.delivery; } catch (error) { s.delivery = undefined; throw error; }
+    if (enabled && !s.deliveryStarted) { await delivery.start(now); s.deliveryStarted = true; }
+    await delivery.prune(Date.now());
+    if (!enabled || !dbTrafficEnabled()) return;
+    const sealing = s.sealing;
+    if (sealing) {
+      const batch = JSON.parse(sealing.body); const coverage = s.coverageUnknownSince;
+      if (Buffer.byteLength(sealing.body) <= 40000 && isSafeDbTrafficBatch(batch)) await delivery.seal(sealing.body, Date.now(), coverage);
+      else { await delivery.rejectUnsafe(sealing.body, Date.now(), coverage); reportSendFailure(400); }
+      if (s.coverageUnknownSince === coverage) s.coverageUnknownSince = undefined;
+      for (const snapshot of sealing.rows) {
+        const key = `${snapshot.source}:${snapshot.template}`; const row = s.rows.get(key); if (!row) continue;
+        for (const field of ["queries", "failures", "rows", "queryMs", "logicalRowJsonBytes", "logicalMeasuredQueries", "rxBytes"] as const) row[field] = Number.isFinite(row[field]) && Number.isFinite(snapshot[field]) ? Math.max(0, row[field] - snapshot[field]) : 0;
+        for (const field of ["budget", "unsupported_value", "error"] as const) row.skipReasons[field] = Number.isFinite(row.skipReasons[field]) && Number.isFinite(snapshot.skipReasons[field]) ? Math.max(0, row.skipReasons[field] - snapshot.skipReasons[field]) : 0;
+        if (!row.queries && !row.failures && !row.rows && !row.queryMs && !row.logicalRowJsonBytes && !row.logicalMeasuredQueries && !row.rxBytes && !Object.values(row.skipReasons).some(Boolean)) s.rows.delete(key);
+      }
+      s.receivedBytes = Number.isFinite(s.receivedBytes) && Number.isFinite(sealing.receivedBytes) ? Math.max(0, s.receivedBytes - sealing.receivedBytes) : 0;
+      for (const field of ["async", "no_owner", "partial", "unsupported", "instrumentation"] as const) s.remaining[field] = Number.isFinite(s.remaining[field]) && Number.isFinite(sealing.remaining[field]) ? Math.max(0, s.remaining[field] - sealing.remaining[field]) : 0;
+      s.sealing = undefined;
+      if (s.rows.size || s.receivedBytes) s.flushAgain = true;
+    }
+    if (!dbTrafficEnabled()) return;
+    const endpoint = new URL(process.env.PRODUCT_TELEMETRY_ENDPOINT!);
+    const budgetNow = Date.now();
+    if (s.budgetStartedAt === undefined || budgetNow < s.budgetStartedAt || budgetNow >= s.budgetStartedAt + 20000) { s.budgetStartedAt = budgetNow; s.budgetSent = 0; }
+    await delivery.drain(async (item, gap) => { endpoint.pathname = gap ? "/v1/db-traffic-gap" : "/v1/db-traffic"; try { const result = await sendDbTraffic(endpoint, item.body, process.env.DB_TRAFFIC_KEY!); if (!result.ok) reportSendFailure(result.status); return result; } catch (error) { reportSendFailure(null); throw error; } }, Date.now, { maxAttempts: Math.max(0, 8 - (s.budgetSent ?? 0)), deadline: s.budgetStartedAt + 20000, onAttempt() { s.budgetSent = (s.budgetSent ?? 0) + 1; } });
+  })().catch(() => { s.diskNextAttemptAt = Date.now() + 60000; reportSendFailure(null); }).finally(() => { s.sending = false; const again = s.flushAgain; s.flushAgain = false; if (again && Date.now() >= (s.diskNextAttemptAt ?? 0)) flushDbTraffic(); });
 }

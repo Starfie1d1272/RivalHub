@@ -1,5 +1,5 @@
-import { maintainDbTraffic } from "./db-traffic-rollup";
-import { ingestDbTraffic, readDbTraffic, ingestOffline } from "./db-traffic";
+import { maintainDbTraffic, maintainDbTrafficQuality } from "./db-traffic-rollup";
+import { ingestDbTraffic, ingestDbTrafficGap, readDbTraffic, ingestOffline } from "./db-traffic";
 import { LIMITS, UUID, validEvent, type TelemetryEvent } from "../../src/lib/telemetry/protocol";
 import { verifyTicket } from "../../src/lib/telemetry/ticket";
 import { parseDashboardFilters } from "../../src/lib/telemetry/dashboard-query";
@@ -59,6 +59,7 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
   try {
     if (url.pathname === "/v1/db-offline" && request.method === "POST") return await ingestOffline(request, env, now);
     if (url.pathname === "/v1/db-traffic" && request.method === "POST") return await ingestDbTraffic(request, env, now);
+    if (url.pathname === "/v1/db-traffic-gap" && request.method === "POST") return await ingestDbTrafficGap(request, env, now);
     if (url.pathname === "/v1/batches" && request.method === "POST") {
       if (origin !== env.ALLOWED_ORIGIN) return response(403);
       if (env.ACCEPTING !== "1" || env.RETENTION_APPROVED !== "1") return response(503, origin);
@@ -166,7 +167,7 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
 /** Expiry commits independently before rollup, including when summary writes run out of space. */
 export async function maintain(env: Env, now = Date.now()) {
   if (env.RETENTION_APPROVED !== "1") return;
-  try { await maintainDbTraffic(env, now); } catch { console.warn("db_traffic_rollup_unavailable"); }
+  try { await maintainDbTraffic(env, now); await maintainDbTrafficQuality(env, now); } catch { console.warn("db_traffic_rollup_unavailable"); }
   let historyError: unknown;
   try { await maintainHistory(env, now); } catch (error) { historyError = error; }
   const today = new Date(now).toISOString().slice(0, 10);
@@ -178,9 +179,12 @@ export async function maintain(env: Env, now = Date.now()) {
   }
   await env.DB.batch([
     env.DB.prepare("DELETE FROM db_traffic_hours WHERE expires<=?").bind(now),
+    env.DB.prepare("DELETE FROM db_traffic_quality_hours WHERE expires<=?").bind(now),
+    env.DB.prepare("DELETE FROM db_traffic_receipts WHERE id IN (SELECT id FROM db_traffic_receipts WHERE expires<=? ORDER BY expires LIMIT 500)").bind(now),
     env.DB.prepare("DELETE FROM db_offline_runs WHERE (consumer,run) IN (SELECT consumer,run FROM db_offline_runs WHERE expires<=? ORDER BY expires LIMIT 500)").bind(now),
     env.DB.prepare("DELETE FROM db_traffic_batches WHERE id IN (SELECT id FROM db_traffic_batches WHERE expires<=? ORDER BY expires LIMIT 500)").bind(now),
     env.DB.prepare("DELETE FROM db_traffic_usage WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
+    env.DB.prepare("DELETE FROM db_traffic_class_usage WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
     env.DB.prepare("DELETE FROM rollups WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
     env.DB.prepare("DELETE FROM usage WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
     env.DB.prepare("DELETE FROM summaries WHERE expires<=?").bind(now),

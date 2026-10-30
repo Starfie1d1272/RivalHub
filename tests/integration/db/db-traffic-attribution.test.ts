@@ -3,6 +3,7 @@ import { expect, it, vi } from "vitest";
 import { DatabasePool } from "@/db/pool";
 import { flushDbTraffic, queryShape, withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { localDatabaseUrl } from "./harness/database";
+import { trafficAck, trafficFixture } from "./harness/traffic";
 
 type TrafficRow = { source: string; template: string; queries: number; rxBytes: number; logicalMeasuredQueries: number; skipReasons: { budget: number; unsupported_value: number; error: number } };
 type TrafficBatch = { at: number; receivedBytes: number; remainingRxBytes: number; remaining: Record<string, number>; rows: TrafficRow[]; dropped: number; droppedReceivedBytes: number; unconfirmedReceivedBytes: number; unconfirmedBatches: number };
@@ -10,13 +11,14 @@ type TrafficBatch = { at: number; receivedBytes: number; remainingRxBytes: numbe
 // Exercises the installed driver and a real loopback PostgreSQL, including a frame
 // split at a sampler boundary. No SQL or payload values are sent to telemetry.
 it("conserves received protocol bytes across owners, errors, timeouts and a split flush", async () => {
+  const cleanupTraffic = await trafficFixture();
   const oldEndpoint = process.env.PRODUCT_TELEMETRY_ENDPOINT;
   const oldKey = process.env.DB_TRAFFIC_KEY;
   process.env.PRODUCT_TELEMETRY_ENDPOINT = "https://telemetry.invalid/v1/batches";
   process.env.DB_TRAFFIC_KEY = "fixture-key".repeat(4);
   const sent: TrafficBatch[] = [];
   vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init: { body: string }) => {
-    sent.push(JSON.parse(init.body)); return new Response(null, { status: 204 });
+    sent.push(JSON.parse(init.body)); return trafficAck(init.body);
   }));
   const pool = new DatabasePool({ connectionString: localDatabaseUrl(), ssl: false, max: 2 });
   let raw = 0;
@@ -123,14 +125,16 @@ it("conserves received protocol bytes across owners, errors, timeouts and a spli
     vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init: { body: string }) => {
       attempts.push(init.body);
       if (attempts.length === 1) throw new Error("fixture lost acknowledgement");
-      return new Response(null, { status: 204 });
+      return trafficAck(init.body);
     }));
     await withDbTrafficSource("mizar", () => first.query("select 3 as retry_fixture"));
     flushDbTraffic();
     await vi.waitFor(() => expect(attempts).toHaveLength(1));
-    await new Promise(resolve => setImmediate(resolve));
+    await vi.waitFor(() => expect(((process as unknown as Record<symbol, unknown>)[Symbol.for("rivalhub.db-traffic.v3")] as { sending: boolean }).sending).toBe(false));
+    const retryClock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60000);
     flushDbTraffic();
     await vi.waitFor(() => expect(attempts).toHaveLength(2));
+    retryClock.mockRestore();
     expect(attempts[1]).toBe(attempts[0]);
     first.release(); firstReleased = true;
     console.log("DB_RX_EVIDENCE", JSON.stringify({ receivedBytes: batch.receivedBytes, attributed, remaining: batch.remaining, sources: Object.fromEntries([...new Set(batch.rows.map(row => row.source))].map(source => [source, batch.rows.filter(row => row.source === source).reduce((n, row) => n + row.rxBytes, 0)])), difference: batch.receivedBytes - attributed - batch.remainingRxBytes, dropped: batch.dropped, splitBytes, splitBatches: splitBatches.map(item => ({ at: item.at, receivedBytes: item.receivedBytes, attributed: item.rows.reduce((n, row) => n + row.rxBytes, 0), remaining: item.remaining })) }));
@@ -140,7 +144,7 @@ it("conserves received protocol bytes across owners, errors, timeouts and a spli
     await pool.end();
     if (oldEndpoint === undefined) delete process.env.PRODUCT_TELEMETRY_ENDPOINT; else process.env.PRODUCT_TELEMETRY_ENDPOINT = oldEndpoint;
     if (oldKey === undefined) delete process.env.DB_TRAFFIC_KEY; else process.env.DB_TRAFFIC_KEY = oldKey;
-    vi.unstubAllGlobals();
+    await cleanupTraffic(); vi.unstubAllGlobals();
     vi.restoreAllMocks();
   }
 }, 15000);
