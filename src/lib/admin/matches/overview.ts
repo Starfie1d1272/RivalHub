@@ -1,3 +1,4 @@
+import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { hasMatchRecordingCondition } from "@/lib/postmatch/recording-query";
 import { hasMatchRecording } from "@/lib/postmatch/recording-types";
@@ -147,7 +148,7 @@ async function loadWorkspaceContext(seasonSlug: string) {
   const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) return null;
   await requireSeasonAdmin(season.id);
-  const [allTeams, stageRunRows, qualificationRun] = await Promise.all([
+  const [allTeams, stageRunRows, qualificationRun] = await withDbTrafficSource("admin.matches.read", async () => await Promise.all([
     db.query.competitionEntries.findMany({
       columns: { id: true, name: true, formationOrder: true },
       where: eq(competitionEntries.competitionId, season.id), orderBy: [asc(competitionEntries.formationOrder)],
@@ -159,7 +160,7 @@ async function loadWorkspaceContext(seasonSlug: string) {
     season.competitionTemplate === "major" ? db.query.competitionQualificationRuns.findFirst({
       where: eq(competitionQualificationRuns.seasonId, season.id),
     }) : Promise.resolve(undefined),
-  ]);
+  ]));
   const stagePlan = season.competitionTemplate === "major"
     ? resolveMajorStagePlan(normalizeStagePlan(season.stagePlan), stageRunRows)
     : normalizeStagePlan(season.stagePlan);

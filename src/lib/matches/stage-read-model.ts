@@ -1,3 +1,4 @@
+import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { withDisplayScores } from "@/lib/matches/display-score-data";
 import { requireCompetitionMatch, requireCompetitionFields, type CompetitionMatch } from "./competition-context";
 import { and, asc, eq } from "drizzle-orm";
@@ -67,64 +68,65 @@ export async function loadMajorSwissStageReadModel(
   stageKey: string,
   displayedMatches?: readonly (CompetitionMatch<Match> & { displayScore: import("./display-score").DisplayScore })[],
 ): Promise<SwissStageReadModel | null> {
-  const [stageRun] = await db.select().from(majorStageRuns)
-    .where(and(eq(majorStageRuns.seasonId, seasonId), eq(majorStageRuns.stageKey, stageKey)))
-    .limit(1);
-  if (!stageRun) return null;
-  const frozenSnapshot = parseMajorRunSnapshot(stageRun.ruleSnapshot, stageKey);
+  return withDbTrafficSource("match.swiss.read", async () => {
+    const [stageRun] = await db.select().from(majorStageRuns)
+      .where(and(eq(majorStageRuns.seasonId, seasonId), eq(majorStageRuns.stageKey, stageKey)))
+      .limit(1);
+    if (!stageRun) return null;
+    const frozenSnapshot = parseMajorRunSnapshot(stageRun.ruleSnapshot, stageKey);
 
-  const [entrantRows, managedMatches] = await Promise.all([
-    db.select({
-      entryId: majorTournamentEntrants.competitionEntryId,
-      seed: majorStageEntrants.stageSeed,
-      teamName: competitionEntries.name,
-      logoUrl: competitionEntries.logoUrl,
-    }).from(majorStageEntrants)
-      .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.id, majorStageEntrants.tournamentEntrantId))
-      .innerJoin(competitionEntries, eq(competitionEntries.id, majorTournamentEntrants.competitionEntryId))
-      .where(eq(majorStageEntrants.stageRunId, stageRun.id))
-      .orderBy(asc(majorStageEntrants.stageSeed)),
+    const [entrantRows, managedMatches] = await Promise.all([
+      db.select({
+        entryId: majorTournamentEntrants.competitionEntryId,
+        seed: majorStageEntrants.stageSeed,
+        teamName: competitionEntries.name,
+        logoUrl: competitionEntries.logoUrl,
+      }).from(majorStageEntrants)
+        .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.id, majorStageEntrants.tournamentEntrantId))
+        .innerJoin(competitionEntries, eq(competitionEntries.id, majorTournamentEntrants.competitionEntryId))
+        .where(eq(majorStageEntrants.stageRunId, stageRun.id))
+        .orderBy(asc(majorStageEntrants.stageSeed)),
 
-    displayedMatches ? Promise.resolve(displayedMatches.filter(match =>
-      match.seasonId === seasonId && match.stage === stageKey && match.majorStageRunId === stageRun.id && match.ownership === "major_stage",
-    ).sort((a, b) => (a.round ?? Infinity) - (b.round ?? Infinity) ||
-      (a.completedAt?.getTime() ?? Infinity) - (b.completedAt?.getTime() ?? Infinity) ||
-      (a.scheduledAt?.getTime() ?? Infinity) - (b.scheduledAt?.getTime() ?? Infinity) || a.id.localeCompare(b.id))) :
-      db.query.matches.findMany({
-        where: and(eq(matches.seasonId, seasonId), eq(matches.stage, stageKey), eq(matches.majorStageRunId, stageRun.id), eq(matches.ownership, "major_stage")),
-        orderBy: [asc(matches.round), asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
-      }).then(rows => withDisplayScores(rows.map(requireCompetitionMatch))),
-  ]);
-  const logoByEntryId = new Map(entrantRows.map(row => [row.entryId, row.logoUrl]));
-  const nameByEntryId = new Map(entrantRows.map((row) => [row.entryId, row.teamName]));
-  const finalizedRound = asFinalizedRound(stageRun.finalizedRound);
-  const completedFacts: MajorSwissMatchFact[] = managedMatches
-    .filter((match) => match.status === "finished" && match.completedAt !== null && match.scoreA !== null && match.scoreB !== null && match.round !== null)
-    .map((match) => ({
-      matchId: match.id,
-      round: match.round as MajorSwissMatchFact["round"],
-      entryAId: match.entryAId,
-      entryBId: match.entryBId,
-      winnerId: match.scoreA! > match.scoreB! ? match.entryAId : match.entryBId,
-    }));
+      displayedMatches ? Promise.resolve(displayedMatches.filter(match =>
+        match.seasonId === seasonId && match.stage === stageKey && match.majorStageRunId === stageRun.id && match.ownership === "major_stage",
+      ).sort((a, b) => (a.round ?? Infinity) - (b.round ?? Infinity) ||
+        (a.completedAt?.getTime() ?? Infinity) - (b.completedAt?.getTime() ?? Infinity) ||
+        (a.scheduledAt?.getTime() ?? Infinity) - (b.scheduledAt?.getTime() ?? Infinity) || a.id.localeCompare(b.id))) :
+        db.query.matches.findMany({
+          where: and(eq(matches.seasonId, seasonId), eq(matches.stage, stageKey), eq(matches.majorStageRunId, stageRun.id), eq(matches.ownership, "major_stage")),
+          orderBy: [asc(matches.round), asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
+        }).then(rows => withDisplayScores(rows.map(requireCompetitionMatch))),
+    ]);
+    const logoByEntryId = new Map(entrantRows.map(row => [row.entryId, row.logoUrl]));
+    const nameByEntryId = new Map(entrantRows.map((row) => [row.entryId, row.teamName]));
+    const finalizedRound = asFinalizedRound(stageRun.finalizedRound);
+    const completedFacts: MajorSwissMatchFact[] = managedMatches
+      .filter((match) => match.status === "finished" && match.completedAt !== null && match.scoreA !== null && match.scoreB !== null && match.round !== null)
+      .map((match) => ({
+        matchId: match.id,
+        round: match.round as MajorSwissMatchFact["round"],
+        entryAId: match.entryAId,
+        entryBId: match.entryBId,
+        winnerId: match.scoreA! > match.scoreB! ? match.entryAId : match.entryBId,
+      }));
 
-  let projection;
-  try {
-    projection = projectMajorSwissStage({
+    let projection;
+    try {
+      projection = projectMajorSwissStage({
+        entrants: entrantRows.map((row) => ({ teamId: row.entryId, initialStageSeed: row.seed })),
+        matches: completedFacts,
+        finalizedRound,
+      });
+    } catch {
+      // Invalid/incomplete runtime facts must fall back to the canonical match
+      // list rather than inventing a standings projection for the public page.
+      return null;
+    }
+
+    const roundProjections = projectMajorSwissStageByRound({
       entrants: entrantRows.map((row) => ({ teamId: row.entryId, initialStageSeed: row.seed })),
       matches: completedFacts,
       finalizedRound,
-    });
-  } catch {
-    // Invalid/incomplete runtime facts must fall back to the canonical match
-    // list rather than inventing a standings projection for the public page.
-    return null;
-  }
-
-  const roundProjections = projectMajorSwissStageByRound({
-    entrants: entrantRows.map((row) => ({ teamId: row.entryId, initialStageSeed: row.seed })),
-    matches: completedFacts,
-    finalizedRound,
   });
   const matchRows = managedMatches
     .filter((match) => match.round !== null)
@@ -180,6 +182,7 @@ export async function loadMajorSwissStageReadModel(
       status: team.status,
     })),
   };
+  });
 }
 
 function asFinalizedRound(value: number): MajorSwissFinalizedRound {

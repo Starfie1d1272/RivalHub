@@ -116,14 +116,15 @@ export async function getPublicSeasonBySlug(slug: string): Promise<PublicSeason 
   "use cache: remote";
   cacheLife(PUBLIC_CACHE_LIFE);
   cacheTag(PUBLIC_SEASON_CATALOG_TAG, publicSeasonTag(slug));
+  return withDbTrafficSource("season.lookup.fill", async () => {
+    const [season] = await db
+      .select(publicSeasonColumns)
+      .from(seasons)
+      .where(and(eq(seasons.slug, slug), ne(seasons.status, "draft")))
+      .limit(1);
 
-  const [season] = await db
-    .select(publicSeasonColumns)
-    .from(seasons)
-    .where(and(eq(seasons.slug, slug), ne(seasons.status, "draft")))
-    .limit(1);
-
-  return season ?? null;
+    return season ?? null;
+  });
 }
 
 /**

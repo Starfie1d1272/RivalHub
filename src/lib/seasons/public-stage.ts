@@ -1,3 +1,4 @@
+import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { loadOfficialMatchStages } from "@/lib/matches/read-official";
 import "server-only";
 
@@ -69,22 +70,24 @@ export function buildPublicStagePresentation(
 
 // Primitive keys let layout and page share reads even with distinct season objects.
 const loadPublicStageFacts = cache(async (seasonId: string, template: PublicStageSeason["competitionTemplate"]) => {
-  return Promise.all([
-    template === "major"
-      ? db
-        .select({ stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot, startedAt: majorStageRuns.startedAt })
-        .from(majorStageRuns)
-        .where(eq(majorStageRuns.seasonId, seasonId))
-      : Promise.resolve([] as { stageKey: string; ruleSnapshot: unknown }[]),
-    loadOfficialMatchStages(eq(matches.seasonId, seasonId)),
-    db.select({ id: competitionQualificationRuns.id, format: competitionQualificationRuns.format,
-      targetEntrantCount: competitionQualificationRuns.targetEntrantCount,
-      candidateCount: competitionQualificationRuns.candidateCount,
-      playInEntryCount: competitionQualificationRuns.playInEntryCount,
-      qualifierCount: competitionQualificationRuns.qualifierCount, startedAt: competitionQualificationRuns.startedAt,
-      completedAt: competitionQualificationRuns.completedAt }).from(competitionQualificationRuns)
-      .where(eq(competitionQualificationRuns.seasonId, seasonId)).limit(1),
-  ]);
+  return withDbTrafficSource("season.stage.read", async () => {
+    return Promise.all([
+      template === "major"
+        ? db
+          .select({ stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot, startedAt: majorStageRuns.startedAt })
+          .from(majorStageRuns)
+          .where(eq(majorStageRuns.seasonId, seasonId))
+        : Promise.resolve([] as { stageKey: string; ruleSnapshot: unknown }[]),
+      loadOfficialMatchStages(eq(matches.seasonId, seasonId)),
+      db.select({ id: competitionQualificationRuns.id, format: competitionQualificationRuns.format,
+        targetEntrantCount: competitionQualificationRuns.targetEntrantCount,
+        candidateCount: competitionQualificationRuns.candidateCount,
+        playInEntryCount: competitionQualificationRuns.playInEntryCount,
+        qualifierCount: competitionQualificationRuns.qualifierCount, startedAt: competitionQualificationRuns.startedAt,
+        completedAt: competitionQualificationRuns.completedAt }).from(competitionQualificationRuns)
+        .where(eq(competitionQualificationRuns.seasonId, seasonId)).limit(1),
+    ]);
+  });
 });
 
 export async function getPublicSeasonStagePresentation(
