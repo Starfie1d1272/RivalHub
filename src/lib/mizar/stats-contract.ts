@@ -83,7 +83,7 @@ export interface BroadcastStatsFacts {
     coverage: { completedMaps: number; detailedMaps: number };
   }>;
   /** Completed series, newest completedAt first (null last), then matchId descending.
-   * At most 50, total counts eligible series before truncation. */
+   * At most 50, total counts eligible series before truncation. Maps sort by completedAt (null first), then name. */
   series: { total: number; truncated: boolean; matches: Array<{
     matchId: string; stage: string; round: number | null; completedAt: string | null;
     opponent: { entryId: string; name: string; logoUrl: string | null };
@@ -105,7 +105,7 @@ export interface BroadcastStatsFacts {
   }>;
 }
 
-/** Decimal strings preserve arbitrary precision; ratio is null for zero or mismatched market. */
+/** Decimal strings preserve arbitrary precision; ratios are truncated to 9 decimal places and null for zero total. A mismatched market has no support block. */
 export interface BroadcastMatchSupport {
   total: string;
   sides: Array<{ entryId: string; amount: string; ratio: number | null }>;

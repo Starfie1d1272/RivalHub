@@ -2,20 +2,28 @@ import "server-only";
 import { inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries } from "@/db/schema";
-import { getTournamentTeamDetail } from "@/lib/stats/tournament-query";
+import { readMatchSupport } from "@/lib/bet/match-support";
+import { openingDeathTraded } from "@/lib/stats/derived-metrics";
+import { getTournamentTeamDetailInTx } from "@/lib/stats/tournament-query";
 import { getPlayerAttributeBenchmark } from "@/lib/stats/player-attribute-benchmark";
 import { projectPlayerAttributeProfile } from "@/lib/stats/player-attributes";
+import { broadcastMatchSupport } from "./stats-support";
 import { playerStatsAvailable } from "./stats-scope";
-import { documentRevision, loadMizarMatchDocument } from "./context";
+import { documentRevision, loadMizarMatchDocumentInTx } from "./context";
 import type { BroadcastStatsBundle, BroadcastStatsEntrant } from "./stats-contract";
 
 export async function loadBroadcastStats(matchId: string, competitionId: string): Promise<BroadcastStatsBundle> {
   const generatedAt = new Date().toISOString();
-  const document = await loadMizarMatchDocument(matchId, competitionId);
-  const entries = [document.entrants.a, document.entrants.b];
-  const details = await Promise.all(entries.map(entry => getTournamentTeamDetail({ seasonId: competitionId, teamId: entry.entryId })));
-  const opponentIds = [...new Set(details.flatMap(detail => detail.official.matches.flatMap(match => [match.entryAId, match.entryBId])))];
-  const opponents = opponentIds.length ? await db.select({ id: competitionEntries.id, name: competitionEntries.name, logoUrl: competitionEntries.logoUrl }).from(competitionEntries).where(inArray(competitionEntries.id, opponentIds)) : [];
+  const { document, entries, details, opponents, supportRows } = await db.transaction(async tx => {
+    const document = await loadMizarMatchDocumentInTx(tx, matchId, competitionId, true);
+    const entries = [document.entrants.a, document.entrants.b];
+    const details = [];
+    for (const entry of entries) details.push(await getTournamentTeamDetailInTx({ seasonId: competitionId, teamId: entry.entryId }, tx));
+    const opponentIds = [...new Set(details.flatMap(detail => detail.official.matches.flatMap(match => [match.entryAId, match.entryBId])))];
+    const opponents = opponentIds.length ? await tx.select({ id: competitionEntries.id, name: competitionEntries.name, logoUrl: competitionEntries.logoUrl }).from(competitionEntries).where(inArray(competitionEntries.id, opponentIds)) : [];
+    const supportRows = await readMatchSupport(tx, competitionId, matchId);
+    return { document, entries, details, opponents, supportRows };
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
   const opponentById = new Map(opponents.map(row => [row.id, row]));
   const benchmark = details.some(detail => detail.detailedPlayers.length) ? await getPlayerAttributeBenchmark() : null;
   const winValid = (value: { opportunities: number; rate: number | null } | undefined) => !!value && value.opportunities > 0 && value.rate !== null && Number.isFinite(value.rate);
@@ -46,7 +54,29 @@ export async function loadBroadcastStats(matchId: string, competitionId: string)
     const utility = detail.performance?.slices.overall.utility;
     const coverage = { completedMaps: detail.coverage.completedMaps, detailedMaps: detail.coverage.detailedMaps };
     const scope = "competition" as const;
-    return { entryId: entry.entryId, name: entry.name, logoUrl: entry.logoUrl, starters,
+    const rounds = (value: typeof team) => value ? { wins: value.roundWins, rounds: value.rounds, rate: value.roundWinRate, ct: value.ct, t: value.t } : null;
+    const series = detail.official.matches.flatMap(match => {
+      if (match.status !== "finished" || match.scoreA === null || match.scoreB === null) return [];
+      const sideA = match.entryAId === entry.entryId;
+      const opponent = opponentById.get(sideA ? match.entryBId : match.entryAId);
+      if (!opponent) return [];
+      return [{ matchId: match.id, stage: match.stage, round: match.round, completedAt: match.completedAt?.toISOString() ?? null, opponent: { entryId: opponent.id, name: opponent.name, logoUrl: opponent.logoUrl }, score: sideA ? match.scoreA : match.scoreB, opponentScore: sideA ? match.scoreB : match.scoreA,
+        maps: detail.official.maps.filter(map => map.matchId === match.id).map(map => ({ mapName: map.mapName, completedAt: map.completedAt?.toISOString() ?? null, score: sideA ? map.scoreA : map.scoreB, opponentScore: sideA ? map.scoreB : map.scoreA })).sort((a, b) => (a.completedAt ?? "").localeCompare(b.completedAt ?? "") || a.mapName.localeCompare(b.mapName)) }];
+    }).sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? "") || b.matchId.localeCompare(a.matchId));
+    const overall = detail.performance?.slices.overall;
+    const facts: NonNullable<BroadcastStatsEntrant["facts"]> = {
+      source: "competition-canonical", coverage,
+      results: detail.results && { matches: detail.results.matches, matchWins: detail.results.matchWins, matchLosses: detail.results.matchLosses, maps: detail.results.maps, mapWins: detail.results.mapWins, mapLosses: detail.results.mapLosses },
+      maps: detail.maps.map(map => { const selection = detail.selection.find(row => row.mapName === map.mapName); const selectedTeam = selection?.teams.find(row => row.entryId === entry.entryId); return { mapName: map.mapName, results: map.results && { played: map.results.played, wins: map.results.wins, losses: map.results.losses }, rounds: rounds(map.analytics), selection: selection ? { picks: selectedTeam?.picks ?? 0, bans: selectedTeam?.bans ?? 0, deciders: selection.deciders } : null, coverage: { completedMaps: map.coverage.completedMaps, detailedMaps: map.coverage.detailedMaps } }; }),
+      series: { total: series.length, truncated: series.length > 50, matches: series.slice(0, 50) },
+      teamRating: detail.teamRating && { rating: detail.teamRating.rating, ratingSamples: detail.teamRating.ratingSamples }, rounds: rounds(team), manAdvantage: team?.manAdvantage ?? null,
+      opening: overall ? { successRate: overall.opening.successRate, winAfterOpening: overall.opening.winRateAfterWinningOpeningDuel, tradeKillsPerRound: overall.trade.tradeKillsPerRound, tradedOpeningDeaths: overall.trade.tradedOpeningDeaths, firstDeaths: overall.opening.firstDeaths, openingDeathTraded: openingDeathTraded(overall), comebackRate: overall.opening.comebackRateAfterLosingOpeningDuel } : null,
+      utility: overall ? { sample: overall.sample, flashesThrown: overall.utility.flashesThrown, utilityDamagePerRound: overall.utility.utilityDamagePerRound, flashAssistsPerRound: overall.utility.flashAssistsPerRound, utilityKillsPerRound: overall.utility.utilityKillsPerRound, enemyBlindSecondsPerFlash: overall.utility.enemyBlindSecondsPerFlash, enemyBlindSecondsPerRound: overall.utility.enemyBlindSecondsPerRound, teamBlindSecondsPerRound: overall.utility.teamBlindSecondsPerRound } : null,
+      plantConversions: overall?.objective.plantConversions ?? null,
+      weapons: detail.performance?.weapons.map(({ weapon, kills, killShare, killsPerRound }) => ({ weapon, kills, killShare, killsPerRound })) ?? null,
+      players: starters.map(starter => { const row = detail.scoreboard.find(item => item.userId === starter.userId); const slice = detail.detailedPlayers.find(item => item.player.entityKey === starter.userId)?.slices.overall; return { userId: starter.userId, maps: row?.maps ?? 0, ratingMaps: row?.ratingSamples ?? 0, rounds: row?.rounds ?? null, adrRounds: row?.adrRounds ?? null, rating: row?.avgRating ?? null, adr: row?.avgAdr ?? null, kd: row?.kdRatio ?? null, detailed: slice ? { sample: slice.sample, kast: slice.kast, killsPerRound: slice.combat.killsPerRound, headshotRate: slice.combat.headshotRate, twoKillRounds: slice.combat.twoKillRounds, threeKillRounds: slice.combat.threeKillRounds, fourKillRounds: slice.combat.fourKillRounds, fiveKillRounds: slice.combat.fiveKillRounds, openingSuccess: slice.opening.successRate, tradeKillsPerRound: slice.trade.tradeKillsPerRound, clutch: { attempts: slice.clutch.attempts, wins: slice.clutch.wins, winRate: slice.clutch.winRate, byOpponentCount: slice.clutch.byOpponentCount } } : null }; }),
+    };
+    return { facts, entryId: entry.entryId, name: entry.name, logoUrl: entry.logoUrl, starters,
       mapPerformance: { available: mapStats.some(row => row.played > 0), maps: mapStats },
       recentResults: { available: recent.length > 0, granularity: "map", results: recent },
       playerPerformance: { available: players.some(row => row.available), players },
@@ -55,6 +85,7 @@ export async function loadBroadcastStats(matchId: string, competitionId: string)
       utility: { scope, coverage, available: [utility?.utilityDamagePerRound, utility?.flashAssistsPerRound, utility?.enemyBlindSecondsPerFlash, utility?.enemyBlindSecondsPerRound].some(quantityValid), utilityDamagePerRound: utility?.utilityDamagePerRound ?? null, flashAssistsPerRound: utility?.flashAssistsPerRound ?? null, enemyBlindSecondsPerFlash: utility?.enemyBlindSecondsPerFlash ?? null, enemyBlindSecondsPerRound: utility?.enemyBlindSecondsPerRound ?? null },
     };
   });
-  const payload = { schemaVersion: "rivalhub.broadcast-stats.v1" as const, matchId, competitionId, scope: { kind: "competition" as const }, entrants };
+  const support = broadcastMatchSupport(supportRows, entries.map(entry => entry.entryId));
+  const payload = { mapPool: document.match.mapPool, support, schemaVersion: "rivalhub.broadcast-stats.v1" as const, matchId, competitionId, scope: { kind: "competition" as const }, entrants };
   return { ...payload, generatedAt, revision: documentRevision(payload) };
 }

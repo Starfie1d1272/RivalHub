@@ -262,11 +262,19 @@ it("authorizes the stats route and projects canonical team samples", async () =>
   expect(JSON.stringify(body)).not.toMatch(/credentialHash|@local\.test/);
   const first = body.entrants.find((entrant: { entryId: string }) => entrant.entryId === f.entryAId);
   expect(first.mapPerformance.maps).toHaveLength(2);
+  expect(body.mapPool).toEqual(expect.any(Array));
+  expect(body.support).toBeNull();
+  expect(first.facts.series).toMatchObject({ total: 1, truncated: false, matches: [{ stage: "mizar-stats-fixture", round: null, score: 2, opponentScore: 0 }] });
+  expect(first.facts.series.matches[0].maps).toHaveLength(2);
+  expect(first.facts.coverage).toMatchObject({ completedMaps: 2, detailedMaps: 0 });
+  expect(first.facts.weapons).toBeNull();
   expect(first.playerPerformance.players.find((player: { userId: string }) => player.userId === f.fixtureUserIds[0])).toMatchObject({ available: true, rating: 1.5, adr: null, sample: { maps: 2, ratingMaps: 2, adrRounds: null } });
   expect(first.playerPerformance.players.find((player: { userId: string }) => player.userId === f.fixtureUserIds[1])).toMatchObject({ available: true, rating: 1.25, adr: 80, sample: { maps: 1, ratingMaps: 1, adrRounds: 20 } });
   for (const entrant of body.entrants) {
     const canonical = await getTournamentTeamDetail({ seasonId: f.seasonId, teamId: entrant.entryId });
     expect(entrant.mapPerformance.maps).toEqual(canonical.maps.flatMap(({ mapName, results }) => results && results.played > 0 ? [{ mapName, played: results.played, wins: results.wins, winRate: results.wins / results.played }] : []));
+    expect(entrant.facts.results).toMatchObject({ matches: canonical.results?.matches, matchWins: canonical.results?.matchWins, maps: canonical.results?.maps });
+    expect(entrant.facts.teamRating).toEqual(canonical.teamRating ? { rating: canonical.teamRating.rating, ratingSamples: canonical.teamRating.ratingSamples } : null);
     for (const player of entrant.playerPerformance.players) {
       const row = canonical.scoreboard.find(row => row.userId === player.userId);
       expect(player.rating).toBe(row?.avgRating ?? null);

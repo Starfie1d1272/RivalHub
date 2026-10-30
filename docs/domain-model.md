@@ -277,4 +277,4 @@ Public and admin server read models explicitly adapt their own authorized facts 
 
 新回放 action 的产品遥测沿用白名单注册表，不发送链接或标题正文。发布前须将包含该操作名与页面性能事件的兼容 Worker 一并部署，再发布网站，避免旧接收端拒绝新事件批次。
 
-BroadcastStatsBundle 通过 `/api/mizar/stats?matchId=...` 按 installation 赛事授权读取，按生成时网站的本届 canonical 统计提供快照；地图胜率为 0–1、分母为已结束地图数，近期结果最多五图；选手按当前首发 userId 精确关联，Rating 按已知地图均值、ADR 按已知回合加权。七维以本届选手数据和 RivalHub 全站历史合格样本基准计算，附资格及样本。缺失值保持 null，选手焦点按首发中有效 Rating 最高者确定，ADR 缺失不更换焦点；七维使用同一人并只依自身资格判断。地图比较只使用双方均有样本的地图行。手枪、经济与道具专题使用已确认详细地图及 canonical 指标，附实际地图覆盖和各指标分母，部分详细覆盖仍可使用。Mizar 在本地按比赛保存快照，换比赛或用户刷新时重新读取。Revision 和 ETag 与现有 provider 一致，304 发生在构建后，并不免除数据库读取。
+BroadcastStatsBundle 通过 `/api/mizar/stats?matchId=...` 按 installation 赛事授权读取，本届数据来自一次只读 repeatable-read 快照，每队复用一次 canonical 详情，七维另用既有全站历史合格样本基准。原 v1 地图表现、近五图、首发 Rating/ADR、七维和专题字段保持原义；可选扩展提供完整地图池、队伍赛果与地图档案、最多 50 场已完成系列赛（附总数与截断标记）、队伍和当前首发的详细指标及公开积分支持。系列赛按完成时间倒序、ID 倒序，附各图结果；Rating、ADR 和各详细率保留各自分母，覆盖不足不补零。积分金额以十进制字符串表达，仅在盘口冻结队伍与当前比赛一致时提供，零总额无比例。缺扩展的旧 v1 快照仍有效，Mizar 在本地选择、排序、分页并按比赛保存快照。Revision 和 ETag 与现有 provider 一致，304 发生在构建后，并不免除数据库读取。

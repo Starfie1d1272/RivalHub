@@ -39,7 +39,7 @@ export interface PlayerStatsEventOption {
 
 export type StatsLabels = { teams: Record<string, string>; players: Record<string, string> };
 
-const statsMatchFields = {id:matches.id,seasonId:matches.seasonId,stage:matches.stage,entryAId:matches.entryAId,entryBId:matches.entryBId,majorStageRunId:matches.majorStageRunId,status:matches.status,testConfig:matches.testConfig,format:matches.format,scoreA:matches.scoreA,scoreB:matches.scoreB,completedAt:matches.completedAt};
+const statsMatchFields = {id:matches.id,seasonId:matches.seasonId,stage:matches.stage,round:matches.round,entryAId:matches.entryAId,entryBId:matches.entryBId,majorStageRunId:matches.majorStageRunId,status:matches.status,testConfig:matches.testConfig,format:matches.format,scoreA:matches.scoreA,scoreB:matches.scoreB,completedAt:matches.completedAt};
 const statsMapFields = {id:matchMaps.id,matchId:matchMaps.matchId,mapOrder:matchMaps.mapOrder,mapName:matchMaps.mapName,scoreA:matchMaps.scoreA,scoreB:matchMaps.scoreB,completedAt:matchMaps.completedAt};
 
 async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean; effectiveRoster?: readonly EffectiveMatchRosterPlayer[] } = {}) {
@@ -942,8 +942,8 @@ export function buildCompetitionEntryPerformanceProjection(
 
 function officialTeamFacts(loaded: Awaited<ReturnType<typeof loadStatsContext>>) {
   return {
-    matches: loaded.matches.map(({ id, stage, entryAId, entryBId, scoreA, scoreB, status, completedAt }) =>
-      ({ id, stage, entryAId, entryBId, scoreA, scoreB, status, completedAt })),
+    matches: loaded.matches.map(({ id, stage, round, entryAId, entryBId, scoreA, scoreB, status, completedAt }) =>
+      ({ id, stage, round, entryAId, entryBId, scoreA, scoreB, status, completedAt })),
     maps: loaded.scopedMaps.map(({ matchId, mapName, scoreA, scoreB, completedAt }) =>
       ({ matchId, mapName, scoreA, scoreB, completedAt })),
     entries: buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries).teams,
@@ -1085,14 +1085,14 @@ export async function getLongTeamCareerDetail(teamId: string, database: DB = db)
   };
 }
 
-export async function getTournamentTeamDetail(scope: TournamentStatsScope & { teamId: string }, database: DB = db) {
-  const snapshot = await database.transaction(async (tx) => {
-    const loaded = await loadStatsDetailEvidence(tx, scope, { teamId: scope.teamId });
-    const veto = await loadVetoData(tx, scope, loaded.entries);
-    const scoreboard = await getStatsLeaderboard({ ...scope, teamFilter: scope.teamId }, loaded.selected.map((row) => row.importId), loaded.roster, tx);
-    return { loaded, veto, scoreboard };
-  }, { isolationLevel: "repeatable read", accessMode: "read only" });
-  const { loaded, veto, scoreboard } = snapshot;
+async function loadTournamentTeamDetailSnapshot(scope: TournamentStatsScope & { teamId: string }, tx: TxDb) {
+  const loaded = await loadStatsDetailEvidence(tx, scope, { teamId: scope.teamId });
+  const veto = await loadVetoData(tx, scope, loaded.entries);
+  const scoreboard = await getStatsLeaderboard({ ...scope, teamFilter: scope.teamId }, loaded.selected.map((row) => row.importId), loaded.roster, tx);
+  return { loaded, veto, scoreboard };
+}
+
+function projectTournamentTeamDetail(scope: TournamentStatsScope & { teamId: string }, { loaded, veto, scoreboard }: Awaited<ReturnType<typeof loadTournamentTeamDetailSnapshot>>) {
   const results = buildTournamentResults(resultMatchesForMapScope(loaded.matches, loaded.scopedMaps, scope.mapFilter), loaded.scopedMaps, loaded.entries);
   const analytics = buildTournamentAnalytics(loaded.selected.map((row) => row.facts.tournament), { labels: loaded.labels });
   const performanceProjection = buildCompetitionEntryPerformanceProjection(loaded.selected, scope.teamId, loaded.labels);
@@ -1144,6 +1144,15 @@ export async function getTournamentTeamDetail(scope: TournamentStatsScope & { te
     coverage,
     entries: loaded.entries,
   };
+}
+
+export async function getTournamentTeamDetailInTx(scope: TournamentStatsScope & { teamId: string }, tx: TxDb) {
+  return projectTournamentTeamDetail(scope, await loadTournamentTeamDetailSnapshot(scope, tx));
+}
+
+export async function getTournamentTeamDetail(scope: TournamentStatsScope & { teamId: string }, database: DB = db) {
+  const snapshot = await database.transaction(tx => loadTournamentTeamDetailSnapshot(scope, tx), { isolationLevel: "repeatable read", accessMode: "read only" });
+  return projectTournamentTeamDetail(scope, snapshot);
 }
 
 export async function getTournamentMapDetail(scope: Omit<TournamentStatsScope, "mapFilter" | "teamFilter"> & { map: string }, database: DB = db) {
