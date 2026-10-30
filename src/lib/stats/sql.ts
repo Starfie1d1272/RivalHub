@@ -54,10 +54,20 @@ export function roundWeightedAvg(col: string): SQL {
  */
 export function killWeightedAvg(col: string): SQL {
   const known = sql`${rawColumn(col)} IS NOT NULL AND mps.kills IS NOT NULL`;
-  return sql`CASE WHEN sum(mps.kills) FILTER (WHERE ${known}) > 0
+  return sql`CASE WHEN ${killWeightedDenominator(col)} > 0
     THEN (sum(${rawColumn(col)} * mps.kills) FILTER (WHERE ${known}))::numeric
-      / sum(mps.kills) FILTER (WHERE ${known})
+      / ${killWeightedDenominator(col)}
     ELSE NULL END`;
+}
+
+/** Exact weight of the rows used by killWeightedAvg; NULL when no rows qualify. */
+export function killWeightedDenominator(col: string): SQL {
+  return sql`sum(mps.kills) FILTER (WHERE ${rawColumn(col)} IS NOT NULL AND mps.kills IS NOT NULL)`;
+}
+
+/** Exact denominator of perRound; NULL when no rows qualify. */
+export function perRoundDenominator(col: string): SQL {
+  return sql`sum(${roundsExpr}) FILTER (WHERE ${rawColumn(col)} IS NOT NULL AND ${roundsExpr} IS NOT NULL)`;
 }
 
 /**
@@ -66,8 +76,8 @@ export function killWeightedAvg(col: string): SQL {
  */
 export function perRound(col: string): SQL {
   const known = sql`${rawColumn(col)} IS NOT NULL AND ${roundsExpr} IS NOT NULL`;
-  return sql`CASE WHEN sum(${roundsExpr}) FILTER (WHERE ${known}) > 0
+  return sql`CASE WHEN ${perRoundDenominator(col)} > 0
     THEN (sum(${rawColumn(col)}) FILTER (WHERE ${known}))::numeric
-      / sum(${roundsExpr}) FILTER (WHERE ${known})
+      / ${perRoundDenominator(col)}
     ELSE NULL END`;
 }

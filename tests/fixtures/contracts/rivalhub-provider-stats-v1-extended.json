@@ -703,6 +703,45 @@
                   }
                 }
               }
+            },
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.14285714285714285,
+                "rounds": 21
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "kast": {
+                "value": 0.7142857142857143,
+                "rounds": 21
+              },
+              "avgHs": {
+                "value": 33.333333333333336,
+                "kills": 3
+              },
+              "kd": {
+                "value": 1.0,
+                "deaths": 3
+              }
             }
           },
           {
@@ -782,6 +821,45 @@
                     "rate": null
                   }
                 }
+              }
+            },
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.14285714285714285,
+                "rounds": 21
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "kast": {
+                "value": 0.7142857142857143,
+                "rounds": 21
+              },
+              "avgHs": {
+                "value": 33.333333333333336,
+                "kills": 3
+              },
+              "kd": {
+                "value": 1.0,
+                "deaths": 3
               }
             }
           },
@@ -863,6 +941,45 @@
                   }
                 }
               }
+            },
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.14285714285714285,
+                "rounds": 21
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "kast": {
+                "value": 0.7142857142857143,
+                "rounds": 21
+              },
+              "avgHs": {
+                "value": 33.333333333333336,
+                "kills": 3
+              },
+              "kd": {
+                "value": 1.0,
+                "deaths": 3
+              }
             }
           },
           {
@@ -943,6 +1060,45 @@
                   }
                 }
               }
+            },
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.14285714285714285,
+                "rounds": 21
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "kast": {
+                "value": 0.7142857142857143,
+                "rounds": 21
+              },
+              "avgHs": {
+                "value": 33.333333333333336,
+                "kills": 3
+              },
+              "kd": {
+                "value": 1.0,
+                "deaths": 3
+              }
             }
           },
           {
@@ -1022,6 +1178,45 @@
                     "rate": null
                   }
                 }
+              }
+            },
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.14285714285714285,
+                "rounds": 21
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "kast": {
+                "value": 0.7142857142857143,
+                "rounds": 21
+              },
+              "avgHs": {
+                "value": 33.333333333333336,
+                "kills": 3
+              },
+              "kd": {
+                "value": 1.0,
+                "deaths": 3
               }
             }
           }
@@ -1723,6 +1918,45 @@
                   }
                 }
               }
+            },
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.14285714285714285,
+                "rounds": 21
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "kast": {
+                "value": 0.7142857142857143,
+                "rounds": 21
+              },
+              "avgHs": {
+                "value": 33.333333333333336,
+                "kills": 3
+              },
+              "kd": {
+                "value": 1.0,
+                "deaths": 3
+              }
             }
           },
           {
@@ -1802,6 +2036,45 @@
                     "rate": null
                   }
                 }
+              }
+            },
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.14285714285714285,
+                "rounds": 21
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "kast": {
+                "value": 0.7142857142857143,
+                "rounds": 21
+              },
+              "avgHs": {
+                "value": 33.333333333333336,
+                "kills": 3
+              },
+              "kd": {
+                "value": 1.0,
+                "deaths": 3
               }
             }
           },
@@ -1883,6 +2156,45 @@
                   }
                 }
               }
+            },
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.14285714285714285,
+                "rounds": 21
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "kast": {
+                "value": 0.7142857142857143,
+                "rounds": 21
+              },
+              "avgHs": {
+                "value": 33.333333333333336,
+                "kills": 3
+              },
+              "kd": {
+                "value": 1.0,
+                "deaths": 3
+              }
             }
           },
           {
@@ -1963,6 +2275,45 @@
                   }
                 }
               }
+            },
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.14285714285714285,
+                "rounds": 21
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "kast": {
+                "value": 0.7142857142857143,
+                "rounds": 21
+              },
+              "avgHs": {
+                "value": 33.333333333333336,
+                "kills": 3
+              },
+              "kd": {
+                "value": 1.0,
+                "deaths": 3
+              }
             }
           },
           {
@@ -2042,6 +2393,45 @@
                     "rate": null
                   }
                 }
+              }
+            },
+            "scoreboard": {
+              "source": "confirmed-scoreboard",
+              "kpr": {
+                "value": 0.14285714285714285,
+                "rounds": 21
+              },
+              "fkpr": {
+                "value": null,
+                "rounds": null
+              },
+              "mkpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "cpr": {
+                "value": null,
+                "rounds": null
+              },
+              "fdpr": {
+                "value": null,
+                "rounds": null
+              },
+              "tradeKpr": {
+                "value": 0.047619047619047616,
+                "rounds": 21
+              },
+              "kast": {
+                "value": 0.7142857142857143,
+                "rounds": 21
+              },
+              "avgHs": {
+                "value": 33.333333333333336,
+                "kills": 3
+              },
+              "kd": {
+                "value": 1.0,
+                "deaths": 3
               }
             }
           }

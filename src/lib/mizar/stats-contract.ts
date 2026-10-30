@@ -101,6 +101,9 @@ export interface BroadcastStatsFacts {
   players: Array<{
     userId: string; maps: number; ratingMaps: number; rounds: number | null; adrRounds: number | null;
     rating: number | null; adr: number | null; kd: number | null;
+    /** Independent confirmed scoreboard samples, not Demo samples. Rates are per
+     * round; kast is 0..1, avgHs is a percentage on 0..100, kd is kills/death. */
+    scoreboard?: BroadcastScoreboard | null;
     detailed: { sample: { rounds: number }; kast: BroadcastQuantityRate; killsPerRound: BroadcastQuantityRate; headshotRate: BroadcastQuantityRate; twoKillRounds: number; threeKillRounds: number; fourKillRounds: number; fiveKillRounds: number; openingSuccess: BroadcastQuantityRate; tradeKillsPerRound: BroadcastQuantityRate; clutch: { attempts: number; wins: number; winRate: BroadcastQuantityRate; byOpponentCount: Record<"1" | "2" | "3" | "4" | "5", BroadcastQuantityRate> } } | null;
   }>;
 }
@@ -109,4 +112,19 @@ export interface BroadcastStatsFacts {
 export interface BroadcastMatchSupport {
   total: string;
   sides: Array<{ entryId: string; amount: string; ratio: number | null }>;
+}
+
+/** Each sample is the actual denominator of that canonical scoreboard value;
+ * null means no matching source rows, 0 means a known zero denominator. */
+export interface BroadcastScoreboard {
+  source: "confirmed-scoreboard";
+  kpr: { value: number | null; rounds: number | null };
+  fkpr: { value: number | null; rounds: number | null };
+  mkpr: { value: number | null; rounds: number | null };
+  cpr: { value: number | null; rounds: number | null };
+  fdpr: { value: number | null; rounds: number | null };
+  tradeKpr: { value: number | null; rounds: number | null };
+  kast: { value: number | null; rounds: number | null };
+  avgHs: { value: number | null; kills: number | null };
+  kd: { value: number | null; deaths: number | null };
 }

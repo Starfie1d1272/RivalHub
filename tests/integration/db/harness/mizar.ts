@@ -195,6 +195,8 @@ export async function seedMizarStatsHistory(f: Fixture & { fixtureUserIds: strin
     const stats = f.fixtureUserIds.flatMap((userId, index) => mapIds.slice(0, index === 0 ? 2 : 1).map((mapId, mapIndex) => ({
       matchId, mapId, userId, perfectName: `Fixture player ${index + 1}`, verifiedByAdmin: "fixture", verifiedAt: NOW,
       kills: 10 + index, deaths: 8, ratingPro: index === 0 ? 1.5 : index === 1 ? 1.25 : 1,
+      // One known map and one unknown map exercise metric-specific denominators.
+      ...(index === 0 && mapIndex === 0 ? { hsPercent: 50, tradeKills: 3, kastRounds: 10, multiKills: 2 } : {}),
       adr: index === 0 ? null : mapIndex === 0 ? 80 : 60,
     })));
     await tx.insert(schema.matchPlayerStats).values(stats);

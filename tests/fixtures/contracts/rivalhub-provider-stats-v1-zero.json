@@ -220,7 +220,8 @@
             "rating": null,
             "adr": null,
             "kd": null,
-            "detailed": null
+            "detailed": null,
+            "scoreboard": null
           },
           {
             "userId": "00000000-0000-4000-8001-000000000002",
@@ -231,7 +232,8 @@
             "rating": null,
             "adr": null,
             "kd": null,
-            "detailed": null
+            "detailed": null,
+            "scoreboard": null
           },
           {
             "userId": "00000000-0000-4000-8001-000000000003",
@@ -242,7 +244,8 @@
             "rating": null,
             "adr": null,
             "kd": null,
-            "detailed": null
+            "detailed": null,
+            "scoreboard": null
           },
           {
             "userId": "00000000-0000-4000-8001-000000000004",
@@ -253,7 +256,8 @@
             "rating": null,
             "adr": null,
             "kd": null,
-            "detailed": null
+            "detailed": null,
+            "scoreboard": null
           },
           {
             "userId": "00000000-0000-4000-8001-000000000005",
@@ -264,7 +268,8 @@
             "rating": null,
             "adr": null,
             "kd": null,
-            "detailed": null
+            "detailed": null,
+            "scoreboard": null
           }
         ]
       }
@@ -481,7 +486,8 @@
             "rating": null,
             "adr": null,
             "kd": null,
-            "detailed": null
+            "detailed": null,
+            "scoreboard": null
           },
           {
             "userId": "00000000-0000-4000-8001-000000000007",
@@ -492,7 +498,8 @@
             "rating": null,
             "adr": null,
             "kd": null,
-            "detailed": null
+            "detailed": null,
+            "scoreboard": null
           },
           {
             "userId": "00000000-0000-4000-8001-000000000008",
@@ -503,7 +510,8 @@
             "rating": null,
             "adr": null,
             "kd": null,
-            "detailed": null
+            "detailed": null,
+            "scoreboard": null
           },
           {
             "userId": "00000000-0000-4000-8001-000000000009",
@@ -514,7 +522,8 @@
             "rating": null,
             "adr": null,
             "kd": null,
-            "detailed": null
+            "detailed": null,
+            "scoreboard": null
           },
           {
             "userId": "00000000-0000-4000-8001-000000000010",
@@ -525,7 +534,8 @@
             "rating": null,
             "adr": null,
             "kd": null,
-            "detailed": null
+            "detailed": null,
+            "scoreboard": null
           }
         ]
       }

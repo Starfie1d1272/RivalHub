@@ -61,6 +61,7 @@ it("preserves weighted, nullable and current-import overall/map scoreboards in o
     }
     const overall = (await getPlayerStatsScoreboards({ seasonId }, [importId], roster, database, options)).scoreboard[0]!;
     expect(overall).toMatchObject({ maps: 3, rounds: 60, avgAdr: 70, avgHs: 27.5, avgRating: 1.5, ratingSamples: 2, kast: null });
+    expect(overall.scoreboardSamples).toMatchObject({ kprRounds: 60, hsKills: 40, kdDeaths: 15, kastRounds: null });
     expect(overall.kpr).toBeCloseTo(40 / 60);
     expect(overall.kdRatio).toBeCloseTo(40 / 15);
     expect(await getPlayerStatsScoreboards({ seasonId }, [], roster, database, options)).toEqual({ scoreboard: [], scoreboardMaps: [] });

@@ -4,7 +4,7 @@ import { db, type DB, type TxDb } from "@/db/client";
 import { sql } from "drizzle-orm";
 import type { EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { completeSum, killWeightedAvg, perRound, ratioOfSums, roundWeightedAvg, roundsExpr, simpleAvg } from "./sql";
+import { completeSum, killWeightedAvg, killWeightedDenominator, perRound, perRoundDenominator, ratioOfSums, roundWeightedAvg, roundsExpr, simpleAvg } from "./sql";
 
 export interface StatsLeaderboardFilters {
   seasonId?: string;
@@ -106,6 +106,15 @@ async function queryStatsLeaderboard(
       count(mps.rating_pro)::int                                              AS rating_samples,
       sum(${roundsExpr}) FILTER (WHERE mps.adr IS NOT NULL AND ${roundsExpr} IS NOT NULL)::int AS adr_rounds,
       ${completeSum(roundsExpr)}                                              AS rounds,
+      ${perRoundDenominator("mps.kills")}::int AS kpr_rounds,
+      ${perRoundDenominator("mps.first_kills")}::int AS fkpr_rounds,
+      ${perRoundDenominator("mps.multi_kills")}::int AS mkpr_rounds,
+      ${perRoundDenominator("mps.clutches")}::int AS cpr_rounds,
+      ${perRoundDenominator("mps.first_deaths")}::int AS fdpr_rounds,
+      ${perRoundDenominator("mps.trade_kills")}::int AS trade_kpr_rounds,
+      ${perRoundDenominator("mps.kast_rounds")}::int AS kast_rounds_sample,
+      ${killWeightedDenominator("mps.hs_percent")}::int AS hs_kills,
+      ${completeSum("mps.deaths")}::int AS kd_deaths,
       ${ratingExpr}                                                          AS avg_rating,
       ${adrExpr}                                                             AS avg_adr,
       ${rwsExpr}                                                             AS avg_rws,
@@ -158,6 +167,13 @@ async function queryStatsLeaderboard(
     maps:       Number(r.maps),
     ratingSamples: Number(r.rating_samples),
     adrRounds: toNumOrNull(r.adr_rounds),
+    scoreboardSamples: {
+      kprRounds: toNumOrNull(r.kpr_rounds), fkprRounds: toNumOrNull(r.fkpr_rounds),
+      mkprRounds: toNumOrNull(r.mkpr_rounds), cprRounds: toNumOrNull(r.cpr_rounds),
+      fdprRounds: toNumOrNull(r.fdpr_rounds), tradeKprRounds: toNumOrNull(r.trade_kpr_rounds),
+      kastRounds: toNumOrNull(r.kast_rounds_sample), hsKills: toNumOrNull(r.hs_kills),
+      kdDeaths: toNumOrNull(r.kd_deaths),
+    },
     rounds:     toNumOrNull(r.rounds),
     avgRating:  toNumOrNull(r.avg_rating),
     avgAdr:     toNumOrNull(r.avg_adr),
