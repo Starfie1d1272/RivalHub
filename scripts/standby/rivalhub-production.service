@@ -10,6 +10,9 @@ Type=simple
 User=rivalhub-production
 Group=rivalhub-production
 WorkingDirectory=/opt/rivalhub-production/current
+StateDirectory=rivalhub-production/db-traffic
+StateDirectoryMode=0700
+Environment=DB_TRAFFIC_SPOOL_DIRECTORY=/var/lib/rivalhub-production/db-traffic
 EnvironmentFile=/etc/rivalhub-production/production.env
 ExecStart=/opt/rivalhub-production/current/runtime/node /opt/rivalhub-production/host/production-launcher.mjs
 Restart=on-failure

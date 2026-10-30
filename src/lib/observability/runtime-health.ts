@@ -73,6 +73,11 @@ export function startRuntimeHealthSampling(): () => void {
   const delay = monitorEventLoopDelay({ resolution: 20 });
   let utilization = performance.eventLoopUtilization();
   delay.enable();
+  try { flushDbTraffic(); } catch { /* Traffic startup must not suppress health sampling. */ }
+  // Next owns process termination; this hook only initiates a best-effort seal.
+  const onTerminate = () => { try { flushDbTraffic(); } catch { /* Never prevent shutdown. */ } };
+  const observesTermination = process.listenerCount("SIGTERM") > 0;
+  if (observesTermination) process.on("SIGTERM", onTerminate);
   const timer = setInterval(() => {
     try {
       withoutObservabilityContext(() => {
@@ -139,6 +144,7 @@ export function startRuntimeHealthSampling(): () => void {
   timer.unref();
   const sampler = { stop() {
     clearInterval(timer);
+    if (observesTermination) process.off("SIGTERM", onTerminate);
     delay.disable();
     if (host[SLOT] === sampler) delete host[SLOT];
   } };

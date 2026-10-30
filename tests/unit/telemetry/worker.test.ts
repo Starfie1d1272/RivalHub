@@ -5,7 +5,7 @@ import { expect, it } from "vitest";
 import { accountKey, signTicket } from "@/lib/telemetry/ticket";
 import { maintain, type Env } from "../../../workers/telemetry/index";
 import { DB_SOURCES } from "@/lib/observability/db-traffic-contract";
-import { maintainDbTraffic, readDbTrafficHours } from "../../../workers/telemetry/db-traffic-rollup";
+import { maintainDbTraffic, maintainDbTrafficQuality, readDbTrafficHours } from "../../../workers/telemetry/db-traffic-rollup";
 
 it("executes the real Worker and D1 API: concurrent ACK deduplication, usage and closed-day rollup", async () => {
   const require = createRequire(import.meta.url);
@@ -286,7 +286,7 @@ it("quarantines unsafe relationships without poisoning later batches and detects
   const require = createRequire(import.meta.url);
   const { build } = createRequire(require.resolve("tsx/package.json"))("esbuild") as { build(options: object): Promise<{ outputFiles: { text: string }[] }> };
   const built = await build({ entryPoints: ["workers/telemetry/index.ts"], bundle: true, write: false, format: "esm", platform: "browser" });
-  const bindings = { DB_TRAFFIC_KEY: "fixture-db-key".repeat(3), ACCEPTING: "1", RETENTION_APPROVED: "1" };
+  const bindings = { SIGNING_KEY: "fixture-signing-key".repeat(3), ADMIN_KEY: "fixture-admin-key".repeat(3), ALLOWED_ORIGIN: "https://rivalhub.invalid", DB_TRAFFIC_KEY: "fixture-db-key".repeat(3), ACCEPTING: "1", RETENTION_APPROVED: "1" };
   const mf = new Miniflare({ modules: true, script: built.outputFiles[0].text, compatibilityDate: "2026-07-30", bindings, d1Databases: ["DB"] });
   try {
     const db = await mf.getD1Database("DB");
@@ -302,9 +302,19 @@ it("quarantines unsafe relationships without poisoning later batches and detects
     expect(JSON.parse(receipt!.reasons)).toEqual(["observed_connections", "failures", "logical_measured_queries", "skip_sum", "remaining_sum", "received_sum"]);
     const quality = await db.prepare("SELECT payload FROM db_traffic_quality_hours").first<{ payload: string }>();
     expect(JSON.parse(quality!.payload)).toMatchObject({ scopes: [{ release: "v1", deployment: "d1", batches: 1 }] });
+    await db.prepare("DELETE FROM db_traffic_quality_hours").run();
+    await db.prepare("UPDATE db_traffic_receipts SET processed=0 WHERE id=?").bind(bad.id).run();
+    await Promise.all([maintainDbTrafficQuality({ ...bindings, DB: db as unknown as Env["DB"] }, Date.now()), maintainDbTrafficQuality({ ...bindings, DB: db as unknown as Env["DB"] }, Date.now())]);
+    const concurrentQuality = await db.prepare("SELECT payload FROM db_traffic_quality_hours").first<{ payload: string }>();
+    expect(JSON.parse(concurrentQuality!.payload).scopes[0].batches).toBe(1);
+    const illegal = { ...base, id: crypto.randomUUID(), extra: "private" };
+    expect((await send(illegal)).status).toBe(400);
+    expect(await db.prepare("SELECT id FROM db_traffic_receipts WHERE id=?").bind(illegal.id).first()).toBeNull();
     const good = Array.from({ length: 10 }, () => ({ ...base, id: crypto.randomUUID() }));
     for (const value of good) expect((await send(value)).status).toBe(200);
     expect(await db.prepare("SELECT count(*) AS n FROM db_traffic_batches").first()).toEqual({ n: 10 });
+    const trusted = await db.prepare("SELECT payload FROM db_traffic_hours").first<{ payload: string }>();
+    expect(JSON.parse(trusted!.payload).sources[0].queries).toBe(10);
     expect(await db.prepare("SELECT batches FROM db_traffic_usage").first()).toEqual({ batches: 11 });
     expect((await send(bad)).status).toBe(200);
     expect(await db.prepare("SELECT batches FROM db_traffic_usage").first()).toEqual({ batches: 11 });
@@ -312,5 +322,74 @@ it("quarantines unsafe relationships without poisoning later batches and detects
     const sameId = crypto.randomUUID();
     const responses = await Promise.all([send({ ...base, id: sameId }), send({ ...base, id: sameId, receivedBytes: 2 })]);
     expect(responses.map(response => response.status).sort()).toEqual([200, 409]);
+    const gap = { id: crypto.randomUUID(), process: base.process, release: "v1", deployment: "d1", reportedAt: Date.now(), start: base.at - 1000, end: base.at, reason: "overflow", certainty: "lost", batches: 1, receivedBytes: 42, truncated: false, coverageUnknownSince: null };
+    const sendGap = () => mf.dispatchFetch("https://worker.invalid/v1/db-traffic-gap", { method: "POST", headers: { authorization: `Bearer ${bindings.DB_TRAFFIC_KEY}`, "x-db-traffic-protocol": "2" }, body: JSON.stringify(gap) });
+    expect((await sendGap()).status).toBe(200);
+    expect((await sendGap()).status).toBe(200);
+    expect(await db.prepare("SELECT count(*) AS n FROM db_traffic_receipts WHERE status='gap'").first()).toEqual({ n: 1 });
+    const withGap = await db.prepare("SELECT payload FROM db_traffic_quality_hours").first<{ payload: string }>();
+    expect(JSON.parse(withGap!.payload).scopes[0]).toMatchObject({ lostBatches: 1, lostBytes: 42 });
+    expect(await db.prepare("SELECT batches FROM db_traffic_usage").first()).toEqual({ batches: 13 });
+    await db.prepare("UPDATE db_traffic_usage SET batches=5000").run();
+    expect((await send(bad)).status).toBe(200);
+    const limited = await send({ ...base, id: crypto.randomUUID() });
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("x-db-traffic-limit")).toBe("daily");
+    expect(Number(limited.headers.get("retry-after"))).toBeGreaterThan(0);
+    expect(await db.prepare("SELECT batches FROM db_traffic_usage").first()).toEqual({ batches: 5000 });
   } finally { await mf.dispose(); }
+}, 30000);
+
+it("replays the same committed batch after an ACK is lost and the spool owner restarts", async () => {
+  const { mkdtemp, rm } = await import("node:fs/promises"); const { tmpdir } = await import("node:os"); const { join } = await import("node:path");
+  const { DbTrafficSpool } = await import("@/lib/observability/db-traffic-spool"); const { DbTrafficDelivery } = await import("@/lib/observability/db-traffic-delivery");
+  const require = createRequire(import.meta.url);
+  const { build } = createRequire(require.resolve("tsx/package.json"))("esbuild") as { build(options: object): Promise<{ outputFiles: { text: string }[] }> };
+  const built = await build({ entryPoints: ["workers/telemetry/index.ts"], bundle: true, write: false, format: "esm", platform: "browser" });
+  const bindings = { SIGNING_KEY: "fixture-signing-key".repeat(3), ADMIN_KEY: "fixture-admin-key".repeat(3), ALLOWED_ORIGIN: "https://rivalhub.invalid", DB_TRAFFIC_KEY: "fixture-db-key".repeat(3), ACCEPTING: "1", RETENTION_APPROVED: "1" };
+  const mf = new Miniflare({ modules: true, script: built.outputFiles[0].text, compatibilityDate: "2026-07-30", bindings, d1Databases: ["DB"] });
+  const root = await mkdtemp(join(tmpdir(), "traffic-d1-replay-"));
+  try {
+    const db = await mf.getD1Database("DB");
+    const schema = (await readFile("workers/telemetry/schema.sql", "utf8")).replace(/^--.*$/gm, "").split(";").map(s => s.trim()).filter(Boolean);
+    await db.batch(schema.map(sql => db.prepare(sql)));
+    const now = Date.now(); const identity = { process: crypto.randomUUID(), release: "v1", deployment: "d1" };
+    const batch = { id: crypto.randomUUID(), ...identity, at: now, dropped: 0, receivedBytes: 2, connections: 1, observedConnections: 1, rows: [{ source: "mizar", template: "q0000000000000001", queries: 1, failures: 0, rows: 1, queryMs: 1 }] };
+    let spool = await DbTrafficSpool.open(root); let delivery = new DbTrafficDelivery(spool, identity);
+    await delivery.seal(JSON.stringify(batch), now);
+    const dispatch = (body: string) => mf.dispatchFetch("https://worker.invalid/v1/db-traffic", { method: "POST", headers: { authorization: `Bearer ${bindings.DB_TRAFFIC_KEY}`, "x-db-traffic-protocol": "2" }, body });
+    await delivery.drain(async item => { expect((await dispatch(item.body)).status).toBe(200); throw new Error("ACK lost"); }, () => now);
+    expect(spool.snapshot().batches[0]).toMatchObject({ id: batch.id, attempted: true });
+    spool.close(); spool = await DbTrafficSpool.open(root); delivery = new DbTrafficDelivery(spool, identity);
+    await delivery.drain(async item => { const response = await dispatch(item.body); const ack = await response.json() as { id: string; digest: string; status: string }; return { ok: response.status === 200 && ack.id === item.id && ack.digest === item.digest && ack.status === "accepted", status: response.status, retryAfter: null, limit: null }; }, () => now + 600000);
+    expect(spool.snapshot().batches).toHaveLength(0); spool.close();
+    expect(await db.prepare("SELECT batches FROM db_traffic_usage").first()).toEqual({ batches: 1 });
+    expect(await db.prepare("SELECT count(*) AS n FROM db_traffic_batches").first()).toEqual({ n: 1 });
+    const rollup = await db.prepare("SELECT payload FROM db_traffic_hours").first<{ payload: string }>();
+    expect(JSON.parse(rollup!.payload).sources[0].queries).toBe(1);
+    const legacy = { ...batch, id: crypto.randomUUID(), at: now - 2 * 86400000 };
+    await db.prepare("INSERT INTO db_traffic_batches(id,at,process,release,deployment,payload,expires,dropped,received_bytes,connections,observed_connections) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(legacy.id, legacy.at, legacy.process, legacy.release, legacy.deployment, JSON.stringify(legacy.rows), now + 86400000, legacy.dropped, legacy.receivedBytes, legacy.connections, legacy.observedConnections).run();
+    const { ingestDbTraffic } = await import("../../../workers/telemetry/db-traffic");
+    const legacyRequest = (value: unknown) => new Request("https://worker.invalid/v1/db-traffic", { method: "POST", headers: { authorization: `Bearer ${bindings.DB_TRAFFIC_KEY}`, "x-db-traffic-protocol": "2" }, body: JSON.stringify(value) });
+    const legacyEnv = { ...bindings, DB: db as unknown as Env["DB"] };
+    expect((await ingestDbTraffic(legacyRequest(legacy), legacyEnv, now)).status).toBe(200);
+    expect((await ingestDbTraffic(legacyRequest({ ...legacy, receivedBytes: 3 }), legacyEnv, now)).status).toBe(409);
+    expect(await db.prepare("SELECT batches FROM db_traffic_usage").first()).toEqual({ batches: 1 });
+    await db.batch([db.prepare("DELETE FROM db_traffic_batches"), db.prepare("DELETE FROM db_traffic_receipts"), db.prepare("DELETE FROM db_traffic_hours"), db.prepare("DELETE FROM db_traffic_quality_hours"), db.prepare("DELETE FROM db_traffic_usage")]);
+    spool = await DbTrafficSpool.open(root); delivery = new DbTrafficDelivery(spool, identity);
+    const bad = { ...batch, id: crypto.randomUUID(), rows: [{ ...batch.rows[0], failures: 2 }] };
+    await delivery.seal(JSON.stringify(bad), now);
+    for (let i = 0; i < 10; i++) await delivery.seal(JSON.stringify({ ...batch, id: crypto.randomUUID() }), now);
+    const sendToD1 = async (item: { id: string; body: string; digest: string }) => {
+      const response = await dispatch(item.body); const ack = await response.json() as { id: string; digest: string; status: string };
+      return { ok: response.status === 200 && ack.id === item.id && ack.digest === item.digest && ["accepted", "quarantined"].includes(ack.status), status: response.status, retryAfter: null, limit: null };
+    };
+    await delivery.drain(sendToD1, () => now); await delivery.drain(sendToD1, () => now);
+    expect(spool.snapshot().batches).toHaveLength(0); spool.close();
+    expect(await db.prepare("SELECT count(*) AS n FROM db_traffic_batches").first()).toEqual({ n: 10 });
+    expect(await db.prepare("SELECT count(*) AS n FROM db_traffic_receipts WHERE status='quarantined'").first()).toEqual({ n: 1 });
+    const cleanRollup = await db.prepare("SELECT payload FROM db_traffic_hours").first<{ payload: string }>();
+    expect(JSON.parse(cleanRollup!.payload).sources[0].queries).toBe(10);
+    expect(await db.prepare("SELECT batches FROM db_traffic_usage").first()).toEqual({ batches: 11 });
+  } finally { await mf.dispose(); await rm(root, { recursive: true, force: true }); }
 }, 30000);

@@ -176,29 +176,35 @@ export async function readDbTrafficHours(env: Env, now: number, hours: 24 | 72, 
 /** Isolated quality evidence is counted separately and never contributes measured traffic. */
 export async function maintainDbTrafficQuality(env: Env, now: number, maxChunks = 4) {
   for (let i = 0; i < maxChunks; i++) {
-    const first = await env.DB.prepare("SELECT at FROM db_traffic_receipts WHERE status='quarantined' AND processed=0 AND at>? AND at<=? ORDER BY at,id LIMIT 1").bind(now - 7 * 86400000, now).first<{ at: number }>();
+    const first = await env.DB.prepare("SELECT at FROM db_traffic_receipts WHERE status IN ('quarantined','gap') AND processed=0 AND at>? AND at<=? ORDER BY at,id LIMIT 1").bind(now - 7 * 86400000, now).first<{ at: number }>();
     if (!first) return;
     const hour = Math.floor(first.at / HOUR) * HOUR;
     const stored = await env.DB.prepare("SELECT version,payload FROM db_traffic_quality_hours WHERE hour=?").bind(hour).first<{ version: number; payload: string }>();
-    const pending = await env.DB.prepare("SELECT id,release,deployment,reasons FROM db_traffic_receipts WHERE status='quarantined' AND processed=0 AND at>=? AND at<? AND at<=? ORDER BY at,id LIMIT ?").bind(hour, hour + HOUR, now, CHUNK).all<{ id: string; release: string; deployment: string; reasons: string }>();
+    const pending = await env.DB.prepare("SELECT id,release,deployment,reasons,status,payload FROM db_traffic_receipts WHERE status IN ('quarantined','gap') AND processed=0 AND at>=? AND at<? AND at<=? ORDER BY at,id LIMIT ?").bind(hour, hour + HOUR, now, CHUNK).all<{ id: string; release: string; deployment: string; reasons: string; status: string; payload: string }>();
     if (!pending.results.length) return;
-    const value = stored ? JSON.parse(stored.payload) as { scopes: Array<{ release: string; deployment: string; batches: number; reasons: Record<string, number> }>; truncated: boolean } : { scopes: [], truncated: false };
+    const value = stored ? JSON.parse(stored.payload) as { scopes: Array<{ release: string; deployment: string; batches: number; reasons: Record<string, number>; lostBatches?: number; unconfirmedBatches?: number; lostBytes?: number; unconfirmedBytes?: number; coverageUnknownSince?: number | null }>; truncated: boolean } : { scopes: [], truncated: false };
     for (const row of pending.results) {
       let scope = value.scopes.find(item => item.release === row.release && item.deployment === row.deployment);
       if (!scope) {
         if (value.scopes.length >= 32) { value.truncated = true; continue; }
         scope = { release: row.release, deployment: row.deployment, batches: 0, reasons: {} }; value.scopes.push(scope);
       }
-      scope.batches++;
+      if (row.status === "gap") {
+        const gap = JSON.parse(row.payload) as { certainty: string; batches: number; receivedBytes: number; truncated: boolean; coverageUnknownSince: number | null };
+        if (gap.certainty === "lost") { scope.lostBatches = (scope.lostBatches ?? 0) + gap.batches; scope.lostBytes = (scope.lostBytes ?? 0) + gap.receivedBytes; }
+        if (gap.certainty === "unconfirmed") { scope.unconfirmedBatches = (scope.unconfirmedBatches ?? 0) + gap.batches; scope.unconfirmedBytes = (scope.unconfirmedBytes ?? 0) + gap.receivedBytes; }
+        if (gap.coverageUnknownSince !== null) scope.coverageUnknownSince = Math.min(scope.coverageUnknownSince ?? gap.coverageUnknownSince, gap.coverageUnknownSince);
+        value.truncated ||= gap.truncated || gap.certainty === "unknown";
+      } else scope.batches++;
       for (const reason of JSON.parse(row.reasons) as string[]) scope.reasons[reason] = (scope.reasons[reason] ?? 0) + 1;
     }
     const version = stored?.version ?? 0;
     const ids = JSON.stringify(pending.results.map(row => row.id));
     const expected = pending.results.length;
     await env.DB.batch([
-      env.DB.prepare("INSERT OR IGNORE INTO db_traffic_quality_hours(hour,version,payload,expires) SELECT ?,0,'{}',? WHERE ?=0 AND (SELECT count(*) FROM db_traffic_receipts WHERE status='quarantined' AND +processed=0 AND id IN (SELECT value FROM json_each(?)))=?").bind(hour, hour + 7 * 86400000, version, ids, expected),
-      env.DB.prepare("UPDATE db_traffic_quality_hours SET version=version+1,payload=? WHERE hour=? AND version=? AND (SELECT count(*) FROM db_traffic_receipts WHERE status='quarantined' AND +processed=0 AND id IN (SELECT value FROM json_each(?)))=?").bind(JSON.stringify(value), hour, version, ids, expected),
-      env.DB.prepare("UPDATE db_traffic_receipts SET processed=1 WHERE status='quarantined' AND +processed=0 AND id IN (SELECT value FROM json_each(?)) AND changes()=1").bind(ids),
+      env.DB.prepare("INSERT OR IGNORE INTO db_traffic_quality_hours(hour,version,payload,expires) SELECT ?,0,'{}',? WHERE ?=0 AND (SELECT count(*) FROM db_traffic_receipts WHERE status IN ('quarantined','gap') AND +processed=0 AND id IN (SELECT value FROM json_each(?)))=?").bind(hour, hour + 7 * 86400000, version, ids, expected),
+      env.DB.prepare("UPDATE db_traffic_quality_hours SET version=version+1,payload=? WHERE hour=? AND version=? AND (SELECT count(*) FROM db_traffic_receipts WHERE status IN ('quarantined','gap') AND +processed=0 AND id IN (SELECT value FROM json_each(?)))=?").bind(JSON.stringify(value), hour, version, ids, expected),
+      env.DB.prepare("UPDATE db_traffic_receipts SET processed=1 WHERE status IN ('quarantined','gap') AND +processed=0 AND id IN (SELECT value FROM json_each(?)) AND changes()=1").bind(ids),
     ]);
   }
 }

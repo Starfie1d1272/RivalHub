@@ -53,3 +53,11 @@ it("filters retained shapes before limiting, reports overflow and preserves the 
     expect(Object.fromEntries(url.searchParams)).toMatchObject({ hour: "3600000", release: "v2", deployment: "unknown", sort: order, source: "dak" });
   }
 });
+
+it("shows an hour containing only quarantined batches", async () => {
+  read.mockResolvedValue({ status: "ready", data: { start: 0, generatedAt: 7200000, receivedBytes: 0, pending: 0, dropped: 0, offline: [], offlineTruncated: false, windows: [], quality: [{ hour: 3600000, release: "v1", deployment: "d1", batches: 1, reasons: { received_sum: 1 }, truncated: false }], qualityDetails: [{ at: 3600001, batch: { receivedBytes: 2 }, reasons: ["received_sum"] }], qualityDetailsTruncated: false } });
+  render(await DatabaseTraffic({ hours: 24, sort: "bytes", selection: {} }));
+  expect(screen.getByRole("link", { name: /1 批质量异常/ })).toBeInTheDocument();
+  expect(screen.queryByText("暂无已接收分窗数据；采集和投递状态未知。")).not.toBeInTheDocument();
+  expect(screen.getByText(/异常数据未计入可信流量汇总/)).toBeInTheDocument();
+});

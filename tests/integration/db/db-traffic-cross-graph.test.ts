@@ -3,15 +3,17 @@ import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import { expect, it, vi } from "vitest";
 import { localDatabaseUrl } from "./harness/database";
+import { trafficAck, trafficFixture } from "./harness/traffic";
 
 it("settles an in-flight frame when a different module graph flushes", async () => {
+  const cleanupTraffic = await trafficFixture();
   const realNow = Date.now();
   const clock = vi.spyOn(Date, "now").mockReturnValue(realNow - 3600000);
   vi.stubEnv("PRODUCT_TELEMETRY_ENDPOINT", "https://telemetry.invalid/v1/batches");
   vi.stubEnv("DB_TRAFFIC_KEY", "fixture-key".repeat(4));
   vi.stubEnv("PRODUCT_TELEMETRY_QUERY_PROXY_URL", "");
   const sent: string[] = [];
-  vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init: { body: string }) => { sent.push(init.body); return new Response(null, { status: 204 }); }));
+  vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init: { body: string }) => { sent.push(init.body); return trafficAck(init.body); }));
   const { DatabasePool } = await import("@/db/pool");
   const producer = await import("@/lib/observability/db-traffic");
   vi.resetModules();
@@ -37,7 +39,7 @@ it("settles an in-flight frame when a different module graph flushes", async () 
     finally { socket.emit = originalEmit; }
     expect(split).toBe(true);
     for (let i = 0; i < 4; i++) { sampler.flushDbTraffic(); await new Promise(resolve => setImmediate(resolve)); }
-    expect(sent.length).toBeGreaterThanOrEqual(2);
+    await vi.waitFor(() => expect(sent.length).toBeGreaterThanOrEqual(2));
     const batches = sent.map(body => JSON.parse(body));
     console.log("CROSS_GRAPH_EVIDENCE", JSON.stringify(batches.map(batch => ({ received: batch.receivedBytes, sources: batch.rows.reduce((sum: number, row: {rxBytes:number}) => sum + row.rxBytes, 0), remaining: batch.remainingRxBytes, partial: batch.remaining.partial }))));
     const require = createRequire(import.meta.url);
@@ -62,6 +64,6 @@ it("settles an in-flight frame when a different module graph flushes", async () 
       expect(batches[1].rows.find((row: {source:string}) => row.source === "match.page")?.rxBytes).toBeGreaterThan(0);
     } finally { await mf.dispose(); }
   } finally {
-    clock.mockRestore(); client.release(); await pool.end(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.resetModules();
+    clock.mockRestore(); client.release(); await pool.end(); await cleanupTraffic(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.resetModules();
   }
 }, 30000);
