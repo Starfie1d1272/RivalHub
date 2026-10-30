@@ -1220,7 +1220,14 @@
               }
             }
           }
-        ]
+        ],
+        "weaponsCoverage": {
+          "completeness": "unknown",
+          "completedMaps": 1,
+          "detailedMaps": 1,
+          "totalKills": 15,
+          "rounds": 21
+        }
       }
     },
     {
@@ -1486,7 +1493,8 @@
             "detailed": null,
             "scoreboard": null
           }
-        ]
+        ],
+        "weaponsCoverage": null
       }
     }
   ],

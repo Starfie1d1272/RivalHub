@@ -298,6 +298,7 @@ it("authorizes the stats route and projects canonical team samples", async () =>
   expect(first.facts.series.matches[0].maps).toHaveLength(2);
   expect(first.facts.coverage).toMatchObject({ completedMaps: 2, detailedMaps: 0 });
   expect(first.facts.weapons).toBeNull();
+  expect(first.facts.weaponsCoverage).toBeNull();
   const scoreboardOnly = first.facts.players.find((player: { userId: string }) => player.userId === f.fixtureUserIds[0]);
   expect(scoreboardOnly.detailed).toBeNull();
   expect(scoreboardOnly.scoreboard).toMatchObject({ source: "confirmed-scoreboard", kpr: { value: 0.5, rounds: 40 }, kast: { value: 0.5, rounds: 20 }, tradeKpr: { value: 0.15, rounds: 20 }, avgHs: { value: 50, kills: 10 }, mkpr: { value: 0.1, rounds: 20 } });
@@ -375,6 +376,10 @@ it("measures PostgreSQL inbound bytes and SELECTs for the main snapshot and unca
     const text = await response.text();
     const body = JSON.parse(text);
     expect(body.entrants.some((entrant: { facts: { coverage: { detailedMaps: number } } }) => entrant.facts.coverage.detailedMaps > 0)).toBe(true);
+    for (const entrant of body.entrants) {
+      const canonical = await getTournamentTeamDetail({ seasonId: f.seasonId, teamId: entrant.entryId });
+      expect(entrant.facts.weaponsCoverage).toEqual(canonical.performance ? { completeness: "unknown", completedMaps: canonical.coverage.completedMaps, detailedMaps: canonical.coverage.detailedMaps, totalKills: canonical.performance.weapons[0]?.killShare.attempts ?? null, rounds: canonical.performance.slices.overall.sample.rounds } : null);
+    }
     const selects = Object.fromEntries(Object.entries(observation.phaseQueries).map(([phase, queries]) => [phase, countSelects(queries)]));
     expect(selects.auth).toBe(1);
     expect(selects.main).toBeGreaterThan(0);

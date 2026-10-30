@@ -97,6 +97,11 @@ export interface BroadcastStatsFacts {
   utility: { sample: { rounds: number }; flashesThrown: number; utilityDamagePerRound: BroadcastQuantityRate; flashAssistsPerRound: BroadcastQuantityRate; utilityKillsPerRound: BroadcastQuantityRate; enemyBlindSecondsPerFlash: BroadcastQuantityRate; enemyBlindSecondsPerRound: BroadcastQuantityRate; teamBlindSecondsPerRound: BroadcastQuantityRate } | null;
   plantConversions: BroadcastQuantityRate | null;
   weapons: Array<{ weapon: string; kills: number; killShare: BroadcastQuantityRate; killsPerRound: BroadcastQuantityRate }> | null;
+  /** This describes the canonical selected Demo maps, not all history. The
+   * persisted projection does not establish source-kill completeness: missing
+   * weapons cannot be treated as zero. totalKills is the canonical weapon-share
+   * denominator when a row exists, not a claim about unobserved kills. */
+  weaponsCoverage?: { completeness: "unknown"; completedMaps: number; detailedMaps: number; totalKills: number | null; rounds: number } | null;
   /** Current starters only; scoreboard and detailed samples retain independent denominators. */
   players: Array<{
     userId: string; maps: number; ratingMaps: number; rounds: number | null; adrRounds: number | null;

@@ -271,7 +271,8 @@
             "detailed": null,
             "scoreboard": null
           }
-        ]
+        ],
+        "weaponsCoverage": null
       }
     },
     {
@@ -537,7 +538,8 @@
             "detailed": null,
             "scoreboard": null
           }
-        ]
+        ],
+        "weaponsCoverage": null
       }
     }
   ],

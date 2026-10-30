@@ -566,7 +566,8 @@
               }
             }
           }
-        ]
+        ],
+        "weaponsCoverage": null
       }
     },
     {
@@ -1127,7 +1128,8 @@
               }
             }
           }
-        ]
+        ],
+        "weaponsCoverage": null
       }
     }
   ],
