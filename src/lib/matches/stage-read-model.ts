@@ -4,7 +4,8 @@ import { requireCompetitionMatch, requireCompetitionFields, type CompetitionMatc
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, majorStageEntrants, majorStageRuns, majorTournamentEntrants, matches, type Match } from "@/db/schema";
-import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
+import { parseMajorRunPresentation } from "@/lib/major/run-snapshot";
+import { majorRunPresentationSelection } from "@/lib/major/run-snapshot-query";
 import { MAJOR_SWISS_MAX_ROUNDS, projectMajorSwissStage, projectMajorSwissStageByRound, type MajorSwissFinalizedRound, type MajorSwissMatchFact } from "@/lib/major/swiss";
 import type { SwissStatus } from "@/lib/swiss/types";
 
@@ -69,11 +70,11 @@ export async function loadMajorSwissStageReadModel(
   displayedMatches?: readonly (CompetitionMatch<Match> & { displayScore: import("./display-score").DisplayScore })[],
 ): Promise<SwissStageReadModel | null> {
   return withDbTrafficSource("match.swiss.read", async () => {
-    const [stageRun] = await db.select().from(majorStageRuns)
+    const [stageRun] = await db.select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, finalizedRound: majorStageRuns.finalizedRound, presentationInput: majorRunPresentationSelection(majorStageRuns.ruleSnapshot) }).from(majorStageRuns)
       .where(and(eq(majorStageRuns.seasonId, seasonId), eq(majorStageRuns.stageKey, stageKey)))
       .limit(1);
     if (!stageRun) return null;
-    const frozenSnapshot = parseMajorRunSnapshot(stageRun.ruleSnapshot, stageKey);
+    const frozenSnapshot = parseMajorRunPresentation(stageRun.presentationInput, stageKey);
 
     const [entrantRows, managedMatches] = await Promise.all([
       db.select({
@@ -200,10 +201,10 @@ function swissRecordLabel(states: ReadonlyMap<string, { wins: number; losses: nu
 /** Room-guide projection of the same frozen run; no names, logos or display-score reads. */
 export async function loadMajorSwissMatchRecord(seasonId: string, stageKey: string, matchId: string) {
   const [run] = await db.select({ id: majorStageRuns.id, finalizedRound: majorStageRuns.finalizedRound,
-    ruleSnapshot: majorStageRuns.ruleSnapshot }).from(majorStageRuns)
+    stageKey: majorStageRuns.stageKey, presentationInput: majorRunPresentationSelection(majorStageRuns.ruleSnapshot) }).from(majorStageRuns)
     .where(and(eq(majorStageRuns.seasonId, seasonId), eq(majorStageRuns.stageKey, stageKey))).limit(1);
   if (!run) return null;
-  const frozen = parseMajorRunSnapshot(run.ruleSnapshot, stageKey);
+  const frozen = parseMajorRunPresentation(run.presentationInput, stageKey);
   const [entrants, rows] = await Promise.all([
     db.select({ teamId: majorTournamentEntrants.competitionEntryId, initialStageSeed: majorStageEntrants.stageSeed })
       .from(majorStageEntrants).innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.id, majorStageEntrants.tournamentEntrantId))

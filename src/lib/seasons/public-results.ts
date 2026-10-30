@@ -8,7 +8,9 @@ import { competitionEntries, majorFinalResults, majorStageRuns, matches, postEve
 import { serializePostEventAdjudicationPublic } from "@/lib/postevent/service";
 import { loadStageBracketState, serializeStageBracket, resolveFinalBracketNodeId } from "@/lib/bracket";
 import { parseMajorFinalPlacementGroups } from "@/lib/major/placement";
-import { getManagedMajorProfileFromRunSnapshot } from "@/lib/major/standard";
+import { getManagedMajorProfileFromRunPresentation } from "@/lib/major/standard";
+import { parseMajorRunPresentation } from "@/lib/major/run-snapshot";
+import { majorRunPresentationSelection } from "@/lib/major/run-snapshot-query";
 import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
 import { resolvePublicStagePlan } from "@/lib/seasons/public-stage";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
@@ -33,7 +35,7 @@ async function readResultFacts(seasonList: readonly PublicSeason[], compact: boo
       .from(tournamentHonors).leftJoin(users, eq(users.id, tournamentHonors.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(and(inArray(tournamentHonors.seasonId, ids), compact ? eq(tournamentHonors.type, "champion") : undefined)),
     db.select({ seasonId: competitionEntries.competitionId, id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(and(inArray(competitionEntries.competitionId, ids), publicCompetitionEntryIdentityCondition())),
     compact ? Promise.resolve([]) : readFinishedResultMatches(inArray(matches.seasonId, ids)),
-    majorIds.length ? db.select({ seasonId: majorStageRuns.seasonId, id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot }).from(majorStageRuns).where(inArray(majorStageRuns.seasonId, majorIds)) : [],
+    majorIds.length ? db.select({ seasonId: majorStageRuns.seasonId, id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, presentationInput: majorRunPresentationSelection(majorStageRuns.ruleSnapshot) }).from(majorStageRuns).where(inArray(majorStageRuns.seasonId, majorIds)) : [],
     compact ? Promise.resolve([]) : db.select({
       id: postEventAdjudications.id, seasonId: postEventAdjudications.seasonId,
       status: postEventAdjudications.status, kind: postEventAdjudications.kind, target: postEventAdjudications.target,
@@ -45,13 +47,14 @@ async function readResultFacts(seasonList: readonly PublicSeason[], compact: boo
     compact ? db.select({ seasonId: matches.seasonId, finishedMatches: count(), completedAt: max(matches.completedAt) })
       .from(matches).where(and(officialMatchCondition(), inArray(matches.seasonId, ids), eq(matches.status, "finished"))).groupBy(matches.seasonId) : Promise.resolve([]),
   ]);
+  const parsedRuns = runs.map((run) => ({ ...run, presentation: parseMajorRunPresentation(run.presentationInput, run.stageKey) }));
   const finalScopes = compact ? seasonList.flatMap(season => {
-    const lastStage = resolvePublicStagePlan(season, runs.filter(run => run.seasonId === season.id)).at(-1);
+    const lastStage = resolvePublicStagePlan(season, parsedRuns.filter(run => run.seasonId === season.id)).at(-1);
     return lastStage ? [and(eq(matches.seasonId, season.id), eq(matches.stage, lastStage.key),
       season.competitionTemplate === "major" ? eq(matches.entryRound, "final") : undefined)!] : [];
   }) : [];
   const rawMatchRows = compact ? finalScopes.length ? await readFinishedResultMatches(or(...finalScopes)!) : [] : fullMatchRows;
-  return { results, honorRows, entries, rawMatchRows, runs, adjudicationRows, matchSummaries };
+  return { results, honorRows, entries, rawMatchRows, runs: parsedRuns, adjudicationRows, matchSummaries };
 }
 
 /** Historical output uses actual completed matches and explicit final/honor facts. */
@@ -85,7 +88,7 @@ async function projectSeasonResults(season: PublicSeason, facts: Awaited<ReturnT
       ? final.scoreA > final.scoreB ? final.entryAId : final.entryBId : null;
   const finalResultRun = result ? runs.find((run) => run.id === result.playoffStageRunId) : null;
   const finalResultProfile = !compact && confirmed && finalResultRun
-    ? getManagedMajorProfileFromRunSnapshot(finalResultRun.ruleSnapshot, finalResultRun.stageKey)
+    ? getManagedMajorProfileFromRunPresentation(finalResultRun.presentation)
     : null;
   const placements = compact ? [] : confirmed ? parseMajorFinalPlacementGroups(result.placementGroups, result.championEntryId, finalResultProfile!.entrantCapacity).flatMap((group) => group.entryIds.map((entryId) => ({ entryId, name: names.get(entryId) ?? "队伍", label: group.from === group.to ? `第 ${group.from} 名` : `第 ${group.from}–${group.to} 名` }))) : season.competitionTemplate !== "major" && final && final.scoreA !== null && final.scoreB !== null && final.scoreA !== final.scoreB
     ? (final.scoreA > final.scoreB ? [final.entryAId, final.entryBId] : [final.entryBId, final.entryAId]).map((entryId, index) => ({ entryId, name: names.get(entryId) ?? "队伍", label: `第 ${index + 1} 名` }))
