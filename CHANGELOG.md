@@ -2660,7 +2660,6 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 ### Fixed
 
 - **DB Pool 重建后重试查询**：连接失败重建 Pool 后自动重试当次查询，并发重建合并去重，避免冷启动首请求 Load failed
-- **CI type-check**：修复 Proxy 类型循环引用与 `pool.query` 重载签名不兼容，确保无增量缓存 CI 环境通过
 
 ## [1.20.4] - 2026-05-21
 
@@ -2674,14 +2673,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ### Changed
 
-- **项目文档瘦身**：重写 README 为长期维护入口，新增 `docs/README.md` 与 `docs/code-map.md`，将历史设计交付物和过程材料归档到 `docs/archive/`
-- **大文件拆分**：拆分比赛详情页、首页与报名表单的大块展示组件，提取比赛详情、赛果、阵容与时间协商相关纯规则
-- **工程手册同步**：更新 CLAUDE.md / AGENTS.md 组件清单与发布约束，扩展组件清单校验脚本覆盖首页组件
-
-### Added
-
-- **关键规则测试**：补充比赛详情统计、赛果规则、首页导航规则与报名表单工具测试
-- **TODO 测试清理**：将 roster、scheduling、round-robin 中的测试 TODO 替换为可执行测试
+- 整理项目文档，拆分首页、比赛详情和报名表单，并补充关键规则测试。
 
 ## [1.20.2] - 2026-05-20
 
@@ -2735,12 +2727,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ### Added
 
-- **六维雷达图系统（Hexagon）**：基于赛季赛事统计的 Z-score 标准化，计算六维能力评分（火力/破局/多杀/残局/协同/稳定），含完整单元测试（265 行）
-- **PlayerRadarChart 组件**：SVG 六边形雷达图，支持多人叠加对比、轴标签、单人数值标注及图例
-- **选手个人页六维卡片**：跨赛季六维能力展示
-- **队伍详情页六维对比**：队内所有成员六维雷达图叠加对比
-- **比赛详情页六维对比**：双方出场阵容六维能力雷达图（新增至赛后数据面板）
-- **排行榜六维综合评分列**：StatsLeaderboard 新增六维综合评分排序
+- 基于赛季统计新增火力、破局、多杀、残局、协同和稳定六维评分；个人页展示跨赛季能力，队伍和比赛页支持多人对比，排行榜可按综合评分排序。
 - **Cloudflare Turnstile 验证码**：注册页集成，`appearance=interaction-only` 仅在需要时触发验证挑战，服务端强制校验
 - **忘记密码 / 重置密码页**：`/forgot-password`、`/reset-password` 完整流程
 - **BP 赛后补录**：`finished` 比赛在管理后台"数据录入"区新增「录入 BP」入口；无 match_maps 记录时自动建立，解锁 OCR 面板
@@ -2766,14 +2753,11 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - **ADR / HS% 加权平均**：从简单 `avg()` 改为回合加权 `sum(metric × rounds)/sum(rounds)`，消除不同图回合数差异导致的偏差
 - **首杀 / 残局改每回合**：标签 "首杀/图"→"FKPR"、"残局/图"→"CPR"，计算从 `sum/count(maps)` 改为 `sum/sum(rounds)`
 - **阵容对比 FK 一致化**：`buildLineupsPlayers` 的 FK 同步改为 FKPR（每回合首杀），标签统一为 "FKPR"
-- **雷达图颜色解耦**：`MapPoolRadarChart` 硬编码 hex 替换为 `--color-accent` / `--color-accent-b` CSS 设计 token
 - **赛后内容隐藏**：比赛结束后隐藏赛季综合对比、地图池雷达图、历史交锋、阵容对比、赛前名单段落
 - **雷达图图例**：从 SVG 内移到卡片底部 HTML 布局，纵向排列不再重合
-- **MVP 次数口径**：从总票数修正为单场获奖次数，增加持久化缓存
 
 ### Changed
 
-- **SQL 聚合提取**：stats 页 `weightedAvg(col)` / `perRoundRate(col)` 两个 helper，sortColumn 和 SELECT 共用单一定义
 - **排序默认值统一**：无数据项 `ELSE NULL`（排到末尾），不再用 `ELSE 0`（会与 0 值混淆）
 - **BO1/BO3/BO5 回合数兼容**：`COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b)`，map 级比分优先，BO1 fallback 到 match 级
 
@@ -2788,7 +2772,6 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - **比赛详情页 — 整场汇总 Tab**：BO3/BO5 系列赛第一个 Tab，所有上场选手跨图聚合数据（K/D/A/HS%/Rating 等）
 - **比赛详情页 — 比赛时间显示**：Hero 下方显示赛前计划时间或赛后完成时间（CST 格式）
 - **管理端 — 完成时间编辑**：`updateMatchCompletedAt` Server Action，已结束比赛可在折叠区修改 `completed_at`（datetime-local 控件 + 清除按钮）
-- **设计 token — Accent B 族**：`--color-accent-b` / `-b-soft` / `-b-edge` / `-b-fg`，统一团队 B / 对比实体 accent 色
 
 ### Changed
 
@@ -2833,69 +2816,44 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ### Added
 
-- **选手名全站可点击**：队伍列表（TeamCard 首发/替补名）、队伍详情（阵容首发/替补/队内联系方式、每位置最佳）、比赛赛前名单（MatchRosterView 两队首发/替补）、比赛赛后数据表（PlayerStatsTable）、MVP 投票结果页，选手名均链接到 `/players/[userId]`
-- **比赛详情页队伍名可点击**：Hero 区双方队伍名链接到队伍详情页
-- **管理员下载队伍头像**：队伍详情页 Logo 下方显示「下载头像」按钮，仅 admin 可见且有 logo 时出现
-- `formatCSTDateTime()` 格式化函数（CST 月日+时间，如 "5 月 18 日 19:30"）
+- 队伍、比赛和投票页面的选手名称可进入个人主页；比赛详情的队伍名称可进入队伍页。
+- 管理员可下载队伍头像。
 
 ### Changed
 
-- **比赛时间显示日期+具体时间**：MatchCard 和赛季首页 NEXT MATCHES 从仅日期（"5 月 18 日"）改为日期+时间（"5 月 18 日 19:30"）
-- **赛季子页面统一垂直间距**：4 个页面（赛季首页 / draft / captains / register）父容器改为 `space-y-*` 统一间距，消除各区块 ad-hoc `mb-*`/`mt-*`
-- **赛季首页 STANDINGS 视觉对齐**：右侧积分榜从裸 div 改为 `<Panel label="STANDINGS · TOP 4">` 包裹，与左侧 NEXT MATCHES 视觉对称
-- **StatsLeaderboard 筛选改用 `Btn` 组件**：排序 Tab 和位置筛选从手动 `<a>` 改为 `<Btn small ghost asChild>`，全站按钮风格统一
-- **3 组件 shadcn Card → rivalhub Panel**：MatchMvpVote / CaptainVotingPanel / StatsLeaderboard 统一使用 Panel 组件
-- **admin matches 页提取 `AdminMatchRow` 组件**：消除排位赛/正赛 ~200 行重复 JSX，净减 153 行；统一 VetoInputDialog 可见性（scheduled + in_progress 均显示）；清理 10+ 不再使用的 import
+- 赛程和赛季首页展示具体比赛时间，统一页面间距、积分榜和筛选控件样式。
+- 管理后台在待进行及进行中的比赛均提供 BP 录入入口。
 
 ### Fixed
 
-- `tailwind.config.ts` 删除 6 个无效 token 映射（`bg-base` / `bg-elevated` / `bg-overlay` / `text-primary` / `text-secondary` / `text-muted`），均无代码引用
-- `TeamCard` 未定义 token `--color-bg-subtle` → `--color-panel-low`
-- 3 处 `var(--primary)` → `var(--color-accent)`（StandingsTable / MapByMapInput / StatsLeaderboard），token 一致性
-- `MatchMvpVote` 圆角 `rounded-lg` → `rounded-sm`，与全站 `--radius: 3px` 一致
-- `Btn` / `Panel` 补显式 `import React`，修复 vitest 环境 `React is not defined`
-- 队伍详情页 `checkAdminSession()` 重复解密 iron-session cookie，改为复用 `getUserSession()` 结果
-- `TeamMemberData` / `RosterData` 类型三处重复定义 → 统一从 `AdminMatchRow` 导出
-- `AdminMatchRow` match.status/format 从 `string` 改为联合类型，移除 6 处类型断言
-- `completedMaps`/`finishedMaps` 映射逻辑在 admin matches 页两处复制粘贴 → 提取 `mapCompletedMaps()`/`mapFinishedMaps()` 辅助函数
+- 修复队伍卡片和赛程、统计组件的主题颜色显示，并减少队伍详情的重复会话读取。
 
 ## [1.16.0] - 2026-05-18
 
 ### Added
 
-- **UI Optimization v2 — 全站视觉增强**：首页三态动态 Hero（registration/voting/playing 渐变底色 + 网格背景纹理）；首页三层导航（Tier1 accent 卡片 / Tier2 grid-cols-4 / Tier3 ghost 按钮）；首页归档赛季区块
-- **PhaseStep 组件重写**：水平连接线布局，24×24 方形图标，步骤居中对齐；已完成段连接线变绿色
-- **赛季页双栏布局**：playing 状态展示 NEXT MATCHES + STANDINGS 双列；非 playing 状态降级为 Quick Links
-- **Panel 组件增强**：新增 `hoverable` / `teamColor` prop；`label` 为字符串时 CardHeader 始终应用 mono 样式
-- **`--color-info` token 系列**：新增 info / info-soft / info-edge 语义色（蓝色辅助标注）
-- **地图胜率颜色编码**：≥ 60% 绿色 / ≤ 40% 红色 / 中间段默认前景色
-- **首页投票排行卡片化**：grid 三列布局（排名 / 候选人 / 票数），第一名 accent 边框高亮
-- **管理后台 Season 卡片**：直接展示快捷操作按钮，无需跳转
+- 首页按报名、投票和比赛阶段展示不同主题，增加归档赛季入口和导航层级；赛季页展示近期比赛与积分榜。
+- 队伍页新增地图胜率与禁图率表现面板，并用颜色区分胜率；后台赛季卡片提供快捷操作。
+- 首页投票排行改用卡片展示，赛事步骤显示进度和连接线。
 
 ### Changed
 
-- **设计 token 体系**：全站字体更新为 Geist + JetBrains Mono + Noto Sans SC；新增 tracking 系列 token
-- **在线人数计数器**移至 Header 右侧，Tab 下划线样式精简
-- **赛季页**：新增 `getStandings` 共享函数，积分榜数据与 STANDINGS 面板对齐
-
-### Fixed
-
-- **admin 赛程**：`in_progress` 卡片左侧 3px accent 竖线标识；操作区改用 `<details>` 折叠，默认收起
-- `--color-fg-muted`（未定义 token）修复为 `--color-fg-dim`
-- admin 赛程 className 拼接改用 `cn()` 工具函数，消除无效 template literal
-- **全站 hardcoded Tailwind 颜色替换为 design tokens**：MatchTimeNegotiation/MatchRosterView/MatchRosterForm/TimeProposalHistory/SwissBracket/MatchStatusBadge/StandingsTable 等 30+ 组件统一使用 `--color-ok`/`--color-danger`/`--color-warn`/`--color-info` token 体系
-- `--color-yellow`/`--color-red`/`--color-surface-muted` 等无效 token 全部修复
-- CLAUDE.md 组件清单与实际文件同步，补充 `scripts/check-claude-md.sh` 校验脚本
+- 更新全站字体和页面样式，在线人数移至顶部导航右侧。
+- 后台赛程突出进行中的比赛，并默认折叠操作区。
 
 ## [1.15.1] - 2026-05-18
+
+### Added
+
+- 接入 Vercel Analytics。
 
 ### Fixed
 
 - **MVP 次数统计修正**：选手个人页 MVP 计数从「总票数」改为「单场 MVP 获奖次数」；新增 `matches.mvp_winner_user_id` 持久化缓存，避免每次页面访问遍历全表投票记录；UI 标签改为「单场 MVP」
 
-### Added
+### Changed
 
-- `ensureMvpWinner(matchId)` — 投票截止后首次访问比赛页时自动锁定 MVP 胜者（幂等）
+- 投票截止后首次访问比赛页时自动锁定 MVP 胜者，重复访问不会重复处理。
 
 ## [1.15.0] - 2026-05-18
 
@@ -2904,37 +2862,30 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - **MVP 投票重构**：候选人由全部选手改为 Rating 前 4 名；候选人大卡展示完整数据（K/D/A/ADR/RWS/HS%/FK/MK/残局/Rating/WE）；多地图数据智能聚合（击杀类求和、场均类取均值、HS% 按击杀加权）；比赛结束 24 小时后自动截止投票并展示最终 MVP
 - **赛程管理队伍筛选**：AdminMatchFilter 新增队伍下拉筛选；赛程按「进行中 → 已排期(越近越靠前)→ 已完成 → 已取消」排序
 - **地图结果表格** PlayerStatsTable 新增 HS%/FK/MK/残局列
-- `sumNums` / `avgNums` / `weightedAvgNums` 通用聚合函数（`src/lib/utils/stats.ts`）
-- `MVP_DEADLINE_MS` 共享常量 + `getMatchPlayerOptions` / `getMatchVetoSteps` action
-- **管理后台比赛详情增加队伍筛选** + 按开赛时间排序
 
 ### Changed
 
 - **BP 录入流程优化**：BP 仅在比赛「进行中」时可用；打开对话框自动回填已保存数据（不再每次重置）
 - **OCR 面板视图/编辑双模式**：已有数据时显示只读表格 +「重新录入」按钮；挂载时自动加载已保存数据
-- **管理后台比赛列表增加队伍筛选** + 按开赛时间排序
 
 ### Fixed
 
 - **管理后台 OCR「暂无数据」**：公开页已有数据但管理后台显示空白的 bug
 - **BP 对话框错误处理**：异步加载失败不再卡 loading
-- **StatsOCRPanel useEffect**：加 cleanup 标志防止卸载后 setState
 
 ## [1.14.3] - 2026-05-17
 
 ### Added
 
-- **OCR 面板始终可见**：不再依赖识别结果才显示编辑表格，新增「添加行」按钮支持纯手动录入
+- OCR 面板始终显示编辑表格，支持手动添加选手行。
 
 ### Fixed
 
-- **OCR 大截图序列化崩溃**：extractStatsFromScreenshot 参数装箱，修复 React Flight 对数组内大字符串按 `.length` 计入 arraySizeLimit（1e6）导致的 "Maximum array nesting exceeded" 错误
-- **Server Action 数组序列化**：savePlayerStats / saveVetoSteps / submitMatchRoster / updateMatchRoster 数组参数统一包在对象中，避免 Next.js 序列化限制
-- **OCR 调试日志恢复**：移除过度的 DEBUG gate，日志恢复无条件输出以便生产排查
+- 修复大截图和名单、BP、统计数组提交时可能触发的序列化错误，并恢复 OCR 排查日志。
 
 ### Changed
 
-- **数据库连接切 Transaction Pooler**：端口 5432 → 6543，`prepare: false`，连接池 max 1 → 3
+- 数据库连接改用 Transaction Pooler，端口由 5432 调整为 6543。
 
 ## [1.14.2] - 2026-05-17
 
@@ -2948,15 +2899,15 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 ### Changed
 
 - **OCR 调试日志 gated**：`console.error` 改为 `DEBUG` 门控 `console.log/warn`，仅 dev 或 `OCR_DEBUG=true` 时输出
-- **Code review 清理**：提取 `extractPlayersArray` helper，`useMemo(Set)` 优化下拉过滤 O(n²) → O(n)
 
 ## [1.14.1] - 2026-05-17
 
 ### Fixed
 
 - **OCR 校验彻底放宽**：顶层仅校验数组结构（不再因单行缺字段整批丢弃），行级仅要求玩家名称非空，数值字段自动转换（`"15"` → `15`、`"N/A"` → `null`），移除所有范围上限
-- **赛程总览显示比赛时间**：MatchCard 已排期显示日期、未排期显示「未排期」
-- **队伍详情页补全**：新增「历史战绩」列表（比分/BO1·BO3/阶段/详情链接），调整顺序为阵容 → 即将进行 → 历史战绩
+### Added
+
+- 赛程总览展示比赛日期和未排期状态；队伍详情新增历史战绩与比赛链接。
 
 ## [1.14.0] - 2026-05-17
 
@@ -2964,19 +2915,15 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 - **在线人数统计**：`user_sessions` 表 + `OnlineCounter` 组件，每 2 分钟心跳，5 分钟内有活动的用户计为在线
 - **赛程总览子 Tab**：排位赛/正赛内分「待进行」「已结束」子 Tab，已排期比赛按时间由近及远排序
-- **BP 选边归属修正**：decider 步骤选边由对方选择时正确翻转 Team A 起始边
-- **OCR 逐行宽松解析**：单行校验失败跳过而非整批丢弃，兼容不同格式截图
 - **名单 2 小时窗口锁定**：距开赛 >2h 自由提交/修改，<2h 锁定，玩家按钮同步禁用
 
 ### Fixed
 
+- 修正决胜图选边归属，并让 OCR 在单行校验失败时保留其他有效行。
+
 - **BP 录入放开 in_progress**：saveVetoSteps 允许 in_progress 状态，标准流程「开始 →BP→ 比分」
 - **VetoInputDialog 双 Tab 面板同步**：排位赛和正赛都可见
 - **名单 UI 状态修正**：StatusPill "finished" 绿色误导 → 纯文字 "已提交"，倒计时文案加 2h 锁定警告
-
-### Changed
-
-- **Simplify 审查修复**：预索引 teamMembersByTeam（O(1) 查表）、移除冗余 new Date()、提取 resolveTeamASide helper
 
 ## [1.13.1] - 2026-05-17
 
@@ -2991,7 +2938,6 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - **删除放开**：`deleteMatch` 移除 status 限制，所有非 bracket 比赛均可删除
 - **后台布局优化**：AdminRosterDialog/VetoInputDialog 同行排列 + 每场比赛底部「查看公开页 ↗」链接
 - **Drizzle 关系查询崩溃**：`VetoView` 和 admin roster 查询改用 `db.select()` 绕过 `buildRelationalQueryWithoutPK`
-- **TOCTOU 竞态**：`recordMapResult` 地图重复检查移入事务内部
 - **hasSubmittedRoster 默认值**：从 `true` 改为 `false`，忘记传 prop 时不会静默隐藏名单提醒
 - **auto-fill 确定性**：默认队员按 `joinedAt` 排序，移除未用变量
 
@@ -2999,28 +2945,14 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ### Added
 
-- **BO1 地图记录**：MapByMapInput 扩展 bo1 格式，recordMapResult 解除 BO1 限制，BO1 从 scheduled 自动推进到 in_progress
-- **BP 选图流程**：match_veto_steps 表 + saveVetoSteps Server Action + VetoInputDialog（管理员录入 Dialog，BO1/BO3/BO5 模板） + VetoView（HLTV 风格纵向展示，ban 红 / pick 绿 / decider 黄）
-- **管理员名单管理**：updateMatchRoster action + AdminRosterDialog（复选框选择 5 首发 + 2 替补，首发排序）
-- **比赛详情页 OCR 入口**：已完图下方对管理员显示 StatsOCRPanel（OCR 数据录入）
-- **比赛详情页分图 Tab 切换**：地图结果从纵向列表改为 Tab 切换，支持地图结构预展示 + BO1 fallback 展示系列总分
-- **比赛删除功能**：deleteMatch Server Action + DeleteMatchButton（InlineConfirm 二次确认，级联删除 BP/地图/名单数据，禁删 bracket 生成比赛）
+- BO1 支持逐图记录；比赛详情按地图切换结果并展示地图计划。
+- 管理员可按 BO1、BO3、BO5 模板录入 BP，查看正式选图过程，并管理五名首发和两名替补。
+- 比赛详情已结束地图下提供管理员 OCR 录入入口；管理员可确认删除非淘汰赛生成的比赛及关联数据。
 
 ### Fixed
 
-- **recordMapResult 状态准入**：scheduled 仅 BO1 可用，BO3/BO5 必须 in_progress（防止跳过开始比赛步骤）
-- **BO1 fallback**：使用 `match.format` 替代硬编码 "BO1"
-- **BP 服务端校验**：地图名/队伍/去重/图池合法性校验，防止绕过客户端直接调 API
-- **TOCTOU 竞态**：recordMapResult 地图重复检查移入事务内部
-- **side 列类型**：match_veto_steps.side 从 text 改为 sideEnum
-- **VETO_STEP_COUNT**：常量对齐实际 buildTemplate 步骤数（统一 7 步）
-- **\_journal.json**：补齐 0011-0017 缺失迁移条目
-
-### Changed
-
-- **消除重复**：提取 SIDE_LABELS（4 处 →1）、getMaxMaps()（2 处 →1）、validateTeamMembers()（2 处 →1）
-- **移除 orphan**：MatchDetail.tsx（已被内联 server component 替代）
-- **清理 JSX 注释**：移除叙述性注释
+- BO3/BO5 必须开始比赛后才能逐图录分；BP 保存校验地图、队伍、重复选择和赛事图池。
+- 将地图重复检查纳入事务，修复并发录分竞态；补齐缺失的迁移记录。
 
 ## [1.12.0] - 2026-05-17
 
@@ -3064,7 +2996,6 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 ### Fixed
 
 - **选秀预览模式时机修正**：从 registration/voting 阶段改为 drafting 未激活时展示（此时队伍已组建），非 drafting 恢复简单提示
-- **PLAYER_INFO_FIELDS 导入异常**：`as const` 常量从 `"use client"` 文件移至独立模块，修复 Server Component 中 `map is not a function` 运行时错误
 
 ## [1.10.0] - 2026-05-16
 
@@ -3076,7 +3007,11 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 ### Changed
 
 - **自动选人优先级升级**：从单一 peakRating 改为 5 级排序（peakRank → peakRating → currentRank → currentRating → registrationId），并优先填补队伍完全空缺的位置
-- **sortByRank 排序扩展**：支持可选 currentRank / currentRating 字段，队长面板和选手池排序自动受益
+- **sortByRank 排序扩展**：支持可选 currentRank / currentRating 字段，队长面板和选手池排序自动受益。
+
+### Fixed
+
+- 修复选手个人页信息字段在服务端渲染时的导入错误。
 
 ## [1.9.0] - 2026-05-16
 
@@ -3123,7 +3058,8 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ### Fixed
 
-- 数据排行页 `sortColumn` 使用 Drizzle 列引用解析为全表名，与 SQL 别名 `mps` 冲突导致 Postgres `42P01` 错误
+- 修复数据排行榜排序时的数据库查询错误。
+- Steam 头像读取增加超时保护和缓存更新，减少过期头像链接显示失败。
 
 ## [1.7.2] - 2026-05-16
 
@@ -3147,7 +3083,6 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 ### Changed
 
 - 注册页位置标签切换 `positionLabel()` 替代内联 `POSITION_LABELS[].en`
-- 提取 `resolveAvatarUrl()` 共享函数到 `steam.ts`，消除 Header 与选手页重复
 
 ## [1.7.0] - 2026-05-15
 
@@ -3155,7 +3090,6 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 - **选手名单页** `/[seasonSlug]/players`：展示已审核通过的报名选手，支持按位置筛选，卡片展示段位/Rating/所属队伍
 - **赛季导航**「选手」入口（按 approved 报名数 > 0 条件渲染，遵循 capability 门控）
-- **`getDisplayName()` 工具函数**：统一展示名称派生（displayName > perfectName > steamName > email），全站替代 `steamName ?? "未知选手"`
 - **display_name 系统**：users 表新增 `display_name` 字段，设置页支持修改昵称，Header 未设置时橙色提示
 - **选秀队长面板重构**：按段位+Rt 排序统一列表（替代旧的分列布局），满员位置灰显禁用，新增队长阵容摘要可折叠面板
 - **选秀观众端增强**：pick 通知 Banner 3 秒淡出动画，选手池统一排序
@@ -3170,11 +3104,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ### Changed
 
-- `positionLabel` 6 文件重复定义提取为共享函数
-- `sortByRank` 提取为泛型工具函数 `src/lib/utils/rank.ts`
-- 并行化队伍详情页 roster + matches 查询（`Promise.all`）
-- `POS_ABBR` 移入 `registration.ts` 与位置常量共处
-- layout.tsx season 查询用 `React.cache()` 去重
+- 减少队伍详情与赛季导航的重复读取。
 
 ## [1.6.1] - 2026-05-15
 
@@ -3244,7 +3174,6 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - 玩家主页数据增强：新增 MVP 票数、RWS、HS%、首杀、多杀、残局等统计
 - 报名记录卡片重设计为紧凑两行布局，补 `peakWe`
 - 新增 `perfectName` 显示
-- 提取 `wAvg`/`sAvg` 工具函数并添加单元测试（8 case）
 - 玩家主页报名/个人数据查询并行化（`Promise.all`）
 
 ## [1.4.0] - 2026-05-14
@@ -3252,7 +3181,6 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 ### Added
 
 - 管理后台操作日志浏览页面：新增 `AuditLogTable` 与 `/admin/logs`，支持查看审计事件、操作者、目标与元数据。
-- Server Actions 单元测试基础设施：新增 session mock、fixture、audit helper，并覆盖 auth、admin、captains、register、seasons、teams 等核心 actions。
 
 ### Changed
 
@@ -3270,10 +3198,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 ### Changed
 
-- README、CLAUDE.md、AGENTS.md 版本号同步至 1.3.2
-- CI workflow：`pnpm tsc --noEmit` → `pnpm type-check`（包含 Next route typegen）
-- Cron workflow：curl 加 `-fsS` flag，接口返回非 200 时 step 失败
-- CLAUDE.md 版本号规范：明确 `npm version` 同步生成 tag，移除"合并后打 tag"表述
+- 同步项目版本与文档，并调整 CI 类型检查和定时任务的失败判定。
 
 ## [1.3.1] - 2026-05-14
 
@@ -3289,7 +3214,6 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - 管理后台报名草稿查看：`DraftRegistrationTable` 展示邮箱、Steam 昵称、位置、段位、最后保存时间
 - 修改密码功能：`changeUserPassword` Server Action（验证原密码 + Supabase Admin API 更新）+ `/settings/password` 页面
 - `revokeUserAdminRole` Server Action：super_admin 可撤销其他管理员权限（写 audit_log）
-- 共享常量配置：`src/lib/config/upload-limits.ts` / `auth-config.ts`
 
 ### Changed
 
@@ -3317,7 +3241,6 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - 报名强制登录：未登录访问 `/register` → redirect `/login`，两条注册路径统一
 - 密码字段从报名表单移除，统一走 `/login` 认证
 - 报名截图链接改为选填
-- 分支策略简化：删除 v2/v3 版本分支，dev 重置到 main
 
 ### Removed
 
@@ -3348,7 +3271,6 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 
 - 动态 PhaseTracker：从 `stagePlan` 读取阶段进度，自动高亮当前阶段
 - 报名草稿自动恢复（`registration_drafts` 表 + localStorage 兜底）
-- 错误参考文档（`docs/error-reference.md`）
 
 ### Fixed
 
