@@ -98,7 +98,13 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
       if (url.pathname === "/admin/db-traffic") {
         const hours = url.searchParams.get("hours") ?? "72";
         if (hours !== "24" && hours !== "72") return response(400);
-        return response(200, undefined, await readDbTraffic(env, now, Number(hours) as 24 | 72));
+        const hour = url.searchParams.get("hour");
+        const release = url.searchParams.get("release");
+        const deployment = url.searchParams.get("deployment");
+        const hasSelection = hour !== null || release !== null || deployment !== null;
+        if (hasSelection && (!hour || !/^\d+$/.test(hour) || !Number.isSafeInteger(Number(hour)) || Number(hour) % 3600000 !== 0 || !release || !deployment || !/^[A-Za-z0-9._-]{1,80}$/.test(release) || !/^[A-Za-z0-9._-]{1,80}$/.test(deployment))) return response(400);
+        const selection = hasSelection ? { hour: Number(hour), release: release!, deployment: deployment! } : undefined;
+        return response(200, undefined, await readDbTraffic(env, now, Number(hours) as 24 | 72, selection));
       }
       if (url.pathname === "/admin/history") {
         const query = parseHistoryQuery(Object.fromEntries(url.searchParams));

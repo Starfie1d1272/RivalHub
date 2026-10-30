@@ -57,6 +57,15 @@ async function cleanup(database: DB, manifest: CleanupManifest) {
     const users = await database.select({ id: schema.users.id, email: schema.users.email }).from(schema.users).where(inArray(schema.users.id, p.localUserIds));
     if (users.some(user => user.email !== `${user.id}@local.test`)) fail("FIXTURE_USER_MISMATCH");
     await database.transaction(async tx => {
+      // Only the marked history in this owned fixture season is removed.
+      const history = await tx.select({ id: schema.matches.id }).from(schema.matches).where(and(eq(schema.matches.seasonId, f.seasonId), eq(schema.matches.stage, "mizar-stats-fixture")));
+      const historyIds = history.map(row => row.id);
+      if (historyIds.length) {
+        await tx.delete(schema.matchPlayerStats).where(inArray(schema.matchPlayerStats.matchId, historyIds));
+        await tx.delete(schema.matchRosters).where(inArray(schema.matchRosters.matchId, historyIds));
+        await tx.delete(schema.matchMaps).where(inArray(schema.matchMaps.matchId, historyIds));
+        await tx.delete(schema.matches).where(inArray(schema.matches.id, historyIds));
+      }
       // Only tagged, synthetic local fixture facts; same teardown boundary as existing fixtures.
       await tx.execute(sql`SET LOCAL session_replication_role = replica`);
       const sources = await tx.select({ id: schema.matchLiveSessions.id }).from(schema.matchLiveSessions).where(eq(schema.matchLiveSessions.matchId, f.matchId));
@@ -101,7 +110,7 @@ async function main() {
       databaseFingerprint: fingerprint, differentMatches: true,
       credentialLifetime: "Use only within this 15-minute fixture window and always cleanup in finally. Existing installation credentials have no server TTL; cleanup removes their local authority.", producers: [] };
     save(manifest, true);
-    const { seedFixture } = await import("../../tests/integration/db/harness/mizar");
+    const { seedFixture, seedMizarStatsHistory } = await import("../../tests/integration/db/harness/mizar");
     const { hashCredential } = await import("../../src/lib/mizar/installation");
     const { parseLiveSnapshotV1, parseReliableEventV1, RELIABLE_EVENT_SCHEMA_VERSION } = await import("../../src/lib/mizar/protocol");
     const created: CleanupManifest["producers"] = [];
@@ -115,6 +124,7 @@ async function main() {
         // cleanup synchronously before any fallible parse, query, update or file I/O.
         created.push({ label: `producer-${index + 1}`, fixture: f, localUserIds: f.fixtureUserIds });
         inject(index, "seed");
+        await seedMizarStatsHistory(f);
         f.producerInstanceId = `http-resource-${manifest.fixtureId}-${index + 1}`;
         f.liveSessionId = randomUUID();
         const credential = `rh_mizar_${f.installationId}_${randomBytes(32).toString("hex")}`;

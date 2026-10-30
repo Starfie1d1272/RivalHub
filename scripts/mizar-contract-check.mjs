@@ -66,6 +66,15 @@ for (const [name, validate, convert, parse] of [
   process.stdout.write(`${name}: Mizar adapter and owned parser passed\n`);
 }
 
+// Parse legacy and additive stats fixtures with the consumer-owned schema at the recorded SHA.
+const statsPath = resolve(mizarRoot, "packages/protocol/dist/broadcast-stats.js");
+if (!existsSync(statsPath)) throw new Error(`Cannot find Mizar broadcast stats parser in ${mizarRoot}`);
+const { broadcastStatsSchema } = await import(pathToFileURL(statsPath).href);
+for (const name of ["rivalhub-provider-stats-v1.json", "rivalhub-provider-stats-v1-sparse.json", "rivalhub-provider-stats-v1-extended.json", "rivalhub-provider-stats-v1-single-sided.json", "rivalhub-provider-stats-v1-zero.json", "rivalhub-provider-stats-v1-scoreboard-only.json"]) {
+  broadcastStatsSchema.parse(await fixture(name));
+  process.stdout.write(`${name}: Mizar broadcast stats parser passed\n`);
+}
+
 // Provider edge matrix: the DTO must stay valid across null branding, absent start time,
 // every owned status/format, and must never smuggle persistence or review facts.
 const manifestBase = await fixture("rivalhub-provider-manifest-v1.json");

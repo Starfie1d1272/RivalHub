@@ -13,7 +13,7 @@ it("measures UTF-8 rows, arrays, multiple results and empty results without chan
   const client = { query, release: vi.fn() } as unknown as PoolClient;
   const release = measureClient(client, createClientMeasurements());
   expect(await client.query("select 1")).toBe(values);
-  expect(observation.record).toHaveBeenCalledWith("unknown", "q0000000000000000", 0, expect.any(Number), false, Buffer.byteLength('{"text":"中"}') + Buffer.byteLength('["é",3]'));
+  expect(observation.record).toHaveBeenCalledWith("unknown", "q0000000000000000", 0, expect.any(Number), false, Buffer.byteLength('{"text":"中"}') + Buffer.byteLength('["é",3]'), undefined);
   query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
   await client.query("commit");
   expect(observation.record.mock.calls.at(-1)?.[5]).toBe(0);
@@ -29,6 +29,7 @@ it("preserves callback, failure, disabled, and serialization-gap semantics", asy
   expect(client.query("insert returning id", callback)).toBe("callback return");
   expect(callback).toHaveBeenCalledWith(null, row);
   expect(observation.record.mock.calls[0][5]).toBeUndefined();
+  expect(observation.record.mock.calls[0][6]).toBe("unsupported_value");
   observation.enabled = false;
   const toJSON = vi.fn(() => { throw Error("must not serialize"); });
   query.mockReturnValueOnce(Promise.resolve({ rows: [{ toJSON }] }));
@@ -39,5 +40,6 @@ it("preserves callback, failure, disabled, and serialization-gap semantics", asy
   query.mockReturnValueOnce(Promise.reject(error));
   await expect(client.query("select 1")).rejects.toBe(error);
   expect(observation.record.mock.calls.at(-1)?.[5]).toBeUndefined();
+  expect(observation.record.mock.calls.at(-1)?.[6]).toBe("error");
   release();
 });

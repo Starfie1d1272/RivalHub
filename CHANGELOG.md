@@ -1,5 +1,21 @@
 # Changelog
 
+All notable changes to RivalHub are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [2.25.0]
+
+### Added
+
+- Mizar 可获取赛事播出统计，包含地图池、系列赛、队伍、首发选手表现及比赛积分支持。
+- 首页页脚新增 ICP 备案号及工信部查询链接。
+
+### Changed
+
+- 管理页按小时和版本展示数据库下行协议字节来源及覆盖缺口；生产数据仍待验证。
+
 ## [2.24.16]
 
 ### Changed
@@ -141,6 +157,8 @@
 - 调整记分板 OCR 的采样参数并收紧异常生成预算，强化紧凑表格输出指令；识别结果达到长度上限时明确提示未完整生成，保留安全诊断以区分截断、空白输出与玩家行格式错误。
 
 ## [2.24.2]
+
+此版本未创建 tag；比较链接指向当时的版本提交。
 
 ### Fixed
 
@@ -2201,11 +2219,6 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - prevent winner-changing score corrections until safe downstream recovery exists
 - prevent team rename after bracket initialization
 
-All notable changes to RivalHub are documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 ## [1.30.1] - 2026-06-09
 
 ### Fixed
@@ -2363,6 +2376,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **选手列表双行**：PlayerStatsTable 补充 `source` 过滤
 - **Kill Feed 布局**：改为卡片+限高滚动
 - **toolkit 图标误用**：移除 🔧 emoji
+
+## [1.27.4] - 2026-05-30
 
 ### Fixed
 
@@ -3457,6 +3472,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.25.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.16...v2.25.0
+[2.24.16]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.15...v2.24.16
+[2.24.15]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.14...v2.24.15
+[2.24.14]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.13...v2.24.14
+[2.24.13]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.12...v2.24.13
+[2.24.12]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.11...v2.24.12
+[2.24.11]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.10...v2.24.11
+[2.24.10]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.9...v2.24.10
+[2.24.9]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.8...v2.24.9
+[2.24.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.7...v2.24.8
+[2.24.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.6...v2.24.7
+[2.24.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.5...v2.24.6
+[2.24.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.4...v2.24.5
+[2.24.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.3...v2.24.4
+[2.24.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.1...v2.24.3
+[2.24.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.1...4f4b7c6357579d5141fc2d777a8bc6794cf62def
+[2.24.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.2...v2.24.1
+[2.23.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.1...v2.23.2
+[2.23.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.0...v2.23.1
+[2.23.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.22.1...v2.23.0
+[2.22.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.22.0...v2.22.1
+[2.22.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.13...v2.22.0
+[2.21.13]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.11...v2.21.13
+[2.21.11]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.10...v2.21.11
+[2.21.10]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.9...v2.21.10
+[2.21.9]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.8...v2.21.9
+[2.21.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.7...v2.21.8
+[2.21.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.6...v2.21.7
+[2.21.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.5...v2.21.6
+[2.21.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.4...v2.21.5
 [2.21.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.3...v2.21.4
 [2.21.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.2...v2.21.3
 [2.21.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.1...v2.21.2
@@ -3559,6 +3604,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.0.0-rc.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.0.0-rc.1...v2.0.0-rc.2
 [2.0.0-rc.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.0.0-rc.0...v2.0.0-rc.1
 [2.0.0-rc.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.30.1...v2.0.0-rc.0
+[1.30.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.30.0...v1.30.1
 [1.30.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.29.0...v1.30.0
 [1.29.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.2...v1.29.0
 [1.28.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.1...v1.28.2
@@ -3644,59 +3690,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.1.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.0...v1.0.2
 [1.0.0]: https://github.com/Starfie1d1272/RivalHub/compare/v0.3.0...v1.0.0
-
-[2.21.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.4...v2.21.5
-
-[2.21.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.6...v2.21.7
-[2.21.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.5...v2.21.6
-
-[2.21.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.7...v2.21.8
-
-[2.21.9]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.8...v2.21.9
-
-[2.21.10]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.9...v2.21.10
-
-[2.21.11]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.10...v2.21.11
-
-[2.21.13]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.11...v2.21.13
-
-[2.22.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.21.13...v2.22.0
-
-[2.22.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.22.0...v2.22.1
-
-[2.23.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.22.1...v2.23.0
-
-[2.23.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.1...v2.23.2
-[2.23.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.0...v2.23.1
-
-[2.24.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.23.2...v2.24.1
-
-[2.24.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.1...v2.24.2
-
-[2.24.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.1...v2.24.3
-
-[2.24.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.3...v2.24.4
-
-[2.24.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.4...v2.24.5
-
-[2.24.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.5...v2.24.6
-
-[2.24.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.6...v2.24.7
-
-[2.24.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.7...v2.24.8
-
-[2.24.9]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.8...v2.24.9
-
-[2.24.10]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.9...v2.24.10
-
-[2.24.11]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.10...v2.24.11
-
-[2.24.12]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.11...v2.24.12
-
-[2.24.13]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.12...v2.24.13
-
-[2.24.14]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.13...v2.24.14
-
-[2.24.15]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.14...v2.24.15
-
-[2.24.16]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.15...v2.24.16

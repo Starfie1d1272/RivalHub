@@ -113,6 +113,21 @@ pnpm exec tsx scripts/db/run-server-cli.ts scripts/db/mizar-http-resource-fixtur
 pnpm exec tsx scripts/db/run-server-cli.ts scripts/db/mizar-http-resource-fixture.ts cleanup .agent-tmp/mizar-http-resource.json
 ```
 
+播出统计联通可用同一 fixture：每场附带两张已完成的合成历史地图和已审核记分板，首发中最高 Rating 为 1.5、缺 ADR 且有两图，另一名为 1.25、ADR 80 且有一图；没有 Demo 明细，不代表手枪、经济、道具或七维已有样本。以下命令从本地 Supabase 状态取得 loopback 连接，不打印连接或 manifest 中的凭据；将 `create` 改为 `cleanup` 可清理：
+
+```bash
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm db:local:bootstrap
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm dev:local # 在独立终端运行
+node --input-type=module - <<'JS'
+import { execFileSync } from "node:child_process";
+const status = JSON.parse(execFileSync("node_modules/.bin/supabase", ["status", "--output", "json"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+const env = { ...process.env, DATABASE_URL: status.DB_URL, RIVALHUB_LOCAL_DATABASE_URL: status.DB_URL, RIVALHUB_DB_TARGET: "local" };
+execFileSync("node_modules/.bin/tsx", ["scripts/db/run-server-cli.ts", "scripts/db/mizar-http-resource-fixture.ts", "create", ".agent-tmp/mizar-http-resource.json"], { env, stdio: "inherit" });
+JS
+```
+
+调用方从私有 manifest 的 `producers[]` 读取 `fixture.matchId` 和 `credential`，向 loopback `GET /api/mizar/stats?matchId=...` 发送 Bearer；不要打印凭据。此 fixture 只用于隔离环境，完成后关闭调用并执行 cleanup。
+
 HTTP driver 在内存读取 `producers[]`：`fixture.matchId`、`fixture.authorityRevision`、`credential`、`liveTemplate`、`reliableEnvelope`。只对 loopback SUT POST `/api/mizar/live` / `/api/mizar/reliable`，构造 Bearer 与 x-rivalhub-authority，不打印 manifest 或请求 headers。每份新 LIVE 更新 producedAt 并递增 cursor.runtimeSeq；可靠 envelope 预留 sequence=1,000,000，须在 LIVE 阶段停止后发送，之后低于该 floor 的 LIVE 不能继续发送。遇未知提交先只读 verify，不能重放旧 LIVE 或重新生成同一 idempotency key 的 envelope。
 
 15 分钟是 fixture 使用 deadline，并非现有 credential 的服务器 TTL；不改变线上 auth。driver 必须 finally 停止发送并 cleanup，删除 tagged local authority、合成事实和 manifest。verify 使用 repeatable-read/read-only transaction，`--require-receipts` 要求两个唯一 canonicalized receipt 及合成比分；没有 receipt 时不代发、不补写。cleanup 不接受无 fixture namespace、错误数据库或不匹配的本地用户集合。
