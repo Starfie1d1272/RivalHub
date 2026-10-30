@@ -6,6 +6,40 @@ export const BROADCAST_STATUS_LABEL: Record<BroadcastStatus, string> = { live: "
 const responseSchema = z.object({ code: z.literal(0), data: z.object({ live_status: z.number().int() }) });
 const STATUS_MAX_AGE_MS = 60_000;
 
+function roomId(url: URL): string | null {
+  if (url.protocol !== "https:" || url.hostname !== "live.bilibili.com" || url.port || url.username || url.password) return null;
+  return /^\/(\d+)\/?$/.exec(url.pathname)?.[1] ?? null;
+}
+
+function shortLink(url: URL): boolean {
+  return url.protocol === "https:" && url.hostname === "b23.tv" && !url.port && !url.username && !url.password && /^\/[a-zA-Z0-9]{1,32}\/?$/.test(url.pathname);
+}
+
+/** Cache only the public short code; never forward query strings, cookies or credentials. */
+async function resolveShortLink(code: string): Promise<string | null> {
+  "use cache: remote";
+  cacheLife({ stale: 0, revalidate: 300, expire: 301 });
+  let url = new URL(`https://b23.tv/${code}`);
+  const signal = AbortSignal.timeout(2500);
+  try {
+    for (let i = 0; i < 3; i++) {
+      const response = await fetch(url, { redirect: "manual", cache: "no-store", signal, credentials: "omit" });
+      // Redirect bodies are not needed; do not buffer an unbounded provider response.
+      if (response.body) void response.body.cancel().catch(() => {});
+      if (![301, 302, 303, 307, 308].includes(response.status)) return null;
+      const location = response.headers.get("location");
+      if (!location || location.length > 2048) return null;
+      const next = new URL(location, url);
+      const room = roomId(next);
+      if (room) return room;
+      if (!shortLink(next)) return null;
+      // Strip any tracking or sensitive parameters before the next request.
+      url = new URL(`https://b23.tv${next.pathname}`);
+    }
+  } catch { /* Invalid, timed-out and unavailable links remain external links. */ }
+  return null;
+}
+
 /** Shared by public and admin reads; the timestamp detects stale-while-revalidate results. */
 async function readCachedRoomStatus(room: string): Promise<{ status: BroadcastStatus; checkedAt: number }> {
   "use cache: remote";
@@ -25,13 +59,19 @@ export function freshBroadcastStatus(result: { status: BroadcastStatus; checkedA
   return now >= result.checkedAt && now - result.checkedAt < STATUS_MAX_AGE_MS ? result.status : "unknown";
 }
 
-export async function readBilibiliStatus(liveStreamUrl: string | null): Promise<BroadcastStatus> {
-  if (!liveStreamUrl) return "unknown";
-  let room: string;
+export async function readBilibiliRoom(liveStreamUrl: string | null): Promise<{ roomId: string | null; status: BroadcastStatus }> {
+  const unknown = { roomId: null, status: "unknown" as const };
+  if (!liveStreamUrl) return unknown;
+  let room: string | null;
   try {
     const url = new URL(liveStreamUrl);
-    if (url.protocol !== "https:" || url.hostname !== "live.bilibili.com" || !/^\/\d+\/?$/.test(url.pathname)) return "unknown";
-    room = url.pathname.replaceAll("/", "");
-  } catch { return "unknown"; }
-  return freshBroadcastStatus(await readCachedRoomStatus(room), Date.now());
+    room = roomId(url);
+    if (!room && shortLink(url)) room = await resolveShortLink(url.pathname.replaceAll("/", ""));
+  } catch { return unknown; }
+  if (!room) return unknown;
+  return { roomId: room, status: freshBroadcastStatus(await readCachedRoomStatus(room), Date.now()) };
+}
+
+export async function readBilibiliStatus(liveStreamUrl: string | null): Promise<BroadcastStatus> {
+  return (await readBilibiliRoom(liveStreamUrl)).status;
 }

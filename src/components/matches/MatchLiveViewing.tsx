@@ -12,25 +12,12 @@ type Commentator = {
   userId: string;
   playerUserId?: string | null;
   liveStreamUrl: string | null;
+  bilibiliRoomId: string | null;
   displayName: string | null;
   perfectName: string | null;
   personaName: string | null;
   broadcastStatus: "live" | "offline" | "unknown";
 };
-
-export function parseBilibiliLiveRoomId(url: string | null): string | null {
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname !== "live.bilibili.com" && parsed.hostname !== "www.live.bilibili.com") {
-      return null;
-    }
-    const match = /^\/(\d+)\/?$/.exec(parsed.pathname);
-    return match ? match[1] : null;
-  } catch {
-    return null;
-  }
-}
 
 /** The documented Bilibili activity player is the only iframe endpoint we embed. */
 export function getBilibiliEmbedUrl(roomId: string): string {
@@ -58,14 +45,14 @@ export function MatchLiveViewing({
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [loadedRooms, setLoadedRooms] = useState<Record<string, boolean>>({});
 
-  const liveResources = resources.filter((c) => c.broadcastStatus === "live" && parseBilibiliLiveRoomId(c.liveStreamUrl));
+  const liveResources = resources.filter((c) => c.broadcastStatus === "live" && c.bilibiliRoomId);
   const activeCommentator = liveResources.find((c) => c.userId === selectedUserId) ?? liveResources[0];
   const activeUserId = activeCommentator?.userId ?? null;
   if (selectedUserId !== activeUserId) setSelectedUserId(activeUserId);
 
   if (!resources.length) return showEmpty ? <section aria-label="直播观看" className="border-y border-[var(--color-border)] py-4"><h2 className="text-sm font-semibold">直播观看</h2><p className="mt-1 text-sm text-[var(--color-fg-dim)]">暂无直播</p></section> : null;
 
-  const bilibiliRoomId = activeCommentator ? parseBilibiliLiveRoomId(activeCommentator.liveStreamUrl) : null;
+  const bilibiliRoomId = activeCommentator?.bilibiliRoomId ?? null;
   const isLoaded = Boolean(bilibiliRoomId && loadedRooms[bilibiliRoomId]);
   const isProminent = Boolean(bilibiliRoomId);
 
