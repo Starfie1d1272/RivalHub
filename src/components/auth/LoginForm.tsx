@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { loginWithPassword as telemetry_loginWithPassword, resendSignupConfirmation as telemetry_resendSignupConfirmation, signUp as telemetry_signUp } from "@/actions/auth";
 import { TurnstileWidget, type TurnstileFailure } from "@/components/auth/TurnstileWidget";
 import { EMAIL_RESEND_COOLDOWN_SECONDS, isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
-import { isDeploymentUpdateRequired, preserveLoginUpdateEmail, takeLoginUpdateEmail } from "@/lib/auth/login-update-draft";
+import { preserveLoginUpdateEmail, takeLoginUpdateEmail } from "@/lib/auth/login-update-draft";
+import { reportDeploymentUpdate, useDeploymentUpdate } from "@/lib/deployment-update";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { clearPreviousLiveViews } from "@/lib/mizar/live-viewer-cache-reset";
 import { TaskBoundary } from "@/components/telemetry/TaskBoundary";
@@ -26,7 +27,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
   const [confirmPassword, setConfirmPassword] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string>("");
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
-  const [needsUpdate, setNeedsUpdate] = useState(false);
+  const needsUpdate = useDeploymentUpdate();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [awaitingEmail, setAwaitingEmail] = useState<string | null>(null);
   const [resendAvailableAt, setResendAvailableAt] = useState<number | null>(null);
@@ -42,15 +43,17 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
     if (restored) setEmail(current => current || restored);
   }, []);
 
-  const requirePageUpdate = useCallback((error: unknown) => {
-    if (!isDeploymentUpdateRequired(error)) return false;
-    setNeedsUpdate(true);
+  useEffect(() => {
+    if (!needsUpdate) return;
+    // Clear credentials when the shared signal arrives, including from the header.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPassword("");
     setConfirmPassword("");
     setTurnstileToken("");
     setTurnstileResetKey(key => key + 1);
-    return true;
-  }, []);
+  }, [needsUpdate]);
+
+  const requirePageUpdate = useCallback((error: unknown) => reportDeploymentUpdate(error), []);
 
   const handleTurnstileError = (failure: TurnstileFailure) => {
     setTurnstileToken("");

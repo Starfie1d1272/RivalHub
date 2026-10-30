@@ -1,14 +1,16 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { UnrecognizedActionError } from "next/dist/client/components/unrecognized-action-error";
-import { LoginForm } from "@/components/auth/LoginForm";
+import type { LoginForm as LoginFormType } from "@/components/auth/LoginForm";
+let LoginForm: typeof LoginFormType;
 import { resetTelemetryIdentity } from "@/lib/telemetry/client";
 
 const actions = vi.hoisted(() => ({ login: vi.fn(), register: vi.fn(), resend: vi.fn(), error: vi.fn() }));
 vi.mock("@/actions/auth", () => ({ loginWithPassword: actions.login, signUp: actions.register, resendSignupConfirmation: actions.resend }));
 vi.mock("sonner", () => ({ toast: { error: actions.error } }));
 vi.mock("@/components/auth/TurnstileWidget", () => ({ TurnstileWidget: ({ onVerify }: { onVerify: (token: string) => void }) => <button type="button" onClick={() => onVerify("fixture-provider-token")}>合成验证</button> }));
+beforeEach(async () => { vi.resetModules(); ({ LoginForm } = await import("@/components/auth/LoginForm")); });
 afterEach(() => { cleanup(); resetTelemetryIdentity(); vi.unstubAllGlobals(); sessionStorage.clear(); vi.restoreAllMocks(); vi.clearAllMocks(); });
 
 it("requires an explicit update, preserves only email and never replays the rejected login", async () => {
@@ -91,4 +93,16 @@ it("keeps the page and email usable when explicit update cannot preserve the ema
   expect(screen.getByLabelText("邮箱地址")).toHaveValue("local@example.test");
   expect(screen.getByLabelText("密码", { exact: true })).toHaveValue("");
   expect(actions.login).toHaveBeenCalledTimes(1);
+});
+
+it("uses email recovery when a background action detects the update", async () => {
+  const user = userEvent.setup(); render(<LoginForm />);
+  await user.type(screen.getByLabelText("邮箱地址"), "local@example.test");
+  await user.type(screen.getByLabelText("密码", { exact: true }), "PrivatePassword123!");
+  const { reportDeploymentUpdate } = await import("@/lib/deployment-update");
+  act(() => { reportDeploymentUpdate(new UnrecognizedActionError("fixture")); });
+  expect(screen.getByLabelText("密码", { exact: true })).toHaveValue("");
+  expect(screen.getByLabelText("邮箱地址")).toHaveValue("local@example.test");
+  expect(screen.getByRole("button", { name: "保留邮箱并更新页面" })).toBeInTheDocument();
+  expect(actions.login).not.toHaveBeenCalled();
 });
