@@ -1,3 +1,4 @@
+import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import MatchDetailLoading from "./loading";
 import { hasMatchRecording } from "@/lib/postmatch/recording-types";
@@ -85,9 +86,10 @@ interface MatchDetailPageProps {
   searchParams: Promise<{ statsPlayer?: string; statsMap?: string; scheduling?: string }>;
 }
 
-const loadPlayerDetail = cache(getPublicMatchPlayerDetail);
+const loadPlayerDetail = cache((...args: Parameters<typeof getPublicMatchPlayerDetail>) =>
+  withDbTrafficSource("match.page", () => getPublicMatchPlayerDetail(...args)));
 
-const loadMatch = cache((matchId: string) => db.query.matches.findFirst({ where: eq(matches.id, matchId) }));
+const loadMatch = cache((matchId: string) => withDbTrafficSource("match.page", async () => await db.query.matches.findFirst({ where: eq(matches.id, matchId) })));
 
 export async function generateMetadata({ params }: MatchDetailPageProps): Promise<Metadata> {
   await io();
@@ -96,7 +98,11 @@ export async function generateMetadata({ params }: MatchDetailPageProps): Promis
   return match?.testConfig ? { robots: { index: false, follow: false } } : {};
 }
 
-async function loadMatchCore(params: MatchDetailPageProps["params"]) {
+function loadMatchCore(params: MatchDetailPageProps["params"]) {
+  return withDbTrafficSource("match.page", () => readMatchCore(params));
+}
+
+async function readMatchCore(params: MatchDetailPageProps["params"]) {
   await io();
   const { seasonSlug, matchId } = await params;
 
@@ -141,7 +147,11 @@ async function MatchDetailShell({ params, searchParams }: MatchDetailPageProps) 
   </PageLayout>;
 }
 
-async function MatchDetailContent({ core, searchParams }: { core: MatchCore; searchParams: MatchDetailPageProps["searchParams"] }) {
+function MatchDetailContent(props: { core: MatchCore; searchParams: MatchDetailPageProps["searchParams"] }) {
+  return withDbTrafficSource("match.page", () => readMatchDetailContent(props));
+}
+
+async function readMatchDetailContent({ core, searchParams }: { core: MatchCore; searchParams: MatchDetailPageProps["searchParams"] }) {
   const { seasonSlug, season, match, teamA, teamB, maps } = core;
   const statsQuery = await searchParams;
   const mapPool = match.testConfig?.mapPool ?? normalizeRegistrationConfig(season.registrationConfig).mapPool;
@@ -633,7 +643,14 @@ async function MatchDetailContent({ core, searchParams }: { core: MatchCore; sea
 
 type Scoreboard = NonNullable<Awaited<ReturnType<typeof loadMatchScoreboard>>>;
 
-async function AdvancedMatchStats({ core, scoreboard, statsQuery }: {
+function AdvancedMatchStats(props: {
+  core: MatchCore; scoreboard: Scoreboard;
+  statsQuery: Awaited<MatchDetailPageProps["searchParams"]>;
+}) {
+  return withDbTrafficSource("match.page", () => readAdvancedMatchStats(props));
+}
+
+async function readAdvancedMatchStats({ core, scoreboard, statsQuery }: {
   core: MatchCore; scoreboard: Scoreboard;
   statsQuery: Awaited<MatchDetailPageProps["searchParams"]>;
 }) {
@@ -702,7 +719,14 @@ async function AdvancedMatchStats({ core, scoreboard, statsQuery }: {
   </>;
 }
 
-async function MatchMvpPanel({ core, candidates, userId, scoreboard }: {
+function MatchMvpPanel(props: {
+  core: MatchCore; candidates: React.ComponentProps<typeof MatchMvpVote>["candidates"];
+  userId: string | null; scoreboard: Scoreboard;
+}) {
+  return withDbTrafficSource("match.page", () => readMatchMvpPanel(props));
+}
+
+async function readMatchMvpPanel({ core, candidates, userId, scoreboard }: {
   core: MatchCore; candidates: React.ComponentProps<typeof MatchMvpVote>["candidates"];
   userId: string | null; scoreboard: Scoreboard;
 }) {
