@@ -155,9 +155,10 @@ it("captures the previous hour while a prior ACK is still in flight", async () =
     await vi.waitFor(() => expect(sent).toHaveLength(1));
     recordDbTraffic("unknown", "unknown", 1, 1, false); now += 3600000;
     recordDbTraffic("unknown", "unknown", 1, 1, false); flushDbTraffic(); release();
-    await vi.waitFor(() => expect(sent).toHaveLength(2));
+    await vi.waitFor(() => expect(sent.length).toBeGreaterThanOrEqual(2));
     await vi.waitFor(() => expect((host[slot] as { sending: boolean }).sending).toBe(false));
-    flushDbTraffic(); await vi.waitFor(() => expect(sent).toHaveLength(3));
+    flushDbTraffic(); await vi.waitFor(() => expect(sent.length).toBeGreaterThanOrEqual(3));
+    await vi.waitFor(() => expect((host[slot] as { sending: boolean }).sending).toBe(false));
     expect(sent.map(item => Math.floor(item.at / 3600000))).toEqual([oldHour, oldHour, oldHour + 1]);
     await vi.waitFor(() => expect((host[slot] as { sending: boolean }).sending).toBe(false));
   } finally { release(); delete host[slot]; vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); await rm(root, { recursive: true, force: true }); }
