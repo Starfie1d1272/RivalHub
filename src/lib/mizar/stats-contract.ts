@@ -11,9 +11,12 @@ export interface BroadcastStatsBundle {
     kind: "competition";
   };
   entrants: BroadcastStatsEntrant[];
+  mapPool?: string[] | null;
+  support?: BroadcastMatchSupport | null;
 }
 
 export interface BroadcastStatsEntrant {
+  facts?: BroadcastStatsFacts | null;
   entryId: string;
   name: string;
   logoUrl: string | null;
@@ -65,3 +68,45 @@ export interface BroadcastTeamRateBlock {
 export interface BroadcastWinRate { wins: number; opportunities: number; rate: number | null }
 /** Unformatted canonical per-round/per-event rate. */
 export interface BroadcastQuantityRate { successes: number; attempts: number; rate: number | null }
+
+/** Optional extension: old v1 bundles without these fields remain valid. All
+ * rates are raw fractions or quantities; samples use their canonical denominator. */
+export interface BroadcastStatsFacts {
+  source: "competition-canonical";
+  coverage: { completedMaps: number; detailedMaps: number };
+  results: { matches: number; matchWins: number; matchLosses: number; maps: number; mapWins: number; mapLosses: number } | null;
+  maps: Array<{
+    mapName: string;
+    results: { played: number; wins: number; losses: number } | null;
+    rounds: { wins: number; rounds: number; rate: number | null; ct: BroadcastWinRate; t: BroadcastWinRate } | null;
+    selection: { picks: number; bans: number; deciders: number } | null;
+    coverage: { completedMaps: number; detailedMaps: number };
+  }>;
+  /** Completed series, newest completedAt first (null last), then matchId descending.
+   * At most 50, total counts eligible series before truncation. */
+  series: { total: number; truncated: boolean; matches: Array<{
+    matchId: string; stage: string; round: number | null; completedAt: string | null;
+    opponent: { entryId: string; name: string; logoUrl: string | null };
+    score: number; opponentScore: number;
+    maps: Array<{ mapName: string; completedAt: string | null; score: number | null; opponentScore: number | null }>;
+  }> };
+  teamRating: { rating: number; ratingSamples: number } | null;
+  rounds: { wins: number; rounds: number; rate: number | null; ct: BroadcastWinRate; t: BroadcastWinRate } | null;
+  manAdvantage: Record<"5v4" | "4v5" | "5v3" | "3v5", BroadcastWinRate> | null;
+  opening: { successRate: BroadcastQuantityRate; winAfterOpening: BroadcastQuantityRate; tradeKillsPerRound: BroadcastQuantityRate; tradedOpeningDeaths: number; firstDeaths: number; openingDeathTraded: BroadcastQuantityRate; comebackRate: BroadcastQuantityRate } | null;
+  utility: { sample: { rounds: number }; flashesThrown: number; utilityDamagePerRound: BroadcastQuantityRate; flashAssistsPerRound: BroadcastQuantityRate; utilityKillsPerRound: BroadcastQuantityRate; enemyBlindSecondsPerFlash: BroadcastQuantityRate; enemyBlindSecondsPerRound: BroadcastQuantityRate; teamBlindSecondsPerRound: BroadcastQuantityRate } | null;
+  plantConversions: BroadcastQuantityRate | null;
+  weapons: Array<{ weapon: string; kills: number; killShare: BroadcastQuantityRate; killsPerRound: BroadcastQuantityRate }> | null;
+  /** Current starters only; scoreboard and detailed samples retain independent denominators. */
+  players: Array<{
+    userId: string; maps: number; ratingMaps: number; rounds: number | null; adrRounds: number | null;
+    rating: number | null; adr: number | null; kd: number | null;
+    detailed: { sample: { rounds: number }; kast: BroadcastQuantityRate; killsPerRound: BroadcastQuantityRate; headshotRate: BroadcastQuantityRate; twoKillRounds: number; threeKillRounds: number; fourKillRounds: number; fiveKillRounds: number; openingSuccess: BroadcastQuantityRate; tradeKillsPerRound: BroadcastQuantityRate; clutch: { attempts: number; wins: number; winRate: BroadcastQuantityRate; byOpponentCount: Record<"1" | "2" | "3" | "4" | "5", BroadcastQuantityRate> } } | null;
+  }>;
+}
+
+/** Decimal strings preserve arbitrary precision; ratio is null for zero or mismatched market. */
+export interface BroadcastMatchSupport {
+  total: string;
+  sides: Array<{ entryId: string; amount: string; ratio: number | null }>;
+}
