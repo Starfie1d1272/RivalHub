@@ -76,3 +76,47 @@ it.each([[409, "identity_conflict"], [410, "expired"], [413, "rejected"]] as con
     expect(spool.snapshot().batches).toHaveLength(0); spool.close();
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+it("pauses only quarantine batches after a quarantine quota response", async () => {
+  const root = await mkdtemp(join(tmpdir(), "traffic-quality-limit-")); const now = 1_800_000_000_000;
+  const identity = { process: crypto.randomUUID(), release: "v1", deployment: "d1" };
+  try {
+    const spool = await DbTrafficSpool.open(root); const delivery = new DbTrafficDelivery(spool, identity);
+    const first = crypto.randomUUID(), second = crypto.randomUUID(), normal = crypto.randomUUID();
+    const batch = (id: string, failures: number) => ({ id, ...identity, at: now, receivedBytes: 0, rows: [{ queries: 1, failures }] });
+    for (const value of [batch(first, 2), batch(second, 2), batch(normal, 0)]) await delivery.seal(JSON.stringify(value), now);
+    const sent: string[] = [];
+    await delivery.drain(async item => { sent.push(item.id); return item.id === first ? { ok: false, status: 429, retryAfter: 300, limit: "quarantine" } : { ok: true, status: 200, retryAfter: null, limit: null }; }, () => now);
+    expect(sent).toEqual([first, normal]);
+    expect(spool.snapshot().batches.map(item => item.id)).toEqual([first, second]);
+    expect(spool.snapshot().batches.every(item => item.nextAttemptAt === now + 300000)).toBe(true);
+    const later = crypto.randomUUID(); await delivery.seal(JSON.stringify(batch(later, 2)), now);
+    expect(spool.snapshot().batches.find(item => item.id === later)?.nextAttemptAt).toBe(now + 300000);
+    expect(spool.snapshot().globalNextAttemptAt).toBe(0); spool.close();
+    const reopened = await DbTrafficSpool.open(root); const restarted = new DbTrafficDelivery(reopened, identity);
+    const nextNormal = crypto.randomUUID(); await restarted.seal(JSON.stringify(batch(nextNormal, 0)), now + 1);
+    const afterRestart: string[] = [];
+    await restarted.drain(async item => { afterRestart.push(item.id); return { ok: true, status: 200, retryAfter: null, limit: null }; }, () => now + 1);
+    expect(afterRestart).toEqual([nextNormal]);
+    expect(reopened.snapshot().quarantineNextAttemptAt).toBe(now + 300000); reopened.close();
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it("pauses only diagnostic gaps after a gap quota response", async () => {
+  const { digestDbTraffic } = await import("@/lib/observability/db-traffic-contract");
+  const root = await mkdtemp(join(tmpdir(), "traffic-gap-limit-")); const now = 1_800_000_000_000;
+  const identity = { process: crypto.randomUUID(), release: "v1", deployment: "d1" };
+  try {
+    const spool = await DbTrafficSpool.open(root); const state = spool.snapshot();
+    for (let i = 0; i < 2; i++) { const body = { id: crypto.randomUUID(), reportedAt: now, reason: "overflow" }; state.gaps.push({ id: body.id, body: JSON.stringify(body), digest: await digestDbTraffic(body), at: now, attempted: false, nextAttemptAt: now, attempts: 0 }); }
+    await spool.commit(state); const delivery = new DbTrafficDelivery(spool, identity);
+    const normal = crypto.randomUUID(); await delivery.seal(JSON.stringify({ id: normal, ...identity, at: now + 1, receivedBytes: 0 }), now + 1);
+    const sent: string[] = [];
+    await delivery.drain(async (item, gap) => { sent.push(item.id); return gap ? { ok: false, status: 429, retryAfter: 300, limit: "gap" } : { ok: true, status: 200, retryAfter: null, limit: null }; }, () => now + 1);
+    expect(sent).toEqual([state.gaps[0].id, normal]);
+    expect(spool.snapshot().gaps.every(item => item.nextAttemptAt === now + 300001)).toBe(true);
+    await delivery.rejectUnsafe(JSON.stringify({ id: crypto.randomUUID(), ...identity, at: now, receivedBytes: 1 }), now + 1);
+    expect(spool.snapshot().gaps.every(item => item.nextAttemptAt === now + 300001)).toBe(true);
+    expect(spool.snapshot().globalNextAttemptAt).toBe(0); spool.close();
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

@@ -30,3 +30,16 @@ export function isSafeDbTrafficBatch(value: unknown): boolean {
     return typeof item.source === "string" && (DB_SOURCES as readonly string[]).includes(item.source) && typeof item.template === "string" && DB_TEMPLATE_PATTERN.test(item.template) && [item.failures, item.logicalMeasuredQueries, item.logicalRowJsonBytes, item.queries, item.rows, item.rxBytes].every(integer) && numeric(item.queryMs) && keys(item.skipReasons, "budget,error,unsupported_value") && Object.values(item.skipReasons as object).every(integer);
   });
 }
+
+/** Called only after safety validation; classifies relationship defects without altering values. */
+export function dbTrafficQualityReasons(value: unknown): string[] {
+  const batch = value as { connections?: number; observedConnections?: number; receivedBytes?: number; remainingRxBytes?: number; remaining?: Record<string, number>; rows?: Array<{ queries: number; failures: number; logicalMeasuredQueries?: number; rxBytes?: number; skipReasons?: Record<string, number> }> };
+  const reasons: string[] = []; const rows = batch.rows ?? [];
+  if ((batch.observedConnections ?? 0) > (batch.connections ?? 0)) reasons.push("observed_connections");
+  if (rows.some(row => row.failures > row.queries)) reasons.push("failures");
+  if (rows.some(row => row.logicalMeasuredQueries !== undefined && row.logicalMeasuredQueries > row.queries)) reasons.push("logical_measured_queries");
+  if (rows.some(row => row.skipReasons && Object.values(row.skipReasons).reduce((sum, n) => sum + n, 0) + (row.logicalMeasuredQueries ?? 0) > row.queries)) reasons.push("skip_sum");
+  if (batch.remaining && Object.values(batch.remaining).reduce((sum, n) => sum + n, 0) !== batch.remainingRxBytes) reasons.push("remaining_sum");
+  if (batch.remaining && rows.reduce((sum, row) => sum + (row.rxBytes ?? 0), 0) + (batch.remainingRxBytes ?? 0) !== batch.receivedBytes) reasons.push("received_sum");
+  return reasons;
+}

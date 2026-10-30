@@ -1,4 +1,4 @@
-import { digestDbTraffic } from "./db-traffic-contract";
+import { dbTrafficQualityReasons, digestDbTraffic } from "./db-traffic-contract";
 import { DbTrafficSpool, type SpoolItem, type SpoolState } from "./db-traffic-spool";
 
 const HOUR = 3600000;
@@ -34,7 +34,7 @@ async function gapFor(state: SpoolState, item: SpoolItem, reason: GapReason, now
     return;
   }
   const body = { id: crypto.randomUUID(), process: batch.process, release: batch.release, deployment: batch.deployment, reportedAt: now, start: batch.at, end: batch.at, reason, certainty, batches: 1, receivedBytes: batch.receivedBytes, truncated: false, coverageUnknownSince: state.coverageUnknownSince };
-  state.gaps.push({ id: body.id, body: JSON.stringify(body), digest: await digestDbTraffic(body), at: now, attempted: false, nextAttemptAt: Math.max(now, state.globalNextAttemptAt), attempts: 0 });
+  state.gaps.push({ id: body.id, body: JSON.stringify(body), digest: await digestDbTraffic(body), at: now, attempted: false, nextAttemptAt: Math.max(now, state.globalNextAttemptAt, state.gapNextAttemptAt), attempts: 0 });
 }
 
 /** Owner must serialize calls; failed writes are surfaced and never silently downgraded. */
@@ -44,7 +44,7 @@ export class DbTrafficDelivery {
     const at = state.coverageUnknownSince;
     if (at === null || state.coverageReportedSince === at || state.gaps.length >= 32 || state.gaps.some(item => (JSON.parse(item.body) as { reason: string }).reason === "unknown_tail")) return;
     const body = { id: crypto.randomUUID(), ...this.identity, reportedAt: now, start: Math.max(at, now - 7 * 86400000 + 1), end: now, reason: "unknown_tail", certainty: "unknown", batches: 0, receivedBytes: 0, truncated: true, coverageUnknownSince: at };
-    state.gaps.push({ id: body.id, body: JSON.stringify(body), digest: await digestDbTraffic(body), at: now, attempted: false, nextAttemptAt: Math.max(now, state.globalNextAttemptAt), attempts: 0 });
+    state.gaps.push({ id: body.id, body: JSON.stringify(body), digest: await digestDbTraffic(body), at: now, attempted: false, nextAttemptAt: Math.max(now, state.globalNextAttemptAt, state.gapNextAttemptAt), attempts: 0 });
   }
   async start(now: number): Promise<void> {
     const state = this.spool.snapshot();
@@ -65,7 +65,7 @@ export class DbTrafficDelivery {
       if (coverageUnknownSince !== undefined) { await this.ensureCoverage(state, now); await this.spool.commit(state); }
       return;
     }
-    const item: SpoolItem = { id: value.id, body, digest: await digestDbTraffic(value), at: value.at, attempted: false, nextAttemptAt: Math.max(now, state.globalNextAttemptAt), attempts: 0 };
+    const item: SpoolItem = { id: value.id, body, digest: await digestDbTraffic(value), at: value.at, attempted: false, nextAttemptAt: Math.max(now, state.globalNextAttemptAt, dbTrafficQualityReasons(value).length ? state.quarantineNextAttemptAt : 0), attempts: 0 };
     while (state.batches.length >= 256 || queueBytes(state) + Buffer.byteLength(body) > MAX_BYTES) {
       const removed = state.batches.shift();
       if (!removed) throw new Error("batch exceeds spool capacity");
@@ -145,7 +145,7 @@ export class DbTrafficDelivery {
         }
         else { state.batches = state.batches.filter(entry => entry.id !== item.id); await gapFor(state, item, result.status === 409 ? "identity_conflict" : result.status === 410 ? "expired" : "rejected", now()); }
       } else {
-        const global = result.status === null || result.status === 408 || (result.status ?? 0) >= 500 || ((result.status ?? 0) >= 200 && (result.status ?? 0) < 300) || result.status === 401 || result.status === 403 || (result.status === 429 && result.limit === "daily");
+        const global = result.status === null || result.status === 408 || (result.status ?? 0) >= 500 || ((result.status ?? 0) >= 200 && (result.status ?? 0) < 300) || result.status === 401 || result.status === 403 || (result.status === 429 && result.limit !== "gap" && result.limit !== "quarantine");
         if (global) state.globalFailures++;
         const backoff = result.retryAfter !== null ? result.retryAfter * 1000 : delay(global ? state.globalFailures : item.attempts);
         item.nextAttemptAt = Math.ceil(now() + backoff);
@@ -153,7 +153,11 @@ export class DbTrafficDelivery {
           state.globalNextAttemptAt = item.nextAttemptAt;
           for (const other of [...state.batches, ...state.gaps]) other.nextAttemptAt = Math.max(other.nextAttemptAt, item.nextAttemptAt);
         } else if (result.status === 429 && result.limit === "gap") {
+          state.gapNextAttemptAt = item.nextAttemptAt;
           for (const other of state.gaps) other.nextAttemptAt = Math.max(other.nextAttemptAt, item.nextAttemptAt);
+        } else if (result.status === 429 && result.limit === "quarantine") {
+          state.quarantineNextAttemptAt = item.nextAttemptAt;
+          for (const other of state.batches) if (dbTrafficQualityReasons(JSON.parse(other.body)).length) other.nextAttemptAt = Math.max(other.nextAttemptAt, item.nextAttemptAt);
         }
       }
       await this.ensureCoverage(state, now());

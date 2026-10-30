@@ -184,6 +184,7 @@ export async function maintain(env: Env, now = Date.now()) {
     env.DB.prepare("DELETE FROM db_offline_runs WHERE (consumer,run) IN (SELECT consumer,run FROM db_offline_runs WHERE expires<=? ORDER BY expires LIMIT 500)").bind(now),
     env.DB.prepare("DELETE FROM db_traffic_batches WHERE id IN (SELECT id FROM db_traffic_batches WHERE expires<=? ORDER BY expires LIMIT 500)").bind(now),
     env.DB.prepare("DELETE FROM db_traffic_usage WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
+    env.DB.prepare("DELETE FROM db_traffic_class_usage WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
     env.DB.prepare("DELETE FROM rollups WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
     env.DB.prepare("DELETE FROM usage WHERE day<?").bind(new Date(now - 8 * DAY).toISOString().slice(0, 10)),
     env.DB.prepare("DELETE FROM summaries WHERE expires<=?").bind(now),

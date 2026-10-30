@@ -1,7 +1,7 @@
 import type { Env } from "./index";
 import { maintainDbTraffic, maintainDbTrafficQuality, readDbTrafficHours, type TrafficSelection } from "./db-traffic-rollup";
 
-import { DB_SOURCES, DB_TEMPLATE_PATTERN, digestDbTraffic } from "../../src/lib/observability/db-traffic-contract";
+import { DB_SOURCES, DB_TEMPLATE_PATTERN, dbTrafficQualityReasons, digestDbTraffic } from "../../src/lib/observability/db-traffic-contract";
 const sources = new Set<string>(DB_SOURCES);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DAY = 86400000;
@@ -18,6 +18,11 @@ function reject(reason: RejectReason, now: number, status = 400, invalidRows = 0
     }
   } catch { /* Diagnostics must not change the rejection. */ }
   return new Response(null, { status });
+}
+async function quotaResponse(env: Env, day: string, now: number, category?: "quarantine" | "gap"): Promise<Response> {
+  const usage = await env.DB.prepare("SELECT (SELECT batches FROM db_traffic_usage WHERE day=?) AS total, (SELECT batches FROM db_traffic_class_usage WHERE day=? AND class=?) AS class_count").bind(day, day, category ?? "").first<{ total: number | null; class_count: number | null }>();
+  const limited = (usage?.total ?? 0) >= 5000 ? "daily" : category && (usage?.class_count ?? 0) >= (category === "quarantine" ? 400 : 100) ? category : "daily";
+  return new Response(null, { status: 429, headers: { "retry-after": String(Math.ceil((Date.parse(day + "T00:00:00Z") + DAY - now) / 1000)), "x-db-traffic-limit": limited } });
 }
 export async function ingestDbTraffic(request: Request, env: Env, now: number): Promise<Response> {
   if ((env.DB_TRAFFIC_KEY?.length ?? 0) < 32 || request.headers.get("authorization") !== `Bearer ${env.DB_TRAFFIC_KEY}`) return new Response(null, { status: 401 });
@@ -67,13 +72,7 @@ export async function ingestDbTraffic(request: Request, env: Env, now: number): 
   if (newBatch) {
     if (!keys(batch.remaining, "async,instrumentation,no_owner,partial,unsupported") || !Object.values(batch.remaining!).every(integer) || !integer(batch.remainingRxBytes)) return reject("remaining_fields", now);
   }
-  const reasons: string[] = [];
-  if (batch.observedConnections > batch.connections) reasons.push("observed_connections");
-  if (batch.rows.some(row => row.failures > row.queries)) reasons.push("failures");
-  if (batch.rows.some(row => row.logicalMeasuredQueries !== undefined && row.logicalMeasuredQueries > row.queries)) reasons.push("logical_measured_queries");
-  if (batch.rows.some(row => row.skipReasons && Object.values(row.skipReasons).reduce((sum, n) => sum + n, 0) + row.logicalMeasuredQueries! > row.queries)) reasons.push("skip_sum");
-  if (newBatch && Object.values(batch.remaining!).reduce((sum, n) => sum + n, 0) !== batch.remainingRxBytes) reasons.push("remaining_sum");
-  if (newBatch && batch.rows.reduce((sum, row) => sum + row.rxBytes!, 0) + batch.remainingRxBytes! !== batch.receivedBytes) reasons.push("received_sum");
+  const reasons = dbTrafficQualityReasons(batch);
   // Canonicalize only after strict validation. Missing legacy fields stay missing.
   const digest = await digestDbTraffic(batch);
   const ack = (status: string) => request.headers.get("x-db-traffic-protocol") === "2"
@@ -95,12 +94,14 @@ export async function ingestDbTraffic(request: Request, env: Env, now: number): 
   const payload = JSON.stringify(newBatch ? { rows: batch.rows, remainingRxBytes: batch.remainingRxBytes, remaining: batch.remaining, ...(lossProvided ? { droppedReceivedBytes: batch.droppedReceivedBytes, unconfirmedReceivedBytes: batch.unconfirmedReceivedBytes, unconfirmedBatches: batch.unconfirmedBatches } : {}) } : batch.rows);
   await env.DB.batch([
     env.DB.prepare("INSERT OR IGNORE INTO db_traffic_usage(day,batches) VALUES(?,0)").bind(day),
-    env.DB.prepare("INSERT OR IGNORE INTO db_traffic_receipts(id,digest,status,at,release,deployment,payload,reasons,expires) SELECT ?,?,?,?,?,?,?,?,? WHERE (SELECT batches FROM db_traffic_usage WHERE day=?)<5000 AND NOT EXISTS (SELECT 1 FROM db_traffic_batches WHERE id=?)").bind(batch.id,digest,status,batch.at,batch.release,batch.deployment,reasons.length ? JSON.stringify(batch) : null,reasons.length ? JSON.stringify(reasons) : null,batch.at + 7 * DAY,day,batch.id),
+    ...(reasons.length ? [env.DB.prepare("INSERT OR IGNORE INTO db_traffic_class_usage(day,class,batches) VALUES(?,'quarantine',0)").bind(day)] : []),
+    env.DB.prepare("INSERT OR IGNORE INTO db_traffic_receipts(id,digest,status,at,release,deployment,payload,reasons,expires) SELECT ?,?,?,?,?,?,?,?,? WHERE (SELECT batches FROM db_traffic_usage WHERE day=?)<5000 AND (?=0 OR (SELECT batches FROM db_traffic_class_usage WHERE day=? AND class='quarantine')<400) AND NOT EXISTS (SELECT 1 FROM db_traffic_batches WHERE id=?)").bind(batch.id,digest,status,batch.at,batch.release,batch.deployment,reasons.length ? JSON.stringify(batch) : null,reasons.length ? JSON.stringify(reasons) : null,batch.at + 7 * DAY,day,reasons.length,day,batch.id),
     env.DB.prepare("UPDATE db_traffic_usage SET batches=batches+1 WHERE day=? AND changes()=1").bind(day),
+    ...(reasons.length ? [env.DB.prepare("UPDATE db_traffic_class_usage SET batches=batches+1 WHERE day=? AND class='quarantine' AND changes()=1").bind(day)] : []),
     env.DB.prepare("INSERT OR IGNORE INTO db_traffic_batches(id,at,process,release,deployment,payload,expires,dropped,received_bytes,connections,observed_connections) SELECT ?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM db_traffic_receipts WHERE id=? AND digest=? AND status='accepted')").bind(batch.id,batch.at,batch.process,batch.release,batch.deployment,payload,batch.at + 7 * DAY,batch.dropped,batch.receivedBytes,batch.connections,batch.observedConnections,batch.id,digest),
   ]);
   const stored = await env.DB.prepare("SELECT digest,status FROM db_traffic_receipts WHERE id=?").bind(batch.id).first<{ digest: string; status: string }>();
-  if (!stored) return (await legacyReceipt()) ?? new Response(null, { status: 429, headers: { "retry-after": String(Math.ceil((Date.parse(day + "T00:00:00Z") + DAY - now) / 1000)), "x-db-traffic-limit": "daily" } });
+  if (!stored) return (await legacyReceipt()) ?? await quotaResponse(env, day, now, reasons.length ? "quarantine" : undefined);
   if (stored.digest !== digest) return new Response(null, { status: 409 });
   try { if (stored.status === "accepted") await maintainDbTraffic(env, now, 1); else await maintainDbTrafficQuality(env, now, 1); } catch { /* Retry by maintenance. */ }
   return ack(stored.status);
@@ -160,15 +161,21 @@ export async function ingestDbTrafficGap(request: Request, env: Env, now: number
   const response = () => Response.json({ protocol: 2, id: gap.id, digest, status: "accepted" });
   const existing = await env.DB.prepare("SELECT digest,status FROM db_traffic_receipts WHERE id=?").bind(gap.id).first<{ digest: string; status: string }>();
   if (existing) return existing.status === "gap" && existing.digest === digest ? response() : new Response(null, { status: 409 });
+  if (await env.DB.prepare("SELECT id FROM db_traffic_batches WHERE id=?").bind(gap.id).first()) return new Response(null, { status: 409 });
   if (gap.reportedAt < now - DAY || gap.start < now - 7 * DAY) return reject("timestamp_old", now, 410);
   const day = new Date(now).toISOString().slice(0, 10);
   await env.DB.batch([
     env.DB.prepare("INSERT OR IGNORE INTO db_traffic_usage(day,batches) VALUES(?,0)").bind(day),
-    env.DB.prepare("INSERT OR IGNORE INTO db_traffic_receipts(id,digest,status,at,release,deployment,payload,reasons,expires) SELECT ?,?,'gap',?,?,?,?,?,? WHERE (SELECT batches FROM db_traffic_usage WHERE day=?)<5000 AND NOT EXISTS (SELECT 1 FROM db_traffic_batches WHERE id=?)").bind(gap.id,digest,gap.start,gap.release,gap.deployment,JSON.stringify(gap),JSON.stringify([gap.reason]),gap.start + 7 * DAY,day,gap.id),
+    env.DB.prepare("INSERT OR IGNORE INTO db_traffic_class_usage(day,class,batches) VALUES(?,'gap',0)").bind(day),
+    env.DB.prepare("INSERT OR IGNORE INTO db_traffic_receipts(id,digest,status,at,release,deployment,payload,reasons,expires) SELECT ?,?,'gap',?,?,?,?,?,? WHERE (SELECT batches FROM db_traffic_usage WHERE day=?)<5000 AND (SELECT batches FROM db_traffic_class_usage WHERE day=? AND class='gap')<100 AND NOT EXISTS (SELECT 1 FROM db_traffic_batches WHERE id=?)").bind(gap.id,digest,gap.start,gap.release,gap.deployment,JSON.stringify(gap),JSON.stringify([gap.reason]),gap.start + 7 * DAY,day,day,gap.id),
     env.DB.prepare("UPDATE db_traffic_usage SET batches=batches+1 WHERE day=? AND changes()=1").bind(day),
+    env.DB.prepare("UPDATE db_traffic_class_usage SET batches=batches+1 WHERE day=? AND class='gap' AND changes()=1").bind(day),
   ]);
   const stored = await env.DB.prepare("SELECT digest,status FROM db_traffic_receipts WHERE id=?").bind(gap.id).first<{ digest: string; status: string }>();
-  if (!stored) return new Response(null, { status: 429, headers: { "retry-after": String(Math.ceil((Date.parse(day + "T00:00:00Z") + DAY - now) / 1000)), "x-db-traffic-limit": "daily" } });
+  if (!stored) {
+    if (await env.DB.prepare("SELECT id FROM db_traffic_batches WHERE id=?").bind(gap.id).first()) return new Response(null, { status: 409 });
+    return quotaResponse(env, day, now, "gap");
+  }
   if (stored.status !== "gap" || stored.digest !== digest) return new Response(null, { status: 409 });
   try { await maintainDbTrafficQuality(env, now, 1); } catch { /* Retry by maintenance. */ }
   return response();

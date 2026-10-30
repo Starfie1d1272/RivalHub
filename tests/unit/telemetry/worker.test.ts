@@ -393,3 +393,55 @@ it("replays the same committed batch after an ACK is lost and the spool owner re
     expect(await db.prepare("SELECT batches FROM db_traffic_usage").first()).toEqual({ batches: 11 });
   } finally { await mf.dispose(); await rm(root, { recursive: true, force: true }); }
 }, 30000);
+
+it("atomically caps quarantine and gap classes without reserving normal capacity", async () => {
+  const require = createRequire(import.meta.url);
+  const { build } = createRequire(require.resolve("tsx/package.json"))("esbuild") as { build(options: object): Promise<{ outputFiles: { text: string }[] }> };
+  const built = await build({ entryPoints: ["workers/telemetry/index.ts"], bundle: true, write: false, format: "esm", platform: "browser" });
+  const bindings = { DB_TRAFFIC_KEY: "fixture-db-key".repeat(3), ACCEPTING: "1", RETENTION_APPROVED: "1" };
+  const mf = new Miniflare({ modules: true, script: built.outputFiles[0].text, compatibilityDate: "2026-07-30", bindings, d1Databases: ["DB"] });
+  try {
+    const db = await mf.getD1Database("DB");
+    const schema = (await readFile("workers/telemetry/schema.sql", "utf8")).replace(/^--.*$/gm, "").split(";").map(s => s.trim()).filter(Boolean);
+    await db.batch(schema.map(sql => db.prepare(sql)));
+    const now = Date.now(); const day = new Date(now).toISOString().slice(0, 10);
+    await db.batch([db.prepare("INSERT INTO db_traffic_usage(day,batches) VALUES(?,100)").bind(day), db.prepare("INSERT INTO db_traffic_class_usage(day,class,batches) VALUES(?,'quarantine',399)").bind(day), db.prepare("INSERT INTO db_traffic_class_usage(day,class,batches) VALUES(?,'gap',99)").bind(day)]);
+    const base = { id: crypto.randomUUID(), process: crypto.randomUUID(), at: now, release: "v1", deployment: "d1", dropped: 0, receivedBytes: 0, connections: 1, observedConnections: 1, rows: [{ source: "mizar", template: "q0000000000000001", queries: 1, failures: 0, rows: 1, queryMs: 1 }] };
+    const send = (path: string, body: unknown) => mf.dispatchFetch(`https://worker.invalid${path}`, { method: "POST", headers: { authorization: `Bearer ${bindings.DB_TRAFFIC_KEY}`, "x-db-traffic-protocol": "2" }, body: JSON.stringify(body) });
+    const bad = [0, 1].map(() => ({ ...base, id: crypto.randomUUID(), rows: [{ ...base.rows[0], failures: 2 }] }));
+    const badResponses = await Promise.all(bad.map(value => send("/v1/db-traffic", value)));
+    expect(badResponses.map(response => response.status).sort()).toEqual([200, 429]);
+    const acceptedBad = bad[badResponses.findIndex(response => response.status === 200)];
+    expect(badResponses.find(response => response.status === 429)!.headers.get("x-db-traffic-limit")).toBe("quarantine");
+    expect(Number(badResponses.find(response => response.status === 429)!.headers.get("retry-after"))).toBeGreaterThan(0);
+    expect((await send("/v1/db-traffic", acceptedBad)).status).toBe(200);
+    const normal = { ...base, id: crypto.randomUUID() };
+    expect((await send("/v1/db-traffic", normal)).status).toBe(200);
+    const gap = () => ({ id: crypto.randomUUID(), process: base.process, release: "v1", deployment: "d1", reportedAt: now, start: now - 1000, end: now, reason: "overflow", certainty: "lost", batches: 1, receivedBytes: 2, truncated: false, coverageUnknownSince: null });
+    expect((await send("/v1/db-traffic-gap", { ...gap(), id: normal.id })).status).toBe(409);
+    const gaps = [gap(), gap()]; const gapResponses = await Promise.all(gaps.map(value => send("/v1/db-traffic-gap", value)));
+    expect(gapResponses.map(response => response.status).sort()).toEqual([200, 429]);
+    expect(gapResponses.find(response => response.status === 429)!.headers.get("x-db-traffic-limit")).toBe("gap");
+    expect(Number(gapResponses.find(response => response.status === 429)!.headers.get("retry-after"))).toBeGreaterThan(0);
+    expect((await send("/v1/db-traffic-gap", gaps[gapResponses.findIndex(response => response.status === 200)])).status).toBe(200);
+    expect(await db.prepare("SELECT batches FROM db_traffic_usage WHERE day=?").bind(day).first()).toEqual({ batches: 103 });
+    expect(await db.prepare("SELECT class,batches FROM db_traffic_class_usage ORDER BY class").all()).toMatchObject({ results: [{ class: "gap", batches: 100 }, { class: "quarantine", batches: 400 }] });
+    const offline = { consumer: "preview", run: "class-cap-fixture", release: "v1", started: now - 1000, ended: now, status: "exported", rows: 1, logicalBytes: 2, dumpBytes: null, snapshotBytes: null, artifactBytes: null, storageBytes: null };
+    expect((await send("/v1/db-offline", offline)).status).toBe(204);
+    await db.prepare("UPDATE db_traffic_class_usage SET batches=399 WHERE day=? AND class='quarantine'").bind(day).run();
+    const concurrentDuplicate = { ...base, id: crypto.randomUUID(), rows: [{ ...base.rows[0], failures: 2 }] };
+    expect((await Promise.all([send("/v1/db-traffic", concurrentDuplicate), send("/v1/db-traffic", concurrentDuplicate)])).map(response => response.status)).toEqual([200, 200]);
+    expect(await db.prepare("SELECT batches FROM db_traffic_usage WHERE day=?").bind(day).first()).toEqual({ batches: 105 });
+    expect(await db.prepare("SELECT batches FROM db_traffic_class_usage WHERE day=? AND class='quarantine'").bind(day).first()).toEqual({ batches: 400 });
+    // The final shared slot is not reserved: a gap may consume it when its class has room.
+    await db.batch([db.prepare("UPDATE db_traffic_usage SET batches=4999 WHERE day=?").bind(day), db.prepare("UPDATE db_traffic_class_usage SET batches=99 WHERE day=? AND class='gap'").bind(day)]);
+    expect((await send("/v1/db-traffic-gap", gap())).status).toBe(200);
+    const totalFull = await send("/v1/db-traffic", { ...base, id: crypto.randomUUID() });
+    expect(totalFull.status).toBe(429); expect(totalFull.headers.get("x-db-traffic-limit")).toBe("daily");
+    const bothFull = await send("/v1/db-traffic", { ...bad[0], id: crypto.randomUUID() });
+    expect(bothFull.status).toBe(429); expect(bothFull.headers.get("x-db-traffic-limit")).toBe("daily");
+    await maintain({ ...bindings, DB: db as unknown as Env["DB"] } as Env, now + 9 * 86400000);
+    expect(await db.prepare("SELECT count(*) AS n FROM db_traffic_class_usage").first()).toEqual({ n: 0 });
+    expect(await db.prepare("SELECT count(*) AS n FROM db_traffic_receipts").first()).toEqual({ n: 0 });
+  } finally { await mf.dispose(); }
+}, 30000);

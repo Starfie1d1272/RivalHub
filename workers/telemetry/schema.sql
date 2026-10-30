@@ -69,3 +69,4 @@ CREATE INDEX db_traffic_receipts_pending ON db_traffic_receipts(status, processe
 CREATE INDEX db_traffic_receipts_quality_scope ON db_traffic_receipts(status, release, deployment, at, id);
 CREATE TABLE db_traffic_quality_hours (hour INTEGER PRIMARY KEY, version INTEGER NOT NULL, payload TEXT NOT NULL, expires INTEGER NOT NULL);
 CREATE INDEX db_traffic_quality_hours_expiry ON db_traffic_quality_hours(expires);
+CREATE TABLE db_traffic_class_usage (day TEXT NOT NULL, class TEXT NOT NULL, batches INTEGER NOT NULL, PRIMARY KEY(day,class)) WITHOUT ROWID;

@@ -6,15 +6,15 @@ import { digestDbTraffic } from "./db-traffic-contract";
 /** The whole state is committed together so queue and loss evidence cannot diverge. */
 export type SpoolItem = { id: string; body: string; digest: string; at: number; attempted: boolean; nextAttemptAt: number; attempts: number };
 export type SpoolGap = { id: string; body: string; digest: string; at: number; attempted: boolean; nextAttemptAt: number; attempts: number };
-export type SpoolState = { version: 1; globalNextAttemptAt: number; globalFailures: number; batches: SpoolItem[]; gaps: SpoolGap[]; coverageUnknownSince: number | null; coverageReportedSince: number | null; openWindowSince: number | null };
-const empty = (): SpoolState => ({ version: 1, globalNextAttemptAt: 0, globalFailures: 0, batches: [], gaps: [], coverageUnknownSince: null, coverageReportedSince: null, openWindowSince: null });
+export type SpoolState = { version: 1; globalNextAttemptAt: number; globalFailures: number; quarantineNextAttemptAt: number; gapNextAttemptAt: number; batches: SpoolItem[]; gaps: SpoolGap[]; coverageUnknownSince: number | null; coverageReportedSince: number | null; openWindowSince: number | null };
+const empty = (): SpoolState => ({ version: 1, globalNextAttemptAt: 0, globalFailures: 0, quarantineNextAttemptAt: 0, gapNextAttemptAt: 0, batches: [], gaps: [], coverageUnknownSince: null, coverageReportedSince: null, openWindowSince: null });
 const maxBytes = 10 * 1024 * 1024;
 
 function valid(value: unknown): value is SpoolState {
   if (!value || typeof value !== "object") return false;
   const state = value as SpoolState;
   const item = (x: SpoolItem) => !!x && typeof x.id === "string" && typeof x.body === "string" && typeof x.digest === "string" && Number.isSafeInteger(x.at) && typeof x.attempted === "boolean" && Number.isSafeInteger(x.nextAttemptAt) && Number.isSafeInteger(x.attempts) && x.attempts >= 0;
-  return state.version === 1 && Number.isSafeInteger(state.globalNextAttemptAt) && state.globalNextAttemptAt >= 0 && Number.isSafeInteger(state.globalFailures) && state.globalFailures >= 0 && Array.isArray(state.batches) && state.batches.length <= 256 && state.batches.every(item) && state.batches.reduce((sum, entry) => sum + Buffer.byteLength(entry.body), 0) <= maxBytes && Array.isArray(state.gaps) && state.gaps.length <= 32 && state.gaps.every(item) && state.gaps.reduce((sum, entry) => sum + Buffer.byteLength(entry.body), 0) <= 128 * 1024 && (state.coverageUnknownSince === null || Number.isSafeInteger(state.coverageUnknownSince)) && (state.coverageReportedSince === null || Number.isSafeInteger(state.coverageReportedSince)) && (state.openWindowSince === null || Number.isSafeInteger(state.openWindowSince));
+  return state.version === 1 && Number.isSafeInteger(state.globalNextAttemptAt) && state.globalNextAttemptAt >= 0 && Number.isSafeInteger(state.globalFailures) && state.globalFailures >= 0 && Number.isSafeInteger(state.quarantineNextAttemptAt) && state.quarantineNextAttemptAt >= 0 && Number.isSafeInteger(state.gapNextAttemptAt) && state.gapNextAttemptAt >= 0 && Array.isArray(state.batches) && state.batches.length <= 256 && state.batches.every(item) && state.batches.reduce((sum, entry) => sum + Buffer.byteLength(entry.body), 0) <= maxBytes && Array.isArray(state.gaps) && state.gaps.length <= 32 && state.gaps.every(item) && state.gaps.reduce((sum, entry) => sum + Buffer.byteLength(entry.body), 0) <= 128 * 1024 && (state.coverageUnknownSince === null || Number.isSafeInteger(state.coverageUnknownSince)) && (state.coverageReportedSince === null || Number.isSafeInteger(state.coverageReportedSince)) && (state.openWindowSince === null || Number.isSafeInteger(state.openWindowSince));
 }
 
 async function verifyBodies(state: SpoolState): Promise<void> {
