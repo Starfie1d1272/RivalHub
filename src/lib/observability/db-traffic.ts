@@ -88,21 +88,37 @@ export function dbTrafficEnabled(): boolean {
   try { const url = new URL(endpoint ?? ""); enabled = url.protocol === "https:" && !url.username && !url.password && !url.search && !url.hash && url.pathname === "/v1/batches"; } catch { /* Disabled on invalid configuration. */ }
   return enabled;
 }
-async function sendDbTraffic(endpoint: URL, body: string, key: string): Promise<boolean> {
+type SendResult = { ok: boolean; status: number | null };
+function statusCode(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599 ? value : null;
+}
+// Process-local and bounded: report the first failure, then at most once a minute.
+const diagnosticSlot = Symbol.for("rivalhub.db-traffic.send-diagnostic.v1");
+function reportSendFailure(s: State, status: number | null, retrySameHead: boolean) {
+  try {
+    const host = process as unknown as Record<symbol, { last: number; suppressed: number } | undefined>;
+    const now = Date.now(); const window = host[diagnosticSlot];
+    if (window && now >= window.last && now - window.last < 60000) { window.suppressed++; return; }
+    const dropped = s.dropped + s.pending.reduce((sum, item) => sum + item.dropped, 0);
+    process.stderr.write(`${JSON.stringify({ event: "db_traffic.send_failure", httpStatus: status, retrySameHead, queued: s.pending.length, dropped, suppressed: window?.suppressed ?? 0 })}\n`);
+    host[diagnosticSlot] = { last: now, suppressed: 0 };
+  } catch { /* Diagnostics must not change delivery or retry. */ }
+}
+async function sendDbTraffic(endpoint: URL, body: string, key: string): Promise<SendResult> {
   const proxyValue = process.env.PRODUCT_TELEMETRY_QUERY_PROXY_URL;
   if (!proxyValue) {
     const response = await fetch(endpoint, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body, signal: AbortSignal.timeout(5000), redirect: "error" });
     void response.body?.cancel().catch(() => {});
-    return response.ok;
+    return { ok: response.ok, status: statusCode(response.status) };
   }
   const proxy = new URL(proxyValue);
   if (!["http:", "https:"].includes(proxy.protocol) || proxy.username || proxy.password || proxy.pathname !== "/" || proxy.search || proxy.hash) throw new Error("Invalid telemetry proxy");
   const agent = new Agent({ proxyEnv: { NODE_ENV: process.env.NODE_ENV, HTTPS_PROXY: proxy.href } });
   try {
-    return await new Promise<boolean>((resolve, reject) => {
+    return await new Promise<SendResult>((resolve, reject) => {
       const req = request(endpoint, { method: "POST", agent, signal: AbortSignal.timeout(5000), headers: { authorization: `Bearer ${key}`, "content-type": "application/json" } }, response => {
         response.resume();
-        resolve((response.statusCode ?? 0) >= 200 && (response.statusCode ?? 0) < 300);
+        resolve({ ok: (response.statusCode ?? 0) >= 200 && (response.statusCode ?? 0) < 300, status: statusCode(response.statusCode) });
       });
       req.on("error", reject);
       req.end(body);
@@ -139,8 +155,9 @@ export function flushDbTraffic() {
   try { endpoint = new URL(process.env.PRODUCT_TELEMETRY_ENDPOINT ?? ""); } catch { return; }
   if (s.sending || !s.pending.length) return;
   endpoint.pathname = "/v1/db-traffic"; s.sending = true;
-  const sending = s.pending[0]; sending.attempted = true;
-  void Promise.resolve().then(() => sendDbTraffic(endpoint, sending.body, process.env.DB_TRAFFIC_KEY!)).then(ok => {
-    if (ok && s.pending[0] === sending) s.pending.shift();
-  }).catch(() => {}).finally(() => { s.sending = false; });
+  const sending = s.pending[0]; const retrySameHead = sending.attempted; sending.attempted = true;
+  void Promise.resolve().then(() => sendDbTraffic(endpoint, sending.body, process.env.DB_TRAFFIC_KEY!)).then(result => {
+    if (result.ok && s.pending[0] === sending) s.pending.shift();
+    else if (!result.ok) reportSendFailure(s, result.status, retrySameHead);
+  }).catch(() => { reportSendFailure(s, null, retrySameHead); }).finally(() => { s.sending = false; });
 }
