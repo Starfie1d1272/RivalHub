@@ -174,3 +174,30 @@ export async function seedFixture(options: { isTest?: boolean; matchStatus?: "sc
   });
   return { fixtureUserIds: userIds, seasonId, entryAId, entryBId, matchId, mapOneId, mapTwoId, installationId, installationBId, credentialHash, credentialBHash, sessionId: session![0]!.id, producerInstanceId, liveSessionId, contextRevision, authorityRevision, steam64 };
 }
+
+/** Synthetic official history for the current fixture's two entrants. */
+export async function seedMizarStatsHistory(f: Fixture & { fixtureUserIds: string[] }) {
+  const matchId = randomUUID();
+  const mapIds = [randomUUID(), randomUUID()];
+  const rosterIds = [randomUUID(), randomUUID()];
+  await db.transaction(async tx => {
+    const members = await tx.select({ userId: schema.eventRosterMembers.userId, memberId: schema.eventRosterMembers.id, entryId: schema.eventRosters.entryId })
+      .from(schema.eventRosterMembers).innerJoin(schema.eventRosters, eq(schema.eventRosters.id, schema.eventRosterMembers.eventRosterId))
+      .where(inArray(schema.eventRosters.entryId, [f.entryAId, f.entryBId]));
+    if (members.length !== 10 || f.fixtureUserIds.some(id => !members.some(member => member.userId === id))) throw new Error("Mizar stats fixture roster mismatch");
+    await tx.insert(schema.matches).values({ id: matchId, seasonId: f.seasonId, entryAId: f.entryAId, entryBId: f.entryBId, stage: "mizar-stats-fixture", format: "bo3", status: "finished", scoreA: 2, scoreB: 0, completedAt: NOW });
+    await tx.insert(schema.matchMaps).values([
+      { id: mapIds[0]!, matchId, mapOrder: 1, mapName: "de_ancient", scoreA: 13, scoreB: 7, completedAt: NOW },
+      { id: mapIds[1]!, matchId, mapOrder: 2, mapName: "de_mirage", scoreA: 13, scoreB: 7, completedAt: NOW },
+    ]);
+    await tx.insert(schema.matchRosters).values([f.entryAId, f.entryBId].map((entryId, index) => ({ id: rosterIds[index]!, matchId, entryId, source: "admin_select" as const, status: "confirmed" as const, confirmedAt: NOW, confirmedBy: "fixture" })));
+    await tx.insert(schema.matchRosterPlayers).values(members.map(member => ({ rosterId: rosterIds[member.entryId === f.entryAId ? 0 : 1]!, eventRosterMemberId: member.memberId, isStarter: true })));
+    const stats = f.fixtureUserIds.flatMap((userId, index) => mapIds.slice(0, index === 0 ? 2 : 1).map((mapId, mapIndex) => ({
+      matchId, mapId, userId, perfectName: `Fixture player ${index + 1}`, verifiedByAdmin: "fixture", verifiedAt: NOW,
+      kills: 10 + index, deaths: 8, ratingPro: index === 0 ? 1.5 : index === 1 ? 1.25 : 1,
+      adr: index === 0 ? null : mapIndex === 0 ? 80 : 60,
+    })));
+    await tx.insert(schema.matchPlayerStats).values(stats);
+  });
+  return { matchId, mapIds };
+}
