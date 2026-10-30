@@ -9,6 +9,9 @@ import { AppError, ErrorCode } from "../../../src/lib/errors";
 import { loadMizarMatchDocumentInTx } from "../../../src/lib/mizar/context";
 import { ingestMizarLive } from "../../../src/lib/mizar/live";
 import { ingestMizarReliable } from "../../../src/lib/mizar/reliable";
+import { withMizarRequest } from "../../../src/lib/mizar/http";
+import { hashCredential } from "../../../src/lib/mizar/installation";
+import { POST as mizarPost } from "../../../src/app/api/mizar/[operation]/route";
 import { claimMizarSource, releaseMizarSource, takeOverCurrentMap } from "../../../src/lib/mizar/source";
 import { loadOperatorEvidence } from "../../../src/lib/admin/matches/operator-evidence";
 import { loadOperatorContext } from "../../../src/lib/admin/matches/operator-context";
@@ -72,6 +75,65 @@ async function nextEpoch(fixture: Fixture, sequence = 10) {
 }
 
 describe("Mizar reliable event ingest ownership", () => {
+
+  it("classifies authenticated route failures without exposing authentication details", async () => {
+    const f = await seedFixture();
+    const credential = `rh_mizar_${randomUUID()}_${"a".repeat(64)}`;
+    await db.update(schema.mizarInstallations).set({ credentialHash: hashCredential(credential) }).where(eq(schema.mizarInstallations.id, f.installationId));
+    const post = (body: string, token = credential) => mizarPost(new Request("http://localhost/api/mizar/reliable", {
+      method: "POST", headers: { authorization: `Bearer ${token}`, "x-rivalhub-authority": "1", "x-request-id": "route-test" }, body,
+    }), { params: Promise.resolve({ operation: "reliable" }) });
+    const event = reliableEvent(f);
+    event.cursor.programSourceGeneration = 1;
+    const rejected = await post(JSON.stringify({ event }));
+    expect(rejected.status).toBe(400);
+    expect(await rejected.json()).toMatchObject({ code: "VALIDATION_FAILED", reason: "generation_fence", requestId: "route-test", recovery: "reconcile" });
+    const malformed = await post("{");
+    expect(malformed.status).toBe(400);
+    expect(await malformed.json()).toMatchObject({ code: "invalid_body", reason: "invalid_schema" });
+    const forbidden = await post(JSON.stringify({ event }), "secret-invalid-credential");
+    expect(forbidden.status).toBe(403);
+    const text = await forbidden.text();
+    expect(text).not.toContain("secret-invalid-credential");
+    expect(JSON.parse(text)).toEqual({ code: "FORBIDDEN", error: "制播设备凭据无效。" });
+  });
+
+  it("returns compatible rejection reasons after rollback and preserves ordered concurrent fences", async () => {
+    const f = await seedFixture();
+    const call = (event: unknown, revision = f.authorityRevision) => withMizarRequest(
+      new Request("http://localhost/api/mizar/reliable", { method: "POST", headers: { "x-request-id": "fixture-request" } }),
+      "/api/mizar/[operation]", "reliable", async diagnostics => {
+        diagnostics.phase = "domain";
+        return Response.json(await ingestMizarReliable(f.installationId, f.seasonId, event, revision, f.steam64));
+      },
+    );
+    const check = async (event: unknown, status: number, reason: string, recovery: string, revision?: number) => {
+      const response = await call(event, revision);
+      expect(response.status).toBe(status);
+      const body = await response.json();
+      expect(body).toMatchObject({ code: status === 403 ? "FORBIDDEN" : "VALIDATION_FAILED", error: expect.any(String), reason, requestId: "fixture-request", recovery });
+      // A v1 consumer reads only the existing fields and can ignore additions.
+      expect({ code: body.code, error: body.error }).toEqual({ code: status === 403 ? "FORBIDDEN" : "VALIDATION_FAILED", error: expect.any(String) });
+    };
+    const start = reliableEvent(f);
+    await check({}, 400, "invalid_schema", "none");
+    await check(start, 403, "authority_changed", "none", f.authorityRevision + 1);
+    await check({ ...start, contextRevision: "not-current" }, 400, "context_stale", "refresh_context");
+    await check({ ...start, cursor: { ...start.cursor, programSourceGeneration: 1 } }, 400, "generation_fence", "reconcile");
+    await check({ ...start, cursor: { ...start.cursor, mapEpoch: 2 } }, 400, "epoch_fence", "reconcile");
+    expect(await loadSource(f.sessionId)).toMatchObject({ lastReliableSeq: -1, programSourceGeneration: 0, mapEpoch: 1 });
+    expect(await db.select().from(schema.mizarReliableReceipts).where(eq(schema.mizarReliableReceipts.sessionId, f.sessionId))).toHaveLength(0);
+    const generation = reliableEvent(f, { kind: "source_generation_changed", cursor: { ...start.cursor, programSourceGeneration: 1 }, payload: { previousSourceGeneration: 0 } });
+    const results = await Promise.all([call(generation), call(generation)]);
+    expect((await Promise.all(results.map(r => r.json()))).map(r => r.duplicate).sort()).toEqual([false, true]);
+    const progressed = { ...start, cursor: { ...start.cursor, runtimeSeq: 2, programSourceGeneration: 1 } };
+    expect((await call(progressed)).status).toBe(200);
+    await check({ ...progressed, payload: { unexpected: true } }, 400, "invalid_schema", "none");
+    await check({ ...progressed, mapName: "de_mirage" }, 400, "idempotency_conflict", "none");
+    await check({ ...progressed, idempotencyKey: randomUUID(), cursor: { ...progressed.cursor, runtimeSeq: 1 } }, 400, "sequence_stale", "reconcile");
+    expect(await loadSource(f.sessionId)).toMatchObject({ lastReliableSeq: 2, programSourceGeneration: 1, mapEpoch: 1 });
+    expect(await db.select().from(schema.mizarReliableReceipts).where(eq(schema.mizarReliableReceipts.sessionId, f.sessionId))).toHaveLength(2);
+  });
 
   it("retains a provisional map-one scoreboard while map two starts and confirmed rows take priority", async () => {
     const f = await seedFixture();

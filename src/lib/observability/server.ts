@@ -6,3 +6,5 @@ import "server-only";
 export { captureException, logEvent } from "./logger";
 export { getRuntimeHealthSnapshot } from "./runtime-health";
 export { recordLiveIngestOutcome, recordLiveIngestStage, flushLiveIngestOutcomes, type LiveIngestOutcome } from "./live-outcomes";
+
+export { recordMizarReliableRejection } from "./mizar-rejections";

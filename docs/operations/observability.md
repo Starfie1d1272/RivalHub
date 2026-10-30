@@ -25,6 +25,8 @@ canonical event ──► stdout / stderr ──► systemd journal
 
 `mizar.live.outcome_window` 保留七类 ingest 结果的原分母；`mizar.live.stage_window` 单独记录 received/admitted/authorized/send_success/expired/capacity/contended/unknown_send 八个固定里程碑。阶段可重叠，不能相加作请求分母。两个聚合共享进程 singleton，只保存 15 类次数与耗时总和，不保存帧或身份；在空请求上下文输出，避免继承 requestId。重启、SIGKILL、日志链路故障仍可能丢失开放窗口；不承诺退出 flush 或持久审计。结果范围、窗口/平均值口径与 viewer 验收边界见 [LIVE 接收容量](live-capacity.md)。
 
+可靠事件的受控拒绝在事务回滚后由 HTTP 边界记录 `mizar.reliable.reject`，不依赖成功审计。首条包含固定原因、阶段和 requestId；授权及范围核验成功后的事件可包含事件种类、比赛 UUID 的截断 SHA-256 和有关围栏的接收／存储数值，不记录正文、凭据、名单或 SQL。固定原因桶每 60 秒首条立即输出，其余合并为首末时间和包含首条在内的次数；共享 sampler 刷新空闲尾窗，未启用采样器时由下次同原因请求刷新。进程退出或日志故障可丢失窗口，日志复用既有本地访问和留存策略，不能作为持久审计。
+
 LIVE 与可靠事件分别在 canonical ingest 的解析/基本 scope 检查通过后，进入 `mizar.live` / `mizar.reliable` 资源计数；两者只包一层，均在 finally 结束计数。LIVE 耗时包含授权事务、发送与清理，reliable 包含事务和既有非关键心跳；重复、拒绝或依赖失败不残留 inFlight。该观测不创建准入 gate、不获取连接，也不改变锁、重试或业务结果。
 
 ## BP 超时与确认口径
@@ -39,7 +41,7 @@ LIVE 与可靠事件分别在 canonical ingest 的解析/基本 scope 检查通�
 
 常驻 production Node 服务由既有 instrumentation owner 启动进程共享的 `runtime-health` 采样器：每 60 秒输出一次 `runtime.health.sample`，timer 为 unref，`RIVALHUB_RUNTIME_HEALTH_ENABLED=0` 可在下次启动关闭；测试/HMR 可调用 `stopRuntimeHealthSampling()`，重复 start/stop 不叠加 timer。Vercel、development 与 production build 不自动启动。采样 RSS、heapUsed/heapTotal、external、arrayBuffers、V8 heap limit、Node constrainedMemory，以及窗口 ELU、20ms 分辨率的 event-loop delay P99/max；不是额外启动进程测量自身。arrayBuffers 包含于 external，heap/external/RSS 也不是可相加的独立预算；constrainedMemory 为 Node 已知限制，未知时不输出，不能直接当作 cgroup 峰值。事件只有固定数值诊断，沿用本地 logger，脱离请求上下文，不保存请求、URL、正文或环境变量值。SIGKILL/重启会丢失未采样峰值，60 秒采样不能证明不存在短时峰值或泄漏。
 
-共享 sampler 支持 `registerRuntimeHealthFlush(name: "live_ingest", callback: () => void): () => void`：仅接受这个固定 key，同 key 替换旧回调，返回幂等 unregister，旧 unregister 不会删掉新注册。回调必须同步；60 秒 tick 在 ROOT_CONTEXT 内各自隔离异常，读取回调副本以避免注册变更形成无界迭代。注册不创建 timer；停止采样即停止调度，显式 unregister 用于模块/测试清理，重载最多保留一个该 key 的回调。业务 owner 自行注册，不由 sampler 反向 import 业务模块。
+共享 sampler 支持 `registerRuntimeHealthFlush(name, callback: () => void): () => void`：仅接受 `live_ingest` 和 `mizar_reliable_reject` 两个固定 key，同 key 替换旧回调，返回幂等 unregister，旧 unregister 不会删掉新注册。回调必须同步；60 秒 tick 在 ROOT_CONTEXT 内各自隔离异常，读取回调副本以避免注册变更形成无界迭代。注册不创建 timer；停止采样即停止调度，显式 unregister 用于模块/测试清理，重载最多保留一个该 key 的回调。业务 owner 自行注册，不由 sampler 反向 import 业务模块。
 
 同一 60 秒 sampler 还输出 `runtime.cgroup.sample`，只读当前进程所属 cgroup v2 的 `memory.current`、`memory.peak` 与 `memory.events` 的 oom/oom_kill。路径由当前进程 membership 和 mount root 解析，不能拿宿主根组代替服务子组。缺失、v1、不支持、拒读或无效数字均为 unknown（日志中省略字段），实际零保留为零；这些是 cgroup 总 charge/峰值/累计事件，与 RSS、V8 堆和 external 各有边界。观测不调整 pool、heap 或 cgroup 限额。
 

@@ -255,6 +255,8 @@ BET has independent public/admin entrypoints and a fixed points policy. Its mark
 
 ### Admin Match operations projection
 
+Mizar reliable HTTP 的受控拒绝保留既有 status、`code`、`error`，可附加 `reason`、`requestId` 与 `recovery`。原因包括 `context_stale`、`sequence_stale`、`generation_fence`、`epoch_fence`、`authority_changed`、`idempotency_conflict`、`invalid_schema`；无可信分类时省略。`refresh_context` 提示刷新资料，`reconcile` 提示核对上下文与本地事件顺序，`none` 不提供自动恢复建议；它们均不授权改变来源、跳过事件或放宽服务端围栏。2xx 的 ACK 和业务结果语义不变。
+
 单场工作台复用 canonical phase facts，将当前任务、source mode、health 和 review reasons 分开投影。真实身份/阵容/连续性/赛果冲突优先处理，无 Mizar 是正常人工路径；AUTO 已核验时展示「Map N · 地图名进行中」，解说认领另行展示；认领不等于已经开播或正在解说。准备房间时先展示 Perfect 指引，手动录分收在「比赛结束后录入本图比分」，显式接管后展开。服务端人工命令与可靠事件共用比赛锁及结果 owner；人工接管校验预期 source session、地图与 epoch，已有正式赛果只能走更正流程，下一图健康开始后重新自动 armed。持久化 health 表示已完成的核验，不表示当前仍在传输；工作台使用同场、同 authority / generation / epoch / map 的 receive-only LIVE 订阅显示正在接收、暂未更新或尚未收到数据，不以低频 reliable-event 时间冒充心跳。客户端失鲜只改变提示，不授权写入。管理员已确认采集故障时，可填写原因并二次确认备用录分；服务端在 match→source 锁内重验 session、epoch、generation、lastReliableSeq、原地图绑定、BP 完成及正式第一张未完成地图，将原因和核对序列写入接管审计。并发重复确认幂等，状态变化要求刷新重核。
 BP 房间普通轮询只读取 repeatable-read 事务快照，不初始化房间、推进超时或获取比赛/会话行锁。核心比赛、会话、步骤、数据库时间与真实开局判断合并读取，超时记录及申诉另一次读取；开始前仍计算前序比赛阻塞与确认截止，已开始或终态轮询不计算开始专用时限。展示复用快照开局事实，独立队伍/首发查询由连接池并行调度；这些读取与鉴权完成后，最后的赛事 context 查询同时重新采样数据库时钟，供响应时间与 UI 时间权限使用，避免把服务端尾部等待当成倒计时尚未流逝。核心快照时钟保留为事实读取时刻；每次入口仍执行原权限检查，mutation 继续走独立的锁定及 reconciliation owner。
 

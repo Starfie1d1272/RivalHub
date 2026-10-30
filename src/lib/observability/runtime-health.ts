@@ -48,7 +48,7 @@ export function getRuntimeHealthSnapshot(): RuntimeHealthSnapshot | null {
 }
 
 const SLOT = Symbol.for("rivalhub.runtime-health-sampler.v1");
-type FlushHookName = "live_ingest";
+type FlushHookName = "live_ingest" | "mizar_reliable_reject";
 const HOOK_SLOT = Symbol.for("rivalhub.runtime-health-flush.v1");
 function hooks() {
   const host = process as unknown as Record<symbol, Map<FlushHookName, () => void>>;
@@ -57,7 +57,7 @@ function hooks() {
 
 /** Fixed singleton key; replacement unregister cannot remove a later registration. */
 export function registerRuntimeHealthFlush(name: FlushHookName, callback: () => void): () => void {
-  if (name !== "live_ingest") return () => {};
+  if (name !== "live_ingest" && name !== "mizar_reliable_reject") return () => {};
   const registration = () => callback();
   hooks().set(name, registration);
   return () => { if (hooks().get(name) === registration) hooks().delete(name); };
