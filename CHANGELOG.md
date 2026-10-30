@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.24.16]
+
+### Changed
+
+- 完善比赛和赛事数据流量归因，减少比赛页面重复读取。
+
 ## [2.24.15]
 
 ### Changed
@@ -3692,3 +3698,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.24.14]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.13...v2.24.14
 
 [2.24.15]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.14...v2.24.15
+
+[2.24.16]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.15...v2.24.16
