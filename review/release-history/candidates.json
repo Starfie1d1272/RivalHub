@@ -878,7 +878,7 @@
     "id": 378556767,
     "tag_name": "v2.0.0-rc.0",
     "original_body_sha256": "bf09e5001f7785f0ceefd01a8342f0df6842c65a194aea408dad46b2317fa1c0",
-    "candidate_body": "\n### Added\n\n- RivalHub 2.0 候选版引入 Major 赛事运营能力，并完善认证、报名、赛程与数据完整性。\n\n### Changed\n\n- 新增隔离旧远程数据库配置的本地 Supabase 开发入口，并验证迁移、认证、存储与数据访问边界。\n- 队伍报名与含 Swiss 阶段的赛季在完整运营闭环落地前保持关闭，避免误用个人报名和自动状态迁移。\n",
+    "candidate_body": "\n### Added\n\n- RivalHub 2.0 候选版引入 Major 赛事运营能力，并完善认证、报名、赛程与数据完整性。\n\n### Changed\n\n- 新增隔离旧远程数据库配置的本地 Supabase 开发入口，并验证迁移、认证、存储与数据 API 默认拒绝策略。\n- 队伍报名与含 Swiss 阶段的赛季在完整运营闭环落地前保持关闭，避免误用个人报名和自动状态迁移。\n",
     "status": "changed-review-required"
   },
   {
