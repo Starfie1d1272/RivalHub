@@ -433,6 +433,10 @@ it("atomically caps quarantine and gap classes without reserving normal capacity
     expect((await Promise.all([send("/v1/db-traffic", concurrentDuplicate), send("/v1/db-traffic", concurrentDuplicate)])).map(response => response.status)).toEqual([200, 200]);
     expect(await db.prepare("SELECT batches FROM db_traffic_usage WHERE day=?").bind(day).first()).toEqual({ batches: 105 });
     expect(await db.prepare("SELECT batches FROM db_traffic_class_usage WHERE day=? AND class='quarantine'").bind(day).first()).toEqual({ batches: 400 });
+    await db.prepare("UPDATE db_traffic_usage SET batches=4500 WHERE day=?").bind(day).run();
+    expect((await send("/v1/db-traffic", { ...base, id: crypto.randomUUID() })).status).toBe(200);
+    expect((await send("/v1/db-offline", { ...offline, run: "above-4500" })).status).toBe(204);
+    expect(await db.prepare("SELECT batches FROM db_traffic_usage WHERE day=?").bind(day).first()).toEqual({ batches: 4502 });
     // The final shared slot is not reserved: a gap may consume it when its class has room.
     await db.batch([db.prepare("UPDATE db_traffic_usage SET batches=4999 WHERE day=?").bind(day), db.prepare("UPDATE db_traffic_class_usage SET batches=99 WHERE day=? AND class='gap'").bind(day)]);
     expect((await send("/v1/db-traffic-gap", gap())).status).toBe(200);
