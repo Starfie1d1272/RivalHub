@@ -4,7 +4,7 @@
     "tag_name": "v2.24.16",
     "original_body_sha256": "7a86384d364e02631557b42ee771090f81e3fd1922a28ca69af65cb5ce962874",
     "candidate_body": "本次生产发布 v2.24.16 相对权威上一生产版本 v2.24.15 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.24.16]\n\n### Changed\n\n- 完善比赛和赛事数据流量归因，减少比赛页面重复读取。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 428417397,
@@ -18,280 +18,280 @@
     "tag_name": "v2.24.14",
     "original_body_sha256": "83263f36b21d32c3bc676a0fd129b75b03aa3ac49b438039a2bbd1844e07c557",
     "candidate_body": "本次生产发布 v2.24.14 相对权威上一生产版本 v2.24.13 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.24.14]\n\n### Changed\n\n- 管理员可按查询结果的逻辑 JSON 字节分析数据库流量，并查看测量覆盖率；细化预测、竞猜和统计的来源分类。生产用量与覆盖率仍待实测。\n- 正式发布使用 Linux 流程，并行执行候选构建与恢复事务测试。\n\n### Fixed\n\n- 更新迁库后的 Preview 镜像目标。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 427508540,
     "tag_name": "v2.24.13",
     "original_body_sha256": "9edd08cc16634d7f7c8e72f226349e42b869add9c992ac3a5cbdd7e4e592b03a",
-    "candidate_body": "本次生产发布 v2.24.13 相对权威上一生产版本 v2.24.12 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.24.13]\n\n### Changed\n\n- 管理员可查看数据库查询来源的短期聚合和版本趋势，以识别高流量读取及观测缺口。\n\n### Fixed\n\n- 迁移生产数据库与图片存储，保留现有业务数据与图片链接；生产切流和验收按迁库流程完成。\n- 支持自托管环境通过现有代理发送数据库流量归因数据，并补齐迁库后的私有实时连接策略；生产验收仍待完成。\n- 修复旧版首页处于维护或故障状态时阻止 Linux 发布的问题，继续校验旧版身份及候选和回退健康状态。\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "本次生产发布 v2.24.13 相对权威上一生产版本 v2.24.12 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.24.13]\n\n### Added\n\n- 管理员可查看数据库查询来源的短期聚合和版本趋势，以识别高流量读取及观测缺口。\n\n### Changed\n\n- 迁移生产数据库与图片存储，保留现有业务数据与图片链接；生产切流和验收按迁库流程完成。\n\n### Fixed\n\n- 修复旧版首页处于维护或故障状态时阻止 Linux 发布的问题，继续校验旧版身份及候选和回退健康状态。\n- 支持自托管环境通过现有代理发送数据库流量归因数据，并补齐迁库后的私有实时连接策略；生产验收仍待完成。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 426886350,
     "tag_name": "v2.24.12",
     "original_body_sha256": "23b15060b3efc2ef58dc220e81fef3a23ac42654995b9c58b7f35dcd45bc17f9",
     "candidate_body": "本次生产发布 v2.24.12 相对权威上一生产版本 v2.24.11 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.24.12]\n\n### Fixed\n\n- 比赛页面仅在确认解说开播时提供站内播放器，同时保留所有解说的直播间外链。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 426709036,
     "tag_name": "v2.24.11",
     "original_body_sha256": "2f577b469cff208fc7b272ab97113db8fd77358936c8fc6bc2db442f622c1363",
     "candidate_body": "本次生产发布 v2.24.11 相对权威上一生产版本 v2.24.10 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.24.11]\n\n### Fixed\n\n- 提高持久主机的比赛实时数据接收能力，减少多场比赛同时直播时的容量拒绝。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 426375822,
     "tag_name": "v2.24.10",
     "original_body_sha256": "59276c7ffcb398b0495734945eb63407892fd1ebb10e8aadbe88f679bc9462db",
     "candidate_body": "本次生产发布 v2.24.10 相对权威上一生产版本 v2.24.9 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.24.10]\n\n### Changed\n\n- 停用 Better Stack、OTel 与 Vercel 外部遥测，保留 D1 产品统计、本地脱敏日志、请求排查编号和服务运行健康诊断。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 426222817,
     "tag_name": "v2.24.9",
     "original_body_sha256": "94e735866494167dec76ec513aa38b44a79c161daff40774b14954816fe0a3c9",
     "candidate_body": "本次生产发布 v2.24.9 相对权威上一生产版本 v2.24.8 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.24.9]\n\n### Added\n\n- 比赛详情可在正式统计确认前展示已结束地图的临时基础记分板，并标明待核对。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 426179725,
     "tag_name": "v2.24.8",
     "original_body_sha256": "1d6d9a7e7b5d2575f54134383af8ca52a69fa3aca35fa459d81c8358793344f0",
     "candidate_body": "本次生产发布 v2.24.8 相对权威上一生产版本 v2.24.7 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.24.8]\n\n### Added\n\n- 管理员可在比赛管理页预览并确认 Play-in Short Swiss 下一轮对阵。\n- 系统状态展示关键旅程的健康证据覆盖，并区分未核验与需要关注的调度情况；生产健康基线仍待验证。\n\n### Changed\n\n- 区分自主名单调整待提交草稿与管理员要求补正，保留待处理覆盖并明确负责人和截止提示。\n- 移除 Major 赛前阶段面板中重复的阻塞详情，让种子排序工作区更清晰。\n- 恢复流程区分数据验证与放流就绪；真实生产恢复与身份协调仍需独立验收。\n- 更新 Next.js 等生产依赖。\n- 简化普通补丁发布操作，保留部署身份校验、事务排空和失败回滚。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 424608333,
     "tag_name": "v2.24.7",
     "original_body_sha256": "7b2cb42f660d59bd6a2069d3adae3ace7fac876fda8bbe5182ff808d8207aafc",
     "candidate_body": "本次生产发布 v2.24.7 相对权威上一生产版本 v2.24.6 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.24.7]\n\n### Changed\n\n- 记分板 OCR 默认切换至 Qwen3.5-27B，识别结果继续由管理员确认后保存。\n\n### Added\n\n- 补充 OCR 生成与行校验失败的安全诊断信息，便于凭排查编号关联上游请求，排查截断、重复输出及昵称缺失。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 423876008,
     "tag_name": "v2.24.6",
     "original_body_sha256": "ece42b8202e4da0a694005db7554919ea62370051214f41a583784da979bc6ea",
     "candidate_body": "本次生产发布 v2.24.6 相对权威上一生产版本 v2.24.5 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.24.6]\n\n### Added\n\n- Mizar 配对返回授权账号的公开昵称与身份，赛程标明该账号认领解说的比赛，便于客户端优先展示；昵称或认领变化后刷新会取得新版本，已撤销设备仍即时拒绝访问。\n- 补齐公开统计缓存填充与读取成本的低频观测，并记录当前应用 cgroup 内存和 OOM 计数，便于从本地日志核对资源使用。\n\n### Changed\n\n- BET 开放视图提前排除已结算和已退款的历史盘口读取，保留重新待结算与完赛未结算盘口，展示和积分规则保持一致。\n- 产品使用与体验默认展示最近 24 小时，以关键指标、趋势和关注问题组织概况；页面体验优先呈现 Web Vitals，长窗口展示真实分布并折叠覆盖与诊断详情。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 423780817,
     "tag_name": "v2.24.5",
     "original_body_sha256": "047b57fc01f388be6fdf4ec737a4307e9cd485553a8948cf292870b45ce7a371",
     "candidate_body": "本次生产发布 v2.24.5 相对权威上一生产版本 v2.24.4 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.24.5]\n\n### Fixed\n\n- 修复长窗口遥测查询约 5.7 秒时被网站提前截断的问题，仅该端点的请求与响应体总截止调整为十五秒，直连与代理一致；其他分析查询仍为五秒，保留响应、缓存和并发预算，不自动重试超时请求。\n\n### Changed\n\n- 独立遥测 Worker 减少长窗口读取的数据库往返与重复处理，并限制未封存历史聚合到所选日期，保持迟到修正、覆盖缺口和读取预算语义。\n\n网站截止修复兼容 v2.24.4 接收端，可独立发布；Worker 查询优化需单独部署后生效，网站发布不会自动更新 Worker。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 423723261,
     "tag_name": "v2.24.4",
     "original_body_sha256": "2f460942a1db43332cc7957305ed0059941beb92c057c7bc37ba9be03a6f63d9",
     "candidate_body": "本次生产发布 v2.24.4 相对权威上一生产版本 v2.24.3 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.24.4]\n\n### Added\n\n- 常驻应用补充低频进程内存、事件循环、连接池及 LIVE 接收、准入、授权与发送阶段观测；BP 超时日志区分既定宽限与额外逾期，保留原有时限、连接池容量和业务重试策略。\n- 遥测后台提供独立滚动长窗口汇总，合并完整日分布、有界尾部与窗口边缘，分别展示留存缺口、预算截断、不支持维度及已观测确认，并按字节限制常驻缓存和在途读取。\n\n### Changed\n\n- 任务采集采用第二版定义，明确超过一小时的截断计时，分别记录导航等待与用户请求模块后的等待；接收端按定义版本及计时起点分组，截断样本单列覆盖，不混入完整耗时分布。\n- 任务回执确认与结果呈现分别记录，同步保留已确认结果，避免卸载或切换任务范围后丢失；账号、报名、BP、BET、免费预测与 Pick’Em 使用真实业务回执，未知投入继续只读核对，主动展开表单才捕获需求可用时间。\n- 遥测按完整字节预算分批，避免单条超限连带丢弃合法事件；永久拒绝停止重试，续票与身份切换保持隔离，并补充竞猜与预测有限视图分类。\n- 选手公开档案分区渐进加载，基础资料和竞技表现不再等待属性基准完成；实际统计填充接入共享资源观测，缓存命中不重复计为填充，公开资料与统计含义保持不变。\n- BET 公共统计冷加载与新鲜私有状态读取并行，保留最新余额、准入及免费预测更正后的完整快照回退。\n\n### Fixed\n\n- 超级管理员重开完赛解说名单后，可将两名解说改成一名或移除自己后独立确认；普通未在册管理员仍被拒绝，提交人与审计操作者均为真实认证账号，比分、Demo、录像和统计保留。\n- 旧页面的登录、注册或验证邮件重发无法识别时提示主动更新并清空敏感凭据，仅在用户选择更新后短暂保留及恢复邮箱，不自动重试提交。\n- 赛事 Logo 上传和移除控件在页面可交互后启用，避免初次显示时操作没有响应。\n- 遥测趋势图标题在服务端与浏览器保持一致，避免水合不一致导致页面重建。\n- 修复队伍目录预渲染读取实时时钟的错误，保留招募到期筛选、搜索与页面预取。\n\n遥测协议升级须先部署兼容接收端，再发布网站采集端。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 423502850,
     "tag_name": "v2.24.3",
     "original_body_sha256": "a258be5b14fddbbabbb3c96a53c60e93502a21b9c9d43e0bd5118e8432440b7c",
     "candidate_body": "本次生产发布 v2.24.3 相对权威上一生产版本 v2.24.1 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.24.3]\n\n### Fixed\n\n- 调整记分板 OCR 的采样参数并收紧异常生成预算，强化紧凑表格输出指令；识别结果达到长度上限时明确提示未完整生成，保留安全诊断以区分截断、空白输出与玩家行格式错误。\n\n## [2.24.2]\n\n### Fixed\n\n- 修复单场工作台在开赛后缺少管理员解说管理入口的问题，待进行与进行中的比赛均可添加或移除解说，完赛后继续沿用名单更正流程。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 423202189,
     "tag_name": "v2.24.1",
     "original_body_sha256": "3eca52a0646df2a465db112884ec9e75cf60107e701d8372e090ac5c25e4f3f2",
     "candidate_body": "本次生产发布 v2.24.1 相对权威上一生产版本 v2.23.2 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.24.1]\n\n### Added\n\n- 产品使用与体验后台增加任务完成、操作响应、内容就绪与浏览器性能趋势，支持具体赛事、版本、设备和等长窗口比较。\n- 关键任务增加步骤、固定校验原因及活跃用时采集；后台提供报名审核、教育认证、约赛、BP 与赛后资料的业务聚合。\n- 独立遥测接收端增加可修订的日聚合与长期趋势，展示覆盖、缺口、积压及封存状态；启用时单独配置保留天数。\n\n### Changed\n\n- 遥测分析明确区分调用结果、个人任务完成和多人流程等待；成熟完成样本与完成率使用相同观察窗口，缺失与小样本保持可见。\n\n### Fixed\n\n- 修复多维长期数据提前截断的问题；在数据库中先筛选再合并期间分布，以紧凑响应返回完整日期趋势，保留客户端版本和采集口径。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 423155401,
     "tag_name": "v2.23.2",
     "original_body_sha256": "4d9f38314a46962791c66db15ef193ef88fc556a375e663b62404fe8718c7272",
     "candidate_body": "本次生产发布 v2.23.2 相对权威上一生产版本 v2.23.1 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.23.2]\n\n### Fixed\n\n- 修复 BP 提交后的缓存失效、边界同步等待和晚到响应处理，保留未知操作结果以便核对。\n- 统一赛事与比赛写入的加锁顺序，消除 Mizar 连接展示更新与可靠事件之间的锁升级死锁，减少已封盘市场的重复写入。\n- 计分板保存和清除增加持久回执与内容版本冲突保护；名单、录像、排期及 OCR 操作在网络异常时保留草稿并支持重新授权核对结果。\n- 后台日志越界分页返回有效末页，辅助资料读取失败时保留核心赛务与身份复核。\n\n### Changed\n\n- 公共赛事、赛程、比赛详情、统计、队伍档案、BET 和预测页面减少重复查询与传输，按阶段或当前视图加载；比赛统计独立加载，优先显示对阵与基础资料。\n- 后台名单、公告、反馈及赛后资料按页或摘要读取；社区奖、Demo 质量、换算策略和截图编辑器按需加载详情，保留权限复核与全局就绪判断。\n- 账号设置与报名表单流式加载，赛事目录与后台资料提供独立加载边界，稳定赛事页面和竞猜页的内容区域。\n- 同一 Node 进程共享数据库运行时和连接池，改善空闲连接复用，补充连接获取计数和耗时分布。\n- 遥测面板合并筛选和相同查询的并发读取，仅计算当前页签；接收端兼容内容就绪、客户端版本及错误关联事件，修复长时间停留后的性能指标会话归属。\n- Linux 部署仅加载适用的指标脚本；正式发布和回滚先停止旧应用并确认数据库事务排空，再切换版本。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 422809029,
     "tag_name": "v2.23.1",
     "original_body_sha256": "e51dc1a990920cb789d31b9490eaa896a7a39e5608ba99821977c0f17e48d0ad",
     "candidate_body": "本次生产发布 v2.23.1 相对权威上一生产版本 v2.23.0 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.23.1]\n\n### Fixed\n\n- 修复 BP 后台同步排队阻塞禁图、选图的问题，并防止晚到响应覆盖新回合。\n\n### Changed\n\n- 减少赛程、比赛详情、BET 与数据中心的数据读取往返和连接占用，比赛详情优先显示对阵与比分。\n- 调整常驻服务的数据库连接池容量，记录慢获取和排队失败的诊断信息。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 422756222,
     "tag_name": "v2.23.0",
     "original_body_sha256": "8fa7c6468e1e5ebd7128b17e5302e98e1f38d89bac1e0cac0ee15e58854af83d",
     "candidate_body": "本次生产发布 v2.23.0 相对权威上一生产版本 v2.22.1 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.23.0]\n\n### Added\n\n- 遥测分析增加联动筛选、会话路径、操作结果与耗时、性能分位数和异常下钻。\n\n### Changed\n\n- 后台遥测按分析任务组织页签，页面与操作使用可读名称，技术详情按需展开。\n- 减少制播实时画面授权的数据库往返，降低跨区部署下新鲜画面被丢弃的概率，保留设备撤销与数据源交接保护。\n- 正式发布复用已校验的 Node 和依赖缓存，减少安装包的重复传输；安装仍生成独立完整版本，并保留失败回退。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 422607863,
     "tag_name": "v2.22.1",
     "original_body_sha256": "0c1b8229a89474940f1dc31c67e6d1ff915ed06b405342db79e10a216114ca31",
     "candidate_body": "本次生产发布 v2.22.1 相对权威上一生产版本 v2.22.0 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.22.1]\n\n### Fixed\n\n- 修复自托管跨区读库时，Mizar LIVE 接收因多轮串行校验超过 500 毫秒而持续丢弃新帧的问题；合并查询，保留设备撤销、数据源交接和帧顺序校验。\n\n### Changed\n\n- 减少 BP 房间轮询的数据库往返，复用只读快照，并在响应末尾重新采样服务器时间。\n- LIVE 日志按每分钟活动窗口汇总接受、过期等结果数量和平均耗时，便于核验上报状态。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 422584912,
     "tag_name": "v2.22.0",
     "original_body_sha256": "5c58282196c38454b28e992a24e9c941eed263587eecc08e50c619d790ce10a0",
     "candidate_body": "本次生产发布 v2.22.0 相对权威上一生产版本 v2.21.13 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.22.0]\n\n### Added\n\n- 超级管理员后台新增遥测分析页，支持时间、版本与页面筛选，展示访问趋势、操作结果、性能和接收用量。\n- 遥测补充布局偏移 CLS，以及设备、浏览器、系统和入口来源粗分类，沿用七天保留。\n- Linux 运维新增独立启用的应用日志容量配置和只读磁盘、日志量测工具。\n\n### Changed\n\n- 自托管在线人数每分钟更新近两分钟活跃登录账号，合并心跳请求，保留后台活跃统计。\n- 遥测面板使用独立只读查询密钥，原有运维密钥继续保留。\n\n### Fixed\n\n- 修复 BO3 以 2:0 结束、第三图未实际进行时，BP 积分竞猜与免费预测无法正确判定的问题；按正式 BP 结果结算，并支持更正后的幂等重试。\n- 完赛竞猜卡片展示比分、人数与积分支持率和本人预测结果，已关闭的参与选项改为只读。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 422525339,
     "tag_name": "v2.21.13",
     "original_body_sha256": "a686e3fc8aff1eb99487216e5d4cdb016174f58293fd270e326b7de716b87d4f",
-    "candidate_body": "本次生产发布 v2.21.13 相对权威上一生产版本 v2.21.11 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.21.13]\n\n### Added\n\n- Cloudflare 产品遥测增加页面性能指标和站内导航提交耗时，继续使用现有批量通道、七天保留与接收预算。\n- 系统状态页向超级管理员展示当前进程的内存、运行时长、事件循环与数据库连接池快照。\n\n### Changed\n\n- 支持每位解说添加、编辑和排序多条分图或完整回放，比赛页按解说分组展示，保留原有回放及统一赛后待办口径。\n- 统计中心按当前视图加载交互代码，并隔离视图加载与赛事选择等导航控件的等待边界。\n- 复用赛事阶段事实，缩短赛事首页、我的赛事和系统状态中独立资料的串行加载等待。\n\n### Fixed\n\n- 修复自托管反向代理后遥测票据续签被误判为跨域的问题，使用已配置的公网 HTTPS 来源并继续拒绝跨域、内部地址及无效来源配置。\n- 自托管服务延长闲置数据库连接的复用时间，减少连续浏览时重复建立连接的等待，并增加查询返回行数和连接池排队诊断。\n- BET 三类排行榜共用一次总体读取；批量读取预测结算输入，缩短选手统计保存及 Demo 导入等待。\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "本次生产发布 v2.21.13 相对权威上一生产版本 v2.21.11 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.21.13]\n\n### Added\n\n- Cloudflare 产品遥测增加页面性能指标和站内导航提交耗时，继续使用现有批量通道、七天保留与接收预算。\n- 系统状态页向超级管理员展示当前进程的内存、运行时长、事件循环与数据库连接池快照。\n- 支持每位解说添加、编辑和排序多条分图或完整回放，比赛页按解说分组展示，保留原有回放及统一赛后待办口径。\n\n### Changed\n- 统计中心按当前视图加载交互代码，并隔离视图加载与赛事选择等导航控件的等待边界。\n- 复用赛事阶段事实，缩短赛事首页、我的赛事和系统状态中独立资料的串行加载等待。\n- 自托管服务延长闲置数据库连接的复用时间，减少连续浏览时重复建立连接的等待，并增加查询返回行数和连接池排队诊断。\n- BET 三类排行榜共用一次总体读取；批量读取预测结算输入，缩短选手统计保存及 Demo 导入等待。\n\n### Fixed\n\n- 修复自托管反向代理后遥测票据续签被误判为跨域的问题，使用已配置的公网 HTTPS 来源并继续拒绝跨域、内部地址及无效来源配置。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 422178428,
     "tag_name": "v2.21.11",
     "original_body_sha256": "22a1694a5091664c637607317538b767cc135bd1bea5fc40bf131ce3088b07ec",
-    "candidate_body": "本次生产发布 v2.21.11 相对权威上一生产版本 v2.21.10 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.21.11]\n\n### Fixed\n\n- 记分板 OCR 默认改用 Qwen3.5-9B 的非思考模式，并减少重复字段输出，缩短识别等待；服务端校验表格列数后还原玩家数据。\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "本次生产发布 v2.21.11 相对权威上一生产版本 v2.21.10 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.21.11]\n\n### Changed\n\n- 记分板 OCR 默认改用 Qwen3.5-9B 的非思考模式，并减少重复字段输出，缩短识别等待；服务端校验表格列数后还原玩家数据。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 421834093,
     "tag_name": "v2.21.10",
     "original_body_sha256": "a78b7b38df9b65089a3cb3f1e3fae6aae30c4c7241d57972fb7be1e4392a38e5",
     "candidate_body": "本次生产发布 v2.21.10 相对权威上一生产版本 v2.21.9 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.21.10]\n\n### Fixed\n\n- 修复 Mizar 在首图结束并刷新比赛资料后，下一图事件因网站数据源仍保留旧资料版本而被拒绝的问题。接收端核实当前网站资料版本后原子更新会话，继续保留身份、事件顺序和地图执行校验。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 421532202,
     "tag_name": "v2.21.9",
     "original_body_sha256": "aa0e1ee3b3dafb27367e393b45ea32789d062e93cb170e57aaaa73b450bba74e",
     "candidate_body": "本次生产发布 v2.21.9 相对权威上一生产版本 v2.21.8 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.21.9]\n\n### Changed\n\n- 迁移 Supabase 生产环境并同步图片地址，保留账号、赛事与竞猜数据；迁移后需重新登录。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 419980780,
     "tag_name": "v2.21.8",
     "original_body_sha256": "6cf42bd8e4016a0417a484a7ea295a167662b57411f2c8d133fe26e162b96c44",
     "candidate_body": "本次生产发布 v2.21.8 相对权威上一生产版本 v2.21.7 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.21.8]\n\n### Changed\n\n- 竞猜公共积分池和支持率在用户间共享短时缓存，保留 15 秒刷新频率。个人积分、选择及封盘资格实时读取，提交后立即更新统计，对阵更正与账号归并继续使用当前有效记录。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 419908126,
     "tag_name": "v2.21.7",
     "original_body_sha256": "7603bb900888e7b31bd23f6f801fae217fbc7faa12b4585e1c70fc5dc2ad247f",
     "candidate_body": "本次生产发布 v2.21.7 相对权威上一生产版本 v2.21.6 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.21.7]\n\n### Changed\n\n- 减少比赛支持率和竞猜页的重复数据读取，保持 15 秒更新与操作后的即时回读；积分记录按页加载，保留封盘、账号归并和结算规则。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 419604372,
     "tag_name": "v2.21.6",
     "original_body_sha256": "7d3acb2bf7844be818074cae363cb58f164696bc5c40e16b2e5fb3584b728aab",
-    "candidate_body": "## v2.21.6\r\n\r\n部署状态：已上线。2026-10-21 21:41（北京时间）核验生产版本为 v2.21.6，提交为 10b554eb14e6b4efc7e9d20677ff4199fdf77f31。受保护发布流程全部适用任务成功。\r\n\r\n### 调整\r\n- 优化比赛后台现有赛务待办的信息层级，突出对阵、开赛时间与下一步任务。\r\n- 负责人联系、解说与最晚完成时间放在辅助层，排期回应规则可展开，同刻撞档独立提示。\r\n- 保留原后台布局、品牌色、全部八类筛选、复制催办与工作台入口，以及返回原筛选和行位置的行为。\r\n\r\n本次只调整展示，不改排期规则、权限、数据库查询或生产数据。\r\n\r\n### 发布信息\r\n- 功能 PR：#1039；版本 PR：#1040。\r\n- 发布提交：10b554eb14e6b4efc7e9d20677ff4199fdf77f31。\r\n- 主分支 CI：https://github.com/Starfie1d1272/RivalHub/actions/runs/39609254599\r\n- 完整差异：https://github.com/Starfie1d1272/RivalHub/compare/v2.21.5...v2.21.6\r\n\r\n- 发布流程：https://github.com/Starfie1d1272/RivalHub/actions/runs/39609647416\r\n- 生产版本核验：https://match.starfie1d.top/api/system/release\r\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "## v2.21.6\r\n\r\n部署状态：已上线。2026-10-21 21:41（北京时间）核验生产版本为 v2.21.6，提交为 10b554eb14e6b4efc7e9d20677ff4199fdf77f31。受保护发布流程全部适用任务成功。\r\n\r\n### Changed\r\n- 优化比赛后台现有赛务待办的信息层级，突出对阵、开赛时间与下一步任务。\r\n- 负责人联系、解说与最晚完成时间放在辅助层，排期回应规则可展开，同刻撞档独立提示。\r\n- 保留原后台布局、品牌色、全部八类筛选、复制催办与工作台入口，以及返回原筛选和行位置的行为。\r\n\r\n本次只调整展示，不改排期规则、权限、数据库查询或生产数据。\r\n\r\n### 发布信息\r\n- 功能 PR：#1039；版本 PR：#1040。\r\n- 发布提交：10b554eb14e6b4efc7e9d20677ff4199fdf77f31。\r\n- 主分支 CI：https://github.com/Starfie1d1272/RivalHub/actions/runs/39609254599\r\n- 完整差异：https://github.com/Starfie1d1272/RivalHub/compare/v2.21.5...v2.21.6\r\n\r\n- 发布流程：https://github.com/Starfie1d1272/RivalHub/actions/runs/39609647416\r\n- 生产版本核验：https://match.starfie1d.top/api/system/release\r\n",
+    "status": "changed-review-required"
   },
   {
     "id": 419557577,
     "tag_name": "v2.21.5",
     "original_body_sha256": "bc552cd8dad55e669c0fe0c8e284342e946d909b3455aa7ee63a8fe2a1ba6e01",
-    "candidate_body": "## v2.21.5\r\n\r\n部署状态：已上线。北京时间 2026-10-21 20:57 核验生产版本 v2.21.5，提交 bfadb31f94fa5002cbee508f3d7efa55a0c84c5f；受保护 Release 构建、候选 smoke 与生产切换成功。本次无数据库迁移。\r\n\r\n### 修复\r\n- 完整正式提交 Pick’Em 后立即完成对应提交任务并获得铜币，已有提交自动体现；截止前仍可修改和重新提交，草稿不覆盖正式提交。命中任务仍在阶段锁定和结果结算后计分。\r\n- 纪念币侧边和立体边框使用对应素材外圈采样色，未解锁状态的铜币面与铜色侧边一致；保留原有金属高光及灯光。\r\n\r\n### 调整\r\n- 首轮比赛排期未齐时，预测截止时间标注“暂定”。截止仍取该阶段最早开赛时间，已锁定后不因改期重新开放。\r\n\r\n### 发布证据\r\n- 修复 PR：#1037；版本 PR：#1038。\r\n- 发布提交：bfadb31f94fa5002cbee508f3d7efa55a0c84c5f。\r\n- 主分支 CI：https://github.com/Starfie1d1272/RivalHub/actions/runs/39603054142\r\n- 完整差异：https://github.com/Starfie1d1272/RivalHub/compare/v2.21.4...v2.21.5\r\n\r\n- 正式发布：https://github.com/Starfie1d1272/RivalHub/actions/runs/39603496274\r\n- 生产身份：https://match.starfie1d.top/api/system/release\r\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "## v2.21.5\r\n\r\n部署状态：已上线。北京时间 2026-10-21 20:57 核验生产版本 v2.21.5，提交 bfadb31f94fa5002cbee508f3d7efa55a0c84c5f；受保护 Release 构建、候选 smoke 与生产切换成功。本次无数据库迁移。\r\n\r\n### Fixed\r\n- 完整正式提交 Pick’Em 后立即完成对应提交任务并获得铜币，已有提交自动体现；截止前仍可修改和重新提交，草稿不覆盖正式提交。命中任务仍在阶段锁定和结果结算后计分。\r\n- 纪念币侧边和立体边框使用对应素材外圈采样色，未解锁状态的铜币面与铜色侧边一致；保留原有金属高光及灯光。\r\n\r\n### Changed\r\n- 首轮比赛排期未齐时，预测截止时间标注“暂定”。截止仍取该阶段最早开赛时间，已锁定后不因改期重新开放。\r\n\r\n### 发布证据\r\n- 修复 PR：#1037；版本 PR：#1038。\r\n- 发布提交：bfadb31f94fa5002cbee508f3d7efa55a0c84c5f。\r\n- 主分支 CI：https://github.com/Starfie1d1272/RivalHub/actions/runs/39603054142\r\n- 完整差异：https://github.com/Starfie1d1272/RivalHub/compare/v2.21.4...v2.21.5\r\n\r\n- 正式发布：https://github.com/Starfie1d1272/RivalHub/actions/runs/39603496274\r\n- 生产身份：https://match.starfie1d.top/api/system/release\r\n",
+    "status": "changed-review-required"
   },
   {
     "id": 419481344,
     "tag_name": "v2.21.4",
     "original_body_sha256": "05e8fed379fad761d176d26380dcfd31c7c09b9ca88d9c872d72bed6e39c8a16",
-    "candidate_body": "## v2.21.4\r\n\r\n部署状态：已上线。北京时间 2026-10-21 19:39 核验生产版本为 v2.21.4，提交 fa16077771c259cba751b7a4c72a865be8cb9924。受保护发布流程的备份检查点、PG17 迁移演练、生产迁移、候选验证及生产切换均成功。\r\n\r\n### 新增\r\n- 赛事推演页头新增纪念币与任务进度组件，支持任务／排行榜展开，以及大尺寸可旋转币体特写；接入本届铜、银、金、钻石币图。\r\n- 尚未创建比赛的推演对阵提供双方队伍资料入口；缺少正式比赛数据的选手，在地图熟练度旁展示历史最高段位及对应完美 Rating Pro。\r\n\r\n### 调整\r\n- 本届八项 Pick’Em 挑战按首次有效提交锁定发放铜币，银／金／钻门槛统一为 2／5／8；同完成任务数并列，组内按真实命中数排序。\r\n- 左侧标题和阶段导航保持原有留白，右侧成就组件独立延伸；纪念币保留原色与亮度，并增加主光、补光和轮廓光。\r\n\r\n### 修复\r\n- 提高推演胜负状态可读性，保留原有卡片布局；优化弹层关闭与焦点交互，并为不支持 WebGL 的环境提供静态币图。\r\n\r\n### 发布信息\r\n- 功能 PR：#1035；版本 PR：#1036。\r\n- 发布提交：fa16077771c259cba751b7a4c72a865be8cb9924。\r\n- 完整差异：https://github.com/Starfie1d1272/RivalHub/compare/v2.21.3...v2.21.4\r\n- 主分支检查：https://github.com/Starfie1d1272/RivalHub/actions/runs/39591817674\r\n\r\n- 正式发布流程：https://github.com/Starfie1d1272/RivalHub/actions/runs/39592970309\r\n- 生产版本核验：https://match.starfie1d.top/api/system/release\r\n- 在线页面：https://match.starfie1d.top/2026-nju-major/predictions\r\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "## v2.21.4\r\n\r\n部署状态：已上线。北京时间 2026-10-21 19:39 核验生产版本为 v2.21.4，提交 fa16077771c259cba751b7a4c72a865be8cb9924。受保护发布流程的备份检查点、PG17 迁移演练、生产迁移、候选验证及生产切换均成功。\r\n\r\n### Added\r\n- 赛事推演页头新增纪念币与任务进度组件，支持任务／排行榜展开，以及大尺寸可旋转币体特写；接入本届铜、银、金、钻石币图。\r\n- 尚未创建比赛的推演对阵提供双方队伍资料入口；缺少正式比赛数据的选手，在地图熟练度旁展示历史最高段位及对应完美 Rating Pro。\r\n\r\n### Changed\r\n- 本届八项 Pick’Em 挑战按首次有效提交锁定发放铜币，银／金／钻门槛统一为 2／5／8；同完成任务数并列，组内按真实命中数排序。\r\n- 左侧标题和阶段导航保持原有留白，右侧成就组件独立延伸；纪念币保留原色与亮度，并增加主光、补光和轮廓光。\r\n\r\n### Fixed\r\n- 提高推演胜负状态可读性，保留原有卡片布局；优化弹层关闭与焦点交互，并为不支持 WebGL 的环境提供静态币图。\r\n\r\n### 发布信息\r\n- 功能 PR：#1035；版本 PR：#1036。\r\n- 发布提交：fa16077771c259cba751b7a4c72a865be8cb9924。\r\n- 完整差异：https://github.com/Starfie1d1272/RivalHub/compare/v2.21.3...v2.21.4\r\n- 主分支检查：https://github.com/Starfie1d1272/RivalHub/actions/runs/39591817674\r\n\r\n- 正式发布流程：https://github.com/Starfie1d1272/RivalHub/actions/runs/39592970309\r\n- 生产版本核验：https://match.starfie1d.top/api/system/release\r\n- 在线页面：https://match.starfie1d.top/2026-nju-major/predictions\r\n",
+    "status": "changed-review-required"
   },
   {
     "id": 419076304,
     "tag_name": "v2.21.3",
     "original_body_sha256": "5ba574af60622bb39da7b97741f3910b4881abb2852c19bedbdaeb4d70e32de5",
-    "candidate_body": "本次生产发布 v2.21.3 相对权威上一生产版本 v2.21.2 的完整变更。\r\n\r\n### Fixed\r\n- 赛事总览、参赛阵容及相关后台统一正式比赛完成场数和总场数，淘汰队伍的历史比赛不再漏算。\r\n- 队伍近期比赛和数据中心地图/BP筛选目录排除测试赛；清理两场已结束历史测试赛，保留正式比赛、参赛档案及删除审计。\r\n\r\n### Changed\r\n- 收拢已审核队伍、参赛人数和近期比赛查询，页面不再自行定义数据库聚合指标，并增加架构及真实数据库回归保护。\r\n\r\n### 生产核验\r\n- Release #39533233744 的 PG17 演练、加密数据库检查点、生产迁移、候选验证及上线全部通过。\r\n- 2026年10月21日10:33（北京时间）核验 canonical release 为 v2.21.3 / 32f34bca9c27cd875ba141baad6e0df60f804193。\r\n- 生产正式比赛保持15/23，两场测试赛已删除并留有2条审计；赛事首页和参赛阵容均为15/23，原6个队伍页面不再包含这两场测试赛链接。\r\n\r\n完整变更：https://github.com/Starfie1d1272/RivalHub/compare/v2.21.2...v2.21.3\r\n发布证据：https://github.com/Starfie1d1272/RivalHub/actions/runs/39533233744",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "本次生产发布 v2.21.3 相对权威上一生产版本 v2.21.2 的完整变更。\r\n\r\n### Fixed\r\n- 赛事总览、参赛阵容及相关后台统一正式比赛完成场数和总场数，淘汰队伍的历史比赛不再漏算。\r\n- 队伍近期比赛和数据中心地图/BP筛选目录排除测试赛；清理两场已结束历史测试赛，保留正式比赛、参赛档案及删除审计。\r\n\r\n### Changed\r\n- 统一已审核队伍、参赛人数和近期比赛的统计口径。\r\n\r\n### 生产核验\r\n- Release #39533233744 的 PG17 演练、加密数据库检查点、生产迁移、候选验证及上线全部通过。\r\n- 2026年10月21日10:33（北京时间）核验 canonical release 为 v2.21.3 / 32f34bca9c27cd875ba141baad6e0df60f804193。\r\n- 生产正式比赛保持15/23，两场测试赛已删除并留有2条审计；赛事首页和参赛阵容均为15/23，原6个队伍页面不再包含这两场测试赛链接。\r\n\r\n完整变更：https://github.com/Starfie1d1272/RivalHub/compare/v2.21.2...v2.21.3\r\n发布证据：https://github.com/Starfie1d1272/RivalHub/actions/runs/39533233744",
+    "status": "changed-review-required"
   },
   {
     "id": 418852832,
     "tag_name": "v2.21.2",
     "original_body_sha256": "a671a09c2b572d895028ddc8876e76dfc8ab04da3c37434b00420227b510c0c7",
     "candidate_body": "本次生产发布 v2.21.2 相对权威上一生产版本 v2.21.1 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.21.2]\n\n### Fixed\n\n- 赛事推演完整展开赛程，由页面统一上下滚动；右侧预测单停靠在导航下方并保留独立滚动，方便对照选队。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 418839301,
     "tag_name": "v2.21.1",
     "original_body_sha256": "0a09c5f51e6d4c0ad3470c4d415ad687e9c8108e72d606a95c30c2789b995ef9",
     "candidate_body": "本次生产发布 v2.21.1 相对权威上一生产版本 v2.21.0 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.21.1]\n\n### Changed\n\n- 优化赛事推演的公共工具栏与五轮卡片比例，保留轮次居中及完整晋级／淘汰队伍；横向卡片队名调整为 11px，预测单与赛程工作区对齐并独立滚动。\n- 推演结果可通过橙色「保存推演为 Pick’Em」直接保存为阶段草稿，首次保存自动加入；预测单提示赛果变化，正式提交独立确认。\n\n### Fixed\n\n- 打通转队后的本届参赛确认与名单调整：负责人可补入新成员并分享处理链接，选手可在允许转队时确认更换参赛队伍；页面展示名单差异、待办及资料缺项。\n- 管理员可在保存 Major 种子前撤回最终名单冻结，修正名单后重新冻结；已保存种子或已启动阶段的赛事继续保持锁定。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 418316062,
     "tag_name": "v2.21.0",
     "original_body_sha256": "0be4d1da41b54095c4b99dab1e9ada80e8d28a66b4c0be41b4333f618f1601fe",
     "candidate_body": "本次生产发布 v2.21.0 相对权威上一生产版本 v2.20.0 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.21.0]\n\n### Added\n\n- 选手公开主页展示有效赛事处罚及到期、撤销历史；公开头像统一显示等比例「已禁赛」斜条，赛事履历提前呈现，荣誉撤销、冠军空缺和公开裁决可追溯。\n- 数据中心 Records 新增 4K、Ace 与单回合道具伤害纪录，支持查看多杀、特殊武器击杀、TK 等事件及比赛来源；优化移动端浏览，筛选与分页可通过链接恢复。\n\n### Changed\n\n- 更新 Next.js、React、表单校验与交互组件等运行时依赖，纳入上游补丁和兼容性修复。\n\n### Fixed\n\n- 修复 OCR 响应读取中断被误报为格式错误的问题，保留网络中断及读取超时的安全排查原因。\n- 修复 Demo 提交、重新核查和身份确认中的错误归因，解析程序异常保留排查原因与原有记录。\n- 修复找回密码请求期间修改邮箱后，成功提示显示错误邮箱的问题。\n- 报名页按当前请求时间判断开放窗口，避免预渲染报错。\n- 补齐预览库社区奖与公开纪律记录的脱敏镜像策略及迁移兼容。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 417565380,
     "tag_name": "v2.20.0",
     "original_body_sha256": "648b0d92e86a5c4c0a985c191f11faef40d2ab13baaf86b473642904f671a160",
     "candidate_body": "本次生产发布 v2.20.0 相对权威上一生产版本 v2.19.4 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.20.0]\n\n### Added\n\n- 比赛页新增阵容与选手关键数据对照，支持分别切换双方首发、查看开赛前历史表现和进入个人主页；未提交名单时标注预计阵容，缺少双方数据时收起对比。\n- 队伍公开页新增阵容打法画像，以成员生涯属性展示三组 Steam 头像散点图，支持查看分数、样本及个人主页。\n- 社区奖支持人数上限、全部并列者和完整获奖名单，增加候选证据核验与事件、阶段结奖时机设置；默认等待整届结束。多人和提前结奖规则须在新版部署并排空旧版请求后启用。\n\n### Fixed\n\n- 补全管理员密码异常恢复，核对当前更新编号、记录结果与证据编号，并原子保存登录恢复和审计，拒绝过期页面解除新的更新。\n- 赛事推演刷新失败时保留原数据并提供重试，防止迟到赛况覆盖新结果；在线人数读取失败时隐藏旧值，恢复后重新显示。\n- 补齐 Steam 与材料、赛事图片存储失败的安全诊断，保留状态码和网络原因，继续隐藏凭据、文件路径与响应正文。\n- 日志附加字段读取异常时保留原始错误诊断，避免日志影响正常请求。\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 417050120,
     "tag_name": "v2.19.4",
     "original_body_sha256": "588d45102d96a875115fe5666fa72a49ba8c05cef01a827de76ccd5796961b7c",
-    "candidate_body": "### Fixed\r\n\r\n- 参赛管理默认汇总待审核、需补正与资格异常；正赛参考按正式队伍及最新名单重新排序。\r\n- 恢复 Play-in 淘汰选手和赛事负责人在转会窗口内自主释放参赛归属；保留历史名单与比赛记录。\r\n- 冠军竞猜在正式正赛队伍确定后自动开放；赛事击杀王独立等待名单冻结，阶段积分仍按阶段启动发放。\r\n\r\n**Full Changelog**: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.3...v2.19.4",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "### Fixed\n\n- 参赛管理默认展示待审核、需补正与资格异常；正赛实力参考按正式参赛队及最新调整名单重新排序。\n- 恢复 Play-in 淘汰选手在转会窗口内自主退出原赛事归属并加入晋级队伍的能力，包括原赛事负责人；保留历史名单与赛果，并允许没有其他进行中赛事的淘汰队伍正常解散。\n- 冠军竞猜在 Play-in 完成、正式正赛队伍确定后自动开放；赛事击杀王独立等待正式名单冻结。两者在正赛首场 BP 或比赛开始时锁盘，阶段积分仍按阶段启动发放。\n\n**Full Changelog**: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.3...v2.19.4",
+    "status": "changed-review-required"
   },
   {
     "id": 416992963,
     "tag_name": "v2.19.3",
     "original_body_sha256": "91ebeccb7fdf7a0f1d98eac779c35293b09ddfde1ad2ab9cea7a107554f1a252",
     "candidate_body": "### Fixed\r\n\r\n- 允许参赛选手参与赛事级冠军和击杀王竞猜，保留单场本人队伍限制；兼容种子确认前的正式参赛队伍盘口，新开放条件待兼容版本上线后启用。\r\n\r\n**Full Changelog**: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.2...v2.19.3",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 416980774,
     "tag_name": "v2.19.2",
     "original_body_sha256": "bd445ca566b903ff7159e2e2f378f361df9e30c60a49c9760c8734b58afe6aa4",
     "candidate_body": "### Fixed\r\n\r\n- 修复名单补正中的队伍详情页加载统计时报错，并统一数据中心队伍筛选的公开可见性判断。\r\n\r\n**Full Changelog**: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.1...v2.19.2",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 416958497,
     "tag_name": "v2.19.1",
     "original_body_sha256": "c94871588b1173a986bc4a6e5eaa9cc1137a26b7273e0635d5132f16238a7625",
     "candidate_body": "### Fixed\r\n\r\n- 修复名单调整期间正赛队伍数量退回报名候选口径、历史对手显示为未知队伍的问题；补正和重新提交期间继续展示已审核名单。\r\n\r\n**Full Changelog**: https://github.com/Starfie1d1272/RivalHub/compare/v2.19.0...v2.19.1",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 416925402,
     "tag_name": "v2.19.0",
     "original_body_sha256": "fbf3ab7fd808787fad43df6f16318e9ad968934271d5f87ae5d3785fdde764d0",
-    "candidate_body": "## 更新\r\n\r\n- 管理后台按赛事组织工作范围，比赛执行、赛程阶段与赛后资料分开浏览；单场返回保留筛选、待办类别和来源位置，本届公告与赛事信息可连续办理。\r\n- 优化首页、赛事导航及公开赛程的桌面布局，突出近期比赛和当前阶段，保留赛事品牌与历史入口。\r\n- 整合参赛阵容、队伍主页与我的参赛页面，集中展示成员、报名进度、地图表现和近期比赛。\r\n- 调整选手主页、数据中心和设置页的信息顺序，保留统计筛选、排序与详情返回上下文。\r\n- 精简单场工作台，突出排期、BP、录分和赛后资料；优化 BP 地图卡片、选边、双方准备状态与比赛详情布局。\r\n- 补齐新版后台页面、工作视图和赛务筛选的诊断分类。\r\n\r\n## 修复\r\n\r\n- 修复登录后丢失竞猜或社区奖页面上下文、低保领取首次点击无响应，以及推演双位数比分换行的问题。\r\n- 修复单队地图决胜图次数的统计范围，并明确情境统计的样本门槛和指标含义。\r\n- 修复名单调整提示、历史邀请和已结束赛事空态；Swiss 结果卡及时展示已结束比赛的战绩。\r\n- 修正普通赛事管理员的超管入口，以及已批准参赛队伍与 Major 冻结名单的展示区别。\r\n- 恢复队长投票布局，补齐赛事群号复制和历史规则入口。\r\n\r\n完整更新：[v2.18.3...v2.19.0](https://github.com/Starfie1d1272/RivalHub/compare/v2.18.3...v2.19.0)",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "### Changed\r\n\r\n- 管理后台按赛事组织工作范围，比赛执行、赛程阶段与赛后资料分开浏览；单场返回保留筛选、待办类别和来源位置，本届公告与赛事信息可连续办理。\r\n- 优化首页、赛事导航及公开赛程的桌面布局，突出近期比赛和当前阶段，保留赛事品牌与历史入口。\r\n- 整合参赛阵容、队伍主页与我的参赛页面，集中展示成员、报名进度、地图表现和近期比赛。\r\n- 调整选手主页、数据中心和设置页的信息顺序，保留统计筛选、排序与详情返回上下文。\r\n- 精简单场工作台，突出排期、BP、录分和赛后资料；优化 BP 地图卡片、选边、双方准备状态与比赛详情布局。\r\n- 补齐新版后台页面、工作视图和赛务筛选的诊断分类。\r\n\r\n### Fixed\r\n\r\n- 修复登录后丢失竞猜或社区奖页面上下文、低保领取首次点击无响应，以及推演双位数比分换行的问题。\r\n- 修复单队地图决胜图次数的统计范围，并明确情境统计的样本门槛和指标含义。\r\n- 修复名单调整提示、历史邀请和已结束赛事空态；Swiss 结果卡及时展示已结束比赛的战绩。\r\n- 修正普通赛事管理员的超管入口，以及已批准参赛队伍与 Major 冻结名单的展示区别。\r\n- 恢复队长投票布局，补齐赛事群号复制和历史规则入口。\r\n\r\n完整更新：[v2.18.3...v2.19.0](https://github.com/Starfie1d1272/RivalHub/compare/v2.18.3...v2.19.0)",
+    "status": "changed-review-required"
   },
   {
     "id": 416575517,
     "tag_name": "v2.18.3",
     "original_body_sha256": "6e4c8bf330b48a4e960a29098e707e3e5c0d2065e76b717a9513b7e59779cee4",
-    "candidate_body": "## 修复\r\n\r\n- 修复浏览器诊断数据无法发送的问题。\r\n\r\n**完整更新**：https://github.com/Starfie1d1272/RivalHub/compare/v2.18.2...v2.18.3",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "### Fixed\r\n\r\n- 修复浏览器诊断数据无法发送的问题。\r\n\r\n**完整更新**：https://github.com/Starfie1d1272/RivalHub/compare/v2.18.2...v2.18.3",
+    "status": "changed-review-required"
   },
   {
     "id": 416561522,
     "tag_name": "v2.18.2",
     "original_body_sha256": "caaa21cc9fc57a53540a2ec076f6a06b000954a4f556f620f8192fe8baaadbd8",
-    "candidate_body": "## 修复\r\n\r\n- 启用页面与操作诊断，支持定位使用问题。\r\n\r\n**完整更新**：https://github.com/Starfie1d1272/RivalHub/compare/v2.18.1...v2.18.2",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "### Changed\r\n\r\n- 启用页面与操作诊断配置，支持定位使用问题；接收端和真实浏览器采集仍需核验。\r\n\r\n**完整更新**：https://github.com/Starfie1d1272/RivalHub/compare/v2.18.1...v2.18.2",
+    "status": "changed-review-required"
   },
   {
     "id": 416468471,
     "tag_name": "v2.18.1",
     "original_body_sha256": "84c920ff29e6c8a461285286f62e969f4bc109dee20794c73d2e7c0fcf296adc",
-    "candidate_body": "### 修复\r\n\r\n- 修复选手资料更新后较低的外校实力差使已有特批失效的问题。\r\n- 确认正赛席位承接已批准名单，实际阵容继续执行首发资格校验。\r\n\r\n完整变更：https://github.com/Starfie1d1272/RivalHub/compare/v2.18.0...v2.18.1",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "### Fixed\r\n\r\n- 修复选手资料更新后较低的外校实力差使已有特批失效的问题。\r\n- 确认正赛席位承接已批准名单，实际阵容继续执行首发资格校验。\r\n\r\n完整变更：https://github.com/Starfie1d1272/RivalHub/compare/v2.18.0...v2.18.1",
+    "status": "changed-review-required"
   },
   {
     "id": 416014161,
@@ -304,8 +304,8 @@
     "id": 411967007,
     "tag_name": "v2.17.6",
     "original_body_sha256": "2c900fb3f481a5230c260af5bc7d99b79ae63dc369c289a95b30fa038a9cad7e",
-    "candidate_body": "本次生产发布 v2.17.6 相对权威上一生产版本 v2.17.5 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.17.6]\n\n### Fixed\n\n- BO1 有可信正式单图结果时，比赛详情、赛程、预测和历史赛果显示实际回合比分；多图系列赛与弃权保留系列比分，缺失结果不再显示虚假的 0:0。\n- 现场账号与登记首发不一致时，可在来源授权、地图与实时证据校验通过后继续展示网站实时数据，并提示名单异常。临时账号不关联登记选手；展示不修改固定首发、正式赛果、统计或竞猜结算。\n\n### Maintenance\n\n- 系列比分更正的浏览器证据使用独立 CI 分片，保持实际更正和拒绝路径验证。\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "本次生产发布 v2.17.6 相对权威上一生产版本 v2.17.5 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.17.6]\n\n### Fixed\n\n- BO1 有可信正式单图结果时，比赛详情、赛程、预测和历史赛果显示实际回合比分；多图系列赛与弃权保留系列比分，缺失结果不再显示虚假的 0:0。\n- 现场账号与登记首发不一致时，可在来源授权、地图与实时证据校验通过后继续展示网站实时数据，并提示名单异常。临时账号不关联登记选手；展示不修改固定首发、正式赛果、统计或竞猜结算。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 411485417,
@@ -318,22 +318,22 @@
     "id": 411316194,
     "tag_name": "v2.17.4",
     "original_body_sha256": "205a1d6ab02e62c168549c0d7da45b07f613c56eb1fc8339094ad37bcabf2130",
-    "candidate_body": "本次生产发布 v2.17.4 相对权威上一生产版本 v2.17.3 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.17.4]\n\n### Fixed\n\n- 减少公开选手属性基准读取的统计投影数据量，保留原有统计结果、身份校验与缓存更新时效。\n- 消除比赛排期弹窗与页面重复发起的自动刷新，继续按比赛页面现有频率同步提议和比赛状态。\n\n### Changed\n\n- Preview 镜像保留每日及手动刷新，仅在含数据库迁移的成功发布后额外刷新，减少纯应用发布产生的全量导出。\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "本次生产发布 v2.17.4 相对权威上一生产版本 v2.17.3 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.17.4]\n\n### Changed\n\n- 减少公开选手属性基准读取的统计投影数据量，保留原有统计结果、身份校验与缓存更新时效。\n- Preview 镜像保留每日及手动刷新，仅在含数据库迁移的成功发布后额外刷新，减少纯应用发布产生的全量导出。\n\n### Fixed\n\n- 消除比赛排期弹窗与页面重复发起的自动刷新，继续按比赛页面现有频率同步提议和比赛状态。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 411196638,
     "tag_name": "v2.17.3",
     "original_body_sha256": "95525b55fcb3850f9d8c4d9b5e17cf5bd704a43cd972501aa7c29f3c1a140f34",
-    "candidate_body": "本次生产发布 v2.17.3 相对权威上一生产版本 v2.17.2 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.17.3]\n\n### Fixed\n\n- 赛事人数概览改为在数据库聚合同一份有效名单，避免仅显示人数时传输完整选手资料；保留候选、正式与冻结名单的人数和实时更新语义。\n- 合并制播比赛资料中的选手头像查询，减少名单读取的数据库往返，保持头像、替补名单和资料版本语义不变。\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "本次生产发布 v2.17.3 相对权威上一生产版本 v2.17.2 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.17.3]\n\n### Changed\n\n- 赛事人数概览改为在数据库聚合同一份有效名单，避免仅显示人数时传输完整选手资料；保留候选、正式与冻结名单的人数和实时更新语义。\n- 合并制播比赛资料中的选手头像查询，减少名单读取的数据库往返，保持头像、替补名单和资料版本语义不变。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 411011557,
     "tag_name": "v2.17.2",
     "original_body_sha256": "d368f1187bad23c87c81696bf1ce02a3ae7fcb90a9988eccd6612b68c534e835",
-    "candidate_body": "本次生产发布 v2.17.2 相对权威上一生产版本 v2.17.1 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.17.2]\n\n### Fixed\n\n- 修复 BET 管理确认与公开竞猜入口在页面尚未就绪时首击无响应；准备期间明确禁用，就绪后继续确认或登录。\n- 修复创建队伍时过早填写导致名称丢失的问题；输入与创建操作就绪后再开放。\n\n### Changed\n\n- 精简重复测试与 CI 启动，保留迁移、结算、权限和安全脱敏回归保护，并更新验证档案。\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "本次生产发布 v2.17.2 相对权威上一生产版本 v2.17.1 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.17.2]\n\n### Fixed\n\n- 修复 BET 管理确认与公开竞猜入口在页面尚未就绪时首击无响应；准备期间明确禁用，就绪后继续确认或登录。\n- 修复创建队伍时过早填写导致名称丢失的问题；输入与创建操作就绪后再开放。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 410414187,
@@ -374,8 +374,8 @@
     "id": 409403425,
     "tag_name": "v2.15.10",
     "original_body_sha256": "896469a156ea477b690ac8f56b2fd90f47f4ba33c2b39f77fd8c7b85bb07f5f6",
-    "candidate_body": "本次生产发布 v2.15.10 相对权威上一生产版本 v2.15.9 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.10]\n\n### Added\n\n- 补齐赛后计分板、Demo 与回放待办，优先展示本人负责的比赛。\n- 比赛积分支持率以双方百分比和双色比例条展示，更直观地呈现双方支持情况。\n\n### Changed\n\n- 整理完美建房指引，突出赛后回放与工具下载入口。\n- 改善昵称展示、OCR 错误反馈、操作记录与 Demo 质量说明。\n\n### Fixed\n\n- 完善 Play-in 实时数据、赛程统计及比赛入口。\n- 优化后台窄屏和长内容布局。\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "本次生产发布 v2.15.10 相对权威上一生产版本 v2.15.9 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.10]\n\n### Added\n\n- 补齐赛后计分板、Demo 与回放待办，优先展示本人负责的比赛。\n- 比赛积分支持率以双方百分比和双色比例条展示，更直观地呈现双方支持情况。\n\n### Changed\n\n- 整理完美建房指引，突出赛后回放与工具下载入口。\n- 改善昵称展示、OCR 错误反馈、操作记录与 Demo 质量说明。\n\n### Fixed\n\n- 修复 Play-in 实时订阅和投递拒收诊断，补齐正式 Swiss 与 Play-in 比赛入口并统一阶段目录。\n- 优化后台操作记录与赛后确认的窄屏和长内容布局。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 408011712,
@@ -535,8 +535,8 @@
     "id": 395882985,
     "tag_name": "v2.12.0",
     "original_body_sha256": "5f2037c08e2f159adf3ce8e134ec823a789ada71d6c8cae5e1a1721b154f17cb",
-    "candidate_body": "本次生产发布 v2.12.0 相对权威上一生产版本 v2.11.0 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.12.0]\n\n### Added\n\n#### Major 赛制与选手生涯数据\n\n管理员现可配置并运行 24 队 Major，默认 32 队赛制和历史赛事保持兼容。选手主页新增跨赛事生涯表现、赛事与地图筛选，以及基于全站历史样本的 Player Attributes 评分和可视化。\n\n### Changed\n\n#### 选手主页与统计说明\n\n重组选手主页信息层级和竞技数据工作区，拆分 Opening、Teamplay、Maps 与 Weapons；赛事统计指标说明统一通过提示入口查看，移除重复的区块解释。\n\n### Fixed\n\n#### 参赛资料、招募与报名名单\n\n修复通用参赛资料就绪判断、5E 未定级赛事 fallback、招募筛选和地图池上下文，并统一相关中文文案。报名名单校验在同一 PostgreSQL 事务中按序读取，避免事务连接上的查询重叠。\n\n#### 调度器派发\n\n调度器仅在存在到期工作时唤醒 Vercel，并将主调度检查、实际派发和端点成功记录为独立健康事实。\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "本次生产发布 v2.12.0 相对权威上一生产版本 v2.11.0 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.12.0]\n\n### Added\n\n#### Major 赛制与选手生涯数据\n\n管理员现可配置并运行 24 队 Major，默认 32 队赛制和历史赛事保持兼容。选手主页新增跨赛事生涯表现、赛事与地图筛选，以及基于全站历史样本的 Player Attributes 评分和可视化。\n\n### Changed\n\n#### 选手与队伍主页\n\n重组选手主页信息层级和竞技数据工作区，拆分 Opening、Teamplay、Maps 与 Weapons；赛事统计指标说明统一通过提示入口查看，移除重复的区块解释。队伍公开主页重组阵容、比赛表现和历史记录，提供地图、选手与武器数据。\n\n### Fixed\n\n#### 参赛资料、招募与报名名单\n\n修复通用参赛资料就绪判断、5E 未定级赛事 fallback、招募筛选和地图池上下文，并统一相关中文文案。报名名单校验在同一 PostgreSQL 事务中按序读取，避免事务连接上的查询重叠。\n\n#### 调度器派发\n\n调度器仅在存在到期工作时唤醒 Vercel，并将主调度检查、实际派发和端点成功记录为独立健康事实。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 394921251,
