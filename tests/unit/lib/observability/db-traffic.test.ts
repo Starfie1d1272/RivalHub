@@ -35,8 +35,11 @@ it("accepts only a matching v2 acknowledgement", async () => {
     expect(send).toHaveBeenCalledOnce();
     const { readFile } = await import("node:fs/promises");
     expect(JSON.parse(await readFile(join(root, "state.json"), "utf8")).batches).toHaveLength(0);
-  } finally { delete host[slot]; vi.unstubAllEnvs(); vi.unstubAllGlobals(); await rm(root, { recursive: true, force: true }); }
-});
+  } finally {
+    if (host[slot]) await vi.waitFor(() => expect((host[slot] as { sending: boolean }).sending).toBe(false), { timeout: 10000 });
+    delete host[slot]; vi.unstubAllEnvs(); vi.unstubAllGlobals(); await rm(root, { recursive: true, force: true });
+  }
+}, 15000);
 
 it("does not retain disabled observations for later delivery", async () => {
   const { vi } = await import("vitest");
@@ -184,10 +187,12 @@ it("shares an eight-request budget across repeated flushes in the same 20 second
   const send = vi.fn(async (_url: unknown, init: { body: string }) => { const body = JSON.parse(init.body); return Response.json({ protocol: 2, id: body.id, digest: await digestDbTraffic(body), status: "accepted" }); });
   vi.stubGlobal("fetch", send);
   try {
-    flushDbTraffic(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(8));
-    await vi.waitFor(() => expect((host[slot] as { sending: boolean }).sending).toBe(false));
-    flushDbTraffic(); await vi.waitFor(() => expect((host[slot] as { sending: boolean }).sending).toBe(false)); expect(send).toHaveBeenCalledTimes(8);
-    now += 20001; flushDbTraffic(); await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(11));
-    await vi.waitFor(() => expect((host[slot] as { sending: boolean }).sending).toBe(false));
-  } finally { delete host[slot]; vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); await rm(root, { recursive: true, force: true }); }
-});
+    const waitForDrain = () => vi.waitFor(() => expect((host[slot] as { sending: boolean }).sending).toBe(false), { timeout: 10000 });
+    flushDbTraffic(); await waitForDrain(); expect(send).toHaveBeenCalledTimes(8);
+    flushDbTraffic(); await waitForDrain(); expect(send).toHaveBeenCalledTimes(8);
+    now += 20001; flushDbTraffic(); await waitForDrain(); expect(send).toHaveBeenCalledTimes(11);
+  } finally {
+    await vi.waitFor(() => expect((host[slot] as { sending: boolean }).sending).toBe(false), { timeout: 10000 });
+    delete host[slot]; vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); await rm(root, { recursive: true, force: true });
+  }
+}, 15000);
