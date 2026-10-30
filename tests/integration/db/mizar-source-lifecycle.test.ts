@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
+import type { Pool } from "pg";
 import { expect, it, vi } from "vitest";
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
@@ -9,6 +10,47 @@ const auth = vi.hoisted(() => ({ userId: "", role: "user" }));
 vi.mock("@/lib/auth/session", () => ({ requireSeasonAdmin: async () => auth }));
 import { readMizarSourceStatus, releaseMizarSource } from "@/lib/mizar/source";
 import { closeCompletedSource, listSourceSessions } from "@/lib/mizar/source-management";
+
+it("reads a consistent receipt summary when the first receipt commits during the report", async () => {
+  const f = await seedFixture();
+  auth.userId = f.fixtureUserIds[0]!;
+  const pool = (db as typeof db & { $client: Pool }).$client;
+  const writer = await pool.connect();
+  const original = pool.query;
+  let injected = false;
+  pool.query = ((...args: unknown[]) => {
+    const query = args[0];
+    const text = typeof query === "string" ? query : (query as { text?: string })?.text;
+    const result = Reflect.apply(original, pool, args);
+    if (!injected && text?.includes('from "mizar_reliable_receipts"')) {
+      injected = true;
+      // Commit after the first receipt SELECT's snapshot, before its result is
+      // returned to the report. A second SELECT would observe different facts.
+      return Promise.resolve(result).then(async value => {
+        await writer.query("INSERT INTO mizar_reliable_receipts(session_id,idempotency_key,event_hash,kind,outcome) VALUES($1,$2,'fixture','map_player_snapshot','observed')", [f.sessionId, randomUUID()]);
+        return value;
+      });
+    }
+    return result;
+  }) as typeof pool.query;
+  try {
+    const report = await listSourceSessions(f.seasonId);
+    const row = report.rows.find(item => item.sessionId === f.sessionId)!;
+    expect(injected).toBe(true);
+    expect(row.receiptCount).toBe(0);
+    expect(row.latestReceipt).toBeNull();
+  } finally {
+    pool.query = original;
+    writer.release();
+  }
+  const updated = (await listSourceSessions(f.seasonId)).rows.find(item => item.sessionId === f.sessionId)!;
+  expect(updated.receiptCount).toBe(1);
+  expect(updated.latestReceipt).toMatchObject({ kind: "map_player_snapshot", outcome: "observed" });
+  await db.insert(schema.mizarReliableReceipts).values({ sessionId: f.sessionId, idempotencyKey: randomUUID(), eventHash: "fixture", kind: "series_ended", outcome: "consistent", acceptedAt: new Date(Date.now() + 60_000) });
+  const multiple = (await listSourceSessions(f.seasonId)).rows.find(item => item.sessionId === f.sessionId)!;
+  expect(multiple.receiptCount).toBe(2);
+  expect(multiple.latestReceipt).toMatchObject({ kind: "series_ended", outcome: "consistent" });
+});
 
 it("resolves only exact installation intents, including ambiguous and finished sources", async () => {
   const f = await seedFixture();

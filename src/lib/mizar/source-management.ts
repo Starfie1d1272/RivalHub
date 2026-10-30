@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, gt, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, type TxDb } from "@/db/client";
 import { competitionEntries, matchLiveSessions, matches, mizarInstallations, mizarReliableReceipts, seasonAdminGrants, users } from "@/db/schema";
@@ -32,13 +32,12 @@ function eligible(source: Source, match: Match, receipts: ReceiptSummary, now: D
   if (lastActivity > now.getTime() - quietMs) return "最近 15 分钟内有可靠上报或来源刚打开";
   return null;
 }
-async function receiptSummaries(executor: Pick<TxDb, "select" | "selectDistinctOn">, ids: string[]): Promise<Map<string, ReceiptSummary>> {
+async function receiptSummaries(executor: Pick<TxDb, "selectDistinctOn">, ids: string[]): Promise<Map<string, ReceiptSummary>> {
   if (!ids.length) return new Map();
-  const totals = await executor.select({ sessionId: mizarReliableReceipts.sessionId, count: count() }).from(mizarReliableReceipts).where(inArray(mizarReliableReceipts.sessionId, ids)).groupBy(mizarReliableReceipts.sessionId);
-  const latest = await executor.selectDistinctOn([mizarReliableReceipts.sessionId], { sessionId: mizarReliableReceipts.sessionId, id: mizarReliableReceipts.id, acceptedAt: mizarReliableReceipts.acceptedAt, kind: mizarReliableReceipts.kind, outcome: mizarReliableReceipts.outcome }).from(mizarReliableReceipts).where(inArray(mizarReliableReceipts.sessionId, ids)).orderBy(asc(mizarReliableReceipts.sessionId), desc(mizarReliableReceipts.acceptedAt), desc(mizarReliableReceipts.id));
+  // Window count and latest receipt must share one statement snapshot.
+  const latest = await executor.selectDistinctOn([mizarReliableReceipts.sessionId], { sessionId: mizarReliableReceipts.sessionId, count: sql<number>`count(*) over (partition by ${mizarReliableReceipts.sessionId})`.mapWith(Number), id: mizarReliableReceipts.id, acceptedAt: mizarReliableReceipts.acceptedAt, kind: mizarReliableReceipts.kind, outcome: mizarReliableReceipts.outcome }).from(mizarReliableReceipts).where(inArray(mizarReliableReceipts.sessionId, ids)).orderBy(asc(mizarReliableReceipts.sessionId), desc(mizarReliableReceipts.acceptedAt), desc(mizarReliableReceipts.id));
   const result = new Map<string, ReceiptSummary>();
-  for (const row of totals) result.set(row.sessionId, { count: row.count, latest: null });
-  for (const { sessionId, ...row } of latest) result.get(sessionId)!.latest = row;
+  for (const { sessionId, count, ...row } of latest) result.set(sessionId, { count, latest: row });
   return result;
 }
 
