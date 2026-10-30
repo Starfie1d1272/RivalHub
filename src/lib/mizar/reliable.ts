@@ -1,4 +1,6 @@
 import "server-only";
+import { createHash } from "node:crypto";
+import { ZodError } from "zod";
 import { mizarAuditActorId } from "@/lib/audit/people";
 import { and, eq, isNull, asc } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -15,12 +17,18 @@ import { touchMizarInstallation } from "./heartbeat";
 import { assertInstallationInTx, hashCredential } from "./installation";
 import { validateObservedLineupInTx } from "./source";
 import { parseReliableEventV1 } from "./protocol";
+import { ReliableRejection } from "./rejection";
 import { loadMizarMatchDocumentInTx } from "./context";
 import { isLineupMismatchOnly, LINEUP_REVIEW_REQUIRED } from "./lineup-display";
 
 export async function ingestMizarReliable(installationId: string, competitionId: string, input: unknown, authorityRevision: number, lineupSteam64: readonly string[] = []) {
-  const event = parseReliableEventV1(input);
-  if (event.competitionId !== competitionId || event.cursor.liveSessionId === null) throw new AppError(ErrorCode.FORBIDDEN, "制播数据不属于当前连接。");
+  let event: ReturnType<typeof parseReliableEventV1>;
+  try { event = parseReliableEventV1(input); }
+  catch (error) {
+    if (error instanceof ZodError) throw new ReliableRejection(ErrorCode.VALIDATION_FAILED, "制播数据格式无效，请刷新比赛资料并更新 Mizar 后重试。", "invalid_schema");
+    throw error;
+  }
+  if (event.competitionId !== competitionId || event.cursor.liveSessionId === null) throw new ReliableRejection(ErrorCode.FORBIDDEN, "制播数据不属于当前连接。", "authority_changed");
   const finishResource = beginRuntimeResource("mizar.reliable");
   try {
     const result = await db.transaction(async tx => {
@@ -28,12 +36,13 @@ export async function ingestMizarReliable(installationId: string, competitionId:
       const match = await lockMatchInTx(tx, event.matchId);
       const [source] = await tx.select().from(matchLiveSessions).where(and(eq(matchLiveSessions.matchId, match.id), isNull(matchLiveSessions.closedAt))).for("update");
       if (match.seasonId !== competitionId || match.entryAId !== event.entryAId || match.entryBId !== event.entryBId || !source || source.installationId !== installationId || source.authorityRevision !== authorityRevision || source.producerInstanceId !== event.cursor.producerInstanceId || source.liveSessionId !== event.cursor.liveSessionId) {
-        throw new AppError(ErrorCode.FORBIDDEN, "当前数据源或比赛资料已经变化，请重新连接。");
+        throw new ReliableRejection(ErrorCode.FORBIDDEN, "当前数据源或比赛资料已经变化，请重新连接。", "authority_changed");
       }
+      const details = { kind: event.kind, scopeHash: createHash("sha256").update(match.id).digest("hex").slice(0, 16) };
       const eventHash = hashCredential(JSON.stringify(event));
       const [receipt] = await tx.select().from(mizarReliableReceipts).where(and(eq(mizarReliableReceipts.sessionId, source.id), eq(mizarReliableReceipts.idempotencyKey, event.idempotencyKey)));
       if (receipt) {
-        if (receipt.eventHash !== eventHash) throw new AppError(ErrorCode.VALIDATION_FAILED, "重复事件内容冲突。");
+        if (receipt.eventHash !== eventHash) throw new ReliableRejection(ErrorCode.VALIDATION_FAILED, "重复事件内容冲突。", "idempotency_conflict", details);
         return { outcome: receipt.outcome, duplicate: true };
       }
       if (event.kind === "map_player_snapshot") {
@@ -67,14 +76,15 @@ export async function ingestMizarReliable(installationId: string, competitionId:
       // relinquishing its source. Never adopt an arbitrary or stale revision.
       if (event.contextRevision !== source.contextRevision) {
         const context = await loadMizarMatchDocumentInTx(tx, match.id, competitionId);
-        if (event.contextRevision !== context.revision) throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛资料已经更新，请刷新制播比赛。");
+        if (event.contextRevision !== context.revision) throw new ReliableRejection(ErrorCode.VALIDATION_FAILED, "比赛资料已经更新，请刷新制播比赛。", "context_stale", details);
       }
       // One runtime mutation may emit several distinct boundary events at the same cursor.
       // Idempotency keys are checked above; only an older cursor is stale.
-      if (event.cursor.runtimeSeq < source.lastReliableSeq) throw new AppError(ErrorCode.VALIDATION_FAILED, "事件已过期。");
+      if (event.cursor.runtimeSeq < source.lastReliableSeq) throw new ReliableRejection(ErrorCode.VALIDATION_FAILED, "事件已过期。", "sequence_stale", { ...details, receivedCursor: event.cursor.runtimeSeq, storedCursor: source.lastReliableSeq });
       const generationChanged = event.kind === "source_generation_changed" && event.payload.previousSourceGeneration === source.programSourceGeneration && event.cursor.programSourceGeneration > source.programSourceGeneration;
       const epochChanged = event.kind === "map_epoch_changed" && event.payload.previousMapEpoch === source.mapEpoch && event.cursor.mapEpoch > source.mapEpoch;
-      if ((!generationChanged && event.cursor.programSourceGeneration !== source.programSourceGeneration) || (!epochChanged && event.cursor.mapEpoch !== source.mapEpoch)) throw new AppError(ErrorCode.VALIDATION_FAILED, "对局数据已过期，请刷新数据源。");
+      if (!generationChanged && event.cursor.programSourceGeneration !== source.programSourceGeneration) throw new ReliableRejection(ErrorCode.VALIDATION_FAILED, "对局数据已过期，请刷新数据源。", "generation_fence", { ...details, receivedCursor: event.cursor.programSourceGeneration, storedCursor: source.programSourceGeneration });
+      if (!epochChanged && event.cursor.mapEpoch !== source.mapEpoch) throw new ReliableRejection(ErrorCode.VALIDATION_FAILED, "对局数据已过期，请刷新数据源。", "epoch_fence", { ...details, receivedCursor: event.cursor.mapEpoch, storedCursor: source.mapEpoch });
       const now = new Date();
       let outcome = "observed";
       let mapEndScope: typeof mizarReliableReceipts.$inferInsert.mapEndScope;

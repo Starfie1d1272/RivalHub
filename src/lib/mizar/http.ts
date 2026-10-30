@@ -4,7 +4,8 @@ import { ZodError } from "zod";
 import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { ensureRequestId } from "@/lib/observability/context";
 import { withRouteObservability } from "@/lib/observability/route";
-import { captureException } from "@/lib/observability/server";
+import { captureException, recordMizarReliableRejection } from "@/lib/observability/server";
+import { ReliableRejection, reliableRecovery, type ReliableReason } from "./rejection";
 import { classifyError } from "@/lib/observability/errors";
 
 import { recordMizarHttpResult, recordMizarEncodedBody } from "@/lib/observability/read-budget";
@@ -69,17 +70,28 @@ export async function readBoundedMizarJson(request: Request, maxBytes: number, t
 
 export function mizarHttpError(error: unknown, diagnostics?: MizarDiagnostics) {
   const headers = { "Cache-Control": "no-store" };
+  const reliable = diagnostics?.operation === "reliable";
+  // Do not copy an untrusted request header into reliable rejection logs.
+  if (reliable) diagnostics.requestId = crypto.randomUUID();
+  let reason: ReliableReason | undefined;
+  if (reliable && error instanceof ReliableRejection) reason = error.reason;
+  else if (reliable && (error instanceof ZodError && diagnostics.phase === "validate" || error instanceof MizarBodyError && error.code === "invalid_body")) reason = "invalid_schema";
+  let logged = false;
+  if (reliable && (error instanceof AppError && error.code !== "INTERNAL_ERROR" || error instanceof MizarBodyError || error instanceof ZodError && (diagnostics.phase === "validate" || diagnostics.phase === "domain"))) {
+    logged = recordMizarReliableRejection(reason ?? (diagnostics.phase === "auth" ? "auth_failed" : "other"), diagnostics.phase, diagnostics.requestId, error instanceof ReliableRejection ? error.details : undefined);
+  }
+  const extras = reason ? { reason, ...(logged ? { requestId: diagnostics!.requestId } : {}), recovery: reliableRecovery(reason) } : {};
   if (error instanceof AppError && error.code !== "INTERNAL_ERROR") {
     const status = error.code === "UNAUTHORIZED" ? 401 : error.code === "FORBIDDEN" ? 403 : ["NOT_FOUND", "MATCH_NOT_FOUND", "SEASON_NOT_FOUND"].includes(error.code) ? 404 : 400;
-    return Response.json({ error: error.presentation?.message ?? error.message, code: error.code }, { status, headers });
+    return Response.json({ error: error.presentation?.message ?? error.message, code: error.code, ...extras }, { status, headers });
   }
   if (error instanceof MizarBodyError) {
     const status = error.code === "payload_too_large" ? 413 : error.code === "body_timeout" ? 408 : 400;
     const message = error.code === "payload_too_large" ? "制播数据过大，请更新 Mizar 后重试。" : error.code === "body_timeout" ? "读取制播数据超时，请检查网络后重试。" : "制播数据格式无效，请更新 Mizar 后重试。";
-    return Response.json({ error: message, code: error.code }, { status, headers });
+    return Response.json({ error: message, code: error.code, ...extras }, { status, headers });
   }
   if (error instanceof ZodError && (!diagnostics || diagnostics.phase === "validate" || diagnostics.phase === "domain")) {
-    return Response.json({ error: "制播数据格式无效，请刷新比赛资料并更新 Mizar 后重试。", code: "VALIDATION_FAILED" }, { status: 400, headers });
+    return Response.json({ error: "制播数据格式无效，请刷新比赛资料并更新 Mizar 后重试。", code: "VALIDATION_FAILED", ...extras }, { status: 400, headers });
   }
   const requestId = ensureRequestId(diagnostics?.requestId);
   const classification = classifyError(error);

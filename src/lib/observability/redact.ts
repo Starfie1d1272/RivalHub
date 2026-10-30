@@ -23,6 +23,11 @@ const RUNTIME_NUMERIC_KEYS = new Set(["returnedRows", "queryMs", "unsupported", 
 
 const SAFE_CONTEXT_KEYS = new Set([
   ...RUNTIME_NUMERIC_KEYS,
+  "firstAt",
+  "lastAt",
+  "scopeHash",
+  "receivedCursor",
+  "storedCursor",
   "action",
   "attempt",
   "backend",
@@ -201,6 +206,10 @@ export function sanitizeSafeContext(context: Record<string, unknown> | undefined
       let safeValue: unknown;
       if (RUNTIME_NUMERIC_KEYS.has(key)) {
         safeValue = typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+      } else if (key === "scopeHash") {
+        safeValue = typeof value === "string" && /^[a-f0-9]{16}$/.test(value) ? value : undefined;
+      } else if (["firstAt", "lastAt", "receivedCursor", "storedCursor"].includes(key)) {
+        safeValue = typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
       } else if (key === "finishReason") {
         safeValue = typeof value === "string" && ["stop", "eos", "length", "content_filter", "tool_calls", "unknown"].includes(value) ? value : undefined;
       } else if (key === "imageDigest" || key === "configDigest") {
