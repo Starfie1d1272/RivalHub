@@ -54,19 +54,22 @@ const frozenRestrictionOverrideSchema = z.object({
   }
 });
 
-const frozenInputObject = z.object({
+const smallInputObject = z.object({
   stagePlan: z.array(stageSchema).min(1),
   rosterRules: z.object({ minTeamSize: z.number().int().positive(), maxTeamSize: z.number().int().positive(), starterCount: z.number().int().positive() }),
-  affiliationRules: z.array(z.unknown()).readonly(),
-  competitiveProfile: z.unknown().nullable(),
-  frozenCompetitiveFacts: z.array(z.unknown()),
   /** Explicit capability marker; absent means a legacy StageRun. */
   qualificationPolicy: qualificationPolicySchema.optional(),
   /** Active waivable restrictions frozen for the approved roster revisions. */
   frozenRestrictionOverrides: z.array(frozenRestrictionOverrideSchema).optional(),
 });
 
-const frozenInputSchema = frozenInputObject.superRefine((value, ctx) => {
+const frozenInputObject = smallInputObject.extend({
+  affiliationRules: z.array(z.unknown()).readonly(),
+  competitiveProfile: z.unknown().nullable(),
+  frozenCompetitiveFacts: z.array(z.unknown()),
+});
+
+const smallInputSchema = smallInputObject.superRefine((value, ctx) => {
   const keys = new Set<string>();
   for (const stage of value.stagePlan) {
     if (keys.has(stage.key)) ctx.addIssue({ code: "custom", message: "重复的 StagePlan key" });
@@ -77,9 +80,11 @@ const frozenInputSchema = frozenInputObject.superRefine((value, ctx) => {
   }
 });
 
+const frozenInputSchema = withFrozenInputInvariants(frozenInputObject);
+
 function withFrozenInputInvariants<T extends z.ZodType>(schema: T): T {
   return schema.superRefine((value, ctx) => {
-    const result = frozenInputSchema.safeParse(value);
+    const result = smallInputSchema.safeParse(value);
     if (!result.success) {
       for (const issue of result.error.issues) {
         ctx.addIssue(issue as z.core.$ZodSuperRefineIssue);
@@ -88,19 +93,22 @@ function withFrozenInputInvariants<T extends z.ZodType>(schema: T): T {
   }) as unknown as T;
 }
 
-const v3Schema = withFrozenInputInvariants(frozenInputObject.extend({
+const v3Fields = {
   version: z.literal(3),
   stage: stageSchema,
   tournamentEntrants: z.array(frozenEntrantSchema).length(32),
   tournamentSeeds: z.array(z.unknown()).optional(),
   openingPairings: z.array(z.unknown()).optional(),
   hasThirdPlaceMatch: z.boolean().optional(),
-}));
-
-const v4Schema = withFrozenInputInvariants(frozenInputObject.extend({
+};
+const v4Fields = {
   version: z.literal(4),
   runOptions: z.object({ hasThirdPlaceMatch: z.boolean().optional() }).default({}),
-}));
+};
+const v3Schema = withFrozenInputInvariants(frozenInputObject.extend(v3Fields));
+const v4Schema = withFrozenInputInvariants(frozenInputObject.extend(v4Fields));
+const presentationV3Schema = withFrozenInputInvariants(smallInputObject.extend(v3Fields));
+const presentationV4Schema = withFrozenInputInvariants(smallInputObject.extend(v4Fields));
 
 export type MajorRunStage = z.infer<typeof stageSchema>;
 export type MajorRunQualificationPolicy = z.infer<typeof qualificationPolicySchema>;
@@ -111,6 +119,8 @@ export type MajorRunSnapshot = z.infer<typeof frozenInputSchema> & {
   tournamentEntrants?: readonly z.infer<typeof frozenEntrantSchema>[];
   hasThirdPlaceMatch?: boolean;
 };
+
+export type MajorRunPresentation = Pick<MajorRunSnapshot, "version" | "stagePlan" | "stage" | "hasThirdPlaceMatch">;
 
 function materializeStageConfig(stage: MajorRunStage): StageConfig {
   return {
@@ -127,7 +137,7 @@ function materializeStageConfig(stage: MajorRunStage): StageConfig {
 }
 
 /** Convert the persisted frozen definition into the shared presentation shape. */
-export function materializeMajorStagePlan(snapshot: MajorRunSnapshot): StagePlan {
+export function materializeMajorStagePlan(snapshot: Pick<MajorRunSnapshot, "stagePlan">): StagePlan {
   return snapshot.stagePlan.map(materializeStageConfig);
 }
 
@@ -136,18 +146,22 @@ export function resolveMajorStagePlan(
   liveStagePlan: StagePlan,
   stageRuns: readonly { stageKey: string; ruleSnapshot: unknown }[],
 ): StagePlan {
-  if (stageRuns.length === 0) return liveStagePlan;
+  return resolveMajorStagePlanFromPresentations(liveStagePlan, stageRuns.map((run) => ({
+    stageKey: run.stageKey, presentation: parseMajorRunSnapshot(run.ruleSnapshot, run.stageKey),
+  })));
+}
 
-  const frozenPlans = stageRuns.map((run) => {
-    const snapshot = parseMajorRunSnapshot(run.ruleSnapshot, run.stageKey);
-    return {
-      snapshot,
-      order: snapshot.stagePlan.findIndex((stage) => stage.key === run.stageKey),
-    };
-  }).sort((a, b) => a.order - b.order);
+export function resolveMajorStagePlanFromPresentations(
+  liveStagePlan: StagePlan,
+  runs: readonly { stageKey: string; presentation: MajorRunPresentation }[],
+): StagePlan {
+  if (runs.length === 0) return liveStagePlan;
+  const frozenPlans = runs.map(({ stageKey, presentation }) => ({
+    presentation, order: presentation.stagePlan.findIndex((stage) => stage.key === stageKey),
+  })).sort((a, b) => a.order - b.order);
   const latest = frozenPlans.at(-1);
   if (!latest || latest.order < 0) throw new Error("StageRun snapshot 不包含当前阶段");
-  return materializeMajorStagePlan(latest.snapshot);
+  return materializeMajorStagePlan(latest.presentation);
 }
 
 function fail(message: string): never {
@@ -164,20 +178,35 @@ function validateEntrants(entrants: readonly z.infer<typeof frozenEntrantSchema>
   }
 }
 
-/** The only parser/normalizer for persisted Major StageRun snapshots. */
-export function parseMajorRunSnapshot(value: unknown, stageKey: string): MajorRunSnapshot {
-  const v4 = v4Schema.safeParse(value);
+function normalizeRun(value: unknown, stageKey: string, projected: boolean): MajorRunSnapshot | MajorRunPresentation {
+  const v4 = (projected ? presentationV4Schema : v4Schema).safeParse(value);
   if (v4.success) {
     const stage = v4.data.stagePlan.find((candidate) => candidate.key === stageKey);
     if (!stage) fail("v4 stagePlan 不包含 StageRun stageKey");
     return { ...v4.data, stage, hasThirdPlaceMatch: v4.data.runOptions.hasThirdPlaceMatch };
   }
-  const v3 = v3Schema.safeParse(value);
+  const v3 = (projected ? presentationV3Schema : v3Schema).safeParse(value);
   if (!v3.success) fail("不支持或结构损坏的版本");
   const planStage = v3.data.stagePlan.find((candidate) => candidate.key === stageKey);
   if (!planStage || v3.data.stage.key !== stageKey) fail("v3 stage 与 StageRun stageKey 不一致");
   validateEntrants(v3.data.tournamentEntrants);
   return { ...v3.data, stage: planStage, hasThirdPlaceMatch: v3.data.hasThirdPlaceMatch };
+}
+
+/** The only parser/normalizer for persisted Major StageRun snapshots. */
+export function parseMajorRunSnapshot(value: unknown, stageKey: string): MajorRunSnapshot {
+  return normalizeRun(value, stageKey, false) as MajorRunSnapshot;
+}
+
+/** Validate the SQL envelope before normalizing the retained frozen fields. */
+export function parseMajorRunPresentation(value: unknown, stageKey: string): MajorRunPresentation {
+  const envelope = z.object({ rootType: z.literal("object"), fields: z.unknown(),
+    affiliationRulesType: z.literal("array"), frozenCompetitiveFactsType: z.literal("array"),
+    competitiveProfilePresent: z.literal(true),
+  }).safeParse(value);
+  if (!envelope.success) fail("不支持或结构损坏的版本");
+  const parsed = normalizeRun(envelope.data.fields, stageKey, true);
+  return { version: parsed.version, stagePlan: parsed.stagePlan, stage: parsed.stage, hasThirdPlaceMatch: parsed.hasThirdPlaceMatch };
 }
 
 /** v4 only freezes inputs; persisted membership/seeds/matches remain relational facts. */
