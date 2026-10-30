@@ -34,3 +34,20 @@ it("restricts diagnostic fields to hashes and non-negative safe integers", () =>
   expect(sanitizeSafeContext({ scopeHash: "private payload", receivedCursor: "secret", storedCursor: -1, firstAt: Infinity, lastAt: 1.5 })).toEqual({});
   expect(sanitizeSafeContext({ scopeHash: "0123456789abcdef", receivedCursor: 3, storedCursor: 2, firstAt: 100, lastAt: 101, body: "private", credential: "secret" })).toEqual({ scopeHash: "0123456789abcdef", receivedCursor: 3, storedCursor: 2, firstAt: 100, lastAt: 101 });
 });
+
+it("does not copy an untrusted request-id header into a rejection log or response", async () => {
+  const { withMizarRequest } = await import("@/lib/mizar/http");
+  const { ReliableRejection } = await import("@/lib/mizar/rejection");
+  const { ErrorCode } = await import("@/lib/errors");
+  const request = new Request("http://localhost/api/mizar/reliable", { headers: { "x-request-id": "secret-credential-marker" } });
+  const response = await withMizarRequest(request, "/api/mizar/[operation]", "reliable", async diagnostics => {
+    diagnostics.phase = "domain";
+    throw new ReliableRejection(ErrorCode.VALIDATION_FAILED, "事件已过期。", "sequence_stale");
+  });
+  const body = await response.json();
+  expect(body.requestId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(JSON.stringify(body)).not.toContain("secret-credential-marker");
+  const log = vi.mocked(logEvent).mock.calls.find(([value]) => value.event === "mizar.reliable.reject")![0];
+  expect(log.requestId).toBe(body.requestId);
+  expect(JSON.stringify(log)).not.toContain("secret-credential-marker");
+});

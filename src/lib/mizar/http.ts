@@ -71,6 +71,8 @@ export async function readBoundedMizarJson(request: Request, maxBytes: number, t
 export function mizarHttpError(error: unknown, diagnostics?: MizarDiagnostics) {
   const headers = { "Cache-Control": "no-store" };
   const reliable = diagnostics?.operation === "reliable";
+  // Do not copy an untrusted request header into reliable rejection logs.
+  if (reliable) diagnostics.requestId = crypto.randomUUID();
   let reason: ReliableReason | undefined;
   if (reliable && error instanceof ReliableRejection) reason = error.reason;
   else if (reliable && (error instanceof ZodError && diagnostics.phase === "validate" || error instanceof MizarBodyError && error.code === "invalid_body")) reason = "invalid_schema";
