@@ -201,3 +201,8 @@
 
 - [Git 区间](https://github.com/Starfie1d1272/RivalHub/compare/v2.18.3...v2.19.0)：77d1e770 docs(changelog): 修正新版 compare 链接顺序 (#989)；8be7a9e5 chore(release): 2.19.0 (#988)；09b185bd fix(telemetry): 识别新版后台工作范围 (#987)；de54969d feat(admin): 按赛事工作范围重组管理后台 (#985)；1435cff7 chore(deps): bump pnpm/setup from 3.0.0 to 3.1.1 (#986)；c164c938 feat(ui): 整合桌面赛事体验并打磨逐页工作区 (#944)。
 - [Release](https://github.com/Starfie1d1272/RivalHub/releases/tag/v2.19.0)：候选有正文改动，待独立审阅。
+
+## 2.25.0（并行新增）
+
+- [版本区间](https://github.com/Starfie1d1272/RivalHub/compare/v2.24.16...v2.25.0)：85a37d7a、ec529953、29617563、d26a1f81、8b9fe217；对应 Mizar 播出统计、数据库下行归因与首页备案入口。
+- 标签指向 85a37d7ac094812c062034ad894b4cdf0fa50d51；快照时 Release workflow 进行中，尚无 Release。不可预设其发布完成或正文，完成后需重取。

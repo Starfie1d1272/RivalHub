@@ -423,8 +423,8 @@
     "id": 406336313,
     "tag_name": "v2.15.3",
     "original_body_sha256": "7fd8f85ed4bbc835e8757c1c296b9d3bb66262339aea5e028250abbab06acf51",
-    "candidate_body": "本次生产发布 v2.15.3 相对权威上一生产版本 v2.15.2 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.3]\n\n### Added\n\n#### 赛事测试赛\n\n管理员可创建测试赛，双方队长通过原流程提交首发，指定操作人完成双端 BP，复用解说、Mizar LIVE 与 DAK 赛后上传流程。比赛凭链接免登录观看，不进入正式赛程、晋级、竞猜及累计统计。创建只读取已确认正式名单，报名阶段即可进行匿名 LIVE 彩排。\n\n测试赛支持无结果结束、待补结果和后续补录；已有逐图比分与总比分可原子更正，保留原因、版本校验、审计与首次结束时间。\n\n### Changed\n\n#### 比赛执行与结果\n\n比赛底层支持不关联赛事、未预报阵容及不提交赛果，并提供对应转播资料。支持只有总比分的结果与结束后补录，拒绝与已知单图事实冲突的结论；结果更正保留原结束时间，转播资料区分结果待补与不提交结果。现有正式赛事的名单、BP、赛果更正及晋级约束保持不变，本次不新增约战入口。\n\n数据库补充比赛执行上下文、结果处置和不可转换的测试用途约束，历史赛事比赛保持原有身份。\n\n#### 活跃赛事导航\n\n顶部导航恢复最多一个当前活跃赛事入口，桌面与手机均可直达；赛事页移除重复切换框，通过面包屑进入赛事目录。\n\n### 验收说明\n\n自动化覆盖测试赛创建、权限、BP、结果、正式事实隔离和报名阶段真实 LIVE 浏览器订阅。双账号完整浏览器彩排、Windows + CS2 + Mizar + OBS、B站嵌入与真实 DAK 上传仍待通过测试赛现场验收。\n",
-    "status": "reviewed-unchanged"
+    "candidate_body": "本次生产发布 v2.15.3 相对权威上一生产版本 v2.15.2 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.15.3]\n\n### Added\n\n#### 赛事测试赛\n\n管理员可创建测试赛，双方队长通过原流程提交首发，指定操作人完成双端 BP，复用解说、Mizar LIVE 与 DAK 赛后上传流程。比赛凭链接免登录观看，不进入正式赛程、晋级、竞猜及累计统计。创建只读取已确认正式名单，报名阶段即可进行匿名 LIVE 彩排。\n\n测试赛支持无结果结束、待补结果和后续补录；已有逐图比分与总比分可原子更正，保留原因、版本校验、审计与首次结束时间。\n\n### Changed\n\n#### 比赛执行与结果\n\n比赛底层支持不关联赛事、未预报阵容及不提交赛果，并提供对应转播资料。支持只有总比分的结果与结束后补录，拒绝与已知单图事实冲突的结论；结果更正保留原结束时间，转播资料区分结果待补与不提交结果。现有正式赛事的名单、BP、赛果更正及晋级约束保持不变，本次不新增约战入口。\n\n数据库补充比赛执行上下文、结果处置和不可转换的测试用途约束，历史赛事比赛保持原有身份。\n\n#### 活跃赛事导航\n\n顶部导航恢复最多一个当前活跃赛事入口，桌面与手机均可直达；赛事页移除重复切换框，通过面包屑进入赛事目录。\n\n### Verification\n\n自动化覆盖测试赛创建、权限、BP、结果、正式事实隔离和报名阶段真实 LIVE 浏览器订阅。双账号完整浏览器彩排、Windows + CS2 + Mizar + OBS、B站嵌入与真实 DAK 上传仍待通过测试赛现场验收。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 405987685,
@@ -766,36 +766,36 @@
     "id": 383333054,
     "tag_name": "v2.4.0",
     "original_body_sha256": "740b1efd1f62c4c1f3425546d601806b0828d3b5f3e88d05c8d2f5b67acb3899",
-    "candidate_body": "\nRivalHub 2.4 聚焦赛事后台工作区与 Major 赛前运营成熟度：管理员现在可以从已批准报名一路完成正式参赛队、赛事名单、种子建议、最终种子、比赛工作台与赛后收尾；同时补齐跨生命周期社区奖能力和生产级可观测性基础。\n\n### Added\n\n#### Major 正式参赛与种子建议\n\nMajor 赛前管理现在把已批准的 CompetitionEntry 作为正式参赛候选池，标准赛事容量直接来自 Major stage plan。管理员确定最终 entrant set 后，系统会按最新 approved roster revision 自动同步 EventRoster，并在统一冻结事务中形成正式参赛事实。\n\n正式名单冻结时新增不可变的 SeedRecommendationSnapshot。系统以五名预定主力的 canonical strength 简单平均生成可解释的种子建议，保留竞技证据、5E → Perfect 换算来源和 ConversionPolicy 版本；完全相同的参考值保持系统并列。最终 1–32 seed 仍由赛委会人工确认，偏离系统建议时记录理由并进入审计，开赛 readiness 会验证 entrant、EventRoster、snapshot 与最终种子的一致性。\n\n#### 社区奖赛事能力\n\n社区奖成为正式赛事 capability：新赛事默认启用，可在草稿阶段关闭，发布后随公开赛事规则冻结。关闭时公开页面、后台入口与服务端 mutation 会同时 fail closed；启用时继续覆盖赛前征集审核、比赛期间候选证据与赛后结奖，而不是被误归入单一赛后模块。\n\n### Changed\n\n#### 管理后台与单届赛事工作区\n\n全局后台改为按赛事生命周期组织目录，并按真实管理员权限展示用户与权限、教育认证、竞技平台、审计和系统状态等入口。公共首页的主赛事也改为稳定的 presentation selector，不再让已经结束的旧赛事因为创建顺序继续占据主位。\n\n单届赛事后台收口为总览、报名、赛前、比赛、社区奖（如启用）和赛后等稳定工作流。总览只展示 lifecycle、关键事实、blocker 与下一步；赛事设置按基本信息、时间与生命周期、报名与名单、资格、赛制与地图、竞技参考、功能和危险操作分区，并直接展示被冻结的 canonical 事实与原因。\n\n#### 比赛运营工作台\n\n管理端比赛页拆分为轻量赛事比赛总览与 `/admin/{seasonSlug}/matches/{matchId}` 单场工作台。总览聚焦阶段、积分、赛程和批量运营；实际首发、BP / 地图、结果、赛后资料、更正与恢复操作集中在单场上下文中，并继续复用既有 match、roster、audit 与 observability owner。\n\n### Reliability & Operations\n\n应用建立 server-side structured observability、OpenTelemetry tracing、统一错误分类与敏感字段治理，并接入 Better Stack Preview / Production 配置 contract。运行日志与业务审计保持独立；telemetry sink 失败不会成为核心业务失败原因。Better Stack 的真实 Production trace / alert acceptance 在本版本部署后继续按 #424 验收，不在 release note 中提前宣称完成。\n\n仓库发布模型已经收敛为 single-trunk + immutable tag：`main` 是持续可发布主干，只有 `vX.Y.Z` tag 触发受保护的生产 migration、verify、精确 Vercel Production 部署、smoke 与 GitHub Release。工程文档同时整理为按任务进入的 operations 指南。\n\n本版本包含两条新的 forward migration：`0039_clumsy_doctor_octopus` 增加赛事社区奖 capability，`0040_major_seed_recommendation_snapshot` 保存 Major 不可变种子建议快照与相关赛前状态。生产升级继续只通过 `v2.4.0` tag 触发标准 release workflow。\n\n",
-    "status": "reviewed-unchanged"
+    "candidate_body": "\nRivalHub 2.4 聚焦赛事后台工作区与 Major 赛前运营成熟度：管理员现在可以从已批准报名一路完成正式参赛队、赛事名单、种子建议、最终种子、比赛工作台与赛后收尾；同时补齐跨生命周期社区奖能力和生产级可观测性基础。\n\n### Added\n\n#### Major 正式参赛与种子建议\n\nMajor 赛前管理现在把已批准的 CompetitionEntry 作为正式参赛候选池，标准赛事容量直接来自 Major stage plan。管理员确定最终 entrant set 后，系统会按最新 approved roster revision 自动同步 EventRoster，并在统一冻结事务中形成正式参赛事实。\n\n正式名单冻结时新增不可变的 SeedRecommendationSnapshot。系统以五名预定主力的 canonical strength 简单平均生成可解释的种子建议，保留竞技证据、5E → Perfect 换算来源和 ConversionPolicy 版本；完全相同的参考值保持系统并列。最终 1–32 seed 仍由赛委会人工确认，偏离系统建议时记录理由并进入审计，开赛 readiness 会验证 entrant、EventRoster、snapshot 与最终种子的一致性。\n\n#### 社区奖赛事能力\n\n社区奖成为正式赛事 capability：新赛事默认启用，可在草稿阶段关闭，发布后随公开赛事规则冻结。关闭时公开页面、后台入口与服务端 mutation 会同时 fail closed；启用时继续覆盖赛前征集审核、比赛期间候选证据与赛后结奖，而不是被误归入单一赛后模块。\n\n### Changed\n\n#### 管理后台与单届赛事工作区\n\n全局后台改为按赛事生命周期组织目录，并按真实管理员权限展示用户与权限、教育认证、竞技平台、审计和系统状态等入口。公共首页的主赛事也改为稳定的 presentation selector，不再让已经结束的旧赛事因为创建顺序继续占据主位。\n\n单届赛事后台收口为总览、报名、赛前、比赛、社区奖（如启用）和赛后等稳定工作流。总览只展示 lifecycle、关键事实、blocker 与下一步；赛事设置按基本信息、时间与生命周期、报名与名单、资格、赛制与地图、竞技参考、功能和危险操作分区，并直接展示被冻结的 canonical 事实与原因。\n\n#### 比赛运营工作台\n\n管理端比赛页拆分为轻量赛事比赛总览与 `/admin/{seasonSlug}/matches/{matchId}` 单场工作台。总览聚焦阶段、积分、赛程和批量运营；实际首发、BP / 地图、结果、赛后资料、更正与恢复操作集中在单场上下文中，并继续复用既有 match、roster、audit 与 observability owner。\n\n### Operations\n\n应用建立 server-side structured observability、OpenTelemetry tracing、统一错误分类与敏感字段治理，并接入 Better Stack Preview / Production 配置 contract。运行日志与业务审计保持独立；telemetry sink 失败不会成为核心业务失败原因。Better Stack 的真实 Production trace / alert acceptance 在本版本部署后继续按 #424 验收，不在 release note 中提前宣称完成。\n\n仓库发布模型已经收敛为 single-trunk + immutable tag：`main` 是持续可发布主干，只有 `vX.Y.Z` tag 触发受保护的生产 migration、verify、精确 Vercel Production 部署、smoke 与 GitHub Release。工程文档同时整理为按任务进入的 operations 指南。\n\n本版本包含两条新的 forward migration：`0039_clumsy_doctor_octopus` 增加赛事社区奖 capability，`0040_major_seed_recommendation_snapshot` 保存 Major 不可变种子建议快照与相关赛前状态。生产升级继续只通过 `v2.4.0` tag 触发标准 release workflow。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 382893933,
     "tag_name": "v2.3.0",
     "original_body_sha256": "adfcc31a28dec76c8c9302214cf1877e27883ed196cca065c058533c13229d83",
-    "candidate_body": "\nRivalHub 2.3 聚焦赛事事实、竞技换算、个人资料与邀请流程的统一语义，并补全认证和外链的安全边界。\n\n### Added\n\n#### 版本化竞技换算策略\n\n平台新增版本化的 5E → Perfect 换算策略。首版 `2026.09` 采用星数级分段线性换算与向上取整；标准 Major 在开放报名时自动冻结已批准的策略版本，当前与历史赛季会按相对位置正确匹配，不再依赖运营手填映射。\n\n### Changed\n\n#### 赛果、统计与地图资料\n\nBO1、BO3 与 BO5 现在以统一方式保存官方系列赛比分和实际地图回合比分。玩家页、赛季榜单及比赛详情共享同一统计 contract，正确区分 null/zero、ADR、HS% 与每回合指标的有效分母和展示精度。\n\n地图目录、当前 Active Duty、赛事图池和长期地图熟练度的职责边界已收口；用户在目标赛事未填写地图时会得到正确呈现。\n\n### Fixed\n\n#### 认证、邀请与外链安全\n\n重复注册已确认账号时不再错误绑定 `auth_id`，历史 dangling identity mapping 也会安全修复；返回提示保持不泄露账号状态。Steam 个人资料链接现使用统一的规范化与可信域校验，公开及管理端都会防御性处理不可信外链。\n\n失效的 Team 分享邀请链接会显示明确业务状态，且不能再次被接受。重复 Team 邀请的数据库唯一约束错误也会被准确映射为业务提示，避免泄露底层查询异常或误报无关冲突。\n\n### Migration & Operations\n\n本版本包含三条 forward migration：`0036_auth_id_reconciliation`、`0037_match_score_semantics` 与 `0038_conversion_policies`。生产升级仍只通过 `v*` tag 触发标准 release workflow，依次执行 active migration replay、previous stable compatibility、production migrate/verify、精确版本 Vercel Production 部署与 smoke test。\n",
-    "status": "reviewed-unchanged"
+    "candidate_body": "\nRivalHub 2.3 聚焦赛事事实、竞技换算、个人资料与邀请流程的统一语义，并补全认证和外链的安全边界。\n\n### Added\n\n#### 版本化竞技换算策略\n\n平台新增版本化的 5E → Perfect 换算策略。首版 `2026.09` 采用星数级分段线性换算与向上取整；标准 Major 在开放报名时自动冻结已批准的策略版本，当前与历史赛季会按相对位置正确匹配，不再依赖运营手填映射。\n\n### Changed\n\n#### 赛果、统计与地图资料\n\nBO1、BO3 与 BO5 现在以统一方式保存官方系列赛比分和实际地图回合比分。玩家页、赛季榜单及比赛详情共享同一统计 contract，正确区分 null/zero、ADR、HS% 与每回合指标的有效分母和展示精度。\n\n地图目录、当前 Active Duty、赛事图池和长期地图熟练度的职责边界已收口；用户在目标赛事未填写地图时会得到正确呈现。\n\n### Fixed\n\n#### 认证、邀请与外链安全\n\n重复注册已确认账号时不再错误绑定 `auth_id`，历史 dangling identity mapping 也会安全修复；返回提示保持不泄露账号状态。Steam 个人资料链接现使用统一的规范化与可信域校验，公开及管理端都会防御性处理不可信外链。\n\n失效的 Team 分享邀请链接会显示明确业务状态，且不能再次被接受。重复 Team 邀请的数据库唯一约束错误也会被准确映射为业务提示，避免泄露底层查询异常或误报无关冲突。\n\n### Migration\n\n本版本包含三条 forward migration：`0036_auth_id_reconciliation`、`0037_match_score_semantics` 与 `0038_conversion_policies`。生产升级仍只通过 `v*` tag 触发标准 release workflow，依次执行 active migration replay、previous stable compatibility、production migrate/verify、精确版本 Vercel Production 部署与 smoke test。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 382506877,
     "tag_name": "v2.2.4",
     "original_body_sha256": "d12ae8f8498ef38a178cb3812c4089311c6bccee820354090080c1a360e20391",
-    "candidate_body": "\nRivalHub 2.2.4 聚焦 Major 报名资格、长期竞技资料、数据库安全边界与发布可靠性。地图熟练度现在成为可长期维护的个人资料；Major 外校成员限制改为明确的完美世界历史最高总星数相对规则，并支持对可解除的政策限制进行有理由、可审计的管理员例外处理。\n\n### Added\n\n#### 长期地图熟练度\n\n地图熟练度从单届报名信息沉淀为长期个人竞技资料。用户可以在个人竞技档案中直接维护各地图熟练度，后续赛事报名会从长期资料预填并允许当届覆盖；组队大厅的玩家求队卡片和公开个人主页也会展示对应摘要。已有赛事报名中的地图熟练度会回填到长期资料，首次并发保存使用原子 upsert，避免主键竞争。\n\n### Changed\n\n#### Major 外校成员相对实力规则\n\nMajor 外校成员实力限制统一为完美世界历史最高总星数口径：队内最强外校选手不得高于队内最强本校选手超过赛事配置的星差上限，默认上限为 3 星。S 段位缺少准确星数时视为资料不完整，必须由选手补齐，不能通过管理员例外绕过；5E 星数不会被折算或误认成完美世界星数。\n\n#### 资格限制人工解除与历史冻结\n\n赛事资格评估现在区分不可解除的资料/身份问题和可由管理员明确处理的政策限制。超过外校星差上限时，管理员可以填写非空理由，对当前 roster revision 授予或撤销限制解除；操作会进入审计记录，新的 roster revision 不继承旧解除。Major 开赛时会把资格规则、报名名单竞技事实以及仍有效的解除记录冻结进 StageRun，后续资料或文案变化不会重新解释已开始赛事。\n\n#### 教育认证审核\n\n同一用户重复提交相同学信网在线验证码时改为幂等处理，不再产生重复待审核记录；已通过的相同验证码会直接复用既有认证结果。管理员驳回认证时必须填写可见原因，服务端同样强制校验。\n\n### Security\n\n#### Public 数据库访问边界\n\n应用拥有的 public 业务表统一收口为 server-only 访问模型：启用 RLS、撤销 anon/authenticated 的 Data API CRUD privileges，并移除没有正确客户端权限模型的业务表 Realtime 发布。选秀和投票等需要刷新体验的页面继续通过已有轮询路径更新，不通过放宽数据库权限来维持失效订阅。\n\n### Reliability & Migration\n\n发布链路新增 previous production stable → candidate schema 的 N/N+1 兼容性门禁，PR CI 与正式 release 会以真实 production stable lineage 为基线验证 active migration，而不是把候选分支上“可达的最新 tag”误当生产版本。数据库 migration risk 注释同时区分 contract cleanup 与 locking/rewrite review，类型错配或缺失会 fail closed。\n\n认证、报名等请求态工作区明确保持 request-bound，避免 Cache Components 对私有状态做错误的 instant-navigation 缓存判断；Major 报名 E2E 改为等待 canonical 页面状态，减少流式 RSC 瞬时探测竞态。资格判断也统一复用同一批预加载事实，避免报名审核与开赛冻结读取两套重叠资料。\n\n本版本包含三条新的 forward migration：`0033_long_lived_map_preferences` 将地图熟练度沉淀为长期资料并回填既有报名数据；`0034_secure_public_tables` 收口现有 public 业务表的 RLS、Data API privileges 与 Realtime 边界；`0035_colorful_black_widow` 新增按 roster revision 绑定、可审计 grant/revoke 的资格限制解除 ledger。生产升级必须继续通过 `v*` tag 触发标准 release workflow，完成 active migration replay、production migrate/verify、精确版本 Vercel Production 部署与 smoke test。\n\n",
-    "status": "reviewed-unchanged"
+    "candidate_body": "\nRivalHub 2.2.4 聚焦 Major 报名资格、长期竞技资料、数据库安全边界与发布可靠性。地图熟练度现在成为可长期维护的个人资料；Major 外校成员限制改为明确的完美世界历史最高总星数相对规则，并支持对可解除的政策限制进行有理由、可审计的管理员例外处理。\n\n### Added\n\n#### 长期地图熟练度\n\n地图熟练度从单届报名信息沉淀为长期个人竞技资料。用户可以在个人竞技档案中直接维护各地图熟练度，后续赛事报名会从长期资料预填并允许当届覆盖；组队大厅的玩家求队卡片和公开个人主页也会展示对应摘要。已有赛事报名中的地图熟练度会回填到长期资料，首次并发保存使用原子 upsert，避免主键竞争。\n\n### Changed\n\n#### Major 外校成员相对实力规则\n\nMajor 外校成员实力限制统一为完美世界历史最高总星数口径：队内最强外校选手不得高于队内最强本校选手超过赛事配置的星差上限，默认上限为 3 星。S 段位缺少准确星数时视为资料不完整，必须由选手补齐，不能通过管理员例外绕过；5E 星数不会被折算或误认成完美世界星数。\n\n#### 资格限制人工解除与历史冻结\n\n赛事资格评估现在区分不可解除的资料/身份问题和可由管理员明确处理的政策限制。超过外校星差上限时，管理员可以填写非空理由，对当前 roster revision 授予或撤销限制解除；操作会进入审计记录，新的 roster revision 不继承旧解除。Major 开赛时会把资格规则、报名名单竞技事实以及仍有效的解除记录冻结进 StageRun，后续资料或文案变化不会重新解释已开始赛事。\n\n#### 教育认证审核\n\n同一用户重复提交相同学信网在线验证码时改为幂等处理，不再产生重复待审核记录；已通过的相同验证码会直接复用既有认证结果。管理员驳回认证时必须填写可见原因，服务端同样强制校验。\n\n### Security\n\n#### Public 数据库访问边界\n\n应用拥有的 public 业务表统一收口为 server-only 访问模型：启用 RLS、撤销 anon/authenticated 的 Data API CRUD privileges，并移除没有正确客户端权限模型的业务表 Realtime 发布。选秀和投票等需要刷新体验的页面继续通过已有轮询路径更新，不通过放宽数据库权限来维持失效订阅。\n\n### Migration\n\n发布链路新增 previous production stable → candidate schema 的 N/N+1 兼容性门禁，PR CI 与正式 release 会以真实 production stable lineage 为基线验证 active migration，而不是把候选分支上“可达的最新 tag”误当生产版本。数据库 migration risk 注释同时区分 contract cleanup 与 locking/rewrite review，类型错配或缺失会 fail closed。\n\n认证、报名等请求态工作区明确保持 request-bound，避免 Cache Components 对私有状态做错误的 instant-navigation 缓存判断。资格判断也统一复用同一批预加载事实，避免报名审核与开赛冻结读取两套重叠资料。\n\n本版本包含三条新的 forward migration：`0033_long_lived_map_preferences` 将地图熟练度沉淀为长期资料并回填既有报名数据；`0034_secure_public_tables` 收口现有 public 业务表的 RLS、Data API privileges 与 Realtime 边界；`0035_colorful_black_widow` 新增按 roster revision 绑定、可审计 grant/revoke 的资格限制解除 ledger。生产升级必须继续通过 `v*` tag 触发标准 release workflow，完成 active migration replay、production migrate/verify、精确版本 Vercel Production 部署与 smoke test。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 381954837,
     "tag_name": "v2.2.3",
     "original_body_sha256": "60ca696460cfe0384e4c3a874338f03ec69ed7db48ec67d4c11afb960ec0ea1f",
-    "candidate_body": "\nRivalHub 2.2.3 聚焦公开页面性能、组队邀请可发现性与运营安全，进一步减少公共渲染关键路径上的请求依赖，并收口教育认证临时凭证和高权限邀请码的操作边界。\n\n### Changed\n\n#### 公开页面渲染与缓存\n\n公开页面迁移到 Next.js 16 Cache Components 模型。赛事目录、公开赛事资料与公开玩家资料按数据语义建立共享缓存；登录态、管理员权限、草稿预览等请求特定信息继续保持服务端实时校验。Header 与公开玩家页面不再把 Steam API 刷新放在首屏渲染关键路径中，赛事进行中的实时数据仍保持实时读取，并补全对应的语义化缓存失效。\n\n#### Team 邀请体验\n\n未加入队伍的用户收到直接邀请后，现在可以从“我的”和队伍目录明确看到并进入待处理邀请，不再被“创建队伍”入口绕过。分享邀请链接明确标注为单次使用、7 天有效，并展示到期与撤销语义；接受有效邀请后会直接加入长期 Team。\n\n#### 教育认证凭证保留策略\n\n学信网在线验证码在认证审核完成后保留 7 天供短期复核，随后由受保护的定时任务自动清理。认证结果、学校、学籍状态与审核记录继续长期保留，管理员页面会明确显示临时核验凭证已按保留策略清理。\n\n#### 超级管理员邀请码防误操作\n\n创建超级管理员邀请码时新增全局高权限风险提示与二次确认，确认内容会明确角色、使用次数和有效期；赛季管理员邀请码继续保持原有直接生成流程。服务端权限校验、审计、撤销和邀请码使用限制保持不变。\n\n### Fixed\n\n#### 赛事首页队伍入口\n\n修复赛事首页“队伍阵容”仍指向已退役 `/competitionEntries` 路由导致的生产 404，入口现在统一进入 canonical `/{seasonSlug}/teams` 页面。\n\n### Migration & Operations\n\n本版本不包含新的数据库 schema migration。教育认证凭证清理由现有受保护 Cron 运行体系执行；生产发布仍通过 `v*` tag 触发标准 release workflow，完成数据库校验、精确版本 Vercel Production 部署与 smoke test。\n\n",
-    "status": "reviewed-unchanged"
+    "candidate_body": "\nRivalHub 2.2.3 聚焦公开页面性能、组队邀请可发现性与运营安全，进一步减少公共渲染关键路径上的请求依赖，并收口教育认证临时凭证和高权限邀请码的操作边界。\n\n### Changed\n\n#### 公开页面渲染与缓存\n\n公开页面迁移到 Next.js 16 Cache Components 模型。赛事目录、公开赛事资料与公开玩家资料按数据语义建立共享缓存；登录态、管理员权限、草稿预览等请求特定信息继续保持服务端实时校验。Header 与公开玩家页面不再把 Steam API 刷新放在首屏渲染关键路径中，赛事进行中的实时数据仍保持实时读取，并补全对应的语义化缓存失效。\n\n#### Team 邀请体验\n\n未加入队伍的用户收到直接邀请后，现在可以从“我的”和队伍目录明确看到并进入待处理邀请，不再被“创建队伍”入口绕过。分享邀请链接明确标注为单次使用、7 天有效，并展示到期与撤销语义；接受有效邀请后会直接加入长期 Team。\n\n#### 教育认证凭证保留策略\n\n学信网在线验证码在认证审核完成后保留 7 天供短期复核，随后由受保护的定时任务自动清理。认证结果、学校、学籍状态与审核记录继续长期保留，管理员页面会明确显示临时核验凭证已按保留策略清理。\n\n#### 超级管理员邀请码防误操作\n\n创建超级管理员邀请码时新增全局高权限风险提示与二次确认，确认内容会明确角色、使用次数和有效期；赛季管理员邀请码继续保持原有直接生成流程。服务端权限校验、审计、撤销和邀请码使用限制保持不变。\n\n### Fixed\n\n#### 赛事首页队伍入口\n\n修复赛事首页“队伍阵容”仍指向已退役 `/competitionEntries` 路由导致的生产 404，入口现在统一进入 canonical `/{seasonSlug}/teams` 页面。\n\n### Operations\n\n本版本不包含新的数据库 schema migration。教育认证凭证清理由现有受保护 Cron 运行体系执行；生产发布仍通过 `v*` tag 触发标准 release workflow，完成数据库校验、精确版本 Vercel Production 部署与 smoke test。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 381780263,
     "tag_name": "v2.2.2",
     "original_body_sha256": "61d90b78ad08642e699a1ec50a6abc69731e52d9b3852951f29944d88e483e20",
-    "candidate_body": "\nRivalHub 2.2.2 聚焦日常赛事运营与个人资料维护的可靠性，改善后台审计日志、竞技档案编辑与定时任务运行，并修复选秀异常恢复时的名单收尾。\n\n### Changed\n\n#### 个人竞技档案维护\n\n个人竞技位置偏好改为更紧凑的选择方式；竞技资料按近期赛季与更早历史拆分，更早赛季默认以摘要展示，并可按需展开或收起，减少长期资料较多时的页面负担。\n\n#### 后台操作日志\n\n后台操作日志现在使用统一的中文动作、类别与目标展示，并改善目标对象解析、筛选和详情摘要。日志为空与加载失败会明确区分；客户端只接收经过整理的安全展示数据，不再依赖原始 JSON 解释操作内容。\n\n### Fixed\n\n#### 选秀异常恢复\n\n修复选秀最后一轮因无可选选手而由管理员跳过时的完成收尾。异常恢复现在与正常选秀完成共用同一收尾逻辑，正式赛事名单会正确冻结并记录为已确认。\n\n### Migration & Operations\n\n#### 发布、staging 与定时任务\n\n生产部署继续只通过正式 release workflow 执行，普通 `main` 更新不再产生无效的 Vercel Production 自动部署。新增受控的手动 staging migration / verify 工作流；多个 Cron 任务改为独立执行和重试，单个任务失败不会阻止其它定时任务运行，同时最终失败仍会明确使对应 workflow 失败。\n\n本版本不包含新的数据库 schema migration；生产发布仍应通过 `v*` tag 触发的标准 release workflow 完成数据库校验、精确版本部署与 smoke test。\n\n",
-    "status": "reviewed-unchanged"
+    "candidate_body": "\nRivalHub 2.2.2 聚焦日常赛事运营与个人资料维护的可靠性，改善后台审计日志、竞技档案编辑与定时任务运行，并修复选秀异常恢复时的名单收尾。\n\n### Changed\n\n#### 个人竞技档案维护\n\n个人竞技位置偏好改为更紧凑的选择方式；竞技资料按近期赛季与更早历史拆分，更早赛季默认以摘要展示，并可按需展开或收起，减少长期资料较多时的页面负担。\n\n#### 后台操作日志\n\n后台操作日志现在使用统一的中文动作、类别与目标展示，并改善目标对象解析、筛选和详情摘要。日志为空与加载失败会明确区分；客户端只接收经过整理的安全展示数据，不再依赖原始 JSON 解释操作内容。\n\n### Fixed\n\n#### 选秀异常恢复\n\n修复选秀最后一轮因无可选选手而由管理员跳过时的完成收尾。异常恢复现在与正常选秀完成共用同一收尾逻辑，正式赛事名单会正确冻结并记录为已确认。\n\n### Operations\n\n#### 发布、staging 与定时任务\n\n生产部署继续只通过正式 release workflow 执行，普通 `main` 更新不再产生无效的 Vercel Production 自动部署。新增受控的手动 staging migration / verify 工作流；多个 Cron 任务改为独立执行和重试，单个任务失败不会阻止其它定时任务运行，同时最终失败仍会明确使对应 workflow 失败。\n\n本版本不包含新的数据库 schema migration；生产发布仍应通过 `v*` tag 触发的标准 release workflow 完成数据库校验、精确版本部署与 smoke test。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 381419656,
@@ -808,15 +808,15 @@
     "id": 381197194,
     "tag_name": "v2.2.0",
     "original_body_sha256": "0cde8e0ef78c1f959c3b508211c1e08de1939214119472e93153be7a42947c33",
-    "candidate_body": "\nRivalHub 2.2 进一步收口长期竞技档案与 Major 竞技资格模型，并补全组队大厅中的公开竞技信息。本版本同时完成 Next.js 16 与验证工具链升级，使长期资料、赛事冻结事实和后续开发验证建立在更稳定的一套语义与工程基线上。\n\n### Added\n\n#### 更完整的长期竞技档案\n\n竞技档案现在可以明确区分“未录入”“未定级”和“已定级”，不再把缺失资料与玩家真实处于未定级状态混为一谈。\n\n赛季竞技资料支持显式记录未定级；已定级资料继续记录段位、平台 Rating 以及适用时的星数。历史最高资料还可以选择记录实际达成该成绩的赛季，公开页面和资料维护页会使用这一来源信息进行展示。\n\n更早的历史赛季在资料维护页改为紧凑展示，并可按需展开编辑，减少长期积累多个赛季后页面的信息密度。\n\n#### 竞技平台历史赛季目录\n\n管理员现在可以在 Perfect World 和 5E 的竞技赛季目录中直接将历史赛季插入指定赛季之前或之后，并维护清晰的时间顺序。\n\n赛季标识继续作为稳定技术身份保存，创建后不可修改；显示名称可以调整。已经被长期竞技资料、历史最高来源或赛事冻结规则引用的赛季会受到保护，不能被误删。\n\n#### 组队大厅公开竞技摘要\n\n组队大厅的“选手找队”卡片现在会直接展示允许公开的长期竞技摘要。\n\nPerfect World 始终作为主要平台优先展示，5E 作为次级信息；卡片会在有限空间内展示历史最高以及当前或最近可用赛季的竞技情况，同时正确保留“未定级”状态。\n\n有公开头像的选手现在会显示真实头像；没有头像时继续使用昵称首字母作为 fallback。\n\n这些信息仍直接读取长期竞技档案，不会复制或持久化到组队意向中；完整竞技历史继续由 Player Profile 负责展示。\n\n### Changed\n\n#### Perfect World 成为长期资料与 Major 的主竞技平台\n\n个人设置页的长期资料完成状态现在以 Perfect World 竞技资料为必需项。5E 资料仍可长期维护和公开展示，但不会因为没有填写 5E 而使个人资料始终处于未完成状态。\n\nMajor 竞技资格继续使用赛事自身冻结的竞技上下文，不会因为后续平台赛季目录变化而重新解释已经发布或已经开始的赛事。\n\n当赛事明确配置并冻结经过审核的 5E fallback 规则时，缺少可用 Perfect World 证据的资料可以按照该届赛事保存的赛季对应和段位映射使用 5E 信息。缺失映射时系统会停止推断，而不会根据名称或当前目录自行猜测对应关系。\n\n5E 的 Rating+ 不会被当作 Perfect World 的 Rating Pro 进行大小比较；fallback 只提供审核后的等效段位信息。\n\n#### 竞技资料与赛事资格职责进一步分离\n\n长期个人资料的“是否填写完整”和某一届赛事的“是否满足参赛要求”现在使用更明确的不同判断边界。\n\n设置页负责长期身份、教育认证和主要竞技资料维护；具体 Major 仍按照当届冻结规则重新核验竞技资料、报名状态、正式名单和纪律限制。\n\n### Fixed\n\n修正了未定级资料在公开展示和资料编辑中的语义，使“未定级”保持为真实竞技状态，而不是被重复拼入赛季名称或误判为缺失资料。\n\n修正竞技赛季目录排序与视觉移动语义，并加强历史赛季插入、重复标识和被引用赛季删除时的保护。\n\n收紧 Perfect World 与 5E fallback 的比较边界，避免缺失映射、跨平台 Rating 或后续目录变化改变赛事既有竞技资格含义。\n\n### Migration & Operations\n\n本版本包含 `0032_competitive_fact_states` 数据库迁移，为长期竞技事实增加明确的 ranked / unranked 状态以及历史最高达成赛季来源，并通过数据库约束限制不合法的事实组合。已有竞技事实会保持 ranked 语义，无需人工重录。\n\n应用运行与构建基线升级至 Next.js 16.3.4 和 React 19.2.5，并同步升级相关测试与构建工具链。\n\nCI 验证现在按变更实际需要拆分静态检查、真实 PostgreSQL、真实 Supabase 服务和浏览器端验证；受保护分支与正式发布路径仍执行完整验证。\n\n生产升级仍必须通过 RivalHub 标准 release workflow 执行 active Drizzle migration chain、生产数据库校验、精确版本 Vercel Production 部署和 smoke test。不要使用 `db:push` 或绕过 release gate 直接修改 production schema。\n\n",
-    "status": "reviewed-unchanged"
+    "candidate_body": "\nRivalHub 2.2 进一步收口长期竞技档案与 Major 竞技资格模型，并补全组队大厅中的公开竞技信息。本版本同时完成 Next.js 16 与验证工具链升级，使长期资料、赛事冻结事实和后续开发验证建立在更稳定的一套语义与工程基线上。\n\n### Added\n\n#### 更完整的长期竞技档案\n\n竞技档案现在可以明确区分“未录入”“未定级”和“已定级”，不再把缺失资料与玩家真实处于未定级状态混为一谈。\n\n赛季竞技资料支持显式记录未定级；已定级资料继续记录段位、平台 Rating 以及适用时的星数。历史最高资料还可以选择记录实际达成该成绩的赛季，公开页面和资料维护页会使用这一来源信息进行展示。\n\n更早的历史赛季在资料维护页改为紧凑展示，并可按需展开编辑，减少长期积累多个赛季后页面的信息密度。\n\n#### 竞技平台历史赛季目录\n\n管理员现在可以在 Perfect World 和 5E 的竞技赛季目录中直接将历史赛季插入指定赛季之前或之后，并维护清晰的时间顺序。\n\n赛季标识继续作为稳定技术身份保存，创建后不可修改；显示名称可以调整。已经被长期竞技资料、历史最高来源或赛事冻结规则引用的赛季会受到保护，不能被误删。\n\n#### 组队大厅公开竞技摘要\n\n组队大厅的“选手找队”卡片现在会直接展示允许公开的长期竞技摘要。\n\nPerfect World 始终作为主要平台优先展示，5E 作为次级信息；卡片会在有限空间内展示历史最高以及当前或最近可用赛季的竞技情况，同时正确保留“未定级”状态。\n\n有公开头像的选手现在会显示真实头像；没有头像时继续使用昵称首字母作为 fallback。\n\n这些信息仍直接读取长期竞技档案，不会复制或持久化到组队意向中；完整竞技历史继续由 Player Profile 负责展示。\n\n### Changed\n\n#### Perfect World 成为长期资料与 Major 的主竞技平台\n\n个人设置页的长期资料完成状态现在以 Perfect World 竞技资料为必需项。5E 资料仍可长期维护和公开展示，但不会因为没有填写 5E 而使个人资料始终处于未完成状态。\n\nMajor 竞技资格继续使用赛事自身冻结的竞技上下文，不会因为后续平台赛季目录变化而重新解释已经发布或已经开始的赛事。\n\n当赛事明确配置并冻结经过审核的 5E fallback 规则时，缺少可用 Perfect World 证据的资料可以按照该届赛事保存的赛季对应和段位映射使用 5E 信息。缺失映射时系统会停止推断，而不会根据名称或当前目录自行猜测对应关系。\n\n5E 的 Rating+ 不会被当作 Perfect World 的 Rating Pro 进行大小比较；fallback 只提供审核后的等效段位信息。\n\n#### 竞技资料与赛事资格职责进一步分离\n\n长期个人资料的“是否填写完整”和某一届赛事的“是否满足参赛要求”现在使用更明确的不同判断边界。\n\n设置页负责长期身份、教育认证和主要竞技资料维护；具体 Major 仍按照当届冻结规则重新核验竞技资料、报名状态、正式名单和纪律限制。\n\n### Fixed\n\n修正了未定级资料在公开展示和资料编辑中的语义，使“未定级”保持为真实竞技状态，而不是被重复拼入赛季名称或误判为缺失资料。\n\n修正竞技赛季目录排序与视觉移动语义，并加强历史赛季插入、重复标识和被引用赛季删除时的保护。\n\n收紧 Perfect World 与 5E fallback 的比较边界，避免缺失映射、跨平台 Rating 或后续目录变化改变赛事既有竞技资格含义。\n\n### Migration\n\n本版本包含 `0032_competitive_fact_states` 数据库迁移，为长期竞技事实增加明确的 ranked / unranked 状态以及历史最高达成赛季来源，并通过数据库约束限制不合法的事实组合。已有竞技事实会保持 ranked 语义，无需人工重录。\n\n应用运行与构建基线升级至 Next.js 16.3.4 和 React 19.2.5，并同步升级相关测试与构建工具链。\n\nCI 验证现在按变更实际需要拆分静态检查、真实 PostgreSQL、真实 Supabase 服务和浏览器端验证；受保护分支与正式发布路径仍执行完整验证。\n\n生产升级仍必须通过 RivalHub 标准 release workflow 执行 active Drizzle migration chain、生产数据库校验、精确版本 Vercel Production 部署和 smoke test。不要使用 `db:push` 或绕过 release gate 直接修改 production schema。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 380956870,
     "tag_name": "v2.1.0",
     "original_body_sha256": "2fe0cee38a2f2fbe725f598eb3b5cef0c1195fe146fb9f3773a875e796526e0a",
-    "candidate_body": "\nRivalHub 2.1 继续完善长期 Team、赛事参与和赛后社区体验。本版本新增组队大厅与社区奖流程，并进一步拆分赛事发布、报名开放、报名截止和名单调整截止，使下一届 Major 的筹备、组队和正式报名可以围绕同一套长期事实与赛事事实自然衔接。\n\n### Added\n\n#### 组队大厅\n\n新增 `/teams/recruitment` 组队大厅。\n\n队长可以为长期 Team 发布招募信息，选择需要的位置和可选目标赛事；选手可以发布找队信息并展示自己的常用位置。选手可向感兴趣的队伍表达加入意向，队长确认后仍通过既有 Team Invitation 流程完成正式入队。\n\n组队意向只用于发现与撮合，不创建新的成员关系或赛事报名事实；长期 Team、TeamMembership、CompetitionEntry 的既有边界保持不变。\n\n#### 社区奖与赛后解说\n\n新增赛事社区奖完整流程，支持：\n\n- 用户提交社区奖名称、条件、奖品与补充说明；\n- 赛事管理员审核、要求补充或驳回；\n- 公开奖项提交候选人、相关比赛、说明和视频证据；\n- 管理员记录获奖、本届不颁或取消，并保留结果更正审计。\n\n社区奖与冠军、亚军、MVP、EVP 等正式赛事荣誉保持独立，不写入 `tournament_honors`。\n\n比赛现在可以登记最多两名实际解说，并记录赛后录像和赛后资料提交状态。解说可以在个人资料中维护直播间链接；待开赛和进行中的公开比赛页会展示当前解说的直播入口。\n\n### Changed\n\n#### 赛事发布与报名窗口\n\n赛事“发布”和“开放报名”现在是两个独立事实。\n\n发布后的赛事可以处于：\n\n- 报名时间待定；\n- 即将开放；\n- 正在报名；\n- 报名已截止。\n\n管理员可以分别配置报名开放时间、报名截止时间和名单调整截止时间。\n\n报名截止后不再接受新的 CompetitionEntry，但已经存在的参赛队伍可以在名单调整窗口内继续完成允许的本届名单变更；长期 Team 本身不会因为某届赛事报名截止而被冻结。\n\n#### Major 竞技参考策略\n\nMajor 不再在赛事发布时冻结竞技平台赛季，而是在**实际开放报名的同一事务中**冻结本届竞技参考上下文。\n\n默认实力参考调整为：\n\n**历史最高段位 × 50% + 前一完整赛季最高段位 × 20% + 近期最高段位 × 30%**\n\n其中近期最高段位取最近完整赛季与当前进行中赛季中的较高值。\n\n这使平台刚切换新赛季时，玩家不会因为新赛季样本过少而被迫短期冲分，同时近期明显提升的竞技水平仍然能够反映在赛事资格与种子参考中。\n\n#### Team 与个人资料体验\n\n优化长期 Team 的入口与公开页面：\n\n- 无队伍用户可以更明确地创建队伍或进入组队大厅；\n- 队伍目录和公开主页统一展示语言；\n- 恢复并优化队伍图标维护入口；\n- 调整队伍页面导航与任务层级。\n\n选手公开主页现在可以展示已经审核通过的高校身份认证。\n\n### Fixed\n\n- 优化竞技档案的段位与 S 段星数填写布局，使星数紧邻对应段位。\n- 强化竞技位置和教育认证学校选择后的视觉反馈，并支持重新选择学校。\n- 统一注册确认、当前邮箱验证和密码重置邮件的 RivalHub 品牌样式、安全提示与两步邮箱确认说明。\n- 补充赛事窗口状态的公开提示和管理员发布确认，减少“发布赛事”“开放报名”“正式开赛”之间的语义混淆。\n- 收紧名单调整边界：只有赛事实际开放报名后，已批准参赛队伍才能自助调整名单。\n\n### Security\n\n- 社区奖、证据、解说和赛后报告继续由 server-only 数据库 owner 读写；public Data API 的 anon/authenticated 访问被明确拒绝。\n\n### Migration & Operations\n\n本版本包含新的 forward migrations，用于社区奖与赛后解说、组队大厅、赛事参与窗口、名单调整 revision 来源及其 server-only 数据库访问保护。\n\n生产环境继续通过 RivalHub release workflow 执行 active Drizzle migration chain、迁移校验、精确版本 Vercel Production 部署和 smoke test；不要使用 `db:push` 或绕过 release gate 直接修改 production schema。\n\n",
-    "status": "reviewed-unchanged"
+    "candidate_body": "\nRivalHub 2.1 继续完善长期 Team、赛事参与和赛后社区体验。本版本新增组队大厅与社区奖流程，并进一步拆分赛事发布、报名开放、报名截止和名单调整截止，使下一届 Major 的筹备、组队和正式报名可以围绕同一套长期事实与赛事事实自然衔接。\n\n### Added\n\n#### 组队大厅\n\n新增 `/teams/recruitment` 组队大厅。\n\n队长可以为长期 Team 发布招募信息，选择需要的位置和可选目标赛事；选手可以发布找队信息并展示自己的常用位置。选手可向感兴趣的队伍表达加入意向，队长确认后仍通过既有 Team Invitation 流程完成正式入队。\n\n组队意向只用于发现与撮合，不创建新的成员关系或赛事报名事实；长期 Team、TeamMembership、CompetitionEntry 的既有边界保持不变。\n\n#### 社区奖与赛后解说\n\n新增赛事社区奖完整流程，支持：\n\n- 用户提交社区奖名称、条件、奖品与补充说明；\n- 赛事管理员审核、要求补充或驳回；\n- 公开奖项提交候选人、相关比赛、说明和视频证据；\n- 管理员记录获奖、本届不颁或取消，并保留结果更正审计。\n\n社区奖与冠军、亚军、MVP、EVP 等正式赛事荣誉保持独立，不写入 `tournament_honors`。\n\n比赛现在可以登记最多两名实际解说，并记录赛后录像和赛后资料提交状态。解说可以在个人资料中维护直播间链接；待开赛和进行中的公开比赛页会展示当前解说的直播入口。\n\n### Changed\n\n#### 赛事发布与报名窗口\n\n赛事“发布”和“开放报名”现在是两个独立事实。\n\n发布后的赛事可以处于：\n\n- 报名时间待定；\n- 即将开放；\n- 正在报名；\n- 报名已截止。\n\n管理员可以分别配置报名开放时间、报名截止时间和名单调整截止时间。\n\n报名截止后不再接受新的 CompetitionEntry，但已经存在的参赛队伍可以在名单调整窗口内继续完成允许的本届名单变更；长期 Team 本身不会因为某届赛事报名截止而被冻结。\n\n#### Major 竞技参考策略\n\nMajor 不再在赛事发布时冻结竞技平台赛季，而是在**实际开放报名的同一事务中**冻结本届竞技参考上下文。\n\n默认实力参考调整为：\n\n**历史最高段位 × 50% + 前一完整赛季最高段位 × 20% + 近期最高段位 × 30%**\n\n其中近期最高段位取最近完整赛季与当前进行中赛季中的较高值。\n\n这使平台刚切换新赛季时，玩家不会因为新赛季样本过少而被迫短期冲分，同时近期明显提升的竞技水平仍然能够反映在赛事资格与种子参考中。\n\n#### Team 与个人资料体验\n\n优化长期 Team 的入口与公开页面：\n\n- 无队伍用户可以更明确地创建队伍或进入组队大厅；\n- 队伍目录和公开主页统一展示语言；\n- 恢复并优化队伍图标维护入口；\n- 调整队伍页面导航与任务层级。\n\n选手公开主页现在可以展示已经审核通过的高校身份认证。\n\n### Fixed\n\n- 优化竞技档案的段位与 S 段星数填写布局，使星数紧邻对应段位。\n- 强化竞技位置和教育认证学校选择后的视觉反馈，并支持重新选择学校。\n- 统一注册确认、当前邮箱验证和密码重置邮件的 RivalHub 品牌样式、安全提示与两步邮箱确认说明。\n- 补充赛事窗口状态的公开提示和管理员发布确认，减少“发布赛事”“开放报名”“正式开赛”之间的语义混淆。\n- 收紧名单调整边界：只有赛事实际开放报名后，已批准参赛队伍才能自助调整名单。\n\n### Security\n\n- 社区奖、证据、解说和赛后报告继续由 server-only 数据库 owner 读写；public Data API 的 anon/authenticated 访问被明确拒绝。\n\n### Migration\n\n本版本包含新的 forward migrations，用于社区奖与赛后解说、组队大厅、赛事参与窗口、名单调整 revision 来源及其 server-only 数据库访问保护。\n\n生产环境继续通过 RivalHub release workflow 执行 active Drizzle migration chain、迁移校验、精确版本 Vercel Production 部署和 smoke test；不要使用 `db:push` 或绕过 release gate 直接修改 production schema。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 380370479,
@@ -829,8 +829,8 @@
     "id": 380268790,
     "tag_name": "v2.0.2",
     "original_body_sha256": "7abc19b0c90454e68d88dff7fe442547c83ea20f55ff001f4ee2d9e9515a9e9b",
-    "candidate_body": "\n### Changed\n\n- 生产发版改为由 `v*` tag 的 release workflow 串行执行数据库前向迁移、严格校验、精确 Vercel Production 部署与 smoke test；普通 `main` production build 不能绕过 release gate。\n\n### Fixed\n\n- 公开玩家竞技档案改用长期竞技位置与平台目录展示位置、段位、赛季和星数，不再把赛事报名快照当作长期资料。\n\n### Migration & Operations\n\n- Production release 会在应用部署前执行 active Drizzle migration chain 并进行 exact verify；迁移或校验失败会中止新版本部署并保留上一版 production。\n\n",
-    "status": "reviewed-unchanged"
+    "candidate_body": "\n### Changed\n\n- 生产发版改为由 `v*` tag 的 release workflow 串行执行数据库前向迁移、严格校验、精确 Vercel Production 部署与 smoke test；普通 `main` production build 不能绕过 release gate。\n\n### Fixed\n\n- 公开玩家竞技档案改用长期竞技位置与平台目录展示位置、段位、赛季和星数，不再把赛事报名快照当作长期资料。\n\n### Operations\n\n- Production release 会在应用部署前执行 active Drizzle migration chain 并进行 exact verify；迁移或校验失败会中止新版本部署并保留上一版 production。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 380195038,
@@ -843,8 +843,8 @@
     "id": 379928268,
     "tag_name": "v2.0.0",
     "original_body_sha256": "1a38ee3c51802e51f2c7aeb47b910fcef86d42e20f88c386a7e925f227e2a62b",
-    "candidate_body": "\nRivalHub 2.0 是一次完整的赛事产品与领域模型升级。相较 1.x 以单届 Rivals 赛事为核心的实现，2.0 将用户身份、长期 Team、赛事参赛身份、资格、正式名单、比赛运行时与赛后历史拆分为明确的长期事实和赛事事实，并新增完整的 NJU Major 运营流程。\n\n### Added\n\n#### 完整的 Major 赛事运营流程\n\n新增 NJU Major 从报名到归档的完整生命周期：长期 Team 创建 CompetitionEntry；队员邀请、确认与报名名单 revision；教育身份、竞技档案与纪律限制的统一资格判断；管理员审核、候补、退回补正与重新提交；正式赛事名单确认与冻结；32 支正式参赛队的种子管理；三阶段 Swiss；Quarterfinal、Semifinal、季军赛与 Final；单场首发阵容确认；比赛时间协商、BP 与赛果管理；赛果更正与受控 downstream recovery；纪律处罚、赛后裁决、最终名次、正式荣誉与赛事归档。\n\nMajor runtime 将 StageRun、TournamentEntrant、种子、比赛和最终名次持久化为正式赛事事实；已开始赛事不再依赖可变化的长期 Team 或当前用户资料解释历史。\n\n#### 长期 Team 与 CompetitionEntry\n\nTeam 现在是跨赛事存在的长期一级实体，支持创建与资料维护、成员邀请与邀请链接、active / benched / left 生命周期、队长交接、招募状态、解散，以及队长和名称的 append-only 历史记录。\n\nCompetitionEntry 是一支 Team 或一组参赛者进入某届 Competition 的规范参赛身份，明确区分长期 Team membership、本届赛事 participant、报名承诺 roster revision、正式 EventRoster、StageEntrant 和单场 MatchRoster。Rivals 选秀队和 Major 长期 Team 因此可以在同一赛事身份模型下保留各自产品流程。\n\n#### 长期参与者资料与“我的”\n\n新增稳定的 `/my` 入口，集中呈现长期个人资料、教育认证、竞技档案、当前长期 Team、CompetitionEntry、当前赛事 qualification 和本人可见的有效纪律限制，并提供对应 blocker、处理方和下一步入口。`profile readiness` 与 `event eligibility` 保持独立，资料完整不再被误认为满足某届赛事资格。\n\n#### 教育认证、竞技平台目录与长期竞技档案\n\n教育资格从旧用户字段中独立出来，形成可审核的长期事实。2.0 内置完美世界竞技平台与 5E；平台统一拥有 rank ladder 与 canonical performance Rating，平台赛季只表达时间目录。竞技档案明确区分 rank、S 段 stars 与 platform Rating，赛事发布时冻结所需的平台、current / previous season 与 rank ladder 上下文。\n\n#### 纪律与赛后管理\n\n新增赛事级纪律处罚管理，支持报名、名单和出场限制、生效窗口、管理员内部证据、面向用户的说明、撤销与过期处理。Major 赛后新增独立的 final result confirmation、placement、adjudication、tournament honor、revoke / vacant 与 archive；纪律事实不会隐式修改既有比赛结果、名次或荣誉，冠军荣誉被撤销时不会自动将亚军递补为冠军。\n\n### Changed\n\n#### 赛事模型与运行时边界\n\n`competitionTemplate` 现在是 Rivals、Major 和 Custom 的明确模板身份；内置模板不再通过 capability 结构反推身份。运行中的赛事使用冻结的 StageRun 事实，Major Swiss 由 Major-managed runtime 管理，Bracket 的可变运行时状态由独立持久化 owner 管理。\n\n#### 正式名单、比赛名单与管理员权限\n\n报名名单、正式赛事名单和单场阵容不再互相替代。EventRoster 成为赛事名单确认与冻结的 lifecycle owner；Major 正式赛事 roster 为 5–9 人，单场比赛确认恰好 5 名首发。\n\n管理员统一使用正常的 Supabase Auth 账户体系。全局权限与赛事范围权限分别由 `users.role = super_admin` 和 `season_admin_grants` 表达，应用 session 只保存用户身份；管理员邀请码使用独立 claim ledger，支持并发安全的 `maxUses` 与重复领取保护。旧的本地 Root 管理员账户、独立管理员 cookie 和 `adminSeasonIds` 权限数组已经退役。\n\n#### UI 与产品语言\n\n状态文案由对应领域 presentation owner 提供，UI primitive 不再解释业务 enum。统一使用 shadcn Button、canonical display-name formatter、Asia/Shanghai 日期时间格式、semantic design tokens、accessible Dialog / AlertDialog / InlineConfirm；浏览器原生 `confirm()` 已退出产品 UI。长期 Team 工作区拆分为资料、成员、邀请和危险操作等明确任务区域。\n\n### Fixed\n\n- 修复 Major 报名被管理员退回后在报名截止时间之后无法完成限定补正并重新提交的问题。\n- 支持已退出或拒绝的 Entry participant 被重新邀请并再次确认；过期 Team invitation 不再永久占用重新邀请的位置。\n- qualification blocker 和成员状态改为明确的用户可读业务语言，并修复 EventRoster、approved revision 与 Major prestart 之间可能出现的名单漂移。\n- Major prestart 只接受已批准 CompetitionEntry 的已批准 roster revision；开赛前重新验证冻结竞技上下文，缺失或不完整时 fail closed。\n- 收口 Major start、名单补正与名单同步的事务锁顺序，补充真实 PostgreSQL 并发回归，并强化 TournamentEntrant、StageEntrant、Match、FinalResult 与 MatchRoster 的同赛事关系和数据库一致性。\n- 强化赛果更正、Semifinal / Final / 季军赛 downstream recovery 与已开始比赛的保护；最终名次持久化现在验证完整 placement、冠军一致性与赛事归属。\n- qualification、public identity、privacy DTO 和 frozen competitive context 均收敛到单一 canonical owner。\n\n### Security\n\n- 业务数据库继续采用 server-side access model，public Data API 对业务表默认拒绝；service role、session secret、Cron secret 和 Turnstile secret 保持 server-only。\n- 删除 legacy Root 管理员认证路径，权限不再缓存在应用 session。\n- Local Supabase 开发环境只允许 loopback 数据库目标；staging / remote database write 需要明确 target、目标确认与显式写入授权。\n- `pnpm db:push` 被禁止，所有数据库升级必须经过 active migrations；清理无实际 consumer 的 direct dependencies，并将仍需要的 security override 限定到明确依赖路径和退出条件。\n\n### Reliability & Testing\n\n测试体系采用分层 verification evidence：Vitest unit / domain tests、真实 PostgreSQL integration tests、migration replay、并发与 transaction regression、Playwright browser E2E、Local Supabase 完整验证，以及 production smoke / real-operation progressive validation。Coverage report 继续作为诊断工具，但不再作为全局百分比 merge gate；CI 同时验证 production build 与 Local Supabase / PostgreSQL / browser 流程。\n\n### Migration & Operations\n\nRivalHub 2.0 使用新的 active Drizzle migration chain，旧 migration history 保留为只读历史记录。升级和部署必须使用仓库提供的 migration workflow，不使用 `db:push`；远程数据库写入前先完成 Local 与 staging 验证，production 不运行 destructive rehearsal，staging 与 production 使用独立 Supabase project。数据库连接按 Supabase Transaction Pooler contract 配置。开发与 CI 基线为 Node.js 24 与 pnpm 10.34.5。\n\n### Compatibility / Scope\n\nRivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Competition 继续使用已经实现并注册的阶段执行能力；不支持的阶段会在发布时 fail closed。2.0 保留未来赛事与其他游戏继续演进所需的结构边界，但没有提前引入 `Game`、`GameAccount`、N-way Match、通用 workflow DSL 或 tournament plugin database 等尚无真实消费者的模型。\n\n",
-    "status": "reviewed-unchanged"
+    "candidate_body": "\nRivalHub 2.0 是一次完整的赛事产品与领域模型升级。相较 1.x 以单届 Rivals 赛事为核心的实现，2.0 将用户身份、长期 Team、赛事参赛身份、资格、正式名单、比赛运行时与赛后历史拆分为明确的长期事实和赛事事实，并新增完整的 NJU Major 运营流程。\n\n### Added\n\n#### 完整的 Major 赛事运营流程\n\n新增 NJU Major 从报名到归档的完整生命周期：长期 Team 创建 CompetitionEntry；队员邀请、确认与报名名单 revision；教育身份、竞技档案与纪律限制的统一资格判断；管理员审核、候补、退回补正与重新提交；正式赛事名单确认与冻结；32 支正式参赛队的种子管理；三阶段 Swiss；Quarterfinal、Semifinal、季军赛与 Final；单场首发阵容确认；比赛时间协商、BP 与赛果管理；赛果更正与受控 downstream recovery；纪律处罚、赛后裁决、最终名次、正式荣誉与赛事归档。\n\nMajor runtime 将 StageRun、TournamentEntrant、种子、比赛和最终名次持久化为正式赛事事实；已开始赛事不再依赖可变化的长期 Team 或当前用户资料解释历史。\n\n#### 长期 Team 与 CompetitionEntry\n\nTeam 现在是跨赛事存在的长期一级实体，支持创建与资料维护、成员邀请与邀请链接、active / benched / left 生命周期、队长交接、招募状态、解散，以及队长和名称的 append-only 历史记录。\n\nCompetitionEntry 是一支 Team 或一组参赛者进入某届 Competition 的规范参赛身份，明确区分长期 Team membership、本届赛事 participant、报名承诺 roster revision、正式 EventRoster、StageEntrant 和单场 MatchRoster。Rivals 选秀队和 Major 长期 Team 因此可以在同一赛事身份模型下保留各自产品流程。\n\n#### 长期参与者资料与“我的”\n\n新增稳定的 `/my` 入口，集中呈现长期个人资料、教育认证、竞技档案、当前长期 Team、CompetitionEntry、当前赛事 qualification 和本人可见的有效纪律限制，并提供对应 blocker、处理方和下一步入口。`profile readiness` 与 `event eligibility` 保持独立，资料完整不再被误认为满足某届赛事资格。\n\n#### 教育认证、竞技平台目录与长期竞技档案\n\n教育资格从旧用户字段中独立出来，形成可审核的长期事实。2.0 内置完美世界竞技平台与 5E；平台统一拥有 rank ladder 与 canonical performance Rating，平台赛季只表达时间目录。竞技档案明确区分 rank、S 段 stars 与 platform Rating，赛事发布时冻结所需的平台、current / previous season 与 rank ladder 上下文。\n\n#### 纪律与赛后管理\n\n新增赛事级纪律处罚管理，支持报名、名单和出场限制、生效窗口、管理员内部证据、面向用户的说明、撤销与过期处理。Major 赛后新增独立的 final result confirmation、placement、adjudication、tournament honor、revoke / vacant 与 archive；纪律事实不会隐式修改既有比赛结果、名次或荣誉，冠军荣誉被撤销时不会自动将亚军递补为冠军。\n\n### Changed\n\n#### 赛事模型与运行时边界\n\n`competitionTemplate` 现在是 Rivals、Major 和 Custom 的明确模板身份；内置模板不再通过 capability 结构反推身份。运行中的赛事使用冻结的 StageRun 事实，Major Swiss 由 Major-managed runtime 管理，Bracket 的可变运行时状态由独立持久化 owner 管理。\n\n#### 正式名单、比赛名单与管理员权限\n\n报名名单、正式赛事名单和单场阵容不再互相替代。EventRoster 成为赛事名单确认与冻结的 lifecycle owner；Major 正式赛事 roster 为 5–9 人，单场比赛确认恰好 5 名首发。\n\n管理员统一使用正常的 Supabase Auth 账户体系。全局权限与赛事范围权限分别由 `users.role = super_admin` 和 `season_admin_grants` 表达，应用 session 只保存用户身份；管理员邀请码使用独立 claim ledger，支持并发安全的 `maxUses` 与重复领取保护。旧的本地 Root 管理员账户、独立管理员 cookie 和 `adminSeasonIds` 权限数组已经退役。\n\n#### UI 与产品语言\n\n状态文案由对应领域 presentation owner 提供，UI primitive 不再解释业务 enum。统一使用 shadcn Button、canonical display-name formatter、Asia/Shanghai 日期时间格式、semantic design tokens、accessible Dialog / AlertDialog / InlineConfirm；浏览器原生 `confirm()` 已退出产品 UI。长期 Team 工作区拆分为资料、成员、邀请和危险操作等明确任务区域。\n\n### Fixed\n\n- 修复 Major 报名被管理员退回后在报名截止时间之后无法完成限定补正并重新提交的问题。\n- 支持已退出或拒绝的 Entry participant 被重新邀请并再次确认；过期 Team invitation 不再永久占用重新邀请的位置。\n- qualification blocker 和成员状态改为明确的用户可读业务语言，并修复 EventRoster、approved revision 与 Major prestart 之间可能出现的名单漂移。\n- Major prestart 只接受已批准 CompetitionEntry 的已批准 roster revision；开赛前重新验证冻结竞技上下文，缺失或不完整时 fail closed。\n- 收口 Major start、名单补正与名单同步的事务锁顺序，补充真实 PostgreSQL 并发回归，并强化 TournamentEntrant、StageEntrant、Match、FinalResult 与 MatchRoster 的同赛事关系和数据库一致性。\n- 强化赛果更正、Semifinal / Final / 季军赛 downstream recovery 与已开始比赛的保护；最终名次持久化现在验证完整 placement、冠军一致性与赛事归属。\n- qualification、public identity、privacy DTO 和 frozen competitive context 均收敛到单一 canonical owner。\n\n### Security\n\n- 业务数据库继续采用 server-side access model，public Data API 对业务表默认拒绝；service role、session secret、Cron secret 和 Turnstile secret 保持 server-only。\n- 删除 legacy Root 管理员认证路径，权限不再缓存在应用 session。\n- Local Supabase 开发环境只允许 loopback 数据库目标；staging / remote database write 需要明确 target、目标确认与显式写入授权。\n- `pnpm db:push` 被禁止，所有数据库升级必须经过 active migrations；清理无实际 consumer 的 direct dependencies，并将仍需要的 security override 限定到明确依赖路径和退出条件。\n\n### Migration\n\nRivalHub 2.0 使用新的 active Drizzle migration chain，旧 migration history 保留为只读历史记录。升级和部署必须使用仓库提供的 migration workflow，不使用 `db:push`；远程数据库写入前先完成 Local 与 staging 验证，production 不运行 destructive rehearsal，staging 与 production 使用独立 Supabase project。数据库连接按 Supabase Transaction Pooler contract 配置。开发与 CI 基线为 Node.js 24 与 pnpm 10.34.5。\n\n### Compatibility\n\nRivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Competition 继续使用已经实现并注册的阶段执行能力；不支持的阶段会在发布时 fail closed。2.0 保留未来赛事与其他游戏继续演进所需的结构边界，但没有提前引入 `Game`、`GameAccount`、N-way Match、通用 workflow DSL 或 tournament plugin database 等尚无真实消费者的模型。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 379035252,
@@ -1004,7 +1004,7 @@
     "id": 331134787,
     "tag_name": "v1.26.0",
     "original_body_sha256": "68576750e76eab4b522c5806b34681049eaf17ca8e45cc052ea810ffd0118ffb",
-    "candidate_body": "\n### Added\n\n- 新增 Demo 导入、校验与数据回填，支持按导入批次追踪明细。\n- 新增选手数据、回合时间线、击杀记录、经济曲线、残局、热力图及武器、首杀、道具统计；队伍页展示半场胜率和风格，赛季数据页增加武器榜。\n- 增加系统推荐 MVP，OCR 面板按赛季配置显示录入字段。\n\n### Fixed\n\n- 修复暗色模式下 Demo 模块显示异常，支持键盘切换热力图模式，并改善经济图、空数据提示和英文标签。\n- 比赛详情在加载和出错时显示骨架屏或重试入口。\n- 修复 Demo 与 OCR 数据来源过滤及回填，避免重复统计、误删或空导入改变数据来源；改善大批量导入和并发保存。\n- 修正首杀率、武器爆头率、道具伤害和队伍经济统计，并避免武器统计遗漏击杀。\n\n### Security\n\n- 更新 Next.js 15.5.18 与 Drizzle ORM 0.45.2，修复所列高危依赖漏洞及 SQL 注入问题。当时审计仍有五项通过 brackets-manager 引入的 uuid 间接依赖中危漏洞，等待上游修复。\n",
+    "candidate_body": "\n### Added\n\n- 新增 Demo 导入、校验与数据回填，支持按导入批次追踪明细。\n- 新增选手数据、回合时间线、击杀记录、经济曲线、残局、热力图及武器、首杀、道具统计；队伍页展示半场胜率和风格，赛季数据页增加武器榜。\n- 增加系统推荐 MVP，OCR 面板按赛季配置显示录入字段。\n\n### Fixed\n\n- 修复暗色模式下 Demo 模块显示异常，支持键盘切换热力图模式，并改善经济图、空数据提示和英文标签。\n- 比赛详情在加载和出错时显示骨架屏或重试入口。\n- 修复 Demo 与 OCR 数据来源过滤及回填，避免重复统计、误删或空导入改变数据来源；改善大批量导入和并发保存。\n- 修正首杀率、武器爆头率、道具伤害和队伍经济统计，并避免武器统计遗漏击杀。\n\n### Security\n\n- 更新 Next.js 15.5.18 与 Drizzle ORM 0.45.2，修复中间件绕过、拒绝服务、缓存投毒、RSC 缓存和 SQL 注入问题。当时依赖审计从 19 项降至 5 项，高危从 8 项降至零；剩余五项为 brackets-manager 引入的 uuid 间接依赖中危漏洞，等待上游修复。\n",
     "status": "changed-review-required"
   },
   {
@@ -1130,22 +1130,22 @@
     "id": 326191531,
     "tag_name": "v1.20.5",
     "original_body_sha256": "fc978f8f38460e601583b0dcb8a8b641de7df86d86b9ad8c0c6ceab4bff24eca",
-    "candidate_body": "\n### Fixed\n- **DB Pool 重建后重试查询**：连接失败重建 Pool 后自动重试当次查询，并发重建合并去重，避免冷启动首请求 Load failed\n- **CI type-check**：修复 Proxy 类型循环引用与 `pool.query` 重载签名不兼容，确保无增量缓存 CI 环境通过\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Fixed\n\n- **DB Pool 重建后重试查询**：连接失败重建 Pool 后自动重试当次查询，并发重建合并去重，避免冷启动首请求 Load failed\n",
+    "status": "changed-review-required"
   },
   {
     "id": 326160827,
     "tag_name": "v1.20.4",
     "original_body_sha256": "4b01aee44c7d3096a43e24247ca30a9520a70036cffa96459a799ee4a3dd4fb4",
     "candidate_body": "\n### Fixed\n- **OCR 静默失败**：前端 `handleExtract` 补上缺失的 catch 块，Server Action 调用抛异常时显示错误信息而非静默吞掉\n- **DB 冷启动脆弱性**：Vercel 函数冷启动时 `DATABASE_URL` 偶发为空/残值导致 pg Pool 绑定错误地址，现连接失败自动重建 Pool 并重读环境变量\n- **OCR 日志可诊断性**：`siliconflow.ts` 每个处理步骤（JSON 解析→players 提取→逐行校验）设独立 try/catch + 日志，失败时精确定位\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 325963654,
     "tag_name": "v1.20.3",
     "original_body_sha256": "f0b95c5f4c600a662c15a56ec7396ab60aa5bc8eb9bad2faa76ac7c2372e9c73",
-    "candidate_body": "\n### Changed\n- **项目文档瘦身**：重写 README 为长期维护入口，新增 `docs/README.md` 与 `docs/code-map.md`，将历史设计交付物和过程材料归档到 `docs/archive/`\n- **大文件拆分**：拆分比赛详情页、首页与报名表单的大块展示组件，提取比赛详情、赛果、阵容与时间协商相关纯规则\n- **工程手册同步**：更新 CLAUDE.md / AGENTS.md 组件清单与发布约束，扩展组件清单校验脚本覆盖首页组件\n\n### Added\n- **关键规则测试**：补充比赛详情统计、赛果规则、首页导航规则与报名表单工具测试\n- **TODO 测试清理**：将 roster、scheduling、round-robin 中的测试 TODO 替换为可执行测试\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Changed\n\n- 整理项目文档，拆分首页、比赛详情和报名表单，并补充关键规则测试。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 325824787,
@@ -1159,48 +1159,48 @@
     "tag_name": "v1.20.1",
     "original_body_sha256": "6683c374bfafca56ee29ff0e2e384e1fe21c38e82d6bd63e65c691d0c1427aa7",
     "candidate_body": "\n### Fixed\n- **移动端布局**：首页 Next Match 区块右侧溢出修复（stage + 时间改为右侧竖排）；MatchCard badges 行加 flex-wrap 避免窄屏换行溢出；TeamCard 队名加 break-words、选手名加 truncate\n- **MatchCard 对战对称**：TeamA 队名改为右对齐，vs / 比分居中，布局对称\n- **队伍页六维雷达图**：改为取上场最多的前 5 名队员（原为首发标记），更准确反映实际出场情况\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 325566131,
     "tag_name": "v1.20.0",
     "original_body_sha256": "9f7fd991b3520e192aa7c9a6a115bc2cec889794fba06e292a7c73ab1d7d5eab",
     "candidate_body": "\n### Added\n- **MKPR /100r 指标**：数据排行榜新增多杀率列与排序 Tab，选手个人页同步改为 per-round 口径，与 FKPR/CPR 保持一致\n- **选秀回顾**：选秀结束后 `/[seasonSlug]/draft` 保留完整选人记录，以只读模式展示队伍阵容与逐回合 pick 历史\n- **用户管理——所有用户 Tab**：管理后台新增普通用户列表，含 4 项统计卡片（总注册/参赛/仅注册/近 30 天）、名字/邮箱搜索、全部/参赛/仅注册筛选；优化管理员列表为表格布局\n\n### Fixed\n- **积分榜平局判定顺序**：调整为 胜场 → 净胜回合差 → H2H → 总胜回合数 → 选秀顺位\n- **队名溢出截断**：赛程卡片（MatchCard）与首页 Next Match 区块队名长时正确显示省略号\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 325320259,
     "tag_name": "v1.19.2",
     "original_body_sha256": "28993e389a8f41058750105e481582452bdbedf89839d7476fa95462ac307aa4",
     "candidate_body": "\n### Fixed\n- **选手页与 H2H FKPR/CPR/KPR 口径统一**：选手页生涯总计从场均改为 per-round 率，与排行榜一致；MatchLineupsH2H FKPR 改为 ×100 显示\n\n### Changed\n- **六维雷达图权重优化**：每维主指标权重提升（FKPR 0.65 / MKPR 0.70 / CPR 0.70 / APR 0.45），少死分权重提升至 0.35\n- **Z-score 缩放系数调整**：乘数 15 → 22，拉开分数分布使顶尖选手能达到满分\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 325290346,
     "tag_name": "v1.19.1",
     "original_body_sha256": "70af7b5a787306f155673166cef50db54edaedb43f6a2a85e0b86e7c0d62793e",
     "candidate_body": "\n### Fixed\n- **排行榜 FKPR/CPR 显示精度**：SQL 层 `round(..., 2)` 导致 ×100 后小数位永为 `.0`，改为 `round(..., 4)` 恢复有意义的 1 位小数显示\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 325236442,
     "tag_name": "v1.19.0",
     "original_body_sha256": "217b3c83963341bc6a55de3609eb98d8ebe0ad8ba239d0cea19dd278ccb3eb99",
-    "candidate_body": "\n### Added\n\n- **六维雷达图系统（Hexagon）**：基于赛季赛事统计的 Z-score 标准化，计算六维能力评分（火力/破局/多杀/残局/协同/稳定），含完整单元测试（265 行）\n- **PlayerRadarChart 组件**：SVG 六边形雷达图，支持多人叠加对比、轴标签、单人数值标注及图例\n- **选手个人页六维卡片**：跨赛季六维能力展示\n- **队伍详情页六维对比**：队内所有成员六维雷达图叠加对比\n- **比赛详情页六维对比**：双方出场阵容六维能力雷达图（新增至赛后数据面板）\n- **排行榜六维综合评分列**：StatsLeaderboard 新增六维综合评分排序\n- **Cloudflare Turnstile 验证码**：注册页集成，`appearance=interaction-only` 仅在需要时触发验证挑战，服务端强制校验\n- **忘记密码 / 重置密码页**：`/forgot-password`、`/reset-password` 完整流程\n- **BP 赛后补录**：`finished` 比赛在管理后台\"数据录入\"区新增「录入 BP」入口；无 match_maps 记录时自动建立，解锁 OCR 面板\n\n### Changed\n\n- **BP 流程强制顺序**：`in_progress` 状态下，`recordMatchResult`（非淘汰赛）和 `recordMapResult`（淘汰赛逐图）均强制校验 BP 已存在，否则拒绝录分\n- **BO3/BO5 逐图录入重构**：BP 保存后自动创建 match_maps 预占行；`recordMapResult` 改为 UPDATE 预占行填入比分（不再 INSERT），彻底消除\"地图已存在\"冲突\n- **MapByMapInput BP 引导模式**：有 BP 预占序列时，地图名和 pick 方只读展示，管理员只需填起始边和回合数\n- **VetoInputDialog 交互优化**：队伍选择改为 A / B 切换按钮（告别每步下拉菜单）；finished 状态下显示赛后补录提示条\n- 比赛、队伍及选手页面并行读取六维数据，减少串行等待。\n\n### Fixed\n\n- **MVP 投票 createdAt 空值**：`createdAt` 为 null 时不再静默放行，明确返回\"账号状态异常\"错误\n- **Turnstile siteKey 缺失提示**：环境变量未配置时给出明确错误，不再静默失败\n",
+    "candidate_body": "\n### Added\n\n- 基于赛季统计新增火力、破局、多杀、残局、协同和稳定六维评分；个人页展示跨赛季能力，队伍和比赛页支持多人对比，排行榜可按综合评分排序。\n- **Cloudflare Turnstile 验证码**：注册页集成，`appearance=interaction-only` 仅在需要时触发验证挑战，服务端强制校验\n- **忘记密码 / 重置密码页**：`/forgot-password`、`/reset-password` 完整流程\n- **BP 赛后补录**：`finished` 比赛在管理后台\"数据录入\"区新增「录入 BP」入口；无 match_maps 记录时自动建立，解锁 OCR 面板\n\n### Changed\n\n- **BP 流程强制顺序**：`in_progress` 状态下，`recordMatchResult`（非淘汰赛）和 `recordMapResult`（淘汰赛逐图）均强制校验 BP 已存在，否则拒绝录分\n- **BO3/BO5 逐图录入重构**：BP 保存后自动创建 match_maps 预占行；`recordMapResult` 改为 UPDATE 预占行填入比分（不再 INSERT），彻底消除\"地图已存在\"冲突\n- **MapByMapInput BP 引导模式**：有 BP 预占序列时，地图名和 pick 方只读展示，管理员只需填起始边和回合数\n- **VetoInputDialog 交互优化**：队伍选择改为 A / B 切换按钮（告别每步下拉菜单）；finished 状态下显示赛后补录提示条\n- 比赛、队伍及选手页面并行读取六维数据，减少串行等待。\n\n### Fixed\n\n- **MVP 投票 createdAt 空值**：`createdAt` 为 null 时不再静默放行，明确返回\"账号状态异常\"错误\n- **Turnstile siteKey 缺失提示**：环境变量未配置时给出明确错误，不再静默失败\n",
     "status": "changed-review-required"
   },
   {
     "id": 324800054,
     "tag_name": "v1.18.1",
     "original_body_sha256": "8fc41a026f5dc9e7cf71383e578261b6d3bd188793ae636fd1208fcd2614a743",
-    "candidate_body": "\n### Fixed\n- **数据统计 KPR 修正**：从场均击杀 `sum(kills)/count(maps)` 改为每回合击杀 `sum(kills)/sum(rounds)`，与 CS2 标准 KPR 口径一致\n- **ADR / HS% 加权平均**：从简单 `avg()` 改为回合加权 `sum(metric × rounds)/sum(rounds)`，消除不同图回合数差异导致的偏差\n- **首杀 / 残局改每回合**：标签 \"首杀/图\"→\"FKPR\"、\"残局/图\"→\"CPR\"，计算从 `sum/count(maps)` 改为 `sum/sum(rounds)`\n- **阵容对比 FK 一致化**：`buildLineupsPlayers` 的 FK 同步改为 FKPR（每回合首杀），标签统一为 \"FKPR\"\n- **雷达图颜色解耦**：`MapPoolRadarChart` 硬编码 hex 替换为 `--color-accent` / `--color-accent-b` CSS 设计 token\n- **赛后内容隐藏**：比赛结束后隐藏赛季综合对比、地图池雷达图、历史交锋、阵容对比、赛前名单段落\n- **雷达图图例**：从 SVG 内移到卡片底部 HTML 布局，纵向排列不再重合\n- **MVP 次数口径**：从总票数修正为单场获奖次数，增加持久化缓存\n\n### Changed\n- **SQL 聚合提取**：stats 页 `weightedAvg(col)` / `perRoundRate(col)` 两个 helper，sortColumn 和 SELECT 共用单一定义\n- **排序默认值统一**：无数据项 `ELSE NULL`（排到末尾），不再用 `ELSE 0`（会与 0 值混淆）\n- **BO1/BO3/BO5 回合数兼容**：`COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b)`，map 级比分优先，BO1 fallback 到 match 级\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Fixed\n\n- **数据统计 KPR 修正**：从场均击杀 `sum(kills)/count(maps)` 改为每回合击杀 `sum(kills)/sum(rounds)`，与 CS2 标准 KPR 口径一致\n- **ADR / HS% 加权平均**：从简单 `avg()` 改为回合加权 `sum(metric × rounds)/sum(rounds)`，消除不同图回合数差异导致的偏差\n- **首杀 / 残局改每回合**：标签 \"首杀/图\"→\"FKPR\"、\"残局/图\"→\"CPR\"，计算从 `sum/count(maps)` 改为 `sum/sum(rounds)`\n- **阵容对比 FK 一致化**：`buildLineupsPlayers` 的 FK 同步改为 FKPR（每回合首杀），标签统一为 \"FKPR\"\n- **赛后内容隐藏**：比赛结束后隐藏赛季综合对比、地图池雷达图、历史交锋、阵容对比、赛前名单段落\n- **雷达图图例**：从 SVG 内移到卡片底部 HTML 布局，纵向排列不再重合\n\n### Changed\n\n- **排序默认值统一**：无数据项 `ELSE NULL`（排到末尾），不再用 `ELSE 0`（会与 0 值混淆）\n- **BO1/BO3/BO5 回合数兼容**：`COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b)`，map 级比分优先，BO1 fallback 到 match 级\n",
+    "status": "changed-review-required"
   },
   {
     "id": 324736065,
     "tag_name": "v1.18.0",
     "original_body_sha256": "a23e24e5567f09713f191fac5d3dbabd0ccc769cd1df99701577f02109190321",
-    "candidate_body": "\n### Added\n\n- **比赛详情页 — 赛季综合对比**：Hero 下方显示双方赛季战绩（胜负/胜率/Rating/ADR/K/D），较高值高亮标记\n- **比赛详情页 — 地图池雷达图**：纯 SVG 七边形雷达图，Win%/Pick%/Ban% 三态切换，同轴对比两队数据\n- **比赛详情页 — 历史交锋**：显示两队赛季内交手记录（近 10 场），含胜负汇总和每场比分链接\n- **比赛详情页 — 阵容对比**：HLTV 风格五人 H2H 比较器，点击切换选手，Rating/ADR/K/D/HS%/FK/WE 条形对比\n- **比赛详情页 — 整场汇总 Tab**：BO3/BO5 系列赛第一个 Tab，所有上场选手跨图聚合数据（K/D/A/HS%/Rating 等）\n- **比赛详情页 — 比赛时间显示**：Hero 下方显示赛前计划时间或赛后完成时间（CST 格式）\n- **管理端 — 完成时间编辑**：`updateMatchCompletedAt` Server Action，已结束比赛可在折叠区修改 `completed_at`（datetime-local 控件 + 清除按钮）\n- **设计 token — Accent B 族**：`--color-accent-b` / `-b-soft` / `-b-edge` / `-b-fg`，统一团队 B / 对比实体 accent 色\n\n### Changed\n\n- **数据统计排行榜重构**：新增全部 10 种排序（Rating/ADR/K/D/KPR/HS%/WE/RWS/首杀/残局/场次），数据驱动 `ColDef[]` 表格渲染\n- **队伍详情页重构**：综合数据改为 2×4 网格（出场/胜/负/胜率 + Rating/ADR/K/D/WE）；阵容行内嵌选手赛季数据（地图数/Rating/ADR/K/D）；替补显示地图偏好；删除\"位置最佳\"区块；重排段落顺序\n- **MVP 投票布局**：候选卡片从 `grid-cols-2 sm:grid-cols-4` 改为固定 `grid-cols-2`（2×2 布局）\n- **MatchCard 风格**：从卡片网格改为行列表，增大垂直间距（`space-y-2` → `space-y-3`）\n- **BP 面板显示条件**：VetoView 仅在比赛开始后（非 scheduled）显示，赛前不展示空 BP 面板\n- 减少首发选手赛季数据的数据库查询。\n\n### Fixed\n\n- **数据统计 SQL 口径**：`positionFilter` 改用原始字符串 `sr.primary_position`，修复 Drizzle schema 对象展开为表名与别名冲突\n- **K/D 计算**：从前端 `avg/avg` 改为 SQL 层 `sum(kills)/sum(deaths)`，修复统计口径\n- **`computeRecord` 平局逻辑**：平局不再误计为负（`else` → `else if`）\n",
+    "candidate_body": "\n### Added\n\n- **比赛详情页 — 赛季综合对比**：Hero 下方显示双方赛季战绩（胜负/胜率/Rating/ADR/K/D），较高值高亮标记\n- **比赛详情页 — 地图池雷达图**：纯 SVG 七边形雷达图，Win%/Pick%/Ban% 三态切换，同轴对比两队数据\n- **比赛详情页 — 历史交锋**：显示两队赛季内交手记录（近 10 场），含胜负汇总和每场比分链接\n- **比赛详情页 — 阵容对比**：HLTV 风格五人 H2H 比较器，点击切换选手，Rating/ADR/K/D/HS%/FK/WE 条形对比\n- **比赛详情页 — 整场汇总 Tab**：BO3/BO5 系列赛第一个 Tab，所有上场选手跨图聚合数据（K/D/A/HS%/Rating 等）\n- **比赛详情页 — 比赛时间显示**：Hero 下方显示赛前计划时间或赛后完成时间（CST 格式）\n- **管理端 — 完成时间编辑**：`updateMatchCompletedAt` Server Action，已结束比赛可在折叠区修改 `completed_at`（datetime-local 控件 + 清除按钮）\n\n### Changed\n\n- **数据统计排行榜重构**：新增全部 10 种排序（Rating/ADR/K/D/KPR/HS%/WE/RWS/首杀/残局/场次），数据驱动 `ColDef[]` 表格渲染\n- **队伍详情页重构**：综合数据改为 2×4 网格（出场/胜/负/胜率 + Rating/ADR/K/D/WE）；阵容行内嵌选手赛季数据（地图数/Rating/ADR/K/D）；替补显示地图偏好；删除\"位置最佳\"区块；重排段落顺序\n- **MVP 投票布局**：候选卡片从 `grid-cols-2 sm:grid-cols-4` 改为固定 `grid-cols-2`（2×2 布局）\n- **MatchCard 风格**：从卡片网格改为行列表，增大垂直间距（`space-y-2` → `space-y-3`）\n- **BP 面板显示条件**：VetoView 仅在比赛开始后（非 scheduled）显示，赛前不展示空 BP 面板\n- 减少首发选手赛季数据的数据库查询。\n\n### Fixed\n\n- **数据统计 SQL 口径**：`positionFilter` 改用原始字符串 `sr.primary_position`，修复 Drizzle schema 对象展开为表名与别名冲突\n- **K/D 计算**：从前端 `avg/avg` 改为 SQL 层 `sum(kills)/sum(deaths)`，修复统计口径\n- **`computeRecord` 平局逻辑**：平局不再误计为负（`else` → `else if`）\n",
     "status": "changed-review-required"
   },
   {
@@ -1208,7 +1208,7 @@
     "tag_name": "v1.17.1",
     "original_body_sha256": "1d930b6ec6681860bb08f9aa29e6f7a794f65f9018ef37c7ff4ce4025ea3cda1",
     "candidate_body": "\n### Fixed\n- **已结束比赛时间显示**：赛程页\"已结束\"标签页现在显示比赛完成时间（`completed_at`，无则回退到 `scheduled_at`）\n- **已结束比赛排序**：已结束比赛改为按完成时间从近到远降序排列\n- **队伍页地图池**：地图胜率/ban 率表格改用赛季 `registrationConfig.mapPool`，不再硬编码 `DEFAULT_CS2_MAP_POOL`\n- **默认地图池**：`DEFAULT_CS2_MAP_POOL` 将 `de_train` 更新为 `de_overpass`（当前赛季活跃图池）\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 324413345,
@@ -1221,99 +1221,99 @@
     "id": 324264390,
     "tag_name": "v1.16.1",
     "original_body_sha256": "9d982af431246eb8bdfd52aa8337f613311e3902b66a7770b88676f1adc581fa",
-    "candidate_body": "\n### Added\n- **选手名全站可点击**：队伍列表（TeamCard 首发/替补名）、队伍详情（阵容首发/替补/队内联系方式、每位置最佳）、比赛赛前名单（MatchRosterView 两队首发/替补）、比赛赛后数据表（PlayerStatsTable）、MVP 投票结果页，选手名均链接到 `/players/[userId]`\n- **比赛详情页队伍名可点击**：Hero 区双方队伍名链接到队伍详情页\n- **管理员下载队伍头像**：队伍详情页 Logo 下方显示「下载头像」按钮，仅 admin 可见且有 logo 时出现\n- `formatCSTDateTime()` 格式化函数（CST 月日+时间，如 \"5月18日 19:30\"）\n\n### Changed\n- **比赛时间显示日期+具体时间**：MatchCard 和赛季首页 NEXT MATCHES 从仅日期（\"5月18日\"）改为日期+时间（\"5月18日 19:30\"）\n- **赛季子页面统一垂直间距**：4 个页面（赛季首页 / draft / captains / register）父容器改为 `space-y-*` 统一间距，消除各区块 ad-hoc `mb-*`/`mt-*`\n- **赛季首页 STANDINGS 视觉对齐**：右侧积分榜从裸 div 改为 `<Panel label=\"STANDINGS · TOP 4\">` 包裹，与左侧 NEXT MATCHES 视觉对称\n- **StatsLeaderboard 筛选改用 `Btn` 组件**：排序 Tab 和位置筛选从手动 `<a>` 改为 `<Btn small ghost asChild>`，全站按钮风格统一\n- **3 组件 shadcn Card → rivalhub Panel**：MatchMvpVote / CaptainVotingPanel / StatsLeaderboard 统一使用 Panel 组件\n- **admin matches 页提取 `AdminMatchRow` 组件**：消除排位赛/正赛 ~200 行重复 JSX，净减 153 行；统一 VetoInputDialog 可见性（scheduled + in_progress 均显示）；清理 10+ 不再使用的 import\n\n### Fixed\n- `tailwind.config.ts` 删除 6 个无效 token 映射（`bg-base` / `bg-elevated` / `bg-overlay` / `text-primary` / `text-secondary` / `text-muted`），均无代码引用\n- `TeamCard` 未定义 token `--color-bg-subtle` → `--color-panel-low`\n- 3 处 `var(--primary)` → `var(--color-accent)`（StandingsTable / MapByMapInput / StatsLeaderboard），token 一致性\n- `MatchMvpVote` 圆角 `rounded-lg` → `rounded-sm`，与全站 `--radius: 3px` 一致\n- `Btn` / `Panel` 补显式 `import React`，修复 vitest 环境 `React is not defined`\n- 队伍详情页 `checkAdminSession()` 重复解密 iron-session cookie，改为复用 `getUserSession()` 结果\n- `TeamMemberData` / `RosterData` 类型三处重复定义 → 统一从 `AdminMatchRow` 导出\n- `AdminMatchRow` match.status/format 从 `string` 改为联合类型，移除 6 处类型断言\n- `completedMaps`/`finishedMaps` 映射逻辑在 admin matches 页两处复制粘贴 → 提取 `mapCompletedMaps()`/`mapFinishedMaps()` 辅助函数\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- 队伍、比赛和投票页面的选手名称可进入个人主页；比赛详情的队伍名称可进入队伍页。\n- 管理员可下载队伍头像。\n\n### Changed\n\n- 赛程和赛季首页展示具体比赛时间，统一页面间距、积分榜和筛选控件样式。\n- 管理后台在待进行及进行中的比赛均提供 BP 录入入口。\n\n### Fixed\n\n- 修复队伍卡片和赛程、统计组件的主题颜色显示，并减少队伍详情的重复会话读取。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 324107218,
     "tag_name": "v1.16.0",
     "original_body_sha256": "704613911247b2e00b2ee8603f4cbe1f8a8cc3c255558589d407f9ef0ebe9e16",
-    "candidate_body": "\n### Added\n- **UI Optimization v2 — 全站视觉增强**：首页三态动态 Hero（registration/voting/playing 渐变底色 + 网格背景纹理）；首页三层导航（Tier1 accent 卡片 / Tier2 grid-cols-4 / Tier3 ghost 按钮）；首页归档赛季区块\n- **PhaseStep 组件重写**：水平连接线布局，24×24 方形图标，步骤居中对齐；已完成段连接线变绿色\n- **赛季页双栏布局**：playing 状态展示 NEXT MATCHES + STANDINGS 双列；非 playing 状态降级为 Quick Links\n- **Panel 组件增强**：新增 `hoverable` / `teamColor` prop；`label` 为字符串时 CardHeader 始终应用 mono 样式\n- **`--color-info` token 系列**：新增 info / info-soft / info-edge 语义色（蓝色辅助标注）\n- **地图胜率颜色编码**：≥ 60% 绿色 / ≤ 40% 红色 / 中间段默认前景色\n- **首页投票排行卡片化**：grid 三列布局（排名 / 候选人 / 票数），第一名 accent 边框高亮\n- **管理后台 Season 卡片**：直接展示快捷操作按钮，无需跳转\n\n### Changed\n- **设计 token 体系**：全站字体更新为 Geist + JetBrains Mono + Noto Sans SC；新增 tracking 系列 token\n- **在线人数计数器**移至 Header 右侧，Tab 下划线样式精简\n- **赛季页**：新增 `getStandings` 共享函数，积分榜数据与 STANDINGS 面板对齐\n\n### Fixed\n- **admin 赛程**：`in_progress` 卡片左侧 3px accent 竖线标识；操作区改用 `<details>` 折叠，默认收起\n- `--color-fg-muted`（未定义 token）修复为 `--color-fg-dim`\n- admin 赛程 className 拼接改用 `cn()` 工具函数，消除无效 template literal\n- **全站 hardcoded Tailwind 颜色替换为 design tokens**：MatchTimeNegotiation/MatchRosterView/MatchRosterForm/TimeProposalHistory/SwissBracket/MatchStatusBadge/StandingsTable 等 30+ 组件统一使用 `--color-ok`/`--color-danger`/`--color-warn`/`--color-info` token 体系\n- `--color-yellow`/`--color-red`/`--color-surface-muted` 等无效 token 全部修复\n- CLAUDE.md 组件清单与实际文件同步，补充 `scripts/check-claude-md.sh` 校验脚本\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- 首页按报名、投票和比赛阶段展示不同主题，增加归档赛季入口和导航层级；赛季页展示近期比赛与积分榜。\n- 队伍页新增地图胜率与禁图率表现面板，胜率达到 60% 显示绿色、低于或等于 40% 显示红色；后台赛季卡片提供快捷操作。\n- 首页投票排行改用卡片展示，赛事步骤显示进度和连接线。\n\n### Changed\n\n- 更新全站字体和页面样式，在线人数移至顶部导航右侧。\n- 后台赛程突出进行中的比赛，并默认折叠操作区。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 323937866,
     "tag_name": "v1.15.1",
     "original_body_sha256": "f95ae4b1a5f5b780fa12dc119f748fbfccfc02241475023088fce3e1c595bae9",
-    "candidate_body": "\n### Fixed\n- **MVP 次数统计修正**：选手个人页 MVP 计数从「总票数」改为「单场 MVP 获奖次数」；新增 `matches.mvp_winner_user_id` 持久化缓存，避免每次页面访问遍历全表投票记录；UI 标签改为「单场MVP」\n\n### Added\n- `ensureMvpWinner(matchId)` — 投票截止后首次访问比赛页时自动锁定 MVP 胜者（幂等）\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- 接入 Vercel Analytics。\n\n### Fixed\n\n- **MVP 次数统计修正**：选手个人页 MVP 计数从「总票数」改为「单场 MVP 获奖次数」；新增 `matches.mvp_winner_user_id` 持久化缓存，避免每次页面访问遍历全表投票记录；UI 标签改为「单场 MVP」\n\n### Changed\n\n- 投票截止后首次访问比赛页时自动锁定 MVP 胜者，重复访问不会重复处理。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 323932627,
     "tag_name": "v1.15.0",
     "original_body_sha256": "0648af719fbd68f89ff33f0fa453bc039c48d39df06b3235714fa9108057fe8c",
-    "candidate_body": "\n### Added\n- **MVP 投票重构**：候选人由全部选手改为 Rating 前 4 名；候选人大卡展示完整数据（K/D/A/ADR/RWS/HS%/FK/MK/残局/Rating/WE）；多地图数据智能聚合（击杀类求和、场均类取均值、HS% 按击杀加权）；比赛结束 24 小时后自动截止投票并展示最终 MVP\n- **赛程管理队伍筛选**：AdminMatchFilter 新增队伍下拉筛选；赛程按「进行中→已排期(越近越靠前)→已完成→已取消」排序\n- **地图结果表格** PlayerStatsTable 新增 HS%/FK/MK/残局列\n- `sumNums` / `avgNums` / `weightedAvgNums` 通用聚合函数（`src/lib/utils/stats.ts`）\n- `MVP_DEADLINE_MS` 共享常量 + `getMatchPlayerOptions` / `getMatchVetoSteps` action\n- **管理后台比赛详情增加队伍筛选** + 按开赛时间排序\n\n### Changed\n- **BP 录入流程优化**：BP 仅在比赛「进行中」时可用；打开对话框自动回填已保存数据（不再每次重置）\n- **OCR 面板视图/编辑双模式**：已有数据时显示只读表格 +「重新录入」按钮；挂载时自动加载已保存数据\n- **管理后台比赛列表增加队伍筛选** + 按开赛时间排序\n\n### Fixed\n- **管理后台 OCR「暂无数据」**：公开页已有数据但管理后台显示空白的 bug\n- **BP 对话框错误处理**：异步加载失败不再卡 loading\n- **StatsOCRPanel useEffect**：加 cleanup 标志防止卸载后 setState\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- **MVP 投票重构**：候选人由全部选手改为 Rating 前 4 名；候选人大卡展示完整数据（K/D/A/ADR/RWS/HS%/FK/MK/残局/Rating/WE）；多地图数据智能聚合（击杀类求和、场均类取均值、HS% 按击杀加权）；比赛结束 24 小时后自动截止投票并展示最终 MVP\n- **赛程管理队伍筛选**：AdminMatchFilter 新增队伍下拉筛选；赛程按「进行中 → 已排期(越近越靠前)→ 已完成 → 已取消」排序\n- **地图结果表格** PlayerStatsTable 新增 HS%/FK/MK/残局列\n\n### Changed\n\n- **BP 录入流程优化**：BP 仅在比赛「进行中」时可用；打开对话框自动回填已保存数据（不再每次重置）\n- **OCR 面板视图/编辑双模式**：已有数据时显示只读表格 +「重新录入」按钮；挂载时自动加载已保存数据\n\n### Fixed\n\n- **管理后台 OCR「暂无数据」**：公开页已有数据但管理后台显示空白的 bug\n- **BP 对话框错误处理**：异步加载失败不再卡 loading\n",
+    "status": "changed-review-required"
   },
   {
     "id": 323903021,
     "tag_name": "v1.14.3",
     "original_body_sha256": "d3952f06cc75ca5b0e7f77f4cf8fde65e48036480430ada48bffbe662e558f3e",
-    "candidate_body": "\n### Added\n- **OCR 面板始终可见**：不再依赖识别结果才显示编辑表格，新增「添加行」按钮支持纯手动录入\n\n### Fixed\n- **OCR 大截图序列化崩溃**：extractStatsFromScreenshot 参数装箱，修复 React Flight 对数组内大字符串按 `.length` 计入 arraySizeLimit（1e6）导致的 \"Maximum array nesting exceeded\" 错误\n- **Server Action 数组序列化**：savePlayerStats / saveVetoSteps / submitMatchRoster / updateMatchRoster 数组参数统一包在对象中，避免 Next.js 序列化限制\n- **OCR 调试日志恢复**：移除过度的 DEBUG gate，日志恢复无条件输出以便生产排查\n\n### Changed\n- **数据库连接切 Transaction Pooler**：端口 5432 → 6543，`prepare: false`，连接池 max 1 → 3\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- OCR 面板始终显示编辑表格，支持手动添加选手行。\n\n### Fixed\n\n- 修复大截图和名单、BP、统计数组提交时可能触发的序列化错误，并恢复 OCR 排查日志。\n\n### Changed\n\n- 数据库连接改用 Transaction Pooler，端口由 5432 调整为 6543，关闭 prepared statements 并将连接池上限由 1 调整为 3。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 323862098,
     "tag_name": "v1.14.2",
     "original_body_sha256": "2c3e0e9112f2e7c8e76cf09dd4a79a46e213dd51e30ce760092e7e3c0e9be2b0",
-    "candidate_body": "\n### Fixed\n- **OCR 模型切换**：PaddleOCR-VL-1.5 / DeepSeek-OCR 均无法正确理解记分板表格，切换为 Qwen3-VL-8B-Instruct\n- **OCR 兼容多种 JSON 格式**：手动提取 players 数组，兼容直接数组 / `{players}` / `{data:{players}}` 三种 LLM 返回格式\n- **OCR 下拉仅显示两队队员**：从全赛季选手缩小为本场比赛两队成员（≤10 人），排除已被其他行匹配的玩家\n- **OnlineCounter 容错**：`touchSession` 和 API 调用失败时静默跳过，不再阻塞页面渲染\n\n### Changed\n- **OCR 调试日志 gated**：`console.error` 改为 `DEBUG` 门控 `console.log/warn`，仅 dev 或 `OCR_DEBUG=true` 时输出\n- **Code review 清理**：提取 `extractPlayersArray` helper，`useMemo(Set)` 优化下拉过滤 O(n²) → O(n)\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Fixed\n\n- **OCR 模型切换**：PaddleOCR-VL-1.5 / DeepSeek-OCR 均无法正确理解记分板表格，切换为 Qwen3-VL-8B-Instruct\n- **OCR 兼容多种 JSON 格式**：手动提取 players 数组，兼容直接数组 / `{players}` / `{data:{players}}` 三种 LLM 返回格式\n- **OCR 下拉仅显示两队队员**：从全赛季选手缩小为本场比赛两队成员（≤10 人），排除已被其他行匹配的玩家\n- **OnlineCounter 容错**：`touchSession` 和 API 调用失败时静默跳过，不再阻塞页面渲染\n\n### Changed\n\n- **OCR 调试日志 gated**：`console.error` 改为 `DEBUG` 门控 `console.log/warn`，仅 dev 或 `OCR_DEBUG=true` 时输出\n",
+    "status": "changed-review-required"
   },
   {
     "id": 323851521,
     "tag_name": "v1.14.1",
     "original_body_sha256": "f1b38f4c3a04d1bbeab927d12f7dc2b6287ad67d2325a688e3e04f196ed12905",
-    "candidate_body": "\n### Fixed\n- **OCR 校验彻底放宽**：顶层仅校验数组结构（不再因单行缺字段整批丢弃），行级仅要求玩家名称非空，数值字段自动转换（`\"15\"` → `15`、`\"N/A\"` → `null`），移除所有范围上限\n- **赛程总览显示比赛时间**：MatchCard 已排期显示日期、未排期显示「未排期」\n- **队伍详情页补全**：新增「历史战绩」列表（比分/BO1·BO3/阶段/详情链接），调整顺序为阵容→即将进行→历史战绩\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Fixed\n\n- **OCR 校验彻底放宽**：顶层仅校验数组结构（不再因单行缺字段整批丢弃），行级仅要求玩家名称非空，数值字段自动转换（`\"15\"` → `15`、`\"N/A\"` → `null`），移除所有范围上限\n### Added\n\n- 赛程总览展示比赛日期和未排期状态；队伍详情新增历史战绩与比赛链接。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 323847015,
     "tag_name": "v1.14.0",
     "original_body_sha256": "831074565d08653038b7ced62fb289c04ab2609b69116df8bee90ce156234e8a",
-    "candidate_body": "\n### Added\n- **在线人数统计**：`user_sessions` 表 + `OnlineCounter` 组件，每 2 分钟心跳，5 分钟内有活动的用户计为在线\n- **赛程总览子 Tab**：排位赛/正赛内分「待进行」「已结束」子 Tab，已排期比赛按时间由近及远排序\n- **BP 选边归属修正**：decider 步骤选边由对方选择时正确翻转 Team A 起始边\n- **OCR 逐行宽松解析**：单行校验失败跳过而非整批丢弃，兼容不同格式截图\n- **名单 2 小时窗口锁定**：距开赛 >2h 自由提交/修改，<2h 锁定，玩家按钮同步禁用\n\n### Fixed\n- **BP 录入放开 in_progress**：saveVetoSteps 允许 in_progress 状态，标准流程「开始→BP→比分」\n- **VetoInputDialog 双 Tab 面板同步**：排位赛和正赛都可见\n- **名单 UI 状态修正**：StatusPill \"finished\" 绿色误导 → 纯文字 \"已提交\"，倒计时文案加 2h 锁定警告\n\n### Changed\n- **Simplify 审查修复**：预索引 teamMembersByTeam（O(1) 查表）、移除冗余 new Date()、提取 resolveTeamASide helper\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- **在线人数统计**：`user_sessions` 表 + `OnlineCounter` 组件，每 2 分钟心跳，5 分钟内有活动的用户计为在线\n- **赛程总览子 Tab**：排位赛/正赛内分「待进行」「已结束」子 Tab，已排期比赛按时间由近及远排序\n- **名单 2 小时窗口锁定**：距开赛 >2h 自由提交/修改，<2h 锁定，玩家按钮同步禁用\n\n### Fixed\n\n- 修正决胜图选边归属，并让 OCR 在单行校验失败时保留其他有效行。\n\n- **BP 录入放开 in_progress**：saveVetoSteps 允许 in_progress 状态，标准流程「开始 →BP→ 比分」\n- **VetoInputDialog 双 Tab 面板同步**：排位赛和正赛都可见\n- **名单 UI 状态修正**：StatusPill \"finished\" 绿色误导 → 纯文字 \"已提交\"，倒计时文案加 2h 锁定警告\n",
+    "status": "changed-review-required"
   },
   {
     "id": 323838014,
     "tag_name": "v1.13.1",
     "original_body_sha256": "121ab34f4ac279cab0820ae1c56856f3763f1280728142be36e80c266d6d5467",
-    "candidate_body": "\n### Added\n- **开赛自动填名单**：点「开始比赛」时自动为两队取前 5 人作为默认首发（若队长未提交）\n- **队长名单时间提示**：比赛详情页显示距开赛剩余时间、2 小时内锁警告、裁判检查提醒\n- **时间协商名单提醒**：队长未提交名单时显示黄色警告条「请先提交赛前名单」\n\n### Fixed\n- **删除放开**：`deleteMatch` 移除 status 限制，所有非 bracket 比赛均可删除\n- **后台布局优化**：AdminRosterDialog/VetoInputDialog 同行排列 + 每场比赛底部「查看公开页 ↗」链接\n- **Drizzle 关系查询崩溃**：`VetoView` 和 admin roster 查询改用 `db.select()` 绕过 `buildRelationalQueryWithoutPK`\n- **TOCTOU 竞态**：`recordMapResult` 地图重复检查移入事务内部\n- **hasSubmittedRoster 默认值**：从 `true` 改为 `false`，忘记传 prop 时不会静默隐藏名单提醒\n- **auto-fill 确定性**：默认队员按 `joinedAt` 排序，移除未用变量\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- **开赛自动填名单**：点「开始比赛」时自动为两队取前 5 人作为默认首发（若队长未提交）\n- **队长名单时间提示**：比赛详情页显示距开赛剩余时间、2 小时内锁警告、裁判检查提醒\n- **时间协商名单提醒**：队长未提交名单时显示黄色警告条「请先提交赛前名单」\n\n### Fixed\n\n- **删除放开**：`deleteMatch` 移除 status 限制，所有非 bracket 比赛均可删除\n- **后台布局优化**：AdminRosterDialog/VetoInputDialog 同行排列 + 每场比赛底部「查看公开页 ↗」链接\n- **Drizzle 关系查询崩溃**：`VetoView` 和 admin roster 查询改用 `db.select()` 绕过 `buildRelationalQueryWithoutPK`\n- **hasSubmittedRoster 默认值**：从 `true` 改为 `false`，忘记传 prop 时不会静默隐藏名单提醒\n- **auto-fill 确定性**：默认队员按 `joinedAt` 排序，移除未用变量\n",
+    "status": "changed-review-required"
   },
   {
     "id": 323830678,
     "tag_name": "v1.13.0",
     "original_body_sha256": "cb457858a8fb9ad2add859b12b404297f43fbc0b2d86fb5c9acb85a50b224337",
-    "candidate_body": "\n### Added\n- **BO1 地图记录**：MapByMapInput 扩展 bo1 格式，recordMapResult 解除 BO1 限制，BO1 从 scheduled 自动推进到 in_progress\n- **BP 选图流程**：match_veto_steps 表 + saveVetoSteps Server Action + VetoInputDialog（管理员录入 Dialog，BO1/BO3/BO5 模板） + VetoView（HLTV 风格纵向展示，ban 红 / pick 绿 / decider 黄）\n- **管理员名单管理**：updateMatchRoster action + AdminRosterDialog（复选框选择 5 首发 + 2 替补，首发排序）\n- **比赛详情页 OCR 入口**：已完图下方对管理员显示 StatsOCRPanel（OCR 数据录入）\n- **比赛详情页分图 Tab 切换**：地图结果从纵向列表改为 Tab 切换，支持地图结构预展示 + BO1 fallback 展示系列总分\n- **比赛删除功能**：deleteMatch Server Action + DeleteMatchButton（InlineConfirm 二次确认，级联删除 BP/地图/名单数据，禁删 bracket 生成比赛）\n\n### Fixed\n- **recordMapResult 状态准入**：scheduled 仅 BO1 可用，BO3/BO5 必须 in_progress（防止跳过开始比赛步骤）\n- **BO1 fallback**：使用 `match.format` 替代硬编码 \"BO1\"\n- **BP 服务端校验**：地图名/队伍/去重/图池合法性校验，防止绕过客户端直接调 API\n- **TOCTOU 竞态**：recordMapResult 地图重复检查移入事务内部\n- **side 列类型**：match_veto_steps.side 从 text 改为 sideEnum\n- **VETO_STEP_COUNT**：常量对齐实际 buildTemplate 步骤数（统一 7 步）\n- **_journal.json**：补齐 0011-0017 缺失迁移条目\n\n### Changed\n- **消除重复**：提取 SIDE_LABELS（4 处→1）、getMaxMaps()（2 处→1）、validateTeamMembers()（2 处→1）\n- **移除 orphan**：MatchDetail.tsx（已被内联 server component 替代）\n- **清理 JSX 注释**：移除叙述性注释\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- BO1 支持逐图记录并从待进行进入比赛；比赛详情按地图切换结果并展示地图计划。\n- 管理员可按 BO1、BO3、BO5 模板录入 BP，查看正式选图过程，并管理五名首发和两名替补。\n- 比赛详情已结束地图下提供管理员 OCR 录入入口；管理员可确认删除非淘汰赛生成的比赛及关联数据。\n\n### Fixed\n\n- BO3/BO5 必须开始比赛后才能逐图录分；BP 保存校验地图、队伍、重复选择和赛事图池。\n- 将地图重复检查纳入事务，修复并发录分竞态；补齐缺失的迁移记录。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 323754704,
     "tag_name": "v1.12.0",
     "original_body_sha256": "b71a5f786374b58b37e938911e098b624349fd542e3cdf773b81068a869c6d37",
     "candidate_body": "\n### Added\n- **管理员快捷入口**：公开页面（赛季首页/赛程/选秀/队伍）对管理员显示齿轮图标入口，直接跳转到对应后台管理页面\n- **赛程队伍筛选**：赛程总览页支持按队伍筛选比赛（`?team=teamId`），管理员后台支持按阶段/状态筛选\n- **队伍详情即将进行的比赛**：`/[seasonSlug]/teams/[teamId]` 展示该队 scheduled/in_progress 状态的比赛列表\n- **后台新增比赛**：管理后台赛程页新增「新增比赛」Dialog 表单，支持选择队伍/阶段/赛制创建比赛\n- **系统设置 OCR Key**：管理员设置页展示 `SILICONFLOW_API_KEY` 配置状态（有/无）\n- **单场比赛队伍头像**：`MatchDetail` 展示双方队伍 logo，无 logo 时 fallback 为圆形首字母\n\n### Fixed\n- **shadcn/Tailwind v4 颜色桥接**：`@theme` 块补充 shadcn CSS 变量映射，修复按钮/Tab 颜色不渲染\n- **Grand Final 赛制**：双败决赛从 `double`（两场 Grand Final）改为 `simple`（单场 BO5）\n- **Bracket BYE→TBD**：brackets-viewer 中未确定对手从 \"BYE\" 改为 \"TBD\"\n- **选秀状态文案**：区分「选秀已结束」（playing/finished）与「选秀尚未开放」，不再一律显示\"尚未开放\"\n- **近期对决链接**：赛季首页 NEXT MATCHES 链接从赛程列表页改为具体比赛详情页\n- **状态标签措辞**：`scheduled` 从\"已排期\"改为\"待进行\"，与\"待定\"（时间未定）语义区分\n- **赛季导航间距**：SeasonNav 与 Stat 四格之间添加间距\n- **UI 增强**：赛程总览排位赛/正赛 Tab 样式增强（可见边框+背景）；\"开始比赛\"按钮加 InlineConfirm 二次确认\n- **auto-pick tiebreaker**：段位相同时从随机 UUID 改为 `createdAt` 报名时间比较\n- **Cron 调度修正**：GitHub Actions 从 `* * * * *` 改为 `*/5 * * * *`，避免隐性限流导致实际 1 小时才执行一次\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 323667217,
     "tag_name": "v1.11.0",
     "original_body_sha256": "d0df51f286e50d1acc19372166dd30e97a727c14898f11d27edf65cbfd5632b4",
     "candidate_body": "\n### Added\n- **队长面板选手搜索框**：支持按选手名模糊搜索，可与位置筛选联合使用\n- **超时自动选人提示**：队长轮次时显示 auto-pick 候选人及优先级规则说明\n- **双段位/Rating 显示**：同时展示历史最高段位+当前赛季段位，Rating 不同时并列显示\n\n### Fixed\n- **位置标签统一**：TeamDraftGrid 位置标识从中文混合改为统一英文（IGL/AWPer/Opener/Closer/Anchor）\n- **观众 refresh debounce**：DraftLiveRoom 3s 节流防止 Realtime+轮询突发连接池压力\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 323642195,
     "tag_name": "v1.10.1",
     "original_body_sha256": "93a34f703ad9f1be72c2491c5be5b0ac13ef993ada6212504dc9e8b54eb6c3c6",
-    "candidate_body": "\n### Fixed\n- **选秀预览模式时机修正**：从 registration/voting 阶段改为 drafting 未激活时展示（此时队伍已组建），非 drafting 恢复简单提示\n- **PLAYER_INFO_FIELDS 导入异常**：`as const` 常量从 `\"use client\"` 文件移至独立模块，修复 Server Component 中 `map is not a function` 运行时错误\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Fixed\n\n- **选秀预览模式时机修正**：从 registration/voting 阶段改为 drafting 未激活时展示（此时队伍已组建），非 drafting 恢复简单提示\n",
+    "status": "changed-review-required"
   },
   {
     "id": 323639135,
     "tag_name": "v1.10.0",
     "original_body_sha256": "fa46ccc7732f20d17c5cc30ddaaef465822998ab98e816cf33bee880f9ecc9a3",
-    "candidate_body": "\n### Added\n- **选秀预览模式**：选秀页在非 drafting 状态展示只读选手池，队长可提前查看选手信息（含风格/备注/经历 hover 卡片）研究阵容\n- **选手个人页信息增强**：`/players/[userId]` 新增\"选手自述\"区块，展示风格、备注、比赛经历\n\n### Changed\n- **自动选人优先级升级**：从单一 peakRating 改为 5 级排序（peakRank → peakRating → currentRank → currentRating → registrationId），并优先填补队伍完全空缺的位置\n- **sortByRank 排序扩展**：支持可选 currentRank / currentRating 字段，队长面板和选手池排序自动受益\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- **选秀预览模式**：选秀页在非 drafting 状态展示只读选手池，队长可提前查看选手信息（含风格/备注/经历 hover 卡片）研究阵容\n- **选手个人页信息增强**：`/players/[userId]` 新增\"选手自述\"区块，展示风格、备注、比赛经历\n\n### Changed\n\n- **自动选人优先级升级**：从单一 peakRating 改为 5 级排序（peakRank → peakRating → currentRank → currentRating → registrationId），并优先填补队伍完全空缺的位置\n- **sortByRank 排序扩展**：支持可选 currentRank / currentRating 字段，队长面板和选手池排序自动受益。\n\n### Fixed\n\n- 修复选手个人页信息字段在服务端渲染时的导入错误。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 323619365,
@@ -1327,97 +1327,97 @@
     "tag_name": "v1.8.0",
     "original_body_sha256": "9f20eef7dbca44fafebaa45c9a25ca70260a96d4cd11d41156e20b141c7be2e0",
     "candidate_body": "\n### Added\n- **个人信息设置页**：`/settings` 扩展为完整个人信息表单，支持自助修改 displayName / perfectName / steamName / steam64 / steamProfileUrl / QQ / 学号，全站实时生效\n- **时间协商 UI 重构**：显示所有 pending 提议（不再只显示第一条）；双方队长均可随时提议新时间；每条提议显示 24h 自动采纳倒计时\n- **时间提议 24h 超时自动采纳**：cron 新增逻辑，单条提议超过 24h 未被对方回应则自动采纳（独立于 deadline 裁定机制）\n- **批量设置比赛截止时间**：管理后台赛程页新增「批量设置截止时间」面板，按 stage / round / entryRound 分组一键设置，解决单循环多场逐一设置负担\n- **选手列表页副位置**：卡片显示副位置；位置筛选改为\"主/副位置 OR 匹配\"，筛选某位置时副位置也该位置的选手同步出现\n- **选秀围观页 PlayerPool 副位置**：桌面/移动端均显示副位置标签；位置筛选同步支持副位置匹配\n\n### Fixed\n- 投票阶段可撤回误审批：`approved→rejected` / `approved→pending` 允许 voting 阶段操作；已被选秀选中的选手禁止撤回\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 323489480,
     "tag_name": "v1.7.4",
     "original_body_sha256": "15b34d493fa21ebbb6055fcabe2230ac639397ce3e998d142a89a56244207ba1",
     "candidate_body": "\n### Fixed\n- 审计日志 `actorId` 为 `\"system\"` 等非 UUID 字符串时触发 Postgres `22P02` 类型转换错误\n\n### Added\n- 审计日志目标列可读名称解析：按 targetType 批量查询对应表，显示用户名/赛季名/队名/比赛对阵等（替代截断 UUID）\n- 审计日志 40+ action 中文别名映射，hover 显示原始字符串\n- 操作类型筛选改为 `<optgroup>` 分组下拉菜单（管理/报名/投票/选秀/赛程/赛季/队伍/用户）\n\n### Changed\n- CLAUDE.md、README.md、docs/architecture.md 同步至 v1.7.4：补齐 actions 目录索引、cron 端点\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 323480591,
     "tag_name": "v1.7.3",
     "original_body_sha256": "5193fabdbaae2b53c3975c65e1fc7c5b54b7327ba565b64bccf26c394bd7eee8",
-    "candidate_body": "\n### Fixed\n- 数据排行页 `sortColumn` 使用 Drizzle 列引用解析为全表名，与 SQL 别名 `mps` 冲突导致 Postgres `42P01` 错误\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Fixed\n\n- 修复数据排行榜排序时的数据库查询错误。\n- Steam 头像读取增加超时保护和缓存更新，减少过期头像链接显示失败。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 323378222,
     "tag_name": "v1.7.2",
     "original_body_sha256": "9f496e0c05403a8b6d541fba4e892ba941a445e664cb043162edcbe4b1fdb02f",
     "candidate_body": "\n### Fixed\n- 全站统一 `getDisplayName()` 消除所有 `steamName` 裸显示：选手页、Header、队长投票/确认、选秀直播/网格、比赛名单/表单、管理员列表/审核/设置、审计日志、队伍阵容卡片（19 文件，约 20 处）\n- 数据层查询同步扩展 `displayName` + `perfectName` 列（captains / draft / captain confirm / audit / admin registrations）\n- `resolveAvatarUrl` 改为优先从 Steam API 拉取最新头像，DB 缓存兜底，解决过期 CDN 链接客户端 onError 不触发的边缘情况\n- 赛季首页 `quickLinks` 快捷导航补「选手名单」卡片入口（v1.7.0 新增 /players 页面时遗漏）\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 323342749,
     "tag_name": "v1.7.1",
     "original_body_sha256": "b29b7d5c9fbb7810da63d94d6dd7bf4b7ba3babe7c72e9084dede25af1298a6d",
-    "candidate_body": "\n### Fixed\n- Header 头像过期 CDN 链接显示浏览器蓝色问号：AvatarButton 增加 onError 回退 + Header 服务端增加 `getSteamAvatar()` 实时拉取回退（与选手页统一）\n- Header mobile menu 关闭重开时 imgError 状态重置导致重复加载失败图片\n- 选手名单页位置筛选项仅含 3 个中文标签，改为全部 5 个 positionValues 英文标签（IGL / AWPer / Opener / Closer / Anchor）\n- 选手名单卡片 Position 标签改为英文 `positionLabel()`\n- 赛季导航 `hasPlayers` 计数比较增加 `Number()` 包裹，防 bigint→string 类型失效\n\n### Changed\n- 注册页位置标签切换 `positionLabel()` 替代内联 `POSITION_LABELS[].en`\n- 提取 `resolveAvatarUrl()` 共享函数到 `steam.ts`，消除 Header 与选手页重复\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Fixed\n\n- Header 头像过期 CDN 链接显示浏览器蓝色问号：AvatarButton 增加 onError 回退 + Header 服务端增加 `getSteamAvatar()` 实时拉取回退（与选手页统一）\n- Header mobile menu 关闭重开时 imgError 状态重置导致重复加载失败图片\n- 选手名单页位置筛选项仅含 3 个中文标签，改为全部 5 个 positionValues 英文标签（IGL / AWPer / Opener / Closer / Anchor）\n- 选手名单卡片 Position 标签改为英文 `positionLabel()`\n- 赛季导航 `hasPlayers` 计数比较增加 `Number()` 包裹，防 bigint→string 类型失效\n\n### Changed\n\n- 注册页位置标签切换 `positionLabel()` 替代内联 `POSITION_LABELS[].en`\n",
+    "status": "changed-review-required"
   },
   {
     "id": 323275843,
     "tag_name": "v1.7.0",
     "original_body_sha256": "ba45288a3e4e8fa00169fbfb287bd7581ef7439d77193d0ab50dfc46d618844e",
-    "candidate_body": "\n### Added\n- **选手名单页** `/[seasonSlug]/players`：展示已审核通过的报名选手，支持按位置筛选，卡片展示段位/Rating/所属队伍\n- **赛季导航**「选手」入口（按 approved 报名数 > 0 条件渲染，遵循 capability 门控）\n- **`getDisplayName()` 工具函数**：统一展示名称派生（displayName > perfectName > steamName > email），全站替代 `steamName ?? \"未知选手\"`\n- **display_name 系统**：users 表新增 `display_name` 字段，设置页支持修改昵称，Header 未设置时橙色提示\n- **选秀队长面板重构**：按段位+Rt 排序统一列表（替代旧的分列布局），满员位置灰显禁用，新增队长阵容摘要可折叠面板\n- **选秀观众端增强**：pick 通知 Banner 3 秒淡出动画，选手池统一排序\n- **队伍联系方式**：同队成员可见 QQ 与邮箱（仅队伍详情页渲染）\n- `public/favicon.ico`：静态 favicon 防止路由被 `[seasonSlug]` 吞噬\n\n### Fixed\n- 统计页 `db.execute()` 返回 `QueryResult { rows }` 对象直接当数组迭代 bug（与 1.6.1 队伍详情页同类问题）\n- DraftLiveRoom 通知双重触发（Realtime INSERT + completedPicks 竞态）\n- DraftLiveRoom `positionLabel(steamName)` 参数错误\n\n### Changed\n- `positionLabel` 6 文件重复定义提取为共享函数\n- `sortByRank` 提取为泛型工具函数 `src/lib/utils/rank.ts`\n- 并行化队伍详情页 roster + matches 查询（`Promise.all`）\n- `POS_ABBR` 移入 `registration.ts` 与位置常量共处\n- layout.tsx season 查询用 `React.cache()` 去重\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- **选手名单页** `/[seasonSlug]/players`：展示已审核通过的报名选手，支持按位置筛选，卡片展示段位/Rating/所属队伍\n- **赛季导航**「选手」入口（按 approved 报名数 > 0 条件渲染，遵循 capability 门控）\n- **display_name 系统**：users 表新增 `display_name` 字段，设置页支持修改昵称，Header 未设置时橙色提示\n- **选秀队长面板重构**：按段位+Rt 排序统一列表（替代旧的分列布局），满员位置灰显禁用，新增队长阵容摘要可折叠面板\n- **选秀观众端增强**：pick 通知 Banner 3 秒淡出动画，选手池统一排序\n- **队伍联系方式**：同队成员可见 QQ 与邮箱（仅队伍详情页渲染）\n- `public/favicon.ico`：静态 favicon 防止路由被 `[seasonSlug]` 吞噬\n\n### Fixed\n\n- 统计页 `db.execute()` 返回 `QueryResult { rows }` 对象直接当数组迭代 bug（与 1.6.1 队伍详情页同类问题）\n- DraftLiveRoom 通知双重触发（Realtime INSERT + completedPicks 竞态）\n- DraftLiveRoom `positionLabel(steamName)` 参数错误\n\n### Changed\n\n- 减少队伍详情与赛季导航的重复读取。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 323148606,
     "tag_name": "v1.6.1",
     "original_body_sha256": "ff0df3ac86a80d91b54bea0d977e0700fe01264f868b8003b6e515add3fa9086",
     "candidate_body": "\n### Fixed\n- 队伍详情页 `db.execute()` 返回类型错误：未取 `.rows` 直接当数组迭代，无比赛数据时 500 报错\n\n### Added\n- 队长投票页：候选人卡片新增最高分段（Peak A+/S 等）与 RT 双字段展示\n- 投票页说明：选秀第一轮逆向进行（排位最后的最先选人），引导按实力投票\n- 确认队长二次弹窗：点击按钮后弹出不可撤销警告 + 队长名单确认，防误触\n- 确认队长服务端校验：至少 3 票才允许确认，投票不足时返回 `VOTING_MINIMUM_NOT_MET`\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 323094685,
     "tag_name": "v1.6.0",
     "original_body_sha256": "97c5cb952a51d640efde7dd2c649f98399e9d8b1c74dff84c614ce24814b1440",
     "candidate_body": "\n### Added\n- 赛季首页：playing 阶段展示 NEXT MATCHES 面板（近 4 场未完赛比赛，含队名/时间/阶段）\n- 赛季首页：底部四格 Stat 统计条（队伍数 / 已批准选手数 / 比赛进度 / 当前阶段）\n- 首页 CURRENT SEASON 面板：补充队伍数 / 选手数 / 赛季阶段三栏 MiniStat\n- 新增 `ScrollHint` 组件，横向滚动容器左右渐变遮罩，提示用户可滑动\n\n### Fixed\n- `CaptainVotingPanel`：移动端（< md）切换为候选人卡片列表（票数进度条 + 投票按钮），桌面端保留原表格布局\n- `TeamDraftGrid`：移动端（< md）改为手风琴列表，当前选秀队自动展开，其余可点击折叠展开\n- 选秀状态栏 `borderRight` inline style 改为 `md:border-r`，2 列时不再贴边\n- `globals.css` `--font-sans` / `--font-display` 改为引用 `var(--font-geist)`，修复 next/font 哈希后字体回退问题\n- `tailwind.config.ts` 清理残留 `--font-inter` 引用，统一为 `var(--font-geist)`\n- 首页容器内边距 `px-9` → `px-4 lg:px-9`，375px 设备多出 40px 内容空间\n- Header 移动端菜单监听 `pathname` 变化自动关闭，覆盖浏览器前进/后退场景\n\n### Changed\n- `SeasonNav` tab 导航应用 `ScrollHint`，多 tab 横向滑动时显示渐变遮罩\n- 赛季首页 Phase Tracker 应用 `ScrollHint`\n- 队长投票页、报名页标题统一为 Eyebrow + Title + Sub 模式（mono 小标 + 大标题 + 副标题）\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 322701491,
     "tag_name": "v1.5.0",
     "original_body_sha256": "f4124e007f40d59ff8eaac702bbd41566cf49e5e4b607d1f366df0d85c93b0ea",
     "candidate_body": "\n### Added\n- 核心用户流程移动端适配：报名、投票、选秀、赛程查看 7 个组件/页面响应式布局\n\n### Fixed\n- 首页 Hero 两栏布局移动端溢出，改为响应式堆叠 + 标题字号缩小\n- 赛季首页阶段流程图移动端裁切，改为 flex 横向滑动 + 桌面端等宽\n- 队伍详情页移动端布局：战绩/数据 grid 响应式折行，阵容行 truncate 防溢出，地图/对阵表格 overflow-x-auto\n- 首页导航 tiles `repeat(4,1fr)` 硬编码 grid → Tailwind `grid-cols-2 lg:grid-cols-4`\n- 首页历史赛季 `repeat(3,1fr)` 硬编码 grid → `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`\n- Footer 移动端：版权信息与链接竖排堆叠 + 居中\n- MatchCard 移动端：队伍名与标签竖排堆叠，队名字号缩小\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 322638473,
     "tag_name": "v1.4.1",
     "original_body_sha256": "f1391c92839fc9e11b703938264ef01238a691f2c46c94c1ac9dfce00d612049",
-    "candidate_body": "\n### Fixed\n- 下拉菜单项间距不均与内容区背景透明问题\n- 个人主页 Steam 头像加载失败（新增 `avatars.steamstatic.com` 到 Next.js remotePatterns）\n\n### Changed\n- 全站用户名显示统一为 `steamName`（回退 `email`）：Header 下拉菜单、管理后台用户列表/设置页、审计日志操作人列、玩家主页\n- 审计日志操作人列从原始 ID 改为可读名称（actorNameMap）\n- 玩家主页数据增强：新增 MVP 票数、RWS、HS%、首杀、多杀、残局等统计\n- 报名记录卡片重设计为紧凑两行布局，补 `peakWe`\n- 新增 `perfectName` 显示\n- 提取 `wAvg`/`sAvg` 工具函数并添加单元测试（8 case）\n- 玩家主页报名/个人数据查询并行化（`Promise.all`）\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Fixed\n\n- 下拉菜单项间距不均与内容区背景透明问题\n- 个人主页 Steam 头像加载失败（新增 `avatars.steamstatic.com` 到 Next.js remotePatterns）\n\n### Changed\n\n- 全站用户名显示统一为 `steamName`（回退 `email`）：Header 下拉菜单、管理后台用户列表/设置页、审计日志操作人列、玩家主页\n- 审计日志操作人列从原始 ID 改为可读名称（actorNameMap）\n- 玩家主页数据增强：新增 MVP 票数、RWS、HS%、首杀、多杀、残局等统计\n- 报名记录卡片重设计为紧凑两行布局，补 `peakWe`\n- 新增 `perfectName` 显示\n- 玩家主页报名/个人数据查询并行化（`Promise.all`）\n",
+    "status": "changed-review-required"
   },
   {
     "id": 322423137,
     "tag_name": "v1.4.0",
     "original_body_sha256": "1ab65b85f2e9a856355941a94cba51c7d3e2077c7885011024e7bea46efc138a",
-    "candidate_body": "\n### Added\n- 管理后台操作日志浏览页面：新增 `AuditLogTable` 与 `/admin/logs`，支持查看审计事件、操作者、目标与元数据。\n- Server Actions 单元测试基础设施：新增 session mock、fixture、audit helper，并覆盖 auth、admin、captains、register、seasons、teams 等核心 actions。\n\n### Changed\n- 报名页显示当前用户报名状态；审核通过前允许自行修改并重新回到待审核，审核通过后锁定。\n- 管理后台报名审核列表按提交时间升序展示，优先处理更早报名的选手。\n- “等待名单”文案统一调整为“候补名单”，并更新报名状态机文档。\n- 多个管理与用户操作补齐 audit_log 写入。\n\n### Fixed\n- 头像菜单新增“我的主页”入口，修复登录用户无法从右上角进入个人主页的问题。\n- “撤销通过”现在回到待审核，而不是误标为已拒绝。\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- 管理后台操作日志浏览页面：新增 `AuditLogTable` 与 `/admin/logs`，支持查看审计事件、操作者、目标与元数据。\n\n### Changed\n\n- 报名页显示当前用户报名状态；审核通过前允许自行修改并重新回到待审核，审核通过后锁定。\n- 管理后台报名审核列表按提交时间升序展示，优先处理更早报名的选手。\n- “等待名单”文案统一调整为“候补名单”，并更新报名状态机文档。\n- 多个管理与用户操作补齐 audit_log 写入。\n\n### Fixed\n\n- 头像菜单新增“我的主页”入口，修复登录用户无法从右上角进入个人主页的问题。\n- “撤销通过”现在回到待审核，而不是误标为已拒绝。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 322320674,
     "tag_name": "v1.3.2",
     "original_body_sha256": "27fb57c2e74d7655e9be517eeec74c68c0b2a1ae9cedadc1d9864d87f9974f8b",
-    "candidate_body": "\n### Changed\n- README、CLAUDE.md、AGENTS.md 版本号同步至 1.3.2\n- CI workflow：`pnpm tsc --noEmit` → `pnpm type-check`（包含 Next route typegen）\n- Cron workflow：curl 加 `-fsS` flag，接口返回非 200 时 step 失败\n- CLAUDE.md 版本号规范：明确 `npm version` 同步生成 tag，移除\"合并后打 tag\"表述\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Changed\n\n- 同步项目版本与文档，并调整 CI 类型检查和定时任务的失败判定。\n",
+    "status": "changed-review-required"
   },
   {
     "id": 322288160,
     "tag_name": "v1.3.1",
     "original_body_sha256": "87e8cf0a81896dcab8abbdcc5ac098e15d1a6e351b16fc49a64011a75a8e715d",
     "candidate_body": "\n### Fixed\n- 管理后台选秀控制/赛程管理页面崩溃：`teams` 表缺 `logo_url` 列导致 Postgres 查询报错（补迁移 `0015_team_logo_url.sql`）\n\n",
-    "status": "unchanged-unreviewed"
+    "status": "reviewed-unchanged"
   },
   {
     "id": 322279403,
     "tag_name": "v1.3.0",
     "original_body_sha256": "c3d8de4e2d5ddea4998209929c2b3148904d0a031751daee9c1ac2df6356841c",
-    "candidate_body": "\n### Added\n- 队伍图标上传：`TeamLogoUpload` 组件 + `uploadTeamLogo` Server Action + Supabase Storage `team-logos` bucket（公开，1 MB / jpg+png+webp）\n- 管理后台报名草稿查看：`DraftRegistrationTable` 展示邮箱、Steam 昵称、位置、段位、最后保存时间\n- 修改密码功能：`changeUserPassword` Server Action（验证原密码 + Supabase Admin API 更新）+ `/settings/password` 页面\n- `revokeUserAdminRole` Server Action：super_admin 可撤销其他管理员权限（写 audit_log）\n- 共享常量配置：`src/lib/config/upload-limits.ts` / `auth-config.ts`\n\n### Changed\n- `MatchRosterForm` 视觉重设计：PosChip 位置标签、CSS 变量卡片样式、StatusPill 锁定态\n- 管理员用户列表改为查询 `users` 表（role ≠ \"user\"），正确展示所有管理员\n- `teams` 表新增 `logo_url` 列（nullable）\n- Header：super_admin 隐藏邀请码入口；所有已登录用户新增修改密码入口\n\n### Fixed\n- 上传失败回退竞态：`lastConfirmedUrlRef` 替代 stale prop 快照\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- 队伍图标上传：`TeamLogoUpload` 组件 + `uploadTeamLogo` Server Action + Supabase Storage `team-logos` bucket（公开，1 MB / jpg+png+webp）\n- 管理后台报名草稿查看：`DraftRegistrationTable` 展示邮箱、Steam 昵称、位置、段位、最后保存时间\n- 修改密码功能：`changeUserPassword` Server Action（验证原密码 + Supabase Admin API 更新）+ `/settings/password` 页面\n- `revokeUserAdminRole` Server Action：super_admin 可撤销其他管理员权限（写 audit_log）\n\n### Changed\n\n- `MatchRosterForm` 视觉重设计：PosChip 位置标签、CSS 变量卡片样式、StatusPill 锁定态\n- 管理员用户列表改为查询 `users` 表（role ≠ \"user\"），正确展示所有管理员\n- `teams` 表新增 `logo_url` 列（nullable）\n- Header：super_admin 隐藏邀请码入口；所有已登录用户新增修改密码入口\n\n### Fixed\n\n- 上传失败回退竞态：`lastConfirmedUrlRef` 替代 stale prop 快照\n",
+    "status": "changed-review-required"
   }
 ]
