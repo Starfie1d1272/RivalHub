@@ -63,10 +63,10 @@ export function MetricCard({ label, value, note, tone = "neutral", onClick }: { 
 export function CoverageBadge({ status, detail }: { status: "complete" | "partial" | "unsupported"; detail?: string }) {
   return <div role="status" className="flex flex-wrap items-center gap-2 text-xs"><span className={`rounded-sm border px-2 py-1 ${status === "complete" ? "border-border text-muted-foreground" : "border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)] text-[var(--color-warn)]"}`}>{status === "complete" ? "范围已覆盖" : status === "partial" ? "部分覆盖" : "筛选不支持"}</span>{detail && <span className="text-muted-foreground">{detail}</span>}</div>;
 }
-export function Bars({ rows, unit = "样本" }: { rows: { key: string; label: string; value: number; displayValue?: string; onClick?: () => void }[]; unit?: string }) {
+export function Bars({ rows, unit = "样本", wrapDetails = false }: { rows: { key: string; label: string; value: number; displayValue?: string; onClick?: () => void }[]; unit?: string; wrapDetails?: boolean }) {
   const max = Math.max(1, ...rows.map(r => r.value));
   return !rows.length ? <Empty /> : <div className="space-y-4">{rows.map(r => {
-    const content = <><span className="mb-2 flex justify-between gap-3 text-xs"><span className="min-w-0 break-words">{r.label}</span><span className="shrink-0 tabular-nums text-muted-foreground">{r.displayValue ?? number(r.value)} {unit}</span></span><span className="block h-2 overflow-hidden rounded-sm bg-secondary"><span className="block h-full rounded-sm bg-primary/70" style={{ width: `${r.value / max * 100}%` }} /></span></>;
+    const content = <><span className={`mb-2 flex justify-between text-xs ${wrapDetails ? "flex-col gap-1 sm:flex-row sm:gap-3" : "gap-3"}`}><span className={`min-w-0 ${wrapDetails ? "[overflow-wrap:anywhere]" : "break-words"}`}>{r.label}</span><span className={`tabular-nums text-muted-foreground ${wrapDetails ? "min-w-0 [overflow-wrap:anywhere]" : "shrink-0"}`}>{r.displayValue ?? number(r.value)} {unit}</span></span><span className="block h-2 overflow-hidden rounded-sm bg-secondary"><span className="block h-full rounded-sm bg-primary/70" style={{ width: `${r.value / max * 100}%` }} /></span></>;
     return r.onClick ? <button key={r.key} onClick={r.onClick} className="block w-full rounded-sm text-left hover:text-primary focus-visible:outline-2 focus-visible:outline-primary">{content}</button> : <div key={r.key}>{content}</div>;
   })}</div>;
 }
