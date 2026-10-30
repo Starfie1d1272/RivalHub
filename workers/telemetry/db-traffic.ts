@@ -1,5 +1,5 @@
 import type { Env } from "./index";
-import { maintainDbTraffic, readDbTrafficHours, type TrafficSelection } from "./db-traffic-rollup";
+import { maintainDbTraffic, maintainDbTrafficQuality, readDbTrafficHours, type TrafficSelection } from "./db-traffic-rollup";
 
 import { DB_SOURCES, DB_TEMPLATE_PATTERN } from "../../src/lib/observability/db-traffic-contract";
 const sources = new Set<string>(DB_SOURCES);
@@ -41,10 +41,9 @@ export async function ingestDbTraffic(request: Request, env: Env, now: number): 
   if (!oldBatch && !newBatch) return reject("envelope_keys", now);
   if (!integer(batch.dropped) || batch.dropped > 1000000) return reject("dropped", now);
   if (!integer(batch.receivedBytes)) return reject("received_bytes", now);
-  if (!integer(batch.connections) || batch.connections > 1000 || !integer(batch.observedConnections) || batch.observedConnections > batch.connections) return reject("connections", now);
+  if (!integer(batch.connections) || batch.connections > 1000 || !integer(batch.observedConnections) || batch.observedConnections > 1000) return reject("connections", now);
   if (typeof batch.id !== "string" || typeof batch.process !== "string" || !uuid.test(batch.id) || !uuid.test(batch.process)) return reject("identifiers", now);
   if (!Number.isSafeInteger(batch.at)) return reject("timestamp_invalid", now);
-  if (batch.at < now - DAY) return reject("timestamp_old", now);
   if (batch.at > now + 60000) return reject("timestamp_future", now);
   if (typeof batch.release !== "string" || typeof batch.deployment !== "string" || !/^[A-Za-z0-9._-]{1,80}$/.test(batch.release) || !/^[A-Za-z0-9._-]{1,80}$/.test(batch.deployment)) return reject("release_deployment", now);
   if (!Array.isArray(batch.rows) || batch.rows.length > 80 + DB_SOURCES.length) return reject("row_count", now);
@@ -54,12 +53,11 @@ export async function ingestDbTraffic(request: Request, env: Env, now: number): 
     if (!(newBatch ? current : legacy)) return "row_keys";
     if (!sources.has(row.source)) return "row_source";
     if (!DB_TEMPLATE_PATTERN.test(row.template)) return "row_template";
-    if (!integer(row.queries) || !integer(row.failures) || !integer(row.rows) || row.failures > row.queries) return "row_counts";
+    if (!integer(row.queries) || !integer(row.failures) || !integer(row.rows)) return "row_counts";
     if (!validNumber(row.queryMs)) return "row_time";
-    if (row.logicalRowJsonBytes !== undefined && (!integer(row.logicalRowJsonBytes) || !integer(row.logicalMeasuredQueries) || row.logicalMeasuredQueries! > row.queries)) return "row_logical";
+    if (row.logicalRowJsonBytes !== undefined && (!integer(row.logicalRowJsonBytes) || !integer(row.logicalMeasuredQueries))) return "row_logical";
     if (current && !integer(row.rxBytes)) return "row_rx";
     if (current && (!keys(row.skipReasons, "budget,error,unsupported_value") || !Object.values(row.skipReasons!).every(integer))) return "row_skip_fields";
-    if (current && Object.values(row.skipReasons!).reduce((sum, n) => sum + n, 0) + row.logicalMeasuredQueries! > row.queries) return "row_skip_counts";
     return null;
   };
   for (const row of batch.rows) {
@@ -68,21 +66,48 @@ export async function ingestDbTraffic(request: Request, env: Env, now: number): 
   }
   if (newBatch) {
     if (!keys(batch.remaining, "async,instrumentation,no_owner,partial,unsupported") || !Object.values(batch.remaining!).every(integer) || !integer(batch.remainingRxBytes)) return reject("remaining_fields", now);
-    if (Object.values(batch.remaining!).reduce((sum, n) => sum + n, 0) !== batch.remainingRxBytes) return reject("remaining_sum", now);
-    if (batch.rows.reduce((sum, row) => sum + row.rxBytes!, 0) + batch.remainingRxBytes! !== batch.receivedBytes) return reject("received_sum", now);
   }
+  const reasons: string[] = [];
+  if (batch.observedConnections > batch.connections) reasons.push("observed_connections");
+  if (batch.rows.some(row => row.failures > row.queries)) reasons.push("failures");
+  if (batch.rows.some(row => row.logicalMeasuredQueries !== undefined && row.logicalMeasuredQueries > row.queries)) reasons.push("logical_measured_queries");
+  if (batch.rows.some(row => row.skipReasons && Object.values(row.skipReasons).reduce((sum, n) => sum + n, 0) + row.logicalMeasuredQueries! > row.queries)) reasons.push("skip_sum");
+  if (newBatch && Object.values(batch.remaining!).reduce((sum, n) => sum + n, 0) !== batch.remainingRxBytes) reasons.push("remaining_sum");
+  if (newBatch && batch.rows.reduce((sum, row) => sum + row.rxBytes!, 0) + batch.remainingRxBytes! !== batch.receivedBytes) reasons.push("received_sum");
+  // Canonicalize only after strict validation. Missing legacy fields stay missing.
+  const canonical = (value: unknown): string => {
+    if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+    if (value && typeof value === "object") return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`).join(",")}}`;
+    return JSON.stringify(value);
+  };
+  const digestOf = async (value: unknown) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`db-traffic-v1:${canonical(value)}`)))).map(n => n.toString(16).padStart(2, "0")).join("");
+  const digest = await digestOf(batch);
+  const ack = (status: string) => request.headers.get("x-db-traffic-protocol") === "2"
+    ? Response.json({ protocol: 2, id: batch.id, digest, status }) : new Response(null, { status: 204 });
+  const existing = await env.DB.prepare("SELECT digest,status FROM db_traffic_receipts WHERE id=?").bind(batch.id).first<{ digest: string; status: string }>();
+  if (existing) return existing.digest === digest ? ack(existing.status) : new Response(null, { status: 409 });
+  // Receipts were introduced after the normal table; reconstruct legacy identity.
+  const old = await env.DB.prepare("SELECT id,at,process,release,deployment,payload,dropped,received_bytes,connections,observed_connections FROM db_traffic_batches WHERE id=?").bind(batch.id).first<{ id: string; at: number; process: string; release: string; deployment: string; payload: string; dropped: number; received_bytes: number; connections: number; observed_connections: number }>();
+  if (old) {
+    const payload = JSON.parse(old.payload);
+    const reconstructed = { id: old.id, at: old.at, process: old.process, release: old.release, deployment: old.deployment, dropped: old.dropped, receivedBytes: old.received_bytes, connections: old.connections, observedConnections: old.observed_connections, ...(Array.isArray(payload) ? { rows: payload } : payload) };
+    return await digestOf(reconstructed) === digest ? ack("accepted") : new Response(null, { status: 409 });
+  }
+  if (batch.at < now - DAY) return reject("timestamp_old", now, 410);
   const day = new Date(now).toISOString().slice(0, 10);
+  const status = reasons.length ? "quarantined" : "accepted";
+  const payload = JSON.stringify(newBatch ? { rows: batch.rows, remainingRxBytes: batch.remainingRxBytes, remaining: batch.remaining, ...(lossProvided ? { droppedReceivedBytes: batch.droppedReceivedBytes, unconfirmedReceivedBytes: batch.unconfirmedReceivedBytes, unconfirmedBatches: batch.unconfirmedBatches } : {}) } : batch.rows);
   await env.DB.batch([
     env.DB.prepare("INSERT OR IGNORE INTO db_traffic_usage(day,batches) VALUES(?,0)").bind(day),
-    env.DB.prepare("INSERT OR IGNORE INTO db_traffic_batches(id,at,process,release,deployment,payload,expires,dropped,received_bytes,connections,observed_connections) SELECT ?,?,?,?,?,?,?,?,?,?,? WHERE (SELECT batches FROM db_traffic_usage WHERE day=?)<5000").bind(batch.id, batch.at, batch.process, batch.release, batch.deployment, JSON.stringify(newBatch ? { rows: batch.rows, remainingRxBytes: batch.remainingRxBytes, remaining: batch.remaining, ...(lossProvided ? { droppedReceivedBytes: batch.droppedReceivedBytes, unconfirmedReceivedBytes: batch.unconfirmedReceivedBytes, unconfirmedBatches: batch.unconfirmedBatches } : {}) } : batch.rows), batch.at + 7 * DAY, batch.dropped, batch.receivedBytes, batch.connections, batch.observedConnections, day),
+    env.DB.prepare("INSERT OR IGNORE INTO db_traffic_receipts(id,digest,status,at,release,deployment,payload,reasons,expires) SELECT ?,?,?,?,?,?,?,?,? WHERE (SELECT batches FROM db_traffic_usage WHERE day=?)<5000 AND NOT EXISTS (SELECT 1 FROM db_traffic_batches WHERE id=?)").bind(batch.id,digest,status,batch.at,batch.release,batch.deployment,reasons.length ? JSON.stringify(batch) : null,reasons.length ? JSON.stringify(reasons) : null,batch.at + 7 * DAY,day,batch.id),
     env.DB.prepare("UPDATE db_traffic_usage SET batches=batches+1 WHERE day=? AND changes()=1").bind(day),
+    env.DB.prepare("INSERT OR IGNORE INTO db_traffic_batches(id,at,process,release,deployment,payload,expires,dropped,received_bytes,connections,observed_connections) SELECT ?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM db_traffic_receipts WHERE id=? AND digest=? AND status='accepted')").bind(batch.id,batch.at,batch.process,batch.release,batch.deployment,payload,batch.at + 7 * DAY,batch.dropped,batch.receivedBytes,batch.connections,batch.observedConnections,batch.id,digest),
   ]);
-  const stored = await env.DB.prepare("SELECT id FROM db_traffic_batches WHERE id=?").bind(batch.id).first();
-  if (stored) {
-    // Make progress during normal traffic; a failed rollup never rejects an accepted batch.
-    try { await maintainDbTraffic(env, now, 1); } catch { /* The queued batch remains available for hourly retry. */ }
-  }
-  return new Response(null, { status: stored ? 204 : 429 });
+  const stored = await env.DB.prepare("SELECT digest,status FROM db_traffic_receipts WHERE id=?").bind(batch.id).first<{ digest: string; status: string }>();
+  if (!stored) return new Response(null, { status: 429, headers: { "retry-after": String(Math.ceil((Date.parse(day + "T00:00:00Z") + DAY - now) / 1000)), "x-db-traffic-limit": "daily" } });
+  if (stored.digest !== digest) return new Response(null, { status: 409 });
+  try { if (stored.status === "accepted") await maintainDbTraffic(env, now, 1); else await maintainDbTrafficQuality(env, now, 1); } catch { /* Retry by maintenance. */ }
+  return ack(stored.status);
 }
 export async function readDbTraffic(env: Env, now: number, hours: 24 | 72, selection?: TrafficSelection) {
   const rollup = await readDbTrafficHours(env, now, hours, selection);

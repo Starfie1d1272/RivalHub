@@ -32,15 +32,11 @@ it("reports only fixed validation categories and bounds repeated logs after auth
   for (const forbidden of [secret, value.id, value.process, value.release, value.deployment, value.rows[0].source, value.rows[0].template, "private_sql_marker", "private_table"]) expect(logs).not.toContain(forbidden);
 });
 
-it("distinguishes timestamps, row measurements and byte conservation without accepting invalid data", async () => {
+it("rejects out-of-bounds timestamps before storing data", async () => {
   const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
   const { ingestDbTraffic } = await import("../../../workers/telemetry/db-traffic");
   const cases: Array<[string, (value: ReturnType<typeof batch>) => void]> = [
-    ["timestamp_old", v => { v.at = now - 86400001; }],
     ["timestamp_future", v => { v.at = now + 60001; }],
-    ["row_skip_counts", v => { v.rows[0].skipReasons.budget = 1; }],
-    ["remaining_sum", v => { v.remaining.partial = 1; }],
-    ["received_sum", v => { v.receivedBytes = 8; }],
   ];
   for (const [reason, mutate] of cases) { const value = batch(); mutate(value); expect((await ingestDbTraffic(request(JSON.stringify(value)), env, now)).status).toBe(400); expect(JSON.parse(String(warn.mock.lastCall?.[0])).reason).toBe(reason); }
 });
