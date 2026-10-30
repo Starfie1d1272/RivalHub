@@ -29,9 +29,12 @@ it("accepts only a matching v2 acknowledgement", async () => {
   vi.stubGlobal("fetch", send);
   try {
     recordDbTraffic("unknown", "unknown", 0, 1, false); flushDbTraffic();
-    await vi.waitFor(() => expect(send).toHaveBeenCalled());
+    // Await the whole seal, send, ACK persistence and drain before inspecting or
+    // removing the spool. Disk sync can take longer than the default waitFor.
+    await vi.waitFor(() => expect((host[slot] as { sending: boolean }).sending).toBe(false), { timeout: 10000 });
+    expect(send).toHaveBeenCalledOnce();
     const { readFile } = await import("node:fs/promises");
-    await vi.waitFor(async () => expect(JSON.parse(await readFile(join(root, "state.json"), "utf8")).batches).toHaveLength(0));
+    expect(JSON.parse(await readFile(join(root, "state.json"), "utf8")).batches).toHaveLength(0);
   } finally { delete host[slot]; vi.unstubAllEnvs(); vi.unstubAllGlobals(); await rm(root, { recursive: true, force: true }); }
 });
 
