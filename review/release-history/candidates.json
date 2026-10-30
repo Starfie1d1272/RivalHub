@@ -1186,8 +1186,8 @@
     "id": 325236442,
     "tag_name": "v1.19.0",
     "original_body_sha256": "217b3c83963341bc6a55de3609eb98d8ebe0ad8ba239d0cea19dd278ccb3eb99",
-    "candidate_body": "\n### Added\n- **六维雷达图系统（Hexagon）**：基于赛季赛事统计的 Z-score 标准化，计算六维能力评分（火力/破局/多杀/残局/协同/稳定），含完整单元测试（265 行）\n- **PlayerRadarChart 组件**：SVG 六边形雷达图，支持多人叠加对比、轴标签、单人数值标注及图例\n- **选手个人页六维卡片**：跨赛季六维能力展示\n- **队伍详情页六维对比**：队内所有成员六维雷达图叠加对比\n- **比赛详情页六维对比**：双方出场阵容六维能力雷达图（新增至赛后数据面板）\n- **排行榜六维综合评分列**：StatsLeaderboard 新增六维综合评分排序\n- **Cloudflare Turnstile 验证码**：注册页集成，`appearance=interaction-only` 仅在需要时触发验证挑战，服务端强制校验\n- **忘记密码 / 重置密码页**：`/forgot-password`、`/reset-password` 完整流程\n- **BP 赛后补录**：`finished` 比赛在管理后台\"数据录入\"区新增「录入 BP」入口；无 match_maps 记录时自动建立，解锁 OCR 面板\n\n### Changed\n- **BP 流程强制顺序**：`in_progress` 状态下，`recordMatchResult`（非淘汰赛）和 `recordMapResult`（淘汰赛逐图）均强制校验 BP 已存在，否则拒绝录分\n- **BO3/BO5 逐图录入重构**：BP 保存后自动创建 match_maps 预占行；`recordMapResult` 改为 UPDATE 预占行填入比分（不再 INSERT），彻底消除\"地图已存在\"冲突\n- **MapByMapInput BP 引导模式**：有 BP 预占序列时，地图名和 pick 方只读展示，管理员只需填起始边和回合数\n- **VetoInputDialog 交互优化**：队伍选择改为 A / B 切换按钮（告别每步下拉菜单）；finished 状态下显示赛后补录提示条\n\n### Fixed\n- **MVP 投票 createdAt 空值**：`createdAt` 为 null 时不再静默放行，明确返回\"账号状态异常\"错误\n- **Turnstile siteKey 缺失提示**：环境变量未配置时给出明确错误，不再静默失败\n\n### Refactored\n- **PlayerRadarChart 颜色预解析**：颜色计算从多边形渲染和图例中提取到一次 map，消除重复推导\n- **hexagon.ts n=0 判断提升**：将空数组检查提至统计循环外，避免无效迭代\n- **TurnstileWidget URL 提取**：重复脚本 URL 提取为常量\n- **比赛/队伍/选手页并发优化**：`getSeasonHexagonScores` 加入 Phase 3 `Promise.all`，消除串行等待\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- **六维雷达图系统（Hexagon）**：基于赛季赛事统计的 Z-score 标准化，计算六维能力评分（火力/破局/多杀/残局/协同/稳定），含完整单元测试（265 行）\n- **PlayerRadarChart 组件**：SVG 六边形雷达图，支持多人叠加对比、轴标签、单人数值标注及图例\n- **选手个人页六维卡片**：跨赛季六维能力展示\n- **队伍详情页六维对比**：队内所有成员六维雷达图叠加对比\n- **比赛详情页六维对比**：双方出场阵容六维能力雷达图（新增至赛后数据面板）\n- **排行榜六维综合评分列**：StatsLeaderboard 新增六维综合评分排序\n- **Cloudflare Turnstile 验证码**：注册页集成，`appearance=interaction-only` 仅在需要时触发验证挑战，服务端强制校验\n- **忘记密码 / 重置密码页**：`/forgot-password`、`/reset-password` 完整流程\n- **BP 赛后补录**：`finished` 比赛在管理后台\"数据录入\"区新增「录入 BP」入口；无 match_maps 记录时自动建立，解锁 OCR 面板\n\n### Changed\n\n- **BP 流程强制顺序**：`in_progress` 状态下，`recordMatchResult`（非淘汰赛）和 `recordMapResult`（淘汰赛逐图）均强制校验 BP 已存在，否则拒绝录分\n- **BO3/BO5 逐图录入重构**：BP 保存后自动创建 match_maps 预占行；`recordMapResult` 改为 UPDATE 预占行填入比分（不再 INSERT），彻底消除\"地图已存在\"冲突\n- **MapByMapInput BP 引导模式**：有 BP 预占序列时，地图名和 pick 方只读展示，管理员只需填起始边和回合数\n- **VetoInputDialog 交互优化**：队伍选择改为 A / B 切换按钮（告别每步下拉菜单）；finished 状态下显示赛后补录提示条\n- 比赛、队伍及选手页面并行读取六维数据，减少串行等待。\n\n### Fixed\n\n- **MVP 投票 createdAt 空值**：`createdAt` 为 null 时不再静默放行，明确返回\"账号状态异常\"错误\n- **Turnstile siteKey 缺失提示**：环境变量未配置时给出明确错误，不再静默失败\n",
+    "status": "changed-review-required"
   },
   {
     "id": 324800054,
@@ -1200,8 +1200,8 @@
     "id": 324736065,
     "tag_name": "v1.18.0",
     "original_body_sha256": "a23e24e5567f09713f191fac5d3dbabd0ccc769cd1df99701577f02109190321",
-    "candidate_body": "\n### Added\n- **比赛详情页 — 赛季综合对比**：Hero 下方显示双方赛季战绩（胜负/胜率/Rating/ADR/K/D），较高值高亮标记\n- **比赛详情页 — 地图池雷达图**：纯 SVG 七边形雷达图，Win%/Pick%/Ban% 三态切换，同轴对比两队数据\n- **比赛详情页 — 历史交锋**：显示两队赛季内交手记录（近 10 场），含胜负汇总和每场比分链接\n- **比赛详情页 — 阵容对比**：HLTV 风格五人 H2H 比较器，点击切换选手，Rating/ADR/K/D/HS%/FK/WE 条形对比\n- **比赛详情页 — 整场汇总 Tab**：BO3/BO5 系列赛第一个 Tab，所有上场选手跨图聚合数据（K/D/A/HS%/Rating 等）\n- **比赛详情页 — 比赛时间显示**：Hero 下方显示赛前计划时间或赛后完成时间（CST 格式）\n- **管理端 — 完成时间编辑**：`updateMatchCompletedAt` Server Action，已结束比赛可在折叠区修改 `completed_at`（datetime-local 控件 + 清除按钮）\n- **设计 token — Accent B 族**：`--color-accent-b` / `-b-soft` / `-b-edge` / `-b-fg`，统一团队 B / 对比实体 accent 色\n\n### Changed\n- **数据统计排行榜重构**：新增全部 10 种排序（Rating/ADR/K/D/KPR/HS%/WE/RWS/首杀/残局/场次），数据驱动 `ColDef[]` 表格渲染\n- **队伍详情页重构**：综合数据改为 2×4 网格（出场/胜/负/胜率 + Rating/ADR/K/D/WE）；阵容行内嵌选手赛季数据（地图数/Rating/ADR/K/D）；替补显示地图偏好；删除\"位置最佳\"区块；重排段落顺序\n- **MVP 投票布局**：候选卡片从 `grid-cols-2 sm:grid-cols-4` 改为固定 `grid-cols-2`（2×2 布局）\n- **MatchCard 风格**：从卡片网格改为行列表，增大垂直间距（`space-y-2` → `space-y-3`）\n- **BP 面板显示条件**：VetoView 仅在比赛开始后（非 scheduled）显示，赛前不展示空 BP 面板\n\n### Fixed\n- **数据统计 SQL 口径**：`positionFilter` 改用原始字符串 `sr.primary_position`，修复 Drizzle schema 对象展开为表名与别名冲突\n- **K/D 计算**：从前端 `avg/avg` 改为 SQL 层 `sum(kills)/sum(deaths)`，修复统计口径\n- **`computeRecord` 平局逻辑**：平局不再误计为负（`else` → `else if`）\n\n### Refactored\n- **Pick/Ban 统计合并**：`getTeamPickStats` 和 `getTeamBanStats` 合并共享 `getTeamVetoActionStats` 实现（60 行重复 → 一行委托）\n- **DB 查询精简**：首发选手赛季数据从 `teamRawStats` 内存过滤，省 2 次 `matchPlayerStats` 查询；赛季比赛查询提取 `getSeasonFinishedMatches` 辅助\n- **硬编码颜色清零**：全站 30+ 处裸 hex 值替换为 CSS 变量（`StatusPill`/`StatusBanner`/`EmptyState`/`ErrorState`/`InlineConfirm` + 5 个新赛程组件）\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- **比赛详情页 — 赛季综合对比**：Hero 下方显示双方赛季战绩（胜负/胜率/Rating/ADR/K/D），较高值高亮标记\n- **比赛详情页 — 地图池雷达图**：纯 SVG 七边形雷达图，Win%/Pick%/Ban% 三态切换，同轴对比两队数据\n- **比赛详情页 — 历史交锋**：显示两队赛季内交手记录（近 10 场），含胜负汇总和每场比分链接\n- **比赛详情页 — 阵容对比**：HLTV 风格五人 H2H 比较器，点击切换选手，Rating/ADR/K/D/HS%/FK/WE 条形对比\n- **比赛详情页 — 整场汇总 Tab**：BO3/BO5 系列赛第一个 Tab，所有上场选手跨图聚合数据（K/D/A/HS%/Rating 等）\n- **比赛详情页 — 比赛时间显示**：Hero 下方显示赛前计划时间或赛后完成时间（CST 格式）\n- **管理端 — 完成时间编辑**：`updateMatchCompletedAt` Server Action，已结束比赛可在折叠区修改 `completed_at`（datetime-local 控件 + 清除按钮）\n- **设计 token — Accent B 族**：`--color-accent-b` / `-b-soft` / `-b-edge` / `-b-fg`，统一团队 B / 对比实体 accent 色\n\n### Changed\n\n- **数据统计排行榜重构**：新增全部 10 种排序（Rating/ADR/K/D/KPR/HS%/WE/RWS/首杀/残局/场次），数据驱动 `ColDef[]` 表格渲染\n- **队伍详情页重构**：综合数据改为 2×4 网格（出场/胜/负/胜率 + Rating/ADR/K/D/WE）；阵容行内嵌选手赛季数据（地图数/Rating/ADR/K/D）；替补显示地图偏好；删除\"位置最佳\"区块；重排段落顺序\n- **MVP 投票布局**：候选卡片从 `grid-cols-2 sm:grid-cols-4` 改为固定 `grid-cols-2`（2×2 布局）\n- **MatchCard 风格**：从卡片网格改为行列表，增大垂直间距（`space-y-2` → `space-y-3`）\n- **BP 面板显示条件**：VetoView 仅在比赛开始后（非 scheduled）显示，赛前不展示空 BP 面板\n- 减少首发选手赛季数据的数据库查询。\n\n### Fixed\n\n- **数据统计 SQL 口径**：`positionFilter` 改用原始字符串 `sr.primary_position`，修复 Drizzle schema 对象展开为表名与别名冲突\n- **K/D 计算**：从前端 `avg/avg` 改为 SQL 层 `sum(kills)/sum(deaths)`，修复统计口径\n- **`computeRecord` 平局逻辑**：平局不再误计为负（`else` → `else if`）\n",
+    "status": "changed-review-required"
   },
   {
     "id": 324449532,
@@ -1214,8 +1214,8 @@
     "id": 324413345,
     "tag_name": "v1.17.0",
     "original_body_sha256": "cd444c22fbb35f9e99e7781fb06aafd52446a43035b4edfaee571b020eee9755",
-    "candidate_body": "\n### Added\n- **比赛比分修正**：管理员可对已完成比赛进行比分修正（`correctMatchScore` Server Action），操作写入 audit log；仅修正数字，不影响胜负判定和 bracket 晋级结果\n- **数据录入校验**：玩家数据保存前校验数值范围（HS%/RWS 0–100、ADR 0–300、Rating 0.01–5.0；计数类字段仅校验非负），超范围格高亮为红色、阻止确认\n- **清除数据**：管理员可一键清除某张地图的所有玩家统计数据（InlineConfirm 二次确认，写 audit log）\n\n### Fixed\n- **CS2 回合数合法性校验**：BO1 及 BO3/BO5 单图录入时，校验胜者回合数须满足 `13 + 3k`（13、16、19、22…），覆盖 MR12 正常局 + 任意轮加时，取代原来的硬编码数组\n- **赛后面板已完成比赛排序**：已完成比赛按 `completedAt` 降序排列，最近完成的显示最前\n- **「生成正赛」按钮误显**：`canGeneratePlayoff` 改为基于全量比赛数据判断，不再受界面筛选影响\n- **数据统计页崩溃**：`db.execute` 原始 SQL 返回 PostgreSQL `numeric` 为字符串，修正为显式 `Number()` 转换\n\n### Chore\n- 组件文件统一 PascalCase 命名（layout/ + rivalhub/ 共 21 个文件重命名）\n- `check-claude-md.sh` 改为以磁盘文件为真实来源，无需维护硬编码列表\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- **比赛比分修正**：管理员可对已完成比赛进行比分修正（`correctMatchScore` Server Action），操作写入 audit log；仅修正数字，不影响胜负判定和 bracket 晋级结果\n- **数据录入校验**：玩家数据保存前校验数值范围（HS%/RWS 0–100、ADR 0–300、Rating 0.01–5.0；计数类字段仅校验非负），超范围格高亮为红色、阻止确认\n- **清除数据**：管理员可一键清除某张地图的所有玩家统计数据（InlineConfirm 二次确认，写 audit log）\n\n### Fixed\n\n- **CS2 回合数合法性校验**：BO1 及 BO3/BO5 单图录入时，校验胜者回合数须满足 `13 + 3k`（13、16、19、22…），覆盖 MR12 正常局 + 任意轮加时，取代原来的硬编码数组\n- **赛后面板已完成比赛排序**：已完成比赛按 `completedAt` 降序排列，最近完成的显示最前\n- **「生成正赛」按钮误显**：`canGeneratePlayoff` 改为基于全量比赛数据判断，不再受界面筛选影响\n- **数据统计页崩溃**：`db.execute` 原始 SQL 返回 PostgreSQL `numeric` 为字符串，修正为显式 `Number()` 转换\n",
+    "status": "changed-review-required"
   },
   {
     "id": 324264390,
@@ -1319,8 +1319,8 @@
     "id": 323619365,
     "tag_name": "v1.9.0",
     "original_body_sha256": "114fae2ddd31c23435e746846c5fee6b3a9e1a083f0bff80b8e51d9f801ea327",
-    "candidate_body": "\n### Added\n- **选秀选手悬停信息卡片**：选手行末尾新增 info 图标，hover 弹出风格/备注/比赛经历；仅在有内容时显示图标，不增加视觉噪音；支持 PlayerPool 观众页和 CaptainDraftPanel 队长面板\n\n### Changed\n- **菜单\"个人信息\"重命名**：右上角下拉\"修改昵称\"→\"个人信息\"，与 `/settings` 页面标题对齐\n\n### Refactored\n- **DraftPlayerRow 类型统一**：删除 `CaptainDraftPlayer` 重复接口，统一使用 `DraftPlayerRow`\n\n",
-    "status": "unchanged-unreviewed"
+    "candidate_body": "\n### Added\n\n- **选秀选手悬停信息卡片**：选手行末尾新增 info 图标，hover 弹出风格/备注/比赛经历；仅在有内容时显示图标，不增加视觉噪音；支持 PlayerPool 观众页和 CaptainDraftPanel 队长面板\n\n### Changed\n\n- **菜单\"个人信息\"重命名**：右上角下拉\"修改昵称\"→\"个人信息\"，与 `/settings` 页面标题对齐\n",
+    "status": "changed-review-required"
   },
   {
     "id": 323598030,
