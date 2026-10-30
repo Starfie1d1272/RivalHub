@@ -205,4 +205,4 @@
 ## 2.25.0（并行新增）
 
 - [版本区间](https://github.com/Starfie1d1272/RivalHub/compare/v2.24.16...v2.25.0)：85a37d7a、ec529953、29617563、d26a1f81、8b9fe217；对应 Mizar 播出统计、数据库下行归因与首页备案入口。
-- 标签指向 85a37d7ac094812c062034ad894b4cdf0fa50d51；快照时 Release workflow 进行中，尚无 Release。不可预设其发布完成或正文，完成后需重取。
+- 标签指向 85a37d7ac094812c062034ad894b4cdf0fa50d51；正式 Release 已创建，原文和 metadata 已补充快照；正文与该版本日志一致，候选保留原文。

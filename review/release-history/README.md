@@ -1,6 +1,6 @@
-# GitHub Release 历史审查材料（未完成）
+# GitHub Release 历史审查材料（待独立复审）
 
-- `releases-original.json` 为 GitHub Releases API 全量快照，包含正文及非正文元数据和资产清单。读取于 2026-10-30 UTC；快照包含 203 个 Release，资产列表均为空。写入前须重新读取并比较原正文哈希、元数据及资产，避免覆盖并发修改。
+- `releases-original.json` 为 GitHub Releases API 全量快照，包含正文及非正文元数据和资产清单。读取于 2026-10-30 UTC；快照包含 204 个 Release，资产列表均为空。写入前须重新读取并比较原正文哈希、元数据及资产，避免覆盖并发修改。
 - `audit-1.0-1.20.md` 记录最早版本的证据与处理。
 - `audit-1.21-1.30.md` 记录 1.21 至 1.30 的版本证据及标签异常。
 - `audit-2.0-2.9.md` 记录早期 2.x 版本的证据与处理。
@@ -11,4 +11,4 @@
 - `candidates.json` 为每个已存在 Release 保存原正文 SHA-256 和候选正文。`changed-review-required` 为有修改且待独立审阅的候选；`reviewed-unchanged` 为本批核对后保留原文；`unchanged-unreviewed` 尚未审阅。不得据此批量更新远端。
 - 未创建 Release 或 tag，亦未修改任何远端 Release。候选保留了原有 URL、完整 SHA、生产基线及安全和兼容说明；正式写入前仍须独立复核。
 - 日期证据不能混同：如 1.26.1、1.26.2 和 1.30.0 的 GitHub Release 发布时间晚于现有日志日期，不能仅凭 Release 创建日期覆盖历史日期。
-- 已按版本段对照日志、版本区间及 Release 快照；候选仍需独立审阅。2.25.0 的正式发布进行中，快照时尚无对应 Release，发布完成后应重新读取并补充候选。
+- 已按版本段对照日志、版本区间及 Release 快照；候选仍需独立审阅。2.25.0 发布后已补入完整元数据和原文；新快照中其余 203 条与首份快照完全一致。

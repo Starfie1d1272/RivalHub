@@ -1,5 +1,12 @@
 [
   {
+    "id": 428817642,
+    "tag_name": "v2.25.0",
+    "original_body_sha256": "421571f19dfaebf4a74b0d133fc83dfade8ef1f33d8f88547a6ededf4de29fd7",
+    "candidate_body": "本次生产发布 v2.25.0 相对权威上一生产版本 v2.24.16 的变更如下。\n\n> 以下内容按 CHANGELOG.md 汇总从上一版本到当前版本的完整差异；中间版本条目仅用于说明变更，不代表曾作为生产版本发布。\n\n## [2.25.0]\n\n### Added\n\n- Mizar 可获取赛事播出统计，包含地图池、系列赛、队伍、首发选手表现及比赛积分支持。\n- 首页页脚新增 ICP 备案号及工信部查询链接。\n\n### Changed\n\n- 管理页按小时和版本展示数据库下行协议字节来源及覆盖缺口；生产数据仍待验证。\n",
+    "status": "reviewed-unchanged"
+  },
+  {
     "id": 428524434,
     "tag_name": "v2.24.16",
     "original_body_sha256": "7a86384d364e02631557b42ee771090f81e3fd1922a28ca69af65cb5ce962874",

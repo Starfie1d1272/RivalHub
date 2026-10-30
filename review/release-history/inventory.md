@@ -4,7 +4,7 @@
 
 | 日志版本 | 日志日期 | Tag commit | GitHub Release（UTC） | 本次状态 |
 | --- | --- | --- | --- | --- |
-| 2.25.0 | 未标注 | [85a37d7ac094](https://github.com/Starfie1d1272/RivalHub/commit/85a37d7ac094812c062034ad894b4cdf0fa50d51) | 快照时无 Release（发布进行中） | 已核对，待 Release 生成 |
+| 2.25.0 | 未标注 | [85a37d7ac094](https://github.com/Starfie1d1272/RivalHub/commit/85a37d7ac094812c062034ad894b4cdf0fa50d51) | [2026-10-30T08:54:32Z](https://github.com/Starfie1d1272/RivalHub/releases/tag/v2.25.0) | 已核对，原文待独立审阅 |
 | 2.24.16 | 未标注 | [9ea4e695b6c2](https://github.com/Starfie1d1272/RivalHub/commit/9ea4e695b6c29988903211f13c2753bf7e343189) | [2026-10-30T00:19:21Z](https://github.com/Starfie1d1272/RivalHub/releases/tag/v2.24.16) | 已核对，候选待独立审阅 |
 | 2.24.15 | 未标注 | [e64d88b0f607](https://github.com/Starfie1d1272/RivalHub/commit/e64d88b0f60724bfed9c4ae3119238b37dfdbfed) | [2026-10-29T21:32:11Z](https://github.com/Starfie1d1272/RivalHub/releases/tag/v2.24.15) | 已核对，候选待独立审阅 |
 | 2.24.14 | 未标注 | [2de00b1ddd0f](https://github.com/Starfie1d1272/RivalHub/commit/2de00b1ddd0fa20a59094e3c95cc57b7dfe84660) | [2026-10-29T20:46:01Z](https://github.com/Starfie1d1272/RivalHub/releases/tag/v2.24.14) | 已核对，候选待独立审阅 |
