@@ -18,7 +18,7 @@ import { MatchLiveProvider } from "@/components/matches/MatchLiveProvider";
 import { MatchRealtime } from "@/components/matches/MatchRealtime";
 import { MatchMapSequence } from "@/components/matches/MatchMapSequence";
 import { loadPublicMatchPhase } from "@/lib/matches/public-phase";
-import { readBilibiliStatus } from "@/lib/production/bilibili";
+import { readBilibiliRoom } from "@/lib/production/bilibili";
 import { MatchLiveViewing } from "@/components/matches/MatchLiveViewing";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -221,10 +221,11 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
   const commentatorPlayerIds = await getPublicPlayerIdentityIds(db, commentatorRows.map(row => row.userId));
   const publicCommentators = commentatorRows.map(row => ({ ...row, playerUserId: commentatorPlayerIds.has(row.userId) ? row.userId : null }));
 
-  const liveCommentators = await Promise.all(publicCommentators.map(async person => ({
-    ...person, broadcastStatus: ["scheduled", "in_progress"].includes(match.status)
-      ? await readBilibiliStatus(person.liveStreamUrl) : "unknown" as const,
-  })));
+  const liveCommentators = await Promise.all(publicCommentators.map(async person => {
+    const room = ["scheduled", "in_progress"].includes(match.status)
+      ? await readBilibiliRoom(person.liveStreamUrl) : { roomId: null, status: "unknown" as const };
+    return { ...person, bilibiliRoomId: room.roomId, broadcastStatus: room.status };
+  }));
 
   const registrationPositions = supportsRegistrationPositionDirectory(season.competitionTemplate)
     ? await db.select({ userId: seasonRegistrations.userId, position: seasonRegistrations.primaryPosition })
