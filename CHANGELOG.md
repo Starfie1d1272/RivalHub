@@ -710,7 +710,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 顶部导航恢复最多一个当前活跃赛事入口，桌面与手机均可直达；赛事页移除重复切换框，通过面包屑进入赛事目录。
 
-### 验收说明
+### Verification
 
 自动化覆盖测试赛创建、权限、BP、结果、正式事实隔离和报名阶段真实 LIVE 浏览器订阅。双账号完整浏览器彩排、Windows + CS2 + Mizar + OBS、B站嵌入与真实 DAK 上传仍待通过测试赛现场验收。
 
@@ -1753,7 +1753,7 @@ Major 赛前管理现在把已批准的 CompetitionEntry 作为正式参赛候�
 
 管理端比赛页拆分为轻量赛事比赛总览与 `/admin/{seasonSlug}/matches/{matchId}` 单场工作台。总览聚焦阶段、积分、赛程和批量运营；实际首发、BP / 地图、结果、赛后资料、更正与恢复操作集中在单场上下文中，并继续复用既有 match、roster、audit 与 observability owner。
 
-### Reliability & Operations
+### Operations
 
 应用建立 server-side structured observability、OpenTelemetry tracing、统一错误分类与敏感字段治理，并接入 Better Stack Preview / Production 配置 contract。运行日志与业务审计保持独立；telemetry sink 失败不会成为核心业务失败原因。Better Stack 的真实 Production trace / alert acceptance 在本版本部署后继续按 #424 验收，不在 release note 中提前宣称完成。
 
@@ -1787,7 +1787,7 @@ BO1、BO3 与 BO5 现在以统一方式保存官方系列赛比分和实际地�
 
 失效的 Team 分享邀请链接会显示明确业务状态，且不能再次被接受。重复 Team 邀请的数据库唯一约束错误也会被准确映射为业务提示，避免泄露底层查询异常或误报无关冲突。
 
-### Migration & Operations
+### Migration
 
 本版本包含三条 forward migration：`0036_auth_id_reconciliation`、`0037_match_score_semantics` 与 `0038_conversion_policies`。生产升级仍只通过 `v*` tag 触发标准 release workflow，依次执行 active migration replay、previous stable compatibility、production migrate/verify、精确版本 Vercel Production 部署与 smoke test。
 
@@ -1821,11 +1821,11 @@ Major 外校成员实力限制统一为完美世界历史最高总星数口径�
 
 应用拥有的 public 业务表统一收口为 server-only 访问模型：启用 RLS、撤销 anon/authenticated 的 Data API CRUD privileges，并移除没有正确客户端权限模型的业务表 Realtime 发布。选秀和投票等需要刷新体验的页面继续通过已有轮询路径更新，不通过放宽数据库权限来维持失效订阅。
 
-### Reliability & Migration
+### Migration
 
 发布链路新增 previous production stable → candidate schema 的 N/N+1 兼容性门禁，PR CI 与正式 release 会以真实 production stable lineage 为基线验证 active migration，而不是把候选分支上“可达的最新 tag”误当生产版本。数据库 migration risk 注释同时区分 contract cleanup 与 locking/rewrite review，类型错配或缺失会 fail closed。
 
-认证、报名等请求态工作区明确保持 request-bound，避免 Cache Components 对私有状态做错误的 instant-navigation 缓存判断；Major 报名 E2E 改为等待 canonical 页面状态，减少流式 RSC 瞬时探测竞态。资格判断也统一复用同一批预加载事实，避免报名审核与开赛冻结读取两套重叠资料。
+认证、报名等请求态工作区明确保持 request-bound，避免 Cache Components 对私有状态做错误的 instant-navigation 缓存判断。资格判断也统一复用同一批预加载事实，避免报名审核与开赛冻结读取两套重叠资料。
 
 本版本包含三条新的 forward migration：`0033_long_lived_map_preferences` 将地图熟练度沉淀为长期资料并回填既有报名数据；`0034_secure_public_tables` 收口现有 public 业务表的 RLS、Data API privileges 与 Realtime 边界；`0035_colorful_black_widow` 新增按 roster revision 绑定、可审计 grant/revoke 的资格限制解除 ledger。生产升级必须继续通过 `v*` tag 触发标准 release workflow，完成 active migration replay、production migrate/verify、精确版本 Vercel Production 部署与 smoke test。
 
@@ -1857,7 +1857,7 @@ RivalHub 2.2.3 聚焦公开页面性能、组队邀请可发现性与运营安�
 
 修复赛事首页“队伍阵容”仍指向已退役 `/competitionEntries` 路由导致的生产 404，入口现在统一进入 canonical `/{seasonSlug}/teams` 页面。
 
-### Migration & Operations
+### Operations
 
 本版本不包含新的数据库 schema migration。教育认证凭证清理由现有受保护 Cron 运行体系执行；生产发布仍通过 `v*` tag 触发标准 release workflow，完成数据库校验、精确版本 Vercel Production 部署与 smoke test。
 
@@ -1881,7 +1881,7 @@ RivalHub 2.2.2 聚焦日常赛事运营与个人资料维护的可靠性，改�
 
 修复选秀最后一轮因无可选选手而由管理员跳过时的完成收尾。异常恢复现在与正常选秀完成共用同一收尾逻辑，正式赛事名单会正确冻结并记录为已确认。
 
-### Migration & Operations
+### Operations
 
 #### 发布、staging 与定时任务
 
@@ -1971,7 +1971,7 @@ Major 竞技资格继续使用赛事自身冻结的竞技上下文，不会因�
 
 收紧 Perfect World 与 5E fallback 的比较边界，避免缺失映射、跨平台 Rating 或后续目录变化改变赛事既有竞技资格含义。
 
-### Migration & Operations
+### Migration
 
 本版本包含 `0032_competitive_fact_states` 数据库迁移，为长期竞技事实增加明确的 ranked / unranked 状态以及历史最高达成赛季来源，并通过数据库约束限制不合法的事实组合。已有竞技事实会保持 ranked 语义，无需人工重录。
 
@@ -2060,7 +2060,7 @@ Major 不再在赛事发布时冻结竞技平台赛季，而是在**实际开放
 
 - 社区奖、证据、解说和赛后报告继续由 server-only 数据库 owner 读写；public Data API 的 anon/authenticated 访问被明确拒绝。
 
-### Migration & Operations
+### Migration
 
 本版本包含新的 forward migrations，用于社区奖与赛后解说、组队大厅、赛事参与窗口、名单调整 revision 来源及其 server-only 数据库访问保护。
 
@@ -2082,7 +2082,7 @@ Major 不再在赛事发布时冻结竞技平台赛季，而是在**实际开放
 
 - 公开玩家竞技档案改用长期竞技位置与平台目录展示位置、段位、赛季和星数，不再把赛事报名快照当作长期资料。
 
-### Migration & Operations
+### Operations
 
 - Production release 会在应用部署前执行 active Drizzle migration chain 并进行 exact verify；迁移或校验失败会中止新版本部署并保留上一版 production。
 
@@ -2157,15 +2157,11 @@ CompetitionEntry 是一支 Team 或一组参赛者进入某届 Competition 的�
 - Local Supabase 开发环境只允许 loopback 数据库目标；staging / remote database write 需要明确 target、目标确认与显式写入授权。
 - `pnpm db:push` 被禁止，所有数据库升级必须经过 active migrations；清理无实际 consumer 的 direct dependencies，并将仍需要的 security override 限定到明确依赖路径和退出条件。
 
-### Reliability & Testing
-
-测试体系采用分层 verification evidence：Vitest unit / domain tests、真实 PostgreSQL integration tests、migration replay、并发与 transaction regression、Playwright browser E2E、Local Supabase 完整验证，以及 production smoke / real-operation progressive validation。Coverage report 继续作为诊断工具，但不再作为全局百分比 merge gate；CI 同时验证 production build 与 Local Supabase / PostgreSQL / browser 流程。
-
-### Migration & Operations
+### Migration
 
 RivalHub 2.0 使用新的 active Drizzle migration chain，旧 migration history 保留为只读历史记录。升级和部署必须使用仓库提供的 migration workflow，不使用 `db:push`；远程数据库写入前先完成 Local 与 staging 验证，production 不运行 destructive rehearsal，staging 与 production 使用独立 Supabase project。数据库连接按 Supabase Transaction Pooler contract 配置。开发与 CI 基线为 Node.js 24 与 pnpm 10.34.5。
 
-### Compatibility / Scope
+### Compatibility
 
 RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Competition 继续使用已经实现并注册的阶段执行能力；不支持的阶段会在发布时 fail closed。2.0 保留未来赛事与其他游戏继续演进所需的结构边界，但没有提前引入 `Game`、`GameAccount`、N-way Match、通用 workflow DSL 或 tournament plugin database 等尚无真实消费者的模型。
 
