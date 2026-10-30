@@ -5,6 +5,19 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.1]
+
+### Changed
+
+- 改进数据库流量来源归因，并在遥测页面展示查询失败、来源筛选和形态保留范围；生产数据仍待验证。
+- 为数据库流量投递失败和校验拒绝增加受限的诊断信息，帮助定位未送达的统计窗口。
+
+### Fixed
+
+- 比赛页支持从 Bilibili 直播短链加载站内播放器，并在无法确认直播状态时保留原链接。
+- 修复数据库流量在跨模块采样时可能无法通过字节守恒校验的问题。
+- 页面版本变化时暂停受影响的后台更新，并在保留当前输入的页面上提供主动更新入口。
+
 ## [2.25.0]
 
 ### Added
@@ -3285,6 +3298,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.25.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.0...v2.25.1
 [2.25.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.16...v2.25.0
 [2.24.16]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.15...v2.24.16
 [2.24.15]: https://github.com/Starfie1d1272/RivalHub/compare/v2.24.14...v2.24.15
