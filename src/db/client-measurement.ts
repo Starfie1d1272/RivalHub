@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import { bindPgQuery, capturePgQuery } from "../lib/observability/pg-traffic-adapter";
 import { dbTrafficSource, recordDbTraffic, queryShape, dbTrafficEnabled } from "../lib/observability/db-traffic";
 import { getObservabilityContext } from "../lib/observability/context";
 
@@ -10,14 +11,15 @@ export function createClientMeasurements() {
 
 // Bound traversal before serialization, including nested values and strings. Unusual
 // objects, cycles, accessors and oversized results are deliberately left unmeasured.
-function logicalBytes(result: unknown): number | undefined {
+function logicalBytes(result: unknown): { bytes: number } | { reason: "budget" | "unsupported_value" } {
+  let exhausted = false;
   try {
     const results = Array.isArray(result) ? result : [result];
     let budget = 100000, bytes = 0;
     const seen = new Set<object>();
     const inspect = (value: unknown): boolean => {
-      if (--budget < 0) return false;
-      if (typeof value === "string") { budget -= value.length; return budget >= 0; }
+      if (--budget < 0) { exhausted = true; return false; }
+      if (typeof value === "string") { budget -= value.length; if (budget < 0) exhausted = true; return budget >= 0; }
       if (value === null || typeof value === "number" || typeof value === "boolean") return true;
       if (typeof value !== "object" || seen.has(value)) return false;
       if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) return false;
@@ -25,24 +27,25 @@ function logicalBytes(result: unknown): number | undefined {
       for (const key of Object.keys(value)) {
         budget -= key.length;
         const descriptor = Object.getOwnPropertyDescriptor(value, key);
-        if (budget < 0 || !descriptor || !("value" in descriptor) || !inspect(descriptor.value)) return false;
+        if (budget < 0) { exhausted = true; return false; }
+        if (!descriptor || !("value" in descriptor) || !inspect(descriptor.value)) return false;
       }
       seen.delete(value);
       return true;
     };
     for (const item of results) {
-      if (!item || typeof item !== "object") return undefined;
+      if (!item || typeof item !== "object") return { reason: "unsupported_value" };
       const rows = Object.getOwnPropertyDescriptor(item, "rows")?.value;
-      if (!Array.isArray(rows)) return undefined;
+      if (!Array.isArray(rows)) return { reason: "unsupported_value" };
       for (const row of rows) {
-        if (!inspect(row)) return undefined;
+        if (!inspect(row)) return { reason: exhausted ? "budget" : "unsupported_value" };
         const json = JSON.stringify(row);
-        if (json === undefined) return undefined;
+        if (json === undefined) return { reason: "unsupported_value" };
         bytes += Buffer.byteLength(json, "utf8");
       }
     }
-    return bytes;
-  } catch { return undefined; }
+    return { bytes };
+  } catch { return { reason: "unsupported_value" }; }
 }
 
 /** Per-lease instrumentation: restore pg methods before returning the client to the pool. */
@@ -63,12 +66,17 @@ export function measureClient(client: PoolClient, totals: ReturnType<typeof crea
     // Preserve them verbatim and explicitly report the coverage gap.
     if (first && typeof first === "object" && ("submit" in first || "callback" in first)) {
       totals.unsupported++;
-      try { recordDbTraffic(source, "unsupported", 0, 0, false); } catch { /* Observation is best effort. */ }
-      return Reflect.apply(originalQuery, client, args);
+      try { recordDbTraffic(source, "unsupported", 0, 0, false, undefined, "unsupported_value"); } catch { /* Observation is best effort. */ }
+      const before = capturePgQuery(client);
+      const result = Reflect.apply(originalQuery, client, args);
+      try { bindPgQuery(client, before, "unsupported"); } catch { /* Observation is best effort. */ }
+      return result;
     }
     const text = typeof first === "string" ? first : first && typeof first === "object" ? Object.getOwnPropertyDescriptor(first, "text")?.value : undefined;
     const token = typeof text === "string" ? (text.trim().match(/^[a-z]+/i)?.[0].toLowerCase() ?? "unknown") : "unknown";
     const operation = token === "rollback" && typeof text === "string" && /^rollback\s+to\b/i.test(text.trim()) ? "rollback_to" : OPERATIONS.includes(token) ? token : "unknown";
+    let template = "unknown";
+    try { if (dbTrafficEnabled()) template = queryShape(text); } catch { /* Observation is best effort. */ }
     const started = performance.now();
     totals.queries++;
     if (operation === "begin" && !transaction) transaction = { started };
@@ -82,7 +90,10 @@ export function measureClient(client: PoolClient, totals: ReturnType<typeof crea
       totals.failures += error ? 1 : 0;
       totals.rows += rows;
       totals.queryMs += elapsed;
-      try { if (dbTrafficEnabled()) recordDbTraffic(source, queryShape(text), rows, elapsed, !!error, error ? undefined : logicalBytes(result)); } catch { /* Observation is best effort. */ }
+      try { if (dbTrafficEnabled()) {
+        const logical = error ? { reason: "error" as const } : logicalBytes(result);
+        recordDbTraffic(source, template, rows, elapsed, !!error, "bytes" in logical ? logical.bytes : undefined, "reason" in logical ? logical.reason : undefined);
+      } } catch { /* Observation is best effort. */ }
       if (transaction && ((operation === "commit" || operation === "rollback") || (operation === "begin" && error))) {
         const held = performance.now() - transaction.started;
         totals.transactions++;
@@ -101,7 +112,9 @@ export function measureClient(client: PoolClient, totals: ReturnType<typeof crea
       };
     }
     try {
+      const before = capturePgQuery(client);
       const result = Reflect.apply(originalQuery, client, args);
+      try { bindPgQuery(client, before, { source, template }); } catch { /* Observation is best effort. */ }
       if (typeof callback === "function") return result;
       return result.then((value: unknown) => { finish(null, value); return value; }, (error: unknown) => { finish(error); throw error; });
     } catch (error) { finish(error); throw error; }
