@@ -22,6 +22,7 @@ test('distinguishes disabled sampling and an unowned spool', () => {
   const { probe, env } = fixture(); env.RIVALHUB_RUNTIME_HEALTH_ENABLED = '0'; probe.processes = () => [123, 124]; probe.lockHeld = () => false;
   const result = collect(probe); assert.equal(result.collectionConfigured, false); assert.equal(result.samplingEnabled, false); assert.equal(result.singleNode, false); assert.equal(result.spoolLocked, false);
   probe.state = () => null; assert.equal(collect(probe).coverageUnknown, null);
+  probe.state = () => ({ version: 1, batches: [], gaps: [] }); assert.equal(collect(probe).coverageUnknown, null);
 });
 test('probes the actual SQLite lock without changing its owner', () => {
   const dir = mkdtempSync(join(tmpdir(), 'traffic-readback-')); const path = join(dir, 'owner.sqlite');

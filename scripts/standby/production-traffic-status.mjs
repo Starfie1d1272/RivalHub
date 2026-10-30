@@ -52,7 +52,8 @@ export function collect(probe) {
   const permissions = probe.permissions(directory);
   const directoryPrivate = permissions.mode === 0o700 && permissions.uid === probe.uid();
   const state = probe.state(directory);
-  const spoolReadable = state?.version === 1 && Array.isArray(state?.batches) && Array.isArray(state?.gaps);
+  const coverageKnown = state && Object.hasOwn(state, 'coverageUnknownSince') && (state.coverageUnknownSince === null || Number.isSafeInteger(state.coverageUnknownSince));
+  const spoolReadable = Boolean(state?.version === 1 && Array.isArray(state?.batches) && Array.isArray(state?.gaps) && coverageKnown);
   const spoolLocked = probe.lockHeld(`${directory}/owner.sqlite`);
   const lockOwnedByMain = spoolLocked && probe.lockOwnedBy(pid, `${directory}/owner.sqlite`);
   return { event: 'db_traffic.host_readback', available: true, release: probe.release(), serviceActive, managedUnit, dropInsPresent, stateDirectory, stateModeConfigured, protectionEnabled, serviceUser, processSpoolPath, singleNode, directoryPrivate, samplingEnabled, collectionConfigured, spoolReadable, spoolLocked, lockOwnedByMain, coverageUnknown: spoolReadable ? state.coverageUnknownSince != null : null };
