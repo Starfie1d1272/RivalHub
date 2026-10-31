@@ -4,7 +4,7 @@ import { vetoGameplayExists } from "@/lib/matches/veto-room/appeal-lifecycle";
 import "server-only";
 import { and, eq, inArray, isNotNull, asc } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { seasons, matches, matchMaps, matchVetoSessions, matchVetoSteps, matchVetoAppeals, matchVetoTimeoutIncidents, competitionEntries, majorFinalResults, majorPrestartStates, majorTournamentEntrants, competitionQualificationRuns, eventRosterMembers, eventRosters, users, steamProfiles, matchPlayerStats, matchDemoImports, majorStageRuns } from "@/db/schema";
+import { seasons, matches, matchMaps, matchVetoSessions, matchVetoSteps, matchVetoAppeals, matchVetoTimeoutIncidents, competitionEntries, majorFinalResults, majorPrestartStates, majorTournamentEntrants, competitionQualificationRuns, eventRosterMembers, eventRosters, users, steamProfiles, matchPlayerStats, matchDemoImports } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { resolveManagedMajorProfile } from "@/lib/competition/definition";
@@ -24,7 +24,7 @@ export async function loadBetFacts(tx: TxDb,seasonId: string, scope: BetFactScop
     return {season,entries,official:[] as Awaited<ReturnType<typeof loadMatchFacts>>["official"],
       maps:[] as (typeof matchMaps.$inferSelect)[],vetoByMatch:new Map<string,VetoFact>(),roster:[],players:[],
       event:{entryIds:[],playerIds:[],started:false,champion:null,kills:null} as EventFact,
-      runs:[] as (typeof majorStageRuns.$inferSelect)[],eventPublication:{entrantsReady:false,rostersReady:false,seedsConfirmed:false}};
+      eventPublication:{entrantsReady:false,rostersReady:false,seedsConfirmed:false}};
   }
   return loadMatchFacts(tx,seasonId,season,scope);
 }
@@ -50,7 +50,6 @@ async function loadMatchFacts(tx: TxDb, seasonId: string, season: typeof seasons
   if (scope.event === false) {
     return {season,official,maps,vetoByMatch,entries,roster,players:[] as {id:string;name:string}[],
       event:{entryIds:[],playerIds:[],started:false,champion:null,kills:null} as EventFact,
-      runs:[] as (typeof majorStageRuns.$inferSelect)[],
       eventPublication:{entrantsReady:false,rostersReady:false,seedsConfirmed:false}};
   }
   const prestart = await tx.query.majorPrestartStates.findFirst({where:eq(majorPrestartStates.seasonId,seasonId)});
@@ -74,8 +73,7 @@ async function loadMatchFacts(tx: TxDb, seasonId: string, season: typeof seasons
   const totals = new Map<string,number>();
   if (completeStats) for (const s of stats.filter(s=>eventMaps.some(m=>m.id===s.mapId))) totals.set(s.userId!, (totals.get(s.userId!)??0)+s.kills!);
   const event: EventFact = {entryIds,playerIds:players.map(p=>p.id),started:official.some(m=>m.majorStageRunId && (m.startedAt || m.status==="finished" || vetoByMatch.get(m.id)?.startedAt)),champion:final?.status==="confirmed"?final.championEntryId:null,kills:completeStats?[...totals].sort(([a],[b])=>a.localeCompare(b)).map(([userId,kills])=>({userId,kills})):null};
-  const runs = await tx.select().from(majorStageRuns).where(eq(majorStageRuns.seasonId,seasonId)).orderBy(asc(majorStageRuns.startedAt));
-  return {season,official,maps,vetoByMatch,entries,roster,players,event,runs,eventPublication:{entrantsReady,rostersReady,seedsConfirmed:Boolean(prestart?.seedsConfirmedAt)}};
+  return {season,official,maps,vetoByMatch,entries,roster,players,event,eventPublication:{entrantsReady,rostersReady,seedsConfirmed:Boolean(prestart?.seedsConfirmedAt)}};
 }
 export type BetFacts = Awaited<ReturnType<typeof loadBetFacts>>;
 
