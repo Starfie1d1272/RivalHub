@@ -44,10 +44,11 @@ function sample() {
 // Incident-specific, bounded journal read. Only fixed aggregates leave the host.
 function journalSummary() {
   const sinceUtc = "2026-10-31T07:45:00.000Z";
-  const untilUtc = new Date(Math.min(Date.now(), Date.parse("2026-10-31T12:00:00.000Z"))).toISOString();
+  const untilUtc = new Date(Math.floor(Math.min(Date.now(), Date.parse("2026-10-31T12:00:00.000Z")) / 1000) * 1000).toISOString();
   const result = { sinceUtc, untilUtc, status: "unavailable", errorCode: "invalid_window", rows: [] };
   if (untilUtc < sinceUtc) return result;
-  const journal = spawnSync("/usr/bin/journalctl", ["--namespace=*", "--unit=rivalhub-production", `--since=${sinceUtc}`, `--until=${untilUtc}`, "--output=cat", "--no-pager", "--grep=mizar\\.(reliable\\.reject|live\\.(outcome_window|stage_window|broadcast_unavailable))"], { encoding: "utf8", timeout: 30000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+  const journalTime = value => value.replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
+  const journal = spawnSync("/usr/bin/journalctl", ["--namespace=*", "--unit=rivalhub-production", `--since=${journalTime(sinceUtc)}`, `--until=${journalTime(untilUtc)}`, "--output=cat", "--no-pager", "--grep=mizar\\.(reliable\\.reject|live\\.(outcome_window|stage_window|broadcast_unavailable))"], { encoding: "utf8", timeout: 30000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
   if (journal.error) {
     const codes = { ENOENT: "binary_missing", EACCES: "execute_denied", ETIMEDOUT: "timeout", ENOBUFS: "output_limit" };
     result.errorCode = codes[journal.error.code] ?? "execution_error";
