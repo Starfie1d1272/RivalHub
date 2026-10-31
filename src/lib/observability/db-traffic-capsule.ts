@@ -18,7 +18,7 @@ export function writeExitCapsule(directory: string, capsule: Capsule): void {
   try {
     file = openSync(temporary, "wx", 0o600); writeFileSync(file, JSON.stringify(capsule)); fsyncSync(file); closeSync(file); file = undefined;
     // Reserve the target exclusively so even a UUID collision cannot replace
-    // another capsule. A crash leaves a corrupt placeholder that fails closed.
+    // another capsule. Recovery isolates a placeholder left by a crash.
     const placeholder = openSync(target, "wx", 0o600); closeSync(placeholder); reserved = true;
     renameSync(temporary, target); reserved = false;
     const dir = openSync(directory, "r"); try { fsyncSync(dir); } finally { closeSync(dir); }
