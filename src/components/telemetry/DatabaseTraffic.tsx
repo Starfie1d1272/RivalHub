@@ -18,6 +18,7 @@ export async function DatabaseTraffic({ hours, sort, selection }: { hours: 24 | 
   const gapLostBytes = quality.reduce((n, row) => n + (row.lostBytes ?? 0), 0);
   const gapUnconfirmed = quality.reduce((n, row) => n + (row.unconfirmedBatches ?? 0), 0);
   const qualityIncomplete = data.quality === undefined || !!data.qualityPending || !!data.qualityTruncated || quality.some(row => row.truncated);
+  const unknownCoverage = quality.filter(row => row.coverageUnknownSince != null);
   const requestedQuality = quality.find(row => String(row.hour) === selection.hour && row.release === selection.release && row.deployment === selection.deployment);
   const selected = windows.find(row => String(row.hour) === selection.hour && row.release === selection.release && row.deployment === selection.deployment) ?? (requestedQuality ? undefined : windows[0]);
   const selectedQuality = requestedQuality ?? (!selected ? quality[0] : quality.find(row => row.hour === selected.hour && row.release === selected.release && row.deployment === selected.deployment));
@@ -43,6 +44,9 @@ export async function DatabaseTraffic({ hours, sort, selection }: { hours: 24 | 
       <MetricCard label="已报告丢失批次与旧窗口" value={supplied(data.dropped + gapLost, !qualityIncomplete && !!data.lossComplete)} note={`缺口已知丢失 ${count(gapLost)} 批 / ${count(gapLostBytes)} 字节；旧窗口 ${count(data.dropped)}。缺口未确认 ${count(gapUnconfirmed)} 批，可能与已接收数据重叠；未知覆盖及未送达尾窗无法计数。`} />
       <MetricCard label="待汇总批次" value={data.pending >= 513 ? "≥513" : count(data.pending)} note="待汇总批次未计入排行。" />
     </div>
+    <Panel><p className="font-medium">所选范围的覆盖未知记录</p><p className="mt-2 text-sm text-muted-foreground">按报告小时列出历史记录；未知起点可能早于报告小时。历史记录不表示当前仍有故障，未报告丢失也不能证明覆盖完整。{qualityIncomplete ? "质量记录待汇总或已截断，列表可能不完整。" : ""}</p>
+      {data.quality === undefined ? <p className="mt-2 text-sm">当前 Worker 未提供质量记录。</p> : !unknownCoverage.length ? <p className="mt-2 text-sm">此范围暂无已汇总的覆盖未知记录。</p> : <div className="mt-2 space-y-1 text-sm">{unknownCoverage.slice(0, 10).map(row => <p key={`${row.hour}:${row.release}:${row.deployment}`}>报告小时 {displayTime(row.hour)} · {row.release} / {row.deployment} · 未知始于 {displayTime(row.coverageUnknownSince!)}</p>)}{unknownCoverage.length > 10 && <p>仅显示前 10 条记录。</p>}</div>}
+    </Panel>
     {!!data.qualityPending && <Panel>有 {data.qualityPending >= 513 ? "至少 513" : count(data.qualityPending)} 批质量或缺口记录待汇总，当前信息可能不完整。</Panel>}
     {data.qualityTruncated && <Panel>质量分窗已截断。</Panel>}
     {!!data.unscopedHours?.length && <Panel>历史汇总有 {count(data.unscopedHours.length)} 个小时无法拆分到版本；这些数据不进入同窗来源排行。</Panel>}
