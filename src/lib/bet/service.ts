@@ -43,7 +43,8 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
   const program=await tx.query.betPrograms.findFirst({where:eq(programs.seasonId,seasonId)});
   // Every existing BP pool freezes its terms, including empty or terminal history.
   // Presence adoption also prevents rollback to ordered rules after subject correction.
-  const catalog=await tx.select().from(markets).where(eq(markets.seasonId,seasonId));
+  const catalog=await tx.select({id:markets.id,matchId:markets.matchId,marketKey:markets.marketKey,type:markets.type,
+    subject:markets.subject,line:markets.line,lockedAt:markets.lockedAt,voidedAt:markets.voidedAt}).from(markets).where(eq(markets.seasonId,seasonId));
   const known = new Set(catalog.map(market=>market.marketKey));
   const planned: {row: typeof markets.$inferInsert; choices: {key:string;label:string}[]}[] = [];
   function planMarket(seasonId: string, matchId: string|null, type: MarketType, subject: BetSubject, choices: {key:string;label:string}[], line: number|null=null) {
@@ -139,9 +140,9 @@ export async function reconcileBetInTx(tx: TxDb,seasonId: string) {
   const now=new Date();
   // Keep database round trips bounded while the shared program lock is held.
   const marketIds=all.map(market=>market.id);
-  const allChoices=marketIds.length ? await tx.select().from(options).where(inArray(options.marketId,marketIds)) : [];
-  const allStakes=marketIds.length ? await tx.select().from(stakes).where(inArray(stakes.marketId,marketIds)) : [];
-  const latest=marketIds.length ? await tx.selectDistinctOn([settlements.marketId]).from(settlements)
+  const allChoices=marketIds.length ? await tx.select({id:options.id,marketId:options.marketId,key:options.key}).from(options).where(inArray(options.marketId,marketIds)) : [];
+  const allStakes=marketIds.length ? await tx.select({marketId:stakes.marketId,accountId:stakes.accountId,optionId:stakes.optionId,amount:stakes.amount}).from(stakes).where(inArray(stakes.marketId,marketIds)) : [];
+  const latest=marketIds.length ? await tx.selectDistinctOn([settlements.marketId],{id:settlements.id,marketId:settlements.marketId,revision:settlements.revision,fingerprint:settlements.fingerprint}).from(settlements)
     .where(inArray(settlements.marketId,marketIds)).orderBy(asc(settlements.marketId),desc(settlements.revision)) : [];
   const choicesByMarket=new Map<string,typeof allChoices>();
   for(const choice of allChoices) {
@@ -154,7 +155,7 @@ export async function reconcileBetInTx(tx: TxDb,seasonId: string) {
     rows.push(stake);stakesByMarket.set(stake.marketId,rows);
   }
   const previousByMarket=new Map(latest.map(batch=>[batch.marketId,batch]));
-  const oldLedger=latest.length ? await tx.select().from(ledger).where(and(eq(ledger.seasonId,seasonId),inArray(ledger.source,latest.map(batch=>`settlement/${batch.id}`)))) : [];
+  const oldLedger=latest.length ? await tx.select({id:ledger.id,accountId:ledger.accountId,amount:ledger.amount,profit:ledger.profit,source:ledger.source}).from(ledger).where(and(eq(ledger.seasonId,seasonId),inArray(ledger.source,latest.map(batch=>`settlement/${batch.id}`)))) : [];
   const ledgerRows: (typeof ledger.$inferInsert)[] = [];
   for(const market of all) {
     // A pre-seeding admin rollback temporarily removes the frozen player set.

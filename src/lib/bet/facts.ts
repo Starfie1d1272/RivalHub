@@ -63,9 +63,9 @@ async function loadMatchFacts(tx: TxDb, seasonId: string, season: typeof seasons
 
   const players = [...new Map(roster.filter(r=>rostersReady && r.current && entryIds.includes(r.entryId)).map(r=>[r.userId,{id:r.userId,name:getDisplayName({displayName:r.name,perfectName:r.perfectName,personaName:r.personaName})}])).values()].sort((a,b)=>a.id.localeCompare(b.id));
   const final = await tx.query.majorFinalResults.findFirst({where:eq(majorFinalResults.seasonId,seasonId)});
-  const stats = await tx.select({mapId:matchPlayerStats.mapId,userId:matchPlayerStats.userId,kills:matchPlayerStats.kills,importId:matchDemoImports.id}).from(matchPlayerStats).innerJoin(matchDemoImports,eq(matchDemoImports.id,matchPlayerStats.dakImportId)).where(and(eq(matchDemoImports.seasonId,seasonId),eq(matchDemoImports.status,"confirmed"),isNotNull(matchPlayerStats.verifiedAt),isNotNull(matchPlayerStats.userId),isNotNull(matchPlayerStats.kills)));
   const eventMatches = official.filter(m=>m.majorStageRunId && m.entryRound !== "third_place" && !m.isForfeit && m.status !== "cancelled");
   const eventMaps = maps.filter(map=>eventMatches.some(m=>m.id===map.matchId) && map.completedAt);
+  const stats = eventMaps.length ? await tx.select({mapId:matchPlayerStats.mapId,userId:matchPlayerStats.userId,kills:matchPlayerStats.kills}).from(matchPlayerStats).innerJoin(matchDemoImports,eq(matchDemoImports.id,matchPlayerStats.dakImportId)).where(and(eq(matchDemoImports.seasonId,seasonId),eq(matchDemoImports.status,"confirmed"),isNotNull(matchPlayerStats.verifiedAt),isNotNull(matchPlayerStats.userId),isNotNull(matchPlayerStats.kills),inArray(matchPlayerStats.mapId,eventMaps.map(map=>map.id)))) : [];
   const completeStats = eventMaps.length > 0 && eventMaps.every(map=>{
     const rows = stats.filter(s=>s.mapId===map.id);
     return rows.length===10 && new Set(rows.map(s=>s.userId)).size===10 && rows.every(s=>players.some(p=>p.id===s.userId));
