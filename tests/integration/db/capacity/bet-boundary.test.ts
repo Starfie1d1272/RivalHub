@@ -164,6 +164,7 @@ it.skipIf(process.env.RIVALHUB_BET_START_CAPACITY !== "1")("measures stakes queu
                   // This opt-in fault terminates only the scratch monitor's own backend.
                   if (process.env.RIVALHUB_BET_SAMPLE_DISCONNECT === "1") {
                     await monitor.query("select pg_terminate_backend(pg_backend_pid())").catch(error => { samplingFailure = failureClass(error); });
+                    samplingFailure ??= "fault_injection_not_observed";
                   }
                   break;
                 }
