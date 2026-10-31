@@ -29,6 +29,7 @@ describe("local stop target", () => {
     ['project_id = "rivalhub"\n', ["--project-id", "rivalhub"]],
     ['project_id = "rivalhub-scratch-571"\n', ["--project-id", "rivalhub-scratch-other"]],
     ['project_id = "rivalhub-scratch-571"\n', []],
+    ['[other]\nproject_id = "rivalhub-scratch-571"\n', ["--project-id", "rivalhub-scratch-571"]],
     ['project_id = "rivalhub-scratch-571"\nproject_id = "rivalhub-scratch-571"\n', ["--project-id", "rivalhub-scratch-571"]],
     ['project_id = "rivalhub-scratch-571"\n', ["--project-id", "rivalhub-scratch-571", "--no-backup"]],
   ])("rejects unsafe or ambiguous targets before invoking the stub", (config, args) => {

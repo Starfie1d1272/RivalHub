@@ -141,7 +141,8 @@ try {
       const args = process.argv.slice(3);
       if (args[0] === "--") args.shift();
       const config = readFileSync(resolve(projectRoot, "supabase/config.toml"), "utf8");
-      const ids = [...config.matchAll(/^\s*project_id\s*=\s*"([a-z0-9-]+)"\s*(?:#.*)?$/gm)].map(match => match[1]);
+      const rootConfig = config.split(/^\s*\[/m, 1)[0];
+      const ids = [...rootConfig.matchAll(/^[ \t]*project_id[ \t]*=[ \t]*"([a-z0-9-]+)"[ \t]*(?:#.*)?$/gm)].map(match => match[1]);
       const id = args[1];
       if (args.length !== 2 || args[0] !== "--project-id" || !id || !/^rivalhub-scratch-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) || ids.length !== 1 || ids[0] !== id) {
         throw new Error("stop 只接受与当前 supabase/config.toml 匹配的显式独立 scratch 项目：--project-id rivalhub-scratch-<id>。");
