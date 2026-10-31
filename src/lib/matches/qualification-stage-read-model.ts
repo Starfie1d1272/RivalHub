@@ -9,14 +9,14 @@ import {
   competitionQualificationEntrants,
   competitionQualificationRuns,
   matches,
-  type Match,
   type CompetitionQualificationRun,
 } from "@/db/schema";
+import type { PublicScheduleMatch } from "./schedule-read";
 import { buildQualificationSwissMatchRecord, buildQualificationSwissReadModel } from "@/lib/competition-qualification/presentation";
 
 export async function loadQualificationSwissStageReadModel(seasonId: string, supplied?: {
   run: CompetitionQualificationRun;
-  displayedMatches: readonly (Match & { displayScore: import("./display-score").DisplayScore })[];
+  displayedMatches: readonly (PublicScheduleMatch & { displayScore: import("./display-score").DisplayScore })[];
 }) {
   const run = supplied ? supplied.run : (await db.select().from(competitionQualificationRuns)
     .where(eq(competitionQualificationRuns.seasonId, seasonId)).limit(1))[0];

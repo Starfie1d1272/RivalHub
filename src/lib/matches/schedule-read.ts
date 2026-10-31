@@ -1,7 +1,9 @@
 import "server-only";
 import { and, eq, isNull, notInArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches } from "@/db/schema";
+import { matches, type Match } from "@/db/schema";
+
+export type PublicScheduleMatch = Omit<Match, "videoUrl" | "recordings" | "mvpWinnerUserId" | "createdAt" | "updatedAt">;
 import { officialMatchCondition } from "./scope";
 
 /** Preserve the global mismatch warning without loading every historical match. */
