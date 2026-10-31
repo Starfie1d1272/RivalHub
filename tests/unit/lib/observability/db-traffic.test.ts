@@ -275,3 +275,21 @@ it("durably captures unsealed traffic on a real SIGTERM and restores it before s
     expect(batches.every(batch => batch.release === "unknown")).toBe(true); spool.close();
   } finally { child.kill("SIGKILL"); await rm(root, { recursive: true, force: true }); }
 }, 15000);
+
+it("does not persist an unsafe pending snapshot during process exit", async () => {
+  const { spawn } = await import("node:child_process"); const { mkdtemp, readdir, readFile, rm } = await import("node:fs/promises"); const { tmpdir } = await import("node:os"); const { join } = await import("node:path");
+  const root = await mkdtemp(join(tmpdir(), "traffic-unsafe-exit-"));
+  const script = `const { recordDbTraffic, flushDbTraffic } = require('./src/lib/observability/db-traffic.ts');
+    process.env.DB_TRAFFIC_KEY='x'.repeat(32); process.env.PRODUCT_TELEMETRY_ENDPOINT='https://example.invalid/v1/batches'; process.env.DB_TRAFFIC_SPOOL_DIRECTORY=process.argv[1];
+    process.on('SIGTERM', () => process.exit(143)); flushDbTraffic();
+    const poll=setInterval(async () => { const s=process[Symbol.for('rivalhub.db-traffic.v3')]; if (!s?.deliveryStarted || s.sending) return; clearInterval(poll);
+      const delivery=await s.delivery; delivery.prune=()=>new Promise(()=>{}); recordDbTraffic('unknown','private-sql-canary',1,1,false); flushDbTraffic(); process.stdout.write('ready\\n'); },5);`;
+  const child = spawn(process.execPath, ["--import", "tsx", "-e", script, root], { stdio: ["ignore", "pipe", "pipe"] });
+  try {
+    await new Promise<void>((resolve, reject) => { child.stdout.once("data", () => resolve()); child.once("error", reject); child.once("exit", code => reject(new Error(`child exited ${code}`))); });
+    child.kill("SIGTERM"); await new Promise<void>(resolve => child.once("exit", () => resolve()));
+    const names = (await readdir(root)).filter(name => /^exit-.*\.json$/.test(name)); expect(names).toHaveLength(1);
+    const body = await readFile(join(root, names[0]), "utf8"); expect(body).not.toContain("private-sql-canary");
+    expect(JSON.parse(body)).toMatchObject({ batches: [], unknownAt: expect.any(Number) });
+  } finally { child.kill("SIGKILL"); await rm(root, { recursive: true, force: true }); }
+}, 15000);
