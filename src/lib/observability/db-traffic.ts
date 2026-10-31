@@ -10,7 +10,7 @@ export { DB_SOURCES, type DbTrafficSource } from "./db-traffic-contract";
 export type DbTemplate = string;
 type Row = { source: DbTrafficSource; template: string; queries: number; failures: number; rows: number; queryMs: number; logicalRowJsonBytes: number; logicalMeasuredQueries: number; rxBytes: number; skipReasons: { budget: number; unsupported_value: number; error: number } };
 type Context = { source: DbTrafficSource };
-type State = { delivery?: Promise<DbTrafficDelivery>; deliveryStarted?: boolean; flushAgain?: boolean; diskNextAttemptAt?: number; coverageUnknownSince?: number; budgetStartedAt?: number; budgetSent?: number; sealing?: { body: string; rows: Row[]; receivedBytes: number; remaining: Remaining; at: number }; context: AsyncLocalStorage<Context>; rows: Map<string, Row>; shapeScores?: Map<string, number>; processId: string; sending: boolean; receivedBytes: number; connections: number; observedConnections: number; clients: Set<PoolClient>; hour: number; remaining: Remaining };
+type State = { delivery?: Promise<DbTrafficDelivery>; deliveryStarted?: boolean; flushAgain?: boolean; diskNextAttemptAt?: number; coverageUnknownSince?: number; budgetStartedAt?: number; budgetSent?: number; sealing?: { body: string; rows: Row[]; receivedBytes: number; remaining: Remaining; at: number; capturedAt: number }; context: AsyncLocalStorage<Context>; rows: Map<string, Row>; shapeScores?: Map<string, number>; processId: string; sending: boolean; receivedBytes: number; connections: number; observedConnections: number; clients: Set<PoolClient>; hour: number; remaining: Remaining };
 type Remaining = { async: number; no_owner: number; partial: number; unsupported: number; instrumentation: number };
 function emptyRemaining(): Remaining { return { async: 0, no_owner: 0, partial: 0, unsupported: 0, instrumentation: 0 }; }
 const HOUR = 3600000;
@@ -99,6 +99,7 @@ export function observeDbStream(client: PoolClient) {
     });
   } catch { /* Preserve the driver connection. */ }
   if (observed) { s.observedConnections++; s.clients.add(client); }
+  else if (dbTrafficEnabled()) { const at = Date.now(); s.coverageUnknownSince = Math.min(s.coverageUnknownSince ?? at, at); }
   client.once("end", () => {
     try { settlePgTraffic(client); } catch { /* Preserve connection shutdown. */ }
     s.connections--; if (observed) { s.observedConnections--; s.clients.delete(client); }
@@ -184,7 +185,7 @@ export function flushDbTraffic() {
   if ((!enabled && !process.env.DB_TRAFFIC_SPOOL_DIRECTORY) || now < (s.diskNextAttemptAt ?? 0)) return;
   if (enabled && !s.sealing) for (const client of s.clients) settlePgTraffic(client);
   if (enabled && !s.sealing && !s.rows.size && !s.receivedBytes) s.hour = Math.floor(now / HOUR) * HOUR;
-  if (enabled && !s.sealing && (s.rows.size || s.receivedBytes)) {
+  if (enabled && !s.sealing && (s.rows.size || s.receivedBytes || s.coverageUnknownSince !== undefined)) {
     const releaseValue = process.env.RIVALHUB_RELEASE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "unknown";
     const deploymentValue = process.env.VERCEL_DEPLOYMENT_ID || "unknown";
     const release = /^[A-Za-z0-9._-]{1,80}$/.test(releaseValue) ? releaseValue : "unknown";
@@ -192,7 +193,7 @@ export function flushDbTraffic() {
     const rows = structuredClone([...s.rows.values()]); const remaining = { ...s.remaining };
     const at = Math.min(now, s.hour + HOUR - 1);
     const batch = { id: crypto.randomUUID(), process: s.processId, at, release, deployment, dropped: 0, receivedBytes: s.receivedBytes, connections: s.connections, observedConnections: s.observedConnections, rows, remainingRxBytes: Object.values(remaining).reduce((sum, value) => sum + value, 0), remaining, droppedReceivedBytes: 0, unconfirmedReceivedBytes: 0, unconfirmedBatches: 0 };
-    s.sealing = { body: JSON.stringify(batch), rows, receivedBytes: s.receivedBytes, remaining, at };
+    s.sealing = { body: JSON.stringify(batch), rows, receivedBytes: s.receivedBytes, remaining, at, capturedAt: now };
     s.hour = Math.floor(now / HOUR) * HOUR;
   }
   if (s.sending) { s.flushAgain = true; return; }
@@ -211,8 +212,8 @@ export function flushDbTraffic() {
     const sealing = s.sealing;
     if (sealing) {
       const batch = JSON.parse(sealing.body); const coverage = s.coverageUnknownSince;
-      if (Buffer.byteLength(sealing.body) <= 40000 && isSafeDbTrafficBatch(batch)) await delivery.seal(sealing.body, Date.now(), coverage);
-      else { await delivery.rejectUnsafe(sealing.body, Date.now(), coverage); reportSendFailure(400); }
+      if (Buffer.byteLength(sealing.body) <= 40000 && isSafeDbTrafficBatch(batch)) await delivery.seal(sealing.body, Date.now(), coverage, sealing.capturedAt);
+      else { await delivery.rejectUnsafe(sealing.body, Date.now(), coverage, sealing.capturedAt); reportSendFailure(400); }
       if (s.coverageUnknownSince === coverage) s.coverageUnknownSince = undefined;
       for (const snapshot of sealing.rows) {
         const key = `${snapshot.source}:${snapshot.template}`; const row = s.rows.get(key); if (!row) continue;
@@ -224,7 +225,6 @@ export function flushDbTraffic() {
       for (const field of ["async", "no_owner", "partial", "unsupported", "instrumentation"] as const) s.remaining[field] = Number.isFinite(s.remaining[field]) && Number.isFinite(sealing.remaining[field]) ? Math.max(0, s.remaining[field] - sealing.remaining[field]) : 0;
       s.sealing = undefined;
       s.shapeScores = new Map([...s.rows].filter(([, row]) => row.template !== "overflow").map(([key, row]) => [key, row.rxBytes]));
-      if (s.rows.size || s.receivedBytes) s.flushAgain = true;
     }
     if (!dbTrafficEnabled()) return;
     const endpoint = new URL(process.env.PRODUCT_TELEMETRY_ENDPOINT!);
