@@ -8,6 +8,12 @@ type Result = { ok: boolean; status: number | null; retryAfter: number | null; l
 type Send = (item: SpoolItem, gap: boolean) => Promise<Result>;
 type Identity = { process: string; release: string; deployment: string };
 type GapReason = "overflow" | "expired" | "rejected" | "identity_conflict";
+const unknownIdentity: Identity = { process: "00000000-0000-0000-0000-000000000000", release: "unknown", deployment: "unknown" };
+function markCoverage(state: SpoolState, at: number, identity: Identity = unknownIdentity) {
+  state.coverageUnknownSince = Math.min(state.coverageUnknownSince ?? at, at);
+  state.coverageRevision = (state.coverageRevision ?? (state.coverageReportedSince === state.coverageUnknownSince ? 0 : 1)) + 1;
+  state.coverageIdentity = { process: identity.process, release: identity.release, deployment: identity.deployment };
+}
 function queueBytes(state: SpoolState): number { return state.batches.reduce((n, item) => n + Buffer.byteLength(item.body), 0); }
 function delay(attempts: number): number { return Math.min(60 * 60 * 1000, 1000 * 2 ** Math.min(attempts, 11)) * (0.75 + Math.random() * 0.5); }
 
@@ -24,13 +30,13 @@ async function gapFor(state: SpoolState, item: SpoolItem, reason: GapReason, now
   if (bucket) {
     const value = JSON.parse(bucket.body) as { start: number; end: number; reportedAt: number; batches: number; receivedBytes: number; truncated: boolean };
     value.start = Math.min(value.start, batch.at); value.end = Math.max(value.end, batch.at); value.reportedAt = now;
-    if (value.batches + 1 > 1e12 || value.receivedBytes + batch.receivedBytes > 1e12) { value.truncated = true; state.coverageUnknownSince = Math.min(state.coverageUnknownSince ?? batch.at, batch.at); }
+    if (value.batches + 1 > 1e12 || value.receivedBytes + batch.receivedBytes > 1e12) { value.truncated = true; markCoverage(state, batch.at, batch); }
     else { value.batches++; value.receivedBytes += batch.receivedBytes; }
     bucket.body = JSON.stringify(value); bucket.digest = await digestDbTraffic(value); bucket.at = now;
     return;
   }
   if (state.gaps.length >= 32) {
-    state.coverageUnknownSince = Math.min(state.coverageUnknownSince ?? batch.at, batch.at);
+    markCoverage(state, batch.at, batch);
     return;
   }
   const body = { id: crypto.randomUUID(), process: batch.process, release: batch.release, deployment: batch.deployment, reportedAt: now, start: batch.at, end: batch.at, reason, certainty, batches: 1, receivedBytes: batch.receivedBytes, truncated: false, coverageUnknownSince: state.coverageUnknownSince };
@@ -42,23 +48,24 @@ export class DbTrafficDelivery {
   constructor(private readonly spool: DbTrafficSpool, private readonly identity: Identity) {}
   private async ensureCoverage(state: SpoolState, now: number): Promise<void> {
     const at = state.coverageUnknownSince;
-    if (at === null || state.coverageReportedSince === at || state.gaps.length >= 32 || state.gaps.some(item => (JSON.parse(item.body) as { reason: string }).reason === "unknown_tail")) return;
-    const body = { id: crypto.randomUUID(), ...this.identity, reportedAt: now, start: Math.max(at, now - 7 * 86400000 + 1), end: now, reason: "unknown_tail", certainty: "unknown", batches: 0, receivedBytes: 0, truncated: true, coverageUnknownSince: at };
-    state.gaps.push({ id: body.id, body: JSON.stringify(body), digest: await digestDbTraffic(body), at: now, attempted: false, nextAttemptAt: Math.max(now, state.globalNextAttemptAt, state.gapNextAttemptAt), attempts: 0 });
+    if (at === null || (state.coverageRevision ?? 0) <= (state.coverageReportedRevision ?? 0) || now < (state.coverageNextAttemptAt ?? 0) || state.gaps.length >= 32 || state.gaps.some(item => (JSON.parse(item.body) as { reason: string }).reason === "unknown_tail")) return;
+    const body = { id: crypto.randomUUID(), ...(state.coverageIdentity ?? unknownIdentity), reportedAt: now, start: now, end: now, reason: "unknown_tail", certainty: "unknown", batches: 0, receivedBytes: 0, truncated: true, coverageUnknownSince: at };
+    state.gaps.push({ id: body.id, body: JSON.stringify(body), digest: await digestDbTraffic(body), at: now, attempted: false, nextAttemptAt: Math.max(now, state.globalNextAttemptAt, state.gapNextAttemptAt), attempts: 0, coverageRevision: state.coverageRevision });
   }
   async start(now: number): Promise<void> {
     const state = this.spool.snapshot();
-    if (state.openWindowSince !== null) { const at = Math.min(now, state.openWindowSince); state.coverageUnknownSince = Math.min(state.coverageUnknownSince ?? at, at); }
-    if (this.spool.orphanSince !== null) { const at = Math.min(now, this.spool.orphanSince); state.coverageUnknownSince = Math.min(state.coverageUnknownSince ?? at, at); }
-    state.openWindowSince = now;
+    if (state.coverageRevision === undefined) { state.coverageRevision = state.coverageUnknownSince === null || state.coverageReportedSince === state.coverageUnknownSince ? 0 : 1; state.coverageReportedRevision = 0; }
+    if (state.openWindowSince !== null) markCoverage(state, Math.min(now, state.openWindowSince), state.openWindowIdentity ?? unknownIdentity);
+    if (this.spool.orphanSince !== null) markCoverage(state, Math.min(now, this.spool.orphanSince));
+    state.openWindowSince = now; state.openWindowIdentity = this.identity;
     await this.ensureCoverage(state, now);
     await this.spool.commit(state);
     await this.spool.cleanupOrphans();
   }
-  async seal(body: string, now: number, coverageUnknownSince?: number): Promise<void> {
+  async seal(body: string, now: number, coverageUnknownSince?: number, snapshotCapturedAt = now): Promise<void> {
     const value = JSON.parse(body) as Batch;
     const state = this.spool.snapshot();
-    if (coverageUnknownSince !== undefined) state.coverageUnknownSince = Math.min(state.coverageUnknownSince ?? coverageUnknownSince, coverageUnknownSince);
+    if (coverageUnknownSince !== undefined) markCoverage(state, coverageUnknownSince, this.identity);
     const existing = state.batches.find(item => item.id === value.id);
     if (existing) {
       if (existing.body !== body) throw new Error("spool identity conflict");
@@ -73,17 +80,17 @@ export class DbTrafficDelivery {
     }
     state.batches.push(item);
     await this.ensureCoverage(state, now);
-    state.openWindowSince = now;
+    state.openWindowSince = snapshotCapturedAt; state.openWindowIdentity = this.identity;
     await this.spool.commit(state);
   }
-  async rejectUnsafe(body: string, now: number, coverageUnknownSince?: number): Promise<void> {
+  async rejectUnsafe(body: string, now: number, coverageUnknownSince?: number, snapshotCapturedAt = now): Promise<void> {
     const value = JSON.parse(body) as Batch;
     const state = this.spool.snapshot();
     const receivedBytes = Number.isSafeInteger(value.receivedBytes) && value.receivedBytes >= 0 && value.receivedBytes <= 1e12 ? value.receivedBytes : 0;
-    state.coverageUnknownSince = Math.min(state.coverageUnknownSince ?? value.at, value.at, coverageUnknownSince ?? value.at);
+    markCoverage(state, Math.min(value.at, coverageUnknownSince ?? value.at), value);
     const safe = { id: value.id, process: value.process, release: value.release, deployment: value.deployment, at: value.at, receivedBytes };
     await gapFor(state, { id: safe.id, body: JSON.stringify(safe), digest: "", at: safe.at, attempted: false, nextAttemptAt: now, attempts: 0 }, "rejected", now);
-    await this.ensureCoverage(state, now); state.openWindowSince = now;
+    await this.ensureCoverage(state, now); state.openWindowSince = snapshotCapturedAt; state.openWindowIdentity = this.identity;
     await this.spool.commit(state);
   }
   async prune(now: number): Promise<void> {
@@ -91,7 +98,7 @@ export class DbTrafficDelivery {
     const expiredGaps = state.gaps.filter(item => item.at < now - 7 * 86400000);
     const expiredBatches = state.batches.filter(item => item.at < now - 23 * HOUR);
     if (!expiredGaps.length && !expiredBatches.length) return;
-    for (const item of expiredGaps) { const start = (JSON.parse(item.body) as { start: number }).start; state.coverageUnknownSince = Math.min(state.coverageUnknownSince ?? start, start); }
+    for (const item of expiredGaps) { const start = (JSON.parse(item.body) as { start: number }).start; markCoverage(state, start); }
     state.gaps = state.gaps.filter(item => item.at >= now - 7 * 86400000);
     state.batches = state.batches.filter(item => item.at >= now - 23 * HOUR);
     for (const item of expiredBatches) await gapFor(state, item, "expired", now);
@@ -100,12 +107,13 @@ export class DbTrafficDelivery {
   }
   async drain(send: Send, now: () => number = Date.now, budget: { maxAttempts: number; deadline: number; onAttempt(): void } = { maxAttempts: 8, deadline: now() + 20000, onAttempt() {} }): Promise<void> {
     let attempts = 0;
+    { const state = this.spool.snapshot(); await this.ensureCoverage(state, now()); await this.spool.commit(state); }
     for (let steps = 0; steps < 264 && attempts < budget.maxAttempts && now() + 5000 <= budget.deadline; steps++) {
       let state = this.spool.snapshot();
       const expiredGap = state.gaps.find(item => item.at < now() - 7 * 86400000);
       if (expiredGap) {
         const start = (JSON.parse(expiredGap.body) as { start: number }).start;
-        state.coverageUnknownSince = Math.min(state.coverageUnknownSince ?? start, start);
+        markCoverage(state, start);
         state.gaps = state.gaps.filter(item => item.id !== expiredGap.id);
         await this.ensureCoverage(state, now());
         await this.spool.commit(state); continue;
@@ -131,16 +139,15 @@ export class DbTrafficDelivery {
         state.globalFailures = 0; state.globalNextAttemptAt = 0;
         if (candidate.gap) {
           const gap = JSON.parse(item.body) as { reason: string; coverageUnknownSince: number | null };
-          if (gap.reason === "unknown_tail") state.coverageReportedSince = gap.coverageUnknownSince;
+          if (gap.reason === "unknown_tail") { state.coverageReportedSince = gap.coverageUnknownSince; state.coverageReportedRevision = Math.max(state.coverageReportedRevision ?? 0, item.coverageRevision ?? 0); }
           state.gaps = state.gaps.filter(entry => entry.id !== item.id);
         }
         else state.batches = state.batches.filter(entry => entry.id !== item.id);
       } else if ([400, 409, 410, 413].includes(result.status ?? 0)) {
         if (candidate.gap) {
           const gap = JSON.parse(item.body) as { reason: string; start: number; coverageUnknownSince: number | null };
-          state.coverageUnknownSince = Math.min(state.coverageUnknownSince ?? gap.start, gap.start);
-          // A permanently rejected coverage marker cannot recursively create itself.
-          if (gap.reason === "unknown_tail") state.coverageReportedSince = state.coverageUnknownSince;
+          if (gap.reason === "unknown_tail") state.coverageNextAttemptAt = now() + HOUR;
+          else markCoverage(state, gap.start);
           state.gaps = state.gaps.filter(entry => entry.id !== item.id);
         }
         else { state.batches = state.batches.filter(entry => entry.id !== item.id); await gapFor(state, item, result.status === 409 ? "identity_conflict" : result.status === 410 ? "expired" : "rejected", now()); }

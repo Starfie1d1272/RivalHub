@@ -162,7 +162,7 @@ export async function ingestDbTrafficGap(request: Request, env: Env, now: number
   const existing = await env.DB.prepare("SELECT digest,status FROM db_traffic_receipts WHERE id=?").bind(gap.id).first<{ digest: string; status: string }>();
   if (existing) return existing.status === "gap" && existing.digest === digest ? response() : new Response(null, { status: 409 });
   if (await env.DB.prepare("SELECT id FROM db_traffic_batches WHERE id=?").bind(gap.id).first()) return new Response(null, { status: 409 });
-  if (gap.reportedAt < now - DAY || gap.start < now - 7 * DAY) return reject("timestamp_old", now, 410);
+  if (gap.reportedAt < now - 7 * DAY || gap.start < now - 7 * DAY) return reject("timestamp_old", now, 410);
   const day = new Date(now).toISOString().slice(0, 10);
   await env.DB.batch([
     env.DB.prepare("INSERT OR IGNORE INTO db_traffic_usage(day,batches) VALUES(?,0)").bind(day),

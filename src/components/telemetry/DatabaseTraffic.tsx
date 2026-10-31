@@ -14,6 +14,10 @@ export async function DatabaseTraffic({ hours, sort, selection }: { hours: 24 | 
   const data = result.data;
   const windows = data.windows ?? [];
   const quality = data.quality ?? [];
+  const gapLost = quality.reduce((n, row) => n + (row.lostBatches ?? 0), 0);
+  const gapLostBytes = quality.reduce((n, row) => n + (row.lostBytes ?? 0), 0);
+  const gapUnconfirmed = quality.reduce((n, row) => n + (row.unconfirmedBatches ?? 0), 0);
+  const qualityIncomplete = data.quality === undefined || !!data.qualityPending || !!data.qualityTruncated || quality.some(row => row.truncated);
   const requestedQuality = quality.find(row => String(row.hour) === selection.hour && row.release === selection.release && row.deployment === selection.deployment);
   const selected = windows.find(row => String(row.hour) === selection.hour && row.release === selection.release && row.deployment === selection.deployment) ?? (requestedQuality ? undefined : windows[0]);
   const selectedQuality = requestedQuality ?? (!selected ? quality[0] : quality.find(row => row.hour === selected.hour && row.release === selected.release && row.deployment === selected.deployment));
@@ -36,7 +40,7 @@ export async function DatabaseTraffic({ hours, sort, selection }: { hours: 24 | 
     <div className="flex gap-4 text-sm"><Link href="/admin/telemetry">返回产品遥测</Link><Link href="/admin/telemetry?view=database&hours=24">24 小时</Link><Link href="/admin/telemetry?view=database&hours=72">72 小时</Link></div>
     <div className="grid gap-3 sm:grid-cols-3">
       <MetricCard label="全部已观测协议字节" value={count(data.receivedBytes)} note="包含所选范围内所有版本和进程；未观测连接的字节未知，不是供应商账单。" />
-      <MetricCard label="已报告丢失窗口" value={count(data.dropped)} note={`已知丢失字节 ${data.droppedReceivedBytes === undefined ? "未提供" : supplied(data.droppedReceivedBytes, !!data.lossComplete)}；未确认批次 ${data.unconfirmedBatches === undefined ? "未提供" : supplied(data.unconfirmedBatches, !!data.lossComplete)}，字节 ${data.unconfirmedReceivedBytes === undefined ? "未提供" : supplied(data.unconfirmedReceivedBytes, !!data.lossComplete)}。进程退出及尚未送达的尾窗不在此数中。`} />
+      <MetricCard label="已报告丢失批次与旧窗口" value={supplied(data.dropped + gapLost, !qualityIncomplete && !!data.lossComplete)} note={`缺口已知丢失 ${count(gapLost)} 批 / ${count(gapLostBytes)} 字节；旧窗口 ${count(data.dropped)}。缺口未确认 ${count(gapUnconfirmed)} 批，可能与已接收数据重叠；未知覆盖及未送达尾窗无法计数。`} />
       <MetricCard label="待汇总批次" value={data.pending >= 513 ? "≥513" : count(data.pending)} note="待汇总批次未计入排行。" />
     </div>
     {!!data.qualityPending && <Panel>有 {data.qualityPending >= 513 ? "至少 513" : count(data.qualityPending)} 批质量或缺口记录待汇总，当前信息可能不完整。</Panel>}
