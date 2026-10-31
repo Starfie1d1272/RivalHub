@@ -14,7 +14,8 @@ import {
   matches,
 } from "@/db/schema";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
-import { resolveMajorStagePlan } from "@/lib/major/run-snapshot";
+import { majorRunPresentationSelection } from "@/lib/major/run-snapshot-query";
+import { parseMajorRunPresentation, resolveMajorStagePlanFromPresentations } from "@/lib/major/run-snapshot";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { projectPredictionStages } from "./stage-projection";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -56,15 +57,23 @@ export async function loadBaselineRead(
     .where(eq(seasons.id, seasonId));
   if (!season) throw new AppError(ErrorCode.NOT_FOUND, "赛事不存在");
   const runs = await db
-    .select()
+    .select({
+      id: majorStageRuns.id,
+      stageKey: majorStageRuns.stageKey,
+      finalizedRound: majorStageRuns.finalizedRound,
+      presentationInput: majorRunPresentationSelection(majorStageRuns.ruleSnapshot),
+    })
     .from(majorStageRuns)
     .where(eq(majorStageRuns.seasonId, seasonId));
   // Frozen StageRun rules remain readable after live configuration changes.
-  const plan = resolveMajorStagePlan(
+  const plan = resolveMajorStagePlanFromPresentations(
     runs.length
       ? []
       : getStandardMajorDefinition(season).capabilities.stagePlan,
-    runs,
+    runs.map((run) => ({
+      stageKey: run.stageKey,
+      presentation: parseMajorRunPresentation(run.presentationInput, run.stageKey),
+    })),
   );
   const stages = projectPredictionStages(plan);
   const [prestart] = await db
