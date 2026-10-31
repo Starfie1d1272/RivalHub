@@ -254,3 +254,24 @@ it("retains the original capture boundary when startup is delayed and more traff
     expect(host[slot].rows.get("unknown:unknown")?.queries).toBe(1);
   } finally { delete host[slot]; vi.restoreAllMocks(); vi.unstubAllEnvs(); }
 });
+
+it("durably captures unsealed traffic on a real SIGTERM and restores it before sending", async () => {
+  const { spawn } = await import("node:child_process"); const { mkdtemp, rm } = await import("node:fs/promises"); const { tmpdir } = await import("node:os"); const { join } = await import("node:path");
+  const { DbTrafficSpool } = await import("@/lib/observability/db-traffic-spool"); const { DbTrafficDelivery } = await import("@/lib/observability/db-traffic-delivery");
+  const root = await mkdtemp(join(tmpdir(), "traffic-term-"));
+  const script = `const { recordDbTraffic, flushDbTraffic } = require('./src/lib/observability/db-traffic.ts');
+    process.env.DB_TRAFFIC_KEY = 'x'.repeat(32); process.env.PRODUCT_TELEMETRY_ENDPOINT = 'https://example.invalid/v1/batches'; process.env.DB_TRAFFIC_SPOOL_DIRECTORY = process.argv[1];
+    global.fetch = async () => new Response(null, { status: 503 });
+    process.on('SIGTERM', () => process.exit(143));
+    recordDbTraffic('unknown', 'unknown', 1, 1, false); flushDbTraffic();
+    const poll = setInterval(() => { const s = process[Symbol.for('rivalhub.db-traffic.v3')]; if (!s?.deliveryStarted || s.sending) return; clearInterval(poll); recordDbTraffic('unknown', 'unknown', 2, 1, false); process.stdout.write('ready\\n'); setInterval(() => {}, 1000); }, 5);`;
+  const child = spawn(process.execPath, ["--import", "tsx", "-e", script, root], { stdio: ["ignore", "pipe", "pipe"] });
+  try {
+    await new Promise<void>((resolve, reject) => { child.stdout.once("data", () => resolve()); child.once("error", reject); child.once("exit", code => reject(new Error(`child exited ${code}`))); });
+    child.kill("SIGTERM"); await new Promise<void>(resolve => child.once("exit", () => resolve()));
+    const spool = await DbTrafficSpool.open(root); const delivery = new DbTrafficDelivery(spool, { process: crypto.randomUUID(), release: "new", deployment: "new" }); await delivery.start(Date.now());
+    const batches = spool.snapshot().batches.map(item => JSON.parse(item.body));
+    expect(batches.map(batch => batch.rows[0]?.rows).sort()).toEqual([1, 2]);
+    expect(batches.every(batch => batch.release === "unknown")).toBe(true); spool.close();
+  } finally { child.kill("SIGKILL"); await rm(root, { recursive: true, force: true }); }
+}, 15000);

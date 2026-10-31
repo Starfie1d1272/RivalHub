@@ -33,7 +33,7 @@ async function verifyBodies(state: SpoolState): Promise<void> {
 
 /** A failure is surfaced; an unreadable/corrupt state is never replaced with an empty queue. */
 export class DbTrafficSpool {
-  private constructor(private readonly directory: string, private current: SpoolState, private readonly lock: DatabaseSync, readonly orphanSince: number | null, private readonly orphans: string[]) {}
+  private constructor(readonly directory: string, private current: SpoolState, private readonly lock: DatabaseSync, readonly orphanSince: number | null, private readonly orphans: string[]) {}
   static async open(directory: string): Promise<DbTrafficSpool> {
     await mkdir(directory, { recursive: true, mode: 0o700 });
     const info = await stat(directory);
@@ -44,7 +44,7 @@ export class DbTrafficSpool {
     const lock = new DatabaseSync(join(directory, "owner.sqlite"));
     try {
       lock.exec("BEGIN IMMEDIATE");
-      const orphans = (await readdir(directory)).filter(name => /^\.state-[0-9a-f-]{36}\.tmp$/i.test(name));
+      const orphans = (await readdir(directory)).filter(name => /^\.(?:state|exit)-[0-9a-f-]{36}\.tmp$/i.test(name));
       let orphanSince: number | null = null;
       for (const name of orphans) { const info = await stat(join(directory, name)); const at = Math.floor(info.mtimeMs); orphanSince = Math.min(orphanSince ?? at, at); }
       let raw: string;
