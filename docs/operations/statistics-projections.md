@@ -26,6 +26,16 @@ Attribute benchmarks select only performance projections and the tournament targ
 keys needed for validation. They share current-import, identity-binding and target
 validation with full statistics reads, within the same read-only snapshot.
 
+Full-performance reads may reuse PostgreSQL's original text representation in a
+process-local LRU cache (16 MiB total including keys, 512 entries, 512 KiB per
+entry, five-minute TTL). Each snapshot still checks current imports, revision and
+identity bindings, and computes a SHA-256 of the actual selected representation
+in PostgreSQL. Misses are fetched in one batch and verified before use; every hit
+still goes through decoding, target checks and the normal DAK validation. The
+cache stores no parsed objects or pending requests and does not replace tag
+invalidation. PostgreSQL still serializes and hashes the representation; the
+effect on actual traffic must be measured under natural usage.
+
 ## Rebuild and release
 
 The active Drizzle migration chain creates the server-only projection table.
