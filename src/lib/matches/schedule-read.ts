@@ -3,7 +3,8 @@ import { and, eq, isNull, notInArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches, type Match } from "@/db/schema";
 
-export type PublicScheduleMatch = Omit<Match, "videoUrl" | "recordings" | "mvpWinnerUserId" | "createdAt" | "updatedAt">;
+export type PublicScheduleMatch = Omit<Match, "videoUrl" | "recordings" | "mvpWinnerUserId" | "createdAt" | "updatedAt" |
+  "executionContext" | "testConfig" | "entryRound" | "gameplayStartedAt" | "completionDeadline">;
 import { officialMatchCondition } from "./scope";
 
 /** Preserve the global mismatch warning without loading every historical match. */

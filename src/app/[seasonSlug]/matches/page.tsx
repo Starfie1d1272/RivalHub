@@ -69,7 +69,8 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
       : resolveDefaultStageKey(stagePlan, stagePresentation.initializedStageKeys.map(stage => ({ stage })), requestedStage);
   const selectedStage = stagePlan.find(stage => stage.key === defaultStageKey);
   const allMatchesRaw = defaultStageKey ? await db.query.matches.findMany({
-    columns: { videoUrl: false, recordings: false, mvpWinnerUserId: false, createdAt: false, updatedAt: false },
+    columns: { videoUrl: false, recordings: false, mvpWinnerUserId: false, createdAt: false, updatedAt: false,
+      executionContext: false, testConfig: false, entryRound: false, gameplayStartedAt: false, completionDeadline: false },
     where: and(officialMatchCondition(), eq(matches.seasonId, season.id), eq(matches.stage, defaultStageKey)),
     orderBy: [asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
   }) : [];
