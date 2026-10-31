@@ -7,7 +7,7 @@ export interface ScoreboardContext {
   mapId: string;
   scoreA: number | null;
   scoreB: number | null;
-  participants: readonly { userId: string; perfectName: string | null }[];
+  participants: readonly { userId: string }[];
 }
 export type ScoreboardRow = { userId: string | null; perfectName?: string; matchId?: string; mapId?: string } & Partial<Record<typeof fields[number], number | null>>;
 
