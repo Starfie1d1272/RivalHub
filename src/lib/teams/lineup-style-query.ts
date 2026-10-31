@@ -20,8 +20,8 @@ async function getCareerAttributes(playerIds: string[]) {
   return careers.map(({ playerId, maps, rounds, performance }) => ({
     userId: playerId, maps, rounds,
     attributes: performance ? projectPlayerAttributeProfile(performance, benchmark).attributes.map(({ key, score, status }) => ({ key, score, status })) : [],
-  })));
   }));
+  })));
 }
 
 export async function getPublicLineupStyle(members: readonly PublicPlayerIdentity[]): Promise<LineupStyleMember[]> {
