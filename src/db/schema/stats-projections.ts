@@ -5,10 +5,12 @@ import type { CompactRecordFacts } from "@/lib/stats/record-facts";
 import { matchDemoImports } from "./demo-integration";
 
 export interface StatisticsProjectionBinding { steam64: string; userId: string; entryId: string }
+export interface StatisticsPerformanceTransport { version: 1; codec: "gzip-base64"; uncompressedBytes: number; sha256: string; payload: string }
 export interface StatisticsProjectionFacts {
   records?: CompactRecordFacts;
   tournament: TournamentMapFacts;
   performance: TournamentPerformanceMapProjection;
+  performanceTransport?: StatisticsPerformanceTransport;
 }
 
 /** Rebuildable, versioned statistics; raw Evidence stays immutable in match_demo_imports. */
