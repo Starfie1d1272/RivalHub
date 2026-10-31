@@ -114,7 +114,7 @@ export async function POST(request: Request, context: Context) {
         const { matchId } = z.object({ matchId: z.uuid() }).parse(envelope.event);
         if (season) {
           if (outcome.outcome === "canonicalized") {
-            revalidateMatchPaths(season.slug, matchId, { mode: "route" });
+            revalidateMatchPaths(season.slug, matchId, { mode: "route", statisticsReason: outcome.duplicate ? "mizar.canonicalized_duplicate" : "mizar.canonicalized_new" });
           } else if (!outcome.duplicate) {
             // Source health/telemetry changes do not alter the statistical corpus.
             revalidatePath(`/admin/${season.slug}/matches/${matchId}`);

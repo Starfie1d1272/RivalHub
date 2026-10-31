@@ -38,6 +38,37 @@ export function recordMizarEncodedBody(family: Family, bytes: number): void {
 
 export function recordBetAggregateFallback(): void { owner().betFallbacks++; }
 
+export const STATS_CACHE_FAMILIES = ["lineup.historical", "lineup.realtime", "lineup.style", "platform", "benchmark"] as const;
+export type StatsCacheFamily = typeof STATS_CACHE_FAMILIES[number];
+export const STATS_INVALIDATION_REASONS = ["mizar.canonicalized_new", "mizar.canonicalized_duplicate", "dak.evidence", "stats.projection_rebuild", "scoreboard", "identity", "veto", "season_or_other"] as const;
+export type StatsInvalidationReason = typeof STATS_INVALIDATION_REASONS[number];
+type StatsCacheMetric = "readCalls" | "fillStarted" | "fillSucceeded" | "fillFailed";
+type StatsInvalidationMetric = "attempted" | "completed" | "failed";
+const STATS_SLOT = Symbol.for("rivalhub.stats-read-budget.v1");
+function statsOwner() {
+  const host = process as unknown as Record<symbol, Record<string, number> | undefined>;
+  return host[STATS_SLOT] ??= Object.create(null) as Record<string, number>;
+}
+function increment(operation: string): void {
+  try { const counters = statsOwner(); counters[operation] = (counters[operation] ?? 0) + 1; } catch { /* Diagnostics must never affect reads or invalidation. */ }
+}
+export function recordStatsCache(family: StatsCacheFamily, metric: StatsCacheMetric): void {
+  if (STATS_CACHE_FAMILIES.includes(family) && ["readCalls", "fillStarted", "fillSucceeded", "fillFailed"].includes(metric)) increment(`stats.cache.${family}.${metric}`);
+}
+export function recordStatsInvalidation(reason: StatsInvalidationReason, metric: StatsInvalidationMetric): void {
+  if (STATS_INVALIDATION_REASONS.includes(reason) && ["attempted", "completed", "failed"].includes(metric)) increment(`stats.invalidation.${reason}.${metric}`);
+}
+export async function observeStatsCacheFill<T>(family: StatsCacheFamily, read: () => Promise<T>): Promise<T> {
+  recordStatsCache(family, "fillStarted");
+  try { const value = await read(); recordStatsCache(family, "fillSucceeded"); return value; }
+  catch (error) { recordStatsCache(family, "fillFailed"); throw error; }
+}
+/** Fixed operation names and cumulative counts, with no request data. */
+export function getStatsReadCounters(): ReadonlyArray<{ operation: string; count: number }> {
+  const counters = statsOwner();
+  return Object.entries(counters).map(([operation, count]) => ({ operation, count }));
+}
+
 /** Cumulative process counters; restart resets them. No request identifiers or samples. */
 export function getReadBudgetSnapshot() {
   return { mizar: FAMILIES.map(family => ({ family, ...owner().mizar[family] })), betFallbacks: owner().betFallbacks };

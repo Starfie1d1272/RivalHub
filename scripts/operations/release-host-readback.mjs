@@ -42,13 +42,14 @@ function sample() {
 }
 
 // Incident-specific, bounded journal read. Only fixed aggregates leave the host.
-function journalSummary() {
+function journalSummary(budget) {
   const sinceUtc = "2026-10-31T13:00:00.000Z";
   const untilUtc = new Date(Math.floor(Math.min(Date.now(), Date.parse("2026-10-31T15:00:00.000Z")) / 1000) * 1000).toISOString();
   const result = { sinceUtc, untilUtc, status: "unavailable", errorCode: "invalid_window", rows: [], failureRows: [] };
   if (untilUtc < sinceUtc) return result;
   const journalTime = value => value.replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
-  const journal = spawnSync("/usr/bin/journalctl", ["--namespace=*", "--unit=rivalhub-production", `--since=${journalTime(sinceUtc)}`, `--until=${journalTime(untilUtc)}`, "--output=cat", "--no-pager", "--grep=(mizar\\.(reliable\\.reject|live\\.(outcome_window|stage_window|broadcast_unavailable)|request\\.failure)|db\\.query\\.(failure|outcome_unknown|retry))"], { encoding: "utf8", timeout: 30000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+  const journal = spawnSync("/usr/bin/journalctl", ["--namespace=*", "--unit=rivalhub-production", `--since=${journalTime(sinceUtc)}`, `--until=${journalTime(untilUtc)}`, "--output=cat", "--no-pager", "--grep=(mizar\\.(reliable\\.reject|live\\.(outcome_window|stage_window|broadcast_unavailable)|request\\.failure)|db\\.query\\.(failure|outcome_unknown|retry))"], { encoding: "utf8", timeout: Math.max(1, budget.deadline - Date.now()), maxBuffer: budget.bytes, stdio: ["ignore", "pipe", "pipe"] });
+  budget.bytes = Math.max(0, budget.bytes - Buffer.byteLength(journal.stdout ?? "") - Buffer.byteLength(journal.stderr ?? ""));
   if (journal.error) {
     const codes = { ENOENT: "binary_missing", EACCES: "execute_denied", ETIMEDOUT: "timeout", ENOBUFS: "output_limit" };
     result.errorCode = codes[journal.error.code] ?? "execution_error";
@@ -120,6 +121,52 @@ function journalSummary() {
   return result;
 }
 
+// Fixed rolling window; journal cat output has no reliable process boundary.
+function statsJournalSummary(budget) {
+  const untilMs = Math.floor(Date.now() / 1000) * 1000;
+  const sinceUtc = new Date(untilMs - 60 * 60 * 1000).toISOString();
+  const untilUtc = new Date(untilMs).toISOString();
+  const result = { sinceUtc, untilUtc, status: "unavailable", errorCode: "budget_exhausted",
+    bucketMinutes: 10, semantics: "latest_observed_cumulative", processBoundary: "unavailable", delta: null, rows: [] };
+  if (budget.deadline <= Date.now() || budget.bytes < 1) return result;
+  const journalTime = value => value.replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
+  const journal = spawnSync("/usr/bin/journalctl", ["--namespace=*", "--unit=rivalhub-production", `--since=${journalTime(sinceUtc)}`,
+    `--until=${journalTime(untilUtc)}`, "--output=cat", "--no-pager", "--grep=runtime\\.read\\.sample"],
+  { encoding: "utf8", timeout: Math.max(1, budget.deadline - Date.now()), maxBuffer: budget.bytes, stdio: ["ignore", "pipe", "pipe"] });
+  budget.bytes = Math.max(0, budget.bytes - Buffer.byteLength(journal.stdout ?? "") - Buffer.byteLength(journal.stderr ?? ""));
+  if (journal.error) {
+    const codes = { ENOENT: "binary_missing", EACCES: "execute_denied", ETIMEDOUT: "timeout", ENOBUFS: "output_limit" };
+    result.errorCode = codes[journal.error.code] ?? "execution_error"; return result;
+  }
+  if (journal.status !== 0 && !(journal.status === 1 && !journal.stdout && !journal.stderr)) {
+    result.errorCode = /permission denied|access denied/i.test(journal.stderr ?? "") ? "read_denied" : "journal_failed"; return result;
+  }
+  const families = ["lineup.historical", "lineup.realtime", "lineup.style", "platform", "benchmark"];
+  const reasons = ["mizar.canonicalized_new", "mizar.canonicalized_duplicate", "dak.evidence", "stats.projection_rebuild", "scoreboard", "identity", "veto", "season_or_other"];
+  const operations = new Set([
+    ...families.flatMap(family => ["readCalls", "fillStarted", "fillSucceeded", "fillFailed"].map(metric => `stats.cache.${family}.${metric}`)),
+    ...reasons.flatMap(reason => ["attempted", "completed", "failed"].map(metric => `stats.invalidation.${reason}.${metric}`)),
+  ]);
+  const buckets = new Map(); let incomplete = false;
+  for (const line of journal.stdout.split("\n")) {
+    if (!line) continue;
+    let entry; try { entry = JSON.parse(line); } catch { incomplete = true; continue; }
+    if (entry?.event !== "runtime.read.sample" || !operations.has(entry.operation)) continue;
+    const timestamp = typeof entry.timestamp === "string" ? Date.parse(entry.timestamp) : NaN;
+    const count = entry.safeContext?.count;
+    if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString() !== entry.timestamp || timestamp < untilMs - 60 * 60 * 1000 || timestamp > untilMs ||
+      !Number.isSafeInteger(count) || count < 0) { incomplete = true; continue; }
+    const bucket = new Date(Math.floor(timestamp / 600000) * 600000).toISOString();
+    const key = `${bucket}/${entry.operation}`;
+    const previous = buckets.get(key);
+    if (!previous || timestamp >= previous.timestamp) buckets.set(key, { bucket, operation: entry.operation, count, timestamp });
+  }
+  result.status = incomplete ? "incomplete" : "ok";
+  result.errorCode = incomplete ? "invalid_record" : null;
+  result.rows = [...buckets.values()].map(({ bucket, operation, count }) => [bucket, operation, count]);
+  return result;
+}
+
 async function main() {
   let manifest = null, local = null, service = null, diskAvailableBytes = null;
   try {
@@ -139,7 +186,10 @@ async function main() {
   try { const value = execFileSync("systemctl", ["show", "rivalhub-production", "--property=ActiveState", "--value"], { encoding: "utf8", timeout: 5000 }).trim(); if (["active", "inactive", "failed", "activating", "deactivating", "reloading"].includes(value)) service = value; } catch { /* Unknown remains null. */ }
   try { const fs = statfsSync(root, { bigint: true }); const bytes = Number(fs.bavail * fs.bsize); if (Number.isSafeInteger(bytes)) diskAvailableBytes = bytes; } catch { /* Unknown remains null. */ }
   const first = sample(); await new Promise(resolve => setTimeout(resolve, 1000)); const second = sample();
-  console.log(JSON.stringify({ event: "linux.release_host_readback", manifest, local, service, diskAvailableBytes, first, second, journal: journalSummary() }));
+  const journalBudget = { deadline: Date.now() + 30000, bytes: 16 * 1024 * 1024 };
+  const journal = journalSummary(journalBudget);
+  const statsJournal = statsJournalSummary(journalBudget);
+  console.log(JSON.stringify({ event: "linux.release_host_readback", manifest, local, service, diskAvailableBytes, first, second, journal, statsJournal }));
 }
 
 if (process.argv[1] === "-") main().catch(() => { console.error("Host readback unavailable"); process.exitCode = 1; });

@@ -218,7 +218,7 @@ export async function runMatchMvpSettlementJob() {
 export async function runStatisticsProjectionRebuildJob() {
   const result = await reconcileMissingStatisticsProjections(db);
   const transitions = result.rebuilt + result.invalid;
-  if (transitions > 0) revalidatePublicStatsTag();
+  if (transitions > 0) revalidatePublicStatsTag("stats.projection_rebuild");
   if (result.failed > 0) throw new Error(`Failed to rebuild ${result.failed} statistics projections`);
   return { result, businessTransitions: transitions } satisfies SchedulerRunnerResult<typeof result>;
 }
