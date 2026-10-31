@@ -171,3 +171,25 @@ existing sidecars. `scanned` counts maps; apply `encoded`, `already` and
 representations and are not wire or billing measurements. Reverting to a legacy
 application does not require deleting the optional sidecar or the complete legacy
 performance facts.
+
+### Tournament transport backfill
+
+Tournament transport is an additional lossless representation; full legacy tournament and
+performance facts remain stored. Full tournament reads select one representation, while
+identity-only reads retain the small legacy projection. A present invalid sidecar fails
+closed. Rolling back the application needs no database rollback; an older writer may remove
+the sidecar while retaining the legacy facts.
+
+After deploying a version that includes tournament transport backfill, use the existing
+protected workflow with an empty cursor for a fresh dry run and then an empty cursor for
+the first apply. The previous performance-only cursor does not cover tournament. Confirm
+the deployed release has this capability before running; a report without tournament fields
+is from an older implementation and does not establish tournament coverage. Subsequent
+apply batches use the preceding successful apply cursor.
+
+The report's tournamentEncoded, tournamentAlready, tournamentLegacyRetained,
+tournamentOriginalBytes and tournamentEncodedBytes are per projection row / representation
+on apply, and current-row inventory on dry run. missingPrevious counts maps whose previous
+projection is absent on apply; it does not create that projection. scanned counts maps.
+Dry-run inventory does not verify contents; complete means the candidate scan ended, not
+that every row was encoded. Byte counts are representation sizes, not billed traffic.

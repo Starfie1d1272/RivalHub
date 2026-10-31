@@ -83,12 +83,16 @@ export function parseReport(output, input) {
   let report;
   try { report = JSON.parse(start < 0 ? output : output.slice(start + 1)); } catch { throw new Error("Backfill report unavailable"); }
   const counts = ["scanned", "encoded", "already", "legacy_retained", "not_current", "invalid", "originalBytes", "encodedBytes"];
+  const tournamentCounts = ["tournamentEncoded", "tournamentAlready", "tournamentLegacyRetained", "tournamentOriginalBytes", "tournamentEncodedBytes", "missingPrevious"];
+  const hasTournament = tournamentCounts.some(key => Object.hasOwn(report ?? {}, key));
+  if (hasTournament && tournamentCounts.some(key => !Number.isSafeInteger(report[key]) || report[key] < 0)) throw new Error("Invalid backfill report");
   if (!report || typeof report !== "object" || report.target !== "production" || report.mode !== (input.mode === "apply" ? "apply" : "dry-run") ||
     counts.some(key => !Number.isSafeInteger(report[key]) || report[key] < 0) || typeof report.complete !== "boolean" ||
     !(report.nextCursor === null || typeof report.nextCursor === "string")) throw new Error("Invalid backfill report");
   if (report.scanned > input.limit || (report.nextCursor === "") || (report.complete && report.nextCursor !== null)) throw new Error("Invalid backfill report");
   const nextCursor = report.nextCursor === null ? null : validateCursor(report.nextCursor);
   return { mode: input.mode, limit: input.limit, ...Object.fromEntries(counts.map(key => [key, report[key]])),
+    ...(hasTournament ? Object.fromEntries(tournamentCounts.map(key => [key, report[key]])) : {}),
     complete: report.complete, inputCursor: input.cursor || null, nextCursor, resumeCursor: report.complete ? null : (nextCursor || input.cursor || null) };
 }
 
