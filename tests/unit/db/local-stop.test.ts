@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { parse } from "yaml";
 
 const root = process.cwd();
 const workspaces: string[] = [];
@@ -40,4 +41,24 @@ describe("local stop target", () => {
     expect(result.stderr).toContain("显式独立 scratch 项目");
     expect(() => readFileSync(result.receipt)).toThrow();
   });
+});
+
+
+it("staging prepares and cleans up the same run-specific scratch project", () => {
+  const workflow = parse(readFileSync(resolve(root, ".github/workflows/staging.yml"), "utf8"));
+  const job = workflow.jobs.staging;
+  expect(job.env.RIVALHUB_LOCAL_PROJECT_ID).toBe("rivalhub-scratch-staging-${{ github.run_id }}-${{ github.run_attempt }}");
+  const prepare = job.steps.find((step: { name?: string }) => step.name === "Select isolated local project");
+  const cleanup = job.steps.find((step: { name?: string }) => step.name === "Stop Local PostgreSQL");
+  expect(cleanup.run).toContain('pnpm db:local:stop -- --project-id "$RIVALHUB_LOCAL_PROJECT_ID"');
+  const cwd = mkdtempSync(resolve(tmpdir(), "rivalhub-staging-test-"));
+  workspaces.push(cwd);
+  mkdirSync(resolve(cwd, "supabase"));
+  writeFileSync(resolve(cwd, "supabase/config.toml"), readFileSync(resolve(root, "supabase/config.toml")));
+  const id = "rivalhub-scratch-staging-123-1";
+  const result = spawnSync("bash", ["-e", "-c", prepare.run], { cwd, env: { ...process.env, RIVALHUB_LOCAL_PROJECT_ID: id }, encoding: "utf8" });
+  expect(result.status, result.stderr).toBe(0);
+  const stop = runStop(readFileSync(resolve(cwd, "supabase/config.toml"), "utf8"), ["--", "--project-id", id]);
+  expect(stop.status).toBe(0);
+  expect(readFileSync(stop.receipt, "utf8")).toBe(`stop\n--project-id\n${id}\n`);
 });
