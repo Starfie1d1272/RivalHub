@@ -5,7 +5,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { db, type DB } from "@/db/client";
 import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
 import { getCurrentStatsSelectionInTx } from "@/lib/stats/tournament-query";
-import { getStatsLeaderboard } from "@/lib/stats/leaderboard-query";
+import { getLineupStatsPopulation } from "@/lib/stats/leaderboard-query";
 import { partitionRankingPopulation } from "@/lib/stats/ranking";
 import type { LineupCareer } from "./lineup-comparison";
 
@@ -15,8 +15,7 @@ import type { LineupCareer } from "./lineup-comparison";
 export async function loadLineupPopulation(matchId: string, before: Date, database: DB = db): Promise<LineupCareer[]> {
   return database.transaction(async (tx) => {
     const selection = await getCurrentStatsSelectionInTx(tx, { before, excludeMatchId: matchId });
-    const population = await getStatsLeaderboard({}, selection.currentImportIds, selection.roster, tx,
-      { groupByTeam: false, requireCurrentImports: true, requireRosterMatch: true });
+    const population = await getLineupStatsPopulation(selection.currentImportIds, selection.roster, tx);
     const { ranked } = partitionRankingPopulation(population, (row) => row.avgRating, (row) => row.rounds);
     const qualified = new Set(ranked.map((row) => row.userId));
     return population.filter((row) => row.userId).map((row) => ({
