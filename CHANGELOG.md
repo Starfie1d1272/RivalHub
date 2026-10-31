@@ -5,6 +5,12 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.19]
+
+### Changed
+
+- 为管理员遥测数据读取增加固定失败分类，并在缓存内容损坏时重新执行正常读取；生产故障原因仍待确认。
+
 ## [2.25.18]
 
 ### Changed
@@ -3423,6 +3429,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.25.19]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.18...v2.25.19
 [2.25.18]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.17...v2.25.18
 [2.25.17]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.16...v2.25.17
 [2.25.16]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.15...v2.25.16
