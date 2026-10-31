@@ -1,4 +1,4 @@
-import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
+import { findAdminSeasonOverviewBySlug } from "@/lib/admin/season-context";
 import { notFound } from "next/navigation";
 
 
@@ -12,7 +12,7 @@ interface AdminCaptainsPageProps {
 
 export default async function AdminCaptainsPage({ params }: AdminCaptainsPageProps) {
   const { seasonSlug } = await params;
-  const season = await findAdminSeasonBySlug(seasonSlug);
+  const season = await findAdminSeasonOverviewBySlug(seasonSlug);
   if (!season) notFound();
 
   if (!season.hasCaptainVoting) {

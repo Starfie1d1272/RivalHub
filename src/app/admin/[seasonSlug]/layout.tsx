@@ -1,7 +1,7 @@
 import { TelemetryScene } from "@/components/telemetry/ProductTelemetry";
 import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
-import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
+import { findAdminSeasonOverviewBySlug } from "@/lib/admin/season-context";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
@@ -23,7 +23,7 @@ async function AdminSeasonContent({
   params: Promise<{ seasonSlug: string }>;
 }) {
   const { seasonSlug } = await params;
-  const season = await findAdminSeasonBySlug(seasonSlug);
+  const season = await findAdminSeasonOverviewBySlug(seasonSlug);
   if (!season) notFound();
 
   const admin = await resolveAdminPageAccess(() => requireSeasonAdmin(season.id));
