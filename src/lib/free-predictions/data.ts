@@ -2,9 +2,9 @@ import { projectDisplayScore } from "@/lib/matches/display-score";
 import "server-only";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { freePredictionChoices as choices, freePredictionLocks as locks, users, competitionQualificationRuns } from "@/db/schema";
+import { freePredictionChoices as choices, freePredictionLocks as locks, users, competitionQualificationRuns, seasons, matches } from "@/db/schema";
 import { getCanonicalUserSourceIds, resolveCanonicalUserId } from "@/lib/identity/canonical";
-import { loadBetFacts, type BetFacts, type BetPublicSupportFacts } from "@/lib/bet/facts";
+import { loadBetFacts, loadBetPublicSupportFacts, type BetFacts, type BetPublicSupportFacts } from "@/lib/bet/facts";
 import { marketIsLocked, subjectMatches } from "@/lib/bet/domain";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { predictionInput, gradePrediction, freePredictionRestriction, freePredictionCompetitionIsOpen } from "./domain";
@@ -162,7 +162,23 @@ export async function readFreePredictionBoard(tx: TxDb, seasonId: string, userId
   return projectFreePredictionBoard(await readFreePredictionSnapshot(tx,seasonId,userId,scope));
 }
 export async function readFreeMatchSupport(tx: TxDb, seasonId: string, matchId: string) {
-  return (await readFreePredictionBoard(tx,seasonId,null,{matchId})).matches.find(m=>m.matchId===matchId)?.result.support ?? null;
+  const facts = await loadBetPublicSupportFacts(tx,seasonId,matchId);
+  const match = facts.official.find(m=>m.id===matchId);
+  if (!match || (!match.majorStageRunId && !match.qualificationRunId)) {
+    // The original board resolves scoped identities even when it has no match to display.
+    await loadPublicPredictionPopulation(tx,seasonId,facts,matchId);
+    return null;
+  }
+  const [display] = await tx.select({stagePlan:seasons.stagePlan,scheduledAt:matches.scheduledAt})
+    .from(matches).innerJoin(seasons,eq(seasons.id,matches.seasonId))
+    .where(and(eq(matches.id,matchId),eq(matches.seasonId,seasonId)));
+  const stagePlan: unknown = display?.stagePlan;
+  const scheduledAt: unknown = display?.scheduledAt;
+  if (!display || (!match.qualificationRunId && (!Array.isArray(stagePlan) || stagePlan.some(stage=>stage === null || typeof stage !== "object"))) ||
+      (scheduledAt != null && (!(scheduledAt instanceof Date) || !Number.isFinite(scheduledAt.getTime())))) {
+    return (await readFreePredictionBoard(tx,seasonId,null,{matchId})).matches.find(m=>m.matchId===matchId)?.result.support ?? null;
+  }
+  return (await readPublicPredictionSupport(tx,seasonId,facts,matchId)).matches.find(m=>m.matchId===matchId)?.result ?? null;
 }
 
 /** Shared support owns canonical vote validity without building viewer panels. */
