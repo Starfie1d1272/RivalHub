@@ -142,9 +142,10 @@ try {
       if (args[0] === "--") args.shift();
       const config = readFileSync(resolve(projectRoot, "supabase/config.toml"), "utf8");
       const rootConfig = config.split(/^\s*\[/m, 1)[0];
-      const ids = [...rootConfig.matchAll(/^[ \t]*project_id[ \t]*=[ \t]*"([a-z0-9-]+)"[ \t]*(?:#.*)?$/gm)].map(match => match[1]);
+      const lines = rootConfig.split(/\r?\n/).filter(line => !/^[ \t]*(?:#.*)?$/.test(line));
+      const match = lines.length === 1 ? /^[ \t]*project_id[ \t]*=[ \t]*"([a-z0-9-]+)"[ \t]*(?:#.*)?$/.exec(lines[0]) : null;
       const id = args[1];
-      if (args.length !== 2 || args[0] !== "--project-id" || !id || !/^rivalhub-scratch-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) || ids.length !== 1 || ids[0] !== id) {
+      if (args.length !== 2 || args[0] !== "--project-id" || !id || !/^rivalhub-scratch-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) || !match || match[1] !== id) {
         throw new Error("stop 只接受与当前 supabase/config.toml 匹配的显式独立 scratch 项目：--project-id rivalhub-scratch-<id>。");
       }
       run(supabaseBin, ["stop", "--project-id", id], {

@@ -18,6 +18,7 @@ jobs:
     environment: staging
     env:
       NEXT_TELEMETRY_DISABLED: 1
+      RIVALHUB_LOCAL_PROJECT_ID: rivalhub-scratch-staging-${{ github.run_id }}-${{ github.run_attempt }}
       RIVALHUB_DB_TARGET: staging
       RIVALHUB_STAGING_PROJECT_CONFIRM: zqslxewznmljfyboxhjg
       RIVALHUB_ALLOW_REMOTE_DB_WRITE: staging
@@ -39,6 +40,10 @@ jobs:
           cache: true
           require-lockfile: true
 
+      - name: Select isolated local project
+        run: |
+          node -e 'const fs = require("node:fs"); const p = "supabase/config.toml"; const s = fs.readFileSync(p, "utf8"); const original = /^project_id = "rivalhub"$/m; if (!original.test(s)) throw new Error("Unexpected local project config"); fs.writeFileSync(p, s.replace(original, `project_id = "${process.env.RIVALHUB_LOCAL_PROJECT_ID}"`));'
+
       - name: Start Local PostgreSQL for migration replay
         run: pnpm db:local:start-db
 
@@ -54,4 +59,4 @@ jobs:
 
       - name: Stop Local PostgreSQL
         if: always()
-        run: pnpm db:local:stop
+        run: pnpm db:local:stop -- --project-id "$RIVALHUB_LOCAL_PROJECT_ID"
