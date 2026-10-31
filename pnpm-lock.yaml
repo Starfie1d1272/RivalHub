@@ -168,6 +168,7 @@ overrides:
 
 patchedDependencies:
   '@cs2dak/tournament@1.1.1': db3cc3484eb2c7ff0be4c076d780908c83ce583eb5c34e49d259fd870251143c
+  minimatch@10.2.6: a772c4c9d8b734167b793594227b6aefb84f1cd0e4ed315441bea5abd6bfc50b
 
 importers:
 
@@ -5931,7 +5932,7 @@ snapshots:
     dependencies:
       '@eslint/object-schema': 3.0.5
       debug: 4.4.3(supports-color@10.2.2)
-      minimatch: 10.2.6
+      minimatch: 10.2.6(patch_hash=a772c4c9d8b734167b793594227b6aefb84f1cd0e4ed315441bea5abd6bfc50b)
     transitivePeerDependencies:
       - supports-color
 
@@ -7213,7 +7214,7 @@ snapshots:
       '@typescript-eslint/types': 8.71.1
       '@typescript-eslint/visitor-keys': 8.71.1
       debug: 4.4.3(supports-color@10.2.2)
-      minimatch: 10.2.6
+      minimatch: 10.2.6(patch_hash=a772c4c9d8b734167b793594227b6aefb84f1cd0e4ed315441bea5abd6bfc50b)
       semver: 7.8.5
       tinyglobby: 0.2.17
       ts-api-utils: 2.5.0(@typescript/typescript6@6.0.2)
@@ -8105,7 +8106,7 @@ snapshots:
       imurmurhash: 0.1.4
       is-glob: 4.0.3
       json-stable-stringify-without-jsonify: 1.0.1
-      minimatch: 10.2.6
+      minimatch: 10.2.6(patch_hash=a772c4c9d8b734167b793594227b6aefb84f1cd0e4ed315441bea5abd6bfc50b)
       natural-compare: 1.4.0
       optionator: 0.9.4
     optionalDependencies:
@@ -9132,7 +9133,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  minimatch@10.2.6:
+  minimatch@10.2.6(patch_hash=a772c4c9d8b734167b793594227b6aefb84f1cd0e4ed315441bea5abd6bfc50b):
     dependencies:
       brace-expansion: 5.0.12
 
