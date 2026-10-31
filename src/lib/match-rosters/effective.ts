@@ -14,6 +14,8 @@ import {
 
 export type MatchRosterExecutor = DB | TxDb;
 
+export type EffectiveMatchRosterIdentity = Pick<EffectiveMatchRosterPlayer, "matchId" | "entryId" | "eventRosterMemberId" | "userId" | "steam64" | "isStarter">;
+
 export interface EffectiveMatchRosterPlayer {
   matchId: string;
   entryId: string;
@@ -46,25 +48,26 @@ export async function loadEffectiveMatchRoster(
 export function effectiveMatchRosterQuery(
   database: MatchRosterExecutor, matchIds: readonly string[], includeSubstitutes = false,
 ) {
-  return rosterQuery(database, matchIds, includeSubstitutes, {});
+  return rosterQuery(database, matchIds, includeSubstitutes, { rosterId: matchRosters.id, displayName: users.displayName, personaName: steamProfiles.personaName, perfectName: users.perfectName });
 }
 
 /** Same effective-lineup rules with the avatar needed by the broadcast manifest. */
 export function effectiveMatchRosterWithAvatarQuery(database: MatchRosterExecutor, matchIds: readonly string[]) {
-  return rosterQuery(database, matchIds, true, { avatarUrl: steamProfiles.avatarUrl });
+  return rosterQuery(database, matchIds, true, { rosterId: matchRosters.id, displayName: users.displayName, personaName: steamProfiles.personaName, perfectName: users.perfectName, avatarUrl: steamProfiles.avatarUrl });
+}
+
+export async function loadEffectiveMatchRosterIdentities(database: MatchRosterExecutor, matchIds: readonly string[]): Promise<EffectiveMatchRosterIdentity[]> {
+  if (!matchIds.length) return [];
+  return rosterQuery(database, matchIds, false, {});
 }
 
 function rosterQuery<T extends SelectedFields>(database: MatchRosterExecutor, matchIds: readonly string[], includeSubstitutes: boolean, extra: T) {
   return database.select({
     matchId: matchRosters.matchId,
     entryId: matchRosters.entryId,
-    rosterId: matchRosters.id,
     eventRosterMemberId: eventRosterMembers.id,
     userId: users.id,
     steam64: users.steam64,
-    displayName: users.displayName,
-    personaName: steamProfiles.personaName,
-    perfectName: users.perfectName,
     isStarter: matchRosterPlayers.isStarter,
     ...extra,
   }).from(matchRosterPlayers)

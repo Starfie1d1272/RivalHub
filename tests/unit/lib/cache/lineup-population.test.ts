@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("next/cache", () => ({ cacheLife: mocks.cacheLife, cacheTag: mocks.cacheTag, updateTag: mocks.updateTag, revalidateTag: mocks.revalidateTag, revalidatePath: mocks.revalidatePath }));
 vi.mock("@/db/client", () => ({ db: { transaction: (read: (tx: object) => unknown) => read({}) } }));
 vi.mock("@/lib/stats/tournament-query", () => ({ getCurrentStatsSelectionInTx: mocks.selection }));
-vi.mock("@/lib/stats/leaderboard-query", () => ({ getStatsLeaderboard: mocks.leaderboard }));
+vi.mock("@/lib/stats/leaderboard-query", () => ({ getLineupStatsPopulation: mocks.leaderboard }));
 vi.mock("@/lib/stats/ranking", () => ({ partitionRankingPopulation: mocks.partition }));
 vi.mock("@/lib/stats/public-fill", () => ({ observePublicStatsFill: (_name: string, read: () => unknown) => read() }));
 
@@ -32,7 +32,7 @@ describe("lineup population cache contract", () => {
     expect(mocks.cacheLife).toHaveBeenCalledWith({ stale: 60, revalidate: 3600, expire: 86400 });
     expect(mocks.cacheTag).toHaveBeenCalledWith(PUBLIC_STATS_TAG);
     expect(mocks.selection).toHaveBeenCalledWith(expect.anything(), { before: new Date(cutoff), excludeMatchId: "match-a" });
-    expect(mocks.leaderboard).toHaveBeenCalledWith({}, ["import"], ["roster"], expect.anything(), { groupByTeam: false, requireCurrentImports: true, requireRosterMatch: true });
+    expect(mocks.leaderboard).toHaveBeenCalledWith(["import"], ["roster"], expect.anything());
     expect(result).toEqual([{ userId: "b", maps: 2, rounds: 40, qualified: true, rating: 2, adr: 80, kpr: 0.8, kast: 80, firstKill: 0.2, trade: 0.2 }]);
   });
 

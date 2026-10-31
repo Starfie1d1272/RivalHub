@@ -2,7 +2,7 @@ import "server-only";
 
 import { db, type DB, type TxDb } from "@/db/client";
 import { sql } from "drizzle-orm";
-import type { EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
+import type { EffectiveMatchRosterIdentity } from "@/lib/match-rosters/effective";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { completeSum, killWeightedAvg, killWeightedDenominator, perRound, perRoundDenominator, ratioOfSums, roundWeightedAvg, roundsExpr, simpleAvg } from "./sql";
 
@@ -27,7 +27,7 @@ export interface StatsLeaderboardOptions {
 export async function getStatsLeaderboard(
   scope: StatsLeaderboardFilters,
   currentImportIds: string[],
-  roster: EffectiveMatchRosterPlayer[],
+  roster: readonly Pick<EffectiveMatchRosterIdentity, "matchId" | "userId" | "entryId">[],
   database: DB | TxDb = db,
   options: StatsLeaderboardOptions = {},
 ) {
@@ -38,7 +38,7 @@ export async function getStatsLeaderboard(
 export async function getPlayerStatsScoreboards(
   scope: StatsLeaderboardFilters,
   currentImportIds: string[],
-  roster: EffectiveMatchRosterPlayer[],
+  roster: readonly Pick<EffectiveMatchRosterIdentity, "matchId" | "userId" | "entryId">[],
   database: DB | TxDb,
   options: Omit<StatsLeaderboardOptions, "groupByMap" | "groupByTeam"> & { userId: string },
 ) {
@@ -53,10 +53,54 @@ export async function getPlayerStatsScoreboards(
 async function queryStatsLeaderboard(
   scope: StatsLeaderboardFilters,
   currentImportIds: string[],
-  roster: EffectiveMatchRosterPlayer[],
+  roster: readonly Pick<EffectiveMatchRosterIdentity, "matchId" | "userId" | "entryId">[],
   database: DB | TxDb = db,
   options: StatsLeaderboardOptions = {},
   includeOverall = false,
+) {
+  const query = buildStatsLeaderboardQuery(scope, currentImportIds, roster, options, includeOverall);
+  const { rows } = await database.execute(query);
+
+  const toNumOrNull = (v: unknown) => (v == null ? null : Number(v));
+
+  const projectedRows = rows.map((r) => ({
+    mapName: r.map_name as string | null,
+    userId:     r.user_id as string | null,
+    perfectName: getPublicDisplayName({ displayName: r.display_name as string | null, personaName: r.persona_name as string | null, perfectName: r.perfect_name as string | null }),
+    teamName:   r.team_name as string | null,
+    teamId:     r.team_id as string | null,
+    ...(options.groupByTeam === false ? { teamIds: (r.team_ids as string[] | null) ?? [] } : {}),
+    maps:       Number(r.maps),
+    ratingSamples: Number(r.rating_samples),
+    adrRounds: toNumOrNull(r.adr_rounds),
+    scoreboardSamples: {
+      kprRounds: toNumOrNull(r.kpr_rounds), fkprRounds: toNumOrNull(r.fkpr_rounds),
+      mkprRounds: toNumOrNull(r.mkpr_rounds), cprRounds: toNumOrNull(r.cpr_rounds),
+      fdprRounds: toNumOrNull(r.fdpr_rounds), tradeKprRounds: toNumOrNull(r.trade_kpr_rounds),
+      kastRounds: toNumOrNull(r.kast_rounds_sample), hsKills: toNumOrNull(r.hs_kills),
+      kdDeaths: toNumOrNull(r.kd_deaths),
+    },
+    rounds:     toNumOrNull(r.rounds),
+    avgRating:  toNumOrNull(r.avg_rating),
+    avgAdr:     toNumOrNull(r.avg_adr),
+    avgRws:     toNumOrNull(r.avg_rws),
+    avgWe:      toNumOrNull(r.avg_we),
+    avgHs:      toNumOrNull(r.avg_hs),
+    kdRatio:    toNumOrNull(r.kd_ratio),
+    kpr:        toNumOrNull(r.kpr),
+    fkpr:       toNumOrNull(r.fkpr),
+    mkpr:       toNumOrNull(r.mkpr),
+    cpr:        toNumOrNull(r.cpr),
+    fdpr: toNumOrNull(r.fdpr), tradeKpr: toNumOrNull(r.trade_kpr), kast: toNumOrNull(r.kast),
+  }));
+
+  return { rows: projectedRows, overall: rows.map(row => Number(row.map_grouping) === 1) };
+}
+
+function buildStatsLeaderboardQuery(
+  scope: StatsLeaderboardFilters, currentImportIds: string[],
+  roster: readonly Pick<EffectiveMatchRosterIdentity, "matchId" | "userId" | "entryId">[],
+  options: StatsLeaderboardOptions, includeOverall = false,
 ) {
   // ADR：回合加权（正确方式）；HS%：击杀数加权（正确方式）
   const adrExpr    = roundWeightedAvg("mps.adr");
@@ -95,7 +139,7 @@ async function queryStatsLeaderboard(
     ? sql`GROUPING SETS ((${playerGroup}), (${playerGroup}, mm.map_name))`
     : sql`${playerGroup} ${mapGroup}`;
 
-  const { rows } = await database.execute(sql`
+  return sql`
     SELECT
       mps.user_id,
       u.display_name, sp.persona_name, u.perfect_name,
@@ -153,40 +197,16 @@ async function queryStatsLeaderboard(
       ${rosterMatchFilter}
     GROUP BY ${grouping}
     ORDER BY mps.user_id ${teamOrder} ${options.groupByMap ? sql`, mm.map_name` : sql``}
-  `);
+  `;
+}
 
-  const toNumOrNull = (v: unknown) => (v == null ? null : Number(v));
 
-  const projectedRows = rows.map((r) => ({
-    mapName: r.map_name as string | null,
-    userId:     r.user_id as string | null,
-    perfectName: getPublicDisplayName({ displayName: r.display_name as string | null, personaName: r.persona_name as string | null, perfectName: r.perfect_name as string | null }),
-    teamName:   r.team_name as string | null,
-    teamId:     r.team_id as string | null,
-    ...(options.groupByTeam === false ? { teamIds: (r.team_ids as string[] | null) ?? [] } : {}),
-    maps:       Number(r.maps),
-    ratingSamples: Number(r.rating_samples),
-    adrRounds: toNumOrNull(r.adr_rounds),
-    scoreboardSamples: {
-      kprRounds: toNumOrNull(r.kpr_rounds), fkprRounds: toNumOrNull(r.fkpr_rounds),
-      mkprRounds: toNumOrNull(r.mkpr_rounds), cprRounds: toNumOrNull(r.cpr_rounds),
-      fdprRounds: toNumOrNull(r.fdpr_rounds), tradeKprRounds: toNumOrNull(r.trade_kpr_rounds),
-      kastRounds: toNumOrNull(r.kast_rounds_sample), hsKills: toNumOrNull(r.hs_kills),
-      kdDeaths: toNumOrNull(r.kd_deaths),
-    },
-    rounds:     toNumOrNull(r.rounds),
-    avgRating:  toNumOrNull(r.avg_rating),
-    avgAdr:     toNumOrNull(r.avg_adr),
-    avgRws:     toNumOrNull(r.avg_rws),
-    avgWe:      toNumOrNull(r.avg_we),
-    avgHs:      toNumOrNull(r.avg_hs),
-    kdRatio:    toNumOrNull(r.kd_ratio),
-    kpr:        toNumOrNull(r.kpr),
-    fkpr:       toNumOrNull(r.fkpr),
-    mkpr:       toNumOrNull(r.mkpr),
-    cpr:        toNumOrNull(r.cpr),
-    fdpr: toNumOrNull(r.fdpr), tradeKpr: toNumOrNull(r.trade_kpr), kast: toNumOrNull(r.kast),
-  }));
-
-  return { rows: projectedRows, overall: rows.map(row => Number(row.map_grouping) === 1) };
+/** Same weighted population and filtering; only the nine lineup fields cross the connection. */
+export async function getLineupStatsPopulation(currentImportIds: string[], roster: readonly Pick<EffectiveMatchRosterIdentity, "matchId" | "userId" | "entryId">[], database: DB | TxDb) {
+  const query = buildStatsLeaderboardQuery({}, currentImportIds, roster, { groupByTeam: false, requireCurrentImports: true, requireRosterMatch: true });
+  const { rows } = await database.execute(sql`SELECT user_id, maps, rounds, avg_rating, avg_adr, kpr, kast, fkpr, trade_kpr FROM (${query}) AS population ORDER BY user_id`);
+  const numberOrNull = (value: unknown) => value == null ? null : Number(value);
+  return rows.map(row => ({ userId: row.user_id as string | null, maps: Number(row.maps), rounds: numberOrNull(row.rounds),
+    avgRating: numberOrNull(row.avg_rating), avgAdr: numberOrNull(row.avg_adr), kpr: numberOrNull(row.kpr),
+    kast: numberOrNull(row.kast), fkpr: numberOrNull(row.fkpr), tradeKpr: numberOrNull(row.trade_kpr) }));
 }

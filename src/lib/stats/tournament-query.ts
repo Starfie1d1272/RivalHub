@@ -11,7 +11,7 @@ import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision"
 import { resolveGameplayUsersBySteam64InTx } from "@/lib/identity/gameplay-steam";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
-import { loadEffectiveMatchRoster, type EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
+import { loadEffectiveMatchRoster, loadEffectiveMatchRosterIdentities, type EffectiveMatchRosterIdentity, type EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 import { getPublicPlayerRecord } from "@/lib/players/public-record";
 import { getPlayerStatsScoreboards, getStatsLeaderboard } from "./leaderboard-query";
 import { decodePerformanceTransport, performanceTransportSelection, ProjectionTransportIntegrityError } from "./projection-transport";
@@ -43,7 +43,7 @@ export type StatsLabels = { teams: Record<string, string>; players: Record<strin
 const statsMatchFields = {id:matches.id,seasonId:matches.seasonId,stage:matches.stage,round:matches.round,entryAId:matches.entryAId,entryBId:matches.entryBId,majorStageRunId:matches.majorStageRunId,status:matches.status,testConfig:matches.testConfig,format:matches.format,scoreA:matches.scoreA,scoreB:matches.scoreB,completedAt:matches.completedAt};
 const statsMapFields = {id:matchMaps.id,matchId:matchMaps.matchId,mapOrder:matchMaps.mapOrder,mapName:matchMaps.mapName,scoreA:matchMaps.scoreA,scoreB:matchMaps.scoreB,completedAt:matchMaps.completedAt};
 
-async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean; effectiveRoster?: readonly EffectiveMatchRosterPlayer[] } = {}) {
+async function loadStatsContext<R extends EffectiveMatchRosterIdentity = EffectiveMatchRosterPlayer>(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean; effectiveRoster?: readonly R[]; skipLabels?: boolean } = {}) {
   const selectedMapRows = options.mapName && options.matchIds?.length !== 0
     ? await tx.select({ match: statsMatchFields, map: statsMapFields }).from(matchMaps).innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(
       scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
@@ -74,7 +74,7 @@ async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { 
   const matchesById = new Map(scopedMatches.map((match) => [match.id, match]));
   const matchIds = scopedMatches.map((match) => match.id);
   const seasonIds = scope.seasonId ? [scope.seasonId] : [...new Set(scopedMatches.map((match) => match.seasonId))];
-  const entryRows = seasonIds.length ? await tx.select({ id: competitionEntries.id, name: competitionEntries.name, teamId: competitionEntries.teamId, teamName: teams.name, teamSlug: teams.slug, eventSlug: seasons.slug, eventName: seasons.name }).from(competitionEntries)
+  const entryRows = !options.skipLabels && seasonIds.length ? await tx.select({ id: competitionEntries.id, name: competitionEntries.name, teamId: competitionEntries.teamId, teamName: teams.name, teamSlug: teams.slug, eventSlug: seasons.slug, eventName: seasons.name }).from(competitionEntries)
     .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
     .leftJoin(teams, eq(teams.id, competitionEntries.teamId))
     .where(inArray(competitionEntries.competitionId, seasonIds)) : [];
@@ -88,13 +88,13 @@ async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { 
   const scopedMaps = maps.filter((map) => !mapNameFilter || map.mapName === mapNameFilter);
   const matchIdSet = new Set(matchIds);
   const roster = options.effectiveRoster ? options.effectiveRoster.filter(row => matchIdSet.has(row.matchId)) : await loadEffectiveMatchRoster(tx, matchIds);
-  const rosterByMatchId = new Map<string, EffectiveMatchRosterPlayer[]>();
-  const rosterByMatchAndUser = new Map<string, Map<string, EffectiveMatchRosterPlayer>>();
+  const rosterByMatchId = new Map<string, (R | EffectiveMatchRosterPlayer)[]>();
+  const rosterByMatchAndUser = new Map<string, Map<string, R | EffectiveMatchRosterPlayer>>();
   for (const member of roster) {
     const matchRoster = rosterByMatchId.get(member.matchId) ?? [];
     matchRoster.push(member);
     rosterByMatchId.set(member.matchId, matchRoster);
-    const membersByUser = rosterByMatchAndUser.get(member.matchId) ?? new Map<string, EffectiveMatchRosterPlayer>();
+    const membersByUser = rosterByMatchAndUser.get(member.matchId) ?? new Map<string, R | EffectiveMatchRosterPlayer>();
     if (!membersByUser.has(member.userId)) membersByUser.set(member.userId, member);
     rosterByMatchAndUser.set(member.matchId, membersByUser);
   }
@@ -132,7 +132,7 @@ async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { 
 }
 
 /** Select valid materialized bindings without transferring statistics or Evidence. */
-async function loadCurrentProjectionRefs(tx: TxDb, context: Awaited<ReturnType<typeof loadStatsContext>>) {
+async function loadCurrentProjectionRefs(tx: TxDb, context: Awaited<ReturnType<typeof loadStatsContext<EffectiveMatchRosterIdentity>>>) {
   const ids = context.currentRefs.map(({ current }) => current.id);
   const rows = ids.length ? await tx.select({
     importId: matchDemoStatProjections.importId,
@@ -177,7 +177,9 @@ export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: { seasonId?:
       scope.before ? lt(matches.completedAt, scope.before) : undefined,
       scope.excludeMatchId ? ne(matches.id, scope.excludeMatchId) : undefined,
       scope.userIds ? inArray(matchPlayerStats.userId, [...scope.userIds]) : undefined));
-  const context = await loadStatsContext(tx, {}, { matchIds: candidates.map((row) => row.id) });
+  const candidateIds = candidates.map((row) => row.id);
+  const effectiveRoster = await loadEffectiveMatchRosterIdentities(tx, candidateIds);
+  const context = await loadStatsContext(tx, {}, { matchIds: candidateIds, effectiveRoster, skipLabels: true });
   const refs = await loadCurrentProjectionRefs(tx, context);
   return { currentImportIds: refs.map(({ current }) => current.id), roster: context.roster, matchIds: context.matchIds };
 }
