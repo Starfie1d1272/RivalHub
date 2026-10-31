@@ -74,7 +74,7 @@ return { ...match, actorUserId: session.userId };
 /** COMMIT is already confirmed; cache failure must not turn it into an apparent rejected write. */
 function refreshScoreboardAfterCommit(): boolean {
   try {
-    updatePublicStatsTag();
+    updatePublicStatsTag("scoreboard");
     revalidatePath("/[seasonSlug]/matches/[matchId]", "page");
     return false;
   } catch (error) {
@@ -87,7 +87,7 @@ function refreshScoreboardAfterCommit(): boolean {
 export async function retryPlayerStatsRefresh(mapId: string): Promise<ActionResult<void>> {
   try {
     await loadAuthorizedScoreboardContext(mapId);
-    updatePublicStatsTag();
+    updatePublicStatsTag("scoreboard");
     revalidatePath("/[seasonSlug]/matches/[matchId]", "page");
     return ok(undefined);
   } catch (error) { return actionError("retryPlayerStatsRefresh", error); }

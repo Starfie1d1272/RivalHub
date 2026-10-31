@@ -1,4 +1,5 @@
 import { revalidatePath, revalidateTag, updateTag } from "next/cache";
+import { recordStatsInvalidation, type StatsInvalidationReason } from "@/lib/observability/read-budget";
 
 import {
   PUBLIC_ANNOUNCEMENTS_TAG,
@@ -31,7 +32,7 @@ const seasonPages = {
 
 type SeasonPage = keyof typeof seasonPages;
 type RevalidationMode = "action" | "route";
-type StatisticsRevalidationOptions = { statistics?: boolean };
+type StatisticsRevalidationOptions = { statistics?: boolean; statisticsReason?: StatsInvalidationReason };
 type RevalidationOptions = StatisticsRevalidationOptions & { mode?: RevalidationMode };
 
 /** Server Action semantics: invalidate immediately for read-your-own-writes. */
@@ -40,7 +41,7 @@ export function updatePublicSeasonTags(
   seasonId?: string,
   options: StatisticsRevalidationOptions = {},
 ): void {
-  if (options.statistics !== false) updatePublicStatsTag();
+  if (options.statistics !== false) updatePublicStatsTag(options.statisticsReason);
   updateTag(PUBLIC_SEASON_CATALOG_TAG);
   updateTag(publicSeasonTag(slug));
   updatePublicHomeTag();
@@ -57,7 +58,7 @@ export function revalidatePublicSeasonTags(
   seasonId?: string,
   options: StatisticsRevalidationOptions = {},
 ): void {
-  if (options.statistics !== false) revalidatePublicStatsTag();
+  if (options.statistics !== false) revalidatePublicStatsTag(options.statisticsReason);
   revalidateTag(PUBLIC_SEASON_CATALOG_TAG, "max");
   revalidateTag(publicSeasonTag(slug), "max");
   revalidateTag(PUBLIC_HOME_TAG, "max");
@@ -84,23 +85,27 @@ export function updatePublicSeasonInfoTag(seasonId: string): void {
 export function revalidatePublicPlayerTag(userId: string): void {
   revalidateTag(publicPlayerTag(userId), "max");
   revalidateTag(PUBLIC_HOME_TAG, "max");
-  revalidatePublicStatsTag();
+  revalidatePublicStatsTag("identity");
 }
 
 export function updatePublicPlayerTag(userId: string): void {
   updateTag(publicPlayerTag(userId));
   updatePublicHomeTag();
-  updatePublicStatsTag();
+  updatePublicStatsTag("identity");
 }
 
 /** Includes removals and identity corrections; never serve a stale statistical attribution. */
-export function updatePublicStatsTag(): void {
-  updateTag(PUBLIC_STATS_TAG);
+export function updatePublicStatsTag(reason: StatsInvalidationReason = "season_or_other"): void {
+  recordStatsInvalidation(reason, "attempted");
+  try { updateTag(PUBLIC_STATS_TAG); recordStatsInvalidation(reason, "completed"); }
+  catch (error) { recordStatsInvalidation(reason, "failed"); throw error; }
 }
 
 /** Route/webhook equivalent of updateTag, which is only legal inside Server Actions. */
-export function revalidatePublicStatsTag(): void {
-  revalidateTag(PUBLIC_STATS_TAG, { expire: 0 });
+export function revalidatePublicStatsTag(reason: StatsInvalidationReason = "season_or_other"): void {
+  recordStatsInvalidation(reason, "attempted");
+  try { revalidateTag(PUBLIC_STATS_TAG, { expire: 0 }); recordStatsInvalidation(reason, "completed"); }
+  catch (error) { recordStatsInvalidation(reason, "failed"); throw error; }
 }
 
 export function revalidateSeasonPaths(
@@ -146,6 +151,7 @@ export function revalidateVetoRoomPaths(
     && Array.isArray(facts) && facts.length > 0 && facts.every(fact => ["lineups", "appeals", "veto_step"].includes(fact));
   revalidateMatchPaths(context.slug, context.matchId, {
     mode: options.mode,
+    statisticsReason: options.statisticsReason ?? "veto",
     // statistics:true is the explicit emergency fallback; never bypass unknown facts.
     statistics: !nonHistorical || options.statistics === true,
   });

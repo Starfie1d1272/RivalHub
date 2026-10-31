@@ -1,5 +1,6 @@
 import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { observePublicStatsFill } from "@/lib/stats/public-fill";
+import { observeStatsCacheFill, recordStatsCache } from "@/lib/observability/read-budget";
 import { preservePublicStatsDependencyFailure } from "./availability";
 import "server-only";
 import { cache } from "react";
@@ -37,7 +38,7 @@ async function cachedPlatformStats(scope: PlatformStatsScope, versions: string) 
   cacheTag(PUBLIC_STATS_TAG);
   cacheLife({ stale: 60, revalidate: 3600, expire: 86400 });
   void versions;
-  return observePublicStatsFill("stats.platform", () => preservePublicStatsDependencyFailure(() => getTournamentStats(scope)));
+  return observeStatsCacheFill("platform", () => observePublicStatsFill("stats.platform", () => preservePublicStatsDependencyFailure(() => getTournamentStats(scope))));
 }
 export async function getPlatformStatsPage(raw: StatsSearch) {
   return withDbTrafficSource("stats.platform.page", async () => {
@@ -72,6 +73,7 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
   const scope: PlatformStatsScope = { publicOnly: true, view: query.tab, mapDetail: Boolean(query.map), seasonId: event?.id, seasonIds: ids, stage: query.stage || undefined,
     format: query.format || undefined, mapFilter: query.map || query.mapFilter || undefined, weaponTeamId: query.tab === "weapons" ? query.teamFilter || undefined : undefined };
   // Entity filtering is presentation only: qualification/Insights use the full scoped population.
+  recordStatsCache("platform", "readCalls");
   let data = await cachedPlatformStats(scope, `${STATISTICS_PROJECTION_VERSION}:insights/${INSIGHT_RULES_VERSION}`);
   const requestedPage = raw.recordPage;
   if (requestedPage !== undefined) {

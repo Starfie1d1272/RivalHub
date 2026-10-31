@@ -33,7 +33,7 @@ export async function POST(request: Request): Promise<Response> {
     // A newer needs_attention import also changes which lineage is current and
     // can remove an older confirmed sample from public statistics.
     diagnostics.phase = "revalidation";
-    revalidatePublicStatsTag();
+    revalidatePublicStatsTag("dak.evidence");
     return integrationJson(request, result);
   });
 }

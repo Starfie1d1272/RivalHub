@@ -6,7 +6,7 @@ import { withoutObservabilityContext } from "./context";
 import { databaseRuntimeSlot } from "@/db/runtime-owner";
 import { logEvent } from "./logger";
 import { getCgroupMemorySnapshot } from "./runtime-cgroup";
-import { getReadBudgetSnapshot } from "./read-budget";
+import { getReadBudgetSnapshot, getStatsReadCounters } from "./read-budget";
 import { flushDbTraffic } from "./db-traffic";
 import { getRuntimeResourceSnapshot } from "./runtime-resources";
 
@@ -78,6 +78,7 @@ export function startRuntimeHealthSampling(): () => void {
   const onTerminate = () => { try { flushDbTraffic(); } catch { /* Never prevent shutdown. */ } };
   const observesTermination = process.listenerCount("SIGTERM") > 0;
   if (observesTermination) process.on("SIGTERM", onTerminate);
+  const lastStatsCounters = new Map<string, number>();
   const timer = setInterval(() => {
     try {
       withoutObservabilityContext(() => {
@@ -96,6 +97,11 @@ export function startRuntimeHealthSampling(): () => void {
         logEvent({ event: "runtime.cgroup.sample", scope: "runtime", operation: "health.sample",
           safeContext: getCgroupMemorySnapshot() });
         const budget = getReadBudgetSnapshot();
+        for (const { operation, count } of getStatsReadCounters()) {
+          if (lastStatsCounters.get(operation) === count) continue;
+          logEvent({ event: "runtime.read.sample", scope: "runtime", operation, safeContext: { count } });
+          lastStatsCounters.set(operation, count);
+        }
         for (const { family, ...value } of budget.mizar) {
           if (value.requests || value.fullBuilds) logEvent({ event: "runtime.read.sample", scope: "runtime",
             operation: `mizar.${family}`, safeContext: value });

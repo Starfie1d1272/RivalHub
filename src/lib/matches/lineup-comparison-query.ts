@@ -1,4 +1,5 @@
 import { observePublicStatsFill } from "@/lib/stats/public-fill";
+import { observeStatsCacheFill, recordStatsCache } from "@/lib/observability/read-budget";
 import "server-only";
 
 import { cacheLife, cacheTag } from "next/cache";
@@ -41,10 +42,11 @@ async function getLineupPopulation(matchId: string, cutoff: string | null) {
   cacheLife(cutoff
     ? { stale: 60, revalidate: 3600, expire: 86400 }
     : { stale: 60, revalidate: 60, expire: 3600 });
-  return observePublicStatsFill("stats.lineup", () => loadLineupPopulation(matchId, cutoff ? new Date(cutoff) : new Date()));
+  return observeStatsCacheFill(cutoff ? "lineup.historical" : "lineup.realtime", () => observePublicStatsFill("stats.lineup", () => loadLineupPopulation(matchId, cutoff ? new Date(cutoff) : new Date())));
 }
 
 export async function getLineupCareers(playerIds: string[], matchId: string, cutoff: string | null) {
   if (!playerIds.length) return [];
+  recordStatsCache(cutoff ? "lineup.historical" : "lineup.realtime", "readCalls");
   return projectLineupCareers(await getLineupPopulation(matchId, cutoff), playerIds);
 }
