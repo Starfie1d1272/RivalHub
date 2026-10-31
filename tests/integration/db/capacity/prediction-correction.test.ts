@@ -3,6 +3,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { and, eq, sql } from "drizzle-orm";
 import { expect, it } from "vitest";
 import * as schema from "@/db/schema";
+import { applyResultCorrectionInTx, planResultCorrectionInTx } from "@/lib/match-corrections/service";
 import { finalizeMajorSwissRoundInTransaction } from "@/lib/major/swiss-runtime";
 import { balanceOf, lockPredictionProgram, openPredictionMarketInTx, reconcilePredictionProgram, stakeInTx } from "@/lib/predictions/service";
 import { predictionCapacityFixture } from "./prediction-fixture";
@@ -23,12 +24,15 @@ it("reconciles a score correction before a queued late stake", async () => {
     const balance = (id: string) => f.db.transaction(tx => balanceOf(tx, account(id).id));
     expect(await balance(f.userId)).toBe(BigInt(1100));
     expect(await balance(f.otherId)).toBe(BigInt(900));
+    const correctionInput = { matchId: f.matchIds[0]!, proposal: { scoreA: 0, scoreB: 1 }, actorId: "test", confirmRecovery: true };
+    const plan = await f.db.transaction(tx => planResultCorrectionInTx(tx, correctionInput));
+    expect(plan.winnerChanges).toBe(true);
     let release!: () => void; let ready!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
     const locked = new Promise<void>(resolve => { ready = resolve; });
     const correction = f.db.transaction(async tx => {
       await tx.execute(sql`set local lock_timeout = '2s'`);
-      await tx.update(schema.matches).set({ scoreA: 0, scoreB: 1 }).where(eq(schema.matches.id, f.matchIds[0]!));
+      expect(await applyResultCorrectionInTx(tx, correctionInput)).toMatchObject({ alreadyApplied: false, winnerChanged: true });
       await reconcilePredictionProgram(tx, await lockPredictionProgram(tx, f.seasonId));
       ready(); await gate;
     });
@@ -52,7 +56,14 @@ it("reconciles a score correction before a queued late stake", async () => {
       release(); await correction;
       await expect(late).rejects.toThrow(/关闭|截止|锁定/);
       expect(await balance(f.userId)).toBe(BigInt(900));
+      // Formal recovery rolls the Swiss acceptance cursor back; settlement is
+      // pending until the corrected round is finalized again.
+      expect(await balance(f.otherId)).toBe(BigInt(900));
+      await f.db.transaction(tx => finalizeMajorSwissRoundInTransaction(tx, { seasonId: f.seasonId, stageRunId: f.runId, expectedRound: 1, actorId: "test" }));
+      await reconcile();
       expect(await balance(f.otherId)).toBe(BigInt(1100));
+      expect(await f.db.transaction(tx => applyResultCorrectionInTx(tx, correctionInput))).toMatchObject({ alreadyApplied: true });
+      expect((await f.db.select().from(schema.auditLogs)).filter(row => row.action === "match.result.corrected")).toHaveLength(1);
       await reconcile();
       expect(await balance(f.userId)).toBe(BigInt(900));
       expect(await balance(f.otherId)).toBe(BigInt(1100));
