@@ -55,6 +55,7 @@
     "scripts/release/plan.ts!",
     "scripts/release/linux-routing.ts!",
     "scripts/release/production-deployment.ts!",
+    "scripts/operations/statistics-transport.mjs!",
     "scripts/architecture/check.ts!",
     "scripts/demo-evidence/generate-json-schema.ts!",
     "scripts/db/block-drizzle-push.ts!",
