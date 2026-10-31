@@ -28,4 +28,12 @@ RIVALHUB_DEMO_REVERSE_CAPACITY=1 RIVALHUB_DEMO_REVERSE_REPORT=/tmp/demo.json pnp
 
 审查修复后的完整复跑使用源码 `e720d36f4b386180765c7fd2005dca231968bd5c`；[同账户](recheck-20261031/recheck-all-same.json)、[两账户](recheck-20261031/recheck-all-two.json)、[开赛](recheck-20261031/recheck-start.json)、[墙钟](recheck-20261031/recheck-wall.json)、[更正](recheck-20261031/recheck-correction.json)和 [共享身份](recheck-20261031/recheck-demo.json)均为 1/2/4/8 各三轮，16 首轮达到队列止损并完成清理；分类计数与上表相同。后续仅修复采样连接失效时的报告与读回路径，未改变成功请求的业务操作。
 
-采样失败处理修复后的[更正梯度复验](recheck-20261031/final-correction.json)再次完成 1/2/4/8 各三轮，16 首轮达到队列止损；采样连接失败的异常分支经独立代码审查，未单独注入连接故障。
+采样失败处理修复后的[更正梯度复验](recheck-20261031/final-correction.json)再次完成 1/2/4/8 各三轮，16 首轮达到队列止损。
+
+采样连接故障使用既有 scratch harness 定向验证：真实等待出现后，仅终止监测连接自身的 PostgreSQL backend。两次注入分别使用 `5a54c10985c59d90af1e02c5df4fd93a844b5fd1` 和 `3821d43a31c6298fabc3b15ccc156edbb7e4dad7`，均记录 `sqlstate_57P01`、第 1 档止损、请求已结束且未提交、余额核对和 cleanup；实验命令按设计以非零退出。随后新 scratch 数据库的[正常恢复梯度](recheck-20261031/monitor-recovery.json)完成 1/2/4/8 各三轮，16 首轮队列止损。[首次断连](recheck-20261031/monitor-fault-initial.json)与[最终断连](recheck-20261031/monitor-fault-final.json)保留逐请求及哈希；注入只测一个监测连接断开，不代表整库断连或未知提交恢复。
+
+在上述同一隔离 PG17 环境和精确 SHA 前提下，使用以下命令复现断连；断言失败与非零退出是预期止损，随后检查报告的 `samplingFailure`、`outcomes`、`stopped`、`cleanup`：
+
+```bash
+RIVALHUB_BET_START_CAPACITY=1 RIVALHUB_BET_SAMPLE_DISCONNECT=1 RIVALHUB_BET_START_REPORT=/tmp/monitor-fault.json pnpm test:integration:pg17 tests/integration/db/capacity/bet-boundary.test.ts
+```
