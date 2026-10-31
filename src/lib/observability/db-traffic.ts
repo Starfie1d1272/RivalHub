@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
+import { writeSync } from "node:fs";
 import { Agent, request } from "node:https";
 import type { PoolClient } from "pg";
 import { writeExitCapsule } from "./db-traffic-capsule";
@@ -154,7 +155,7 @@ function armExitCapsule(s: State): void {
         else unknownAt = Math.min(unknownAt ?? now, now);
       }
       if (batches.length || unknownAt !== null) writeExitCapsule(directory, { version: 1, batches, unknownAt });
-    } catch { try { process.stderr.write('{"event":"db_traffic.exit_capsule_failure"}\n'); } catch { /* Exit must continue. */ } }
+    } catch { try { writeSync(2, '{"event":"db_traffic.exit_capsule_failure"}\n'); } catch { /* Exit must continue. */ } }
   });
 }
 

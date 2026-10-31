@@ -293,3 +293,21 @@ it("does not persist an unsafe pending snapshot during process exit", async () =
     expect(JSON.parse(body)).toMatchObject({ batches: [], unknownAt: expect.any(Number) });
   } finally { child.kill("SIGKILL"); await rm(root, { recursive: true, force: true }); }
 }, 15000);
+
+it("reports a failed exit fsync and preserves unknown coverage on restart", async () => {
+  const { spawn } = await import("node:child_process"); const { mkdtemp, rm } = await import("node:fs/promises"); const { tmpdir } = await import("node:os"); const { join } = await import("node:path");
+  const { DbTrafficSpool } = await import("@/lib/observability/db-traffic-spool"); const { DbTrafficDelivery } = await import("@/lib/observability/db-traffic-delivery");
+  const root = await mkdtemp(join(tmpdir(), "traffic-exit-fsync-"));
+  const script = `const fs=require('node:fs'); const { recordDbTraffic, flushDbTraffic }=require('./src/lib/observability/db-traffic.ts');
+    process.env.DB_TRAFFIC_KEY='x'.repeat(32); process.env.PRODUCT_TELEMETRY_ENDPOINT='https://example.invalid/v1/batches'; process.env.DB_TRAFFIC_SPOOL_DIRECTORY=process.argv[1];
+    process.on('SIGTERM',()=>process.exit(143)); flushDbTraffic(); const poll=setInterval(()=>{ const s=process[Symbol.for('rivalhub.db-traffic.v3')]; if (!s?.deliveryStarted || s.sending) return; clearInterval(poll); recordDbTraffic('unknown','unknown',1,1,false); fs.fsyncSync=()=>{throw new Error('fixture EIO')}; process.stdout.write('ready\\n'); },5);`;
+  const child = spawn(process.execPath, ["--import", "tsx", "-e", script, root], { stdio: ["ignore", "pipe", "pipe"] }); let errors = "";
+  child.stderr.on("data", data => { errors += String(data); });
+  try {
+    await new Promise<void>((resolve, reject) => { child.stdout.once("data", () => resolve()); child.once("error", reject); child.once("exit", code => reject(new Error(`child exited ${code}`))); });
+    child.kill("SIGTERM"); await new Promise<void>(resolve => child.once("exit", () => resolve()));
+    expect(errors).toContain('"event":"db_traffic.exit_capsule_failure"');
+    const spool = await DbTrafficSpool.open(root); await new DbTrafficDelivery(spool, { process: crypto.randomUUID(), release: "v", deployment: "d" }).start(Date.now());
+    expect(spool.snapshot().coverageUnknownSince).not.toBeNull(); spool.close();
+  } finally { child.kill("SIGKILL"); await rm(root, { recursive: true, force: true }); }
+}, 15000);
