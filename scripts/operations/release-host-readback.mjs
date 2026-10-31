@@ -50,6 +50,7 @@ function journalSummary() {
   const journal = spawnSync("journalctl", ["--namespace=*", "--unit=rivalhub-production", `--since=${sinceUtc}`, `--until=${untilUtc}`, "--output=cat", "--no-pager", "--grep=mizar\\.(reliable\\.reject|live\\.(outcome_window|stage_window|broadcast_unavailable))"], { encoding: "utf8", timeout: 30000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
   if (journal.error || (journal.status !== 0 && !(journal.status === 1 && !journal.stdout && !journal.stderr))) return result;
   const reliable = new Set(["context_stale", "sequence_stale", "generation_fence", "epoch_fence", "authority_changed", "idempotency_conflict", "invalid_schema", "auth_failed", "other"]);
+  const phases = new Set(["auth", "read", "validate", "domain", "revalidation"]);
   const outcomes = new Set(["accepted", "frame_expired", "contended", "delivery_dropped", "broadcast_unavailable", "rejected", "error"]);
   const stages = new Set(["received", "admitted", "authorized", "send_success", "expired", "capacity", "contended", "unknown_send"]);
   const counts = new Map();
@@ -68,11 +69,12 @@ function journalSummary() {
     const context = entry.safeContext ?? {};
     if (entry.event === "mizar.live.broadcast_unavailable") { add(entry.event, null, "records", 1); continue; }
     if (entry.event === "mizar.reliable.reject") {
-      const reason = reliable.has(context.reason) ? context.reason : "other";
-      if (Number.isSafeInteger(context.firstAt) && Number.isSafeInteger(context.lastAt) && Number.isSafeInteger(context.count) && context.count > 1) {
+      if (!reliable.has(context.reason)) { incomplete = true; continue; }
+      const reason = context.reason;
+      if (Number.isSafeInteger(context.firstAt) && context.firstAt >= 0 && Number.isSafeInteger(context.lastAt) && context.lastAt >= context.firstAt && Number.isSafeInteger(context.count) && context.count > 1) {
         add(entry.event, reason, "window_records", 1);
         add(entry.event, reason, "window_reported_count", context.count);
-      } else if (context.count === 1 && typeof context.phase === "string") add(entry.event, reason, "first_records", 1);
+      } else if (context.count === 1 && phases.has(context.phase)) add(entry.event, reason, "first_records", 1);
       else incomplete = true;
       continue;
     }
