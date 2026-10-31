@@ -16,6 +16,7 @@ import {
 } from "@/lib/competition-qualification/history";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { officialWinner } from "./baseline";
+import { predictionMatchSelection, type PredictionMatch } from "./match-selection";
 import {
   SIMULATION_VERSION,
   type Baseline,
@@ -26,7 +27,7 @@ export async function loadQualificationRead(
   tx: TxDb,
   seasonId: string,
   name: string,
-): Promise<{context:QualificationShortSwissContext|null;official:(typeof matches.$inferSelect)[]}> {
+): Promise<{context:QualificationShortSwissContext|null;official:PredictionMatch[]}> {
   const [run] = await tx
     .select()
     .from(competitionQualificationRuns)
@@ -39,7 +40,7 @@ export async function loadQualificationRead(
     .orderBy(asc(competitionQualificationEntrants.preliminarySeed));
   assertRunSnapshot(run, entrants);
   const rawOfficial = await tx
-    .select()
+    .select(predictionMatchSelection)
     .from(matches)
     .where(eq(matches.qualificationRunId, run.id))
     .orderBy(asc(matches.round), asc(matches.id));
