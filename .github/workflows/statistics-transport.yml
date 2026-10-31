@@ -1,0 +1,106 @@
+name: Statistics transport backfill
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Read-only dry run or bounded apply"
+        type: choice
+        options: [dry, apply]
+        default: dry
+        required: true
+      limit:
+        description: "Maximum candidates (dry ≤500, apply ≤150)"
+        type: string
+        default: "150"
+        required: true
+      cursor:
+        description: "Previous successful cursor; leave blank for the first batch"
+        type: string
+        required: false
+
+concurrency:
+  group: rivalhub-release-lineage
+  queue: max
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    env:
+      INPUT_MODE: ${{ inputs.mode }}
+      INPUT_LIMIT: ${{ inputs.limit }}
+      INPUT_CURSOR: ${{ inputs.cursor }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify dispatch source
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          git fetch origin main --tags
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+      - uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          cache: true
+          require-lockfile: true
+      - name: Read production identity for CI evidence
+        id: production
+        run: node scripts/operations/statistics-transport.mjs identify
+      - name: Verify operator exact-SHA main push CI
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ steps.production.outputs.release_tag }}
+        run: pnpm release:ci-prerequisite
+
+  backfill:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 10
+    concurrency:
+      group: rivalhub-production-state-serialization
+      queue: max
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    env:
+      INPUT_MODE: ${{ inputs.mode }}
+      INPUT_LIMIT: ${{ inputs.limit }}
+      INPUT_CURSOR: ${{ inputs.cursor }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fetch canonical tags and verify operator
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          git fetch origin main --tags
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+      - uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          cache: true
+          require-lockfile: true
+      - name: Freeze production identity and source
+        id: production
+        run: node scripts/operations/statistics-transport.mjs prepare
+      - name: Install deployed source dependencies
+        run: pnpm --dir "$RUNNER_TEMP/statistics-transport-production" install --frozen-lockfile
+      - name: Recheck production and run one bounded batch
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FROZEN_RELEASE_TAG: ${{ steps.production.outputs.release_tag }}
+          FROZEN_RELEASE_SHA: ${{ steps.production.outputs.release_sha }}
+        run: node scripts/operations/statistics-transport.mjs run

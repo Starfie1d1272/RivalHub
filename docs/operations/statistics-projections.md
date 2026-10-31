@@ -145,3 +145,29 @@ Required scenarios:
   require real PostgreSQL evidence; unit mocks are not a substitute.
 
 Do not claim production egress reduction from local tests or a warm process alone.
+
+## Protected transport backfill runner
+
+The manually dispatched `Statistics transport backfill` workflow runs one bounded
+batch under the production environment and release-lineage then production-state
+locks. Dispatch only from current `main` with successful exact-SHA main push CI;
+the runner verifies the canonical deployed tag/commit, checks out that commit in a
+separate worktree, installs its frozen dependencies and rechecks production identity
+before invoking the existing protected wrapper. The database secret is available
+only to the execution step. No host CLI or SSH access is required.
+
+Choose `dry` or `apply`, a positive `limit` (at most 500 for dry and 150 for apply),
+and an optional cursor. Start the first dry and first apply with an empty cursor:
+a dry-run cursor must never be used as the first apply cursor. Resume each partial
+apply with its last successful apply `nextCursor`; if that is null while incomplete,
+retain the input cursor as `resumeCursor`. `complete=false` is partial. An invalid
+sidecar stops the run; investigate it rather than skipping or overwriting it. If a
+run fails without a report, repeat from the last saved cursor. Each map commits
+independently, so already committed maps are revalidated on retry.
+
+The dry run reports sidecar presence and sizes without decoding; apply validates
+existing sidecars. `scanned` counts maps; apply `encoded`, `already` and
+`legacy_retained` count projection versions. Dry and apply byte figures use different
+representations and are not wire or billing measurements. Reverting to a legacy
+application does not require deleting the optional sidecar or the complete legacy
+performance facts.

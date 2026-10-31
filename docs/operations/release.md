@@ -131,3 +131,11 @@ PostgreSQL TLS contract 由 `src/db/postgres-connection.ts` 统一维护，详�
 - 需要 production acceptance 的 Issue 具备真实 evidence 后再关闭。
 
 Production destructive restore、provider cutover、incident freeze 和 Issue close 不是普通 release retry 的隐含副作用；必须满足各自明确授权与独立证据门槛。
+
+### Statistics transport backfill
+
+After a compatible release is serving Production, the separate manually dispatched
+`Statistics transport backfill` workflow performs a bounded batch using the existing
+production environment and protected database wrapper. It does not trigger a release.
+See [statistics-projections.md](statistics-projections.md#protected-transport-backfill-runner)
+for dispatch inputs, cursor recovery, verification limits and rollback semantics.
