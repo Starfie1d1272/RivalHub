@@ -330,6 +330,14 @@ it("quarantines unsafe relationships without poisoning later batches and detects
     const withGap = await db.prepare("SELECT payload FROM db_traffic_quality_hours").first<{ payload: string }>();
     expect(JSON.parse(withGap!.payload).scopes[0]).toMatchObject({ lostBatches: 1, lostBytes: 42 });
     expect(await db.prepare("SELECT batches FROM db_traffic_usage").first()).toEqual({ batches: 13 });
+    const agedAt = Date.now() - 2 * 86400000;
+    const aged = { ...gap, id: crypto.randomUUID(), reportedAt: agedAt, start: agedAt, end: agedAt };
+    const sendAged = (value: unknown) => mf.dispatchFetch("https://worker.invalid/v1/db-traffic-gap", { method: "POST", headers: { authorization: `Bearer ${bindings.DB_TRAFFIC_KEY}`, "x-db-traffic-protocol": "2" }, body: JSON.stringify(value) });
+    expect((await sendAged(aged)).status).toBe(200); expect((await sendAged(aged)).status).toBe(200);
+    expect(await db.prepare("SELECT count(*) AS n FROM db_traffic_receipts WHERE id=?").bind(aged.id).first()).toEqual({ n: 1 });
+    expect(await db.prepare("SELECT batches FROM db_traffic_usage").first()).toEqual({ batches: 14 });
+    expect((await sendAged({ ...aged, id: crypto.randomUUID(), start: Date.now() - 8 * 86400000 })).status).toBe(410);
+    expect((await send({ ...base, id: crypto.randomUUID(), at: Date.now() - 2 * 86400000 })).status).toBe(410);
     await db.prepare("UPDATE db_traffic_usage SET batches=5000").run();
     expect((await send(bad)).status).toBe(200);
     const limited = await send({ ...base, id: crypto.randomUUID() });

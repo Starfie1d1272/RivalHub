@@ -105,9 +105,14 @@ it("conserves received protocol bytes across owners, errors, timeouts and a spli
     try { await withDbTrafficSource("dak", () => first.query("select repeat('z', 5000) as split_value")); }
     finally { socket.emit = originalEmit; }
     expect(split).toBe(true);
-    // A pending asynchronous send may need another sampler tick to advance FIFO.
-    for (let i = 0; i < 4; i++) { flushDbTraffic(); await new Promise(resolve => setImmediate(resolve)); }
-    await vi.waitFor(() => expect(sent.length).toBeGreaterThanOrEqual(3));
+    // Residual traffic is sealed on a subsequent sampler tick, after the
+    // previous asynchronous seal and send have completed.
+    const trafficState = () => (process as unknown as Record<symbol, { sending: boolean }>)[Symbol.for("rivalhub.db-traffic.v3")];
+    await vi.waitFor(() => expect(trafficState().sending).toBe(false), { timeout: 10000 });
+    flushDbTraffic();
+    await vi.waitFor(() => expect(trafficState().sending).toBe(false), { timeout: 10000 });
+    flushDbTraffic();
+    await vi.waitFor(() => expect(sent.length).toBeGreaterThanOrEqual(3), { timeout: 10000 });
     clock.mockRestore();
     const splitBatches = sent.slice(1);
     const splitBytes = raw - beforeSplit;

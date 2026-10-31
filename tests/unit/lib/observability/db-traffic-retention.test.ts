@@ -59,7 +59,9 @@ it("freezes replacement while seal is pending and retries the identical body bef
   expect(state().rows.get(`dak:overflow`)?.rxBytes).toBe(1000); expect(state().rows.has(`dak:${shape(50)}`)).toBe(false);
   expect(state().sealing!.body).toBe(original); release(); await vi.waitFor(() => expect(state().sending).toBe(false));
   expect(state().sealing!.body).toBe(original); expect(state().receivedBytes).toBe(1043);
-  state().diskNextAttemptAt = 0; flushDbTraffic(); await vi.waitFor(() => expect(seal.mock.calls.length).toBeGreaterThanOrEqual(3));
+  state().diskNextAttemptAt = 0; flushDbTraffic(); await vi.waitFor(() => expect(seal).toHaveBeenCalledTimes(2));
+  await vi.waitFor(() => expect(state().sending).toBe(false));
+  flushDbTraffic(); await vi.waitFor(() => expect(seal).toHaveBeenCalledTimes(3));
   expect(bodies[1]).toBe(original); expect(await digestDbTraffic(JSON.parse(bodies[1]))).toBe(digest);
   await vi.waitFor(() => expect(state().sending).toBe(false));
   const all = bodies.map(body => JSON.parse(body));
