@@ -1,6 +1,8 @@
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { isCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
+import { createHash } from "node:crypto";
+import { getPerformanceText, putPerformanceText } from "./performance-text-cache";
 
 import { and, asc, count, desc, eq, inArray, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { buildTournamentAnalytics, buildTournamentPerformanceAnalyticsFromProjections as buildTournamentPerformanceAnalytics, remapTournamentPerformanceMapProjection, scopeTournamentPerformanceMapProjectionToTeam } from "@cs2dak/tournament";
@@ -138,11 +140,12 @@ async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { 
 }
 
 /** Select valid materialized bindings without transferring statistics or Evidence. */
-async function loadCurrentProjectionRefs(tx: TxDb, context: Awaited<ReturnType<typeof loadStatsContext>>) {
+async function loadCurrentProjectionRefs(tx: TxDb, context: Awaited<ReturnType<typeof loadStatsContext>>, includePerformanceHash = false) {
   const ids = context.currentRefs.map(({ current }) => current.id);
   const rows = ids.length ? await tx.select({
     importId: matchDemoStatProjections.importId,
     identityBindings: matchDemoStatProjections.identityBindings,
+    ...(includePerformanceHash ? { performanceHash: sql<string>`encode(sha256(convert_to((${performanceTransportSelection})::text, 'UTF8')), 'hex')` } : {}),
     metadataMatches: sql<boolean>`
       ${matchDemoStatProjections.payloadSha256} COLLATE "C" = ${matchDemoImports.payloadSha256} COLLATE "C"
       AND ${matchDemoStatProjections.demoSha256} COLLATE "C" = ${matchDemoImports.demoSha256} COLLATE "C"
@@ -190,7 +193,7 @@ export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: { seasonId?:
 async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean; reuseVetoMatches?: boolean } = {}) {
   if (!scope.view) return loadStatsEvidenceSelection(tx, scope, options,
     sql<typeof matchDemoStatProjections.$inferSelect.facts>`jsonb_build_object(
-      'records', (${matchDemoStatProjections.facts}->'records') - 'events') || ${tournamentTransportSelection} || ${performanceTransportSelection}`);
+      'records', (${matchDemoStatProjections.facts}->'records') - 'events') || ${tournamentTransportSelection}`, true);
   const needsTournament = ["overview", "teams", "maps"].includes(scope.view);
   const needsPerformance = scope.view !== "records" && (scope.view !== "maps" || scope.mapDetail);
   // DAK owns its opaque performance accumulator. Select it verbatim whenever
@@ -199,16 +202,16 @@ async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: {
     'mapKey', ${matchDemoStatProjections.facts}->'tournament'->'mapKey',
     'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey',
     'mapName', ${matchDemoStatProjections.facts}->'tournament'->'mapName'))`;
-  const performance = needsPerformance ? performanceTransportSelection : sql`jsonb_build_object('performance', jsonb_build_object(
+  const performance = needsPerformance ? sql`'{}'::jsonb` : sql`jsonb_build_object('performance', jsonb_build_object(
     'mapKey', ${matchDemoStatProjections.facts}->'performance'->'mapKey',
     'matchKey', ${matchDemoStatProjections.facts}->'performance'->'matchKey'))`;
   return loadStatsEvidenceSelection(tx, scope, options, sql<typeof matchDemoStatProjections.$inferSelect.facts>`jsonb_build_object(
-    'records', ${scope.view === "records" ? sql`(${matchDemoStatProjections.facts}->'records') - 'events'` : sql`NULL`}) || ${tournament} || ${performance}`);
+    'records', ${scope.view === "records" ? sql`(${matchDemoStatProjections.facts}->'records') - 'events'` : sql`NULL`}) || ${tournament} || ${performance}`, needsPerformance);
 }
 
 /** Team/map details consume both analytics owners, but never record candidates. */
 async function loadStatsDetailEvidence(tx: TxDb, scope: StatsEvidenceScope, options: Parameters<typeof loadStatsContext>[2] = {}) {
-  return loadStatsEvidenceSelection(tx, scope, options, sql<Pick<typeof matchDemoStatProjections.$inferSelect.facts, "tournament" | "performance">>`${tournamentTransportSelection} || ${performanceTransportSelection}`);
+  return loadStatsEvidenceSelection(tx, scope, options, sql<Pick<typeof matchDemoStatProjections.$inferSelect.facts, "tournament" | "performance">>`${tournamentTransportSelection}`, true);
 }
 
 type PlayerDetailFacts = {
@@ -226,15 +229,37 @@ async function loadStatsEvidenceSelection<T extends ProjectionTargets>(
   scope: StatsEvidenceScope,
   options: Parameters<typeof loadStatsContext>[2],
   factsSelection: SQL<T>,
+  includePerformance = false,
 ) {
   const context = await loadStatsContext(tx, scope, options);
-  const refs = await loadCurrentProjectionRefs(tx, context);
+  const refs = await loadCurrentProjectionRefs(tx, context, includePerformance);
   const importIds = refs.map(({ current }) => current.id);
   const rows = importIds.length ? await tx.select({ importId: matchDemoStatProjections.importId, facts: factsSelection })
     .from(matchDemoStatProjections).where(and(inArray(matchDemoStatProjections.importId, importIds), eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION))) : [];
   const factsByImport = new Map(rows.map((row) => [row.importId, row.facts]));
+  const performanceTexts = new Map<string, { text: string; key: string; cached: boolean }>();
+  if (includePerformance) {
+    const missing: string[] = [];
+    for (const { current, projection } of refs) {
+      const key = `performance-text-v1:${STATISTICS_PROJECTION_VERSION}:${current.id}:${projection.performanceHash}`;
+      const text = getPerformanceText(key);
+      if (text === undefined) missing.push(current.id);
+      else performanceTexts.set(current.id, { text, key, cached: true });
+    }
+    const texts = missing.length ? await tx.select({ importId: matchDemoStatProjections.importId,
+      text: sql<string>`(${performanceTransportSelection})::text`,
+    }).from(matchDemoStatProjections).where(and(inArray(matchDemoStatProjections.importId, missing),
+      eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION))) : [];
+    const refsById = new Map(refs.map((ref) => [ref.current.id, ref]));
+    for (const { importId, text } of texts) {
+      const ref = refsById.get(importId)!;
+      const key = `performance-text-v1:${STATISTICS_PROJECTION_VERSION}:${importId}:${ref.projection.performanceHash}`;
+      performanceTexts.set(importId, { text, key, cached: false });
+    }
+  }
   const selected: Array<{ importId: string; facts: T }> = [];
-  for (const { current, map, match } of refs) {
+  const verifiedTexts: Array<{ key: string; text: string }> = [];
+  for (const { current, map, match, projection } of refs) {
     let facts = factsByImport.get(current.id);
     if (facts && Object.hasOwn(facts, "tournamentTransport")) {
       if (facts.tournament.mapKey !== map.id || facts.tournament.matchKey !== match.id) {
@@ -244,6 +269,13 @@ async function loadStatsEvidenceSelection<T extends ProjectionTargets>(
       if (tournament.mapKey !== map.id || tournament.matchKey !== match.id || tournament.mapName !== map.mapName ||
         tournament.semanticProfile !== current.semanticProfile || tournament.analysisVersion !== current.analysisVersion) throw new ProjectionTransportIntegrityError();
       facts = { ...facts, tournament };
+    }
+    const performanceText = includePerformance ? performanceTexts.get(current.id) : undefined;
+    if (includePerformance && facts) {
+      if (!performanceText || (!performanceText.cached && createHash("sha256").update(performanceText.text, "utf8").digest("hex") !== projection.performanceHash)) {
+        throw new ProjectionTransportIntegrityError();
+      }
+      facts = { ...facts, ...JSON.parse(performanceText.text) };
     }
     if (facts && Object.hasOwn(facts, "performanceTransport")) {
       const performance = await decodePerformanceTransport((facts as T & { performanceTransport: unknown }).performanceTransport);
@@ -255,6 +287,7 @@ async function loadStatsEvidenceSelection<T extends ProjectionTargets>(
       || facts.tournament.matchKey !== match.id || facts.performance.matchKey !== match.id) {
       throw new Error("Statistics projection target mismatch");
     }
+    if (performanceText && !performanceText.cached) verifiedTexts.push(performanceText);
     selected.push({ importId: current.id, facts });
   }
   const userIds = [...new Set(refs.flatMap(({ projection }) => projection.identityBindings.map((binding) => binding.userId)))];
@@ -264,6 +297,7 @@ async function loadStatsEvidenceSelection<T extends ProjectionTargets>(
     teams: Object.fromEntries(context.entries.map((entry) => [entry.id, entry.name])),
     players: Object.fromEntries(identities.map((user) => [user.id, getPublicDisplayName(user)])),
   };
+  for (const { key, text } of verifiedTexts) putPerformanceText(key, text);
   return { ...context, selected, labels };
 }
 
@@ -717,7 +751,7 @@ async function loadTournamentPlayerSnapshot(
       'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey',
       'mapName', ${matchDemoStatProjections.facts}->'tournament'->'mapName'
     )
-  ) || ${performanceTransportSelection}`);
+  )`, true);
   const { scoreboard, scoreboardMaps } = await getPlayerStatsScoreboards(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, requireCurrentImports: options.requireCurrentImports, includeTestMatch: options.includeTestMatch });
   const record = await getPublicPlayerRecord(scope.playerId, { seasonId: scope.seasonId, matchIds, database: tx });
   const [mvpRow] = matchIds.length ? await tx.select({ count: count() }).from(matches).where(and(officialMatchCondition(),
@@ -771,7 +805,7 @@ async function loadPerformanceEvidence(tx: TxDb, scope: PlatformStatsScope) {
         'mapKey', ${matchDemoStatProjections.facts}->'tournament'->'mapKey',
         'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey'
       )
-    ) || ${performanceTransportSelection}`);
+    )`, true);
 }
 
 export async function getTournamentPerformancePlayers(scope: TournamentStatsScope, database: DB = db) {
@@ -834,7 +868,7 @@ export async function getMatchMvpSummary(matchId: string, playerId: string, data
         'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey',
         'mapName', ${matchDemoStatProjections.facts}->'tournament'->'mapName'
       )
-    ) || ${performanceTransportSelection}`);
+    )`, true);
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
   if (!loaded) return null;
   const player = buildTournamentPerformanceAnalytics(loaded.selected.map(row => row.facts.performance), { labels: loaded.labels })
@@ -884,7 +918,7 @@ export async function getPlayerCareerPerformances(playerIds: readonly string[], 
         'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey',
         'mapName', ${matchDemoStatProjections.facts}->'tournament'->'mapName'
       )
-    ) || ${performanceTransportSelection}`);
+    )`, true);
     return { scopes, loaded };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
   return [...scopes].map(([playerId, scope]) => {
