@@ -128,6 +128,9 @@ function armExitCapsule(s: State): void {
     const directory = process.env.DB_TRAFFIC_SPOOL_DIRECTORY;
     if (!current?.exitCapsuleArmed || !directory || !dbTrafficEnabled()) return;
     try {
+      // Pending driver frames have already contributed to receivedBytes. Move
+      // their observed prefix to partial before capturing the residual batch.
+      for (const client of current.clients) settlePgTraffic(client);
       const now = Date.now(); const sealing = current.sealing; const batches: string[] = [];
       let unknownAt = current.coverageUnknownSince ?? null;
       if (sealing) {

@@ -12,7 +12,9 @@ fs.open = async (...args) => {
   return file;
 };
 const { startServer } = require(process.cwd() + '/node_modules/next/dist/server/lib/start-server');
-const { recordDbTraffic, flushDbTraffic } = require(process.cwd() + '/src/lib/observability/db-traffic.ts');
+const { recordDbTraffic, flushDbTraffic, observeDbStream } = require(process.cwd() + '/src/lib/observability/db-traffic.ts');
+const { preparePgTraffic } = require(process.cwd() + '/src/lib/observability/pg-traffic-adapter.ts');
+const { EventEmitter } = require('node:events');
 process.env.NODE_ENV = 'production';
 process.env.RIVALHUB_RUNTIME_HEALTH_ENABLED = '0';
 process.env.DB_TRAFFIC_KEY = 'x'.repeat(32);
@@ -26,11 +28,19 @@ global.fetch = () => new Promise(() => {});
     const state = process[Symbol.for('rivalhub.db-traffic.v3')];
     if (!state?.deliveryStarted || state.sending) return;
     clearInterval(startup);
-    blockNextSync = process.argv[3] === 'sync';
+    const addPartial = () => {
+      const stream = new EventEmitter();
+      const connection = Object.assign(new EventEmitter(), { attachListeners() {} });
+      const client = Object.assign(new EventEmitter(), { connection, _activeQuery: null, _queryQueue: [], _sentQueryQueue: [] });
+      preparePgTraffic(client); connection.attachListeners(stream); observeDbStream(client);
+      stream.emit('data', Buffer.alloc(3));
+    };
+    if (process.argv[3] === 'partial') { addPartial(); process.stdout.write('CAPSULE_READY\n'); return; }
+    blockNextSync = process.argv[3] === 'sync' || process.argv[3] === 'partial-sync';
     recordDbTraffic('unknown', 'unknown', 2, 1, false); flushDbTraffic();
     const pending = setInterval(() => {
-      if (process.argv[3] === 'sync' ? !state.sealing || blockNextSync : !state.sending || state.sealing) return;
-      clearInterval(pending); recordDbTraffic('unknown', 'unknown', 3, 1, false); process.stdout.write('CAPSULE_READY\n');
+      if (process.argv[3] === 'sync' || process.argv[3] === 'partial-sync' ? !state.sealing || blockNextSync : !state.sending || state.sealing) return;
+      clearInterval(pending); if (process.argv[3] === 'partial-sync') addPartial(); else recordDbTraffic('unknown', 'unknown', 3, 1, false); process.stdout.write('CAPSULE_READY\n');
     }, 5);
   }, 5);
 })().catch(error => { console.error(error); process.exit(1); });
