@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "../../src/db/schema";
-import { backfillStatisticsProjections, inspectStatisticsProjectionCoverage } from "../../src/lib/stats/projection-backfill";
+import { backfillStatisticsProjections, backfillStatisticsTransport, inspectStatisticsProjectionCoverage } from "../../src/lib/stats/projection-backfill";
 import { assertLocalDatabaseUrl } from "./local-environment";
 
 export const STATS_PROJECTION_WRITE_CONFIRMATION = "I_UNDERSTAND_STATS_PROJECTION_WRITE";
@@ -13,17 +13,19 @@ export function parseStatsProjectionArguments(argv: readonly string[]) {
   const args = [...argv];
   while (args[0] === "--") args.shift();
   const mode = args.shift();
-  if (mode !== "backfill" && mode !== "coverage") throw new Error("用法：stats-projections.ts backfill [--apply] [--limit N] | coverage");
+  if (mode !== "backfill" && mode !== "transport-backfill" && mode !== "coverage") throw new Error("用法：stats-projections.ts backfill [--apply] [--limit N] | transport-backfill [--apply] [--limit N] [--cursor CURSOR] | coverage");
   const coverageOptions: { scanLimit?: number; batchSize?: number; maxDurationMs?: number } = {};
   let apply = false;
   let limit: number | undefined;
+  let cursor: string | undefined;
   for (let index = 0; index < args.length; index++) {
-    if (mode === "backfill" && args[index] === "--apply") { apply = true; continue; }
-    if (mode === "backfill" && args[index] === "--limit") {
+    if (mode !== "coverage" && args[index] === "--apply") { apply = true; continue; }
+    if (mode !== "coverage" && args[index] === "--limit") {
       limit = Number(args[++index]);
       if (!Number.isSafeInteger(limit) || limit < 1) throw new Error("--limit 必须是正整数。");
       continue;
     }
+    if (mode === "transport-backfill" && args[index] === "--cursor" && args[index + 1]) { cursor = args[++index]; continue; }
     const coverageFlags = { "--scan-limit": "scanLimit", "--batch-size": "batchSize", "--max-duration-ms": "maxDurationMs" } as const;
     const flag = args[index] as keyof typeof coverageFlags;
     if (mode === "coverage" && Object.hasOwn(coverageFlags, flag)) {
@@ -34,7 +36,7 @@ export function parseStatsProjectionArguments(argv: readonly string[]) {
     }
     throw new Error(`无效的统计投影参数：${args[index]}`);
   }
-  return { mode, apply, limit, ...(Object.keys(coverageOptions).length ? { coverageOptions } : {}) };
+  return { mode, apply, limit, ...(cursor ? { cursor } : {}), ...(Object.keys(coverageOptions).length ? { coverageOptions } : {}) };
 }
 
 export function statsProjectionDatabaseTarget(apply: boolean, env: NodeJS.ProcessEnv = process.env) {
@@ -62,6 +64,10 @@ async function main() {
       const report = await database.transaction((tx) => inspectStatisticsProjectionCoverage(tx, args.coverageOptions), { isolationLevel: "repeatable read", accessMode: "read only" });
       console.log(JSON.stringify({ target, mode: "read-only", ...report }, null, 2));
       if (!report.ready) throw new Error(`统计投影 coverage 未通过：complete=${report.complete}, scanned=${report.scanned}, missing=${report.missing}。旧 Production 保持不变。`);
+    } else if (args.mode === "transport-backfill") {
+      const report = await backfillStatisticsTransport(database, args);
+      console.log(JSON.stringify({ target, mode: args.apply ? "apply" : "dry-run", ...report }, null, 2));
+      if (report.invalid) throw new Error("统计投影传输表示完整性检查失败。");
     } else {
       const report = await backfillStatisticsProjections(database, args);
       console.log(JSON.stringify({ target, mode: args.apply ? "apply" : "dry-run", ...report }, null, 2));

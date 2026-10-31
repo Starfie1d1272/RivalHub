@@ -40,8 +40,9 @@ import { loadLineupCareers, loadLineupPopulation } from "../../../src/lib/matche
 import { partitionRankingPopulation } from "../../../src/lib/stats/ranking";
 import { getStatsLeaderboard } from "../../../src/lib/stats/leaderboard-query";
 import { getVerifiedPlayerStatsBySeason } from "../../../src/lib/stats/public-query";
+import { encodePerformanceTransport } from "../../../src/lib/stats/projection-transport";
 import { PREVIOUS_STATISTICS_PROJECTION_VERSION, STATISTICS_PROJECTION_VERSION } from "../../../src/lib/stats/projection-version";
-import { backfillStatisticsProjectionForMapInTx, inspectStatisticsProjectionCoverage, reconcileMissingStatisticsProjections } from "../../../src/lib/stats/projection-backfill";
+import { backfillStatisticsProjectionForMapInTx, backfillStatisticsTransport, inspectStatisticsProjectionCoverage, reconcileMissingStatisticsProjections } from "../../../src/lib/stats/projection-backfill";
 import { invalidateConfirmedDemoIdentityInTx } from "../../../src/lib/identity/statistics-invalidation";
 import { createLocalPool } from "./harness/database";
 
@@ -480,6 +481,61 @@ describe("DAK evidence submit persistence", () => {
         eq(schema.matchDemoStatProjections.importId, importId), eq(schema.matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION),
       ));
       expect(rebuiltProjection?.facts).toEqual(projectionsAfterPromotion[0]?.facts);
+      // Existing current and previous rows are independently encoded under the
+      // lineage lock; an old writer may legally strip the sidecar again.
+      const previousFacts = legacyProjection!.facts;
+      const previousPerformance = { ...previousFacts.performance, data: { ...previousFacts.performance.data as object, backfillProbe: "previous-only" } };
+      await database.update(schema.matchDemoStatProjections).set({ facts: sql`${schema.matchDemoStatProjections.facts} - 'performanceTransport'` })
+        .where(eq(schema.matchDemoStatProjections.importId, importId));
+      await database.update(schema.matchDemoStatProjections).set({ facts: { ...previousFacts, performance: previousPerformance, performanceTransport: undefined } })
+        .where(and(eq(schema.matchDemoStatProjections.importId, importId), eq(schema.matchDemoStatProjections.projectionVersion, PREVIOUS_STATISTICS_PROJECTION_VERSION)));
+      expect(await backfillStatisticsTransport(database, { apply: false })).toMatchObject({ scanned: 1, legacy_retained: 1, complete: true });
+      expect(await backfillStatisticsTransport(database, { apply: true })).toMatchObject({ scanned: 1, encoded: 2, invalid: 0, complete: true });
+      const transportedRows = await database.select().from(schema.matchDemoStatProjections).where(inArray(schema.matchDemoStatProjections.projectionVersion, [STATISTICS_PROJECTION_VERSION, PREVIOUS_STATISTICS_PROJECTION_VERSION]));
+      const previousTransport = transportedRows.find(row => row.projectionVersion === PREVIOUS_STATISTICS_PROJECTION_VERSION)!;
+      const currentTransport = transportedRows.find(row => row.projectionVersion === STATISTICS_PROJECTION_VERSION)!;
+      expect(previousTransport.facts.performance).toEqual(previousPerformance);
+      expect(previousTransport.facts.performanceTransport).not.toEqual(currentTransport.facts.performanceTransport);
+      expect(await backfillStatisticsTransport(database, { apply: true })).toMatchObject({ already: 2, invalid: 0 });
+      await database.update(schema.matchDemoStatProjections).set({ facts: sql`jsonb_set(${schema.matchDemoStatProjections.facts}, '{performanceTransport}', 'null'::jsonb)` })
+        .where(and(eq(schema.matchDemoStatProjections.importId, importId), eq(schema.matchDemoStatProjections.projectionVersion, PREVIOUS_STATISTICS_PROJECTION_VERSION)));
+      expect(await backfillStatisticsTransport(database, { apply: true })).toMatchObject({ invalid: 1, complete: false });
+      await database.update(schema.matchDemoStatProjections).set({ facts: previousFacts })
+        .where(and(eq(schema.matchDemoStatProjections.importId, importId), eq(schema.matchDemoStatProjections.projectionVersion, PREVIOUS_STATISTICS_PROJECTION_VERSION)));
+      await database.update(schema.matchDemoStatProjections).set({ facts: rebuiltProjection!.facts })
+        .where(and(eq(schema.matchDemoStatProjections.importId, importId), eq(schema.matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION)));
+      // A legacy writer and a correction both hold the canonical lineage lock.
+      // The backfill must wait, then act on the committed facts/target.
+      const holder = await pool.connect();
+      const worker = await pool.connect();
+      const holderDb = drizzle(holder, { schema });
+      const workerDb = drizzle(worker, { schema });
+      const workerPid = (await worker.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0]!.pid;
+      let pendingTransport: Promise<unknown> | undefined;
+      try {
+        for (const scenario of ["legacy-writer", "correction"] as const) {
+          await holder.query("BEGIN");
+          await lockDemoImportLineageInTx(holderDb as unknown as Parameters<typeof lockDemoImportLineageInTx>[0], ids.map);
+          if (scenario === "legacy-writer") await holderDb.update(schema.matchDemoStatProjections)
+            .set({ facts: sql`${schema.matchDemoStatProjections.facts} - 'performanceTransport'` })
+            .where(and(eq(schema.matchDemoStatProjections.importId, importId), eq(schema.matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION)));
+          else await holderDb.update(schema.matchMaps).set({ completedAt: new Date(now.getTime() + 1000) }).where(eq(schema.matchMaps.id, ids.map));
+          const operation = backfillStatisticsTransport(workerDb, { apply: true });
+          pendingTransport = operation;
+          void operation.catch(() => undefined);
+          await waitForAdvisoryWait(client, workerPid);
+          await holder.query("COMMIT");
+          expect(await operation).toMatchObject(scenario === "legacy-writer" ? { encoded: 1, invalid: 0 } : { not_current: 1, invalid: 0 });
+          pendingTransport = undefined;
+          if (scenario === "correction") await database.update(schema.matchMaps).set({ completedAt: now }).where(eq(schema.matchMaps.id, ids.map));
+        }
+      } finally {
+        await holder.query("ROLLBACK").catch(() => {});
+        await pendingTransport?.catch(() => undefined);
+        holder.release(); worker.release();
+      }
+      await database.update(schema.matchDemoStatProjections).set({ facts: rebuiltProjection!.facts })
+        .where(and(eq(schema.matchDemoStatProjections.importId, importId), eq(schema.matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION)));
       await expect(database.transaction(async (tx) => {
         await tx.delete(schema.matchDemoStatProjections).where(eq(schema.matchDemoStatProjections.importId, importId));
         await backfillStatisticsProjectionForMapInTx(tx, ids.map, true);
@@ -577,6 +633,21 @@ describe("DAK evidence submit persistence", () => {
         maps: [{ mapName: "de_ancient", completedMaps: 1, detailedMaps: 1 }],
       });
       expect(stats.performance.players).toHaveLength(10);
+      // Legacy readers remain valid after an old writer removes the sidecar;
+      // a present null sidecar is corruption, never a fallback.
+      await database.update(schema.matchDemoStatProjections).set({ facts: sql`${schema.matchDemoStatProjections.facts} - 'performanceTransport'` })
+        .where(and(eq(schema.matchDemoStatProjections.importId, importId), eq(schema.matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION)));
+      expect(await getTournamentStats({ seasonId: ids.season }, observedDatabase)).toEqual(stats);
+      await database.update(schema.matchDemoStatProjections).set({ facts: sql`jsonb_set(${schema.matchDemoStatProjections.facts}, '{performanceTransport}', 'null'::jsonb)` })
+        .where(and(eq(schema.matchDemoStatProjections.importId, importId), eq(schema.matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION)));
+      await expect(getTournamentStats({ seasonId: ids.season }, observedDatabase)).rejects.toThrow("transport integrity failed");
+      const wrongTarget = await encodePerformanceTransport({ ...rebuiltProjection!.facts.performance, matchKey: randomUUID() });
+      expect(wrongTarget).not.toBeNull();
+      await database.update(schema.matchDemoStatProjections).set({ facts: { ...rebuiltProjection!.facts, performanceTransport: wrongTarget! } })
+        .where(and(eq(schema.matchDemoStatProjections.importId, importId), eq(schema.matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION)));
+      await expect(getTournamentStats({ seasonId: ids.season }, observedDatabase)).rejects.toThrow("transport integrity failed");
+      await database.update(schema.matchDemoStatProjections).set({ facts: rebuiltProjection!.facts })
+        .where(and(eq(schema.matchDemoStatProjections.importId, importId), eq(schema.matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION)));
       // Protect benchmark parity and actual SQL payload reduction, not just the
       // query spelling: replay the owner's emitted SQL against the same real rows.
       const fullProjectionRows = await client.query({ text: projectionQuery!, values: queryBindings[queryLog.indexOf(projectionQuery!)]!, rowMode: "array" });
@@ -609,7 +680,9 @@ describe("DAK evidence submit persistence", () => {
       const benchmarkProjectionRows = await client.query({ text: benchmarkQueries[0]!, values: queryBindings[queryLog.indexOf(benchmarkQueries[0]!)]!, rowMode: "array" });
       expect(benchmarkProjectionRows.rows).toHaveLength(fullProjectionRows.rows.length);
       const benchmarkFacts = benchmarkProjectionRows.rows[0]![1];
-      expect(benchmarkFacts.performance).toEqual(fullProjectionRows.rows[0]![1].performance);
+      expect(benchmarkFacts.performanceTransport).toEqual(fullProjectionRows.rows[0]![1].performanceTransport);
+      expect(benchmarkFacts).not.toHaveProperty("performance");
+      expect(fullProjectionRows.rows[0]![1]).not.toHaveProperty("performance");
       expect(benchmarkFacts.tournament).toEqual({ mapKey: ids.map, matchKey: ids.match });
       expect(benchmarkFacts).not.toHaveProperty("records");
       const fullBytes = Buffer.byteLength(JSON.stringify(fullProjectionRows.rows));
@@ -1117,7 +1190,7 @@ describe("DAK evidence submit persistence", () => {
       for (const section of ["tournament", "performance"] as const) {
         for (const key of ["mapKey", "matchKey"] as const) {
           await database.update(schema.matchDemoStatProjections).set({ facts: {
-            ...detailProjection!.facts, [section]: { ...detailProjection!.facts[section], [key]: randomUUID() },
+            ...detailProjection!.facts, performanceTransport: undefined, [section]: { ...detailProjection!.facts[section], [key]: randomUUID() },
           } }).where(eq(schema.matchDemoStatProjections.importId, importId));
           try {
             await expect(getTournamentPlayerDetail({ playerId: userIds[0]!, seasonId: ids.season }, database)).rejects.toThrow("Statistics projection target mismatch");

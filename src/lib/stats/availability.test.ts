@@ -1,4 +1,5 @@
 import { expect, it, vi } from "vitest";
+import { ProjectionTransportUnavailableError, ProjectionTransportIntegrityError } from "./projection-transport";
 import { preservePublicStatsDependencyFailure, readOptionalPublicStats } from "./availability";
 
 vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
@@ -17,4 +18,11 @@ it("retains dependency classification across production Flight error redaction w
   expect(await readOptionalPublicStats("fixture", async () => { throw transported; })).toBeNull();
   const programError = new TypeError("invalid statistics projection");
   await expect(readOptionalPublicStats("fixture", () => preservePublicStatsDependencyFailure(async () => { throw programError; }))).rejects.toBe(programError);
+});
+
+ it("treats codec saturation as retryable but never hides corrupt data", async () => {
+  const unavailable = new ProjectionTransportUnavailableError();
+  expect(await readOptionalPublicStats("fixture", () => preservePublicStatsDependencyFailure(async () => { throw unavailable; }))).toBeNull();
+  const corrupt = new ProjectionTransportIntegrityError();
+  await expect(readOptionalPublicStats("fixture", () => preservePublicStatsDependencyFailure(async () => { throw corrupt; }))).rejects.toBe(corrupt);
 });

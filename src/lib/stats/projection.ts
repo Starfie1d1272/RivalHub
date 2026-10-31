@@ -7,6 +7,7 @@ import type { DemoImportMetadata } from "@/lib/demo-integration/metadata";
 import type { RivalHubEvidenceSubmission } from "@/lib/demo-integration/contracts";
 import type { CanonicalTarget } from "@/lib/demo-integration/validation";
 import type { GameplayUserResolution } from "@/lib/identity/gameplay-steam";
+import { encodePerformanceTransport } from "./projection-transport";
 import { collectRecordFacts } from "./record-facts";
 import { adaptStatsEvidence } from "./evidence-adapter";
 import { PREVIOUS_STATISTICS_PROJECTION_VERSION, STATISTICS_PROJECTION_VERSION } from "./projection-version";
@@ -32,6 +33,7 @@ export async function materializeStatisticsProjectionInTx(input: MaterializeStat
   }).sort((a, b) => a.steam64.localeCompare(b.steam64));
   const adapted = adaptStatsEvidence(input.evidence, new Map(identityBindings.map((binding) => [binding.steam64, binding])));
   const performance = collectTournamentPerformanceMapProjection(adapted.performance);
+  const performanceTransport = await encodePerformanceTransport(performance);
   const records = collectRecordFacts(input.evidence, new Map(identityBindings.map((b) => [b.steam64, b])), buildTournamentPerformanceAnalyticsFromProjections([performance]));
   const values = {
     importId: input.row.id,
@@ -45,6 +47,7 @@ export async function materializeStatisticsProjectionInTx(input: MaterializeStat
     facts: {
       tournament: adapted.tournament,
       performance,
+      ...(performanceTransport ? { performanceTransport } : {}),
       records,
     },
   };
