@@ -1,5 +1,5 @@
 // Fixed read-only probe executed over the existing protected release SSH channel.
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, readdirSync, readlinkSync, statSync, statfsSync } from "node:fs";
 
 const root = "/opt/rivalhub-production";
@@ -41,6 +41,51 @@ function sample() {
   return { lock, processes: counts, processScanComplete: !incomplete };
 }
 
+// Incident-specific, bounded journal read. Only fixed aggregates leave the host.
+function journalSummary() {
+  const sinceUtc = "2026-10-31T07:45:00.000Z";
+  const untilUtc = new Date(Math.min(Date.now(), Date.parse("2026-10-31T12:00:00.000Z"))).toISOString();
+  const result = { sinceUtc, untilUtc, status: "unavailable", rows: [] };
+  if (untilUtc < sinceUtc) return result;
+  const journal = spawnSync("journalctl", ["--namespace=*", "--unit=rivalhub-production", `--since=${sinceUtc}`, `--until=${untilUtc}`, "--output=cat", "--no-pager", "--grep=mizar\\.(reliable\\.reject|live\\.(outcome_window|stage_window|broadcast_unavailable))"], { encoding: "utf8", timeout: 30000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+  if (journal.error || (journal.status !== 0 && !(journal.status === 1 && !journal.stdout && !journal.stderr))) return result;
+  const reliable = new Set(["context_stale", "sequence_stale", "generation_fence", "epoch_fence", "authority_changed", "idempotency_conflict", "invalid_schema", "auth_failed", "other"]);
+  const outcomes = new Set(["accepted", "frame_expired", "contended", "delivery_dropped", "broadcast_unavailable", "rejected", "error"]);
+  const stages = new Set(["received", "admitted", "authorized", "send_success", "expired", "capacity", "contended", "unknown_send"]);
+  const counts = new Map();
+  let incomplete = false;
+  function add(event, reason, status, count) {
+    const key = JSON.stringify([event, reason, status]);
+    const next = (counts.get(key) ?? 0) + count;
+    if (!Number.isSafeInteger(next)) { incomplete = true; return; }
+    counts.set(key, next);
+  }
+  for (const line of journal.stdout.split("\n")) {
+    if (!line) continue;
+    let entry;
+    try { entry = JSON.parse(line); } catch { incomplete = true; continue; }
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) { incomplete = true; continue; }
+    const context = entry.safeContext ?? {};
+    if (entry.event === "mizar.live.broadcast_unavailable") { add(entry.event, null, "records", 1); continue; }
+    if (entry.event === "mizar.reliable.reject") {
+      const reason = reliable.has(context.reason) ? context.reason : "other";
+      if (Number.isSafeInteger(context.firstAt) && Number.isSafeInteger(context.lastAt) && Number.isSafeInteger(context.count) && context.count > 1) {
+        add(entry.event, reason, "window_records", 1);
+        add(entry.event, reason, "window_reported_count", context.count);
+      } else if (context.count === 1 && typeof context.phase === "string") add(entry.event, reason, "first_records", 1);
+      else incomplete = true;
+      continue;
+    }
+    const allowed = entry.event === "mizar.live.outcome_window" ? outcomes : entry.event === "mizar.live.stage_window" ? stages : null;
+    if (!allowed) continue;
+    if (!allowed.has(context.outcome) || !Number.isSafeInteger(context.count) || context.count < 0) { incomplete = true; continue; }
+    add(entry.event, context.outcome, "reported_count", context.count);
+  }
+  result.status = incomplete ? "incomplete" : "ok";
+  result.rows = [...counts].map(([key, count]) => { const [event, reason, status] = JSON.parse(key); return { event, reason, status, count }; });
+  return result;
+}
+
 async function main() {
   let manifest = null, local = null, service = null, diskAvailableBytes = null;
   try {
@@ -60,7 +105,7 @@ async function main() {
   try { const value = execFileSync("systemctl", ["show", "rivalhub-production", "--property=ActiveState", "--value"], { encoding: "utf8", timeout: 5000 }).trim(); if (["active", "inactive", "failed", "activating", "deactivating", "reloading"].includes(value)) service = value; } catch { /* Unknown remains null. */ }
   try { const fs = statfsSync(root, { bigint: true }); const bytes = Number(fs.bavail * fs.bsize); if (Number.isSafeInteger(bytes)) diskAvailableBytes = bytes; } catch { /* Unknown remains null. */ }
   const first = sample(); await new Promise(resolve => setTimeout(resolve, 1000)); const second = sample();
-  console.log(JSON.stringify({ event: "linux.release_host_readback", manifest, local, service, diskAvailableBytes, first, second }));
+  console.log(JSON.stringify({ event: "linux.release_host_readback", manifest, local, service, diskAvailableBytes, first, second, journal: journalSummary() }));
 }
 
 if (process.argv[1] === "-") main().catch(() => { console.error("Host readback unavailable"); process.exitCode = 1; });
