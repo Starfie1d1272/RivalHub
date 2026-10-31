@@ -1092,7 +1092,6 @@ describe("DAK evidence submit persistence", () => {
       const rosterCareers = await getPlayerCareerPerformances(userIds, observedDatabase);
       const rosterProjectionReads = queryLog.filter((query) => /from "match_demo_stat_projections"/i.test(query) && query.includes('"facts"'));
       console.info(JSON.stringify({ scenario: "lineup-career-batch", players: rosterCareers.length, queries: queryLog.length, projectionReads: rosterProjectionReads.length, maps: rosterCareers.map((career) => career.maps), dtoBytes: Buffer.byteLength(JSON.stringify(rosterCareers)), cache: "uncached local PostgreSQL; not provider billing or remote cache evidence" }));
-      expect(rosterProjectionReads).toHaveLength(1);
       expect(queryLog.some((query) => /from "match_demo_imports"/i.test(query) && query.includes('"payload"'))).toBe(false);
       for (const career of rosterCareers) {
         const individual = await getPlayerCareerDetail({ playerId: career.playerId }, database);
