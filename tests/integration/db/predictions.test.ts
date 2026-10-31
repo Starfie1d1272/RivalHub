@@ -1,17 +1,19 @@
 import { initializePreviewPickEm } from "../../../scripts/db/preview/predictions";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { and, eq, sql } from "drizzle-orm";
 import { describe, it, expect } from "vitest";
 import * as schema from "@/db/schema";
 import { createMajorDefaultCapabilities, createMajor24Capabilities } from "@/lib/competition/templates";
-import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
+import { makeMajorRunSnapshotV4, resolveMajorStagePlan } from "@/lib/major/run-snapshot";
 import { finalizeMajorSwissRoundInTransaction } from "@/lib/major/swiss-runtime";
 import { transitionMajorSwissStageInTransaction } from "@/lib/major/stage-transition";
 import { DEFAULT_RULES } from "@/lib/predictions/rules";
 import { runPredictionReconciliationJob } from "@/lib/predictions/reconciliation";
 import { loadBaseline } from "@/lib/predictions/baseline";
+import { projectPredictionStages } from "@/lib/predictions/stage-projection";
+import { getStandardMajorDefinition } from "@/lib/major/standard";
 import { simulateMajor } from "@/lib/predictions/simulator";
 import {
   syncAutomaticPickEmInTx,
@@ -248,6 +250,70 @@ function fill(base: Awaited<ReturnType<typeof loadBaseline>>, key = "stage1") {
   }
   throw Error("incomplete");
 }
+
+
+it("keeps baseline, revision, simulation and Pick’Em frozen across v3/v4 projected runs", async () =>
+  fixture(async (f) => {
+    const { db, seasonId, runId, userId } = f;
+    const [initialRun] = await db.select().from(schema.majorStageRuns).where(eq(schema.majorStageRuns.id, runId));
+    const snapshot = initialRun!.ruleSnapshot as ReturnType<typeof makeMajorRunSnapshotV4>;
+    const large = { ...snapshot, affiliationRules: ["FROZEN_UNUSED_MARKER".repeat(5000)],
+      frozenCompetitiveFacts: ["FROZEN_UNUSED_MARKER".repeat(5000)], competitiveProfile: { frozen: "FROZEN_UNUSED_MARKER".repeat(5000) } };
+    await db.update(schema.majorStageRuns).set({ ruleSnapshot: large }).where(eq(schema.majorStageRuns.id, runId));
+    const queries: Array<{ query: string; params: unknown[] }> = [];
+    const observed = drizzle(f.pool, { schema, logger: { logQuery: (query, params) => queries.push({ query, params }) } });
+    const before = await loadBaseline(observed, seasonId);
+    const fullRows = await db.select().from(schema.majorStageRuns).where(eq(schema.majorStageRuns.seasonId, seasonId));
+    const legacyStages = projectPredictionStages(resolveMajorStagePlan([], fullRows));
+    expect(before.stages).toEqual(legacyStages);
+    const legacyRevision = createHash("sha256").update(JSON.stringify({ version: before.version, stages: legacyStages,
+      teams: [...before.teams].sort((a, b) => a.tournamentSeed - b.tournamentSeed),
+      runs: [...before.runs].sort((a, b) => a.key.localeCompare(b.key)),
+      matches: [...before.matches].sort((a, b) => a.id.localeCompare(b.id)) })).digest("hex");
+    expect(before.revision).toBe(legacyRevision);
+    const runQuery = queries.find(({ query }) => query.includes('from "major_stage_runs"'))!;
+    expect(runQuery.query).toContain("jsonb_build_object");
+    const result = await f.pool.query(runQuery.query, runQuery.params);
+    expect(JSON.stringify(result.rows)).not.toContain("FROZEN_UNUSED_MARKER");
+    expect(Buffer.byteLength(JSON.stringify(result.rows))).toBeLessThan(Buffer.byteLength(JSON.stringify(fullRows)));
+    const boardBefore = await db.transaction(tx => predictionBoard(tx, seasonId, userId));
+    const entrants = await db.select({ entrantId: schema.majorTournamentEntrants.id,
+      competitionEntryId: schema.majorTournamentEntrants.competitionEntryId, tournamentSeed: schema.majorTournamentSeeds.seed })
+      .from(schema.majorTournamentEntrants).innerJoin(schema.majorTournamentSeeds, eq(schema.majorTournamentSeeds.tournamentEntrantId, schema.majorTournamentEntrants.id))
+      .where(eq(schema.majorTournamentEntrants.seasonId, seasonId));
+    const v3 = { ...large, version: 3, stage: large.stagePlan.find(stage => stage.key === "stage1"), tournamentEntrants: entrants };
+    await db.update(schema.majorStageRuns).set({ ruleSnapshot: v3 }).where(eq(schema.majorStageRuns.id, runId));
+    const legacy = await loadBaseline(db, seasonId);
+    expect({ ...legacy, capturedAt: before.capturedAt }).toEqual(before);
+    expect(legacy.revision).toBe(before.revision);
+    expect(simulateMajor(legacy, {})).toEqual(simulateMajor(before, {}));
+    expect(fill(legacy).stage.pick).toEqual(fill(before).stage.pick);
+    const boardAfter = await db.transaction(tx => predictionBoard(tx, seasonId, userId));
+    expect(boardAfter.contests).toEqual(boardBefore.contests);
+    expect(boardAfter.achievement).toEqual(boardBefore.achievement);
+    await db.update(schema.seasons).set({ stagePlan: [] }).where(eq(schema.seasons.id, seasonId));
+    expect((await loadBaseline(db, seasonId)).revision).toBe(before.revision);
+
+    // A later run's frozen plan wins regardless of row order, while every run
+    // must still be validated rather than merely reading the last one.
+    const laterPlan = large.stagePlan.map((stage, index) => index === 0 ? { ...stage, name: "Later frozen plan" } : stage);
+    await db.insert(schema.majorStageRuns).values({ seasonId, stageKey: "stage2", ruleSnapshot: { ...large, stagePlan: laterPlan }, startedBy: "test" });
+    const multiple = await loadBaseline(db, seasonId);
+    const fullRuns = await db.select().from(schema.majorStageRuns).where(eq(schema.majorStageRuns.seasonId, seasonId));
+    expect(multiple.stages).toEqual(projectPredictionStages(resolveMajorStagePlan([], fullRuns.reverse())));
+    expect(multiple.stages[0]!.name).toBe("Later frozen plan");
+    await db.update(schema.majorStageRuns).set({ ruleSnapshot: { ...v3, affiliationRules: null } }).where(eq(schema.majorStageRuns.id, runId));
+    await expect(loadBaseline(db, seasonId)).rejects.toThrow("StageRun snapshot 无效");
+
+    await db.delete(schema.matches).where(eq(schema.matches.seasonId, seasonId));
+    await db.delete(schema.majorStageEntrants).where(eq(schema.majorStageEntrants.seasonId, seasonId));
+    await db.delete(schema.majorStageRuns).where(eq(schema.majorStageRuns.seasonId, seasonId));
+    await db.update(schema.seasons).set({ stagePlan: createMajorDefaultCapabilities().stagePlan }).where(eq(schema.seasons.id, seasonId));
+    const [season] = await db.select().from(schema.seasons).where(eq(schema.seasons.id, seasonId));
+    const noRuns = await loadBaseline(db, seasonId);
+    expect(noRuns.runs).toEqual([]);
+    expect(noRuns.stages).toEqual(projectPredictionStages(getStandardMajorDefinition(season!).capabilities.stagePlan));
+  }));
 
 describe("spectator prediction PostgreSQL contracts", () => {
   it("submits against the frozen 24-team profile and settles BO3 winner pools", async () =>
