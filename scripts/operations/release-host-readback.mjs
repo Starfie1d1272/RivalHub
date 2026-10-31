@@ -45,7 +45,7 @@ function sample() {
 function journalSummary() {
   const sinceUtc = "2026-10-31T07:45:00.000Z";
   const untilUtc = new Date(Math.floor(Math.min(Date.now(), Date.parse("2026-10-31T12:00:00.000Z")) / 1000) * 1000).toISOString();
-  const result = { sinceUtc, untilUtc, status: "unavailable", errorCode: "invalid_window", rows: [] };
+  const result = { sinceUtc, untilUtc, status: "unavailable", errorCode: "invalid_window", rows: [], scopedStatus: "unavailable", scopedRows: [] };
   if (untilUtc < sinceUtc) return result;
   const journalTime = value => value.replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
   const journal = spawnSync("/usr/bin/journalctl", ["--namespace=*", "--unit=rivalhub-production", `--since=${journalTime(sinceUtc)}`, `--until=${journalTime(untilUtc)}`, "--output=cat", "--no-pager", "--grep=mizar\\.(reliable\\.reject|live\\.(outcome_window|stage_window|broadcast_unavailable))"], { encoding: "utf8", timeout: 30000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
@@ -66,7 +66,10 @@ function journalSummary() {
   const phases = new Set(["auth", "read", "validate", "domain", "revalidation"]);
   const outcomes = new Set(["accepted", "frame_expired", "contended", "delivery_dropped", "broadcast_unavailable", "rejected", "error"]);
   const stages = new Set(["received", "admitted", "authorized", "send_success", "expired", "capacity", "contended", "unknown_send"]);
+  const kinds = new Set(["match_started", "map_started", "map_ended", "map_player_snapshot", "series_ended", "source_generation_changed", "map_epoch_changed", "identity_mismatch", "lineup_mismatch"]);
   const counts = new Map();
+  const scopedCounts = new Map();
+  let scopedIncomplete = false;
   let incomplete = false;
   function add(event, reason, status, count) {
     const key = JSON.stringify([event, reason, status]);
@@ -87,7 +90,17 @@ function journalSummary() {
       if (Number.isSafeInteger(context.firstAt) && context.firstAt >= 0 && Number.isSafeInteger(context.lastAt) && context.lastAt >= context.firstAt && Number.isSafeInteger(context.count) && context.count > 1) {
         add(entry.event, reason, "window_records", 1);
         add(entry.event, reason, "window_reported_count", context.count);
-      } else if (context.count === 1 && phases.has(context.phase)) add(entry.event, reason, "first_records", 1);
+      } else if (context.count === 1 && phases.has(context.phase)) {
+        add(entry.event, reason, "first_records", 1);
+        if (reason === "epoch_fence" && context.scopeHash === "42b0e08fee7e6b69") {
+          if (!kinds.has(context.kind) || !Number.isSafeInteger(context.receivedCursor) || context.receivedCursor < 0 || !Number.isSafeInteger(context.storedCursor) || context.storedCursor < 0 || typeof entry.timestamp !== "string" || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(entry.timestamp)) scopedIncomplete = true;
+          else {
+            const key = JSON.stringify([`${entry.timestamp.slice(0, 16)}:00Z`, context.kind, context.receivedCursor, context.storedCursor]);
+            if (!scopedCounts.has(key) && scopedCounts.size >= 100) scopedIncomplete = true;
+            else scopedCounts.set(key, (scopedCounts.get(key) ?? 0) + 1);
+          }
+        }
+      }
       else incomplete = true;
       continue;
     }
@@ -99,6 +112,8 @@ function journalSummary() {
   result.status = incomplete ? "incomplete" : "ok";
   result.errorCode = incomplete ? "invalid_record" : null;
   result.rows = [...counts].map(([key, count]) => { const [event, reason, status] = JSON.parse(key); return { event, reason, status, count }; });
+  result.scopedStatus = incomplete || scopedIncomplete ? "incomplete" : "ok";
+  result.scopedRows = [...scopedCounts].map(([key, count]) => { const [minute, kind, receivedEpoch, storedEpoch] = JSON.parse(key); return { minute, kind, receivedEpoch, storedEpoch, count }; });
   return result;
 }
 
