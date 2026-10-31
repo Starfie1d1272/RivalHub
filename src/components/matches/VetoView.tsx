@@ -33,7 +33,7 @@ export async function VetoView({
   entryBId,
 }: Props) {
   const steps = await db
-    .select()
+    .select({ id: matchVetoSteps.id, stepOrder: matchVetoSteps.stepOrder, actionType: matchVetoSteps.actionType, mapName: matchVetoSteps.mapName, entryId: matchVetoSteps.entryId, side: matchVetoSteps.side })
     .from(matchVetoSteps)
     .where(eq(matchVetoSteps.matchId, matchId))
     .orderBy(asc(matchVetoSteps.stepOrder));

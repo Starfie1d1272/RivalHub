@@ -20,8 +20,9 @@ export async function loadPublicMatchPhase(match: Match, maps: MatchMap[]) {
   return projectPublicContext(match, maps, veto, session);
 }
 
+type PhaseMatch = Pick<Match, "id" | "status" | "scheduledAt" | "startedAt" | "completedAt" | "format">;
 type PhaseMap = Pick<MatchMap, "id" | "mapName" | "mapOrder" | "scoreA" | "scoreB" | "completedAt" | "startedAt">;
-function projectPublicContext(match: Match, maps: PhaseMap[], veto: { startedAt: Date | null; completedAt: Date | null } | undefined, session: { currentMapId: string | null; mapExecutionPhase: string; lineupHealth: string } | undefined): PublicMatchContext {
+function projectPublicContext(match: PhaseMatch, maps: PhaseMap[], veto: { startedAt: Date | null; completedAt: Date | null } | undefined, session: { currentMapId: string | null; mapExecutionPhase: string; lineupHealth: string } | undefined): PublicMatchContext {
   const facts = {
     status: match.status, scheduledAt: match.scheduledAt?.toISOString() ?? null,
     startedAt: match.startedAt?.toISOString() ?? null, completedAt: match.completedAt?.toISOString() ?? null,
@@ -42,7 +43,7 @@ function projectPublicContext(match: Match, maps: PhaseMap[], veto: { startedAt:
 }
 
 /** Batch canonical context for visible public schedule consumers; never query per card. */
-export async function loadPublicMatchContexts(matches: Match[]): Promise<Map<string, PublicMatchContext>> {
+export async function loadPublicMatchContexts(matches: readonly PhaseMatch[]): Promise<Map<string, PublicMatchContext>> {
   const active = matches.filter(match => match.status === "in_progress");
   if (!active.length) return new Map();
   const ids = active.map(match => match.id);
