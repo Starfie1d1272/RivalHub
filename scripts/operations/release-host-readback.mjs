@@ -47,7 +47,7 @@ function journalSummary() {
   const untilUtc = new Date(Math.min(Date.now(), Date.parse("2026-10-31T12:00:00.000Z"))).toISOString();
   const result = { sinceUtc, untilUtc, status: "unavailable", rows: [] };
   if (untilUtc < sinceUtc) return result;
-  const journal = spawnSync("journalctl", ["--namespace=*", "--unit=rivalhub-production", `--since=${sinceUtc}`, `--until=${untilUtc}`, "--output=cat", "--no-pager", "--grep=mizar\\.(reliable\\.reject|live\\.(outcome_window|stage_window|broadcast_unavailable))"], { encoding: "utf8", timeout: 30000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+  const journal = spawnSync("/usr/bin/journalctl", ["--namespace=*", "--unit=rivalhub-production", `--since=${sinceUtc}`, `--until=${untilUtc}`, "--output=cat", "--no-pager", "--grep=mizar\\.(reliable\\.reject|live\\.(outcome_window|stage_window|broadcast_unavailable))"], { encoding: "utf8", timeout: 30000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
   if (journal.error || (journal.status !== 0 && !(journal.status === 1 && !journal.stdout && !journal.stderr))) return result;
   const reliable = new Set(["context_stale", "sequence_stale", "generation_fence", "epoch_fence", "authority_changed", "idempotency_conflict", "invalid_schema", "auth_failed", "other"]);
   const phases = new Set(["auth", "read", "validate", "domain", "revalidation"]);
