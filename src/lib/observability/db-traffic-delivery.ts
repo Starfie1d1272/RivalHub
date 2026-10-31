@@ -1,4 +1,4 @@
-import { readExitCapsules, deleteExitCapsules } from "./db-traffic-capsule";
+import { readExitCapsules, deleteExitCapsules, isolateInvalidCapsules } from "./db-traffic-capsule";
 import { dbTrafficQualityReasons, digestDbTraffic } from "./db-traffic-contract";
 import { DbTrafficSpool, type SpoolItem, type SpoolState } from "./db-traffic-spool";
 
@@ -58,7 +58,9 @@ export class DbTrafficDelivery {
     if (state.coverageRevision === undefined) { state.coverageRevision = state.coverageUnknownSince === null || state.coverageReportedSince === state.coverageUnknownSince ? 0 : 1; state.coverageReportedRevision = 0; }
     // Recover all capsules in one state commit. Protect recovered IDs from
     // eviction until every capsule is deleted, making a crash after commit safe.
-    const capsules = await readExitCapsules(this.spool.directory);
+    const { files: capsules, invalid, truncated } = await readExitCapsules(this.spool.directory);
+    for (const item of invalid) markCoverage(state, Math.min(now, item.at));
+    if (truncated) markCoverage(state, now);
     const recovered = new Map<string, { body: string; value: Batch }>();
     for (const file of capsules) {
       if (file.capsule.unknownAt !== null) markCoverage(state, file.capsule.unknownAt);
@@ -84,6 +86,10 @@ export class DbTrafficDelivery {
     state.openWindowSince = now; state.openWindowIdentity = this.identity;
     await this.ensureCoverage(state, now);
     await this.spool.commit(state);
+    if (invalid.length || truncated) {
+      try { process.stderr.write('{"event":"db_traffic.invalid_exit_capsule"}\n'); } catch { /* Diagnostics must not block delivery. */ }
+      try { await isolateInvalidCapsules(this.spool.directory, invalid); } catch { /* Retain evidence and continue with verified batches. */ }
+    }
     await deleteExitCapsules(this.spool.directory, capsules);
     await this.spool.cleanupOrphans();
   }

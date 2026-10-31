@@ -57,7 +57,7 @@ export class DbTrafficSpool {
       return new DbTrafficSpool(directory, parsed, lock, orphanSince, orphans);
     } catch (error) { lock.close(); throw error; }
   }
-  async cleanupOrphans(): Promise<void> { for (const name of this.orphans) await unlink(join(this.directory, name)).catch(() => {}); }
+  async cleanupOrphans(): Promise<void> { for (const name of this.orphans) if (name.startsWith(".state-")) await unlink(join(this.directory, name)).catch(() => {}); }
   close(): void { this.lock.close(); }
   snapshot(): SpoolState { return structuredClone(this.current); }
   async commit(next: SpoolState): Promise<void> {

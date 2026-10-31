@@ -1,5 +1,5 @@
 import { closeSync, fsyncSync, openSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { open, readFile, readdir, stat, unlink } from "node:fs/promises";
+import { link, open, readFile, readdir, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { isSafeDbTrafficBatch } from "./db-traffic-contract";
 
@@ -25,23 +25,36 @@ export function writeExitCapsule(directory: string, capsule: Capsule): void {
   } finally { if (file !== undefined) closeSync(file); if (reserved) { try { unlinkSync(target); } catch { /* Preserve the original failure. */ } } try { unlinkSync(temporary); } catch { /* Already renamed or absent. */ } }
 }
 
-/** Invalid and over-capacity capsules remain untouched for diagnosis and recovery. */
-export async function readExitCapsules(directory: string): Promise<File[]> {
+/** Invalid capsules remain evidence; they cannot block the verified spool. */
+export async function readExitCapsules(directory: string): Promise<{ files: File[]; invalid: Array<{ name: string; at: number }>; truncated: boolean }> {
   const names = (await readdir(directory)).filter(name => namePattern.test(name)).sort();
-  if (names.length > 128) throw new Error("too many database traffic exit capsules");
-  const files: File[] = [];
-  for (const name of names) {
-    if ((await stat(join(directory, name))).size > 128 * 1024) throw new Error("invalid exit capsule size");
-    const value: unknown = JSON.parse(await readFile(join(directory, name), "utf8"));
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid exit capsule");
-    const capsule = value as Capsule;
-    if (Object.keys(capsule).sort().join() !== "batches,unknownAt,version" || capsule.version !== 1 || !Array.isArray(capsule.batches) || capsule.batches.length > 2 || (capsule.unknownAt !== null && !Number.isSafeInteger(capsule.unknownAt))) throw new Error("invalid exit capsule");
-    for (const body of capsule.batches) {
-      if (typeof body !== "string" || Buffer.byteLength(body) > 40000 || !isSafeDbTrafficBatch(JSON.parse(body))) throw new Error("invalid exit capsule batch");
-    }
-    files.push({ name, capsule });
+  const files: File[] = []; const invalid: Array<{ name: string; at: number }> = [];
+  for (const name of names.slice(0, 128)) {
+    const info = await stat(join(directory, name));
+    const at = Number.isSafeInteger(Math.floor(info.mtimeMs)) ? Math.floor(info.mtimeMs) : Date.now();
+    if (info.size > 128 * 1024) { invalid.push({ name, at }); continue; }
+    const raw = await readFile(join(directory, name), "utf8");
+    try {
+      const value: unknown = JSON.parse(raw);
+      if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid exit capsule");
+      const capsule = value as Capsule;
+      if (Object.keys(capsule).sort().join() !== "batches,unknownAt,version" || capsule.version !== 1 || !Array.isArray(capsule.batches) || capsule.batches.length > 2 || (capsule.unknownAt !== null && !Number.isSafeInteger(capsule.unknownAt))) throw new Error("invalid exit capsule");
+      for (const body of capsule.batches) {
+        if (typeof body !== "string" || Buffer.byteLength(body) > 40000 || !isSafeDbTrafficBatch(JSON.parse(body))) throw new Error("invalid exit capsule batch");
+      }
+      files.push({ name, capsule });
+    } catch { invalid.push({ name, at }); }
   }
-  return files;
+  return { files, invalid, truncated: names.length > 128 };
+}
+
+/** Preserve invalid content under a name excluded from active recovery. */
+export async function isolateInvalidCapsules(directory: string, invalid: Array<{ name: string }>): Promise<void> {
+  for (const item of invalid) {
+    const source = join(directory, item.name); const target = join(directory, `invalid-${crypto.randomUUID()}-${item.name}`);
+    await link(source, target); await unlink(source);
+  }
+  if (invalid.length) { const dir = await open(directory, "r"); try { await dir.sync(); } finally { await dir.close(); } }
 }
 
 export async function deleteExitCapsules(directory: string, files: File[]): Promise<void> {

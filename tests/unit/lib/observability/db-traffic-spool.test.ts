@@ -273,12 +273,39 @@ it("recovers once after SIGKILL between the state commit and capsule deletion", 
   } finally { child.kill("SIGKILL"); await rm(root, { recursive: true, force: true }); }
 }, 15000);
 
-it("preserves an invalid capsule and the prior spool without starting delivery", async () => {
-  const { DbTrafficDelivery } = await import("@/lib/observability/db-traffic-delivery"); const root = await mkdtemp(join(tmpdir(), "traffic-exit-corrupt-"));
-  const name = `exit-${crypto.randomUUID()}.json`; const corrupt = '{"private":"canary"}';
+it("isolates an invalid capsule, records unknown coverage and drains verified batches", async () => {
+  const { DbTrafficDelivery } = await import("@/lib/observability/db-traffic-delivery"); const { readdir } = await import("node:fs/promises"); const root = await mkdtemp(join(tmpdir(), "traffic-exit-corrupt-"));
+  const name = `exit-${crypto.randomUUID()}.json`; const corrupt = '{"private":"canary"}'; const now = Date.now();
+  const identity = { process: crypto.randomUUID(), release: "v", deployment: "d" };
   try {
-    const spool = await DbTrafficSpool.open(root); const before = spool.snapshot(); await spool.commit(before); await writeFile(join(root, name), corrupt);
-    await expect(new DbTrafficDelivery(spool, { process: crypto.randomUUID(), release: "v", deployment: "d" }).start(Date.now())).rejects.toThrow("invalid exit capsule");
-    expect(spool.snapshot()).toEqual(before); expect(await readFile(join(root, name), "utf8")).toBe(corrupt); spool.close();
+    const spool = await DbTrafficSpool.open(root); const state = spool.snapshot();
+    const batch = { id: crypto.randomUUID(), ...identity, at: now, receivedBytes: 1 }; const body = JSON.stringify(batch);
+    state.batches.push({ id: batch.id, body, digest: await digestDbTraffic(batch), at: now, attempted: true, nextAttemptAt: now, attempts: 1 });
+    await spool.commit(state); await writeFile(join(root, name), corrupt);
+    const delivery = new DbTrafficDelivery(spool, identity); await delivery.start(now);
+    expect(spool.snapshot().coverageUnknownSince).not.toBeNull();
+    const isolated = (await readdir(root)).find(item => item.startsWith("invalid-") && item.endsWith(name)); expect(isolated).toBeDefined();
+    expect(await readFile(join(root, isolated!), "utf8")).toBe(corrupt);
+    const sent: string[] = []; await delivery.drain(async item => { sent.push(item.id); return { ok: true, status: 200, retryAfter: null, limit: null }; }, () => now);
+    expect(sent).toContain(batch.id); expect(spool.snapshot().batches).toHaveLength(0); spool.close();
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+it("survives SIGKILL after reserving an exit filename and retains both artifacts", async () => {
+  const { spawn } = await import("node:child_process"); const { readdir } = await import("node:fs/promises"); const { DbTrafficDelivery } = await import("@/lib/observability/db-traffic-delivery");
+  const root = await mkdtemp(join(tmpdir(), "traffic-exit-reserve-")); const now = Date.now(); const identity = { process: crypto.randomUUID(), release: "v", deployment: "d" };
+  const original = await DbTrafficSpool.open(root); const state = original.snapshot(); const value = { id: crypto.randomUUID(), ...identity, at: now, receivedBytes: 1 }; const body = JSON.stringify(value);
+  state.batches.push({ id: value.id, body, digest: await digestDbTraffic(value), at: now, attempted: false, attempts: 0, nextAttemptAt: now }); await original.commit(state); original.close();
+  const script = `const fs=require('node:fs'); fs.renameSync=()=>{process.stdout.write('reserved\\n');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0)};
+    const {writeExitCapsule}=require('./src/lib/observability/db-traffic-capsule.ts'); writeExitCapsule(process.argv[1],{version:1,batches:[],unknownAt:1});`;
+  const child = spawn(process.execPath, ["--import", "tsx", "-e", script, root], { stdio: ["ignore", "pipe", "pipe"] });
+  try {
+    await new Promise<void>((resolve, reject) => { child.stdout.once("data", () => resolve()); child.once("error", reject); child.once("exit", code => reject(new Error(`child exited ${code}`))); });
+    child.kill("SIGKILL"); await new Promise<void>(resolve => child.once("exit", () => resolve()));
+    const spool = await DbTrafficSpool.open(root); const delivery = new DbTrafficDelivery(spool, identity); await delivery.start(Date.now());
+    const files = await readdir(root); expect(files.some(name => name.startsWith("invalid-"))).toBe(true); expect(files.some(name => name.startsWith(".exit-"))).toBe(true);
+    expect(spool.snapshot().coverageUnknownSince).not.toBeNull(); const sent: string[] = [];
+    await delivery.drain(async item => { sent.push(item.id); return { ok: true, status: 200, retryAfter: null, limit: null }; });
+    expect(sent).toContain(value.id); spool.close();
+  } finally { child.kill("SIGKILL"); await rm(root, { recursive: true, force: true }); }
+}, 15000);
