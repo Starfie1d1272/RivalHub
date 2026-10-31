@@ -52,6 +52,7 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
 
   const [allTeams, finalResult, stagePresentation, qualificationRun] = await Promise.all([
     db.query.competitionEntries.findMany({
+      columns: { id: true, name: true, formationOrder: true },
       where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryIdentityCondition()),
       orderBy: [asc(competitionEntries.formationOrder)],
     }),
@@ -68,6 +69,7 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
       : resolveDefaultStageKey(stagePlan, stagePresentation.initializedStageKeys.map(stage => ({ stage })), requestedStage);
   const selectedStage = stagePlan.find(stage => stage.key === defaultStageKey);
   const allMatchesRaw = defaultStageKey ? await db.query.matches.findMany({
+    columns: { videoUrl: false, recordings: false, mvpWinnerUserId: false, createdAt: false, updatedAt: false },
     where: and(officialMatchCondition(), eq(matches.seasonId, season.id), eq(matches.stage, defaultStageKey)),
     orderBy: [asc(matches.completedAt), asc(matches.scheduledAt), asc(matches.id)],
   }) : [];
