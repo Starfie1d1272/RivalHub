@@ -1,6 +1,6 @@
 import { projectDisplayScore } from "@/lib/matches/display-score";
 import "server-only";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { freePredictionChoices as choices, freePredictionLocks as locks, users, competitionQualificationRuns } from "@/db/schema";
 import { getCanonicalUserSourceIds, resolveCanonicalUserId } from "@/lib/identity/canonical";
@@ -49,6 +49,74 @@ export async function loadPublicPredictionPopulation(tx: TxDb, seasonId: string,
   const rows = await tx.select({userId:choices.userId,matchId:choices.matchId,kind:choices.kind,subject:choices.subject,selection:choices.selection,updatedAt:choices.updatedAt}).from(choices).where(and(eq(choices.seasonId,seasonId),matchId ? eq(choices.matchId,matchId) : undefined));
   return {facts,rows:await canonicalChoices(tx,rows)};
 }
+/** Aggregate only unambiguous active-account choices; all other data retains the canonical reader. */
+export async function readPublicPredictionSupport(tx: TxDb, seasonId: string, facts: BetPublicSupportFacts, matchId?: string): Promise<FreePredictionSupportSnapshot> {
+  const fallback = async () => projectFreePredictionSupport(await loadPublicPredictionPopulation(tx, seasonId, facts, matchId));
+  const safePool = (value: unknown): value is string[] => Array.isArray(value) && value.every(item => typeof item === "string" && item.length > 0 && !item.includes(","));
+  const rows = facts.official.map((m, index) => {
+    const vetoPool = facts.vetoByMatch.get(m.id)?.mapPoolSnapshot ?? null;
+    const displayPool = vetoPool ?? normalizeRegistrationConfig(facts.season.registrationConfig).mapPool;
+    return { index, matchId: m.id, entryAId: m.entryAId, entryBId: m.entryBId,
+      runId: m.majorStageRunId ?? m.qualificationRunId, format: m.format, status: m.status, isForfeit: m.isForfeit, vetoPool, displayPool };
+  });
+  if (rows.some(row => (row.vetoPool !== null && !safePool(row.vetoPool)) || !safePool(row.displayPool))) return fallback();
+  const result = await tx.execute<{ fallback_required: boolean; counts: unknown }>(sql`
+    WITH scoped AS MATERIALIZED (
+      SELECT c.user_id, c.match_id, c.kind, c.subject, c.selection, u.status AS user_status
+      FROM free_prediction_choices c LEFT JOIN users u ON u.id = c.user_id
+      WHERE c.season_id = ${seasonId} ${matchId ? sql`AND c.match_id = ${matchId}` : sql``}
+    ), guarded AS (
+      SELECT *, CASE WHEN jsonb_typeof(subject->'entryIds') = 'array' THEN subject->'entryIds' ELSE '[]'::jsonb END AS entries,
+        CASE WHEN jsonb_typeof(subject->'mapPool') = 'array' THEN subject->'mapPool' ELSE '[]'::jsonb END AS pool,
+        CASE WHEN jsonb_typeof(selection) = 'array' THEN selection ELSE '[]'::jsonb END AS picks
+      FROM scoped
+    ), invalid AS (
+      SELECT EXISTS (SELECT 1 FROM guarded g WHERE
+        g.user_status IS DISTINCT FROM 'active' OR jsonb_typeof(g.subject) IS DISTINCT FROM 'object'
+        OR jsonb_typeof(g.subject->'entryIds') IS DISTINCT FROM 'array' OR jsonb_array_length(g.entries) <> 2
+        OR jsonb_typeof(g.subject->'runId') IS DISTINCT FROM 'string' OR jsonb_typeof(g.subject->'format') IS DISTINCT FROM 'string'
+        OR jsonb_typeof(g.subject->'mapPool') IS DISTINCT FROM 'array' OR jsonb_typeof(g.selection) IS DISTINCT FROM 'array'
+        OR EXISTS (SELECT 1 FROM jsonb_array_elements(g.entries) e WHERE jsonb_typeof(e) IS DISTINCT FROM 'string')
+        OR EXISTS (SELECT 1 FROM jsonb_array_elements(g.pool) e WHERE jsonb_typeof(e) IS DISTINCT FROM 'string' OR e #>> '{}' = '' OR position(',' in (e #>> '{}')) > 0)
+        OR EXISTS (SELECT 1 FROM jsonb_array_elements(g.picks) e WHERE jsonb_typeof(e) IS DISTINCT FROM 'string')
+      ) AS fallback_required
+    ), facts AS (
+      SELECT * FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS f(
+        "index" int, "matchId" text, "entryAId" text, "entryBId" text, "runId" text, format text,
+        status text, "isForfeit" boolean, "vetoPool" jsonb, "displayPool" jsonb)
+    ), eligible AS (
+      SELECT f."index", f."entryAId", f."entryBId", g.kind, g.picks
+      FROM facts f JOIN guarded g ON g.match_id::text = f."matchId"
+      WHERE NOT (SELECT fallback_required FROM invalid) AND f."runId" IS NOT NULL AND NOT f."isForfeit" AND f.status <> 'cancelled'
+        AND g.entries->>0 = f."entryAId" AND g.entries->>1 = f."entryBId"
+        AND g.subject->>'runId' = f."runId" AND g.subject->>'format' = f.format
+        AND (jsonb_array_length(g.pool) = 0 OR f."vetoPool" IS NULL OR NOT EXISTS (
+          (SELECT value COLLATE "C" FROM jsonb_array_elements_text(g.pool) EXCEPT ALL SELECT value COLLATE "C" FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(f."vetoPool") = 'array' THEN f."vetoPool" ELSE '[]'::jsonb END))
+          UNION ALL
+          (SELECT value COLLATE "C" FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(f."vetoPool") = 'array' THEN f."vetoPool" ELSE '[]'::jsonb END) EXCEPT ALL SELECT value COLLATE "C" FROM jsonb_array_elements_text(g.pool))
+        ))
+    )
+    SELECT invalid.fallback_required, CASE WHEN invalid.fallback_required THEN NULL ELSE COALESCE((
+      SELECT jsonb_agg(jsonb_build_array(f."index",
+        (SELECT count(*) FROM eligible e WHERE e."index" = f."index" AND e.kind = 'result'),
+        (SELECT count(*) FROM eligible e WHERE e."index" = f."index" AND e.kind = 'result' AND e.picks->>0 = f."entryAId"),
+        (SELECT count(*) FROM eligible e WHERE e."index" = f."index" AND e.kind = 'result' AND e.picks->>0 = f."entryBId"),
+        (SELECT count(*) FROM eligible e WHERE e."index" = f."index" AND e.kind = 'bp'),
+        (SELECT COALESCE(jsonb_agg((SELECT count(*) FROM eligible e WHERE e."index" = f."index" AND e.kind = 'bp' AND e.picks ? map.value) ORDER BY map.ordinality), '[]'::jsonb)
+          FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(f."displayPool") = 'array' THEN f."displayPool" ELSE '[]'::jsonb END) WITH ORDINALITY map(value, ordinality))) ORDER BY f."index")
+      FROM facts f WHERE f."runId" IS NOT NULL
+    ), '[]'::jsonb) END AS counts FROM invalid
+  `);
+  const row = result.rows[0];
+  if (!row || row.fallback_required) return fallback();
+  const counts = row.counts as Array<[number, number, number, number, number, number[]]>;
+  return { signature: freePredictionSupportSignature(facts), matches: counts.map(([index,total,a,b,bpTotal,bpCounts]) => {
+    const fact = rows[index]!;
+    return { matchId: fact.matchId, result: { total, counts: [a,b], percentages: total ? [a*100/total,b*100/total] : null },
+      bp: { total: bpTotal, maps: fact.displayPool.map((name, i) => ({ name, count: bpCounts[i]! })) } };
+  }) };
+}
+
 export function choiceFact(row: typeof choices.$inferSelect, f: BetFacts) {
   return predictionInput(row.subject,{match:f.official.find(m=>m.id===row.matchId),maps:f.maps.filter(m=>m.matchId===row.matchId),veto:f.vetoByMatch.get(row.matchId),event:f.event});
 }
