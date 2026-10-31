@@ -51,3 +51,6 @@ minimumReleaseAgeExclude:
 # Exit: upstream publishes this projection contract; see patches/README.md.
 patchedDependencies:
   '@cs2dak/tournament@1.1.1': patches/@cs2dak__tournament@1.1.1.patch
+  # GHSA-g3hv-75wg-m249: upstream preprocessing limits, retaining the 10.x API.
+  # Exit: compatible fixed release or parent upgrade; see patches/README.md.
+  minimatch@10.2.6: patches/minimatch@10.2.6.patch
