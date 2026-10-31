@@ -3,7 +3,8 @@ import { withDisplayScores } from "@/lib/matches/display-score-data";
 import { requireCompetitionMatch, requireCompetitionFields, type CompetitionMatch } from "./competition-context";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, majorStageEntrants, majorStageRuns, majorTournamentEntrants, matches, type Match } from "@/db/schema";
+import { competitionEntries, majorStageEntrants, majorStageRuns, majorTournamentEntrants, matches } from "@/db/schema";
+import type { PublicScheduleMatch } from "./schedule-read";
 import { parseMajorRunPresentation } from "@/lib/major/run-snapshot";
 import { majorRunPresentationSelection } from "@/lib/major/run-snapshot-query";
 import { MAJOR_SWISS_MAX_ROUNDS, projectMajorSwissStage, projectMajorSwissStageByRound, type MajorSwissFinalizedRound, type MajorSwissMatchFact } from "@/lib/major/swiss";
@@ -67,7 +68,7 @@ export type MajorSwissStageReadModel = SwissStageReadModel;
 export async function loadMajorSwissStageReadModel(
   seasonId: string,
   stageKey: string,
-  displayedMatches?: readonly (CompetitionMatch<Match> & { displayScore: import("./display-score").DisplayScore })[],
+  displayedMatches?: readonly (CompetitionMatch<PublicScheduleMatch> & { displayScore: import("./display-score").DisplayScore })[],
 ): Promise<SwissStageReadModel | null> {
   return withDbTrafficSource("match.swiss.read", async () => {
     const [stageRun] = await db.select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, finalizedRound: majorStageRuns.finalizedRound, presentationInput: majorRunPresentationSelection(majorStageRuns.ruleSnapshot) }).from(majorStageRuns)
