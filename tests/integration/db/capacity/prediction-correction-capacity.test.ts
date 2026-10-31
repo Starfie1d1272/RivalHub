@@ -55,8 +55,9 @@ it.skipIf(process.env.RIVALHUB_CORRECTION_CAPACITY !== "1")("measures late stake
               await tx.execute(sql`select pg_sleep(0.2)`);
             });
             const requests = Array.from({ length: concurrency }, (_, index) => ({ id: randomUUID(), userId: index % 2 ? f.otherId : f.userId, totalMs: 0, acquireAndBeginMs: null as number | null, transactionMs: null as number | null, result: "unknown", settings: null as { statement: string; lock: string } | null }));
-            let tasks: Promise<void>[] = []; let maxQueue = 0; let observedLock = false; let elapsedMs = 0;
+            let tasks: Promise<void>[] = []; let maxQueue = 0; let observedLock = false; let elapsedMs = 0; let samplingFailure: string | undefined; let recorded = false;
             const sampler = setInterval(() => { maxQueue = Math.max(maxQueue, f.pool.waitingCount); }, 5);
+            try {
             try {
               await Promise.race([locked, correction.then(() => { throw new Error("CORRECTION_ENDED_BEFORE_BARRIER"); })]);
               const start = performance.now();
@@ -77,7 +78,8 @@ it.skipIf(process.env.RIVALHUB_CORRECTION_CAPACITY !== "1")("measures late stake
               });
               const deadline = Date.now() + 1200;
               while (Date.now() < deadline) {
-                const sample = await monitor.query("select 1 from pg_stat_activity where application_name = 'prediction-correction-load' and wait_event_type = 'Lock'");
+                const sample = await monitor.query("select 1 from pg_stat_activity where application_name = 'prediction-correction-load' and wait_event_type = 'Lock'").catch(error => { samplingFailure = failureClass(error); return null; });
+                if (!sample) break;
                 if (sample.rowCount) { observedLock = true; break; }
                 await delay(10);
               }
@@ -85,16 +87,28 @@ it.skipIf(process.env.RIVALHUB_CORRECTION_CAPACITY !== "1")("measures late stake
             } finally { release(); clearInterval(sampler); await correction.catch(() => undefined); await Promise.allSettled(tasks); }
             const stored = await f.db.select({ requestId: schema.predictionStakes.requestId }).from(schema.predictionStakes);
             const outcomes = requests.map(request => ({ totalMs: request.totalMs, acquireAndBeginMs: request.acquireAndBeginMs, transactionMs: request.transactionMs, result: request.result, settings: request.settings, observedCommitted: stored.some(row => row.requestId === request.id) }));
-            expect(await balance(f.userId)).toBe(BigInt(900)); expect(await balance(f.otherId)).toBe(BigInt(900));
-            await f.db.transaction(tx => finalizeMajorSwissRoundInTransaction(tx, { seasonId: f.seasonId, stageRunId: f.runId, expectedRound: 1, actorId: "test" }));
-            await reconcile();
-            expect(await balance(f.userId)).toBe(BigInt(900)); expect(await balance(f.otherId)).toBe(BigInt(1100));
-            await reconcile(); expect(await balance(f.userId)).toBe(BigInt(900)); expect(await balance(f.otherId)).toBe(BigInt(1100));
-            expect((await f.db.select().from(schema.auditLogs)).filter(row => row.action === "match.result.corrected")).toHaveLength(1);
-            const unexpected = !observedLock || outcomes.some(item => item.result !== "expected_closed" || item.observedCommitted);
+            const balances = [String(await balance(f.userId)), String(await balance(f.otherId))];
+            if (!samplingFailure) {
+              expect(balances).toEqual(["900", "900"]);
+              await f.db.transaction(tx => finalizeMajorSwissRoundInTransaction(tx, { seasonId: f.seasonId, stageRunId: f.runId, expectedRound: 1, actorId: "test" }));
+              await reconcile();
+              expect(await balance(f.userId)).toBe(BigInt(900)); expect(await balance(f.otherId)).toBe(BigInt(1100));
+              await reconcile(); expect(await balance(f.userId)).toBe(BigInt(900)); expect(await balance(f.otherId)).toBe(BigInt(1100));
+              expect((await f.db.select().from(schema.auditLogs)).filter(row => row.action === "match.result.corrected")).toHaveLength(1);
+            }
+            const unexpected = !!samplingFailure || !observedLock || outcomes.some(item => item.result !== "expected_closed" || item.observedCommitted);
             stop = unexpected || maxQueue >= 8;
             if (stop) report.stopped = unexpected ? "unexpected_result" : "sampled_pool_queue";
-            report.rounds.push({ concurrency, round, elapsedMs, maxPoolQueueSampled: maxQueue, observedLock, balancesVerified: true, outcomes });
+            report.rounds.push({ concurrency, round, elapsedMs, maxPoolQueueSampled: maxQueue, observedLock, balances, balancesVerified: !samplingFailure, samplingFailure, outcomes });
+            recorded = true;
+            } catch (error) {
+              if (!samplingFailure || recorded) throw error;
+              let stored: Array<{ requestId: string }> | undefined; let readbackFailure: string | undefined;
+              try { stored = await f.db.select({ requestId: schema.predictionStakes.requestId }).from(schema.predictionStakes); }
+              catch (readError) { readbackFailure = failureClass(readError); }
+              stop = true; report.stopped = "unexpected_result";
+              report.rounds.push({ concurrency, round, samplingFailure, operationFailure: failureClass(error), readbackFailure, outcomes: requests.map(request => ({ ...request, id: undefined, userId: undefined, observedCommitted: stored?.some(row => row.requestId === request.id) ?? null })) });
+            }
           } finally { await monitor.end(); }
         }, 32);
       }

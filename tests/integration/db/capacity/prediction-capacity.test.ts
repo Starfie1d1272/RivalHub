@@ -125,7 +125,7 @@ it.skipIf(process.env.RIVALHUB_PREDICTION_WALL_CAPACITY !== "1")("measures compl
               after = new Date((await tx.execute<{ now: Date }>(sql`select clock_timestamp() as now`)).rows[0]!.now);
             });
             const requests = Array.from({ length: concurrency }, (_, i) => ({ id: randomUUID(), userId: i % 2 ? f.userId : f.otherId, totalMs: 0, acquisitionMs: null as number | null, transactionMs: null as number | null, result: "unknown", settings: null as object | null }));
-            let tasks: Promise<void>[] = []; let maxQueue = 0; let before: Date | undefined; let waiting = 0;
+            let tasks: Promise<void>[] = []; let maxQueue = 0; let before: Date | undefined; let waiting = 0; let samplingFailure: string | undefined; let recorded = false;
             const sampler = setInterval(() => { maxQueue = Math.max(maxQueue, f.pool.waitingCount); }, 5);
             let elapsedMs = 0;
             try {
@@ -147,7 +147,8 @@ it.skipIf(process.env.RIVALHUB_PREDICTION_WALL_CAPACITY !== "1")("measures compl
               });
               const until = Date.now() + 800;
               while (Date.now() < until) {
-                const sample = await monitor.query("select clock_timestamp() as now, count(*)::int as count from pg_stat_activity where application_name = 'prediction-wall-load' and wait_event_type = 'Lock'");
+                const sample = await monitor.query("select clock_timestamp() as now, count(*)::int as count from pg_stat_activity where application_name = 'prediction-wall-load' and wait_event_type = 'Lock'").catch(error => { samplingFailure = failureClass(error); return null; });
+                if (!sample) break;
                 waiting = sample.rows[0].count; before = new Date(sample.rows[0].now);
                 if (waiting >= Math.min(concurrency, 5)) break;
                 await new Promise(resolve => setTimeout(resolve, 10));
@@ -155,10 +156,19 @@ it.skipIf(process.env.RIVALHUB_PREDICTION_WALL_CAPACITY !== "1")("measures compl
               release(); await holder; await Promise.all(tasks); elapsedMs = performance.now() - start;
               const stored = await f.db.select().from(schema.predictionPicks);
               const outcomes = requests.map(request => ({ ...request, id: undefined, userId: undefined, observedCommitted: stored.some(row => row.requestId === request.id) }));
-              const unexpected = !before || before >= deadline || !after || after <= deadline || waiting < Math.min(concurrency, 5) || outcomes.some(item => item.result !== "expected_cutoff" || item.observedCommitted) || stored.length !== 1;
+              const unexpected = !!samplingFailure || !before || before >= deadline || !after || after <= deadline || waiting < Math.min(concurrency, 5) || outcomes.some(item => item.result !== "expected_cutoff" || item.observedCommitted) || stored.length !== 1;
               stop = unexpected || maxQueue >= 8;
               if (stop) report.stopped = unexpected ? "unexpected_or_sampling_failure" : "sampled_pool_queue";
-              report.rounds.push({ concurrency, round, deadline, before, after, observedLockWaiters: waiting, elapsedMs, requestsPerSecond: concurrency / (elapsedMs / 1000), maxPoolQueueSampled: maxQueue, outcomes, controlCommitted: stored.length === 1, timingIncludesArtificialBarrier: true });
+              report.rounds.push({ concurrency, round, deadline, before, after, observedLockWaiters: waiting, elapsedMs, requestsPerSecond: concurrency / (elapsedMs / 1000), maxPoolQueueSampled: maxQueue, outcomes, controlCommitted: stored.length === 1, samplingFailure, timingIncludesArtificialBarrier: true });
+              recorded = true;
+            } catch (error) {
+              if (!samplingFailure || recorded) throw error;
+              release(); await holder.catch(() => undefined); await Promise.allSettled(tasks);
+              let stored: Array<{ requestId: string }> | undefined; let readbackFailure: string | undefined;
+              try { stored = await f.db.select({ requestId: schema.predictionPicks.requestId }).from(schema.predictionPicks); }
+              catch (readError) { readbackFailure = failureClass(readError); }
+              stop = true; report.stopped = "unexpected_or_sampling_failure";
+              report.rounds.push({ concurrency, round, samplingFailure, operationFailure: failureClass(error), readbackFailure, outcomes: requests.map(request => ({ ...request, id: undefined, userId: undefined, observedCommitted: stored?.some(row => row.requestId === request.id) ?? null })) });
             } finally { release(); clearInterval(sampler); await holder.catch(() => undefined); await Promise.allSettled(tasks); }
           } finally { await monitor.end(); }
         }, 24);

@@ -136,7 +136,7 @@ it.skipIf(process.env.RIVALHUB_BET_START_CAPACITY !== "1")("measures stakes queu
               await start(f, mapId, tx); ready(); await gate; await tx.execute(sql`select pg_sleep(0.2)`);
             });
             const requests = Array.from({ length: concurrency }, (_, i) => ({ id: randomUUID(), userId: i % 2 ? f.otherId : f.userId, totalMs: 0, acquisitionMs: null as number | null, transactionMs: null as number | null, result: "unknown", settings: null as object | null }));
-            let maxQueue = 0; let waiting = 0; let tasks: Promise<void>[] = [];
+            let maxQueue = 0; let waiting = 0; let tasks: Promise<void>[] = []; let samplingFailure: string | undefined; let recorded = false;
             const sampler = setInterval(() => { maxQueue = Math.max(maxQueue, f.db.$client.waitingCount); }, 5);
             try {
               await Promise.race([locked, holder.then(() => { throw new Error("HOLDER_ENDED_BEFORE_BARRIER"); })]);
@@ -157,7 +157,8 @@ it.skipIf(process.env.RIVALHUB_BET_START_CAPACITY !== "1")("measures stakes queu
               });
               const deadline = Date.now() + 1200;
               while (Date.now() < deadline) {
-                const sample = await monitor.query("select count(*)::int as count from pg_stat_activity where application_name = 'bet-start-load' and wait_event_type = 'Lock'");
+                const sample = await monitor.query("select count(*)::int as count from pg_stat_activity where application_name = 'bet-start-load' and wait_event_type = 'Lock'").catch(error => { samplingFailure = failureClass(error); return null; });
+                if (!sample) break;
                 waiting = sample.rows[0].count;
                 if (waiting >= Math.min(concurrency, 5)) break;
                 await delay(10);
@@ -166,13 +167,22 @@ it.skipIf(process.env.RIVALHUB_BET_START_CAPACITY !== "1")("measures stakes queu
               const elapsedMs = performance.now() - at;
               const stored = await f.db.select().from(schema.betStakes);
               const outcomes = requests.map(request => ({ ...request, id: undefined, userId: undefined, observedCommitted: stored.some(row => row.requestId === request.id) }));
-              const unexpected = waiting < Math.min(concurrency, 5) || outcomes.some(item => item.result !== "expected_locked" || item.observedCommitted) || stored.length !== 0;
+              const unexpected = !!samplingFailure || waiting < Math.min(concurrency, 5) || outcomes.some(item => item.result !== "expected_locked" || item.observedCommitted) || stored.length !== 0;
               stop = unexpected || maxQueue >= 8;
               if (stop) report.stopped = unexpected ? "unexpected_or_sampling_failure" : "sampled_pool_queue";
               expect((await read(f.db, f.seasonId, f.userId)).balance).toBe("1000");
               expect((await read(f.db, f.seasonId, f.otherId)).balance).toBe("1000");
               expect((await f.db.select().from(schema.auditLogs)).filter(row => row.action === "match.map.start")).toHaveLength(1);
-              report.rounds.push({ concurrency, round, elapsedMs, requestsPerSecond: concurrency / (elapsedMs / 1000), observedLockWaiters: waiting, maxPoolQueueSampled: maxQueue, outcomes, balancesVerified: true, timingIncludesArtificialBarrier: true });
+              report.rounds.push({ concurrency, round, elapsedMs, requestsPerSecond: concurrency / (elapsedMs / 1000), observedLockWaiters: waiting, maxPoolQueueSampled: maxQueue, outcomes, balancesVerified: true, samplingFailure, timingIncludesArtificialBarrier: true });
+              recorded = true;
+            } catch (error) {
+              if (!samplingFailure || recorded) throw error;
+              release(); await holder.catch(() => undefined); await Promise.allSettled(tasks);
+              let stored: Array<{ requestId: string }> | undefined; let readbackFailure: string | undefined;
+              try { stored = await f.db.select({ requestId: schema.betStakes.requestId }).from(schema.betStakes); }
+              catch (readError) { readbackFailure = failureClass(readError); }
+              stop = true; report.stopped = "unexpected_or_sampling_failure";
+              report.rounds.push({ concurrency, round, samplingFailure, operationFailure: failureClass(error), readbackFailure, outcomes: requests.map(request => ({ ...request, id: undefined, userId: undefined, observedCommitted: stored?.some(row => row.requestId === request.id) ?? null })) });
             } finally { release(); clearInterval(sampler); await holder.catch(() => undefined); await Promise.allSettled(tasks); }
           } finally { await monitor.end(); }
         });

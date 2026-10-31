@@ -1,0 +1,890 @@
+{
+  "sha": "e720d36f4b386180765c7fd2005dca231968bd5c",
+  "hashes": {
+    "tests/integration/db/capacity/failure-class.ts": "d4ef80db03667bc2b01bde135f5096df0c74fba6f707d7daab35122cc72d8ca3",
+    "src/lib/bet/service.ts": "5a0e6fe3e3198a06fcebffb6b967615b17cb679ce448234540f3d63d86e4db60",
+    "tests/integration/db/harness/bet-fixture.ts": "e46eb64fce55dd8286eb7487163e8b47c2dfa737b898b28d6d688c300d4c79ca",
+    "tests/integration/db/capacity/bet-capacity.test.ts": "43716fb57047218286f177b273e411a00b7bc624e29545d3b81ad2824a90d891"
+  },
+  "accountMode": "different",
+  "dataset": "fresh scratch database per round: one Major, one match, two joined accounts, seven markets, no stakes; all available balance per request",
+  "limits": {
+    "poolMax": 6,
+    "poolAcquireTimeoutMs": 2000,
+    "statementTimeoutMs": 5000,
+    "lockTimeoutMs": 2000,
+    "stopOnAnyFailure": true,
+    "stopAtSampledPoolQueue": 8
+  },
+  "rounds": [
+    {
+      "concurrency": 1,
+      "round": 1,
+      "elapsedMs": 19.00653800000009,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 18.908390000000054,
+          "acquireAndBeginMs": 0.5122340000000349,
+          "transactionMs": 18.39615600000002,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "committed": 1,
+      "balanceVerified": true
+    },
+    {
+      "concurrency": 1,
+      "round": 2,
+      "elapsedMs": 12.339304000000084,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 12.327436000000034,
+          "acquireAndBeginMs": 0.2114289999999528,
+          "transactionMs": 12.116007000000081,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "committed": 1,
+      "balanceVerified": true
+    },
+    {
+      "concurrency": 1,
+      "round": 3,
+      "elapsedMs": 12.704737000000023,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 12.68155200000001,
+          "acquireAndBeginMs": 0.21548600000005536,
+          "transactionMs": 12.466065999999955,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "committed": 1,
+      "balanceVerified": true
+    },
+    {
+      "concurrency": 2,
+      "round": 1,
+      "elapsedMs": 41.58376099999987,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 16.59812899999997,
+          "acquireAndBeginMs": 1.4772720000000845,
+          "transactionMs": 15.120856999999887,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 41.55663900000036,
+          "acquireAndBeginMs": 7.825804000000062,
+          "transactionMs": 33.7308350000003,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "committed": 2,
+      "balanceVerified": true
+    },
+    {
+      "concurrency": 2,
+      "round": 2,
+      "elapsedMs": 28.07397899999978,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 11.934142000000065,
+          "acquireAndBeginMs": 0.7263869999997041,
+          "transactionMs": 11.207755000000361,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 28.047687999999653,
+          "acquireAndBeginMs": 4.645639000000301,
+          "transactionMs": 23.40204899999935,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "committed": 2,
+      "balanceVerified": true
+    },
+    {
+      "concurrency": 2,
+      "round": 3,
+      "elapsedMs": 45.098095999999714,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 14.62536899999941,
+          "acquireAndBeginMs": 1.1266869999999471,
+          "transactionMs": 13.498681999999462,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 45.07113500000014,
+          "acquireAndBeginMs": 4.976553000000422,
+          "transactionMs": 40.09458199999972,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "committed": 2,
+      "balanceVerified": true
+    },
+    {
+      "concurrency": 4,
+      "round": 1,
+      "elapsedMs": 58.26524100000006,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 16.790200000000368,
+          "acquireAndBeginMs": 1.0087740000008125,
+          "transactionMs": 15.781425999999556,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 32.762063000000126,
+          "acquireAndBeginMs": 8.347776000000522,
+          "transactionMs": 24.414286999999604,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 58.23526700000002,
+          "acquireAndBeginMs": 10.471034000000145,
+          "transactionMs": 47.76423299999988,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 46.1202600000006,
+          "acquireAndBeginMs": 9.21564699999999,
+          "transactionMs": 36.90461300000061,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        }
+      ],
+      "committed": 2,
+      "balanceVerified": true
+    },
+    {
+      "concurrency": 4,
+      "round": 2,
+      "elapsedMs": 61.849114000000554,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 16.097711000000345,
+          "acquireAndBeginMs": 1.1232970000000932,
+          "transactionMs": 14.974414000000252,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 46.70504299999993,
+          "acquireAndBeginMs": 6.372256999999081,
+          "transactionMs": 40.33278600000085,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 30.638370000000577,
+          "acquireAndBeginMs": 6.32760000000053,
+          "transactionMs": 24.310770000000048,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 61.81604399999924,
+          "acquireAndBeginMs": 8.653813999999329,
+          "transactionMs": 53.16222999999991,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        }
+      ],
+      "committed": 2,
+      "balanceVerified": true
+    },
+    {
+      "concurrency": 4,
+      "round": 3,
+      "elapsedMs": 81.7337179999995,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 36.94042199999967,
+          "acquireAndBeginMs": 0.7163730000011128,
+          "transactionMs": 36.22404899999856,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 81.70946100000037,
+          "acquireAndBeginMs": 14.052792999998928,
+          "transactionMs": 67.65666800000145,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 69.16618000000017,
+          "acquireAndBeginMs": 12.240504999999757,
+          "transactionMs": 56.92567500000041,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 53.75633899999957,
+          "acquireAndBeginMs": 14.141907999999603,
+          "transactionMs": 39.61443099999997,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        }
+      ],
+      "committed": 2,
+      "balanceVerified": true
+    },
+    {
+      "concurrency": 8,
+      "round": 1,
+      "elapsedMs": 111.08291699999972,
+      "maxPoolQueueSampled": 2,
+      "outcomes": [
+        {
+          "totalMs": 22.759776000000784,
+          "acquireAndBeginMs": 1.88309499999923,
+          "transactionMs": 20.876681000001554,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 95.72995099999935,
+          "acquireAndBeginMs": 9.02057799999966,
+          "transactionMs": 86.70937299999969,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 53.83925199999976,
+          "acquireAndBeginMs": 9.232970000000932,
+          "transactionMs": 44.60628199999883,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 38.82416699999885,
+          "acquireAndBeginMs": 8.149231999999756,
+          "transactionMs": 30.674934999999095,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 67.52082700000028,
+          "acquireAndBeginMs": 10.241382000000158,
+          "transactionMs": 57.27944500000012,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 82.37680700000055,
+          "acquireAndBeginMs": 9.673824999999852,
+          "transactionMs": 72.7029820000007,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 104.01270599999953,
+          "acquireAndBeginMs": 23.441956000000573,
+          "transactionMs": 80.57074999999895,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 111.0196020000003,
+          "acquireAndBeginMs": 39.20981000000029,
+          "transactionMs": 71.80979200000002,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        }
+      ],
+      "committed": 2,
+      "balanceVerified": true
+    },
+    {
+      "concurrency": 8,
+      "round": 2,
+      "elapsedMs": 118.44974299999922,
+      "maxPoolQueueSampled": 2,
+      "outcomes": [
+        {
+          "totalMs": 22.346221999998306,
+          "acquireAndBeginMs": 1.8023979999998119,
+          "transactionMs": 20.543823999998494,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 38.15694900000017,
+          "acquireAndBeginMs": 9.066774000000805,
+          "transactionMs": 29.090174999999363,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 86.98257700000067,
+          "acquireAndBeginMs": 11.95212299999912,
+          "transactionMs": 75.03045400000155,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 52.825205999999525,
+          "acquireAndBeginMs": 9.910327999999936,
+          "transactionMs": 42.91487799999959,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 71.22167500000069,
+          "acquireAndBeginMs": 10.867324000000735,
+          "transactionMs": 60.35435099999995,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 99.94366900000023,
+          "acquireAndBeginMs": 13.953567000000476,
+          "transactionMs": 85.99010199999975,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 108.53963099999964,
+          "acquireAndBeginMs": 22.871264999999767,
+          "transactionMs": 85.66836599999988,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 118.4198980000001,
+          "acquireAndBeginMs": 38.70752100000027,
+          "transactionMs": 79.71237699999983,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        }
+      ],
+      "committed": 2,
+      "balanceVerified": true
+    },
+    {
+      "concurrency": 8,
+      "round": 3,
+      "elapsedMs": 139.61086500000056,
+      "maxPoolQueueSampled": 2,
+      "outcomes": [
+        {
+          "totalMs": 40.91183100000126,
+          "acquireAndBeginMs": 13.37259400000039,
+          "transactionMs": 27.539237000000867,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 99.5234789999995,
+          "acquireAndBeginMs": 30.359988999998677,
+          "transactionMs": 69.16349000000082,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 112.63343600000007,
+          "acquireAndBeginMs": 33.19398100000035,
+          "transactionMs": 79.43945499999973,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 83.32801499999914,
+          "acquireAndBeginMs": 29.526128999999855,
+          "transactionMs": 53.801885999999286,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 70.17148300000008,
+          "acquireAndBeginMs": 28.59137699999883,
+          "transactionMs": 41.58010600000125,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 56.43450900000062,
+          "acquireAndBeginMs": 28.672238999999536,
+          "transactionMs": 27.76227000000108,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 131.43856700000106,
+          "acquireAndBeginMs": 41.337454000000434,
+          "transactionMs": 90.10111300000062,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 139.5689710000006,
+          "acquireAndBeginMs": 56.8840280000004,
+          "transactionMs": 82.6849430000002,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        }
+      ],
+      "committed": 2,
+      "balanceVerified": true
+    },
+    {
+      "concurrency": 16,
+      "round": 1,
+      "elapsedMs": 202.33194099999855,
+      "maxPoolQueueSampled": 10,
+      "outcomes": [
+        {
+          "totalMs": 22.830613000000085,
+          "acquireAndBeginMs": 1.1562770000000455,
+          "transactionMs": 21.67433600000004,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 57.86115900000004,
+          "acquireAndBeginMs": 11.649070000001302,
+          "transactionMs": 46.21208899999874,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 104.29645999999957,
+          "acquireAndBeginMs": 9.603139000000738,
+          "transactionMs": 94.69332099999883,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 89.13451300000088,
+          "acquireAndBeginMs": 8.219769000001179,
+          "transactionMs": 80.9147439999997,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 74.668001,
+          "acquireAndBeginMs": 11.803783999999723,
+          "transactionMs": 62.86421700000028,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 42.44018099999994,
+          "acquireAndBeginMs": 7.827225999999428,
+          "transactionMs": 34.61295500000051,
+          "failure": null,
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": true,
+          "outcome": "committed"
+        },
+        {
+          "totalMs": 114.66582600000038,
+          "acquireAndBeginMs": 23.39032800000132,
+          "transactionMs": 91.27549799999906,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 126.25359800000115,
+          "acquireAndBeginMs": 42.954186000000846,
+          "transactionMs": 83.2994120000003,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 137.3036430000011,
+          "acquireAndBeginMs": 58.411269000000175,
+          "transactionMs": 78.89237400000093,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 149.00266799999918,
+          "acquireAndBeginMs": 75.14472099999875,
+          "transactionMs": 73.85794700000042,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 157.07834899999943,
+          "acquireAndBeginMs": 89.9402599999994,
+          "transactionMs": 67.13808900000004,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 165.42000200000075,
+          "acquireAndBeginMs": 104.76706100000047,
+          "transactionMs": 60.65294100000028,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 174.32000899999912,
+          "acquireAndBeginMs": 115.24783599999864,
+          "transactionMs": 59.072173000000475,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 184.7162960000005,
+          "acquireAndBeginMs": 126.79642800000147,
+          "transactionMs": 57.91986799999904,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 192.29821099999936,
+          "acquireAndBeginMs": 137.77972299999965,
+          "transactionMs": 54.51848799999971,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        },
+        {
+          "totalMs": 202.28956599999947,
+          "acquireAndBeginMs": 149.61909000000014,
+          "transactionMs": 52.670475999999326,
+          "failure": "expected_insufficient",
+          "effectiveTimeouts": {
+            "statement": "5s",
+            "lock": "2s"
+          },
+          "observedCommitted": false,
+          "outcome": "expected_insufficient"
+        }
+      ],
+      "committed": 2,
+      "balanceVerified": true
+    }
+  ],
+  "stopped": "sampled_pool_queue",
+  "boundary": {
+    "replayChargedOnce": true,
+    "rejectedAfterGameplay": true,
+    "balanceVerified": true
+  },
+  "cleanup": true
+}
