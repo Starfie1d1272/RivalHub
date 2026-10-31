@@ -116,7 +116,7 @@ it.skipIf(process.env.RIVALHUB_BET_START_CAPACITY !== "1")("measures stakes queu
   const report: { sha: string; hashes: Record<string, string>; dataset: string; limits: object; rounds: object[]; stopped?: string; cleanup?: boolean } = {
     sha, hashes: Object.fromEntries(paths.map(path => [path, createHash("sha256").update(readFileSync(path)).digest("hex")])),
     dataset: "fresh scratch per round; one Major, two accounts, completed BO3 veto, canonical start holder and alternating late stakes",
-    limits: { poolMax: 6, acquisitionTimeoutMs: 2000, statementTimeoutMs: 5000, lockTimeoutMs: 2000, heldSqlSleepMs: 200, sampledQueueStop: 8, stopOnUnexpected: true }, rounds: [],
+    limits: { poolMax: 6, acquisitionTimeoutMs: 2000, statementTimeoutMs: 5000, lockTimeoutMs: 2000, heldSqlSleepMs: 200, sampledQueueStop: 8, stopOnUnexpected: true, disconnectMonitor: process.env.RIVALHUB_BET_SAMPLE_DISCONNECT === "1" }, rounds: [],
   };
   let stop = false;
   try {
@@ -160,7 +160,13 @@ it.skipIf(process.env.RIVALHUB_BET_START_CAPACITY !== "1")("measures stakes queu
                 const sample = await monitor.query("select count(*)::int as count from pg_stat_activity where application_name = 'bet-start-load' and wait_event_type = 'Lock'").catch(error => { samplingFailure = failureClass(error); return null; });
                 if (!sample) break;
                 waiting = sample.rows[0].count;
-                if (waiting >= Math.min(concurrency, 5)) break;
+                if (waiting >= Math.min(concurrency, 5)) {
+                  // This opt-in fault terminates only the scratch monitor's own backend.
+                  if (process.env.RIVALHUB_BET_SAMPLE_DISCONNECT === "1") {
+                    await monitor.query("select pg_terminate_backend(pg_backend_pid())").catch(error => { samplingFailure = failureClass(error); });
+                  }
+                  break;
+                }
                 await delay(10);
               }
               release(); await holder; await Promise.all(tasks);
