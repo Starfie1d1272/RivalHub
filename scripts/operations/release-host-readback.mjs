@@ -43,12 +43,12 @@ function sample() {
 
 // Incident-specific, bounded journal read. Only fixed aggregates leave the host.
 function journalSummary() {
-  const sinceUtc = "2026-10-31T07:45:00.000Z";
-  const untilUtc = new Date(Math.floor(Math.min(Date.now(), Date.parse("2026-10-31T12:00:00.000Z")) / 1000) * 1000).toISOString();
-  const result = { sinceUtc, untilUtc, status: "unavailable", errorCode: "invalid_window", rows: [], scopedStatus: "unavailable", scopedRows: [] };
+  const sinceUtc = "2026-10-31T13:00:00.000Z";
+  const untilUtc = new Date(Math.floor(Math.min(Date.now(), Date.parse("2026-10-31T15:00:00.000Z")) / 1000) * 1000).toISOString();
+  const result = { sinceUtc, untilUtc, status: "unavailable", errorCode: "invalid_window", rows: [], failureRows: [] };
   if (untilUtc < sinceUtc) return result;
   const journalTime = value => value.replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
-  const journal = spawnSync("/usr/bin/journalctl", ["--namespace=*", "--unit=rivalhub-production", `--since=${journalTime(sinceUtc)}`, `--until=${journalTime(untilUtc)}`, "--output=cat", "--no-pager", "--grep=mizar\\.(reliable\\.reject|live\\.(outcome_window|stage_window|broadcast_unavailable))"], { encoding: "utf8", timeout: 30000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+  const journal = spawnSync("/usr/bin/journalctl", ["--namespace=*", "--unit=rivalhub-production", `--since=${journalTime(sinceUtc)}`, `--until=${journalTime(untilUtc)}`, "--output=cat", "--no-pager", "--grep=(mizar\\.(reliable\\.reject|live\\.(outcome_window|stage_window|broadcast_unavailable)|request\\.failure)|db\\.query\\.(failure|outcome_unknown|retry))"], { encoding: "utf8", timeout: 30000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
   if (journal.error) {
     const codes = { ENOENT: "binary_missing", EACCES: "execute_denied", ETIMEDOUT: "timeout", ENOBUFS: "output_limit" };
     result.errorCode = codes[journal.error.code] ?? "execution_error";
@@ -66,10 +66,10 @@ function journalSummary() {
   const phases = new Set(["auth", "read", "validate", "domain", "revalidation"]);
   const outcomes = new Set(["accepted", "frame_expired", "contended", "delivery_dropped", "broadcast_unavailable", "rejected", "error"]);
   const stages = new Set(["received", "admitted", "authorized", "send_success", "expired", "capacity", "contended", "unknown_send"]);
-  const kinds = new Set(["match_started", "map_started", "map_ended", "map_player_snapshot", "series_ended", "source_generation_changed", "map_epoch_changed", "identity_mismatch", "lineup_mismatch"]);
+  const codes = new Set(["55P03", "57014", "40001", "40P01", "08000", "08001", "08003", "08006", "57P01", "57P03", "53300", "ECONNRESET", "ETIMEDOUT"]);
+  const classes = new Set(["database", "application", "dependency", "expected", "security", "invariant"]);
   const counts = new Map();
-  const scopedCounts = new Map();
-  let scopedIncomplete = false;
+  const failureCounts = new Map();
   let incomplete = false;
   function add(event, reason, status, count) {
     const key = JSON.stringify([event, reason, status]);
@@ -83,6 +83,20 @@ function journalSummary() {
     try { entry = JSON.parse(line); } catch { incomplete = true; continue; }
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) { incomplete = true; continue; }
     const context = entry.safeContext ?? {};
+    const isLiveFailure = entry.event === "mizar.request.failure" && entry.operation === "live";
+    const isMizarQuery = ["db.query.failure", "db.query.outcome_unknown", "db.query.retry"].includes(entry.event) && entry.route === "/api/mizar/[operation]";
+    if (isLiveFailure || isMizarQuery) {
+      const timestamp = typeof entry.timestamp === "string" ? Date.parse(entry.timestamp) : NaN;
+      if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString() !== entry.timestamp || entry.timestamp < sinceUtc || entry.timestamp > untilUtc) { incomplete = true; continue; }
+      const code = codes.has(entry.errorCode) ? entry.errorCode : "other_or_missing";
+      const errorClass = classes.has(entry.errorClass) ? entry.errorClass : "other_or_missing";
+      const phase = isLiveFailure && phases.has(context.phase) ? context.phase : "not_recorded";
+      const status = isLiveFailure && context.httpStatus === 500 ? "500" : "not_recorded";
+      const key = JSON.stringify([`${entry.timestamp.slice(0, 16)}:00Z`, entry.event, code, errorClass, phase, status]);
+      if (!failureCounts.has(key) && failureCounts.size >= 100) incomplete = true;
+      else failureCounts.set(key, (failureCounts.get(key) ?? 0) + 1);
+      continue;
+    }
     if (entry.event === "mizar.live.broadcast_unavailable") { add(entry.event, null, "records", 1); continue; }
     if (entry.event === "mizar.reliable.reject") {
       if (!reliable.has(context.reason)) { incomplete = true; continue; }
@@ -90,18 +104,7 @@ function journalSummary() {
       if (Number.isSafeInteger(context.firstAt) && context.firstAt >= 0 && Number.isSafeInteger(context.lastAt) && context.lastAt >= context.firstAt && Number.isSafeInteger(context.count) && context.count > 1) {
         add(entry.event, reason, "window_records", 1);
         add(entry.event, reason, "window_reported_count", context.count);
-      } else if (context.count === 1 && phases.has(context.phase)) {
-        add(entry.event, reason, "first_records", 1);
-        if (reason === "epoch_fence" && context.scopeHash === "42b0e08fee7e6b69") {
-          const timestamp = typeof entry.timestamp === "string" ? Date.parse(entry.timestamp) : NaN;
-          if (!kinds.has(context.kind) || !Number.isSafeInteger(context.receivedCursor) || context.receivedCursor < 0 || !Number.isSafeInteger(context.storedCursor) || context.storedCursor < 0 || !Number.isFinite(timestamp) || new Date(timestamp).toISOString() !== entry.timestamp || entry.timestamp < sinceUtc || entry.timestamp > untilUtc) scopedIncomplete = true;
-          else {
-            const key = JSON.stringify([`${entry.timestamp.slice(0, 16)}:00Z`, context.kind, context.receivedCursor, context.storedCursor]);
-            if (!scopedCounts.has(key) && scopedCounts.size >= 100) scopedIncomplete = true;
-            else scopedCounts.set(key, (scopedCounts.get(key) ?? 0) + 1);
-          }
-        }
-      }
+      } else if (context.count === 1 && phases.has(context.phase)) add(entry.event, reason, "first_records", 1);
       else incomplete = true;
       continue;
     }
@@ -113,8 +116,7 @@ function journalSummary() {
   result.status = incomplete ? "incomplete" : "ok";
   result.errorCode = incomplete ? "invalid_record" : null;
   result.rows = [...counts].map(([key, count]) => { const [event, reason, status] = JSON.parse(key); return { event, reason, status, count }; });
-  result.scopedStatus = incomplete || scopedIncomplete ? "incomplete" : "ok";
-  result.scopedRows = [...scopedCounts].map(([key, count]) => { const [minute, kind, receivedEpoch, storedEpoch] = JSON.parse(key); return { minute, kind, receivedEpoch, storedEpoch, count }; });
+  result.failureRows = [...failureCounts].map(([key, count]) => { const [minute, event, code, errorClass, phase, status] = JSON.parse(key); return { minute, event, code, errorClass, phase, status, count }; });
   return result;
 }
 
