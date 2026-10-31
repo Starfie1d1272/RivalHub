@@ -30,7 +30,7 @@ export async function getOfficialStatsMapCatalog(seasonIds: string[]) {
   if (!seasonIds.length) return [];
   return db.selectDistinct({ name: matchMaps.mapName, seasonId: matches.seasonId }).from(matchMaps)
     .innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(officialMatchCondition(), inArray(matches.seasonId, seasonIds)))
-    .unionAll(db.selectDistinct({ name: matchVetoSteps.mapName, seasonId: matches.seasonId }).from(matchVetoSteps)
+    .union(db.selectDistinct({ name: matchVetoSteps.mapName, seasonId: matches.seasonId }).from(matchVetoSteps)
     .innerJoin(matches, eq(matches.id, matchVetoSteps.matchId)).where(and(officialMatchCondition(), inArray(matches.seasonId, seasonIds))));
 }
 async function cachedPlatformStats(scope: PlatformStatsScope, versions: string) {
