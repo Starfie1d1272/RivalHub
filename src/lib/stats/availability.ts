@@ -2,6 +2,7 @@ import "server-only";
 
 import { unstable_rethrow } from "next/navigation";
 import { captureException } from "@/lib/observability/server";
+import { ProjectionTransportUnavailableError } from "./projection-transport";
 import { classifyError } from "@/lib/observability/errors";
 
 const PUBLIC_STATS_DEPENDENCY_DIGEST = "RIVALHUB_PUBLIC_STATS_DEPENDENCY_V1";
@@ -11,7 +12,7 @@ function isTransportedDependencyFailure(error: unknown): boolean {
 }
 
 function isDependencyFailure(error: unknown): boolean {
-  if (isTransportedDependencyFailure(error)) return true;
+  if (isTransportedDependencyFailure(error) || error instanceof ProjectionTransportUnavailableError) return true;
   if (classifyError(error).retryable) return true;
   let cause = error;
   for (let depth = 0; depth < 5 && cause instanceof Error; depth++) {

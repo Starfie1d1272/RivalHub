@@ -4,8 +4,8 @@ import { buildProductionEnvironment } from "./production-environment";
 
 try {
   const args = process.argv.slice(2).filter((arg) => arg !== "--");
-  if (args[0] !== "backfill" && args[0] !== "coverage") throw new Error("需要 backfill 或 coverage 子命令。");
-  const apply = args[0] === "backfill" && args.includes("--apply");
+  if (args[0] !== "backfill" && args[0] !== "transport-backfill" && args[0] !== "coverage") throw new Error("需要 backfill、transport-backfill 或 coverage 子命令。");
+  const apply = args[0] !== "coverage" && args.includes("--apply");
   const environment = buildProductionEnvironment(process.env, { requiresWriteAuthorization: apply });
   const projectRoot = resolve(process.cwd());
   const executable = resolve(projectRoot, `node_modules/.bin/tsx${process.platform === "win32" ? ".cmd" : ""}`);
