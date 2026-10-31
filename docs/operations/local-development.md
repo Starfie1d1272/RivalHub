@@ -88,10 +88,10 @@ pnpm db:check
 
 ```bash
 pnpm db:local:reset
-pnpm db:local:stop
+pnpm db:local:stop -- --project-id rivalhub-scratch-<id>
 ```
 
-`reset` 是明确的本地破坏性操作；不要把它用于 staging 或 production。
+`stop` 仅接受与当前 `supabase/config.toml` 的 project_id 完全匹配的显式独立 `rivalhub-scratch-<id>`，拒绝共享 `rivalhub`；为避免配置歧义，根级只允许一条双引号 `project_id` 声明。`reset` 是明确的本地破坏性操作；不要把它用于 staging 或 production。
 
 ## 多 worktree
 

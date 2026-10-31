@@ -1,5 +1,5 @@
 import { spawnSync, type SpawnSyncOptions } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   buildLocalAppEnvironment,
@@ -14,7 +14,6 @@ import { runSupabaseStartup } from "./local-supabase-start";
 import { replayActiveMigrationChain } from "./migration-replay";
 import { recordE2EExitStage } from "../ci/playwright-exit-reporter";
 
-const PROJECT_ID = "rivalhub";
 const DOCKER_NETWORK = "rivalhub-local";
 const projectRoot = resolve(process.cwd());
 const binSuffix = process.platform === "win32" ? ".cmd" : "";
@@ -138,11 +137,22 @@ try {
     case "reset":
       resetLocalDatabase();
       break;
-    case "stop":
-      run(supabaseBin, ["stop", "--project-id", PROJECT_ID], {
+    case "stop": {
+      const args = process.argv.slice(3);
+      if (args[0] === "--") args.shift();
+      const config = readFileSync(resolve(projectRoot, "supabase/config.toml"), "utf8");
+      const rootConfig = config.split(/^\s*\[/m, 1)[0];
+      const lines = rootConfig.split(/\r?\n/).filter(line => !/^[ \t]*(?:#.*)?$/.test(line));
+      const match = lines.length === 1 ? /^[ \t]*project_id[ \t]*=[ \t]*"([a-z0-9-]+)"[ \t]*(?:#.*)?$/.exec(lines[0]) : null;
+      const id = args[1];
+      if (args.length !== 2 || args[0] !== "--project-id" || !id || !/^rivalhub-scratch-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) || !match || match[1] !== id) {
+        throw new Error("stop 只接受与当前 supabase/config.toml 匹配的显式独立 scratch 项目：--project-id rivalhub-scratch-<id>。");
+      }
+      run(supabaseBin, ["stop", "--project-id", id], {
         env: sanitizedEnvironment(),
       });
       break;
+    }
     case "studio": {
       const status = readLocalStatus();
       console.log(status.studioUrl ?? "http://127.0.0.1:54323");
