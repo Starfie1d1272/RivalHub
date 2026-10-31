@@ -63,6 +63,7 @@ export async function verifyCanonical(expected: ReleaseIdentity) {
 }
 
 async function main() {
+  console.log(JSON.stringify({ event: "linux.release_stage", stage: "package_validation" }));
   const candidate = assertReleaseIdentity({ releaseTag: process.env.RELEASE_TAG, releaseCommit: process.env.RELEASE_SHA });
   const previous = assertReleaseIdentity({ releaseTag: process.env.RIVALHUB_PREVIOUS_RELEASE_TAG, releaseCommit: process.env.RIVALHUB_PREVIOUS_RELEASE_COMMIT });
   const key = process.env.LINUX_DEPLOY_SSH_KEY;
@@ -91,6 +92,7 @@ async function main() {
   let result = "failed";
   try {
     // Setup failures occur before any application mutation.
+    console.log(JSON.stringify({ event: "linux.release_stage", stage: "remote_directory" }));
     ssh(`mkdir -m 700 ${remote}`);
     // Native Node TS imports need an explicit extension, as in build-production.
     // Upload the canonical TLS owner, never another connection implementation.
@@ -98,22 +100,28 @@ async function main() {
       .replace('from "./supabase-ca"', 'from "./supabase-ca.ts"'));
     const tools = ["scripts/standby/install-production.sh", "scripts/standby/production-host.mjs", "scripts/standby/rivalhub-production.service", "scripts/standby/layers.mjs",
       "scripts/standby/production-quiescence.mjs", "scripts/standby/production-launcher.mjs", "scripts/standby/production-traffic-status.mjs", join(temp, "postgres-connection.ts"), "src/db/supabase-ca.ts"];
+    console.log(JSON.stringify({ event: "linux.release_stage", stage: "upload_manifest_and_tools" }));
     execFileSync("scp", [...options, "-P", "52222", join(packageDir, archive), join(packageDir, `${archive}.sha256`), ...tools, `${host}:${remote}/`], { stdio: "inherit", timeout: 300_000 });
     if (layered) {
+      console.log(JSON.stringify({ event: "linux.release_stage", stage: "layer_inventory" }));
       const missing: unknown = JSON.parse(execFileSync("ssh", [...options, "-p", "52222", host,
         `/opt/rivalhub-production/current/runtime/node ${remote}/layers.mjs missing ${remote}/${archive} /opt/rivalhub-production/layers`], { encoding: "utf8", timeout: 300_000 }));
       if (!Array.isArray(missing) || missing.some(name => typeof name !== "string" || !layered.layers.some(layer => layer.archive === name)) || new Set(missing).size !== missing.length) throw new Error("Invalid remote layer inventory.");
-      if (missing.length) execFileSync("scp", [...options, "-P", "52222", ...missing.map(name => join(packageDir, name)), `${host}:${remote}/`], { stdio: "inherit", timeout: 300_000 });
+      if (missing.length) {
+        console.log(JSON.stringify({ event: "linux.release_stage", stage: "upload_layers" }));
+        execFileSync("scp", [...options, "-P", "52222", ...missing.map(name => join(packageDir, name)), `${host}:${remote}/`], { stdio: "inherit", timeout: 300_000 });
+      }
       const bytes = layered.layers.filter(layer => missing.includes(layer.archive)).reduce((sum, layer) => sum + layer.bytes, 0);
       console.log(JSON.stringify({ event: "linux.layer_transfer", layers: missing.length, compressedBytes: bytes, reusedLayers: 3 - missing.length }));
     }
+    console.log(JSON.stringify({ event: "linux.release_stage", stage: "promotion" }));
     await promoteLinux({
       assertCapabilities: () => assertReleaseCapabilities(process.cwd(), previous.releaseCommit, candidate.releaseCommit),
-      verifyPrevious: () => verifyIdentity(previous),
-      deploy: async () => { ssh(`bash ${remote}/install-production.sh ${remote}/${archive} /etc/rivalhub-production/production.env --release ${pair} && { /opt/rivalhub-production/current/runtime/node ${remote}/production-traffic-status.mjs || printf '%s\\n' '{"event":"db_traffic.host_readback","available":false}'; }`); },
-      verifyCandidate: () => verifyCanonical(candidate),
-      rollback: async () => { ssh(`bash ${remote}/install-production.sh --rollback ${pair}`); },
-      verifyRollback: () => verifyCanonical(previous),
+      verifyPrevious: () => { console.log(JSON.stringify({ event: "linux.release_stage", stage: "verify_previous" })); return verifyIdentity(previous); },
+      deploy: async () => { console.log(JSON.stringify({ event: "linux.release_stage", stage: "install" })); ssh(`bash ${remote}/install-production.sh ${remote}/${archive} /etc/rivalhub-production/production.env --release ${pair} && { printf '%s\\n' '{"event":"linux.release_stage","stage":"host_readback"}'; /opt/rivalhub-production/current/runtime/node ${remote}/production-traffic-status.mjs || printf '%s\\n' '{"event":"db_traffic.host_readback","available":false}'; }`); },
+      verifyCandidate: () => { console.log(JSON.stringify({ event: "linux.release_stage", stage: "verify_candidate" })); return verifyCanonical(candidate); },
+      rollback: async () => { console.log(JSON.stringify({ event: "linux.release_stage", stage: "rollback" })); ssh(`bash ${remote}/install-production.sh --rollback ${pair}`); },
+      verifyRollback: () => { console.log(JSON.stringify({ event: "linux.release_stage", stage: "verify_rollback" })); return verifyCanonical(previous); },
     });
     result = "canonical verified";
     console.log(`Linux Production verified: ${candidate.releaseTag} ${candidate.releaseCommit}`);
