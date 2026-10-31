@@ -234,6 +234,9 @@ async function loadStatsEvidenceSelection<T extends ProjectionTargets>(
   for (const { current, map, match } of refs) {
     let facts = factsByImport.get(current.id);
     if (facts && Object.hasOwn(facts, "tournamentTransport")) {
+      if (facts.tournament.mapKey !== map.id || facts.tournament.matchKey !== match.id) {
+        throw new Error("Statistics projection target mismatch");
+      }
       const tournament = await decodeTournamentTransport((facts as T & { tournamentTransport: unknown }).tournamentTransport);
       if (tournament.mapKey !== map.id || tournament.matchKey !== match.id || tournament.mapName !== map.mapName ||
         tournament.semanticProfile !== current.semanticProfile || tournament.analysisVersion !== current.analysisVersion) throw new ProjectionTransportIntegrityError();

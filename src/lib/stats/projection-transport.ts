@@ -112,5 +112,7 @@ export async function decodeTournamentTransport(value: unknown): Promise<Tournam
 }
 
 export const tournamentTransportSelection = sql`CASE WHEN ${matchDemoStatProjections.facts} ? 'tournamentTransport'
-  THEN jsonb_build_object('tournamentTransport', ${matchDemoStatProjections.facts}->'tournamentTransport')
+  THEN jsonb_build_object('tournamentTransport', ${matchDemoStatProjections.facts}->'tournamentTransport',
+    'tournament', jsonb_build_object('mapKey', ${matchDemoStatProjections.facts}->'tournament'->'mapKey',
+      'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey'))
   ELSE jsonb_build_object('tournament', ${matchDemoStatProjections.facts}->'tournament') END`;
