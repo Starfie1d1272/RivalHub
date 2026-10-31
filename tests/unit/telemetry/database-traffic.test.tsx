@@ -68,3 +68,18 @@ it("includes separately reported gaps and flags incomplete loss totals", async (
   expect(screen.getByText("部分提供 3")).toBeInTheDocument();
   expect(screen.getByText(/缺口已知丢失 3 批 \/ 20 字节；旧窗口 0。缺口未确认 2 批/)).toBeInTheDocument();
 });
+
+it("shows historical unknown coverage across the whole range without claiming current failure", async () => {
+  const base = { start: 0, generatedAt: 10800000, receivedBytes: 0, pending: 0, dropped: 0, lossComplete: true, offline: [], offlineTruncated: false, windows: [], qualityPending: 1, qualityTruncated: true };
+  read.mockResolvedValue({ status: "ready", data: { ...base, quality: [{ hour: 3600000, release: "old-release", deployment: "old-deploy", batches: 0, reasons: {}, coverageUnknownSince: 1000, truncated: false }, { hour: 7200000, release: "new-release", deployment: "new-deploy", batches: 0, reasons: {}, truncated: false }] } });
+  render(await DatabaseTraffic({ hours: 24, sort: "bytes", selection: { hour: "7200000", release: "new-release", deployment: "new-deploy" } }));
+  expect(screen.getByText(/报告小时 .*old-release \/ old-deploy · 未知始于/)).toBeInTheDocument();
+  expect(screen.getByText(/历史记录不表示当前仍有故障，未报告丢失也不能证明覆盖完整。质量记录待汇总或已截断/)).toBeInTheDocument();
+});
+
+it("does not interpret an absence of reported unknown coverage as proof of completeness", async () => {
+  read.mockResolvedValue({ status: "ready", data: { start: 0, generatedAt: 1000, receivedBytes: 0, pending: 0, dropped: 0, lossComplete: true, offline: [], offlineTruncated: false, windows: [], quality: [] } });
+  render(await DatabaseTraffic({ hours: 24, sort: "bytes", selection: {} }));
+  expect(screen.getByText("此范围暂无已汇总的覆盖未知记录。")).toBeInTheDocument();
+  expect(screen.getByText(/未报告丢失也不能证明覆盖完整/)).toBeInTheDocument();
+});

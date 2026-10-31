@@ -53,7 +53,7 @@ export class DbTrafficDelivery {
     const body = { id: crypto.randomUUID(), ...(state.coverageIdentity ?? unknownIdentity), reportedAt: now, start: now, end: now, reason: "unknown_tail", certainty: "unknown", batches: 0, receivedBytes: 0, truncated: true, coverageUnknownSince: at };
     state.gaps.push({ id: body.id, body: JSON.stringify(body), digest: await digestDbTraffic(body), at: now, attempted: false, nextAttemptAt: Math.max(now, state.globalNextAttemptAt, state.gapNextAttemptAt), attempts: 0, coverageRevision: state.coverageRevision });
   }
-  async start(now: number): Promise<void> {
+  async start(now: number, windowStart: () => number = () => now): Promise<void> {
     const state = this.spool.snapshot();
     if (state.coverageRevision === undefined) { state.coverageRevision = state.coverageUnknownSince === null || state.coverageReportedSince === state.coverageUnknownSince ? 0 : 1; state.coverageReportedRevision = 0; }
     // Recover all capsules in one state commit. Protect recovered IDs from
@@ -97,7 +97,7 @@ export class DbTrafficDelivery {
     }
     if (state.openWindowSince !== null) markCoverage(state, Math.min(now, state.openWindowSince), state.openWindowIdentity ?? unknownIdentity);
     if (this.spool.orphanSince !== null) markCoverage(state, Math.min(now, this.spool.orphanSince));
-    state.openWindowSince = now; state.openWindowIdentity = this.identity;
+    state.openWindowSince = Math.min(now, windowStart()); state.openWindowIdentity = this.identity;
     await this.ensureCoverage(state, now);
     await this.spool.commit(state);
     if (invalid.length) {
@@ -106,6 +106,10 @@ export class DbTrafficDelivery {
     }
     await deleteExitCapsules(this.spool.directory, capsules);
     await this.spool.cleanupOrphans();
+  }
+  async noteUnknown(at: number, now: number): Promise<void> {
+    const state = this.spool.snapshot(); markCoverage(state, at, this.identity);
+    await this.ensureCoverage(state, now); await this.spool.commit(state);
   }
   async seal(body: string, now: number, coverageUnknownSince?: number, snapshotCapturedAt = now): Promise<void> {
     const value = JSON.parse(body) as Batch;
