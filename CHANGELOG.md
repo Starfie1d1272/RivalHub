@@ -5,6 +5,13 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.14]
+
+### Changed
+
+- 优化管理员竞猜页与公共赛程的数据读取，保持原有权限、赛程筛选和展示行为。
+- 优化 BET 对账读取的数据传输和历史账本读取，保留历史盘口、逐笔投注、结算更正与冲正处理；生产效果仍待验证。
+
 ## [2.25.13]
 
 ### Changed
@@ -3390,6 +3397,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.25.14]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.13...v2.25.14
 [2.25.13]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.12...v2.25.13
 [2.25.12]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.11...v2.25.12
 [2.25.11]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.10...v2.25.11
