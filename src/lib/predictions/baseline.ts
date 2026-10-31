@@ -78,7 +78,7 @@ export async function loadBaselineRead(
   );
   const stages = projectPredictionStages(plan);
   const [prestart] = await db
-    .select()
+    .select({ seedsConfirmedAt: majorPrestartStates.seedsConfirmedAt })
     .from(majorPrestartStates)
     .where(eq(majorPrestartStates.seasonId, seasonId));
   const teams = prestart?.seedsConfirmedAt

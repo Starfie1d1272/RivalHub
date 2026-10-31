@@ -76,13 +76,16 @@ export async function readPredictionSnapshot(
     .from(contests)
     .where(eq(contests.seasonId, seasonId));
   const allPicks = records || me ? await tx
-    .selectDistinctOn([picks.accountId, picks.contestId, picks.submitted])
+    .selectDistinctOn([picks.accountId, picks.contestId, picks.submitted], {
+      accountId: picks.accountId, contestId: picks.contestId, submitted: picks.submitted,
+      version: picks.version, pick: picks.pick, createdAt: picks.createdAt,
+    })
     .from(picks)
     .where(and(eq(picks.seasonId, seasonId), records ? or(eq(picks.submitted, true), me ? eq(picks.accountId, me.id) : undefined) : me ? eq(picks.accountId, me.id) : sql`false`))
     .orderBy(picks.accountId, picks.contestId, picks.submitted, desc(picks.version)) : [];
   const history = (records || !!me) && windows.length
     ? await tx
-        .selectDistinctOn([judgements.contestId], { prediction_judgements: judgements,
+        .selectDistinctOn([judgements.contestId], { prediction_judgements: { contestId: judgements.contestId, actual: judgements.actual },
           revisionCount: sql<number>`count(*) over (partition by ${judgements.contestId})::int` })
         .from(judgements)
         .innerJoin(contests, eq(contests.id, judgements.contestId))
