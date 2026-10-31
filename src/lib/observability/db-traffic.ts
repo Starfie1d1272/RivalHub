@@ -12,7 +12,7 @@ export { DB_SOURCES, type DbTrafficSource } from "./db-traffic-contract";
 export type DbTemplate = string;
 type Row = { source: DbTrafficSource; template: string; queries: number; failures: number; rows: number; queryMs: number; logicalRowJsonBytes: number; logicalMeasuredQueries: number; rxBytes: number; skipReasons: { budget: number; unsupported_value: number; error: number } };
 type Context = { source: DbTrafficSource };
-type State = { exitCapsuleArmed?: boolean; delivery?: Promise<DbTrafficDelivery>; deliveryStarted?: boolean; flushAgain?: boolean; diskNextAttemptAt?: number; coverageUnknownSince?: number; budgetStartedAt?: number; budgetSent?: number; sealing?: { body: string; rows: Row[]; receivedBytes: number; remaining: Remaining; at: number; capturedAt: number }; context: AsyncLocalStorage<Context>; rows: Map<string, Row>; shapeScores?: Map<string, number>; processId: string; sending: boolean; receivedBytes: number; connections: number; observedConnections: number; clients: Set<PoolClient>; hour: number; remaining: Remaining };
+type State = { maintenance?: Promise<void>; initializing?: Promise<boolean>; initStartedAt?: number; earliestObservedAt?: number; degradedSince?: number; exitCapsuleArmed?: boolean; delivery?: Promise<DbTrafficDelivery>; deliveryStarted?: boolean; flushAgain?: boolean; diskNextAttemptAt?: number; coverageUnknownSince?: number; budgetStartedAt?: number; budgetSent?: number; sealing?: { body: string; rows: Row[]; receivedBytes: number; remaining: Remaining; at: number; capturedAt: number }; context: AsyncLocalStorage<Context>; rows: Map<string, Row>; shapeScores?: Map<string, number>; processId: string; sending: boolean; receivedBytes: number; connections: number; observedConnections: number; clients: Set<PoolClient>; hour: number; remaining: Remaining };
 type Remaining = { async: number; no_owner: number; partial: number; unsupported: number; instrumentation: number };
 function emptyRemaining(): Remaining { return { async: 0, no_owner: 0, partial: 0, unsupported: 0, instrumentation: 0 }; }
 const HOUR = 3600000;
@@ -81,6 +81,7 @@ function getRow(source: DbTrafficSource, template: string, rxWeight = 0): Row {
 export type LogicalSkipReason = "budget" | "unsupported_value" | "error";
 export function recordDbTraffic(source: DbTrafficSource, template: DbTemplate, rows: number, ms: number, failure: boolean, logicalBytes?: number, skipReason?: LogicalSkipReason) {
   if (!dbTrafficEnabled()) return;
+  const s = state(); const at = Date.now(); if (!s.deliveryStarted) s.earliestObservedAt = Math.min(s.earliestObservedAt ?? at, at);
   ensureWindow();
   const row = getRow(source, template);
   row.queries++; row.failures += failure ? 1 : 0; row.rows += rows; row.queryMs += ms;
@@ -93,7 +94,7 @@ export function observeDbStream(client: PoolClient) {
   try {
     observed = observePgTraffic(client, {
       enabled: dbTrafficEnabled,
-      raw(bytes) { ensureWindow(); s.receivedBytes += bytes; },
+      raw(bytes) { const at = Date.now(); if (!s.deliveryStarted) s.earliestObservedAt = Math.min(s.earliestObservedAt ?? at, at); ensureWindow(); s.receivedBytes += bytes; },
       attribute(owner, bytes) {
         if (typeof owner === "object") getRow(owner.source, owner.template, bytes).rxBytes += bytes;
         else s.remaining[owner] += bytes;
@@ -221,6 +222,51 @@ function hasUnsealedResidual(s: State): boolean {
   return false;
 }
 
+/** Open and recover once per process, without network access. */
+async function openDelivery(s: State): Promise<DbTrafficDelivery> {
+  if (!s.delivery) {
+    const directory = process.env.DB_TRAFFIC_SPOOL_DIRECTORY;
+    if (!directory) throw new Error("database traffic spool directory is not configured");
+    s.delivery = Promise.all([import("./db-traffic-spool"), import("./db-traffic-delivery")]).then(async ([{ DbTrafficSpool }, { DbTrafficDelivery }]) => {
+      const spool = await DbTrafficSpool.open(directory);
+      const release = process.env.RIVALHUB_RELEASE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "unknown";
+      const deployment = process.env.VERCEL_DEPLOYMENT_ID || "unknown";
+      return new DbTrafficDelivery(spool, { process: s.processId, release: /^[A-Za-z0-9._-]{1,80}$/.test(release) ? release : "unknown", deployment: /^[A-Za-z0-9._-]{1,80}$/.test(deployment) ? deployment : "unknown" });
+    });
+  }
+  try { return await s.delivery; } catch (error) { s.delivery = undefined; throw error; }
+}
+function markStartupDegraded(s: State, at: number): void {
+  const first = s.degradedSince === undefined; s.degradedSince = Math.min(s.degradedSince ?? at, at);
+  if (first) try { writeSync(2, '{"event":"db_traffic.startup_degraded"}\n'); } catch { /* Business startup must continue. */ }
+}
+/** Await only the durable recovery marker; a timed-out attempt remains singleflight. */
+export async function initializeDbTraffic(timeoutMs = 5000): Promise<boolean> {
+  if (!dbTrafficEnabled()) return true;
+  const s = state(); if (s.deliveryStarted) return true;
+  if (!s.initializing) {
+    const startedAt = Date.now(); s.initStartedAt = Math.min(s.initStartedAt ?? startedAt, startedAt);
+    const attempt = (async () => {
+      try {
+        if (s.maintenance) await s.maintenance;
+        const delivery = await openDelivery(s);
+        await delivery.start(startedAt, () => Math.min(s.initStartedAt ?? startedAt, s.earliestObservedAt ?? startedAt));
+        // A timeout can happen during either commit. Persist it before exposing
+        // readiness; observations during the commit cannot predate startedAt.
+        while (s.degradedSince !== undefined) {
+          const degraded = s.degradedSince; await delivery.noteUnknown(degraded, Date.now());
+          if (s.degradedSince === degraded) s.degradedSince = undefined;
+        }
+        s.deliveryStarted = true; s.earliestObservedAt = undefined; armExitCapsule(s); return true;
+      } catch { markStartupDegraded(s, s.initStartedAt ?? startedAt); return false; }
+    })();
+    s.initializing = attempt; void attempt.finally(() => { if (s.initializing === attempt) s.initializing = undefined; });
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<false>(resolve => { timer = setTimeout(() => { markStartupDegraded(s, s.initStartedAt ?? Date.now()); resolve(false); }, Math.max(0, timeoutMs)); });
+  try { return await Promise.race([s.initializing, timeout]); } finally { if (timer) clearTimeout(timer); }
+}
+
 /** Seal before clearing measurements; the shared owner serializes disk and network. */
 export function flushDbTraffic() {
   const s = state();
@@ -247,16 +293,17 @@ export function flushDbTraffic() {
   if (s.sending) { s.flushAgain = true; return; }
   s.sending = true;
   void (async () => {
-    if (!s.delivery) {
-      const directory = process.env.DB_TRAFFIC_SPOOL_DIRECTORY;
-      if (!directory) throw new Error("database traffic spool directory is not configured");
-      s.delivery = Promise.all([import("./db-traffic-spool"), import("./db-traffic-delivery")]).then(async ([{ DbTrafficSpool }, { DbTrafficDelivery }]) => { const spool = await DbTrafficSpool.open(directory); const rawRelease = process.env.RIVALHUB_RELEASE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "unknown"; const rawDeployment = process.env.VERCEL_DEPLOYMENT_ID || "unknown"; const identity = { process: s.processId, release: /^[A-Za-z0-9._-]{1,80}$/.test(rawRelease) ? rawRelease : "unknown", deployment: /^[A-Za-z0-9._-]{1,80}$/.test(rawDeployment) ? rawDeployment : "unknown" }; return new DbTrafficDelivery(spool, identity); });
+    if (!enabled) {
+      const priorInitialization = s.initializing;
+      const maintenance = (async () => { if (priorInitialization) await priorInitialization; const delivery = await openDelivery(s); await delivery.prune(Date.now()); })();
+      s.maintenance = maintenance;
+      try { await maintenance; } finally { if (s.maintenance === maintenance) s.maintenance = undefined; }
+      return;
     }
-    let delivery: DbTrafficDelivery;
-    try { delivery = await s.delivery; } catch (error) { s.delivery = undefined; throw error; }
-    if (enabled && !s.deliveryStarted) { await delivery.start(now); s.deliveryStarted = true; armExitCapsule(s); }
+    if (!await initializeDbTraffic()) return;
+    const delivery = await openDelivery(s);
     await delivery.prune(Date.now());
-    if (!enabled || !dbTrafficEnabled()) return;
+    if (!dbTrafficEnabled()) return;
     const sealing = s.sealing;
     if (sealing) {
       const batch = JSON.parse(sealing.body); const coverage = s.coverageUnknownSince;

@@ -5,6 +5,8 @@ export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === "nodejs" && process.env.NODE_ENV === "production" &&
       process.env.VERCEL !== "1" && process.env.NEXT_PHASE !== "phase-production-build" &&
       process.env.RIVALHUB_RUNTIME_HEALTH_ENABLED !== "0") {
+    const { initializeDbTraffic } = await import("@/lib/observability/db-traffic");
+    await initializeDbTraffic();
     const { startRuntimeHealthSampling } = await import("@/lib/observability/runtime-health");
     startRuntimeHealthSampling();
   }

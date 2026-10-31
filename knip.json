@@ -25,6 +25,7 @@
     "vitest.config.ts!",
     "vitest.integration.config.ts!",
     "tests/fixtures/observability/db-traffic-next-exit.cjs!",
+    "tests/fixtures/observability/db-traffic-next-startup.cjs!",
     "playwright.config.ts!",
     "next.config.ts!",
     "postcss.config.mjs!",
