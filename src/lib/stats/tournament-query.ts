@@ -2,11 +2,12 @@ import { officialMatchCondition } from "@/lib/matches/scope";
 import { isCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
 
-import { and, count, desc, eq, inArray, lt, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { buildTournamentAnalytics, buildTournamentPerformanceAnalyticsFromProjections as buildTournamentPerformanceAnalytics, remapTournamentPerformanceMapProjection, scopeTournamentPerformanceMapProjectionToTeam } from "@cs2dak/tournament";
 import { db, type DB, type TxDb } from "@/db/client";
 import { competitionEntries, eventRosterMembers, matchDemoImports, matchDemoStatProjections, matchPlayerStats, matchMaps, matchRosterPlayers, matchRosters, matches, matchVetoSteps, seasons, steamProfiles, teams, users } from "@/db/schema";
 import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
+import { CURRENT_DAK_SEMANTIC_PROFILE } from "@/lib/demo-integration/semantic-profile";
 import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision";
 import { resolveGameplayUsersBySteam64InTx } from "@/lib/identity/gameplay-steam";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
@@ -101,7 +102,7 @@ async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { 
 
   type ImportMetadata = Pick<typeof matchDemoImports.$inferSelect, "id" | "matchMapId" | "semanticProfile" | "status" | "evidenceRevision" | "createdAt" | "payloadSha256" | "demoSha256" | "analysisVersion">;
   const imports = scopedMaps.length
-    ? await tx.select({
+    ? await tx.selectDistinctOn([matchDemoImports.matchMapId], {
       id: matchDemoImports.id,
       matchMapId: matchDemoImports.matchMapId,
       semanticProfile: matchDemoImports.semanticProfile,
@@ -111,8 +112,10 @@ async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { 
       demoSha256: matchDemoImports.demoSha256,
       analysisVersion: matchDemoImports.analysisVersion,
       createdAt: matchDemoImports.createdAt,
-    }).from(matchDemoImports).where(inArray(matchDemoImports.matchMapId, scopedMaps.map((map) => map.id)))
-      .orderBy(desc(matchDemoImports.createdAt), desc(matchDemoImports.id))
+    }).from(matchDemoImports).where(and(inArray(matchDemoImports.matchMapId, scopedMaps.map((map) => map.id)),
+      sql`${matchDemoImports.semanticProfile} COLLATE "C" = ${CURRENT_DAK_SEMANTIC_PROFILE} COLLATE "C"`,
+      ne(matchDemoImports.status, "superseded")))
+      .orderBy(asc(matchDemoImports.matchMapId), desc(matchDemoImports.createdAt), desc(matchDemoImports.id))
     : [];
   const importsByMapId = new Map<string, ImportMetadata[]>();
   for (const row of imports) {
@@ -137,12 +140,13 @@ async function loadCurrentProjectionRefs(tx: TxDb, context: Awaited<ReturnType<t
   const rows = ids.length ? await tx.select({
     importId: matchDemoStatProjections.importId,
     identityBindings: matchDemoStatProjections.identityBindings,
-    payloadSha256: matchDemoStatProjections.payloadSha256,
-    demoSha256: matchDemoStatProjections.demoSha256,
-    evidenceRevision: matchDemoStatProjections.evidenceRevision,
-    semanticProfile: matchDemoStatProjections.semanticProfile,
-    analysisVersion: matchDemoStatProjections.analysisVersion,
-  }).from(matchDemoStatProjections).where(and(
+    metadataMatches: sql<boolean>`
+      ${matchDemoStatProjections.payloadSha256} COLLATE "C" = ${matchDemoImports.payloadSha256} COLLATE "C"
+      AND ${matchDemoStatProjections.demoSha256} COLLATE "C" = ${matchDemoImports.demoSha256} COLLATE "C"
+      AND ${matchDemoStatProjections.evidenceRevision} COLLATE "C" = ${matchDemoImports.evidenceRevision} COLLATE "C"
+      AND ${matchDemoStatProjections.semanticProfile} COLLATE "C" = ${matchDemoImports.semanticProfile} COLLATE "C"
+      AND ${matchDemoStatProjections.analysisVersion} COLLATE "C" = ${matchDemoImports.analysisVersion} COLLATE "C"`,
+  }).from(matchDemoStatProjections).innerJoin(matchDemoImports, eq(matchDemoImports.id, matchDemoStatProjections.importId)).where(and(
     inArray(matchDemoStatProjections.importId, ids),
     eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION),
   )) : [];
@@ -150,11 +154,7 @@ async function loadCurrentProjectionRefs(tx: TxDb, context: Awaited<ReturnType<t
   const resolutions = await resolveGameplayUsersBySteam64InTx(tx, rows.flatMap((row) => row.identityBindings.map((binding) => binding.steam64)));
   return context.currentRefs.flatMap(({ current, match, map }) => {
     const projection = projections.get(current.id);
-    if (!projection || projection.payloadSha256 !== current.payloadSha256
-      || projection.demoSha256 !== current.demoSha256
-      || projection.evidenceRevision !== current.evidenceRevision
-      || projection.semanticProfile !== current.semanticProfile
-      || projection.analysisVersion !== current.analysisVersion) return [];
+    if (!projection || !projection.metadataMatches) return [];
     const roster = context.rosterByMatchAndUser.get(match.id);
     // Identity retirement invalidates every dependent map, including other
     // events. Missing/stale projections lower coverage, never trigger raw reads.
