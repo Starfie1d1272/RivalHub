@@ -5,6 +5,12 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.13]
+
+### Changed
+
+- 优化公开统计读取当前导入和投影元数据的传输，保留身份、阵容与证据版本校验；生产效果仍待验证。
+
 ## [2.25.12]
 
 ### Changed
@@ -3384,6 +3390,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.25.13]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.12...v2.25.13
 [2.25.12]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.11...v2.25.12
 [2.25.11]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.10...v2.25.11
 [2.25.10]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.9...v2.25.10
