@@ -74,7 +74,7 @@ export async function encodeTournamentTransport(value: TournamentMapFacts): Prom
 async function decodeTransport(value: unknown, tournament: boolean): Promise<Record<string, unknown>> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new ProjectionTransportIntegrityError();
   const transport = value as Record<string, unknown>;
-  if ((tournament && transport.kind !== "tournament") || transport.version !== 1 || transport.codec !== "gzip-base64" || !Number.isSafeInteger(transport.uncompressedBytes)
+  if ((tournament ? transport.kind !== "tournament" : Object.hasOwn(transport, "kind")) || transport.version !== 1 || transport.codec !== "gzip-base64" || !Number.isSafeInteger(transport.uncompressedBytes)
     || (transport.uncompressedBytes as number) < 1 || (transport.uncompressedBytes as number) > MAX_JSON
     || typeof transport.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(transport.sha256)
     || typeof transport.payload !== "string" || transport.payload.length > MAX_BASE64
