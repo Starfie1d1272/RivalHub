@@ -27,3 +27,5 @@ RIVALHUB_DEMO_REVERSE_CAPACITY=1 RIVALHUB_DEMO_REVERSE_REPORT=/tmp/demo.json pnp
 定向 PG 回归还在实际 BET 提交等待正式开赛事务时触发 `55P03` 行锁超时，回滚持锁方后用新请求恢复；在正式开赛事务中触发 `57014` statement timeout，核对审计回滚并以新事务恢复。既有回归另验证连接池获取超时和释放后的恢复；实验中不重放未知结果。未覆盖网络提交结果未知、HTTP/provider、多实例或生产负载及费用。并发测试的已完成请求与采样并不保证真实部署的容量或排队上限。
 
 审查修复后的完整复跑使用源码 `e720d36f4b386180765c7fd2005dca231968bd5c`；[同账户](recheck-20261031/recheck-all-same.json)、[两账户](recheck-20261031/recheck-all-two.json)、[开赛](recheck-20261031/recheck-start.json)、[墙钟](recheck-20261031/recheck-wall.json)、[更正](recheck-20261031/recheck-correction.json)和 [共享身份](recheck-20261031/recheck-demo.json)均为 1/2/4/8 各三轮，16 首轮达到队列止损并完成清理；分类计数与上表相同。后续仅修复采样连接失效时的报告与读回路径，未改变成功请求的业务操作。
+
+采样失败处理修复后的[更正梯度复验](recheck-20261031/final-correction.json)再次完成 1/2/4/8 各三轮，16 首轮达到队列止损；采样连接失败的异常分支经独立代码审查，未单独注入连接故障。
