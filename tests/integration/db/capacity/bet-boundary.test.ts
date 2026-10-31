@@ -102,3 +102,82 @@ it("serializes BET submission and gameplay start in both lock orders", async () 
     } finally { release(); await submission.catch(() => undefined); }
   });
 }, 30000);
+
+it.skipIf(process.env.RIVALHUB_BET_START_CAPACITY !== "1")("measures stakes queued behind canonical map start", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { createHash } = await import("node:crypto");
+  const { readFileSync, writeFileSync } = await import("node:fs");
+  const { Pool } = await import("pg");
+  const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  if (sha !== process.env.RIVALHUB_CAPACITY_SHA || !/^[a-f0-9]{40}$/.test(sha)) throw new Error("EXACT_SHA_REQUIRED");
+  execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/harness/bet-fixture.ts", "tests/integration/db/capacity/bet-boundary.test.ts"]);
+  const paths = ["tests/integration/db/capacity/bet-boundary.test.ts", "tests/integration/db/harness/bet-fixture.ts", "src/lib/matches/map-start.ts", "src/lib/bet/service.ts"];
+  const report: { sha: string; hashes: Record<string, string>; dataset: string; limits: object; rounds: object[]; stopped?: string; cleanup?: boolean } = {
+    sha, hashes: Object.fromEntries(paths.map(path => [path, createHash("sha256").update(readFileSync(path)).digest("hex")])),
+    dataset: "fresh scratch per round; one Major, two accounts, completed BO3 veto, canonical start holder and alternating late stakes",
+    limits: { poolMax: 6, acquisitionTimeoutMs: 2000, statementTimeoutMs: 5000, lockTimeoutMs: 2000, heldSqlSleepMs: 200, sampledQueueStop: 8, stopOnUnexpected: true }, rounds: [],
+  };
+  let stop = false;
+  try {
+    for (const concurrency of [1, 2, 4, 8, 16]) {
+      for (let round = 1; round <= 3 && !stop; round++) {
+        await fixture(async f => {
+          f.db.$client.options.connectionTimeoutMillis = 2000;
+          const monitor = new Pool({ connectionString: f.db.$client.options.connectionString, ssl: false, max: 1 });
+          try {
+            const market = (await read(f.db, f.seasonId, f.userId)).markets.find(m => m.type === "match_winner")!;
+            const mapId = await prepareStart(f);
+            let release!: () => void; let ready!: () => void;
+            const gate = new Promise<void>(resolve => { release = resolve; });
+            const locked = new Promise<void>(resolve => { ready = resolve; });
+            const holder = f.db.transaction(async tx => {
+              await tx.execute(sql`set local lock_timeout = '2s'`); await tx.execute(sql`set local statement_timeout = '5s'`);
+              await start(f, mapId, tx); ready(); await gate; await tx.execute(sql`select pg_sleep(0.2)`);
+            });
+            const requests = Array.from({ length: concurrency }, (_, i) => ({ id: randomUUID(), userId: i % 2 ? f.otherId : f.userId, totalMs: 0, acquisitionMs: null as number | null, transactionMs: null as number | null, result: "unknown", settings: null as object | null }));
+            let maxQueue = 0; let waiting = 0; let tasks: Promise<void>[] = [];
+            const sampler = setInterval(() => { maxQueue = Math.max(maxQueue, f.db.$client.waitingCount); }, 5);
+            try {
+              await Promise.race([locked, holder.then(() => { throw new Error("HOLDER_ENDED_BEFORE_BARRIER"); })]);
+              const at = performance.now();
+              tasks = requests.map(async request => {
+                const begin = performance.now(); let acquired: number | undefined;
+                try {
+                  await f.db.transaction(async tx => {
+                    acquired = performance.now(); request.acquisitionMs = acquired - begin;
+                    const settings = await tx.execute(sql`select set_config('statement_timeout','5s',true) as statement, set_config('lock_timeout','2s',true) as lock, set_config('application_name','bet-start-load',true) as application`);
+                    request.settings = settings.rows[0];
+                    if (settings.rows[0]?.statement !== "5s" || settings.rows[0]?.lock !== "2s") throw new Error("TIMEOUT_CONFIGURATION_MISMATCH");
+                    await stakeBetInTx(tx, { seasonId: f.seasonId, userId: request.userId, marketId: market.id, optionId: market.options[0]!.id, amount: "1", requestId: request.id });
+                  });
+                  request.result = "unexpected_success";
+                } catch (error) { request.result = error instanceof Error && /锁定/.test(error.message) ? "expected_locked" : "unknown"; }
+                finally { const end = performance.now(); request.totalMs = end - begin; if (acquired !== undefined) request.transactionMs = end - acquired; }
+              });
+              const deadline = Date.now() + 1200;
+              while (Date.now() < deadline) {
+                const sample = await monitor.query("select count(*)::int as count from pg_stat_activity where application_name = 'bet-start-load' and wait_event_type = 'Lock'");
+                waiting = sample.rows[0].count;
+                if (waiting >= Math.min(concurrency, 5)) break;
+                await delay(10);
+              }
+              release(); await holder; await Promise.all(tasks);
+              const elapsedMs = performance.now() - at;
+              const stored = await f.db.select().from(schema.betStakes);
+              const outcomes = requests.map(request => ({ ...request, id: undefined, userId: undefined, observedCommitted: stored.some(row => row.requestId === request.id) }));
+              const unexpected = waiting < Math.min(concurrency, 5) || outcomes.some(item => item.result !== "expected_locked" || item.observedCommitted) || stored.length !== 0;
+              stop = unexpected || maxQueue >= 8;
+              if (stop) report.stopped = unexpected ? "unexpected_or_sampling_failure" : "sampled_pool_queue";
+              expect((await read(f.db, f.seasonId, f.userId)).balance).toBe("1000");
+              expect((await read(f.db, f.seasonId, f.otherId)).balance).toBe("1000");
+              expect((await f.db.select().from(schema.auditLogs)).filter(row => row.action === "match.map.start")).toHaveLength(1);
+              report.rounds.push({ concurrency, round, elapsedMs, requestsPerSecond: concurrency / (elapsedMs / 1000), observedLockWaiters: waiting, maxPoolQueueSampled: maxQueue, outcomes, balancesVerified: true, timingIncludesArtificialBarrier: true });
+            } finally { release(); clearInterval(sampler); await holder.catch(() => undefined); await Promise.allSettled(tasks); }
+          } finally { await monitor.end(); }
+        });
+      }
+      if (stop) break;
+    }
+    report.cleanup = true;
+  } finally { if (process.env.RIVALHUB_BET_START_REPORT) writeFileSync(process.env.RIVALHUB_BET_START_REPORT, JSON.stringify(report, null, 2)); }
+}, 180000);
