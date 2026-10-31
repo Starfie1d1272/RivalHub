@@ -93,7 +93,8 @@ function journalSummary() {
       } else if (context.count === 1 && phases.has(context.phase)) {
         add(entry.event, reason, "first_records", 1);
         if (reason === "epoch_fence" && context.scopeHash === "42b0e08fee7e6b69") {
-          if (!kinds.has(context.kind) || !Number.isSafeInteger(context.receivedCursor) || context.receivedCursor < 0 || !Number.isSafeInteger(context.storedCursor) || context.storedCursor < 0 || typeof entry.timestamp !== "string" || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(entry.timestamp)) scopedIncomplete = true;
+          const timestamp = typeof entry.timestamp === "string" ? Date.parse(entry.timestamp) : NaN;
+          if (!kinds.has(context.kind) || !Number.isSafeInteger(context.receivedCursor) || context.receivedCursor < 0 || !Number.isSafeInteger(context.storedCursor) || context.storedCursor < 0 || !Number.isFinite(timestamp) || new Date(timestamp).toISOString() !== entry.timestamp || entry.timestamp < sinceUtc || entry.timestamp > untilUtc) scopedIncomplete = true;
           else {
             const key = JSON.stringify([`${entry.timestamp.slice(0, 16)}:00Z`, context.kind, context.receivedCursor, context.storedCursor]);
             if (!scopedCounts.has(key) && scopedCounts.size >= 100) scopedIncomplete = true;
