@@ -20,6 +20,7 @@ import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { projectPredictionStages } from "./stage-projection";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { SIMULATION_VERSION, type Baseline } from "./types";
+import { predictionMatchSelection, type PredictionMatch } from "./match-selection";
 
 export function officialWinner(
   match: Pick<
@@ -50,7 +51,7 @@ export function officialWinner(
 export async function loadBaselineRead(
   db: DB | TxDb,
   seasonId: string,
-): Promise<{baseline:Baseline;official:(typeof matches.$inferSelect)[]}> {
+): Promise<{baseline:Baseline;official:PredictionMatch[]}> {
   const [season] = await db
     .select()
     .from(seasons)
@@ -115,7 +116,7 @@ export async function loadBaselineRead(
     )
     .where(eq(majorStageEntrants.seasonId, seasonId));
   const rawOfficial = await db
-    .select()
+    .select(predictionMatchSelection)
     .from(matches)
     .where(
       and(eq(matches.seasonId, seasonId), eq(matches.ownership, "major_stage")),

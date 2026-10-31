@@ -11,7 +11,7 @@ import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision"
 import { resolveGameplayUsersBySteam64InTx } from "@/lib/identity/gameplay-steam";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
-import { loadEffectiveMatchRoster, loadEffectiveMatchRosterIdentities, type EffectiveMatchRosterIdentity, type EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
+import { loadEffectiveMatchRosterIdentities, type EffectiveMatchRosterIdentity } from "@/lib/match-rosters/effective";
 import { getPublicPlayerRecord } from "@/lib/players/public-record";
 import { getPlayerStatsScoreboards, getStatsLeaderboard } from "./leaderboard-query";
 import { decodePerformanceTransport, performanceTransportSelection, ProjectionTransportIntegrityError } from "./projection-transport";
@@ -43,7 +43,7 @@ export type StatsLabels = { teams: Record<string, string>; players: Record<strin
 const statsMatchFields = {id:matches.id,seasonId:matches.seasonId,stage:matches.stage,round:matches.round,entryAId:matches.entryAId,entryBId:matches.entryBId,majorStageRunId:matches.majorStageRunId,status:matches.status,testConfig:matches.testConfig,format:matches.format,scoreA:matches.scoreA,scoreB:matches.scoreB,completedAt:matches.completedAt};
 const statsMapFields = {id:matchMaps.id,matchId:matchMaps.matchId,mapOrder:matchMaps.mapOrder,mapName:matchMaps.mapName,scoreA:matchMaps.scoreA,scoreB:matchMaps.scoreB,completedAt:matchMaps.completedAt};
 
-async function loadStatsContext<R extends EffectiveMatchRosterIdentity = EffectiveMatchRosterPlayer>(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean; effectiveRoster?: readonly R[]; skipLabels?: boolean } = {}) {
+async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean; effectiveRoster?: readonly EffectiveMatchRosterIdentity[]; skipLabels?: boolean } = {}) {
   const selectedMapRows = options.mapName && options.matchIds?.length !== 0
     ? await tx.select({ match: statsMatchFields, map: statsMapFields }).from(matchMaps).innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(
       scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
@@ -87,14 +87,14 @@ async function loadStatsContext<R extends EffectiveMatchRosterIdentity = Effecti
   const mapNameFilter = options.mapName ?? scope.mapFilter;
   const scopedMaps = maps.filter((map) => !mapNameFilter || map.mapName === mapNameFilter);
   const matchIdSet = new Set(matchIds);
-  const roster = options.effectiveRoster ? options.effectiveRoster.filter(row => matchIdSet.has(row.matchId)) : await loadEffectiveMatchRoster(tx, matchIds);
-  const rosterByMatchId = new Map<string, (R | EffectiveMatchRosterPlayer)[]>();
-  const rosterByMatchAndUser = new Map<string, Map<string, R | EffectiveMatchRosterPlayer>>();
+  const roster = options.effectiveRoster ? options.effectiveRoster.filter(row => matchIdSet.has(row.matchId)) : await loadEffectiveMatchRosterIdentities(tx, matchIds);
+  const rosterByMatchId = new Map<string, EffectiveMatchRosterIdentity[]>();
+  const rosterByMatchAndUser = new Map<string, Map<string, EffectiveMatchRosterIdentity>>();
   for (const member of roster) {
     const matchRoster = rosterByMatchId.get(member.matchId) ?? [];
     matchRoster.push(member);
     rosterByMatchId.set(member.matchId, matchRoster);
-    const membersByUser = rosterByMatchAndUser.get(member.matchId) ?? new Map<string, R | EffectiveMatchRosterPlayer>();
+    const membersByUser = rosterByMatchAndUser.get(member.matchId) ?? new Map<string, EffectiveMatchRosterIdentity>();
     if (!membersByUser.has(member.userId)) membersByUser.set(member.userId, member);
     rosterByMatchAndUser.set(member.matchId, membersByUser);
   }
@@ -132,7 +132,7 @@ async function loadStatsContext<R extends EffectiveMatchRosterIdentity = Effecti
 }
 
 /** Select valid materialized bindings without transferring statistics or Evidence. */
-async function loadCurrentProjectionRefs(tx: TxDb, context: Awaited<ReturnType<typeof loadStatsContext<EffectiveMatchRosterIdentity>>>) {
+async function loadCurrentProjectionRefs(tx: TxDb, context: Awaited<ReturnType<typeof loadStatsContext>>) {
   const ids = context.currentRefs.map(({ current }) => current.id);
   const rows = ids.length ? await tx.select({
     importId: matchDemoStatProjections.importId,
@@ -286,7 +286,7 @@ async function loadPlayerAppearanceScopes(
       filters.format ? eq(matches.format, filters.format) : undefined,
     )) : [];
   const candidateIds = [...new Set(candidates.map((row) => row.matchId))];
-  const effectiveRoster = await loadEffectiveMatchRoster(tx, candidateIds);
+  const effectiveRoster = await loadEffectiveMatchRosterIdentities(tx, candidateIds);
   const mapRows = candidateIds.length
     ? await tx.select({ matchId: matchMaps.matchId, mapName: matchMaps.mapName }).from(matchMaps).where(inArray(matchMaps.matchId, candidateIds))
     : [];
@@ -699,7 +699,7 @@ async function loadTournamentPlayerSnapshot(
   tx: TxDb,
   scope: StatsEvidenceScope & { playerId: string },
   matchIds: readonly string[],
-  options: { requireCurrentImports?: boolean; includeTestMatch?: boolean; effectiveRoster?: readonly EffectiveMatchRosterPlayer[] } = {},
+  options: { requireCurrentImports?: boolean; includeTestMatch?: boolean; effectiveRoster?: readonly EffectiveMatchRosterIdentity[] } = {},
 ) {
   const loaded = await loadStatsEvidenceSelection(tx, scope, { matchIds, includeTestMatch: options.includeTestMatch, effectiveRoster: options.effectiveRoster }, sql<PlayerDetailFacts>`jsonb_build_object(
     'tournament', jsonb_build_object(
