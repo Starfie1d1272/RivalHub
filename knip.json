@@ -56,6 +56,8 @@
     "scripts/release/linux-routing.ts!",
     "scripts/release/production-deployment.ts!",
     "scripts/operations/statistics-transport.mjs!",
+    "scripts/operations/release-host-diagnostic.mjs!",
+    "scripts/operations/release-host-readback.mjs!",
     "scripts/architecture/check.ts!",
     "scripts/demo-evidence/generate-json-schema.ts!",
     "scripts/db/block-drizzle-push.ts!",
@@ -136,6 +138,7 @@
     "workers/telemetry/**/*.ts!"
   ],
   "ignoreBinaries": [
+    "flock",
     "openssl"
   ],
   "ignoreDependencies": [

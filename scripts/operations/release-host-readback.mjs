@@ -1,0 +1,66 @@
+// Fixed read-only probe executed over the existing protected release SSH channel.
+import { execFileSync } from "node:child_process";
+import { readFileSync, readdirSync, readlinkSync, statSync, statfsSync } from "node:fs";
+
+const root = "/opt/rivalhub-production";
+const lockPath = `${root}/deploy.lock`;
+
+export function lockHolders(locks, stat) {
+  const dev = stat.dev;
+  const major = ((dev >> 8n) & 0xfffn) | ((dev >> 32n) & 0xfffff000n);
+  const minor = (dev & 0xffn) | ((dev >> 12n) & 0xffffff00n);
+  const matching = locks.split("\n").filter(line => {
+    const fields = line.trim().split(/\s+/);
+    const i = fields.findIndex(value => /^[0-9a-f]+:[0-9a-f]+:\d+$/i.test(value));
+    if (i < 0 || !fields.includes("FLOCK")) return false;
+    const [a, b, inode] = fields[i].split(":");
+    return BigInt(`0x${a}`) === major && BigInt(`0x${b}`) === minor && BigInt(inode) === stat.ino;
+  });
+  return { held: matching.filter(line => !line.includes("->")).length, waiting: matching.filter(line => line.includes("->")).length };
+}
+
+export function classifyProcess(command) {
+  if (/install-production\.sh|production-quiescence\.mjs|layers\.mjs|\/root\/rivalhub-release-/.test(command)) return "release";
+  if (/(^|\/)sftp-server(?:\s|$)|(^|\/)scp(?:\s|$)|internal-sftp/.test(command)) return "transfer";
+  return null;
+}
+
+function sample() {
+  let lock = null;
+  try { lock = lockHolders(readFileSync("/proc/locks", "utf8"), statSync(lockPath, { bigint: true })); }
+  catch { /* Null means unknown, never unlocked. */ }
+  const counts = { release: 0, transfer: 0 }; let incomplete = false;
+  let pids = [];
+  try { pids = readdirSync("/proc").filter(value => /^\d+$/.test(value)); } catch { incomplete = true; }
+  for (const pid of pids) {
+    try {
+      const kind = classifyProcess(readFileSync(`/proc/${pid}/cmdline`, "utf8").replaceAll("\0", " "));
+      if (kind) counts[kind]++;
+    } catch (error) { if (error.code !== "ENOENT" && error.code !== "ESRCH") incomplete = true; }
+  }
+  return { lock, processes: counts, processScanComplete: !incomplete };
+}
+
+async function main() {
+  let manifest = null, local = null, service = null, diskAvailableBytes = null;
+  try {
+    const current = readlinkSync(`${root}/current`);
+    if (!/^releases\/rivalhub-production-[a-f0-9-]+$/.test(current)) throw new Error();
+    const value = JSON.parse(readFileSync(`${root}/${current}/standby.json`, "utf8"));
+    if (!/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(value.releaseTag) || !/^[a-f0-9]{40}$/.test(value.sourceCommit)) throw new Error();
+    manifest = { releaseTag: value.releaseTag, releaseCommit: value.sourceCommit };
+  } catch { /* Unavailable identity must not suppress lock evidence. */ }
+  try {
+    const response = await fetch("http://127.0.0.1:3032/api/system/release", { signal: AbortSignal.timeout(5000), redirect: "error" });
+    if (!response.ok) throw new Error();
+    const value = await response.json();
+    if (Object.keys(value).sort().join(",") !== "releaseCommit,releaseTag" || !/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(value.releaseTag) || !/^[a-f0-9]{40}$/.test(value.releaseCommit)) throw new Error();
+    local = value;
+  } catch { /* Service may be stopped during a release. */ }
+  try { const value = execFileSync("systemctl", ["show", "rivalhub-production", "--property=ActiveState", "--value"], { encoding: "utf8", timeout: 5000 }).trim(); if (["active", "inactive", "failed", "activating", "deactivating", "reloading"].includes(value)) service = value; } catch { /* Unknown remains null. */ }
+  try { const fs = statfsSync(root, { bigint: true }); const bytes = Number(fs.bavail * fs.bsize); if (Number.isSafeInteger(bytes)) diskAvailableBytes = bytes; } catch { /* Unknown remains null. */ }
+  const first = sample(); await new Promise(resolve => setTimeout(resolve, 1000)); const second = sample();
+  console.log(JSON.stringify({ event: "linux.release_host_readback", manifest, local, service, diskAvailableBytes, first, second }));
+}
+
+if (process.argv[1] === "-") main().catch(() => { console.error("Host readback unavailable"); process.exitCode = 1; });
