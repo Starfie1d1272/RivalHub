@@ -104,6 +104,10 @@ Ordinary GET remains read-only and exposes only a pending boolean, allowing a
 visible client to retry reconcile with its existing in-flight/backoff gate.
 The existing veto scheduler also drains at most fifty pending deliveries per
 invocation, independently of paused/completed/archived lifecycle transitions.
+After each selected delivery attempt, a still-pending captured generation moves
+behind older pending work using its `updated_at` ordering timestamp. A successful
+acknowledgement or a concurrent newer generation is not moved by that attempt;
+`updated_at` therefore reflects either fact registration or a pending retry.
 Delivery exceptions remain durable and cause scheduler execution to fail;
 they are not reported as a successful cache publication. Old applications can
 ignore the additive table; old workers do not acknowledge it. Rollback keeps

@@ -148,10 +148,11 @@ export async function runMatchVetoTimeoutJob() {
           AND (played_map.started_at IS NOT NULL OR played_map.score_a IS NOT NULL OR played_map.score_b IS NOT NULL OR played_map.completed_at IS NOT NULL)))`,
     ));
 
-  const pending = await db.select({ matchId: matchVetoInvalidations.matchId })
+  const pending = await db.select({ matchId: matchVetoInvalidations.matchId, generation: matchVetoInvalidations.generation })
     .from(matchVetoInvalidations)
     .where(gt(matchVetoInvalidations.generation, matchVetoInvalidations.publishedGeneration))
     .orderBy(asc(matchVetoInvalidations.updatedAt)).limit(50);
+  const selectedGenerations = new Map(pending.map(row => [row.matchId, row.generation]));
   const work = new Map(candidates.map(candidate => [candidate.matchId, { matchId: candidate.matchId, lifecycleDue: true }]));
   for (const row of pending) if (!work.has(row.matchId)) work.set(row.matchId, { matchId: row.matchId, lifecycleDue: false });
   let changed = 0;
@@ -169,6 +170,16 @@ export async function runMatchVetoTimeoutJob() {
       // deliver already committed cache obligations.
       if (await deliverVetoInvalidation(candidate.matchId, "route") === "pending") deliveryPending += 1;
     } catch (error) { firstFailure ??= error; }
+    // Only rotate a selected, still-pending generation after its delivery was
+    // attempted. A newer fact or a successful acknowledgement wins the race.
+    const selectedGeneration = selectedGenerations.get(candidate.matchId);
+    if (selectedGeneration !== undefined) {
+      try {
+        await db.update(matchVetoInvalidations)
+          .set({ updatedAt: sql`clock_timestamp()` })
+          .where(and(eq(matchVetoInvalidations.matchId, candidate.matchId), eq(matchVetoInvalidations.generation, selectedGeneration), gt(matchVetoInvalidations.generation, matchVetoInvalidations.publishedGeneration)));
+      } catch (error) { firstFailure ??= error; }
+    }
   }
   // Durable work remains pending and scheduler execution/health records fail.
   // Other rooms were still allowed to recover during this invocation.
