@@ -7,8 +7,19 @@ import { seasons } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth/session";
 
 /** RSC-request reuse only. Every consumer retains its own authorization boundary. */
-export const findAdminSeasonBySlug = cache((slug: string) =>
-  db.query.seasons.findFirst({ where: eq(seasons.slug, slug) }));
+export const findAdminSeasonOverviewBySlug = cache((slug: string) =>
+  db.query.seasons.findFirst({ where: eq(seasons.slug, slug), columns: {
+    id: true, slug: true, name: true, status: true, competitionTemplate: true, stagePlan: true,
+    hasCaptainVoting: true, hasDraft: true, hasCommunityAwards: true,
+  } }));
+
+const findAdminSeasonById = cache((id: string) =>
+  db.query.seasons.findFirst({ where: eq(seasons.id, id) }));
+
+export const findAdminSeasonBySlug = cache(async (slug: string) => {
+  const overview = await findAdminSeasonOverviewBySlug(slug);
+  return overview ? findAdminSeasonById(overview.id) : undefined;
+});
 
 /** Sidebar and directory share the same authorized, narrow catalog in one request. */
 export const listAdminSeasonDirectory = cache(async () => {

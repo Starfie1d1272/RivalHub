@@ -1,5 +1,5 @@
 import { withDbTrafficSource } from "@/lib/observability/db-traffic";
-import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
+import { findAdminSeasonOverviewBySlug } from "@/lib/admin/season-context";
 import { hasMatchRecordingCondition } from "@/lib/postmatch/recording-query";
 import { hasMatchRecording } from "@/lib/postmatch/recording-types";
 import { withDisplayScores } from "@/lib/matches/display-score-data";
@@ -145,7 +145,7 @@ export async function loadAdminCommentaryEffectiveness(seasonId: string): Promis
 
 /** Shared authorized configuration; materials do not need the schedule substrate. */
 async function loadWorkspaceContext(seasonSlug: string) {
-  const season = await findAdminSeasonBySlug(seasonSlug);
+  const season = await findAdminSeasonOverviewBySlug(seasonSlug);
   if (!season) return null;
   await requireSeasonAdmin(season.id);
   const [allTeams, stageRunRows, qualificationRun] = await withDbTrafficSource("admin.matches.read", async () => await Promise.all([

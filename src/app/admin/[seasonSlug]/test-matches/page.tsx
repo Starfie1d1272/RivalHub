@@ -1,4 +1,4 @@
-import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
+import { findAdminSeasonOverviewBySlug } from "@/lib/admin/season-context";
 import { Suspense } from "react";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
@@ -17,7 +17,7 @@ export default function TestMatchesPage(props: { params: Promise<{ seasonSlug: s
 
 async function TestMatchesContent({ params }: { params: Promise<{ seasonSlug: string }> }) {
   const { seasonSlug } = await params;
-  const season = await findAdminSeasonBySlug(seasonSlug);
+  const season = await findAdminSeasonOverviewBySlug(seasonSlug);
   if (!season) notFound();
   if (!await resolveAdminPageAccess(() => requireSeasonAdmin(season.id))) return <AdminAccessDenied />;
   const [entries, testMatches] = await Promise.all([

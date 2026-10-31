@@ -1,4 +1,4 @@
-import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
+import { findAdminSeasonOverviewBySlug } from "@/lib/admin/season-context";
 import { notFound } from "next/navigation";
 
 
@@ -9,7 +9,7 @@ import { loadPostEventPageData } from "@/lib/admin/season-workspace/post-event";
 
 export default async function AdminSeasonPostEventPage({ params }: { params: Promise<{ seasonSlug: string }> }) {
   const { seasonSlug } = await params;
-  const season = await findAdminSeasonBySlug(seasonSlug);
+  const season = await findAdminSeasonOverviewBySlug(seasonSlug);
   if (!season) notFound();
 
   const { data, season: postEventSeason } = await loadPostEventPageData(season);

@@ -1,4 +1,4 @@
-import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
+import { findAdminSeasonOverviewBySlug } from "@/lib/admin/season-context";
 import { Suspense } from "react";
 
 import { notFound } from "next/navigation";
@@ -14,7 +14,7 @@ export default function AdminCommunityAwardsPage(props: { params: Promise<{ seas
 
 async function AdminCommunityAwardsContent({ params }: { params: Promise<{ seasonSlug: string }> }) {
   const { seasonSlug } = await params;
-  const season = await findAdminSeasonBySlug(seasonSlug);
+  const season = await findAdminSeasonOverviewBySlug(seasonSlug);
   if (!season) notFound();
   if (!season.hasCommunityAwards) notFound();
   const admin = await requireSeasonAdmin(season.id);

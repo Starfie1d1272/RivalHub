@@ -1,4 +1,4 @@
-import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
+import { findAdminSeasonOverviewBySlug } from "@/lib/admin/season-context";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: AdminDraftPageProps): Promise
 
 export default async function AdminDraftPage({ params }: AdminDraftPageProps) {
   const { seasonSlug } = await params;
-  const season = await findAdminSeasonBySlug(seasonSlug);
+  const season = await findAdminSeasonOverviewBySlug(seasonSlug);
   if (!season) notFound();
 
   const [teamCount, data] = await Promise.all([

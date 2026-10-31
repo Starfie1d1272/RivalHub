@@ -9,7 +9,7 @@ import { getManagedMajorProfileFromRunSnapshot } from "@/lib/major/standard";
 import type { Season } from "@/db/schema/seasons";
 import type { PostEventPageData } from "./types";
 
-export async function loadPostEventPageData(season: Season): Promise<PostEventPageData> {
+export async function loadPostEventPageData(season: Pick<Season, "id" | "name" | "status" | "competitionTemplate">): Promise<PostEventPageData> {
   if (season.competitionTemplate !== "major") {
     const [matchCountRows, honorCountRows, activeAdjudicationCountRows] = await Promise.all([
       getOfficialSeasonMatchSummary(season.id),
