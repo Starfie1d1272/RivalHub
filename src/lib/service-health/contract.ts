@@ -3,7 +3,7 @@ import type { SchedulerHealthView } from "@/lib/scheduler/admin";
 
 export interface HealthItem {
   label: string;
-  status: "正常" | "需要关注" | "未核验";
+  status: "正常" | "需要关注" | "未核验" | "暂无样本" | "待确认";
   source: string;
   coverage: string;
   reason: string;
@@ -26,26 +26,27 @@ export function serviceHealth(telemetry: Telemetry, jobs: SchedulerHealthView[] 
     const data = telemetry.status === "ready" ? telemetry.data : null;
     const rows = data?.operations.filter(row => (keys as readonly string[]).includes(row.key)) ?? [];
     const counts = rows.reduce((a, r) => ({ start: a.start + r.start, success: a.success + r.success, rejected: a.rejected + r.rejected, unknown: a.unknown + r.unknown, pending: a.pending + r.pending }), { start: 0, success: 0, rejected: 0, unknown: 0, pending: 0 });
-    const incomplete = !data || data.meta.partial || data.meta.validUntil <= now;
+    const incomplete = !data || data.meta.partial || data.meta.truncated || data.meta.validUntil <= now;
     return {
-      label, status: "未核验", source: data ? `客户端遥测，${new Date(data.meta.from).toISOString()} 至 ${new Date(data.meta.capturedAt).toISOString()}（UTC）` : "客户端遥测：读取失败或未配置",
+      label, status: incomplete ? "未核验" : counts.unknown > 0 ? "需要关注" : counts.pending > 0 ? "待确认" : counts.start === 0 ? "暂无样本" : "正常", source: data ? `客户端遥测，${new Date(data.meta.from).toISOString()} 至 ${new Date(data.meta.capturedAt).toISOString()}（UTC）` : "客户端遥测：读取失败或未配置",
       coverage: data ? `开始 ${counts.start}；成功 ${counts.success}；拒绝 ${counts.rejected}；未知 ${counts.unknown}；待定 ${counts.pending}${incomplete ? "；窗口不完整或已过期" : ""}` : "无可用样本",
-      reason: incomplete ? "来源不可用、窗口不完整或已过期，无法判定。" : counts.start === 0 ? "窗口内无样本，无法判定。" : "客户端结果覆盖有限，尚无可信生产阈值，不能判定整体健康。",
-      action: "在产品使用与体验中按操作和版本查看；未知或待定先核对业务事实与日志，不要直接重放。",
+      reason: incomplete ? "来源不可用、窗口不完整或已过期，无法判定。" : counts.unknown > 0 ? "部分结果待确认。" : counts.pending > 0 ? "部分结果待确认，无法判断是否超时。" : counts.start === 0 ? "当前窗口暂无客户端样本。" : "当前窗口客户端样本均有成功或预期拒绝结果；不代表整体生产健康。",
+      action: "在产品遥测中按操作和版本查看；结果待确认时先核对业务事实与回执日志，不要直接重放。",
     };
   });
   const missing = !jobs || jobs.length === 0 || jobs.some(job => !job.primaryTriggeredAt);
   const unhealthy = jobs?.filter(job => job.status !== "normal").length ?? 0;
   const pendingDispatch = jobs?.some(hasUnconfirmedDispatch) ?? false;
+  const degraded = jobs?.some(job => job.primaryTriggeredAt && job.status === "degraded") ?? false;
   const scheduler: HealthItem = {
-    label: "定时任务", status: pendingDispatch ? "需要关注" : !missing && !unhealthy ? "正常" : "未核验",
+    label: "定时任务", status: pendingDispatch || degraded ? "需要关注" : missing ? "未核验" : "正常",
     source: "scheduler 当前健康投影；各任务使用自身的新鲜度窗口",
     coverage: jobs ? `${jobs.filter(job => job.primaryTriggeredAt).length} / ${jobs.length} 个任务有主调度记录；${unhealthy} 个未通过现有健康判定` : "读取失败",
-    reason: pendingDispatch ? "存在尚未确认成功的派发请求。" : missing ? "部分记录缺失或读取失败。" : unhealthy ? "存在过期记录或未完成的调度请求，当前健康未核验。" : "全部主调度记录通过现有健康判定。",
+    reason: pendingDispatch ? "存在尚未确认成功的派发请求。" : degraded ? "现有健康判定发现调度记录异常或过期。" : missing ? "部分记录缺失或读取失败。" : "全部主调度记录通过现有健康判定。",
     action: "查看下方定时任务健康与运行日志，核对主调度、派发和业务状态。",
   };
   return [...journeys, scheduler,
-    { label: "完整性", status: "未核验", source: "生产结构化日志与审计事实", coverage: "本页未读取日志事件", reason: "缺少当前权威结果，不能由无样本推断正常。", action: "检查服务 journal 中的 production security / invariant 事件，并核对审计事实。" },
-    { label: "依赖与备份保障", status: "未核验", source: "公共资源真实 GET、备份验证与 provider 控制台", coverage: "本页未读取这些证据", reason: "缺少当前资源、备份与配额证据。", action: "核对公共资源 GET、最近可信 full backup 验证及 provider 用量与预算。" },
+    { label: "完整性", status: "未核验", source: "生产结构化日志与审计事实", coverage: "本页未读取日志事件", reason: "本页不自动读取，请按运维记录核验。", action: "检查服务 journal 中的 production security / invariant 事件，并核对审计事实。" },
+    { label: "依赖与备份保障", status: "未核验", source: "公共资源真实 GET、备份验证与 provider 控制台", coverage: "本页未读取这些证据", reason: "本页不自动读取，请按运维记录核验。", action: "核对公共资源 GET、最近可信 full backup 验证及 provider 用量与预算。" },
   ];
 }

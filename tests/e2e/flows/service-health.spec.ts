@@ -10,6 +10,8 @@ test("超级管理员可查看健康证据及未核验状态", async ({ page, sc
     await expect(section.getByRole("heading", { name, exact: true })).toBeVisible();
   }
   await expect(section.getByText("未核验").first()).toBeVisible();
+  await expect(section.getByText("本页不自动读取，请按运维记录核验。").first()).toBeVisible();
+  await expect(section.getByText(/失败率/)).toHaveCount(0);
   await expect(section.getByRole("link", { name: "查看产品遥测" })).toHaveAttribute("href", "/admin/telemetry");
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
