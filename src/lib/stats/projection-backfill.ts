@@ -266,7 +266,8 @@ async function claimNextProjectionRepairMap(database: DB): Promise<string | null
 /** Add a transport representation without rebuilding or reading immutable Evidence. */
 export async function backfillStatisticsTransport(database: DB, options: { apply: boolean; limit?: number; cursor?: string }) {
   const { isDeepStrictEqual } = await import("node:util");
-  const { decodePerformanceTransport, encodePerformanceTransport, ProjectionTransportIntegrityError } = await import("./projection-transport");
+  const { decodePerformanceTransport, encodePerformanceTransport, decodeTournamentTransport, encodeTournamentTransport, ProjectionTransportIntegrityError } = await import("./projection-transport");
+  const { buildTournamentAnalytics } = await import("@cs2dak/tournament");
   const { PREVIOUS_STATISTICS_PROJECTION_VERSION } = await import("./projection-version");
   const started = Date.now();
   const deadline = started + 60_000;
@@ -281,11 +282,15 @@ export async function backfillStatisticsTransport(database: DB, options: { apply
     } catch { throw new Error("Invalid transport backfill cursor"); }
   }
   const report = { scanned: 0, encoded: 0, already: 0, not_current: 0, legacy_retained: 0, invalid: 0,
+    tournamentEncoded: 0, tournamentAlready: 0, tournamentLegacyRetained: 0, tournamentOriginalBytes: 0, tournamentEncodedBytes: 0, missingPrevious: 0,
     complete: false, originalBytes: 0, encodedBytes: 0, nextCursor: null as string | null };
   const candidates = await database.transaction(async tx => {
     await tx.execute(sql`SET LOCAL statement_timeout = '5s'`);
     return tx.select({ importId: matchDemoImports.id, mapId: matchMaps.id, completedAt: sql<string>`${matchMaps.completedAt}::text`,
       hasTransport: sql<boolean>`${matchDemoStatProjections.facts} ? 'performanceTransport'`,
+      hasTournamentTransport: sql<boolean>`${matchDemoStatProjections.facts} ? 'tournamentTransport'`,
+      tournamentOriginalBytes: sql<number>`octet_length((${matchDemoStatProjections.facts}->'tournament')::text)`,
+      tournamentEncodedBytes: sql<number>`CASE WHEN ${matchDemoStatProjections.facts} ? 'tournamentTransport' THEN octet_length((${matchDemoStatProjections.facts}->'tournamentTransport')::text) ELSE 0 END`,
       originalBytes: sql<number>`octet_length((${matchDemoStatProjections.facts}->'performance')::text)`,
       encodedBytes: sql<number>`CASE WHEN ${matchDemoStatProjections.facts} ? 'performanceTransport' THEN octet_length((${matchDemoStatProjections.facts}->'performanceTransport')::text) ELSE 0 END`,
     }).from(matchDemoStatProjections)
@@ -306,26 +311,34 @@ export async function backfillStatisticsTransport(database: DB, options: { apply
       report[item.hasTransport ? "already" : "legacy_retained"]++;
       report.originalBytes += Number(item.originalBytes);
       report.encodedBytes += Number(item.encodedBytes);
+      report[item.hasTournamentTransport ? "tournamentAlready" : "tournamentLegacyRetained"]++;
+      report.tournamentOriginalBytes += Number(item.tournamentOriginalBytes);
+      report.tournamentEncodedBytes += Number(item.tournamentEncodedBytes);
     } else {
       try {
         const outcome = await database.transaction(async tx => {
           await tx.execute(sql`SELECT set_config('statement_timeout', ${String(Math.max(1, Math.min(5000, deadline - Date.now())))}, true)`);
           await lockDemoImportLineageInTx(tx, item.mapId);
           const candidate = await currentProjectionCandidate(tx, item.mapId);
-          if (!candidate || candidate.current.id !== item.importId) return { not_current: 1, encoded: 0, already: 0, legacy_retained: 0, originalBytes: 0, encodedBytes: 0 };
+          if (!candidate || candidate.current.id !== item.importId) return null;
           const target = await loadCanonicalTarget(tx, { seasonId: candidate.current.seasonId, matchId: candidate.current.matchId, matchMapId: item.mapId });
-          if (buildEvidenceRevisionForTarget(target) !== candidate.current.evidenceRevision) return { not_current: 1, encoded: 0, already: 0, legacy_retained: 0, originalBytes: 0, encodedBytes: 0 };
+          if (buildEvidenceRevisionForTarget(target) !== candidate.current.evidenceRevision) return null;
           const rows = await tx.select({ projectionVersion: matchDemoStatProjections.projectionVersion,
             payloadSha256: matchDemoStatProjections.payloadSha256, demoSha256: matchDemoStatProjections.demoSha256,
             evidenceRevision: matchDemoStatProjections.evidenceRevision, semanticProfile: matchDemoStatProjections.semanticProfile,
             analysisVersion: matchDemoStatProjections.analysisVersion, identityBindings: matchDemoStatProjections.identityBindings,
+            tournament: sql<typeof matchDemoStatProjections.$inferSelect.facts.tournament>`${matchDemoStatProjections.facts}->'tournament'`,
+            hasTournamentTransport: sql<boolean>`${matchDemoStatProjections.facts} ? 'tournamentTransport'`,
+            tournamentTransport: sql<unknown>`${matchDemoStatProjections.facts}->'tournamentTransport'`,
             performance: sql<typeof matchDemoStatProjections.$inferSelect.facts.performance>`${matchDemoStatProjections.facts}->'performance'`,
             hasTransport: sql<boolean>`${matchDemoStatProjections.facts} ? 'performanceTransport'`,
             transport: sql<unknown>`${matchDemoStatProjections.facts}->'performanceTransport'`,
           }).from(matchDemoStatProjections).where(and(eq(matchDemoStatProjections.importId, item.importId),
             inArray(matchDemoStatProjections.projectionVersion, [STATISTICS_PROJECTION_VERSION, PREVIOUS_STATISTICS_PROJECTION_VERSION]))).for("update");
-          if (!rows.some(row => row.projectionVersion === STATISTICS_PROJECTION_VERSION)) return { not_current: 1, encoded: 0, already: 0, legacy_retained: 0, originalBytes: 0, encodedBytes: 0 };
+          if (!rows.some(row => row.projectionVersion === STATISTICS_PROJECTION_VERSION)) return null;
           let encoded = 0, already = 0, retained = 0, originalBytes = 0, encodedBytes = 0;
+          let tournamentEncoded = 0, tournamentAlready = 0, tournamentLegacyRetained = 0, tournamentOriginalBytes = 0, tournamentEncodedBytes = 0;
+          const missingPrevious = Number(!rows.some(row => row.projectionVersion === PREVIOUS_STATISTICS_PROJECTION_VERSION));
           for (const row of rows) {
             if (row.payloadSha256 !== candidate.current.payloadSha256 || row.demoSha256 !== candidate.current.demoSha256 ||
               row.evidenceRevision !== candidate.current.evidenceRevision || row.semanticProfile !== candidate.current.semanticProfile ||
@@ -341,25 +354,51 @@ export async function backfillStatisticsTransport(database: DB, options: { apply
               if (!isDeepStrictEqual(await decodePerformanceTransport(row.transport), performance)) throw new ProjectionTransportIntegrityError();
               already++;
               encodedBytes += Buffer.byteLength(JSON.stringify(row.transport));
-              continue;
+            } else {
+              const transport = await encodePerformanceTransport(performance);
+              if (!transport) retained++;
+              else {
+                if (!isDeepStrictEqual(await decodePerformanceTransport(transport), performance)) throw new ProjectionTransportIntegrityError();
+                await tx.update(matchDemoStatProjections).set({ facts: sql`jsonb_set(${matchDemoStatProjections.facts}, '{performanceTransport}', ${JSON.stringify(transport)}::jsonb, true)` })
+                  .where(and(eq(matchDemoStatProjections.importId, item.importId), eq(matchDemoStatProjections.projectionVersion, row.projectionVersion)));
+                encoded++; encodedBytes += Buffer.byteLength(JSON.stringify(transport));
+              }
             }
-            const transport = await encodePerformanceTransport(performance);
-            if (!transport) { retained++; continue; }
-            if (!isDeepStrictEqual(await decodePerformanceTransport(transport), performance)) throw new ProjectionTransportIntegrityError();
-            await tx.update(matchDemoStatProjections).set({ facts: sql`jsonb_set(${matchDemoStatProjections.facts}, '{performanceTransport}', ${JSON.stringify(transport)}::jsonb, true)` })
-              .where(and(eq(matchDemoStatProjections.importId, item.importId), eq(matchDemoStatProjections.projectionVersion, row.projectionVersion)));
-            encoded++;
-            encodedBytes += Buffer.byteLength(JSON.stringify(transport));
+            const tournament = row.tournament;
+            if (!tournament || tournament.mapKey !== item.mapId || tournament.matchKey !== target.match.id || tournament.mapName !== target.map.mapName ||
+              tournament.semanticProfile !== row.semanticProfile || tournament.analysisVersion !== row.analysisVersion) throw new ProjectionTransportIntegrityError();
+            try { buildTournamentAnalytics([tournament]); } catch { throw new ProjectionTransportIntegrityError(); }
+            tournamentOriginalBytes += Buffer.byteLength(JSON.stringify(tournament));
+            if (row.hasTournamentTransport) {
+              if (!isDeepStrictEqual(await decodeTournamentTransport(row.tournamentTransport), tournament)) throw new ProjectionTransportIntegrityError();
+              tournamentAlready++; tournamentEncodedBytes += Buffer.byteLength(JSON.stringify(row.tournamentTransport));
+            } else {
+              const transport = await encodeTournamentTransport(tournament);
+              if (!transport) tournamentLegacyRetained++;
+              else {
+                if (!isDeepStrictEqual(await decodeTournamentTransport(transport), tournament)) throw new ProjectionTransportIntegrityError();
+                await tx.update(matchDemoStatProjections).set({ facts: sql`jsonb_set(${matchDemoStatProjections.facts}, '{tournamentTransport}', ${JSON.stringify(transport)}::jsonb, true)` })
+                  .where(and(eq(matchDemoStatProjections.importId, item.importId), eq(matchDemoStatProjections.projectionVersion, row.projectionVersion)));
+                tournamentEncoded++; tournamentEncodedBytes += Buffer.byteLength(JSON.stringify(transport));
+              }
+            }
           }
-          return { not_current: 0, encoded, already, legacy_retained: retained, originalBytes, encodedBytes };
+          return { encoded, already, legacy_retained: retained, originalBytes, encodedBytes, tournamentEncoded, tournamentAlready, tournamentLegacyRetained, tournamentOriginalBytes, tournamentEncodedBytes, missingPrevious };
         });
         report.scanned++;
-        report.not_current += outcome.not_current;
+        if (!outcome) { report.not_current++; } else {
         report.encoded += outcome.encoded;
         report.already += outcome.already;
         report.legacy_retained += outcome.legacy_retained;
         report.originalBytes += outcome.originalBytes;
         report.encodedBytes += outcome.encodedBytes;
+        report.tournamentEncoded += outcome.tournamentEncoded;
+        report.tournamentAlready += outcome.tournamentAlready;
+        report.tournamentLegacyRetained += outcome.tournamentLegacyRetained;
+        report.tournamentOriginalBytes += outcome.tournamentOriginalBytes;
+        report.tournamentEncodedBytes += outcome.tournamentEncodedBytes;
+        report.missingPrevious += outcome.missingPrevious;
+        }
       } catch (error) {
         if (Date.now() >= deadline && extractPgError(error)?.code === "57014") return report;
         if (!(error instanceof ProjectionTransportIntegrityError)) throw error;

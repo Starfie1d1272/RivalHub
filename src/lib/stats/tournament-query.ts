@@ -14,7 +14,7 @@ import { publicCompetitionEntryCondition } from "@/lib/competition-entries/publi
 import { loadEffectiveMatchRosterIdentities, type EffectiveMatchRosterIdentity } from "@/lib/match-rosters/effective";
 import { getPublicPlayerRecord } from "@/lib/players/public-record";
 import { getPlayerStatsScoreboards, getStatsLeaderboard } from "./leaderboard-query";
-import { decodePerformanceTransport, performanceTransportSelection, ProjectionTransportIntegrityError } from "./projection-transport";
+import { decodePerformanceTransport, performanceTransportSelection, decodeTournamentTransport, tournamentTransportSelection, ProjectionTransportIntegrityError } from "./projection-transport";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { buildScopeInsights } from "./insight-facts";
@@ -187,29 +187,25 @@ export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: { seasonId?:
 async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean } = {}) {
   if (!scope.view) return loadStatsEvidenceSelection(tx, scope, options,
     sql<typeof matchDemoStatProjections.$inferSelect.facts>`jsonb_build_object(
-      'tournament', ${matchDemoStatProjections.facts}->'tournament',
-      'records', (${matchDemoStatProjections.facts}->'records') - 'events') || ${performanceTransportSelection}`);
+      'records', (${matchDemoStatProjections.facts}->'records') - 'events') || ${tournamentTransportSelection} || ${performanceTransportSelection}`);
   const needsTournament = ["overview", "teams", "maps"].includes(scope.view);
   const needsPerformance = scope.view !== "records" && (scope.view !== "maps" || scope.mapDetail);
   // DAK owns its opaque performance accumulator. Select it verbatim whenever
   // consumed; never reconstruct or trim inside its private `data` field.
-  const tournament = needsTournament ? sql`${matchDemoStatProjections.facts}->'tournament'` : sql`jsonb_build_object(
+  const tournament = needsTournament ? tournamentTransportSelection : sql`jsonb_build_object('tournament', jsonb_build_object(
     'mapKey', ${matchDemoStatProjections.facts}->'tournament'->'mapKey',
     'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey',
-    'mapName', ${matchDemoStatProjections.facts}->'tournament'->'mapName')`;
+    'mapName', ${matchDemoStatProjections.facts}->'tournament'->'mapName'))`;
   const performance = needsPerformance ? performanceTransportSelection : sql`jsonb_build_object('performance', jsonb_build_object(
     'mapKey', ${matchDemoStatProjections.facts}->'performance'->'mapKey',
     'matchKey', ${matchDemoStatProjections.facts}->'performance'->'matchKey'))`;
   return loadStatsEvidenceSelection(tx, scope, options, sql<typeof matchDemoStatProjections.$inferSelect.facts>`jsonb_build_object(
-    'tournament', ${tournament},
-    'records', ${scope.view === "records" ? sql`(${matchDemoStatProjections.facts}->'records') - 'events'` : sql`NULL`}) || ${performance}`);
+    'records', ${scope.view === "records" ? sql`(${matchDemoStatProjections.facts}->'records') - 'events'` : sql`NULL`}) || ${tournament} || ${performance}`);
 }
 
 /** Team/map details consume both analytics owners, but never record candidates. */
 async function loadStatsDetailEvidence(tx: TxDb, scope: StatsEvidenceScope, options: Parameters<typeof loadStatsContext>[2] = {}) {
-  return loadStatsEvidenceSelection(tx, scope, options, sql<Pick<typeof matchDemoStatProjections.$inferSelect.facts, "tournament" | "performance">>`jsonb_build_object(
-    'tournament', ${matchDemoStatProjections.facts}->'tournament'
-  ) || ${performanceTransportSelection}`);
+  return loadStatsEvidenceSelection(tx, scope, options, sql<Pick<typeof matchDemoStatProjections.$inferSelect.facts, "tournament" | "performance">>`${tournamentTransportSelection} || ${performanceTransportSelection}`);
 }
 
 type PlayerDetailFacts = {
@@ -237,6 +233,15 @@ async function loadStatsEvidenceSelection<T extends ProjectionTargets>(
   const selected: Array<{ importId: string; facts: T }> = [];
   for (const { current, map, match } of refs) {
     let facts = factsByImport.get(current.id);
+    if (facts && Object.hasOwn(facts, "tournamentTransport")) {
+      if (facts.tournament.mapKey !== map.id || facts.tournament.matchKey !== match.id) {
+        throw new Error("Statistics projection target mismatch");
+      }
+      const tournament = await decodeTournamentTransport((facts as T & { tournamentTransport: unknown }).tournamentTransport);
+      if (tournament.mapKey !== map.id || tournament.matchKey !== match.id || tournament.mapName !== map.mapName ||
+        tournament.semanticProfile !== current.semanticProfile || tournament.analysisVersion !== current.analysisVersion) throw new ProjectionTransportIntegrityError();
+      facts = { ...facts, tournament };
+    }
     if (facts && Object.hasOwn(facts, "performanceTransport")) {
       const performance = await decodePerformanceTransport((facts as T & { performanceTransport: unknown }).performanceTransport);
       if (performance.mapKey !== map.id || performance.matchKey !== match.id || performance.mapName !== map.mapName ||
