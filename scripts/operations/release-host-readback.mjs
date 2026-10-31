@@ -45,10 +45,22 @@ function sample() {
 function journalSummary() {
   const sinceUtc = "2026-10-31T07:45:00.000Z";
   const untilUtc = new Date(Math.min(Date.now(), Date.parse("2026-10-31T12:00:00.000Z"))).toISOString();
-  const result = { sinceUtc, untilUtc, status: "unavailable", rows: [] };
+  const result = { sinceUtc, untilUtc, status: "unavailable", errorCode: "invalid_window", rows: [] };
   if (untilUtc < sinceUtc) return result;
   const journal = spawnSync("/usr/bin/journalctl", ["--namespace=*", "--unit=rivalhub-production", `--since=${sinceUtc}`, `--until=${untilUtc}`, "--output=cat", "--no-pager", "--grep=mizar\\.(reliable\\.reject|live\\.(outcome_window|stage_window|broadcast_unavailable))"], { encoding: "utf8", timeout: 30000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
-  if (journal.error || (journal.status !== 0 && !(journal.status === 1 && !journal.stdout && !journal.stderr))) return result;
+  if (journal.error) {
+    const codes = { ENOENT: "binary_missing", EACCES: "execute_denied", ETIMEDOUT: "timeout", ENOBUFS: "output_limit" };
+    result.errorCode = codes[journal.error.code] ?? "execution_error";
+    return result;
+  }
+  if (journal.status !== 0 && !(journal.status === 1 && !journal.stdout && !journal.stderr)) {
+    const stderr = journal.stderr ?? "";
+    result.errorCode = /permission denied|access denied/i.test(stderr) ? "read_denied" :
+      /no journal files were found/i.test(stderr) ? "journal_missing" :
+      /unrecognized option|unknown option/i.test(stderr) ? "unsupported_option" :
+      /failed to parse.*(timestamp|date|time)/i.test(stderr) ? "invalid_time" : "journal_failed";
+    return result;
+  }
   const reliable = new Set(["context_stale", "sequence_stale", "generation_fence", "epoch_fence", "authority_changed", "idempotency_conflict", "invalid_schema", "auth_failed", "other"]);
   const phases = new Set(["auth", "read", "validate", "domain", "revalidation"]);
   const outcomes = new Set(["accepted", "frame_expired", "contended", "delivery_dropped", "broadcast_unavailable", "rejected", "error"]);
@@ -84,6 +96,7 @@ function journalSummary() {
     add(entry.event, context.outcome, "reported_count", context.count);
   }
   result.status = incomplete ? "incomplete" : "ok";
+  result.errorCode = incomplete ? "invalid_record" : null;
   result.rows = [...counts].map(([key, count]) => { const [event, reason, status] = JSON.parse(key); return { event, reason, status, count }; });
   return result;
 }
