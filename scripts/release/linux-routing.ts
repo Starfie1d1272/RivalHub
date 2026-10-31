@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { appendFileSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { resolve, join } from "node:path";
+import { basename, resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { loadLayerManifest } from "../standby/layers.mjs";
 import { assertReleaseCapabilities } from "./capability-contract";
@@ -101,7 +101,14 @@ async function main() {
     const tools = ["scripts/standby/install-production.sh", "scripts/standby/production-host.mjs", "scripts/standby/rivalhub-production.service", "scripts/standby/layers.mjs",
       "scripts/standby/production-quiescence.mjs", "scripts/standby/production-launcher.mjs", "scripts/standby/production-traffic-status.mjs", join(temp, "postgres-connection.ts"), "src/db/supabase-ca.ts"];
     console.log(JSON.stringify({ event: "linux.release_stage", stage: "upload_manifest_and_tools" }));
-    execFileSync("scp", [...options, "-P", "52222", join(packageDir, archive), join(packageDir, `${archive}.sha256`), ...tools, `${host}:${remote}/`], { stdio: "inherit", timeout: 300_000 });
+    const bootstrap = join(temp, "bootstrap");
+    mkdirSync(bootstrap, { mode: 0o700 });
+    const inputs = [join(packageDir, archive), join(packageDir, `${archive}.sha256`), ...tools];
+    for (const input of inputs) copyFileSync(input, join(bootstrap, basename(input)));
+    const bundle = join(temp, "bootstrap.tar.gz");
+    execFileSync("tar", ["-czf", bundle, "-C", bootstrap, "."]);
+    execFileSync("scp", [...options, "-P", "52222", bundle, `${host}:${remote}/`], { stdio: "inherit", timeout: 300_000 });
+    ssh(`tar -xzf ${remote}/bootstrap.tar.gz -C ${remote}`);
     if (layered) {
       console.log(JSON.stringify({ event: "linux.release_stage", stage: "layer_inventory" }));
       const missing: unknown = JSON.parse(execFileSync("ssh", [...options, "-p", "52222", host,
