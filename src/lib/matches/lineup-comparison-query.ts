@@ -39,7 +39,9 @@ export async function loadLineupCareers(playerIds: readonly string[], matchId: s
 async function getLineupPopulation(matchId: string, cutoff: string | null) {
   "use cache: remote";
   cacheTag(PUBLIC_STATS_TAG);
-  cacheLife({ stale: 60, revalidate: 60, expire: 3600 });
+  cacheLife(cutoff
+    ? { stale: 60, revalidate: 3600, expire: 86400 }
+    : { stale: 60, revalidate: 60, expire: 3600 });
   return observePublicStatsFill("stats.lineup", () => loadLineupPopulation(matchId, cutoff ? new Date(cutoff) : new Date()));
 }
 
