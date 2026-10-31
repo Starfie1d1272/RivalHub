@@ -22,12 +22,16 @@ export interface BetBoardReadOptions extends BetAccountReadOptions {
 export async function readBetPools(tx: TxDb, seasonId: string, scope: Pick<BetBoardReadOptions, "matchId" | "includeEvent" | "view"> = {}) {
   const marketScope=and(eq(betMarkets.seasonId,seasonId),scope.view==="event"?isNull(betMarkets.matchId):undefined,scope.matchId?eq(betMarkets.matchId,scope.matchId):scope.includeEvent===false?isNotNull(betMarkets.matchId):undefined);
   const marketIds=tx.select({id:betMarkets.id}).from(betMarkets).where(marketScope);
-  const rows=await tx.select({marketId:betStakes.marketId,optionId:sql<string | null>`${betStakes.optionId}`,amount:sql<string>`sum(${betStakes.amount})::text`,count:sql<number>`count(distinct ${betStakes.accountId})::int`})
+  const grouped=tx.select({marketId:betStakes.marketId,optionId:sql<string | null>`${betStakes.optionId}`.as("option_id"),amount:sql<string>`sum(${betStakes.amount})::text`.as("amount"),count:sql<number>`count(distinct ${betStakes.accountId})::int`.as("count")})
     .from(betStakes).where(and(eq(betStakes.seasonId,seasonId),inArray(betStakes.marketId,marketIds)))
-    .groupBy(sql`grouping sets ((${betStakes.marketId}, ${betStakes.optionId}), (${betStakes.marketId}))`);
+    .groupBy(sql`grouping sets ((${betStakes.marketId}, ${betStakes.optionId}), (${betStakes.marketId}))`).as("pool_groups");
+  const rows=await tx.select({marketId:grouped.marketId,
+    options:sql<[string,string][]>`coalesce(jsonb_agg(jsonb_build_array(${grouped.optionId}, ${grouped.amount})) filter (where ${grouped.optionId} is not null), '[]'::jsonb)`,
+    count:sql<number>`max(${grouped.count}) filter (where ${grouped.optionId} is null)`})
+    .from(grouped).groupBy(grouped.marketId);
   return {
-    pool: rows.flatMap(row=>row.optionId===null?[]:[{marketId:row.marketId,optionId:row.optionId,amount:row.amount}]),
-    counts: rows.filter(row=>row.optionId===null).map(row=>({marketId:row.marketId,count:row.count})),
+    pool: rows.flatMap(row=>row.options.map(([optionId,amount])=>({marketId:row.marketId,optionId,amount}))),
+    counts: rows.map(row=>({marketId:row.marketId,count:row.count})),
   };
 }
 export async function readBetBoardSnapshot(tx:TxDb,seasonId:string,userId:string|null, options:BetBoardReadOptions = {}) {
