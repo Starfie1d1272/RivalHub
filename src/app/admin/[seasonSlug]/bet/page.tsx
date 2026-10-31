@@ -1,9 +1,8 @@
 import { Suspense } from "react";
 import { io } from "next/cache";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
+import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { readBetOperationsSnapshot, projectBetBoard } from "@/lib/bet/data";
 import { parseBetOperationsQuery } from "@/lib/bet/operations";
@@ -13,7 +12,7 @@ export default function BetAdminPage(props:{params:Promise<{seasonSlug:string}>;
 }
 async function BetAdminContent({params,searchParams}:{params:Promise<{seasonSlug:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}) {
   await io();
-  const {seasonSlug}=await params;const season=await db.query.seasons.findFirst({where:eq(seasons.slug,seasonSlug)});
+  const {seasonSlug}=await params;const season=await findAdminSeasonBySlug(seasonSlug);
   if(!season || season.competitionTemplate!=="major")notFound();await requireSeasonAdmin(season.id);
   const snapshot=await db.transaction(tx=>readBetOperationsSnapshot(tx,season.id),{accessMode:"read only",isolationLevel:"repeatable read"});
   const data=projectBetBoard(snapshot);
