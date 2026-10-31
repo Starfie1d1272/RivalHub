@@ -14,6 +14,7 @@ import { publicCompetitionEntryCondition } from "@/lib/competition-entries/publi
 import { loadEffectiveMatchRoster, type EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
 import { getPublicPlayerRecord } from "@/lib/players/public-record";
 import { getPlayerStatsScoreboards, getStatsLeaderboard } from "./leaderboard-query";
+import { decodePerformanceTransport, performanceTransportSelection, ProjectionTransportIntegrityError } from "./projection-transport";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { buildScopeInsights } from "./insight-facts";
@@ -183,7 +184,9 @@ export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: { seasonId?:
 
 async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean } = {}) {
   if (!scope.view) return loadStatsEvidenceSelection(tx, scope, options,
-    sql<typeof matchDemoStatProjections.$inferSelect.facts>`${matchDemoStatProjections.facts} #- '{records,events}'`);
+    sql<typeof matchDemoStatProjections.$inferSelect.facts>`jsonb_build_object(
+      'tournament', ${matchDemoStatProjections.facts}->'tournament',
+      'records', (${matchDemoStatProjections.facts}->'records') - 'events') || ${performanceTransportSelection}`);
   const needsTournament = ["overview", "teams", "maps"].includes(scope.view);
   const needsPerformance = scope.view !== "records" && (scope.view !== "maps" || scope.mapDetail);
   // DAK owns its opaque performance accumulator. Select it verbatim whenever
@@ -192,20 +195,19 @@ async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: {
     'mapKey', ${matchDemoStatProjections.facts}->'tournament'->'mapKey',
     'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey',
     'mapName', ${matchDemoStatProjections.facts}->'tournament'->'mapName')`;
-  const performance = needsPerformance ? sql`${matchDemoStatProjections.facts}->'performance'` : sql`jsonb_build_object(
+  const performance = needsPerformance ? performanceTransportSelection : sql`jsonb_build_object('performance', jsonb_build_object(
     'mapKey', ${matchDemoStatProjections.facts}->'performance'->'mapKey',
-    'matchKey', ${matchDemoStatProjections.facts}->'performance'->'matchKey')`;
+    'matchKey', ${matchDemoStatProjections.facts}->'performance'->'matchKey'))`;
   return loadStatsEvidenceSelection(tx, scope, options, sql<typeof matchDemoStatProjections.$inferSelect.facts>`jsonb_build_object(
-    'tournament', ${tournament}, 'performance', ${performance},
-    'records', ${scope.view === "records" ? sql`(${matchDemoStatProjections.facts}->'records') - 'events'` : sql`NULL`})`);
+    'tournament', ${tournament},
+    'records', ${scope.view === "records" ? sql`(${matchDemoStatProjections.facts}->'records') - 'events'` : sql`NULL`}) || ${performance}`);
 }
 
 /** Team/map details consume both analytics owners, but never record candidates. */
 async function loadStatsDetailEvidence(tx: TxDb, scope: StatsEvidenceScope, options: Parameters<typeof loadStatsContext>[2] = {}) {
   return loadStatsEvidenceSelection(tx, scope, options, sql<Pick<typeof matchDemoStatProjections.$inferSelect.facts, "tournament" | "performance">>`jsonb_build_object(
-    'tournament', ${matchDemoStatProjections.facts}->'tournament',
-    'performance', ${matchDemoStatProjections.facts}->'performance'
-  )`);
+    'tournament', ${matchDemoStatProjections.facts}->'tournament'
+  ) || ${performanceTransportSelection}`);
 }
 
 type PlayerDetailFacts = {
@@ -230,14 +232,21 @@ async function loadStatsEvidenceSelection<T extends ProjectionTargets>(
   const rows = importIds.length ? await tx.select({ importId: matchDemoStatProjections.importId, facts: factsSelection })
     .from(matchDemoStatProjections).where(and(inArray(matchDemoStatProjections.importId, importIds), eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION))) : [];
   const factsByImport = new Map(rows.map((row) => [row.importId, row.facts]));
-  const selected = refs.map(({ current, map, match }) => {
-    const facts = factsByImport.get(current.id);
+  const selected: Array<{ importId: string; facts: T }> = [];
+  for (const { current, map, match } of refs) {
+    let facts = factsByImport.get(current.id);
+    if (facts && Object.hasOwn(facts, "performanceTransport")) {
+      const performance = await decodePerformanceTransport((facts as T & { performanceTransport: unknown }).performanceTransport);
+      if (performance.mapKey !== map.id || performance.matchKey !== match.id || performance.mapName !== map.mapName ||
+        performance.semanticProfile !== current.semanticProfile || performance.analysisVersion !== current.analysisVersion) throw new ProjectionTransportIntegrityError();
+      facts = { ...facts, performance };
+    }
     if (!facts || facts.tournament.mapKey !== map.id || facts.performance.mapKey !== map.id
       || facts.tournament.matchKey !== match.id || facts.performance.matchKey !== match.id) {
       throw new Error("Statistics projection target mismatch");
     }
-    return { importId: current.id, facts };
-  });
+    selected.push({ importId: current.id, facts });
+  }
   const userIds = [...new Set(refs.flatMap(({ projection }) => projection.identityBindings.map((binding) => binding.userId)))];
   const identities = userIds.length ? await tx.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
     .from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(users.id, userIds)) : [];
@@ -695,9 +704,8 @@ async function loadTournamentPlayerSnapshot(
       'mapKey', ${matchDemoStatProjections.facts}->'tournament'->'mapKey',
       'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey',
       'mapName', ${matchDemoStatProjections.facts}->'tournament'->'mapName'
-    ),
-    'performance', ${matchDemoStatProjections.facts}->'performance'
-  )`);
+    )
+  ) || ${performanceTransportSelection}`);
   const { scoreboard, scoreboardMaps } = await getPlayerStatsScoreboards(scope, loaded.selected.map((row) => row.importId), loaded.roster, tx, { userId: scope.playerId, requireCurrentImports: options.requireCurrentImports, includeTestMatch: options.includeTestMatch });
   const record = await getPublicPlayerRecord(scope.playerId, { seasonId: scope.seasonId, matchIds, database: tx });
   const [mvpRow] = matchIds.length ? await tx.select({ count: count() }).from(matches).where(and(officialMatchCondition(),
@@ -750,9 +758,8 @@ async function loadPerformanceEvidence(tx: TxDb, scope: PlatformStatsScope) {
       'tournament', jsonb_build_object(
         'mapKey', ${matchDemoStatProjections.facts}->'tournament'->'mapKey',
         'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey'
-      ),
-      'performance', ${matchDemoStatProjections.facts}->'performance'
-    )`);
+      )
+    ) || ${performanceTransportSelection}`);
 }
 
 export async function getTournamentPerformancePlayers(scope: TournamentStatsScope, database: DB = db) {
@@ -814,9 +821,8 @@ export async function getMatchMvpSummary(matchId: string, playerId: string, data
         'mapKey', ${matchDemoStatProjections.facts}->'tournament'->'mapKey',
         'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey',
         'mapName', ${matchDemoStatProjections.facts}->'tournament'->'mapName'
-      ),
-      'performance', ${matchDemoStatProjections.facts}->'performance'
-    )`);
+      )
+    ) || ${performanceTransportSelection}`);
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
   if (!loaded) return null;
   const player = buildTournamentPerformanceAnalytics(loaded.selected.map(row => row.facts.performance), { labels: loaded.labels })
@@ -865,9 +871,8 @@ export async function getPlayerCareerPerformances(playerIds: readonly string[], 
         'mapKey', ${matchDemoStatProjections.facts}->'tournament'->'mapKey',
         'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey',
         'mapName', ${matchDemoStatProjections.facts}->'tournament'->'mapName'
-      ),
-      'performance', ${matchDemoStatProjections.facts}->'performance'
-    )`);
+      )
+    ) || ${performanceTransportSelection}`);
     return { scopes, loaded };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
   return [...scopes].map(([playerId, scope]) => {

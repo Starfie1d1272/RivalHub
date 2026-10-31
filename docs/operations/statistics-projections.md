@@ -3,8 +3,11 @@
 Public statistics read versioned per-map sufficient statistics, never immutable
 Evidence. Confirmation and recheck materialize projections in the same transaction
 as the import and scoreboard. The current projection version is owned by
-`src/lib/stats/projection-version.ts`; bump it whenever the reducer, adapter or
-serialized representation changes. Formulas remain in `@cs2dak/tournament`.
+`src/lib/stats/projection-version.ts`; bump it when the reducer, adapter or canonical serialized facts change. The optional
+versioned gzip transport sidecar is an additional lossless representation of the
+complete performance accumulator; it does not change those facts or formulas and
+does not require a reducer-version bump. The complete legacy performance remains
+stored for old readers and rollback. Formulas remain in `@cs2dak/tournament`.
 Compact record candidates retain all local maxima/ties and round provenance;
 map sufficient statistics also support deterministic flash leave-one-map-out.
 Equipment candidates require all ten known values and verified freeze-end exporter
@@ -58,6 +61,22 @@ Records/1 → Records/2 cutover, confirmation and recheck write both versions in
 same transaction; Records/1 retains only its original six candidate kinds, with
 no occurrence arrays. Previous application writes are caught by the existing
 bounded repair job and the protected pre-routing coverage gate.
+
+For existing projections, use `pnpm db:stats-projections:backfill` only for
+reducer rebuilds. The separate transport operation runs through the same target
+and write-confirmation checks: use `pnpm exec tsx scripts/db/production-stats-projections.ts transport-backfill`
+with optional `--apply`, `--limit N` and `--cursor <nextCursor>`. Local runs use
+`pnpm exec tsx scripts/db/run-server-cli.ts scripts/db/stats-projections.ts transport-backfill`.
+Dry-run reads only metadata, presence and sizes; `already` means presence, not
+verified integrity. Apply independently verifies each existing reducer version,
+checks existing sidecars, round-trips new ones and commits one map per transaction.
+Apply outcome counts are per projection version; scanned and not-current counts are per map.
+It never reads raw Evidence or overwrites a damaged sidecar. Limits are 500 scanned
+maps, 150 processed maps and 60 seconds for starting work, with each SQL statement
+capped at five seconds; `complete=false` and `nextCursor` require a later run.
+Oversized, busy or incompressible maps retain legacy facts. Equivalent sidecar writes
+do not invalidate public caches. Deploy compatible readers before applying; rollback
+to the old application can retain sidecars because legacy performance remains intact.
 
 Production commands are `db:production:stats-projections:backfill` and
 `db:production:stats-projections:coverage`. The wrapper requires the normal

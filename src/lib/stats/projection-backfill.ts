@@ -1,4 +1,6 @@
 import "server-only";
+import { TOURNAMENT_PERFORMANCE_PROJECTION_VERSION } from "@cs2dak/tournament";
+import { extractPgError } from "@/db/errors";
 import { captureException } from "@/lib/observability/server";
 
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
@@ -259,4 +261,116 @@ async function claimNextProjectionRepairMap(database: DB): Promise<string | null
       .where(eq(statisticsProjectionRepairCursors.projectionVersion, STATISTICS_PROJECTION_VERSION));
     return afterMapId;
   });
+}
+
+/** Add a transport representation without rebuilding or reading immutable Evidence. */
+export async function backfillStatisticsTransport(database: DB, options: { apply: boolean; limit?: number; cursor?: string }) {
+  const { isDeepStrictEqual } = await import("node:util");
+  const { decodePerformanceTransport, encodePerformanceTransport, ProjectionTransportIntegrityError } = await import("./projection-transport");
+  const { PREVIOUS_STATISTICS_PROJECTION_VERSION } = await import("./projection-version");
+  const started = Date.now();
+  const deadline = started + 60_000;
+  const limit = Math.min(positiveInteger(options.limit ?? (options.apply ? 150 : 500), "Transport map limit"), options.apply ? 150 : 500);
+  let cursor: { completedAt: string; importId: string } | undefined;
+  if (options.cursor) {
+    try {
+      const value = JSON.parse(Buffer.from(options.cursor, "base64url").toString("utf8"));
+      if (typeof value.completedAt !== "string" || Number.isNaN(Date.parse(value.completedAt)) ||
+        typeof value.importId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.importId)) throw new Error();
+      cursor = value;
+    } catch { throw new Error("Invalid transport backfill cursor"); }
+  }
+  const report = { scanned: 0, encoded: 0, already: 0, not_current: 0, legacy_retained: 0, invalid: 0,
+    complete: false, originalBytes: 0, encodedBytes: 0, nextCursor: null as string | null };
+  const candidates = await database.transaction(async tx => {
+    await tx.execute(sql`SET LOCAL statement_timeout = '5s'`);
+    return tx.select({ importId: matchDemoImports.id, mapId: matchMaps.id, completedAt: sql<string>`${matchMaps.completedAt}::text`,
+      hasTransport: sql<boolean>`${matchDemoStatProjections.facts} ? 'performanceTransport'`,
+      originalBytes: sql<number>`octet_length((${matchDemoStatProjections.facts}->'performance')::text)`,
+      encodedBytes: sql<number>`CASE WHEN ${matchDemoStatProjections.facts} ? 'performanceTransport' THEN octet_length((${matchDemoStatProjections.facts}->'performanceTransport')::text) ELSE 0 END`,
+    }).from(matchDemoStatProjections)
+      .innerJoin(matchDemoImports, eq(matchDemoImports.id, matchDemoStatProjections.importId))
+      .innerJoin(matchMaps, eq(matchMaps.id, matchDemoImports.matchMapId))
+      .innerJoin(matches, eq(matches.id, matchMaps.matchId))
+      .innerJoin(seasons, eq(seasons.id, matches.seasonId))
+      .where(and(eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION), eq(matchDemoImports.status, "confirmed"),
+        eq(matches.status, "finished"), ne(seasons.status, "draft"), isNotNull(matchMaps.completedAt),
+        cursor ? sql`(${matchMaps.completedAt}, ${matchDemoImports.id}) < (${cursor.completedAt}::timestamptz, ${cursor.importId}::uuid)` : undefined))
+      .orderBy(desc(matchMaps.completedAt), desc(matchDemoImports.id)).limit(501);
+  }, { accessMode: "read only" });
+  for (const item of candidates) {
+    if (report.scanned >= 500 || report.scanned >= limit || Date.now() >= deadline) break;
+    if (!item.completedAt) continue;
+    if (!options.apply) {
+      report.scanned++;
+      report[item.hasTransport ? "already" : "legacy_retained"]++;
+      report.originalBytes += Number(item.originalBytes);
+      report.encodedBytes += Number(item.encodedBytes);
+    } else {
+      try {
+        const outcome = await database.transaction(async tx => {
+          await tx.execute(sql`SELECT set_config('statement_timeout', ${String(Math.max(1, Math.min(5000, deadline - Date.now())))}, true)`);
+          await lockDemoImportLineageInTx(tx, item.mapId);
+          const candidate = await currentProjectionCandidate(tx, item.mapId);
+          if (!candidate || candidate.current.id !== item.importId) return { not_current: 1, encoded: 0, already: 0, legacy_retained: 0, originalBytes: 0, encodedBytes: 0 };
+          const target = await loadCanonicalTarget(tx, { seasonId: candidate.current.seasonId, matchId: candidate.current.matchId, matchMapId: item.mapId });
+          if (buildEvidenceRevisionForTarget(target) !== candidate.current.evidenceRevision) return { not_current: 1, encoded: 0, already: 0, legacy_retained: 0, originalBytes: 0, encodedBytes: 0 };
+          const rows = await tx.select({ projectionVersion: matchDemoStatProjections.projectionVersion,
+            payloadSha256: matchDemoStatProjections.payloadSha256, demoSha256: matchDemoStatProjections.demoSha256,
+            evidenceRevision: matchDemoStatProjections.evidenceRevision, semanticProfile: matchDemoStatProjections.semanticProfile,
+            analysisVersion: matchDemoStatProjections.analysisVersion, identityBindings: matchDemoStatProjections.identityBindings,
+            performance: sql<typeof matchDemoStatProjections.$inferSelect.facts.performance>`${matchDemoStatProjections.facts}->'performance'`,
+            hasTransport: sql<boolean>`${matchDemoStatProjections.facts} ? 'performanceTransport'`,
+            transport: sql<unknown>`${matchDemoStatProjections.facts}->'performanceTransport'`,
+          }).from(matchDemoStatProjections).where(and(eq(matchDemoStatProjections.importId, item.importId),
+            inArray(matchDemoStatProjections.projectionVersion, [STATISTICS_PROJECTION_VERSION, PREVIOUS_STATISTICS_PROJECTION_VERSION]))).for("update");
+          if (!rows.some(row => row.projectionVersion === STATISTICS_PROJECTION_VERSION)) return { not_current: 1, encoded: 0, already: 0, legacy_retained: 0, originalBytes: 0, encodedBytes: 0 };
+          let encoded = 0, already = 0, retained = 0, originalBytes = 0, encodedBytes = 0;
+          for (const row of rows) {
+            if (row.payloadSha256 !== candidate.current.payloadSha256 || row.demoSha256 !== candidate.current.demoSha256 ||
+              row.evidenceRevision !== candidate.current.evidenceRevision || row.semanticProfile !== candidate.current.semanticProfile ||
+              row.analysisVersion !== candidate.current.analysisVersion || row.identityBindings.length !== target.roster.length) throw new ProjectionTransportIntegrityError();
+            const resolutions = await resolveGameplayUsersBySteam64InTx(tx, row.identityBindings.map(binding => binding.steam64));
+            if (!row.identityBindings.every(binding => resolutions.get(binding.steam64)?.userId === binding.userId &&
+              target.roster.some(member => member.userId === binding.userId && member.entryId === binding.entryId))) throw new ProjectionTransportIntegrityError();
+            const performance = row.performance;
+            if (!performance || performance.version !== TOURNAMENT_PERFORMANCE_PROJECTION_VERSION || !Object.hasOwn(performance, "data") || performance.mapKey !== item.mapId || performance.matchKey !== target.match.id || performance.mapName !== target.map.mapName ||
+              performance.semanticProfile !== row.semanticProfile || performance.analysisVersion !== row.analysisVersion) throw new ProjectionTransportIntegrityError();
+            originalBytes += Buffer.byteLength(JSON.stringify(performance));
+            if (row.hasTransport) {
+              if (!isDeepStrictEqual(await decodePerformanceTransport(row.transport), performance)) throw new ProjectionTransportIntegrityError();
+              already++;
+              encodedBytes += Buffer.byteLength(JSON.stringify(row.transport));
+              continue;
+            }
+            const transport = await encodePerformanceTransport(performance);
+            if (!transport) { retained++; continue; }
+            if (!isDeepStrictEqual(await decodePerformanceTransport(transport), performance)) throw new ProjectionTransportIntegrityError();
+            await tx.update(matchDemoStatProjections).set({ facts: sql`jsonb_set(${matchDemoStatProjections.facts}, '{performanceTransport}', ${JSON.stringify(transport)}::jsonb, true)` })
+              .where(and(eq(matchDemoStatProjections.importId, item.importId), eq(matchDemoStatProjections.projectionVersion, row.projectionVersion)));
+            encoded++;
+            encodedBytes += Buffer.byteLength(JSON.stringify(transport));
+          }
+          return { not_current: 0, encoded, already, legacy_retained: retained, originalBytes, encodedBytes };
+        });
+        report.scanned++;
+        report.not_current += outcome.not_current;
+        report.encoded += outcome.encoded;
+        report.already += outcome.already;
+        report.legacy_retained += outcome.legacy_retained;
+        report.originalBytes += outcome.originalBytes;
+        report.encodedBytes += outcome.encodedBytes;
+      } catch (error) {
+        if (Date.now() >= deadline && extractPgError(error)?.code === "57014") return report;
+        if (!(error instanceof ProjectionTransportIntegrityError)) throw error;
+        report.scanned++;
+        report.invalid++;
+        return report;
+      }
+    }
+    report.nextCursor = Buffer.from(JSON.stringify({ completedAt: item.completedAt, importId: item.importId })).toString("base64url");
+  }
+  report.complete = report.scanned === candidates.length && candidates.length <= 500;
+  if (report.complete) report.nextCursor = null;
+  return report;
 }
