@@ -7,7 +7,7 @@ import type { DemoImportMetadata } from "@/lib/demo-integration/metadata";
 import type { RivalHubEvidenceSubmission } from "@/lib/demo-integration/contracts";
 import type { CanonicalTarget } from "@/lib/demo-integration/validation";
 import type { GameplayUserResolution } from "@/lib/identity/gameplay-steam";
-import { encodePerformanceTransport } from "./projection-transport";
+import { encodePerformanceTransport, encodeTournamentTransport } from "./projection-transport";
 import { collectRecordFacts } from "./record-facts";
 import { adaptStatsEvidence } from "./evidence-adapter";
 import { PREVIOUS_STATISTICS_PROJECTION_VERSION, STATISTICS_PROJECTION_VERSION } from "./projection-version";
@@ -34,6 +34,12 @@ export async function materializeStatisticsProjectionInTx(input: MaterializeStat
   const adapted = adaptStatsEvidence(input.evidence, new Map(identityBindings.map((binding) => [binding.steam64, binding])));
   const performance = collectTournamentPerformanceMapProjection(adapted.performance);
   const performanceTransport = await encodePerformanceTransport(performance);
+  let tournamentTransport: Awaited<ReturnType<typeof encodeTournamentTransport>> = null;
+  try {
+    const t = adapted.tournament;
+    if (t.mapKey === input.target.map.id && t.matchKey === input.target.match.id && t.mapName === input.target.map.mapName &&
+      t.semanticProfile === input.row.semanticProfile && t.analysisVersion === input.row.analysisVersion) tournamentTransport = await encodeTournamentTransport(t);
+  } catch { /* Transport is optional; preserve the full legacy projection. */ }
   const records = collectRecordFacts(input.evidence, new Map(identityBindings.map((b) => [b.steam64, b])), buildTournamentPerformanceAnalyticsFromProjections([performance]));
   const values = {
     importId: input.row.id,
@@ -48,6 +54,7 @@ export async function materializeStatisticsProjectionInTx(input: MaterializeStat
       tournament: adapted.tournament,
       performance,
       ...(performanceTransport ? { performanceTransport } : {}),
+      ...(tournamentTransport ? { tournamentTransport } : {}),
       records,
     },
   };
