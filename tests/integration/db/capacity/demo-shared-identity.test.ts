@@ -8,6 +8,7 @@ import { confirmStoredDemoParticipantIdentityInTx, retireSeasonGameplaySteamIden
 import { revalidateStoredDemoImportInTx } from "@/lib/demo-integration/revalidation";
 import { localDatabaseUrl } from "../harness/database";
 import { withScratchDatabase, migrationFiles, replayMigration } from "../harness/migration-replay";
+import { failureClass } from "./failure-class";
 import { seedDemoCapacity } from "./demo-fixture";
 
 it("invalidates confirmed Demo ownership across events after a shared identity is retired", async () => {
@@ -127,8 +128,8 @@ it.skipIf(process.env.RIVALHUB_DEMO_REVERSE_CAPACITY !== "1")("measures shared i
   const { readFileSync, writeFileSync } = await import("node:fs");
   const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   if (sha !== process.env.RIVALHUB_CAPACITY_SHA || !/^[a-f0-9]{40}$/.test(sha)) throw new Error("EXACT_SHA_REQUIRED");
-  execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/capacity/demo-fixture.ts", "tests/integration/db/capacity/demo-shared-identity.test.ts"]);
-  const paths = ["tests/integration/db/capacity/demo-shared-identity.test.ts", "tests/integration/db/capacity/demo-fixture.ts", "src/lib/demo-integration/review.ts", "src/lib/demo-integration/revalidation.ts"];
+  execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/capacity/demo-fixture.ts", "tests/integration/db/capacity/demo-shared-identity.test.ts", "tests/integration/db/capacity/failure-class.ts"]);
+  const paths = ["tests/integration/db/capacity/failure-class.ts", "tests/integration/db/capacity/demo-shared-identity.test.ts", "tests/integration/db/capacity/demo-fixture.ts", "src/lib/demo-integration/review.ts", "src/lib/demo-integration/revalidation.ts"];
   const report: { sha: string; hashes: Record<string, string>; dataset: string; limits: object; rounds: object[]; stopped?: string; cleanup?: boolean } = {
     sha, hashes: Object.fromEntries(paths.map(path => [path, createHash("sha256").update(readFileSync(path)).digest("hex")])),
     dataset: "fresh scratch per round; two events share one identity; one revalidation holder and repeated retirement requests for that identity",
@@ -176,7 +177,7 @@ it.skipIf(process.env.RIVALHUB_DEMO_REVERSE_CAPACITY !== "1")("measures shared i
                     return retireSeasonGameplaySteamIdentityInTx(tx, { identityId: identity!.id, seasonId: first.seasonId, actorId: first.actorId, reason: "隔离容量实验" });
                   });
                   request.result = result.retired ? "retired" : "already_retired";
-                } catch { request.result = "unknown"; }
+                } catch (error) { request.result = failureClass(error); }
                 finally { const end = performance.now(); request.totalMs = end - begin; if (acquired !== undefined) request.transactionMs = end - acquired; }
               });
               const deadline = Date.now() + 1200;
@@ -201,4 +202,5 @@ it.skipIf(process.env.RIVALHUB_DEMO_REVERSE_CAPACITY !== "1")("measures shared i
     }
     report.cleanup = true;
   } finally { if (process.env.RIVALHUB_DEMO_REVERSE_REPORT) writeFileSync(process.env.RIVALHUB_DEMO_REVERSE_REPORT, JSON.stringify(report, null, 2)); }
+  expect(report.stopped).not.toBe("unexpected_or_sampling_failure");
 }, 180000);

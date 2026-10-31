@@ -5,14 +5,15 @@ import { eq, sql } from "drizzle-orm";
 import { expect, it } from "vitest";
 import * as schema from "@/db/schema";
 import { balanceOf, savePickInTx } from "@/lib/predictions/service";
+import { failureClass } from "./failure-class";
 import { predictionCapacityFixture } from "./prediction-fixture";
 
 it.skipIf(process.env.RIVALHUB_PREDICTION_CAPACITY !== "1")("measures isolated prediction drafts before and after cutoff", async () => {
   const complete = process.env.RIVALHUB_PREDICTION_COMPLETE === "1";
   const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   if (!/^[a-f0-9]{40}$/.test(process.env.RIVALHUB_CAPACITY_SHA ?? "") || sha !== process.env.RIVALHUB_CAPACITY_SHA) throw new Error("EXACT_SHA_REQUIRED");
-  execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/capacity/prediction-fixture.ts", "tests/integration/db/capacity/prediction-capacity.test.ts"]);
-  const paths = ["tests/integration/db/capacity/prediction-fixture.ts", "tests/integration/db/capacity/prediction-capacity.test.ts", "src/lib/predictions/service.ts"];
+  execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/capacity/prediction-fixture.ts", "tests/integration/db/capacity/prediction-capacity.test.ts", "tests/integration/db/capacity/failure-class.ts"]);
+  const paths = ["tests/integration/db/capacity/failure-class.ts", "tests/integration/db/capacity/prediction-fixture.ts", "tests/integration/db/capacity/prediction-capacity.test.ts", "src/lib/predictions/service.ts"];
   const report: { sha: string; hashes: Record<string, string>; dataset: string; complete: boolean; limits: object; rounds: object[]; stopped?: string; cleanup?: boolean } = {
     sha, hashes: Object.fromEntries(paths.map(path => [path, createHash("sha256").update(readFileSync(path)).digest("hex")])),
     complete, dataset: "fresh scratch database per round; one 24-team Major, two accounts, one PickEm contest, zero picks; alternating accounts",
@@ -89,8 +90,8 @@ it.skipIf(process.env.RIVALHUB_PREDICTION_CAPACITY !== "1")("measures isolated p
 it.skipIf(process.env.RIVALHUB_PREDICTION_WALL_CAPACITY !== "1")("measures complete submissions queued across database wall-clock cutoff", async () => {
   const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   if (sha !== process.env.RIVALHUB_CAPACITY_SHA || !/^[a-f0-9]{40}$/.test(sha)) throw new Error("EXACT_SHA_REQUIRED");
-  execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/capacity/prediction-fixture.ts", "tests/integration/db/capacity/prediction-capacity.test.ts"]);
-  const paths = ["tests/integration/db/capacity/prediction-fixture.ts", "tests/integration/db/capacity/prediction-capacity.test.ts", "src/lib/predictions/service.ts"];
+  execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/capacity/prediction-fixture.ts", "tests/integration/db/capacity/prediction-capacity.test.ts", "tests/integration/db/capacity/failure-class.ts"]);
+  const paths = ["tests/integration/db/capacity/failure-class.ts", "tests/integration/db/capacity/prediction-fixture.ts", "tests/integration/db/capacity/prediction-capacity.test.ts", "src/lib/predictions/service.ts"];
   const report: { sha: string; hashes: Record<string, string>; dataset: string; limits: object; rounds: object[]; stopped?: string; cleanup?: boolean } = {
     sha, hashes: Object.fromEntries(paths.map(path => [path, createHash("sha256").update(readFileSync(path)).digest("hex")])),
     dataset: "fresh scratch per round: 24-team Major, two accounts, complete 2/6/2 picks; one successful control and one held cutoff transaction",
@@ -141,7 +142,7 @@ it.skipIf(process.env.RIVALHUB_PREDICTION_WALL_CAPACITY !== "1")("measures compl
                     await savePickInTx(tx, { ...base, userId: request.userId, requestId: request.id });
                   });
                   request.result = "unexpected_success";
-                } catch (error) { request.result = error instanceof Error && /截止/.test(error.message) ? "expected_cutoff" : "unknown"; }
+                } catch (error) { request.result = error instanceof Error && /截止/.test(error.message) ? "expected_cutoff" : failureClass(error); }
                 finally { const end = performance.now(); request.totalMs = end - at; if (began !== undefined) request.transactionMs = end - began; }
               });
               const until = Date.now() + 800;
@@ -166,4 +167,5 @@ it.skipIf(process.env.RIVALHUB_PREDICTION_WALL_CAPACITY !== "1")("measures compl
     }
     report.cleanup = true;
   } finally { if (process.env.RIVALHUB_PREDICTION_CAPACITY_REPORT) writeFileSync(process.env.RIVALHUB_PREDICTION_CAPACITY_REPORT, JSON.stringify(report, null, 2)); }
+  expect(report.stopped).not.toBe("unexpected_or_sampling_failure");
 }, 180000);

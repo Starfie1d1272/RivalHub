@@ -8,6 +8,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import type { Pool } from "pg";
 import { expect, it } from "vitest";
 import { stakeBetInTx } from "@/lib/bet/service";
+import { failureClass } from "./failure-class";
 import { fixture, read } from "../harness/bet-fixture";
 
 async function waitForLock(pool: Pool, name: string) {
@@ -110,8 +111,8 @@ it.skipIf(process.env.RIVALHUB_BET_START_CAPACITY !== "1")("measures stakes queu
   const { Pool } = await import("pg");
   const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   if (sha !== process.env.RIVALHUB_CAPACITY_SHA || !/^[a-f0-9]{40}$/.test(sha)) throw new Error("EXACT_SHA_REQUIRED");
-  execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/harness/bet-fixture.ts", "tests/integration/db/capacity/bet-boundary.test.ts"]);
-  const paths = ["tests/integration/db/capacity/bet-boundary.test.ts", "tests/integration/db/harness/bet-fixture.ts", "src/lib/matches/map-start.ts", "src/lib/bet/service.ts"];
+  execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/harness/bet-fixture.ts", "tests/integration/db/capacity/bet-boundary.test.ts", "tests/integration/db/capacity/failure-class.ts"]);
+  const paths = ["tests/integration/db/capacity/failure-class.ts", "tests/integration/db/capacity/bet-boundary.test.ts", "tests/integration/db/harness/bet-fixture.ts", "src/lib/matches/map-start.ts", "src/lib/bet/service.ts"];
   const report: { sha: string; hashes: Record<string, string>; dataset: string; limits: object; rounds: object[]; stopped?: string; cleanup?: boolean } = {
     sha, hashes: Object.fromEntries(paths.map(path => [path, createHash("sha256").update(readFileSync(path)).digest("hex")])),
     dataset: "fresh scratch per round; one Major, two accounts, completed BO3 veto, canonical start holder and alternating late stakes",
@@ -151,7 +152,7 @@ it.skipIf(process.env.RIVALHUB_BET_START_CAPACITY !== "1")("measures stakes queu
                     await stakeBetInTx(tx, { seasonId: f.seasonId, userId: request.userId, marketId: market.id, optionId: market.options[0]!.id, amount: "1", requestId: request.id });
                   });
                   request.result = "unexpected_success";
-                } catch (error) { request.result = error instanceof Error && /锁定/.test(error.message) ? "expected_locked" : "unknown"; }
+                } catch (error) { request.result = error instanceof Error && /锁定/.test(error.message) ? "expected_locked" : failureClass(error); }
                 finally { const end = performance.now(); request.totalMs = end - begin; if (acquired !== undefined) request.transactionMs = end - acquired; }
               });
               const deadline = Date.now() + 1200;
@@ -180,4 +181,53 @@ it.skipIf(process.env.RIVALHUB_BET_START_CAPACITY !== "1")("measures stakes queu
     }
     report.cleanup = true;
   } finally { if (process.env.RIVALHUB_BET_START_REPORT) writeFileSync(process.env.RIVALHUB_BET_START_REPORT, JSON.stringify(report, null, 2)); }
+  expect(report.stopped).not.toBe("unexpected_or_sampling_failure");
 }, 180000);
+
+it("rolls back timed-out BET and start transactions and recovers after releasing locks", async () => {
+  await fixture(async f => {
+    const market = (await read(f.db, f.seasonId, f.userId)).markets.find(m => m.type === "match_winner")!;
+    const mapId = await prepareStart(f);
+    const args = { seasonId: f.seasonId, userId: f.userId, marketId: market.id, optionId: market.options[0]!.id, amount: "1", requestId: randomUUID() };
+    let release!: () => void; let ready!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const locked = new Promise<void>(resolve => { ready = resolve; });
+    const holder = f.db.transaction(async tx => {
+      await start(f, mapId, tx); ready(); await gate;
+      throw new Error("ROLLBACK_TEST_HOLDER");
+    });
+    void holder.catch(() => undefined);
+    try {
+      await Promise.race([locked, holder.then(() => { throw new Error("HOLDER_ENDED_BEFORE_BARRIER"); })]);
+      let failure: unknown;
+      try { await f.db.transaction(async tx => { await tx.execute(sql`set local lock_timeout = '100ms'`); await stakeBetInTx(tx, args); }); }
+      catch (error) { failure = error; }
+      const codes: unknown[] = [];
+      for (let value = failure, depth = 0; value && depth < 5; depth++) {
+        if (typeof value !== "object") break;
+        const item = value as { code?: unknown; cause?: unknown }; codes.push(item.code); value = item.cause;
+      }
+      expect(codes).toContain("55P03");
+    } finally { release(); await holder.catch(() => undefined); }
+    expect(await f.db.select().from(schema.betStakes)).toHaveLength(0);
+    await f.db.transaction(tx => stakeBetInTx(tx, { ...args, requestId: randomUUID() }));
+    expect((await read(f.db, f.seasonId, f.userId)).balance).toBe("999");
+    let failure: unknown;
+    try {
+      await f.db.transaction(async tx => {
+        await tx.execute(sql`set local statement_timeout = '100ms'`);
+        await start(f, mapId, tx);
+        await tx.execute(sql`select pg_sleep(1)`);
+      });
+    } catch (error) { failure = error; }
+    const codes: unknown[] = [];
+    for (let value = failure, depth = 0; value && depth < 5; depth++) {
+      if (typeof value !== "object") break;
+      const item = value as { code?: unknown; cause?: unknown }; codes.push(item.code); value = item.cause;
+    }
+    expect(codes).toContain("57014");
+    expect((await f.db.select().from(schema.auditLogs)).filter(row => row.action === "match.map.start")).toHaveLength(0);
+    await f.db.transaction(tx => start(f, mapId, tx));
+    expect((await f.db.select().from(schema.auditLogs)).filter(row => row.action === "match.map.start")).toHaveLength(1);
+  });
+}, 30000);

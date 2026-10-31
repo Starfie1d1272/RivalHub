@@ -1,0 +1,948 @@
+{
+  "sha": "99315a7b284dd1d6c3ea8dc3f8e2e9fba4c6638a",
+  "hashes": {
+    "tests/integration/db/capacity/prediction-fixture.ts": "6b17d146c213aa0a65812dccdd7f72f9646fb7cb44cf7cb28898c4a04d335a0e",
+    "tests/integration/db/capacity/prediction-capacity.test.ts": "b52534dcd1cd95e96b8428bfab3c05aedd39bdb13a01af2c972e6225a16032d5",
+    "src/lib/predictions/service.ts": "fbfde48495960f30a40465b29d720c53087a9bac20929ba4acdfb4300ff8f66f"
+  },
+  "dataset": "fresh scratch per round: 24-team Major, two accounts, complete 2/6/2 picks; one successful control and one held cutoff transaction",
+  "limits": {
+    "poolMax": 6,
+    "acquisitionTimeoutMs": 2000,
+    "statementTimeoutMs": 5000,
+    "lockTimeoutMs": 3000,
+    "sampledQueueStop": 8,
+    "stopOnUnexpected": true
+  },
+  "rounds": [
+    {
+      "concurrency": 1,
+      "round": 1,
+      "deadline": "2026-10-31T04:08:45.717Z",
+      "before": "2026-10-31T04:08:44.724Z",
+      "after": "2026-10-31T04:08:45.826Z",
+      "observedLockWaiters": 1,
+      "elapsedMs": 1121.6003159999998,
+      "requestsPerSecond": 0.8915832010161453,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 1121.4918109999999,
+          "acquisitionMs": 1.4011760000000777,
+          "transactionMs": 1120.0906349999998,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "controlCommitted": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 1,
+      "round": 2,
+      "deadline": "2026-10-31T04:08:48.324Z",
+      "before": "2026-10-31T04:08:47.331Z",
+      "after": "2026-10-31T04:08:48.433Z",
+      "observedLockWaiters": 1,
+      "elapsedMs": 1118.022771,
+      "requestsPerSecond": 0.894436165289875,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 1118.017132,
+          "acquisitionMs": 1.546465999999782,
+          "transactionMs": 1116.4706660000002,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "controlCommitted": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 1,
+      "round": 3,
+      "deadline": "2026-10-31T04:08:50.420Z",
+      "before": "2026-10-31T04:08:49.428Z",
+      "after": "2026-10-31T04:08:50.529Z",
+      "observedLockWaiters": 1,
+      "elapsedMs": 1119.8409819999997,
+      "requestsPerSecond": 0.8929839290343102,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 1119.8347220000005,
+          "acquisitionMs": 0.7166219999999157,
+          "transactionMs": 1119.1181000000006,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "controlCommitted": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 2,
+      "round": 1,
+      "deadline": "2026-10-31T04:08:52.678Z",
+      "before": "2026-10-31T04:08:51.699Z",
+      "after": "2026-10-31T04:08:52.801Z",
+      "observedLockWaiters": 2,
+      "elapsedMs": 1153.2457470000008,
+      "requestsPerSecond": 1.7342357474135117,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 1136.3876220000002,
+          "acquisitionMs": 1.1096570000008796,
+          "transactionMs": 1135.2779649999993,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1153.2228830000004,
+          "acquisitionMs": 9.3987589999997,
+          "transactionMs": 1143.8241240000007,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "controlCommitted": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 2,
+      "round": 2,
+      "deadline": "2026-10-31T04:08:54.868Z",
+      "before": "2026-10-31T04:08:53.888Z",
+      "after": "2026-10-31T04:08:54.990Z",
+      "observedLockWaiters": 2,
+      "elapsedMs": 1144.9695620000002,
+      "requestsPerSecond": 1.7467713259612394,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 1131.738002,
+          "acquisitionMs": 0.8949119999997492,
+          "transactionMs": 1130.8430900000003,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1144.9522460000007,
+          "acquisitionMs": 6.464787000000797,
+          "transactionMs": 1138.487459,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "controlCommitted": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 2,
+      "round": 3,
+      "deadline": "2026-10-31T04:08:57.104Z",
+      "before": "2026-10-31T04:08:56.122Z",
+      "after": "2026-10-31T04:08:57.223Z",
+      "observedLockWaiters": 2,
+      "elapsedMs": 1148.0531859999992,
+      "requestsPerSecond": 1.7420795694738844,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 1131.2675760000002,
+          "acquisitionMs": 1.1274730000004638,
+          "transactionMs": 1130.1401029999997,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1148.013355000001,
+          "acquisitionMs": 6.536234999999579,
+          "transactionMs": 1141.4771200000014,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "controlCommitted": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 4,
+      "round": 1,
+      "deadline": "2026-10-31T04:08:59.204Z",
+      "before": "2026-10-31T04:08:58.224Z",
+      "after": "2026-10-31T04:08:59.326Z",
+      "observedLockWaiters": 4,
+      "elapsedMs": 1175.3624909999999,
+      "requestsPerSecond": 3.4032054201396162,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 1131.7080769999993,
+          "acquisitionMs": 0.9930700000004435,
+          "transactionMs": 1130.7150069999989,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1143.742392,
+          "acquisitionMs": 6.894755999999688,
+          "transactionMs": 1136.8476360000004,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1175.3311839999988,
+          "acquisitionMs": 7.95028099999945,
+          "transactionMs": 1167.3809029999993,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1156.720749,
+          "acquisitionMs": 6.836568000000625,
+          "transactionMs": 1149.8841809999994,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "controlCommitted": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 4,
+      "round": 2,
+      "deadline": "2026-10-31T04:09:01.423Z",
+      "before": "2026-10-31T04:09:00.444Z",
+      "after": "2026-10-31T04:09:01.546Z",
+      "observedLockWaiters": 4,
+      "elapsedMs": 1173.8903170000012,
+      "requestsPerSecond": 3.407473374703708,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 1131.0697590000018,
+          "acquisitionMs": 2.298954000001686,
+          "transactionMs": 1128.770805,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1143.5222329999997,
+          "acquisitionMs": 7.767726000001858,
+          "transactionMs": 1135.7545069999978,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1154.277608999997,
+          "acquisitionMs": 7.433841999998549,
+          "transactionMs": 1146.8437669999985,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1173.868784000002,
+          "acquisitionMs": 7.687394000000495,
+          "transactionMs": 1166.1813900000016,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "controlCommitted": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 4,
+      "round": 3,
+      "deadline": "2026-10-31T04:09:03.524Z",
+      "before": "2026-10-31T04:09:02.545Z",
+      "after": "2026-10-31T04:09:03.647Z",
+      "observedLockWaiters": 4,
+      "elapsedMs": 1177.1702829999995,
+      "requestsPerSecond": 3.3979790840506645,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 1132.9855850000022,
+          "acquisitionMs": 1.8249520000026678,
+          "transactionMs": 1131.1606329999995,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1177.1499519999998,
+          "acquisitionMs": 7.752689000000828,
+          "transactionMs": 1169.397262999999,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1147.5498189999998,
+          "acquisitionMs": 7.604875000000902,
+          "transactionMs": 1139.944943999999,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1164.1643680000016,
+          "acquisitionMs": 7.477182999999059,
+          "transactionMs": 1156.6871850000025,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "controlCommitted": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 8,
+      "round": 1,
+      "deadline": "2026-10-31T04:09:05.687Z",
+      "before": "2026-10-31T04:09:04.709Z",
+      "after": "2026-10-31T04:09:05.812Z",
+      "observedLockWaiters": 5,
+      "elapsedMs": 1214.656074999999,
+      "requestsPerSecond": 6.586226475671318,
+      "maxPoolQueueSampled": 3,
+      "outcomes": [
+        {
+          "totalMs": 1137.3756109999995,
+          "acquisitionMs": 1.088674999999057,
+          "transactionMs": 1136.2869360000004,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1150.1177910000006,
+          "acquisitionMs": 7.430546999999933,
+          "transactionMs": 1142.6872440000006,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1177.4860509999999,
+          "acquisitionMs": 9.004143999998632,
+          "transactionMs": 1168.4819070000012,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1190.5770529999972,
+          "acquisitionMs": 9.118646999999328,
+          "transactionMs": 1181.458405999998,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1164.836937,
+          "acquisitionMs": 7.542546000000584,
+          "transactionMs": 1157.2943909999995,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1199.1661639999984,
+          "acquisitionMs": 1125.9125639999984,
+          "transactionMs": 73.2536,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1207.0061270000006,
+          "acquisitionMs": 1138.018931999999,
+          "transactionMs": 68.98719500000152,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1214.6097750000008,
+          "acquisitionMs": 1150.4988870000016,
+          "transactionMs": 64.11088799999925,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "controlCommitted": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 8,
+      "round": 2,
+      "deadline": "2026-10-31T04:09:07.798Z",
+      "before": "2026-10-31T04:09:06.821Z",
+      "after": "2026-10-31T04:09:07.923Z",
+      "observedLockWaiters": 5,
+      "elapsedMs": 1245.3809309999997,
+      "requestsPerSecond": 6.423737348841743,
+      "maxPoolQueueSampled": 3,
+      "outcomes": [
+        {
+          "totalMs": 1137.6229269999967,
+          "acquisitionMs": 1.596371999999974,
+          "transactionMs": 1136.0265549999967,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1187.110353,
+          "acquisitionMs": 9.686193000001367,
+          "transactionMs": 1177.4241599999987,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1203.2618250000014,
+          "acquisitionMs": 8.829398999998375,
+          "transactionMs": 1194.432426000003,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1156.8346280000005,
+          "acquisitionMs": 8.171674999997776,
+          "transactionMs": 1148.6629530000027,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1173.380766000002,
+          "acquisitionMs": 8.785321999999724,
+          "transactionMs": 1164.5954440000023,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1215.7932709999986,
+          "acquisitionMs": 1126.7387799999997,
+          "transactionMs": 89.05449099999896,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1228.2943110000015,
+          "acquisitionMs": 1138.212096000003,
+          "transactionMs": 90.08221499999854,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1245.3295440000002,
+          "acquisitionMs": 1157.3728210000008,
+          "transactionMs": 87.95672299999933,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "controlCommitted": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 8,
+      "round": 3,
+      "deadline": "2026-10-31T04:09:10.043Z",
+      "before": "2026-10-31T04:09:09.062Z",
+      "after": "2026-10-31T04:09:10.164Z",
+      "observedLockWaiters": 5,
+      "elapsedMs": 1200.8327480000007,
+      "requestsPerSecond": 6.662043497168179,
+      "maxPoolQueueSampled": 3,
+      "outcomes": [
+        {
+          "totalMs": 1129.3159369999994,
+          "acquisitionMs": 0.8936299999986659,
+          "transactionMs": 1128.4223070000007,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1176.0033779999976,
+          "acquisitionMs": 14.575430000000779,
+          "transactionMs": 1161.4279479999968,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1165.8650080000007,
+          "acquisitionMs": 11.165547000000515,
+          "transactionMs": 1154.6994610000002,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1154.162209000002,
+          "acquisitionMs": 11.998406000002433,
+          "transactionMs": 1142.1638029999995,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1142.4656189999987,
+          "acquisitionMs": 8.748544999998558,
+          "transactionMs": 1133.7170740000001,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1185.9376100000009,
+          "acquisitionMs": 1121.2049709999992,
+          "transactionMs": 64.73263900000165,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1193.375129,
+          "acquisitionMs": 1129.7008190000015,
+          "transactionMs": 63.67430999999851,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1200.811325999999,
+          "acquisitionMs": 1142.712782999999,
+          "transactionMs": 58.09854300000006,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "controlCommitted": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 16,
+      "round": 1,
+      "deadline": "2026-10-31T04:09:12.192Z",
+      "before": "2026-10-31T04:09:11.212Z",
+      "after": "2026-10-31T04:09:12.314Z",
+      "observedLockWaiters": 5,
+      "elapsedMs": 1309.4701300000015,
+      "requestsPerSecond": 12.218682681979146,
+      "maxPoolQueueSampled": 11,
+      "outcomes": [
+        {
+          "totalMs": 1142.3500620000013,
+          "acquisitionMs": 0.8196790000001783,
+          "transactionMs": 1141.5303830000012,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1198.7735639999992,
+          "acquisitionMs": 8.353893999999855,
+          "transactionMs": 1190.4196699999993,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1169.6949179999974,
+          "acquisitionMs": 8.387093999997887,
+          "transactionMs": 1161.3078239999995,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1157.693782000002,
+          "acquisitionMs": 8.103285000001051,
+          "transactionMs": 1149.590497000001,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1184.5867709999984,
+          "acquisitionMs": 7.358298999999533,
+          "transactionMs": 1177.2284719999989,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1210.592489999999,
+          "acquisitionMs": 1122.689739999998,
+          "transactionMs": 87.9027500000011,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1221.0530780000008,
+          "acquisitionMs": 1142.7596000000012,
+          "transactionMs": 78.2934779999996,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1232.277481000001,
+          "acquisitionMs": 1158.116011000002,
+          "transactionMs": 74.1614699999991,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1240.7567110000018,
+          "acquisitionMs": 1170.4090880000003,
+          "transactionMs": 70.34762300000148,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1250.8269739999996,
+          "acquisitionMs": 1185.2182850000027,
+          "transactionMs": 65.60868899999696,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1261.8371990000014,
+          "acquisitionMs": 1199.2456679999996,
+          "transactionMs": 62.59153100000185,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1271.3392340000028,
+          "acquisitionMs": 1210.9884380000003,
+          "transactionMs": 60.35079600000245,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1280.870813999998,
+          "acquisitionMs": 1221.4704390000006,
+          "transactionMs": 59.40037499999744,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1291.3175159999992,
+          "acquisitionMs": 1232.620379,
+          "transactionMs": 58.6971369999992,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1299.6122480000013,
+          "acquisitionMs": 1241.108322,
+          "transactionMs": 58.50392600000123,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 1309.4355170000017,
+          "acquisitionMs": 1251.2862380000006,
+          "transactionMs": 58.149279000001115,
+          "result": "expected_cutoff",
+          "settings": {
+            "statement": "5s",
+            "lock": "3s",
+            "application": "prediction-wall-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "controlCommitted": true,
+      "timingIncludesArtificialBarrier": true
+    }
+  ],
+  "stopped": "sampled_pool_queue",
+  "cleanup": true
+}

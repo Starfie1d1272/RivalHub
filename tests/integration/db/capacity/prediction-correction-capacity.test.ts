@@ -9,13 +9,14 @@ import * as schema from "@/db/schema";
 import { applyResultCorrectionInTx, planResultCorrectionInTx } from "@/lib/match-corrections/service";
 import { finalizeMajorSwissRoundInTransaction } from "@/lib/major/swiss-runtime";
 import { balanceOf, lockPredictionProgram, openPredictionMarketInTx, reconcilePredictionProgram, stakeInTx } from "@/lib/predictions/service";
+import { failureClass } from "./failure-class";
 import { predictionCapacityFixture } from "./prediction-fixture";
 
 it.skipIf(process.env.RIVALHUB_CORRECTION_CAPACITY !== "1")("measures late stakes during a held correction transaction", async () => {
   const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   if (!/^[a-f0-9]{40}$/.test(process.env.RIVALHUB_CAPACITY_SHA ?? "") || sha !== process.env.RIVALHUB_CAPACITY_SHA) throw new Error("EXACT_SHA_REQUIRED");
-  execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/capacity/prediction-fixture.ts", "tests/integration/db/capacity/prediction-correction-capacity.test.ts"]);
-  const paths = ["tests/integration/db/capacity/prediction-correction-capacity.test.ts", "tests/integration/db/capacity/prediction-fixture.ts", "src/lib/predictions/service.ts", "src/lib/match-corrections/service.ts"];
+  execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/capacity/prediction-fixture.ts", "tests/integration/db/capacity/prediction-correction-capacity.test.ts", "tests/integration/db/capacity/failure-class.ts"]);
+  const paths = ["tests/integration/db/capacity/failure-class.ts", "tests/integration/db/capacity/prediction-correction-capacity.test.ts", "tests/integration/db/capacity/prediction-fixture.ts", "src/lib/predictions/service.ts", "src/lib/match-corrections/service.ts"];
   const report: { sha: string; hashes: Record<string, string>; dataset: string; limits: object; rounds: object[]; stopped?: string; cleanup?: boolean } = {
     sha, hashes: Object.fromEntries(paths.map(path => [path, createHash("sha256").update(readFileSync(path)).digest("hex")])),
     dataset: "fresh scratch per round; 32-team Major, one settled market, two accounts with 100 points each staked on opposite options; one correction holder plus late stakes",
@@ -71,9 +72,7 @@ it.skipIf(process.env.RIVALHUB_CORRECTION_CAPACITY !== "1")("measures late stake
                   });
                   request.result = "unexpected_success";
                 } catch (error) {
-                  const item = error as { message?: string; code?: string; cause?: { code?: string } };
-                  const code = item?.code ?? item?.cause?.code;
-                  request.result = /关闭|截止|锁定/.test(item?.message ?? "") ? "expected_closed" : typeof code === "string" && /^[A-Z0-9]{5}$/.test(code) ? `sqlstate_${code}` : /timeout exceeded when trying to connect/i.test(item?.message ?? "") ? "pool_acquisition_timeout" : "unknown";
+                  request.result = error instanceof Error && /关闭|截止|锁定/.test(error.message) ? "expected_closed" : failureClass(error);
                 } finally { const end = performance.now(); request.totalMs = end - at; if (began !== undefined) request.transactionMs = end - began; }
               });
               const deadline = Date.now() + 1200;
@@ -103,4 +102,5 @@ it.skipIf(process.env.RIVALHUB_CORRECTION_CAPACITY !== "1")("measures late stake
     }
     report.cleanup = true;
   } finally { if (process.env.RIVALHUB_CORRECTION_CAPACITY_REPORT) writeFileSync(process.env.RIVALHUB_CORRECTION_CAPACITY_REPORT, JSON.stringify(report, null, 2)); }
+  expect(report.stopped).not.toBe("unexpected_result");
 }, 180000);
