@@ -24,6 +24,7 @@
     "drizzle.production.config.ts!",
     "vitest.config.ts!",
     "vitest.integration.config.ts!",
+    "tests/fixtures/observability/db-traffic-next-exit.cjs!",
     "playwright.config.ts!",
     "next.config.ts!",
     "postcss.config.mjs!",
