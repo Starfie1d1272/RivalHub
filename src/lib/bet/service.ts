@@ -155,7 +155,7 @@ export async function reconcileBetInTx(tx: TxDb,seasonId: string) {
     rows.push(stake);stakesByMarket.set(stake.marketId,rows);
   }
   const previousByMarket=new Map(latest.map(batch=>[batch.marketId,batch]));
-  const oldLedger=latest.length ? await tx.select({id:ledger.id,accountId:ledger.accountId,amount:ledger.amount,profit:ledger.profit,source:ledger.source}).from(ledger).where(and(eq(ledger.seasonId,seasonId),inArray(ledger.source,latest.map(batch=>`settlement/${batch.id}`)))) : [];
+  let oldLedger: Pick<typeof ledger.$inferSelect,"id"|"accountId"|"amount"|"profit"|"source">[] | undefined;
   const ledgerRows: (typeof ledger.$inferInsert)[] = [];
   for(const market of all) {
     // A pre-seeding admin rollback temporarily removes the frozen player set.
@@ -177,9 +177,10 @@ export async function reconcileBetInTx(tx: TxDb,seasonId: string) {
     const fingerprint=JSON.stringify({state,winningOptionIds,fact:resolved.factRevision});
     const previous=previousByMarket.get(market.id);
     if(previous?.fingerprint===fingerprint) continue;
+    if(previous && oldLedger===undefined) oldLedger=await tx.select({id:ledger.id,accountId:ledger.accountId,amount:ledger.amount,profit:ledger.profit,source:ledger.source}).from(ledger).where(and(eq(ledger.seasonId,seasonId),inArray(ledger.source,latest.map(batch=>`settlement/${batch.id}`))));
     const [batch]=await tx.insert(settlements).values({marketId:market.id,revision:(previous?.revision??0)+1,state,winningOptionIds,fingerprint}).returning();
     if(previous) {
-      const old=oldLedger.filter(row=>row.source===`settlement/${previous.id}`);
+      const old=oldLedger!.filter(row=>row.source===`settlement/${previous.id}`);
       for(const row of old) ledgerRows.push({seasonId,accountId:row.accountId,amount:-row.amount,profit:-row.profit,kind:"reversal",source:`reversal/${batch!.id}/${row.id}`});
     }
     if(state!=="pending") {
