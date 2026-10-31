@@ -69,6 +69,32 @@ export function getStatsReadCounters(): ReadonlyArray<{ operation: string; count
   return Object.entries(counters).map(([operation, count]) => ({ operation, count }));
 }
 
+export const DASHBOARD_ENDPOINTS = ["database", "analysis", "history", "long_window"] as const;
+export const DASHBOARD_REASONS = ["capacity", "configuration", "http_status", "timeout", "network", "body_missing", "body_limit", "json", "schema", "internal"] as const;
+export const DASHBOARD_STAGES = ["admission", "config", "transport", "body", "json", "schema", "cache"] as const;
+export type DashboardEndpoint = typeof DASHBOARD_ENDPOINTS[number];
+export type DashboardReason = typeof DASHBOARD_REASONS[number];
+export type DashboardStage = typeof DASHBOARD_STAGES[number];
+type DashboardCounter = { count: number; httpStatus?: number; durationMs?: number };
+const DASHBOARD_SLOT = Symbol.for("rivalhub.dashboard-read-budget.v1");
+function dashboardOwner() {
+  const host = process as unknown as Record<symbol, Record<string, DashboardCounter> | undefined>;
+  return host[DASHBOARD_SLOT] ??= Object.create(null) as Record<string, DashboardCounter>;
+}
+export function recordDashboardFailure(endpoint: DashboardEndpoint, reason: DashboardReason, stage: DashboardStage, details: { httpStatus?: number; durationMs?: number } = {}): void {
+  try {
+    if (!DASHBOARD_ENDPOINTS.includes(endpoint) || !DASHBOARD_REASONS.includes(reason) || !DASHBOARD_STAGES.includes(stage)) return;
+    const counters = dashboardOwner(), operation = `telemetry.dashboard.${endpoint}.${reason}.${stage}`;
+    const previous = counters[operation];
+    counters[operation] = { count: (previous?.count ?? 0) + 1,
+      ...(Number.isInteger(details.httpStatus) && details.httpStatus! >= 100 && details.httpStatus! <= 599 ? { httpStatus: details.httpStatus } : {}),
+      ...(Number.isFinite(details.durationMs) && details.durationMs! >= 0 ? { durationMs: details.durationMs } : {}) };
+  } catch { /* Diagnostics must not alter the dashboard result. */ }
+}
+export function getDashboardFailureCounters(): ReadonlyArray<{ operation: string } & DashboardCounter> {
+  return Object.entries(dashboardOwner()).map(([operation, value]) => ({ operation, ...value }));
+}
+
 /** Cumulative process counters; restart resets them. No request identifiers or samples. */
 export function getReadBudgetSnapshot() {
   return { mizar: FAMILIES.map(family => ({ family, ...owner().mizar[family] })), betFallbacks: owner().betFallbacks };
