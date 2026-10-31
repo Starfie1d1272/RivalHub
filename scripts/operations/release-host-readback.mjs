@@ -147,16 +147,29 @@ function statsJournalSummary(budget) {
     ...families.flatMap(family => ["readCalls", "fillStarted", "fillSucceeded", "fillFailed"].map(metric => `stats.cache.${family}.${metric}`)),
     ...reasons.flatMap(reason => ["attempted", "completed", "failed"].map(metric => `stats.invalidation.${reason}.${metric}`)),
   ]);
-  const buckets = new Map(); let incomplete = false;
+  const dashboardEndpoints = ["database", "analysis", "history", "long_window"];
+  const dashboardReasons = ["capacity", "configuration", "http_status", "timeout", "network", "body_missing", "body_limit", "json", "schema", "internal"];
+  const dashboardStages = ["admission", "config", "transport", "body", "json", "schema", "cache"];
+  const dashboardOperations = new Set(dashboardEndpoints.flatMap(endpoint => dashboardReasons.flatMap(reason =>
+    dashboardStages.map(stage => `telemetry.dashboard.${endpoint}.${reason}.${stage}`))));
+  const buckets = new Map(), dashboardLatest = new Map(); let incomplete = false;
   for (const line of journal.stdout.split("\n")) {
     if (!line) continue;
     let entry; try { entry = JSON.parse(line); } catch { incomplete = true; continue; }
-    if (entry?.event !== "runtime.read.sample" || !operations.has(entry.operation)) continue;
+    if (entry?.event !== "runtime.read.sample" || (!operations.has(entry.operation) && !dashboardOperations.has(entry.operation))) continue;
     const timestamp = typeof entry.timestamp === "string" ? Date.parse(entry.timestamp) : NaN;
     const count = entry.safeContext?.count;
     if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString() !== entry.timestamp || timestamp < untilMs - 60 * 60 * 1000 || timestamp > untilMs ||
       !Number.isSafeInteger(count) || count < 0) { incomplete = true; continue; }
     const bucket = new Date(Math.floor(timestamp / 600000) * 600000).toISOString();
+    if (dashboardOperations.has(entry.operation)) {
+      const httpStatus = entry.safeContext?.httpStatus, durationMs = entry.safeContext?.durationMs;
+      if ((httpStatus !== undefined && (!Number.isInteger(httpStatus) || httpStatus < 100 || httpStatus > 599)) ||
+        (durationMs !== undefined && (typeof durationMs !== "number" || !Number.isFinite(durationMs) || durationMs < 0))) { incomplete = true; continue; }
+      const previous = dashboardLatest.get(entry.operation);
+      if (!previous || timestamp >= previous.timestamp) dashboardLatest.set(entry.operation, { bucket, operation: entry.operation, count, httpStatus, durationMs, timestamp });
+      continue;
+    }
     const key = `${bucket}/${entry.operation}`;
     const previous = buckets.get(key);
     if (!previous || timestamp >= previous.timestamp) buckets.set(key, { bucket, operation: entry.operation, count, timestamp });
@@ -164,6 +177,10 @@ function statsJournalSummary(budget) {
   result.status = incomplete ? "incomplete" : "ok";
   result.errorCode = incomplete ? "invalid_record" : null;
   result.rows = [...buckets.values()].map(({ bucket, operation, count }) => [bucket, operation, count]);
+  const dashboard = [...dashboardLatest.values()].sort((a, b) => b.timestamp - a.timestamp);
+  result.dashboardTruncated = dashboard.length > 80;
+  result.dashboardRows = dashboard.slice(0, 80).map(({ bucket, operation, count, httpStatus, durationMs }) => [bucket, operation, count, httpStatus ?? null, durationMs ?? null]);
+  if (result.dashboardTruncated) { result.status = "incomplete"; result.errorCode = "output_limit"; }
   return result;
 }
 

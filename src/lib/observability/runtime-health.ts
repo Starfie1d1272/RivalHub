@@ -6,7 +6,7 @@ import { withoutObservabilityContext } from "./context";
 import { databaseRuntimeSlot } from "@/db/runtime-owner";
 import { logEvent } from "./logger";
 import { getCgroupMemorySnapshot } from "./runtime-cgroup";
-import { getReadBudgetSnapshot, getStatsReadCounters } from "./read-budget";
+import { getReadBudgetSnapshot, getStatsReadCounters, getDashboardFailureCounters } from "./read-budget";
 import { flushDbTraffic } from "./db-traffic";
 import { getRuntimeResourceSnapshot } from "./runtime-resources";
 
@@ -100,6 +100,11 @@ export function startRuntimeHealthSampling(): () => void {
         for (const { operation, count } of getStatsReadCounters()) {
           if (lastStatsCounters.get(operation) === count) continue;
           logEvent({ event: "runtime.read.sample", scope: "runtime", operation, safeContext: { count } });
+          lastStatsCounters.set(operation, count);
+        }
+        for (const { operation, count, httpStatus, durationMs } of getDashboardFailureCounters()) {
+          if (lastStatsCounters.get(operation) === count) continue;
+          logEvent({ event: "runtime.read.sample", scope: "runtime", operation, safeContext: { count, httpStatus, durationMs } });
           lastStatsCounters.set(operation, count);
         }
         for (const { family, ...value } of budget.mizar) {
