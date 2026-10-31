@@ -16,6 +16,7 @@ import {
   type QualificationPairing,
 } from "./swiss";
 type QualificationRun = typeof competitionQualificationRuns.$inferSelect;
+type HistoryMatch = Omit<typeof matches.$inferSelect, "videoUrl" | "recordings" | "mvpWinnerUserId" | "createdAt" | "updatedAt">;
 type QualificationEntrant =
   typeof competitionQualificationEntrants.$inferSelect;
 export function playInSwissEntrants(
@@ -30,7 +31,7 @@ export function playInSwissEntrants(
     }));
 }
 
-export function winnerFromMatch(match: typeof matches.$inferSelect): string {
+export function winnerFromMatch(match: HistoryMatch): string {
   assertCompetitionMatch(match);
   if (
     match.scoreA === null ||
@@ -46,7 +47,7 @@ export function winnerFromMatch(match: typeof matches.$inferSelect): string {
 }
 
 export function swissFactsFromMatches(
-  rows: readonly (typeof matches.$inferSelect)[],
+  rows: readonly HistoryMatch[],
   throughRound: number,
 ): SwissCompletedMatch[] {
   return rows.map(requireCompetitionMatch)
@@ -76,12 +77,12 @@ function toPairingFacts(
   }));
 }
 
-function matchPairKey(match: typeof matches.$inferSelect): string {
+function matchPairKey(match: HistoryMatch): string {
   return [match.entryAId, match.entryBId].sort().join(":");
 }
 
 export function validatePersistedRound(
-  matchesInRound: readonly (typeof matches.$inferSelect)[],
+  matchesInRound: readonly HistoryMatch[],
   pairings: readonly QualificationPairing[],
   format: "bo1" | "bo3",
   runId: string,
@@ -165,7 +166,7 @@ export function assertRunSnapshot(
 export function validateShortSwissHistory(
   run: QualificationRun,
   entrants: readonly QualificationEntrant[],
-  linkedMatches: readonly (typeof matches.$inferSelect)[],
+  linkedMatches: readonly HistoryMatch[],
 ): {
   completedRound: number;
   projection: ReturnType<typeof projectShortSwissStage>;
