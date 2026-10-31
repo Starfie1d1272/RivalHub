@@ -54,7 +54,7 @@ export async function readBetBoardSnapshot(tx:TxDb,seasonId:string,userId:string
     options.view === "open" ? notInArray(betMarkets.id,tx.select({id:settled.marketId}).from(settled).where(inArray(settled.state,["settled","refunded"]))) : undefined,
     options.matchId?eq(betMarkets.matchId,options.matchId):options.includeEvent===false?isNotNull(betMarkets.matchId):undefined);
   const headerOnly = ["records","leaderboard"].includes(options.view??"");
-  const all=headerOnly ? [] : await tx.select().from(betMarkets).where(marketScope).orderBy(asc(betMarkets.createdAt),asc(betMarkets.id));
+  const all=headerOnly ? [] : await tx.select({id:betMarkets.id,matchId:betMarkets.matchId,type:betMarkets.type,subject:betMarkets.subject,line:betMarkets.line,lockedAt:betMarkets.lockedAt,voidedAt:betMarkets.voidedAt}).from(betMarkets).where(marketScope).orderBy(asc(betMarkets.createdAt),asc(betMarkets.id));
   const marketIds=tx.select({id:betMarkets.id}).from(betMarkets).where(marketScope);
   const {pool,counts}=headerOnly ? {pool:[],counts:[]} : options.publicPools ?? await readBetPools(tx,seasonId,options);
   const myStakes=!headerOnly && account?await tx.select({marketId:betStakes.marketId,optionId:betStakes.optionId,amount:sql<string>`sum(${betStakes.amount})::text`}).from(betStakes).where(and(eq(betStakes.accountId,account.id),inArray(betStakes.marketId,marketIds))).groupBy(betStakes.marketId,betStakes.optionId):[];

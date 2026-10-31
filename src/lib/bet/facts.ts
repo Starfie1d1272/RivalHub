@@ -8,7 +8,7 @@ import { seasons, matches, matchMaps, matchVetoSessions, matchVetoSteps, matchVe
 import { AppError, ErrorCode } from "@/lib/errors";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { resolveManagedMajorProfile } from "@/lib/competition/definition";
-import type { EventFact, VetoFact } from "./domain";
+import type { EventFact, MapFact, VetoFact } from "./domain";
 export interface BetFactScope {
   matchId?: string;
   event?: boolean;
@@ -22,7 +22,7 @@ export async function loadBetFacts(tx: TxDb,seasonId: string, scope: BetFactScop
   if (scope.headerOnly) {
     const entries = await tx.select({id:competitionEntries.id,name:competitionEntries.name,logoUrl:competitionEntries.logoUrl}).from(competitionEntries).where(eq(competitionEntries.competitionId,seasonId));
     return {season,entries,official:[] as Awaited<ReturnType<typeof loadMatchFacts>>["official"],
-      maps:[] as (typeof matchMaps.$inferSelect)[],vetoByMatch:new Map<string,VetoFact>(),roster:[],players:[],
+      maps:[] as MapFact[],vetoByMatch:new Map<string,VetoFact>(),roster:[],players:[],
       event:{entryIds:[],playerIds:[],started:false,champion:null,kills:null} as EventFact,
       eventPublication:{entrantsReady:false,rostersReady:false,seedsConfirmed:false}};
   }
@@ -30,16 +30,16 @@ export async function loadBetFacts(tx: TxDb,seasonId: string, scope: BetFactScop
 }
 async function loadMatchFacts(tx: TxDb, seasonId: string, season: typeof seasons.$inferSelect, scope: BetFactScope) {
   const matchCondition = and(officialMatchCondition(), eq(matches.seasonId,seasonId), scope.matchId ? eq(matches.id,scope.matchId) : undefined);
-  const officialRows = await tx.select().from(matches).where(matchCondition).orderBy(asc(matches.createdAt)).then(rows=>rows.map(requireCompetitionMatch).map(m=>({...m,operationalStartedAt:m.startedAt,startedAt:m.gameplayStartedAt})));
-  const maps = await tx.select({map:matchMaps}).from(matchMaps).innerJoin(matches,eq(matches.id,matchMaps.matchId)).where(matchCondition).then(rows=>rows.map(r=>r.map));
+  const officialRows = await tx.select({id:matches.id,seasonId:matches.seasonId,entryAId:matches.entryAId,entryBId:matches.entryBId,stage:matches.stage,format:matches.format,entryRound:matches.entryRound,majorStageRunId:matches.majorStageRunId,qualificationRunId:matches.qualificationRunId,scoreA:matches.scoreA,scoreB:matches.scoreB,status:matches.status,isForfeit:matches.isForfeit,resultDisposition:matches.resultDisposition,startedAt:matches.startedAt,gameplayStartedAt:matches.gameplayStartedAt,scheduledAt:matches.scheduledAt,completedAt:matches.completedAt}).from(matches).where(matchCondition).orderBy(asc(matches.createdAt)).then(rows=>rows.map(requireCompetitionMatch).map(m=>({...m,operationalStartedAt:m.startedAt,startedAt:m.gameplayStartedAt})));
+  const maps = await tx.select({map:{id:matchMaps.id,matchId:matchMaps.matchId,mapOrder:matchMaps.mapOrder,mapName:matchMaps.mapName,scoreA:matchMaps.scoreA,scoreB:matchMaps.scoreB,startedAt:matchMaps.startedAt,completedAt:matchMaps.completedAt}}).from(matchMaps).innerJoin(matches,eq(matches.id,matchMaps.matchId)).where(matchCondition).then(rows=>rows.map(r=>r.map));
   // Canonical map facts also prove gameplay when the separate start marker is absent.
   const official = officialRows.map(m => ({...m,startedAt:m.startedAt ?? maps
     .filter(map=>map.matchId===m.id && (map.startedAt || map.completedAt))
     .map(map=>map.startedAt ?? map.completedAt!)
     .sort((a,b)=>a.getTime()-b.getTime())[0] ?? null}));
-  const vetos = await tx.select({veto:matchVetoSessions}).from(matchVetoSessions).innerJoin(matches,eq(matches.id,matchVetoSessions.matchId)).where(matchCondition).then(rows=>rows.map(r=>r.veto));
+  const vetos = await tx.select({veto:{matchId:matchVetoSessions.matchId,mapPoolSnapshot:matchVetoSessions.mapPoolSnapshot,startedAt:matchVetoSessions.startedAt,completedAt:matchVetoSessions.completedAt}}).from(matchVetoSessions).innerJoin(matches,eq(matches.id,matchVetoSessions.matchId)).where(matchCondition).then(rows=>rows.map(r=>r.veto));
   const vetoSteps = await tx.select({matchId:matchVetoSteps.matchId,stepOrder:matchVetoSteps.stepOrder,actionType:matchVetoSteps.actionType,mapName:matchVetoSteps.mapName})
-    .from(matchVetoSteps).innerJoin(matches,eq(matches.id,matchVetoSteps.matchId)).where(matchCondition).orderBy(asc(matchVetoSteps.stepOrder));
+    .from(matchVetoSteps).innerJoin(matches,eq(matches.id,matchVetoSteps.matchId)).where(and(matchCondition,inArray(matchVetoSteps.actionType,["pick","decider"]))).orderBy(asc(matchVetoSteps.stepOrder));
   const appeals = await tx.select({matchId:matchVetoTimeoutIncidents.matchId,gameplay:vetoGameplayExists(matchVetoTimeoutIncidents.matchId)}).from(matchVetoAppeals).innerJoin(matchVetoTimeoutIncidents,eq(matchVetoTimeoutIncidents.id,matchVetoAppeals.timeoutIncidentId)).innerJoin(matches,eq(matches.id,matchVetoTimeoutIncidents.matchId)).where(and(matchCondition,eq(matchVetoAppeals.status,"pending")));
   // Reader-only rollout retains pending history. Gameplay ends its BP recovery
   // effect even before the closed producer is shipped; settlement must continue.

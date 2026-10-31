@@ -37,7 +37,7 @@ export async function betBalance(tx: TxDb,accountId: string) {
   const [row] = await tx.select({amount:sql<string>`coalesce(sum(${ledger.amount}),0)::text`}).from(ledger).where(eq(ledger.accountId,accountId));
   return BigInt(row?.amount??"0");
 }
-export function betFactInput(m: typeof markets.$inferSelect,facts: BetFacts) {return {...m,match:facts.official.find(x=>x.id===m.matchId),maps:facts.maps.filter(x=>x.matchId===m.matchId),veto:facts.vetoByMatch.get(m.matchId??""),event:facts.event};}
+export function betFactInput(m: Pick<typeof markets.$inferSelect,"type"|"subject"|"line"|"voidedAt"|"matchId">,facts: BetFacts) {return {...m,match:facts.official.find(x=>x.id===m.matchId),maps:facts.maps.filter(x=>x.matchId===m.matchId),veto:facts.vetoByMatch.get(m.matchId??""),event:facts.event};}
 async function publishMarkets(tx: TxDb,f: BetFacts) {
   const seasonId=f.season.id;
   const program=await tx.query.betPrograms.findFirst({where:eq(programs.seasonId,seasonId)});
