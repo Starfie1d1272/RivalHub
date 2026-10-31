@@ -1,0 +1,913 @@
+{
+  "sha": "5a54c10985c59d90af1e02c5df4fd93a844b5fd1",
+  "hashes": {
+    "tests/integration/db/capacity/failure-class.ts": "d4ef80db03667bc2b01bde135f5096df0c74fba6f707d7daab35122cc72d8ca3",
+    "tests/integration/db/capacity/bet-boundary.test.ts": "ead8d87c870611e038c1502098f60651b675cf7a415c8c8cbeae0ed3cf146b56",
+    "tests/integration/db/harness/bet-fixture.ts": "e46eb64fce55dd8286eb7487163e8b47c2dfa737b898b28d6d688c300d4c79ca",
+    "src/lib/matches/map-start.ts": "f2c0fb3da7b33677be1b857029a2a842f0d6dfce49be1035f37b751aaff8c7c0",
+    "src/lib/bet/service.ts": "5a0e6fe3e3198a06fcebffb6b967615b17cb679ce448234540f3d63d86e4db60"
+  },
+  "dataset": "fresh scratch per round; one Major, two accounts, completed BO3 veto, canonical start holder and alternating late stakes",
+  "limits": {
+    "poolMax": 6,
+    "acquisitionTimeoutMs": 2000,
+    "statementTimeoutMs": 5000,
+    "lockTimeoutMs": 2000,
+    "heldSqlSleepMs": 200,
+    "sampledQueueStop": 8,
+    "stopOnUnexpected": true,
+    "disconnectMonitor": false
+  },
+  "rounds": [
+    {
+      "concurrency": 1,
+      "round": 1,
+      "elapsedMs": 245.3656190000006,
+      "requestsPerSecond": 4.075550617382941,
+      "observedLockWaiters": 1,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 245.25228700000025,
+          "acquisitionMs": 7.379198000000088,
+          "transactionMs": 237.87308900000016,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "balancesVerified": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 1,
+      "round": 2,
+      "elapsedMs": 236.5712480000002,
+      "requestsPerSecond": 4.227056366545436,
+      "observedLockWaiters": 1,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 236.56338700000015,
+          "acquisitionMs": 5.79015199999958,
+          "transactionMs": 230.77323500000057,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "balancesVerified": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 1,
+      "round": 3,
+      "elapsedMs": 235.28513900000053,
+      "requestsPerSecond": 4.250162183001272,
+      "observedLockWaiters": 1,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 235.28026200000022,
+          "acquisitionMs": 5.075378000000455,
+          "transactionMs": 230.20488399999977,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "balancesVerified": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 2,
+      "round": 1,
+      "elapsedMs": 251.641619,
+      "requestsPerSecond": 7.9478108905347655,
+      "observedLockWaiters": 2,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 251.636031,
+          "acquisitionMs": 5.93727299999955,
+          "transactionMs": 245.69875800000045,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 239.34408499999972,
+          "acquisitionMs": 5.8012870000002295,
+          "transactionMs": 233.5427979999995,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "balancesVerified": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 2,
+      "round": 2,
+      "elapsedMs": 250.932334000001,
+      "requestsPerSecond": 7.970276162178415,
+      "observedLockWaiters": 2,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 250.92552400000022,
+          "acquisitionMs": 6.338718000000881,
+          "transactionMs": 244.58680599999934,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 234.18676099999902,
+          "acquisitionMs": 5.316222999999809,
+          "transactionMs": 228.87053799999921,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "balancesVerified": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 2,
+      "round": 3,
+      "elapsedMs": 252.0440299999991,
+      "requestsPerSecond": 7.935121494446852,
+      "observedLockWaiters": 2,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 236.49456500000088,
+          "acquisitionMs": 6.621078000000125,
+          "transactionMs": 229.87348700000075,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 251.7734390000005,
+          "acquisitionMs": 5.468095000000176,
+          "transactionMs": 246.30534400000033,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "balancesVerified": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 4,
+      "round": 1,
+      "elapsedMs": 278.4020240000009,
+      "requestsPerSecond": 14.367711637038914,
+      "observedLockWaiters": 4,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 236.79742599999918,
+          "acquisitionMs": 5.934022999999797,
+          "transactionMs": 230.86340299999938,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 262.745938,
+          "acquisitionMs": 6.228972000000795,
+          "transactionMs": 256.51696599999923,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 248.40641800000049,
+          "acquisitionMs": 5.903846999999587,
+          "transactionMs": 242.5025710000009,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 278.076407999999,
+          "acquisitionMs": 6.696090999999797,
+          "transactionMs": 271.3803169999992,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "balancesVerified": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 4,
+      "round": 2,
+      "elapsedMs": 276.8454380000003,
+      "requestsPerSecond": 14.448495264711553,
+      "observedLockWaiters": 4,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 241.56252700000005,
+          "acquisitionMs": 8.538743999999497,
+          "transactionMs": 233.02378300000055,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 265.8525719999998,
+          "acquisitionMs": 8.628349999999045,
+          "transactionMs": 257.22422200000074,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 254.69509599999947,
+          "acquisitionMs": 8.473454999999376,
+          "transactionMs": 246.2216410000001,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 276.3183250000002,
+          "acquisitionMs": 8.21580300000096,
+          "transactionMs": 268.1025219999992,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "balancesVerified": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 4,
+      "round": 3,
+      "elapsedMs": 288.13395800000035,
+      "requestsPerSecond": 13.882431726426342,
+      "observedLockWaiters": 4,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 275.6065639999997,
+          "acquisitionMs": 8.488217000000077,
+          "transactionMs": 267.11834699999963,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 245.82254999999896,
+          "acquisitionMs": 8.008347999999387,
+          "transactionMs": 237.81420199999957,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 287.76514700000007,
+          "acquisitionMs": 9.259640000000218,
+          "transactionMs": 278.50550699999985,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 263.1928229999994,
+          "acquisitionMs": 8.539394999999786,
+          "transactionMs": 254.65342799999962,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "balancesVerified": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 8,
+      "round": 1,
+      "elapsedMs": 313.9390860000003,
+      "requestsPerSecond": 25.482650478252307,
+      "observedLockWaiters": 5,
+      "maxPoolQueueSampled": 3,
+      "outcomes": [
+        {
+          "totalMs": 272.1458160000002,
+          "acquisitionMs": 7.606336000000738,
+          "transactionMs": 264.53947999999946,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 237.65896600000087,
+          "acquisitionMs": 5.624753000000055,
+          "transactionMs": 232.03421300000082,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 260.6961259999989,
+          "acquisitionMs": 7.07683999999972,
+          "transactionMs": 253.6192859999992,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 249.15472600000066,
+          "acquisitionMs": 7.087657000000036,
+          "transactionMs": 242.06706900000063,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 282.9841069999984,
+          "acquisitionMs": 9.554637999999613,
+          "transactionMs": 273.4294689999988,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 291.8789020000004,
+          "acquisitionMs": 224.5047540000014,
+          "transactionMs": 67.37414799999897,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 303.0320069999998,
+          "acquisitionMs": 237.90856600000006,
+          "transactionMs": 65.12344099999973,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 313.4681810000002,
+          "acquisitionMs": 249.52514999999948,
+          "transactionMs": 63.9430310000007,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "balancesVerified": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 8,
+      "round": 2,
+      "elapsedMs": 320.5813340000004,
+      "requestsPerSecond": 24.954665638767317,
+      "observedLockWaiters": 5,
+      "maxPoolQueueSampled": 3,
+      "outcomes": [
+        {
+          "totalMs": 278.7365410000002,
+          "acquisitionMs": 9.02372699999978,
+          "transactionMs": 269.71281400000044,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 265.871991,
+          "acquisitionMs": 8.54907699999967,
+          "transactionMs": 257.3229140000003,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 237.90119500000037,
+          "acquisitionMs": 5.698736000000281,
+          "transactionMs": 232.2024590000001,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 290.9738219999999,
+          "acquisitionMs": 9.107312000000093,
+          "transactionMs": 281.86650999999983,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 254.3866510000007,
+          "acquisitionMs": 5.879947999999786,
+          "transactionMs": 248.50670300000093,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 299.93236199999956,
+          "acquisitionMs": 225.00838699999986,
+          "transactionMs": 74.9239749999997,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 308.746486,
+          "acquisitionMs": 238.26520100000016,
+          "transactionMs": 70.48128499999984,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 320.06098400000155,
+          "acquisitionMs": 254.78873300000123,
+          "transactionMs": 65.27225100000032,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "balancesVerified": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 8,
+      "round": 3,
+      "elapsedMs": 350.31043900000077,
+      "requestsPerSecond": 22.83688725587759,
+      "observedLockWaiters": 5,
+      "maxPoolQueueSampled": 3,
+      "outcomes": [
+        {
+          "totalMs": 243.65049400000134,
+          "acquisitionMs": 7.636269999999058,
+          "transactionMs": 236.0142240000023,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 312.25963000000047,
+          "acquisitionMs": 8.745601999999053,
+          "transactionMs": 303.5140280000014,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 297.9162759999999,
+          "acquisitionMs": 7.428538999996817,
+          "transactionMs": 290.4877370000031,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 277.5617579999998,
+          "acquisitionMs": 8.490340000000288,
+          "transactionMs": 269.07141799999954,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 324.3742480000001,
+          "acquisitionMs": 8.35844200000065,
+          "transactionMs": 316.01580599999943,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 332.87922000000253,
+          "acquisitionMs": 229.6199400000005,
+          "transactionMs": 103.25928000000204,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 341.38983499999813,
+          "acquisitionMs": 244.24569599999813,
+          "transactionMs": 97.144139,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 349.89484599999923,
+          "acquisitionMs": 278.1367989999999,
+          "transactionMs": 71.75804699999935,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "balancesVerified": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 16,
+      "round": 1,
+      "elapsedMs": 404.31428400000004,
+      "requestsPerSecond": 39.57317520842276,
+      "observedLockWaiters": 5,
+      "maxPoolQueueSampled": 11,
+      "outcomes": [
+        {
+          "totalMs": 270.9521999999997,
+          "acquisitionMs": 7.540325999998458,
+          "transactionMs": 263.41187400000126,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 294.7443139999996,
+          "acquisitionMs": 9.46851500000048,
+          "transactionMs": 285.2757989999991,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 282.72186299999885,
+          "acquisitionMs": 7.321317999998428,
+          "transactionMs": 275.4005450000004,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 256.0215930000013,
+          "acquisitionMs": 7.246587000001455,
+          "transactionMs": 248.77500599999985,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 239.94473199999993,
+          "acquisitionMs": 6.554639000001771,
+          "transactionMs": 233.39009299999816,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 303.9734810000009,
+          "acquisitionMs": 226.1228200000005,
+          "transactionMs": 77.8506610000004,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 313.37400799999887,
+          "acquisitionMs": 240.57526700000017,
+          "transactionMs": 72.7987409999987,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 320.3514660000001,
+          "acquisitionMs": 256.3149819999999,
+          "transactionMs": 64.0364840000002,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 329.2268430000004,
+          "acquisitionMs": 271.04003199999715,
+          "transactionMs": 58.18681100000322,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 338.2292099999977,
+          "acquisitionMs": 283.0957930000004,
+          "transactionMs": 55.13341699999728,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 351.7105569999985,
+          "acquisitionMs": 295.05423900000096,
+          "transactionMs": 56.656317999997555,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 359.7706419999995,
+          "acquisitionMs": 304.5378759999985,
+          "transactionMs": 55.23276600000099,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 369.92659699999786,
+          "acquisitionMs": 313.84652599999754,
+          "transactionMs": 56.080071000000316,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 381.68896400000085,
+          "acquisitionMs": 320.8568640000012,
+          "transactionMs": 60.83209999999963,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 389.6341859999993,
+          "acquisitionMs": 330.34411700000055,
+          "transactionMs": 59.290068999998766,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        },
+        {
+          "totalMs": 403.9042700000027,
+          "acquisitionMs": 338.6344080000017,
+          "transactionMs": 65.26986200000101,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "balancesVerified": true,
+      "timingIncludesArtificialBarrier": true
+    }
+  ],
+  "stopped": "sampled_pool_queue",
+  "cleanup": true
+}

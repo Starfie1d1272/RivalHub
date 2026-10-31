@@ -1,0 +1,864 @@
+{
+  "sha": "e720d36f4b386180765c7fd2005dca231968bd5c",
+  "hashes": {
+    "tests/integration/db/capacity/failure-class.ts": "d4ef80db03667bc2b01bde135f5096df0c74fba6f707d7daab35122cc72d8ca3",
+    "tests/integration/db/capacity/demo-shared-identity.test.ts": "be98aa85b1b653f23357a9b0499929a1068165cf6b1a0d486ed324baced316d0",
+    "tests/integration/db/capacity/demo-fixture.ts": "0fb38a7068f847b167deaf550ba223f050a3632aa3602116d272034a3c253527",
+    "src/lib/demo-integration/review.ts": "006a3300f1300e70cf20170de7ddf1695879e2f48cbdf980d3290c2021f7a8e2",
+    "src/lib/demo-integration/revalidation.ts": "8283983a25eb7a532281b8bec2b1b1dc605bac6eeba7916123a19a1f89ac759c"
+  },
+  "dataset": "fresh scratch per round; two events share one identity; one revalidation holder and repeated retirement requests for that identity",
+  "limits": {
+    "poolMax": 6,
+    "acquisitionTimeoutMs": 2000,
+    "statementTimeoutMs": 5000,
+    "lockTimeoutMs": 2000,
+    "heldSqlSleepMs": 200,
+    "sampledQueueStop": 8,
+    "stopOnUnexpected": true
+  },
+  "rounds": [
+    {
+      "concurrency": 1,
+      "round": 1,
+      "elapsedMs": 223.79943400000047,
+      "requestsPerSecond": 4.468286546247467,
+      "observedAdvisoryWaiters": 1,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 223.64029200000004,
+          "acquisitionMs": 4.61553399999957,
+          "transactionMs": 219.02475800000047,
+          "result": "retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        }
+      ],
+      "identityRetired": true,
+      "importsInvalidated": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 1,
+      "round": 2,
+      "elapsedMs": 222.43705500000033,
+      "requestsPerSecond": 4.495653837891346,
+      "observedAdvisoryWaiters": 1,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 222.42943399999967,
+          "acquisitionMs": 4.7274429999997665,
+          "transactionMs": 217.7019909999999,
+          "result": "retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        }
+      ],
+      "identityRetired": true,
+      "importsInvalidated": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 1,
+      "round": 3,
+      "elapsedMs": 224.09588599999915,
+      "requestsPerSecond": 4.4623755386567145,
+      "observedAdvisoryWaiters": 1,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 224.08416900000066,
+          "acquisitionMs": 6.201471000000311,
+          "transactionMs": 217.88269800000035,
+          "result": "retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        }
+      ],
+      "identityRetired": true,
+      "importsInvalidated": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 2,
+      "round": 1,
+      "elapsedMs": 226.2232009999998,
+      "requestsPerSecond": 8.840826189175893,
+      "observedAdvisoryWaiters": 2,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 226.21458799999982,
+          "acquisitionMs": 5.314734999999928,
+          "transactionMs": 220.8998529999999,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 221.03574299999946,
+          "acquisitionMs": 4.98869299999933,
+          "transactionMs": 216.04705000000013,
+          "result": "retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        }
+      ],
+      "identityRetired": true,
+      "importsInvalidated": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 2,
+      "round": 2,
+      "elapsedMs": 244.50946199999998,
+      "requestsPerSecond": 8.179642553055881,
+      "observedAdvisoryWaiters": 2,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 238.10972399999991,
+          "acquisitionMs": 5.925166999999419,
+          "transactionMs": 232.1845570000005,
+          "result": "retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 244.27777100000094,
+          "acquisitionMs": 6.165419000000838,
+          "transactionMs": 238.1123520000001,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        }
+      ],
+      "identityRetired": true,
+      "importsInvalidated": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 2,
+      "round": 3,
+      "elapsedMs": 228.75907199999892,
+      "requestsPerSecond": 8.742822667159663,
+      "observedAdvisoryWaiters": 2,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 228.74684399999933,
+          "acquisitionMs": 5.290954000000056,
+          "transactionMs": 223.45588999999927,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 221.8919539999988,
+          "acquisitionMs": 4.814484999998967,
+          "transactionMs": 217.07746899999984,
+          "result": "retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        }
+      ],
+      "identityRetired": true,
+      "importsInvalidated": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 4,
+      "round": 1,
+      "elapsedMs": 245.206408,
+      "requestsPerSecond": 16.31278738849272,
+      "observedAdvisoryWaiters": 4,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 226.41737300000023,
+          "acquisitionMs": 7.0139949999993405,
+          "transactionMs": 219.40337800000088,
+          "result": "retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 232.52444400000059,
+          "acquisitionMs": 6.260247000000163,
+          "transactionMs": 226.26419700000042,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 244.2089329999999,
+          "acquisitionMs": 7.412405999999464,
+          "transactionMs": 236.79652700000042,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 238.09997900000053,
+          "acquisitionMs": 6.753202000001693,
+          "transactionMs": 231.34677699999884,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        }
+      ],
+      "identityRetired": true,
+      "importsInvalidated": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 4,
+      "round": 2,
+      "elapsedMs": 255.9611619999996,
+      "requestsPerSecond": 15.627370843081286,
+      "observedAdvisoryWaiters": 4,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 244.26740000000063,
+          "acquisitionMs": 8.695558000001256,
+          "transactionMs": 235.57184199999938,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 255.65656099999978,
+          "acquisitionMs": 13.771996999999828,
+          "transactionMs": 241.88456399999995,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 249.8001889999996,
+          "acquisitionMs": 8.502325999999812,
+          "transactionMs": 241.29786299999978,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 237.40434099999948,
+          "acquisitionMs": 7.463615999999092,
+          "transactionMs": 229.94072500000038,
+          "result": "retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        }
+      ],
+      "identityRetired": true,
+      "importsInvalidated": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 4,
+      "round": 3,
+      "elapsedMs": 255.16227999999865,
+      "requestsPerSecond": 15.676298236557619,
+      "observedAdvisoryWaiters": 4,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 237.28765999999996,
+          "acquisitionMs": 7.452719999999317,
+          "transactionMs": 229.83494000000064,
+          "result": "retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 254.93767099999968,
+          "acquisitionMs": 9.330476999999519,
+          "transactionMs": 245.60719400000016,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 243.44457200000033,
+          "acquisitionMs": 7.124173000000155,
+          "transactionMs": 236.32039900000018,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 249.20325200000116,
+          "acquisitionMs": 7.2499729999999545,
+          "transactionMs": 241.9532790000012,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        }
+      ],
+      "identityRetired": true,
+      "importsInvalidated": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 8,
+      "round": 1,
+      "elapsedMs": 269.6326769999996,
+      "requestsPerSecond": 29.669994338260462,
+      "observedAdvisoryWaiters": 5,
+      "maxPoolQueueSampled": 3,
+      "outcomes": [
+        {
+          "totalMs": 255.02470699999867,
+          "acquisitionMs": 7.047787999999855,
+          "transactionMs": 247.97691899999882,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 244.3604350000005,
+          "acquisitionMs": 6.7249400000000605,
+          "transactionMs": 237.63549500000045,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 259.9517109999997,
+          "acquisitionMs": 7.758961999999883,
+          "transactionMs": 252.19274899999982,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 249.76681300000018,
+          "acquisitionMs": 6.721725000001243,
+          "transactionMs": 243.04508799999894,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 235.09724099999949,
+          "acquisitionMs": 5.670097000000169,
+          "transactionMs": 229.42714399999932,
+          "result": "retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 262.96381199999996,
+          "acquisitionMs": 222.0248019999999,
+          "transactionMs": 40.93901000000005,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 266.38167500000054,
+          "acquisitionMs": 235.6289140000008,
+          "transactionMs": 30.752760999999737,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 269.1275540000006,
+          "acquisitionMs": 244.63232600000083,
+          "transactionMs": 24.49522799999977,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        }
+      ],
+      "identityRetired": true,
+      "importsInvalidated": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 8,
+      "round": 2,
+      "elapsedMs": 274.57960000000094,
+      "requestsPerSecond": 29.1354492467757,
+      "observedAdvisoryWaiters": 5,
+      "maxPoolQueueSampled": 3,
+      "outcomes": [
+        {
+          "totalMs": 257.5678239999979,
+          "acquisitionMs": 9.894487999998091,
+          "transactionMs": 247.67333599999984,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 246.0999980000015,
+          "acquisitionMs": 8.63353300000017,
+          "transactionMs": 237.46646500000134,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 251.90520299999844,
+          "acquisitionMs": 9.432629999999335,
+          "transactionMs": 242.4725729999991,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 238.31859199999963,
+          "acquisitionMs": 8.426559999999881,
+          "transactionMs": 229.89203199999974,
+          "result": "retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 262.6901319999997,
+          "acquisitionMs": 9.620814000001701,
+          "transactionMs": 253.06931799999802,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 267.7466659999991,
+          "acquisitionMs": 224.88984399999754,
+          "transactionMs": 42.85682200000156,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 270.98434799999814,
+          "acquisitionMs": 238.8323479999999,
+          "transactionMs": 32.151999999998225,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 274.10048599999936,
+          "acquisitionMs": 246.25195800000074,
+          "transactionMs": 27.848527999998623,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        }
+      ],
+      "identityRetired": true,
+      "importsInvalidated": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 8,
+      "round": 3,
+      "elapsedMs": 275.9364050000004,
+      "requestsPerSecond": 28.99218752958671,
+      "observedAdvisoryWaiters": 5,
+      "maxPoolQueueSampled": 3,
+      "outcomes": [
+        {
+          "totalMs": 244.89400000000023,
+          "acquisitionMs": 7.972530999999435,
+          "transactionMs": 236.9214690000008,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 249.37666199999876,
+          "acquisitionMs": 7.7595299999993586,
+          "transactionMs": 241.6171319999994,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 254.92007300000114,
+          "acquisitionMs": 8.489940999999817,
+          "transactionMs": 246.43013200000132,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 262.08435499999905,
+          "acquisitionMs": 8.321026000001439,
+          "transactionMs": 253.7633289999976,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 238.09394199999952,
+          "acquisitionMs": 7.445855999998457,
+          "transactionMs": 230.64808600000106,
+          "result": "retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 266.0422499999986,
+          "acquisitionMs": 223.45413499999995,
+          "transactionMs": 42.58811499999865,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 271.32764300000053,
+          "acquisitionMs": 238.57505799999853,
+          "transactionMs": 32.752585000002,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 275.37268400000175,
+          "acquisitionMs": 244.75657200000205,
+          "transactionMs": 30.616111999999703,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        }
+      ],
+      "identityRetired": true,
+      "importsInvalidated": true,
+      "timingIncludesArtificialBarrier": true
+    },
+    {
+      "concurrency": 16,
+      "round": 1,
+      "elapsedMs": 297.53758799999923,
+      "requestsPerSecond": 53.77471837272554,
+      "observedAdvisoryWaiters": 5,
+      "maxPoolQueueSampled": 11,
+      "outcomes": [
+        {
+          "totalMs": 259.7135530000014,
+          "acquisitionMs": 9.561091999999917,
+          "transactionMs": 250.1524610000015,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 242.67676500000016,
+          "acquisitionMs": 7.935069999999541,
+          "transactionMs": 234.74169500000062,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 237.82042999999976,
+          "acquisitionMs": 6.298049999997602,
+          "transactionMs": 231.52238000000216,
+          "result": "retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 248.23719300000084,
+          "acquisitionMs": 6.379463000001124,
+          "transactionMs": 241.85772999999972,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 253.6778489999997,
+          "acquisitionMs": 8.307630999999674,
+          "transactionMs": 245.37021800000002,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 263.3793430000005,
+          "acquisitionMs": 224.38326099999904,
+          "transactionMs": 38.99608200000148,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 266.872542000001,
+          "acquisitionMs": 238.1731519999994,
+          "transactionMs": 28.699390000001586,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 270.2063909999997,
+          "acquisitionMs": 242.9478339999987,
+          "transactionMs": 27.25855700000102,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 273.8860809999969,
+          "acquisitionMs": 248.5507949999992,
+          "transactionMs": 25.335285999997723,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 277.4521509999977,
+          "acquisitionMs": 254.1436419999991,
+          "transactionMs": 23.308508999998594,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 280.2186529999999,
+          "acquisitionMs": 259.86627299999964,
+          "transactionMs": 20.352380000000267,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 284.27826800000184,
+          "acquisitionMs": 263.7060360000032,
+          "transactionMs": 20.57223199999862,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 287.75388999999996,
+          "acquisitionMs": 267.2246730000006,
+          "transactionMs": 20.529216999999335,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 290.90153700000155,
+          "acquisitionMs": 270.4979310000017,
+          "transactionMs": 20.403605999999854,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 293.90762299999915,
+          "acquisitionMs": 274.4710240000022,
+          "transactionMs": 19.43659899999693,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        },
+        {
+          "totalMs": 297.1304940000009,
+          "acquisitionMs": 277.8191740000002,
+          "transactionMs": 19.311320000000705,
+          "result": "already_retired",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "demo-reverse-load"
+          }
+        }
+      ],
+      "identityRetired": true,
+      "importsInvalidated": true,
+      "timingIncludesArtificialBarrier": true
+    }
+  ],
+  "stopped": "sampled_pool_queue",
+  "cleanup": true
+}

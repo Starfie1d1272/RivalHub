@@ -6,15 +6,17 @@ import { Pool } from "pg";
 import { and, eq, sql } from "drizzle-orm";
 import { expect, it } from "vitest";
 import * as schema from "@/db/schema";
+import { applyResultCorrectionInTx, planResultCorrectionInTx } from "@/lib/match-corrections/service";
 import { finalizeMajorSwissRoundInTransaction } from "@/lib/major/swiss-runtime";
 import { balanceOf, lockPredictionProgram, openPredictionMarketInTx, reconcilePredictionProgram, stakeInTx } from "@/lib/predictions/service";
+import { failureClass } from "./failure-class";
 import { predictionCapacityFixture } from "./prediction-fixture";
 
 it.skipIf(process.env.RIVALHUB_CORRECTION_CAPACITY !== "1")("measures late stakes during a held correction transaction", async () => {
   const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   if (!/^[a-f0-9]{40}$/.test(process.env.RIVALHUB_CAPACITY_SHA ?? "") || sha !== process.env.RIVALHUB_CAPACITY_SHA) throw new Error("EXACT_SHA_REQUIRED");
-  execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/capacity/prediction-fixture.ts", "tests/integration/db/capacity/prediction-correction-capacity.test.ts"]);
-  const paths = ["tests/integration/db/capacity/prediction-correction-capacity.test.ts", "tests/integration/db/capacity/prediction-fixture.ts", "src/lib/predictions/service.ts"];
+  execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/capacity/prediction-fixture.ts", "tests/integration/db/capacity/prediction-correction-capacity.test.ts", "tests/integration/db/capacity/failure-class.ts"]);
+  const paths = ["tests/integration/db/capacity/failure-class.ts", "tests/integration/db/capacity/prediction-correction-capacity.test.ts", "tests/integration/db/capacity/prediction-fixture.ts", "src/lib/predictions/service.ts", "src/lib/match-corrections/service.ts"];
   const report: { sha: string; hashes: Record<string, string>; dataset: string; limits: object; rounds: object[]; stopped?: string; cleanup?: boolean } = {
     sha, hashes: Object.fromEntries(paths.map(path => [path, createHash("sha256").update(readFileSync(path)).digest("hex")])),
     dataset: "fresh scratch per round; 32-team Major, one settled market, two accounts with 100 points each staked on opposite options; one correction holder plus late stakes",
@@ -40,19 +42,22 @@ it.skipIf(process.env.RIVALHUB_CORRECTION_CAPACITY !== "1")("measures late stake
             const accounts = await f.db.select().from(schema.predictionAccounts).where(eq(schema.predictionAccounts.seasonId, f.seasonId));
             const balance = (userId: string) => f.db.transaction(tx => balanceOf(tx, accounts.find(a => a.userId === userId)!.id));
             expect(await balance(f.userId)).toBe(BigInt(1100)); expect(await balance(f.otherId)).toBe(BigInt(900));
+            const correctionInput = { matchId: f.matchIds[0]!, proposal: { scoreA: 0, scoreB: 1 }, actorId: "test", confirmRecovery: true };
+            expect((await f.db.transaction(tx => planResultCorrectionInTx(tx, correctionInput))).winnerChanges).toBe(true);
             let release!: () => void; let ready!: () => void;
             const gate = new Promise<void>(resolve => { release = resolve; }); const locked = new Promise<void>(resolve => { ready = resolve; });
             const correction = f.db.transaction(async tx => {
               const settings = await tx.execute(sql`select set_config('statement_timeout','5s',true) as statement, set_config('lock_timeout','2s',true) as lock`);
               expect(settings.rows[0]).toMatchObject({ statement: "5s", lock: "2s" });
-              await tx.update(schema.matches).set({ scoreA: 0, scoreB: 1 }).where(eq(schema.matches.id, f.matchIds[0]!));
+              await applyResultCorrectionInTx(tx, correctionInput);
               await reconcilePredictionProgram(tx, await lockPredictionProgram(tx, f.seasonId));
               ready(); await gate;
               await tx.execute(sql`select pg_sleep(0.2)`);
             });
             const requests = Array.from({ length: concurrency }, (_, index) => ({ id: randomUUID(), userId: index % 2 ? f.otherId : f.userId, totalMs: 0, acquireAndBeginMs: null as number | null, transactionMs: null as number | null, result: "unknown", settings: null as { statement: string; lock: string } | null }));
-            let tasks: Promise<void>[] = []; let maxQueue = 0; let observedLock = false; let elapsedMs = 0;
+            let tasks: Promise<void>[] = []; let maxQueue = 0; let observedLock = false; let elapsedMs = 0; let samplingFailure: string | undefined; let recorded = false;
             const sampler = setInterval(() => { maxQueue = Math.max(maxQueue, f.pool.waitingCount); }, 5);
+            try {
             try {
               await Promise.race([locked, correction.then(() => { throw new Error("CORRECTION_ENDED_BEFORE_BARRIER"); })]);
               const start = performance.now();
@@ -68,14 +73,13 @@ it.skipIf(process.env.RIVALHUB_CORRECTION_CAPACITY !== "1")("measures late stake
                   });
                   request.result = "unexpected_success";
                 } catch (error) {
-                  const item = error as { message?: string; code?: string; cause?: { code?: string } };
-                  const code = item?.code ?? item?.cause?.code;
-                  request.result = /关闭|截止|锁定/.test(item?.message ?? "") ? "expected_closed" : typeof code === "string" && /^[A-Z0-9]{5}$/.test(code) ? `sqlstate_${code}` : /timeout exceeded when trying to connect/i.test(item?.message ?? "") ? "pool_acquisition_timeout" : "unknown";
+                  request.result = error instanceof Error && /关闭|截止|锁定/.test(error.message) ? "expected_closed" : failureClass(error);
                 } finally { const end = performance.now(); request.totalMs = end - at; if (began !== undefined) request.transactionMs = end - began; }
               });
               const deadline = Date.now() + 1200;
               while (Date.now() < deadline) {
-                const sample = await monitor.query("select 1 from pg_stat_activity where application_name = 'prediction-correction-load' and wait_event_type = 'Lock'");
+                const sample = await monitor.query("select 1 from pg_stat_activity where application_name = 'prediction-correction-load' and wait_event_type = 'Lock'").catch(error => { samplingFailure = failureClass(error); return null; });
+                if (!sample) break;
                 if (sample.rowCount) { observedLock = true; break; }
                 await delay(10);
               }
@@ -83,12 +87,28 @@ it.skipIf(process.env.RIVALHUB_CORRECTION_CAPACITY !== "1")("measures late stake
             } finally { release(); clearInterval(sampler); await correction.catch(() => undefined); await Promise.allSettled(tasks); }
             const stored = await f.db.select({ requestId: schema.predictionStakes.requestId }).from(schema.predictionStakes);
             const outcomes = requests.map(request => ({ totalMs: request.totalMs, acquireAndBeginMs: request.acquireAndBeginMs, transactionMs: request.transactionMs, result: request.result, settings: request.settings, observedCommitted: stored.some(row => row.requestId === request.id) }));
-            expect(await balance(f.userId)).toBe(BigInt(900)); expect(await balance(f.otherId)).toBe(BigInt(1100));
-            await reconcile(); expect(await balance(f.userId)).toBe(BigInt(900)); expect(await balance(f.otherId)).toBe(BigInt(1100));
-            const unexpected = !observedLock || outcomes.some(item => item.result !== "expected_closed" || item.observedCommitted);
+            const balances = [String(await balance(f.userId)), String(await balance(f.otherId))];
+            if (!samplingFailure) {
+              expect(balances).toEqual(["900", "900"]);
+              await f.db.transaction(tx => finalizeMajorSwissRoundInTransaction(tx, { seasonId: f.seasonId, stageRunId: f.runId, expectedRound: 1, actorId: "test" }));
+              await reconcile();
+              expect(await balance(f.userId)).toBe(BigInt(900)); expect(await balance(f.otherId)).toBe(BigInt(1100));
+              await reconcile(); expect(await balance(f.userId)).toBe(BigInt(900)); expect(await balance(f.otherId)).toBe(BigInt(1100));
+              expect((await f.db.select().from(schema.auditLogs)).filter(row => row.action === "match.result.corrected")).toHaveLength(1);
+            }
+            const unexpected = !!samplingFailure || !observedLock || outcomes.some(item => item.result !== "expected_closed" || item.observedCommitted);
             stop = unexpected || maxQueue >= 8;
             if (stop) report.stopped = unexpected ? "unexpected_result" : "sampled_pool_queue";
-            report.rounds.push({ concurrency, round, elapsedMs, maxPoolQueueSampled: maxQueue, observedLock, balancesVerified: true, outcomes });
+            report.rounds.push({ concurrency, round, elapsedMs, maxPoolQueueSampled: maxQueue, observedLock, balances, balancesVerified: !samplingFailure, samplingFailure, outcomes });
+            recorded = true;
+            } catch (error) {
+              if (!samplingFailure || recorded) throw error;
+              let stored: Array<{ requestId: string }> | undefined; let readbackFailure: string | undefined;
+              try { stored = await f.db.select({ requestId: schema.predictionStakes.requestId }).from(schema.predictionStakes); }
+              catch (readError) { readbackFailure = failureClass(readError); }
+              stop = true; report.stopped = "unexpected_result";
+              report.rounds.push({ concurrency, round, samplingFailure, operationFailure: failureClass(error), readbackFailure, outcomes: requests.map(request => ({ ...request, id: undefined, userId: undefined, observedCommitted: stored?.some(row => row.requestId === request.id) ?? null })) });
+            }
           } finally { await monitor.end(); }
         }, 32);
       }
@@ -96,4 +116,5 @@ it.skipIf(process.env.RIVALHUB_CORRECTION_CAPACITY !== "1")("measures late stake
     }
     report.cleanup = true;
   } finally { if (process.env.RIVALHUB_CORRECTION_CAPACITY_REPORT) writeFileSync(process.env.RIVALHUB_CORRECTION_CAPACITY_REPORT, JSON.stringify(report, null, 2)); }
+  expect(report.stopped).not.toBe("unexpected_result");
 }, 180000);

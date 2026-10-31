@@ -1,0 +1,50 @@
+{
+  "sha": "5a54c10985c59d90af1e02c5df4fd93a844b5fd1",
+  "hashes": {
+    "tests/integration/db/capacity/failure-class.ts": "d4ef80db03667bc2b01bde135f5096df0c74fba6f707d7daab35122cc72d8ca3",
+    "tests/integration/db/capacity/bet-boundary.test.ts": "ead8d87c870611e038c1502098f60651b675cf7a415c8c8cbeae0ed3cf146b56",
+    "tests/integration/db/harness/bet-fixture.ts": "e46eb64fce55dd8286eb7487163e8b47c2dfa737b898b28d6d688c300d4c79ca",
+    "src/lib/matches/map-start.ts": "f2c0fb3da7b33677be1b857029a2a842f0d6dfce49be1035f37b751aaff8c7c0",
+    "src/lib/bet/service.ts": "5a0e6fe3e3198a06fcebffb6b967615b17cb679ce448234540f3d63d86e4db60"
+  },
+  "dataset": "fresh scratch per round; one Major, two accounts, completed BO3 veto, canonical start holder and alternating late stakes",
+  "limits": {
+    "poolMax": 6,
+    "acquisitionTimeoutMs": 2000,
+    "statementTimeoutMs": 5000,
+    "lockTimeoutMs": 2000,
+    "heldSqlSleepMs": 200,
+    "sampledQueueStop": 8,
+    "stopOnUnexpected": true,
+    "disconnectMonitor": true
+  },
+  "rounds": [
+    {
+      "concurrency": 1,
+      "round": 1,
+      "elapsedMs": 235.77028900000005,
+      "requestsPerSecond": 4.241416525557212,
+      "observedLockWaiters": 1,
+      "maxPoolQueueSampled": 0,
+      "outcomes": [
+        {
+          "totalMs": 235.60624199999984,
+          "acquisitionMs": 7.688775999999962,
+          "transactionMs": 227.91746599999988,
+          "result": "expected_locked",
+          "settings": {
+            "statement": "5s",
+            "lock": "2s",
+            "application": "bet-start-load"
+          },
+          "observedCommitted": false
+        }
+      ],
+      "balancesVerified": true,
+      "samplingFailure": "sqlstate_57P01",
+      "timingIncludesArtificialBarrier": true
+    }
+  ],
+  "stopped": "unexpected_or_sampling_failure",
+  "cleanup": true
+}
