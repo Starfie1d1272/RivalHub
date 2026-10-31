@@ -6,6 +6,7 @@ import { Pool } from "pg";
 import { and, eq, sql } from "drizzle-orm";
 import { expect, it } from "vitest";
 import * as schema from "@/db/schema";
+import { applyResultCorrectionInTx, planResultCorrectionInTx } from "@/lib/match-corrections/service";
 import { finalizeMajorSwissRoundInTransaction } from "@/lib/major/swiss-runtime";
 import { balanceOf, lockPredictionProgram, openPredictionMarketInTx, reconcilePredictionProgram, stakeInTx } from "@/lib/predictions/service";
 import { predictionCapacityFixture } from "./prediction-fixture";
@@ -14,7 +15,7 @@ it.skipIf(process.env.RIVALHUB_CORRECTION_CAPACITY !== "1")("measures late stake
   const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   if (!/^[a-f0-9]{40}$/.test(process.env.RIVALHUB_CAPACITY_SHA ?? "") || sha !== process.env.RIVALHUB_CAPACITY_SHA) throw new Error("EXACT_SHA_REQUIRED");
   execFileSync("git", ["diff", "--quiet", "HEAD", "--", "src", "drizzle", "tests/integration/db/capacity/prediction-fixture.ts", "tests/integration/db/capacity/prediction-correction-capacity.test.ts"]);
-  const paths = ["tests/integration/db/capacity/prediction-correction-capacity.test.ts", "tests/integration/db/capacity/prediction-fixture.ts", "src/lib/predictions/service.ts"];
+  const paths = ["tests/integration/db/capacity/prediction-correction-capacity.test.ts", "tests/integration/db/capacity/prediction-fixture.ts", "src/lib/predictions/service.ts", "src/lib/match-corrections/service.ts"];
   const report: { sha: string; hashes: Record<string, string>; dataset: string; limits: object; rounds: object[]; stopped?: string; cleanup?: boolean } = {
     sha, hashes: Object.fromEntries(paths.map(path => [path, createHash("sha256").update(readFileSync(path)).digest("hex")])),
     dataset: "fresh scratch per round; 32-team Major, one settled market, two accounts with 100 points each staked on opposite options; one correction holder plus late stakes",
@@ -40,12 +41,14 @@ it.skipIf(process.env.RIVALHUB_CORRECTION_CAPACITY !== "1")("measures late stake
             const accounts = await f.db.select().from(schema.predictionAccounts).where(eq(schema.predictionAccounts.seasonId, f.seasonId));
             const balance = (userId: string) => f.db.transaction(tx => balanceOf(tx, accounts.find(a => a.userId === userId)!.id));
             expect(await balance(f.userId)).toBe(BigInt(1100)); expect(await balance(f.otherId)).toBe(BigInt(900));
+            const correctionInput = { matchId: f.matchIds[0]!, proposal: { scoreA: 0, scoreB: 1 }, actorId: "test", confirmRecovery: true };
+            expect((await f.db.transaction(tx => planResultCorrectionInTx(tx, correctionInput))).winnerChanges).toBe(true);
             let release!: () => void; let ready!: () => void;
             const gate = new Promise<void>(resolve => { release = resolve; }); const locked = new Promise<void>(resolve => { ready = resolve; });
             const correction = f.db.transaction(async tx => {
               const settings = await tx.execute(sql`select set_config('statement_timeout','5s',true) as statement, set_config('lock_timeout','2s',true) as lock`);
               expect(settings.rows[0]).toMatchObject({ statement: "5s", lock: "2s" });
-              await tx.update(schema.matches).set({ scoreA: 0, scoreB: 1 }).where(eq(schema.matches.id, f.matchIds[0]!));
+              await applyResultCorrectionInTx(tx, correctionInput);
               await reconcilePredictionProgram(tx, await lockPredictionProgram(tx, f.seasonId));
               ready(); await gate;
               await tx.execute(sql`select pg_sleep(0.2)`);
@@ -83,8 +86,12 @@ it.skipIf(process.env.RIVALHUB_CORRECTION_CAPACITY !== "1")("measures late stake
             } finally { release(); clearInterval(sampler); await correction.catch(() => undefined); await Promise.allSettled(tasks); }
             const stored = await f.db.select({ requestId: schema.predictionStakes.requestId }).from(schema.predictionStakes);
             const outcomes = requests.map(request => ({ totalMs: request.totalMs, acquireAndBeginMs: request.acquireAndBeginMs, transactionMs: request.transactionMs, result: request.result, settings: request.settings, observedCommitted: stored.some(row => row.requestId === request.id) }));
+            expect(await balance(f.userId)).toBe(BigInt(900)); expect(await balance(f.otherId)).toBe(BigInt(900));
+            await f.db.transaction(tx => finalizeMajorSwissRoundInTransaction(tx, { seasonId: f.seasonId, stageRunId: f.runId, expectedRound: 1, actorId: "test" }));
+            await reconcile();
             expect(await balance(f.userId)).toBe(BigInt(900)); expect(await balance(f.otherId)).toBe(BigInt(1100));
             await reconcile(); expect(await balance(f.userId)).toBe(BigInt(900)); expect(await balance(f.otherId)).toBe(BigInt(1100));
+            expect((await f.db.select().from(schema.auditLogs)).filter(row => row.action === "match.result.corrected")).toHaveLength(1);
             const unexpected = !observedLock || outcomes.some(item => item.result !== "expected_closed" || item.observedCommitted);
             stop = unexpected || maxQueue >= 8;
             if (stop) report.stopped = unexpected ? "unexpected_result" : "sampled_pool_queue";
