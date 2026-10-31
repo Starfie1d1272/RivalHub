@@ -6,7 +6,7 @@ import { db, type DB, type TxDb } from "@/db/client";
 import { competitionEntries, matchCommentators, matchDemoImports, matchMaps, matchPlayerStats, matches, postMatchReports } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { officialMatchCondition } from "@/lib/matches/scope";
-import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
+import { loadEffectiveMatchRosterIdentities } from "@/lib/match-rosters/effective";
 import { demoImportMetadataSelection } from "@/lib/demo-integration/metadata";
 import { projectOperatorMaps } from "./operator-maps";
 import { projectOperatorPostMatchTasks } from "./operator-workflow";
@@ -60,7 +60,7 @@ export async function readAdminPostMatchTasks(database: DB | TxDb, seasonId: str
       mapName: matchMaps.mapName, teamAStartSide: matchMaps.teamAStartSide,
       scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB, completedAt: matchMaps.completedAt,
     }).from(matchMaps).where(inArray(matchMaps.matchId, ids)).orderBy(asc(matchMaps.mapOrder)),
-    loadEffectiveMatchRoster(database, ids),
+    loadEffectiveMatchRosterIdentities(database, ids),
     database.select(demoImportMetadataSelection).from(matchDemoImports).where(and(eq(matchDemoImports.seasonId, seasonId), inArray(matchDemoImports.matchId, ids))).orderBy(desc(matchDemoImports.createdAt)),
     database.select({ matchId: matchPlayerStats.matchId, mapId: matchPlayerStats.mapId,
       userId: matchPlayerStats.userId, perfectName: matchPlayerStats.perfectName,

@@ -1,6 +1,6 @@
 import "server-only";
 import type { Match, MatchMap } from "@/db/schema";
-import type { EffectiveMatchRosterPlayer } from "@/lib/match-rosters/effective";
+import type { EffectiveMatchRosterIdentity } from "@/lib/match-rosters/effective";
 import type { DemoImportMetadata } from "@/lib/demo-integration/metadata";
 import { canConfirmMapScoreboard } from "@/lib/matches/map-scoreboard";
 import { projectDemoStatus, selectCurrentDemoImport } from "@/lib/demo-integration/read";
@@ -12,7 +12,7 @@ import type { OperatorMap } from "./operator-workflow";
 export function projectOperatorMaps(input: {
   match: Pick<Match, "id" | "seasonId" | "stage" | "majorStageRunId" | "status" | "entryAId" | "entryBId">;
   maps: readonly Pick<MatchMap, "id" | "mapOrder" | "mapName" | "teamAStartSide" | "scoreA" | "scoreB" | "completedAt">[]; imports: readonly DemoImportMetadata[];
-  roster: readonly EffectiveMatchRosterPlayer[]; scoreboards: readonly ScoreboardRow[];
+  roster: readonly EffectiveMatchRosterIdentity[]; scoreboards: readonly ScoreboardRow[];
 }): OperatorMap[] {
   const { match, maps, roster, scoreboards } = input;
   const participants = roster.filter(player => player.isStarter);
