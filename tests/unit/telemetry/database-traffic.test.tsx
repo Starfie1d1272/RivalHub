@@ -61,3 +61,10 @@ it("shows an hour containing only quarantined batches", async () => {
   expect(screen.queryByText("暂无已接收分窗数据；采集和投递状态未知。")).not.toBeInTheDocument();
   expect(screen.getByText(/异常数据未计入可信流量汇总/)).toBeInTheDocument();
 });
+
+it("includes separately reported gaps and flags incomplete loss totals", async () => {
+  read.mockResolvedValue({ status: "ready", data: { start: 0, generatedAt: 7200000, receivedBytes: 0, pending: 0, dropped: 0, lossComplete: true, offline: [], offlineTruncated: false, windows: [], qualityPending: 1, quality: [{ hour: 3600000, release: "v1", deployment: "d1", batches: 0, reasons: {}, lostBatches: 3, lostBytes: 20, unconfirmedBatches: 2, truncated: false }] } });
+  render(await DatabaseTraffic({ hours: 24, sort: "bytes", selection: {} }));
+  expect(screen.getByText("部分提供 3")).toBeInTheDocument();
+  expect(screen.getByText(/缺口已知丢失 3 批 \/ 20 字节；旧窗口 0。缺口未确认 2 批/)).toBeInTheDocument();
+});

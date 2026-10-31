@@ -168,3 +168,57 @@ it("marks unknown coverage before removing an orphaned temporary state", async (
     await expect(readFile(join(root, name), "utf8")).rejects.toThrow(); spool.close();
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+it("retains a rejected unknown marker and preserves a later event when an earlier marker is acknowledged", async () => {
+  const { DbTrafficDelivery } = await import("@/lib/observability/db-traffic-delivery");
+  const root = await mkdtemp(join(tmpdir(), "traffic-coverage-revision-"));
+  const a = { process: crypto.randomUUID(), release: "a", deployment: "a" };
+  const b = { process: crypto.randomUUID(), release: "b", deployment: "b" };
+  let now = 1_800_000_000_000;
+  try {
+    let spool = await DbTrafficSpool.open(root);
+    let delivery = new DbTrafficDelivery(spool, a); await delivery.start(now); spool.close();
+    now += 1000; spool = await DbTrafficSpool.open(root); delivery = new DbTrafficDelivery(spool, b); await delivery.start(now);
+    expect(JSON.parse(spool.snapshot().gaps[0].body)).toMatchObject({ ...a, reason: "unknown_tail" });
+    let sent = 0; await delivery.drain(async () => { sent++; return { ok: false, status: 400, retryAfter: null, limit: null }; }, () => now);
+    expect(sent).toBe(1); expect(spool.snapshot().coverageReportedSince).toBeNull();
+    spool.close(); now += 3600001; spool = await DbTrafficSpool.open(root); delivery = new DbTrafficDelivery(spool, b);
+    await delivery.drain(async () => ({ ok: true, status: 200, retryAfter: null, limit: null }), () => now);
+    expect(spool.snapshot().coverageReportedRevision).toBe(spool.snapshot().coverageRevision);
+    spool.close();
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it("starts the new durable window at snapshot capture, not the later disk commit", async () => {
+  const { DbTrafficDelivery } = await import("@/lib/observability/db-traffic-delivery");
+  const root = await mkdtemp(join(tmpdir(), "traffic-capture-boundary-"));
+  const identity = { process: crypto.randomUUID(), release: "a", deployment: "a" };
+  const capturedAt = 1_800_000_000_000;
+  try {
+    const spool = await DbTrafficSpool.open(root); const delivery = new DbTrafficDelivery(spool, identity);
+    await delivery.start(capturedAt);
+    await delivery.seal(JSON.stringify({ id: crypto.randomUUID(), ...identity, at: capturedAt - 1000, receivedBytes: 1 }), capturedAt + 5000, undefined, capturedAt);
+    expect(spool.snapshot().openWindowSince).toBe(capturedAt); spool.close();
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it("does not let an older unknown ACK consume a later unknown event", async () => {
+  const { DbTrafficDelivery } = await import("@/lib/observability/db-traffic-delivery");
+  const root = await mkdtemp(join(tmpdir(), "traffic-coverage-race-")); const now = 1_800_000_000_000;
+  const a = { process: crypto.randomUUID(), release: "a", deployment: "a" }; const b = { process: crypto.randomUUID(), release: "b", deployment: "b" };
+  try {
+    let spool = await DbTrafficSpool.open(root); await new DbTrafficDelivery(spool, a).start(now); spool.close();
+    spool = await DbTrafficSpool.open(root); const delivery = new DbTrafficDelivery(spool, b); await delivery.start(now + 1);
+    const events: string[] = [];
+    await delivery.drain(async (item, gap) => {
+      const body = JSON.parse(item.body); if (gap && body.reason === "unknown_tail") {
+        events.push(body.release);
+        if (events.length === 1) await delivery.seal(JSON.stringify({ id: crypto.randomUUID(), ...b, at: now + 1, receivedBytes: 1 }), now + 1, now + 1);
+      }
+      return { ok: true, status: 200, retryAfter: null, limit: null };
+    }, () => now + 1);
+    expect(events).toEqual(["a", "b"]);
+    expect(spool.snapshot().coverageReportedRevision).toBe(spool.snapshot().coverageRevision);
+    spool.close();
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
