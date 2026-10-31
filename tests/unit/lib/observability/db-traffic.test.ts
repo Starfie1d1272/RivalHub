@@ -311,3 +311,51 @@ it("reports a failed exit fsync and preserves unknown coverage on restart", asyn
     expect(spool.snapshot().coverageUnknownSince).not.toBeNull(); spool.close();
   } finally { child.kill("SIGKILL"); await rm(root, { recursive: true, force: true }); }
 }, 15000);
+
+it("keeps one startup in flight on timeout and persists degraded coverage before readiness", async () => {
+  const { vi } = await import("vitest"); const { initializeDbTraffic, recordDbTraffic } = await import("@/lib/observability/db-traffic");
+  type StartupState = { delivery: Promise<unknown>; deliveryStarted?: boolean; degradedSince?: number; initializing?: Promise<boolean> };
+  const host = process as unknown as Record<symbol, StartupState>; const slot = Symbol.for("rivalhub.db-traffic.v3"); delete host[slot];
+  let now = 1_800_000_000_000; vi.spyOn(Date, "now").mockImplementation(() => now);
+  vi.stubEnv("DB_TRAFFIC_KEY", "fixture-secret".repeat(3)); vi.stubEnv("PRODUCT_TELEMETRY_ENDPOINT", "https://telemetry.invalid/v1/batches");
+  try {
+    recordDbTraffic("unknown", "unknown", 1, 1, false); const firstObserved = now; now += 100;
+    let release!: () => void; const held = new Promise<void>(resolve => { release = resolve; }); let boundary = 0;
+    const start = vi.fn(async (_at: number, getBoundary: () => number) => { await held; boundary = getBoundary(); });
+    const noteUnknown = vi.fn(async () => {}); host[slot].delivery = Promise.resolve({ start, noteUnknown });
+    const first = initializeDbTraffic(10); const second = initializeDbTraffic(10);
+    expect(await first).toBe(false); expect(await second).toBe(false); expect(start).toHaveBeenCalledTimes(1);
+    expect(host[slot].deliveryStarted).not.toBe(true); expect(host[slot].degradedSince).toBe(now);
+    now += 50; recordDbTraffic("unknown", "unknown", 1, 1, false); release();
+    await vi.waitFor(() => expect(host[slot].deliveryStarted).toBe(true));
+    expect(boundary).toBe(firstObserved); expect(noteUnknown).toHaveBeenCalledWith(now - 50, now);
+  } finally { delete host[slot]; vi.restoreAllMocks(); vi.unstubAllEnvs(); }
+});
+
+it("keeps collecting through a real startup disk failure and marks unknown after recovery", async () => {
+  const { vi } = await import("vitest"); const { mkdtemp, readFile, rm, writeFile } = await import("node:fs/promises"); const { tmpdir } = await import("node:os"); const { join } = await import("node:path");
+  const { initializeDbTraffic, recordDbTraffic } = await import("@/lib/observability/db-traffic");
+  type StartupState = { deliveryStarted?: boolean; rows: Map<string, { queries: number }> };
+  const host = process as unknown as Record<symbol, StartupState>; const slot = Symbol.for("rivalhub.db-traffic.v3"); delete host[slot];
+  const root = await mkdtemp(join(tmpdir(), "traffic-startup-failure-")); const spool = join(root, "spool"); await writeFile(spool, "fixture");
+  vi.stubEnv("DB_TRAFFIC_KEY", "fixture-secret".repeat(3)); vi.stubEnv("PRODUCT_TELEMETRY_ENDPOINT", "https://telemetry.invalid/v1/batches"); vi.stubEnv("DB_TRAFFIC_SPOOL_DIRECTORY", spool);
+  try {
+    expect(await initializeDbTraffic()).toBe(false); recordDbTraffic("unknown", "unknown", 1, 1, false);
+    expect(host[slot].rows.get("unknown:unknown")?.queries).toBe(1); expect(host[slot].deliveryStarted).not.toBe(true);
+    await rm(spool); expect(await initializeDbTraffic()).toBe(true);
+    const persisted = JSON.parse(await readFile(join(spool, "state.json"), "utf8")); expect(persisted.coverageUnknownSince).not.toBeNull();
+  } finally { delete host[slot]; vi.unstubAllEnvs(); await rm(root, { recursive: true, force: true }); }
+});
+
+it("serializes startup recovery after an existing disabled-mode spool maintenance", async () => {
+  const { vi } = await import("vitest"); const { dbTrafficSource, initializeDbTraffic, flushDbTraffic } = await import("@/lib/observability/db-traffic");
+  type StartupState = { delivery: Promise<unknown>; sending: boolean };
+  const host = process as unknown as Record<symbol, StartupState>; const slot = Symbol.for("rivalhub.db-traffic.v3"); delete host[slot];
+  vi.stubEnv("DB_TRAFFIC_KEY", ""); vi.stubEnv("PRODUCT_TELEMETRY_ENDPOINT", "https://telemetry.invalid/v1/batches"); vi.stubEnv("DB_TRAFFIC_SPOOL_DIRECTORY", "/fixture");
+  let release!: () => void; const held = new Promise<void>(resolve => { release = resolve; }); const prune = vi.fn(async () => { await held; }); const start = vi.fn(async () => {});
+  try {
+    dbTrafficSource(); host[slot].delivery = Promise.resolve({ prune, start }); flushDbTraffic(); await vi.waitFor(() => expect(prune).toHaveBeenCalledOnce());
+    vi.stubEnv("DB_TRAFFIC_KEY", "fixture-secret".repeat(3)); const ready = initializeDbTraffic(); await Promise.resolve(); expect(start).not.toHaveBeenCalled();
+    release(); expect(await ready).toBe(true); expect(start).toHaveBeenCalledOnce(); await vi.waitFor(() => expect(host[slot].sending).toBe(false));
+  } finally { release(); delete host[slot]; vi.unstubAllEnvs(); }
+});

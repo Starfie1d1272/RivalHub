@@ -1,0 +1,52 @@
+name: Release host readback
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: rivalhub-release-lineage
+  queue: max
+  cancel-in-progress: false
+
+jobs:
+  readback:
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify main operator
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          git fetch origin main --tags
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+      - uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          cache: true
+          require-lockfile: true
+      - name: Read operator package version for CI evidence
+        id: operator
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+      - name: Verify exact main push CI
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ steps.operator.outputs.tag }}
+        run: pnpm release:ci-prerequisite
+      - name: Read fixed production host state
+        env:
+          LINUX_DEPLOY_SSH_KEY: ${{ secrets.LINUX_DEPLOY_SSH_KEY }}
+          LINUX_DEPLOY_KNOWN_HOSTS: ${{ vars.LINUX_DEPLOY_KNOWN_HOSTS }}
+        run: node scripts/operations/release-host-diagnostic.mjs

@@ -25,6 +25,7 @@
     "vitest.config.ts!",
     "vitest.integration.config.ts!",
     "tests/fixtures/observability/db-traffic-next-exit.cjs!",
+    "tests/fixtures/observability/db-traffic-next-startup.cjs!",
     "playwright.config.ts!",
     "next.config.ts!",
     "postcss.config.mjs!",
@@ -54,6 +55,9 @@
     "scripts/release/plan.ts!",
     "scripts/release/linux-routing.ts!",
     "scripts/release/production-deployment.ts!",
+    "scripts/operations/statistics-transport.mjs!",
+    "scripts/operations/release-host-diagnostic.mjs!",
+    "scripts/operations/release-host-readback.mjs!",
     "scripts/architecture/check.ts!",
     "scripts/demo-evidence/generate-json-schema.ts!",
     "scripts/db/block-drizzle-push.ts!",
@@ -134,6 +138,7 @@
     "workers/telemetry/**/*.ts!"
   ],
   "ignoreBinaries": [
+    "flock",
     "openssl"
   ],
   "ignoreDependencies": [
