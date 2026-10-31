@@ -1,3 +1,4 @@
+import { readExitCapsules, deleteExitCapsules, isolateInvalidCapsules } from "./db-traffic-capsule";
 import { dbTrafficQualityReasons, digestDbTraffic } from "./db-traffic-contract";
 import { DbTrafficSpool, type SpoolItem, type SpoolState } from "./db-traffic-spool";
 
@@ -55,11 +56,55 @@ export class DbTrafficDelivery {
   async start(now: number): Promise<void> {
     const state = this.spool.snapshot();
     if (state.coverageRevision === undefined) { state.coverageRevision = state.coverageUnknownSince === null || state.coverageReportedSince === state.coverageUnknownSince ? 0 : 1; state.coverageReportedRevision = 0; }
+    // Recover all capsules in one state commit. Protect recovered IDs from
+    // eviction until every capsule is deleted, making a crash after commit safe.
+    const { files, invalid } = await readExitCapsules(this.spool.directory);
+    // Scan every candidate before selecting any: conflicts quarantine all
+    // affected capsules; an existing durable spool entry always wins.
+    const identities = new Map<string, Set<string>>();
+    for (const file of files) for (const body of file.capsule.batches) {
+      const value = JSON.parse(body) as Batch;
+      const bodies = identities.get(value.id) ?? new Set<string>(); bodies.add(body); identities.set(value.id, bodies);
+    }
+    const conflicts = new Set<string>();
+    for (const [id, bodies] of identities) {
+      const existing = state.batches.find(item => item.id === id);
+      if (bodies.size > 1 || (existing && !bodies.has(existing.body))) conflicts.add(id);
+    }
+    const capsules = files.filter(file => {
+      if (!file.capsule.batches.some(body => conflicts.has((JSON.parse(body) as Batch).id))) return true;
+      invalid.push({ name: file.name, at: file.at }); return false;
+    });
+    for (const item of invalid) markCoverage(state, Math.min(now, item.at));
+    const recovered = new Map<string, { body: string; value: Batch }>();
+    for (const file of capsules) {
+      if (file.capsule.unknownAt !== null) markCoverage(state, file.capsule.unknownAt);
+      for (const body of file.capsule.batches) {
+        const value = JSON.parse(body) as Batch;
+        recovered.set(value.id, { body, value });
+      }
+    }
+    if (recovered.size > 256 || [...recovered.values()].reduce((sum, item) => sum + Buffer.byteLength(item.body), 0) > MAX_BYTES) throw new Error("exit capsules exceed spool capacity");
+    for (const { body, value } of recovered.values()) {
+      const existing = state.batches.find(item => item.id === value.id);
+      if (existing) { if (existing.body !== body) throw new Error("exit capsule identity conflict"); continue; }
+      while (state.batches.length >= 256 || queueBytes(state) + Buffer.byteLength(body) > MAX_BYTES) {
+        const index = state.batches.findIndex(item => !recovered.has(item.id));
+        if (index < 0) throw new Error("exit capsules exceed spool capacity");
+        const [removed] = state.batches.splice(index, 1); await gapFor(state, removed, "overflow", now);
+      }
+      state.batches.push({ id: value.id, body, digest: await digestDbTraffic(value), at: value.at, attempted: false, nextAttemptAt: Math.max(now, state.globalNextAttemptAt, dbTrafficQualityReasons(value).length ? state.quarantineNextAttemptAt : 0), attempts: 0 });
+    }
     if (state.openWindowSince !== null) markCoverage(state, Math.min(now, state.openWindowSince), state.openWindowIdentity ?? unknownIdentity);
     if (this.spool.orphanSince !== null) markCoverage(state, Math.min(now, this.spool.orphanSince));
     state.openWindowSince = now; state.openWindowIdentity = this.identity;
     await this.ensureCoverage(state, now);
     await this.spool.commit(state);
+    if (invalid.length) {
+      try { process.stderr.write('{"event":"db_traffic.invalid_exit_capsule"}\n'); } catch { /* Diagnostics must not block delivery. */ }
+      await isolateInvalidCapsules(this.spool.directory, invalid);
+    }
+    await deleteExitCapsules(this.spool.directory, capsules);
     await this.spool.cleanupOrphans();
   }
   async seal(body: string, now: number, coverageUnknownSince?: number, snapshotCapturedAt = now): Promise<void> {

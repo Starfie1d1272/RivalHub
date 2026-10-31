@@ -1,7 +1,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
+import { writeSync } from "node:fs";
 import { Agent, request } from "node:https";
 import type { PoolClient } from "pg";
+import { writeExitCapsule } from "./db-traffic-capsule";
 import { observePgTraffic, settlePgTraffic } from "./pg-traffic-adapter";
 import type { DbTrafficDelivery } from "./db-traffic-delivery";
 
@@ -10,7 +12,7 @@ export { DB_SOURCES, type DbTrafficSource } from "./db-traffic-contract";
 export type DbTemplate = string;
 type Row = { source: DbTrafficSource; template: string; queries: number; failures: number; rows: number; queryMs: number; logicalRowJsonBytes: number; logicalMeasuredQueries: number; rxBytes: number; skipReasons: { budget: number; unsupported_value: number; error: number } };
 type Context = { source: DbTrafficSource };
-type State = { delivery?: Promise<DbTrafficDelivery>; deliveryStarted?: boolean; flushAgain?: boolean; diskNextAttemptAt?: number; coverageUnknownSince?: number; budgetStartedAt?: number; budgetSent?: number; sealing?: { body: string; rows: Row[]; receivedBytes: number; remaining: Remaining; at: number; capturedAt: number }; context: AsyncLocalStorage<Context>; rows: Map<string, Row>; shapeScores?: Map<string, number>; processId: string; sending: boolean; receivedBytes: number; connections: number; observedConnections: number; clients: Set<PoolClient>; hour: number; remaining: Remaining };
+type State = { exitCapsuleArmed?: boolean; delivery?: Promise<DbTrafficDelivery>; deliveryStarted?: boolean; flushAgain?: boolean; diskNextAttemptAt?: number; coverageUnknownSince?: number; budgetStartedAt?: number; budgetSent?: number; sealing?: { body: string; rows: Row[]; receivedBytes: number; remaining: Remaining; at: number; capturedAt: number }; context: AsyncLocalStorage<Context>; rows: Map<string, Row>; shapeScores?: Map<string, number>; processId: string; sending: boolean; receivedBytes: number; connections: number; observedConnections: number; clients: Set<PoolClient>; hour: number; remaining: Remaining };
 type Remaining = { async: number; no_owner: number; partial: number; unsupported: number; instrumentation: number };
 function emptyRemaining(): Remaining { return { async: 0, no_owner: 0, partial: 0, unsupported: 0, instrumentation: 0 }; }
 const HOUR = 3600000;
@@ -114,6 +116,52 @@ export function dbTrafficEnabled(): boolean {
   try { const url = new URL(endpoint ?? ""); enabled = url.protocol === "https:" && !url.username && !url.password && !url.search && !url.hash && url.pathname === "/v1/batches"; } catch { /* Disabled on invalid configuration. */ }
   return enabled;
 }
+/** Synchronous exit is the only point Next guarantees before process.exit(). */
+function armExitCapsule(s: State): void {
+  s.exitCapsuleArmed = true;
+  const host = process as unknown as Record<symbol, unknown>;
+  const hook = Symbol.for("rivalhub.db-traffic.exit-hook.v1");
+  if (host[hook]) return;
+  host[hook] = true;
+  process.on("exit", () => {
+    const current = (process as unknown as Record<symbol, State | undefined>)[slot];
+    const directory = process.env.DB_TRAFFIC_SPOOL_DIRECTORY;
+    if (!current?.exitCapsuleArmed || !directory || !dbTrafficEnabled()) return;
+    try {
+      // Pending driver frames have already contributed to receivedBytes. Move
+      // their observed prefix to partial before capturing the residual batch.
+      for (const client of current.clients) settlePgTraffic(client);
+      const now = Date.now(); const sealing = current.sealing; const batches: string[] = [];
+      let unknownAt = current.coverageUnknownSince ?? null;
+      if (sealing) {
+        const value = JSON.parse(sealing.body);
+        if (Buffer.byteLength(sealing.body) <= 40000 && isSafeDbTrafficBatch(value)) batches.push(sealing.body);
+        else unknownAt = Math.min(unknownAt ?? sealing.capturedAt, sealing.capturedAt);
+      }
+      const prior = new Map((sealing?.rows ?? []).map(row => [`${row.source}:${row.template}`, row]));
+      const rows = structuredClone([...current.rows.values()]);
+      for (const row of rows) {
+        const snapshot = prior.get(`${row.source}:${row.template}`); if (!snapshot) continue;
+        for (const field of ["queries", "failures", "rows", "queryMs", "logicalRowJsonBytes", "logicalMeasuredQueries", "rxBytes"] as const) row[field] = Math.max(0, row[field] - snapshot[field]);
+        for (const field of ["budget", "unsupported_value", "error"] as const) row.skipReasons[field] = Math.max(0, row.skipReasons[field] - snapshot.skipReasons[field]);
+      }
+      const remaining = { ...current.remaining };
+      for (const field of ["async", "no_owner", "partial", "unsupported", "instrumentation"] as const) remaining[field] = Math.max(0, remaining[field] - (sealing?.remaining[field] ?? 0));
+      const receivedBytes = Math.max(0, current.receivedBytes - (sealing?.receivedBytes ?? 0));
+      const retainedRows = rows.filter(row => row.queries || row.failures || row.rows || row.queryMs || row.logicalRowJsonBytes || row.logicalMeasuredQueries || row.rxBytes || Object.values(row.skipReasons).some(Boolean));
+      if (retainedRows.length || receivedBytes) {
+        const rawRelease = process.env.RIVALHUB_RELEASE_COMMIT || process.env.VERCEL_GIT_COMMIT_SHA || "unknown";
+        const rawDeployment = process.env.VERCEL_DEPLOYMENT_ID || "unknown";
+        const batch = { id: crypto.randomUUID(), process: current.processId, at: Math.min(now, current.hour + HOUR - 1), release: /^[A-Za-z0-9._-]{1,80}$/.test(rawRelease) ? rawRelease : "unknown", deployment: /^[A-Za-z0-9._-]{1,80}$/.test(rawDeployment) ? rawDeployment : "unknown", dropped: 0, receivedBytes, connections: current.connections, observedConnections: current.observedConnections, rows: retainedRows, remainingRxBytes: Object.values(remaining).reduce((sum, value) => sum + value, 0), remaining, droppedReceivedBytes: 0, unconfirmedReceivedBytes: 0, unconfirmedBatches: 0 };
+        const body = JSON.stringify(batch);
+        if (Buffer.byteLength(body) <= 40000 && isSafeDbTrafficBatch(batch)) batches.push(body);
+        else unknownAt = Math.min(unknownAt ?? now, now);
+      }
+      if (batches.length || unknownAt !== null) writeExitCapsule(directory, { version: 1, batches, unknownAt });
+    } catch { try { writeSync(2, '{"event":"db_traffic.exit_capsule_failure"}\n'); } catch { /* Exit must continue. */ } }
+  });
+}
+
 type SendResult = { ok: boolean; status: number | null; retryAfter: number | null; limit: string | null };
 function statusCode(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599 ? value : null;
@@ -206,7 +254,7 @@ export function flushDbTraffic() {
     }
     let delivery: DbTrafficDelivery;
     try { delivery = await s.delivery; } catch (error) { s.delivery = undefined; throw error; }
-    if (enabled && !s.deliveryStarted) { await delivery.start(now); s.deliveryStarted = true; }
+    if (enabled && !s.deliveryStarted) { await delivery.start(now); s.deliveryStarted = true; armExitCapsule(s); }
     await delivery.prune(Date.now());
     if (!enabled || !dbTrafficEnabled()) return;
     const sealing = s.sealing;
