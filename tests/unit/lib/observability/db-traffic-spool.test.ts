@@ -291,21 +291,73 @@ it("isolates an invalid capsule, records unknown coverage and drains verified ba
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-it("survives SIGKILL after reserving an exit filename and retains both artifacts", async () => {
+it("survives SIGKILL after atomically publishing an exit capsule", async () => {
   const { spawn } = await import("node:child_process"); const { readdir } = await import("node:fs/promises"); const { DbTrafficDelivery } = await import("@/lib/observability/db-traffic-delivery");
   const root = await mkdtemp(join(tmpdir(), "traffic-exit-reserve-")); const now = Date.now(); const identity = { process: crypto.randomUUID(), release: "v", deployment: "d" };
   const original = await DbTrafficSpool.open(root); const state = original.snapshot(); const value = { id: crypto.randomUUID(), ...identity, at: now, receivedBytes: 1 }; const body = JSON.stringify(value);
   state.batches.push({ id: value.id, body, digest: await digestDbTraffic(value), at: now, attempted: false, attempts: 0, nextAttemptAt: now }); await original.commit(state); original.close();
-  const script = `const fs=require('node:fs'); fs.renameSync=()=>{process.stdout.write('reserved\\n');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0)};
+  const script = `const fs=require('node:fs'); const link=fs.linkSync; fs.linkSync=(...args)=>{link(...args);process.stdout.write('published\\n');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0)};
     const {writeExitCapsule}=require('./src/lib/observability/db-traffic-capsule.ts'); writeExitCapsule(process.argv[1],{version:1,batches:[],unknownAt:1});`;
   const child = spawn(process.execPath, ["--import", "tsx", "-e", script, root], { stdio: ["ignore", "pipe", "pipe"] });
   try {
     await new Promise<void>((resolve, reject) => { child.stdout.once("data", () => resolve()); child.once("error", reject); child.once("exit", code => reject(new Error(`child exited ${code}`))); });
     child.kill("SIGKILL"); await new Promise<void>(resolve => child.once("exit", () => resolve()));
     const spool = await DbTrafficSpool.open(root); const delivery = new DbTrafficDelivery(spool, identity); await delivery.start(Date.now());
-    const files = await readdir(root); expect(files.some(name => name.startsWith("invalid-"))).toBe(true); expect(files.some(name => name.startsWith(".exit-"))).toBe(true);
-    expect(spool.snapshot().coverageUnknownSince).not.toBeNull(); const sent: string[] = [];
+    const files = await readdir(root); expect(files.some(name => name.startsWith("invalid-"))).toBe(false); expect(files.some(name => name.startsWith(".exit-"))).toBe(true);
+    expect(spool.snapshot().coverageUnknownSince).toBe(1); const sent: string[] = [];
     await delivery.drain(async item => { sent.push(item.id); return { ok: true, status: 200, retryAfter: null, limit: null }; });
     expect(sent).toContain(value.id); spool.close();
   } finally { child.kill("SIGKILL"); await rm(root, { recursive: true, force: true }); }
 }, 15000);
+
+it("never overwrites an existing capsule when hard-link publication reports EEXIST", async () => {
+  const { spawnSync } = await import("node:child_process"); const { readdir } = await import("node:fs/promises");
+  const root = await mkdtemp(join(tmpdir(), "traffic-link-exists-"));
+  try {
+    const script = `const fs=require('node:fs'); const link=fs.linkSync; fs.linkSync=(a,b)=>{fs.writeFileSync(b,'prior-evidence');return link(a,b)};
+      const {writeExitCapsule}=require('./src/lib/observability/db-traffic-capsule.ts'); try { writeExitCapsule(process.argv[1],{version:1,batches:[],unknownAt:1}); process.exitCode=2; } catch(e) { if(e.code!=='EEXIST') throw e; }`;
+    const child = spawnSync(process.execPath, ["--import", "tsx", "-e", script, root], { encoding: "utf8" }); expect(child.status).toBe(0);
+    const names = await readdir(root); const target = names.find(name => /^exit-.*\.json$/.test(name)); expect(target).toBeDefined();
+    expect(await readFile(join(root, target!), "utf8")).toBe("prior-evidence"); expect(names.some(name => name.startsWith(".exit-"))).toBe(true);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it("quarantines all conflicting capsules while preserving existing and unrelated batches", async () => {
+  const { DbTrafficDelivery } = await import("@/lib/observability/db-traffic-delivery"); const { writeExitCapsule } = await import("@/lib/observability/db-traffic-capsule"); const { readdir } = await import("node:fs/promises");
+  const root = await mkdtemp(join(tmpdir(), "traffic-conflicts-")); const now = Date.now(); const identity = { process: crypto.randomUUID(), release: "v", deployment: "d" };
+  const make = (id: string, n: number) => ({ id, ...identity, at: now, dropped: 0, receivedBytes: n, connections: 1, observedConnections: 1, rows: [], remainingRxBytes: n, remaining: { async: n, no_owner: 0, partial: 0, unsupported: 0, instrumentation: 0 }, droppedReceivedBytes: 0, unconfirmedReceivedBytes: 0, unconfirmedBatches: 0 });
+  try {
+    const spool = await DbTrafficSpool.open(root); const state = spool.snapshot(); const existing = make(crypto.randomUUID(), 1); const body = JSON.stringify(existing);
+    state.batches.push({ id: existing.id, body, digest: await digestDbTraffic(existing), at: now, attempted: true, attempts: 3, nextAttemptAt: now + 10000 }); await spool.commit(state);
+    const shared = crypto.randomUUID(); const good = make(crypto.randomUUID(), 4);
+    for (const value of [make(existing.id, 2), make(shared, 1), make(shared, 2), good]) writeExitCapsule(root, { version: 1, batches: [JSON.stringify(value)], unknownAt: null });
+    await new DbTrafficDelivery(spool, identity).start(now);
+    expect(spool.snapshot().batches.map(item => item.id).sort()).toEqual([existing.id, good.id].sort());
+    expect(spool.snapshot().batches.find(item => item.id === existing.id)).toMatchObject({ body, attempted: true, attempts: 3, nextAttemptAt: now + 10000 });
+    expect((await readdir(root)).filter(name => name.startsWith("invalid-")).length).toBe(3); expect(spool.snapshot().coverageUnknownSince).not.toBeNull(); spool.close();
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it("does not send if isolating a corrupt capsule fails with an I/O error", async () => {
+  const { spawn } = await import("node:child_process"); const root = await mkdtemp(join(tmpdir(), "traffic-isolation-io-")); const name = `exit-${crypto.randomUUID()}.json`;
+  await writeFile(join(root, name), "{}");
+  const script = `const fs=require('node:fs/promises'); fs.link=async()=>{throw Object.assign(new Error('fixture'),{code:'EIO'})};
+    const {DbTrafficSpool}=require('./src/lib/observability/db-traffic-spool.ts');const {DbTrafficDelivery}=require('./src/lib/observability/db-traffic-delivery.ts');
+    (async()=>{const s=await DbTrafficSpool.open(process.argv[1]);const d=new DbTrafficDelivery(s,{process:crypto.randomUUID(),release:'v',deployment:'d'});let sends=0;try{await d.start(Date.now());await d.drain(async()=>{sends++;return {ok:true,status:200,retryAfter:null,limit:null}})}catch(e){process.stdout.write(JSON.stringify({code:e.code,sends,unknown:s.snapshot().coverageUnknownSince!==null}));}s.close()})().catch(e=>{console.error(e);process.exit(1)});`;
+  const child = spawn(process.execPath, ["--import", "tsx", "-e", script, root], { stdio: ["ignore", "pipe", "pipe"] }); let output = "";
+  child.stdout.on("data", data => { output += String(data); });
+  try {
+    const status = await new Promise<number | null>(resolve => child.once("exit", resolve)); expect(status).toBe(0);
+    expect(JSON.parse(output)).toEqual({ code: "EIO", sends: 0, unknown: true }); expect(await readFile(join(root, name), "utf8")).toBe("{}");
+  } finally { child.kill("SIGKILL"); await rm(root, { recursive: true, force: true }); }
+}, 15000);
+
+it("does not start delivery when more than 128 capsules remain unread", async () => {
+  const { DbTrafficDelivery } = await import("@/lib/observability/db-traffic-delivery"); const root = await mkdtemp(join(tmpdir(), "traffic-capsule-limit-"));
+  try {
+    for (let i = 0; i < 129; i++) await writeFile(join(root, `exit-${crypto.randomUUID()}.json`), "{}");
+    const spool = await DbTrafficSpool.open(root); const delivery = new DbTrafficDelivery(spool, { process: crypto.randomUUID(), release: "v", deployment: "d" }); let sends = 0;
+    await expect((async () => { await delivery.start(Date.now()); await delivery.drain(async () => { sends++; return { ok: true, status: 200, retryAfter: null, limit: null }; }); })()).rejects.toThrow("too many database traffic exit capsules");
+    expect(sends).toBe(0); spool.close();
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

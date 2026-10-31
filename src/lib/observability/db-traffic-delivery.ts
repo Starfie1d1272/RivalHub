@@ -58,15 +58,29 @@ export class DbTrafficDelivery {
     if (state.coverageRevision === undefined) { state.coverageRevision = state.coverageUnknownSince === null || state.coverageReportedSince === state.coverageUnknownSince ? 0 : 1; state.coverageReportedRevision = 0; }
     // Recover all capsules in one state commit. Protect recovered IDs from
     // eviction until every capsule is deleted, making a crash after commit safe.
-    const { files: capsules, invalid, truncated } = await readExitCapsules(this.spool.directory);
+    const { files, invalid } = await readExitCapsules(this.spool.directory);
+    // Scan every candidate before selecting any: conflicts quarantine all
+    // affected capsules; an existing durable spool entry always wins.
+    const identities = new Map<string, Set<string>>();
+    for (const file of files) for (const body of file.capsule.batches) {
+      const value = JSON.parse(body) as Batch;
+      const bodies = identities.get(value.id) ?? new Set<string>(); bodies.add(body); identities.set(value.id, bodies);
+    }
+    const conflicts = new Set<string>();
+    for (const [id, bodies] of identities) {
+      const existing = state.batches.find(item => item.id === id);
+      if (bodies.size > 1 || (existing && !bodies.has(existing.body))) conflicts.add(id);
+    }
+    const capsules = files.filter(file => {
+      if (!file.capsule.batches.some(body => conflicts.has((JSON.parse(body) as Batch).id))) return true;
+      invalid.push({ name: file.name, at: file.at }); return false;
+    });
     for (const item of invalid) markCoverage(state, Math.min(now, item.at));
-    if (truncated) markCoverage(state, now);
     const recovered = new Map<string, { body: string; value: Batch }>();
     for (const file of capsules) {
       if (file.capsule.unknownAt !== null) markCoverage(state, file.capsule.unknownAt);
       for (const body of file.capsule.batches) {
-        const value = JSON.parse(body) as Batch; const old = recovered.get(value.id);
-        if (old && old.body !== body) throw new Error("conflicting exit capsule identity");
+        const value = JSON.parse(body) as Batch;
         recovered.set(value.id, { body, value });
       }
     }
@@ -86,9 +100,9 @@ export class DbTrafficDelivery {
     state.openWindowSince = now; state.openWindowIdentity = this.identity;
     await this.ensureCoverage(state, now);
     await this.spool.commit(state);
-    if (invalid.length || truncated) {
+    if (invalid.length) {
       try { process.stderr.write('{"event":"db_traffic.invalid_exit_capsule"}\n'); } catch { /* Diagnostics must not block delivery. */ }
-      try { await isolateInvalidCapsules(this.spool.directory, invalid); } catch { /* Retain evidence and continue with verified batches. */ }
+      await isolateInvalidCapsules(this.spool.directory, invalid);
     }
     await deleteExitCapsules(this.spool.directory, capsules);
     await this.spool.cleanupOrphans();
