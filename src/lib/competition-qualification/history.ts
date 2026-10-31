@@ -16,9 +16,9 @@ import {
   type QualificationPairing,
 } from "./swiss";
 type QualificationRun = typeof competitionQualificationRuns.$inferSelect;
-type HistoryMatch = Omit<typeof matches.$inferSelect, "videoUrl" | "recordings" | "mvpWinnerUserId" | "createdAt" | "updatedAt">;
-type QualificationEntrant =
-  typeof competitionQualificationEntrants.$inferSelect;
+type HistoryMatch = Omit<typeof matches.$inferSelect, "videoUrl" | "recordings" | "mvpWinnerUserId" | "createdAt" | "updatedAt" |
+  "executionContext" | "testConfig" | "gameplayStartedAt" | "startedAt" | "completionDeadline">;
+type QualificationEntrant = Pick<typeof competitionQualificationEntrants.$inferSelect, "competitionEntryId" | "preliminarySeed">;
 export function playInSwissEntrants(
   entrants: readonly QualificationEntrant[],
   directEntryCount: number,
