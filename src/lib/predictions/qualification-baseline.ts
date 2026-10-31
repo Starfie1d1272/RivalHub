@@ -34,7 +34,8 @@ export async function loadQualificationRead(
     .where(eq(competitionQualificationRuns.seasonId, seasonId));
   if (!run || run.format !== "short_swiss_2w2l") return {context:null,official:[]};
   const entrants = await tx
-    .select()
+    .select({ competitionEntryId: competitionQualificationEntrants.competitionEntryId,
+      preliminarySeed: competitionQualificationEntrants.preliminarySeed })
     .from(competitionQualificationEntrants)
     .where(eq(competitionQualificationEntrants.runId, run.id))
     .orderBy(asc(competitionQualificationEntrants.preliminarySeed));
