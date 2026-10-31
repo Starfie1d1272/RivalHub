@@ -41,10 +41,10 @@ export interface PlayerStatsEventOption {
 
 export type StatsLabels = { teams: Record<string, string>; players: Record<string, string> };
 
-const statsMatchFields = {id:matches.id,seasonId:matches.seasonId,stage:matches.stage,round:matches.round,entryAId:matches.entryAId,entryBId:matches.entryBId,majorStageRunId:matches.majorStageRunId,status:matches.status,testConfig:matches.testConfig,format:matches.format,scoreA:matches.scoreA,scoreB:matches.scoreB,completedAt:matches.completedAt};
+const statsMatchFields = {id:matches.id,seasonId:matches.seasonId,stage:matches.stage,round:matches.round,entryAId:matches.entryAId,entryBId:matches.entryBId,majorStageRunId:matches.majorStageRunId,status:matches.status,isForfeit:matches.isForfeit,testConfig:matches.testConfig,format:matches.format,scoreA:matches.scoreA,scoreB:matches.scoreB,completedAt:matches.completedAt};
 const statsMapFields = {id:matchMaps.id,matchId:matchMaps.matchId,mapOrder:matchMaps.mapOrder,mapName:matchMaps.mapName,scoreA:matchMaps.scoreA,scoreB:matchMaps.scoreB,completedAt:matchMaps.completedAt};
 
-async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean; effectiveRoster?: readonly EffectiveMatchRosterIdentity[]; skipLabels?: boolean } = {}) {
+async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean; effectiveRoster?: readonly EffectiveMatchRosterIdentity[]; skipLabels?: boolean; reuseVetoMatches?: boolean } = {}) {
   const selectedMapRows = options.mapName && options.matchIds?.length !== 0
     ? await tx.select({ match: statsMatchFields, map: statsMapFields }).from(matchMaps).innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(
       scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
@@ -69,6 +69,9 @@ async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { 
         scope.stage ? eq(matches.stage, scope.stage) : undefined,
         scope.format ? eq(matches.format, scope.format) : undefined,
       )) : [];
+  const vetoMatches = options.reuseVetoMatches && (scope.seasonId || scope.seasonIds) && !options.mapName && !options.matchIds && !options.teamId && !scope.mapFilter && !scope.teamFilter
+    ? matchRows.filter((match) => match.testConfig === null).map(({ id, status, isForfeit, entryAId, entryBId }) => ({ id, status, isForfeit, entryAId, entryBId }))
+    : undefined;
   const selectedTeamId = options.teamId ?? scope.teamFilter;
   const baseMatches = matchRows.filter(isCompetitionMatch).filter(match => options.includeTestMatch || !match.testConfig);
   const scopedMatches = baseMatches.filter((match) => !selectedTeamId || [match.entryAId, match.entryBId].includes(selectedTeamId));
@@ -131,7 +134,7 @@ async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { 
     if (current.evidenceRevision !== buildEvidenceRevisionForTarget({ match, map, roster: rosterByMatchId.get(match.id) ?? [] })) return [];
     return [{ current, match, map }];
   });
-  return { entryRows, matches: scopedMatches, matchIds, entries, participantEntries, maps, scopedMaps, roster, rosterByMatchAndUser, currentRefs };
+  return { entryRows, matches: scopedMatches, matchIds, entries, participantEntries, maps, scopedMaps, roster, rosterByMatchAndUser, currentRefs, vetoMatches };
 }
 
 /** Select valid materialized bindings without transferring statistics or Evidence. */
@@ -184,7 +187,7 @@ export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: { seasonId?:
   return { currentImportIds: refs.map(({ current }) => current.id), roster: context.roster, matchIds: context.matchIds };
 }
 
-async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean } = {}) {
+async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean; reuseVetoMatches?: boolean } = {}) {
   if (!scope.view) return loadStatsEvidenceSelection(tx, scope, options,
     sql<typeof matchDemoStatProjections.$inferSelect.facts>`jsonb_build_object(
       'records', (${matchDemoStatProjections.facts}->'records') - 'events') || ${tournamentTransportSelection} || ${performanceTransportSelection}`);
@@ -406,8 +409,10 @@ function vetoActionSamples(rows: readonly { action: string; matchId: string }[])
   };
 }
 
-async function loadVetoData(tx: TxDb, scope: StatsEvidenceScope & { teamId?: string }, entries: Array<{ id: string; name: string }>, remap: (id: string) => string = (id) => id) {
-  const originalMatches = await tx.select({
+type VetoMatch = Pick<typeof matches.$inferSelect, "id" | "status" | "isForfeit" | "entryAId" | "entryBId">;
+
+async function loadVetoData(tx: TxDb, scope: StatsEvidenceScope & { teamId?: string }, entries: Array<{ id: string; name: string }>, remap: (id: string) => string = (id) => id, reusedMatches?: readonly VetoMatch[]) {
+  const originalMatches = reusedMatches ?? await tx.select({
     id: matches.id,
     status: matches.status,
     isForfeit: matches.isForfeit,
@@ -547,7 +552,7 @@ export async function getTournamentStats(scope: PlatformStatsScope, database: DB
       if (scope.seasonId && !ids.includes(scope.seasonId)) throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
       scope = { ...scope, seasonIds: ids };
     }
-    const original = await loadStatsEvidence(tx, scope);
+    const original = await loadStatsEvidence(tx, scope, { reuseVetoMatches: true });
     const platform = !scope.seasonId;
     const mapping = new Map(original.entryRows.map((row) => [row.id, platform && row.teamId ? row.teamId : row.id]));
     const remap = (id: string) => mapping.get(id) ?? id;
@@ -559,7 +564,7 @@ export async function getTournamentStats(scope: PlatformStatsScope, database: DB
       performance: needs("overview", "players", "teams", "weapons") || (scope.view === "maps" && scope.mapDetail) ? remapTournamentPerformanceMapProjection(row.facts.performance, { teamEntityKey: remap, playerEntityKey: (id) => id }) : row.facts.performance,
     } })) : original.selected;
     const loaded = { ...original, selected, entries, matches: original.matches.map((match) => ({ ...match, entryAId: remap(match.entryAId), entryBId: remap(match.entryBId) })), labels: { ...original.labels, teams: Object.fromEntries(entries.map((e) => [e.id, e.name])) } };
-    const veto = await loadVetoData(tx, scope, entries, remap);
+    const veto = await loadVetoData(tx, scope, entries, remap, original.vetoMatches);
     const unifiedPlayers = platform || scope.publicOnly;
     const leaderboard = (needs("overview", "players") || (!unifiedPlayers && needs("teams"))) ? await getStatsLeaderboard({ ...scope, matchIds: loaded.matchIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx, { groupByTeam: !unifiedPlayers }) : [];
     const teamScoreboard = unifiedPlayers && needs("overview", "teams") ? await getStatsLeaderboard({ ...scope, matchIds: loaded.matchIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx) : leaderboard;
