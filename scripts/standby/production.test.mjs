@@ -17,9 +17,9 @@ test("production package rejects environment crossover, changed build inputs and
   assert.doesNotThrow(() => assertProductionStandbyEnvironment(manifest, env));
   for (const changed of [
     { VERCEL_ENV: "preview" }, { RIVALHUB_DB_TARGET: "preview" },
-    { DATABASE_URL: env.DATABASE_URL.replace(PRODUCTION_PROJECT_REF, "zqslxewznmljfyboxhjg") },
+    { DATABASE_URL: env.DATABASE_URL.replace(PRODUCTION_PROJECT_REF, "dtdzxnzjtohzjmfkighg") },
     { DATABASE_URL: env.DATABASE_URL.replace(PRODUCTION_POOLER_HOST, "attacker.example") },
-    { NEXT_PUBLIC_SUPABASE_URL: "https://zqslxewznmljfyboxhjg.supabase.co" },
+    { NEXT_PUBLIC_SUPABASE_URL: "https://dtdzxnzjtohzjmfkighg.supabase.co" },
     { NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_changed" }, { NEXT_PUBLIC_APP_URL: "https://preview.example" },
     { SUPABASE_JWT_SECRET: "[SENSITIVE]" }, { ADMIN_SESSION_SECRET: "" }, { CRON_SECRET: "" },
     { HOSTNAME: "0.0.0.0" }, { PORT: "3031" }, { RIVALHUB_E2E_AUTH_BOOTSTRAP: "1" },
