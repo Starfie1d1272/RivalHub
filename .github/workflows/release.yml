@@ -557,7 +557,7 @@ jobs:
         env:
           LINUX_DEPLOY_SSH_KEY: ${{ secrets.LINUX_DEPLOY_SSH_KEY }}
           LINUX_DEPLOY_KNOWN_HOSTS: ${{ vars.LINUX_DEPLOY_KNOWN_HOSTS }}
-        run: node scripts/ci/timing.mjs "Linux deploy / smoke / rollback" -- pnpm exec tsx scripts/release/linux-routing.ts
+        run: node scripts/ci/timing.mjs "Linux deploy / smoke / rollback" --timeout-ms 600000 -- pnpm exec tsx scripts/release/linux-routing.ts
 
       - name: Restore immutable application checkout for post-deploy steps
         if: needs.preflight.outputs.release_operator_sha != needs.preflight.outputs.release_sha
