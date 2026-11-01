@@ -36,7 +36,7 @@ export default defineConfig({
     },
     {
       name: "mobile-chrome",
-      testIgnore: ["**/visual/**", "**/acceptance/**", "**/production/**", "**/education-manual-fallback.spec.ts", "**/team-invitations.spec.ts", "**/major-entry.spec.ts", "**/public-match-live.spec.ts", "**/event-logo.spec.ts", "**/major-qualification.spec.ts", "**/series-score-correction.spec.ts", "**/session-revocation.spec.ts", "**/test-matches.spec.ts", "**/platform-stats.spec.ts", "**/ocr-receipt-recovery.spec.ts", "**/admin-immediate-boundaries.spec.ts"],
+      testIgnore: ["**/visual/**", "**/acceptance/**", "**/production/**", "**/team-invitations.spec.ts", "**/major-entry.spec.ts", "**/public-match-live.spec.ts", "**/event-logo.spec.ts", "**/major-qualification.spec.ts", "**/series-score-correction.spec.ts", "**/session-revocation.spec.ts", "**/test-matches.spec.ts", "**/platform-stats.spec.ts", "**/ocr-receipt-recovery.spec.ts", "**/admin-immediate-boundaries.spec.ts"],
       use: {
         ...devices["Pixel 5"],
         channel: process.env.PLAYWRIGHT_CHANNEL === "chrome" ? "chrome" : undefined,

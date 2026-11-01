@@ -88,16 +88,6 @@ const SYSTEM_FLOW_MAP = [
     specs: ["tests/e2e/flows/major-entry.spec.ts", "tests/e2e/flows/session-revocation.spec.ts"],
   },
   {
-    prefixes: [
-      "src/lib/education/storage.ts",
-      "src/lib/education/commands.ts",
-      "src/actions/education-verifications.ts",
-      "src/components/settings/EducationVerificationPanel.tsx",
-      "src/app/settings/education",
-    ],
-    specs: ["tests/e2e/flows/education-manual-fallback.spec.ts"],
-  },
-  {
     prefixes: ["src/components/rivalhub/ListSearchField.tsx"],
     specs: [MOBILE_PUBLIC_EVENT_SEARCH_SPEC],
   },
