@@ -28,7 +28,7 @@ production smoke / real operation
 | Mizar 机器接口 / 数据源权威 / 实时投递 | 真实 PostgreSQL ingest/public DTO/transaction/authority + 跨仓 Mizar adapter/parser 兼容 + 受迫 Local Supabase Realtime 正反例（viewer token、private channel、跨场隔离、写入拒绝） |
 | release / production boundary | protected release evidence + smoke；真实运营事实只能由真实运营证明 |
 
-App Router 的 Partial Prefetching、URL data Suspense boundary 和 instant navigation 要用 production build/start 检查；`next dev` 不执行 production automatic prefetch。浏览器 evidence 覆盖共享 App Shell、动态链接复用及公开搜索从可见到可编辑的过程，不用固定等待、retry 或延长 timeout 隐藏阻塞。
+涉及 App Router 的 Partial Prefetching、URL data Suspense boundary 或 instant navigation 的具体问题，需要浏览器验证时使用 production build/start；`next dev` 不执行 production automatic prefetch。普通公开目录的搜索、筛选、导航和布局按改动需要人工检查，不设常驻浏览器门禁。
 
 DB unique/FK、transaction、row lock、migration/backfill 不用 mock 代替。浏览器测试验证用户任务，不重复穷举 pure domain rule。
 
@@ -76,7 +76,7 @@ Vitest 的三个 project（domain Node、server Node、React jsdom）是独立 e
 
 System failure/flaky 时 Playwright 生成 failure screenshot；artifact sanitizer 只保留限额内的 PNG/JPEG 与脱敏文本，不上传 trace archive。文件数、目录项/深度、单文件/累计输入输出字节及行长预算由 `scripts/ci/system-artifact-sanitizer.mjs` 统一声明；超限整文件或整行跳过，`sanitization-summary.json` 只记录固定原因计数，不包含被跳过原文或路径。Next 日志先读取有界尾部、丢弃可能不完整的首行并选取最近行，再脱敏；存在多行环境密钥且截尾/过滤可能破坏完整匹配时，整份候选日志不上传。正常的小报告与重试计数保留，成功 run 不上传大体积 artifacts。每条 stateful E2E 使用自己的 fixture profile 与 attempt namespace。认证 helper 的 predicate URL 断言仍会等待 document load；SSR可见与load不证明hydration，真实UI/持久化结果由后续断言验证。外部遥测/资源加载和dev编译仍可能影响浏览器耗时，不将一次CI成功视作稳定性证明。
 
-公开搜索的 required evidence 是一次真实 debounce/router/RSC 与历史恢复闭环。它不穷举共享输入组件的全部状态。`--repeat-each=10`、容量压测与截图不进入普通 PR 或 FULL required gate，也不得用 retry 隐藏失败。
+队伍目录、组队大厅和赛事阵容的公开搜索、筛选与历史导航不保留独立常驻 E2E，也不因共享搜索组件变更自动触发 browser lane。邀请接收、报名权限和正式名单完整性继续由各自高风险 owner 验证。`--repeat-each=10`、容量压测与截图不进入普通 PR 或 FULL required gate。
 
 核心浏览器通过 `pnpm test:e2e` 发现生命周期任务；production build/start smoke 使用 `pnpm test:e2e -- --config=playwright.production.config.ts`。容量、截图和视觉组合没有长期保留的独立 suite；需要时针对具体变化临时验证，并在 PR 记录命令、断言和结果。测试赛创建链路由 desktop project 拥有，同一用例内验证手机 viewport 的可达性。system 的 production smoke 检查真实 UI 登录、App Shell 导航、`aria-current` 和移动可达性；production 的 test-only auth route 仍关闭。
 

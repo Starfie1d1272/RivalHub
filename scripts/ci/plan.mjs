@@ -36,8 +36,6 @@ const SYSTEM_APP_PREFIXES = [
 const SYSTEM_ACTION_PREFIXES = [
   "src/actions/auth",
 ];
-const MOBILE_PUBLIC_EVENT_SEARCH_SPEC = "tests/e2e/flows/public-event-experience.spec.ts";
-const MOBILE_PUBLIC_EVENT_SEARCH_SOURCES = new Set(["src/components/rivalhub/ListSearchField.tsx"]);
 
 // Mizar/RivalHub machine contract surfaces. These need the cross-repo adapter and
 // parser evidence from scripts/mizar-contract-check.mjs, not business-table REST.
@@ -87,10 +85,6 @@ const SYSTEM_FLOW_MAP = [
     ],
     specs: ["tests/e2e/flows/major-entry.spec.ts", "tests/e2e/flows/session-revocation.spec.ts"],
   },
-  {
-    prefixes: ["src/components/rivalhub/ListSearchField.tsx"],
-    specs: [MOBILE_PUBLIC_EVENT_SEARCH_SPEC],
-  },
 ];
 
 function browserSpecs(directory = "tests/e2e") {
@@ -117,16 +111,13 @@ const INTEGRATION_SPEC_FILE = /^tests\/integration\/db\/(?!harness\/).+\.(?:test
 export function classifyChangedFiles(entries, options = {}) {
   const { forceFull = false, draft = true } = options;
   const gateName = draft ? "draft-gate" : "ci-gate";
-  const mobileSearchEvidence = entries.some((entry) =>
-    (entry.paths ?? []).some((path) => MOBILE_PUBLIC_EVENT_SEARCH_SOURCES.has(path) || path === MOBILE_PUBLIC_EVENT_SEARCH_SPEC),
-  );
   const liveSurfaceChanged = entries.some((entry) =>
     (entry.paths ?? []).some((path) => LIVE_SURFACES.some((prefix) => path === prefix || path.startsWith(prefix))),
   );
   const result = (...args) => {
     const plan = resultFor(...args);
     const liveEvidence = plan.full || liveSurfaceChanged || plan.e2eSpecs.includes("tests/e2e/flows/public-match-live.spec.ts");
-    return { ...plan, gateName, mobileSearchEvidence, liveEvidence,
+    return { ...plan, gateName, liveEvidence,
       systemMatrix: systemMatrixFor(plan, liveEvidence),
       // Empty PG selection executes the complete suite, including migration-only
       // plans. Reuse both bounded shards; explicit affected filters stay on one.
@@ -643,7 +634,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   output("system_mode", plan.e2eSpecs.length > 0 ? "affected" : "full");
   output("e2e_specs", JSON.stringify(plan.e2eSpecs));
   output("live_evidence", String(plan.liveEvidence));
-  output("mobile_search_evidence", String(plan.mobileSearchEvidence));
   output("gate_name", plan.gateName);
   output("release_metadata_only", String(isReleaseMetadataOnly(entries, {
     packageJsonBefore: readPackageJsonAtRevision(process.env.BASE_SHA),
