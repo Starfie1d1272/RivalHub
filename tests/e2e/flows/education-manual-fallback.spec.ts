@@ -2,6 +2,7 @@ import type { BrowserContext } from "@playwright/test";
 import { expect, signInProgrammatically, test } from "../fixtures";
 
 test.use({ scenarioProfile: "education" });
+const evidencePng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2foAAAAASUVORK5CYII=", "base64");
 
 test("新生可以提交录取通知书并由 super admin 查看后审核", async ({ browser, page, scenario }) => {
   const player = scenario.accounts.find((account) => account.key === "player1");
@@ -30,7 +31,7 @@ test("新生可以提交录取通知书并由 super admin 查看后审核", asyn
       await page.locator("#admission-notice-file").setInputFiles({
         name: "original-private-name.pdf",
         mimeType: "image/png",
-        buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        buffer: evidencePng,
       });
       await page.getByRole("button", { name: "提交录取通知书" }).click();
       await expect(page.getByText("教育认证已提交，等待管理员审核。", { exact: true })).toBeVisible();
@@ -39,7 +40,7 @@ test("新生可以提交录取通知书并由 super admin 查看后审核", asyn
     adminContext = await browser.newContext();
     const adminPage = await adminContext.newPage();
     await stage("超管登录并读取待审核申请", async () => {
-      await signInProgrammatically(adminPage, admin, scenario, "/admin");
+      await signInProgrammatically(adminPage, admin, scenario, "/admin/education-verifications");
       await adminPage.goto(`/admin/education-verifications?status=all&q=${playerSearch}`);
       await expect(adminPage.getByText("材料：录取通知书材料", { exact: true })).toBeVisible();
     });
@@ -53,7 +54,9 @@ test("新生可以提交录取通知书并由 super admin 查看后审核", asyn
         adminContext!.waitForEvent("page"),
         viewEvidence.click(),
       ]);
-      await evidencePage.waitForURL(/education-evidence/);
+      await evidencePage.waitForURL(/\/storage\/v1\/object\/sign\/education-evidence\//, { waitUntil: "domcontentloaded" });
+      await expect(evidencePage.locator("img")).toHaveJSProperty("naturalWidth", 1);
+      await expect(evidencePage.locator("img")).toHaveJSProperty("naturalHeight", 1);
       await evidencePage.close();
     });
 
