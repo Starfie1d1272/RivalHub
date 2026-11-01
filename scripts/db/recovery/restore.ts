@@ -1,4 +1,3 @@
-import { startRecoveryRecord, recordDataVerification } from "./readiness";
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -50,7 +49,6 @@ interface RestoreArguments {
   manifestPath: string;
   completionPath: string;
   mode: RestoreMode;
-  recordPath: string;
 }
 
 async function main(): Promise<void> {
@@ -82,22 +80,18 @@ async function main(): Promise<void> {
         throw new Error("db-checkpoint artifact 不能由 full recovery restore 恢复；请使用 db:recovery:restore-db-checkpoint。 ");
       }
       const target = readRecoveryTarget();
-      const run = startRecoveryRecord(args.recordPath, manifest, sidecar, target.databaseUrl, await readTargetInstance(target.databaseUrl), target.supabase.apiUrl);
       await restoreFullArtifact(target, manifest, stagingRoot, tempRoot);
-      recordDataVerification(args.recordPath, run);
     } else {
       if (isFullRecoveryManifest(manifest)) {
         throw new Error("full recovery artifact 不能由 DB-only restore 恢复；请使用 db:recovery:restore。 ");
       }
       const target = buildIsolatedRecoveryDatabaseEnvironment(process.env);
-      const run = startRecoveryRecord(args.recordPath, manifest, sidecar, target.databaseUrl, await readTargetInstance(target.databaseUrl));
       await restoreDbCheckpointArtifact(
         target,
         manifest,
         stagingRoot,
         tempRoot,
       );
-      recordDataVerification(args.recordPath, run);
     }
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
@@ -110,7 +104,7 @@ function parseArguments(args: readonly string[]): RestoreArguments {
     const name = args[index];
     const value = args[index + 1];
     if (!name?.startsWith("--") || !value || value.startsWith("--")) {
-      throw new Error("用法：tsx scripts/db/recovery/restore.ts --artifact <file.age> --manifest <file.manifest.json> --completion <file.complete.json> --record <new-file.jsonl>");
+      throw new Error("用法：tsx scripts/db/recovery/restore.ts --artifact <file.age> --manifest <file.manifest.json> --completion <file.complete.json>");
     }
     values.set(name.slice(2), value);
     index += 1;
@@ -119,7 +113,6 @@ function parseArguments(args: readonly string[]): RestoreArguments {
   const modeValue = values.get("mode");
   return {
     artifactPath,
-    recordPath: required(values.get("record"), "--record"),
     manifestPath: required(values.get("manifest"), "--manifest"),
     completionPath: required(values.get("completion"), "--completion"),
     mode: modeValue === undefined ? "full" : parseRestoreMode(modeValue),
@@ -221,20 +214,6 @@ async function restoreDbCheckpointArtifact(
     console.log(
       `Isolated DB-only recovery restore verified: run=${manifest.runId}, migration=${manifest.source.databaseMigrationTerminal.terminalTag}, storage=not-captured, invariants=${verification.invariantCount}, foreignKeys=${verification.foreignKeyCount}.`,
     );
-  } finally {
-    await pool.end();
-  }
-}
-
-async function readTargetInstance(databaseUrl: string): Promise<string> {
-  const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 1 });
-  try {
-    const result = await pool.query<{ system_identifier: string; database_oid: string }>(
-      "SELECT system_identifier::text, (SELECT oid::text FROM pg_database WHERE datname = current_database()) AS database_oid FROM pg_control_system()",
-    );
-    const row = result.rows[0];
-    if (!row?.system_identifier || !row.database_oid) throw new Error("Recovery target identity unavailable; restore aborted.");
-    return `${row.system_identifier}:${row.database_oid}`;
   } finally {
     await pool.end();
   }

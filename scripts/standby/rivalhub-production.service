@@ -14,7 +14,7 @@ StateDirectory=rivalhub-production/db-traffic
 StateDirectoryMode=0700
 Environment=DB_TRAFFIC_SPOOL_DIRECTORY=/var/lib/rivalhub-production/db-traffic
 EnvironmentFile=/etc/rivalhub-production/production.env
-ExecStart=/opt/rivalhub-production/current/runtime/node /opt/rivalhub-production/host/production-launcher.mjs
+ExecStart=/opt/rivalhub-production/current/runtime/node /opt/rivalhub-production/current/scripts/standby/start-production.mjs
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=30

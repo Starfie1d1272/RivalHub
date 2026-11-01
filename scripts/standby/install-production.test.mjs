@@ -22,7 +22,6 @@ test('host promotion, failed restart recovery, immutable retry and explicit roll
       .replaceAll('/etc/systemd/system/rivalhub-production.service', unit).replaceAll('/etc/rivalhub-production', dirname(config));
     writeFileSync(join(dir, 'install-production.sh'), installer);
     for (const file of ['production-host.mjs', 'rivalhub-production.service', 'layers.mjs']) writeFileSync(join(dir, file), readFileSync(join(source, file)));
-    writeFileSync(join(dir, 'production-launcher.mjs'), readFileSync(join(source, 'production-launcher.mjs'), 'utf8').replaceAll('/opt/rivalhub-production', root));
     // DB owner is exercised separately against PostgreSQL. This host fixture
     // records ordering and injects drain failures without touching a real host.
     writeFileSync(join(dir, 'production-quiescence.mjs'), String.raw`
@@ -63,7 +62,7 @@ const cmd = path.basename(process.argv[1]), args = process.argv.slice(2), dir = 
 if (cmd === 'id') { if (args[0] === '-u') console.log('0'); }
 else if (cmd === 'flock') { if(fs.existsSync(dir + '/locked')) process.exit(1); }
 else if (['chown','sleep'].includes(cmd)) {}
-else if (cmd === 'systemctl') { fs.appendFileSync(dir + '/events', args[0] + '\\n'); if(args[0] === 'stop' && fs.existsSync(dir + '/fail-stop')) process.exit(1); if(args[0] === 'restart' && fs.existsSync(dir + '/hold-on-failure')) { fs.mkdirSync(${JSON.stringify(join(root, 'recovery-hold'))}); process.exit(1); } if(args[0] === 'restart' && fs.existsSync(dir + '/fail')) {fs.unlinkSync(dir + '/fail'); process.exit(1);} }
+else if (cmd === 'systemctl') { fs.appendFileSync(dir + '/events', args[0] + '\\n'); if(args[0] === 'stop' && fs.existsSync(dir + '/fail-stop')) process.exit(1); if(args[0] === 'restart' && fs.existsSync(dir + '/fail')) {fs.unlinkSync(dir + '/fail'); process.exit(1);} }
 else if (cmd === 'curl') { if(fs.existsSync(dir + '/old-offline') && fs.readFileSync(config,'utf8').includes('RIVALHUB_RELEASE_TAG=v1.0.0')) process.exit(7); if(fs.existsSync(dir + '/fail-health') && fs.readFileSync(config,'utf8').includes('RIVALHUB_RELEASE_TAG=v1.0.1')) process.exit(22); if(args.at(-1).endsWith('/api/system/release')) {const env = fs.readFileSync(config, 'utf8'); const get = k => env.match(new RegExp('^'+k+'=(.*)$','m'))[1]; console.log(JSON.stringify({releaseTag:get('RIVALHUB_RELEASE_TAG'),releaseCommit:get('RIVALHUB_RELEASE_COMMIT')}));} }
 else if (cmd === 'mv') {fs.renameSync(args.at(-2), args.at(-1));}
 else if (cmd === 'sha256sum') { const crypto = require('crypto'); if(args[0] === '-c') {const [hash, file] = fs.readFileSync(args[1],'utf8').trim().split(/\\s+/); if(crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex') !== hash) process.exit(1);} else console.log(crypto.createHash('sha256').update(fs.readFileSync(args[0])).digest('hex')+'  '+args[0]);}
@@ -93,7 +92,7 @@ else throw Error(cmd);
     result = run(deployArgs);
     assert.equal(result.status, 1, result.stderr);
     assert.equal(readFileSync(config, 'utf8'), oldEnv);
-    assert.match(readFileSync(unit, 'utf8'), /host\/production-launcher.mjs/);
+    assert.equal(readFileSync(unit, 'utf8'), 'old service');
     assert.match(result.stderr, /previous state restored/);
     assert.match(readFileSync(join(dir, 'events'), 'utf8'), /stop\ndrain [^\n]+\ndaemon-reload\nreset-failed\nrestart\nstop\ndrain [^\n]+\ndaemon-reload\nreset-failed\nstart/);
     assert.ok(!result.stderr.includes('never-print-me'));
@@ -247,81 +246,18 @@ else throw Error(cmd);
       assert.throws(() => packageLayers(candidate, incoming, metadata));
       rmSync(join(candidate, 'node_modules/escape'));
     }
-    // A newly observed hold blocks automatic failure recovery before restart.
-    writeFileSync(join(dir, 'events'), '');
-    writeFileSync(join(dir, 'hold-on-failure'), '');
+    // Stop failure preserves the current release and its service configuration.
+    writeFileSync(join(dir, 'fail-stop'), '');
+    const beforeStopFailure = readFileSync(unit, 'utf8');
     result = run(deployArgs);
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /ROLLBACK FAILED/);
-    assert.ok(!readFileSync(join(dir, 'events'), 'utf8').split('\n').includes('start'));
-    rmSync(join(dir, 'hold-on-failure'));
-    rmSync(join(root, 'recovery-hold'), { recursive: true });
-    // Restore the isolated fixture for the following begin scenario.
-    writeFileSync(config, oldEnv);
-    rmSync(join(root, 'current'));
-    symlinkSync(`releases/${name(old)}`, join(root, 'current'));
+    assert.match(result.stderr, /service state is unknown/);
+    assert.equal(readFileSync(unit, 'utf8'), beforeStopFailure);
+    assert.equal(readFileSync(config, 'utf8'), oldEnv);
+    rmSync(join(dir, 'fail-stop'));
     writeFileSync(join(rebuiltRelease, 'standby.json'), '{}');
     assert.equal(run(deployArgs).status, 1);
     assert.equal(readFileSync(config, 'utf8'), oldEnv);
-    // A registered recovery blocks every host entrypoint, including an old release.
-    writeFileSync(join(dir, 'events'), '');
-    const recoveryRun = '12345678-1234-1234-1234-123456789abc';
-    result = run(['--recovery-begin', recoveryRun, 'a'.repeat(64), 'b'.repeat(64)]);
-    assert.equal(result.status, 0, result.stderr);
-    const hold = join(root, 'recovery-hold');
-    const record = JSON.parse(readFileSync(join(hold, 'record.json'), 'utf8'));
-    assert.equal(record.run, recoveryRun);
-    assert.equal(record.artifact, 'a'.repeat(64));
-    assert.equal(record.target, 'b'.repeat(64));
-    assert.match(record.generation, /^[a-f0-9-]{36}$/);
-    assert.match(readFileSync(join(dir, 'events'), 'utf8'), /stop\ndrain /);
-    assert.equal(run(deployArgs).status, 1);
-    assert.equal(run(rollback).status, 1);
-    assert.equal(run(['--recovery-begin', recoveryRun, 'a'.repeat(64), 'b'.repeat(64)]).status, 1);
-    assert.equal(run(['--recovery-promote', recoveryRun, record.generation, 'a'.repeat(64), 'b'.repeat(64)]).status, 1);
-    const launch = () => spawnSync(process.execPath, [join(root, 'host/production-launcher.mjs')], { encoding: 'utf8' });
-    assert.match(launch().stderr, /Recovery hold present/);
-    rmSync(join(hold, 'record.json'));
-    assert.match(launch().stderr, /Recovery hold present/);
-    assert.equal(run(deployArgs).status, 1);
-    rmSync(hold, { recursive: true });
-    writeFileSync(hold, 'corrupt');
-    assert.match(launch().stderr, /Recovery hold present/);
-    assert.equal(run(rollback).status, 1);
-    rmSync(hold);
-    mkdirSync(join(previous, 'scripts/standby'), { recursive: true });
-    writeFileSync(join(previous, 'scripts/standby/start-production.mjs'), `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(join(dir, 'launched'))}, 'yes');`);
-    assert.equal(launch().status, 0, launch().stderr);
-    assert.ok(existsSync(join(dir, 'launched')));
-    // stop failure is unknown, not a claim that the process stopped.
-    writeFileSync(join(dir, 'fail-stop'), '');
-    result = run(['--recovery-begin', recoveryRun, 'a'.repeat(64), 'b'.repeat(64)]);
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /service state is unknown/);
-    assert.match(result.stderr, /target changes are prohibited/);
-    assert.match(launch().stderr, /Recovery hold present/);
-    rmSync(join(dir, 'fail-stop'));
-    rmSync(hold, { recursive: true });
-    // Simulate process loss immediately after the durable record, before stop.
-    const installerPath = join(dir, 'install-production.sh');
-    const originalInstaller = readFileSync(installerPath, 'utf8');
-    writeFileSync(installerPath, originalInstaller.replace('  if quiesce; then\n    :', '  exit 91\n  if quiesce; then\n    :'));
-    writeFileSync(join(dir, 'events'), '');
-    result = run(['--recovery-begin', recoveryRun, 'a'.repeat(64), 'b'.repeat(64)]);
-    assert.equal(result.status, 91);
-    assert.ok(!readFileSync(join(dir, 'events'), 'utf8').split('\n').includes('stop'));
-    assert.ok(existsSync(join(hold, 'record.json')));
-    assert.match(launch().stderr, /Recovery hold present/);
-    assert.equal(run(deployArgs).status, 1);
-    writeFileSync(installerPath, originalInstaller);
-    rmSync(hold, { recursive: true });
-    writeFileSync(join(dir, 'fail-drain'), '');
-    result = run(['--recovery-begin', recoveryRun, 'a'.repeat(64), 'b'.repeat(64)]);
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /hold retained/);
-    assert.match(launch().stderr, /Recovery hold present/);
-    rmSync(join(dir, 'fail-drain'));
-    rmSync(hold, { recursive: true });
     writeFileSync(join(dir, 'locked'), '');
     assert.match(run(deployArgs).stderr, /Another production operation/);
     assert.ok(existsSync(snapshot));

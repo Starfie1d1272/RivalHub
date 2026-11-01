@@ -42,31 +42,12 @@ quiesce() {
       "$script_dir/production-quiescence.mjs" "$root/$active" "$script_dir/postgres-connection.ts" || return 1
   fi
 }
-install_host_guard() {
-  [[ -f $script_dir/production-launcher.mjs && -f $script_dir/rivalhub-production.service ]] || return 1
-  install -d -m 755 "$root/host"
-  install -m 644 "$script_dir/production-launcher.mjs" "$root/host/production-launcher.mjs.next"
-  mv -Tf "$root/host/production-launcher.mjs.next" "$root/host/production-launcher.mjs"
-  install -m 644 "$script_dir/rivalhub-production.service" "$root/host/service.next"
-  mv -Tf "$root/host/service.next" "$root/host/service"
-  install -m 644 "$root/host/service" "$unit"
-  systemctl daemon-reload
-}
-assert_no_recovery_hold() {
-  # Any file, directory, symlink or unreadable state at this path blocks.
-  [[ ! -e "$root/recovery-hold" && ! -L "$root/recovery-hold" ]] || {
-    echo 'Recovery hold present or invalid; production operation blocked.' >&2; return 1;
-  }
-}
-
 restore() {
   # Also drain a failed/new candidate before allowing the old writer to start.
-  assert_no_recovery_hold || return 1
   quiesce || return 1
-  assert_no_recovery_hold || return 1
   if [[ -n $previous ]]; then
     cp -p "$snapshot/production.env" "$config" || return 1
-    install -m 644 "$root/host/service" "$unit" || return 1
+    cp -p "$snapshot/service" "$unit" || return 1
     ln -sfn "$previous" "$root/current.rollback" || return 1
     mv -Tf "$root/current.rollback" "$root/current" || return 1
     systemctl daemon-reload && systemctl reset-failed rivalhub-production && systemctl start rivalhub-production || return 1
@@ -84,53 +65,6 @@ failed() {
   else echo "ROLLBACK FAILED; manual recovery required: $snapshot" >&2; fi
   exit 1
 }
-if [[ ${1:-} == --recovery-begin ]]; then
-  [[ $# == 4 && $2 =~ ^[a-f0-9-]{36}$ && $3 =~ ^[a-f0-9]{64}$ && $4 =~ ^[a-f0-9]{64}$ ]] || { echo 'Usage: --recovery-begin RUN_UUID ARTIFACT_SHA256 TARGET_SHA256' >&2; exit 1; }
-  assert_no_recovery_hold
-  active=$(readlink "$root/current" || true)
-  [[ $active == releases/rivalhub-production-* && -x $root/$active/runtime/node && -f $config && -f $unit ]] || { echo 'Existing managed production instance required.' >&2; exit 1; }
-  install_host_guard
-  # Atomic mkdir is the durable fail-closed state, even if recording or drain fails.
-  mkdir -m 755 "$root/recovery-hold"
-  "$root/$active/runtime/node" --input-type=module - "$root/recovery-hold/record.json" "$2" "$3" "$4" <<'JS'
-import { writeFileSync, openSync, fsyncSync, closeSync } from 'node:fs';
-import { dirname } from 'node:path';
-import { randomUUID } from 'node:crypto';
-const [path, run, artifact, target] = process.argv.slice(2);
-writeFileSync(path, JSON.stringify({version: 1, run, artifact, target, generation: randomUUID(), state: 'held'}) + '\n', {flag: 'wx', mode: 0o644});
-for (const entry of [path, dirname(path), dirname(dirname(path))]) { const fd = openSync(entry, 'r'); try { fsyncSync(fd); } finally { closeSync(fd); } }
-JS
-  if quiesce; then
-    :
-  else
-    result=$?
-    if [[ $result == 2 ]]; then
-      echo 'Recovery service stop not confirmed; service state is unknown. Hold retained; target changes are prohibited.' >&2
-    else
-      echo 'Recovery writer drain failed after service stop; hold retained; target changes are prohibited.' >&2
-    fi
-    exit 1
-  fi
-  echo 'Recovery hold registered and writers drained; traffic remains blocked.'
-  exit 0
-fi
-if [[ ${1:-} == --recovery-promote ]]; then
-  [[ $# == 5 ]] || { echo 'Usage: --recovery-promote RUN GENERATION ARTIFACT_SHA256 TARGET_SHA256' >&2; exit 1; }
-  active=$(readlink "$root/current" || true)
-  [[ $active == releases/rivalhub-production-* && -x $root/$active/runtime/node ]] || exit 1
-  "$root/$active/runtime/node" --input-type=module - "$root/recovery-hold/record.json" "$2" "$3" "$4" "$5" <<'JS'
-import { readFileSync } from 'node:fs';
-let record;
-try { record = JSON.parse(readFileSync(process.argv[2], 'utf8')); } catch { throw new Error('Recovery hold missing or invalid.'); }
-const [run, generation, artifact, target] = process.argv.slice(3);
-if (record.version !== 1 || record.state !== 'held' || record.run !== run || record.generation !== generation || record.artifact !== artifact || record.target !== target) {
-  throw new Error('Recovery hold identity mismatch.');
-}
-throw new Error('Recovery promotion blocked: independent owner and provider reconciliation is not implemented (#904).');
-JS
-  exit 1
-fi
-assert_no_recovery_hold
 if [[ ${1:-} == --rollback ]]; then
   [[ $# == 5 ]] || { echo 'Usage: --rollback TAG SHA PREVIOUS_TAG PREVIOUS_SHA' >&2; exit 1; }
   # A failed preflight has no matching transaction to restore.
@@ -150,7 +84,6 @@ if [[ ${1:-} == --rollback ]]; then
   candidate=$(cat "$snapshot/candidate-release")
   current=$(readlink "$root/current")
   [[ $current == "$candidate" || $current == "$previous" ]] || { echo 'Current release changed; refusing stale rollback.' >&2; exit 1; }
-  install_host_guard
   restore || { echo "ROLLBACK FAILED: $snapshot" >&2; exit 1; }
   echo "Previous release restored: $previous_tag $previous_sha"
   exit 0
@@ -227,7 +160,6 @@ chmod -R o-rwx "$release"
 chown -R root:rivalhub-production "$release"
 mkdir -p "$release/.next/cache" "$release/.next/server/route-cache"
 chown -R rivalhub-production:rivalhub-production "$release/.next/cache" "$release/.next/server/route-cache"
-install_host_guard
 # Persist recovery evidence before the first mutation, including interrupted SSH sessions.
 printf '%s\n' "$snapshot" > "$root/previous-snapshot.next"
 mv -Tf "$root/previous-snapshot.next" "$root/previous-snapshot"
@@ -246,7 +178,7 @@ else
 fi
 trap failed ERR HUP INT TERM
 install -m 600 "$snapshot/candidate.env" "$config"
-install -m 644 "$root/host/service" "$unit"
+install -m 644 "$script_dir/rivalhub-production.service" "$unit"
 ln -sfn "releases/$release_name" "$root/current.next"
 mv -Tf "$root/current.next" "$root/current"
 systemctl daemon-reload

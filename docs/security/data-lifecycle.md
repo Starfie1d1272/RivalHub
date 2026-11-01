@@ -63,11 +63,11 @@
 | Durable public Storage | registry 的 durable bucket 为 always；普通 DB dump 不包含 Storage 对象 | 完整 snapshot、bucket/policy 与对象校验；DB-only checkpoint 不能冒称 Storage backup |
 | Encrypted recovery R2 | [R2 owner](../../scripts/db/recovery/r2-config.ts) 定义三十天 lifecycle/lock/private access | 需实际 rule/lock/domain read-back；代码/verify 不能代替其它 provider backup 的保留事实 |
 | Supabase physical backup/PITR | provider plan 决定，仓库不能推出具体天数 | provider owner 记录 plan、能力、窗口、核验时间；不以 R2 三十天替代 Supabase 事实 |
-| Session/机器授权/身份撤销 | 旧 snapshot 可能恢复旧 revocation fence/installation；时间过期检查不找回 snapshot 之后丢失的撤销事实 | 发布流量前核对外部已知撤销与权限；普遍使恢复前凭据失效的机制需 recovery/auth owner 独立实现和验证。教育清理不是通用防复活能力 |
+| Session/机器授权/身份撤销 | 旧 snapshot 可能恢复旧 revocation fence/installation；时间过期检查不找回 snapshot 之后丢失的撤销事实 | 恢复后由维护者根据已知变更重新处理账号、会话和设备撤销，核对管理员权限与身份归并；接受备份窗口内变更丢失风险，操作顺序见灾难恢复 runbook |
 | Cache/scheduler health/telemetry | DB snapshot 可能含旧 projection；外部 telemetry 不是 application restore input | 统计按 reducer/version 重建，健康重新观测，cache 由原 owner 失效，telemetry 由 provider 管理，不向业务 DB 导入 |
 | Vault、环境/provider secret | canonical 恢复不复制 Vault/root encryption/provider config secret | 冷启动由 provider owner 单独重建并验证 presence；Auth/schema 中受保护的 verifier/credential 数据按对应备份类别处理，不从文档重建 secret |
 
-恢复先在隔离目标验证，scheduler 最后 provision。尚未定义删除策略的自由文本/个人资料不能借恢复随意 purge；缺 tombstone 或 snapshot 后撤销事实的类别应明确作为恢复能力缺口处理。
+恢复先在隔离目标验证，scheduler 最后 provision。尚未定义删除策略的自由文本/个人资料不能借恢复随意 purge；快照之后的权限变更按灾难恢复 runbook 人工重新处理。
 
 ## 社区奖名单与核验
 
@@ -87,7 +87,6 @@ A 为已有 contract/自动证据；B 为 contract 已定但当前 provider 配�
 - A：敏感对象 active-reference-only、未知 bucket 拒绝；实现由 [对象恢复 owner](../../scripts/db/recovery/storage.ts) 与 [Storage policy](../../scripts/db/recovery/storage-policy.ts) 承接。实现引用不代表隔离恢复验收；已退役的访问/恢复单测及其覆盖缺口见 [测试清理记录](../archive/testing-retention-2026-10-12/files.csv)，不能声称逐断言等价替代。R2 当前配置仍需原 verify 的真实 read-back。
 - B：服务 journal retention、Supabase physical backup/PITR plan 的当前配置，由执行 Issue 记录授权与低敏回读证据。
 - C：resolved feedback、abandoned pending evidence、草稿/旧联系方式、raw Demo/receipt 的物理删除期限；账号删除后的 provenance/官方历史匿名化范围。
-- C：旧备份中的账号/session/机器撤销与删除事件的恢复失效范围，需 recovery/auth owner 独立的可验收机制。
 - D 修复保留正式结论/历史：教育物理清理延迟不再允许新的到期证据读取/签名，删除仍只有原 retention owner。
 
 本页不授权生产 purge，不宣称通用账号删除或所有 provider 的实时 retention 已验收。

@@ -177,8 +177,7 @@ full restore 必须运行在 exact shipped tag 的兼容 application release；�
 pnpm db:recovery:restore \
   --artifact /private/path/new-recovery-run/artifact.tar.gz.age \
   --manifest /private/path/new-recovery-run/sidecar.json \
-  --completion /private/path/new-recovery-run/completion.json \
-  --record /private/path/new-restore-record.jsonl
+  --completion /private/path/new-recovery-run/completion.json
 ```
 
 上面的 `db:recovery:restore` 是 full recovery restore，只接受 `artifactKind=full`，要求 isolated Supabase API/Storage target。DB-only checkpoint 使用下面的显式入口；它只接受 `artifactKind=db-checkpoint`，只要求 isolated PostgreSQL target，不读取或写入 Supabase Storage：
@@ -187,19 +186,14 @@ pnpm db:recovery:restore \
 pnpm db:recovery:restore-db-checkpoint \
   --artifact /private/path/new-recovery-run/artifact.tar.gz.age \
   --manifest /private/path/new-recovery-run/sidecar.json \
-  --completion /private/path/new-recovery-run/completion.json \
-  --record /private/path/new-restore-record.jsonl
+  --completion /private/path/new-recovery-run/completion.json
 ```
 
-每次恢复必须提供全新 `--record` 路径。记录在目标写入前独占创建，绑定新的恢复 run、快照 run、artifact hash、目标 endpoint 与 PostgreSQL system identifier/database OID 指纹及 migration terminal；成功后追加数据验证事件。失败或中断留下 started 记录，不得复用；复制整个 PostgreSQL cluster 可能保留 system identifier，不能单凭指纹证明实例未被替换。记录须保存在快照之外的受保护位置，不能作为当前撤销事实。
+### 历史备份恢复后的权限处理
 
-`pnpm db:recovery:readiness` 仍只是始终拒绝的占位检查，不能控制外部 provider 切流：full 与 DB-only 校验都只是数据验证，provider 状态、对账覆盖水位以及独立于快照的当前撤销和角色事实均未实现。更换目标、重复恢复或证据缺失时不得沿用旧记录。切流仍由现有 protected owner 控制，必须保留 #1101 的写者排空与现有 exact migration-prefix；此命令不修改网络或代替这些门禁。
+项目接受日常备份窗口内的数据和权限变更丢失风险。正常备份成功时 RPO 目标为 24 小时；实际损失窗口以最近一次可用备份的时间为准。恢复历史备份后，由维护者根据已知变更重新禁用账号、撤销会话或设备授权，并核对管理员权限和身份归并。使用现有管理能力处理，不建设快照外撤销账本、自动对账或恢复放行状态机。
 
-受管 Linux 恢复在任何目标变更前由主机 owner 在受保护维护窗口调用 `install-production.sh --recovery-begin <run-uuid> <artifact-sha256> <target-sha256>`。它持有现有部署锁，先安装固定主机路径的启动入口，再创建独立于数据库和应用版本的 hold，停止服务并执行 #1101 写者排空。只有命令成功且独立写者均已停用时才能开始目标操作；失败或中断保持 hold，不得操作目标或恢复服务。`systemctl stop` 失败或在 stop 前中断时，旧进程状态未知，必须确认停服并完成排空后才能继续；hold 会阻止后续启动，但不会自行终止已运行进程。target hash 由 owner 按受保护的目标核验流程固定，单独声明的 hash 不证明目标实例或对账事实。记录中的 generation 每次重新生成；再次 begin 不得覆盖 hold。
-
-正常 install、显式 rollback、失败恢复和 systemd 启动均受主机 hold 阻断；无 hold 的既有数据库普通发布继续沿用现有流程。`--recovery-promote <run> <generation> <artifact-sha256> <target-sha256>` 核对登记身份后仍一律拒绝，因为 owner 与 provider 证据尚未实现；没有 force 或手动 ready 状态。hold 缺失或损坏时不能作为允许恢复的证据。切勿手动删除 hold 来放流；当前没有自动解除路径。必须先在受管主机安装包含稳定入口的版本，再依照此流程登记；旧版安装脚本或站外手工 provider restore 不在本保证内，不能使用它们绕过门禁。仓库修改本身不会配置生产主机。
-
-后续验收接口须由现有 Auth/session、Mizar/DAK 配对、邀请及身份/角色各 owner 提供独立于快照的当前撤销和权威事实，对同一恢复 run、artifact、目标实例及 terminal 证明覆盖至明确水位，并验证 provider 状态；所有 owner 均需完成后才能设计放行。旧账号可能重新登录，清 session 或更换 cookie secret 不能替代对账。本批没有实现这些证明，#904 保持开放。
+恢复在维护窗口内执行：停用应用及独立写者，验证恢复数据与 provider 配置，完成上述人工权限处理，再恢复服务和 scheduler。普通隔离恢复命令仍只接受 isolated target；生产切流按对应操作流程执行。计划迁库使用停写后的最终数据并对账，见 [迁库 SOP](./supabase-relocation.md)。
 
 顺序固定为：
 
