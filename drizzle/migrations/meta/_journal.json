@@ -729,6 +729,13 @@
       "when": 1793247502882,
       "tag": "0103_restore_realtime_after_relocation",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1793512323917,
+      "tag": "0104_supabase_relocation_nju_2",
+      "breakpoints": true
     }
   ]
 }

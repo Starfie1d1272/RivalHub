@@ -195,7 +195,7 @@ async function exportPublicAssets(tables: MirrorSnapshot["tables"], allowlistedS
   const secret = process.env.SUPABASE_SECRET_KEY;
   if (!secret) return [];
   if (accounting) accounting.storage_download_bytes = 0;
-  const supabaseUrl = process.env.RIVALHUB_PRODUCTION_SUPABASE_URL ?? "https://atjiukerfgqlwvnctigc.supabase.co";
+  const supabaseUrl = process.env.RIVALHUB_PRODUCTION_SUPABASE_URL ?? "https://ggkxqgbiudlovcgizgsq.supabase.co";
   const client = createClient(supabaseUrl, secret, { auth: { persistSession: false, autoRefreshToken: false } });
   const refs = new Map<string, MirrorAsset["bucket"]>();
   for (const row of [...tables.teams, ...tables.competition_entries]) {
