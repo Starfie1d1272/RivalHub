@@ -54,7 +54,6 @@
     "db:recovery:fetch": "tsx scripts/db/recovery/fetch.ts",
     "db:recovery:restore": "tsx scripts/db/recovery/restore.ts",
     "db:recovery:restore-db-checkpoint": "tsx scripts/db/recovery/restore.ts --mode db-checkpoint",
-    "db:recovery:readiness": "tsx scripts/db/recovery/readiness.ts",
     "db:recovery:verify": "tsx scripts/db/recovery/verify.ts",
     "db:recovery:lifecycle": "tsx scripts/db/recovery/lifecycle.ts",
     "db:preview:export": "tsx scripts/db/preview/snapshot.ts",

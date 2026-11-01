@@ -99,7 +99,7 @@ async function main() {
     writeFileSync(join(temp, "postgres-connection.ts"), readFileSync("src/db/postgres-connection.ts", "utf8")
       .replace('from "./supabase-ca"', 'from "./supabase-ca.ts"'));
     const tools = ["scripts/standby/install-production.sh", "scripts/standby/production-host.mjs", "scripts/standby/rivalhub-production.service", "scripts/standby/layers.mjs",
-      "scripts/standby/production-quiescence.mjs", "scripts/standby/production-launcher.mjs", "scripts/standby/production-traffic-status.mjs", join(temp, "postgres-connection.ts"), "src/db/supabase-ca.ts"];
+      "scripts/standby/production-quiescence.mjs", "scripts/standby/production-traffic-status.mjs", join(temp, "postgres-connection.ts"), "src/db/supabase-ca.ts"];
     console.log(JSON.stringify({ event: "linux.release_stage", stage: "upload_manifest_and_tools" }));
     const bootstrap = join(temp, "bootstrap");
     mkdirSync(bootstrap, { mode: 0o700 });

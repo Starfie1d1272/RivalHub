@@ -32,7 +32,6 @@
     "eslint.config.mjs!",
     "scripts/standby/build.mjs!",
     "scripts/standby/production-host.mjs!",
-    "scripts/standby/production-launcher.mjs!",
     "scripts/standby/production-traffic-status.mjs!",
     "scripts/standby/production-quiescence.mjs!",
     "scripts/standby/production-quiescence.d.mts!",
