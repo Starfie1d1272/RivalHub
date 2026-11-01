@@ -1,6 +1,6 @@
 # 数据分类与生命周期
 
-本页回答持久化数据的目的、可见性、保留与删除/恢复边界。精确字段以 schema、serializer、active migrations 和测试为准；清理、鉴权、结算与恢复继续由原领域 owner 执行。没有自动删除实现不等于“已经批准永久保存”。
+本页回答持久化数据的目的、可见性、保留与删除/恢复边界。精确字段以 schema、serializer、active migrations 和测试为准；清理、鉴权、结算与恢复继续由原领域 owner 执行。各类数据按下文明确的业务目的保留；现有到期清理继续由对应 owner 执行。
 
 “公开”指允许公开的 DTO，不指整行数据可由浏览器读取。同一行含不同敏感级别字段时，按最敏感字段保护持久化与备份，按字段投影决定可见性。PostgreSQL 默认 server-only；浏览器访问基线见 [数据库访问矩阵](database-access-matrix.md)。
 
@@ -38,13 +38,13 @@
 | 类别 | 保留 / 触发 | 删除或匿名化 / evidence |
 | --- | --- | --- |
 | 正式赛事、冻结名单、赛果、奖项、裁决、积分账本 | 长期可追溯历史；改名、解绑、归档不是删除触发 | 正式更正/撤销由原 owner 与审计处理；不重写当时归属。账号删除后的匿名化范围尚需独立契约；见 [workflows](../workflows.md) |
-| 当前账号、联系方式、报名草稿、legacy 私有字段 | 当前无统一到期删除；account lifetime 不等于已实现删除产品 | identity/auth 处理凭据撤销、归并与会话失效，不代表旧个人数据物理清除；长期目的与删除范围尚需收口 |
+| 当前账号、联系方式、报名草稿、legacy 私有字段 | 按账号使用、办赛联系和报名续填目的保留，不设置统一定期删除 | identity/auth 处理凭据撤销、归并与会话失效；保留既有更新和删除行为，通用账号删除产品尚未实现 |
 | 教育目录、认证结论、审核历史 | 保留审核事实，与证据分开 | 清理 code/object 不删除学校、已通过/驳回、审核时间与结论 |
 | Completed 教育核验材料 | `reviewedAt` 达 canonical 七天 cutoff 后到期；pending 不按提交时间推断到期，缺审核时间不补造 | 新列表/搜索/签名请求不再提供到期 evidence。[retention](../../src/lib/education/retention.ts) 删除对象成功后才清 DB key，CHSI code 清空；失败交既有 scheduler 重试。已签发短期 URL 仍受 adapter TTL/对象删除约束，读端不能撤销它；[签名入口](../../src/lib/education/evidence-access.ts)、[列表 DB](../../tests/integration/db/education-admin-review.test.ts)、[清理 DB](../../tests/integration/db/education-manual-retention.test.ts) |
-| Pending 教育审核/未完成身份请求 | 未定义放弃或长期 pending 的全量自动删除；有 expiresAt 的授权请求到期不可使用 | 失效不等于记录已删除；复用原 owner，不另建七天 scheduler，不按“旧”猜测放弃 |
-| Demo import/receipt/私有诊断 | 当前无统一固定 purge 期限；正式统计/身份 provenance 是另一种事实 | 原 artifact、导入诊断、正式统计的删除边界需独立决定；待核对身份不是 public cache |
+| Pending 教育审核/未完成身份请求 | pending 教育材料保留至审核完成，再按审核后七天清理；身份请求按办理用途保留，有 expiresAt 的授权请求到期不可使用 | 不按提交时间自动判定放弃；由审核流程处理积压，复用现有材料清理 owner |
+| Demo import/receipt/私有诊断 | 为导入排障、赛果更正和来源追溯保留，不设置统一固定 purge 期限 | 保留现有领域删除与关联生命周期；原始数据和诊断保持私有，正式统计继续由 canonical projection 提供 |
 | 设备 verifier、配对/邀请、会话 | 原 owner expiresAt/撤销控制使用资格；session 有 canonical 有效期 | registry 注册时清该用户过期会话，退出/全撤销删除记录，durable fence 保留；设备撤销保留关系/audit。失效 intents/receipts 未有统一物理 purge |
-| 反馈 | new/triaged/resolved 只是处理状态；当前无 resolved 后自动删除期限 | 状态更新不删 body/pathname/fingerprint；保留期、主动撤回、低敏处理结论应另行确定，不把 resolved 当匿名化 |
+| 反馈 | 为问题跟进、重复问题识别与历史排障保留；resolved 后不设置自动删除期限 | 状态更新保留 body/pathname/fingerprint，访问继续限超级管理员；主动撤回或匿名化产品未实现 |
 | 业务 audit | 当前无统一自动 purge，维护正式追溯 | 低敏写入与安全投影不使历史 raw/private meta 公开；未来脱敏需定义责任追溯、tombstone、授权关系 |
 | 产品遥测 | 压缩 raw/索引及短期聚合关联键至多七天；两类长期汇总各自默认关闭，启用时明确 1–90 天；任务 attempt 仅客户端内存，身份切换清空 | 读端到期不可见、小时任务分块删行，不保证所有副本七天物理擦除；D1 Time Travel 恢复副本可能在行删除后另存七天，清理故障还会延后，必须按 [产品遥测清单](../operations/product-telemetry.md) 确认总保留要求；恢复前停收并清过期数据；不进入应用 PG 备份 |
 | Runtime telemetry | provider-managed，按当前 project/source/plan 核验 | provider 管理过期；仓库采样率不能推出保留期，ingest secret presence 不能证明查询权限。实际配置/owner/核验时间留在执行 Issue |
@@ -86,7 +86,8 @@ A 为已有 contract/自动证据；B 为 contract 已定但当前 provider 配�
 - A：completed-review cutoff、对象先删后清引用、private Storage/授权签名；[education DB](../../tests/integration/db/education-evidence-retention.test.ts)。Browser Data API 继续由 [access matrix](../../scripts/db/access-matrix.ts) deny-by-default。
 - A：敏感对象 active-reference-only、未知 bucket 拒绝；实现由 [对象恢复 owner](../../scripts/db/recovery/storage.ts) 与 [Storage policy](../../scripts/db/recovery/storage-policy.ts) 承接。实现引用不代表隔离恢复验收；已退役的访问/恢复单测及其覆盖缺口见 [测试清理记录](../archive/testing-retention-2026-10-12/files.csv)，不能声称逐断言等价替代。R2 当前配置仍需原 verify 的真实 read-back。
 - B：服务 journal retention、Supabase physical backup/PITR plan 的当前配置，由执行 Issue 记录授权与低敏回读证据。
-- C：resolved feedback、abandoned pending evidence、草稿/旧联系方式、raw Demo/receipt 的物理删除期限；账号删除后的 provenance/官方历史匿名化范围。
+- A：反馈、报名草稿/联系方式及 Demo 原始数据按上述业务用途保留；pending 教育材料保留至审核结束，再执行既有七天清理。无新增定期 purge 任务。
+- C：通用账号删除后的 provenance/官方历史匿名化范围；此项属于独立产品边界。
 - D 修复保留正式结论/历史：教育物理清理延迟不再允许新的到期证据读取/签名，删除仍只有原 retention owner。
 
 本页不授权生产 purge，不宣称通用账号删除或所有 provider 的实时 retention 已验收。
