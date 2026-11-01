@@ -27,7 +27,7 @@ export default defineConfig({
     {
       name: "chromium",
       // Shared flows run once, on the viewport exercising their distinct risk:
-      // touch submission/download and narrow public search on mobile.
+      // touch submission/download on mobile.
       testIgnore: ["**/visual/**", "**/acceptance/**", "**/production/**", "**/bet.spec.ts", "**/free-predictions.spec.ts", "**/predictions.spec.ts"],
       use: {
         ...devices["Desktop Chrome"],
