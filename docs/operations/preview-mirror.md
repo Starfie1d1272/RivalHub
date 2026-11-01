@@ -1,6 +1,6 @@
 # Preview 脱敏镜像运行手册
 
-RivalHub 的所有 Vercel Preview 固定连接 `rivalhub-dev`，不连接 production，也不读取 #569 的正式 R2 灾备 artifact。`rivalhub-dev` 是可牺牲 shared staging：Preview 可完整读写，下一次 refresh 覆盖测试数据。镜像由受保护的 `Refresh Preview Data` workflow 生成：production job 只读导出，dev job 在固定的 `dtdzxnzjtohzjmfkighg` 上重置和导入。
+RivalHub 的服务器预览站固定连接 `rivalhub-dev`，不连接 production，也不读取 #569 的正式 R2 灾备 artifact。`rivalhub-dev` 是可牺牲 shared staging：Preview 可完整读写，下一次 refresh 覆盖测试数据。镜像由受保护的 `Refresh Preview Data` workflow 生成：production job 只读导出，dev job 在固定的 `dtdzxnzjtohzjmfkighg` 上重置和导入。
 
 ## 刷新边界
 
@@ -38,20 +38,20 @@ Export 与 refresh 的失败都经过现有 `src/lib/observability/` safe except
 
 生产的 `application_sessions`、`application_session_controls`、统计修复游标、BP 缓存投递进度 `match_veto_invalidations` 和计分恢复回执 `operator_scoreboard_receipts` 不进入脱敏镜像。后两者分别绑定生产缓存代次/事务与原操作人/请求编号，不能作为测试库的运行状态；目标迁移创建表结构，记录由 Preview 自身的 BP 与计分操作生成。`match_maps.provisional_players` 从 `0100_ambitious_switch` 起归为已审查但不导出的列，丢弃含玩家身份的未核对快照；`mizar_reliable_receipts` 整表继续排除，包括 `parent_event_key` 与 `map_end_scope`，不复制生产来源会话和事件关联。Preview persona 必须通过目标 Auth 重新登录，目标自行建立会话与维护进度。
 
-## Vercel Preview 必须配置
+## Preview 运行环境配置
 
-Vercel Preview environment 只配置 dev-scoped 值：
+服务器预览运行环境使用 dev-scoped 值：
 
 - `DATABASE_URL`：`postgres.dtdzxnzjtohzjmfkighg` 的 Transaction Pooler URL（6543、`pgbouncer=true`）；
 - `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` 与 `SUPABASE_SECRET_KEY`：仅使用 `rivalhub-dev` 的现代 publishable/secret credential，不接受 legacy fallback；
-- `SUPABASE_JWT_SECRET`：仅使用 `rivalhub-dev` 的 JWT signing secret，用于签发 5 分钟、单场、只读的 Realtime viewer token；不得使用 production signing secret；
+- `SUPABASE_JWT_SECRET` 与 `SUPABASE_JWT_KID`：仅使用 `rivalhub-dev` 的签名密钥及其 ID，用于签发 5 分钟、单场、只读的 Realtime viewer token；不得使用 production signing secret；
 - 独立 Preview `ADMIN_SESSION_SECRET`，以及仅用于 dev/sandbox 的邮件、OCR 或其它 provider credential。
 
-Preview runtime 拒绝非 `rivalhub-dev` database/public Auth URL 与缺失的 server credential；production DB/Auth/Storage/provider credential 永远不得出现。Vercel Deployment Protection 仍是 Preview 的访问边界；persona fixture credential 不是安全边界。正常的 dev 写入、Auth、Storage 和 sandbox provider 行为不受 Preview 专用限制；没有 sandbox provider credential 的单项能力应独立 fail closed。
+Preview runtime 拒绝非 `rivalhub-dev` database/public Auth URL 与缺失的 server credential；production DB/Auth/Storage/provider credential 永远不得出现。预览站通过 HTTPS Basic Auth 控制访问；persona fixture credential 不是安全边界。正常的 dev 写入、Auth、Storage 和 sandbox provider 行为不受 Preview 专用限制；没有 sandbox provider credential 的单项能力应独立 fail closed。
 
 ## Preview persona fixture credentials
 
-以下是 disposable Preview fixture credentials，供已经通过 Vercel Deployment Protection 的 developer/agent 直接进行角色态测试。它们不是安全 credential，也不应当用于 production 或其它不可牺牲环境；每次 refresh 都会把五个账号的密码重置为统一值。
+以下是 disposable Preview fixture credentials，供已经通过预览站 Basic Auth 的 developer/agent 直接进行角色态测试。它们不是安全 credential，也不应当用于 production 或其它不可牺牲环境；每次 refresh 都会把五个账号的密码重置为统一值。
 
 统一密码：`rivalhub-preview-persona-resettable`
 
@@ -67,5 +67,5 @@ Preview runtime 拒绝非 `rivalhub-dev` database/public Auth URL 与缺失的 s
 
 1. 在 `rivalhub-dev` 的 Supabase Storage 确认 `team-logos` 为 public、1 MiB、且只允许 JPEG/PNG/WebP；`Refresh Preview Data` 会在 destructive DB reset 前对该固定 bucket 做幂等 bootstrap，provider 权限不足时必须先由 owner 补齐并 read back。
 2. 在 GitHub `staging` environment 录入 `RIVALHUB_PREVIEW_DEV_SECRET_KEY` 与现有 `RIVALHUB_STAGING_DB_PASSWORD`；无需配置 persona password secret。
-3. 在 Vercel Preview environment 录入上述 dev-scoped 值，删除任何 production 或身份不明的同名值；保留 Deployment Protection。
+3. 在服务器 Preview 运行环境录入上述 dev-scoped 值，保留 HTTPS Basic Auth。
 4. 手动运行 `Refresh Preview Data`，确认 job summary 的 source commit、各 phase 结果和页面 smoke。artifact 保留一天，且不得下载到个人设备或把 secret 写入 PR。
