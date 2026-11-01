@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.25.21
+
+### Patch Changes
+
+- e5b04d2: 迁移生产数据库与存储服务，恢复赛事服务。
+
 All notable changes to RivalHub are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
