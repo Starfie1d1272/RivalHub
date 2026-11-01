@@ -26,7 +26,6 @@ export const MAJOR_BROWSER_PROFILE_ACCOUNT_KEYS = {
   auth: ["player3"],
   "team-invite": ["player1", "player2"],
   "major-entry": ["captain"],
-  education: ["player1", "admin"],
   layout: ["player2", "admin"],
   stats: ["player2", "admin"],
   "major-prestart": ["admin"],
@@ -372,10 +371,6 @@ async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, a
     }
   }
 
-  if (scenario.profile === "education") {
-    await insertRejectedChsiVerification(client, scenario);
-    return;
-  }
   if (scenario.profile === "team-invite") await insertInvitationTeam(client, scenario);
   if (scenario.profile === "major-entry" || (scenario.profile === "layout" || scenario.profile === "stats") || scenario.profile === "major-prestart" || scenario.profile === "major-qualification") {
     await seedCompetitivePlatformCatalog(client, scenario.platform, [
@@ -587,17 +582,6 @@ function parameterizedValues(rows: readonly (readonly unknown[])[], casts?: read
   return { sql, values };
 }
 
-async function insertRejectedChsiVerification(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
-  const player = scenario.accounts.find(({ key }) => key === "player1");
-  if (!player) throw new Error("education fixture 缺少 player1。");
-  await client.query(
-    `INSERT INTO education_verifications (id, user_id, institution_id, academic_status, evidence_type, evidence_code, status, reviewed_by, reviewed_at, review_note)
-     SELECT $1, $2, id, 'enrolled', 'chsi_enrollment_report', $3, 'rejected', 'local-browser-admin', now(), '在线验证报告已过期，无法在线验证。'
-     FROM institutions WHERE moe_institution_code = '4132010284'`,
-    [deterministicUuid(scenario.scenarioId + ":education:rejected-chsi"), player.userId, "ABCD1234EFGH5678"],
-  );
-}
-
 function createCapabilities(scenario: ScenarioDefinition) {
   const capabilities = scenario.profile === "major-qualification" ? createMajor24Capabilities() : createMajorDefaultCapabilities();
   capabilities.teamRegistrationConfig.competitiveProfile = {
@@ -610,13 +594,10 @@ function createCapabilities(scenario: ScenarioDefinition) {
 }
 
 async function runPhase<T>(scenario: ScenarioDefinition, phase: string, operation: () => Promise<T>): Promise<T> {
-  const started = performance.now();
   try {
     return await operation();
   } catch (error) {
     throw new Error(`Major browser scenario ${scenario.scenarioId} failed during ${phase}: ${safeErrorSummary(error)}`, { cause: error });
-  } finally {
-    if (scenario.profile === "education") console.log(`E2E_FIXTURE_PHASE ${JSON.stringify({ phase, durationMs: Math.round(performance.now() - started) })}`);
   }
 }
 

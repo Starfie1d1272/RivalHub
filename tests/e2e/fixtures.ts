@@ -26,13 +26,12 @@ export type E2EFixtureCredentials = {
 };
 
 type FixtureManifest = E2EFixtureCredentials & { authUserIds: string[] };
-export type E2EFixtureProfile = "auth" | "team-invite" | "major-entry" | "education" | "layout" | "stats" | "major-prestart" | "major-qualification";
+export type E2EFixtureProfile = "auth" | "team-invite" | "major-entry" | "layout" | "stats" | "major-prestart" | "major-qualification";
 
 const PROFILE_ACCOUNT_KEYS: Record<E2EFixtureProfile, readonly E2EFixtureCredentials["accounts"][number]["key"][]> = {
   auth: ["player3"],
   "team-invite": ["player1", "player2"],
   "major-entry": ["captain"],
-  education: ["player1", "admin"],
   layout: ["player2", "admin"],
   stats: ["player2", "admin"],
   "major-prestart": ["admin"],
@@ -67,15 +66,7 @@ export const test = base.extend<{ scenario: E2EFixtureCredentials; scenarioProfi
     try {
       setupAttempted = true;
       const scenario = await base.step("准备隔离测试场景（本地 Auth / DB）", async () => {
-        const output = await runFixtureCommand(["create", scenarioId, credentialsPath, scenarioProfile], env, scenarioId);
-        const phases = output.split("\n").filter(line => line.startsWith("E2E_FIXTURE_PHASE "))
-          .map(line => JSON.parse(line.slice("E2E_FIXTURE_PHASE ".length)) as { phase: string; durationMs: number });
-        if (phases.length) {
-          console.info("E2E_FIXTURE_PHASES", JSON.stringify(phases));
-          await testInfo.attach("fixture-phase-timings", {
-            body: Buffer.from(JSON.stringify(phases)), contentType: "application/json",
-          });
-        }
+        await runFixtureCommand(["create", scenarioId, credentialsPath, scenarioProfile], env, scenarioId);
         return readCredentials(credentialsPath, scenarioId);
       });
       await applyFixture(scenario);

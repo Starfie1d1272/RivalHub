@@ -32,6 +32,8 @@ App Router 的 Partial Prefetching、URL data Suspense boundary 和 instant navi
 
 DB unique/FK、transaction、row lock、migration/backfill 不用 mock 代替。浏览器测试验证用户任务，不重复穷举 pure domain rule。
 
+教育认证保留真实 PostgreSQL 的提交并发、事务失败补偿、审核权限与材料到期删除证据；Local Supabase provider contract 验证私有 Storage 的服务端读写、匿名/普通用户拒绝及短期签名访问。录取通知书提交→新窗口查看→审核的完整浏览器交互由改动时的定向人工验收覆盖，不保留独立常驻 E2E；上述数据库和 provider 检查不证明页面交互已验收。
+
 ## CI
 
 PR CI 保留 `static`、`postgres`、`system` 三条 capability lane，按 L0–L4 风险分层运行最低且足够的 evidence：
