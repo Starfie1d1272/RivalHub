@@ -31,3 +31,9 @@ Dependabot npm version updates 使用 weekly schedule、最多五个 PR 和原 p
 main submission 不处理 PR/fork/Dependabot 的写入，也不证明 dependency-review 已识别 PR 新增依赖。Dependabot 的 pull_request_target 仍可能只有 read-only token，owner PR green 不能代替真实 bot evidence；不得因本 workflow 成功而放宽 required dependency-review。PR review 覆盖、alerts/security updates、有权限的安全入口核验和真实 updater/scheduled run 继续在执行 Issue 分别验收。
 
 协议见 [GitHub dependency submission API](https://docs.github.com/en/rest/dependency-graph/dependency-submission)、[Dependabot Actions 限制](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-on-actions)。一次实际 source/read-back 材料见 [归档](archive/dependency-graph-2026-10-11/README.md)，持续验收留在 Issue。
+
+## 开发依赖的安全升级
+
+Miniflare 的 `undici` 与 `sharp` 使用限定到该父包版本的安全升级 override；父包采用修复版本后移除对应 override。ESLint、config-array 和 typescript-estree 的 minimatch 使用新版命名导出及 `Minimatch.match` API，通过定向版本选择使用 11.x，父包版本范围支持后移除该选择。
+
+Next.js 官方 lint preset 的 React/import/a11y 插件当前仍使用 minimatch 3.x 的 callable CommonJS API；3.x 不包含 GHSA-g3hv-75wg-m249 所述的高阶预处理路径。该公告按版本范围生成的告警需按实际锁定版本和消费路径核对。保留安全扫描，不设置全局 audit 忽略；父包升级或依赖路径改变时重新核对。
