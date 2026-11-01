@@ -28,7 +28,7 @@ test('Preview install verifies the candidate and leaves the service disabled and
     for (const [name, body] of Object.entries({
       id: 'if [ "$1" = "-u" ]; then echo 0; fi; exit 0',
       sha256sum: 'exit 0', chown: 'exit 0', sleep: 'exit 0',
-      mv: 'if [ "$1" = "-Tf" ]; then shift; fi; exec /bin/mv -f "$@"',
+      mv: 'if [ "$1" = "-Tf" ]; then shift; fi; exec python3 -c \"import os,sys; os.replace(sys.argv[1],sys.argv[2])\" "$@"',
       curl: `printf '%s' '{"releaseCommit":"${sha}"}'`,
       systemctl: `printf '%s\\n' "$*" >> '${join(dir, 'events')}'`,
     })) writeFileSync(join(bin, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
@@ -37,5 +37,14 @@ test('Preview install verifies the candidate and leaves the service disabled and
     const events = readFileSync(join(dir, 'events'), 'utf8').trim().split('\n');
     assert.deepEqual(events, ['daemon-reload', 'disable rivalhub-standby', 'restart rivalhub-standby', 'stop rivalhub-standby']);
     assert.equal(readlinkSync(join(root, 'current')), `releases/rivalhub-standby-${sha}`);
+    writeFileSync(join(bin, 'curl'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+    writeFileSync(join(dir, 'events'), '');
+    const failedSha = 'c'.repeat(40); const failedArchive = join(dir, `rivalhub-standby-${failedSha}.tar.gz`);
+    execFileSync('tar', ['-czf', failedArchive, '-C', join(dir, 'candidate'), '.']);
+    writeFileSync(failedArchive + '.sha256', 'fixture');
+    const failed = spawnSync('bash', [join(dir, 'install-preview.sh'), failedArchive, join(dir, 'preview.env')], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+    assert.equal(failed.status, 1);
+    assert.equal(readlinkSync(join(root, 'current')), `releases/rivalhub-standby-${sha}`);
+    assert.deepEqual(readFileSync(join(dir, 'events'), 'utf8').trim().split('\n'), ['daemon-reload', 'disable rivalhub-standby', 'restart rivalhub-standby', 'stop rivalhub-standby']);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
