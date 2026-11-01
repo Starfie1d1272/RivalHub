@@ -66,7 +66,7 @@ export function commandArgs(input) {
 }
 
 export function executionEnvironment(env, mode) {
-  const result = { ...env, RIVALHUB_DB_TARGET: "production", RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "atjiukerfgqlwvnctigc",
+  const result = { ...env, RIVALHUB_DB_TARGET: "production", RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "ggkxqgbiudlovcgizgsq",
     RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: "aws-0-ap-northeast-1.pooler.supabase.com:6543" };
   delete result.RIVALHUB_ALLOW_REMOTE_DB_WRITE;
   delete result.RIVALHUB_STATS_PROJECTION_WRITE_CONFIRM;
