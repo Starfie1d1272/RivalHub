@@ -45,15 +45,3 @@ DAK public projection contract through DAK's normal review/release process, upgr
 the pinned dependency, verify the persistence contract and parity tests, then
 remove this patch. A changed serialization/calculation version requires a controlled
 projection rebuild before readers consume that version.
-
-## `minimatch@10.2.6`
-
-This development lint dependency backports the two preprocessing limits from
-[upstream commit 77a0f5c4b80bdc641c3c930a1d9edf5ad2db57f8](https://github.com/isaacs/minimatch/commit/77a0f5c4b80bdc641c3c930a1d9edf5ad2db57f8)
-for GHSA-g3hv-75wg-m249 to both published JavaScript entry points. At optimization
-level 2, `**/..` expansion stops at `braceExpandMax` (default 100,000), and
-quadratic deduplication is skipped above 1,000 patterns. The existing 10.x API
-and version remain intact. Version-based advisory tools may continue to report
-this package; the patch does not repair the Dependabot updater or clear alerts.
-Remove the patch after a compatible fixed release or parent upgrade is available,
-then verify the lint consumers and both entry points before removal.
