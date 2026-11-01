@@ -164,7 +164,7 @@ function rewriteTeamLogoUrls(tables: MirrorSnapshot["tables"]): void {
     const ref = parsePublicStorageUrl(row.logo_url);
     if (ref?.bucket !== "team-logos") continue;
     const encoded = ref.path.split("/").map(encodeURIComponent).join("/");
-    row.logo_url = `https://zqslxewznmljfyboxhjg.supabase.co/storage/v1/object/public/team-logos/${encoded}`;
+    row.logo_url = `https://dtdzxnzjtohzjmfkighg.supabase.co/storage/v1/object/public/team-logos/${encoded}`;
   }
 }
 
