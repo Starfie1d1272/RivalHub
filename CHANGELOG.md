@@ -5,6 +5,15 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.22]
+
+### Changed
+
+- 简化灾备恢复运维：恢复后的账号和设备权限由维护者人工核对处理，正常发布与回滚继续执行版本核验和写者排空。
+- 更新 Node.js 24 运行时补丁版本及开发安全依赖，移除旧 minimatch 兼容补丁。
+- 明确反馈、报名草稿、联系方式与 Demo 原始数据的业务保留用途；待审核教育材料保留至审核完成，再执行现有七天清理。
+- 更新预览数据库目标，预览服务按需启动，并限制镜像导入批次。
+
 ## [2.25.21]
 
 ### Changed
@@ -3442,6 +3451,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.25.22]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.21...v2.25.22
 [2.25.21]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.20...v2.25.21
 [2.25.20]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.19...v2.25.20
 [2.25.19]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.18...v2.25.19
