@@ -21,12 +21,14 @@
    bash install-preview.sh /root/incoming/rivalhub-standby-<COMMIT>.tar.gz /root/incoming/preview.env
    ```
 
-   安装器核验包、目标环境和启动身份，原子切换 `current`，失败时恢复上一版本和环境。首次安装失败会停止服务。成功的身份检查仅证明进程和版本，仍需页面与角色态验收。
+   安装器核验包、目标环境和启动身份，原子切换 `current`，失败时恢复上一版本和环境。安装后服务保持停止且不设置开机自启；需要预览时手动启动，用完后停止。成功的身份检查仅证明进程和版本，仍需页面与角色态验收。
 5. 按 [`Caddyfile.example`](../../scripts/standby/Caddyfile.example) 设置独立 HTTPS 入口。使用 `caddy hash-password` 生成访问密码 hash；先备份已有 Caddyfile，新增本应用独立 import，执行 `caddy validate --config /etc/caddy/Caddyfile` 后再 reload。不要替换其它服务配置。使用有效证书验证 HTTPS；未认证必须返回 401。
 
 服务由 systemd 管理，独立系统用户、loopback 端口、512 MiB 内存上限，写权限限于 Next cache 目录。应用凭据由 `/etc/rivalhub-standby/preview.env` 提供，权限 600。历史包位于 `/opt/rivalhub-standby/releases/`；更新保留上一包。重启不恢复业务数据，Preview 数据由既有 refresh workflow 管理。
 
 ```bash
+systemctl start rivalhub-standby  # 需要时启动
+systemctl stop rivalhub-standby   # 使用后停止
 systemctl status rivalhub-standby
 systemctl show rivalhub-standby -p MemoryCurrent -p NRestarts
 journalctl -u rivalhub-standby --since '10 minutes ago'

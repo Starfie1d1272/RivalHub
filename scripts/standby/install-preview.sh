@@ -39,7 +39,7 @@ install -m 644 "$script_dir/rivalhub-standby.service" /etc/systemd/system/rivalh
 ln -s "releases/$name" "$root/current.next"
 mv -Tf "$root/current.next" "$root/current"
 systemctl daemon-reload
-systemctl enable rivalhub-standby
+systemctl disable rivalhub-standby
 systemctl restart rivalhub-standby
 healthy=false
 for attempt in {1..10}; do
@@ -58,10 +58,10 @@ if [[ $healthy != true ]]; then
     ln -s "$previous" "$root/current.rollback"
     mv -Tf "$root/current.rollback" "$root/current"
     cp -p /etc/rivalhub-standby/preview.env.previous /etc/rivalhub-standby/preview.env
-    systemctl start rivalhub-standby
   fi
   echo 'Candidate failed identity check; previous service restored when available.' >&2
   exit 1
 fi
 printf '%s\n' "$previous" > "$root/previous-release"
-echo "Preview service active: $name"
+systemctl stop rivalhub-standby
+echo "Preview installed and stopped: $name"
