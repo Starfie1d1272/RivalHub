@@ -1,15 +1,15 @@
 # Changelog
 
-## 2.25.21
-
-### Patch Changes
-
-- e5b04d2: 迁移生产数据库与存储服务，恢复赛事服务。
-
 All notable changes to RivalHub are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [2.25.21]
+
+### Changed
+
+- 迁移生产数据库与存储服务，恢复赛事服务。
 
 ## [2.25.20]
 
@@ -3442,6 +3442,7 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.25.21]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.20...v2.25.21
 [2.25.20]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.19...v2.25.20
 [2.25.19]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.18...v2.25.19
 [2.25.18]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.17...v2.25.18
