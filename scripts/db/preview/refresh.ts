@@ -23,6 +23,8 @@ import {
 export { PreviewRefreshPhaseError } from "./diagnostics";
 
 const MIRROR_STATE_TABLE = "preview_mirror_state";
+const IMPORT_BATCH_BYTES = 1_000_000;
+const IMPORT_BATCH_ROWS = 250;
 const PREVIEW_TEAM_LOGO_BUCKET = "team-logos";
 const PREVIEW_TEAM_LOGO_BUCKET_OPTIONS = {
   public: true,
@@ -127,7 +129,22 @@ export async function importSnapshot(client: Pick<PoolClient, "query">, snapshot
   for (const [table, rows] of Object.entries(snapshot.tables)) {
     if (!rows.length) continue;
     const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))].map(quoteIdentifier).join(", ");
-    await client.query(`INSERT INTO public.${quoteIdentifier(table)} (${columns}) SELECT ${columns} FROM jsonb_populate_recordset(NULL::public.${quoteIdentifier(table)}, $1::jsonb)`, [JSON.stringify(rows)]);
+    const sql = `INSERT INTO public.${quoteIdentifier(table)} (${columns}) SELECT ${columns} FROM jsonb_populate_recordset(NULL::public.${quoteIdentifier(table)}, $1::jsonb)`;
+    let batch: string[] = [];
+    let bytes = 2;
+    for (const row of rows) {
+      const encoded = JSON.stringify(row);
+      const size = Buffer.byteLength(encoded) + 1;
+      if (batch.length && (batch.length >= IMPORT_BATCH_ROWS || bytes + size > IMPORT_BATCH_BYTES)) {
+        await client.query(sql, [`[${batch.join(",")}]`]);
+        batch = [];
+        bytes = 2;
+      }
+      batch.push(encoded);
+      bytes += size;
+    }
+    if (batch.length) await client.query(sql, [`[${batch.join(",")}]`]);
+    console.log(`Preview mirror imported table ${table}: ${rows.length} rows`);
   }
   await client.query("SET LOCAL session_replication_role = 'origin'");
   await client.query("COMMIT");
@@ -192,7 +209,7 @@ export async function refreshMirror(path: string): Promise<void> {
   const snapshot = await runPreviewRefreshPhase("snapshot read", async () => readSnapshot(path));
   const storage = createClient(target.supabaseUrl, target.secretKey, { auth: { persistSession: false, autoRefreshToken: false } }).storage;
   await runPreviewRefreshPhase("dev storage preflight", () => ensurePreviewTeamLogoBucket(storage));
-  const pool = new Pool({ ...postgresConnection(target.databaseUrl), max: 1 });
+  const pool = new Pool({ ...postgresConnection(target.databaseUrl), max: 1, query_timeout: 120_000 });
   let client: PoolClient | undefined;
   try {
     const connected = await runPreviewRefreshPhase("db connection", () => pool.connect());
