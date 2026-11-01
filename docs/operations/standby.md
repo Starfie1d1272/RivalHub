@@ -13,7 +13,7 @@
 ## Preview 安装与更新
 
 1. PR 构建读取仓库变量 `RIVALHUB_PREVIEW_PUBLISHABLE_KEY`，只含 dev 公开 key。main 合并后可手动运行 `standby-package.yml`；下载对应 run 的 `standby-preview-linux-x64` artifact，核对 run SHA 与包名。
-2. 单独准备 dev runtime 配置：参见 [Preview mirror](./preview-mirror.md#vercel-preview-必须配置)。另设 `NODE_ENV=production`、`VERCEL_ENV=preview`、`RIVALHUB_DB_TARGET=preview`、`HOSTNAME=127.0.0.1`、`PORT=3031`、`NEXT_PUBLIC_APP_URL=https://preview-standby.starfie1d.top`、`NODE_OPTIONS=--max-old-space-size=320`。`ADMIN_SESSION_SECRET`、`CRON_SECRET` 使用本环境独立随机值。禁止把 Vercel 整份导出或 production secret 文件直接复制到服务器。
+2. 单独准备 dev runtime 配置：参见 [Preview mirror](./preview-mirror.md#preview-运行环境配置)。另设 `NODE_ENV=production`、`VERCEL_ENV=preview`、`RIVALHUB_DB_TARGET=preview`、`HOSTNAME=127.0.0.1`、`PORT=3031`、`NEXT_PUBLIC_APP_URL=https://preview-standby.starfie1d.top`、`NODE_OPTIONS=--max-old-space-size=320`。`ADMIN_SESSION_SECRET`、`CRON_SECRET` 使用本环境独立随机值。禁止将 production secret 文件直接复制到预览环境。
 3. 若现有 dev DB password 只在 GitHub staging secret 中，操作员可生成临时 RSA-4096 key，仅将公钥写入 `RIVALHUB_STANDBY_OPERATOR_PUBLIC_KEY`，手动运行 workflow。受保护 staging job 将密码用 RSA-OAEP-SHA256 封装给该公钥；本地验证 project ref 和 recipient fingerprint 后解密。私钥留在本地；取用后删除临时公钥变量、密文 artifact 和临时明文副本。日常 PR 不触发凭据交付。
 4. 通过 SSH 传输包、`.sha256`、私有环境文件，以及同一 commit 的 `install-preview.sh`、`rivalhub-standby.service`；在目标 Linux 主机以 root 运行：
 
@@ -78,7 +78,7 @@ systemctl show rivalhub-production -p LogNamespace -p MainPID
 构建器在独立 worktree 检出正式 tag，验证 clean source、package version、main ancestry 与 exact-SHA canonical CI，再通过原 release build entrypoint 构建 Linux x64 standalone。构建仅继承公开 allowlist，禁用本地 `.env` 加载，凭据不进入构建环境。包记录应用 SHA、operator tooling SHA、public configuration SHA-256、Node 版本和 CI run；archive sidecar 记录整体 SHA-256。构建工具的提交与应用提交分开记录，新增部署工具不改变应用 release identity。
 
 1. 手动运行 workflow，下载 `standby-production-linux-x64`，保存 JSON manifest 和 `.sha256`，交叉核对正式 release 与构建配置。
-2. 从既有受保护 Production 配置准备独立 runtime 文件。Vercel `env pull` 会省略 sensitive values，空值必须从现有 secret store 取得；禁止用旧导出或新随机值静默替换 session/cron/provider 凭据。必需项为 `DATABASE_URL`、`SUPABASE_SECRET_KEY`、`SUPABASE_JWT_SECRET`、`ADMIN_SESSION_SECRET`、`CRON_SECRET`；启用的 Turnstile、Steam、OCR、observability 和 telemetry 配置保持原值。全部公开变量须与包一致。
+2. 从既有受保护 Production 配置准备独立 runtime 文件。凭据从现有 secret store 取得；禁止用旧导出或新随机值静默替换 session/cron/provider 凭据。必需项为 `DATABASE_URL`、`SUPABASE_SECRET_KEY`、`SUPABASE_JWT_SECRET`、`ADMIN_SESSION_SECRET`、`CRON_SECRET`；启用的 Turnstile、Steam、OCR、observability 和 telemetry 配置保持原值。全部公开变量须与包一致。
 3. runtime 明确设置 `NODE_ENV=production`、`VERCEL_ENV=production`、`RIVALHUB_DB_TARGET=production`、`HOSTNAME=127.0.0.1`、`PORT=3032`、`NODE_OPTIONS=--max-old-space-size=320`；`GIT_COMMIT_SHA`、`RIVALHUB_RELEASE_COMMIT` 和 `RIVALHUB_RELEASE_TAG` 与包 manifest 对齐，供日志和产品统计标记来源；禁止测试认证开关。凭据文件权限 600，目录 700。已交付的 Linux runtime 副本保存在操作员本机 `~/.config/rivalhub/credentials/production-linux.env`；更新须同步受保护副本，禁止提交或打印。
 4. 传输包、checksum、runtime 文件及同一 operator commit 的 `install-production.sh`、`production-host.mjs` 与 `rivalhub-production.service`，运行 `bash install-production.sh ARCHIVE PRODUCTION_ENV`。安装器先校验包和实际 runtime target，再切换应用；不执行 migration。systemd 用户 `rivalhub-production`、服务 `rivalhub-production`、目录 `/opt/rivalhub-production`、配置 `/etc/rivalhub-production/production.env` 与 Preview 分离。服务只监听 loopback；内存上限 512 MiB，写权限限于 `.next/cache` 与 `.next/server/route-cache`；安装器预建并赋予应用用户这两个运行时缓存目录的写权限，构建代码保持只读。
 5. 更新前快照保存在 `/opt/rivalhub-production/rollback/<timestamp>`，包含 previous symlink、环境和 service；身份检查失败触发回退。首次失败保持服务停止。必须另行回读业务和 TLS，安装器的身份检查不代表业务验收完成。
@@ -87,11 +87,11 @@ systemctl show rivalhub-production -p LogNamespace -p MainPID
 
 正式域名的 Caddy site 使用有效证书，参见 [`Caddyfile.production.example`](../../scripts/standby/Caddyfile.production.example)。`reverse_proxy 127.0.0.1:3032` 默认保留 Host，并设置 X-Forwarded-Host、X-Forwarded-Proto；保持 streaming。代理请求体上限设为 12 MB，为 Next 的 10 MiB Server Actions 及 multipart 开销留出空间；应用层限制仍生效。不要设置全站共享 HTML 缓存或 Preview Basic Auth。切换前用 DNS challenge 预置有效证书，并用 `curl --resolve` 或显式 SNI/Host 的 HTTPS 客户端验证；切换后去除临时静态证书引用，确认 Caddy 自动签证成功并登记 renewal 信息。保留预置证书作为故障证据，不能把手工 DNS 证书视为自动续期已完成。
 
-新 standalone build 的 Server Actions ID/encryption key 可能不同于原 Vercel build。验收需在候选上重新加载页面并实际调用 action；旧页面可能需要刷新。Session 延续仍取决于相同的 `ADMIN_SESSION_SECRET`，不能以应用 commit 相同推断密钥或 action identity 相同。
+新旧 standalone build 的 Server Actions ID/encryption key 可能不同。验收需在候选上重新加载页面并实际调用 action；旧页面可能需要刷新。Session 延续仍取决于相同的 `ADMIN_SESSION_SECRET`，不能以应用 commit 相同推断密钥或 action identity 相同。
 
 ## 公共缓存与验收
 
-现有 `use cache: remote` 的公共 read model 保留原有 TTL/tag 失效边界；当前 Next.js 内置实现在自托管未配置 remote handler 时使用进程内 handler。单进程可复用缓存，重启后重新预热。Vercel Preview 与备用机各有独立缓存，跨实例写入不传播内存 tag 失效，另一实例按原 TTL 刷新；因此验收更新时必须在同一实例验证。以后增加多副本时，需要共享 cache handler 或失效广播，并单独验证。
+现有 `use cache: remote` 的公共 read model 保留原有 TTL/tag 失效边界；当前 Next.js 内置实现在自托管未配置 remote handler 时使用进程内 handler。单进程可复用缓存，重启后重新预热。正式站与预览站各有独立缓存，跨实例写入不传播内存 tag 失效，另一实例按原 TTL 刷新；因此验收更新时必须在同一实例验证。以后增加多副本时，需要共享 cache handler 或失效广播，并单独验证。
 
 Preview 先验证 401 访问保护；Production 验证公开入口可访问。随后依次验证 HTTPS release identity、首页和赛事、真实登录与会话、角色权限、可恢复写入及刷新回读、静态资源/图片、重启恢复。生产验证不得操作真实赛果或竞猜。竞猜只做读路径验收时，不得声称已验证下单、结算或资金一致性。Realtime 订阅成功只证明接收通道，Mizar 实际设备配对和事件推送仍需独立验收。账号不可用而由 owner 明确接受延后登录时，记录该验收缺口和接手人。
 
