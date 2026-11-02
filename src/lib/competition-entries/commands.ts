@@ -319,6 +319,8 @@ export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId:
   let season = await loadSeasonOrThrow(tx, entry.competitionId);
   const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!revision || revision.status !== "draft") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不可编辑。");
+  const convertingLegacyPositions = revision.positionFactsVersion === null && input.positions !== undefined;
+  if (convertingLegacyPositions && (input.positions!.length !== input.userIds.length || new Set(input.positions!.map((item) => item.userId)).size !== input.userIds.length || input.positions!.some((item) => !input.userIds.includes(item.userId)))) throw new AppError(ErrorCode.VALIDATION_FAILED, "请核对所有名单成员的本届位置后保存。");
   if (revision.origin !== "admin_remediation" && getRegistrationWindowState(season).needsOpeningRecovery) {
     season = (await ensureRegistrationOpenForParticipantInTx(tx, entry.competitionId)).season;
   }
@@ -353,20 +355,20 @@ export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId:
   }
   const existingMembers = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
   const previousPositions = new Map(existingMembers.map((member) => [member.userId, member.primaryPosition]));
-  const previousFacts = revision.positionFactsVersion === null ? await tx.select({ userId: competitionEntryRosterMembers.userId, position: rosterPositionSql(sql`${revision.positionFactsVersion}::integer`, competitionEntryRosterMembers.primaryPosition, entry.competitionId, competitionEntryRosterMembers.userId) }).from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id)) : [];
+  const previousFacts = convertingLegacyPositions ? await tx.select({ userId: competitionEntryRosterMembers.userId, position: rosterPositionSql(sql`${revision.positionFactsVersion}::integer`, competitionEntryRosterMembers.primaryPosition, entry.competitionId, competitionEntryRosterMembers.userId) }).from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id)) : [];
   const previousEffectivePositions = new Map(previousFacts.map((member) => [member.userId, member.position]));
   const positions = new Map(input.positions?.map((member) => [member.userId, member.position]) ?? []);
   if ([...positions.values()].some((position) => position !== null && !season.positions.includes(position))) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选位置不属于本届赛事选项。");
   for (const userId of input.userIds) {
     const participant = participantByUser.get(userId)!;
     const nextPosition = positions.has(userId) ? positions.get(userId)! : previousPositions.get(userId) ?? null;
-    if (participant.status === "confirmed" && nextPosition !== (revision.positionFactsVersion === null ? previousEffectivePositions.get(userId) ?? null : previousPositions.get(userId) ?? null)) {
+    if (participant.status === "confirmed" && (revision.positionFactsVersion !== null || convertingLegacyPositions) && nextPosition !== (convertingLegacyPositions ? previousEffectivePositions.get(userId) ?? null : previousPositions.get(userId) ?? null)) {
       await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.participantId, participant.id));
       await tx.update(competitionEntryParticipants).set({ status: "invited", confirmedAt: null, updatedAt: new Date() }).where(eq(competitionEntryParticipants.id, participant.id));
       await auditEntry(tx, { action: "competition_entry.roster.save", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: participant.id, userId, previousPosition: previousPositions.get(userId) ?? null, position: nextPosition, confirmationReset: true, revisionId: revision.id } });
     }
   }
-  if (revision.positionFactsVersion === null) await tx.update(competitionEntryRosterRevisions).set({ positionFactsVersion: 1 }).where(eq(competitionEntryRosterRevisions.id, revision.id));
+  if (convertingLegacyPositions) await tx.update(competitionEntryRosterRevisions).set({ positionFactsVersion: 1 }).where(eq(competitionEntryRosterRevisions.id, revision.id));
   await tx.delete(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
   await tx.insert(competitionEntryRosterMembers).values(input.userIds.map((userId) => ({ revisionId: revision.id, participantId: participantByUser.get(userId)!.id, userId, teamMembershipId: currentMemberships.find((row) => row.userId === userId)?.id ?? null, isPrimaryStarter: input.primaryStarterUserIds.includes(userId), primaryPosition: positions.has(userId) ? positions.get(userId)! : previousPositions.get(userId) ?? null })));
   const [teamIdentity] = !entry.logoUrl ? await tx.select({ logoUrl: teams.logoUrl }).from(teams).where(eq(teams.id, entry.teamId)) : [];
