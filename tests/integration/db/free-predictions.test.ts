@@ -5,7 +5,7 @@ import * as schema from "@/db/schema";
 import { fixture } from "./harness/free-prediction-fixture";
 import { submitFreePredictionInTx } from "@/lib/free-predictions/service";
 import { readFreePredictionBoard } from "@/lib/free-predictions/data";
-import { readFreePredictionRanking, readFreePredictionRankings } from "@/lib/free-predictions/ranking";
+import { readFreePredictionRanking, readFreePredictionRankings } from "@/lib/bet/free-ranking";
 import { operateBetInTx, joinBetInTx, stakeBetInTx, lockBetProgram, reconcileBetInTx } from "@/lib/bet/service";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 // Protect real row-lock serialization, persistent rollback fences, private DTOs and corrected scores.

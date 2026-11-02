@@ -10,7 +10,7 @@ import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { ok } from "@/types/action";
-import { readFreePredictionRanking } from "@/lib/free-predictions/ranking";
+import { readFreePredictionRanking } from "@/lib/bet/free-ranking";
 import { readFreePredictionSnapshot, projectFreePredictionBoard } from "@/lib/free-predictions/data";
 import { submitFreePredictionInTx } from "@/lib/free-predictions/service";
 const scope = z.object({seasonId:z.guid()});

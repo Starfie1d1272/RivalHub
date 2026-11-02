@@ -1,3 +1,4 @@
+import { loadBetFacts } from "./facts";
 import "server-only";
 import { eq, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
@@ -6,11 +7,12 @@ import { readBetAccounts } from "@/lib/bet/account-data";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getPublicPlayerIdentityIds } from "@/lib/players/public-identity";
 import { partitionRankingPopulation } from "@/lib/stats/ranking";
-import { loadFreePredictionPopulation, choiceFact } from "./data";
-import { gradePrediction } from "./domain";
-import type { FreePredictionRankingRowDTO, FreePredictionSort } from "./types";
+import { loadFreePredictionPopulation, choiceFact } from "@/lib/free-predictions/data";
+import { gradePrediction } from "@/lib/free-predictions/domain";
+import type { FreePredictionRankingRowDTO, FreePredictionSort } from "@/lib/free-predictions/types";
 export async function readFreeRankingSnapshot(tx: TxDb, seasonId: string) {
-  const {facts,rows} = await loadFreePredictionPopulation(tx,seasonId);
+  const facts = await loadBetFacts(tx,seasonId,{event:false,rosterUserId:null});
+  const {rows} = await loadFreePredictionPopulation(tx,seasonId,{facts});
   const finances=await readBetAccounts(tx,seasonId,undefined,facts,{records:false});
   const financial=finances.leaderboard;
   // Includes joined but unjudged accounts and retains complete-population ranks.
