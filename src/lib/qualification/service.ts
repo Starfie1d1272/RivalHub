@@ -1,5 +1,6 @@
 import { BUILT_IN_COMPETITIVE_PLATFORMS, isBuiltInCompetitivePlatformKey } from "@/lib/competitive/builtins";
 import { evaluateExternalStrengthRule, getPlayerStrengthFindings, type PlayerStrengthInput } from "@/lib/major/player-strength";
+import { evaluateRankThreshold } from "@/lib/competitive/player-strength";
 import {
   blockersFromQualificationFindings,
   uniqueQualificationFindings,
@@ -333,7 +334,7 @@ export const evaluateParticipant: EvaluateParticipant = (candidate, rules, evide
   const threshold = rules.rankThreshold;
   const hasThreshold = Boolean(threshold && (threshold.currentMin !== null || threshold.peakMin !== null));
   if (rules.competitiveProfileRequired || hasThreshold) {
-    const player = evidence.kind === "competitive" ? evidence.byUser.get(candidate.userId) : undefined;
+    const player = evidence.kind === "competitive" ? evidence.byPurpose.profileReadiness.get(candidate.userId) : undefined;
     const profile = evidence.kind === "competitive" ? evidence.context.profile : null;
     if (!player || !profile || !isCompleteCompetitiveContext(profile)) {
       findings.push({ code: "competitive_context_unavailable", message: "本届赛事的竞技资料要求暂时无法确认，请联系赛事管理员。", waivable: false, metadata: { field: "competitive_context" } });
@@ -342,15 +343,7 @@ export const evaluateParticipant: EvaluateParticipant = (candidate, rules, evide
         findings.push(...getCompetitiveProfileFindings(fact, profile));
       }
       if (threshold && hasThreshold) {
-        const meets = (rank: string | undefined, minimum: string | null) => {
-          if (!rank || !minimum) return false;
-          const value = profile.rankOrder.indexOf(rank);
-          const required = profile.rankOrder.indexOf(minimum);
-          return value >= 0 && required >= 0 && value >= required;
-        };
-        if (!meets(player.seasons.get(profile.currentSeasonKey)?.rank, threshold.currentMin) && !meets(player.historicalPeak?.rank, threshold.peakMin)) {
-          findings.push({ code: "rank_threshold", message: "未达到赛事段位门槛，请检查竞技资料。", waivable: false, metadata: { field: "rank_threshold" } });
-        }
+        findings.push(...evaluateRankThreshold({ userId: candidate.userId, label: "选手", historicalPeak: player.historicalPeak, previousSeasonPeak: null, currentSeasonPeak: player.seasons.get(profile.currentSeasonKey) ?? null }, threshold, profile.rankOrder));
       }
     }
   }
