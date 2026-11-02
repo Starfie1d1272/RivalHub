@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
   competitionEntryParticipants,
@@ -13,6 +13,7 @@ import {
   seasons,
 } from "@/db/schema";
 import { assessEntryRosterInTx, type EntryRosterAssessment } from "@/lib/competition-entries/commands";
+import { writeAuditInTx } from "@/lib/audit/write";
 import { unresolvedQualificationFindings } from "@/lib/competition-entries/restriction-overrides";
 import { decodeFrozenLineupEligibility } from "@/lib/match-rosters/frozen-eligibility";
 import { decodeEventRosterEligibilitySnapshotV2, eventRosterEligibilitySnapshotV2Schema } from "@/lib/seasons/eligibility-snapshot";
@@ -183,6 +184,32 @@ export async function applyEventRosterMaterializationInTx(
 }
 
 /**
+ * The caller owns the season lock. Preserve any history that may have used the
+ * current snapshot; only unstarted, submitted lineups can be discarded.
+ */
+async function invalidateUnstartedLineupsInTx(tx: TxDb, input: {
+  seasonId: string; entryId: string; actorId: string; nextRevisionId: string;
+}): Promise<void> {
+  const scopedMatches = await tx.select({ id: matches.id, status: matches.status, startedAt: matches.startedAt, gameplayStartedAt: matches.gameplayStartedAt })
+    .from(matches).where(and(eq(matches.seasonId, input.seasonId), isNull(matches.testConfig),
+      or(eq(matches.entryAId, input.entryId), eq(matches.entryBId, input.entryId))))
+    .orderBy(asc(matches.id)).for("update");
+  if (!scopedMatches.length) return;
+  const lineups = await tx.select({ id: matchRosters.id, matchId: matchRosters.matchId, status: matchRosters.status })
+    .from(matchRosters).where(and(eq(matchRosters.entryId, input.entryId), inArray(matchRosters.matchId, scopedMatches.map((match) => match.id))))
+    .orderBy(asc(matchRosters.matchId)).for("update");
+  const matchById = new Map(scopedMatches.map((match) => [match.id, match]));
+  if (scopedMatches.some((match) => match.status === "in_progress" || match.status === "finished" || match.startedAt || match.gameplayStartedAt) ||
+      lineups.some((lineup) => lineup.status !== "submitted" || matchById.get(lineup.matchId)?.status !== "scheduled")) {
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "已有正式比赛使用或锁定此名单资格快照，不能覆盖。 ");
+  }
+  if (!lineups.length) return;
+  await tx.delete(matchRosters).where(inArray(matchRosters.id, lineups.map((lineup) => lineup.id)));
+  await writeAuditInTx(tx, { seasonId: input.seasonId, action: "competition_entry.sync_event_roster", actorId: input.actorId,
+    targetId: input.entryId, meta: { sourceRosterRevisionId: input.nextRevisionId, invalidatedMatchIds: lineups.map((lineup) => lineup.matchId), reason: "approved_roster_changed", requiresLineupResubmission: true } });
+}
+
+/**
  * Copy the approved Entry roster into its Entry-owned EventRoster.
  *
  * Normal Major prestart selection and Entry re-approval both use this owner.
@@ -255,6 +282,7 @@ export async function syncApprovedRosterToEventRosterInTx(
     return { eventRosterId: eventRoster.id, rosterSize: approvedMembers.length, changed: false };
   }
 
+  await invalidateUnstartedLineupsInTx(tx, { seasonId: season.id, entryId: entry.id, actorId, nextRevisionId: approvedRevision.id });
   if (membersUnchanged) {
     const now = new Date();
     await tx.update(eventRosters).set({
@@ -317,9 +345,7 @@ export async function adoptApprovedRosterInTx(tx: TxDb, input: {
     return { eventRosterId: locked.id, rosterSize: candidate.members.length, changed: false };
   }
   if (locked.status === "frozen") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "正式赛事名单已冻结，不能覆盖资格快照。");
-  const [used] = await tx.select({ id: matchRosters.id }).from(matchRosters).innerJoin(matches, eq(matches.id, matchRosters.matchId))
-    .where(and(eq(matchRosters.entryId, entry.id), isNull(matches.testConfig))).limit(1);
-  if (locked.eligibilitySnapshot && used) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事名单资格快照已用于比赛，不能覆盖。");
+  await invalidateUnstartedLineupsInTx(tx, { seasonId: candidate.season.id, entryId: entry.id, actorId, nextRevisionId: approvedRevision.id });
 
   const selections = candidate.members.map((member) => {
     const fact = candidate.factsByUser.get(member.userId);
