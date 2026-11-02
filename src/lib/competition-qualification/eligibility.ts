@@ -1,8 +1,8 @@
 import "server-only";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { competitionQualificationRuns, eventRosterMembers, eventRosters, type Season } from "@/db/schema";
+import { competitionQualificationRuns, eventRosterMembers, eventRosters, matchRosters, matches, type Season } from "@/db/schema";
 import { capabilitiesFromSeason } from "@/lib/competition/definition";
 import { loadActiveRestrictionOverridesInTx } from "@/lib/competition-entries/restriction-overrides";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -63,6 +63,12 @@ export async function freezeQualificationRosterInTx(tx: TxDb, input: {
   if (!policy || policy.version !== 1) throw new AppError(ErrorCode.VALIDATION_FAILED, "Play-in 缺少已锁定的资格规则，请在首轮生成前重置配置。");
   const [roster] = await tx.select({ snapshot: eventRosters.eligibilitySnapshot }).from(eventRosters).where(eq(eventRosters.id, input.eventRosterId));
   if (roster?.snapshot?.rosterRevisionId === input.rosterRevisionId && roster.snapshot.entryId === input.entryId) return;
+  if (roster?.snapshot) {
+    const [used] = await tx.select({ id: matchRosters.id }).from(matchRosters)
+      .innerJoin(matches, eq(matches.id, matchRosters.matchId))
+      .where(and(eq(matchRosters.entryId, input.entryId), isNotNull(matches.qualificationRunId))).limit(1);
+    if (used) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事名单资格快照已用于比赛，不能覆盖。 ");
+  }
   const snapshot = await buildRosterEligibilityInTx(tx, { ...input, policy });
   await tx.update(eventRosters).set({ eligibilitySnapshot: snapshot }).where(eq(eventRosters.id, input.eventRosterId));
 }
@@ -94,5 +100,10 @@ export async function buildRosterEligibilityInTx(tx: TxDb, input: {
 }
 
 export async function clearQualificationRosterSnapshotsInTx(tx: TxDb, entryIds: string[]): Promise<void> {
-  if (entryIds.length) await tx.update(eventRosters).set({ eligibilitySnapshot: null }).where(inArray(eventRosters.entryId, entryIds));
+  if (!entryIds.length) return;
+  const used = await tx.select({ entryId: matchRosters.entryId }).from(matchRosters)
+    .innerJoin(matches, eq(matches.id, matchRosters.matchId))
+    .where(and(inArray(matchRosters.entryId, entryIds), isNotNull(matches.qualificationRunId))).limit(1);
+  if (used.length) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事名单资格快照已用于比赛，不能清除。 ");
+  await tx.update(eventRosters).set({ eligibilitySnapshot: null }).where(inArray(eventRosters.entryId, entryIds));
 }
