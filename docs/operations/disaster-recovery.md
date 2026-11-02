@@ -171,7 +171,7 @@ export RIVALHUB_BACKUP_AGE_IDENTITY_FILE='/private/path/recovery-identity.txt'
 unset RIVALHUB_ALLOW_REMOTE_DB_WRITE
 ```
 
-full restore 必须运行在 exact shipped tag 的兼容 application release；它按 snapshot 的 migration terminal 截取 active prefix，不自动推进 fresh target，也不 downgrade 既有 ledger。目标已有 application/Auth/Storage rows 或 Drizzle migrations 时拒绝继续，必须换 disposable target。DB-only restore 同样要求 exact shipped tag 与 fresh isolated PostgreSQL target，但不要求 Supabase API/Storage credentials。
+full restore 必须运行在 exact shipped tag 的兼容 application release；它按 snapshot 的 migration terminal 截取 active prefix，不自动推进 fresh target，也不 downgrade 既有 ledger。若备份终点不在当前 release 的 active chain，使用原不可变 release 的恢复工具在隔离目标恢复，再按受支持的升级路径推进；不要猜测或改写 ledger。目标已有 application/Auth/Storage rows 或 Drizzle migrations 时拒绝继续，必须换 disposable target。DB-only restore 同样要求 exact shipped tag 与 fresh isolated PostgreSQL target，但不要求 Supabase API/Storage credentials。
 
 ```bash
 pnpm db:recovery:restore \
