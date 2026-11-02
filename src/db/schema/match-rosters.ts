@@ -14,7 +14,7 @@ export const matchRosters = pgTable("match_rosters", {
   entryId: uuid("entry_id").notNull().references(() => competitionEntries.id),
   /** Immutable adopted eligibility used by this match lineup. */
   sourceRosterRevisionId: uuid("source_roster_revision_id").references(() => competitionEntryRosterRevisions.id),
-  eligibilitySnapshot: jsonb("eligibility_snapshot").$type<import("@/lib/seasons/eligibility-snapshot").EventRosterEligibilitySnapshotV2>(),
+  eligibilitySnapshot: jsonb("eligibility_snapshot").$type<import("@/lib/seasons/eligibility-snapshot").EventRosterEligibilitySnapshotV2 | import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility>(),
   /** The participant who submitted; null for admin-selected or system-default lineups. */
   submittedBy: uuid("submitted_by").references(() => users.id),
   /** Provenance of the effective lineup: participant | system_default | admin_select. */
