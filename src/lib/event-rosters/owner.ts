@@ -327,8 +327,9 @@ export async function adoptApprovedRosterInTx(tx: TxDb, input: {
   const { entry, approvedRevision, eventRoster } = coherent;
   if (rules.source !== "policy_v2" || candidate.season.id !== entry.competitionId || candidate.entry.id !== entry.id ||
       candidate.revision.id !== approvedRevision.id || candidate.revision.entryId !== entry.id ||
+      entry.registrationStatus !== "approved" || entry.currentRosterRevisionId !== approvedRevision.id || entry.approvedRosterRevisionId !== approvedRevision.id ||
       candidate.entry.currentRosterRevisionId !== approvedRevision.id || candidate.entry.approvedRosterRevisionId !== approvedRevision.id ||
-      candidate.entry.registrationStatus !== "approved" || candidate.revision.status !== "approved") {
+      !["submitted", "waitlisted", "approved"].includes(candidate.entry.registrationStatus) || candidate.revision.status !== "approved") {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "资格评估与当前已批准名单版本不一致。");
   }
   if (decisions.length !== candidate.members.length + 1 || overrides.some((override) =>
