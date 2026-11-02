@@ -153,6 +153,7 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
         isV2: decoded.source === "policy_v2", requirePositions: decoded.roster.requirePositions,
         maxPerPositionPerTeam: decoded.roster.maxPerPositionPerTeam, positions: decoded.roster.positions,
         minTeamSize: decoded.roster.minTeamSize, externalStrengthGapEnabled: decoded.competitive.externalStrengthGap.enabled,
+        externalStrengthTarget: decoded.competitive.competitiveProfile?.platform ?? null,
         affiliationRuleCount: decoded.roster.affiliationRules.length,
       });
       if (capabilityIssue) throw new AppError(ErrorCode.VALIDATION_FAILED, capabilityIssue);

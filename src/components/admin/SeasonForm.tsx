@@ -307,6 +307,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms, institutionOpt
     requirePositions: (v2Config ?? teamConfig).requirePositions,
     maxPerPositionPerTeam: (v2Config ?? teamConfig).maxPerPositionPerTeam,
     positions, minTeamSize, externalStrengthGapEnabled: currentPolicy.externalStrengthGap.enabled,
+    externalStrengthTarget: currentPolicy.competitiveProfile?.platform ?? null,
     affiliationRuleCount: currentPolicy.version === 2 ? affiliationRules.length : currentPolicy.affiliationRules.length,
   });
   const formationIssue = v2Config ? formationRulesPublishIssue({

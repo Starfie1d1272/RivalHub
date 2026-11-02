@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
+import { supportsExternalHistoricalGapTarget } from "@/lib/competitive/player-strength";
 import { canonicalizeV2CompetitiveProfile } from "@/lib/competitive/source-selection";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { qualificationPolicySchema, qualificationPolicyV2Schema } from "@/lib/competition/qualification-policy";
@@ -62,7 +63,7 @@ export function seasonCapabilityIssue(input: {
   registrationMode: "solo" | "team"; hasCaptainVoting: boolean; hasDraft: boolean;
   isV2: boolean; requirePositions: boolean; maxPerPositionPerTeam: number;
   positions: readonly string[]; minTeamSize: number;
-  externalStrengthGapEnabled: boolean; affiliationRuleCount: number;
+  externalStrengthGapEnabled: boolean; externalStrengthTarget: string | null; affiliationRuleCount: number;
 }): string | null {
   if (input.registrationMode === "team" && (input.hasCaptainVoting || input.hasDraft)) {
     return "队长投票和选秀需要个人报名，请改为个人报名或关闭编队环节。";
@@ -74,6 +75,7 @@ export function seasonCapabilityIssue(input: {
     }
   }
   if (input.externalStrengthGapEnabled && input.affiliationRuleCount === 0) return "外校实力星差需要至少一个本校机构作为参考。";
+  if (input.externalStrengthGapEnabled && !supportsExternalHistoricalGapTarget(input.externalStrengthTarget)) return "外校历史实力星差目前需要以完美世界为目标平台。";
   return null;
 }
 
