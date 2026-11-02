@@ -1,3 +1,4 @@
+import { normalizeTeamRegistrationConfig } from "../../../src/lib/seasons/compatibility";
 /**
  * PR G1 — Major 阵容安全真实 PostgreSQL 集成测试。
  *
@@ -132,7 +133,9 @@ async function prepareFixture(pool: Pool, label: string, options: { primaryStart
   const client = await pool.connect();
   const seasonId = randomUUID();
   const capabilities = createMajorDefaultCapabilities();
-  capabilities.teamRegistrationConfig.competitiveProfile = { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] };
+  const legacyConfig = normalizeTeamRegistrationConfig(capabilities.teamRegistrationConfig);
+  capabilities.teamRegistrationConfig = legacyConfig;
+  legacyConfig.competitiveProfile = { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] };
   try {
     await client.query("BEGIN");
 
