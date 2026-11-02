@@ -26,7 +26,10 @@ export const eventRosterEligibilitySnapshotV2Schema = z.object({
   competitive: z.object({
     profile: competitiveProfileSchema.nullable(),
     requirements: z.object({ historicalPeak: z.boolean(), seasonKeys: z.array(z.string()), ratingRequired: z.boolean(), exactStarsRequired: z.boolean() }).strict(),
-    byUser: z.array(z.object({ userId: z.string(), historicalPeak: strengthFactSchema.nullable(), seasons: z.record(z.string(), strengthFactSchema.nullable()) }).strict()),
+    byPurpose: z.object({
+      profileReadiness: z.array(z.object({ userId: z.string(), historicalPeak: strengthFactSchema.nullable(), seasons: z.record(z.string(), strengthFactSchema.nullable()) }).strict()),
+      externalStrength: z.array(z.object({ userId: z.string(), label: z.string(), historicalPeak: strengthFactSchema.nullable(), previousSeasonPeak: strengthFactSchema.nullable(), currentSeasonPeak: strengthFactSchema.nullable(), recentSeasonPeaks: z.array(strengthFactSchema.nullable()).optional() }).strict()),
+    }).strict(),
   }).strict().nullable(),
   overrides: z.array(z.object({ restrictionCode: z.string(), findingSnapshot: findingSchema, reason: z.string(), grantedBy: z.string(), grantedAt: z.string() }).strict()),
 }).strict();
