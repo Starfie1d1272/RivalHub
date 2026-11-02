@@ -99,6 +99,8 @@ export interface QualificationPolicyV1 {
 /** V2 stores institution constraints solely in Season.affiliationRules. */
 export interface QualificationPolicyV2 extends Omit<QualificationPolicyV1, "version" | "affiliationRules"> { version: 2 }
 export interface FormationRules {
+  targetTeamCount: number | null;
+  targetRosterSize: number | null;
   draftTimeoutSeconds: number;
   votesPerPerson: number;
   minimumVotesToConfirm: number;
