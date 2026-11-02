@@ -21,6 +21,7 @@ import {
   users,
 } from "@/db/schema";
 import {
+  computePolicyParticipantReadiness,
   evaluateRosterQualificationFromFacts,
   getParticipantReadinessBatch,
   isHomeAffiliatedMember,
@@ -36,7 +37,7 @@ import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { normalizePerfectTeamId } from "@/lib/competition-entries/perfect-team-id";
 import { normalizeSteamProfileUrl } from "@/lib/external-url";
-import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
+import { normalizeTeamRegistrationConfig, resolveQualificationPolicy } from "@/lib/seasons/compatibility";
 import type { Season } from "@/types/season";
 import {
   SOLO_REGISTRATION_REVIEW_DEFAULTS,
@@ -311,26 +312,28 @@ async function projectTeamRegistrationRows(
   const run = qualificationRuns[0];
 
   const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
-  const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
+  const policy = resolveQualificationPolicy(season.teamRegistrationConfig, season.affiliationRules, "participant");
+  const v1 = !!season.teamRegistrationConfig?.qualificationPolicy;
+  const affiliationRules = policy.affiliationRules;
   const userIds = [...new Set(rosterRows.map((member) => member.userId))];
-  const requiresCompetitiveProfile = Boolean(teamConfig.requireCompetitiveProfile);
-  const hasCompetitiveProfile = Boolean(requiresCompetitiveProfile && teamConfig.competitiveProfile);
+  const requiresCompetitiveProfile = v1 ? policy.competitiveProfileRequired || policy.externalStrengthGap.enabled : Boolean(teamConfig.requireCompetitiveProfile);
+  const hasCompetitiveProfile = Boolean(requiresCompetitiveProfile && policy.competitiveProfile);
   const competitiveContext = requiresCompetitiveProfile
-    ? teamConfig.competitiveProfile
-      ? await resolveCompetitiveContext(teamConfig.competitiveProfile)
-      : null
+    ? policy.competitiveProfile ? await resolveCompetitiveContext(policy.competitiveProfile) : null
     : undefined;
-  const needsQualificationFacts = requiresCompetitiveProfile || affiliationRules.length > 0;
+  const needsQualificationFacts = v1 || requiresCompetitiveProfile || affiliationRules.length > 0;
   const qualificationFacts: Map<string, ParticipantQualificationFacts> = needsQualificationFacts
     ? await loadParticipantQualificationFacts(userIds, {
-        platform: competitiveContext?.platform ?? teamConfig.competitiveProfile?.platform,
+        platform: competitiveContext?.platform ?? policy.competitiveProfile?.platform,
         fallbackPlatform: competitiveContext?.fallbackConversion?.sourcePlatform,
         includeCompetitiveFacts: hasCompetitiveProfile,
       })
     : new Map();
-  const readinessByUser = hasCompetitiveProfile
-    ? await getParticipantReadinessBatch(userIds, teamConfig.competitiveProfile!, { facts: qualificationFacts })
-    : new Map();
+  const readinessByUser = v1
+    ? new Map([...qualificationFacts].map(([id, fact]) => [id, computePolicyParticipantReadiness(fact, { ...policy, competitiveProfile: competitiveContext ?? null })]))
+    : hasCompetitiveProfile
+      ? await getParticipantReadinessBatch(userIds, policy.competitiveProfile!, { facts: qualificationFacts })
+      : new Map();
 
   const projectedRows = await Promise.all(entries.map(async (entry) => {
     const members = rosterRows
@@ -360,6 +363,7 @@ async function projectTeamRegistrationRows(
           }),
           facts: qualificationFacts,
           affiliationRules,
+          ...(v1 ? { policy } : {}),
           competitiveProfile: competitiveContext,
           primaryStarterUserIds: members.filter((member) => member.primary).map((member) => member.userId),
         });
