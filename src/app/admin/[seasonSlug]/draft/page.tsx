@@ -9,6 +9,7 @@ import { getFormedCompetitionEntryCount } from "@/lib/competition-entries/counts
 import { getDraftAdminData } from "@/lib/draft/data";
 import { getManualFormationData } from "@/lib/draft/manual-data";
 import { ManualFormationPanel } from "@/components/draft/ManualFormationPanel";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 
 interface AdminDraftPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -37,6 +38,8 @@ export default async function AdminDraftPage({ params }: AdminDraftPageProps) {
   return (
     <div className="space-y-6">
       <PageHeader title={`选秀管理 · ${season.name}`} description="启动、暂停、恢复选秀流程。选秀开始后选手可围观实时进度。" />
+
+      {season.hasDraft && !season.hasCaptainVoting && decodeSeasonRules(season).source === "policy_v2" && !data?.state && <ManualFormationPanel seasonId={season.id} data={await getManualFormationData(season.id)} maxTeamSize={season.maxTeamSize} starterCount={season.starterCount} captainsOnly />}
 
       <DraftAdminPanel
         seasonId={season.id}

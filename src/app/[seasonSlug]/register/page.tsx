@@ -1,5 +1,6 @@
 import { interpretEntryRosterStatus } from "@/lib/competition-entries/status-read-model";
 import { Suspense } from "react";
+import Link from "next/link";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
@@ -106,6 +107,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
                 title={season.name}
                 sub={statusMessages[season.status] ?? "报名通道当前不可用。"}
               />
+              {isSoloRegistration(season) && <Link className="mt-4 inline-block underline" href={`/${seasonSlug}/formation`}>查看我的编队邀请</Link>}
             </div>
           </Panel>
         </div>
@@ -403,6 +405,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
           {season.name} · REGISTER
         </p>
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">报名参赛</h1>
+        <Link className="mt-3 inline-block underline" href={`/${seasonSlug}/formation`}>查看我的编队邀请</Link>
       </div>
 
       {/* 位置实时容量 */}

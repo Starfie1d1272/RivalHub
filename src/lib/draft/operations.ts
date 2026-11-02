@@ -281,8 +281,8 @@ export async function executeDraftPick(
   const [participant] = await tx.insert(competitionEntryParticipants).values({
     entryId: input.entryId,
     userId: targetRegistration.userId,
-    status: "confirmed",
-    confirmedAt: now,
+    status: rules.source === "policy_v2" ? "invited" : "confirmed",
+    confirmedAt: rules.source === "policy_v2" ? null : now,
     invitedByUserId: entry.representativeUserId,
   }).returning({ id: competitionEntryParticipants.id });
   const [roster] = await tx.select({ id: eventRosters.id }).from(eventRosters)

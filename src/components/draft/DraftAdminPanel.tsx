@@ -39,7 +39,7 @@ export function DraftAdminPanel({
   const canStart =
     isDrafting && !state && teamCount > 0;
   const canPause = isLive;
-  const canResume = isDrafting && state && !isLive;
+  const canResume = isDrafting && state && !isLive && Boolean(state.currentEntryId);
 
   function handleStart() {
     startTransition(async () => {
@@ -95,7 +95,7 @@ export function DraftAdminPanel({
           <div>
             <span className="text-[var(--color-fg-dim)]">选秀状态</span>
             <p className="font-medium text-[var(--color-fg)]">
-              {state ? (isLive ? "进行中" : "已暂停") : "未启动"}
+              {state ? (isLive ? "进行中" : state.currentEntryId ? "已暂停" : "已结束，待名单审核") : "未启动"}
             </p>
           </div>
           <div>

@@ -1,10 +1,10 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, max } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { competitionEntries, competitionEntryActiveClaims, competitionEntryParticipants, competitionEntryRepresentativeChanges, competitionEntryRosterMembers, competitionEntryRosterRevisions, seasonRegistrations, seasons, users } from "@/db/schema";
+import { competitionEntries, competitionEntryActiveClaims, competitionEntryParticipants, competitionEntryRepresentativeChanges, competitionEntryRosterMembers, competitionEntryRosterRevisions, draftState, eventRosterMembers, eventRosters, seasonRegistrations, seasons, users } from "@/db/schema";
 import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { actionError, failValidation } from "@/lib/action-utils";
@@ -12,6 +12,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 import { ok, type ActionResult } from "@/types/action";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 
 const inputSchema = z.object({ seasonId: z.guid(), entryId: z.guid().nullable(), captainId: z.guid(), memberIds: z.array(z.guid()).max(20), starterIds: z.array(z.guid()).max(20) });
 
@@ -24,7 +25,9 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
   try {
     const result = await db.transaction(async tx => {
       const [season] = await tx.select().from(seasons).where(eq(seasons.id, seasonId)).for("update");
-      if (!season || season.hasDraft || season.registrationMode !== "solo" || !["registration", "drafting"].includes(season.status)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前赛事不能手动编队。");
+      if (!season || season.registrationMode !== "solo" || !["registration", "drafting"].includes(season.status)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前赛事不能手动编队。");
+      if (season.hasDraft && (season.hasCaptainVoting || decodeSeasonRules(season).source !== "policy_v2" || entryId || memberIds.some(id => id !== captainId))) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前选秀只允许管理员创建队长队伍。");
+      if (season.hasDraft && await tx.query.draftState.findFirst({ where: eq(draftState.seasonId, seasonId) })) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "选秀开始后不能增加队伍。");
       const members = [captainId, ...memberIds.filter(id => id !== captainId)];
       if (new Set(memberIds).size !== memberIds.length || new Set(starterIds).size !== starterIds.length || starterIds.some(id => !members.includes(id))) throw new AppError(ErrorCode.VALIDATION_FAILED, "成员或首发重复，或首发不在队伍中。");
       if (members.length > season.maxTeamSize || starterIds.length > season.starterCount) throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍人数或首发人数超过上限。");
@@ -47,7 +50,8 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
       if (!entry) {
         const revisionId = randomUUID();
         const [captainUser] = await tx.select({ displayName: users.displayName, perfectName: users.perfectName }).from(users).where(eq(users.id, captain.userId));
-        [entry] = await tx.insert(competitionEntries).values({ competitionId: seasonId, source: "event_native", name: `${getPublicDisplayName(captainUser ?? {})} 队`, representativeUserId: captain.userId, sourceRegistrationId: captainId, currentRosterRevisionId: revisionId, registrationStatus: "draft" }).returning();
+        const [order] = season.hasDraft ? await tx.select({ value: max(competitionEntries.formationOrder) }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, seasonId), isNotNull(competitionEntries.formationOrder))) : [];
+        [entry] = await tx.insert(competitionEntries).values({ competitionId: seasonId, source: "event_native", name: `${getPublicDisplayName(captainUser ?? {})} 队`, representativeUserId: captain.userId, sourceRegistrationId: captainId, currentRosterRevisionId: revisionId, registrationStatus: "draft", formationOrder: season.hasDraft ? (order?.value ?? 0) + 1 : null }).returning();
         await tx.insert(competitionEntryRosterRevisions).values({ id: revisionId, entryId: entry.id, revisionNumber: 1, status: "draft", createdBy: auditActorId(admin) });
         await tx.insert(competitionEntryRepresentativeChanges).values({ entryId: entry.id, fromUserId: null, toUserId: captain.userId, changedByActorId: auditActorId(admin) });
       }
@@ -61,6 +65,10 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
         const userId = byId.get(registrationId)!.userId;
         const [participant] = await tx.insert(competitionEntryParticipants).values({ entryId: entry.id, userId, status: "invited", invitedByUserId: captain.userId }).onConflictDoUpdate({ target: [competitionEntryParticipants.entryId, competitionEntryParticipants.userId], set: { updatedAt: new Date() } }).returning({ id: competitionEntryParticipants.id });
         await tx.insert(competitionEntryRosterMembers).values({ revisionId: revision.id, participantId: participant.id, userId, isPrimaryStarter: starterIds.includes(registrationId) });
+        if (season.hasDraft) {
+          const [roster] = await tx.insert(eventRosters).values({ entryId: entry.id, status: "preparing" }).returning({ id: eventRosters.id });
+          await tx.insert(eventRosterMembers).values({ eventRosterId: roster.id, participantId: participant.id, userId, isPrimaryStarter: starterIds.includes(registrationId) });
+        }
       }
       await writeAuditInTx(tx, { seasonId, action: "competition_entry.roster.save", actorId: auditActorId(admin), targetId: entry.id, meta: { source: "manual_formation", memberRegistrationIds: members, starterRegistrationIds: starterIds } });
       return { entryId: entry.id, slug: season.slug };

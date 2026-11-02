@@ -311,8 +311,8 @@ export async function confirmCaptains(
         const [participant] = await tx.insert(competitionEntryParticipants).values({
           entryId: entry.id,
           userId: captain.userId,
-          status: "confirmed",
-          confirmedAt: new Date(),
+          status: rules.source === "policy_v2" ? "invited" : "confirmed",
+          confirmedAt: rules.source === "policy_v2" ? null : new Date(),
           invitedByUserId: captain.userId,
         }).returning({ id: competitionEntryParticipants.id });
         const [revision] = await tx.insert(competitionEntryRosterRevisions).values({

@@ -11,7 +11,7 @@ import type { getManualFormationData } from "@/lib/draft/manual-data";
 type FormationData = Awaited<ReturnType<typeof getManualFormationData>>;
 type Team = FormationData["teams"][number];
 
-function TeamEditor({ seasonId, players, team, occupied, maxTeamSize, starterCount }: { seasonId: string; players: FormationData["players"]; team?: Team; occupied: Set<string>; maxTeamSize: number; starterCount: number }) {
+function TeamEditor({ seasonId, players, team, occupied, maxTeamSize, starterCount, captainsOnly }: { seasonId: string; players: FormationData["players"]; team?: Team; occupied: Set<string>; maxTeamSize: number; starterCount: number; captainsOnly: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [captainId, setCaptainId] = useState(team?.captainId ?? "");
@@ -24,7 +24,7 @@ function TeamEditor({ seasonId, players, team, occupied, maxTeamSize, starterCou
   }
   function save() {
     startTransition(async () => {
-      const result = await saveManualFormation({ seasonId, entryId: team?.id ?? null, captainId, memberIds: members, starterIds: starters });
+      const result = await saveManualFormation({ seasonId, entryId: team?.id ?? null, captainId, memberIds: captainsOnly ? [] : members, starterIds: captainsOnly ? [captainId] : starters });
       if (!result.success) { toast.error(result.error.message); return; }
       toast.success("编队草稿已保存，仍需审核名单");
       if (!team) { setCaptainId(""); setMembers([]); setStarters([]); }
@@ -38,7 +38,7 @@ function TeamEditor({ seasonId, players, team, occupied, maxTeamSize, starterCou
         <option value="">选择队长</option>{players.map(player => <option key={player.id} value={player.id} disabled={occupied.has(player.id) && player.id !== team?.captainId}>{player.name}{occupied.has(player.id) && player.id !== team?.captainId ? "（已编队）" : ""}</option>)}
       </select>
     </label>
-    {captainId && <div className="space-y-2"><p className="text-sm">选择队员和首发；不完整的名单也可保存。</p>
+    {captainId && !captainsOnly && <div className="space-y-2"><p className="text-sm">选择队员和首发；不完整的名单也可保存。</p>
       {players.map(player => {
         const selected = player.id === captainId || members.includes(player.id);
         return <div className="flex items-center gap-4 text-sm" key={player.id}>
@@ -46,11 +46,11 @@ function TeamEditor({ seasonId, players, team, occupied, maxTeamSize, starterCou
           <label><input type="checkbox" checked={starters.includes(player.id)} disabled={!selected || team?.approved || (!starters.includes(player.id) && starters.length >= starterCount)} onChange={event => setStarters(old => event.target.checked ? [...old, player.id] : old.filter(id => id !== player.id))} /> 首发</label>
         </div>;
       })}</div>}
-    <Button type="button" onClick={save} disabled={!captainId || pending || team?.approved}>保存编队草稿</Button>
+    <Button type="button" onClick={save} disabled={!captainId || pending || team?.approved || (captainsOnly && Boolean(team))}>{captainsOnly ? "创建队长队伍" : "保存编队草稿"}</Button>
     {team?.approved && <p className="text-sm">名单已批准或存在不可用成员，请通过名单管理流程处理。</p>}
   </Card>;
 }
-export function ManualFormationPanel({ seasonId, data, maxTeamSize, starterCount }: { seasonId: string; data: FormationData; maxTeamSize: number; starterCount: number }) {
+export function ManualFormationPanel({ seasonId, data, maxTeamSize, starterCount, captainsOnly = false }: { seasonId: string; data: FormationData; maxTeamSize: number; starterCount: number; captainsOnly?: boolean }) {
   const occupied = new Set(data.teams.flatMap(team => team.members.map(member => member.id)));
-  return <div className="space-y-4"><p className="text-sm">按报名选手创建队伍。每队最多 {maxTeamSize} 人、{starterCount} 名首发。保存草稿不会批准名单或开始比赛；成员须确认，名单还需审核并采用。</p>{data.teams.map(team => <TeamEditor key={team.id} seasonId={seasonId} players={data.players} team={team} occupied={occupied} maxTeamSize={maxTeamSize} starterCount={starterCount} />)}<TeamEditor seasonId={seasonId} players={data.players} occupied={occupied} maxTeamSize={maxTeamSize} starterCount={starterCount} /></div>;
+  return <div className="space-y-4"><p className="text-sm">{captainsOnly ? "选择队长创建选秀队伍；队长需要确认参赛。" : `按报名选手创建队伍。每队最多 ${maxTeamSize} 人、${starterCount} 名首发。保存草稿不会批准名单或开始比赛；成员须确认，名单还需审核并采用。`}</p>{data.teams.map(team => <TeamEditor key={team.id} seasonId={seasonId} players={data.players} team={team} occupied={occupied} maxTeamSize={maxTeamSize} starterCount={starterCount} captainsOnly={captainsOnly} />)}<TeamEditor seasonId={seasonId} players={data.players} occupied={occupied} maxTeamSize={maxTeamSize} starterCount={starterCount} captainsOnly={captainsOnly} /></div>;
 }

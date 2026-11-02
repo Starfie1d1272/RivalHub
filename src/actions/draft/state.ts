@@ -23,7 +23,7 @@ import {
   type ResumeDraftInput,
 } from "@/lib/validators/draft";
 import { draftFormat, getSnakeOrder } from "@/lib/draft/rules";
-import { decodeSeasonRules } from "@/lib/seasons/rules";
+import { assertFormationRulesPublishable, decodeSeasonRules } from "@/lib/seasons/rules";
 
 // ── 启动选秀 ───────────────────────────────────────────
 
@@ -46,7 +46,9 @@ export async function startDraft(
       if (!season) {
         throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
       }
-      const format = draftFormat(decodeSeasonRules(season));
+      const rules = decodeSeasonRules(season);
+      if (rules.source === "policy_v2") assertFormationRulesPublishable(rules);
+      const format = draftFormat(rules);
       if (!season.hasDraft) {
         throw new AppError(
           ErrorCode.SEASON_CAPABILITY_DISABLED,
@@ -82,7 +84,7 @@ export async function startDraft(
           "该赛季没有队伍，请先确认队长生成队伍",
         );
       }
-      if (format.rounds < 1 || (format.teamCount > 0 && seasonTeams.length !== format.teamCount)) {
+      if (format.rounds < 0 || (format.teamCount > 0 && seasonTeams.length !== format.teamCount)) {
         throw new AppError(
           ErrorCode.VALIDATION_FAILED,
           `选秀轮数无效或队伍数不匹配（当前 ${seasonTeams.length} 支）`,
@@ -96,8 +98,8 @@ export async function startDraft(
       }
 
       const order = getSnakeOrder(seasonTeams, 1);
-      const firstEntryId = order[0].id;
-      const deadline = new Date(Date.now() + format.timeoutSeconds * 1000);
+      const firstEntryId = format.rounds ? order[0].id : null;
+      const deadline = format.rounds ? new Date(Date.now() + format.timeoutSeconds * 1000) : null;
 
       const [draft] = await tx
         .insert(draftState)
@@ -106,7 +108,7 @@ export async function startDraft(
           currentRound: 1,
           currentEntryId: firstEntryId,
           roundDeadline: deadline,
-          isActive: true,
+          isActive: format.rounds > 0,
         })
         .returning({ id: draftState.id });
 
@@ -114,7 +116,7 @@ export async function startDraft(
         seasonId,
         action: "draft.start",
         actorId: auditActorId(admin),
-        targetId: seasonId,meta: { firstEntryId, roundDeadline: deadline.toISOString(), actorEmail: admin.email },
+        targetId: seasonId,meta: { firstEntryId, roundDeadline: deadline?.toISOString() ?? null, actorEmail: admin.email },
       });
 
       return { draftStateId: draft.id, slug: season.slug };
