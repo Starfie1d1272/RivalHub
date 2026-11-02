@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -33,6 +35,7 @@ export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = fal
   function set<K extends keyof TeamRegistrationConfig>(key: K, val: TeamRegistrationConfig[K]) {
     onChange({ ...value, [key]: val });
   }
+  const id = useId();
   const platform = value.competitiveProfile?.platform ?? competitivePlatforms[0]?.key ?? "";
   const showTeamSettings = view !== "competitive";
   const showCompetitiveSettings = view !== "team";
@@ -75,27 +78,27 @@ export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = fal
 
       {!fallbackOnly && showCompetitiveSettings && policy && <div className="space-y-3">
         <h3 className="text-sm font-medium">资格政策</h3>
-        <p className="text-xs text-[var(--color-fg-dim)]">此政策可在草稿中编辑；报名和名单流程接入后才能发布。</p>
+        <p className="text-xs text-[var(--color-fg-dim)]">资格要求在发布后锁定；竞技平台的赛季与段位目录在开放报名时冻结。</p>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={disabled} checked={policy.educationRequired} onChange={(e) => setPolicy({ ...policy, educationRequired: e.target.checked })} />要求教育认证</label>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={disabled} checked={policy.contacts.qqRequired} onChange={(e) => setPolicy({ ...policy, contacts: { ...policy.contacts, qqRequired: e.target.checked } })} />要求 QQ</label>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={disabled} checked={policy.contacts.emailVerifiedRequired} onChange={(e) => setPolicy({ ...policy, contacts: { ...policy.contacts, emailVerifiedRequired: e.target.checked } })} />要求已验证邮箱</label>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={disabled} checked={policy.competitiveProfileRequired} onChange={(e) => setPolicy({ ...policy, competitiveProfileRequired: e.target.checked, competitiveProfile: e.target.checked ? policy.competitiveProfile ?? { platform, currentSeasonKey: "", previousSeasonKey: "", rankOrder: [] } : policy.competitiveProfile })} />要求竞技档案</label>
-        {policy.competitiveProfileRequired && <div>
-          <Label>竞技平台</Label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={disabled} checked={policy.competitiveProfileRequired} onChange={(e) => setPolicy({ ...policy, competitiveProfileRequired: e.target.checked })} />要求竞技档案</label>
+        {(policy.competitiveProfileRequired || policy.externalStrengthGap.enabled) && <div>
+          <Label htmlFor={`${id}-policy-platform`}>竞技平台</Label>
           <Select disabled={disabled} value={policy.competitiveProfile?.platform ?? ""} onValueChange={(next) => setPolicy({ ...policy, competitiveProfile: { ...(policy.competitiveProfile ?? { currentSeasonKey: "", previousSeasonKey: "", rankOrder: [] }), platform: next } })}>
-            <SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{competitivePlatforms.map((item) => <SelectItem key={item.key} value={item.key}>{item.displayName}</SelectItem>)}</SelectContent>
+            <SelectTrigger id={`${id}-policy-platform`}><SelectValue placeholder="请选择竞技平台" /></SelectTrigger><SelectContent>{competitivePlatforms.map((item) => <SelectItem key={item.key} value={item.key}>{item.displayName}</SelectItem>)}</SelectContent>
           </Select>
         </div>}
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={disabled} checked={policy.externalStrengthGap.enabled} onChange={(e) => setPolicy({ ...policy, externalStrengthGap: { ...policy.externalStrengthGap, enabled: e.target.checked } })} />限制外校实力差</label>
-        {policy.externalStrengthGap.enabled && <div><Label>最大星差</Label><Input disabled={disabled} type="number" min={0} max={100} value={policy.externalStrengthGap.maxGap} onChange={(e) => setPolicy({ ...policy, externalStrengthGap: { ...policy.externalStrengthGap, maxGap: Number(e.target.value) } })} /></div>}
+        {policy.externalStrengthGap.enabled && <div><Label htmlFor={`${id}-gap`}>最大星差</Label><Input id={`${id}-gap`} disabled={disabled} type="number" min={0} max={100} value={policy.externalStrengthGap.maxGap} onChange={(e) => setPolicy({ ...policy, externalStrengthGap: { ...policy.externalStrengthGap, maxGap: Number(e.target.value) } })} /></div>}
         {policy.affiliationRules.map((rule, index) => <div key={index} className="grid gap-2 sm:grid-cols-3">
-          <div><Label>机构代码</Label><Input disabled={disabled} value={rule.institutionCode} onChange={(e) => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.map((r, i) => i === index ? { ...r, institutionCode: e.target.value } : r) })} /></div>
-          <div><Label>名单最少人数</Label><Input disabled={disabled} type="number" min={0} value={rule.minRosterMembers} onChange={(e) => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.map((r, i) => i === index ? { ...r, minRosterMembers: Number(e.target.value) } : r) })} /></div>
-          <div><Label>首发最少人数</Label><Input disabled={disabled} type="number" min={0} value={rule.minStartingMembers} onChange={(e) => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.map((r, i) => i === index ? { ...r, minStartingMembers: Number(e.target.value) } : r) })} /></div>
+          <div><Label htmlFor={`${id}-institution-${index}`}>机构代码</Label><Input id={`${id}-institution-${index}`} disabled={disabled} value={rule.institutionCode} onChange={(e) => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.map((r, i) => i === index ? { ...r, institutionCode: e.target.value } : r) })} /></div>
+          <div><Label htmlFor={`${id}-roster-${index}`}>名单最少人数</Label><Input id={`${id}-roster-${index}`} disabled={disabled} type="number" min={0} value={rule.minRosterMembers} onChange={(e) => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.map((r, i) => i === index ? { ...r, minRosterMembers: Number(e.target.value) } : r) })} /></div>
+          <div><Label htmlFor={`${id}-starters-${index}`}>首发最少人数</Label><Input id={`${id}-starters-${index}`} disabled={disabled} type="number" min={0} value={rule.minStartingMembers} onChange={(e) => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.map((r, i) => i === index ? { ...r, minStartingMembers: Number(e.target.value) } : r) })} /></div>
           {(["enrolled", "graduated"] as const).map((status) => <label key={status} className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={disabled} checked={rule.eligibleAcademicStatuses.includes(status)} onChange={(e) => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.map((r, i) => i === index ? { ...r, eligibleAcademicStatuses: e.target.checked ? [...r.eligibleAcademicStatuses, status] : r.eligibleAcademicStatuses.filter((item) => item !== status) } : r) })} />{status === "enrolled" ? "在读" : "毕业"}</label>)}
-          <button type="button" disabled={disabled} onClick={() => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.filter((_, i) => i !== index) })}>移除机构</button>
+          <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.filter((_, i) => i !== index) })}>移除机构</Button>
         </div>)}
-        <button type="button" disabled={disabled} onClick={() => setPolicy({ ...policy, affiliationRules: [...policy.affiliationRules, { institutionCode: "", eligibleAcademicStatuses: ["enrolled", "graduated"], minRosterMembers: 0, minStartingMembers: 0 }] })}>添加机构</button>
+        <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => setPolicy({ ...policy, affiliationRules: [...policy.affiliationRules, { institutionCode: "", eligibleAcademicStatuses: ["enrolled", "graduated"], minRosterMembers: 0, minStartingMembers: 0 }] })}>添加机构</Button>
       </div>}
       {!fallbackOnly && showCompetitiveSettings && !policy && <div>
         <h3 className="text-sm font-medium mb-3">竞技档案规则</h3>

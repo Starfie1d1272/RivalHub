@@ -599,8 +599,10 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         )}
         {registrationMode === "team" && template === "major" && (
           <section className="space-y-4">
-            <h2 className="font-semibold">5E 等效竞技资料</h2>
-            <TeamConfigForm value={teamConfig} competitivePlatforms={competitivePlatforms} fallbackOnly disabled={!editCapabilities.canEditFallbackConversion} onChange={setTeamConfig} />
+            <h2 className="font-semibold">{teamConfig.qualificationPolicy ? "资格政策" : "5E 等效竞技资料"}</h2>
+            {teamConfig.qualificationPolicy
+              ? <TeamConfigForm value={teamConfig} competitivePlatforms={competitivePlatforms} view="competitive" disabled={!editCapabilities.canEditPublicRules} onChange={setTeamConfig} />
+              : <TeamConfigForm value={teamConfig} competitivePlatforms={competitivePlatforms} fallbackOnly disabled={!editCapabilities.canEditFallbackConversion} onChange={setTeamConfig} />}
           </section>
         )}
 
@@ -791,7 +793,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
               />
             )}
             {registrationMode === "team" && <TeamQualificationSummary config={teamConfig} />}
-            <AffiliationRulesSummary rules={affiliationRules} />
+            {!(registrationMode === "team" && teamConfig.qualificationPolicy) && <AffiliationRulesSummary rules={affiliationRules} />}
           </div>
         )}
         {editCapabilities.canEditPublicRules && registrationMode === "solo" && !isBuiltIn && saveButton}
@@ -821,7 +823,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
       </SettingsPanel>
 
       <SettingsPanel id="competitive" label="竞技参考">
-        {template === "custom" && registrationMode === "team" && editCapabilities.canEditPublicRules ? (
+        {registrationMode === "team" && (template === "custom" || (template === "major" && !!teamConfig.qualificationPolicy)) && editCapabilities.canEditPublicRules ? (
           <>
             <TeamConfigForm view="competitive" value={teamConfig} competitivePlatforms={competitivePlatforms} onChange={setTeamConfig} />
             {saveButton}
