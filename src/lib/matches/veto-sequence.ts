@@ -259,12 +259,13 @@ export function assertVetoSequence(
   steps: readonly VetoSequenceStep[],
   entryAId: string,
   entryBId: string,
+  poolSize = 7,
 ): void {
   const firstEntryId = steps[0]?.entryId;
   if (!firstEntryId || (firstEntryId !== entryAId && firstEntryId !== entryBId)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "BP 首步必须由本场参赛队执行");
   }
-  const expected = expectedLegacySequence(format, firstEntryId, entryAId, entryBId, steps.length);
+  const expected = expectedLegacySequence(format, firstEntryId, entryAId, entryBId, poolSize);
   if (steps.length !== expected.length || steps.some((step, index) => step.actionType !== expected[index]?.actionType)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, format.toUpperCase() + " BP 步骤顺序不合法");
   }
@@ -286,8 +287,9 @@ export function legacyVetoStepsToFacts(
   steps: readonly LegacyVetoSequenceStep[],
   entryAId: string,
   entryBId: string,
+  poolSize = 7,
 ): VetoStepFact[] {
-  assertVetoSequence(format, steps, entryAId, entryBId);
+  assertVetoSequence(format, steps, entryAId, entryBId, poolSize);
   const vetoAEntryId = steps[0]!.entryId!;
   const vetoBEntryId = otherEntry(vetoAEntryId, entryAId, entryBId);
   const actorEntry = (actor: VetoActorRole) => actor === "veto_a"
@@ -297,7 +299,7 @@ export function legacyVetoStepsToFacts(
   const mapByTurnKey = new Map<string, string>();
   let legacyIndex = 0;
 
-  for (const definition of getVetoTurnDefinitions(format, steps.length)) {
+  for (const definition of getVetoTurnDefinitions(format, poolSize)) {
     if (definition.actionType === "ban" || definition.actionType === "pick") {
       for (let index = 0; index < definition.count; index += 1) {
         const step = steps[legacyIndex++]!;
