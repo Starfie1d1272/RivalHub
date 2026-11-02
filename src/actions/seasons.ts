@@ -14,7 +14,7 @@ import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import { normalizeRegistrationConfig, normalizeTeamRegistrationConfig, teamRegistrationConfigForWrite } from "@/lib/seasons/compatibility";
 import type { StagePlan, TeamRegistrationConfig, StoredTeamRegistrationConfig } from "@/types/season";
-import { validateCompetitionDefinition } from "@/lib/competition/definition";
+import { capabilitiesFromSeason, checkStandardMajorCapabilities, validateCompetitionDefinition } from "@/lib/competition/definition";
 import { assertAffiliationRequirementsFit, assertQualificationPolicyPublishable } from "@/lib/competition/qualification-policy";
 import { assertFormationRulesPublishable, decodeSeasonRules } from "@/lib/seasons/rules";
 import { assertSeasonHasNoHistoricalFacts, freezeV2CompetitiveContext, openSeasonRegistrationInTx, resolveConversionPolicyForPublish, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
@@ -148,6 +148,19 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
       if (locked.competitionTemplate === "custom") assertRunnableCustomDefinition(locked);
 
       const decoded = decodeSeasonRules(locked);
+      if (locked.registrationMode === "team" && (locked.hasCaptainVoting || locked.hasDraft)) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "队长投票和选秀需要个人报名，请改为个人报名或关闭编队环节。");
+      }
+      if (decoded.source === "policy_v2" && locked.registrationMode === "team" && (decoded.roster.requirePositions || decoded.roster.maxPerPositionPerTeam > 0)) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍报名尚不支持填写本届赛事成员位置，请先关闭位置要求和位置人数上限。");
+      }
+      if (decoded.competitive.externalStrengthGap.enabled && decoded.roster.affiliationRules.length === 0) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "外校实力星差需要至少一个本校机构作为参考。 ");
+      }
+      if (locked.competitionTemplate === "major") {
+        const major = checkStandardMajorCapabilities(capabilitiesFromSeason(locked));
+        if (!major.isStandardMajor) throw new AppError(ErrorCode.VALIDATION_FAILED, major.failures[0]?.reason ?? "当前 Major 配置无法运行。");
+      }
       let nextTeamRegistrationConfig: StoredTeamRegistrationConfig | null;
       if (decoded.source === "policy_v2") {
         assertFormationRulesPublishable(decoded);
