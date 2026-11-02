@@ -20,6 +20,7 @@ import {
   teamMemberships,
   teams,
   users,
+  userCompetitiveRoles,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import {
@@ -43,7 +44,8 @@ import { getDisplayName } from "@/lib/identity/display-name";
 import { canMutateCompetitionEntryRoster } from "@/lib/competition-entries/remediation";
 import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entries/roster-change";
 import { normalizeTeamRegistrationConfig, resolveQualificationPolicy } from "@/lib/seasons/compatibility";
-import { decodeSeasonRules } from "@/lib/seasons/rules";
+import { decodeSeasonRules, type RosterCandidate } from "@/lib/seasons/rules";
+import type { PlayerType } from "@/types/season";
 import { assessEntryRosterReadiness } from "@/lib/competition-entries/readiness";
 import { normalizePerfectTeamId } from "@/lib/competition-entries/perfect-team-id";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
@@ -128,7 +130,7 @@ async function cloneRosterRevisionAsDraftInTx(
   return { id: next.id, revisionNumber: nextRevision };
 }
 
-async function loadEntryRosterCandidateInTx(
+async function validateEntryRosterInTx(
   tx: TxDb,
   entry: typeof competitionEntries.$inferSelect,
   season: typeof seasons.$inferSelect,
@@ -246,6 +248,49 @@ async function loadEntryRosterCandidateInTx(
   return { revision, rosterSize: readiness.rosterSize, primaryIds, qualification };
 }
 
+/** Assemble authoritative candidate facts under the caller's transaction and locks. */
+export async function loadEntryRosterCandidateInTx(
+  tx: TxDb,
+  input: { entryId: string; expectedRevisionId: string },
+): Promise<{ candidate: RosterCandidate; rules: ReturnType<typeof decodeSeasonRules>; season: typeof seasons.$inferSelect }> {
+  const entry = await lockEntry(tx, input.entryId);
+  const season = await loadSeasonOrThrow(tx, entry.competitionId);
+  const rules = decodeSeasonRules(season);
+  if (entry.currentRosterRevisionId !== input.expectedRevisionId) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "名单版本已变化，请刷新后重试。 ");
+  const [revision] = await tx.select().from(competitionEntryRosterRevisions)
+    .where(and(eq(competitionEntryRosterRevisions.id, input.expectedRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
+  if (!revision) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不存在。 ");
+  const rows = await tx.select({ userId: competitionEntryRosterMembers.userId, participantId: competitionEntryParticipants.id, status: competitionEntryParticipants.status, isPrimaryStarter: competitionEntryRosterMembers.isPrimaryStarter })
+    .from(competitionEntryRosterMembers).innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
+    .where(eq(competitionEntryRosterMembers.revisionId, revision.id));
+  const ids = rows.map((row) => row.userId);
+  const profile = rules.competitive.competitiveProfile;
+  const [factsByUser, registrations, roles, claims, memberships, registrationBlocks, rosterBlocks, nameConflicts] = await Promise.all([
+    loadParticipantQualificationFacts(ids, { executor: tx, includeCompetitiveFacts: rules.participant.competitiveProfileRequired || rules.competitive.externalStrengthGap.enabled || Boolean(rules.participant.rankThreshold?.currentMin || rules.participant.rankThreshold?.peakMin), platform: profile?.platform, fallbackPlatform: profile?.fallbackConversion?.sourcePlatform }),
+    ids.length ? tx.select({ id: seasonRegistrations.id, userId: seasonRegistrations.userId, status: seasonRegistrations.status, primaryPosition: seasonRegistrations.primaryPosition, playerType: seasonRegistrations.playerType }).from(seasonRegistrations).where(and(eq(seasonRegistrations.seasonId, season.id), inArray(seasonRegistrations.userId, ids))) : [],
+    ids.length ? tx.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role }).from(userCompetitiveRoles).where(and(inArray(userCompetitiveRoles.userId, ids), eq(userCompetitiveRoles.isPrimary, true))) : [],
+    ids.length ? tx.select({ userId: competitionEntryActiveClaims.userId, entryId: competitionEntryActiveClaims.entryId }).from(competitionEntryActiveClaims).where(and(eq(competitionEntryActiveClaims.competitionId, season.id), inArray(competitionEntryActiveClaims.userId, ids))) : [],
+    entry.teamId && ids.length ? tx.select({ userId: teamMemberships.userId }).from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), inArray(teamMemberships.userId, ids), inArray(teamMemberships.status, ["active", "benched"]), isNull(teamMemberships.endedAt))) : [],
+    loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: ids, effect: "registration_block" }),
+    loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: ids, effect: "roster_block" }),
+    rules.roster.requireUniqueTeamName ? tx.select({ id: competitionEntries.id }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), sql`${competitionEntries.id} <> ${entry.id}`, sql`lower(trim(${competitionEntries.name})) = lower(trim(${entry.name}))`, sql`${competitionEntries.registrationStatus} NOT IN ('rejected', 'withdrawn')`)).limit(1) : [],
+  ]);
+  const registrationByUser = new Map(registrations.map((registration) => [registration.userId, registration]));
+  const rolesByUser = new Map(roles.map((role) => [role.userId, role.role]));
+  const playerType = (value: string | undefined): PlayerType | null => value === "enrolled" || value === "graduated" || value === "external" ? value : null;
+  return {
+    season, rules,
+    candidate: {
+      season, entry: { ...entry, logoPresent: Boolean(entry.logoUrl), nameConflicts: nameConflicts.length > 0 }, revision,
+      members: rows.map((row) => ({ ...row, primaryPosition: registrationByUser.get(row.userId)?.primaryPosition ?? rolesByUser.get(row.userId) ?? null, playerType: playerType(registrationByUser.get(row.userId)?.playerType) })),
+      factsByUser, currentTeamMemberUserIds: entry.teamId ? new Set(memberships.map((member) => member.userId)) : null,
+      nativeRegistrationsByUser: new Map(registrations.map((registration) => [registration.userId, { id: registration.id, status: registration.status }])),
+      activeClaimEntryByUser: new Map(claims.map((claim) => [claim.userId, claim.entryId])),
+      registrationBlockedUserIds: new Set(registrationBlocks.keys()), rosterBlockedUserIds: new Set(rosterBlocks.keys()),
+    },
+  };
+}
+
 /**
  * Re-check an approved Entry before it becomes a selected Major entrant.
  * Qualification and restriction semantics stay in the Entry command owner;
@@ -260,7 +305,7 @@ export async function validateApprovedCompetitionEntryRosterInTx(
   if (entry.registrationStatus !== "approved" || !entry.approvedRosterRevisionId || entry.currentRosterRevisionId !== entry.approvedRosterRevisionId) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "只能选择当前报名已通过审核且名单记录完整的队伍。 ");
   }
-  return loadEntryRosterCandidateInTx(tx, entry, season, ["approved"], {
+  return validateEntryRosterInTx(tx, entry, season, ["approved"], {
     requireCurrentTeamMembership: false,
     requireActiveRestrictionOverrides: true,
     ...options,
@@ -542,7 +587,7 @@ export async function submitCompetitionEntryInTx(tx: TxDb, input: { entryId: str
     season = (await ensureRegistrationOpenForParticipantInTx(tx, entry.competitionId)).season;
   }
   const window = getRegistrationWindowState(season);
-  const validated = await loadEntryRosterCandidateInTx(tx, entry, season, ["draft"], { requireCurrentTeamMembership: true, requireActiveRestrictionOverrides: false });
+  const validated = await validateEntryRosterInTx(tx, entry, season, ["draft"], { requireCurrentTeamMembership: true, requireActiveRestrictionOverrides: false });
   if ((validated.revision.origin === "self_roster_change" && decodeSeasonRules(season).roster.changes?.selfServiceAfterApproval === false) || !canMutateCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", validated.revision.origin, season, new Date(), await canSelfAdjustMajorRosterInTx(tx, season, entry.id))) throw new AppError(ErrorCode.REGISTRATION_CLOSED, validated.revision.origin === "self_roster_change" ? "名单调整窗口当前不可用；请联系赛委会。" : window.message);
   const [{ value }] = await tx.select({ value: count() }).from(competitionEntrySubmissions).where(eq(competitionEntrySubmissions.entryId, entry.id));
   const now = new Date();
@@ -566,7 +611,7 @@ export async function grantCompetitionEntryRestrictionOverrideInTx(
   const restrictionCode = input.restrictionCode.trim();
   if (!reason || !restrictionCode) throw new AppError(ErrorCode.VALIDATION_FAILED, "解除限制必须填写具体限制和非空理由。 ");
   const season = await loadSeasonOrThrow(tx, entry.competitionId);
-  const validated = await loadEntryRosterCandidateInTx(tx, entry, season, ["submitted"], {
+  const validated = await validateEntryRosterInTx(tx, entry, season, ["submitted"], {
     requireCurrentTeamMembership: false,
     requireActiveRestrictionOverrides: false,
   });
@@ -666,7 +711,7 @@ async function approveRosterRevisionInTx(
   now: Date,
   allowedRevisionStatuses: readonly ("draft" | "submitted" | "approved")[] = ["submitted"],
 ) {
-  const candidate = await loadEntryRosterCandidateInTx(tx, entry, season, allowedRevisionStatuses, {
+  const candidate = await validateEntryRosterInTx(tx, entry, season, allowedRevisionStatuses, {
     requireCurrentTeamMembership: entry.source === "linked_team",
     requireActiveRestrictionOverrides: true,
   });

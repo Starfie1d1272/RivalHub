@@ -15,8 +15,7 @@ export const evaluateRoster: EvaluateRoster = (candidate, rules, evidence) => {
   if (members.length < rules.roster.minTeamSize || members.length > rules.roster.maxTeamSize) block("roster_size", `本届名单需为 ${rules.roster.minTeamSize}-${rules.roster.maxTeamSize} 人。`);
   if (members.filter((member) => member.isPrimaryStarter).length !== rules.lineup.starterCount) block("roster_starters", `必须指定恰好 ${rules.lineup.starterCount} 名预定主力。`);
   if (entry.source === "linked_team" && (!candidate.currentTeamMemberUserIds || members.some((member) => !candidate.currentTeamMemberUserIds!.has(member.userId)))) block("roster_membership", "名单成员必须是关联队伍的当前成员。");
-  // A single unkeyed registration cannot prove approval for each roster member.
-  if (entry.source === "event_native") block("native_registrations_unavailable", "无法确认所有名单成员已通过个人报名审核。");
+  if (entry.source === "event_native" && members.some((member) => candidate.nativeRegistrationsByUser.get(member.userId)?.status !== "approved")) block("native_registrations_unavailable", "无法确认所有名单成员已通过个人报名审核。");
   if (members.some((member) => member.status !== "confirmed" || candidate.activeClaimEntryByUser.get(member.userId) !== entry.id)) block("roster_commitment", "所有名单成员均需确认代表本队参赛。");
   if (members.some((member) => candidate.registrationBlockedUserIds.has(member.userId))) block("registration_block", "名单中有成员当前被禁止报名。");
   if (members.some((member) => candidate.rosterBlockedUserIds.has(member.userId))) block("roster_block", "名单中有成员当前不能进入赛事名单。");
@@ -40,7 +39,7 @@ export const evaluateRoster: EvaluateRoster = (candidate, rules, evidence) => {
     else {
       const starters = members.filter((member) => member.isPrimaryStarter);
       const players = starters.flatMap((member) => {
-        const strength = evidence.byUser.get(member.userId)?.strength;
+        const strength = evidence.byPurpose.externalStrength.get(member.userId);
         if (!strength) { block("competitive_profile_incomplete", "名单成员竞技资料不可用。", { userId: member.userId }); return []; }
         const fact = candidate.factsByUser.get(member.userId);
         const isHome = resolveSeasonEducationVerification(fact?.educationHistory ?? [], rules.roster.affiliationRules).eligibilityState === "approved" && Boolean(resolveSeasonEducationVerification(fact?.educationHistory ?? [], rules.roster.affiliationRules).matchedRule);
