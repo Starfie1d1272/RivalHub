@@ -1,3 +1,4 @@
+import { OFFICIAL_PRODUCTION } from "../../deployment-profile.mjs";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import type { ExpectedMigration } from "../production-preflight";
@@ -5,7 +6,7 @@ import type { RecoveryMigrationIdentity, RecoverySourceIdentity } from "./manife
 import { assertReleaseIdentity } from "../../../src/lib/release/identity";
 
 const projectRoot = resolve(process.cwd());
-const DEFAULT_PRODUCTION_BASE_URL = "https://match.starfie1d.top";
+const DEFAULT_PRODUCTION_BASE_URL = OFFICIAL_PRODUCTION.origin;
 const RELEASE_ENDPOINT_PATH = "/api/system/release";
 const RELEASE_READBACK_TIMEOUT_MS = 10_000;
 

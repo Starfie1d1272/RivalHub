@@ -1,3 +1,4 @@
+import { OFFICIAL_PRODUCTION } from "../../deployment-profile.mjs";
 import { requireSupabaseSecretKey } from "../../../src/lib/runtime/supabase-keys";
 import {
   assertProductionBackupDatabaseUrl,
@@ -9,7 +10,7 @@ import { assertLocalDatabaseUrl, assertLocalHttpUrl, parseLocalSupabaseStatus, t
 
 export { PRODUCTION_PROJECT_REF } from "../production-environment";
 
-const PRODUCTION_SUPABASE_URL = `https://${PRODUCTION_PROJECT_REF}.supabase.co`;
+const PRODUCTION_SUPABASE_URL = OFFICIAL_PRODUCTION.supabaseUrl;
 const RECOVERY_TARGET = "isolated" as const;
 
 /** Retain recovery compatibility with encrypted backups from the previous organization. */
@@ -125,7 +126,7 @@ export function assertRecoveryFetchEnvironment(
   };
 }
 
-function assertProductionSupabaseUrl(value: string | undefined): string {
+export function assertProductionSupabaseUrl(value: string | undefined): string {
   let url: URL;
   try {
     url = new URL(required(value, "RIVALHUB_PRODUCTION_SUPABASE_URL"));

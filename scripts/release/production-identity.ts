@@ -1,3 +1,4 @@
+import { OFFICIAL_PRODUCTION } from "../deployment-profile.mjs";
 import { appendFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,7 +12,7 @@ export const RELEASE_MODE_ENV = "RIVALHUB_RELEASE_MODE";
 export const RETRY_PREVIOUS_RELEASE_TAG_ENV = "RIVALHUB_RETRY_PREVIOUS_RELEASE_TAG";
 export const RETRY_PREVIOUS_RELEASE_COMMIT_ENV = "RIVALHUB_RETRY_PREVIOUS_RELEASE_COMMIT";
 
-const DEFAULT_PRODUCTION_BASE_URL = "https://match.starfie1d.top";
+const DEFAULT_PRODUCTION_BASE_URL = OFFICIAL_PRODUCTION.origin;
 const RELEASE_ENDPOINT_PATH = "/api/system/release";
 const RELEASE_READBACK_TIMEOUT_MS = 10_000;
 const SHIPPED_SOURCE_ROOTS = ["src", "scripts"] as const;
