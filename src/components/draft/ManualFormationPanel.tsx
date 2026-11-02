@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { approveFormation, saveManualFormation, startFormedSeason, withdrawFormation, requestFormationChange } from "@/actions/draft/formation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { InlineConfirm } from "@/components/rivalhub";
 import type { getManualFormationData } from "@/lib/draft/manual-data";
@@ -45,19 +47,21 @@ function TeamEditor({ seasonId, players, team, occupied, maxTeamSize, starterCou
   }
   return <Card className="space-y-4 p-5">
     <h2 className="text-lg font-semibold">{team?.name ?? "新建队伍"}</h2>
-    <label className="block text-sm">队长
-      <select className="ml-3 rounded border p-2" value={captainId} disabled={Boolean(team) || team?.approved} onChange={event => { setCaptainId(event.target.value); setMembers([]); setStarters([]); }}>
-        <option value="">选择队长</option>{players.map(player => <option key={player.id} value={player.id} disabled={occupied.has(player.id) && player.id !== team?.captainId}>{player.name}{occupied.has(player.id) && player.id !== team?.captainId ? "（已编队）" : ""}</option>)}
-      </select>
-    </label>
-    {captainId && !captainsOnly && <div className="space-y-2"><p className="text-sm">选择队员和首发；不完整的名单也可保存。</p>
-      {players.map(player => {
+    <div className="space-y-2">
+      <span className="text-sm text-[var(--color-fg-mid)]">队长</span>
+      <Select value={captainId} disabled={Boolean(team) || team?.approved} onValueChange={value => { setCaptainId(value); setMembers([]); setStarters([]); }}>
+        <SelectTrigger aria-label="队长"><SelectValue placeholder="选择队长" /></SelectTrigger>
+        <SelectContent>{players.map(player => <SelectItem key={player.id} value={player.id} disabled={occupied.has(player.id) && player.id !== team?.captainId}>{player.name}{occupied.has(player.id) && player.id !== team?.captainId ? "（已编队）" : ""}</SelectItem>)}</SelectContent>
+      </Select>
+    </div>
+    {captainId && !captainsOnly && <div className="space-y-2"><p className="text-sm text-[var(--color-fg-mid)]">选择队员和首发</p>
+      <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2">{players.map(player => {
         const selected = player.id === captainId || members.includes(player.id);
-        return <div className="flex items-center gap-4 text-sm" key={player.id}>
-          <label><input type="checkbox" checked={selected} disabled={player.id === captainId || team?.approved || (occupied.has(player.id) && !selected)} onChange={event => toggle(player.id, event.target.checked)} /> {player.name}{occupied.has(player.id) && !selected ? "（已编队）" : ""}</label>
-          <label><input type="checkbox" checked={starters.includes(player.id)} disabled={!selected || team?.approved || (!starters.includes(player.id) && starters.length >= starterCount)} onChange={event => setStarters(old => event.target.checked ? [...old, player.id] : old.filter(id => id !== player.id))} /> 首发</label>
+        return <div className="flex min-w-0 items-center justify-between gap-3 text-sm" key={player.id}>
+          <label className="flex min-w-0 items-center gap-2"><Checkbox checked={selected} disabled={player.id === captainId || team?.approved || (occupied.has(player.id) && !selected)} onChange={event => toggle(player.id, event.target.checked)} /><span className="truncate">{player.name}{occupied.has(player.id) && !selected ? "（已编队）" : ""}</span></label>
+          <label className="flex shrink-0 items-center gap-2 text-[var(--color-fg-mid)]"><Checkbox checked={starters.includes(player.id)} disabled={!selected || team?.approved || (!starters.includes(player.id) && starters.length >= starterCount)} onChange={event => setStarters(old => event.target.checked ? [...old, player.id] : old.filter(id => id !== player.id))} />首发</label>
         </div>;
-      })}</div>}
+      })}</div></div>}
     <Button type="button" onClick={save} disabled={!captainId || pending || team?.approved || (captainsOnly && Boolean(team))}>{captainsOnly ? "创建队长队伍" : "保存编队草稿"}</Button>
     {team && !captainsOnly && !team.approved && <Button type="button" variant="outline" onClick={approve} disabled={pending}>审核并采用名单</Button>}
     {modern && team && !team.approved && !captainsOnly && !team.approvedId && <Button type="button" variant="outline" disabled={pending} onClick={() => setConfirmAction("withdraw")}>撤销编队</Button>}
@@ -68,7 +72,7 @@ function TeamEditor({ seasonId, players, team, occupied, maxTeamSize, starterCou
 }
 export function ManualFormationPanel({ seasonId, data, maxTeamSize, starterCount, captainsOnly = false, allowCreate = true, modern = true }: { seasonId: string; data: FormationData; maxTeamSize: number; starterCount: number; captainsOnly?: boolean; allowCreate?: boolean; modern?: boolean }) {
   const occupied = new Set(data.teams.flatMap(team => team.members.map(member => member.id)));
-  return <div className="space-y-4"><p className="text-sm">{captainsOnly ? "选择队长创建选秀队伍；队长需要确认参赛。" : `按报名选手创建队伍。每队最多 ${maxTeamSize} 人、${starterCount} 名首发。保存草稿不会批准名单或开始比赛；成员须确认，名单还需审核并采用。`}</p>{data.teams.map(team => <TeamEditor key={team.id} seasonId={seasonId} players={data.players} team={team} occupied={occupied} maxTeamSize={maxTeamSize} starterCount={starterCount} captainsOnly={captainsOnly} modern={modern} />)}{allowCreate && <TeamEditor seasonId={seasonId} players={data.players} occupied={occupied} maxTeamSize={maxTeamSize} starterCount={starterCount} captainsOnly={captainsOnly} modern={modern} />}</div>;
+  return <div className="space-y-4"><p className="text-sm">{captainsOnly ? "选择队长创建选秀队伍；队长需要确认参赛。" : `每队最多 ${maxTeamSize} 人、${starterCount} 名首发。成员确认后需审核并采用名单。`}</p>{data.teams.map(team => <TeamEditor key={team.id} seasonId={seasonId} players={data.players} team={team} occupied={occupied} maxTeamSize={maxTeamSize} starterCount={starterCount} captainsOnly={captainsOnly} modern={modern} />)}{allowCreate && <TeamEditor seasonId={seasonId} players={data.players} occupied={occupied} maxTeamSize={maxTeamSize} starterCount={starterCount} captainsOnly={captainsOnly} modern={modern} />}</div>;
 }
 
 export function FormationApprovalPanel({ seasonId, teams }: { seasonId: string; teams: FormationData["teams"] }) {

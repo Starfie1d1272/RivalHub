@@ -200,23 +200,27 @@ export function V2QualificationSummary({ config, rules, institutionOptions, curr
   const ranks = platforms.find(item => item.key === policy.competitiveProfile?.platform)?.ranks ?? [];
   const rankLabel = (rank: string) => rank === NO_RANK ? "无门槛" : ranks.find(item => item.rankKey === rank)?.label ?? rank;
   return <div className="space-y-4 text-sm">
+    <h3 className="text-sm font-medium">成员资格</h3>
     <dl className="grid gap-3 sm:grid-cols-2">
-      <div><dt>允许的参赛身份</dt><dd>{allowedPlayerTypes.map(type => PLAYER_TYPE_LABELS[type]).join("、")}</dd></div>
-      <div><dt>教育认证</dt><dd>{policy.educationRequired ? "要求" : "不要求"}</dd></div>
-      <div><dt>QQ</dt><dd>{policy.contacts.qqRequired ? "要求" : "不要求"}</dd></div>
-      <div><dt>已验证邮箱</dt><dd>{policy.contacts.emailVerifiedRequired ? "要求" : "不要求"}</dd></div>
-      <div><dt>竞技资料完整</dt><dd>{policy.competitiveProfileRequired ? "要求" : "不要求"}</dd></div>
-      <div><dt>当前段位门槛</dt><dd>{rankLabel(currentMin)}</dd></div>
-      <div><dt>历史段位门槛</dt><dd>{rankLabel(peakMin)}</dd></div>
-      <div><dt>历史实力星差</dt><dd>{policy.externalStrengthGap.enabled ? `${policy.externalStrengthGap.maxGap} 星` : "不限制"}</dd></div>
-      <div><dt>单场替补上限</dt><dd>{config.lineup.maxSubstitutes} 人</dd></div>
-      <div><dt>负责人移除成员</dt><dd>{config.rosterChanges.representativeCanRemove ? "允许" : "不允许"}</dd></div>
-      <div><dt>负责人转让职责</dt><dd>{config.rosterChanges.representativeCanTransfer ? "允许" : "不允许"}</dd></div>
-      <div><dt>审核后自行调整名单</dt><dd>{config.rosterChanges.selfServiceAfterApproval ? "允许" : "不允许"}</dd></div>
-      <div><dt>队伍名称唯一</dt><dd>{config.requireUniqueTeamName ? "要求" : "不要求"}</dd></div>
-      <div><dt>队伍 Logo</dt><dd>{config.requireTeamLogo ? "要求" : "不要求"}</dd></div>
-      <div><dt>成员位置</dt><dd>{config.requirePositions ? `每位置最多 ${config.maxPerPositionPerTeam} 人` : "不要求"}</dd></div>
-      <div><dt>种子安排</dt><dd>{config.seeding.mode === "manual" ? "手动安排" : "按实力推荐"}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">允许的参赛身份</dt><dd className="mt-1 font-medium">{allowedPlayerTypes.map(type => PLAYER_TYPE_LABELS[type]).join("、")}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">教育认证</dt><dd className="mt-1 font-medium">{policy.educationRequired ? "要求" : "不要求"}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">QQ</dt><dd className="mt-1 font-medium">{policy.contacts.qqRequired ? "要求" : "不要求"}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">已验证邮箱</dt><dd className="mt-1 font-medium">{policy.contacts.emailVerifiedRequired ? "要求" : "不要求"}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">竞技资料完整</dt><dd className="mt-1 font-medium">{policy.competitiveProfileRequired ? "要求" : "不要求"}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">当前段位门槛</dt><dd className="mt-1 font-medium">{rankLabel(currentMin)}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">历史段位门槛</dt><dd className="mt-1 font-medium">{rankLabel(peakMin)}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">历史实力星差</dt><dd className="mt-1 font-medium">{policy.externalStrengthGap.enabled ? `${policy.externalStrengthGap.maxGap} 星` : "不限制"}</dd></div>
+    </dl>
+    <h3 className="border-t border-[var(--color-border)] pt-4 text-sm font-medium">名单与比赛</h3>
+    <dl className="grid gap-3 sm:grid-cols-2">
+      <div><dt className="text-[var(--color-fg-mid)]">单场替补上限</dt><dd className="mt-1 font-medium">{config.lineup.maxSubstitutes} 人</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">负责人移除成员</dt><dd className="mt-1 font-medium">{config.rosterChanges.representativeCanRemove ? "允许" : "不允许"}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">负责人转让职责</dt><dd className="mt-1 font-medium">{config.rosterChanges.representativeCanTransfer ? "允许" : "不允许"}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">审核后自行调整名单</dt><dd className="mt-1 font-medium">{config.rosterChanges.selfServiceAfterApproval ? "允许" : "不允许"}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">队伍名称唯一</dt><dd className="mt-1 font-medium">{config.requireUniqueTeamName ? "要求" : "不要求"}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">队伍 Logo</dt><dd className="mt-1 font-medium">{config.requireTeamLogo ? "要求" : "不要求"}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">成员位置</dt><dd className="mt-1 font-medium">{config.requirePositions ? `每位置最多 ${config.maxPerPositionPerTeam} 人` : "不要求"}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">种子安排</dt><dd className="mt-1 font-medium">{config.seeding.mode === "manual" ? "手动安排" : "按实力推荐"}</dd></div>
     </dl>
     {rules.length ? <ul className="space-y-2">{rules.map((rule, index) => <li key={`${rule.institutionCode}-${index}`}>{institutionOptions.find(item => item.code === rule.institutionCode)?.name ?? "机构"}（{rule.institutionCode}）：{rule.eligibleAcademicStatuses.map(status => status === "enrolled" ? "在读" : "毕业").join("、")}；名单至少 {rule.minRosterMembers} 人，首发至少 {rule.minStartingMembers} 人</li>)}</ul> : <p>无机构人数要求</p>}
   </div>;
