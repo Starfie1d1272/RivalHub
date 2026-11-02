@@ -425,6 +425,7 @@ export async function getStartingLineupPreflightInTx(
         .where(and(eq(eventRosters.entryId, args.entryId), eq(competitionEntries.competitionId, args.match.seasonId)));
       if (!roster || roster.status !== "frozen" || !roster.revisionId) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事名单尚未冻结。");
       const frozen = decodeFrozenLineupEligibility(snapshot, { seasonId: args.match.seasonId, entryId: args.entryId, rosterRevisionId: roster.revisionId });
+      if (frozen.starterCount !== stage.rosterRules.starterCount) throw new AppError(ErrorCode.VALIDATION_FAILED, "StageRun 首发人数与冻结资格快照不一致。");
       const members = await tx.select({ id: eventRosterMembers.id, userId: eventRosterMembers.userId }).from(eventRosterMembers)
         .where(and(eq(eventRosterMembers.eventRosterId, roster.id), eq(eventRosterMembers.isCurrent, true)));
       if (members.length !== frozen.membersById.size || members.some((member) => frozen.membersById.get(member.id)?.userId !== member.userId)) {
