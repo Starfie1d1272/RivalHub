@@ -22,6 +22,8 @@ import { assertPrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence"
 import { ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
 import { freezeAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
 import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
+import { decodeEventRosterEligibilitySnapshotV2 } from "@/lib/seasons/eligibility-snapshot";
+import { decodeSeasonRules, seasonRulesNeedCompetitiveContext } from "@/lib/seasons/rules";
 import { loadActiveRestrictionOverridesInTx, unresolvedQualificationFindings } from "@/lib/competition-entries/restriction-overrides";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
@@ -122,6 +124,7 @@ export async function startMajorInTransaction(
   }
   const eventRosterIds = coherenceRows.map((row) => row.eventRoster.id);
   const rosterRows = eventRosterIds.length === 0 ? [] : await tx.select({
+    eventRosterMemberId: eventRosterMembers.id,
     eventRosterId: eventRosterMembers.eventRosterId,
     userId: eventRosterMembers.userId,
     participantId: eventRosterMembers.participantId,
@@ -214,16 +217,20 @@ export async function startMajorInTransaction(
   const now = new Date();
   const openingPlan = buildMajorOpeningPlan({ teams: seeds, stagePlan: capabilities.stagePlan });
   const entrantByEntryId = new Map(entrantRows.map((entrant) => [entrant.competitionEntryId, entrant]));
+  const rules = decodeSeasonRules(season);
   const definitionPolicy = capabilities.teamRegistrationConfig.qualificationPolicy;
-  const requiresCompetitiveProfile = definitionPolicy?.competitiveProfileRequired ?? capabilities.teamRegistrationConfig.requireCompetitiveProfile;
-  const configuredCompetitiveProfile = definitionPolicy ? definitionPolicy.competitiveProfileRequired || definitionPolicy.externalStrengthGap.enabled ? definitionPolicy.competitiveProfile : null : capabilities.teamRegistrationConfig.competitiveProfile ?? null;
-  const competitiveProfile = configuredCompetitiveProfile
+  const requiresCompetitiveProfile = definitionPolicy?.competitiveProfileRequired ?? ("requireCompetitiveProfile" in capabilities.teamRegistrationConfig && capabilities.teamRegistrationConfig.requireCompetitiveProfile);
+  const needsContext = rules.source === "policy_v2" ? seasonRulesNeedCompetitiveContext(rules) : Boolean(requiresCompetitiveProfile || definitionPolicy?.externalStrengthGap.enabled);
+  const configuredCompetitiveProfile = definitionPolicy ? needsContext ? definitionPolicy.competitiveProfile : null : "competitiveProfile" in capabilities.teamRegistrationConfig ? capabilities.teamRegistrationConfig.competitiveProfile ?? null : null;
+  // V2 evidence requirements are evaluated per purpose; historical-only gaps
+  // do not require the full current/previous season profile.
+  const competitiveProfile = rules.source === "policy_v2" ? configuredCompetitiveProfile : configuredCompetitiveProfile
     ? await resolveCompetitiveContext(configuredCompetitiveProfile)
     : null;
-  if ((requiresCompetitiveProfile || definitionPolicy?.externalStrengthGap.enabled) && !competitiveProfile) {
+  if (needsContext && !competitiveProfile) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求竞技资料，但实际开放报名时冻结的竞技平台目录不完整，不能正式开赛。");
   }
-  const affiliationRules = definitionPolicy?.affiliationRules ?? capabilities.affiliationRules;
+  const affiliationRules = definitionPolicy?.version === 1 ? definitionPolicy.affiliationRules : capabilities.affiliationRules;
   const frozenParticipantIds = [...new Set(rosterRows.map((row) => row.userId))];
 
   // Start-time qualification: live participant facts may still change between
@@ -323,6 +330,24 @@ export async function startMajorInTransaction(
         : undefined,
     };
   });
+  // StageRun owns a copy of each adopted v2 eligibility snapshot. Verify the
+  // immutable Entry/revision/member bindings before persisting the copy.
+  const frozenEligibilitySnapshots = definitionPolicy?.version === 2
+    ? coherenceRows.map((coherence) => {
+      const adopted = decodeEventRosterEligibilitySnapshotV2(coherence.eventRoster.eligibilitySnapshot);
+      if (adopted.seasonId !== season.id || adopted.entryId !== coherence.entry.id || adopted.rosterRevisionId !== coherence.approvedRevision.id) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "已采用资格快照与当前赛事名单版本不一致。 ");
+      }
+      const current = rosterRows.filter((row) => row.eventRosterId === coherence.eventRoster.id);
+      if (current.length !== adopted.members.length || current.some((member) => !adopted.members.some((frozen) =>
+        frozen.eventRosterMemberId === member.eventRosterMemberId && frozen.userId === member.userId && frozen.participantId === member.participantId &&
+        frozen.educationVerificationId === member.educationVerificationId && frozen.isPrimaryStarter === member.isPrimaryStarter &&
+        frozen.source.rosterRevisionId === coherence.approvedRevision.id))) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "已采用资格快照与冻结名单成员不一致。 ");
+      }
+      return adopted;
+    })
+    : undefined;
   const ruleSnapshot = makeMajorRunSnapshotV4({
     // StageRun is the immutable tournament rule owner. Match-roster (G1)
     // must consume this frozen value rather than seasons.affiliationRules.
@@ -364,6 +389,7 @@ export async function startMajorInTransaction(
     // Immutable participant-level historical / previous / current values.
     // Match lineup validation must never consult mutable rank facts again.
     frozenCompetitiveFacts,
+    ...(frozenEligibilitySnapshots ? { frozenEligibilitySnapshots } : {}),
   });
   const [stageRun] = await tx.insert(majorStageRuns).values({
     seasonId: season.id,

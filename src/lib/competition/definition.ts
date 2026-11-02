@@ -8,7 +8,6 @@ import {
 } from "@/lib/seasons/compatibility";
 import {
   type SeasonCapabilities,
-  type TeamRegistrationConfig,
   type StageConfig,
   type StagePlan,
 } from "@/types/season";
@@ -69,8 +68,9 @@ export type SeasonCapabilityRow = Pick<SeasonCapabilities,
 >;
 
 /** Project a persisted season row into the canonical capability contract. */
-export function capabilitiesFromSeason(season: SeasonCapabilityRow): SeasonCapabilities & { teamRegistrationConfig: TeamRegistrationConfig } {
-  const teamRegistrationConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
+export function capabilitiesFromSeason(season: SeasonCapabilityRow): SeasonCapabilities {
+  const stored = season.teamRegistrationConfig;
+  const teamRegistrationConfig = stored.qualificationPolicy?.version === 2 ? stored : normalizeTeamRegistrationConfig(stored);
   return {
     registrationMode: season.registrationMode,
     hasCaptainVoting: season.hasCaptainVoting,
@@ -79,7 +79,7 @@ export function capabilitiesFromSeason(season: SeasonCapabilityRow): SeasonCapab
     stagePlan: normalizeStagePlan(season.stagePlan),
     registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
     teamRegistrationConfig,
-    affiliationRules: teamRegistrationConfig.qualificationPolicy?.affiliationRules ?? normalizeAffiliationRules(season.affiliationRules),
+    affiliationRules: teamRegistrationConfig.qualificationPolicy?.version === 1 ? teamRegistrationConfig.qualificationPolicy.affiliationRules : normalizeAffiliationRules(season.affiliationRules),
     minTeamSize: season.minTeamSize,
     maxTeamSize: season.maxTeamSize,
     starterCount: season.starterCount,
