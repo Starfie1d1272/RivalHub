@@ -16,7 +16,7 @@ import { normalizeRegistrationConfig, normalizeTeamRegistrationConfig, teamRegis
 import type { StagePlan, TeamRegistrationConfig } from "@/types/season";
 import { validateCompetitionDefinition } from "@/lib/competition/definition";
 import { assertAffiliationRequirementsFit, assertQualificationPolicyPublishable } from "@/lib/competition/qualification-policy";
-import { decodeSeasonRules } from "@/lib/seasons/rules";
+import { assertFormationRulesPublishable, decodeSeasonRules, seasonRulesNeedCompetitiveContext } from "@/lib/seasons/rules";
 import { assertSeasonHasNoHistoricalFacts, openSeasonRegistrationInTx, resolveConversionPolicyForPublish, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
 import { seasonFormSchema, seasonUpdatePayloadSchema, planSeasonCreate, planSeasonUpdate, type SeasonFormInput } from "@/lib/seasons/edit";
 import { updatePublicAnnouncementTags, updatePublicSeasonInfoTag, updatePublicSeasonTags } from "@/lib/revalidation";
@@ -149,6 +149,8 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
 
       const decoded = decodeSeasonRules(locked);
       if (decoded.source === "policy_v2") {
+        assertFormationRulesPublishable(decoded);
+        if (seasonRulesNeedCompetitiveContext(decoded) && !decoded.competitive.competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "资格政策要求竞技资料、段位门槛或外校实力限制，请先配置竞技平台。 ");
         assertAffiliationRequirementsFit(decoded.roster.affiliationRules, { maxTeamSize: decoded.roster.maxTeamSize, starterCount: decoded.lineup.starterCount });
         throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "新版资格政策尚未完成全部赛事流程接入，暂不能发布。 ");
       }

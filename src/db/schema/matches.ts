@@ -34,7 +34,7 @@ export const matches = pgTable("matches", {
     mapPool: string[];
     operatorAId: string;
     operatorBId: string;
-    eligibility?: { a: import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility; b: import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility };
+    eligibility?: { a: import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility | import("@/lib/seasons/eligibility-snapshot").EventRosterEligibilitySnapshotV2; b: import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility | import("@/lib/seasons/eligibility-snapshot").EventRosterEligibilitySnapshotV2 };
   }>(),
 
   // ── 比赛元数据 ────────────────────────────────────────────────────────

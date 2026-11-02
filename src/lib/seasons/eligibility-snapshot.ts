@@ -1,12 +1,8 @@
 import { z } from "zod";
 import { competitiveProfileSchema, qualificationPolicySchema, qualificationPolicyV2Schema } from "@/lib/competition/qualification-policy";
 
-const strengthFactSchema = z.object({
-  rank: z.string(), rating: z.number(), ratingComparable: z.boolean().optional(),
-  sourcePlatform: z.string().optional(), sourceSeasonKey: z.string().nullable().optional(), sourceRank: z.string().optional(),
-  sourceStars: z.number().nullable().optional(), conversionVersion: z.string().optional(), stars: z.number().nullable().optional(),
-  estimatedFromUnranked: z.boolean().optional(), estimatedFromSeasonKey: z.string().nullable().optional(), estimatedFromHistorical: z.boolean().optional(),
-}).strict();
+const profileReadinessFactSchema = z.object({ status: z.enum(["ranked", "unranked"]), rank: z.string().nullable(), rating: z.number().nullable(), stars: z.number().nullable(), sourcePlatform: z.string(), sourceSeasonKey: z.string().nullable() }).strict();
+const externalStrengthFactSchema = z.object({ userId: z.string(), label: z.string(), rank: z.string().nullable(), stars: z.number().nullable(), sourcePlatform: z.string(), sourceSeasonKey: z.string().nullable(), sourceRank: z.string().nullable() }).strict();
 const findingSchema = z.object({ code: z.string(), message: z.string(), waivable: z.boolean(), metadata: z.record(z.string(), z.unknown()).optional() }).strict();
 
 /** Serializable facts adopted for one Entry revision; no mutable profile lookup is needed. */
@@ -21,14 +17,17 @@ export const eventRosterEligibilitySnapshotV2Schema = z.object({
   rules: z.object({
     qualificationPolicy: qualificationPolicyV2Schema,
     affiliationRules: qualificationPolicySchema.shape.affiliationRules,
+    allowedPlayerTypes: z.array(z.enum(["enrolled", "graduated", "external"])),
+    rankThreshold: z.object({ currentMin: z.string().nullable(), peakMin: z.string().nullable() }).strict(),
     starterCount: z.number().int().min(0), maxSubstitutes: z.number().int().min(0),
   }).strict(),
   competitive: z.object({
     profile: competitiveProfileSchema.nullable(),
     requirements: z.object({ historicalPeak: z.boolean(), seasonKeys: z.array(z.string()), ratingRequired: z.boolean(), exactStarsRequired: z.boolean() }).strict(),
     byPurpose: z.object({
-      profileReadiness: z.array(z.object({ userId: z.string(), historicalPeak: strengthFactSchema.nullable(), seasons: z.record(z.string(), strengthFactSchema.nullable()) }).strict()),
-      externalStrength: z.array(z.object({ userId: z.string(), label: z.string(), historicalPeak: strengthFactSchema.nullable(), previousSeasonPeak: strengthFactSchema.nullable(), currentSeasonPeak: strengthFactSchema.nullable(), recentSeasonPeaks: z.array(strengthFactSchema.nullable()).optional() }).strict()),
+      profileReadiness: z.array(z.object({ userId: z.string(), historicalPeak: profileReadinessFactSchema.nullable(), seasons: z.record(z.string(), profileReadinessFactSchema.nullable()) }).strict()),
+      rankThreshold: z.array(z.object({ userId: z.string(), currentRank: z.string().nullable(), peakRank: z.string().nullable() }).strict()),
+      externalStrength: z.array(externalStrengthFactSchema),
     }).strict(),
   }).strict().nullable(),
   overrides: z.array(z.object({ restrictionCode: z.string(), findingSnapshot: findingSchema, reason: z.string(), grantedBy: z.string(), grantedAt: z.string() }).strict()),
@@ -37,3 +36,10 @@ export type EventRosterEligibilitySnapshotV2 = z.infer<typeof eventRosterEligibi
 export function decodeEventRosterEligibilitySnapshotV2(value: unknown): EventRosterEligibilitySnapshotV2 {
   return eventRosterEligibilitySnapshotV2Schema.parse(value);
 }
+
+/** Policy shared by a qualification run; individual adopted facts live in its roster snapshots. */
+export type QualificationEligibilityPolicyV2 = {
+  version: 2;
+  rules: EventRosterEligibilitySnapshotV2["rules"];
+  competitive: Omit<NonNullable<EventRosterEligibilitySnapshotV2["competitive"]>, "byPurpose"> | null;
+};
