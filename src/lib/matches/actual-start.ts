@@ -5,6 +5,7 @@ import { betMarkets, betPrograms, freePredictionLocks, matchActualStartAdoptions
 import { writeAuditInTx } from "@/lib/audit/write";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { lockCompetitionMatchInTx } from "./locking";
+import catalogContract from "@/lib/bet/catalog-contract.json";
 
 function invalid(message: string): never { throw new AppError(ErrorCode.VALIDATION_FAILED, message); }
 
@@ -29,6 +30,7 @@ export async function adoptActualStartInTx(tx: TxDb, input: {
   seasonId: string; matchId: string; actorId: string; requestId: string;
   expectedRevision: number; expectedOriginal: string | null; actualAt: string; reason: string; evidence: string;
 }) {
+  if (catalogContract.capabilities.actualStartAdmission.publisherVersion < 1) invalid("实际开局补录暂未开放。");
   const match = await lockCompetitionMatchInTx(tx, input.matchId);
   if (match.seasonId !== input.seasonId) throw new AppError(ErrorCode.FORBIDDEN, "比赛不属于当前赛事。");
   const [retry] = await tx.select().from(adoptions).where(and(eq(adoptions.matchId, match.id), eq(adoptions.requestId, input.requestId)));

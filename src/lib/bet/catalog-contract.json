@@ -9,6 +9,10 @@
     "eventBeforeSeeds": {
       "readerVersion": 1,
       "publisherVersion": 1
+    },
+    "actualStartAdmission": {
+      "readerVersion": 1,
+      "publisherVersion": 1
     }
   }
 }
