@@ -259,15 +259,19 @@ export async function loadMatchEligibilityContextInTx(
     let approvedHomeRequired = false;
     let frozenRestrictionOverrides: readonly FrozenRestrictionOverrideSnapshot[] = [];
     const [season] = await tx
-      .select({ starterCount: seasons.starterCount, competitionTemplate: seasons.competitionTemplate })
+      .select({ starterCount: seasons.starterCount, competitionTemplate: seasons.competitionTemplate, teamRegistrationConfig: seasons.teamRegistrationConfig })
       .from(seasons)
       .where(eq(seasons.id, match.seasonId));
     if (!season) throw new AppError(ErrorCode.INTERNAL_ERROR, "比赛所属赛季不存在。");
     let policy: MatchLineupPolicy;
-    if (match.ownership !== "major_stage") {
+    if (match.ownership !== "major_stage" && !match.qualificationRunId) {
+      const storedPolicy = (season.teamRegistrationConfig as { qualificationPolicy?: { version?: number } } | null)?.qualificationPolicy;
+      if (storedPolicy?.version === 2) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "新版资格规则缺少可用的冻结名单快照，无法校验本场阵容。");
+      }
       policy = resolveMatchLineupPolicy({ ownership: match.ownership, seasonStarterCount: season.starterCount });
     } else {
-      // Assigned below after the canonical StageRun snapshot has been loaded.
+      // Assigned below from the matching StageRun or QualificationRun snapshot.
       policy = { starterCount: 0, maxSubstitutes: 0 };
     }
 

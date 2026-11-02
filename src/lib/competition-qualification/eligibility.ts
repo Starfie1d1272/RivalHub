@@ -9,6 +9,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { freezeAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
 import type { PlayerStrengthInput } from "@/lib/major/player-strength";
 import type { FrozenRestrictionOverrideSnapshot } from "@/lib/major/run-snapshot";
+import type { ParticipantQualificationFacts } from "@/lib/qualification/facts";
 import { loadParticipantQualificationFacts, resolveCompetitiveContext, toPlayerStrengthInput } from "@/lib/qualification/service";
 import { resolveQualificationPolicy } from "@/lib/seasons/compatibility";
 import type { CompetitiveProfileConfig, InstitutionAffiliationRule, QualificationPolicyV1 } from "@/types/season";
@@ -33,6 +34,8 @@ export interface QualificationRosterEligibility {
 }
 
 export async function freezeQualificationPolicy(season: Season): Promise<QualificationEligibilityPolicy> {
+  const storedPolicy = (season.teamRegistrationConfig as { qualificationPolicy?: { version?: number } } | null)?.qualificationPolicy;
+  if (storedPolicy?.version === 2) throw new AppError(ErrorCode.VALIDATION_FAILED, "本赛事使用新版资格规则，尚不能用旧版快照锁定。");
   const capabilities = capabilitiesFromSeason(season);
   const definition = capabilities.teamRegistrationConfig.qualificationPolicy;
   const resolved = resolveQualificationPolicy(season.teamRegistrationConfig, season.affiliationRules, "roster");
@@ -55,13 +58,18 @@ export async function freezeQualificationPolicy(season: Season): Promise<Qualifi
 /** Explicit approved-roster synchronization freezes facts once per adopted revision. */
 export async function freezeQualificationRosterInTx(tx: TxDb, input: {
   season: Season; entryId: string; rosterRevisionId: string; eventRosterId: string;
+  participantFacts?: ReadonlyMap<string, ParticipantQualificationFacts>;
 }): Promise<void> {
   const [run] = await tx.select({ policy: competitionQualificationRuns.eligibilityPolicy }).from(competitionQualificationRuns)
     .where(eq(competitionQualificationRuns.seasonId, input.season.id));
   if (!run) return; // Only Qualification owns this snapshot; Main Event has StageRun.
   const policy = run.policy;
   if (!policy || policy.version !== 1) throw new AppError(ErrorCode.VALIDATION_FAILED, "Play-in 缺少已锁定的资格规则，请在首轮生成前重置配置。");
-  const [roster] = await tx.select({ snapshot: eventRosters.eligibilitySnapshot }).from(eventRosters).where(eq(eventRosters.id, input.eventRosterId));
+  const [roster] = await tx.select({ snapshot: eventRosters.eligibilitySnapshot, revisionId: eventRosters.sourceRosterRevisionId }).from(eventRosters)
+    .where(and(eq(eventRosters.id, input.eventRosterId), eq(eventRosters.entryId, input.entryId))).for("update");
+  if (!roster || roster.revisionId !== input.rosterRevisionId) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事名单与已批准名单版本不一致，不能锁定资格事实。");
+  }
   if (roster?.snapshot?.rosterRevisionId === input.rosterRevisionId && roster.snapshot.entryId === input.entryId) return;
   if (roster?.snapshot) {
     const [used] = await tx.select({ id: matchRosters.id }).from(matchRosters)
@@ -76,11 +84,13 @@ export async function freezeQualificationRosterInTx(tx: TxDb, input: {
 /** Shared frozen roster facts for qualification and event rehearsals. */
 export async function buildRosterEligibilityInTx(tx: TxDb, input: {
   season: Season; entryId: string; rosterRevisionId: string; eventRosterId: string; policy: QualificationEligibilityPolicy;
+  /** Facts from the same transaction and competitive context as the roster assessment, when already loaded. */
+  participantFacts?: ReadonlyMap<string, ParticipantQualificationFacts>;
 }): Promise<QualificationRosterEligibility> {
   const { policy } = input;
   const members = await tx.select({ userId: eventRosterMembers.userId }).from(eventRosterMembers)
     .where(and(eq(eventRosterMembers.eventRosterId, input.eventRosterId), eq(eventRosterMembers.isCurrent, true)));
-  const facts = policy.competitiveProfile ? await loadParticipantQualificationFacts(members.map(member => member.userId), {
+  const facts = policy.competitiveProfile ? input.participantFacts ?? await loadParticipantQualificationFacts(members.map(member => member.userId), {
     executor: tx, platform: policy.competitiveProfile.platform, fallbackPlatform: policy.competitiveProfile.fallbackConversion?.sourcePlatform,
   }) : new Map();
   if (policy.competitiveProfile && members.some(member => !facts.has(member.userId))) {
