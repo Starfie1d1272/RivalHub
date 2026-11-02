@@ -40,7 +40,6 @@ const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 async function main(): Promise<void> {
   const stopped = process.argv[2] === "--stopped-instance-source";
   if (stopped && (process.argv.length !== 6 || process.argv[4] !== "--source-manifest")) throw new Error("Invalid stopped-instance backup arguments.");
-  if (!stopped && process.argv.length > 3) throw new Error("Invalid backup arguments.");
   const backupClass = assertBackupClass(stopped ? process.env.RIVALHUB_BACKUP_CLASS : process.argv[2] ?? process.env.RIVALHUB_BACKUP_CLASS);
   const sourceMode = process.env.RIVALHUB_BACKUP_SOURCE ?? "production";
   if (sourceMode !== "production" && sourceMode !== "instance" && sourceMode !== "isolated-instance") throw new Error("Unknown backup source.");
