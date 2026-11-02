@@ -97,9 +97,9 @@ export function TeamQualificationSummary({ config }: { config: TeamRegistrationC
   if (config.qualificationPolicy) {
     const policy = config.qualificationPolicy;
     return <div className="space-y-3 text-sm">
-      <h3 className="font-medium">队伍教育与归属要求</h3>
+      <h3 className="font-medium">队伍教育要求</h3>
       <p>教育认证：{policy.educationRequired ? "要求" : "不要求"}</p>
-      {policy.affiliationRules.length === 0 ? <p>未设置机构人数要求</p> : policy.affiliationRules.map((rule) => <p key={rule.institutionCode}>{rule.institutionCode}：名单至少 {rule.minRosterMembers} 人，首发至少 {rule.minStartingMembers} 人</p>)}
+      <AffiliationRulesSummary rules={policy.affiliationRules} />
     </div>;
   }
   return (
