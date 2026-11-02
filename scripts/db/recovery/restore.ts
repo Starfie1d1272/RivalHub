@@ -365,7 +365,7 @@ function assertManifestCompatibility(manifest: RecoveryManifest): void {
     throw new Error("Recovery manifest source or schema identity is incompatible; restore aborted. ");
   }
   if (manifest.sourceEnvironment !== "production") {
-    assertInstanceReleaseIdentity(manifest.source.deployedReleaseTag, manifest.source.deployedCommit);
+    assertInstanceReleaseIdentity(manifest.source.deployedReleaseTag, manifest.source.deployedCommit, process.cwd(), manifest.source.migrationLineage !== "v2");
     const currentCommit = readCurrentGitCommit();
     if (manifest.source.migrationLineage === "v2"
       ? !isCommitAncestor(manifest.source.deployedCommit, currentCommit)

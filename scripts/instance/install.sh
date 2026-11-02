@@ -69,7 +69,7 @@ quiesce() {
   active=$(readlink "$root/current" || true)
   # First install has no previous writer or registered unit to stop.
   if [[ -z $active && ! -f $unit ]]; then return 0; fi
-  if [[ ${#transition_arg[@]} -gt 0 ]]; then managed_scheduler pause || return 1; fi
+  if [[ ${#transition_arg[@]} -gt 0 ]]; then managed_scheduler pause || return 3; fi
   systemctl stop rivalhub-instance || return 2
   [[ -n $active ]] || return 1
   if [[ -n $active ]]; then
@@ -316,6 +316,8 @@ else
   result=$?
   if [[ $result == 2 ]]; then
     echo 'Service stop not confirmed; service state is unknown, release unchanged.' >&2
+  elif [[ $result == 3 ]]; then
+    echo 'Scheduler pause failed; service state may be unchanged or stopped, release unchanged.' >&2
   else
     echo 'Writer drain failed after service stop; release unchanged.' >&2
   fi
