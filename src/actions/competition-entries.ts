@@ -25,6 +25,7 @@ import {
   withdrawCompetitionEntryFromReviewInTx,
   withdrawCompetitionEntryParticipationInTx,
 } from "@/lib/competition-entries/commands";
+import type { PlayerType } from "@/types/season";
 import { ok, type ActionResult } from "@/types/action";
 import { updatePublicHomeTag, updatePublicStatsTag } from "@/lib/revalidation";
 
@@ -73,8 +74,8 @@ export async function addCompetitionEntryRosterMember(input: { entryId: string; 
   } catch (error) { return actionError("addCompetitionEntryRosterMember", error); }
 }
 
-export async function transferCompetitionEntryParticipation(input: { entryId: string; fromEntryId: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ entryId: uuid, fromEntryId: uuid }).safeParse(input);
+export async function transferCompetitionEntryParticipation(input: { entryId: string; fromEntryId: string; playerType?: PlayerType | null }): Promise<ActionResult<void>> {
+  const parsed = z.object({ entryId: uuid, fromEntryId: uuid, playerType: z.enum(["enrolled", "graduated", "external"]).nullable().optional() }).safeParse(input);
   if (!parsed.success) return failValidation("参赛队伍信息无效。");
   try {
     const session = await requireAuth();
@@ -86,12 +87,12 @@ export async function transferCompetitionEntryParticipation(input: { entryId: st
   } catch (error) { return actionError("transferCompetitionEntryParticipation", error); }
 }
 
-export async function confirmCompetitionEntryParticipation(input: { entryId: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ entryId: uuid }).safeParse(input);
-  if (!parsed.success) return failValidation("参赛条目标识无效。");
+export async function confirmCompetitionEntryParticipation(input: { entryId: string; playerType?: PlayerType | null }): Promise<ActionResult<void>> {
+  const parsed = z.object({ entryId: uuid, playerType: z.enum(["enrolled", "graduated", "external"]).nullable().optional() }).safeParse(input);
+  if (!parsed.success) return failValidation("参赛条目或身份类型无效。");
   try {
     const session = await requireAuth();
-    const result = await db.transaction((tx) => confirmCompetitionEntryParticipationInTx(tx, { entryId: parsed.data.entryId, userId: session.userId, actorId: auditActorId(session) }));
+    const result = await db.transaction((tx) => confirmCompetitionEntryParticipationInTx(tx, { ...parsed.data, userId: session.userId, actorId: auditActorId(session) }));
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
   } catch (error) { return actionError("confirmCompetitionEntryParticipation", error); }

@@ -2,7 +2,7 @@ import type { CompetitiveProfileConfig } from "@/types/season";
 import { isBuiltInStarRank } from "@/lib/competitive/builtins";
 import { compositeStrength } from "@/lib/major/composite-rank";
 import type { QualificationFinding } from "@/lib/qualification/finding";
-import type { ProfileReadinessFact, QualificationEvidence } from "@/lib/seasons/rules";
+import type { ExternalStrengthFact, ProfileReadinessFact, QualificationEvidence } from "@/lib/seasons/rules";
 
 export interface PlayerStrengthFact {
   rank: string;
@@ -49,21 +49,21 @@ export interface PlayerStrengthBreakdown {
 
 /** Evaluate only declared rank thresholds. Either configured threshold can qualify. */
 export function evaluateRankThreshold(
-  player: PlayerStrengthInput,
+  evidence: { currentRank: string | null; peakRank: string | null },
   threshold: { currentMin: string | null; peakMin: string | null },
   rankOrder: readonly string[],
 ): QualificationFinding[] {
   const checks = [
-    { field: "current_season_peak", minimum: threshold.currentMin, fact: player.currentSeasonPeak },
-    { field: "historical_peak", minimum: threshold.peakMin, fact: player.historicalPeak },
+    { field: "current_season_peak", minimum: threshold.currentMin, rank: evidence.currentRank },
+    { field: "historical_peak", minimum: threshold.peakMin, rank: evidence.peakRank },
   ].filter((check): check is typeof check & { minimum: string } => check.minimum !== null);
   if (checks.length === 0) return [];
   if (checks.some((check) => !rankOrder.includes(check.minimum))) {
     return [{ code: "competitive_context_unavailable", message: "报名段位门槛不在赛事段位映射中。", waivable: false, metadata: { field: "rank_threshold" } }];
   }
-  const meets = checks.some((check) => check.fact && rankOrder.indexOf(check.fact.rank) >= rankOrder.indexOf(check.minimum));
+  const meets = checks.some((check) => check.rank && rankOrder.indexOf(check.rank) >= rankOrder.indexOf(check.minimum));
   if (meets) return [];
-  const missing = checks.filter((check) => !check.fact || !rankOrder.includes(check.fact.rank));
+  const missing = checks.filter((check) => !check.rank || !rankOrder.includes(check.rank));
   if (missing.length > 0) {
     return [{ code: "competitive_profile_incomplete", message: "缺少可确认的报名段位门槛资料。", waivable: false, metadata: { field: "rank_threshold", missing: missing.map((check) => check.field) } }];
   }
@@ -240,7 +240,11 @@ export function evaluateCompetitiveProfileReadiness(
     ...[...new Set([referenceKey, ...recentKeys])].map((key) => ({ key, fact: seasons?.get(key) ?? null })),
   ];
   for (const slot of slots) {
-    if (!slot.fact || slot.fact.status !== "ranked") continue;
+    if (!slot.fact) continue;
+    if (slot.fact.status === "unranked") {
+      findings.push({ code: "competitive_profile_incomplete", message: `${slot.key === "historical" ? "历史最高" : slot.key}为未定级，缺少可用段位。`, waivable: false, metadata: { field: "rank", status: "unranked", platform: slot.fact.sourcePlatform, seasonKey: slot.key } });
+      continue;
+    }
     if (!slot.fact.rank) {
       findings.push({ code: "competitive_profile_incomplete", message: `${slot.key === "historical" ? "历史最高" : slot.key}缺少段位。`, waivable: false, metadata: { field: "rank", platform: slot.fact.sourcePlatform, seasonKey: slot.key } });
     }
@@ -316,14 +320,12 @@ type HistoricalPeakStarPosition =
   | { kind: "stars"; stars: number };
 
 /** 历史最高竞技水平按总星数归类，作为外校相对限制的唯一比较口径。 */
-function historicalPeakStarPosition(player: PlayerStrengthInput, config: CompetitiveProfileConfig): HistoricalPeakStarPosition {
-  const fact = player.historicalPeak;
-  if (!fact || !fact.rank) return { kind: "missing" };
+function historicalPeakStarPosition(fact: ExternalStrengthFact, sourceSelection: "primary_then_fallback" | "strongest_equivalent"): HistoricalPeakStarPosition {
+  if (!fact.rank) return { kind: "missing" };
   // Legacy StageRuns intentionally retain the old native-Perfect-only rule.
   // New strongest-equivalent snapshots carry target Perfect rank/stars even
   // when the selected source fact originated on 5E.
-  const strongestEquivalent = config.evidencePolicy?.sourceSelection === "strongest_equivalent";
-  if ((!strongestEquivalent && (fact.sourcePlatform ?? "perfect_world") !== "perfect_world") || !isBuiltInStarRank("perfect_world", fact.rank)) {
+  if ((sourceSelection !== "strongest_equivalent" && fact.sourcePlatform !== "perfect_world") || !isBuiltInStarRank("perfect_world", fact.rank)) {
     return { kind: "starless" };
   }
   if (fact.stars === null || fact.stars === undefined) return { kind: "insufficient" };
@@ -336,13 +338,13 @@ function historicalPeakStarPosition(player: PlayerStrengthInput, config: Competi
  * 资料未填写完整时返回 non-waivable finding；明确触发的政策限制则返回
  * waivable finding，供 Entry review 使用。
  */
-export function evaluateExternalStrengthRule(input: { players: Array<PlayerStrengthInput & { isHome: boolean }>; config: CompetitiveProfileConfig }): { eligible: boolean; blockers: string[]; findings: QualificationFinding[] } {
+export function evaluateExternalHistoricalGap(input: { players: readonly (ExternalStrengthFact & { userId: string; isHome: boolean })[]; maxGap: number; sourceSelection: "primary_then_fallback" | "strongest_equivalent" }): { eligible: boolean; blockers: string[]; findings: QualificationFinding[] } {
   const home = input.players.filter((player) => player.isHome);
   const external = input.players.filter((player) => !player.isHome);
   if (home.length === 0) {
     const findings: QualificationFinding[] = [{
       code: "external_strength_reference_missing",
-      message: "阵容中没有可确认的南京大学成员，无法执行外校成员实力限制。",
+      message: "阵容中没有符合本届机构规则的参考成员，无法执行外校成员实力限制。",
       waivable: false,
       metadata: { field: "home_reference" },
     }];
@@ -350,11 +352,11 @@ export function evaluateExternalStrengthRule(input: { players: Array<PlayerStren
   }
   if (external.length === 0) return { eligible: true, blockers: [], findings: [] };
 
-  const maxGap = input.config.externalStrengthMaxStarGap ?? DEFAULT_EXTERNAL_STRENGTH_MAX_STAR_GAP;
+  const maxGap = input.maxGap;
   const findings: QualificationFinding[] = [];
 
-  const resolve = (player: PlayerStrengthInput & { isHome: boolean }): number | null => {
-    const position = historicalPeakStarPosition(player, input.config);
+  const resolve = (player: ExternalStrengthFact & { userId: string; isHome: boolean }): number | null => {
+    const position = historicalPeakStarPosition(player, input.sourceSelection);
     if (position.kind === "stars") return position.stars;
     if (position.kind === "starless") return Number.NEGATIVE_INFINITY;
     if (position.kind === "insufficient") {
@@ -362,7 +364,7 @@ export function evaluateExternalStrengthRule(input: { players: Array<PlayerStren
         code: "competitive_profile_incomplete",
         message: `选手 ${player.label} 的历史最高属于 S 段位但缺少准确星数，竞技资料未填写完整，无法执行外校相对实力限制，请先补充后再提交。`,
         waivable: false,
-        metadata: { field: "historical_peak.stars", userId: player.userId, rank: player.historicalPeak?.rank ?? null },
+        metadata: { field: "historical_peak.stars", userId: player.userId, rank: player.rank },
       });
     } else {
       findings.push({
@@ -375,8 +377,8 @@ export function evaluateExternalStrengthRule(input: { players: Array<PlayerStren
     return null;
   };
 
-  const homeStars: Array<{ player: PlayerStrengthInput & { isHome: boolean }; stars: number }> = [];
-  const externalStars: Array<{ player: PlayerStrengthInput & { isHome: boolean }; stars: number }> = [];
+  const homeStars: Array<{ player: ExternalStrengthFact & { userId: string; isHome: boolean }; stars: number }> = [];
+  const externalStars: Array<{ player: ExternalStrengthFact & { userId: string; isHome: boolean }; stars: number }> = [];
   for (const player of home) {
     const value = resolve(player);
     if (value !== null && value !== Number.NEGATIVE_INFINITY) homeStars.push({ player, stars: value });
@@ -428,4 +430,18 @@ export function evaluateExternalStrengthRule(input: { players: Array<PlayerStren
     return { eligible: false, blockers: [finding.message], findings: [finding] };
   }
   return { eligible: true, blockers: [], findings: [] };
+}
+
+/** Legacy StageRun adapter; all comparisons remain owned by the narrow evaluator. */
+export function evaluateExternalStrengthRule(input: { players: Array<PlayerStrengthInput & { isHome: boolean }>; config: CompetitiveProfileConfig }): { eligible: boolean; blockers: string[]; findings: QualificationFinding[] } {
+  return evaluateExternalHistoricalGap({
+    players: input.players.map(({ historicalPeak, ...player }) => ({
+      userId: player.userId, isHome: player.isHome, label: player.label,
+      rank: historicalPeak?.rank ?? null, stars: historicalPeak?.stars ?? null,
+      sourcePlatform: historicalPeak?.sourcePlatform ?? "perfect_world",
+      sourceSeasonKey: historicalPeak?.sourceSeasonKey ?? null, sourceRank: historicalPeak?.sourceRank ?? null,
+    })),
+    maxGap: input.config.externalStrengthMaxStarGap ?? DEFAULT_EXTERNAL_STRENGTH_MAX_STAR_GAP,
+    sourceSelection: input.config.evidencePolicy?.sourceSelection ?? "primary_then_fallback",
+  });
 }
