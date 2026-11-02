@@ -1,3 +1,4 @@
+import { isMajorPrestartPhase } from "@/lib/major/formation-phase";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
@@ -39,7 +40,7 @@ export async function rollbackMajorPrestartEntrantsInTx(
   const [season] = await tx.select().from(seasons)
     .where(eq(seasons.id, input.seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛事不存在。");
-  if (season.status !== "registration") {
+  if (!isMajorPrestartPhase(season)) {
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前赛事已进入运行阶段，不能撤回冻结。");
   }
   const { entrantCapacity } = getStandardMajorDefinition(season);

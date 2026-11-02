@@ -13,10 +13,12 @@ import { revalidateSeasonPaths } from "@/lib/revalidation";
 import { ok, type ActionResult } from "@/types/action";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { decodeSeasonRules } from "@/lib/seasons/rules";
-import { adoptEventNativeRosterInTx, assessEntryRosterInTx } from "@/lib/competition-entries/commands";
-import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
+import { adoptEventNativeRosterInTx, validateApprovedCompetitionEntryRosterInTx } from "@/lib/competition-entries/commands";
+import { assertPrestartEntryCoherenceInTx, assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import { adoptApprovedRosterInTx } from "@/lib/event-rosters/owner";
 import { prepareApprovedEventRosterInTx } from "@/lib/event-rosters/prepare-approved";
+import { decodeEventRosterEligibilitySnapshotV2 } from "@/lib/seasons/eligibility-snapshot";
+import { getFirstStage, normalizeStagePlan } from "@/lib/seasons/compatibility";
 
 const inputSchema = z.object({ seasonId: z.guid(), entryId: z.guid().nullable(), captainId: z.guid(), memberIds: z.array(z.guid()).max(20), starterIds: z.array(z.guid()).max(20) });
 
@@ -98,10 +100,11 @@ export async function approveFormation(input: { seasonId: string; entryId: strin
         if (!state || state.isActive || state.currentEntryId) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "选秀结束后才能审核名单。");
       }
       const actorId = auditActorId(admin);
-      await adoptEventNativeRosterInTx(tx, { entryId: entry.id, expectedRevisionId: parsed.data.expectedRevisionId, actorId });
+      const adopted = await adoptEventNativeRosterInTx(tx, { entryId: entry.id, expectedRevisionId: parsed.data.expectedRevisionId, actorId });
       await tx.insert(eventRosters).values({ entryId: entry.id, status: "preparing" }).onConflictDoNothing({ target: eventRosters.entryId });
       if (decodeSeasonRules(season).source === "policy_v2") {
-        const assessment = await assessEntryRosterInTx(tx, { entryId: entry.id, expectedRevisionId: parsed.data.expectedRevisionId });
+        const assessment = adopted.assessment;
+        if (!assessment) throw new AppError(ErrorCode.INTERNAL_ERROR, "新版名单缺少资格评估结果。");
         const coherent = await assertSinglePrestartEntryCoherenceInTx(tx, season.id, { competitionEntryId: entry.id }, { requireEventRosterSync: false });
         await adoptApprovedRosterInTx(tx, { coherent, actorId, assessment });
         await writeAuditInTx(tx, { seasonId: season.id, action: "competition_entry.sync_event_roster", actorId, targetId: entry.id, meta: { source: "formation", rosterRevisionId: parsed.data.expectedRevisionId } });
@@ -113,4 +116,39 @@ export async function approveFormation(input: { seasonId: string; entryId: strin
     revalidateSeasonPaths(slug, ["adminDraft", "teams"]);
     return ok(undefined);
   } catch (error) { return actionError("approveFormation", error); }
+}
+
+/** Explicitly freeze the adopted rosters and open generic scheduling. */
+export async function startFormedSeason(input: { seasonId: string }): Promise<ActionResult<void>> {
+  const parsed = z.object({ seasonId: z.guid() }).safeParse(input);
+  if (!parsed.success) return failValidation("赛事标识无效");
+  const admin = await requireSeasonAdmin(parsed.data.seasonId);
+  try {
+    const slug = await db.transaction(async tx => {
+      const [season] = await tx.select().from(seasons).where(eq(seasons.id, parsed.data.seasonId)).for("update");
+      if (!season || season.registrationMode !== "solo" || decodeSeasonRules(season).source !== "policy_v2" || !["registration", "drafting"].includes(season.status)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前赛事不能从编队阶段开赛。");
+      if (season.competitionTemplate === "major") throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "Major 请通过赛前筹备完成资格赛、名单冻结和开赛。");
+      if (season.hasCaptainVoting && season.status !== "drafting") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先完成队长投票并确认队长。");
+      if (season.hasDraft) {
+        const state = await tx.query.draftState.findFirst({ where: eq(draftState.seasonId, season.id) });
+        if (!state || state.isActive || state.currentEntryId) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先完成选秀。");
+      }
+      if (!getFirstStage(normalizeStagePlan(season.stagePlan))) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先配置赛程阶段。");
+      const entries = await tx.select({ id: competitionEntries.id, source: competitionEntries.source }).from(competitionEntries).where(eq(competitionEntries.competitionId, season.id));
+      if (entries.length < 2 || entries.some(entry => entry.source !== "event_native")) throw new AppError(ErrorCode.VALIDATION_FAILED, "至少需要两支本届编队。");
+      const coherent = await assertPrestartEntryCoherenceInTx(tx, season.id, entries.map(entry => ({ competitionEntryId: entry.id })));
+      for (const row of coherent) {
+        await validateApprovedCompetitionEntryRosterInTx(tx, row.entry, season);
+        if (row.eventRoster.status !== "confirmed" || !row.eventRoster.eligibilitySnapshot || row.eventRoster.eligibilitySnapshot.version !== 2) throw new AppError(ErrorCode.VALIDATION_FAILED, `队伍「${row.entry.name}」的名单尚未审核并采用。`);
+        decodeEventRosterEligibilitySnapshotV2(row.eventRoster.eligibilitySnapshot);
+      }
+      const now = new Date(), actorId = auditActorId(admin);
+      await tx.update(eventRosters).set({ status: "frozen", frozenAt: now, frozenBy: actorId, updatedAt: now }).where(inArray(eventRosters.id, coherent.map(row => row.eventRoster.id)));
+      await tx.update(seasons).set({ status: "playing", updatedAt: now }).where(eq(seasons.id, season.id));
+      await writeAuditInTx(tx, { seasonId: season.id, action: "season.update", actorId, targetId: season.id, meta: { operation: "formation_start", from: season.status, to: "playing", entryIds: entries.map(entry => entry.id) } });
+      return season.slug;
+    });
+    revalidateSeasonPaths(slug, ["adminDraft", "adminMatches", "matches", "teams"]);
+    return ok(undefined);
+  } catch (error) { return actionError("startFormedSeason", error); }
 }

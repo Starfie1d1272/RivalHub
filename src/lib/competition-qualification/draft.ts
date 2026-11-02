@@ -1,3 +1,4 @@
+import { isMajorPrestartPhase } from "@/lib/major/formation-phase";
 import "server-only";
 
 import { and, asc, eq } from "drizzle-orm";
@@ -18,7 +19,7 @@ export async function saveCompetitionQualificationDraftInTx(tx: TxDb, input: {
   const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在。");
   const { entrantCapacity } = getStandardMajorDefinition(season);
-  if (season.status !== "registration") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有报名阶段可以编辑预排名草稿。");
+  if (!isMajorPrestartPhase(season)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有报名阶段可以编辑预排名草稿。");
   const [run] = await tx.select({ id: competitionQualificationRuns.id }).from(competitionQualificationRuns).where(eq(competitionQualificationRuns.seasonId, season.id));
   if (run) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Play-in 配置已锁定；请先显式重置后再编辑草稿。");
   const entries = await tx.select({ id: competitionEntries.id, revision: competitionEntries.approvedRosterRevisionId }).from(competitionEntries)

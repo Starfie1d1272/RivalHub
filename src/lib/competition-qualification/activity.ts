@@ -6,6 +6,6 @@ export function isActiveCompetitionQualificationRun(
   runId: string,
   run: Pick<CompetitionQualificationRun, "id" | "seasonId" | "startedAt" | "completedAt"> | undefined,
 ): boolean {
-  return season.status === "registration" && run?.id === runId && run.seasonId === season.id
+  return ["registration", "drafting"].includes(season.status) && run?.id === runId && run.seasonId === season.id
     && run.startedAt !== null && run.completedAt === null;
 }

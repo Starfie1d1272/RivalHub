@@ -1,3 +1,4 @@
+import { isMajorPrestartPhase } from "@/lib/major/formation-phase";
 import "server-only";
 
 import { and, asc, eq, inArray } from "drizzle-orm";
@@ -95,7 +96,7 @@ export async function configureCompetitionQualificationRunInTx(
   const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
   const { entrantCapacity } = getStandardMajorDefinition(season);
-  if (season.status !== "registration") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有报名阶段可以配置 Play-in。");
+  if (!isMajorPrestartPhase(season)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有报名阶段可以配置 Play-in。");
   if (!season.registrationClosesAt || season.registrationClosesAt.getTime() > Date.now()) {
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "报名截止前不能锁定 Play-in 候选队伍。");
   }

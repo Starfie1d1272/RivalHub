@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { approveFormation, saveManualFormation } from "@/actions/draft/formation";
+import { approveFormation, saveManualFormation, startFormedSeason } from "@/actions/draft/formation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { getManualFormationData } from "@/lib/draft/manual-data";
@@ -77,4 +78,10 @@ export function FormationApprovalPanel({ seasonId, teams }: { seasonId: string; 
     });
   }
   return <Card className="space-y-4 p-5"><h2 className="text-lg font-semibold">审核选秀名单</h2><p className="text-sm">成员确认并满足本届名单规则后，审核并采用各队名单。</p>{teams.map(team => <div key={team.id} className="flex items-center justify-between gap-4"><span>{team.name}</span><Button type="button" variant="outline" disabled={pending} onClick={() => approve(team)}>审核并采用名单</Button></div>)}</Card>;
+}
+
+export function FormationStartPanel({ seasonId, seasonSlug, major }: { seasonId: string; seasonSlug: string; major: boolean }) {
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+  return <Card className="space-y-3 p-5"><h2 className="text-lg font-semibold">赛事开赛</h2><p className="text-sm">完成编队、成员确认和全部名单审核后，管理员可以冻结名单并开始赛事。</p>{major ? <Button asChild><Link href={`/admin/${seasonSlug}/prestart`}>前往 Major 赛前筹备</Link></Button> : <Button type="button" disabled={pending} onClick={() => startTransition(async () => { const result = await startFormedSeason({ seasonId }); if (!result.success) { toast.error(result.error.message); return; } toast.success("名单已冻结，赛事已开始；可前往赛程管理生成赛程。"); router.refresh(); })}>冻结名单并开始赛事</Button>}</Card>;
 }
