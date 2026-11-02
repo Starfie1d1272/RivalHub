@@ -147,7 +147,7 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
       if (locked.competitionTemplate === "custom") assertRunnableCustomDefinition(locked);
 
       const config = normalizeTeamRegistrationConfig(locked.teamRegistrationConfig);
-      assertQualificationPolicyPublishable(config, locked.registrationMode);
+      assertQualificationPolicyPublishable(config, locked.registrationMode, { maxTeamSize: locked.maxTeamSize, starterCount: locked.starterCount });
       let nextTeamRegistrationConfig: TeamRegistrationConfig | null = config.qualificationPolicy
         ? teamRegistrationConfigForWrite(config)
         : locked.teamRegistrationConfig as TeamRegistrationConfig | null;

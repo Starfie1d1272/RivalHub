@@ -48,8 +48,12 @@ export const qualificationPolicySchema = z.object({
 });
 
 /** Solo registration still uses its historical registration configuration. */
-export function assertQualificationPolicyPublishable(config: Pick<TeamRegistrationConfig, "qualificationPolicy">, registrationMode: "team" | "solo"): void {
+export function assertQualificationPolicyPublishable(config: Pick<TeamRegistrationConfig, "qualificationPolicy">, registrationMode: "team" | "solo", limits: { maxTeamSize: number; starterCount: number }): void {
   if (config.qualificationPolicy && registrationMode !== "team") {
     throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "版本化资格政策暂不支持个人报名，请使用队伍报名或移除该政策。 ");
+  }
+  const rules = config.qualificationPolicy?.affiliationRules;
+  if (rules && (rules.reduce((sum, rule) => sum + rule.minRosterMembers, 0) > limits.maxTeamSize || rules.reduce((sum, rule) => sum + rule.minStartingMembers, 0) > limits.starterCount || rules.reduce((sum, rule) => sum + Math.max(rule.minRosterMembers, rule.minStartingMembers), 0) > limits.maxTeamSize)) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "机构名单或首发人数要求超过赛事名单容量，请调整后发布。 ");
   }
 }

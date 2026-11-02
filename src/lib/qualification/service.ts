@@ -628,7 +628,7 @@ export function computePolicyParticipantReadiness(
     if (field === "qq") return policy.contacts.qqRequired;
     if (field === "email_verified_at") return policy.contacts.emailVerifiedRequired;
     if (field === "perfect_name") return context?.platform === "perfect_world";
-    return context !== null;
+    return true;
   });
   const findings = uniqueQualificationFindings([
     ...identity,
