@@ -47,6 +47,9 @@ quiesce() {
   fi
 }
 restore() {
+  if [[ -n $previous ]]; then
+    env -i PATH=/usr/bin:/bin "$root/$previous/runtime/node" "$(dirname "$capability_evidence")/release-capability-gate.mjs" "$capability_evidence" "$previous_tag" "$previous_sha" "$tag" "$sha" "$operator" || return 1
+  fi
   # Also drain a failed/new candidate before allowing the old writer to start.
   quiesce || return 1
   if [[ -n $previous ]]; then
@@ -70,7 +73,8 @@ failed() {
   exit 1
 }
 if [[ ${1:-} == --rollback ]]; then
-  [[ $# == 5 ]] || { echo 'Usage: --rollback TAG SHA PREVIOUS_TAG PREVIOUS_SHA' >&2; exit 1; }
+  [[ $# == 7 && $6 == --capability-evidence ]] || { echo 'Rollback requires controller capability evidence.' >&2; exit 1; }
+  capability_evidence=$(realpath "$7")
   # A failed preflight has no matching transaction to restore.
   snapshot=$(cat "$root/previous-snapshot" 2>/dev/null || true)
   if [[ ! -f $snapshot/identity || $(cat "$snapshot/identity") != "$2 $3 $4 $5" ]]; then
@@ -86,13 +90,23 @@ if [[ ${1:-} == --rollback ]]; then
   [[ "$tag $sha $previous_tag $previous_sha" == "$2 $3 $4 $5" ]] || { echo 'Rollback identity mismatch.' >&2; exit 1; }
   previous=$(cat "$snapshot/previous-release")
   candidate=$(cat "$snapshot/candidate-release")
+  operator=$(cat "$snapshot/operator-commit")
+  cmp -s "$capability_evidence" "$snapshot/capability-evidence.json" || { echo 'Rollback capability evidence differs from transaction.' >&2; exit 1; }
+  cmp -s "$(dirname "$capability_evidence")/release-capability-gate.mjs" "$script_dir/../standby/release-capability-gate.mjs" || exit 1
+  cmp -s "$(dirname "$capability_evidence")/capability-contract.ts" "$script_dir/../release/capability-contract.ts" || exit 1
   current=$(readlink "$root/current")
   [[ $current == "$candidate" || $current == "$previous" ]] || { echo 'Current release changed; refusing stale rollback.' >&2; exit 1; }
+  if [[ $current == "$candidate" ]]; then
+    "$root/$current/runtime/node" "$helper" manifest "$root/$current/standby.json" "${current#releases/}" "$tag" "$sha" >/dev/null || exit 1
+  else
+    "$root/$current/runtime/node" "$helper" manifest "$root/$current/standby.json" "${current#releases/}" "$previous_tag" "$previous_sha" >/dev/null || exit 1
+  fi
+  env -i PATH=/usr/bin:/bin "$root/$current/runtime/node" "$(dirname "$capability_evidence")/release-capability-gate.mjs" "$capability_evidence" "$previous_tag" "$previous_sha" "$tag" "$sha" "$operator" || { echo 'Rollback capability check failed.' >&2; exit 1; }
   restore || { echo "ROLLBACK FAILED: $snapshot" >&2; exit 1; }
   echo "Previous release restored: $previous_tag $previous_sha"
   exit 0
 fi
-[[ $# == 2 ]] || { echo 'Usage: install.sh MANIFEST INSTANCE_ENV' >&2; exit 1; }
+[[ $# == 2 || ( $# == 9 && $3 == --release && $8 == --capability-evidence ) ]] || { echo 'Usage: install.sh MANIFEST INSTANCE_ENV [--release TAG SHA PREVIOUS_TAG PREVIOUS_SHA --capability-evidence FILE]' >&2; exit 1; }
 archive=$(realpath "$1")
 env_file=$(realpath "$2")
 (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$archive").sha256")
@@ -106,6 +120,10 @@ if [[ ! -x $bootstrap ]]; then bootstrap=$(command -v node); fi
 read -r tag sha < <("$bootstrap" -e 'const m = require(process.argv[1]); if (m.environment !== "instance" || !/^v[0-9]+\.[0-9]+\.[0-9]+-[a-zA-Z0-9.-]+$/.test(m.releaseTag) || !/^[a-f0-9]{40}$/.test(m.sourceCommit)) process.exit(1); console.log(m.releaseTag, m.sourceCommit)' "$archive")
 [[ -n $tag && -n $sha ]] || exit 1
 previous_tag='' previous_sha=''
+if [[ $# == 9 ]]; then
+  [[ $tag == "$4" && $sha == "$5" ]] || { echo 'Candidate identity mismatch.' >&2; exit 1; }
+  previous_tag=$6 previous_sha=$7 capability_evidence=$(realpath "$9")
+fi
 staging=$(mktemp -d "$root/releases/.staging.XXXXXXXX")
 assembled_sha=$("$bootstrap" "$script_dir/../standby/layers.mjs" assemble "$archive" "$(dirname "$archive")" "$root/layers" "$staging" "$tag" "$sha")
 [[ $assembled_sha == "$archive_sha" ]] || exit 1
@@ -119,12 +137,18 @@ if [[ -e $release ]]; then
 fi
 previous=$(readlink "$root/current" || true)
 if [[ -n $previous ]]; then
+  [[ $# == 9 ]] || { echo 'Existing instances require the release controller.' >&2; exit 1; }
   [[ $previous == releases/rivalhub-production-* && -f $root/$previous/standby.json && -f $config && -f $unit ]] || { echo 'Previous rollback state incomplete.' >&2; exit 1; }
   if [[ -z $previous_tag ]]; then
     read -r previous_tag previous_sha < <("$node" "$helper" manifest "$root/$previous/standby.json" "${previous#releases/}")
   fi
   [[ -n $previous_tag && -n $previous_sha ]] || exit 1
   "$node" "$helper" manifest "$root/$previous/standby.json" "${previous#releases/}" "$previous_tag" "$previous_sha" >/dev/null || { echo 'Current host differs from frozen previous release.' >&2; exit 1; }
+  check_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" || { echo 'Running instance identity or ledger differs from frozen previous release.' >&2; exit 1; }
+  operator=$("$node" "$helper" operator "$staging/standby.json")
+  cmp -s "$(dirname "$capability_evidence")/release-capability-gate.mjs" "$script_dir/../standby/release-capability-gate.mjs" || exit 1
+  cmp -s "$(dirname "$capability_evidence")/capability-contract.ts" "$script_dir/../release/capability-contract.ts" || exit 1
+  env -i PATH=/usr/bin:/bin "$node" "$(dirname "$capability_evidence")/release-capability-gate.mjs" "$capability_evidence" "$previous_tag" "$previous_sha" "$tag" "$sha" "$operator" || { echo 'Installation capability check failed.' >&2; exit 1; }
 elif [[ -n $previous_tag ]]; then
   echo 'Release requires an existing instance.' >&2; exit 1
 fi
@@ -133,6 +157,10 @@ snapshot=$(mktemp -d "$root/rollback/$(date -u +%Y%m%dT%H%M%SZ).XXXXXXXX")
 printf '%s\n' "$previous" > "$snapshot/previous-release"
 printf '%s\n' "releases/$release_name" > "$snapshot/candidate-release"
 printf '%s %s %s %s\n' "$tag" "$sha" "$previous_tag" "$previous_sha" > "$snapshot/identity"
+if [[ -n $previous ]]; then
+  printf '%s\n' "$operator" > "$snapshot/operator-commit"
+  cp -p "$capability_evidence" "$snapshot/capability-evidence.json"
+fi
 [[ ! -f $config ]] || cp -p "$config" "$snapshot/instance.env"
 [[ ! -f $unit ]] || cp -p "$unit" "$snapshot/service"
 "$node" "$helper" environment "$env_file" "$snapshot/candidate.env" "$tag" "$sha"
@@ -155,6 +183,9 @@ printf '%s\n' "$snapshot" > "$root/previous-snapshot.next"
 mv -Tf "$root/previous-snapshot.next" "$root/previous-snapshot"
 # A failed drain must leave the current environment/pointer intact and the
 # service stopped. Do not enter automatic restore until the drain succeeded.
+if [[ -n $previous ]]; then
+  env -i PATH=/usr/bin:/bin "$node" "$(dirname "$capability_evidence")/release-capability-gate.mjs" "$capability_evidence" "$previous_tag" "$previous_sha" "$tag" "$sha" "$operator" || { echo 'Installation capability recheck failed.' >&2; exit 1; }
+fi
 if quiesce; then
   :
 else

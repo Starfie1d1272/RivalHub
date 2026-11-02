@@ -33,7 +33,23 @@ node scripts/instance/build.mjs
 sudo bash scripts/instance/install.sh /path/to/manifest.layers.json /path/to/instance.env
 ```
 
-安装验证 manifest 与各层、组装独立目录，停服务并确认数据库事务排空，原子切换 current，检查首页、release identity 和数据库活跃链账本；候选失败会排空后恢复前一版本及配置。排空失败保持停机供检查。安装不会运行迁移；当前构件要求数据库账本与构件所含 active chain 完全一致，升级迁移等价由 F2 确定。首次安装后按 `scripts/instance/Caddyfile.example` 配置自己的域名及 TLS，验证反向代理；不要把示例域名当成实际站点。应用、构件与密钥分开保存。
+安装验证 manifest 与各层、组装独立目录，停服务并确认数据库事务排空，原子切换 current，检查首页、release identity 和数据库活跃链账本；候选失败会排空后恢复前一版本及配置。排空失败保持停机供检查。首次安装后按 `scripts/instance/Caddyfile.example` 配置自己的域名及 TLS，验证反向代理；不要把示例域名当成实际站点。应用、构件与密钥分开保存。
+
+## 应用升级与回滚
+
+对于数据库账本与新旧构件均完全一致的应用升级，在目标机使用与候选构件 operator commit 一致的干净源码目录运行：
+
+```bash
+sudo pnpm exec tsx scripts/instance/release.ts /path/to/manifest.layers.json /etc/rivalhub-instance/instance.env
+```
+
+controller 从运行中实例读取真实 release identity，从不可变 Git commit 读取前后能力合同，并生成与正式 release 共用格式的受限证据。安装器在切换及补偿回滚前复验合同，将身份和证据保存在 root-only 事务快照。若需显式恢复上一事务，在同一 operator 源码目录运行：
+
+```bash
+sudo pnpm exec tsx scripts/instance/release.ts --rollback
+```
+
+安装器不会运行数据库迁移；readiness 仍要求数据库账本与所运行构件完全一致。涉及迁移的升级与跨账本回滚尚未开放，不能以应用回滚作为数据库回滚。
 
 ## Scheduler
 
