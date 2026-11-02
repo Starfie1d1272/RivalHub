@@ -769,8 +769,8 @@ async function approveRosterRevisionInTx(
   if (!assessment) return { revision: candidate.revision, assessment: null };
   const roster = assessment.candidate;
   const approvedCandidate: RosterCandidate = roster.entry.source === "event_native"
-    ? { ...roster, entry: { ...roster.entry, approvedRosterRevisionId: candidate.revision.id }, revision: { ...roster.revision, status: "approved" } }
-    : { ...roster, entry: { ...roster.entry, approvedRosterRevisionId: candidate.revision.id }, revision: { ...roster.revision, status: "approved" } };
+    ? { ...roster, entry: { ...roster.entry, source: "event_native", approvedRosterRevisionId: candidate.revision.id }, members: roster.members.map((member) => ({ ...member, teamMembershipId: null })), revision: { ...roster.revision, status: "approved" } }
+    : { ...roster, entry: { ...roster.entry, source: "linked_team", approvedRosterRevisionId: candidate.revision.id }, revision: { ...roster.revision, status: "approved" } };
   return { revision: candidate.revision, assessment: { ...assessment, candidate: approvedCandidate } };
 }
 
