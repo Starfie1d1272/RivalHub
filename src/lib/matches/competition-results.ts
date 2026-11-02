@@ -34,7 +34,7 @@ async function insertResolvedBracketMatches(
  * Major stages keep their explicit round-finalization gate. */
 export async function finishCompetitionSeriesInTx(tx: TxDb, input: {
   match: typeof matches.$inferSelect; scoreA: number; scoreB: number;
-  completedAt: Date; preserveMapPlans?: boolean;
+  completedAt: Date; preserveMapPlans?: boolean; isForfeit?: boolean;
 }) {
   const locked = input.match;
   assertCompetitionMatch(locked);

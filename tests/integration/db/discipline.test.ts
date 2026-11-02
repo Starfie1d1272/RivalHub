@@ -20,10 +20,8 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
 import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
-import {
-  assertStartingLineupAllowedInTx,
-  lockMatchInTx,
-} from "../../../src/lib/match-rosters/service";
+import { assertStartingLineupAllowedInTx } from "../../../src/lib/match-rosters/service";
+import { lockCompetitionMatchInTx as lockMatchInTx } from "../../../src/lib/matches/locking";
 import {
   issueSanctionInTx,
   loadActiveSanctionsInTx,

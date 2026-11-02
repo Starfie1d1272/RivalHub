@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { TxDb } from "@/db/client";
 import { auditLogs, matchLiveSessions, matchMaps, matchDemoImports, matchPlayerStats, postMatchReports } from "@/db/schema";
 import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
-import { lockMatchInTx } from "@/lib/match-rosters/service";
+import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { planSeriesCompletionProgressionInTx } from "@/lib/match-corrections/series-completion";
 import { sha256Json } from "@/lib/demo-integration/revision";

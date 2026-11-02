@@ -12,7 +12,7 @@ import { getMatchOrThrow, getSeasonOrThrow, actionError } from "@/lib/action-uti
 import { revalidateMatchPaths } from "@/lib/revalidation";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { VetoActionType } from "@/types/match";
-import { lockMatchInTx } from "@/lib/match-rosters/service";
+import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { legacyVetoStepsToFacts, projectVetoMapPlan } from "@/lib/matches/veto-sequence";
 
 export interface VetoStepInput {
