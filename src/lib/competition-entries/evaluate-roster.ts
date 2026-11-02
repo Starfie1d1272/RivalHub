@@ -1,5 +1,5 @@
 import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification } from "@/lib/education/eligibility";
-import { evaluateExternalStrengthRule } from "@/lib/competitive/player-strength";
+import { evaluateExternalHistoricalGap } from "@/lib/competitive/player-strength";
 import { uniqueQualificationFindings, type QualificationFinding } from "@/lib/qualification/finding";
 import type { EvaluateRoster } from "@/lib/seasons/rules";
 
@@ -43,10 +43,9 @@ export const evaluateRoster: EvaluateRoster = (candidate, rules, evidence) => {
         if (!strength) { block("competitive_profile_incomplete", "名单成员竞技资料不可用。", { userId: member.userId }); return []; }
         const fact = candidate.factsByUser.get(member.userId);
         const isHome = resolveSeasonEducationVerification(fact?.educationHistory ?? [], rules.roster.affiliationRules).eligibilityState === "approved" && Boolean(resolveSeasonEducationVerification(fact?.educationHistory ?? [], rules.roster.affiliationRules).matchedRule);
-        const historicalPeak = strength.rank ? { rank: strength.rank, rating: 0, ratingComparable: false, stars: strength.stars, sourcePlatform: strength.sourcePlatform, sourceSeasonKey: strength.sourceSeasonKey, ...(strength.sourceRank ? { sourceRank: strength.sourceRank } : {}) } : null;
-        return [{ userId: member.userId, label: strength.label, historicalPeak, previousSeasonPeak: null, currentSeasonPeak: null, isHome }];
+        return [{ ...strength, userId: member.userId, isHome }];
       });
-      findings.push(...evaluateExternalStrengthRule({ players, config: { ...evidence.context.profile, externalStrengthMaxStarGap: rules.competitive.externalStrengthGap.maxGap } }).findings);
+      findings.push(...evaluateExternalHistoricalGap({ players, maxGap: rules.competitive.externalStrengthGap.maxGap, sourceSelection: evidence.context.sourceSelection }).findings);
     }
   }
   const unique = uniqueQualificationFindings(findings);
