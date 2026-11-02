@@ -8,8 +8,13 @@ import type { SeasonCapabilities } from "../../src/types/season";
 import { verifyDatabaseAccessMatrix } from "./access-matrix";
 import { verifyHostedRealtimePolicy } from "./realtime-policy";
 import { readMigrationLedger } from "./migration-ledger";
+import { compareMigrationContracts } from "./compare-migration-contract";
 
 async function main(): Promise<void> {
+  if (process.argv[2] === "--compare-contract") {
+    await compareMigrationContracts(process.env.RIVALHUB_COMPARE_LEFT_DATABASE_URL, process.env.RIVALHUB_COMPARE_RIGHT_DATABASE_URL);
+    return;
+  }
   const target = process.env.RIVALHUB_DB_TARGET;
   const databaseUrl = databaseUrlFor(target, process.env.DATABASE_URL);
   const expected = readExpectedMigrations();
