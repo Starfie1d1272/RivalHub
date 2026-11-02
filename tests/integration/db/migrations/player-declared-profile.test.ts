@@ -78,7 +78,7 @@ describe("player-declared profile migration", () => {
       // Replay the exact migration statements while inserting an already
       // populated long-lived profile between the additive DDL and backfill.
       const migrationStatements = readFileSync(
-        join(process.cwd(), "drizzle/migrations", TARGET_MIGRATION),
+        join(process.cwd(), "drizzle/v2-migrations", TARGET_MIGRATION),
         "utf8",
       )
         .split("--> statement-breakpoint")

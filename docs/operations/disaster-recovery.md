@@ -8,6 +8,8 @@
 
 RivalHub 使用 Recovery format 2 的 typed recovery artifact：full artifact 将 production Supabase 数据库与真实 Storage objects 绑定到同一个 run identity；DB-only checkpoint 只捕获 logical database。runner 在临时目录生成明文、计算 checksum、压缩后用 age 公钥加密，最后只上传 private Cloudflare R2 中的 encrypted artifact、sidecar manifest 和 completion marker。`producer` 是生成工具的 code/package identity；`source` 是备份时 production 实际部署的 release/commit 与 database migration terminal；两者可以不同。
 
+v3 备份在 manifest 明确记录 lineage；对已 adopt 的数据库还保存并校验原链完整 id/hash/time，恢复后逐条核对。新恢复工具不声称兼容所有历史格式：旧备份须由其原不可变 release 工具恢复，再沿原链升级并 adopt。v3 基线及终点目前仍为待统一合流确认的候选。
+
 数据恢复目标与窗口定义如下：
 
 - **RPO**：正常情况下日常定时备份保障 RPO ≤ 24h；关键比赛日或高价值操作前后，可按需手动触发 manual backup。Release 不再机械触发 full backup：只有 Release Plan 识别到 release-time Storage mutation capability（发布过程将不可逆修改既有 Production Storage object）时才创建 full checkpoint，识别到不可逆数据库变更时创建 DB-only checkpoint。

@@ -183,7 +183,7 @@ index 1250a183c31b0c98398d404997a28b7428ea2a77..e02696f818939e2c79946f7132d0a87b
      const playerRows = [...players.entries()]
          .sort(([left], [right]) => lexicalCompare(left, right))
          .map(([playerEntityKey, value]) => {
-diff --git adist/projection.d.ts b/dist/projection.d.ts
+diff --git a/dist/projection.d.ts b/dist/projection.d.ts
 new file mode 100644
 index 0000000000000000000000000000000000000000..42e26afee46ed017a5fdc1674b94aa1cce3e2a3a
 --- /dev/null
@@ -229,7 +229,7 @@ index 0000000000000000000000000000000000000000..42e26afee46ed017a5fdc1674b94aa1c
 + */
 +export declare function scopeTournamentPerformanceMapProjectionToTeam(projection: TournamentPerformanceMapProjection, teamEntityKey: string): TournamentPerformanceMapProjection;
 +export {};
-diff --git adist/projection.js b/dist/projection.js
+diff --git a/dist/projection.js b/dist/projection.js
 new file mode 100644
 index 0000000000000000000000000000000000000000..5bfe2022b26ffce617b6083a76e183734b514e3b
 --- /dev/null

@@ -63,22 +63,43 @@ const queries: Record<string, string> = {
     ))`,
 };
 
+/** Capture metadata in the caller's existing transaction. Application scope
+ * deliberately excludes unrelated provider publications, extensions and policies. */
+export async function captureApplicationMigrationContract(client: Pick<Pool, "query">): Promise<Record<string, string[]>> {
+  const scoped = {
+    ...queries,
+    version: `SELECT (current_setting('server_version_num')::int / 10000)::int AS major`,
+    extensions: `SELECT e.extname, e.extversion, n.nspname FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace WHERE e.extname IN ('pg_cron','pg_net','pgcrypto','supabase_vault')`,
+    policies: `SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check FROM pg_policies
+      WHERE schemaname='public' OR (schemaname='storage' AND tablename='objects' AND roles && ARRAY['public','anon','authenticated']::name[])
+      OR (schemaname='realtime' AND tablename='messages' AND ${REALTIME_VIEWER_POLICY_FILTER})`,
+    publication_options: `SELECT pubname, puballtables, pubinsert, pubupdate, pubdelete, pubtruncate, pubviaroot FROM pg_publication WHERE pubname='supabase_realtime'`,
+    publications: `SELECT pubname, schemaname, tablename, attnames, rowfilter FROM pg_publication_tables WHERE schemaname='public' AND pubname='supabase_realtime'`,
+  };
+  return captureContract(client, scoped);
+}
+
+async function captureContract(client: Pick<Pool, "query">, selected: Record<string, string>): Promise<Record<string, string[]>> {
+  const result: Record<string, string[]> = {};
+  for (const [name, query] of Object.entries(selected)) {
+    result[name] = (await client.query(query)).rows.map(row => JSON.stringify(row)).sort();
+  }
+  const storage = await client.query<{ buckets: string | null }>("SELECT to_regclass('storage.buckets')::text AS buckets");
+  result.storage_presence = [String(Boolean(storage.rows[0]?.buckets))];
+  if (storage.rows[0]?.buckets) {
+    const buckets = await client.query(`SELECT id, name, public, file_size_limit, allowed_mime_types
+      FROM storage.buckets WHERE id IN ('team-logos','season-public-assets','education-evidence')`);
+    result.buckets = buckets.rows.map(row => JSON.stringify(row)).sort();
+  }
+  return result;
+}
+
 async function snapshot(url: string): Promise<Record<string, string[]>> {
   const pool = new Pool({ connectionString: url, ssl: false, max: 1 });
   const client = await pool.connect();
   try {
     await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
-    const result: Record<string, string[]> = {};
-    for (const [name, query] of Object.entries(queries)) {
-      result[name] = (await client.query(query)).rows.map(row => JSON.stringify(row)).sort();
-    }
-    const storage = await client.query<{ buckets: string | null }>("SELECT to_regclass('storage.buckets')::text AS buckets");
-    result.storage_presence = [String(Boolean(storage.rows[0]?.buckets))];
-    if (storage.rows[0]?.buckets) {
-      const buckets = await client.query(`SELECT id, name, public, file_size_limit, allowed_mime_types
-        FROM storage.buckets WHERE id IN ('team-logos','season-public-assets','education-evidence')`);
-      result.buckets = buckets.rows.map(row => JSON.stringify(row)).sort();
-    }
+    const result = await captureContract(client, queries);
     await client.query("ROLLBACK");
     return result;
   } finally {

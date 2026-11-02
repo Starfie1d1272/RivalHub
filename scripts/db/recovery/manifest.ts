@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { assertLegacyLineage, assertV2LedgerPrefix, readV2Migrations, type LegacyLedgerEntry } from "../legacy-lineage";
 import { readFileSync, statSync } from "node:fs";
 import { basename } from "node:path";
 import {
@@ -42,6 +43,9 @@ export interface RecoverySourceIdentity {
   deployedReleaseTag: string;
   deployedCommit: string;
   databaseMigrationTerminal: RecoveryMigrationIdentity;
+  migrationLineage?: "v2" | "v3";
+  v2MigrationLedger?: readonly LegacyLedgerEntry[];
+  legacyMigrationLedger?: readonly LegacyLedgerEntry[];
 }
 
 interface RecoveryManifestBase {
@@ -191,6 +195,24 @@ export function assertRecoveryManifest(value: unknown): RecoveryManifest {
   }
 
   assertMigrationIdentity(source.databaseMigrationTerminal, "Recovery manifest database migration terminal");
+  if (source.migrationLineage !== undefined && source.migrationLineage !== "v3" && source.migrationLineage !== "v2") {
+    throw new Error("Recovery manifest migration lineage is unsupported.");
+  }
+  if (source.migrationLineage === "v2") {
+    if (!Array.isArray(source.v2MigrationLedger) || source.legacyMigrationLedger !== undefined) throw new Error("Recovery manifest V2 ledger is missing or inconsistent.");
+    assertV2LedgerPrefix(source.v2MigrationLedger);
+    const expected = readV2Migrations()[source.v2MigrationLedger.length - 1];
+    if (!expected || expected.tag !== source.databaseMigrationTerminal.terminalTag
+      || expected.hash !== source.databaseMigrationTerminal.terminalHash || expected.when !== source.databaseMigrationTerminal.terminalWhen) {
+      throw new Error("Recovery manifest V2 terminal does not match its ledger.");
+    }
+  } else if (source.v2MigrationLedger !== undefined) {
+    throw new Error("Recovery manifest has an unexpected V2 ledger.");
+  }
+  if (source.legacyMigrationLedger !== undefined) {
+    if (!Array.isArray(source.legacyMigrationLedger)) throw new Error("Recovery manifest legacy ledger is invalid.");
+    assertLegacyLineage(source.legacyMigrationLedger);
+  }
 
   const database = manifest.database as RecoveryManifest["database"] | undefined;
   if (

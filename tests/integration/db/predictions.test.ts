@@ -406,7 +406,7 @@ describe("spectator prediction PostgreSQL contracts", () => {
         locker.release();
       }
       const before = await db.transaction(tx => predictionBoard(tx, seasonId, userId));
-      const migration = readFileSync("drizzle/migrations/0109_retire_legacy_prediction_finance.sql", "utf8");
+      const migration = readFileSync("drizzle/v2-migrations/0109_retire_legacy_prediction_finance.sql", "utf8");
       const unverified = await f.pool.connect();
       try {
         await unverified.query("BEGIN");

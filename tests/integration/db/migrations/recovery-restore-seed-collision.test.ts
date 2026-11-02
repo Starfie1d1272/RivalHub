@@ -1,17 +1,25 @@
+import { readMigrationLedger } from "../../../../scripts/db/migration-ledger";
 import { Client } from "pg";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { capturePostgresError } from "../harness/database";
 import { migrationFiles, replayMigration, withScratchDatabase } from "../harness/migration-replay";
 import { readExpectedMigrations } from "../../../../scripts/db/production-preflight";
 import { prepareTargetForDataImport } from "../../../../scripts/db/recovery/restore";
 import { verifyRecoveryDatabase } from "../../../../scripts/db/recovery/verify";
 
+// This historical restore fixture replays the archived v2 chain through 0048.
+// Its verification must use that same immutable chain, not the current v3 baseline.
+vi.mock("../../../../scripts/db/production-preflight", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../../scripts/db/production-preflight")>(),
+  readExpectedMigrations: () => readMigrationLedger("drizzle/v2-migrations"),
+}));
+
 const TARGET_MIGRATION = "0048_same_epoch.sql";
 
 describe("recovery restore seed collision and auth invariant regression", () => {
   it("prevents duplicate key collision via generic pre-data-import preparation and enforces auth invariant", async () => {
     await withScratchDatabase("rivalhub_recovery_restore", async (client: Client) => {
-      // 1. Replay the complete active schema through TARGET_MIGRATION, including 0038_conversion_policies.sql
+      // 1. Replay the archived v2 schema through TARGET_MIGRATION, including 0038_conversion_policies.sql
       const migrations = migrationFiles((name) => /^\d{4}_.*\.sql$/.test(name));
       for (const migration of migrations.filter((name) => name <= TARGET_MIGRATION)) {
         await replayMigration(client, migration);

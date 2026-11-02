@@ -6,6 +6,8 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { sql } from "drizzle-orm";
 import { isMigrationLedgerPrefix, readMigrationLedger } from "./migration-ledger";
+import type { PoolClient } from "pg";
+import { adoptLegacyCandidate } from "./adopt-v3-candidate";
 
 function stageMigrationPrefixes(migrations: string) {
   const journal = JSON.parse(readFileSync(join(migrations, "meta/_journal.json"), "utf8")) as {
@@ -45,7 +47,7 @@ export function runCanonicalMigrations(config: string, env: NodeJS.ProcessEnv, m
 }
 
 /** Preview's checked-out connection uses the same transaction boundaries as CLI replay. */
-export async function migrateCanonicalDatabase(database: NodePgDatabase, migrationsFolder: string): Promise<void> {
+export async function migrateCanonicalDatabase(database: NodePgDatabase, migrationsFolder: string, client?: PoolClient): Promise<void> {
   // Drizzle uses the latest timestamp to decide what to skip. An unknown or
   // reordered ledger must never be treated as a successful migration.
   const expected = readMigrationLedger(resolve(migrationsFolder));
@@ -53,7 +55,18 @@ export async function migrateCanonicalDatabase(database: NodePgDatabase, migrati
   if (relation.rows[0]?.ledger) {
     const result = await database.execute<{ hash: string; when: string }>(sql`SELECT hash, created_at::bigint::text AS "when" FROM drizzle.__drizzle_migrations ORDER BY created_at`);
     const actual = result.rows.map(row => ({ hash: row.hash, when: Number(row.when) }));
-    if (!isMigrationLedgerPrefix(actual, expected)) throw new Error("Drizzle migration ledger is not an exact prefix of the selected chain; refusing migration.");
+    if (!isMigrationLedgerPrefix(actual, expected)) {
+      const active = resolve(process.cwd(), "drizzle/migrations");
+      const legacyFolder = resolve(process.cwd(), "drizzle/v2-migrations");
+      const legacy = readMigrationLedger(legacyFolder);
+      if (resolve(migrationsFolder) !== active || !client || !actual.length || !isMigrationLedgerPrefix(actual, legacy)) {
+        throw new Error("Drizzle migration ledger is not an exact prefix of the selected chain; refusing migration.");
+      }
+      // Existing release orchestration must drain writers and other migration
+      // runners; the adoption lock does not provide a global DDL mutex.
+      await migrateCanonicalDatabase(database, legacyFolder);
+      await adoptLegacyCandidate(client);
+    }
   }
   const { staging, prefixes } = stageMigrationPrefixes(resolve(migrationsFolder));
   try {

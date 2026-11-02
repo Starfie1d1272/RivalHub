@@ -1,3 +1,5 @@
+import { assertV2LedgerPrefix, readLegacyLineage, readV2Migrations, type LegacyLedgerEntry } from "../legacy-lineage";
+import { isMigrationLedgerPrefix } from "../migration-ledger";
 import { runVerifiedSupabaseDump } from "./verified-dump";
 import { postgresConnection } from "../../../src/db/postgres-connection";
 import { randomUUID } from "node:crypto";
@@ -27,11 +29,9 @@ import {
   snapshotStorage,
 } from "./storage";
 import { readManagedStorageReferences, type ManagedStorageReference } from "./storage-policy";
-import { assertRecoverySourceUnchanged, resolveInstanceSourceIdentity, resolveProductionSourceIdentity } from "./source";
+import { assertRecoverySourceUnchanged, assertV2FullRecoverySupported, resolveInstanceSourceIdentity, resolveProductionSourceIdentity } from "./source";
 import {
-  assertActiveChainPrefix,
   readExpectedMigrations,
-  type Migration,
 } from "../production-preflight";
 
 const projectRoot = resolve(process.cwd());
@@ -54,6 +54,7 @@ async function main(): Promise<void> {
   try {
     const supabaseCliVersion = readSupabaseCliVersion();
     const migration = await readProductionMigrationIdentity(environment.databaseUrl);
+    if (migration.lineage === "v2") assertV2FullRecoverySupported(migration.ledger.terminalTag);
     const source = await readSource();
     const activeStorageReferencesBeforeSnapshot = await readManagedStorageReferencesFromProduction(environment.databaseUrl);
     const dbDumpStart = performance.now();
@@ -79,8 +80,8 @@ async function main(): Promise<void> {
     const migrationAfter = await readProductionMigrationIdentity(environment.databaseUrl);
     const sourceAfter = await readSource();
     assertRecoverySourceUnchanged(
-      { ...source, databaseMigrationTerminal: migration.ledger },
-      { ...sourceAfter, databaseMigrationTerminal: migrationAfter.ledger },
+      { ...source, databaseMigrationTerminal: migration.ledger, migrationLineage: migration.lineage, v2MigrationLedger: migration.v2Ledger, legacyMigrationLedger: migration.legacyLedger },
+      { ...sourceAfter, databaseMigrationTerminal: migrationAfter.ledger, migrationLineage: migrationAfter.lineage, v2MigrationLedger: migrationAfter.v2Ledger, legacyMigrationLedger: migrationAfter.legacyLedger },
     );
 
     const manifest: RecoveryManifest = {
@@ -99,6 +100,9 @@ async function main(): Promise<void> {
       source: {
         ...source,
         databaseMigrationTerminal: migration.ledger,
+        migrationLineage: migration.lineage,
+        ...(migration.v2Ledger ? { v2MigrationLedger: migration.v2Ledger } : {}),
+        ...(migration.legacyLedger ? { legacyMigrationLedger: migration.legacyLedger } : {}),
       },
       artifactKind: "full",
       backupClass,
@@ -157,26 +161,39 @@ export async function createDatabaseSnapshot(
 export async function readProductionMigrationIdentity(databaseUrl: string): Promise<{
   postgresVersion: string;
   ledger: RecoveryManifest["source"]["databaseMigrationTerminal"];
+  lineage: "v2" | "v3";
+  v2Ledger?: LegacyLedgerEntry[];
+  legacyLedger?: LegacyLedgerEntry[];
 }> {
   const expected = readExpectedMigrations();
   const pool = new Pool({ ...postgresConnection(databaseUrl), max: 1 });
   try {
     const version = await pool.query<{ server_version: string }>("SHOW server_version");
-    const ledgerResult = await pool.query<Migration>(
-      "SELECT hash, created_at::bigint::text AS when FROM drizzle.__drizzle_migrations ORDER BY created_at",
+    const ledgerResult = await pool.query<{ id: number; hash: string; when: string }>(
+      "SELECT id, hash, created_at::bigint::text AS \"when\" FROM drizzle.__drizzle_migrations ORDER BY created_at, id",
     );
-    const actual = ledgerResult.rows.map((row) => ({ hash: row.hash, when: Number(row.when) }));
-    assertActiveChainPrefix(actual, expected);
-    const terminal = actual.at(-1);
-    const expectedTerminal = expected[actual.length - 1];
-    if (!terminal || !expectedTerminal) throw new Error("Production migration ledger is empty or unknown; backup aborted. ");
+    const actual = ledgerResult.rows.map((row) => ({ id: row.id, hash: row.hash, when: Number(row.when) }));
+    if (!actual.length) throw new Error("Migration ledger is empty; backup aborted.");
+    const active = isMigrationLedgerPrefix(actual, expected);
+    let terminal = expected[actual.length - 1];
+    let v2Ledger: LegacyLedgerEntry[] | undefined;
+    let legacyLedger: LegacyLedgerEntry[] | undefined;
+    if (active) {
+      legacyLedger = await readLegacyLineage(pool);
+    } else {
+      assertV2LedgerPrefix(actual);
+      const relation = await pool.query<{ archive: string | null }>("SELECT to_regclass('drizzle.__rivalhub_legacy_migrations')::text AS archive");
+      if (relation.rows[0]?.archive) throw new Error("V2 ledger has an unexpected V3 archive; backup aborted.");
+      terminal = readV2Migrations()[actual.length - 1];
+      v2Ledger = actual;
+    }
+    if (!terminal) throw new Error("Migration ledger terminal is unknown; backup aborted.");
     return {
       postgresVersion: version.rows[0]?.server_version ?? "unknown",
-      ledger: {
-        terminalHash: terminal.hash,
-        terminalTag: expectedTerminal.tag,
-        terminalWhen: terminal.when,
-      },
+      lineage: active ? "v3" : "v2",
+      ...(v2Ledger ? { v2Ledger } : {}),
+      ...(legacyLedger ? { legacyLedger } : {}),
+      ledger: { terminalHash: terminal.hash, terminalTag: terminal.tag, terminalWhen: terminal.when },
     };
   } finally {
     await pool.end();
