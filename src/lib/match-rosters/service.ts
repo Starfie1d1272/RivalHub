@@ -648,7 +648,7 @@ export async function persistMatchRosterInTx(
     substituteIds,
   });
   const adopted = await adoptedMatchSnapshotInTx(tx, args.match, args.entryId);
-  const eligibilitySnapshot = adopted ?? null;
+  const eligibilitySnapshot = adopted?.version === 2 || (adopted?.version === 1 && args.match.qualificationRunId) ? adopted : null;
   if (eligibilitySnapshot?.version === 2) decodeFrozenLineupEligibility(eligibilitySnapshot, { seasonId: args.match.seasonId, entryId: args.entryId, rosterRevisionId: eligibilitySnapshot.rosterRevisionId });
   const now = new Date();
   if (args.match.status !== "scheduled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛已开始，首发已定格。");
