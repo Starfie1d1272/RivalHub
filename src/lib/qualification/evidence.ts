@@ -42,7 +42,7 @@ export function buildQualificationEvidence(
   const profileRequirements = deriveCompetitiveRequirements(purposes.filter(purpose => purpose === "profile_completeness" || purpose === "seed_recommendation"), context, participant);
   const thresholdRequirements = deriveCompetitiveRequirements(purposes.filter(purpose => purpose === "rank_threshold"), context, participant);
   const profileFact = (selected: PlayerStrengthFact | null, raw: SelectableCompetitivePeak | null | undefined): ProfileReadinessFact | null => {
-    if (selected) return { status: "ranked", rank: selected.rank, rating: selected.rating, stars: selected.stars ?? null, sourcePlatform: selected.sourcePlatform ?? context.platform, sourceSeasonKey: selected.sourceSeasonKey ?? null };
+    if (selected && !selected.estimatedFromUnranked) return { status: "ranked", rank: selected.rank, rating: selected.ratingComparable === false ? raw?.rating ?? null : selected.rating, stars: selected.stars ?? null, sourcePlatform: selected.sourcePlatform ?? context.platform, sourceSeasonKey: selected.sourceSeasonKey ?? null };
     if (!raw) return null;
     return { status: raw.status ?? "ranked", rank: raw.rank, rating: raw.rating, stars: raw.stars ?? null, sourcePlatform: raw.sourcePlatform ?? context.platform, sourceSeasonKey: raw.sourceSeasonKey ?? null };
   };
@@ -52,9 +52,14 @@ export function buildQualificationEvidence(
       const fallbackRaw = (peak: SelectableCompetitivePeak | null | undefined) => peak && context.fallbackConversion
         ? { ...peak, sourcePlatform: peak.sourcePlatform ?? context.fallbackConversion.sourcePlatform }
         : undefined;
-      return [id, { historicalPeak: profileFact(selected.historicalPeak, fact.historicalPeak ?? fallbackRaw(fact.fallbackFacts?.historicalPeak)), seasons: new Map(profileRequirements.seasonKeys.map(key => {
+      const selectedRaw = (selectedFact: PlayerStrengthFact | null | undefined, primary: SelectableCompetitivePeak | null | undefined, fallback: SelectableCompetitivePeak | null | undefined) =>
+        selectedFact?.sourcePlatform === context.fallbackConversion?.sourcePlatform && context.fallbackConversion
+          ? fallbackRaw(fallback)
+          : primary ?? fallbackRaw(fallback);
+      return [id, { historicalPeak: profileFact(selected.historicalPeak, selectedRaw(selected.historicalPeak, fact.historicalPeak, fact.fallbackFacts?.historicalPeak)), seasons: new Map(profileRequirements.seasonKeys.map(key => {
         const fallbackKey = context.fallbackConversion?.seasonKeyMap[key];
-        return [key, profileFact(selected.seasons.get(key) ?? null, fact.seasonPeaks?.get(key) ?? fallbackRaw(fallbackKey ? fact.fallbackFacts?.seasonPeaks.get(fallbackKey) : undefined))];
+        const selectedSeason = selected.seasons.get(key) ?? null;
+        return [key, profileFact(selectedSeason, selectedRaw(selectedSeason, fact.seasonPeaks?.get(key), fallbackKey ? fact.fallbackFacts?.seasonPeaks.get(fallbackKey) : undefined))];
       })) }];
     })),
     externalStrength: new Map([...facts].filter(() => purposes.includes("external_historical_gap")).map(([id, fact]) => {
