@@ -11,7 +11,9 @@ import { GlobalInformationFeedbackLauncher } from "@/components/operations/Globa
 import { OperationsProvider } from "@/components/operations/OperationsContext";
 import { Suspense } from "react";
 import { connection } from "next/server";
-import { isPreview } from "@/lib/runtime/preview";
+import { assertPreviewAuthEnvironment, isPreview } from "@/lib/runtime/preview";
+import { PublicRuntimeConfigProvider } from "@/components/layout/PublicRuntimeConfig";
+import { readPublicRuntimeConfig } from "@/lib/runtime/public-config";
 import { readPreviewMirrorIdentity } from "@/lib/preview/mirror-state";
 
 const geist = Geist({
@@ -52,6 +54,7 @@ export default function RootLayout({
         <link rel="stylesheet" href="/brackets-viewer.min.css" />
       </head>
       <body className={`${geist.variable} ${jetbrainsMono.variable} antialiased min-h-screen flex flex-col`}>
+        <Suspense fallback={null}><RuntimeProviders>
         <OperationsProvider>
           <Suspense fallback={null}><PreviewMirrorBanner /></Suspense>
           <Header />
@@ -62,6 +65,7 @@ export default function RootLayout({
             <GlobalInformationFeedbackLauncher />
           </Suspense>
         </OperationsProvider>
+        </RuntimeProviders></Suspense>
         <Toaster richColors position="top-right" />
         {process.env.VERCEL === "1" && <>
         </>}
@@ -77,4 +81,11 @@ async function PreviewMirrorBanner() {
   return <aside className="border-b border-border bg-muted px-4 py-2 text-center text-xs text-muted-foreground">
     <span className="font-mono">PR PREVIEW / DEV MIRROR</span> · source {mirror?.sourceTag ?? "unknown"} · refreshed {mirror?.refreshedAt.toLocaleString("zh-CN") ?? "unknown"}
   </aside>;
+}
+
+async function RuntimeProviders({ children }: { children: React.ReactNode }) {
+  await connection();
+  assertPreviewAuthEnvironment();
+  const config = readPublicRuntimeConfig(process.env);
+  return <PublicRuntimeConfigProvider config={config}>{children}</PublicRuntimeConfigProvider>;
 }

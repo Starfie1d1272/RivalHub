@@ -1,5 +1,7 @@
 "use server";
 
+import { runtimePublicValue } from "@/lib/runtime/public-config";
+
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -36,7 +38,7 @@ export async function submitFeedback(input: { category: string; body: string; pa
       category: parsed.data.category,
       body,
       pathname,
-      releaseVersion: process.env.NEXT_PUBLIC_RELEASE_VERSION ?? "2.8.4",
+      releaseVersion: runtimePublicValue("NEXT_PUBLIC_RELEASE_VERSION") ?? "2.8.4",
     }));
     return ok({ accepted: result.accepted });
   } catch (error) { return actionError("submitFeedback", error); }

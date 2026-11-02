@@ -1,3 +1,4 @@
+import type { PublicRuntimeConfig } from "@/lib/runtime/public-config";
 import { browserViewerEnvironment, connectLiveViewer, type ViewerEnvironment } from "./live-viewer";
 import { initialLiveViewerState, type LiveViewerState } from "./live-viewer-state";
 
@@ -48,8 +49,13 @@ export function createLiveViewerSubscriptions(environment: ViewerEnvironment) {
 // restores a JWT, Auth identity or live watermark into this receiver.
 // All consumers receive the same anonymous, single-match public projection; this
 // client never holds a signed-in user's Supabase Auth identity or operator data.
-let browserSubscriptions: ReturnType<typeof createLiveViewerSubscriptions> | undefined;
-export function subscribeBrowserLiveViewer(matchId: string, onState: (state: LiveViewerState) => void) {
-  browserSubscriptions ??= createLiveViewerSubscriptions(browserViewerEnvironment());
-  return browserSubscriptions(matchId, onState);
+const browserSubscriptions = new Map<string, ReturnType<typeof createLiveViewerSubscriptions>>();
+export function subscribeBrowserLiveViewer(config: PublicRuntimeConfig, matchId: string, onState: (state: LiveViewerState) => void) {
+  const identity = JSON.stringify([config.supabaseUrl, config.supabasePublishableKey]);
+  let subscribe = browserSubscriptions.get(identity);
+  if (!subscribe) {
+    subscribe = createLiveViewerSubscriptions(browserViewerEnvironment(config));
+    browserSubscriptions.set(identity, subscribe);
+  }
+  return subscribe(matchId, onState);
 }

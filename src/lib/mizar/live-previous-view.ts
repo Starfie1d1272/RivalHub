@@ -110,12 +110,16 @@ export function createPreviousLiveViewStore(storage: StorageBackend, namespace: 
 }
 export type PreviousLiveViewStore = ReturnType<typeof createPreviousLiveViewStore>;
 
-let browserStore: PreviousLiveViewStore | undefined;
-export function browserPreviousLiveViewStore(): PreviousLiveViewStore | undefined {
+const browserStores = new Map<string, PreviousLiveViewStore>();
+export function browserPreviousLiveViewStore(supabaseUrl: string): PreviousLiveViewStore | undefined {
   try {
     // Opener-created tabs may copy sessionStorage. They start without a baseline.
     if (window.opener) clearPreviousLiveViews();
-    browserStore ??= createPreviousLiveViewStore(window.sessionStorage, process.env.NEXT_PUBLIC_SUPABASE_URL ?? "unknown");
-    return browserStore;
+    let store = browserStores.get(supabaseUrl);
+    if (!store) {
+      store = createPreviousLiveViewStore(window.sessionStorage, supabaseUrl);
+      browserStores.set(supabaseUrl, store);
+    }
+    return store;
   } catch { return undefined; }
 }

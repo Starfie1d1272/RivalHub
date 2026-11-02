@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
+vi.mock("@/components/layout/PublicRuntimeConfig", () => ({ usePublicRuntimeConfig: () => ({ appOrigin: "http://localhost:3000", supabaseUrl: "http://localhost:54321", supabasePublishableKey: "sb_publishable_fixture", turnstileSiteKey: "", authEmailResendCooldownSeconds: 60 }) }));
 const mocks = vi.hoisted(() => ({ reset: vi.fn(), change: vi.fn(), send: vi.fn(), link: vi.fn() }));
 vi.mock("@/actions/password-recovery", () => ({ resetUserPassword: mocks.reset }));
 vi.mock("@/actions/account", () => ({ changeUserPassword: mocks.change }));

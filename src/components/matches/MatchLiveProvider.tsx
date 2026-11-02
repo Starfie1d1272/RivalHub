@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { usePublicRuntimeConfig } from "@/components/layout/PublicRuntimeConfig";
 import { subscribeBrowserLiveViewer } from "@/lib/mizar/live-viewer-subscriptions";
 import { initialLiveViewerState } from "@/lib/mizar/live-viewer-state";
 import { browserPreviousLiveViewStore } from "@/lib/mizar/live-previous-view";
@@ -11,16 +12,17 @@ export function MatchLiveProvider({ matchId, enabled = true, eligible = true, ch
   return <Connection key={`${matchId}:${enabled}:${eligible}`} matchId={matchId} enabled={enabled && eligible} eligible={eligible}>{children}</Connection>;
 }
 function Connection({ matchId, enabled, eligible, children }: { matchId: string; enabled: boolean; eligible: boolean; children: React.ReactNode }) {
+  const config = usePublicRuntimeConfig();
   const [state, setState] = useState(initialLiveViewerState);
   const [now, setNow] = useState(0);
   useEffect(() => {
-    if (!eligible) browserPreviousLiveViewStore()?.clear(matchId);
+    if (!eligible) browserPreviousLiveViewStore(config.supabaseUrl)?.clear(matchId);
     if (!enabled) return;
-    return subscribeBrowserLiveViewer(matchId, state => {
+    return subscribeBrowserLiveViewer(config, matchId, state => {
       setState(state);
       setNow(performance.now());
     });
-  }, [matchId, enabled, eligible]);
+  }, [matchId, enabled, eligible, config]);
   useEffect(() => {
     if (!enabled) return;
     const timer = setInterval(() => setNow(performance.now()), 100);
