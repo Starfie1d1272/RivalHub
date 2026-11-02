@@ -2,6 +2,7 @@ import "server-only";
 import { prepareApprovedEventRosterInTx } from "@/lib/event-rosters/prepare-approved";
 import { assertPrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import { buildRosterEligibilityInTx, freezeQualificationPolicy, type QualificationRosterEligibility } from "@/lib/competition-qualification/eligibility";
+import { decodeEventRosterEligibilitySnapshotV2, type EventRosterEligibilitySnapshotV2 } from "@/lib/seasons/eligibility-snapshot";
 import { z } from "zod";
 import { and, asc, desc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -40,16 +41,23 @@ export async function createTestMatchInTx(tx: TxDb, input: z.infer<typeof testMa
   for (const entry of entries) await prepareApprovedEventRosterInTx(tx, {
     seasonId: season.id, entryId: entry.id, actorId,
   });
-  const eligibilityByEntry = new Map<string, QualificationRosterEligibility>();
+  const eligibilityByEntry = new Map<string, QualificationRosterEligibility | EventRosterEligibilitySnapshotV2>();
   const coherent = await assertPrestartEntryCoherenceInTx(tx, season.id, entries.map(entry => ({ competitionEntryId: entry.id })));
   for (const row of coherent) {
     if (!["confirmed", "frozen"].includes(row.eventRoster.status)) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, `「${row.entry.name}」的比赛用名单未能准备完成，请核对当前获批名单。`);
     }
   }
-  const policy = season.competitionTemplate === "major" ? await freezeQualificationPolicy(season) : null;
+  const isV2 = season.teamRegistrationConfig.qualificationPolicy?.version === 2;
+  const policy = !isV2 && season.competitionTemplate === "major" ? await freezeQualificationPolicy(season) : null;
   for (const row of coherent) {
-    if (policy) eligibilityByEntry.set(row.entry.id, await buildRosterEligibilityInTx(tx, {
+    if (isV2) {
+      const parsed = decodeEventRosterEligibilitySnapshotV2(row.eventRoster.eligibilitySnapshot);
+      if (parsed.seasonId !== season.id || parsed.entryId !== row.entry.id || parsed.rosterRevisionId !== row.approvedRevision.id) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事资格快照与当前批准名单不一致，无法创建测试赛。 ");
+      }
+      eligibilityByEntry.set(row.entry.id, parsed);
+    } else if (policy) eligibilityByEntry.set(row.entry.id, await buildRosterEligibilityInTx(tx, {
       season, entryId: row.entry.id, rosterRevisionId: row.approvedRevision.id, eventRosterId: row.eventRoster.id, policy,
     }));
   }
@@ -63,7 +71,7 @@ export async function createTestMatchInTx(tx: TxDb, input: z.infer<typeof testMa
   const [match] = await tx.insert(matches).values({
     seasonId: season.id, entryAId: values.entryAId, entryBId: values.entryBId,
     stage: "test", format: values.format, scheduledAt: values.scheduledAt ? new Date(values.scheduledAt) : null,
-    testConfig: { mapPool: [...mapPool], operatorAId, operatorBId, ...(policy ? { eligibility: { a: eligibilityByEntry.get(values.entryAId)!, b: eligibilityByEntry.get(values.entryBId)! } } : {}) },
+    testConfig: { mapPool: [...mapPool], operatorAId, operatorBId, ...((policy || isV2) ? { eligibility: { a: eligibilityByEntry.get(values.entryAId)!, b: eligibilityByEntry.get(values.entryBId)! } } : {}) },
   }).returning();
   await tx.insert(matchVetoSessions).values({ matchId: match.id, privilegedEntryId: values.privilegedSide === "a" ? match.entryAId : match.entryBId });
   await writeAuditInTx(tx, { seasonId: season.id, action: "match.create", actorId, targetId: match.id,

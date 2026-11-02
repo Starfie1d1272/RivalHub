@@ -1,17 +1,17 @@
 import { z } from "zod";
+import { AppError, ErrorCode } from "@/lib/errors";
 import { qualificationPolicySchema, qualificationPolicyV2Schema } from "@/lib/competition/qualification-policy";
 import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeTeamRegistrationConfig, resolveQualificationPolicy } from "@/lib/seasons/compatibility";
 import type { Season, StoredTeamRegistrationConfigV2, QualificationPolicyV2 } from "@/types/season";
 import type { QualificationFinding } from "@/lib/qualification/finding";
 import type { ParticipantQualificationFacts } from "@/lib/qualification/facts";
-import type { PlayerStrengthInput, PlayerStrengthFact } from "@/lib/major/player-strength";
 import type { LineupMemberFact } from "@/lib/match-rosters/lineup";
 import type { competitionEntries, competitionEntryRosterRevisions, competitionEntryParticipants, seasonRegistrations } from "@/db/schema";
 
 export type SeasonRuleColumns = Omit<Pick<Season, "registrationMode" | "hasCaptainVoting" | "hasDraft" | "registrationConfig" | "teamRegistrationConfig" | "affiliationRules" | "minTeamSize" | "maxTeamSize" | "starterCount" | "positions" | "stagePlan" | "registrationOpensAt" | "registrationOpenedAt" | "registrationClosesAt" | "rosterChangeClosesAt">, "teamRegistrationConfig"> & { teamRegistrationConfig: Season["teamRegistrationConfig"] | StoredTeamRegistrationConfigV2 };
 
 export const seasonRuleExtensionsSchema = z.object({
-  formation: z.object({ draftTimeoutSeconds: z.number().int().min(1), votesPerPerson: z.number().int().min(1), minimumVotesToConfirm: z.number().int().min(0) }).strict(),
+  formation: z.object({ targetTeamCount: z.number().int().min(1).nullable(), targetRosterSize: z.number().int().min(1).nullable(), draftTimeoutSeconds: z.number().int().min(1), votesPerPerson: z.number().int().min(1), minimumVotesToConfirm: z.number().int().min(0) }).strict(),
   seeding: z.object({ mode: z.enum(["manual", "strength_recommendation"]) }).strict(),
   lineup: z.object({ maxSubstitutes: z.number().int().min(0) }).strict(),
   rosterChanges: z.object({ representativeCanRemove: z.boolean(), representativeCanTransfer: z.boolean(), selfServiceAfterApproval: z.boolean() }).strict(),
@@ -33,28 +33,54 @@ export type DecodedSeasonRules = {
   competitive: Pick<QualificationPolicyV2, "competitiveProfile" | "externalStrengthGap">;
   competition: Pick<SeasonRuleColumns, "stagePlan"> & { seeding: V2Extensions["seeding"] | null };
 };
+/** Context is needed for any configured competitive purpose, independently. */
+export function seasonRulesNeedCompetitiveContext(rules: Pick<DecodedSeasonRules, "participant" | "competitive">): boolean {
+  return rules.participant.competitiveProfileRequired || rules.competitive.externalStrengthGap.enabled ||
+    Boolean(rules.participant.rankThreshold?.currentMin || rules.participant.rankThreshold?.peakMin);
+}
+
+/** Validate only enabled formation stages; drafts may retain incomplete values. */
+export function assertFormationRulesPublishable(rules: DecodedSeasonRules): void {
+  const formation = rules.formation.settings;
+  if (!formation) throw new AppError(ErrorCode.VALIDATION_FAILED, "新版赛事缺少编队配置。");
+  if (rules.formation.hasCaptainVoting && formation.targetTeamCount === null) throw new AppError(ErrorCode.VALIDATION_FAILED, "队长投票需要设置目标队伍数量。");
+  if (rules.formation.hasDraft && (formation.targetRosterSize === null || formation.targetRosterSize < rules.lineup.starterCount || formation.targetRosterSize > rules.roster.maxTeamSize)) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "选秀目标人数须介于首发人数与名单上限之间。");
+  }
+}
+
 export type SeasonRuleColumnPatch = Partial<SeasonRuleColumns>;
 export type QualificationDecision = { state: "ready"; findings: readonly [] } | { state: "blocked"; findings: readonly [QualificationFinding, ...QualificationFinding[]] };
+/** Incomplete facts remain representable for readiness and remediation. */
+export type ProfileReadinessFact = { status: "ranked" | "unranked"; rank: string | null; rating: number | null; stars: number | null; sourcePlatform: string; sourceSeasonKey: string | null };
+export type ExternalStrengthFact = { label: string; rank: string | null; stars: number | null; sourcePlatform: string; sourceSeasonKey: string | null; sourceRank: string | null };
 export type QualificationEvidence = { kind: "none" } | {
   kind: "competitive";
   context: { profile: import("@/types/season").CompetitiveProfileConfig | null; platform: string; rankOrder: readonly string[]; fallback: import("@/types/season").CompetitiveFallbackConversion | null; sourceSelection: "primary_then_fallback" | "strongest_equivalent"; evidencePolicy: import("@/types/season").CompetitiveEvidencePolicy | null };
   requirements: { historicalPeak: boolean; seasonKeys: readonly string[]; ratingRequired: boolean; exactStarsRequired: boolean };
-  byUser: ReadonlyMap<string, { strength: PlayerStrengthInput; historicalPeak: PlayerStrengthFact | null; seasons: ReadonlyMap<string, PlayerStrengthFact | null> }>;
+  byPurpose: {
+    profileReadiness: ReadonlyMap<string, { historicalPeak: ProfileReadinessFact | null; seasons: ReadonlyMap<string, ProfileReadinessFact | null> }>;
+    rankThreshold: ReadonlyMap<string, { currentRank: string | null; peakRank: string | null }>;
+    externalStrength: ReadonlyMap<string, ExternalStrengthFact>;
+  };
 };
 export type ParticipantCandidate = { userId: string; facts: ParticipantQualificationFacts; playerType: import("@/types/season").PlayerType | null };
 /** Complete candidate facts are assembled server-side under the Entry transaction. */
+type RosterCandidateEntry = Pick<typeof competitionEntries.$inferSelect, "id" | "competitionId" | "registrationStatus" | "currentRosterRevisionId" | "approvedRosterRevisionId"> & { name: string; logoPresent: boolean; nameConflicts: boolean };
+type RosterCandidateMember = { userId: string; participantId: string; status: typeof competitionEntryParticipants.$inferSelect.status; isPrimaryStarter: boolean; primaryPosition: string | null; playerType: import("@/types/season").PlayerType | null };
 export type RosterCandidate = {
   season: Pick<Season, "id" | "registrationMode" | "status">;
-  entry: Pick<typeof competitionEntries.$inferSelect, "id" | "competitionId" | "source" | "registrationStatus" | "currentRosterRevisionId" | "approvedRosterRevisionId"> & { name: string; logoPresent: boolean; nameConflicts: boolean };
   revision: Pick<typeof competitionEntryRosterRevisions.$inferSelect, "id" | "entryId" | "revisionNumber" | "status" | "origin">;
-  members: readonly { userId: string; participantId: string; status: typeof competitionEntryParticipants.$inferSelect.status; isPrimaryStarter: boolean; primaryPosition: string | null; playerType: import("@/types/season").PlayerType | null }[];
   factsByUser: ReadonlyMap<string, ParticipantQualificationFacts>;
   currentTeamMemberUserIds: ReadonlySet<string> | null;
-  nativeRegistration: Pick<typeof seasonRegistrations.$inferSelect, "id" | "status"> | null;
+  nativeRegistrationsByUser: ReadonlyMap<string, Pick<typeof seasonRegistrations.$inferSelect, "id" | "status">>;
   activeClaimEntryByUser: ReadonlyMap<string, string>;
   registrationBlockedUserIds: ReadonlySet<string>;
   rosterBlockedUserIds: ReadonlySet<string>;
-};
+} & (
+  | { entry: RosterCandidateEntry & { source: "event_native" }; members: readonly (RosterCandidateMember & { teamMembershipId: null })[] }
+  | { entry: RosterCandidateEntry & { source: "linked_team" }; members: readonly (RosterCandidateMember & { teamMembershipId: string | null })[] }
+);
 export type ProposedLineup = { entryId: string; starterMemberIds: readonly string[]; substituteMemberIds: readonly string[] };
 export type FrozenLineupEligibility = {
   entryId: string; rosterRevisionId: string; starterCount: number; maxSubstitutes: number;
