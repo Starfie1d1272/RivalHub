@@ -18,9 +18,10 @@ export function deriveCompetitiveRequirements(
 ): Extract<QualificationEvidence, { kind: "competitive" }>["requirements"] {
   const weighted = purposes.includes("profile_completeness") || purposes.includes("seed_recommendation");
   const threshold = purposes.includes("rank_threshold") ? participant.rankThreshold : null;
-  const seasonKeys = weighted
-    ? [context.evidencePolicy?.referenceSeasonKey ?? context.previousSeasonKey, ...(context.evidencePolicy?.recentSeasonKeys ?? [context.currentSeasonKey])]
-    : threshold?.currentMin ? [context.currentSeasonKey] : [];
+  const seasonKeys = [
+    ...(weighted ? [context.evidencePolicy?.referenceSeasonKey ?? context.previousSeasonKey, ...(context.evidencePolicy?.recentSeasonKeys ?? [context.currentSeasonKey])] : []),
+    ...(threshold?.currentMin ? [context.currentSeasonKey] : []),
+  ];
   return {
     historicalPeak: weighted || purposes.includes("external_historical_gap") || Boolean(threshold?.peakMin),
     seasonKeys: [...new Set(seasonKeys.filter(Boolean))],
@@ -29,15 +30,22 @@ export function deriveCompetitiveRequirements(
   };
 }
 
-/** Build one purpose's evidence from a shared read; never reuse a union as an evaluation. */
+/** Build independent purpose projections from one batched read. */
 export function buildQualificationEvidence(
   facts: ReadonlyMap<string, ParticipantQualificationFacts>,
   context: CompetitiveProfileConfig,
   participant: Pick<ParticipantRules, "rankThreshold">,
-  purpose: CompetitivePurpose,
+  purposes: readonly CompetitivePurpose[],
 ): QualificationEvidence {
-  const requirements = deriveCompetitiveRequirements([purpose], context, participant);
+  const requirements = deriveCompetitiveRequirements(purposes, context, participant);
   if (!requirements.historicalPeak && requirements.seasonKeys.length === 0) return { kind: "none" };
+  const profileRequirements = deriveCompetitiveRequirements(purposes.filter(purpose => purpose === "profile_completeness" || purpose === "seed_recommendation"), context, participant);
+  const thresholdRequirements = deriveCompetitiveRequirements(purposes.filter(purpose => purpose === "rank_threshold"), context, participant);
+  const byPurpose = {
+    profileReadiness: new Map([...facts].filter(() => purposes.includes("profile_completeness") || purposes.includes("seed_recommendation")).map(([id, fact]) => [id, selectPlayerStrengthEvidence({ ...fact, userId: id }, context, "profile_completeness", profileRequirements.seasonKeys)])),
+    externalStrength: new Map([...facts].filter(() => purposes.includes("external_historical_gap")).map(([id, fact]) => [id, selectPlayerStrengthEvidence({ ...fact, userId: id }, context, "external_historical_gap").strength])),
+    rankThreshold: new Map([...facts].filter(() => purposes.includes("rank_threshold")).map(([id, fact]) => [id, selectPlayerStrengthEvidence({ ...fact, userId: id }, context, "rank_threshold", thresholdRequirements.seasonKeys)])),
+  };
   return {
     kind: "competitive",
     context: {
@@ -49,7 +57,7 @@ export function buildQualificationEvidence(
       evidencePolicy: context.evidencePolicy ?? null,
     },
     requirements,
-    byUser: new Map([...facts].map(([id, fact]) => [id, selectPlayerStrengthEvidence({ ...fact, userId: id }, context, purpose, requirements.seasonKeys)])),
+    byPurpose,
   };
 }
 
