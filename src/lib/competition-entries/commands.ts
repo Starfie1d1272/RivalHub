@@ -41,8 +41,6 @@ import { isTeamRegistration } from "@/lib/utils/season";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { canMutateCompetitionEntryRoster } from "@/lib/competition-entries/remediation";
 import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entries/roster-change";
-import { reconcileMajorPrestartRosterAfterApprovalInTx } from "@/lib/major/prestart-roster";
-import { reconcileQualificationEntryAfterApprovalInTx } from "@/lib/competition-qualification/runtime";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import { assessEntryRosterReadiness } from "@/lib/competition-entries/readiness";
 import { normalizePerfectTeamId } from "@/lib/competition-entries/perfect-team-id";
@@ -628,7 +626,7 @@ export async function revokeCompetitionEntryRestrictionOverrideInTx(
   return { seasonSlug: (await loadSeasonOrThrow(tx, entry.competitionId)).slug };
 }
 
-export async function reviewCompetitionEntryInTx(tx: TxDb, input: { entryId: string; decision: "changes_requested" | "waitlisted" | "approved" | "rejected"; reason?: string; actorId: string }): Promise<{ seasonSlug: string }> {
+export async function applyEntryReviewDecisionInTx(tx: TxDb, input: { entryId: string; decision: "changes_requested" | "waitlisted" | "approved" | "rejected"; reason?: string; actorId: string }): Promise<{ seasonSlug: string; seasonId: string; from: typeof competitionEntries.$inferSelect.registrationStatus; rosterRevision: number }> {
   const [entryScope] = await tx.select({ competitionId: competitionEntries.competitionId })
     .from(competitionEntries).where(eq(competitionEntries.id, input.entryId));
   if (!entryScope) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。");
@@ -652,13 +650,10 @@ export async function reviewCompetitionEntryInTx(tx: TxDb, input: { entryId: str
     await tx.update(competitionEntries).set({ registrationStatus: input.decision, approvedRosterRevisionId: input.decision === "approved" ? revision.id : entry.approvedRosterRevisionId, reviewedAt: now, reviewReason: input.reason || null, updatedAt: now }).where(eq(competitionEntries.id, entry.id));
     if (input.decision === "approved") {
       await tx.update(competitionEntryRosterRevisions).set({ status: "approved", approvedAt: now }).where(eq(competitionEntryRosterRevisions.id, revision.id));
-      await reconcileMajorPrestartRosterAfterApprovalInTx(tx, { seasonId: season.id, entryId: entry.id, actorId: input.actorId });
-      await reconcileQualificationEntryAfterApprovalInTx(tx, { seasonId: season.id, entryId: entry.id, actorId: input.actorId });
     }
     if (input.decision === "rejected") await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.entryId, entry.id));
   }
-  await auditEntry(tx, { action: `competition_entry.${input.decision}`, actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { from: entry.registrationStatus, to: input.decision, rosterRevision: revision.revisionNumber, reason: input.reason || null } });
-  return { seasonSlug: season.slug };
+  return { seasonSlug: season.slug, seasonId: season.id, from: entry.registrationStatus, rosterRevision: revision.revisionNumber };
 }
 
 export async function transferCompetitionEntryRepresentativeInTx(tx: TxDb, input: { entryId: string; userId: string; toUserId: string; actorId: string }): Promise<{ seasonSlug: string }> {

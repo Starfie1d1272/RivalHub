@@ -1,3 +1,4 @@
+import { reviewCompetitionEntryWorkflowInTx as reviewCompetitionEntryInTx } from "../../../src/lib/registration/review-entry";
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -7,7 +8,6 @@ import * as schema from "../../../src/db/schema";
 import {
   grantCompetitionEntryRestrictionOverrideInTx,
   revokeCompetitionEntryRestrictionOverrideInTx,
-  reviewCompetitionEntryInTx,
   submitCompetitionEntryInTx,
   validateApprovedCompetitionEntryRosterInTx,
 } from "../../../src/lib/competition-entries/commands";
