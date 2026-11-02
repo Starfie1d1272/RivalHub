@@ -1,5 +1,5 @@
 import { withDbTrafficSource } from "@/lib/observability/db-traffic";
-import { findAdminSeasonOverviewBySlug } from "@/lib/admin/season-context";
+import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { hasMatchRecordingCondition } from "@/lib/postmatch/recording-query";
 import { hasMatchRecording } from "@/lib/postmatch/recording-types";
 import { withDisplayScores } from "@/lib/matches/display-score-data";
@@ -145,12 +145,12 @@ export async function loadAdminCommentaryEffectiveness(seasonId: string): Promis
 
 /** Shared authorized configuration; materials do not need the schedule substrate. */
 async function loadWorkspaceContext(seasonSlug: string) {
-  const season = await findAdminSeasonOverviewBySlug(seasonSlug);
+  const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) return null;
   await requireSeasonAdmin(season.id);
   const [allTeams, stageRunRows, qualificationRun] = await withDbTrafficSource("admin.matches.read", async () => await Promise.all([
     db.query.competitionEntries.findMany({
-      columns: { id: true, name: true, formationOrder: true },
+      columns: { id: true, name: true, formationOrder: true, registrationStatus: true },
       where: eq(competitionEntries.competitionId, season.id), orderBy: [asc(competitionEntries.formationOrder)],
     }),
     season.competitionTemplate === "major" ? db.select({
@@ -167,11 +167,12 @@ async function loadWorkspaceContext(seasonSlug: string) {
   return { season, allTeams, stageRunRows, qualificationRun, stagePlan };
 }
 
-function projectWorkspace(context: NonNullable<Awaited<ReturnType<typeof loadWorkspaceContext>>>): Pick<AdminMatchOverviewData, "season" | "teams" | "stagePlan" | "qualificationRun"> {
+function projectWorkspace(context: NonNullable<Awaited<ReturnType<typeof loadWorkspaceContext>>>): Pick<AdminMatchOverviewData, "season" | "teams" | "stagePlan" | "qualificationRun" | "scheduleTeamCount"> {
   const { season, allTeams, stagePlan, qualificationRun } = context;
   return {
     season: { id: season.id, slug: season.slug, name: season.name, status: season.status, competitionTemplate: season.competitionTemplate },
-    teams: allTeams.map(({ id, name }) => ({ id, name })), stagePlan,
+    teams: allTeams.map(({ id, name }) => ({ id, name })),
+    scheduleTeamCount: season.teamRegistrationConfig.qualificationPolicy?.version === 2 ? allTeams.filter(team => team.registrationStatus === "approved").length : allTeams.length, stagePlan,
     qualificationRun: qualificationRun ? { id: qualificationRun.id, format: qualificationRun.format, playInEntryCount: qualificationRun.playInEntryCount, startedAt: qualificationRun.startedAt, completedAt: qualificationRun.completedAt } : null,
   };
 }

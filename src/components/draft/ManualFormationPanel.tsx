@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { approveFormation, saveManualFormation, startFormedSeason, withdrawFormation, requestFormationChange } from "@/actions/draft/formation";
+import { approveFormation, saveManualFormation, withdrawFormation, requestFormationChange } from "@/actions/draft/formation";
+import { startSeason } from "@/actions/season-prestart";
 import Link from "next/link";
 import { updateCompetitionEntryName, uploadCompetitionEntryLogo } from "@/actions/competition-entry-profile";
 import { TeamLogoUpload } from "@/components/teams/TeamLogoUpload";
@@ -107,5 +108,5 @@ export function FormationApprovalPanel({ seasonId, teams }: { seasonId: string; 
 export function FormationStartPanel({ seasonId, seasonSlug, major }: { seasonId: string; seasonSlug: string; major: boolean }) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
-  return <Card className="space-y-3 p-5"><h2 className="text-lg font-semibold">赛事开赛</h2><p className="text-sm">完成编队、成员确认和全部名单审核后，管理员可以冻结名单并开始赛事。</p>{major ? <Button asChild><Link href={`/admin/${seasonSlug}/prestart`}>前往 Major 赛前筹备</Link></Button> : <Button type="button" disabled={pending} onClick={() => startTransition(async () => { const result = await startFormedSeason({ seasonId }); if (!result.success) { toast.error(result.error.message); return; } toast.success("名单已冻结，赛事已开始；可前往赛程管理生成赛程。"); router.refresh(); })}>冻结名单并开始赛事</Button>}</Card>;
+  return <Card className="space-y-3 p-5"><h2 className="text-lg font-semibold">赛事开赛</h2><p className="text-sm">完成编队、成员确认和全部名单审核后，管理员可以冻结名单并开始赛事。</p>{major ? <Button asChild><Link href={`/admin/${seasonSlug}/prestart`}>前往 Major 赛前筹备</Link></Button> : <Button type="button" disabled={pending} onClick={() => startTransition(async () => { const result = await startSeason({ seasonId }); if (!result.success) { toast.error(result.error.message); return; } toast.success("名单已冻结，赛事已开始；可前往赛程管理生成赛程。"); router.refresh(); })}>冻结名单并开始赛事</Button>}</Card>;
 }
