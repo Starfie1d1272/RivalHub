@@ -167,7 +167,7 @@ export async function runMatchVetoScheduledJob() {
   let delivery: Awaited<ReturnType<typeof dispatchMatchProjectionInvalidations>> | undefined;
   try { delivery = await dispatchMatchProjectionInvalidations(); } catch (error) { firstFailure ??= error; }
   if (firstFailure) throw firstFailure;
-  return { result: { ...lifecycle!.result, deliveryPending: delivery!.pending }, businessTransitions: lifecycle!.businessTransitions };
+  return { result: { ...lifecycle!.result, deliveryProcessed: delivery!.processed, deliveryPending: delivery!.pending }, businessTransitions: lifecycle!.businessTransitions };
 }
 
 export async function runSchedulerJobByKey(key: SchedulerJobKey): Promise<SchedulerRunnerResult<unknown>> {

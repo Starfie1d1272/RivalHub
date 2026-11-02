@@ -104,7 +104,10 @@ Ordinary GET remains read-only and exposes only a pending boolean, allowing a
 visible client to retry reconcile with its existing in-flight/backoff gate.
 The existing veto scheduler composes the BP timeout runner with a match projection dispatcher that drains at most fifty pending deliveries per
 invocation, independently of paused/completed/archived lifecycle transitions.
-After each selected delivery attempt, a still-pending captured generation moves
+A larger backlog can defer cache refresh until subsequent invocations. The result
+reports `deliveryProcessed` as the number selected in this batch and
+`deliveryPending` as the number in that batch still unacknowledged, not the
+total backlog. After each selected delivery attempt, a still-pending captured generation moves
 behind older pending work using its `updated_at` ordering timestamp. A successful
 acknowledgement or a concurrent newer generation is not moved by that attempt;
 `updated_at` therefore reflects either fact registration or a pending retry.
