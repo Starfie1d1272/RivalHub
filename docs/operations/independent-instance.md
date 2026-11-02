@@ -40,10 +40,10 @@ sudo bash scripts/instance/install.sh /path/to/manifest.layers.json /path/to/ins
 对于数据库账本与新旧构件均完全一致的应用升级，在目标机使用与候选构件 operator commit 一致的干净源码目录运行：
 
 ```bash
-sudo pnpm exec tsx scripts/instance/release.ts /path/to/manifest.layers.json /etc/rivalhub-instance/instance.env
+sudo pnpm exec tsx scripts/instance/release.ts /path/to/manifest.layers.json /path/to/candidate-instance.env
 ```
 
-controller 从运行中实例读取真实 release identity，从不可变 Git commit 读取前后能力合同，并生成与正式 release 共用格式的受限证据。安装器在切换及补偿回滚前复验合同，将身份和证据保存在 root-only 事务快照。若需显式恢复上一事务，在同一 operator 源码目录运行：
+候选环境文件必须独立于已安装的 `/etc/rivalhub-instance/instance.env`；不要先修改已安装文件。安装器从运行中的 `/api/system/recovery-source` 核对 release、项目和数据库与旧配置一致，并在停服务前再次核对。旧版本没有此接口时不能以手填信息代替。controller 从运行中实例读取真实 release identity，从不可变 Git commit 读取前后能力合同，并生成与正式 release 共用格式的受限证据。安装器在切换及补偿回滚前复验合同，将身份和证据保存在 root-only 事务快照。若需显式恢复上一事务，在同一 operator 源码目录运行：
 
 ```bash
 sudo pnpm exec tsx scripts/instance/release.ts --rollback
