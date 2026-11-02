@@ -821,7 +821,7 @@ export async function transferCompetitionEntryRepresentativeInTx(tx: TxDb, input
   const now = new Date();
   await tx.insert(competitionEntryRepresentativeChanges).values({ entryId: entry.id, fromUserId: entry.representativeUserId, toUserId: input.toUserId, changedAt: await nextRepresentativeChangeAt(tx, entry.id), changedByActorId: input.actorId });
   let sourceRegistrationId = entry.sourceRegistrationId;
-  if (entry.source === "event_native") {
+  if (entry.source === "event_native" && season.registrationMode === "solo") {
     const [registration] = await tx.select({ id: seasonRegistrations.id }).from(seasonRegistrations).where(and(eq(seasonRegistrations.seasonId, entry.competitionId), eq(seasonRegistrations.userId, input.toUserId), eq(seasonRegistrations.status, "approved")));
     if (!registration) throw new AppError(ErrorCode.VALIDATION_FAILED, "新负责人必须是已通过个人报名审核的选手。");
     sourceRegistrationId = registration.id;
