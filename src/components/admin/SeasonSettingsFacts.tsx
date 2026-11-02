@@ -15,6 +15,7 @@ import { PLAYER_TYPE_LABELS, presentSeasonStatus, STAGE_TYPE_LABELS } from "@/li
 import { formatCST } from "@/lib/utils/date";
 import { RANK_LABELS } from "@/lib/validators/registration";
 import { Panel } from "@/components/rivalhub";
+import { resolveCompetitiveSourceSelection } from "@/lib/competitive/source-selection";
 import type { ConversionPolicyProvenance } from "@/lib/competitive/conversion-policy-admin";
 
 export const NO_RANK = "__none__";
@@ -246,7 +247,7 @@ export function CompetitiveReferenceSummary({
   const pendingContext = "报名开放时自动确定";
   const contextValue = (value: string) => !frozen && !configuredContext ? pendingContext : value === "未配置" ? "本届未记录该项参考资料" : value;
   const evidencePolicy = profile.evidencePolicy;
-  const sourceSelection = evidencePolicy?.sourceSelection ?? "primary_then_fallback";
+  const sourceSelection = resolveCompetitiveSourceSelection(profile);
   const policyVersion = profile.conversionPolicyVersion;
   const policyId = profile.conversionPolicyId;
   const sourcePlatform = profile.fallbackConversion?.sourcePlatform === "fivee" ? "5E" : null;
@@ -267,11 +268,12 @@ export function CompetitiveReferenceSummary({
         <div><dt className="text-[var(--color-fg-mid)]">上一平台赛季</dt><dd className="mt-1 font-medium">{contextValue(previousSeason)}</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">历史参考赛季（20%）</dt><dd className="mt-1 font-medium">{contextValue(referenceSeason)}</dd></div>
         <div className="sm:col-span-2"><dt className="text-[var(--color-fg-mid)]">近期竞技事实（30%）</dt><dd className="mt-1 font-medium">{contextValue(recentSeasons.length > 0 ? recentSeasons.join("、") : "未配置")}</dd></div>
-        <div className="sm:col-span-2"><dt className="text-[var(--color-fg-mid)]">竞技证据来源</dt><dd className="mt-1 font-medium">{!frozen && !configuredContext ? pendingContext : sourceSelection === "strongest_equivalent" ? "Perfect World 与 5E 数据按赛事换算规则比较，使用较高的有效竞技水平；相同时优先 Perfect World。" : configuredContext ? "主平台优先，5E 仅在主平台资料不可用时作为等效补充。" : "历史兼容：主平台优先，5E 仅在主平台资料不可用时作为等效补充。"}</dd></div>
+        <div className="sm:col-span-2"><dt className="text-[var(--color-fg-mid)]">竞技证据来源</dt><dd className="mt-1 font-medium">{!frozen && !configuredContext ? pendingContext : sourceSelection === "strongest_equivalent" ? configuredContext ? "可用的等效竞技资料按本届换算规则比较，使用较高的有效竞技水平。" : "Perfect World 与 5E 数据按赛事换算规则比较，使用较高的有效竞技水平；相同时优先 Perfect World。" : configuredContext ? "主平台优先；主平台资料不可用时使用可用的等效资料。" : "历史兼容：主平台优先，5E 仅在主平台资料不可用时作为等效补充。"}</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">冻结段位顺序</dt><dd className="mt-1 font-medium">{contextValue(profile.rankOrder.length > 0 ? `${profile.rankOrder.length} 个段位` : "未配置")}</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">外校实力星差上限</dt><dd className="mt-1 font-medium">{policy ? policy.externalStrengthGap.enabled ? `${policy.externalStrengthGap.maxGap} 星` : "不限制" : `${profile.externalStrengthMaxStarGap ?? 3} 星`}</dd></div>
       </dl>
 
+      {configuredContext && !profile.fallbackConversion && <p className="text-sm text-[var(--color-fg-mid)]">本届未配置跨平台换算资料，当前使用主平台资料。</p>}
       {policyVersion || policyId || profile.fallbackConversion ? (
         <FrozenFact title={`${conversionLabel} · 换算规则 ${policyVersion ?? profile.fallbackConversion?.version ?? "历史版本未记录"}`}>
           {frozen
@@ -286,7 +288,7 @@ export function CompetitiveReferenceSummary({
             </dl>
           )}
         </FrozenFact>
-      ) : (
+      ) : configuredContext ? null : (
         <FrozenFact title={`${conversionLabel} · ${phase === "draft" ? "发布时自动锁定换算规则" : "历史换算规则记录"}`}>
           {phase === "draft" ? "发布时将自动选择当前启用的跨平台换算规则；平台参考赛季与段位顺序在报名开放时自动确定。" : "本届未记录绑定的换算规则版本，请按本届已保存的竞技资料与换算数据核对。"}
         </FrozenFact>
