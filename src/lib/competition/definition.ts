@@ -310,6 +310,11 @@ export function validateCompetitionDefinition(capabilities: Pick<SeasonCapabilit
     if (!isStageExecutorSupported(stage.type)) issues.push({ path: "stagePlan", message: "自定义赛事当前支持循环赛、单败淘汰和双败淘汰。" });
     if (stage.teamCount < 2) issues.push({ path: "stagePlan", message: `${stage.name || "比赛阶段"} 至少需要两支队伍。` });
     if (!stage.matchFormat) issues.push({ path: "stagePlan", message: `${stage.name || "比赛阶段"} 需要设置比赛赛制。` });
+    for (const format of new Set([stage.matchFormat, stage.finalFormat])) {
+      if (format && capabilities.registrationConfig.mapPool.length < Number(format.slice(2))) {
+        issues.push({ path: "registrationConfig.mapPool", message: `${stage.name || "比赛阶段"} 的 ${format.toUpperCase()} 至少需要 ${format.slice(2)} 张地图。` });
+      }
+    }
     if (stage.advanceTiers.some((tier) => tier.count > stage.teamCount)) issues.push({ path: "stagePlan", message: `${stage.name || "比赛阶段"} 的晋级人数不能超过参赛队伍数。` });
     if (stage.type === "round_robin") {
       if (stage.groupCount !== undefined && stage.groupCount !== 1) issues.push({ path: "stagePlan", message: `${stage.name || "循环赛阶段"} 当前只支持单组运行。` });

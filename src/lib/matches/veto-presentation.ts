@@ -23,8 +23,8 @@ const ROLE_HELP: Record<MatchFormat, string> = {
   bo5: "BO5：双方各禁 1 图后，先禁图方选 Map 1、3，后禁图方选 Map 2、4，均由对手选边；Map 5 由刀赛决定起始边。",
 };
 
-export function vetoActionHelp(action: keyof typeof VETO_ACTION_HELP, format: MatchFormat): string {
-  return action === "role_select" ? `${VETO_ACTION_HELP.role_select}${ROLE_HELP[format]}` : VETO_ACTION_HELP[action];
+export function vetoActionHelp(action: keyof typeof VETO_ACTION_HELP, format: MatchFormat, poolSize = 7): string {
+  return action === "role_select" ? `${VETO_ACTION_HELP.role_select}${poolSize === 7 ? ROLE_HELP[format] : "双方交替禁图，随后按赛制选图。"}` : VETO_ACTION_HELP[action];
 }
 
 /** Captain operation labels; historical record labels remain stable. */
