@@ -205,9 +205,9 @@ export function resolveCompetitionDefinition(data: ParsedSeasonForm, applyTempla
   const { template, ...input } = data;
   if (!template || !applyTemplate || template === "custom") return input;
   const builtIn = createCompetitionTemplate(template as CompetitionTemplate);
-  // Built-in competition semantics remain template-owned. Major's reviewed
-  // 5E equivalence map is the sole event-operator overlay and is frozen when
-  // registration opens; no other client team setting can escape canonicalization.
+  // Built-in format and team management defaults remain template-owned.
+  // A submitted qualification policy belongs to this event, not the preset.
+  // Legacy Major's 5E equivalence overlay remains frozen at registration open.
   const fallbackConversion = template === "major"
     ? input.teamRegistrationConfig?.competitiveProfile?.fallbackConversion
     : undefined;
@@ -227,6 +227,9 @@ export function resolveCompetitionDefinition(data: ParsedSeasonForm, applyTempla
     stagePlan,
     teamRegistrationConfig: {
       ...builtIn.teamRegistrationConfig,
+      ...(input.teamRegistrationConfig?.qualificationPolicy
+        ? { qualificationPolicy: input.teamRegistrationConfig.qualificationPolicy }
+        : {}),
       competitiveProfile: builtIn.teamRegistrationConfig.competitiveProfile
         ? { ...builtIn.teamRegistrationConfig.competitiveProfile, fallbackConversion }
         : undefined,
@@ -415,7 +418,9 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
   });
   const existingTeamConfig = normalizeTeamRegistrationConfig(existing.teamRegistrationConfig);
   const registrationConfig = normalizeRegistrationConfig(data.registrationConfig as RegistrationConfig);
-  const affiliationRules = normalizeAffiliationRules(data.affiliationRules as InstitutionAffiliationRule[] | undefined);
+  const affiliationRules = normalizedTeamConfig.qualificationPolicy
+    ? []
+    : normalizeAffiliationRules(data.affiliationRules as InstitutionAffiliationRule[] | undefined);
   const teamConfigChangedWithoutFallback = !sameJson(editableTeamConfig(existingTeamConfig), editableTeamConfig(normalizedTeamConfig));
   const fallbackChanged = !sameJson(
     existingTeamConfig.competitiveProfile?.fallbackConversion,

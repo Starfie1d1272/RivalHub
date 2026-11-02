@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { AppError, ErrorCode } from "@/lib/errors";
+import type { TeamRegistrationConfig } from "@/types/season";
 
 export const competitiveProfileSchema = z.object({
       platform: z.string().min(1).max(64),
@@ -45,3 +47,9 @@ export const qualificationPolicySchema = z.object({
   contacts: z.object({ qqRequired: z.boolean(), emailVerifiedRequired: z.boolean() }),
 });
 
+/** New policies remain draft-only until every entry and roster gate uses them. */
+export function assertQualificationPolicyPublishable(config: Pick<TeamRegistrationConfig, "qualificationPolicy">): void {
+  if (config.qualificationPolicy) {
+    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "本届资格政策尚未接入全部报名与名单流程，暂不能发布。");
+  }
+}
