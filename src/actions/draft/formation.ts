@@ -149,7 +149,7 @@ export async function startFormedSeason(input: { seasonId: string }): Promise<Ac
         if (row.eventRoster.status !== "confirmed" || !row.eventRoster.eligibilitySnapshot || row.eventRoster.eligibilitySnapshot.version !== 2) throw new AppError(ErrorCode.VALIDATION_FAILED, `队伍「${row.entry.name}」的名单尚未审核并采用。`);
         const snapshot = decodeEventRosterEligibilitySnapshotV2(row.eventRoster.eligibilitySnapshot);
         const frozen = decodeFrozenLineupEligibility(snapshot, { seasonId: season.id, entryId: row.entry.id, rosterRevisionId: row.approvedRevision.id });
-        const members = await tx.select().from(eventRosterMembers).where(eq(eventRosterMembers.eventRosterId, row.eventRoster.id));
+        const members = await tx.select().from(eventRosterMembers).where(and(eq(eventRosterMembers.eventRosterId, row.eventRoster.id), eq(eventRosterMembers.isCurrent, true)));
         if (members.length !== snapshot.members.length || members.some(member => !snapshot.members.some(saved => saved.eventRosterMemberId === member.id && saved.userId === member.userId && saved.participantId === member.participantId && saved.educationVerificationId === member.educationVerificationId && saved.isPrimaryStarter === member.isPrimaryStarter))) throw new AppError(ErrorCode.VALIDATION_FAILED, "已采用资格快照与正式名单成员不一致。");
         const bans = await loadActiveSanctionsInTx(tx, { seasonId: season.id, effect: "match_participation_block", subjectUserIds: members.map(member => member.userId) });
         const decision = evaluateLineup({ entryId: row.entry.id, starterMemberIds: members.filter(member => member.isPrimaryStarter).map(member => member.id), substituteMemberIds: [] }, frozen, new Set(bans.keys()));
