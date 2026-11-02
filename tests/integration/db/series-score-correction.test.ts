@@ -6,6 +6,8 @@ import { db } from "../../../src/db/client";
 import * as schema from "../../../src/db/schema";
 import { seedFixture } from "./harness/mizar";
 import { planSeriesAfterMapScoreChangeInTx, correctSeriesAfterMapScoreChangeInTx, type SeriesCorrectionRequest } from "../../../src/lib/matches/series-score-correction";
+import { startCanonicalMapInTx } from "../../../src/lib/matches/map-start";
+import { lockMatchInTx } from "../../../src/lib/match-rosters/service";
 import { correctMapScoreInTx } from "../../../src/lib/matches/map-score-correction";
 import { loadOperatorContext } from "../../../src/lib/admin/matches/operator-context";
 import { loadEffectiveMatchRoster } from "../../../src/lib/match-rosters/effective";
@@ -55,10 +57,11 @@ describe("reviewed early series completion PostgreSQL", () => {
     expect((await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) }))?.completedAt).toEqual(before?.completedAt);
     expect(await db.query.auditLogs.findMany({ where: and(eq(schema.auditLogs.targetId, f.matchId), eq(schema.auditLogs.action, "match.series.corrected")) })).toHaveLength(1);
   });
-  it.each(["active", "historical", "result", "ocr"])("blocks Map 3 facts (%s) without deleting them", async kind => {
+  it.each(["canonical", "active", "historical", "result", "ocr"])("blocks Map 3 facts (%s) without deleting them", async kind => {
     const f = await fixture();
+    if (kind === "canonical") await db.transaction(async tx => { await lockMatchInTx(tx, f.matchId); await startCanonicalMapInTx(tx, f.matchId, f.mapThreeId, "integration-admin"); });
     if (kind === "active") await db.update(schema.matchLiveSessions).set({ currentMapId: f.mapThreeId, mapExecutionPhase: "gameplay" }).where(eq(schema.matchLiveSessions.id, f.sessionId));
-    if (kind === "historical") await db.insert(schema.auditLogs).values({ seasonId: f.seasonId, targetId: f.matchId, action: "mizar.reliable.accept", targetType: "match", meta: { kind: "map_started", receivedMapId: f.mapThreeId, receivedMapName: "de_nuke", outcome: "armed" } });
+    if (kind === "historical") await db.insert(schema.auditLogs).values({ seasonId: f.seasonId, targetId: f.matchId, action: "mizar.reliable.accept", targetType: "match", meta: { kind: "map_started", receivedMapId: f.mapThreeId, receivedMapName: "de_nuke", outcome: "display_only" } });
     if (kind === "result") await db.update(schema.matchMaps).set({ scoreA: 9, scoreB: 13, completedAt: end }).where(eq(schema.matchMaps.id, f.mapThreeId));
     if (kind === "ocr") await db.insert(schema.matchPlayerStats).values({ matchId: f.matchId, mapId: f.mapThreeId, perfectName: "真实数据", kills: 1 });
     const preview = await db.transaction(tx => planSeriesAfterMapScoreChangeInTx(tx, f.request)); expect(preview!.blockers.join(" ")).toMatch(/Map 3/);
@@ -79,6 +82,7 @@ describe("reviewed early series completion PostgreSQL", () => {
     const f = await fixture(); const input = await confirmation(f.request);
     await expect(apply({ ...input, reason: "" })).rejects.toThrow();
     await expect(apply({ ...input, confirmed: false } as never)).rejects.toThrow();
+    await expect(apply({ ...input, laterMapsNotStarted: false } as never)).rejects.toThrow();
     await expect(db.transaction(tx => correctMapScoreInTx(tx, { matchId: f.matchId, mapId: f.mapTwoId, scoreA: 13, scoreB: 9, actorId: "admin", review: { expectedScoreA: 9, expectedScoreB: 13, reason: "复核" } }))).rejects.toThrow("提前结束");
     await db.transaction(tx => correctMapScoreInTx(tx, { matchId: f.matchId, mapId: f.mapTwoId, scoreA: 10, scoreB: 13, actorId: "admin", review: { expectedScoreA: 9, expectedScoreB: 13, reason: "复核" } }));
     expect((await db.query.matches.findFirst({ where: eq(schema.matches.id, f.matchId) }))?.status).toBe("in_progress");
