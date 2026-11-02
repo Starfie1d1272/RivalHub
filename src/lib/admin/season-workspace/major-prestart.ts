@@ -24,6 +24,7 @@ import {
   users,
 } from "@/db/schema";
 import { evaluateMajorPrestartReadiness, type MajorPrestartReadiness } from "@/lib/major/prestart";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { capabilitiesFromSeason } from "@/lib/competition/definition";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
 import { getDisplayName } from "@/lib/identity/display-name";
@@ -215,10 +216,14 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
   }
   const representativeNameById = new Map(representativeRows.map((user) => [user.id, getDisplayName(user)]));
   const candidateEntries = approvedEntries.filter((entry): entry is typeof entry & { approvedRosterRevisionId: string } => Boolean(entry.approvedRosterRevisionId));
+  const rules = decodeSeasonRules(season);
   const definitionPolicy = capabilities.teamRegistrationConfig.qualificationPolicy;
-  const configuredCompetitiveProfile = definitionPolicy
-    ? definitionPolicy.competitiveProfileRequired ? definitionPolicy.competitiveProfile : null
-    : capabilities.teamRegistrationConfig.competitiveProfile ?? null;
+  const legacyProfile = "competitiveProfile" in capabilities.teamRegistrationConfig
+    ? capabilities.teamRegistrationConfig.competitiveProfile ?? null : null;
+  const configuredCompetitiveProfile = rules.source === "policy_v2"
+    ? rules.competition.seeding?.mode === "strength_recommendation" ? rules.competitive.competitiveProfile : null
+    : definitionPolicy ? definitionPolicy.competitiveProfileRequired ? definitionPolicy.competitiveProfile : null : legacyProfile;
+  const requiresCompetitiveProfile = definitionPolicy?.competitiveProfileRequired ?? ("requireCompetitiveProfile" in capabilities.teamRegistrationConfig && capabilities.teamRegistrationConfig.requireCompetitiveProfile);
   const competitiveProfile = configuredCompetitiveProfile
     ? await resolveCompetitiveContext(configuredCompetitiveProfile)
     : null;
@@ -332,14 +337,14 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       platform: configuredCompetitiveProfile?.platform ?? null,
       conversionPolicyId: configuredCompetitiveProfile?.conversionPolicyId ?? null,
       conversionPolicyVersion: configuredCompetitiveProfile?.conversionPolicyVersion ?? null,
-      blockers: [capabilities.teamRegistrationConfig.requireCompetitiveProfile
+      blockers: [requiresCompetitiveProfile
         ? "本届冻结的竞技平台目录不完整，暂时无法计算实时队伍实力参考。"
         : "本届赛事缺少实力参考所需的竞技上下文。"],
       teams: candidateEntries.map((entry) => ({
         teamId: entry.id,
         teamName: entry.name,
         available: false,
-        blockers: [capabilities.teamRegistrationConfig.requireCompetitiveProfile
+        blockers: [requiresCompetitiveProfile
           ? "本届冻结的竞技平台目录不完整，暂时无法计算实时队伍实力参考。"
           : "本届赛事缺少实力参考所需的竞技上下文。"],
         recommendationRank: null,
