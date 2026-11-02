@@ -42,5 +42,6 @@ export function decodeEventRosterEligibilitySnapshotV2(value: unknown): EventRos
 export type QualificationEligibilityPolicyV2 = {
   version: 2;
   rules: EventRosterEligibilitySnapshotV2["rules"];
-  competitive: Omit<NonNullable<EventRosterEligibilitySnapshotV2["competitive"]>, "byPurpose"> | null;
+  // Semantics are frozen with each adopted roster, not the shared run policy.
+  competitive: Omit<NonNullable<EventRosterEligibilitySnapshotV2["competitive"]>, "byPurpose" | "recentEvidenceSemantics"> | null;
 };
