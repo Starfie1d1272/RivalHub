@@ -220,7 +220,7 @@ export async function submitRegistration(input: RegistrationFormData) {
 
     const registrationConfig = normalizeRegistrationConfig(season.registrationConfig);
     const rules = decodeSeasonRules(season);
-    const parsed = buildRegistrationSchema(registrationConfig, season.positions, { policyV2: rules.source === "policy_v2", qqRequired: rules.participant.contacts.qqRequired }).safeParse(input);
+    const parsed = buildRegistrationSchema(registrationConfig, season.positions, { policyV2: rules.source === "policy_v2" }).safeParse(input);
     if (!parsed.success) {
       const fieldErrors: Record<string, string> = {};
       for (const [field, errors] of Object.entries(
@@ -237,12 +237,12 @@ export async function submitRegistration(input: RegistrationFormData) {
 
     const data = parsed.data;
     if (rules.source !== "policy_v2") {
+      if (!registrationConfig.allowedPlayerTypes.includes(data.playerType)) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "所选身份类型不符合赛事报名要求。");
+      }
       const legacyThreshold = evaluateRankThreshold({
-        userId: session.userId,
-        label: "选手",
-        historicalPeak: data.peakRank && data.peakRating != null ? { rank: data.peakRank, rating: data.peakRating } : null,
-        previousSeasonPeak: null,
-        currentSeasonPeak: data.currentSeasonPeakRank && data.currentRating != null ? { rank: data.currentSeasonPeakRank, rating: data.currentRating } : null,
+        peakRank: data.peakRank ?? null,
+        currentRank: data.currentSeasonPeakRank ?? null,
       }, registrationConfig.rankThreshold, RANK_ORDER);
       if (legacyThreshold.length) throw new AppError(ErrorCode.VALIDATION_FAILED, legacyThreshold.map((finding) => finding.message).join("；"));
     }

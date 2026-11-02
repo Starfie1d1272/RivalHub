@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { REGISTRATION_DEFAULTS } from "@/lib/config/registration-defaults";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
-import type { PlayerType, RegistrationConfig } from "@/types/season";
+import type { RegistrationConfig } from "@/types/season";
 import { eventMapPreferencesSchema } from "@/lib/validators/map-preferences";
 import type { PositionValue, RankValue } from "@/lib/config/registration-defaults";
 import { requiredPlayerDeclaredProfileSchema } from "@/lib/player-declared-profile";
@@ -39,11 +39,10 @@ function nonEmptyAllowed<T extends string>(values: readonly T[], fallback: reado
 export function buildRegistrationSchema(
   inputConfig: Partial<RegistrationConfig> | null | undefined,
   inputPositions: readonly string[],
-  options: { policyV2?: boolean; qqRequired?: boolean } = {},
+  options: { policyV2?: boolean } = {},
 ) {
   const config = normalizeRegistrationConfig(inputConfig);
   const positions = nonEmptyAllowed(inputPositions, positionValues);
-  const allowedPlayerTypes = config.allowedPlayerTypes;
   const mapPool = config.mapPool;
 
   return z
@@ -60,15 +59,11 @@ export function buildRegistrationSchema(
         .string()
         .refine((v) => options.policyV2 || v.length > 0, "请填写学号（毕业生填「毕业年份+学院」）"),
 
-      playerType: z
-        .string()
-        .refine((v): v is PlayerType => (allowedPlayerTypes as readonly string[]).includes(v), {
-          message: "请选择允许的身份类型",
-        }),
+      playerType: z.enum(["enrolled", "graduated", "external"], { error: "请选择身份类型" }),
 
       qq: z
         .string()
-        .refine((v) => (options.policyV2 && !options.qqRequired && !v) || /^\d{5,12}$/.test(v), "请输入有效的 QQ 号（5-12 位数字）"),
+        .refine((v) => (options.policyV2 && !v) || /^\d{5,12}$/.test(v), "请输入有效的 QQ 号（5-12 位数字）"),
 
       perfectName: z
         .string()
