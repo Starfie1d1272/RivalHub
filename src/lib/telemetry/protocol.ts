@@ -1,5 +1,5 @@
 import { ErrorCode } from "@/lib/errors";
-import { OPERATIONS } from "./operations";
+import { OPERATIONS, READABLE_OPERATIONS, UNCLASSIFIED_OPERATION } from "./operations";
 import { TASK_NAMES, TASK_STEPS, TASK_VALIDATION_REASONS, TASK_DURATION_CAP_MS, type TaskMeasurement } from "./task-contract";
 import { ROUTES } from "./routes";
 import { CLIENT_CATEGORIES, type ClientContext } from "./client-context-contract";
@@ -36,6 +36,7 @@ export interface TelemetryEvent {
   filters?: Record<string, string>; eventId?: string; outcome?: "applied" | "stale" | "noop";
   variant?: string;
 }
+export type StoredTelemetryEvent = Omit<TelemetryEvent, "operation"> & { operation?: TelemetryEvent["operation"] | typeof UNCLASSIFIED_OPERATION };
 export interface Ticket {
   v: 1; id: string; account: string | null; role: Role; release: string;
   environment: "preview" | "production"; origin: string; exp: number;
@@ -78,18 +79,18 @@ export function safeFilters(params: URLSearchParams): Record<string, string> {
   return out;
 }
 
-const operationSet = new Set<string>([...OPERATIONS, "__unclassified__"]);
+const operationSet = new Set<string>(READABLE_OPERATIONS);
 /** Normalize only unknown operation labels; the original value is never persisted. */
-export function classifyEvent(value: unknown, now: number): { event: TelemetryEvent; unclassified: boolean } | null {
+export function classifyEvent(value: unknown, now: number): { event: StoredTelemetryEvent; unclassified: boolean } | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const event = value as Record<string, unknown>;
   if (event.kind === "operation" && typeof event.operation === "string" && !operationSet.has(event.operation)) {
     if (!/^[A-Za-z][A-Za-z0-9-]{0,63}(?:\.[A-Za-z][A-Za-z0-9-]{0,63}){1,3}$/.test(event.operation)) return null;
-    const normalized = { ...event, operation: "__unclassified__" };
+    const normalized = { ...event, operation: UNCLASSIFIED_OPERATION };
     return validEvent(normalized, now) ? { event: normalized, unclassified: true } : null;
   }
   // The internal marker is not a client-supplied operation.
-  if (event.operation === "__unclassified__") return null;
+  if (event.operation === UNCLASSIFIED_OPERATION) return null;
   return validEvent(value, now) ? { event: value, unclassified: false } : null;
 }
 const routes = new Set<string>([...ROUTES, "/unknown"]);
@@ -97,7 +98,7 @@ const allowedErrors = new Set<string>([...Object.values(ErrorCode), "UNCLASSIFIE
 export const VARIANTS = ["join", "stake", "enable", "pause", "resume", "retry", "close", "void", "pick_save", "pick_submit", "result", "bp", "ban", "pick", "side_pick", "role_select"] as const;
 const fields = new Set(["id", "at", "session", "route", "scene", "kind", "phase", "operation", "operationId", "durationMs", "errorCode", "requestId", "navigation", "filters", "eventId", "outcome", "variant", "metricName", "score", "client", "measurement", "ready", "clientError", "task"]);
 /** Receiver rejects unknown fields instead of persisting arbitrary client objects. */
-export function validEvent(value: unknown, now: number): value is TelemetryEvent {
+export function validEvent(value: unknown, now: number): value is StoredTelemetryEvent {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const e = value as Record<string, unknown>;
   if (Object.keys(e).some((key) => !fields.has(key))) return false;

@@ -65,7 +65,7 @@ v1 的 page/operation/error/ready/NAV_COMMIT 携带随机 navigationId、构建�
 | release / environment | 签名票据中的构建 commit 与 preview/production；生产需检查 release 不是 unknown |
 | route / scene / eventId | 路由模板、canonical 赛事模板 major/rivals/other（无赛事为 site）、公开赛事 UUID；未加载对应 layout 时可能是 site |
 | kind / navigation / filters | page/filter/operation/error/performance/ready；navigate/history/reload；明确允许的类别/selected |
-| operation / variant / phase | 注册表中的动作名或固定未分类标记、固定子类型、start/success/rejected/unknown |
+| operation / variant / phase | 注册表中的动作名或固定未分类标记、固定子类型、start/success/rejected/unknown；分析与历史筛选接受该标记，采集端不能直接提交它 |
 | operationId / durationMs / outcome | 单次调用关联；操作或性能指标最多一小时的整数毫秒耗时；applied/stale/noop（存在时） |
 | metricName / score | 仅 performance 事件；固定指标名；CLS 使用无单位 score，其他指标使用 durationMs |
 | client | 可选设备/浏览器/系统/文档来源固定分类；无原始 UA、版本、URL 或推广参数 |
