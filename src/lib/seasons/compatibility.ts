@@ -1,6 +1,5 @@
 import type {
   InstitutionAffiliationRule,
-  LegacySeasonEligibilityPolicy,
   RegistrationConfig,
   StageConfig,
   StagePlan,
@@ -189,25 +188,4 @@ export function getFirstStageOfType(
   types: readonly StageType[],
 ): StageConfig | null {
   return normalizeStagePlan(stagePlan).find((stage) => types.includes(stage.type)) ?? null;
-}
-
-/** Project legacy Season fields without creating another editable policy. */
-export function decodeLegacySeasonEligibilityPolicy(input: {
-  registrationConfig: PartialRegistrationConfig | null | undefined;
-  teamRegistrationConfig: PartialTeamConfig | null | undefined;
-  affiliationRules: readonly InstitutionAffiliationRule[] | null | undefined;
-}): LegacySeasonEligibilityPolicy {
-  const registration = normalizeRegistrationConfig(input.registrationConfig);
-  const team = normalizeTeamRegistrationConfig(input.teamRegistrationConfig);
-  return {
-    version: 1, source: "legacy-season",
-    affiliationRules: normalizeAffiliationRules(input.affiliationRules),
-    allowedPlayerTypes: registration.allowedPlayerTypes,
-    teamRules: {
-      allowExternal: team.allowExternal, graduateCountsAsHome: team.graduateCountsAsHome,
-      minHomeMembers: team.minHomeMembers, minEnrolledMembers: team.minEnrolledMembers,
-      maxExternalMembers: team.maxExternalMembers, requireCompetitiveProfile: team.requireCompetitiveProfile,
-      competitiveProfile: team.competitiveProfile,
-    },
-  };
 }

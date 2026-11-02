@@ -2,7 +2,6 @@ import { isStageExecutorSupported } from "@/lib/formats/supported";
 import { createMajorTemplate } from "@/lib/competition/templates";
 import {
   normalizeAffiliationRules,
-  decodeLegacySeasonEligibilityPolicy,
   normalizeRegistrationConfig,
   normalizeStagePlan,
   normalizeTeamRegistrationConfig,
@@ -78,7 +77,7 @@ export function capabilitiesFromSeason(season: SeasonCapabilityRow): SeasonCapab
     stagePlan: normalizeStagePlan(season.stagePlan),
     registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
     teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
-    affiliationRules: decodeLegacySeasonEligibilityPolicy(season).affiliationRules,
+    affiliationRules: normalizeAffiliationRules(season.affiliationRules),
     minTeamSize: season.minTeamSize,
     maxTeamSize: season.maxTeamSize,
     starterCount: season.starterCount,
