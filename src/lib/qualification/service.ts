@@ -12,7 +12,7 @@ import {
   type SeasonEducationVerification,
 } from "@/lib/education/eligibility";
 import type { CompetitiveProfileConfig, InstitutionAffiliationRule } from "@/types/season";
-import type { DecodedSeasonRules, ParticipantCandidate, QualificationDecision } from "@/lib/seasons/rules";
+import type { DecodedSeasonRules, EvaluateParticipant, ParticipantCandidate, QualificationDecision } from "@/lib/seasons/rules";
 
 /**
  * Single orchestration owner for participant qualification.
@@ -314,6 +314,49 @@ export function computePolicyParticipantReadiness(
     educationState,
   };
 }
+
+/** Pure participant decision over the evidence supplied by the event. */
+export const evaluateParticipant: EvaluateParticipant = (candidate, rules, evidence) => {
+  const fact = candidate.facts;
+  const findings = getParticipantIdentityFindings(fact).filter((finding) => {
+    const field = finding.metadata?.field;
+    if (field === "qq") return rules.contacts.qqRequired;
+    if (field === "email_verified_at") return rules.contacts.emailVerifiedRequired;
+    if (field === "perfect_name") return Boolean(rules.legacySolo);
+    return true;
+  });
+  const educationState = resolveParticipantEducationReadiness(fact);
+  if (rules.educationRequired && educationState !== "ready") findings.push(educationReadinessFinding(educationState));
+  if (rules.allowedPlayerTypes && (!candidate.playerType || !rules.allowedPlayerTypes.includes(candidate.playerType))) {
+    findings.push({ code: "player_type_ineligible", message: "所选身份类型不符合赛事报名要求。", waivable: false, metadata: { field: "player_type" } });
+  }
+  const threshold = rules.rankThreshold;
+  const hasThreshold = Boolean(threshold && (threshold.currentMin !== null || threshold.peakMin !== null));
+  if (rules.competitiveProfileRequired || hasThreshold) {
+    const player = evidence.kind === "competitive" ? evidence.byUser.get(candidate.userId) : undefined;
+    const profile = evidence.kind === "competitive" ? evidence.context.profile : null;
+    if (!player || !profile || !isCompleteCompetitiveContext(profile)) {
+      findings.push({ code: "competitive_context_unavailable", message: "本届赛事的竞技资料要求暂时无法确认，请联系赛事管理员。", waivable: false, metadata: { field: "competitive_context" } });
+    } else {
+      if (rules.competitiveProfileRequired) {
+        findings.push(...getCompetitiveProfileFindings(fact, profile));
+      }
+      if (threshold && hasThreshold) {
+        const meets = (rank: string | undefined, minimum: string | null) => {
+          if (!rank || !minimum) return false;
+          const value = profile.rankOrder.indexOf(rank);
+          const required = profile.rankOrder.indexOf(minimum);
+          return value >= 0 && required >= 0 && value >= required;
+        };
+        if (!meets(player.seasons.get(profile.currentSeasonKey)?.rank, threshold.currentMin) && !meets(player.historicalPeak?.rank, threshold.peakMin)) {
+          findings.push({ code: "rank_threshold", message: "未达到赛事段位门槛，请检查竞技资料。", waivable: false, metadata: { field: "rank_threshold" } });
+        }
+      }
+    }
+  }
+  const result = uniqueQualificationFindings(findings);
+  return result.length ? { state: "blocked", findings: result as [QualificationFinding, ...QualificationFinding[]] } : { state: "ready", findings: [] };
+};
 
 /** Evaluate a participant independently of roster and lineup decisions. */
 export function evaluateSeasonParticipant(candidate: ParticipantCandidate, rules: DecodedSeasonRules): QualificationDecision {
