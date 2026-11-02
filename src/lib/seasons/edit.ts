@@ -451,12 +451,32 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
   };
   assertValidDateProjection(projectedDates);
   if (isV2TeamConfig(data.teamRegistrationConfig)) {
-    if (!capabilities.canEditPublicRules) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可修改赛事规则。 ");
+    const encoded = encodeSubmittedV2(data, existing.registrationOpenedAt);
+    if (!capabilities.canEditPublicRules) {
+      if (!isV2TeamConfig(existing.teamRegistrationConfig)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可修改赛事规则。 ");
+      const submitted = decodeSeasonRules({ ...existing, ...encoded });
+      const current = decodeSeasonRules(existing);
+      const editableRules = (rules: typeof current) => {
+        const profile = rules.competitive.competitiveProfile;
+        const { rosterChangeClosesAt: _deadline, ...roster } = rules.roster;
+        void _deadline;
+        return { formation: rules.formation, participant: rules.participant, roster, lineup: rules.lineup,
+          competition: rules.competition, registrationMode: rules.registration.registrationMode,
+          registrationConfig: rules.registration.registrationConfig,
+          competitive: { externalStrengthGap: rules.competitive.externalStrengthGap,
+            profile: profile ? { platform: profile.platform, sourceSelection: profile.evidencePolicy?.sourceSelection ?? "primary_then_fallback" } : null } };
+      };
+      if (existing.hasCommunityAwards !== data.hasCommunityAwards || !sameJson(editableRules(current), editableRules(submitted))) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可修改赛事规则。 ");
+      return { template, set: { slug: existing.slug, name: data.name, kind: data.kind, competitionTemplate: template,
+        themeColor: data.themeColor, endAt: template === "major" ? existing.endAt : submittedDates.endAt, updatedAt: new Date(),
+        ...(capabilities.canEditRegistrationOpenSchedule ? { registrationOpensAt: projectedDates.registrationOpensAt } : {}),
+        ...(capabilities.canEditRegistrationDeadlines && template !== "major" ? { registrationClosesAt: projectedDates.registrationClosesAt, rosterChangeClosesAt: projectedDates.rosterChangeClosesAt } : {}) } };
+    }
     return { template, set: {
       slug: data.slug, name: data.name, kind: data.kind, competitionTemplate: template,
       themeColor: data.themeColor, endAt: submittedDates.endAt, updatedAt: new Date(),
       hasCommunityAwards: data.hasCommunityAwards,
-      ...encodeSubmittedV2(data, existing.registrationOpenedAt),
+      ...encoded,
     } };
   }
   if (isV2TeamConfig(existing.teamRegistrationConfig)) throw new AppError(ErrorCode.VALIDATION_FAILED, "新版规则必须完整提交后才能保存。 ");

@@ -8,7 +8,8 @@ import { conversionPolicies, seasons, steamProfiles, users } from "@/db/schema";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
-import type { TeamRegistrationConfig } from "@/types/season";
+import type { TeamRegistrationConfig, StoredTeamRegistrationConfig } from "@/types/season";
+import { qualificationPolicyV2Schema } from "@/lib/competition/qualification-policy";
 import {
   validateConversionPolicyMapping,
   type ConversionPolicyMapping,
@@ -118,7 +119,10 @@ function extractReference(config: TeamRegistrationConfig | null | undefined): {
   policyVersion: string | null;
   fallbackVersion: string | null;
 } {
-  const profile = config?.competitiveProfile;
+  return extractProfileReference(config?.qualificationPolicy?.competitiveProfile ?? config?.competitiveProfile);
+}
+
+function extractProfileReference(profile: import("@/types/season").CompetitiveProfileConfig | null | undefined) {
   if (!profile) return { policyId: null, policyVersion: null, fallbackVersion: null };
   const policyId = profile.conversionPolicyId?.trim() || null;
   const policyVersion = profile.conversionPolicyVersion?.trim() || null;
@@ -131,7 +135,9 @@ export function extractConversionPolicyReference(config: unknown): {
   conversionPolicyVersion: string | null;
   fallbackConversionVersion: string | null;
 } {
-  const reference = extractReference(normalizeTeamRegistrationConfig(config as Partial<TeamRegistrationConfig> | null | undefined));
+  const candidate = config && typeof config === "object" && "qualificationPolicy" in config ? config.qualificationPolicy : null;
+  const v2 = qualificationPolicyV2Schema.safeParse(candidate);
+  const reference = v2.success ? extractProfileReference(v2.data.competitiveProfile) : extractReference(normalizeTeamRegistrationConfig(config as Partial<TeamRegistrationConfig> | null | undefined));
   return {
     conversionPolicyId: reference.policyId,
     conversionPolicyVersion: reference.policyVersion,
@@ -145,7 +151,10 @@ export function groupConversionPolicyEventReferences(
 ): Map<string, ConversionPolicyEventReference[]> {
   const grouped = new Map<string, ConversionPolicyEventReference[]>();
   for (const season of rows) {
-    const reference = extractReference(normalizeTeamRegistrationConfig(season.teamRegistrationConfig));
+    const config: StoredTeamRegistrationConfig = season.teamRegistrationConfig;
+    const reference = config.qualificationPolicy?.version === 2
+      ? extractProfileReference(qualificationPolicyV2Schema.parse(config.qualificationPolicy).competitiveProfile)
+      : extractReference(normalizeTeamRegistrationConfig(config));
     if (!reference.policyId) continue;
     const list = grouped.get(reference.policyId) ?? [];
     list.push({ seasonId: season.id, seasonName: season.name, seasonSlug: season.slug,

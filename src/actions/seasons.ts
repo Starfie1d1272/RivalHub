@@ -16,8 +16,8 @@ import { normalizeRegistrationConfig, normalizeTeamRegistrationConfig, teamRegis
 import type { StagePlan, TeamRegistrationConfig, StoredTeamRegistrationConfig } from "@/types/season";
 import { validateCompetitionDefinition } from "@/lib/competition/definition";
 import { assertAffiliationRequirementsFit, assertQualificationPolicyPublishable } from "@/lib/competition/qualification-policy";
-import { assertFormationRulesPublishable, decodeSeasonRules, encodeDraftSeasonRules } from "@/lib/seasons/rules";
-import { assertSeasonHasNoHistoricalFacts, assertV2CompetitiveContext, openSeasonRegistrationInTx, resolveConversionPolicyForPublish, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
+import { assertFormationRulesPublishable, decodeSeasonRules } from "@/lib/seasons/rules";
+import { assertSeasonHasNoHistoricalFacts, freezeV2CompetitiveContext, openSeasonRegistrationInTx, resolveConversionPolicyForPublish, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
 import { seasonFormSchema, seasonUpdatePayloadSchema, planSeasonCreate, planSeasonUpdate, type SeasonFormInput } from "@/lib/seasons/edit";
 import { updatePublicAnnouncementTags, updatePublicSeasonInfoTag, updatePublicSeasonTags } from "@/lib/revalidation";
 
@@ -151,13 +151,8 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
       let nextTeamRegistrationConfig: StoredTeamRegistrationConfig | null;
       if (decoded.source === "policy_v2") {
         assertFormationRulesPublishable(decoded);
-        const profile = decoded.competitive.competitiveProfile;
-        await assertV2CompetitiveContext(tx, decoded);
         assertAffiliationRequirementsFit(decoded.roster.affiliationRules, { maxTeamSize: decoded.roster.maxTeamSize, starterCount: decoded.lineup.starterCount });
-        if (profile?.conversionPolicyId || profile?.conversionPolicyVersion) {
-          const selected = await resolveConversionPolicyForPublish(tx, profile.platform, profile.conversionPolicyId, profile.conversionPolicyVersion);
-          nextTeamRegistrationConfig = encodeDraftSeasonRules(locked, { ...decoded, competitive: { ...decoded.competitive, competitiveProfile: { ...profile, conversionPolicyId: selected.id, conversionPolicyVersion: selected.version } } }).teamRegistrationConfig ?? null;
-        } else nextTeamRegistrationConfig = locked.teamRegistrationConfig;
+        nextTeamRegistrationConfig = await freezeV2CompetitiveContext(tx, locked);
       } else {
         const config = normalizeTeamRegistrationConfig(locked.teamRegistrationConfig);
         assertQualificationPolicyPublishable(config, locked.registrationMode, { maxTeamSize: locked.maxTeamSize, starterCount: locked.starterCount });
