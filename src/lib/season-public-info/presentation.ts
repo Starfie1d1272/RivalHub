@@ -57,7 +57,6 @@ export function isExternalPublicHref(value: string): boolean {
 
 export function seasonPublicAssetUrl(path: string | null, base = runtimePublicValue("NEXT_PUBLIC_SUPABASE_URL")?.trim()): string | null {
   if (!path) return null;
-  if (!base) return null;
   const origin = requireSupabaseOrigin(base);
   const encodedPath = path.split("/").map(encodeURIComponent).join("/");
   return `${origin}/storage/v1/object/public/${SEASON_PUBLIC_ASSETS_BUCKET}/${encodedPath}`;
