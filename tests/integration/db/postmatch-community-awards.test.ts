@@ -11,7 +11,7 @@ describe("postmatch PostgreSQL invariants", () => {
     const databaseUrl = localDatabaseUrl(); process.env.DATABASE_URL = process.env.DATABASE_URL ?? databaseUrl;
     const schema = await import("../../../src/db/schema");
     const { mutateMatchRecordingInTx, addMatchCommentatorInTx, removeMatchCommentatorInTx, revokePostMatchSubmissionInTx, submitPostMatchReportInTx, setMatchVideoUrlInTx, getPostMatchCompletion } = await import("../../../src/lib/postmatch/service");
-    const { applyMatchStatusTransitionInTx } = await import("../../../src/lib/match-rosters/service");
+    const { applyMatchStatusTransitionInTx } = await import("../../../src/lib/matches/lifecycle");
     const { addCommunityAwardEvidenceInTx, requestCommunityAwardSupplementInTx, resolveCommunityAwardInTx, reviewCommunityAwardInTx, reviseCommunityAwardInTx, submitCommunityAwardInTx, withdrawCommunityAwardInTx } = await import("../../../src/lib/community-awards/service");
     const { isPublicCommunityAward } = await import("../../../src/lib/community-awards/read-model");
     const pool = new Pool({ connectionString: databaseUrl, ssl: false }); const db = drizzle(pool, { schema });

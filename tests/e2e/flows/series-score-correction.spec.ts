@@ -32,7 +32,7 @@ test("管理员核对过期预览后完成系列更正，未打地图没有赛�
     const review = page.getByRole("region", { name: "更正系列赛果", exact: true });
     await expect(review.getByText(`当前：${teamA} 1 : 1 ${teamB}`, { exact: true })).toBeVisible();
     await expect(review.getByText(`更正后：${teamA} 2 : 0 ${teamB}`, { exact: true })).toBeVisible();
-    await expect(review.getByText("Map 3：未进行，更正后不再需要", { exact: true })).toBeVisible();
+    await expect(review.getByText("Map 3：无开图记录，需人工确认", { exact: true })).toBeVisible();
     const confirm = review.getByRole("button", { name: "确认更正系列赛果", exact: true });
     await expect(confirm).toBeDisabled(); await expect(review.getByLabel("整场更正原因")).toHaveValue("核对 Perfect 实际比分");
     await review.getByRole("checkbox").check();

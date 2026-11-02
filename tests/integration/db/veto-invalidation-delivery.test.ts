@@ -8,8 +8,8 @@ import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { finishVetoInteraction } from "@/lib/matches/veto-room/interaction";
 import { reconcileVetoRoomReceipt, readVetoRoomSnapshot, rewindVetoRoom } from "@/lib/matches/veto-room/service";
-import { deliverVetoInvalidation } from "@/lib/matches/veto-room/invalidation";
-import { runMatchVetoTimeoutJob } from "@/lib/scheduler/runners";
+import { deliverMatchProjectionInvalidation } from "@/lib/matches/projection-invalidation/delivery";
+import { runMatchVetoScheduledJob } from "@/lib/scheduler/runners";
 import { PUBLIC_STATS_TAG, publicBetTag } from "@/lib/cache/tags";
 import { seedFixture } from "./harness/mizar";
 import { createLocalPool } from "./harness/database";
@@ -19,7 +19,7 @@ const watermark = (matchId: string) => db.query.matchVetoInvalidations.findFirst
 
 it("persists failed invalidation across a response and recovers on a no-change reconcile", async () => {
   const f = await seedFixture();
-  await deliverVetoInvalidation(f.matchId, "route");
+  await deliverMatchProjectionInvalidation(f.matchId, "route");
   cache.revalidateTag.mockClear();
   await db.update(schema.matchVetoSessions).set({ revision: 1 }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
   const before = await watermark(f.matchId);
@@ -59,11 +59,11 @@ it("does not acknowledge a generation committed while cache invalidation was in 
   }) as typeof client.query;
   try {
     const measured = drizzle(client, { schema });
-    expect(await deliverVetoInvalidation(f.matchId, "route", measured)).toBe("pending");
+    expect(await deliverMatchProjectionInvalidation(f.matchId, "route", measured)).toBe("pending");
     const raced = (await watermark(f.matchId))!;
     expect(raced.generation).toBeGreaterThan(initial.generation);
     expect(raced.publishedGeneration).toBe(initial.publishedGeneration);
-    expect(await deliverVetoInvalidation(f.matchId, "route", measured)).toBe("complete");
+    expect(await deliverMatchProjectionInvalidation(f.matchId, "route", measured)).toBe("complete");
     expect((await watermark(f.matchId))!.publishedGeneration).toBe(raced.generation);
   } finally { client.release(); await pool.end(); }
 });
@@ -82,7 +82,7 @@ it("coalesces BP facts once per transaction and rolls the delivery obligation ba
   expect(committed.generation).toBe(initial.generation + BigInt(1));
   expect(committed.affectedFacts).toEqual(expect.arrayContaining(["veto", "veto_step"]));
   cache.revalidateTag.mockClear();
-  await deliverVetoInvalidation(f.matchId, "route");
+  await deliverMatchProjectionInvalidation(f.matchId, "route");
   expect(cache.revalidateTag.mock.calls.some(call => call[0] === PUBLIC_STATS_TAG)).toBe(true);
   const delivered = (await watermark(f.matchId))!;
   await expect(db.transaction(async tx => {
@@ -99,10 +99,10 @@ it("makes scheduler delivery failures visible and recovers archived/paused rooms
   const due = await db.execute(sql`select public.scheduler_job_is_due('resolve-match-veto-timeouts', false) as due`);
   expect(due.rows[0]!.due).toBe(true);
   cache.revalidateTag.mockImplementation(() => { throw new Error("cache delivery unavailable"); });
-  await expect(runMatchVetoTimeoutJob()).rejects.toThrow("cache delivery unavailable");
+  await expect(runMatchVetoScheduledJob()).rejects.toThrow("cache delivery unavailable");
   expect((await watermark(f.matchId))!.generation).toBeGreaterThan((await watermark(f.matchId))!.publishedGeneration);
   cache.revalidateTag.mockReset();
-  expect(await runMatchVetoTimeoutJob()).toMatchObject({ businessTransitions: 0, result: { changed: 0, deliveryPending: 0 } });
+  expect(await runMatchVetoScheduledJob()).toMatchObject({ businessTransitions: 0, result: { changed: 0, deliveryPending: 0 } });
   expect((await watermark(f.matchId))!.generation).toBe((await watermark(f.matchId))!.publishedGeneration);
   expect((await readVetoRoomSnapshot(f.matchId)).session).toEqual(before);
   expect(await db.select().from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, f.matchId), eq(schema.auditLogs.action, "match.veto.timeout")))).toHaveLength(0);
@@ -110,12 +110,12 @@ it("makes scheduler delivery failures visible and recovers archived/paused rooms
 
 it("hard-invalidates map catalog consumers when a BP plan is rewound or maps are replaced before finish", async () => {
   const f = await seedFixture();
-  await deliverVetoInvalidation(f.matchId, "route");
+  await deliverMatchProjectionInvalidation(f.matchId, "route");
   cache.revalidateTag.mockClear();
   const actor = (await db.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, f.entryAId) }))!.representativeUserId;
   await rewindVetoRoom({ matchId: f.matchId, actorId: actor, targetTurnKey: "choose-veto-team-a", reason: "fixture map plan rewind" });
   expect((await watermark(f.matchId))!.affectedFacts).toContain("map_plan");
-  expect(await deliverVetoInvalidation(f.matchId, "route")).toBe("complete");
+  expect(await deliverMatchProjectionInvalidation(f.matchId, "route")).toBe("complete");
   expect(cache.revalidateTag.mock.calls.some(call => call[0] === PUBLIC_STATS_TAG)).toBe(true);
   expect(cache.revalidateTag.mock.calls.some(call => call[0] === publicBetTag(f.seasonId))).toBe(true);
   cache.revalidateTag.mockClear();
@@ -124,7 +124,7 @@ it("hard-invalidates map catalog consumers when a BP plan is rewound or maps are
     await tx.update(schema.matchVetoSessions).set({ revision: sql`${schema.matchVetoSessions.revision}+1` }).where(eq(schema.matchVetoSessions.matchId, f.matchId));
   });
   expect((await watermark(f.matchId))!.affectedFacts).toEqual(expect.arrayContaining(["map_plan", "veto_step"]));
-  expect(await deliverVetoInvalidation(f.matchId, "route")).toBe("complete");
+  expect(await deliverMatchProjectionInvalidation(f.matchId, "route")).toBe("complete");
   expect(cache.revalidateTag.mock.calls.some(call => call[0] === PUBLIC_STATS_TAG)).toBe(true);
 });
 
@@ -141,7 +141,7 @@ it.each(["in_progress", "scheduled"] as const)("delivers pending obligations whe
   const before = (await watermark(f.matchId))!;
   expect(before.generation).toBeGreaterThan(before.publishedGeneration);
   cache.revalidateTag.mockClear();
-  await expect(runMatchVetoTimeoutJob()).rejects.toThrow("赛季已归档");
+  await expect(runMatchVetoScheduledJob()).rejects.toThrow("赛季已归档");
   const after = (await watermark(f.matchId))!;
   expect(after.publishedGeneration).toBe(after.generation);
   expect(cache.revalidateTag.mock.calls.some(call => call[0] === publicBetTag(f.seasonId))).toBe(true);
@@ -150,7 +150,7 @@ it.each(["in_progress", "scheduled"] as const)("delivers pending obligations whe
   // candidate for another spec reusing this worker database.
   await db.update(schema.matchVetoSessions).set({ completedAt: new Date(), entryAStartRequestedAt: null, entryAStartRequestedBy: null })
     .where(eq(schema.matchVetoSessions.matchId, f.matchId));
-  await deliverVetoInvalidation(f.matchId, "route");
+  await deliverMatchProjectionInvalidation(f.matchId, "route");
 });
 
 it("restores the watermark cascade skipped by another fixture's replica teardown", async () => {
