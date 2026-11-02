@@ -743,6 +743,13 @@
       "when": 1793602089118,
       "tag": "0105_public_asset_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1793611768711,
+      "tag": "0106_actual_start_adoption",
+      "breakpoints": true
     }
   ]
 }

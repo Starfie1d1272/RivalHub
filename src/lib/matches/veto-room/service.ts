@@ -33,7 +33,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import { logEvent } from "@/lib/observability/server";
 import { AppError, ErrorCode } from "@/lib/errors";
 import type { Side, VetoActionType } from "@/types/match";
-import { closeVetoAppealsAfterGameplayInTx, hasVetoGameplayInTx, vetoGameplayExists } from "./appeal-lifecycle";
+import { closeVetoAppealsAfterGameplayInTx, hasVetoGameplayInTx, hasVetoAdmissionClosedInTx, vetoGameplayExists } from "./appeal-lifecycle";
 import {
   chooseVetoOptions,
   deriveHigherSeedEntry,
@@ -81,6 +81,7 @@ export interface VetoRoomCoreSnapshot {
   currentTurn: CurrentVetoTurn | null;
   serverNow: Date;
   gameplayStarted: boolean;
+  admissionClosed: boolean;
   effectiveForceAt: Date | null;
   previousMatchBlocker: boolean;
   pendingInvalidation?: boolean;
@@ -647,7 +648,7 @@ async function loadCoreSnapshotInTx(
   tx: TxDb,
   match: VetoMatch,
   session: VetoSession,
-  loaded?: { steps: VetoStepRow[]; serverNow: Date; gameplayStarted: boolean; pendingInvalidation: boolean },
+  loaded?: { steps: VetoStepRow[]; serverNow: Date; gameplayStarted: boolean; admissionClosed: boolean; pendingInvalidation: boolean },
 ): Promise<VetoRoomCoreSnapshot> {
   const steps = loaded?.steps ?? await readStepsInTx(tx, match.id);
   const incidentRows = await tx.select({ incident: matchVetoTimeoutIncidents, appeal: matchVetoAppeals })
@@ -661,6 +662,7 @@ async function loadCoreSnapshotInTx(
     ? { effectiveForceAt: null, previousMatchBlocker: false } : await loadStartTimingInTx(tx, match);
   const serverNow = loaded?.serverNow ?? await databaseNow(tx);
   const gameplayStarted = loaded?.gameplayStarted ?? await hasVetoGameplayInTx(tx, match.id);
+  const admissionClosed = loaded?.admissionClosed ?? await hasVetoAdmissionClosedInTx(tx, match.id);
   const pendingInvalidation = loaded?.pendingInvalidation ?? (await tx.execute<{ pending: boolean }>(sql`SELECT EXISTS (
     SELECT 1 FROM ${matchVetoInvalidations} WHERE ${matchVetoInvalidations.matchId}=${match.id}
       AND ${matchVetoInvalidations.generation}>${matchVetoInvalidations.publishedGeneration}) AS pending`)).rows[0]!.pending;
@@ -673,6 +675,7 @@ async function loadCoreSnapshotInTx(
     currentTurn: currentTurn(match, session, steps),
     serverNow,
     gameplayStarted,
+    admissionClosed,
     effectiveForceAt: timing.effectiveForceAt,
     previousMatchBlocker: timing.previousMatchBlocker,
     pendingInvalidation,
@@ -697,6 +700,7 @@ export async function readVetoRoomSnapshot(matchId: string, database: DB = db): 
     const rows = await tx.select({ match: matches, session: matchVetoSessions, step: matchVetoSteps,
       serverNow: sql<string>`clock_timestamp()`.mapWith(value => new Date(value)),
       gameplayStarted: vetoGameplayExists(matchId),
+      admissionClosed: sql<boolean>`${vetoGameplayExists(matchId)} or exists (select 1 from match_actual_start_adoptions a where a.match_id = ${matchId})`,
       pendingInvalidation: sql<boolean>`EXISTS (SELECT 1 FROM ${matchVetoInvalidations} WHERE ${matchVetoInvalidations.matchId}=${matches.id}
         AND ${matchVetoInvalidations.generation}>${matchVetoInvalidations.publishedGeneration})`,
     }).from(matches)
@@ -709,7 +713,7 @@ export async function readVetoRoomSnapshot(matchId: string, database: DB = db): 
     const session = await getSessionForReadInTx(tx, first.match, first.session);
     return loadCoreSnapshotInTx(tx, first.match, session, {
       steps: rows.flatMap(row => row.step ? [row.step] : []),
-      serverNow: first.serverNow, gameplayStarted: first.gameplayStarted, pendingInvalidation: first.pendingInvalidation,
+      serverNow: first.serverNow, gameplayStarted: first.gameplayStarted, admissionClosed: first.admissionClosed, pendingInvalidation: first.pendingInvalidation,
     });
   }, { accessMode: "read only", isolationLevel: "repeatable read" });
 }
@@ -1157,6 +1161,7 @@ export async function pauseVetoRoom(input: { matchId: string; actorId: string; r
 export async function resumeVetoRoom(input: { matchId: string; actorId: string }): Promise<void> {
   await db.transaction(async (tx) => {
     const match = await lockMatchInTx(tx, input.matchId);
+    if (await hasVetoAdmissionClosedInTx(tx, match.id)) throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "正式对局已开始，不能继续 BP。");
     await materializeDefaultLineupsInTx(tx, match);
     let session = await getSessionForUpdateInTx(tx, match);
     const now = await databaseNow(tx);
@@ -1191,7 +1196,7 @@ export async function submitVetoAppeal(input: {
 }): Promise<void> {
   await db.transaction(async (tx) => {
     const match = await lockMatchInTx(tx, input.matchId);
-    if (match.status === "finished" || match.status === "cancelled" || await hasVetoGameplayInTx(tx, match.id)) {
+    if (match.status === "finished" || match.status === "cancelled" || await hasVetoAdmissionClosedInTx(tx, match.id)) {
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "正式对局已开始或比赛已结束，不能再申请恢复 BP；如需赛务处理，请联系赛事管理员并提供超时记录。");
     }
     await materializeDefaultLineupsInTx(tx, match);
@@ -1241,7 +1246,7 @@ async function rewindVetoInTx(input: {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "指定的 BP 回合不存在。");
   }
   const maps = await tx.select().from(matchMaps).where(eq(matchMaps.matchId, match.id));
-  if (await hasVetoGameplayInTx(tx, match.id)) {
+  if (await hasVetoAdmissionClosedInTx(tx, match.id)) {
     throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "正式对局已开始或已有地图赛果，不能恢复 BP；如需赛务处理，请联系赛事管理员。");
   }
   const steps = await readStepsInTx(tx, match.id);
@@ -1321,7 +1326,7 @@ export async function resolveVetoAppeal(input: {
       .for("update");
     const now = await databaseNow(tx);
     if (!joined || joined.appeal.status !== "pending") throw new AppError(ErrorCode.NOT_FOUND, "待处理申诉不存在。");
-    if (await hasVetoGameplayInTx(tx, match.id)) {
+    if (await hasVetoAdmissionClosedInTx(tx, match.id)) {
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "正式对局已开始，不能裁定或恢复 BP 技术申诉；如需赛务处理，请联系赛事管理员。");
     }
     const note = input.resolutionNote.trim();

@@ -4,6 +4,7 @@ import { MatchBroadcastStatus, MatchUploaderDownloads } from "./MatchWorkbenchAu
 import { requiresCompetitionLineupPreflight } from "@/lib/match-rosters/policy";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
+import { ActualStartControl } from "@/components/matches/ActualStartControl";
 import { OfficialMapStart } from "@/components/bet/OfficialMapStart";
 import { OperatorLiveStatus } from "./OperatorLiveStatus";
 import { OperatorIssuePanel } from "./OperatorIssuePanel";
@@ -108,6 +109,7 @@ export function AdminMatchWorkbench({
   finishedMaps,
   vetoCompletedAt,
   officialMapStart,
+  actualStart,
   postMatch,
   demoReviewSummaries = [],
   demoQualitySummaries = [],
@@ -241,6 +243,7 @@ export function AdminMatchWorkbench({
         </section>
       )}
 
+      {actualStart && ["in_progress", "finished"].includes(match.status) && !match.isForfeit && <ActualStartControl seasonId={season.id} seasonSlug={season.slug} matchId={match.id} snapshot={actualStart} />}
       {finishedMaps.length > 0 && ["in_progress", "finished"].includes(match.status) && <details aria-label="比分更正与系列恢复" className="space-y-3 rounded border border-[var(--color-border)] p-3">
         <summary className="cursor-pointer text-sm font-medium">比分更正与系列恢复</summary>
         {finishedMaps.map(map => <div key={`${map.id}:${map.scoreA}:${map.scoreB}`} className="pt-2">

@@ -4,7 +4,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { and, eq, desc, asc, sql, or, lt, inArray } from "drizzle-orm";
 import { db, type DB, type TxDb } from "@/db/client";
-import { betPrograms as programs, betAccounts as accounts, betMarkets as markets, betOptions as options, betStakes as stakes, betLedger as ledger, betSettlements as settlements, betStageMilestones as milestones, users, matches, matchMaps, matchVetoSessions, majorStageRuns } from "@/db/schema";
+import { betPrograms as programs, betAccounts as accounts, betMarkets as markets, betOptions as options, betStakes as stakes, betLedger as ledger, betSettlements as settlements, betStageMilestones as milestones, users, matches, matchMaps, matchVetoSessions, majorStageRuns, matchActualStartAdoptions } from "@/db/schema";
 import { betRosterRestriction } from "./admission";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -40,6 +40,9 @@ export async function betBalance(tx: TxDb,accountId: string) {
 export function betFactInput(m: Pick<typeof markets.$inferSelect,"type"|"subject"|"line"|"voidedAt"|"matchId">,facts: BetFacts) {return {...m,match:facts.official.find(x=>x.id===m.matchId),maps:facts.maps.filter(x=>x.matchId===m.matchId),veto:facts.vetoByMatch.get(m.matchId??""),event:facts.event};}
 async function publishMarkets(tx: TxDb,f: BetFacts) {
   const seasonId=f.season.id;
+  const adoptedRows = await tx.selectDistinct({matchId:matchActualStartAdoptions.matchId}).from(matchActualStartAdoptions).where(eq(matchActualStartAdoptions.seasonId, seasonId));
+  const adopted = new Set(adoptedRows.map(row => row.matchId));
+  const eventAdopted = f.official.some(match => match.majorStageRunId && adopted.has(match.id));
   const program=await tx.query.betPrograms.findFirst({where:eq(programs.seasonId,seasonId)});
   // Every existing BP pool freezes its terms, including empty or terminal history.
   // Presence adoption also prevents rollback to ordered rules after subject correction.
@@ -57,7 +60,7 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
   const publishesPresence=(catalogContract.capabilities?.bo3BpPresence?.publisherVersion ?? 0) >= 1;
   const existing=catalog.filter(m=>m.type==="total_rounds");
   const earlyEventPublication = (catalogContract.capabilities?.eventBeforeSeeds?.publisherVersion ?? 0) >= 1;
-  if (!f.event.started && f.eventPublication.entrantsReady && (earlyEventPublication || f.eventPublication.seedsConfirmed)) {
+  if (!eventAdopted && !f.event.started && f.eventPublication.entrantsReady && (earlyEventPublication || f.eventPublication.seedsConfirmed)) {
     const subject: BetSubject={kind:"event",entryIds:f.event.entryIds,playerIds:f.event.playerIds};
     planMarket(seasonId,null,"champion",{...subject,playerIds:[]},f.event.entryIds.map(id=>({key:id,label:f.entries.find(e=>e.id===id)?.name??"队伍"})));
     if (f.eventPublication.rostersReady) planMarket(seasonId,null,"top_fragger",subject,f.players.map(p=>({key:p.id,label:p.name})));
@@ -70,7 +73,7 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
     const veto=f.vetoByMatch.get(m.id);
     const subject: BetSubject={kind:"match",entryIds:[m.entryAId,m.entryBId],runId:(m.majorStageRunId??m.qualificationRunId)!,format:m.format,mapPool:[]};
     const teams=subject.entryIds.map(id=>({key:id,label:f.entries.find(e=>e.id===id)?.name??"队伍"}));
-    if (!m.startedAt && !legacyStart) {
+    if (!m.startedAt && !legacyStart && !adopted.has(m.id)) {
       planMarket(seasonId,m.id,"match_winner",subject,teams);
       if (m.format!=="bo1") {
         const target=m.format==="bo3"?2:3;
@@ -97,7 +100,7 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
     if (catalogContract.publisherVersion >= 2) for (let mapOrder=1;mapOrder<=Number(m.format.slice(2));mapOrder++) {
       const slot: BetSubject={kind:"map_slot",entryIds:subject.entryIds,runId:subject.runId,format:m.format,mapOrder};
       const input={type:"total_rounds" as const,subject:slot,line:null,voidedAt:null,match:m,maps,veto,event:f.event};
-      if (marketIsLocked(input) || (legacyStart && mapOrder===1)) continue;
+      if (marketIsLocked(input) || ((legacyStart || adopted.has(m.id)) && mapOrder===1)) continue;
       // Preserve every legacy pool (including terminal history) for this match/slot.
       // A map name/ID correction does not authorize replacing its invested terms.
       if (existing.some(market => market.matchId===m.id && market.subject.kind==="map" && market.subject.mapOrder===mapOrder && subjectMatches({
@@ -109,7 +112,7 @@ async function publishMarkets(tx: TxDb,f: BetFacts) {
     }
     if (!veto?.completedAt || veto.pendingAppeal) continue;
     const map=maps.find(x=>!x.completedAt);
-    if (!map || map.startedAt || (map.mapOrder===1 && m.startedAt) || maps.filter(x=>x.mapOrder<map.mapOrder).some(x=>!x.completedAt)) continue;
+    if (!map || map.startedAt || (map.mapOrder===1 && (m.startedAt || adopted.has(m.id))) || maps.filter(x=>x.mapOrder<map.mapOrder).some(x=>!x.completedAt)) continue;
     if (computeSeriesProgress(m.format,maps.filter(x=>x.completedAt)).seriesFinished) continue;
     const mapSubject: BetSubject={kind:"map",entryIds:subject.entryIds,runId:subject.runId,format:m.format,mapId:map.id,mapOrder:map.mapOrder,mapName:map.mapName};
     if (m.format!=="bo1") planMarket(seasonId,m.id,"map_winner",mapSubject,teams);
