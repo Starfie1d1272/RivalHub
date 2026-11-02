@@ -10,7 +10,7 @@ vi.mock("@/lib/data/public-seasons", () => ({getPublicOrAuthorizedDraftSeason:mo
 vi.mock("@/lib/bet/relief-data", () => ({readBetRelief:mocks.read}));
 vi.mock("@/lib/bet/service", () => ({claimBetReliefInTx:mocks.claim,joinBetInTx:vi.fn(),stakeBetInTx:vi.fn(),operateBetInTx:vi.fn()}));
 vi.mock("@/lib/bet/data", () => ({betBoard:vi.fn()}));
-vi.mock("@/lib/match-rosters/service", () => ({lockMatchInTx:vi.fn()}));
+vi.mock("@/lib/matches/locking", () => ({lockCompetitionMatchInTx:vi.fn()}));
 vi.mock("@/lib/matches/map-start", () => ({startCanonicalMapInTx:vi.fn()}));
 vi.mock("@/lib/postevent/guard", () => ({assertSeasonAllowsTournamentMutationInTx:vi.fn()}));
 vi.mock("@/lib/action-utils", () => ({failValidation:(message:string)=>({success:false,error:message}),actionError:(_operation:string,error:Error)=>({success:false,error:error.message})}));

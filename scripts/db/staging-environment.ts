@@ -1,3 +1,4 @@
+import { OFFICIAL_PREVIEW } from "../../src/lib/runtime/official-deployment-profile.mjs";
 import {
   assertProtectedRemoteDatabaseUrl,
   buildProtectedRemoteEnvironment,
@@ -5,12 +6,12 @@ import {
   type ProtectedRemoteDatabaseConfig,
 } from "./remote-environment";
 
-const STAGING_PROJECT_REF = "dtdzxnzjtohzjmfkighg";
+const STAGING_PROJECT_REF = OFFICIAL_PREVIEW.projectRef;
 const stagingConfig: ProtectedRemoteDatabaseConfig = {
   target: "staging",
   projectRef: STAGING_PROJECT_REF,
-  poolerHost: "aws-0-ap-northeast-1.pooler.supabase.com",
-  poolerPort: "6543",
+  poolerHost: OFFICIAL_PREVIEW.poolerHost,
+  poolerPort: OFFICIAL_PREVIEW.poolerPort,
   requiresPgbouncer: true,
   passwordKey: "RIVALHUB_STAGING_DB_PASSWORD",
   projectConfirmationKey: "RIVALHUB_STAGING_PROJECT_CONFIRM",

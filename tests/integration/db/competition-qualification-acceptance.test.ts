@@ -24,7 +24,8 @@ import { loadParticipantQualificationFacts, toPlayerStrengthInput } from "../../
 import { saveCompetitionQualificationDraftInTx } from "../../../src/lib/competition-qualification/draft";
 import { reviewCompetitionEntryInTx, submitCompetitionEntryInTx } from "../../../src/lib/competition-entries/commands";
 import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/competition-entries/roster-change";
-import { applyMatchStatusTransitionInTx, confirmMatchRosterInTx, persistMatchRosterInTx, getStartingLineupPreflightInTx } from "../../../src/lib/match-rosters/service";
+import { confirmMatchRosterInTx, persistMatchRosterInTx, getStartingLineupPreflightInTx } from "../../../src/lib/match-rosters/service";
+import { applyMatchStatusTransitionInTx } from "../../../src/lib/matches/lifecycle";
 import { assertGenericMatchCanBeDeleted } from "../../../src/lib/matches/deletion";
 import { planSeriesAfterMapScoreChangeInTx, correctSeriesAfterMapScoreChangeInTx } from "../../../src/lib/matches/series-score-correction";
 import { applyResultCorrectionInTx, planResultCorrectionInTx } from "../../../src/lib/match-corrections/service";

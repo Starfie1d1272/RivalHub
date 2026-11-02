@@ -131,7 +131,6 @@ function frozenCompetitiveFacts(ruleSnapshot: unknown): Map<string, PlayerStreng
   return result;
 }
 
-export { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 
 function assertScheduledOrThrow(match: Pick<Match, "status">): void {
   if (match.status !== "scheduled") {
@@ -606,7 +605,6 @@ export interface StartLineupSummary extends PersistedRosterSummary {
   status: "confirmed";
 }
 
-export { applyMatchStatusTransitionInTx, type MatchTransitionOutcome } from "@/lib/matches/lifecycle";
 
 /**
  * Start gate: fresh validation turns each effective submitted lineup into a

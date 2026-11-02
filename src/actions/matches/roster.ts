@@ -16,11 +16,8 @@ import { requireAuth, requireSeasonAdmin, auditActorId } from "@/lib/auth/sessio
 import { getMatchOrThrow, actionError } from "@/lib/action-utils";
 import { captureException } from "@/lib/observability/server";
 import { revalidateMatchPaths } from "@/lib/revalidation";
-import {
-  confirmMatchRosterInTx,
-  lockMatchInTx,
-  persistMatchRosterInTx,
-} from "@/lib/match-rosters/service";
+import { confirmMatchRosterInTx, persistMatchRosterInTx } from "@/lib/match-rosters/service";
+import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { getReadbackMatchOrThrow } from "@/lib/matches/readback-scope";
 import { rosterReadbackVersion, type RosterReadback } from "@/lib/matches/operation-readback";
 import { loadMatchRosters } from "@/lib/match-rosters/read-model";

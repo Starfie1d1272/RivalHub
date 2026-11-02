@@ -29,7 +29,9 @@ import {
   grantTournamentHonorInTx,
   revokeTournamentHonorInTx,
 } from "../../../src/lib/postevent/service";
-import { applyMatchStatusTransitionInTx, confirmMatchRosterInTx, lockMatchInTx, persistMatchRosterInTx } from "../../../src/lib/match-rosters/service";
+import { confirmMatchRosterInTx, persistMatchRosterInTx } from "../../../src/lib/match-rosters/service";
+import { lockCompetitionMatchInTx as lockMatchInTx } from "../../../src/lib/matches/locking";
+import { applyMatchStatusTransitionInTx } from "../../../src/lib/matches/lifecycle";
 import { openSeasonRegistrationInTx } from "../../../src/lib/seasons/lifecycle";
 import { deleteCompetitivePlatformCatalog, seedCompetitivePlatformCatalog } from "./harness/competitive-catalog-fixtures";
 import { capturePostgresError, localDatabaseUrl, testSteam64 } from "./harness/database";

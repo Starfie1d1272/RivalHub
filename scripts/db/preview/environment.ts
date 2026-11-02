@@ -1,3 +1,4 @@
+import { OFFICIAL_PREVIEW } from "../../../src/lib/runtime/official-deployment-profile.mjs";
 import { buildProductionEnvironment } from "../production-environment";
 import { buildStagingEnvironment, STAGING_PROJECT_REF } from "../staging-environment";
 
@@ -33,6 +34,6 @@ export function targetEnvironment(env: NodeJS.ProcessEnv = process.env) {
     databaseUrl,
     secretKey,
     applyCurrentMigrations: env.RIVALHUB_PREVIEW_APPLY_CURRENT_MIGRATIONS === "true",
-    supabaseUrl: `https://${STAGING_PROJECT_REF}.supabase.co`,
+    supabaseUrl: OFFICIAL_PREVIEW.supabaseUrl,
   };
 }
