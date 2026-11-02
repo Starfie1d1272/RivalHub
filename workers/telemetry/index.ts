@@ -1,6 +1,6 @@
 import { maintainDbTraffic, maintainDbTrafficQuality } from "./db-traffic-rollup";
 import { ingestDbTraffic, ingestDbTrafficGap, readDbTraffic, ingestOffline } from "./db-traffic";
-import { LIMITS, UUID, validEvent, type TelemetryEvent } from "../../src/lib/telemetry/protocol";
+import { classifyEvent, LIMITS, UUID, type StoredTelemetryEvent } from "../../src/lib/telemetry/protocol";
 import { verifyTicket } from "../../src/lib/telemetry/ticket";
 import { parseDashboardFilters } from "../../src/lib/telemetry/dashboard-query";
 import { dashboard } from "./dashboard";
@@ -65,18 +65,24 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
       if (env.ACCEPTING !== "1" || env.RETENTION_APPROVED !== "1") return response(503, origin);
       const body = await boundedBody(request);
       if (!body) return response(413, origin);
-      let input: { v: number; id: string; ticket: string; events: TelemetryEvent[] };
+      let input: { v: number; id: string; ticket: string; events: unknown[] };
       try { input = JSON.parse(body); } catch { return response(400, origin); }
       if (!input || Object.keys(input).some(k => !["v", "id", "ticket", "events"].includes(k)) || input.v !== 1 || !UUID.test(input.id) || typeof input.ticket !== "string") return response(400, origin);
       const ticket = await verifyTicket(input.ticket, env.SIGNING_KEY, now);
       if (!ticket || ticket.origin !== origin) return response(401, origin);
-      if (!Array.isArray(input.events) || !input.events.length || input.events.length > LIMITS.batch || !input.events.every(e => validEvent(e, now)) || input.events.some(e => e.session !== input.events[0].session) || new Set(input.events.map(e => e.id)).size !== input.events.length) return response(400, origin);
+      if (!Array.isArray(input.events) || !input.events.length || input.events.length > LIMITS.batch) return response(400, origin);
+      const classified = input.events.map(e => classifyEvent(e, now));
+      if (classified.some(e => !e)) return response(400, origin);
+      const unclassified = classified.filter(e => e!.unclassified).length;
+      const batchEvents: StoredTelemetryEvent[] = classified.map(e => e!.event);
+      if (batchEvents.some(e => e.session !== batchEvents[0].session) || new Set(batchEvents.map(e => e.id)).size !== batchEvents.length) return response(400, origin);
+      const ack = () => unclassified ? response(200, origin, { v: 1, accepted: batchEvents.length - unclassified, unclassified }) : response(204, origin);
       const existing = await env.DB.prepare("SELECT id FROM batches WHERE ticket=? AND id=? AND expires>?").bind(ticket.id, input.id, now).first();
-      if (existing) return response(204, origin);
-      const events = JSON.stringify(input.events);
+      if (existing) return ack();
+      const events = JSON.stringify(batchEvents);
       const bytes = new TextEncoder().encode(events).byteLength;
-      const compressed = await compressEvents(input.events);
-      const summary = batchSummary(input.events);
+      const compressed = await compressEvents(batchEvents);
+      const summary = batchSummary(batchEvents);
       const day = new Date(now).toISOString().slice(0, 10);
       await env.DB.batch([
         env.DB.prepare("INSERT OR IGNORE INTO usage(day) VALUES(?)").bind(day),
@@ -84,11 +90,11 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
           SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? WHERE
           (SELECT batches FROM usage WHERE day=?)<? AND (SELECT bytes FROM usage WHERE day=?)+?<=?
           AND (SELECT count(*) FROM batches WHERE ticket=? AND received>?)<? AND NOT EXISTS (SELECT 1 FROM rollups WHERE day=?)`)
-          .bind(ticket.id, input.id, now, Math.min(...input.events.map(e => e.at)) + 7 * DAY, day, ticket.account, input.events[0].session, ticket.role, ticket.release, ticket.environment, bytes, compressed, summary, day, BUDGET.batches, day, bytes, BUDGET.bytes, ticket.id, now - 3600000, BUDGET.ticketBatchesPerHour, day),
+          .bind(ticket.id, input.id, now, Math.min(...batchEvents.map(e => e.at)) + 7 * DAY, day, ticket.account, batchEvents[0].session, ticket.role, ticket.release, ticket.environment, bytes, compressed, summary, day, BUDGET.batches, day, bytes, BUDGET.bytes, ticket.id, now - 3600000, BUDGET.ticketBatchesPerHour, day),
         env.DB.prepare("UPDATE usage SET batches=batches+1,bytes=bytes+? WHERE day=? AND changes()=1").bind(bytes, day),
       ]);
       const accepted = await env.DB.prepare("SELECT id FROM batches WHERE ticket=? AND id=?").bind(ticket.id, input.id).first();
-      return response(accepted ? 204 : 429, origin);
+      return accepted ? ack() : response(429, origin);
     }
     if (url.pathname.startsWith("/admin/")) {
       const authorization = request.headers.get("authorization");

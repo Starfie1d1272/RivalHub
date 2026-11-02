@@ -12,7 +12,7 @@ export class TelemetryQueue {
   // Local numeric diagnostics only. Never sent separately, including when policy disables collection.
   readonly delivery = { eligible: 0, accepted: 0, queue_dropped: 0, batch_oversize: 0, schema_reject: 0,
     ticket_expired: 0, ticket_reject: 0, network_retry: 0, server_retry: 0, rate_limit: 0,
-    http_reject: 0, stale: 0, identity_reset: 0, retry_exhausted: 0 };
+    http_reject: 0, stale: 0, identity_reset: 0, retry_exhausted: 0, unclassified: 0, ack_unknown: 0 };
   constructor(private config: Bootstrap, private readonly send: typeof fetch = globalThis.fetch.bind(globalThis)) {}
   configure(config: Bootstrap) {
     if (config.identity !== this.config.identity) {
@@ -82,7 +82,15 @@ export class TelemetryQueue {
       });
       if (this.pending !== batch) return;
       if (response.ok) {
-        this.delivery.accepted += batch.events.length; this.pending = null; this.nextAttempt = Date.now() + 1000;
+        if (response.status === 204) this.delivery.accepted += batch.events.length;
+        else {
+          const ack = await response.json().catch(() => null);
+          if (this.pending !== batch) return;
+          if (ack && ack.v === 1 && Number.isInteger(ack.accepted) && Number.isInteger(ack.unclassified) && ack.accepted >= 0 && ack.unclassified > 0 && ack.accepted + ack.unclassified === batch.events.length) {
+            this.delivery.accepted += ack.accepted; this.delivery.unclassified += ack.unclassified;
+          } else this.delivery.ack_unknown += batch.events.length;
+        }
+        this.pending = null; this.nextAttempt = Date.now() + 1000;
       } else {
         this.metrics.failures++;
         if (response.status === 429 || response.status >= 500) {

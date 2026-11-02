@@ -4,7 +4,7 @@ import { createDefaultCacheHandler } from "next/dist/server/lib/cache-handlers/d
 import { fixture } from "./harness/bet-fixture";
 import * as schema from "@/db/schema";
 import { getTournamentStats } from "@/lib/stats/tournament-query";
-import { revalidateVetoRoomPaths } from "@/lib/revalidation";
+import { revalidateMatchProjectionPaths } from "@/lib/matches/projection-invalidation/next-adapter";
 import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
 
 const bridge = vi.hoisted<{ invalidate: (tag: string, expire?: number) => void }>(() => ({ invalidate: () => {} }));
@@ -38,7 +38,7 @@ it("expires warm statistics options/selection after a pre-finish map-plan replac
     const pending: Promise<void>[] = [];
     bridge.invalidate = (tag, expire) => { pending.push(cache.updateTags([tag], expire === undefined ? undefined : { expire })); };
     try {
-      revalidateVetoRoomPaths({ slug: season!.slug, seasonId: f.seasonId, matchId: f.matchId, matchStatus }, { changed: true, affectedFacts }, { mode: "route" });
+      revalidateMatchProjectionPaths({ slug: season!.slug, seasonId: f.seasonId, matchId: f.matchId, matchStatus }, { changed: true, affectedFacts }, { mode: "route" });
       await Promise.all(pending);
       // Next rounds tag timestamps to integer milliseconds; let that at-most
       // half-ms future boundary pass before asserting a subsequent read.

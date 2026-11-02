@@ -1,7 +1,7 @@
 import type { Database } from "./index";
 import { sample, type Sample } from "./history";
 import { decompressEvents } from "./storage";
-import { LIMITS, validEvent, type TelemetryEvent } from "../../src/lib/telemetry/protocol";
+import { LIMITS, validEvent, type StoredTelemetryEvent } from "../../src/lib/telemetry/protocol";
 import { emptyHistoryDistribution, type HistoryQuery, type HistoryRow } from "../../src/lib/telemetry/history-contract";
 
 interface Cursor { cursor_received: number; cursor_ticket: string; cursor_id: string }
@@ -45,7 +45,7 @@ export async function readHistoryTail(db: Database, state: Cursor, from: string,
     if (bytes > MAX_BYTES) break;
     const raw: unknown = JSON.parse(body);
     if (!Array.isArray(raw) || raw.length > LIMITS.batch || raw.some(e => !validEvent(e, e.at))) throw new Error("Invalid history tail");
-    for (const e of raw as TelemetryEvent[]) projected.push(await sample(e, b));
+    for (const e of raw as StoredTelemetryEvent[]) projected.push(await sample(e, b));
     count++;
   }
   const keys = JSON.stringify([...new Set(projected.map(s => s.key))]);
