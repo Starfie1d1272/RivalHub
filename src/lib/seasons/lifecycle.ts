@@ -8,7 +8,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { fallbackCatalogReferencesExist, resolveLiveCompetitiveContext, type ResolvedCatalogContext } from "@/lib/competitive/catalog";
 import { resolveCompetitiveContext } from "@/lib/qualification/service";
 import { createCompetitionTemplate } from "@/lib/competition/templates";
-import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
+import { normalizeTeamRegistrationConfig, teamRegistrationConfigForWrite } from "@/lib/seasons/compatibility";
 import type { CompetitiveFallbackConversion, SeasonStatus, TeamRegistrationConfig } from "@/types/season";
 
 type Transaction = Parameters<Parameters<typeof dbClient.transaction>[0]>[0];
@@ -251,8 +251,14 @@ export async function freezeCompetitiveContext(
   tx: Transaction,
   season: typeof seasons.$inferSelect,
 ): Promise<TeamRegistrationConfig> {
-  const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
-  if (!config.requireCompetitiveProfile) return config;
+  const original = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
+  const policy = original.qualificationPolicy;
+  const config = policy ? {
+    ...original,
+    requireCompetitiveProfile: policy.competitiveProfileRequired || policy.externalStrengthGap.enabled,
+    competitiveProfile: policy.competitiveProfile ?? undefined,
+  } : original;
+  if (!config.requireCompetitiveProfile) return original;
   const platform = config.competitiveProfile?.platform ?? "perfect_world";
   const context = await resolveLiveCompetitiveContext(tx, platform);
   if (!context || !context.priorSeasonKey) {
@@ -290,10 +296,10 @@ export async function freezeCompetitiveContext(
   if (competitiveProfile.fallbackConversion && !await fallbackCatalogReferencesExist(tx, competitiveProfile.fallbackConversion)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "5E 换算规则引用的赛季或段位已不在竞技目录中，不能开放报名。");
   }
-  return {
-    ...config,
-    competitiveProfile,
-  };
+  if (policy) {
+    return teamRegistrationConfigForWrite({ ...original, qualificationPolicy: { ...policy, competitiveProfile } });
+  }
+  return { ...config, competitiveProfile };
 }
 
 export type RegistrationOpeningMode =
@@ -344,13 +350,13 @@ export async function openSeasonRegistrationInTx(
       break;
   }
   const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
-  const teamRegistrationConfig = config.requireCompetitiveProfile
+  const teamRegistrationConfig = (config.qualificationPolicy ? config.qualificationPolicy.competitiveProfileRequired || config.qualificationPolicy.externalStrengthGap.enabled : config.requireCompetitiveProfile)
     ? await freezeCompetitiveContext(tx, season)
     : config;
   await tx.update(seasons).set({
     registrationOpensAt: configuredOpenAt,
     registrationOpenedAt: now,
-    teamRegistrationConfig,
+    teamRegistrationConfig: teamRegistrationConfigForWrite(teamRegistrationConfig),
     updatedAt: now,
   }).where(eq(seasons.id, season.id));
   await writeAuditInTx(tx, {
@@ -364,7 +370,7 @@ export async function openSeasonRegistrationInTx(
       scheduledRegistrationOpensAt: season.registrationOpensAt?.toISOString() ?? null,
       registrationOpensAt: configuredOpenAt.toISOString(),
       registrationOpenedAt: now.toISOString(),
-      competitiveContextFrozen: config.requireCompetitiveProfile,
+      competitiveContextFrozen: config.qualificationPolicy ? config.qualificationPolicy.competitiveProfileRequired || config.qualificationPolicy.externalStrengthGap.enabled : config.requireCompetitiveProfile,
     },
   });
   return { slug: season.slug, opened: true };

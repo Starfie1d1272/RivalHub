@@ -77,7 +77,7 @@ export function capabilitiesFromSeason(season: SeasonCapabilityRow): SeasonCapab
     stagePlan: normalizeStagePlan(season.stagePlan),
     registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
     teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
-    affiliationRules: normalizeAffiliationRules(season.affiliationRules),
+    affiliationRules: season.teamRegistrationConfig.qualificationPolicy?.affiliationRules ?? normalizeAffiliationRules(season.affiliationRules),
     minTeamSize: season.minTeamSize,
     maxTeamSize: season.maxTeamSize,
     starterCount: season.starterCount,
@@ -239,14 +239,14 @@ export function checkStandardMajorCapabilities(
     },
     {
       key: "affiliation-rule",
-      passed: capabilities.affiliationRules.some((rule) =>
+      passed: !!capabilities.teamRegistrationConfig.qualificationPolicy || capabilities.affiliationRules.some((rule) =>
         rule.institutionCode === "4132010284" &&
         rule.eligibleAcademicStatuses.includes("enrolled") &&
         rule.eligibleAcademicStatuses.includes("graduated") &&
         rule.minRosterMembers === 3 &&
         rule.minStartingMembers === 3,
       ),
-      reason: "标准 Major 必须冻结南京大学在读/毕业成员名单至少 3 人、首发至少 3 人的高校归属规则。",
+      reason: "历史 Major 定义保留原高校归属要求；版本化资格政策独立定义参赛资格。",
     },
     {
       key: "stage1",

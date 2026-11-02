@@ -65,27 +65,31 @@ export interface EducationEligibilityResult {
 export function evaluateRosterEducationEligibility(
   members: readonly EducationEligibilityMember[],
   rules: readonly InstitutionAffiliationRule[],
+  options: { requireMemberEducation: boolean; requireVerifiedEmail: boolean; requireApprovedAffiliation?: boolean } = { requireMemberEducation: true, requireVerifiedEmail: true },
 ): EducationEligibilityResult {
   const blockers: string[] = [];
   const selectedVerificationIds = new Map<string, string>();
   const affiliationCounts = new Map<string, number>();
 
   for (const member of members) {
-    if (!member.emailVerifiedAt) {
+    if (options.requireVerifiedEmail && !member.emailVerifiedAt) {
       blockers.push(`${member.label} 的邮箱尚未验证，请先验证当前账号邮箱。`);
       continue;
     }
     const resolution = resolveSeasonEducationVerification(member.verificationHistory ?? (member.verification ? [member.verification] : []), rules);
     const verification = resolution.selectedVerification;
     if (!verification) {
+      if (!options.requireMemberEducation) continue;
       blockers.push(`${member.label} 尚未完成教育身份认证。`);
       continue;
     }
     if (verification.status === "pending") {
+      if (!options.requireMemberEducation) continue;
       blockers.push(`${member.label} 的教育身份认证仍在审核中。`);
       continue;
     }
     if (verification.status === "rejected") {
+      if (!options.requireMemberEducation) continue;
       blockers.push(`${member.label} 的教育身份认证已被驳回，请重新提交。`);
       continue;
     }
@@ -100,7 +104,8 @@ export function evaluateRosterEducationEligibility(
 
   for (const rule of rules) {
     const count = members.filter((member) =>
-      member.emailVerifiedAt !== null &&
+      (!options.requireVerifiedEmail || member.emailVerifiedAt !== null) &&
+      (!options.requireApprovedAffiliation || resolveSeasonEducationVerification(member.verificationHistory ?? (member.verification ? [member.verification] : []), rules).eligibilityState === "approved") &&
       resolveSeasonEducationVerification(member.verificationHistory ?? (member.verification ? [member.verification] : []), rules).matchedRule === rule,
     ).length;
     affiliationCounts.set(rule.institutionCode, count);

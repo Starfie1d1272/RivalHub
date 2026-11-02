@@ -36,6 +36,10 @@ export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = fal
   const platform = value.competitiveProfile?.platform ?? competitivePlatforms[0]?.key ?? "";
   const showTeamSettings = view !== "competitive";
   const showCompetitiveSettings = view !== "team";
+  const policy = value.qualificationPolicy;
+  function setPolicy(next: NonNullable<TeamRegistrationConfig["qualificationPolicy"]>) {
+    onChange({ ...value, qualificationPolicy: next });
+  }
 
   return (
     <div className="space-y-6">
@@ -69,7 +73,31 @@ export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = fal
         </div>
       </div>}
 
-      {!fallbackOnly && showCompetitiveSettings && <div>
+      {!fallbackOnly && showCompetitiveSettings && policy && <div className="space-y-3">
+        <h3 className="text-sm font-medium">资格政策</h3>
+        <p className="text-xs text-[var(--color-fg-dim)]">此政策可在草稿中编辑；报名和名单流程接入后才能发布。</p>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={disabled} checked={policy.educationRequired} onChange={(e) => setPolicy({ ...policy, educationRequired: e.target.checked })} />要求教育认证</label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={disabled} checked={policy.contacts.qqRequired} onChange={(e) => setPolicy({ ...policy, contacts: { ...policy.contacts, qqRequired: e.target.checked } })} />要求 QQ</label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={disabled} checked={policy.contacts.emailVerifiedRequired} onChange={(e) => setPolicy({ ...policy, contacts: { ...policy.contacts, emailVerifiedRequired: e.target.checked } })} />要求已验证邮箱</label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={disabled} checked={policy.competitiveProfileRequired} onChange={(e) => setPolicy({ ...policy, competitiveProfileRequired: e.target.checked, competitiveProfile: e.target.checked ? policy.competitiveProfile ?? { platform, currentSeasonKey: "", previousSeasonKey: "", rankOrder: [] } : policy.competitiveProfile })} />要求竞技档案</label>
+        {policy.competitiveProfileRequired && <div>
+          <Label>竞技平台</Label>
+          <Select disabled={disabled} value={policy.competitiveProfile?.platform ?? ""} onValueChange={(next) => setPolicy({ ...policy, competitiveProfile: { ...(policy.competitiveProfile ?? { currentSeasonKey: "", previousSeasonKey: "", rankOrder: [] }), platform: next } })}>
+            <SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{competitivePlatforms.map((item) => <SelectItem key={item.key} value={item.key}>{item.displayName}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>}
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={disabled} checked={policy.externalStrengthGap.enabled} onChange={(e) => setPolicy({ ...policy, externalStrengthGap: { ...policy.externalStrengthGap, enabled: e.target.checked } })} />限制外校实力差</label>
+        {policy.externalStrengthGap.enabled && <div><Label>最大星差</Label><Input disabled={disabled} type="number" min={0} max={100} value={policy.externalStrengthGap.maxGap} onChange={(e) => setPolicy({ ...policy, externalStrengthGap: { ...policy.externalStrengthGap, maxGap: Number(e.target.value) } })} /></div>}
+        {policy.affiliationRules.map((rule, index) => <div key={index} className="grid gap-2 sm:grid-cols-3">
+          <div><Label>机构代码</Label><Input disabled={disabled} value={rule.institutionCode} onChange={(e) => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.map((r, i) => i === index ? { ...r, institutionCode: e.target.value } : r) })} /></div>
+          <div><Label>名单最少人数</Label><Input disabled={disabled} type="number" min={0} value={rule.minRosterMembers} onChange={(e) => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.map((r, i) => i === index ? { ...r, minRosterMembers: Number(e.target.value) } : r) })} /></div>
+          <div><Label>首发最少人数</Label><Input disabled={disabled} type="number" min={0} value={rule.minStartingMembers} onChange={(e) => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.map((r, i) => i === index ? { ...r, minStartingMembers: Number(e.target.value) } : r) })} /></div>
+          {(["enrolled", "graduated"] as const).map((status) => <label key={status} className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={disabled} checked={rule.eligibleAcademicStatuses.includes(status)} onChange={(e) => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.map((r, i) => i === index ? { ...r, eligibleAcademicStatuses: e.target.checked ? [...r.eligibleAcademicStatuses, status] : r.eligibleAcademicStatuses.filter((item) => item !== status) } : r) })} />{status === "enrolled" ? "在读" : "毕业"}</label>)}
+          <button type="button" disabled={disabled} onClick={() => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.filter((_, i) => i !== index) })}>移除机构</button>
+        </div>)}
+        <button type="button" disabled={disabled} onClick={() => setPolicy({ ...policy, affiliationRules: [...policy.affiliationRules, { institutionCode: "", eligibleAcademicStatuses: ["enrolled", "graduated"], minRosterMembers: 0, minStartingMembers: 0 }] })}>添加机构</button>
+      </div>}
+      {!fallbackOnly && showCompetitiveSettings && !policy && <div>
         <h3 className="text-sm font-medium mb-3">竞技档案规则</h3>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={disabled} checked={value.requireCompetitiveProfile ?? false} onChange={(event) => set("requireCompetitiveProfile", event.target.checked)} />报名与首发必须完成竞技档案</label>
         <p className="mt-1 text-xs text-[var(--color-fg-dim)]">实际开放报名时将从平台赛季目录冻结当前与上一赛季及段位顺序；之后的目录变更不影响已开放报名赛事。</p>
@@ -103,7 +131,7 @@ export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = fal
           </div>
         )}
       </div>}
-      {value.requireCompetitiveProfile && platform === "perfect_world" && (
+      {!policy && value.requireCompetitiveProfile && platform === "perfect_world" && (
         <p className="text-sm text-[var(--color-fg-mid)]">标准 Major 将在 Perfect 与 5E 等效竞技事实中按证据槽位自动择高，开放报名时冻结对应版本与赛季对应，无需手动选择平台或填写映射。</p>
       )}
     </div>

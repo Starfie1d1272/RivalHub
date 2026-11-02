@@ -1,5 +1,7 @@
+import { qualificationPolicySchema } from "@/lib/competition/qualification-policy";
 import type {
   InstitutionAffiliationRule,
+  QualificationPolicyV1,
   RegistrationConfig,
   StageConfig,
   StagePlan,
@@ -91,6 +93,7 @@ export function normalizeTeamRegistrationConfig(
   config: PartialTeamConfig | null | undefined,
 ): TeamRegistrationConfig {
   return {
+    ...(config?.qualificationPolicy ? { qualificationPolicy: qualificationPolicySchema.parse(config.qualificationPolicy) } : {}),
     allowExternal: config?.allowExternal ?? LEGACY_TEAM_REGISTRATION_FALLBACK.allowExternal,
     graduateCountsAsHome: config?.graduateCountsAsHome ?? LEGACY_TEAM_REGISTRATION_FALLBACK.graduateCountsAsHome,
     minHomeMembers: config?.minHomeMembers ?? LEGACY_TEAM_REGISTRATION_FALLBACK.minHomeMembers,
@@ -188,4 +191,39 @@ export function getFirstStageOfType(
   types: readonly StageType[],
 ): StageConfig | null {
   return normalizeStagePlan(stagePlan).find((stage) => types.includes(stage.type)) ?? null;
+}
+
+/** Decode historical requirements without consulting mutable product templates. */
+export function resolveQualificationPolicy(
+  config: PartialTeamConfig | null | undefined,
+  affiliationRules: readonly InstitutionAffiliationRule[] | null | undefined = [],
+  legacyUse: "participant" | "roster" = "participant",
+): QualificationPolicyV1 {
+  if (config?.qualificationPolicy) return qualificationPolicySchema.parse(config.qualificationPolicy);
+  const normalized = normalizeTeamRegistrationConfig(config);
+  const required = normalized.requireCompetitiveProfile === true;
+  const rules = normalizeAffiliationRules(affiliationRules);
+  // Historically Major start also evaluated a configured profile when the
+  // registration requirement was disabled. Participant readiness did not.
+  const legacyReadiness = required || (legacyUse === "roster" && !!normalized.competitiveProfile);
+  const legacyEducation = legacyReadiness || (legacyUse === "roster" && rules.length > 0);
+  return {
+    version: 1,
+    educationRequired: legacyEducation,
+    affiliationRules: rules,
+    competitiveProfileRequired: legacyReadiness,
+    competitiveProfile: normalized.competitiveProfile ?? null,
+    externalStrengthGap: { enabled: !!normalized.competitiveProfile, maxGap: normalized.competitiveProfile?.externalStrengthMaxStarGap ?? 3 },
+    contacts: { qqRequired: legacyReadiness, emailVerifiedRequired: legacyEducation },
+  };
+}
+
+/** Persist v1 without writable copies of the retired competitive fields. */
+export function teamRegistrationConfigForWrite(config: TeamRegistrationConfig): TeamRegistrationConfig {
+  if (!config.qualificationPolicy) return config;
+  const stored = { ...config };
+  for (const key of ["allowExternal", "graduateCountsAsHome", "minHomeMembers", "minEnrolledMembers", "maxExternalMembers", "requireCompetitiveProfile", "competitiveProfile"]) {
+    Reflect.deleteProperty(stored, key);
+  }
+  return stored;
 }

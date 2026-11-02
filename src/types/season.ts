@@ -84,7 +84,20 @@ export interface RegistrationConfig {
   mapPool: string[];
 }
 
+/** Event-owned qualification definition. The absence of this field identifies
+ * historical configuration and is decoded using the historical rules. */
+export interface QualificationPolicyV1 {
+  version: 1;
+  educationRequired: boolean;
+  affiliationRules: readonly InstitutionAffiliationRule[];
+  competitiveProfileRequired: boolean;
+  competitiveProfile: CompetitiveProfileConfig | null;
+  externalStrengthGap: { enabled: boolean; maxGap: number };
+  contacts: { qqRequired: boolean; emailVerifiedRequired: boolean };
+}
+
 export interface TeamRegistrationConfig {
+  qualificationPolicy?: QualificationPolicyV1;
   allowExternal: boolean;
   graduateCountsAsHome: boolean;
   minHomeMembers: number;

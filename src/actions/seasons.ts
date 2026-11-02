@@ -15,6 +15,7 @@ import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import { normalizeRegistrationConfig, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { StagePlan, TeamRegistrationConfig } from "@/types/season";
 import { validateCompetitionDefinition } from "@/lib/competition/definition";
+import { assertQualificationPolicyPublishable } from "@/lib/competition/qualification-policy";
 import { assertSeasonHasNoHistoricalFacts, openSeasonRegistrationInTx, resolveConversionPolicyForPublish, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
 import { seasonFormSchema, seasonUpdatePayloadSchema, planSeasonCreate, planSeasonUpdate, type SeasonFormInput } from "@/lib/seasons/edit";
 import { updatePublicAnnouncementTags, updatePublicSeasonInfoTag, updatePublicSeasonTags } from "@/lib/revalidation";
@@ -146,6 +147,7 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
       if (locked.competitionTemplate === "custom") assertRunnableCustomDefinition(locked);
 
       const config = normalizeTeamRegistrationConfig(locked.teamRegistrationConfig);
+      assertQualificationPolicyPublishable(config);
       let nextTeamRegistrationConfig: TeamRegistrationConfig | null = locked.teamRegistrationConfig as TeamRegistrationConfig | null;
 
       if (config.requireCompetitiveProfile) {

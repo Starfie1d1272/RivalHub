@@ -2,12 +2,14 @@ import { isReservedSeasonSlug } from "./slug";
 import { z } from "zod";
 import { createCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
 import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
+import { competitiveProfileSchema, qualificationPolicySchema } from "@/lib/competition/qualification-policy";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { parseCSTInput } from "@/lib/utils/date";
 import {
   normalizeAffiliationRules,
   normalizeRegistrationConfig,
   normalizeTeamRegistrationConfig,
+  teamRegistrationConfigForWrite,
 } from "@/lib/seasons/compatibility";
 import {
   type InstitutionAffiliationRule,
@@ -75,6 +77,7 @@ const seasonFormBaseSchema = z.object({
   stagePlan: stagePlanSchema,
   registrationConfig: registrationConfigSchema,
   teamRegistrationConfig: z.object({
+    qualificationPolicy: qualificationPolicySchema.optional(),
     allowExternal: z.boolean(),
     graduateCountsAsHome: z.boolean(),
     minHomeMembers: z.number().int().min(0),
@@ -88,32 +91,7 @@ const seasonFormBaseSchema = z.object({
     requireUniqueTeamName: z.boolean(),
     requireTeamLogo: z.boolean(),
     requireCompetitiveProfile: z.boolean().optional(),
-    competitiveProfile: z.object({
-      platform: z.string().min(1).max(64),
-      currentSeasonKey: z.string().max(128),
-      previousSeasonKey: z.string().max(128),
-      rankOrder: z.array(z.string().min(1).max(64)).max(64),
-      externalStrengthMaxStarGap: z.number().int().min(0).max(100).optional(),
-      evidencePolicy: z.object({
-        historicalWeight: z.literal(50),
-        referenceSeasonKey: z.string().min(1).max(128),
-        referenceSeasonWeight: z.literal(20),
-        recentSeasonKeys: z.array(z.string().min(1).max(128)).min(1).max(8),
-        recentSeasonWeight: z.literal(30),
-        sourceSelection: z.enum(["primary_then_fallback", "strongest_equivalent"]).optional(),
-      }).optional(),
-      fallbackConversion: z.object({
-        sourcePlatform: z.literal("fivee"),
-        // A draft can deliberately retain an incomplete operator mapping. It
-        // becomes usable only when registration freeze validates every actual
-        // evidence slot; empty placeholders are never persisted.
-        version: z.string().max(128),
-        seasonKeyMap: z.record(z.string().min(1).max(128), z.string().min(1).max(128)),
-        // Mapping validation belongs to the conversion-policy owner and is
-        // intentionally deferred until registration freeze.
-        mapping: z.any().optional(),
-      }).optional(),
-    }).optional(),
+    competitiveProfile: competitiveProfileSchema.optional(),
   }).optional(),
   affiliationRules: z.array(z.object({
     institutionCode: z.string().min(1),
@@ -227,9 +205,9 @@ export function resolveCompetitionDefinition(data: ParsedSeasonForm, applyTempla
   const { template, ...input } = data;
   if (!template || !applyTemplate || template === "custom") return input;
   const builtIn = createCompetitionTemplate(template as CompetitionTemplate);
-  // Built-in competition semantics remain template-owned. Major's reviewed
-  // 5E equivalence map is the sole event-operator overlay and is frozen when
-  // registration opens; no other client team setting can escape canonicalization.
+  // Built-in format and team management defaults remain template-owned.
+  // A submitted qualification policy belongs to this event, not the preset.
+  // Legacy Major's 5E equivalence overlay remains frozen at registration open.
   const fallbackConversion = template === "major"
     ? input.teamRegistrationConfig?.competitiveProfile?.fallbackConversion
     : undefined;
@@ -249,6 +227,9 @@ export function resolveCompetitionDefinition(data: ParsedSeasonForm, applyTempla
     stagePlan,
     teamRegistrationConfig: {
       ...builtIn.teamRegistrationConfig,
+      ...(input.teamRegistrationConfig?.qualificationPolicy
+        ? { qualificationPolicy: input.teamRegistrationConfig.qualificationPolicy }
+        : {}),
       competitiveProfile: builtIn.teamRegistrationConfig.competitiveProfile
         ? { ...builtIn.teamRegistrationConfig.competitiveProfile, fallbackConversion }
         : undefined,
@@ -429,12 +410,17 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
       : existing.rosterChangeClosesAt,
   };
   assertValidDateProjection(projectedDates);
-  const normalizedTeamConfig = normalizeTeamRegistrationConfig(
-    (data.teamRegistrationConfig ?? {}) as TeamRegistrationConfig,
-  );
+  const submittedTeamConfig = data.teamRegistrationConfig ?? {} as TeamRegistrationConfig;
+  const normalizedTeamConfig = normalizeTeamRegistrationConfig({
+    ...submittedTeamConfig,
+    // Older forms do not know this field. A metadata save must not erase it.
+    qualificationPolicy: submittedTeamConfig.qualificationPolicy ?? existing.teamRegistrationConfig?.qualificationPolicy,
+  });
   const existingTeamConfig = normalizeTeamRegistrationConfig(existing.teamRegistrationConfig);
   const registrationConfig = normalizeRegistrationConfig(data.registrationConfig as RegistrationConfig);
-  const affiliationRules = normalizeAffiliationRules(data.affiliationRules as InstitutionAffiliationRule[] | undefined);
+  const affiliationRules = normalizedTeamConfig.qualificationPolicy
+    ? []
+    : normalizeAffiliationRules(data.affiliationRules as InstitutionAffiliationRule[] | undefined);
   const teamConfigChangedWithoutFallback = !sameJson(editableTeamConfig(existingTeamConfig), editableTeamConfig(normalizedTeamConfig));
   const fallbackChanged = !sameJson(
     existingTeamConfig.competitiveProfile?.fallbackConversion,
@@ -498,8 +484,8 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
       positions: data.positions,
       stagePlan: data.stagePlan as StagePlan,
       registrationConfig,
-      teamRegistrationConfig: normalizedTeamConfig,
-      affiliationRules,
+      teamRegistrationConfig: teamRegistrationConfigForWrite(normalizedTeamConfig),
+      affiliationRules: normalizedTeamConfig.qualificationPolicy ? [] : affiliationRules,
     },
   };
 }
@@ -534,8 +520,8 @@ export function planSeasonCreate(parsed: ParsedSeasonForm): { template: Competit
         rankThreshold: { ...data.registrationConfig.rankThreshold },
         mapPool: [...new Set(data.registrationConfig.mapPool)],
       },
-      teamRegistrationConfig: data.teamRegistrationConfig ?? structuredClone(templateDefaults.teamRegistrationConfig),
-      affiliationRules: data.affiliationRules ?? structuredClone(templateDefaults.affiliationRules),
+      teamRegistrationConfig: teamRegistrationConfigForWrite(data.teamRegistrationConfig ?? structuredClone(templateDefaults.teamRegistrationConfig)),
+      affiliationRules: data.teamRegistrationConfig?.qualificationPolicy ? [] : data.affiliationRules ?? structuredClone(templateDefaults.affiliationRules),
     },
   };
 }
