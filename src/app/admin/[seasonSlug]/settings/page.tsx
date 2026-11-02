@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { db } from "@/db/client";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
-import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
+import { normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { SeasonForm } from "@/components/admin/SeasonForm";
 import { toCSTDateTimeInput } from "@/lib/utils/date";
 import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
@@ -22,9 +23,14 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
   const seasonPromise = findAdminSeasonBySlug(seasonSlug);
   const [season, catalog, conversionPolicyProvenance] = await Promise.all([
     seasonPromise, loadCompetitivePlatformCatalog(db, { concurrent: true }),
-    seasonPromise.then(season => season ? loadConversionPolicyProvenance(db, season.teamRegistrationConfig) : null),
+    seasonPromise.then(season => {
+      if (!season) return null;
+      const config = season.teamRegistrationConfig;
+      return loadConversionPolicyProvenance(db, config?.qualificationPolicy?.version === 2 ? { competitiveProfile: config.qualificationPolicy.competitiveProfile } : config);
+    }),
   ]);
   if (!season) notFound();
+  const rules = decodeSeasonRules(season);
 
   return (
     <div className="max-w-3xl">
@@ -55,9 +61,9 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
           starterCount: season.starterCount,
           positions: season.positions,
           stagePlan: normalizeStagePlan(season.stagePlan),
-          registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
-          teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
-          affiliationRules: normalizeAffiliationRules(season.affiliationRules),
+          registrationConfig: rules.registration.registrationConfig,
+          teamRegistrationConfig: season.teamRegistrationConfig ?? undefined,
+          affiliationRules: rules.roster.affiliationRules,
         }}
       />
     </div>
