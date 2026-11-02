@@ -131,17 +131,17 @@ export async function loadReferencedPlatformRankKeys(
     .from(competitiveRankFacts)
     .where(eq(competitiveRankFacts.platform, platform));
   const frozen = await executor.execute<{ rank: string }>(sql`
-    SELECT DISTINCT json_array_elements_text(team_registration_config->'competitiveProfile'->'rankOrder') AS rank
+    SELECT DISTINCT json_array_elements_text(COALESCE(team_registration_config->'qualificationPolicy'->'competitiveProfile', team_registration_config->'competitiveProfile')->'rankOrder') AS rank
     FROM seasons
-    WHERE team_registration_config->'competitiveProfile'->>'platform' = ${platform}
+    WHERE COALESCE(team_registration_config->'qualificationPolicy'->'competitiveProfile', team_registration_config->'competitiveProfile')->>'platform' = ${platform}
   `);
   const fallback = await executor.execute<{ rank: string }>(sql`
     SELECT DISTINCT fallback_rank.rank AS rank
     FROM seasons
     CROSS JOIN LATERAL jsonb_object_keys(
-      COALESCE((team_registration_config->'competitiveProfile'->'fallbackConversion'->'mapping'->'belowSRankMap')::jsonb, '{}'::jsonb)
+      COALESCE((COALESCE(team_registration_config->'qualificationPolicy'->'competitiveProfile', team_registration_config->'competitiveProfile')->'fallbackConversion'->'mapping'->'belowSRankMap')::jsonb, '{}'::jsonb)
     ) AS fallback_rank(rank)
-    WHERE team_registration_config->'competitiveProfile'->'fallbackConversion'->>'sourcePlatform' = ${platform}
+    WHERE COALESCE(team_registration_config->'qualificationPolicy'->'competitiveProfile', team_registration_config->'competitiveProfile')->'fallbackConversion'->>'sourcePlatform' = ${platform}
   `);
   return new Set([
     ...facts.map((row) => row.rank).filter((rank): rank is string => rank !== null),
