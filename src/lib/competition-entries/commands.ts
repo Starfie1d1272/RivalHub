@@ -20,12 +20,10 @@ import {
   teamMemberships,
   teams,
   users,
-  userCompetitiveRoles,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import {
   evaluateRosterQualificationFromFacts,
-  evaluateParticipant,
   isHomeAffiliatedMember,
   loadParticipantQualificationFacts,
   resolveCompetitiveContext,
@@ -47,9 +45,7 @@ import { canMutateCompetitionEntryRoster } from "@/lib/competition-entries/remed
 import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entries/roster-change";
 import { normalizeTeamRegistrationConfig, resolveQualificationPolicy } from "@/lib/seasons/compatibility";
 import { decodeSeasonRules, type RosterCandidate, type DecodedSeasonRules, type QualificationDecision, type QualificationEvidence } from "@/lib/seasons/rules";
-import { buildQualificationEvidence, deriveCompetitiveRequirements, type CompetitivePurpose } from "@/lib/qualification/evidence";
-import { evaluateRoster } from "@/lib/competition-entries/evaluate-roster";
-import { uniqueQualificationFindings } from "@/lib/qualification/finding";
+import { assessRosterCandidate, loadRosterCandidates } from "@/lib/competition-entries/roster-assessment";
 import type { PlayerType } from "@/types/season";
 import { assessEntryRosterReadiness } from "@/lib/competition-entries/readiness";
 import { normalizePerfectTeamId } from "@/lib/competition-entries/perfect-team-id";
@@ -238,63 +234,20 @@ async function validateEntryRosterInTx(
   return { revision, rosterSize: readiness.rosterSize, primaryIds, qualification };
 }
 
-function rosterCompetitivePurposes(rules: DecodedSeasonRules): CompetitivePurpose[] {
-  const participant = rules.roster.legacyParticipant ?? rules.participant;
-  const purposes: CompetitivePurpose[] = [];
-  if (participant.competitiveProfileRequired) purposes.push("profile_completeness");
-  if (participant.rankThreshold?.currentMin || participant.rankThreshold?.peakMin) purposes.push("rank_threshold");
-  if (rules.competitive.externalStrengthGap.enabled) purposes.push("external_historical_gap");
-  return purposes;
-}
-
-/** Assemble authoritative candidate facts under the caller's transaction and locks. */
+/** Lock the write path, then use the same candidate fact loader as read-only views. */
 export async function loadEntryRosterCandidateInTx(
   tx: TxDb,
   input: { entryId: string; expectedRevisionId: string },
 ): Promise<{ candidate: RosterCandidate; rules: ReturnType<typeof decodeSeasonRules>; season: typeof seasons.$inferSelect }> {
   const entry = await lockEntry(tx, input.entryId);
   const season = await loadSeasonOrThrow(tx, entry.competitionId);
-  const rules = decodeSeasonRules(season);
   if (entry.currentRosterRevisionId !== input.expectedRevisionId) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "名单版本已变化，请刷新后重试。 ");
   const [revision] = await tx.select().from(competitionEntryRosterRevisions)
     .where(and(eq(competitionEntryRosterRevisions.id, input.expectedRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!revision) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不存在。 ");
-  const rows = await tx.select({ userId: competitionEntryRosterMembers.userId, participantId: competitionEntryParticipants.id, participantUserId: competitionEntryParticipants.userId, participantEntryId: competitionEntryParticipants.entryId, declaredPlayerType: competitionEntryParticipants.playerType, teamMembershipId: competitionEntryRosterMembers.teamMembershipId, status: competitionEntryParticipants.status, isPrimaryStarter: competitionEntryRosterMembers.isPrimaryStarter })
-    .from(competitionEntryRosterMembers).innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
-    .where(eq(competitionEntryRosterMembers.revisionId, revision.id));
-  if (rows.some((row) => row.participantEntryId !== entry.id || row.participantUserId !== row.userId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "名单成员记录与参赛队不一致。 ");
-  const ids = rows.map((row) => row.userId);
-  const profile = rules.competitive.competitiveProfile;
-  const purposes = rosterCompetitivePurposes(rules);
-  const participantRules = rules.roster.legacyParticipant ?? rules.participant;
-  const factsByUser = await loadParticipantQualificationFacts(ids, { executor: tx, includeCompetitiveFacts: purposes.length > 0, platform: profile?.platform, fallbackPlatform: profile?.fallbackConversion?.sourcePlatform, ...(profile ? { competitiveRequirements: deriveCompetitiveRequirements(purposes, profile, participantRules) } : {}) });
-  const registrations = await (ids.length ? tx.select({ id: seasonRegistrations.id, userId: seasonRegistrations.userId, status: seasonRegistrations.status, primaryPosition: seasonRegistrations.primaryPosition, playerType: seasonRegistrations.playerType }).from(seasonRegistrations).where(and(eq(seasonRegistrations.seasonId, season.id), inArray(seasonRegistrations.userId, ids))) : []);
-  const roles = await (ids.length ? tx.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role }).from(userCompetitiveRoles).where(and(inArray(userCompetitiveRoles.userId, ids), eq(userCompetitiveRoles.isPrimary, true))) : []);
-  const claims = await (ids.length ? tx.select({ userId: competitionEntryActiveClaims.userId, entryId: competitionEntryActiveClaims.entryId }).from(competitionEntryActiveClaims).where(and(eq(competitionEntryActiveClaims.competitionId, season.id), inArray(competitionEntryActiveClaims.userId, ids))) : []);
-  const memberships = await (entry.teamId && ids.length ? tx.select({ id: teamMemberships.id, userId: teamMemberships.userId }).from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), inArray(teamMemberships.userId, ids), inArray(teamMemberships.status, ["active", "benched"]), isNull(teamMemberships.endedAt))) : []);
-  const registrationBlocks = await loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: ids, effect: "registration_block" });
-  const rosterBlocks = await loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: ids, effect: "roster_block" });
-  const nameConflicts = await (rules.roster.requireUniqueTeamName ? tx.select({ id: competitionEntries.id }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), sql`${competitionEntries.id} <> ${entry.id}`, sql`lower(trim(${competitionEntries.name})) = lower(trim(${entry.name}))`, sql`${competitionEntries.registrationStatus} NOT IN ('rejected', 'withdrawn')`)).limit(1) : []);
-  const registrationByUser = new Map(registrations.map((registration) => [registration.userId, registration]));
-  const rolesByUser = new Map(roles.map((role) => [role.userId, role.role]));
-  const playerType = (value: string | null | undefined): PlayerType | null => value === "enrolled" || value === "graduated" || value === "external" ? value : null;
-  const members = rows.map((row) => ({
-    ...row,
-    primaryPosition: registrationByUser.get(row.userId)?.primaryPosition ?? rolesByUser.get(row.userId) ?? null,
-    playerType: entry.source === "linked_team" ? playerType(row.declaredPlayerType) : playerType(registrationByUser.get(row.userId)?.playerType),
-  }));
-  const common = {
-    season, revision, factsByUser, currentTeamMemberUserIds: entry.teamId ? new Set(memberships.filter((membership) => members.some((member) => member.userId === membership.userId && member.teamMembershipId === membership.id)).map((membership) => membership.userId)) : null,
-    nativeRegistrationsByUser: new Map(registrations.map((registration) => [registration.userId, { id: registration.id, status: registration.status }])),
-    activeClaimEntryByUser: new Map(claims.map((claim) => [claim.userId, claim.entryId])),
-    registrationBlockedUserIds: new Set(registrationBlocks.keys()), rosterBlockedUserIds: new Set(rosterBlocks.keys()),
-  };
-  const entryFacts = { ...entry, logoPresent: Boolean(entry.logoUrl), nameConflicts: nameConflicts.length > 0 };
-  if (entry.source === "event_native") {
-    if (members.some((member) => member.teamMembershipId !== null)) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事原生名单不能关联长期队伍成员记录。 ");
-    return { season, rules, candidate: { ...common, entry: { ...entryFacts, source: "event_native" }, members: members.map((member) => ({ ...member, teamMembershipId: null })) } };
-  }
-  return { season, rules, candidate: { ...common, entry: { ...entryFacts, source: "linked_team" }, members } };
+  const candidate = (await loadRosterCandidates(tx, season, [input])).get(entry.id);
+  if (!candidate) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "名单版本已变化，请刷新后重试。 ");
+  return { candidate, rules: decodeSeasonRules(season), season };
 }
 
 /** Transaction-scoped evidence to pass directly to the roster freezing owner. */
@@ -313,22 +266,8 @@ export type EntryRosterAssessment = {
 /** Always load and evaluate fresh facts inside the caller's transaction. */
 export async function assessEntryRosterInTx(tx: TxDb, input: { entryId: string; expectedRevisionId: string }): Promise<EntryRosterAssessment> {
   const { candidate, rules } = await loadEntryRosterCandidateInTx(tx, input);
-  const participantRules = rules.roster.legacyParticipant ?? rules.participant;
-  const purposes = rosterCompetitivePurposes(rules);
-  const profile = rules.competitive.competitiveProfile;
-  const evidence: QualificationEvidence = profile ? buildQualificationEvidence(candidate.factsByUser, profile, participantRules, purposes) : { kind: "none" };
-  const participantDecisions = new Map<string, QualificationDecision>();
-  for (const member of candidate.members) {
-    const facts = candidate.factsByUser.get(member.userId);
-    participantDecisions.set(member.userId, facts ? evaluateParticipant({ userId: member.userId, facts, playerType: member.playerType }, participantRules, evidence) : { state: "blocked", findings: [{ code: "participant_missing", message: "名单成员资料不可用。", waivable: false, metadata: { userId: member.userId } }] });
-  }
-  const rosterDecision = evaluateRoster(candidate, rules, evidence);
-  const decisions = [rosterDecision, ...candidate.members.map((member) => participantDecisions.get(member.userId)!)];
-  const findings = uniqueQualificationFindings(decisions.flatMap((result) => [...result.findings]));
   const approvedOverrides = await loadActiveRestrictionOverridesInTx(tx, { competitionId: candidate.entry.competitionId, entryIds: [candidate.entry.id], rosterRevisionIds: [candidate.revision.id] });
-  const unresolved = unresolvedQualificationFindings(findings, approvedOverrides);
-  const decision: QualificationDecision = unresolved.length ? { state: "blocked", findings: [unresolved[0], ...unresolved.slice(1)] } : { state: "ready", findings: [] };
-  return { candidate, rules, evidence, participantDecisions, rosterDecision, decisions, findings, decision, approvedOverrides };
+  return { ...assessRosterCandidate(candidate, rules, approvedOverrides), approvedOverrides };
 }
 
 /**

@@ -16,6 +16,7 @@ import {
   competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
   seasonRegistrations,
+  seasons,
   steamProfiles,
   teamMemberships,
   users,
@@ -32,7 +33,9 @@ import {
 } from "@/lib/qualification/service";
 import { sameQualificationFindingSnapshot } from "@/lib/competition-entries/restriction-overrides";
 import { assessEntryRosterReadiness } from "@/lib/competition-entries/readiness";
-import { assessEntryRosterInTx } from "@/lib/competition-entries/commands";
+import { assessRosterCandidate, loadRosterCandidates } from "@/lib/competition-entries/roster-assessment";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
+import type { DatabaseExecutor } from "@/lib/qualification/facts";
 import { escapeLikePattern } from "@/lib/db/search";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { getDisplayName } from "@/lib/identity/display-name";
@@ -161,6 +164,13 @@ export async function getTeamRegistrationReview(
   season: TeamReviewSeason,
   query: TeamRegistrationReviewQuery,
 ): Promise<TeamRegistrationReviewResult> {
+  if (season.teamRegistrationConfig?.qualificationPolicy?.version === 2) {
+    return db.transaction((tx) => getTeamRegistrationReviewWithExecutor(tx, season, query), { isolationLevel: "repeatable read", accessMode: "read only" });
+  }
+  return getTeamRegistrationReviewWithExecutor(db, season, query);
+}
+
+async function getTeamRegistrationReviewWithExecutor(executor: DatabaseExecutor, season: TeamReviewSeason, query: TeamRegistrationReviewQuery): Promise<TeamRegistrationReviewResult> {
   const conditions = [
     eq(competitionEntries.competitionId, season.id),
     eq(users.status, "active"),
@@ -183,8 +193,7 @@ export async function getTeamRegistrationReview(
     ? [sql`${competitionEntries.submittedAt} ASC NULLS LAST`, asc(competitionEntries.id)]
     : [desc(competitionEntries.updatedAt), desc(competitionEntries.id)];
 
-  const [entries, [datasetCount], [reviewQueueCount]] = await Promise.all([
-    db
+  const entries = await executor
       .select({
         id: competitionEntries.id,
         name: competitionEntries.name,
@@ -210,14 +219,14 @@ export async function getTeamRegistrationReview(
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .leftJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
       .where(where)
-      .orderBy(...orderBy),
-    db
+      .orderBy(...orderBy);
+  const [datasetCount] = await executor
       .select({ count: count() })
       .from(competitionEntries)
       .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(where),
-    db
+      .where(where);
+  const [reviewQueueCount] = await executor
       .select({ count: count() })
       .from(competitionEntries)
       .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
@@ -226,10 +235,9 @@ export async function getTeamRegistrationReview(
         eq(competitionEntries.competitionId, season.id),
         eq(users.status, "active"),
         inArray(competitionEntries.registrationStatus, [...TEAM_REVIEW_STATUSES]),
-      )),
-  ]);
+      ));
 
-  const projectedRows = await projectTeamRegistrationRows(season, entries, true);
+  const projectedRows = await projectTeamRegistrationRowsWithExecutor(executor, season, entries, true);
   const reviewRows = projectedRows.map((row) => ({
     ...row,
     status: row.status as Exclude<TeamRegistrationReviewStatus, "all" | "attention" | "self_change_draft">,
@@ -259,25 +267,24 @@ export async function getTeamRegistrationReview(
   };
 }
 
-async function projectTeamRegistrationRows(
+async function projectTeamRegistrationRowsWithExecutor(
+  executor: DatabaseExecutor,
   season: TeamReviewSeason,
   entries: TeamEntryForProjection[],
   includeOverrides: boolean,
 ) {
   const entryIds = entries.map((entry) => entry.id);
   const revisionIds = entries.flatMap(entry => entry.currentRosterRevisionId ? [entry.currentRosterRevisionId] : []);
-  const [overrideRows, rosterRows] = entryIds.length === 0
-    ? [[], []]
-    : await Promise.all([
-        includeOverrides ? db
+  const overrideRows = entryIds.length > 0 && (includeOverrides || season.teamRegistrationConfig?.qualificationPolicy?.version === 2)
+    ? await executor
           .select()
           .from(competitionEntryRestrictionOverrides)
           .where(and(
             eq(competitionEntryRestrictionOverrides.competitionId, season.id),
             inArray(competitionEntryRestrictionOverrides.entryId, entryIds),
             sql`${competitionEntryRestrictionOverrides.revokedAt} IS NULL`,
-          )) : Promise.resolve([]),
-        db
+          )) : [];
+  const rosterRows = entryIds.length > 0 ? await executor
           .select({
             entryId: competitionEntryRosterRevisions.entryId,
             revisionId: competitionEntryRosterRevisions.id,
@@ -299,24 +306,24 @@ async function projectTeamRegistrationRows(
           .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
         .innerJoin(users, and(eq(users.id, competitionEntryRosterMembers.userId), eq(users.status, "active")))
         .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-          .where(and(inArray(competitionEntryRosterRevisions.entryId, entryIds), inArray(competitionEntryRosterRevisions.id, revisionIds))),
-      ]);
+          .where(and(inArray(competitionEntryRosterRevisions.entryId, entryIds), inArray(competitionEntryRosterRevisions.id, revisionIds))) : [];
 
   const selfDraftIds = entries.filter((entry) => teamReviewCategory(entry) === "self_change_draft").map((entry) => entry.id);
-  const [frozenRows, qualificationRuns, entrants] = selfDraftIds.length === 0 ? [[], [], []] : await Promise.all([
-    db.select({ entryId: eventRosters.entryId }).from(eventRosters).where(and(inArray(eventRosters.entryId, selfDraftIds), eq(eventRosters.status, "frozen"))),
-    season.competitionTemplate === "major" ? db.select({ completedAt: competitionQualificationRuns.completedAt }).from(competitionQualificationRuns).where(eq(competitionQualificationRuns.seasonId, season.id)).limit(1) : Promise.resolve([]),
-    season.competitionTemplate === "major" ? db.select({ entryId: majorTournamentEntrants.competitionEntryId }).from(majorTournamentEntrants).where(and(eq(majorTournamentEntrants.seasonId, season.id), inArray(majorTournamentEntrants.competitionEntryId, selfDraftIds))) : Promise.resolve([]),
-  ]);
+  const frozenRows = selfDraftIds.length ? await executor.select({ entryId: eventRosters.entryId }).from(eventRosters).where(and(inArray(eventRosters.entryId, selfDraftIds), eq(eventRosters.status, "frozen"))) : [];
+  const qualificationRuns = selfDraftIds.length && season.competitionTemplate === "major" ? await executor.select({ completedAt: competitionQualificationRuns.completedAt }).from(competitionQualificationRuns).where(eq(competitionQualificationRuns.seasonId, season.id)).limit(1) : [];
+  const entrants = selfDraftIds.length && season.competitionTemplate === "major" ? await executor.select({ entryId: majorTournamentEntrants.competitionEntryId }).from(majorTournamentEntrants).where(and(eq(majorTournamentEntrants.seasonId, season.id), inArray(majorTournamentEntrants.competitionEntryId, selfDraftIds))) : [];
   const frozenIds = new Set(frozenRows.map((row) => row.entryId));
   const entrantIds = new Set(entrants.map((row) => row.entryId));
   const run = qualificationRuns[0];
 
   if (season.teamRegistrationConfig?.qualificationPolicy?.version === 2) {
-    return Promise.all(entries.map(async (entry) => {
-      const assessment = entry.currentRosterRevisionId
-        ? await db.transaction((tx) => assessEntryRosterInTx(tx, { entryId: entry.id, expectedRevisionId: entry.currentRosterRevisionId! }))
-        : null;
+    const seasonRow = await executor.query.seasons.findFirst({ where: eq(seasons.id, season.id) });
+    if (!seasonRow) throw new Error("赛事不存在。");
+    const rules = decodeSeasonRules(seasonRow);
+    const candidates = await loadRosterCandidates(executor, seasonRow, entries.flatMap((entry) => entry.currentRosterRevisionId ? [{ entryId: entry.id, expectedRevisionId: entry.currentRosterRevisionId }] : []));
+    return entries.map((entry) => {
+      const candidate = candidates.get(entry.id);
+      const assessment = candidate ? assessRosterCandidate(candidate, rules, overrideRows.filter((override) => override.entryId === entry.id && override.rosterRevisionId === candidate.revision.id)) : null;
       const members = rosterRows
         .filter((member) => member.entryId === entry.id && member.revisionId === entry.currentRosterRevisionId)
         .map((member) => {
@@ -346,7 +353,7 @@ async function projectTeamRegistrationRows(
           snapshotMatches: sameQualificationFindingSnapshot(override.findingSnapshot, findings.find((finding) => finding.code === override.restrictionCode) ?? { code: override.restrictionCode, message: "当前资格结果中不存在该限制。", waivable: false }),
         })),
       };
-    }));
+    });
   }
 
   const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
@@ -362,6 +369,7 @@ async function projectTeamRegistrationRows(
   const needsQualificationFacts = v1 || requiresCompetitiveProfile || affiliationRules.length > 0;
   const qualificationFacts: Map<string, ParticipantQualificationFacts> = needsQualificationFacts
     ? await loadParticipantQualificationFacts(userIds, {
+        executor,
         platform: competitiveContext?.platform ?? policy.competitiveProfile?.platform,
         fallbackPlatform: competitiveContext?.fallbackConversion?.sourcePlatform,
         includeCompetitiveFacts: hasCompetitiveProfile,
@@ -455,8 +463,14 @@ async function projectTeamRegistrationRows(
 }
 
 export async function getTeamRegistrationProgress(season: TeamReviewSeason): Promise<TeamRegistrationProgressResult> {
-  const [draftEntries, statusRows] = await Promise.all([
-    db.select({
+  if (season.teamRegistrationConfig?.qualificationPolicy?.version === 2) {
+    return db.transaction((tx) => getTeamRegistrationProgressWithExecutor(tx, season), { isolationLevel: "repeatable read", accessMode: "read only" });
+  }
+  return getTeamRegistrationProgressWithExecutor(db, season);
+}
+
+async function getTeamRegistrationProgressWithExecutor(executor: DatabaseExecutor, season: TeamReviewSeason): Promise<TeamRegistrationProgressResult> {
+  const draftEntries = await executor.select({
       id: competitionEntries.id,
       name: competitionEntries.name,
       source: competitionEntries.source,
@@ -481,15 +495,14 @@ export async function getTeamRegistrationProgress(season: TeamReviewSeason): Pro
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .leftJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
       .where(and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "draft")))
-      .orderBy(desc(competitionEntries.updatedAt), desc(competitionEntries.id)),
-    db.select({ status: competitionEntries.registrationStatus, revisionOrigin: competitionEntryRosterRevisions.origin, revisionStatus: competitionEntryRosterRevisions.status, count: count() })
+      .orderBy(desc(competitionEntries.updatedAt), desc(competitionEntries.id));
+  const statusRows = await executor.select({ status: competitionEntries.registrationStatus, revisionOrigin: competitionEntryRosterRevisions.origin, revisionStatus: competitionEntryRosterRevisions.status, count: count() })
       .from(competitionEntries)
       .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
       .leftJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
       .where(eq(competitionEntries.competitionId, season.id))
-      .groupBy(competitionEntries.registrationStatus, competitionEntryRosterRevisions.origin, competitionEntryRosterRevisions.status),
-  ]);
-  const projectedDrafts = await projectTeamRegistrationRows(season, draftEntries, false);
+      .groupBy(competitionEntries.registrationStatus, competitionEntryRosterRevisions.origin, competitionEntryRosterRevisions.status);
+  const projectedDrafts = await projectTeamRegistrationRowsWithExecutor(executor, season, draftEntries, false);
   const counts = new Map<string, number>();
   for (const row of statusRows) {
     const category = teamReviewCategory(row);
@@ -497,15 +510,16 @@ export async function getTeamRegistrationProgress(season: TeamReviewSeason): Pro
   }
   const draftUserIds = [...new Set(projectedDrafts.flatMap((entry) => entry.members.map((member) => member.userId)))];
   const draftTeamIds = [...new Set(draftEntries.flatMap((entry) => entry.teamId ? [entry.teamId] : []))];
+  const legacyReadiness = season.teamRegistrationConfig?.qualificationPolicy?.version !== 2;
   const [registrationBlocks, rosterBlocks, activeMemberships] = await Promise.all([
-    draftUserIds.length > 0
-      ? loadActiveSanctionsInTx(db, { seasonId: season.id, subjectUserIds: draftUserIds, effect: "registration_block" })
+    legacyReadiness && draftUserIds.length > 0
+      ? loadActiveSanctionsInTx(executor, { seasonId: season.id, subjectUserIds: draftUserIds, effect: "registration_block" })
       : Promise.resolve(new Map()),
-    draftUserIds.length > 0
-      ? loadActiveSanctionsInTx(db, { seasonId: season.id, subjectUserIds: draftUserIds, effect: "roster_block" })
+    legacyReadiness && draftUserIds.length > 0
+      ? loadActiveSanctionsInTx(executor, { seasonId: season.id, subjectUserIds: draftUserIds, effect: "roster_block" })
       : Promise.resolve(new Map()),
-    draftTeamIds.length > 0 && draftUserIds.length > 0
-      ? db.select({ teamId: teamMemberships.teamId, userId: teamMemberships.userId })
+    legacyReadiness && draftTeamIds.length > 0 && draftUserIds.length > 0
+      ? executor.select({ teamId: teamMemberships.teamId, userId: teamMemberships.userId })
         .from(teamMemberships)
         .where(and(inArray(teamMemberships.teamId, draftTeamIds), inArray(teamMemberships.userId, draftUserIds), eq(teamMemberships.status, "active"), isNull(teamMemberships.endedAt)))
       : Promise.resolve([]),
