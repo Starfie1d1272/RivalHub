@@ -103,10 +103,12 @@ export async function freezeQualificationRosterInTx(tx: TxDb, input: {
   }
   if (roster.snapshot?.version === 1 && roster.snapshot.rosterRevisionId === input.rosterRevisionId && roster.snapshot.entryId === input.entryId) return;
   if (roster?.snapshot) {
-    const [used] = await tx.select({ id: matchRosters.id }).from(matchRosters)
+    const used = await tx.select({ snapshot: matchRosters.eligibilitySnapshot, revision: matchRosters.sourceRosterRevisionId }).from(matchRosters)
       .innerJoin(matches, eq(matches.id, matchRosters.matchId))
-      .where(and(eq(matchRosters.entryId, input.entryId), isNotNull(matches.qualificationRunId))).limit(1);
-    if (used) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事名单资格快照已用于比赛，不能覆盖。 ");
+      .where(and(eq(matchRosters.entryId, input.entryId), isNotNull(matches.qualificationRunId)));
+    if (used.some((lineup) => !lineup.snapshot || !lineup.revision || lineup.snapshot.rosterRevisionId !== lineup.revision || lineup.snapshot.entryId !== input.entryId)) {
+      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事名单资格快照已用于比赛，不能覆盖。 ");
+    }
   }
   const snapshot = await buildRosterEligibilityInTx(tx, { ...input, policy });
   await tx.update(eventRosters).set({ eligibilitySnapshot: snapshot }).where(eq(eventRosters.id, input.eventRosterId));

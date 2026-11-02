@@ -147,7 +147,7 @@ export async function applyEventRosterMaterializationInTx(
     .where(eq(eventRosters.id, input.eventRosterId));
   const historicalMemberIds = new Set([
     ...referencedMembers.map((member) => member.id),
-    ...snapshots.flatMap(({ snapshot }) => snapshot?.members.map((member) => member.eventRosterMemberId) ?? []),
+    ...snapshots.flatMap(({ snapshot }) => snapshot?.version === 2 ? snapshot.members.map((member) => member.eventRosterMemberId) : []),
   ]);
   const historicalIds = currentMemberIds.filter((id) => historicalMemberIds.has(id));
   const disposableIds = currentMemberIds.filter((id) => !historicalMemberIds.has(id));
@@ -278,6 +278,27 @@ async function invalidateUnstartedLineupsInTx(tx: TxDb, input: {
         const source = parseMajorRunSnapshot(run.snapshot, run.stage).frozenEligibilitySnapshots?.find((item) => item.entryId === input.entryId);
         if (!source || (lineup.snapshot && !isDeepStrictEqual(lineup.snapshot, source))) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史阶段比赛资格快照与 StageRun 不一致。 ");
         snapshot = source;
+      }
+      if (match.qualificationRunId && snapshot?.version === 1) {
+        const [run] = await tx.select({ policy: competitionQualificationRuns.eligibilityPolicy }).from(competitionQualificationRuns)
+          .innerJoin(competitionQualificationEntrants, and(eq(competitionQualificationEntrants.runId, competitionQualificationRuns.id), eq(competitionQualificationEntrants.competitionEntryId, input.entryId)))
+          .where(and(eq(competitionQualificationRuns.id, match.qualificationRunId), eq(competitionQualificationRuns.seasonId, input.seasonId)));
+        const revision = lineup.snapshot ? lineup.revision : roster?.revision;
+        if (!revision || snapshot.entryId !== input.entryId || snapshot.rosterRevisionId !== revision ||
+            !run?.policy || run.policy.version !== 1 || !isDeepStrictEqual(snapshot.policy, run.policy)) {
+          throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史资格赛缺少可证明的旧版资格快照。 ");
+        }
+        const players = await tx.select({ id: matchRosterPlayers.eventRosterMemberId, userId: eventRosterMembers.userId, participantId: eventRosterMembers.participantId })
+          .from(matchRosterPlayers).innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
+          .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
+          .where(and(eq(matchRosterPlayers.rosterId, lineup.id), eq(eventRosters.entryId, input.entryId)));
+        const members = await tx.select({ userId: competitionEntryRosterMembers.userId, participantId: competitionEntryRosterMembers.participantId })
+          .from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision));
+        if (!players.length || players.some((player) => !members.some((member) => member.userId === player.userId && member.participantId === player.participantId))) {
+          throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史比赛成员不能证明对应名单版本。 ");
+        }
+        if (!lineup.snapshot) await tx.update(matchRosters).set({ eligibilitySnapshot: snapshot, sourceRosterRevisionId: revision }).where(eq(matchRosters.id, lineup.id));
+        continue;
       }
       if (!snapshot || snapshot.version !== 2 || !roster?.revision) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史比赛缺少可证明的新版资格快照。 ");
       if (match.qualificationRunId) {
