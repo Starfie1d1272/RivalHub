@@ -21,7 +21,6 @@ import { parseCSTInput } from "@/lib/utils/date";
 import { PLAYER_TYPE_LABELS } from "@/lib/seasons/presentation";
 import { rankValues, RANK_LABELS } from "@/lib/validators/registration";
 import { Button } from "@/components/ui/button";
-import { resolveQualificationPolicy } from "@/lib/seasons/compatibility";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Card } from "@/components/ui/card";
 import { InlineConfirm } from "@/components/rivalhub";
@@ -177,14 +176,6 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
   const isBuiltIn = template !== "custom";
   const title = mode === "create" ? "新建赛季" : "赛季设置";
   const slugNeedsManualInput = mode === "create" && Boolean(name.trim()) && !slug.trim();
-
-  const enableQualificationPolicy = () => setTeamConfig((current) => ({
-    ...current,
-    qualificationPolicy: resolveQualificationPolicy(current, affiliationRules, "roster"),
-  }));
-  const enablePolicyControl = registrationMode === "team" && !teamConfig.qualificationPolicy && (mode === "create" || initial?.status === "draft")
-    ? <div className="space-y-2"><Button type="button" variant="outline" size="sm" onClick={enableQualificationPolicy}>启用资格政策编辑</Button><p className="text-xs text-[var(--color-fg-dim)]">以当前赛事规则为起点，启用后可逐项调整。</p></div>
-    : null;
 
   function togglePlayerType(type: PlayerType) {
     setAllowedPlayerTypes((current) => {
@@ -600,7 +591,6 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           </section>
         )}
 
-        {enablePolicyControl}
         {registrationMode === "team" && template === "custom" && (
           <section className="space-y-4">
             <h2 className="font-semibold">队伍报名配置</h2>
@@ -758,7 +748,6 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
       </SettingsPanel>
 
       <SettingsPanel id="qualification" label="资格规则">
-        {enablePolicyControl}
         {registrationMode === "solo" && !isBuiltIn ? (
           <div className="space-y-5">
             <div className="space-y-3">
