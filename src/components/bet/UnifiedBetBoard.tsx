@@ -75,7 +75,7 @@ export function UnifiedBetBoard({ freeMatches, reliefModel, ...props }: Omit<Com
   }
   return <>
     {readError && <p role="status" className="mb-3 text-sm text-[var(--color-warn)]">预测状态更新失败，请刷新后查看。</p>}
-    <BetBoard {...props} mutationPendingAction={mutationPendingAction} initial={bet} refreshAction={async()=> (await refresh()).success} rankingRefreshAction={async sort => {
+    <BetBoard {...props} readError={readError} mutationPendingAction={mutationPendingAction} initial={bet} refreshAction={async()=> (await refresh()).success} rankingRefreshAction={async sort => {
       const result = await getFreePredictionRanking({ seasonId, sort });
       return result.success ? { success: true, data: freeRankingModel(result.data) } : result;
     }} relief={{ model: reliefModel, refreshAction: () => getBetRelief({ seasonId }), claimAction: async day => {

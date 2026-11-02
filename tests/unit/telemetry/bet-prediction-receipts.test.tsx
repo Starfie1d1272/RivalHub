@@ -8,7 +8,7 @@ import type { BetBoardDTO } from "@/lib/bet/types";
 import type { FreePredictionModel } from "@/components/bet/presentation-contract";
 const actions=vi.hoisted(()=>({mutate:vi.fn(),receipt:vi.fn()}));
 vi.mock("@/actions/bet",()=>({mutateBet:actions.mutate,getBetStakeReceipt:actions.receipt}));
-vi.mock("next/navigation",()=>({useRouter:()=>({push:vi.fn(),refresh:vi.fn()}),usePathname:()=>"/event/bet",useSearchParams:()=>new URLSearchParams()}));
+vi.mock("next/navigation",()=>({useRouter:()=>({push:vi.fn(),refresh:vi.fn()}),usePathname:()=>"/event/bet",useSearchParams:()=>new URLSearchParams(window.location.search)}));
 vi.mock("@/components/telemetry/ContentReady",()=>({ContentReady:()=>null}));
 vi.mock("sonner",()=>({toast:{error:vi.fn(),success:vi.fn()}}));
 import { BetBoard } from "@/components/bet/BetBoard";
