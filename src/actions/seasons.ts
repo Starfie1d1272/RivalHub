@@ -150,7 +150,7 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
       const decoded = decodeSeasonRules(locked);
       if (decoded.source === "policy_v2") {
         assertFormationRulesPublishable(decoded);
-        if (seasonRulesNeedCompetitiveContext(decoded) && !decoded.competitive.competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "资格政策要求竞技资料、段位门槛或外校实力限制，请先配置竞技平台。 ");
+        if ((seasonRulesNeedCompetitiveContext(decoded) || decoded.competition.seeding?.mode === "strength_recommendation") && !decoded.competitive.competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "资格规则或实力推荐种子需要竞技平台，请先完成配置。 ");
         assertAffiliationRequirementsFit(decoded.roster.affiliationRules, { maxTeamSize: decoded.roster.maxTeamSize, starterCount: decoded.lineup.starterCount });
         throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "新版资格政策尚未完成全部赛事流程接入，暂不能发布。 ");
       }
