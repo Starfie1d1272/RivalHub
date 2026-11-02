@@ -1,3 +1,4 @@
+import { reviewCompetitionEntryWorkflowInTx as reviewCompetitionEntryInTx } from "../../../src/lib/registration/review-entry";
 import { existsSync, watch, writeFileSync } from "node:fs";
 import { dirname, basename } from "node:path";
 import { loadSeasonWorkspaceOverview } from "@/lib/admin/season-workspace/overview";
@@ -11,7 +12,7 @@ import { selectMajorEntrantsAndSyncRostersInTx, lockMajorPrestartEntrantsInTx } 
 import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/competition-entries/roster-change";
 import { rollbackMajorPrestartEntrantsInTx } from "../../../src/lib/major/prestart-rollback";
 import { loadMajorPrestartPageData } from "../../../src/lib/admin/season-workspace/major-prestart";
-import { reviewCompetitionEntryInTx, submitCompetitionEntryInTx } from "../../../src/lib/competition-entries/commands";
+import { submitCompetitionEntryInTx } from "../../../src/lib/competition-entries/commands";
 import { getTeamRegistrationProgress, getTeamRegistrationReview, normalizeTeamRegistrationReviewQuery } from "../../../src/lib/registrations/admin-review";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
 import { checkStandardMajorCapabilities } from "../../../src/lib/competition/definition";

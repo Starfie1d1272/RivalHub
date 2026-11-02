@@ -1,3 +1,4 @@
+import { reviewCompetitionEntryWorkflowInTx as reviewCompetitionEntryInTx } from "../../../src/lib/registration/review-entry";
 import { loadTestMatchEntries, createTestMatchInTx } from "@/lib/matches/test-matches";
 import { concludeUnassociatedMatchInTx } from "@/lib/matches/unassociated-result";
 import { assertCompetitionMatch, requireCompetitionMatch } from "@/lib/matches/competition-context";
@@ -22,7 +23,7 @@ import {
 import { evaluateExternalStrengthRule } from "../../../src/lib/major/player-strength";
 import { loadParticipantQualificationFacts, toPlayerStrengthInput } from "../../../src/lib/qualification/service";
 import { saveCompetitionQualificationDraftInTx } from "../../../src/lib/competition-qualification/draft";
-import { reviewCompetitionEntryInTx, submitCompetitionEntryInTx } from "../../../src/lib/competition-entries/commands";
+import { submitCompetitionEntryInTx } from "../../../src/lib/competition-entries/commands";
 import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/competition-entries/roster-change";
 import { confirmMatchRosterInTx, persistMatchRosterInTx, getStartingLineupPreflightInTx } from "../../../src/lib/match-rosters/service";
 import { applyMatchStatusTransitionInTx } from "../../../src/lib/matches/lifecycle";

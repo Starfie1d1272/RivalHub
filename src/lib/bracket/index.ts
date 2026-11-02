@@ -237,10 +237,6 @@ function providerType(type: StageConfig["type"]): "double_elimination" | "single
   throw new Error("Swiss 必须由 src/lib/major/swiss.ts 拥有，不能经过通用 bracket adapter");
 }
 
-function stableSeeding(entries: CompetitionEntry[]): Array<{ name: string; rivalhubEntryId: string }> {
-  return entries.map((entry) => ({ name: entry.name, rivalhubEntryId: entry.id }));
-}
-
 /** Create exactly one provider stage for one logical StageConfig. */
 export async function createStageBracket(
   config: Pick<StageConfig, "key" | "name" | "type">,
@@ -248,12 +244,22 @@ export async function createStageBracket(
 ): Promise<{ data: Database; resolvedMatches: ResolvedBracketMatch[] }> {
   const memoryDb = new InMemoryDatabase();
   const manager = new BracketsManager(memoryDb);
+  // Name-based seeding resolves participants by display name, which is not unique.
+  // Register each entry first and seed using the provider's participant IDs.
+  const seedingIds: number[] = [];
+  for (const entry of entries) {
+    seedingIds.push(await memoryDb.insert("participant", {
+      tournament_id: 0,
+      name: entry.name,
+      rivalhubEntryId: entry.id,
+    }));
+  }
   await manager.create.stage({
     tournamentId: 0,
     // This name is presentation-only. The row is loaded by config.key.
     name: config.name,
     type: providerType(config.type),
-    seeding: stableSeeding(entries),
+    seedingIds,
     settings: config.type === "round_robin"
       ? { groupCount: 1, roundRobinMode: "simple" }
       : { grandFinal: "simple", seedOrdering: ["inner_outer"] },

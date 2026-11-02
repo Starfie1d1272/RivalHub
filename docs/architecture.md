@@ -131,7 +131,7 @@ Prediction mutations serialize by canonical user → season lifecycle guard → 
 
 The public Prediction/Pick’Em projection excludes legacy financial fields and does not compute a preview simulation that its transport discards. Simulation remains the client interaction model; official results alone drive windows and awards. Tasks read only the viewer, while the achievement leaderboard reads the full submitted population before top100 plus the viewer's own rank; others' drafts, Qualification display context and unused score payloads are excluded from summary reads. Latest judgement and revision count retain correction history. The read snapshot captures database time; browser clocks remain presentation only. Prediction render failures use the telemetry owner's private fingerprint projection and an explicit retry boundary; primary-ready is recorded beside actual hydrated BET/Pick’Em content, not fallbacks.
 
-BET 排行榜由 `src/lib/free-predictions/ranking.ts` 在同一个 read-only repeatable-read 事务载入一次全赛事投票及金融人口，页面 header 复用该快照的当前 wallet/rank。事务后生成收益、命中数和准确率投影，各自复制并赋值 rank/group，保留完整人口资格门槛、并列及筛选后排名语义；单榜 action 复用该 owner。
+BET 排行榜由 `src/lib/bet/free-ranking.ts` 在同一个 read-only repeatable-read 事务载入一次全赛事投票及金融人口，页面 header 复用该快照的当前 wallet/rank。事务后生成收益、命中数和准确率投影，各自复制并赋值 rank/group，保留完整人口资格门槛、并列及筛选后排名语义；单榜 action 复用该 owner。
 
 ## Security and operations
 
