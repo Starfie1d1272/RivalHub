@@ -15,6 +15,6 @@ export async function persistCompletedMatchInTx(tx: TxDb, input: {
     validateSeriesAgainstMaps(input.match.format, input.scoreA, input.scoreB, facts);
   }
   const conclusion = concludeMatchExecution(input.match, { kind: "recorded", scoreA: input.scoreA, scoreB: input.scoreB }, input.completedAt);
-  if (!input.preserveMapPlans) await tx.delete(matchMaps).where(and(eq(matchMaps.matchId, input.match.id), isNull(matchMaps.scoreA), isNull(matchMaps.scoreB)));
+  if (!input.preserveMapPlans) await tx.delete(matchMaps).where(and(eq(matchMaps.matchId, input.match.id), isNull(matchMaps.scoreA), isNull(matchMaps.scoreB), isNull(matchMaps.startedAt), isNull(matchMaps.completedAt)));
   await tx.update(matches).set({ ...(input.match.seasonId === null || input.match.testConfig ? { resultDisposition: "recorded" as const } : {}), status: conclusion.status, ...(input.isForfeit ? { isForfeit: true } : {}), scoreA: conclusion.scoreA, scoreB: conclusion.scoreB, completedAt: conclusion.completedAt, updatedAt: new Date() }).where(eq(matches.id, input.match.id));
 }
