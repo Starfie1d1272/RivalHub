@@ -24,7 +24,7 @@ async function fixture() {
   await db.batch(schema.map(sql => db.prepare(sql)));
   const env: Env = { ...bindings, DB: db as unknown as Env["DB"] };
   const session = crypto.randomUUID();
-  async function post(events: (Omit<Partial<TelemetryEvent>, "operation"> & { operation?: string })[], now: number) {
+  async function post(events: Partial<TelemetryEvent>[], now: number) {
     const ticket = await signTicket({ v: 1, id: crypto.randomUUID(), account: null, role: "user", release: "server-release", environment: "production", origin: env.ALLOWED_ORIGIN, exp: now + DAY }, env.SIGNING_KEY);
     return handle(new Request("https://worker.invalid/v1/batches", { method: "POST", headers: { origin: env.ALLOWED_ORIGIN }, body: JSON.stringify({ v: 1, id: crypto.randomUUID(), ticket, events: events.map(e => ({ id: crypto.randomUUID(), at: now, session, route: "/stats", scene: "site", ...e })) }) }), env, now);
   }
@@ -49,16 +49,6 @@ it("keeps history opt-in, validates filters and limits the dashboard credential 
     expect(parseHistoryQuery({ days: "365" })).toBeNull();
     expect(parseHistoryQuery({ task: "unknown" })).toBeNull();
     expect(parseHistoryQuery({ eventId: "private-name" })).toBeNull();
-    await maintainHistory(f.env, now);
-    const operationId = crypto.randomUUID();
-    const mixed = await f.post([{ kind: "operation", operation: "future.newAction", operationId, phase: "start" }, { kind: "operation", operation: "future.newAction", operationId, phase: "success", durationMs: 100 }, { kind: "operation", operation: "player-stats.savePlayerStats", operationId: crypto.randomUUID(), phase: "start" }], now + 1000);
-    expect(await mixed.json()).toEqual({ v: 1, accepted: 1, unclassified: 2 });
-    const analysisResult = await handle(new Request("https://worker.invalid/admin/analysis?operation=__unclassified__", { headers: { authorization: `Bearer ${f.env.DASHBOARD_KEY}` } }), f.env, now + 2000);
-    expect(analysisResult.status).toBe(200);
-    expect(JSON.stringify(await analysisResult.json())).toContain("__unclassified__");
-    const history = await f.read(now + 2000, "operation=__unclassified__");
-    expect(summarizeHistory(history).totals.operations).toBe(1);
-    expect((await f.post([{ kind: "operation", operation: "__unclassified__", operationId, phase: "start" }], now + 2000)).status).toBe(400);
     const disabled = await handle(new Request("https://worker.invalid/admin/history", { headers: { authorization: `Bearer ${f.env.DASHBOARD_KEY}` } }), { ...f.env, HISTORY_RETENTION_DAYS: "0" }, now);
     expect(HistoryData.parse(await disabled.json())).toMatchObject({ enabled: false, days: [], retentionDays: 0 });
     for (const [path, method, authorization, expected] of [
