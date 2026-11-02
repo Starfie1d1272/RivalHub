@@ -262,14 +262,15 @@ export async function loadMatchEligibilityContextInTx(
     let approvedHomeRequired = false;
     let frozenRestrictionOverrides: readonly FrozenRestrictionOverrideSnapshot[] = [];
     const [season] = await tx
-      .select({ starterCount: seasons.starterCount, competitionTemplate: seasons.competitionTemplate, teamRegistrationConfig: seasons.teamRegistrationConfig })
+      .select({ starterCount: seasons.starterCount, competitionTemplate: seasons.competitionTemplate })
       .from(seasons)
       .where(eq(seasons.id, match.seasonId));
     if (!season) throw new AppError(ErrorCode.INTERNAL_ERROR, "比赛所属赛季不存在。");
     let policy: MatchLineupPolicy;
     if (match.ownership !== "major_stage" && !match.qualificationRunId) {
-      const storedPolicy = season.teamRegistrationConfig.qualificationPolicy;
-      if (storedPolicy?.version === 2) {
+      const [configuration] = await tx.select({ teamRegistrationConfig: seasons.teamRegistrationConfig }).from(seasons).where(eq(seasons.id, match.seasonId));
+      if (!configuration) throw new AppError(ErrorCode.INTERNAL_ERROR, "比赛所属赛季不存在。");
+      if (configuration.teamRegistrationConfig.qualificationPolicy?.version === 2) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "新版资格规则缺少可用的冻结名单快照，无法校验本场阵容。");
       }
       policy = resolveMatchLineupPolicy({ ownership: match.ownership, seasonStarterCount: season.starterCount });
@@ -285,12 +286,10 @@ export async function loadMatchEligibilityContextInTx(
       const [stageRun] = await tx
         .select({ ruleSnapshot: majorStageRuns.ruleSnapshot, stageKey: majorStageRuns.stageKey })
         .from(majorStageRuns)
-        .where(and(
-          eq(majorStageRuns.id, match.majorStageRunId),
-          eq(majorStageRuns.seasonId, match.seasonId),
-          eq(majorStageRuns.stageKey, match.stage),
-        ));
-      if (!stageRun) {
+        .where(eq(majorStageRuns.id, match.majorStageRunId));
+      const [scopedRun] = await tx.select({ id: majorStageRuns.id }).from(majorStageRuns)
+        .where(and(eq(majorStageRuns.id, match.majorStageRunId), eq(majorStageRuns.seasonId, match.seasonId), eq(majorStageRuns.stageKey, match.stage)));
+      if (!stageRun || !scopedRun) {
         throw new AppError(ErrorCode.INTERNAL_ERROR, "托管比赛缺少对应的 StageRun。");
       }
       // Parse once before every frozen consumer; never use mutable season rules.
@@ -412,6 +411,7 @@ export async function getStartingLineupPreflightInTx(
   tx: TxDb,
   args: { match: Match; entryId: string; starterIds: readonly string[]; substituteIds?: readonly string[] },
 ): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number> }> {
+  return withDbTrafficSource("match.lineup.read", async () => {
   if (args.match.ownership === "major_stage") {
     if (args.entryId !== args.match.entryAId && args.entryId !== args.match.entryBId || !args.match.majorStageRunId) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛缺少对应的参赛队或阶段。");
@@ -517,6 +517,7 @@ export async function getStartingLineupPreflightInTx(
     }
   }
   return { valid: blockers.length === 0, blockers: [...new Set(blockers)], affiliatedStarterCounts: result.affiliatedStarterCounts };
+  });
 }
 
 function loadPersistedPlayers(
