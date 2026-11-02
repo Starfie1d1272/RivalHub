@@ -10,6 +10,8 @@ import { createClient } from "@supabase/supabase-js";
 import { Pool } from "pg";
 import {
   assertBackupClass,
+  assertInstanceBackupEnvironment,
+  assertIsolatedInstanceBackupEnvironment,
   assertProductionBackupEnvironment,
   PRODUCTION_PROJECT_REF,
 } from "./environment";
@@ -25,7 +27,7 @@ import {
   snapshotStorage,
 } from "./storage";
 import { readManagedStorageReferences, type ManagedStorageReference } from "./storage-policy";
-import { resolveProductionSourceIdentity } from "./source";
+import { assertRecoverySourceUnchanged, resolveInstanceSourceIdentity, resolveProductionSourceIdentity } from "./source";
 import {
   assertActiveChainPrefix,
   readExpectedMigrations,
@@ -37,7 +39,12 @@ const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 async function main(): Promise<void> {
   const backupClass = assertBackupClass(process.argv[2] ?? process.env.RIVALHUB_BACKUP_CLASS);
-  const environment = assertProductionBackupEnvironment(process.env);
+  const sourceMode = process.env.RIVALHUB_BACKUP_SOURCE ?? "production";
+  if (sourceMode !== "production" && sourceMode !== "instance" && sourceMode !== "isolated-instance") throw new Error("Unknown backup source.");
+  const instance = sourceMode === "instance" ? assertInstanceBackupEnvironment(process.env)
+    : sourceMode === "isolated-instance" ? assertIsolatedInstanceBackupEnvironment(process.env) : undefined;
+  const environment = instance ?? assertProductionBackupEnvironment(process.env);
+  const readSource = () => instance ? resolveInstanceSourceIdentity(instance.appOrigin, instance.supabaseUrl, projectRoot, fetch, sourceMode === "isolated-instance") : resolveProductionSourceIdentity();
   const runId = randomUUID();
   const createdAt = new Date().toISOString();
   const tempRoot = mkdtempSync(join(tmpdir(), `rivalhub-recovery-${runId}-`));
@@ -47,7 +54,7 @@ async function main(): Promise<void> {
   try {
     const supabaseCliVersion = readSupabaseCliVersion();
     const migration = await readProductionMigrationIdentity(environment.databaseUrl);
-    const source = await resolveProductionSourceIdentity();
+    const source = await readSource();
     const activeStorageReferencesBeforeSnapshot = await readManagedStorageReferencesFromProduction(environment.databaseUrl);
     const dbDumpStart = performance.now();
     const databaseRoot = await createDatabaseSnapshot(environment.databaseUrl, stagingRoot);
@@ -67,12 +74,21 @@ async function main(): Promise<void> {
     assertActiveStorageReferencesStable(activeStorageReferencesBeforeSnapshot, activeStorageReferencesAfterSnapshot);
     assertActiveStorageReferencesCaptured(activeStorageReferencesBeforeSnapshot, storage.records);
 
+    // A snapshot is not a migration mutex. Re-read both independently sourced
+    // identities before publishing so a changed release/chain fails closed.
+    const migrationAfter = await readProductionMigrationIdentity(environment.databaseUrl);
+    const sourceAfter = await readSource();
+    assertRecoverySourceUnchanged(
+      { ...source, databaseMigrationTerminal: migration.ledger },
+      { ...sourceAfter, databaseMigrationTerminal: migrationAfter.ledger },
+    );
+
     const manifest: RecoveryManifest = {
       formatVersion: RECOVERY_FORMAT_VERSION,
       runId,
       createdAt,
-      sourceEnvironment: "production",
-      sourceProjectRef: PRODUCTION_PROJECT_REF,
+      sourceEnvironment: sourceMode,
+      sourceProjectRef: instance?.projectRef ?? PRODUCTION_PROJECT_REF,
       postgresVersion: migration.postgresVersion,
       supabaseCliVersion,
       producer: {
@@ -114,7 +130,7 @@ async function main(): Promise<void> {
     });
 
     console.log(
-      `Production backup complete: class=${backupClass}, run=${runId}, artifactBytes=${artifact.artifactBytes}, storageObjects=${storage.objectCount}, storageBytes=${storage.totalBytes}, artifactSha256=${artifact.artifactSha256}.`,
+      `Recovery backup complete: class=${backupClass}, run=${runId}, artifactBytes=${artifact.artifactBytes}, storageObjects=${storage.objectCount}, storageBytes=${storage.totalBytes}, artifactSha256=${artifact.artifactSha256}.`,
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });

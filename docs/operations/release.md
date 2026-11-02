@@ -48,6 +48,8 @@ BET 金融 subject 使用 reader-first upgrade。Release Plan 在任何 mutation
 
 Veto 申诉生命周期独立使用 `src/lib/matches/veto-room/lifecycle-contract.json` 的 reader/publisher 能力，缺失声明视为 0/0。reader1 必须同时理解 `closed` 说明和实际开赛后的恢复/裁定边界；publisher0 保留历史读取与安全保护，但不写新的 `closed`。publisher1 只有在冻结的真实 previous Production reader1 已上线后才可发布，可与下一阶段 BET 能力一起切换，不能由其它能力授权。`scripts/release/capability-contract.ts` 是这些 immutable Git contract 的共同读取/门禁 owner，Release Plan 与 routing 复用它。Routing 在 promotion 前、每次 mutation/retry 及补偿 rollback 前重新验证同一 frozen previous/candidate commit；contract 不兼容或无法读取时 fail closed。若候选可能已被 promote，补偿能力验证失败则不发送 rollback，保留 `capability_incompatible`、目标身份及可能副作用的诊断状态并要求人工介入；不得继续 scheduler/publish，也不得把口头“禁止回滚”作为此门禁的替代。
 
+资格政策和人工种子快照使用 `src/lib/competition/release-contract.json` 中独立的 `qualificationPolicyV1`、`manualSeedSnapshotV1` 能力，缺失声明视为 0/0。资格 reader1 必须在报名、审核、名单物化和预检中保留并执行 v1 政策，且旧编辑不能覆盖该事实；人工种子 reader1 必须识别并使用 `seedMode=manual`、空 `competitiveContext` 的冻结快照。当前 3.0 包含两个 writer，声明各自 publisher1；仅声明数字不证明旧应用兼容。发布前必须先将真实兼容 reader 作为 publisher0 的独立版本上线，并以实际 previous identity 验证，再发布对应 writer；回滚同样必须经过共同能力门禁。资产或其他能力不能代替这些证明。
+
 公开资产 identity publisher 的 release capability 门禁读取冻结的 previous Production identity。此前未声明合同的版本仅当包含已审 reader commit `96d04bba33d8e43e9f2b7e16e858628fb519aa0d` 时视为 reader 1；candidate writer 1 只有在该 reader 已实际独立上线后才可发布，且回退目标必须能读取新引用。普通实例的升级与恢复同样要求兼容 reader；未经验证的旧安装器升级路径不应使用此迁移。
 
 因此，application-only 或纯 release metadata 发布不会启动 PostgreSQL 17、Local Supabase、Storage snapshot、生产 migration 或备份；普通 source/migration 发布 也不会触发 full checkpoint，除非发布过程自身具备会不可逆修改既有 Production Storage object 的 release-time capability。破坏性/不可逆数据库变更要求 DB-only checkpoint。

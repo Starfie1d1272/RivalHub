@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
 import { resolve } from "node:path";
+import { assertLocalHttpUrl } from "../local-environment";
 import { redactText } from "../../../src/lib/observability/redact";
 import type { RecoveryArtifactClass, R2ObjectEnvironment } from "./environment";
 import { sha256File } from "./manifest";
@@ -33,7 +34,8 @@ export interface RecoveryR2Client {
 }
 
 export function createR2Client(config: R2ObjectEnvironment): RecoveryR2Client {
-  const endpoint = `https://${config.accountId}.r2.cloudflarestorage.com`;
+  const endpoint = config.localEndpoint ? assertLocalHttpUrl(config.localEndpoint, "RIVALHUB_R2_LOCAL_ENDPOINT") : `https://${config.accountId}.r2.cloudflarestorage.com`;
+  if (config.localEndpoint && (new URL(endpoint).origin !== endpoint || new URL(endpoint).username || new URL(endpoint).password)) throw new Error("Local object storage endpoint must be an origin.");
   const environment: NodeJS.ProcessEnv = {
     ...process.env,
     AWS_ACCESS_KEY_ID: config.accessKeyId,
@@ -44,6 +46,11 @@ export function createR2Client(config: R2ObjectEnvironment): RecoveryR2Client {
   delete environment.AWS_PROFILE;
   delete environment.AWS_SESSION_TOKEN;
   delete environment.AWS_SECURITY_TOKEN;
+  if (config.localEndpoint) {
+    for (const name of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]) delete environment[name];
+    environment.NO_PROXY = "localhost,127.0.0.1,::1";
+    environment.no_proxy = environment.NO_PROXY;
+  }
 
   return {
     endpoint,
@@ -117,9 +124,12 @@ export function buildRecoveryR2Keys(
   backupClass: RecoveryArtifactClass,
   runId: string,
   createdAt: string,
+  source?: { environment: "production" | "instance" | "isolated-instance"; projectRef: string },
 ): RecoveryR2Keys {
   const date = createdAt.slice(0, 10);
-  const prefix = `production/${backupClass}/${date}/${runId}`;
+  if (source && source.environment !== "production" && !/^[a-z]{20}$/.test(source.projectRef)) throw new Error("Invalid instance recovery project identity.");
+  const owner = source?.environment === "instance" ? `instance/${source.projectRef}` : source?.environment === "isolated-instance" ? `isolated/${source.projectRef}` : "production";
+  const prefix = `${owner}/${backupClass}/${date}/${runId}`;
   return {
     artifact: `${prefix}.tar.gz.age`,
     manifest: `${prefix}.manifest.json`,

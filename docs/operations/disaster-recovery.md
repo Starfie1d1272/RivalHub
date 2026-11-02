@@ -13,7 +13,7 @@ RivalHub 使用 Recovery format 2 的 typed recovery artifact：full artifact �
 - **RPO**：正常情况下日常定时备份保障 RPO ≤ 24h；关键比赛日或高价值操作前后，可按需手动触发 manual backup。Release 不再机械触发 full backup：只有 Release Plan 识别到 release-time Storage mutation capability（发布过程将不可逆修改既有 Production Storage object）时才创建 full checkpoint，识别到不可逆数据库变更时创建 DB-only checkpoint。
 - **RTO**：在第一次真实 production snapshot → isolated restore drill 完成前，achievable RTO 保持为 `unverified`，待首次演练测定后记录真实基线。
 
-数据库 dump 与 Storage inventory/download 是顺序操作，不是跨系统原子快照；`createdAt` 是 run identity，不代表严格 point-in-time。backup 在 database dump 前由 [`storage-policy.ts`](../../scripts/db/recovery/storage-policy.ts) 读取 managed references，Storage snapshot 完成后再次读取；两次 reference set 必须 exact equal，且第一组 references 必须全部出现在同一份 Storage inventory 中，否则整个 run fail closed。
+数据库 dump 与 Storage inventory/download 是顺序操作，不是跨系统原子快照；`createdAt` 是 run identity，不代表严格 point-in-time。backup 在 database dump 前由 [`storage-policy.ts`](../../scripts/db/recovery/storage-policy.ts) 读取 managed references，Storage snapshot 完成后再次读取；两次 reference set 必须 exact equal，且第一组 references 必须全部出现在同一份 Storage inventory 中，否则整个 run fail closed。 full backup 和 DB-only checkpoint 还会在采集前后重新读取部署 release 与完整 active ledger 所对应的终点；身份变化则拒绝发布 artifact。这是前后证据检查，不是数据库迁移互斥锁，也不提供跨系统原子快照。
 
 ## Owner 与 artifact
 
