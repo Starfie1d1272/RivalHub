@@ -28,7 +28,8 @@ import type { CompetitionMatch } from "@/lib/matches/competition-context";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import type { CompetitiveProfileConfig, InstitutionAffiliationRule } from "@/types/season";
-import { evaluateStartingLineup, type LineupMemberFact } from "./lineup";
+import { evaluateLineup, evaluateStartingLineup, type LineupMemberFact } from "./lineup";
+import { decodeFrozenLineupEligibility } from "./frozen-eligibility";
 import { resolveMatchLineupPolicy, type MatchLineupPolicy } from "./policy";
 
 type Match = CompetitionMatch<DbMatch>;
@@ -406,6 +407,30 @@ export async function getStartingLineupPreflightInTx(
   tx: TxDb,
   args: { match: Match; entryId: string; starterIds: readonly string[]; substituteIds?: readonly string[] },
 ): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number> }> {
+  if (args.match.ownership !== "major_stage" && !args.match.qualificationRunId && !args.match.testConfig) {
+    if (args.entryId !== args.match.entryAId && args.entryId !== args.match.entryBId) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "参赛队伍不属于本场比赛。");
+    }
+    const [roster] = await tx.select({ id: eventRosters.id, status: eventRosters.status, revisionId: eventRosters.sourceRosterRevisionId, snapshot: eventRosters.eligibilitySnapshot })
+      .from(eventRosters).innerJoin(competitionEntries, eq(competitionEntries.id, eventRosters.entryId))
+      .where(and(eq(eventRosters.entryId, args.entryId), eq(competitionEntries.competitionId, args.match.seasonId)));
+    if (roster?.snapshot?.version === 2) {
+      if (roster.status !== "frozen" || !roster.revisionId) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事名单尚未冻结。");
+      const frozen = decodeFrozenLineupEligibility(roster.snapshot, { seasonId: args.match.seasonId, entryId: args.entryId, rosterRevisionId: roster.revisionId });
+      const current = await tx.select({ id: eventRosterMembers.id, userId: eventRosterMembers.userId }).from(eventRosterMembers)
+        .where(and(eq(eventRosterMembers.eventRosterId, roster.id), eq(eventRosterMembers.isCurrent, true)));
+      if (current.length !== frozen.membersById.size || current.some((member) => frozen.membersById.get(member.id)?.userId !== member.userId)) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "冻结资格快照与赛事名单成员不一致。");
+      }
+      const bans = await loadActiveSanctionsInTx(tx, { seasonId: args.match.seasonId, effect: "match_participation_block", subjectUserIds: current.map((member) => member.userId) });
+      const proposed = { entryId: args.entryId, starterMemberIds: args.starterIds, substituteMemberIds: args.substituteIds ?? [] };
+      const result = evaluateLineup(proposed, frozen, new Set(bans.keys()));
+      const counts = evaluateStartingLineup({ starterIds: proposed.starterMemberIds, substituteIds: proposed.substituteMemberIds,
+        policy: { starterCount: frozen.starterCount, maxSubstitutes: frozen.maxSubstitutes }, memberFacts: frozen.membersById,
+        affiliationRules: frozen.affiliationRules, educationRequired: frozen.educationRequired }).affiliatedStarterCounts;
+      return { valid: result.state === "ready", blockers: result.findings.map((finding) => finding.message), affiliatedStarterCounts: counts };
+    }
+  }
   const context = await loadMatchEligibilityContextInTx(tx, args.match, args.entryId);
   const result = evaluateStartingLineup({
     starterIds: args.starterIds,

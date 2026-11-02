@@ -3,7 +3,6 @@ import "server-only";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { competitionQualificationRuns, eventRosterMembers, eventRosters, matchRosters, matches, type Season } from "@/db/schema";
-import { capabilitiesFromSeason } from "@/lib/competition/definition";
 import { loadActiveRestrictionOverridesInTx } from "@/lib/competition-entries/restriction-overrides";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { freezeAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
@@ -11,7 +10,7 @@ import type { PlayerStrengthInput } from "@/lib/major/player-strength";
 import type { FrozenRestrictionOverrideSnapshot } from "@/lib/major/run-snapshot";
 import type { ParticipantQualificationFacts } from "@/lib/qualification/facts";
 import { loadParticipantQualificationFacts, resolveCompetitiveContext, toPlayerStrengthInput } from "@/lib/qualification/service";
-import { resolveQualificationPolicy } from "@/lib/seasons/compatibility";
+import { normalizeTeamRegistrationConfig, resolveQualificationPolicy } from "@/lib/seasons/compatibility";
 import type { CompetitiveProfileConfig, InstitutionAffiliationRule, QualificationPolicyV1 } from "@/types/season";
 
 export interface QualificationEligibilityPolicy {
@@ -34,14 +33,13 @@ export interface QualificationRosterEligibility {
 }
 
 export async function freezeQualificationPolicy(season: Season): Promise<QualificationEligibilityPolicy> {
-  const storedPolicy = (season.teamRegistrationConfig as { qualificationPolicy?: { version?: number } } | null)?.qualificationPolicy;
-  if (storedPolicy?.version === 2) throw new AppError(ErrorCode.VALIDATION_FAILED, "本赛事使用新版资格规则，尚不能用旧版快照锁定。");
-  const capabilities = capabilitiesFromSeason(season);
-  const definition = capabilities.teamRegistrationConfig.qualificationPolicy;
+  if (season.teamRegistrationConfig.qualificationPolicy?.version === 2) throw new AppError(ErrorCode.VALIDATION_FAILED, "本赛事使用新版资格规则，尚不能用旧版快照锁定。");
+  const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
+  const definition = config.qualificationPolicy;
   const resolved = resolveQualificationPolicy(season.teamRegistrationConfig, season.affiliationRules, "roster");
-  const configured = definition ? (resolved.competitiveProfileRequired || resolved.externalStrengthGap.enabled ? resolved.competitiveProfile : null) : capabilities.teamRegistrationConfig.competitiveProfile;
+  const configured = definition ? (resolved.competitiveProfileRequired || resolved.externalStrengthGap.enabled ? resolved.competitiveProfile : null) : config.competitiveProfile;
   const competitiveProfile = configured ? await resolveCompetitiveContext(configured) : null;
-  if ((definition ? resolved.competitiveProfileRequired || resolved.externalStrengthGap.enabled : capabilities.teamRegistrationConfig.requireCompetitiveProfile) && !competitiveProfile) {
+  if ((definition ? resolved.competitiveProfileRequired || resolved.externalStrengthGap.enabled : config.requireCompetitiveProfile) && !competitiveProfile) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "本届资格赛缺少有效竞技规则，不能锁定配置。");
   }
   return {
