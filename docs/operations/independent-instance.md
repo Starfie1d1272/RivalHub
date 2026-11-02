@@ -1,6 +1,6 @@
 # 独立实例安装（F1）
 
-本入口面向一个组织、一台 Linux x64 主机、一个 Node 进程和一个全新 Hosted Supabase 项目。它不接管现有项目或官方 Production/Preview；完整自托管 Supabase 尚未验收。安装不会创建账号、密钥、DNS、证书或 Supabase 项目。操作员需要有目标项目的管理权限，并自行保管凭据。切换应用不回滚数据库；升级前应先评估迁移兼容性并准备该实例可恢复的备份。
+本入口面向一个组织、一台 Linux x64 主机、一个 Node 进程和一个全新 Hosted Supabase 项目。它不接管现有项目或官方 Production/Preview；安装器当前只接受 Hosted Supabase 项目域名与项目密钥；完整自托管 Supabase 不受当前安装路径支持，也未验收。安装不会创建账号、密钥、DNS、证书或 Supabase 项目。操作员需要有目标项目的管理权限，并自行保管凭据。切换应用不回滚数据库；升级前应先评估迁移兼容性并准备该实例可恢复的备份。
 
 ## 准备
 
@@ -86,7 +86,7 @@ RIVALHUB_INSTANCE_WRITE=yes pnpm exec tsx scripts/instance/provision.ts schedule
 pnpm exec tsx scripts/instance/provision.ts verify-scheduler
 ```
 
-`scheduler` 使用同一现有 job registry、Vault 命名与 HTTP dispatch；`verify-scheduler` 触发实际 dispatch，需要可访问的应用和匹配的 `CRON_SECRET`。这些工具不配置 Supabase 内部服务。已有实例通过迁移入口先完成原不可变链、再核对物理合同并保留原账本证据后接入 v3；不要对其使用首次安装入口。候选终点仍待统一合流确认。
+`scheduler` 使用同一现有 job registry、Vault 命名与 HTTP dispatch；`verify-scheduler` 触发实际 dispatch，需要可访问的应用和匹配的 `CRON_SECRET`。这些工具不配置 Supabase 内部服务。已有实例通过迁移入口先完成原不可变链、再核对物理合同并保留原账本证据后接入 v3；不要对其使用首次安装入口。当前 active baseline 身份与历史证据见 [baseline proof](../../drizzle/baseline-candidate/PROOF.md)。
 
 ## 验收边界
 

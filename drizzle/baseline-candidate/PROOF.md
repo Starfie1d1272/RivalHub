@@ -1,4 +1,16 @@
-# F2 isolated baseline candidate — NOT FROZEN
+# F2 baseline evidence
+
+## Current active bytes (d7a25467)
+
+The active file is `drizzle/migrations/0000_v3_baseline.sql`, not the earlier
+review artifact named below. Its SHA-256 is
+`c9f9bafc7b3bc0525b97c0ff06cae1da339ab1410903553f74b7ba9d119188e1`;
+`baseline-identity.json` records the same hash. The adjacent legacy ledger
+contains 113 entries and `legacy-contract.json` hashes to
+`236cda0feb092ed9f05e052df063eddfadd72c5ec330b531a5805cda12917d1a`,
+matching the identity. These byte checks alone do not replay or validate the
+current baseline. The following sections preserve the earlier proof and its
+limitations; the earlier `387c...` replay is not evidence for these bytes.
 
 This document records the earlier proof artifacts, not a validation of the
 adjacent `0000_v3_candidate.sql`: that file subsequently normalizes synthetic
@@ -41,7 +53,7 @@ Source: Git commit `ec920fc4118cddbc998053a15ebdc91d9dc09bcf` (#1354, includes #
 - `f2-baseline-proof-cli.sql`: unmodified official CLI schema-only output; SHA-256 `634e018c47988b66ffd32f734b96735582a173a07d4eb49c707bf069c6404c11`.
 - `f2-baseline-proof-supplement.sql`: explicit 127-table grant correction, existing 0103 application-owned realtime policy, and three bucket contracts; SHA-256 `b32d1e6c83ac899515687a3f0183a4144c20183b1f7e3ee4418e52779425dd76`.
 
-The sample SQL is for **fresh, provider-initialized isolated databases only**; it must not be executed against existing or production data. No v3 journal, ledger adoption, publication, release, or freeze is included.
+The sample SQL is for **fresh, provider-initialized isolated databases only**; it must not be executed against existing or production data. At the time of that extraction, no v3 journal, ledger adoption, publication, release, or freeze was included.
 
 ## Exact extraction and composition
 
@@ -71,6 +83,6 @@ Initial raw CLI schema replay without the supplement was NOT equivalent: pg_cron
 
 - The public CLI dump includes `CREATE SCHEMA IF NOT EXISTS public` and `ALTER SCHEMA public OWNER TO pg_database_owner`; behavior/permission on Hosted is unverified. The local proof used provider initialization and normal local role, not an escalated Hosted role.
 - The five-table dump contains generated synthetic UUIDs and timestamps. They are not production data, but final design must choose stable identity and `now()`/approval-time semantics deliberately rather than claiming reproducible byte generation from another replay.
-- No source data, frozen history, unknown ledger rejection, idempotent adopt, DB-level migration mutex, v3 lineage, backup/restore or actual Hosted/systemd equivalence is established here. The final terminal must be rechecked against the actually merged branch before generating a new active baseline.
+- The extraction alone did not establish source data, frozen history, unknown ledger rejection, idempotent adopt, DB-level migration mutex, v3 lineage, backup/restore or actual Hosted/systemd equivalence; see the later validation above for its narrower evidence. The final terminal must be rechecked against the actually merged branch before generating a new active baseline.
 - The attempted `git fetch` combining the live #1354 branch and deleted #1371 head returned an error because #1371 head no longer exists; no deleted reference was retried. The #1354 branch was fetched separately and #1371 merge identity was checked via GitHub.
 - Running `pnpm exec` from the archived scratch directory initially refused due to pnpm workspace-location metadata. Candidate and installed workspace lockfiles/manifests were checked identical, then the canonical runner was invoked normally from the original installed workspace with the archived migration/config paths; no validation was disabled.
