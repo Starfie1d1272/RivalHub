@@ -78,7 +78,20 @@ export function safeFilters(params: URLSearchParams): Record<string, string> {
   return out;
 }
 
-const operationSet = new Set<string>(OPERATIONS);
+const operationSet = new Set<string>([...OPERATIONS, "__unclassified__"]);
+/** Normalize only unknown operation labels; the original value is never persisted. */
+export function classifyEvent(value: unknown, now: number): { event: TelemetryEvent; unclassified: boolean } | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const event = value as Record<string, unknown>;
+  if (event.kind === "operation" && typeof event.operation === "string" && !operationSet.has(event.operation)) {
+    if (!/^[A-Za-z][A-Za-z0-9-]{0,63}(?:\.[A-Za-z][A-Za-z0-9-]{0,63}){1,3}$/.test(event.operation)) return null;
+    const normalized = { ...event, operation: "__unclassified__" };
+    return validEvent(normalized, now) ? { event: normalized, unclassified: true } : null;
+  }
+  // The internal marker is not a client-supplied operation.
+  if (event.operation === "__unclassified__") return null;
+  return validEvent(value, now) ? { event: value, unclassified: false } : null;
+}
 const routes = new Set<string>([...ROUTES, "/unknown"]);
 const allowedErrors = new Set<string>([...Object.values(ErrorCode), "UNCLASSIFIED", "INVALID_RESULT", "TRANSPORT_OR_THROW", "CLIENT_UNHANDLED"]);
 export const VARIANTS = ["join", "stake", "enable", "pause", "resume", "retry", "close", "void", "pick_save", "pick_submit", "result", "bp", "ban", "pick", "side_pick", "role_select"] as const;

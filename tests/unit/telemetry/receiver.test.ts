@@ -42,6 +42,37 @@ function admin(env: Env, path: string, time = now) {
 }
 afterEach(() => { for (const db of databases.splice(0)) db.close(); });
 
+it("keeps known events and acknowledges unknown safe operations without storing their labels", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(now);
+  try {
+    const { env, sqlite } = fixture(); const session = crypto.randomUUID();
+    const known = event({ session });
+    const unknown = event({ session, operation: "future.newAction" as TelemetryEvent["operation"] });
+    const body = await batch(env, [known, unknown]);
+    const send = vi.fn<typeof fetch>(async (_url, init) => handle(new Request("https://receiver.invalid/v1/batches", { ...init, headers: { origin: env.ALLOWED_ORIGIN } }), env, now));
+    const q = new TelemetryQueue({ endpoint: "https://receiver.invalid/v1/batches", ticket: body.ticket, identity: "fixture", expiresAt: now + 3600000 }, send);
+    q.add(known); q.add(unknown); await q.flush();
+    expect(q.delivery.accepted).toBe(1); expect(q.delivery.unclassified).toBe(1);
+    const stored = sqlite.prepare("SELECT events_gzip, summary FROM batches").get()!;
+    const raw = gunzipSync(stored.events_gzip as Uint8Array).toString();
+    expect(JSON.parse(raw).map((e: TelemetryEvent) => e.operation)).toEqual([known.operation, "__unclassified__"]);
+    expect(raw + stored.summary).not.toContain("future.newAction");
+    const sent = JSON.parse(String(send.mock.calls[0][1]?.body));
+    expect(await (await post(env, sent)).json()).toEqual({ v: 1, accepted: 1, unclassified: 1 });
+    expect(sqlite.prepare("SELECT count(*) AS n FROM batches").get()?.n).toBe(1);
+    for (const bad of ["https://private.invalid", "SELECT * FROM users", "x." + "a".repeat(65)]) {
+      expect((await post(env, { ...body, id: crypto.randomUUID(), events: [known, { ...unknown, operation: bad }] })).status).toBe(400);
+    }
+    expect((await post(env, { ...body, id: crypto.randomUUID(), events: [known, { ...unknown, message: "private" }] })).status).toBe(400);
+    expect((await post(env, { ...body, v: 2 })).status).toBe(400);
+    expect((await post(env, body, now, "https://wrong.invalid")).status).toBe(403);
+    expect((await post(env, { ...body, padding: "x".repeat(25000) })).status).toBe(413);
+    const old = new TelemetryQueue({ endpoint: "https://receiver.invalid", ticket: body.ticket, identity: "fixture", expiresAt: now + 3600000 }, vi.fn<typeof fetch>(async () => new Response(null, { status: 400 })));
+    old.add(known); old.add(unknown); await old.flush();
+    expect(old.delivery.schema_reject).toBe(2); expect(old.delivery.accepted).toBe(0);
+  } finally { vi.useRealTimers(); }
+});
+
 describe("independent receiver privacy, budget and lifecycle", () => {
   it("validates bounded millisecond metrics and persists their existing summary dimensions and expiry", async () => {
     const { env, sqlite } = fixture();

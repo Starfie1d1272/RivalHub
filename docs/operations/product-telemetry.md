@@ -36,7 +36,7 @@ Worker 仅使用独立 D1：一个批次一行、服务端校验后写入、按�
 
 performance 事件的白名单 `metricName` 为 TTFB/FCP/LCP/INP/NAV_COMMIT/CLS。前五项的 `durationMs` 为毫秒；CLS 只使用 `score`。同批 summary 前九列兼容原布局，原 variant 维度在 performance kind 下保存 metricName，第九列始终为毫秒总和（CLS 为零）；可选第十列保存 CLS score 总和（其他指标为 null），第十一列保存固定 client 分类或 null；性能行追加第十二列随机样本 ID 与第十三列报告时间，并保留每个样本。旧行继续可读。分类不同的报告分组，日汇总仍跨分类合并；旧 `duration_ms` 日汇总暂不写 CLS，避免单位混用。面板对当前样本内同账号/会话、指标 ID 取最新报告时间的值后求均值；缺少样本 ID 的旧报告单列数量，不混入均值。日汇总的次数/耗时总和仍是接收报告口径，不用于最终 Web Vital/p75。保留、访问、DNT/GPC、队列/批次和免费预算沿用原规则，采集不逐次发送。
 
-协议升级时先部署兼容新旧事件的独立 Worker，再按正式 release 流程发布网站采集端；旧 Worker 会拒绝含未识别字段或指标的整批。采集协议扩展不改 D1 表结构；面板另有添加索引的独立迁移，按下文执行，不重跑初始化 SQL。回滚网站可继续使用新 Worker；若回滚 Worker，先停用新版网站采集，避免整批被拒。
+协议升级时先部署兼容新旧事件的独立 Worker，再按正式 release 流程发布网站采集端；旧 Worker 会拒绝含未识别字段、指标或动作的整批。兼容接收端仅将符合有限标识符语法的未知 operation 替换为固定 `__unclassified__`，原标签不持久化；其余校验仍严格执行。含此类事件的成功响应为 v1 JSON ACK，分别计数已分类和未分类事件；重发同一批次得到相同计数。旧客户端将该 200 视为整批接收，新客户端分别记录未分类计数；无法解析的成功 ACK 记录为送达未知。新客户端遇到旧 Worker 的 400 仍记录整批 schema 拒收，不自动拆批或声称其他事件已送达。代码合并不代表接收端已部署。采集协议扩展不改 D1 表结构；面板另有添加索引的独立迁移，按下文执行，不重跑初始化 SQL。回滚网站可继续使用新 Worker；若回滚 Worker，先停用新版网站采集，避免整批被拒。
 
 ## 设备与入口分类
 
@@ -65,7 +65,7 @@ v1 的 page/operation/error/ready/NAV_COMMIT 携带随机 navigationId、构建�
 | release / environment | 签名票据中的构建 commit 与 preview/production；生产需检查 release 不是 unknown |
 | route / scene / eventId | 路由模板、canonical 赛事模板 major/rivals/other（无赛事为 site）、公开赛事 UUID；未加载对应 layout 时可能是 site |
 | kind / navigation / filters | page/filter/operation/error/performance/ready；navigate/history/reload；明确允许的类别/selected |
-| operation / variant / phase | 注册表中的动作名、固定子类型、start/success/rejected/unknown |
+| operation / variant / phase | 注册表中的动作名或固定未分类标记、固定子类型、start/success/rejected/unknown |
 | operationId / durationMs / outcome | 单次调用关联；操作或性能指标最多一小时的整数毫秒耗时；applied/stale/noop（存在时） |
 | metricName / score | 仅 performance 事件；固定指标名；CLS 使用无单位 score，其他指标使用 durationMs |
 | client | 可选设备/浏览器/系统/文档来源固定分类；无原始 UA、版本、URL 或推广参数 |

@@ -1,6 +1,6 @@
 import { maintainDbTraffic, maintainDbTrafficQuality } from "./db-traffic-rollup";
 import { ingestDbTraffic, ingestDbTrafficGap, readDbTraffic, ingestOffline } from "./db-traffic";
-import { LIMITS, UUID, validEvent, type TelemetryEvent } from "../../src/lib/telemetry/protocol";
+import { classifyEvent, LIMITS, UUID, type TelemetryEvent } from "../../src/lib/telemetry/protocol";
 import { verifyTicket } from "../../src/lib/telemetry/ticket";
 import { parseDashboardFilters } from "../../src/lib/telemetry/dashboard-query";
 import { dashboard } from "./dashboard";
@@ -70,9 +70,15 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
       if (!input || Object.keys(input).some(k => !["v", "id", "ticket", "events"].includes(k)) || input.v !== 1 || !UUID.test(input.id) || typeof input.ticket !== "string") return response(400, origin);
       const ticket = await verifyTicket(input.ticket, env.SIGNING_KEY, now);
       if (!ticket || ticket.origin !== origin) return response(401, origin);
-      if (!Array.isArray(input.events) || !input.events.length || input.events.length > LIMITS.batch || !input.events.every(e => validEvent(e, now)) || input.events.some(e => e.session !== input.events[0].session) || new Set(input.events.map(e => e.id)).size !== input.events.length) return response(400, origin);
+      if (!Array.isArray(input.events) || !input.events.length || input.events.length > LIMITS.batch) return response(400, origin);
+      const classified = input.events.map(e => classifyEvent(e, now));
+      if (classified.some(e => !e)) return response(400, origin);
+      const unclassified = classified.filter(e => e!.unclassified).length;
+      input.events = classified.map(e => e!.event);
+      if (input.events.some(e => e.session !== input.events[0].session) || new Set(input.events.map(e => e.id)).size !== input.events.length) return response(400, origin);
+      const ack = () => unclassified ? response(200, origin, { v: 1, accepted: input.events.length - unclassified, unclassified }) : response(204, origin);
       const existing = await env.DB.prepare("SELECT id FROM batches WHERE ticket=? AND id=? AND expires>?").bind(ticket.id, input.id, now).first();
-      if (existing) return response(204, origin);
+      if (existing) return ack();
       const events = JSON.stringify(input.events);
       const bytes = new TextEncoder().encode(events).byteLength;
       const compressed = await compressEvents(input.events);
@@ -88,7 +94,7 @@ export async function handle(request: Request, env: Env, now = Date.now()): Prom
         env.DB.prepare("UPDATE usage SET batches=batches+1,bytes=bytes+? WHERE day=? AND changes()=1").bind(bytes, day),
       ]);
       const accepted = await env.DB.prepare("SELECT id FROM batches WHERE ticket=? AND id=?").bind(ticket.id, input.id).first();
-      return response(accepted ? 204 : 429, origin);
+      return accepted ? ack() : response(429, origin);
     }
     if (url.pathname.startsWith("/admin/")) {
       const authorization = request.headers.get("authorization");
