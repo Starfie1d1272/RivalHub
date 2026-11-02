@@ -46,6 +46,29 @@ export interface PlayerStrengthBreakdown {
   historicalRating: number | null;
 }
 
+/** Evaluate only declared rank thresholds. Either configured threshold can qualify. */
+export function evaluateRankThreshold(
+  player: PlayerStrengthInput,
+  threshold: { currentMin: string | null; peakMin: string | null },
+  rankOrder: readonly string[],
+): QualificationFinding[] {
+  const checks = [
+    { field: "current_season_peak", minimum: threshold.currentMin, fact: player.currentSeasonPeak },
+    { field: "historical_peak", minimum: threshold.peakMin, fact: player.historicalPeak },
+  ].filter((check): check is typeof check & { minimum: string } => check.minimum !== null);
+  if (checks.length === 0) return [];
+  if (checks.some((check) => !rankOrder.includes(check.minimum))) {
+    return [{ code: "competitive_context_unavailable", message: "报名段位门槛不在赛事段位映射中。", waivable: false, metadata: { field: "rank_threshold" } }];
+  }
+  const meets = checks.some((check) => check.fact && rankOrder.indexOf(check.fact.rank) >= rankOrder.indexOf(check.minimum));
+  if (meets) return [];
+  const missing = checks.filter((check) => !check.fact || !rankOrder.includes(check.fact.rank));
+  if (missing.length > 0) {
+    return [{ code: "competitive_profile_incomplete", message: "缺少可确认的报名段位门槛资料。", waivable: false, metadata: { field: "rank_threshold", missing: missing.map((check) => check.field) } }];
+  }
+  return [{ code: "rank_threshold_not_met", message: "申报段位未达到本届赛事的报名门槛。", waivable: false, metadata: { field: "rank_threshold", currentMin: threshold.currentMin, peakMin: threshold.peakMin } }];
+}
+
 function rankValue(rank: string, config: CompetitiveProfileConfig): number | null {
   const index = config.rankOrder.findIndex((item) => item === rank);
   return index < 0 ? null : index + 1;

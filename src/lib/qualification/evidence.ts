@@ -112,7 +112,7 @@ export function createCompetitiveCandidateResolver(context: CompetitiveProfileCo
     return null;
   };
   const candidateIsUsable = (candidate: PlayerStrengthFact): boolean =>
-    !isBuiltInStarRank(context?.platform ?? "perfect_world", candidate.rank) || candidate.stars !== null && candidate.stars !== undefined;
+    purpose === "rank_threshold" || !isBuiltInStarRank(context?.platform ?? "perfect_world", candidate.rank) || candidate.stars !== null && candidate.stars !== undefined;
   return (primary, fallbackFact) => {
     const native = nativeCandidate(primary);
     const converted = fallbackCandidate(fallbackFact);
