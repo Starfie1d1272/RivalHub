@@ -2,7 +2,7 @@ import { check, pgEnum, pgTable, uuid, text, timestamp, boolean, unique, uniqueI
 import { sql } from "drizzle-orm";
 import { matches } from "./matches";
 import { users } from "./users";
-import { competitionEntries, eventRosterMembers } from "./competition-entries";
+import { competitionEntries, competitionEntryRosterRevisions, eventRosterMembers } from "./competition-entries";
 
 export const matchRosterSourceEnum = pgEnum("match_roster_source", ["participant", "system_default", "admin_select"]);
 export const matchRosterStatusEnum = pgEnum("match_roster_status", ["submitted", "confirmed"]);
@@ -13,6 +13,7 @@ export const matchRosters = pgTable("match_rosters", {
   matchId: uuid("match_id").notNull().references(() => matches.id),
   entryId: uuid("entry_id").notNull().references(() => competitionEntries.id),
   /** Immutable adopted eligibility used by this match lineup. */
+  sourceRosterRevisionId: uuid("source_roster_revision_id").references(() => competitionEntryRosterRevisions.id),
   eligibilitySnapshot: jsonb("eligibility_snapshot").$type<import("@/lib/seasons/eligibility-snapshot").EventRosterEligibilitySnapshotV2>(),
   /** The participant who submitted; null for admin-selected or system-default lineups. */
   submittedBy: uuid("submitted_by").references(() => users.id),

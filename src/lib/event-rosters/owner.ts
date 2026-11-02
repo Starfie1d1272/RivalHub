@@ -208,7 +208,7 @@ async function invalidateUnstartedLineupsInTx(tx: TxDb, input: {
       or(eq(matches.entryAId, input.entryId), eq(matches.entryBId, input.entryId))))
     .orderBy(asc(matches.id)).for("update");
   if (!scopedMatches.length) return;
-  const lineups = await tx.select({ id: matchRosters.id, matchId: matchRosters.matchId, status: matchRosters.status, snapshot: matchRosters.eligibilitySnapshot })
+  const lineups = await tx.select({ id: matchRosters.id, matchId: matchRosters.matchId, status: matchRosters.status, snapshot: matchRosters.eligibilitySnapshot, revision: matchRosters.sourceRosterRevisionId })
     .from(matchRosters).where(and(eq(matchRosters.entryId, input.entryId), inArray(matchRosters.matchId, scopedMatches.map((match) => match.id))))
     .orderBy(asc(matchRosters.matchId)).for("update");
   const matchById = new Map(scopedMatches.map((match) => [match.id, match]));
@@ -246,11 +246,12 @@ async function invalidateUnstartedLineupsInTx(tx: TxDb, input: {
           throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史资格赛规则与名单快照不一致。 ");
         }
       }
-      const revision = lineup.snapshot || match.ownership === "major_stage" ? snapshot.rosterRevisionId : roster.revision;
+      const revision = lineup.snapshot ? lineup.revision : match.ownership === "major_stage" ? snapshot.rosterRevisionId : roster.revision;
+      if (!revision) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史比赛缺少名单版本归属。 ");
       const frozen = decodeFrozenLineupEligibility(snapshot, { seasonId: input.seasonId, entryId: input.entryId, rosterRevisionId: revision });
       const players = await tx.select({ id: matchRosterPlayers.eventRosterMemberId }).from(matchRosterPlayers).where(eq(matchRosterPlayers.rosterId, lineup.id));
       if (!players.length || players.some((player) => !frozen.membersById.has(player.id))) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史比赛成员不能证明对应名单版本。 ");
-      if (!lineup.snapshot) await tx.update(matchRosters).set({ eligibilitySnapshot: snapshot }).where(eq(matchRosters.id, lineup.id));
+      if (!lineup.snapshot) await tx.update(matchRosters).set({ eligibilitySnapshot: snapshot, sourceRosterRevisionId: revision }).where(eq(matchRosters.id, lineup.id));
     }
   }
   const invalidated = lineups.filter((lineup) => matchById.get(lineup.matchId)?.status === "scheduled");

@@ -421,11 +421,12 @@ export async function getStartingLineupPreflightInTx(
   // Once a match has started, its lineup owns the eligibility facts; the
   // current event roster may legitimately refer to a later revision.
   if (args.match.status !== "scheduled") {
-    const [historical] = await tx.select({ id: matchRosters.id, snapshot: matchRosters.eligibilitySnapshot }).from(matchRosters)
+    const [historical] = await tx.select({ id: matchRosters.id, snapshot: matchRosters.eligibilitySnapshot, revision: matchRosters.sourceRosterRevisionId }).from(matchRosters)
       .where(and(eq(matchRosters.matchId, args.match.id), eq(matchRosters.entryId, args.entryId)));
     if (historical?.snapshot) {
       const snapshot = historical.snapshot;
-      const frozen = decodeFrozenLineupEligibility(snapshot, { seasonId: args.match.seasonId, entryId: args.entryId, rosterRevisionId: snapshot.rosterRevisionId });
+      if (!historical.revision) throw new AppError(ErrorCode.VALIDATION_FAILED, "历史比赛缺少名单版本归属。 ");
+      const frozen = decodeFrozenLineupEligibility(snapshot, { seasonId: args.match.seasonId, entryId: args.entryId, rosterRevisionId: historical.revision });
       if (args.match.qualificationRunId) {
         const [run] = await tx.select({ policy: competitionQualificationRuns.eligibilityPolicy }).from(competitionQualificationRuns)
           .innerJoin(competitionQualificationEntrants, and(eq(competitionQualificationEntrants.runId, competitionQualificationRuns.id), eq(competitionQualificationEntrants.competitionEntryId, args.entryId)))
@@ -650,6 +651,7 @@ export async function persistMatchRosterInTx(
       .set({
         status: "submitted",
         eligibilitySnapshot,
+        sourceRosterRevisionId: eligibilitySnapshot?.rosterRevisionId ?? null,
         submittedBy: args.submittedBy,
         source: args.source,
         lockedAt: now,
@@ -666,6 +668,7 @@ export async function persistMatchRosterInTx(
         matchId: args.match.id,
         entryId: args.entryId,
         eligibilitySnapshot,
+        sourceRosterRevisionId: eligibilitySnapshot?.rosterRevisionId ?? null,
         submittedBy: args.submittedBy,
         source: args.source,
         status: "submitted",
