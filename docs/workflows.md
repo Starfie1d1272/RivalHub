@@ -36,7 +36,7 @@ Major:  draft → registration → playing → finished → archived
 - 报名开放后，已经冻结的 policy/context 不随全局目录变化；运营 deadline 只在其允许的生命周期内调整。
 - draft 撤回/删除必须通过无既有业务事实的 guard；不能靠 UI 隐藏按钮代替 server validation。
 - 后台生命周期分组和首页 featured season 是 presentation projection，不创建全局 `currentSeason` 事实。
-- 报名曾实际开放不代表当前仍可提交；首页报名提示、报名入口与报名页统一消费 `registration/window` 的计划、实际开放及截止时间。团队报名赛事截止后仍需完成相应赛前流程；Major 不会因截止自动开赛。个人报名赛事实际开放后，通过人数达到容量或报名截止到期时，审核与 scheduler 通过 `maybeAdvanceFromRegistration` 自动推进到投票（启用队长投票时）或比赛阶段；选秀仍由队长确认与选秀流程推进。
+- 报名曾实际开放不代表当前仍可提交；首页报名提示、报名入口与报名页统一消费 `registration/window` 的计划、实际开放及截止时间。个人报名实际开放后，通过人数达到容量或报名截止到期时，审核与 scheduler 通过 `maybeAdvanceFromRegistration` 推进：启用投票时进入投票，新版未启用投票时进入编队，历史规则保留原有推进解释。管理员可在赛前名单首次采用前维护本届原生编队的队名和队标；采用后资料保持历史身份。新版非 Major 赛事由管理员在名单审核后显式采用名单并开赛，个人编队和队伍报名共用资格快照、冻结和纪律检查；原生编队可在调整窗口内保留已批准版本并补正当前名单，未批准且无赛事依赖的草稿可撤销。撤销队伍不进入赛程；Major 通过现有赛前资格、冻结与正式开赛流程推进。
 
 ## ConversionPolicy lifecycle
 
@@ -59,18 +59,15 @@ approved/current or historical policy
 Rivals 的主要链路：
 
 ```text
-个人报名草稿
-→ 提交并审核
-→ 队长投票
-→ 管理员确认队长
-→ 创建赛事原生 CompetitionEntry
-→ 蛇形选秀
-→ roster / Entry facts 同事务收敛
+个人报名草稿 → 提交并审核
+→ 可选队长投票与选秀，或管理员编队
+→ 成员确认 → 名单评价、批准和采用
+→ 管理员冻结名单并开赛（Major 进入现有赛前筹备）
 → playing runtime
 → final results / archive
 ```
 
-选秀 pick 使用锁和 `clientRequestId` 保证并发与幂等：成功请求推进轮次后，同一请求重试仍返回原结果。直播视图只读取已提交状态，不以客户端乐观状态成为选秀真相。
+选秀 pick 使用锁和 `clientRequestId` 保证并发与幂等：成功请求推进轮次后，同一请求重试仍返回原结果。新版选秀结束只结束编队；历史规则保留原有结束与开赛行为。直播视图只读取已提交状态，不以客户端乐观状态成为选秀真相。
 
 ## Major registration and review
 

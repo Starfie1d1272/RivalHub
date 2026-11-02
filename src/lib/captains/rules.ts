@@ -23,12 +23,13 @@ export interface ValidateCaptainVoteInput {
   candidate: CaptainVoteRegistration;
   existingVoteCount: number;
   alreadyVotedForCandidate: boolean;
+  votesPerPerson?: number;
 }
 
 export interface CaptainSeedCandidate {
   registrationId: string;
   voteCount: number;
-  peakRating: number;
+  peakRating: number | null;
   createdAt: Date | string;
 }
 
@@ -38,6 +39,7 @@ export function validateCaptainVote({
   candidate,
   existingVoteCount,
   alreadyVotedForCandidate,
+  votesPerPerson = MAX_CAPTAIN_VOTES,
 }: ValidateCaptainVoteInput): ErrorCodeValue | null {
   if (!season.hasCaptainVoting || season.status !== "voting") {
     return ErrorCode.VOTING_CLOSED;
@@ -54,7 +56,7 @@ export function validateCaptainVote({
   if (voter.id === candidate.id) {
     return ErrorCode.VOTE_SELF;
   }
-  if (existingVoteCount >= MAX_CAPTAIN_VOTES) {
+  if (existingVoteCount >= votesPerPerson) {
     return ErrorCode.VOTE_LIMIT_REACHED;
   }
   if (alreadyVotedForCandidate) {
@@ -63,8 +65,8 @@ export function validateCaptainVote({
   return null;
 }
 
-export function selectCaptainSeeds<T extends CaptainSeedCandidate>(candidates: T[]): T[] {
-  return [...candidates].sort(compareCaptainSeedCandidates).slice(0, CAPTAIN_TEAM_COUNT);
+export function selectCaptainSeeds<T extends CaptainSeedCandidate>(candidates: T[], teamCount = CAPTAIN_TEAM_COUNT): T[] {
+  return [...candidates].sort(compareCaptainSeedCandidates).slice(0, teamCount);
 }
 
 export function compareCaptainSeedCandidates(
@@ -72,7 +74,7 @@ export function compareCaptainSeedCandidates(
   b: CaptainSeedCandidate,
 ): number {
   if (b.voteCount !== a.voteCount) return b.voteCount - a.voteCount;
-  if (b.peakRating !== a.peakRating) return b.peakRating - a.peakRating;
+  if (b.peakRating !== a.peakRating) return (b.peakRating ?? -1) - (a.peakRating ?? -1);
   return createdAtTime(a.createdAt) - createdAtTime(b.createdAt);
 }
 

@@ -13,6 +13,7 @@ import {
   eventRosterMembers,
   eventRosters,
   matches,
+  seasonRegistrations,
   matchTimeProposals,
   seasons,
 } from "@/db/schema";
@@ -32,6 +33,7 @@ import { proposingEntryId } from "@/lib/matches/time-proposal-side";
 import { presentPersonalMatchTask, type PersonalMatchTask } from "@/lib/matches/presentation";
 import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { SeasonStatus } from "@/types/season";
+import type { SeasonRuleColumns } from "@/lib/seasons/rules";
 
 export interface MyCompetitionSource {
   id: string;
@@ -48,6 +50,8 @@ export interface MyCompetitionSource {
   participantStatus: CompetitionEntryParticipantStatus | null;
   representativeUserId: string;
   teamRegistrationConfig: Parameters<typeof normalizeTeamRegistrationConfig>[0];
+  ruleColumns?: SeasonRuleColumns;
+  declaredPlayerType?: string | null;
 }
 
 export interface MyCompetitionSourceCandidate extends MyCompetitionSource {
@@ -148,6 +152,15 @@ export const loadMyCompetitionSources = cache(async (userId: string): Promise<My
       participantStatus: currentRosterParticipantStatus(),
       representativeUserId: competitionEntries.representativeUserId,
       teamRegistrationConfig: seasons.teamRegistrationConfig,
+      ruleColumns: {
+        registrationMode: seasons.registrationMode, hasCaptainVoting: seasons.hasCaptainVoting, hasDraft: seasons.hasDraft,
+        registrationConfig: seasons.registrationConfig, teamRegistrationConfig: seasons.teamRegistrationConfig,
+        affiliationRules: seasons.affiliationRules, minTeamSize: seasons.minTeamSize, maxTeamSize: seasons.maxTeamSize,
+        starterCount: seasons.starterCount, positions: seasons.positions, stagePlan: seasons.stagePlan,
+        registrationOpensAt: seasons.registrationOpensAt, registrationOpenedAt: seasons.registrationOpenedAt,
+        registrationClosesAt: seasons.registrationClosesAt, rosterChangeClosesAt: seasons.rosterChangeClosesAt,
+      },
+      declaredPlayerType: sql<string | null>`case when ${competitionEntries.source} = 'linked_team' then ${competitionEntryParticipants.playerType} else ${seasonRegistrations.playerType} end`,
       activeClaimEntryId: competitionEntryActiveClaims.entryId,
     })
     .from(competitionEntries)
@@ -157,6 +170,7 @@ export const loadMyCompetitionSources = cache(async (userId: string): Promise<My
       competitionEntryParticipants,
       and(eq(competitionEntryParticipants.entryId, competitionEntries.id), eq(competitionEntryParticipants.userId, userId)),
     )
+    .leftJoin(seasonRegistrations, and(eq(seasonRegistrations.seasonId, seasons.id), eq(seasonRegistrations.userId, userId)))
     .leftJoin(
       competitionEntryActiveClaims,
       and(

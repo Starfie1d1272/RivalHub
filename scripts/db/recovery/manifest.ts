@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { assertLegacyLineage, assertV2LedgerPrefix, readV2Migrations, type LegacyLedgerEntry } from "../legacy-lineage";
 import { readFileSync, statSync } from "node:fs";
 import { basename } from "node:path";
 import {
@@ -42,13 +43,16 @@ export interface RecoverySourceIdentity {
   deployedReleaseTag: string;
   deployedCommit: string;
   databaseMigrationTerminal: RecoveryMigrationIdentity;
+  migrationLineage?: "v2" | "v3";
+  v2MigrationLedger?: readonly LegacyLedgerEntry[];
+  legacyMigrationLedger?: readonly LegacyLedgerEntry[];
 }
 
 interface RecoveryManifestBase {
   formatVersion: typeof RECOVERY_FORMAT_VERSION;
   runId: string;
   createdAt: string;
-  sourceEnvironment: "production";
+  sourceEnvironment: "production" | "instance" | "isolated-instance";
   sourceProjectRef: string;
   postgresVersion: string;
   supabaseCliVersion: string;
@@ -134,7 +138,7 @@ export function assertRecoveryManifest(value: unknown): RecoveryManifest {
   const manifest = value as Partial<RecoveryManifest> & Record<string, unknown>;
   if (
     manifest.formatVersion !== RECOVERY_FORMAT_VERSION
-    || manifest.sourceEnvironment !== "production"
+    || (manifest.sourceEnvironment !== "production" && manifest.sourceEnvironment !== "instance" && manifest.sourceEnvironment !== "isolated-instance")
     || typeof manifest.runId !== "string"
     || typeof manifest.createdAt !== "string"
     || typeof manifest.sourceProjectRef !== "string"
@@ -191,6 +195,24 @@ export function assertRecoveryManifest(value: unknown): RecoveryManifest {
   }
 
   assertMigrationIdentity(source.databaseMigrationTerminal, "Recovery manifest database migration terminal");
+  if (source.migrationLineage !== undefined && source.migrationLineage !== "v3" && source.migrationLineage !== "v2") {
+    throw new Error("Recovery manifest migration lineage is unsupported.");
+  }
+  if (source.migrationLineage === "v2") {
+    if (!Array.isArray(source.v2MigrationLedger) || source.legacyMigrationLedger !== undefined) throw new Error("Recovery manifest V2 ledger is missing or inconsistent.");
+    assertV2LedgerPrefix(source.v2MigrationLedger);
+    const expected = readV2Migrations()[source.v2MigrationLedger.length - 1];
+    if (!expected || expected.tag !== source.databaseMigrationTerminal.terminalTag
+      || expected.hash !== source.databaseMigrationTerminal.terminalHash || expected.when !== source.databaseMigrationTerminal.terminalWhen) {
+      throw new Error("Recovery manifest V2 terminal does not match its ledger.");
+    }
+  } else if (source.v2MigrationLedger !== undefined) {
+    throw new Error("Recovery manifest has an unexpected V2 ledger.");
+  }
+  if (source.legacyMigrationLedger !== undefined) {
+    if (!Array.isArray(source.legacyMigrationLedger)) throw new Error("Recovery manifest legacy ledger is invalid.");
+    assertLegacyLineage(source.legacyMigrationLedger);
+  }
 
   const database = manifest.database as RecoveryManifest["database"] | undefined;
   if (
@@ -300,7 +322,7 @@ export function assertRecoveryCompletionMarker(value: unknown): RecoveryCompleti
 }
 
 function assertRecoveryArtifactKey(value: string): string {
-  if (!/^production\/(?:daily|pre-release|manual|release-db)\/\d{4}-\d{2}-\d{2}\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.tar\.gz\.age$/i.test(value)) {
+  if (!/^(?:production|instance\/[a-z]{20}|isolated\/[a-z]{20})\/(?:daily|pre-release|manual|release-db)\/\d{4}-\d{2}-\d{2}\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.tar\.gz\.age$/i.test(value)) {
     throw new Error("Recovery artifact key identity 无效。 ");
   }
   return value;

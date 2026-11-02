@@ -15,6 +15,7 @@ import {
   competitionEntryRestrictionOverrides,
   competitionEntrySubmissions,
   seasons,
+  seasonRegistrations,
   steamProfiles,
   teamMemberships,
   teams,
@@ -32,16 +33,20 @@ import {
 } from "@/lib/qualification/service";
 import {
   loadActiveRestrictionOverridesInTx,
+  unresolvedQualificationFindings,
   sameQualificationFindingSnapshot,
   snapshotQualificationFinding,
 } from "@/lib/competition-entries/restriction-overrides";
-import { canSelfChangeApprovedRoster, getRegistrationWindowState } from "@/lib/registration/window";
+import { canChangeApprovedFormationRoster, getRegistrationWindowState } from "@/lib/registration/window";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { canMutateCompetitionEntryRoster } from "@/lib/competition-entries/remediation";
 import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entries/roster-change";
 import { normalizeTeamRegistrationConfig, resolveQualificationPolicy } from "@/lib/seasons/compatibility";
+import { decodeSeasonRules, type RosterCandidate, type DecodedSeasonRules, type QualificationDecision, type QualificationEvidence } from "@/lib/seasons/rules";
+import { assessRosterCandidate, loadRosterCandidates } from "@/lib/competition-entries/roster-assessment";
+import type { PlayerType } from "@/types/season";
 import { assessEntryRosterReadiness } from "@/lib/competition-entries/readiness";
 import { normalizePerfectTeamId } from "@/lib/competition-entries/perfect-team-id";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
@@ -126,13 +131,22 @@ async function cloneRosterRevisionAsDraftInTx(
   return { id: next.id, revisionNumber: nextRevision };
 }
 
-async function validateEntryRoster(
+async function validateEntryRosterInTx(
   tx: TxDb,
   entry: typeof competitionEntries.$inferSelect,
   season: typeof seasons.$inferSelect,
   allowedRevisionStatuses: readonly ("draft" | "submitted" | "approved")[],
   options: { requireCurrentTeamMembership: boolean; requireActiveRestrictionOverrides?: boolean; recheckExternalStrength?: boolean },
 ) {
+  if (decodeSeasonRules(season).source === "policy_v2") {
+    const assessment = await assessEntryRosterInTx(tx, { entryId: entry.id, expectedRevisionId: entry.currentRosterRevisionId });
+    const revision = assessment.candidate.revision;
+    if (!allowedRevisionStatuses.includes(revision.status as "draft" | "submitted" | "approved")) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不可用于此操作。");
+    const findings = assessment.findings.filter((finding) => options.recheckExternalStrength !== false || finding.code !== "external_strength_gap");
+    const blockers = options.requireActiveRestrictionOverrides ? unresolvedQualificationFindings(findings, assessment.approvedOverrides) : findings.filter((finding) => !finding.waivable);
+    if (blockers.length) throw new AppError(ErrorCode.VALIDATION_FAILED, blockers.map((finding) => finding.message).join(" "));
+    return { revision, rosterSize: assessment.candidate.members.length, primaryIds: assessment.candidate.members.filter((member) => member.isPrimaryStarter).map((member) => member.userId), qualification: { findings }, assessment };
+  }
   const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!revision || !allowedRevisionStatuses.includes(revision.status as "draft" | "submitted" | "approved")) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不可用于此操作。");
   const rows = await tx.select({ userId: competitionEntryRosterMembers.userId, primary: competitionEntryRosterMembers.isPrimaryStarter, participantStatus: competitionEntryParticipants.status })
@@ -220,6 +234,42 @@ async function validateEntryRoster(
   return { revision, rosterSize: readiness.rosterSize, primaryIds, qualification };
 }
 
+/** Lock the write path, then use the same candidate fact loader as read-only views. */
+export async function loadEntryRosterCandidateInTx(
+  tx: TxDb,
+  input: { entryId: string; expectedRevisionId: string },
+): Promise<{ candidate: RosterCandidate; rules: ReturnType<typeof decodeSeasonRules>; season: typeof seasons.$inferSelect }> {
+  const entry = await lockEntry(tx, input.entryId);
+  const season = await loadSeasonOrThrow(tx, entry.competitionId);
+  if (entry.currentRosterRevisionId !== input.expectedRevisionId) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "名单版本已变化，请刷新后重试。 ");
+  const [revision] = await tx.select().from(competitionEntryRosterRevisions)
+    .where(and(eq(competitionEntryRosterRevisions.id, input.expectedRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
+  if (!revision) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不存在。 ");
+  const candidate = (await loadRosterCandidates(tx, season, [input])).get(entry.id);
+  if (!candidate) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "名单版本已变化，请刷新后重试。 ");
+  return { candidate, rules: decodeSeasonRules(season), season };
+}
+
+/** Transaction-scoped evidence to pass directly to the roster freezing owner. */
+export type EntryRosterAssessment = {
+  candidate: RosterCandidate;
+  rules: DecodedSeasonRules;
+  evidence: QualificationEvidence;
+  participantDecisions: ReadonlyMap<string, QualificationDecision>;
+  rosterDecision: QualificationDecision;
+  decisions: readonly QualificationDecision[];
+  findings: readonly import("@/lib/qualification/finding").QualificationFinding[];
+  decision: QualificationDecision;
+  approvedOverrides: readonly (typeof competitionEntryRestrictionOverrides.$inferSelect)[];
+};
+
+/** Always load and evaluate fresh facts inside the caller's transaction. */
+export async function assessEntryRosterInTx(tx: TxDb, input: { entryId: string; expectedRevisionId: string }): Promise<EntryRosterAssessment> {
+  const { candidate, rules } = await loadEntryRosterCandidateInTx(tx, input);
+  const approvedOverrides = await loadActiveRestrictionOverridesInTx(tx, { competitionId: candidate.entry.competitionId, entryIds: [candidate.entry.id], rosterRevisionIds: [candidate.revision.id] });
+  return { ...assessRosterCandidate(candidate, rules, approvedOverrides), approvedOverrides };
+}
+
 /**
  * Re-check an approved Entry before it becomes a selected Major entrant.
  * Qualification and restriction semantics stay in the Entry command owner;
@@ -234,7 +284,7 @@ export async function validateApprovedCompetitionEntryRosterInTx(
   if (entry.registrationStatus !== "approved" || !entry.approvedRosterRevisionId || entry.currentRosterRevisionId !== entry.approvedRosterRevisionId) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "只能选择当前报名已通过审核且名单记录完整的队伍。 ");
   }
-  return validateEntryRoster(tx, entry, season, ["approved"], {
+  return validateEntryRosterInTx(tx, entry, season, ["approved"], {
     requireCurrentTeamMembership: false,
     requireActiveRestrictionOverrides: true,
     ...options,
@@ -280,14 +330,15 @@ export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId:
   if (revision.origin !== "admin_remediation" && getRegistrationWindowState(season).needsOpeningRecovery) {
     season = (await ensureRegistrationOpenForParticipantInTx(tx, entry.competitionId)).season;
   }
-  const currentMemberships = await tx.select().from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), inArray(teamMemberships.userId, input.userIds), isNull(teamMemberships.endedAt)));
+  const currentMemberships = await tx.select().from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), inArray(teamMemberships.userId, input.userIds), inArray(teamMemberships.status, ["active", "benched"]), isNull(teamMemberships.endedAt)));
   if (currentMemberships.length !== input.userIds.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "新选择的名单成员必须当前仍属于这支队伍。");
   const window = getRegistrationWindowState(season);
-  if (!canMutateCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", revision.origin, season, new Date(), await canSelfAdjustMajorRosterInTx(tx, season, entry.id))) throw new AppError(ErrorCode.REGISTRATION_CLOSED, revision.origin === "self_roster_change" ? "名单调整窗口当前不可用；请联系赛委会。" : window.message);
+  if ((revision.origin === "self_roster_change" && decodeSeasonRules(season).roster.changes?.selfServiceAfterApproval === false) || !canMutateCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", revision.origin, season, new Date(), await canSelfAdjustMajorRosterInTx(tx, season, entry.id))) throw new AppError(ErrorCode.REGISTRATION_CLOSED, revision.origin === "self_roster_change" ? "名单调整窗口当前不可用；请联系赛委会。" : window.message);
   const existingParticipants = await tx.select().from(competitionEntryParticipants).where(eq(competitionEntryParticipants.entryId, entry.id));
   const selected = new Set(input.userIds);
   const confirmedRemoved = existingParticipants.filter((participant) => participant.status === "confirmed" && !selected.has(participant.userId));
   if (!selected.has(entry.representativeUserId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先交接赛事负责人，再从本届名单移除自己。");
+  if (confirmedRemoved.length > 0 && decodeSeasonRules(season).roster.changes?.representativeCanRemove === false) throw new AppError(ErrorCode.FORBIDDEN, "本届赛事不允许负责人移除已确认成员，请联系赛事管理员。");
   if (confirmedRemoved.length > 0 && revision.origin !== "self_roster_change") throw new AppError(ErrorCode.VALIDATION_FAILED, "已确认参赛的成员请先执行赛事退出；审核通过后的换人请发起名单变更。");
   for (const participant of confirmedRemoved) {
     const now = new Date();
@@ -303,8 +354,8 @@ export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId:
       participantByUser.set(userId, created);
     } else if (existing.status === "declined" || existing.status === "withdrawn") {
       const reinvitedAt = new Date();
-      await tx.update(competitionEntryParticipants).set({ status: "invited", invitedByUserId: input.userId, confirmedAt: null, withdrawnAt: null, updatedAt: reinvitedAt }).where(eq(competitionEntryParticipants.id, existing.id));
-      participantByUser.set(userId, { ...existing, status: "invited", invitedByUserId: input.userId, confirmedAt: null, withdrawnAt: null, updatedAt: reinvitedAt });
+      await tx.update(competitionEntryParticipants).set({ status: "invited", invitedByUserId: input.userId, playerType: null, confirmedAt: null, withdrawnAt: null, updatedAt: reinvitedAt }).where(eq(competitionEntryParticipants.id, existing.id));
+      participantByUser.set(userId, { ...existing, status: "invited", invitedByUserId: input.userId, playerType: null, confirmedAt: null, withdrawnAt: null, updatedAt: reinvitedAt });
       await auditEntry(tx, { action: "competition_entry.participant.reinvite", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: existing.id, userId, previousStatus: existing.status } });
     }
   }
@@ -334,7 +385,7 @@ export async function addCompetitionEntryRosterMemberInTx(tx: TxDb, input: { ent
 }
 
 /** The player explicitly accepts a target invitation and releases an eliminated entry atomically. */
-export async function transferCompetitionEntryParticipationInTx(tx: TxDb, input: { entryId: string; fromEntryId: string; userId: string; actorId: string }): Promise<{ seasonSlug: string }> {
+export async function transferCompetitionEntryParticipationInTx(tx: TxDb, input: { entryId: string; fromEntryId: string; userId: string; actorId: string; playerType?: PlayerType | null }): Promise<{ seasonSlug: string }> {
   const [target] = await tx.select().from(competitionEntries).where(eq(competitionEntries.id, input.entryId));
   if (!target || target.id === input.fromEntryId) throw new AppError(ErrorCode.VALIDATION_FAILED, "请选择新的参赛队伍。");
   const [source] = await tx.select({ competitionId: competitionEntries.competitionId }).from(competitionEntries).where(eq(competitionEntries.id, input.fromEntryId));
@@ -358,7 +409,7 @@ export async function transferCompetitionEntryParticipationInTx(tx: TxDb, input:
   return { seasonSlug: season.slug };
 }
 
-export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: { entryId: string; userId: string; actorId: string }): Promise<{ seasonSlug: string; alreadyConfirmed: boolean }> {
+export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: { entryId: string; userId: string; actorId: string; playerType?: PlayerType | null }): Promise<{ seasonSlug: string; alreadyConfirmed: boolean }> {
   await lockEntrySeason(tx, input.entryId);
   await tx.execute(sql`SELECT id FROM users WHERE id = ${input.userId} FOR UPDATE`);
   const entry = await lockEntry(tx, input.entryId);
@@ -371,21 +422,44 @@ export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: 
   if (!revision || revision.status !== "draft") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不可编辑。");
   const [rosterMember] = await tx.select({ id: competitionEntryRosterMembers.id }).from(competitionEntryRosterMembers).where(and(eq(competitionEntryRosterMembers.revisionId, revision.id), eq(competitionEntryRosterMembers.participantId, participant.id)));
   if (!rosterMember) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "邀请已更新，请联系赛事负责人确认当前名单。");
-  if (revision.origin !== "admin_remediation" && getRegistrationWindowState(season).needsOpeningRecovery) {
-    season = (await ensureRegistrationOpenForParticipantInTx(tx, entry.competitionId)).season;
+  const nativeFormation = entry.source === "event_native" && season.registrationMode === "solo"
+    && ((entry.registrationStatus === "draft" && revision.origin === "initial") || (entry.registrationStatus === "changes_requested" && ["self_roster_change", "admin_remediation"].includes(revision.origin) && decodeSeasonRules(season).source === "policy_v2"))
+    && (season.status === "registration" || season.status === "drafting");
+  if (nativeFormation) {
+    if (revision.origin !== "initial" && ((revision.origin === "self_roster_change" && decodeSeasonRules(season).roster.changes?.selfServiceAfterApproval === false) || !canChangeApprovedFormationRoster(season, { source: entry.source, policyV2: decodeSeasonRules(season).source === "policy_v2" }, revision.origin === "admin_remediation" ? "admin" : "self") || !await canSelfAdjustMajorRosterInTx(tx, season, entry.id))) throw new AppError(ErrorCode.REGISTRATION_CLOSED, "名单调整窗口当前不可用；请联系赛事管理员。");
+    const [registration] = await tx.select({ status: seasonRegistrations.status }).from(seasonRegistrations)
+      .where(and(eq(seasonRegistrations.seasonId, season.id), eq(seasonRegistrations.userId, input.userId)));
+    if (registration?.status !== "approved") throw new AppError(ErrorCode.VALIDATION_FAILED, "只有已通过个人报名审核的选手可以确认本届编队。 ");
+  } else {
+    if (revision.origin !== "admin_remediation" && getRegistrationWindowState(season).needsOpeningRecovery) {
+      season = (await ensureRegistrationOpenForParticipantInTx(tx, entry.competitionId)).season;
+    }
+    const window = getRegistrationWindowState(season);
+    if ((revision.origin === "self_roster_change" && decodeSeasonRules(season).roster.changes?.selfServiceAfterApproval === false) || !canMutateCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", revision.origin, season, new Date(), await canSelfAdjustMajorRosterInTx(tx, season, entry.id))) throw new AppError(ErrorCode.REGISTRATION_CLOSED, revision.origin === "self_roster_change" ? "名单调整窗口当前不可用；请联系赛委会。" : window.message);
   }
-  const window = getRegistrationWindowState(season);
-  if (!canMutateCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", revision.origin, season, new Date(), await canSelfAdjustMajorRosterInTx(tx, season, entry.id))) throw new AppError(ErrorCode.REGISTRATION_CLOSED, revision.origin === "self_roster_change" ? "名单调整窗口当前不可用；请联系赛委会。" : window.message);
-  if (participant.status === "confirmed") return { seasonSlug: season.slug, alreadyConfirmed: true };
-  if (participant.status !== "invited") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前成员状态不能确认参赛。");
+  const registrationBlocks = await loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: [input.userId], effect: "registration_block" });
+  const rosterBlocks = await loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: [input.userId], effect: "roster_block" });
+  if (registrationBlocks.has(input.userId) || rosterBlocks.has(input.userId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前参赛限制阻止你确认本届名单，请联系赛事管理员。 ");
+  const rules = decodeSeasonRules(season);
+  const declaration = entry.source === "linked_team" && rules.source === "policy_v2"
+    ? input.playerType ?? participant.playerType : participant.playerType;
+  if (entry.source === "linked_team" && rules.source === "policy_v2") {
+    const allowed = rules.participant.allowedPlayerTypes;
+    const allTypesAllowed = allowed && (["enrolled", "graduated", "external"] as const).every((type) => allowed.includes(type));
+    if (allowed && !allTypesAllowed && !declaration) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先选择你本人本届参赛身份。 ");
+    if (allowed && declaration && !allowed.includes(declaration)) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选参赛身份不符合本届赛事要求。 ");
+  }
+  const alreadyConfirmed = participant.status === "confirmed";
+  if (!alreadyConfirmed && participant.status !== "invited") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前成员状态不能确认参赛。");
   const [claim] = await tx.insert(competitionEntryActiveClaims).values({ competitionId: entry.competitionId, userId: input.userId, entryId: entry.id, participantId: participant.id }).onConflictDoNothing().returning({ entryId: competitionEntryActiveClaims.entryId });
   if (!claim) {
     const existing = await tx.query.competitionEntryActiveClaims.findFirst({ where: and(eq(competitionEntryActiveClaims.competitionId, entry.competitionId), eq(competitionEntryActiveClaims.userId, input.userId)) });
     if (!existing || existing.entryId !== entry.id) throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "你已确认代表本届赛事的另一支队伍。");
   }
-  await tx.update(competitionEntryParticipants).set({ status: "confirmed", confirmedAt: new Date(), updatedAt: new Date() }).where(eq(competitionEntryParticipants.id, participant.id));
-  await auditEntry(tx, { action: "competition_entry.participant.confirm", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: participant.id, userId: input.userId } });
-  return { seasonSlug: season.slug, alreadyConfirmed: false };
+  if (alreadyConfirmed && declaration === participant.playerType) return { seasonSlug: season.slug, alreadyConfirmed: true };
+  await tx.update(competitionEntryParticipants).set({ status: "confirmed", playerType: declaration, confirmedAt: participant.confirmedAt ?? new Date(), updatedAt: new Date() }).where(eq(competitionEntryParticipants.id, participant.id));
+  await auditEntry(tx, { action: "competition_entry.participant.confirm", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: participant.id, userId: input.userId, revisionId: revision.id, playerType: declaration, previousPlayerType: participant.playerType } });
+  return { seasonSlug: season.slug, alreadyConfirmed };
 }
 
 export async function withdrawCompetitionEntryParticipationInTx(tx: TxDb, input: { entryId: string; userId: string; actorId: string }): Promise<{ seasonSlug: string }> {
@@ -436,9 +510,9 @@ export async function withdrawCompetitionEntryParticipationInTx(tx: TxDb, input:
     const [revision] = await tx.select().from(competitionEntryRosterRevisions)
       .where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id)))
       .for("update");
-    if (revision?.status === "draft" && revision.origin === "self_roster_change") {
+    if (revision?.status === "draft" && (revision.origin === "self_roster_change" || (entry.source === "event_native" && revision.origin === "admin_remediation"))) {
       const season = await loadSeasonOrThrow(tx, entry.competitionId);
-      if (!canSelfChangeApprovedRoster(season) || !await canSelfAdjustMajorRosterInTx(tx, season, entry.id)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, "名单调整窗口当前不可用；请联系赛事管理员处理。");
+      if ((revision.origin === "self_roster_change" && decodeSeasonRules(season).roster.changes?.selfServiceAfterApproval === false) || !canChangeApprovedFormationRoster(season, { source: entry.source, policyV2: decodeSeasonRules(season).source === "policy_v2" }, revision.origin === "admin_remediation" ? "admin" : "self") || !await canSelfAdjustMajorRosterInTx(tx, season, entry.id)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, "名单调整窗口当前不可用；请联系赛事管理员处理。");
       selfRosterChangeRevisionId = revision.id;
     }
   }
@@ -514,8 +588,8 @@ export async function submitCompetitionEntryInTx(tx: TxDb, input: { entryId: str
     season = (await ensureRegistrationOpenForParticipantInTx(tx, entry.competitionId)).season;
   }
   const window = getRegistrationWindowState(season);
-  const validated = await validateEntryRoster(tx, entry, season, ["draft"], { requireCurrentTeamMembership: true, requireActiveRestrictionOverrides: false });
-  if (!canMutateCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", validated.revision.origin, season, new Date(), await canSelfAdjustMajorRosterInTx(tx, season, entry.id))) throw new AppError(ErrorCode.REGISTRATION_CLOSED, validated.revision.origin === "self_roster_change" ? "名单调整窗口当前不可用；请联系赛委会。" : window.message);
+  const validated = await validateEntryRosterInTx(tx, entry, season, ["draft"], { requireCurrentTeamMembership: true, requireActiveRestrictionOverrides: false });
+  if ((validated.revision.origin === "self_roster_change" && decodeSeasonRules(season).roster.changes?.selfServiceAfterApproval === false) || !canMutateCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", validated.revision.origin, season, new Date(), await canSelfAdjustMajorRosterInTx(tx, season, entry.id))) throw new AppError(ErrorCode.REGISTRATION_CLOSED, validated.revision.origin === "self_roster_change" ? "名单调整窗口当前不可用；请联系赛委会。" : window.message);
   const [{ value }] = await tx.select({ value: count() }).from(competitionEntrySubmissions).where(eq(competitionEntrySubmissions.entryId, entry.id));
   const now = new Date();
   await tx.update(competitionEntryRosterRevisions).set({ status: "submitted", submittedAt: now }).where(eq(competitionEntryRosterRevisions.id, validated.revision.id));
@@ -538,7 +612,7 @@ export async function grantCompetitionEntryRestrictionOverrideInTx(
   const restrictionCode = input.restrictionCode.trim();
   if (!reason || !restrictionCode) throw new AppError(ErrorCode.VALIDATION_FAILED, "解除限制必须填写具体限制和非空理由。 ");
   const season = await loadSeasonOrThrow(tx, entry.competitionId);
-  const validated = await validateEntryRoster(tx, entry, season, ["submitted"], {
+  const validated = await validateEntryRosterInTx(tx, entry, season, ["submitted"], {
     requireCurrentTeamMembership: false,
     requireActiveRestrictionOverrides: false,
   });
@@ -630,7 +704,63 @@ export async function revokeCompetitionEntryRestrictionOverrideInTx(
   return { seasonSlug: (await loadSeasonOrThrow(tx, entry.competitionId)).slug };
 }
 
-export async function applyEntryReviewDecisionInTx(tx: TxDb, input: { entryId: string; decision: "changes_requested" | "waitlisted" | "approved" | "rejected"; reason?: string; actorId: string }): Promise<{ seasonSlug: string; seasonId: string; from: typeof competitionEntries.$inferSelect.registrationStatus; rosterRevision: number }> {
+/** Reassess and approve the current submitted revision in the same transaction. */
+async function approveRosterRevisionInTx(
+  tx: TxDb,
+  entry: typeof competitionEntries.$inferSelect,
+  season: typeof seasons.$inferSelect,
+  now: Date,
+  allowedRevisionStatuses: readonly ("draft" | "submitted" | "approved")[] = ["submitted"],
+) {
+  const candidate = await validateEntryRosterInTx(tx, entry, season, allowedRevisionStatuses, {
+    requireCurrentTeamMembership: false,
+    requireActiveRestrictionOverrides: true,
+  });
+  await tx.update(competitionEntryRosterRevisions).set({ status: "approved", approvedAt: now })
+    .where(eq(competitionEntryRosterRevisions.id, candidate.revision.id));
+  const assessment = "assessment" in candidate ? candidate.assessment : null;
+  if (!assessment) return { revision: candidate.revision, assessment: null };
+  const roster = assessment.candidate;
+  const approvedCandidate: RosterCandidate = roster.entry.source === "event_native"
+    ? { ...roster, entry: { ...roster.entry, source: "event_native", registrationStatus: "approved", approvedRosterRevisionId: candidate.revision.id }, members: roster.members.map((member) => ({ ...member, teamMembershipId: null })), revision: { ...roster.revision, status: "approved" } }
+    : { ...roster, entry: { ...roster.entry, source: "linked_team", approvedRosterRevisionId: candidate.revision.id }, revision: { ...roster.revision, status: "approved" } };
+  return { revision: candidate.revision, assessment: { ...assessment, candidate: approvedCandidate } };
+}
+
+/** Adopt a completed event-native roster, without manufacturing a team submission.
+ * The caller must authorize the operation and owns downstream reconciliation.
+ * Facts and qualification are loaded afresh under the transaction's locks.
+ */
+export async function adoptEventNativeRosterInTx(
+  tx: TxDb,
+  input: { entryId: string; expectedRevisionId: string; actorId: string },
+): Promise<{ seasonId: string; seasonSlug: string; revisionId: string; alreadyApproved: boolean; assessment: EntryRosterAssessment | null }> {
+  const entry = await lockEntry(tx, input.entryId);
+  const season = await loadSeasonOrThrow(tx, entry.competitionId);
+  if (entry.source !== "event_native" || !["draft", "approved"].includes(entry.registrationStatus) && !(entry.registrationStatus === "changes_requested" && decodeSeasonRules(season).source === "policy_v2")) {
+    throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前赛事原生参赛队不能采用名单。 ");
+  }
+  if (entry.currentRosterRevisionId !== input.expectedRevisionId) {
+    throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "名单版本已变化，请刷新后重试。 ");
+  }
+  const [revision] = await tx.select().from(competitionEntryRosterRevisions)
+    .where(and(eq(competitionEntryRosterRevisions.id, input.expectedRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
+  if (!revision) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不存在。 ");
+  if (entry.approvedRosterRevisionId === revision.id && revision.status === "approved") {
+    const assessment = decodeSeasonRules(season).source === "policy_v2" ? await assessEntryRosterInTx(tx, input) : null;
+    if (assessment?.decision.state === "blocked") throw new AppError(ErrorCode.VALIDATION_FAILED, assessment.decision.findings.map((finding) => finding.message).join(" "));
+    return { seasonId: season.id, seasonSlug: season.slug, revisionId: revision.id, alreadyApproved: true, assessment };
+  }
+  if (revision.status !== "draft") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不能采用。 ");
+  await assertRosterNotFrozen(tx, entry.id);
+  const now = new Date();
+  const { assessment } = await approveRosterRevisionInTx(tx, entry, season, now, ["draft"]);
+  await tx.update(competitionEntries).set({ registrationStatus: "approved", approvedRosterRevisionId: revision.id, updatedAt: now }).where(eq(competitionEntries.id, entry.id));
+  await auditEntry(tx, { action: "competition_entry.approved", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { rosterRevision: revision.revisionNumber, source: entry.source } });
+  return { seasonId: season.id, seasonSlug: season.slug, revisionId: revision.id, alreadyApproved: false, assessment };
+}
+
+export async function applyEntryReviewDecisionInTx(tx: TxDb, input: { entryId: string; decision: "changes_requested" | "waitlisted" | "approved" | "rejected"; reason?: string; actorId: string }): Promise<{ seasonSlug: string; seasonId: string; from: typeof competitionEntries.$inferSelect.registrationStatus; rosterRevision: number; assessment: EntryRosterAssessment | null }> {
   const [entryScope] = await tx.select({ competitionId: competitionEntries.competitionId })
     .from(competitionEntries).where(eq(competitionEntries.id, input.entryId));
   if (!entryScope) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。");
@@ -642,29 +772,32 @@ export async function applyEntryReviewDecisionInTx(tx: TxDb, input: { entryId: s
   if (!revision) throw new AppError(ErrorCode.INTERNAL_ERROR, "报名名单记录不完整，请联系赛事管理员。");
   const [submission] = await tx.select().from(competitionEntrySubmissions).where(and(eq(competitionEntrySubmissions.entryId, entry.id), eq(competitionEntrySubmissions.rosterRevisionId, revision.id))).for("update");
   if (!submission) throw new AppError(ErrorCode.INTERNAL_ERROR, "报名提交记录不完整，请联系赛事管理员。");
-  if (input.decision === "approved") {
-    await validateEntryRoster(tx, entry, season, ["submitted"], { requireCurrentTeamMembership: false, requireActiveRestrictionOverrides: true });
-  }
   const now = new Date();
+  const assessment = input.decision === "approved" ? (await approveRosterRevisionInTx(tx, entry, season, now)).assessment : null;
   await tx.update(competitionEntrySubmissions).set({ decision: input.decision, decidedBy: input.actorId, decidedAt: now, reason: input.reason || null }).where(eq(competitionEntrySubmissions.id, submission.id));
   if (input.decision === "changes_requested") {
     const next = await cloneRosterRevisionAsDraftInTx(tx, revision, input.actorId, "admin_remediation");
     await tx.update(competitionEntries).set({ registrationStatus: "changes_requested", currentRosterRevisionId: next.id, reviewedAt: now, reviewReason: input.reason, updatedAt: now }).where(eq(competitionEntries.id, entry.id));
   } else {
     await tx.update(competitionEntries).set({ registrationStatus: input.decision, approvedRosterRevisionId: input.decision === "approved" ? revision.id : entry.approvedRosterRevisionId, reviewedAt: now, reviewReason: input.reason || null, updatedAt: now }).where(eq(competitionEntries.id, entry.id));
-    if (input.decision === "approved") {
-      await tx.update(competitionEntryRosterRevisions).set({ status: "approved", approvedAt: now }).where(eq(competitionEntryRosterRevisions.id, revision.id));
-    }
     if (input.decision === "rejected") await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.entryId, entry.id));
   }
-  return { seasonSlug: season.slug, seasonId: season.id, from: entry.registrationStatus, rosterRevision: revision.revisionNumber };
+  return { seasonSlug: season.slug, seasonId: season.id, from: entry.registrationStatus, rosterRevision: revision.revisionNumber, assessment };
 }
 
 export async function transferCompetitionEntryRepresentativeInTx(tx: TxDb, input: { entryId: string; userId: string; toUserId: string; actorId: string }): Promise<{ seasonSlug: string }> {
   const entry = await lockRepresentativeEntry(tx, input.entryId, input.userId);
   await assertRosterNotFrozen(tx, entry.id);
-  const [participant] = await tx.select().from(competitionEntryParticipants).where(and(eq(competitionEntryParticipants.entryId, entry.id), eq(competitionEntryParticipants.userId, input.toUserId))).for("update");
-  if (!participant || participant.status !== "confirmed") throw new AppError(ErrorCode.VALIDATION_FAILED, "新赛事负责人必须是本届名单中已确认参赛的成员。");
+  const season = await loadSeasonOrThrow(tx, entry.competitionId);
+  if (decodeSeasonRules(season).roster.changes?.representativeCanTransfer === false) throw new AppError(ErrorCode.FORBIDDEN, "本届赛事不允许负责人自行交接，请联系赛事管理员。");
+  const [participant] = await tx.select().from(competitionEntryParticipants)
+    .where(and(eq(competitionEntryParticipants.entryId, entry.id), eq(competitionEntryParticipants.userId, input.toUserId))).for("update");
+  if (!participant || participant.status !== "confirmed") throw new AppError(ErrorCode.VALIDATION_FAILED, "新赛事负责人必须是本届已确认参赛的成员。");
+  if (decodeSeasonRules(season).source === "policy_v2") {
+    const [rosterMember] = await tx.select({ id: competitionEntryRosterMembers.id }).from(competitionEntryRosterMembers)
+      .where(and(eq(competitionEntryRosterMembers.revisionId, entry.currentRosterRevisionId), eq(competitionEntryRosterMembers.participantId, participant.id), eq(competitionEntryRosterMembers.userId, participant.userId)));
+    if (!rosterMember) throw new AppError(ErrorCode.VALIDATION_FAILED, "新赛事负责人必须在当前名单中。 ");
+  }
   const now = new Date();
   await tx.insert(competitionEntryRepresentativeChanges).values({ entryId: entry.id, fromUserId: entry.representativeUserId, toUserId: input.toUserId, changedAt: await nextRepresentativeChangeAt(tx, entry.id), changedByActorId: input.actorId });
   await tx.update(competitionEntries).set({ representativeUserId: input.toUserId, updatedAt: now }).where(eq(competitionEntries.id, entry.id));

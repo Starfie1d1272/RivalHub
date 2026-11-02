@@ -32,7 +32,7 @@ import { BUILT_IN_COMPETITIVE_PLATFORMS } from "../../../../src/lib/competitive/
 async function runMigrationExpectingFailure(client: Client, name: string, keyword: string): Promise<string> {
   const { readFileSync } = await import("node:fs");
   const { join } = await import("node:path");
-  const source = readFileSync(join(process.cwd(), "drizzle/migrations", name), "utf8");
+  const source = readFileSync(join(process.cwd(), "drizzle/v2-migrations", name), "utf8");
   await client.query("BEGIN");
   try {
     await client.query(source);

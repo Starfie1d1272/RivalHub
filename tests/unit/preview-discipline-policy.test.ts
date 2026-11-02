@@ -1,3 +1,4 @@
+import { readMigrationLedger } from "../../scripts/db/migration-ledger";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,7 +16,7 @@ describe("public discipline mirror boundary", () => {
     expect(query).toContain("'preview:redacted'::text AS issued_by");
     expect(query).toContain("status <> 'draft'");
     expect(query).toContain("effective_from <= now()");
-    const migrations = readExpectedMigrations();
+    const migrations = readMigrationLedger("drizzle/v2-migrations");
     const before = migrations.slice(0, migrations.findIndex((migration) => migration.tag === "0010_same_the_order"));
     expect(previewPolicyFor(before).tables.disciplinary_cases).toBeUndefined();
   });

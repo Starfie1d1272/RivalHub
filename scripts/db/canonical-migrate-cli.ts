@@ -4,6 +4,8 @@ import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { postgresConnection } from "../../src/db/postgres-connection";
 import { migrateCanonicalDatabase } from "./canonical-migrate";
+import { assertLocalDatabaseUrl } from "./local-environment";
+import { adoptLegacyCandidate } from "./adopt-v3-candidate";
 
 /** Protected wrappers validate the target before invoking this child process. */
 async function main(): Promise<void> {
@@ -15,7 +17,18 @@ async function main(): Promise<void> {
   }
   const pool = new Pool({ ...postgresConnection(config.dbCredentials.url), max: 1 });
   try {
-    await migrateCanonicalDatabase(drizzle(pool), resolve(migrationsFolder));
+    if (process.argv[4] === "--adopt-v3-candidate") {
+      assertLocalDatabaseUrl(config.dbCredentials.url, "candidate adoption database");
+      const client = await pool.connect();
+      try { console.log(`Candidate adoption: ${await adoptLegacyCandidate(client)}.`); }
+      finally { client.release(); }
+    } else if (process.argv.length > 4) {
+      throw new Error("Unknown canonical migration option.");
+    } else {
+      const client = await pool.connect();
+      try { await migrateCanonicalDatabase(drizzle(client), resolve(migrationsFolder), client); }
+      finally { client.release(); }
+    }
   } finally {
     await pool.end();
   }

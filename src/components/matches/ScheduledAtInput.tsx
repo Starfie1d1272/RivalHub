@@ -28,7 +28,9 @@ export function ScheduledAtInput({
   const [isPending, startTransition] = useTransition();
 
   function handleSave() {
-    const date = value ? parseCSTInput(value) : null;
+    const date = value === (toCSTDateTimeInput(currentScheduledAt) ?? "")
+      ? currentScheduledAt
+      : value ? parseCSTInput(value) : null;
     if (value && !date) {
       toast.error("请输入有效的时间");
       return;

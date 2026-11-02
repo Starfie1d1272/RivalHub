@@ -12,6 +12,7 @@ import {
   steamProfiles,
   users,
 } from "@/db/schema";
+import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getCurrentUserAuthorization } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -66,7 +67,7 @@ export async function projectVetoRoomView(
   core: VetoRoomCoreSnapshot,
   viewerId: string | null,
   authorization: Awaited<ReturnType<typeof getCurrentUserAuthorization>>,
-  database: Pick<DB, "select"> = db,
+  database: DB = db,
 ) {
   const entriesQuery = database
       .select({ id: jsonField(competitionEntries.id, "id"), name: jsonField(competitionEntries.name, "name"), representativeUserId: jsonField(competitionEntries.representativeUserId, "representativeUserId") })
@@ -123,6 +124,24 @@ export async function projectVetoRoomView(
     rows.push(row);
     rosterByEntry.set(row.entryId, rows);
   }
+  const lineupChecks = new Map<string, boolean>();
+  if (core.match.status === "scheduled" && rosterRows.length > 0) {
+    await database.transaction(async (tx) => {
+      for (const entryId of [core.match.entryAId, core.match.entryBId]) {
+        const rows = rosterByEntry.get(entryId) ?? [];
+        if (!rows.length) continue;
+        try {
+          const result = await getStartingLineupPreflightInTx(tx, { match: core.match, entryId,
+            starterIds: rows.filter((row) => row.isStarter).map((row) => row.memberId),
+            substituteIds: rows.filter((row) => !row.isStarter).map((row) => row.memberId) });
+          lineupChecks.set(entryId, result.valid);
+        } catch (error) {
+          if (!(error instanceof AppError) || error.code !== ErrorCode.VALIDATION_FAILED) throw error;
+          lineupChecks.set(entryId, false);
+        }
+      }
+    }, { accessMode: "read only", isolationLevel: "repeatable read" });
+  }
   const isAdmin = authorization?.role === "super_admin" || Boolean(authorization?.seasonIds.includes(core.match.seasonId));
   const viewerEntryId = core.match.testConfig?.operatorAId === viewerId ? core.match.entryAId : core.match.testConfig?.operatorBId === viewerId ? core.match.entryBId : getEntryIdForViewer(viewerId, entryRows, rosterRows);
   const currentTurnEntry = core.currentTurn?.actorEntryId ?? null;
@@ -136,7 +155,8 @@ export async function projectVetoRoomView(
     const operator = operatorRows.find(row => row.userId === configuredOperatorId);
     const bpRepresentative = core.match.testConfig ? (operator ? { ...operator, memberId: rows.find(row => row.userId === operator.userId)?.memberId ?? null } : null) : rows.find((row) => row.isVetoRepresentative && row.isStarter) ?? null;
     const starterCount = rows.filter(row => row.isStarter).length;
-    const lineupConfirmed = starterCount === 5;
+    const lineupCheck = lineupChecks.get(entryId);
+    const lineupConfirmed = core.match.status === "scheduled" ? lineupCheck === true : starterCount > 0;
     const currentViewerStarter = rows.some((row) => row.userId === viewerId && row.isStarter);
     const isViewerEntryRepresentative = entry?.representativeUserId === viewerId;
     const mayEditRepresentative = Boolean(
@@ -156,7 +176,7 @@ export async function projectVetoRoomView(
       vetoRoleLabel: core.session.vetoTeamAEntryId === entryId ? "先禁图方" : core.session.vetoTeamAEntryId && core.session.vetoTeamAEntryId !== entryId ? "后禁图方" : null,
       rosterConfirmed: lineupConfirmed,
       rosterStatusLabel: lineupConfirmed ? rows[0]?.rosterStatus === "confirmed" ? "首发已确认" : "首发已提交" : "首发待准备",
-      lineupBlocker: rows.length === 0 ? "请提交本场首发" : starterCount !== 5 ? `请补齐 5 名首发（当前 ${starterCount} 人）` : null,
+      lineupBlocker: rows.length === 0 ? "请提交本场首发" : lineupCheck === false ? "本场名单未通过资格检查，请联系赛事管理员。" : null,
       starters: rows.filter((row) => row.isStarter).map((row) => ({
         id: row.memberId,
         userId: row.userId,

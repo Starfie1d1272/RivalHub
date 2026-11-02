@@ -90,6 +90,7 @@ interface SeedRecommendationCompetitiveContextV1 {
   currentSeasonKey: string;
   previousSeasonKey: string;
   rankOrder: string[];
+  sourceSelection?: CompetitiveProfileConfig["sourceSelection"];
   evidencePolicy: CompetitiveProfileConfig["evidencePolicy"] | null;
   fallbackConversion: SerializedFallbackConversionV1 | null;
   conversionPolicyId: string | null;
@@ -229,6 +230,7 @@ function snapshotCompetitiveContextFromConfig(
     currentSeasonKey: config.currentSeasonKey,
     previousSeasonKey: config.previousSeasonKey,
     rankOrder: [...config.rankOrder],
+    ...(config.sourceSelection ? { sourceSelection: config.sourceSelection } : {}),
     evidencePolicy: config.evidencePolicy ? { ...config.evidencePolicy, recentSeasonKeys: [...config.evidencePolicy.recentSeasonKeys] } : null,
     fallbackConversion: serializeFallbackConversion(config.fallbackConversion),
     conversionPolicyId: config.conversionPolicyId ?? null,
@@ -438,6 +440,7 @@ function isCompetitiveContext(value: unknown): value is SeedRecommendationCompet
     Array.isArray(value.rankOrder) &&
     value.rankOrder.length > 0 &&
     value.rankOrder.every((rank) => typeof rank === "string") &&
+    (value.sourceSelection === undefined || value.sourceSelection === "primary_then_fallback" || value.sourceSelection === "strongest_equivalent") &&
     isEvidencePolicy(value.evidencePolicy) &&
     isFallbackConversion(value.fallbackConversion) &&
     isNullableString(value.conversionPolicyId) &&

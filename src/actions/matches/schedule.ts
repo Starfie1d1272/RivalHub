@@ -1,5 +1,6 @@
 "use server";
 
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { officialMatchCondition } from "@/lib/matches/scope";
 
 
@@ -42,7 +43,7 @@ export async function generateSchedule(
       if (season.status !== "playing") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有在赛季进行中才能生成赛程");
       const [{ value: existingCount }] = await tx.select({ value: count() }).from(matches).where(and(officialMatchCondition(), eq(matches.seasonId, seasonId)));
       if (existingCount > 0) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛程已生成，不可重复生成");
-      const seasonTeams = await tx.query.competitionEntries.findMany({ where: eq(competitionEntries.competitionId, seasonId), orderBy: [asc(competitionEntries.formationOrder)] });
+      const seasonTeams = await tx.query.competitionEntries.findMany({ where: decodeSeasonRules(season).source === "policy_v2" ? and(eq(competitionEntries.competitionId, seasonId), eq(competitionEntries.registrationStatus, "approved")) : eq(competitionEntries.competitionId, seasonId), orderBy: [asc(competitionEntries.formationOrder)] });
       if (seasonTeams.length < 2) throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍数量不足，无法生成赛程");
       const firstStage = getFirstStage(normalizeStagePlan(season.stagePlan));
       if (!firstStage) throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "该赛季没有可生成的赛程阶段");

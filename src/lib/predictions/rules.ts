@@ -158,4 +158,3 @@ export function coinLevel(
           ? "青铜"
           : "未获得";
 }
-export { distributePool, type PoolPosition } from "@/lib/bet/pool";

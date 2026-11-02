@@ -1,8 +1,10 @@
+import { resolveCompetitiveSourceSelection } from "@/lib/competitive/source-selection";
 import { isReservedSeasonSlug } from "./slug";
 import { z } from "zod";
 import { createCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
 import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
-import { competitiveProfileSchema, qualificationPolicySchema } from "@/lib/competition/qualification-policy";
+import { competitiveProfileSchema, qualificationPolicySchema, qualificationPolicyV2Schema } from "@/lib/competition/qualification-policy";
+import { decodeSeasonRules, encodeDraftSeasonRules, seasonRuleExtensionsSchema } from "@/lib/seasons/rules";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { parseCSTInput } from "@/lib/utils/date";
 import {
@@ -18,6 +20,8 @@ import {
   type StagePlan,
   type PlayerType,
   type TeamRegistrationConfig,
+  type StoredTeamRegistrationConfig,
+  type StoredTeamRegistrationConfigV2,
   type SeasonStatus,
 } from "@/types/season";
 import type { seasons } from "@/db/schema";
@@ -76,7 +80,7 @@ const seasonFormBaseSchema = z.object({
   positions: z.array(z.string().min(1)).min(1),
   stagePlan: stagePlanSchema,
   registrationConfig: registrationConfigSchema,
-  teamRegistrationConfig: z.object({
+  teamRegistrationConfig: z.union([z.object({
     qualificationPolicy: qualificationPolicySchema.optional(),
     allowExternal: z.boolean(),
     graduateCountsAsHome: z.boolean(),
@@ -92,7 +96,13 @@ const seasonFormBaseSchema = z.object({
     requireTeamLogo: z.boolean(),
     requireCompetitiveProfile: z.boolean().optional(),
     competitiveProfile: competitiveProfileSchema.optional(),
-  }).optional(),
+  }), seasonRuleExtensionsSchema.extend({
+    qualificationPolicy: qualificationPolicyV2Schema,
+    requirePositions: z.boolean(),
+    maxPerPositionPerTeam: z.number().int().min(0),
+    requireUniqueTeamName: z.boolean(),
+    requireTeamLogo: z.boolean(),
+  }).strict()]).optional(),
   affiliationRules: z.array(z.object({
     institutionCode: z.string().min(1),
     eligibleAcademicStatuses: z.array(z.enum(["enrolled", "graduated"])).min(1).readonly(),
@@ -117,7 +127,7 @@ type SeasonFormData = Omit<SeasonFormSchemaInput, "registrationConfig" | "teamRe
   registrationConfig: Omit<SeasonFormSchemaInput["registrationConfig"], "allowedPlayerTypes"> & {
     allowedPlayerTypes: readonly PlayerType[];
   };
-  teamRegistrationConfig?: TeamRegistrationConfig;
+  teamRegistrationConfig?: StoredTeamRegistrationConfig;
   affiliationRules?: readonly InstitutionAffiliationRule[];
 };
 export type SeasonFormInput = SeasonFormData;
@@ -203,8 +213,11 @@ function assertUniqueStageKeys(stagePlan: StagePlan): void {
  */
 export function resolveCompetitionDefinition(data: ParsedSeasonForm, applyTemplate: boolean): Omit<ParsedSeasonForm, "template"> {
   const { template, ...input } = data;
+  // V2 draft configuration is event-owned, not regenerated from a format template.
+  if (isV2TeamConfig(input.teamRegistrationConfig)) return input;
   if (!template || !applyTemplate || template === "custom") return input;
   const builtIn = createCompetitionTemplate(template as CompetitionTemplate);
+  if (isV2TeamConfig(builtIn.teamRegistrationConfig)) throw new AppError(ErrorCode.INTERNAL_ERROR, "历史模板配置版本无效。 ");
   // Built-in format and team management defaults remain template-owned.
   // A submitted qualification policy belongs to this event, not the preset.
   // Legacy Major's 5E equivalence overlay remains frozen at registration open.
@@ -247,6 +260,34 @@ export function resolveCompetitionDefinition(data: ParsedSeasonForm, applyTempla
       mapPool: input.registrationConfig.mapPool,
     },
   };
+}
+
+function isV2TeamConfig(config: StoredTeamRegistrationConfig | undefined | null): config is StoredTeamRegistrationConfigV2 {
+  return config?.qualificationPolicy?.version === 2;
+}
+
+/** Build and encode the submitted v2 facts through the common rules owner. */
+function encodeSubmittedV2(data: ParsedSeasonForm, registrationOpenedAt: Date | null) {
+  if (!isV2TeamConfig(data.teamRegistrationConfig)) throw new AppError(ErrorCode.VALIDATION_FAILED, "缺少新版赛事规则。 ");
+  const dates = toDbDates(data);
+  const columns = {
+    registrationMode: data.registrationMode,
+    hasCaptainVoting: data.hasCaptainVoting,
+    hasDraft: data.hasDraft,
+    registrationConfig: { ...data.registrationConfig, allowedPlayerTypes: [...data.registrationConfig.allowedPlayerTypes] },
+    teamRegistrationConfig: data.teamRegistrationConfig,
+    affiliationRules: data.affiliationRules ?? [],
+    minTeamSize: data.minTeamSize,
+    maxTeamSize: data.maxTeamSize,
+    starterCount: data.starterCount,
+    positions: data.positions,
+    stagePlan: data.stagePlan,
+    registrationOpensAt: dates.registrationOpensAt ?? null,
+    registrationOpenedAt,
+    registrationClosesAt: dates.registrationClosesAt ?? null,
+    rosterChangeClosesAt: dates.rosterChangeClosesAt ?? null,
+  };
+  return encodeDraftSeasonRules(columns, decodeSeasonRules(columns));
 }
 
 export type SeasonRow = typeof seasons.$inferSelect;
@@ -410,6 +451,36 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
       : existing.rosterChangeClosesAt,
   };
   assertValidDateProjection(projectedDates);
+  if (isV2TeamConfig(data.teamRegistrationConfig)) {
+    const encoded = encodeSubmittedV2(data, existing.registrationOpenedAt);
+    if (!capabilities.canEditPublicRules) {
+      if (!isV2TeamConfig(existing.teamRegistrationConfig)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可修改赛事规则。 ");
+      const submitted = decodeSeasonRules({ ...existing, ...encoded });
+      const current = decodeSeasonRules(existing);
+      const editableRules = (rules: typeof current) => {
+        const profile = rules.competitive.competitiveProfile;
+        const { rosterChangeClosesAt: _deadline, ...roster } = rules.roster;
+        void _deadline;
+        return { formation: rules.formation, participant: rules.participant, roster, lineup: rules.lineup,
+          competition: rules.competition, registrationMode: rules.registration.registrationMode,
+          registrationConfig: rules.registration.registrationConfig,
+          competitive: { externalStrengthGap: rules.competitive.externalStrengthGap,
+            profile: profile ? { platform: profile.platform, sourceSelection: resolveCompetitiveSourceSelection(profile) } : null } };
+      };
+      if (existing.hasCommunityAwards !== data.hasCommunityAwards || !sameJson(editableRules(current), editableRules(submitted))) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可修改赛事规则。 ");
+      return { template, set: { slug: existing.slug, name: data.name, kind: data.kind, competitionTemplate: template,
+        themeColor: data.themeColor, endAt: template === "major" ? existing.endAt : submittedDates.endAt, updatedAt: new Date(),
+        ...(capabilities.canEditRegistrationOpenSchedule ? { registrationOpensAt: projectedDates.registrationOpensAt } : {}),
+        ...(capabilities.canEditRegistrationDeadlines && template !== "major" ? { registrationClosesAt: projectedDates.registrationClosesAt, rosterChangeClosesAt: projectedDates.rosterChangeClosesAt } : {}) } };
+    }
+    return { template, set: {
+      slug: data.slug, name: data.name, kind: data.kind, competitionTemplate: template,
+      themeColor: data.themeColor, endAt: submittedDates.endAt, updatedAt: new Date(),
+      hasCommunityAwards: data.hasCommunityAwards,
+      ...encoded,
+    } };
+  }
+  if (isV2TeamConfig(existing.teamRegistrationConfig)) throw new AppError(ErrorCode.VALIDATION_FAILED, "新版规则必须完整提交后才能保存。 ");
   const submittedTeamConfig = data.teamRegistrationConfig ?? {} as TeamRegistrationConfig;
   const normalizedTeamConfig = normalizeTeamRegistrationConfig({
     ...submittedTeamConfig,
@@ -494,7 +565,16 @@ export function planSeasonCreate(parsed: ParsedSeasonForm): { template: Competit
   const template = parsed.template ?? "custom";
   const data = resolveCompetitionDefinition(parsed, true);
   const templateDefaults = createCompetitionTemplate(template);
+  if (isV2TeamConfig(templateDefaults.teamRegistrationConfig)) throw new AppError(ErrorCode.INTERNAL_ERROR, "历史模板配置版本无效。 ");
   assertUniqueStageKeys(data.stagePlan as StagePlan);
+  if (isV2TeamConfig(data.teamRegistrationConfig)) {
+    return { template, set: {
+      slug: data.slug, name: data.name, kind: data.kind, competitionTemplate: template,
+      status: "draft", themeColor: data.themeColor, endAt: toDbDates(data).endAt,
+      hasCommunityAwards: data.hasCommunityAwards,
+      ...encodeSubmittedV2(data, null),
+    } };
+  }
   return {
     template,
     set: {

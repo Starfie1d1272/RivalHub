@@ -1,5 +1,10 @@
-import { OFFICIAL_PRODUCTION } from "../../../src/lib/runtime/official-deployment-profile.mjs";
-import { requireSupabaseSecretKey } from "../../../src/lib/runtime/supabase-keys";
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { assertLocalContainerAccess } from "../local-container-guard";
+import { OFFICIAL_PREVIEW, OFFICIAL_PRODUCTION } from "../../../src/lib/runtime/official-deployment-profile.mjs";
+import { postgresConnection } from "../../../src/db/postgres-connection";
+import { requireSupabasePublicKey, requireSupabaseSecretKey } from "../../../src/lib/runtime/supabase-keys";
 import {
   assertProductionBackupDatabaseUrl,
   buildProductionEnvironment,
@@ -44,6 +49,7 @@ export interface R2ObjectEnvironment {
   bucket: string;
   accessKeyId: string;
   secretAccessKey: string;
+  localEndpoint?: string;
 }
 
 export interface IsolatedRecoveryEnvironment {
@@ -89,6 +95,58 @@ export function assertProductionBackupEnvironment(
 }
 
 /** Production DB-only checkpoint target; it deliberately has no Storage credential. */
+/** Explicit non-official instance source; never inherits production defaults. */
+/** Local-only full-flow source, discovered from the running provider, never a Hosted target. */
+export function assertIsolatedInstanceBackupEnvironment(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): ProductionBackupEnvironment & { projectRef: string; appOrigin: string } {
+  if (env.RIVALHUB_DB_TARGET !== "local" || env.RIVALHUB_ALLOW_REMOTE_DB_WRITE) throw new Error("Isolated backup requires local-only configuration.");
+  assertLocalContainerAccess("isolated instance recovery backup", env);
+  const workdir = resolve(required(env.RIVALHUB_BACKUP_SUPABASE_WORKDIR, "RIVALHUB_BACKUP_SUPABASE_WORKDIR"));
+  const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+  const status = spawnSync(pnpmBin, ["exec", "supabase", "status", "--workdir", workdir, "--output", "json"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  if (status.error || status.status !== 0) throw new Error("Local backup source status unavailable.");
+  const local = parseLocalSupabaseStatus(status.stdout);
+  const config = readFileSync(resolve(workdir, "supabase/config.toml"), "utf8");
+  const projectRef = /^project_id\s*=\s*"([a-z]{20})"\s*$/m.exec(config)?.[1];
+  if (!projectRef || isProductionRecoverySource(projectRef) || projectRef === OFFICIAL_PREVIEW.projectRef) throw new Error("Isolated source project identity invalid.");
+  const r2 = assertRecoveryFetchEnvironment(env);
+  if (!r2.localEndpoint) throw new Error("Isolated backup requires a loopback-only object storage fixture.");
+  return {
+    databaseUrl: local.databaseUrl, supabaseUrl: local.apiUrl, supabaseSecretKey: local.serviceRoleKey,
+    projectRef, appOrigin: assertLocalHttpUrl(env.NEXT_PUBLIC_APP_URL, "NEXT_PUBLIC_APP_URL"),
+    ageRecipient: assertAgeRecipient(required(env.RIVALHUB_BACKUP_AGE_RECIPIENT, "RIVALHUB_BACKUP_AGE_RECIPIENT")),
+    r2,
+  };
+}
+
+export function assertInstanceBackupEnvironment(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): ProductionBackupEnvironment & { projectRef: string; appOrigin: string } {
+  const projectRef = required(env.RIVALHUB_INSTANCE_PROJECT_REF, "RIVALHUB_INSTANCE_PROJECT_REF");
+  if (!/^[a-z]{20}$/.test(projectRef) || isProductionRecoverySource(projectRef) || projectRef === OFFICIAL_PREVIEW.projectRef
+    || env.RIVALHUB_INSTANCE_CONFIRM !== projectRef) throw new Error("Confirmed non-official instance project required.");
+  const supabaseUrl = required(env.NEXT_PUBLIC_SUPABASE_URL, "NEXT_PUBLIC_SUPABASE_URL");
+  if (supabaseUrl !== `https://${projectRef}.supabase.co`) throw new Error("Instance Supabase API identity mismatch.");
+  const databaseUrl = required(env.DATABASE_URL, "DATABASE_URL");
+  let db: URL;
+  try { db = new URL(databaseUrl); } catch { throw new Error("Instance database URL invalid."); }
+  const direct = db.hostname === `db.${projectRef}.supabase.co` && (!db.port || db.port === "5432");
+  const pooler = /^aws-[0-9]+-[a-z0-9-]+\.pooler\.supabase\.com$/.test(db.hostname)
+    && decodeURIComponent(db.username) === `postgres.${projectRef}` && (!db.port || db.port === "5432");
+  if ((!direct && !pooler) || db.pathname !== "/postgres" || db.hash
+    || [...db.searchParams.keys()].some(key => key !== "sslmode")) throw new Error("Instance backup database identity mismatch.");
+  postgresConnection(databaseUrl);
+  return {
+    databaseUrl, supabaseUrl, projectRef,
+    appOrigin: required(env.NEXT_PUBLIC_APP_URL, "NEXT_PUBLIC_APP_URL"),
+    supabaseSecretKey: requireSupabaseSecretKey(env.SUPABASE_SECRET_KEY, supabaseUrl),
+    ageRecipient: assertAgeRecipient(required(env.RIVALHUB_BACKUP_AGE_RECIPIENT, "RIVALHUB_BACKUP_AGE_RECIPIENT")),
+    r2: assertRecoveryFetchEnvironment(env),
+  };
+}
+
+/** Production DB-only checkpoint target; it deliberately has no Storage credential. */
 export function assertProductionDbCheckpointEnvironment(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): ProductionDbCheckpointEnvironment {
@@ -118,11 +176,23 @@ export function assertProductionDbCheckpointEnvironment(
 export function assertRecoveryFetchEnvironment(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): R2ObjectEnvironment {
+  const requestedLocal = env.RIVALHUB_R2_LOCAL_ENDPOINT?.trim();
+  const isolatedOperation = env.RIVALHUB_BACKUP_SOURCE === "isolated-instance"
+    || (!env.RIVALHUB_BACKUP_SOURCE && env.RIVALHUB_RECOVERY_TARGET === "isolated");
+  if (requestedLocal && (env.RIVALHUB_DB_TARGET !== "local" || env.RIVALHUB_ALLOW_REMOTE_DB_WRITE || !isolatedOperation)) {
+    throw new Error("Local object storage is restricted to isolated recovery.");
+  }
+  const localEndpoint = requestedLocal ? assertLocalHttpUrl(requestedLocal, "RIVALHUB_R2_LOCAL_ENDPOINT") : undefined;
+  if (localEndpoint) {
+    const url = new URL(localEndpoint);
+    if (url.origin !== localEndpoint || url.username || url.password) throw new Error("Local object storage endpoint must be an origin.");
+  }
   return {
     accountId: assertCloudflareAccountId(required(env.RIVALHUB_R2_ACCOUNT_ID, "RIVALHUB_R2_ACCOUNT_ID")),
     bucket: assertR2BucketName(required(env.RIVALHUB_R2_BUCKET, "RIVALHUB_R2_BUCKET")),
     accessKeyId: required(env.RIVALHUB_R2_ACCESS_KEY_ID, "RIVALHUB_R2_ACCESS_KEY_ID"),
     secretAccessKey: required(env.RIVALHUB_R2_SECRET_ACCESS_KEY, "RIVALHUB_R2_SECRET_ACCESS_KEY"),
+    ...(localEndpoint ? { localEndpoint } : {}),
   };
 }
 
@@ -191,6 +261,34 @@ export function assertRecoveryArtifactKind(value: string | undefined): RecoveryA
     throw new Error("recovery artifact kind 必须是 full | db-checkpoint。 ");
   }
   return value;
+}
+
+/** Explicitly targeted fresh non-official Hosted instance; never an official project. */
+export function buildInstanceRecoveryEnvironment(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): IsolatedRecoveryEnvironment {
+  if (env.RIVALHUB_RECOVERY_TARGET !== "instance" || env.RIVALHUB_INSTANCE_WRITE !== "yes") {
+    throw new Error("Explicit instance recovery write target required.");
+  }
+  const project = required(env.RIVALHUB_INSTANCE_PROJECT_REF, "RIVALHUB_INSTANCE_PROJECT_REF");
+  if (!/^[a-z]{20}$/.test(project) || isProductionRecoverySource(project) || project === OFFICIAL_PREVIEW.projectRef
+    || env.RIVALHUB_INSTANCE_CONFIRM !== project) throw new Error("Confirmed non-official recovery project required.");
+  const apiUrl = required(env.RIVALHUB_RECOVERY_SUPABASE_URL, "RIVALHUB_RECOVERY_SUPABASE_URL");
+  if (apiUrl !== `https://${project}.supabase.co`) throw new Error("Recovery API project identity mismatch.");
+  const databaseUrl = required(env.RIVALHUB_RECOVERY_DATABASE_URL, "RIVALHUB_RECOVERY_DATABASE_URL");
+  let db: URL;
+  try { db = new URL(databaseUrl); } catch { throw new Error("Recovery database URL invalid."); }
+  const direct = db.hostname === `db.${project}.supabase.co` && (!db.port || db.port === "5432");
+  const pooled = /^aws-[0-9]+-[a-z0-9-]+\.pooler\.supabase\.com$/.test(db.hostname)
+    && decodeURIComponent(db.username) === `postgres.${project}` && (!db.port || db.port === "5432");
+  if ((!direct && !pooled) || db.pathname !== "/postgres" || db.hash
+    || [...db.searchParams.keys()].some(key => key !== "sslmode")) throw new Error("Recovery database project identity mismatch.");
+  postgresConnection(databaseUrl);
+  return { databaseUrl, supabase: {
+    apiUrl, databaseUrl,
+    publishableKey: requireSupabasePublicKey(env.RIVALHUB_RECOVERY_PUBLISHABLE_KEY, apiUrl),
+    serviceRoleKey: requireSupabaseSecretKey(env.RIVALHUB_RECOVERY_SERVICE_ROLE_KEY, apiUrl),
+  } };
 }
 
 export function buildIsolatedRecoveryEnvironment(

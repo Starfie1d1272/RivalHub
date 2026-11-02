@@ -25,7 +25,7 @@ import {
   matchVetoTimeoutIncidents,
   seasons,
 } from "@/db/schema";
-import { materializeDefaultLineupsInTx } from "@/lib/match-rosters/service";
+import { assertStartingLineupAllowedInTx, materializeDefaultLineupsInTx } from "@/lib/match-rosters/service";
 import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { applyMatchStatusTransitionInTx } from "@/lib/matches/lifecycle";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
@@ -73,7 +73,7 @@ type VetoSession = typeof matchVetoSessions.$inferSelect;
 type VetoStepRow = typeof matchVetoSteps.$inferSelect;
 
 export interface VetoRoomCoreSnapshot {
-  match: VetoMatch;
+  match: CompetitionMatch<DbMatch>;
   session: VetoSession;
   steps: VetoStepRow[];
   incidents: Array<typeof matchVetoTimeoutIncidents.$inferSelect>;
@@ -646,7 +646,7 @@ function logTimeoutCatchUp(count: number): void {
 
 async function loadCoreSnapshotInTx(
   tx: TxDb,
-  match: VetoMatch,
+  match: CompetitionMatch<DbMatch>,
   session: VetoSession,
   loaded?: { steps: VetoStepRow[]; serverNow: Date; gameplayStarted: boolean; admissionClosed: boolean; pendingInvalidation: boolean },
 ): Promise<VetoRoomCoreSnapshot> {
@@ -931,7 +931,6 @@ export async function requestVetoStartReceipt(input: {
     if (input.entryId !== match.entryAId && input.entryId !== match.entryBId) throw new AppError(ErrorCode.VALIDATION_FAILED, "请求队伍不属于本场比赛。");
     const { actors, lineupsReady } = await loadStartActorsInTx(tx, match);
     if (!lineupsReady) throw new AppError(ErrorCode.VALIDATION_FAILED, "双方本场首发就绪后才能开始 BP。");
-
     const bpRepresentativeId = actors.get(input.entryId)?.bpId;
     const entryRepresentativeId = actors.get(input.entryId)?.captainId;
     const timing = await loadStartTimingInTx(tx, match);
@@ -945,6 +944,16 @@ export async function requestVetoStartReceipt(input: {
     }
     if (!match.scheduledAt && !isBpRepresentative) {
       throw new AppError(ErrorCode.FORBIDDEN, "没有计划时间时只能由 BP 负责人确认开始。");
+    }
+
+    const lineupRows = await tx.select({ entryId: matchRosters.entryId, memberId: matchRosterPlayers.eventRosterMemberId, starter: matchRosterPlayers.isStarter })
+      .from(matchRosters).innerJoin(matchRosterPlayers, eq(matchRosterPlayers.rosterId, matchRosters.id))
+      .where(eq(matchRosters.matchId, match.id));
+    for (const entryId of [match.entryAId, match.entryBId]) {
+      const lineup = lineupRows.filter((row) => row.entryId === entryId);
+      await assertStartingLineupAllowedInTx(tx, { match, entryId,
+        starterIds: lineup.filter((row) => row.starter).map((row) => row.memberId),
+        substituteIds: lineup.filter((row) => !row.starter).map((row) => row.memberId) });
     }
 
     const isEntryA = input.entryId === match.entryAId;

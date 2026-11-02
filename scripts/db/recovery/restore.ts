@@ -1,10 +1,14 @@
+import { OFFICIAL_PREVIEW } from "../../../src/lib/runtime/official-deployment-profile.mjs";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, lstatSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { Pool } from "pg";
+import { readV2Migrations, restoreLegacyLineage, restoreV2Ledger } from "../legacy-lineage";
+import { postgresConnection } from "../../../src/db/postgres-connection";
 import {
+  buildInstanceRecoveryEnvironment,
   buildIsolatedRecoveryDatabaseEnvironment,
   buildIsolatedRecoveryEnvironment,
   parseLocalRecoveryStatus,
@@ -33,8 +37,9 @@ import {
   type StorageBucketRecord,
 } from "./storage";
 import { readManagedStorageReferences } from "./storage-policy";
+import { reconcileRecoveryLifecycle } from "./lifecycle";
 import { buildRecoveryR2Keys } from "./r2";
-import { buildRecoveryMigrationPlan } from "./source";
+import { assertInstanceReleaseIdentity, assertV2FullRecoverySupported, buildRecoveryMigrationPlan } from "./source";
 import { assertManifestMigrationMatches, verifyRecoveryDatabase } from "./verify";
 import { runCanonicalMigrations } from "../canonical-migrate";
 import { readExpectedMigrations, type ExpectedMigration, type Migration } from "../production-preflight";
@@ -49,6 +54,7 @@ interface RestoreArguments {
   manifestPath: string;
   completionPath: string;
   mode: RestoreMode;
+  evidenceDirectory?: string;
 }
 
 async function main(): Promise<void> {
@@ -79,12 +85,29 @@ async function main(): Promise<void> {
       if (!isFullRecoveryManifest(manifest)) {
         throw new Error("db-checkpoint artifact 不能由 full recovery restore 恢复；请使用 db:recovery:restore-db-checkpoint。 ");
       }
+      if (process.env.RIVALHUB_RECOVERY_TARGET === "instance" && manifest.sourceEnvironment !== "instance") {
+        throw new Error("Official backups may only be restored to isolated targets.");
+      }
+      if (args.evidenceDirectory && manifest.source.migrationLineage === "v2") throw new Error("V2 restore must be upgraded and adopted before activation evidence can be issued.");
+      if (args.evidenceDirectory && manifest.sourceEnvironment !== "instance" && manifest.sourceEnvironment !== "isolated-instance") throw new Error("Only a full independent instance restore can produce activation evidence.");
+      if (args.evidenceDirectory && process.env.RIVALHUB_RECOVERY_TARGET !== "instance"
+        && process.env.RIVALHUB_RECOVERY_USE_LOCAL_SUPABASE !== "1") {
+        throw new Error("Activation evidence requires a verified target identity.");
+      }
+      if (args.evidenceDirectory) assertEvidenceDirectory(args.evidenceDirectory);
       const target = readRecoveryTarget();
-      await restoreFullArtifact(target, manifest, stagingRoot, tempRoot);
+      const restored = await restoreFullArtifact(target, manifest, stagingRoot, tempRoot);
+      if (args.evidenceDirectory) {
+        await writeInstanceRecoveryEvidence(args.evidenceDirectory, target, manifest, sidecar);
+      }
+      console.log(
+        `Full recovery restore verified: run=${manifest.runId}, migration=${manifest.source.databaseMigrationTerminal.terminalTag}, storageObjects=${restored.restoredObjects}, skippedInactiveTemporaryObjects=${restored.skippedInactiveTemporaryObjects}.`,
+      );
     } else {
       if (isFullRecoveryManifest(manifest)) {
         throw new Error("full recovery artifact 不能由 DB-only restore 恢复；请使用 db:recovery:restore。 ");
       }
+      if (args.evidenceDirectory) throw new Error("DB-only restore cannot produce activation evidence.");
       const target = buildIsolatedRecoveryDatabaseEnvironment(process.env);
       await restoreDbCheckpointArtifact(
         target,
@@ -116,7 +139,42 @@ function parseArguments(args: readonly string[]): RestoreArguments {
     manifestPath: required(values.get("manifest"), "--manifest"),
     completionPath: required(values.get("completion"), "--completion"),
     mode: modeValue === undefined ? "full" : parseRestoreMode(modeValue),
+    evidenceDirectory: values.get("evidence-directory"),
   };
+}
+
+function assertEvidenceDirectory(directory: string): string {
+  const root = resolve(directory);
+  const stat = lstatSync(root);
+  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0) {
+    throw new Error("Recovery evidence directory must be owner-only and owned by the restoring operator.");
+  }
+  return root;
+}
+
+/** Only called after artifact checks and full DB/Storage verification. */
+async function writeInstanceRecoveryEvidence(
+  directory: string,
+  target: IsolatedRecoveryEnvironment,
+  manifest: FullRecoveryManifest,
+  sidecar: RecoverySidecar,
+): Promise<void> {
+  const root = assertEvidenceDirectory(directory);
+  const pool = new Pool({ ...postgresConnection(target.databaseUrl), max: 1 });
+  try {
+    const actual = await readTargetMigration(pool);
+    assertManifestMigrationMatches(actual, readExpectedMigrations(), manifest.source.databaseMigrationTerminal);
+    const database = new URL(target.databaseUrl);
+    const evidence = {
+      version: 1, artifactKind: "full", sourceEnvironment: manifest.sourceEnvironment, runId: manifest.runId,
+      artifactSha256: sidecar.artifactSha256, manifestSha256: sidecar.manifestSha256,
+      sourceProjectRef: manifest.sourceProjectRef, source: manifest.source,
+      target: { supabaseUrl: target.supabase.apiUrl, databaseName: decodeURI(database.pathname.slice(1)) },
+      ledger: actual,
+    };
+    // Exclusive creation prevents overwriting previous recovery evidence.
+    writeFileSync(join(root, `recovery-${manifest.runId}.json`), `${JSON.stringify(evidence)}\n`, { flag: "wx", mode: 0o600 });
+  } finally { await pool.end(); }
 }
 
 function parseRestoreMode(value: string): RestoreMode {
@@ -136,6 +194,7 @@ function assertRestoreArtifactMode(artifactKind: RecoveryArtifactKind, mode: Res
 }
 
 function readRecoveryTarget(): IsolatedRecoveryEnvironment {
+  if (process.env.RIVALHUB_RECOVERY_TARGET === "instance") return buildInstanceRecoveryEnvironment(process.env);
   if (process.env.RIVALHUB_RECOVERY_USE_LOCAL_SUPABASE === "1") {
     const status = readLocalSupabaseStatus();
     const environment = {
@@ -153,20 +212,25 @@ async function restoreFullArtifact(
   manifest: FullRecoveryManifest,
   stagingRoot: string,
   tempRoot: string,
-): Promise<void> {
-  const pool = new Pool({ connectionString: target.databaseUrl, ssl: false, max: 1 });
+): Promise<{ restoredObjects: number; skippedInactiveTemporaryObjects: number }> {
+  const pool = new Pool({ ...postgresConnection(target.databaseUrl), max: 1 });
   try {
     const expectedBuckets = readStorageBuckets(resolve(stagingRoot, "storage/buckets.json"));
     await assertRecoveryTargetIsEmpty(pool, expectedBuckets);
     await ensureTargetMigration(pool, manifest, target.databaseUrl, tempRoot);
     await prepareTargetForDataImport(pool);
     applyDatabaseData(target.databaseUrl, resolve(stagingRoot, "data.sql"), tempRoot);
+    if (manifest.source.migrationLineage === "v2") {
+      if (!manifest.source.v2MigrationLedger) throw new Error("V2 recovery ledger is missing.");
+      await restoreV2Ledger(pool, manifest.source.v2MigrationLedger);
+    } else await restoreLegacyLineage(pool, manifest.source.legacyMigrationLedger);
 
     await verifyRecoveryDatabase(pool, {
       expectedMigration: manifest.source.databaseMigrationTerminal,
+      lineage: manifest.source.migrationLineage,
       skipExpiredSensitiveEvidence: true,
     });
-    runLifecycleReconciliation(target);
+    await reconcileRecoveryLifecycle(target);
     const activeStorageReferences = await readManagedStorageReferences(pool);
     const storageClient = createClient(target.supabase.apiUrl, target.supabase.serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -186,10 +250,11 @@ async function restoreFullArtifact(
     if (storageResult.restoredBytes + storageResult.skippedInactiveTemporaryObjectBytes !== manifest.storage.totalBytes) {
       throw new Error("Restored Storage byte count does not match the backup manifest; restore aborted. ");
     }
-    await verifyRecoveryDatabase(pool, { expectedMigration: manifest.source.databaseMigrationTerminal });
-    console.log(
-      `Isolated recovery restore verified: run=${manifest.runId}, migration=${manifest.source.databaseMigrationTerminal.terminalTag}, storageObjects=${storageResult.restoredObjects}, skippedInactiveTemporaryObjects=${storageResult.skippedInactiveTemporaryObjects}.`,
-    );
+    await verifyRecoveryDatabase(pool, { expectedMigration: manifest.source.databaseMigrationTerminal, lineage: manifest.source.migrationLineage });
+    return {
+      restoredObjects: storageResult.restoredObjects,
+      skippedInactiveTemporaryObjects: storageResult.skippedInactiveTemporaryObjects,
+    };
   } finally {
     await pool.end();
   }
@@ -201,14 +266,19 @@ async function restoreDbCheckpointArtifact(
   stagingRoot: string,
   tempRoot: string,
 ): Promise<void> {
-  const pool = new Pool({ connectionString: target.databaseUrl, ssl: false, max: 1 });
+  const pool = new Pool({ ...postgresConnection(target.databaseUrl), max: 1 });
   try {
     await assertRecoveryDatabaseTargetIsEmpty(pool);
     await ensureTargetMigration(pool, manifest, target.databaseUrl, tempRoot);
     await prepareTargetForDataImport(pool);
     applyDatabaseData(target.databaseUrl, resolve(stagingRoot, "data.sql"), tempRoot);
+    if (manifest.source.migrationLineage === "v2") {
+      if (!manifest.source.v2MigrationLedger) throw new Error("V2 recovery ledger is missing.");
+      await restoreV2Ledger(pool, manifest.source.v2MigrationLedger);
+    } else await restoreLegacyLineage(pool, manifest.source.legacyMigrationLedger);
     const verification = await verifyRecoveryDatabase(pool, {
       expectedMigration: manifest.source.databaseMigrationTerminal,
+      lineage: manifest.source.migrationLineage,
       skipExpiredSensitiveEvidence: true,
     });
     console.log(
@@ -220,7 +290,8 @@ async function restoreDbCheckpointArtifact(
 }
 
 function readLocalSupabaseStatus() {
-  const result = spawnSync(pnpmBin, ["exec", "supabase", "status", "--output", "json"], {
+  const workdir = resolve(process.env.RIVALHUB_RECOVERY_SUPABASE_WORKDIR?.trim() || projectRoot);
+  const result = spawnSync(pnpmBin, ["exec", "supabase", "status", "--workdir", workdir, "--output", "json"], {
     cwd: projectRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
@@ -284,8 +355,25 @@ function extractSafeArchive(archivePath: string, destination: string): void {
 }
 
 function assertManifestCompatibility(manifest: RecoveryManifest): void {
-  if (!isProductionRecoverySource(manifest.sourceProjectRef) || manifest.database.schemas.join(",") !== "public,auth") {
+  if (manifest.source.migrationLineage !== "v3" && manifest.source.migrationLineage !== "v2") {
+    throw new Error("Recovery backup is not v3 lineage; restore using its original immutable release tools, then upgrade.");
+  }
+  if (manifest.artifactKind === "full" && manifest.source.migrationLineage === "v2") assertV2FullRecoverySupported(manifest.source.databaseMigrationTerminal.terminalTag);
+  const validSource = manifest.sourceEnvironment === "production"
+    ? isProductionRecoverySource(manifest.sourceProjectRef)
+    : !isProductionRecoverySource(manifest.sourceProjectRef) && manifest.sourceProjectRef !== OFFICIAL_PREVIEW.projectRef;
+  if (!validSource || manifest.database.schemas.join(",") !== "public,auth") {
     throw new Error("Recovery manifest source or schema identity is incompatible; restore aborted. ");
+  }
+  if (manifest.sourceEnvironment !== "production") {
+    assertInstanceReleaseIdentity(manifest.source.deployedReleaseTag, manifest.source.deployedCommit);
+    const currentCommit = readCurrentGitCommit();
+    if (manifest.source.migrationLineage === "v2"
+      ? !isCommitAncestor(manifest.source.deployedCommit, currentCommit)
+      : currentCommit !== manifest.source.deployedCommit) {
+      throw new Error("Instance restore requires the source release or a supported V2 descendant tool.");
+    }
+    return;
   }
   const sourceTagCommit = resolveReleaseTagCommit(manifest.source.deployedReleaseTag);
   if (sourceTagCommit !== manifest.source.deployedCommit) {
@@ -348,7 +436,7 @@ function assertSnapshotIdentity(manifest: RecoveryManifest, sidecar: RecoverySid
     || manifest.createdAt !== sidecar.createdAt
     || manifest.artifactKind !== sidecar.artifactKind
     || manifest.backupClass !== sidecar.backupClass
-    || sidecar.artifactKey !== buildRecoveryR2Keys(manifest.backupClass, manifest.runId, manifest.createdAt).artifact
+    || sidecar.artifactKey !== buildRecoveryR2Keys(manifest.backupClass, manifest.runId, manifest.createdAt, { environment: manifest.sourceEnvironment, projectRef: manifest.sourceProjectRef }).artifact
   ) {
     throw new Error("Recovery manifest does not match the sidecar run identity; restore aborted. ");
   }
@@ -413,12 +501,12 @@ async function ensureTargetMigration(
   databaseUrl: string,
   tempRoot: string,
 ): Promise<void> {
-  const expected = readExpectedMigrations();
+  const expected = manifest.source.migrationLineage === "v2" ? readV2Migrations() : readExpectedMigrations();
   const existing = await readTargetMigration(pool);
   if (existing.length > 0) {
     throw new Error("Recovery target already has Drizzle migrations; use a fresh isolated target and retry. ");
   }
-  prepareRecoveryTargetMigration(databaseUrl, manifest.source.databaseMigrationTerminal, tempRoot, expected);
+  prepareRecoveryTargetMigration(databaseUrl, manifest.source.databaseMigrationTerminal, tempRoot, expected, manifest.source.migrationLineage);
   const actual = await readTargetMigration(pool);
   assertManifestMigrationMatches(
     actual,
@@ -444,12 +532,13 @@ function prepareRecoveryTargetMigration(
   terminal: RecoveryManifest["source"]["databaseMigrationTerminal"],
   tempRoot: string,
   expected: readonly ExpectedMigration[],
+  lineage: "v2" | "v3" | undefined,
 ): void {
   const plan = buildRecoveryMigrationPlan(expected, terminal);
   const migrationRoot = join(tempRoot, "migration-prefix");
   const metaRoot = join(migrationRoot, "meta");
   mkdirSync(metaRoot, { recursive: true });
-  const sourceMigrationRoot = resolve(projectRoot, "drizzle/migrations");
+  const sourceMigrationRoot = resolve(projectRoot, lineage === "v2" ? "drizzle/v2-migrations" : "drizzle/migrations");
   const journal = JSON.parse(readFileSync(join(sourceMigrationRoot, "meta/_journal.json"), "utf8")) as {
     entries?: Array<Record<string, unknown>>;
   } & Record<string, unknown>;
@@ -525,38 +614,20 @@ export function applyDatabaseData(databaseUrl: string, dataPath: string, tempRoo
     ].join("\n"),
     { flag: "wx" },
   );
+  const connection = postgresConnection(databaseUrl);
+  const env = { ...process.env };
+  if (connection.ssl) {
+    const caPath = join(tempRoot, "supabase-ca.pem");
+    writeFileSync(caPath, connection.ssl.ca, { flag: "wx", mode: 0o600 });
+    env.PGSSLMODE = "verify-full";
+    env.PGSSLROOTCERT = caPath;
+  }
   runCommand("psql", [
-    "--dbname", databaseUrl,
+    "--dbname", connection.connectionString,
     "--set", "ON_ERROR_STOP=1",
     "--single-transaction",
     "--file", wrapperScriptPath,
-  ]);
-}
-
-function runLifecycleReconciliation(target: IsolatedRecoveryEnvironment): void {
-  const environment: NodeJS.ProcessEnv = {
-    ...process.env,
-    DATABASE_URL: target.databaseUrl,
-    NEXT_PUBLIC_SUPABASE_URL: target.supabase.apiUrl,
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: target.supabase.publishableKey,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: target.supabase.publishableKey,
-    SUPABASE_SECRET_KEY: target.supabase.serviceRoleKey,
-    SUPABASE_SERVICE_ROLE_KEY: target.supabase.serviceRoleKey,
-    RIVALHUB_RECOVERY_DATABASE_URL: target.databaseUrl,
-    RIVALHUB_RECOVERY_SUPABASE_URL: target.supabase.apiUrl,
-    RIVALHUB_RECOVERY_PUBLISHABLE_KEY: target.supabase.publishableKey,
-    RIVALHUB_RECOVERY_SERVICE_ROLE_KEY: target.supabase.serviceRoleKey,
-    RIVALHUB_RECOVERY_TARGET: "isolated",
-    RIVALHUB_DB_TARGET: "local",
-  };
-  delete environment.RIVALHUB_ALLOW_REMOTE_DB_WRITE;
-  const result = spawnSync(pnpmBin, ["exec", "tsx", "scripts/db/recovery/lifecycle.ts"], {
-    cwd: projectRoot,
-    env: environment,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  if (result.error || result.status !== 0) throw new Error("Recovery lifecycle reconciliation failed; restore aborted. ");
+  ], env);
 }
 
 function readJson<T>(path: string, parser: (value: unknown) => T): T {

@@ -12,6 +12,7 @@ import {
   type SeasonCapabilities,
   type InstitutionAffiliationRule,
   type TeamRegistrationConfig,
+  type StoredTeamRegistrationConfigV2,
   type StagePlan,
 } from "@/types/season";
 import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
@@ -34,6 +35,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StagePlanEditor } from "@/components/admin/StagePlanEditor";
+import { normalizeTeamRegistrationConfig, resolveQualificationPolicy } from "@/lib/seasons/compatibility";
+import type { EducationInstitutionOption } from "@/components/settings/EducationInstitutionSelector";
+import { V2RulesForm } from "@/components/admin/V2RulesForm";
 import { TeamConfigForm } from "@/components/admin/TeamConfigForm";
 import { ThemeColorPicker } from "@/components/admin/ThemeColorPicker";
 import { PositionEditor } from "@/components/admin/PositionEditor";
@@ -49,6 +53,7 @@ import {
   StagePlanSummary,
   TeamQualificationSummary,
   TeamRegistrationSummary,
+  V2QualificationSummary,
   templateLabel,
   type CompetitivePlatformOption,
 } from "@/components/admin/SeasonSettingsFacts";
@@ -75,6 +80,8 @@ interface SeasonFormProps {
     conversionPolicyProvenance?: ConversionPolicyProvenance | null;
   };
   competitivePlatforms: CompetitivePlatformOption[];
+  institutionOptions?: EducationInstitutionOption[];
+  conversionPolicies?: Array<{ id: string; version: string; isCurrent: boolean }>;
 }
 
 function emptyToNull(value: string): string | null {
@@ -115,7 +122,15 @@ function LifecycleExplanation({ phase }: { phase: SeasonEditPhase }) {
   );
 }
 
-export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormProps) {
+function v2FromTemplate(capabilities: SeasonCapabilities): StoredTeamRegistrationConfigV2 {
+  const config = capabilities.teamRegistrationConfig;
+  if (config.qualificationPolicy?.version === 2) return config as StoredTeamRegistrationConfigV2;
+  const legacy = normalizeTeamRegistrationConfig(config);
+  const policy = resolveQualificationPolicy(legacy, capabilities.affiliationRules);
+  return { qualificationPolicy: { version: 2, educationRequired: policy.educationRequired, contacts: policy.contacts, competitiveProfileRequired: policy.competitiveProfileRequired, competitiveProfile: policy.competitiveProfile, externalStrengthGap: policy.externalStrengthGap }, requirePositions: legacy.requirePositions, maxPerPositionPerTeam: legacy.maxPerPositionPerTeam, requireUniqueTeamName: legacy.requireUniqueTeamName, requireTeamLogo: legacy.requireTeamLogo, formation: { targetTeamCount: null, targetRosterSize: null, draftTimeoutSeconds: 60, votesPerPerson: 1, minimumVotesToConfirm: 0 }, seeding: { mode: "manual" }, lineup: { maxSubstitutes: 2 }, rosterChanges: { representativeCanRemove: legacy.captainCanKick, representativeCanTransfer: legacy.captainCanTransfer, selfServiceAfterApproval: !legacy.lockAfterRegistration } };
+}
+
+export function SeasonForm({ mode, initial, competitivePlatforms, institutionOptions = [], conversionPolicies = [] }: SeasonFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -163,7 +178,12 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
   const [screenshotCount, setScreenshotCount] = useState(defaultConfig.screenshotCount);
   const [maxTotal, setMaxTotal] = useState(defaultConfig.maxTotal);
   const [mapPool, setMapPool] = useState(defaultConfig.mapPool);
-  const [teamConfig, setTeamConfig] = useState<TeamRegistrationConfig>(defaultTeamConfig);
+  const [teamConfig, setTeamConfig] = useState<TeamRegistrationConfig>(() => normalizeTeamRegistrationConfig(defaultTeamConfig?.qualificationPolicy?.version === 2 ? undefined : defaultTeamConfig));
+  const [v2Config, setV2Config] = useState<StoredTeamRegistrationConfigV2 | null>(() => {
+    if (defaultTeamConfig?.qualificationPolicy?.version === 2) return defaultTeamConfig as StoredTeamRegistrationConfigV2;
+    if (mode === "edit") return null;
+    return v2FromTemplate(defaultTemplate);
+  });
   const [affiliationRules, setAffiliationRules] = useState<InstitutionAffiliationRule[]>(
     [...(initial?.affiliationRules ?? defaultTemplate.affiliationRules)],
   );
@@ -214,7 +234,8 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
     setScreenshotCount(capabilities.registrationConfig.screenshotCount);
     setMaxTotal(capabilities.registrationConfig.maxTotal);
     setMapPool([...capabilities.registrationConfig.mapPool]);
-    setTeamConfig(capabilities.teamRegistrationConfig);
+    if (capabilities.teamRegistrationConfig.qualificationPolicy?.version !== 2) setTeamConfig(normalizeTeamRegistrationConfig(capabilities.teamRegistrationConfig));
+    if (v2Config) setV2Config(v2FromTemplate(capabilities));
     setAffiliationRules([...capabilities.affiliationRules]);
   }
 
@@ -227,13 +248,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
 
   function handleRegistrationModeChange(value: "solo" | "team") {
     setRegistrationMode(value);
-    if (value === "team") {
-      setHasCaptainVoting(false);
-      setHasDraft(false);
-    } else {
-      setHasCaptainVoting(true);
-      setHasDraft(true);
-    }
+
   }
 
   function buildPayload(): SeasonFormInput {
@@ -261,8 +276,8 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
       rosterChangeClosesAt: editCapabilities.canEditRegistrationDeadlines ? emptyToNull(rosterChangeClosesAt) : null,
       endAt: emptyToNull(endAt),
       registrationMode,
-      hasCaptainVoting: registrationMode === "team" ? false : hasCaptainVoting,
-      hasDraft: registrationMode === "team" ? false : hasDraft,
+      hasCaptainVoting,
+      hasDraft,
       hasCommunityAwards,
       minTeamSize,
       maxTeamSize,
@@ -270,7 +285,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
       positions,
       stagePlan,
       registrationConfig: { ...registrationConfig, mapPool },
-      teamRegistrationConfig: teamConfig,
+      teamRegistrationConfig: v2Config ?? teamConfig,
       affiliationRules,
     };
   }
@@ -289,6 +304,10 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
 
   function handleSubmit() {
     const payload = buildPayload();
+    if (currentMin === "__select_rank__" || peakMin === "__select_rank__") {
+      toast.error("竞技平台已更改，请重新选择段位门槛。");
+      return;
+    }
     if (slugNeedsManualInput) {
       toast.error("URL 标识无法从当前名称自动生成，请填写小写字母、数字或连字符。");
       return;
@@ -517,6 +536,8 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           </div>
         </section>
 
+        {v2Config && <div className="space-y-5"><div className="space-y-2"><h3 className="text-sm font-medium">允许的参赛身份</h3><div className="flex flex-wrap gap-4 text-sm">{PLAYER_TYPES.map(type => <label key={type} className="flex items-center gap-2"><input type="checkbox" checked={allowedPlayerTypes.includes(type)} disabled={!editCapabilities.canEditPublicRules} onChange={() => togglePlayerType(type)} />{PLAYER_TYPE_LABELS[type]}</label>)}</div></div><V2RulesForm value={v2Config} onChange={setV2Config} affiliationRules={affiliationRules} onAffiliationRulesChange={setAffiliationRules} currentMin={currentMin} peakMin={peakMin} onCurrentMinChange={setCurrentMin} onPeakMinChange={setPeakMin} platforms={competitivePlatforms} institutionOptions={institutionOptions} conversionPolicies={conversionPolicies} hasCaptainVoting={hasCaptainVoting} hasDraft={hasDraft} starterCount={starterCount} maxTeamSize={maxTeamSize} disabled={!editCapabilities.canEditPublicRules} /></div>}
+
         <section className="space-y-4">
           <h2 className="font-semibold">功能</h2>
           <label className="flex items-start gap-2 text-sm">
@@ -539,7 +560,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>报名模式</Label>
-              <Select value={registrationMode} disabled={!editCapabilities.canEditPublicRules || isBuiltIn} onValueChange={(v) => handleRegistrationModeChange(v as "solo" | "team")}>
+              <Select value={registrationMode} disabled={!editCapabilities.canEditPublicRules} onValueChange={(v) => handleRegistrationModeChange(v as "solo" | "team")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="solo">个人报名</SelectItem>
@@ -548,17 +569,17 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
               </Select>
             </div>
             <PositionEditor value={positions} disabled={!editCapabilities.canEditPublicRules} onChange={setPositions} />
-            <div><Label htmlFor="max-team-size">每队人数上限</Label><Input id="max-team-size" type="number" min={1} value={maxTeamSize} disabled={!editCapabilities.canEditPublicRules || isBuiltIn} onChange={(e) => setMaxTeamSize(Number(e.target.value))} /></div>
-            <div><Label htmlFor="min-team-size">每队人数下限</Label><Input id="min-team-size" type="number" min={1} value={minTeamSize} disabled={!editCapabilities.canEditPublicRules || isBuiltIn} onChange={(e) => setMinTeamSize(Number(e.target.value))} /></div>
-            <div><Label htmlFor="starter-count">首发人数</Label><Input id="starter-count" type="number" min={1} value={starterCount} disabled={!editCapabilities.canEditPublicRules || isBuiltIn} onChange={(e) => setStarterCount(Number(e.target.value))} /></div>
+            <div><Label htmlFor="max-team-size">每队人数上限</Label><Input id="max-team-size" type="number" min={1} value={maxTeamSize} disabled={!editCapabilities.canEditPublicRules} onChange={(e) => setMaxTeamSize(Number(e.target.value))} /></div>
+            <div><Label htmlFor="min-team-size">每队人数下限</Label><Input id="min-team-size" type="number" min={1} value={minTeamSize} disabled={!editCapabilities.canEditPublicRules} onChange={(e) => setMinTeamSize(Number(e.target.value))} /></div>
+            <div><Label htmlFor="starter-count">首发人数</Label><Input id="starter-count" type="number" min={1} value={starterCount} disabled={!editCapabilities.canEditPublicRules} onChange={(e) => setStarterCount(Number(e.target.value))} /></div>
           </div>
-          {isBuiltIn && registrationMode === "team" && (
+          {!v2Config && isBuiltIn && registrationMode === "team" && (
             <p className="text-xs text-[var(--color-fg-dim)]">内置赛事体系的报名模式、队伍规模与首发人数由标准规则固定。</p>
           )}
-          {registrationMode === "solo" && (
+          {(v2Config || registrationMode === "solo") && (
             <div className="flex flex-wrap gap-4 text-sm">
-              <label className="flex items-center gap-2"><input type="checkbox" checked={hasCaptainVoting} disabled={!editCapabilities.canEditPublicRules || isBuiltIn} onChange={(e) => setHasCaptainVoting(e.target.checked)} />队长投票</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={hasDraft} disabled={!editCapabilities.canEditPublicRules || isBuiltIn} onChange={(e) => setHasDraft(e.target.checked)} />蛇形选秀</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={hasCaptainVoting} disabled={!editCapabilities.canEditPublicRules} onChange={(e) => setHasCaptainVoting(e.target.checked)} />队长投票</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={hasDraft} disabled={!editCapabilities.canEditPublicRules} onChange={(e) => setHasDraft(e.target.checked)} />蛇形选秀</label>
             </div>
           )}
         </section>
@@ -570,7 +591,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           </section>
         )}
 
-        {registrationMode === "solo" && !isBuiltIn && (
+        {!v2Config && registrationMode === "solo" && !isBuiltIn && (
           <section className="space-y-4">
             <h2 className="font-semibold">报名配置</h2>
             <div className="flex flex-wrap gap-4 text-sm">
@@ -591,13 +612,13 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           </section>
         )}
 
-        {registrationMode === "team" && template === "custom" && (
+        {!v2Config && registrationMode === "team" && template === "custom" && (
           <section className="space-y-4">
             <h2 className="font-semibold">队伍报名配置</h2>
             <TeamConfigForm value={teamConfig} maxTeamSize={maxTeamSize} competitivePlatforms={competitivePlatforms} disabled={!editCapabilities.canEditPublicRules} onChange={setTeamConfig} />
           </section>
         )}
-        {registrationMode === "team" && template === "major" && (
+        {!v2Config && registrationMode === "team" && template === "major" && (
           <section className="space-y-4">
             <h2 className="font-semibold">{teamConfig.qualificationPolicy ? "资格政策" : "5E 等效竞技资料"}</h2>
             {teamConfig.qualificationPolicy
@@ -712,7 +733,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <Label>报名模式</Label>
-            <Select value={registrationMode} disabled={!editCapabilities.canEditPublicRules || isBuiltIn} onValueChange={(v) => handleRegistrationModeChange(v as "solo" | "team")}>
+            <Select value={registrationMode} disabled={!editCapabilities.canEditPublicRules} onValueChange={(v) => handleRegistrationModeChange(v as "solo" | "team")}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="solo">个人报名</SelectItem>
@@ -721,11 +742,11 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             </Select>
           </div>
           <PositionEditor value={positions} disabled={!editCapabilities.canEditPublicRules} onChange={setPositions} />
-          <div><Label htmlFor="max-team-size">每队人数上限</Label><Input id="max-team-size" type="number" min={1} value={maxTeamSize} disabled={!editCapabilities.canEditPublicRules || isBuiltIn} onChange={(e) => setMaxTeamSize(Number(e.target.value))} /></div>
-          <div><Label htmlFor="min-team-size">每队人数下限</Label><Input id="min-team-size" type="number" min={1} value={minTeamSize} disabled={!editCapabilities.canEditPublicRules || isBuiltIn} onChange={(e) => setMinTeamSize(Number(e.target.value))} /></div>
-          <div><Label htmlFor="starter-count">首发人数</Label><Input id="starter-count" type="number" min={1} value={starterCount} disabled={!editCapabilities.canEditPublicRules || isBuiltIn} onChange={(e) => setStarterCount(Number(e.target.value))} /></div>
+          <div><Label htmlFor="max-team-size">每队人数上限</Label><Input id="max-team-size" type="number" min={1} value={maxTeamSize} disabled={!editCapabilities.canEditPublicRules} onChange={(e) => setMaxTeamSize(Number(e.target.value))} /></div>
+          <div><Label htmlFor="min-team-size">每队人数下限</Label><Input id="min-team-size" type="number" min={1} value={minTeamSize} disabled={!editCapabilities.canEditPublicRules} onChange={(e) => setMinTeamSize(Number(e.target.value))} /></div>
+          <div><Label htmlFor="starter-count">首发人数</Label><Input id="starter-count" type="number" min={1} value={starterCount} disabled={!editCapabilities.canEditPublicRules} onChange={(e) => setStarterCount(Number(e.target.value))} /></div>
         </div>
-        {isBuiltIn && registrationMode === "team" && (
+        {!v2Config && isBuiltIn && registrationMode === "team" && (
           <>
             <FrozenFact title={`${templateLabel(template)} · 队伍报名规则`}>
               报名模式、队伍规模和首发人数由当前赛事体系统一确定。
@@ -733,13 +754,13 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             <TeamRegistrationSummary config={teamConfig} />
           </>
         )}
-        {registrationMode === "solo" && (
+        {(v2Config || registrationMode === "solo") && (
           <div className="mt-4 flex flex-wrap gap-4 text-sm">
-            <label className="flex items-center gap-2"><input type="checkbox" checked={hasCaptainVoting} disabled={!editCapabilities.canEditPublicRules || isBuiltIn} onChange={(e) => setHasCaptainVoting(e.target.checked)} />队长投票</label>
-            <label className="flex items-center gap-2"><input type="checkbox" checked={hasDraft} disabled={!editCapabilities.canEditPublicRules || isBuiltIn} onChange={(e) => setHasDraft(e.target.checked)} />蛇形选秀</label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={hasCaptainVoting} disabled={!editCapabilities.canEditPublicRules} onChange={(e) => setHasCaptainVoting(e.target.checked)} />队长投票</label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={hasDraft} disabled={!editCapabilities.canEditPublicRules} onChange={(e) => setHasDraft(e.target.checked)} />蛇形选秀</label>
           </div>
         )}
-        {registrationMode === "team" && template === "custom" && (
+        {!v2Config && registrationMode === "team" && template === "custom" && (
           <div className="mt-5 border-t border-[var(--color-border)] pt-5">
             <TeamConfigForm view="team" value={teamConfig} maxTeamSize={maxTeamSize} competitivePlatforms={competitivePlatforms} disabled={!editCapabilities.canEditPublicRules} onChange={setTeamConfig} />
           </div>
@@ -747,7 +768,8 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         {editCapabilities.canEditPublicRules && saveButton}
       </SettingsPanel>
 
-      <SettingsPanel id="qualification" label="资格规则">
+      {v2Config && <SettingsPanel id="v2-rules" label="资格与名单规则">{editCapabilities.canEditPublicRules ? <><div className="space-y-2"><h3 className="text-sm font-medium">允许的参赛身份</h3><div className="flex flex-wrap gap-4 text-sm">{PLAYER_TYPES.map(type => <label key={type} className="flex items-center gap-2"><input type="checkbox" checked={allowedPlayerTypes.includes(type)} disabled={!editCapabilities.canEditPublicRules} onChange={() => togglePlayerType(type)} />{PLAYER_TYPE_LABELS[type]}</label>)}</div></div><div className="mt-5"><V2RulesForm value={v2Config} onChange={setV2Config} affiliationRules={affiliationRules} onAffiliationRulesChange={setAffiliationRules} currentMin={currentMin} peakMin={peakMin} onCurrentMinChange={setCurrentMin} onPeakMinChange={setPeakMin} platforms={competitivePlatforms} institutionOptions={institutionOptions} conversionPolicies={conversionPolicies} hasCaptainVoting={hasCaptainVoting} hasDraft={hasDraft} starterCount={starterCount} maxTeamSize={maxTeamSize} disabled={!editCapabilities.canEditPublicRules} /></div>{saveButton}</> : <><V2QualificationSummary config={v2Config} rules={affiliationRules} institutionOptions={institutionOptions} currentMin={currentMin} peakMin={peakMin} platforms={competitivePlatforms} allowedPlayerTypes={allowedPlayerTypes} /><div className="mt-5 border-t border-[var(--color-border)] pt-5"><h3 className="mb-3 font-medium">竞技参考</h3><CompetitiveReferenceSummary config={{ ...teamConfig, qualificationPolicy: { ...v2Config.qualificationPolicy, version: 1, affiliationRules } }} platforms={competitivePlatforms} phase={editCapabilities.phase} policyProvenance={initial?.conversionPolicyProvenance} contextRequired={currentMin !== NO_RANK || peakMin !== NO_RANK || v2Config.seeding.mode === "strength_recommendation"} configuredContext /></div></>}</SettingsPanel>}
+      {!v2Config && <SettingsPanel id="qualification" label="资格规则">
         {registrationMode === "solo" && !isBuiltIn ? (
           <div className="space-y-5">
             <div className="space-y-3">
@@ -797,7 +819,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           </div>
         )}
         {editCapabilities.canEditPublicRules && registrationMode === "solo" && !isBuiltIn && saveButton}
-      </SettingsPanel>
+      </SettingsPanel>}
 
       <SettingsPanel id="format" label="赛制与地图">
         <div className="space-y-5">
@@ -822,7 +844,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         {editCapabilities.canEditPublicRules && saveButton}
       </SettingsPanel>
 
-      <SettingsPanel id="competitive" label="竞技参考">
+      {!v2Config && <SettingsPanel id="competitive" label="竞技参考">
         {registrationMode === "team" && (template === "custom" || (template === "major" && !!teamConfig.qualificationPolicy)) && editCapabilities.canEditPublicRules ? (
           <>
             <TeamConfigForm view="competitive" value={teamConfig} competitivePlatforms={competitivePlatforms} onChange={setTeamConfig} />
@@ -831,7 +853,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         ) : (
           <CompetitiveReferenceSummary config={teamConfig} platforms={competitivePlatforms} phase={editCapabilities.phase} policyProvenance={initial?.conversionPolicyProvenance} />
         )}
-      </SettingsPanel>
+      </SettingsPanel>}
 
       <SettingsPanel id="features" label="功能">
         <label className="flex items-start gap-2 text-sm">

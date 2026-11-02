@@ -6,10 +6,13 @@ RivalHub 的数据库变更只通过 active Drizzle migration chain 演进。
 
 - `src/db/schema/`：当前应用 schema model；
 - `drizzle/migrations/`：active migration ledger 与 SQL；
+- `drizzle/v2-migrations/`：原 active 链的不可变归档，旧库必须按原 hash/time 回放至终点；
 - `drizzle/legacy-migrations/`：只读历史，不参与当前迁移；
 - `pnpm db:push`：被显式阻止。
 
 不要用手工 SQL patch、Supabase Dashboard schema edit 或裸 `drizzle-kit migrate` 建立第二套 production migration path。
+
+当前 v3 基线及 0112 终点是待统一合流确认的候选。全新数据库执行 v3 基线；已有数据库的 canonical runner 只接受原链的精确前缀，按原字节走到终点后，比较应用拥有的物理合同，再以事务保存完整旧 ledger 并标记 v3 基线已满足。未知账本或结构差异拒绝，不对旧库重放基线或清除业务数据。adopt 前必须使用既有发布流程排空写入和其他迁移执行者；账本锁和结构快照不是数据库级全局 DDL 互斥，结构比较也不能证明业务历史或数据相同。
 
 ## 标准流程
 
@@ -26,6 +29,8 @@ pnpm db:generate
 生成后必须人工阅读 SQL。需要 RLS、policy、grant、trigger、backfill 或 fail-closed validation 时，把 custom SQL 放入同一个 active migration，而不是另建手工步骤。
 
 如果领域同时依赖 Supabase Storage，private bucket 的 contract 也必须由同一条 active migration 在 `storage.buckets` 可用时幂等收敛；plain PostgreSQL replay 可以条件跳过 Storage schema，但不能跳过对应的 public schema/constraint。不要在 Supabase Dashboard、`supabase/config.toml` 或第二条 provider migration chain 复制 bucket owner。
+
+`team-logos` 由 active migration 在 Storage 可用时供给，要求 public、1 MiB 和 JPEG/PNG/WebP；已有 bucket 必须满足相同身份和配置，否则迁移拒绝，不更改其可见性或限制。它不授予浏览器写权限，队长上传仍经服务端授权。
 
 ### 3. 运行 migration checks
 
@@ -63,7 +68,7 @@ Release workflow 的 plain PostgreSQL 17 rehearsal 使用：
 pnpm db:release-rehearsal
 ```
 
-该命令复用 `preparePg17Database()` 与 `scripts/db/migration-replay.ts`；CI PostgreSQL lane、Release 和本地 `db:local:migrate` 不维护相互漂移的 replay runner。所有 replay / protected remote migration 通过 `canonical-migrate.ts` 执行原始 active chain，运行前核对已有 ledger 的全部 hash 和时间必须是所选链的精确前缀；未知、修改或超前的记录均拒绝，不能仅凭最后时间戳跳过。runner 在含 `ALTER TYPE ... ADD VALUE` 的 migration 后提交事务，再执行后续 migration；每一阶段仍由 Drizzle ORM migrator 维护原始 SQL hash 与 ledger，避免 PostgreSQL 在同一事务中使用尚未提交的 enum value。CLI wrapper 在独立子进程加载已校验的目标配置，使用 canonical `postgresConnection` 创建 node-postgres Pool；不把 URL 与显式 TLS 选项交给会丢弃 SSL 参数的 Drizzle Kit migrate 分支。
+该命令复用 `preparePg17Database()` 与 `scripts/db/migration-replay.ts`；CI PostgreSQL lane、Release 和本地 `db:local:migrate` 不维护相互漂移的 replay runner。所有 replay / protected remote migration 通过 `canonical-migrate.ts` 执行原始 active chain，运行前核对已有 ledger 的全部 hash 和时间必须是所选链的精确前缀；未知、修改或超前的记录均拒绝，不能仅凭最后时间戳跳过。这是执行前的账本快照校验，不是数据库级迁移互斥；调用方仍须保证同一目标的迁移操作串行。runner 在含 `ALTER TYPE ... ADD VALUE` 的 migration 后提交事务，再执行后续 migration；每一阶段仍由 Drizzle ORM migrator 维护原始 SQL hash 与 ledger，避免 PostgreSQL 在同一事务中使用尚未提交的 enum value。CLI wrapper 在独立子进程加载已校验的目标配置，使用 canonical `postgresConnection` 创建 node-postgres Pool；不把 URL 与显式 TLS 选项交给会丢弃 SSL 参数的 Drizzle Kit migrate 分支。
 
 ### 5. 验证 release compatibility
 

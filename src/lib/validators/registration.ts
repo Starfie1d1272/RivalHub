@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { REGISTRATION_DEFAULTS } from "@/lib/config/registration-defaults";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
-import type { PlayerType, RegistrationConfig } from "@/types/season";
+import type { RegistrationConfig } from "@/types/season";
 import { eventMapPreferencesSchema } from "@/lib/validators/map-preferences";
 import type { PositionValue, RankValue } from "@/lib/config/registration-defaults";
 import { requiredPlayerDeclaredProfileSchema } from "@/lib/player-declared-profile";
@@ -31,24 +31,6 @@ function isAllowedRank(value: string): value is RankValue {
   return (RANK_ORDER as readonly string[]).includes(value);
 }
 
-function rankMeetsThreshold(rank: string, min: string | null): boolean {
-  if (min === null) return true;
-  const rankIndex = RANK_ORDER.indexOf(rank as RankValue);
-  const minIndex = RANK_ORDER.indexOf(min as RankValue);
-  return rankIndex >= 0 && minIndex >= 0 && rankIndex >= minIndex;
-}
-
-function rankThresholdMessage(config: RegistrationConfig): string {
-  const current = config.rankThreshold.currentMin;
-  const peak = config.rankThreshold.peakMin;
-  if (current && peak) {
-    return `报名资格：当前赛季最高段位需达到 ${current}，或历史最高段位需达到 ${peak}`;
-  }
-  if (current) return `报名资格：当前赛季最高段位需达到 ${current}`;
-  if (peak) return `报名资格：历史最高段位需达到 ${peak}`;
-  return "段位未达到报名资格";
-}
-
 function nonEmptyAllowed<T extends string>(values: readonly T[], fallback: readonly T[]): readonly T[] {
   return values.length > 0 ? values : fallback;
 }
@@ -57,10 +39,10 @@ function nonEmptyAllowed<T extends string>(values: readonly T[], fallback: reado
 export function buildRegistrationSchema(
   inputConfig: Partial<RegistrationConfig> | null | undefined,
   inputPositions: readonly string[],
+  options: { policyV2?: boolean } = {},
 ) {
   const config = normalizeRegistrationConfig(inputConfig);
   const positions = nonEmptyAllowed(inputPositions, positionValues);
-  const allowedPlayerTypes = config.allowedPlayerTypes;
   const mapPool = config.mapPool;
 
   return z
@@ -75,22 +57,18 @@ export function buildRegistrationSchema(
 
       studentId: z
         .string()
-        .min(1, "请填写学号（毕业生填「毕业年份+学院」）"),
+        .refine((v) => options.policyV2 || v.length > 0, "请填写学号（毕业生填「毕业年份+学院」）"),
 
-      playerType: z
-        .string()
-        .refine((v): v is PlayerType => (allowedPlayerTypes as readonly string[]).includes(v), {
-          message: "请选择允许的身份类型",
-        }),
+      playerType: z.enum(["enrolled", "graduated", "external"], { error: "请选择身份类型" })
+        .nullish().refine((value) => options.policyV2 || value != null, "请选择身份类型"),
 
       qq: z
         .string()
-        .min(1, "请填写 QQ 号")
-        .regex(/^\d{5,12}$/, "请输入有效的 QQ 号（5-12 位数字）"),
+        .refine((v) => (options.policyV2 && !v) || /^\d{5,12}$/.test(v), "请输入有效的 QQ 号（5-12 位数字）"),
 
       perfectName: z
         .string()
-        .min(1, "请填写完美平台昵称"),
+        .refine((v) => options.policyV2 || v.length > 0, "请填写完美平台昵称"),
 
       steam64: z
         .string()
@@ -107,13 +85,13 @@ export function buildRegistrationSchema(
       }),
 
       // ── 段位 · 历史最高 ──
-      peakRank: z.string().refine(isAllowedRank, {
+      peakRank: z.string().optional().refine((v) => options.policyV2 ? !v || isAllowedRank(v) : !!v && isAllowedRank(v), {
         message: "请选择历史最高段位",
       }),
 
       peakRankSeason: z
         .string()
-        .min(1, "请填写取得最高段位的赛季（如 S1 2026）"),
+        .optional().refine((v) => options.policyV2 || !!v, "请填写取得最高段位的赛季（如 S1 2026）"),
 
       // Rating：完美平台 Rating，0.01–3.00，两位小数
       peakRating: z
@@ -123,7 +101,7 @@ export function buildRegistrationSchema(
         .refine(
           (v) => Math.round(v * 100) / 100 === v,
           "Rating 最多保留两位小数",
-        ),
+        ).optional().refine((v) => options.policyV2 || v !== undefined, "请输入 Rating"),
 
       // WE：Win Effect，0.0–16.0，一位小数
       peakWe: z
@@ -137,7 +115,7 @@ export function buildRegistrationSchema(
         .optional(),
 
       // ── 段位 · 当前赛季最高 ──
-      currentSeasonPeakRank: z.string().refine(isAllowedRank, {
+      currentSeasonPeakRank: z.string().optional().refine((v) => options.policyV2 ? !v || isAllowedRank(v) : !!v && isAllowedRank(v), {
         message: "请选择当前赛季最高段位",
       }),
 
@@ -148,7 +126,7 @@ export function buildRegistrationSchema(
         .refine(
           (v) => Math.round(v * 100) / 100 === v,
           "Rating 最多保留两位小数",
-        ),
+        ).optional().refine((v) => options.policyV2 || v !== undefined, "请输入 Rating"),
 
       currentWe: z
         .number({ error: "请输入数字" })
@@ -197,18 +175,7 @@ export function buildRegistrationSchema(
     .refine((data) => data.secondaryPosition !== data.primaryPosition, {
       message: "次选位置不能与主选位置相同",
       path: ["secondaryPosition"],
-    })
-    .refine(
-      (data) => {
-        const hasCurrent = rankMeetsThreshold(data.currentSeasonPeakRank, config.rankThreshold.currentMin);
-        const hasPeak = rankMeetsThreshold(data.peakRank, config.rankThreshold.peakMin);
-        return hasCurrent || hasPeak;
-      },
-      {
-        message: rankThresholdMessage(config),
-        path: ["currentSeasonPeakRank"],
-      },
-    );
+    });
 }
 
 // ── 导出类型 ─────────────────────────────────────────

@@ -33,7 +33,7 @@ test("BET 投入在刷新后保留，ALL IN 需确认且开赛后锁盘",async({
     expect(publicRead.headers()["cache-control"]).toBe("private, no-store");
     expect((await publicRead.json()).data.bet).toMatchObject({joined:false,balance:"0",records:[]});
     expect((await page.request.get(`/api/bet/${fixture.seasonId}?matchId=${matches[0]!.id}`)).ok()).toBe(true);
-    const card=page.locator("article").filter({has:page.locator(`a[href="/${fixture.slug}/matches/${matches[0]!.id}"]`)});const winner=card.getByRole("region",{name:"比赛胜者"});
+    const card=page.locator("article").filter({has:page.locator(`a[href^="/${fixture.slug}/matches/${matches[0]!.id}?"]`)});const winner=card.getByRole("region",{name:"比赛胜者"});
     async function openMaps(){await card.getByRole("tab",{name:/地图/}).click();await expect(card.getByRole("tabpanel",{name:"地图",exact:true})).toBeVisible();const details=card.locator("details");if(await details.count()&&await details.getAttribute("open")===null)await details.locator("summary").click();}
     // Real publisher → public DTO → selection/confirmation: seven choices share
     // one pool, and the three-winner market must never show a single-winner estimate.

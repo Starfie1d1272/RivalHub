@@ -18,7 +18,7 @@
 RIVALHUB_INSTANCE_WRITE=yes pnpm exec tsx scripts/instance/provision.ts install
 ```
 
-`install` 只接受没有应用对象及 Drizzle 账本的全新目标，调用现有 active migration runner；供给时将同一项目和凭据的 transaction pooler 连接切换到 session pooler 5432，以保证会话锁与迁移连接稳定。中途失败后不自动接管或清空目标。
+`install` 只接受没有应用对象、Drizzle 账本、Auth 用户及 Storage 对象的全新目标，调用现有 active migration runner；供给时将同一项目和凭据的 transaction pooler 连接切换到 session pooler 5432，以保证会话锁与迁移连接稳定。迁移会验证 `team-logos` 的公开图片合同；已有 bucket 配置不符时拒绝，不改变其权限。泛用实例不默认启用官方学校邮箱自动认证：v3 基线直接不写入官方域名规则；已有实例的规则由升级和恢复保留。已有实例不得调用此入口；中途失败后不自动接管或清空目标。主机首次安装在启动服务前检查完整账本、team-logos 合同与官方邮箱种子已清理；检查失败不会启动候选。后续同机升级须保持 Supabase 项目及数据库名称一致；允许同一数据库在直连和连接池之间切换以及凭据轮换。升级保留并允许现有邮箱规则，服务每次启动仍校验账本和 bucket。更换主机时，本机无旧版本不能证明数据库是全新目标；已有库的恢复接入须使用备份及实例身份合同。
 
 ## 构建与安装
 
@@ -33,7 +33,49 @@ node scripts/instance/build.mjs
 sudo bash scripts/instance/install.sh /path/to/manifest.layers.json /path/to/instance.env
 ```
 
-安装验证 manifest 与各层、组装独立目录，停服务并确认数据库事务排空，原子切换 current，检查首页、release identity 和数据库活跃链账本；候选失败会排空后恢复前一版本及配置。排空失败保持停机供检查。安装不会运行迁移；当前构件要求数据库账本与构件所含 active chain 完全一致，升级迁移等价由 F2 确定。首次安装后按 `scripts/instance/Caddyfile.example` 配置自己的域名及 TLS，验证反向代理；不要把示例域名当成实际站点。应用、构件与密钥分开保存。
+安装验证 manifest 与各层、组装独立目录，停服务并确认数据库事务排空，原子切换 current，检查首页、release identity 和数据库活跃链账本；候选失败会排空后恢复前一版本及配置。排空失败保持停机供检查。首次安装后按 `scripts/instance/Caddyfile.example` 配置自己的域名及 TLS，验证反向代理；不要把示例域名当成实际站点。应用、构件与密钥分开保存。
+
+## 应用升级与回滚
+
+在目标机使用与候选构件 operator commit 一致的干净源码目录运行：
+
+```bash
+sudo pnpm exec tsx scripts/instance/release.ts /path/to/manifest.layers.json /path/to/candidate-instance.env
+```
+
+候选环境文件必须独立于已安装的 `/etc/rivalhub-instance/instance.env`；不要先修改已安装文件。安装器从运行中的 `/api/system/recovery-source` 核对 release、项目和数据库与旧配置一致，并在停服务前再次核对。旧版本没有此接口时不能以手填信息代替。controller 从运行中实例读取真实 release identity，从不可变 Git commit 读取前后能力合同，并生成与正式 release 共用格式的受限证据。安装器在切换及补偿回滚前复验合同，将身份和证据保存在 root-only 事务快照。若需显式恢复上一事务，在同一 operator 源码目录运行：
+
+```bash
+sudo pnpm exec tsx scripts/instance/release.ts --rollback
+```
+
+迁移变更还须以 `--checkpoint-env /path/to/checkpoint.env` 指定 root 拥有、权限 0600 且位于 root 拥有的 0700 目录中的独立文件，提供 `RIVALHUB_INSTANCE_PROJECT_REF`、相同的 `RIVALHUB_INSTANCE_CONFIRM`、`RIVALHUB_BACKUP_AGE_RECIPIENT` 与实例专用 R2 配置；该文件也须提供 `SUPABASE_SECRET_KEY`。数据库及 API 配置使用已安装实例的环境。操作前确保该实例的备份可恢复，且没有其他数据库写入者或迁移执行者。安装器在锁内读取运行实例的身份和精确旧账本，停止服务并排空后复核，再创建加密 DB checkpoint 并验证 R2 读回。随后只接受已审核 active 链或旧链的精确前缀，通过现有迁移执行器补齐旧链、核验物理合同并接管 baseline，再执行新链，最后检查候选 readiness。
+
+迁移开始前失败可恢复旧程序；迁移开始后失败保持服务停止和事务快照，不自动启动旧程序。必须先按现有恢复流程在隔离目标恢复并验证 checkpoint，才能考虑运行与该数据库匹配的旧程序；应用回滚不回滚数据库。当前 DB-only 恢复入口仅支持隔离目标，Hosted 目标的恢复与重新接入尚未验收。checkpoint 的记录保存在 root-only 事务快照中。
+
+恢复检查点时，保持实例及其他写入者停止。从事务快照的 `checkpoint.log` 取 `completion=` 后的对象 key，在具备该实例 R2 只读凭据的恢复机执行以下命令。输出目录必须不存在，私钥留在离线恢复机：
+
+```bash
+pnpm db:recovery:fetch --completion-key '<completion-key>' --output /private/path/checkpoint
+export RIVALHUB_RECOVERY_TARGET=isolated
+export RIVALHUB_RECOVERY_DATABASE_URL='postgresql://...@127.0.0.1:.../postgres'
+export RIVALHUB_BACKUP_AGE_IDENTITY_FILE=/private/path/age-identity.txt
+unset RIVALHUB_ALLOW_REMOTE_DB_WRITE
+pnpm db:recovery:restore-db-checkpoint \
+  --artifact /private/path/checkpoint/artifact.tar.gz.age \
+  --manifest /private/path/checkpoint/sidecar.json \
+  --completion /private/path/checkpoint/completion.json
+```
+
+目标须是全新的隔离 Supabase/PostgreSQL；恢复工具版本须符合 [灾难恢复说明](./disaster-recovery.md#isolated-restore) 的来源版本与账本要求。核验成功仅证明隔离副本；本机自动回滚不会因为隔离恢复成功而启动旧程序。Hosted 数据库恢复、切换及重新接入仍须使用单独授权且已验证的恢复流程。
+
+## 备份与恢复边界
+
+独立实例 full backup 使用既有 `db:recovery:backup`，显式设置 `RIVALHUB_BACKUP_SOURCE=instance`、非官方 `RIVALHUB_INSTANCE_PROJECT_REF` 与相同的 `RIVALHUB_INSTANCE_CONFIRM`，并提供该实例的应用 origin、API、Session Pooler 数据库连接、Storage secret key、age recipient 与独立 R2 配置。运行中的实例必须提供 `/api/system/recovery-source`：它只返回 release 和已公开的项目身份，备份会核对其实际运行配置、数据库项目、真实 commit 对象和版本派生的实例 release 标识，以及采集前后的账本。旧版本不支持此合同，不能靠手填身份替代。实例 artifact 位于 `instance/<project-ref>/`，该前缀的保留策略由实例运营者配置；官方 `production/` 策略不自动覆盖它。 本地端到端演练可显式使用 `RIVALHUB_BACKUP_SOURCE=isolated-instance`、`RIVALHUB_DB_TARGET=local` 和 `RIVALHUB_BACKUP_SUPABASE_WORKDIR`，并设置 loopback 的 `RIVALHUB_R2_LOCAL_ENDPOINT`；来源身份由 Local Supabase status 和运行中的本地应用读取。此类产物位于 `isolated/`，只允许恢复到隔离目标，不能作为 Hosted 激活凭证。
+
+仅 full artifact 可以申请恢复证据。恢复到新的非官方 Hosted 项目时，显式设置 `RIVALHUB_RECOVERY_TARGET=instance`、`RIVALHUB_INSTANCE_WRITE=yes`、目标项目 ref 和确认值，以及目标 `RIVALHUB_RECOVERY_DATABASE_URL`、`RIVALHUB_RECOVERY_SUPABASE_URL`、`RIVALHUB_RECOVERY_PUBLISHABLE_KEY`、`RIVALHUB_RECOVERY_SERVICE_ROLE_KEY`。使用原有 `db:recovery:fetch` 和 `db:recovery:restore`，后者接受 `--evidence-directory` 指向恢复操作员拥有且权限为 0700 的目录。只有 artifact、数据、生命周期、Storage 和账本均验证通过后才生成权限 0600 的证据；DB-only checkpoint 不可生成证据。Hosted provider 的所需恢复权限尚未实机验证，权限拒绝必须停止处理。
+
+新主机恢复后通过 `scripts/instance/release.ts --recover MANIFEST INSTANCE_ENV EVIDENCE` 调用现有控制器；控制器从受保护的恢复证据和 Git 实际提交读取前后身份及能力，安装器不接受单独的恢复绕过参数。安装前会核查受保护文件、恢复的真实目标、完整账本以及与备份相同的 release；然后再次读取实际数据库的账本和 bucket。无证据仍执行 fresh-only 检查。同机升级与后续应用切换仍须遵循现有 release 能力合同，恢复证据不自动授权跨版本升级。文件 checksum 和受保护目录提供一致性及运营者信任边界，并非备份来源的数字签名。
 
 ## Scheduler
 
@@ -44,7 +86,7 @@ RIVALHUB_INSTANCE_WRITE=yes pnpm exec tsx scripts/instance/provision.ts schedule
 pnpm exec tsx scripts/instance/provision.ts verify-scheduler
 ```
 
-`scheduler` 使用同一现有 job registry、Vault 命名与 HTTP dispatch；`verify-scheduler` 触发实际 dispatch，需要可访问的应用和匹配的 `CRON_SECRET`。这些工具不配置 Supabase 内部服务。对已有实例的迁移、adopt、新基线和 restore 等价由 F2 收敛；不要对其使用首次安装入口或改写历史账本。
+`scheduler` 使用同一现有 job registry、Vault 命名与 HTTP dispatch；`verify-scheduler` 触发实际 dispatch，需要可访问的应用和匹配的 `CRON_SECRET`。这些工具不配置 Supabase 内部服务。已有实例通过迁移入口先完成原不可变链、再核对物理合同并保留原账本证据后接入 v3；不要对其使用首次安装入口。候选终点仍待统一合流确认。
 
 ## 验收边界
 

@@ -1,0 +1,8 @@
+{
+  "readerVersion": 0,
+  "publisherVersion": 0,
+  "capabilities": {
+    "qualificationPolicyV1": { "readerVersion": 1, "publisherVersion": 1 },
+    "manualSeedSnapshotV1": { "readerVersion": 1, "publisherVersion": 1 }
+  }
+}

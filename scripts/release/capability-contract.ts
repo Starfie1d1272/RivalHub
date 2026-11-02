@@ -8,6 +8,7 @@ const contracts = [
   { key: "betLedger", path: "src/lib/bet/ledger-contract.json", minimum: 0, label: "BET ledger" },
   { key: "vetoLifecycle", path: "src/lib/matches/veto-room/lifecycle-contract.json", minimum: 0, label: "Veto lifecycle" },
   { key: "publicAsset", path: "src/lib/assets-contract.json", minimum: 0, label: "Public asset" },
+  { key: "competitionFormat", path: "src/lib/competition/release-contract.json", minimum: 0, label: "Competition format" },
 ] as const;
 
 function version(value: unknown, minimum: number, label: string): Version {

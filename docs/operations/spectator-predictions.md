@@ -6,9 +6,9 @@ Pick’Em 不设独立管理员页面。Main Event 名单与赛事种子正式�
 
 截止只消费该阶段最早的正式比赛计划开赛时间；提前实际开赛立即锁定。尚未截止时排期调整可更新截止；已有截止或实际开赛记录永久锁定，延期不重开。官方排期/开赛变化在同一事务更新截止和锁；公开读取也按相同规则投影。没有 Pick’Em 暂停、手动作废或单独 deadline 操作。截止/失效后，无提交者仅隐藏预测单入口，赛事推演保留；提交者保留只读单。BET 通过独立入口与固定积分政策运行，不依赖 Pick’Em。运营规则见下文。
 
-`/api/cron/reconcile-predictions` 使用现有 Cron 鉴权与统一 scheduler registry/execution/health，Supabase primary、GitHub watchdog 和管理员恢复共享同一个 runner。数据库 `prediction_reconciliation_is_due` 是待处理判断的唯一 owner，调度器、批处理与 mutation reconciliation 共用它，只有官方事实变更或未锁定窗口到期时才需要结算。公开读取不推进结算、不获取项目锁；到期窗口即时显示为关闭，积分和成就显示最近一次已提交的结算结果。批处理只选择这些事件，避免空闲事件占据批次。失败返回非成功状态并记录可重试错误；官方操作无需等待结算完成，待处理条件保留供重试。排查时比对官方比赛、轮次确认、阶段最终确认与 prediction settlement/ledger 历史；禁止手动改余额或删除流水。修复原因后重新运行同一 owner，幂等重试不会重复发放。
+`/api/cron/reconcile-predictions` 使用现有 Cron 鉴权与统一 scheduler registry/execution/health，Supabase primary、GitHub watchdog 和管理员恢复共享同一个 runner。数据库 `prediction_reconciliation_is_due` 是待处理判断的唯一 owner，调度器、批处理与 mutation reconciliation 共用它，只有官方事实变更或未锁定窗口到期时才需要结算。公开读取不推进结算、不获取项目锁；到期窗口即时显示为关闭，积分和成就显示最近一次已提交的结算结果。批处理只选择这些事件，避免空闲事件占据批次。失败返回非成功状态并记录可重试错误；官方操作无需等待结算完成，待处理条件保留供重试。排查时比对官方比赛、轮次确认、阶段最终确认与 prediction 判定和 ledger 历史；禁止手动改余额或删除流水。修复原因后重新运行同一 owner，幂等重试不会重复发放。
 
-改判后已使用的返还形成待抵扣差额，可用余额为零；合法补给、退款及新结算优先抵扣。未结算投入不进入净收益榜。纪念币重算不触发积分奖励。
+Pick’Em 的初始、阶段及参与积分保留在原 ledger，不转入 BET。纪念币重算不触发积分奖励。
 
 本地验证使用 `pnpm test:integration tests/integration/db/predictions.test.ts` 和 `pnpm test:e2e tests/e2e/flows/predictions.spec.ts`；需要真实服务时显式设置 `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1`，只能通过 active Drizzle migration chain 初始化隔离测试库。发布按通用 release runbook 执行，Pick’Em 跟随官方阶段自动开放，自由推演无需启用。
 
@@ -19,9 +19,17 @@ Sanitized preview mirror 不复制观众的草稿、提交和积分账本，也�
 
 免费预测不要求启用 BET 或领取钱包。正赛沿用 drafting/playing 阶段；Play-in 仅在 registration 阶段、比赛绑定本赛事已启动且未完成的资格运行时开放。读模型与提交共用同一资格生命周期判断，未启动、已完成、结束或归档赛事不可提交。赛果以实际对局开始为截止，BP 以 BP 开始为截止；持久化截止事实不会因恢复或清空 BP session 而重新开放。
 
+## 旧市场退休条件
+
+迁移前须隔离所有旧版应用、调度器和其他可能写入旧预测金融数据的 writer，并保持隔离；新旧执行器不能混合运行。部署维护窗口中由责任人提供非空身份和原因，通过 `scripts/db/prediction-finance-retirement-preflight.ts` 离线核验；该入口沿用各环境的目标确认与写入保护。核验在同一事务锁定官方事实与旧金融表，检查正式接受事实、最后终态、逐笔扣款、各批返还与冲销及账户债务，保存包含每市场、batch、fingerprint、事实 revision、原因和责任人的审计快照。无投入市场原样归档；不自动退款、结算或修改余额。任何无法对账的历史均拒绝，不能通过删除记录绕过。
+
+执行入口为 `pnpm db:prediction-finance:retirement-preflight`；按目标环境设置现有数据库保护变量，并提供 `RIVALHUB_RETIREMENT_ACTOR` 与 `RIVALHUB_RETIREMENT_REASON`。该核验会写入审计事实，不执行迁移。
+
+0109 在同样的锁下重新核对快照摘要，事实变动时拒绝迁移，须重新核验。退休后禁止旧市场、选项、投入、结算和金融流水写入，Pick’Em 奖励与其作废冲销仍可写入。历史表与用户资料保留；官方事实未来更正不重新启动旧金融 writer，须单独审查冻结后的更正需求。旧版不能作为退休后的回滚目标。
+
 ## BET
 
-`src/lib/bet/` 是新 BET 的唯一盘口、投入、积分和结算 owner。`bet_*` 表与 Pick’Em 项目独立；旧 `prediction_*` 金融表和兼容入口保留历史及 N/N+1 兼容，不被新 BET 页面或操作消费。管理员启用后自动生成满足条件的盘口，可暂停/恢复投入、永久提前锁盘、填写原因作废退款，官方更新待处理时可重试。后台以比赛／赛事盘摘要为入口，支持队伍、选手、地图或盘口搜索，以及状态、类别、阶段筛选；展开一组后查看奖池和参与人数，执行带目标信息的锁盘／原因退款。筛选与整组分页通过 URL 恢复。答案只来自官方事实；后台不提供赔率、选项、截止日期、答案或余额编辑。
+`src/lib/bet/` 是新 BET 的唯一盘口、投入、积分和结算 owner。`bet_*` 表与 Pick’Em 项目独立；旧 `prediction_*` 金融表和历史读取保留，不被新 BET 页面或操作消费；旧市场的开盘、投入和结算执行已退休。管理员启用后自动生成满足条件的盘口，可暂停/恢复投入、永久提前锁盘、填写原因作废退款，官方更新待处理时可重试。后台以比赛／赛事盘摘要为入口，支持队伍、选手、地图或盘口搜索，以及状态、类别、阶段筛选；展开一组后查看奖池和参与人数，执行带目标信息的锁盘／原因退款。筛选与整组分页通过 URL 恢复。答案只来自官方事实；后台不提供赔率、选项、截止日期、答案或余额编辑。
 
 固定政策提供初始积分和后续正赛阶段补给，具体数值由代码 policy 拥有。领取和补给幂等，阶段首次开放 milestone 在恢复重建后保留，晚加入者不领取历史补给。Pick’Em 不向 BET 钱包发放积分。管理员可按普通账户规则参与；当前 confirmed/frozen 名单成员仅禁止参与涉及本人队伍的盘口，赛事盘按其实际涵盖名单判断。首次账户必须显式领取，GET 不开户；reconciliation 从 canonical MajorStageRuns 补齐缺失 milestone，数据库严格比较 joinedAt < openedAt，启用顺序和重试不改变晚加入规则。排行榜仅计入当前有效已结算参与，按 ledger 净收益并列排名；同分依次按结算数、加入时间、账户稳定标识排序。记录视图只呈现本人流水，以自然语言解释补给、退款和官方更正，不公开内部标识。暂停不阻止自动结算，恢复不重开已锁盘口。
 

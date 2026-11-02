@@ -1,7 +1,7 @@
 import "server-only";
 import type { TxDb } from "@/db/client";
 import { readBetPools } from "./data";
-import { loadBetPublicSupportFacts } from "./facts";
+import { loadMatchPublicSupportFacts } from "@/lib/matches/spectator-read";
 import { readPublicPredictionSupport } from "@/lib/free-predictions/data";
 
 export interface BetPublicStatsScope { matchId?: string; includeEvent: boolean; includeFree: boolean; view?: "event" }
@@ -9,7 +9,7 @@ export interface BetPublicStatsScope { matchId?: string; includeEvent: boolean; 
 export async function readBetPublicStatsSnapshot(tx: TxDb, seasonId: string, scope: BetPublicStatsScope) {
   const pools = await readBetPools(tx,seasonId,scope);
   if (!scope.includeFree) return {pools,free:undefined};
-  const facts = await loadBetPublicSupportFacts(tx,seasonId,scope.matchId);
+  const facts = await loadMatchPublicSupportFacts(tx,seasonId,scope.matchId);
   const free = await readPublicPredictionSupport(tx,seasonId,facts,scope.matchId);
   return {pools,free};
 }

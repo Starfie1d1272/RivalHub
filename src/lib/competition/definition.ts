@@ -69,6 +69,8 @@ export type SeasonCapabilityRow = Pick<SeasonCapabilities,
 
 /** Project a persisted season row into the canonical capability contract. */
 export function capabilitiesFromSeason(season: SeasonCapabilityRow): SeasonCapabilities {
+  const stored = season.teamRegistrationConfig;
+  const teamRegistrationConfig = stored.qualificationPolicy?.version === 2 ? stored : normalizeTeamRegistrationConfig(stored);
   return {
     registrationMode: season.registrationMode,
     hasCaptainVoting: season.hasCaptainVoting,
@@ -76,8 +78,8 @@ export function capabilitiesFromSeason(season: SeasonCapabilityRow): SeasonCapab
     hasCommunityAwards: season.hasCommunityAwards,
     stagePlan: normalizeStagePlan(season.stagePlan),
     registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
-    teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
-    affiliationRules: season.teamRegistrationConfig.qualificationPolicy?.affiliationRules ?? normalizeAffiliationRules(season.affiliationRules),
+    teamRegistrationConfig,
+    affiliationRules: teamRegistrationConfig.qualificationPolicy?.version === 1 ? teamRegistrationConfig.qualificationPolicy.affiliationRules : normalizeAffiliationRules(season.affiliationRules),
     minTeamSize: season.minTeamSize,
     maxTeamSize: season.maxTeamSize,
     starterCount: season.starterCount,
@@ -189,20 +191,21 @@ export function checkStandardMajorCapabilities(
   const expectedCapacity = swissCount === 2 ? 24 : 32;
   const swissStages = capabilities.stagePlan.slice(0, -1);
   const expectedDirectCounts = expectedCapacity === 24 ? [16, 8] : [16, 8, 8];
+  const independentFormation = capabilities.teamRegistrationConfig.qualificationPolicy?.version === 2;
   const checks: StandardMajorRuleCheck[] = [
     {
       key: "registration-mode",
-      passed: capabilities.registrationMode === "team",
+      passed: independentFormation || capabilities.registrationMode === "team",
       reason: "标准 Major 使用队伍整体报名。",
     },
     {
       key: "captain-voting",
-      passed: capabilities.hasCaptainVoting === false,
+      passed: independentFormation || capabilities.hasCaptainVoting === false,
       reason: "标准 Major 不启用队长投票。",
     },
     {
       key: "draft",
-      passed: capabilities.hasDraft === false,
+      passed: independentFormation || capabilities.hasDraft === false,
       reason: "标准 Major 不启用蛇形选秀。",
     },
     {

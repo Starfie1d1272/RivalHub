@@ -1,7 +1,7 @@
 import { publicAsset } from "./public-asset";
 import { pgTable, uuid, text, integer, boolean, timestamp, pgEnum, json } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type { InstitutionAffiliationRule, RegistrationConfig, StagePlan, TeamRegistrationConfig } from "@/types/season";
+import type { InstitutionAffiliationRule, RegistrationConfig, StagePlan, StoredTeamRegistrationConfig } from "@/types/season";
 
 export const seasonStatusEnum = pgEnum("season_status", [
   "draft",        // 未发布
@@ -48,7 +48,7 @@ export const seasons = pgTable("seasons", {
     .default(sql`'{}'::json`),
   // 队伍报名配置；缺失字段由应用层 fallback 到默认配置
   teamRegistrationConfig: json("team_registration_config")
-    .$type<TeamRegistrationConfig>()
+    .$type<StoredTeamRegistrationConfig>()
     .notNull()
     .default(sql`'{}'::json`),
   affiliationRules: json("affiliation_rules")

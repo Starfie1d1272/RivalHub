@@ -1,14 +1,16 @@
 import { and, count, desc, eq } from "drizzle-orm";
+import { resolveCompetitiveSourceSelection } from "@/lib/competitive/source-selection";
 import { writeAuditInTx } from "@/lib/audit/write";
 import type { AuditAction } from "@/lib/audit/presentation";
 
 import type { db as dbClient } from "@/db/client";
 import { competitionEntries, conversionPolicies, matches, seasonRegistrations, seasons } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { fallbackCatalogReferencesExist, resolveLiveCompetitiveContext, type ResolvedCatalogContext } from "@/lib/competitive/catalog";
+import { fallbackCatalogReferencesExist, loadCompetitivePlatformCatalog, resolveCatalogSeasonRoles, resolveLiveCompetitiveContext, type ResolvedCatalogContext } from "@/lib/competitive/catalog";
 import { resolveCompetitiveContext } from "@/lib/qualification/service";
 import { createCompetitionTemplate } from "@/lib/competition/templates";
 import { normalizeTeamRegistrationConfig, teamRegistrationConfigForWrite } from "@/lib/seasons/compatibility";
+import { decodeSeasonRules, encodeDraftSeasonRules, seasonRulesNeedCompetitiveContext } from "@/lib/seasons/rules";
 import type { CompetitiveFallbackConversion, SeasonStatus, TeamRegistrationConfig } from "@/types/season";
 
 type Transaction = Parameters<Parameters<typeof dbClient.transaction>[0]>[0];
@@ -40,12 +42,13 @@ export async function assertSeasonHasNoHistoricalFacts(
  */
 export function unfreezeBuiltInCompetitiveContext(season: {
   competitionTemplate: "rivals" | "major" | "custom";
-  teamRegistrationConfig: Partial<TeamRegistrationConfig> | null;
+  teamRegistrationConfig: import("@/types/season").StoredTeamRegistrationConfig | null;
 }): TeamRegistrationConfig | null {
   if (season.competitionTemplate !== "major" && season.competitionTemplate !== "rivals") return null;
+  if (season.teamRegistrationConfig?.qualificationPolicy?.version === 2) return null;
   const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
   if (!config.requireCompetitiveProfile) return null;
-  const draftTemplate = createCompetitionTemplate(season.competitionTemplate).teamRegistrationConfig;
+  const draftTemplate = normalizeTeamRegistrationConfig(createCompetitionTemplate(season.competitionTemplate).teamRegistrationConfig);
   return {
     ...config,
     competitiveProfile: draftTemplate.competitiveProfile
@@ -308,6 +311,57 @@ export async function freezeCompetitiveContext(
   return { ...config, competitiveProfile };
 }
 
+/** Construct v2 competitive facts from the live catalog and an approved conversion policy. */
+export async function freezeV2CompetitiveContext(tx: Transaction, season: typeof seasons.$inferSelect): Promise<typeof seasons.$inferSelect.teamRegistrationConfig> {
+  const rules = decodeSeasonRules(season);
+  const needs = seasonRulesNeedCompetitiveContext(rules) || rules.competition.seeding?.mode === "strength_recommendation";
+  if (!needs) return season.teamRegistrationConfig;
+  const configured = rules.competitive.competitiveProfile;
+  if (!configured?.platform) throw new AppError(ErrorCode.VALIDATION_FAILED, "资格规则或实力推荐种子需要竞技平台。 ");
+  const catalog = await loadCompetitivePlatformCatalog(tx);
+  const platform = catalog.find(item => item.key === configured.platform);
+  if (!platform) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选竞技平台不在目录中。 ");
+  const rankOrder = [...platform.ranks].sort((a, b) => a.sortOrder - b.sortOrder).map(rank => rank.rankKey);
+  if (!rankOrder.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选竞技平台缺少段位目录。 ");
+  const threshold = rules.participant.rankThreshold;
+  for (const rank of [threshold?.currentMin, threshold?.peakMin]) if (rank && !rankOrder.includes(rank)) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选段位门槛不在平台目录中。 ");
+  const weighted = rules.participant.competitiveProfileRequired || rules.competition.seeding?.mode === "strength_recommendation";
+  const { current, previous } = resolveCatalogSeasonRoles(platform);
+  const prior = previous ? platform.seasons.filter(season => season.active && season.sortOrder < previous.sortOrder).sort((a, b) => b.sortOrder - a.sortOrder)[0] ?? null : null;
+  if ((weighted || threshold?.currentMin) && !current) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选平台缺少当前赛季。 ");
+  if (weighted && (!previous || !prior)) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选平台缺少两届已完成赛季。 ");
+  let fallbackConversion: CompetitiveFallbackConversion | undefined;
+  let conversionPolicyId: string | undefined;
+  let conversionPolicyVersion: string | undefined;
+  if (configured.fallbackConversion || configured.conversionPolicyId || configured.conversionPolicyVersion) {
+    if (configured.platform !== "perfect_world") throw new AppError(ErrorCode.VALIDATION_FAILED, "所选平台不支持 5E 换算。 ");
+    const selected = await resolveConversionPolicyForPublish(tx, configured.platform, configured.conversionPolicyId, configured.conversionPolicyVersion);
+    const [policy] = await tx.select().from(conversionPolicies).where(eq(conversionPolicies.id, selected.id));
+    if (!policy || policy.status !== "approved") throw new AppError(ErrorCode.VALIDATION_FAILED, "所选换算策略未批准。 ");
+    const fallbackPlatform = catalog.find(item => item.key === "fivee");
+    if (!fallbackPlatform) throw new AppError(ErrorCode.VALIDATION_FAILED, "5E 平台目录不可用。 ");
+    const fallbackRoles = resolveCatalogSeasonRoles(fallbackPlatform);
+    const fallbackPrior = fallbackRoles.previous ? fallbackPlatform.seasons.filter(season => season.active && season.sortOrder < fallbackRoles.previous!.sortOrder).sort((a, b) => b.sortOrder - a.sortOrder)[0] ?? null : null;
+    if ((weighted || threshold?.currentMin) && !fallbackRoles.current) throw new AppError(ErrorCode.VALIDATION_FAILED, "5E 目录缺少对应的当前赛季。 ");
+    if (weighted && (!fallbackRoles.previous || !fallbackPrior)) throw new AppError(ErrorCode.VALIDATION_FAILED, "5E 目录缺少对应的两届已完成赛季。 ");
+    const seasonKeyMap: Record<string, string> = {};
+    if (current && fallbackRoles.current && (weighted || threshold?.currentMin)) seasonKeyMap[current.seasonKey] = fallbackRoles.current.seasonKey;
+    if (previous && fallbackRoles.previous && weighted) seasonKeyMap[previous.seasonKey] = fallbackRoles.previous.seasonKey;
+    if (prior && fallbackPrior && weighted) seasonKeyMap[prior.seasonKey] = fallbackPrior.seasonKey;
+    fallbackConversion = { sourcePlatform: "fivee", version: policy.version, seasonKeyMap, mapping: policy.mapping };
+    conversionPolicyId = policy.id;
+    conversionPolicyVersion = policy.version;
+    const requiredSeasonKeys = weighted ? [current!.seasonKey, previous!.seasonKey, prior!.seasonKey] : threshold?.currentMin ? [current!.seasonKey] : [];
+    if (!await fallbackCatalogReferencesExist(tx, fallbackConversion, { requiredSeasonKeys })) throw new AppError(ErrorCode.VALIDATION_FAILED, "换算规则引用的赛季或段位已不在目录中。 ");
+  }
+  const profile = { platform: platform.key, rankOrder, sourceSelection: resolveCompetitiveSourceSelection(configured), currentSeasonKey: current?.seasonKey ?? "", previousSeasonKey: previous?.seasonKey ?? "",
+    ...(weighted && current && previous && prior ? { evidencePolicy: { historicalWeight: 50 as const, referenceSeasonKey: prior.seasonKey, referenceSeasonWeight: 20 as const, recentSeasonKeys: [previous.seasonKey, current.seasonKey], recentSeasonWeight: 30 as const } } : {}),
+    ...(fallbackConversion ? { fallbackConversion, conversionPolicyId, conversionPolicyVersion } : {}) };
+  const encoded = encodeDraftSeasonRules(season, { ...rules, competitive: { ...rules.competitive, competitiveProfile: profile } });
+  if (!encoded.teamRegistrationConfig) throw new AppError(ErrorCode.INTERNAL_ERROR, "竞技规则冻结失败。 ");
+  return encoded.teamRegistrationConfig;
+}
+
 export type RegistrationOpeningMode =
   | "scheduled"
   | "explicit_immediate"
@@ -355,14 +409,15 @@ export async function openSeasonRegistrationInTx(
       configuredOpenAt = now;
       break;
   }
-  const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
-  const teamRegistrationConfig = (config.qualificationPolicy ? config.qualificationPolicy.competitiveProfileRequired || config.qualificationPolicy.externalStrengthGap.enabled : config.requireCompetitiveProfile)
-    ? await freezeCompetitiveContext(tx, season)
-    : teamRegistrationConfigForWrite(config);
+  const rules = decodeSeasonRules(season);
+  const needsContext = rules.source === "policy_v2" && (seasonRulesNeedCompetitiveContext(rules) || rules.competition.seeding?.mode === "strength_recommendation");
+  const legacy = rules.source === "policy_v2" ? null : normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
+  const legacyNeedsContext = legacy ? (legacy.qualificationPolicy ? legacy.qualificationPolicy.competitiveProfileRequired || legacy.qualificationPolicy.externalStrengthGap.enabled : legacy.requireCompetitiveProfile) : false;
+  const teamRegistrationConfig = legacy ? (legacyNeedsContext ? await freezeCompetitiveContext(tx, season) : teamRegistrationConfigForWrite(legacy)) : await freezeV2CompetitiveContext(tx, season);
   await tx.update(seasons).set({
     registrationOpensAt: configuredOpenAt,
     registrationOpenedAt: now,
-    teamRegistrationConfig: teamRegistrationConfigForWrite(teamRegistrationConfig),
+    teamRegistrationConfig,
     updatedAt: now,
   }).where(eq(seasons.id, season.id));
   await writeAuditInTx(tx, {
@@ -376,7 +431,7 @@ export async function openSeasonRegistrationInTx(
       scheduledRegistrationOpensAt: season.registrationOpensAt?.toISOString() ?? null,
       registrationOpensAt: configuredOpenAt.toISOString(),
       registrationOpenedAt: now.toISOString(),
-      competitiveContextFrozen: config.qualificationPolicy ? config.qualificationPolicy.competitiveProfileRequired || config.qualificationPolicy.externalStrengthGap.enabled : config.requireCompetitiveProfile,
+      competitiveContextFrozen: rules.source === "policy_v2" ? needsContext : legacyNeedsContext,
     },
   });
   return { slug: season.slug, opened: true };

@@ -203,28 +203,23 @@ export async function loadAdminMatchWorkbench({
   }
 
   const rostersByEntry = rosterRows;
-  let teamAPreflight = null;
-  let teamBPreflight = null;
-  if (match.status === "scheduled" && requiresCompetitionLineupPreflight(match)) {
-    const preflightRows = await Promise.all(entryIds.map(async (entryId) => {
-      const roster = rostersByEntry.get(entryId);
-      if (!roster) return { entryId, preflight: null };
-      try {
-        const result = await db.transaction((tx) => getStartingLineupPreflightInTx(tx, {
-          match,
-          entryId,
-          starterIds: roster.players.filter((player) => player.isStarter).map((player) => player.eventRosterMemberId),
-          substituteIds: roster.players.filter((player) => !player.isStarter).map((player) => player.eventRosterMemberId),
-        }));
-        return { entryId, preflight: { valid: result.valid, blockers: result.blockers } };
-      } catch (error) {
-        if (!isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)) throw error;
-        return { entryId, preflight: { valid: false, blockers: [error.message] } };
-      }
-    }));
-    teamAPreflight = preflightRows.find((row) => row.entryId === match.entryAId)?.preflight ?? null;
-    teamBPreflight = preflightRows.find((row) => row.entryId === match.entryBId)?.preflight ?? null;
-  }
+  const lineupReads = match.status !== "finished" ? await Promise.all(entryIds.map(async (entryId) => {
+    const roster = rostersByEntry.get(entryId);
+    const showPreflight = match.status === "scheduled" && requiresCompetitionLineupPreflight(match) && Boolean(roster);
+    try {
+      const result = await db.transaction((tx) => getStartingLineupPreflightInTx(tx, {
+        match, entryId,
+        starterIds: roster?.players.filter((player) => player.isStarter).map((player) => player.eventRosterMemberId) ?? [],
+        substituteIds: roster?.players.filter((player) => !player.isStarter).map((player) => player.eventRosterMemberId) ?? [],
+      }));
+      return { policy: result.policy, error: null, preflight: showPreflight ? { valid: result.valid, blockers: result.blockers } : null };
+    } catch (error) {
+      if (!isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)) throw error;
+      return { policy: null, error: error.message, preflight: showPreflight ? { valid: false, blockers: [error.message] } : null };
+    }
+  })) : [null, null];
+  const teamAPreflight = lineupReads[0]?.preflight ?? null;
+  const teamBPreflight = lineupReads[1]?.preflight ?? null;
 
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const entryName = new Map(entries.map((entry) => [entry.id, entry.name]));
@@ -284,6 +279,9 @@ export async function loadAdminMatchWorkbench({
     teamBMembers: membersByEntry.get(match.entryBId) ?? [],
     teamARoster: projectRoster(rostersByEntry.get(match.entryAId)),
     teamBRoster: projectRoster(rostersByEntry.get(match.entryBId)),
+    teamAPolicy: lineupReads[0]?.policy ?? null,
+    teamBPolicy: lineupReads[1]?.policy ?? null,
+    lineupErrors: lineupReads.flatMap((row) => row?.error ? [row.error] : []),
     teamAPreflight,
     teamBPreflight,
     completedMaps: mapCompletedMaps(mapRecords),

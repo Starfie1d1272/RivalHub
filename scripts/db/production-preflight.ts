@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readCanonicalProductionIdentity } from "../release/production-identity";
 import { assertReleaseCapabilities } from "../release/capability-contract";
 import { postgresConnection } from "../../src/db/postgres-connection";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Pool } from "pg";
 import { assertProductionConfirmations, assertProductionDatabaseUrl } from "./production-environment";
@@ -22,13 +22,15 @@ export async function verifyProductionPreflight(): Promise<void> {
   const candidate = process.env.RIVALHUB_RELEASE_SHA || execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   assertProductionAssetMigrationCapability(process.cwd(), previous.releaseCommit, candidate);
   const databaseUrl = assertProductionDatabaseUrl(process.env.DATABASE_URL);
-  const expected = readExpectedMigrations();
   const pool = new Pool({ ...postgresConnection(databaseUrl), max: 1 });
   try {
     await pool.query("BEGIN TRANSACTION READ ONLY");
     const ledger = await pool.query<Migration>("SELECT hash, created_at::bigint::text AS when FROM drizzle.__drizzle_migrations ORDER BY created_at");
     const actual = ledger.rows.map((row) => ({ hash: row.hash, when: Number(row.when) }));
-    const state = assertResumableProductionLedger(actual, expected);
+    const chain = identifyMigrationChain(actual);
+    const state = chain.directory === "drizzle/v2-migrations"
+      ? assertResumableProductionLedger(actual, chain.migrations)
+      : { atBaseline: false };
 
     // At the confirmed 0024 baseline, prove the destructive-data predicates
     // for the currently pending 0025/0026 pair before Drizzle is permitted to
@@ -39,7 +41,7 @@ export async function verifyProductionPreflight(): Promise<void> {
       await assert0024SchemaAndPendingData(pool);
     }
     await pool.query("ROLLBACK");
-    console.log(`Production migration preflight passed: ledger is a resumable active-chain prefix (${ledger.rows.length}/${expected.length}).`);
+    console.log(`Production migration preflight passed: ledger is a resumable active-chain prefix (${ledger.rows.length}/${chain.migrations.length}; ${chain.directory}).`);
   } catch (error) {
     try { await pool.query("ROLLBACK"); } catch { /* no transaction to roll back */ }
     throw error;
@@ -58,7 +60,7 @@ export function assertFrozenProductionPair(env: Readonly<Record<string, string |
 /** The actual 0105 bytes and contract must belong to the candidate revision. */
 export function assertProductionAssetMigrationCapability(cwd: string, previous: string, candidate: string): void {
   if (!/^[a-f0-9]{40}$/.test(candidate)) throw new Error("Exact candidate commit required for asset migration.");
-  for (const path of ["drizzle/migrations/0105_public_asset_identity.sql", "src/lib/assets-contract.json"]) {
+  for (const path of [existsSync(resolve(cwd, "drizzle/v2-migrations/0105_public_asset_identity.sql")) ? "drizzle/v2-migrations/0105_public_asset_identity.sql" : "drizzle/migrations/0105_public_asset_identity.sql", "src/lib/assets-contract.json"]) {
     const committed = execFileSync("git", ["show", `${candidate}:${path}`], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
     if (readFileSync(resolve(cwd, path), "utf8") !== committed) throw new Error(`Candidate input differs from exact release: ${path}`);
   }
@@ -91,6 +93,19 @@ export function assertActiveChainPrefix(actual: readonly Migration[], expected: 
 
 export function readExpectedMigrations(): ExpectedMigration[] {
   return readMigrationLedger();
+}
+
+/** Identify a nonempty exact ledger prefix; unknown and mixed chains fail closed. */
+export function identifyMigrationChain(actual: readonly Migration[]): { directory: string; migrations: ExpectedMigration[] } {
+  if (!actual.length) throw new Error("Migration ledger is empty; cannot identify its lineage.");
+  const active = readExpectedMigrations();
+  if (isMigrationLedgerPrefix(actual, active)) return { directory: "drizzle/migrations", migrations: active };
+  const directory = "drizzle/v2-migrations";
+  if (existsSync(resolve(process.cwd(), directory, "meta/_journal.json"))) {
+    const migrations = readMigrationLedger(resolve(process.cwd(), directory));
+    if (isMigrationLedgerPrefix(actual, migrations)) return { directory, migrations };
+  }
+  throw new Error("Migration ledger is not an exact active or archived v2 chain prefix.");
 }
 
 async function assert0024SchemaAndPendingData(pool: Pool): Promise<void> {

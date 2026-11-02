@@ -103,7 +103,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         {data.season.status !== "playing" && matchCount === 0 && <Panel contentClassName="p-4" className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">赛事当前状态为「{presentSeasonStatus(data.season.status).label}」，进入比赛进行中状态后可编排赛程。</p>
         </Panel>}
-        {overview.canGenerate && <GenerateScheduleCard seasonId={data.season.id} stagePlan={data.stagePlan} teamCount={data.teams.length} />}
+        {overview.canGenerate && <GenerateScheduleCard seasonId={data.season.id} stagePlan={data.stagePlan} teamCount={data.scheduleTeamCount} />}
         {data.season.status === "playing" && matchCount === 0 && data.teams.length >= 2 && overview.hasSwissStage && <Panel contentClassName="p-4" className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">该赛制的自动赛程运行尚未启用。</p>
         </Panel>}

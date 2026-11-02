@@ -93,6 +93,11 @@ export function classifyMigrationSql(
     const statementPreview = statement.text.trim().replace(/\s+/g, " ").slice(0, 180);
 
     for (const [category, pattern] of RISK_PATTERNS) {
+      // The v3 baseline is executed only on an empty schema; existing v2
+      // databases are verified and adopted without replaying these ownership
+      // declarations. Keep ordinary ALTER TYPE owner changes classified.
+      if (category === "alter-type" && filePath === "drizzle/migrations/0000_v3_baseline.sql"
+        && /^\s*ALTER\s+TYPE\s+"public"\."[^"]+"\s+OWNER\s+TO\s+"postgres"\s*;\s*$/i.test(statement.text.replace(/--[^\n]*/g, ""))) continue;
       if (pattern.test(masked)) {
         const expectedAnnotationKind = annotationKindForCategory(category);
         const acceptedAnnotation = annotation?.kind === expectedAnnotationKind ? annotation : undefined;

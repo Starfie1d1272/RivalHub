@@ -34,7 +34,7 @@ import {
  */
 export async function reconcileMajorPrestartRosterAfterApprovalInTx(
   tx: TxDb,
-  input: { seasonId: string; entryId: string; actorId: string },
+  input: { seasonId: string; entryId: string; actorId: string; assessment?: import("@/lib/competition-entries/commands").EntryRosterAssessment },
 ): Promise<boolean> {
   const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId));
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
@@ -67,6 +67,7 @@ export async function reconcileMajorPrestartRosterAfterApprovalInTx(
     season,
     coherent,
     actorId: input.actorId,
+    ...(input.assessment ? { assessment: input.assessment } : {}),
   });
   if (result.changed) {
     await writeAuditInTx(tx, {

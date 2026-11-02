@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import { reportDeploymentUpdate } from "@/lib/deployment-update";
 import { useGuardedVisiblePolling } from "@/components/use-visible-polling";
 import { getNextEntryId } from "@/lib/draft/rules";
-import { DRAFT_TOTAL_ROUNDS } from "@/types/draft";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { DraftCountdown } from "./DraftCountdown";
 import { TeamDraftGrid } from "./TeamDraftGrid";
@@ -44,8 +43,9 @@ export function DraftLiveRoom({
   const mode = polled?.source === initialData && polled.sourceMode === initialMode ? polled.mode : initialMode;
   const { state, teams, snakeOrder, remainingPlayers, completedPicks, totalPicks, maxPicks } =
     data;
+  const totalRounds = teams.length ? maxPicks / teams.length : 0;
 
-  const isComplete = maxPicks > 0 && totalPicks >= maxPicks;
+  const isComplete = Boolean((state && !state.isActive && !state.currentEntryId) || (maxPicks > 0 && totalPicks >= maxPicks));
   const isArchive = mode === "archive" || (mode === undefined && Boolean(isReadonly));
   const isLive = !isArchive && !isComplete && (state?.isActive ?? false);
 
@@ -91,7 +91,7 @@ export function DraftLiveRoom({
       const next = result.data;
       setPolled({ source: initialData, sourceMode: initialMode, ...next });
       if (next.mode !== mode || next.data.state?.isActive !== data.state?.isActive ||
-        (next.data.maxPicks > 0 && next.data.totalPicks >= next.data.maxPicks) !== isComplete) router.refresh();
+        Boolean((next.data.state && !next.data.state.isActive && !next.data.state.currentEntryId) || (next.data.maxPicks > 0 && next.data.totalPicks >= next.data.maxPicks)) !== isComplete) router.refresh();
     } else router.refresh();
   }, seasonSlug && !isArchive && !isComplete ? isLive ? 10_000 : 30_000 : null, seasonSlug, true);
 
@@ -122,7 +122,7 @@ export function DraftLiveRoom({
   // 确定当前选秀队
   const pickingEntryId = !isArchive && !isComplete ? state?.currentEntryId ?? null : null;
   const pickingTeam = teams.find((t) => t.entryId === pickingEntryId);
-  const next = state?.currentEntryId && !isComplete ? getNextEntryId(teams.map(team => ({ id: team.entryId, draftOrder: team.draftOrder })), state.currentEntryId, state.currentRound) : null;
+  const next = state?.currentEntryId && !isComplete ? getNextEntryId(teams.map(team => ({ id: team.entryId, draftOrder: team.draftOrder })), state.currentEntryId, state.currentRound, totalRounds) : null;
   const nextTeam = teams.find(team => team.entryId === next?.entryId);
 
   return (
@@ -145,7 +145,7 @@ export function DraftLiveRoom({
 
       {!isArchive && <section aria-label="选秀状态" className="grid gap-5 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-panel)] p-5 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
         <div><p className="mb-2 text-xs text-[var(--color-fg-mid)]">{isComplete ? "选秀已完成" : !state ? "等待开始" : isLive ? "正在选择" : "选秀暂停"}</p><h2 className="text-2xl font-semibold">{pickingTeam ? <TeamProfileLink entryId={pickingTeam.entryId}>{pickingTeam.teamName}</TeamProfileLink> : isComplete ? "最终阵容已就位" : "队伍阵容预览"}</h2>{pickingTeam?.captain.userId && <p className="mt-1 text-sm text-[var(--color-fg-mid)]">队长 <PlayerProfileLink userId={pickingTeam.captain.userId}>{getPublicDisplayName(pickingTeam.captain)}</PlayerProfileLink></p>}</div>
-        <div className="flex gap-8"><div><p className="mb-2 text-xs text-[var(--color-fg-mid)]">已选 / 总计</p><p className="font-mono text-2xl tabular-nums">{totalPicks}<span className="text-base text-[var(--color-fg-mid)]"> / {maxPicks}</span></p></div>{state && <div><p className="mb-2 text-xs text-[var(--color-fg-mid)]">轮次</p><p className="font-mono text-2xl">{state.currentRound}<span className="text-base text-[var(--color-fg-mid)]"> / {DRAFT_TOTAL_ROUNDS}</span></p></div>}</div>
+        <div className="flex gap-8"><div><p className="mb-2 text-xs text-[var(--color-fg-mid)]">已选 / 总计</p><p className="font-mono text-2xl tabular-nums">{totalPicks}<span className="text-base text-[var(--color-fg-mid)]"> / {maxPicks}</span></p></div>{state && <div><p className="mb-2 text-xs text-[var(--color-fg-mid)]">轮次</p><p className="font-mono text-2xl">{state.currentRound}<span className="text-base text-[var(--color-fg-mid)]"> / {totalRounds}</span></p></div>}</div>
         {isLive && <div className="[&>span]:font-mono [&>span]:text-2xl"><p className="mb-2 text-xs text-[var(--color-fg-mid)]">剩余时间</p><DraftCountdown deadline={state?.roundDeadline ?? null} isActive />{nextTeam && <p className="mt-2 text-xs text-[var(--color-fg-mid)]">下一队 <TeamProfileLink entryId={nextTeam.entryId}>{nextTeam.teamName}</TeamProfileLink></p>}</div>}
       </section>}
 
@@ -157,7 +157,7 @@ export function DraftLiveRoom({
         <TeamDraftGrid
           teams={teams}
           currentEntryId={pickingEntryId}
-          totalRounds={DRAFT_TOTAL_ROUNDS}
+          totalRounds={totalRounds}
           currentRound={state?.currentRound ?? 1}
           archive={isArchive || isComplete}
           isActive={isLive}

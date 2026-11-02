@@ -25,3 +25,10 @@ export interface BetBoardDTO {
   markets: BetMarketDTO[];
   matches: { id: string; entryAId: string; entryBId: string; a: string; b: string; logoA: string | null; logoB: string | null; stage: string; format: string; scheduledAt: string | null; status?: "scheduled" | "in_progress" | "finished" | "cancelled"; displayScore?: DisplayScore }[];
 }
+
+export type BetPredictionRankingSort = "profit" | "hits" | "accuracy";
+export interface BetPredictionRankingRowDTO {
+  userId: string; playerUserId: string | null; name: string; profit: string | null;
+  hits: number | null; judged: number | null; accuracy: number | null;
+  rank: number | null; group: "ranked" | "limited";
+}

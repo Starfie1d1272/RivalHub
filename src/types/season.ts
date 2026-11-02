@@ -96,6 +96,23 @@ export interface QualificationPolicyV1 {
   contacts: { qqRequired: boolean; emailVerifiedRequired: boolean };
 }
 
+/** V2 stores institution constraints solely in Season.affiliationRules. */
+export interface QualificationPolicyV2 extends Omit<QualificationPolicyV1, "version" | "affiliationRules"> { version: 2 }
+export interface FormationRules {
+  targetTeamCount: number | null;
+  targetRosterSize: number | null;
+  draftTimeoutSeconds: number;
+  votesPerPerson: number;
+  minimumVotesToConfirm: number;
+}
+export interface SeedingRules { mode: "manual" | "strength_recommendation" }
+export interface LineupRules { maxSubstitutes: number }
+export interface RosterChangeRules {
+  representativeCanRemove: boolean;
+  representativeCanTransfer: boolean;
+  selfServiceAfterApproval: boolean;
+}
+
 export interface TeamRegistrationConfig {
   qualificationPolicy?: QualificationPolicyV1;
   allowExternal: boolean;
@@ -115,6 +132,17 @@ export interface TeamRegistrationConfig {
   competitiveProfile?: CompetitiveProfileConfig;
 }
 
+/** Persisted v2 uses the existing JSON column and never embeds affiliation rules. */
+export type StoredTeamRegistrationConfigV2 = Omit<TeamRegistrationConfig, "qualificationPolicy" | "allowExternal" | "graduateCountsAsHome" | "minHomeMembers" | "minEnrolledMembers" | "maxExternalMembers" | "requireCompetitiveProfile" | "competitiveProfile" | "captainCanKick" | "captainCanTransfer" | "lockAfterRegistration"> & {
+  qualificationPolicy: QualificationPolicyV2;
+  formation: FormationRules;
+  seeding: SeedingRules;
+  lineup: LineupRules;
+  rosterChanges: RosterChangeRules;
+};
+
+export type StoredTeamRegistrationConfig = TeamRegistrationConfig | StoredTeamRegistrationConfigV2;
+
 export interface CompetitiveProfileConfig {
   platform: string;
   /**
@@ -125,6 +153,7 @@ export interface CompetitiveProfileConfig {
   previousSeasonKey: string;
   /** Lowest → highest rank labels. Empty means no evaluator is configured yet. */
   rankOrder: string[];
+  sourceSelection?: CompetitiveSourceSelection;
   evidencePolicy?: CompetitiveEvidencePolicy;
   /** Optional event-owned 5E equivalence mapping, copied into the registration freeze; the field name remains for legacy snapshots. */
   fallbackConversion?: CompetitiveFallbackConversion;
@@ -136,7 +165,7 @@ export interface CompetitiveProfileConfig {
   conversionPolicyId?: string;
 }
 
-type CompetitiveSourceSelection = "primary_then_fallback" | "strongest_equivalent";
+export type CompetitiveSourceSelection = "primary_then_fallback" | "strongest_equivalent";
 
 /**
  * An audited, event-owned equivalence policy. Mapping is deliberately not
@@ -203,7 +232,7 @@ export interface SeasonCapabilities {
   stagePlan: StagePlan;
   /** 报名规则配置 */
   registrationConfig: RegistrationConfig;
-  teamRegistrationConfig: TeamRegistrationConfig;
+  teamRegistrationConfig: StoredTeamRegistrationConfig;
   affiliationRules: readonly InstitutionAffiliationRule[];
   maxTeamSize: number;
   minTeamSize: number;

@@ -1,14 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 import { Pool } from "pg";
-import { buildIsolatedRecoveryEnvironment } from "./environment";
+import { buildIsolatedRecoveryEnvironment, type IsolatedRecoveryEnvironment } from "./environment";
+import { postgresConnection } from "../../../src/db/postgres-connection";
 import { purgeExpiredEducationEvidence } from "../../../src/lib/education/retention-core";
 
-async function main(): Promise<void> {
-  const target = buildIsolatedRecoveryEnvironment(process.env);
+export async function reconcileRecoveryLifecycle(target: IsolatedRecoveryEnvironment): Promise<void> {
   const client = createClient(target.supabase.apiUrl, target.supabase.serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const pool = new Pool({ connectionString: target.databaseUrl, ssl: false, max: 1 });
+  const pool = new Pool({ ...postgresConnection(target.databaseUrl), max: 1 });
   try {
     const cleared = await purgeExpiredEducationEvidence({
       findExpiredManualEvidence: async (reviewedBefore) => {
@@ -70,7 +70,9 @@ function isMissingObjectError(error: unknown): boolean {
     || candidate.code === "NoSuchKey";
 }
 
-main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : "Recovery lifecycle reconciliation failed.");
-  process.exitCode = 1;
-});
+if (process.argv[1]?.endsWith("lifecycle.ts")) {
+  reconcileRecoveryLifecycle(buildIsolatedRecoveryEnvironment(process.env)).catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : "Recovery lifecycle reconciliation failed.");
+    process.exitCode = 1;
+  });
+}

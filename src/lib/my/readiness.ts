@@ -22,6 +22,7 @@ import {
 import {
   computeParticipantReadiness,
   computePolicyParticipantReadiness,
+  evaluateParticipant,
   getParticipantIdentityBlockers,
   loadParticipantQualificationRawBundle,
   projectParticipantQualificationFacts,
@@ -29,8 +30,15 @@ import {
   type ParticipantQualificationFacts,
 } from "@/lib/qualification/service";
 import { normalizeTeamRegistrationConfig, resolveQualificationPolicy } from "@/lib/seasons/compatibility";
+import { decodeSeasonRules, type DecodedSeasonRules } from "@/lib/seasons/rules";
+import { buildQualificationEvidence, type CompetitivePurpose } from "@/lib/qualification/evidence";
 
 export type { MyCompetitionSource };
+
+function participantCompetitiveProfile(rules: DecodedSeasonRules) {
+  return rules.participant.competitiveProfileRequired || rules.participant.rankThreshold?.currentMin || rules.participant.rankThreshold?.peakMin
+    ? rules.competitive.competitiveProfile : null;
+}
 
 export type MyReadinessState = "ready" | "incomplete" | "waiting" | "blocked" | "unknown" | "not_applicable";
 
@@ -253,8 +261,25 @@ function entryState(source: MyCompetitionSource, userId: string): MyReadinessIte
 function qualificationState(
   source: MyCompetitionSource,
   fact: ParticipantQualificationFacts | null | undefined,
+  userId: string,
 ): MyReadinessItem {
   const href = `/${source.seasonSlug}/register`;
+  if (source.ruleColumns && source.teamRegistrationConfig?.qualificationPolicy?.version === 2) {
+    const rules = decodeSeasonRules(source.ruleColumns);
+    if (!fact) return item(`qualification-${source.id}`, "个人参赛资格", "unknown", "本届赛事的个人资料暂时无法确认。", "admin", { href, label: "查看本届报名" });
+    const purposes: CompetitivePurpose[] = [];
+    if (rules.participant.competitiveProfileRequired) purposes.push("profile_completeness");
+    if (rules.participant.rankThreshold?.currentMin || rules.participant.rankThreshold?.peakMin) purposes.push("rank_threshold");
+    const profile = rules.competitive.competitiveProfile;
+    const evidence = profile ? buildQualificationEvidence(new Map([[userId, fact]]), profile, rules.participant, purposes) : { kind: "none" as const };
+    const value = source.declaredPlayerType;
+    const playerType = value === "enrolled" || value === "graduated" || value === "external" ? value : null;
+    const decision = evaluateParticipant({ userId, facts: fact, playerType }, rules.participant, evidence);
+    if (decision.state === "ready") return item(`qualification-${source.id}`, "个人参赛资格", "ready", "个人资料符合本届要求。", undefined, { href, label: "查看本届报名" });
+    const needsAdmin = decision.findings.some((finding) => finding.code === "competitive_context_unavailable");
+    const needsSelf = decision.findings.some((finding) => finding.code !== "competitive_context_unavailable");
+    return item(`qualification-${source.id}`, "个人参赛资格", "blocked", decision.findings.map((finding) => finding.message).join(" "), needsAdmin ? needsSelf ? "self_and_admin" : "admin" : "self", { href, label: "查看并补齐资料" });
+  }
   const config = normalizeTeamRegistrationConfig(source.teamRegistrationConfig);
   const policy = resolveQualificationPolicy(config);
   if (!config.qualificationPolicy && !config.requireCompetitiveProfile) {
@@ -311,10 +336,11 @@ export function buildMyReadinessModel(input: {
     team: teamState(input.currentTeam, input.pendingDirectInvitationCount),
     ...(input.actionableInterestCount ? { recruitment: item("recruitment", "队伍加入意向", "waiting", `${input.actionableInterestCount} 名选手向你的队伍表达加入意向`, "self", { href: "/my/teams#recruitment-interests", label: "查看并处理" }) } : {}),
     competitions: input.competitions.map((competition) => {
-      const config = normalizeTeamRegistrationConfig(competition.teamRegistrationConfig);
-      const profile = config.qualificationPolicy ? config.qualificationPolicy.competitiveProfileRequired ? config.qualificationPolicy.competitiveProfile : null : config.competitiveProfile;
+      const v2Rules = competition.ruleColumns && competition.teamRegistrationConfig?.qualificationPolicy?.version === 2 ? decodeSeasonRules(competition.ruleColumns) : null;
+      const config = v2Rules ? null : normalizeTeamRegistrationConfig(competition.teamRegistrationConfig);
+      const profile = v2Rules ? participantCompetitiveProfile(v2Rules) : config?.qualificationPolicy ? config.qualificationPolicy.competitiveProfileRequired ? config.qualificationPolicy.competitiveProfile : null : config?.competitiveProfile;
       const fact = profile
-        ? input.qualificationFactsByPlatform.get(profile.platform)
+        ? input.qualificationFactsByPlatform.get(`${profile.platform}|${profile.fallbackConversion?.sourcePlatform ?? ""}`) ?? input.qualificationFactsByPlatform.get(profile.platform)
         : input.baseFact;
       return {
         id: competition.id,
@@ -322,7 +348,7 @@ export function buildMyReadinessModel(input: {
         seasonName: competition.seasonName,
         href: `/${competition.seasonSlug}/register`,
         entry: entryState(competition, input.userId),
-        qualification: qualificationState(competition, fact),
+        qualification: qualificationState(competition, fact, input.userId),
         sanctions: sanctionsBySeason.get(competition.seasonId) ?? [],
       };
     }),
@@ -422,14 +448,22 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
   const baseFact = projectParticipantQualificationFacts(bundle).get(userId) ?? null;
   const requiredPlatforms = new Set<string>();
   for (const row of competitionRows) {
-    const config = normalizeTeamRegistrationConfig(row.teamRegistrationConfig);
-    const profile = config.qualificationPolicy ? config.qualificationPolicy.competitiveProfileRequired ? config.qualificationPolicy.competitiveProfile : null : config.requireCompetitiveProfile ? config.competitiveProfile : null;
-    if (profile) requiredPlatforms.add(profile.platform);
+    const rules = row.ruleColumns && row.teamRegistrationConfig?.qualificationPolicy?.version === 2 ? decodeSeasonRules(row.ruleColumns) : null;
+    const config = rules ? null : normalizeTeamRegistrationConfig(row.teamRegistrationConfig);
+    const profile = rules ? participantCompetitiveProfile(rules) : config?.qualificationPolicy ? config.qualificationPolicy.competitiveProfileRequired ? config.qualificationPolicy.competitiveProfile : null : config?.requireCompetitiveProfile ? config.competitiveProfile : null;
+    if (profile && (!rules || rules.participant.competitiveProfileRequired)) requiredPlatforms.add(profile.platform);
   }
   const platformKeys = selectMyCompetitiveProfilePlatformKeys(catalog, requiredPlatforms, new Set(bundle.rankRows.map(row => row.platform)));
   const factsByPlatform = new Map(platformKeys.map(platform => [platform,
     projectParticipantQualificationFacts(bundle, { platform }).get(userId) ?? null,
   ]));
+  for (const row of competitionRows) {
+    if (!row.ruleColumns || row.teamRegistrationConfig?.qualificationPolicy?.version !== 2) continue;
+    const profile = participantCompetitiveProfile(decodeSeasonRules(row.ruleColumns));
+    if (!profile) continue;
+    const fallbackPlatform = profile.fallbackConversion?.sourcePlatform;
+    factsByPlatform.set(`${profile.platform}|${fallbackPlatform ?? ""}`, projectParticipantQualificationFacts(bundle, { platform: profile.platform, fallbackPlatform }).get(userId) ?? null);
+  }
 
   const competitiveProfiles = buildCompetitiveProfileSources(catalog, platformKeys, factsByPlatform, requiredPlatforms);
 

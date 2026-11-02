@@ -58,7 +58,7 @@ export function publishRecoveryArtifact(input: RecoveryArtifactInput): RecoveryA
   const artifactBytes = readFileSync(artifactPath).byteLength;
   const artifactSha256 = sha256File(artifactPath);
   const manifestSha256 = sha256File(manifestPath);
-  const keys = buildRecoveryR2Keys(backupClass, runId, createdAt);
+  const keys = buildRecoveryR2Keys(backupClass, runId, createdAt, { environment: manifest.sourceEnvironment, projectRef: manifest.sourceProjectRef });
   const sidecarPath = join(tempRoot, `${runId}.manifest.json`);
   const sidecar: RecoverySidecar = {
     formatVersion: RECOVERY_FORMAT_VERSION,

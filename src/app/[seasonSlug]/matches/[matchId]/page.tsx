@@ -1,3 +1,4 @@
+import { safeBetReturn } from "@/lib/bet/list-query";
 import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import MatchDetailLoading from "./loading";
@@ -60,9 +61,10 @@ import { getMatchMvpResults } from "@/actions/player-stats";
 import { getMatchTimeProposalViews } from "@/lib/matches/time-proposals";
 import { projectMatchScheduling } from "@/lib/matches/time-rules";
 import { presentMatchStage, presentSchedulingAction } from "@/lib/matches/presentation";
+import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
 import { loadMatchRosters } from "@/lib/match-rosters/read-model";
 import { getUserSession, requireSeasonAdmin } from "@/lib/auth/session";
-import { isExpectedAuthFailure } from "@/lib/errors";
+import { ErrorCode, isAppErrorCode, isExpectedAuthFailure } from "@/lib/errors";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import {
   buildRoster,
@@ -83,7 +85,7 @@ import { PlayerWorkspace } from "@/components/stats/players/PlayerWorkspace";
 
 interface MatchDetailPageProps {
   params: Promise<{ seasonSlug: string; matchId: string }>;
-  searchParams: Promise<{ statsPlayer?: string; statsMap?: string; scheduling?: string }>;
+  searchParams: Promise<{ statsPlayer?: string; statsMap?: string; scheduling?: string; returnTo?: string }>;
 }
 
 const loadPlayerDetail = cache((...args: Parameters<typeof getPublicMatchPlayerDetail>) =>
@@ -284,6 +286,13 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
     }
   }
 
+  const captainLineup = (isCaptainA || isCaptainB) && match.status === "scheduled" && captainTeamMembers.length > 0
+    ? await db.transaction((tx) => getStartingLineupPreflightInTx(tx, { match, entryId: isCaptainA ? match.entryAId : match.entryBId, starterIds: [] })).then(result => ({ policy: result.policy, error: null })).catch((error: unknown) => {
+      if (!isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)) throw error;
+      return { policy: null, error: error.message };
+    })
+    : { policy: null, error: "本队缺少可用的赛事名单。" };
+  const captainPolicy = captainLineup?.policy ?? null;
   const captainRoster = isCaptainA ? rosterA : isCaptainB ? rosterB : null;
   const canParticipateInVeto = isSeasonAdmin || isCaptainA || isCaptainB || Boolean(userSession && [rosterA, rosterB].some(roster =>
     roster?.players.some(player => player.isVetoRepresentative && player.isStarter && allTeamMembers.some(member => member.id === player.eventRosterMemberId && member.userId === userSession.userId)),
@@ -342,10 +351,11 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
   const defaultTab = showSummaryTab ? "summary" : (visibleMaps[0]?.id ?? "");
 
   const showBpPrimary = phase === "veto" || phase === "awaiting_veto" || phase === "preparation";
+  const betReturn = safeBetReturn(statsQuery.returnTo, seasonSlug);
   const matchBet = !match.testConfig && season.competitionTemplate === "major" ? (
     <div data-match-bet className="min-h-40">
     <Suspense fallback={<div role="status" className="min-h-40" aria-busy="true">竞猜信息加载中…</div>}>
-      <MatchBetLink seasonId={season.id} matchId={match.id} slug={seasonSlug}
+      <MatchBetLink returnTo={betReturn} seasonId={season.id} matchId={match.id} slug={seasonSlug}
         teamA={{ entryId: match.entryAId, name: teamA?.name ?? "队伍 A" }}
         teamB={{ entryId: match.entryBId, name: teamB?.name ?? "队伍 B" }} />
     </Suspense>
@@ -354,6 +364,7 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
 
   return (
     <>
+      {betReturn && <Link href={betReturn as never} className="text-sm text-[var(--color-accent)]">← 返回预测与竞猜</Link>}
       {/* 赛前管理员 / 队长聚焦赛务弹窗 */}
       {((isCaptainA || isCaptainB || isSeasonAdmin) && match.status === "scheduled") && (
         <Panel contentClassName="space-y-3 p-4">
@@ -389,7 +400,8 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
                 </DialogContent>
               </Dialog>
             )}
-            {(isCaptainA || isCaptainB) && (
+            {(isCaptainA || isCaptainB) && !captainPolicy && <span className="text-sm text-[var(--color-fg-dim)]">名单规则暂不可用：{captainLineup?.error}</span>}
+            {(isCaptainA || isCaptainB) && captainPolicy && (
               <Dialog>
                 <DialogTrigger className="min-h-10 rounded border border-[var(--color-border)] px-3 text-sm">
                   {captainRoster ? "调整本场首发" : "选择本场首发"}
@@ -408,7 +420,7 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
                       initialStarterIds={captainRoster?.players.filter((player) => player.isStarter).map((player) => player.eventRosterMemberId) ?? []}
                       initialSubstituteIds={captainRoster?.players.filter((player) => !player.isStarter).map((player) => player.eventRosterMemberId) ?? []}
                       initialVetoRepresentativeEventRosterMemberId={captainRoster?.players.find((player) => player.isVetoRepresentative)?.eventRosterMemberId ?? null}
-                      allowSubstitutes={match.ownership !== "major_stage"}
+                      policy={captainPolicy}
                     />
                   </DialogBody>
                 </DialogContent>
@@ -610,7 +622,7 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
       )}
       {isFinished && mvpCandidates.length > 0 && (
         <Suspense fallback={<section aria-label="MVP 投票" aria-busy="true" className="min-h-64"><p role="status">MVP 投票加载中…</p></section>}>
-          <MatchMvpPanel core={core} candidates={mvpCandidates} userId={userSession?.userId ?? null} scoreboard={scoreboard!} />
+          <MatchMvpPanel returnTo={betReturn} core={core} candidates={mvpCandidates} userId={userSession?.userId ?? null} scoreboard={scoreboard!} />
         </Suspense>
       )}
 
@@ -656,6 +668,8 @@ async function readAdvancedMatchStats({ core, scoreboard, statsQuery }: {
   statsQuery: Awaited<MatchDetailPageProps["searchParams"]>;
 }) {
   const { seasonSlug, season, match, maps } = core;
+  const returnParam = safeBetReturn(statsQuery.returnTo, seasonSlug);
+  const returnSuffix = returnParam ? `&returnTo=${encodeURIComponent(returnParam)}` : "";
   let detailed: Awaited<ReturnType<typeof getPublicMatchPlayerDetail>> = null;
   let detailedUnavailable = false;
   let detailedPlayerId: string | null = null;
@@ -682,7 +696,7 @@ async function readAdvancedMatchStats({ core, scoreboard, statsQuery }: {
           <h2 className="text-lg font-semibold">详细统计</h2>
           <nav aria-label="统计范围" className="flex flex-wrap gap-2">
             <Link
-              href={`/${seasonSlug}/matches/${match.id}?statsPlayer=${detailedPlayerId}#detailed-stats`}
+              href={`/${seasonSlug}/matches/${match.id}?statsPlayer=${detailedPlayerId}${returnSuffix}#detailed-stats`}
               aria-current={!detailedMap ? "page" : undefined}
               className="rounded border border-[var(--color-border)] px-3 py-1.5 text-sm aria-[current=page]:border-[var(--color-accent)]"
             >
@@ -693,7 +707,7 @@ async function readAdvancedMatchStats({ core, scoreboard, statsQuery }: {
               .map((map) => (
                 <Link
                   key={map.id}
-                  href={`/${seasonSlug}/matches/${match.id}?statsPlayer=${detailedPlayerId}&statsMap=${map.id}#detailed-stats`}
+                  href={`/${seasonSlug}/matches/${match.id}?statsPlayer=${detailedPlayerId}&statsMap=${map.id}${returnSuffix}#detailed-stats`}
                   aria-current={detailedMap?.id === map.id ? "page" : undefined}
                   className="rounded border border-[var(--color-border)] px-3 py-1.5 text-sm aria-[current=page]:border-[var(--color-accent)]"
                 >
@@ -705,7 +719,7 @@ async function readAdvancedMatchStats({ core, scoreboard, statsQuery }: {
             {scoreboard?.detailedPlayers.map((player) => (
               <Link
                 key={player.userId}
-                href={`/${seasonSlug}/matches/${match.id}?statsPlayer=${player.userId}${detailedMap ? `&statsMap=${detailedMap.id}` : ""}#detailed-stats`}
+                href={`/${seasonSlug}/matches/${match.id}?statsPlayer=${player.userId}${detailedMap ? `&statsMap=${detailedMap.id}` : ""}${returnSuffix}#detailed-stats`}
                 aria-current={detailedPlayerId === player.userId ? "page" : undefined}
                 className="rounded border border-[var(--color-border)] px-3 py-1.5 text-sm aria-[current=page]:border-[var(--color-accent)]"
               >
@@ -721,14 +735,14 @@ async function readAdvancedMatchStats({ core, scoreboard, statsQuery }: {
 }
 
 function MatchMvpPanel(props: {
-  core: MatchCore; candidates: React.ComponentProps<typeof MatchMvpVote>["candidates"];
+  core: MatchCore; candidates: React.ComponentProps<typeof MatchMvpVote>["candidates"]; returnTo: string | null;
   userId: string | null; scoreboard: Scoreboard;
 }) {
   return withDbTrafficSource("match.page", () => readMatchMvpPanel(props));
 }
 
-async function readMatchMvpPanel({ core, candidates, userId, scoreboard }: {
-  core: MatchCore; candidates: React.ComponentProps<typeof MatchMvpVote>["candidates"];
+async function readMatchMvpPanel({ core, candidates, userId, scoreboard, returnTo }: {
+  core: MatchCore; candidates: React.ComponentProps<typeof MatchMvpVote>["candidates"]; returnTo: string | null;
   userId: string | null; scoreboard: Scoreboard;
 }) {
   const { seasonSlug, season, match } = core;
@@ -751,7 +765,7 @@ async function readMatchMvpPanel({ core, candidates, userId, scoreboard }: {
   return <><MatchMvpVote matchId={match.id} candidates={candidates} currentVotes={votes}
     userVotedPlayerName={existingVote?.playerName ?? null} completedAt={match.completedAt?.toISOString() ?? null}
     winnerUserId={match.mvpWinnerUserId} winnerPerformance={winnerPerformance}
-    winnerDetailsHref={winnerHasDetail ? `/${seasonSlug}/matches/${match.id}?statsPlayer=${match.mvpWinnerUserId}#detailed-stats` : undefined} /><ContentReady module="match" phase="form" /></>;
+    winnerDetailsHref={winnerHasDetail ? `/${seasonSlug}/matches/${match.id}?statsPlayer=${match.mvpWinnerUserId}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}#detailed-stats` : undefined} /><ContentReady module="match" phase="form" /></>;
 }
 
 async function MatchLineupDetails({ a, b, matchId, cutoff, allowExpected }: {

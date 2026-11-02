@@ -34,7 +34,7 @@ export async function withScratchDatabase<T>(prefix: string, work: (client: Clie
 }
 
 export async function replayMigration(client: Client, migrationName: string): Promise<void> {
-  const source = readFileSync(join(process.cwd(), "drizzle/migrations", migrationName), "utf8");
+  const source = readFileSync(join(process.cwd(), "drizzle/v2-migrations", migrationName), "utf8");
   await client.query("BEGIN");
   try {
     await client.query(source);
@@ -46,5 +46,5 @@ export async function replayMigration(client: Client, migrationName: string): Pr
 }
 
 export function migrationFiles(matcher: (name: string) => boolean): string[] {
-  return readdirSync(join(process.cwd(), "drizzle/migrations")).filter(matcher).sort();
+  return readdirSync(join(process.cwd(), "drizzle/v2-migrations")).filter(matcher).sort();
 }

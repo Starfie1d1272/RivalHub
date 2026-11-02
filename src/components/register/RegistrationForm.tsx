@@ -61,6 +61,8 @@ interface RegistrationFormProps {
   currentUserEmail?: string | null;
   initialValues?: Partial<RegistrationInput>;
   submitLabel?: string;
+  policyV2?: boolean;
+  qqRequired?: boolean;
 }
 
 export function RegistrationForm({
@@ -73,6 +75,8 @@ export function RegistrationForm({
   currentUserEmail,
   initialValues,
   submitLabel,
+  policyV2 = false,
+  qqRequired = false,
 }: RegistrationFormProps) {
   const { canSaveDraft, canSubmit, message: windowMessage } = windowState;
   const task = useTelemetryTask("registration", seasonId, canSubmit);
@@ -88,10 +92,11 @@ export function RegistrationForm({
     [inputRegistrationConfig],
   );
   const schema = useMemo(
-    () => buildRegistrationSchema(registrationConfig, positions),
-    [registrationConfig, positions],
+    () => buildRegistrationSchema(registrationConfig, positions, { policyV2 }),
+    [registrationConfig, positions, policyV2],
   );
   const activePositions = positions.length > 0 ? positions : [...positionValues];
+  const playerTypeOptional = policyV2 && (["enrolled", "graduated", "external"] as const).every((type) => registrationConfig.allowedPlayerTypes.includes(type));
 
   const {
     register,
@@ -108,7 +113,7 @@ export function RegistrationForm({
       seasonId,
       email: initialValues?.email ?? currentUserEmail ?? "",
       willingToBeCaptain: initialValues?.willingToBeCaptain ?? false,
-      playerType: initialValues?.playerType ?? registrationConfig.allowedPlayerTypes[0],
+      playerType: initialValues?.playerType ?? (policyV2 ? null : registrationConfig.allowedPlayerTypes[0]),
       screenshotUrls: initialValues?.screenshotUrls ?? Array.from({ length: registrationConfig.screenshotCount }, () => ""),
       mapPreferences: projectMapPreferences(
         initialValues?.mapPreferences,
@@ -283,6 +288,7 @@ export function RegistrationForm({
       <input type="hidden" {...register("seasonId")} />
 
       {/* ═══════════════════════════════════════ 基础信息 ═══ */}
+      {policyV2 && <p className="text-sm text-[var(--color-fg-mid)]">赛事会按已配置的要求核验你的账号资料和竞技资料。如设有队伍名单或首发要求，将在组队阶段核验。</p>}
       <section>
         <RegistrationSectionTitle>基础信息</RegistrationSectionTitle>
         <div className="space-y-4">
@@ -319,19 +325,19 @@ export function RegistrationForm({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="studentId" className="text-[var(--color-fg-mid)] mb-1.5 block">
-                学号 <Required />
+                学号 {!policyV2 && <Required />}
               </Label>
               <Input id="studentId" placeholder="毕业生填「毕业年份+学院」" className={inputCls} {...register("studentId")} />
               <FieldError name="studentId" />
             </div>
             <div>
               <Label className="text-[var(--color-fg-mid)] mb-1.5 block">
-                身份类型 <Required />
+                身份类型 {playerTypeOptional ? "（选填）" : <Required />}
               </Label>
               <Select
-                value={watch("playerType") ?? registrationConfig.allowedPlayerTypes[0]}
+                value={watch("playerType") ?? ""}
                 onValueChange={(v) =>
-                  setValue("playerType", v as PlayerType, {
+                  setValue("playerType", v === "undeclared" ? null : v as PlayerType, {
                     shouldValidate: true,
                   })
                 }
@@ -340,6 +346,7 @@ export function RegistrationForm({
                   <SelectValue placeholder="选择身份类型" />
                 </SelectTrigger>
                 <SelectContent>
+                  {playerTypeOptional && <SelectItem value="undeclared">不声明</SelectItem>}
                   {registrationConfig.allowedPlayerTypes.map((type) => (
                     <SelectItem key={type} value={type}>
                       {PLAYER_TYPE_LABELS[type]}
@@ -354,7 +361,7 @@ export function RegistrationForm({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="qq" className="text-[var(--color-fg-mid)] mb-1.5 block">
-                QQ 号 <Required />
+                QQ 号 {(!policyV2 || qqRequired) && <Required />}
               </Label>
               <Input id="qq" placeholder="123456789" className={inputCls} {...register("qq")} />
               <FieldError name="qq" />
@@ -364,7 +371,7 @@ export function RegistrationForm({
           {/* 完美昵称 */}
           <div>
             <Label htmlFor="perfectName" className="text-[var(--color-fg-mid)] mb-1.5 block">
-              完美平台昵称 <Required />
+              完美平台昵称 {!policyV2 && <Required />}
             </Label>
             <Input id="perfectName" placeholder="完美对战平台昵称" className={inputCls} {...register("perfectName")} />
             <FieldError name="perfectName" />
@@ -450,7 +457,7 @@ export function RegistrationForm({
       </section>
 
       {/* ═══════════════════════════════════════ 段位 · 历史最高 ═══ */}
-      <section>
+      {!policyV2 && <><section>
         <RegistrationSectionTitle>段位信息 · 历史最高</RegistrationSectionTitle>
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -596,6 +603,8 @@ export function RegistrationForm({
           </div>
         </div>
       </section>
+
+      </>}
 
       {/* ═══════════════════════════════════════ 地图熟练度 ═══ */}
       <MapPreferenceSection

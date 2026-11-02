@@ -1,7 +1,5 @@
-import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
-import { writeAuditInTx } from "@/lib/audit/write";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
   predictionPrograms as programs,
@@ -10,31 +8,17 @@ import {
   predictionAccounts as accounts,
   predictionPicks as picks,
   predictionJudgements as judgements,
-  predictionMarkets as markets,
-  predictionMarketOptions as options,
-  predictionStakes as stakes,
-  predictionSettlements as settlements,
   predictionLedger as ledger,
   predictionJobs as jobs,
   users,
   matches,
-  majorStageRuns,
   majorFinalResults,
-  seasonAdminGrants,
-  eventRosterMembers,
-  eventRosters,
 } from "@/db/schema";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { loadBaseline, officialWinner } from "./baseline";
-import {
-  resolveMarketOptions,
-  type MarketResolutionFact,
-} from "./market-resolution";
+import { loadBaseline } from "./baseline";
 import { simulateMajor } from "./simulator";
 import {
-  distributePool,
-  effectivePredictionMarketDeadline,
   validatePick,
   defaultPredictionRules,
 } from "./rules";
@@ -44,7 +28,6 @@ import {
   type Pick,
 } from "./types";
 import { officialPickEmStages, pickEmWindowState, samePredictionEntrants } from "./lifecycle";
-const zero = BigInt(0);
 function invalid(message: string): never {
   throw new AppError(ErrorCode.VALIDATION_FAILED, message);
 }
@@ -158,14 +141,6 @@ export async function reconcilePredictionProgram(
       .where(eq(jobs.seasonId, seasonId));
     return base;
   }
-  const official = await tx
-    .select()
-    .from(matches)
-    .where(eq(matches.seasonId, seasonId));
-  const runs = await tx
-    .select()
-    .from(majorStageRuns)
-    .where(eq(majorStageRuns.seasonId, seasonId));
   const [final] = await tx
     .select()
     .from(majorFinalResults)
@@ -253,139 +228,6 @@ export async function reconcilePredictionProgram(
           kind: "reversal",
           source: `void/${reward.id}`,
         });
-    }
-  }
-  const allMarkets = await tx
-    .select()
-    .from(markets)
-    .where(eq(markets.seasonId, seasonId));
-  const marketIds=allMarkets.map(market=>market.id);
-  const allStakes=marketIds.length?await tx.select().from(stakes).where(inArray(stakes.marketId,marketIds)):[];
-  const allOptions=marketIds.length?await tx.select().from(options).where(inArray(options.marketId,marketIds)):[];
-  const latestSettlements=marketIds.length?await tx.selectDistinctOn([settlements.marketId]).from(settlements).where(inArray(settlements.marketId,marketIds)).orderBy(settlements.marketId,desc(settlements.createdAt),desc(settlements.id)):[];
-  const oldLedger=latestSettlements.length?await tx.select().from(ledger).where(and(eq(ledger.seasonId,seasonId),inArray(ledger.source,latestSettlements.map(batch=>`settlement/${batch.id}`)))):[];
-  for (const market of allMarkets) {
-    const match = official.find((m) => m.id === market.matchId);
-    const voided =
-      !match ||
-      match.majorStageRunId !== market.subject.stageRunId ||
-      match.entryAId !== market.subject.entryIds[0] ||
-      match.entryBId !== market.subject.entryIds[1] ||
-      match.status === "cancelled";
-    const winner = match && !voided ? officialWinner(match) : null;
-    // A finished score is settled only when the tournament owner accepts its round.
-    const run = match ? runs.find((r) => r.id === match.majorStageRunId) : null;
-    const accepted = match?.round
-      ? !!run && run.finalizedRound >= match.round
-      : match?.entryRound === "quarterfinal"
-        ? official.some(
-            (m) =>
-              m.majorStageRunId === match.majorStageRunId &&
-              m.entryRound === "semifinal",
-          )
-        : match?.entryRound === "semifinal"
-          ? official.some(
-              (m) =>
-                m.majorStageRunId === match.majorStageRunId &&
-                m.entryRound === "final",
-            )
-          : final?.status === "confirmed";
-    const rows=allStakes.filter(row=>row.marketId===market.id);
-    const marketOptions=allOptions.filter(option=>option.marketId===market.id);
-    // Resolver registry is deliberately closed: a new market requires a confirmed-fact adapter.
-    if (market.resolver !== "match_winner")
-      throw new Error(`Unsupported prediction resolver: ${market.resolver}`);
-    const fact: MarketResolutionFact = voided
-      ? {
-          state: "void",
-          revision: JSON.stringify({ matchId: market.matchId, voided: true }),
-        }
-      : winner && accepted
-        ? {
-            state: "confirmed",
-            winningKeys: [winner],
-            revision: JSON.stringify({
-              run: run?.id,
-              winner,
-              scoreA: match?.scoreA,
-              scoreB: match?.scoreB,
-              accepted,
-            }),
-          }
-        : { state: "pending", revision: "pending" };
-    const resolution = resolveMarketOptions(marketOptions, fact);
-    const total = rows.reduce((n, row) => n + row.amount, zero);
-    const winningPool = rows
-      .filter((row) => resolution.winningOptionIds.includes(row.optionId))
-      .reduce((n, row) => n + row.amount, zero);
-    const state =
-      resolution.state === "settled" &&
-      (winningPool === zero || winningPool === total)
-        ? "refunded"
-        : resolution.state;
-    const winningOptionIds =
-      state === "settled" ? resolution.winningOptionIds : [];
-    if (
-      !market.lockedAt &&
-      (now >= market.deadline || voided || match?.status !== "scheduled")
-    )
-      await tx
-        .update(markets)
-        .set({ lockedAt: now })
-        .where(eq(markets.id, market.id));
-    const fingerprint = JSON.stringify({
-      state,
-      winningOptionIds,
-      factRevision: resolution.factRevision,
-    });
-    const previous=latestSettlements.find(batch=>batch.marketId===market.id);
-    if (previous?.fingerprint === fingerprint) continue;
-    const [batch] = await tx
-      .insert(settlements)
-      .values({
-        marketId: market.id,
-        fingerprint,
-        state,
-        winningOptionIds,
-        factRevision: resolution.factRevision,
-      })
-      .returning();
-    if (!batch) throw new Error("Settlement insert failed");
-    if (previous) {
-      const old=oldLedger.filter(row=>row.source===`settlement/${previous.id}`);
-      for (const row of old)
-        ledgerRows.push({
-          seasonId,
-          accountId: row.accountId,
-          amount: -row.amount,
-          profit: -row.profit,
-          kind: "reversal",
-          source: `reversal/${batch.id}/${row.id}`,
-        });
-    }
-    if (state !== "pending") {
-      const positions = rows.map((s) => ({
-        accountId: s.accountId,
-        optionId: s.optionId,
-        stake: s.amount,
-      }));
-      const payouts = distributePool(
-        positions,
-        state === "settled" ? winningOptionIds : null,
-      );
-      for (const [accountId, amount] of payouts) {
-        const invested = rows
-          .filter((s) => s.accountId === accountId)
-          .reduce((n, s) => n + s.amount, zero);
-        ledgerRows.push({
-          seasonId,
-          accountId,
-          amount,
-          profit: amount - invested,
-          kind: "settlement",
-          source: `settlement/${batch.id}`,
-        });
-      }
     }
   }
   for(let start=0;start<ledgerRows.length;start+=1000)await tx.insert(ledger).values(ledgerRows.slice(start,start+1000)).onConflictDoNothing({target:[ledger.accountId,ledger.source]});
@@ -555,229 +397,6 @@ export async function savePickInTx(
     submitted: saved!.submitted,
     at: saved!.createdAt.toISOString(),
   };
-}
-export async function stakeInTx(
-  tx: TxDb,
-  input: {
-    seasonId: string;
-    userId: string;
-    marketId: string;
-    optionId: string;
-    amount: string;
-    requestId: string;
-  },
-) {
-  const user = await activeUser(tx, input.userId);
-  await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
-  const [target] = await tx
-    .select()
-    .from(markets)
-    .where(
-      and(eq(markets.id, input.marketId), eq(markets.seasonId, input.seasonId)),
-    );
-  if (!target) invalid("积分池不存在");
-  const [match] = await tx
-    .select()
-    .from(matches)
-    .where(
-      and(eq(matches.id, target.matchId), eq(matches.seasonId, input.seasonId)),
-    )
-    .for("share");
-  const program = await lockPredictionProgram(tx, input.seasonId);
-  await reconcilePredictionProgram(tx, program);
-  const account = await accountFor(tx, input.seasonId, input.userId);
-  const [replay] = await tx
-    .select()
-    .from(stakes)
-    .where(
-      and(
-        eq(stakes.accountId, account.id),
-        eq(stakes.requestId, input.requestId),
-      ),
-    );
-  if (replay) {
-    if (
-      replay.marketId !== input.marketId ||
-      replay.optionId !== input.optionId ||
-      (input.amount !== "all" && replay.amount.toString() !== input.amount)
-    )
-      invalid("重复请求标识与内容不一致");
-    return { amount: replay.amount.toString() };
-  }
-  const [market] = await tx
-    .select()
-    .from(markets)
-    .where(eq(markets.id, target.id));
-  const now = await databaseTime(tx);
-  const effectiveDeadline = market
-    ? effectivePredictionMarketDeadline({
-        marketDeadline: market.deadline,
-        scheduledAt: match?.scheduledAt ?? null,
-        cutoffMinutes: program.rules.cutoffMinutes,
-      })
-    : null;
-  if (
-    program.paused ||
-    !market ||
-    market.lockedAt ||
-    !effectiveDeadline ||
-    now >= effectiveDeadline ||
-    !match ||
-    match.status !== "scheduled" ||
-    match.majorStageRunId !== market.subject.stageRunId ||
-    match.entryAId !== market.subject.entryIds[0] ||
-    match.entryBId !== market.subject.entryIds[1]
-  )
-    invalid("积分池已关闭");
-  const [option] = await tx
-    .select()
-    .from(options)
-    .where(
-      and(eq(options.id, input.optionId), eq(options.marketId, market.id)),
-    );
-  if (!option) invalid("所选选项不属于本积分池");
-  const admins = await tx
-    .select()
-    .from(seasonAdminGrants)
-    .where(
-      and(
-        eq(seasonAdminGrants.seasonId, input.seasonId),
-        eq(seasonAdminGrants.userId, input.userId),
-      ),
-    );
-  const roster = await tx
-    .select({ id: eventRosterMembers.id })
-    .from(eventRosterMembers)
-    .innerJoin(
-      eventRosters,
-      eq(eventRosters.id, eventRosterMembers.eventRosterId),
-    )
-    .where(
-      and(
-        eq(eventRosterMembers.userId, input.userId),
-        inArray(eventRosters.entryId, market.subject.entryIds),
-      ),
-    );
-  if (user.role === "super_admin" || admins.length || roster.length)
-    throw new AppError(
-      ErrorCode.FORBIDDEN,
-      "本场名单成员和赛事管理员不能参与本场积分预测",
-    );
-  const previous = await tx
-    .select()
-    .from(stakes)
-    .where(
-      and(eq(stakes.marketId, market.id), eq(stakes.accountId, account.id)),
-    );
-  if (previous.some((s) => s.optionId !== input.optionId))
-    invalid("已经投入另一方，不能换边");
-  const balance = await balanceOf(tx, account.id);
-  const amount = input.amount === "all" ? balance : BigInt(input.amount);
-  if (amount <= zero || amount > balance)
-    invalid("可用积分不足；待追回积分需先抵扣");
-  const [saved] = await tx
-    .insert(stakes)
-    .values({
-      seasonId: input.seasonId,
-      marketId: market.id,
-      accountId: account.id,
-      optionId: input.optionId,
-      amount,
-      requestId: input.requestId,
-    })
-    .returning();
-  await writeLedger(tx, {
-    seasonId: input.seasonId,
-    accountId: account.id,
-    amount: -amount,
-    kind: "stake",
-    source: `stake/${saved!.id}`,
-  });
-  return { amount: amount.toString() };
-}
-export async function openPredictionMarketInTx(
-  tx: TxDb,
-  input: {
-    seasonId: string;
-    actorId: string;
-    matchId: string;
-    deadline: Date;
-  },
-) {
-  await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
-  const official = await tx
-    .select()
-    .from(matches)
-    .where(
-      and(
-        eq(matches.seasonId, input.seasonId),
-        eq(matches.id, input.matchId),
-      ),
-    )
-    .orderBy(asc(matches.id))
-    .for("share");
-  const program = await lockPredictionProgram(tx, input.seasonId);
-  const base = await reconcilePredictionProgram(tx, program);
-  const now = await databaseTime(tx);
-  if (
-    program.paused ||
-    input.deadline <= now ||
-    !official.length ||
-    official.some(
-      (m) => m.status !== "scheduled" || m.ownership !== "major_stage",
-    )
-  )
-    invalid("只允许在官方比赛尚未开始时开放未来截止窗口");
-  const scheduled = official
-    .filter((m) => m.scheduledAt)
-    .map(
-      (m) =>
-        m.scheduledAt!.getTime() -
-        program.rules.cutoffMinutes * 60000,
-    );
-  const deadline = new Date(Math.min(input.deadline.getTime(), ...scheduled));
-  if (deadline <= now) invalid("比赛计划开赛时间已到，不能延后开放");
-
-  const m = official[0]!;
-  assertCompetitionMatch(m);
-  if (m.entryRound === "third_place") invalid("本届不开放季军赛积分池");
-  const [created] = await tx
-    .insert(markets)
-    .values({
-      seasonId: input.seasonId,
-      matchId: m.id,
-      stageKey: m.stage,
-      resolver: "match_winner",
-      title: "比赛胜者",
-      subject: {
-        stageRunId: m.majorStageRunId!,
-        entryIds: [m.entryAId, m.entryBId],
-      },
-      deadline,
-    })
-    .returning();
-  const id = created!.id;
-  await tx
-    .insert(options)
-    .values(
-      [m.entryAId, m.entryBId].map((entryId, position) => ({
-        marketId: id,
-        key: entryId,
-        entryId,
-        position,
-        label:
-          base.teams.find((team) => team.teamId === entryId)?.name ?? "队伍",
-      })),
-    );
-
-  await writeAuditInTx(tx, {
-    seasonId: input.seasonId,
-    actorId: input.actorId,
-    action: "predictions.open_market",
-    targetId: id,
-    meta: { deadline: deadline.toISOString() },
-  });
-  return { id };
 }
 /** Called after official transitions, never from a public read. */
 export async function syncAutomaticPickEmInTx(tx: TxDb, seasonId: string) {

@@ -1,3 +1,4 @@
+import type { PlayerType } from "@/types/season";
 import { publicAsset } from "./public-asset";
 import { sql } from "drizzle-orm";
 import {
@@ -87,6 +88,8 @@ export const competitionEntryParticipants = pgTable("competition_entry_participa
   entryId: uuid("entry_id").notNull().references(() => competitionEntries.id),
   userId: uuid("user_id").notNull().references(() => users.id),
   status: competitionEntryParticipantStatusEnum("status").notNull().default("invited"),
+  /** The participant's own declaration for this competition; historical entries may be null. */
+  playerType: text("player_type").$type<PlayerType>(),
   invitedByUserId: uuid("invited_by_user_id").references(() => users.id),
   confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
   withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
@@ -96,6 +99,7 @@ export const competitionEntryParticipants = pgTable("competition_entry_participa
   entryUserUnique: unique("competition_entry_participants_entry_user_unique").on(t.entryId, t.userId),
   participantIdentityScope: unique("competition_entry_participants_id_entry_user_unique").on(t.id, t.entryId, t.userId),
   userStatusIndex: index("competition_entry_participants_user_status_idx").on(t.userId, t.status),
+  playerTypeValid: check("competition_entry_participants_player_type_check", sql`${t.playerType} IS NULL OR ${t.playerType} IN ('enrolled', 'graduated', 'external')`),
   confirmationShape: check(
     "competition_entry_participants_confirmation_shape_check",
     sql`(${t.status} = 'confirmed' AND ${t.confirmedAt} IS NOT NULL AND ${t.withdrawnAt} IS NULL)
@@ -210,7 +214,7 @@ export const competitionEntryLegacyIdentities = pgTable("competition_entry_legac
 export const eventRosters = pgTable("event_rosters", {
   id: uuid("id").primaryKey().defaultRandom(),
   entryId: uuid("entry_id").notNull().references(() => competitionEntries.id),
-  eligibilitySnapshot: jsonb("eligibility_snapshot").$type<import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility>(),
+  eligibilitySnapshot: jsonb("eligibility_snapshot").$type<import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility | import("@/lib/seasons/eligibility-snapshot").EventRosterEligibilitySnapshotV2>(),
   sourceRosterRevisionId: uuid("source_roster_revision_id").references(() => competitionEntryRosterRevisions.id),
   status: eventRosterStatusEnum("status").notNull().default("preparing"),
   confirmedAt: timestamp("confirmed_at", { withTimezone: true }),

@@ -1,3 +1,4 @@
+import { isMajorPrestartPhase } from "@/lib/major/formation-phase";
 import { syncAutomaticPickEmInTx } from "@/lib/predictions/service";
 import { and, asc, count, eq, inArray } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -22,6 +23,11 @@ import { assertPrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence"
 import { ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
 import { freezeAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
 import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
+import { decodeEventRosterEligibilitySnapshotV2 } from "@/lib/seasons/eligibility-snapshot";
+import { decodeFrozenLineupEligibility } from "@/lib/match-rosters/frozen-eligibility";
+import { evaluateLineup } from "@/lib/match-rosters/lineup";
+import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
+import { decodeSeasonRules, seasonRulesNeedCompetitiveContext } from "@/lib/seasons/rules";
 import { loadActiveRestrictionOverridesInTx, unresolvedQualificationFindings } from "@/lib/competition-entries/restriction-overrides";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
@@ -81,7 +87,7 @@ export async function startMajorInTransaction(
     }
     return { stageRunId: existingRun.id, created: false, matchCount: Number(matchCount) };
   }
-  if (season.status !== "registration") {
+  if (!isMajorPrestartPhase(season)) {
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Major 只能从报名阶段由管理员显式正式开赛。");
   }
 
@@ -122,6 +128,7 @@ export async function startMajorInTransaction(
   }
   const eventRosterIds = coherenceRows.map((row) => row.eventRoster.id);
   const rosterRows = eventRosterIds.length === 0 ? [] : await tx.select({
+    eventRosterMemberId: eventRosterMembers.id,
     eventRosterId: eventRosterMembers.eventRosterId,
     userId: eventRosterMembers.userId,
     participantId: eventRosterMembers.participantId,
@@ -214,24 +221,43 @@ export async function startMajorInTransaction(
   const now = new Date();
   const openingPlan = buildMajorOpeningPlan({ teams: seeds, stagePlan: capabilities.stagePlan });
   const entrantByEntryId = new Map(entrantRows.map((entrant) => [entrant.competitionEntryId, entrant]));
+  const rules = decodeSeasonRules(season);
   const definitionPolicy = capabilities.teamRegistrationConfig.qualificationPolicy;
-  const requiresCompetitiveProfile = definitionPolicy?.competitiveProfileRequired ?? capabilities.teamRegistrationConfig.requireCompetitiveProfile;
-  const configuredCompetitiveProfile = definitionPolicy ? definitionPolicy.competitiveProfileRequired || definitionPolicy.externalStrengthGap.enabled ? definitionPolicy.competitiveProfile : null : capabilities.teamRegistrationConfig.competitiveProfile ?? null;
-  const competitiveProfile = configuredCompetitiveProfile
+  const requiresCompetitiveProfile = definitionPolicy?.competitiveProfileRequired ?? ("requireCompetitiveProfile" in capabilities.teamRegistrationConfig && capabilities.teamRegistrationConfig.requireCompetitiveProfile);
+  const needsContext = rules.source === "policy_v2" ? seasonRulesNeedCompetitiveContext(rules) : Boolean(requiresCompetitiveProfile || definitionPolicy?.externalStrengthGap.enabled);
+  const configuredCompetitiveProfile = definitionPolicy ? needsContext ? definitionPolicy.competitiveProfile : null : "competitiveProfile" in capabilities.teamRegistrationConfig ? capabilities.teamRegistrationConfig.competitiveProfile ?? null : null;
+  // V2 evidence requirements are evaluated per purpose; historical-only gaps
+  // do not require the full current/previous season profile.
+  const competitiveProfile = rules.source === "policy_v2" ? configuredCompetitiveProfile : configuredCompetitiveProfile
     ? await resolveCompetitiveContext(configuredCompetitiveProfile)
     : null;
-  if ((requiresCompetitiveProfile || definitionPolicy?.externalStrengthGap.enabled) && !competitiveProfile) {
+  if (needsContext && !competitiveProfile) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求竞技资料，但实际开放报名时冻结的竞技平台目录不完整，不能正式开赛。");
   }
-  const affiliationRules = definitionPolicy?.affiliationRules ?? capabilities.affiliationRules;
+  const affiliationRules = definitionPolicy?.version === 1 ? definitionPolicy.affiliationRules : capabilities.affiliationRules;
   const frozenParticipantIds = [...new Set(rosterRows.map((row) => row.userId))];
 
-  // Start-time qualification: live participant facts may still change between
-  // approval and start, so the event's frozen competitive context is
-  // re-evaluated against the exact batch of facts that is about to be frozen.
-  // One batched load feeds both the qualification decision and the
-  // frozenCompetitiveFacts snapshot — never two different reads.
-  const needsQualificationLoad = (definitionPolicy !== undefined || competitiveProfile !== null || affiliationRules.length > 0) && frozenParticipantIds.length > 0;
+  // StageRun owns a copy of each adopted v2 eligibility snapshot. Verify the
+  // immutable Entry/revision/member bindings before persisting the copy.
+  const frozenEligibilitySnapshots = definitionPolicy?.version === 2
+    ? coherenceRows.map((coherence) => {
+      const adopted = decodeEventRosterEligibilitySnapshotV2(coherence.eventRoster.eligibilitySnapshot);
+      if (adopted.seasonId !== season.id || adopted.entryId !== coherence.entry.id || adopted.rosterRevisionId !== coherence.approvedRevision.id) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "已采用资格快照与当前赛事名单版本不一致。 ");
+      }
+      const current = rosterRows.filter((row) => row.eventRosterId === coherence.eventRoster.id);
+      if (current.length !== adopted.members.length || current.some((member) => !adopted.members.some((frozen) =>
+        frozen.eventRosterMemberId === member.eventRosterMemberId && frozen.userId === member.userId && frozen.participantId === member.participantId &&
+        frozen.educationVerificationId === member.educationVerificationId && frozen.isPrimaryStarter === member.isPrimaryStarter &&
+        frozen.source.rosterRevisionId === coherence.approvedRevision.id))) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "已采用资格快照与冻结名单成员不一致。 ");
+      }
+      return adopted;
+    })
+    : undefined;
+  // Legacy seasons retain their existing start-time fact load. V2 uses the
+  // adopted eligibility snapshot and only reads current match sanctions.
+  const needsQualificationLoad = definitionPolicy?.version !== 2 && (definitionPolicy !== undefined || competitiveProfile !== null || affiliationRules.length > 0) && frozenParticipantIds.length > 0;
   const qualificationFacts: ReadonlyMap<string, ParticipantQualificationFacts> = needsQualificationLoad
     ? await loadParticipantQualificationFacts(frozenParticipantIds, {
         executor: tx,
@@ -259,7 +285,20 @@ export async function startMajorInTransaction(
     overridesByEntryAndRevision.set(key, [...(overridesByEntryAndRevision.get(key) ?? []), override]);
   }
   const qualificationBlockers: string[] = [];
+  const participationBans = definitionPolicy?.version === 2
+    ? await loadActiveSanctionsInTx(tx, { seasonId: season.id, effect: "match_participation_block", subjectUserIds: frozenParticipantIds })
+    : new Map();
   for (const entrant of entrantRows) {
+    const coherence = coherenceRows.find((row) => row.entry.id === entrant.competitionEntryId);
+    if (definitionPolicy?.version === 2) {
+      if (!coherence) throw new AppError(ErrorCode.VALIDATION_FAILED, "参赛条目缺少已冻结名单。");
+      const adopted = frozenEligibilitySnapshots?.find((snapshot) => snapshot.entryId === entrant.competitionEntryId);
+      const frozen = decodeFrozenLineupEligibility(adopted, { seasonId: season.id, entryId: entrant.competitionEntryId, rosterRevisionId: coherence.approvedRevision.id });
+      const starters = rosterRows.filter((member) => member.eventRosterId === coherence.eventRoster.id && member.isPrimaryStarter);
+      const result = evaluateLineup({ entryId: entrant.competitionEntryId, starterMemberIds: starters.map((member) => member.eventRosterMemberId), substituteMemberIds: [] }, frozen, new Set(participationBans.keys()));
+      if (result.state === "blocked") qualificationBlockers.push(`参赛条目「${entryNameByEntryId.get(entrant.competitionEntryId) ?? entrant.competitionEntryId}」：${result.findings.map((finding) => finding.message).join(" ")}`);
+      continue;
+    }
     const rosterMembers = membersByEventRoster.get(coherenceRows.find((row) => row.entry.id === entrant.competitionEntryId)?.eventRoster.id ?? "") ?? [];
     if (rosterMembers.length === 0) continue; // readiness already blocks empty/absent frozen rosters.
     const qualification = await evaluateRosterQualificationFromFacts({
@@ -275,10 +314,9 @@ export async function startMajorInTransaction(
       facts: qualificationFacts,
       affiliationRules,
       competitiveProfile,
-      ...(definitionPolicy ? { policy: { ...definitionPolicy, competitiveProfile } } : {}),
+      ...(definitionPolicy?.version === 1 ? { policy: { ...definitionPolicy, competitiveProfile } } : {}),
       primaryStarterUserIds: rosterMembers.filter((member) => member.isPrimaryStarter).map((member) => member.userId),
     });
-    const coherence = coherenceRows.find((row) => row.entry.id === entrant.competitionEntryId);
     const overrides = coherence
       ? overridesByEntryAndRevision.get(`${entrant.competitionEntryId}:${coherence.approvedRevision.id}`) ?? []
       : [];
@@ -290,7 +328,7 @@ export async function startMajorInTransaction(
   if (qualificationBlockers.length > 0) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, qualificationBlockers.join(" "));
   }
-  const frozenCompetitiveFacts = frozenParticipantIds.map((userId) => {
+  const frozenCompetitiveFacts = (definitionPolicy?.version === 2 ? [] : frozenParticipantIds).map((userId) => {
     const fact = qualificationFacts.get(userId);
     const effective = competitiveProfile && fact ? toPlayerStrengthInput(fact, competitiveProfile) : null;
     const serialize = (peak: ReturnType<typeof toPlayerStrengthInput>["historicalPeak"] | null | undefined) => (
@@ -364,6 +402,7 @@ export async function startMajorInTransaction(
     // Immutable participant-level historical / previous / current values.
     // Match lineup validation must never consult mutable rank facts again.
     frozenCompetitiveFacts,
+    ...(frozenEligibilitySnapshots ? { frozenEligibilitySnapshots } : {}),
   });
   const [stageRun] = await tx.insert(majorStageRuns).values({
     seasonId: season.id,
