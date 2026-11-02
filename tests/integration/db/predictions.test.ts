@@ -338,6 +338,16 @@ describe("spectator prediction PostgreSQL contracts", () => {
         const [stake] = await db.insert(schema.predictionStakes).values({ seasonId, marketId: pool!.id, accountId: owner.id, optionId: options[index]!.id, amount: BigInt(100), requestId: randomUUID() }).returning();
         await db.insert(schema.predictionLedger).values({ seasonId, accountId: owner.id, amount: BigInt(-100), kind: "stake", source: `stake/${stake!.id}` });
       }
+      const [otherMatch] = await db.select().from(schema.matches).where(eq(schema.matches.id, f.matchIds[1]!));
+      const [otherPool] = await db.insert(schema.predictionMarkets).values({
+        seasonId, matchId: otherMatch!.id, resolver: "match_winner", title: "比赛胜者", stageKey: otherMatch!.stage!,
+        subject: { stageRunId: f.runId, entryIds: [otherMatch!.entryAId!, otherMatch!.entryBId!] }, deadline: new Date(Date.now() + 1800000),
+      }).returning();
+      const [otherOption] = await db.insert(schema.predictionMarketOptions).values({ marketId: otherPool!.id, key: otherMatch!.entryAId!, entryId: otherMatch!.entryAId!, label: "队伍", position: 0 }).returning();
+      await expect(db.insert(schema.predictionStakes).values({
+        seasonId, marketId: pool!.id, accountId: (await account(f)).id, optionId: otherOption!.id, amount: BigInt(10), requestId: randomUUID(),
+      })).rejects.toThrow();
+      await expect(db.update(schema.predictionMarketOptions).set({ label: "changed" }).where(eq(schema.predictionMarketOptions.id, options[0]!.id))).rejects.toThrow();
       await db.update(schema.matches).set({ scheduledAt: new Date(Date.now() + 60_000) }).where(eq(schema.matches.id, match!.id));
       const locker = await f.pool.connect();
       try {
@@ -360,9 +370,10 @@ describe("spectator prediction PostgreSQL contracts", () => {
         const outsider = await read("sim", randomUUID());
         expect(outsider).toMatchObject({ joined: false, achievement: null, markets: [], ledger: [] });
         const points = await read("points");
-        expect(points.markets[0]).toMatchObject({ participants: 2, myStake: "100", myOptionId: options[0]!.id, locked: true });
-        expect(new Date(points.markets[0]!.deadline).getTime()).toBeLessThan(Date.now());
-        expect(points.markets[0]!.options.map((option) => option.pool)).toEqual(["100", "100"]);
+        const historyMarket = points.markets.find(market => market.id === pool!.id)!;
+        expect(historyMarket).toMatchObject({ participants: 2, myStake: "100", myOptionId: options[0]!.id, locked: true });
+        expect(new Date(historyMarket.deadline).getTime()).toBeLessThan(Date.now());
+        expect(historyMarket.options.map((option) => option.pool)).toEqual(["100", "100"]);
         expect(points.ledger).toEqual([]);
         const record = await read("record");
         expect(record.markets).toEqual([]);

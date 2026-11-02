@@ -1,4 +1,4 @@
-LOCK TABLE public.prediction_markets IN SHARE ROW EXCLUSIVE MODE;
+LOCK TABLE public.prediction_markets, public.prediction_market_options, public.prediction_stakes, public.prediction_settlements, public.prediction_ledger IN SHARE ROW EXCLUSIVE MODE;
 --> statement-breakpoint
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM public.prediction_markets) THEN
@@ -6,14 +6,39 @@ DO $$ BEGIN
   END IF;
 END $$;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.rivalhub_reject_legacy_prediction_market() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION public.rivalhub_reject_legacy_prediction_finance() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  RAISE EXCEPTION 'legacy prediction markets are retired' USING ERRCODE = '23514';
+  RAISE EXCEPTION 'legacy prediction finance is retired' USING ERRCODE = '23514';
 END $$;
 --> statement-breakpoint
-DROP TRIGGER IF EXISTS prediction_market_retired ON public.prediction_markets;
+DROP TRIGGER IF EXISTS prediction_finance_retired ON public.prediction_markets;
 --> statement-breakpoint
-CREATE TRIGGER prediction_market_retired BEFORE INSERT ON public.prediction_markets FOR EACH ROW EXECUTE FUNCTION public.rivalhub_reject_legacy_prediction_market();
+CREATE TRIGGER prediction_finance_retired BEFORE INSERT OR UPDATE OR DELETE ON public.prediction_markets FOR EACH ROW EXECUTE FUNCTION public.rivalhub_reject_legacy_prediction_finance();
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS prediction_finance_retired ON public.prediction_market_options;
+--> statement-breakpoint
+CREATE TRIGGER prediction_finance_retired BEFORE INSERT OR UPDATE OR DELETE ON public.prediction_market_options FOR EACH ROW EXECUTE FUNCTION public.rivalhub_reject_legacy_prediction_finance();
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS prediction_finance_retired ON public.prediction_stakes;
+--> statement-breakpoint
+CREATE TRIGGER prediction_finance_retired BEFORE INSERT OR UPDATE OR DELETE ON public.prediction_stakes FOR EACH ROW EXECUTE FUNCTION public.rivalhub_reject_legacy_prediction_finance();
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS prediction_finance_retired ON public.prediction_settlements;
+--> statement-breakpoint
+CREATE TRIGGER prediction_finance_retired BEFORE INSERT OR UPDATE OR DELETE ON public.prediction_settlements FOR EACH ROW EXECUTE FUNCTION public.rivalhub_reject_legacy_prediction_finance();
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.rivalhub_guard_retired_prediction_ledger() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF (TG_OP <> 'INSERT' AND (OLD.kind IN ('stake', 'settlement') OR (OLD.kind = 'reversal' AND OLD.source NOT LIKE 'void/%')))
+     OR (TG_OP <> 'DELETE' AND (NEW.kind IN ('stake', 'settlement') OR (NEW.kind = 'reversal' AND NEW.source NOT LIKE 'void/%'))) THEN
+    RAISE EXCEPTION 'legacy prediction finance is retired' USING ERRCODE = '23514';
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END $$;
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS prediction_finance_retired ON public.prediction_ledger;
+--> statement-breakpoint
+CREATE TRIGGER prediction_finance_retired BEFORE INSERT OR UPDATE OR DELETE ON public.prediction_ledger FOR EACH ROW EXECUTE FUNCTION public.rivalhub_guard_retired_prediction_ledger();
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION public.prediction_reconciliation_is_due(target_season_id uuid)
 RETURNS boolean LANGUAGE sql STABLE SET search_path = public, pg_catalog AS $$
