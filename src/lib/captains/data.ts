@@ -10,14 +10,14 @@ export interface PublicCaptainVoter {
   id: string;
   displayName: string;
   primaryPosition: string;
-  peakRank: string;
-  peakRating: number;
+  peakRank: string | null;
+  peakRating: number | null;
 }
 
 /** Fields allowed to cross the public captains page boundary. */
 export interface PublicCaptainCandidate extends PublicCaptainVoter {
   voteCount: number;
-  currentRating: number;
+  currentRating: number | null;
 }
 
 export interface CaptainVoteRecord {
@@ -43,9 +43,9 @@ interface CaptainCandidateSource {
   perfectName: string | null;
   personaName: string | null;
   primaryPosition: string;
-  peakRank: string;
-  peakRating: number;
-  currentRating: number;
+  peakRank: string | null;
+  peakRating: number | null;
+  currentRating: number | null;
   voteCount: number;
 }
 
