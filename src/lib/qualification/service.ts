@@ -13,7 +13,7 @@ import {
   type SeasonEducationVerification,
 } from "@/lib/education/eligibility";
 import type { CompetitiveProfileConfig, InstitutionAffiliationRule } from "@/types/season";
-import type { DecodedSeasonRules, EvaluateParticipant, QualificationDecision } from "@/lib/seasons/rules";
+import type { DecodedSeasonRules, EvaluateParticipant, QualificationDecision, SoloAssessment } from "@/lib/seasons/rules";
 
 /**
  * Single orchestration owner for participant qualification.
@@ -349,6 +349,11 @@ export const evaluateParticipant: EvaluateParticipant = (candidate, rules, evide
   const result = uniqueQualificationFindings(findings);
   return result.length ? { state: "blocked", findings: result as [QualificationFinding, ...QualificationFinding[]] } : { state: "ready", findings: [] };
 };
+
+/** A solo participant has no roster decision until a roster is assembled. */
+export function assessSoloParticipant(participant: QualificationDecision): SoloAssessment {
+  return { participant, roster: { state: "pending_stage", requiredAt: "roster_approval" } };
+}
 
 /** Load the same facts inside the caller's mutation transaction. */
 export async function evaluateSeasonParticipantInTx(
