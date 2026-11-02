@@ -18,7 +18,7 @@
 RIVALHUB_INSTANCE_WRITE=yes pnpm exec tsx scripts/instance/provision.ts install
 ```
 
-`install` 只接受没有应用对象、Drizzle 账本、Auth 用户及 Storage 对象的全新目标，调用现有 active migration runner；供给时将同一项目和凭据的 transaction pooler 连接切换到 session pooler 5432，以保证会话锁与迁移连接稳定。迁移会验证 `team-logos` 的公开图片合同；已有 bucket 配置不符时拒绝，不改变其权限。泛用实例不默认启用官方学校邮箱自动认证：旧链在全新库种入的官方域名规则仅在精确匹配预期时移除，其他规则不猜测修改。已有实例不得调用此入口；中途失败后不自动接管或清空目标。主机首次安装在启动服务前检查完整账本、team-logos 合同与官方邮箱种子已清理；检查失败不会启动候选。后续升级保留并允许现有邮箱规则，服务每次启动仍校验账本和 bucket。
+`install` 只接受没有应用对象、Drizzle 账本、Auth 用户及 Storage 对象的全新目标，调用现有 active migration runner；供给时将同一项目和凭据的 transaction pooler 连接切换到 session pooler 5432，以保证会话锁与迁移连接稳定。迁移会验证 `team-logos` 的公开图片合同；已有 bucket 配置不符时拒绝，不改变其权限。泛用实例不默认启用官方学校邮箱自动认证：旧链在全新库种入的官方域名规则仅在精确匹配预期时移除，其他规则不猜测修改。已有实例不得调用此入口；中途失败后不自动接管或清空目标。主机首次安装在启动服务前检查完整账本、team-logos 合同与官方邮箱种子已清理；检查失败不会启动候选。后续同机升级须保持 Supabase 项目及数据库名称一致；允许同一数据库在直连和连接池之间切换以及凭据轮换。升级保留并允许现有邮箱规则，服务每次启动仍校验账本和 bucket。更换主机时，本机无旧版本不能证明数据库是全新目标；已有库的恢复接入须等待 F2 的备份及实例身份合同。
 
 ## 构建与安装
 
