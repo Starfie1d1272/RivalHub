@@ -229,7 +229,7 @@ export interface SeasonCapabilities {
   stagePlan: StagePlan;
   /** 报名规则配置 */
   registrationConfig: RegistrationConfig;
-  teamRegistrationConfig: TeamRegistrationConfig;
+  teamRegistrationConfig: StoredTeamRegistrationConfig;
   affiliationRules: readonly InstitutionAffiliationRule[];
   maxTeamSize: number;
   minTeamSize: number;

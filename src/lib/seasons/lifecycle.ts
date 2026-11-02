@@ -40,12 +40,12 @@ export async function assertSeasonHasNoHistoricalFacts(
  */
 export function unfreezeBuiltInCompetitiveContext(season: {
   competitionTemplate: "rivals" | "major" | "custom";
-  teamRegistrationConfig: Partial<TeamRegistrationConfig> | null;
+  teamRegistrationConfig: import("@/types/season").StoredTeamRegistrationConfig | null;
 }): TeamRegistrationConfig | null {
   if (season.competitionTemplate !== "major" && season.competitionTemplate !== "rivals") return null;
   const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
   if (!config.requireCompetitiveProfile) return null;
-  const draftTemplate = createCompetitionTemplate(season.competitionTemplate).teamRegistrationConfig;
+  const draftTemplate = normalizeTeamRegistrationConfig(createCompetitionTemplate(season.competitionTemplate).teamRegistrationConfig);
   return {
     ...config,
     competitiveProfile: draftTemplate.competitiveProfile
