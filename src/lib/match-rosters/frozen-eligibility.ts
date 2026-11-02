@@ -1,3 +1,4 @@
+import { resolveCompetitiveSourceSelection } from "@/lib/competitive/source-selection";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { decodeEventRosterEligibilitySnapshotV2 } from "@/lib/seasons/eligibility-snapshot";
 import type { FrozenLineupEligibility, QualificationEvidence } from "@/lib/seasons/rules";
@@ -22,6 +23,7 @@ export function decodeFrozenLineupEligibility(value: unknown, expected: {
     const { profile, requirements, byPurpose } = snapshot.competitive;
     const allFacts = [...byPurpose.profileReadiness, ...byPurpose.rankThreshold, ...byPurpose.externalStrength];
     if (!profile || new Set(byPurpose.profileReadiness.map((fact) => fact.userId)).size !== byPurpose.profileReadiness.length ||
+        new Set(byPurpose.rankThreshold.map((fact) => fact.userId)).size !== byPurpose.rankThreshold.length ||
         new Set(byPurpose.externalStrength.map((fact) => fact.userId)).size !== byPurpose.externalStrength.length ||
         allFacts.some((fact) => !snapshot.members.some((member) => member.userId === fact.userId))) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "冻结竞技资格事实不完整或不属于该名单。");
@@ -29,7 +31,7 @@ export function decodeFrozenLineupEligibility(value: unknown, expected: {
     evidence = {
       kind: "competitive",
       context: { profile, platform: profile.platform, rankOrder: profile.rankOrder, fallback: profile.fallbackConversion ?? null,
-        sourceSelection: profile.evidencePolicy?.sourceSelection ?? "primary_then_fallback", evidencePolicy: profile.evidencePolicy ?? null },
+        sourceSelection: resolveCompetitiveSourceSelection(profile), evidencePolicy: profile.evidencePolicy ?? null },
       requirements,
       byPurpose: {
         rankThreshold: new Map(byPurpose.rankThreshold.map(({ userId, ...fact }) => [userId, fact])),

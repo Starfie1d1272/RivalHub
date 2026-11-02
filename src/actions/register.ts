@@ -237,7 +237,7 @@ export async function submitRegistration(input: RegistrationFormData) {
 
     const data = parsed.data;
     if (rules.source !== "policy_v2") {
-      if (!registrationConfig.allowedPlayerTypes.includes(data.playerType)) {
+      if (!data.playerType || !registrationConfig.allowedPlayerTypes.includes(data.playerType)) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "所选身份类型不符合赛事报名要求。");
       }
       const legacyThreshold = evaluateRankThreshold({
@@ -353,7 +353,7 @@ export async function submitRegistration(input: RegistrationFormData) {
       }
 
       const registrationValues = {
-        playerType: data.playerType,
+        playerType: data.playerType ?? null,
         primaryPosition: data.primaryPosition,
         secondaryPosition: data.secondaryPosition,
         peakRank: data.peakRank ?? null,

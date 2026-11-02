@@ -27,6 +27,8 @@ pnpm db:generate
 
 如果领域同时依赖 Supabase Storage，private bucket 的 contract 也必须由同一条 active migration 在 `storage.buckets` 可用时幂等收敛；plain PostgreSQL replay 可以条件跳过 Storage schema，但不能跳过对应的 public schema/constraint。不要在 Supabase Dashboard、`supabase/config.toml` 或第二条 provider migration chain 复制 bucket owner。
 
+`team-logos` 由 active migration 在 Storage 可用时供给，要求 public、1 MiB 和 JPEG/PNG/WebP；已有 bucket 必须满足相同身份和配置，否则迁移拒绝，不更改其可见性或限制。它不授予浏览器写权限，队长上传仍经服务端授权。
+
 ### 3. 运行 migration checks
 
 ```bash
@@ -55,7 +57,7 @@ RIVALHUB_COMPARE_RIGHT_DATABASE_URL='<other isolated database URL>' \
 pnpm exec tsx scripts/db/verify-migrations.ts --compare-contract
 ```
 
-比较读取 PostgreSQL 版本、public 对象和权限、函数、触发器、RLS、Storage policy、受管理 bucket 及 publication 元数据；不输出业务行。两端须使用同版本 PostgreSQL 和对应 provider 配置。此比较只是隔离演练的结构证据，不验证基础 catalog 行、业务数据、冻结事实或全部 provider 配置，也不授权接管数据库；这些须分别验证。
+比较读取 PostgreSQL 版本、public 对象和权限、函数、触发器、RLS、Storage policy、受管理 bucket 及 publication 元数据；不输出业务行。权限按展开默认 ACL 后的授权项比较，列顺序按可见列比较，避免将默认 ACL 的两种内部表示或已删除列留下的编号空洞误认为契约差异；额外授权仍是差异。两端须使用同版本 PostgreSQL 和对应 provider 配置。此比较只是隔离演练的结构证据，不验证角色成员关系、基础 catalog 行、业务数据、冻结事实或全部 provider 配置，也不授权接管数据库；这些须分别验证。
 
 Release workflow 的 plain PostgreSQL 17 rehearsal 使用：
 
