@@ -106,11 +106,17 @@ function withFrozenInputInvariants<T extends z.ZodType>(schema: T): T {
       const snapshots = full.data.frozenEligibilitySnapshots ?? [];
       if (snapshots.length === 0) ctx.addIssue({ code: "custom", message: "v2 StageRun 缺少已采用名单资格快照" });
       const entries = new Set<string>();
+      const seasonIds = new Set<string>();
+      const affiliation = definitionQualificationPolicySchema.shape.affiliationRules.safeParse(full.data.affiliationRules);
+      if (!affiliation.success) ctx.addIssue({ code: "custom", message: "v2 StageRun 机构规则无效" });
       for (const snapshot of snapshots) {
         if (entries.has(snapshot.entryId)) ctx.addIssue({ code: "custom", message: "v2 StageRun 存在重复参赛条目快照" });
         entries.add(snapshot.entryId);
+        seasonIds.add(snapshot.seasonId);
         if (JSON.stringify(snapshot.rules.qualificationPolicy) !== JSON.stringify(full.data.qualificationPolicy)) ctx.addIssue({ code: "custom", message: "v2 名单快照与 StageRun 资格政策不一致" });
+        if (affiliation.success && JSON.stringify(snapshot.rules.affiliationRules) !== JSON.stringify(affiliation.data)) ctx.addIssue({ code: "custom", message: "v2 名单快照与 StageRun 机构规则不一致" });
       }
+      if (seasonIds.size > 1) ctx.addIssue({ code: "custom", message: "v2 StageRun 名单快照跨越多个赛事" });
     }
   }) as unknown as T;
 }
