@@ -217,7 +217,8 @@ export function resolveQualificationPolicy(
 export function teamRegistrationConfigForWrite(config: TeamRegistrationConfig): TeamRegistrationConfig {
   if (!config.qualificationPolicy) return config;
   const stored = { ...config };
-  delete stored.requireCompetitiveProfile;
-  delete stored.competitiveProfile;
+  for (const key of ["allowExternal", "graduateCountsAsHome", "minHomeMembers", "minEnrolledMembers", "maxExternalMembers", "requireCompetitiveProfile", "competitiveProfile"]) {
+    Reflect.deleteProperty(stored, key);
+  }
   return stored;
 }

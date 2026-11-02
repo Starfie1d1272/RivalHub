@@ -94,6 +94,14 @@ export function LifecycleFacts({
 }
 
 export function TeamQualificationSummary({ config }: { config: TeamRegistrationConfig }) {
+  if (config.qualificationPolicy) {
+    const policy = config.qualificationPolicy;
+    return <div className="space-y-3 text-sm">
+      <h3 className="font-medium">队伍教育与归属要求</h3>
+      <p>教育认证：{policy.educationRequired ? "要求" : "不要求"}</p>
+      {policy.affiliationRules.length === 0 ? <p>未设置机构人数要求</p> : policy.affiliationRules.map((rule) => <p key={rule.institutionCode}>{rule.institutionCode}：名单至少 {rule.minRosterMembers} 人，首发至少 {rule.minStartingMembers} 人</p>)}
+    </div>;
+  }
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-medium">队伍教育与归属要求</h3>
@@ -196,8 +204,9 @@ export function CompetitiveReferenceSummary({
   phase: SeasonEditPhase;
   policyProvenance?: ConversionPolicyProvenance | null;
 }) {
-  const profile = config.competitiveProfile;
-  if (!config.requireCompetitiveProfile || !profile) {
+  const policy = config.qualificationPolicy;
+  const profile = policy ? policy.competitiveProfile : config.competitiveProfile;
+  if (!(policy ? policy.competitiveProfileRequired || policy.externalStrengthGap.enabled : config.requireCompetitiveProfile) || !profile) {
     return <p className="text-sm text-[var(--color-fg-mid)]">当前赛事未启用队伍竞技档案要求；报名资格不会从这里推断竞技事实。</p>;
   }
 
@@ -228,7 +237,7 @@ export function CompetitiveReferenceSummary({
         <div className="sm:col-span-2"><dt className="text-[var(--color-fg-mid)]">近期竞技事实（30%）</dt><dd className="mt-1 font-medium">{contextValue(recentSeasons.length > 0 ? recentSeasons.join("、") : "未配置")}</dd></div>
         <div className="sm:col-span-2"><dt className="text-[var(--color-fg-mid)]">竞技证据来源</dt><dd className="mt-1 font-medium">{!frozen ? pendingContext : sourceSelection === "strongest_equivalent" ? "Perfect World 与 5E 数据按赛事换算规则比较，使用较高的有效竞技水平；相同时优先 Perfect World。" : "历史兼容：主平台优先，5E 仅在主平台资料不可用时作为等效补充。"}</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">冻结段位顺序</dt><dd className="mt-1 font-medium">{contextValue(profile.rankOrder.length > 0 ? `${profile.rankOrder.length} 个段位` : "未配置")}</dd></div>
-        <div><dt className="text-[var(--color-fg-mid)]">外校实力星差上限</dt><dd className="mt-1 font-medium">{profile.externalStrengthMaxStarGap ?? 3} 星</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">外校实力星差上限</dt><dd className="mt-1 font-medium">{policy ? policy.externalStrengthGap.enabled ? `${policy.externalStrengthGap.maxGap} 星` : "不限制" : `${profile.externalStrengthMaxStarGap ?? 3} 星`}</dd></div>
       </dl>
 
       {policyVersion || policyId || profile.fallbackConversion ? (
