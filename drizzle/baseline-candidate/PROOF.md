@@ -19,6 +19,26 @@ and adds a legacy-ledger archive. Its final bytes require a fresh replay.
 Those earlier proof artifacts are not the current active migration chain;
 the later candidate validation and remaining limits are recorded below.
 
+## Current-byte isolated replay (2026-11-02)
+
+At commit `8e6718b1cb213e0adce42dfa469c1fa33fe3a892`, a newly initialized
+Local Supabase replayed the original 113-entry v2 chain and then the current
+active chain through the canonical runner. Adoption completed with one active
+v3 ledger entry, 113 archived legacy entries and the original email rule
+still present. This exercises the adoption contract for the current baseline
+bytes above; it is not Hosted or production evidence.
+
+Separately, commit `c55f1b7ec6e1d0c8bd8006ae5c7570f77352a736` produced an
+isolated full backup from a synthetic v2 source with one Storage object, using
+real age encryption and a loopback object-storage fixture. HEAD/GET/hash
+read-back, fetch and full restore to a second Local Supabase completed. The
+source and restored 113-entry id/hash/time ledgers matched, the email rule and
+Storage object remained, the object bytes had the same SHA-256, and v2 recovery
+evidence plus package readiness passed. The application identity was an HTTP
+fixture, and the missing host `psql` was replaced by the target container's
+real client. This does not exercise the instance installer, stopped-instance
+checkpoint mode, failure injection, `--restore-pair`, Hosted or systemd.
+
 ## Later candidate validation
 
 The subsequently prepared active baseline has SHA-256
