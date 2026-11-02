@@ -1,23 +1,14 @@
 import { officialMatchCondition } from "@/lib/matches/scope";
-import { isCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
-import { createHash } from "node:crypto";
-import { getPerformanceText, putPerformanceText } from "./performance-text-cache";
 
-import { and, asc, count, desc, eq, inArray, lt, ne, or, sql, type SQL } from "drizzle-orm";
-import { buildTournamentAnalytics, buildTournamentPerformanceAnalyticsFromProjections as buildTournamentPerformanceAnalytics, remapTournamentPerformanceMapProjection, scopeTournamentPerformanceMapProjectionToTeam } from "@cs2dak/tournament";
+import { and, count, eq, inArray, lt, ne, or, sql } from "drizzle-orm";
+import { buildTournamentAnalytics, buildTournamentPerformanceAnalyticsFromProjections as buildTournamentPerformanceAnalytics, remapTournamentPerformanceMapProjection } from "@cs2dak/tournament";
 import { db, type DB, type TxDb } from "@/db/client";
-import { competitionEntries, eventRosterMembers, matchDemoImports, matchDemoStatProjections, matchPlayerStats, matchMaps, matchRosterPlayers, matchRosters, matches, matchVetoSteps, seasons, steamProfiles, teams, users } from "@/db/schema";
-import { selectCurrentDemoImport } from "@/lib/demo-integration/read";
-import { CURRENT_DAK_SEMANTIC_PROFILE } from "@/lib/demo-integration/semantic-profile";
-import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision";
-import { resolveGameplayUsersBySteam64InTx } from "@/lib/identity/gameplay-steam";
-import { getPublicDisplayName } from "@/lib/identity/display-name";
+import { competitionEntries, eventRosterMembers, matchDemoStatProjections, matchPlayerStats, matchMaps, matchRosterPlayers, matchRosters, matches, matchVetoSteps, seasons } from "@/db/schema";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { loadEffectiveMatchRosterIdentities, type EffectiveMatchRosterIdentity } from "@/lib/match-rosters/effective";
 import { getPublicPlayerRecord } from "@/lib/players/public-record";
 import { getPlayerStatsScoreboards, getStatsLeaderboard } from "./leaderboard-query";
-import { decodePerformanceTransport, performanceTransportSelection, decodeTournamentTransport, tournamentTransportSelection, ProjectionTransportIntegrityError } from "./projection-transport";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { buildScopeInsights } from "./insight-facts";
@@ -28,6 +19,11 @@ import type { Insight } from "./insights";
 import { buildTournamentResults } from "./results";
 import { buildTeamRatings } from "./team-rating";
 import { classifyVetoSample } from "./veto-sample";
+import { loadStatsContext, loadCurrentProjectionRefs } from "./tournament-scope";
+import { loadStatsEvidence, loadStatsDetailEvidence, loadStatsEvidenceSelection, type PlayerDetailFacts, type ProjectionTargets } from "./tournament-projections";
+import { performanceFactsForScope, indexStatsRows, groupEvidenceByMap, aggregateEvidenceByMap, resultMatchesForMapScope, buildCoverage } from "./tournament-aggregate";
+export { scopePerformanceFactsToTeam } from "./tournament-aggregate";
+
 
 export interface TournamentStatsScope { seasonId: string; stage?: string; format?: "bo1" | "bo3" | "bo5"; mapFilter?: string; teamFilter?: string }
 
@@ -42,135 +38,6 @@ export interface PlayerStatsEventOption {
 }
 
 export type StatsLabels = { teams: Record<string, string>; players: Record<string, string> };
-
-const statsMatchFields = {id:matches.id,seasonId:matches.seasonId,stage:matches.stage,round:matches.round,entryAId:matches.entryAId,entryBId:matches.entryBId,majorStageRunId:matches.majorStageRunId,status:matches.status,isForfeit:matches.isForfeit,testConfig:matches.testConfig,format:matches.format,scoreA:matches.scoreA,scoreB:matches.scoreB,completedAt:matches.completedAt};
-const statsMapFields = {id:matchMaps.id,matchId:matchMaps.matchId,mapOrder:matchMaps.mapOrder,mapName:matchMaps.mapName,scoreA:matchMaps.scoreA,scoreB:matchMaps.scoreB,completedAt:matchMaps.completedAt};
-
-async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean; effectiveRoster?: readonly EffectiveMatchRosterIdentity[]; skipLabels?: boolean; reuseVetoMatches?: boolean } = {}) {
-  const selectedMapRows = options.mapName && options.matchIds?.length !== 0
-    ? await tx.select({ match: statsMatchFields, map: statsMapFields }).from(matchMaps).innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(
-      scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
-      eq(matchMaps.mapName, options.mapName),
-      options.matchIds ? inArray(matches.id, [...options.matchIds]) : undefined,
-      scope.stage ? eq(matches.stage, scope.stage) : undefined,
-      scope.format ? eq(matches.format, scope.format) : undefined,
-      (options.teamId ?? scope.teamFilter) ? or(eq(matches.entryAId, options.teamId ?? scope.teamFilter!), eq(matches.entryBId, options.teamId ?? scope.teamFilter!)) : undefined,
-    ))
-    : undefined;
-  const matchRows = selectedMapRows
-    ? [...new Map(selectedMapRows.map(({ match }) => [match.id, match])).values()]
-    : options.matchIds
-      ? options.matchIds.length ? await tx.select(statsMatchFields).from(matches).where(and(
-        inArray(matches.id, [...options.matchIds]),
-        scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
-        scope.stage ? eq(matches.stage, scope.stage) : undefined,
-        scope.format ? eq(matches.format, scope.format) : undefined,
-      )) : []
-      : scope.seasonId || scope.seasonIds ? await tx.select(statsMatchFields).from(matches).where(and(
-        scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
-        scope.stage ? eq(matches.stage, scope.stage) : undefined,
-        scope.format ? eq(matches.format, scope.format) : undefined,
-      )) : [];
-  const vetoMatches = options.reuseVetoMatches && (scope.seasonId || scope.seasonIds) && !options.mapName && !options.matchIds && !options.teamId && !scope.mapFilter && !scope.teamFilter
-    ? matchRows.filter((match) => match.testConfig === null).map(({ id, status, isForfeit, entryAId, entryBId }) => ({ id, status, isForfeit, entryAId, entryBId }))
-    : undefined;
-  const selectedTeamId = options.teamId ?? scope.teamFilter;
-  const baseMatches = matchRows.filter(isCompetitionMatch).filter(match => options.includeTestMatch || !match.testConfig);
-  const scopedMatches = baseMatches.filter((match) => !selectedTeamId || [match.entryAId, match.entryBId].includes(selectedTeamId));
-  const matchesById = new Map(scopedMatches.map((match) => [match.id, match]));
-  const matchIds = scopedMatches.map((match) => match.id);
-  const seasonIds = scope.seasonId ? [scope.seasonId] : [...new Set(scopedMatches.map((match) => match.seasonId))];
-  const entryRows = !options.skipLabels && seasonIds.length ? await tx.select({ id: competitionEntries.id, name: competitionEntries.name, teamId: competitionEntries.teamId, teamName: teams.name, teamSlug: teams.slug, eventSlug: seasons.slug, eventName: seasons.name }).from(competitionEntries)
-    .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
-    .leftJoin(teams, eq(teams.id, competitionEntries.teamId))
-    .where(inArray(competitionEntries.competitionId, seasonIds)) : [];
-  const entries = entryRows.map((row) => ({ id: row.id, name: row.name }));
-  const participantIds = new Set(baseMatches.filter((match) => match.status === "finished").flatMap((match) => [match.entryAId, match.entryBId].filter((id): id is string => Boolean(id))));
-  const participantEntries = entries.filter((entry) => participantIds.has(entry.id));
-  const maps = selectedMapRows
-    ? selectedMapRows.filter(({ match }) => matchesById.has(match.id)).map(({ map }) => map)
-    : matchIds.length ? await tx.select(statsMapFields).from(matchMaps).where(inArray(matchMaps.matchId, matchIds)) : [];
-  const mapNameFilter = options.mapName ?? scope.mapFilter;
-  const scopedMaps = maps.filter((map) => !mapNameFilter || map.mapName === mapNameFilter);
-  const matchIdSet = new Set(matchIds);
-  const roster = options.effectiveRoster ? options.effectiveRoster.filter(row => matchIdSet.has(row.matchId)) : await loadEffectiveMatchRosterIdentities(tx, matchIds);
-  const rosterByMatchId = new Map<string, EffectiveMatchRosterIdentity[]>();
-  const rosterByMatchAndUser = new Map<string, Map<string, EffectiveMatchRosterIdentity>>();
-  for (const member of roster) {
-    const matchRoster = rosterByMatchId.get(member.matchId) ?? [];
-    matchRoster.push(member);
-    rosterByMatchId.set(member.matchId, matchRoster);
-    const membersByUser = rosterByMatchAndUser.get(member.matchId) ?? new Map<string, EffectiveMatchRosterIdentity>();
-    if (!membersByUser.has(member.userId)) membersByUser.set(member.userId, member);
-    rosterByMatchAndUser.set(member.matchId, membersByUser);
-  }
-
-  type ImportMetadata = Pick<typeof matchDemoImports.$inferSelect, "id" | "matchMapId" | "semanticProfile" | "status" | "evidenceRevision" | "createdAt" | "payloadSha256" | "demoSha256" | "analysisVersion">;
-  const imports = scopedMaps.length
-    ? await tx.selectDistinctOn([matchDemoImports.matchMapId], {
-      id: matchDemoImports.id,
-      matchMapId: matchDemoImports.matchMapId,
-      semanticProfile: matchDemoImports.semanticProfile,
-      status: matchDemoImports.status,
-      evidenceRevision: matchDemoImports.evidenceRevision,
-      payloadSha256: matchDemoImports.payloadSha256,
-      demoSha256: matchDemoImports.demoSha256,
-      analysisVersion: matchDemoImports.analysisVersion,
-      createdAt: matchDemoImports.createdAt,
-    }).from(matchDemoImports).where(and(inArray(matchDemoImports.matchMapId, scopedMaps.map((map) => map.id)),
-      sql`${matchDemoImports.semanticProfile} COLLATE "C" = ${CURRENT_DAK_SEMANTIC_PROFILE} COLLATE "C"`,
-      ne(matchDemoImports.status, "superseded")))
-      .orderBy(asc(matchDemoImports.matchMapId), desc(matchDemoImports.createdAt), desc(matchDemoImports.id))
-    : [];
-  const importsByMapId = new Map<string, ImportMetadata[]>();
-  for (const row of imports) {
-    const mapImports = importsByMapId.get(row.matchMapId) ?? [];
-    mapImports.push(row);
-    importsByMapId.set(row.matchMapId, mapImports);
-  }
-
-  const currentRefs = scopedMaps.flatMap((map) => {
-    const current = selectCurrentDemoImport(importsByMapId.get(map.id) ?? []);
-    const match = matchesById.get(map.matchId);
-    if (!current || !match || current.status !== "confirmed" || !map.completedAt || map.scoreA === null || map.scoreB === null) return [];
-    if (current.evidenceRevision !== buildEvidenceRevisionForTarget({ match, map, roster: rosterByMatchId.get(match.id) ?? [] })) return [];
-    return [{ current, match, map }];
-  });
-  return { entryRows, matches: scopedMatches, matchIds, entries, participantEntries, maps, scopedMaps, roster, rosterByMatchAndUser, currentRefs, vetoMatches };
-}
-
-/** Select valid materialized bindings without transferring statistics or Evidence. */
-async function loadCurrentProjectionRefs(tx: TxDb, context: Awaited<ReturnType<typeof loadStatsContext>>, includePerformanceHash = false) {
-  const ids = context.currentRefs.map(({ current }) => current.id);
-  const rows = ids.length ? await tx.select({
-    importId: matchDemoStatProjections.importId,
-    identityBindings: matchDemoStatProjections.identityBindings,
-    ...(includePerformanceHash ? { performanceHash: sql<string>`encode(sha256(convert_to((${performanceTransportSelection})::text, 'UTF8')), 'hex')` } : {}),
-    metadataMatches: sql<boolean>`
-      ${matchDemoStatProjections.payloadSha256} COLLATE "C" = ${matchDemoImports.payloadSha256} COLLATE "C"
-      AND ${matchDemoStatProjections.demoSha256} COLLATE "C" = ${matchDemoImports.demoSha256} COLLATE "C"
-      AND ${matchDemoStatProjections.evidenceRevision} COLLATE "C" = ${matchDemoImports.evidenceRevision} COLLATE "C"
-      AND ${matchDemoStatProjections.semanticProfile} COLLATE "C" = ${matchDemoImports.semanticProfile} COLLATE "C"
-      AND ${matchDemoStatProjections.analysisVersion} COLLATE "C" = ${matchDemoImports.analysisVersion} COLLATE "C"`,
-  }).from(matchDemoStatProjections).innerJoin(matchDemoImports, eq(matchDemoImports.id, matchDemoStatProjections.importId)).where(and(
-    inArray(matchDemoStatProjections.importId, ids),
-    eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION),
-  )) : [];
-  const projections = new Map(rows.map((row) => [row.importId, row]));
-  const resolutions = await resolveGameplayUsersBySteam64InTx(tx, rows.flatMap((row) => row.identityBindings.map((binding) => binding.steam64)));
-  return context.currentRefs.flatMap(({ current, match, map }) => {
-    const projection = projections.get(current.id);
-    if (!projection || !projection.metadataMatches) return [];
-    const roster = context.rosterByMatchAndUser.get(match.id);
-    // Identity retirement invalidates every dependent map, including other
-    // events. Missing/stale projections lower coverage, never trigger raw reads.
-    if (projection.identityBindings.length !== 10 || !projection.identityBindings.every((binding) =>
-      resolutions.get(binding.steam64)?.userId === binding.userId
-      && roster?.get(binding.userId)?.entryId === binding.entryId
-    )) return [];
-    return [{ current, match, map, projection }];
-  });
-}
 
 /** Lightweight canonical selection for public directory/scouting aggregates. */
 export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: { seasonId?: string; userIds?: readonly string[]; before?: Date; excludeMatchId?: string }) {
@@ -188,117 +55,6 @@ export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: { seasonId?:
   const context = await loadStatsContext(tx, {}, { matchIds: candidateIds, effectiveRoster, skipLabels: true });
   const refs = await loadCurrentProjectionRefs(tx, context);
   return { currentImportIds: refs.map(({ current }) => current.id), roster: context.roster, matchIds: context.matchIds };
-}
-
-async function loadStatsEvidence(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean; reuseVetoMatches?: boolean } = {}) {
-  if (!scope.view) return loadStatsEvidenceSelection(tx, scope, options,
-    sql<typeof matchDemoStatProjections.$inferSelect.facts>`jsonb_build_object(
-      'records', (${matchDemoStatProjections.facts}->'records') - 'events') || ${tournamentTransportSelection}`, true);
-  const needsTournament = ["overview", "teams", "maps"].includes(scope.view);
-  const needsPerformance = scope.view !== "records" && (scope.view !== "maps" || scope.mapDetail);
-  // DAK owns its opaque performance accumulator. Select it verbatim whenever
-  // consumed; never reconstruct or trim inside its private `data` field.
-  const tournament = needsTournament ? tournamentTransportSelection : sql`jsonb_build_object('tournament', jsonb_build_object(
-    'mapKey', ${matchDemoStatProjections.facts}->'tournament'->'mapKey',
-    'matchKey', ${matchDemoStatProjections.facts}->'tournament'->'matchKey',
-    'mapName', ${matchDemoStatProjections.facts}->'tournament'->'mapName'))`;
-  const performance = needsPerformance ? sql`'{}'::jsonb` : sql`jsonb_build_object('performance', jsonb_build_object(
-    'mapKey', ${matchDemoStatProjections.facts}->'performance'->'mapKey',
-    'matchKey', ${matchDemoStatProjections.facts}->'performance'->'matchKey'))`;
-  return loadStatsEvidenceSelection(tx, scope, options, sql<typeof matchDemoStatProjections.$inferSelect.facts>`jsonb_build_object(
-    'records', ${scope.view === "records" ? sql`(${matchDemoStatProjections.facts}->'records') - 'events'` : sql`NULL`}) || ${tournament} || ${performance}`, needsPerformance);
-}
-
-/** Team/map details consume both analytics owners, but never record candidates. */
-async function loadStatsDetailEvidence(tx: TxDb, scope: StatsEvidenceScope, options: Parameters<typeof loadStatsContext>[2] = {}) {
-  return loadStatsEvidenceSelection(tx, scope, options, sql<Pick<typeof matchDemoStatProjections.$inferSelect.facts, "tournament" | "performance">>`${tournamentTransportSelection}`, true);
-}
-
-type PlayerDetailFacts = {
-  tournament: Pick<typeof matchDemoStatProjections.$inferSelect.facts.tournament, "mapKey" | "matchKey" | "mapName">;
-  performance: typeof matchDemoStatProjections.$inferSelect.facts.performance;
-};
-
-type ProjectionTargets = {
-  tournament: { mapKey: string; matchKey: string };
-  performance: { mapKey: string; matchKey: string };
-};
-
-async function loadStatsEvidenceSelection<T extends ProjectionTargets>(
-  tx: TxDb,
-  scope: StatsEvidenceScope,
-  options: Parameters<typeof loadStatsContext>[2],
-  factsSelection: SQL<T>,
-  includePerformance = false,
-) {
-  const context = await loadStatsContext(tx, scope, options);
-  const refs = await loadCurrentProjectionRefs(tx, context, includePerformance);
-  const importIds = refs.map(({ current }) => current.id);
-  const rows = importIds.length ? await tx.select({ importId: matchDemoStatProjections.importId, facts: factsSelection })
-    .from(matchDemoStatProjections).where(and(inArray(matchDemoStatProjections.importId, importIds), eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION))) : [];
-  const factsByImport = new Map(rows.map((row) => [row.importId, row.facts]));
-  const performanceTexts = new Map<string, { text: string; key: string; cached: boolean }>();
-  if (includePerformance) {
-    const missing: string[] = [];
-    for (const { current, projection } of refs) {
-      const key = `performance-text-v1:${STATISTICS_PROJECTION_VERSION}:${current.id}:${projection.performanceHash}`;
-      const text = getPerformanceText(key);
-      if (text === undefined) missing.push(current.id);
-      else performanceTexts.set(current.id, { text, key, cached: true });
-    }
-    const texts = missing.length ? await tx.select({ importId: matchDemoStatProjections.importId,
-      text: sql<string>`(${performanceTransportSelection})::text`,
-    }).from(matchDemoStatProjections).where(and(inArray(matchDemoStatProjections.importId, missing),
-      eq(matchDemoStatProjections.projectionVersion, STATISTICS_PROJECTION_VERSION))) : [];
-    const refsById = new Map(refs.map((ref) => [ref.current.id, ref]));
-    for (const { importId, text } of texts) {
-      const ref = refsById.get(importId)!;
-      const key = `performance-text-v1:${STATISTICS_PROJECTION_VERSION}:${importId}:${ref.projection.performanceHash}`;
-      performanceTexts.set(importId, { text, key, cached: false });
-    }
-  }
-  const selected: Array<{ importId: string; facts: T }> = [];
-  const verifiedTexts: Array<{ key: string; text: string }> = [];
-  for (const { current, map, match, projection } of refs) {
-    let facts = factsByImport.get(current.id);
-    if (facts && Object.hasOwn(facts, "tournamentTransport")) {
-      if (facts.tournament.mapKey !== map.id || facts.tournament.matchKey !== match.id) {
-        throw new Error("Statistics projection target mismatch");
-      }
-      const tournament = await decodeTournamentTransport((facts as T & { tournamentTransport: unknown }).tournamentTransport);
-      if (tournament.mapKey !== map.id || tournament.matchKey !== match.id || tournament.mapName !== map.mapName ||
-        tournament.semanticProfile !== current.semanticProfile || tournament.analysisVersion !== current.analysisVersion) throw new ProjectionTransportIntegrityError();
-      facts = { ...facts, tournament };
-    }
-    const performanceText = includePerformance ? performanceTexts.get(current.id) : undefined;
-    if (includePerformance && facts) {
-      if (!performanceText || (!performanceText.cached && createHash("sha256").update(performanceText.text, "utf8").digest("hex") !== projection.performanceHash)) {
-        throw new ProjectionTransportIntegrityError();
-      }
-      facts = { ...facts, ...JSON.parse(performanceText.text) };
-    }
-    if (facts && Object.hasOwn(facts, "performanceTransport")) {
-      const performance = await decodePerformanceTransport((facts as T & { performanceTransport: unknown }).performanceTransport);
-      if (performance.mapKey !== map.id || performance.matchKey !== match.id || performance.mapName !== map.mapName ||
-        performance.semanticProfile !== current.semanticProfile || performance.analysisVersion !== current.analysisVersion) throw new ProjectionTransportIntegrityError();
-      facts = { ...facts, performance };
-    }
-    if (!facts || facts.tournament.mapKey !== map.id || facts.performance.mapKey !== map.id
-      || facts.tournament.matchKey !== match.id || facts.performance.matchKey !== match.id) {
-      throw new Error("Statistics projection target mismatch");
-    }
-    if (performanceText && !performanceText.cached) verifiedTexts.push(performanceText);
-    selected.push({ importId: current.id, facts });
-  }
-  const userIds = [...new Set(refs.flatMap(({ projection }) => projection.identityBindings.map((binding) => binding.userId)))];
-  const identities = userIds.length ? await tx.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
-    .from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(inArray(users.id, userIds)) : [];
-  const labels: StatsLabels = {
-    teams: Object.fromEntries(context.entries.map((entry) => [entry.id, entry.name])),
-    players: Object.fromEntries(identities.map((user) => [user.id, getPublicDisplayName(user)])),
-  };
-  for (const { key, text } of verifiedTexts) putPerformanceText(key, text);
-  return { ...context, selected, labels };
 }
 
 async function loadPlayerAppearanceScopes(
@@ -497,80 +253,6 @@ async function loadVetoData(tx: TxDb, scope: StatsEvidenceScope & { teamId?: str
       missingMatches: [...sampleStateByMatchId.values()].filter((state) => state === "missing").length,
       notApplicableMatches: [...sampleStateByMatchId.values()].filter((state) => state === "not_applicable").length,
     },
-  };
-}
-
-type PerformanceEvidenceFacts = Awaited<ReturnType<typeof loadStatsEvidence>>["selected"][number]["facts"]["performance"];
-
-export function scopePerformanceFactsToTeam(facts: PerformanceEvidenceFacts, teamId: string): PerformanceEvidenceFacts {
-  return scopeTournamentPerformanceMapProjectionToTeam(facts, teamId);
-}
-
-function performanceFactsForScope(
-  loaded: Awaited<ReturnType<typeof loadStatsEvidence>>,
-  teamId?: string,
-) {
-  return loaded.selected.map((row) => teamId ? scopePerformanceFactsToTeam(row.facts.performance, teamId) : row.facts.performance);
-}
-
-function indexStatsRows<T>(rows: readonly T[], key: (row: T) => string) {
-  const index = new Map<string, T>();
-  for (const row of rows) index.set(key(row), row);
-  return index;
-}
-
-function groupEvidenceByMap<T extends { facts: { tournament: { mapName: string } } }>(selected: T[]) {
-  const grouped = new Map<string, T[]>();
-  for (const row of selected) {
-    const mapName = row.facts.tournament.mapName;
-    const rows = grouped.get(mapName) ?? [];
-    rows.push(row);
-    grouped.set(mapName, rows);
-  }
-  return [...grouped];
-}
-
-function aggregateEvidenceByMap(
-  selected: Awaited<ReturnType<typeof loadStatsDetailEvidence>>["selected"],
-  labels: StatsLabels,
-  options: { indexPlayers?: boolean } = {},
-) {
-  return groupEvidenceByMap(selected).map(([mapName, rows]) => {
-    const analytics = buildTournamentAnalytics(rows.map((row) => row.facts.tournament), { labels });
-    const performance = buildTournamentPerformanceAnalytics(rows.map((row) => row.facts.performance), { labels });
-    return {
-      mapName,
-      analytics,
-      performance,
-      analyticsTeams: indexStatsRows(analytics.teams, (row) => row.team.entityKey),
-      performanceTeams: indexStatsRows(performance.teams, (row) => row.team.entityKey),
-      performancePlayers: options.indexPlayers ? indexStatsRows(performance.players, (row) => row.player.entityKey) : undefined,
-    };
-  });
-}
-
-function resultMatchesForMapScope<T extends { id: string }>(
-  matches: readonly T[],
-  scopedMaps: readonly { matchId: string }[],
-  mapFilter?: string,
-): T[] {
-  if (!mapFilter) return [...matches];
-  const scopedMatchIds = new Set(scopedMaps.map((map) => map.matchId));
-  return matches.filter((match) => scopedMatchIds.has(match.id));
-}
-
-function buildCoverage(
-  loaded: Pick<Awaited<ReturnType<typeof loadStatsContext>>, "matches" | "scopedMaps" | "entries"> & {
-    selected: Array<{ facts: { tournament: { mapName: string } } }>;
-  },
-  results = buildTournamentResults(loaded.matches, loaded.scopedMaps, loaded.entries),
-) {
-  const detailedByMapName = new Map<string, number>();
-  for (const row of loaded.selected) detailedByMapName.set(row.facts.tournament.mapName, (detailedByMapName.get(row.facts.tournament.mapName) ?? 0) + 1);
-  return {
-    detailedMaps: loaded.selected.length,
-    completedMaps: results.totals.completedMaps,
-    maps: results.maps.map((row) => ({ mapName: row.mapName, completedMaps: row.played, detailedMaps: detailedByMapName.get(row.mapName) ?? 0 })),
   };
 }
 

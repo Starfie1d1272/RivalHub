@@ -68,6 +68,7 @@ jobs:
             echo "Primary scheduler is healthy; no Vercel fallback required."
             exit 0
           fi
+          PRODUCTION_ORIGIN="$(node --input-type=module -e 'import { OFFICIAL_PRODUCTION } from "./src/lib/runtime/official-deployment-profile.mjs"; process.stdout.write(OFFICIAL_PRODUCTION.origin)')"
           FAILED=0
           for CRON_JOB_KEY in "${JOB_KEYS[@]}"; do
             pnpm --silent db:production:scheduler:watchdog-plan verify
@@ -80,7 +81,7 @@ jobs:
               --retry-max-time 180 \
               --header "Authorization: Bearer ${CRON_SECRET}" \
               --header "X-RivalHub-Cron-Source: ${CRON_SOURCE}" \
-              "https://match.starfie1d.top/api/cron/${CRON_JOB_KEY}")" &&
+              "${PRODUCTION_ORIGIN}/api/cron/${CRON_JOB_KEY}")" &&
               [[ "$CRON_HTTP_STATUS" == 2[0-9][0-9] ]]; then
               continue
             else

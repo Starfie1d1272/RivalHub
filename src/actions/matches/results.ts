@@ -4,52 +4,30 @@ import { correctMapScoreInTx, mapCorrectionReviewSchema } from "@/lib/matches/ma
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import { revalidatePath } from "next/cache";
-import { eq, and, inArray, isNull } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, matchMaps, matchTimeProposals } from "@/db/schema";
+import { matches, matchMaps } from "@/db/schema";
 import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
-import { advanceStageBracket, ensureResolvedBracketMatch, loadStageBracketState, saveStageBracketState, type ResolvedBracketMatch } from "@/lib/bracket";
 import {
   assertMatchTransition,
-  resolveMatchFormat,
 } from "@/lib/match-transitions";
 import { getMaxMaps, isMatchStatus } from "@/types/match";
 import { actionError, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
-import {
-  applyMatchStatusTransitionInTx,
-  lockMatchInTx,
-} from "@/lib/match-rosters/service";
+import { applyMatchStatusTransitionInTx } from "@/lib/matches/lifecycle";
+import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
+import { finishCompetitionSeriesInTx } from "@/lib/matches/competition-results";
 import { maybeFinishSeason } from "@/lib/seasons/transitions";
 import { revalidateMatchPaths, revalidateSeasonPaths, updatePublicSeasonTags } from "@/lib/revalidation";
-import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import {
   validateMapScore,
 } from "@/lib/matches/result-rules";
 import { recordManualMapResultInTx } from "@/lib/matches/manual-result";
-import { completeCompetitionQualificationIfReadyInTx } from "@/lib/competition-qualification/runtime";
 import { assertGenericMatchCanBeDeleted, deleteScheduledMatchAndDependentsInTx } from "@/lib/matches/deletion";
-
-/** Persist provider-resolved nodes through the fail-closed bracket boundary. */
-async function insertResolvedBracketMatches(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  seasonId: string,
-  stageKey: string,
-  resolvedMatches: ResolvedBracketMatch[],
-  stagePlan: ReturnType<typeof normalizeStagePlan>,
-) {
-  for (const resolved of resolvedMatches) {
-    await ensureResolvedBracketMatch(tx, {
-      seasonId,
-      stageKey,
-      resolved,
-      format: resolveMatchFormat(stagePlan, stageKey, resolved.roundNumber, resolved.groupNumber),
-    });
-  }
-}
 
 // ── 更新比赛状态 ──────────────────────────────────────────────────────────
 
@@ -155,62 +133,6 @@ export async function recordMapResult(
     return ok({ seriesFinished });
   } catch (e) {
     return actionError("recordMapResult", e);
-  }
-}
-
-// ── 更新比赛时间 ──────────────────────────────────────────────────────────
-
-/**
- * 设置或清除比赛的预定时间（scheduledAt）。
- * 已完成或已取消的比赛不允许修改。
- */
-export async function updateMatchScheduledAt(
-  matchId: string,
-  scheduledAt: Date | null
-): Promise<ActionResult<void>> {
-  try {
-    const match = await getMatchOrThrow(matchId);
-    const session = await requireSeasonAdmin(match.seasonId);
-
-    if (match.status === "finished" || match.status === "cancelled") {
-      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "已结束或已取消的比赛不能修改时间");
-    }
-
-    const seasonForSch = await getSeasonOrThrow(match.seasonId);
-    await db.transaction(async (tx) => {
-      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
-      const now = new Date();
-      await tx
-        .update(matches)
-        .set({ scheduledAt, updatedAt: now })
-        .where(eq(matches.id, matchId));
-
-      // 比赛时间被管理员直接设定后，同场所有 pending 提议失效，避免幽灵提议卡在 pending。
-      if (scheduledAt) {
-        await tx
-          .update(matchTimeProposals)
-          .set({ status: "expired", updatedAt: now })
-          .where(
-            and(
-              eq(matchTimeProposals.matchId, matchId),
-              eq(matchTimeProposals.status, "pending"),
-            ),
-          );
-      }
-
-      await writeAuditInTx(tx, {
-        seasonId: match.seasonId,
-        action: "match.update_scheduled_at",
-        actorId: session.email,
-        targetId: matchId,meta: { scheduledAt: scheduledAt?.toISOString() ?? null },
-      });
-    });
-
-    revalidateMatchPaths(seasonForSch.slug, matchId);
-
-    return ok(undefined);
-  } catch (e) {
-    return actionError("updateMatchScheduledAt", e);
   }
 }
 
@@ -481,45 +403,10 @@ export async function forfeitMatch(
       const lockedLoserIsA = loserTeamId === locked.entryAId;
       const lockedScoreA = lockedLoserIsA ? 0 : lockedWinnerScore;
       const lockedScoreB = lockedLoserIsA ? lockedWinnerScore : 0;
-      await tx.delete(matchMaps).where(
-        and(eq(matchMaps.matchId, matchId), isNull(matchMaps.scoreA), isNull(matchMaps.scoreB))
-      );
-
-      await tx
-        .update(matches)
-        .set({
-          scoreA: lockedScoreA,
-          scoreB: lockedScoreB,
-          status: "finished",
-          isForfeit: true,
-          ...(locked.testConfig ? { resultDisposition: "recorded" as const } : {}),
-          completedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(matches.id, matchId));
-
-      if (locked.qualificationRunId) {
-        await completeCompetitionQualificationIfReadyInTx(tx, locked.qualificationRunId);
-      }
-
-      const bracketState = locked.bracketNodeId
-        ? await loadStageBracketState(tx, locked.seasonId, locked.stage)
-        : null;
-      if (bracketState && locked.bracketNodeId) {
-        const { updatedData, newResolvedMatches } = await advanceStageBracket(
-          locked.stage,
-          locked.bracketNodeId,
-          { scoreA: lockedScoreA, scoreB: lockedScoreB },
-          bracketState,
-        );
-        await saveStageBracketState(tx, locked.seasonId, locked.stage, updatedData);
-        await insertResolvedBracketMatches(
-          tx, locked.seasonId, locked.stage, newResolvedMatches,
-          normalizeStagePlan(season.stagePlan),
-        );
-      }
-
-      finishedSlug = match.testConfig ? null : await maybeFinishSeason(tx, match.seasonId);
+      finishedSlug = await finishCompetitionSeriesInTx(tx, {
+        match: locked, scoreA: lockedScoreA, scoreB: lockedScoreB,
+        completedAt: new Date(), isForfeit: true,
+      });
 
       await writeAuditInTx(tx, {
         seasonId: match.seasonId,

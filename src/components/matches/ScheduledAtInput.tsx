@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { parseCSTInput, toCSTDateTimeInput } from "@/lib/utils/date";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { updateMatchCompletionDeadline as telemetry_updateMatchCompletionDeadline, updateMatchScheduledAt as telemetry_updateMatchScheduledAt } from "@/actions/matches";
+import { updateMatchCompletionDeadline as telemetry_updateMatchCompletionDeadline } from "@/actions/matches";
+import { setMatchScheduledAt as telemetry_updateMatchScheduledAt } from "@/actions/matches/scheduling";
 import { observeAction } from "@/lib/telemetry/client";
 
 const updateMatchCompletionDeadline = observeAction("matches.updateMatchCompletionDeadline", telemetry_updateMatchCompletionDeadline);

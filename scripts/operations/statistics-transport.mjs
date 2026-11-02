@@ -1,10 +1,11 @@
+import { OFFICIAL_PRODUCTION } from "../../src/lib/runtime/official-deployment-profile.mjs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const FIRST_COMPATIBLE_COMMIT = "46ef46ad1677a73c0b6ed685ed8a7e4d18dfba81";
-const ENDPOINT = "https://match.starfie1d.top/api/system/release";
+const ENDPOINT = `${OFFICIAL_PRODUCTION.origin}/api/system/release`;
 const SHA = /^[a-f0-9]{40}$/i;
 const TAG = /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -66,8 +67,8 @@ export function commandArgs(input) {
 }
 
 export function executionEnvironment(env, mode) {
-  const result = { ...env, RIVALHUB_DB_TARGET: "production", RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "ggkxqgbiudlovcgizgsq",
-    RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: "aws-0-ap-northeast-1.pooler.supabase.com:6543" };
+  const result = { ...env, RIVALHUB_DB_TARGET: "production", RIVALHUB_PRODUCTION_PROJECT_CONFIRM: OFFICIAL_PRODUCTION.projectRef,
+    RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: `${OFFICIAL_PRODUCTION.poolerHost}:${OFFICIAL_PRODUCTION.poolerPort}` };
   delete result.RIVALHUB_ALLOW_REMOTE_DB_WRITE;
   delete result.RIVALHUB_STATS_PROJECTION_WRITE_CONFIRM;
   delete result.GITHUB_TOKEN;

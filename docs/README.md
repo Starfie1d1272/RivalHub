@@ -4,6 +4,8 @@
 
 ## 按任务进入
 
+面向使用者的产品介绍与本地启动从 [项目首页](../README.md) 开始；下表是维护者按问题查找事实和运维契约的入口。当前 2.x 不承诺第三方 production self-hosting；[部署与环境边界](deployment.md) 是官方实例的维护者文档，不是通用安装指南。3.0 的实施与验收状态见 [总控 #1326](https://github.com/Starfie1d1272/RivalHub/issues/1326)。
+
 | 任务 | 文档 |
 | --- | --- |
 | 第一次了解项目 | [`../README.md`](../README.md) |
@@ -15,6 +17,7 @@
 | 鉴权、权限、Data API | [`auth-and-permissions.md`](./auth-and-permissions.md) |
 | 数据分类、保留、删除与恢复语义 | [`security/data-lifecycle.md`](./security/data-lifecycle.md) |
 | 测试证据与 CI | [`testing.md`](./testing.md)、[`operations/ci.md`](./operations/ci.md) |
+| 部署支持范围与环境边界 | [`deployment.md`](./deployment.md) |
 | 本地开发、migration、staging、release | [`operations/`](./operations/) |
 | 应用备用机安装、Vercel 故障切换与回退 | [`operations/standby.md`](./operations/standby.md) |
 | Supabase 新组织迁库 | [`operations/supabase-relocation.md`](./operations/supabase-relocation.md) |
