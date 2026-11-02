@@ -49,21 +49,21 @@ export interface PlayerStrengthBreakdown {
 
 /** Evaluate only declared rank thresholds. Either configured threshold can qualify. */
 export function evaluateRankThreshold(
-  player: PlayerStrengthInput,
+  evidence: { currentRank: string | null; peakRank: string | null },
   threshold: { currentMin: string | null; peakMin: string | null },
   rankOrder: readonly string[],
 ): QualificationFinding[] {
   const checks = [
-    { field: "current_season_peak", minimum: threshold.currentMin, fact: player.currentSeasonPeak },
-    { field: "historical_peak", minimum: threshold.peakMin, fact: player.historicalPeak },
+    { field: "current_season_peak", minimum: threshold.currentMin, rank: evidence.currentRank },
+    { field: "historical_peak", minimum: threshold.peakMin, rank: evidence.peakRank },
   ].filter((check): check is typeof check & { minimum: string } => check.minimum !== null);
   if (checks.length === 0) return [];
   if (checks.some((check) => !rankOrder.includes(check.minimum))) {
     return [{ code: "competitive_context_unavailable", message: "报名段位门槛不在赛事段位映射中。", waivable: false, metadata: { field: "rank_threshold" } }];
   }
-  const meets = checks.some((check) => check.fact && rankOrder.indexOf(check.fact.rank) >= rankOrder.indexOf(check.minimum));
+  const meets = checks.some((check) => check.rank && rankOrder.indexOf(check.rank) >= rankOrder.indexOf(check.minimum));
   if (meets) return [];
-  const missing = checks.filter((check) => !check.fact || !rankOrder.includes(check.fact.rank));
+  const missing = checks.filter((check) => !check.rank || !rankOrder.includes(check.rank));
   if (missing.length > 0) {
     return [{ code: "competitive_profile_incomplete", message: "缺少可确认的报名段位门槛资料。", waivable: false, metadata: { field: "rank_threshold", missing: missing.map((check) => check.field) } }];
   }
@@ -344,7 +344,7 @@ export function evaluateExternalHistoricalGap(input: { players: readonly (Extern
   if (home.length === 0) {
     const findings: QualificationFinding[] = [{
       code: "external_strength_reference_missing",
-      message: "阵容中没有可确认的南京大学成员，无法执行外校成员实力限制。",
+      message: "阵容中没有符合本届机构规则的参考成员，无法执行外校成员实力限制。",
       waivable: false,
       metadata: { field: "home_reference" },
     }];

@@ -92,8 +92,8 @@ export function RegistrationForm({
     [inputRegistrationConfig],
   );
   const schema = useMemo(
-    () => buildRegistrationSchema(registrationConfig, positions, { policyV2, qqRequired }),
-    [registrationConfig, positions, policyV2, qqRequired],
+    () => buildRegistrationSchema(registrationConfig, positions, { policyV2 }),
+    [registrationConfig, positions, policyV2],
   );
   const activePositions = positions.length > 0 ? positions : [...positionValues];
 
