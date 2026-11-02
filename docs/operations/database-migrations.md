@@ -55,7 +55,7 @@ RIVALHUB_COMPARE_RIGHT_DATABASE_URL='<other isolated database URL>' \
 pnpm exec tsx scripts/db/verify-migrations.ts --compare-contract
 ```
 
-比较读取 PostgreSQL 版本、public 对象和权限、函数、触发器、RLS、Storage policy、受管理 bucket 及 publication 元数据；不输出业务行。权限按展开后的有效 ACL 项比较，列顺序按可见列比较，避免将默认 ACL 的两种内部表示或已删除列留下的编号空洞误认为契约差异；额外授权仍是差异。两端须使用同版本 PostgreSQL 和对应 provider 配置。此比较只是隔离演练的结构证据，不验证基础 catalog 行、业务数据、冻结事实或全部 provider 配置，也不授权接管数据库；这些须分别验证。
+比较读取 PostgreSQL 版本、public 对象和权限、函数、触发器、RLS、Storage policy、受管理 bucket 及 publication 元数据；不输出业务行。权限按展开默认 ACL 后的授权项比较，列顺序按可见列比较，避免将默认 ACL 的两种内部表示或已删除列留下的编号空洞误认为契约差异；额外授权仍是差异。两端须使用同版本 PostgreSQL 和对应 provider 配置。此比较只是隔离演练的结构证据，不验证角色成员关系、基础 catalog 行、业务数据、冻结事实或全部 provider 配置，也不授权接管数据库；这些须分别验证。
 
 Release workflow 的 plain PostgreSQL 17 rehearsal 使用：
 
