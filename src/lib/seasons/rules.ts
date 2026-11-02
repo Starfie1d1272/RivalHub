@@ -77,8 +77,8 @@ export function seasonCapabilityIssue(input: {
       return "现有成员位置与每位置上限不足以满足名单人数要求。";
     }
   }
-  if (input.externalStrengthGapEnabled && input.affiliationRuleCount === 0) return "外校实力星差需要至少一个本校机构作为参考。";
-  if (input.externalStrengthGapEnabled && !supportsExternalHistoricalGapTarget(input.externalStrengthTarget)) return "外校历史实力星差目前需要以完美世界为目标平台。";
+  if (input.isV2 && input.externalStrengthGapEnabled && input.affiliationRuleCount === 0) return "外校实力星差需要至少一个本校机构作为参考。";
+  if (input.isV2 && input.externalStrengthGapEnabled && !supportsExternalHistoricalGapTarget(input.externalStrengthTarget)) return "外校历史实力星差目前需要以完美世界为目标平台。";
   return null;
 }
 
