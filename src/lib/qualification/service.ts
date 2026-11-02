@@ -328,8 +328,10 @@ export const evaluateParticipant: EvaluateParticipant = (candidate, rules, evide
   });
   const educationState = resolveParticipantEducationReadiness(fact);
   if (rules.educationRequired && educationState !== "ready") findings.push(educationReadinessFinding(educationState));
-  if (rules.allowedPlayerTypes && (!candidate.playerType || !rules.allowedPlayerTypes.includes(candidate.playerType))) {
-    findings.push({ code: "player_type_ineligible", message: "所选身份类型不符合赛事报名要求。", waivable: false, metadata: { field: "player_type" } });
+  const allowedPlayerTypes = rules.allowedPlayerTypes;
+  const allPlayerTypesAllowed = allowedPlayerTypes && (["enrolled", "graduated", "external"] as const).every((type) => allowedPlayerTypes.includes(type));
+  if (allowedPlayerTypes && ((!candidate.playerType && !allPlayerTypesAllowed) || (candidate.playerType && !allowedPlayerTypes.includes(candidate.playerType)))) {
+    findings.push({ code: "player_type_ineligible", message: candidate.playerType ? "所选身份类型不符合赛事报名要求。" : "请声明本人参赛身份类型。", waivable: false, metadata: { field: "player_type" } });
   }
   const threshold = rules.rankThreshold;
   const hasThreshold = Boolean(threshold && (threshold.currentMin !== null || threshold.peakMin !== null));
