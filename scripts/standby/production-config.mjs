@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { OFFICIAL_PRODUCTION } from "../deployment-profile.mjs";
+import { OFFICIAL_PRODUCTION } from "../../src/lib/runtime/official-deployment-profile.mjs";
 
 export const PRODUCTION_ORIGIN = OFFICIAL_PRODUCTION.origin;
 export const PUBLIC_KEYS = [

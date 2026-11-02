@@ -1,4 +1,4 @@
-import { OFFICIAL_PREVIEW } from "../../deployment-profile.mjs";
+import { OFFICIAL_PREVIEW } from "../../../src/lib/runtime/official-deployment-profile.mjs";
 import { buildProductionEnvironment } from "../production-environment";
 import { buildStagingEnvironment, STAGING_PROJECT_REF } from "../staging-environment";
 

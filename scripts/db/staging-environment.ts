@@ -1,4 +1,4 @@
-import { OFFICIAL_PREVIEW } from "../deployment-profile.mjs";
+import { OFFICIAL_PREVIEW } from "../../src/lib/runtime/official-deployment-profile.mjs";
 import {
   assertProtectedRemoteDatabaseUrl,
   buildProtectedRemoteEnvironment,

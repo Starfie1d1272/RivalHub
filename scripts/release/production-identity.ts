@@ -1,4 +1,4 @@
-import { OFFICIAL_PRODUCTION } from "../deployment-profile.mjs";
+import { OFFICIAL_PRODUCTION } from "../../src/lib/runtime/official-deployment-profile.mjs";
 import { appendFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";

@@ -1,4 +1,4 @@
-import { OFFICIAL_PRODUCTION } from "../../deployment-profile.mjs";
+import { OFFICIAL_PRODUCTION } from "../../../src/lib/runtime/official-deployment-profile.mjs";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import type { ExpectedMigration } from "../production-preflight";

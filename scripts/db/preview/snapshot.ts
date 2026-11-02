@@ -1,4 +1,4 @@
-import { OFFICIAL_PREVIEW, OFFICIAL_PRODUCTION } from "../../deployment-profile.mjs";
+import { OFFICIAL_PREVIEW, OFFICIAL_PRODUCTION } from "../../../src/lib/runtime/official-deployment-profile.mjs";
 import { postgresConnection } from "../../../src/db/postgres-connection";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";

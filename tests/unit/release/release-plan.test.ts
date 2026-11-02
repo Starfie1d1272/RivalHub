@@ -58,7 +58,7 @@ describe("release plan", () => {
   it("provisions scheduler on the production target even when scheduler definitions are unchanged", () => {
     const result = plan([{ status: "M", paths: ["scripts/db/production-environment.ts"] }]);
 
-    expect(plan([{ status: "M", paths: ["scripts/deployment-profile.mjs"] }]).requiresSchedulerProvision).toBe(true);
+    expect(plan([{ status: "M", paths: ["src/lib/runtime/official-deployment-profile.mjs"] }]).requiresSchedulerProvision).toBe(true);
     expect(result.schedulerChanged).toBe(true);
     expect(result.requiresSchedulerProvision).toBe(true);
     expect(result.requiresProductionMigration).toBe(false);

@@ -1,4 +1,4 @@
-import { OFFICIAL_PRODUCTION } from "../deployment-profile.mjs";
+import { OFFICIAL_PRODUCTION } from "../../src/lib/runtime/official-deployment-profile.mjs";
 import {
   assertProtectedRemoteDatabaseUrl,
   assertRemoteConfirmations,
