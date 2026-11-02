@@ -197,19 +197,24 @@ export function getFirstStageOfType(
 export function resolveQualificationPolicy(
   config: PartialTeamConfig | null | undefined,
   affiliationRules: readonly InstitutionAffiliationRule[] | null | undefined = [],
+  legacyUse: "participant" | "roster" = "participant",
 ): QualificationPolicyV1 {
   if (config?.qualificationPolicy) return qualificationPolicySchema.parse(config.qualificationPolicy);
   const normalized = normalizeTeamRegistrationConfig(config);
   const required = normalized.requireCompetitiveProfile === true;
   const rules = normalizeAffiliationRules(affiliationRules);
+  // Historically Major start also evaluated a configured profile when the
+  // registration requirement was disabled. Participant readiness did not.
+  const legacyReadiness = required || (legacyUse === "roster" && !!normalized.competitiveProfile);
+  const legacyEducation = legacyReadiness || (legacyUse === "roster" && rules.length > 0);
   return {
     version: 1,
-    educationRequired: required || rules.length > 0,
+    educationRequired: legacyEducation,
     affiliationRules: rules,
-    competitiveProfileRequired: required,
+    competitiveProfileRequired: legacyReadiness,
     competitiveProfile: normalized.competitiveProfile ?? null,
     externalStrengthGap: { enabled: !!normalized.competitiveProfile, maxGap: normalized.competitiveProfile?.externalStrengthMaxStarGap ?? 3 },
-    contacts: { qqRequired: required, emailVerifiedRequired: required || rules.length > 0 },
+    contacts: { qqRequired: legacyReadiness, emailVerifiedRequired: legacyEducation },
   };
 }
 
