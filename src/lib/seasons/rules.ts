@@ -4,7 +4,6 @@ import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeTeamRe
 import type { Season, StoredTeamRegistrationConfigV2, QualificationPolicyV2 } from "@/types/season";
 import type { QualificationFinding } from "@/lib/qualification/finding";
 import type { ParticipantQualificationFacts } from "@/lib/qualification/facts";
-import type { PlayerStrengthInput, PlayerStrengthFact } from "@/lib/major/player-strength";
 import type { LineupMemberFact } from "@/lib/match-rosters/lineup";
 import type { competitionEntries, competitionEntryRosterRevisions, competitionEntryParticipants, seasonRegistrations } from "@/db/schema";
 
@@ -33,15 +32,25 @@ export type DecodedSeasonRules = {
   competitive: Pick<QualificationPolicyV2, "competitiveProfile" | "externalStrengthGap">;
   competition: Pick<SeasonRuleColumns, "stagePlan"> & { seeding: V2Extensions["seeding"] | null };
 };
+/** Context is needed for any configured competitive purpose, independently. */
+export function seasonRulesNeedCompetitiveContext(rules: Pick<DecodedSeasonRules, "participant" | "competitive">): boolean {
+  return rules.participant.competitiveProfileRequired || rules.competitive.externalStrengthGap.enabled ||
+    Boolean(rules.participant.rankThreshold?.currentMin || rules.participant.rankThreshold?.peakMin);
+}
+
 export type SeasonRuleColumnPatch = Partial<SeasonRuleColumns>;
 export type QualificationDecision = { state: "ready"; findings: readonly [] } | { state: "blocked"; findings: readonly [QualificationFinding, ...QualificationFinding[]] };
+/** Incomplete facts remain representable for readiness and remediation. */
+export type ProfileReadinessFact = { status: "ranked" | "unranked"; rank: string | null; rating: number | null; stars: number | null; sourcePlatform: string; sourceSeasonKey: string | null };
+export type ExternalStrengthFact = { label: string; rank: string | null; stars: number | null; sourcePlatform: string; sourceSeasonKey: string | null; sourceRank: string | null };
 export type QualificationEvidence = { kind: "none" } | {
   kind: "competitive";
   context: { profile: import("@/types/season").CompetitiveProfileConfig | null; platform: string; rankOrder: readonly string[]; fallback: import("@/types/season").CompetitiveFallbackConversion | null; sourceSelection: "primary_then_fallback" | "strongest_equivalent"; evidencePolicy: import("@/types/season").CompetitiveEvidencePolicy | null };
   requirements: { historicalPeak: boolean; seasonKeys: readonly string[]; ratingRequired: boolean; exactStarsRequired: boolean };
   byPurpose: {
-    profileReadiness: ReadonlyMap<string, { historicalPeak: PlayerStrengthFact | null; seasons: ReadonlyMap<string, PlayerStrengthFact | null> }>;
-    externalStrength: ReadonlyMap<string, PlayerStrengthInput>;
+    profileReadiness: ReadonlyMap<string, { historicalPeak: ProfileReadinessFact | null; seasons: ReadonlyMap<string, ProfileReadinessFact | null> }>;
+    rankThreshold: ReadonlyMap<string, { currentRank: string | null; peakRank: string | null }>;
+    externalStrength: ReadonlyMap<string, ExternalStrengthFact>;
   };
 };
 export type ParticipantCandidate = { userId: string; facts: ParticipantQualificationFacts; playerType: import("@/types/season").PlayerType | null };
