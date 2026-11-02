@@ -63,7 +63,7 @@ import { presentMatchStage, presentSchedulingAction } from "@/lib/matches/presen
 import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
 import { loadMatchRosters } from "@/lib/match-rosters/read-model";
 import { getUserSession, requireSeasonAdmin } from "@/lib/auth/session";
-import { ErrorCode, isAppErrorCode, isExpectedAuthFailure } from "@/lib/errors";
+import { AppError, isExpectedAuthFailure } from "@/lib/errors";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import {
   buildRoster,
@@ -287,7 +287,7 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
 
   const captainLineup = (isCaptainA || isCaptainB) && match.status === "scheduled"
     ? await db.transaction((tx) => getStartingLineupPreflightInTx(tx, { match, entryId: isCaptainA ? match.entryAId : match.entryBId, starterIds: [] })).then(result => ({ policy: result.policy, error: null })).catch((error: unknown) => {
-      if (!isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)) throw error;
+      if (!(error instanceof AppError)) throw error;
       return { policy: null, error: error.message };
     })
     : null;

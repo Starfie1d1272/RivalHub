@@ -26,7 +26,7 @@ import { commentaryAdminEligibility } from "@/lib/postmatch/eligibility";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
 import { requiresCompetitionLineupPreflight } from "@/lib/match-rosters/policy";
-import { ErrorCode, isAppErrorCode } from "@/lib/errors";
+import { AppError } from "@/lib/errors";
 import { mapLabel } from "@/lib/maps";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getPostMatchCompletion, POST_MATCH_COMPLETION_LABEL } from "@/lib/postmatch/completion";
@@ -214,7 +214,7 @@ export async function loadAdminMatchWorkbench({
       }));
       return { policy: result.policy, error: null, preflight: showPreflight ? { valid: result.valid, blockers: result.blockers } : null };
     } catch (error) {
-      if (!isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)) throw error;
+      if (!(error instanceof AppError)) throw error;
       return { policy: null, error: error.message, preflight: showPreflight ? { valid: false, blockers: [error.message] } : null };
     }
   })) : [null, null];
