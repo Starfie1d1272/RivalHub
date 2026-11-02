@@ -103,7 +103,8 @@ export function assertIsolatedInstanceBackupEnvironment(
   if (env.RIVALHUB_DB_TARGET !== "local" || env.RIVALHUB_ALLOW_REMOTE_DB_WRITE) throw new Error("Isolated backup requires local-only configuration.");
   assertLocalContainerAccess("isolated instance recovery backup", env);
   const workdir = resolve(required(env.RIVALHUB_BACKUP_SUPABASE_WORKDIR, "RIVALHUB_BACKUP_SUPABASE_WORKDIR"));
-  const status = spawnSync("pnpm", ["exec", "supabase", "status", "--workdir", workdir, "--output", "json"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+  const status = spawnSync(pnpmBin, ["exec", "supabase", "status", "--workdir", workdir, "--output", "json"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   if (status.error || status.status !== 0) throw new Error("Local backup source status unavailable.");
   const local = parseLocalSupabaseStatus(status.stdout);
   const config = readFileSync(resolve(workdir, "supabase/config.toml"), "utf8");
