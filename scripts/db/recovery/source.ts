@@ -1,4 +1,4 @@
-import { OFFICIAL_PRODUCTION } from "../../../src/lib/runtime/official-deployment-profile.mjs";
+import { OFFICIAL_PREVIEW, OFFICIAL_PRODUCTION } from "../../../src/lib/runtime/official-deployment-profile.mjs";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import type { ExpectedMigration } from "../production-preflight";
@@ -17,7 +17,27 @@ export async function resolveProductionSourceIdentity(
   env: Readonly<Record<string, string | undefined>> = process.env,
   fetcher: ProductionReleaseFetcher = fetch,
 ): Promise<Omit<RecoverySourceIdentity, "databaseMigrationTerminal">> {
-  const endpoint = buildReleaseEndpoint(env.RIVALHUB_PRODUCTION_BASE_URL);
+  return readSourceIdentity(buildReleaseEndpoint(env.RIVALHUB_PRODUCTION_BASE_URL), cwd, fetcher);
+}
+
+/** The source is the actual running independent instance, never the candidate. */
+export async function resolveInstanceSourceIdentity(
+  origin: string,
+  cwd = projectRoot,
+  fetcher: ProductionReleaseFetcher = fetch,
+): Promise<Omit<RecoverySourceIdentity, "databaseMigrationTerminal">> {
+  const endpoint = buildReleaseEndpoint(origin);
+  if (new URL(endpoint).origin === OFFICIAL_PRODUCTION.origin || new URL(endpoint).hostname === new URL(OFFICIAL_PREVIEW.supabaseUrl).hostname) {
+    throw new Error("Official source cannot be used as an independent instance.");
+  }
+  return readSourceIdentity(endpoint, cwd, fetcher);
+}
+
+async function readSourceIdentity(
+  endpoint: string,
+  cwd: string,
+  fetcher: ProductionReleaseFetcher,
+): Promise<Omit<RecoverySourceIdentity, "databaseMigrationTerminal">> {
   let response: Response;
   try {
     response = await fetcher(endpoint, {
@@ -29,24 +49,24 @@ export async function resolveProductionSourceIdentity(
     });
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(`canonical production release identity read-back failed: ${reason}`);
+    throw new Error(`canonical release identity read-back failed: ${reason}`);
   }
 
   if (!response.ok) {
-    throw new Error(`canonical production release identity returned HTTP ${response.status}; backup aborted.`);
+    throw new Error(`canonical release identity returned HTTP ${response.status}; backup aborted.`);
   }
 
   let value: unknown;
   try {
     value = await response.json();
   } catch {
-    throw new Error("canonical production release identity response is not valid JSON; backup aborted.");
+    throw new Error("canonical release identity response is not valid JSON; backup aborted.");
   }
 
-  const identity = assertReleaseIdentity(value, "canonical production release identity");
+  const identity = assertReleaseIdentity(value, "canonical release identity");
   const taggedCommit = resolveGitRevision(cwd, `refs/tags/${identity.releaseTag}^{commit}`);
   if (taggedCommit.toLowerCase() !== identity.releaseCommit.toLowerCase()) {
-    throw new Error("canonical production release identity tag 与 commit 不匹配；backup aborted.");
+    throw new Error("canonical release identity tag 与 commit 不匹配；backup aborted.");
   }
   return { deployedReleaseTag: identity.releaseTag, deployedCommit: identity.releaseCommit };
 }
@@ -89,7 +109,7 @@ function resolveGitRevision(cwd: string, ref: string): string {
   });
   const commit = result.stdout.trim();
   if (result.error || result.status !== 0 || !/^[0-9a-f]{40}$/i.test(commit)) {
-    throw new Error("production source tag 无法解析为 commit；backup aborted。 ");
+    throw new Error("source tag 无法解析为 commit；backup aborted。 ");
   }
   return commit;
 }

@@ -1,4 +1,5 @@
-import { OFFICIAL_PRODUCTION } from "../../../src/lib/runtime/official-deployment-profile.mjs";
+import { OFFICIAL_PREVIEW, OFFICIAL_PRODUCTION } from "../../../src/lib/runtime/official-deployment-profile.mjs";
+import { postgresConnection } from "../../../src/db/postgres-connection";
 import { requireSupabaseSecretKey } from "../../../src/lib/runtime/supabase-keys";
 import {
   assertProductionBackupDatabaseUrl,
@@ -89,6 +90,33 @@ export function assertProductionBackupEnvironment(
 }
 
 /** Production DB-only checkpoint target; it deliberately has no Storage credential. */
+/** Explicit non-official instance source; never inherits production defaults. */
+export function assertInstanceBackupEnvironment(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): ProductionBackupEnvironment & { projectRef: string; appOrigin: string } {
+  const projectRef = required(env.RIVALHUB_INSTANCE_PROJECT_REF, "RIVALHUB_INSTANCE_PROJECT_REF");
+  if (!/^[a-z]{20}$/.test(projectRef) || isProductionRecoverySource(projectRef) || projectRef === OFFICIAL_PREVIEW.projectRef
+    || env.RIVALHUB_INSTANCE_CONFIRM !== projectRef) throw new Error("Confirmed non-official instance project required.");
+  const supabaseUrl = required(env.NEXT_PUBLIC_SUPABASE_URL, "NEXT_PUBLIC_SUPABASE_URL");
+  if (supabaseUrl !== `https://${projectRef}.supabase.co`) throw new Error("Instance Supabase API identity mismatch.");
+  const databaseUrl = required(env.DATABASE_URL, "DATABASE_URL");
+  let db: URL;
+  try { db = new URL(databaseUrl); } catch { throw new Error("Instance database URL invalid."); }
+  const direct = db.hostname === `db.${projectRef}.supabase.co` && (!db.port || db.port === "5432");
+  const pooler = /^aws-[0-9]+-[a-z0-9-]+\.pooler\.supabase\.com$/.test(db.hostname)
+    && decodeURIComponent(db.username) === `postgres.${projectRef}` && (!db.port || db.port === "5432");
+  if ((!direct && !pooler) || db.pathname !== "/postgres" || db.hash
+    || [...db.searchParams.keys()].some(key => key !== "sslmode")) throw new Error("Instance backup database identity mismatch.");
+  postgresConnection(databaseUrl);
+  return {
+    databaseUrl, supabaseUrl, projectRef,
+    appOrigin: required(env.NEXT_PUBLIC_APP_URL, "NEXT_PUBLIC_APP_URL"),
+    supabaseSecretKey: requireSupabaseSecretKey(env.SUPABASE_SECRET_KEY, supabaseUrl),
+    ageRecipient: assertAgeRecipient(required(env.RIVALHUB_BACKUP_AGE_RECIPIENT, "RIVALHUB_BACKUP_AGE_RECIPIENT")),
+    r2: assertRecoveryFetchEnvironment(env),
+  };
+}
+
 export function assertProductionDbCheckpointEnvironment(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): ProductionDbCheckpointEnvironment {

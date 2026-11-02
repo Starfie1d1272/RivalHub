@@ -48,7 +48,7 @@ interface RecoveryManifestBase {
   formatVersion: typeof RECOVERY_FORMAT_VERSION;
   runId: string;
   createdAt: string;
-  sourceEnvironment: "production";
+  sourceEnvironment: "production" | "instance";
   sourceProjectRef: string;
   postgresVersion: string;
   supabaseCliVersion: string;
@@ -134,7 +134,7 @@ export function assertRecoveryManifest(value: unknown): RecoveryManifest {
   const manifest = value as Partial<RecoveryManifest> & Record<string, unknown>;
   if (
     manifest.formatVersion !== RECOVERY_FORMAT_VERSION
-    || manifest.sourceEnvironment !== "production"
+    || (manifest.sourceEnvironment !== "production" && manifest.sourceEnvironment !== "instance")
     || typeof manifest.runId !== "string"
     || typeof manifest.createdAt !== "string"
     || typeof manifest.sourceProjectRef !== "string"

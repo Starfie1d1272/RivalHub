@@ -1,3 +1,4 @@
+import { OFFICIAL_PREVIEW } from "../../../src/lib/runtime/official-deployment-profile.mjs";
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -284,7 +285,10 @@ function extractSafeArchive(archivePath: string, destination: string): void {
 }
 
 function assertManifestCompatibility(manifest: RecoveryManifest): void {
-  if (!isProductionRecoverySource(manifest.sourceProjectRef) || manifest.database.schemas.join(",") !== "public,auth") {
+  const validSource = manifest.sourceEnvironment === "production"
+    ? isProductionRecoverySource(manifest.sourceProjectRef)
+    : !isProductionRecoverySource(manifest.sourceProjectRef) && manifest.sourceProjectRef !== OFFICIAL_PREVIEW.projectRef;
+  if (!validSource || manifest.database.schemas.join(",") !== "public,auth") {
     throw new Error("Recovery manifest source or schema identity is incompatible; restore aborted. ");
   }
   const sourceTagCommit = resolveReleaseTagCommit(manifest.source.deployedReleaseTag);
