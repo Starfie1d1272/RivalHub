@@ -6,6 +6,7 @@ import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { db } from "@/db/client";
 import { institutions } from "@/db/schema";
 import { inArray } from "drizzle-orm";
+import { loadConversionPolicyAdminSummaries } from "@/lib/competitive/conversion-policy-admin";
 import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
 import { PageLayout } from "@/components/rivalhub";
 
@@ -14,15 +15,17 @@ export default async function NewSeasonPage() {
 
   const major = createCompetitionTemplate("major");
   const codes = major.affiliationRules.map(rule => rule.institutionCode).filter(Boolean);
-  const [catalog, institutionRows] = await Promise.all([
+  const [catalog, institutionRows, conversionPolicies] = await Promise.all([
     loadCompetitivePlatformCatalog(db, { concurrent: true }),
     codes.length ? db.query.institutions.findMany({ where: inArray(institutions.moeInstitutionCode, codes), columns: { id: true, name: true, moeInstitutionCode: true, province: true } }) : [],
+    loadConversionPolicyAdminSummaries(db),
   ]);
 
   return (
     <PageLayout variant="narrow">
       <SeasonForm
         mode="create"
+        conversionPolicies={conversionPolicies.filter(policy => policy.status === "approved").map(({ id, version, isCurrent }) => ({ id, version, isCurrent }))}
         institutionOptions={institutionRows.map(row => ({ id: row.id, name: row.name, code: row.moeInstitutionCode, province: row.province }))}
         competitivePlatforms={catalog.map((platform) => ({ key: platform.key, displayName: platform.displayName, seasons: platform.seasons.map((season) => ({ seasonKey: season.seasonKey, label: season.label, active: season.active })), ranks: platform.ranks.map((rank) => ({ rankKey: rank.rankKey, label: rank.label })) }))}
         initial={{
