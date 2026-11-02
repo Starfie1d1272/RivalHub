@@ -47,7 +47,7 @@ import { canMutateCompetitionEntryRoster } from "@/lib/competition-entries/remed
 import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entries/roster-change";
 import { normalizeTeamRegistrationConfig, resolveQualificationPolicy } from "@/lib/seasons/compatibility";
 import { decodeSeasonRules, type RosterCandidate, type DecodedSeasonRules, type QualificationDecision, type QualificationEvidence } from "@/lib/seasons/rules";
-import { buildQualificationEvidence, type CompetitivePurpose } from "@/lib/qualification/evidence";
+import { buildQualificationEvidence, deriveCompetitiveRequirements, type CompetitivePurpose } from "@/lib/qualification/evidence";
 import { evaluateRoster } from "@/lib/competition-entries/evaluate-roster";
 import { uniqueQualificationFindings } from "@/lib/qualification/finding";
 import type { PlayerType } from "@/types/season";
@@ -259,6 +259,15 @@ async function validateEntryRosterInTx(
   return { revision, rosterSize: readiness.rosterSize, primaryIds, qualification };
 }
 
+function rosterCompetitivePurposes(rules: DecodedSeasonRules): CompetitivePurpose[] {
+  const participant = rules.roster.legacyParticipant ?? rules.participant;
+  const purposes: CompetitivePurpose[] = [];
+  if (participant.competitiveProfileRequired) purposes.push("profile_completeness");
+  if (participant.rankThreshold?.currentMin || participant.rankThreshold?.peakMin) purposes.push("rank_threshold");
+  if (rules.competitive.externalStrengthGap.enabled) purposes.push("external_historical_gap");
+  return purposes;
+}
+
 /** Assemble authoritative candidate facts under the caller's transaction and locks. */
 export async function loadEntryRosterCandidateInTx(
   tx: TxDb,
@@ -277,8 +286,10 @@ export async function loadEntryRosterCandidateInTx(
   if (rows.some((row) => row.participantEntryId !== entry.id || row.participantUserId !== row.userId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "名单成员记录与参赛队不一致。 ");
   const ids = rows.map((row) => row.userId);
   const profile = rules.competitive.competitiveProfile;
+  const purposes = rosterCompetitivePurposes(rules);
+  const participantRules = rules.roster.legacyParticipant ?? rules.participant;
   const [factsByUser, registrations, roles, claims, memberships, registrationBlocks, rosterBlocks, nameConflicts] = await Promise.all([
-    loadParticipantQualificationFacts(ids, { executor: tx, includeCompetitiveFacts: rules.participant.competitiveProfileRequired || rules.competitive.externalStrengthGap.enabled || Boolean(rules.participant.rankThreshold?.currentMin || rules.participant.rankThreshold?.peakMin), platform: profile?.platform, fallbackPlatform: profile?.fallbackConversion?.sourcePlatform }),
+    loadParticipantQualificationFacts(ids, { executor: tx, includeCompetitiveFacts: purposes.length > 0, platform: profile?.platform, fallbackPlatform: profile?.fallbackConversion?.sourcePlatform, ...(profile ? { competitiveRequirements: deriveCompetitiveRequirements(purposes, profile, participantRules) } : {}) }),
     ids.length ? tx.select({ id: seasonRegistrations.id, userId: seasonRegistrations.userId, status: seasonRegistrations.status, primaryPosition: seasonRegistrations.primaryPosition, playerType: seasonRegistrations.playerType }).from(seasonRegistrations).where(and(eq(seasonRegistrations.seasonId, season.id), inArray(seasonRegistrations.userId, ids))) : [],
     ids.length ? tx.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role }).from(userCompetitiveRoles).where(and(inArray(userCompetitiveRoles.userId, ids), eq(userCompetitiveRoles.isPrimary, true))) : [],
     ids.length ? tx.select({ userId: competitionEntryActiveClaims.userId, entryId: competitionEntryActiveClaims.entryId }).from(competitionEntryActiveClaims).where(and(eq(competitionEntryActiveClaims.competitionId, season.id), inArray(competitionEntryActiveClaims.userId, ids))) : [],
@@ -320,16 +331,14 @@ export type EntryRosterAssessment = {
 /** Always load and evaluate fresh facts inside the caller's transaction. */
 export async function assessEntryRosterInTx(tx: TxDb, input: { entryId: string; expectedRevisionId: string }): Promise<EntryRosterAssessment> {
   const { candidate, rules } = await loadEntryRosterCandidateInTx(tx, input);
-  const purposes: CompetitivePurpose[] = [];
-  if (rules.participant.competitiveProfileRequired) purposes.push("profile_completeness");
-  if (rules.participant.rankThreshold?.currentMin || rules.participant.rankThreshold?.peakMin) purposes.push("rank_threshold");
-  if (rules.competitive.externalStrengthGap.enabled) purposes.push("external_historical_gap");
+  const participantRules = rules.roster.legacyParticipant ?? rules.participant;
+  const purposes = rosterCompetitivePurposes(rules);
   const profile = rules.competitive.competitiveProfile;
-  const evidence: QualificationEvidence = profile ? buildQualificationEvidence(candidate.factsByUser, profile, rules.participant, purposes) : { kind: "none" };
+  const evidence: QualificationEvidence = profile ? buildQualificationEvidence(candidate.factsByUser, profile, participantRules, purposes) : { kind: "none" };
   const participantDecisions = new Map<string, QualificationDecision>();
   for (const member of candidate.members) {
     const facts = candidate.factsByUser.get(member.userId);
-    participantDecisions.set(member.userId, facts ? evaluateParticipant({ userId: member.userId, facts, playerType: member.playerType }, rules.roster.legacyParticipant ?? rules.participant, evidence) : { state: "blocked", findings: [{ code: "participant_missing", message: "名单成员资料不可用。", waivable: false, metadata: { userId: member.userId } }] });
+    participantDecisions.set(member.userId, facts ? evaluateParticipant({ userId: member.userId, facts, playerType: member.playerType }, participantRules, evidence) : { state: "blocked", findings: [{ code: "participant_missing", message: "名单成员资料不可用。", waivable: false, metadata: { userId: member.userId } }] });
   }
   const rosterDecision = evaluateRoster(candidate, rules, evidence);
   const findings = uniqueQualificationFindings([...participantDecisions.values()].flatMap((result) => [...result.findings]).concat([...rosterDecision.findings]));

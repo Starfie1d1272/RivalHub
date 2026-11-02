@@ -1,5 +1,5 @@
 import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification } from "@/lib/education/eligibility";
-import { evaluateExternalStrengthRule } from "@/lib/major/player-strength";
+import { evaluateExternalStrengthRule } from "@/lib/competitive/player-strength";
 import { uniqueQualificationFindings, type QualificationFinding } from "@/lib/qualification/finding";
 import type { EvaluateRoster } from "@/lib/seasons/rules";
 
