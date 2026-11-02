@@ -48,6 +48,7 @@ async function fixture(work: (f: Fixture) => Promise<void>, capacity: 24 | 32 = 
   await withScratchDatabase("prediction_test", async (client) => {
     for (const file of migrationFiles((name) => /^\d{4}_.*\.sql$/.test(name) && !(legacyHistory && name.startsWith("0109_"))))
       await replayMigration(client, file);
+    await client.query(readFileSync("drizzle/migrations/0001_amused_kang.sql", "utf8"));
     const url = new URL(localDatabaseUrl());
     url.pathname = `/${(await client.query<{ name: string }>("select current_database() as name")).rows[0]!.name}`;
     const pool = new Pool({
