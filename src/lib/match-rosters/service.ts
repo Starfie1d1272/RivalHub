@@ -295,6 +295,9 @@ export async function loadMatchEligibilityContextInTx(
       }
       // Parse once before every frozen consumer; never use mutable season rules.
       const frozenSnapshot = parseMajorRunSnapshot(stageRun.ruleSnapshot, stageRun.stageKey);
+      if (frozenSnapshot.qualificationPolicy && "version" in frozenSnapshot.qualificationPolicy && frozenSnapshot.qualificationPolicy.version === 2) {
+        throw new AppError(ErrorCode.INTERNAL_ERROR, "新版阶段资格必须通过冻结快照评价入口读取。");
+      }
       externalStrengthGapEnabled = frozenSnapshot.qualificationPolicy?.externalStrengthGap?.enabled === true;
       competitiveProfileRequired = frozenSnapshot.qualificationPolicy && "competitiveProfileRequired" in frozenSnapshot.qualificationPolicy
         ? frozenSnapshot.qualificationPolicy.competitiveProfileRequired === true : frozenSnapshot.competitiveProfile !== null;
@@ -409,6 +412,37 @@ export async function getStartingLineupPreflightInTx(
   tx: TxDb,
   args: { match: Match; entryId: string; starterIds: readonly string[]; substituteIds?: readonly string[] },
 ): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number> }> {
+  if (args.match.ownership === "major_stage") {
+    if (args.entryId !== args.match.entryAId && args.entryId !== args.match.entryBId || !args.match.majorStageRunId) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛缺少对应的参赛队或阶段。");
+    }
+    const [run] = await tx.select({ ruleSnapshot: majorStageRuns.ruleSnapshot, stageKey: majorStageRuns.stageKey }).from(majorStageRuns)
+      .where(and(eq(majorStageRuns.id, args.match.majorStageRunId), eq(majorStageRuns.seasonId, args.match.seasonId), eq(majorStageRuns.stageKey, args.match.stage)));
+    if (!run) throw new AppError(ErrorCode.INTERNAL_ERROR, "托管比赛缺少对应的 StageRun。");
+    const stage = parseMajorRunSnapshot(run.ruleSnapshot, run.stageKey);
+    if (stage.qualificationPolicy && "version" in stage.qualificationPolicy && stage.qualificationPolicy.version === 2) {
+      const snapshot = stage.frozenEligibilitySnapshots?.find((item) => item.entryId === args.entryId);
+      if (!snapshot) throw new AppError(ErrorCode.VALIDATION_FAILED, "StageRun 缺少本队的冻结资格快照。");
+      const [roster] = await tx.select({ id: eventRosters.id, status: eventRosters.status, revisionId: eventRosters.sourceRosterRevisionId })
+        .from(eventRosters).innerJoin(competitionEntries, eq(competitionEntries.id, eventRosters.entryId))
+        .where(and(eq(eventRosters.entryId, args.entryId), eq(competitionEntries.competitionId, args.match.seasonId)));
+      if (!roster || roster.status !== "frozen" || !roster.revisionId) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事名单尚未冻结。");
+      const frozen = decodeFrozenLineupEligibility(snapshot, { seasonId: args.match.seasonId, entryId: args.entryId, rosterRevisionId: roster.revisionId });
+      if (frozen.starterCount !== stage.rosterRules.starterCount) throw new AppError(ErrorCode.VALIDATION_FAILED, "StageRun 首发人数与冻结资格快照不一致。");
+      const members = await tx.select({ id: eventRosterMembers.id, userId: eventRosterMembers.userId }).from(eventRosterMembers)
+        .where(and(eq(eventRosterMembers.eventRosterId, roster.id), eq(eventRosterMembers.isCurrent, true)));
+      if (members.length !== frozen.membersById.size || members.some((member) => frozen.membersById.get(member.id)?.userId !== member.userId)) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "StageRun 快照与赛事名单成员不一致。");
+      }
+      const bans = await loadActiveSanctionsInTx(tx, { seasonId: args.match.seasonId, effect: "match_participation_block", subjectUserIds: members.map((member) => member.userId) });
+      const proposed = { entryId: args.entryId, starterMemberIds: args.starterIds, substituteMemberIds: args.substituteIds ?? [] };
+      const result = evaluateLineup(proposed, frozen, new Set(bans.keys()));
+      const counts = evaluateStartingLineup({ starterIds: proposed.starterMemberIds, substituteIds: proposed.substituteMemberIds,
+        policy: { starterCount: frozen.starterCount, maxSubstitutes: frozen.maxSubstitutes }, memberFacts: frozen.membersById,
+        affiliationRules: frozen.affiliationRules, educationRequired: frozen.educationRequired }).affiliatedStarterCounts;
+      return { valid: result.state === "ready", blockers: result.findings.map((finding) => finding.message), affiliatedStarterCounts: counts };
+    }
+  }
   if (args.match.ownership !== "major_stage") {
     if (args.entryId !== args.match.entryAId && args.entryId !== args.match.entryBId) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "参赛队伍不属于本场比赛。");

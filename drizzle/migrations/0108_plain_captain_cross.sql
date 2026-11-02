@@ -1,2 +1,3 @@
 ALTER TABLE "competition_entry_participants" ADD COLUMN "player_type" text;--> statement-breakpoint
+-- rivalhub:migration-risk: locking-reviewed Validates existing nullable declarations under a brief table lock; schedule migration before application rollout.
 ALTER TABLE "competition_entry_participants" ADD CONSTRAINT "competition_entry_participants_player_type_check" CHECK ("competition_entry_participants"."player_type" IS NULL OR "competition_entry_participants"."player_type" IN ('enrolled', 'graduated', 'external'));

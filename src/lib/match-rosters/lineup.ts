@@ -1,6 +1,5 @@
 import { qualificationFindingCoveredByApproval, type QualificationFinding } from "@/lib/qualification/finding";
-import { evaluateExternalStrengthRule } from "@/lib/major/player-strength";
-import { evaluateCompetitiveProfileReadiness } from "@/lib/competitive/player-strength";
+import { evaluateCompetitiveProfileReadiness, evaluateExternalHistoricalGap } from "@/lib/competitive/player-strength";
 import type { InstitutionAffiliationRule } from "@/types/season";
 import type { MatchLineupPolicy } from "./policy";
 
@@ -195,13 +194,10 @@ export const evaluateLineup: import("@/lib/seasons/rules").EvaluateLineup = (pro
         }
         if (!fact) return [];
         const isHome = frozen.affiliationRules.some((rule) => isEligibleForRule(member, rule));
-        return [{ userId: member.userId, label: fact.label, isHome,
-          historicalPeak: fact.rank ? { rank: fact.rank, rating: 0, ratingComparable: false, stars: fact.stars,
-            sourcePlatform: fact.sourcePlatform, sourceSeasonKey: fact.sourceSeasonKey, ...(fact.sourceRank ? { sourceRank: fact.sourceRank } : {}) } : null,
-          previousSeasonPeak: null, currentSeasonPeak: null }];
+        return [{ userId: member.userId, isHome, ...fact }];
       });
       if (frozen.externalStrengthGap.enabled && players.length === proposed.starterMemberIds.length) {
-        const result = evaluateExternalStrengthRule({ players, config: { ...evidence.context.profile, externalStrengthMaxStarGap: frozen.externalStrengthGap.maxGap } });
+        const result = evaluateExternalHistoricalGap({ players, maxGap: frozen.externalStrengthGap.maxGap, sourceSelection: evidence.context.sourceSelection });
         findings.push(...result.findings.filter((finding) => !finding.waivable || !frozen.overrides.some((override) =>
           override.restrictionCode === finding.code && qualificationFindingCoveredByApproval(override.findingSnapshot, finding))));
       }
