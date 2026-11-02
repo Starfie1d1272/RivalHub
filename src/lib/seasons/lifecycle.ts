@@ -316,10 +316,14 @@ export async function assertV2CompetitiveContext(tx: Transaction, rules: ReturnT
   const profile = rules.competitive.competitiveProfile;
   if (needsContext && !profile) throw new AppError(ErrorCode.VALIDATION_FAILED, "资格规则或实力推荐种子需要竞技平台，请先完成配置。 ");
   if (profile && needsContext) {
-    const weighted = rules.participant.competitiveProfileRequired || rules.competition.seeding?.mode === "strength_recommendation";
+    const recommendsSeeds = rules.competition.seeding?.mode === "strength_recommendation";
     if ((rules.participant.rankThreshold?.currentMin || rules.participant.rankThreshold?.peakMin) && !profile.rankOrder.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "段位门槛需要配置平台段位顺序。 ");
     if (rules.participant.rankThreshold?.currentMin && !profile.currentSeasonKey) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前段位门槛需要配置当前赛季。 ");
-    if (weighted && !await resolveCompetitiveContext(profile)) throw new AppError(ErrorCode.VALIDATION_FAILED, "竞技资料或实力推荐需要完整的赛季、段位和换算配置。 ");
+    if (rules.participant.competitiveProfileRequired) {
+      const seasons = profile.evidencePolicy ? [profile.evidencePolicy.referenceSeasonKey, ...profile.evidencePolicy.recentSeasonKeys] : [profile.previousSeasonKey, profile.currentSeasonKey];
+      if (!profile.rankOrder.length || seasons.some((key) => !key.trim())) throw new AppError(ErrorCode.VALIDATION_FAILED, "竞技资料要求需要配置段位顺序和所用赛季。 ");
+    }
+    if (recommendsSeeds && !await resolveCompetitiveContext(profile)) throw new AppError(ErrorCode.VALIDATION_FAILED, "实力推荐需要完整的赛季、段位和换算配置。 ");
     if (profile.fallbackConversion && !await fallbackCatalogReferencesExist(tx, profile.fallbackConversion)) throw new AppError(ErrorCode.VALIDATION_FAILED, "竞技换算规则引用的赛季或段位已不在目录中。 ");
   }
   return needsContext;
