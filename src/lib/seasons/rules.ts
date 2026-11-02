@@ -111,6 +111,7 @@ export type RosterCandidate = {
 );
 export type ProposedLineup = { entryId: string; starterMemberIds: readonly string[]; substituteMemberIds: readonly string[] };
 export type FrozenLineupEligibility = {
+  recentEvidenceSemantics?: "any_usable";
   entryId: string; rosterRevisionId: string; starterCount: number; maxSubstitutes: number;
   affiliationRules: readonly import("@/types/season").InstitutionAffiliationRule[];
   educationRequired: boolean; competitiveProfileRequired: boolean;

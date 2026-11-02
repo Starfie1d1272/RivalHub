@@ -22,6 +22,7 @@ export const eventRosterEligibilitySnapshotV2Schema = z.object({
     starterCount: z.number().int().min(0), maxSubstitutes: z.number().int().min(0),
   }).strict(),
   competitive: z.object({
+    recentEvidenceSemantics: z.literal("any_usable").optional(),
     profile: competitiveProfileSchema.nullable(),
     requirements: z.object({ historicalPeak: z.boolean(), seasonKeys: z.array(z.string()), ratingRequired: z.boolean(), exactStarsRequired: z.boolean() }).strict(),
     byPurpose: z.object({
@@ -41,5 +42,6 @@ export function decodeEventRosterEligibilitySnapshotV2(value: unknown): EventRos
 export type QualificationEligibilityPolicyV2 = {
   version: 2;
   rules: EventRosterEligibilitySnapshotV2["rules"];
-  competitive: Omit<NonNullable<EventRosterEligibilitySnapshotV2["competitive"]>, "byPurpose"> | null;
+  // Semantics are frozen with each adopted roster, not the shared run policy.
+  competitive: Omit<NonNullable<EventRosterEligibilitySnapshotV2["competitive"]>, "byPurpose" | "recentEvidenceSemantics"> | null;
 };
