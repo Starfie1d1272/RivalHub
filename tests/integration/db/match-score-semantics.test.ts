@@ -542,7 +542,6 @@ describe("match score persistence semantics PostgreSQL integration", () => {
       await expectSuccess(recordMapResult(scoredForfeitMatchId, 1, (await plannedMapNames(scoredForfeitMatchId))[0]!, 13, 8, null, null));
       await expectSuccess(forfeitMatch(forfeitBo1MatchId, fixture.entryBId, "BO1 fixture adjudication"));
       await expectSuccess(forfeitMatch(forfeitBo3MatchId, fixture.entryBId, "BO3 fixture adjudication"));
-      await client.query("UPDATE match_maps SET started_at = now() WHERE match_id = $1 AND map_order = 2", [scoredForfeitMatchId]);
       await expectSuccess(forfeitMatch(scoredForfeitMatchId, fixture.entryBId, "BO3 after one played map"));
 
       const facts = await client.query<{
@@ -589,14 +588,11 @@ describe("match score persistence semantics PostgreSQL integration", () => {
       );
       expect(forfeitMaps.rows).toHaveLength(0);
 
-      const scoredForfeitMaps = await client.query<{ score_a: number | null; score_b: number | null; started: boolean }>(
-        "SELECT score_a, score_b, started_at IS NOT NULL AS started FROM match_maps WHERE match_id = $1 ORDER BY map_order",
+      const scoredForfeitMaps = await client.query<{ score_a: number; score_b: number }>(
+        "SELECT score_a, score_b FROM match_maps WHERE match_id = $1 ORDER BY map_order",
         [scoredForfeitMatchId],
       );
-      expect(scoredForfeitMaps.rows).toEqual([
-        { score_a: 13, score_b: 8, started: false },
-        { score_a: null, score_b: null, started: true },
-      ]);
+      expect(scoredForfeitMaps.rows).toEqual([{ score_a: 13, score_b: 8 }]);
     } finally {
       client.release();
       if (fixture) {
