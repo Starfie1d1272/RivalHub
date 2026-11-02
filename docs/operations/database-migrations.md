@@ -6,10 +6,13 @@ RivalHub 的数据库变更只通过 active Drizzle migration chain 演进。
 
 - `src/db/schema/`：当前应用 schema model；
 - `drizzle/migrations/`：active migration ledger 与 SQL；
+- `drizzle/v2-migrations/`：原 active 链的不可变归档，旧库必须按原 hash/time 回放至终点；
 - `drizzle/legacy-migrations/`：只读历史，不参与当前迁移；
 - `pnpm db:push`：被显式阻止。
 
 不要用手工 SQL patch、Supabase Dashboard schema edit 或裸 `drizzle-kit migrate` 建立第二套 production migration path。
+
+当前 v3 基线及 0112 终点是待统一合流确认的候选。全新数据库执行 v3 基线；已有数据库的 canonical runner 只接受原链的精确前缀，按原字节走到终点后，比较应用拥有的物理合同，再以事务保存完整旧 ledger 并标记 v3 基线已满足。未知账本或结构差异拒绝，不对旧库重放基线或清除业务数据。adopt 前必须使用既有发布流程排空写入和其他迁移执行者；账本锁和结构快照不是数据库级全局 DDL 互斥，结构比较也不能证明业务历史或数据相同。
 
 ## 标准流程
 

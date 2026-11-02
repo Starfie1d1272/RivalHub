@@ -170,7 +170,7 @@ overrides:
   esbuild@0.18.20: 0.28.2
 
 patchedDependencies:
-  '@cs2dak/tournament@1.1.1': db3cc3484eb2c7ff0be4c076d780908c83ce583eb5c34e49d259fd870251143c
+  '@cs2dak/tournament@1.1.1': cc06d500618c7a29a0fadaa3783c2e878f775808efd9ac82de17a335ed2d61f3
 
 importers:
 
@@ -178,7 +178,7 @@ importers:
     dependencies:
       '@cs2dak/tournament':
         specifier: 1.1.1
-        version: 1.1.1(patch_hash=db3cc3484eb2c7ff0be4c076d780908c83ce583eb5c34e49d259fd870251143c)
+        version: 1.1.1(patch_hash=cc06d500618c7a29a0fadaa3783c2e878f775808efd9ac82de17a335ed2d61f3)
       '@fontsource-variable/noto-sans-sc':
         specifier: 5.3.1
         version: 5.3.1
@@ -5518,7 +5518,7 @@ snapshots:
   '@cloudflare/workerd-windows-64@1.20260730.1':
     optional: true
 
-  '@cs2dak/tournament@1.1.1(patch_hash=db3cc3484eb2c7ff0be4c076d780908c83ce583eb5c34e49d259fd870251143c)': {}
+  '@cs2dak/tournament@1.1.1(patch_hash=cc06d500618c7a29a0fadaa3783c2e878f775808efd9ac82de17a335ed2d61f3)': {}
 
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
