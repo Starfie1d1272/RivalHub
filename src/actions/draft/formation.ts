@@ -53,7 +53,8 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
       if (claims.some(claim => claim.entryId !== entryId)) throw new AppError(ErrorCode.PLAYER_ALREADY_PICKED, "选手已确认其他队伍的报名。");
       const existingMembers = await tx.select({ entryId: competitionEntries.id, userId: competitionEntryRosterMembers.userId }).from(competitionEntryRosterMembers)
         .innerJoin(competitionEntries, eq(competitionEntries.currentRosterRevisionId, competitionEntryRosterMembers.revisionId))
-        .where(and(eq(competitionEntries.competitionId, seasonId), inArray(competitionEntries.registrationStatus, ["draft", "submitted", "changes_requested", "waitlisted", "approved"]), inArray(competitionEntryRosterMembers.userId, userIds)));
+        .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
+        .where(and(inArray(competitionEntryParticipants.status, ["invited", "confirmed"]), eq(competitionEntries.competitionId, seasonId), inArray(competitionEntries.registrationStatus, ["draft", "submitted", "changes_requested", "waitlisted", "approved"]), inArray(competitionEntryRosterMembers.userId, userIds)));
       if (existingMembers.some(row => row.entryId !== entryId)) throw new AppError(ErrorCode.PLAYER_ALREADY_PICKED, "选手已在其他队伍中。");
       let entry = entryId ? (await tx.select().from(competitionEntries).where(and(eq(competitionEntries.id, entryId), eq(competitionEntries.competitionId, seasonId))).for("update"))[0] : undefined;
       if (entryId && (!entry || entry.source !== "event_native" || !(["draft", "changes_requested"].includes(entry.registrationStatus)) || entry.sourceRegistrationId !== captainId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "该队伍不可编辑或队长已变更。");
