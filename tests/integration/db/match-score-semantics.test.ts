@@ -543,6 +543,8 @@ describe("match score persistence semantics PostgreSQL integration", () => {
       await expectSuccess(forfeitMatch(forfeitBo1MatchId, fixture.entryBId, "BO1 fixture adjudication"));
       await expectSuccess(forfeitMatch(forfeitBo3MatchId, fixture.entryBId, "BO3 fixture adjudication"));
       await expectSuccess(forfeitMatch(scoredForfeitMatchId, fixture.entryBId, "BO3 after one played map"));
+      expect(await forfeitMatch(forfeitBo1MatchId, fixture.entryBId, "duplicate")).toMatchObject({ success: false, error: { code: "MATCH_INVALID_TRANSITION" } });
+      expect(await recordMapResult(bo3MatchId, 1, bo3MapNames[0]!, 13, 8, null, null)).toMatchObject({ success: false, error: { code: "MATCH_INVALID_TRANSITION" } });
 
       const facts = await client.query<{
         id: string;
