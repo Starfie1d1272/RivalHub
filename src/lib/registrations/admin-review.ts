@@ -32,6 +32,7 @@ import {
 } from "@/lib/qualification/service";
 import { sameQualificationFindingSnapshot } from "@/lib/competition-entries/restriction-overrides";
 import { assessEntryRosterReadiness } from "@/lib/competition-entries/readiness";
+import { assessEntryRosterInTx } from "@/lib/competition-entries/commands";
 import { escapeLikePattern } from "@/lib/db/search";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { getDisplayName } from "@/lib/identity/display-name";
@@ -237,11 +238,11 @@ export async function getTeamRegistrationReview(
     ? reviewRows.filter((row) => teamReviewCategory(row) === query.status) : reviewRows;
   const statusRows = query.status === "attention"
     ? reviewRows.filter((row) => row.status === "submitted" || row.status === "changes_requested" || row.status === "waitlisted"
-      || (row.status === "approved" && (row.qualificationFindings.length > 0 || row.members.some((member) => member.readiness?.ready === false))))
+      || (row.status === "approved" && (row.qualificationBlockers.length > 0 || row.members.some((member) => member.readiness?.ready === false))))
     : categoryRows;
   const filteredRows = query.qualification === "all"
     ? statusRows
-    : statusRows.filter((row) => (row.qualificationFindings.length === 0) === (query.qualification === "ready"));
+    : statusRows.filter((row) => (row.qualificationBlockers.length === 0) === (query.qualification === "ready"));
   const total = filteredRows.length;
   const totalPages = Math.ceil(total / TEAM_REGISTRATION_REVIEW_PAGE_SIZE);
   const page = totalPages > 0 ? Math.min(query.page, totalPages) : 1;
@@ -310,6 +311,43 @@ async function projectTeamRegistrationRows(
   const frozenIds = new Set(frozenRows.map((row) => row.entryId));
   const entrantIds = new Set(entrants.map((row) => row.entryId));
   const run = qualificationRuns[0];
+
+  if (season.teamRegistrationConfig?.qualificationPolicy?.version === 2) {
+    return Promise.all(entries.map(async (entry) => {
+      const assessment = entry.currentRosterRevisionId
+        ? await db.transaction((tx) => assessEntryRosterInTx(tx, { entryId: entry.id, expectedRevisionId: entry.currentRosterRevisionId! }))
+        : null;
+      const members = rosterRows
+        .filter((member) => member.entryId === entry.id && member.revisionId === entry.currentRosterRevisionId)
+        .map((member) => {
+          const decision = assessment?.participantDecisions.get(member.userId);
+          const fact = assessment?.candidate.factsByUser.get(member.userId);
+          return {
+            ...member, label: getDisplayName(member), steamProfileUrl: normalizeSteamProfileUrl(member.steamProfileUrl),
+            readiness: decision ? { ready: decision.state === "ready", blockers: decision.findings.map((finding) => finding.message), findings: [...decision.findings], educationApproved: fact?.approvedEducation ?? false } : undefined,
+          };
+        });
+      const findings = assessment ? [...assessment.findings] : [{ code: "roster_missing", message: "名单尚未建立。", waivable: false }];
+      return {
+        id: entry.id, name: entry.name, source: entry.source,
+        status: entry.status as Exclude<TeamRegistrationReviewStatus, "all" | "attention" | "self_change_draft">,
+        reviewReason: entry.reviewReason, revisionOrigin: entry.revisionOrigin, revisionStatus: entry.revisionStatus,
+        rosterChangeDeadline: (season.rosterChangeClosesAt ?? season.registrationClosesAt)?.toISOString() ?? null,
+        rosterChangeDeadlinePassed: Boolean((season.rosterChangeClosesAt ?? season.registrationClosesAt) && (season.rosterChangeClosesAt ?? season.registrationClosesAt)!.getTime() <= Date.now()),
+        rosterChangeWindowOpen: canSelfChangeApprovedRoster(season) && !frozenIds.has(entry.id)
+          && (season.competitionTemplate !== "major" || isMajorRosterAdjustmentPhaseOpen({ registrationClosesAt: season.registrationClosesAt, qualificationConfigured: Boolean(run), qualificationCompleted: Boolean(run?.completedAt), finalEntrant: entrantIds.has(entry.id) })),
+        perfectTeamId: normalizePerfectTeamId(entry.perfectTeamId), logoUrl: entry.logoUrl,
+        updatedAt: entry.updatedAt.toISOString(), representativeName: getDisplayName(entry.representative), members,
+        minRoster: season.minTeamSize, maxRoster: season.maxTeamSize, starterCount: season.starterCount,
+        qualificationBlockers: assessment ? assessment.decision.findings.map((finding) => finding.message) : findings.map((finding) => finding.message), qualificationFindings: findings,
+        activeRestrictionOverrides: overrideRows.filter((override) => override.entryId === entry.id && override.rosterRevisionId === entry.currentRosterRevisionId).map((override) => ({
+          id: override.id, restrictionCode: override.restrictionCode, findingSnapshot: override.findingSnapshot, reason: override.reason,
+          grantedBy: override.grantedBy, grantedAt: override.grantedAt.toISOString(),
+          snapshotMatches: sameQualificationFindingSnapshot(override.findingSnapshot, findings.find((finding) => finding.code === override.restrictionCode) ?? { code: override.restrictionCode, message: "当前资格结果中不存在该限制。", waivable: false }),
+        })),
+      };
+    }));
+  }
 
   const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
   const policy = resolveQualificationPolicy(season.teamRegistrationConfig, season.affiliationRules, "participant");
@@ -483,6 +521,15 @@ export async function getTeamRegistrationProgress(season: TeamReviewSeason): Pro
   return {
     drafts: projectedDrafts.map((entry) => {
       const sourceEntry = draftEntryById.get(entry.id)!;
+      if (season.teamRegistrationConfig?.qualificationPolicy?.version === 2) {
+        return {
+          id: entry.id, name: entry.name, source: entry.source, representativeName: entry.representativeName,
+          updatedAt: entry.updatedAt, rosterCount: entry.members.length, minRoster: season.minTeamSize, maxRoster: season.maxTeamSize,
+          confirmedCount: entry.members.filter((member) => member.status === "confirmed").length,
+          starterCount: entry.members.filter((member) => member.primary).length, requiredStarterCount: season.starterCount,
+          primaryBlockers: entry.qualificationBlockers.slice(0, 3),
+        };
+      }
       const draftUserIds = new Set(entry.members.map((member) => member.userId));
       const readiness = assessEntryRosterReadiness({
         entry: sourceEntry,
