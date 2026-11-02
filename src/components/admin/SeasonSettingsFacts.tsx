@@ -129,7 +129,8 @@ export function TeamRegistrationSummary({ config }: { config: TeamRegistrationCo
         <div><dt className="text-[var(--color-fg-mid)]">队伍名唯一</dt><dd className="mt-1 font-medium">{config.requireUniqueTeamName ? "要求" : "不要求"}</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">队伍 Logo</dt><dd className="mt-1 font-medium">{config.requireTeamLogo ? "要求" : "不要求"}</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">报名后锁定名单</dt><dd className="mt-1 font-medium">{config.lockAfterRegistration ? "是" : "否"}</dd></div>
-        <div><dt className="text-[var(--color-fg-mid)]">位置要求</dt><dd className="mt-1 font-medium">{config.requirePositions ? `每位置最多 ${config.maxPerPositionPerTeam} 人` : "无额外位置要求"}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">成员位置</dt><dd className="mt-1 font-medium">{config.requirePositions ? "要求填写" : "不要求填写"}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">每位置人数上限</dt><dd className="mt-1 font-medium">{config.maxPerPositionPerTeam === 0 ? "不限" : `${config.maxPerPositionPerTeam} 人`}</dd></div>
       </dl>
       <p className="text-xs leading-5 text-[var(--color-fg-dim)]">内置赛事的报名和名单规则由赛事体系统一确定。</p>
     </div>
@@ -219,7 +220,8 @@ export function V2QualificationSummary({ config, rules, institutionOptions, curr
       <div><dt className="text-[var(--color-fg-mid)]">审核后自行调整名单</dt><dd className="mt-1 font-medium">{config.rosterChanges.selfServiceAfterApproval ? "允许" : "不允许"}</dd></div>
       <div><dt className="text-[var(--color-fg-mid)]">队伍名称唯一</dt><dd className="mt-1 font-medium">{config.requireUniqueTeamName ? "要求" : "不要求"}</dd></div>
       <div><dt className="text-[var(--color-fg-mid)]">队伍 Logo</dt><dd className="mt-1 font-medium">{config.requireTeamLogo ? "要求" : "不要求"}</dd></div>
-      <div><dt className="text-[var(--color-fg-mid)]">成员位置</dt><dd className="mt-1 font-medium">{config.requirePositions ? `每位置最多 ${config.maxPerPositionPerTeam} 人` : "不要求"}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">成员位置</dt><dd className="mt-1 font-medium">{config.requirePositions ? "要求填写" : "不要求填写"}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">每位置人数上限</dt><dd className="mt-1 font-medium">{config.maxPerPositionPerTeam === 0 ? "不限" : `${config.maxPerPositionPerTeam} 人`}</dd></div>
       <div><dt className="text-[var(--color-fg-mid)]">种子安排</dt><dd className="mt-1 font-medium">{config.seeding.mode === "manual" ? "手动安排" : "按实力推荐"}</dd></div>
     </dl>
     {rules.length ? <ul className="space-y-2">{rules.map((rule, index) => <li key={`${rule.institutionCode}-${index}`}>{institutionOptions.find(item => item.code === rule.institutionCode)?.name ?? "机构"}（{rule.institutionCode}）：{rule.eligibleAcademicStatuses.map(status => status === "enrolled" ? "在读" : "毕业").join("、")}；名单至少 {rule.minRosterMembers} 人，首发至少 {rule.minStartingMembers} 人</li>)}</ul> : <p>无机构人数要求</p>}
