@@ -6,7 +6,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import { revalidatePath } from "next/cache";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, matchMaps, matchTimeProposals } from "@/db/schema";
+import { matches, matchMaps } from "@/db/schema";
 import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -155,62 +155,6 @@ export async function recordMapResult(
     return ok({ seriesFinished });
   } catch (e) {
     return actionError("recordMapResult", e);
-  }
-}
-
-// ── 更新比赛时间 ──────────────────────────────────────────────────────────
-
-/**
- * 设置或清除比赛的预定时间（scheduledAt）。
- * 已完成或已取消的比赛不允许修改。
- */
-export async function updateMatchScheduledAt(
-  matchId: string,
-  scheduledAt: Date | null
-): Promise<ActionResult<void>> {
-  try {
-    const match = await getMatchOrThrow(matchId);
-    const session = await requireSeasonAdmin(match.seasonId);
-
-    if (match.status === "finished" || match.status === "cancelled") {
-      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "已结束或已取消的比赛不能修改时间");
-    }
-
-    const seasonForSch = await getSeasonOrThrow(match.seasonId);
-    await db.transaction(async (tx) => {
-      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
-      const now = new Date();
-      await tx
-        .update(matches)
-        .set({ scheduledAt, updatedAt: now })
-        .where(eq(matches.id, matchId));
-
-      // 比赛时间被管理员直接设定后，同场所有 pending 提议失效，避免幽灵提议卡在 pending。
-      if (scheduledAt) {
-        await tx
-          .update(matchTimeProposals)
-          .set({ status: "expired", updatedAt: now })
-          .where(
-            and(
-              eq(matchTimeProposals.matchId, matchId),
-              eq(matchTimeProposals.status, "pending"),
-            ),
-          );
-      }
-
-      await writeAuditInTx(tx, {
-        seasonId: match.seasonId,
-        action: "match.update_scheduled_at",
-        actorId: session.email,
-        targetId: matchId,meta: { scheduledAt: scheduledAt?.toISOString() ?? null },
-      });
-    });
-
-    revalidateMatchPaths(seasonForSch.slug, matchId);
-
-    return ok(undefined);
-  } catch (e) {
-    return actionError("updateMatchScheduledAt", e);
   }
 }
 
