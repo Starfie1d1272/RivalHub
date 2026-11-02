@@ -1,3 +1,4 @@
+import { parsePublicAssetReference, publicAssetReference, storePublicAsset } from "../../../src/lib/assets-reference";
 import { postgresConnection } from "../../../src/db/postgres-connection";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -163,8 +164,7 @@ function rewriteTeamLogoUrls(tables: MirrorSnapshot["tables"]): void {
     if (typeof row.logo_url !== "string") continue;
     const ref = parsePublicStorageUrl(row.logo_url);
     if (ref?.bucket !== "team-logos") continue;
-    const encoded = ref.path.split("/").map(encodeURIComponent).join("/");
-    row.logo_url = `https://dtdzxnzjtohzjmfkighg.supabase.co/storage/v1/object/public/team-logos/${encoded}`;
+    row.logo_url = publicAssetReference(ref.bucket, ref.path);
   }
 }
 
@@ -231,10 +231,8 @@ async function exportPublicAssets(tables: MirrorSnapshot["tables"], allowlistedS
 
 function parsePublicStorageUrl(value: string): { bucket: MirrorAsset["bucket"]; path: string } | null {
   try {
-    const url = new URL(value);
-    const match = url.pathname.match(/\/storage\/v1\/object\/public\/(team-logos|season-public-assets)\/(.+)$/);
-    if (!match) return null;
-    return { bucket: match[1] as MirrorAsset["bucket"], path: decodeURIComponent(match[2]) };
+    const ref = parsePublicAssetReference(storePublicAsset(value));
+    return ref ? { bucket: ref.bucket as MirrorAsset["bucket"], path: ref.path } : null;
   } catch { return null; }
 }
 

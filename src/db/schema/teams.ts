@@ -1,3 +1,4 @@
+import { publicAsset } from "./public-asset";
 import { sql } from "drizzle-orm";
 import {
   check,
@@ -22,7 +23,7 @@ export const teams = pgTable("teams", {
   id: uuid("id").primaryKey().defaultRandom(),
   slug: text("slug").notNull(),
   name: text("name").notNull(),
-  logoUrl: text("logo_url"),
+  logoUrl: publicAsset("logo_url"),
   description: text("description"),
   status: teamLifecycleEnum("status").notNull().default("active"),
   creatorUserId: uuid("creator_user_id").notNull().references(() => users.id),
