@@ -242,6 +242,9 @@ export function evaluateCompetitiveProfileReadiness(
   ];
   for (const slot of slots) {
     if (!slot.fact) continue;
+    // Recent evidence is an any-of set; an explicitly unranked optional
+    // season is equivalent to an absent one when another recent fact exists.
+    if (slot.fact.status === "unranked" && slot.key !== "historical" && slot.key !== referenceKey && config.evidencePolicy && effectiveRecentPeak(player, config)) continue;
     if (slot.fact.status === "unranked") {
       findings.push({ code: "competitive_profile_incomplete", message: `${slot.key === "historical" ? "历史最高" : slot.key}为未定级，缺少可用段位。`, waivable: false, metadata: { field: "rank", status: "unranked", platform: slot.fact.sourcePlatform, seasonKey: slot.key } });
       continue;
@@ -309,6 +312,11 @@ export function comparePlayerStrength(left: PlayerStrengthInput, right: PlayerSt
   ];
   const found = comparisons.find(([value]) => value !== 0);
   return { order: found ? (found[0] > 0 ? 1 : -1) : 0, reason: found ? `按${found[1]}区分。` : "所有规则指定的比较项均相同，视为实力相当。", left: leftBreakdown, right: rightBreakdown };
+}
+
+/** The external gap policy currently defines its star scale only on the Perfect target ladder. */
+export function supportsExternalHistoricalGapTarget(platform: string | null | undefined): boolean {
+  return platform === "perfect_world";
 }
 
 /** 外校队员相对本校最强队员的历史最高总星数最大允许差值（默认 3 星）。 */
