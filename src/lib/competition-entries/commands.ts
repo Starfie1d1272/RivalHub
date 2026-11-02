@@ -135,6 +135,9 @@ async function loadEntryRosterCandidateInTx(
   allowedRevisionStatuses: readonly ("draft" | "submitted" | "approved")[],
   options: { requireCurrentTeamMembership: boolean; requireActiveRestrictionOverrides?: boolean; recheckExternalStrength?: boolean },
 ) {
+  if (decodeSeasonRules(season).source === "policy_v2") {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "当前赛事的名单资格评价尚不可用，请联系赛事管理员。 ");
+  }
   const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!revision || !allowedRevisionStatuses.includes(revision.status as "draft" | "submitted" | "approved")) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不可用于此操作。");
   const rows = await tx.select({ participantId: competitionEntryRosterMembers.participantId, userId: competitionEntryRosterMembers.userId, primary: competitionEntryRosterMembers.isPrimaryStarter, participantStatus: competitionEntryParticipants.status })
@@ -661,14 +664,46 @@ async function approveRosterRevisionInTx(
   entry: typeof competitionEntries.$inferSelect,
   season: typeof seasons.$inferSelect,
   now: Date,
+  allowedRevisionStatuses: readonly ("draft" | "submitted" | "approved")[] = ["submitted"],
 ) {
-  const candidate = await loadEntryRosterCandidateInTx(tx, entry, season, ["submitted"], {
+  const candidate = await loadEntryRosterCandidateInTx(tx, entry, season, allowedRevisionStatuses, {
     requireCurrentTeamMembership: entry.source === "linked_team",
     requireActiveRestrictionOverrides: true,
   });
   await tx.update(competitionEntryRosterRevisions).set({ status: "approved", approvedAt: now })
     .where(eq(competitionEntryRosterRevisions.id, candidate.revision.id));
   return candidate.revision;
+}
+
+/** Adopt a completed event-native roster, without manufacturing a team submission.
+ * The caller must authorize the operation and owns downstream reconciliation.
+ * Facts and qualification are loaded afresh under the transaction's locks.
+ */
+export async function adoptEventNativeRosterInTx(
+  tx: TxDb,
+  input: { entryId: string; expectedRevisionId: string; actorId: string },
+): Promise<{ seasonId: string; seasonSlug: string; revisionId: string; alreadyApproved: boolean }> {
+  const entry = await lockEntry(tx, input.entryId);
+  const season = await loadSeasonOrThrow(tx, entry.competitionId);
+  if (entry.source !== "event_native" || entry.registrationStatus !== "approved") {
+    throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只有已成立的赛事原生参赛队可以采用名单。 ");
+  }
+  if (entry.currentRosterRevisionId !== input.expectedRevisionId) {
+    throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "名单版本已变化，请刷新后重试。 ");
+  }
+  const [revision] = await tx.select().from(competitionEntryRosterRevisions)
+    .where(and(eq(competitionEntryRosterRevisions.id, input.expectedRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
+  if (!revision) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不存在。 ");
+  if (entry.approvedRosterRevisionId === revision.id && revision.status === "approved") {
+    return { seasonId: season.id, seasonSlug: season.slug, revisionId: revision.id, alreadyApproved: true };
+  }
+  if (revision.status !== "draft") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不能采用。 ");
+  await assertRosterNotFrozen(tx, entry.id);
+  const now = new Date();
+  await approveRosterRevisionInTx(tx, entry, season, now, ["draft"]);
+  await tx.update(competitionEntries).set({ approvedRosterRevisionId: revision.id, updatedAt: now }).where(eq(competitionEntries.id, entry.id));
+  await auditEntry(tx, { action: "competition_entry.approved", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { rosterRevision: revision.revisionNumber, source: entry.source } });
+  return { seasonId: season.id, seasonSlug: season.slug, revisionId: revision.id, alreadyApproved: false };
 }
 
 export async function applyEntryReviewDecisionInTx(tx: TxDb, input: { entryId: string; decision: "changes_requested" | "waitlisted" | "approved" | "rejected"; reason?: string; actorId: string }): Promise<{ seasonSlug: string; seasonId: string; from: typeof competitionEntries.$inferSelect.registrationStatus; rosterRevision: number }> {
