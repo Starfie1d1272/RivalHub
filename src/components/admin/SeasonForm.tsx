@@ -314,6 +314,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms, institutionOpt
     formation: { hasCaptainVoting, hasDraft, settings: v2Config.formation },
     lineup: { starterCount }, roster: { maxTeamSize },
   }) : null;
+  const majorPublishIssue = template === "major" && !standardMajorCheck.isStandardMajor ? standardMajorCheck.failures[0]?.reason ?? "当前 Major 配置无法运行。" : null;
   const isMajorDisplayContext = template === "major";
 
   function handleSubmit() {
@@ -736,7 +737,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms, institutionOpt
           Major 的报名截止、最终名单调整截止和 Main Event 计划开始时间统一在赛前准备中管理。{" "}
           <Link href={`/admin/${initial.slug}/prestart`} className="text-[var(--color-accent)] hover:underline">前往赛前准备</Link>
         </p>}
-        {initial?.status === "draft" && (capabilityIssue || formationIssue) && <p className="mt-4 text-sm text-[var(--color-danger)]">保存后发布检查：{capabilityIssue ?? formationIssue}</p>}
+        {initial?.status === "draft" && (capabilityIssue || formationIssue || majorPublishIssue) && <p className="mt-4 text-sm text-[var(--color-danger)]">保存后发布检查：{capabilityIssue ?? formationIssue ?? majorPublishIssue}</p>}
         <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-[var(--color-border)] pt-4">
           {initial?.status === "draft" && <Button type="button" variant="outline" disabled={isPending} onClick={() => setPublishConfirmationOpen(true)}>发布赛季</Button>}
           {initial?.status === "registration" && !initial.registrationOpenedAt && <Button type="button" disabled={isPending} onClick={requestOpenRegistration}>立即开放报名</Button>}
