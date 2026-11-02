@@ -22,7 +22,7 @@ Browser
 
 ### Entrypoint vs domain owner
 
-Entrypoint 负责不可信输入、鉴权、transport result 和 revalidation；可复用的规则或 transaction workflow 进入明确的 canonical owner。相同 transition、derived fact、validation 或 formatter 不在 page/action/component 中复制第二份。
+Entrypoint 负责不可信输入、服务端鉴权、transport result 和 revalidation；可复用规则与事实由明确的领域 owner 拥有。跨领域用例负责协调这些 owner 和必要的事务，不把事实复制成第二套规则。adapter 负责协议、外部数据转换与委托，不决定业务结果。相同 transition、derived fact、validation 或 formatter 不在 page/action/component 中复制第二份。涉及多个 owner 的事务仍须遵循既有锁序和原子性，见 [比赛锁序](operations/match-lock-order.md) 与 [锁契约](operations/locking.md)。
 
 预期业务结果统一使用 `ActionResult<T>`；unexpected runtime failure 进入 canonical observability，而不是把 exception 当业务状态。
 
@@ -46,7 +46,7 @@ History / Analytics / Spectator
 
 Page、Server Action、Route Handler 和 Client Component 是 entrypoint/presentation 层，只调用 canonical `src/lib/` owner；`src/lib/` domain/library 代码不得反向依赖 `src/actions/`、`src/app/` 或 `src/components/`。Client graph 不能到达数据库、secret/provider owner 或 server-only observability facade。mutation 经 `use server` action boundary；BET/Pick’Em 的高频私有只读通过显式 DTO 的 GET transport 委托同一个 canonical reader，客户端薄封装只持请求参数、取消信号与响应类型，不导入 server workflow。
 
-这条方向由 `pnpm architecture:check` 执行检查。检查器读取项目 tsconfig 并使用 TypeScript module resolver 解析 alias、relative 和 runtime dynamic import；Client→Server 泄漏只沿 runtime graph 检查，而 canonical third-party provider ownership 连 type-only edge 也 fail closed。DTO/serializer 的字段泄漏仍由对应 serializer tests 负责。
+`pnpm architecture:check` 检查部分依赖边界及 provider、审计写入和页面聚合约束；它不能证明所有领域事实都只有一个 owner，也不验证跨领域事务语义。检查器使用 TypeScript module resolver；Client→Server 泄漏沿 runtime graph 检查，canonical third-party provider ownership 对 type-only edge 也 fail closed。DTO/serializer 字段泄漏由对应 serializer tests 负责。
 
 ### Public data
 
@@ -80,7 +80,7 @@ session、authorization、admin 与 draft facts 不进入共享 public cache；�
 
 ## Competition architecture
 
-赛事由 capability 驱动，而不是按 `seasons.kind` 写业务分支。报名模式、投票/选秀、社区奖、阶段计划、名单与资格规则都来自 persisted capability/config；`competitionTemplate` 只负责内置模板身份与固定语义。
+赛事功能优先由 persisted capability/config 驱动，而不是按 `seasons.kind` 写业务分支；`competitionTemplate` 表达内置模板身份与固定语义。现有配置包含报名、阶段和院校关联规则，但这不表示已有可供任意社区使用的完整资格政策合同。报名、审核、名单和冻结各自仍需按当前实现核对；资格政策统一及普通社区路径属于 [3.0 工作](https://github.com/Starfie1d1272/RivalHub/issues/1326)，不能用未来合同重新解释既有冻结事实。
 
 当前两个内置体系共享账号、Team、CompetitionEntry、Match、审计和数据基础设施：
 
