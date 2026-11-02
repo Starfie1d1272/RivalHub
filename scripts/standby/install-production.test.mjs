@@ -21,7 +21,7 @@ test('host promotion, failed restart recovery, immutable retry and explicit roll
       .replaceAll('/opt/rivalhub-production', root).replaceAll('/etc/rivalhub-production/production.env', config)
       .replaceAll('/etc/systemd/system/rivalhub-production.service', unit).replaceAll('/etc/rivalhub-production', dirname(config));
     writeFileSync(join(dir, 'install-production.sh'), installer);
-    for (const file of ['production-host.mjs', 'rivalhub-production.service', 'layers.mjs']) writeFileSync(join(dir, file), readFileSync(join(source, file)));
+    for (const file of ['production-host.mjs', 'rivalhub-production.service', 'layers.mjs', 'release-capability-gate.mjs']) writeFileSync(join(dir, file), readFileSync(join(source, file)));
     // DB owner is exercised separately against PostgreSQL. This host fixture
     // records ordering and injects drain failures without touching a real host.
     writeFileSync(join(dir, 'production-quiescence.mjs'), String.raw`
@@ -30,7 +30,18 @@ test('host promotion, failed restart recovery, immutable retry and explicit roll
       fs.appendFileSync(dir + '/events', 'drain ' + fs.readlinkSync(root + '/current') + '\n');
       if (fs.existsSync(dir + '/fail-drain')) process.exit(1);
     `);
-    const old = 'a'.repeat(40), next = 'b'.repeat(40), hash = 'c'.repeat(64);
+    writeFileSync(join(dir, 'capability-contract.ts'), readFileSync(join(source, '../release/capability-contract.ts')));
+    const old = 'a'.repeat(40), next = 'b'.repeat(40), hash = 'c'.repeat(64), operator = 'd'.repeat(40);
+    const capabilityEvidence = join(dir, 'capability-evidence.json');
+    const capabilities = publisherVersion => ({
+      betCatalog: { readerVersion: 1, publisherVersion: 1, capabilities: {} },
+      betLedger: { readerVersion: 0, publisherVersion: 0, capabilities: {} },
+      vetoLifecycle: { readerVersion: 0, publisherVersion: 0, capabilities: {} },
+      publicAsset: { readerVersion: 1, publisherVersion, capabilities: {} },
+    });
+    writeFileSync(capabilityEvidence, JSON.stringify({ version: 1, operatorCommit: operator,
+      previous: { tag: 'v1.0.0', commit: old, capabilities: capabilities(0) },
+      candidate: { tag: 'v1.0.1', commit: next, capabilities: capabilities(1) } }), { mode: 0o600 });
     const name = sha => `rivalhub-production-${sha}-${hash.slice(0, 12)}`;
     const manifest = (sha, tag) => JSON.stringify({ sourceCommit: sha, releaseTag: tag, configurationSha256: hash, operatorCommit: 'd'.repeat(40), platform: 'linux', architecture: 'x64', nodeVersion: process.version });
     const previous = join(root, 'releases', name(old));
@@ -71,7 +82,7 @@ else throw Error(cmd);
     writeFileSync(join(bin, 'mock'), mock, { mode: 0o755 });
     for (const cmd of ['id','flock','chown','sleep','systemctl','curl','mv','sha256sum']) symlinkSync('mock', join(bin, cmd));
     const deployArgs = [archive, config, '--release', 'v1.0.1', next, 'v1.0.0', old];
-    const run = args => spawnSync('bash', [join(dir, 'install-production.sh'), ...args], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+    const run = args => spawnSync('bash', [join(dir, 'install-production.sh'), ...args, '--capability-evidence', capabilityEvidence], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
     assert.equal(run(['--rollback', 'v1.0.1', next, 'v1.0.0', old]).status, 0);
     writeFileSync(join(dir, 'old-offline'), '');
     let result = run([archive, config, '--release', 'v1.0.1', next, 'v1.0.0', 'e'.repeat(40)]);

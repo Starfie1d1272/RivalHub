@@ -386,6 +386,8 @@ jobs:
       RELEASE_TAG: ${{ needs.preflight.outputs.release_tag }}
       RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}
       RIVALHUB_RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}
+      RIVALHUB_PREVIOUS_RELEASE_TAG: ${{ needs.preflight.outputs.previous_release_tag }}
+      RIVALHUB_PREVIOUS_RELEASE_COMMIT: ${{ needs.preflight.outputs.previous_release_commit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

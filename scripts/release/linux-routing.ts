@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { basename, resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { loadLayerManifest } from "../standby/layers.mjs";
-import { assertReleaseCapabilities } from "./capability-contract";
+import { assertReleaseCapabilities, assertCapabilitySnapshots, readReleaseCapabilities } from "./capability-contract";
 import { assertReleaseIdentity, type ReleaseIdentity } from "../../src/lib/release/identity";
 
 const origin = OFFICIAL_PRODUCTION.origin;
@@ -100,11 +100,18 @@ async function main() {
     writeFileSync(join(temp, "postgres-connection.ts"), readFileSync("src/db/postgres-connection.ts", "utf8")
       .replace('from "./supabase-ca"', 'from "./supabase-ca.ts"'));
     const tools = ["scripts/standby/install-production.sh", "scripts/standby/production-host.mjs", "scripts/standby/rivalhub-production.service", "scripts/standby/layers.mjs",
-      "scripts/standby/production-quiescence.mjs", "scripts/standby/production-traffic-status.mjs", join(temp, "postgres-connection.ts"), "src/db/supabase-ca.ts"];
+      "scripts/standby/production-quiescence.mjs", "scripts/standby/production-traffic-status.mjs", "scripts/standby/release-capability-gate.mjs", "scripts/release/capability-contract.ts", join(temp, "postgres-connection.ts"), "src/db/supabase-ca.ts"];
     console.log(JSON.stringify({ event: "linux.release_stage", stage: "upload_manifest_and_tools" }));
     const bootstrap = join(temp, "bootstrap");
     mkdirSync(bootstrap, { mode: 0o700 });
-    const inputs = [join(packageDir, archive), join(packageDir, `${archive}.sha256`), ...tools];
+    const before = readReleaseCapabilities(process.cwd(), previous.releaseCommit);
+    const after = readReleaseCapabilities(process.cwd(), candidate.releaseCommit);
+    assertCapabilitySnapshots(before, after);
+    const evidence = JSON.stringify({ version: 1, operatorCommit: operator, previous: { tag: previous.releaseTag, commit: previous.releaseCommit, capabilities: before }, candidate: { tag: candidate.releaseTag, commit: candidate.releaseCommit, capabilities: after } });
+    if (Buffer.byteLength(evidence) > 16384) throw new Error("Capability evidence exceeds 16 KiB.");
+    const capabilityEvidence = join(temp, "capability-evidence.json");
+    writeFileSync(capabilityEvidence, evidence, { mode: 0o600 });
+    const inputs = [capabilityEvidence, join(packageDir, archive), join(packageDir, `${archive}.sha256`), ...tools];
     for (const input of inputs) copyFileSync(input, join(bootstrap, basename(input)));
     const bundle = join(temp, "bootstrap.tar.gz");
     execFileSync("tar", ["-czf", bundle, "-C", bootstrap, "."]);
@@ -126,9 +133,9 @@ async function main() {
     await promoteLinux({
       assertCapabilities: () => assertReleaseCapabilities(process.cwd(), previous.releaseCommit, candidate.releaseCommit),
       verifyPrevious: () => { console.log(JSON.stringify({ event: "linux.release_stage", stage: "verify_previous" })); return verifyIdentity(previous); },
-      deploy: async () => { console.log(JSON.stringify({ event: "linux.release_stage", stage: "install" })); ssh(`bash ${remote}/install-production.sh ${remote}/${archive} /etc/rivalhub-production/production.env --release ${pair} && { printf '%s\\n' '{"event":"linux.release_stage","stage":"host_readback"}'; /opt/rivalhub-production/current/runtime/node ${remote}/production-traffic-status.mjs || printf '%s\\n' '{"event":"db_traffic.host_readback","available":false}'; }`); },
+      deploy: async () => { console.log(JSON.stringify({ event: "linux.release_stage", stage: "install" })); ssh(`bash ${remote}/install-production.sh ${remote}/${archive} /etc/rivalhub-production/production.env --release ${pair} --capability-evidence ${remote}/capability-evidence.json && { printf '%s\\n' '{"event":"linux.release_stage","stage":"host_readback"}'; /opt/rivalhub-production/current/runtime/node ${remote}/production-traffic-status.mjs || printf '%s\\n' '{"event":"db_traffic.host_readback","available":false}'; }`); },
       verifyCandidate: () => { console.log(JSON.stringify({ event: "linux.release_stage", stage: "verify_candidate" })); return verifyCanonical(candidate); },
-      rollback: async () => { console.log(JSON.stringify({ event: "linux.release_stage", stage: "rollback" })); ssh(`bash ${remote}/install-production.sh --rollback ${pair}`); },
+      rollback: async () => { console.log(JSON.stringify({ event: "linux.release_stage", stage: "rollback" })); ssh(`bash ${remote}/install-production.sh --rollback ${pair} --capability-evidence ${remote}/capability-evidence.json`); },
       verifyRollback: () => { console.log(JSON.stringify({ event: "linux.release_stage", stage: "verify_rollback" })); return verifyCanonical(previous); },
     });
     result = "canonical verified";

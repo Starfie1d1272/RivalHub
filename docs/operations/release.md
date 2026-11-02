@@ -48,6 +48,8 @@ BET 金融 subject 使用 reader-first upgrade。Release Plan 在任何 mutation
 
 Veto 申诉生命周期独立使用 `src/lib/matches/veto-room/lifecycle-contract.json` 的 reader/publisher 能力，缺失声明视为 0/0。reader1 必须同时理解 `closed` 说明和实际开赛后的恢复/裁定边界；publisher0 保留历史读取与安全保护，但不写新的 `closed`。publisher1 只有在冻结的真实 previous Production reader1 已上线后才可发布，可与下一阶段 BET 能力一起切换，不能由其它能力授权。`scripts/release/capability-contract.ts` 是这些 immutable Git contract 的共同读取/门禁 owner，Release Plan 与 routing 复用它。Routing 在 promotion 前、每次 mutation/retry 及补偿 rollback 前重新验证同一 frozen previous/candidate commit；contract 不兼容或无法读取时 fail closed。若候选可能已被 promote，补偿能力验证失败则不发送 rollback，保留 `capability_incompatible`、目标身份及可能副作用的诊断状态并要求人工介入；不得继续 scheduler/publish，也不得把口头“禁止回滚”作为此门禁的替代。
 
+公开资产 identity publisher 的 release capability 门禁读取冻结的 previous Production identity。此前未声明合同的版本仅当包含已审 reader commit `96d04bba33d8e43e9f2b7e16e858628fb519aa0d` 时视为 reader 1；candidate writer 1 只有在该 reader 已实际独立上线后才可发布，且回退目标必须能读取新引用。普通实例的升级与恢复同样要求兼容 reader；未经验证的旧安装器升级路径不应使用此迁移。
+
 因此，application-only 或纯 release metadata 发布不会启动 PostgreSQL 17、Local Supabase、Storage snapshot、生产 migration 或备份；普通 source/migration 发布 也不会触发 full checkpoint，除非发布过程自身具备会不可逆修改既有 Production Storage object 的 release-time capability。破坏性/不可逆数据库变更要求 DB-only checkpoint。
 
 关键安全与执行边界：
@@ -62,7 +64,7 @@ Veto 申诉生命周期独立使用 `src/lib/matches/veto-room/lifecycle-contrac
    正式 Release 以 `build-production.mjs SOURCE --layers` 只生成 runtime/deps/app 三层制品；不传模式的手工打包入口继续生成完整 tar。分层 manifest 绑定 exact source/operator SHA、公开配置 hash、平台/架构、实际 Node 版本、完整组装树摘要及各层压缩字节数/归档 SHA/typed inventory/内容树摘要。finalize 通过固定 SSH 复核 `/opt/rivalhub-production/layers` 的每个缓存命中，只传缺失层，并记录实际传输压缩字节数；deps 按真实 standalone 文件识别，不能仅依据 lockfile。
 
    服务端先校验 manifest/归档 SHA 与 tar 路径、类型及相对链接，再解包到独立临时目录并重算内容树；复制组装全新、自包含的 release，规范化服务组读取/执行权限。保留 Next 生成的 app→deps 相对链接，并在完整组装后校验链接链不越出 release；不链接已安装版本或运行时 cache。完整树与 `standby.json` 身份校验通过才进入原安装事务；损坏缓存视为 miss，缺失/中断/校验失败不切换 current。缓存由部署 root 独占，只保存公开构建制品，不含 runtime secret、不备份、不作为回退依赖；首版不自动回收，可在无安装进行时删除后于下次部署重建。首次主机安装及历史制品继续使用完整 tar 入口，分层更新使用已安装 Node 引导。
-7. **Promotion / rollback boundary**：Linux owner 为 `scripts/release/linux-routing.ts` 与 `scripts/standby/install-production.sh`。controller 在安装前仅核对 canonical previous identity 与 immutable capability contract，不要求旧版首页健康；候选和回退仍须通过 canonical identity 与首页健康检查。主机锁定安装事务并根据 current 指向的已安装 manifest 再次核对本机身份，保存旧包指针、环境与 service。身份核验成功后，installer 停止 `rivalhub-production`，用该版本现有 runtime DB 凭据执行 `production-quiescence.mjs`：读取真实 PostgreSQL application login/database 的 active、idle-in-transaction、aborted 与 prepared 事务，排除观察连接自身，要求相隔一秒的两次零观测，最长等待 60 秒（单次查询另有 5 秒限制）。服务停止同时阻断旧 HTTP action、Mizar ingress 与 HTTP cron/watchdog；pooler 后端仍有事务时不得仅凭进程退出继续切换。排空成功后才写新环境、unit、current 并启动 candidate，检查首页与 exact release identity。自动失败恢复与显式 rollback 也先停止当前 candidate 并完成同样排空，再恢复 previous。排空失败保留当前指针与配置、保持停机并报告失败，不自动杀事务、扩大 DB 权限或启动另一版。该过程会有短暂不可用，不同时运行两个生产实例。主机失败自动恢复；SSH 结果不明或公网 canonical 验证失败时，controller 重新验证 capability 后调用幂等回退并回读 previous identity。失败的 Release 不继续 scheduler/publish，不回滚数据库。
+7. **Promotion / rollback boundary**：Linux owner 为 `scripts/release/linux-routing.ts` 与 `scripts/standby/install-production.sh`。controller 在安装前仅核对 canonical previous identity 与 immutable capability contract，不要求旧版首页健康；候选和回退仍须通过 canonical identity 与首页健康检查。controller 从冻结的真实前后提交解析能力并将绑定版本与 operator 的小型证据传给主机；主机对安装和回退独立执行相同能力门禁，缺失证据的直接操作拒绝。主机锁定安装事务并根据 current 指向的已安装 manifest 再次核对本机身份，保存旧包指针、环境与 service。身份核验成功后，installer 停止 `rivalhub-production`，用该版本现有 runtime DB 凭据执行 `production-quiescence.mjs`：读取真实 PostgreSQL application login/database 的 active、idle-in-transaction、aborted 与 prepared 事务，排除观察连接自身，要求相隔一秒的两次零观测，最长等待 60 秒（单次查询另有 5 秒限制）。服务停止同时阻断旧 HTTP action、Mizar ingress 与 HTTP cron/watchdog；pooler 后端仍有事务时不得仅凭进程退出继续切换。排空成功后才写新环境、unit、current 并启动 candidate，检查首页与 exact release identity。自动失败恢复与显式 rollback 也先停止当前 candidate 并完成同样排空，再恢复 previous。排空失败保留当前指针与配置、保持停机并报告失败，不自动杀事务、扩大 DB 权限或启动另一版。该过程会有短暂不可用，不同时运行两个生产实例。主机失败自动恢复；SSH 结果不明或公网 canonical 验证失败时，controller 重新验证 capability 后调用幂等回退并回读 previous identity。失败的 Release 不继续 scheduler/publish，不回滚数据库。
    Linux deploy / smoke / rollback 命令使用显式 10 分钟截止，覆盖跨境制品上传、主机安装及失败回滚；内部各次 SSH/SCP 保留 5 分钟上限。CI 验证的 180 秒 required execution budget 独立保持。
    数据迁移和恢复按各自操作文档处理；普通 patch 使用上述身份核验、服务停止、事务排空与回滚流程，不增加逐主机人工清单。
 
@@ -84,7 +86,7 @@ v2.9.5 canonical Production
 → v2.9.7 candidate
 ```
 
-则 `v2.9.7` 的 previous Production 必须仍是 `v2.9.5`，migration compatibility 与 GitHub Release notes 都覆盖 `v2.9.5 → v2.9.7`。`RIVALHUB_PRODUCTION_STABLE_REF` 与 Git-derived recent-stable helper 仅供 developer/CI rehearsal 使用，Production Release 设置 explicit identity hard gate，不允许 silent fallback。
+则 `v2.9.7` 的 previous Production 必须仍是 `v2.9.5`，migration compatibility 与 GitHub Release notes 都覆盖 `v2.9.5 → v2.9.7`。`RIVALHUB_PRODUCTION_STABLE_REF` 与 Git-derived recent-stable helper 仅供 developer/CI rehearsal 使用，Production Release 设置 explicit identity hard gate，不允许 silent fallback。手工 production migrate 也必须在写入前从 canonical endpoint 回读当前身份，核对实际迁移和能力合同属于候选提交，并执行同一 reader/publisher 门禁。
 
 如果同一个 tag 已经完成 promote、canonical identity 已经是 candidate，canonical read-back 只能证明“candidate 已在线”，不能恢复 promote 之前的历史 baseline。因此 same-tag resume 要求 operator 从首次 run 的 freeze log/summary 提供原始 previous tag/SHA；这组值仅用于恢复该 immutable run 的历史 baseline，不成为新的 Production truth source，也不允许在 fresh path 覆盖 canonical read-back。
 
