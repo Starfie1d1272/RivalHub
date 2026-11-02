@@ -31,6 +31,7 @@
     "postcss.config.mjs!",
     "eslint.config.mjs!",
     "scripts/instance/build.mjs!",
+    "scripts/instance/database-identity.mjs!",
     "scripts/instance/provision.ts!",
     "scripts/instance/readiness.mjs!",
     "scripts/instance/validate-runtime.mjs!",
