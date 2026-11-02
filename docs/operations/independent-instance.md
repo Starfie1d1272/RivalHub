@@ -37,7 +37,7 @@ sudo bash scripts/instance/install.sh /path/to/manifest.layers.json /path/to/ins
 
 ## 应用升级与回滚
 
-对于数据库账本与新旧构件均完全一致的应用升级，在目标机使用与候选构件 operator commit 一致的干净源码目录运行：
+在目标机使用与候选构件 operator commit 一致的干净源码目录运行：
 
 ```bash
 sudo pnpm exec tsx scripts/instance/release.ts /path/to/manifest.layers.json /path/to/candidate-instance.env
@@ -49,7 +49,25 @@ sudo pnpm exec tsx scripts/instance/release.ts /path/to/manifest.layers.json /pa
 sudo pnpm exec tsx scripts/instance/release.ts --rollback
 ```
 
-安装器不会运行数据库迁移；readiness 仍要求数据库账本与所运行构件完全一致。涉及迁移的升级与跨账本回滚尚未开放，不能以应用回滚作为数据库回滚。
+迁移变更还须以 `--checkpoint-env /path/to/checkpoint.env` 指定 root 拥有、权限 0600 且位于 root 拥有的 0700 目录中的独立文件，提供 `RIVALHUB_INSTANCE_PROJECT_REF`、相同的 `RIVALHUB_INSTANCE_CONFIRM`、`RIVALHUB_BACKUP_AGE_RECIPIENT` 与实例专用 R2 配置；该文件也须提供 `SUPABASE_SECRET_KEY`。数据库及 API 配置使用已安装实例的环境。操作前确保该实例的备份可恢复，且没有其他数据库写入者或迁移执行者。安装器在锁内读取运行实例的身份和精确旧账本，停止服务并排空后复核，再创建加密 DB checkpoint 并验证 R2 读回。随后只接受已审核 active 链或旧链的精确前缀，通过现有迁移执行器补齐旧链、核验物理合同并接管 baseline，再执行新链，最后检查候选 readiness。
+
+迁移开始前失败可恢复旧程序；迁移开始后失败保持服务停止和事务快照，不自动启动旧程序。必须先按现有恢复流程在隔离目标恢复并验证 checkpoint，才能考虑运行与该数据库匹配的旧程序；应用回滚不回滚数据库。当前 DB-only 恢复入口仅支持隔离目标，Hosted 目标的恢复与重新接入尚未验收。checkpoint 的记录保存在 root-only 事务快照中。
+
+恢复检查点时，保持实例及其他写入者停止。从事务快照的 `checkpoint.log` 取 `completion=` 后的对象 key，在具备该实例 R2 只读凭据的恢复机执行以下命令。输出目录必须不存在，私钥留在离线恢复机：
+
+```bash
+pnpm db:recovery:fetch --completion-key '<completion-key>' --output /private/path/checkpoint
+export RIVALHUB_RECOVERY_TARGET=isolated
+export RIVALHUB_RECOVERY_DATABASE_URL='postgresql://...@127.0.0.1:.../postgres'
+export RIVALHUB_BACKUP_AGE_IDENTITY_FILE=/private/path/age-identity.txt
+unset RIVALHUB_ALLOW_REMOTE_DB_WRITE
+pnpm db:recovery:restore-db-checkpoint \
+  --artifact /private/path/checkpoint/artifact.tar.gz.age \
+  --manifest /private/path/checkpoint/sidecar.json \
+  --completion /private/path/checkpoint/completion.json
+```
+
+目标须是全新的隔离 Supabase/PostgreSQL；恢复工具版本须符合 [灾难恢复说明](./disaster-recovery.md#isolated-restore) 的来源版本与账本要求。核验成功仅证明隔离副本；本机自动回滚不会因为隔离恢复成功而启动旧程序。Hosted 数据库恢复、切换及重新接入仍须使用单独授权且已验证的恢复流程。
 
 ## 备份与恢复边界
 
