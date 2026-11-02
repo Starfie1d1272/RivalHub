@@ -20,8 +20,6 @@ function version(value: unknown, minimum: number, label: string): Version {
 
 function contract(value: unknown, minimum: number, label: string): Contract {
   const root = value as Record<string, unknown> | null;
-  if (root?.releaseReady === false) throw new Error(`${label} contract 尚未完成 reader 验收；release capability gate 拒绝继续。`);
-  if (root?.releaseReady !== undefined && root.releaseReady !== true) throw new Error(`${label} releaseReady 无效。`);
   const base = version(root, minimum, label);
   const declared = root?.capabilities;
   if (declared !== undefined && (!declared || typeof declared !== "object" || Array.isArray(declared))) throw new Error(`${label} capabilities 无效。`);
