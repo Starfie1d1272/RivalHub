@@ -5,7 +5,7 @@ import { gradePrediction } from "@/lib/free-predictions/domain";
 
 const pool = ["de_ancient","de_anubis","de_cache","de_inferno","de_mirage","de_nuke","de_overpass"];
 const answer = ["de_mirage","de_ancient","de_cache"];
-function input(): MarketFactInput {
+function input(): MarketFactInput & { subject: Extract<MarketFactInput["subject"], {kind:"match"}> } {
   return { type:"veto_present",line:null,voidedAt:null,subject:{kind:"match",entryIds:["a","b"],runId:"run",format:"bo3",mapPool:pool},
     match:{id:"match",entryAId:"a",entryBId:"b",majorStageRunId:"run",qualificationRunId:null,format:"bo3",status:"finished",isForfeit:false,startedAt:new Date(),scoreA:2,scoreB:0},
     maps:answer.slice(0,2).map((mapName,index)=>({id:String(index),matchId:"match",mapOrder:index+1,mapName,startedAt:new Date(),completedAt:new Date(),scoreA:13,scoreB:7})),

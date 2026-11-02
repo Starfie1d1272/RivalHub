@@ -86,7 +86,7 @@ export async function forceSetMatchTime(
   time: Date | null,
 ): Promise<ActionResult<void>> {
   try {
-    return await setMatchScheduledAt(matchId, time);
+    return await saveAdminSchedule(matchId, time, "force");
 
   } catch (e) {
     return actionError("forceSetMatchTime", e);
@@ -124,10 +124,14 @@ export async function retryTimeProposalRefresh(proposalId: string): Promise<Acti
 }
 
 export async function setMatchScheduledAt(matchId: string, time: Date | null): Promise<ActionResult<void>> {
+  return saveAdminSchedule(matchId, time, "save");
+}
+
+async function saveAdminSchedule(matchId: string, time: Date | null, intent: "save" | "force"): Promise<ActionResult<void>> {
   try {
     const match = await getMatchOrThrow(matchId);
     const admin = await requireSeasonAdmin(match.seasonId);
-    await setAdminSchedule(matchId, match.seasonId, admin.userId, admin.email, time);
+    await setAdminSchedule(matchId, match.seasonId, admin.userId, admin.email, time, intent);
     const season = await getSeasonOrThrow(match.seasonId);
     revalidateMatchPaths(season.slug, matchId);
     return ok(undefined);

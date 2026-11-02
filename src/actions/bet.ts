@@ -16,6 +16,7 @@ import { joinBetInTx, stakeBetInTx, operateBetInTx, claimBetReliefInTx } from "@
 import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { startCanonicalMapInTx } from "@/lib/matches/map-start";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
+import { readBetPredictionRanking } from "@/lib/bet/free-ranking";
 import { readBetRelief } from "@/lib/bet/relief-data";
 const scope=z.object({seasonId:z.guid()});
 async function publicSeason(seasonId:string) {
@@ -28,6 +29,11 @@ export async function getUnifiedBetBoard(input:unknown) {
   const p=betBoardRequestInput.safeParse(input);
   if(!p.success)return failValidation("赛事参数无效");
   try{return ok(await readBetBoardRequest(p.data));}catch(error){return actionError("bet.unified_read",error);}
+}
+export async function getBetPredictionRanking(input:unknown) {
+  const p=scope.extend({sort:z.enum(["profit","hits","accuracy"]),userIds:z.array(z.guid()).max(200).optional()}).safeParse(input);
+  if(!p.success)return failValidation("排行参数无效");
+  try {await publicSeason(p.data.seasonId);return ok(await db.transaction(tx=>readBetPredictionRanking(tx,p.data.seasonId,p.data.sort,p.data.userIds),{accessMode:"read only",isolationLevel:"repeatable read"}));}catch(e){return actionError("free_predictions.ranking",e);}
 }
 const spectator=z.discriminatedUnion("operation",[scope.extend({operation:z.literal("join")}),scope.extend({operation:z.literal("stake"),marketId:z.guid(),optionId:z.guid(),amount:z.union([z.literal("all"),z.string().regex(/^[1-9]\d{0,14}$/)]),requestId:z.guid()})]);
 export async function mutateBet(input:unknown) {

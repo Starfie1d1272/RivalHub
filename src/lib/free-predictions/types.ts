@@ -19,9 +19,3 @@ export interface FreePredictionMatchDTO {
   bp: { locked: boolean; canSubmit: boolean; restriction: FreePredictionRestrictionDTO | null; mine: string[] | null; grade: FreePredictionResultDTO | null;
     support: { total: number; maps: { name: string; count: number }[] } };
 }
-export type FreePredictionSort = "profit" | "hits" | "accuracy";
-export interface FreePredictionRankingRowDTO {
-  userId: string; playerUserId: string | null; name: string; profit: string | null;
-  hits: number | null; judged: number | null; accuracy: number | null;
-  rank: number | null; group: "ranked" | "limited";
-}
