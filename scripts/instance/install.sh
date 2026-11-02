@@ -85,7 +85,7 @@ failed() {
 if [[ ${1:-} == --restore-pair ]]; then
   [[ $# == 3 ]] || { echo 'Restore-pair requires verified full recovery evidence and restored target environment.' >&2; exit 1; }
   snapshot=$(realpath "$(cat "$root/previous-snapshot")")
-  [[ $snapshot == "$root/rollback/"* && -f $snapshot/migration-started && -f $snapshot/full-checkpoint.json && -f $snapshot/identity ]] || { echo 'No major transaction requiring paired recovery.' >&2; exit 1; }
+  [[ $snapshot == "$root/rollback/"* && -f $snapshot/migration-started && -f $snapshot/full-checkpoint.json && -f $snapshot/identity && ! -e $snapshot/paired-recovery-complete ]] || { echo 'No major transaction requiring paired recovery.' >&2; exit 1; }
   read -r tag sha previous_tag previous_sha < "$snapshot/identity"
   previous=$(cat "$snapshot/previous-release")
   candidate=$(cat "$snapshot/candidate-release")
@@ -105,6 +105,7 @@ if [[ ${1:-} == --restore-pair ]]; then
   ln -sfn "$previous" "$root/current.recovery"
   mv -Tf "$root/current.recovery" "$root/current"
   systemctl daemon-reload && systemctl reset-failed rivalhub-instance && systemctl start rivalhub-instance && wait_identity "$node" "$previous_tag" "$previous_sha" || { systemctl stop rivalhub-instance || true; echo 'Paired recovery failed; service stopped.' >&2; exit 1; }
+  "$node" -e 'const fs = require("fs"); const fd = fs.openSync(process.argv[1] + "/paired-recovery-complete", "wx", 0o600); fs.fsyncSync(fd); fs.closeSync(fd); const dir = fs.openSync(process.argv[1], "r"); fs.fsyncSync(dir); fs.closeSync(dir)' "$snapshot" || { systemctl stop rivalhub-instance || true; echo 'Cannot persist paired recovery completion; service stopped.' >&2; exit 1; }
   echo "Verified paired recovery active: $previous_tag $previous_sha"
   exit 0
 fi
