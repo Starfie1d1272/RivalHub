@@ -79,6 +79,7 @@ export function MajorTournamentSeedsManagement({ data, management }: { data: Maj
           })}>确认最终种子</Button>
         </div>
       </div>
+      {recommendationReady && !recommendation && <p className="text-sm text-[var(--color-fg-mid)]">本届使用人工种子排序，没有系统竞技参考。</p>}
       {data.recommendationStatus !== "ready" && <p className="border border-[var(--color-warn)] px-3 py-2 text-sm text-[var(--color-warn)]">
         {data.recommendationStatus === "missing" ? "冻结正式名单后才会生成系统参考。" : "系统参考与当前冻结名单不一致，已停止用于最终种子。"}
       </p>}

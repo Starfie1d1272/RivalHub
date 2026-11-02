@@ -50,6 +50,7 @@ export interface MajorPrestartTournamentSeedFact {
 
 export interface MajorPrestartSeedRecommendationFact {
   status: "missing" | "ready" | "mismatch";
+  manual?: boolean;
 }
 
 export interface MajorPrestartReadinessInput {
@@ -238,7 +239,7 @@ function checkSeedRecommendation(
   fact: MajorPrestartReadinessInput["seedRecommendation"],
 ): MajorPrestartCheck {
   if (fact === null) return unavailable("seed-recommendation", "系统种子参考");
-  if (fact.status === "ready") return ready("seed-recommendation", "系统种子参考");
+  if (fact.status === "ready") return ready("seed-recommendation", fact.manual ? "人工种子" : "系统种子参考");
   return blocked(
     "seed-recommendation",
     "系统种子参考",
