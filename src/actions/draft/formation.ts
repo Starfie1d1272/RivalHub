@@ -13,6 +13,11 @@ import { revalidateSeasonPaths } from "@/lib/revalidation";
 import { ok, type ActionResult } from "@/types/action";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { decodeSeasonRules } from "@/lib/seasons/rules";
+import { adoptEventNativeRosterInTx, assessEntryRosterInTx } from "@/lib/competition-entries/commands";
+import { loadActiveRestrictionOverridesInTx } from "@/lib/competition-entries/restriction-overrides";
+import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
+import { adoptApprovedRosterInTx } from "@/lib/event-rosters/owner";
+import { prepareApprovedEventRosterInTx } from "@/lib/event-rosters/prepare-approved";
 
 const inputSchema = z.object({ seasonId: z.guid(), entryId: z.guid().nullable(), captainId: z.guid(), memberIds: z.array(z.guid()).max(20), starterIds: z.array(z.guid()).max(20) });
 
@@ -76,4 +81,38 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
     revalidateSeasonPaths(result.slug, ["adminDraft", "teams"]);
     return ok({ entryId: result.entryId });
   } catch (error) { return actionError("saveManualFormation", error); }
+}
+
+/** Approve the current completed roster and adopt it in the same transaction. */
+export async function approveFormation(input: { seasonId: string; entryId: string; expectedRevisionId: string }): Promise<ActionResult<void>> {
+  const parsed = z.object({ seasonId: z.guid(), entryId: z.guid(), expectedRevisionId: z.guid() }).safeParse(input);
+  if (!parsed.success) return failValidation("名单标识无效");
+  const admin = await requireSeasonAdmin(parsed.data.seasonId);
+  try {
+    const slug = await db.transaction(async tx => {
+      const [season] = await tx.select().from(seasons).where(eq(seasons.id, parsed.data.seasonId)).for("update");
+      if (!season || !["registration", "voting", "drafting"].includes(season.status)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前阶段不能审核编队名单。");
+      const [entry] = await tx.select().from(competitionEntries).where(and(eq(competitionEntries.id, parsed.data.entryId), eq(competitionEntries.competitionId, season.id))).for("update");
+      if (!entry || entry.source !== "event_native") throw new AppError(ErrorCode.NOT_FOUND, "赛事编队不存在。");
+      if (season.hasDraft) {
+        const state = await tx.query.draftState.findFirst({ where: eq(draftState.seasonId, season.id) });
+        if (!state || state.isActive || state.currentEntryId) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "选秀结束后才能审核名单。");
+      }
+      const actorId = auditActorId(admin);
+      await adoptEventNativeRosterInTx(tx, { entryId: entry.id, expectedRevisionId: parsed.data.expectedRevisionId, actorId });
+      await tx.insert(eventRosters).values({ entryId: entry.id, status: "preparing" }).onConflictDoNothing({ target: eventRosters.entryId });
+      if (decodeSeasonRules(season).source === "policy_v2") {
+        const assessment = await assessEntryRosterInTx(tx, { entryId: entry.id, expectedRevisionId: parsed.data.expectedRevisionId });
+        const coherent = await assertSinglePrestartEntryCoherenceInTx(tx, season.id, { competitionEntryId: entry.id }, { requireEventRosterSync: false });
+        const overrides = await loadActiveRestrictionOverridesInTx(tx, { competitionId: season.id, entryIds: [entry.id], rosterRevisionIds: [parsed.data.expectedRevisionId] });
+        await adoptApprovedRosterInTx(tx, { coherent, actorId, candidate: assessment.candidate, rules: assessment.rules, evidence: assessment.evidence, decisions: [assessment.rosterDecision, ...assessment.participantDecisions.values()], overrides });
+        await writeAuditInTx(tx, { seasonId: season.id, action: "competition_entry.sync_event_roster", actorId, targetId: entry.id, meta: { source: "formation", rosterRevisionId: parsed.data.expectedRevisionId } });
+      } else {
+        await prepareApprovedEventRosterInTx(tx, { seasonId: season.id, entryId: entry.id, actorId });
+      }
+      return season.slug;
+    });
+    revalidateSeasonPaths(slug, ["adminDraft", "teams"]);
+    return ok(undefined);
+  } catch (error) { return actionError("approveFormation", error); }
 }

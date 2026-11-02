@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { saveManualFormation } from "@/actions/draft/formation";
+import { approveFormation, saveManualFormation } from "@/actions/draft/formation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { getManualFormationData } from "@/lib/draft/manual-data";
@@ -31,6 +31,15 @@ function TeamEditor({ seasonId, players, team, occupied, maxTeamSize, starterCou
       router.refresh();
     });
   }
+  function approve() {
+    if (!team) return;
+    startTransition(async () => {
+      const result = await approveFormation({ seasonId, entryId: team.id, expectedRevisionId: team.revisionId });
+      if (!result.success) { toast.error(result.error.message); return; }
+      toast.success("名单已审核并采用");
+      router.refresh();
+    });
+  }
   return <Card className="space-y-4 p-5">
     <h2 className="text-lg font-semibold">{team?.name ?? "新建队伍"}</h2>
     <label className="block text-sm">队长
@@ -47,10 +56,25 @@ function TeamEditor({ seasonId, players, team, occupied, maxTeamSize, starterCou
         </div>;
       })}</div>}
     <Button type="button" onClick={save} disabled={!captainId || pending || team?.approved || (captainsOnly && Boolean(team))}>{captainsOnly ? "创建队长队伍" : "保存编队草稿"}</Button>
+    {team && !captainsOnly && !team.approved && <Button type="button" variant="outline" onClick={approve} disabled={pending}>审核并采用名单</Button>}
     {team?.approved && <p className="text-sm">名单已批准或存在不可用成员，请通过名单管理流程处理。</p>}
   </Card>;
 }
 export function ManualFormationPanel({ seasonId, data, maxTeamSize, starterCount, captainsOnly = false }: { seasonId: string; data: FormationData; maxTeamSize: number; starterCount: number; captainsOnly?: boolean }) {
   const occupied = new Set(data.teams.flatMap(team => team.members.map(member => member.id)));
   return <div className="space-y-4"><p className="text-sm">{captainsOnly ? "选择队长创建选秀队伍；队长需要确认参赛。" : `按报名选手创建队伍。每队最多 ${maxTeamSize} 人、${starterCount} 名首发。保存草稿不会批准名单或开始比赛；成员须确认，名单还需审核并采用。`}</p>{data.teams.map(team => <TeamEditor key={team.id} seasonId={seasonId} players={data.players} team={team} occupied={occupied} maxTeamSize={maxTeamSize} starterCount={starterCount} captainsOnly={captainsOnly} />)}<TeamEditor seasonId={seasonId} players={data.players} occupied={occupied} maxTeamSize={maxTeamSize} starterCount={starterCount} captainsOnly={captainsOnly} /></div>;
+}
+
+export function FormationApprovalPanel({ seasonId, teams }: { seasonId: string; teams: FormationData["teams"] }) {
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+  function approve(team: Team) {
+    startTransition(async () => {
+      const result = await approveFormation({ seasonId, entryId: team.id, expectedRevisionId: team.revisionId });
+      if (!result.success) { toast.error(result.error.message); return; }
+      toast.success(`${team.name}的名单已审核并采用`);
+      router.refresh();
+    });
+  }
+  return <Card className="space-y-4 p-5"><h2 className="text-lg font-semibold">审核选秀名单</h2><p className="text-sm">成员确认并满足本届名单规则后，审核并采用各队名单。</p>{teams.map(team => <div key={team.id} className="flex items-center justify-between gap-4"><span>{team.name}</span><Button type="button" variant="outline" disabled={pending} onClick={() => approve(team)}>审核并采用名单</Button></div>)}</Card>;
 }

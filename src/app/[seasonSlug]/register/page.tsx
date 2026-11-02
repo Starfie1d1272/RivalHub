@@ -1,4 +1,5 @@
 import { interpretEntryRosterStatus } from "@/lib/competition-entries/status-read-model";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { Suspense } from "react";
 import Link from "next/link";
 import { ContentReady } from "@/components/telemetry/ContentReady";
