@@ -19,7 +19,7 @@ try {
   await client.connect();
   await client.query('BEGIN');
   await client.query("SELECT pg_advisory_xact_lock(hashtext('rivalhub.instance.scheduler-transition'))");
-  const { rows } = await client.query("SELECT jobid::text, jobname, schedule, command, active FROM cron.job WHERE jobname LIKE 'rivalhub-%' ORDER BY jobid FOR UPDATE");
+  const { rows } = await client.query("SELECT jobid::text, jobname, schedule, command, active FROM cron.job WHERE jobname LIKE 'rivalhub-%' ORDER BY jobid");
   if (rows.some(job => !safe(job)) || new Set(rows.map(job => job.jobname)).size !== rows.length) throw Error('Unknown managed scheduler job.');
   if (rows.length) {
     const target = await client.query("SELECT decrypted_secret = $1 AS matches FROM vault.decrypted_secrets WHERE name = 'rivalhub_scheduler_base_url'", [process.env.NEXT_PUBLIC_APP_URL]);
