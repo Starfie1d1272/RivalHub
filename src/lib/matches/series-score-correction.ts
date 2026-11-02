@@ -12,6 +12,7 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { finishCanonicalSeriesInTx } from "./results";
 import { planEarlySeriesFinish } from "./series-correction-rules";
+import { mapExecutionEvidenceFromSources } from "./map-execution-source";
 
 export const seriesCorrectionRequestSchema = z.strictObject({
   matchId: z.uuid(), mapId: z.uuid(), scoreA: z.number().int().nonnegative(), scoreB: z.number().int().nonnegative(),
@@ -59,24 +60,18 @@ export async function planSeriesAfterMapScoreChangeInTx(tx: TxDb, raw: SeriesCor
   const reports = await tx.select().from(postMatchReports).where(eq(postMatchReports.matchId, match.id)).orderBy(asc(postMatchReports.matchId));
   const blockers = [...result.blockers, ...progression.blockers];
   if (match.startedAt && result.completedAt < match.startedAt) blockers.push("地图完成时间早于比赛开始，请先核对实际比赛时间。");
-  const startedIds = new Set<string>();
-  for (const session of sessions) if (session.currentMapId && session.mapExecutionPhase === "gameplay") startedIds.add(session.currentMapId);
-  for (const row of history) {
-    const meta = row.meta as Record<string, unknown> | null;
-    if (!meta) continue;
-    // Durable observations remain relevant across generation resets/handover.
-    if (row.action === "mizar.reliable.accept" && !["map_started", "map_ended"].includes(String(meta.kind))) continue;
-    for (const map of maps) if (meta.mapId === map.id || meta.receivedMapId === map.id || meta.receivedMapName === map.mapName) startedIds.add(map.id);
-  }
+  const evidence = new Map(mapExecutionEvidenceFromSources(maps, sessions, history).map(item => [item.mapId, item]));
   for (const row of maps.filter(row => row.mapOrder > result.clinchingOrder && !row.completedAt)) {
-    if (startedIds.has(row.id)) blockers.push(`Map ${row.mapOrder} 已开始，请先处理实际比赛事实。`);
+    const execution = evidence.get(row.id)!;
+    if (execution.canonical !== "unrecorded") blockers.push(`Map ${row.mapOrder} 已开始，请先处理实际比赛事实。`);
+    else if (execution.sourceObserved) blockers.push(`Map ${row.mapOrder} 有开图来源观察，请先核实实际比赛事实。`);
     if (imports.some(item => item.matchMapId === row.id) || stats.some(item => item.mapId === row.id)) blockers.push(`Map ${row.mapOrder} 已有比赛数据，请先处理实际比赛事实。`);
   }
   return {
     revision: sha256Json(previewRevisionValue({ input, match, maps, sessions, history, imports, stats, roster, reports, progression })),
     currentA: result.currentA, currentB: result.currentB, scoreA: result.scoreA, scoreB: result.scoreB,
     correctedMapOrder: map.mapOrder, oldA: map.scoreA!, oldB: map.scoreB!, newA: input.scoreA, newB: input.scoreB,
-    maps: maps.map(row => ({ order: row.mapOrder, label: row.completedAt ? "已有正式结果" : startedIds.has(row.id) ? "已开始" : row.mapOrder > result.clinchingOrder ? "未进行，更正后不再需要" : "尚未开始" })),
+    maps: maps.map(row => ({ order: row.mapOrder, label: row.completedAt ? "已有正式结果" : evidence.get(row.id)?.canonical === "started" ? "已开始" : evidence.get(row.id)?.sourceObserved ? "来源观测到开图，待核实" : row.mapOrder > result.clinchingOrder ? "无开图记录，需人工确认" : "无开图记录" })),
     downstreamCount: progression.downstream.length, postTasksExist: imports.length > 0 || stats.length > 0 || reports.length > 0,
     progressionLabel: progression.mode === "major" ? "晋级结果将重新核算，下一轮仍需确认本轮结果" : "晋级结果将重新核算",
     blockers: [...new Set(blockers)],
