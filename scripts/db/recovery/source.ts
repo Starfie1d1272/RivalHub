@@ -1,6 +1,11 @@
 import { readV2Migrations } from "../legacy-lineage";
 import { OFFICIAL_PREVIEW, OFFICIAL_PRODUCTION } from "../../../src/lib/runtime/official-deployment-profile.mjs";
 import { spawnSync } from "node:child_process";
+import { lstatSync, readFileSync, statSync } from "node:fs";
+import { dirname } from "node:path";
+import { Pool } from "pg";
+import { postgresConnection } from "../../../src/db/postgres-connection";
+import { isMigrationLedgerPrefix, type MigrationIdentity } from "../migration-ledger";
 import { resolve } from "node:path";
 import type { ExpectedMigration } from "../production-preflight";
 import type { RecoveryMigrationIdentity, RecoverySourceIdentity } from "./manifest";
@@ -50,6 +55,28 @@ export async function resolveInstanceSourceIdentity(
   const identity = assertReleaseIdentity({ releaseTag: record.releaseTag, releaseCommit: record.releaseCommit }, "instance release identity");
   assertInstanceReleaseIdentity(identity.releaseTag, identity.releaseCommit, cwd);
   return { deployedReleaseTag: identity.releaseTag, deployedCommit: identity.releaseCommit };
+}
+
+/** Revalidate the installer-captured source and package ledger after the writer stops. */
+export async function resolveStoppedInstanceSourceIdentity(
+  frozenPath: string, sourceManifest: string, supabaseUrl: string, databaseUrl: string,
+): Promise<Omit<RecoverySourceIdentity, "databaseMigrationTerminal">> {
+  const file = lstatSync(frozenPath), parent = statSync(dirname(frozenPath));
+  if (process.getuid?.() !== 0 || !file.isFile() || file.isSymbolicLink() || file.uid !== 0 || parent.uid !== 0
+    || (file.mode & 0o077) || (parent.mode & 0o077) || file.size > 65536) throw new Error("Protected stopped-instance source required.");
+  const record = JSON.parse(readFileSync(frozenPath, "utf8"));
+  if (Object.keys(record).sort().join(",") !== "databaseName,releaseCommit,releaseTag,supabaseUrl"
+    || record.supabaseUrl !== supabaseUrl || record.databaseName !== "postgres") throw new Error("Frozen source database identity differs.");
+  assertInstanceReleaseIdentity(record.releaseTag, record.releaseCommit);
+  const previous = JSON.parse(readFileSync(sourceManifest, "utf8")) as { releaseTag: string; sourceCommit: string; migrations: MigrationIdentity[] };
+  if (previous.releaseTag !== record.releaseTag || previous.sourceCommit !== record.releaseCommit || !Array.isArray(previous.migrations) || !previous.migrations.length) throw new Error("Frozen source differs from installed package.");
+  const pool = new Pool({ ...postgresConnection(databaseUrl), max: 1 });
+  try {
+    const result = await pool.query<{ hash: string; when: string }>('SELECT hash, created_at::bigint::text AS "when" FROM drizzle.__drizzle_migrations ORDER BY created_at, id');
+    const ledger = result.rows.map(row => ({ hash: row.hash, when: Number(row.when) }));
+    if (ledger.length !== previous.migrations.length || !isMigrationLedgerPrefix(ledger, previous.migrations)) throw new Error("Checkpoint database ledger differs from the running package.");
+  } finally { await pool.end(); }
+  return { deployedReleaseTag: record.releaseTag, deployedCommit: record.releaseCommit };
 }
 
 /** Instance build.mjs derives its release label from the committed package

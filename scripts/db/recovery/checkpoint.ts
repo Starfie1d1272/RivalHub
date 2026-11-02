@@ -1,10 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { Pool } from "pg";
-import { postgresConnection } from "../../../src/db/postgres-connection";
-import { isMigrationLedgerPrefix, type MigrationIdentity } from "../migration-ledger";
-import { lstatSync, mkdtempSync, mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { publishRecoveryArtifact } from "./artifact";
 import {
   assertProductionDbCheckpointEnvironment,
@@ -23,7 +20,7 @@ import {
   readProductionMigrationIdentity,
   readSupabaseCliVersion,
 } from "./backup";
-import { assertInstanceReleaseIdentity, assertRecoverySourceUnchanged, resolveInstanceSourceIdentity, resolveProductionSourceIdentity } from "./source";
+import { assertRecoverySourceUnchanged, resolveInstanceSourceIdentity, resolveProductionSourceIdentity, resolveStoppedInstanceSourceIdentity } from "./source";
 
 async function main(): Promise<void> {
   const sourceMode = process.env.RIVALHUB_BACKUP_SOURCE ?? "production";
@@ -45,27 +42,9 @@ async function main(): Promise<void> {
   const frozenPath = process.argv[2] === "--stopped-instance-source" ? process.argv[3] : undefined;
   const sourceManifest = process.argv[4] === "--source-manifest" ? process.argv[5] : undefined;
   if (process.argv.length > 2 && (!instance || !frozenPath || !sourceManifest || process.argv.length !== 6)) throw new Error("Invalid checkpoint arguments.");
-  if (frozenPath) {
-    const file = lstatSync(frozenPath), parent = statSync(dirname(frozenPath));
-    if (process.getuid?.() !== 0 || !file.isFile() || file.isSymbolicLink() || file.uid !== 0 || parent.uid !== 0
-      || (file.mode & 0o077) || (parent.mode & 0o077) || file.size > 65536) throw new Error("Protected stopped-instance source required.");
-  }
-  const readSource = async () => {
-    if (!frozenPath) return instance ? resolveInstanceSourceIdentity(instance.appOrigin, instance.supabaseUrl, process.cwd(), fetch, sourceMode === "isolated-instance") : resolveProductionSourceIdentity();
-    const record = JSON.parse(readFileSync(frozenPath, "utf8"));
-    if (Object.keys(record).sort().join(",") !== "databaseName,releaseCommit,releaseTag,supabaseUrl"
-      || record.supabaseUrl !== instance!.supabaseUrl || record.databaseName !== "postgres") throw new Error("Frozen source database identity differs.");
-    assertInstanceReleaseIdentity(record.releaseTag, record.releaseCommit);
-    const previous = JSON.parse(readFileSync(sourceManifest!, "utf8")) as { releaseTag: string; sourceCommit: string; migrations: MigrationIdentity[] };
-    if (previous.releaseTag !== record.releaseTag || previous.sourceCommit !== record.releaseCommit || !Array.isArray(previous.migrations) || !previous.migrations.length) throw new Error("Frozen source differs from installed package.");
-    const pool = new Pool({ ...postgresConnection(environment.databaseUrl), max: 1 });
-    try {
-      const result = await pool.query<{ hash: string; when: string }>('SELECT hash, created_at::bigint::text AS "when" FROM drizzle.__drizzle_migrations ORDER BY created_at, id');
-      const ledger = result.rows.map(row => ({ hash: row.hash, when: Number(row.when) }));
-      if (ledger.length !== previous.migrations.length || !isMigrationLedgerPrefix(ledger, previous.migrations)) throw new Error("Checkpoint database ledger differs from the running package.");
-    } finally { await pool.end(); }
-    return { deployedReleaseTag: record.releaseTag, deployedCommit: record.releaseCommit };
-  };
+  const readSource = async () => frozenPath
+    ? resolveStoppedInstanceSourceIdentity(frozenPath, sourceManifest!, instance!.supabaseUrl, environment.databaseUrl)
+    : instance ? resolveInstanceSourceIdentity(instance.appOrigin, instance.supabaseUrl, process.cwd(), fetch, sourceMode === "isolated-instance") : resolveProductionSourceIdentity();
   const runId = randomUUID();
   const createdAt = new Date().toISOString();
   const tempRoot = mkdtempSync(join(tmpdir(), `rivalhub-release-db-checkpoint-${runId}-`));
