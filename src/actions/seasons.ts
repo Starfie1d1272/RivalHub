@@ -14,9 +14,9 @@ import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import { normalizeRegistrationConfig, normalizeTeamRegistrationConfig, teamRegistrationConfigForWrite } from "@/lib/seasons/compatibility";
 import type { StagePlan, TeamRegistrationConfig, StoredTeamRegistrationConfig } from "@/types/season";
-import { validateCompetitionDefinition } from "@/lib/competition/definition";
+import { capabilitiesFromSeason, checkStandardMajorCapabilities, validateCompetitionDefinition } from "@/lib/competition/definition";
 import { assertAffiliationRequirementsFit, assertQualificationPolicyPublishable } from "@/lib/competition/qualification-policy";
-import { assertFormationRulesPublishable, decodeSeasonRules } from "@/lib/seasons/rules";
+import { assertFormationRulesPublishable, decodeSeasonRules, seasonCapabilityIssue } from "@/lib/seasons/rules";
 import { assertSeasonHasNoHistoricalFacts, freezeV2CompetitiveContext, openSeasonRegistrationInTx, resolveConversionPolicyForPublish, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
 import { seasonFormSchema, seasonUpdatePayloadSchema, planSeasonCreate, planSeasonUpdate, type SeasonFormInput } from "@/lib/seasons/edit";
 import { updatePublicAnnouncementTags, updatePublicSeasonInfoTag, updatePublicSeasonTags } from "@/lib/revalidation";
@@ -148,6 +148,19 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
       if (locked.competitionTemplate === "custom") assertRunnableCustomDefinition(locked);
 
       const decoded = decodeSeasonRules(locked);
+      const capabilityIssue = seasonCapabilityIssue({
+        registrationMode: locked.registrationMode, hasCaptainVoting: locked.hasCaptainVoting, hasDraft: locked.hasDraft,
+        isV2: decoded.source === "policy_v2", requirePositions: decoded.roster.requirePositions,
+        maxPerPositionPerTeam: decoded.roster.maxPerPositionPerTeam, positions: decoded.roster.positions,
+        minTeamSize: decoded.roster.minTeamSize, externalStrengthGapEnabled: decoded.competitive.externalStrengthGap.enabled,
+        externalStrengthTarget: decoded.competitive.competitiveProfile?.platform ?? null,
+        affiliationRuleCount: decoded.roster.affiliationRules.length,
+      });
+      if (capabilityIssue) throw new AppError(ErrorCode.VALIDATION_FAILED, capabilityIssue);
+      if (locked.competitionTemplate === "major") {
+        const major = checkStandardMajorCapabilities(capabilitiesFromSeason(locked));
+        if (!major.isStandardMajor) throw new AppError(ErrorCode.VALIDATION_FAILED, major.failures[0]?.reason ?? "当前 Major 配置无法运行。");
+      }
       let nextTeamRegistrationConfig: StoredTeamRegistrationConfig | null;
       if (decoded.source === "policy_v2") {
         assertFormationRulesPublishable(decoded);

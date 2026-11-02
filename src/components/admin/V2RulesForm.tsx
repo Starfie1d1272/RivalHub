@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supportsExternalHistoricalGapTarget } from "@/lib/competitive/player-strength";
 import { resolveCompetitiveSourceSelection } from "@/lib/competitive/source-selection";
 import { NO_RANK, type CompetitivePlatformOption } from "@/components/admin/SeasonSettingsFacts";
 
@@ -64,6 +65,7 @@ export function V2RulesForm({ value, onChange, affiliationRules, onAffiliationRu
     </section>
     <section className="space-y-3"><h3 className="text-sm font-medium">竞技用途</h3>
       <label className="flex items-center gap-2 text-sm"><Checkbox disabled={disabled} checked={policy.externalStrengthGap.enabled} onChange={e => setPolicy({ externalStrengthGap: { ...policy.externalStrengthGap, enabled: e.target.checked } })} />限制外校历史实力星差</label>
+      {policy.externalStrengthGap.enabled && !supportsExternalHistoricalGapTarget(policy.competitiveProfile?.platform) && <p className="text-xs text-[var(--color-warn)]">外校历史实力星差目前需要以完美世界为目标平台；可使用已配置的 5E 等效换算。</p>}
       {policy.externalStrengthGap.enabled && <div><Label htmlFor={`${id}-gap`}>最大星差</Label><Input id={`${id}-gap`} type="number" min={0} max={100} disabled={disabled} value={policy.externalStrengthGap.maxGap} onChange={e => setPolicy({ externalStrengthGap: { ...policy.externalStrengthGap, maxGap: Number(e.target.value) } })} /></div>}
       {needsContext && <div className="space-y-3"><div><Label htmlFor={`${id}-platform`}>竞技平台</Label><Select disabled={disabled} value={policy.competitiveProfile?.platform ?? ""} onValueChange={platform => { if (platform !== policy.competitiveProfile?.platform) { if (currentMin !== NO_RANK) onCurrentMinChange("__select_rank__"); if (peakMin !== NO_RANK) onPeakMinChange("__select_rank__"); setPolicy({ competitiveProfile: { platform, currentSeasonKey: "", previousSeasonKey: "", rankOrder: [], sourceSelection: resolveCompetitiveSourceSelection(policy.competitiveProfile) } }); } }}><SelectTrigger id={`${id}-platform`}><SelectValue placeholder="选择平台" /></SelectTrigger><SelectContent>{platforms.map(platform => <SelectItem key={platform.key} value={platform.key}>{platform.displayName}</SelectItem>)}</SelectContent></Select></div>
         {policy.competitiveProfile && <div><Label htmlFor={`${id}-source`}>竞技证据选择</Label><Select disabled={disabled} value={resolveCompetitiveSourceSelection(policy.competitiveProfile)} onValueChange={sourceSelection => setPolicy({ competitiveProfile: { ...policy.competitiveProfile!, sourceSelection: sourceSelection as "primary_then_fallback" | "strongest_equivalent" } })}><SelectTrigger id={`${id}-source`}><SelectValue /></SelectTrigger><SelectContent><SelectItem value="primary_then_fallback">主平台优先</SelectItem><SelectItem value="strongest_equivalent">可用等效资料取较高水平</SelectItem></SelectContent></Select></div>}
