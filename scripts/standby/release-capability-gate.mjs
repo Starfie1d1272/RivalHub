@@ -1,10 +1,14 @@
-import { lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { assertCapabilitySnapshots } from "./capability-contract.ts";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const colocated = join(scriptDir, "capability-contract.ts");
+const contractFile = existsSync(colocated) ? colocated : join(scriptDir, "../release/capability-contract.ts");
+const { assertCapabilitySnapshots } = await import(pathToFileURL(contractFile).href);
 
 const [path, previousTag, previousCommit, candidateTag, candidateCommit, operatorCommit] = process.argv.slice(2);
-const directory = dirname(fileURLToPath(import.meta.url));
+const directory = scriptDir;
 if (!path || realpathSync(dirname(path)) !== realpathSync(directory) || realpathSync(path) !== join(realpathSync(directory), "capability-evidence.json")) throw new Error("Controller capability evidence required.");
 const file = lstatSync(path), parent = statSync(directory);
 if (!file.isFile() || file.uid !== process.getuid() || parent.uid !== process.getuid() || (file.mode & 0o077) !== 0 || (parent.mode & 0o077) !== 0 || file.size > 16384) throw new Error("Capability evidence permissions or size invalid.");
