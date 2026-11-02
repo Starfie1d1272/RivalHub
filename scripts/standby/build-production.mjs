@@ -40,7 +40,7 @@ const bundle = resolve(root, ".next/standalone");
 cpSync(resolve(root, "public"), `${bundle}/public`, { recursive: true });
 cpSync(resolve(root, ".next/static"), `${bundle}/.next/static`, { recursive: true });
 for (const path of ["scripts/standby/start-production.mjs", "scripts/standby/production-config.mjs",
-  "scripts/db/production-environment.ts", "scripts/db/remote-environment.ts", "src/lib/release/identity.ts"]) {
+  "src/lib/runtime/official-deployment-profile.mjs", "scripts/db/production-environment.ts", "scripts/db/remote-environment.ts", "src/lib/release/identity.ts"]) {
   const destination = resolve(bundle, path);
   mkdirSync(dirname(destination), { recursive: true });
   // Node's native TS loader requires explicit extensions; retain canonical guard logic.
