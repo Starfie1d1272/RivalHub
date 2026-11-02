@@ -3,9 +3,6 @@
 set -Eeuo pipefail
 umask 077
 [[ $(id -u) == 0 ]] || { echo 'Run as root on the instance host.' >&2; exit 1; }
-# A maintenance-window label cannot fence another host or database writer.
-# Keep this independent entry closed until that property can be verified.
-[[ ${12:-} != --major-transition && ${1:-} != --restore-pair ]] || { echo 'Major transition and paired activation unavailable: independent writers cannot be proven fenced.' >&2; exit 1; }
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 helper="$script_dir/../standby/production-host.mjs"
 root=/opt/rivalhub-instance
@@ -53,18 +50,35 @@ wait_identity() {
   done
   return 1
 }
+managed_scheduler() {
+  local action=$1 active
+  active=$(readlink "$root/current") || return 1
+  [[ $active == releases/rivalhub-production-* && -n ${snapshot:-} && -f $config ]] || return 1
+  env -i "$root/$active/runtime/node" --env-file="$config" "$script_dir/managed-scheduler.mjs" "$action" "$root/$active" "$tls_helper/postgres-connection.ts" "$snapshot"
+}
+check_managed_ingress_stopped() {
+  local active origin code
+  active=$(readlink "$root/current") || return 1
+  origin=$(env -i "$root/$active/runtime/node" --env-file="$config" -e 'const u = new URL(process.env.NEXT_PUBLIC_APP_URL); if (u.protocol !== "https:" || u.origin !== process.env.NEXT_PUBLIC_APP_URL) process.exit(1); console.log(u.origin)') || return 1
+  code=$(curl --silent --show-error --max-time 5 --output /dev/null --write-out '%{http_code}' "$origin/api/system/release") || return 1
+  [[ $code == 502 || $code == 503 || $code == 504 ]]
+}
 quiesce() {
   # After identity checks, stop admission (including HTTP cron) and drain pooler work.
   local active
   active=$(readlink "$root/current" || true)
   # First install has no previous writer or registered unit to stop.
   if [[ -z $active && ! -f $unit ]]; then return 0; fi
+  if [[ ${#transition_arg[@]} -gt 0 ]]; then managed_scheduler pause || return 1; fi
   systemctl stop rivalhub-instance || return 2
   [[ -n $active ]] || return 1
   if [[ -n $active ]]; then
     [[ $active == releases/rivalhub-production-* && -f $config ]] || return 1
     env -i "$root/$active/runtime/node" --env-file="$config" \
-      "$script_dir/../standby/production-quiescence.mjs" "$root/$active" "$tls_helper/postgres-connection.ts" || return 1
+      "$script_dir/../standby/production-quiescence.mjs" "$root/$active" "$tls_helper/postgres-connection.ts" "${transition_arg[@]/instance-v2-to-v3/--all-writers}" || return 1
+    if [[ ${#transition_arg[@]} -gt 0 ]]; then
+      managed_scheduler verify && check_managed_ingress_stopped || return 1
+    fi
   fi
 }
 restore() {
@@ -85,6 +99,7 @@ restore() {
     mv -Tf "$root/current.rollback" "$root/current" || return 1
     systemctl daemon-reload && systemctl reset-failed rivalhub-instance && systemctl start rivalhub-instance || return 1
     wait_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" || return 1
+    if [[ ${#transition_arg[@]} -gt 0 ]]; then managed_scheduler resume || { systemctl stop rivalhub-instance || true; return 1; }; fi
   else
     rm -f "$root/current" || return 1
     if [[ -f $snapshot/instance.env ]]; then cp -p "$snapshot/instance.env" "$config" || return 1; else rm -f "$config" || return 1; fi
@@ -101,7 +116,7 @@ failed() {
 }
 if [[ ${1:-} == --restore-pair ]]; then
   transition_arg=(instance-v2-to-v3)
-  [[ $# == 3 ]] || { echo 'Restore-pair requires verified full recovery evidence and restored target environment.' >&2; exit 1; }
+  [[ $# == 4 && $4 == --confirm-external-writers-stopped ]] || { echo 'Restore-pair requires recovery evidence, target environment and confirmation that external writers are stopped.' >&2; exit 1; }
   snapshot=$(realpath "$(cat "$root/previous-snapshot")")
   [[ $snapshot == "$root/rollback/"* && -f $snapshot/migration-started && -f $snapshot/full-checkpoint.json && -f $snapshot/identity && ! -e $snapshot/paired-recovery-complete ]] || { echo 'No major transaction requiring paired recovery.' >&2; exit 1; }
   read -r tag sha previous_tag previous_sha < "$snapshot/identity"
@@ -320,6 +335,11 @@ if [[ $migration_changed == 1 ]]; then
   fi
   rm -f "$snapshot/checkpoint.env"
   env -i "$node" --env-file="$snapshot/instance.env" "$root/$previous/scripts/instance/readiness.mjs" "$root/$previous"
+  if [[ ${#transition_arg[@]} -gt 0 ]] && ! quiesce; then
+    trap - ERR HUP INT TERM
+    echo 'Writer or scheduler recheck failed; leave service stopped.' >&2
+    exit 1
+  fi
   instance_ref=$("$node" -e 'console.log(JSON.parse(process.argv[1]).project)' "$candidate_db")
   # Persist before invoking the migrator: an interrupted or partially committed
   # migration can never make automatic application rollback safe.
@@ -335,6 +355,7 @@ systemctl daemon-reload
 systemctl reset-failed rivalhub-instance
 systemctl restart rivalhub-instance
 wait_identity "$release/runtime/node" "$tag" "$sha"
+if [[ ${#transition_arg[@]} -gt 0 ]]; then managed_scheduler resume; fi
 systemctl enable rivalhub-instance
 trap - ERR HUP INT TERM
 echo "Instance candidate active: $tag $sha; rollback snapshot: $snapshot"

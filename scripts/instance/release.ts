@@ -7,11 +7,6 @@ import { assertReleaseIdentity } from "../../src/lib/release/identity";
 import { assertCapabilitySnapshots, readReleaseCapabilities } from "../release/capability-contract";
 import { assertInstanceReleaseIdentity } from "../db/recovery/source";
 
-// No existing database or host check prevents a separate writer reconnecting.
-function requireWriterFence(): void {
-  throw new Error("Major transition unavailable: the instance cannot prove that independent writers are fenced. Keep the current release running until a verified writer-fencing mechanism is available.");
-}
-
 // This controller runs on the instance host from the trusted operator checkout.
 // The small evidence has the same format and verifier as the release controller.
 async function main(): Promise<void> {
@@ -25,11 +20,10 @@ async function main(): Promise<void> {
     copyFileSync("scripts/release/capability-contract.ts", join(temp, "capability-contract.ts"));
     const evidence = join(temp, "capability-evidence.json");
     if (process.argv[2] === "--restore-pair") {
-      requireWriterFence();
-      if (process.argv.length !== 5) throw new Error("Usage: release.ts --restore-pair EVIDENCE RESTORED_INSTANCE_ENV");
+      if (process.argv.length !== 6 || process.argv[5] !== "--confirm-external-writers-stopped") throw new Error("Usage: release.ts --restore-pair EVIDENCE RESTORED_INSTANCE_ENV --confirm-external-writers-stopped");
       const snapshot = realpathSync(readFileSync("/opt/rivalhub-instance/previous-snapshot", "utf8").trim());
       if (!snapshot.startsWith("/opt/rivalhub-instance/rollback/") || readFileSync(join(snapshot, "operator-commit"), "utf8").trim() !== operator) throw new Error("Paired recovery operator or transaction mismatch.");
-      execFileSync("bash", ["scripts/instance/install.sh", "--restore-pair", resolve(process.argv[3]!), resolve(process.argv[4]!)], { stdio: "inherit" });
+      execFileSync("bash", ["scripts/instance/install.sh", "--restore-pair", resolve(process.argv[3]!), resolve(process.argv[4]!), "--confirm-external-writers-stopped"], { stdio: "inherit" });
       return;
     }
     if (process.argv[2] === "--rollback") {
@@ -45,9 +39,8 @@ async function main(): Promise<void> {
     }
     const major = process.argv[2] === "--major-transition";
     if (major) {
-      requireWriterFence();
-      if (process.argv.length !== 9 || process.argv[5] !== "--checkpoint-env" || process.argv[7] !== "--maintenance-window"
-        || !/^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/.test(process.argv[8] ?? "")) throw new Error("Usage: release.ts --major-transition MANIFEST INSTANCE_ENV --checkpoint-env FILE --maintenance-window ID");
+      if (process.argv.length !== 10 || process.argv[5] !== "--checkpoint-env" || process.argv[7] !== "--maintenance-window"
+        || !/^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/.test(process.argv[8] ?? "") || process.argv[9] !== "--confirm-external-writers-stopped") throw new Error("Usage: release.ts --major-transition MANIFEST INSTANCE_ENV --checkpoint-env FILE --maintenance-window ID --confirm-external-writers-stopped");
       const archive = resolve(process.argv[3]!);
       const environment = resolve(process.argv[4]!);
       const manifest = JSON.parse(readFileSync(archive, "utf8")) as { sourceCommit?: string; releaseTag?: string; operatorCommit?: string; environment?: string; migrations?: MigrationIdentity[] };
@@ -65,7 +58,7 @@ async function main(): Promise<void> {
       const before = readReleaseCapabilities(process.cwd(), previous.releaseCommit), after = readReleaseCapabilities(process.cwd(), operator);
       // Validate both immutable contracts individually; cross-version concurrency is not permitted in this transaction.
       assertCapabilitySnapshots(before, before); assertCapabilitySnapshots(after, after);
-      const content = JSON.stringify({ version: 2, transition: "instance-v2-to-v3", maintenanceWindow: process.argv[8], operatorCommit: operator,
+      const content = JSON.stringify({ version: 2, transition: "instance-v2-to-v3", maintenanceWindow: process.argv[8], externalWriters: "operator-confirmed-stopped", operatorCommit: operator,
         previous: { tag: previous.releaseTag, commit: previous.releaseCommit, capabilities: before },
         candidate: { tag: manifest.releaseTag, commit: operator, capabilities: after } });
       if (Buffer.byteLength(content) > 16384) throw new Error("Capability evidence exceeds 16 KiB.");

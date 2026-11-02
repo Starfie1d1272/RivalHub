@@ -21,7 +21,7 @@ if (!tag.test(previousTag ?? "") || !tag.test(candidateTag ?? "") || !sha.test(p
 if (transition === undefined && evidence.version === 1) {
   assertCapabilitySnapshots(evidence.previous.capabilities, evidence.candidate.capabilities);
 } else if (transition === "instance-v2-to-v3" && evidence.version === 2 && evidence.transition === transition
-  && /^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/.test(evidence.maintenanceWindow ?? "")) {
+  && /^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/.test(evidence.maintenanceWindow ?? "") && evidence.externalWriters === "operator-confirmed-stopped") {
   assertCapabilitySnapshots(evidence.previous.capabilities, evidence.previous.capabilities);
   assertCapabilitySnapshots(evidence.candidate.capabilities, evidence.candidate.capabilities);
 } else throw new Error("Invalid release capability transition.");
