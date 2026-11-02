@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import type { PoolClient } from "pg";
 import { captureApplicationMigrationContract } from "./compare-migration-contract";
@@ -12,9 +13,20 @@ const root = resolve(process.cwd(), "drizzle/baseline-candidate");
 export async function adoptLegacyCandidate(client: PoolClient): Promise<"adopted" | "already-adopted"> {
   const legacy = readMigrationLedger(resolve(process.cwd(), "drizzle/v2-migrations"));
   const recorded = JSON.parse(readFileSync(resolve(root, "legacy-ledger.json"), "utf8")) as MigrationIdentity[];
-  const expectedContract = JSON.parse(readFileSync(resolve(root, "legacy-contract.json"), "utf8")) as Record<string, string[]>;
+  const contractBytes = readFileSync(resolve(root, "legacy-contract.json"));
+  const expectedContract = JSON.parse(contractBytes.toString("utf8")) as Record<string, string[]>;
+  const identity = JSON.parse(readFileSync(resolve(root, "baseline-identity.json"), "utf8")) as {
+    tag: string; hash: string; when: number; legacyTerminal: { tag: string; hash: string; when: number }; contractSha256: string;
+  };
   const baseline = readMigrationLedger();
   if (legacy.length !== recorded.length || !isMigrationLedgerPrefix(legacy, recorded) || !baseline.length) throw new Error("Candidate lineage files are incomplete.");
+  const first = baseline[0]!, terminal = legacy.at(-1);
+  if (first.tag !== identity.tag || first.hash !== identity.hash || first.when !== identity.when
+    || !terminal || terminal.tag !== identity.legacyTerminal.tag || terminal.hash !== identity.legacyTerminal.hash
+    || terminal.when !== identity.legacyTerminal.when
+    || createHash("sha256").update(contractBytes).digest("hex") !== identity.contractSha256) {
+    throw new Error("Baseline or legacy contract differs from the reviewed lineage evidence; adoption refused.");
+  }
   await client.query("SELECT pg_advisory_lock(hashtext('rivalhub.instance.install'))");
   try {
     await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE");

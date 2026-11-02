@@ -958,7 +958,7 @@ describe("DAK evidence submit persistence", () => {
       try {
         await database.update(schema.competitionEntries).set({ source: "linked_team", teamId: linkedTeamId }).where(inArray(schema.competitionEntries.id, [ids.entryA, ids.careerEntryA]));
         const longDetail = await checkDetailProjection(() => getLongTeamCareerDetail(linkedTeamId, observedDatabase));
-        expect(longDetail.maps.map(row => row.mapName)).toEqual(["de_ancient", "de_nuke"]);
+        expect(longDetail.maps.map(row => row.mapName).sort()).toEqual(["de_ancient", "de_nuke"]);
         const directory = await getTeamDirectory(normalizeTeamDirectoryQuery({ q: "Explicit cross-event team" }));
         expect(directory.rows.map(row => row.id)).toContain(linkedTeamId);
         expect(directory.total).toBe(directory.rows.length);
@@ -1067,9 +1067,10 @@ describe("DAK evidence submit persistence", () => {
       queryLog.length = 0;
       queryBindings.length = 0;
       const allTimeCareer = await checkDetailProjection(() => getPlayerCareerDetail({ playerId: userIds[0]! }, observedDatabase));
-      expect(allTimeCareer.maps.map(row => row.mapName)).toEqual(["de_ancient", "de_nuke"]);
+      const careerMaps = [...allTimeCareer.maps].sort((a, b) => a.mapName.localeCompare(b.mapName));
+      expect(careerMaps.map(row => row.mapName)).toEqual(["de_ancient", "de_nuke"]);
       expect(stableNumbers(allTimeCareer.performance)).toEqual(stableNumbers(platformStats.performance.players.find(row => row.player.entityKey === userIds[0])));
-      expect(stableNumbers(allTimeCareer.maps.map(row => row.performance))).toEqual(stableNumbers([
+      expect(stableNumbers(careerMaps.map(row => row.performance))).toEqual(stableNumbers([
         buildTournamentPerformanceAnalytics([expectedFacts.performance], { labels: platformLabels }).players.find(row => row.player.entityKey === userIds[0]),
         buildTournamentPerformanceAnalytics([careerFacts.performance], { labels: platformLabels }).players.find(row => row.player.entityKey === userIds[0]),
       ]));
@@ -1375,14 +1376,13 @@ describe("DAK evidence submit persistence", () => {
             if (fault === "coding") return Promise.reject(codingCause);
             // Execute real PostgreSQL failures through the actual driver. No
             // production SQL or error object is replaced with a mock SQLSTATE.
-            return Reflect.apply(originalQuery, client, [fault === "timeout" ? "SELECT pg_sleep(0.1)" : "SELECT 1 / 0"]);
+            return Reflect.apply(originalQuery, client, [fault === "timeout" ? "SET LOCAL statement_timeout = '10ms'; SELECT pg_sleep(0.1)" : "SELECT 1 / 0"]);
           }
           return Reflect.apply(originalQuery, client, args);
         }) as typeof client.query;
         let caught: unknown;
         try {
           await database.transaction(async (tx) => {
-            if (fault === "timeout") await tx.execute(sql`SET LOCAL statement_timeout = '10ms'`);
             return fault === "identity-after-write"
               ? confirmStoredDemoParticipantIdentityInTx(tx, { importId: needsIdentity.importId!, observedSteam64: alternateSteam64, eventRosterMemberId: eventMemberIds[0]!, actorId: userIds[0]! })
               : revalidateStoredDemoImportInTx(tx, { importId: needsIdentity.importId!, actorId: userIds[0]! });

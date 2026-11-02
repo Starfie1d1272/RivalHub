@@ -4,8 +4,33 @@ This document records the earlier proof artifacts, not a validation of the
 adjacent `0000_v3_candidate.sql`: that file subsequently normalizes synthetic
 catalog UUIDs/times, removes the instance-specific conversion source note,
 and adds a legacy-ledger archive. Its final bytes require a fresh replay.
-The candidate is not the active migration chain. Adoption remains restricted
-to local databases and recovery lineage integration is unfinished.
+Those earlier proof artifacts are not the current active migration chain;
+the later candidate validation and remaining limits are recorded below.
+
+## Later candidate validation
+
+The subsequently prepared active baseline has SHA-256
+`387c6388433a250647acd17c55bf97f218983fb7bf2ea15ac376414c6d95cf9c`.
+Two independently initialized Local Supabase instances executed the active
+baseline and the original 113-migration chain respectively. The existing
+physical comparator, 127-table access matrix, application Realtime policy and
+managed bucket checks passed. The canonical runner adopted the original chain;
+its 113 original id/hash/time entries, synthetic user and approved education
+history and the existing official email rule were preserved. Unknown ledgers,
+physical drift and a baseline modified without updating the reviewed identity
+were rejected. New generic catalog rows preserve business keys and deterministic
+institution IDs; generated IDs and timestamps are not frozen. The official
+email rule and an instance-specific conversion source note are omitted only
+on the fresh path.
+
+The full backup CLI, actual age encryption, loopback S3 fixture, fetch and full
+restore ran against separately initialized isolated providers using source
+commit `0d0a037e86d68c5504b78da8b1a832d165b7660c`. The restored 113-entry
+archive, synthetic catalog/business rows, email rule and Storage object matched;
+recovery evidence, release capability and readiness checks passed. A temporary
+synthetic follow-on migration also preserved the archive and business row. This
+does not establish an actual released follow-on migration, Hosted permissions,
+systemd execution or database-wide migration mutual exclusion.
 
 Source: Git commit `ec920fc4118cddbc998053a15ebdc91d9dc09bcf` (#1354, includes #1371). All data came from a newly initialized Local Supabase, followed by the original canonical 0000–0112 Drizzle chain. No production database, data, credentials, or external host was used. This is a review artifact, not an active migration or authorization to adopt.
 
