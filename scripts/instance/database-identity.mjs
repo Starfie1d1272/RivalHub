@@ -22,6 +22,10 @@ for (const [key] of db.searchParams) {
   if (!['sslmode', 'pgbouncer'].includes(key) || seen.has(key)) throw Error('Unsupported database URL option for instance identity.');
   seen.add(key);
 }
-const database = decodeURIComponent(db.pathname.slice(1));
-if (!database || database.includes('/') || database.includes('\0')) throw Error('Instance database name is invalid.');
+// pg-connection-string uses decodeURI for the database name, leaving
+// reserved escapes distinct from their literal forms. Keep the stricter path
+// validation as well, so encoded slashes do not expand accepted targets.
+const database = decodeURI(db.pathname.slice(1));
+const validatedPath = decodeURIComponent(db.pathname.slice(1));
+if (!database || validatedPath.includes('/') || validatedPath.includes('\0')) throw Error('Instance database name is invalid.');
 console.log(JSON.stringify({ project, database }));
