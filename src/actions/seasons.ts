@@ -13,11 +13,11 @@ import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import { normalizeRegistrationConfig, normalizeTeamRegistrationConfig, teamRegistrationConfigForWrite } from "@/lib/seasons/compatibility";
-import type { StagePlan, TeamRegistrationConfig } from "@/types/season";
+import type { StagePlan, TeamRegistrationConfig, StoredTeamRegistrationConfig } from "@/types/season";
 import { validateCompetitionDefinition } from "@/lib/competition/definition";
 import { assertAffiliationRequirementsFit, assertQualificationPolicyPublishable } from "@/lib/competition/qualification-policy";
-import { assertFormationRulesPublishable, decodeSeasonRules, seasonRulesNeedCompetitiveContext } from "@/lib/seasons/rules";
-import { assertSeasonHasNoHistoricalFacts, openSeasonRegistrationInTx, resolveConversionPolicyForPublish, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
+import { assertFormationRulesPublishable, decodeSeasonRules, encodeDraftSeasonRules } from "@/lib/seasons/rules";
+import { assertSeasonHasNoHistoricalFacts, assertV2CompetitiveContext, openSeasonRegistrationInTx, resolveConversionPolicyForPublish, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
 import { seasonFormSchema, seasonUpdatePayloadSchema, planSeasonCreate, planSeasonUpdate, type SeasonFormInput } from "@/lib/seasons/edit";
 import { updatePublicAnnouncementTags, updatePublicSeasonInfoTag, updatePublicSeasonTags } from "@/lib/revalidation";
 
@@ -148,43 +148,49 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
       if (locked.competitionTemplate === "custom") assertRunnableCustomDefinition(locked);
 
       const decoded = decodeSeasonRules(locked);
+      let nextTeamRegistrationConfig: StoredTeamRegistrationConfig | null;
       if (decoded.source === "policy_v2") {
         assertFormationRulesPublishable(decoded);
-        if (seasonRulesNeedCompetitiveContext(decoded) && !decoded.competitive.competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "资格政策要求竞技资料、段位门槛或外校实力限制，请先配置竞技平台。 ");
+        const profile = decoded.competitive.competitiveProfile;
+        await assertV2CompetitiveContext(tx, decoded);
         assertAffiliationRequirementsFit(decoded.roster.affiliationRules, { maxTeamSize: decoded.roster.maxTeamSize, starterCount: decoded.lineup.starterCount });
-        throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "新版资格政策尚未完成全部赛事流程接入，暂不能发布。 ");
-      }
-      const config = normalizeTeamRegistrationConfig(locked.teamRegistrationConfig);
-      assertQualificationPolicyPublishable(config, locked.registrationMode, { maxTeamSize: locked.maxTeamSize, starterCount: locked.starterCount });
-      let nextTeamRegistrationConfig: TeamRegistrationConfig | null = config.qualificationPolicy
-        ? teamRegistrationConfigForWrite(config)
-        : locked.teamRegistrationConfig as TeamRegistrationConfig | null;
+        if (profile?.conversionPolicyId || profile?.conversionPolicyVersion) {
+          const selected = await resolveConversionPolicyForPublish(tx, profile.platform, profile.conversionPolicyId, profile.conversionPolicyVersion);
+          nextTeamRegistrationConfig = encodeDraftSeasonRules(locked, { ...decoded, competitive: { ...decoded.competitive, competitiveProfile: { ...profile, conversionPolicyId: selected.id, conversionPolicyVersion: selected.version } } }).teamRegistrationConfig ?? null;
+        } else nextTeamRegistrationConfig = locked.teamRegistrationConfig;
+      } else {
+        const config = normalizeTeamRegistrationConfig(locked.teamRegistrationConfig);
+        assertQualificationPolicyPublishable(config, locked.registrationMode, { maxTeamSize: locked.maxTeamSize, starterCount: locked.starterCount });
+        nextTeamRegistrationConfig = config.qualificationPolicy
+          ? teamRegistrationConfigForWrite(config)
+          : locked.teamRegistrationConfig as TeamRegistrationConfig | null;
 
-      const policy = config.qualificationPolicy;
-      const profile = policy ? policy.competitiveProfile : config.competitiveProfile;
-      const requiresProfile = policy ? policy.competitiveProfileRequired || policy.externalStrengthGap.enabled : config.requireCompetitiveProfile;
-      if (requiresProfile) {
-        if (policy && !profile) throw new AppError(ErrorCode.VALIDATION_FAILED, "资格政策要求竞技资料或外校实力限制，请先配置竞技平台。 ");
-        const platform = profile?.platform ?? "perfect_world";
-        if (platform === "perfect_world") {
-          const resolvedPolicy = await resolveConversionPolicyForPublish(
-            tx,
-            platform,
-            profile?.conversionPolicyId,
-            profile?.conversionPolicyVersion,
-          );
-          const competitiveProfile = {
-            platform,
-            currentSeasonKey: profile?.currentSeasonKey ?? "",
-            previousSeasonKey: profile?.previousSeasonKey ?? "",
-            rankOrder: profile?.rankOrder ?? [],
-            ...profile,
-            conversionPolicyId: resolvedPolicy.id,
-            conversionPolicyVersion: resolvedPolicy.version,
-          };
-          nextTeamRegistrationConfig = policy
-            ? teamRegistrationConfigForWrite({ ...config, qualificationPolicy: { ...policy, competitiveProfile } })
-            : { ...config, competitiveProfile };
+        const policy = config.qualificationPolicy;
+        const profile = policy ? policy.competitiveProfile : config.competitiveProfile;
+        const requiresProfile = policy ? policy.competitiveProfileRequired || policy.externalStrengthGap.enabled : config.requireCompetitiveProfile;
+        if (requiresProfile) {
+          if (policy && !profile) throw new AppError(ErrorCode.VALIDATION_FAILED, "资格政策要求竞技资料或外校实力限制，请先配置竞技平台。 ");
+          const platform = profile?.platform ?? "perfect_world";
+          if (platform === "perfect_world") {
+            const resolvedPolicy = await resolveConversionPolicyForPublish(
+              tx,
+              platform,
+              profile?.conversionPolicyId,
+              profile?.conversionPolicyVersion,
+            );
+            const competitiveProfile = {
+              platform,
+              currentSeasonKey: profile?.currentSeasonKey ?? "",
+              previousSeasonKey: profile?.previousSeasonKey ?? "",
+              rankOrder: profile?.rankOrder ?? [],
+              ...profile,
+              conversionPolicyId: resolvedPolicy.id,
+              conversionPolicyVersion: resolvedPolicy.version,
+            };
+            nextTeamRegistrationConfig = policy
+              ? teamRegistrationConfigForWrite({ ...config, qualificationPolicy: { ...policy, competitiveProfile } })
+              : { ...config, competitiveProfile };
+          }
         }
       }
 
@@ -202,7 +208,7 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
           from: "draft",
           to: "registration",
           registrationSchedule: locked.registrationOpensAt ? locked.registrationOpensAt.toISOString() : null,
-          conversionPolicyVersion: nextTeamRegistrationConfig?.qualificationPolicy?.competitiveProfile?.conversionPolicyVersion ?? nextTeamRegistrationConfig?.competitiveProfile?.conversionPolicyVersion ?? null,
+          conversionPolicyVersion: nextTeamRegistrationConfig?.qualificationPolicy?.competitiveProfile?.conversionPolicyVersion ?? (nextTeamRegistrationConfig && "competitiveProfile" in nextTeamRegistrationConfig ? nextTeamRegistrationConfig.competitiveProfile?.conversionPolicyVersion : null) ?? null,
         },
       });
       return locked;

@@ -206,8 +206,8 @@ export async function projectVetoRoomView(
     };
   });
 
-  const gameplayStarted = core.gameplayStarted;
-  const recoveryClosed = core.match.status === "finished" || core.match.status === "cancelled" || gameplayStarted;
+  const admissionClosed = core.admissionClosed;
+  const recoveryClosed = core.match.status === "finished" || core.match.status === "cancelled" || admissionClosed;
   const appealsByIncident = new Map(core.appeals.map((appeal) => [appeal.timeoutIncidentId, appeal]));
   const incidents = core.incidents.map((incident) => {
     const appeal = appealsByIncident.get(incident.id);
@@ -227,12 +227,12 @@ export async function projectVetoRoomView(
         submittedByViewer: Boolean(viewerId && appeal.submittedBy === viewerId),
         resolvedByViewer: Boolean(viewerId && appeal.resolvedBy === viewerId),
         resolutionScope: appeal.resolutionScope,
-        statusLabel: gameplayStarted && appeal.status === "pending"
+        statusLabel: admissionClosed && appeal.status === "pending"
           ? "恢复窗口已结束（原待处理记录保留）"
           : APPEAL_STATUS_LABELS[appeal.status],
         reason: canSeeReason ? appeal.reason : null,
         resolutionNote: canSeeReason ? appeal.resolutionNote : null,
-        mayResolve: isAdmin && !gameplayStarted && appeal.status === "pending",
+        mayResolve: isAdmin && !admissionClosed && appeal.status === "pending",
       } : null,
       mayAppeal: Boolean(!recoveryClosed && viewerId && !appeal && (
         incident.representativeUserId === viewerId || entryRepresentativeId === viewerId
@@ -295,7 +295,7 @@ export async function projectVetoRoomView(
       viewerEntryId,
       canOperateCurrentTurn: Boolean(core.match.status === "in_progress" && viewerId && currentTurnEntry && entries.some((entry) => entry.id === currentTurnEntry && entry.isViewerVetoRepresentative)),
       canPause: Boolean(isAdmin && core.match.status === "in_progress" && core.session.startedAt && !core.session.completedAt && !core.session.pausedAt),
-      canResume: Boolean(isAdmin && core.match.status === "in_progress" && core.session.pausedAt),
+      canResume: Boolean(!recoveryClosed && isAdmin && core.match.status === "in_progress" && core.session.pausedAt),
       canRewind: Boolean(!recoveryClosed && isAdmin && core.session.startedAt && core.match.status === "in_progress"),
       canSetManualPrivilegedEntry: Boolean(isAdmin && core.match.status === "scheduled" && !core.session.startedAt && !core.match.majorStageRunId && !core.match.qualificationRunId),
     },

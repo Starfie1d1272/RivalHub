@@ -1,5 +1,8 @@
 import type { Pool } from "pg";
 
+/** Policies relevant to the viewer boundary, including a misconfigured named policy. */
+export const REALTIME_VIEWER_POLICY_FILTER = "(policyname = 'rivalhub_match_live_receive' OR roles && ARRAY['public','authenticated']::name[])";
+
 /** Hosted tenants must initialize their managed table before migration 0103 is recorded. */
 export async function assertHostedRealtimeTable(pool: Pick<Pool, "query">): Promise<void> {
   const result = await pool.query<{ table_name: string | null }>("SELECT to_regclass('realtime.messages')::text AS table_name");
@@ -10,7 +13,7 @@ export async function assertHostedRealtimeTable(pool: Pick<Pool, "query">): Prom
 export async function verifyHostedRealtimePolicy(pool: Pick<Pool, "query">): Promise<void> {
   await assertHostedRealtimeTable(pool);
   const result = await pool.query<{ policyname: string; cmd: string; permissive: string; roles: string[]; qual: string | null }>(
-    "SELECT policyname, cmd, permissive, roles::text[] AS roles, qual FROM pg_policies WHERE schemaname='realtime' AND tablename='messages' AND (roles && ARRAY['public','authenticated']::name[]) ORDER BY policyname",
+    `SELECT policyname, cmd, permissive, roles::text[] AS roles, qual FROM pg_policies WHERE schemaname='realtime' AND tablename='messages' AND ${REALTIME_VIEWER_POLICY_FILTER} ORDER BY policyname`,
   );
   const viewer = result.rows.filter(row => row.policyname === "rivalhub_match_live_receive");
   if (viewer.length !== 1 || viewer[0].cmd !== "SELECT" || viewer[0].permissive !== "PERMISSIVE" || viewer[0].roles.length !== 1 || viewer[0].roles[0] !== "authenticated") throw new Error("Hosted Realtime viewer policy 缺失或权限不正确。 ");
