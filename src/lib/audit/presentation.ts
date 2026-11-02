@@ -77,6 +77,7 @@ const DEFAULT_TARGETS: Record<AuditCategory, AuditTargetContract> = {
 const TARGET_OVERRIDES: Readonly<Partial<Record<AuditReadAction, AuditTargetContract>>> = {
   "bet.close": { type: "bet_market", lifecycle: "stable" },
   "bet.void": { type: "bet_market", lifecycle: "stable" },
+  "predictions.retire_finance": { type: "prediction_finance_retirement", lifecycle: "stable" },
   "predictions.open_market": { type: "prediction_market", lifecycle: "stable" },
   "predictions.open_contest": { type: "prediction_contest", lifecycle: "stable" },
   "predictions.void_contest": { type: "prediction_contest", lifecycle: "stable" },
@@ -226,6 +227,7 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "bet.retry": { label: "重试 BET 结算", category: "bet" },
   "match.map.start": { label: "开始正式地图", category: "match" },
   "match.actual_start.adopt": { label: "采用实际开局时间", category: "match" },
+  "predictions.retire_finance": { label: "核验旧预测金融退休", category: "predictions" },
   "predictions.open_market": { label: "开放积分池", category: "predictions" },
   "predictions.open_contest": { label: "开放阶段预测", category: "predictions" },
   "predictions.void_contest": { label: "作废阶段预测", category: "predictions" },

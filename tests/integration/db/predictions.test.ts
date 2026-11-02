@@ -1,5 +1,7 @@
 import { initializePreviewPickEm } from "../../../scripts/db/preview/predictions";
 import { createHash, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { recordLegacyRetirementPreflight } from "@/lib/predictions/retirement-preflight";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { and, eq, sql } from "drizzle-orm";
@@ -338,7 +340,36 @@ describe("spectator prediction PostgreSQL contracts", () => {
         const [stake] = await db.insert(schema.predictionStakes).values({ seasonId, marketId: pool!.id, accountId: owner.id, optionId: options[index]!.id, amount: BigInt(100), requestId: randomUUID() }).returning();
         await db.insert(schema.predictionLedger).values({ seasonId, accountId: owner.id, amount: BigInt(-100), kind: "stake", source: `stake/${stake!.id}` });
       }
+      const [otherMatch] = await db.select().from(schema.matches).where(eq(schema.matches.id, f.matchIds[1]!));
+      const [otherPool] = await db.insert(schema.predictionMarkets).values({
+        seasonId, matchId: otherMatch!.id, resolver: "match_winner", title: "比赛胜者", stageKey: otherMatch!.stage!,
+        subject: { stageRunId: f.runId, entryIds: [otherMatch!.entryAId!, otherMatch!.entryBId!] }, deadline: new Date(Date.now() + 1800000),
+      }).returning();
+      const [otherOption] = await db.insert(schema.predictionMarketOptions).values({ marketId: otherPool!.id, key: otherMatch!.entryAId!, entryId: otherMatch!.entryAId!, label: "队伍", position: 0 }).returning();
+      await expect(db.insert(schema.predictionStakes).values({
+        seasonId, marketId: pool!.id, accountId: (await account(f)).id, optionId: otherOption!.id, amount: BigInt(10), requestId: randomUUID(),
+      })).rejects.toThrow();
+      await expect(db.update(schema.predictionMarketOptions).set({ label: "changed" }).where(eq(schema.predictionMarketOptions.id, options[0]!.id))).rejects.toThrow();
       await db.update(schema.matches).set({ scheduledAt: new Date(Date.now() + 60_000) }).where(eq(schema.matches.id, match!.id));
+      // Two historical refunds with a reversal reproduce a settled correction without calling the retired writer.
+      await db.update(schema.matches).set({ status: "cancelled" }).where(eq(schema.matches.id, match!.id));
+      const finalRevision = JSON.stringify({ matchId: match!.id, voided: true });
+      const revisions = ["old accepted fact", finalRevision];
+      const batches = [];
+      for (const revision of revisions) {
+        const [batch] = await db.insert(schema.predictionSettlements).values({
+          marketId: pool!.id, state: "refunded", winningOptionIds: [], factRevision: revision,
+          fingerprint: JSON.stringify({ state: "refunded", winningOptionIds: [], factRevision: revision }),
+        }).returning();
+        batches.push(batch!);
+        for (const actor of [userId, otherId]) {
+          const owner = await account(f, actor);
+          await db.insert(schema.predictionLedger).values({ seasonId, accountId: owner.id, amount: BigInt(100), profit: BigInt(0), kind: "settlement", source: `settlement/${batch!.id}` });
+        }
+      }
+      const oldPayouts = await db.select().from(schema.predictionLedger).where(eq(schema.predictionLedger.source, `settlement/${batches[0]!.id}`));
+      for (const old of oldPayouts) await db.insert(schema.predictionLedger).values({ seasonId, accountId: old.accountId, amount: -old.amount, profit: -old.profit, kind: "reversal", source: `reversal/${batches[1]!.id}/${old.id}` });
+      const [lockedBeforeRead] = await db.select().from(schema.predictionMarkets).where(eq(schema.predictionMarkets.id, pool!.id));
       const locker = await f.pool.connect();
       try {
         await locker.query("BEGIN");
@@ -360,19 +391,57 @@ describe("spectator prediction PostgreSQL contracts", () => {
         const outsider = await read("sim", randomUUID());
         expect(outsider).toMatchObject({ joined: false, achievement: null, markets: [], ledger: [] });
         const points = await read("points");
-        expect(points.markets[0]).toMatchObject({ participants: 2, myStake: "100", myOptionId: options[0]!.id, locked: true });
-        expect(new Date(points.markets[0]!.deadline).getTime()).toBeLessThan(Date.now());
-        expect(points.markets[0]!.options.map((option) => option.pool)).toEqual(["100", "100"]);
+        const historyMarket = points.markets.find(market => market.id === pool!.id)!;
+        expect(historyMarket).toMatchObject({ participants: 2, myStake: "100", myOptionId: options[0]!.id, locked: true });
+        expect(new Date(historyMarket.deadline).getTime()).toBeLessThan(Date.now());
+        expect(historyMarket.options.map((option) => option.pool)).toEqual(["100", "100"]);
         expect(points.ledger).toEqual([]);
         const record = await read("record");
         expect(record.markets).toEqual([]);
         expect((await read("all")).ledger.some(row => row.kind === "stake" && row.amount === "-100")).toBe(true);
         const [unchanged] = await db.select().from(schema.predictionMarkets).where(eq(schema.predictionMarkets.id, pool!.id));
-        expect(unchanged!.lockedAt).toBeNull();
+        expect(unchanged!.lockedAt).toEqual(lockedBeforeRead!.lockedAt);
       } finally {
         await locker.query("ROLLBACK");
         locker.release();
       }
+      const before = await db.transaction(tx => predictionBoard(tx, seasonId, userId));
+      const migration = readFileSync("drizzle/migrations/0109_retire_legacy_prediction_finance.sql", "utf8");
+      const unverified = await f.pool.connect();
+      try {
+        await unverified.query("BEGIN");
+        await expect(unverified.query(migration)).rejects.toThrow(/matching verified retirement snapshot/);
+        await unverified.query("ROLLBACK");
+      } finally { unverified.release(); }
+      await db.transaction(tx => recordLegacyRetirementPreflight(tx, { actorId: "fixture-operator", reason: "synthetic retirement review" }));
+      const [originalRun] = await db.select().from(schema.majorStageRuns).where(eq(schema.majorStageRuns.id, f.runId));
+      await db.update(schema.majorStageRuns).set({ startedBy: `${originalRun!.startedBy}-changed` }).where(eq(schema.majorStageRuns.id, f.runId));
+      const stale = await f.pool.connect();
+      try {
+        await stale.query("BEGIN");
+        await expect(stale.query(migration)).rejects.toThrow(/matching verified retirement snapshot/);
+        await stale.query("ROLLBACK");
+      } finally { stale.release(); }
+      await db.update(schema.majorStageRuns).set({ startedBy: originalRun!.startedBy }).where(eq(schema.majorStageRuns.id, f.runId));
+      const migrator = await f.pool.connect();
+      try { await migrator.query("BEGIN"); await migrator.query(migration); await migrator.query("COMMIT"); }
+      catch (error) { await migrator.query("ROLLBACK"); throw error; }
+      finally { migrator.release(); }
+      const repeated = await f.pool.connect();
+      try { await repeated.query("BEGIN"); await repeated.query(migration); await repeated.query("COMMIT"); }
+      catch (error) { await repeated.query("ROLLBACK"); throw error; }
+      finally { repeated.release(); }
+      const after = await db.transaction(tx => predictionBoard(tx, seasonId, userId));
+      expect(after.markets).toEqual(before.markets);
+      expect(after.ledger).toEqual(before.ledger);
+      await expect(f.pool.query("INSERT INTO prediction_stakes (season_id, market_id, account_id, option_id, amount, request_id) VALUES ($1,$2,$3,$4,1,$5)", [seasonId, pool!.id, (await account(f)).id, options[0]!.id, randomUUID()])).rejects.toThrow(/retired/);
+      await expect(f.pool.query("UPDATE prediction_markets SET title='changed' WHERE id=$1", [pool!.id])).rejects.toThrow(/retired/);
+      await expect(f.pool.query("INSERT INTO prediction_settlements (market_id, fingerprint, state, winning_option_ids, fact_revision) VALUES ($1, $2, $3, $4, $5)", [pool!.id, "fixture", "pending", "[]", "fixture"])).rejects.toThrow(/retired/);
+      await expect(f.pool.query("UPDATE prediction_ledger SET amount=0 WHERE id=$1", [oldPayouts[0]!.id])).rejects.toThrow(/retired|append-only/);
+      await expect(f.pool.query("INSERT INTO prediction_ledger (season_id, account_id, amount, kind, source) VALUES ($1,$2,-1,'stake',$3)", [seasonId, (await account(f)).id, `stake/${randomUUID()}`])).rejects.toThrow(/retired/);
+      const owner = await account(f);
+      const [participation] = await db.insert(schema.predictionLedger).values({ seasonId, accountId: owner.id, amount: BigInt(7), kind: "participation", source: `participation/${randomUUID()}` }).returning();
+      await db.insert(schema.predictionLedger).values({ seasonId, accountId: owner.id, amount: BigInt(-7), kind: "reversal", source: `void/${participation!.id}` });
     }, 32, true, true));
 
   it("shares due-work detection across primary dispatch and deadline reconciliation without idle batch starvation", async () =>

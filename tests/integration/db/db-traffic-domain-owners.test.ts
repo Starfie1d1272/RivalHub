@@ -29,7 +29,8 @@ it("attributes the authorized workspace and transaction lineup reads to their ex
     expect(state.rows.get("admin.matches.read:q78c49e4225197219")?.queries).toBe(before);
     const [match] = await db.select().from(matches).where(eq(matches.seasonId, fixture.seasonId)).limit(1);
     await expect(db.transaction(tx => getStartingLineupPreflightInTx(tx, { match: requireCompetitionMatch(match!), entryId: match!.entryAId!, starterIds: [] }))).rejects.toThrow("本队缺少已锁定的赛事名单");
-    expect(state.rows.get("match.lineup.read:q3db995fb0bd12e2d")?.queries).toBe(1);
+    // Frozen roster lookup remains attributed to the lineup owner after eligibility-policy changes.
+    expect(state.rows.get("match.lineup.read:q70a4739c6ac9b644")?.queries).toBe(1);
   } finally {
     await removePredictionBrowserFixture(fixture.seasonId);
     await pool.query("delete from users where id=$1", [user]);
