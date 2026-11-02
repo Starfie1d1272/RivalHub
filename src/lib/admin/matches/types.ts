@@ -175,6 +175,7 @@ export interface AdminMatchWorkbenchData {
   teamBRoster: RosterData | null;
   teamAPolicy: { starterCount: number; maxSubstitutes: number } | null;
   teamBPolicy: { starterCount: number; maxSubstitutes: number } | null;
+  lineupErrors: string[];
   teamAPreflight: AdminMatchPreflight | null;
   teamBPreflight: AdminMatchPreflight | null;
   completedMaps: AdminCompletedMap[];

@@ -104,6 +104,7 @@ export function AdminMatchWorkbench({
   teamBRoster,
   teamAPolicy,
   teamBPolicy,
+  lineupErrors,
   teamAPreflight,
   teamBPreflight,
   completedMaps,
@@ -274,7 +275,7 @@ export function AdminMatchWorkbench({
             <RosterSummary entryId={match.entryAId} teamName={teamAName} members={teamAMembers} roster={teamARoster} />
             <RosterSummary entryId={match.entryBId} teamName={teamBName} members={teamBMembers} roster={teamBRoster} />
           </div>
-          {match.status !== "finished" && (!teamAPolicy || !teamBPolicy) && <p className="text-sm text-[var(--color-fg-dim)]">名单规则暂不可用，请检查冻结名单。</p>}
+          {match.status !== "finished" && (!teamAPolicy || !teamBPolicy) && <p className="text-sm text-[var(--color-fg-dim)]">名单规则暂不可用：{lineupErrors.join("；")}</p>}
           {match.status !== "finished" && teamAPolicy && teamBPolicy && (
             <AdminRosterDialog
               matchId={match.id}
