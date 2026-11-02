@@ -505,7 +505,8 @@ export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: 
     ? input.playerType ?? participant.playerType : participant.playerType;
   if (entry.source === "linked_team" && rules.source === "policy_v2") {
     const allowed = rules.participant.allowedPlayerTypes;
-    if (allowed && allowed.length < 3 && !declaration) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先选择你本人本届参赛身份。 ");
+    const allTypesAllowed = allowed && (["enrolled", "graduated", "external"] as const).every((type) => allowed.includes(type));
+    if (allowed && !allTypesAllowed && !declaration) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先选择你本人本届参赛身份。 ");
     if (allowed && declaration && !allowed.includes(declaration)) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选参赛身份不符合本届赛事要求。 ");
   }
   const alreadyConfirmed = participant.status === "confirmed";
