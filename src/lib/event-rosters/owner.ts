@@ -1,8 +1,13 @@
 import "server-only";
 
+import { isDeepStrictEqual } from "node:util";
+
 import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
+  competitionQualificationRuns,
+  competitionQualificationEntrants,
+  majorStageRuns,
   competitionEntryParticipants,
   competitionEntryRosterMembers,
   eventRosterMembers,
@@ -14,6 +19,7 @@ import {
 } from "@/db/schema";
 import { assessEntryRosterInTx, type EntryRosterAssessment } from "@/lib/competition-entries/commands";
 import { canonicalizeV2CompetitiveProfile } from "@/lib/competitive/source-selection";
+import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { unresolvedQualificationFindings } from "@/lib/competition-entries/restriction-overrides";
 import { decodeFrozenLineupEligibility } from "@/lib/match-rosters/frozen-eligibility";
@@ -132,7 +138,13 @@ export async function applyEventRosterMaterializationInTx(
     ? await tx.select({ id: matchRosterPlayers.eventRosterMemberId }).from(matchRosterPlayers)
       .where(inArray(matchRosterPlayers.eventRosterMemberId, currentMemberIds))
     : [];
-  const historicalMemberIds = new Set(referencedMembers.map((member) => member.id));
+  const snapshots = await tx.select({ snapshot: matchRosters.eligibilitySnapshot }).from(matchRosters)
+    .innerJoin(eventRosters, eq(eventRosters.entryId, matchRosters.entryId))
+    .where(eq(eventRosters.id, input.eventRosterId));
+  const historicalMemberIds = new Set([
+    ...referencedMembers.map((member) => member.id),
+    ...snapshots.flatMap(({ snapshot }) => snapshot?.members.map((member) => member.eventRosterMemberId) ?? []),
+  ]);
   const historicalIds = currentMemberIds.filter((id) => historicalMemberIds.has(id));
   const disposableIds = currentMemberIds.filter((id) => !historicalMemberIds.has(id));
   if (historicalIds.length > 0) {
@@ -191,23 +203,61 @@ export async function applyEventRosterMaterializationInTx(
 async function invalidateUnstartedLineupsInTx(tx: TxDb, input: {
   seasonId: string; entryId: string; actorId: string; nextRevisionId: string;
 }): Promise<void> {
-  const scopedMatches = await tx.select({ id: matches.id, status: matches.status, startedAt: matches.startedAt, gameplayStartedAt: matches.gameplayStartedAt })
+  const scopedMatches = await tx.select({ id: matches.id, status: matches.status, startedAt: matches.startedAt, gameplayStartedAt: matches.gameplayStartedAt, qualificationRunId: matches.qualificationRunId, ownership: matches.ownership, stage: matches.stage, stageRunId: matches.majorStageRunId })
     .from(matches).where(and(eq(matches.seasonId, input.seasonId), isNull(matches.testConfig),
       or(eq(matches.entryAId, input.entryId), eq(matches.entryBId, input.entryId))))
     .orderBy(asc(matches.id)).for("update");
   if (!scopedMatches.length) return;
-  const lineups = await tx.select({ id: matchRosters.id, matchId: matchRosters.matchId, status: matchRosters.status })
+  const lineups = await tx.select({ id: matchRosters.id, matchId: matchRosters.matchId, status: matchRosters.status, snapshot: matchRosters.eligibilitySnapshot })
     .from(matchRosters).where(and(eq(matchRosters.entryId, input.entryId), inArray(matchRosters.matchId, scopedMatches.map((match) => match.id))))
     .orderBy(asc(matchRosters.matchId)).for("update");
   const matchById = new Map(scopedMatches.map((match) => [match.id, match]));
-  if (scopedMatches.some((match) => match.status === "in_progress" || match.status === "finished" || match.startedAt || match.gameplayStartedAt) ||
-      lineups.some((lineup) => lineup.status !== "submitted" || matchById.get(lineup.matchId)?.status !== "scheduled")) {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "已有正式比赛使用或锁定此名单资格快照，不能覆盖。 ");
+  // An active match and a confirmed future lineup remain locked. Finished
+  // lineups may be retained only when their exact adopted facts are provable.
+  if (scopedMatches.some((match) => match.status !== "finished" && (match.status === "in_progress" || match.startedAt || match.gameplayStartedAt)) ||
+      lineups.some((lineup) => matchById.get(lineup.matchId)?.status !== "finished" &&
+        (lineup.status !== "submitted" || matchById.get(lineup.matchId)?.status !== "scheduled"))) {
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "已有进行中或已锁定的正式比赛，不能调整名单。 ");
   }
-  if (!lineups.length) return;
-  await tx.delete(matchRosters).where(inArray(matchRosters.id, lineups.map((lineup) => lineup.id)));
+  const finished = scopedMatches.filter((match) => match.status === "finished");
+  if (finished.length) {
+    const [roster] = await tx.select({ snapshot: eventRosters.eligibilitySnapshot, revision: eventRosters.sourceRosterRevisionId })
+      .from(eventRosters).where(eq(eventRosters.entryId, input.entryId)).for("update");
+    for (const match of finished) {
+      const lineup = lineups.find((item) => item.matchId === match.id);
+      if (!lineup) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史比赛缺少名单，无法证明资格快照来源。 ");
+      let snapshot = lineup.snapshot ?? roster?.snapshot;
+      if (match.ownership === "major_stage") {
+        if (!match.stageRunId || !match.stage) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史阶段比赛缺少 StageRun。 ");
+        const [run] = await tx.select({ snapshot: majorStageRuns.ruleSnapshot, stage: majorStageRuns.stageKey }).from(majorStageRuns)
+          .where(and(eq(majorStageRuns.id, match.stageRunId), eq(majorStageRuns.seasonId, input.seasonId), eq(majorStageRuns.stageKey, match.stage)));
+        if (!run) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史阶段比赛缺少对应 StageRun。 ");
+        const source = parseMajorRunSnapshot(run.snapshot, run.stage).frozenEligibilitySnapshots?.find((item) => item.entryId === input.entryId);
+        if (!source || (lineup.snapshot && !isDeepStrictEqual(lineup.snapshot, source))) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史阶段比赛资格快照与 StageRun 不一致。 ");
+        snapshot = source;
+      }
+      if (!snapshot || snapshot.version !== 2 || !roster?.revision) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史比赛缺少可证明的新版资格快照。 ");
+      if (match.qualificationRunId) {
+        const [run] = await tx.select({ policy: competitionQualificationRuns.eligibilityPolicy }).from(competitionQualificationRuns)
+          .innerJoin(competitionQualificationEntrants, and(eq(competitionQualificationEntrants.runId, competitionQualificationRuns.id), eq(competitionQualificationEntrants.competitionEntryId, input.entryId)))
+          .where(and(eq(competitionQualificationRuns.id, match.qualificationRunId), eq(competitionQualificationRuns.seasonId, input.seasonId)));
+        if (!run?.policy || run.policy.version !== 2 || !isDeepStrictEqual(run.policy.rules, snapshot.rules) ||
+            !isDeepStrictEqual(run.policy.competitive, snapshot.competitive ? { profile: snapshot.competitive.profile, requirements: snapshot.competitive.requirements } : null)) {
+          throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史资格赛规则与名单快照不一致。 ");
+        }
+      }
+      const revision = lineup.snapshot || match.ownership === "major_stage" ? snapshot.rosterRevisionId : roster.revision;
+      const frozen = decodeFrozenLineupEligibility(snapshot, { seasonId: input.seasonId, entryId: input.entryId, rosterRevisionId: revision });
+      const players = await tx.select({ id: matchRosterPlayers.eventRosterMemberId }).from(matchRosterPlayers).where(eq(matchRosterPlayers.rosterId, lineup.id));
+      if (!players.length || players.some((player) => !frozen.membersById.has(player.id))) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史比赛成员不能证明对应名单版本。 ");
+      if (!lineup.snapshot) await tx.update(matchRosters).set({ eligibilitySnapshot: snapshot }).where(eq(matchRosters.id, lineup.id));
+    }
+  }
+  const invalidated = lineups.filter((lineup) => matchById.get(lineup.matchId)?.status === "scheduled");
+  if (!invalidated.length) return;
+  await tx.delete(matchRosters).where(inArray(matchRosters.id, invalidated.map((lineup) => lineup.id)));
   await writeAuditInTx(tx, { seasonId: input.seasonId, action: "competition_entry.sync_event_roster", actorId: input.actorId,
-    targetId: input.entryId, meta: { sourceRosterRevisionId: input.nextRevisionId, invalidatedMatchIds: lineups.map((lineup) => lineup.matchId), reason: "approved_roster_changed", requiresLineupResubmission: true } });
+    targetId: input.entryId, meta: { sourceRosterRevisionId: input.nextRevisionId, invalidatedMatchIds: invalidated.map((lineup) => lineup.matchId), reason: "approved_roster_changed", requiresLineupResubmission: true } });
 }
 
 /**

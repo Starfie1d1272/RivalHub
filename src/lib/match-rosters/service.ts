@@ -417,6 +417,42 @@ export async function getStartingLineupPreflightInTx(
   args: { match: Match; entryId: string; starterIds: readonly string[]; substituteIds?: readonly string[] },
 ): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number> }> {
   return withDbTrafficSource("match.lineup.read", async () => {
+  if (args.entryId !== args.match.entryAId && args.entryId !== args.match.entryBId) throw new AppError(ErrorCode.VALIDATION_FAILED, "参赛队伍不属于本场比赛。 ");
+  // Once a match has started, its lineup owns the eligibility facts; the
+  // current event roster may legitimately refer to a later revision.
+  if (args.match.status !== "scheduled") {
+    const [historical] = await tx.select({ id: matchRosters.id, snapshot: matchRosters.eligibilitySnapshot }).from(matchRosters)
+      .where(and(eq(matchRosters.matchId, args.match.id), eq(matchRosters.entryId, args.entryId)));
+    if (historical?.snapshot) {
+      const snapshot = historical.snapshot;
+      const frozen = decodeFrozenLineupEligibility(snapshot, { seasonId: args.match.seasonId, entryId: args.entryId, rosterRevisionId: snapshot.rosterRevisionId });
+      if (args.match.qualificationRunId) {
+        const [run] = await tx.select({ policy: competitionQualificationRuns.eligibilityPolicy }).from(competitionQualificationRuns)
+          .innerJoin(competitionQualificationEntrants, and(eq(competitionQualificationEntrants.runId, competitionQualificationRuns.id), eq(competitionQualificationEntrants.competitionEntryId, args.entryId)))
+          .where(and(eq(competitionQualificationRuns.id, args.match.qualificationRunId), eq(competitionQualificationRuns.seasonId, args.match.seasonId)));
+        if (!run?.policy || run.policy.version !== 2 || !isDeepStrictEqual(run.policy.rules, snapshot.rules) ||
+            !isDeepStrictEqual(run.policy.competitive, snapshot.competitive ? { profile: snapshot.competitive.profile, requirements: snapshot.competitive.requirements } : null)) throw new AppError(ErrorCode.VALIDATION_FAILED, "历史资格赛规则与名单快照不一致。 ");
+      }
+      if (args.match.ownership === "major_stage" || args.match.testConfig) {
+        const source = await adoptedMatchSnapshotInTx(tx, args.match, args.entryId);
+        if (!isDeepStrictEqual(source, snapshot)) throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛快照与冻结来源不一致。 ");
+      }
+      const lineupPlayers = await tx.select({ id: matchRosterPlayers.eventRosterMemberId }).from(matchRosterPlayers).where(eq(matchRosterPlayers.rosterId, historical.id));
+      if (!lineupPlayers.length || lineupPlayers.some((player) => !frozen.membersById.has(player.id))) throw new AppError(ErrorCode.VALIDATION_FAILED, "历史比赛阵容与资格快照不一致。 ");
+      const ids = [...frozen.membersById.keys()];
+      const rows = ids.length ? await tx.select({ id: eventRosterMembers.id, userId: eventRosterMembers.userId }).from(eventRosterMembers)
+        .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
+        .where(and(eq(eventRosters.entryId, args.entryId), inArray(eventRosterMembers.id, ids))) : [];
+      if (rows.length !== ids.length || rows.some((row) => frozen.membersById.get(row.id)?.userId !== row.userId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "历史名单成员与资格快照不一致。 ");
+      const bans = await loadActiveSanctionsInTx(tx, { seasonId: args.match.seasonId, effect: "match_participation_block", subjectUserIds: rows.map((row) => row.userId) });
+      const proposed = { entryId: args.entryId, starterMemberIds: args.starterIds, substituteMemberIds: args.substituteIds ?? [] };
+      const result = evaluateLineup(proposed, frozen, new Set(bans.keys()));
+      const counts = evaluateStartingLineup({ starterIds: proposed.starterMemberIds, substituteIds: proposed.substituteMemberIds,
+        policy: { starterCount: frozen.starterCount, maxSubstitutes: frozen.maxSubstitutes }, memberFacts: frozen.membersById,
+        affiliationRules: frozen.affiliationRules, educationRequired: frozen.educationRequired }).affiliatedStarterCounts;
+      return { valid: result.state === "ready", blockers: result.findings.map((finding) => finding.message), affiliatedStarterCounts: counts };
+    }
+  }
   let validatedStageRun: { ruleSnapshot: unknown; stageKey: string } | undefined;
   if (args.match.ownership === "major_stage") {
     if (args.entryId !== args.match.entryAId && args.entryId !== args.match.entryBId || !args.match.majorStageRunId) {
@@ -545,6 +581,22 @@ export interface PersistedRosterSummary {
   vetoRepresentativeEventRosterMemberId: string | null;
 }
 
+/** Resolve the already adopted facts from the authority for this match. */
+async function adoptedMatchSnapshotInTx(tx: TxDb, match: Match, entryId: string) {
+  if (match.testConfig) return match.testConfig.eligibility?.[entryId === match.entryAId ? "a" : "b"] ?? null;
+  if (match.ownership === "major_stage") {
+    if (!match.majorStageRunId) throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛缺少阶段快照。 ");
+    const [run] = await tx.select({ ruleSnapshot: majorStageRuns.ruleSnapshot, stageKey: majorStageRuns.stageKey }).from(majorStageRuns)
+      .where(and(eq(majorStageRuns.id, match.majorStageRunId), eq(majorStageRuns.seasonId, match.seasonId), eq(majorStageRuns.stageKey, match.stage)));
+    if (!run) throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛阶段快照不存在。 ");
+    return parseMajorRunSnapshot(run.ruleSnapshot, run.stageKey).frozenEligibilitySnapshots?.find((item) => item.entryId === entryId) ?? null;
+  }
+  const [roster] = await tx.select({ snapshot: eventRosters.eligibilitySnapshot, revision: eventRosters.sourceRosterRevisionId }).from(eventRosters)
+    .where(eq(eventRosters.entryId, entryId));
+  if (roster?.snapshot?.version === 2 && roster.revision !== roster.snapshot.rosterRevisionId) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事名单版本与资格快照不一致。 ");
+  return roster?.snapshot ?? null;
+}
+
 /**
  * Upsert the explicit lineup for (match, team). This owner locks the current
  * event roster before authoritative qualification and frozen-policy validation.
@@ -574,6 +626,9 @@ export async function persistMatchRosterInTx(
     starterIds: args.starterIds,
     substituteIds,
   });
+  const adopted = await adoptedMatchSnapshotInTx(tx, args.match, args.entryId);
+  const eligibilitySnapshot = adopted?.version === 2 ? adopted : null;
+  if (eligibilitySnapshot) decodeFrozenLineupEligibility(eligibilitySnapshot, { seasonId: args.match.seasonId, entryId: args.entryId, rosterRevisionId: eligibilitySnapshot.rosterRevisionId });
   const now = new Date();
   if (args.match.status !== "scheduled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛已开始，首发已定格。");
   const late = args.match.scheduledAt !== null && now.getTime() >= args.match.scheduledAt.getTime() - 2 * 60 * 60_000;
@@ -594,6 +649,7 @@ export async function persistMatchRosterInTx(
       .update(matchRosters)
       .set({
         status: "submitted",
+        eligibilitySnapshot,
         submittedBy: args.submittedBy,
         source: args.source,
         lockedAt: now,
@@ -609,6 +665,7 @@ export async function persistMatchRosterInTx(
       .values({
         matchId: args.match.id,
         entryId: args.entryId,
+        eligibilitySnapshot,
         submittedBy: args.submittedBy,
         source: args.source,
         status: "submitted",
