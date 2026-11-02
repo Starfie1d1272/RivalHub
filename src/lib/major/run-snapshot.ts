@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { qualificationPolicySchema as definitionQualificationPolicySchema } from "@/lib/competition/qualification-policy";
+import { qualificationPolicySchema as definitionQualificationPolicySchema, qualificationPolicyV2Schema } from "@/lib/competition/qualification-policy";
+import { eventRosterEligibilitySnapshotV2Schema } from "@/lib/seasons/eligibility-snapshot";
 import type { AdvanceTier, StageConfig, StagePlan, StageType } from "@/types/season";
 
 const stageSchema = z.object({
@@ -29,6 +30,7 @@ const externalStrengthGapSchema = z.object({
 // Old runs recorded only the gap. New runs retain the complete event policy.
 const qualificationPolicySchema = z.union([
   definitionQualificationPolicySchema,
+  qualificationPolicyV2Schema,
   z.object({ externalStrengthGap: externalStrengthGapSchema }).passthrough().refine((value) => !("version" in value)),
 ]);
 
@@ -72,6 +74,8 @@ const frozenInputObject = smallInputObject.extend({
   affiliationRules: z.array(z.unknown()).readonly(),
   competitiveProfile: z.unknown().nullable(),
   frozenCompetitiveFacts: z.array(z.unknown()),
+  /** Complete adopted v2 snapshots, bound to their immutable Entry revisions. */
+  frozenEligibilitySnapshots: z.array(eventRosterEligibilitySnapshotV2Schema).optional(),
 });
 
 const smallInputSchema = smallInputObject.superRefine((value, ctx) => {
@@ -93,6 +97,19 @@ function withFrozenInputInvariants<T extends z.ZodType>(schema: T): T {
     if (!result.success) {
       for (const issue of result.error.issues) {
         ctx.addIssue(issue as z.core.$ZodSuperRefineIssue);
+      }
+    }
+    // Presentation queries intentionally omit frozen data; only the full
+    // snapshot can enforce v2's adopted-roster bindings.
+    const full = frozenInputObject.safeParse(value);
+    if (full.success && full.data.qualificationPolicy && "version" in full.data.qualificationPolicy && full.data.qualificationPolicy.version === 2) {
+      const snapshots = full.data.frozenEligibilitySnapshots ?? [];
+      if (snapshots.length === 0) ctx.addIssue({ code: "custom", message: "v2 StageRun 缺少已采用名单资格快照" });
+      const entries = new Set<string>();
+      for (const snapshot of snapshots) {
+        if (entries.has(snapshot.entryId)) ctx.addIssue({ code: "custom", message: "v2 StageRun 存在重复参赛条目快照" });
+        entries.add(snapshot.entryId);
+        if (JSON.stringify(snapshot.rules.qualificationPolicy) !== JSON.stringify(full.data.qualificationPolicy)) ctx.addIssue({ code: "custom", message: "v2 名单快照与 StageRun 资格政策不一致" });
       }
     }
   }) as unknown as T;
@@ -226,6 +243,7 @@ export function makeMajorRunSnapshotV4(input: z.input<typeof frozenInputSchema> 
     competitiveProfile: parsed.data.competitiveProfile,
     frozenCompetitiveFacts: parsed.data.frozenCompetitiveFacts,
     ...(parsed.data.qualificationPolicy ? { qualificationPolicy: parsed.data.qualificationPolicy } : {}),
+    ...(parsed.data.frozenEligibilitySnapshots ? { frozenEligibilitySnapshots: parsed.data.frozenEligibilitySnapshots } : {}),
     ...(parsed.data.frozenRestrictionOverrides ? { frozenRestrictionOverrides: parsed.data.frozenRestrictionOverrides } : {}),
     runOptions: input.hasThirdPlaceMatch === undefined ? {} : { hasThirdPlaceMatch: input.hasThirdPlaceMatch },
   };
