@@ -23,14 +23,31 @@ export async function resolveProductionSourceIdentity(
 /** The source is the actual running independent instance, never the candidate. */
 export async function resolveInstanceSourceIdentity(
   origin: string,
+  supabaseUrl: string,
   cwd = projectRoot,
   fetcher: ProductionReleaseFetcher = fetch,
 ): Promise<Omit<RecoverySourceIdentity, "databaseMigrationTerminal">> {
-  const endpoint = buildReleaseEndpoint(origin);
-  if (new URL(endpoint).origin === OFFICIAL_PRODUCTION.origin || new URL(endpoint).hostname === new URL(OFFICIAL_PREVIEW.supabaseUrl).hostname) {
+  const base = buildReleaseEndpoint(origin);
+  if (new URL(base).origin === OFFICIAL_PRODUCTION.origin || new URL(base).hostname === new URL(OFFICIAL_PREVIEW.supabaseUrl).hostname) {
     throw new Error("Official source cannot be used as an independent instance.");
   }
-  return readSourceIdentity(endpoint, cwd, fetcher);
+  const endpoint = `${new URL(base).origin}/api/system/recovery-source`;
+  let response: Response;
+  try {
+    response = await fetcher(endpoint, { method: "GET", headers: { accept: "application/json" }, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(RELEASE_READBACK_TIMEOUT_MS) });
+  } catch { throw new Error("Instance recovery source read-back failed; backup aborted."); }
+  if (!response.ok) throw new Error("Instance recovery source unavailable; backup aborted.");
+  let value: unknown;
+  try { value = await response.json(); } catch { throw new Error("Instance recovery source response invalid."); }
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Instance recovery source response invalid.");
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).sort().join(",") !== "databaseName,releaseCommit,releaseTag,supabaseUrl"
+    || record.supabaseUrl !== supabaseUrl || record.databaseName !== "postgres") throw new Error("Running instance and backup database identity differ.");
+  const identity = assertReleaseIdentity({ releaseTag: record.releaseTag, releaseCommit: record.releaseCommit }, "instance release identity");
+  if (resolveGitRevision(cwd, `refs/tags/${identity.releaseTag}^{commit}`).toLowerCase() !== identity.releaseCommit) {
+    throw new Error("Instance release tag and commit differ; backup aborted.");
+  }
+  return { deployedReleaseTag: identity.releaseTag, deployedCommit: identity.releaseCommit };
 }
 
 async function readSourceIdentity(

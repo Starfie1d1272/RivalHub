@@ -42,7 +42,7 @@ async function main(): Promise<void> {
   if (sourceMode !== "production" && sourceMode !== "instance") throw new Error("Unknown backup source.");
   const instance = sourceMode === "instance" ? assertInstanceBackupEnvironment(process.env) : undefined;
   const environment = instance ?? assertProductionBackupEnvironment(process.env);
-  const readSource = () => instance ? resolveInstanceSourceIdentity(instance.appOrigin) : resolveProductionSourceIdentity();
+  const readSource = () => instance ? resolveInstanceSourceIdentity(instance.appOrigin, instance.supabaseUrl) : resolveProductionSourceIdentity();
   const runId = randomUUID();
   const createdAt = new Date().toISOString();
   const tempRoot = mkdtempSync(join(tmpdir(), `rivalhub-recovery-${runId}-`));
