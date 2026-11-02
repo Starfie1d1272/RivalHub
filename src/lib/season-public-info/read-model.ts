@@ -3,7 +3,6 @@ import "server-only";
 import { runtimePublicValue } from "@/lib/runtime/public-config";
 
 import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
-import { connection } from "next/server";
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db/client";
 import { publicSeasonInfoTag } from "@/lib/cache/tags";
@@ -21,7 +20,6 @@ export type SeasonPublicInfoAdmin = {
 };
 
 export async function getPublicSeasonInfo(seasonId: string): Promise<PublicSeasonInfo> {
-  await connection();
   const assetBase = runtimePublicValue("NEXT_PUBLIC_SUPABASE_URL")?.trim() ?? "";
   const publicInfo = await getCachedPublicSeasonInfo(seasonId, assetBase);
   if (publicInfo) return publicInfo;

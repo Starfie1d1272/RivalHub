@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import { getOfficialUpcomingMatches, getQualificationMatchProgress } from "@/lib/seasons/overview-read-model";
 import { getOfficialSeasonMatchSummary } from "@/lib/matches/read-official";
@@ -385,6 +386,7 @@ async function SeasonHistoricalResults({ season }: { season: PublicSeason }) {
 }
 
 async function SeasonInformation({ season }: { season: PublicSeason }) {
+  await connection();
   const seasonSlug = season.slug;
   const [latestSeasonAnnouncement, seasonInfo] = await Promise.all([
     getLatestSeasonAnnouncement(season.id), getPublicSeasonInfo(season.id),

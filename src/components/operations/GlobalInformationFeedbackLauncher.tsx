@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { io } from "next/cache";
 import { getLatestSiteAnnouncement, getRelevantAttentionAnnouncement, getRelevantAnnouncement } from "@/lib/announcements/read-model";
 import { getPublicSeasonInfo } from "@/lib/season-public-info/read-model";
@@ -19,6 +20,7 @@ export async function GlobalInformationFeedbackLauncher() {
 }
 
 export async function SeasonInformationFeedbackLauncher({ season }: { season: { id: string; slug: string } }) {
+  await connection();
   await io();
   const [latestAnnouncement, attentionAnnouncement, seasonInfo] = await Promise.all([
     getRelevantAnnouncement(season.id),
