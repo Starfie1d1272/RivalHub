@@ -5,10 +5,11 @@ import * as schema from "@/db/schema";
 import { createMajorDefaultCapabilities } from "@/lib/competition/templates";
 import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
 import { localDatabaseUrl } from "./database";
-import { withScratchDatabase,migrationFiles,replayMigration } from "./migration-replay";
+import { withScratchDatabase,migrationFiles,replayMigration,replayCurrentPositionMigrations } from "./migration-replay";
 export async function fixture(work:(f:{db:ReturnType<typeof drizzle<typeof schema>>;seasonId:string;userId:string;otherId:string;matchId:string;entryIds:string[]})=>Promise<void>) {
   await withScratchDatabase("free_prediction_test",async client=>{
     for(const file of migrationFiles(name=>/^\d{4}_.*\.sql$/.test(name)))await replayMigration(client,file);
+    await replayCurrentPositionMigrations(client);
     const url=new URL(localDatabaseUrl());url.pathname=`/${(await client.query("select current_database() as name")).rows[0].name}`;
     const pool=new Pool({connectionString:url.toString(),ssl:false,max:6});const db=drizzle(pool,{schema});
     const seasonId=randomUUID(),userId=randomUUID(),otherId=randomUUID();

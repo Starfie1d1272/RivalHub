@@ -48,3 +48,10 @@ export async function replayMigration(client: Client, migrationName: string): Pr
 export function migrationFiles(matcher: (name: string) => boolean): string[] {
   return readdirSync(join(process.cwd(), "drizzle/v2-migrations")).filter(matcher).sort();
 }
+
+/** Apply the active position columns after a legacy fixture replay. */
+export async function replayCurrentPositionMigrations(client: Client): Promise<void> {
+  for (const name of ["0001_amused_kang.sql", "0002_stormy_santa_claus.sql"]) {
+    await client.query(readFileSync(join(process.cwd(), "drizzle/migrations", name), "utf8"));
+  }
+}
