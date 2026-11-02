@@ -259,7 +259,7 @@ export async function loadEntryRosterCandidateInTx(
   const [revision] = await tx.select().from(competitionEntryRosterRevisions)
     .where(and(eq(competitionEntryRosterRevisions.id, input.expectedRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!revision) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不存在。 ");
-  const rows = await tx.select({ userId: competitionEntryRosterMembers.userId, participantId: competitionEntryParticipants.id, participantUserId: competitionEntryParticipants.userId, participantEntryId: competitionEntryParticipants.entryId, teamMembershipId: competitionEntryRosterMembers.teamMembershipId, status: competitionEntryParticipants.status, isPrimaryStarter: competitionEntryRosterMembers.isPrimaryStarter })
+  const rows = await tx.select({ userId: competitionEntryRosterMembers.userId, participantId: competitionEntryParticipants.id, participantUserId: competitionEntryParticipants.userId, participantEntryId: competitionEntryParticipants.entryId, declaredPlayerType: competitionEntryParticipants.playerType, teamMembershipId: competitionEntryRosterMembers.teamMembershipId, status: competitionEntryParticipants.status, isPrimaryStarter: competitionEntryRosterMembers.isPrimaryStarter })
     .from(competitionEntryRosterMembers).innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
     .where(eq(competitionEntryRosterMembers.revisionId, revision.id));
   if (rows.some((row) => row.participantEntryId !== entry.id || row.participantUserId !== row.userId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "名单成员记录与参赛队不一致。 ");
@@ -277,16 +277,12 @@ export async function loadEntryRosterCandidateInTx(
   const nameConflicts = await (rules.roster.requireUniqueTeamName ? tx.select({ id: competitionEntries.id }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), sql`${competitionEntries.id} <> ${entry.id}`, sql`lower(trim(${competitionEntries.name})) = lower(trim(${entry.name}))`, sql`${competitionEntries.registrationStatus} NOT IN ('rejected', 'withdrawn')`)).limit(1) : []);
   const registrationByUser = new Map(registrations.map((registration) => [registration.userId, registration]));
   const rolesByUser = new Map(roles.map((role) => [role.userId, role.role]));
-  const playerType = (value: string | undefined): PlayerType | null => value === "enrolled" || value === "graduated" || value === "external" ? value : null;
-  const members = rows.map((row) => {
-    const declared = playerType(registrationByUser.get(row.userId)?.playerType);
-    const education = resolveSeasonEducationVerification(factsByUser.get(row.userId)?.educationHistory ?? [], rules.roster.affiliationRules);
-    // A verified affiliation establishes enrolled/graduated for a matching institution.
-    // An absent or unmatched verification does not establish an external declaration.
-    const verifiedType = entry.source === "linked_team" && education.eligibilityState === "approved" && education.matchedRule
-      ? education.selectedVerification?.academicStatus ?? null : null;
-    return { ...row, primaryPosition: registrationByUser.get(row.userId)?.primaryPosition ?? rolesByUser.get(row.userId) ?? null, playerType: declared ?? verifiedType };
-  });
+  const playerType = (value: string | null | undefined): PlayerType | null => value === "enrolled" || value === "graduated" || value === "external" ? value : null;
+  const members = rows.map((row) => ({
+    ...row,
+    primaryPosition: registrationByUser.get(row.userId)?.primaryPosition ?? rolesByUser.get(row.userId) ?? null,
+    playerType: entry.source === "linked_team" ? playerType(row.declaredPlayerType) : playerType(registrationByUser.get(row.userId)?.playerType),
+  }));
   const common = {
     season, revision, factsByUser, currentTeamMemberUserIds: entry.teamId ? new Set(memberships.filter((membership) => members.some((member) => member.userId === membership.userId && member.teamMembershipId === membership.id)).map((membership) => membership.userId)) : null,
     nativeRegistrationsByUser: new Map(registrations.map((registration) => [registration.userId, { id: registration.id, status: registration.status }])),
@@ -419,8 +415,8 @@ export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId:
       participantByUser.set(userId, created);
     } else if (existing.status === "declined" || existing.status === "withdrawn") {
       const reinvitedAt = new Date();
-      await tx.update(competitionEntryParticipants).set({ status: "invited", invitedByUserId: input.userId, confirmedAt: null, withdrawnAt: null, updatedAt: reinvitedAt }).where(eq(competitionEntryParticipants.id, existing.id));
-      participantByUser.set(userId, { ...existing, status: "invited", invitedByUserId: input.userId, confirmedAt: null, withdrawnAt: null, updatedAt: reinvitedAt });
+      await tx.update(competitionEntryParticipants).set({ status: "invited", invitedByUserId: input.userId, playerType: null, confirmedAt: null, withdrawnAt: null, updatedAt: reinvitedAt }).where(eq(competitionEntryParticipants.id, existing.id));
+      participantByUser.set(userId, { ...existing, status: "invited", invitedByUserId: input.userId, playerType: null, confirmedAt: null, withdrawnAt: null, updatedAt: reinvitedAt });
       await auditEntry(tx, { action: "competition_entry.participant.reinvite", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: existing.id, userId, previousStatus: existing.status } });
     }
   }
@@ -450,7 +446,7 @@ export async function addCompetitionEntryRosterMemberInTx(tx: TxDb, input: { ent
 }
 
 /** The player explicitly accepts a target invitation and releases an eliminated entry atomically. */
-export async function transferCompetitionEntryParticipationInTx(tx: TxDb, input: { entryId: string; fromEntryId: string; userId: string; actorId: string }): Promise<{ seasonSlug: string }> {
+export async function transferCompetitionEntryParticipationInTx(tx: TxDb, input: { entryId: string; fromEntryId: string; userId: string; actorId: string; playerType?: PlayerType | null }): Promise<{ seasonSlug: string }> {
   const [target] = await tx.select().from(competitionEntries).where(eq(competitionEntries.id, input.entryId));
   if (!target || target.id === input.fromEntryId) throw new AppError(ErrorCode.VALIDATION_FAILED, "请选择新的参赛队伍。");
   const [source] = await tx.select({ competitionId: competitionEntries.competitionId }).from(competitionEntries).where(eq(competitionEntries.id, input.fromEntryId));
@@ -474,7 +470,7 @@ export async function transferCompetitionEntryParticipationInTx(tx: TxDb, input:
   return { seasonSlug: season.slug };
 }
 
-export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: { entryId: string; userId: string; actorId: string }): Promise<{ seasonSlug: string; alreadyConfirmed: boolean }> {
+export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: { entryId: string; userId: string; actorId: string; playerType?: PlayerType | null }): Promise<{ seasonSlug: string; alreadyConfirmed: boolean }> {
   await lockEntrySeason(tx, input.entryId);
   await tx.execute(sql`SELECT id FROM users WHERE id = ${input.userId} FOR UPDATE`);
   const entry = await lockEntry(tx, input.entryId);
@@ -504,6 +500,14 @@ export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: 
   const registrationBlocks = await loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: [input.userId], effect: "registration_block" });
   const rosterBlocks = await loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: [input.userId], effect: "roster_block" });
   if (registrationBlocks.has(input.userId) || rosterBlocks.has(input.userId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前参赛限制阻止你确认本届名单，请联系赛事管理员。 ");
+  const rules = decodeSeasonRules(season);
+  const declaration = entry.source === "linked_team" && rules.source === "policy_v2"
+    ? input.playerType ?? participant.playerType : participant.playerType;
+  if (entry.source === "linked_team" && rules.source === "policy_v2") {
+    const allowed = rules.participant.allowedPlayerTypes;
+    if (allowed && allowed.length < 3 && !declaration) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先选择你本人本届参赛身份。 ");
+    if (allowed && declaration && !allowed.includes(declaration)) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选参赛身份不符合本届赛事要求。 ");
+  }
   const alreadyConfirmed = participant.status === "confirmed";
   if (!alreadyConfirmed && participant.status !== "invited") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前成员状态不能确认参赛。");
   const [claim] = await tx.insert(competitionEntryActiveClaims).values({ competitionId: entry.competitionId, userId: input.userId, entryId: entry.id, participantId: participant.id }).onConflictDoNothing().returning({ entryId: competitionEntryActiveClaims.entryId });
@@ -511,10 +515,10 @@ export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: 
     const existing = await tx.query.competitionEntryActiveClaims.findFirst({ where: and(eq(competitionEntryActiveClaims.competitionId, entry.competitionId), eq(competitionEntryActiveClaims.userId, input.userId)) });
     if (!existing || existing.entryId !== entry.id) throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "你已确认代表本届赛事的另一支队伍。");
   }
-  if (alreadyConfirmed) return { seasonSlug: season.slug, alreadyConfirmed: true };
-  await tx.update(competitionEntryParticipants).set({ status: "confirmed", confirmedAt: new Date(), updatedAt: new Date() }).where(eq(competitionEntryParticipants.id, participant.id));
-  await auditEntry(tx, { action: "competition_entry.participant.confirm", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: participant.id, userId: input.userId } });
-  return { seasonSlug: season.slug, alreadyConfirmed: false };
+  if (alreadyConfirmed && declaration === participant.playerType) return { seasonSlug: season.slug, alreadyConfirmed: true };
+  await tx.update(competitionEntryParticipants).set({ status: "confirmed", playerType: declaration, confirmedAt: participant.confirmedAt ?? new Date(), updatedAt: new Date() }).where(eq(competitionEntryParticipants.id, participant.id));
+  await auditEntry(tx, { action: "competition_entry.participant.confirm", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: participant.id, userId: input.userId, revisionId: revision.id, playerType: declaration, previousPlayerType: participant.playerType } });
+  return { seasonSlug: season.slug, alreadyConfirmed };
 }
 
 export async function withdrawCompetitionEntryParticipationInTx(tx: TxDb, input: { entryId: string; userId: string; actorId: string }): Promise<{ seasonSlug: string }> {
