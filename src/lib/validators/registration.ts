@@ -31,24 +31,6 @@ function isAllowedRank(value: string): value is RankValue {
   return (RANK_ORDER as readonly string[]).includes(value);
 }
 
-function rankMeetsThreshold(rank: string, min: string | null): boolean {
-  if (min === null) return true;
-  const rankIndex = RANK_ORDER.indexOf(rank as RankValue);
-  const minIndex = RANK_ORDER.indexOf(min as RankValue);
-  return rankIndex >= 0 && minIndex >= 0 && rankIndex >= minIndex;
-}
-
-function rankThresholdMessage(config: RegistrationConfig): string {
-  const current = config.rankThreshold.currentMin;
-  const peak = config.rankThreshold.peakMin;
-  if (current && peak) {
-    return `报名资格：当前赛季最高段位需达到 ${current}，或历史最高段位需达到 ${peak}`;
-  }
-  if (current) return `报名资格：当前赛季最高段位需达到 ${current}`;
-  if (peak) return `报名资格：历史最高段位需达到 ${peak}`;
-  return "段位未达到报名资格";
-}
-
 function nonEmptyAllowed<T extends string>(values: readonly T[], fallback: readonly T[]): readonly T[] {
   return values.length > 0 ? values : fallback;
 }
@@ -197,20 +179,7 @@ export function buildRegistrationSchema(
     .refine((data) => data.secondaryPosition !== data.primaryPosition, {
       message: "次选位置不能与主选位置相同",
       path: ["secondaryPosition"],
-    })
-    .refine(
-      (data) => {
-        if (options.policyV2) return true;
-        const { currentMin, peakMin } = config.rankThreshold;
-        if (currentMin === null && peakMin === null) return true;
-        return (currentMin !== null && rankMeetsThreshold(data.currentSeasonPeakRank ?? "", currentMin)) ||
-          (peakMin !== null && rankMeetsThreshold(data.peakRank ?? "", peakMin));
-      },
-      {
-        message: rankThresholdMessage(config),
-        path: ["currentSeasonPeakRank"],
-      },
-    );
+    });
 }
 
 // ── 导出类型 ─────────────────────────────────────────

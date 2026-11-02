@@ -2,7 +2,7 @@ import type { CompetitiveProfileConfig } from "@/types/season";
 import { isBuiltInStarRank } from "@/lib/competitive/builtins";
 import { compositeStrength } from "@/lib/major/composite-rank";
 import type { QualificationFinding } from "@/lib/qualification/finding";
-import type { QualificationEvidence } from "@/lib/seasons/rules";
+import type { ProfileReadinessFact, QualificationEvidence } from "@/lib/seasons/rules";
 
 export interface PlayerStrengthFact {
   rank: string;
@@ -222,21 +222,32 @@ export function evaluateCompetitiveProfileReadiness(
   const referenceKey = config.evidencePolicy?.referenceSeasonKey ?? config.previousSeasonKey;
   const recentKeys = config.evidencePolicy?.recentSeasonKeys ?? [config.currentSeasonKey];
   const seasons = profile?.seasons;
+  const usable = (fact: ProfileReadinessFact | null | undefined): PlayerStrengthFact | null =>
+    fact?.status === "ranked" && fact.rank && fact.rating !== null
+      ? { rank: fact.rank, rating: fact.rating, stars: fact.stars, sourcePlatform: fact.sourcePlatform, sourceSeasonKey: fact.sourceSeasonKey }
+      : null;
   const player: PlayerStrengthInput = {
     userId,
     label: "选手",
-    historicalPeak: profile?.historicalPeak ?? null,
-    previousSeasonPeak: seasons?.get(referenceKey) ?? null,
-    currentSeasonPeak: seasons?.get(config.currentSeasonKey) ?? null,
-    recentSeasonPeaks: recentKeys.map((key) => seasons?.get(key) ?? null),
+    historicalPeak: usable(profile?.historicalPeak),
+    previousSeasonPeak: usable(seasons?.get(referenceKey)),
+    currentSeasonPeak: usable(seasons?.get(config.currentSeasonKey)),
+    recentSeasonPeaks: recentKeys.map((key) => usable(seasons?.get(key))),
   };
   const findings = getPlayerStrengthFindings(player, config);
   const slots = [
-    { key: "historical", fact: player.historicalPeak },
+    { key: "historical", fact: profile?.historicalPeak ?? null },
     ...[...new Set([referenceKey, ...recentKeys])].map((key) => ({ key, fact: seasons?.get(key) ?? null })),
   ];
   for (const slot of slots) {
-    if (!slot.fact || !isBuiltInStarRank(config.platform, slot.fact.rank) || slot.fact.stars != null) continue;
+    if (!slot.fact || slot.fact.status !== "ranked") continue;
+    if (!slot.fact.rank) {
+      findings.push({ code: "competitive_profile_incomplete", message: `${slot.key === "historical" ? "历史最高" : slot.key}缺少段位。`, waivable: false, metadata: { field: "rank", platform: slot.fact.sourcePlatform, seasonKey: slot.key } });
+    }
+    if (slot.fact.rating === null) {
+      findings.push({ code: "competitive_profile_incomplete", message: `${slot.key === "historical" ? "历史最高" : slot.key}缺少 Rating。`, waivable: false, metadata: { field: "rating", platform: slot.fact.sourcePlatform, seasonKey: slot.key } });
+    }
+    if (!slot.fact.rank || !isBuiltInStarRank(slot.fact.sourcePlatform, slot.fact.rank) || slot.fact.stars != null) continue;
     findings.push({
       code: "competitive_profile_incomplete",
       message: `${slot.key === "historical" ? "历史最高" : slot.key}的 ${slot.fact.rank} 段位需要填写准确星数。`,

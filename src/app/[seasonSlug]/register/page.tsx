@@ -38,7 +38,7 @@ import { isSoloRegistration } from "@/lib/utils/season";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { CompetitionEntryFlow } from "@/components/register/CompetitionEntryFlow";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { computePolicyParticipantReadiness, evaluateRosterQualificationFromFacts, getParticipantReadinessBatch, isHomeAffiliatedMember, loadParticipantQualificationFacts, resolveCompetitiveContext, resolveSeasonEducationVerification } from "@/lib/qualification/service";
+import { computePolicyParticipantReadiness, evaluateRosterQualificationFromFacts, evaluateSeasonParticipantInTx, getParticipantReadinessBatch, isHomeAffiliatedMember, loadParticipantQualificationFacts, resolveCompetitiveContext, resolveSeasonEducationVerification } from "@/lib/qualification/service";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { presentRegistrationSchedule } from "@/lib/seasons/presentation";
 import { RegistrationScheduleCountdown } from "@/components/seasons/RegistrationScheduleCountdown";
@@ -350,6 +350,10 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
     db.select().from(userMapPreferences).where(eq(userMapPreferences.userId, userSession.userId)),
   ]);
   const regConfig = normalizeRegistrationConfig(season.registrationConfig);
+  const soloRules = decodeSeasonRules(season);
+  const soloDecision = soloRules.source === "policy_v2"
+    ? await evaluateSeasonParticipantInTx(db, userSession.userId, currentRegistration?.playerType ?? regConfig.allowedPlayerTypes[0] ?? "", soloRules)
+    : null;
   const maxPerPos = regConfig.maxPerPosition;
   const existingStatus = currentRegistration?.status ?? null;
   const existingStatusLabel = existingStatus ? REGISTRATION_STATUS_LABELS[existingStatus] : null;
@@ -485,6 +489,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
         </div>
       )}
 
+      {soloDecision?.state === "blocked" && <StatusBanner tone="info" title="当前账号资料待完善" sub={soloDecision.findings.map((finding) => finding.message).join("；")} />}
       <Panel contentClassName="p-6">
         {currentRegistration?.status === "approved" ? (
           <div className="py-10 text-center">
@@ -500,8 +505,8 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
             positionCounts={positionCounts}
             positions={season.positions}
             registrationConfig={regConfig}
-            policyV2={decodeSeasonRules(season).source === "policy_v2"}
-            qqRequired={decodeSeasonRules(season).participant.contacts.qqRequired}
+            policyV2={soloRules.source === "policy_v2"}
+            qqRequired={soloRules.participant.contacts.qqRequired}
             windowState={registrationWindow}
             currentUserEmail={userSession?.email ?? null}
             initialValues={initialValues}

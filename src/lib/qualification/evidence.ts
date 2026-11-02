@@ -4,7 +4,7 @@ import { comparePlayerStrengthFacts, type PlayerStrengthFact, type PlayerStrengt
 import { getDisplayName } from "@/lib/identity/display-name";
 import type { CompetitiveProfileConfig } from "@/types/season";
 import type { ParticipantQualificationFacts, QualificationPeak, QualificationSeasonPeak } from "@/lib/qualification/facts";
-import type { ParticipantRules, QualificationEvidence } from "@/lib/seasons/rules";
+import type { ParticipantRules, ProfileReadinessFact, QualificationEvidence } from "@/lib/seasons/rules";
 
 type SelectableCompetitivePeak = QualificationPeak | QualificationSeasonPeak;
 
@@ -41,10 +41,31 @@ export function buildQualificationEvidence(
   if (!requirements.historicalPeak && requirements.seasonKeys.length === 0) return { kind: "none" };
   const profileRequirements = deriveCompetitiveRequirements(purposes.filter(purpose => purpose === "profile_completeness" || purpose === "seed_recommendation"), context, participant);
   const thresholdRequirements = deriveCompetitiveRequirements(purposes.filter(purpose => purpose === "rank_threshold"), context, participant);
+  const profileFact = (selected: PlayerStrengthFact | null, raw: SelectableCompetitivePeak | null | undefined): ProfileReadinessFact | null => {
+    if (selected) return { status: "ranked", rank: selected.rank, rating: selected.rating, stars: selected.stars ?? null, sourcePlatform: selected.sourcePlatform ?? context.platform, sourceSeasonKey: selected.sourceSeasonKey ?? null };
+    if (!raw) return null;
+    return { status: raw.status ?? "ranked", rank: raw.rank, rating: raw.rating, stars: raw.stars ?? null, sourcePlatform: raw.sourcePlatform ?? context.platform, sourceSeasonKey: raw.sourceSeasonKey ?? null };
+  };
   const byPurpose = {
-    profileReadiness: new Map([...facts].filter(() => purposes.includes("profile_completeness") || purposes.includes("seed_recommendation")).map(([id, fact]) => [id, selectPlayerStrengthEvidence({ ...fact, userId: id }, context, "profile_completeness", profileRequirements.seasonKeys)])),
-    externalStrength: new Map([...facts].filter(() => purposes.includes("external_historical_gap")).map(([id, fact]) => [id, selectPlayerStrengthEvidence({ ...fact, userId: id }, context, "external_historical_gap").strength])),
-    rankThreshold: new Map([...facts].filter(() => purposes.includes("rank_threshold")).map(([id, fact]) => [id, selectPlayerStrengthEvidence({ ...fact, userId: id }, context, "rank_threshold", thresholdRequirements.seasonKeys)])),
+    profileReadiness: new Map([...facts].filter(() => purposes.includes("profile_completeness") || purposes.includes("seed_recommendation")).map(([id, fact]) => {
+      const selected = selectPlayerStrengthEvidence({ ...fact, userId: id }, context, "profile_completeness", profileRequirements.seasonKeys);
+      const fallbackRaw = (peak: SelectableCompetitivePeak | null | undefined) => peak && context.fallbackConversion
+        ? { ...peak, sourcePlatform: peak.sourcePlatform ?? context.fallbackConversion.sourcePlatform }
+        : undefined;
+      return [id, { historicalPeak: profileFact(selected.historicalPeak, fact.historicalPeak ?? fallbackRaw(fact.fallbackFacts?.historicalPeak)), seasons: new Map(profileRequirements.seasonKeys.map(key => {
+        const fallbackKey = context.fallbackConversion?.seasonKeyMap[key];
+        return [key, profileFact(selected.seasons.get(key) ?? null, fact.seasonPeaks?.get(key) ?? fallbackRaw(fallbackKey ? fact.fallbackFacts?.seasonPeaks.get(fallbackKey) : undefined))];
+      })) }];
+    })),
+    externalStrength: new Map([...facts].filter(() => purposes.includes("external_historical_gap")).map(([id, fact]) => {
+      const selected = selectPlayerStrengthEvidence({ ...fact, userId: id }, context, "external_historical_gap").strength;
+      const peak = selected.historicalPeak;
+      return [id, { label: selected.label, rank: peak?.rank ?? null, stars: peak?.stars ?? null, sourcePlatform: peak?.sourcePlatform ?? context.platform, sourceSeasonKey: peak?.sourceSeasonKey ?? null, sourceRank: peak?.sourceRank ?? null }];
+    })),
+    rankThreshold: new Map([...facts].filter(() => purposes.includes("rank_threshold")).map(([id, fact]) => {
+      const selected = selectPlayerStrengthEvidence({ ...fact, userId: id }, context, "rank_threshold", thresholdRequirements.seasonKeys).strength;
+      return [id, { currentRank: selected.currentSeasonPeak?.rank ?? null, peakRank: selected.historicalPeak?.rank ?? null }];
+    })),
   };
   return {
     kind: "competitive",
