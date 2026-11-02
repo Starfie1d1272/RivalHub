@@ -240,7 +240,11 @@ export function evaluateCompetitiveProfileReadiness(
     ...[...new Set([referenceKey, ...recentKeys])].map((key) => ({ key, fact: seasons?.get(key) ?? null })),
   ];
   for (const slot of slots) {
-    if (!slot.fact || slot.fact.status !== "ranked") continue;
+    if (!slot.fact) continue;
+    if (slot.fact.status === "unranked") {
+      findings.push({ code: "competitive_profile_incomplete", message: `${slot.key === "historical" ? "历史最高" : slot.key}为未定级，缺少可用段位。`, waivable: false, metadata: { field: "rank", status: "unranked", platform: slot.fact.sourcePlatform, seasonKey: slot.key } });
+      continue;
+    }
     if (!slot.fact.rank) {
       findings.push({ code: "competitive_profile_incomplete", message: `${slot.key === "historical" ? "历史最高" : slot.key}缺少段位。`, waivable: false, metadata: { field: "rank", platform: slot.fact.sourcePlatform, seasonKey: slot.key } });
     }
