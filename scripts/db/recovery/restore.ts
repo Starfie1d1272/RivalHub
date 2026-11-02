@@ -367,8 +367,11 @@ function assertManifestCompatibility(manifest: RecoveryManifest): void {
   }
   if (manifest.sourceEnvironment !== "production") {
     assertInstanceReleaseIdentity(manifest.source.deployedReleaseTag, manifest.source.deployedCommit);
-    if (readCurrentGitCommit() !== manifest.source.deployedCommit) {
-      throw new Error("Instance restore must use the exact source release checkout before upgrading.");
+    const currentCommit = readCurrentGitCommit();
+    if (manifest.source.migrationLineage === "v2"
+      ? !isCommitAncestor(manifest.source.deployedCommit, currentCommit)
+      : currentCommit !== manifest.source.deployedCommit) {
+      throw new Error("Instance restore requires the source release or a supported V2 descendant tool.");
     }
     return;
   }
