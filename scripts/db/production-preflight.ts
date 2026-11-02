@@ -1,3 +1,6 @@
+import { execFileSync } from "node:child_process";
+import { readCanonicalProductionIdentity } from "../release/production-identity";
+import { assertReleaseCapabilities } from "../release/capability-contract";
 import { postgresConnection } from "../../src/db/postgres-connection";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -13,6 +16,12 @@ export const PRODUCTION_BASELINE_TAG = "0024_major_runtime_convergence";
 
 export async function verifyProductionPreflight(): Promise<void> {
   assertProductionConfirmations(process.env);
+  // Never accept a caller-declared reader version or alternate readback origin.
+  const previous = await readCanonicalProductionIdentity({});
+  const configuredPrevious = process.env.RIVALHUB_PREVIOUS_RELEASE_COMMIT;
+  if (configuredPrevious && configuredPrevious !== previous.releaseCommit) throw new Error("Frozen Production identity differs from canonical readback; refusing migration.");
+  const candidate = process.env.RIVALHUB_RELEASE_SHA || execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  assertProductionAssetMigrationCapability(process.cwd(), previous.releaseCommit, candidate);
   const databaseUrl = assertProductionDatabaseUrl(process.env.DATABASE_URL);
   const expected = readExpectedMigrations();
   const pool = new Pool({ ...postgresConnection(databaseUrl), max: 1 });
@@ -38,6 +47,16 @@ export async function verifyProductionPreflight(): Promise<void> {
   } finally {
     await pool.end();
   }
+}
+
+/** The actual 0105 bytes and contract must belong to the candidate revision. */
+export function assertProductionAssetMigrationCapability(cwd: string, previous: string, candidate: string): void {
+  if (!/^[a-f0-9]{40}$/.test(candidate)) throw new Error("Exact candidate commit required for asset migration.");
+  for (const path of ["drizzle/migrations/0105_public_asset_identity.sql", "src/lib/assets-contract.json"]) {
+    const committed = execFileSync("git", ["show", `${candidate}:${path}`], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    if (readFileSync(resolve(cwd, path), "utf8") !== committed) throw new Error(`Candidate input differs from exact release: ${path}`);
+  }
+  assertReleaseCapabilities(cwd, previous, candidate);
 }
 
 export function assertResumableProductionLedger(

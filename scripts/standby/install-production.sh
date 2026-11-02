@@ -2,6 +2,13 @@
 # Install a verified immutable production package; never runs database migrations.
 set -Eeuo pipefail
 umask 077
+# Direct legacy install/rollback cannot prove the deployed reader contract.
+# Use the Release controller, which supplies immutable Git capability evidence.
+if [[ ${1:-} == --rollback ]]; then
+  [[ $# == 7 && $6 == --capability-bundle ]] || { echo 'Direct rollback unavailable; use the protected Release controller with capability evidence.' >&2; exit 1; }
+else
+  [[ $# == 9 && $3 == --release && $8 == --capability-bundle ]] || { echo 'Direct installation unavailable; use the protected Release controller with capability evidence.' >&2; exit 1; }
+fi
 [[ $(id -u) == 0 ]] || { echo 'Run as root on the verified production host.' >&2; exit 1; }
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 helper="$script_dir/production-host.mjs"
@@ -66,7 +73,10 @@ failed() {
   exit 1
 }
 if [[ ${1:-} == --rollback ]]; then
-  [[ $# == 5 ]] || { echo 'Usage: --rollback TAG SHA PREVIOUS_TAG PREVIOUS_SHA' >&2; exit 1; }
+  capability_bundle=$(realpath "$7")
+  current=$(readlink "$root/current")
+  [[ $current == releases/rivalhub-production-* && -x $root/$current/runtime/node ]] || exit 1
+  env -i PATH=/usr/bin:/bin "$root/$current/runtime/node" "$script_dir/release-capability-gate.mjs" "$capability_bundle" "$5" "$3" || { echo 'Rollback capability check failed.' >&2; exit 1; }
   # A failed preflight has no matching transaction to restore.
   snapshot=$(cat "$root/previous-snapshot" 2>/dev/null || true)
   if [[ ! -f $snapshot/identity || $(cat "$snapshot/identity") != "$2 $3 $4 $5" ]]; then
@@ -92,8 +102,9 @@ archive=$(realpath "${1:?Usage: install-production.sh ARCHIVE PRODUCTION_ENV [--
 env_file=$(realpath "${2:?Production environment file required}")
 tag='' sha='' previous_tag='' previous_sha=''
 if [[ $# != 2 ]]; then
-  [[ $# == 7 && $3 == --release ]] || exit 1
+  [[ $# == 9 && $3 == --release && $8 == --capability-bundle ]] || exit 1
   tag=$4 sha=$5 previous_tag=$6 previous_sha=$7
+  capability_bundle=$(realpath "$9")
   [[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ && $sha =~ ^[a-f0-9]{40}$ && $previous_tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ && $previous_sha =~ ^[a-f0-9]{40}$ ]] || exit 1
   [[ $env_file == "$config" ]] || { echo 'Release requires the installed production environment.' >&2; exit 1; }
 fi
@@ -132,6 +143,8 @@ if [[ -n $previous ]]; then
 elif [[ -n $previous_tag ]]; then
   echo 'Release requires an existing production instance.' >&2; exit 1
 fi
+[[ -n $previous && -n $previous_sha ]] || { echo 'Release requires an existing verified previous reader.' >&2; exit 1; }
+env -i PATH=/usr/bin:/bin "$node" "$script_dir/release-capability-gate.mjs" "$capability_bundle" "$previous_sha" "$sha" || { echo 'Installation capability check failed.' >&2; exit 1; }
 [[ -f $script_dir/rivalhub-production.service ]] || exit 1
 snapshot=$(mktemp -d "$root/rollback/$(date -u +%Y%m%dT%H%M%SZ).XXXXXXXX")
 printf '%s\n' "$previous" > "$snapshot/previous-release"
