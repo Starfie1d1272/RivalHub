@@ -18,7 +18,7 @@ execFileSync(process.execPath, [resolve('node_modules/next/dist/bin/next'), 'bui
 const bundle = resolve('.next/standalone');
 cpSync('public', `${bundle}/public`, { recursive: true });
 cpSync('.next/static', `${bundle}/.next/static`, { recursive: true });
-for (const path of ['scripts/instance/validate-runtime.mjs', 'scripts/instance/readiness.mjs', 'src/lib/runtime/official-deployment-profile.mjs', 'src/db/postgres-connection.ts', 'src/db/supabase-ca.ts']) {
+for (const path of ['scripts/instance/validate-runtime.mjs', 'scripts/instance/readiness.mjs', 'scripts/db/team-logo-bucket.mjs', 'src/lib/runtime/official-deployment-profile.mjs', 'src/db/postgres-connection.ts', 'src/db/supabase-ca.ts']) {
   mkdirSync(resolve(bundle, path, '..'), { recursive: true });
   if (path === 'src/db/postgres-connection.ts') {
     writeFileSync(resolve(bundle, path), readFileSync(path, 'utf8').replace('from "./supabase-ca"', 'from "./supabase-ca.ts"'));
