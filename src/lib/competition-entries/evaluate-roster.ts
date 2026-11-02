@@ -43,7 +43,8 @@ export const evaluateRoster: EvaluateRoster = (candidate, rules, evidence) => {
         if (!strength) { block("competitive_profile_incomplete", "名单成员竞技资料不可用。", { userId: member.userId }); return []; }
         const fact = candidate.factsByUser.get(member.userId);
         const isHome = resolveSeasonEducationVerification(fact?.educationHistory ?? [], rules.roster.affiliationRules).eligibilityState === "approved" && Boolean(resolveSeasonEducationVerification(fact?.educationHistory ?? [], rules.roster.affiliationRules).matchedRule);
-        return [{ ...strength, isHome }];
+        const historicalPeak = strength.rank ? { rank: strength.rank, rating: 0, ratingComparable: false, stars: strength.stars, sourcePlatform: strength.sourcePlatform, sourceSeasonKey: strength.sourceSeasonKey, ...(strength.sourceRank ? { sourceRank: strength.sourceRank } : {}) } : null;
+        return [{ userId: member.userId, label: strength.label, historicalPeak, previousSeasonPeak: null, currentSeasonPeak: null, isHome }];
       });
       findings.push(...evaluateExternalStrengthRule({ players, config: { ...evidence.context.profile, externalStrengthMaxStarGap: rules.competitive.externalStrengthGap.maxGap } }).findings);
     }
