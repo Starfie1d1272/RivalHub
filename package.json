@@ -36,6 +36,7 @@
     "db:production:scheduler:provision": "tsx scripts/db/scheduler.ts provision",
     "db:production:scheduler:verify": "tsx scripts/db/scheduler.ts verify",
     "db:production:identity-merge-preflight": "tsx scripts/db/production-identity-merge-preflight.ts",
+    "db:prediction-finance:retirement-preflight": "tsx scripts/db/run-server-cli.ts scripts/db/prediction-finance-retirement-preflight.ts",
     "db:steam-profile:remediation": "tsx scripts/db/steam-profile-remediation.ts",
     "db:production:steam-profile:remediation": "tsx scripts/db/production-steam-profile-remediation.ts",
     "db:steam-profile:backfill": "tsx scripts/db/run-server-cli.ts scripts/db/steam-profile-backfill.ts",

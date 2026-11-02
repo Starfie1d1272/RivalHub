@@ -11,6 +11,7 @@ WorkingDirectory=/opt/rivalhub-instance/current
 EnvironmentFile=/etc/rivalhub-instance/instance.env
 Environment=RIVALHUB_PRESENCE_MODE=single-process
 ExecStartPre=/opt/rivalhub-instance/current/runtime/node /opt/rivalhub-instance/current/scripts/instance/validate-runtime.mjs /opt/rivalhub-instance/current/standby.json
+ExecStartPre=/opt/rivalhub-instance/current/runtime/node /opt/rivalhub-instance/current/scripts/instance/readiness.mjs /opt/rivalhub-instance/current
 ExecStart=/opt/rivalhub-instance/current/runtime/node /opt/rivalhub-instance/current/server.js
 Restart=on-failure
 RestartSec=5

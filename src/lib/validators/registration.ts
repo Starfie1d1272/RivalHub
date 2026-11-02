@@ -59,7 +59,8 @@ export function buildRegistrationSchema(
         .string()
         .refine((v) => options.policyV2 || v.length > 0, "请填写学号（毕业生填「毕业年份+学院」）"),
 
-      playerType: z.enum(["enrolled", "graduated", "external"], { error: "请选择身份类型" }),
+      playerType: z.enum(["enrolled", "graduated", "external"], { error: "请选择身份类型" })
+        .nullish().refine((value) => options.policyV2 || value != null, "请选择身份类型"),
 
       qq: z
         .string()

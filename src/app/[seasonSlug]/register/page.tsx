@@ -369,7 +369,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
   const regConfig = normalizeRegistrationConfig(season.registrationConfig);
   const soloRules = decodeSeasonRules(season);
   const soloAssessment = soloRules.source === "policy_v2"
-    ? assessSoloParticipant(await evaluateSeasonParticipantInTx(db, userSession.userId, currentRegistration?.playerType ?? regConfig.allowedPlayerTypes[0] ?? "", soloRules))
+    ? assessSoloParticipant(await evaluateSeasonParticipantInTx(db, userSession.userId, currentRegistration?.playerType, soloRules))
     : null;
   const maxPerPos = regConfig.maxPerPosition;
   const existingStatus = currentRegistration?.status ?? null;

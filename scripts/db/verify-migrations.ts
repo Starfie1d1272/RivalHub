@@ -9,6 +9,8 @@ import { verifyDatabaseAccessMatrix } from "./access-matrix";
 import { verifyHostedRealtimePolicy } from "./realtime-policy";
 import { readMigrationLedger } from "./migration-ledger";
 import { compareMigrationContracts } from "./compare-migration-contract";
+import { verifyTeamLogoBucket } from "./team-logo-bucket.mjs";
+export { verifyTeamLogoBucket } from "./team-logo-bucket.mjs";
 
 async function main(): Promise<void> {
   if (process.argv[2] === "--compare-contract") {
@@ -112,6 +114,7 @@ async function main(): Promise<void> {
     assertCurrentTerminalSchema(terminalSchema.rows[0]);
     await verifyEducationEvidenceBucket(pool);
     await verifySeasonPublicAssetsBucket(pool);
+    await verifyTeamLogoBucket(pool);
     await verifyDatabaseAccessMatrix(pool, `Migration verification (${target})`);
     if (target === "production" || target === "staging") await verifyHostedRealtimePolicy(pool);
 
@@ -208,6 +211,7 @@ export async function verifySeasonPublicAssetsBucket(pool: Pick<Pool, "query">):
   }
   return "verified";
 }
+
 
 if (require.main === module) {
   main().catch((error) => {

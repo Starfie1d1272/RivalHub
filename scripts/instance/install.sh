@@ -137,6 +137,17 @@ printf '%s %s %s %s\n' "$tag" "$sha" "$previous_tag" "$previous_sha" > "$snapsho
 [[ ! -f $unit ]] || cp -p "$unit" "$snapshot/service"
 "$node" "$helper" environment "$env_file" "$snapshot/candidate.env" "$tag" "$sha"
 env -i "$node" --env-file="$snapshot/candidate.env" "$staging/scripts/instance/validate-runtime.mjs" "$staging/standby.json"
+candidate_db=$(env -i "$node" --env-file="$snapshot/candidate.env" "$script_dir/database-identity.mjs")
+if [[ -n $previous ]]; then
+  # Credentials and direct/pooler mode may change; project and database may not.
+  previous_db=$(env -i "$node" --env-file="$snapshot/instance.env" "$script_dir/database-identity.mjs")
+  [[ $previous_db == "$candidate_db" ]] || { echo 'Instance database destination changed; refusing upgrade.' >&2; exit 1; }
+fi
+# Check real provisioning facts before starting or switching the service. Only
+# a first install requires the generic fresh-chain email rule to be absent.
+readiness_args=()
+[[ -n $previous ]] || readiness_args+=(--fresh)
+env -i "$node" --env-file="$snapshot/candidate.env" "$staging/scripts/instance/readiness.mjs" "$staging" "${readiness_args[@]}"
 if ! id rivalhub-instance >/dev/null 2>&1; then
   useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin rivalhub-instance
 fi
