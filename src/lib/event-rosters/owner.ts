@@ -2,7 +2,7 @@ import "server-only";
 
 import { isDeepStrictEqual } from "node:util";
 
-import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
   competitionQualificationRuns,
@@ -12,6 +12,8 @@ import {
   competitionEntryRosterMembers,
   eventRosterMembers,
   eventRosters,
+  matchActualStartAdoptions,
+  matchMaps,
   matchRosterPlayers,
   matchRosters,
   matches,
@@ -130,6 +132,8 @@ export async function applyEventRosterMaterializationInTx(
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "正式赛事名单已冻结或不存在，不能重新物化名单。 ");
   }
 
+  await preserveTestMatchEligibilityInTx(tx, input.eventRosterId);
+
   const currentMembers = await tx.select({ id: eventRosterMembers.id }).from(eventRosterMembers)
     .where(and(eq(eventRosterMembers.eventRosterId, input.eventRosterId), eq(eventRosterMembers.isCurrent, true)))
     .for("update");
@@ -196,6 +200,36 @@ export async function applyEventRosterMaterializationInTx(
   }).where(eq(eventRosters.id, input.eventRosterId));
 }
 
+/** Backfill only from the test match's own immutable source before replacing members. */
+async function preserveTestMatchEligibilityInTx(tx: TxDb, eventRosterId: string): Promise<void> {
+  const [roster] = await tx.select({ entryId: eventRosters.entryId }).from(eventRosters).where(eq(eventRosters.id, eventRosterId));
+  if (!roster) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事名单不存在。 ");
+  const records = await tx.select({ id: matchRosters.id, snapshot: matchRosters.eligibilitySnapshot, revision: matchRosters.sourceRosterRevisionId,
+    matchId: matches.id, seasonId: matches.seasonId, entryAId: matches.entryAId, entryBId: matches.entryBId, testConfig: matches.testConfig })
+    .from(matchRosters).innerJoin(matches, eq(matches.id, matchRosters.matchId))
+    .where(and(eq(matchRosters.entryId, roster.entryId), isNotNull(matches.testConfig)))
+    .orderBy(asc(matchRosters.matchId)).for("update");
+  for (const record of records) {
+    if (!record.seasonId || (record.entryAId !== roster.entryId && record.entryBId !== roster.entryId)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "测试赛名单归属不一致。 ");
+    const source = record.testConfig?.eligibility?.[record.entryAId === roster.entryId ? "a" : "b"];
+    // Legacy test snapshots keep their existing v1 decoding and materialization path.
+    if (source?.version === 1) continue;
+    if (!source || source.version !== 2 || (record.snapshot && !isDeepStrictEqual(record.snapshot, source)) || (record.revision && record.revision !== source.rosterRevisionId)) {
+      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "测试赛缺少可证明的冻结名单资格，不能调整名单。 ");
+    }
+    const frozen = decodeFrozenLineupEligibility(source, { seasonId: record.seasonId, entryId: roster.entryId, rosterRevisionId: source.rosterRevisionId });
+    const memberIds = [...frozen.membersById.keys()];
+    const members = memberIds.length ? await tx.select({ id: eventRosterMembers.id, userId: eventRosterMembers.userId }).from(eventRosterMembers)
+      .where(and(eq(eventRosterMembers.eventRosterId, eventRosterId), inArray(eventRosterMembers.id, memberIds))) : [];
+    if (members.length !== memberIds.length || members.some((member) => frozen.membersById.get(member.id)?.userId !== member.userId)) {
+      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "测试赛冻结成员无法证明名单归属。 ");
+    }
+    const players = await tx.select({ id: matchRosterPlayers.eventRosterMemberId }).from(matchRosterPlayers).where(eq(matchRosterPlayers.rosterId, record.id));
+    if (!players.length || players.some((player) => !frozen.membersById.has(player.id))) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "测试赛阵容与冻结名单不一致。 ");
+    if (!record.snapshot) await tx.update(matchRosters).set({ eligibilitySnapshot: source, sourceRosterRevisionId: source.rosterRevisionId }).where(eq(matchRosters.id, record.id));
+  }
+}
+
 /**
  * The caller owns the season lock. Preserve any history that may have used the
  * current snapshot; only unstarted, submitted lineups can be discarded.
@@ -203,7 +237,7 @@ export async function applyEventRosterMaterializationInTx(
 async function invalidateUnstartedLineupsInTx(tx: TxDb, input: {
   seasonId: string; entryId: string; actorId: string; nextRevisionId: string;
 }): Promise<void> {
-  const scopedMatches = await tx.select({ id: matches.id, status: matches.status, startedAt: matches.startedAt, gameplayStartedAt: matches.gameplayStartedAt, qualificationRunId: matches.qualificationRunId, ownership: matches.ownership, stage: matches.stage, stageRunId: matches.majorStageRunId })
+  const scopedMatches = await tx.select({ id: matches.id, status: matches.status, startedAt: matches.startedAt, gameplayStartedAt: matches.gameplayStartedAt, isForfeit: matches.isForfeit, qualificationRunId: matches.qualificationRunId, ownership: matches.ownership, stage: matches.stage, stageRunId: matches.majorStageRunId })
     .from(matches).where(and(eq(matches.seasonId, input.seasonId), isNull(matches.testConfig),
       or(eq(matches.entryAId, input.entryId), eq(matches.entryBId, input.entryId))))
     .orderBy(asc(matches.id)).for("update");
@@ -225,7 +259,16 @@ async function invalidateUnstartedLineupsInTx(tx: TxDb, input: {
       .from(eventRosters).where(eq(eventRosters.entryId, input.entryId)).for("update");
     for (const match of finished) {
       const lineup = lineups.find((item) => item.matchId === match.id);
-      if (!lineup) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史比赛缺少名单，无法证明资格快照来源。 ");
+      if (!lineup) {
+        if (match.isForfeit && !match.startedAt && !match.gameplayStartedAt) {
+          const maps = await tx.select({ startedAt: matchMaps.startedAt, completedAt: matchMaps.completedAt, scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB })
+            .from(matchMaps).where(eq(matchMaps.matchId, match.id));
+          const [actualStart] = await tx.select({ id: matchActualStartAdoptions.id }).from(matchActualStartAdoptions)
+            .where(eq(matchActualStartAdoptions.matchId, match.id)).limit(1);
+          if (!actualStart && maps.every((map) => !map.startedAt && !map.completedAt && map.scoreA === null && map.scoreB === null)) continue;
+        }
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史比赛缺少名单，无法证明资格快照来源。 ");
+      }
       let snapshot = lineup.snapshot ?? roster?.snapshot;
       if (match.ownership === "major_stage") {
         if (!match.stageRunId || !match.stage) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史阶段比赛缺少 StageRun。 ");
