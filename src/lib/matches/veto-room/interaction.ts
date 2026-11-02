@@ -5,7 +5,7 @@ import { getCurrentUserAuthorization } from "@/lib/auth/session";
 import { logEvent } from "@/lib/observability/server";
 import { assertVetoRoomReadable } from "./access";
 import { getVetoRoomView } from "./read-model";
-import { deliverVetoInvalidation } from "./invalidation";
+import { deliverMatchProjectionInvalidation } from "@/lib/matches/projection-invalidation/delivery";
 import { reconcileVetoRoomReceipt, requestVetoStartReceipt, submitVetoCommandReceipt } from "./service";
 
 const base = z.object({ matchId: z.uuid() });
@@ -48,7 +48,7 @@ export async function runVetoInteraction(input: z.infer<typeof vetoInteractionIn
 export async function finishVetoInteraction<T>(matchId: string, outcome: T, _changed: boolean, mode: "action" | "route" = "action", authorization?: Awaited<ReturnType<typeof getCurrentUserAuthorization>>, expectedSeasonId?: string) {
   let invalidation: "complete" | "pending" = "pending";
   try {
-    invalidation = await deliverVetoInvalidation(matchId, mode);
+    invalidation = await deliverMatchProjectionInvalidation(matchId, mode);
   } catch {
     // The durable generation stays pending. Even a no-op reconcile retries it.
     logEvent({ level: "warn", event: "match.veto.invalidation_pending", scope: "match", operation: "veto.invalidate", retryable: true });
