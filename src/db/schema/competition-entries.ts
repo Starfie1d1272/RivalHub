@@ -210,7 +210,7 @@ export const competitionEntryLegacyIdentities = pgTable("competition_entry_legac
 export const eventRosters = pgTable("event_rosters", {
   id: uuid("id").primaryKey().defaultRandom(),
   entryId: uuid("entry_id").notNull().references(() => competitionEntries.id),
-  eligibilitySnapshot: jsonb("eligibility_snapshot").$type<import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility>(),
+  eligibilitySnapshot: jsonb("eligibility_snapshot").$type<import("@/lib/competition-qualification/eligibility").QualificationRosterEligibility | import("@/lib/seasons/eligibility-snapshot").EventRosterEligibilitySnapshotV2>(),
   sourceRosterRevisionId: uuid("source_roster_revision_id").references(() => competitionEntryRosterRevisions.id),
   status: eventRosterStatusEnum("status").notNull().default("preparing"),
   confirmedAt: timestamp("confirmed_at", { withTimezone: true }),

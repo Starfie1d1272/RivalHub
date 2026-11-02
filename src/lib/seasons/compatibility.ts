@@ -7,6 +7,7 @@ import type {
   StagePlan,
   StageType,
   TeamRegistrationConfig,
+  StoredTeamRegistrationConfigV2,
 } from "@/types/season";
 
 /**
@@ -87,11 +88,16 @@ export function normalizeRegistrationConfig(
   };
 }
 
-type PartialTeamConfig = Partial<TeamRegistrationConfig>;
+type PartialTeamConfig = Partial<TeamRegistrationConfig> | StoredTeamRegistrationConfigV2;
+
+function isV2(config: PartialTeamConfig | null | undefined): config is StoredTeamRegistrationConfigV2 {
+  return config?.qualificationPolicy?.version === 2;
+}
 
 export function normalizeTeamRegistrationConfig(
   config: PartialTeamConfig | null | undefined,
 ): TeamRegistrationConfig {
+  if (isV2(config)) throw new Error("V2 season rules must be decoded through decodeSeasonRules");
   return {
     ...(config?.qualificationPolicy ? { qualificationPolicy: qualificationPolicySchema.parse(config.qualificationPolicy) } : {}),
     allowExternal: config?.allowExternal ?? LEGACY_TEAM_REGISTRATION_FALLBACK.allowExternal,
@@ -199,6 +205,7 @@ export function resolveQualificationPolicy(
   affiliationRules: readonly InstitutionAffiliationRule[] | null | undefined = [],
   legacyUse: "participant" | "roster" = "participant",
 ): QualificationPolicyV1 {
+  if (isV2(config)) throw new Error("V2 season rules must be decoded through decodeSeasonRules");
   if (config?.qualificationPolicy) return qualificationPolicySchema.parse(config.qualificationPolicy);
   const normalized = normalizeTeamRegistrationConfig(config);
   const required = normalized.requireCompetitiveProfile === true;
