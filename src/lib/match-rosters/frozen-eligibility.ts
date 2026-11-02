@@ -19,8 +19,11 @@ export function decodeFrozenLineupEligibility(value: unknown, expected: {
   }
   let evidence: QualificationEvidence = { kind: "none" };
   if (snapshot.competitive) {
-    const { profile, requirements, byUser } = snapshot.competitive;
-    if (!profile || new Set(byUser.map((fact) => fact.userId)).size !== byUser.length || byUser.some((fact) => !snapshot.members.some((member) => member.userId === fact.userId))) {
+    const { profile, requirements, byPurpose } = snapshot.competitive;
+    const allFacts = [...byPurpose.profileReadiness, ...byPurpose.externalStrength];
+    if (!profile || new Set(byPurpose.profileReadiness.map((fact) => fact.userId)).size !== byPurpose.profileReadiness.length ||
+        new Set(byPurpose.externalStrength.map((fact) => fact.userId)).size !== byPurpose.externalStrength.length ||
+        allFacts.some((fact) => !snapshot.members.some((member) => member.userId === fact.userId))) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "冻结竞技资格事实不完整或不属于该名单。");
     }
     evidence = {
@@ -28,13 +31,10 @@ export function decodeFrozenLineupEligibility(value: unknown, expected: {
       context: { profile, platform: profile.platform, rankOrder: profile.rankOrder, fallback: profile.fallbackConversion ?? null,
         sourceSelection: profile.evidencePolicy?.sourceSelection ?? "primary_then_fallback", evidencePolicy: profile.evidencePolicy ?? null },
       requirements,
-      byUser: new Map(byUser.map((fact) => [fact.userId, {
-        historicalPeak: fact.historicalPeak, seasons: new Map(Object.entries(fact.seasons)),
-        strength: { userId: fact.userId, label: fact.userId, historicalPeak: fact.historicalPeak,
-          previousSeasonPeak: fact.seasons[profile.previousSeasonKey] ?? null,
-          currentSeasonPeak: fact.seasons[profile.currentSeasonKey] ?? null,
-          ...(profile.evidencePolicy ? { recentSeasonPeaks: profile.evidencePolicy.recentSeasonKeys.map((key) => fact.seasons[key] ?? null) } : {}) },
-      }])),
+      byPurpose: {
+        profileReadiness: new Map(byPurpose.profileReadiness.map((fact) => [fact.userId, { historicalPeak: fact.historicalPeak, seasons: new Map(Object.entries(fact.seasons)) }])),
+        externalStrength: new Map(byPurpose.externalStrength.map((fact) => [fact.userId, fact])),
+      },
     };
   }
   return {

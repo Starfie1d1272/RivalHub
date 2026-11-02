@@ -1,5 +1,5 @@
 import { qualificationFindingCoveredByApproval, type QualificationFinding } from "@/lib/qualification/finding";
-import { evaluateExternalStrengthRule } from "@/lib/major/player-strength";
+import { evaluateExternalStrengthRule, getPlayerStrengthFindings } from "@/lib/major/player-strength";
 import type { InstitutionAffiliationRule } from "@/types/season";
 import type { MatchLineupPolicy } from "./policy";
 
@@ -181,19 +181,26 @@ export const evaluateLineup: import("@/lib/seasons/rules").EvaluateLineup = (pro
     if (evidence.kind !== "competitive" || !evidence.context.profile) {
       findings.push({ code: "competitive_context_unavailable", message: "冻结的竞技资格事实或规则不可用。", waivable: false });
     } else {
-      // Per-season evidence completeness must be assessed by the competitive evidence owner.
-      // Until that evaluator is wired here, do not accept a required profile as complete.
-      if (frozen.competitiveProfileRequired) findings.push({ code: "competitive_requirements_unavailable", message: "冻结的竞技资格要求尚无法完成校验。", waivable: false });
       const players = proposed.starterMemberIds.flatMap((id) => {
         const member = members.get(id);
         if (!member) return [];
-        const fact = evidence.byUser.get(member.userId);
-        if (!fact) {
+        const fact = evidence.byPurpose.externalStrength.get(member.userId);
+        const profileFact = evidence.byPurpose.profileReadiness.get(member.userId);
+        if (frozen.competitiveProfileRequired) {
+          if (!profileFact) findings.push({ code: "competitive_profile_incomplete", message: `首发 ${member.userId} 缺少冻结的竞技资料。`, waivable: false, metadata: { userId: member.userId } });
+          else {
+            const profile = evidence.context.profile!;
+            const strength = { userId: member.userId, label: member.userId, historicalPeak: profileFact.historicalPeak, previousSeasonPeak: profileFact.seasons.get(profile.evidencePolicy?.referenceSeasonKey ?? profile.previousSeasonKey) ?? null, currentSeasonPeak: profileFact.seasons.get(profile.currentSeasonKey) ?? null, recentSeasonPeaks: profile.evidencePolicy?.recentSeasonKeys.map((key) => profileFact.seasons.get(key) ?? null) };
+            findings.push(...getPlayerStrengthFindings(strength, profile));
+          }
+        }
+        if (!fact && frozen.externalStrengthGap.enabled) {
           findings.push({ code: "competitive_profile_incomplete", message: `首发 ${member.userId} 缺少冻结的竞技事实。`, waivable: false, metadata: { userId: member.userId } });
           return [];
         }
+        if (!fact) return [];
         const isHome = frozen.affiliationRules.some((rule) => isEligibleForRule(member, rule));
-        return [{ ...fact.strength, isHome }];
+        return [{ ...fact, isHome }];
       });
       if (frozen.externalStrengthGap.enabled && players.length === proposed.starterMemberIds.length) {
         const result = evaluateExternalStrengthRule({ players, config: { ...evidence.context.profile, externalStrengthMaxStarGap: frozen.externalStrengthGap.maxGap } });
