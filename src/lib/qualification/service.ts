@@ -12,6 +12,7 @@ import {
   type SeasonEducationVerification,
 } from "@/lib/education/eligibility";
 import type { CompetitiveProfileConfig, InstitutionAffiliationRule } from "@/types/season";
+import type { DecodedSeasonRules, ParticipantCandidate, QualificationDecision } from "@/lib/seasons/rules";
 
 /**
  * Single orchestration owner for participant qualification.
@@ -312,6 +313,64 @@ export function computePolicyParticipantReadiness(
     educationApproved: fact.approvedEducation,
     educationState,
   };
+}
+
+/** Evaluate a participant independently of roster and lineup decisions. */
+export function evaluateSeasonParticipant(candidate: ParticipantCandidate, rules: DecodedSeasonRules): QualificationDecision {
+  const { participant, competitive } = rules;
+  const readiness = computePolicyParticipantReadiness(candidate.facts, {
+    version: 1,
+    educationRequired: participant.educationRequired,
+    contacts: participant.contacts,
+    competitiveProfileRequired: participant.competitiveProfileRequired,
+    competitiveProfile: competitive.competitiveProfile,
+    externalStrengthGap: competitive.externalStrengthGap,
+    affiliationRules: [],
+  });
+  const findings = readiness.findings.filter((finding) => finding.metadata?.field !== "perfect_name");
+  if (participant.allowedPlayerTypes && (!candidate.playerType || !participant.allowedPlayerTypes.includes(candidate.playerType))) {
+    findings.push({ code: "player_type_ineligible", message: "所选身份类型不符合赛事报名要求。", waivable: false, metadata: { field: "player_type" } });
+  }
+  const threshold = participant.rankThreshold;
+  if (threshold && (threshold.currentMin !== null || threshold.peakMin !== null)) {
+    const context = competitive.competitiveProfile;
+    if (!context || !isCompleteCompetitiveContext(context)) {
+      findings.push({ code: "competitive_context_unavailable", message: "赛事段位门槛所需的竞技赛季配置不可用，请联系赛事管理员。", waivable: false, metadata: { field: "competitive_context" } });
+    } else {
+      const strength = toPlayerStrengthInput(candidate.facts, context);
+      const meets = (rank: string | undefined, minimum: string | null) => {
+        if (!rank || !minimum) return false;
+        const value = context.rankOrder.indexOf(rank);
+        const required = context.rankOrder.indexOf(minimum);
+        return value >= 0 && required >= 0 && value >= required;
+      };
+      if (!meets(strength.currentSeasonPeak?.rank, threshold.currentMin) && !meets(strength.historicalPeak?.rank, threshold.peakMin)) {
+        findings.push({ code: "rank_threshold", message: "未达到赛事段位门槛，请检查竞技资料。", waivable: false, metadata: { field: "rank_threshold" } });
+      }
+    }
+  }
+  const result = uniqueQualificationFindings(findings);
+  return result.length ? { state: "blocked", findings: result as [QualificationFinding, ...QualificationFinding[]] } : { state: "ready", findings: [] };
+}
+
+/** Load the same facts inside the caller's mutation transaction. */
+export async function evaluateSeasonParticipantInTx(
+  executor: import("@/lib/qualification/facts").DatabaseExecutor,
+  userId: string,
+  playerType: string,
+  rules: DecodedSeasonRules,
+): Promise<QualificationDecision> {
+  const context = rules.competitive.competitiveProfile;
+  const facts = await loadParticipantQualificationFacts([userId], {
+    executor,
+    platform: context?.platform,
+    fallbackPlatform: context?.fallbackConversion?.sourcePlatform,
+    includeCompetitiveFacts: rules.participant.competitiveProfileRequired || Boolean(rules.participant.rankThreshold?.currentMin || rules.participant.rankThreshold?.peakMin),
+  });
+  const fact = facts.get(userId);
+  if (!fact) return { state: "blocked", findings: [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }] };
+  const parsedType = playerType === "enrolled" || playerType === "graduated" || playerType === "external" ? playerType : null;
+  return evaluateSeasonParticipant({ userId, facts: { ...fact, userId }, playerType: parsedType }, rules);
 }
 
 /** Pure legacy readiness evaluation from loaded facts. */

@@ -15,10 +15,10 @@ export interface PlayerDirectoryData {
   displayName: string;
   primaryPosition: string;
   secondaryPosition: string | null;
-  peakRank: string;
-  peakRating: number;
-  currentRank: string;
-  currentRating: number;
+  peakRank: string | null;
+  peakRating: number | null;
+  currentRank: string | null;
+  currentRating: number | null;
   teamName: string | null;
   teamId?: string | null;
   stats: {

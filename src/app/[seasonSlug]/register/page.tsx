@@ -1,3 +1,4 @@
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { interpretEntryRosterStatus } from "@/lib/competition-entries/status-read-model";
 import { Suspense } from "react";
 import { ContentReady } from "@/components/telemetry/ContentReady";
@@ -354,6 +355,10 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
   const longTermMapPreferences = mapPreferences[0]?.mapPreferences;
   const initialValues = {
     email: userSession.email,
+    studentId: currentUser?.studentId ?? "",
+    qq: currentUser?.qq ?? "",
+    perfectName: currentUser?.perfectName ?? "",
+    steam64: currentUser?.steam64 ?? "",
     gameplayStyle: currentRegistration?.gameplayStyle ?? currentUser?.gameplayStyle ?? "",
     competitionHistory: currentRegistration?.competitionHistory ?? currentUser?.competitionHistory ?? "",
     ...(currentRegistration
@@ -366,12 +371,12 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
         playerType: currentRegistration.playerType,
         primaryPosition: currentRegistration.primaryPosition,
         secondaryPosition: currentRegistration.secondaryPosition,
-        peakRank: currentRegistration.peakRank,
-        peakRankSeason: currentRegistration.peakRankSeason,
-        peakRating: currentRegistration.peakRating,
+        peakRank: currentRegistration.peakRank ?? undefined,
+        peakRankSeason: currentRegistration.peakRankSeason ?? undefined,
+        peakRating: currentRegistration.peakRating ?? undefined,
         peakWe: currentRegistration.peakWe ?? undefined,
-        currentSeasonPeakRank: currentRegistration.currentSeasonPeakRank,
-        currentRating: currentRegistration.currentRating,
+        currentSeasonPeakRank: currentRegistration.currentSeasonPeakRank ?? undefined,
+        currentRating: currentRegistration.currentRating ?? undefined,
         currentWe: currentRegistration.currentWe ?? undefined,
         screenshotUrls: currentRegistration.screenshotUrls,
         mapPreferences: currentRegistration.mapPreferences,
@@ -493,6 +498,8 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
             positionCounts={positionCounts}
             positions={season.positions}
             registrationConfig={regConfig}
+            policyV2={decodeSeasonRules(season).source === "policy_v2"}
+            qqRequired={decodeSeasonRules(season).participant.contacts.qqRequired}
             windowState={registrationWindow}
             currentUserEmail={userSession?.email ?? null}
             initialValues={initialValues}
