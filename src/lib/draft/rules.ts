@@ -19,6 +19,10 @@ export function draftFormat(rules: DecodedSeasonRules) {
 
 const DRAFT_POSITION_LIMIT_PER_TEAM = 2;
 
+export function getPositionCount(counts: Readonly<Record<string, number>>, position: string): number {
+  return Object.hasOwn(counts, position) ? counts[position] : 0;
+}
+
 export interface DraftTeamOrder {
   id: string;
   draftOrder: number;

@@ -423,7 +423,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
 
   // 位置容量数据
   const capacityEntries = season.positions.map((pos) => {
-    const cur = positionCounts[pos] ?? 0;
+    const cur = Object.hasOwn(positionCounts, pos) ? positionCounts[pos] : 0;
     const label = positionLabel(pos);
     return { pos, label, cur, max: maxPerPos };
   });

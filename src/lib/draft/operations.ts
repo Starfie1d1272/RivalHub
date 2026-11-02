@@ -470,11 +470,7 @@ async function getTeamPositionCounts(
     .where(and(eq(eventRosters.entryId, entryId), eq(eventRosterMembers.isCurrent, true)))
     .groupBy(seasonRegistrations.primaryPosition);
 
-  const counts: Record<string, number> = {};
-  for (const row of rows) {
-    counts[row.primaryPosition] = Number(row.count);
-  }
-  return counts;
+  return Object.fromEntries(rows.map((row) => [row.primaryPosition, Number(row.count)]));
 }
 
 async function getAutoPickCandidates(
