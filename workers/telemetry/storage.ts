@@ -1,7 +1,7 @@
-import { LIMITS, type ClientContext, type TelemetryEvent } from "../../src/lib/telemetry/protocol";
+import { LIMITS, type ClientContext, type StoredTelemetryEvent } from "../../src/lib/telemetry/protocol";
 
 /** Native gzip only on the independent receiver; the browser sends bounded JSON. */
-export async function compressEvents(events: TelemetryEvent[]): Promise<ArrayBuffer> {
+export async function compressEvents(events: StoredTelemetryEvent[]): Promise<ArrayBuffer> {
   const stream = new Blob([JSON.stringify(events)]).stream().pipeThrough(new CompressionStream("gzip"));
   return new Response(stream).arrayBuffer();
 }
@@ -23,7 +23,7 @@ export async function decompressEvents(blob: number[] | Uint8Array): Promise<str
 }
 
 /** Identity-free per-batch counts let approved rollups avoid decompressing a whole day. */
-export function batchSummary(events: TelemetryEvent[]): string {
+export function batchSummary(events: StoredTelemetryEvent[]): string {
   const groups = new Map<string, { dimensions: string[]; events: number; duration: number; score: number; client?: ClientContext; sampleId?: string; at?: number }>();
   for (const e of events) {
     // Ready has a separate module/phase contract; retain raw only until its own aggregation is defined.

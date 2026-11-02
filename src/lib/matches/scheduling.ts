@@ -80,13 +80,16 @@ export async function respondToProposal(proposalId: string, userId: string, acti
 }
 
 /** All admin entrypoints use the same locked transition, including clearing. */
-export async function setAdminSchedule(matchId: string, seasonId: string, userId: string, actorId: string, time: Date | null) {
+export async function setAdminSchedule(matchId: string, seasonId: string, userId: string, actorId: string, time: Date | null, intent: "save" | "force") {
   await db.transaction(async tx => {
     const match = await lockMatchInTx(tx, matchId);
     if (match.seasonId !== seasonId) throw new AppError(ErrorCode.FORBIDDEN, "比赛所属赛事已变化。");
     if (match.status !== "scheduled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只能调整尚未开始的比赛时间。");
     if (time) assertProposedTimeFitsDeadline(time, match.completionDeadline);
-    await releaseMatchCoverageInTx(tx, matchId);
+    const unchanged = (time?.getTime() ?? null) === (match.scheduledAt?.getTime() ?? null);
+    if (unchanged && intent === "save") return;
+    if (unchanged && time) await releaseMatchCoverageHoldInTx(tx, matchId);
+    else await releaseMatchCoverageInTx(tx, matchId);
     // Resource rows can wait; reject a time that became invalid during the wait.
     if (time) assertProposedTimeFitsDeadline(time, match.completionDeadline);
     await tx.update(matchTimeProposals).set({ status: "expired", updatedAt: new Date() }).where(and(eq(matchTimeProposals.matchId, matchId), eq(matchTimeProposals.status, "pending")));
