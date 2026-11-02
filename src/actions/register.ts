@@ -241,11 +241,8 @@ export async function submitRegistration(input: RegistrationFormData) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "所选身份类型不符合赛事报名要求。");
       }
       const legacyThreshold = evaluateRankThreshold({
-        userId: session.userId,
-        label: "选手",
-        historicalPeak: data.peakRank && data.peakRating != null ? { rank: data.peakRank, rating: data.peakRating } : null,
-        previousSeasonPeak: null,
-        currentSeasonPeak: data.currentSeasonPeakRank && data.currentRating != null ? { rank: data.currentSeasonPeakRank, rating: data.currentRating } : null,
+        peakRank: data.peakRank ?? null,
+        currentRank: data.currentSeasonPeakRank ?? null,
       }, registrationConfig.rankThreshold, RANK_ORDER);
       if (legacyThreshold.length) throw new AppError(ErrorCode.VALIDATION_FAILED, legacyThreshold.map((finding) => finding.message).join("；"));
     }

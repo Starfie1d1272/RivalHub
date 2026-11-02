@@ -342,7 +342,8 @@ export const evaluateParticipant: EvaluateParticipant = (candidate, rules, evide
         findings.push(...evaluateCompetitiveProfileReadiness(evidence, candidate.userId));
       }
       if (threshold && hasThreshold) {
-        findings.push(...evaluateRankThreshold(toPlayerStrengthInput({ ...fact, userId: candidate.userId }, profile, "rank_threshold"), threshold, profile.rankOrder));
+        const rankEvidence = evidence.kind === "competitive" ? evidence.byPurpose.rankThreshold.get(candidate.userId) : undefined;
+        findings.push(...evaluateRankThreshold(rankEvidence ?? { currentRank: null, peakRank: null }, threshold, profile.rankOrder));
       }
     }
   }
