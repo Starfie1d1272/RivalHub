@@ -1,5 +1,6 @@
 import { findAdminSeasonOverviewBySlug } from "@/lib/admin/season-context";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 
 
 import { CaptainConfirmPanel } from "@/components/captains/CaptainConfirmPanel";
@@ -23,6 +24,7 @@ export default async function AdminCaptainsPage({ params }: AdminCaptainsPagePro
           <p className="text-sm text-[var(--color-fg-mid)]">
             该赛季未启用队长投票。
           </p>
+          {!season.hasDraft && <Link className="mt-3 inline-block underline" href={`/admin/${season.slug}/draft`}>前往管理员编队</Link>}
         </Panel>
       </div>
     );

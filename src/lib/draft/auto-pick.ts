@@ -38,7 +38,7 @@ export function selectAutoPickCandidate(
   const firstPick =
     sorted.find(
       (candidate) =>
-        (positionCounts[candidate.primaryPosition] ?? 0) === 0 && positionLimit > 0,
+        (positionCounts[candidate.primaryPosition] ?? 0) === 0,
     ) ?? null;
   if (firstPick) return firstPick;
 

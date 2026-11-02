@@ -245,7 +245,7 @@ export function CaptainDraftPanel({
               <span>
                 超时自动选人：<PlayerProfileLink userId={autoPickCandidate.userId}>{getPublicDisplayName(autoPickCandidate)}</PlayerProfileLink>（{positionLabel(autoPickCandidate.primaryPosition)}，{autoPickCandidate.peakRank}）
               </span>
-              <HelpTooltip label="自动选人规则" content={`依次比较历史最高段位、Peak Rating、当前段位和当前 Rating，优先补齐空位，每位置最多 ${positionLimit} 人。`} />
+              <HelpTooltip label="自动选人规则" content={`依次比较历史最高段位、Peak Rating、当前段位和当前 Rating，优先补齐空位。${positionLimit > 0 ? `每位置最多 ${positionLimit} 人。` : "位置人数不限。"}`} />
             </div>
           </div>
         )}

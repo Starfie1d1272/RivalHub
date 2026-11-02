@@ -208,7 +208,6 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
   if (!season) throw new Error("Season not found");
   const rules = decodeSeasonRules(season);
   const format = draftFormat(rules);
-  const maxPicks = format.teamCount * format.rounds;
 
   const stateQuery = executor.query.draftState.findFirst({
     where: eq(draftState.seasonId, seasonId),
@@ -263,6 +262,7 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
     (team): team is typeof team & { draftOrder: number; captainRegistrationId: string } =>
       team.draftOrder !== null && team.captainRegistrationId !== null,
   );
+  const maxPicks = (format.teamCount || teamRows.length) * format.rounds;
 
   const entryIds = teamRows.map((team) => team.id);
   const allMembers =
@@ -511,7 +511,7 @@ export async function getPublicDraftSummary(seasonId: string): Promise<PublicDra
       : null,
     teams,
     totalPicks: Number(pickCount?.value ?? 0),
-    maxPicks: format.teamCount * format.rounds,
+    maxPicks: (format.teamCount || teams.length) * format.rounds,
   };
 }
 

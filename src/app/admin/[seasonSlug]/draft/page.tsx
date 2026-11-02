@@ -1,4 +1,4 @@
-import { findAdminSeasonOverviewBySlug } from "@/lib/admin/season-context";
+import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
@@ -7,6 +7,8 @@ import { PageHeader } from "@/components/rivalhub";
 import { DraftAdminPanel } from "@/components/draft/DraftAdminPanel";
 import { getFormedCompetitionEntryCount } from "@/lib/competition-entries/counts";
 import { getDraftAdminData } from "@/lib/draft/data";
+import { getManualFormationData } from "@/lib/draft/manual-data";
+import { ManualFormationPanel } from "@/components/draft/ManualFormationPanel";
 
 interface AdminDraftPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -19,8 +21,13 @@ export async function generateMetadata({ params }: AdminDraftPageProps): Promise
 
 export default async function AdminDraftPage({ params }: AdminDraftPageProps) {
   const { seasonSlug } = await params;
-  const season = await findAdminSeasonOverviewBySlug(seasonSlug);
+  const season = await findAdminSeasonBySlug(seasonSlug);
   if (!season) notFound();
+
+  if (!season.hasDraft && season.registrationMode === "solo") {
+    const data = await getManualFormationData(season.id);
+    return <div className="space-y-6"><PageHeader title={`管理员编队 · ${season.name}`} description="为已审核的个人报名选手创建编队草稿。" /><ManualFormationPanel seasonId={season.id} data={data} maxTeamSize={season.maxTeamSize} starterCount={season.starterCount} /></div>;
+  }
 
   const [teamCount, data] = await Promise.all([
     getFormedCompetitionEntryCount(season.id),

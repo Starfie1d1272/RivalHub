@@ -302,7 +302,7 @@ export async function confirmCaptains(
             representativeUserId: captain.userId,
             sourceRegistrationId: captain.registrationId,
             formationOrder: index + 1,
-            registrationStatus: "approved",
+            registrationStatus: rules.source === "policy_v2" ? "draft" : "approved",
             currentRosterRevisionId: revisionId,
           })
           .returning({ id: competitionEntries.id });

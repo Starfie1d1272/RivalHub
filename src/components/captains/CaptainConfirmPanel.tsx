@@ -67,7 +67,7 @@ export function CaptainConfirmPanel({
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <section className="space-y-3">
         <div>
-          <h2 className="text-xl font-semibold">当前前 {targetTeamCount} 队长</h2>
+          <h2 className="text-xl font-semibold">{targetTeamCount > 0 ? `当前前 ${targetTeamCount} 队长` : "队长候选人"}</h2>
           <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
             排序规则：票数优先，其次历史最高 Rating，再按报名时间。
           </p>
@@ -143,7 +143,7 @@ export function CaptainConfirmPanel({
 
             {!canConfirm && (
               <p className="text-xs text-[var(--color-fg-mid)]">
-                仅可在 voting 状态、尚未生成队伍且候选人不少于 {targetTeamCount} 人时确认。
+                {targetTeamCount > 0 ? `仅可在投票阶段、尚未生成队伍且候选人不少于 ${targetTeamCount} 人时确认。` : "请先设置编队目标队数。"}
               </p>
             )}
           </div>

@@ -82,16 +82,16 @@ export async function startDraft(
           "该赛季没有队伍，请先确认队长生成队伍",
         );
       }
-      if (format.teamCount < 1 || format.rounds < 1 || seasonTeams.length !== format.teamCount) {
+      if (format.rounds < 1 || (format.teamCount > 0 && seasonTeams.length !== format.teamCount)) {
         throw new AppError(
           ErrorCode.VALIDATION_FAILED,
-          `赛事规模或选秀轮数无效，或队伍数不匹配（需要 ${format.teamCount} 支，当前 ${seasonTeams.length} 支）`,
+          `选秀轮数无效或队伍数不匹配（当前 ${seasonTeams.length} 支）`,
         );
       }
       if (!hasSequentialDraftOrder(seasonTeams)) {
         throw new AppError(
           ErrorCode.VALIDATION_FAILED,
-          `队伍顺序必须为 1-${format.teamCount} 且不能重复`,
+          `队伍顺序必须为 1-${seasonTeams.length} 且不能重复`,
         );
       }
 

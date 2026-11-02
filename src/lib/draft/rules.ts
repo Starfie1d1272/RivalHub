@@ -10,8 +10,12 @@ export function draftFormat(rules: DecodedSeasonRules) {
   if (rules.source !== "policy_v2") return { teamCount: DRAFT_TEAMS, rounds: DRAFT_TOTAL_ROUNDS, starterPicks: 4, timeoutSeconds: DRAFT_ROUND_TIMEOUT_SECONDS };
   const starterPicks = Math.max(0, rules.lineup.starterCount - 1);
   return {
-    teamCount: rules.competition.stagePlan[0]?.teamCount ?? 0,
-    rounds: Math.max(0, Math.min(rules.roster.maxTeamSize, rules.lineup.starterCount + (rules.lineup.settings?.maxSubstitutes ?? 0)) - 1),
+    // Formation size is not a stage capacity. V2 voting needs an explicit
+    // formation contract; drafting uses the actual confirmed entries.
+    teamCount: 0,
+    // Match-day substitutes are not the number of roster places to draft.
+    // Require a formation target before starting a v2 draft.
+    rounds: 0,
     starterPicks,
     timeoutSeconds: rules.formation.settings!.draftTimeoutSeconds,
   };
@@ -97,5 +101,5 @@ export function canPickPosition(
   currentCount: number,
   limit = DRAFT_POSITION_LIMIT_PER_TEAM,
 ): boolean {
-  return currentCount < limit;
+  return limit <= 0 || currentCount < limit;
 }
