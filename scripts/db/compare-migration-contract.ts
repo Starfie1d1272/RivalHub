@@ -9,11 +9,17 @@ const queries: Record<string, string> = {
   schemas: `SELECT nspname, pg_get_userbyid(nspowner) AS owner, nspacl::text FROM pg_namespace WHERE nspname='public'`,
   extensions: `SELECT e.extname, e.extversion, n.nspname FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace`,
   relations: `SELECT c.relname, c.relkind, c.relrowsecurity, c.relforcerowsecurity, c.relreplident,
-    pg_get_userbyid(c.relowner) AS owner, c.relacl::text, c.reloptions, obj_description(c.oid, 'pg_class') AS comment,
+    pg_get_userbyid(c.relowner) AS owner,
+    COALESCE((SELECT jsonb_agg(jsonb_build_array(
+      pg_get_userbyid(a.grantor), CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END,
+      a.privilege_type, a.is_grantable) ORDER BY pg_get_userbyid(a.grantor),
+      CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END,a.privilege_type,a.is_grantable)
+      FROM aclexplode(COALESCE(c.relacl,acldefault(CASE WHEN c.relkind='S' THEN 'S'::"char" ELSE 'r'::"char" END,c.relowner))) a), '[]'::jsonb) AS acl,
+    c.reloptions, obj_description(c.oid, 'pg_class') AS comment,
     CASE WHEN c.relkind IN ('v','m') THEN pg_get_viewdef(c.oid, true) END AS definition
     FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','S','f')`,
-  columns: `SELECT c.relname, a.attname, a.attnum, format_type(a.atttypid,a.atttypmod) AS type,
+  columns: `SELECT c.relname, a.attname, row_number() OVER (PARTITION BY a.attrelid ORDER BY a.attnum)::int AS position, format_type(a.atttypid,a.atttypmod) AS type,
     a.attnotnull, a.attidentity, a.attgenerated, a.attacl::text, pg_get_expr(d.adbin,d.adrelid) AS default_value,
     col_description(c.oid,a.attnum) AS comment
     FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid JOIN pg_namespace n ON n.oid=c.relnamespace
