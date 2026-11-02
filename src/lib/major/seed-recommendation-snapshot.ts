@@ -103,7 +103,8 @@ export interface SeedRecommendationSnapshotContextV1 {
   frozenSetFingerprint: string;
   teamSeedStrengthScale: typeof TEAM_SEED_STRENGTH_SCALE | 100;
   frozenTeams: SeedRecommendationFrozenTeamV1[];
-  competitiveContext: SeedRecommendationCompetitiveContextV1;
+  competitiveContext: SeedRecommendationCompetitiveContextV1 | null;
+  seedMode?: "manual";
 }
 
 interface SerializedFallbackConversionV1 {
@@ -271,12 +272,12 @@ export function buildFrozenSetFingerprint(
 export function buildSeedRecommendationSnapshotPayload(input: {
   seasonId: string;
   frozenTeams: readonly FrozenSeedRecommendationTeamInput[];
-  competitiveContext: CompetitiveProfileConfig;
+  competitiveContext: CompetitiveProfileConfig | null;
 }): SeedRecommendationSnapshotPayloadV1 {
   const frozenTeams = canonicalFrozenSet(input.frozenTeams.map((team) => team.identity));
   const frozenByEntryId = new Map(input.frozenTeams.map((team) => [team.identity.competitionEntryId, team]));
   const frozenSetFingerprint = buildFrozenSetFingerprint(input.seasonId, frozenTeams);
-  const recommendations = buildTeamSeedRecommendations(
+  const recommendations = input.competitiveContext ? buildTeamSeedRecommendations(
     frozenTeams.map((identity): TeamSeedRecommendationInput => {
       const team = frozenByEntryId.get(identity.competitionEntryId);
       return {
@@ -286,7 +287,7 @@ export function buildSeedRecommendationSnapshotPayload(input: {
       };
     }),
     input.competitiveContext,
-  );
+  ) : [];
   const recommendationByTeamId = new Map(recommendations.map((recommendation) => [recommendation.teamId, recommendation]));
 
   return {
@@ -296,9 +297,10 @@ export function buildSeedRecommendationSnapshotPayload(input: {
       frozenSetFingerprint,
       teamSeedStrengthScale: TEAM_SEED_STRENGTH_SCALE,
       frozenTeams,
-      competitiveContext: snapshotCompetitiveContextFromConfig(input.competitiveContext),
+      competitiveContext: input.competitiveContext ? snapshotCompetitiveContextFromConfig(input.competitiveContext) : null,
+      ...(input.competitiveContext ? {} : { seedMode: "manual" as const }),
     },
-    recommendations: frozenTeams.map((identity) => {
+    recommendations: input.competitiveContext ? frozenTeams.map((identity) => {
       const recommendation = recommendationByTeamId.get(identity.competitionEntryId);
       if (!recommendation) throw new Error("无法为已冻结队伍生成系统种子建议。");
       return {
@@ -319,7 +321,7 @@ export function buildSeedRecommendationSnapshotPayload(input: {
           breakdown: serializeBreakdown(starter.breakdown),
         })),
       };
-    }),
+    }) : [],
   };
 }
 
@@ -503,7 +505,9 @@ function isSeedRecommendationSnapshotContextV1(value: unknown): value is SeedRec
     new Set(value.frozenTeams.filter(isRecord).map((team) => team.entrantId)).size === value.frozenTeams.length &&
     new Set(value.frozenTeams.filter(isRecord).map((team) => team.competitionEntryId)).size === value.frozenTeams.length &&
     value.frozenTeams.every(isSnapshotFrozenTeam) &&
-    isCompetitiveContext(value.competitiveContext);
+    (value.competitiveContext === null
+      ? value.seedMode === "manual"
+      : value.seedMode === undefined && isCompetitiveContext(value.competitiveContext));
 }
 
 function isSeedRecommendationSnapshotPayloadV1(
@@ -511,6 +515,7 @@ function isSeedRecommendationSnapshotPayloadV1(
   recommendations: unknown,
 ): context is SeedRecommendationSnapshotContextV1 {
   if (!isSeedRecommendationSnapshotContextV1(context) || !Array.isArray(recommendations)) return false;
+  if (context.competitiveContext === null) return recommendations.length === 0;
   if (
     recommendations.length !== context.frozenTeams.length ||
     !recommendations.every(value => isSnapshotRecommendation(value, context.teamSeedStrengthScale)) ||

@@ -10,7 +10,8 @@ import { freezeAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
 import type { PlayerStrengthInput } from "@/lib/major/player-strength";
 import type { FrozenRestrictionOverrideSnapshot } from "@/lib/major/run-snapshot";
 import { loadParticipantQualificationFacts, resolveCompetitiveContext, toPlayerStrengthInput } from "@/lib/qualification/service";
-import type { CompetitiveProfileConfig, InstitutionAffiliationRule } from "@/types/season";
+import { resolveQualificationPolicy } from "@/lib/seasons/compatibility";
+import type { CompetitiveProfileConfig, InstitutionAffiliationRule, QualificationPolicyV1 } from "@/types/season";
 
 export interface QualificationEligibilityPolicy {
   version: 1;
@@ -19,6 +20,7 @@ export interface QualificationEligibilityPolicy {
   starterCount: number;
   maxSubstitutes: number;
   externalStrengthGapEnabled: boolean;
+  qualificationPolicy?: QualificationPolicyV1;
 }
 
 export interface QualificationRosterEligibility {
@@ -32,18 +34,21 @@ export interface QualificationRosterEligibility {
 
 export async function freezeQualificationPolicy(season: Season): Promise<QualificationEligibilityPolicy> {
   const capabilities = capabilitiesFromSeason(season);
-  const configured = capabilities.teamRegistrationConfig.competitiveProfile;
+  const definition = capabilities.teamRegistrationConfig.qualificationPolicy;
+  const resolved = resolveQualificationPolicy(season.teamRegistrationConfig, season.affiliationRules, "roster");
+  const configured = definition ? (resolved.competitiveProfileRequired || resolved.externalStrengthGap.enabled ? resolved.competitiveProfile : null) : capabilities.teamRegistrationConfig.competitiveProfile;
   const competitiveProfile = configured ? await resolveCompetitiveContext(configured) : null;
-  if (capabilities.teamRegistrationConfig.requireCompetitiveProfile && !competitiveProfile) {
+  if ((definition ? resolved.competitiveProfileRequired || resolved.externalStrengthGap.enabled : capabilities.teamRegistrationConfig.requireCompetitiveProfile) && !competitiveProfile) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "本届资格赛缺少有效竞技规则，不能锁定配置。");
   }
   return {
     version: 1,
-    affiliationRules: freezeAffiliationRules(capabilities.affiliationRules),
+    affiliationRules: freezeAffiliationRules(resolved.affiliationRules),
     competitiveProfile,
     starterCount: season.starterCount,
     maxSubstitutes: 2,
-    externalStrengthGapEnabled: competitiveProfile !== null,
+    externalStrengthGapEnabled: definition ? resolved.externalStrengthGap.enabled : competitiveProfile !== null,
+    ...(definition ? { qualificationPolicy: { ...definition, competitiveProfile } } : {}),
   };
 }
 

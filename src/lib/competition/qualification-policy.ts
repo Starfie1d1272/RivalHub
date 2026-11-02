@@ -47,9 +47,9 @@ export const qualificationPolicySchema = z.object({
   contacts: z.object({ qqRequired: z.boolean(), emailVerifiedRequired: z.boolean() }),
 });
 
-/** New policies remain draft-only until every entry and roster gate uses them. */
-export function assertQualificationPolicyPublishable(config: Pick<TeamRegistrationConfig, "qualificationPolicy">): void {
-  if (config.qualificationPolicy) {
-    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "本届资格政策尚未接入全部报名与名单流程，暂不能发布。");
+/** Solo registration still uses its historical registration configuration. */
+export function assertQualificationPolicyPublishable(config: Pick<TeamRegistrationConfig, "qualificationPolicy">, registrationMode: "team" | "solo"): void {
+  if (config.qualificationPolicy && registrationMode !== "team") {
+    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "版本化资格政策暂不支持个人报名，请使用队伍报名或移除该政策。 ");
   }
 }

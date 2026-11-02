@@ -720,8 +720,10 @@ export interface RosterQualificationResult {
 function memberIsHomeFromFacts(
   fact: ParticipantQualificationFacts,
   affiliationRules: readonly InstitutionAffiliationRule[],
+  requireApproved = false,
 ): boolean {
   const selected = resolveSeasonEducationVerification(fact.educationHistory, affiliationRules).selectedVerification;
+  if (requireApproved && selected?.status !== "approved") return false;
   return isHomeAffiliatedMember(
     { institutionCode: selected?.institutionCode ?? null, academicStatus: selected?.academicStatus ?? null },
     affiliationRules,
@@ -788,8 +790,10 @@ export async function evaluateRosterQualificationFromFacts(input: {
           const member = members.find((item) => item.userId === userId);
           const readiness = readinessByUser.get(userId);
           if (!member || !readiness) return null;
-          const isHome = member.isHome ?? (facts.get(userId) ? memberIsHomeFromFacts(facts.get(userId)!, affiliationRules) : false);
           const fact = facts.get(userId);
+          const isHome = policy
+            ? Boolean(fact && memberIsHomeFromFacts(fact, affiliationRules, true))
+            : member.isHome ?? Boolean(fact && memberIsHomeFromFacts(fact, affiliationRules));
           const strength = policy && fact ? toPlayerStrengthInput(fact, context) : readiness.strength;
           return { ...strength, isHome };
         })

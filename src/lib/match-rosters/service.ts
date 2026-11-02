@@ -51,6 +51,9 @@ export interface TeamLineupContext {
   frozenRosterRevisionId: string | null;
   /** Explicitly absent on legacy StageRuns, which must not gain new rules. */
   externalStrengthGapEnabled: boolean;
+  competitiveProfileRequired: boolean;
+  educationRequired: boolean;
+  approvedHomeRequired: boolean;
   frozenRestrictionOverrides: readonly FrozenRestrictionOverrideSnapshot[];
   policy: MatchLineupPolicy;
 }
@@ -205,11 +208,11 @@ async function loadEventRosterUserIdsInTx(
     })
     .from(eventRosterMembers)
     // The authoritative verification adopted by the frozen tournament roster.
-    .innerJoin(
+    .leftJoin(
       educationVerifications,
       eq(educationVerifications.id, eventRosterMembers.educationVerificationId),
     )
-    .innerJoin(institutions, eq(institutions.id, educationVerifications.institutionId))
+    .leftJoin(institutions, eq(institutions.id, educationVerifications.institutionId))
     .where(and(
       eq(eventRosterMembers.eventRosterId, roster.id),
       eq(eventRosterMembers.isCurrent, true),
@@ -219,7 +222,7 @@ async function loadEventRosterUserIdsInTx(
   const verificationsByUser = new Map<string, LineupMemberFact["verification"]>();
   for (const row of rows) {
     ids.add(row.userId);
-    if (!verificationsByUser.has(row.userId)) {
+    if (row.status && row.academicStatus && !verificationsByUser.has(row.userId)) {
       verificationsByUser.set(row.userId, {
         institutionCode: row.institutionCode ?? null,
         academicStatus: row.academicStatus,
@@ -251,6 +254,9 @@ async function loadTeamLineupContextInTx(
     let frozenCompetitiveFactsByUser: Map<string, PlayerStrengthInput> | null = null;
     let frozenRosterRevisionId: string | null = null;
     let externalStrengthGapEnabled = false;
+    let competitiveProfileRequired = false;
+    let educationRequired = false;
+    let approvedHomeRequired = false;
     let frozenRestrictionOverrides: readonly FrozenRestrictionOverrideSnapshot[] = [];
     const [season] = await tx
       .select({ starterCount: seasons.starterCount, competitionTemplate: seasons.competitionTemplate })
@@ -279,6 +285,8 @@ async function loadTeamLineupContextInTx(
       // Parse once before every frozen consumer; never use mutable season rules.
       const frozenSnapshot = parseMajorRunSnapshot(stageRun.ruleSnapshot, stageRun.stageKey);
       externalStrengthGapEnabled = frozenSnapshot.qualificationPolicy?.externalStrengthGap?.enabled === true;
+      competitiveProfileRequired = frozenSnapshot.qualificationPolicy && "competitiveProfileRequired" in frozenSnapshot.qualificationPolicy
+        ? frozenSnapshot.qualificationPolicy.competitiveProfileRequired === true : frozenSnapshot.competitiveProfile !== null;
       frozenRestrictionOverrides = frozenSnapshot.frozenRestrictionOverrides ?? [];
       policy = resolveMatchLineupPolicy({
         ownership: match.ownership,
@@ -287,6 +295,9 @@ async function loadTeamLineupContextInTx(
       });
       // Frozen at StageRun creation; never read from mutable season configuration.
       rules = frozenStageRunAffiliationRules(stageRun.ruleSnapshot);
+      approvedHomeRequired = Boolean(frozenSnapshot.qualificationPolicy && "version" in frozenSnapshot.qualificationPolicy && frozenSnapshot.qualificationPolicy.version === 1);
+      educationRequired = frozenSnapshot.qualificationPolicy && "educationRequired" in frozenSnapshot.qualificationPolicy
+        ? frozenSnapshot.qualificationPolicy.educationRequired === true : rules.length > 0;
       const configuredCompetitiveProfile = frozenCompetitiveProfile(stageRun.ruleSnapshot);
       // The StageRun policy is the runtime authority.  Keep the profile's
       // platform/rank facts, but consume the threshold that was frozen with
@@ -323,8 +334,13 @@ async function loadTeamLineupContextInTx(
         throw new AppError(ErrorCode.VALIDATION_FAILED, match.testConfig ? "测试赛资格快照与当前名单不一致，请按最新名单重新创建测试赛。" : "Play-in 资格快照缺失或名单版本已变化，请先同步已批准名单。");
       }
       rules = snapshot.policy.affiliationRules;
-      competitiveProfile = snapshot.policy.competitiveProfile;
+      approvedHomeRequired = Boolean(snapshot.policy.qualificationPolicy);
+      educationRequired = snapshot.policy.qualificationPolicy?.educationRequired ?? rules.length > 0;
+      competitiveProfile = snapshot.policy.competitiveProfile && snapshot.policy.qualificationPolicy
+        ? { ...snapshot.policy.competitiveProfile, externalStrengthMaxStarGap: snapshot.policy.qualificationPolicy.externalStrengthGap.maxGap }
+        : snapshot.policy.competitiveProfile;
       externalStrengthGapEnabled = snapshot.policy.externalStrengthGapEnabled;
+      competitiveProfileRequired = snapshot.policy.qualificationPolicy?.competitiveProfileRequired ?? snapshot.policy.competitiveProfile !== null;
       frozenCompetitiveFactsByUser = new Map(snapshot.competitiveFacts.map(fact => [fact.userId, fact]));
       frozenRestrictionOverrides = snapshot.restrictionOverrides;
       policy = { starterCount: snapshot.policy.starterCount, maxSubstitutes: snapshot.policy.maxSubstitutes };
@@ -354,12 +370,12 @@ async function loadTeamLineupContextInTx(
       eventRosterMemberId: row.id,
       userId: row.userId,
       verification:
-        (rules.length > 0 ? verificationsByUser?.get(row.userId) : null) ?? null,
+        (educationRequired || rules.length > 0 ? verificationsByUser?.get(row.userId) : null) ?? null,
       participationBlocked: participationBans.has(row.userId),
     });
   }
 
-  return { rules, frozenRosterUserIds, memberFacts, competitiveProfile, frozenCompetitiveFacts: frozenCompetitiveFactsByUser, frozenRosterRevisionId, externalStrengthGapEnabled, frozenRestrictionOverrides, policy };
+  return { rules, frozenRosterUserIds, memberFacts, competitiveProfile, frozenCompetitiveFacts: frozenCompetitiveFactsByUser, frozenRosterRevisionId, externalStrengthGapEnabled, competitiveProfileRequired, educationRequired, approvedHomeRequired, frozenRestrictionOverrides, policy };
   });
 }
 
@@ -389,7 +405,8 @@ export async function getStartingLineupPreflightInTx(
     policy: context.policy,
     memberFacts: context.memberFacts,
     frozenRosterUserIds: context.frozenRosterUserIds ?? undefined,
-    affiliationRules: context.rules.length > 0 ? context.rules : undefined,
+    affiliationRules: context.educationRequired || context.rules.length > 0 ? context.rules : undefined,
+    educationRequired: context.educationRequired,
   });
   const blockers = [...result.blockers];
   if (context.competitiveProfile) {
@@ -401,9 +418,9 @@ export async function getStartingLineupPreflightInTx(
         return { userId: member.userId, label: member.userId, historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null, isHome: false };
       }
       const required = getPlayerStrengthBreakdown(strength, context.competitiveProfile!);
-      if (!required.available) blockers.push(`首发 ${member.userId} 的竞技档案不可确认：${required.blockers.join(" ")}`);
+      if (context.competitiveProfileRequired && !required.available) blockers.push(`首发 ${member.userId} 的竞技档案不可确认：${required.blockers.join(" ")}`);
       const verification = member.verification;
-      const isHome = Boolean(verification && context.rules.some((rule) => rule.institutionCode === verification.institutionCode && rule.eligibleAcademicStatuses.includes(verification.academicStatus)));
+      const isHome = Boolean(verification && (!context.approvedHomeRequired || verification.status === "approved") && context.rules.some((rule) => rule.institutionCode === verification.institutionCode && rule.eligibleAcademicStatuses.includes(verification.academicStatus)));
       return { ...strength, isHome };
     });
     // The new external-strength policy is opt-in in the frozen snapshot. A

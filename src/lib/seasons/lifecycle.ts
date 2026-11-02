@@ -259,6 +259,9 @@ export async function freezeCompetitiveContext(
     competitiveProfile: policy.competitiveProfile ?? undefined,
   } : original;
   if (!config.requireCompetitiveProfile) return original;
+  if (policy && !policy.competitiveProfile) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "资格政策要求竞技资料或外校实力限制，请先配置竞技平台。 ");
+  }
   const platform = config.competitiveProfile?.platform ?? "perfect_world";
   const context = await resolveLiveCompetitiveContext(tx, platform);
   if (!context || !context.priorSeasonKey) {
@@ -284,8 +287,11 @@ export async function freezeCompetitiveContext(
       referenceSeasonWeight: 20 as const,
       recentSeasonKeys: [context.previousSeasonKey, context.currentSeasonKey],
       recentSeasonWeight: 30 as const,
-      ...(season.competitionTemplate === "major" ? { sourceSelection: "strongest_equivalent" as const } : {}),
+      ...(policy
+        ? (config.competitiveProfile?.evidencePolicy?.sourceSelection ? { sourceSelection: config.competitiveProfile.evidencePolicy.sourceSelection } : {})
+        : (season.competitionTemplate === "major" ? { sourceSelection: "strongest_equivalent" as const } : {})),
     },
+    externalStrengthMaxStarGap: config.competitiveProfile?.externalStrengthMaxStarGap,
     conversionPolicyVersion: fallbackConversion?.version ?? config.competitiveProfile?.conversionPolicyVersion,
     conversionPolicyId: config.competitiveProfile?.conversionPolicyId,
     fallbackConversion,
@@ -352,7 +358,7 @@ export async function openSeasonRegistrationInTx(
   const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
   const teamRegistrationConfig = (config.qualificationPolicy ? config.qualificationPolicy.competitiveProfileRequired || config.qualificationPolicy.externalStrengthGap.enabled : config.requireCompetitiveProfile)
     ? await freezeCompetitiveContext(tx, season)
-    : config;
+    : teamRegistrationConfigForWrite(config);
   await tx.update(seasons).set({
     registrationOpensAt: configuredOpenAt,
     registrationOpenedAt: now,

@@ -165,7 +165,8 @@ export async function saveMajorTournamentSeedsInTx(
     actorId: input.actorId,
     targetId: state.id,meta: {
       seedCount: entrantCapacity,
-      seedRecommendationDiverged: decision.divergesFromRecommendation,
+      seedMode: snapshot.context.competitiveContext ? "recommendation" : "manual",
+      seedRecommendationDiverged: snapshot.context.competitiveContext ? decision.divergesFromRecommendation : null,
       systemTieResolution: decision.resolvesSystemTie,
       entryIds: [...input.entryIds],
     },
@@ -219,7 +220,8 @@ export async function confirmMajorTournamentSeedsInTx(
     actorId: input.actorId,
     targetId: state.id,meta: {
       seedCount: entrantCapacity,
-      seedRecommendationDiverged: decision.divergesFromRecommendation,
+      seedMode: snapshot.context.competitiveContext ? "recommendation" : "manual",
+      seedRecommendationDiverged: snapshot.context.competitiveContext ? decision.divergesFromRecommendation : null,
       systemTieResolution: decision.resolvesSystemTie,
     },
   });

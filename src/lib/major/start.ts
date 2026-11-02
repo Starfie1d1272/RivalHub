@@ -202,7 +202,7 @@ export async function startMajorInTransaction(
     confirmations: entrantRows.map((entrant) => ({ teamId: entrant.competitionEntryId, confirmed: coherenceRows.find((row) => row.entry.id === entrant.competitionEntryId)?.eventRoster.status === "frozen" })),
     tournamentSeeds: seeds,
     seedConfirmation: { confirmed: state.seedsConfirmedAt !== null && state.seedsConfirmedBy !== null },
-    seedRecommendation: { status: recommendationStatus },
+    seedRecommendation: { status: recommendationStatus, manual: snapshot?.context.competitiveContext === null },
   });
   if (!readiness.canStart || !readiness.openingPlan) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, readiness.blockers[0] ?? "Major 赛前检查未通过。");
