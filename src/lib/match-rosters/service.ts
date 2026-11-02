@@ -295,6 +295,9 @@ export async function loadMatchEligibilityContextInTx(
       }
       // Parse once before every frozen consumer; never use mutable season rules.
       const frozenSnapshot = parseMajorRunSnapshot(stageRun.ruleSnapshot, stageRun.stageKey);
+      if (frozenSnapshot.qualificationPolicy && "version" in frozenSnapshot.qualificationPolicy && frozenSnapshot.qualificationPolicy.version === 2) {
+        throw new AppError(ErrorCode.INTERNAL_ERROR, "新版阶段资格必须通过冻结快照评价入口读取。");
+      }
       externalStrengthGapEnabled = frozenSnapshot.qualificationPolicy?.externalStrengthGap?.enabled === true;
       competitiveProfileRequired = frozenSnapshot.qualificationPolicy && "competitiveProfileRequired" in frozenSnapshot.qualificationPolicy
         ? frozenSnapshot.qualificationPolicy.competitiveProfileRequired === true : frozenSnapshot.competitiveProfile !== null;
