@@ -145,6 +145,7 @@ export function assertInstanceBackupEnvironment(
   };
 }
 
+/** Production DB-only checkpoint target; it deliberately has no Storage credential. */
 export function assertProductionDbCheckpointEnvironment(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): ProductionDbCheckpointEnvironment {

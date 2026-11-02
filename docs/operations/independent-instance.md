@@ -53,7 +53,7 @@ sudo pnpm exec tsx scripts/instance/release.ts --rollback
 
 ## 备份与恢复边界
 
-独立实例 full backup 使用既有 `db:recovery:backup`，显式设置 `RIVALHUB_BACKUP_SOURCE=instance`、非官方 `RIVALHUB_INSTANCE_PROJECT_REF` 与相同的 `RIVALHUB_INSTANCE_CONFIRM`，并提供该实例的应用 origin、API、Session Pooler 数据库连接、Storage secret key、age recipient 与独立 R2 配置。运行中的实例必须提供 `/api/system/recovery-source`：它只返回 release 和已公开的项目身份，备份会核对其实际运行配置、数据库项目、真实 commit 对象和版本派生的实例 release 标识，以及采集前后的账本。旧版本不支持此合同，不能靠手填身份替代。实例 artifact 位于 `instance/<project-ref>/`，该前缀的保留策略由实例运营者配置；官方 `production/` 策略不自动覆盖它。
+独立实例 full backup 使用既有 `db:recovery:backup`，显式设置 `RIVALHUB_BACKUP_SOURCE=instance`、非官方 `RIVALHUB_INSTANCE_PROJECT_REF` 与相同的 `RIVALHUB_INSTANCE_CONFIRM`，并提供该实例的应用 origin、API、Session Pooler 数据库连接、Storage secret key、age recipient 与独立 R2 配置。运行中的实例必须提供 `/api/system/recovery-source`：它只返回 release 和已公开的项目身份，备份会核对其实际运行配置、数据库项目、真实 commit 对象和版本派生的实例 release 标识，以及采集前后的账本。旧版本不支持此合同，不能靠手填身份替代。实例 artifact 位于 `instance/<project-ref>/`，该前缀的保留策略由实例运营者配置；官方 `production/` 策略不自动覆盖它。 本地端到端演练可显式使用 `RIVALHUB_BACKUP_SOURCE=isolated-instance`、`RIVALHUB_DB_TARGET=local` 和 `RIVALHUB_BACKUP_SUPABASE_WORKDIR`，并设置 loopback 的 `RIVALHUB_R2_LOCAL_ENDPOINT`；来源身份由 Local Supabase status 和运行中的本地应用读取。此类产物位于 `isolated/`，只允许恢复到隔离目标，不能作为 Hosted 激活凭证。
 
 仅 full artifact 可以申请恢复证据。恢复到新的非官方 Hosted 项目时，显式设置 `RIVALHUB_RECOVERY_TARGET=instance`、`RIVALHUB_INSTANCE_WRITE=yes`、目标项目 ref 和确认值，以及目标 `RIVALHUB_RECOVERY_DATABASE_URL`、`RIVALHUB_RECOVERY_SUPABASE_URL`、`RIVALHUB_RECOVERY_PUBLISHABLE_KEY`、`RIVALHUB_RECOVERY_SERVICE_ROLE_KEY`。使用原有 `db:recovery:fetch` 和 `db:recovery:restore`，后者接受 `--evidence-directory` 指向恢复操作员拥有且权限为 0700 的目录。只有 artifact、数据、生命周期、Storage 和账本均验证通过后才生成权限 0600 的证据；DB-only checkpoint 不可生成证据。Hosted provider 的所需恢复权限尚未实机验证，权限拒绝必须停止处理。
 
