@@ -116,7 +116,8 @@ export function assertRecoverySourceUnchanged(
   const b = after.databaseMigrationTerminal;
   if (before.deployedReleaseTag !== after.deployedReleaseTag
     || before.deployedCommit !== after.deployedCommit
-    || a.terminalTag !== b.terminalTag || a.terminalHash !== b.terminalHash || a.terminalWhen !== b.terminalWhen) {
+    || a.terminalTag !== b.terminalTag || a.terminalHash !== b.terminalHash || a.terminalWhen !== b.terminalWhen
+    || JSON.stringify(before.legacyMigrationLedger ?? null) !== JSON.stringify(after.legacyMigrationLedger ?? null)) {
     throw new Error("Recovery source release or migration ledger changed during snapshot; backup aborted.");
   }
 }

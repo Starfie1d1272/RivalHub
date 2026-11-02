@@ -35,8 +35,8 @@ async function main(): Promise<void> {
     const migrationAfter = await readProductionMigrationIdentity(environment.databaseUrl);
     const sourceAfter = await resolveProductionSourceIdentity();
     assertRecoverySourceUnchanged(
-      { ...source, databaseMigrationTerminal: migration.ledger },
-      { ...sourceAfter, databaseMigrationTerminal: migrationAfter.ledger },
+      { ...source, databaseMigrationTerminal: migration.ledger, legacyMigrationLedger: migration.legacyLedger },
+      { ...sourceAfter, databaseMigrationTerminal: migrationAfter.ledger, legacyMigrationLedger: migrationAfter.legacyLedger },
     );
     const manifest: RecoveryManifest = {
       formatVersion: RECOVERY_FORMAT_VERSION,
@@ -54,6 +54,7 @@ async function main(): Promise<void> {
       source: {
         ...source,
         databaseMigrationTerminal: migration.ledger,
+        ...(migration.legacyLedger ? { legacyMigrationLedger: migration.legacyLedger } : {}),
       },
       artifactKind: "db-checkpoint",
       backupClass: "release-db",

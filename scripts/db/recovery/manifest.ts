@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { assertLegacyLineage, type LegacyLedgerEntry } from "../legacy-lineage";
 import { readFileSync, statSync } from "node:fs";
 import { basename } from "node:path";
 import {
@@ -42,6 +43,7 @@ export interface RecoverySourceIdentity {
   deployedReleaseTag: string;
   deployedCommit: string;
   databaseMigrationTerminal: RecoveryMigrationIdentity;
+  legacyMigrationLedger?: readonly LegacyLedgerEntry[];
 }
 
 interface RecoveryManifestBase {
@@ -191,6 +193,10 @@ export function assertRecoveryManifest(value: unknown): RecoveryManifest {
   }
 
   assertMigrationIdentity(source.databaseMigrationTerminal, "Recovery manifest database migration terminal");
+  if (source.legacyMigrationLedger !== undefined) {
+    if (!Array.isArray(source.legacyMigrationLedger)) throw new Error("Recovery manifest legacy ledger is invalid.");
+    assertLegacyLineage(source.legacyMigrationLedger);
+  }
 
   const database = manifest.database as RecoveryManifest["database"] | undefined;
   if (

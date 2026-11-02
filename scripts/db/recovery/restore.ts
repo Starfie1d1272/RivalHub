@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { Pool } from "pg";
+import { restoreLegacyLineage } from "../legacy-lineage";
 import { postgresConnection } from "../../../src/db/postgres-connection";
 import {
   buildInstanceRecoveryEnvironment,
@@ -218,6 +219,7 @@ async function restoreFullArtifact(
     await ensureTargetMigration(pool, manifest, target.databaseUrl, tempRoot);
     await prepareTargetForDataImport(pool);
     applyDatabaseData(target.databaseUrl, resolve(stagingRoot, "data.sql"), tempRoot);
+    await restoreLegacyLineage(pool, manifest.source.legacyMigrationLedger);
 
     await verifyRecoveryDatabase(pool, {
       expectedMigration: manifest.source.databaseMigrationTerminal,
@@ -265,6 +267,7 @@ async function restoreDbCheckpointArtifact(
     await ensureTargetMigration(pool, manifest, target.databaseUrl, tempRoot);
     await prepareTargetForDataImport(pool);
     applyDatabaseData(target.databaseUrl, resolve(stagingRoot, "data.sql"), tempRoot);
+    await restoreLegacyLineage(pool, manifest.source.legacyMigrationLedger);
     const verification = await verifyRecoveryDatabase(pool, {
       expectedMigration: manifest.source.databaseMigrationTerminal,
       skipExpiredSensitiveEvidence: true,

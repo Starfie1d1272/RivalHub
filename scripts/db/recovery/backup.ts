@@ -1,3 +1,4 @@
+import { readLegacyLineage, type LegacyLedgerEntry } from "../legacy-lineage";
 import { runVerifiedSupabaseDump } from "./verified-dump";
 import { postgresConnection } from "../../../src/db/postgres-connection";
 import { randomUUID } from "node:crypto";
@@ -79,8 +80,8 @@ async function main(): Promise<void> {
     const migrationAfter = await readProductionMigrationIdentity(environment.databaseUrl);
     const sourceAfter = await readSource();
     assertRecoverySourceUnchanged(
-      { ...source, databaseMigrationTerminal: migration.ledger },
-      { ...sourceAfter, databaseMigrationTerminal: migrationAfter.ledger },
+      { ...source, databaseMigrationTerminal: migration.ledger, legacyMigrationLedger: migration.legacyLedger },
+      { ...sourceAfter, databaseMigrationTerminal: migrationAfter.ledger, legacyMigrationLedger: migrationAfter.legacyLedger },
     );
 
     const manifest: RecoveryManifest = {
@@ -99,6 +100,7 @@ async function main(): Promise<void> {
       source: {
         ...source,
         databaseMigrationTerminal: migration.ledger,
+        ...(migration.legacyLedger ? { legacyMigrationLedger: migration.legacyLedger } : {}),
       },
       artifactKind: "full",
       backupClass,
@@ -157,6 +159,7 @@ export async function createDatabaseSnapshot(
 export async function readProductionMigrationIdentity(databaseUrl: string): Promise<{
   postgresVersion: string;
   ledger: RecoveryManifest["source"]["databaseMigrationTerminal"];
+  legacyLedger?: LegacyLedgerEntry[];
 }> {
   const expected = readExpectedMigrations();
   const pool = new Pool({ ...postgresConnection(databaseUrl), max: 1 });
@@ -172,6 +175,7 @@ export async function readProductionMigrationIdentity(databaseUrl: string): Prom
     if (!terminal || !expectedTerminal) throw new Error("Production migration ledger is empty or unknown; backup aborted. ");
     return {
       postgresVersion: version.rows[0]?.server_version ?? "unknown",
+      legacyLedger: await readLegacyLineage(pool),
       ledger: {
         terminalHash: terminal.hash,
         terminalTag: expectedTerminal.tag,
