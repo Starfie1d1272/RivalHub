@@ -8,7 +8,7 @@
 
 | 类别 / owner | 目的与存储 | 可见性与敏感性 |
 | --- | --- | --- |
-| 赛事、名单、比赛、赛果、奖项；[domain model](../domain-model.md) | PostgreSQL 保存正式历史、冻结归属及本人本届参赛身份声明，用于资格审核 | 发布后的正式 DTO 为 public；参赛身份声明、报名、审核及后台操作字段为 private |
+| 赛事、名单、比赛、赛果、奖项；[domain model](../domain-model.md) | PostgreSQL 保存正式历史、冻结归属、名单修订中的本届位置及本人本届参赛身份声明，用于资格审核 | 发布后的正式 DTO 为 public；本届位置、参赛身份声明、报名、审核及后台操作字段按现有授权展示，整行数据为 private |
 | 长期 Team / Player 展示；[身份展示](../../src/lib/identity/display-name.ts) | PostgreSQL 保存当前昵称、自述与组织身份 | 允许公开的资料为 public；整行用户资料不是公开 DTO |
 | 账号、凭据绑定与归并；[users](../../src/db/schema/users.ts)、[identity](../../src/db/schema/identity.ts)、[auth](../auth-and-permissions.md) | PostgreSQL 保存 canonical person、邮箱归属、外部身份、provenance；Supabase Auth 拥有密码/provider 身份 | 邮箱、Auth subject、归并证据为 private/sensitive，self / 授权管理员 / server-only |
 | 登录页面更新草稿；[login-update-draft](../../src/lib/auth/login-update-draft.ts) | 用户明确点击更新时仅将当前邮箱存入同标签页 sessionStorage，供更新后一次恢复 | 不保存密码、验证码、Turnstile/session票据；15分钟后读端拒绝，读取时删除、关闭标签页清除，不进入服务端、日志或备份；不自动重放提交 |
@@ -37,7 +37,7 @@
 
 | 类别 | 保留 / 触发 | 删除或匿名化 / evidence |
 | --- | --- | --- |
-| 正式赛事、冻结名单、赛果、奖项、裁决、积分账本 | 长期可追溯历史；改名、解绑、归档不是删除触发 | 正式更正/撤销由原 owner 与审计处理；不重写当时归属。账号删除后的匿名化范围尚需独立契约；见 [workflows](../workflows.md) |
+| 正式赛事、冻结名单及其本届位置、赛果、奖项、裁决、积分账本 | 长期可追溯历史；改名、解绑、归档不是删除触发 | 正式更正/撤销由原 owner 与审计处理；不重写当时归属。账号删除后的匿名化范围尚需独立契约；见 [workflows](../workflows.md) |
 | 当前账号、联系方式、报名草稿、legacy 私有字段 | 按账号使用、办赛联系和报名续填目的保留，不设置统一定期删除 | identity/auth 处理凭据撤销、归并与会话失效；保留既有更新和删除行为，通用账号删除产品尚未实现 |
 | 教育目录、认证结论、审核历史 | 保留审核事实，与证据分开 | 清理 code/object 不删除学校、已通过/驳回、审核时间与结论 |
 | Completed 教育核验材料 | `reviewedAt` 达 canonical 七天 cutoff 后到期；pending 不按提交时间推断到期，缺审核时间不补造 | 新列表/搜索/签名请求不再提供到期 evidence。[retention](../../src/lib/education/retention.ts) 删除对象成功后才清 DB key，CHSI code 清空；失败交既有 scheduler 重试。已签发短期 URL 仍受 adapter TTL/对象删除约束，读端不能撤销它；[签名入口](../../src/lib/education/evidence-access.ts)、[列表 DB](../../tests/integration/db/education-admin-review.test.ts)、[清理 DB](../../tests/integration/db/education-manual-retention.test.ts) |
