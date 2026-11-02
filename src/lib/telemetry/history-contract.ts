@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CLIENT_CATEGORIES, ROLES, UUID } from "./protocol";
 import { ROUTES } from "./routes";
-import { OPERATIONS } from "./operations";
+import { READABLE_OPERATIONS } from "./operations";
 import { TASK_NAMES } from "./task-contract";
 
 export const HISTORY_DAY = 86400000;
@@ -21,7 +21,7 @@ export function parseHistoryQuery(input: unknown): HistoryQuery | null {
   if (f.device && !["missing", ...CLIENT_CATEGORIES.device].includes(f.device)) return null;
   if (!/^[A-Za-z0-9._-]{0,80}$/.test(f.release) || (f.eventId && !UUID.test(f.eventId))) return null;
   if (f.task && !(TASK_NAMES as readonly string[]).includes(f.task)) return null;
-  if (f.operation && !(OPERATIONS as readonly string[]).includes(f.operation)) return null;
+  if (f.operation && !READABLE_OPERATIONS.includes(f.operation)) return null;
   return f;
 }
 const count = z.number().int().nonnegative();

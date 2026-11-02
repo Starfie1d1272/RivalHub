@@ -215,3 +215,7 @@ export const OPERATIONS = [
   "user-merge.executeSelfServiceUserMerge"
 ] as const;
 export type Operation = (typeof OPERATIONS)[number];
+
+/** Stored fallback only; clients cannot submit this marker. */
+export const UNCLASSIFIED_OPERATION = "__unclassified__" as const;
+export const READABLE_OPERATIONS: readonly string[] = [...OPERATIONS, UNCLASSIFIED_OPERATION];

@@ -1,7 +1,7 @@
 import type { Database, Env } from "./index";
 import { readHistoryTail } from "./history-tail";
 import { decompressEvents } from "./storage";
-import { LIMITS, validEvent, type TelemetryEvent } from "../../src/lib/telemetry/protocol";
+import { LIMITS, validEvent, type StoredTelemetryEvent } from "../../src/lib/telemetry/protocol";
 import { taskForOperation, taskForRoute } from "../../src/lib/telemetry/task-contract";
 import {
   HISTORY_DAY as DAY, emptyHistoryDistribution, historyBounds, historyDay, historyDayStart,
@@ -30,7 +30,7 @@ function bucket(value: number | null, metric = "") {
   const found = historyBounds(metric).findIndex(n => value <= n);
   return found < 0 ? historyBounds(metric).length : found;
 }
-export async function sample(e: TelemetryEvent, b: Batch): Promise<Sample> {
+export async function sample(e: StoredTelemetryEvent, b: Batch): Promise<Sample> {
   const kind = e.kind;
   const task = e.task?.name ?? (e.operation ? taskForOperation(e.operation) : taskForRoute(e.route)) ?? "";
   const name = kind === "performance" ? e.metricName! : kind === "ready" ? `${e.ready!.module}:${e.ready!.phase}` : kind === "operation" ? e.operation! : kind === "task" ? e.task!.name : "";
@@ -151,7 +151,7 @@ async function accumulateHistory(env: Env, now: number) {
       if (bytes > BYTE_LIMIT) break;
       const raw: unknown = JSON.parse(await decompressEvents(b.events_gzip));
       if (!Array.isArray(raw) || raw.length > LIMITS.batch || raw.some(e => !e || !validEvent(e, e.at))) throw new Error("Invalid history source batch");
-      projected.push(...await Promise.all((raw as TelemetryEvent[]).map(e => sample(e, b))));
+      projected.push(...await Promise.all((raw as StoredTelemetryEvent[]).map(e => sample(e, b))));
       checkpoint = b;
     }
     if (checkpoint) {

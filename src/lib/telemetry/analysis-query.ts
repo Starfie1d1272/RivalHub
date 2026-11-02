@@ -1,6 +1,6 @@
 import { CLIENT_CATEGORIES } from "./client-context-contract";
 import { ROUTES } from "./routes";
-import { OPERATIONS } from "./operations";
+import { READABLE_OPERATIONS } from "./operations";
 import { ROLES, UUID } from "./protocol";
 import { TASK_NAMES } from "./task-contract";
 export const analysisFields = [
@@ -42,7 +42,7 @@ export function parseAnalysisQuery(input: unknown): { filters: AnalysisFilters; 
     !["", "hard", "soft", "bfcache", "prerender", "unknown", "missing"].includes(f.navigationType) ||
     !["", "visible", "hidden", "missing"].includes(f.visibility)) return null;
   if (f.route && !["/unknown", ...ROUTES].includes(f.route)) return null;
-  if (f.operation && !(OPERATIONS as readonly string[]).includes(f.operation)) return null;
+  if (f.operation && !READABLE_OPERATIONS.includes(f.operation)) return null;
   if (f.task && !(TASK_NAMES as readonly string[]).includes(f.task)) return null;
   if (f.eventId && f.eventId !== "missing" && !UUID.test(f.eventId)) return null;
   for (const k of ["device", "browser", "source"] as const)
