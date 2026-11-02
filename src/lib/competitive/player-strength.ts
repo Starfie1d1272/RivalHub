@@ -2,6 +2,7 @@ import type { CompetitiveProfileConfig } from "@/types/season";
 import { isBuiltInStarRank } from "@/lib/competitive/builtins";
 import { compositeStrength } from "@/lib/major/composite-rank";
 import type { QualificationFinding } from "@/lib/qualification/finding";
+import type { QualificationEvidence } from "@/lib/seasons/rules";
 
 export interface PlayerStrengthFact {
   rank: string;
@@ -203,6 +204,44 @@ export function getPlayerStrengthFindings(
         referenceRank: player.previousSeasonPeak!.rank,
         recentRank: recentPeak!.rank,
       },
+    });
+  }
+  return findings;
+}
+
+/** Pure completeness evaluation of the profile projection, independent of other purposes. */
+export function evaluateCompetitiveProfileReadiness(
+  evidence: QualificationEvidence,
+  userId: string,
+): QualificationFinding[] {
+  if (evidence.kind !== "competitive" || !evidence.context.profile) {
+    return [{ code: "competitive_context_unavailable", message: "本届赛事的竞技资料要求暂时无法确认，请联系赛事管理员。", waivable: false, metadata: { field: "competitive_context" } }];
+  }
+  const config = evidence.context.profile;
+  const profile = evidence.byPurpose.profileReadiness.get(userId);
+  const referenceKey = config.evidencePolicy?.referenceSeasonKey ?? config.previousSeasonKey;
+  const recentKeys = config.evidencePolicy?.recentSeasonKeys ?? [config.currentSeasonKey];
+  const seasons = profile?.seasons;
+  const player: PlayerStrengthInput = {
+    userId,
+    label: "选手",
+    historicalPeak: profile?.historicalPeak ?? null,
+    previousSeasonPeak: seasons?.get(referenceKey) ?? null,
+    currentSeasonPeak: seasons?.get(config.currentSeasonKey) ?? null,
+    recentSeasonPeaks: recentKeys.map((key) => seasons?.get(key) ?? null),
+  };
+  const findings = getPlayerStrengthFindings(player, config);
+  const slots = [
+    { key: "historical", fact: player.historicalPeak },
+    ...[...new Set([referenceKey, ...recentKeys])].map((key) => ({ key, fact: seasons?.get(key) ?? null })),
+  ];
+  for (const slot of slots) {
+    if (!slot.fact || !isBuiltInStarRank(config.platform, slot.fact.rank) || slot.fact.stars != null) continue;
+    findings.push({
+      code: "competitive_profile_incomplete",
+      message: `${slot.key === "historical" ? "历史最高" : slot.key}的 ${slot.fact.rank} 段位需要填写准确星数。`,
+      waivable: false,
+      metadata: { field: "stars", platform: config.platform, seasonKey: slot.key, rankKey: slot.fact.rank },
     });
   }
   return findings;
