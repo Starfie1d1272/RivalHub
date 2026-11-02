@@ -22,7 +22,7 @@ export function storePublicAsset(value: string): string {
     const url = new URL(value);
     if (/^\/storage\/v1\/(object|render\/image)\/sign\//.test(url.pathname)) throw new SignedAssetUrlError();
     const current = process.env["NEXT_PUBLIC_SUPABASE_URL"]?.trim().replace(/\/$/, "");
-    if ((!knownOrigins.has(url.origin) && url.origin !== current) || url.search || url.hash) return value;
+    if ((!knownOrigins.has(url.origin) && url.origin !== current) || value !== `${url.origin}${url.pathname}`) return value;
     const match = /^\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/.exec(url.pathname);
     if (match && publicBuckets.has(match[1]!)) return prefix + match[1] + "/" + match[2];
   } catch (error) {
