@@ -362,7 +362,7 @@ export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId:
   for (const userId of input.userIds) {
     const participant = participantByUser.get(userId)!;
     const nextPosition = positions.has(userId) ? positions.get(userId)! : previousPositions.get(userId) ?? null;
-    if (participant.status === "confirmed" && (revision.positionFactsVersion !== null || convertingLegacyPositions) && nextPosition !== (convertingLegacyPositions ? previousEffectivePositions.get(userId) ?? null : previousPositions.get(userId) ?? null)) {
+    if (participant.status === "confirmed" && (revision.positionFactsVersion !== null || convertingLegacyPositions) && (nextPosition !== (convertingLegacyPositions ? previousEffectivePositions.get(userId) ?? null : previousPositions.get(userId) ?? null) || (convertingLegacyPositions && nextPosition !== null))) {
       await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.participantId, participant.id));
       await tx.update(competitionEntryParticipants).set({ status: "invited", confirmedAt: null, updatedAt: new Date() }).where(eq(competitionEntryParticipants.id, participant.id));
       await auditEntry(tx, { action: "competition_entry.roster.save", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: participant.id, userId, previousPosition: previousPositions.get(userId) ?? null, position: nextPosition, confirmationReset: true, revisionId: revision.id } });

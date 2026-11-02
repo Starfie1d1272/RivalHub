@@ -289,6 +289,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
         status: entry.registrationStatus,
         rosterStatus: interpretEntryRosterStatus({ ...entry, revisionStatus: revision?.status ?? null }),
         revisionOrigin: revision?.origin ?? null,
+        positionFactsVersion: revision?.positionFactsVersion ?? null,
         representativeUserId: entry.representativeUserId,
         reviewReason: revision?.origin === "self_roster_change" ? null : entry.reviewReason,
         qualificationFindings: qualification.findings,

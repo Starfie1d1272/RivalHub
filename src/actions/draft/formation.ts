@@ -79,7 +79,7 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
         const previousPosition = positionsByUser.get(userId) ?? null;
         const primaryPosition = previousPosition ?? byId.get(registrationId)!.primaryPosition;
         if (primaryPosition !== previousPosition) positionChanges.push({ userId, previousPosition, position: primaryPosition });
-        if (participant.status === "confirmed" && primaryPosition !== (revision.positionFactsVersion === null ? byId.get(registrationId)!.primaryPosition : previousPosition)) {
+        if (participant.status === "confirmed" && (revision.positionFactsVersion === null || primaryPosition !== previousPosition)) {
           await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.participantId, participant.id));
           await tx.update(competitionEntryParticipants).set({ status: "invited", confirmedAt: null, updatedAt: new Date() }).where(eq(competitionEntryParticipants.id, participant.id));
         }

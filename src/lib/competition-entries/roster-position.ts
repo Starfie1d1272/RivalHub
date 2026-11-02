@@ -11,7 +11,7 @@ export function rosterPositionSql(version: SQLWrapper, position: SQLWrapper, sea
   ) else ${position} end`;
 }
 
-/** A new revision owns its positions; changed legacy facts require renewed consent. */
+/** Copy the legacy interpretation into the new revision and renew consent for declared positions. */
 export async function copyRosterPositionsToRevisionInTx(tx: TxDb, input: {
   revision: typeof competitionEntryRosterRevisions.$inferSelect; nextId: string; actorId: string; excludeUserId?: string;
 }): Promise<void> {
@@ -20,13 +20,11 @@ export async function copyRosterPositionsToRevisionInTx(tx: TxDb, input: {
   const legacy = input.revision.positionFactsVersion === null;
   const [entry] = await tx.select().from(competitionEntries).where(eq(competitionEntries.id, input.revision.entryId));
   if (!entry) throw new Error("Roster entry missing");
-  const registrations = legacy && entry.source === "event_native" ? await tx.select({ userId: seasonRegistrations.userId, position: seasonRegistrations.primaryPosition }).from(seasonRegistrations).where(and(eq(seasonRegistrations.seasonId, entry.competitionId), inArray(seasonRegistrations.userId, members.map((member) => member.userId)))) : [];
-  const registrationPositions = new Map(registrations.map((registration) => [registration.userId, registration.position]));
+  const prior = legacy ? await tx.select({ userId: competitionEntryRosterMembers.userId, position: rosterPositionSql(competitionEntryRosterRevisions.positionFactsVersion, competitionEntryRosterMembers.primaryPosition, entry.competitionId, competitionEntryRosterMembers.userId) }).from(competitionEntryRosterMembers).innerJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntryRosterMembers.revisionId)).where(eq(competitionEntryRosterMembers.revisionId, input.revision.id)) : [];
+  const priorPositions = new Map(prior.map((member) => [member.userId, member.position]));
   if (legacy) {
-    const prior = await tx.select({ userId: competitionEntryRosterMembers.userId, position: rosterPositionSql(competitionEntryRosterRevisions.positionFactsVersion, competitionEntryRosterMembers.primaryPosition, entry.competitionId, competitionEntryRosterMembers.userId) }).from(competitionEntryRosterMembers).innerJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntryRosterMembers.revisionId)).where(eq(competitionEntryRosterMembers.revisionId, input.revision.id));
-    const priorPositions = new Map(prior.map((member) => [member.userId, member.position]));
     const participants = await tx.select().from(competitionEntryParticipants).where(and(eq(competitionEntryParticipants.entryId, entry.id), inArray(competitionEntryParticipants.id, members.map((member) => member.participantId)), eq(competitionEntryParticipants.status, "confirmed")));
-    const reset = participants.filter((participant) => participant.userId !== input.excludeUserId && (priorPositions.get(participant.userId) ?? null) !== (registrationPositions.get(participant.userId) ?? null));
+    const reset = participants.filter((participant) => participant.userId !== input.excludeUserId && (priorPositions.get(participant.userId) ?? null) !== null);
     if (reset.length) {
       const ids = reset.map((participant) => participant.id);
       await tx.delete(competitionEntryActiveClaims).where(inArray(competitionEntryActiveClaims.participantId, ids));
@@ -34,5 +32,5 @@ export async function copyRosterPositionsToRevisionInTx(tx: TxDb, input: {
       await writeAuditInTx(tx, { seasonId: entry.competitionId, action: "competition_entry.roster.save", actorId: input.actorId, targetId: entry.id, meta: { source: "legacy_position_conversion", previousRevisionId: input.revision.id, revisionId: input.nextId, confirmationResetParticipantIds: ids } });
     }
   }
-  await tx.insert(competitionEntryRosterMembers).values(members.map((member) => ({ revisionId: input.nextId, participantId: member.participantId, userId: member.userId, teamMembershipId: member.teamMembershipId, isPrimaryStarter: member.isPrimaryStarter, primaryPosition: legacy ? registrationPositions.get(member.userId) ?? null : member.primaryPosition })));
+  await tx.insert(competitionEntryRosterMembers).values(members.map((member) => ({ revisionId: input.nextId, participantId: member.participantId, userId: member.userId, teamMembershipId: member.teamMembershipId, isPrimaryStarter: member.isPrimaryStarter, primaryPosition: legacy ? priorPositions.get(member.userId) ?? null : member.primaryPosition })));
 }
