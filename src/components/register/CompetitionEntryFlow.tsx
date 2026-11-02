@@ -209,8 +209,9 @@ export function CompetitionEntryFlow(props: Props) {
     return "指定赛季";
   };
   const checksForMember = (member: RosterMember): ChecklistItem[] => {
-      if (!props.requiresCompetitiveProfile) return [];
-      if (!member.readiness) return [{ label: `${member.label} · 等待该成员确认参赛后检查资料`, state: "blocked" as const }];
+      if (!member.readiness) return props.requiresCompetitiveProfile
+        ? [{ label: `${member.label} · 等待该成员确认参赛后检查资料`, state: "blocked" as const }]
+        : [];
       if (member.readiness.ready) return [{ label: `${member.label} · 参赛资料已齐全`, state: "complete" as const }];
       return member.readiness.findings.map((finding) => {
         const platform = typeof finding.metadata?.platform === "string" ? finding.metadata.platform : null;
