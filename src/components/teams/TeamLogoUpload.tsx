@@ -54,18 +54,24 @@ export function TeamLogoUpload({
     formData.append("file", file);
 
     startTransition(async () => {
-      const result = upload ? await upload(formData) : teamId
-        ? await uploadTeamLogo(teamId, formData)
-        : { success: false as const, error: { message: "缺少队伍标识" } };
-      URL.revokeObjectURL(objectUrl);
-      if (result.success) {
-        lastConfirmedUrlRef.current = result.data.logoUrl;
-        setPreviewUrl(result.data.logoUrl);
-        onUploaded?.(result.data.logoUrl);
-        toast.success("队伍图标已更新");
-      } else {
+      try {
+        const result = upload ? await upload(formData) : teamId
+          ? await uploadTeamLogo(teamId, formData)
+          : { success: false as const, error: { message: "缺少队伍标识" } };
+        if (result.success) {
+          lastConfirmedUrlRef.current = result.data.logoUrl;
+          setPreviewUrl(result.data.logoUrl);
+          onUploaded?.(result.data.logoUrl);
+          toast.success("队伍图标已更新");
+        } else {
+          setPreviewUrl(lastConfirmedUrlRef.current);
+          toast.error(result.error.message);
+        }
+      } catch {
         setPreviewUrl(lastConfirmedUrlRef.current);
-        toast.error(result.error.message);
+        toast.error("图片上传失败，请重试。");
+      } finally {
+        URL.revokeObjectURL(objectUrl);
       }
     });
 

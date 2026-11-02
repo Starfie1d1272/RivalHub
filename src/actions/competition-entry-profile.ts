@@ -58,10 +58,10 @@ export async function uploadCompetitionEntryLogo(seasonId: string, entryId: stri
     await db.transaction(tx => editable(tx, seasonId, entryId));
     const bucket = createServiceClient().storage.from(TEAM_LOGO_BUCKET);
     const path = `entries/${entryId}/${randomUUID()}.${TEAM_LOGO_EXTENSIONS[file.type]}`;
-    const { error } = await bucket.upload(path, file, { contentType: file.type });
-    if (error) throw new AppError(ErrorCode.INTERNAL_ERROR, "图片上传失败，请重试。");
     let result;
     try {
+      const { error } = await bucket.upload(path, file, { contentType: file.type });
+      if (error) throw new AppError(ErrorCode.INTERNAL_ERROR, "图片上传失败，请重试。");
       result = await db.transaction(async tx => {
         const { season, entry } = await editable(tx, seasonId, entryId);
         await tx.update(competitionEntries).set({ logoUrl: publicAssetReference(TEAM_LOGO_BUCKET, path), updatedAt: new Date() }).where(eq(competitionEntries.id, entryId));
