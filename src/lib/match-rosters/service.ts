@@ -418,9 +418,9 @@ export async function getStartingLineupPreflightInTx(
 ): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number> }> {
   return withDbTrafficSource("match.lineup.read", async () => {
   if (args.entryId !== args.match.entryAId && args.entryId !== args.match.entryBId) throw new AppError(ErrorCode.VALIDATION_FAILED, "参赛队伍不属于本场比赛。 ");
-  // Once a match has started, its lineup owns the eligibility facts; the
-  // current event roster may legitimately refer to a later revision.
-  if (args.match.status !== "scheduled") {
+  // Started matches and rehearsals use their own lineup facts; a rehearsal
+  // can still be scheduled after the event adopts a later roster revision.
+  if (args.match.status !== "scheduled" || args.match.testConfig) {
     const [historical] = await tx.select({ id: matchRosters.id, snapshot: matchRosters.eligibilitySnapshot, revision: matchRosters.sourceRosterRevisionId }).from(matchRosters)
       .where(and(eq(matchRosters.matchId, args.match.id), eq(matchRosters.entryId, args.entryId)));
     if (historical?.snapshot) {
