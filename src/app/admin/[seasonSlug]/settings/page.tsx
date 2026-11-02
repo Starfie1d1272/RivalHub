@@ -2,6 +2,8 @@ import { findAdminSeasonBySlug } from "@/lib/admin/season-context";
 import { notFound } from "next/navigation";
 
 import { db } from "@/db/client";
+import { institutions } from "@/db/schema";
+import { inArray } from "drizzle-orm";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
@@ -31,11 +33,14 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
   ]);
   if (!season) notFound();
   const rules = decodeSeasonRules(season);
+  const codes = rules.roster.affiliationRules.map(rule => rule.institutionCode).filter(Boolean);
+  const institutionRows = codes.length ? await db.query.institutions.findMany({ where: inArray(institutions.moeInstitutionCode, codes), columns: { id: true, name: true, moeInstitutionCode: true, province: true } }) : [];
 
   return (
     <div className="max-w-3xl">
       <SeasonForm
         mode="edit"
+        institutionOptions={institutionRows.map(row => ({ id: row.id, name: row.name, code: row.moeInstitutionCode, province: row.province }))}
         competitivePlatforms={catalog.map((platform) => ({ key: platform.key, displayName: platform.displayName, seasons: platform.seasons.map((season) => ({ seasonKey: season.seasonKey, label: season.label, active: season.active })), ranks: platform.ranks.map((rank) => ({ rankKey: rank.rankKey, label: rank.label })) }))}
         initial={{
           id: season.id,
