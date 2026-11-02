@@ -1,6 +1,6 @@
 import { OFFICIAL_PREVIEW } from "../../../src/lib/runtime/official-deployment-profile.mjs";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, lstatSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
@@ -50,6 +50,7 @@ interface RestoreArguments {
   manifestPath: string;
   completionPath: string;
   mode: RestoreMode;
+  evidenceDirectory?: string;
 }
 
 async function main(): Promise<void> {
@@ -80,12 +81,21 @@ async function main(): Promise<void> {
       if (!isFullRecoveryManifest(manifest)) {
         throw new Error("db-checkpoint artifact 不能由 full recovery restore 恢复；请使用 db:recovery:restore-db-checkpoint。 ");
       }
+      if (args.evidenceDirectory && manifest.sourceEnvironment !== "instance") throw new Error("Only a full independent instance restore can produce activation evidence.");
+      if (args.evidenceDirectory && process.env.RIVALHUB_RECOVERY_USE_LOCAL_SUPABASE !== "1") {
+        throw new Error("Activation evidence requires provider-discovered isolated target identity.");
+      }
+      if (args.evidenceDirectory) assertEvidenceDirectory(args.evidenceDirectory);
       const target = readRecoveryTarget();
       await restoreFullArtifact(target, manifest, stagingRoot, tempRoot);
+      if (args.evidenceDirectory) {
+        await writeInstanceRecoveryEvidence(args.evidenceDirectory, target, manifest, sidecar);
+      }
     } else {
       if (isFullRecoveryManifest(manifest)) {
         throw new Error("full recovery artifact 不能由 DB-only restore 恢复；请使用 db:recovery:restore。 ");
       }
+      if (args.evidenceDirectory) throw new Error("DB-only restore cannot produce activation evidence.");
       const target = buildIsolatedRecoveryDatabaseEnvironment(process.env);
       await restoreDbCheckpointArtifact(
         target,
@@ -117,7 +127,42 @@ function parseArguments(args: readonly string[]): RestoreArguments {
     manifestPath: required(values.get("manifest"), "--manifest"),
     completionPath: required(values.get("completion"), "--completion"),
     mode: modeValue === undefined ? "full" : parseRestoreMode(modeValue),
+    evidenceDirectory: values.get("evidence-directory"),
   };
+}
+
+function assertEvidenceDirectory(directory: string): string {
+  const root = resolve(directory);
+  const stat = lstatSync(root);
+  if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0) {
+    throw new Error("Recovery evidence directory must be owner-only and owned by the restoring operator.");
+  }
+  return root;
+}
+
+/** Only called after artifact checks and full DB/Storage verification. */
+async function writeInstanceRecoveryEvidence(
+  directory: string,
+  target: IsolatedRecoveryEnvironment,
+  manifest: FullRecoveryManifest,
+  sidecar: RecoverySidecar,
+): Promise<void> {
+  const root = assertEvidenceDirectory(directory);
+  const pool = new Pool({ connectionString: target.databaseUrl, ssl: false, max: 1 });
+  try {
+    const actual = await readTargetMigration(pool);
+    assertManifestMigrationMatches(actual, readExpectedMigrations(), manifest.source.databaseMigrationTerminal);
+    const database = new URL(target.databaseUrl);
+    const evidence = {
+      version: 1, artifactKind: "full", runId: manifest.runId,
+      artifactSha256: sidecar.artifactSha256, manifestSha256: sidecar.manifestSha256,
+      sourceProjectRef: manifest.sourceProjectRef, source: manifest.source,
+      target: { supabaseUrl: target.supabase.apiUrl, databaseName: decodeURI(database.pathname.slice(1)) },
+      ledger: actual,
+    };
+    // Exclusive creation prevents overwriting previous recovery evidence.
+    writeFileSync(join(root, `recovery-${manifest.runId}.json`), `${JSON.stringify(evidence)}\n`, { flag: "wx", mode: 0o600 });
+  } finally { await pool.end(); }
 }
 
 function parseRestoreMode(value: string): RestoreMode {
