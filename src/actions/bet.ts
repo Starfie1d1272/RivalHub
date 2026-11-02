@@ -13,7 +13,7 @@ import { betBoardRequestInput, readBetBoardRequest } from "@/lib/bet/request-rea
 import { publicBetTag } from "@/lib/cache/tags";
 import { readBetStakeReceipt } from "@/lib/bet/receipt-read";
 import { joinBetInTx, stakeBetInTx, operateBetInTx, claimBetReliefInTx } from "@/lib/bet/service";
-import { lockMatchInTx } from "@/lib/match-rosters/service";
+import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { startCanonicalMapInTx } from "@/lib/matches/map-start";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { readBetRelief } from "@/lib/bet/relief-data";

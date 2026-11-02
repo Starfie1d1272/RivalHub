@@ -1,3 +1,4 @@
+import { OFFICIAL_PRODUCTION } from "../../src/lib/runtime/official-deployment-profile.mjs";
 import {
   assertProtectedRemoteDatabaseUrl,
   assertRemoteConfirmations,
@@ -6,10 +7,10 @@ import {
   type ProtectedRemoteDatabaseConfig,
 } from "./remote-environment";
 
-export const PRODUCTION_PROJECT_REF = "ggkxqgbiudlovcgizgsq";
-export const PRODUCTION_POOLER_HOST = "aws-0-ap-northeast-1.pooler.supabase.com";
-export const PRODUCTION_POOLER_PORT = "6543";
-export const PRODUCTION_SESSION_POOLER_PORT = "5432";
+export const PRODUCTION_PROJECT_REF = OFFICIAL_PRODUCTION.projectRef;
+export const PRODUCTION_POOLER_HOST = OFFICIAL_PRODUCTION.poolerHost;
+export const PRODUCTION_POOLER_PORT = OFFICIAL_PRODUCTION.poolerPort;
+export const PRODUCTION_SESSION_POOLER_PORT = OFFICIAL_PRODUCTION.sessionPoolerPort;
 
 const productionConfig: ProtectedRemoteDatabaseConfig = {
   target: "production",

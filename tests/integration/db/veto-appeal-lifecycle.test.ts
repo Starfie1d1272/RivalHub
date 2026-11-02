@@ -4,7 +4,8 @@ import { and, eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 // Future immutable producer build; production remains reader1/publisher0.
 vi.mock("@/lib/matches/veto-room/lifecycle-contract.json", () => ({ default: { readerVersion: 1, publisherVersion: 1 } }));
-vi.mock("@/lib/revalidation", () => ({ revalidateVetoRoomPaths: vi.fn(), revalidateMatchPaths: vi.fn(), revalidatePublicSeasonTags: vi.fn(), revalidatePublicStatsTag: vi.fn(), revalidateSeasonPaths: vi.fn() }));
+vi.mock("@/lib/matches/projection-invalidation/next-adapter", () => ({ revalidateMatchProjectionPaths: vi.fn() }));
+vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn(), revalidatePublicSeasonTags: vi.fn(), revalidatePublicStatsTag: vi.fn(), revalidateSeasonPaths: vi.fn() }));
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { lockMatchInTx } from "@/lib/matches/locking";
@@ -15,7 +16,7 @@ import { projectVetoRoomView } from "@/lib/matches/veto-room/read-model";
 import { VETO_APPEAL_CLOSURE_NOTE } from "@/lib/matches/veto-room/appeal-lifecycle";
 import { seedFixture, NOW } from "./harness/mizar";
 import { createLocalPool } from "./harness/database";
-import { runMatchVetoTimeoutJob } from "@/lib/scheduler/runners";
+import { runMatchVetoScheduledJob } from "@/lib/scheduler/runners";
 import { canPublishVetoAppealClosure } from "@/lib/matches/veto-room/lifecycle-publication";
 import { dispatchCommand } from "../../../scripts/db/scheduler";
 import { getSchedulerJobDefinition } from "@/lib/scheduler/definitions";
@@ -108,7 +109,7 @@ describe("BP appeal gameplay lifecycle", () => {
   it("recovers existing pending records from canonical gameplay facts and disables the scheduler due signal afterward", async () => {
     // A worker can contain earlier reader0 history. Drain it through the real
     // future producer before asserting this fixture's global due transition.
-    await runMatchVetoTimeoutJob();
+    await runMatchVetoScheduledJob();
     const f = await fixture();
     await submit(f);
     const pool = createLocalPool();
@@ -120,7 +121,7 @@ describe("BP appeal gameplay lifecycle", () => {
       expect(await due()).toBe(false);
       await db.update(schema.matchMaps).set({ startedAt: NOW }).where(eq(schema.matchMaps.id, f.mapOneId));
       expect(await due()).toBe(true);
-      expect(await runMatchVetoTimeoutJob()).toMatchObject({ result: { changed: 1 }, businessTransitions: 1 });
+      expect(await runMatchVetoScheduledJob()).toMatchObject({ result: { changed: 1 }, businessTransitions: 1 });
       expect(await reconcileVetoRoom(f.matchId)).toBe("idempotent");
       expect((await appeals(f))[0]!.status).toBe("closed");
       expect(await due()).toBe(false);

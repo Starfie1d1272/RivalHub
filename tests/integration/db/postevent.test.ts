@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
 import { issueSanctionInTx } from "../../../src/lib/discipline/service";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
-import { lockMatchInTx } from "../../../src/lib/match-rosters/service";
+import { lockCompetitionMatchInTx as lockMatchInTx } from "../../../src/lib/matches/locking";
 import { createMajorTemplate } from "../../../src/lib/competition/templates";
 import { makeMajorRunSnapshotV4 } from "../../../src/lib/major/run-snapshot";
 import {
