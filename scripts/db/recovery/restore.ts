@@ -274,7 +274,8 @@ async function restoreDbCheckpointArtifact(
 }
 
 function readLocalSupabaseStatus() {
-  const result = spawnSync(pnpmBin, ["exec", "supabase", "status", "--output", "json"], {
+  const workdir = resolve(process.env.RIVALHUB_RECOVERY_SUPABASE_WORKDIR?.trim() || projectRoot);
+  const result = spawnSync(pnpmBin, ["exec", "supabase", "status", "--workdir", workdir, "--output", "json"], {
     cwd: projectRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
