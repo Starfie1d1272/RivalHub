@@ -240,7 +240,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
                 label: getPublicDisplayName(fact ?? member),
                 emailVerifiedAt: fact?.emailVerifiedAt ?? null,
                 educationHistory: fact?.educationHistory ?? [],
-                isHome: isHomeAffiliatedMember(education ?? { institutionCode: null, academicStatus: null }, affiliationRules),
+                ...(!v1 ? { isHome: isHomeAffiliatedMember(education ?? { institutionCode: null, academicStatus: null }, affiliationRules) } : {}),
               };
             }),
             facts: qualificationFacts,

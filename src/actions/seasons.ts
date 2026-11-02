@@ -12,7 +12,7 @@ import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
-import { normalizeRegistrationConfig, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
+import { normalizeRegistrationConfig, normalizeTeamRegistrationConfig, teamRegistrationConfigForWrite } from "@/lib/seasons/compatibility";
 import type { StagePlan, TeamRegistrationConfig } from "@/types/season";
 import { validateCompetitionDefinition } from "@/lib/competition/definition";
 import { assertQualificationPolicyPublishable } from "@/lib/competition/qualification-policy";
@@ -147,30 +147,36 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
       if (locked.competitionTemplate === "custom") assertRunnableCustomDefinition(locked);
 
       const config = normalizeTeamRegistrationConfig(locked.teamRegistrationConfig);
-      assertQualificationPolicyPublishable(config);
-      let nextTeamRegistrationConfig: TeamRegistrationConfig | null = locked.teamRegistrationConfig as TeamRegistrationConfig | null;
+      assertQualificationPolicyPublishable(config, locked.registrationMode);
+      let nextTeamRegistrationConfig: TeamRegistrationConfig | null = config.qualificationPolicy
+        ? teamRegistrationConfigForWrite(config)
+        : locked.teamRegistrationConfig as TeamRegistrationConfig | null;
 
-      if (config.requireCompetitiveProfile) {
-        const platform = config.competitiveProfile?.platform ?? "perfect_world";
+      const policy = config.qualificationPolicy;
+      const profile = policy ? policy.competitiveProfile : config.competitiveProfile;
+      const requiresProfile = policy ? policy.competitiveProfileRequired || policy.externalStrengthGap.enabled : config.requireCompetitiveProfile;
+      if (requiresProfile) {
+        if (policy && !profile) throw new AppError(ErrorCode.VALIDATION_FAILED, "资格政策要求竞技资料或外校实力限制，请先配置竞技平台。 ");
+        const platform = profile?.platform ?? "perfect_world";
         if (platform === "perfect_world") {
           const resolvedPolicy = await resolveConversionPolicyForPublish(
             tx,
             platform,
-            config.competitiveProfile?.conversionPolicyId,
-            config.competitiveProfile?.conversionPolicyVersion,
+            profile?.conversionPolicyId,
+            profile?.conversionPolicyVersion,
           );
-          nextTeamRegistrationConfig = {
-            ...config,
-            competitiveProfile: {
-              platform,
-              currentSeasonKey: config.competitiveProfile?.currentSeasonKey ?? "",
-              previousSeasonKey: config.competitiveProfile?.previousSeasonKey ?? "",
-              rankOrder: config.competitiveProfile?.rankOrder ?? [],
-              ...config.competitiveProfile,
-              conversionPolicyId: resolvedPolicy.id,
-              conversionPolicyVersion: resolvedPolicy.version,
-            },
+          const competitiveProfile = {
+            platform,
+            currentSeasonKey: profile?.currentSeasonKey ?? "",
+            previousSeasonKey: profile?.previousSeasonKey ?? "",
+            rankOrder: profile?.rankOrder ?? [],
+            ...profile,
+            conversionPolicyId: resolvedPolicy.id,
+            conversionPolicyVersion: resolvedPolicy.version,
           };
+          nextTeamRegistrationConfig = policy
+            ? teamRegistrationConfigForWrite({ ...config, qualificationPolicy: { ...policy, competitiveProfile } })
+            : { ...config, competitiveProfile };
         }
       }
 
@@ -188,7 +194,7 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
           from: "draft",
           to: "registration",
           registrationSchedule: locked.registrationOpensAt ? locked.registrationOpensAt.toISOString() : null,
-          conversionPolicyVersion: nextTeamRegistrationConfig?.competitiveProfile?.conversionPolicyVersion ?? null,
+          conversionPolicyVersion: nextTeamRegistrationConfig?.qualificationPolicy?.competitiveProfile?.conversionPolicyVersion ?? nextTeamRegistrationConfig?.competitiveProfile?.conversionPolicyVersion ?? null,
         },
       });
       return locked;

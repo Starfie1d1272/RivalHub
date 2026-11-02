@@ -358,7 +358,7 @@ async function projectTeamRegistrationRows(
               label: member.label,
               emailVerifiedAt: fact?.emailVerifiedAt ?? null,
               educationHistory: fact?.educationHistory ?? [],
-              isHome: isHomeAffiliatedMember(education ?? { institutionCode: null, academicStatus: null }, affiliationRules),
+              ...(!v1 ? { isHome: isHomeAffiliatedMember(education ?? { institutionCode: null, academicStatus: null }, affiliationRules) } : {}),
             };
           }),
           facts: qualificationFacts,
