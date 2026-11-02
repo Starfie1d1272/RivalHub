@@ -28,6 +28,14 @@ async function main(): Promise<void> {
   const pool = new Pool({ ...postgresConnection(databaseUrl), max: 1 });
 
   try {
+    await runScheduler(pool, command, environment);
+  } finally {
+    await pool.end();
+  }
+}
+
+/** Shared scheduler owner for the official target and explicitly provisioned instances. */
+export async function runScheduler(pool: Pool, command: "provision" | "verify", environment: NodeJS.ProcessEnv): Promise<void> {
     await assertProviderContract(pool);
     if (command === "provision") {
       const baseUrl = validateBaseUrl(required(environment[BASE_URL_ENV], BASE_URL_ENV));
@@ -45,9 +53,6 @@ async function main(): Promise<void> {
     } else {
       console.log("Production scheduler provisioning contract passed: named jobs, UTC schedules, dispatch command, and Vault names are present.");
     }
-  } finally {
-    await pool.end();
-  }
 }
 
 async function assertProviderContract(pool: Pool): Promise<void> {
