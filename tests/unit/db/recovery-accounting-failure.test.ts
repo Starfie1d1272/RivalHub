@@ -38,7 +38,7 @@ it.each(["full", "db-checkpoint"] as const)("keeps completed %s artifacts succes
     environment: { ageRecipient: "synthetic-fixture", r2: {} }, backupClass: kind === "full" ? "manual" : "release-db",
     runId: "00000000-0000-4000-8000-000000000001", createdAt: "2026-10-26T00:00:00Z", tempRoot: directory, stagingRoot: staging,
     manifest: {
-      artifactKind: kind, backupClass: kind === "full" ? "manual" : "release-db",
+      artifactKind: kind, sourceEnvironment: "production", backupClass: kind === "full" ? "manual" : "release-db",
       runId: "00000000-0000-4000-8000-000000000001", createdAt: "2026-10-26T00:00:00Z", sourceProjectRef: "fixture",
       source: { deployedReleaseTag: "v2.24.5" }, database: { files },
       ...(kind === "full" ? { storage: { totalBytes: 0, objectCount: 0 } } : {}),
