@@ -4,7 +4,9 @@
 -- plain PostgreSQL rehearsal may not provide these provider extensions.
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_cron') THEN
+  IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_cron')
+    AND (current_setting('cron.database_name', true) IS NULL
+      OR current_setting('cron.database_name', true) = current_database()) THEN
     CREATE EXTENSION IF NOT EXISTS pg_cron;
   END IF;
   IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_net') THEN
