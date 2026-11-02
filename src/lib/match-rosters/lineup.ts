@@ -190,7 +190,9 @@ export const evaluateLineup: import("@/lib/seasons/rules").EvaluateLineup = (pro
           if (!profileFact) findings.push({ code: "competitive_profile_incomplete", message: `首发 ${member.userId} 缺少冻结的竞技资料。`, waivable: false, metadata: { userId: member.userId } });
           else {
             const profile = evidence.context.profile!;
-            const strength = { userId: member.userId, label: member.userId, historicalPeak: profileFact.historicalPeak, previousSeasonPeak: profileFact.seasons.get(profile.evidencePolicy?.referenceSeasonKey ?? profile.previousSeasonKey) ?? null, currentSeasonPeak: profileFact.seasons.get(profile.currentSeasonKey) ?? null, recentSeasonPeaks: profile.evidencePolicy?.recentSeasonKeys.map((key) => profileFact.seasons.get(key) ?? null) };
+            const toFact = (fact: import("@/lib/seasons/rules").ProfileReadinessFact | null | undefined) => fact?.status === "ranked" && fact.rank !== null && fact.rating !== null
+              ? { rank: fact.rank, rating: fact.rating, stars: fact.stars, sourcePlatform: fact.sourcePlatform, sourceSeasonKey: fact.sourceSeasonKey } : null;
+            const strength = { userId: member.userId, label: member.userId, historicalPeak: toFact(profileFact.historicalPeak), previousSeasonPeak: toFact(profileFact.seasons.get(profile.evidencePolicy?.referenceSeasonKey ?? profile.previousSeasonKey)), currentSeasonPeak: toFact(profileFact.seasons.get(profile.currentSeasonKey)), recentSeasonPeaks: profile.evidencePolicy?.recentSeasonKeys.map((key) => toFact(profileFact.seasons.get(key))) };
             findings.push(...getPlayerStrengthFindings(strength, profile));
           }
         }
@@ -200,7 +202,10 @@ export const evaluateLineup: import("@/lib/seasons/rules").EvaluateLineup = (pro
         }
         if (!fact) return [];
         const isHome = frozen.affiliationRules.some((rule) => isEligibleForRule(member, rule));
-        return [{ ...fact, isHome }];
+        return [{ userId: member.userId, label: fact.label, isHome,
+          historicalPeak: fact.rank ? { rank: fact.rank, rating: 0, ratingComparable: false, stars: fact.stars,
+            sourcePlatform: fact.sourcePlatform, sourceSeasonKey: fact.sourceSeasonKey, ...(fact.sourceRank ? { sourceRank: fact.sourceRank } : {}) } : null,
+          previousSeasonPeak: null, currentSeasonPeak: null }];
       });
       if (frozen.externalStrengthGap.enabled && players.length === proposed.starterMemberIds.length) {
         const result = evaluateExternalStrengthRule({ players, config: { ...evidence.context.profile, externalStrengthMaxStarGap: frozen.externalStrengthGap.maxGap } });

@@ -20,7 +20,7 @@ export function decodeFrozenLineupEligibility(value: unknown, expected: {
   let evidence: QualificationEvidence = { kind: "none" };
   if (snapshot.competitive) {
     const { profile, requirements, byPurpose } = snapshot.competitive;
-    const allFacts = [...byPurpose.profileReadiness, ...byPurpose.externalStrength];
+    const allFacts = [...byPurpose.profileReadiness, ...byPurpose.rankThreshold, ...byPurpose.externalStrength];
     if (!profile || new Set(byPurpose.profileReadiness.map((fact) => fact.userId)).size !== byPurpose.profileReadiness.length ||
         new Set(byPurpose.externalStrength.map((fact) => fact.userId)).size !== byPurpose.externalStrength.length ||
         allFacts.some((fact) => !snapshot.members.some((member) => member.userId === fact.userId))) {
@@ -32,8 +32,9 @@ export function decodeFrozenLineupEligibility(value: unknown, expected: {
         sourceSelection: profile.evidencePolicy?.sourceSelection ?? "primary_then_fallback", evidencePolicy: profile.evidencePolicy ?? null },
       requirements,
       byPurpose: {
+        rankThreshold: new Map(byPurpose.rankThreshold.map(({ userId, ...fact }) => [userId, fact])),
         profileReadiness: new Map(byPurpose.profileReadiness.map((fact) => [fact.userId, { historicalPeak: fact.historicalPeak, seasons: new Map(Object.entries(fact.seasons)) }])),
-        externalStrength: new Map(byPurpose.externalStrength.map((fact) => [fact.userId, fact])),
+        externalStrength: new Map(byPurpose.externalStrength.map(({ userId, ...fact }) => [userId, fact])),
       },
     };
   }
