@@ -12,7 +12,7 @@ import {
 import {
   LIMITS,
   validEvent,
-  type TelemetryEvent,
+  type StoredTelemetryEvent,
 } from "../../src/lib/telemetry/protocol";
 import { sample } from "./history";
 import { decompressEvents } from "./storage";
@@ -115,7 +115,7 @@ export async function readAnalysisSnapshot(
       alias = await sessionAlias(b.session);
       aliases.set(b.session, alias);
     }
-    for (const e of raw as TelemetryEvent[])
+    for (const e of raw as StoredTelemetryEvent[])
       events.push({
         ...e,
         ...(historyKeys && (e.kind === "ready" || e.kind === "performance") ? { historyKey: (await sample(e, b)).key } : {}),
