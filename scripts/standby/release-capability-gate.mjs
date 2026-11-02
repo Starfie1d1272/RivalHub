@@ -1,22 +1,17 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { assertCapabilitySnapshots } from "./capability-contract.ts";
 
-const scriptDir = dirname(fileURLToPath(import.meta.url));
-const colocated = join(scriptDir, "capability-contract.ts");
-const contractFile = existsSync(colocated) ? colocated : join(scriptDir, "../release/capability-contract.ts");
-const { assertReleaseCapabilities } = await import(pathToFileURL(contractFile).href);
-
-const [bundle, previous, candidate] = process.argv.slice(2);
-if (!bundle || !/^[a-f0-9]{40}$/.test(previous ?? "") || !/^[a-f0-9]{40}$/.test(candidate ?? "")) throw new Error("Immutable capability evidence required.");
-const directory = mkdtempSync(join(tmpdir(), "rivalhub-capability-"));
-try {
-  // A bare clone checks object hashes; the checked revisions must be the exact
-  // host/package identities, never a caller-supplied reader version.
-  execFileSync("git", ["clone", "--bare", "--quiet", resolve(bundle), join(directory, "repo")], { stdio: "ignore" });
-  assertReleaseCapabilities(join(directory, "repo"), previous, candidate);
-} finally {
-  rmSync(directory, { recursive: true, force: true });
-}
+const [path, previousTag, previousCommit, candidateTag, candidateCommit, operatorCommit] = process.argv.slice(2);
+const directory = dirname(fileURLToPath(import.meta.url));
+if (!path || realpathSync(dirname(path)) !== realpathSync(directory) || realpathSync(path) !== join(realpathSync(directory), "capability-evidence.json")) throw new Error("Controller capability evidence required.");
+const file = lstatSync(path), parent = statSync(directory);
+if (!file.isFile() || file.uid !== process.getuid() || parent.uid !== process.getuid() || (file.mode & 0o077) !== 0 || (parent.mode & 0o077) !== 0 || file.size > 16384) throw new Error("Capability evidence permissions or size invalid.");
+const evidence = JSON.parse(readFileSync(path, "utf8"));
+const tag = /^v\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/;
+const sha = /^[a-f0-9]{40}$/;
+if (evidence.version !== 1 || !tag.test(previousTag ?? "") || !tag.test(candidateTag ?? "") || !sha.test(previousCommit ?? "") || !sha.test(candidateCommit ?? "") || !sha.test(operatorCommit ?? "")
+  || evidence.previous?.tag !== previousTag || evidence.previous?.commit !== previousCommit
+  || evidence.candidate?.tag !== candidateTag || evidence.candidate?.commit !== candidateCommit || evidence.operatorCommit !== operatorCommit) throw new Error("Capability evidence identity mismatch.");
+assertCapabilitySnapshots(evidence.previous.capabilities, evidence.candidate.capabilities);

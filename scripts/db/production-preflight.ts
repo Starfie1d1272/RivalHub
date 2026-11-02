@@ -17,9 +17,9 @@ export const PRODUCTION_BASELINE_TAG = "0024_major_runtime_convergence";
 export async function verifyProductionPreflight(): Promise<void> {
   assertProductionConfirmations(process.env);
   // Never accept a caller-declared reader version or alternate readback origin.
+  assertFrozenProductionPair(process.env);
   const previous = await readCanonicalProductionIdentity({});
-  const configuredPrevious = process.env.RIVALHUB_PREVIOUS_RELEASE_COMMIT;
-  if (configuredPrevious && configuredPrevious !== previous.releaseCommit) throw new Error("Frozen Production identity differs from canonical readback; refusing migration.");
+  assertFrozenProductionPair(process.env, previous);
   const candidate = process.env.RIVALHUB_RELEASE_SHA || execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   assertProductionAssetMigrationCapability(process.cwd(), previous.releaseCommit, candidate);
   const databaseUrl = assertProductionDatabaseUrl(process.env.DATABASE_URL);
@@ -47,6 +47,13 @@ export async function verifyProductionPreflight(): Promise<void> {
   } finally {
     await pool.end();
   }
+}
+
+/** Protected Release must carry the frozen pair; any provided pair must match canonical readback. */
+export function assertFrozenProductionPair(env: Readonly<Record<string, string | undefined>>, previous?: { releaseTag: string; releaseCommit: string }): void {
+  const commit = env.RIVALHUB_PREVIOUS_RELEASE_COMMIT, tag = env.RIVALHUB_PREVIOUS_RELEASE_TAG;
+  if (env.GITHUB_ACTIONS === "true" && env.GITHUB_WORKFLOW === "Release" && (!commit || !tag)) throw new Error("Protected Release requires the frozen Production tag and commit.");
+  if (previous && (commit || tag) && (commit !== previous.releaseCommit || tag !== previous.releaseTag)) throw new Error("Frozen Production identity differs from canonical readback; refusing migration.");
 }
 
 /** The actual 0105 bytes and contract must belong to the candidate revision. */

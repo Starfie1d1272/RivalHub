@@ -1,60 +1,60 @@
 import { execFileSync, spawnSync } from "node:child_process";
 
-export function assertReleaseCapabilities(cwd: string, previous: string, candidate: string): void {
-  assertReaderFirstUpgrade(cwd, previous, candidate, "src/lib/bet/catalog-contract.json", 1, "BET catalog");
-  assertReaderFirstUpgrade(cwd, previous, candidate, "src/lib/bet/ledger-contract.json", 0, "BET ledger");
-  assertReaderFirstUpgrade(cwd, previous, candidate, "src/lib/matches/veto-room/lifecycle-contract.json", 0, "Veto lifecycle");
-  assertReaderFirstUpgrade(cwd, previous, candidate, "src/lib/assets-contract.json", 0, "Public asset", true);
+type Version = { readerVersion: number; publisherVersion: number };
+type Contract = Version & { capabilities: Record<string, Version> };
+type Snapshot = Record<string, Contract>;
+const contracts = [
+  { key: "betCatalog", path: "src/lib/bet/catalog-contract.json", minimum: 1, label: "BET catalog" },
+  { key: "betLedger", path: "src/lib/bet/ledger-contract.json", minimum: 0, label: "BET ledger" },
+  { key: "vetoLifecycle", path: "src/lib/matches/veto-room/lifecycle-contract.json", minimum: 0, label: "Veto lifecycle" },
+  { key: "publicAsset", path: "src/lib/assets-contract.json", minimum: 0, label: "Public asset" },
+] as const;
+
+function version(value: unknown, minimum: number, label: string): Version {
+  const v = value as Partial<Version> | null;
+  if (!v || typeof v !== "object" || Array.isArray(v) || !Number.isInteger(v.readerVersion) || !Number.isInteger(v.publisherVersion)
+    || Number(v.publisherVersion) < minimum || Number(v.readerVersion) < Number(v.publisherVersion)) throw new Error(`${label}${label.includes(" capability ") ? "" : " contract"} 无效；release capability gate 拒绝继续。`);
+  return { readerVersion: Number(v.readerVersion), publisherVersion: Number(v.publisherVersion) };
 }
 
-/** Immutable application capabilities independently require the shipped reader and a compatible rollback target. */
-function assertReaderFirstUpgrade(cwd: string, previous: string, candidate: string, contractPath: string, missingVersion: number, label: string, legacyAssetReader = false): void {
-  type Version = { readerVersion: number; publisherVersion: number };
-  type Contract = Version & { capabilities: Record<string, Version> };
-  const read = (revision: string): Contract => {
-    const present = execFileSync("git", ["ls-tree", "--name-only", revision, "--", contractPath], {
-      cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
+function contract(value: unknown, minimum: number, label: string): Contract {
+  const root = value as Record<string, unknown> | null;
+  const base = version(root, minimum, label);
+  const declared = root?.capabilities;
+  if (declared !== undefined && (!declared || typeof declared !== "object" || Array.isArray(declared))) throw new Error(`${label} capabilities 无效。`);
+  const capabilities = Object.create(null) as Record<string, Version>;
+  for (const [name, raw] of Object.entries(declared ?? {})) capabilities[name] = version(raw, 0, `${label} capability ${name}`);
+  return { ...base, capabilities };
+}
+
+/** The controller resolves capabilities from immutable Git commits, never from a candidate's claims about its predecessor. */
+export function readReleaseCapabilities(cwd: string, revision: string): Snapshot {
+  const snapshot: Snapshot = Object.create(null);
+  for (const item of contracts) {
+    const present = execFileSync("git", ["ls-tree", "--name-only", revision, "--", item.path], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
     if (!present) {
-      // The separately shipped reader predates the capability file. Only a
-      // frozen revision containing that exact reviewed commit can claim it.
-      const legacyReader = legacyAssetReader && spawnSync("git", ["merge-base", "--is-ancestor", "96d04bba33d8e43e9f2b7e16e858628fb519aa0d", revision], { cwd, stdio: "ignore" }).status === 0;
-      return { readerVersion: legacyReader ? 1 : missingVersion, publisherVersion: missingVersion, capabilities: {} };
+      const legacyReader = item.key === "publicAsset" && spawnSync("git", ["merge-base", "--is-ancestor", "96d04bba33d8e43e9f2b7e16e858628fb519aa0d", revision], { cwd, stdio: "ignore" }).status === 0;
+      snapshot[item.key] = { readerVersion: legacyReader ? 1 : item.minimum, publisherVersion: item.minimum, capabilities: {} };
+    } else {
+      snapshot[item.key] = contract(JSON.parse(execFileSync("git", ["show", `${revision}:${item.path}`], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })), item.minimum, item.label);
     }
-    const value = JSON.parse(readGitFile(cwd, revision, contractPath)) as Record<string, unknown>;
-    const { readerVersion, publisherVersion } = value ?? {};
-    if (!Number.isInteger(readerVersion) || !Number.isInteger(publisherVersion)
-      || Number(readerVersion) < missingVersion || Number(publisherVersion) < missingVersion || Number(readerVersion) < Number(publisherVersion)) {
-      throw new Error(`${label} contract 无效：${revision}；release capability gate 拒绝继续。`);
-    }
-    const capabilities = Object.create(null) as Record<string, Version>;
-    const declared = value.capabilities;
-    if (declared !== undefined && (!declared || typeof declared !== "object" || Array.isArray(declared)))
-      throw new Error(`${label} capabilities 无效：${revision}；release capability gate 拒绝继续。`);
-    for (const [name, raw] of Object.entries(declared ?? {})) {
-      const version = raw as Partial<Version> | null;
-      if (!version || typeof version !== "object" || Array.isArray(version) ||
-        !Number.isInteger(version.readerVersion) || !Number.isInteger(version.publisherVersion) ||
-        Number(version.publisherVersion) < 0 || Number(version.readerVersion) < Number(version.publisherVersion))
-        throw new Error(`${label} capability ${name} 无效：${revision}；release capability gate 拒绝继续。`);
-      capabilities[name] = {readerVersion:Number(version.readerVersion),publisherVersion:Number(version.publisherVersion)};
-    }
-    return { readerVersion: Number(readerVersion), publisherVersion: Number(publisherVersion), capabilities };
-  };
-  const before = read(previous), after = read(candidate);
-  if (after.publisherVersion > before.readerVersion || after.readerVersion < before.publisherVersion) {
-    throw new Error(`${label} compatibility gate：previous Production reader/publisher v${before.readerVersion}/v${before.publisherVersion} 与 candidate reader/publisher v${after.readerVersion}/v${after.publisherVersion} 不兼容；必须先独立发布兼容读取版本，不能合并为一次发布或降级到不兼容版本。`);
   }
-  // Independent capabilities must not accidentally share a publisher switch.
-  // Missing declarations mean no reading/publication capability, including rollback targets.
-  for (const name of new Set([...Object.keys(before.capabilities), ...Object.keys(after.capabilities)])) {
-    const oldVersion = before.capabilities[name] ?? {readerVersion:0,publisherVersion:0};
-    const newVersion = after.capabilities[name] ?? {readerVersion:0,publisherVersion:0};
-    if (newVersion.publisherVersion > oldVersion.readerVersion || newVersion.readerVersion < oldVersion.publisherVersion)
-      throw new Error(`${label} capability ${name} compatibility gate：必须先独立发布兼容读取版本，不能合并为一次发布或降级到不兼容版本。`);
+  return snapshot;
+}
+
+/** Shared comparison for controller Git reads and host's bounded evidence. */
+export function assertCapabilitySnapshots(before: Snapshot, after: Snapshot): void {
+  if (!before || !after || Object.keys(before).sort().join(",") !== contracts.map(x => x.key).sort().join(",") || Object.keys(after).sort().join(",") !== contracts.map(x => x.key).sort().join(",")) throw new Error("Release capability evidence 无效。");
+  for (const item of contracts) {
+    const a = contract(before[item.key], item.minimum, item.label), b = contract(after[item.key], item.minimum, item.label);
+    const check = (oldVersion: Version, newVersion: Version, label: string) => {
+      if (newVersion.publisherVersion > oldVersion.readerVersion || newVersion.readerVersion < oldVersion.publisherVersion) throw new Error(`${label} compatibility gate：必须先独立发布兼容读取版本，不能合并为一次发布或降级到不兼容版本。`);
+    };
+    check(a, b, item.label);
+    for (const name of new Set([...Object.keys(a.capabilities), ...Object.keys(b.capabilities)])) check(a.capabilities[name] ?? { readerVersion: 0, publisherVersion: 0 }, b.capabilities[name] ?? { readerVersion: 0, publisherVersion: 0 }, `${item.label} capability ${name}`);
   }
 }
 
-function readGitFile(cwd: string, revision: string, path: string): string {
-  return execFileSync("git", ["show", `${revision}:${path}`], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+export function assertReleaseCapabilities(cwd: string, previous: string, candidate: string): void {
+  assertCapabilitySnapshots(readReleaseCapabilities(cwd, previous), readReleaseCapabilities(cwd, candidate));
 }

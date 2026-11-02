@@ -14,6 +14,10 @@ if (mode === 'runtime-identity') {
   const base = `rivalhub-production-${manifest.sourceCommit}-${manifest.configurationSha256.slice(0, 12)}`;
   if (!(name === base || (name.startsWith(`${base}-`) && /^[a-f0-9]{12}$/.test(name.slice(base.length + 1)))) || (tag && (manifest.releaseTag !== tag || manifest.sourceCommit !== commit))) throw Error('Package identity mismatch.');
   console.log(manifest.releaseTag, manifest.sourceCommit);
+} else if (mode === 'operator') {
+  const manifest = json(args[0]);
+  if (!/^[a-f0-9]{40}$/.test(manifest.operatorCommit ?? '')) throw Error('Package operator identity invalid.');
+  console.log(manifest.operatorCommit);
 } else if (mode === 'environment') {
   const [input, output, tag, commit] = args;
   let env = readFileSync(input, 'utf8');
