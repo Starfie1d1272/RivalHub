@@ -1,3 +1,4 @@
+import { readV2Migrations } from "../legacy-lineage";
 import { OFFICIAL_PREVIEW, OFFICIAL_PRODUCTION } from "../../../src/lib/runtime/official-deployment-profile.mjs";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
@@ -117,8 +118,20 @@ export function assertRecoverySourceUnchanged(
   if (before.deployedReleaseTag !== after.deployedReleaseTag
     || before.deployedCommit !== after.deployedCommit
     || a.terminalTag !== b.terminalTag || a.terminalHash !== b.terminalHash || a.terminalWhen !== b.terminalWhen
+    || before.migrationLineage !== after.migrationLineage
+    || JSON.stringify(before.v2MigrationLedger ?? null) !== JSON.stringify(after.v2MigrationLedger ?? null)
     || JSON.stringify(before.legacyMigrationLedger ?? null) !== JSON.stringify(after.legacyMigrationLedger ?? null)) {
     throw new Error("Recovery source release or migration ledger changed during snapshot; backup aborted.");
+  }
+}
+
+/** Full Storage/lifecycle recovery needs the schema that owns evidence_object_key. */
+export function assertV2FullRecoverySupported(terminalTag: string): void {
+  const chain = readV2Migrations();
+  const minimum = chain.findIndex((entry) => entry.tag === "0046_mixed_sprite");
+  const terminal = chain.findIndex((entry) => entry.tag === terminalTag);
+  if (minimum < 0 || terminal < minimum) {
+    throw new Error("V2 full recovery before 0046 requires its original immutable release tools; DB-only checkpoint remains supported.");
   }
 }
 

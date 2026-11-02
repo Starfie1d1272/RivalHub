@@ -4,6 +4,39 @@ import { isMigrationLedgerPrefix, readMigrationLedger, type MigrationIdentity } 
 
 export interface LegacyLedgerEntry extends MigrationIdentity { id: number; }
 
+/** A pre-adopt checkpoint may capture any exact nonempty original prefix. */
+export function assertV2LedgerPrefix(entries: readonly LegacyLedgerEntry[]): void {
+  const expected = readMigrationLedger(resolve(process.cwd(), "drizzle/v2-migrations"));
+  if (!entries.length || !isMigrationLedgerPrefix(entries, expected)
+    || entries.some((entry, index) => !Number.isSafeInteger(entry.id) || entry.id < 1 || (index > 0 && entry.id <= entries[index - 1]!.id))) {
+    throw new Error("V2 migration ledger is unknown, empty or not an exact prefix; recovery refused.");
+  }
+}
+
+export function readV2Migrations() {
+  return readMigrationLedger(resolve(process.cwd(), "drizzle/v2-migrations"));
+}
+
+/** Restore exact original ledger identities after replaying the same v2 prefix. */
+export async function restoreV2Ledger(pool: Pool, entries: readonly LegacyLedgerEntry[]): Promise<void> {
+  assertV2LedgerPrefix(entries);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("LOCK TABLE drizzle.__drizzle_migrations IN ACCESS EXCLUSIVE MODE");
+    const current = await client.query<{ hash: string; when: string }>("SELECT hash, created_at::bigint::text AS \"when\" FROM drizzle.__drizzle_migrations ORDER BY created_at, id");
+    if (current.rows.length !== entries.length || current.rows.some((row, index) => row.hash !== entries[index]?.hash || Number(row.when) !== entries[index]?.when)) {
+      throw new Error("Replayed V2 prefix differs from recovery ledger.");
+    }
+    await client.query("DELETE FROM drizzle.__drizzle_migrations");
+    await client.query("INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) SELECT * FROM unnest($1::integer[], $2::text[], $3::bigint[])", [entries.map(e => e.id), entries.map(e => e.hash), entries.map(e => e.when)]);
+    await client.query("SELECT setval(pg_get_serial_sequence('drizzle.__drizzle_migrations', 'id'), $1, true)", [entries.at(-1)!.id]);
+    const restored = await client.query<{ id: number; hash: string; when: string }>("SELECT id, hash, created_at::bigint::text AS \"when\" FROM drizzle.__drizzle_migrations ORDER BY created_at, id");
+    if (restored.rows.length !== entries.length || restored.rows.some((row, index) => row.id !== entries[index]?.id || row.hash !== entries[index]?.hash || Number(row.when) !== entries[index]?.when)) throw new Error("Restored V2 ledger differs from recovery manifest.");
+    await client.query("COMMIT");
+  } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+}
+
 /** The candidate archive is trusted only if every original hash/time matches. */
 export function assertLegacyLineage(entries: readonly LegacyLedgerEntry[]): void {
   const expected = readMigrationLedger(resolve(process.cwd(), "drizzle/v2-migrations"));

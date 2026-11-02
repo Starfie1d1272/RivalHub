@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { readV2Migrations } from "../legacy-lineage";
 import { EDUCATION_EVIDENCE_RETENTION_MS } from "../../../src/lib/education/retention-policy";
 import { assertIsolatedRecoveryDatabaseUrl } from "./environment";
 import {
@@ -27,16 +28,24 @@ export interface RecoveryVerificationResult {
 
 export async function verifyRecoveryDatabase(
   pool: Pick<Pool, "query">,
-  options: { expectedMigration?: RecoveryMigrationIdentity; now?: Date; skipExpiredSensitiveEvidence?: boolean } = {},
+  options: { expectedMigration?: RecoveryMigrationIdentity; lineage?: "v2" | "v3"; now?: Date; skipExpiredSensitiveEvidence?: boolean } = {},
 ): Promise<RecoveryVerificationResult> {
-  const migrationTag = await verifyMigrationTerminal(pool, options.expectedMigration);
-  await verifyCriticalTables(pool);
+  const migrationTag = await verifyMigrationTerminal(pool, options.expectedMigration, options.lineage);
+  const v2TerminalIndex = options.lineage === "v2"
+    ? readV2Migrations().findIndex((entry) => entry.tag === options.expectedMigration?.terminalTag) : undefined;
+  if (v2TerminalIndex === -1) throw new Error("V2 recovery terminal is unknown.");
+  await verifyCriticalTables(pool, v2TerminalIndex);
   await verifyValidatedConstraints(pool);
   const foreignKeyCount = await verifyForeignKeys(pool);
 
-  const invariants = options.skipExpiredSensitiveEvidence
-    ? RECOVERY_INVARIANTS.filter((invariant) => invariant.key !== "education.expired_sensitive_evidence")
-    : RECOVERY_INVARIANTS;
+  const v2 = v2TerminalIndex === undefined ? undefined : readV2Migrations();
+  const invariants = RECOVERY_INVARIANTS.filter((invariant) => {
+    if (options.skipExpiredSensitiveEvidence && invariant.key === "education.expired_sensitive_evidence") return false;
+    if (!v2 || !invariant.v2Since) return true;
+    const index = v2.findIndex((entry) => entry.tag === invariant.v2Since);
+    if (index < 0) throw new Error(`Recovery invariant migration is missing: ${invariant.v2Since}.`);
+    return index <= v2TerminalIndex!;
+  });
   for (const invariant of invariants) {
     await assertZero(pool, invariant.key, invariant.query, invariant.parameters?.(options.now ?? new Date()));
   }
@@ -70,8 +79,9 @@ export function assertManifestMigrationMatches(
 async function verifyMigrationTerminal(
   pool: Pick<Pool, "query">,
   expectedMigration?: RecoveryMigrationIdentity,
+  lineage?: "v2" | "v3",
 ): Promise<string> {
-  const expected = readExpectedMigrations();
+  const expected = lineage === "v2" ? readV2Migrations() : readExpectedMigrations();
   const result = await pool.query<Migration>(
     "SELECT hash, created_at::bigint::text AS when FROM drizzle.__drizzle_migrations ORDER BY created_at",
   );
@@ -88,15 +98,24 @@ async function verifyMigrationTerminal(
   return terminalEntry.tag;
 }
 
-async function verifyCriticalTables(pool: Pick<Pool, "query">): Promise<void> {
+async function verifyCriticalTables(pool: Pick<Pool, "query">, v2TerminalIndex?: number): Promise<void> {
+  const v2 = v2TerminalIndex === undefined ? undefined : readV2Migrations();
+  const tables = CRITICAL_TABLES.filter((name) => {
+    const since = name === "user_identities" ? "0042_identity_foundation"
+      : name === "competition_entries" || name === "event_rosters" ? "0017_broad_doctor_octopus" : undefined;
+    if (!v2 || !since) return true;
+    const index = v2.findIndex((entry) => entry.tag === since);
+    if (index < 0) throw new Error(`Critical table migration is missing: ${since}.`);
+    return index <= v2TerminalIndex!;
+  });
   const result = await pool.query<{ table_name: string | null }>(
     `SELECT table_name
      FROM information_schema.tables
      WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
-    [CRITICAL_TABLES],
+    [tables],
   );
   const present = new Set(result.rows.map((row) => row.table_name));
-  const missing = CRITICAL_TABLES.filter((table) => !present.has(table));
+  const missing = tables.filter((table) => !present.has(table));
   if (missing.length) throw new Error(`Restored critical tables missing: ${missing.join(", ")}.`);
 }
 
@@ -170,6 +189,7 @@ export async function verifyForeignKeys(pool: Pick<Pool, "query">): Promise<numb
 const RECOVERY_INVARIANTS: readonly RecoveryInvariant[] = [
   {
     key: "auth.active_users_auth_id_mapping",
+    v2Since: "0042_identity_foundation",
     query: `SELECT count(*)::text AS count
             FROM public.users u
             LEFT JOIN auth.users au ON au.id = u.auth_id
@@ -179,6 +199,7 @@ const RECOVERY_INVARIANTS: readonly RecoveryInvariant[] = [
   },
   {
     key: "identity.merged_target_invalid",
+    v2Since: "0042_identity_foundation",
     query: `SELECT count(*)::text AS count
             FROM public.users merged
             LEFT JOIN public.users canonical ON canonical.id = merged.merged_into_user_id
@@ -187,6 +208,7 @@ const RECOVERY_INVARIANTS: readonly RecoveryInvariant[] = [
   },
   {
     key: "entry.roster_member_scope",
+    v2Since: "0017_broad_doctor_octopus",
     query: `SELECT count(*)::text AS count
             FROM public.competition_entry_roster_members member_row
             LEFT JOIN public.competition_entry_roster_revisions revision_row
@@ -199,6 +221,7 @@ const RECOVERY_INVARIANTS: readonly RecoveryInvariant[] = [
   },
   {
     key: "match.major_ownership_shape",
+    v2Since: "0005_zippy_champions",
     query: `SELECT count(*)::text AS count
             FROM public.matches
             WHERE (ownership = 'manual' AND (major_stage_run_id IS NOT NULL OR managed_key IS NOT NULL))
@@ -206,6 +229,7 @@ const RECOVERY_INVARIANTS: readonly RecoveryInvariant[] = [
   },
   {
     key: "education.expired_sensitive_evidence",
+    v2Since: "0046_mixed_sprite",
     query: `SELECT count(*)::text AS count
             FROM public.education_verifications
             WHERE status <> 'pending'
@@ -220,6 +244,7 @@ const RECOVERY_INVARIANTS: readonly RecoveryInvariant[] = [
 
 interface RecoveryInvariant {
   key: string;
+  v2Since?: string;
   query: string;
   parameters?: (now: Date) => readonly unknown[];
 }

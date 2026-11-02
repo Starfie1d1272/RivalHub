@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { Pool } from "pg";
-import { restoreLegacyLineage } from "../legacy-lineage";
+import { readV2Migrations, restoreLegacyLineage, restoreV2Ledger } from "../legacy-lineage";
 import { postgresConnection } from "../../../src/db/postgres-connection";
 import {
   buildInstanceRecoveryEnvironment,
@@ -39,7 +39,7 @@ import {
 import { readManagedStorageReferences } from "./storage-policy";
 import { reconcileRecoveryLifecycle } from "./lifecycle";
 import { buildRecoveryR2Keys } from "./r2";
-import { assertInstanceReleaseIdentity, buildRecoveryMigrationPlan } from "./source";
+import { assertInstanceReleaseIdentity, assertV2FullRecoverySupported, buildRecoveryMigrationPlan } from "./source";
 import { assertManifestMigrationMatches, verifyRecoveryDatabase } from "./verify";
 import { runCanonicalMigrations } from "../canonical-migrate";
 import { readExpectedMigrations, type ExpectedMigration, type Migration } from "../production-preflight";
@@ -88,6 +88,7 @@ async function main(): Promise<void> {
       if (process.env.RIVALHUB_RECOVERY_TARGET === "instance" && manifest.sourceEnvironment !== "instance") {
         throw new Error("Official backups may only be restored to isolated targets.");
       }
+      if (args.evidenceDirectory && manifest.source.migrationLineage === "v2") throw new Error("V2 restore must be upgraded and adopted before activation evidence can be issued.");
       if (args.evidenceDirectory && manifest.sourceEnvironment !== "instance" && manifest.sourceEnvironment !== "isolated-instance") throw new Error("Only a full independent instance restore can produce activation evidence.");
       if (args.evidenceDirectory && process.env.RIVALHUB_RECOVERY_TARGET !== "instance"
         && process.env.RIVALHUB_RECOVERY_USE_LOCAL_SUPABASE !== "1") {
@@ -219,10 +220,14 @@ async function restoreFullArtifact(
     await ensureTargetMigration(pool, manifest, target.databaseUrl, tempRoot);
     await prepareTargetForDataImport(pool);
     applyDatabaseData(target.databaseUrl, resolve(stagingRoot, "data.sql"), tempRoot);
-    await restoreLegacyLineage(pool, manifest.source.legacyMigrationLedger);
+    if (manifest.source.migrationLineage === "v2") {
+      if (!manifest.source.v2MigrationLedger) throw new Error("V2 recovery ledger is missing.");
+      await restoreV2Ledger(pool, manifest.source.v2MigrationLedger);
+    } else await restoreLegacyLineage(pool, manifest.source.legacyMigrationLedger);
 
     await verifyRecoveryDatabase(pool, {
       expectedMigration: manifest.source.databaseMigrationTerminal,
+      lineage: manifest.source.migrationLineage,
       skipExpiredSensitiveEvidence: true,
     });
     await reconcileRecoveryLifecycle(target);
@@ -245,7 +250,7 @@ async function restoreFullArtifact(
     if (storageResult.restoredBytes + storageResult.skippedInactiveTemporaryObjectBytes !== manifest.storage.totalBytes) {
       throw new Error("Restored Storage byte count does not match the backup manifest; restore aborted. ");
     }
-    await verifyRecoveryDatabase(pool, { expectedMigration: manifest.source.databaseMigrationTerminal });
+    await verifyRecoveryDatabase(pool, { expectedMigration: manifest.source.databaseMigrationTerminal, lineage: manifest.source.migrationLineage });
     return {
       restoredObjects: storageResult.restoredObjects,
       skippedInactiveTemporaryObjects: storageResult.skippedInactiveTemporaryObjects,
@@ -267,9 +272,13 @@ async function restoreDbCheckpointArtifact(
     await ensureTargetMigration(pool, manifest, target.databaseUrl, tempRoot);
     await prepareTargetForDataImport(pool);
     applyDatabaseData(target.databaseUrl, resolve(stagingRoot, "data.sql"), tempRoot);
-    await restoreLegacyLineage(pool, manifest.source.legacyMigrationLedger);
+    if (manifest.source.migrationLineage === "v2") {
+      if (!manifest.source.v2MigrationLedger) throw new Error("V2 recovery ledger is missing.");
+      await restoreV2Ledger(pool, manifest.source.v2MigrationLedger);
+    } else await restoreLegacyLineage(pool, manifest.source.legacyMigrationLedger);
     const verification = await verifyRecoveryDatabase(pool, {
       expectedMigration: manifest.source.databaseMigrationTerminal,
+      lineage: manifest.source.migrationLineage,
       skipExpiredSensitiveEvidence: true,
     });
     console.log(
@@ -346,9 +355,10 @@ function extractSafeArchive(archivePath: string, destination: string): void {
 }
 
 function assertManifestCompatibility(manifest: RecoveryManifest): void {
-  if (manifest.source.migrationLineage !== "v3") {
+  if (manifest.source.migrationLineage !== "v3" && manifest.source.migrationLineage !== "v2") {
     throw new Error("Recovery backup is not v3 lineage; restore using its original immutable release tools, then upgrade.");
   }
+  if (manifest.artifactKind === "full" && manifest.source.migrationLineage === "v2") assertV2FullRecoverySupported(manifest.source.databaseMigrationTerminal.terminalTag);
   const validSource = manifest.sourceEnvironment === "production"
     ? isProductionRecoverySource(manifest.sourceProjectRef)
     : !isProductionRecoverySource(manifest.sourceProjectRef) && manifest.sourceProjectRef !== OFFICIAL_PREVIEW.projectRef;
@@ -488,12 +498,12 @@ async function ensureTargetMigration(
   databaseUrl: string,
   tempRoot: string,
 ): Promise<void> {
-  const expected = readExpectedMigrations();
+  const expected = manifest.source.migrationLineage === "v2" ? readV2Migrations() : readExpectedMigrations();
   const existing = await readTargetMigration(pool);
   if (existing.length > 0) {
     throw new Error("Recovery target already has Drizzle migrations; use a fresh isolated target and retry. ");
   }
-  prepareRecoveryTargetMigration(databaseUrl, manifest.source.databaseMigrationTerminal, tempRoot, expected);
+  prepareRecoveryTargetMigration(databaseUrl, manifest.source.databaseMigrationTerminal, tempRoot, expected, manifest.source.migrationLineage);
   const actual = await readTargetMigration(pool);
   assertManifestMigrationMatches(
     actual,
@@ -519,12 +529,13 @@ function prepareRecoveryTargetMigration(
   terminal: RecoveryManifest["source"]["databaseMigrationTerminal"],
   tempRoot: string,
   expected: readonly ExpectedMigration[],
+  lineage: "v2" | "v3" | undefined,
 ): void {
   const plan = buildRecoveryMigrationPlan(expected, terminal);
   const migrationRoot = join(tempRoot, "migration-prefix");
   const metaRoot = join(migrationRoot, "meta");
   mkdirSync(metaRoot, { recursive: true });
-  const sourceMigrationRoot = resolve(projectRoot, "drizzle/migrations");
+  const sourceMigrationRoot = resolve(projectRoot, lineage === "v2" ? "drizzle/v2-migrations" : "drizzle/migrations");
   const journal = JSON.parse(readFileSync(join(sourceMigrationRoot, "meta/_journal.json"), "utf8")) as {
     entries?: Array<Record<string, unknown>>;
   } & Record<string, unknown>;

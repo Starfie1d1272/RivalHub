@@ -75,16 +75,92 @@ export async function ensurePreviewTeamLogoBucket(
 }
 
 export async function resetDevSchema(client: Pick<PoolClient, "query">): Promise<void> {
-  // This application-owned policy lives outside public and otherwise survives reset.
-  await client.query(`DO $$ BEGIN
-    IF to_regclass('realtime.messages') IS NOT NULL THEN
-      DROP POLICY IF EXISTS rivalhub_match_live_receive ON realtime.messages;
-    END IF;
-  END $$`);
-  await client.query("DROP SCHEMA IF EXISTS public CASCADE");
-  await client.query("CREATE SCHEMA public");
-  await client.query("GRANT ALL ON SCHEMA public TO postgres");
-  await client.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
+  // Keep the provider-initialized public namespace itself: replacing it loses
+  // its owner, ACL and namespace-specific default privileges. Extension-owned
+  // members are provider objects and must survive the application reset.
+  await client.query("BEGIN");
+  try {
+    await client.query(`DO $$
+    DECLARE object record;
+    BEGIN
+      IF to_regnamespace('public') IS NULL THEN
+        RAISE EXCEPTION 'Preview target has no public schema';
+      END IF;
+      -- DROP SCHEMA used to remove every namespace-owned object. Refuse any
+      -- object kind this narrower reset cannot account for, rather than
+      -- silently carrying unknown objects into the imported mirror.
+      IF EXISTS (
+        SELECT 1 FROM pg_depend d
+        WHERE d.refclassid = 'pg_namespace'::regclass AND d.refobjid = 'public'::regnamespace AND d.deptype = 'n'
+          AND d.classid NOT IN ('pg_class'::regclass, 'pg_proc'::regclass, 'pg_type'::regclass, 'pg_extension'::regclass)
+          AND NOT EXISTS (SELECT 1 FROM pg_depend e WHERE e.classid = d.classid AND e.objid = d.objid AND e.deptype = 'e')
+      ) OR EXISTS (
+        SELECT 1 FROM pg_class c WHERE c.relnamespace = 'public'::regnamespace
+          AND c.relkind NOT IN ('r','p','v','m','S','f','i','I','c')
+          AND NOT EXISTS (SELECT 1 FROM pg_depend e WHERE e.classid = 'pg_class'::regclass AND e.objid = c.oid AND e.deptype = 'e')
+      ) OR EXISTS (
+        SELECT 1 FROM pg_type t WHERE t.typnamespace = 'public'::regnamespace
+          AND t.typtype NOT IN ('e','d','c','r','m') AND t.typelem = 0
+          AND NOT EXISTS (SELECT 1 FROM pg_depend e WHERE e.classid = 'pg_type'::regclass AND e.objid = t.oid AND e.deptype = 'e')
+      ) THEN
+        RAISE EXCEPTION 'Preview public schema has unsupported objects; reset refused';
+      END IF;
+      IF to_regclass('realtime.messages') IS NOT NULL THEN
+        DROP POLICY IF EXISTS rivalhub_match_live_receive ON realtime.messages;
+      END IF;
+      -- CASCADE is needed for interdependent application objects. Never let
+      -- it remove a dependent owned by another schema or an unknown owner.
+      IF EXISTS (
+        SELECT 1 FROM pg_depend d
+        CROSS JOIN LATERAL pg_identify_object(d.refclassid, d.refobjid, d.refobjsubid) referenced
+        CROSS JOIN LATERAL pg_identify_object(d.classid, d.objid, d.objsubid) dependent
+        LEFT JOIN pg_trigger t ON d.classid = 'pg_trigger'::regclass AND t.oid = d.objid
+        LEFT JOIN pg_constraint con ON d.classid = 'pg_constraint'::regclass AND con.oid = d.objid
+        LEFT JOIN pg_attrdef ad ON d.classid = 'pg_attrdef'::regclass AND ad.oid = d.objid
+        LEFT JOIN pg_rewrite rw ON d.classid = 'pg_rewrite'::regclass AND rw.oid = d.objid
+        LEFT JOIN pg_policy pol ON d.classid = 'pg_policy'::regclass AND pol.oid = d.objid
+        LEFT JOIN pg_class rel ON rel.oid = coalesce(t.tgrelid, con.conrelid, ad.adrelid, rw.ev_class, pol.polrelid)
+        LEFT JOIN pg_namespace ns ON ns.oid = rel.relnamespace
+        WHERE referenced.schema = 'public' AND d.deptype = 'n'
+          AND coalesce(dependent.schema, ns.nspname) IS DISTINCT FROM 'public'
+          AND NOT EXISTS (SELECT 1 FROM pg_depend e WHERE e.classid = d.refclassid AND e.objid = d.refobjid AND e.deptype = 'e')
+      ) THEN
+        RAISE EXCEPTION 'Preview public schema has external dependencies; reset refused';
+      END IF;
+      FOR object IN
+        SELECT c.relkind, c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r','p','v','m','S','f')
+          AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid AND d.deptype = 'e')
+      LOOP
+        EXECUTE format('DROP %s IF EXISTS public.%I CASCADE',
+          CASE object.relkind WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW'
+            WHEN 'S' THEN 'SEQUENCE' WHEN 'f' THEN 'FOREIGN TABLE' ELSE 'TABLE' END, object.relname);
+      END LOOP;
+      FOR object IN
+        SELECT p.proname, p.prokind, pg_get_function_identity_arguments(p.oid) AS args
+        FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public'
+          AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
+      LOOP
+        EXECUTE format('DROP %s IF EXISTS public.%I(%s) CASCADE',
+          CASE object.prokind WHEN 'a' THEN 'AGGREGATE' ELSE 'ROUTINE' END, object.proname, object.args);
+      END LOOP;
+      FOR object IN
+        SELECT t.typname, t.typtype FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+        LEFT JOIN pg_class c ON c.oid = t.typrelid
+        WHERE n.nspname = 'public' AND t.typtype IN ('e','d','c','r','m') AND t.typelem = 0
+          AND (t.typrelid = 0 OR c.relkind = 'c')
+          AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_type'::regclass AND d.objid = t.oid AND d.deptype = 'e')
+      LOOP
+        EXECUTE format('DROP %s IF EXISTS public.%I CASCADE', CASE object.typtype WHEN 'd' THEN 'DOMAIN' ELSE 'TYPE' END, object.typname);
+      END LOOP;
+    END $$`);
+    await client.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  }
 }
 
 async function migrateToSource(client: PoolClient, snapshot: MirrorSnapshot): Promise<void> {
@@ -125,7 +201,10 @@ type RefreshDataPhases = {
 export async function importSnapshot(client: Pick<PoolClient, "query">, snapshot: MirrorSnapshot): Promise<void> {
   await client.query("BEGIN");
   await client.query("SET LOCAL session_replication_role = 'replica'");
-  const tables = await client.query<{ tablename: string }>("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> $1", [MIRROR_STATE_TABLE]);
+  const tables = await client.query<{ tablename: string }>(`SELECT tablename FROM pg_tables tables WHERE schemaname='public' AND tablename <> $1
+    AND NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      JOIN pg_depend d ON d.classid='pg_class'::regclass AND d.objid=c.oid AND d.deptype='e'
+      WHERE n.nspname=tables.schemaname AND c.relname=tables.tablename)`, [MIRROR_STATE_TABLE]);
   if (tables.rows.length) await client.query(`TRUNCATE ${tables.rows.map(({ tablename }) => `public.${quoteIdentifier(tablename)}`).join(", ")} CASCADE`);
   for (const [table, rows] of Object.entries(snapshot.tables)) {
     if (!rows.length) continue;
