@@ -12,7 +12,6 @@ import { BetOptionProfile } from "./BetOptionProfile";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { useRouter, useSearchParams } from "next/navigation";
 import { betListHref, betListQuery } from "@/lib/bet/list-query";
 import { toast } from "sonner";
@@ -32,11 +31,21 @@ import { ErrorCode } from "@/lib/errors";
 import { observeAction, beginTelemetryDemand, recordDemandReady, type TelemetryDemandToken } from "@/lib/telemetry/client";
 import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 
+function loginNext(slug:string, params:URLSearchParams, selection:Record<string,string>={}) {
+  const query=betListQuery(params);
+  const url=new URL(betListHref(slug,query),"http://rivalhub.local");
+  for(const key of ["market","option","prediction","choice"]) { const values=params.getAll(key); if(values.length===1) url.searchParams.set(key,values[0]); }
+  for(const [key,value] of Object.entries(selection)) url.searchParams.set(key,value);
+  return `${url.pathname}${url.search}`;
+}
+
 const mutateBet = observeAction("bet.mutateBet", telemetry_mutateBet);
 
 const filters=[{key:"open",label:"开放"},{key:"mine",label:"我的投入"},{key:"settled",label:"已结算"},{key:"event",label:"赛事"},{key:"leaderboard",label:"排行榜"},{key:"records",label:"记录"}] as const;
 export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,predictionControls,rankings,relief,predictionMatchRows,rankingRefreshAction,returnSelection,refreshAction,mutationPendingAction,recordsPage=0,readError=false}:{initial:BetBoardDTO;readError?:boolean;mutationPendingAction?:(pending:boolean)=>void;refreshAction:()=>Promise<boolean>;recordsPage?:number;slug:string;signedIn:boolean;view:string;matchFilter:string|null;predictions?:FreePredictionModel[];predictionControls?:FreePredictionControls;rankings?:Record<PredictionRankingSort,PredictionRankingModel>;relief?:Omit<ComponentProps<typeof BetRelief>,"onClaimed">;predictionMatchRows?:BetBoardDTO["matches"];rankingRefreshAction?:ComponentProps<typeof PredictionLeaderboard>["refreshAction"];returnSelection?:{market?:string;option?:string;prediction?:string;choice?:string}}) {
-  const router=useRouter();const searchParams=useSearchParams();const listQuery=betListQuery(new URLSearchParams(searchParams.toString()));const listHref=betListHref(slug,listQuery,null);const data=initial;const [pending,startTransition]=useTransition();
+  const router=useRouter();const searchParams=useSearchParams();const queryString=searchParams.toString();const listQuery=betListQuery(new URLSearchParams(queryString));const listHref=betListHref(slug,listQuery,null);const data=initial;const [pending,startTransition]=useTransition();
+  const latestQuery=useRef(new URLSearchParams(queryString));
+  useEffect(()=>{latestQuery.current=new URLSearchParams(queryString);},[queryString]);
   const interactive=useClientReady();
   const task=useTelemetryTask("bet",data.seasonId,signedIn&&data.enabled&&(!data.joined?!!data.joinEligibility?.canJoin:data.markets.some(m=>m.canStake)));
   const taskStep=task.step;
@@ -78,12 +87,14 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
   const filteredIds = !matchFilter && active==="open" && listQuery.unpredicted ? sortedMatches.filter(id=>signedIn && predictions?.some(panel=>panel.matchId===id && panel.kind==="winner" && panel.own.length===0 && panel.canSubmit)) : sortedMatches;
   const displayIds = active==="event" ? listIds : listIds.map(id=>id===null ? null : filteredIds.shift()).filter((id): id is string|null=>id!==undefined);
   const contextHref=betListHref(slug,listQuery,matchFilter);
-  const loginQuery=new URL(contextHref,"http://rivalhub.local");
-  for(const key of ["market","option","prediction","choice"]) { const values=searchParams.getAll(key); if(values.length===1) loginQuery.searchParams.set(key,values[0]); }
-  const loginHref = `/login?next=${encodeURIComponent(`${loginQuery.pathname}${loginQuery.search}`)}` as const;
-  function loginFor(selection:Record<string,string>){const url=new URL(contextHref,"http://rivalhub.local");for(const [key,value] of Object.entries(selection))url.searchParams.set(key,value);const next=safeLocalRedirect(`${url.pathname}?${url.searchParams}`);router.push(`/login?next=${encodeURIComponent(next)}`);}
-  function updateList(updates:{sort?:"scheduled_asc"|"scheduled_desc";unpredicted?:boolean}) { const href=betListHref(slug,{...listQuery,...updates},null); if(updates.unpredicted && !signedIn) router.push(`/login?next=${encodeURIComponent(href)}`); else router.push(href as never); }
-  function restoreFocus(){(participationOpener.current?.isConnected ? participationOpener.current : boardRef.current?.querySelector<HTMLElement>('[data-list-focus]'))?.focus();}
+  const loginHref = `/login?next=${encodeURIComponent(loginNext(slug,new URLSearchParams(queryString)))}` as const;
+  function loginFor(selection:Record<string,string>){router.push(`/login?next=${encodeURIComponent(loginNext(slug,latestQuery.current,selection))}`);}
+  function updateList(updates:{sort?:"scheduled_asc"|"scheduled_desc";unpredicted?:boolean}) {
+    const href=betListHref(slug,{...betListQuery(latestQuery.current),...updates},null);
+    latestQuery.current=new URL(href,"http://rivalhub.local").searchParams;
+    if(updates.unpredicted && !signedIn) router.push(`/login?next=${encodeURIComponent(href)}`); else router.push(href as never);
+  }
+  function restoreFocus(){(participationOpener.current?.isConnected ? participationOpener.current : boardRef.current?.querySelector<HTMLElement>('[data-list-focus]') ?? boardRef.current)?.focus();}
   function choose(market:BetMarketDTO,optionId:string){if(interactionBusy)return;if(!signedIn){loginFor({...(market.matchId?{match:market.matchId}:{}),market:market.id,option:optionId});return;}setDemand(beginTelemetryDemand("bet"));if(!selected&&!predictionTarget)participationOpener.current=document.activeElement as HTMLElement;setPredictionTarget(market.matchId?{matchId:market.matchId,kind:market.group==="比赛"||market.type==="total_rounds"&&matches.find(m=>m.id===market.matchId)?.format==="BO1"?"winner":"bp"}:null);setSelected({market,optionId});setAmount("");setAllIn(false);setAllConfirmed(false);setRequestId(crypto.randomUUID());setError(null);}
   function join(){if(interactionBusy||!data.joinEligibility?.canJoin)return;const token=task.begin("submit");startTransition(async()=>{try{const r=await mutateBet({operation:"join",seasonId:data.seasonId});if(!r.success){setError(r.error.message);toast.error(r.error.message);return;}task.complete(token);setReceipt({token,seasonId:data.seasonId});setError(null);toast.success("积分已领取");void refreshAction().then(success=>{if(!success)toast.error("积分已领取，余额更新失败，请刷新后查看。");}).catch(()=>toast.error("积分已领取，余额更新失败，请刷新后查看。"));}catch{setError("领取结果暂未确认，请刷新后查看。");}});}
   function refreshCommitted(){void refreshAction().then(success=>{if(!success)toast.error("投入已提交，数据更新失败，请刷新后查看。");}).catch(()=>toast.error("投入已提交，数据更新失败，请刷新后查看。"));}
@@ -108,7 +119,7 @@ export function BetBoard({initial,slug,signedIn,view,matchFilter,predictions,pre
   const participationOpen=!!selected||!!selectedPrediction;
   useEffect(()=>{if(participationOpen&&interactive)recordDemandReady(demand,"form");},[participationOpen,interactive,demand]);
   function closeParticipation(){if(uncertain)return;setSelected(null);setPredictionTarget(null);setError(null);}
-  return <div ref={boardRef} className="space-y-5" aria-busy={interactionBusy}>
+  return <div ref={boardRef} tabIndex={-1} className="space-y-5" aria-busy={interactionBusy}>
     {interactive&&<ContentReady module="bet" phase="primary"/>}
     {matchFilter && <nav aria-label="单场竞猜位置" className="flex flex-wrap gap-4 text-sm text-[var(--color-fg-mid)]"><Link href={`/${slug}/matches/${matchFilter}?returnTo=${encodeURIComponent(contextHref)}` as never} className="hover:text-[var(--color-accent)]">← 返回比赛详情</Link><Link href={listHref as never} className="hover:text-[var(--color-accent)]">全部竞猜 →</Link></nav>}
     <PageHeader title="预测与竞猜" description={<span role="status">{interactive?"免费预测不扣积分":"正在准备操作…"}</span>} actions={<>
