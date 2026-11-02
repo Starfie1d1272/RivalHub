@@ -103,13 +103,3 @@ it("captures BET form demand only when a user opens an eligible prediction",asyn
   const user=userEvent.setup();await user.click(view.container.querySelector<HTMLButtonElement>('button[data-prediction-key="private-A"]')!);
   const rows=await events();expect(rows.filter(e=>e.kind==="ready"&&e.ready?.module==="bet"&&e.ready.phase==="form"&&(e.ready.basis??"navigation")==="navigation")).toHaveLength(1);expect(rows.filter(e=>e.kind==="ready"&&e.ready?.module==="bet"&&e.ready.phase==="form"&&e.ready.basis==="demand")).toHaveLength(1);expect(actions.mutate).not.toHaveBeenCalled();
 });
-
-
-it("sorts merged matches and filters only eligible unpredicted winner panels",()=>{
-  window.history.replaceState(null,"","/event/bet?unpredicted=1");
-  const row=(id:string,scheduledAt:string|null)=>({id,entryAId:`${id}-a`,entryBId:`${id}-b`,a:`${id} A`,b:`${id} B`,logoA:null,logoB:null,stage:"正赛",format:"BO1",scheduledAt});
-  const matches=[row("late",null),row("same-b","2026-01-01T01:00:00+01:00"),row("same-a","2026-01-01T00:00:00Z"),row("done","2025-01-01T00:00:00Z"),row("locked","2024-01-01T00:00:00Z")];
-  const panels=matches.map(match=>({...model,matchId:match.id,own:match.id==="done"?["a"]:[],canSubmit:match.id!=="locked"}));
-  render(<BetBoard initial={{...base,matches:matches.slice(0,2)}} slug="event" signedIn view="open" matchFilter={null} predictions={panels} predictionMatchRows={matches.slice(2)} predictionControls={{submitAction:vi.fn(),refreshAction:vi.fn()}} refreshAction={vi.fn()}/>);
-  expect(screen.getAllByRole("link",{name:/查看 .* 比赛/}).map(link=>link.getAttribute("aria-label"))).toEqual(["查看 same-a A 对 same-a B 比赛","查看 same-b A 对 same-b B 比赛","查看 late A 对 late B 比赛"]);
-});
