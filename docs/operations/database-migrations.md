@@ -27,6 +27,8 @@ pnpm db:generate
 
 如果领域同时依赖 Supabase Storage，private bucket 的 contract 也必须由同一条 active migration 在 `storage.buckets` 可用时幂等收敛；plain PostgreSQL replay 可以条件跳过 Storage schema，但不能跳过对应的 public schema/constraint。不要在 Supabase Dashboard、`supabase/config.toml` 或第二条 provider migration chain 复制 bucket owner。
 
+`team-logos` 由 active migration 在 Storage 可用时供给，要求 public、1 MiB 和 JPEG/PNG/WebP；已有 bucket 必须满足相同身份和配置，否则迁移拒绝，不更改其可见性或限制。它不授予浏览器写权限，队长上传仍经服务端授权。
+
 ### 3. 运行 migration checks
 
 ```bash

@@ -1,10 +1,56 @@
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { postgresConnection } from "../../src/db/postgres-connection";
 import { OFFICIAL_PREVIEW, OFFICIAL_PRODUCTION } from "../../src/lib/runtime/official-deployment-profile.mjs";
 import { requireApplicationOrigin, requireSupabaseOrigin } from "../../src/lib/runtime/public-config";
 import { migrateCanonicalDatabase } from "../db/canonical-migrate";
 import { runScheduler } from "../db/scheduler";
+import { verifyTeamLogoBucket } from "../db/verify-migrations";
+
+/** Fresh-only installation; existing deployments must use an upgrade path. */
+async function installFreshInstance(client: PoolClient): Promise<void> {
+  await client.query("SELECT pg_advisory_lock(hashtext('rivalhub.instance.install'))");
+  try {
+    const result = await client.query(`SELECT to_regclass('drizzle.__drizzle_migrations') AS ledger,
+      (SELECT count(*)::int FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','S')) AS objects,
+      to_regclass('auth.users') AS auth_users, to_regclass('storage.objects') AS storage_objects,
+      to_regclass('storage.buckets') AS storage_buckets`);
+    const state = result.rows[0];
+    if (state.ledger || state.objects !== 0 || !state.auth_users || !state.storage_objects || !state.storage_buckets) throw Error("Fresh Supabase target required; adoption or retry after partial migration is not supported.");
+    const existing = await client.query<{ users: boolean; objects: boolean }>(
+      "SELECT EXISTS (SELECT 1 FROM auth.users) AS users, EXISTS (SELECT 1 FROM storage.objects) AS objects",
+    );
+    if (existing.rows[0]?.users || existing.rows[0]?.objects) throw Error("Fresh Supabase target must not contain existing Auth users or Storage objects.");
+    await migrateCanonicalDatabase(drizzle(client), 'drizzle/migrations');
+    if (await verifyTeamLogoBucket(client) !== "verified") throw Error("Supabase Storage bucket table is unavailable; installation is incomplete.");
+    await removeOfficialEmailBootstrapFromFreshInstance(client);
+    console.log('Active migration chain installed; generic instance has no official-only email trust.');
+  } finally {
+    await client.query("SELECT pg_advisory_unlock(hashtext('rivalhub.instance.install'))");
+  }
+}
+
+/** The immutable legacy chain seeds one official-domain rule. Only an empty,
+ * non-official target may reach this function; a v3 baseline may omit it. */
+async function removeOfficialEmailBootstrapFromFreshInstance(client: PoolClient): Promise<void> {
+  await client.query("BEGIN");
+  try {
+    const result = await client.query<{ id: string; institution_code: string | null; credential_type: string; auto_verify: boolean; active: boolean }>(
+      `SELECT d.id, i.moe_institution_code AS institution_code, d.credential_type, d.auto_verify, d.active
+       FROM institution_email_domains d JOIN institutions i ON i.id=d.institution_id
+       WHERE d.domain=$1 FOR UPDATE OF d`, ["smail.nju.edu.cn"],
+    );
+    if (result.rows.length > 1 || result.rows.some(row => row.institution_code !== "4132010284"
+      || row.credential_type !== "student" || !row.auto_verify || !row.active)) {
+      throw Error("Official email bootstrap differs from the expected fresh-chain rule; refusing to modify it.");
+    }
+    if (result.rows[0]) await client.query("DELETE FROM institution_email_domains WHERE id=$1", [result.rows[0].id]);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  }
+}
 
 async function main() {
   const command = process.argv[2];
@@ -32,18 +78,9 @@ async function main() {
     if (command === 'install') {
       const client = await pool.connect();
       try {
-        // Refuse adoption and partial retries: F2 owns ledger equivalence and adoption.
-        await client.query("SELECT pg_advisory_lock(hashtext('rivalhub.instance.install'))");
-        const result = await client.query(`SELECT to_regclass('drizzle.__drizzle_migrations') AS ledger,
-          (SELECT count(*)::int FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','S')) AS objects,
-          to_regnamespace('auth') AS auth, to_regnamespace('storage') AS storage`);
-        const state = result.rows[0];
-        if (state.ledger || state.objects !== 0 || !state.auth || !state.storage) throw Error("Fresh Supabase target required; adoption or retry after partial migration is not supported.");
-        await migrateCanonicalDatabase(drizzle(client), 'drizzle/migrations');
-        console.log('Active migration chain installed.');
+        await installFreshInstance(client);
       } finally {
-        try { await client.query("SELECT pg_advisory_unlock(hashtext('rivalhub.instance.install'))"); }
-        finally { client.release(); }
+        client.release();
       }
     } else {
       await runScheduler(pool, command === 'scheduler' ? 'provision' : 'verify', {
