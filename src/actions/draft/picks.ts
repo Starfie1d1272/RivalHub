@@ -16,8 +16,8 @@ import {
   type PickPlayerInput,
   type SkipDraftTurnInput,
 } from "@/lib/validators/draft";
-import { DRAFT_ROUND_TIMEOUT_SECONDS } from "@/types/draft";
-import { getNextEntryId } from "@/lib/draft/rules";
+import { draftFormat, getNextEntryId } from "@/lib/draft/rules";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { executeDraftPick, finalizeDraft } from "@/lib/draft/operations";
 
 export async function pickPlayer(
@@ -99,15 +99,15 @@ export async function skipDraftTurn(
 
       const skippedEntryId = ds.currentEntryId;
       const skippedRound = ds.currentRound;
-      const next = getNextEntryId(seasonTeams, ds.currentEntryId, ds.currentRound);
+      const format = draftFormat(decodeSeasonRules(season));
+      const next = getNextEntryId(seasonTeams, ds.currentEntryId, ds.currentRound, format.rounds);
       const now = new Date();
 
       if (!next) {
         await finalizeDraft(tx, {
-          seasonId: parsed.data.seasonId,
           draftStateId: ds.id,
           now,
-          actorId: auditActorId(admin),
+          totalRounds: format.rounds,
         });
 
         await writeAuditInTx(tx, {
@@ -120,7 +120,7 @@ export async function skipDraftTurn(
         return { slug: season.slug, completed: true };
       }
 
-      const deadline = new Date(now.getTime() + DRAFT_ROUND_TIMEOUT_SECONDS * 1000);
+      const deadline = new Date(now.getTime() + format.timeoutSeconds * 1000);
       await tx
         .update(draftState)
         .set({

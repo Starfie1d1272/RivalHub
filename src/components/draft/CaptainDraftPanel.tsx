@@ -38,6 +38,7 @@ interface CaptainDraftPanelProps {
   isDraftActive: boolean;
   isCurrentCaptainTurn: boolean;
   positionCounts: Record<string, number>;
+  positionLimit?: number;
   players: CaptainDraftPlayer[];
   seasonPositions: string[];
   /** Already picked members for roster summary */
@@ -57,6 +58,7 @@ export function CaptainDraftPanel({
   isDraftActive,
   isCurrentCaptainTurn,
   positionCounts,
+  positionLimit = 2,
   players,
   seasonPositions,
   rosterMembers,
@@ -110,15 +112,15 @@ export function CaptainDraftPanel({
   // Auto-pick candidate hint (resolve full player for display name)
   const autoPickCandidate = useMemo(() => {
     if (!isDraftActive || !isCurrentCaptainTurn) return null;
-    const candidate = selectAutoPickCandidate(players, positionCounts);
+    const candidate = selectAutoPickCandidate(players, positionCounts, positionLimit);
     if (!candidate) return null;
     return players.find((p) => p.registrationId === candidate.registrationId) ?? null;
-  }, [players, positionCounts, isDraftActive, isCurrentCaptainTurn]);
+  }, [players, positionCounts, positionLimit, isDraftActive, isCurrentCaptainTurn]);
 
   const canSubmit = interactive && isDraftActive && isCurrentCaptainTurn && pendingRegistrationId === null;
 
   async function handlePick(player: CaptainDraftPlayer) {
-    if (!canSubmit || !canPickPosition(positionCounts[player.primaryPosition] ?? 0)) return;
+    if (!canSubmit || !canPickPosition(positionCounts[player.primaryPosition] ?? 0, positionLimit)) return;
 
     setPendingRegistrationId(player.registrationId);
     setMessage(null);
@@ -204,7 +206,7 @@ export function CaptainDraftPanel({
               <div className="flex flex-wrap gap-2 text-xs text-[var(--color-fg-mid)]">
                 {seasonPositions.map((pos) => {
                   const count = positionCounts[pos] ?? 0;
-                  const full = !canPickPosition(count);
+                  const full = !canPickPosition(count, positionLimit);
                   return (
                     <span
                       key={pos}
@@ -243,7 +245,7 @@ export function CaptainDraftPanel({
               <span>
                 超时自动选人：<PlayerProfileLink userId={autoPickCandidate.userId}>{getPublicDisplayName(autoPickCandidate)}</PlayerProfileLink>（{positionLabel(autoPickCandidate.primaryPosition)}，{autoPickCandidate.peakRank}）
               </span>
-              <HelpTooltip label="自动选人规则" content="依次比较历史最高段位、Peak Rating、当前段位和当前 Rating，优先补齐空位，每位置最多 2 人。" />
+              <HelpTooltip label="自动选人规则" content={`依次比较历史最高段位、Peak Rating、当前段位和当前 Rating，优先补齐空位。${positionLimit > 0 ? `每位置最多 ${positionLimit} 人。` : "位置人数不限。"}`} />
             </div>
           </div>
         )}
@@ -299,7 +301,7 @@ export function CaptainDraftPanel({
           <div className="space-y-1">
             {sortedPlayers.map((player) => {
               const positionCount = positionCounts[player.primaryPosition] ?? 0;
-              const positionOpen = canPickPosition(positionCount);
+              const positionOpen = canPickPosition(positionCount, positionLimit);
               const isPending = pendingRegistrationId === player.registrationId;
               const disabled = !canSubmit || !positionOpen || isPending;
               const displayedName = getPublicDisplayName(player);
@@ -472,7 +474,7 @@ export function CaptainDraftPanel({
                       )}
                     </div>
                   </div>
-                  {inspectedId === player.registrationId && <div id={`draft-detail-${player.registrationId}`} role="region" aria-label={`选手详情 · ${displayedName}`} className="mt-4 border-t border-[var(--color-border)] pt-4 xl:hidden"><DraftPlayerDetails player={player} canSelect={canSubmit && canPickPosition(positionCounts[player.primaryPosition] ?? 0)} onPick={isReadonly ? undefined : () => void handlePick(player)} /></div>}
+                  {inspectedId === player.registrationId && <div id={`draft-detail-${player.registrationId}`} role="region" aria-label={`选手详情 · ${displayedName}`} className="mt-4 border-t border-[var(--color-border)] pt-4 xl:hidden"><DraftPlayerDetails player={player} canSelect={canSubmit && canPickPosition(positionCounts[player.primaryPosition] ?? 0, positionLimit)} onPick={isReadonly ? undefined : () => void handlePick(player)} /></div>}
                 </div>
               );
             })}
@@ -480,7 +482,7 @@ export function CaptainDraftPanel({
         )}
       </div>
       <aside id="draft-inspector" className="hidden min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-5 md:col-start-2 xl:col-start-3 xl:row-start-2 xl:block xl:sticky xl:top-20" aria-label="选手详情">
-        {inspected ? <DraftPlayerDetails player={inspected} canSelect={canSubmit && canPickPosition(positionCounts[inspected.primaryPosition] ?? 0)} onPick={isReadonly ? undefined : () => void handlePick(inspected)} /> : <><h2 className="font-semibold">选手详情</h2><p className="mt-3 text-sm leading-6 text-[var(--color-fg-mid)]">选择选手查看。</p></>}
+        {inspected ? <DraftPlayerDetails player={inspected} canSelect={canSubmit && canPickPosition(positionCounts[inspected.primaryPosition] ?? 0, positionLimit)} onPick={isReadonly ? undefined : () => void handlePick(inspected)} /> : <><h2 className="font-semibold">选手详情</h2><p className="mt-3 text-sm leading-6 text-[var(--color-fg-mid)]">选择选手查看。</p></>}
       </aside>
     </div>
   );

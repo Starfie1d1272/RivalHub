@@ -22,8 +22,8 @@ import {
   type PauseDraftInput,
   type ResumeDraftInput,
 } from "@/lib/validators/draft";
-import { DRAFT_ROUND_TIMEOUT_SECONDS, DRAFT_TEAMS } from "@/types/draft";
-import { getSnakeOrder } from "@/lib/draft/rules";
+import { draftFormat, getSnakeOrder } from "@/lib/draft/rules";
+import { assertFormationRulesPublishable, decodeSeasonRules } from "@/lib/seasons/rules";
 
 // ── 启动选秀 ───────────────────────────────────────────
 
@@ -46,6 +46,9 @@ export async function startDraft(
       if (!season) {
         throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
       }
+      const rules = decodeSeasonRules(season);
+      if (rules.source === "policy_v2") assertFormationRulesPublishable(rules);
+      const format = draftFormat(rules);
       if (!season.hasDraft) {
         throw new AppError(
           ErrorCode.SEASON_CAPABILITY_DISABLED,
@@ -81,22 +84,22 @@ export async function startDraft(
           "该赛季没有队伍，请先确认队长生成队伍",
         );
       }
-      if (seasonTeams.length !== DRAFT_TEAMS) {
+      if (format.rounds < 0 || (format.teamCount > 0 && seasonTeams.length !== format.teamCount)) {
         throw new AppError(
           ErrorCode.VALIDATION_FAILED,
-          `选秀需要 ${DRAFT_TEAMS} 支队伍，当前为 ${seasonTeams.length} 支`,
+          `选秀轮数无效或队伍数不匹配（当前 ${seasonTeams.length} 支）`,
         );
       }
       if (!hasSequentialDraftOrder(seasonTeams)) {
         throw new AppError(
           ErrorCode.VALIDATION_FAILED,
-          `队伍 draft order 必须为 1-${DRAFT_TEAMS} 且不能重复`,
+          `队伍顺序必须为 1-${seasonTeams.length} 且不能重复`,
         );
       }
 
       const order = getSnakeOrder(seasonTeams, 1);
-      const firstEntryId = order[0].id;
-      const deadline = new Date(Date.now() + DRAFT_ROUND_TIMEOUT_SECONDS * 1000);
+      const firstEntryId = format.rounds ? order[0].id : null;
+      const deadline = format.rounds ? new Date(Date.now() + format.timeoutSeconds * 1000) : null;
 
       const [draft] = await tx
         .insert(draftState)
@@ -105,7 +108,7 @@ export async function startDraft(
           currentRound: 1,
           currentEntryId: firstEntryId,
           roundDeadline: deadline,
-          isActive: true,
+          isActive: format.rounds > 0,
         })
         .returning({ id: draftState.id });
 
@@ -113,7 +116,7 @@ export async function startDraft(
         seasonId,
         action: "draft.start",
         actorId: auditActorId(admin),
-        targetId: seasonId,meta: { firstEntryId, roundDeadline: deadline.toISOString(), actorEmail: admin.email },
+        targetId: seasonId,meta: { firstEntryId, roundDeadline: deadline?.toISOString() ?? null, actorEmail: admin.email },
       });
 
       return { draftStateId: draft.id, slug: season.slug };
@@ -200,7 +203,9 @@ export async function resumeDraft(
         throw new AppError(ErrorCode.DRAFT_NOT_ACTIVE, "选秀状态异常");
       }
 
-      const deadline = new Date(Date.now() + DRAFT_ROUND_TIMEOUT_SECONDS * 1000);
+      const season = await tx.query.seasons.findFirst({ where: eq(seasons.id, parsed.data.seasonId) });
+      if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
+      const deadline = new Date(Date.now() + draftFormat(decodeSeasonRules(season)).timeoutSeconds * 1000);
 
       await tx
         .update(draftState)
@@ -214,9 +219,6 @@ export async function resumeDraft(
         targetId: ds.id,meta: { roundDeadline: deadline.toISOString(), actorEmail: admin.email },
       });
 
-      const season = await tx.query.seasons.findFirst({
-        where: eq(seasons.id, parsed.data.seasonId),
-      });
       return { slug: season?.slug ?? "" };
     });
 
@@ -231,8 +233,8 @@ export async function resumeDraft(
 
 function hasSequentialDraftOrder(teamRows: { draftOrder: number }[]): boolean {
   const orders = new Set(teamRows.map((team) => team.draftOrder));
-  if (orders.size !== DRAFT_TEAMS) return false;
-  for (let order = 1; order <= DRAFT_TEAMS; order++) {
+  if (orders.size !== teamRows.length) return false;
+  for (let order = 1; order <= teamRows.length; order++) {
     if (!orders.has(order)) return false;
   }
   return true;

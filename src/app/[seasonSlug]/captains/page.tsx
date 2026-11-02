@@ -46,7 +46,7 @@ async function CaptainsContent({ params }: CaptainsPageProps) {
         </p>
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">队长投票</h1>
         <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
-          公开票数与当前前 8 会定时刷新；赛季进入 drafting 后本页保留最终结果。
+          公开票数与当前排名会定时刷新；赛季进入 drafting 后本页保留最终结果。
         </p>
       </div>
 
@@ -63,7 +63,7 @@ async function CaptainsContent({ params }: CaptainsPageProps) {
       )}
 
       <Suspense fallback={<CaptainVotingPanel seasonSlug={season.slug} seasonName={season.name} seasonStatus={season.status}
-        currentVoter={null} candidates={data.candidates} votes={[]} viewerPending />}>
+        currentVoter={null} candidates={data.candidates} votes={[]} targetTeamCount={data.targetTeamCount} votesPerPerson={data.votesPerPerson} viewerPending />}>
         <CaptainViewerPanel season={season} data={data} />
       </Suspense>
     </PageLayout>
@@ -77,5 +77,5 @@ async function CaptainViewerPanel({ season, data }: {
   const session = await getUserSession();
   const viewer = await getCaptainVotingViewer(data, session?.userId ?? null);
   return <CaptainVotingPanel seasonSlug={season.slug} seasonName={season.name} seasonStatus={season.status}
-    candidates={data.candidates} currentVoter={viewer.currentVoter} votes={viewer.votes} />;
+    candidates={data.candidates} targetTeamCount={data.targetTeamCount} votesPerPerson={data.votesPerPerson} currentVoter={viewer.currentVoter} votes={viewer.votes} />;
 }

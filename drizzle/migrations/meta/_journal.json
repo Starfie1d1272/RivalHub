@@ -785,6 +785,13 @@
       "when": 1793617413904,
       "tag": "0111_team_logo_bucket",
       "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1793618000000,
+      "tag": "0112_match_roster_eligibility_snapshot",
+      "breakpoints": true
     }
   ]
 }

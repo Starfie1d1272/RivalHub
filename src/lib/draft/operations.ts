@@ -18,8 +18,8 @@ import {
   } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { logEvent } from "@/lib/observability/server";
-import { DRAFT_ROUND_TIMEOUT_SECONDS, DRAFT_TOTAL_ROUNDS } from "@/types/draft";
-import { canPickPosition, getNextEntryId, isStarterRound } from "@/lib/draft/rules";
+import { canPickPosition, draftFormat, getNextEntryId, isStarterRound } from "@/lib/draft/rules";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 import {
   createAutoPickRequestId,
   selectAutoPickCandidate,
@@ -109,6 +109,8 @@ export async function executeDraftPick(
   if (!season) {
     throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
   }
+  const rules = decodeSeasonRules(season);
+  const format = draftFormat(rules);
   if (!season.hasDraft) {
     throw new AppError(
       ErrorCode.SEASON_CAPABILITY_DISABLED,
@@ -199,6 +201,29 @@ export async function executeDraftPick(
     throw new AppError(ErrorCode.VALIDATION_FAILED, "只能选择已通过审核的选手");
   }
 
+  // The draft-state row is locked above, serializing picks for this season.
+  // Check the actual roster as well as draft_picks: captains and manually
+  // assembled members do not necessarily have a pick record.
+  const [occupied] = await tx.select({ id: eventRosterMembers.id })
+    .from(eventRosterMembers)
+    .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+    .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
+    .where(and(
+      eq(competitionEntries.competitionId, input.seasonId),
+      eq(eventRosterMembers.userId, targetRegistration.userId),
+      eq(eventRosterMembers.isCurrent, true),
+    )).limit(1);
+  if (occupied) {
+    throw new AppError(ErrorCode.PLAYER_ALREADY_PICKED, "选手已在赛事名单中");
+  }
+  const [rosterSize] = await tx.select({ count: count() })
+    .from(eventRosterMembers)
+    .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+    .where(and(eq(eventRosters.entryId, input.entryId), eq(eventRosterMembers.isCurrent, true)));
+  if (Number(rosterSize?.count ?? 0) >= season.maxTeamSize) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍人数已达到上限");
+  }
+
   const existingPick = await tx.query.draftPicks.findFirst({
     where: and(
       eq(draftPicks.seasonId, input.seasonId),
@@ -227,7 +252,7 @@ export async function executeDraftPick(
         eq(seasonRegistrations.primaryPosition, targetRegistration.primaryPosition),
       ),
     );
-  if (!canPickPosition(Number(positionCount?.count ?? 0))) {
+  if (!canPickPosition(Number(positionCount?.count ?? 0), rules.source === "policy_v2" ? rules.roster.maxPerPositionPerTeam : 2)) {
     throw new AppError(
       ErrorCode.TEAM_POSITION_CAP_EXCEEDED,
       ERROR_MESSAGES.TEAM_POSITION_CAP_EXCEEDED,
@@ -256,8 +281,8 @@ export async function executeDraftPick(
   const [participant] = await tx.insert(competitionEntryParticipants).values({
     entryId: input.entryId,
     userId: targetRegistration.userId,
-    status: "confirmed",
-    confirmedAt: now,
+    status: rules.source === "policy_v2" ? "invited" : "confirmed",
+    confirmedAt: rules.source === "policy_v2" ? null : now,
     invitedByUserId: entry.representativeUserId,
   }).returning({ id: competitionEntryParticipants.id });
   const [roster] = await tx.select({ id: eventRosters.id }).from(eventRosters)
@@ -269,13 +294,13 @@ export async function executeDraftPick(
     revisionId: revision.id,
     participantId: participant.id,
     userId: targetRegistration.userId,
-    isPrimaryStarter: isStarterRound(ds.currentRound),
+    isPrimaryStarter: isStarterRound(ds.currentRound, format.starterPicks),
   });
   await tx.insert(eventRosterMembers).values({
     eventRosterId: roster.id,
     participantId: participant.id,
     userId: targetRegistration.userId,
-    isPrimaryStarter: isStarterRound(ds.currentRound),
+    isPrimaryStarter: isStarterRound(ds.currentRound, format.starterPicks),
   });
 
   await writeAuditInTx(tx, {
@@ -296,20 +321,19 @@ export async function executeDraftPick(
     .from(competitionEntries)
     .where(and(eq(competitionEntries.competitionId, input.seasonId), isNotNull(competitionEntries.formationOrder)))
     .orderBy(asc(competitionEntries.formationOrder));
-  const next = getNextEntryId(seasonTeams, input.entryId, ds.currentRound);
+  const next = getNextEntryId(seasonTeams, input.entryId, ds.currentRound, format.rounds);
 
   if (!next) {
     await finalizeDraft(tx, {
-      seasonId: input.seasonId,
       draftStateId: ds.id,
       now,
-      actorId: input.captainUserId ?? "system:draft",
+      totalRounds: format.rounds,
     });
 
     return { pickId: pick.id, slug: season.slug, idempotent: false, completed: true };
   }
 
-  const deadline = new Date(now.getTime() + DRAFT_ROUND_TIMEOUT_SECONDS * 1000);
+  const deadline = new Date(now.getTime() + format.timeoutSeconds * 1000);
   await tx
     .update(draftState)
     .set({
@@ -326,42 +350,18 @@ export async function executeDraftPick(
 
 export async function finalizeDraft(
   tx: DraftTransaction,
-  input: { seasonId: string; draftStateId: string; now: Date; actorId: string },
+  input: { draftStateId: string; now: Date; totalRounds: number },
 ): Promise<void> {
   await tx
     .update(draftState)
     .set({
-      currentRound: DRAFT_TOTAL_ROUNDS + 1,
+      currentRound: input.totalRounds + 1,
       currentEntryId: null,
       roundDeadline: null,
       isActive: false,
       updatedAt: input.now,
     })
     .where(eq(draftState.id, input.draftStateId));
-  await tx
-    .update(seasons)
-    .set({ status: "playing", updatedAt: input.now })
-    .where(eq(seasons.id, input.seasonId));
-  await tx
-    .update(eventRosters)
-    .set({
-      sourceRosterRevisionId: sql`(SELECT entry.current_roster_revision_id FROM competition_entries entry WHERE entry.id = ${eventRosters.entryId})`,
-      status: "frozen",
-      confirmedAt: input.now,
-      confirmedBy: input.actorId,
-      frozenAt: input.now,
-      frozenBy: input.actorId,
-      updatedAt: input.now,
-    })
-    .where(sql`${eventRosters.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId})`);
-  await tx
-    .update(competitionEntryRosterRevisions)
-    .set({ status: "approved", submittedAt: input.now, approvedAt: input.now })
-    .where(sql`${competitionEntryRosterRevisions.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId}) AND ${competitionEntryRosterRevisions.id} = (SELECT entry.current_roster_revision_id FROM competition_entries entry WHERE entry.id = ${competitionEntryRosterRevisions.entryId})`);
-  await tx
-    .update(competitionEntries)
-    .set({ approvedRosterRevisionId: competitionEntries.currentRosterRevisionId, updatedAt: input.now })
-    .where(eq(competitionEntries.competitionId, input.seasonId));
 }
 
 async function runAutoPickForSeason(
@@ -391,7 +391,8 @@ async function runAutoPickForSeason(
 
     const positionCounts = await getTeamPositionCounts(tx, ds.currentEntryId);
     const candidates = await getAutoPickCandidates(tx, seasonId);
-    const selected = selectAutoPickCandidate(candidates, positionCounts);
+    const rules = decodeSeasonRules(season);
+    const selected = selectAutoPickCandidate(candidates, positionCounts, rules.source === "policy_v2" ? rules.roster.maxPerPositionPerTeam : 2);
     if (!selected) {
       return { picked: false, seasonId, slug: season.slug, reason: "no_eligible_player" };
     }

@@ -131,17 +131,17 @@ export async function loadReferencedPlatformRankKeys(
     .from(competitiveRankFacts)
     .where(eq(competitiveRankFacts.platform, platform));
   const frozen = await executor.execute<{ rank: string }>(sql`
-    SELECT DISTINCT json_array_elements_text(team_registration_config->'competitiveProfile'->'rankOrder') AS rank
+    SELECT DISTINCT json_array_elements_text(COALESCE(team_registration_config->'qualificationPolicy'->'competitiveProfile', team_registration_config->'competitiveProfile')->'rankOrder') AS rank
     FROM seasons
-    WHERE team_registration_config->'competitiveProfile'->>'platform' = ${platform}
+    WHERE COALESCE(team_registration_config->'qualificationPolicy'->'competitiveProfile', team_registration_config->'competitiveProfile')->>'platform' = ${platform}
   `);
   const fallback = await executor.execute<{ rank: string }>(sql`
     SELECT DISTINCT fallback_rank.rank AS rank
     FROM seasons
     CROSS JOIN LATERAL jsonb_object_keys(
-      COALESCE((team_registration_config->'competitiveProfile'->'fallbackConversion'->'mapping'->'belowSRankMap')::jsonb, '{}'::jsonb)
+      COALESCE((COALESCE(team_registration_config->'qualificationPolicy'->'competitiveProfile', team_registration_config->'competitiveProfile')->'fallbackConversion'->'mapping'->'belowSRankMap')::jsonb, '{}'::jsonb)
     ) AS fallback_rank(rank)
-    WHERE team_registration_config->'competitiveProfile'->'fallbackConversion'->>'sourcePlatform' = ${platform}
+    WHERE COALESCE(team_registration_config->'qualificationPolicy'->'competitiveProfile', team_registration_config->'competitiveProfile')->'fallbackConversion'->>'sourcePlatform' = ${platform}
   `);
   return new Set([
     ...facts.map((row) => row.rank).filter((rank): rank is string => rank !== null),
@@ -158,6 +158,7 @@ export async function loadReferencedPlatformRankKeys(
 export async function fallbackCatalogReferencesExist(
   executor: DatabaseExecutor,
   fallback: CompetitiveFallbackConversion,
+  options?: { requiredSeasonKeys: readonly string[] },
 ): Promise<boolean> {
   const seasonKeys = [...new Set(Object.values(fallback.seasonKeyMap))];
   const rankKeys = fallback.mapping
@@ -165,10 +166,10 @@ export async function fallbackCatalogReferencesExist(
     : fallback.rankMap
       ? [...new Set(Object.keys(fallback.rankMap))]
       : [];
-  if (seasonKeys.length === 0 || rankKeys.length === 0 || seasonKeys.some((key) => !key) || rankKeys.some((key) => !key)) return false;
-  const sourceSeasons = await executor.select({ seasonKey: competitivePlatformSeasons.seasonKey })
+  if (!fallback.version.trim() || (!options && seasonKeys.length === 0) || rankKeys.length === 0 || seasonKeys.some((key) => !key) || rankKeys.some((key) => !key) || options?.requiredSeasonKeys.some(key => !fallback.seasonKeyMap[key])) return false;
+  const sourceSeasons = seasonKeys.length ? await executor.select({ seasonKey: competitivePlatformSeasons.seasonKey })
     .from(competitivePlatformSeasons)
-    .where(and(eq(competitivePlatformSeasons.platform, fallback.sourcePlatform), inArray(competitivePlatformSeasons.seasonKey, seasonKeys)));
+    .where(and(eq(competitivePlatformSeasons.platform, fallback.sourcePlatform), inArray(competitivePlatformSeasons.seasonKey, seasonKeys))) : [];
   const sourceRanks = await executor.select({ rankKey: competitivePlatformRanks.rankKey })
     .from(competitivePlatformRanks)
     .where(and(eq(competitivePlatformRanks.platformKey, fallback.sourcePlatform), inArray(competitivePlatformRanks.rankKey, rankKeys)));

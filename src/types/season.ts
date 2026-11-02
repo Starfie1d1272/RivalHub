@@ -153,6 +153,7 @@ export interface CompetitiveProfileConfig {
   previousSeasonKey: string;
   /** Lowest → highest rank labels. Empty means no evaluator is configured yet. */
   rankOrder: string[];
+  sourceSelection?: CompetitiveSourceSelection;
   evidencePolicy?: CompetitiveEvidencePolicy;
   /** Optional event-owned 5E equivalence mapping, copied into the registration freeze; the field name remains for legacy snapshots. */
   fallbackConversion?: CompetitiveFallbackConversion;
@@ -164,7 +165,7 @@ export interface CompetitiveProfileConfig {
   conversionPolicyId?: string;
 }
 
-type CompetitiveSourceSelection = "primary_then_fallback" | "strongest_equivalent";
+export type CompetitiveSourceSelection = "primary_then_fallback" | "strongest_equivalent";
 
 /**
  * An audited, event-owned equivalence policy. Mapping is deliberately not

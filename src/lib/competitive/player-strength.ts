@@ -1,5 +1,6 @@
 import type { CompetitiveProfileConfig } from "@/types/season";
 import { isBuiltInStarRank } from "@/lib/competitive/builtins";
+import { resolveCompetitiveSourceSelection } from "@/lib/competitive/source-selection";
 import { compositeStrength } from "@/lib/major/composite-rank";
 import type { QualificationFinding } from "@/lib/qualification/finding";
 import type { ExternalStrengthFact, ProfileReadinessFact, QualificationEvidence } from "@/lib/seasons/rules";
@@ -121,7 +122,7 @@ export function comparePlayerStrengthFacts(
 function effectiveRecentPeak(player: PlayerStrengthInput, config: CompetitiveProfileConfig): PlayerStrengthFact | null {
   if (!config.evidencePolicy) return player.currentSeasonPeak;
   const candidates = player.recentSeasonPeaks ?? [];
-  if (config.evidencePolicy.sourceSelection !== "strongest_equivalent") {
+  if (resolveCompetitiveSourceSelection(config) !== "strongest_equivalent") {
     let strongestLegacy: PlayerStrengthFact | null = null;
     for (const candidate of candidates) {
       if (!candidate) continue;
@@ -442,6 +443,6 @@ export function evaluateExternalStrengthRule(input: { players: Array<PlayerStren
       sourceSeasonKey: historicalPeak?.sourceSeasonKey ?? null, sourceRank: historicalPeak?.sourceRank ?? null,
     })),
     maxGap: input.config.externalStrengthMaxStarGap ?? DEFAULT_EXTERNAL_STRENGTH_MAX_STAR_GAP,
-    sourceSelection: input.config.evidencePolicy?.sourceSelection ?? "primary_then_fallback",
+    sourceSelection: resolveCompetitiveSourceSelection(input.config),
   });
 }
