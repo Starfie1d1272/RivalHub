@@ -97,8 +97,8 @@ restore() {
     cp -p "$snapshot/service" "$unit" || return 1
     ln -sfn "$previous" "$root/current.rollback" || return 1
     mv -Tf "$root/current.rollback" "$root/current" || return 1
-    systemctl daemon-reload && systemctl reset-failed rivalhub-instance && systemctl start rivalhub-instance || return 1
-    wait_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" || return 1
+    systemctl daemon-reload && systemctl reset-failed rivalhub-instance && systemctl start rivalhub-instance || { if [[ ${#transition_arg[@]} -gt 0 ]]; then systemctl stop rivalhub-instance || true; fi; return 1; }
+    wait_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" || { if [[ ${#transition_arg[@]} -gt 0 ]]; then systemctl stop rivalhub-instance || true; fi; return 1; }
     if [[ ${#transition_arg[@]} -gt 0 ]]; then managed_scheduler resume || { systemctl stop rivalhub-instance || true; return 1; }; fi
   else
     rm -f "$root/current" || return 1
@@ -133,6 +133,11 @@ if [[ ${1:-} == --restore-pair ]]; then
   env -i "$node" --env-file="$snapshot/restored-instance.env" "$script_dir/recovery-evidence.mjs" "$2" "$root/$previous/standby.json" "$previous_tag" "$previous_sha"
   env -i "$node" --env-file="$snapshot/restored-instance.env" "$root/$previous/scripts/instance/validate-runtime.mjs" "$root/$previous/standby.json"
   env -i "$node" --env-file="$snapshot/restored-instance.env" "$root/$previous/scripts/instance/readiness.mjs" "$root/$previous"
+  # The restored target can differ from the stopped source. Verify both its
+  # scheduler and all visible writers before binding the old application to it.
+  env -i "$node" --env-file="$snapshot/restored-instance.env" "$script_dir/managed-scheduler.mjs" target-stopped "$root/$previous" "$tls_helper/postgres-connection.ts" "$snapshot"
+  env -i "$node" --env-file="$snapshot/restored-instance.env" "$script_dir/../standby/production-quiescence.mjs" "$root/$previous" "$tls_helper/postgres-connection.ts" --all-writers
+  check_managed_ingress_stopped || { echo 'Managed ingress is not stopped; paired recovery refused.' >&2; exit 1; }
   install -m 600 "$snapshot/restored-instance.env" "$config"
   cp -p "$snapshot/service" "$unit"
   ln -sfn "$previous" "$root/current.recovery"
