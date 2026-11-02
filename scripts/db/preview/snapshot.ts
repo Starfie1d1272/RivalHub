@@ -1,3 +1,4 @@
+import { parseOwnedPublicAssetUrl, parsePublicAssetReference } from "../../../src/lib/assets-reference";
 import { OFFICIAL_PREVIEW, OFFICIAL_PRODUCTION } from "../../../src/lib/runtime/official-deployment-profile.mjs";
 import { postgresConnection } from "../../../src/db/postgres-connection";
 import { createHash } from "node:crypto";
@@ -232,10 +233,8 @@ async function exportPublicAssets(tables: MirrorSnapshot["tables"], allowlistedS
 
 function parsePublicStorageUrl(value: string): { bucket: MirrorAsset["bucket"]; path: string } | null {
   try {
-    const url = new URL(value);
-    const match = url.pathname.match(/\/storage\/v1\/object\/public\/(team-logos|season-public-assets)\/(.+)$/);
-    if (!match) return null;
-    return { bucket: match[1] as MirrorAsset["bucket"], path: decodeURIComponent(match[2]) };
+    const ref = parsePublicAssetReference(value) ?? parseOwnedPublicAssetUrl(value);
+    return ref ? { bucket: ref.bucket as MirrorAsset["bucket"], path: ref.path } : null;
   } catch { return null; }
 }
 

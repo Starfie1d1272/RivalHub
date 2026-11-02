@@ -1,3 +1,4 @@
+import { publicAsset } from "./public-asset";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -49,7 +50,7 @@ export const competitionEntries = pgTable("competition_entries", {
   /** Event-native formation order; never reused as tournament seeding. */
   formationOrder: integer("formation_order"),
   name: text("name").notNull(),
-  logoUrl: text("logo_url"),
+  logoUrl: publicAsset("logo_url"),
   representativeUserId: uuid("representative_user_id").notNull().references(() => users.id),
   registrationStatus: competitionEntryRegistrationStatusEnum("registration_status").notNull().default("draft"),
   perfectTeamId: text("perfect_team_id"),
