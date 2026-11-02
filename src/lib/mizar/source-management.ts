@@ -6,7 +6,7 @@ import { db, type TxDb } from "@/db/client";
 import { competitionEntries, matchLiveSessions, matches, mizarInstallations, mizarReliableReceipts, seasonAdminGrants, users } from "@/db/schema";
 import { alias } from "drizzle-orm/pg-core";
 import { requireSeasonAdmin } from "@/lib/auth/session";
-import { lockMatchInTx } from "@/lib/match-rosters/service";
+import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { AppError, ErrorCode } from "@/lib/errors";

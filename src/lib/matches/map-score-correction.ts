@@ -3,7 +3,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import type { TxDb } from "@/db/client";
 import { matches, matchMaps, matchLiveSessions } from "@/db/schema";
-import { lockMatchInTx } from "@/lib/match-rosters/service";
+import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { AppError, ErrorCode } from "@/lib/errors";

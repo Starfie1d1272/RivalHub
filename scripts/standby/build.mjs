@@ -37,7 +37,7 @@ execFileSync("pnpm", ["exec", "next", "build"], { env, stdio: "inherit" });
 const bundle = resolve(root, ".next/standalone");
 cpSync("public", `${bundle}/public`, { recursive: true });
 cpSync(".next/static", `${bundle}/.next/static`, { recursive: true });
-for (const path of ["scripts/standby/start.mjs", "src/lib/runtime/preview.ts"]) {
+for (const path of ["scripts/standby/start.mjs", "src/lib/runtime/preview.ts", "src/lib/runtime/official-deployment-profile.mjs"]) {
   mkdirSync(resolve(bundle, path, ".."), { recursive: true });
   cpSync(path, resolve(bundle, path));
 }

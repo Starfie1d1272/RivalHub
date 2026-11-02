@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
-import { lockMatchInTx } from "@/lib/match-rosters/service";
+import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { startCanonicalMapInTx } from "@/lib/matches/map-start";
 import { setTimeout as delay } from "node:timers/promises";
 import type { Pool } from "pg";

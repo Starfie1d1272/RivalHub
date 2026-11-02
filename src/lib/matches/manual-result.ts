@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { matchLiveSessions, matchMaps } from "@/db/schema";
-import { lockMatchInTx } from "@/lib/match-rosters/service";
+import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { recordCanonicalMapResultInTx, supplementUnassociatedMapResultInTx, type CanonicalMapResultCommand } from "./results";
 

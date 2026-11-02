@@ -1,4 +1,5 @@
 import { parseOwnedPublicAssetUrl, parsePublicAssetReference } from "../../../src/lib/assets-reference";
+import { OFFICIAL_PREVIEW, OFFICIAL_PRODUCTION } from "../../../src/lib/runtime/official-deployment-profile.mjs";
 import { postgresConnection } from "../../../src/db/postgres-connection";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -14,7 +15,7 @@ import {
   sanitizedRequiredFields,
 } from "./policy";
 import { githubRunId, measureExportRows, reportOfflineConsumer, type OfflineConsumerSummary } from "../recovery/accounting";
-import { PRODUCTION_PROJECT_REF } from "../recovery/environment";
+import { assertProductionSupabaseUrl, PRODUCTION_PROJECT_REF } from "../recovery/environment";
 import { sourceDatabaseUrl } from "./environment";
 import { type PersonaCandidates } from "./personas";
 import {
@@ -165,7 +166,7 @@ function rewriteTeamLogoUrls(tables: MirrorSnapshot["tables"]): void {
     const ref = parsePublicStorageUrl(row.logo_url);
     if (ref?.bucket !== "team-logos") continue;
     const encoded = ref.path.split("/").map(encodeURIComponent).join("/");
-    row.logo_url = `https://dtdzxnzjtohzjmfkighg.supabase.co/storage/v1/object/public/team-logos/${encoded}`;
+    row.logo_url = `${OFFICIAL_PREVIEW.supabaseUrl}/storage/v1/object/public/team-logos/${encoded}`;
   }
 }
 
@@ -196,7 +197,7 @@ async function exportPublicAssets(tables: MirrorSnapshot["tables"], allowlistedS
   const secret = process.env.SUPABASE_SECRET_KEY;
   if (!secret) return [];
   if (accounting) accounting.storage_download_bytes = 0;
-  const supabaseUrl = process.env.RIVALHUB_PRODUCTION_SUPABASE_URL ?? "https://ggkxqgbiudlovcgizgsq.supabase.co";
+  const supabaseUrl = assertProductionSupabaseUrl(process.env.RIVALHUB_PRODUCTION_SUPABASE_URL ?? OFFICIAL_PRODUCTION.supabaseUrl);
   const client = createClient(supabaseUrl, secret, { auth: { persistSession: false, autoRefreshToken: false } });
   const refs = new Map<string, MirrorAsset["bucket"]>();
   for (const row of [...tables.teams, ...tables.competition_entries]) {

@@ -1,3 +1,4 @@
+import { OFFICIAL_PRODUCTION } from "../../src/lib/runtime/official-deployment-profile.mjs";
 import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -8,7 +9,7 @@ import { loadLayerManifest } from "../standby/layers.mjs";
 import { assertReleaseCapabilities } from "./capability-contract";
 import { assertReleaseIdentity, type ReleaseIdentity } from "../../src/lib/release/identity";
 
-const origin = "https://match.starfie1d.top";
+const origin = OFFICIAL_PRODUCTION.origin;
 const host = "root@47.103.131.158";
 
 /** Both transport failures and semantic smoke failures require reconciliation. */

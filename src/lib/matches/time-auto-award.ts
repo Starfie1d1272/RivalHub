@@ -14,6 +14,7 @@ import { materializeDefaultLineupsInTx } from "@/lib/match-rosters/service";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { captureException } from "@/lib/observability/server";
 import { ensureRequestId } from "@/lib/observability/context";
+import { acceptProposalInTx } from "./scheduling";
 import { CommittedDefaultLineupsError } from "./default-lineup-error";
 
 export interface MatchTimeAutoAwardCronSummary {
@@ -161,23 +162,7 @@ async function autoAcceptSingleProposal(
     now = clock();
     if (!canAutoAcceptProposal(match, proposal, now)) throw new AutoAcceptWindowElapsed();
 
-    await tx
-      .update(matchTimeProposals)
-      .set({ status: "accepted", resolution: "auto_timeout", responseAt: now, updatedAt: now })
-      .where(eq(matchTimeProposals.id, proposalId));
-    await tx
-      .update(matchTimeProposals)
-      .set({ status: "expired", updatedAt: now })
-      .where(
-        and(
-          eq(matchTimeProposals.matchId, matchId),
-          eq(matchTimeProposals.status, "pending"),
-        ),
-      );
-    await tx
-      .update(matches)
-      .set({ scheduledAt: proposal.proposedTime, updatedAt: now })
-      .where(eq(matches.id, matchId));
+    await acceptProposalInTx(tx, matchId, proposalId, proposal.proposedTime, "auto_timeout", now);
 
     await writeAuditInTx(tx, {
       seasonId: match.seasonId,
