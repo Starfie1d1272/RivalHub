@@ -107,7 +107,7 @@ export function RegistrationReviewList({
       if (!result.success) {
         toast.error(result.error.message);
       } else {
-        toast.success(`已${label}`);
+        toast.success(`报名状态已更新为${label}`);
         router.refresh();
       }
     });
