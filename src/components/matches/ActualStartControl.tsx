@@ -42,7 +42,7 @@ export function ActualStartControl({ seasonId, seasonSlug, matchId, snapshot }: 
       <DialogContent>
         <DialogHeader><DialogTitle>补录或更正实际开局时间</DialogTitle><DialogDescription>记录整场比赛首次实际开局，不更改排期或原始开图记录。已关闭的入口不会重新开放。</DialogDescription></DialogHeader>
         <DialogBody className="space-y-4">
-          {submitted ? <><p>已记录，以下为提交时重新核对的范围：</p><ImpactDetails impact={submitted} seasonSlug={seasonSlug} matchId={matchId} /></> : <>
+          {submitted ? <><p>已记录，以下为本次请求核对的范围：</p><ImpactDetails impact={submitted} seasonSlug={seasonSlug} matchId={matchId} /></> : <>
           <div className="space-y-1"><Label htmlFor="actual-start-time">实际开局时间（北京时间）</Label><Input id="actual-start-time" type="datetime-local" step="1" disabled={pending} value={time} onChange={e => { setTime(e.target.value); setImpact(null); }} /></div>
           <div className="space-y-1"><Label htmlFor="actual-start-reason">原因</Label><Input id="actual-start-reason" maxLength={500} disabled={pending} value={reason} onChange={e => setReason(e.target.value)} /></div>
           <div className="space-y-1"><Label htmlFor="actual-start-evidence">证据来源</Label><Input id="actual-start-evidence" maxLength={500} disabled={pending} value={evidence} onChange={e => setEvidence(e.target.value)} placeholder="例如比赛录像及时间点" /></div>
