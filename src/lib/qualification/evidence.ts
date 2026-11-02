@@ -1,13 +1,26 @@
 import { BUILT_IN_COMPETITIVE_PLATFORMS, isBuiltInCompetitivePlatformKey, isBuiltInStarRank } from "@/lib/competitive/builtins";
 import { convertFiveeToPerfect } from "@/lib/competitive/conversion-policy";
-import { comparePlayerStrengthFacts, type PlayerStrengthFact, type PlayerStrengthInput } from "@/lib/major/player-strength";
+import { comparePlayerStrengthFacts, type PlayerStrengthFact, type PlayerStrengthInput } from "@/lib/competitive/player-strength";
 import { getDisplayName } from "@/lib/identity/display-name";
 import type { CompetitiveProfileConfig } from "@/types/season";
 import type { ParticipantQualificationFacts, QualificationPeak, QualificationSeasonPeak } from "@/lib/qualification/facts";
 
 type SelectableCompetitivePeak = QualificationPeak | QualificationSeasonPeak;
 
-export function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | null): (
+/** Each consumer evaluates only its own requirements, even when reads are batched. */
+export type CompetitivePurpose = "profile_completeness" | "rank_threshold" | "external_historical_gap" | "seed_recommendation";
+
+export function deriveCompetitiveRequirements(purposes: readonly CompetitivePurpose[]) {
+  const weighted = purposes.includes("profile_completeness") || purposes.includes("seed_recommendation");
+  return {
+    historical: purposes.length > 0,
+    seasons: weighted,
+    rating: weighted,
+    chronology: weighted,
+  };
+}
+
+export function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | null, purpose?: CompetitivePurpose): (
   primary: SelectableCompetitivePeak | null | undefined,
   fallbackFact: SelectableCompetitivePeak | null | undefined,
 ) => PlayerStrengthFact | null {
@@ -18,10 +31,11 @@ export function createCompetitiveCandidateResolver(context: CompetitiveProfileCo
     // "Unranked" is evidence about the season state, not a rank. It must never
     // be silently rewritten to the bottom rung of the event ladder.
     if (primary?.status === "unranked") return null;
-    if (!primary?.rank || primary.rating === null || primary.rating === undefined) return null;
+    if (!primary?.rank || ((primary.rating === null || primary.rating === undefined) && purpose !== "external_historical_gap" && purpose !== "rank_threshold")) return null;
     return {
       rank: primary.rank,
-      rating: primary.rating,
+      rating: primary.rating ?? 0,
+      ...(primary.rating == null ? { ratingComparable: false } : {}),
       stars: primary.stars ?? null,
       sourcePlatform: primary.sourcePlatform,
       sourceSeasonKey: primary.sourceSeasonKey,
@@ -30,7 +44,7 @@ export function createCompetitiveCandidateResolver(context: CompetitiveProfileCo
   };
   const fallbackCandidate = (fallbackFact: SelectableCompetitivePeak | null | undefined): PlayerStrengthFact | null => {
     if (!fallback || !fallbackFact || fallbackFact.status === "unranked") return null;
-    if (!fallbackFact.rank || fallbackFact.rating === null || fallbackFact.rating === undefined) return null;
+    if (!fallbackFact.rank || ((fallbackFact.rating === null || fallbackFact.rating === undefined) && purpose !== "external_historical_gap" && purpose !== "rank_threshold")) return null;
     if (fallback.mapping) {
       const converted = convertFiveeToPerfect(fallbackFact.rank, fallbackFact.stars ?? null, fallback.mapping);
       // A 5E Rating+ has no reviewed conversion to Perfect Rating Pro. It can
@@ -88,10 +102,11 @@ export function createCompetitiveCandidateResolver(context: CompetitiveProfileCo
 export function toPlayerStrengthInput(
   fact: Pick<ParticipantQualificationFacts, "userId" | "displayName" | "perfectName" | "personaName" | "email" | "historicalPeak" | "seasonPeaks" | "platformSeasonOrder" | "fallbackFacts">,
   context: CompetitiveProfileConfig | null,
+  purpose?: CompetitivePurpose,
 ): PlayerStrengthInput {
   const policy = context?.evidencePolicy;
   const fallback = context?.fallbackConversion;
-  const resolve = createCompetitiveCandidateResolver(context);
+  const resolve = createCompetitiveCandidateResolver(context, purpose);
   const fallbackFor = (seasonKey: string) => {
     const sourceSeasonKey = fallback?.seasonKeyMap[seasonKey];
     const source = sourceSeasonKey ? fact.fallbackFacts?.seasonPeaks.get(sourceSeasonKey) : undefined;
@@ -173,9 +188,9 @@ export function toPlayerStrengthInput(
     userId: fact.userId ?? "",
     label: getDisplayName(fact),
     historicalPeak: resolve(fact.historicalPeak, fact.fallbackFacts?.historicalPeak),
-    previousSeasonPeak: seasonFact(referenceSeasonKey),
-    currentSeasonPeak: seasonFact(context?.currentSeasonKey ?? ""),
-    recentSeasonPeaks: recentSeasonKeys.map(seasonFact),
+    previousSeasonPeak: purpose === "external_historical_gap" || purpose === "rank_threshold" ? null : seasonFact(referenceSeasonKey),
+    currentSeasonPeak: purpose === "external_historical_gap" || purpose === "rank_threshold" ? null : seasonFact(context?.currentSeasonKey ?? ""),
+    recentSeasonPeaks: purpose === "external_historical_gap" || purpose === "rank_threshold" ? [] : recentSeasonKeys.map(seasonFact),
   };
 }
 

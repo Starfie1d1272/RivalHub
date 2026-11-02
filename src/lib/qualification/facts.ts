@@ -2,6 +2,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitivePlatformSeasons, competitiveRankFacts, educationVerifications, institutions, steamProfiles, users } from "@/db/schema";
 import type { SeasonEducationVerification } from "@/lib/education/eligibility";
+import type { deriveCompetitiveRequirements } from "@/lib/qualification/evidence";
 
 export type DatabaseExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -59,12 +60,16 @@ export async function loadParticipantQualificationRawBundle(
     includePlatformChronology?: boolean;
     /** Skip rank facts for education/affiliation-only decisions. */
     includeCompetitiveFacts?: boolean;
+    /** Union of the facts needed by all consumers sharing this read. */
+    competitiveRequirements?: ReturnType<typeof deriveCompetitiveRequirements>;
   } = {},
 ) {
   const executor = options.executor ?? db;
   const ids = [...new Set(userIds)];
   if (ids.length === 0) return { userRows: [], verificationRows: [], rankRows: [], platformSeasonRows: [] };
-  const includeCompetitiveFacts = options.includeCompetitiveFacts ?? true;
+  const includeCompetitiveFacts = options.competitiveRequirements
+    ? options.competitiveRequirements.historical || options.competitiveRequirements.seasons
+    : options.includeCompetitiveFacts ?? true;
   const platforms = [options.platform, options.fallbackPlatform].filter((item): item is string => Boolean(item));
   const rankFactsFilter = platforms.length > 0
     ? and(inArray(competitiveRankFacts.userId, ids), inArray(competitiveRankFacts.platform, platforms))
@@ -75,9 +80,13 @@ export async function loadParticipantQualificationRawBundle(
     .from(educationVerifications).innerJoin(users, and(eq(educationVerifications.userId, users.id), eq(users.status, "active"))).innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
     .where(inArray(educationVerifications.userId, ids));
   const rankRows = includeCompetitiveFacts
-    ? await executor.select().from(competitiveRankFacts).where(rankFactsFilter)
+    ? await executor.select().from(competitiveRankFacts).where(
+      options.competitiveRequirements && !options.competitiveRequirements.seasons
+        ? and(rankFactsFilter, eq(competitiveRankFacts.kind, "historical_peak"))
+        : rankFactsFilter,
+    )
     : [];
-  const platformSeasonRows = includeCompetitiveFacts && options.includePlatformChronology !== false
+  const platformSeasonRows = includeCompetitiveFacts && (options.competitiveRequirements?.chronology ?? true) && options.includePlatformChronology !== false
     ? await executor.select({ platform: competitivePlatformSeasons.platform, seasonKey: competitivePlatformSeasons.seasonKey })
       .from(competitivePlatformSeasons)
       .where(options.platform ? eq(competitivePlatformSeasons.platform, options.platform) : undefined)
@@ -158,6 +167,7 @@ export async function loadParticipantQualificationFacts(
     fallbackPlatform?: string;
     executor?: DatabaseExecutor;
     includeCompetitiveFacts?: boolean;
+    competitiveRequirements?: ReturnType<typeof deriveCompetitiveRequirements>;
   } = {},
 ): Promise<Map<string, ParticipantQualificationFacts>> {
   if (userIds.length === 0) return new Map();
