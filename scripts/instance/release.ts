@@ -30,7 +30,8 @@ async function main(): Promise<void> {
       return;
     }
     const recovering = process.argv[2] === "--recover";
-    if ((!recovering && process.argv.length !== 4) || (recovering && process.argv.length !== 6)) throw new Error("Usage: release.ts MANIFEST INSTANCE_ENV | --recover MANIFEST INSTANCE_ENV EVIDENCE | --rollback");
+    if ((!recovering && process.argv.length !== 4 && process.argv.length !== 6) || (recovering && process.argv.length !== 6)) throw new Error("Usage: release.ts MANIFEST INSTANCE_ENV [--checkpoint-env FILE] | --recover MANIFEST INSTANCE_ENV EVIDENCE | --rollback");
+    if (!recovering && process.argv.length === 6 && process.argv[4] !== "--checkpoint-env") throw new Error("Expected --checkpoint-env FILE.");
     const offset = recovering ? 1 : 0;
     const archive = resolve(process.argv[2 + offset]!);
     const environment = resolve(process.argv[3 + offset]!);
@@ -61,7 +62,7 @@ async function main(): Promise<void> {
     if (Buffer.byteLength(content) > 16384) throw new Error("Capability evidence exceeds 16 KiB.");
     writeFileSync(evidence, content, { mode: 0o600 });
     execFileSync("bash", ["scripts/instance/install.sh", archive, environment, "--release", manifest.releaseTag, operator,
-      previous.releaseTag, previous.releaseCommit, "--capability-evidence", evidence, ...(recoveryEvidence ? ["--recovery-evidence", recoveryEvidence] : [])], { stdio: "inherit" });
+      previous.releaseTag, previous.releaseCommit, "--capability-evidence", evidence, ...(recoveryEvidence ? ["--recovery-evidence", recoveryEvidence] : process.argv.length === 6 ? ["--checkpoint-env", resolve(process.argv[5]!)] : [])], { stdio: "inherit" });
   } finally { rmSync(temp, { recursive: true, force: true }); }
 }
 

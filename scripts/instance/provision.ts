@@ -1,4 +1,8 @@
 import { Pool, type PoolClient } from "pg";
+import { readFileSync, realpathSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { resolve } from "node:path";
+import { isMigrationLedgerPrefix, readMigrationLedger, type MigrationIdentity } from "../db/migration-ledger";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { postgresConnection } from "../../src/db/postgres-connection";
 import { OFFICIAL_PREVIEW, OFFICIAL_PRODUCTION } from "../../src/lib/runtime/official-deployment-profile.mjs";
@@ -35,7 +39,7 @@ async function installFreshInstance(client: PoolClient): Promise<void> {
 
 async function main() {
   const command = process.argv[2];
-  if (!["install", "scheduler", "verify-scheduler"].includes(command ?? "")) throw Error("Usage: provision.ts install|scheduler|verify-scheduler");
+  if (!["install", "upgrade", "scheduler", "verify-scheduler"].includes(command ?? "")) throw Error("Usage: provision.ts install|upgrade|scheduler|verify-scheduler");
   const api = new URL(requireSupabaseOrigin(process.env.NEXT_PUBLIC_SUPABASE_URL));
   const app = requireApplicationOrigin();
   const db = new URL(process.env.DATABASE_URL ?? "");
@@ -63,6 +67,33 @@ async function main() {
       } finally {
         client.release();
       }
+    } else if (command === 'upgrade') {
+      if (process.argv.length !== 6) throw Error('Upgrade requires previous and candidate manifests and its locked transaction.');
+      const snapshot = realpathSync(process.argv[5]!);
+      const selected = realpathSync(readFileSync('/opt/rivalhub-instance/previous-snapshot', 'utf8').trim());
+      const marker = realpathSync(`${snapshot}/migration-started`);
+      if (!snapshot.startsWith('/opt/rivalhub-instance/rollback/') || snapshot !== selected || marker !== `${snapshot}/migration-started`) throw Error('Invalid upgrade transaction.');
+      const lock = spawnSync('flock', ['-n', '/opt/rivalhub-instance/deploy.lock', 'true']);
+      const service = spawnSync('systemctl', ['is-active', '--quiet', 'rivalhub-instance']);
+      if (lock.error || lock.status !== 1 || service.error || service.status !== 3) throw Error('Upgrade requires the held host lock and stopped service.');
+      const before = JSON.parse(readFileSync(process.argv[3]!, 'utf8')).migrations as MigrationIdentity[];
+      const after = JSON.parse(readFileSync(process.argv[4]!, 'utf8')).migrations as MigrationIdentity[];
+      const active = readMigrationLedger();
+      const legacy = readMigrationLedger(resolve('drizzle/v2-migrations'));
+      if (!Array.isArray(before) || !before.length || !Array.isArray(after) || after.length !== active.length
+        || !isMigrationLedgerPrefix(after, active) || (!isMigrationLedgerPrefix(before, active) && !isMigrationLedgerPrefix(before, legacy))) {
+        throw Error('Manifest migration chain is not a supported exact lineage.');
+      }
+      const client = await pool.connect();
+      try {
+        const rows = await client.query<{ hash: string; when: string }>('SELECT hash, created_at::bigint::text AS "when" FROM drizzle.__drizzle_migrations ORDER BY created_at, id');
+        const actual = rows.rows.map(row => ({ hash: row.hash, when: Number(row.when) }));
+        if (actual.length !== before.length || !isMigrationLedgerPrefix(actual, before)) throw Error('Database ledger differs from previous package.');
+        await migrateCanonicalDatabase(drizzle(client), 'drizzle/migrations', client);
+        const result = await client.query<{ hash: string; when: string }>('SELECT hash, created_at::bigint::text AS "when" FROM drizzle.__drizzle_migrations ORDER BY created_at, id');
+        const migrated = result.rows.map(row => ({ hash: row.hash, when: Number(row.when) }));
+        if (migrated.length !== after.length || !isMigrationLedgerPrefix(migrated, after)) throw Error('Migrated ledger differs from candidate package.');
+      } finally { client.release(); }
     } else {
       await runScheduler(pool, command === 'scheduler' ? 'provision' : 'verify', {
         ...process.env, RIVALHUB_SCHEDULER_BASE_URL: app,
