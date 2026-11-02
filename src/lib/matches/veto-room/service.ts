@@ -25,7 +25,9 @@ import {
   matchVetoTimeoutIncidents,
   seasons,
 } from "@/db/schema";
-import { applyMatchStatusTransitionInTx, lockMatchInTx, materializeDefaultLineupsInTx } from "@/lib/match-rosters/service";
+import { materializeDefaultLineupsInTx } from "@/lib/match-rosters/service";
+import { lockCompetitionMatchInTx as lockMatchInTx } from "@/lib/matches/locking";
+import { applyMatchStatusTransitionInTx } from "@/lib/matches/lifecycle";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { logEvent } from "@/lib/observability/server";

@@ -2,10 +2,10 @@ import "server-only";
 import { and, eq, gt } from "drizzle-orm";
 import { db, type DB } from "@/db/client";
 import { matchVetoInvalidations, matches, seasons } from "@/db/schema";
-import { revalidateVetoRoomPaths } from "@/lib/revalidation";
+import { revalidateMatchProjectionPaths } from "./next-adapter";
 
-/** BP-specific postcommit delivery. Never replays a domain command. */
-export async function deliverVetoInvalidation(matchId: string, mode: "action" | "route", database: DB = db): Promise<"complete" | "pending"> {
+/** Match projection postcommit delivery. Never replays a domain command. */
+export async function deliverMatchProjectionInvalidation(matchId: string, mode: "action" | "route", database: DB = db): Promise<"complete" | "pending"> {
   const [pending] = await database.select({ generation: matchVetoInvalidations.generation, affectedFacts: matchVetoInvalidations.affectedFacts, slug: seasons.slug, seasonId: seasons.id, matchStatus: matches.status })
     .from(matchVetoInvalidations)
     .innerJoin(matches, eq(matches.id, matchVetoInvalidations.matchId))
@@ -15,7 +15,7 @@ export async function deliverVetoInvalidation(matchId: string, mode: "action" | 
   if (!pending) return "complete";
   // All existing hard-expire dependencies, including correction/withdrawal,
   // remain owned by revalidation. A thrown call leaves the watermark pending.
-  revalidateVetoRoomPaths({ slug: pending.slug, seasonId: pending.seasonId, matchId, matchStatus: pending.matchStatus },
+  revalidateMatchProjectionPaths({ slug: pending.slug, seasonId: pending.seasonId, matchId, matchStatus: pending.matchStatus },
     { changed: true, affectedFacts: pending.affectedFacts }, { mode });
   const acknowledged = await database.update(matchVetoInvalidations)
     .set({ publishedGeneration: pending.generation })

@@ -25,11 +25,8 @@ import { Pool, type PoolClient } from "pg";
 import { describe, expect, it, vi } from "vitest";
 import * as schema from "../../../src/db/schema";
 import { competitionEntries } from "../../../src/db/schema";
-import {
-  applyMatchStatusTransitionInTx,
-  confirmMatchRosterInTx,
-  type MatchTransitionOutcome,
-} from "../../../src/lib/match-rosters/service";
+import { confirmMatchRosterInTx } from "../../../src/lib/match-rosters/service";
+import { applyMatchStatusTransitionInTx, type MatchTransitionOutcome } from "../../../src/lib/matches/lifecycle";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
 import { createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
 import { capturePostgresError, localDatabaseUrl } from "./harness/database";
