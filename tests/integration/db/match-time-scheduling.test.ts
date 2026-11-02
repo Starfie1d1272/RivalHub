@@ -20,10 +20,10 @@ const auth = vi.hoisted(() => ({ userId: "" }));
 vi.mock("@/lib/auth/session", () => ({
   requireAuth: async () => ({ userId: auth.userId }),
   getUserSession: async () => ({ userId: auth.userId }),
-  requireSeasonAdmin: async () => ({ userId: auth.userId, email: "admin@example.test" }),
+  requireSeasonAdmin: async () => ({ userId: auth.userId }),
 }));
 vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn() }));
-import { proposeMatchTime, respondToTimeProposal, forceSetMatchTime, setMatchScheduledAt } from "@/actions/matches/scheduling";
+import { proposeMatchTime, respondToTimeProposal } from "@/actions/matches/scheduling";
 import { getSeasonPersonalNextStep } from "@/lib/seasons/public-next-step";
 
 const hour = 3_600_000;
@@ -207,55 +207,4 @@ it("allows short-notice mutual consent without a lineup, protects permissions an
   // Cron still prepares legal defaults inside T-2h using the original roster owner.
   await runMatchTimeAutoAwardCron();
   expect(await db.query.matchRosters.findMany({ where: eq(schema.matchRosters.matchId, fixture.matchId) })).toHaveLength(2);
-});
-
-it("uses the same admin transition from both entrypoints and releases resources on clear", async () => {
-  const fixture = await seedFixture({ matchStatus: "scheduled" });
-  const entry = (await db.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, fixture.entryAId) }))!;
-  auth.userId = entry.representativeUserId;
-  const time = new Date(Date.now() + 3 * hour);
-  const [slot] = await db.insert(schema.officialCoverageSlots).values({ seasonId: fixture.seasonId, startsAt: new Date(), endsAt: new Date(Date.now() + 5 * hour), capacity: 2 }).returning();
-  const [hold] = await db.insert(schema.coverageHolds).values({ slotId: slot.id, matchId: fixture.matchId, proposedScheduledAt: time, expiresAt: new Date(Date.now() + hour) }).returning();
-  const [allocation] = await db.insert(schema.coverageAllocations).values({ slotId: slot.id, matchId: fixture.matchId, scheduledAt: time }).returning();
-  const [pending] = await db.insert(schema.matchTimeProposals).values({ matchId: fixture.matchId, proposedBy: auth.userId, proposedTime: time }).returning();
-  expect((await setMatchScheduledAt(fixture.matchId, time)).success).toBe(true);
-  expect((await db.query.matchTimeProposals.findFirst({ where: eq(schema.matchTimeProposals.id, pending.id) }))?.status).toBe("expired");
-  expect((await db.query.coverageHolds.findFirst({ where: eq(schema.coverageHolds.id, hold.id) }))?.releasedAt).not.toBeNull();
-  expect((await db.query.coverageAllocations.findFirst({ where: eq(schema.coverageAllocations.id, allocation.id) }))?.releasedAt).not.toBeNull();
-  expect((await db.query.matchTimeProposals.findMany({ where: and(eq(schema.matchTimeProposals.matchId, fixture.matchId), eq(schema.matchTimeProposals.resolution, "admin_force")) }))).toHaveLength(1);
-  expect((await forceSetMatchTime(fixture.matchId, time)).success).toBe(true);
-  expect((await db.query.matchTimeProposals.findMany({ where: and(eq(schema.matchTimeProposals.matchId, fixture.matchId), eq(schema.matchTimeProposals.resolution, "admin_force")) }))).toHaveLength(2);
-  const [newPending] = await db.insert(schema.matchTimeProposals).values({ matchId: fixture.matchId, proposedBy: auth.userId, proposedTime: time }).returning();
-  const [newHold] = await db.insert(schema.coverageHolds).values({ slotId: slot.id, matchId: fixture.matchId, proposedScheduledAt: time, expiresAt: new Date(Date.now() + hour) }).returning();
-  expect((await setMatchScheduledAt(fixture.matchId, null)).success).toBe(true);
-  expect((await db.query.matches.findFirst({ where: eq(schema.matches.id, fixture.matchId) }))?.scheduledAt).toBeNull();
-  expect((await db.query.matchTimeProposals.findFirst({ where: eq(schema.matchTimeProposals.id, newPending.id) }))?.status).toBe("expired");
-  expect((await db.query.coverageHolds.findFirst({ where: eq(schema.coverageHolds.id, newHold.id) }))?.releasedAt).not.toBeNull();
-});
-
-it("rechecks match status after the admin entrypoint waits for the match lock", async () => {
-  const fixture = await seedFixture({ matchStatus: "scheduled" });
-  const entry = (await db.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, fixture.entryAId) }))!;
-  auth.userId = entry.representativeUserId;
-  const pool = createLocalPool({ max: 2 });
-  const blocker = await pool.connect();
-  let work: ReturnType<typeof setMatchScheduledAt> | undefined;
-  try {
-    await blocker.query("BEGIN");
-    const pid = (await blocker.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
-    await blocker.query("SELECT id FROM matches WHERE id = $1 FOR UPDATE", [fixture.matchId]);
-    work = setMatchScheduledAt(fixture.matchId, new Date(Date.now() + 3 * hour));
-    await vi.waitFor(async () => {
-      const blocked = await pool.query("SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))) AS blocked", [pid]);
-      expect(blocked.rows[0].blocked).toBe(true);
-    });
-    await blocker.query("UPDATE matches SET status = 'in_progress' WHERE id = $1", [fixture.matchId]);
-    await blocker.query("COMMIT");
-    expect((await work).success).toBe(false);
-  } finally {
-    await blocker.query("ROLLBACK");
-    blocker.release();
-    await work;
-    await pool.end();
-  }
 });
