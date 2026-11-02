@@ -1,5 +1,6 @@
 "use client";
 
+import { usePublicRuntimeConfig } from "@/components/layout/PublicRuntimeConfig";
 import { useEffect, useRef, useCallback } from "react";
 
 interface TurnstileWidgetProps {
@@ -37,6 +38,7 @@ function safeErrorCode(value: string | undefined): string | undefined {
 }
 
 export function TurnstileWidget({ onVerify, onError, resetSignal = 0 }: TurnstileWidgetProps) {
+  const { turnstileSiteKey } = usePublicRuntimeConfig();
   const ref = useRef<HTMLDivElement>(null);
   const widgetId = useRef<string>("");
   const onVerifyRef = useRef(onVerify);
@@ -47,7 +49,7 @@ export function TurnstileWidget({ onVerify, onError, resetSignal = 0 }: Turnstil
 
   const renderWidget = useCallback(() => {
     if (!ref.current || !window.turnstile) return;
-    const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    const siteKey = turnstileSiteKey;
     if (!siteKey) {
       onErrorRef.current?.({ kind: "configuration_error", errorCode: "missing_site_key" });
       return;
@@ -62,7 +64,7 @@ export function TurnstileWidget({ onVerify, onError, resetSignal = 0 }: Turnstil
       },
       "expired-callback": () => onVerifyRef.current(""),
     });
-  }, []);
+  }, [turnstileSiteKey]);
 
   const resetWidget = useCallback(() => {
     if (widgetId.current && window.turnstile) {

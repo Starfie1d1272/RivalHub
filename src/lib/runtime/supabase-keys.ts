@@ -1,4 +1,4 @@
-/** Pure key contract; callers pass literal NEXT_PUBLIC references for Next inlining.
+/** Pure key contract for runtime configuration.
  * Legacy JWT-shaped keys are accepted only from the canonical loopback adapter. */
 export function requireSupabasePublicKey(publishable?: string, apiUrl?: string): string {
   return requireKey(publishable, apiUrl, "anon", "sb_publishable_", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");

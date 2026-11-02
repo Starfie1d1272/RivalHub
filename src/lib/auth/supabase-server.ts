@@ -1,5 +1,8 @@
 import "server-only";
 
+import { requireSupabaseOrigin, runtimePublicValue } from "@/lib/runtime/public-config";
+
+
 import { requireSupabasePublicKey, requireSupabaseSecretKey } from "@/lib/runtime/supabase-keys";
 import { createClient } from "@supabase/supabase-js";
 import { assertPreviewAuthEnvironment } from "@/lib/runtime/preview";
@@ -7,9 +10,10 @@ import { assertPreviewAuthEnvironment } from "@/lib/runtime/preview";
 /** Privileged Supabase client. This module is server-only because its key bypasses RLS. */
 export function createServiceClient(options: { fetch?: typeof fetch } = {}) {
   assertPreviewAuthEnvironment();
+  const url = requireSupabaseOrigin(runtimePublicValue("NEXT_PUBLIC_SUPABASE_URL"));
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    requireSupabaseSecretKey(process.env.SUPABASE_SECRET_KEY, process.env.NEXT_PUBLIC_SUPABASE_URL),
+    url,
+    requireSupabaseSecretKey(process.env.SUPABASE_SECRET_KEY, url),
     {
       auth: {
         autoRefreshToken: false,
@@ -23,9 +27,10 @@ export function createServiceClient(options: { fetch?: typeof fetch } = {}) {
 /** Server-side anonymous client for public Auth flows such as sign-up. */
 export function createPublicAuthClient() {
   assertPreviewAuthEnvironment();
+  const url = requireSupabaseOrigin(runtimePublicValue("NEXT_PUBLIC_SUPABASE_URL"));
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_URL),
+    url,
+    requireSupabasePublicKey(runtimePublicValue("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"), url),
     {
       auth: { autoRefreshToken: false, persistSession: false },
       global: { fetch },

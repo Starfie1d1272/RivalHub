@@ -1,3 +1,4 @@
+import { requireApplicationOrigin } from "@/lib/runtime/public-config";
 import { z } from "zod";
 import { ok } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -58,7 +59,7 @@ export async function POST(request: Request, context: Context) {
   return withRouteObservability(request, route, async () => {
     try {
       // Configured public origin is authoritative behind the Linux reverse proxy.
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? (process.env.NODE_ENV !== "production" ? request.url : "");
+      const appUrl = requireApplicationOrigin();
       let origin: string | null = null;
       try { const url = new URL(appUrl); if (["https:", "http:"].includes(url.protocol) && !url.username && !url.password) origin = url.origin; } catch { /* Fail closed. */ }
       if (!origin || request.headers.get("origin") !== origin) throw new AppError(ErrorCode.FORBIDDEN, "请求来源无效。");

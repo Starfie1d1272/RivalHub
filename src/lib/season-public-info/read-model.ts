@@ -1,5 +1,7 @@
 import "server-only";
 
+import { runtimePublicValue } from "@/lib/runtime/public-config";
+
 import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db/client";
@@ -18,7 +20,8 @@ export type SeasonPublicInfoAdmin = {
 };
 
 export async function getPublicSeasonInfo(seasonId: string): Promise<PublicSeasonInfo> {
-  const publicInfo = await getCachedPublicSeasonInfo(seasonId);
+  const assetBase = runtimePublicValue("NEXT_PUBLIC_SUPABASE_URL")?.trim() ?? "";
+  const publicInfo = await getCachedPublicSeasonInfo(seasonId, assetBase);
   if (publicInfo) return publicInfo;
 
   // A cache miss may mean draft, a just-published event, or deletion. Only
@@ -26,16 +29,16 @@ export async function getPublicSeasonInfo(seasonId: string): Promise<PublicSeaso
   const [season] = await db.select({ status: seasons.status, slug: seasons.slug }).from(seasons)
     .where(eq(seasons.id, seasonId)).limit(1);
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES[ErrorCode.SEASON_NOT_FOUND]);
-  if (season.status !== "draft") return readSeasonInfo(seasonId, season.slug);
+  if (season.status !== "draft") return readSeasonInfo(seasonId, season.slug, undefined, assetBase);
 
   const viewer = await getCurrentUserAuthorization();
   if (!viewer || (viewer.role !== "super_admin" && !viewer.seasonIds.includes(seasonId))) {
-    return toPublicSeasonInfo(null, [], [], season.slug);
+    return toPublicSeasonInfo(null, [], [], season.slug, assetBase);
   }
-  return readSeasonInfo(seasonId, season.slug);
+  return readSeasonInfo(seasonId, season.slug, undefined, assetBase);
 }
 
-async function getCachedPublicSeasonInfo(seasonId: string): Promise<PublicSeasonInfo | null> {
+async function getCachedPublicSeasonInfo(seasonId: string, assetBase: string | undefined): Promise<PublicSeasonInfo | null> {
   "use cache: remote";
   cacheLife("minutes");
   cacheTag(publicSeasonInfoTag(seasonId));
@@ -43,13 +46,14 @@ async function getCachedPublicSeasonInfo(seasonId: string): Promise<PublicSeason
     .from(seasons).leftJoin(seasonPublicInfo, eq(seasonPublicInfo.seasonId, seasons.id))
     .where(and(eq(seasons.id, seasonId), ne(seasons.status, "draft"))).limit(1);
   if (!season) return null;
-  return readSeasonInfo(seasonId, season.slug, season.info);
+  return readSeasonInfo(seasonId, season.slug, season.info, assetBase);
 }
 
 async function readSeasonInfo(
   seasonId: string,
   seasonSlug: string,
   publicInfo?: Pick<SeasonPublicInfo, "rulesLabel" | "rulesHref"> | null,
+  assetBase?: string,
 ): Promise<PublicSeasonInfo> {
   const info = publicInfo === undefined
     ? (await db.select().from(seasonPublicInfo).where(eq(seasonPublicInfo.seasonId, seasonId)).limit(1))[0] ?? null
@@ -58,7 +62,7 @@ async function readSeasonInfo(
     db.select().from(communityGroups).where(eq(communityGroups.seasonId, seasonId)).orderBy(asc(communityGroups.sortOrder), asc(communityGroups.createdAt), asc(communityGroups.id)),
     db.select().from(seasonContacts).where(eq(seasonContacts.seasonId, seasonId)).orderBy(asc(seasonContacts.sortOrder), asc(seasonContacts.createdAt), asc(seasonContacts.id)),
   ]);
-  return toPublicSeasonInfo(info ?? null, groups, contacts, seasonSlug);
+  return toPublicSeasonInfo(info ?? null, groups, contacts, seasonSlug, assetBase);
 }
 
 export async function getPublicSeasonInfoBySlug(seasonSlug: string): Promise<(PublicSeasonInfo & { season: { id: string; slug: string; name: string } }) | null> {

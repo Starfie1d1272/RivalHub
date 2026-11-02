@@ -6,8 +6,9 @@ import { toast } from "sonner";
 import { Field } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { loginWithPassword as telemetry_loginWithPassword, resendSignupConfirmation as telemetry_resendSignupConfirmation, signUp as telemetry_signUp } from "@/actions/auth";
+import { usePublicRuntimeConfig } from "@/components/layout/PublicRuntimeConfig";
 import { TurnstileWidget, type TurnstileFailure } from "@/components/auth/TurnstileWidget";
-import { EMAIL_RESEND_COOLDOWN_SECONDS, isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
+import { isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
 import { preserveLoginUpdateEmail, takeLoginUpdateEmail } from "@/lib/auth/login-update-draft";
 import { reportDeploymentUpdate, useDeploymentUpdate } from "@/lib/deployment-update";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
@@ -22,6 +23,7 @@ const signUp = observeAction("auth.signUp", telemetry_signUp);
 type Mode = "login" | "register";
 
 export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initialMode?: Mode; redirectTo?: string }) {
+  const { authEmailResendCooldownSeconds } = usePublicRuntimeConfig();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -104,7 +106,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
           completeTelemetryTask("account", taskToken);
           receiptToken.current = taskToken;
           setAwaitingEmail(email.trim());
-          setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
+          setResendAvailableAt(Date.now() + authEmailResendCooldownSeconds * 1_000);
         } else {
           clearPreviousLiveViews();
           window.location.href = redirectRef.current;
@@ -124,7 +126,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
         if (!requirePageUpdate(error)) toast.error(mode === "login" ? "登录请求未完成，请检查网络连接后重试。" : "注册请求结果尚未确认，请先检查邮件，不要立即重复注册。");
       }
     });
-  }, [email, password, confirmPassword, mode, turnstileToken, needsUpdate, requirePageUpdate]);
+  }, [email, password, confirmPassword, mode, turnstileToken, needsUpdate, requirePageUpdate, authEmailResendCooldownSeconds]);
 
   useEffect(() => {
     if (awaitingEmail && receiptToken.current) stepTelemetryTask("account", "result", receiptToken.current);
@@ -162,18 +164,18 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
             try {
             const result = await resendSignupConfirmation(awaitingEmail, redirectRef.current);
             if (result.success) {
-              setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
+              setResendAvailableAt(Date.now() + authEmailResendCooldownSeconds * 1_000);
               toast.success("已提交验证邮件重发请求；如果该邮箱仍待验证，请检查收件箱及垃圾邮件等分类。");
             } else {
               toast.error(result.error.message);
             }
             } catch (error) {
               if (requirePageUpdate(error)) return;
-              setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
+              setResendAvailableAt(Date.now() + authEmailResendCooldownSeconds * 1_000);
               toast.error("发送结果尚未确认，请先检查邮箱，稍后再显式重试。");
             }
           })}>
-            {isResendCoolingDown ? `请等待 ${EMAIL_RESEND_COOLDOWN_SECONDS} 秒后重试` : "重新发送验证邮件"}
+            {isResendCoolingDown ? `请等待 ${authEmailResendCooldownSeconds} 秒后重试` : "重新发送验证邮件"}
           </Button>
         </div>
         <button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setResendAvailableAt(null); setMode("register"); setEmail(""); setPassword(""); setConfirmPassword(""); setTurnstileToken(""); setTurnstileResetKey((key) => key + 1); }}>

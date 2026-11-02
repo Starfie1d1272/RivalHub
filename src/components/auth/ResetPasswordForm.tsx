@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Field } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
+import { usePublicRuntimeConfig } from "@/components/layout/PublicRuntimeConfig";
 import { createBrowserClient } from "@/lib/auth/supabase";
 import { isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
 import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
@@ -14,6 +15,7 @@ import { observeAction } from "@/lib/telemetry/client";
 const resetUserPassword = observeAction("password-recovery.resetUserPassword", telemetry_resetUserPassword);
 
 export function ResetPasswordForm() {
+  const config = usePublicRuntimeConfig();
   const task = useTelemetryTask("account", "password-reset");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -37,7 +39,7 @@ export function ResetPasswordForm() {
       let submitted = false;
       let committed = false;
       try {
-      const supabase = createBrowserClient();
+      const supabase = createBrowserClient(config);
       const { data } = await supabase.auth.getSession();
       submitted = true;
       const result = await resetUserPassword(data.session?.access_token ?? "", password);
