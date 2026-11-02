@@ -1,4 +1,5 @@
-import type { QualificationFinding } from "@/lib/qualification/finding";
+import { qualificationFindingCoveredByApproval, type QualificationFinding } from "@/lib/qualification/finding";
+import { evaluateExternalStrengthRule } from "@/lib/major/player-strength";
 import type { InstitutionAffiliationRule } from "@/types/season";
 import type { MatchLineupPolicy } from "./policy";
 
@@ -155,3 +156,51 @@ export function evaluateStartingLineup(input: StartingLineupInput): StartingLine
   const blockers = findings.map((finding) => finding.message);
   return { valid: findings.length === 0, status: findings.length === 0 ? "ready" : "blocked", findings, blockers, affiliatedStarterCounts };
 }
+
+/** Evaluate a lineup solely against its adopted facts and current participation sanctions. */
+export const evaluateLineup: import("@/lib/seasons/rules").EvaluateLineup = (proposed, frozen, participationBlockedUserIds) => {
+  const findings: QualificationFinding[] = [];
+  if (proposed.entryId !== frozen.entryId) {
+    findings.push({ code: "lineup_entry_mismatch", message: "阵容与冻结名单所属队伍不一致。", waivable: false });
+  }
+  const members = new Map([...frozen.membersById].map(([id, member]) => [id, {
+    ...member,
+    participationBlocked: participationBlockedUserIds.has(member.userId),
+  }]));
+  findings.push(...evaluateStartingLineup({
+    starterIds: proposed.starterMemberIds,
+    substituteIds: proposed.substituteMemberIds,
+    policy: { starterCount: frozen.starterCount, maxSubstitutes: frozen.maxSubstitutes },
+    memberFacts: members,
+    affiliationRules: frozen.affiliationRules,
+    educationRequired: frozen.educationRequired,
+  }).findings);
+
+  if (frozen.competitiveProfileRequired || frozen.externalStrengthGap.enabled) {
+    const evidence = frozen.evidence;
+    if (evidence.kind !== "competitive" || !evidence.context.profile) {
+      findings.push({ code: "competitive_context_unavailable", message: "冻结的竞技资格事实或规则不可用。", waivable: false });
+    } else {
+      // Per-season evidence completeness must be assessed by the competitive evidence owner.
+      // Until that evaluator is wired here, do not accept a required profile as complete.
+      if (frozen.competitiveProfileRequired) findings.push({ code: "competitive_requirements_unavailable", message: "冻结的竞技资格要求尚无法完成校验。", waivable: false });
+      const players = proposed.starterMemberIds.flatMap((id) => {
+        const member = members.get(id);
+        if (!member) return [];
+        const fact = evidence.byUser.get(member.userId);
+        if (!fact) {
+          findings.push({ code: "competitive_profile_incomplete", message: `首发 ${member.userId} 缺少冻结的竞技事实。`, waivable: false, metadata: { userId: member.userId } });
+          return [];
+        }
+        const isHome = frozen.affiliationRules.some((rule) => isEligibleForRule(member, rule));
+        return [{ ...fact.strength, isHome }];
+      });
+      if (frozen.externalStrengthGap.enabled && players.length === proposed.starterMemberIds.length) {
+        const result = evaluateExternalStrengthRule({ players, config: { ...evidence.context.profile, externalStrengthMaxStarGap: frozen.externalStrengthGap.maxGap } });
+        findings.push(...result.findings.filter((finding) => !finding.waivable || !frozen.overrides.some((override) =>
+          override.restrictionCode === finding.code && qualificationFindingCoveredByApproval(override.findingSnapshot, finding))));
+      }
+    }
+  }
+  return findings.length === 0 ? { state: "ready", findings: [] } : { state: "blocked", findings: [findings[0], ...findings.slice(1)] };
+};
