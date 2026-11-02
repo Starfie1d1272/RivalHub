@@ -81,6 +81,6 @@ export function V2RulesForm({ value, onChange, affiliationRules, onAffiliationRu
       <label className="flex items-center gap-2"><Checkbox disabled={disabled} checked={value.requireUniqueTeamName} onChange={e => onChange({ ...value, requireUniqueTeamName: e.target.checked })} />队伍名称唯一</label>
       <label className="flex items-center gap-2"><Checkbox disabled={disabled} checked={value.requireTeamLogo} onChange={e => onChange({ ...value, requireTeamLogo: e.target.checked })} />要求队伍 Logo</label>
       <label className="flex items-center gap-2"><Checkbox disabled={disabled} checked={value.requirePositions} onChange={e => onChange({ ...value, requirePositions: e.target.checked })} />要求成员位置</label>
-    </div>{value.requirePositions && <div><Label htmlFor={`${id}-positions`}>每位置人数上限</Label><Input id={`${id}-positions`} type="number" min={0} disabled={disabled} value={value.maxPerPositionPerTeam} onChange={e => onChange({ ...value, maxPerPositionPerTeam: Number(e.target.value) })} /></div>}</section>
+    </div><div><Label htmlFor={`${id}-positions`}>每位置人数上限（0 为不限）</Label><Input id={`${id}-positions`} type="number" min={0} disabled={disabled} value={value.maxPerPositionPerTeam} onChange={e => onChange({ ...value, maxPerPositionPerTeam: Number(e.target.value) })} /></div></section>
   </div>;
 }
