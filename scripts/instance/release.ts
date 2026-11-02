@@ -25,6 +25,7 @@ async function main(): Promise<void> {
     copyFileSync("scripts/release/capability-contract.ts", join(temp, "capability-contract.ts"));
     const evidence = join(temp, "capability-evidence.json");
     if (process.argv[2] === "--restore-pair") {
+      requireWriterFence();
       if (process.argv.length !== 5) throw new Error("Usage: release.ts --restore-pair EVIDENCE RESTORED_INSTANCE_ENV");
       const snapshot = realpathSync(readFileSync("/opt/rivalhub-instance/previous-snapshot", "utf8").trim());
       if (!snapshot.startsWith("/opt/rivalhub-instance/rollback/") || readFileSync(join(snapshot, "operator-commit"), "utf8").trim() !== operator) throw new Error("Paired recovery operator or transaction mismatch.");

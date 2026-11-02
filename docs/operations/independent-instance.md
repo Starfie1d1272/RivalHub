@@ -81,7 +81,7 @@ sudo pnpm exec tsx scripts/instance/release.ts --major-transition \
 
 维护窗口标识是操作记录，不会停止外部 writer。checkpoint 环境与普通迁移相同，还必须包含实例 Storage secret、age 和独立 R2 配置。标记前失败可恢复旧应用；标记写入后任何失败均保持停机，`--rollback` 不能单独启动旧应用。
 
-成对恢复必须继续保持全部 writer 停止，使用事务快照 `full-checkpoint.json` 中的 `completionKey`，通过 `pnpm db:recovery:fetch` 获取该完整 artifact，并按 [灾难恢复](disaster-recovery.md) 将其恢复到全新目标，使用 `--evidence-directory` 生成 full restore 验证证据。核实目标项目和凭据后，在原事务的同一 operator checkout 中运行：
+成对恢复的激活入口同样保持关闭，直到可证明恢复后至启动期间的 writer fencing。恢复流程必须继续保持全部 writer 停止，使用事务快照 `full-checkpoint.json` 中的 `completionKey`，通过 `pnpm db:recovery:fetch` 获取该完整 artifact，并按 [灾难恢复](disaster-recovery.md) 将其恢复到全新目标，使用 `--evidence-directory` 生成 full restore 验证证据。核实目标项目和凭据后，在原事务的同一 operator checkout 中运行：
 
 ```bash
 sudo pnpm exec tsx scripts/instance/release.ts --restore-pair \
