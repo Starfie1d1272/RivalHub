@@ -372,7 +372,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
         qq: currentUser?.qq ?? "",
         perfectName: currentUser?.perfectName ?? "",
         steam64: currentUser?.steam64 ?? "",
-        playerType: currentRegistration.playerType,
+        playerType: currentRegistration.playerType === "enrolled" || currentRegistration.playerType === "graduated" || currentRegistration.playerType === "external" ? currentRegistration.playerType : undefined,
         primaryPosition: currentRegistration.primaryPosition,
         secondaryPosition: currentRegistration.secondaryPosition,
         peakRank: currentRegistration.peakRank ?? undefined,
