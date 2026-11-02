@@ -15,6 +15,12 @@ Pick’Em 不设独立管理员页面。Main Event 名单与赛事种子正式�
 Sanitized preview mirror 不复制观众的草稿、提交和积分账本，也不复制依赖它们的预测项目与窗口，独立 `bet_*` 项目、账户、盘口、投入、结算与流水也全部排除；公开的系列／单图开局事实按源迁移版本导出。预览库按 active migration chain 建表后，需用独立测试数据确认官方名单并形成阶段事实；不能把生产观众数据作为界面演示素材。
 
 
+## 旧预测金融执行的退休核验
+
+旧盘口的开设和投入已无产品 action；`src/lib/predictions/service.ts` 的旧函数仍由历史集成测试调用，reconciliation worker 仍会锁盘、结算和处理官方更正。`prediction_reconciliation_is_due` 及官方事实触发器也仍包含旧市场；同一调度入口同时服务 Pick’Em 和 BET，不能整体停用。`src/lib/predictions/data.ts` 保留历史读取。Pick’Em 的账户、初始积分、阶段和参与奖励是既有事实，不转入 BET。
+
+退休前由有权人员对目标实例使用已有只读连接执行 `psql -X -v ON_ERROR_STOP=1 -f scripts/db/prediction-finance-retirement-check.sql`，记录实例、时间和聚合结果；不要在命令行或证据中写入凭据。脚本在只读 repeatable-read 事务中计数四张旧市场表，并按 kind 汇总 ledger；不输出用户或逐条流水。零市场、选项、投入、结算只是无旧市场事实的必要证据，不证明所有实例或未来部署状态，也不授权删除表或历史。任何非零市场（包括已结算市场）都需先确认未结算投入和未来官方更正的处理方案；历史账本中的 initial、stage、participation 不属于待转移 BET 余额。代码删除与上线窗口需重新核验，确认没有旧版本仍能写入，再单独审查触发器、due 条件与 worker 的兼容性和锁序。不得根据一次历史快照清库或跳过未完成的结算。
+
 ## 免费赛果与 BP 预测
 
 免费预测不要求启用 BET 或领取钱包。正赛沿用 drafting/playing 阶段；Play-in 仅在 registration 阶段、比赛绑定本赛事已启动且未完成的资格运行时开放。读模型与提交共用同一资格生命周期判断，未启动、已完成、结束或归档赛事不可提交。赛果以实际对局开始为截止，BP 以 BP 开始为截止；持久化截止事实不会因恢复或清空 BP session 而重新开放。
