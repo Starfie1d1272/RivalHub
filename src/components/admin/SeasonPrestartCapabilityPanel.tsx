@@ -4,7 +4,7 @@ import React, { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { startFormedSeason } from "@/actions/draft/formation";
+import { startSeason } from "@/actions/season-prestart";
 import { InlineConfirm, Marker, Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { STAGE_TYPE_LABELS } from "@/lib/seasons/presentation";
@@ -49,7 +49,7 @@ export function SeasonPrestartCapabilityPanel({
       {canStart && <Panel label="赛事开赛">
         <p className="mb-3 text-sm">处理全部报名和名单审核后，可采用名单并开赛，随后前往赛程管理生成赛程。</p>
         <Button type="button" disabled={pending} onClick={() => setConfirming(true)}>采用名单并开赛</Button>
-        {confirming && <InlineConfirm title="确认采用名单并开赛？" sub="将检查并冻结已批准名单，然后进入比赛阶段。" confirmLabel="确认开赛" onCancel={() => setConfirming(false)} onConfirm={() => { setConfirming(false); startTransition(async () => { const result = await startFormedSeason({ seasonId }); if (!result.success) { toast.error(result.error.message); return; } toast.success("名单已冻结，赛事已开始；可前往赛程管理生成赛程。"); router.refresh(); }); }} />}
+        {confirming && <InlineConfirm title="确认采用名单并开赛？" sub="将检查并冻结已批准名单，然后进入比赛阶段。" confirmLabel="确认开赛" onCancel={() => setConfirming(false)} onConfirm={() => { setConfirming(false); startTransition(async () => { const result = await startSeason({ seasonId }); if (!result.success) { toast.error(result.error.message); return; } toast.success("名单已冻结，赛事已开始；可前往赛程管理生成赛程。"); router.refresh(); }); }} />}
       </Panel>}
       <Panel label="阶段计划">
         {stagePlan.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚未配置可执行的阶段计划。</p> : <ol className="grid gap-2 text-sm sm:grid-cols-2">{stagePlan.map((stage, index) => <li key={stage.key} className="border border-[var(--color-border)] px-3 py-2"><span className="font-mono text-xs text-[var(--color-fg-mid)]">{String(index + 1).padStart(2, "0")}</span> <span className="font-medium">{stage.name}</span><span className="ml-2 text-xs text-[var(--color-fg-mid)]">{STAGE_TYPE_LABELS[stage.type] ?? "赛事阶段"}</span></li>)}</ol>}
