@@ -20,13 +20,13 @@ import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/cohe
 import { adoptApprovedRosterInTx } from "@/lib/event-rosters/owner";
 import { prepareApprovedEventRosterInTx } from "@/lib/event-rosters/prepare-approved";
 
-const inputSchema = z.object({ seasonId: z.guid(), entryId: z.guid().nullable(), captainId: z.guid(), memberIds: z.array(z.guid()).max(20), starterIds: z.array(z.guid()).max(20) });
+const inputSchema = z.object({ seasonId: z.guid(), entryId: z.guid().nullable(), captainId: z.guid(), memberIds: z.array(z.guid()).max(20), starterIds: z.array(z.guid()).max(20), reinviteIds: z.array(z.guid()).max(20).optional().default([]) });
 
 /** Save an incomplete formation; submission and approval belong to Entry. */
 export async function saveManualFormation(input: z.infer<typeof inputSchema>): Promise<ActionResult<{ entryId: string }>> {
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) return failValidation("编队参数无效");
-  const { seasonId, entryId, captainId, memberIds, starterIds } = parsed.data;
+  const { seasonId, entryId, captainId, memberIds, starterIds, reinviteIds } = parsed.data;
   const admin = await requireSeasonAdmin(seasonId);
   try {
     const result = await db.transaction(async tx => {
@@ -36,7 +36,7 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
       if (season.hasDraft && !entryId && await tx.query.draftState.findFirst({ where: eq(draftState.seasonId, seasonId) })) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "选秀开始后不能增加队伍。");
       if (season.hasDraft && entryId) {
         const state = await tx.query.draftState.findFirst({ where: eq(draftState.seasonId, seasonId) });
-        if (!state || state.isActive || state.currentEntryId) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "选秀结束后才能补正名单。");
+        if ((state && (state.isActive || state.currentEntryId)) || (!state && (memberIds.some(id => id !== captainId) || starterIds.some(id => id !== captainId)))) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "选秀结束后才能补正名单。");
       }
       const members = [captainId, ...memberIds.filter(id => id !== captainId)];
       if (new Set(memberIds).size !== memberIds.length || new Set(starterIds).size !== starterIds.length || starterIds.some(id => !members.includes(id))) throw new AppError(ErrorCode.VALIDATION_FAILED, "成员或首发重复，或首发不在队伍中。");
@@ -69,7 +69,7 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
       if (!revision || revision.status !== "draft") throw new AppError(ErrorCode.VALIDATION_FAILED, "只有草稿名单可以编辑。");
       const participants = await tx.select().from(competitionEntryParticipants).where(eq(competitionEntryParticipants.entryId, entry.id));
       if (participants.some(participant => participant.status === "confirmed" && !userIds.includes(participant.userId))) throw new AppError(ErrorCode.VALIDATION_FAILED, "已确认成员须先通过赛事退出流程退出。");
-      if (participants.some(participant => userIds.includes(participant.userId) && ["declined", "withdrawn"].includes(participant.status))) throw new AppError(ErrorCode.VALIDATION_FAILED, "已退出或拒绝的成员须先重新接受邀请。");
+      if (new Set(reinviteIds).size !== reinviteIds.length || reinviteIds.some(id => !members.includes(id))) throw new AppError(ErrorCode.VALIDATION_FAILED, "重新邀请的成员必须在名单中。");
       const previousMembers = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
       const positionsByUser = new Map(previousMembers.map(member => [member.userId, member.primaryPosition]));
       const positionChanges: { userId: string; previousPosition: string | null; position: string | null }[] = [];
@@ -77,6 +77,11 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
       for (const registrationId of members) {
         const userId = byId.get(registrationId)!.userId;
         const [participant] = await tx.insert(competitionEntryParticipants).values({ entryId: entry.id, userId, status: "invited", invitedByUserId: captain.userId }).onConflictDoUpdate({ target: [competitionEntryParticipants.entryId, competitionEntryParticipants.userId], set: { updatedAt: new Date() } }).returning();
+        if (["declined", "withdrawn"].includes(participant.status)) {
+          if (!reinviteIds.includes(registrationId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "请明确选择重新邀请已拒绝或退出的成员。");
+          await tx.update(competitionEntryParticipants).set({ status: "invited", invitedByUserId: captain.userId, playerType: null, confirmedAt: null, withdrawnAt: null, updatedAt: new Date() }).where(eq(competitionEntryParticipants.id, participant.id));
+          await writeAuditInTx(tx, { seasonId, action: "competition_entry.participant.reinvite", actorId: auditActorId(admin), targetId: entry.id, meta: { participantId: participant.id, userId, previousStatus: participant.status } });
+        }
         const previousPosition = positionsByUser.get(userId) ?? null;
         const primaryPosition = formationRosterPosition(revision.positionFactsVersion, positionsByUser, userId, byId.get(registrationId)!.primaryPosition);
         if (primaryPosition !== previousPosition) positionChanges.push({ userId, previousPosition, position: primaryPosition });

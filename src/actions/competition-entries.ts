@@ -35,6 +35,7 @@ function revalidateEntry(seasonSlug: string, entryId?: string): void {
   updatePublicStatsTag();
   updatePublicHomeTag();
   revalidatePath(`/${seasonSlug}/register`);
+  revalidatePath(`/${seasonSlug}/formation`);
   revalidatePath(`/admin/${seasonSlug}/registrations`);
   revalidatePath("/my/competitions");
   if (entryId) revalidatePath(`/${seasonSlug}/entries/${entryId}`);
