@@ -471,7 +471,7 @@ export async function adoptApprovedRosterInTx(tx: TxDb, input: {
       competitiveProfileRequired: rules.participant.competitiveProfileRequired, ...rules.competitive,
       competitiveProfile: canonicalizeV2CompetitiveProfile(rules.competitive.competitiveProfile) },
       affiliationRules: rules.roster.affiliationRules, allowedPlayerTypes: rules.participant.allowedPlayerTypes ?? [], rankThreshold: rules.participant.rankThreshold ?? { currentMin: null, peakMin: null }, starterCount: rules.lineup.starterCount, maxSubstitutes: rules.lineup.settings?.maxSubstitutes },
-    competitive: evidence.kind === "competitive" ? { profile: canonicalizeV2CompetitiveProfile(evidence.context.profile), requirements: evidence.requirements,
+    competitive: evidence.kind === "competitive" ? { recentEvidenceSemantics: "any_usable", profile: canonicalizeV2CompetitiveProfile(evidence.context.profile), requirements: evidence.requirements,
       byPurpose: { profileReadiness: [...evidence.byPurpose.profileReadiness].map(([userId, fact]) => ({ userId, historicalPeak: fact.historicalPeak, seasons: Object.fromEntries(fact.seasons) })),
         rankThreshold: [...evidence.byPurpose.rankThreshold].map(([userId, fact]) => ({ userId, ...fact })),
         externalStrength: [...evidence.byPurpose.externalStrength].map(([userId, fact]) => ({ userId, ...fact })) } } : null,

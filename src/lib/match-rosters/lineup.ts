@@ -186,7 +186,7 @@ export const evaluateLineup: import("@/lib/seasons/rules").EvaluateLineup = (pro
         if (!member) return [];
         const fact = evidence.byPurpose.externalStrength.get(member.userId);
         if (frozen.competitiveProfileRequired) {
-          findings.push(...evaluateCompetitiveProfileReadiness(evidence, member.userId));
+          findings.push(...evaluateCompetitiveProfileReadiness(evidence, member.userId, { preserveFrozenSemantics: frozen.recentEvidenceSemantics !== "any_usable" }));
         }
         if (!fact && frozen.externalStrengthGap.enabled) {
           findings.push({ code: "competitive_profile_incomplete", message: `首发 ${member.userId} 缺少冻结的竞技事实。`, waivable: false, metadata: { userId: member.userId } });
