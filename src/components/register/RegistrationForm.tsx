@@ -96,6 +96,7 @@ export function RegistrationForm({
     [registrationConfig, positions, policyV2],
   );
   const activePositions = positions.length > 0 ? positions : [...positionValues];
+  const playerTypeOptional = policyV2 && (["enrolled", "graduated", "external"] as const).every((type) => registrationConfig.allowedPlayerTypes.includes(type));
 
   const {
     register,
@@ -112,7 +113,7 @@ export function RegistrationForm({
       seasonId,
       email: initialValues?.email ?? currentUserEmail ?? "",
       willingToBeCaptain: initialValues?.willingToBeCaptain ?? false,
-      playerType: initialValues?.playerType ?? registrationConfig.allowedPlayerTypes[0],
+      playerType: initialValues?.playerType ?? (policyV2 ? null : registrationConfig.allowedPlayerTypes[0]),
       screenshotUrls: initialValues?.screenshotUrls ?? Array.from({ length: registrationConfig.screenshotCount }, () => ""),
       mapPreferences: projectMapPreferences(
         initialValues?.mapPreferences,
@@ -331,12 +332,12 @@ export function RegistrationForm({
             </div>
             <div>
               <Label className="text-[var(--color-fg-mid)] mb-1.5 block">
-                身份类型 <Required />
+                身份类型 {playerTypeOptional ? "（选填）" : <Required />}
               </Label>
               <Select
-                value={watch("playerType") ?? registrationConfig.allowedPlayerTypes[0]}
+                value={watch("playerType") ?? ""}
                 onValueChange={(v) =>
-                  setValue("playerType", v as PlayerType, {
+                  setValue("playerType", v === "undeclared" ? null : v as PlayerType, {
                     shouldValidate: true,
                   })
                 }
@@ -345,6 +346,7 @@ export function RegistrationForm({
                   <SelectValue placeholder="选择身份类型" />
                 </SelectTrigger>
                 <SelectContent>
+                  {playerTypeOptional && <SelectItem value="undeclared">不声明</SelectItem>}
                   {registrationConfig.allowedPlayerTypes.map((type) => (
                     <SelectItem key={type} value={type}>
                       {PLAYER_TYPE_LABELS[type]}

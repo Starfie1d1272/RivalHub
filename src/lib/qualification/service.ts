@@ -362,7 +362,7 @@ export function assessSoloParticipant(participant: QualificationDecision): SoloA
 export async function evaluateSeasonParticipantInTx(
   executor: import("@/lib/qualification/facts").DatabaseExecutor,
   userId: string,
-  playerType: string,
+  playerType: string | null | undefined,
   rules: DecodedSeasonRules,
 ): Promise<QualificationDecision> {
   const context = rules.competitive.competitiveProfile;

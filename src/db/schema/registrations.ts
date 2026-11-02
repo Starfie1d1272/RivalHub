@@ -19,7 +19,7 @@ export const seasonRegistrations = pgTable(
     seasonId: uuid("season_id").notNull().references(() => seasons.id),
 
     // ── 身份类型 ─────────────────────────────────────
-    playerType: text("player_type").notNull().default("enrolled"),
+    playerType: text("player_type"),
 
     // ── 位置 ─────────────────────────────────────────
     primaryPosition: text("primary_position").notNull(),
