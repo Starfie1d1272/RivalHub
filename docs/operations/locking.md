@@ -74,9 +74,9 @@ before switching order and must use the same coordinated boundary on rollback.
 No production lock timeout increase, blind retry, manual schema patch or
 disabled financial trigger substitutes for that rollout proof.
 
-## BP postcommit delivery
+## Match projection postcommit delivery
 
-`match_veto_invalidations` is a BP-owned, server-only delivery watermark. Its
+`match_veto_invalidations` is a server-only match projection delivery watermark. The historical table name remains unchanged. Its
 match key, generation, published generation, transaction-coalescing ID and
 bounded fact categories contain no actor, reason, credential or business
 payload. Rows follow match retention and cascade on actual match deletion;
@@ -102,7 +102,7 @@ recover delivery even when its domain outcome is idempotent.
 
 Ordinary GET remains read-only and exposes only a pending boolean, allowing a
 visible client to retry reconcile with its existing in-flight/backoff gate.
-The existing veto scheduler also drains at most fifty pending deliveries per
+The existing veto scheduler composes the BP timeout runner with a match projection dispatcher that drains at most fifty pending deliveries per
 invocation, independently of paused/completed/archived lifecycle transitions.
 After each selected delivery attempt, a still-pending captured generation moves
 behind older pending work using its `updated_at` ordering timestamp. A successful
