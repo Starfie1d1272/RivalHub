@@ -64,7 +64,7 @@ it("checks original proposal identity and resolution rather than scheduled time 
 it("checks full roster including substitute and representative while preserving the unknown draft", async () => {
   mocks.submit.mockRejectedValue(new TypeError("lost ACK")); const user = userEvent.setup();
   const members = Array.from({ length: 6 }, (_, i) => ({ id: `p${i}`, userId: `u${i}`, displayName: `Player${i}`, personaName: null, perfectName: null, primaryPosition: "rifler" }));
-  render(<MatchRosterForm matchId="match" teamMembers={members} hasExistingRoster={false} matchStatus="scheduled" rosterStatus={null} initialStarterIds={members.slice(0, 5).map(row => row.id)} initialSubstituteIds={["p5"]} initialVetoRepresentativeEventRosterMemberId="p0" />);
+  render(<MatchRosterForm policy={{ starterCount: 5, maxSubstitutes: 2 }} matchId="match" teamMembers={members} hasExistingRoster={false} matchStatus="scheduled" rosterStatus={null} initialStarterIds={members.slice(0, 5).map(row => row.id)} initialSubstituteIds={["p5"]} initialVetoRepresentativeEventRosterMemberId="p0" />);
   await user.click(screen.getByRole("button", { name: "提交名单" }));
   const read = await screen.findByRole("button", { name: "读取当前名单核对" });
   const value = { rosterId: "exists", status: "submitted", starterIds: members.slice(0, 5).map(row => row.id), substituteIds: [], vetoRepresentativeEventRosterMemberId: "p1" };

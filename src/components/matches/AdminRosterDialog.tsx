@@ -1,5 +1,7 @@
 "use client";
 
+import type { MatchLineupPolicy } from "@/lib/match-rosters/policy";
+
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React, { useRef, useState, useTransition } from "react";
@@ -51,7 +53,8 @@ interface AdminRosterDialogProps {
   teamBMembers: TeamMember[];
   teamARoster: RosterData | null;
   teamBRoster: RosterData | null;
-  allowSubstitutes?: boolean;
+  teamAPolicy: MatchLineupPolicy;
+  teamBPolicy: MatchLineupPolicy;
 }
 
 interface RosterTeamSectionProps {
@@ -60,7 +63,7 @@ interface RosterTeamSectionProps {
   matchId: string;
   members: TeamMember[];
   existingRoster: RosterData | null;
-  allowSubstitutes: boolean;
+  policy: MatchLineupPolicy;
 }
 
 const STATUS_LABELS = {
@@ -76,15 +79,18 @@ function RosterTeamSection({
   matchId,
   members,
   existingRoster,
-  allowSubstitutes = true,
+  policy,
 }: RosterTeamSectionProps) {
+  const { starterCount, maxSubstitutes } = policy;
+  const allowSubstitutes = maxSubstitutes > 0;
+  const maxPlayers = starterCount + maxSubstitutes;
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const expectedVersion = useRef<string | null>(null);
   const expectedRosterId = useRef<string | null>(null);
   const [readback, setReadback] = useState<(RosterReadback & { matches: boolean }) | null>(null);
   const [recovery, setRecovery] = useState<"unknown" | "refresh_pending" | null>(null);
-  // Two-step explicit flow: first pick, then review the exact five and confirm.
+  // Two-step explicit flow: first pick, then review the lineup and confirm.
   const [pendingLineup, setPendingLineup] = useState<{ starterIds: string[]; substituteIds: string[]; vetoRepresentativeEventRosterMemberId: string | null } | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>(() => {
     if (existingRoster) {
@@ -94,8 +100,8 @@ function RosterTeamSection({
   });
   const [vetoRepresentativeId, setVetoRepresentativeId] = useState<string | null>(existingRoster?.vetoRepresentativeEventRosterMemberId ?? null);
 
-  const starterIds = selectedIds.slice(0, 5);
-  const substituteIds = allowSubstitutes ? selectedIds.slice(5, 7) : [];
+  const starterIds = selectedIds.slice(0, starterCount);
+  const substituteIds = allowSubstitutes ? selectedIds.slice(starterCount, maxPlayers) : [];
 
   const memberMap = new Map(members.map((m) => [m.id, m]));
 
@@ -105,7 +111,7 @@ function RosterTeamSection({
       if (prev.includes(id)) {
         return prev.filter((x) => x !== id);
       }
-      if (prev.length >= (allowSubstitutes ? 7 : 5)) return prev;
+      if (prev.length >= maxPlayers) return prev;
       return [...prev, id];
     });
   }
@@ -129,8 +135,8 @@ function RosterTeamSection({
   }
 
   function handleSave() {
-    if (starterIds.length !== 5) {
-      toast.error("必须选择 5 名首发");
+    if (starterIds.length !== starterCount || selectedIds.length > maxPlayers) {
+      toast.error(`必须选择 ${starterCount} 名首发`);
       return;
     }
     setPendingLineup({
@@ -243,7 +249,7 @@ function RosterTeamSection({
       {/* Explicit review before any admin selection is recorded */}
       {pendingLineup ? (
         <div className="space-y-2 rounded-md border border-[var(--color-border)] p-3 bg-[var(--color-panel-low)]">
-          <p className="text-sm font-medium text-[var(--color-fg)]">请核对将保存的首发五人：</p>
+          <p className="text-sm font-medium text-[var(--color-fg)]">请核对将保存的首发：</p>
           <ol className="space-y-1">
             {pendingLineup.starterIds.map((id, index) => (
               <li key={id} className="text-sm text-[var(--color-fg)]">
@@ -282,7 +288,7 @@ function RosterTeamSection({
               const isUnavailable = !m.isCurrent && !isSelected;
               const selectedIndex = selectedIds.indexOf(m.id);
               const label =
-                isSelected && selectedIndex < 5
+                isSelected && selectedIndex < starterCount
                   ? `首发 ${selectedIndex + 1}`
                   : isSelected && allowSubstitutes
                     ? "替补"
@@ -293,11 +299,11 @@ function RosterTeamSection({
                     isSelected
                       ? "bg-[var(--color-accent)]/10"
                       : "hover:bg-[var(--color-panel-low)]"
-                  } ${isUnavailable || (!isSelected && selectedIds.length >= (allowSubstitutes ? 7 : 5)) ? "opacity-40 cursor-not-allowed" : ""}`}
+                  } ${isUnavailable || (!isSelected && selectedIds.length >= maxPlayers) ? "opacity-40 cursor-not-allowed" : ""}`}
                 >
                   <Checkbox
                     checked={isSelected}
-                    disabled={isUnavailable || (!isSelected && selectedIds.length >= (allowSubstitutes ? 7 : 5))}
+                    disabled={isUnavailable || (!isSelected && selectedIds.length >= maxPlayers)}
                     onChange={() => toggleMember(m.id)}
                   />
                   <span className="text-sm flex-1 truncate">
@@ -393,13 +399,13 @@ function RosterTeamSection({
 
           {/* Selected count */}
           <p className="text-xs text-[var(--color-fg-mid)]">
-            已选 {selectedIds.length}/{allowSubstitutes ? 7 : 5}（首发 {starterIds.length}/5{allowSubstitutes ? `，替补 ${substituteIds.length}/2` : ""}）
+            已选 {selectedIds.length}/{maxPlayers}（首发 {starterIds.length}/{starterCount}{allowSubstitutes ? `，替补 ${substituteIds.length}/${maxSubstitutes}` : ""}）
           </p>
 
           <Button
             size="sm"
             onClick={handleSave}
-            disabled={Boolean(recovery) || isPending || starterIds.length !== 5}
+            disabled={Boolean(recovery) || isPending || starterIds.length !== starterCount || selectedIds.length > maxPlayers}
           >
             {isPending ? "处理中..." : `核对并保存 ${teamName} 名单`}
           </Button>
@@ -421,7 +427,8 @@ export function AdminRosterDialog({
   teamBMembers,
   teamARoster,
   teamBRoster,
-  allowSubstitutes = true,
+  teamAPolicy,
+  teamBPolicy,
 }: AdminRosterDialogProps) {
   const [open, setOpen] = useState(false);
 
@@ -437,7 +444,7 @@ export function AdminRosterDialog({
           <DialogTitle>
             名单管理 · <TeamProfileLink entryId={entryAId}>{teamAName}</TeamProfileLink> vs <TeamProfileLink entryId={entryBId}>{teamBName}</TeamProfileLink>
           </DialogTitle>
-          <DialogDescription>为双方选择并确认本场 5 名首发选手。</DialogDescription>
+          <DialogDescription>为双方选择并确认本场首发选手。</DialogDescription>
         </DialogHeader>
 
         <DialogBody className="space-y-6">
@@ -447,7 +454,7 @@ export function AdminRosterDialog({
             matchId={matchId}
             members={teamAMembers}
             existingRoster={teamARoster}
-            allowSubstitutes={allowSubstitutes}
+            policy={teamAPolicy}
           />
           <Separator />
           <RosterTeamSection
@@ -456,7 +463,7 @@ export function AdminRosterDialog({
             matchId={matchId}
             members={teamBMembers}
             existingRoster={teamBRoster}
-            allowSubstitutes={allowSubstitutes}
+            policy={teamBPolicy}
           />
         </DialogBody>
       </DialogContent>

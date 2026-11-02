@@ -415,7 +415,7 @@ export async function assertStartingLineupAllowedInTx(
 export async function getStartingLineupPreflightInTx(
   tx: TxDb,
   args: { match: Match; entryId: string; starterIds: readonly string[]; substituteIds?: readonly string[] },
-): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number> }> {
+): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number>; policy: MatchLineupPolicy }> {
   return withDbTrafficSource("match.lineup.read", async () => {
   if (args.entryId !== args.match.entryAId && args.entryId !== args.match.entryBId) throw new AppError(ErrorCode.VALIDATION_FAILED, "参赛队伍不属于本场比赛。 ");
   // Started matches and rehearsals use their own lineup facts; a rehearsal
@@ -451,7 +451,7 @@ export async function getStartingLineupPreflightInTx(
       const counts = evaluateStartingLineup({ starterIds: proposed.starterMemberIds, substituteIds: proposed.substituteMemberIds,
         policy: { starterCount: frozen.starterCount, maxSubstitutes: frozen.maxSubstitutes }, memberFacts: frozen.membersById,
         affiliationRules: frozen.affiliationRules, educationRequired: frozen.educationRequired }).affiliatedStarterCounts;
-      return { valid: result.state === "ready", blockers: result.findings.map((finding) => finding.message), affiliatedStarterCounts: counts };
+      return { valid: result.state === "ready", blockers: result.findings.map((finding) => finding.message), affiliatedStarterCounts: counts, policy: { starterCount: frozen.starterCount, maxSubstitutes: frozen.maxSubstitutes } };
     }
   }
   let validatedStageRun: { ruleSnapshot: unknown; stageKey: string } | undefined;
@@ -484,7 +484,7 @@ export async function getStartingLineupPreflightInTx(
       const counts = evaluateStartingLineup({ starterIds: proposed.starterMemberIds, substituteIds: proposed.substituteMemberIds,
         policy: { starterCount: frozen.starterCount, maxSubstitutes: frozen.maxSubstitutes }, memberFacts: frozen.membersById,
         affiliationRules: frozen.affiliationRules, educationRequired: frozen.educationRequired }).affiliatedStarterCounts;
-      return { valid: result.state === "ready", blockers: result.findings.map((finding) => finding.message), affiliatedStarterCounts: counts };
+      return { valid: result.state === "ready", blockers: result.findings.map((finding) => finding.message), affiliatedStarterCounts: counts, policy: { starterCount: frozen.starterCount, maxSubstitutes: frozen.maxSubstitutes } };
     }
   }
   if (args.match.ownership !== "major_stage") {
@@ -519,7 +519,7 @@ export async function getStartingLineupPreflightInTx(
       const counts = evaluateStartingLineup({ starterIds: proposed.starterMemberIds, substituteIds: proposed.substituteMemberIds,
         policy: { starterCount: frozen.starterCount, maxSubstitutes: frozen.maxSubstitutes }, memberFacts: frozen.membersById,
         affiliationRules: frozen.affiliationRules, educationRequired: frozen.educationRequired }).affiliatedStarterCounts;
-      return { valid: result.state === "ready", blockers: result.findings.map((finding) => finding.message), affiliatedStarterCounts: counts };
+      return { valid: result.state === "ready", blockers: result.findings.map((finding) => finding.message), affiliatedStarterCounts: counts, policy: { starterCount: frozen.starterCount, maxSubstitutes: frozen.maxSubstitutes } };
     }
   }
   const context = await loadLegacyLineupContextInTx(tx, args.match, args.entryId, validatedStageRun);
@@ -560,7 +560,7 @@ export async function getStartingLineupPreflightInTx(
       blockers.push(...unresolved.map((finding) => finding.message));
     }
   }
-  return { valid: blockers.length === 0, blockers: [...new Set(blockers)], affiliatedStarterCounts: result.affiliatedStarterCounts };
+  return { valid: blockers.length === 0, blockers: [...new Set(blockers)], affiliatedStarterCounts: result.affiliatedStarterCounts, policy: context.policy };
   });
 }
 
@@ -839,7 +839,6 @@ export async function materializeDefaultLineupsInTx(tx: TxDb, match: Match, now 
     const members = await tx.select({ id: eventRosterMembers.id, primary: eventRosterMembers.isPrimaryStarter, userId: eventRosterMembers.userId })
       .from(eventRosterMembers).innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId)).where(and(eq(eventRosters.entryId, entryId), eq(eventRosterMembers.isCurrent, true)));
     const starterIds = members.filter(member => member.primary).map(member => member.id);
-    if (starterIds.length !== 5) throw new AppError(ErrorCode.VALIDATION_FAILED, "本队尚无五名合法默认首发，请联系赛事管理员。");
     const [entry] = await tx.select({ representative: competitionEntries.representativeUserId }).from(competitionEntries).where(eq(competitionEntries.id, entryId));
     const summary = await persistMatchRosterInTx(tx, { match, entryId, source: "system_default", submittedBy: null, starterIds, vetoRepresentativeEventRosterMemberId: members.find(member => member.primary && member.userId === entry?.representative)?.id ?? null });
     await writeAuditInTx(tx, { seasonId: match.seasonId, action: "match.roster.system_default", actorId: "system", targetId: summary.rosterId, meta: { matchId: match.id, entryId, starterIds } });

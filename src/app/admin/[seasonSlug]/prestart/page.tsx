@@ -6,6 +6,7 @@ import { MajorPrestartConsole } from "@/components/admin/MajorPrestartConsole";
 import { SeasonPrestartCapabilityPanel } from "@/components/admin/SeasonPrestartCapabilityPanel";
 import { loadMajorPrestartPageData } from "@/lib/admin/season-workspace/major-prestart";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 
 export default async function AdminSeasonPrestartPage({ params }: { params: Promise<{ seasonSlug: string }> }) {
   const { seasonSlug } = await params;
@@ -19,10 +20,12 @@ export default async function AdminSeasonPrestartPage({ params }: { params: Prom
 
   return <SeasonPrestartCapabilityPanel
     seasonSlug={season.slug}
+    seasonId={season.id}
     seasonName={season.name}
     hasCaptainVoting={season.hasCaptainVoting}
     hasDraft={season.hasDraft}
     registrationMode={season.registrationMode}
+    canStart={decodeSeasonRules(season).source === "policy_v2" && ["registration", "drafting"].includes(season.status)}
     stagePlan={normalizeStagePlan(season.stagePlan).map((stage) => ({ key: stage.key, name: stage.name, type: stage.type }))}
   />;
 }

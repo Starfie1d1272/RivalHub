@@ -137,6 +137,7 @@ export interface AdminFinishedMap {
 export interface AdminMatchOverviewData {
   season: Pick<Season, "id" | "slug" | "name" | "status" | "competitionTemplate">;
   teams: Pick<CompetitionEntry, "id" | "name">[];
+  scheduleTeamCount: number;
   stagePlan: StagePlan;
   matches: AdminMatchSummary[];
   /** All official matches, independent of the selected stage/list scope. */
@@ -172,6 +173,9 @@ export interface AdminMatchWorkbenchData {
   teamBMembers: TeamMemberData[];
   teamARoster: RosterData | null;
   teamBRoster: RosterData | null;
+  teamAPolicy: { starterCount: number; maxSubstitutes: number } | null;
+  teamBPolicy: { starterCount: number; maxSubstitutes: number } | null;
+  lineupErrors: string[];
   teamAPreflight: AdminMatchPreflight | null;
   teamBPreflight: AdminMatchPreflight | null;
   completedMaps: AdminCompletedMap[];
