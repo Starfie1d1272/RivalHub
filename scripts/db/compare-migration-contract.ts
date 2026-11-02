@@ -33,12 +33,27 @@ const queries: Record<string, string> = {
   triggers: `SELECT c.relname, t.tgname, t.tgenabled, pg_get_triggerdef(t.oid, true) AS definition
     FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname='public' AND NOT t.tgisinternal`,
-  policies: `SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check FROM pg_policies WHERE schemaname IN ('public','storage')`,
+  constraint_triggers: `SELECT owner.relname AS constraint_table, con.conname, event_ns.nspname AS event_schema,
+    event_table.relname AS event_table, t.tgtype, p.proname AS function_name, t.tgenabled
+    FROM pg_trigger t JOIN pg_constraint con ON con.oid=t.tgconstraint
+    JOIN pg_class owner ON owner.oid=con.conrelid JOIN pg_namespace owner_ns ON owner_ns.oid=owner.relnamespace
+    JOIN pg_class event_table ON event_table.oid=t.tgrelid JOIN pg_namespace event_ns ON event_ns.oid=event_table.relnamespace
+    JOIN pg_proc p ON p.oid=t.tgfoid WHERE t.tgisinternal AND owner_ns.nspname='public'`,
+  policies: `SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check FROM pg_policies
+    WHERE schemaname IN ('public','storage') OR (schemaname='realtime' AND tablename='messages' AND policyname='rivalhub_match_live_receive')`,
+  realtime_messages: `SELECT c.relkind, c.relrowsecurity, c.relforcerowsecurity FROM pg_class c
+    JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='realtime' AND c.relname='messages'`,
   sequences: `SELECT schemaname, sequencename, data_type, start_value, min_value, max_value, increment_by, cycle, cache_size FROM pg_sequences WHERE schemaname='public'`,
   publication_options: `SELECT pubname, puballtables, pubinsert, pubupdate, pubdelete, pubtruncate, pubviaroot FROM pg_publication`,
   publications: `SELECT pubname, schemaname, tablename, attnames, rowfilter FROM pg_publication_tables WHERE schemaname='public'`,
   default_privileges: `SELECT pg_get_userbyid(d.defaclrole) AS owner, n.nspname, d.defaclobjtype, d.defaclacl::text
-    FROM pg_default_acl d LEFT JOIN pg_namespace n ON n.oid=d.defaclnamespace WHERE n.nspname='public'`,
+    FROM pg_default_acl d LEFT JOIN pg_namespace n ON n.oid=d.defaclnamespace
+    WHERE n.nspname='public' OR (d.defaclnamespace=0 AND d.defaclrole IN (
+      SELECT nspowner FROM pg_namespace WHERE nspname='public'
+      UNION SELECT c.relowner FROM pg_class c JOIN pg_namespace p ON p.oid=c.relnamespace WHERE p.nspname='public'
+      UNION SELECT f.proowner FROM pg_proc f JOIN pg_namespace p ON p.oid=f.pronamespace WHERE p.nspname='public'
+      UNION SELECT t.typowner FROM pg_type t JOIN pg_namespace p ON p.oid=t.typnamespace WHERE p.nspname='public'
+    ))`,
 };
 
 async function snapshot(url: string): Promise<Record<string, string[]>> {
