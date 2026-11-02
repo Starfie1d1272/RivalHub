@@ -6,6 +6,8 @@ interface StartBlockerInput {
   teamBName: string;
   teamARoster: RosterData | null;
   teamBRoster: RosterData | null;
+  teamAPolicy: { starterCount: number } | null;
+  teamBPolicy: { starterCount: number } | null;
   teamAPreflight: AdminMatchPreflight | null;
   teamBPreflight: AdminMatchPreflight | null;
 }
@@ -15,9 +17,11 @@ function getTeamBlockers(
   roster: RosterData | null,
   preflight: AdminMatchPreflight | null,
   requiresPreflight: boolean,
+  policy: { starterCount: number } | null,
 ): string[] {
   if (!roster) return [];
-  if (roster.starters.length !== 5) return [`${name} 当前不是 5 名首发`];
+  if (!policy) return [`${name} 的首发规则不可用`];
+  if (roster.starters.length !== policy.starterCount) return [`${name} 当前不是 ${policy.starterCount} 名首发`];
   if (!requiresPreflight) return [];
   if (!preflight) return [`${name} 尚未完成首发资格检查`];
   if (!preflight.valid) return preflight.blockers.map((blocker) => `${name}：${blocker}`);
@@ -30,11 +34,13 @@ export function getAdminMatchStartBlockers({
   teamBName,
   teamARoster,
   teamBRoster,
+  teamAPolicy,
+  teamBPolicy,
   teamAPreflight,
   teamBPreflight,
 }: StartBlockerInput): string[] {
   return [
-    ...getTeamBlockers(teamAName, teamARoster, teamAPreflight, requiresPreflight),
-    ...getTeamBlockers(teamBName, teamBRoster, teamBPreflight, requiresPreflight),
+    ...getTeamBlockers(teamAName, teamARoster, teamAPreflight, requiresPreflight, teamAPolicy),
+    ...getTeamBlockers(teamBName, teamBRoster, teamBPreflight, requiresPreflight, teamBPolicy),
   ];
 }

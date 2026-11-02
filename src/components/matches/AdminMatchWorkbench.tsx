@@ -128,6 +128,8 @@ export function AdminMatchWorkbench({
     teamBRoster,
     teamAPreflight,
     teamBPreflight,
+    teamAPolicy,
+    teamBPolicy,
   });
   const postMatchTasks = projectOperatorPostMatchTasks({
     status: match.status, isForfeit: match.isForfeit,

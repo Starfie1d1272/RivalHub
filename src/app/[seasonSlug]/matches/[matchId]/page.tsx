@@ -63,7 +63,7 @@ import { presentMatchStage, presentSchedulingAction } from "@/lib/matches/presen
 import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
 import { loadMatchRosters } from "@/lib/match-rosters/read-model";
 import { getUserSession, requireSeasonAdmin } from "@/lib/auth/session";
-import { AppError, isExpectedAuthFailure } from "@/lib/errors";
+import { ErrorCode, isAppErrorCode, isExpectedAuthFailure } from "@/lib/errors";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import {
   buildRoster,
@@ -285,12 +285,12 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
     }
   }
 
-  const captainLineup = (isCaptainA || isCaptainB) && match.status === "scheduled"
+  const captainLineup = (isCaptainA || isCaptainB) && match.status === "scheduled" && captainTeamMembers.length > 0
     ? await db.transaction((tx) => getStartingLineupPreflightInTx(tx, { match, entryId: isCaptainA ? match.entryAId : match.entryBId, starterIds: [] })).then(result => ({ policy: result.policy, error: null })).catch((error: unknown) => {
-      if (!(error instanceof AppError)) throw error;
+      if (!isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)) throw error;
       return { policy: null, error: error.message };
     })
-    : null;
+    : { policy: null, error: "本队缺少可用的赛事名单。" };
   const captainPolicy = captainLineup?.policy ?? null;
   const captainRoster = isCaptainA ? rosterA : isCaptainB ? rosterB : null;
   const canParticipateInVeto = isSeasonAdmin || isCaptainA || isCaptainB || Boolean(userSession && [rosterA, rosterB].some(roster =>
