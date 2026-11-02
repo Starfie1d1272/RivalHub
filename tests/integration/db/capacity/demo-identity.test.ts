@@ -6,12 +6,13 @@ import { expect, it } from "vitest";
 import * as schema from "@/db/schema";
 import { confirmStoredDemoParticipantIdentityInTx, retireSeasonGameplaySteamIdentityInTx } from "@/lib/demo-integration/review";
 import { localDatabaseUrl } from "../harness/database";
-import { withScratchDatabase, migrationFiles, replayMigration } from "../harness/migration-replay";
+import { withScratchDatabase, migrationFiles, replayMigration, replayCurrentPositionMigrations } from "../harness/migration-replay";
 import { seedDemoCapacity } from "./demo-fixture";
 
 it("confirms Demo identities across two events while retiring a previous identity", async () => {
   await withScratchDatabase("demo_capacity", async client => {
     for (const file of migrationFiles(name => /^\d{4}_.*\.sql$/.test(name))) await replayMigration(client, file);
+    await replayCurrentPositionMigrations(client);
     const url = new URL(localDatabaseUrl());
     url.pathname = `/${(await client.query("select current_database() as name")).rows[0].name}`;
     const pool = new Pool({ connectionString: url.toString(), ssl: false, max: 6, connectionTimeoutMillis: 2000 });
@@ -94,6 +95,7 @@ it.skipIf(process.env.RIVALHUB_DEMO_CAPACITY !== "1")("measures cross-event Demo
       for (let round = 1; round <= 3 && !stop; round++) {
         await withScratchDatabase("demo_capacity_load", async client => {
           for (const file of migrationFiles(name => /^\d{4}_.*\.sql$/.test(name))) await replayMigration(client, file);
+    await replayCurrentPositionMigrations(client);
           const url = new URL(localDatabaseUrl()); url.pathname = `/${(await client.query("select current_database() as name")).rows[0].name}`;
           const pool = new Pool({ connectionString: url.toString(), ssl: false, max: 6, connectionTimeoutMillis: 2000 });
           const monitor = new Pool({ connectionString: url.toString(), ssl: false, max: 1, connectionTimeoutMillis: 2000 });

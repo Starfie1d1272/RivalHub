@@ -247,6 +247,7 @@ export async function confirmCaptains(
           registrationId: seasonRegistrations.id,
           userId: users.id,
           peakRating: seasonRegistrations.peakRating,
+          primaryPosition: seasonRegistrations.primaryPosition,
           createdAt: seasonRegistrations.createdAt,
           personaName: steamProfiles.personaName,
           displayName: users.displayName,
@@ -319,6 +320,7 @@ export async function confirmCaptains(
           id: revisionId,
           entryId: entry.id,
           revisionNumber: 1,
+          positionFactsVersion: 1,
           status: "draft",
           createdBy: auditActorId(admin),
         }).returning({ id: competitionEntryRosterRevisions.id });
@@ -333,6 +335,7 @@ export async function confirmCaptains(
           participantId: participant.id,
           userId: captain.userId,
           isPrimaryStarter: true,
+          primaryPosition: captain.primaryPosition,
         });
         const [eventRoster] = await tx.insert(eventRosters).values({
           entryId: entry.id,

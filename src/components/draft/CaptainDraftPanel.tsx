@@ -11,7 +11,7 @@ import { Check, ChevronDown, ChevronRight, Clock, Loader2, Search, Zap } from "l
 import { pickPlayer as telemetry_pickPlayer } from "@/actions/draft";
 import { Button } from "@/components/ui/button";
 import { DraftCountdown } from "./DraftCountdown";
-import { canPickPosition } from "@/lib/draft/rules";
+import { canPickPosition, getPositionCount } from "@/lib/draft/rules";
 import { positionLabel } from "@/lib/validators/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { PosChip } from "@/components/rivalhub/PosChip";
@@ -25,7 +25,7 @@ import { observeAction, recordFilter } from "@/lib/telemetry/client";
 
 const pickPlayer = observeAction("draft.pickPlayer", telemetry_pickPlayer);
 
-const FILTER_ALL = "all";
+const FILTER_ALL = null;
 
 interface CaptainDraftPanelProps {
   seasonId: string;
@@ -67,7 +67,7 @@ export function CaptainDraftPanel({
 }: CaptainDraftPanelProps) {
   const router = useRouter();
   const interactive = useClientReady();
-  const [filter, setFilter] = useState(FILTER_ALL);
+  const [filter, setFilter] = useState<string | null>(FILTER_ALL);
   const [search, setSearch] = useState("");
   const [pendingRegistrationId, setPendingRegistrationId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -120,7 +120,7 @@ export function CaptainDraftPanel({
   const canSubmit = interactive && isDraftActive && isCurrentCaptainTurn && pendingRegistrationId === null;
 
   async function handlePick(player: CaptainDraftPlayer) {
-    if (!canSubmit || !canPickPosition(positionCounts[player.primaryPosition] ?? 0, positionLimit)) return;
+    if (!canSubmit || !canPickPosition(getPositionCount(positionCounts, player.primaryPosition), positionLimit)) return;
 
     setPendingRegistrationId(player.registrationId);
     setMessage(null);
@@ -205,14 +205,14 @@ export function CaptainDraftPanel({
               {/* Position occupation */}
               <div className="flex flex-wrap gap-2 text-xs text-[var(--color-fg-mid)]">
                 {seasonPositions.map((pos) => {
-                  const count = positionCounts[pos] ?? 0;
+                  const count = getPositionCount(positionCounts, pos);
                   const full = !canPickPosition(count, positionLimit);
                   return (
                     <span
                       key={pos}
                       className={full ? "text-[var(--color-danger)]" : ""}
                     >
-                      {positionLabel(pos)} {count}/2
+                      {positionLabel(pos)} {count}{positionLimit > 0 ? `/${positionLimit}` : ""}
                     </span>
                   );
                 })}
@@ -270,13 +270,13 @@ export function CaptainDraftPanel({
               size="sm"
               variant={filter === FILTER_ALL ? "default" : "secondary"}
               disabled={!interactive}
-              onClick={() => { recordFilter("position", FILTER_ALL); setFilter(FILTER_ALL); }}
+              onClick={() => { recordFilter("position", "all"); setFilter(FILTER_ALL); }}
             >
               全部 {players.length}
             </Button>
             {positionOptions.map((position) => {
               const count = grouped.get(position)?.length ?? 0;
-              const teamCount = positionCounts[position] ?? 0;
+              const teamCount = getPositionCount(positionCounts, position);
               return (
                 <Button
                   key={position}
@@ -284,9 +284,9 @@ export function CaptainDraftPanel({
                   size="sm"
                   variant={filter === position ? "default" : "secondary"}
                   disabled={!interactive || count === 0}
-                  onClick={() => { const value = filter === position ? FILTER_ALL : position; recordFilter("position", value); setFilter(value); }}
+                  onClick={() => { const value = filter === position ? FILTER_ALL : position; recordFilter("position", value ?? "all"); setFilter(value); }}
                 >
-                  {positionLabel(position)} {teamCount}/2 · {count}
+                  {positionLabel(position)} {teamCount}{positionLimit > 0 ? `/${positionLimit}` : ""} · {count}
                 </Button>
               );
             })}
@@ -300,7 +300,7 @@ export function CaptainDraftPanel({
         ) : (
           <div className="space-y-1">
             {sortedPlayers.map((player) => {
-              const positionCount = positionCounts[player.primaryPosition] ?? 0;
+              const positionCount = getPositionCount(positionCounts, player.primaryPosition);
               const positionOpen = canPickPosition(positionCount, positionLimit);
               const isPending = pendingRegistrationId === player.registrationId;
               const disabled = !canSubmit || !positionOpen || isPending;
@@ -474,7 +474,7 @@ export function CaptainDraftPanel({
                       )}
                     </div>
                   </div>
-                  {inspectedId === player.registrationId && <div id={`draft-detail-${player.registrationId}`} role="region" aria-label={`选手详情 · ${displayedName}`} className="mt-4 border-t border-[var(--color-border)] pt-4 xl:hidden"><DraftPlayerDetails player={player} canSelect={canSubmit && canPickPosition(positionCounts[player.primaryPosition] ?? 0, positionLimit)} onPick={isReadonly ? undefined : () => void handlePick(player)} /></div>}
+                  {inspectedId === player.registrationId && <div id={`draft-detail-${player.registrationId}`} role="region" aria-label={`选手详情 · ${displayedName}`} className="mt-4 border-t border-[var(--color-border)] pt-4 xl:hidden"><DraftPlayerDetails player={player} canSelect={canSubmit && canPickPosition(getPositionCount(positionCounts, player.primaryPosition), positionLimit)} onPick={isReadonly ? undefined : () => void handlePick(player)} /></div>}
                 </div>
               );
             })}
@@ -482,7 +482,7 @@ export function CaptainDraftPanel({
         )}
       </div>
       <aside id="draft-inspector" className="hidden min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-5 md:col-start-2 xl:col-start-3 xl:row-start-2 xl:block xl:sticky xl:top-20" aria-label="选手详情">
-        {inspected ? <DraftPlayerDetails player={inspected} canSelect={canSubmit && canPickPosition(positionCounts[inspected.primaryPosition] ?? 0, positionLimit)} onPick={isReadonly ? undefined : () => void handlePick(inspected)} /> : <><h2 className="font-semibold">选手详情</h2><p className="mt-3 text-sm leading-6 text-[var(--color-fg-mid)]">选择选手查看。</p></>}
+        {inspected ? <DraftPlayerDetails player={inspected} canSelect={canSubmit && canPickPosition(getPositionCount(positionCounts, inspected.primaryPosition), positionLimit)} onPick={isReadonly ? undefined : () => void handlePick(inspected)} /> : <><h2 className="font-semibold">选手详情</h2><p className="mt-3 text-sm leading-6 text-[var(--color-fg-mid)]">选择选手查看。</p></>}
       </aside>
     </div>
   );

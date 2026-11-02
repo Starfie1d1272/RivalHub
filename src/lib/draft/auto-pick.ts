@@ -1,4 +1,4 @@
-import { canPickPosition } from "./rules";
+import { canPickPosition, getPositionCount } from "./rules";
 import { RANK_ORDER } from "@/lib/validators/registration";
 
 export interface AutoPickCandidate {
@@ -38,14 +38,14 @@ export function selectAutoPickCandidate(
   const firstPick =
     sorted.find(
       (candidate) =>
-        (positionCounts[candidate.primaryPosition] ?? 0) === 0,
+        getPositionCount(positionCounts, candidate.primaryPosition) === 0,
     ) ?? null;
   if (firstPick) return firstPick;
 
   // Round 2: any position below the cap (max 2 per position in draft)
   return (
     sorted.find((candidate) =>
-      canPickPosition(positionCounts[candidate.primaryPosition] ?? 0, positionLimit),
+      canPickPosition(getPositionCount(positionCounts, candidate.primaryPosition), positionLimit),
     ) ?? null
   );
 }

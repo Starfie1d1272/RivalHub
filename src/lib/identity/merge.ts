@@ -314,7 +314,7 @@ export async function buildUserMergePreflight(
     ["team_membership_overlap", "team:history-overlap", "队伍关系", "两个账号在不同队伍的历史成员时间区间重叠，必须先人工核对。"],
     ["active_captaincy_conflict", "team:captaincy-conflict", "队伍关系", "两个账号分别担任不同当前队伍队长，不能自动选择。"],
     ["competition_commitment_conflict", "competition:confirmed-different-entry", "赛事承诺", "两个账号在同一赛事形成了不同参赛条目的确认承诺。"],
-    ["competition_roster_conflict", "competition:approved-or-frozen-duplicate", "赛事名单", "已批准或已确认/冻结名单中出现无法确定归属的重复成员。"],
+    ["competition_roster_conflict", "competition:approved-or-frozen-duplicate", "赛事名单", "已批准或已确认/冻结名单中出现无法确定归属的重复成员，或重复成员的本届位置不一致。"],
     ["stats_conflict", "stats:formal-conflict", "比赛数据", "同一场比赛同一张地图存在两份正式比赛数据，不能自动选择其中一份。"],
   ];
   for (const [field, key, label, detail] of blockers) pushCount(items, key, "BLOCKER", label, facts[field], "blocked", detail);
@@ -464,7 +464,7 @@ async function loadCollisionFacts(queryable: MergeQueryable, input: { canonicalU
          AND a.revision_id = b.revision_id
         JOIN competition_entry_roster_revisions r ON r.id = b.revision_id
         WHERE b.user_id = ${input.mergedUserId}
-          AND r.status = 'approved')
+          AND (r.status = 'approved' OR a.primary_position IS DISTINCT FROM b.primary_position))
         + (SELECT count(*)::int
           FROM event_roster_members b
           JOIN event_roster_members a

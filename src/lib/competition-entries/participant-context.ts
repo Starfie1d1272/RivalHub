@@ -7,7 +7,9 @@ import {
   competitionEntryActiveClaims,
   competitionEntryParticipants,
   competitionEntryRosterMembers,
+  competitionEntryRosterRevisions,
 } from "@/db/schema";
+import { rosterPositionSql } from "@/lib/competition-entries/roster-position";
 import type { CompetitionEntryParticipantStatus } from "@/lib/competition-entries/presentation";
 
 
@@ -15,7 +17,7 @@ export interface CompetitionEntryParticipantContext {
   primaryEntry: typeof competitionEntries.$inferSelect | null;
   activeClaimEntryId: string | null;
   activeClaimEntry: typeof competitionEntries.$inferSelect | null;
-  pendingInvitations: Array<{ id: string; name: string }>;
+  pendingInvitations: Array<{ id: string; name: string; position?: string | null }>;
   invitationConflict: null | {
     pendingInvitationCount: number;
     latestPendingInvitationName: string;
@@ -29,7 +31,7 @@ export interface CompetitionEntrySelectionEntry {
 }
 
 export function selectCompetitionEntryParticipantContext<T extends CompetitionEntrySelectionEntry>(input: {
-  participantRows: ReadonlyArray<{ entry: T; participantStatus: CompetitionEntryParticipantStatus | null }>;
+  participantRows: ReadonlyArray<{ entry: T; participantStatus: CompetitionEntryParticipantStatus | null; position?: string | null }>;
   representativeEntries: readonly T[];
   activeClaimEntries: readonly T[];
   requestedEntryId?: string;
@@ -37,7 +39,7 @@ export function selectCompetitionEntryParticipantContext<T extends CompetitionEn
   primaryEntry: T | null;
   activeClaimEntryId: string | null;
   activeClaimEntry: T | null;
-  pendingInvitations: Array<{ id: string; name: string }>;
+  pendingInvitations: Array<{ id: string; name: string; position?: string | null }>;
   invitationConflict: null | {
     pendingInvitationCount: number;
     latestPendingInvitationName: string;
@@ -62,7 +64,7 @@ export function selectCompetitionEntryParticipantContext<T extends CompetitionEn
   return {
     primaryEntry: pendingInvitationRows.find(row => row.entry.id === input.requestedEntryId)?.entry ?? activeClaimEntry ?? pendingInvitationRows[0]?.entry ?? fallbackEntries[0] ?? null,
     activeClaimEntry,
-    pendingInvitations: pendingInvitationRows.map(row => ({ id: row.entry.id, name: row.entry.name })),
+    pendingInvitations: pendingInvitationRows.map(row => ({ id: row.entry.id, name: row.entry.name, ...("position" in row ? { position: row.position ?? null } : {}) })),
     activeClaimEntryId: activeClaimEntry?.id ?? null,
     invitationConflict: invitationRows.length === 0
       ? null
@@ -95,6 +97,7 @@ function participantContextQueries(executor: ParticipantContextQueryable, input:
     participantRows: () => executor.select({
       entry: competitionEntries,
       participantStatus: currentRosterParticipantStatus(),
+      position: sql<string | null>`(select ${rosterPositionSql(competitionEntryRosterRevisions.positionFactsVersion, competitionEntryRosterMembers.primaryPosition, competitionEntries.competitionId, competitionEntryRosterMembers.userId)} from ${competitionEntryRosterMembers} inner join ${competitionEntryRosterRevisions} on ${competitionEntryRosterRevisions.id} = ${competitionEntryRosterMembers.revisionId} where ${competitionEntryRosterMembers.revisionId} = ${competitionEntries.currentRosterRevisionId} and ${competitionEntryRosterMembers.participantId} = ${competitionEntryParticipants.id} limit 1)`,
     })
       .from(competitionEntryParticipants)
       .innerJoin(competitionEntries, eq(competitionEntries.id, competitionEntryParticipants.entryId))

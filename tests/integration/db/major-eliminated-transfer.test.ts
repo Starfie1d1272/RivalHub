@@ -93,7 +93,7 @@ describe("eliminated Major participant transfer", () => {
       const participant = randomUUID();
       await database.insert(schema.competitionEntryParticipants).values({ id: participant, entryId: target.id, userId: ids.representative, status: "invited", invitedByUserId: ids.thirdMember });
       await database.insert(schema.competitionEntryRosterMembers).values({ revisionId: target.currentRosterRevisionId, participantId: participant, userId: ids.representative, isPrimaryStarter: true });
-      const transfer = () => transferCompetitionEntryParticipationInTx(tx, { entryId: target.id, fromEntryId: ids.entry, userId: ids.representative, actorId: ids.representative });
+      const transfer = () => transferCompetitionEntryParticipationInTx(tx, { entryId: target.id, fromEntryId: ids.entry, userId: ids.representative, actorId: ids.representative, expectedPosition: null });
       const oldClaim = await database.query.competitionEntryActiveClaims.findFirst({ where: eq(schema.competitionEntryActiveClaims.participantId, ids.representativeParticipant) });
       expect(await capturePostgresError(client, transfer)).toMatchObject({ code: "VALIDATION_FAILED" });
       expect(await database.query.competitionEntryActiveClaims.findFirst({ where: eq(schema.competitionEntryActiveClaims.participantId, ids.representativeParticipant) })).toEqual(oldClaim);

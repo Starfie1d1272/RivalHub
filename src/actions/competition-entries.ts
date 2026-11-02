@@ -51,9 +51,9 @@ export async function createCompetitionEntry(input: { competitionId: string; tea
   } catch (error) { return actionError("createCompetitionEntry", error); }
 }
 
-export async function saveCompetitionEntryRoster(input: { entryId: string; userIds: string[]; primaryStarterUserIds: string[]; perfectTeamId?: string | null }): Promise<ActionResult<void>> {
-  const parsed = z.object({ entryId: uuid, userIds: z.array(uuid).min(1).max(9), primaryStarterUserIds: z.array(uuid).max(5), perfectTeamId: z.union([z.literal(""), z.string().max(128).regex(/^[0-9]+$/), z.null()]).optional() }).safeParse(input);
-  if (!parsed.success || new Set(parsed.data.userIds).size !== parsed.data.userIds.length || new Set(parsed.data.primaryStarterUserIds).size !== parsed.data.primaryStarterUserIds.length || parsed.data.primaryStarterUserIds.some((id) => !parsed.data.userIds.includes(id))) return failValidation("赛事名单或预定主力无效。");
+export async function saveCompetitionEntryRoster(input: { entryId: string; userIds: string[]; primaryStarterUserIds: string[]; positions?: { userId: string; position: string | null }[]; perfectTeamId?: string | null }): Promise<ActionResult<void>> {
+  const parsed = z.object({ entryId: uuid, userIds: z.array(uuid).min(1).max(9), primaryStarterUserIds: z.array(uuid).max(5), positions: z.array(z.object({ userId: uuid, position: z.string().nullable() })).max(9).optional(), perfectTeamId: z.union([z.literal(""), z.string().max(128).regex(/^[0-9]+$/), z.null()]).optional() }).safeParse(input);
+  if (!parsed.success || new Set(parsed.data.userIds).size !== parsed.data.userIds.length || new Set(parsed.data.primaryStarterUserIds).size !== parsed.data.primaryStarterUserIds.length || parsed.data.primaryStarterUserIds.some((id) => !parsed.data.userIds.includes(id)) || (parsed.data.positions && (new Set(parsed.data.positions.map((row) => row.userId)).size !== parsed.data.positions.length || parsed.data.positions.some((row) => !parsed.data.userIds.includes(row.userId))))) return failValidation("赛事名单或预定主力无效。");
   try {
     const session = await requireAuth();
     const result = await db.transaction((tx) => saveCompetitionEntryRosterInTx(tx, { ...parsed.data, userId: session.userId, actorId: auditActorId(session) }));
@@ -74,8 +74,8 @@ export async function addCompetitionEntryRosterMember(input: { entryId: string; 
   } catch (error) { return actionError("addCompetitionEntryRosterMember", error); }
 }
 
-export async function transferCompetitionEntryParticipation(input: { entryId: string; fromEntryId: string; playerType?: PlayerType | null }): Promise<ActionResult<void>> {
-  const parsed = z.object({ entryId: uuid, fromEntryId: uuid, playerType: z.enum(["enrolled", "graduated", "external"]).nullable().optional() }).safeParse(input);
+export async function transferCompetitionEntryParticipation(input: { entryId: string; fromEntryId: string; expectedPosition?: string | null; playerType?: PlayerType | null }): Promise<ActionResult<void>> {
+  const parsed = z.object({ entryId: uuid, fromEntryId: uuid, expectedPosition: z.string().nullable().optional(), playerType: z.enum(["enrolled", "graduated", "external"]).nullable().optional() }).safeParse(input);
   if (!parsed.success) return failValidation("参赛队伍信息无效。");
   try {
     const session = await requireAuth();
@@ -87,8 +87,8 @@ export async function transferCompetitionEntryParticipation(input: { entryId: st
   } catch (error) { return actionError("transferCompetitionEntryParticipation", error); }
 }
 
-export async function confirmCompetitionEntryParticipation(input: { entryId: string; playerType?: PlayerType | null }): Promise<ActionResult<void>> {
-  const parsed = z.object({ entryId: uuid, playerType: z.enum(["enrolled", "graduated", "external"]).nullable().optional() }).safeParse(input);
+export async function confirmCompetitionEntryParticipation(input: { entryId: string; expectedPosition?: string | null; playerType?: PlayerType | null }): Promise<ActionResult<void>> {
+  const parsed = z.object({ entryId: uuid, expectedPosition: z.string().nullable().optional(), playerType: z.enum(["enrolled", "graduated", "external"]).nullable().optional() }).safeParse(input);
   if (!parsed.success) return failValidation("参赛条目或身份类型无效。");
   try {
     const session = await requireAuth();

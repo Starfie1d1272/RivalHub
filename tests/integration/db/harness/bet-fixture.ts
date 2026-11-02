@@ -7,10 +7,11 @@ import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
 import { operateBetInTx,joinBetInTx } from "@/lib/bet/service";
 import { betBoard } from "@/lib/bet/data";
 import { localDatabaseUrl } from "./database";
-import { withScratchDatabase,migrationFiles,replayMigration } from "./migration-replay";
+import { withScratchDatabase,migrationFiles,replayMigration,replayCurrentPositionMigrations } from "./migration-replay";
 export async function fixture(work:(f:{db:ReturnType<typeof drizzle<typeof schema>>;seasonId:string;userId:string;otherId:string;matchId:string;entryIds:string[]})=>Promise<void>, options: { major24?: boolean } = {}) {
   await withScratchDatabase("bet_test",async client=>{
     for(const file of migrationFiles(name=>/^\d{4}_.*\.sql$/.test(name)))await replayMigration(client,file);
+    await replayCurrentPositionMigrations(client);
     const url=new URL(localDatabaseUrl());url.pathname=`/${(await client.query("select current_database() as name")).rows[0].name}`;
     const pool=new Pool({connectionString:url.toString(),ssl:false,max:6});const db=drizzle(pool,{schema});
     const seasonId=randomUUID(),userId=randomUUID(),otherId=randomUUID();

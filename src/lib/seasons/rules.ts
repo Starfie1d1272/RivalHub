@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
 import { supportsExternalHistoricalGapTarget } from "@/lib/competitive/player-strength";
 import { canonicalizeV2CompetitiveProfile } from "@/lib/competitive/source-selection";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -69,10 +68,7 @@ export function seasonCapabilityIssue(input: {
     return "队长投票和选秀需要个人报名，请改为个人报名或关闭编队环节。";
   }
   if (input.isV2 && input.registrationMode === "team" && input.requirePositions) {
-    const available = new Set(input.positions.filter(position => (CS2_POSITION_VALUES as readonly string[]).includes(position)));
-    if (available.size !== new Set(input.positions).size || available.size === 0) {
-      return "队伍报名尚无本届自定义位置输入，无法要求填写这些位置。";
-    }
+    const available = new Set(input.positions);
     if (input.maxPerPositionPerTeam > 0 && available.size * input.maxPerPositionPerTeam < input.minTeamSize) {
       return "现有成员位置与每位置上限不足以满足名单人数要求。";
     }

@@ -463,7 +463,7 @@ export async function adoptApprovedRosterInTx(tx: TxDb, input: {
     version: 2, seasonId: candidate.season.id, entryId: entry.id, rosterRevisionId: approvedRevision.id,
     members: selections.map(({ member, verification }) => ({
       eventRosterMemberId: idsByUser.get(member.userId), participantId: member.participantId, userId: member.userId,
-      isPrimaryStarter: member.isPrimaryStarter, educationVerificationId: verification?.id ?? null,
+      isPrimaryStarter: member.isPrimaryStarter, primaryPosition: member.primaryPosition, educationVerificationId: verification?.id ?? null,
       education: verification ? { institutionCode: verification.institutionCode, academicStatus: verification.academicStatus, status: verification.status } : null,
       source: { rosterRevisionId: approvedRevision.id, teamMembershipId: member.teamMembershipId },
     })),

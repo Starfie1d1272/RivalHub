@@ -9,7 +9,7 @@ import { loadBaseline } from "@/lib/predictions/baseline";
 import { simulateMajor } from "@/lib/predictions/simulator";
 import { syncAutomaticPickEmInTx, joinPredictionsInTx } from "@/lib/predictions/service";
 import { localDatabaseUrl } from "../harness/database";
-import { migrationFiles, replayMigration, withScratchDatabase } from "../harness/migration-replay";
+import { migrationFiles, replayMigration, replayCurrentPositionMigrations, withScratchDatabase } from "../harness/migration-replay";
 
 export type Fixture = {
   db: ReturnType<typeof drizzle<typeof schema>>;
@@ -24,6 +24,7 @@ export async function predictionCapacityFixture(work: (f: Fixture) => Promise<vo
   await withScratchDatabase("prediction_test", async (client) => {
     for (const file of migrationFiles((name) => /^\d{4}_.*\.sql$/.test(name)))
       await replayMigration(client, file);
+    await replayCurrentPositionMigrations(client);
     const url = new URL(localDatabaseUrl());
     url.pathname = `/${(await client.query<{ name: string }>("select current_database() as name")).rows[0]!.name}`;
     const pool = new Pool({

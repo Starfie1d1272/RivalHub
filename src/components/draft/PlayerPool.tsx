@@ -11,7 +11,7 @@ import { PosChip } from "@/components/rivalhub/PosChip";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { sortByRank } from "@/lib/utils/rank";
 
-const FILTER_ALL = "all";
+const FILTER_ALL = null;
 
 interface PlayerPoolProps {
   players: PublicDraftPlayer[];
@@ -19,7 +19,7 @@ interface PlayerPoolProps {
 }
 
 export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
-  const [filter, setFilter] = useState<string>(FILTER_ALL);
+  const [filter, setFilter] = useState<string | null>(FILTER_ALL);
 
   const grouped = useMemo(() => {
     const map = new Map<string, PublicDraftPlayer[]>();

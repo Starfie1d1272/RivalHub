@@ -155,12 +155,9 @@ function UnavailablePanel({
 }
 
 function computePositionCounts(team: DraftTeamSlot | undefined): Record<string, number> {
-  const counts: Record<string, number> = {};
-  if (!team) return counts;
-
-  counts[team.captain.primaryPosition] = (counts[team.captain.primaryPosition] ?? 0) + 1;
-  for (const member of team.members) {
-    counts[member.primaryPosition] = (counts[member.primaryPosition] ?? 0) + 1;
+  const counts = new Map<string, number>();
+  if (team) for (const position of [team.captain.primaryPosition, ...team.members.map((member) => member.primaryPosition)]) {
+    if (position) counts.set(position, (counts.get(position) ?? 0) + 1);
   }
-  return counts;
+  return Object.fromEntries(counts);
 }

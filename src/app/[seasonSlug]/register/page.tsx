@@ -6,7 +6,7 @@ import { ContentReady } from "@/components/telemetry/ContentReady";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import type { Metadata } from "next";
-import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntryActiveClaims,
@@ -37,6 +37,7 @@ import { projectMapPreferences } from "@/lib/maps";
 import { getUserSession } from "@/lib/auth/session";
 import { isSoloRegistration } from "@/lib/utils/season";
 import { isTeamRegistration } from "@/lib/utils/season";
+import { rosterPositionSql } from "@/lib/competition-entries/roster-position";
 import { CompetitionEntryFlow } from "@/components/register/CompetitionEntryFlow";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { assessSoloParticipant, computePolicyParticipantReadiness, evaluateRosterQualificationFromFacts, evaluateSeasonParticipantInTx, getParticipantReadinessBatch, isHomeAffiliatedMember, loadParticipantQualificationFacts, resolveCompetitiveContext, resolveSeasonEducationVerification } from "@/lib/qualification/service";
@@ -176,7 +177,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
         finalEntrant: Boolean(finalEntrant),
       });
       const [[revision], [eventRoster], [entryTeam], approvedRoster] = await Promise.all([
-        db.select({ id: competitionEntryRosterRevisions.id, status: competitionEntryRosterRevisions.status, origin: competitionEntryRosterRevisions.origin })
+        db.select({ id: competitionEntryRosterRevisions.id, status: competitionEntryRosterRevisions.status, origin: competitionEntryRosterRevisions.origin, positionFactsVersion: competitionEntryRosterRevisions.positionFactsVersion })
           .from(competitionEntryRosterRevisions)
           .where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id)))
           .limit(1),
@@ -196,7 +197,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
             .where(and(eq(teamMemberships.teamId, entry.teamId), isNull(teamMemberships.endedAt), inArray(teamMemberships.status, ["active", "benched"])))
         : [],
         revision
-        ? db.select({ participantId: competitionEntryParticipants.id, userId: competitionEntryRosterMembers.userId, confirmation: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter, membershipId: competitionEntryRosterMembers.teamMembershipId, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, membershipStatus: teamMemberships.status })
+        ? db.select({ participantId: competitionEntryParticipants.id, userId: competitionEntryRosterMembers.userId, confirmation: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter, primaryPosition: rosterPositionSql(sql`${revision.positionFactsVersion}::integer`, competitionEntryRosterMembers.primaryPosition, season.id, competitionEntryRosterMembers.userId), membershipId: competitionEntryRosterMembers.teamMembershipId, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, membershipStatus: teamMemberships.status })
             .from(competitionEntryRosterMembers)
             .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
             .innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId))
@@ -288,6 +289,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
         status: entry.registrationStatus,
         rosterStatus: interpretEntryRosterStatus({ ...entry, revisionStatus: revision?.status ?? null }),
         revisionOrigin: revision?.origin ?? null,
+        positionFactsVersion: revision?.positionFactsVersion ?? null,
         representativeUserId: entry.representativeUserId,
         reviewReason: revision?.origin === "self_roster_change" ? null : entry.reviewReason,
         qualificationFindings: qualification.findings,
@@ -304,6 +306,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
           confirmation: row.confirmation,
           hasOtherCommitment: row.confirmation !== "confirmed" && claimedByOtherEntry.has(row.userId),
           primary: row.primary,
+          primaryPosition: row.primaryPosition,
           readiness: readinessByUser.get(row.userId),
         })),
       };
@@ -328,6 +331,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
             capabilities={capabilities}
             pendingInvitations={participantContext.pendingInvitations}
             transferFrom={transferFrom}
+            positions={entryRules.roster.positions}
             requiresTeamLogo={entryRules.roster.requireTeamLogo}
             canManageEntryTeamProfile={Boolean(entry?.teamId && captainedTeams.some((team) => team.id === entry.teamId))}
             approvedTeamCount={approvedCount}
@@ -421,7 +425,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
 
   // 位置容量数据
   const capacityEntries = season.positions.map((pos) => {
-    const cur = positionCounts[pos] ?? 0;
+    const cur = Object.hasOwn(positionCounts, pos) ? positionCounts[pos] : 0;
     const label = positionLabel(pos);
     return { pos, label, cur, max: maxPerPos };
   });

@@ -7,7 +7,7 @@ export function isPositionFull(
   positionCounts: Record<string, number>,
   maxPerPosition: number,
 ): boolean {
-  return (positionCounts[pos] ?? 0) >= maxPerPosition;
+  return (Object.hasOwn(positionCounts, pos) ? positionCounts[pos] : 0) >= maxPerPosition;
 }
 
 export function buildPositionLabel(
@@ -16,7 +16,7 @@ export function buildPositionLabel(
   maxPerPosition: number,
 ): string {
   const position = POSITION_LABELS[pos as keyof typeof POSITION_LABELS];
-  const count = positionCounts[pos] ?? 0;
+  const count = Object.hasOwn(positionCounts, pos) ? positionCounts[pos] : 0;
   const label = position?.full ?? pos;
   const full = count >= maxPerPosition;
   return `${label}  ${full ? "已满" : `${count}/${maxPerPosition}`}`;

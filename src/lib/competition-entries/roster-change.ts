@@ -4,7 +4,6 @@ import { writeAuditInTx } from "@/lib/audit/write";
 import type { TxDb } from "@/db/client";
 import {
     competitionEntries,
-  competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
   eventRosters,
 } from "@/db/schema";
@@ -13,6 +12,7 @@ import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { canChangeApprovedFormationRoster } from "@/lib/registration/window";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
 import { canSelfAdjustMajorRosterInTx } from "@/lib/major/roster-window";
+import { copyRosterPositionsToRevisionInTx } from "@/lib/competition-entries/roster-position";
 
 /**
  * Canonical approved-roster change transition: the Entry representative reopens
@@ -24,7 +24,7 @@ import { canSelfAdjustMajorRosterInTx } from "@/lib/major/roster-window";
  */
 export async function requestCompetitionEntryRosterChangeInTx(
   tx: TxDb,
-  input: { entryId: string; representativeUserId: string; actorId: string; source?: "representative_roster_change" | "participant_self_withdrawal" | "admin_formation" },
+  input: { entryId: string; representativeUserId: string; actorId: string; excludeUserId?: string; source?: "representative_roster_change" | "participant_self_withdrawal" | "admin_formation" },
 ): Promise<{ seasonSlug: string }> {
   // The Entry id is the only input, so derive the season before taking the
   // aggregate locks. The season lock is needed before Entry because the
@@ -55,9 +55,8 @@ export async function requestCompetitionEntryRosterChangeInTx(
   const [current] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!current) throw new AppError(ErrorCode.INTERNAL_ERROR, "当前名单记录不可用，请联系赛事管理员。");
   const nextRevision = current.revisionNumber + 1;
-  const [next] = await tx.insert(competitionEntryRosterRevisions).values({ entryId: entry.id, revisionNumber: nextRevision, status: "draft", origin: input.source === "admin_formation" ? "admin_remediation" : "self_roster_change", createdBy: input.actorId }).returning({ id: competitionEntryRosterRevisions.id });
-  const members = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, approved.id));
-  if (members.length > 0) await tx.insert(competitionEntryRosterMembers).values(members.map((member) => ({ revisionId: next.id, participantId: member.participantId, userId: member.userId, teamMembershipId: member.teamMembershipId, isPrimaryStarter: member.isPrimaryStarter })));
+  const [next] = await tx.insert(competitionEntryRosterRevisions).values({ entryId: entry.id, revisionNumber: nextRevision, positionFactsVersion: 1, status: "draft", origin: input.source === "admin_formation" ? "admin_remediation" : "self_roster_change", createdBy: input.actorId }).returning({ id: competitionEntryRosterRevisions.id });
+  await copyRosterPositionsToRevisionInTx(tx, { revision: approved, nextId: next.id, actorId: input.actorId, excludeUserId: input.excludeUserId });
   await tx.update(competitionEntries).set({ registrationStatus: "changes_requested", currentRosterRevisionId: next.id, reviewReason: null, updatedAt: new Date() }).where(eq(competitionEntries.id, entry.id));
   await writeAuditInTx(tx, { seasonId: entry.competitionId, action: "competition_entry.roster_change.request", actorId: input.actorId, targetId: entry.id,meta: { approvedRevision: approved.revisionNumber, nextRevision, prestartInvalidated, source: input.source ?? "representative_roster_change" } });
   return { seasonSlug: season.slug };
