@@ -1,5 +1,6 @@
 import { BUILT_IN_COMPETITIVE_PLATFORMS, isBuiltInCompetitivePlatformKey } from "@/lib/competitive/builtins";
 import { evaluateExternalStrengthRule, getPlayerStrengthFindings, type PlayerStrengthInput } from "@/lib/major/player-strength";
+import { evaluateCompetitiveProfileReadiness, evaluateRankThreshold } from "@/lib/competitive/player-strength";
 import {
   blockersFromQualificationFindings,
   uniqueQualificationFindings,
@@ -12,6 +13,7 @@ import {
   type SeasonEducationVerification,
 } from "@/lib/education/eligibility";
 import type { CompetitiveProfileConfig, InstitutionAffiliationRule } from "@/types/season";
+import type { DecodedSeasonRules, EvaluateParticipant, QualificationDecision } from "@/lib/seasons/rules";
 
 /**
  * Single orchestration owner for participant qualification.
@@ -22,7 +24,7 @@ import type { CompetitiveProfileConfig, InstitutionAffiliationRule } from "@/typ
  * prestart freezes, matches read frozen facts.
  */
 
-import { createCompetitiveCandidateResolver, toPlayerStrengthInput } from "@/lib/qualification/evidence";
+import { buildQualificationEvidence, createCompetitiveCandidateResolver, deriveCompetitiveRequirements, toPlayerStrengthInput, type CompetitivePurpose } from "@/lib/qualification/evidence";
 export { toPlayerStrengthInput } from "@/lib/qualification/evidence";
 import { loadParticipantQualificationFacts } from "@/lib/qualification/facts";
 import type { ParticipantQualificationFacts, QualificationPeak, QualificationSeasonPeak } from "@/lib/qualification/facts";
@@ -312,6 +314,65 @@ export function computePolicyParticipantReadiness(
     educationApproved: fact.approvedEducation,
     educationState,
   };
+}
+
+/** Pure participant decision over the evidence supplied by the event. */
+export const evaluateParticipant: EvaluateParticipant = (candidate, rules, evidence) => {
+  const fact = candidate.facts;
+  const findings = getParticipantIdentityFindings(fact).filter((finding) => {
+    const field = finding.metadata?.field;
+    if (field === "qq") return rules.contacts.qqRequired;
+    if (field === "email_verified_at") return rules.contacts.emailVerifiedRequired;
+    if (field === "perfect_name") return Boolean(rules.legacySolo);
+    return true;
+  });
+  const educationState = resolveParticipantEducationReadiness(fact);
+  if (rules.educationRequired && educationState !== "ready") findings.push(educationReadinessFinding(educationState));
+  if (rules.allowedPlayerTypes && (!candidate.playerType || !rules.allowedPlayerTypes.includes(candidate.playerType))) {
+    findings.push({ code: "player_type_ineligible", message: "所选身份类型不符合赛事报名要求。", waivable: false, metadata: { field: "player_type" } });
+  }
+  const threshold = rules.rankThreshold;
+  const hasThreshold = Boolean(threshold && (threshold.currentMin !== null || threshold.peakMin !== null));
+  if (rules.competitiveProfileRequired || hasThreshold) {
+    const profile = evidence.kind === "competitive" ? evidence.context.profile : null;
+    if (!profile || (rules.competitiveProfileRequired && !isCompleteCompetitiveContext(profile)) || !profile.rankOrder.length || (threshold?.currentMin && !profile.currentSeasonKey)) {
+      findings.push({ code: "competitive_context_unavailable", message: "本届赛事的竞技资料要求暂时无法确认，请联系赛事管理员。", waivable: false, metadata: { field: "competitive_context" } });
+    } else {
+      if (rules.competitiveProfileRequired) {
+        findings.push(...evaluateCompetitiveProfileReadiness(evidence, candidate.userId));
+      }
+      if (threshold && hasThreshold) {
+        findings.push(...evaluateRankThreshold(toPlayerStrengthInput({ ...fact, userId: candidate.userId }, profile, "rank_threshold"), threshold, profile.rankOrder));
+      }
+    }
+  }
+  const result = uniqueQualificationFindings(findings);
+  return result.length ? { state: "blocked", findings: result as [QualificationFinding, ...QualificationFinding[]] } : { state: "ready", findings: [] };
+};
+
+/** Load the same facts inside the caller's mutation transaction. */
+export async function evaluateSeasonParticipantInTx(
+  executor: import("@/lib/qualification/facts").DatabaseExecutor,
+  userId: string,
+  playerType: string,
+  rules: DecodedSeasonRules,
+): Promise<QualificationDecision> {
+  const context = rules.competitive.competitiveProfile;
+  const purposes: CompetitivePurpose[] = [];
+  if (rules.participant.competitiveProfileRequired) purposes.push("profile_completeness");
+  if (rules.participant.rankThreshold?.currentMin || rules.participant.rankThreshold?.peakMin) purposes.push("rank_threshold");
+  const facts = await loadParticipantQualificationFacts([userId], {
+    executor,
+    platform: context?.platform,
+    fallbackPlatform: context?.fallbackConversion?.sourcePlatform,
+    includeCompetitiveFacts: purposes.length > 0,
+    ...(context ? { competitiveRequirements: deriveCompetitiveRequirements(purposes, context, rules.participant) } : {}),
+  });
+  const fact = facts.get(userId);
+  if (!fact) return { state: "blocked", findings: [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }] };
+  const parsedType = playerType === "enrolled" || playerType === "graduated" || playerType === "external" ? playerType : null;
+  const evidence = context ? buildQualificationEvidence(facts, context, rules.participant, purposes) : { kind: "none" as const };
+  return evaluateParticipant({ userId, facts: { ...fact, userId }, playerType: parsedType }, rules.participant, evidence);
 }
 
 /** Pure legacy readiness evaluation from loaded facts. */

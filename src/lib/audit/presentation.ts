@@ -225,6 +225,7 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "bet.void": { label: "作废并退款", category: "bet" },
   "bet.retry": { label: "重试 BET 结算", category: "bet" },
   "match.map.start": { label: "开始正式地图", category: "match" },
+  "match.actual_start.adopt": { label: "采用实际开局时间", category: "match" },
   "predictions.open_market": { label: "开放积分池", category: "predictions" },
   "predictions.open_contest": { label: "开放阶段预测", category: "predictions" },
   "predictions.void_contest": { label: "作废阶段预测", category: "predictions" },

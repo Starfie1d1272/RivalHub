@@ -48,11 +48,11 @@ export interface RegistrationRow {
   userId: string;
   primaryPosition: string;
   secondaryPosition: string;
-  peakRank: string;
-  peakRankSeason: string;
-  peakRating: number;
-  currentSeasonPeakRank: string;
-  currentRating: number;
+  peakRank: string | null;
+  peakRankSeason: string | null;
+  peakRating: number | null;
+  currentSeasonPeakRank: string | null;
+  currentRating: number | null;
   screenshotUrls: string[];
   mapPreferences: MapPreference[];
   gameplayStyle: string;

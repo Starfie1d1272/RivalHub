@@ -2,7 +2,7 @@ import {
   getPlayerStrengthBreakdown,
   type PlayerStrengthBreakdown,
   type PlayerStrengthInput,
-} from "./player-strength";
+} from "@/lib/competitive/player-strength";
 
 /** Team scores are persisted at the smallest precision produced by five 50/20/30 weighted continuous-star ranks. */
 export const TEAM_SEED_STRENGTH_SCALE = 150 as const;
