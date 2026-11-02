@@ -12,7 +12,7 @@ import {
   matches,
   seasons,
 } from "@/db/schema";
-import { loadEntryRosterCandidateInTx } from "@/lib/competition-entries/commands";
+import { assessEntryRosterInTx } from "@/lib/competition-entries/commands";
 import { evaluateRoster } from "@/lib/competition-entries/evaluate-roster";
 import { loadActiveRestrictionOverridesInTx, unresolvedQualificationFindings } from "@/lib/competition-entries/restriction-overrides";
 import { decodeFrozenLineupEligibility } from "@/lib/match-rosters/frozen-eligibility";
@@ -21,8 +21,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification } from "@/lib/education/eligibility";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { assertSinglePrestartEntryCoherenceInTx, type PrestartEntryCoherence } from "@/lib/event-rosters/coherence";
-import { evaluateParticipant, loadParticipantQualificationFacts, resolveCompetitiveContext } from "@/lib/qualification/service";
-import { buildQualificationEvidence, type CompetitivePurpose } from "@/lib/qualification/evidence";
+import { evaluateParticipant, loadParticipantQualificationFacts } from "@/lib/qualification/service";
 import { freezeQualificationRosterInTx } from "@/lib/competition-qualification/eligibility";
 import { resolveQualificationPolicy } from "@/lib/seasons/compatibility";
 
@@ -209,18 +208,12 @@ export async function syncApprovedRosterToEventRosterInTx(
       decodeFrozenLineupEligibility(eventRoster.eligibilitySnapshot, { seasonId: season.id, entryId: entry.id, rosterRevisionId: approvedRevision.id });
       return { eventRosterId: eventRoster.id, rosterSize: null, changed: false };
     }
-    const { candidate, rules } = await loadEntryRosterCandidateInTx(tx, { entryId: entry.id, expectedRevisionId: approvedRevision.id });
-    const purposes: CompetitivePurpose[] = [];
-    if (rules.participant.competitiveProfileRequired) purposes.push("profile_completeness");
-    if (rules.participant.rankThreshold?.currentMin || rules.participant.rankThreshold?.peakMin) purposes.push("rank_threshold");
-    if (rules.competitive.externalStrengthGap.enabled) purposes.push("external_historical_gap");
-    const profile = purposes.length && rules.competitive.competitiveProfile ? await resolveCompetitiveContext(rules.competitive.competitiveProfile) : null;
-    if (purposes.length && !profile) throw new AppError(ErrorCode.VALIDATION_FAILED, "本赛事的竞技规则尚不可确认。");
-    const evidence = profile ? buildQualificationEvidence(candidate.factsByUser, profile, rules.participant, purposes) : { kind: "none" } as const;
-    const decisions = [evaluateRoster(candidate, rules, evidence), ...candidate.members.map((member) => {
-      const fact = candidate.factsByUser.get(member.userId);
-      if (!fact) return { state: "blocked" as const, findings: [{ code: "participant_missing", message: "名单成员资料不可用。", waivable: false }] as const };
-      return evaluateParticipant({ userId: member.userId, facts: fact, playerType: member.playerType }, rules.participant, evidence);
+    const assessment = await assessEntryRosterInTx(tx, { entryId: entry.id, expectedRevisionId: approvedRevision.id });
+    const { candidate, rules, evidence } = assessment;
+    const decisions = [assessment.rosterDecision, ...candidate.members.map((member) => {
+      const decision = assessment.participantDecisions.get(member.userId);
+      if (!decision) throw new AppError(ErrorCode.VALIDATION_FAILED, "名单成员缺少资格评估。");
+      return decision;
     })];
     const overrides = await loadActiveRestrictionOverridesInTx(tx, { competitionId: season.id, entryIds: [entry.id], rosterRevisionIds: [approvedRevision.id] });
     return adoptApprovedRosterInTx(tx, { coherent, actorId, candidate, rules, evidence, decisions, overrides });
