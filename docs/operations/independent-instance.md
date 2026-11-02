@@ -71,7 +71,7 @@ pnpm db:recovery:restore-db-checkpoint \
 
 ## 跨主版本转换
 
-普通升级仍执行双向 reader-first 合同。跨 v2 → v3 必须在明确的维护窗口停止实例以外的所有 writer 和迁移执行者，并核实正在运行的来源项目与目标数据库；不得修改能力声明伪造兼容。旧金融 writer 已退役，仅切回旧应用不安全。以下入口在主机锁内复核实际运行身份及精确旧链和目标链，停止服务并排空事务，以旧环境生成完整 DB + Storage 加密 checkpoint，验证对象真实读回并将来源、目标、账本、Storage 摘要和候选身份绑定到事务，再持久化迁移标记并执行迁移/adopt：
+普通升级仍执行双向 reader-first 合同。跨 v2 → v3 必须在明确的维护窗口停止实例以外的所有 writer 和迁移执行者，并核实正在运行的来源项目与目标数据库；不得修改能力声明伪造兼容。旧金融 writer 已退役，仅切回旧应用不安全。以下入口在主机锁内读取 systemd MainPID 的实际可执行文件、工作目录和环境，并与运行中 release identity、已安装配置及精确旧链和目标链核对；旧实例无需新 recovery-source 接口，但主机须允许 root 读取该进程的 `/proc` 信息。随后入口停止服务并排空事务，以旧环境生成完整 DB + Storage 加密 checkpoint，验证对象真实读回并将来源、目标、账本、Storage 摘要和候选身份绑定到事务，再持久化迁移标记并执行迁移/adopt：
 
 ```bash
 sudo pnpm exec tsx scripts/instance/release.ts --major-transition \

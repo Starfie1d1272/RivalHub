@@ -62,7 +62,7 @@ async function main(): Promise<void> {
     if (lock.error || lock.status !== 1 || service.error || service.status !== 3) throw new Error("Stopped backup requires the held host lock and stopped service.");
   }
   const readSource = () => frozenPath
-    ? resolveStoppedInstanceSourceIdentity(frozenPath, sourceManifest!, instance!.supabaseUrl, environment.databaseUrl)
+    ? resolveStoppedInstanceSourceIdentity(frozenPath, sourceManifest!, instance!.supabaseUrl, environment.databaseUrl, false)
     : instance ? resolveInstanceSourceIdentity(instance.appOrigin, instance.supabaseUrl, projectRoot, fetch, sourceMode === "isolated-instance") : resolveProductionSourceIdentity();
   const runId = randomUUID();
   const createdAt = new Date().toISOString();

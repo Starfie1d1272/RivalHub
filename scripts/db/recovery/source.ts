@@ -59,7 +59,7 @@ export async function resolveInstanceSourceIdentity(
 
 /** Revalidate the installer-captured source and package ledger after the writer stops. */
 export async function resolveStoppedInstanceSourceIdentity(
-  frozenPath: string, sourceManifest: string, supabaseUrl: string, databaseUrl: string,
+  frozenPath: string, sourceManifest: string, supabaseUrl: string, databaseUrl: string, requireCapability = true,
 ): Promise<Omit<RecoverySourceIdentity, "databaseMigrationTerminal">> {
   const file = lstatSync(frozenPath), parent = statSync(dirname(frozenPath));
   if (process.getuid?.() !== 0 || !file.isFile() || file.isSymbolicLink() || file.uid !== 0 || parent.uid !== 0
@@ -67,7 +67,7 @@ export async function resolveStoppedInstanceSourceIdentity(
   const record = JSON.parse(readFileSync(frozenPath, "utf8"));
   if (Object.keys(record).sort().join(",") !== "databaseName,releaseCommit,releaseTag,supabaseUrl"
     || record.supabaseUrl !== supabaseUrl || record.databaseName !== "postgres") throw new Error("Frozen source database identity differs.");
-  assertInstanceReleaseIdentity(record.releaseTag, record.releaseCommit);
+  assertInstanceReleaseIdentity(record.releaseTag, record.releaseCommit, process.cwd(), requireCapability);
   const previous = JSON.parse(readFileSync(sourceManifest, "utf8")) as { releaseTag: string; sourceCommit: string; migrations: MigrationIdentity[] };
   if (previous.releaseTag !== record.releaseTag || previous.sourceCommit !== record.releaseCommit || !Array.isArray(previous.migrations) || !previous.migrations.length) throw new Error("Frozen source differs from installed package.");
   const pool = new Pool({ ...postgresConnection(databaseUrl), max: 1 });
@@ -81,7 +81,7 @@ export async function resolveStoppedInstanceSourceIdentity(
 
 /** Instance build.mjs derives its release label from the committed package
  * version and full Git commit; it does not create a Git tag. */
-export function assertInstanceReleaseIdentity(tag: string, commit: string, cwd = projectRoot): void {
+export function assertInstanceReleaseIdentity(tag: string, commit: string, cwd = projectRoot, requireCapability = true): void {
   if (!/^[0-9a-f]{40}$/.test(commit) || resolveGitRevision(cwd, `${commit}^{commit}`).toLowerCase() !== commit) {
     throw new Error("Instance release commit is unavailable; recovery aborted.");
   }
@@ -92,8 +92,10 @@ export function assertInstanceReleaseIdentity(tag: string, commit: string, cwd =
     || tag !== `v${version}-instance.${commit.slice(0, 12)}`) {
     throw new Error("Instance release label does not match its committed package and commit.");
   }
-  const capability = spawnSync("git", ["cat-file", "-e", `${commit}:src/lib/competition/release-contract.json`], { cwd, stdio: "ignore" });
-  if (capability.error || capability.status !== 0) throw new Error("Instance release lacks its competition capability contract.");
+  if (requireCapability) {
+    const capability = spawnSync("git", ["cat-file", "-e", `${commit}:src/lib/competition/release-contract.json`], { cwd, stdio: "ignore" });
+    if (capability.error || capability.status !== 0) throw new Error("Instance release lacks its competition capability contract.");
+  }
 }
 
 async function readSourceIdentity(

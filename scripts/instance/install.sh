@@ -28,10 +28,23 @@ check_identity() {
     "$node" -e 'const fs = require("fs"); const r = JSON.parse(fs.readFileSync(process.argv[1])), d = JSON.parse(process.argv[2]); if (Object.keys(r).sort().join(",") !== "databaseName,releaseCommit,releaseTag,supabaseUrl" || r.releaseTag !== process.argv[3] || r.releaseCommit !== process.argv[4] || r.supabaseUrl !== `https://${d.project}.supabase.co` || r.databaseName !== d.database) process.exit(1)' "$tls_helper/running-source.json" "$database" "$tag" "$commit" &&
     env -i "$node" --env-file="$environment" "$root/current/scripts/instance/readiness.mjs" "$root/current"
 }
+check_major_identity() {
+  local node=$1 tag=$2 commit=$3 environment=${4:-$config} pid database
+  database=$(env -i "$node" --env-file="$environment" "$script_dir/database-identity.mjs") || return 1
+  pid=$(systemctl show --property MainPID --value rivalhub-instance) || return 1
+  curl --fail --silent --max-time 5 http://127.0.0.1:3033/ >/dev/null &&
+    curl --fail --silent --max-time 5 http://127.0.0.1:3033/api/system/release > "$root/last-release-check.json" &&
+    "$node" "$helper" identity "$root/last-release-check.json" "$tag" "$commit" &&
+    env -i "$node" --env-file="$environment" "$script_dir/legacy-source.mjs" "$pid" "$root/current" "$tag" "$commit" > "$tls_helper/running-source.json" &&
+    "$node" -e 'const fs = require("fs"); const r = JSON.parse(fs.readFileSync(process.argv[1])), d = JSON.parse(process.argv[2]); if (r.supabaseUrl !== `https://${d.project}.supabase.co` || r.databaseName !== d.database) process.exit(1)' "$tls_helper/running-source.json" "$database" &&
+    env -i "$node" --env-file="$environment" "$root/current/scripts/instance/readiness.mjs" "$root/current"
+}
 wait_identity() {
   local attempt
   for attempt in {1..15}; do
-    if check_identity "$@"; then return 0; fi
+    if [[ ${#transition_arg[@]} -gt 0 && ${2:-} == "${previous_tag:-}" ]]; then
+      if check_major_identity "$@"; then return 0; fi
+    elif check_identity "$@"; then return 0; fi
     sleep 2
   done
   return 1
@@ -83,6 +96,7 @@ failed() {
   exit 1
 }
 if [[ ${1:-} == --restore-pair ]]; then
+  transition_arg=(instance-v2-to-v3)
   [[ $# == 3 ]] || { echo 'Restore-pair requires verified full recovery evidence and restored target environment.' >&2; exit 1; }
   snapshot=$(realpath "$(cat "$root/previous-snapshot")")
   [[ $snapshot == "$root/rollback/"* && -f $snapshot/migration-started && -f $snapshot/full-checkpoint.json && -f $snapshot/identity && ! -e $snapshot/paired-recovery-complete ]] || { echo 'No major transaction requiring paired recovery.' >&2; exit 1; }
@@ -190,7 +204,8 @@ if [[ -n $previous ]]; then
   fi
   [[ -n $previous_tag && -n $previous_sha ]] || exit 1
   "$node" "$helper" manifest "$root/$previous/standby.json" "${previous#releases/}" "$previous_tag" "$previous_sha" >/dev/null || { echo 'Current host differs from frozen previous release.' >&2; exit 1; }
-  check_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" || { echo 'Running instance identity or ledger differs from frozen previous release.' >&2; exit 1; }
+  if [[ ${#transition_arg[@]} -gt 0 ]]; then check_major_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" || { echo 'Legacy process identity or ledger differs from frozen previous release.' >&2; exit 1; }
+  else check_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" || { echo 'Running instance identity or ledger differs from frozen previous release.' >&2; exit 1; }; fi
   if ! "$node" -e 'const fs = require("fs"); const a = JSON.parse(fs.readFileSync(process.argv[1])).migrations, b = JSON.parse(fs.readFileSync(process.argv[2])).migrations; if (!Array.isArray(a) || !a.length || !Array.isArray(b) || a.length !== b.length || a.some((m, i) => m.hash !== b[i]?.hash || m.when !== b[i]?.when)) process.exit(1)' "$root/$previous/standby.json" "$staging/standby.json"; then
     migration_changed=1
     [[ -n $checkpoint_env && -f $checkpoint_env && ! -L $checkpoint_env && $(stat -c %u "$checkpoint_env") == 0 && $((8#$(stat -c %a "$checkpoint_env") & 077)) == 0 && $(stat -c %u "$(dirname "$checkpoint_env")") == 0 && $((8#$(stat -c %a "$(dirname "$checkpoint_env")") & 077)) == 0 ]] || { echo 'Migration requires a root-owned private checkpoint environment.' >&2; exit 1; }
@@ -222,7 +237,8 @@ fi
 [[ ! -f $config ]] || cp -p "$config" "$snapshot/instance.env"
 [[ ! -f $unit ]] || cp -p "$unit" "$snapshot/service"
 if [[ -n $previous ]]; then
-  check_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" "$snapshot/instance.env" || { echo 'Running instance does not match the preserved configuration.' >&2; exit 1; }
+  if [[ ${#transition_arg[@]} -gt 0 ]]; then check_major_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" "$snapshot/instance.env" || { echo 'Legacy process differs from preserved configuration.' >&2; exit 1; }
+  else check_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" "$snapshot/instance.env" || { echo 'Running instance does not match the preserved configuration.' >&2; exit 1; }; fi
 fi
 "$node" "$helper" environment "$env_file" "$snapshot/candidate.env" "$tag" "$sha"
 env -i "$node" --env-file="$snapshot/candidate.env" "$staging/scripts/instance/validate-runtime.mjs" "$staging/standby.json"
@@ -270,7 +286,9 @@ if [[ -n $previous || -n $recovery_evidence ]]; then
   env -i PATH=/usr/bin:/bin "$node" "$(dirname "$capability_evidence")/release-capability-gate.mjs" "$capability_evidence" "$previous_tag" "$previous_sha" "$tag" "$sha" "$operator" "${transition_arg[@]}" || { echo 'Installation capability recheck failed.' >&2; exit 1; }
 fi
 if [[ -n $previous ]]; then
-  cmp -s "$config" "$snapshot/instance.env" && check_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" "$snapshot/instance.env" || { echo 'Running instance or installed configuration changed before drain.' >&2; exit 1; }
+  cmp -s "$config" "$snapshot/instance.env" || { echo 'Installed configuration changed before drain.' >&2; exit 1; }
+  if [[ ${#transition_arg[@]} -gt 0 ]]; then check_major_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" "$snapshot/instance.env" || { echo 'Legacy process changed before drain.' >&2; exit 1; }
+  else check_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" "$snapshot/instance.env" || { echo 'Running instance changed before drain.' >&2; exit 1; }; fi
   cp "$tls_helper/running-source.json" "$snapshot/running-source.json"
 fi
 if quiesce; then

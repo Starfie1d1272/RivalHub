@@ -48,7 +48,7 @@ async function main(): Promise<void> {
       const response = await fetch("http://127.0.0.1:3033/api/system/release", { redirect: "error", signal: AbortSignal.timeout(5000) });
       if (!response.ok) throw new Error("Running instance identity unavailable.");
       const previous = assertReleaseIdentity(await response.json(), "running instance identity");
-      assertInstanceReleaseIdentity(previous.releaseTag, previous.releaseCommit);
+      assertInstanceReleaseIdentity(previous.releaseTag, previous.releaseCommit, process.cwd(), false);
       assertInstanceReleaseIdentity(manifest.releaseTag, operator);
       const installed = JSON.parse(readFileSync("/opt/rivalhub-instance/current/standby.json", "utf8")) as { releaseTag?: string; sourceCommit?: string; migrations?: MigrationIdentity[] };
       const legacy = readMigrationLedger(resolve("drizzle/v2-migrations")), active = readMigrationLedger();
