@@ -36,7 +36,7 @@ Major:  draft → registration → playing → finished → archived
 - 报名开放后，已经冻结的 policy/context 不随全局目录变化；运营 deadline 只在其允许的生命周期内调整。
 - draft 撤回/删除必须通过无既有业务事实的 guard；不能靠 UI 隐藏按钮代替 server validation。
 - 后台生命周期分组和首页 featured season 是 presentation projection，不创建全局 `currentSeason` 事实。
-- 报名曾实际开放不代表当前仍可提交；首页报名提示、报名入口与报名页统一消费 `registration/window` 的计划、实际开放及截止时间。个人报名实际开放后，通过人数达到容量或报名截止到期时，审核与 scheduler 通过 `maybeAdvanceFromRegistration` 推进：启用投票时进入投票，新版未启用投票时进入编队，历史规则保留原有推进解释。新版赛事由管理员在名单审核、采用后显式开赛；原生编队可在调整窗口内保留已批准版本并补正当前名单，未批准且无赛事依赖的草稿可撤销。开赛使用已采用的资格快照并检查当前纪律限制，撤销队伍不进入赛程；Major 通过现有赛前资格、冻结与正式开赛流程推进。
+- 报名曾实际开放不代表当前仍可提交；首页报名提示、报名入口与报名页统一消费 `registration/window` 的计划、实际开放及截止时间。个人报名实际开放后，通过人数达到容量或报名截止到期时，审核与 scheduler 通过 `maybeAdvanceFromRegistration` 推进：启用投票时进入投票，新版未启用投票时进入编队，历史规则保留原有推进解释。新版非 Major 赛事由管理员在名单审核后显式采用名单并开赛，个人编队和队伍报名共用资格快照、冻结和纪律检查；原生编队可在调整窗口内保留已批准版本并补正当前名单，未批准且无赛事依赖的草稿可撤销。撤销队伍不进入赛程；Major 通过现有赛前资格、冻结与正式开赛流程推进。
 
 ## ConversionPolicy lifecycle
 

@@ -134,7 +134,7 @@ export async function startFormedSeason(input: { seasonId: string }): Promise<Ac
   try {
     const slug = await db.transaction(async tx => {
       const [season] = await tx.select().from(seasons).where(eq(seasons.id, parsed.data.seasonId)).for("update");
-      if (!season || season.registrationMode !== "solo" || decodeSeasonRules(season).source !== "policy_v2" || !["registration", "drafting"].includes(season.status)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前赛事不能从编队阶段开赛。");
+      if (!season || decodeSeasonRules(season).source !== "policy_v2" || !["registration", "drafting"].includes(season.status)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前赛事不能开赛。");
       if (season.competitionTemplate === "major") throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "Major 请通过赛前筹备完成资格赛、名单冻结和开赛。");
       if (season.hasCaptainVoting && season.status !== "drafting") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先完成队长投票并确认队长。");
       if (season.hasDraft) {
@@ -142,8 +142,11 @@ export async function startFormedSeason(input: { seasonId: string }): Promise<Ac
         if (!state || state.isActive || state.currentEntryId) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先完成选秀。");
       }
       if (!getFirstStage(normalizeStagePlan(season.stagePlan))) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先配置赛程阶段。");
-      const entries = await tx.select({ id: competitionEntries.id, source: competitionEntries.source }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), inArray(competitionEntries.registrationStatus, ["draft", "submitted", "changes_requested", "waitlisted", "approved"])));
-      if (entries.length < 2 || entries.some(entry => entry.source !== "event_native")) throw new AppError(ErrorCode.VALIDATION_FAILED, "至少需要两支本届编队。");
+      const entries = await tx.select({ id: competitionEntries.id, status: competitionEntries.registrationStatus }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), inArray(competitionEntries.registrationStatus, ["draft", "submitted", "changes_requested", "waitlisted", "approved"])));
+      if (entries.length < 2) throw new AppError(ErrorCode.VALIDATION_FAILED, "至少需要两支已批准的参赛队伍。");
+      if (entries.some(entry => entry.status !== "approved")) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先处理所有未完成的队伍报名和名单审核。");
+      const actorId = auditActorId(admin);
+      for (const entry of entries) await prepareApprovedEventRosterInTx(tx, { seasonId: season.id, entryId: entry.id, actorId });
       const coherent = await assertPrestartEntryCoherenceInTx(tx, season.id, entries.map(entry => ({ competitionEntryId: entry.id })));
       for (const row of coherent) {
         if (row.eventRoster.status !== "confirmed" || !row.eventRoster.eligibilitySnapshot || row.eventRoster.eligibilitySnapshot.version !== 2) throw new AppError(ErrorCode.VALIDATION_FAILED, `队伍「${row.entry.name}」的名单尚未审核并采用。`);
@@ -155,7 +158,7 @@ export async function startFormedSeason(input: { seasonId: string }): Promise<Ac
         const decision = evaluateLineup({ entryId: row.entry.id, starterMemberIds: members.filter(member => member.isPrimaryStarter).map(member => member.id), substituteMemberIds: [] }, frozen, new Set(bans.keys()));
         if (decision.state === "blocked") throw new AppError(ErrorCode.VALIDATION_FAILED, decision.findings.map(finding => finding.message).join(" "));
       }
-      const now = new Date(), actorId = auditActorId(admin);
+      const now = new Date();
       await tx.update(eventRosters).set({ status: "frozen", frozenAt: now, frozenBy: actorId, updatedAt: now }).where(inArray(eventRosters.id, coherent.map(row => row.eventRoster.id)));
       await tx.update(seasons).set({ status: "playing", updatedAt: now }).where(eq(seasons.id, season.id));
       await writeAuditInTx(tx, { seasonId: season.id, action: "season.update", actorId, targetId: season.id, meta: { operation: "formation_start", from: season.status, to: "playing", entryIds: entries.map(entry => entry.id) } });
