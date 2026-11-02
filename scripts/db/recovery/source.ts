@@ -61,7 +61,7 @@ export function buildRecoveryMigrationPlan(
       && entry.when === terminal.terminalWhen,
   );
   if (terminalIndex < 0) {
-    throw new Error("Recovery snapshot migration terminal is not present in the active repository chain; restore aborted. ");
+    throw new Error("Recovery snapshot migration terminal is not present in this release's active chain; restore using the original immutable release tools, then upgrade. Restore aborted. ");
   }
   return expected.slice(0, terminalIndex + 1);
 }

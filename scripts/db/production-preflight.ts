@@ -2,13 +2,12 @@ import { execFileSync } from "node:child_process";
 import { readCanonicalProductionIdentity } from "../release/production-identity";
 import { assertReleaseCapabilities } from "../release/capability-contract";
 import { postgresConnection } from "../../src/db/postgres-connection";
-import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Pool } from "pg";
 import { assertProductionConfirmations, assertProductionDatabaseUrl } from "./production-environment";
+import { isMigrationLedgerPrefix, readMigrationLedger } from "./migration-ledger";
 
-interface MigrationJournalEntry { tag: string; when: number; }
 export interface Migration { hash: string; when: number; }
 export interface ExpectedMigration extends Migration { tag: string; }
 
@@ -85,19 +84,13 @@ export function assertResumableProductionLedger(
 }
 
 export function assertActiveChainPrefix(actual: readonly Migration[], expected: readonly Migration[]): void {
-  if (actual.length > expected.length || actual.some((item, index) => item.hash !== expected[index]?.hash || item.when !== expected[index]?.when)) {
+  if (!isMigrationLedgerPrefix(actual, expected)) {
     throw new Error("Production Drizzle migration ledger 不是 active migration chain 的精确前缀；拒绝迁移。");
   }
 }
 
 export function readExpectedMigrations(): ExpectedMigration[] {
-  const migrationsDirectory = resolve(process.cwd(), "drizzle/migrations");
-  const journal = JSON.parse(readFileSync(resolve(migrationsDirectory, "meta/_journal.json"), "utf8")) as { entries: MigrationJournalEntry[] };
-  return journal.entries.map((entry) => ({
-    tag: entry.tag,
-    hash: createHash("sha256").update(readFileSync(resolve(migrationsDirectory, `${entry.tag}.sql`), "utf8")).digest("hex"),
-    when: entry.when,
-  }));
+  return readMigrationLedger();
 }
 
 async function assert0024SchemaAndPendingData(pool: Pool): Promise<void> {

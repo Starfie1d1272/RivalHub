@@ -1,7 +1,4 @@
 import { postgresConnection } from "../../src/db/postgres-connection";
-import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { Pool } from "pg";
 import { assertLocalDatabaseUrl } from "./local-environment";
 import { assertStagingDatabaseUrl } from "./staging-environment";
@@ -10,11 +7,7 @@ import { isLegacyStandardMajorWithoutAffiliation } from "../../src/lib/competiti
 import type { SeasonCapabilities } from "../../src/types/season";
 import { verifyDatabaseAccessMatrix } from "./access-matrix";
 import { verifyHostedRealtimePolicy } from "./realtime-policy";
-
-interface MigrationJournalEntry {
-  tag: string;
-  when: number;
-}
+import { readMigrationLedger } from "./migration-ledger";
 
 async function main(): Promise<void> {
   const target = process.env.RIVALHUB_DB_TARGET;
@@ -134,17 +127,7 @@ function databaseUrlFor(target: string | undefined, value: string | undefined): 
 }
 
 export function readExpectedMigrations(): Array<{ hash: string; when: number }> {
-  const migrationsDirectory = resolve(process.cwd(), "drizzle/migrations");
-  const journal = JSON.parse(
-    readFileSync(resolve(migrationsDirectory, "meta/_journal.json"), "utf8"),
-  ) as { entries: MigrationJournalEntry[] };
-
-  return journal.entries.map((entry) => ({
-    hash: createHash("sha256")
-      .update(readFileSync(resolve(migrationsDirectory, `${entry.tag}.sql`), "utf8"))
-      .digest("hex"),
-    when: entry.when,
-  }));
+  return readMigrationLedger().map(({ hash, when }) => ({ hash, when }));
 }
 
 export function assertCompleteMigrationLedger(
