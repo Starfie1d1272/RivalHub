@@ -39,6 +39,14 @@ fixture, and the missing host `psql` was replaced by the target container's
 real client. This does not exercise the instance installer, stopped-instance
 checkpoint mode, failure injection, `--restore-pair`, Hosted or systemd.
 
+## Managed instance journey (2026-11-02)
+
+A temporary adapted host fixture used the source at `d7d631b797a6315e5776ca251c0bff61f745aee4` and the v2 package identity `f2bf9500d2a765571275e7941e90c828f1a66650`. It installed an instance backed by a real Local Supabase with the 105-entry v2 prefix and one real `season-public-assets` object. A real named pg_cron job and its Vault origin were configured on that isolated source. With another database transaction active, the managed scheduler was paused and the installer timed out before migration; the service stand-in stayed stopped and the ledger remained at 105. After resetting the fixture, pre-marker checkpoint failures restored the old service stand-in and original scheduler state.
+
+The successful checkpoint attempt paused the scheduler, captured and read back a real encrypted DB and Storage artifact through a loopback S3 fixture, then migrated/adopted the source to one active v3 entry with 113 archived legacy entries. An injected candidate restart failure after the migration marker left the service stand-in stopped and the original scheduler paused. The fetched checkpoint restored to a second Local Supabase using the real restore runner; its 105 id/hash/time ledger entries matched the checkpoint, and the restored object's SHA-256 matched the source. `--restore-pair` then activated the old package stand-in after its real database readiness check; repeat consumption was rejected. The original scheduler remained paused and the new target had no scheduler jobs, so target provisioning remains a separate step.
+
+The fixture intentionally substituted systemd, HTTP/public ingress and process identity, host paths and ownership, Hosted-only endpoint validation, and executed the Supabase CLI's generated dump scripts inside the local database container. The restore used that container's real `psql` client. These substitutions do not establish actual root/systemd, Hosted permissions or a deployed application journey. The restore runner included the legacy-source correction committed as `edabf99e2c1eef7bd29cc41ff503ab407f5d4b7e`; the installer fixture predates only its error-message clarification. External non-managed writers remained an explicit operator precondition, not a proven global fence.
+
 ## Later candidate validation
 
 The subsequently prepared active baseline has SHA-256
