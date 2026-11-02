@@ -10,8 +10,8 @@ export function PositionEditor({ value, disabled, onChange }: { value: string[];
   const [custom, setCustom] = useState("");
   const enabled = new Set(value);
   const add = () => {
-    const next = custom;
-    if (!next.trim() || enabled.has(next)) return;
+    const next = custom.trim();
+    if (!next || enabled.has(next)) return;
     onChange([...value, next]);
     setCustom("");
   };
