@@ -92,6 +92,7 @@ interface Props {
     logoUrl: string | null;
     teamLogoUrl: string | null;
     status: CompetitionEntryRegistrationStatus;
+    rosterStatus: { hasApprovedRoster: boolean; currentRosterReview: { revisionStatus: "draft" | "submitted" | "approved" | "superseded" | null; decision: CompetitionEntryRegistrationStatus } | null };
     revisionOrigin?: import("@/lib/competition-entries/remediation").CompetitionEntryRosterRevisionOrigin | null;
     representativeUserId: string;
     reviewReason: string | null;
@@ -294,6 +295,7 @@ export function CompetitionEntryFlow(props: Props) {
   return <div className="space-y-5">
     {props.capabilities.readOnlyReason && <StatusBanner tone="info" title={props.capabilities.readOnlyReason ?? "报名尚未开放"} />}
     <StatusBanner tone={entry.status === "approved" ? "success" : entry.status === "changes_requested" ? "warn" : "info"} title={`${entry.name} · ${registrationActionStatus ?? registration.label}`} sub={entry.revisionOrigin === "self_roster_change" ? registration.detail : entry.reviewReason ?? undefined} />
+    {entry.rosterStatus.currentRosterReview && <StatusBanner tone="info" title="已有批准名单" sub={`当前名单审核状态：${presentCompetitionEntryRegistration(entry.rosterStatus.currentRosterReview.decision, entry.revisionOrigin).label}。原批准名单保留；赛事名单仍须按现有流程确认。`} />}
     {entry.status === "approved" && <TeamProfileLink seasonSlug={props.seasonSlug} entryId={entry.id} className="inline-block text-sm" aria-label={`查看 ${entry.name} 队伍资料`}>查看赛事队伍资料 →</TeamProfileLink>}
     {props.invitationConflict && !props.transferFrom && <StatusBanner
       tone="warn"

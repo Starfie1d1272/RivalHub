@@ -133,7 +133,7 @@ async function saveAdminSchedule(matchId: string, time: Date | null, intent: "sa
     const admin = await requireSeasonAdmin(match.seasonId);
     await setAdminSchedule(matchId, match.seasonId, admin.userId, admin.email, time, intent);
     const season = await getSeasonOrThrow(match.seasonId);
-    revalidateMatchPaths(season.slug, matchId);
+    revalidateMatchPaths(season.slug, matchId, { statistics: false });
     return ok(undefined);
   } catch (error) { return actionError("setMatchScheduledAt", error); }
 }

@@ -3,7 +3,7 @@ import { appendFileSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { postgresSpecsForSource } from "./postgres-selection.mjs";
+import { postgresSpecCount, postgresSpecsForSource } from "./postgres-selection.mjs";
 
 export const CAPABILITIES = ["static", "postgres", "system"];
 
@@ -119,9 +119,12 @@ export function classifyChangedFiles(entries, options = {}) {
     const liveEvidence = plan.full || liveSurfaceChanged || plan.e2eSpecs.includes("tests/e2e/flows/public-match-live.spec.ts");
     return { ...plan, gateName, liveEvidence,
       systemMatrix: systemMatrixFor(plan, liveEvidence),
-      // Empty PG selection executes the complete suite, including migration-only
-      // plans. Reuse both bounded shards; explicit affected filters stay on one.
-      postgresMatrix: plan.runPostgres ? (plan.integrationSpecs.length === 0 ? [{ shard: "1/2" }, { shard: "2/2" }] : [{ shard: "1/1" }]) : [],
+      // Empty selection runs the complete suite. Affected sets approaching the
+      // full suite need the same bounded parallelism without dropping filters.
+      postgresMatrix: plan.runPostgres
+        ? (plan.integrationSpecs.length === 0 || plan.integrationSpecs.length * 4 >= postgresSpecCount() * 3
+          ? [{ shard: "1/2" }, { shard: "2/2" }] : [{ shard: "1/1" }])
+        : [],
     };
   };
   if (forceFull) {
