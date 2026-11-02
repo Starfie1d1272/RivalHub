@@ -137,6 +137,7 @@ export interface AdminFinishedMap {
 export interface AdminMatchOverviewData {
   season: Pick<Season, "id" | "slug" | "name" | "status" | "competitionTemplate">;
   teams: Pick<CompetitionEntry, "id" | "name">[];
+  scheduleTeamCount: number;
   stagePlan: StagePlan;
   matches: AdminMatchSummary[];
   /** All official matches, independent of the selected stage/list scope. */
