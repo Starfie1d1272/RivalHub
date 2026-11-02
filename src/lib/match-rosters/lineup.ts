@@ -36,10 +36,12 @@ export interface StartingLineupInput {
   frozenRosterUserIds?: ReadonlySet<string>;
   /**
    * Affiliation rules frozen in the StageRun ruleSnapshot. When present,
-   * education validity and per-institution starter minimums are enforced.
+   * per-institution starter minimums are enforced.
    * Never pass rules read from mutable season config here.
    */
   affiliationRules?: readonly InstitutionAffiliationRule[];
+  /** Legacy callers with affiliation rules required every selected member. */
+  educationRequired?: boolean;
 }
 
 export interface StartingLineupResult {
@@ -128,7 +130,7 @@ export function evaluateStartingLineup(input: StartingLineupInput): StartingLine
   if (input.affiliationRules) {
     const rules = input.affiliationRules!;
     const allSelected = [...starterFacts, ...substituteFacts];
-    if (allSelected.some((fact) => !fact.verification || fact.verification.status !== "approved")) {
+    if ((input.educationRequired ?? true) && allSelected.some((fact) => !fact.verification || fact.verification.status !== "approved")) {
       blockers.push("有队员的教育身份认证已失效或未通过审核，已失去本届比赛资格。");
     }
     for (const rule of rules) {

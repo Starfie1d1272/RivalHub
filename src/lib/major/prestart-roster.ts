@@ -11,7 +11,7 @@ import {
 import { AppError, ErrorCode } from "@/lib/errors";
 import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
-import { normalizeAffiliationRules } from "@/lib/seasons/compatibility";
+import { resolveQualificationPolicy } from "@/lib/seasons/compatibility";
 
 export interface SaveMajorPrestartRosterInput {
   seasonId: string;
@@ -153,7 +153,10 @@ export async function saveMajorPrestartRosterInTx(
   if (formalMembers.length !== input.userIds.length) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单只能选择该正式队伍当前的成员。 ");
   }
-  const verificationIds = await loadApprovedRosterEducation(tx, input.userIds, normalizeAffiliationRules(season.affiliationRules));
+  const policy = resolveQualificationPolicy(season.teamRegistrationConfig, season.affiliationRules, "roster");
+  const verificationIds = await loadApprovedRosterEducation(
+    tx, input.userIds, policy.affiliationRules, season.teamRegistrationConfig?.qualificationPolicy ? policy : undefined,
+  );
 
   await applyEventRosterMaterializationInTx(tx, {
     eventRosterId: eventRoster.id,

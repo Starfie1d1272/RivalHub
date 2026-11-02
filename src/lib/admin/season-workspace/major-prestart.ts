@@ -93,8 +93,9 @@ function projectRecommendationSnapshot(
   status: "missing" | "ready" | "mismatch",
   seedDecision: SeedOrderDecision | null,
 ): MajorPrestartPageData["seedManagement"]["recommendation"] {
-  if (!snapshot || status !== "ready") return null;
+  if (!snapshot || status !== "ready" || !snapshot.context.competitiveContext) return null;
   const context = snapshot.context;
+  const competitiveContext = context.competitiveContext!;
   const recommendations = snapshot.recommendations
     .filter((recommendation) => recommendation.teamSeedStrength !== null && recommendation.recommendationRank !== null && recommendation.tieGroup !== null && recommendation.displayOrder !== null)
     .sort((left, right) => left.displayOrder! - right.displayOrder!);
@@ -109,13 +110,13 @@ function projectRecommendationSnapshot(
     tieGroup: recommendation.tieGroup,
     displayOrder: recommendation.displayOrder,
     starters: recommendation.starters,
-  })), context.competitiveContext.strengthAxis === "continuous-s-v1");
+  })), competitiveContext.strengthAxis === "continuous-s-v1");
   return {
     version: context.version,
     generatedAt: snapshot.generatedAt.toISOString(),
-    platform: context.competitiveContext.platform,
-    conversionPolicyId: context.competitiveContext.conversionPolicyId,
-    conversionPolicyVersion: context.competitiveContext.conversionPolicyVersion,
+    platform: competitiveContext.platform,
+    conversionPolicyId: competitiveContext.conversionPolicyId,
+    conversionPolicyVersion: competitiveContext.conversionPolicyVersion,
     teams: recommendations.map((recommendation, index) => ({
       entrantId: recommendation.entrantId,
       ...projectedTeams[index]!,
@@ -133,7 +134,7 @@ export function buildMajorReadiness(
   rosterRows: readonly MajorRosterMemberRow[],
   seedRows: readonly MajorSeedRow[],
   options: {
-    seedRecommendation: { status: "missing" | "ready" | "mismatch" };
+    seedRecommendation: { status: "missing" | "ready" | "mismatch"; manual?: boolean };
   } = { seedRecommendation: { status: "missing" } },
 ): MajorPrestartReadiness {
   const entrantIds = new Set(entrants.map((entrant) => entrant.id));
@@ -214,7 +215,10 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
   }
   const representativeNameById = new Map(representativeRows.map((user) => [user.id, getDisplayName(user)]));
   const candidateEntries = approvedEntries.filter((entry): entry is typeof entry & { approvedRosterRevisionId: string } => Boolean(entry.approvedRosterRevisionId));
-  const configuredCompetitiveProfile = capabilities.teamRegistrationConfig.competitiveProfile ?? null;
+  const definitionPolicy = capabilities.teamRegistrationConfig.qualificationPolicy;
+  const configuredCompetitiveProfile = definitionPolicy
+    ? definitionPolicy.competitiveProfileRequired ? definitionPolicy.competitiveProfile : null
+    : capabilities.teamRegistrationConfig.competitiveProfile ?? null;
   const competitiveProfile = configuredCompetitiveProfile
     ? await resolveCompetitiveContext(configuredCompetitiveProfile)
     : null;
@@ -403,7 +407,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     ? analyzeFinalSeedOrder(seedRows.map((seed) => seed.teamId), snapshot.recommendations)
     : null;
   const readiness = buildMajorReadiness(season, state, entrantRows, rosterRows, seedRows, {
-    seedRecommendation: { status: recommendationStatus },
+    seedRecommendation: { status: recommendationStatus, manual: snapshot?.context.competitiveContext === null },
   });
   const entrantIds = new Set(entrantRows.map((entrant) => entrant.id));
   const selectedEntryIds = new Set(entrantRows.map((entrant) => entrant.teamId));
