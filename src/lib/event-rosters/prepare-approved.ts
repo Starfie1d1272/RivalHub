@@ -22,7 +22,8 @@ export async function prepareApprovedEventRosterInTx(tx: TxDb, input: {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "请选择本届已批准名单的队伍。");
   }
   const [existing] = await tx.select().from(eventRosters).where(eq(eventRosters.entryId, entry.id)).for("update");
-  if (existing?.sourceRosterRevisionId === entry.approvedRosterRevisionId && ["confirmed", "frozen"].includes(existing.status)) {
+  if (existing?.sourceRosterRevisionId === entry.approvedRosterRevisionId && ["confirmed", "frozen"].includes(existing.status) &&
+      season.teamRegistrationConfig.qualificationPolicy?.version !== 2) {
     await assertSinglePrestartEntryCoherenceInTx(tx, season.id, { competitionEntryId: entry.id });
     return { seasonSlug: season.slug };
   }

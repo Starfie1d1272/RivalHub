@@ -46,7 +46,6 @@ import { RegistrationOpeningRecovery } from "@/components/register/RegistrationO
 
 import { getApprovedCompetitionEntryCount } from "@/lib/competition-entries/counts";
 import { canReleaseEliminatedParticipationInTx } from "@/lib/major/eliminated-entry";
-import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { getCompetitionEntryCapabilities } from "@/lib/competition-entries/capabilities";
 import { isMajorRosterAdjustmentPhaseOpen } from "@/lib/major/roster-window";
 import { loadCompetitionEntryParticipantContext } from "@/lib/competition-entries/participant-context";

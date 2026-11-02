@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { withDbTrafficSource } from "@/lib/observability/db-traffic";
 import { and, eq, inArray } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -6,6 +7,7 @@ import type { TxDb } from "@/db/client";
 import {
     competitionEntries,
   competitionQualificationRuns,
+  competitionQualificationEntrants,
   educationVerifications,
   eventRosterMembers,
   eventRosters,
@@ -28,7 +30,8 @@ import type { CompetitionMatch } from "@/lib/matches/competition-context";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import type { CompetitiveProfileConfig, InstitutionAffiliationRule } from "@/types/season";
-import { evaluateStartingLineup, type LineupMemberFact } from "./lineup";
+import { evaluateLineup, evaluateStartingLineup, type LineupMemberFact } from "./lineup";
+import { decodeFrozenLineupEligibility } from "./frozen-eligibility";
 import { resolveMatchLineupPolicy, type MatchLineupPolicy } from "./policy";
 
 type Match = CompetitionMatch<DbMatch>;
@@ -233,7 +236,7 @@ async function loadEventRosterUserIdsInTx(
   return { ids, verificationsByUser, rosterRevisionId: roster.sourceRosterRevisionId };
 }
 
-async function loadTeamLineupContextInTx(
+export async function loadMatchEligibilityContextInTx(
   tx: TxDb,
   match: Match,
   entryId: string,
@@ -259,15 +262,19 @@ async function loadTeamLineupContextInTx(
     let approvedHomeRequired = false;
     let frozenRestrictionOverrides: readonly FrozenRestrictionOverrideSnapshot[] = [];
     const [season] = await tx
-      .select({ starterCount: seasons.starterCount, competitionTemplate: seasons.competitionTemplate })
+      .select({ starterCount: seasons.starterCount, competitionTemplate: seasons.competitionTemplate, teamRegistrationConfig: seasons.teamRegistrationConfig })
       .from(seasons)
       .where(eq(seasons.id, match.seasonId));
     if (!season) throw new AppError(ErrorCode.INTERNAL_ERROR, "比赛所属赛季不存在。");
     let policy: MatchLineupPolicy;
-    if (match.ownership !== "major_stage") {
+    if (match.ownership !== "major_stage" && !match.qualificationRunId) {
+      const storedPolicy = season.teamRegistrationConfig.qualificationPolicy;
+      if (storedPolicy?.version === 2) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "新版资格规则缺少可用的冻结名单快照，无法校验本场阵容。");
+      }
       policy = resolveMatchLineupPolicy({ ownership: match.ownership, seasonStarterCount: season.starterCount });
     } else {
-      // Assigned below after the canonical StageRun snapshot has been loaded.
+      // Assigned below from the matching StageRun or QualificationRun snapshot.
       policy = { starterCount: 0, maxSubstitutes: 0 };
     }
 
@@ -278,7 +285,11 @@ async function loadTeamLineupContextInTx(
       const [stageRun] = await tx
         .select({ ruleSnapshot: majorStageRuns.ruleSnapshot, stageKey: majorStageRuns.stageKey })
         .from(majorStageRuns)
-        .where(eq(majorStageRuns.id, match.majorStageRunId));
+        .where(and(
+          eq(majorStageRuns.id, match.majorStageRunId),
+          eq(majorStageRuns.seasonId, match.seasonId),
+          eq(majorStageRuns.stageKey, match.stage),
+        ));
       if (!stageRun) {
         throw new AppError(ErrorCode.INTERNAL_ERROR, "托管比赛缺少对应的 StageRun。");
       }
@@ -398,7 +409,42 @@ export async function getStartingLineupPreflightInTx(
   tx: TxDb,
   args: { match: Match; entryId: string; starterIds: readonly string[]; substituteIds?: readonly string[] },
 ): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number> }> {
-  const context = await loadTeamLineupContextInTx(tx, args.match, args.entryId);
+  if (args.match.ownership !== "major_stage") {
+    if (args.entryId !== args.match.entryAId && args.entryId !== args.match.entryBId) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "参赛队伍不属于本场比赛。");
+    }
+    const [roster] = await tx.select({ id: eventRosters.id, status: eventRosters.status, revisionId: eventRosters.sourceRosterRevisionId, snapshot: eventRosters.eligibilitySnapshot })
+      .from(eventRosters).innerJoin(competitionEntries, eq(competitionEntries.id, eventRosters.entryId))
+      .where(and(eq(eventRosters.entryId, args.entryId), eq(competitionEntries.competitionId, args.match.seasonId)));
+    const snapshot = args.match.testConfig ? args.match.testConfig.eligibility?.[args.entryId === args.match.entryAId ? "a" : "b"] : roster?.snapshot;
+    if (roster && snapshot?.version === 2) {
+      const allowedStatuses = args.match.qualificationRunId || args.match.testConfig ? ["confirmed", "frozen"] : ["frozen"];
+      if (!allowedStatuses.includes(roster.status) || !roster.revisionId) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事名单尚未确认或冻结。");
+      if (args.match.qualificationRunId) {
+        const [run] = await tx.select({ policy: competitionQualificationRuns.eligibilityPolicy }).from(competitionQualificationRuns)
+          .innerJoin(competitionQualificationEntrants, and(eq(competitionQualificationEntrants.runId, competitionQualificationRuns.id), eq(competitionQualificationEntrants.competitionEntryId, args.entryId)))
+          .where(and(eq(competitionQualificationRuns.id, args.match.qualificationRunId), eq(competitionQualificationRuns.seasonId, args.match.seasonId)));
+        if (!run?.policy || run.policy.version !== 2 || !isDeepStrictEqual(run.policy.rules, snapshot.rules) ||
+            !isDeepStrictEqual(run.policy.competitive, snapshot.competitive ? { profile: snapshot.competitive.profile, requirements: snapshot.competitive.requirements } : null)) {
+          throw new AppError(ErrorCode.VALIDATION_FAILED, "资格赛名单快照与资格赛规则不一致。");
+        }
+      }
+      const frozen = decodeFrozenLineupEligibility(snapshot, { seasonId: args.match.seasonId, entryId: args.entryId, rosterRevisionId: roster.revisionId });
+      const current = await tx.select({ id: eventRosterMembers.id, userId: eventRosterMembers.userId }).from(eventRosterMembers)
+        .where(and(eq(eventRosterMembers.eventRosterId, roster.id), eq(eventRosterMembers.isCurrent, true)));
+      if (current.length !== frozen.membersById.size || current.some((member) => frozen.membersById.get(member.id)?.userId !== member.userId)) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "冻结资格快照与赛事名单成员不一致。");
+      }
+      const bans = await loadActiveSanctionsInTx(tx, { seasonId: args.match.seasonId, effect: "match_participation_block", subjectUserIds: current.map((member) => member.userId) });
+      const proposed = { entryId: args.entryId, starterMemberIds: args.starterIds, substituteMemberIds: args.substituteIds ?? [] };
+      const result = evaluateLineup(proposed, frozen, new Set(bans.keys()));
+      const counts = evaluateStartingLineup({ starterIds: proposed.starterMemberIds, substituteIds: proposed.substituteMemberIds,
+        policy: { starterCount: frozen.starterCount, maxSubstitutes: frozen.maxSubstitutes }, memberFacts: frozen.membersById,
+        affiliationRules: frozen.affiliationRules, educationRequired: frozen.educationRequired }).affiliatedStarterCounts;
+      return { valid: result.state === "ready", blockers: result.findings.map((finding) => finding.message), affiliatedStarterCounts: counts };
+    }
+  }
+  const context = await loadMatchEligibilityContextInTx(tx, args.match, args.entryId);
   const result = evaluateStartingLineup({
     starterIds: args.starterIds,
     substituteIds: args.substituteIds,
