@@ -764,6 +764,13 @@
       "when": 1793614733496,
       "tag": "0108_plain_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1793616114769,
+      "tag": "0109_retire_legacy_prediction_finance",
+      "breakpoints": true
     }
   ]
 }

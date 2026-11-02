@@ -18,9 +18,7 @@ import { simulateMajor } from "@/lib/predictions/simulator";
 import {
   syncAutomaticPickEmInTx,
   joinPredictionsInTx,
-  openPredictionMarketInTx,
   savePickInTx,
-  stakeInTx,
   lockPredictionProgram,
   reconcilePredictionProgram,
   balanceOf,
@@ -44,9 +42,9 @@ type Fixture = {
   runId: string;
   matchIds: string[];
 };
-async function fixture(work: (f: Fixture) => Promise<void>, capacity: 24 | 32 = 32, initializePredictions = true) {
+async function fixture(work: (f: Fixture) => Promise<void>, capacity: 24 | 32 = 32, initializePredictions = true, legacyHistory = false) {
   await withScratchDatabase("prediction_test", async (client) => {
-    for (const file of migrationFiles((name) => /^\d{4}_.*\.sql$/.test(name)))
+    for (const file of migrationFiles((name) => /^\d{4}_.*\.sql$/.test(name) && !(legacyHistory && name.startsWith("0109_"))))
       await replayMigration(client, file);
     const url = new URL(localDatabaseUrl());
     url.pathname = `/${(await client.query<{ name: string }>("select current_database() as name")).rows[0]!.name}`;
@@ -224,22 +222,6 @@ async function balance(f: Fixture, userId = f.userId) {
     balanceOf(tx, (await account(f, userId)).id),
   );
 }
-async function market(f: Fixture, index: number) {
-  const { id } = await f.db.transaction((tx) =>
-    openPredictionMarketInTx(tx, {
-      seasonId: f.seasonId,
-      actorId: "test",
-      matchId: f.matchIds[index]!,
-      deadline: new Date(Date.now() + 1800000),
-    }),
-  );
-  const [m] = await f.db
-    .select()
-    .from(schema.predictionMarkets)
-    .where(eq(schema.predictionMarkets.id, id));
-  const options = await f.db.select().from(schema.predictionMarketOptions).where(eq(schema.predictionMarketOptions.marketId, id)).orderBy(schema.predictionMarketOptions.position);
-  return { ...m!, options };
-}
 function fill(base: Awaited<ReturnType<typeof loadBaseline>>, key = "stage1") {
   const choices: Choices = {};
   for (let i = 0; i < 8; i++) {
@@ -316,9 +298,9 @@ it("keeps baseline, revision, simulation and Pick’Em frozen across v3/v4 proje
   }));
 
 describe("spectator prediction PostgreSQL contracts", () => {
-  it("submits against the frozen 24-team profile and settles BO3 winner pools", async () =>
+  it("submits against the frozen 24-team profile", async () =>
     fixture(async (f) => {
-      const { db, seasonId, userId, otherId } = f;
+      const { db, seasonId, userId } = f;
       // A later edit to the live preset must not reinterpret an already started event.
       await db.update(schema.seasons).set({ stagePlan: createMajorDefaultCapabilities().stagePlan }).where(eq(schema.seasons.id, seasonId));
       const base = await loadBaseline(db, seasonId);
@@ -328,25 +310,12 @@ describe("spectator prediction PostgreSQL contracts", () => {
       await db.transaction((tx) => savePickInTx(tx, {
         seasonId, userId, contestId: id, pick: fill(base).stage.pick!, submitted: true, requestId: randomUUID(),
       }));
-      const pool = await market(f, 0);
-      for (const [index, actor] of [userId, otherId].entries()) {
-        await db.transaction((tx) => stakeInTx(tx, {
-          seasonId, userId: actor, marketId: pool.id, optionId: pool.options[index]!.id, amount: "all", requestId: randomUUID(),
-        }));
-      }
-      await db.update(schema.matches).set({ status: "finished", scoreA: 2, scoreB: 0, completedAt: new Date() }).where(eq(schema.matches.id, f.matchIds[0]!));
-      await reconcile(f);
-      // A recorded BO3 score must not pay out before the official round is accepted.
-      expect(await balance(f)).toBe(BigInt(0));
-      expect(await balance(f, otherId)).toBe(BigInt(0));
       await db.update(schema.matches).set({ status: "finished", scoreA: 2, scoreB: 0, completedAt: new Date() })
         .where(and(eq(schema.matches.majorStageRunId, f.runId), eq(schema.matches.round, 1)));
       await db.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, {
         seasonId, stageRunId: f.runId, expectedRound: 1, actorId: "test",
       }));
       await reconcile(f);
-      expect(await balance(f)).toBe(BigInt(2000));
-      expect(await balance(f, otherId)).toBe(BigInt(0));
       const board = await db.transaction((tx) => predictionBoard(tx, seasonId, userId));
       expect(board.rules).toMatchObject({ silver: 2, gold: 5, diamond: 8 });
       expect(board.contests[0]!.submitted).toBeTruthy();
@@ -357,22 +326,25 @@ describe("spectator prediction PostgreSQL contracts", () => {
     fixture(async (f) => {
       const { db, seasonId, userId, otherId } = f;
       for (const actor of [userId, otherId]) await db.transaction((tx) => joinPredictionsInTx(tx, { seasonId, userId: actor }));
-      const pool = await market(f, 0);
-      for (const [index, actor] of [userId, otherId].entries()) await db.transaction((tx) => stakeInTx(tx, {
-        seasonId, userId: actor, marketId: pool.id, optionId: pool.options[index]!.id, amount: "100", requestId: randomUUID(),
-      }));
-      // A later schedule move can make the cutoff earlier than the frozen market deadline.
-      // Reads must project the same effective deadline that stake mutations enforce.
-      await db
-        .update(schema.matches)
-        .set({ scheduledAt: new Date(Date.now() + 60_000) })
-        .where(eq(schema.matches.id, f.matchIds[0]!));
+      // History is constructed on the pre-retirement schema: 0109 deliberately refuses existing markets.
+      const [match] = await db.select().from(schema.matches).where(eq(schema.matches.id, f.matchIds[0]!));
+      const [pool] = await db.insert(schema.predictionMarkets).values({
+        seasonId, matchId: match!.id, resolver: "match_winner", title: "比赛胜者", stageKey: match!.stage!,
+        subject: { stageRunId: f.runId, entryIds: [match!.entryAId!, match!.entryBId!] }, deadline: new Date(Date.now() + 1800000),
+      }).returning();
+      const options = await db.insert(schema.predictionMarketOptions).values([match!.entryAId!, match!.entryBId!].map((entryId, position) => ({ marketId: pool!.id, key: entryId, entryId, label: `队伍 ${position}`, position }))).returning();
+      for (const [index, actor] of [userId, otherId].entries()) {
+        const owner = await account(f, actor);
+        const [stake] = await db.insert(schema.predictionStakes).values({ seasonId, marketId: pool!.id, accountId: owner.id, optionId: options[index]!.id, amount: BigInt(100), requestId: randomUUID() }).returning();
+        await db.insert(schema.predictionLedger).values({ seasonId, accountId: owner.id, amount: BigInt(-100), kind: "stake", source: `stake/${stake!.id}` });
+      }
+      await db.update(schema.matches).set({ scheduledAt: new Date(Date.now() + 60_000) }).where(eq(schema.matches.id, match!.id));
       const locker = await f.pool.connect();
       try {
         await locker.query("BEGIN");
         await locker.query("select season_id from prediction_programs where season_id = $1 for update", [seasonId]);
         await locker.query("select season_id from prediction_jobs where season_id = $1 for update", [seasonId]);
-        const read = (view: "sim" | "points" | "record", viewerId: string | null = userId) => db.transaction(async (tx) => {
+        const read = (view: "sim" | "points" | "record" | "all", viewerId: string | null = userId) => db.transaction(async (tx) => {
           await tx.execute(sql`set local statement_timeout = '2000ms'`);
           return predictionBoard(tx, seasonId, viewerId, view);
         }, { accessMode: "read only", isolationLevel: "repeatable read" });
@@ -388,23 +360,20 @@ describe("spectator prediction PostgreSQL contracts", () => {
         const outsider = await read("sim", randomUUID());
         expect(outsider).toMatchObject({ joined: false, achievement: null, markets: [], ledger: [] });
         const points = await read("points");
-        expect(points.markets[0]).toMatchObject({
-          participants: 2,
-          myStake: "100",
-          myOptionId: pool.options[0]!.id,
-          locked: true,
-        });
+        expect(points.markets[0]).toMatchObject({ participants: 2, myStake: "100", myOptionId: options[0]!.id, locked: true });
         expect(new Date(points.markets[0]!.deadline).getTime()).toBeLessThan(Date.now());
         expect(points.markets[0]!.options.map((option) => option.pool)).toEqual(["100", "100"]);
         expect(points.ledger).toEqual([]);
-        expect((await read("record")).markets).toEqual([]);
-        const [unchanged] = await db.select().from(schema.predictionMarkets).where(eq(schema.predictionMarkets.id, pool.id));
+        const record = await read("record");
+        expect(record.markets).toEqual([]);
+        expect((await read("all")).ledger.some(row => row.kind === "stake" && row.amount === "-100")).toBe(true);
+        const [unchanged] = await db.select().from(schema.predictionMarkets).where(eq(schema.predictionMarkets.id, pool!.id));
         expect(unchanged!.lockedAt).toBeNull();
       } finally {
         await locker.query("ROLLBACK");
         locker.release();
       }
-    }));
+    }, 32, true, true));
 
   it("shares due-work detection across primary dispatch and deadline reconciliation without idle batch starvation", async () =>
     fixture(async (f) => {
@@ -420,12 +389,11 @@ describe("spectator prediction PostgreSQL contracts", () => {
         await db.insert(schema.predictionPrograms).values({ seasonId: idleId, rules: DEFAULT_RULES });
         await db.insert(schema.predictionJobs).values({ seasonId: idleId, dirty: false, updatedAt: new Date(0) });
       }
-      const pool = await market(f, 0);
-      await db.update(schema.predictionMarkets).set({ deadline: new Date(Date.now() - 1000) }).where(eq(schema.predictionMarkets.id, pool.id));
+      await db.update(schema.predictionContests).set({ deadline: new Date(Date.now() - 1000) }).where(eq(schema.predictionContests.seasonId, seasonId));
       await db.update(schema.predictionJobs).set({ dirty: false }).where(eq(schema.predictionJobs.seasonId, seasonId));
       expect(await due()).toBe(true);
       expect((await runPredictionReconciliationJob(db)).result.completed).toBe(1);
-      expect((await db.select().from(schema.predictionMarkets).where(eq(schema.predictionMarkets.id, pool.id)))[0]!.lockedAt).not.toBeNull();
+      expect((await db.select().from(schema.predictionContests).where(eq(schema.predictionContests.seasonId, seasonId)))[0]!.lockedAt).not.toBeNull();
       expect(await due()).toBe(false);
       expect((await runPredictionReconciliationJob(db)).result.completed).toBe(0);
       await db.update(schema.matches).set({ status: "in_progress" }).where(eq(schema.matches.id, f.matchIds[0]!));
@@ -594,158 +562,6 @@ describe("spectator prediction PostgreSQL contracts", () => {
         }
       }
     }));
-  it("serializes simultaneous ALL IN, retries once, conserves settlement and reverses spent winnings into debt", async () =>
-    fixture(async (f) => {
-      const first = await market(f, 0);
-      const { db, seasonId, userId, otherId } = f;
-      const input = {
-        seasonId,
-        userId,
-        marketId: first.id,
-        optionId: first.options[0]!.id,
-        amount: "all",
-      };
-      const concurrent = await Promise.allSettled(
-        [1, 2].map(() =>
-          db.transaction(async (tx) => {
-            await tx.execute(sql`set local lock_timeout='5s'`);
-            return stakeInTx(tx, { ...input, requestId: randomUUID() });
-          }),
-        ),
-      );
-      expect(concurrent.filter((r) => r.status === "fulfilled")).toHaveLength(
-        1,
-      );
-      expect(
-        concurrent
-          .filter((r) => r.status === "rejected")
-          .map((r) => r.reason.message),
-      ).toEqual([expect.stringContaining("积分不足")]);
-      const rid = randomUUID();
-      await db.transaction((tx) =>
-        stakeInTx(tx, {
-          ...input,
-          userId: otherId,
-          optionId: first.options[1]!.id,
-          requestId: rid,
-        }),
-      );
-      await db.transaction((tx) =>
-        stakeInTx(tx, {
-          ...input,
-          userId: otherId,
-          optionId: first.options[1]!.id,
-          requestId: rid,
-        }),
-      );
-      expect(await balance(f)).toBe(BigInt(0));
-      expect(await balance(f, otherId)).toBe(BigInt(0));
-      // Complete the canonical first round; tournament acceptance is separate from finished scores.
-      await db
-        .update(schema.matches)
-        .set({
-          status: "finished",
-          scoreA: 1,
-          scoreB: 0,
-          completedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(schema.matches.majorStageRunId, f.runId),
-            eq(schema.matches.round, 1),
-            eq(schema.matches.id, first.matchId),
-          ),
-        );
-      await reconcile(f);
-      expect(await balance(f)).toBe(BigInt(0));
-      await db
-        .update(schema.matches)
-        .set({
-          status: "finished",
-          scoreA: 1,
-          scoreB: 0,
-          completedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(schema.matches.majorStageRunId, f.runId),
-            eq(schema.matches.round, 1),
-          ),
-        );
-      await db.transaction((tx) =>
-        finalizeMajorSwissRoundInTransaction(tx, {
-          seasonId,
-          stageRunId: f.runId,
-          expectedRound: 1,
-          actorId: "test",
-        }),
-      );
-      await reconcile(f);
-      const [nextMatch] = await db
-        .select()
-        .from(schema.matches)
-        .where(
-          and(
-            eq(schema.matches.majorStageRunId, f.runId),
-            eq(schema.matches.round, 2),
-          ),
-        )
-        .limit(1);
-      f.matchIds.push(nextMatch!.id);
-      const second = await market(f, f.matchIds.length - 1);
-      expect(await balance(f)).toBe(BigInt(2000));
-      await db.transaction((tx) =>
-        stakeInTx(tx, {
-          seasonId,
-          userId,
-          marketId: second.id,
-          optionId: second.options[0]!.id,
-          amount: "all",
-          requestId: randomUUID(),
-        }),
-      );
-      expect(await balance(f)).toBe(BigInt(0));
-      await db
-        .update(schema.matches)
-        .set({ scoreA: 0, scoreB: 1 })
-        .where(eq(schema.matches.id, first.matchId));
-      const queued = await db
-        .select()
-        .from(schema.predictionJobs)
-        .where(eq(schema.predictionJobs.seasonId, seasonId));
-      expect(queued[0]!.dirty).toBe(true);
-      await reconcile(f);
-      await reconcile(f);
-      expect(await balance(f)).toBe(BigInt(-2000));
-      expect(await balance(f, otherId)).toBe(BigInt(2000));
-      const board = await db.transaction((tx) =>
-        predictionBoard(tx, seasonId, userId),
-      );
-      expect(board.profit).toBe("-1000");
-      expect(board.ledger.filter((l) => l.kind === "reversal")).toHaveLength(1);
-      await db
-        .update(schema.matches)
-        .set({ status: "cancelled" })
-        .where(eq(schema.matches.id, second.matchId));
-      await reconcile(f);
-      expect(await balance(f)).toBe(BigInt(0));
-      await db.transaction((tx) =>
-        joinPredictionsInTx(tx, { seasonId, userId }),
-      );
-      expect(await balance(f)).toBe(BigInt(0));
-      const total = await db
-        .select({
-          amount: sql<string>`sum(${schema.predictionLedger.amount})::text`,
-        })
-        .from(schema.predictionLedger)
-        .where(eq(schema.predictionLedger.seasonId, seasonId));
-      expect(total[0]!.amount).toBe("2000");
-      await expect(
-        db.transaction((tx) =>
-          stakeInTx(tx, { ...input, requestId: randomUUID() }),
-        ),
-      ).rejects.toThrow("关闭");
-    }));
   it("judges a complete official Swiss stage and preserves results while simulation remains independent", async () =>
     fixture(async (f) => {
       const { db, seasonId, userId } = f;
@@ -890,20 +706,8 @@ describe("spectator prediction PostgreSQL contracts", () => {
     }));
 });
 
-it("binds stakes to their market options, freezes options and reads started stages from runtime", async () => {
+it("reads started stages from runtime", async () => {
   await fixture(async (f) => {
-    const first = await market(f, 0);
-    const second = await market(f, 1);
-    await expect(f.db.transaction((tx) => stakeInTx(tx, {
-      seasonId: f.seasonId, userId: f.userId, marketId: first.id,
-      optionId: second.options[0]!.id, amount: "10", requestId: randomUUID(),
-    }))).rejects.toThrow("不属于");
-    const [account] = await f.db.select().from(schema.predictionAccounts).where(eq(schema.predictionAccounts.userId, f.userId));
-    await expect(f.db.insert(schema.predictionStakes).values({
-      seasonId: f.seasonId, accountId: account!.id, marketId: first.id,
-      optionId: second.options[0]!.id, amount: BigInt(10), requestId: randomUUID(),
-    })).rejects.toThrow();
-    await expect(f.db.update(schema.predictionMarketOptions).set({ label: "changed" }).where(eq(schema.predictionMarketOptions.id, first.options[0]!.id))).rejects.toThrow();
     const before = await loadBaseline(f.db, f.seasonId);
     await f.db.update(schema.seasons).set({ stagePlan: [] }).where(eq(schema.seasons.id, f.seasonId));
     const after = await loadBaseline(f.db, f.seasonId);
