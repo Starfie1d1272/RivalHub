@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { Pool } from "pg";
+import { postgresConnection } from "../../../src/db/postgres-connection";
+import { isMigrationLedgerPrefix, type MigrationIdentity } from "../migration-ledger";
 import { lstatSync, mkdtempSync, mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -40,7 +43,8 @@ async function main(): Promise<void> {
   // The installer captures this response from the verified running process under
   // its host lock immediately before stopping it. Never accept an env identity.
   const frozenPath = process.argv[2] === "--stopped-instance-source" ? process.argv[3] : undefined;
-  if (process.argv.length > 2 && (!instance || !frozenPath || process.argv.length !== 4)) throw new Error("Invalid checkpoint arguments.");
+  const sourceManifest = process.argv[4] === "--source-manifest" ? process.argv[5] : undefined;
+  if (process.argv.length > 2 && (!instance || !frozenPath || !sourceManifest || process.argv.length !== 6)) throw new Error("Invalid checkpoint arguments.");
   if (frozenPath) {
     const file = lstatSync(frozenPath), parent = statSync(dirname(frozenPath));
     if (process.getuid?.() !== 0 || !file.isFile() || file.isSymbolicLink() || file.uid !== 0 || parent.uid !== 0
@@ -52,6 +56,14 @@ async function main(): Promise<void> {
     if (Object.keys(record).sort().join(",") !== "databaseName,releaseCommit,releaseTag,supabaseUrl"
       || record.supabaseUrl !== instance!.supabaseUrl || record.databaseName !== "postgres") throw new Error("Frozen source database identity differs.");
     assertInstanceReleaseIdentity(record.releaseTag, record.releaseCommit);
+    const previous = JSON.parse(readFileSync(sourceManifest!, "utf8")) as { releaseTag: string; sourceCommit: string; migrations: MigrationIdentity[] };
+    if (previous.releaseTag !== record.releaseTag || previous.sourceCommit !== record.releaseCommit || !Array.isArray(previous.migrations) || !previous.migrations.length) throw new Error("Frozen source differs from installed package.");
+    const pool = new Pool({ ...postgresConnection(environment.databaseUrl), max: 1 });
+    try {
+      const result = await pool.query<{ hash: string; when: string }>('SELECT hash, created_at::bigint::text AS "when" FROM drizzle.__drizzle_migrations ORDER BY created_at, id');
+      const ledger = result.rows.map(row => ({ hash: row.hash, when: Number(row.when) }));
+      if (ledger.length !== previous.migrations.length || !isMigrationLedgerPrefix(ledger, previous.migrations)) throw new Error("Checkpoint database ledger differs from the running package.");
+    } finally { await pool.end(); }
     return { deployedReleaseTag: record.releaseTag, deployedCommit: record.releaseCommit };
   };
   const runId = randomUUID();

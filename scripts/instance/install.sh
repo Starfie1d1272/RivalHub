@@ -118,7 +118,10 @@ fi
 [[ $# == 2 || ( $# == 9 && $3 == --release && $8 == --capability-evidence ) || ( $# == 11 && $3 == --release && $8 == --capability-evidence && ( ${10:-} == --recovery-evidence || ${10:-} == --checkpoint-env ) ) ]] || { echo 'Use the instance release controller for upgrade or recovery.' >&2; exit 1; }
 recovery_evidence='' checkpoint_env='' migration_changed=0
 if [[ $# == 11 && ${10:-} == --recovery-evidence ]]; then recovery_evidence=${11:-}; fi
-if [[ $# == 11 && ${10:-} == --checkpoint-env ]]; then checkpoint_env=$(realpath "${11:-}"); fi
+if [[ $# == 11 && ${10:-} == --checkpoint-env ]]; then
+  [[ ! -L ${11:-} ]] || { echo 'Checkpoint environment must not be a symlink.' >&2; exit 1; }
+  checkpoint_env=$(realpath "${11:-}")
+fi
 archive=$(realpath "$1")
 env_file=$(realpath "$2")
 (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$archive").sha256")
@@ -218,6 +221,7 @@ if [[ ! -e $release ]]; then
   mv "$staging" "$release"
   staging=''
 fi
+node="$release/runtime/node"
 printf '%s\n' "$archive_sha" > "$release/.archive-sha256"
 chmod -R o-rwx "$release"
 chown -R root:rivalhub-instance "$release"
@@ -252,7 +256,7 @@ if [[ $migration_changed == 1 ]]; then
   env -i "$node" --env-file="$snapshot/instance.env" "$root/$previous/scripts/instance/readiness.mjs" "$root/$previous"
   cp -p "$checkpoint_env" "$snapshot/checkpoint.env"
   tool_path="$(dirname "$(command -v pnpm)"):$release/runtime:/usr/local/bin:/usr/bin:/bin"
-  env -i PATH="$tool_path" RIVALHUB_BACKUP_SOURCE=instance "$node" --env-file="$snapshot/checkpoint.env" --env-file="$snapshot/instance.env" node_modules/tsx/dist/cli.mjs scripts/db/recovery/checkpoint.ts --stopped-instance-source "$snapshot/running-source.json" | tee "$snapshot/checkpoint.log"
+  env -i PATH="$tool_path" RIVALHUB_BACKUP_SOURCE=instance "$node" --env-file="$snapshot/checkpoint.env" --env-file="$snapshot/instance.env" node_modules/tsx/dist/cli.mjs scripts/db/recovery/checkpoint.ts --stopped-instance-source "$snapshot/running-source.json" --source-manifest "$root/$previous/standby.json" | tee "$snapshot/checkpoint.log"
   rm -f "$snapshot/checkpoint.env"
   env -i "$node" --env-file="$snapshot/instance.env" "$root/$previous/scripts/instance/readiness.mjs" "$root/$previous"
   instance_ref=$("$node" -e 'console.log(JSON.parse(process.argv[1]).project)' "$candidate_db")
