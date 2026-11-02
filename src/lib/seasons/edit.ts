@@ -1,3 +1,4 @@
+import { resolveCompetitiveSourceSelection } from "@/lib/competitive/source-selection";
 import { isReservedSeasonSlug } from "./slug";
 import { z } from "zod";
 import { createCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
@@ -464,7 +465,7 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
           competition: rules.competition, registrationMode: rules.registration.registrationMode,
           registrationConfig: rules.registration.registrationConfig,
           competitive: { externalStrengthGap: rules.competitive.externalStrengthGap,
-            profile: profile ? { platform: profile.platform, sourceSelection: profile.evidencePolicy?.sourceSelection ?? "primary_then_fallback" } : null } };
+            profile: profile ? { platform: profile.platform, sourceSelection: resolveCompetitiveSourceSelection(profile) } : null } };
       };
       if (existing.hasCommunityAwards !== data.hasCommunityAwards || !sameJson(editableRules(current), editableRules(submitted))) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可修改赛事规则。 ");
       return { template, set: { slug: existing.slug, name: data.name, kind: data.kind, competitionTemplate: template,

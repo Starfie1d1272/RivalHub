@@ -1,4 +1,5 @@
 import { and, count, desc, eq } from "drizzle-orm";
+import { resolveCompetitiveSourceSelection } from "@/lib/competitive/source-selection";
 import { writeAuditInTx } from "@/lib/audit/write";
 import type { AuditAction } from "@/lib/audit/presentation";
 
@@ -349,8 +350,8 @@ export async function freezeV2CompetitiveContext(tx: Transaction, season: typeof
     conversionPolicyVersion = policy.version;
     if (!await fallbackCatalogReferencesExist(tx, fallbackConversion)) throw new AppError(ErrorCode.VALIDATION_FAILED, "换算规则引用的赛季或段位已不在目录中。 ");
   }
-  const profile = { platform: platform.key, rankOrder, currentSeasonKey: current?.seasonKey ?? "", previousSeasonKey: previous?.seasonKey ?? "",
-    ...(weighted && current && previous ? { evidencePolicy: { historicalWeight: 50 as const, referenceSeasonKey: previous.seasonKey, referenceSeasonWeight: 20 as const, recentSeasonKeys: [current.seasonKey], recentSeasonWeight: 30 as const, ...(configured.evidencePolicy?.sourceSelection ? { sourceSelection: configured.evidencePolicy.sourceSelection } : {}) } } : {}),
+  const profile = { platform: platform.key, rankOrder, sourceSelection: resolveCompetitiveSourceSelection(configured), currentSeasonKey: current?.seasonKey ?? "", previousSeasonKey: previous?.seasonKey ?? "",
+    ...(weighted && current && previous ? { evidencePolicy: { historicalWeight: 50 as const, referenceSeasonKey: previous.seasonKey, referenceSeasonWeight: 20 as const, recentSeasonKeys: [current.seasonKey], recentSeasonWeight: 30 as const } } : {}),
     ...(fallbackConversion ? { fallbackConversion, conversionPolicyId, conversionPolicyVersion } : {}) };
   const encoded = encodeDraftSeasonRules(season, { ...rules, competitive: { ...rules.competitive, competitiveProfile: profile } });
   if (!encoded.teamRegistrationConfig) throw new AppError(ErrorCode.INTERNAL_ERROR, "竞技规则冻结失败。 ");

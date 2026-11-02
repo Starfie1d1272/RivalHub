@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { canonicalizeV2CompetitiveProfile } from "@/lib/competitive/source-selection";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { qualificationPolicySchema, qualificationPolicyV2Schema } from "@/lib/competition/qualification-policy";
 import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeTeamRegistrationConfig, resolveQualificationPolicy } from "@/lib/seasons/compatibility";
@@ -144,7 +145,7 @@ export function encodeDraftSeasonRules(current: SeasonRuleColumns, input: Decode
   // The observed opening fact belongs to the lifecycle and is never writable here.
   void current;
   if (input.source !== "policy_v2") throw new Error("Only explicit v2 draft rules can be encoded");
-  const policy = qualificationPolicyV2Schema.parse({ version: 2, educationRequired: input.participant.educationRequired, contacts: input.participant.contacts, competitiveProfileRequired: input.participant.competitiveProfileRequired, ...input.competitive });
+  const policy = qualificationPolicyV2Schema.parse({ version: 2, educationRequired: input.participant.educationRequired, contacts: input.participant.contacts, competitiveProfileRequired: input.participant.competitiveProfileRequired, ...input.competitive, competitiveProfile: canonicalizeV2CompetitiveProfile(input.competitive.competitiveProfile) });
   const extensions = seasonRuleExtensionsSchema.parse({ formation: input.formation.settings, seeding: input.competition.seeding, lineup: input.lineup.settings, rosterChanges: input.roster.changes });
   const teamRegistrationConfig: StoredTeamRegistrationConfigV2 = {
     requireUniqueTeamName: input.roster.requireUniqueTeamName,
