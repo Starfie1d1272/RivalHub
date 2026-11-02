@@ -1,0 +1,7 @@
+community.example.org {
+    encode zstd gzip
+    request_body {
+        max_size 12MB
+    }
+    reverse_proxy 127.0.0.1:3033
+}

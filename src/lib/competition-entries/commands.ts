@@ -41,7 +41,7 @@ import { isTeamRegistration } from "@/lib/utils/season";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { canMutateCompetitionEntryRoster } from "@/lib/competition-entries/remediation";
 import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entries/roster-change";
-import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
+import { normalizeTeamRegistrationConfig, resolveQualificationPolicy } from "@/lib/seasons/compatibility";
 import { assessEntryRosterReadiness } from "@/lib/competition-entries/readiness";
 import { normalizePerfectTeamId } from "@/lib/competition-entries/perfect-team-id";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
@@ -141,15 +141,18 @@ async function validateEntryRoster(
     .where(eq(competitionEntryRosterMembers.revisionId, revision.id));
   const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
   const primaryIds = rows.filter((row) => row.primary).map((row) => row.userId);
-  const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
-  const needsQualificationFacts = config.requireCompetitiveProfile || affiliationRules.length > 0;
+  const policy = resolveQualificationPolicy(season.teamRegistrationConfig, season.affiliationRules, "participant");
+  const v1 = !!season.teamRegistrationConfig?.qualificationPolicy;
+  const affiliationRules = policy.affiliationRules;
+  const needsCompetitiveContext = v1 ? policy.competitiveProfileRequired || policy.externalStrengthGap.enabled : config.requireCompetitiveProfile;
+  const needsQualificationFacts = v1 || config.requireCompetitiveProfile || affiliationRules.length > 0;
   let qualificationFacts = new Map<string, ParticipantQualificationFacts>();
   let competitiveProfile: Awaited<ReturnType<typeof resolveCompetitiveContext>> = null;
   let userLabels: Map<string, string>;
   if (needsQualificationFacts) {
-    if (config.requireCompetitiveProfile) {
-      if (!config.competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事尚未冻结竞技档案规则。");
-      competitiveProfile = await resolveCompetitiveContext(config.competitiveProfile);
+    if (needsCompetitiveContext) {
+      if (!policy.competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事尚未冻结竞技档案规则。");
+      competitiveProfile = await resolveCompetitiveContext(policy.competitiveProfile);
       if (!competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "竞技平台赛季目录不可确认。");
     }
     // One bundle supplies labels, education/affiliation and (when requested)
@@ -192,6 +195,7 @@ async function validateEntryRoster(
       facts: qualificationFacts,
       affiliationRules,
       competitiveProfile,
+      ...(v1 ? { policy } : {}),
       primaryStarterUserIds: primaryIds,
     });
   }

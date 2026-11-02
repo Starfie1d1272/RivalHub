@@ -16,14 +16,16 @@ import { getDisplayName } from "@/lib/identity/display-name";
 import { assertSinglePrestartEntryCoherenceInTx, type PrestartEntryCoherence } from "@/lib/event-rosters/coherence";
 import { loadParticipantQualificationFacts } from "@/lib/qualification/service";
 import { freezeQualificationRosterInTx } from "@/lib/competition-qualification/eligibility";
-import { normalizeAffiliationRules } from "@/lib/seasons/compatibility";
+import { resolveQualificationPolicy } from "@/lib/seasons/compatibility";
 
 export async function loadApprovedRosterEducation(
   tx: TxDb,
   userIds: readonly string[],
   affiliationRules: Parameters<typeof evaluateRosterEducationEligibility>[1],
+  policy?: import("@/types/season").QualificationPolicyV1,
 ): Promise<Map<string, string>> {
   const facts = await loadParticipantQualificationFacts(userIds, { executor: tx, includeCompetitiveFacts: false });
+  if (facts.size !== new Set(userIds).size) throw new AppError(ErrorCode.VALIDATION_FAILED, "名单中存在无法核验的选手账号。");
   const resolved = [...facts.entries()].map(([userId, fact]) => ({
     userId,
     label: getDisplayName(fact),
@@ -31,8 +33,10 @@ export async function loadApprovedRosterEducation(
     verificationHistory: fact.educationHistory,
     verification: resolveSeasonEducationVerification(fact.educationHistory, affiliationRules).selectedVerification,
   }));
-  const decision = evaluateRosterEducationEligibility(resolved, affiliationRules);
-  if (!decision.eligible || decision.selectedVerificationIds.size !== userIds.length) {
+  const decision = evaluateRosterEducationEligibility(resolved, affiliationRules, policy
+    ? { requireMemberEducation: policy.educationRequired, requireVerifiedEmail: policy.contacts.emailVerifiedRequired, requireApprovedAffiliation: true }
+    : undefined);
+  if (!decision.eligible || ((!policy || policy.educationRequired) && decision.selectedVerificationIds.size !== userIds.length)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, decision.blockers.join(" "));
   }
   return decision.selectedVerificationIds;
@@ -208,10 +212,12 @@ export async function syncApprovedRosterToEventRosterInTx(
   if (season.starterCount > 0 && primaryCount !== season.starterCount) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, `最终赛事名单必须指定恰好 ${season.starterCount} 名主力。`);
   }
+  const policy = resolveQualificationPolicy(season.teamRegistrationConfig, season.affiliationRules, "roster");
   const verificationIds = await loadApprovedRosterEducation(
     tx,
     approvedMembers.map((member) => member.userId),
-    normalizeAffiliationRules(season.affiliationRules),
+    policy.affiliationRules,
+    season.teamRegistrationConfig?.qualificationPolicy ? policy : undefined,
   );
   const currentMembers = await tx.select({
     userId: eventRosterMembers.userId,
