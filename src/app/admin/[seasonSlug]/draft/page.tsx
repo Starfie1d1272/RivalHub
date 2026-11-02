@@ -40,7 +40,8 @@ export default async function AdminDraftPage({ params }: AdminDraftPageProps) {
       <PageHeader title={`选秀管理 · ${season.name}`} description="启动、暂停、恢复选秀流程。选秀开始后选手可围观实时进度。" />
 
       {season.hasDraft && !season.hasCaptainVoting && decodeSeasonRules(season).source === "policy_v2" && !data?.state && <ManualFormationPanel seasonId={season.id} data={await getManualFormationData(season.id)} maxTeamSize={season.maxTeamSize} starterCount={season.starterCount} captainsOnly />}
-      {season.hasDraft && data?.state && !data.state.isActive && !data.state.currentEntryId && <FormationApprovalPanel seasonId={season.id} teams={(await getManualFormationData(season.id)).teams} />}
+      {season.hasDraft && decodeSeasonRules(season).source !== "policy_v2" && data?.state && !data.state.isActive && !data.state.currentEntryId && <FormationApprovalPanel seasonId={season.id} teams={(await getManualFormationData(season.id)).teams} />}
+      {season.hasDraft && decodeSeasonRules(season).source === "policy_v2" && data?.state && !data.state.isActive && !data.state.currentEntryId && <ManualFormationPanel seasonId={season.id} data={await getManualFormationData(season.id)} maxTeamSize={season.maxTeamSize} starterCount={season.starterCount} allowCreate={false} />}
       {season.hasDraft && decodeSeasonRules(season).source === "policy_v2" && data?.state && !data.state.isActive && !data.state.currentEntryId && <FormationStartPanel seasonId={season.id} seasonSlug={season.slug} major={season.competitionTemplate === "major"} />}
 
       <DraftAdminPanel

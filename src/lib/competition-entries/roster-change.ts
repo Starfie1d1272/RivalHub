@@ -24,7 +24,7 @@ import { canSelfAdjustMajorRosterInTx } from "@/lib/major/roster-window";
  */
 export async function requestCompetitionEntryRosterChangeInTx(
   tx: TxDb,
-  input: { entryId: string; representativeUserId: string; actorId: string; source?: "representative_roster_change" | "participant_self_withdrawal" },
+  input: { entryId: string; representativeUserId: string; actorId: string; source?: "representative_roster_change" | "participant_self_withdrawal" | "admin_formation" },
 ): Promise<{ seasonSlug: string }> {
   // The Entry id is the only input, so derive the season before taking the
   // aggregate locks. The season lock is needed before Entry because the
@@ -49,7 +49,7 @@ export async function requestCompetitionEntryRosterChangeInTx(
     await tx.update(eventRosters).set({ status: "preparing", confirmedAt: null, confirmedBy: null, frozenAt: null, frozenBy: null, updatedAt: new Date() }).where(eq(eventRosters.id, prestartRoster.id));
     prestartInvalidated = true;
   }
-  if (decodeSeasonRules(season).roster.changes?.selfServiceAfterApproval === false || !canSelfChangeApprovedRoster(season) || !await canSelfAdjustMajorRosterInTx(tx, season, entry.id)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, "名单调整窗口当前不可用；请联系赛事管理员发起变更。");
+  if (decodeSeasonRules(season).roster.changes?.selfServiceAfterApproval === false || !canSelfChangeApprovedRoster(season.status === "drafting" && entry.source === "event_native" && decodeSeasonRules(season).source === "policy_v2" ? { ...season, status: "registration", registrationClosesAt: null } : season) || !await canSelfAdjustMajorRosterInTx(tx, season, entry.id)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, "名单调整窗口当前不可用；请联系赛事管理员发起变更。");
   const [approved] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.approvedRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!approved) throw new AppError(ErrorCode.INTERNAL_ERROR, "已通过审核的名单记录不可用，请联系赛事管理员。");
   const [current] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");

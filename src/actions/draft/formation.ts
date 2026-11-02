@@ -1,10 +1,10 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, isNotNull, max } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, max, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { competitionEntries, competitionEntryActiveClaims, competitionEntryParticipants, competitionEntryRepresentativeChanges, competitionEntryRosterMembers, competitionEntryRosterRevisions, draftState, eventRosterMembers, eventRosters, seasonRegistrations, seasons, users } from "@/db/schema";
+import { competitionEntries, competitionQualificationEntrants, majorTournamentEntrants, matches, competitionEntryActiveClaims, competitionEntryParticipants, competitionEntryRepresentativeChanges, competitionEntryRosterMembers, competitionEntryRosterRevisions, draftState, eventRosterMembers, eventRosters, seasonRegistrations, seasons, users } from "@/db/schema";
 import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { actionError, failValidation } from "@/lib/action-utils";
@@ -13,11 +13,15 @@ import { revalidateSeasonPaths } from "@/lib/revalidation";
 import { ok, type ActionResult } from "@/types/action";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { decodeSeasonRules } from "@/lib/seasons/rules";
-import { adoptEventNativeRosterInTx, validateApprovedCompetitionEntryRosterInTx } from "@/lib/competition-entries/commands";
+import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entries/roster-change";
+import { adoptEventNativeRosterInTx } from "@/lib/competition-entries/commands";
 import { assertPrestartEntryCoherenceInTx, assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import { adoptApprovedRosterInTx } from "@/lib/event-rosters/owner";
 import { prepareApprovedEventRosterInTx } from "@/lib/event-rosters/prepare-approved";
 import { decodeEventRosterEligibilitySnapshotV2 } from "@/lib/seasons/eligibility-snapshot";
+import { decodeFrozenLineupEligibility } from "@/lib/match-rosters/frozen-eligibility";
+import { evaluateLineup } from "@/lib/match-rosters/lineup";
+import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { getFirstStage, normalizeStagePlan } from "@/lib/seasons/compatibility";
 
 const inputSchema = z.object({ seasonId: z.guid(), entryId: z.guid().nullable(), captainId: z.guid(), memberIds: z.array(z.guid()).max(20), starterIds: z.array(z.guid()).max(20) });
@@ -32,8 +36,12 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
     const result = await db.transaction(async tx => {
       const [season] = await tx.select().from(seasons).where(eq(seasons.id, seasonId)).for("update");
       if (!season || season.registrationMode !== "solo" || !["registration", "drafting"].includes(season.status)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前赛事不能手动编队。");
-      if (season.hasDraft && (season.hasCaptainVoting || decodeSeasonRules(season).source !== "policy_v2" || entryId || memberIds.some(id => id !== captainId))) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前选秀只允许管理员创建队长队伍。");
-      if (season.hasDraft && await tx.query.draftState.findFirst({ where: eq(draftState.seasonId, seasonId) })) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "选秀开始后不能增加队伍。");
+      if (season.hasDraft && !entryId && (season.hasCaptainVoting || decodeSeasonRules(season).source !== "policy_v2" || memberIds.some(id => id !== captainId))) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前选秀只允许管理员创建队长队伍。");
+      if (season.hasDraft && !entryId && await tx.query.draftState.findFirst({ where: eq(draftState.seasonId, seasonId) })) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "选秀开始后不能增加队伍。");
+      if (season.hasDraft && entryId) {
+        const state = await tx.query.draftState.findFirst({ where: eq(draftState.seasonId, seasonId) });
+        if (!state || state.isActive || state.currentEntryId) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "选秀结束后才能补正名单。");
+      }
       const members = [captainId, ...memberIds.filter(id => id !== captainId)];
       if (new Set(memberIds).size !== memberIds.length || new Set(starterIds).size !== starterIds.length || starterIds.some(id => !members.includes(id))) throw new AppError(ErrorCode.VALIDATION_FAILED, "成员或首发重复，或首发不在队伍中。");
       if (members.length > season.maxTeamSize || starterIds.length > season.starterCount) throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍人数或首发人数超过上限。");
@@ -49,10 +57,10 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
       if (claims.some(claim => claim.entryId !== entryId)) throw new AppError(ErrorCode.PLAYER_ALREADY_PICKED, "选手已确认其他队伍的报名。");
       const existingMembers = await tx.select({ entryId: competitionEntries.id, userId: competitionEntryRosterMembers.userId }).from(competitionEntryRosterMembers)
         .innerJoin(competitionEntries, eq(competitionEntries.currentRosterRevisionId, competitionEntryRosterMembers.revisionId))
-        .where(and(eq(competitionEntries.competitionId, seasonId), inArray(competitionEntryRosterMembers.userId, userIds)));
+        .where(and(eq(competitionEntries.competitionId, seasonId), inArray(competitionEntries.registrationStatus, ["draft", "submitted", "changes_requested", "waitlisted", "approved"]), inArray(competitionEntryRosterMembers.userId, userIds)));
       if (existingMembers.some(row => row.entryId !== entryId)) throw new AppError(ErrorCode.PLAYER_ALREADY_PICKED, "选手已在其他队伍中。");
       let entry = entryId ? (await tx.select().from(competitionEntries).where(and(eq(competitionEntries.id, entryId), eq(competitionEntries.competitionId, seasonId))).for("update"))[0] : undefined;
-      if (entryId && (!entry || entry.source !== "event_native" || entry.approvedRosterRevisionId || entry.sourceRegistrationId !== captainId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "该队伍不可编辑或队长已变更。");
+      if (entryId && (!entry || entry.source !== "event_native" || !(["draft", "changes_requested"].includes(entry.registrationStatus)) || entry.sourceRegistrationId !== captainId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "该队伍不可编辑或队长已变更。");
       if (!entry) {
         const revisionId = randomUUID();
         const [captainUser] = await tx.select({ displayName: users.displayName, perfectName: users.perfectName }).from(users).where(eq(users.id, captain.userId));
@@ -71,7 +79,7 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
         const userId = byId.get(registrationId)!.userId;
         const [participant] = await tx.insert(competitionEntryParticipants).values({ entryId: entry.id, userId, status: "invited", invitedByUserId: captain.userId }).onConflictDoUpdate({ target: [competitionEntryParticipants.entryId, competitionEntryParticipants.userId], set: { updatedAt: new Date() } }).returning({ id: competitionEntryParticipants.id });
         await tx.insert(competitionEntryRosterMembers).values({ revisionId: revision.id, participantId: participant.id, userId, isPrimaryStarter: starterIds.includes(registrationId) });
-        if (season.hasDraft) {
+        if (season.hasDraft && !entryId) {
           const [roster] = await tx.insert(eventRosters).values({ entryId: entry.id, status: "preparing" }).returning({ id: eventRosters.id });
           await tx.insert(eventRosterMembers).values({ eventRosterId: roster.id, participantId: participant.id, userId, isPrimaryStarter: starterIds.includes(registrationId) });
         }
@@ -134,13 +142,18 @@ export async function startFormedSeason(input: { seasonId: string }): Promise<Ac
         if (!state || state.isActive || state.currentEntryId) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先完成选秀。");
       }
       if (!getFirstStage(normalizeStagePlan(season.stagePlan))) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先配置赛程阶段。");
-      const entries = await tx.select({ id: competitionEntries.id, source: competitionEntries.source }).from(competitionEntries).where(eq(competitionEntries.competitionId, season.id));
+      const entries = await tx.select({ id: competitionEntries.id, source: competitionEntries.source }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), inArray(competitionEntries.registrationStatus, ["draft", "submitted", "changes_requested", "waitlisted", "approved"])));
       if (entries.length < 2 || entries.some(entry => entry.source !== "event_native")) throw new AppError(ErrorCode.VALIDATION_FAILED, "至少需要两支本届编队。");
       const coherent = await assertPrestartEntryCoherenceInTx(tx, season.id, entries.map(entry => ({ competitionEntryId: entry.id })));
       for (const row of coherent) {
-        await validateApprovedCompetitionEntryRosterInTx(tx, row.entry, season);
         if (row.eventRoster.status !== "confirmed" || !row.eventRoster.eligibilitySnapshot || row.eventRoster.eligibilitySnapshot.version !== 2) throw new AppError(ErrorCode.VALIDATION_FAILED, `队伍「${row.entry.name}」的名单尚未审核并采用。`);
-        decodeEventRosterEligibilitySnapshotV2(row.eventRoster.eligibilitySnapshot);
+        const snapshot = decodeEventRosterEligibilitySnapshotV2(row.eventRoster.eligibilitySnapshot);
+        const frozen = decodeFrozenLineupEligibility(snapshot, { seasonId: season.id, entryId: row.entry.id, rosterRevisionId: row.approvedRevision.id });
+        const members = await tx.select().from(eventRosterMembers).where(eq(eventRosterMembers.eventRosterId, row.eventRoster.id));
+        if (members.length !== snapshot.members.length || members.some(member => !snapshot.members.some(saved => saved.eventRosterMemberId === member.id && saved.userId === member.userId && saved.participantId === member.participantId && saved.educationVerificationId === member.educationVerificationId && saved.isPrimaryStarter === member.isPrimaryStarter))) throw new AppError(ErrorCode.VALIDATION_FAILED, "已采用资格快照与正式名单成员不一致。");
+        const bans = await loadActiveSanctionsInTx(tx, { seasonId: season.id, effect: "match_participation_block", subjectUserIds: members.map(member => member.userId) });
+        const decision = evaluateLineup({ entryId: row.entry.id, starterMemberIds: members.filter(member => member.isPrimaryStarter).map(member => member.id), substituteMemberIds: [] }, frozen, new Set(bans.keys()));
+        if (decision.state === "blocked") throw new AppError(ErrorCode.VALIDATION_FAILED, decision.findings.map(finding => finding.message).join(" "));
       }
       const now = new Date(), actorId = auditActorId(admin);
       await tx.update(eventRosters).set({ status: "frozen", frozenAt: now, frozenBy: actorId, updatedAt: now }).where(inArray(eventRosters.id, coherent.map(row => row.eventRoster.id)));
@@ -151,4 +164,49 @@ export async function startFormedSeason(input: { seasonId: string }): Promise<Ac
     revalidateSeasonPaths(slug, ["adminDraft", "adminMatches", "matches", "teams"]);
     return ok(undefined);
   } catch (error) { return actionError("startFormedSeason", error); }
+}
+
+/** Cancel an unapproved formation only while no competition fact depends on it. */
+export async function withdrawFormation(input: { seasonId: string; entryId: string }): Promise<ActionResult<void>> {
+  const parsed = z.object({ seasonId: z.guid(), entryId: z.guid() }).safeParse(input);
+  if (!parsed.success) return failValidation("编队标识无效。");
+  const admin = await requireSeasonAdmin(parsed.data.seasonId);
+  try {
+    const slug = await db.transaction(async tx => {
+      const [season] = await tx.select().from(seasons).where(eq(seasons.id, parsed.data.seasonId)).for("update");
+      if (!season || season.hasDraft || season.registrationMode !== "solo" || !["registration", "drafting"].includes(season.status)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前阶段不能撤销编队。");
+      const [entry] = await tx.select().from(competitionEntries).where(and(eq(competitionEntries.id, parsed.data.entryId), eq(competitionEntries.competitionId, season.id))).for("update");
+      if (!entry || entry.source !== "event_native" || entry.approvedRosterRevisionId || entry.registrationStatus !== "draft") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只能撤销尚未批准的编队草稿。");
+      const [roster] = await tx.select().from(eventRosters).where(eq(eventRosters.entryId, entry.id)).for("update");
+      const [match] = await tx.select({ id: matches.id }).from(matches).where(or(eq(matches.entryAId, entry.id), eq(matches.entryBId, entry.id))).limit(1);
+      const [entrant] = await tx.select({ id: majorTournamentEntrants.id }).from(majorTournamentEntrants).where(eq(majorTournamentEntrants.competitionEntryId, entry.id)).limit(1);
+      const [qualification] = await tx.select({ id: competitionQualificationEntrants.id }).from(competitionQualificationEntrants).where(eq(competitionQualificationEntrants.competitionEntryId, entry.id)).limit(1);
+      if (match || entrant || qualification || (roster && roster.status !== "preparing")) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "编队已有赛事依赖事实，不能撤销。");
+      const now = new Date();
+      await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.entryId, entry.id));
+      await tx.update(competitionEntryParticipants).set({ status: "withdrawn", withdrawnAt: now, updatedAt: now }).where(eq(competitionEntryParticipants.entryId, entry.id));
+      await tx.update(competitionEntries).set({ registrationStatus: "withdrawn", updatedAt: now }).where(eq(competitionEntries.id, entry.id));
+      await writeAuditInTx(tx, { seasonId: season.id, action: "competition_entry.withdrawn", actorId: auditActorId(admin), targetId: entry.id, meta: { source: "formation_withdrawal" } });
+      return season.slug;
+    });
+    revalidateSeasonPaths(slug, ["adminDraft", "teams"]);
+    return ok(undefined);
+  } catch (error) { return actionError("withdrawFormation", error); }
+}
+
+/** Reopen an adopted native roster using the canonical revision transition. */
+export async function requestFormationChange(input: { seasonId: string; entryId: string }): Promise<ActionResult<void>> {
+  const parsed = z.object({ seasonId: z.guid(), entryId: z.guid() }).safeParse(input);
+  if (!parsed.success) return failValidation("编队标识无效。");
+  const admin = await requireSeasonAdmin(parsed.data.seasonId);
+  try {
+    const slug = await db.transaction(async tx => {
+      const [season] = await tx.select().from(seasons).where(eq(seasons.id, parsed.data.seasonId)).for("update");
+      const [entry] = await tx.select().from(competitionEntries).where(and(eq(competitionEntries.id, parsed.data.entryId), eq(competitionEntries.competitionId, parsed.data.seasonId))).for("update");
+      if (!season || !entry || entry.source !== "event_native" || decodeSeasonRules(season).source !== "policy_v2") throw new AppError(ErrorCode.NOT_FOUND, "赛事编队不存在。");
+      return (await requestCompetitionEntryRosterChangeInTx(tx, { entryId: entry.id, representativeUserId: entry.representativeUserId, actorId: auditActorId(admin), source: "admin_formation" })).seasonSlug;
+    });
+    revalidateSeasonPaths(slug, ["adminDraft", "teams"]);
+    return ok(undefined);
+  } catch (error) { return actionError("requestFormationChange", error); }
 }

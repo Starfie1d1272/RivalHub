@@ -149,8 +149,8 @@ export async function setMajorManagedProfile(input: { seasonId: string; profileI
     await db.transaction(async (tx) => {
       const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, season.id)).for("update");
       if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
-      if (lockedSeason.status !== "registration") {
-        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Major 正赛规模只能在报名阶段、产生依赖事实前调整。");
+      if (!isMajorPrestartPhase(lockedSeason)) {
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Major 正赛规模只能在赛前筹备阶段、产生依赖事实前调整。");
       }
       const current = getStandardMajorDefinition(lockedSeason).managedProfile;
       if (current?.id === parsed.data.profileId) return;
