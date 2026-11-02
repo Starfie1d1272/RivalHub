@@ -69,13 +69,28 @@ pnpm db:recovery:restore-db-checkpoint \
 
 目标须是全新的隔离 Supabase/PostgreSQL；恢复工具版本须符合 [灾难恢复说明](./disaster-recovery.md#isolated-restore) 的来源版本与账本要求。核验成功仅证明隔离副本；本机自动回滚不会因为隔离恢复成功而启动旧程序。Hosted 数据库恢复、切换及重新接入仍须使用单独授权且已验证的恢复流程。
 
-## 跨主版本转换边界
+## 跨主版本转换
 
-当前实例 release controller 对普通升级和恢复继续执行双向 reader-first 合同。2.x 到 3.x 的候选能力可能不满足此门禁，现有工具不会因此自动执行跨主版本转换。不能修改 reader 版本声明或绕过门禁来声称兼容；旧金融 writer 的退役也意味着仅切回旧应用未必安全。
+普通升级仍执行双向 reader-first 合同。跨 v2 → v3 必须在明确的维护窗口停止实例以外的所有 writer 和迁移执行者，并核实正在运行的来源项目与目标数据库；不得修改能力声明伪造兼容。旧金融 writer 已退役，仅切回旧应用不安全。以下入口在主机锁内复核实际运行身份及精确旧链和目标链，停止服务并排空事务，以旧环境生成完整 DB + Storage 加密 checkpoint，验证对象真实读回并将来源、目标、账本、Storage 摘要和候选身份绑定到事务，再持久化迁移标记并执行迁移/adopt：
 
-目标转换流程需要在持有主机锁时停止所有旧 writer 并排空事务，冻结运行来源身份和完整数据库及 Storage checkpoint，验证读回，再迁移旧链并 adopt 后启动目标。数据库开始改变后，失败恢复须将数据库和相匹配的应用作为一对恢复，不能自动单独启动旧应用。当前迁移路径只有停止后的 DB-only checkpoint；现有 full backup 要求运行中来源身份，尚无停止后完整 checkpoint 的衔接，故上述跨主版本流程尚未实现或验收。Hosted 目标恢复权限及真实主机行为仍需单独验证。
+```bash
+sudo pnpm exec tsx scripts/instance/release.ts --major-transition \
+  /path/to/manifest.layers.json /path/to/candidate-instance.env \
+  --checkpoint-env /private/path/checkpoint.env --maintenance-window CHANGE-123
+```
 
-完整自托管 Supabase 需要独立工作包：定义非 Hosted 的 API/数据库身份与 TLS、密钥和 provider 配置合同，适配安装、备份、恢复与 scheduler，并在真实自托管组合中验证完整旅程。
+维护窗口标识是操作记录，不会停止外部 writer。checkpoint 环境与普通迁移相同，还必须包含实例 Storage secret、age 和独立 R2 配置。标记前失败可恢复旧应用；标记写入后任何失败均保持停机，`--rollback` 不能单独启动旧应用。
+
+成对恢复必须继续保持全部 writer 停止，使用事务快照 `full-checkpoint.json` 中的 `completionKey`，通过 `pnpm db:recovery:fetch` 获取该完整 artifact，并按 [灾难恢复](disaster-recovery.md) 将其恢复到全新目标，使用 `--evidence-directory` 生成 full restore 验证证据。核实目标项目和凭据后，在原事务的同一 operator checkout 中运行：
+
+```bash
+sudo pnpm exec tsx scripts/instance/release.ts --restore-pair \
+  /private/path/recovery-<run-id>.json /private/path/restored-instance.env
+```
+
+该入口在锁内核对证据与事务的 artifact、manifest、来源应用和恢复目标，再重新读取数据库账本与 bucket，只有验证通过才将旧应用和恢复目标配对启动；它不执行生产数据库恢复。恢复目标环境不得指向未经恢复的原数据库。恢复证据由操作员受保护目录保存，是一致性凭据而非数字签名；恢复后至启动期间也须保持外部 writer 停止。
+
+当前新路径尚需隔离端到端演练；Hosted 目标恢复权限和真实 systemd 主机行为尚未验收。完整自托管 Supabase 需要独立工作包：定义非 Hosted 的 API/数据库身份与 TLS、密钥和 provider 配置合同，适配安装、备份、恢复与 scheduler，并在真实自托管组合中验证完整旅程。
 
 ## 备份与恢复边界
 
