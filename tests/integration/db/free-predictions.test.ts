@@ -5,7 +5,7 @@ import * as schema from "@/db/schema";
 import { fixture } from "./harness/free-prediction-fixture";
 import { submitFreePredictionInTx } from "@/lib/free-predictions/service";
 import { readFreePredictionBoard } from "@/lib/free-predictions/data";
-import { readFreePredictionRanking, readFreePredictionRankings } from "@/lib/bet/free-ranking";
+import { readBetPredictionRanking, readBetPredictionRankings } from "@/lib/bet/free-ranking";
 import { operateBetInTx, joinBetInTx, stakeBetInTx, lockBetProgram, reconcileBetInTx } from "@/lib/bet/service";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 // Protect real row-lock serialization, persistent rollback fences, private DTOs and corrected scores.
@@ -22,9 +22,9 @@ describe("free predictions real PostgreSQL",()=>{
     await f.db.update(schema.matches).set({status:"cancelled"}).where(eq(schema.matches.id,f.matchId));
     await f.db.transaction(async tx=>{await lockBetProgram(tx,f.seasonId);await reconcileBetInTx(tx,f.seasonId);});
     expect(await f.db.query.betSettlements.findFirst({where:eq(schema.betSettlements.marketId,market.id),orderBy:desc(schema.betSettlements.revision)})).toMatchObject({state:"refunded"});
-    for(const sort of ["hits","accuracy"] as const) expect(await f.db.transaction(tx=>readFreePredictionRanking(tx,f.seasonId,sort))).toMatchObject({dynamicFloor:null,rows:[expect.objectContaining({userId:f.otherId,profit:"0",hits:null,judged:null,accuracy:null,rank:null,group:"limited"})]});
-    expect((await f.db.transaction(tx=>readFreePredictionRanking(tx,f.seasonId,"profit"))).rows[0]).toMatchObject({userId:f.otherId,profit:"0",rank:1,group:"ranked",hits:null,judged:null});
-    const rankings = await f.db.transaction(tx=>readFreePredictionRankings(tx,f.seasonId));
+    for(const sort of ["hits","accuracy"] as const) expect(await f.db.transaction(tx=>readBetPredictionRanking(tx,f.seasonId,sort))).toMatchObject({dynamicFloor:null,rows:[expect.objectContaining({userId:f.otherId,profit:"0",hits:null,judged:null,accuracy:null,rank:null,group:"limited"})]});
+    expect((await f.db.transaction(tx=>readBetPredictionRanking(tx,f.seasonId,"profit"))).rows[0]).toMatchObject({userId:f.otherId,profit:"0",rank:1,group:"ranked",hits:null,judged:null});
+    const rankings = await f.db.transaction(tx=>readBetPredictionRankings(tx,f.seasonId));
     expect(rankings.profit.rows[0]).toMatchObject({userId:f.otherId,rank:1,group:"ranked"});
     for (const sort of ["hits", "accuracy"] as const) {
       expect(rankings[sort]).toMatchObject({dynamicFloor:null,rows:[expect.objectContaining({userId:f.otherId,rank:null,group:"limited"})]});
@@ -63,7 +63,7 @@ describe("free predictions real PostgreSQL",()=>{
     await f.db.insert(schema.matchMaps).values(selected.map((mapName,i)=>({matchId:f.matchId,mapName,mapOrder:i+1})));
     const read=()=>f.db.transaction(tx=>readFreePredictionBoard(tx,f.seasonId,f.userId));
     expect((await read()).matches[0]!.bp.grade?.state).toBe("correct");
-    expect((await f.db.transaction(tx=>readFreePredictionRanking(tx,f.seasonId,"accuracy"))).rows[0]!.judged).toBeNull();
+    expect((await f.db.transaction(tx=>readBetPredictionRanking(tx,f.seasonId,"accuracy"))).rows[0]!.judged).toBeNull();
     await f.db.update(schema.matchVetoSteps).set({mapName:pool[2]!}).where(and(eq(schema.matchVetoSteps.matchId,f.matchId),eq(schema.matchVetoSteps.actionType,"ban"),eq(schema.matchVetoSteps.mapName,pool[3]!)));
     await f.db.update(schema.matchVetoSteps).set({mapName:pool[3]!}).where(and(eq(schema.matchVetoSteps.matchId,f.matchId),eq(schema.matchVetoSteps.actionType,"decider")));
     expect((await read()).matches[0]!.bp.grade).toMatchObject({state:"incorrect",hits:2,total:3});
@@ -90,7 +90,7 @@ describe("free predictions real PostgreSQL",()=>{
     await f.db.insert(schema.betLedger).values({seasonId:f.seasonId,accountId:account!.id,kind:"stake",source:"fixture/depleted",amount:BigInt(-1000),profit:BigInt(0)});
     await f.db.transaction(tx=>operateBetInTx(tx,{seasonId:f.seasonId,actorId:f.userId,operation:"pause"}));
     await f.db.transaction(tx=>submitFreePredictionInTx(tx,{seasonId:f.seasonId,matchId:f.matchId,userId:f.userId,kind:"result",selection:[f.entryIds[0]!],requestId:randomUUID()}));
-    const ranking=await f.db.transaction(tx=>readFreePredictionRanking(tx,f.seasonId,"profit"));
+    const ranking=await f.db.transaction(tx=>readBetPredictionRanking(tx,f.seasonId,"profit"));
     expect(ranking.rows.find(r=>r.userId===f.userId)).toMatchObject({profit:"0",rank:null,group:"limited",accuracy:null});
     for(const role of ["anon","authenticated"]) await expect(f.db.transaction(async tx=>{
       await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));await tx.select().from(schema.freePredictionChoices);

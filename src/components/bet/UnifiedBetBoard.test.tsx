@@ -6,7 +6,7 @@ import type { BetBoardDTO } from "@/lib/bet/types";
 import type { BetBoard } from "./BetBoard";
 import { UnifiedBetBoard } from "./UnifiedBetBoard";
 
-const actions=vi.hoisted(()=>({getUnifiedBetBoard:vi.fn(),getFreePredictionMatch:vi.fn(),getFreePredictionRanking:vi.fn(),submitFreePrediction:vi.fn()}));
+const actions=vi.hoisted(()=>({getUnifiedBetBoard:vi.fn(),getFreePredictionMatch:vi.fn(),getBetPredictionRanking:vi.fn(),submitFreePrediction:vi.fn()}));
 vi.mock("@/actions/bet",()=>({...actions,claimBetRelief:vi.fn(),getBetRelief:vi.fn()}));
 vi.mock("@/actions/free-predictions",()=>actions);
 vi.mock("@/lib/bet/http-client",()=>({fetchBetBoard:actions.getUnifiedBetBoard}));

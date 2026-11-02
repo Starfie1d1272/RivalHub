@@ -1,5 +1,6 @@
 import type { BetBoardDTO } from "@/lib/bet/types";
-import type { FreePredictionMatchDTO, FreePredictionRankingRowDTO } from "@/lib/free-predictions/types";
+import type { FreePredictionMatchDTO } from "@/lib/free-predictions/types";
+import type { BetPredictionRankingRowDTO } from "@/lib/bet/types";
 import { mapLabel } from "@/lib/maps";
 import type { FreePredictionModel, PredictionRankingModel } from "./presentation-contract";
 
@@ -24,6 +25,6 @@ export function freePredictionPanel(match: FreePredictionMatchDTO, kind: "winner
   };
 }
 
-export function freeRankingModel(data: { rows: FreePredictionRankingRowDTO[]; dynamicFloor: { floor: number } | null }): PredictionRankingModel {
+export function freeRankingModel(data: { rows: BetPredictionRankingRowDTO[]; dynamicFloor: { floor: number } | null }): PredictionRankingModel {
   return { rows: data.rows.map(row => ({ ...row, decided: row.judged })), rankedCount: data.rows.filter(row => row.group === "ranked").length, floor: data.dynamicFloor?.floor ?? null };
 }

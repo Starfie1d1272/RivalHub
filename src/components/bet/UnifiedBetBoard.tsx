@@ -1,10 +1,10 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVisiblePolling } from "@/components/use-visible-polling";
-import { claimBetRelief as telemetry_claimBetRelief, getBetRelief } from "@/actions/bet";
+import { claimBetRelief as telemetry_claimBetRelief, getBetRelief, getBetPredictionRanking } from "@/actions/bet";
 import { fetchBetBoard as getUnifiedBetBoard } from "@/lib/bet/http-client";
 import type { BetReliefDTO } from "@/lib/bet/relief";
-import { getFreePredictionMatch, getFreePredictionRanking, submitFreePrediction as telemetry_submitFreePrediction } from "@/actions/free-predictions";
+import { getFreePredictionMatch, submitFreePrediction as telemetry_submitFreePrediction } from "@/actions/free-predictions";
 import { ErrorCode } from "@/lib/errors";
 import type { FreePredictionMatchDTO } from "@/lib/free-predictions/types";
 import type { ComponentProps } from "react";
@@ -76,7 +76,7 @@ export function UnifiedBetBoard({ freeMatches, reliefModel, ...props }: Omit<Com
   return <>
     {readError && <p role="status" className="mb-3 text-sm text-[var(--color-warn)]">预测状态更新失败，请刷新后查看。</p>}
     <BetBoard {...props} mutationPendingAction={mutationPendingAction} initial={bet} refreshAction={async()=> (await refresh()).success} rankingRefreshAction={async sort => {
-      const result = await getFreePredictionRanking({ seasonId, sort });
+      const result = await getBetPredictionRanking({ seasonId, sort });
       return result.success ? { success: true, data: freeRankingModel(result.data) } : result;
     }} relief={{ model: reliefModel, refreshAction: () => getBetRelief({ seasonId }), claimAction: async day => {
       const result = await claimBetRelief({ seasonId, day });
