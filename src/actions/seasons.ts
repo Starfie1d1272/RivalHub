@@ -16,6 +16,7 @@ import { normalizeRegistrationConfig, normalizeTeamRegistrationConfig, teamRegis
 import type { StagePlan, TeamRegistrationConfig } from "@/types/season";
 import { validateCompetitionDefinition } from "@/lib/competition/definition";
 import { assertQualificationPolicyPublishable } from "@/lib/competition/qualification-policy";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { assertSeasonHasNoHistoricalFacts, openSeasonRegistrationInTx, resolveConversionPolicyForPublish, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
 import { seasonFormSchema, seasonUpdatePayloadSchema, planSeasonCreate, planSeasonUpdate, type SeasonFormInput } from "@/lib/seasons/edit";
 import { updatePublicAnnouncementTags, updatePublicSeasonInfoTag, updatePublicSeasonTags } from "@/lib/revalidation";
@@ -146,6 +147,8 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
       if (isReservedSeasonSlug(locked.slug)) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事 slug 与平台保留路由冲突，请先修正 draft 定义。");
       if (locked.competitionTemplate === "custom") assertRunnableCustomDefinition(locked);
 
+      const decoded = decodeSeasonRules(locked);
+      if (decoded.source === "policy_v2") throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "新版资格政策尚未完成全部赛事流程接入，暂不能发布。 ");
       const config = normalizeTeamRegistrationConfig(locked.teamRegistrationConfig);
       assertQualificationPolicyPublishable(config, locked.registrationMode, { maxTeamSize: locked.maxTeamSize, starterCount: locked.starterCount });
       let nextTeamRegistrationConfig: TeamRegistrationConfig | null = config.qualificationPolicy
