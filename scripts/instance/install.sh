@@ -18,11 +18,14 @@ sed 's/from "\.\/supabase-ca"/from "\.\/supabase-ca.ts"/' "$script_dir/../../src
 cp "$script_dir/../../src/db/supabase-ca.ts" "$tls_helper/supabase-ca.ts"
 trap '[[ -z $staging ]] || rm -rf -- "$staging"; rm -rf -- "$tls_helper"' EXIT
 check_identity() {
-  local node=$1 tag=$2 commit=$3
+  local node=$1 tag=$2 commit=$3 environment=${4:-$config} database
+  database=$(env -i "$node" --env-file="$environment" "$script_dir/database-identity.mjs") || return 1
   curl --fail --silent --max-time 5 http://127.0.0.1:3033/ >/dev/null &&
     curl --fail --silent --max-time 5 http://127.0.0.1:3033/api/system/release > "$root/last-release-check.json" &&
     "$node" "$helper" identity "$root/last-release-check.json" "$tag" "$commit" &&
-    env -i "$node" --env-file="$config" "$root/current/scripts/instance/readiness.mjs" "$root/current"
+    curl --fail --silent --max-time 5 http://127.0.0.1:3033/api/system/recovery-source > "$tls_helper/running-source.json" &&
+    "$node" -e 'const fs = require("fs"); const r = JSON.parse(fs.readFileSync(process.argv[1])), d = JSON.parse(process.argv[2]); if (Object.keys(r).sort().join(",") !== "databaseName,releaseCommit,releaseTag,supabaseUrl" || r.releaseTag !== process.argv[3] || r.releaseCommit !== process.argv[4] || r.supabaseUrl !== `https://${d.project}.supabase.co` || r.databaseName !== d.database) process.exit(1)' "$tls_helper/running-source.json" "$database" "$tag" "$commit" &&
+    env -i "$node" --env-file="$environment" "$root/current/scripts/instance/readiness.mjs" "$root/current"
 }
 wait_identity() {
   local attempt
@@ -140,7 +143,7 @@ fi
 previous=$(readlink "$root/current" || true)
 if [[ -n $previous ]]; then
   [[ $# == 9 ]] || { echo 'Existing instances require the release controller.' >&2; exit 1; }
-  [[ $env_file == "$config" ]] || { echo 'An upgrade requires the installed instance environment.' >&2; exit 1; }
+  [[ ! $env_file -ef $config ]] || { echo 'An upgrade requires a separate candidate environment; preserve the installed configuration.' >&2; exit 1; }
   [[ $previous == releases/rivalhub-production-* && -f $root/$previous/standby.json && -f $config && -f $unit ]] || { echo 'Previous rollback state incomplete.' >&2; exit 1; }
   if [[ -z $previous_tag ]]; then
     read -r previous_tag previous_sha < <("$node" "$helper" manifest "$root/$previous/standby.json" "${previous#releases/}")
@@ -171,6 +174,9 @@ if [[ -n $previous ]]; then
 fi
 [[ ! -f $config ]] || cp -p "$config" "$snapshot/instance.env"
 [[ ! -f $unit ]] || cp -p "$unit" "$snapshot/service"
+if [[ -n $previous ]]; then
+  check_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" "$snapshot/instance.env" || { echo 'Running instance does not match the preserved configuration.' >&2; exit 1; }
+fi
 "$node" "$helper" environment "$env_file" "$snapshot/candidate.env" "$tag" "$sha"
 env -i "$node" --env-file="$snapshot/candidate.env" "$staging/scripts/instance/validate-runtime.mjs" "$staging/standby.json"
 candidate_db=$(env -i "$node" --env-file="$snapshot/candidate.env" "$script_dir/database-identity.mjs")
@@ -212,6 +218,9 @@ mv -Tf "$root/previous-snapshot.next" "$root/previous-snapshot"
 # service stopped. Do not enter automatic restore until the drain succeeded.
 if [[ -n $previous || -n $recovery_evidence ]]; then
   env -i PATH=/usr/bin:/bin "$node" "$(dirname "$capability_evidence")/release-capability-gate.mjs" "$capability_evidence" "$previous_tag" "$previous_sha" "$tag" "$sha" "$operator" || { echo 'Installation capability recheck failed.' >&2; exit 1; }
+fi
+if [[ -n $previous ]]; then
+  cmp -s "$config" "$snapshot/instance.env" && check_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" "$snapshot/instance.env" || { echo 'Running instance or installed configuration changed before drain.' >&2; exit 1; }
 fi
 if quiesce; then
   :
