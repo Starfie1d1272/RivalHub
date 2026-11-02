@@ -24,7 +24,7 @@ import {
 } from "@/db/schema";
 import { getPositionCounts, getApprovedCount } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
-import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
+import { normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig, resolveQualificationPolicy } from "@/lib/seasons/compatibility";
 import { resolveManagedMajorProfile } from "@/lib/competition/definition";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 import { PageLayout, Panel, StatusBanner, PosChip } from "@/components/rivalhub";
@@ -37,7 +37,7 @@ import { isSoloRegistration } from "@/lib/utils/season";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { CompetitionEntryFlow } from "@/components/register/CompetitionEntryFlow";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { evaluateRosterQualificationFromFacts, getParticipantReadinessBatch, isHomeAffiliatedMember, loadParticipantQualificationFacts, resolveCompetitiveContext, resolveSeasonEducationVerification } from "@/lib/qualification/service";
+import { computePolicyParticipantReadiness, evaluateRosterQualificationFromFacts, getParticipantReadinessBatch, isHomeAffiliatedMember, loadParticipantQualificationFacts, resolveCompetitiveContext, resolveSeasonEducationVerification } from "@/lib/qualification/service";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { presentRegistrationSchedule } from "@/lib/seasons/presentation";
 import { RegistrationScheduleCountdown } from "@/components/seasons/RegistrationScheduleCountdown";
@@ -203,16 +203,19 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
       const unconfirmedUserIds = rosterRows.filter(row => row.confirmation !== "confirmed").map(row => row.userId);
 
       const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
-      const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
-      const hasCompetitiveProfile = Boolean(teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile);
-      const competitiveContext = hasCompetitiveProfile
-        ? await resolveCompetitiveContext(teamConfig.competitiveProfile!)
+      const policy = resolveQualificationPolicy(season.teamRegistrationConfig, season.affiliationRules, "participant");
+      const v1 = !!season.teamRegistrationConfig?.qualificationPolicy;
+      const affiliationRules = policy.affiliationRules;
+      const needsCompetitiveContext = v1 ? policy.competitiveProfileRequired || policy.externalStrengthGap.enabled : Boolean(teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile);
+      const hasCompetitiveProfile = Boolean(needsCompetitiveContext && policy.competitiveProfile);
+      const competitiveContext = needsCompetitiveContext
+        ? policy.competitiveProfile ? await resolveCompetitiveContext(policy.competitiveProfile) : null
         : undefined;
-      const needsQualificationFacts = hasCompetitiveProfile || affiliationRules.length > 0;
+      const needsQualificationFacts = v1 || needsCompetitiveContext || affiliationRules.length > 0;
       const [qualificationFacts, otherClaims, roleRows] = await Promise.all([
         needsQualificationFacts
         ? loadParticipantQualificationFacts(userIds, {
-            platform: competitiveContext?.platform ?? teamConfig.competitiveProfile?.platform,
+            platform: competitiveContext?.platform ?? policy.competitiveProfile?.platform,
             fallbackPlatform: competitiveContext?.fallbackConversion?.sourcePlatform,
             includeCompetitiveFacts: hasCompetitiveProfile,
           })
@@ -221,9 +224,11 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
         userIds.length ? db.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role, isPrimary: userCompetitiveRoles.isPrimary }).from(userCompetitiveRoles).where(inArray(userCompetitiveRoles.userId, userIds)) : [],
       ]);
       const claimedByOtherEntry = new Set(otherClaims.map(row => row.userId));
-      const readinessByUser = hasCompetitiveProfile
-        ? await getParticipantReadinessBatch(userIds, teamConfig.competitiveProfile!, { facts: qualificationFacts })
-        : new Map();
+      const readinessByUser = v1
+        ? new Map([...qualificationFacts].map(([id, fact]) => [id, computePolicyParticipantReadiness(fact, { ...policy, competitiveProfile: competitiveContext ?? null })]))
+        : hasCompetitiveProfile
+          ? await getParticipantReadinessBatch(userIds, policy.competitiveProfile!, { facts: qualificationFacts })
+          : new Map();
       const qualification = competitiveContext === null
         ? { findings: [{ code: "competitive_context_unavailable", message: "该赛事采用的竞技资料暂时无法核验。", waivable: false }] }
         : await evaluateRosterQualificationFromFacts({
@@ -240,6 +245,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
             }),
             facts: qualificationFacts,
             affiliationRules,
+            ...(v1 ? { policy } : {}),
             competitiveProfile: competitiveContext,
             primaryStarterUserIds: rosterRows.filter((member) => member.primary).map((member) => member.userId),
           });
@@ -315,7 +321,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
             minRoster={season.minTeamSize}
             maxRoster={season.maxTeamSize}
             starterCount={season.starterCount}
-            requiresCompetitiveProfile={season.teamRegistrationConfig?.requireCompetitiveProfile ?? false}
+            requiresCompetitiveProfile={resolveQualificationPolicy(season.teamRegistrationConfig, season.affiliationRules, "participant").competitiveProfileRequired}
             currentTeam={currentTeamRows[0] ?? null}
             captainedTeams={captainedTeams}
             invitationConflict={participantContext.invitationConflict}
