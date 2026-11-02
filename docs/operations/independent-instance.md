@@ -92,7 +92,7 @@ sudo pnpm exec tsx scripts/instance/release.ts --restore-pair \
 
 该入口在锁内核对证据与事务的 artifact、manifest、来源应用和恢复目标，再重新读取数据库账本与 bucket，核对恢复目标的受管 scheduler 已停并排空所有可见活动事务，只有验证通过才将旧应用和恢复目标配对启动；它不执行生产数据库恢复。恢复目标环境不得指向未经恢复的原数据库。恢复证据由操作员受保护目录保存，是一致性凭据而非数字签名；恢复后至启动期间也须保持外部 writer 停止。
 
-原目标上的 scheduler 恢复要求 job 的身份、命令与 schedule 在迁移期间未被更改；不符时保持服务停止。新增或退休 scheduler job 使用 scheduler owner 的供给流程。scheduler 暂停状态只在原目标上恢复；若恢复到新项目，按该目标的 scheduler 运行说明单独供给与核验。新路径仍需隔离端到端演练。Hosted 目标恢复权限和真实 systemd 主机行为尚未验收。完整自托管 Supabase 需要独立工作包：定义非 Hosted 的 API/数据库身份与 TLS、密钥和 provider 配置合同，适配安装、备份、恢复与 scheduler，并在真实自托管组合中验证完整旅程。
+原目标上的 scheduler 恢复要求 job 的身份、命令与 schedule 在迁移期间未被更改；不符时保持服务停止。新增或退休 scheduler job 使用 scheduler owner 的供给流程。scheduler 暂停状态只在原目标上恢复；若恢复到新项目，按该目标的 scheduler 运行说明单独供给与核验。新路径已在隔离环境中以受控 systemd、HTTP 和 Hosted 路径替身，配合真实 PostgreSQL、Storage 和 pg_cron，演练完整故障恢复及正常末端。Hosted 目标恢复权限和真实 systemd 主机行为尚未验收。完整自托管 Supabase 需要独立工作包：定义非 Hosted 的 API/数据库身份与 TLS、密钥和 provider 配置合同，适配安装、备份、恢复与 scheduler，并在真实自托管组合中验证完整旅程。
 
 ## 备份与恢复边界
 
