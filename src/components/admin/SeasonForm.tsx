@@ -499,7 +499,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms, institutionOpt
             <>
               <h2 className="font-semibold">标准 Major 摘要</h2>
               <p className="mt-1 text-[var(--color-fg-mid)]">
-                {standardMajorCheck.managedProfile?.entrantCapacity} 支队伍；队伍整体报名；每队 {minTeamSize}–{maxTeamSize} 人；{standardMajorCheck.managedProfile?.swissStages.length} 个瑞士轮阶段；8 队单败淘汰。
+                {standardMajorCheck.managedProfile?.entrantCapacity} 支队伍；{registrationMode === "solo" ? "个人报名" : "队伍整体报名"}；每队 {minTeamSize}–{maxTeamSize} 人；{standardMajorCheck.managedProfile?.swissStages.length} 个瑞士轮阶段；8 队单败淘汰。
               </p>
               <p className="mt-1 text-[var(--color-fg-mid)]">
                 {standardMajorCheck.managedProfile?.id === "major-24"

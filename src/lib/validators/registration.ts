@@ -80,7 +80,7 @@ export function buildRegistrationSchema(
         message: "请选择主选位置",
       }),
 
-      secondaryPosition: z.string().refine((v) => positions.includes(v), {
+      secondaryPosition: z.string().default("").refine((v) => (positions.length === 1 && v === "") || positions.includes(v), {
         message: "请选择次选位置",
       }),
 
@@ -172,7 +172,7 @@ export function buildRegistrationSchema(
         error: "请勾选反作弊承诺方可提交",
       }),
     })
-    .refine((data) => data.secondaryPosition !== data.primaryPosition, {
+    .refine((data) => !data.secondaryPosition || data.secondaryPosition !== data.primaryPosition, {
       message: "次选位置不能与主选位置相同",
       path: ["secondaryPosition"],
     });

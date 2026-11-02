@@ -7,6 +7,7 @@ import { RegistrationSectionTitle } from "./RegistrationSectionTitle";
 
 interface RegistrationOtherSectionProps {
   inputClassName: string;
+  hasCaptainVoting: boolean;
   register: UseFormRegister<RegistrationInput>;
   watch: UseFormWatch<RegistrationInput>;
   renderError: (name: string) => ReactNode;
@@ -14,6 +15,7 @@ interface RegistrationOtherSectionProps {
 
 export function RegistrationOtherSection({
   inputClassName,
+  hasCaptainVoting,
   register,
   watch,
   renderError,
@@ -22,7 +24,7 @@ export function RegistrationOtherSection({
     <section>
       <RegistrationSectionTitle>其他</RegistrationSectionTitle>
       <div className="space-y-4">
-        <div className="flex items-start gap-3">
+        {hasCaptainVoting && <div className="flex items-start gap-3">
           <input
             id="willingToBeCaptain"
             type="checkbox"
@@ -37,7 +39,7 @@ export function RegistrationOtherSection({
               勾选后将出现在队长投票候选人列表中
             </p>
           </div>
-        </div>
+        </div>}
 
         <div>
           <Label htmlFor="notes" className="text-[var(--color-fg-mid)] mb-1.5 block">
