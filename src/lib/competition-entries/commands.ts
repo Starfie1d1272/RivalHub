@@ -377,7 +377,7 @@ export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId:
   await tx.insert(competitionEntryRosterMembers).values(input.userIds.map((userId) => ({ revisionId: revision.id, participantId: participantByUser.get(userId)!.id, userId, teamMembershipId: currentMemberships.find((row) => row.userId === userId)?.id ?? null, isPrimaryStarter: input.primaryStarterUserIds.includes(userId), primaryPosition: positions.has(userId) ? positions.get(userId)! : previousPositions.get(userId) ?? null })));
   const [teamIdentity] = !entry.logoUrl ? await tx.select({ logoUrl: teams.logoUrl }).from(teams).where(eq(teams.id, entry.teamId)) : [];
   await tx.update(competitionEntries).set({ perfectTeamId, ...(!entry.logoUrl && teamIdentity?.logoUrl ? { logoUrl: teamIdentity.logoUrl } : {}), updatedAt: new Date() }).where(eq(competitionEntries.id, entry.id));
-  await auditEntry(tx, { action: "competition_entry.roster.save", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { revision: revision.revisionNumber, rosterSize: input.userIds.length, primaryStarterCount: input.primaryStarterUserIds.length } });
+  await auditEntry(tx, { action: "competition_entry.roster.save", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { revision: revision.revisionNumber, rosterSize: input.userIds.length, primaryStarterCount: input.primaryStarterUserIds.length, positionChanges: input.userIds.flatMap((userId) => { const previousPosition = previousPositions.get(userId) ?? null; const position = positions.has(userId) ? positions.get(userId)! : previousPosition; return position === previousPosition ? [] : [{ userId, previousPosition, position }]; }) } });
   return { seasonSlug: season.slug };
 }
 
@@ -436,7 +436,7 @@ export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: 
   if (!revision || revision.status !== "draft") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不可编辑。");
   const [rosterMember] = await tx.select({ id: competitionEntryRosterMembers.id, primaryPosition: competitionEntryRosterMembers.primaryPosition }).from(competitionEntryRosterMembers).where(and(eq(competitionEntryRosterMembers.revisionId, revision.id), eq(competitionEntryRosterMembers.participantId, participant.id)));
   if (!rosterMember) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "邀请已更新，请联系赛事负责人确认当前名单。");
-  if (entry.source === "linked_team" && (input.expectedPosition === undefined || input.expectedPosition !== rosterMember.primaryPosition)) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "本届位置已变化，请刷新页面后确认。");
+  if (input.expectedPosition === undefined || input.expectedPosition !== rosterMember.primaryPosition) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "本届位置已变化，请刷新页面后确认。");
   const nativeFormation = entry.source === "event_native" && season.registrationMode === "solo"
     && ((entry.registrationStatus === "draft" && revision.origin === "initial") || (entry.registrationStatus === "changes_requested" && ["self_roster_change", "admin_remediation"].includes(revision.origin) && decodeSeasonRules(season).source === "policy_v2"))
     && (season.status === "registration" || season.status === "drafting");
@@ -473,7 +473,7 @@ export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: 
   }
   if (alreadyConfirmed && declaration === participant.playerType) return { seasonSlug: season.slug, alreadyConfirmed: true };
   await tx.update(competitionEntryParticipants).set({ status: "confirmed", playerType: declaration, confirmedAt: participant.confirmedAt ?? new Date(), updatedAt: new Date() }).where(eq(competitionEntryParticipants.id, participant.id));
-  await auditEntry(tx, { action: "competition_entry.participant.confirm", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: participant.id, userId: input.userId, revisionId: revision.id, playerType: declaration, previousPlayerType: participant.playerType } });
+  await auditEntry(tx, { action: "competition_entry.participant.confirm", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: participant.id, userId: input.userId, revisionId: revision.id, primaryPosition: rosterMember.primaryPosition, playerType: declaration, previousPlayerType: participant.playerType } });
   return { seasonSlug: season.slug, alreadyConfirmed };
 }
 

@@ -1170,7 +1170,7 @@ async function exerciseSelfRosterChangeDeadline(
   const origin = await pool.query<{ origin: string }>("SELECT r.origin::text AS origin FROM competition_entries e INNER JOIN competition_entry_roster_revisions r ON r.id = e.current_roster_revision_id WHERE e.id = $1", [entryId]);
   expect(origin.rows[0]?.origin).toBe("self_roster_change");
   await pool.query("UPDATE seasons SET roster_change_closes_at = now() - interval '1 second' WHERE id = $1", [fixture.seasonId]);
-  await expect(database.transaction((tx) => confirmCompetitionEntryParticipationInTx(tx, { entryId, userId: representativeUserId, actorId: representativeUserId })))
+  await expect(database.transaction((tx) => confirmCompetitionEntryParticipationInTx(tx, { entryId, userId: representativeUserId, actorId: representativeUserId, expectedPosition: null })))
     .rejects.toMatchObject({ code: ErrorCode.REGISTRATION_CLOSED });
 }
 

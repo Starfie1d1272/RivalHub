@@ -1,1 +1,1 @@
-ALTER TABLE "competition_entry_roster_members" ADD COLUMN "primary_position" text;
+ALTER TABLE "public"."competition_entry_roster_members" ADD COLUMN "primary_position" text;

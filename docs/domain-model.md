@@ -116,6 +116,8 @@ Recruitment 是 Team/Player 的当前意向，不是 membership、invitation 或
 
 EventRoster 的当前成员供后续比赛选择；一旦某个成员行被 MatchRoster 引用，它就成为历史比赛事实。名单获批更新时保留该行并标记为非当前，再写入新版本；没有历史引用的旧成员行可以删除。已有 MatchRoster 始终指向原成员行，不随当前 EventRoster 改写。
 
+名单成员的本届位置由 roster revision 保存；队伍报名由赛事负责人按本届配置选择，个人报名的编队从已审核报名复制该事实。修改已确认成员的位置须由本人重新确认；新修订复制原位置，资格评价与新采用的资格快照读取该修订。旧冻结名单与快照不补推位置。
+
 Entry qualification 由 canonical qualification owner 计算。只有明确标记为可解除的政策 finding 才能形成 restriction override；资料缺失、身份、确认状态等硬 blocker 不能被管理员“强行通过”。override 绑定当前 roster revision，新 revision 不继承旧解除。
 
 ## Rivals-specific facts

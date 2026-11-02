@@ -71,17 +71,25 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
       if (participants.some(participant => userIds.includes(participant.userId) && ["declined", "withdrawn"].includes(participant.status))) throw new AppError(ErrorCode.VALIDATION_FAILED, "已退出或拒绝的成员须先重新接受邀请。");
       const previousMembers = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
       const positionsByUser = new Map(previousMembers.map(member => [member.userId, member.primaryPosition]));
+      const positionChanges: { userId: string; previousPosition: string | null; position: string }[] = [];
       await tx.delete(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
       for (const registrationId of members) {
         const userId = byId.get(registrationId)!.userId;
-        const [participant] = await tx.insert(competitionEntryParticipants).values({ entryId: entry.id, userId, status: "invited", invitedByUserId: captain.userId }).onConflictDoUpdate({ target: [competitionEntryParticipants.entryId, competitionEntryParticipants.userId], set: { updatedAt: new Date() } }).returning({ id: competitionEntryParticipants.id });
-        await tx.insert(competitionEntryRosterMembers).values({ revisionId: revision.id, participantId: participant.id, userId, isPrimaryStarter: starterIds.includes(registrationId), primaryPosition: positionsByUser.has(userId) ? positionsByUser.get(userId) : byId.get(registrationId)!.primaryPosition });
+        const [participant] = await tx.insert(competitionEntryParticipants).values({ entryId: entry.id, userId, status: "invited", invitedByUserId: captain.userId }).onConflictDoUpdate({ target: [competitionEntryParticipants.entryId, competitionEntryParticipants.userId], set: { updatedAt: new Date() } }).returning();
+        const previousPosition = positionsByUser.get(userId) ?? null;
+        const primaryPosition = previousPosition ?? byId.get(registrationId)!.primaryPosition;
+        if (primaryPosition !== previousPosition) positionChanges.push({ userId, previousPosition, position: primaryPosition });
+        if (participant.status === "confirmed" && primaryPosition !== previousPosition) {
+          await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.participantId, participant.id));
+          await tx.update(competitionEntryParticipants).set({ status: "invited", confirmedAt: null, updatedAt: new Date() }).where(eq(competitionEntryParticipants.id, participant.id));
+        }
+        await tx.insert(competitionEntryRosterMembers).values({ revisionId: revision.id, participantId: participant.id, userId, isPrimaryStarter: starterIds.includes(registrationId), primaryPosition });
         if (season.hasDraft && !entryId) {
           const [roster] = await tx.insert(eventRosters).values({ entryId: entry.id, status: "preparing" }).returning({ id: eventRosters.id });
           await tx.insert(eventRosterMembers).values({ eventRosterId: roster.id, participantId: participant.id, userId, isPrimaryStarter: starterIds.includes(registrationId) });
         }
       }
-      await writeAuditInTx(tx, { seasonId, action: "competition_entry.roster.save", actorId: auditActorId(admin), targetId: entry.id, meta: { source: "manual_formation", memberRegistrationIds: members, starterRegistrationIds: starterIds } });
+      await writeAuditInTx(tx, { seasonId, action: "competition_entry.roster.save", actorId: auditActorId(admin), targetId: entry.id, meta: { source: "manual_formation", memberRegistrationIds: members, starterRegistrationIds: starterIds, positionChanges } });
       return { entryId: entry.id, slug: season.slug };
     });
     revalidateSeasonPaths(result.slug, ["adminDraft", "teams"]);

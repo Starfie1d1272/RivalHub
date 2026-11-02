@@ -50,7 +50,7 @@ describe("registration opening PostgreSQL", () => {
       const { entryId } = await createCompetitionEntryInTx(tx, { competitionId: seasonId, teamId, userId, actorId: userId });
       const originalRevisionId = (await database.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, entryId) }))!.currentRosterRevisionId;
       const save = () => saveCompetitionEntryRosterInTx(tx, { entryId, userId, actorId: userId, userIds: [userId], primaryStarterUserIds: [userId] });
-      await save(); await confirmCompetitionEntryParticipationInTx(tx, { entryId, userId, actorId: userId });
+      await save(); await confirmCompetitionEntryParticipationInTx(tx, { entryId, userId, actorId: userId, expectedPosition: null });
       const missingLogo = await capturePostgresError(client, () => submitCompetitionEntryInTx(tx, { entryId, userId, actorId: userId }));
       expect(missingLogo).toMatchObject({ message: "请先上传队伍图标并保存本届名单。" });
       await database.update(schema.teams).set({ logoUrl: "https://local.test/first.png" }).where(eq(schema.teams.id, teamId));
