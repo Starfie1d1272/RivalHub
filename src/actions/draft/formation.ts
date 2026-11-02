@@ -14,6 +14,7 @@ import { ok, type ActionResult } from "@/types/action";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entries/roster-change";
+import { formationRosterPosition } from "@/lib/competition-entries/roster-position";
 import { adoptEventNativeRosterInTx } from "@/lib/competition-entries/commands";
 import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import { adoptApprovedRosterInTx } from "@/lib/event-rosters/owner";
@@ -71,13 +72,13 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
       if (participants.some(participant => userIds.includes(participant.userId) && ["declined", "withdrawn"].includes(participant.status))) throw new AppError(ErrorCode.VALIDATION_FAILED, "已退出或拒绝的成员须先重新接受邀请。");
       const previousMembers = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
       const positionsByUser = new Map(previousMembers.map(member => [member.userId, member.primaryPosition]));
-      const positionChanges: { userId: string; previousPosition: string | null; position: string }[] = [];
+      const positionChanges: { userId: string; previousPosition: string | null; position: string | null }[] = [];
       await tx.delete(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
       for (const registrationId of members) {
         const userId = byId.get(registrationId)!.userId;
         const [participant] = await tx.insert(competitionEntryParticipants).values({ entryId: entry.id, userId, status: "invited", invitedByUserId: captain.userId }).onConflictDoUpdate({ target: [competitionEntryParticipants.entryId, competitionEntryParticipants.userId], set: { updatedAt: new Date() } }).returning();
         const previousPosition = positionsByUser.get(userId) ?? null;
-        const primaryPosition = previousPosition ?? byId.get(registrationId)!.primaryPosition;
+        const primaryPosition = formationRosterPosition(revision.positionFactsVersion, positionsByUser, userId, byId.get(registrationId)!.primaryPosition);
         if (primaryPosition !== previousPosition) positionChanges.push({ userId, previousPosition, position: primaryPosition });
         if (participant.status === "confirmed" && (revision.positionFactsVersion === null || primaryPosition !== previousPosition)) {
           await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.participantId, participant.id));

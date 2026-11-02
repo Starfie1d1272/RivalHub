@@ -11,6 +11,11 @@ export function rosterPositionSql(version: SQLWrapper, position: SQLWrapper, sea
   ) else ${position} end`;
 }
 
+/** Registration seeds a new member or a legacy conversion; explicit unknown stays unknown. */
+export function formationRosterPosition(version: number | null, prior: ReadonlyMap<string, string | null>, userId: string, registrationPosition: string): string | null {
+  return version === null || !prior.has(userId) ? registrationPosition : prior.get(userId) ?? null;
+}
+
 /** Copy the legacy interpretation into the new revision and renew consent for declared positions. */
 export async function copyRosterPositionsToRevisionInTx(tx: TxDb, input: {
   revision: typeof competitionEntryRosterRevisions.$inferSelect; nextId: string; actorId: string; excludeUserId?: string;
