@@ -2,10 +2,10 @@ import { assertV2LedgerPrefix, readLegacyLineage, readV2Migrations, type LegacyL
 import { isMigrationLedgerPrefix } from "../migration-ledger";
 import { runVerifiedSupabaseDump } from "./verified-dump";
 import { postgresConnection } from "../../../src/db/postgres-connection";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
-import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
@@ -47,10 +47,11 @@ async function main(): Promise<void> {
   const instance = sourceMode === "instance" ? assertInstanceBackupEnvironment(process.env)
     : sourceMode === "isolated-instance" ? assertIsolatedInstanceBackupEnvironment(process.env) : undefined;
   const environment = instance ?? assertProductionBackupEnvironment(process.env);
-  let frozenPath: string | undefined, sourceManifest: string | undefined;
+  let frozenPath: string | undefined, sourceManifest: string | undefined, stoppedSnapshot: string | undefined;
   if (stopped) {
     if (sourceMode !== "instance" || !instance) throw new Error("Stopped full backup requires an instance source.");
     const snapshot = realpathSync(readFileSync("/opt/rivalhub-instance/previous-snapshot", "utf8").trim());
+    stoppedSnapshot = snapshot;
     frozenPath = realpathSync(process.argv[3]!);
     sourceManifest = realpathSync(process.argv[5]!);
     const current = realpathSync("/opt/rivalhub-instance/current");
@@ -151,6 +152,21 @@ async function main(): Promise<void> {
       manifest,
     });
 
+    if (stoppedSnapshot) {
+      const [candidateTag, candidateCommit, sourceTag, sourceCommit, ...extra] = readFileSync(join(stoppedSnapshot, "identity"), "utf8").trim().split(/\s+/);
+      if (extra.length || !candidateTag || !/^[a-f0-9]{40}$/.test(candidateCommit ?? "")
+        || sourceTag !== source.deployedReleaseTag || sourceCommit !== source.deployedCommit) throw new Error("Stopped transaction identity differs from checkpoint source.");
+      // Written only after artifact, sidecar and completion have passed real GET/hash read-back.
+      // The enclosing root-only transaction binds this receipt to the candidate and DB target.
+      writeFileSync(join(stoppedSnapshot, "full-checkpoint.json"), `${JSON.stringify({
+        version: 1, candidate: { tag: candidateTag, commit: candidateCommit },
+        source: manifest.source, sourceProjectRef: manifest.sourceProjectRef,
+        sourceManifestSha256: createHash("sha256").update(readFileSync(sourceManifest!)).digest("hex"),
+        target: { supabaseUrl: environment.supabaseUrl, databaseName: decodeURI(new URL(environment.databaseUrl).pathname.slice(1)) },
+        runId, artifactSha256: artifact.artifactSha256, manifestSha256: artifact.manifestSha256,
+        completionKey: artifact.keys.completion, storage: manifest.storage,
+      })}\n`, { flag: "wx", mode: 0o600 });
+    }
     console.log(
       `Recovery backup complete: class=${backupClass}, run=${runId}, completion=${artifact.keys.completion}, artifactBytes=${artifact.artifactBytes}, storageObjects=${storage.objectCount}, storageBytes=${storage.totalBytes}, artifactSha256=${artifact.artifactSha256}.`,
     );
