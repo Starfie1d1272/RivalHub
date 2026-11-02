@@ -175,8 +175,9 @@ export function assertRecoveryFetchEnvironment(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): R2ObjectEnvironment {
   const requestedLocal = env.RIVALHUB_R2_LOCAL_ENDPOINT?.trim();
-  if (requestedLocal && (env.RIVALHUB_DB_TARGET !== "local" || env.RIVALHUB_ALLOW_REMOTE_DB_WRITE
-    || (env.RIVALHUB_BACKUP_SOURCE !== "isolated-instance" && env.RIVALHUB_RECOVERY_TARGET !== "isolated"))) {
+  const isolatedOperation = env.RIVALHUB_BACKUP_SOURCE === "isolated-instance"
+    || (!env.RIVALHUB_BACKUP_SOURCE && env.RIVALHUB_RECOVERY_TARGET === "isolated");
+  if (requestedLocal && (env.RIVALHUB_DB_TARGET !== "local" || env.RIVALHUB_ALLOW_REMOTE_DB_WRITE || !isolatedOperation)) {
     throw new Error("Local object storage is restricted to isolated recovery.");
   }
   const localEndpoint = requestedLocal ? assertLocalHttpUrl(requestedLocal, "RIVALHUB_R2_LOCAL_ENDPOINT") : undefined;
