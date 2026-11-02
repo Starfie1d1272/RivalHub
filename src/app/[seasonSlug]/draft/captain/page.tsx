@@ -118,6 +118,7 @@ async function CaptainContent({ params }: DraftCaptainPageProps) {
           data.state.isActive && data.state.currentEntryId === captainTeam.entryId
         }
         positionCounts={positionCounts}
+        positionLimit={data.positionLimit}
         players={data.remainingPlayers}
         seasonPositions={season.positions}
         rosterMembers={captainTeamSlot?.members ?? []}

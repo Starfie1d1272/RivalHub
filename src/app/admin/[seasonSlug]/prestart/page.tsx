@@ -21,6 +21,7 @@ export default async function AdminSeasonPrestartPage({ params }: { params: Prom
     seasonName={season.name}
     hasCaptainVoting={season.hasCaptainVoting}
     hasDraft={season.hasDraft}
+    registrationMode={season.registrationMode}
     stagePlan={normalizeStagePlan(season.stagePlan).map((stage) => ({ key: stage.key, name: stage.name, type: stage.type }))}
   />;
 }

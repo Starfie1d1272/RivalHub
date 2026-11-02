@@ -10,10 +10,11 @@ import {
   seasonRegistrations,
   steamProfiles,
   users,
+  seasons,
 } from "@/db/schema";
-import { DRAFT_TEAMS, DRAFT_TOTAL_ROUNDS } from "@/types/draft";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 import type { MapPreference } from "@/types/season";
-import { getSnakeOrder } from "./rules";
+import { draftFormat, getSnakeOrder } from "./rules";
 
 // ── 公开 DTO ─────────────────────────────────────────────
 
@@ -119,6 +120,7 @@ export interface CaptainDraftData {
   completedPicks: DraftCompletedPick[];
   totalPicks: number;
   maxPicks: number;
+  positionLimit: number;
 }
 
 /** Admin control needs state and counts, not the player registration payload. */
@@ -196,12 +198,16 @@ interface DraftBaseData {
   completedPicks: DraftCompletedPick[];
   totalPicks: number;
   maxPicks: number;
+  positionLimit: number;
   pickedRegistrationIds: Set<string>;
   captainRegistrationIds: Set<string>;
 }
 
 async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "query"> = db, concurrent = false): Promise<DraftBaseData> {
-  const maxPicks = DRAFT_TEAMS * DRAFT_TOTAL_ROUNDS;
+  const season = await executor.query.seasons.findFirst({ where: eq(seasons.id, seasonId) });
+  if (!season) throw new Error("Season not found");
+  const rules = decodeSeasonRules(season);
+  const format = draftFormat(rules);
 
   const stateQuery = executor.query.draftState.findFirst({
     where: eq(draftState.seasonId, seasonId),
@@ -256,6 +262,7 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
     (team): team is typeof team & { draftOrder: number; captainRegistrationId: string } =>
       team.draftOrder !== null && team.captainRegistrationId !== null,
   );
+  const maxPicks = (format.teamCount || teamRows.length) * format.rounds;
 
   const entryIds = teamRows.map((team) => team.id);
   const allMembers =
@@ -373,6 +380,7 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
     })),
     totalPicks: pickRows.length,
     maxPicks,
+    positionLimit: rules.source === "policy_v2" ? rules.roster.maxPerPositionPerTeam : 2,
     pickedRegistrationIds,
     captainRegistrationIds,
   };
@@ -462,7 +470,7 @@ async function loadCaptainRemainingPlayers(
 }
 
 export async function getPublicDraftSummary(seasonId: string): Promise<PublicDraftSummary> {
-  const [state, teams, [pickCount]] = await Promise.all([
+  const [state, teams, [pickCount], season] = await Promise.all([
     db.query.draftState.findFirst({
       columns: {
         currentRound: true,
@@ -487,7 +495,10 @@ export async function getPublicDraftSummary(seasonId: string): Promise<PublicDra
       .innerJoin(seasonRegistrations, eq(draftPicks.registrationId, seasonRegistrations.id))
       .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
       .where(eq(draftPicks.seasonId, seasonId)),
+    db.query.seasons.findFirst({ where: eq(seasons.id, seasonId) }),
   ]);
+  if (!season) throw new Error("Season not found");
+  const format = draftFormat(decodeSeasonRules(season));
 
   return {
     state: state
@@ -500,14 +511,14 @@ export async function getPublicDraftSummary(seasonId: string): Promise<PublicDra
       : null,
     teams,
     totalPicks: Number(pickCount?.value ?? 0),
-    maxPicks: DRAFT_TEAMS * DRAFT_TOTAL_ROUNDS,
+    maxPicks: (format.teamCount || teams.length) * format.rounds,
   };
 }
 
 export async function getPublicDraftData(seasonId: string, archive = false): Promise<PublicDraftData> {
   const { base, remainingPlayers } = await db.transaction(async tx => {
     const base = await loadDraftBase(seasonId, tx);
-    const remainingPlayers = archive || (base.maxPicks > 0 && base.totalPicks >= base.maxPicks)
+    const remainingPlayers = archive || (base.state && !base.state.isActive && !base.state.currentEntryId)
       ? [] : await loadPublicRemainingPlayers(seasonId, base, tx);
     return { base, remainingPlayers };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
@@ -533,6 +544,7 @@ export async function getCaptainDraftData(seasonId: string): Promise<CaptainDraf
     completedPicks: base.completedPicks,
     totalPicks: base.totalPicks,
     maxPicks: base.maxPicks,
+    positionLimit: base.positionLimit,
   };
 }
 

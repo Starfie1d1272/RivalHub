@@ -18,7 +18,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CAPTAIN_TEAM_COUNT } from "@/lib/captains/rules";
 import { positionLabel } from "@/lib/validators/registration";
 import type { AdminCaptainSeed } from "@/lib/captains/data";
 import { observeAction } from "@/lib/telemetry/client";
@@ -31,6 +30,7 @@ interface CaptainConfirmPanelProps {
   teamCount: number;
   candidates: AdminCaptainSeed[];
   candidateCount: number;
+  targetTeamCount: number;
 }
 
 export function CaptainConfirmPanel({
@@ -39,15 +39,16 @@ export function CaptainConfirmPanel({
   teamCount,
   candidates,
   candidateCount,
+  targetTeamCount,
 }: CaptainConfirmPanelProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const seeds = candidates.slice(0, CAPTAIN_TEAM_COUNT);
+  const seeds = candidates.slice(0, targetTeamCount);
   const canConfirm =
     seasonStatus === "voting" &&
     teamCount === 0 &&
-    seeds.length === CAPTAIN_TEAM_COUNT;
+    targetTeamCount > 0 && seeds.length === targetTeamCount;
 
   function handleConfirm() {
     startTransition(async () => {
@@ -66,7 +67,7 @@ export function CaptainConfirmPanel({
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <section className="space-y-3">
         <div>
-          <h2 className="text-xl font-semibold">当前前 {CAPTAIN_TEAM_COUNT} 队长</h2>
+          <h2 className="text-xl font-semibold">{targetTeamCount > 0 ? `当前前 ${targetTeamCount} 队长` : "队长候选人"}</h2>
           <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
             排序规则：票数优先，其次历史最高 Rating，再按报名时间。
           </p>
@@ -137,12 +138,12 @@ export function CaptainConfirmPanel({
               onClick={() => setShowConfirmDialog(true)}
             >
               <CheckCircle2 />
-              确认前 {CAPTAIN_TEAM_COUNT}
+              确认前 {targetTeamCount}
             </Button>
 
             {!canConfirm && (
               <p className="text-xs text-[var(--color-fg-mid)]">
-                仅可在 voting 状态、尚未生成队伍且候选人不少于 {CAPTAIN_TEAM_COUNT} 人时确认。
+                {targetTeamCount > 0 ? `仅可在投票阶段、尚未生成队伍且候选人不少于 ${targetTeamCount} 人时确认。` : "请先设置编队目标队数。"}
               </p>
             )}
           </div>
@@ -161,7 +162,7 @@ export function CaptainConfirmPanel({
           <DialogBody>
             <div className="space-y-3 text-sm leading-6 text-[var(--color-fg-secondary)]">
               <p>
-                即将确认前 <strong>{CAPTAIN_TEAM_COUNT}</strong> 名队长并生成队伍，
+                即将确认前 <strong>{targetTeamCount}</strong> 名队长并生成队伍，
                 赛季将从 <strong>voting</strong> 推进到 <strong>drafting</strong>。
               </p>
               <div className="rounded-sm border p-3 text-sm" style={{ borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)" }}>
@@ -169,7 +170,7 @@ export function CaptainConfirmPanel({
                   此操作不可撤销
                 </p>
                 <ul className="mt-1 list-inside list-disc space-y-0.5 text-[var(--color-fg-mid)]">
-                  <li>将生成 {CAPTAIN_TEAM_COUNT} 支队伍并写入队长成员</li>
+                  <li>将生成 {targetTeamCount} 支队伍并写入队长成员</li>
                   <li>生成后无法回退到投票阶段</li>
                   <li>选秀顺位由当前票数决定</li>
                 </ul>

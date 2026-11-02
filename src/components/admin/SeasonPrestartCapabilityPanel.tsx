@@ -9,17 +9,19 @@ export function SeasonPrestartCapabilityPanel({
   seasonName,
   hasCaptainVoting,
   hasDraft,
+  registrationMode,
   stagePlan,
 }: {
   seasonSlug: string;
   seasonName: string;
   hasCaptainVoting: boolean;
   hasDraft: boolean;
+  registrationMode: "solo" | "team";
   stagePlan: Array<{ key: string; name: string; type: StageType }>;
 }) {
   const links = [
     hasCaptainVoting ? { label: "队长确认", href: `/admin/${seasonSlug}/captains`, detail: "处理本届队长确认" } : null,
-    hasDraft ? { label: "选秀管理", href: `/admin/${seasonSlug}/draft`, detail: "管理本届选秀流程" } : null,
+    hasDraft ? { label: "选秀管理", href: `/admin/${seasonSlug}/draft`, detail: "管理本届选秀流程" } : registrationMode === "solo" ? { label: "管理员编队", href: `/admin/${seasonSlug}/draft`, detail: "创建并编辑编队草稿" } : null,
   ].filter((link): link is { label: string; href: string; detail: string } => link !== null);
 
   return (

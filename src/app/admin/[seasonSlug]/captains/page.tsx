@@ -1,5 +1,6 @@
 import { findAdminSeasonOverviewBySlug } from "@/lib/admin/season-context";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 
 
 import { CaptainConfirmPanel } from "@/components/captains/CaptainConfirmPanel";
@@ -23,6 +24,7 @@ export default async function AdminCaptainsPage({ params }: AdminCaptainsPagePro
           <p className="text-sm text-[var(--color-fg-mid)]">
             该赛季未启用队长投票。
           </p>
+          {!season.hasDraft && <Link className="mt-3 inline-block underline" href={`/admin/${season.slug}/draft`}>前往管理员编队</Link>}
         </Panel>
       </div>
     );
@@ -35,7 +37,7 @@ export default async function AdminCaptainsPage({ params }: AdminCaptainsPagePro
 
   return (
     <div className="space-y-6">
-      <PageHeader title={`队长确认 · ${season.name}`} description="查看票数排序，确认前 8 名后自动生成队伍与 draft order。" />
+      <PageHeader title={`队长确认 · ${season.name}`} description={`查看票数排序，确认前 ${data.targetTeamCount} 名后生成队伍。`} />
 
       <CaptainConfirmPanel
         seasonId={season.id}
@@ -43,6 +45,7 @@ export default async function AdminCaptainsPage({ params }: AdminCaptainsPagePro
         teamCount={teamCount}
         candidates={data.seeds}
         candidateCount={data.candidateCount}
+        targetTeamCount={data.targetTeamCount}
       />
     </div>
   );

@@ -14,6 +14,7 @@ export interface AutoPickCandidate {
 export function selectAutoPickCandidate(
   candidates: AutoPickCandidate[],
   positionCounts: Record<string, number>,
+  positionLimit = 2,
 ): AutoPickCandidate | null {
   const sorted = [...candidates].sort((a, b) => {
     const rankA = RANK_ORDER.indexOf(a.peakRank as (typeof RANK_ORDER)[number]);
@@ -44,7 +45,7 @@ export function selectAutoPickCandidate(
   // Round 2: any position below the cap (max 2 per position in draft)
   return (
     sorted.find((candidate) =>
-      canPickPosition(positionCounts[candidate.primaryPosition] ?? 0),
+      canPickPosition(positionCounts[candidate.primaryPosition] ?? 0, positionLimit),
     ) ?? null
   );
 }
