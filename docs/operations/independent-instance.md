@@ -33,7 +33,23 @@ node scripts/instance/build.mjs
 sudo bash scripts/instance/install.sh /path/to/manifest.layers.json /path/to/instance.env
 ```
 
-安装验证 manifest 与各层、组装独立目录，停服务并确认数据库事务排空，原子切换 current，检查首页、release identity 和数据库活跃链账本；候选失败会排空后恢复前一版本及配置。排空失败保持停机供检查。安装不会运行迁移；当前构件要求数据库账本与构件所含 active chain 完全一致，升级迁移等价由 F2 确定。首次安装后按 `scripts/instance/Caddyfile.example` 配置自己的域名及 TLS，验证反向代理；不要把示例域名当成实际站点。应用、构件与密钥分开保存。
+安装验证 manifest 与各层、组装独立目录，停服务并确认数据库事务排空，原子切换 current，检查首页、release identity 和数据库活跃链账本；候选失败会排空后恢复前一版本及配置。排空失败保持停机供检查。首次安装后按 `scripts/instance/Caddyfile.example` 配置自己的域名及 TLS，验证反向代理；不要把示例域名当成实际站点。应用、构件与密钥分开保存。
+
+## 应用升级与回滚
+
+对于数据库账本与新旧构件均完全一致的应用升级，在目标机使用与候选构件 operator commit 一致的干净源码目录运行：
+
+```bash
+sudo pnpm exec tsx scripts/instance/release.ts /path/to/manifest.layers.json /etc/rivalhub-instance/instance.env
+```
+
+controller 从运行中实例读取真实 release identity，从不可变 Git commit 读取前后能力合同，并生成与正式 release 共用格式的受限证据。安装器在切换及补偿回滚前复验合同，将身份和证据保存在 root-only 事务快照。若需显式恢复上一事务，在同一 operator 源码目录运行：
+
+```bash
+sudo pnpm exec tsx scripts/instance/release.ts --rollback
+```
+
+安装器不会运行数据库迁移；readiness 仍要求数据库账本与所运行构件完全一致。涉及迁移的升级与跨账本回滚尚未开放，不能以应用回滚作为数据库回滚。
 
 ## 备份与恢复边界
 
@@ -41,7 +57,7 @@ sudo bash scripts/instance/install.sh /path/to/manifest.layers.json /path/to/ins
 
 仅 full artifact 可以申请恢复证据。恢复到新的非官方 Hosted 项目时，显式设置 `RIVALHUB_RECOVERY_TARGET=instance`、`RIVALHUB_INSTANCE_WRITE=yes`、目标项目 ref 和确认值，以及目标 `RIVALHUB_RECOVERY_DATABASE_URL`、`RIVALHUB_RECOVERY_SUPABASE_URL`、`RIVALHUB_RECOVERY_PUBLISHABLE_KEY`、`RIVALHUB_RECOVERY_SERVICE_ROLE_KEY`。使用原有 `db:recovery:fetch` 和 `db:recovery:restore`，后者接受 `--evidence-directory` 指向恢复操作员拥有且权限为 0700 的目录。只有 artifact、数据、生命周期、Storage 和账本均验证通过后才生成权限 0600 的证据；DB-only checkpoint 不可生成证据。Hosted provider 的所需恢复权限尚未实机验证，权限拒绝必须停止处理。
 
-新主机安装可向 `install.sh` 传 `--recovery-evidence` 和上述文件。安装前会核查受保护文件、恢复的真实目标、完整账本以及与备份相同的 release；然后再次读取实际数据库的账本和 bucket。无证据仍执行 fresh-only 检查。同机升级与后续应用切换仍须遵循现有 release 能力合同，恢复证据不自动授权跨版本升级。文件 checksum 和受保护目录提供一致性及运营者信任边界，并非备份来源的数字签名。
+新主机恢复后通过 `scripts/instance/release.ts --recover MANIFEST INSTANCE_ENV EVIDENCE` 调用现有控制器；控制器从受保护的恢复证据和 Git 实际提交读取前后身份及能力，安装器不接受单独的恢复绕过参数。安装前会核查受保护文件、恢复的真实目标、完整账本以及与备份相同的 release；然后再次读取实际数据库的账本和 bucket。无证据仍执行 fresh-only 检查。同机升级与后续应用切换仍须遵循现有 release 能力合同，恢复证据不自动授权跨版本升级。文件 checksum 和受保护目录提供一致性及运营者信任边界，并非备份来源的数字签名。
 
 ## Scheduler
 

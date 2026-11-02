@@ -33,6 +33,7 @@
     "scripts/instance/build.mjs!",
     "scripts/instance/database-identity.mjs!",
     "scripts/instance/provision.ts!",
+    "scripts/instance/release.ts!",
     "scripts/instance/readiness.mjs!",
     "scripts/instance/recovery-evidence.mjs!",
     "scripts/instance/validate-runtime.mjs!",

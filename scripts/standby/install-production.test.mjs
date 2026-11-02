@@ -38,6 +38,7 @@ test('host promotion, failed restart recovery, immutable retry and explicit roll
       betLedger: { readerVersion: 0, publisherVersion: 0, capabilities: {} },
       vetoLifecycle: { readerVersion: 0, publisherVersion: 0, capabilities: {} },
       publicAsset: { readerVersion: 1, publisherVersion, capabilities: {} },
+      competitionFormat: { readerVersion: 0, publisherVersion: 0, capabilities: {} },
     });
     writeFileSync(capabilityEvidence, JSON.stringify({ version: 1, operatorCommit: operator,
       previous: { tag: 'v1.0.0', commit: old, capabilities: capabilities(0) },

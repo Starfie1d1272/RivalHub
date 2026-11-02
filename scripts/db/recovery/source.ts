@@ -61,6 +61,8 @@ export function assertInstanceReleaseIdentity(tag: string, commit: string, cwd =
     || tag !== `v${version}-instance.${commit.slice(0, 12)}`) {
     throw new Error("Instance release label does not match its committed package and commit.");
   }
+  const capability = spawnSync("git", ["cat-file", "-e", `${commit}:src/lib/competition/release-contract.json`], { cwd, stdio: "ignore" });
+  if (capability.error || capability.status !== 0) throw new Error("Instance release lacks its competition capability contract.");
 }
 
 async function readSourceIdentity(
