@@ -94,7 +94,7 @@ if [[ ${1:-} == --restore-pair ]]; then
   [[ -f $2 && ! -L $2 && $(stat -c %u "$2") == 0 && $((8#$(stat -c %a "$2") & 077)) == 0 && $(stat -c %u "$(dirname "$2")") == 0 && $((8#$(stat -c %a "$(dirname "$2")") & 077)) == 0 ]] || { echo 'Protected recovery evidence required.' >&2; exit 1; }
   node="$root/$previous/runtime/node"
   "$node" "$helper" manifest "$root/$previous/standby.json" "${previous#releases/}" "$previous_tag" "$previous_sha" >/dev/null
-  "$node" -e 'const fs = require("fs"); const r = JSON.parse(fs.readFileSync(process.argv[1])), e = JSON.parse(fs.readFileSync(process.argv[2])); if (r.version !== 1 || e.artifactKind !== "full" || e.runId !== r.runId || e.artifactSha256 !== r.artifactSha256 || e.manifestSha256 !== r.manifestSha256 || e.source?.deployedReleaseTag !== r.source?.deployedReleaseTag || e.source?.deployedCommit !== r.source?.deployedCommit) process.exit(1)' "$snapshot/full-checkpoint.json" "$2"
+  "$node" -e 'const fs = require("fs"), crypto = require("crypto"); const r = JSON.parse(fs.readFileSync(process.argv[1])), e = JSON.parse(fs.readFileSync(process.argv[2])); if (r.sourceManifestSha256 !== crypto.createHash("sha256").update(fs.readFileSync(process.argv[3])).digest("hex") || r.version !== 1 || e.artifactKind !== "full" || e.runId !== r.runId || e.artifactSha256 !== r.artifactSha256 || e.manifestSha256 !== r.manifestSha256 || e.source?.deployedReleaseTag !== r.source?.deployedReleaseTag || e.source?.deployedCommit !== r.source?.deployedCommit) process.exit(1)' "$snapshot/full-checkpoint.json" "$2" "$root/$previous/standby.json"
   quiesce || { echo 'Cannot drain current instance; paired recovery remains stopped.' >&2; exit 1; }
   "$node" "$helper" environment "$3" "$snapshot/restored-instance.env" "$previous_tag" "$previous_sha"
   env -i "$node" --env-file="$snapshot/restored-instance.env" "$script_dir/recovery-evidence.mjs" "$2" "$root/$previous/standby.json" "$previous_tag" "$previous_sha"
@@ -194,7 +194,10 @@ if [[ -n $previous ]]; then
     migration_changed=1
     [[ -n $checkpoint_env && -f $checkpoint_env && ! -L $checkpoint_env && $(stat -c %u "$checkpoint_env") == 0 && $((8#$(stat -c %a "$checkpoint_env") & 077)) == 0 && $(stat -c %u "$(dirname "$checkpoint_env")") == 0 && $((8#$(stat -c %a "$(dirname "$checkpoint_env")") & 077)) == 0 ]] || { echo 'Migration requires a root-owned private checkpoint environment.' >&2; exit 1; }
   fi
-  if [[ ${#transition_arg[@]} -gt 0 && $migration_changed != 1 ]]; then echo 'Major transition requires a changed migration lineage.' >&2; exit 1; fi
+  if [[ ${#transition_arg[@]} -gt 0 ]]; then
+    [[ $migration_changed == 1 ]] || { echo 'Major transition requires a changed migration lineage.' >&2; exit 1; }
+    "$node" -e 'const fs = require("fs"), crypto = require("crypto"); const read = p => JSON.parse(fs.readFileSync(p)); const chain = p => read(`${p}/meta/_journal.json`).entries.map(x => ({hash: crypto.createHash("sha256").update(fs.readFileSync(`${p}/${x.tag}.sql`)).digest("hex"), when:x.when})); const before = read(process.argv[1]).migrations, after = read(process.argv[2]).migrations, legacy = chain("drizzle/v2-migrations"), active = chain("drizzle/migrations"); const prefix = (a,b) => Array.isArray(a) && a.length > 0 && a.length <= b.length && a.every((x,i) => x.hash === b[i].hash && x.when === b[i].when); if (!prefix(before,legacy) || !prefix(after,active) || after.length !== active.length) process.exit(1)' "$root/$previous/standby.json" "$staging/standby.json" || { echo 'Major transition source or target lineage differs.' >&2; exit 1; }
+  fi
   operator=$("$node" "$helper" operator "$staging/standby.json")
   cmp -s "$(dirname "$capability_evidence")/release-capability-gate.mjs" "$script_dir/../standby/release-capability-gate.mjs" || exit 1
   cmp -s "$(dirname "$capability_evidence")/capability-contract.ts" "$script_dir/../release/capability-contract.ts" || exit 1
