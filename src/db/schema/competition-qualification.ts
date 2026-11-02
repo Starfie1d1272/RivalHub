@@ -30,7 +30,7 @@ export const competitionQualificationRuns = pgTable("competition_qualification_r
   directEntryCount: integer("direct_entry_count").notNull(),
   playInEntryCount: integer("play_in_entry_count").notNull(),
   qualifierCount: integer("qualifier_count").notNull(),
-  eligibilityPolicy: jsonb("eligibility_policy").$type<import("@/lib/competition-qualification/eligibility").QualificationEligibilityPolicy>(),
+  eligibilityPolicy: jsonb("eligibility_policy").$type<import("@/lib/competition-qualification/eligibility").QualificationEligibilityPolicy | import("@/lib/seasons/eligibility-snapshot").QualificationEligibilityPolicyV2>(),
   configuredAt: timestamp("configured_at", { withTimezone: true }).notNull().defaultNow(),
   configuredBy: text("configured_by").notNull(),
   startedAt: timestamp("started_at", { withTimezone: true }),

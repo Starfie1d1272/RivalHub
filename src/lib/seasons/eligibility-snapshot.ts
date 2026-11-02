@@ -36,3 +36,10 @@ export type EventRosterEligibilitySnapshotV2 = z.infer<typeof eventRosterEligibi
 export function decodeEventRosterEligibilitySnapshotV2(value: unknown): EventRosterEligibilitySnapshotV2 {
   return eventRosterEligibilitySnapshotV2Schema.parse(value);
 }
+
+/** Policy shared by a qualification run; individual adopted facts live in its roster snapshots. */
+export type QualificationEligibilityPolicyV2 = {
+  version: 2;
+  rules: EventRosterEligibilitySnapshotV2["rules"];
+  competitive: Omit<NonNullable<EventRosterEligibilitySnapshotV2["competitive"]>, "byPurpose"> | null;
+};
