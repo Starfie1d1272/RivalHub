@@ -2,6 +2,7 @@
 
 import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { evaluateSeasonParticipantInTx } from "@/lib/qualification/service";
+import { evaluateRankThreshold } from "@/lib/competitive/player-strength";
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import { revalidatePath } from "next/cache";
@@ -13,7 +14,7 @@ import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
 import { getUserSession } from "@/lib/auth/session";
-import { buildRegistrationSchema, registrationSeedSchema, type RegistrationFormData } from "@/lib/validators/registration";
+import { buildRegistrationSchema, registrationSeedSchema, RANK_ORDER, type RegistrationFormData } from "@/lib/validators/registration";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { getRegistrationWindowState } from "@/lib/registration/window";
 import { normalizeEmail } from "@/lib/utils/email";
@@ -235,6 +236,16 @@ export async function submitRegistration(input: RegistrationFormData) {
     }
 
     const data = parsed.data;
+    if (rules.source !== "policy_v2") {
+      const legacyThreshold = evaluateRankThreshold({
+        userId: session.userId,
+        label: "选手",
+        historicalPeak: data.peakRank && data.peakRating != null ? { rank: data.peakRank, rating: data.peakRating } : null,
+        previousSeasonPeak: null,
+        currentSeasonPeak: data.currentSeasonPeakRank && data.currentRating != null ? { rank: data.currentSeasonPeakRank, rating: data.currentRating } : null,
+      }, registrationConfig.rankThreshold, RANK_ORDER);
+      if (legacyThreshold.length) throw new AppError(ErrorCode.VALIDATION_FAILED, legacyThreshold.map((finding) => finding.message).join("；"));
+    }
     const normalizedEmail = normalizeEmail(data.email);
     if (normalizedEmail !== normalizeEmail(session.email)) {
       return fail({
