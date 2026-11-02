@@ -45,6 +45,7 @@
 | Demo import/receipt/私有诊断 | 为导入排障、赛果更正和来源追溯保留，不设置统一固定 purge 期限 | 保留现有领域删除与关联生命周期；原始数据和诊断保持私有，正式统计继续由 canonical projection 提供 |
 | 设备 verifier、配对/邀请、会话 | 原 owner expiresAt/撤销控制使用资格；session 有 canonical 有效期 | registry 注册时清该用户过期会话，退出/全撤销删除记录，durable fence 保留；设备撤销保留关系/audit。失效 intents/receipts 未有统一物理 purge |
 | 反馈 | 为问题跟进、重复问题识别与历史排障保留；resolved 后不设置自动删除期限 | 状态更新保留 body/pathname/fingerprint，访问继续限超级管理员；主动撤回或匿名化产品未实现 |
+| 实际开局时间采用记录 | 比赛事实 owner 为赛务核验保留修订、原因及证据来源；仅授权管理员和审计读取，不设统一自动 purge | 随业务数据库备份与恢复；保留原始观测，删除或匿名化尚无自动流程 |
 | 业务 audit | 当前无统一自动 purge，维护正式追溯 | 低敏写入与安全投影不使历史 raw/private meta 公开；未来脱敏需定义责任追溯、tombstone、授权关系 |
 | 产品遥测 | 压缩 raw/索引及短期聚合关联键至多七天；两类长期汇总各自默认关闭，启用时明确 1–90 天；任务 attempt 仅客户端内存，身份切换清空 | 读端到期不可见、小时任务分块删行，不保证所有副本七天物理擦除；D1 Time Travel 恢复副本可能在行删除后另存七天，清理故障还会延后，必须按 [产品遥测清单](../operations/product-telemetry.md) 确认总保留要求；恢复前停收并清过期数据；不进入应用 PG 备份 |
 | Runtime telemetry | provider-managed，按当前 project/source/plan 核验 | provider 管理过期；仓库采样率不能推出保留期，ingest secret presence 不能证明查询权限。实际配置/owner/核验时间留在执行 Issue |

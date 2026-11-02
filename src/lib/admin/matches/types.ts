@@ -178,6 +178,7 @@ export interface AdminMatchWorkbenchData {
   pendingMaps: AdminPendingMap[];
   finishedMaps: AdminFinishedMap[];
   vetoCompletedAt: Date | null;
+  actualStart: { original: string | null; adopted: string | null; revision: number } | null;
   officialMapStart?: { mapId: string; mapName: string } | null;
   postMatch: AdminPostMatchRecordData | null;
   demoReviews?: AdminDemoReviewMap[];
