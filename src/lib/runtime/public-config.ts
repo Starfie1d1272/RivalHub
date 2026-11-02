@@ -11,15 +11,13 @@ export type PublicRuntimeConfig = {
 /** Read only explicitly public values; never serialize the environment itself. */
 export function readPublicRuntimeConfig(env: NodeJS.ProcessEnv): PublicRuntimeConfig {
   const supabaseUrl = requireSupabaseOrigin(env.NEXT_PUBLIC_SUPABASE_URL);
-  const cooldown = env.NEXT_PUBLIC_AUTH_EMAIL_RESEND_COOLDOWN_SECONDS;
-  const seconds = cooldown === undefined || cooldown === "" ? 60 : Number(cooldown);
-  if (!Number.isSafeInteger(seconds) || seconds <= 0) throw new Error("NEXT_PUBLIC_AUTH_EMAIL_RESEND_COOLDOWN_SECONDS 必须是正整数。");
+  const seconds = Number(env.NEXT_PUBLIC_AUTH_EMAIL_RESEND_COOLDOWN_SECONDS);
   return {
     appOrigin: requireApplicationOrigin(env),
     supabaseUrl,
     supabasePublishableKey: requireSupabasePublicKey(env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, supabaseUrl),
     turnstileSiteKey: env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "",
-    authEmailResendCooldownSeconds: seconds,
+    authEmailResendCooldownSeconds: Number.isSafeInteger(seconds) && seconds > 0 ? seconds : 60,
   };
 }
 
