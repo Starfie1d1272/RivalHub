@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install a verified immutable instance package; never runs database migrations.
+# Install a verified immutable instance package under the release controller lock.
 set -Eeuo pipefail
 umask 077
 [[ $(id -u) == 0 ]] || { echo 'Run as root on the instance host.' >&2; exit 1; }
@@ -50,6 +50,11 @@ quiesce() {
   fi
 }
 restore() {
+  if [[ -f $snapshot/migration-started ]]; then
+    echo "Database migration started; keep service stopped and restore the checkpoint before recovery: $snapshot" >&2
+    quiesce || true
+    return 1
+  fi
   if [[ -n $previous ]]; then
     env -i PATH=/usr/bin:/bin "$root/$previous/runtime/node" "$(dirname "$capability_evidence")/release-capability-gate.mjs" "$capability_evidence" "$previous_tag" "$previous_sha" "$tag" "$sha" "$operator" || return 1
   fi
@@ -71,6 +76,7 @@ restore() {
 }
 failed() {
   trap - ERR HUP INT TERM
+  rm -f "$snapshot/checkpoint.env"
   if restore; then echo "Candidate failed; previous state restored: $snapshot" >&2
   else echo "ROLLBACK FAILED; manual recovery required: $snapshot" >&2; fi
   exit 1
@@ -109,9 +115,10 @@ if [[ ${1:-} == --rollback ]]; then
   echo "Previous release restored: $previous_tag $previous_sha"
   exit 0
 fi
-[[ $# == 2 || ( $# == 9 && $3 == --release && $8 == --capability-evidence ) || ( $# == 11 && $3 == --release && $8 == --capability-evidence && ${10:-} == --recovery-evidence ) ]] || { echo 'Use the instance release controller for upgrade or recovery.' >&2; exit 1; }
-recovery_evidence=''
-[[ $# != 11 ]] || recovery_evidence=${11:-}
+[[ $# == 2 || ( $# == 9 && $3 == --release && $8 == --capability-evidence ) || ( $# == 11 && $3 == --release && $8 == --capability-evidence && ( ${10:-} == --recovery-evidence || ${10:-} == --checkpoint-env ) ) ]] || { echo 'Use the instance release controller for upgrade or recovery.' >&2; exit 1; }
+recovery_evidence='' checkpoint_env='' migration_changed=0
+if [[ $# == 11 && ${10:-} == --recovery-evidence ]]; then recovery_evidence=${11:-}; fi
+if [[ $# == 11 && ${10:-} == --checkpoint-env ]]; then checkpoint_env=$(realpath "${11:-}"); fi
 archive=$(realpath "$1")
 env_file=$(realpath "$2")
 (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$archive").sha256")
@@ -142,7 +149,7 @@ if [[ -e $release ]]; then
 fi
 previous=$(readlink "$root/current" || true)
 if [[ -n $previous ]]; then
-  [[ $# == 9 ]] || { echo 'Existing instances require the release controller.' >&2; exit 1; }
+  [[ $# == 9 || ( $# == 11 && -n $checkpoint_env ) ]] || { echo 'Existing instances require the release controller.' >&2; exit 1; }
   [[ ! $env_file -ef $config ]] || { echo 'An upgrade requires a separate candidate environment; preserve the installed configuration.' >&2; exit 1; }
   [[ $previous == releases/rivalhub-production-* && -f $root/$previous/standby.json && -f $config && -f $unit ]] || { echo 'Previous rollback state incomplete.' >&2; exit 1; }
   if [[ -z $previous_tag ]]; then
@@ -151,7 +158,10 @@ if [[ -n $previous ]]; then
   [[ -n $previous_tag && -n $previous_sha ]] || exit 1
   "$node" "$helper" manifest "$root/$previous/standby.json" "${previous#releases/}" "$previous_tag" "$previous_sha" >/dev/null || { echo 'Current host differs from frozen previous release.' >&2; exit 1; }
   check_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" || { echo 'Running instance identity or ledger differs from frozen previous release.' >&2; exit 1; }
-  "$node" -e 'const fs = require("fs"); const a = JSON.parse(fs.readFileSync(process.argv[1])).migrations, b = JSON.parse(fs.readFileSync(process.argv[2])).migrations; if (!Array.isArray(a) || !a.length || !Array.isArray(b) || a.length !== b.length || a.some((m, i) => m.hash !== b[i]?.hash || m.when !== b[i]?.when)) process.exit(1)' "$root/$previous/standby.json" "$staging/standby.json" || { echo 'Migration-changing upgrades are not supported.' >&2; exit 1; }
+  if ! "$node" -e 'const fs = require("fs"); const a = JSON.parse(fs.readFileSync(process.argv[1])).migrations, b = JSON.parse(fs.readFileSync(process.argv[2])).migrations; if (!Array.isArray(a) || !a.length || !Array.isArray(b) || a.length !== b.length || a.some((m, i) => m.hash !== b[i]?.hash || m.when !== b[i]?.when)) process.exit(1)' "$root/$previous/standby.json" "$staging/standby.json"; then
+    migration_changed=1
+    [[ -n $checkpoint_env && -f $checkpoint_env && ! -L $checkpoint_env && $(stat -c %u "$checkpoint_env") == 0 && $((8#$(stat -c %a "$checkpoint_env") & 077)) == 0 && $(stat -c %u "$(dirname "$checkpoint_env")") == 0 && $((8#$(stat -c %a "$(dirname "$checkpoint_env")") & 077)) == 0 ]] || { echo 'Migration requires a root-owned private checkpoint environment.' >&2; exit 1; }
+  fi
   operator=$("$node" "$helper" operator "$staging/standby.json")
   cmp -s "$(dirname "$capability_evidence")/release-capability-gate.mjs" "$script_dir/../standby/release-capability-gate.mjs" || exit 1
   cmp -s "$(dirname "$capability_evidence")/capability-contract.ts" "$script_dir/../release/capability-contract.ts" || exit 1
@@ -197,7 +207,9 @@ if [[ -z $previous ]]; then
     readiness_args+=(--fresh)
   fi
 fi
-env -i "$node" --env-file="$snapshot/candidate.env" "$staging/scripts/instance/readiness.mjs" "$staging" "${readiness_args[@]}"
+if [[ $migration_changed == 0 ]]; then
+  env -i "$node" --env-file="$snapshot/candidate.env" "$staging/scripts/instance/readiness.mjs" "$staging" "${readiness_args[@]}"
+fi
 if ! id rivalhub-instance >/dev/null 2>&1; then
   useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin rivalhub-instance
 fi
@@ -221,6 +233,7 @@ if [[ -n $previous || -n $recovery_evidence ]]; then
 fi
 if [[ -n $previous ]]; then
   cmp -s "$config" "$snapshot/instance.env" && check_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" "$snapshot/instance.env" || { echo 'Running instance or installed configuration changed before drain.' >&2; exit 1; }
+  cp "$tls_helper/running-source.json" "$snapshot/running-source.json"
 fi
 if quiesce; then
   :
@@ -234,6 +247,21 @@ else
   exit 1
 fi
 trap failed ERR HUP INT TERM
+if [[ $migration_changed == 1 ]]; then
+  # Recheck the exact source ledger after writers stop and after the checkpoint.
+  env -i "$node" --env-file="$snapshot/instance.env" "$root/$previous/scripts/instance/readiness.mjs" "$root/$previous"
+  cp -p "$checkpoint_env" "$snapshot/checkpoint.env"
+  tool_path="$(dirname "$(command -v pnpm)"):$release/runtime:/usr/local/bin:/usr/bin:/bin"
+  env -i PATH="$tool_path" RIVALHUB_BACKUP_SOURCE=instance "$node" --env-file="$snapshot/checkpoint.env" --env-file="$snapshot/instance.env" node_modules/tsx/dist/cli.mjs scripts/db/recovery/checkpoint.ts --stopped-instance-source "$snapshot/running-source.json" | tee "$snapshot/checkpoint.log"
+  rm -f "$snapshot/checkpoint.env"
+  env -i "$node" --env-file="$snapshot/instance.env" "$root/$previous/scripts/instance/readiness.mjs" "$root/$previous"
+  instance_ref=$("$node" -e 'console.log(JSON.parse(process.argv[1]).project)' "$candidate_db")
+  # Persist before invoking the migrator: an interrupted or partially committed
+  # migration can never make automatic application rollback safe.
+  "$node" -e 'const fs = require("fs"); const log = fs.openSync(process.argv[1] + "/checkpoint.log", "r"); fs.fsyncSync(log); fs.closeSync(log); const fd = fs.openSync(process.argv[1] + "/migration-started", "wx", 0o600); fs.fsyncSync(fd); fs.closeSync(fd); const dir = fs.openSync(process.argv[1], "r"); fs.fsyncSync(dir); fs.closeSync(dir)' "$snapshot"
+  env -i PATH="$tool_path" RIVALHUB_INSTANCE_PROJECT_REF="$instance_ref" RIVALHUB_INSTANCE_CONFIRM="$instance_ref" RIVALHUB_INSTANCE_WRITE=yes "$node" --env-file="$snapshot/candidate.env" node_modules/tsx/dist/cli.mjs scripts/instance/provision.ts upgrade "$root/$previous/standby.json" "$release/standby.json" "$snapshot"
+  env -i "$node" --env-file="$snapshot/candidate.env" "$release/scripts/instance/readiness.mjs" "$release"
+fi
 install -m 600 "$snapshot/candidate.env" "$config"
 install -m 644 "$script_dir/rivalhub-instance.service" "$unit"
 ln -sfn "releases/$release_name" "$root/current.next"
