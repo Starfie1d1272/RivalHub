@@ -1,6 +1,7 @@
 "use server";
 
 import { isReservedSeasonSlug } from "@/lib/seasons/slug";
+import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import { revalidatePath } from "next/cache";
@@ -151,8 +152,11 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
       if (locked.registrationMode === "team" && (locked.hasCaptainVoting || locked.hasDraft)) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "队长投票和选秀需要个人报名，请改为个人报名或关闭编队环节。");
       }
-      if (decoded.source === "policy_v2" && locked.registrationMode === "team" && (decoded.roster.requirePositions || decoded.roster.maxPerPositionPerTeam > 0)) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍报名尚不支持填写本届赛事成员位置，请先关闭位置要求和位置人数上限。");
+      if (decoded.source === "policy_v2" && locked.registrationMode === "team" && decoded.roster.requirePositions) {
+        const availablePositions = decoded.roster.positions.filter(position => (CS2_POSITION_VALUES as readonly string[]).includes(position));
+        if (availablePositions.length === 0 || (decoded.roster.maxPerPositionPerTeam > 0 && availablePositions.length * decoded.roster.maxPerPositionPerTeam < decoded.roster.minTeamSize)) {
+          throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍报名尚无本届自定义位置输入，现有成员位置不足以满足名单要求。");
+        }
       }
       if (decoded.competitive.externalStrengthGap.enabled && decoded.roster.affiliationRules.length === 0) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "外校实力星差需要至少一个本校机构作为参考。 ");
