@@ -743,6 +743,20 @@
       "when": 1793602089118,
       "tag": "0105_public_asset_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1793611768711,
+      "tag": "0106_actual_start_adoption",
+      "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1793612820979,
+      "tag": "0107_nullable_registration_competitive_facts",
+      "breakpoints": true
     }
   ]
 }

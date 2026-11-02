@@ -55,10 +55,10 @@ export interface PublicDraftPlayer {
   displayName: string | null;
   primaryPosition: string;
   secondaryPosition: string;
-  peakRank: string;
-  peakRating: number;
-  currentRank: string;
-  currentRating: number;
+  peakRank: string | null;
+  peakRating: number | null;
+  currentRank: string | null;
+  currentRating: number | null;
   mapPreferences: MapPreference[];
 }
 
@@ -142,9 +142,9 @@ interface DraftPlayerSource {
   displayName: string | null;
   primaryPosition: string;
   secondaryPosition: string;
-  peakRank: string;
+  peakRank: string | null;
   peakRating: number | null;
-  currentRank: string;
+  currentRank: string | null;
   currentRating: number | null;
   mapPreferences: MapPreference[] | null;
 }
@@ -171,9 +171,9 @@ export function serializePublicDraftPlayer(row: DraftPlayerSource): PublicDraftP
     primaryPosition: row.primaryPosition,
     secondaryPosition: row.secondaryPosition,
     peakRank: row.peakRank,
-    peakRating: row.peakRating ?? 0,
+    peakRating: row.peakRating,
     currentRank: row.currentRank,
-    currentRating: row.currentRating ?? 0,
+    currentRating: row.currentRating,
     mapPreferences: row.mapPreferences ?? [],
   };
 }

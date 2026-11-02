@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, isNotNull, or, sql, type SQLWrapper } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { matches, matchMaps, matchVetoAppeals, matchVetoTimeoutIncidents } from "@/db/schema";
+import { matches, matchMaps, matchVetoAppeals, matchVetoTimeoutIncidents, matchActualStartAdoptions } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { canPublishVetoAppealClosure } from "./lifecycle-publication";
 
@@ -17,6 +17,13 @@ export function vetoGameplayExists(matchId: string | SQLWrapper) {
 export async function hasVetoGameplayInTx(tx: Pick<TxDb, "select">, matchId: string): Promise<boolean> {
   const [row] = await tx.select({ started: vetoGameplayExists(matchId) }).from(matches).where(eq(matches.id, matchId)).limit(1);
   return row?.started ?? false;
+}
+
+/** Admission only: does not alter the historical appeal/settlement projection. */
+export async function hasVetoAdmissionClosedInTx(tx: Pick<TxDb, "select">, matchId: string): Promise<boolean> {
+  if (await hasVetoGameplayInTx(tx, matchId)) return true;
+  const [row] = await tx.select({ id: matchActualStartAdoptions.id }).from(matchActualStartAdoptions).where(eq(matchActualStartAdoptions.matchId, matchId)).limit(1);
+  return Boolean(row);
 }
 
 /** Caller holds the canonical match lock, shared with appeal submission and resolution. */

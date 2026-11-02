@@ -69,6 +69,7 @@ function serverOnly(
  * adding a table without adding an explicit classification fails closed.
  */
 export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
+  serverOnly("match_actual_start_adoptions", "比赛事实", "实际开局采用与审计", "src/lib/matches/actual-start.ts", "仅授权管理员读取与写入；原因和证据来源不开放 Data API。"),
   serverOnly("free_prediction_choices", "免费预测", "私有选择与锁定审计", "src/lib/free-predictions/", "服务端授权选择与匿名聚合，不开放 Data API。"),
   serverOnly("free_prediction_requests", "免费预测", "私有选择与锁定审计", "src/lib/free-predictions/", "服务端授权选择与匿名聚合，不开放 Data API。"),
   serverOnly("free_prediction_locks", "免费预测", "私有选择与锁定审计", "src/lib/free-predictions/", "服务端授权选择与匿名聚合，不开放 Data API。"),

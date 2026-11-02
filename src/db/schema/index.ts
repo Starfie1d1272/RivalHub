@@ -19,6 +19,7 @@ export * from "./votes";
 export * from "./draft";
 export * from "./matches";
 export * from "./match-maps";
+export * from "./match-actual-start";
 export * from "./audit";
 export * from "./admin-invites";
 export * from "./admin-invite-claims";

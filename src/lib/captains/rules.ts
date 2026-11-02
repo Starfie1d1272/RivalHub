@@ -29,7 +29,7 @@ export interface ValidateCaptainVoteInput {
 export interface CaptainSeedCandidate {
   registrationId: string;
   voteCount: number;
-  peakRating: number;
+  peakRating: number | null;
   createdAt: Date | string;
 }
 
@@ -74,7 +74,7 @@ export function compareCaptainSeedCandidates(
   b: CaptainSeedCandidate,
 ): number {
   if (b.voteCount !== a.voteCount) return b.voteCount - a.voteCount;
-  if (b.peakRating !== a.peakRating) return b.peakRating - a.peakRating;
+  if (b.peakRating !== a.peakRating) return (b.peakRating ?? -1) - (a.peakRating ?? -1);
   return createdAtTime(a.createdAt) - createdAtTime(b.createdAt);
 }
 

@@ -327,7 +327,7 @@ export function CaptainDraftPanel({
                         }}
                         title="历史最高段位"
                       >
-                        {player.peakRank}
+                        {player.peakRank ?? "未提供"}
                       </span>
                       {player.currentRank && player.currentRank !== player.peakRank && (
                         <span
@@ -365,10 +365,10 @@ export function CaptainDraftPanel({
                     <span
                       className="shrink-0 text-xs tabular-nums text-[var(--color-fg-mid)]"
                       style={{ fontFamily: "var(--font-mono)" }}
-                      title={`巅峰 ${player.peakRating.toFixed(0)} / 当前 ${player.currentRating.toFixed(0)}`}
+                      title={`巅峰 ${player.peakRating?.toFixed(0) ?? "—"} / 当前 ${player.currentRating?.toFixed(0) ?? "—"}`}
                     >
-                      {player.peakRating.toFixed(0)}{player.currentRating !== player.peakRating && (
-                        <span className="opacity-60"> / {player.currentRating.toFixed(0)}</span>
+                      {player.peakRating?.toFixed(0) ?? "—"}{player.currentRating !== player.peakRating && (
+                        <span className="opacity-60"> / {player.currentRating?.toFixed(0) ?? "—"}</span>
                       )}
                     </span>
 
@@ -412,7 +412,7 @@ export function CaptainDraftPanel({
                             background: "var(--color-panel)",
                           }}
                         >
-                          {player.peakRank}
+                          {player.peakRank ?? "未提供"}
                         </span>
                         {player.currentRank && player.currentRank !== player.peakRank && (
                           <span
@@ -444,10 +444,10 @@ export function CaptainDraftPanel({
                         <span
                           className="shrink-0 text-xs tabular-nums text-[var(--color-fg-mid)]"
                           style={{ fontFamily: "var(--font-mono)" }}
-                          title={`巅峰 ${player.peakRating.toFixed(0)} / 当前 ${player.currentRating.toFixed(0)}`}
+                          title={`巅峰 ${player.peakRating?.toFixed(0) ?? "—"} / 当前 ${player.currentRating?.toFixed(0) ?? "—"}`}
                         >
-                          {player.peakRating.toFixed(0)}{player.currentRating !== player.peakRating && (
-                            <span className="opacity-60"> / {player.currentRating.toFixed(0)}</span>
+                          {player.peakRating?.toFixed(0) ?? "—"}{player.currentRating !== player.peakRating && (
+                            <span className="opacity-60"> / {player.currentRating?.toFixed(0) ?? "—"}</span>
                           )}
                         </span>
                         <div className="min-w-0">
@@ -489,5 +489,5 @@ export function CaptainDraftPanel({
 }
 
 function DraftPlayerDetails({ player, canSelect, onPick }: { player: CaptainDraftPlayer; canSelect: boolean; onPick?: () => void }) {
-  return <><p className="text-xs text-[var(--color-fg-mid)]">选手详情</p><h2 className="mt-3 text-xl font-semibold"><PlayerProfileLink userId={player.userId}>{getPublicDisplayName(player)}</PlayerProfileLink></h2><p className="mt-2 text-sm text-[var(--color-fg-mid)]">{positionLabel(player.primaryPosition)} · 副选 {positionLabel(player.secondaryPosition)}</p><dl className="my-5 grid grid-cols-2 gap-4 text-sm"><div><dt className="text-[var(--color-fg-mid)]">最高段位</dt><dd className="mt-1 font-mono">{player.peakRank}</dd></div><div><dt className="text-[var(--color-fg-mid)]">Peak Rating</dt><dd className="mt-1 font-mono">{player.peakRating}</dd></div></dl><p className="text-sm leading-6">{player.gameplayStyle || "暂无打法说明"}</p>{player.competitionHistory && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{player.competitionHistory}</p>}{player.notes && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{player.notes}</p>}{onPick && <Button className="mt-5" disabled={!canSelect} onClick={onPick}>选入本队</Button>}</>;
+  return <><p className="text-xs text-[var(--color-fg-mid)]">选手详情</p><h2 className="mt-3 text-xl font-semibold"><PlayerProfileLink userId={player.userId}>{getPublicDisplayName(player)}</PlayerProfileLink></h2><p className="mt-2 text-sm text-[var(--color-fg-mid)]">{positionLabel(player.primaryPosition)} · 副选 {positionLabel(player.secondaryPosition)}</p><dl className="my-5 grid grid-cols-2 gap-4 text-sm"><div><dt className="text-[var(--color-fg-mid)]">最高段位</dt><dd className="mt-1 font-mono">{player.peakRank ?? "未提供"}</dd></div><div><dt className="text-[var(--color-fg-mid)]">Peak Rating</dt><dd className="mt-1 font-mono">{player.peakRating ?? "—"}</dd></div></dl><p className="text-sm leading-6">{player.gameplayStyle || "暂无打法说明"}</p>{player.competitionHistory && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{player.competitionHistory}</p>}{player.notes && <p className="mt-4 text-sm leading-6 text-[var(--color-fg-mid)]">{player.notes}</p>}{onPick && <Button className="mt-5" disabled={!canSelect} onClick={onPick}>选入本队</Button>}</>;
 }

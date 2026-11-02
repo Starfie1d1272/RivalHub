@@ -38,7 +38,7 @@ import { isSoloRegistration } from "@/lib/utils/season";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { CompetitionEntryFlow } from "@/components/register/CompetitionEntryFlow";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { computePolicyParticipantReadiness, evaluateRosterQualificationFromFacts, getParticipantReadinessBatch, isHomeAffiliatedMember, loadParticipantQualificationFacts, resolveCompetitiveContext, resolveSeasonEducationVerification } from "@/lib/qualification/service";
+import { computePolicyParticipantReadiness, evaluateRosterQualificationFromFacts, evaluateSeasonParticipantInTx, getParticipantReadinessBatch, isHomeAffiliatedMember, loadParticipantQualificationFacts, resolveCompetitiveContext, resolveSeasonEducationVerification } from "@/lib/qualification/service";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { presentRegistrationSchedule } from "@/lib/seasons/presentation";
 import { RegistrationScheduleCountdown } from "@/components/seasons/RegistrationScheduleCountdown";
@@ -46,6 +46,7 @@ import { RegistrationOpeningRecovery } from "@/components/register/RegistrationO
 
 import { getApprovedCompetitionEntryCount } from "@/lib/competition-entries/counts";
 import { canReleaseEliminatedParticipationInTx } from "@/lib/major/eliminated-entry";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { getCompetitionEntryCapabilities } from "@/lib/competition-entries/capabilities";
 import { isMajorRosterAdjustmentPhaseOpen } from "@/lib/major/roster-window";
 import { loadCompetitionEntryParticipantContext } from "@/lib/competition-entries/participant-context";
@@ -158,7 +159,8 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
     let entryView: Parameters<typeof CompetitionEntryFlow>[0]["entry"] = null;
     const previousEntry = participantContext.activeClaimEntry?.id !== entry?.id ? participantContext.activeClaimEntry : null;
     const transferFrom = previousEntry ? { id: previousEntry.id, name: previousEntry.name, canRelease: await canReleaseEliminatedParticipationInTx(db, season, previousEntry.id) } : null;
-    let capabilities = getCompetitionEntryCapabilities({ season, entry: null, revision: null, rosterFrozen: false });
+    const rosterChanges = decodeSeasonRules(season).roster.changes;
+    let capabilities = getCompetitionEntryCapabilities({ season, entry: null, revision: null, rosterFrozen: false, rosterChanges });
     if (entry) {
 
       const [qualificationRun, finalEntrant] = season.competitionTemplate === "major" ? await Promise.all([
@@ -184,7 +186,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
         ? db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName }).from(competitionEntryRosterMembers).innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(eq(competitionEntryRosterMembers.revisionId, entry.approvedRosterRevisionId))
         : Promise.resolve(null),
       ]);
-      capabilities = getCompetitionEntryCapabilities({ season, entry: { status: entry.registrationStatus, hasApprovedRoster: !!entry.approvedRosterRevisionId }, revision: revision ?? null, rosterFrozen: eventRoster?.status === "frozen", majorAdjustmentPhaseOpen, eliminatedParticipationRelease: await canReleaseEliminatedParticipationInTx(db, season, entry.id) });
+      capabilities = getCompetitionEntryCapabilities({ season, entry: { status: entry.registrationStatus, hasApprovedRoster: !!entry.approvedRosterRevisionId }, revision: revision ?? null, rosterFrozen: eventRoster?.status === "frozen", majorAdjustmentPhaseOpen, rosterChanges, eliminatedParticipationRelease: await canReleaseEliminatedParticipationInTx(db, season, entry.id) });
       const [candidateRows, rosterRows] = await Promise.all([
         entry.teamId
         ? db.select({ membershipId: teamMemberships.id, userId: teamMemberships.userId, status: teamMemberships.status, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
@@ -349,6 +351,10 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
     db.select().from(userMapPreferences).where(eq(userMapPreferences.userId, userSession.userId)),
   ]);
   const regConfig = normalizeRegistrationConfig(season.registrationConfig);
+  const soloRules = decodeSeasonRules(season);
+  const soloDecision = soloRules.source === "policy_v2"
+    ? await evaluateSeasonParticipantInTx(db, userSession.userId, currentRegistration?.playerType ?? regConfig.allowedPlayerTypes[0] ?? "", soloRules)
+    : null;
   const maxPerPos = regConfig.maxPerPosition;
   const existingStatus = currentRegistration?.status ?? null;
   const existingStatusLabel = existingStatus ? REGISTRATION_STATUS_LABELS[existingStatus] : null;
@@ -356,6 +362,10 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
   const longTermMapPreferences = mapPreferences[0]?.mapPreferences;
   const initialValues = {
     email: userSession.email,
+    studentId: currentUser?.studentId ?? "",
+    qq: currentUser?.qq ?? "",
+    perfectName: currentUser?.perfectName ?? "",
+    steam64: currentUser?.steam64 ?? "",
     gameplayStyle: currentRegistration?.gameplayStyle ?? currentUser?.gameplayStyle ?? "",
     competitionHistory: currentRegistration?.competitionHistory ?? currentUser?.competitionHistory ?? "",
     ...(currentRegistration
@@ -368,12 +378,12 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
         playerType: currentRegistration.playerType,
         primaryPosition: currentRegistration.primaryPosition,
         secondaryPosition: currentRegistration.secondaryPosition,
-        peakRank: currentRegistration.peakRank,
-        peakRankSeason: currentRegistration.peakRankSeason,
-        peakRating: currentRegistration.peakRating,
+        peakRank: currentRegistration.peakRank ?? undefined,
+        peakRankSeason: currentRegistration.peakRankSeason ?? undefined,
+        peakRating: currentRegistration.peakRating ?? undefined,
         peakWe: currentRegistration.peakWe ?? undefined,
-        currentSeasonPeakRank: currentRegistration.currentSeasonPeakRank,
-        currentRating: currentRegistration.currentRating,
+        currentSeasonPeakRank: currentRegistration.currentSeasonPeakRank ?? undefined,
+        currentRating: currentRegistration.currentRating ?? undefined,
         currentWe: currentRegistration.currentWe ?? undefined,
         screenshotUrls: currentRegistration.screenshotUrls,
         mapPreferences: currentRegistration.mapPreferences,
@@ -481,6 +491,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
         </div>
       )}
 
+      {soloDecision?.state === "blocked" && <StatusBanner tone="info" title="当前账号资料待完善" sub={soloDecision.findings.map((finding) => finding.message).join("；")} />}
       <Panel contentClassName="p-6">
         {currentRegistration?.status === "approved" ? (
           <div className="py-10 text-center">
@@ -496,6 +507,8 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
             positionCounts={positionCounts}
             positions={season.positions}
             registrationConfig={regConfig}
+            policyV2={soloRules.source === "policy_v2"}
+            qqRequired={soloRules.participant.contacts.qqRequired}
             windowState={registrationWindow}
             currentUserEmail={userSession?.email ?? null}
             initialValues={initialValues}

@@ -191,7 +191,7 @@ export function RegistrationReviewList({
 
                   <div className="space-y-0.5 text-sm text-[var(--color-fg-mid)]">
                     <p>位置：{positionLabel(r.primaryPosition)}（主）| {positionLabel(r.secondaryPosition)}（次）</p>
-                    <p>最高段位：{r.peakRank}（{r.peakRankSeason}）Rating {r.peakRating}{" | "}当前赛季：{r.currentSeasonPeakRank} Rating {r.currentRating}</p>
+                    <p>最高段位：{r.peakRank ?? "未提供"}{r.peakRankSeason ? `（${r.peakRankSeason}）` : ""} Rating {r.peakRating ?? "—"}{" | "}当前赛季：{r.currentSeasonPeakRank ?? "未提供"} Rating {r.currentRating ?? "—"}</p>
                     <p>{r.email}{r.studentId && ` | 学号: ${r.studentId}`}</p>
                     <AdminPlayerContact email={r.email} qq={r.qq} steam64={r.steam64} steamProfileUrl={r.steamProfileUrl} />
                     {r.gameplayStyle && <p>风格：{r.gameplayStyle}</p>}

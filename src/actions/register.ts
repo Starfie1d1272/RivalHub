@@ -1,5 +1,8 @@
 "use server";
 
+import { decodeSeasonRules } from "@/lib/seasons/rules";
+import { evaluateSeasonParticipantInTx } from "@/lib/qualification/service";
+import { evaluateRankThreshold } from "@/lib/competitive/player-strength";
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import { revalidatePath } from "next/cache";
@@ -11,7 +14,7 @@ import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
 import { getUserSession } from "@/lib/auth/session";
-import { buildRegistrationSchema, registrationSeedSchema, type RegistrationFormData } from "@/lib/validators/registration";
+import { buildRegistrationSchema, registrationSeedSchema, RANK_ORDER, type RegistrationFormData } from "@/lib/validators/registration";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { getRegistrationWindowState } from "@/lib/registration/window";
 import { normalizeEmail } from "@/lib/utils/email";
@@ -216,7 +219,8 @@ export async function submitRegistration(input: RegistrationFormData) {
     }
 
     const registrationConfig = normalizeRegistrationConfig(season.registrationConfig);
-    const parsed = buildRegistrationSchema(registrationConfig, season.positions).safeParse(input);
+    const rules = decodeSeasonRules(season);
+    const parsed = buildRegistrationSchema(registrationConfig, season.positions, { policyV2: rules.source === "policy_v2", qqRequired: rules.participant.contacts.qqRequired }).safeParse(input);
     if (!parsed.success) {
       const fieldErrors: Record<string, string> = {};
       for (const [field, errors] of Object.entries(
@@ -232,6 +236,16 @@ export async function submitRegistration(input: RegistrationFormData) {
     }
 
     const data = parsed.data;
+    if (rules.source !== "policy_v2") {
+      const legacyThreshold = evaluateRankThreshold({
+        userId: session.userId,
+        label: "选手",
+        historicalPeak: data.peakRank && data.peakRating != null ? { rank: data.peakRank, rating: data.peakRating } : null,
+        previousSeasonPeak: null,
+        currentSeasonPeak: data.currentSeasonPeakRank && data.currentRating != null ? { rank: data.currentSeasonPeakRank, rating: data.currentRating } : null,
+      }, registrationConfig.rankThreshold, RANK_ORDER);
+      if (legacyThreshold.length) throw new AppError(ErrorCode.VALIDATION_FAILED, legacyThreshold.map((finding) => finding.message).join("；"));
+    }
     const normalizedEmail = normalizeEmail(data.email);
     if (normalizedEmail !== normalizeEmail(session.email)) {
       return fail({
@@ -318,9 +332,9 @@ export async function submitRegistration(input: RegistrationFormData) {
       const [updatedUser] = await tx
         .update(users)
         .set({
-          qq: data.qq,
-          studentId: data.studentId,
-          perfectName: data.perfectName,
+          qq: data.qq || user.qq,
+          studentId: data.studentId || user.studentId,
+          perfectName: data.perfectName || user.perfectName,
           gameplayStyle: declaredProfile.gameplayStyle ?? data.gameplayStyle,
           competitionHistory: declaredProfile.competitionHistory,
           updatedAt: new Date(),
@@ -332,16 +346,22 @@ export async function submitRegistration(input: RegistrationFormData) {
         throw new AppError(ErrorCode.INTERNAL_ERROR, ERROR_MESSAGES.INTERNAL_ERROR);
       }
 
+      const currentRules = decodeSeasonRules(currentSeason);
+      if (currentRules.source === "policy_v2") {
+        const decision = await evaluateSeasonParticipantInTx(tx, user.id, data.playerType, currentRules);
+        if (decision.state === "blocked") throw new AppError(ErrorCode.VALIDATION_FAILED, decision.findings.map((finding) => finding.message).join("；"));
+      }
+
       const registrationValues = {
         playerType: data.playerType,
         primaryPosition: data.primaryPosition,
         secondaryPosition: data.secondaryPosition,
-        peakRank: data.peakRank,
-        peakRankSeason: data.peakRankSeason,
-        peakRating: data.peakRating,
+        peakRank: data.peakRank ?? null,
+        peakRankSeason: data.peakRankSeason ?? null,
+        peakRating: data.peakRating ?? null,
         peakWe: data.peakWe,
-        currentSeasonPeakRank: data.currentSeasonPeakRank,
-        currentRating: data.currentRating,
+        currentSeasonPeakRank: data.currentSeasonPeakRank ?? null,
+        currentRating: data.currentRating ?? null,
         currentWe: data.currentWe,
         screenshotUrls: data.screenshotUrls,
         mapPreferences: data.mapPreferences,

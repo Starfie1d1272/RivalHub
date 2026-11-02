@@ -111,8 +111,9 @@ export function evaluateRosterEducationEligibility(
     affiliationCounts.set(rule.institutionCode, count);
     if (count < rule.minRosterMembers) {
       const shortfall = rule.minRosterMembers - count;
-      const label = rule.institutionCode === "4132010284" ? "南京大学" : rule.institutionCode;
-      blockers.push(`当前已认证${label}成员 ${count} 人，Major 正式名单至少需要 ${rule.minRosterMembers} 人；还缺 ${shortfall} 人。`);
+      const label = members.flatMap((member) => member.verificationHistory ?? (member.verification ? [member.verification] : []))
+        .find((verification) => verification.institutionCode === rule.institutionCode && verification.institutionName.trim())?.institutionName ?? rule.institutionCode;
+      blockers.push(`当前已认证${label}成员 ${count} 人，本届名单至少需要 ${rule.minRosterMembers} 人；还缺 ${shortfall} 人。`);
     }
   }
 
