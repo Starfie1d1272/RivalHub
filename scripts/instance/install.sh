@@ -3,6 +3,9 @@
 set -Eeuo pipefail
 umask 077
 [[ $(id -u) == 0 ]] || { echo 'Run as root on the instance host.' >&2; exit 1; }
+# A maintenance-window label cannot fence another host or database writer.
+# Keep this independent entry closed until that property can be verified.
+[[ ${12:-} != --major-transition ]] || { echo 'Major transition unavailable: independent writers cannot be proven fenced.' >&2; exit 1; }
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 helper="$script_dir/../standby/production-host.mjs"
 root=/opt/rivalhub-instance

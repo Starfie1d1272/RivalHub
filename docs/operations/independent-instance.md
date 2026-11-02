@@ -71,7 +71,7 @@ pnpm db:recovery:restore-db-checkpoint \
 
 ## 跨主版本转换
 
-普通升级仍执行双向 reader-first 合同。跨 v2 → v3 必须在明确的维护窗口停止实例以外的所有 writer 和迁移执行者，并核实正在运行的来源项目与目标数据库；不得修改能力声明伪造兼容。旧金融 writer 已退役，仅切回旧应用不安全。以下入口在主机锁内读取 systemd MainPID 的实际可执行文件、工作目录和环境，并与运行中 release identity、已安装配置及精确旧链和目标链核对；旧实例无需新 recovery-source 接口，但主机须允许 root 读取该进程的 `/proc` 信息。随后入口停止服务并排空事务，以旧环境生成完整 DB + Storage 加密 checkpoint，验证对象真实读回并将来源、目标、账本、Storage 摘要和候选身份绑定到事务，再持久化迁移标记并执行迁移/adopt：
+普通升级仍执行双向 reader-first 合同。**跨 v2 → v3 入口当前关闭**：现有数据库排空只观察运行账号的在途事务，不能阻止其他主机、scheduler 或其他账号之后重新写入；维护窗口标识也不能证明它们已停。必须先建立并验证可覆盖所有旧 writer 的 fencing，才能开放下述流程。跨 v2 → v3 必须在明确的维护窗口停止实例以外的所有 writer 和迁移执行者，并核实正在运行的来源项目与目标数据库；不得修改能力声明伪造兼容。旧金融 writer 已退役，仅切回旧应用不安全。以下入口在主机锁内读取 systemd MainPID 的实际可执行文件、工作目录和环境，并与运行中 release identity、已安装配置及精确旧链和目标链核对；旧实例无需新 recovery-source 接口，但主机须允许 root 读取该进程的 `/proc` 信息。随后入口停止服务并排空事务，以旧环境生成完整 DB + Storage 加密 checkpoint，验证对象真实读回并将来源、目标、账本、Storage 摘要和候选身份绑定到事务，再持久化迁移标记并执行迁移/adopt：
 
 ```bash
 sudo pnpm exec tsx scripts/instance/release.ts --major-transition \
@@ -90,7 +90,7 @@ sudo pnpm exec tsx scripts/instance/release.ts --restore-pair \
 
 该入口在锁内核对证据与事务的 artifact、manifest、来源应用和恢复目标，再重新读取数据库账本与 bucket，只有验证通过才将旧应用和恢复目标配对启动；它不执行生产数据库恢复。恢复目标环境不得指向未经恢复的原数据库。恢复证据由操作员受保护目录保存，是一致性凭据而非数字签名；恢复后至启动期间也须保持外部 writer 停止。
 
-当前新路径尚需隔离端到端演练；Hosted 目标恢复权限和真实 systemd 主机行为尚未验收。完整自托管 Supabase 需要独立工作包：定义非 Hosted 的 API/数据库身份与 TLS、密钥和 provider 配置合同，适配安装、备份、恢复与 scheduler，并在真实自托管组合中验证完整旅程。
+当前入口不会执行转换；新路径仍需在可证明 writer fencing 的条件下进行隔离端到端演练。Hosted 目标恢复权限和真实 systemd 主机行为尚未验收。完整自托管 Supabase 需要独立工作包：定义非 Hosted 的 API/数据库身份与 TLS、密钥和 provider 配置合同，适配安装、备份、恢复与 scheduler，并在真实自托管组合中验证完整旅程。
 
 ## 备份与恢复边界
 

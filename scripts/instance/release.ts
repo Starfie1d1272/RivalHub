@@ -7,6 +7,11 @@ import { assertReleaseIdentity } from "../../src/lib/release/identity";
 import { assertCapabilitySnapshots, readReleaseCapabilities } from "../release/capability-contract";
 import { assertInstanceReleaseIdentity } from "../db/recovery/source";
 
+// No existing database or host check prevents a separate writer reconnecting.
+function requireWriterFence(): void {
+  throw new Error("Major transition unavailable: the instance cannot prove that independent writers are fenced. Keep the current release running until a verified writer-fencing mechanism is available.");
+}
+
 // This controller runs on the instance host from the trusted operator checkout.
 // The small evidence has the same format and verifier as the release controller.
 async function main(): Promise<void> {
@@ -39,6 +44,7 @@ async function main(): Promise<void> {
     }
     const major = process.argv[2] === "--major-transition";
     if (major) {
+      requireWriterFence();
       if (process.argv.length !== 9 || process.argv[5] !== "--checkpoint-env" || process.argv[7] !== "--maintenance-window"
         || !/^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/.test(process.argv[8] ?? "")) throw new Error("Usage: release.ts --major-transition MANIFEST INSTANCE_ENV --checkpoint-env FILE --maintenance-window ID");
       const archive = resolve(process.argv[3]!);
