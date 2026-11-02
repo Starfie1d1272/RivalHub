@@ -154,9 +154,9 @@ export async function saveMajorPrestartRosterInTx(
     throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单只能选择该正式队伍当前的成员。 ");
   }
   const policy = resolveQualificationPolicy(season.teamRegistrationConfig, season.affiliationRules, "roster");
-  const verificationIds = !season.teamRegistrationConfig?.qualificationPolicy || policy.educationRequired || policy.affiliationRules.length > 0
-    ? await loadApprovedRosterEducation(tx, input.userIds, policy.affiliationRules)
-    : new Map<string, string>();
+  const verificationIds = await loadApprovedRosterEducation(
+    tx, input.userIds, policy.affiliationRules, season.teamRegistrationConfig?.qualificationPolicy ? policy : undefined,
+  );
 
   await applyEventRosterMaterializationInTx(tx, {
     eventRosterId: eventRoster.id,

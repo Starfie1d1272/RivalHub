@@ -52,6 +52,7 @@ export interface TeamLineupContext {
   /** Explicitly absent on legacy StageRuns, which must not gain new rules. */
   externalStrengthGapEnabled: boolean;
   competitiveProfileRequired: boolean;
+  educationRequired: boolean;
   frozenRestrictionOverrides: readonly FrozenRestrictionOverrideSnapshot[];
   policy: MatchLineupPolicy;
 }
@@ -253,6 +254,7 @@ async function loadTeamLineupContextInTx(
     let frozenRosterRevisionId: string | null = null;
     let externalStrengthGapEnabled = false;
     let competitiveProfileRequired = false;
+    let educationRequired = false;
     let frozenRestrictionOverrides: readonly FrozenRestrictionOverrideSnapshot[] = [];
     const [season] = await tx
       .select({ starterCount: seasons.starterCount, competitionTemplate: seasons.competitionTemplate })
@@ -291,6 +293,8 @@ async function loadTeamLineupContextInTx(
       });
       // Frozen at StageRun creation; never read from mutable season configuration.
       rules = frozenStageRunAffiliationRules(stageRun.ruleSnapshot);
+      educationRequired = frozenSnapshot.qualificationPolicy && "educationRequired" in frozenSnapshot.qualificationPolicy
+        ? frozenSnapshot.qualificationPolicy.educationRequired === true : rules.length > 0;
       const configuredCompetitiveProfile = frozenCompetitiveProfile(stageRun.ruleSnapshot);
       // The StageRun policy is the runtime authority.  Keep the profile's
       // platform/rank facts, but consume the threshold that was frozen with
@@ -327,6 +331,7 @@ async function loadTeamLineupContextInTx(
         throw new AppError(ErrorCode.VALIDATION_FAILED, match.testConfig ? "测试赛资格快照与当前名单不一致，请按最新名单重新创建测试赛。" : "Play-in 资格快照缺失或名单版本已变化，请先同步已批准名单。");
       }
       rules = snapshot.policy.affiliationRules;
+      educationRequired = snapshot.policy.qualificationPolicy?.educationRequired ?? rules.length > 0;
       competitiveProfile = snapshot.policy.competitiveProfile && snapshot.policy.qualificationPolicy
         ? { ...snapshot.policy.competitiveProfile, externalStrengthMaxStarGap: snapshot.policy.qualificationPolicy.externalStrengthGap.maxGap }
         : snapshot.policy.competitiveProfile;
@@ -361,12 +366,12 @@ async function loadTeamLineupContextInTx(
       eventRosterMemberId: row.id,
       userId: row.userId,
       verification:
-        (rules.length > 0 ? verificationsByUser?.get(row.userId) : null) ?? null,
+        (educationRequired || rules.length > 0 ? verificationsByUser?.get(row.userId) : null) ?? null,
       participationBlocked: participationBans.has(row.userId),
     });
   }
 
-  return { rules, frozenRosterUserIds, memberFacts, competitiveProfile, frozenCompetitiveFacts: frozenCompetitiveFactsByUser, frozenRosterRevisionId, externalStrengthGapEnabled, competitiveProfileRequired, frozenRestrictionOverrides, policy };
+  return { rules, frozenRosterUserIds, memberFacts, competitiveProfile, frozenCompetitiveFacts: frozenCompetitiveFactsByUser, frozenRosterRevisionId, externalStrengthGapEnabled, competitiveProfileRequired, educationRequired, frozenRestrictionOverrides, policy };
   });
 }
 
@@ -396,7 +401,8 @@ export async function getStartingLineupPreflightInTx(
     policy: context.policy,
     memberFacts: context.memberFacts,
     frozenRosterUserIds: context.frozenRosterUserIds ?? undefined,
-    affiliationRules: context.rules.length > 0 ? context.rules : undefined,
+    affiliationRules: context.educationRequired || context.rules.length > 0 ? context.rules : undefined,
+    educationRequired: context.educationRequired,
   });
   const blockers = [...result.blockers];
   if (context.competitiveProfile) {
