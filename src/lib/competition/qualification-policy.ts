@@ -60,14 +60,28 @@ export function assertQualificationPolicyPublishable(config: Pick<TeamRegistrati
 }
 
 export function assertAffiliationRequirementsFit(rules: readonly import("@/types/season").InstitutionAffiliationRule[], limits: { maxTeamSize: number; starterCount: number }): void {
-  // Roster assignment selects one rule per member. Lineup rules for the same
-  // institution can overlap, so only their largest minimum is additive across institutions.
-  const startingByInstitution = new Map<string, number>();
+  // Each rule is an independent minimum. A member may satisfy overlapping
+  // rules at one institution, but cannot represent two institutions at once.
+  const institutions = new Map<string, typeof rules[number][]>();
   for (const rule of rules) {
-    startingByInstitution.set(rule.institutionCode, Math.max(startingByInstitution.get(rule.institutionCode) ?? 0, rule.minStartingMembers));
+    const group = institutions.get(rule.institutionCode) ?? [];
+    group.push(rule);
+    institutions.set(rule.institutionCode, group);
   }
-  const rosterMinimum = rules.reduce((sum, rule) => sum + rule.minRosterMembers, 0);
-  const startingMinimum = [...startingByInstitution.values()].reduce((sum, minimum) => sum + minimum, 0);
+  const minimumFor = (group: typeof rules[number][], includeRoster: boolean) => {
+    let enrolled = 0, graduated = 0, either = 0;
+    for (const rule of group) {
+      const minimum = includeRoster ? Math.max(rule.minRosterMembers, rule.minStartingMembers) : rule.minStartingMembers;
+      const hasEnrolled = rule.eligibleAcademicStatuses.includes("enrolled");
+      const hasGraduated = rule.eligibleAcademicStatuses.includes("graduated");
+      if (hasEnrolled && hasGraduated) either = Math.max(either, minimum);
+      else if (hasEnrolled) enrolled = Math.max(enrolled, minimum);
+      else if (hasGraduated) graduated = Math.max(graduated, minimum);
+    }
+    return Math.max(enrolled + graduated, either);
+  };
+  const rosterMinimum = [...institutions.values()].reduce((sum, group) => sum + minimumFor(group, true), 0);
+  const startingMinimum = [...institutions.values()].reduce((sum, group) => sum + minimumFor(group, false), 0);
   if (rosterMinimum > limits.maxTeamSize || startingMinimum > limits.starterCount || startingMinimum > limits.maxTeamSize) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "机构名单或首发人数要求超过赛事名单容量，请调整后发布。 ");
   }

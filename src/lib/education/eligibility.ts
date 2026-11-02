@@ -106,9 +106,11 @@ export function evaluateRosterEducationEligibility(
     const count = members.filter((member) =>
       (!options.requireVerifiedEmail || member.emailVerifiedAt !== null) &&
       (!options.requireApprovedAffiliation || resolveSeasonEducationVerification(member.verificationHistory ?? (member.verification ? [member.verification] : []), rules).eligibilityState === "approved") &&
-      resolveSeasonEducationVerification(member.verificationHistory ?? (member.verification ? [member.verification] : []), rules).matchedRule === rule,
+      (() => {
+        const verification = resolveSeasonEducationVerification(member.verificationHistory ?? (member.verification ? [member.verification] : []), rules).selectedVerification;
+        return verification?.status === "approved" && verification.institutionCode === rule.institutionCode && rule.eligibleAcademicStatuses.includes(verification.academicStatus);
+      })(),
     ).length;
-    affiliationCounts.set(rule.institutionCode, count);
     if (count < rule.minRosterMembers) {
       const shortfall = rule.minRosterMembers - count;
       const label = members.flatMap((member) => member.verificationHistory ?? (member.verification ? [member.verification] : []))
