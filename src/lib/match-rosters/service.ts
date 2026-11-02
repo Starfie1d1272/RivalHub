@@ -236,10 +236,15 @@ async function loadEventRosterUserIdsInTx(
   return { ids, verificationsByUser, rosterRevisionId: roster.sourceRosterRevisionId };
 }
 
-export async function loadMatchEligibilityContextInTx(
+export async function loadMatchEligibilityContextInTx(tx: TxDb, match: Match, entryId: string): Promise<TeamLineupContext> {
+  return loadLegacyLineupContextInTx(tx, match, entryId);
+}
+
+async function loadLegacyLineupContextInTx(
   tx: TxDb,
   match: Match,
   entryId: string,
+  validatedStageRun?: { ruleSnapshot: unknown; stageKey: string },
 ): Promise<TeamLineupContext> {
   return withDbTrafficSource("match.lineup.read", async () => {
     const canonicalEntry = await tx
@@ -262,15 +267,13 @@ export async function loadMatchEligibilityContextInTx(
     let approvedHomeRequired = false;
     let frozenRestrictionOverrides: readonly FrozenRestrictionOverrideSnapshot[] = [];
     const [season] = await tx
-      .select({ starterCount: seasons.starterCount, competitionTemplate: seasons.competitionTemplate })
+      .select({ starterCount: seasons.starterCount, competitionTemplate: seasons.competitionTemplate, teamRegistrationConfig: seasons.teamRegistrationConfig })
       .from(seasons)
       .where(eq(seasons.id, match.seasonId));
     if (!season) throw new AppError(ErrorCode.INTERNAL_ERROR, "比赛所属赛季不存在。");
     let policy: MatchLineupPolicy;
     if (match.ownership !== "major_stage" && !match.qualificationRunId) {
-      const [configuration] = await tx.select({ teamRegistrationConfig: seasons.teamRegistrationConfig }).from(seasons).where(eq(seasons.id, match.seasonId));
-      if (!configuration) throw new AppError(ErrorCode.INTERNAL_ERROR, "比赛所属赛季不存在。");
-      if (configuration.teamRegistrationConfig.qualificationPolicy?.version === 2) {
+      if (season.teamRegistrationConfig.qualificationPolicy?.version === 2) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "新版资格规则缺少可用的冻结名单快照，无法校验本场阵容。");
       }
       policy = resolveMatchLineupPolicy({ ownership: match.ownership, seasonStarterCount: season.starterCount });
@@ -283,13 +286,11 @@ export async function loadMatchEligibilityContextInTx(
       if (!match.majorStageRunId) {
         throw new AppError(ErrorCode.INTERNAL_ERROR, "托管比赛缺少对应的 StageRun。");
       }
-      const [stageRun] = await tx
+      const stageRun = validatedStageRun ?? (await tx
         .select({ ruleSnapshot: majorStageRuns.ruleSnapshot, stageKey: majorStageRuns.stageKey })
         .from(majorStageRuns)
-        .where(eq(majorStageRuns.id, match.majorStageRunId));
-      const [scopedRun] = await tx.select({ id: majorStageRuns.id }).from(majorStageRuns)
-        .where(and(eq(majorStageRuns.id, match.majorStageRunId), eq(majorStageRuns.seasonId, match.seasonId), eq(majorStageRuns.stageKey, match.stage)));
-      if (!stageRun || !scopedRun) {
+        .where(and(eq(majorStageRuns.id, match.majorStageRunId), eq(majorStageRuns.seasonId, match.seasonId), eq(majorStageRuns.stageKey, match.stage))))[0];
+      if (!stageRun) {
         throw new AppError(ErrorCode.INTERNAL_ERROR, "托管比赛缺少对应的 StageRun。");
       }
       // Parse once before every frozen consumer; never use mutable season rules.
@@ -412,6 +413,7 @@ export async function getStartingLineupPreflightInTx(
   args: { match: Match; entryId: string; starterIds: readonly string[]; substituteIds?: readonly string[] },
 ): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number> }> {
   return withDbTrafficSource("match.lineup.read", async () => {
+  let validatedStageRun: { ruleSnapshot: unknown; stageKey: string } | undefined;
   if (args.match.ownership === "major_stage") {
     if (args.entryId !== args.match.entryAId && args.entryId !== args.match.entryBId || !args.match.majorStageRunId) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛缺少对应的参赛队或阶段。");
@@ -420,6 +422,7 @@ export async function getStartingLineupPreflightInTx(
       .where(and(eq(majorStageRuns.id, args.match.majorStageRunId), eq(majorStageRuns.seasonId, args.match.seasonId), eq(majorStageRuns.stageKey, args.match.stage)));
     if (!run) throw new AppError(ErrorCode.INTERNAL_ERROR, "托管比赛缺少对应的 StageRun。");
     const stage = parseMajorRunSnapshot(run.ruleSnapshot, run.stageKey);
+    validatedStageRun = run;
     if (stage.qualificationPolicy && "version" in stage.qualificationPolicy && stage.qualificationPolicy.version === 2) {
       const snapshot = stage.frozenEligibilitySnapshots?.find((item) => item.entryId === args.entryId);
       if (!snapshot) throw new AppError(ErrorCode.VALIDATION_FAILED, "StageRun 缺少本队的冻结资格快照。");
@@ -478,7 +481,7 @@ export async function getStartingLineupPreflightInTx(
       return { valid: result.state === "ready", blockers: result.findings.map((finding) => finding.message), affiliatedStarterCounts: counts };
     }
   }
-  const context = await loadMatchEligibilityContextInTx(tx, args.match, args.entryId);
+  const context = await loadLegacyLineupContextInTx(tx, args.match, args.entryId, validatedStageRun);
   const result = evaluateStartingLineup({
     starterIds: args.starterIds,
     substituteIds: args.substituteIds,
