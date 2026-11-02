@@ -171,6 +171,28 @@ export interface InstitutionAffiliationRule {
 }
 
 /**
+ * Versioned projection of the eligibility facts available in a legacy Major
+ * StageRun. Other eligibility decisions were not recorded here and must not
+ * be inferred from the event template or mutable Season.
+ */
+export interface LegacyFrozenEligibilityPolicy {
+  version: 1;
+  source: "legacy-major-stage-run";
+  affiliationRules: readonly InstitutionAffiliationRule[];
+}
+
+/** Read-only legacy Season projection; the underlying fields remain the owner. */
+export interface LegacySeasonEligibilityPolicy {
+  version: 1;
+  source: "legacy-season";
+  affiliationRules: readonly InstitutionAffiliationRule[];
+  allowedPlayerTypes: readonly PlayerType[];
+  teamRules: Pick<TeamRegistrationConfig, "allowExternal" | "graduateCountsAsHome" | "minHomeMembers" | "minEnrolledMembers" | "maxExternalMembers" | "requireCompetitiveProfile" | "competitiveProfile">;
+}
+
+export type EligibilityPolicy = LegacySeasonEligibilityPolicy | LegacyFrozenEligibilityPolicy;
+
+/**
  * Capability 字段——业务逻辑的唯一判断依据。
  * 禁止用 season.kind 做功能分支，统一读这组字段。
  *

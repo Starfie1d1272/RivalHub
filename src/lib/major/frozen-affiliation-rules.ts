@@ -1,6 +1,6 @@
 import { AppError, ErrorCode } from "@/lib/errors";
 import { normalizeAffiliationRules } from "@/lib/seasons/compatibility";
-import type { InstitutionAffiliationRule } from "@/types/season";
+import type { InstitutionAffiliationRule, LegacyFrozenEligibilityPolicy } from "@/types/season";
 
 /**
  * The tournament-facing affiliation contract. G1 match-roster validation must
@@ -17,9 +17,9 @@ export function freezeAffiliationRules(
   }));
 }
 
-export function frozenStageRunAffiliationRules(
+export function decodeFrozenEligibilityPolicy(
   ruleSnapshot: unknown,
-): readonly InstitutionAffiliationRule[] {
+): LegacyFrozenEligibilityPolicy {
   if (!ruleSnapshot || typeof ruleSnapshot !== "object") {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 缺少冻结的高校归属规则。");
   }
@@ -43,5 +43,10 @@ export function frozenStageRunAffiliationRules(
   if (normalized.length !== rules.length) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的高校归属规则不可用。");
   }
-  return freezeAffiliationRules(normalized);
+  return { version: 1, source: "legacy-major-stage-run", affiliationRules: freezeAffiliationRules(normalized) };
+}
+
+/** Match-roster compatibility projection; the decoder remains the sole reader. */
+export function frozenStageRunAffiliationRules(ruleSnapshot: unknown): readonly InstitutionAffiliationRule[] {
+  return decodeFrozenEligibilityPolicy(ruleSnapshot).affiliationRules;
 }
