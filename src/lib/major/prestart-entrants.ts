@@ -320,7 +320,7 @@ export async function lockMajorPrestartEntrantsInTx(
     if (season.starterCount > 0 && roster.filter((member) => member.primary).length !== season.starterCount) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, `每支正式参赛队必须有恰好 ${season.starterCount} 名主力。 `);
     }
-    if (roster.some((member) => !member.educationVerificationId)) {
+    if ((capabilities.teamRegistrationConfig.qualificationPolicy?.educationRequired ?? true) && roster.some((member) => !member.educationVerificationId)) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "最终赛事名单缺少已批准报名名单对应的教育认证依据。 ");
     }
     for (const member of roster) {
@@ -401,11 +401,13 @@ export async function lockMajorPrestartEntrantsInTx(
     throw new AppError(ErrorCode.INTERNAL_ERROR, "已有种子建议快照与本次冻结输入不一致，拒绝覆盖。 ");
   }
 
-  const configuredCompetitiveProfile = capabilities.teamRegistrationConfig.competitiveProfile ?? null;
+  const configuredCompetitiveProfile = capabilities.teamRegistrationConfig.qualificationPolicy
+    ? capabilities.teamRegistrationConfig.qualificationPolicy.competitiveProfile
+    : capabilities.teamRegistrationConfig.competitiveProfile ?? null;
   const competitiveProfile = configuredCompetitiveProfile
     ? await resolveCompetitiveContext(configuredCompetitiveProfile)
     : null;
-  if (capabilities.teamRegistrationConfig.requireCompetitiveProfile && !competitiveProfile) {
+  if ((capabilities.teamRegistrationConfig.qualificationPolicy?.competitiveProfileRequired ?? capabilities.teamRegistrationConfig.requireCompetitiveProfile) && !competitiveProfile) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求竞技资料，但当前冻结的竞技平台目录不完整，不能生成种子建议。 ");
   }
   if (!competitiveProfile) {

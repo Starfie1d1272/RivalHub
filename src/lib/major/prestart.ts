@@ -115,7 +115,7 @@ function teamLabel(team: MajorPrestartTeamFact): string {
 
 function checkRosters(
   teams: readonly MajorPrestartTeamFact[] | null,
-  policy: Pick<SeasonCapabilities, "minTeamSize" | "maxTeamSize" | "starterCount">,
+  policy: Pick<SeasonCapabilities, "minTeamSize" | "maxTeamSize" | "starterCount" | "teamRegistrationConfig">,
 ): MajorPrestartCheck {
   const policyBlockers: string[] = [];
   if (!Number.isInteger(policy.minTeamSize) || policy.minTeamSize < 1) {
@@ -148,7 +148,7 @@ function checkRosters(
     if (Number.isInteger(policy.starterCount) && policy.starterCount > 0 && team.playerIds.length < policy.starterCount) {
       teamBlockers.push(`队伍 ${label} 无法组成 ${policy.starterCount} 名首发。`);
     }
-    if (team.educationVerificationIds.length !== team.playerIds.length || team.educationVerificationIds.some((id) => !id?.trim())) {
+    if ((policy.teamRegistrationConfig.qualificationPolicy?.educationRequired ?? true) && (team.educationVerificationIds.length !== team.playerIds.length || team.educationVerificationIds.some((id) => !id?.trim()))) {
       teamBlockers.push(`队伍 ${label} 存在未冻结的教育认证依据。`);
     }
     return teamBlockers;

@@ -284,8 +284,11 @@ export async function freezeCompetitiveContext(
       referenceSeasonWeight: 20 as const,
       recentSeasonKeys: [context.previousSeasonKey, context.currentSeasonKey],
       recentSeasonWeight: 30 as const,
-      ...(season.competitionTemplate === "major" ? { sourceSelection: "strongest_equivalent" as const } : {}),
+      ...(policy
+        ? (config.competitiveProfile?.evidencePolicy?.sourceSelection ? { sourceSelection: config.competitiveProfile.evidencePolicy.sourceSelection } : {})
+        : (season.competitionTemplate === "major" ? { sourceSelection: "strongest_equivalent" as const } : {})),
     },
+    externalStrengthMaxStarGap: config.competitiveProfile?.externalStrengthMaxStarGap,
     conversionPolicyVersion: fallbackConversion?.version ?? config.competitiveProfile?.conversionPolicyVersion,
     conversionPolicyId: config.competitiveProfile?.conversionPolicyId,
     fallbackConversion,
