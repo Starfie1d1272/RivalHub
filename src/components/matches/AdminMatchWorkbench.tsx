@@ -102,6 +102,9 @@ export function AdminMatchWorkbench({
   teamBMembers,
   teamARoster,
   teamBRoster,
+  teamAPolicy,
+  teamBPolicy,
+  lineupErrors,
   teamAPreflight,
   teamBPreflight,
   completedMaps,
@@ -125,6 +128,8 @@ export function AdminMatchWorkbench({
     teamBRoster,
     teamAPreflight,
     teamBPreflight,
+    teamAPolicy,
+    teamBPolicy,
   });
   const postMatchTasks = projectOperatorPostMatchTasks({
     status: match.status, isForfeit: match.isForfeit,
@@ -272,7 +277,8 @@ export function AdminMatchWorkbench({
             <RosterSummary entryId={match.entryAId} teamName={teamAName} members={teamAMembers} roster={teamARoster} />
             <RosterSummary entryId={match.entryBId} teamName={teamBName} members={teamBMembers} roster={teamBRoster} />
           </div>
-          {match.status !== "finished" && (
+          {match.status !== "finished" && (!teamAPolicy || !teamBPolicy) && <p className="text-sm text-[var(--color-fg-dim)]">名单规则暂不可用：{lineupErrors.join("；")}</p>}
+          {match.status !== "finished" && teamAPolicy && teamBPolicy && (
             <AdminRosterDialog
               matchId={match.id}
               teamAName={teamAName}
@@ -283,7 +289,8 @@ export function AdminMatchWorkbench({
               teamBMembers={teamBMembers}
               teamARoster={teamARoster}
               teamBRoster={teamBRoster}
-              allowSubstitutes={match.ownership !== "major_stage"}
+              teamAPolicy={teamAPolicy}
+              teamBPolicy={teamBPolicy}
             />
           )}
         </section>
