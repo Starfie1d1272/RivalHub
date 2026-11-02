@@ -233,7 +233,7 @@ async function loadEventRosterUserIdsInTx(
   return { ids, verificationsByUser, rosterRevisionId: roster.sourceRosterRevisionId };
 }
 
-async function loadTeamLineupContextInTx(
+export async function loadMatchEligibilityContextInTx(
   tx: TxDb,
   match: Match,
   entryId: string,
@@ -278,7 +278,11 @@ async function loadTeamLineupContextInTx(
       const [stageRun] = await tx
         .select({ ruleSnapshot: majorStageRuns.ruleSnapshot, stageKey: majorStageRuns.stageKey })
         .from(majorStageRuns)
-        .where(eq(majorStageRuns.id, match.majorStageRunId));
+        .where(and(
+          eq(majorStageRuns.id, match.majorStageRunId),
+          eq(majorStageRuns.seasonId, match.seasonId),
+          eq(majorStageRuns.stageKey, match.stage),
+        ));
       if (!stageRun) {
         throw new AppError(ErrorCode.INTERNAL_ERROR, "托管比赛缺少对应的 StageRun。");
       }
@@ -398,7 +402,7 @@ export async function getStartingLineupPreflightInTx(
   tx: TxDb,
   args: { match: Match; entryId: string; starterIds: readonly string[]; substituteIds?: readonly string[] },
 ): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number> }> {
-  const context = await loadTeamLineupContextInTx(tx, args.match, args.entryId);
+  const context = await loadMatchEligibilityContextInTx(tx, args.match, args.entryId);
   const result = evaluateStartingLineup({
     starterIds: args.starterIds,
     substituteIds: args.substituteIds,
