@@ -164,6 +164,13 @@ export async function getTeamRegistrationReview(
   season: TeamReviewSeason,
   query: TeamRegistrationReviewQuery,
 ): Promise<TeamRegistrationReviewResult> {
+  if (season.teamRegistrationConfig?.qualificationPolicy?.version === 2) {
+    return db.transaction((tx) => getTeamRegistrationReviewWithExecutor(tx, season, query), { isolationLevel: "repeatable read", accessMode: "read only" });
+  }
+  return getTeamRegistrationReviewWithExecutor(db, season, query);
+}
+
+async function getTeamRegistrationReviewWithExecutor(executor: DatabaseExecutor, season: TeamReviewSeason, query: TeamRegistrationReviewQuery): Promise<TeamRegistrationReviewResult> {
   const conditions = [
     eq(competitionEntries.competitionId, season.id),
     eq(users.status, "active"),
@@ -186,8 +193,7 @@ export async function getTeamRegistrationReview(
     ? [sql`${competitionEntries.submittedAt} ASC NULLS LAST`, asc(competitionEntries.id)]
     : [desc(competitionEntries.updatedAt), desc(competitionEntries.id)];
 
-  const [entries, [datasetCount], [reviewQueueCount]] = await Promise.all([
-    db
+  const entries = await executor
       .select({
         id: competitionEntries.id,
         name: competitionEntries.name,
@@ -213,14 +219,14 @@ export async function getTeamRegistrationReview(
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .leftJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
       .where(where)
-      .orderBy(...orderBy),
-    db
+      .orderBy(...orderBy);
+  const [datasetCount] = await executor
       .select({ count: count() })
       .from(competitionEntries)
       .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(where),
-    db
+      .where(where);
+  const [reviewQueueCount] = await executor
       .select({ count: count() })
       .from(competitionEntries)
       .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
@@ -229,10 +235,9 @@ export async function getTeamRegistrationReview(
         eq(competitionEntries.competitionId, season.id),
         eq(users.status, "active"),
         inArray(competitionEntries.registrationStatus, [...TEAM_REVIEW_STATUSES]),
-      )),
-  ]);
+      ));
 
-  const projectedRows = await projectTeamRegistrationRows(season, entries, true);
+  const projectedRows = await projectTeamRegistrationRowsWithExecutor(executor, season, entries, true);
   const reviewRows = projectedRows.map((row) => ({
     ...row,
     status: row.status as Exclude<TeamRegistrationReviewStatus, "all" | "attention" | "self_change_draft">,
@@ -260,34 +265,6 @@ export async function getTeamRegistrationReview(
     normalizedQuery: { ...query, page },
     hasAnyRecords: Number(reviewQueueCount?.count ?? datasetCount?.count ?? 0) > 0,
   };
-}
-
-async function projectTeamRegistrationRows(
-  season: TeamReviewSeason,
-  entries: TeamEntryForProjection[],
-  includeOverrides: boolean,
-) {
-  if (season.teamRegistrationConfig?.qualificationPolicy?.version === 2) {
-    if (entries.length === 0) return [];
-    return db.transaction(async (tx) => {
-      const currentRows = await tx.select({
-        id: competitionEntries.id, name: competitionEntries.name, source: competitionEntries.source,
-        status: competitionEntries.registrationStatus, reviewReason: competitionEntries.reviewReason,
-        teamId: competitionEntries.teamId, perfectTeamId: competitionEntries.perfectTeamId, logoUrl: competitionEntries.logoUrl,
-        updatedAt: competitionEntries.updatedAt, currentRosterRevisionId: competitionEntries.currentRosterRevisionId,
-        revisionOrigin: competitionEntryRosterRevisions.origin, revisionStatus: competitionEntryRosterRevisions.status,
-        representative: { displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, email: users.email },
-      }).from(competitionEntries)
-        .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
-        .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-        .leftJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
-        .where(and(eq(competitionEntries.competitionId, season.id), inArray(competitionEntries.id, entries.map((entry) => entry.id))));
-      const byId = new Map(currentRows.map((row) => [row.id, row]));
-      const currentEntries = entries.flatMap((entry) => { const current = byId.get(entry.id); return current ? [current] : []; });
-      return projectTeamRegistrationRowsWithExecutor(tx, season, currentEntries, includeOverrides);
-    }, { isolationLevel: "repeatable read", accessMode: "read only" });
-  }
-  return projectTeamRegistrationRowsWithExecutor(db, season, entries, includeOverrides);
 }
 
 async function projectTeamRegistrationRowsWithExecutor(
@@ -486,8 +463,14 @@ async function projectTeamRegistrationRowsWithExecutor(
 }
 
 export async function getTeamRegistrationProgress(season: TeamReviewSeason): Promise<TeamRegistrationProgressResult> {
-  const [draftEntries, statusRows] = await Promise.all([
-    db.select({
+  if (season.teamRegistrationConfig?.qualificationPolicy?.version === 2) {
+    return db.transaction((tx) => getTeamRegistrationProgressWithExecutor(tx, season), { isolationLevel: "repeatable read", accessMode: "read only" });
+  }
+  return getTeamRegistrationProgressWithExecutor(db, season);
+}
+
+async function getTeamRegistrationProgressWithExecutor(executor: DatabaseExecutor, season: TeamReviewSeason): Promise<TeamRegistrationProgressResult> {
+  const draftEntries = await executor.select({
       id: competitionEntries.id,
       name: competitionEntries.name,
       source: competitionEntries.source,
@@ -512,15 +495,14 @@ export async function getTeamRegistrationProgress(season: TeamReviewSeason): Pro
       .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
       .leftJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
       .where(and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "draft")))
-      .orderBy(desc(competitionEntries.updatedAt), desc(competitionEntries.id)),
-    db.select({ status: competitionEntries.registrationStatus, revisionOrigin: competitionEntryRosterRevisions.origin, revisionStatus: competitionEntryRosterRevisions.status, count: count() })
+      .orderBy(desc(competitionEntries.updatedAt), desc(competitionEntries.id));
+  const statusRows = await executor.select({ status: competitionEntries.registrationStatus, revisionOrigin: competitionEntryRosterRevisions.origin, revisionStatus: competitionEntryRosterRevisions.status, count: count() })
       .from(competitionEntries)
       .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
       .leftJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
       .where(eq(competitionEntries.competitionId, season.id))
-      .groupBy(competitionEntries.registrationStatus, competitionEntryRosterRevisions.origin, competitionEntryRosterRevisions.status),
-  ]);
-  const projectedDrafts = await projectTeamRegistrationRows(season, draftEntries, false);
+      .groupBy(competitionEntries.registrationStatus, competitionEntryRosterRevisions.origin, competitionEntryRosterRevisions.status);
+  const projectedDrafts = await projectTeamRegistrationRowsWithExecutor(executor, season, draftEntries, false);
   const counts = new Map<string, number>();
   for (const row of statusRows) {
     const category = teamReviewCategory(row);
@@ -528,15 +510,16 @@ export async function getTeamRegistrationProgress(season: TeamReviewSeason): Pro
   }
   const draftUserIds = [...new Set(projectedDrafts.flatMap((entry) => entry.members.map((member) => member.userId)))];
   const draftTeamIds = [...new Set(draftEntries.flatMap((entry) => entry.teamId ? [entry.teamId] : []))];
+  const legacyReadiness = season.teamRegistrationConfig?.qualificationPolicy?.version !== 2;
   const [registrationBlocks, rosterBlocks, activeMemberships] = await Promise.all([
-    draftUserIds.length > 0
-      ? loadActiveSanctionsInTx(db, { seasonId: season.id, subjectUserIds: draftUserIds, effect: "registration_block" })
+    legacyReadiness && draftUserIds.length > 0
+      ? loadActiveSanctionsInTx(executor, { seasonId: season.id, subjectUserIds: draftUserIds, effect: "registration_block" })
       : Promise.resolve(new Map()),
-    draftUserIds.length > 0
-      ? loadActiveSanctionsInTx(db, { seasonId: season.id, subjectUserIds: draftUserIds, effect: "roster_block" })
+    legacyReadiness && draftUserIds.length > 0
+      ? loadActiveSanctionsInTx(executor, { seasonId: season.id, subjectUserIds: draftUserIds, effect: "roster_block" })
       : Promise.resolve(new Map()),
-    draftTeamIds.length > 0 && draftUserIds.length > 0
-      ? db.select({ teamId: teamMemberships.teamId, userId: teamMemberships.userId })
+    legacyReadiness && draftTeamIds.length > 0 && draftUserIds.length > 0
+      ? executor.select({ teamId: teamMemberships.teamId, userId: teamMemberships.userId })
         .from(teamMemberships)
         .where(and(inArray(teamMemberships.teamId, draftTeamIds), inArray(teamMemberships.userId, draftUserIds), eq(teamMemberships.status, "active"), isNull(teamMemberships.endedAt)))
       : Promise.resolve([]),
