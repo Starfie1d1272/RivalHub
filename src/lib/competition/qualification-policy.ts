@@ -47,6 +47,8 @@ export const qualificationPolicySchema = z.object({
   contacts: z.object({ qqRequired: z.boolean(), emailVerifiedRequired: z.boolean() }),
 });
 
+export const qualificationPolicyV2Schema = qualificationPolicySchema.omit({ affiliationRules: true }).extend({ version: z.literal(2) }).strict();
+
 /** Solo registration still uses its historical registration configuration. */
 export function assertQualificationPolicyPublishable(config: Pick<TeamRegistrationConfig, "qualificationPolicy">, registrationMode: "team" | "solo", limits: { maxTeamSize: number; starterCount: number }): void {
   if (config.qualificationPolicy && registrationMode !== "team") {
