@@ -29,7 +29,7 @@ import { normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrat
 import { resolveManagedMajorProfile } from "@/lib/competition/definition";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 import { PageLayout, Panel, StatusBanner, PosChip } from "@/components/rivalhub";
-import { positionLabel } from "@/lib/validators/registration";
+import { positionLabel, type RegistrationInput } from "@/lib/validators/registration";
 import { getRegistrationWindowState, getWindowTone } from "@/lib/registration/window";
 import { formatCST } from "@/lib/utils/date";
 import { projectMapPreferences } from "@/lib/maps";
@@ -357,7 +357,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
   const existingStatusLabel = existingStatus ? REGISTRATION_STATUS_LABELS[existingStatus] : null;
   const canEditExisting = !!currentRegistration && currentRegistration.status !== "approved";
   const longTermMapPreferences = mapPreferences[0]?.mapPreferences;
-  const initialValues = {
+  const initialValues: Partial<RegistrationInput> = {
     email: userSession.email,
     studentId: currentUser?.studentId ?? "",
     qq: currentUser?.qq ?? "",
