@@ -99,7 +99,6 @@ export interface QualificationPolicyV1 {
 /** V2 stores institution constraints solely in Season.affiliationRules. */
 export interface QualificationPolicyV2 extends Omit<QualificationPolicyV1, "version" | "affiliationRules"> { version: 2 }
 export interface FormationRules {
-  captainSelection: "vote" | "admin";
   draftTimeoutSeconds: number;
   votesPerPerson: number;
   minimumVotesToConfirm: number;
@@ -132,13 +131,15 @@ export interface TeamRegistrationConfig {
 }
 
 /** Persisted v2 uses the existing JSON column and never embeds affiliation rules. */
-export type StoredTeamRegistrationConfigV2 = Omit<TeamRegistrationConfig, "qualificationPolicy" | "allowExternal" | "graduateCountsAsHome" | "minHomeMembers" | "minEnrolledMembers" | "maxExternalMembers" | "requireCompetitiveProfile" | "competitiveProfile"> & {
+export type StoredTeamRegistrationConfigV2 = Omit<TeamRegistrationConfig, "qualificationPolicy" | "allowExternal" | "graduateCountsAsHome" | "minHomeMembers" | "minEnrolledMembers" | "maxExternalMembers" | "requireCompetitiveProfile" | "competitiveProfile" | "captainCanKick" | "captainCanTransfer" | "lockAfterRegistration"> & {
   qualificationPolicy: QualificationPolicyV2;
   formation: FormationRules;
   seeding: SeedingRules;
   lineup: LineupRules;
   rosterChanges: RosterChangeRules;
 };
+
+export type StoredTeamRegistrationConfig = TeamRegistrationConfig | StoredTeamRegistrationConfigV2;
 
 export interface CompetitiveProfileConfig {
   platform: string;
