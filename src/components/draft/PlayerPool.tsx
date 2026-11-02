@@ -111,7 +111,7 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
                     background: "var(--color-panel-hi)",
                   }}
                 >
-                  {p.peakRank}
+                  {p.peakRank ?? "未提供"}
                 </span>
                 <PlayerProfileLink
                   userId={p.userId}
@@ -127,7 +127,7 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
                   className="shrink-0 text-xs tabular-nums text-[var(--color-fg-mid)]"
                   style={{ fontFamily: "var(--font-mono)" }}
                 >
-                  {p.peakRating.toFixed(2)}
+                  {p.peakRating?.toFixed(2) ?? "—"}
                 </span>
                 <div className="min-w-0 flex-1">
                   <MapPreferenceChips preferences={p.mapPreferences} compact minLevel="playable" />
@@ -147,7 +147,7 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
                       background: "var(--color-panel-hi)",
                     }}
                   >
-                    {p.peakRank}
+                    {p.peakRank ?? "未提供"}
                   </span>
                   <PlayerProfileLink
                     userId={p.userId}
@@ -165,7 +165,7 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
                     className="shrink-0 text-xs tabular-nums text-[var(--color-fg-mid)]"
                     style={{ fontFamily: "var(--font-mono)" }}
                   >
-                    {p.peakRating.toFixed(2)}
+                    {p.peakRating?.toFixed(2) ?? "—"}
                   </span>
                   <div className="min-w-0">
                     <MapPreferenceChips preferences={p.mapPreferences} compact minLevel="playable" />

@@ -41,6 +41,7 @@ import { mapCompletedMaps, mapFinishedMaps, mapPendingMaps } from "@/lib/admin/m
 import { projectOperatorCompletion } from "./operator-workflow";
 import { loadOperatorContext } from "./operator-context";
 import { readAdminMatchCommentary } from "./commentary";
+import { readActualStartSnapshot } from "@/lib/matches/actual-start";
 
 interface AdminMatchWorkbenchInput {
   seasonSlug: string;
@@ -286,6 +287,7 @@ export async function loadAdminMatchWorkbench({
     teamAPreflight,
     teamBPreflight,
     completedMaps: mapCompletedMaps(mapRecords),
+    actualStart: await readActualStartSnapshot(db, match.id),
     officialMapStart: (() => { const next = mapRecords.find(m => !m.completedAt); return match.status === "in_progress" && vetoSession?.completedAt && next && !next.startedAt ? { mapId: next.id, mapName: mapLabel(next.mapName) } : null; })(),
     pendingMaps: match.status === "finished" ? [] : mapPendingMaps(mapRecords),
     finishedMaps: mapFinishedMaps(mapRecords),

@@ -1,6 +1,8 @@
 "use server";
 
 import { writeAuditInTx } from "@/lib/audit/write";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
+import { evaluateSeasonParticipantInTx } from "@/lib/qualification/service";
 
 import { revalidatePath } from "next/cache";
 import { randomBytes } from "crypto";
@@ -88,6 +90,11 @@ export async function reviewRegistration(input: ReviewInput) {
       }
 
       if (targetStatus === "approved") {
+        const rules = decodeSeasonRules(season);
+        if (rules.source === "policy_v2") {
+          const decision = await evaluateSeasonParticipantInTx(tx, reg.userId, reg.playerType, rules);
+          if (decision.state === "blocked") throw new AppError(ErrorCode.VALIDATION_FAILED, decision.findings.map((finding) => finding.message).join("；"));
+        }
         // 只统计已通过的，不含自身（自身是 pending/waitlisted，未算入上限）
         const [posCount] = await tx
           .select({ count: count() })

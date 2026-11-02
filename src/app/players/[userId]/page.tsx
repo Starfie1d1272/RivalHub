@@ -208,8 +208,8 @@ async function PlayerCareerHistory({ sections }: SectionProps) {
     const teamInfo = teamBySeasonId.get(registration.seasonId);
     const position = POSITION_LABELS[registration.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? registration.primaryPosition;
     const peak = [
-      registration.peakRank + " (" + registration.peakRankSeason + ")",
-      "Rating " + registration.peakRating.toFixed(2),
+      registration.peakRank ? registration.peakRank + (registration.peakRankSeason ? " (" + registration.peakRankSeason + ")" : "") : "段位未提供",
+      ...(registration.peakRating != null ? ["Rating " + registration.peakRating.toFixed(2)] : []),
     ];
     if (registration.peakWe != null) peak.push("WE " + registration.peakWe.toFixed(1));
 
