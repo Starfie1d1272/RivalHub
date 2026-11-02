@@ -45,6 +45,7 @@ import { RegistrationOpeningRecovery } from "@/components/register/RegistrationO
 
 import { getApprovedCompetitionEntryCount } from "@/lib/competition-entries/counts";
 import { canReleaseEliminatedParticipationInTx } from "@/lib/major/eliminated-entry";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { getCompetitionEntryCapabilities } from "@/lib/competition-entries/capabilities";
 import { isMajorRosterAdjustmentPhaseOpen } from "@/lib/major/roster-window";
 import { loadCompetitionEntryParticipantContext } from "@/lib/competition-entries/participant-context";
@@ -156,7 +157,8 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
     let entryView: Parameters<typeof CompetitionEntryFlow>[0]["entry"] = null;
     const previousEntry = participantContext.activeClaimEntry?.id !== entry?.id ? participantContext.activeClaimEntry : null;
     const transferFrom = previousEntry ? { id: previousEntry.id, name: previousEntry.name, canRelease: await canReleaseEliminatedParticipationInTx(db, season, previousEntry.id) } : null;
-    let capabilities = getCompetitionEntryCapabilities({ season, entry: null, revision: null, rosterFrozen: false });
+    const rosterChanges = decodeSeasonRules(season).roster.changes;
+    let capabilities = getCompetitionEntryCapabilities({ season, entry: null, revision: null, rosterFrozen: false, rosterChanges });
     if (entry) {
 
       const [qualificationRun, finalEntrant] = season.competitionTemplate === "major" ? await Promise.all([
@@ -182,7 +184,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
         ? db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName }).from(competitionEntryRosterMembers).innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId)).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(eq(competitionEntryRosterMembers.revisionId, entry.approvedRosterRevisionId))
         : Promise.resolve(null),
       ]);
-      capabilities = getCompetitionEntryCapabilities({ season, entry: { status: entry.registrationStatus, hasApprovedRoster: !!entry.approvedRosterRevisionId }, revision: revision ?? null, rosterFrozen: eventRoster?.status === "frozen", majorAdjustmentPhaseOpen, eliminatedParticipationRelease: await canReleaseEliminatedParticipationInTx(db, season, entry.id) });
+      capabilities = getCompetitionEntryCapabilities({ season, entry: { status: entry.registrationStatus, hasApprovedRoster: !!entry.approvedRosterRevisionId }, revision: revision ?? null, rosterFrozen: eventRoster?.status === "frozen", majorAdjustmentPhaseOpen, rosterChanges, eliminatedParticipationRelease: await canReleaseEliminatedParticipationInTx(db, season, entry.id) });
       const [candidateRows, rosterRows] = await Promise.all([
         entry.teamId
         ? db.select({ membershipId: teamMemberships.id, userId: teamMemberships.userId, status: teamMemberships.status, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName })
