@@ -15,7 +15,7 @@ vi.mock("pg", () => ({ Pool: class {
 vi.mock("@supabase/supabase-js", () => ({ createClient: () => ({ storage: { from: () => ({ download: state.download }) } }) }));
 vi.mock("../../../scripts/db/preview/environment", () => ({ sourceDatabaseUrl: () => "postgresql://localhost/fixture" }));
 vi.mock("../../../scripts/db/recovery/source", () => ({ resolveProductionSourceIdentity: async () => ({ deployedCommit: "a".repeat(40), deployedReleaseTag: "v2.24.5" }) }));
-vi.mock("../../../scripts/db/production-preflight", () => ({ assertActiveChainPrefix: vi.fn(), readExpectedMigrations: () => [] }));
+vi.mock("../../../scripts/db/production-preflight", () => ({ identifyMigrationChain: vi.fn(), assertActiveChainPrefix: vi.fn(), readExpectedMigrations: () => [] }));
 vi.mock("../../../scripts/db/preview/policy", () => ({
   previewPolicyFor: () => ({ tables: Object.fromEntries(names.map((name) => [name, {}])) }),
   assertReviewedColumns: vi.fn(), exportQuery: (table: string) => `SELECT fixture FROM ${table}`,

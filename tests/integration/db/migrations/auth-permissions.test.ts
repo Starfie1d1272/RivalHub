@@ -21,7 +21,7 @@ async function replayBeforeAuthMigration(client: Client): Promise<void> {
 }
 
 async function runAuthMigrationExpectingFailure(client: Client, keyword: string): Promise<void> {
-  const source = readFileSync(join(process.cwd(), "drizzle/migrations", TERMINAL_MIGRATION), "utf8");
+  const source = readFileSync(join(process.cwd(), "drizzle/v2-migrations", TERMINAL_MIGRATION), "utf8");
   await client.query("BEGIN");
   try {
     await client.query(source);

@@ -6,7 +6,7 @@ import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { Pool, type PoolClient } from "pg";
 import { createClient } from "@supabase/supabase-js";
-import { assertActiveChainPrefix, readExpectedMigrations, type Migration } from "../production-preflight";
+import { identifyMigrationChain, type Migration } from "../production-preflight";
 import { resolveProductionSourceIdentity } from "../recovery/source";
 import {
   assertReviewedColumns,
@@ -70,7 +70,7 @@ export async function exportMirror(accounting?: Pick<OfflineConsumerSummary, "ta
       const ledger = await client!.query("SELECT hash, created_at::text AS when FROM drizzle.__drizzle_migrations ORDER BY created_at");
       const sourceMigrations = ledger.rows.map((row) => ({ hash: String(row.hash), when: Number(row.when) }));
       try {
-        assertActiveChainPrefix(sourceMigrations, readExpectedMigrations());
+        identifyMigrationChain(sourceMigrations);
       } catch (error) {
         throw new PreviewMirrorError("PREVIEW_MIGRATION_LEDGER_FAILED", "Preview source migration ledger is not an active chain prefix.", {
           cause: error,

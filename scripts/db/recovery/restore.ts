@@ -346,6 +346,9 @@ function extractSafeArchive(archivePath: string, destination: string): void {
 }
 
 function assertManifestCompatibility(manifest: RecoveryManifest): void {
+  if (manifest.source.migrationLineage !== "v3") {
+    throw new Error("Recovery backup is not v3 lineage; restore using its original immutable release tools, then upgrade.");
+  }
   const validSource = manifest.sourceEnvironment === "production"
     ? isProductionRecoverySource(manifest.sourceProjectRef)
     : !isProductionRecoverySource(manifest.sourceProjectRef) && manifest.sourceProjectRef !== OFFICIAL_PREVIEW.projectRef;

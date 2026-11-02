@@ -25,7 +25,9 @@ async function main(): Promise<void> {
     } else if (process.argv.length > 4) {
       throw new Error("Unknown canonical migration option.");
     } else {
-      await migrateCanonicalDatabase(drizzle(pool), resolve(migrationsFolder));
+      const client = await pool.connect();
+      try { await migrateCanonicalDatabase(drizzle(client), resolve(migrationsFolder), client); }
+      finally { client.release(); }
     }
   } finally {
     await pool.end();

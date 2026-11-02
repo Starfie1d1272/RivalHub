@@ -26,18 +26,21 @@ export async function preparePg17Database(configuredUrl: string): Promise<void> 
         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
           CREATE ROLE authenticated NOLOGIN;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+          CREATE ROLE service_role NOLOGIN;
+        END IF;
       END
       $$;
     `);
 
     const roles = await client.query<{ rolname: string; rolcanlogin: boolean }>(
       "SELECT rolname, rolcanlogin FROM pg_roles WHERE rolname = ANY($1::text[]) ORDER BY rolname",
-      [["anon", "authenticated"]],
+      [["anon", "authenticated", "service_role"]],
     );
     if (
-      roles.rows.length !== 2 ||
+      roles.rows.length !== 3 ||
       roles.rows.some((role) => role.rolcanlogin) ||
-      roles.rows.map((role) => role.rolname).join(",") !== "anon,authenticated"
+      roles.rows.map((role) => role.rolname).join(",") !== "anon,authenticated,service_role"
     ) {
       throw new Error("PostgreSQL candidate 的 anon/authenticated 最小角色 contract 不完整。");
     }
@@ -55,7 +58,7 @@ export async function preparePg17Database(configuredUrl: string): Promise<void> 
     console.log(
       [
         `PostgreSQL 17 prerequisites passed: server_version_num=${version}`,
-        "roles=anon,authenticated (NOLOGIN)",
+        "roles=anon,authenticated,service_role (NOLOGIN)",
         "required_extensions=none",
         `preexisting_optional_extensions=${extensions.rows.map((row) => row.extname).join(",") || "none"}`,
         `gen_random_uuid=${uuidFunction.rows[0].function_name}`,

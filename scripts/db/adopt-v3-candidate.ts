@@ -6,13 +6,15 @@ import { isMigrationLedgerPrefix, readMigrationLedger, type MigrationIdentity } 
 
 const root = resolve(process.cwd(), "drizzle/baseline-candidate");
 
-/** Candidate-only local exercise. The caller must have stopped writers and all
- * migration runners; neither this lock nor a catalog snapshot is a global DDL mutex. */
+/** Caller must have stopped writers and all migration runners; neither this
+ * lock nor a catalog snapshot is a global DDL mutex. The terminal is still a
+ * review candidate until the release branch has converged. */
 export async function adoptLegacyCandidate(client: PoolClient): Promise<"adopted" | "already-adopted"> {
-  const legacy = JSON.parse(readFileSync(resolve(root, "legacy-ledger.json"), "utf8")) as MigrationIdentity[];
+  const legacy = readMigrationLedger(resolve(process.cwd(), "drizzle/v2-migrations"));
+  const recorded = JSON.parse(readFileSync(resolve(root, "legacy-ledger.json"), "utf8")) as MigrationIdentity[];
   const expectedContract = JSON.parse(readFileSync(resolve(root, "legacy-contract.json"), "utf8")) as Record<string, string[]>;
-  const baseline = readMigrationLedger(root);
-  if (legacy.length !== 113 || baseline.length !== 1) throw new Error("Candidate lineage files are incomplete.");
+  const baseline = readMigrationLedger();
+  if (legacy.length !== recorded.length || !isMigrationLedgerPrefix(legacy, recorded) || !baseline.length) throw new Error("Candidate lineage files are incomplete.");
   await client.query("SELECT pg_advisory_lock(hashtext('rivalhub.instance.install'))");
   try {
     await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE");

@@ -6,7 +6,7 @@ import { Pool, type PoolClient } from "pg";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrateCanonicalDatabase } from "../canonical-migrate";
-import { assertActiveChainPrefix, readExpectedMigrations } from "../production-preflight";
+import { assertActiveChainPrefix, identifyMigrationChain, readExpectedMigrations } from "../production-preflight";
 import { verifyForeignKeys } from "../recovery/verify";
 import { targetEnvironment } from "./environment";
 import { readSnapshot, type MirrorSnapshot } from "./snapshot";
@@ -92,19 +92,20 @@ async function migrateToSource(client: PoolClient, snapshot: MirrorSnapshot): Pr
   const actual = exists.rows[0].ledger ? (await client.query("SELECT hash, created_at::text AS when FROM drizzle.__drizzle_migrations ORDER BY created_at")).rows
     .map((row) => ({ hash: String(row.hash), when: Number(row.when) })) : [];
   assertActiveChainPrefix(actual, snapshot.migrations);
+  const source = identifyMigrationChain(snapshot.migrations);
   const folder = mkdtempSync(join(tmpdir(), "rivalhub-preview-migrations-"));
   try {
     mkdirSync(join(folder, "meta"));
-    const journal = JSON.parse(readFileSync("drizzle/migrations/meta/_journal.json", "utf8"));
+    const journal = JSON.parse(readFileSync(`${source.directory}/meta/_journal.json`, "utf8"));
     journal.entries = journal.entries.slice(0, snapshot.migrations.length);
     writeFileSync(join(folder, "meta/_journal.json"), JSON.stringify(journal));
-    for (const entry of readExpectedMigrations().slice(0, snapshot.migrations.length)) copyFileSync(`drizzle/migrations/${entry.tag}.sql`, join(folder, `${entry.tag}.sql`));
+    for (const entry of source.migrations.slice(0, snapshot.migrations.length)) copyFileSync(`${source.directory}/${entry.tag}.sql`, join(folder, `${entry.tag}.sql`));
     await migrateCanonicalDatabase(drizzle(client), folder);
   } finally { rmSync(folder, { recursive: true, force: true }); }
 }
 
 async function migrateCurrent(client: PoolClient): Promise<void> {
-  await migrateCanonicalDatabase(drizzle(client), "drizzle/migrations");
+  await migrateCanonicalDatabase(drizzle(client), "drizzle/migrations", client);
 }
 
 async function ensureMirrorState(client: PoolClient): Promise<void> {
@@ -219,7 +220,7 @@ export async function refreshMirror(path: string): Promise<void> {
     await runPreviewRefreshPhase("db import", () => importAndMigrateSnapshot(connected, snapshot, target.applyCurrentMigrations));
     await runPreviewRefreshPhase("db state setup", () => ensureMirrorState(connected));
     // Current domain code requires the current schema; older source-only mirrors stay readable.
-    if (target.applyCurrentMigrations || snapshot.migrations.length === readExpectedMigrations().length) {
+    if (target.applyCurrentMigrations || identifyMigrationChain(snapshot.migrations).directory === "drizzle/migrations" && snapshot.migrations.length === readExpectedMigrations().length) {
       await runPreviewRefreshPhase("pickem windows", async () => {
         const [{ initializePreviewPickEm }, schema] = await Promise.all([
           import("./predictions"), import("../../../src/db/schema"),

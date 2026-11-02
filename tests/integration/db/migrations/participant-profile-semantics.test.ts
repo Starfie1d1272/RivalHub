@@ -51,7 +51,7 @@ describe("participant profile semantics migration", () => {
       await client.query("INSERT INTO users (id, email) VALUES ($1, $2)", [userId, `invalid-role-${userId}@local.test`]);
       await client.query("INSERT INTO user_competitive_roles (user_id, role) VALUES ($1, 'support')", [userId]);
 
-      const source = readFileSync(join(process.cwd(), "drizzle/migrations", TERMINAL_MIGRATION), "utf8");
+      const source = readFileSync(join(process.cwd(), "drizzle/v2-migrations", TERMINAL_MIGRATION), "utf8");
       await client.query("BEGIN");
       let failedClosed = false;
       try {

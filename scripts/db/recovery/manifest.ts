@@ -43,6 +43,7 @@ export interface RecoverySourceIdentity {
   deployedReleaseTag: string;
   deployedCommit: string;
   databaseMigrationTerminal: RecoveryMigrationIdentity;
+  migrationLineage?: "v3";
   legacyMigrationLedger?: readonly LegacyLedgerEntry[];
 }
 
@@ -193,6 +194,9 @@ export function assertRecoveryManifest(value: unknown): RecoveryManifest {
   }
 
   assertMigrationIdentity(source.databaseMigrationTerminal, "Recovery manifest database migration terminal");
+  if (source.migrationLineage !== undefined && source.migrationLineage !== "v3") {
+    throw new Error("Recovery manifest migration lineage is unsupported.");
+  }
   if (source.legacyMigrationLedger !== undefined) {
     if (!Array.isArray(source.legacyMigrationLedger)) throw new Error("Recovery manifest legacy ledger is invalid.");
     assertLegacyLineage(source.legacyMigrationLedger);

@@ -15,7 +15,7 @@ it.each(["before", "after"] as const)("preserves permanent fences and dirty whil
         where not t.tgisinternal and n.nspname='public' order by c.relname,t.tgname`);
       console.info("LOCK_TRIGGER_MATRIX", JSON.stringify(bindings.rows));
     }
-    if (version === "before") await tx.execute(sql.raw(readFileSync(new URL("../../../drizzle/migrations/0082_bet-map-slots.sql", import.meta.url), "utf8").split("--> statement-breakpoint")[0]!));
+    if (version === "before") await tx.execute(sql.raw(readFileSync(new URL("../../../drizzle/v2-migrations/0082_bet-map-slots.sql", import.meta.url), "utf8").split("--> statement-breakpoint")[0]!));
     await tx.insert(schema.matchVetoSessions).values({ matchId: f.matchId, startedAt: sql`clock_timestamp()` });
     await tx.update(schema.matches).set({ gameplayStartedAt: sql`clock_timestamp()` }).where(eq(schema.matches.id, f.matchId));
     const locked = async () => (await tx.execute(sql`select id, locked_at::text as locked_at from bet_markets where season_id=${f.seasonId} and locked_at is not null order by id`)).rows;

@@ -1,3 +1,4 @@
+import { readMigrationLedger } from "../../scripts/db/migration-ledger";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,7 +9,7 @@ import { readSnapshot, type MirrorSnapshot } from "../../scripts/db/preview/snap
 
 describe("community award preview boundary", () => {
   it("keeps pre-0090 sources readable and reviews the additive award schema", () => {
-    const migrations = readExpectedMigrations();
+    const migrations = readMigrationLedger("drizzle/v2-migrations");
     const index = migrations.findIndex((migration) => migration.tag === "0090_yellow_blink");
     expect(index).toBeGreaterThan(0);
     const old = previewPolicyFor(migrations.slice(0, index));

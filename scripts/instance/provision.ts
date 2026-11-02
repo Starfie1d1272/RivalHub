@@ -23,32 +23,13 @@ async function installFreshInstance(client: PoolClient): Promise<void> {
     if (existing.rows[0]?.users || existing.rows[0]?.objects) throw Error("Fresh Supabase target must not contain existing Auth users or Storage objects.");
     await migrateCanonicalDatabase(drizzle(client), 'drizzle/migrations');
     if (await verifyTeamLogoBucket(client) !== "verified") throw Error("Supabase Storage bucket table is unavailable; installation is incomplete.");
-    await removeOfficialEmailBootstrapFromFreshInstance(client);
+    const officialRule = await client.query<{ present: boolean }>(
+      "SELECT EXISTS (SELECT 1 FROM institution_email_domains WHERE domain=$1) AS present", ["smail.nju.edu.cn"],
+    );
+    if (officialRule.rows[0]?.present !== false) throw Error("Generic baseline unexpectedly contains official email trust.");
     console.log('Active migration chain installed; generic instance has no official-only email trust.');
   } finally {
     await client.query("SELECT pg_advisory_unlock(hashtext('rivalhub.instance.install'))");
-  }
-}
-
-/** The immutable legacy chain seeds one official-domain rule. Only an empty,
- * non-official target may reach this function; a v3 baseline may omit it. */
-async function removeOfficialEmailBootstrapFromFreshInstance(client: PoolClient): Promise<void> {
-  await client.query("BEGIN");
-  try {
-    const result = await client.query<{ id: string; institution_code: string | null; credential_type: string; auto_verify: boolean; active: boolean }>(
-      `SELECT d.id, i.moe_institution_code AS institution_code, d.credential_type, d.auto_verify, d.active
-       FROM institution_email_domains d JOIN institutions i ON i.id=d.institution_id
-       WHERE d.domain=$1 FOR UPDATE OF d`, ["smail.nju.edu.cn"],
-    );
-    if (result.rows.length > 1 || result.rows.some(row => row.institution_code !== "4132010284"
-      || row.credential_type !== "student" || !row.auto_verify || !row.active)) {
-      throw Error("Official email bootstrap differs from the expected fresh-chain rule; refusing to modify it.");
-    }
-    if (result.rows[0]) await client.query("DELETE FROM institution_email_domains WHERE id=$1", [result.rows[0].id]);
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
   }
 }
 

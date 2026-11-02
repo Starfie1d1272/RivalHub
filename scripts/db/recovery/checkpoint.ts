@@ -54,6 +54,7 @@ async function main(): Promise<void> {
       source: {
         ...source,
         databaseMigrationTerminal: migration.ledger,
+        migrationLineage: "v3",
         ...(migration.legacyLedger ? { legacyMigrationLedger: migration.legacyLedger } : {}),
       },
       artifactKind: "db-checkpoint",

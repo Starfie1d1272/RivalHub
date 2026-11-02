@@ -8,7 +8,7 @@ import { migrationFiles, replayMigration, withScratchDatabase } from "../harness
 
 const TARGET_MIGRATION = "0042_identity_foundation.sql";
 // Verify the historical replay against its frozen inventory, not tables added later.
-const targetSnapshot = JSON.parse(readFileSync(join(process.cwd(), "drizzle/migrations/meta/0042_snapshot.json"), "utf8")) as { tables: Record<string, { name: string }> };
+const targetSnapshot = JSON.parse(readFileSync(join(process.cwd(), "drizzle/v2-migrations/meta/0042_snapshot.json"), "utf8")) as { tables: Record<string, { name: string }> };
 const targetTables = new Set(Object.values(targetSnapshot.tables).map((table) => table.name));
 const ACCESS_MATRIX_AT_TARGET = DATABASE_ACCESS_MATRIX.filter((entry) => targetTables.has(entry.table));
 const IGNORED_TABLES_AT_TARGET = ["competition_bracket_states", "swiss_standings"] as const;

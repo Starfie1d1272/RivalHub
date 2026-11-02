@@ -1,5 +1,16 @@
 -- F2 review candidate; generated from isolated ec920fc replay, not a frozen lineage.
 
+-- Preserve the application scheduler prerequisites from the old chain. A
+-- plain PostgreSQL rehearsal may not provide these provider extensions.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_cron') THEN
+    CREATE EXTENSION IF NOT EXISTS pg_cron;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_net') THEN
+    CREATE EXTENSION IF NOT EXISTS pg_net;
+  END IF;
+END $$;
 
 
 SET statement_timeout = 0;
@@ -30,6 +41,7 @@ CREATE TYPE "public"."academic_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."academic_status" OWNER TO "postgres";
 
 
@@ -42,6 +54,7 @@ CREATE TYPE "public"."adjudication_impact" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."adjudication_impact" OWNER TO "postgres";
 
 
@@ -53,6 +66,7 @@ CREATE TYPE "public"."adjudication_kind" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."adjudication_kind" OWNER TO "postgres";
 
 
@@ -62,6 +76,7 @@ CREATE TYPE "public"."adjudication_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."adjudication_status" OWNER TO "postgres";
 
 
@@ -73,6 +88,7 @@ CREATE TYPE "public"."adjudication_target" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."adjudication_target" OWNER TO "postgres";
 
 
@@ -82,6 +98,7 @@ CREATE TYPE "public"."admin_invite_role" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."admin_invite_role" OWNER TO "postgres";
 
 
@@ -91,6 +108,7 @@ CREATE TYPE "public"."announcement_scope" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."announcement_scope" OWNER TO "postgres";
 
 
@@ -100,6 +118,7 @@ CREATE TYPE "public"."announcement_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."announcement_status" OWNER TO "postgres";
 
 
@@ -110,6 +129,7 @@ CREATE TYPE "public"."announcement_type" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."announcement_type" OWNER TO "postgres";
 
 
@@ -124,6 +144,7 @@ CREATE TYPE "public"."community_award_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."community_award_status" OWNER TO "postgres";
 
 
@@ -133,6 +154,7 @@ CREATE TYPE "public"."community_group_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."community_group_status" OWNER TO "postgres";
 
 
@@ -144,6 +166,7 @@ CREATE TYPE "public"."competition_entry_participant_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."competition_entry_participant_status" OWNER TO "postgres";
 
 
@@ -158,6 +181,7 @@ CREATE TYPE "public"."competition_entry_registration_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."competition_entry_registration_status" OWNER TO "postgres";
 
 
@@ -168,6 +192,7 @@ CREATE TYPE "public"."competition_entry_roster_revision_origin" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."competition_entry_roster_revision_origin" OWNER TO "postgres";
 
 
@@ -179,6 +204,7 @@ CREATE TYPE "public"."competition_entry_roster_revision_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."competition_entry_roster_revision_status" OWNER TO "postgres";
 
 
@@ -188,6 +214,7 @@ CREATE TYPE "public"."competition_entry_source" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."competition_entry_source" OWNER TO "postgres";
 
 
@@ -201,6 +228,7 @@ CREATE TYPE "public"."competition_entry_submission_decision" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."competition_entry_submission_decision" OWNER TO "postgres";
 
 
@@ -210,6 +238,7 @@ CREATE TYPE "public"."competition_qualification_format" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."competition_qualification_format" OWNER TO "postgres";
 
 
@@ -220,6 +249,7 @@ CREATE TYPE "public"."competition_template" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."competition_template" OWNER TO "postgres";
 
 
@@ -229,6 +259,7 @@ CREATE TYPE "public"."competitive_fact_kind" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."competitive_fact_kind" OWNER TO "postgres";
 
 
@@ -237,6 +268,7 @@ CREATE TYPE "public"."competitive_fact_provenance" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."competitive_fact_provenance" OWNER TO "postgres";
 
 
@@ -246,6 +278,7 @@ CREATE TYPE "public"."competitive_fact_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."competitive_fact_status" OWNER TO "postgres";
 
 
@@ -256,6 +289,7 @@ CREATE TYPE "public"."conversion_policy_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."conversion_policy_status" OWNER TO "postgres";
 
 
@@ -268,6 +302,7 @@ CREATE TYPE "public"."cs2_role" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."cs2_role" OWNER TO "postgres";
 
 
@@ -278,6 +313,7 @@ CREATE TYPE "public"."dak_pairing_intent_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."dak_pairing_intent_status" OWNER TO "postgres";
 
 
@@ -287,6 +323,7 @@ CREATE TYPE "public"."dak_pairing_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."dak_pairing_status" OWNER TO "postgres";
 
 
@@ -299,6 +336,7 @@ CREATE TYPE "public"."demo_economy_type" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."demo_economy_type" OWNER TO "postgres";
 
 
@@ -308,6 +346,7 @@ CREATE TYPE "public"."demo_round_phase" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."demo_round_phase" OWNER TO "postgres";
 
 
@@ -319,6 +358,7 @@ CREATE TYPE "public"."education_evidence_type" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."education_evidence_type" OWNER TO "postgres";
 
 
@@ -329,6 +369,7 @@ CREATE TYPE "public"."education_verification_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."education_verification_status" OWNER TO "postgres";
 
 
@@ -339,6 +380,7 @@ CREATE TYPE "public"."email_verification_source" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."email_verification_source" OWNER TO "postgres";
 
 
@@ -349,6 +391,7 @@ CREATE TYPE "public"."event_roster_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."event_roster_status" OWNER TO "postgres";
 
 
@@ -361,6 +404,7 @@ CREATE TYPE "public"."feedback_category" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."feedback_category" OWNER TO "postgres";
 
 
@@ -371,6 +415,7 @@ CREATE TYPE "public"."feedback_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."feedback_status" OWNER TO "postgres";
 
 
@@ -380,6 +425,7 @@ CREATE TYPE "public"."gameplay_steam_identity_provenance" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."gameplay_steam_identity_provenance" OWNER TO "postgres";
 
 
@@ -389,6 +435,7 @@ CREATE TYPE "public"."gameplay_steam_identity_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."gameplay_steam_identity_status" OWNER TO "postgres";
 
 
@@ -399,6 +446,7 @@ CREATE TYPE "public"."honor_basis" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."honor_basis" OWNER TO "postgres";
 
 
@@ -410,6 +458,7 @@ CREATE TYPE "public"."honor_state" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."honor_state" OWNER TO "postgres";
 
 
@@ -421,6 +470,7 @@ CREATE TYPE "public"."honor_type" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."honor_type" OWNER TO "postgres";
 
 
@@ -433,6 +483,7 @@ CREATE TYPE "public"."identity_link_request_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."identity_link_request_status" OWNER TO "postgres";
 
 
@@ -443,6 +494,7 @@ CREATE TYPE "public"."institution_source" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."institution_source" OWNER TO "postgres";
 
 
@@ -452,6 +504,7 @@ CREATE TYPE "public"."major_prestart_issue_category" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."major_prestart_issue_category" OWNER TO "postgres";
 
 
@@ -461,6 +514,7 @@ CREATE TYPE "public"."major_result_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."major_result_status" OWNER TO "postgres";
 
 
@@ -474,6 +528,7 @@ CREATE TYPE "public"."match_demo_import_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."match_demo_import_status" OWNER TO "postgres";
 
 
@@ -484,6 +539,7 @@ CREATE TYPE "public"."match_format" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."match_format" OWNER TO "postgres";
 
 
@@ -493,6 +549,7 @@ CREATE TYPE "public"."match_ownership" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."match_ownership" OWNER TO "postgres";
 
 
@@ -503,6 +560,7 @@ CREATE TYPE "public"."match_roster_source" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."match_roster_source" OWNER TO "postgres";
 
 
@@ -512,6 +570,7 @@ CREATE TYPE "public"."match_roster_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."match_roster_status" OWNER TO "postgres";
 
 
@@ -523,6 +582,7 @@ CREATE TYPE "public"."match_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."match_status" OWNER TO "postgres";
 
 
@@ -534,6 +594,7 @@ CREATE TYPE "public"."match_time_resolution" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."match_time_resolution" OWNER TO "postgres";
 
 
@@ -545,6 +606,7 @@ CREATE TYPE "public"."match_veto_appeal_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."match_veto_appeal_status" OWNER TO "postgres";
 
 
@@ -554,6 +616,7 @@ CREATE TYPE "public"."match_veto_resolution_scope" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."match_veto_resolution_scope" OWNER TO "postgres";
 
 
@@ -565,6 +628,7 @@ CREATE TYPE "public"."match_veto_step_source" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."match_veto_step_source" OWNER TO "postgres";
 
 
@@ -575,6 +639,7 @@ CREATE TYPE "public"."mizar_pairing_intent_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."mizar_pairing_intent_status" OWNER TO "postgres";
 
 
@@ -584,6 +649,7 @@ CREATE TYPE "public"."recruitment_intent_kind" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."recruitment_intent_kind" OWNER TO "postgres";
 
 
@@ -593,6 +659,7 @@ CREATE TYPE "public"."recruitment_intent_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."recruitment_intent_status" OWNER TO "postgres";
 
 
@@ -602,6 +669,7 @@ CREATE TYPE "public"."registration_mode" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."registration_mode" OWNER TO "postgres";
 
 
@@ -613,6 +681,7 @@ CREATE TYPE "public"."registration_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."registration_status" OWNER TO "postgres";
 
 
@@ -623,6 +692,7 @@ CREATE TYPE "public"."sanction_effect" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."sanction_effect" OWNER TO "postgres";
 
 
@@ -634,6 +704,7 @@ CREATE TYPE "public"."sanction_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."sanction_status" OWNER TO "postgres";
 
 
@@ -648,6 +719,7 @@ CREATE TYPE "public"."season_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."season_status" OWNER TO "postgres";
 
 
@@ -657,6 +729,7 @@ CREATE TYPE "public"."side" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."side" OWNER TO "postgres";
 
 
@@ -666,6 +739,7 @@ CREATE TYPE "public"."team_invitation_kind" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."team_invitation_kind" OWNER TO "postgres";
 
 
@@ -678,6 +752,7 @@ CREATE TYPE "public"."team_invitation_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."team_invitation_status" OWNER TO "postgres";
 
 
@@ -687,6 +762,7 @@ CREATE TYPE "public"."team_lifecycle" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."team_lifecycle" OWNER TO "postgres";
 
 
@@ -697,6 +773,7 @@ CREATE TYPE "public"."team_membership_end_reason" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."team_membership_end_reason" OWNER TO "postgres";
 
 
@@ -707,6 +784,7 @@ CREATE TYPE "public"."team_membership_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."team_membership_status" OWNER TO "postgres";
 
 
@@ -718,6 +796,7 @@ CREATE TYPE "public"."user_identity_kind" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."user_identity_kind" OWNER TO "postgres";
 
 
@@ -730,6 +809,7 @@ CREATE TYPE "public"."user_identity_link_provenance" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."user_identity_link_provenance" OWNER TO "postgres";
 
 
@@ -740,6 +820,7 @@ CREATE TYPE "public"."user_identity_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."user_identity_status" OWNER TO "postgres";
 
 
@@ -750,6 +831,7 @@ CREATE TYPE "public"."user_merge_authorization_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."user_merge_authorization_status" OWNER TO "postgres";
 
 
@@ -759,6 +841,7 @@ CREATE TYPE "public"."user_merge_evidence_class" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."user_merge_evidence_class" OWNER TO "postgres";
 
 
@@ -768,6 +851,7 @@ CREATE TYPE "public"."user_role" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."user_role" OWNER TO "postgres";
 
 
@@ -777,6 +861,7 @@ CREATE TYPE "public"."user_status" AS ENUM (
 );
 
 
+-- rivalhub:migration-risk: contract-cleanup Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TYPE "public"."user_status" OWNER TO "postgres";
 
 
@@ -4084,1565 +4169,1902 @@ CREATE TABLE IF NOT EXISTS "public"."users" (
 ALTER TABLE "public"."users" OWNER TO "postgres";
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."admin_invite_claims"
     ADD CONSTRAINT "admin_invite_claims_invite_user_unique" UNIQUE ("invite_id", "user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."admin_invites"
     ADD CONSTRAINT "admin_invites_code_unique" UNIQUE ("code");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."admin_invites"
     ADD CONSTRAINT "admin_invites_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."announcements"
     ADD CONSTRAINT "announcements_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."application_session_controls"
     ADD CONSTRAINT "application_session_controls_pkey" PRIMARY KEY ("user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."application_sessions"
     ADD CONSTRAINT "application_sessions_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."audit_logs"
     ADD CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_accounts"
     ADD CONSTRAINT "bet_accounts_id_season_id_unique" UNIQUE ("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_accounts"
     ADD CONSTRAINT "bet_accounts_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_accounts"
     ADD CONSTRAINT "bet_accounts_season_id_user_id_unique" UNIQUE ("season_id", "user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_ledger"
     ADD CONSTRAINT "bet_ledger_account_id_source_unique" UNIQUE ("account_id", "source");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_ledger"
     ADD CONSTRAINT "bet_ledger_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_markets"
     ADD CONSTRAINT "bet_markets_id_season_id_unique" UNIQUE ("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_markets"
     ADD CONSTRAINT "bet_markets_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_markets"
     ADD CONSTRAINT "bet_markets_season_id_market_key_unique" UNIQUE ("season_id", "market_key");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_options"
     ADD CONSTRAINT "bet_options_id_market_id_unique" UNIQUE ("id", "market_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_options"
     ADD CONSTRAINT "bet_options_market_id_key_unique" UNIQUE ("market_id", "key");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_options"
     ADD CONSTRAINT "bet_options_market_id_position_unique" UNIQUE ("market_id", "position");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_options"
     ADD CONSTRAINT "bet_options_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_programs"
     ADD CONSTRAINT "bet_programs_pkey" PRIMARY KEY ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_settlements"
     ADD CONSTRAINT "bet_settlements_market_id_revision_unique" UNIQUE ("market_id", "revision");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_settlements"
     ADD CONSTRAINT "bet_settlements_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_stage_milestones"
     ADD CONSTRAINT "bet_stage_milestones_season_id_stage_key_unique" UNIQUE ("season_id", "stage_key");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_stakes"
     ADD CONSTRAINT "bet_stakes_account_id_request_id_unique" UNIQUE ("account_id", "request_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_stakes"
     ADD CONSTRAINT "bet_stakes_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."captain_votes"
     ADD CONSTRAINT "captain_votes_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."captain_votes"
     ADD CONSTRAINT "captain_votes_voter_registration_id_candidate_registration_id_u" UNIQUE ("voter_registration_id", "candidate_registration_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_award_evidence"
     ADD CONSTRAINT "community_award_evidence_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_award_recipients"
     ADD CONSTRAINT "community_award_recipients_award_id_user_id_pk" PRIMARY KEY ("award_id", "user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_awards"
     ADD CONSTRAINT "community_awards_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_groups"
     ADD CONSTRAINT "community_groups_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entries"
     ADD CONSTRAINT "competition_entries_id_competition_id_unique" UNIQUE ("id", "competition_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entries"
     ADD CONSTRAINT "competition_entries_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_active_claims"
     ADD CONSTRAINT "competition_entry_active_claims_competition_user_unique" UNIQUE ("competition_id", "user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_active_claims"
     ADD CONSTRAINT "competition_entry_active_claims_participant_unique" UNIQUE ("participant_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_legacy_identities"
     ADD CONSTRAINT "competition_entry_legacy_identities_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_legacy_identities"
     ADD CONSTRAINT "competition_entry_legacy_identities_type_id_unique" UNIQUE ("legacy_type", "legacy_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_participants"
     ADD CONSTRAINT "competition_entry_participants_entry_user_unique" UNIQUE ("entry_id", "user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_participants"
     ADD CONSTRAINT "competition_entry_participants_id_entry_user_unique" UNIQUE ("id", "entry_id", "user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_participants"
     ADD CONSTRAINT "competition_entry_participants_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_representative_changes"
     ADD CONSTRAINT "competition_entry_representative_changes_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_restriction_overrides"
     ADD CONSTRAINT "competition_entry_restriction_overrides_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_roster_members"
     ADD CONSTRAINT "competition_entry_roster_members_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_roster_members"
     ADD CONSTRAINT "competition_entry_roster_members_revision_participant_unique" UNIQUE ("revision_id", "participant_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_roster_members"
     ADD CONSTRAINT "competition_entry_roster_members_revision_user_unique" UNIQUE ("revision_id", "user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_roster_revisions"
     ADD CONSTRAINT "competition_entry_roster_revisions_entry_revision_number_unique" UNIQUE ("entry_id", "revision_number");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_roster_revisions"
     ADD CONSTRAINT "competition_entry_roster_revisions_id_entry_id_unique" UNIQUE ("id", "entry_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_roster_revisions"
     ADD CONSTRAINT "competition_entry_roster_revisions_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_submissions"
     ADD CONSTRAINT "competition_entry_submissions_entry_sequence_unique" UNIQUE ("entry_id", "sequence");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_submissions"
     ADD CONSTRAINT "competition_entry_submissions_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_qualification_drafts"
     ADD CONSTRAINT "competition_qualification_drafts_pkey" PRIMARY KEY ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_qualification_entrants"
     ADD CONSTRAINT "competition_qualification_entrants_id_run_unique" UNIQUE ("id", "run_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_qualification_entrants"
     ADD CONSTRAINT "competition_qualification_entrants_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_qualification_entrants"
     ADD CONSTRAINT "competition_qualification_entrants_run_entry_unique" UNIQUE ("run_id", "competition_entry_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_qualification_entrants"
     ADD CONSTRAINT "competition_qualification_entrants_run_seed_unique" UNIQUE ("run_id", "preliminary_seed");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_qualification_runs"
     ADD CONSTRAINT "competition_qualification_runs_id_season_unique" UNIQUE ("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_qualification_runs"
     ADD CONSTRAINT "competition_qualification_runs_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_qualification_runs"
     ADD CONSTRAINT "competition_qualification_runs_season_id_unique" UNIQUE ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_stage_bracket_states"
     ADD CONSTRAINT "competition_stage_bracket_states_pkey" PRIMARY KEY ("competition_id", "stage_key");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competitive_platform_ranks"
     ADD CONSTRAINT "competitive_platform_ranks_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competitive_platform_seasons"
     ADD CONSTRAINT "competitive_platform_seasons_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competitive_platforms"
     ADD CONSTRAINT "competitive_platforms_pkey" PRIMARY KEY ("key");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competitive_rank_facts"
     ADD CONSTRAINT "competitive_rank_facts_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."conversion_policies"
     ADD CONSTRAINT "conversion_policies_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."coverage_allocations"
     ADD CONSTRAINT "coverage_allocations_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."coverage_holds"
     ADD CONSTRAINT "coverage_holds_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."dak_pairing_intents"
     ADD CONSTRAINT "dak_pairing_intents_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."dak_pairing_intents"
     ADD CONSTRAINT "dak_pairing_intents_poll_token_hash_unique" UNIQUE ("poll_token_hash");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."dak_pairings"
     ADD CONSTRAINT "dak_pairings_pairing_intent_id_unique" UNIQUE ("pairing_intent_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."dak_pairings"
     ADD CONSTRAINT "dak_pairings_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."dak_pairings"
     ADD CONSTRAINT "dak_pairings_token_hash_unique" UNIQUE ("token_hash");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."disciplinary_case_idempotency"
     ADD CONSTRAINT "disciplinary_case_idempotency_pkey" PRIMARY KEY ("client_request_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."disciplinary_cases"
     ADD CONSTRAINT "disciplinary_cases_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."draft_picks"
     ADD CONSTRAINT "draft_picks_client_request_id_unique" UNIQUE ("client_request_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."draft_picks"
     ADD CONSTRAINT "draft_picks_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."draft_picks"
     ADD CONSTRAINT "draft_picks_season_id_registration_id_unique" UNIQUE ("season_id", "registration_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."draft_state"
     ADD CONSTRAINT "draft_state_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."draft_state"
     ADD CONSTRAINT "draft_state_season_id_unique" UNIQUE ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."education_verifications"
     ADD CONSTRAINT "education_verifications_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."event_roster_members"
     ADD CONSTRAINT "event_roster_members_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."event_rosters"
     ADD CONSTRAINT "event_rosters_entry_unique" UNIQUE ("entry_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."event_rosters"
     ADD CONSTRAINT "event_rosters_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."feedback_reports"
     ADD CONSTRAINT "feedback_reports_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."free_prediction_choices"
     ADD CONSTRAINT "free_prediction_choices_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."free_prediction_choices"
     ADD CONSTRAINT "free_prediction_choices_user_id_match_id_kind_unique" UNIQUE ("user_id", "match_id", "kind");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."free_prediction_locks"
     ADD CONSTRAINT "free_prediction_locks_pkey" PRIMARY KEY ("match_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."free_prediction_requests"
     ADD CONSTRAINT "free_prediction_requests_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."free_prediction_requests"
     ADD CONSTRAINT "free_prediction_requests_user_id_request_id_unique" UNIQUE ("user_id", "request_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."identity_link_requests"
     ADD CONSTRAINT "identity_link_requests_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."identity_link_requests"
     ADD CONSTRAINT "identity_link_requests_state_token_hash_unique" UNIQUE ("state_token_hash");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."institution_email_domains"
     ADD CONSTRAINT "institution_email_domains_domain_unique" UNIQUE ("domain");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."institution_email_domains"
     ADD CONSTRAINT "institution_email_domains_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."institutions"
     ADD CONSTRAINT "institutions_moe_institution_code_unique" UNIQUE ("moe_institution_code");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."institutions"
     ADD CONSTRAINT "institutions_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_final_results"
     ADD CONSTRAINT "major_final_results_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_final_results"
     ADD CONSTRAINT "major_final_results_playoff_run_unique" UNIQUE ("playoff_stage_run_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_final_results"
     ADD CONSTRAINT "major_final_results_season_unique" UNIQUE ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_tournament_entrants"
     ADD CONSTRAINT "major_prestart_entrants_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_prestart_issues"
     ADD CONSTRAINT "major_prestart_issues_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_prestart_states"
     ADD CONSTRAINT "major_prestart_states_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_prestart_states"
     ADD CONSTRAINT "major_prestart_states_season_id_unique" UNIQUE ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_seed_recommendation_snapshots"
     ADD CONSTRAINT "major_seed_recommendation_snapshots_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_seed_recommendation_snapshots"
     ADD CONSTRAINT "major_seed_recommendation_snapshots_season_id_unique" UNIQUE ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_stage_entrants"
     ADD CONSTRAINT "major_stage_entrants_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_stage_entrants"
     ADD CONSTRAINT "major_stage_entrants_run_entrant_unique" UNIQUE ("stage_run_id", "tournament_entrant_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_stage_entrants"
     ADD CONSTRAINT "major_stage_entrants_run_seed_unique" UNIQUE ("stage_run_id", "stage_seed");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_stage_runs"
     ADD CONSTRAINT "major_stage_runs_id_season_stage_unique" UNIQUE ("id", "season_id", "stage_key");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_stage_runs"
     ADD CONSTRAINT "major_stage_runs_id_season_unique" UNIQUE ("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_stage_runs"
     ADD CONSTRAINT "major_stage_runs_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_stage_runs"
     ADD CONSTRAINT "major_stage_runs_season_stage_unique" UNIQUE ("season_id", "stage_key");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_tournament_entrants"
     ADD CONSTRAINT "major_tournament_entrants_id_season_unique" UNIQUE ("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_tournament_entrants"
     ADD CONSTRAINT "major_tournament_entrants_season_entry_unique" UNIQUE ("season_id", "competition_entry_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_tournament_seeds"
     ADD CONSTRAINT "major_tournament_seeds_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_tournament_seeds"
     ADD CONSTRAINT "major_tournament_seeds_season_entrant_unique" UNIQUE ("season_id", "tournament_entrant_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_tournament_seeds"
     ADD CONSTRAINT "major_tournament_seeds_season_seed_unique" UNIQUE ("season_id", "seed");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_actual_start_adoptions"
     ADD CONSTRAINT "match_actual_start_adoptions_match_id_request_id_unique" UNIQUE ("match_id", "request_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_actual_start_adoptions"
     ADD CONSTRAINT "match_actual_start_adoptions_match_id_revision_unique" UNIQUE ("match_id", "revision");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_actual_start_adoptions"
     ADD CONSTRAINT "match_actual_start_adoptions_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_commentators"
     ADD CONSTRAINT "match_commentators_match_id_user_id_pk" PRIMARY KEY ("match_id", "user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_demo_imports"
     ADD CONSTRAINT "match_demo_imports_map_payload_unique" UNIQUE ("match_map_id", "payload_sha256");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_demo_imports"
     ADD CONSTRAINT "match_demo_imports_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_demo_stat_projections"
     ADD CONSTRAINT "match_demo_stat_projections_import_id_projection_version_pk" PRIMARY KEY ("import_id", "projection_version");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_lineup_incidents"
     ADD CONSTRAINT "match_lineup_incidents_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_live_sessions"
     ADD CONSTRAINT "match_live_sessions_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_maps"
     ADD CONSTRAINT "match_maps_match_id_map_order_unique" UNIQUE ("match_id", "map_order");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_maps"
     ADD CONSTRAINT "match_maps_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_mvp_votes"
     ADD CONSTRAINT "match_mvp_votes_match_id_voter_user_id_unique" UNIQUE ("match_id", "voter_user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_mvp_votes"
     ADD CONSTRAINT "match_mvp_votes_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_player_stats"
     ADD CONSTRAINT "match_player_stats_map_id_perfect_name_unique" UNIQUE ("map_id", "perfect_name");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_player_stats"
     ADD CONSTRAINT "match_player_stats_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_roster_players"
     ADD CONSTRAINT "match_roster_players_roster_id_event_roster_member_id_unique" UNIQUE ("roster_id", "event_roster_member_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_rosters"
     ADD CONSTRAINT "match_rosters_match_id_entry_id_unique" UNIQUE ("match_id", "entry_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_rosters"
     ADD CONSTRAINT "match_rosters_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_round_facts"
     ADD CONSTRAINT "match_round_facts_import_round_unique" UNIQUE ("import_id", "round_seq");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_round_facts"
     ADD CONSTRAINT "match_round_facts_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_time_proposals"
     ADD CONSTRAINT "match_time_proposals_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_appeals"
     ADD CONSTRAINT "match_veto_appeals_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_invalidations"
     ADD CONSTRAINT "match_veto_invalidations_pkey" PRIMARY KEY ("match_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_sessions"
     ADD CONSTRAINT "match_veto_sessions_pkey" PRIMARY KEY ("match_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_steps"
     ADD CONSTRAINT "match_veto_steps_match_id_step_order_unique" UNIQUE ("match_id", "step_order");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_steps"
     ADD CONSTRAINT "match_veto_steps_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_timeout_incidents"
     ADD CONSTRAINT "match_veto_timeout_incidents_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."matches"
     ADD CONSTRAINT "matches_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."mizar_installations"
     ADD CONSTRAINT "mizar_installations_credential_hash_unique" UNIQUE ("credential_hash");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."mizar_installations"
     ADD CONSTRAINT "mizar_installations_pairing_intent_id_unique" UNIQUE ("pairing_intent_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."mizar_installations"
     ADD CONSTRAINT "mizar_installations_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."mizar_pairing_intents"
     ADD CONSTRAINT "mizar_pairing_intents_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."mizar_pairing_intents"
     ADD CONSTRAINT "mizar_pairing_intents_poll_token_hash_unique" UNIQUE ("poll_token_hash");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."mizar_reliable_receipts"
     ADD CONSTRAINT "mizar_reliable_receipts_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."official_coverage_slots"
     ADD CONSTRAINT "official_coverage_slots_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."operator_scoreboard_receipts"
     ADD CONSTRAINT "operator_scoreboard_receipts_actor_user_id_operation_id_pk" PRIMARY KEY ("actor_user_id", "operation_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."post_event_adjudications"
     ADD CONSTRAINT "post_event_adjudications_client_request_id_unique" UNIQUE ("client_request_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."post_event_adjudications"
     ADD CONSTRAINT "post_event_adjudications_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."post_match_reports"
     ADD CONSTRAINT "post_match_reports_pkey" PRIMARY KEY ("match_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_accounts"
     ADD CONSTRAINT "prediction_accounts_id_season_id_unique" UNIQUE ("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_accounts"
     ADD CONSTRAINT "prediction_accounts_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_accounts"
     ADD CONSTRAINT "prediction_accounts_season_id_user_id_unique" UNIQUE ("season_id", "user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_contests"
     ADD CONSTRAINT "prediction_contests_id_season_id_unique" UNIQUE ("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_contests"
     ADD CONSTRAINT "prediction_contests_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_contests"
     ADD CONSTRAINT "prediction_contests_season_id_stage_key_unique" UNIQUE ("season_id", "stage_key");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_jobs"
     ADD CONSTRAINT "prediction_jobs_pkey" PRIMARY KEY ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_judgements"
     ADD CONSTRAINT "prediction_judgements_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_ledger"
     ADD CONSTRAINT "prediction_ledger_account_id_source_unique" UNIQUE ("account_id", "source");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_ledger"
     ADD CONSTRAINT "prediction_ledger_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_market_options"
     ADD CONSTRAINT "prediction_market_options_id_market_id_unique" UNIQUE ("id", "market_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_market_options"
     ADD CONSTRAINT "prediction_market_options_market_id_key_unique" UNIQUE ("market_id", "key");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_market_options"
     ADD CONSTRAINT "prediction_market_options_market_id_position_unique" UNIQUE ("market_id", "position");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_market_options"
     ADD CONSTRAINT "prediction_market_options_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_markets"
     ADD CONSTRAINT "prediction_markets_id_season_id_unique" UNIQUE ("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_markets"
     ADD CONSTRAINT "prediction_markets_match_id_resolver_unique" UNIQUE ("match_id", "resolver");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_markets"
     ADD CONSTRAINT "prediction_markets_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_picks"
     ADD CONSTRAINT "prediction_picks_account_id_request_id_unique" UNIQUE ("account_id", "request_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_picks"
     ADD CONSTRAINT "prediction_picks_contest_id_account_id_version_unique" UNIQUE ("contest_id", "account_id", "version");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_picks"
     ADD CONSTRAINT "prediction_picks_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_programs"
     ADD CONSTRAINT "prediction_programs_pkey" PRIMARY KEY ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_settlements"
     ADD CONSTRAINT "prediction_settlements_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_stage_milestones"
     ADD CONSTRAINT "prediction_stage_milestones_season_id_stage_key_unique" UNIQUE ("season_id", "stage_key");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_stakes"
     ADD CONSTRAINT "prediction_stakes_account_id_request_id_unique" UNIQUE ("account_id", "request_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_stakes"
     ADD CONSTRAINT "prediction_stakes_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."recruitment_intents"
     ADD CONSTRAINT "recruitment_intents_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."recruitment_interests"
     ADD CONSTRAINT "recruitment_interests_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."registration_drafts"
     ADD CONSTRAINT "registration_drafts_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."registration_drafts"
     ADD CONSTRAINT "registration_drafts_season_id_email_unique" UNIQUE ("season_id", "email");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."scheduled_job_health"
     ADD CONSTRAINT "scheduled_job_health_pkey" PRIMARY KEY ("job_key");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."season_admin_grants"
     ADD CONSTRAINT "season_admin_grants_user_season_unique" UNIQUE ("user_id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."season_contacts"
     ADD CONSTRAINT "season_contacts_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."season_public_info"
     ADD CONSTRAINT "season_public_info_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."season_public_info"
     ADD CONSTRAINT "season_public_info_season_unique" UNIQUE ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."season_registrations"
     ADD CONSTRAINT "season_registrations_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."season_registrations"
     ADD CONSTRAINT "season_registrations_user_id_season_id_unique" UNIQUE ("user_id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."seasons"
     ADD CONSTRAINT "seasons_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."seasons"
     ADD CONSTRAINT "seasons_slug_unique" UNIQUE ("slug");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."statistics_projection_repair_cursors"
     ADD CONSTRAINT "statistics_projection_repair_cursors_pkey" PRIMARY KEY ("projection_version");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."steam_profiles"
     ADD CONSTRAINT "steam_profiles_pkey" PRIMARY KEY ("steam64");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_captain_changes"
     ADD CONSTRAINT "team_captain_changes_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_invitations"
     ADD CONSTRAINT "team_invitations_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_memberships"
     ADD CONSTRAINT "team_memberships_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_name_changes"
     ADD CONSTRAINT "team_name_changes_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_slug_aliases"
     ADD CONSTRAINT "team_slug_aliases_pkey" PRIMARY KEY ("slug");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."teams"
     ADD CONSTRAINT "teams_pkey1" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."tournament_honors"
     ADD CONSTRAINT "tournament_honors_client_request_id_unique" UNIQUE ("client_request_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."tournament_honors"
     ADD CONSTRAINT "tournament_honors_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_competitive_roles"
     ADD CONSTRAINT "user_competitive_roles_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_competitive_roles"
     ADD CONSTRAINT "user_competitive_roles_user_role_unique" UNIQUE ("user_id", "role");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_gameplay_steam_ids"
     ADD CONSTRAINT "user_gameplay_steam_ids_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_identities"
     ADD CONSTRAINT "user_identities_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_map_preferences"
     ADD CONSTRAINT "user_map_preferences_pkey" PRIMARY KEY ("user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_merge_authorizations"
     ADD CONSTRAINT "user_merge_authorizations_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_merge_ledger"
     ADD CONSTRAINT "user_merge_ledger_authorization_id_unique" UNIQUE ("authorization_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_merge_ledger"
     ADD CONSTRAINT "user_merge_ledger_merged_user_id_unique" UNIQUE ("merged_user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_merge_ledger"
     ADD CONSTRAINT "user_merge_ledger_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_sessions"
     ADD CONSTRAINT "user_sessions_pkey" PRIMARY KEY ("user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."users"
     ADD CONSTRAINT "users_auth_id_unique" UNIQUE ("auth_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."users"
     ADD CONSTRAINT "users_email_unique" UNIQUE ("email");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."users"
     ADD CONSTRAINT "users_pkey" PRIMARY KEY ("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "admin_invite_claims_invite_id_idx" ON "public"."admin_invite_claims" USING "btree" ("invite_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "admin_invite_claims_user_id_idx" ON "public"."admin_invite_claims" USING "btree" ("user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "announcements_scope_status_published_at_idx" ON "public"."announcements" USING "btree" ("scope", "status", "published_at");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "announcements_season_status_published_at_idx" ON "public"."announcements" USING "btree" ("season_id", "status", "published_at");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "application_sessions_user_idx" ON "public"."application_sessions" USING "btree" ("user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "audit_logs_season_id_created_at_idx" ON "public"."audit_logs" USING "btree" ("season_id", "created_at");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "bet_ledger_account_idx" ON "public"."bet_ledger" USING "btree" ("season_id", "account_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "bet_markets_match_idx" ON "public"."bet_markets" USING "btree" ("match_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "bet_stakes_market_idx" ON "public"."bet_stakes" USING "btree" ("market_id", "option_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "community_award_evidence_award_id_idx" ON "public"."community_award_evidence" USING "btree" ("award_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "community_awards_season_id_status_idx" ON "public"."community_awards" USING "btree" ("season_id", "status");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "community_groups_season_sort_order_idx" ON "public"."community_groups" USING "btree" ("season_id", "sort_order", "created_at");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "competition_entries_competition_formation_order_unique" ON "public"."competition_entries" USING "btree" ("competition_id", "formation_order") WHERE ("formation_order" IS NOT NULL);
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "competition_entries_competition_status_idx" ON "public"."competition_entries" USING "btree" ("competition_id", "registration_status");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "competition_entries_one_effective_team_per_competition" ON "public"."competition_entries" USING "btree" ("competition_id", "team_id") WHERE (("team_id" IS NOT NULL) AND ("registration_status" <> ALL (ARRAY['rejected'::"public"."competition_entry_registration_status", 'withdrawn'::"public"."competition_entry_registration_status"])));
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "competition_entries_team_history_idx" ON "public"."competition_entries" USING "btree" ("team_id", "competition_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "competition_entry_active_claims_entry_idx" ON "public"."competition_entry_active_claims" USING "btree" ("entry_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "competition_entry_legacy_identities_entry_idx" ON "public"."competition_entry_legacy_identities" USING "btree" ("entry_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "competition_entry_participants_user_status_idx" ON "public"."competition_entry_participants" USING "btree" ("user_id", "status");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "competition_entry_restriction_overrides_active_unique" ON "public"."competition_entry_restriction_overrides" USING "btree" ("entry_id", "roster_revision_id", "restriction_code") WHERE ("revoked_at" IS NULL);
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "competition_entry_restriction_overrides_competition_idx" ON "public"."competition_entry_restriction_overrides" USING "btree" ("competition_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "competition_entry_restriction_overrides_entry_idx" ON "public"."competition_entry_restriction_overrides" USING "btree" ("entry_id", "roster_revision_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "competition_qualification_entrants_season_idx" ON "public"."competition_qualification_entrants" USING "btree" ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "competitive_platform_ranks_platform_order_idx" ON "public"."competitive_platform_ranks" USING "btree" ("platform_key", "sort_order");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "competitive_platform_ranks_platform_rank_key_unique" ON "public"."competitive_platform_ranks" USING "btree" ("platform_key", "rank_key");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "competitive_platform_ranks_platform_sort_order_unique" ON "public"."competitive_platform_ranks" USING "btree" ("platform_key", "sort_order");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "competitive_platform_seasons_one_current_per_platform" ON "public"."competitive_platform_seasons" USING "btree" ("platform") WHERE "is_current";
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "competitive_platform_seasons_platform_key_unique" ON "public"."competitive_platform_seasons" USING "btree" ("platform", "season_key");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "competitive_platform_seasons_platform_order_idx" ON "public"."competitive_platform_seasons" USING "btree" ("platform", "sort_order");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "competitive_platform_seasons_platform_sort_order_unique" ON "public"."competitive_platform_seasons" USING "btree" ("platform", "sort_order");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "competitive_rank_facts_identity_unique" ON "public"."competitive_rank_facts" USING "btree" ("user_id", "platform", "kind", COALESCE("platform_season_key", ''::"text"));
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "competitive_rank_facts_user_platform_idx" ON "public"."competitive_rank_facts" USING "btree" ("user_id", "platform");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "conversion_policies_one_current_per_pair" ON "public"."conversion_policies" USING "btree" ("source_platform", "target_platform") WHERE "is_current";
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "conversion_policies_source_target_version_unique" ON "public"."conversion_policies" USING "btree" ("source_platform", "target_platform", "version");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "coverage_one_active_allocation" ON "public"."coverage_allocations" USING "btree" ("match_id") WHERE ("released_at" IS NULL);
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "coverage_one_active_hold" ON "public"."coverage_holds" USING "btree" ("match_id") WHERE ("released_at" IS NULL);
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "dak_pairing_intents_expires_at_idx" ON "public"."dak_pairing_intents" USING "btree" ("expires_at");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "dak_pairings_user_id_idx" ON "public"."dak_pairings" USING "btree" ("user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "disciplinary_cases_season_subject_idx" ON "public"."disciplinary_cases" USING "btree" ("season_id", "subject_user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "disciplinary_cases_status_idx" ON "public"."disciplinary_cases" USING "btree" ("status");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "education_verifications_institution_status_idx" ON "public"."education_verifications" USING "btree" ("institution_id", "status");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "education_verifications_user_status_idx" ON "public"."education_verifications" USING "btree" ("user_id", "status");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "event_roster_members_participant_current_unique" ON "public"."event_roster_members" USING "btree" ("event_roster_id", "participant_id") WHERE "is_current";
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "event_roster_members_roster_idx" ON "public"."event_roster_members" USING "btree" ("event_roster_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "event_roster_members_roster_user_current_unique" ON "public"."event_roster_members" USING "btree" ("event_roster_id", "user_id") WHERE "is_current";
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "feedback_reports_fingerprint_created_at_idx" ON "public"."feedback_reports" USING "btree" ("body_fingerprint", "created_at");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "feedback_reports_season_created_at_idx" ON "public"."feedback_reports" USING "btree" ("season_id", "created_at");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "feedback_reports_status_created_at_idx" ON "public"."feedback_reports" USING "btree" ("status", "created_at");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "feedback_reports_user_created_at_idx" ON "public"."feedback_reports" USING "btree" ("user_id", "created_at");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "identity_link_requests_user_status_idx" ON "public"."identity_link_requests" USING "btree" ("user_id", "status");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "institutions_name_idx" ON "public"."institutions" USING "btree" ("name");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "major_final_results_season_idx" ON "public"."major_final_results" USING "btree" ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "major_prestart_issues_season_category_idx" ON "public"."major_prestart_issues" USING "btree" ("season_id", "category");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "major_stage_entrants_run_idx" ON "public"."major_stage_entrants" USING "btree" ("stage_run_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "major_stage_runs_season_idx" ON "public"."major_stage_runs" USING "btree" ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "major_tournament_entrants_season_idx" ON "public"."major_tournament_entrants" USING "btree" ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "major_tournament_seeds_season_idx" ON "public"."major_tournament_seeds" USING "btree" ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "match_actual_start_season_match_idx" ON "public"."match_actual_start_adoptions" USING "btree" ("season_id", "match_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "match_commentators_user_id_idx" ON "public"."match_commentators" USING "btree" ("user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "match_demo_imports_idempotency_key_unique" ON "public"."match_demo_imports" USING "btree" ("idempotency_key") WHERE ("idempotency_key" IS NOT NULL);
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "match_demo_imports_map_created_at_idx" ON "public"."match_demo_imports" USING "btree" ("match_map_id", "created_at");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "match_demo_imports_season_status_idx" ON "public"."match_demo_imports" USING "btree" ("season_id", "status");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "match_one_active_live_source" ON "public"."match_live_sessions" USING "btree" ("match_id") WHERE ("closed_at" IS NULL);
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "match_player_stats_match_id_idx" ON "public"."match_player_stats" USING "btree" ("match_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "match_player_stats_user_id_idx" ON "public"."match_player_stats" USING "btree" ("user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "match_roster_players_one_veto_representative_per_roster" ON "public"."match_roster_players" USING "btree" ("roster_id") WHERE "is_veto_representative";
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "match_round_facts_import_id_idx" ON "public"."match_round_facts" USING "btree" ("import_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "match_time_proposals_match_id_idx" ON "public"."match_time_proposals" USING "btree" ("match_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "match_time_proposals_one_pending" ON "public"."match_time_proposals" USING "btree" ("match_id") WHERE ("status" = 'pending'::"text");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "match_veto_appeals_one_pending_per_incident" ON "public"."match_veto_appeals" USING "btree" ("timeout_incident_id") WHERE ("status" = 'pending'::"public"."match_veto_appeal_status");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "match_veto_invalidations_pending_idx" ON "public"."match_veto_invalidations" USING "btree" ("updated_at") WHERE ("generation" > "published_generation");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "match_veto_sessions_active_deadline_idx" ON "public"."match_veto_sessions" USING "btree" ("turn_deadline_at") WHERE (("started_at" IS NOT NULL) AND ("completed_at" IS NULL) AND ("paused_at" IS NULL));
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "match_veto_steps_match_client_request_unique" ON "public"."match_veto_steps" USING "btree" ("match_id", "client_request_id") WHERE ("client_request_id" IS NOT NULL);
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "match_veto_timeout_incidents_match_created_idx" ON "public"."match_veto_timeout_incidents" USING "btree" ("match_id", "created_at");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "matches_entry_a_id_idx" ON "public"."matches" USING "btree" ("entry_a_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "matches_entry_b_id_idx" ON "public"."matches" USING "btree" ("entry_b_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "matches_major_stage_run_managed_key_unique" ON "public"."matches" USING "btree" ("major_stage_run_id", "managed_key") WHERE ("ownership" = 'major_stage'::"public"."match_ownership");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "matches_season_stage_bracket_node_unique" ON "public"."matches" USING "btree" ("season_id", "stage", "bracket_node_id") WHERE ("bracket_node_id" IS NOT NULL);
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "matches_season_status_scheduled_at_idx" ON "public"."matches" USING "btree" ("season_id", "status", "scheduled_at");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "mizar_pairing_intents_expires_at_idx" ON "public"."mizar_pairing_intents" USING "btree" ("expires_at");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "mizar_reliable_receipt_dedupe" ON "public"."mizar_reliable_receipts" USING "btree" ("session_id", "idempotency_key");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "operator_scoreboard_receipts_map_idx" ON "public"."operator_scoreboard_receipts" USING "btree" ("map_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "post_event_adjudications_season_idx" ON "public"."post_event_adjudications" USING "btree" ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "post_match_reports_submitted_by_user_id_idx" ON "public"."post_match_reports" USING "btree" ("submitted_by_user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "prediction_ledger_season_account_idx" ON "public"."prediction_ledger" USING "btree" ("season_id", "account_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "prediction_markets_season_deadline_idx" ON "public"."prediction_markets" USING "btree" ("season_id", "deadline");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "prediction_picks_latest_by_account_idx" ON "public"."prediction_picks" USING "btree" ("season_id", "account_id", "contest_id", "submitted", "version" DESC);
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "prediction_stakes_season_market_option_idx" ON "public"."prediction_stakes" USING "btree" ("season_id", "market_id", "option_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "recruitment_intents_one_team_unique" ON "public"."recruitment_intents" USING "btree" ("team_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "recruitment_intents_one_user_unique" ON "public"."recruitment_intents" USING "btree" ("user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "recruitment_intents_open_discovery_idx" ON "public"."recruitment_intents" USING "btree" ("kind", "status", "expires_at", "updated_at");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "recruitment_intents_target_season_idx" ON "public"."recruitment_intents" USING "btree" ("target_season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "recruitment_interests_intent_idx" ON "public"."recruitment_interests" USING "btree" ("recruitment_intent_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "recruitment_interests_one_user_per_intent_unique" ON "public"."recruitment_interests" USING "btree" ("recruitment_intent_id", "user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "recruitment_interests_user_idx" ON "public"."recruitment_interests" USING "btree" ("user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "season_admin_grants_season_id_idx" ON "public"."season_admin_grants" USING "btree" ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "season_admin_grants_user_id_idx" ON "public"."season_admin_grants" USING "btree" ("user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "season_contacts_season_sort_order_idx" ON "public"."season_contacts" USING "btree" ("season_id", "sort_order", "created_at");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "team_invitations_one_pending_direct_per_user" ON "public"."team_invitations" USING "btree" ("team_id", "invited_user_id") WHERE (("kind" = 'direct'::"public"."team_invitation_kind") AND ("status" = 'pending'::"public"."team_invitation_status"));
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "team_invitations_team_status_idx" ON "public"."team_invitations" USING "btree" ("team_id", "status");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "team_invitations_token_hash_unique" ON "public"."team_invitations" USING "btree" ("token_hash");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "team_invitations_user_status_idx" ON "public"."team_invitations" USING "btree" ("invited_user_id", "status");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "team_memberships_one_current_period" ON "public"."team_memberships" USING "btree" ("team_id", "user_id") WHERE ("ended_at" IS NULL);
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "team_memberships_one_current_team_per_user" ON "public"."team_memberships" USING "btree" ("user_id") WHERE ("ended_at" IS NULL);
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "team_memberships_team_idx" ON "public"."team_memberships" USING "btree" ("team_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "team_memberships_user_idx" ON "public"."team_memberships" USING "btree" ("user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "teams_one_active_captaincy_per_user" ON "public"."teams" USING "btree" ("captain_user_id") WHERE ("status" = 'active'::"public"."team_lifecycle");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "teams_slug_unique" ON "public"."teams" USING "btree" ("slug");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "tournament_honors_one_valid_slot_unique" ON "public"."tournament_honors" USING "btree" ("season_id", "honor_key") WHERE ("state" = 'valid'::"public"."honor_state");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "tournament_honors_season_idx" ON "public"."tournament_honors" USING "btree" ("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "user_competitive_roles_one_primary_per_user" ON "public"."user_competitive_roles" USING "btree" ("user_id") WHERE "is_primary";
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "user_competitive_roles_user_idx" ON "public"."user_competitive_roles" USING "btree" ("user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "user_gameplay_steam_ids_active_steam64_unique" ON "public"."user_gameplay_steam_ids" USING "btree" ("steam64") WHERE ("status" = 'active'::"public"."gameplay_steam_identity_status");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "user_gameplay_steam_ids_source_import_id_idx" ON "public"."user_gameplay_steam_ids" USING "btree" ("source_import_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "user_gameplay_steam_ids_user_id_idx" ON "public"."user_gameplay_steam_ids" USING "btree" ("user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "user_identities_active_normalized_value_unique" ON "public"."user_identities" USING "btree" ("kind", "normalized_value") WHERE (("status" = 'active'::"public"."user_identity_status") AND ("normalized_value" IS NOT NULL));
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "user_identities_active_provider_subject_unique" ON "public"."user_identities" USING "btree" ("provider", "provider_subject") WHERE ("status" = 'active'::"public"."user_identity_status");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "user_identities_one_primary_per_kind_unique" ON "public"."user_identities" USING "btree" ("user_id", "kind") WHERE (("status" = 'active'::"public"."user_identity_status") AND ("is_primary" = true));
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "user_identities_user_status_idx" ON "public"."user_identities" USING "btree" ("user_id", "status");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "user_merge_authorizations_initiating_status_idx" ON "public"."user_merge_authorizations" USING "btree" ("initiating_user_id", "status");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE INDEX "user_merge_ledger_canonical_user_id_idx" ON "public"."user_merge_ledger" USING "btree" ("canonical_user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 CREATE UNIQUE INDEX "users_active_steam64_unique" ON "public"."users" USING "btree" ("steam64") WHERE (("status" = 'active'::"public"."user_status") AND ("steam64" IS NOT NULL));
 
 
@@ -5999,1316 +6421,1579 @@ CREATE OR REPLACE TRIGGER "veto_invalidation_delivery" AFTER INSERT OR DELETE OR
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."admin_invite_claims"
     ADD CONSTRAINT "admin_invite_claims_invite_id_admin_invites_id_fk" FOREIGN KEY ("invite_id") REFERENCES "public"."admin_invites"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."admin_invite_claims"
     ADD CONSTRAINT "admin_invite_claims_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."admin_invites"
     ADD CONSTRAINT "admin_invites_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."announcements"
     ADD CONSTRAINT "announcements_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."announcements"
     ADD CONSTRAINT "announcements_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."announcements"
     ADD CONSTRAINT "announcements_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."application_session_controls"
     ADD CONSTRAINT "application_session_controls_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."application_sessions"
     ADD CONSTRAINT "application_sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."audit_logs"
     ADD CONSTRAINT "audit_logs_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_accounts"
     ADD CONSTRAINT "bet_accounts_season_id_bet_programs_season_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."bet_programs"("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_accounts"
     ADD CONSTRAINT "bet_accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_ledger"
     ADD CONSTRAINT "bet_ledger_account_id_season_id_bet_accounts_id_season_id_fk" FOREIGN KEY ("account_id", "season_id") REFERENCES "public"."bet_accounts"("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_markets"
     ADD CONSTRAINT "bet_markets_season_id_bet_programs_season_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."bet_programs"("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_options"
     ADD CONSTRAINT "bet_options_market_id_bet_markets_id_fk" FOREIGN KEY ("market_id") REFERENCES "public"."bet_markets"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_programs"
     ADD CONSTRAINT "bet_programs_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_settlements"
     ADD CONSTRAINT "bet_settlements_market_id_bet_markets_id_fk" FOREIGN KEY ("market_id") REFERENCES "public"."bet_markets"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_stage_milestones"
     ADD CONSTRAINT "bet_stage_milestones_season_id_bet_programs_season_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."bet_programs"("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_stakes"
     ADD CONSTRAINT "bet_stakes_account_id_season_id_bet_accounts_id_season_id_fk" FOREIGN KEY ("account_id", "season_id") REFERENCES "public"."bet_accounts"("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_stakes"
     ADD CONSTRAINT "bet_stakes_market_id_season_id_bet_markets_id_season_id_fk" FOREIGN KEY ("market_id", "season_id") REFERENCES "public"."bet_markets"("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."bet_stakes"
     ADD CONSTRAINT "bet_stakes_option_id_market_id_bet_options_id_market_id_fk" FOREIGN KEY ("option_id", "market_id") REFERENCES "public"."bet_options"("id", "market_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."captain_votes"
     ADD CONSTRAINT "captain_votes_candidate_registration_id_season_registrations_id" FOREIGN KEY ("candidate_registration_id") REFERENCES "public"."season_registrations"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."captain_votes"
     ADD CONSTRAINT "captain_votes_voter_registration_id_season_registrations_id_fk" FOREIGN KEY ("voter_registration_id") REFERENCES "public"."season_registrations"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_award_evidence"
     ADD CONSTRAINT "community_award_evidence_award_id_community_awards_id_fk" FOREIGN KEY ("award_id") REFERENCES "public"."community_awards"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_award_evidence"
     ADD CONSTRAINT "community_award_evidence_candidate_user_id_users_id_fk" FOREIGN KEY ("candidate_user_id") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_award_evidence"
     ADD CONSTRAINT "community_award_evidence_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_award_evidence"
     ADD CONSTRAINT "community_award_evidence_submitted_by_user_id_users_id_fk" FOREIGN KEY ("submitted_by_user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_award_evidence"
     ADD CONSTRAINT "community_award_evidence_verified_by_user_id_users_id_fk" FOREIGN KEY ("verified_by_user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_award_recipients"
     ADD CONSTRAINT "community_award_recipients_award_id_community_awards_id_fk" FOREIGN KEY ("award_id") REFERENCES "public"."community_awards"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_award_recipients"
     ADD CONSTRAINT "community_award_recipients_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_awards"
     ADD CONSTRAINT "community_awards_outcome_by_user_id_users_id_fk" FOREIGN KEY ("outcome_by_user_id") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_awards"
     ADD CONSTRAINT "community_awards_recipient_user_id_users_id_fk" FOREIGN KEY ("recipient_user_id") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_awards"
     ADD CONSTRAINT "community_awards_reviewed_by_user_id_users_id_fk" FOREIGN KEY ("reviewed_by_user_id") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_awards"
     ADD CONSTRAINT "community_awards_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_awards"
     ADD CONSTRAINT "community_awards_submitted_by_user_id_users_id_fk" FOREIGN KEY ("submitted_by_user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."community_groups"
     ADD CONSTRAINT "community_groups_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entries"
     ADD CONSTRAINT "competition_entries_approved_roster_revision_scope_fk" FOREIGN KEY ("approved_roster_revision_id", "id") REFERENCES "public"."competition_entry_roster_revisions"("id", "entry_id") DEFERRABLE INITIALLY DEFERRED;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entries"
     ADD CONSTRAINT "competition_entries_competition_id_seasons_id_fk" FOREIGN KEY ("competition_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entries"
     ADD CONSTRAINT "competition_entries_current_roster_revision_scope_fk" FOREIGN KEY ("current_roster_revision_id", "id") REFERENCES "public"."competition_entry_roster_revisions"("id", "entry_id") DEFERRABLE INITIALLY DEFERRED;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entries"
     ADD CONSTRAINT "competition_entries_representative_user_id_users_id_fk" FOREIGN KEY ("representative_user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entries"
     ADD CONSTRAINT "competition_entries_source_registration_id_season_registrations" FOREIGN KEY ("source_registration_id") REFERENCES "public"."season_registrations"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entries"
     ADD CONSTRAINT "competition_entries_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_active_claims"
     ADD CONSTRAINT "competition_entry_active_claims_competition_id_seasons_id_fk" FOREIGN KEY ("competition_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_active_claims"
     ADD CONSTRAINT "competition_entry_active_claims_entry_competition_scope_fk" FOREIGN KEY ("entry_id", "competition_id") REFERENCES "public"."competition_entries"("id", "competition_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_active_claims"
     ADD CONSTRAINT "competition_entry_active_claims_entry_id_competition_entries_id" FOREIGN KEY ("entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_active_claims"
     ADD CONSTRAINT "competition_entry_active_claims_participant_id_competition_entr" FOREIGN KEY ("participant_id") REFERENCES "public"."competition_entry_participants"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_active_claims"
     ADD CONSTRAINT "competition_entry_active_claims_participant_scope_fk" FOREIGN KEY ("participant_id", "entry_id", "user_id") REFERENCES "public"."competition_entry_participants"("id", "entry_id", "user_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_active_claims"
     ADD CONSTRAINT "competition_entry_active_claims_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_legacy_identities"
     ADD CONSTRAINT "competition_entry_legacy_identities_entry_id_competition_entrie" FOREIGN KEY ("entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_participants"
     ADD CONSTRAINT "competition_entry_participants_entry_id_competition_entries_id_" FOREIGN KEY ("entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_participants"
     ADD CONSTRAINT "competition_entry_participants_invited_by_user_id_users_id_fk" FOREIGN KEY ("invited_by_user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_participants"
     ADD CONSTRAINT "competition_entry_participants_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_representative_changes"
     ADD CONSTRAINT "competition_entry_representative_changes_entry_id_competition_e" FOREIGN KEY ("entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_representative_changes"
     ADD CONSTRAINT "competition_entry_representative_changes_from_user_id_users_id_" FOREIGN KEY ("from_user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_representative_changes"
     ADD CONSTRAINT "competition_entry_representative_changes_to_user_id_users_id_fk" FOREIGN KEY ("to_user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_restriction_overrides"
     ADD CONSTRAINT "competition_entry_restriction_overrides_competition_id_seasons_" FOREIGN KEY ("competition_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_restriction_overrides"
     ADD CONSTRAINT "competition_entry_restriction_overrides_entry_competition_scope" FOREIGN KEY ("entry_id", "competition_id") REFERENCES "public"."competition_entries"("id", "competition_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_restriction_overrides"
     ADD CONSTRAINT "competition_entry_restriction_overrides_entry_id_competition_en" FOREIGN KEY ("entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_restriction_overrides"
     ADD CONSTRAINT "competition_entry_restriction_overrides_revision_entry_scope_fk" FOREIGN KEY ("roster_revision_id", "entry_id") REFERENCES "public"."competition_entry_roster_revisions"("id", "entry_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_restriction_overrides"
     ADD CONSTRAINT "competition_entry_restriction_overrides_roster_revision_id_comp" FOREIGN KEY ("roster_revision_id") REFERENCES "public"."competition_entry_roster_revisions"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_roster_members"
     ADD CONSTRAINT "competition_entry_roster_members_participant_id_competition_ent" FOREIGN KEY ("participant_id") REFERENCES "public"."competition_entry_participants"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_roster_members"
     ADD CONSTRAINT "competition_entry_roster_members_revision_id_competition_entry_" FOREIGN KEY ("revision_id") REFERENCES "public"."competition_entry_roster_revisions"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_roster_members"
     ADD CONSTRAINT "competition_entry_roster_members_team_membership_id_team_member" FOREIGN KEY ("team_membership_id") REFERENCES "public"."team_memberships"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_roster_members"
     ADD CONSTRAINT "competition_entry_roster_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_roster_revisions"
     ADD CONSTRAINT "competition_entry_roster_revisions_entry_id_competition_entries" FOREIGN KEY ("entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_submissions"
     ADD CONSTRAINT "competition_entry_submissions_entry_id_competition_entries_id_f" FOREIGN KEY ("entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_submissions"
     ADD CONSTRAINT "competition_entry_submissions_roster_revision_entry_scope_fk" FOREIGN KEY ("roster_revision_id", "entry_id") REFERENCES "public"."competition_entry_roster_revisions"("id", "entry_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_entry_submissions"
     ADD CONSTRAINT "competition_entry_submissions_roster_revision_id_competition_en" FOREIGN KEY ("roster_revision_id") REFERENCES "public"."competition_entry_roster_revisions"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_qualification_drafts"
     ADD CONSTRAINT "competition_qualification_drafts_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_qualification_entrants"
     ADD CONSTRAINT "competition_qualification_entrants_entry_season_scope_fk" FOREIGN KEY ("competition_entry_id", "season_id") REFERENCES "public"."competition_entries"("id", "competition_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_qualification_entrants"
     ADD CONSTRAINT "competition_qualification_entrants_run_season_scope_fk" FOREIGN KEY ("run_id", "season_id") REFERENCES "public"."competition_qualification_runs"("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_qualification_runs"
     ADD CONSTRAINT "competition_qualification_runs_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competition_stage_bracket_states"
     ADD CONSTRAINT "competition_stage_bracket_states_competition_id_seasons_id_fk" FOREIGN KEY ("competition_id") REFERENCES "public"."seasons"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competitive_platform_ranks"
     ADD CONSTRAINT "competitive_platform_ranks_platform_key_competitive_platforms_k" FOREIGN KEY ("platform_key") REFERENCES "public"."competitive_platforms"("key") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competitive_platform_seasons"
     ADD CONSTRAINT "competitive_platform_seasons_platform_competitive_platforms_key" FOREIGN KEY ("platform") REFERENCES "public"."competitive_platforms"("key") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."competitive_rank_facts"
     ADD CONSTRAINT "competitive_rank_facts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."coverage_allocations"
     ADD CONSTRAINT "coverage_allocations_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."coverage_allocations"
     ADD CONSTRAINT "coverage_allocations_slot_id_official_coverage_slots_id_fk" FOREIGN KEY ("slot_id") REFERENCES "public"."official_coverage_slots"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."coverage_holds"
     ADD CONSTRAINT "coverage_holds_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."coverage_holds"
     ADD CONSTRAINT "coverage_holds_slot_id_official_coverage_slots_id_fk" FOREIGN KEY ("slot_id") REFERENCES "public"."official_coverage_slots"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."dak_pairing_intents"
     ADD CONSTRAINT "dak_pairing_intents_authorized_by_user_id_users_id_fk" FOREIGN KEY ("authorized_by_user_id") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."dak_pairings"
     ADD CONSTRAINT "dak_pairings_pairing_intent_id_dak_pairing_intents_id_fk" FOREIGN KEY ("pairing_intent_id") REFERENCES "public"."dak_pairing_intents"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."dak_pairings"
     ADD CONSTRAINT "dak_pairings_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."disciplinary_case_idempotency"
     ADD CONSTRAINT "disciplinary_case_idempotency_case_id_disciplinary_cases_id_fk" FOREIGN KEY ("case_id") REFERENCES "public"."disciplinary_cases"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."disciplinary_cases"
     ADD CONSTRAINT "disciplinary_cases_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."disciplinary_cases"
     ADD CONSTRAINT "disciplinary_cases_subject_user_id_users_id_fk" FOREIGN KEY ("subject_user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."draft_picks"
     ADD CONSTRAINT "draft_picks_entry_id_competition_entries_id_fk" FOREIGN KEY ("entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."draft_picks"
     ADD CONSTRAINT "draft_picks_registration_id_season_registrations_id_fk" FOREIGN KEY ("registration_id") REFERENCES "public"."season_registrations"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."draft_picks"
     ADD CONSTRAINT "draft_picks_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."draft_state"
     ADD CONSTRAINT "draft_state_current_entry_id_competition_entries_id_fk" FOREIGN KEY ("current_entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."draft_state"
     ADD CONSTRAINT "draft_state_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."education_verifications"
     ADD CONSTRAINT "education_verifications_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."education_verifications"
     ADD CONSTRAINT "education_verifications_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."event_roster_members"
     ADD CONSTRAINT "event_roster_members_education_verification_id_education_verifi" FOREIGN KEY ("education_verification_id") REFERENCES "public"."education_verifications"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."event_roster_members"
     ADD CONSTRAINT "event_roster_members_event_roster_id_event_rosters_id_fk" FOREIGN KEY ("event_roster_id") REFERENCES "public"."event_rosters"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."event_roster_members"
     ADD CONSTRAINT "event_roster_members_participant_id_competition_entry_participa" FOREIGN KEY ("participant_id") REFERENCES "public"."competition_entry_participants"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."event_roster_members"
     ADD CONSTRAINT "event_roster_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."event_rosters"
     ADD CONSTRAINT "event_rosters_entry_id_competition_entries_id_fk" FOREIGN KEY ("entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."event_rosters"
     ADD CONSTRAINT "event_rosters_source_roster_revision_entry_scope_fk" FOREIGN KEY ("source_roster_revision_id", "entry_id") REFERENCES "public"."competition_entry_roster_revisions"("id", "entry_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."event_rosters"
     ADD CONSTRAINT "event_rosters_source_roster_revision_id_competition_entry_roste" FOREIGN KEY ("source_roster_revision_id") REFERENCES "public"."competition_entry_roster_revisions"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."feedback_reports"
     ADD CONSTRAINT "feedback_reports_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."feedback_reports"
     ADD CONSTRAINT "feedback_reports_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."free_prediction_choices"
     ADD CONSTRAINT "free_prediction_choices_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."free_prediction_choices"
     ADD CONSTRAINT "free_prediction_choices_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."free_prediction_locks"
     ADD CONSTRAINT "free_prediction_locks_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."free_prediction_requests"
     ADD CONSTRAINT "free_prediction_requests_choice_id_free_prediction_choices_id_f" FOREIGN KEY ("choice_id") REFERENCES "public"."free_prediction_choices"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."free_prediction_requests"
     ADD CONSTRAINT "free_prediction_requests_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."identity_link_requests"
     ADD CONSTRAINT "identity_link_requests_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."institution_email_domains"
     ADD CONSTRAINT "institution_email_domains_institution_id_institutions_id_fk" FOREIGN KEY ("institution_id") REFERENCES "public"."institutions"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_final_results"
     ADD CONSTRAINT "major_final_results_champion_entry_id_competition_entries_id_fk" FOREIGN KEY ("champion_entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_final_results"
     ADD CONSTRAINT "major_final_results_champion_entry_season_scope_fk" FOREIGN KEY ("champion_entry_id", "season_id") REFERENCES "public"."competition_entries"("id", "competition_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_final_results"
     ADD CONSTRAINT "major_final_results_playoff_run_season_scope_fk" FOREIGN KEY ("playoff_stage_run_id", "season_id") REFERENCES "public"."major_stage_runs"("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_final_results"
     ADD CONSTRAINT "major_final_results_playoff_stage_run_id_major_stage_runs_id_fk" FOREIGN KEY ("playoff_stage_run_id") REFERENCES "public"."major_stage_runs"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_final_results"
     ADD CONSTRAINT "major_final_results_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_prestart_issues"
     ADD CONSTRAINT "major_prestart_issues_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_prestart_states"
     ADD CONSTRAINT "major_prestart_states_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_seed_recommendation_snapshots"
     ADD CONSTRAINT "major_seed_recommendation_snapshots_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_stage_entrants"
     ADD CONSTRAINT "major_stage_entrants_run_season_scope_fk" FOREIGN KEY ("stage_run_id", "season_id") REFERENCES "public"."major_stage_runs"("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_stage_entrants"
     ADD CONSTRAINT "major_stage_entrants_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_stage_entrants"
     ADD CONSTRAINT "major_stage_entrants_stage_run_id_major_stage_runs_id_fk" FOREIGN KEY ("stage_run_id") REFERENCES "public"."major_stage_runs"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_stage_entrants"
     ADD CONSTRAINT "major_stage_entrants_tournament_entrant_id_major_tournament_ent" FOREIGN KEY ("tournament_entrant_id") REFERENCES "public"."major_tournament_entrants"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_stage_entrants"
     ADD CONSTRAINT "major_stage_entrants_tournament_entrant_season_scope_fk" FOREIGN KEY ("tournament_entrant_id", "season_id") REFERENCES "public"."major_tournament_entrants"("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_stage_runs"
     ADD CONSTRAINT "major_stage_runs_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_tournament_entrants"
     ADD CONSTRAINT "major_tournament_entrants_competition_entry_id_competition_entr" FOREIGN KEY ("competition_entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_tournament_entrants"
     ADD CONSTRAINT "major_tournament_entrants_entry_season_scope_fk" FOREIGN KEY ("competition_entry_id", "season_id") REFERENCES "public"."competition_entries"("id", "competition_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_tournament_entrants"
     ADD CONSTRAINT "major_tournament_entrants_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_tournament_seeds"
     ADD CONSTRAINT "major_tournament_seeds_entrant_season_scope_fk" FOREIGN KEY ("tournament_entrant_id", "season_id") REFERENCES "public"."major_tournament_entrants"("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_tournament_seeds"
     ADD CONSTRAINT "major_tournament_seeds_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."major_tournament_seeds"
     ADD CONSTRAINT "major_tournament_seeds_tournament_entrant_id_major_tournament_e" FOREIGN KEY ("tournament_entrant_id") REFERENCES "public"."major_tournament_entrants"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_commentators"
     ADD CONSTRAINT "match_commentators_added_by_user_id_users_id_fk" FOREIGN KEY ("added_by_user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_commentators"
     ADD CONSTRAINT "match_commentators_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_commentators"
     ADD CONSTRAINT "match_commentators_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_demo_imports"
     ADD CONSTRAINT "match_demo_imports_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_demo_imports"
     ADD CONSTRAINT "match_demo_imports_match_map_id_match_maps_id_fk" FOREIGN KEY ("match_map_id") REFERENCES "public"."match_maps"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_demo_imports"
     ADD CONSTRAINT "match_demo_imports_submitted_by_pairing_id_dak_pairings_id_fk" FOREIGN KEY ("submitted_by_pairing_id") REFERENCES "public"."dak_pairings"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_demo_stat_projections"
     ADD CONSTRAINT "match_demo_stat_projections_import_id_match_demo_imports_id_fk" FOREIGN KEY ("import_id") REFERENCES "public"."match_demo_imports"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_lineup_incidents"
     ADD CONSTRAINT "match_lineup_incidents_entry_id_competition_entries_id_fk" FOREIGN KEY ("entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_lineup_incidents"
     ADD CONSTRAINT "match_lineup_incidents_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_live_sessions"
     ADD CONSTRAINT "match_live_sessions_installation_id_mizar_installations_id_fk" FOREIGN KEY ("installation_id") REFERENCES "public"."mizar_installations"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_live_sessions"
     ADD CONSTRAINT "match_live_sessions_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_maps"
     ADD CONSTRAINT "match_maps_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_maps"
     ADD CONSTRAINT "match_maps_picked_by_entry_id_competition_entries_id_fk" FOREIGN KEY ("picked_by_entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_mvp_votes"
     ADD CONSTRAINT "match_mvp_votes_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_mvp_votes"
     ADD CONSTRAINT "match_mvp_votes_player_user_id_users_id_fk" FOREIGN KEY ("player_user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_mvp_votes"
     ADD CONSTRAINT "match_mvp_votes_voter_user_id_users_id_fk" FOREIGN KEY ("voter_user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_player_stats"
     ADD CONSTRAINT "match_player_stats_dak_import_id_match_demo_imports_id_fk" FOREIGN KEY ("dak_import_id") REFERENCES "public"."match_demo_imports"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_player_stats"
     ADD CONSTRAINT "match_player_stats_map_id_match_maps_id_fk" FOREIGN KEY ("map_id") REFERENCES "public"."match_maps"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_player_stats"
     ADD CONSTRAINT "match_player_stats_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_player_stats"
     ADD CONSTRAINT "match_player_stats_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_roster_players"
     ADD CONSTRAINT "match_roster_players_event_roster_member_id_event_roster_member" FOREIGN KEY ("event_roster_member_id") REFERENCES "public"."event_roster_members"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_roster_players"
     ADD CONSTRAINT "match_roster_players_roster_id_match_rosters_id_fk" FOREIGN KEY ("roster_id") REFERENCES "public"."match_rosters"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_rosters"
     ADD CONSTRAINT "match_rosters_entry_id_competition_entries_id_fk" FOREIGN KEY ("entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_rosters"
     ADD CONSTRAINT "match_rosters_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_rosters"
     ADD CONSTRAINT "match_rosters_revision_entry_scope_fk" FOREIGN KEY ("source_roster_revision_id", "entry_id") REFERENCES "public"."competition_entry_roster_revisions"("id", "entry_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_rosters"
     ADD CONSTRAINT "match_rosters_source_roster_revision_id_competition_entry_roste" FOREIGN KEY ("source_roster_revision_id") REFERENCES "public"."competition_entry_roster_revisions"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_rosters"
     ADD CONSTRAINT "match_rosters_submitted_by_users_id_fk" FOREIGN KEY ("submitted_by") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_round_facts"
     ADD CONSTRAINT "match_round_facts_import_id_match_demo_imports_id_fk" FOREIGN KEY ("import_id") REFERENCES "public"."match_demo_imports"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_time_proposals"
     ADD CONSTRAINT "match_time_proposals_force_assigned_by_users_id_fk" FOREIGN KEY ("force_assigned_by") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_time_proposals"
     ADD CONSTRAINT "match_time_proposals_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_time_proposals"
     ADD CONSTRAINT "match_time_proposals_proposed_by_entry_id_competition_entries_i" FOREIGN KEY ("proposed_by_entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_time_proposals"
     ADD CONSTRAINT "match_time_proposals_proposed_by_users_id_fk" FOREIGN KEY ("proposed_by") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_appeals"
     ADD CONSTRAINT "match_veto_appeals_resolved_by_users_id_fk" FOREIGN KEY ("resolved_by") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_appeals"
     ADD CONSTRAINT "match_veto_appeals_submitted_by_users_id_fk" FOREIGN KEY ("submitted_by") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_appeals"
     ADD CONSTRAINT "match_veto_appeals_timeout_incident_id_match_veto_timeout_incid" FOREIGN KEY ("timeout_incident_id") REFERENCES "public"."match_veto_timeout_incidents"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_invalidations"
     ADD CONSTRAINT "match_veto_invalidations_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_sessions"
     ADD CONSTRAINT "match_veto_sessions_entry_a_start_requested_by_users_id_fk" FOREIGN KEY ("entry_a_start_requested_by") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_sessions"
     ADD CONSTRAINT "match_veto_sessions_entry_b_start_requested_by_users_id_fk" FOREIGN KEY ("entry_b_start_requested_by") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_sessions"
     ADD CONSTRAINT "match_veto_sessions_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_sessions"
     ADD CONSTRAINT "match_veto_sessions_paused_by_users_id_fk" FOREIGN KEY ("paused_by") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_sessions"
     ADD CONSTRAINT "match_veto_sessions_privileged_entry_id_competition_entries_id_" FOREIGN KEY ("privileged_entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_sessions"
     ADD CONSTRAINT "match_veto_sessions_veto_team_a_entry_id_competition_entries_id" FOREIGN KEY ("veto_team_a_entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_steps"
     ADD CONSTRAINT "match_veto_steps_actor_user_id_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_steps"
     ADD CONSTRAINT "match_veto_steps_entry_id_competition_entries_id_fk" FOREIGN KEY ("entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_steps"
     ADD CONSTRAINT "match_veto_steps_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_timeout_incidents"
     ADD CONSTRAINT "match_veto_timeout_incidents_entry_id_competition_entries_id_fk" FOREIGN KEY ("entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_timeout_incidents"
     ADD CONSTRAINT "match_veto_timeout_incidents_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."match_veto_timeout_incidents"
     ADD CONSTRAINT "match_veto_timeout_incidents_representative_user_id_users_id_fk" FOREIGN KEY ("representative_user_id") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."matches"
     ADD CONSTRAINT "matches_entry_a_id_competition_entries_id_fk" FOREIGN KEY ("entry_a_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."matches"
     ADD CONSTRAINT "matches_entry_a_season_scope_fk" FOREIGN KEY ("entry_a_id", "season_id") REFERENCES "public"."competition_entries"("id", "competition_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."matches"
     ADD CONSTRAINT "matches_entry_b_id_competition_entries_id_fk" FOREIGN KEY ("entry_b_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."matches"
     ADD CONSTRAINT "matches_entry_b_season_scope_fk" FOREIGN KEY ("entry_b_id", "season_id") REFERENCES "public"."competition_entries"("id", "competition_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."matches"
     ADD CONSTRAINT "matches_major_stage_run_id_major_stage_runs_id_fk" FOREIGN KEY ("major_stage_run_id") REFERENCES "public"."major_stage_runs"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."matches"
     ADD CONSTRAINT "matches_major_stage_run_season_stage_scope_fk" FOREIGN KEY ("major_stage_run_id", "season_id", "stage") REFERENCES "public"."major_stage_runs"("id", "season_id", "stage_key");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."matches"
     ADD CONSTRAINT "matches_qualification_run_season_scope_fk" FOREIGN KEY ("qualification_run_id", "season_id") REFERENCES "public"."competition_qualification_runs"("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."matches"
     ADD CONSTRAINT "matches_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."mizar_installations"
     ADD CONSTRAINT "mizar_installations_authorized_by_user_id_users_id_fk" FOREIGN KEY ("authorized_by_user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."mizar_installations"
     ADD CONSTRAINT "mizar_installations_competition_id_seasons_id_fk" FOREIGN KEY ("competition_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."mizar_installations"
     ADD CONSTRAINT "mizar_installations_pairing_intent_id_mizar_pairing_intents_id_" FOREIGN KEY ("pairing_intent_id") REFERENCES "public"."mizar_pairing_intents"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."mizar_pairing_intents"
     ADD CONSTRAINT "mizar_pairing_intents_authorized_by_user_id_users_id_fk" FOREIGN KEY ("authorized_by_user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."mizar_pairing_intents"
     ADD CONSTRAINT "mizar_pairing_intents_competition_id_seasons_id_fk" FOREIGN KEY ("competition_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."mizar_reliable_receipts"
     ADD CONSTRAINT "mizar_reliable_receipts_session_id_match_live_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."match_live_sessions"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."official_coverage_slots"
     ADD CONSTRAINT "official_coverage_slots_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."operator_scoreboard_receipts"
     ADD CONSTRAINT "operator_scoreboard_receipts_actor_user_id_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."operator_scoreboard_receipts"
     ADD CONSTRAINT "operator_scoreboard_receipts_map_id_match_maps_id_fk" FOREIGN KEY ("map_id") REFERENCES "public"."match_maps"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."post_event_adjudications"
     ADD CONSTRAINT "post_event_adjudications_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."post_event_adjudications"
     ADD CONSTRAINT "post_event_adjudications_target_entry_id_competition_entries_id" FOREIGN KEY ("target_entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."post_event_adjudications"
     ADD CONSTRAINT "post_event_adjudications_target_match_id_matches_id_fk" FOREIGN KEY ("target_match_id") REFERENCES "public"."matches"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."post_event_adjudications"
     ADD CONSTRAINT "post_event_adjudications_target_user_id_users_id_fk" FOREIGN KEY ("target_user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."post_match_reports"
     ADD CONSTRAINT "post_match_reports_match_id_matches_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."matches"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."post_match_reports"
     ADD CONSTRAINT "post_match_reports_submitted_by_user_id_users_id_fk" FOREIGN KEY ("submitted_by_user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_accounts"
     ADD CONSTRAINT "prediction_accounts_season_id_prediction_programs_season_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."prediction_programs"("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_accounts"
     ADD CONSTRAINT "prediction_accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_contests"
     ADD CONSTRAINT "prediction_contests_season_id_prediction_programs_season_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."prediction_programs"("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_jobs"
     ADD CONSTRAINT "prediction_jobs_season_id_prediction_programs_season_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."prediction_programs"("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_judgements"
     ADD CONSTRAINT "prediction_judgements_contest_id_prediction_contests_id_fk" FOREIGN KEY ("contest_id") REFERENCES "public"."prediction_contests"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_ledger"
     ADD CONSTRAINT "prediction_ledger_account_id_season_id_prediction_accounts_id_s" FOREIGN KEY ("account_id", "season_id") REFERENCES "public"."prediction_accounts"("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_market_options"
     ADD CONSTRAINT "prediction_market_options_market_id_prediction_markets_id_fk" FOREIGN KEY ("market_id") REFERENCES "public"."prediction_markets"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_markets"
     ADD CONSTRAINT "prediction_markets_season_id_prediction_programs_season_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."prediction_programs"("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_picks"
     ADD CONSTRAINT "prediction_picks_account_id_season_id_prediction_accounts_id_se" FOREIGN KEY ("account_id", "season_id") REFERENCES "public"."prediction_accounts"("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_picks"
     ADD CONSTRAINT "prediction_picks_contest_id_season_id_prediction_contests_id_se" FOREIGN KEY ("contest_id", "season_id") REFERENCES "public"."prediction_contests"("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_programs"
     ADD CONSTRAINT "prediction_programs_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_settlements"
     ADD CONSTRAINT "prediction_settlements_market_id_prediction_markets_id_fk" FOREIGN KEY ("market_id") REFERENCES "public"."prediction_markets"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_stage_milestones"
     ADD CONSTRAINT "prediction_stage_milestones_season_id_prediction_programs_seaso" FOREIGN KEY ("season_id") REFERENCES "public"."prediction_programs"("season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_stakes"
     ADD CONSTRAINT "prediction_stakes_account_id_season_id_prediction_accounts_id_s" FOREIGN KEY ("account_id", "season_id") REFERENCES "public"."prediction_accounts"("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_stakes"
     ADD CONSTRAINT "prediction_stakes_market_id_season_id_prediction_markets_id_sea" FOREIGN KEY ("market_id", "season_id") REFERENCES "public"."prediction_markets"("id", "season_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."prediction_stakes"
     ADD CONSTRAINT "prediction_stakes_option_id_market_id_prediction_market_options" FOREIGN KEY ("option_id", "market_id") REFERENCES "public"."prediction_market_options"("id", "market_id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."recruitment_intents"
     ADD CONSTRAINT "recruitment_intents_target_season_id_seasons_id_fk" FOREIGN KEY ("target_season_id") REFERENCES "public"."seasons"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."recruitment_intents"
     ADD CONSTRAINT "recruitment_intents_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."recruitment_intents"
     ADD CONSTRAINT "recruitment_intents_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."recruitment_interests"
     ADD CONSTRAINT "recruitment_interests_recruitment_intent_id_recruitment_intents" FOREIGN KEY ("recruitment_intent_id") REFERENCES "public"."recruitment_intents"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."recruitment_interests"
     ADD CONSTRAINT "recruitment_interests_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."registration_drafts"
     ADD CONSTRAINT "registration_drafts_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."season_admin_grants"
     ADD CONSTRAINT "season_admin_grants_granted_by_user_id_users_id_fk" FOREIGN KEY ("granted_by_user_id") REFERENCES "public"."users"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."season_admin_grants"
     ADD CONSTRAINT "season_admin_grants_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."season_admin_grants"
     ADD CONSTRAINT "season_admin_grants_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."season_contacts"
     ADD CONSTRAINT "season_contacts_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."season_public_info"
     ADD CONSTRAINT "season_public_info_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."season_registrations"
     ADD CONSTRAINT "season_registrations_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."season_registrations"
     ADD CONSTRAINT "season_registrations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_captain_changes"
     ADD CONSTRAINT "team_captain_changes_from_user_id_users_id_fk" FOREIGN KEY ("from_user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_captain_changes"
     ADD CONSTRAINT "team_captain_changes_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_captain_changes"
     ADD CONSTRAINT "team_captain_changes_to_user_id_users_id_fk" FOREIGN KEY ("to_user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_invitations"
     ADD CONSTRAINT "team_invitations_invited_by_user_id_users_id_fk" FOREIGN KEY ("invited_by_user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_invitations"
     ADD CONSTRAINT "team_invitations_invited_user_id_users_id_fk" FOREIGN KEY ("invited_user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_invitations"
     ADD CONSTRAINT "team_invitations_responded_by_user_id_users_id_fk" FOREIGN KEY ("responded_by_user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_invitations"
     ADD CONSTRAINT "team_invitations_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_memberships"
     ADD CONSTRAINT "team_memberships_invited_by_user_id_users_id_fk" FOREIGN KEY ("invited_by_user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_memberships"
     ADD CONSTRAINT "team_memberships_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_memberships"
     ADD CONSTRAINT "team_memberships_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_name_changes"
     ADD CONSTRAINT "team_name_changes_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."team_slug_aliases"
     ADD CONSTRAINT "team_slug_aliases_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."teams"
     ADD CONSTRAINT "teams_captain_user_id_users_id_fk" FOREIGN KEY ("captain_user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."teams"
     ADD CONSTRAINT "teams_creator_user_id_users_id_fk" FOREIGN KEY ("creator_user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."tournament_honors"
     ADD CONSTRAINT "tournament_honors_adjudication_id_post_event_adjudications_id_f" FOREIGN KEY ("adjudication_id") REFERENCES "public"."post_event_adjudications"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."tournament_honors"
     ADD CONSTRAINT "tournament_honors_entry_id_competition_entries_id_fk" FOREIGN KEY ("entry_id") REFERENCES "public"."competition_entries"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."tournament_honors"
     ADD CONSTRAINT "tournament_honors_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."tournament_honors"
     ADD CONSTRAINT "tournament_honors_source_final_result_id_major_final_results_id" FOREIGN KEY ("source_final_result_id") REFERENCES "public"."major_final_results"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."tournament_honors"
     ADD CONSTRAINT "tournament_honors_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_competitive_roles"
     ADD CONSTRAINT "user_competitive_roles_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_gameplay_steam_ids"
     ADD CONSTRAINT "user_gameplay_steam_ids_confirmed_by_user_id_users_id_fk" FOREIGN KEY ("confirmed_by_user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_gameplay_steam_ids"
     ADD CONSTRAINT "user_gameplay_steam_ids_retired_by_user_id_users_id_fk" FOREIGN KEY ("retired_by_user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_gameplay_steam_ids"
     ADD CONSTRAINT "user_gameplay_steam_ids_source_import_id_match_demo_imports_id_" FOREIGN KEY ("source_import_id") REFERENCES "public"."match_demo_imports"("id") ON DELETE SET NULL;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_gameplay_steam_ids"
     ADD CONSTRAINT "user_gameplay_steam_ids_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_identities"
     ADD CONSTRAINT "user_identities_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_map_preferences"
     ADD CONSTRAINT "user_map_preferences_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_merge_authorizations"
     ADD CONSTRAINT "user_merge_authorizations_counterparty_user_id_users_id_fk" FOREIGN KEY ("counterparty_user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_merge_authorizations"
     ADD CONSTRAINT "user_merge_authorizations_initiating_user_id_users_id_fk" FOREIGN KEY ("initiating_user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_merge_authorizations"
     ADD CONSTRAINT "user_merge_authorizations_proven_identity_id_user_identities_id" FOREIGN KEY ("proven_identity_id") REFERENCES "public"."user_identities"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_merge_ledger"
     ADD CONSTRAINT "user_merge_ledger_authorization_id_user_merge_authorizations_id" FOREIGN KEY ("authorization_id") REFERENCES "public"."user_merge_authorizations"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_merge_ledger"
     ADD CONSTRAINT "user_merge_ledger_canonical_user_id_users_id_fk" FOREIGN KEY ("canonical_user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_merge_ledger"
     ADD CONSTRAINT "user_merge_ledger_executed_by_user_id_users_id_fk" FOREIGN KEY ("executed_by_user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_merge_ledger"
     ADD CONSTRAINT "user_merge_ledger_merged_user_id_users_id_fk" FOREIGN KEY ("merged_user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."user_sessions"
     ADD CONSTRAINT "user_sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id");
 
 
 
+-- rivalhub:migration-risk: locking-reviewed Fresh baseline creates objects only on an empty database; existing databases adopt after exact physical verification.
 ALTER TABLE ONLY "public"."users"
     ADD CONSTRAINT "users_merged_into_user_id_users_id_fk" FOREIGN KEY ("merged_into_user_id") REFERENCES "public"."users"("id") ON DELETE RESTRICT;
 

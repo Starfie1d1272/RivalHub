@@ -1,4 +1,5 @@
-import { assertActiveChainPrefix, readExpectedMigrations, type ExpectedMigration, type Migration } from "../production-preflight";
+import { readMigrationLedger } from "../migration-ledger";
+import { assertActiveChainPrefix, identifyMigrationChain, readExpectedMigrations, type ExpectedMigration, type Migration } from "../production-preflight";
 import { PreviewMirrorError } from "./diagnostics";
 
 /** Redacted text audit actor, not a user/FK or a login-capable persona. */
@@ -243,10 +244,19 @@ type PreviewPolicyInput = readonly Migration[] | PreviewPolicy;
 
 export function previewPolicyFor(
   sourceMigrations: readonly Migration[],
-  expectedMigrations: readonly ExpectedMigration[] = readExpectedMigrations(),
+  expectedMigrations?: readonly ExpectedMigration[],
 ): PreviewPolicy {
+  let expected: readonly ExpectedMigration[];
+  let baselineIncludesV2 = false;
   try {
-    assertActiveChainPrefix(sourceMigrations, expectedMigrations);
+    if (expectedMigrations) {
+      expected = expectedMigrations;
+      assertActiveChainPrefix(sourceMigrations, expected);
+    } else {
+      const chain = identifyMigrationChain(sourceMigrations);
+      expected = chain.migrations;
+      baselineIncludesV2 = chain.directory === "drizzle/migrations" && !expected.some((item) => item.tag === "0024_major_runtime_convergence");
+    }
   } catch (error) {
     throw new PreviewMirrorError("PREVIEW_MIGRATION_LEDGER_FAILED", "Preview source migration ledger is not an active chain prefix.", {
       cause: error,
@@ -254,9 +264,10 @@ export function previewPolicyFor(
     });
   }
 
-  assertPolicyDefinition(expectedMigrations);
-  const sourceMigrationTags = expectedMigrations.slice(0, sourceMigrations.length).map((migration) => migration.tag);
-  const applied = new Set(sourceMigrationTags);
+  const v2 = baselineIncludesV2 ? readMigrationLedger("drizzle/v2-migrations") : [];
+  assertPolicyDefinition(baselineIncludesV2 ? [...v2, ...expected] : expected);
+  const sourceMigrationTags = expected.slice(0, sourceMigrations.length).map((migration) => migration.tag);
+  const applied = new Set([...v2.map((migration) => migration.tag), ...sourceMigrationTags]);
   const tables: Record<string, PreviewTablePolicy> = {};
   const futureTables: string[] = [];
   const futureColumns: Record<string, readonly string[]> = {};
