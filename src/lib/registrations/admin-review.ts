@@ -238,11 +238,11 @@ export async function getTeamRegistrationReview(
     ? reviewRows.filter((row) => teamReviewCategory(row) === query.status) : reviewRows;
   const statusRows = query.status === "attention"
     ? reviewRows.filter((row) => row.status === "submitted" || row.status === "changes_requested" || row.status === "waitlisted"
-      || (row.status === "approved" && (row.qualificationFindings.length > 0 || row.members.some((member) => member.readiness?.ready === false))))
+      || (row.status === "approved" && (row.qualificationBlockers.length > 0 || row.members.some((member) => member.readiness?.ready === false))))
     : categoryRows;
   const filteredRows = query.qualification === "all"
     ? statusRows
-    : statusRows.filter((row) => (row.qualificationFindings.length === 0) === (query.qualification === "ready"));
+    : statusRows.filter((row) => (row.qualificationBlockers.length === 0) === (query.qualification === "ready"));
   const total = filteredRows.length;
   const totalPages = Math.ceil(total / TEAM_REGISTRATION_REVIEW_PAGE_SIZE);
   const page = totalPages > 0 ? Math.min(query.page, totalPages) : 1;
@@ -339,7 +339,7 @@ async function projectTeamRegistrationRows(
         perfectTeamId: normalizePerfectTeamId(entry.perfectTeamId), logoUrl: entry.logoUrl,
         updatedAt: entry.updatedAt.toISOString(), representativeName: getDisplayName(entry.representative), members,
         minRoster: season.minTeamSize, maxRoster: season.maxTeamSize, starterCount: season.starterCount,
-        qualificationBlockers: findings.map((finding) => finding.message), qualificationFindings: findings,
+        qualificationBlockers: assessment ? assessment.decision.findings.map((finding) => finding.message) : findings.map((finding) => finding.message), qualificationFindings: findings,
         activeRestrictionOverrides: overrideRows.filter((override) => override.entryId === entry.id && override.rosterRevisionId === entry.currentRosterRevisionId).map((override) => ({
           id: override.id, restrictionCode: override.restrictionCode, findingSnapshot: override.findingSnapshot, reason: override.reason,
           grantedBy: override.grantedBy, grantedAt: override.grantedAt.toISOString(),
