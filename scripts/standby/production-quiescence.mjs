@@ -16,11 +16,13 @@ export const quiescenceSql = `
 export async function waitForDatabaseQuiescence(client, {
   timeoutMs = 60_000, intervalMs = 1_000,
   now = () => performance.now(), wait = ms => new Promise(resolve => setTimeout(resolve, ms)),
+  allWriters = false,
 } = {}) {
   const deadline = now() + timeoutMs;
   let empty = 0;
   while (true) {
-    const { rows: [state] } = await client.query(quiescenceSql);
+    const query = allWriters ? quiescenceSql.replace(" AND usename = session_user", "").replace(" AND owner = session_user", "") : quiescenceSql;
+    const { rows: [state] } = await client.query(query);
     if (!state || !Number.isSafeInteger(state.transactions) || !Number.isSafeInteger(state.prepared)) {
       throw new Error('Database quiescence observation unavailable.');
     }
@@ -44,7 +46,8 @@ async function main() {
     statement_timeout: 5_000, query_timeout: 6_000 });
   try {
     await client.connect();
-    await waitForDatabaseQuiescence(client);
+    if (process.argv.length > 4 && (process.argv.length !== 5 || process.argv[4] !== '--all-writers')) throw new Error('Invalid quiescence mode.');
+    await waitForDatabaseQuiescence(client, { allWriters: process.argv[4] === '--all-writers' });
     console.log('Runtime database transactions drained (two server observations).');
   } finally { await client.end(); }
 }

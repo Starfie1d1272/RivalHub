@@ -4,7 +4,7 @@ Roadmap 只维护长期产品方向、依赖和 major-version 边界。当前工
 
 ## Product direction
 
-RivalHub 2.x 的目标是把官方实例做成一套成熟、可审计、可恢复的高校 CS 赛事运营产品：
+RivalHub 的目标是把高校 CS 赛事运营产品做得成熟、可审计、可恢复，并逐步支持独立组织运行：
 
 ```text
 稳定赛事运营
@@ -54,18 +54,16 @@ simulator / Pick'Em
 optional prediction progression
 ```
 
-## 3.x horizon
+## 3.x direction
 
-3.x 不是已承诺功能清单。只有在 2.x 的官方实例和高校 CS 办赛能力成熟、并出现真实需求后，才评估：
+3.x 推进独立实例的安装、升级与恢复，同时保留官方实例的赛事能力。当前安装路径及尚未验收的边界以 [独立实例运行说明](operations/independent-instance.md) 为准。后续按真实需求评估：
 
 - **多组织 / 多社区**：同一实例承载多个运营组织，同时保留跨组织 Player identity；
-- **正式 production self-hosting**：安装、升级、Secrets、Auth、Storage、migration、监控、备份和恢复成为受支持产品能力；
+- **完整 production self-hosting**：让自托管 provider 的安装、升级、Secrets、Auth、Storage、migration、监控、备份和恢复成为受支持产品能力；
 - **更通用的游戏边界**：把赛事通用能力与 CS 特有身份、地图/BP、阵容和统计进一步分离；
 - **稳定 API / Webhook / integrations**：让外部工具受控消费 RivalHub official facts。
 
-## 2.x non-goals
-
-- 不把第三方 production self-hosting 作为正式支持目标；
+## Boundaries
 - 不为了抽象而提前建设多组织、多游戏或通用赛事 SaaS 框架；
 - 不让分析、预测或社区玩法成为 official result 的第二 owner。
 

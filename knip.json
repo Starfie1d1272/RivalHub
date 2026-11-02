@@ -32,6 +32,8 @@
     "eslint.config.mjs!",
     "scripts/instance/build.mjs!",
     "scripts/instance/database-identity.mjs!",
+    "scripts/instance/legacy-source.mjs!",
+    "scripts/instance/managed-scheduler.mjs!",
     "scripts/instance/provision.ts!",
     "scripts/instance/release.ts!",
     "scripts/instance/readiness.mjs!",

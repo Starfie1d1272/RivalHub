@@ -16,7 +16,7 @@ Browser
                                            └─ explicit public projection
 ```
 
-客户端负责交互，不拥有持久化业务规则。数据库、secret、privileged SDK、复杂事务、资格、赛制和恢复逻辑保持 server-only。
+客户端负责交互，不拥有持久化业务规则。数据库、secret、privileged SDK、复杂事务、资格、赛制和恢复逻辑保持 server-only。独立实例复用同一应用与 active migration chain；其单主机安装、来源身份和恢复边界见 [独立实例运行说明](operations/independent-instance.md)，不能把 Hosted provider 路径等同于完整自托管 Supabase 支持。
 
 ## Application boundaries
 

@@ -1,6 +1,6 @@
 # 独立实例安装（F1）
 
-本入口面向一个组织、一台 Linux x64 主机、一个 Node 进程和一个全新 Hosted Supabase 项目。它不接管现有项目或官方 Production/Preview；完整自托管 Supabase 尚未验收。安装不会创建账号、密钥、DNS、证书或 Supabase 项目。操作员需要有目标项目的管理权限，并自行保管凭据。切换应用不回滚数据库；升级前应先评估迁移兼容性并准备该实例可恢复的备份。
+本入口面向一个组织、一台 Linux x64 主机、一个 Node 进程和一个全新 Hosted Supabase 项目。它不接管现有项目或官方 Production/Preview；安装器当前只接受 Hosted Supabase 项目域名与项目密钥；完整自托管 Supabase 不受当前安装路径支持，也未验收。安装不会创建账号、密钥、DNS、证书或 Supabase 项目。操作员需要有目标项目的管理权限，并自行保管凭据。切换应用不回滚数据库；升级前应先评估迁移兼容性并准备该实例可恢复的备份。
 
 ## 准备
 
@@ -69,6 +69,31 @@ pnpm db:recovery:restore-db-checkpoint \
 
 目标须是全新的隔离 Supabase/PostgreSQL；恢复工具版本须符合 [灾难恢复说明](./disaster-recovery.md#isolated-restore) 的来源版本与账本要求。核验成功仅证明隔离副本；本机自动回滚不会因为隔离恢复成功而启动旧程序。Hosted 数据库恢复、切换及重新接入仍须使用单独授权且已验证的恢复流程。
 
+## 跨主版本转换
+
+普通升级仍执行双向 reader-first 合同。受支持的受管拓扑为一台主机、一个实例进程及该实例的命名 scheduler；操作员必须在维护窗口停止所有非受管 writer，命令中的显式声明记录这一前提，并不证明全网 fencing。跨 v2 → v3 必须在明确的维护窗口停止实例以外的所有 writer 和迁移执行者，并核实正在运行的来源项目与目标数据库；不得修改能力声明伪造兼容。旧金融 writer 已退役，仅切回旧应用不安全。以下入口在主机锁内读取 systemd MainPID 的实际可执行文件、工作目录和环境，并与运行中 release identity、已安装配置及精确旧链和目标链核对；旧实例无需新 recovery-source 接口，但主机须允许 root 读取该进程的 `/proc` 信息。随后入口保存并暂停本实例命名 scheduler，停止服务，核对公开入口已停，并排空所有可见账号的活动及 prepared 事务，以旧环境生成完整 DB + Storage 加密 checkpoint，验证对象真实读回并将来源、目标、账本、Storage 摘要和候选身份绑定到事务，再持久化迁移标记并执行迁移/adopt：
+
+```bash
+sudo pnpm exec tsx scripts/instance/release.ts --major-transition \
+  /path/to/manifest.layers.json /path/to/candidate-instance.env \
+  --checkpoint-env /private/path/checkpoint.env --maintenance-window CHANGE-123 \
+  --confirm-external-writers-stopped
+```
+
+维护窗口标识和显式声明不会停止外部 writer；出现其他活动事务、未识别的实例 scheduler 命令、scheduler 目标不匹配或公开入口未停时禁止迁移。checkpoint 环境与普通迁移相同，还必须包含实例 Storage secret、age 和独立 R2 配置。标记前失败可恢复旧应用；标记写入后任何失败均保持停机，`--rollback` 不能单独启动旧应用。
+
+成对恢复必须继续保持全部非受管 writer 停止，使用事务快照 `full-checkpoint.json` 中的 `completionKey`，通过 `pnpm db:recovery:fetch` 获取该完整 artifact，并按 [灾难恢复](disaster-recovery.md) 将其恢复到全新目标，使用 `--evidence-directory` 生成 full restore 验证证据。核实目标项目和凭据后，在原事务的同一 operator checkout 中运行：
+
+```bash
+sudo pnpm exec tsx scripts/instance/release.ts --restore-pair \
+  /private/path/recovery-<run-id>.json /private/path/restored-instance.env \
+  --confirm-external-writers-stopped
+```
+
+该入口在锁内核对证据与事务的 artifact、manifest、来源应用和恢复目标，再重新读取数据库账本与 bucket，核对恢复目标的受管 scheduler 已停并排空所有可见活动事务，只有验证通过才将旧应用和恢复目标配对启动；它不执行生产数据库恢复。恢复目标环境不得指向未经恢复的原数据库。恢复证据由操作员受保护目录保存，是一致性凭据而非数字签名；恢复后至启动期间也须保持外部 writer 停止。
+
+原目标上的 scheduler 恢复要求 job 的身份、命令与 schedule 在迁移期间未被更改；不符时保持服务停止。新增或退休 scheduler job 使用 scheduler owner 的供给流程。scheduler 暂停状态只在原目标上恢复；若恢复到新项目，按该目标的 scheduler 运行说明单独供给与核验。新路径仍需隔离端到端演练。Hosted 目标恢复权限和真实 systemd 主机行为尚未验收。完整自托管 Supabase 需要独立工作包：定义非 Hosted 的 API/数据库身份与 TLS、密钥和 provider 配置合同，适配安装、备份、恢复与 scheduler，并在真实自托管组合中验证完整旅程。
+
 ## 备份与恢复边界
 
 独立实例 full backup 使用既有 `db:recovery:backup`，显式设置 `RIVALHUB_BACKUP_SOURCE=instance`、非官方 `RIVALHUB_INSTANCE_PROJECT_REF` 与相同的 `RIVALHUB_INSTANCE_CONFIRM`，并提供该实例的应用 origin、API、Session Pooler 数据库连接、Storage secret key、age recipient 与独立 R2 配置。运行中的实例必须提供 `/api/system/recovery-source`：它只返回 release 和已公开的项目身份，备份会核对其实际运行配置、数据库项目、真实 commit 对象和版本派生的实例 release 标识，以及采集前后的账本。旧版本不支持此合同，不能靠手填身份替代。实例 artifact 位于 `instance/<project-ref>/`，该前缀的保留策略由实例运营者配置；官方 `production/` 策略不自动覆盖它。 本地端到端演练可显式使用 `RIVALHUB_BACKUP_SOURCE=isolated-instance`、`RIVALHUB_DB_TARGET=local` 和 `RIVALHUB_BACKUP_SUPABASE_WORKDIR`，并设置 loopback 的 `RIVALHUB_R2_LOCAL_ENDPOINT`；来源身份由 Local Supabase status 和运行中的本地应用读取。此类产物位于 `isolated/`，只允许恢复到隔离目标，不能作为 Hosted 激活凭证。
@@ -86,7 +111,7 @@ RIVALHUB_INSTANCE_WRITE=yes pnpm exec tsx scripts/instance/provision.ts schedule
 pnpm exec tsx scripts/instance/provision.ts verify-scheduler
 ```
 
-`scheduler` 使用同一现有 job registry、Vault 命名与 HTTP dispatch；`verify-scheduler` 触发实际 dispatch，需要可访问的应用和匹配的 `CRON_SECRET`。这些工具不配置 Supabase 内部服务。已有实例通过迁移入口先完成原不可变链、再核对物理合同并保留原账本证据后接入 v3；不要对其使用首次安装入口。候选终点仍待统一合流确认。
+`scheduler` 使用同一现有 job registry、Vault 命名与 HTTP dispatch；`verify-scheduler` 触发实际 dispatch，需要可访问的应用和匹配的 `CRON_SECRET`。这些工具不配置 Supabase 内部服务。已有实例通过迁移入口先完成原不可变链、再核对物理合同并保留原账本证据后接入 v3；不要对其使用首次安装入口。当前 active baseline 身份与历史证据见 [baseline proof](../../drizzle/baseline-candidate/PROOF.md)。
 
 ## 验收边界
 

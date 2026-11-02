@@ -36,6 +36,7 @@ export interface RecoveryArtifactInput {
 export interface RecoveryArtifactResult {
   artifactBytes: number;
   artifactSha256: string;
+  manifestSha256: string;
   keys: ReturnType<typeof buildRecoveryR2Keys>;
 }
 
@@ -109,7 +110,7 @@ export function publishRecoveryArtifact(input: RecoveryArtifactInput): RecoveryA
   console.log(`timing R2 upload/readback: ${Math.round(performance.now() - r2Start)}ms`);
 
   reportOfflineConsumer(recoveryConsumerSummary(manifest, artifactBytes, new Date().toISOString()));
-  return { artifactBytes, artifactSha256, keys };
+  return { artifactBytes, artifactSha256, manifestSha256, keys };
 }
 
 function verifyR2Object(

@@ -2,10 +2,10 @@ import { assertV2LedgerPrefix, readLegacyLineage, readV2Migrations, type LegacyL
 import { isMigrationLedgerPrefix } from "../migration-ledger";
 import { runVerifiedSupabaseDump } from "./verified-dump";
 import { postgresConnection } from "../../../src/db/postgres-connection";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
@@ -29,7 +29,7 @@ import {
   snapshotStorage,
 } from "./storage";
 import { readManagedStorageReferences, type ManagedStorageReference } from "./storage-policy";
-import { assertRecoverySourceUnchanged, assertV2FullRecoverySupported, resolveInstanceSourceIdentity, resolveProductionSourceIdentity } from "./source";
+import { assertRecoverySourceUnchanged, assertV2FullRecoverySupported, resolveInstanceSourceIdentity, resolveProductionSourceIdentity, resolveStoppedInstanceSourceIdentity } from "./source";
 import {
   readExpectedMigrations,
 } from "../production-preflight";
@@ -38,13 +38,31 @@ const projectRoot = resolve(process.cwd());
 const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 async function main(): Promise<void> {
-  const backupClass = assertBackupClass(process.argv[2] ?? process.env.RIVALHUB_BACKUP_CLASS);
+  const stopped = process.argv[2] === "--stopped-instance-source";
+  if (stopped && (process.argv.length !== 6 || process.argv[4] !== "--source-manifest")) throw new Error("Invalid stopped-instance backup arguments.");
+  const backupClass = assertBackupClass(stopped ? process.env.RIVALHUB_BACKUP_CLASS : process.argv[2] ?? process.env.RIVALHUB_BACKUP_CLASS);
   const sourceMode = process.env.RIVALHUB_BACKUP_SOURCE ?? "production";
   if (sourceMode !== "production" && sourceMode !== "instance" && sourceMode !== "isolated-instance") throw new Error("Unknown backup source.");
   const instance = sourceMode === "instance" ? assertInstanceBackupEnvironment(process.env)
     : sourceMode === "isolated-instance" ? assertIsolatedInstanceBackupEnvironment(process.env) : undefined;
   const environment = instance ?? assertProductionBackupEnvironment(process.env);
-  const readSource = () => instance ? resolveInstanceSourceIdentity(instance.appOrigin, instance.supabaseUrl, projectRoot, fetch, sourceMode === "isolated-instance") : resolveProductionSourceIdentity();
+  let frozenPath: string | undefined, sourceManifest: string | undefined, stoppedSnapshot: string | undefined;
+  if (stopped) {
+    if (sourceMode !== "instance" || !instance) throw new Error("Stopped full backup requires an instance source.");
+    const snapshot = realpathSync(readFileSync("/opt/rivalhub-instance/previous-snapshot", "utf8").trim());
+    stoppedSnapshot = snapshot;
+    frozenPath = realpathSync(process.argv[3]!);
+    sourceManifest = realpathSync(process.argv[5]!);
+    const current = realpathSync("/opt/rivalhub-instance/current");
+    if (!snapshot.startsWith("/opt/rivalhub-instance/rollback/") || frozenPath !== `${snapshot}/running-source.json`
+      || sourceManifest !== `${current}/standby.json`) throw new Error("Invalid stopped-instance transaction.");
+    const lock = spawnSync("flock", ["-n", "/opt/rivalhub-instance/deploy.lock", "true"]);
+    const service = spawnSync("systemctl", ["is-active", "--quiet", "rivalhub-instance"]);
+    if (lock.error || lock.status !== 1 || service.error || service.status !== 3) throw new Error("Stopped backup requires the held host lock and stopped service.");
+  }
+  const readSource = () => frozenPath
+    ? resolveStoppedInstanceSourceIdentity(frozenPath, sourceManifest!, instance!.supabaseUrl, environment.databaseUrl, false)
+    : instance ? resolveInstanceSourceIdentity(instance.appOrigin, instance.supabaseUrl, projectRoot, fetch, sourceMode === "isolated-instance") : resolveProductionSourceIdentity();
   const runId = randomUUID();
   const createdAt = new Date().toISOString();
   const tempRoot = mkdtempSync(join(tmpdir(), `rivalhub-recovery-${runId}-`));
@@ -133,8 +151,23 @@ async function main(): Promise<void> {
       manifest,
     });
 
+    if (stoppedSnapshot) {
+      const [candidateTag, candidateCommit, sourceTag, sourceCommit, ...extra] = readFileSync(join(stoppedSnapshot, "identity"), "utf8").trim().split(/\s+/);
+      if (extra.length || !candidateTag || !/^[a-f0-9]{40}$/.test(candidateCommit ?? "")
+        || sourceTag !== source.deployedReleaseTag || sourceCommit !== source.deployedCommit) throw new Error("Stopped transaction identity differs from checkpoint source.");
+      // Written only after artifact, sidecar and completion have passed real GET/hash read-back.
+      // The enclosing root-only transaction binds this receipt to the candidate and DB target.
+      writeFileSync(join(stoppedSnapshot, "full-checkpoint.json"), `${JSON.stringify({
+        version: 1, candidate: { tag: candidateTag, commit: candidateCommit },
+        source: manifest.source, sourceProjectRef: manifest.sourceProjectRef,
+        sourceManifestSha256: createHash("sha256").update(readFileSync(sourceManifest!)).digest("hex"),
+        target: { supabaseUrl: environment.supabaseUrl, databaseName: decodeURI(new URL(environment.databaseUrl).pathname.slice(1)) },
+        runId, artifactSha256: artifact.artifactSha256, manifestSha256: artifact.manifestSha256,
+        completionKey: artifact.keys.completion, storage: manifest.storage,
+      })}\n`, { flag: "wx", mode: 0o600 });
+    }
     console.log(
-      `Recovery backup complete: class=${backupClass}, run=${runId}, artifactBytes=${artifact.artifactBytes}, storageObjects=${storage.objectCount}, storageBytes=${storage.totalBytes}, artifactSha256=${artifact.artifactSha256}.`,
+      `Recovery backup complete: class=${backupClass}, run=${runId}, completion=${artifact.keys.completion}, artifactBytes=${artifact.artifactBytes}, storageObjects=${storage.objectCount}, storageBytes=${storage.totalBytes}, artifactSha256=${artifact.artifactSha256}.`,
     );
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });

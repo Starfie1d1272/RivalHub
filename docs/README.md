@@ -16,6 +16,7 @@
 | 数据分类、保留、删除与恢复语义 | [`security/data-lifecycle.md`](./security/data-lifecycle.md) |
 | 测试证据与 CI | [`testing.md`](./testing.md)、[`operations/ci.md`](./operations/ci.md) |
 | 本地开发、migration、staging、release | [`operations/`](./operations/) |
+| 独立实例安装、升级与恢复边界 | [`operations/independent-instance.md`](./operations/independent-instance.md) |
 | 应用备用机安装、Vercel 故障切换与回退 | [`operations/standby.md`](./operations/standby.md) |
 | Supabase 新组织迁库 | [`operations/supabase-relocation.md`](./operations/supabase-relocation.md) |
 | Production 灾难恢复、备份与 Restore 演练 | [`operations/disaster-recovery.md`](./operations/disaster-recovery.md) |
