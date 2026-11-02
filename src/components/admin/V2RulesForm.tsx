@@ -17,15 +17,20 @@ type Props = {
   currentMin: string; peakMin: string;
   onCurrentMinChange: (value: string) => void; onPeakMinChange: (value: string) => void;
   platforms: CompetitivePlatformOption[]; disabled: boolean;
+  hasCaptainVoting: boolean; hasDraft: boolean; starterCount: number; maxTeamSize: number;
 };
 
-export function V2RulesForm({ value, onChange, affiliationRules, onAffiliationRulesChange, currentMin, peakMin, onCurrentMinChange, onPeakMinChange, platforms, disabled }: Props) {
+export function V2RulesForm({ value, onChange, affiliationRules, onAffiliationRulesChange, currentMin, peakMin, onCurrentMinChange, onPeakMinChange, platforms, disabled, hasCaptainVoting, hasDraft, starterCount, maxTeamSize }: Props) {
   const id = useId();
   const policy = value.qualificationPolicy;
   const setPolicy = (patch: Partial<typeof policy>) => onChange({ ...value, qualificationPolicy: { ...policy, ...patch } });
   const needsContext = policy.competitiveProfileRequired || policy.externalStrengthGap.enabled || currentMin !== NO_RANK || peakMin !== NO_RANK;
   const updateRule = (index: number, patch: Partial<InstitutionAffiliationRule>) => onAffiliationRulesChange(affiliationRules.map((rule, i) => i === index ? { ...rule, ...patch } : rule));
   return <div className="space-y-6">
+    {(hasCaptainVoting || hasDraft) && <section className="space-y-3"><h3 className="font-semibold">编队</h3><div className="grid gap-4 sm:grid-cols-2">
+      {hasCaptainVoting && <div><Label htmlFor={`${id}-teams`}>投票确认的队伍数量</Label><Input id={`${id}-teams`} type="number" min={1} disabled={disabled} value={value.formation.targetTeamCount ?? ""} onChange={e => onChange({ ...value, formation: { ...value.formation, targetTeamCount: e.target.value === "" ? null : Number(e.target.value) } })} /></div>}
+      {hasDraft && <div><Label htmlFor={`${id}-target-roster`}>选秀后每队目标人数</Label><Input id={`${id}-target-roster`} type="number" min={starterCount} max={maxTeamSize} disabled={disabled} value={value.formation.targetRosterSize ?? ""} onChange={e => onChange({ ...value, formation: { ...value.formation, targetRosterSize: e.target.value === "" ? null : Number(e.target.value) } })} /><p className="mt-1 text-xs text-[var(--color-fg-dim)]">范围 {starterCount}–{maxTeamSize} 人；选秀轮数按目标人数扣除已有队长计算。</p></div>}
+    </div></section>}
     <section className="space-y-3">
       <h3 className="font-semibold">成员资格</h3>
       <p className="text-sm text-[var(--color-fg-dim)]">Steam64 和基本显示身份为参赛所需。以下要求可分别设置。</p>

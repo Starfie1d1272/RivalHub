@@ -23,7 +23,11 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
   const seasonPromise = findAdminSeasonBySlug(seasonSlug);
   const [season, catalog, conversionPolicyProvenance] = await Promise.all([
     seasonPromise, loadCompetitivePlatformCatalog(db, { concurrent: true }),
-    seasonPromise.then(season => season ? loadConversionPolicyProvenance(db, season.teamRegistrationConfig) : null),
+    seasonPromise.then(season => {
+      if (!season) return null;
+      const config = season.teamRegistrationConfig;
+      return loadConversionPolicyProvenance(db, config?.qualificationPolicy?.version === 2 ? { competitiveProfile: config.qualificationPolicy.competitiveProfile } : config);
+    }),
   ]);
   if (!season) notFound();
   const rules = decodeSeasonRules(season);
