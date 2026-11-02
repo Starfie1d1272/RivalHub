@@ -266,8 +266,8 @@ export function CompetitiveReferenceSummary({
         <div><dt className="text-[var(--color-fg-mid)]">主平台</dt><dd className="mt-1 font-medium">{primaryPlatform}</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">当前平台赛季</dt><dd className="mt-1 font-medium">{contextValue(currentSeason)}</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">上一平台赛季</dt><dd className="mt-1 font-medium">{contextValue(previousSeason)}</dd></div>
-        <div><dt className="text-[var(--color-fg-mid)]">历史参考赛季（20%）</dt><dd className="mt-1 font-medium">{contextValue(referenceSeason)}</dd></div>
-        <div className="sm:col-span-2"><dt className="text-[var(--color-fg-mid)]">近期竞技事实（30%）</dt><dd className="mt-1 font-medium">{contextValue(recentSeasons.length > 0 ? recentSeasons.join("、") : "未配置")}</dd></div>
+        {(!configuredContext || evidencePolicy) && <><div><dt className="text-[var(--color-fg-mid)]">历史参考赛季（20%）</dt><dd className="mt-1 font-medium">{contextValue(referenceSeason)}</dd></div>
+        <div className="sm:col-span-2"><dt className="text-[var(--color-fg-mid)]">近期竞技事实（30%）</dt><dd className="mt-1 font-medium">{contextValue(recentSeasons.length > 0 ? recentSeasons.join("、") : "未配置")}</dd></div></>}
         <div className="sm:col-span-2"><dt className="text-[var(--color-fg-mid)]">竞技证据来源</dt><dd className="mt-1 font-medium">{!frozen && !configuredContext ? pendingContext : sourceSelection === "strongest_equivalent" ? configuredContext ? "可用的等效竞技资料按本届换算规则比较，使用较高的有效竞技水平。" : "Perfect World 与 5E 数据按赛事换算规则比较，使用较高的有效竞技水平；相同时优先 Perfect World。" : configuredContext ? "主平台优先；主平台资料不可用时使用可用的等效资料。" : "历史兼容：主平台优先，5E 仅在主平台资料不可用时作为等效补充。"}</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">冻结段位顺序</dt><dd className="mt-1 font-medium">{contextValue(profile.rankOrder.length > 0 ? `${profile.rankOrder.length} 个段位` : "未配置")}</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">外校实力星差上限</dt><dd className="mt-1 font-medium">{policy ? policy.externalStrengthGap.enabled ? `${policy.externalStrengthGap.maxGap} 星` : "不限制" : `${profile.externalStrengthMaxStarGap ?? 3} 星`}</dd></div>
@@ -278,7 +278,7 @@ export function CompetitiveReferenceSummary({
         <FrozenFact title={`${conversionLabel} · 换算规则 ${policyVersion ?? profile.fallbackConversion?.version ?? "历史版本未记录"}`}>
           {frozen
             ? "本届已在报名开放时锁定；全局规则后续变化不会影响本届。"
-            : policyId && policyVersion ? "跨平台换算规则版本已锁定；平台参考赛季、段位顺序与换算数据将在报名开放时确定。" : "本届保留历史换算数据，未记录绑定的换算规则版本。"}
+            : configuredContext ? "发布时已确定本届参考资料；开放报名时将从目录再次确定并冻结。" : policyId && policyVersion ? "跨平台换算规则版本已锁定；平台参考赛季、段位顺序与换算数据将在报名开放时确定。" : "本届保留历史换算数据，未记录绑定的换算规则版本。"}
           {profile.fallbackConversion?.version && <span className="mt-1 block text-xs">本届换算数据版本：{profile.fallbackConversion.version} · 来源：{sourcePlatform ?? "赛事换算规则"}</span>}
           {policyProvenance && (policyProvenance.sourceNote || policyProvenance.rationale || policyProvenance.changeSummary) && (
             <dl className="mt-3 grid gap-2 border-t border-[var(--color-info-edge)] pt-3 text-xs sm:grid-cols-2">
