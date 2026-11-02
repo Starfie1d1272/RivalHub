@@ -8,6 +8,7 @@ import { evaluateParticipant, loadParticipantQualificationFacts } from "@/lib/qu
 import { buildQualificationEvidence, deriveCompetitiveRequirements, type CompetitivePurpose } from "@/lib/qualification/evidence";
 import { uniqueQualificationFindings } from "@/lib/qualification/finding";
 import { evaluateRoster } from "@/lib/competition-entries/evaluate-roster";
+import { rosterPositionSql } from "@/lib/competition-entries/roster-position";
 import { unresolvedQualificationFindings } from "@/lib/competition-entries/restriction-overrides";
 import { decodeSeasonRules, type DecodedSeasonRules, type QualificationDecision, type QualificationEvidence, type RosterCandidate } from "@/lib/seasons/rules";
 import type { CompetitionEntryRestrictionOverride } from "@/db/schema";
@@ -33,8 +34,8 @@ export async function loadRosterCandidates(
   const rules = decodeSeasonRules(season);
   const entries = await executor.select().from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), inArray(competitionEntries.id, requested.map((item) => item.entryId))));
   const revisions = await executor.select().from(competitionEntryRosterRevisions).where(inArray(competitionEntryRosterRevisions.id, requested.map((item) => item.expectedRevisionId)));
-  const rows = await executor.select({ revisionId: competitionEntryRosterMembers.revisionId, userId: competitionEntryRosterMembers.userId, participantId: competitionEntryParticipants.id, participantUserId: competitionEntryParticipants.userId, participantEntryId: competitionEntryParticipants.entryId, declaredPlayerType: competitionEntryParticipants.playerType, teamMembershipId: competitionEntryRosterMembers.teamMembershipId, status: competitionEntryParticipants.status, isPrimaryStarter: competitionEntryRosterMembers.isPrimaryStarter, primaryPosition: competitionEntryRosterMembers.primaryPosition })
-    .from(competitionEntryRosterMembers).innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId)).where(inArray(competitionEntryRosterMembers.revisionId, requested.map((item) => item.expectedRevisionId)));
+  const rows = await executor.select({ revisionId: competitionEntryRosterMembers.revisionId, userId: competitionEntryRosterMembers.userId, participantId: competitionEntryParticipants.id, participantUserId: competitionEntryParticipants.userId, participantEntryId: competitionEntryParticipants.entryId, declaredPlayerType: competitionEntryParticipants.playerType, teamMembershipId: competitionEntryRosterMembers.teamMembershipId, status: competitionEntryParticipants.status, isPrimaryStarter: competitionEntryRosterMembers.isPrimaryStarter, primaryPosition: rosterPositionSql(competitionEntryRosterRevisions.positionFactsVersion, competitionEntryRosterMembers.primaryPosition, season.id, competitionEntryRosterMembers.userId) })
+    .from(competitionEntryRosterMembers).innerJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntryRosterMembers.revisionId)).innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId)).where(inArray(competitionEntryRosterMembers.revisionId, requested.map((item) => item.expectedRevisionId)));
   const ids = [...new Set(rows.map((row) => row.userId))];
   const teamIds = entries.flatMap((entry) => entry.teamId ? [entry.teamId] : []);
   const profile = rules.competitive.competitiveProfile;

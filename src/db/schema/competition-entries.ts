@@ -135,6 +135,8 @@ export const competitionEntryRosterRevisions = pgTable("competition_entry_roster
   id: uuid("id").primaryKey().defaultRandom(),
   entryId: uuid("entry_id").notNull().references(() => competitionEntries.id),
   revisionNumber: integer("revision_number").notNull(),
+  /** Null marks a revision created before per-revision position facts. */
+  positionFactsVersion: integer("position_facts_version"),
   status: competitionEntryRosterRevisionStatusEnum("status").notNull().default("draft"),
   /** Why this draft revision may be edited after the ordinary registration window. */
   origin: competitionEntryRosterRevisionOriginEnum("origin").notNull().default("initial"),
@@ -146,6 +148,7 @@ export const competitionEntryRosterRevisions = pgTable("competition_entry_roster
   entryRevisionUnique: unique("competition_entry_roster_revisions_entry_revision_number_unique").on(t.entryId, t.revisionNumber),
   identityScope: unique("competition_entry_roster_revisions_id_entry_id_unique").on(t.id, t.entryId),
   positiveRevision: check("competition_entry_roster_revisions_positive_check", sql`${t.revisionNumber} >= 1`),
+  positionFactsVersionValid: check("competition_entry_roster_revisions_position_facts_version_check", sql`${t.positionFactsVersion} IS NULL OR ${t.positionFactsVersion} = 1`),
 }));
 
 export const competitionEntryRosterMembers = pgTable("competition_entry_roster_members", {

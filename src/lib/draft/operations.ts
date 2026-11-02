@@ -20,6 +20,8 @@ import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { logEvent } from "@/lib/observability/server";
 import { canPickPosition, draftFormat, getNextEntryId, isStarterRound } from "@/lib/draft/rules";
 import { decodeSeasonRules } from "@/lib/seasons/rules";
+import { rosterPositionSql } from "@/lib/competition-entries/roster-position";
+import { getPositionCount } from "@/lib/draft/rules";
 import {
   createAutoPickRequestId,
   selectAutoPickCandidate,
@@ -237,22 +239,8 @@ export async function executeDraftPick(
     );
   }
 
-  const [positionCount] = await tx
-    .select({ count: count() })
-    .from(eventRosterMembers)
-    .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
-    .innerJoin(seasonRegistrations, and(
-      eq(eventRosterMembers.userId, seasonRegistrations.userId),
-      eq(seasonRegistrations.seasonId, input.seasonId),
-    ))
-    .where(
-      and(
-        eq(eventRosters.entryId, input.entryId),
-        eq(eventRosterMembers.isCurrent, true),
-        eq(seasonRegistrations.primaryPosition, targetRegistration.primaryPosition),
-      ),
-    );
-  if (!canPickPosition(Number(positionCount?.count ?? 0), rules.source === "policy_v2" ? rules.roster.maxPerPositionPerTeam : 2)) {
+  const positionCounts = await getTeamPositionCounts(tx, input.entryId);
+  if (!canPickPosition(getPositionCount(positionCounts, targetRegistration.primaryPosition), rules.source === "policy_v2" ? rules.roster.maxPerPositionPerTeam : 2)) {
     throw new AppError(
       ErrorCode.TEAM_POSITION_CAP_EXCEEDED,
       ERROR_MESSAGES.TEAM_POSITION_CAP_EXCEEDED,
@@ -456,21 +444,14 @@ async function getTeamPositionCounts(
   tx: DraftTransaction,
   entryId: string,
 ): Promise<Record<string, number>> {
-  const rows = await tx
-    .select({
-      primaryPosition: seasonRegistrations.primaryPosition,
-      count: count(),
-    })
-    .from(eventRosterMembers)
-    .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
-    .innerJoin(seasonRegistrations, and(
-      eq(eventRosterMembers.userId, seasonRegistrations.userId),
-      eq(seasonRegistrations.seasonId, sql`(SELECT competition_id FROM competition_entries WHERE id = ${entryId})`),
-    ))
-    .where(and(eq(eventRosters.entryId, entryId), eq(eventRosterMembers.isCurrent, true)))
-    .groupBy(seasonRegistrations.primaryPosition);
-
-  return Object.fromEntries(rows.map((row) => [row.primaryPosition, Number(row.count)]));
+  const rows = await tx.select({ position: rosterPositionSql(competitionEntryRosterRevisions.positionFactsVersion, competitionEntryRosterMembers.primaryPosition, competitionEntries.competitionId, competitionEntryRosterMembers.userId) })
+    .from(competitionEntries)
+    .innerJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
+    .innerJoin(competitionEntryRosterMembers, eq(competitionEntryRosterMembers.revisionId, competitionEntryRosterRevisions.id))
+    .where(eq(competitionEntries.id, entryId));
+  const counts = new Map<string, number>();
+  for (const { position } of rows) if (position !== null) counts.set(position, (counts.get(position) ?? 0) + 1);
+  return Object.fromEntries(counts);
 }
 
 async function getAutoPickCandidates(

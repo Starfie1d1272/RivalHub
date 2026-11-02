@@ -16,6 +16,7 @@ it("invalidates confirmed Demo ownership across events after a shared identity i
   await withScratchDatabase("demo_shared_identity", async client => {
     for (const file of migrationFiles(name => /^\d{4}_.*\.sql$/.test(name))) await replayMigration(client, file);
     await client.query(readFileSync("drizzle/migrations/0001_amused_kang.sql", "utf8"));
+    await client.query(readFileSync("drizzle/migrations/0002_stormy_santa_claus.sql", "utf8"));
     const url = new URL(localDatabaseUrl()); url.pathname = `/${(await client.query("select current_database() as name")).rows[0].name}`;
     const pool = new Pool({ connectionString: url.toString(), ssl: false, max: 6, connectionTimeoutMillis: 2000 });
     try {
@@ -71,6 +72,7 @@ it("serializes shared identity retirement behind an in-flight revalidation", asy
   await withScratchDatabase("demo_shared_reverse", async client => {
     for (const file of migrationFiles(name => /^\d{4}_.*\.sql$/.test(name))) await replayMigration(client, file);
     await client.query(readFileSync("drizzle/migrations/0001_amused_kang.sql", "utf8"));
+    await client.query(readFileSync("drizzle/migrations/0002_stormy_santa_claus.sql", "utf8"));
     const url = new URL(localDatabaseUrl()); url.pathname = `/${(await client.query("select current_database() as name")).rows[0].name}`;
     const pool = new Pool({ connectionString: url.toString(), ssl: false, max: 6, connectionTimeoutMillis: 2000 });
     try {
@@ -145,6 +147,7 @@ it.skipIf(process.env.RIVALHUB_DEMO_REVERSE_CAPACITY !== "1")("measures shared i
         await withScratchDatabase("demo_reverse_load", async client => {
           for (const file of migrationFiles(name => /^\d{4}_.*\.sql$/.test(name))) await replayMigration(client, file);
     await client.query(readFileSync("drizzle/migrations/0001_amused_kang.sql", "utf8"));
+    await client.query(readFileSync("drizzle/migrations/0002_stormy_santa_claus.sql", "utf8"));
           const url = new URL(localDatabaseUrl()); url.pathname = `/${(await client.query("select current_database() as name")).rows[0].name}`;
           const pool = new Pool({ connectionString: url.toString(), ssl: false, max: 6, connectionTimeoutMillis: 2000 });
           const monitor = new Pool({ connectionString: url.toString(), ssl: false, max: 1, connectionTimeoutMillis: 2000 });

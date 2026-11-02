@@ -7,7 +7,9 @@ import {
   competitionEntryActiveClaims,
   competitionEntryParticipants,
   competitionEntryRosterMembers,
+  competitionEntryRosterRevisions,
 } from "@/db/schema";
+import { rosterPositionSql } from "@/lib/competition-entries/roster-position";
 import type { CompetitionEntryParticipantStatus } from "@/lib/competition-entries/presentation";
 
 
@@ -95,7 +97,7 @@ function participantContextQueries(executor: ParticipantContextQueryable, input:
     participantRows: () => executor.select({
       entry: competitionEntries,
       participantStatus: currentRosterParticipantStatus(),
-      position: sql<string | null>`(select ${competitionEntryRosterMembers.primaryPosition} from ${competitionEntryRosterMembers} where ${competitionEntryRosterMembers.revisionId} = ${competitionEntries.currentRosterRevisionId} and ${competitionEntryRosterMembers.participantId} = ${competitionEntryParticipants.id} limit 1)`,
+      position: sql<string | null>`(select ${rosterPositionSql(competitionEntryRosterRevisions.positionFactsVersion, competitionEntryRosterMembers.primaryPosition, competitionEntries.competitionId, competitionEntryRosterMembers.userId)} from ${competitionEntryRosterMembers} inner join ${competitionEntryRosterRevisions} on ${competitionEntryRosterRevisions.id} = ${competitionEntryRosterMembers.revisionId} where ${competitionEntryRosterMembers.revisionId} = ${competitionEntries.currentRosterRevisionId} and ${competitionEntryRosterMembers.participantId} = ${competitionEntryParticipants.id} limit 1)`,
     })
       .from(competitionEntryParticipants)
       .innerJoin(competitionEntries, eq(competitionEntries.id, competitionEntryParticipants.entryId))

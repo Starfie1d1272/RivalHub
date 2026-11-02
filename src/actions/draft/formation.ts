@@ -61,7 +61,7 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
         const [captainUser] = await tx.select({ displayName: users.displayName, perfectName: users.perfectName }).from(users).where(eq(users.id, captain.userId));
         const [order] = season.hasDraft ? await tx.select({ value: max(competitionEntries.formationOrder) }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, seasonId), isNotNull(competitionEntries.formationOrder))) : [];
         [entry] = await tx.insert(competitionEntries).values({ competitionId: seasonId, source: "event_native", name: `${getPublicDisplayName(captainUser ?? {})} 队`, representativeUserId: captain.userId, sourceRegistrationId: captainId, currentRosterRevisionId: revisionId, registrationStatus: "draft", formationOrder: season.hasDraft ? (order?.value ?? 0) + 1 : null }).returning();
-        await tx.insert(competitionEntryRosterRevisions).values({ id: revisionId, entryId: entry.id, revisionNumber: 1, status: "draft", createdBy: auditActorId(admin) });
+        await tx.insert(competitionEntryRosterRevisions).values({ id: revisionId, entryId: entry.id, revisionNumber: 1, positionFactsVersion: 1, status: "draft", createdBy: auditActorId(admin) });
         await tx.insert(competitionEntryRepresentativeChanges).values({ entryId: entry.id, fromUserId: null, toUserId: captain.userId, changedByActorId: auditActorId(admin) });
       }
       const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId)).for("update");
@@ -79,7 +79,7 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
         const previousPosition = positionsByUser.get(userId) ?? null;
         const primaryPosition = previousPosition ?? byId.get(registrationId)!.primaryPosition;
         if (primaryPosition !== previousPosition) positionChanges.push({ userId, previousPosition, position: primaryPosition });
-        if (participant.status === "confirmed" && primaryPosition !== previousPosition) {
+        if (participant.status === "confirmed" && primaryPosition !== (revision.positionFactsVersion === null ? byId.get(registrationId)!.primaryPosition : previousPosition)) {
           await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.participantId, participant.id));
           await tx.update(competitionEntryParticipants).set({ status: "invited", confirmedAt: null, updatedAt: new Date() }).where(eq(competitionEntryParticipants.id, participant.id));
         }
@@ -89,6 +89,7 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
           await tx.insert(eventRosterMembers).values({ eventRosterId: roster.id, participantId: participant.id, userId, isPrimaryStarter: starterIds.includes(registrationId) });
         }
       }
+      if (revision.positionFactsVersion === null) await tx.update(competitionEntryRosterRevisions).set({ positionFactsVersion: 1 }).where(eq(competitionEntryRosterRevisions.id, revision.id));
       await writeAuditInTx(tx, { seasonId, action: "competition_entry.roster.save", actorId: auditActorId(admin), targetId: entry.id, meta: { source: "manual_formation", memberRegistrationIds: members, starterRegistrationIds: starterIds, positionChanges } });
       return { entryId: entry.id, slug: season.slug };
     });

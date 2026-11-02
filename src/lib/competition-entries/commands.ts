@@ -43,6 +43,7 @@ import { isTeamRegistration } from "@/lib/utils/season";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { canMutateCompetitionEntryRoster } from "@/lib/competition-entries/remediation";
 import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entries/roster-change";
+import { copyRosterPositionsToRevisionInTx, rosterPositionSql } from "@/lib/competition-entries/roster-position";
 import { normalizeTeamRegistrationConfig, resolveQualificationPolicy } from "@/lib/seasons/compatibility";
 import { decodeSeasonRules, type RosterCandidate, type DecodedSeasonRules, type QualificationDecision, type QualificationEvidence } from "@/lib/seasons/rules";
 import { assessRosterCandidate, loadRosterCandidates } from "@/lib/competition-entries/roster-assessment";
@@ -111,22 +112,12 @@ async function cloneRosterRevisionAsDraftInTx(
   const [next] = await tx.insert(competitionEntryRosterRevisions).values({
     entryId: revision.entryId,
     revisionNumber: nextRevision,
+    positionFactsVersion: 1,
     status: "draft",
     origin,
     createdBy,
   }).returning({ id: competitionEntryRosterRevisions.id });
-  const members = await tx.select().from(competitionEntryRosterMembers)
-    .where(eq(competitionEntryRosterMembers.revisionId, revision.id));
-  if (members.length > 0) {
-    await tx.insert(competitionEntryRosterMembers).values(members.map((member) => ({
-      revisionId: next.id,
-      participantId: member.participantId,
-      userId: member.userId,
-      teamMembershipId: member.teamMembershipId,
-      isPrimaryStarter: member.isPrimaryStarter,
-      primaryPosition: member.primaryPosition,
-    })));
-  }
+  await copyRosterPositionsToRevisionInTx(tx, { revision, nextId: next.id, actorId: createdBy });
   await tx.update(competitionEntryRosterRevisions).set({ status: "superseded" })
     .where(eq(competitionEntryRosterRevisions.id, revision.id));
   return { id: next.id, revisionNumber: nextRevision };
@@ -310,7 +301,7 @@ export async function createCompetitionEntryInTx(tx: TxDb, input: { competitionI
   if (existing) throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "这支队伍已有本届有效参赛条目。");
   const revisionId = randomUUID();
   const [entry] = await tx.insert(competitionEntries).values({ competitionId: season.id, source: "linked_team", teamId: team.id, name: team.name, logoUrl: team.logoUrl, representativeUserId: team.captainUserId, currentRosterRevisionId: revisionId }).returning({ id: competitionEntries.id });
-  await tx.insert(competitionEntryRosterRevisions).values({ id: revisionId, entryId: entry.id, revisionNumber: 1, status: "draft", createdBy: input.actorId });
+  await tx.insert(competitionEntryRosterRevisions).values({ id: revisionId, entryId: entry.id, revisionNumber: 1, positionFactsVersion: 1, status: "draft", createdBy: input.actorId });
   await tx.insert(competitionEntryRepresentativeChanges).values({ entryId: entry.id, fromUserId: null, toUserId: team.captainUserId, changedByActorId: input.actorId });
   await auditEntry(tx, { action: "competition_entry.create", actorId: input.actorId, entryId: entry.id, competitionId: season.id, meta: { source: "linked_team", teamId: team.id, nameSnapshot: team.name } });
   return { entryId: entry.id, seasonSlug: season.slug };
@@ -362,17 +353,20 @@ export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId:
   }
   const existingMembers = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
   const previousPositions = new Map(existingMembers.map((member) => [member.userId, member.primaryPosition]));
+  const previousFacts = revision.positionFactsVersion === null ? await tx.select({ userId: competitionEntryRosterMembers.userId, position: rosterPositionSql(sql`${revision.positionFactsVersion}::integer`, competitionEntryRosterMembers.primaryPosition, entry.competitionId, competitionEntryRosterMembers.userId) }).from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id)) : [];
+  const previousEffectivePositions = new Map(previousFacts.map((member) => [member.userId, member.position]));
   const positions = new Map(input.positions?.map((member) => [member.userId, member.position]) ?? []);
   if ([...positions.values()].some((position) => position !== null && !season.positions.includes(position))) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选位置不属于本届赛事选项。");
   for (const userId of input.userIds) {
     const participant = participantByUser.get(userId)!;
     const nextPosition = positions.has(userId) ? positions.get(userId)! : previousPositions.get(userId) ?? null;
-    if (participant.status === "confirmed" && nextPosition !== (previousPositions.get(userId) ?? null)) {
+    if (participant.status === "confirmed" && nextPosition !== (revision.positionFactsVersion === null ? previousEffectivePositions.get(userId) ?? null : previousPositions.get(userId) ?? null)) {
       await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.participantId, participant.id));
       await tx.update(competitionEntryParticipants).set({ status: "invited", confirmedAt: null, updatedAt: new Date() }).where(eq(competitionEntryParticipants.id, participant.id));
       await auditEntry(tx, { action: "competition_entry.roster.save", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: participant.id, userId, previousPosition: previousPositions.get(userId) ?? null, position: nextPosition, confirmationReset: true, revisionId: revision.id } });
     }
   }
+  if (revision.positionFactsVersion === null) await tx.update(competitionEntryRosterRevisions).set({ positionFactsVersion: 1 }).where(eq(competitionEntryRosterRevisions.id, revision.id));
   await tx.delete(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
   await tx.insert(competitionEntryRosterMembers).values(input.userIds.map((userId) => ({ revisionId: revision.id, participantId: participantByUser.get(userId)!.id, userId, teamMembershipId: currentMemberships.find((row) => row.userId === userId)?.id ?? null, isPrimaryStarter: input.primaryStarterUserIds.includes(userId), primaryPosition: positions.has(userId) ? positions.get(userId)! : previousPositions.get(userId) ?? null })));
   const [teamIdentity] = !entry.logoUrl ? await tx.select({ logoUrl: teams.logoUrl }).from(teams).where(eq(teams.id, entry.teamId)) : [];
@@ -434,7 +428,7 @@ export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: 
   let season = await loadSeasonOrThrow(tx, entry.competitionId);
   const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!revision || revision.status !== "draft") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不可编辑。");
-  const [rosterMember] = await tx.select({ id: competitionEntryRosterMembers.id, primaryPosition: competitionEntryRosterMembers.primaryPosition }).from(competitionEntryRosterMembers).where(and(eq(competitionEntryRosterMembers.revisionId, revision.id), eq(competitionEntryRosterMembers.participantId, participant.id)));
+  const [rosterMember] = await tx.select({ id: competitionEntryRosterMembers.id, primaryPosition: rosterPositionSql(sql`${revision.positionFactsVersion}::integer`, competitionEntryRosterMembers.primaryPosition, entry.competitionId, competitionEntryRosterMembers.userId) }).from(competitionEntryRosterMembers).where(and(eq(competitionEntryRosterMembers.revisionId, revision.id), eq(competitionEntryRosterMembers.participantId, participant.id)));
   if (!rosterMember) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "邀请已更新，请联系赛事负责人确认当前名单。");
   if (input.expectedPosition === undefined || input.expectedPosition !== rosterMember.primaryPosition) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "本届位置已变化，请刷新页面后确认。");
   const nativeFormation = entry.source === "event_native" && season.registrationMode === "solo"
@@ -507,6 +501,7 @@ export async function withdrawCompetitionEntryParticipationInTx(tx: TxDb, input:
       representativeUserId: entryScope.representativeUserId,
       actorId: input.actorId,
       source: "participant_self_withdrawal",
+      excludeUserId: input.userId,
     });
   }
 

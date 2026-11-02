@@ -5,14 +5,15 @@ import {
   draftState,
   draftPicks,
   competitionEntries,
-  eventRosterMembers,
-  eventRosters,
+  competitionEntryRosterRevisions,
+  competitionEntryRosterMembers,
   seasonRegistrations,
   steamProfiles,
   users,
   seasons,
 } from "@/db/schema";
 import { decodeSeasonRules } from "@/lib/seasons/rules";
+import { rosterPositionSql } from "@/lib/competition-entries/roster-position";
 import type { MapPreference } from "@/types/season";
 import { draftFormat, getSnakeOrder } from "./rules";
 
@@ -269,7 +270,7 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
     entryIds.length > 0
       ? await executor
           .select({
-            entryId: eventRosters.entryId,
+            entryId: competitionEntries.id,
             registrationId: seasonRegistrations.id,
             userId: users.id,
             personaName: steamProfiles.personaName,
@@ -277,17 +278,18 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
             hasActivePublicSanction: hasActivePublicSanction(users.id),
             perfectName: users.perfectName,
             displayName: users.displayName,
-            primaryPosition: seasonRegistrations.primaryPosition,
+            primaryPosition: rosterPositionSql(competitionEntryRosterRevisions.positionFactsVersion, competitionEntryRosterMembers.primaryPosition, seasonId, competitionEntryRosterMembers.userId),
           })
-          .from(eventRosterMembers)
-          .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+          .from(competitionEntries)
+          .innerJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
+          .innerJoin(competitionEntryRosterMembers, eq(competitionEntryRosterMembers.revisionId, competitionEntryRosterRevisions.id))
           .innerJoin(seasonRegistrations, and(
-            eq(eventRosterMembers.userId, seasonRegistrations.userId),
+            eq(competitionEntryRosterMembers.userId, seasonRegistrations.userId),
             eq(seasonRegistrations.seasonId, seasonId),
           ))
           .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
           .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-          .where(and(inArray(eventRosters.entryId, entryIds), eq(eventRosterMembers.isCurrent, true)))
+          .where(inArray(competitionEntries.id, entryIds))
       : [];
 
   const pickRows = parallel ? parallel[2] : await pickQuery;
@@ -324,7 +326,7 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
           avatarUrl: member.avatarUrl, hasActivePublicSanction: member.hasActivePublicSanction,
           perfectName: member.perfectName ?? null,
           displayName: member.displayName ?? null,
-          primaryPosition: member.primaryPosition,
+          primaryPosition: member.primaryPosition ?? "",
           pickRound: pick?.round ?? 0,
           pickNumber: pick?.pickNumber ?? 0,
           autoPicked: pick?.autoPicked ?? false,

@@ -320,6 +320,7 @@ export async function confirmCaptains(
           id: revisionId,
           entryId: entry.id,
           revisionNumber: 1,
+          positionFactsVersion: 1,
           status: "draft",
           createdBy: auditActorId(admin),
         }).returning({ id: competitionEntryRosterRevisions.id });

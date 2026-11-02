@@ -14,6 +14,7 @@ it("confirms Demo identities across two events while retiring a previous identit
   await withScratchDatabase("demo_capacity", async client => {
     for (const file of migrationFiles(name => /^\d{4}_.*\.sql$/.test(name))) await replayMigration(client, file);
     await client.query(readFileSync("drizzle/migrations/0001_amused_kang.sql", "utf8"));
+    await client.query(readFileSync("drizzle/migrations/0002_stormy_santa_claus.sql", "utf8"));
     const url = new URL(localDatabaseUrl());
     url.pathname = `/${(await client.query("select current_database() as name")).rows[0].name}`;
     const pool = new Pool({ connectionString: url.toString(), ssl: false, max: 6, connectionTimeoutMillis: 2000 });
@@ -97,6 +98,7 @@ it.skipIf(process.env.RIVALHUB_DEMO_CAPACITY !== "1")("measures cross-event Demo
         await withScratchDatabase("demo_capacity_load", async client => {
           for (const file of migrationFiles(name => /^\d{4}_.*\.sql$/.test(name))) await replayMigration(client, file);
     await client.query(readFileSync("drizzle/migrations/0001_amused_kang.sql", "utf8"));
+    await client.query(readFileSync("drizzle/migrations/0002_stormy_santa_claus.sql", "utf8"));
           const url = new URL(localDatabaseUrl()); url.pathname = `/${(await client.query("select current_database() as name")).rows[0].name}`;
           const pool = new Pool({ connectionString: url.toString(), ssl: false, max: 6, connectionTimeoutMillis: 2000 });
           const monitor = new Pool({ connectionString: url.toString(), ssl: false, max: 1, connectionTimeoutMillis: 2000 });
