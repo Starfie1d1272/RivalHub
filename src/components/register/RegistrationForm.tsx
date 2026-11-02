@@ -115,7 +115,7 @@ export function RegistrationForm({
       seasonId,
       secondaryPosition: activePositions.length === 1 ? "" : initialValues?.secondaryPosition ?? "",
       email: initialValues?.email ?? currentUserEmail ?? "",
-      willingToBeCaptain: initialValues?.willingToBeCaptain ?? false,
+      willingToBeCaptain: hasCaptainVoting && (initialValues?.willingToBeCaptain ?? false),
       playerType: initialValues?.playerType ?? (policyV2 ? null : registrationConfig.allowedPlayerTypes[0]),
       screenshotUrls: initialValues?.screenshotUrls ?? Array.from({ length: registrationConfig.screenshotCount }, () => ""),
       mapPreferences: projectMapPreferences(
@@ -124,10 +124,6 @@ export function RegistrationForm({
       ),
     },
   });
-
-  useEffect(() => {
-    if (activePositions.length === 1) setValue("secondaryPosition", "");
-  }, [activePositions.length, setValue, loadedDraftEmail]);
 
   const onSubmit = async (data: RegistrationFormData) => {
     if (!canSubmit) {
@@ -199,6 +195,8 @@ export function RegistrationForm({
             ...draftValues,
             seasonId,
             email: normalized,
+            secondaryPosition: positions.length === 1 ? "" : draftValues.secondaryPosition ?? "",
+            willingToBeCaptain: hasCaptainVoting && (draftValues.willingToBeCaptain ?? false),
             mapPreferences: projectMapPreferences(
               draftValues.mapPreferences,
               registrationConfig.mapPool,
@@ -213,7 +211,7 @@ export function RegistrationForm({
         setLoadingDraftEmail(null);
       }
     },
-    [getValues, registrationConfig.mapPool, reset, seasonId],
+    [getValues, hasCaptainVoting, positions.length, registrationConfig.mapPool, reset, seasonId],
   );
 
   useEffect(() => {

@@ -368,7 +368,7 @@ export async function submitRegistration(input: RegistrationFormData) {
         gameplayStyle: declaredProfile.gameplayStyle ?? data.gameplayStyle,
         competitionHistory: declaredProfile.competitionHistory,
         highlightVideoUrl: data.highlightVideoUrl,
-        willingToBeCaptain: data.willingToBeCaptain,
+        willingToBeCaptain: currentSeason.hasCaptainVoting && data.willingToBeCaptain,
         notes: data.notes,
       };
 
