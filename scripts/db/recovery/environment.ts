@@ -49,6 +49,7 @@ export interface R2ObjectEnvironment {
   bucket: string;
   accessKeyId: string;
   secretAccessKey: string;
+  localEndpoint?: string;
 }
 
 export interface IsolatedRecoveryEnvironment {
@@ -108,11 +109,13 @@ export function assertIsolatedInstanceBackupEnvironment(
   const config = readFileSync(resolve(workdir, "supabase/config.toml"), "utf8");
   const projectRef = /^project_id\s*=\s*"([a-z]{20})"\s*$/m.exec(config)?.[1];
   if (!projectRef || isProductionRecoverySource(projectRef) || projectRef === OFFICIAL_PREVIEW.projectRef) throw new Error("Isolated source project identity invalid.");
+  const r2 = assertRecoveryFetchEnvironment(env);
+  if (!r2.localEndpoint) throw new Error("Isolated backup requires a loopback-only object storage fixture.");
   return {
     databaseUrl: local.databaseUrl, supabaseUrl: local.apiUrl, supabaseSecretKey: local.serviceRoleKey,
     projectRef, appOrigin: assertLocalHttpUrl(env.NEXT_PUBLIC_APP_URL, "NEXT_PUBLIC_APP_URL"),
     ageRecipient: assertAgeRecipient(required(env.RIVALHUB_BACKUP_AGE_RECIPIENT, "RIVALHUB_BACKUP_AGE_RECIPIENT")),
-    r2: assertRecoveryFetchEnvironment(env),
+    r2,
   };
 }
 
@@ -171,11 +174,22 @@ export function assertProductionDbCheckpointEnvironment(
 export function assertRecoveryFetchEnvironment(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): R2ObjectEnvironment {
+  const requestedLocal = env.RIVALHUB_R2_LOCAL_ENDPOINT?.trim();
+  if (requestedLocal && (env.RIVALHUB_DB_TARGET !== "local" || env.RIVALHUB_ALLOW_REMOTE_DB_WRITE
+    || (env.RIVALHUB_BACKUP_SOURCE !== "isolated-instance" && env.RIVALHUB_RECOVERY_TARGET !== "isolated"))) {
+    throw new Error("Local object storage is restricted to isolated recovery.");
+  }
+  const localEndpoint = requestedLocal ? assertLocalHttpUrl(requestedLocal, "RIVALHUB_R2_LOCAL_ENDPOINT") : undefined;
+  if (localEndpoint) {
+    const url = new URL(localEndpoint);
+    if (url.origin !== localEndpoint || url.username || url.password) throw new Error("Local object storage endpoint must be an origin.");
+  }
   return {
     accountId: assertCloudflareAccountId(required(env.RIVALHUB_R2_ACCOUNT_ID, "RIVALHUB_R2_ACCOUNT_ID")),
     bucket: assertR2BucketName(required(env.RIVALHUB_R2_BUCKET, "RIVALHUB_R2_BUCKET")),
     accessKeyId: required(env.RIVALHUB_R2_ACCESS_KEY_ID, "RIVALHUB_R2_ACCESS_KEY_ID"),
     secretAccessKey: required(env.RIVALHUB_R2_SECRET_ACCESS_KEY, "RIVALHUB_R2_SECRET_ACCESS_KEY"),
+    ...(localEndpoint ? { localEndpoint } : {}),
   };
 }
 
