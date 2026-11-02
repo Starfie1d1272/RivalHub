@@ -4,19 +4,51 @@ import { comparePlayerStrengthFacts, type PlayerStrengthFact, type PlayerStrengt
 import { getDisplayName } from "@/lib/identity/display-name";
 import type { CompetitiveProfileConfig } from "@/types/season";
 import type { ParticipantQualificationFacts, QualificationPeak, QualificationSeasonPeak } from "@/lib/qualification/facts";
+import type { ParticipantRules, QualificationEvidence } from "@/lib/seasons/rules";
 
 type SelectableCompetitivePeak = QualificationPeak | QualificationSeasonPeak;
 
 /** Each consumer evaluates only its own requirements, even when reads are batched. */
 export type CompetitivePurpose = "profile_completeness" | "rank_threshold" | "external_historical_gap" | "seed_recommendation";
 
-export function deriveCompetitiveRequirements(purposes: readonly CompetitivePurpose[]) {
+export function deriveCompetitiveRequirements(
+  purposes: readonly CompetitivePurpose[],
+  context: CompetitiveProfileConfig,
+  participant: Pick<ParticipantRules, "rankThreshold">,
+): Extract<QualificationEvidence, { kind: "competitive" }>["requirements"] {
   const weighted = purposes.includes("profile_completeness") || purposes.includes("seed_recommendation");
+  const threshold = purposes.includes("rank_threshold") ? participant.rankThreshold : null;
+  const seasonKeys = weighted
+    ? [context.evidencePolicy?.referenceSeasonKey ?? context.previousSeasonKey, ...(context.evidencePolicy?.recentSeasonKeys ?? [context.currentSeasonKey])]
+    : threshold?.currentMin ? [context.currentSeasonKey] : [];
   return {
-    historical: purposes.length > 0,
-    seasons: weighted,
-    rating: weighted,
-    chronology: weighted,
+    historicalPeak: weighted || purposes.includes("external_historical_gap") || Boolean(threshold?.peakMin),
+    seasonKeys: [...new Set(seasonKeys.filter(Boolean))],
+    ratingRequired: weighted,
+    exactStarsRequired: weighted || purposes.includes("external_historical_gap"),
+  };
+}
+
+/** Build one purpose's evidence from a shared read; never reuse a union as an evaluation. */
+export function buildQualificationEvidence(
+  facts: ReadonlyMap<string, ParticipantQualificationFacts>,
+  context: CompetitiveProfileConfig,
+  participant: Pick<ParticipantRules, "rankThreshold">,
+  purpose: CompetitivePurpose,
+): QualificationEvidence {
+  const requirements = deriveCompetitiveRequirements([purpose], context, participant);
+  if (!requirements.historicalPeak && requirements.seasonKeys.length === 0) return { kind: "none" };
+  return {
+    kind: "competitive",
+    context: {
+      platform: context.platform,
+      rankOrder: context.rankOrder,
+      fallback: context.fallbackConversion ?? null,
+      sourceSelection: context.evidencePolicy?.sourceSelection ?? "primary_then_fallback",
+      evidencePolicy: context.evidencePolicy ?? null,
+    },
+    requirements,
+    byUser: new Map([...facts].map(([id, fact]) => [id, toPlayerStrengthInput({ ...fact, userId: id }, context, purpose)])),
   };
 }
 
@@ -189,7 +221,9 @@ export function toPlayerStrengthInput(
     label: getDisplayName(fact),
     historicalPeak: resolve(fact.historicalPeak, fact.fallbackFacts?.historicalPeak),
     previousSeasonPeak: purpose === "external_historical_gap" || purpose === "rank_threshold" ? null : seasonFact(referenceSeasonKey),
-    currentSeasonPeak: purpose === "external_historical_gap" || purpose === "rank_threshold" ? null : seasonFact(context?.currentSeasonKey ?? ""),
+    currentSeasonPeak: purpose === "external_historical_gap" ? null : purpose === "rank_threshold"
+      ? directForSeason(context?.currentSeasonKey ?? "")
+      : seasonFact(context?.currentSeasonKey ?? ""),
     recentSeasonPeaks: purpose === "external_historical_gap" || purpose === "rank_threshold" ? [] : recentSeasonKeys.map(seasonFact),
   };
 }

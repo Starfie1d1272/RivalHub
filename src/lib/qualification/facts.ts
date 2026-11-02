@@ -68,7 +68,7 @@ export async function loadParticipantQualificationRawBundle(
   const ids = [...new Set(userIds)];
   if (ids.length === 0) return { userRows: [], verificationRows: [], rankRows: [], platformSeasonRows: [] };
   const includeCompetitiveFacts = options.competitiveRequirements
-    ? options.competitiveRequirements.historical || options.competitiveRequirements.seasons
+    ? options.competitiveRequirements.historicalPeak || options.competitiveRequirements.seasonKeys.length > 0
     : options.includeCompetitiveFacts ?? true;
   const platforms = [options.platform, options.fallbackPlatform].filter((item): item is string => Boolean(item));
   const rankFactsFilter = platforms.length > 0
@@ -81,12 +81,12 @@ export async function loadParticipantQualificationRawBundle(
     .where(inArray(educationVerifications.userId, ids));
   const rankRows = includeCompetitiveFacts
     ? await executor.select().from(competitiveRankFacts).where(
-      options.competitiveRequirements && !options.competitiveRequirements.seasons
+      options.competitiveRequirements && options.competitiveRequirements.seasonKeys.length === 0
         ? and(rankFactsFilter, eq(competitiveRankFacts.kind, "historical_peak"))
         : rankFactsFilter,
     )
     : [];
-  const platformSeasonRows = includeCompetitiveFacts && (options.competitiveRequirements?.chronology ?? true) && options.includePlatformChronology !== false
+  const platformSeasonRows = includeCompetitiveFacts && (options.competitiveRequirements ? options.competitiveRequirements.seasonKeys.length > 0 : true) && options.includePlatformChronology !== false
     ? await executor.select({ platform: competitivePlatformSeasons.platform, seasonKey: competitivePlatformSeasons.seasonKey })
       .from(competitivePlatformSeasons)
       .where(options.platform ? eq(competitivePlatformSeasons.platform, options.platform) : undefined)
