@@ -1,7 +1,12 @@
 // Compare destination identity, never credentials. A direct endpoint and either
 // pooler mode for the same project/database identify the same database.
-const api = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '');
-const db = new URL(process.env.DATABASE_URL ?? '');
+let api, db;
+try {
+  api = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '');
+  db = new URL(process.env.DATABASE_URL ?? '');
+} catch {
+  throw Error('Instance database identity is invalid.');
+}
 const project = /^([a-z]{20})\.supabase\.co$/.exec(api.hostname)?.[1];
 if (!project || api.protocol !== 'https:' || api.origin !== process.env.NEXT_PUBLIC_SUPABASE_URL
   || api.username || api.password || !['postgres:', 'postgresql:'].includes(db.protocol)
