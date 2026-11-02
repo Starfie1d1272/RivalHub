@@ -297,7 +297,6 @@ export function SeasonForm({ mode, initial, competitivePlatforms, institutionOpt
       ...payloadForCapabilities.registrationConfig,
       allowedPlayerTypes: [...payloadForCapabilities.registrationConfig.allowedPlayerTypes],
     },
-    teamRegistrationConfig: teamConfig,
     affiliationRules,
   });
   const isMajorDisplayContext = template === "major";
