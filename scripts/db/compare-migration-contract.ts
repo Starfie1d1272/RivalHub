@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import { assertLocalDatabaseUrl } from "./local-environment";
+import { REALTIME_VIEWER_POLICY_FILTER } from "./realtime-policy";
 
 // Compare only schema-owned metadata, never business rows or provider-internal
 // schemas. Both databases must use the same PostgreSQL/provider version.
@@ -40,7 +41,7 @@ const queries: Record<string, string> = {
     JOIN pg_class event_table ON event_table.oid=t.tgrelid JOIN pg_namespace event_ns ON event_ns.oid=event_table.relnamespace
     JOIN pg_proc p ON p.oid=t.tgfoid WHERE t.tgisinternal AND owner_ns.nspname='public'`,
   policies: `SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check FROM pg_policies
-    WHERE schemaname IN ('public','storage') OR (schemaname='realtime' AND tablename='messages' AND policyname='rivalhub_match_live_receive')`,
+    WHERE schemaname IN ('public','storage') OR (schemaname='realtime' AND tablename='messages' AND ${REALTIME_VIEWER_POLICY_FILTER})`,
   realtime_messages: `SELECT c.relkind, c.relrowsecurity, c.relforcerowsecurity FROM pg_class c
     JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='realtime' AND c.relname='messages'`,
   sequences: `SELECT schemaname, sequencename, data_type, start_value, min_value, max_value, increment_by, cycle, cache_size FROM pg_sequences WHERE schemaname='public'`,
