@@ -55,7 +55,10 @@ export function assertQualificationPolicyPublishable(config: Pick<TeamRegistrati
     throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "版本化资格政策暂不支持个人报名，请使用队伍报名或移除该政策。 ");
   }
   const rules = config.qualificationPolicy?.affiliationRules;
-  if (!rules) return;
+  if (rules) assertAffiliationRequirementsFit(rules, limits);
+}
+
+export function assertAffiliationRequirementsFit(rules: readonly import("@/types/season").InstitutionAffiliationRule[], limits: { maxTeamSize: number; starterCount: number }): void {
   // Roster assignment selects one rule per member. Lineup rules for the same
   // institution can overlap, so only their largest minimum is additive across institutions.
   const startingByInstitution = new Map<string, number>();
