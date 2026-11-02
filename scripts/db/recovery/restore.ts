@@ -94,10 +94,13 @@ async function main(): Promise<void> {
       }
       if (args.evidenceDirectory) assertEvidenceDirectory(args.evidenceDirectory);
       const target = readRecoveryTarget();
-      await restoreFullArtifact(target, manifest, stagingRoot, tempRoot);
+      const restored = await restoreFullArtifact(target, manifest, stagingRoot, tempRoot);
       if (args.evidenceDirectory) {
         await writeInstanceRecoveryEvidence(args.evidenceDirectory, target, manifest, sidecar);
       }
+      console.log(
+        `Full recovery restore verified: run=${manifest.runId}, migration=${manifest.source.databaseMigrationTerminal.terminalTag}, storageObjects=${restored.restoredObjects}, skippedInactiveTemporaryObjects=${restored.skippedInactiveTemporaryObjects}.`,
+      );
     } else {
       if (isFullRecoveryManifest(manifest)) {
         throw new Error("full recovery artifact 不能由 DB-only restore 恢复；请使用 db:recovery:restore。 ");
@@ -207,7 +210,7 @@ async function restoreFullArtifact(
   manifest: FullRecoveryManifest,
   stagingRoot: string,
   tempRoot: string,
-): Promise<void> {
+): Promise<{ restoredObjects: number; skippedInactiveTemporaryObjects: number }> {
   const pool = new Pool({ ...postgresConnection(target.databaseUrl), max: 1 });
   try {
     const expectedBuckets = readStorageBuckets(resolve(stagingRoot, "storage/buckets.json"));
@@ -241,9 +244,10 @@ async function restoreFullArtifact(
       throw new Error("Restored Storage byte count does not match the backup manifest; restore aborted. ");
     }
     await verifyRecoveryDatabase(pool, { expectedMigration: manifest.source.databaseMigrationTerminal });
-    console.log(
-      `Isolated recovery restore verified: run=${manifest.runId}, migration=${manifest.source.databaseMigrationTerminal.terminalTag}, storageObjects=${storageResult.restoredObjects}, skippedInactiveTemporaryObjects=${storageResult.skippedInactiveTemporaryObjects}.`,
-    );
+    return {
+      restoredObjects: storageResult.restoredObjects,
+      skippedInactiveTemporaryObjects: storageResult.skippedInactiveTemporaryObjects,
+    };
   } finally {
     await pool.end();
   }
