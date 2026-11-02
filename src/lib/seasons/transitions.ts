@@ -7,6 +7,7 @@ import { and, count, eq, inArray, not } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { matches, seasonRegistrations, seasons } from "@/db/schema";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 
 async function getApprovedCountInTx(tx: TxDb, seasonId: string): Promise<number> {
   const [row] = await tx
@@ -49,7 +50,7 @@ export async function maybeAdvanceFromRegistration(
 
   if (!full && !deadlinePassed) return null;
 
-  const nextStatus = season.hasCaptainVoting ? "voting" : "playing";
+  const nextStatus = season.hasCaptainVoting ? "voting" : decodeSeasonRules(season).source === "policy_v2" ? "drafting" : "playing";
 
   await tx
     .update(seasons)

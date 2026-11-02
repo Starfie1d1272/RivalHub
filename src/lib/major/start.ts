@@ -1,3 +1,4 @@
+import { isMajorPrestartPhase } from "@/lib/major/formation-phase";
 import { syncAutomaticPickEmInTx } from "@/lib/predictions/service";
 import { and, asc, count, eq, inArray } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
@@ -86,7 +87,7 @@ export async function startMajorInTransaction(
     }
     return { stageRunId: existingRun.id, created: false, matchCount: Number(matchCount) };
   }
-  if (season.status !== "registration") {
+  if (!isMajorPrestartPhase(season)) {
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Major 只能从报名阶段由管理员显式正式开赛。");
   }
 

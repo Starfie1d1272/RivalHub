@@ -45,6 +45,23 @@ export function canSelfChangeApprovedRoster(
   return deadline === null || now.getTime() < deadline;
 }
 
+/** Native v2 formation can be remediated before start; self-service observes its configured window. */
+export function canChangeApprovedFormationRoster(
+  season: RegistrationWindowSeason,
+  entry: { source: "event_native" | "linked_team"; policyV2: boolean },
+  actor: "self" | "admin",
+  now: Date = new Date(),
+): boolean {
+  const native = entry.source === "event_native" && entry.policyV2;
+  if (actor === "admin") return native && (season.status === "registration" || season.status === "drafting");
+  if (!native || season.status !== "drafting") return canSelfChangeApprovedRoster(season, now);
+  if (!season.registrationOpenedAt) return false;
+  const opensAt = toTime(season.registrationOpensAt);
+  if (opensAt === null || now.getTime() < opensAt) return false;
+  const deadline = toTime(season.rosterChangeClosesAt ?? null);
+  return deadline === null || now.getTime() < deadline;
+}
+
 function toTime(value: Date | string | null): number | null {
   if (!value) return null;
   const date = typeof value === "string" ? new Date(value) : value;

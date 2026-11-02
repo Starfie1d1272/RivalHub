@@ -59,7 +59,7 @@ export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; ph
   const shortSwissAllowed = Boolean(plan && isShortSwissQualificationAllowed(plan.playInEntryCount));
   const draftStale = savedDraft?.stale === true || (savedDraft && (savedDraft.targetEntrantCount !== data.entrantCapacity || savedDraft.order.length !== data.approvedCandidateCount || data.approvedCandidates.some(candidate => !savedDraft.order.includes(candidate.id))));
   const dirty = !savedDraft || format !== savedDraft.format || order.length !== savedDraft.order.length || order.some((id, index) => id !== savedDraft.order[index]);
-  const canConfigure = !dirty && !draftStale && Boolean(savedDraft) && data.seasonStatus === "registration" && data.registrationClosed && !data.qualification.run &&
+  const canConfigure = !dirty && !draftStale && Boolean(savedDraft) && ["registration", "drafting"].includes(data.seasonStatus) && data.registrationClosed && !data.qualification.run &&
     data.pendingReviewCount === 0 && plan !== null && data.approvedCandidates.length === data.approvedCandidateCount &&
     order.length === data.approvedCandidateCount;
   const finalEntryIds = run?.completedAt
@@ -120,7 +120,7 @@ export function MajorCompetitionFlow({ data, phase }: { data: ManagementData; ph
             <Label htmlFor="major-managed-profile">正赛规模</Label>
             <Select
               value={data.managedProfileId}
-              disabled={pending || data.seasonStatus !== "registration" || data.entrantsLocked || Boolean(run) || data.entrants.length > 0}
+              disabled={pending || !["registration", "drafting"].includes(data.seasonStatus) || data.entrantsLocked || Boolean(run) || data.entrants.length > 0}
               onValueChange={(value) => startTransition(() => void reportResult(
                 () => setMajorManagedProfile({ seasonId: data.seasonId, profileId: value as "major-24" | "major-32" }),
                 "Major 正赛规模已更新",

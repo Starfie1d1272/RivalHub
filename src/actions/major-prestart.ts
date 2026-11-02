@@ -24,6 +24,7 @@ import { createMajor24StagePlan, createMajorDefaultCapabilities } from "@/lib/co
 import { ok, type ActionResult } from "@/types/action";
 import { updatePublicHomeTag } from "@/lib/revalidation";
 import { startMajorInTransaction, type MajorStartResult } from "@/lib/major/start";
+import { isMajorPrestartPhase } from "@/lib/major/formation-phase";
 import { finalizeMajorSwissRoundInTransaction, type MajorSwissRoundFinalizationResult } from "@/lib/major/swiss-runtime";
 import { transitionMajorSwissStageInTransaction, type MajorStageTransitionResult } from "@/lib/major/stage-transition";
 import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction, type MajorPlayoffFinalizationResult, type MajorPlayoffStartResult } from "@/lib/major/playoff-runtime";
@@ -83,7 +84,7 @@ export async function saveMajorPrestartSchedule(input: {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     await db.transaction(async (tx) => {
       const [current] = await tx.select().from(seasons).where(eq(seasons.id, season.id)).for("update");
-      if (!current || current.status !== "registration") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前赛事阶段不能调整赛前计划。");
+      if (!current || !isMajorPrestartPhase(current)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前赛事阶段不能调整赛前计划。");
       const state = await ensureMajorPrestartStateInTx(tx, current.id);
       const [run] = await tx.select({ id: competitionQualificationRuns.id, completedAt: competitionQualificationRuns.completedAt }).from(competitionQualificationRuns)
         .where(eq(competitionQualificationRuns.seasonId, current.id)).limit(1);
@@ -148,8 +149,8 @@ export async function setMajorManagedProfile(input: { seasonId: string; profileI
     await db.transaction(async (tx) => {
       const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, season.id)).for("update");
       if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
-      if (lockedSeason.status !== "registration") {
-        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Major 正赛规模只能在报名阶段、产生依赖事实前调整。");
+      if (!isMajorPrestartPhase(lockedSeason)) {
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Major 正赛规模只能在赛前筹备阶段、产生依赖事实前调整。");
       }
       const current = getStandardMajorDefinition(lockedSeason).managedProfile;
       if (current?.id === parsed.data.profileId) return;

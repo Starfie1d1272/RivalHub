@@ -325,9 +325,11 @@ export async function executeDraftPick(
 
   if (!next) {
     await finalizeDraft(tx, {
+      seasonId: input.seasonId,
       draftStateId: ds.id,
       now,
       totalRounds: format.rounds,
+      actorId: input.captainUserId ?? "system:draft",
     });
 
     return { pickId: pick.id, slug: season.slug, idempotent: false, completed: true };
@@ -350,7 +352,7 @@ export async function executeDraftPick(
 
 export async function finalizeDraft(
   tx: DraftTransaction,
-  input: { draftStateId: string; now: Date; totalRounds: number },
+  input: { seasonId: string; draftStateId: string; now: Date; totalRounds: number; actorId: string },
 ): Promise<void> {
   await tx
     .update(draftState)
@@ -362,6 +364,15 @@ export async function finalizeDraft(
       updatedAt: input.now,
     })
     .where(eq(draftState.id, input.draftStateId));
+  const season = await tx.query.seasons.findFirst({ where: eq(seasons.id, input.seasonId) });
+  if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
+  if (decodeSeasonRules(season).source !== "policy_v2") {
+    // Published legacy drafts historically completed their rosters and entered play here.
+    await tx.update(seasons).set({ status: "playing", updatedAt: input.now }).where(eq(seasons.id, input.seasonId));
+    await tx.update(eventRosters).set({ sourceRosterRevisionId: sql`(SELECT entry.current_roster_revision_id FROM competition_entries entry WHERE entry.id = ${eventRosters.entryId})`, status: "frozen", confirmedAt: input.now, confirmedBy: input.actorId, frozenAt: input.now, frozenBy: input.actorId, updatedAt: input.now }).where(sql`${eventRosters.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId})`);
+    await tx.update(competitionEntryRosterRevisions).set({ status: "approved", submittedAt: input.now, approvedAt: input.now }).where(sql`${competitionEntryRosterRevisions.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId}) AND ${competitionEntryRosterRevisions.id} = (SELECT entry.current_roster_revision_id FROM competition_entries entry WHERE entry.id = ${competitionEntryRosterRevisions.entryId})`);
+    await tx.update(competitionEntries).set({ approvedRosterRevisionId: competitionEntries.currentRosterRevisionId, updatedAt: input.now }).where(eq(competitionEntries.competitionId, input.seasonId));
+  }
 }
 
 async function runAutoPickForSeason(

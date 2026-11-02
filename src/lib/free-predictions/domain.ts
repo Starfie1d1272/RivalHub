@@ -3,7 +3,7 @@ import { sameIds, subjectMatches, resolveBetFact, type MarketFactInput } from "@
 import { isActiveCompetitionQualificationRun } from "@/lib/competition-qualification/activity";
 import type { FreePredictionKind, FreePredictionSubject, FreePredictionResultDTO, FreePredictionRestrictionDTO } from "./types";
 export function freePredictionCompetitionIsOpen(
-  season: { id: string; status: string },
+  season: Parameters<typeof isActiveCompetitionQualificationRun>[0],
   match: { majorStageRunId: string | null; qualificationRunId: string | null },
   qualificationRun?: Parameters<typeof isActiveCompetitionQualificationRun>[2],
 ): boolean {
