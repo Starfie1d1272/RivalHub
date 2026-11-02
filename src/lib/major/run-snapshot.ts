@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { qualificationPolicySchema as definitionQualificationPolicySchema } from "@/lib/competition/qualification-policy";
 import type { AdvanceTier, StageConfig, StagePlan, StageType } from "@/types/season";
 
 const stageSchema = z.object({
@@ -20,12 +21,16 @@ const frozenEntrantSchema = z.object({
   tournamentSeed: z.number().int().min(1).max(32),
 });
 
-const qualificationPolicySchema = z.object({
-  externalStrengthGap: z.object({
-    enabled: z.boolean(),
-    maxGap: z.number().int().nonnegative(),
-  }),
+const externalStrengthGapSchema = z.object({
+  enabled: z.boolean(),
+  maxGap: z.number().int().nonnegative(),
 });
+
+// Old runs recorded only the gap. New runs retain the complete event policy.
+const qualificationPolicySchema = z.union([
+  definitionQualificationPolicySchema,
+  z.object({ externalStrengthGap: externalStrengthGapSchema }).passthrough().refine((value) => !("version" in value)),
+]);
 
 const qualificationFindingSnapshotSchema = z.object({
   code: z.string().min(1),

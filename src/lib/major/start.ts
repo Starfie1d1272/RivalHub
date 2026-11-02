@@ -214,15 +214,16 @@ export async function startMajorInTransaction(
   const now = new Date();
   const openingPlan = buildMajorOpeningPlan({ teams: seeds, stagePlan: capabilities.stagePlan });
   const entrantByEntryId = new Map(entrantRows.map((entrant) => [entrant.competitionEntryId, entrant]));
-  const requiresCompetitiveProfile = capabilities.teamRegistrationConfig.requireCompetitiveProfile;
-  const configuredCompetitiveProfile = capabilities.teamRegistrationConfig.competitiveProfile ?? null;
+  const definitionPolicy = capabilities.teamRegistrationConfig.qualificationPolicy;
+  const requiresCompetitiveProfile = definitionPolicy?.competitiveProfileRequired ?? capabilities.teamRegistrationConfig.requireCompetitiveProfile;
+  const configuredCompetitiveProfile = definitionPolicy ? definitionPolicy.competitiveProfileRequired || definitionPolicy.externalStrengthGap.enabled ? definitionPolicy.competitiveProfile : null : capabilities.teamRegistrationConfig.competitiveProfile ?? null;
   const competitiveProfile = configuredCompetitiveProfile
     ? await resolveCompetitiveContext(configuredCompetitiveProfile)
     : null;
-  if (requiresCompetitiveProfile && !competitiveProfile) {
+  if ((requiresCompetitiveProfile || definitionPolicy?.externalStrengthGap.enabled) && !competitiveProfile) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求竞技资料，但实际开放报名时冻结的竞技平台目录不完整，不能正式开赛。");
   }
-  const affiliationRules = capabilities.affiliationRules;
+  const affiliationRules = definitionPolicy?.affiliationRules ?? capabilities.affiliationRules;
   const frozenParticipantIds = [...new Set(rosterRows.map((row) => row.userId))];
 
   // Start-time qualification: live participant facts may still change between
@@ -230,7 +231,7 @@ export async function startMajorInTransaction(
   // re-evaluated against the exact batch of facts that is about to be frozen.
   // One batched load feeds both the qualification decision and the
   // frozenCompetitiveFacts snapshot — never two different reads.
-  const needsQualificationLoad = (competitiveProfile !== null || affiliationRules.length > 0) && frozenParticipantIds.length > 0;
+  const needsQualificationLoad = (definitionPolicy !== undefined || competitiveProfile !== null || affiliationRules.length > 0) && frozenParticipantIds.length > 0;
   const qualificationFacts: ReadonlyMap<string, ParticipantQualificationFacts> = needsQualificationLoad
     ? await loadParticipantQualificationFacts(frozenParticipantIds, {
         executor: tx,
@@ -274,6 +275,7 @@ export async function startMajorInTransaction(
       facts: qualificationFacts,
       affiliationRules,
       competitiveProfile,
+      ...(definitionPolicy ? { policy: { ...definitionPolicy, competitiveProfile } } : {}),
       primaryStarterUserIds: rosterMembers.filter((member) => member.isPrimaryStarter).map((member) => member.userId),
     });
     const coherence = coherenceRows.find((row) => row.entry.id === entrant.competitionEntryId);
@@ -340,14 +342,16 @@ export async function startMajorInTransaction(
       maxTeamSize: season.maxTeamSize,
       starterCount: season.starterCount,
     },
-    affiliationRules: freezeAffiliationRules(capabilities.affiliationRules),
+    affiliationRules: freezeAffiliationRules(affiliationRules),
     competitiveProfile,
-    qualificationPolicy: {
-      externalStrengthGap: {
-        enabled: competitiveProfile !== null,
-        maxGap: competitiveProfile?.externalStrengthMaxStarGap ?? 3,
-      },
-    },
+    qualificationPolicy: capabilities.teamRegistrationConfig.qualificationPolicy
+      ? { ...structuredClone(capabilities.teamRegistrationConfig.qualificationPolicy), competitiveProfile: competitiveProfile ?? capabilities.teamRegistrationConfig.qualificationPolicy.competitiveProfile }
+      : {
+          externalStrengthGap: {
+            enabled: competitiveProfile !== null,
+            maxGap: competitiveProfile?.externalStrengthMaxStarGap ?? 3,
+          },
+        },
     frozenRestrictionOverrides: activeRestrictionOverrides.map((override) => ({
       entryId: override.entryId,
       rosterRevisionId: override.rosterRevisionId,

@@ -615,7 +615,37 @@ function educationReadinessFinding(state: Exclude<ParticipantEducationReadiness,
   return { code: "education_incomplete", message, waivable: false, metadata: { field: "approved_education", state } };
 }
 
-/** Pure evaluation of one participant's readiness from loaded facts. */
+/** Evaluate independent participant requirements. Team affiliation counts and
+ * relative strength are evaluated against the complete roster separately. */
+export function computePolicyParticipantReadiness(
+  fact: ParticipantQualificationFacts,
+  policy: import("@/types/season").QualificationPolicyV1,
+): ParticipantReadiness {
+  const context = policy.competitiveProfileRequired ? policy.competitiveProfile : null;
+  const educationState = resolveParticipantEducationReadiness(fact);
+  const identity = getParticipantIdentityFindings(fact).filter((finding) => {
+    const field = finding.metadata?.field;
+    if (field === "qq") return policy.contacts.qqRequired;
+    if (field === "email_verified_at") return policy.contacts.emailVerifiedRequired;
+    if (field === "perfect_name") return context?.platform === "perfect_world";
+    return context !== null;
+  });
+  const findings = uniqueQualificationFindings([
+    ...identity,
+    ...(policy.educationRequired && educationState !== "ready" ? [educationReadinessFinding(educationState)] : []),
+    ...(policy.competitiveProfileRequired ? getCompetitiveProfileFindings(fact, context) : []),
+  ]);
+  return {
+    ready: findings.length === 0,
+    blockers: blockersFromQualificationFindings(findings),
+    findings,
+    strength: toPlayerStrengthInput(fact, context),
+    educationApproved: fact.approvedEducation,
+    educationState,
+  };
+}
+
+/** Pure legacy readiness evaluation from loaded facts. */
 export function computeParticipantReadiness(
   fact: ParticipantQualificationFacts,
   context: CompetitiveProfileConfig | null,
@@ -712,8 +742,10 @@ export async function evaluateRosterQualificationFromFacts(input: {
   /** Frozen event context; omit when the event does not require a competitive profile. */
   competitiveProfile?: CompetitiveProfileConfig | null;
   primaryStarterUserIds?: readonly string[];
+  policy?: import("@/types/season").QualificationPolicyV1;
 }): Promise<RosterQualificationResult> {
-  const { members, facts, affiliationRules, competitiveProfile, primaryStarterUserIds } = input;
+  const { members, facts, competitiveProfile, primaryStarterUserIds, policy } = input;
+  const affiliationRules = policy?.affiliationRules ?? input.affiliationRules;
   const findings: QualificationFinding[] = [];
   const education = evaluateRosterEducationEligibility(
     members.map((member) => ({
@@ -723,8 +755,9 @@ export async function evaluateRosterQualificationFromFacts(input: {
       verificationHistory: member.educationHistory,
     })),
     affiliationRules,
+    policy ? { requireMemberEducation: policy.educationRequired, requireVerifiedEmail: false, requireApprovedAffiliation: true } : undefined,
   );
-  if (affiliationRules.length > 0) {
+  if (affiliationRules.length > 0 || policy?.educationRequired) {
     findings.push(...education.blockers.map((message) => ({
       code: "education_incomplete",
       message,
@@ -740,26 +773,28 @@ export async function evaluateRosterQualificationFromFacts(input: {
   if (competitiveProfile && !context) {
     findings.push({ code: "competitive_context_unavailable", message: "竞技平台赛季目录尚未完成当前与上一赛季配置。", waivable: false, metadata: { field: "competitive_context" } });
   }
-  if (context) {
+  if (context || policy) {
     for (const member of members) {
       const fact = facts.get(member.userId);
       const readiness = fact
-        ? computeParticipantReadiness({ ...fact, userId: member.userId }, context)
+        ? policy ? computePolicyParticipantReadiness({ ...fact, userId: member.userId }, { ...policy, competitiveProfile: context }) : computeParticipantReadiness({ ...fact, userId: member.userId }, context)
         : { ready: false, blockers: ["选手账号不存在。"], findings: [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }], strength: { userId: member.userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false, educationState: "missing" as const };
       readinessByUser.set(member.userId, readiness);
       findings.push(...readiness.findings);
     }
-    if (primaryStarterUserIds) {
+    if (primaryStarterUserIds && context && (!policy || policy.externalStrengthGap.enabled)) {
       const primary = primaryStarterUserIds
         .map((userId) => {
           const member = members.find((item) => item.userId === userId);
           const readiness = readinessByUser.get(userId);
           if (!member || !readiness) return null;
           const isHome = member.isHome ?? (facts.get(userId) ? memberIsHomeFromFacts(facts.get(userId)!, affiliationRules) : false);
-          return { ...readiness.strength, isHome };
+          const fact = facts.get(userId);
+          const strength = policy && fact ? toPlayerStrengthInput(fact, context) : readiness.strength;
+          return { ...strength, isHome };
         })
         .filter((item): item is PlayerStrengthInput & { isHome: boolean } => item !== null);
-      const strength = evaluateExternalStrengthRule({ config: context, players: primary });
+      const strength = evaluateExternalStrengthRule({ config: policy ? { ...context, externalStrengthMaxStarGap: policy.externalStrengthGap.maxGap } : context, players: primary });
       findings.push(...strength.findings);
     }
   }

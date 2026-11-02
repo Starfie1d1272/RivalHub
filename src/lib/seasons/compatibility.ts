@@ -1,5 +1,7 @@
+import { qualificationPolicySchema } from "@/lib/competition/qualification-policy";
 import type {
   InstitutionAffiliationRule,
+  QualificationPolicyV1,
   RegistrationConfig,
   StageConfig,
   StagePlan,
@@ -91,6 +93,7 @@ export function normalizeTeamRegistrationConfig(
   config: PartialTeamConfig | null | undefined,
 ): TeamRegistrationConfig {
   return {
+    ...(config?.qualificationPolicy ? { qualificationPolicy: qualificationPolicySchema.parse(config.qualificationPolicy) } : {}),
     allowExternal: config?.allowExternal ?? LEGACY_TEAM_REGISTRATION_FALLBACK.allowExternal,
     graduateCountsAsHome: config?.graduateCountsAsHome ?? LEGACY_TEAM_REGISTRATION_FALLBACK.graduateCountsAsHome,
     minHomeMembers: config?.minHomeMembers ?? LEGACY_TEAM_REGISTRATION_FALLBACK.minHomeMembers,
@@ -188,4 +191,32 @@ export function getFirstStageOfType(
   types: readonly StageType[],
 ): StageConfig | null {
   return normalizeStagePlan(stagePlan).find((stage) => types.includes(stage.type)) ?? null;
+}
+
+/** Decode historical requirements without consulting mutable product templates. */
+export function resolveQualificationPolicy(
+  config: PartialTeamConfig | null | undefined,
+  affiliationRules: readonly InstitutionAffiliationRule[] | null | undefined = [],
+): QualificationPolicyV1 {
+  if (config?.qualificationPolicy) return qualificationPolicySchema.parse(config.qualificationPolicy);
+  const normalized = normalizeTeamRegistrationConfig(config);
+  const required = normalized.requireCompetitiveProfile === true;
+  return {
+    version: 1,
+    educationRequired: required,
+    affiliationRules: normalizeAffiliationRules(affiliationRules),
+    competitiveProfileRequired: required,
+    competitiveProfile: required ? normalized.competitiveProfile ?? null : null,
+    externalStrengthGap: { enabled: required && !!normalized.competitiveProfile, maxGap: normalized.competitiveProfile?.externalStrengthMaxStarGap ?? 3 },
+    contacts: { qqRequired: required, emailVerifiedRequired: required },
+  };
+}
+
+/** Persist v1 without writable copies of the retired competitive fields. */
+export function teamRegistrationConfigForWrite(config: TeamRegistrationConfig): TeamRegistrationConfig {
+  if (!config.qualificationPolicy) return config;
+  const stored = { ...config };
+  delete stored.requireCompetitiveProfile;
+  delete stored.competitiveProfile;
+  return stored;
 }

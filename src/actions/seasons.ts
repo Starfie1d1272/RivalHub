@@ -146,6 +146,9 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
       if (locked.competitionTemplate === "custom") assertRunnableCustomDefinition(locked);
 
       const config = normalizeTeamRegistrationConfig(locked.teamRegistrationConfig);
+      // The remaining entry and roster consumers still enforce historical gates.
+      // Do not publish a new policy until those consumers have migrated together.
+      if (config.qualificationPolicy) throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "本届资格政策尚未接入全部报名与名单流程，暂不能发布。");
       let nextTeamRegistrationConfig: TeamRegistrationConfig | null = locked.teamRegistrationConfig as TeamRegistrationConfig | null;
 
       if (config.requireCompetitiveProfile) {

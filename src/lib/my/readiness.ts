@@ -21,13 +21,14 @@ import {
 } from "@/lib/competition-entries/presentation";
 import {
   computeParticipantReadiness,
+  computePolicyParticipantReadiness,
   getParticipantIdentityBlockers,
   loadParticipantQualificationRawBundle,
   projectParticipantQualificationFacts,
   type ParticipantQualificationRawBundle,
   type ParticipantQualificationFacts,
 } from "@/lib/qualification/service";
-import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
+import { normalizeTeamRegistrationConfig, resolveQualificationPolicy } from "@/lib/seasons/compatibility";
 
 export type { MyCompetitionSource };
 
@@ -255,20 +256,23 @@ function qualificationState(
 ): MyReadinessItem {
   const href = `/${source.seasonSlug}/register`;
   const config = normalizeTeamRegistrationConfig(source.teamRegistrationConfig);
-  if (!config.requireCompetitiveProfile) {
+  const policy = resolveQualificationPolicy(config);
+  if (!config.qualificationPolicy && !config.requireCompetitiveProfile) {
     return item(`qualification-${source.id}`, "个人竞技资料", "not_applicable", "本届免填个人竞技资料。", undefined, { href, label: "查看本届报名" });
   }
-  if (!config.competitiveProfile || !fact) {
+  if ((policy.competitiveProfileRequired && !policy.competitiveProfile) || !fact) {
     return item(`qualification-${source.id}`, "个人竞技资料", "unknown", "本届赛事的竞技资料暂时无法确认。", "admin", { href, label: "查看本届报名" });
   }
-  const readiness = computeParticipantReadiness(fact, config.competitiveProfile);
+  const readiness = config.qualificationPolicy
+    ? computePolicyParticipantReadiness(fact, policy)
+    : computeParticipantReadiness(fact, config.competitiveProfile!);
   if (readiness.ready) {
     return item(`qualification-${source.id}`, "个人竞技资料", "ready", "个人资料符合本届要求。", undefined, { href, label: "查看本届报名" });
   }
   const fieldLabels: Record<string, string> = {
     historical_peak: "历史最高",
-    reference_season_peak: config.competitiveProfile.evidencePolicy ? "前一完整赛季" : "上赛季",
-    recent_season_peak: config.competitiveProfile.evidencePolicy ? "近期赛季" : "当前赛季",
+    reference_season_peak: policy.competitiveProfile?.evidencePolicy ? "前一完整赛季" : "上赛季",
+    recent_season_peak: policy.competitiveProfile?.evidencePolicy ? "近期赛季" : "当前赛季",
   };
   const missingFields = [...new Set(readiness.findings.filter(finding => finding.code === "competitive_profile_incomplete").map(finding => fieldLabels[String(finding.metadata?.field)]).filter(Boolean))];
   const needsAdmin = readiness.findings.some(finding => finding.code === "competitive_context_unavailable");
@@ -308,8 +312,9 @@ export function buildMyReadinessModel(input: {
     ...(input.actionableInterestCount ? { recruitment: item("recruitment", "队伍加入意向", "waiting", `${input.actionableInterestCount} 名选手向你的队伍表达加入意向`, "self", { href: "/my/teams#recruitment-interests", label: "查看并处理" }) } : {}),
     competitions: input.competitions.map((competition) => {
       const config = normalizeTeamRegistrationConfig(competition.teamRegistrationConfig);
-      const fact = config.competitiveProfile
-        ? input.qualificationFactsByPlatform.get(config.competitiveProfile.platform)
+      const profile = config.qualificationPolicy ? config.qualificationPolicy.competitiveProfileRequired ? config.qualificationPolicy.competitiveProfile : null : config.competitiveProfile;
+      const fact = profile
+        ? input.qualificationFactsByPlatform.get(profile.platform)
         : input.baseFact;
       return {
         id: competition.id,
@@ -418,7 +423,8 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
   const requiredPlatforms = new Set<string>();
   for (const row of competitionRows) {
     const config = normalizeTeamRegistrationConfig(row.teamRegistrationConfig);
-    if (config.requireCompetitiveProfile && config.competitiveProfile) requiredPlatforms.add(config.competitiveProfile.platform);
+    const profile = config.qualificationPolicy ? config.qualificationPolicy.competitiveProfileRequired ? config.qualificationPolicy.competitiveProfile : null : config.requireCompetitiveProfile ? config.competitiveProfile : null;
+    if (profile) requiredPlatforms.add(profile.platform);
   }
   const platformKeys = selectMyCompetitiveProfilePlatformKeys(catalog, requiredPlatforms, new Set(bundle.rankRows.map(row => row.platform)));
   const factsByPlatform = new Map(platformKeys.map(platform => [platform,
