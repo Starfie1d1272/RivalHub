@@ -267,20 +267,26 @@ export async function loadEntryRosterCandidateInTx(
   const profile = rules.competitive.competitiveProfile;
   const purposes = rosterCompetitivePurposes(rules);
   const participantRules = rules.roster.legacyParticipant ?? rules.participant;
-  const [factsByUser, registrations, roles, claims, memberships, registrationBlocks, rosterBlocks, nameConflicts] = await Promise.all([
-    loadParticipantQualificationFacts(ids, { executor: tx, includeCompetitiveFacts: purposes.length > 0, platform: profile?.platform, fallbackPlatform: profile?.fallbackConversion?.sourcePlatform, ...(profile ? { competitiveRequirements: deriveCompetitiveRequirements(purposes, profile, participantRules) } : {}) }),
-    ids.length ? tx.select({ id: seasonRegistrations.id, userId: seasonRegistrations.userId, status: seasonRegistrations.status, primaryPosition: seasonRegistrations.primaryPosition, playerType: seasonRegistrations.playerType }).from(seasonRegistrations).where(and(eq(seasonRegistrations.seasonId, season.id), inArray(seasonRegistrations.userId, ids))) : [],
-    ids.length ? tx.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role }).from(userCompetitiveRoles).where(and(inArray(userCompetitiveRoles.userId, ids), eq(userCompetitiveRoles.isPrimary, true))) : [],
-    ids.length ? tx.select({ userId: competitionEntryActiveClaims.userId, entryId: competitionEntryActiveClaims.entryId }).from(competitionEntryActiveClaims).where(and(eq(competitionEntryActiveClaims.competitionId, season.id), inArray(competitionEntryActiveClaims.userId, ids))) : [],
-    entry.teamId && ids.length ? tx.select({ id: teamMemberships.id, userId: teamMemberships.userId }).from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), inArray(teamMemberships.userId, ids), inArray(teamMemberships.status, ["active", "benched"]), isNull(teamMemberships.endedAt))) : [],
-    loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: ids, effect: "registration_block" }),
-    loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: ids, effect: "roster_block" }),
-    rules.roster.requireUniqueTeamName ? tx.select({ id: competitionEntries.id }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), sql`${competitionEntries.id} <> ${entry.id}`, sql`lower(trim(${competitionEntries.name})) = lower(trim(${entry.name}))`, sql`${competitionEntries.registrationStatus} NOT IN ('rejected', 'withdrawn')`)).limit(1) : [],
-  ]);
+  const factsByUser = await loadParticipantQualificationFacts(ids, { executor: tx, includeCompetitiveFacts: purposes.length > 0, platform: profile?.platform, fallbackPlatform: profile?.fallbackConversion?.sourcePlatform, ...(profile ? { competitiveRequirements: deriveCompetitiveRequirements(purposes, profile, participantRules) } : {}) });
+  const registrations = await (ids.length ? tx.select({ id: seasonRegistrations.id, userId: seasonRegistrations.userId, status: seasonRegistrations.status, primaryPosition: seasonRegistrations.primaryPosition, playerType: seasonRegistrations.playerType }).from(seasonRegistrations).where(and(eq(seasonRegistrations.seasonId, season.id), inArray(seasonRegistrations.userId, ids))) : []);
+  const roles = await (ids.length ? tx.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role }).from(userCompetitiveRoles).where(and(inArray(userCompetitiveRoles.userId, ids), eq(userCompetitiveRoles.isPrimary, true))) : []);
+  const claims = await (ids.length ? tx.select({ userId: competitionEntryActiveClaims.userId, entryId: competitionEntryActiveClaims.entryId }).from(competitionEntryActiveClaims).where(and(eq(competitionEntryActiveClaims.competitionId, season.id), inArray(competitionEntryActiveClaims.userId, ids))) : []);
+  const memberships = await (entry.teamId && ids.length ? tx.select({ id: teamMemberships.id, userId: teamMemberships.userId }).from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), inArray(teamMemberships.userId, ids), inArray(teamMemberships.status, ["active", "benched"]), isNull(teamMemberships.endedAt))) : []);
+  const registrationBlocks = await loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: ids, effect: "registration_block" });
+  const rosterBlocks = await loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: ids, effect: "roster_block" });
+  const nameConflicts = await (rules.roster.requireUniqueTeamName ? tx.select({ id: competitionEntries.id }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), sql`${competitionEntries.id} <> ${entry.id}`, sql`lower(trim(${competitionEntries.name})) = lower(trim(${entry.name}))`, sql`${competitionEntries.registrationStatus} NOT IN ('rejected', 'withdrawn')`)).limit(1) : []);
   const registrationByUser = new Map(registrations.map((registration) => [registration.userId, registration]));
   const rolesByUser = new Map(roles.map((role) => [role.userId, role.role]));
   const playerType = (value: string | undefined): PlayerType | null => value === "enrolled" || value === "graduated" || value === "external" ? value : null;
-  const members = rows.map((row) => ({ ...row, primaryPosition: registrationByUser.get(row.userId)?.primaryPosition ?? rolesByUser.get(row.userId) ?? null, playerType: playerType(registrationByUser.get(row.userId)?.playerType) }));
+  const members = rows.map((row) => {
+    const declared = playerType(registrationByUser.get(row.userId)?.playerType);
+    const education = resolveSeasonEducationVerification(factsByUser.get(row.userId)?.educationHistory ?? [], rules.roster.affiliationRules);
+    // A verified affiliation establishes enrolled/graduated for a matching institution.
+    // An absent or unmatched verification does not establish an external declaration.
+    const verifiedType = entry.source === "linked_team" && education.eligibilityState === "approved" && education.matchedRule
+      ? education.selectedVerification?.academicStatus ?? null : null;
+    return { ...row, primaryPosition: registrationByUser.get(row.userId)?.primaryPosition ?? rolesByUser.get(row.userId) ?? null, playerType: declared ?? verifiedType };
+  });
   const common = {
     season, revision, factsByUser, currentTeamMemberUserIds: entry.teamId ? new Set(memberships.filter((membership) => members.some((member) => member.userId === membership.userId && member.teamMembershipId === membership.id)).map((membership) => membership.userId)) : null,
     nativeRegistrationsByUser: new Map(registrations.map((registration) => [registration.userId, { id: registration.id, status: registration.status }])),
@@ -495,10 +501,8 @@ export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: 
     const window = getRegistrationWindowState(season);
     if ((revision.origin === "self_roster_change" && decodeSeasonRules(season).roster.changes?.selfServiceAfterApproval === false) || !canMutateCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", revision.origin, season, new Date(), await canSelfAdjustMajorRosterInTx(tx, season, entry.id))) throw new AppError(ErrorCode.REGISTRATION_CLOSED, revision.origin === "self_roster_change" ? "名单调整窗口当前不可用；请联系赛委会。" : window.message);
   }
-  const [registrationBlocks, rosterBlocks] = await Promise.all([
-    loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: [input.userId], effect: "registration_block" }),
-    loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: [input.userId], effect: "roster_block" }),
-  ]);
+  const registrationBlocks = await loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: [input.userId], effect: "registration_block" });
+  const rosterBlocks = await loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: [input.userId], effect: "roster_block" });
   if (registrationBlocks.has(input.userId) || rosterBlocks.has(input.userId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前参赛限制阻止你确认本届名单，请联系赛事管理员。 ");
   const alreadyConfirmed = participant.status === "confirmed";
   if (!alreadyConfirmed && participant.status !== "invited") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前成员状态不能确认参赛。");
