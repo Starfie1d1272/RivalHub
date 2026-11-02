@@ -135,16 +135,6 @@ describe("competition entry qualification restriction overrides PostgreSQL", () 
         [ids.homeParticipant, ids.externalParticipant, ids.entry, ids.home, ids.external],
       );
       await client.query(
-        `INSERT INTO season_registrations (user_id, season_id, primary_position, secondary_position, gameplay_style, status)
-         VALUES ($1, $3, 'rifler', 'awper', 'fixture', 'approved'), ($2, $3, 'rifler', 'awper', 'fixture', 'approved')`,
-        [ids.home, ids.external, ids.season],
-      );
-      await client.query(
-        `INSERT INTO competition_entry_active_claims (competition_id, user_id, entry_id, participant_id)
-         VALUES ($1, $2, $4, $5), ($1, $3, $4, $6)`,
-        [ids.season, ids.home, ids.external, ids.entry, ids.homeParticipant, ids.externalParticipant],
-      );
-      await client.query(
         `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by)
          VALUES ($1, $2, 1, 'draft', 'local-test')`,
         [ids.revision, ids.entry],
@@ -322,12 +312,10 @@ describe("competition entry qualification restriction overrides PostgreSQL", () 
       await client.query("DELETE FROM competition_entry_submissions WHERE entry_id = $1", [ids.entry]).catch(() => {});
       await client.query("DELETE FROM competition_entry_roster_members WHERE revision_id = ANY($1::uuid[])", [[ids.revision, ...(nextRevisionId ? [nextRevisionId] : [])]]).catch(() => {});
       await client.query("DELETE FROM competition_entry_roster_revisions WHERE entry_id = $1", [ids.entry]).catch(() => {});
-      await client.query("DELETE FROM competition_entry_active_claims WHERE entry_id = $1", [ids.entry]).catch(() => {});
       await client.query("DELETE FROM competition_entry_participants WHERE entry_id = $1", [ids.entry]).catch(() => {});
       await client.query("DELETE FROM competition_entries WHERE id = $1", [ids.entry]).catch(() => {});
       await client.query("DELETE FROM competitive_rank_facts WHERE user_id = ANY($1::uuid[])", [[ids.home, ids.external]]).catch(() => {});
       await client.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [[ids.home, ids.external]]).catch(() => {});
-      await client.query("DELETE FROM season_registrations WHERE season_id = $1", [ids.season]).catch(() => {});
       await client.query("DELETE FROM seasons WHERE id = $1", [ids.season]).catch(() => {});
       await client.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [[ids.home, ids.external]]).catch(() => {});
       await client.query("COMMIT").catch(() => client.query("ROLLBACK").catch(() => {}));

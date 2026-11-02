@@ -153,31 +153,10 @@ async function validateEntryRosterInTx(
   }
   const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!revision || !allowedRevisionStatuses.includes(revision.status as "draft" | "submitted" | "approved")) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不可用于此操作。");
-  const rows = await tx.select({ participantId: competitionEntryRosterMembers.participantId, userId: competitionEntryRosterMembers.userId, primary: competitionEntryRosterMembers.isPrimaryStarter, participantStatus: competitionEntryParticipants.status })
+  const rows = await tx.select({ userId: competitionEntryRosterMembers.userId, primary: competitionEntryRosterMembers.isPrimaryStarter, participantStatus: competitionEntryParticipants.status })
     .from(competitionEntryRosterMembers)
     .innerJoin(competitionEntryParticipants, eq(competitionEntryRosterMembers.participantId, competitionEntryParticipants.id))
     .where(eq(competitionEntryRosterMembers.revisionId, revision.id));
-  if (entry.source === "event_native") {
-    const approved = rows.length === 0 ? [] : await tx.select({ userId: seasonRegistrations.userId })
-      .from(seasonRegistrations)
-      .where(and(eq(seasonRegistrations.seasonId, entry.competitionId), eq(seasonRegistrations.status, "approved"), inArray(seasonRegistrations.userId, rows.map((row) => row.userId))));
-    const approvedUserIds = new Set(approved.map((registration) => registration.userId));
-    if (rows.some((row) => !approvedUserIds.has(row.userId))) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事原生名单成员必须先通过个人报名审核。 ");
-    }
-  }
-  if (entry.source === "linked_team" && !entry.teamId) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "关联队伍的名单缺少队伍记录。 ");
-  }
-  // Confirmation and its active claim are separate facts. A stale confirmation
-  // must not allow the same player to occupy two entries in this competition.
-  const claims = await tx.select({ participantId: competitionEntryActiveClaims.participantId })
-    .from(competitionEntryActiveClaims)
-    .where(and(eq(competitionEntryActiveClaims.competitionId, entry.competitionId), eq(competitionEntryActiveClaims.entryId, entry.id)));
-  const claimedParticipants = new Set(claims.map((claim) => claim.participantId));
-  if (rows.some((row) => row.participantStatus === "confirmed" && !claimedParticipants.has(row.participantId))) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "名单成员的参赛承诺已失效，请重新确认参赛。 ");
-  }
   const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
   const primaryIds = rows.filter((row) => row.primary).map((row) => row.userId);
   const policy = resolveQualificationPolicy(season.teamRegistrationConfig, season.affiliationRules, "participant");
@@ -216,7 +195,7 @@ async function validateEntryRosterInTx(
   const registrationBlocks = await loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: rows.map((row) => row.userId), effect: "registration_block" });
   const rosterBlocks = await loadActiveSanctionsInTx(tx, { seasonId: season.id, subjectUserIds: rows.map((row) => row.userId), effect: "roster_block" });
   const activeMemberships = options.requireCurrentTeamMembership && entry.teamId
-    ? await tx.select({ userId: teamMemberships.userId }).from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), inArray(teamMemberships.status, ["active", "benched"]), isNull(teamMemberships.endedAt), inArray(teamMemberships.userId, rows.map((row) => row.userId))))
+    ? await tx.select({ userId: teamMemberships.userId }).from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), eq(teamMemberships.status, "active"), isNull(teamMemberships.endedAt), inArray(teamMemberships.userId, rows.map((row) => row.userId))))
     : [];
   const currentTeamIdentity = config.requireTeamLogo && entry.teamId
     ? await tx.select({ logoUrl: teams.logoUrl }).from(teams).where(eq(teams.id, entry.teamId)).limit(1)
@@ -785,7 +764,7 @@ async function approveRosterRevisionInTx(
   allowedRevisionStatuses: readonly ("draft" | "submitted" | "approved")[] = ["submitted"],
 ) {
   const candidate = await validateEntryRosterInTx(tx, entry, season, allowedRevisionStatuses, {
-    requireCurrentTeamMembership: entry.source === "linked_team",
+    requireCurrentTeamMembership: false,
     requireActiveRestrictionOverrides: true,
   });
   await tx.update(competitionEntryRosterRevisions).set({ status: "approved", approvedAt: now })
