@@ -1,0 +1,26 @@
+[Unit]
+Description=RivalHub independent instance
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rivalhub-instance
+Group=rivalhub-instance
+WorkingDirectory=/opt/rivalhub-instance/current
+EnvironmentFile=/etc/rivalhub-instance/instance.env
+Environment=RIVALHUB_PRESENCE_MODE=single-process
+ExecStartPre=/opt/rivalhub-instance/current/runtime/node /opt/rivalhub-instance/current/scripts/instance/validate-runtime.mjs /opt/rivalhub-instance/current/standby.json
+ExecStart=/opt/rivalhub-instance/current/runtime/node /opt/rivalhub-instance/current/server.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/rivalhub-instance/current/.next/cache /opt/rivalhub-instance/current/.next/server/route-cache
+
+[Install]
+WantedBy=multi-user.target
