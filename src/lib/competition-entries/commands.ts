@@ -323,9 +323,10 @@ export type EntryRosterAssessment = {
   evidence: QualificationEvidence;
   participantDecisions: ReadonlyMap<string, QualificationDecision>;
   rosterDecision: QualificationDecision;
+  decisions: readonly QualificationDecision[];
   findings: readonly import("@/lib/qualification/finding").QualificationFinding[];
   decision: QualificationDecision;
-  approvedOverrides: readonly { restrictionCode: string; findingSnapshot: import("@/lib/qualification/finding").QualificationFinding }[];
+  approvedOverrides: readonly (typeof competitionEntryRestrictionOverrides.$inferSelect)[];
 };
 
 /** Always load and evaluate fresh facts inside the caller's transaction. */
@@ -341,11 +342,12 @@ export async function assessEntryRosterInTx(tx: TxDb, input: { entryId: string; 
     participantDecisions.set(member.userId, facts ? evaluateParticipant({ userId: member.userId, facts, playerType: member.playerType }, participantRules, evidence) : { state: "blocked", findings: [{ code: "participant_missing", message: "名单成员资料不可用。", waivable: false, metadata: { userId: member.userId } }] });
   }
   const rosterDecision = evaluateRoster(candidate, rules, evidence);
-  const findings = uniqueQualificationFindings([...participantDecisions.values()].flatMap((result) => [...result.findings]).concat([...rosterDecision.findings]));
+  const decisions = [rosterDecision, ...candidate.members.map((member) => participantDecisions.get(member.userId)!)];
+  const findings = uniqueQualificationFindings(decisions.flatMap((result) => [...result.findings]));
   const approvedOverrides = await loadActiveRestrictionOverridesInTx(tx, { competitionId: candidate.entry.competitionId, entryIds: [candidate.entry.id], rosterRevisionIds: [candidate.revision.id] });
   const unresolved = unresolvedQualificationFindings(findings, approvedOverrides);
   const decision: QualificationDecision = unresolved.length ? { state: "blocked", findings: [unresolved[0], ...unresolved.slice(1)] } : { state: "ready", findings: [] };
-  return { candidate, rules, evidence, participantDecisions, rosterDecision, findings, decision, approvedOverrides };
+  return { candidate, rules, evidence, participantDecisions, rosterDecision, decisions, findings, decision, approvedOverrides };
 }
 
 /**
