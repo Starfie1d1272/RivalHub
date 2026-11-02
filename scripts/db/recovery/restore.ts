@@ -38,7 +38,7 @@ import {
 import { readManagedStorageReferences } from "./storage-policy";
 import { reconcileRecoveryLifecycle } from "./lifecycle";
 import { buildRecoveryR2Keys } from "./r2";
-import { buildRecoveryMigrationPlan } from "./source";
+import { assertInstanceReleaseIdentity, buildRecoveryMigrationPlan } from "./source";
 import { assertManifestMigrationMatches, verifyRecoveryDatabase } from "./verify";
 import { runCanonicalMigrations } from "../canonical-migrate";
 import { readExpectedMigrations, type ExpectedMigration, type Migration } from "../production-preflight";
@@ -343,6 +343,13 @@ function assertManifestCompatibility(manifest: RecoveryManifest): void {
     : !isProductionRecoverySource(manifest.sourceProjectRef) && manifest.sourceProjectRef !== OFFICIAL_PREVIEW.projectRef;
   if (!validSource || manifest.database.schemas.join(",") !== "public,auth") {
     throw new Error("Recovery manifest source or schema identity is incompatible; restore aborted. ");
+  }
+  if (manifest.sourceEnvironment === "instance") {
+    assertInstanceReleaseIdentity(manifest.source.deployedReleaseTag, manifest.source.deployedCommit);
+    if (readCurrentGitCommit() !== manifest.source.deployedCommit) {
+      throw new Error("Instance restore must use the exact source release checkout before upgrading.");
+    }
+    return;
   }
   const sourceTagCommit = resolveReleaseTagCommit(manifest.source.deployedReleaseTag);
   if (sourceTagCommit !== manifest.source.deployedCommit) {

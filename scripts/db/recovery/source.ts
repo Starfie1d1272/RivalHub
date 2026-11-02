@@ -44,10 +44,23 @@ export async function resolveInstanceSourceIdentity(
   if (Object.keys(record).sort().join(",") !== "databaseName,releaseCommit,releaseTag,supabaseUrl"
     || record.supabaseUrl !== supabaseUrl || record.databaseName !== "postgres") throw new Error("Running instance and backup database identity differ.");
   const identity = assertReleaseIdentity({ releaseTag: record.releaseTag, releaseCommit: record.releaseCommit }, "instance release identity");
-  if (resolveGitRevision(cwd, `refs/tags/${identity.releaseTag}^{commit}`).toLowerCase() !== identity.releaseCommit) {
-    throw new Error("Instance release tag and commit differ; backup aborted.");
-  }
+  assertInstanceReleaseIdentity(identity.releaseTag, identity.releaseCommit, cwd);
   return { deployedReleaseTag: identity.releaseTag, deployedCommit: identity.releaseCommit };
+}
+
+/** Instance build.mjs derives its release label from the committed package
+ * version and full Git commit; it does not create a Git tag. */
+export function assertInstanceReleaseIdentity(tag: string, commit: string, cwd = projectRoot): void {
+  if (!/^[0-9a-f]{40}$/.test(commit) || resolveGitRevision(cwd, `${commit}^{commit}`).toLowerCase() !== commit) {
+    throw new Error("Instance release commit is unavailable; recovery aborted.");
+  }
+  const result = spawnSync("git", ["show", `${commit}:package.json`], { cwd, encoding: "utf8" });
+  let version: unknown;
+  try { version = JSON.parse(result.stdout).version; } catch { throw new Error("Instance release package identity unavailable."); }
+  if (result.error || result.status !== 0 || typeof version !== "string"
+    || tag !== `v${version}-instance.${commit.slice(0, 12)}`) {
+    throw new Error("Instance release label does not match its committed package and commit.");
+  }
 }
 
 async function readSourceIdentity(
