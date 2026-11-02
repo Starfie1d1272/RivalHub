@@ -104,6 +104,7 @@ export interface SeedRecommendationSnapshotContextV1 {
   teamSeedStrengthScale: typeof TEAM_SEED_STRENGTH_SCALE | 100;
   frozenTeams: SeedRecommendationFrozenTeamV1[];
   competitiveContext: SeedRecommendationCompetitiveContextV1 | null;
+  seedMode?: "manual";
 }
 
 interface SerializedFallbackConversionV1 {
@@ -297,6 +298,7 @@ export function buildSeedRecommendationSnapshotPayload(input: {
       teamSeedStrengthScale: TEAM_SEED_STRENGTH_SCALE,
       frozenTeams,
       competitiveContext: input.competitiveContext ? snapshotCompetitiveContextFromConfig(input.competitiveContext) : null,
+      ...(input.competitiveContext ? {} : { seedMode: "manual" as const }),
     },
     recommendations: input.competitiveContext ? frozenTeams.map((identity) => {
       const recommendation = recommendationByTeamId.get(identity.competitionEntryId);
@@ -503,7 +505,9 @@ function isSeedRecommendationSnapshotContextV1(value: unknown): value is SeedRec
     new Set(value.frozenTeams.filter(isRecord).map((team) => team.entrantId)).size === value.frozenTeams.length &&
     new Set(value.frozenTeams.filter(isRecord).map((team) => team.competitionEntryId)).size === value.frozenTeams.length &&
     value.frozenTeams.every(isSnapshotFrozenTeam) &&
-    (value.competitiveContext === null || isCompetitiveContext(value.competitiveContext));
+    (value.competitiveContext === null
+      ? value.seedMode === "manual"
+      : value.seedMode === undefined && isCompetitiveContext(value.competitiveContext));
 }
 
 function isSeedRecommendationSnapshotPayloadV1(
