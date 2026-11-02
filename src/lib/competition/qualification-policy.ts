@@ -7,6 +7,7 @@ export const competitiveProfileSchema = z.object({
       currentSeasonKey: z.string().max(128),
       previousSeasonKey: z.string().max(128),
       rankOrder: z.array(z.string().min(1).max(64)).max(64),
+      sourceSelection: z.enum(["primary_then_fallback", "strongest_equivalent"]).optional(),
       externalStrengthMaxStarGap: z.number().int().min(0).max(100).optional(),
       conversionPolicyVersion: z.string().max(128).optional(),
       conversionPolicyId: z.string().max(128).optional(),
