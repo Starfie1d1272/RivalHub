@@ -1,20 +1,26 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 
 export function assertReleaseCapabilities(cwd: string, previous: string, candidate: string): void {
   assertReaderFirstUpgrade(cwd, previous, candidate, "src/lib/bet/catalog-contract.json", 1, "BET catalog");
   assertReaderFirstUpgrade(cwd, previous, candidate, "src/lib/bet/ledger-contract.json", 0, "BET ledger");
   assertReaderFirstUpgrade(cwd, previous, candidate, "src/lib/matches/veto-room/lifecycle-contract.json", 0, "Veto lifecycle");
+  assertReaderFirstUpgrade(cwd, previous, candidate, "src/lib/assets-contract.json", 0, "Public asset", true);
 }
 
 /** Immutable application capabilities independently require the shipped reader and a compatible rollback target. */
-function assertReaderFirstUpgrade(cwd: string, previous: string, candidate: string, contractPath: string, missingVersion: number, label: string): void {
+function assertReaderFirstUpgrade(cwd: string, previous: string, candidate: string, contractPath: string, missingVersion: number, label: string, legacyAssetReader = false): void {
   type Version = { readerVersion: number; publisherVersion: number };
   type Contract = Version & { capabilities: Record<string, Version> };
   const read = (revision: string): Contract => {
     const present = execFileSync("git", ["ls-tree", "--name-only", revision, "--", contractPath], {
       cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
     }).trim();
-    if (!present) return { readerVersion: missingVersion, publisherVersion: missingVersion, capabilities: {} };
+    if (!present) {
+      // The separately shipped reader predates the capability file. Only a
+      // frozen revision containing that exact reviewed commit can claim it.
+      const legacyReader = legacyAssetReader && spawnSync("git", ["merge-base", "--is-ancestor", "96d04bba33d8e43e9f2b7e16e858628fb519aa0d", revision], { cwd, stdio: "ignore" }).status === 0;
+      return { readerVersion: legacyReader ? 1 : missingVersion, publisherVersion: missingVersion, capabilities: {} };
+    }
     const value = JSON.parse(readGitFile(cwd, revision, contractPath)) as Record<string, unknown>;
     const { readerVersion, publisherVersion } = value ?? {};
     if (!Number.isInteger(readerVersion) || !Number.isInteger(publisherVersion)

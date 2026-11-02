@@ -1,5 +1,6 @@
 import { assertCompetitionMatch } from "@/lib/matches/competition-context";
 import "server-only";
+import { displayPublicAsset } from "@/lib/assets-reference";
 import { recordMizarFullBuild } from "@/lib/observability/read-budget";
 import { createHash } from "node:crypto";
 import { and, eq, asc, gte, lte, inArray, isNull, or, sql } from "drizzle-orm";
@@ -162,6 +163,7 @@ export async function loadUnassociatedMizarDocumentInTx(tx: TxDb, matchId: strin
   const side = (position: "a" | "b") => ({
     entryId: `${match.id}:${position}`,
     ...context.sides[position],
+    logoUrl: context.sides[position].logoUrl && displayPublicAsset(context.sides[position].logoUrl),
     roster: { rosterId: null, players: [] },
   });
   const payload = {
