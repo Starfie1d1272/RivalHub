@@ -94,6 +94,7 @@
     "scripts/db/preview/snapshot.ts!",
     "scripts/db/preview/refresh.ts!",
     "scripts/db/production-identity-merge-preflight.ts!",
+    "scripts/db/prediction-finance-retirement-preflight.ts!",
     "scripts/db/production-steam-profile-backfill.ts!",
     "scripts/db/production-steam-profile-coverage.ts!",
     "scripts/db/production-steam-profile-remediation.ts!",
