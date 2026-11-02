@@ -158,6 +158,7 @@ export async function loadReferencedPlatformRankKeys(
 export async function fallbackCatalogReferencesExist(
   executor: DatabaseExecutor,
   fallback: CompetitiveFallbackConversion,
+  options?: { requiredSeasonKeys: readonly string[] },
 ): Promise<boolean> {
   const seasonKeys = [...new Set(Object.values(fallback.seasonKeyMap))];
   const rankKeys = fallback.mapping
@@ -165,10 +166,10 @@ export async function fallbackCatalogReferencesExist(
     : fallback.rankMap
       ? [...new Set(Object.keys(fallback.rankMap))]
       : [];
-  if (seasonKeys.length === 0 || rankKeys.length === 0 || seasonKeys.some((key) => !key) || rankKeys.some((key) => !key)) return false;
-  const sourceSeasons = await executor.select({ seasonKey: competitivePlatformSeasons.seasonKey })
+  if (!fallback.version.trim() || (!options && seasonKeys.length === 0) || rankKeys.length === 0 || seasonKeys.some((key) => !key) || rankKeys.some((key) => !key) || options?.requiredSeasonKeys.some(key => !fallback.seasonKeyMap[key])) return false;
+  const sourceSeasons = seasonKeys.length ? await executor.select({ seasonKey: competitivePlatformSeasons.seasonKey })
     .from(competitivePlatformSeasons)
-    .where(and(eq(competitivePlatformSeasons.platform, fallback.sourcePlatform), inArray(competitivePlatformSeasons.seasonKey, seasonKeys)));
+    .where(and(eq(competitivePlatformSeasons.platform, fallback.sourcePlatform), inArray(competitivePlatformSeasons.seasonKey, seasonKeys))) : [];
   const sourceRanks = await executor.select({ rankKey: competitivePlatformRanks.rankKey })
     .from(competitivePlatformRanks)
     .where(and(eq(competitivePlatformRanks.platformKey, fallback.sourcePlatform), inArray(competitivePlatformRanks.rankKey, rankKeys)));

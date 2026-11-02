@@ -327,8 +327,9 @@ export async function freezeV2CompetitiveContext(tx: Transaction, season: typeof
   for (const rank of [threshold?.currentMin, threshold?.peakMin]) if (rank && !rankOrder.includes(rank)) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选段位门槛不在平台目录中。 ");
   const weighted = rules.participant.competitiveProfileRequired || rules.competition.seeding?.mode === "strength_recommendation";
   const { current, previous } = resolveCatalogSeasonRoles(platform);
+  const prior = previous ? platform.seasons.filter(season => season.active && season.sortOrder < previous.sortOrder).sort((a, b) => b.sortOrder - a.sortOrder)[0] ?? null : null;
   if ((weighted || threshold?.currentMin) && !current) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选平台缺少当前赛季。 ");
-  if (weighted && !previous) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选平台缺少上一赛季。 ");
+  if (weighted && (!previous || !prior)) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选平台缺少两届已完成赛季。 ");
   let fallbackConversion: CompetitiveFallbackConversion | undefined;
   let conversionPolicyId: string | undefined;
   let conversionPolicyVersion: string | undefined;
@@ -340,18 +341,21 @@ export async function freezeV2CompetitiveContext(tx: Transaction, season: typeof
     const fallbackPlatform = catalog.find(item => item.key === "fivee");
     if (!fallbackPlatform) throw new AppError(ErrorCode.VALIDATION_FAILED, "5E 平台目录不可用。 ");
     const fallbackRoles = resolveCatalogSeasonRoles(fallbackPlatform);
+    const fallbackPrior = fallbackRoles.previous ? fallbackPlatform.seasons.filter(season => season.active && season.sortOrder < fallbackRoles.previous!.sortOrder).sort((a, b) => b.sortOrder - a.sortOrder)[0] ?? null : null;
     if ((weighted || threshold?.currentMin) && !fallbackRoles.current) throw new AppError(ErrorCode.VALIDATION_FAILED, "5E 目录缺少对应的当前赛季。 ");
-    if (weighted && !fallbackRoles.previous) throw new AppError(ErrorCode.VALIDATION_FAILED, "5E 目录缺少对应的上一赛季。 ");
+    if (weighted && (!fallbackRoles.previous || !fallbackPrior)) throw new AppError(ErrorCode.VALIDATION_FAILED, "5E 目录缺少对应的两届已完成赛季。 ");
     const seasonKeyMap: Record<string, string> = {};
     if (current && fallbackRoles.current && (weighted || threshold?.currentMin)) seasonKeyMap[current.seasonKey] = fallbackRoles.current.seasonKey;
     if (previous && fallbackRoles.previous && weighted) seasonKeyMap[previous.seasonKey] = fallbackRoles.previous.seasonKey;
+    if (prior && fallbackPrior && weighted) seasonKeyMap[prior.seasonKey] = fallbackPrior.seasonKey;
     fallbackConversion = { sourcePlatform: "fivee", version: policy.version, seasonKeyMap, mapping: policy.mapping };
     conversionPolicyId = policy.id;
     conversionPolicyVersion = policy.version;
-    if (!await fallbackCatalogReferencesExist(tx, fallbackConversion)) throw new AppError(ErrorCode.VALIDATION_FAILED, "换算规则引用的赛季或段位已不在目录中。 ");
+    const requiredSeasonKeys = weighted ? [current!.seasonKey, previous!.seasonKey, prior!.seasonKey] : threshold?.currentMin ? [current!.seasonKey] : [];
+    if (!await fallbackCatalogReferencesExist(tx, fallbackConversion, { requiredSeasonKeys })) throw new AppError(ErrorCode.VALIDATION_FAILED, "换算规则引用的赛季或段位已不在目录中。 ");
   }
   const profile = { platform: platform.key, rankOrder, sourceSelection: resolveCompetitiveSourceSelection(configured), currentSeasonKey: current?.seasonKey ?? "", previousSeasonKey: previous?.seasonKey ?? "",
-    ...(weighted && current && previous ? { evidencePolicy: { historicalWeight: 50 as const, referenceSeasonKey: previous.seasonKey, referenceSeasonWeight: 20 as const, recentSeasonKeys: [current.seasonKey], recentSeasonWeight: 30 as const } } : {}),
+    ...(weighted && current && previous && prior ? { evidencePolicy: { historicalWeight: 50 as const, referenceSeasonKey: prior.seasonKey, referenceSeasonWeight: 20 as const, recentSeasonKeys: [previous.seasonKey, current.seasonKey], recentSeasonWeight: 30 as const } } : {}),
     ...(fallbackConversion ? { fallbackConversion, conversionPolicyId, conversionPolicyVersion } : {}) };
   const encoded = encodeDraftSeasonRules(season, { ...rules, competitive: { ...rules.competitive, competitiveProfile: profile } });
   if (!encoded.teamRegistrationConfig) throw new AppError(ErrorCode.INTERNAL_ERROR, "竞技规则冻结失败。 ");
