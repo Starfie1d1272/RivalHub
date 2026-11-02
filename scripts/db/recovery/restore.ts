@@ -88,7 +88,6 @@ async function main(): Promise<void> {
       if (process.env.RIVALHUB_RECOVERY_TARGET === "instance" && manifest.sourceEnvironment !== "instance") {
         throw new Error("Official backups may only be restored to isolated targets.");
       }
-      if (args.evidenceDirectory && manifest.source.migrationLineage === "v2") throw new Error("V2 restore must be upgraded and adopted before activation evidence can be issued.");
       if (args.evidenceDirectory && manifest.sourceEnvironment !== "instance" && manifest.sourceEnvironment !== "isolated-instance") throw new Error("Only a full independent instance restore can produce activation evidence.");
       if (args.evidenceDirectory && process.env.RIVALHUB_RECOVERY_TARGET !== "instance"
         && process.env.RIVALHUB_RECOVERY_USE_LOCAL_SUPABASE !== "1") {
@@ -163,7 +162,7 @@ async function writeInstanceRecoveryEvidence(
   const pool = new Pool({ ...postgresConnection(target.databaseUrl), max: 1 });
   try {
     const actual = await readTargetMigration(pool);
-    assertManifestMigrationMatches(actual, readExpectedMigrations(), manifest.source.databaseMigrationTerminal);
+    assertManifestMigrationMatches(actual, manifest.source.migrationLineage === "v2" ? readV2Migrations() : readExpectedMigrations(), manifest.source.databaseMigrationTerminal);
     const database = new URL(target.databaseUrl);
     const evidence = {
       version: 1, artifactKind: "full", sourceEnvironment: manifest.sourceEnvironment, runId: manifest.runId,
