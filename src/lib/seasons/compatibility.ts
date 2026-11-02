@@ -201,14 +201,15 @@ export function resolveQualificationPolicy(
   if (config?.qualificationPolicy) return qualificationPolicySchema.parse(config.qualificationPolicy);
   const normalized = normalizeTeamRegistrationConfig(config);
   const required = normalized.requireCompetitiveProfile === true;
+  const rules = normalizeAffiliationRules(affiliationRules);
   return {
     version: 1,
-    educationRequired: required,
-    affiliationRules: normalizeAffiliationRules(affiliationRules),
+    educationRequired: required || rules.length > 0,
+    affiliationRules: rules,
     competitiveProfileRequired: required,
-    competitiveProfile: required ? normalized.competitiveProfile ?? null : null,
-    externalStrengthGap: { enabled: required && !!normalized.competitiveProfile, maxGap: normalized.competitiveProfile?.externalStrengthMaxStarGap ?? 3 },
-    contacts: { qqRequired: required, emailVerifiedRequired: required },
+    competitiveProfile: normalized.competitiveProfile ?? null,
+    externalStrengthGap: { enabled: !!normalized.competitiveProfile, maxGap: normalized.competitiveProfile?.externalStrengthMaxStarGap ?? 3 },
+    contacts: { qqRequired: required, emailVerifiedRequired: required || rules.length > 0 },
   };
 }
 
