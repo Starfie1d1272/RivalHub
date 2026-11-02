@@ -56,12 +56,9 @@ optional prediction progression
 
 ## 3.x horizon
 
-3.x 不是已承诺功能清单。只有在 2.x 的官方实例和高校 CS 办赛能力成熟、并出现真实需求后，才评估：
+3.0 的方向是支持高校和普通 CS2 社群的单组织独立实例，继续采用 Next 模块化单体与 Supabase。资格政策、资源身份和运行时公开配置、安装与迁移基线，以及 Hosted / 完整自托管的分别验收属于实施范围；方向不等于已交付或已支持。具体拆分、依赖、待合 PR 和验收状态见 [总控 #1326](https://github.com/Starfie1d1272/RivalHub/issues/1326)。
 
-- **多组织 / 多社区**：同一实例承载多个运营组织，同时保留跨组织 Player identity；
-- **正式 production self-hosting**：安装、升级、Secrets、Auth、Storage、migration、监控、备份和恢复成为受支持产品能力；
-- **更通用的游戏边界**：把赛事通用能力与 CS 特有身份、地图/BP、阵容和统计进一步分离；
-- **稳定 API / Webhook / integrations**：让外部工具受控消费 RivalHub official facts。
+同一实例承载多个组织、通用多游戏能力及更广泛的 API / Webhook 不属于上述单组织目标的隐含承诺。历史已发布赛事政策和冻结事实继续按原版本解释。
 
 ## 2.x non-goals
 
