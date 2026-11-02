@@ -63,6 +63,7 @@ interface RegistrationFormProps {
   submitLabel?: string;
   policyV2?: boolean;
   qqRequired?: boolean;
+  hasCaptainVoting: boolean;
 }
 
 export function RegistrationForm({
@@ -77,6 +78,7 @@ export function RegistrationForm({
   submitLabel,
   policyV2 = false,
   qqRequired = false,
+  hasCaptainVoting,
 }: RegistrationFormProps) {
   const { canSaveDraft, canSubmit, message: windowMessage } = windowState;
   const task = useTelemetryTask("registration", seasonId, canSubmit);
@@ -111,8 +113,9 @@ export function RegistrationForm({
     defaultValues: {
       ...initialValues,
       seasonId,
+      secondaryPosition: activePositions.length === 1 ? "" : initialValues?.secondaryPosition ?? "",
       email: initialValues?.email ?? currentUserEmail ?? "",
-      willingToBeCaptain: initialValues?.willingToBeCaptain ?? false,
+      willingToBeCaptain: hasCaptainVoting && (initialValues?.willingToBeCaptain ?? false),
       playerType: initialValues?.playerType ?? (policyV2 ? null : registrationConfig.allowedPlayerTypes[0]),
       screenshotUrls: initialValues?.screenshotUrls ?? Array.from({ length: registrationConfig.screenshotCount }, () => ""),
       mapPreferences: projectMapPreferences(
@@ -192,6 +195,8 @@ export function RegistrationForm({
             ...draftValues,
             seasonId,
             email: normalized,
+            secondaryPosition: positions.length === 1 ? "" : draftValues.secondaryPosition ?? "",
+            willingToBeCaptain: hasCaptainVoting && (draftValues.willingToBeCaptain ?? false),
             mapPreferences: projectMapPreferences(
               draftValues.mapPreferences,
               registrationConfig.mapPool,
@@ -206,7 +211,7 @@ export function RegistrationForm({
         setLoadingDraftEmail(null);
       }
     },
-    [getValues, registrationConfig.mapPool, reset, seasonId],
+    [getValues, hasCaptainVoting, positions.length, registrationConfig.mapPool, reset, seasonId],
   );
 
   useEffect(() => {
@@ -427,7 +432,7 @@ export function RegistrationForm({
             </p>
           </div>
 
-          <div>
+          {activePositions.length > 1 && <div>
             <Label className="text-[var(--color-fg-mid)] mb-1.5 block">
               次选位置 <Required />
             </Label>
@@ -452,7 +457,7 @@ export function RegistrationForm({
             </Select>
             <FieldError name="secondaryPosition" />
             <p className="text-xs text-[var(--color-fg-dim)] mt-1">不能与主选位置相同</p>
-          </div>
+          </div>}
         </div>
       </section>
 
@@ -635,6 +640,7 @@ export function RegistrationForm({
         inputClassName={inputCls}
         register={register}
         watch={watch}
+        hasCaptainVoting={hasCaptainVoting}
         renderError={(name) => <FieldError name={name} />}
       />
 

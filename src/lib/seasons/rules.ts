@@ -67,7 +67,7 @@ export function seasonCapabilityIssue(input: {
   if (input.registrationMode === "team" && (input.hasCaptainVoting || input.hasDraft)) {
     return "队长投票和选秀需要个人报名，请改为个人报名或关闭编队环节。";
   }
-  if (input.isV2 && input.registrationMode === "team" && input.requirePositions) {
+  if (input.isV2 && input.requirePositions) {
     const available = new Set(input.positions);
     if (input.maxPerPositionPerTeam > 0 && available.size * input.maxPerPositionPerTeam < input.minTeamSize) {
       return "现有成员位置与每位置上限不足以满足名单人数要求。";

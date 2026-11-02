@@ -532,6 +532,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
             registrationConfig={regConfig}
             policyV2={soloRules.source === "policy_v2"}
             qqRequired={soloRules.participant.contacts.qqRequired}
+            hasCaptainVoting={season.hasCaptainVoting}
             windowState={registrationWindow}
             currentUserEmail={userSession?.email ?? null}
             initialValues={initialValues}
