@@ -23,7 +23,7 @@ export async function prepareApprovedEventRosterInTx(tx: TxDb, input: {
   }
   const [existing] = await tx.select().from(eventRosters).where(eq(eventRosters.entryId, entry.id)).for("update");
   if (existing?.sourceRosterRevisionId === entry.approvedRosterRevisionId && ["confirmed", "frozen"].includes(existing.status) &&
-      (season.teamRegistrationConfig.qualificationPolicy?.version !== 2 || existing.eligibilitySnapshot?.version === 2)) {
+      season.teamRegistrationConfig.qualificationPolicy?.version !== 2) {
     await assertSinglePrestartEntryCoherenceInTx(tx, season.id, { competitionEntryId: entry.id });
     return { seasonSlug: season.slug };
   }

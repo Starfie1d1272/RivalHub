@@ -268,7 +268,7 @@ export async function loadMatchEligibilityContextInTx(
     if (!season) throw new AppError(ErrorCode.INTERNAL_ERROR, "比赛所属赛季不存在。");
     let policy: MatchLineupPolicy;
     if (match.ownership !== "major_stage" && !match.qualificationRunId) {
-      const storedPolicy = (season.teamRegistrationConfig as { qualificationPolicy?: { version?: number } } | null)?.qualificationPolicy;
+      const storedPolicy = season.teamRegistrationConfig.qualificationPolicy;
       if (storedPolicy?.version === 2) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "新版资格规则缺少可用的冻结名单快照，无法校验本场阵容。");
       }

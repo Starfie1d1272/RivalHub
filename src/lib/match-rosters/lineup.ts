@@ -1,5 +1,6 @@
 import { qualificationFindingCoveredByApproval, type QualificationFinding } from "@/lib/qualification/finding";
-import { evaluateExternalStrengthRule, getPlayerStrengthFindings } from "@/lib/major/player-strength";
+import { evaluateExternalStrengthRule } from "@/lib/major/player-strength";
+import { evaluateCompetitiveProfileReadiness } from "@/lib/competitive/player-strength";
 import type { InstitutionAffiliationRule } from "@/types/season";
 import type { MatchLineupPolicy } from "./policy";
 
@@ -185,16 +186,8 @@ export const evaluateLineup: import("@/lib/seasons/rules").EvaluateLineup = (pro
         const member = members.get(id);
         if (!member) return [];
         const fact = evidence.byPurpose.externalStrength.get(member.userId);
-        const profileFact = evidence.byPurpose.profileReadiness.get(member.userId);
         if (frozen.competitiveProfileRequired) {
-          if (!profileFact) findings.push({ code: "competitive_profile_incomplete", message: `首发 ${member.userId} 缺少冻结的竞技资料。`, waivable: false, metadata: { userId: member.userId } });
-          else {
-            const profile = evidence.context.profile!;
-            const toFact = (fact: import("@/lib/seasons/rules").ProfileReadinessFact | null | undefined) => fact?.status === "ranked" && fact.rank !== null && fact.rating !== null
-              ? { rank: fact.rank, rating: fact.rating, stars: fact.stars, sourcePlatform: fact.sourcePlatform, sourceSeasonKey: fact.sourceSeasonKey } : null;
-            const strength = { userId: member.userId, label: member.userId, historicalPeak: toFact(profileFact.historicalPeak), previousSeasonPeak: toFact(profileFact.seasons.get(profile.evidencePolicy?.referenceSeasonKey ?? profile.previousSeasonKey)), currentSeasonPeak: toFact(profileFact.seasons.get(profile.currentSeasonKey)), recentSeasonPeaks: profile.evidencePolicy?.recentSeasonKeys.map((key) => toFact(profileFact.seasons.get(key))) };
-            findings.push(...getPlayerStrengthFindings(strength, profile));
-          }
+          findings.push(...evaluateCompetitiveProfileReadiness(evidence, member.userId));
         }
         if (!fact && frozen.externalStrengthGap.enabled) {
           findings.push({ code: "competitive_profile_incomplete", message: `首发 ${member.userId} 缺少冻结的竞技事实。`, waivable: false, metadata: { userId: member.userId } });

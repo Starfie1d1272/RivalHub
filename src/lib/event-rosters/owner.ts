@@ -15,6 +15,7 @@ import {
 import { loadEntryRosterCandidateInTx } from "@/lib/competition-entries/commands";
 import { evaluateRoster } from "@/lib/competition-entries/evaluate-roster";
 import { loadActiveRestrictionOverridesInTx, unresolvedQualificationFindings } from "@/lib/competition-entries/restriction-overrides";
+import { decodeFrozenLineupEligibility } from "@/lib/match-rosters/frozen-eligibility";
 import { decodeEventRosterEligibilitySnapshotV2, eventRosterEligibilitySnapshotV2Schema } from "@/lib/seasons/eligibility-snapshot";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification } from "@/lib/education/eligibility";
@@ -201,7 +202,13 @@ export async function syncApprovedRosterToEventRosterInTx(
 ): Promise<{ eventRosterId: string; rosterSize: number | null; changed: boolean }> {
   const { season, coherent, actorId } = input;
   const { entry, approvedRevision, eventRoster } = coherent;
-  if (season.teamRegistrationConfig.qualificationPolicy?.version === 2) {
+  if (season.teamRegistrationConfig.qualificationPolicy?.version === 2 &&
+      !(eventRoster.eligibilitySnapshot?.version === 1 && eventRoster.sourceRosterRevisionId === approvedRevision.id)) {
+    if (eventRoster.eligibilitySnapshot?.version === 2 && eventRoster.sourceRosterRevisionId === approvedRevision.id &&
+        (eventRoster.status === "confirmed" || eventRoster.status === "frozen")) {
+      decodeFrozenLineupEligibility(eventRoster.eligibilitySnapshot, { seasonId: season.id, entryId: entry.id, rosterRevisionId: approvedRevision.id });
+      return { eventRosterId: eventRoster.id, rosterSize: null, changed: false };
+    }
     const { candidate, rules } = await loadEntryRosterCandidateInTx(tx, { entryId: entry.id, expectedRevisionId: approvedRevision.id });
     const purposes: CompetitivePurpose[] = [];
     if (rules.participant.competitiveProfileRequired) purposes.push("profile_completeness");
@@ -315,7 +322,12 @@ export async function adoptApprovedRosterInTx(tx: TxDb, input: {
     override.rosterRevisionId !== approvedRevision.id || override.revokedAt !== null)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "名单资格评估或例外记录不完整。");
   }
-  const unresolved = unresolvedQualificationFindings(input.decisions.flatMap((decision) => decision.findings), input.overrides);
+  const actualDecisions: import("@/lib/seasons/rules").QualificationDecision[] = [evaluateRoster(candidate, rules, evidence), ...candidate.members.map((member) => {
+    const fact = candidate.factsByUser.get(member.userId);
+    if (!fact) return { state: "blocked" as const, findings: [{ code: "participant_missing", message: "名单成员资料不可用。", waivable: false }] as const };
+    return evaluateParticipant({ userId: member.userId, facts: fact, playerType: member.playerType }, rules.participant, evidence);
+  })];
+  const unresolved = unresolvedQualificationFindings([...input.decisions, ...actualDecisions].flatMap((decision) => decision.findings), input.overrides);
   if (unresolved.length) throw new AppError(ErrorCode.VALIDATION_FAILED, unresolved.map((finding) => finding.message).join(" "));
   const [locked] = await tx.select().from(eventRosters).where(and(eq(eventRosters.id, eventRoster.id), eq(eventRosters.entryId, entry.id))).for("update");
   if (!locked) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事名单不存在。");
