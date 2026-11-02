@@ -16,7 +16,7 @@
 
 ## Mutation 合同
 
-`revalidateVetoRoomPaths(context, receipt, options)` 接收服务端读取的 slug/seasonId/matchId/matchStatus，以及领域 owner 的 changed/affectedFacts。没有真实变化时不失效。仅 scheduled/in_progress 且事实集合非空、全部属于 lineups/appeals/veto_step 时，允许跳过全局统计失效；finished、cancelled、缺失/未知事实继续宽失效。`statistics:true` 是明确的紧急回退。
+`src/lib/matches/projection-invalidation/` 的 planner 与 Next adapter 共同拥有 BP 投影失效；`revalidateMatchProjectionPaths(context, receipt, options)` 接收服务端读取的 slug/seasonId/matchId/matchStatus，以及领域 owner 的 changed/affectedFacts。没有真实变化时不失效。仅 scheduled/in_progress 且事实集合非空、全部属于 lineups/appeals/veto_step 时，允许跳过全局统计失效；finished、cancelled、缺失/未知事实继续宽失效。`statistics:true` 是明确的紧急回退。
 
 该 BP 专用合同保留现有 match/season 页面刷新，并立即失效单届 BET tag。Server Action 用 updateTag 保持 read-your-writes；Route Handler 用 `{ expire: 0 }`，不将 generic season 的 SWR 语义套到实时支持率。
 
