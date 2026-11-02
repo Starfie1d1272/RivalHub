@@ -68,6 +68,9 @@ function frozenCompetitiveProfile(ruleSnapshot: unknown): CompetitiveProfileConf
   if (!candidate || typeof candidate !== "object") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 缺少冻结的竞技档案规则。");
   const profile = candidate as Partial<CompetitiveProfileConfig>;
   if (typeof profile.platform !== "string" || typeof profile.currentSeasonKey !== "string" || typeof profile.previousSeasonKey !== "string" || !Array.isArray(profile.rankOrder)) throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的竞技档案规则不可用。");
+  if (profile.sourceSelection !== undefined && profile.sourceSelection !== "primary_then_fallback" && profile.sourceSelection !== "strongest_equivalent") {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的竞技来源选择不可用。");
+  }
   const policy = profile.evidencePolicy;
   if (policy && (policy.historicalWeight !== 50 || policy.referenceSeasonWeight !== 20 || policy.recentSeasonWeight !== 30 || typeof policy.referenceSeasonKey !== "string" || !Array.isArray(policy.recentSeasonKeys) || !policy.recentSeasonKeys.every((key) => typeof key === "string") || (policy.sourceSelection !== undefined && policy.sourceSelection !== "primary_then_fallback" && policy.sourceSelection !== "strongest_equivalent"))) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的竞技参考策略不可用。");
@@ -84,6 +87,7 @@ function frozenCompetitiveProfile(ruleSnapshot: unknown): CompetitiveProfileConf
     currentSeasonKey: profile.currentSeasonKey,
     previousSeasonKey: profile.previousSeasonKey,
     rankOrder: profile.rankOrder.filter((rank): rank is string => typeof rank === "string"),
+    ...(profile.sourceSelection ? { sourceSelection: profile.sourceSelection } : {}),
     evidencePolicy: policy ? { historicalWeight: 50, referenceSeasonKey: policy.referenceSeasonKey, referenceSeasonWeight: 20, recentSeasonKeys: [...policy.recentSeasonKeys], recentSeasonWeight: 30, ...(policy.sourceSelection ? { sourceSelection: policy.sourceSelection } : {}) } : undefined,
     fallbackConversion: fallback ? { sourcePlatform: "fivee", version: fallback.version, seasonKeyMap: { ...fallback.seasonKeyMap }, ...(fallback.mapping ? { mapping: fallback.mapping } : {}), ...(fallback.rankMap ? { rankMap: { ...fallback.rankMap } } : {}) } : undefined,
     externalStrengthMaxStarGap: typeof profile.externalStrengthMaxStarGap === "number" ? profile.externalStrengthMaxStarGap : undefined,

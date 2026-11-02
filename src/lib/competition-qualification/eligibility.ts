@@ -6,6 +6,7 @@ import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { competitionQualificationRuns, eventRosterMembers, eventRosters, matchRosters, matches, type Season } from "@/db/schema";
 import { loadActiveRestrictionOverridesInTx } from "@/lib/competition-entries/restriction-overrides";
+import { canonicalizeV2CompetitiveProfile } from "@/lib/competitive/source-selection";
 import { deriveCompetitiveRequirements, type CompetitivePurpose } from "@/lib/qualification/evidence";
 import { decodeEventRosterEligibilitySnapshotV2, type QualificationEligibilityPolicyV2 } from "@/lib/seasons/eligibility-snapshot";
 import { decodeSeasonRules } from "@/lib/seasons/rules";
@@ -45,13 +46,13 @@ export async function freezeQualificationPolicy(season: Season): Promise<Qualifi
     if (participant.competitiveProfileRequired) purposes.push("profile_completeness");
     if (participant.rankThreshold?.currentMin || participant.rankThreshold?.peakMin) purposes.push("rank_threshold");
     if (decoded.competitive.externalStrengthGap.enabled) purposes.push("external_historical_gap");
-    const profile = decoded.competitive.competitiveProfile;
+    const profile = canonicalizeV2CompetitiveProfile(decoded.competitive.competitiveProfile);
     if (purposes.length && !profile) throw new AppError(ErrorCode.VALIDATION_FAILED, "本届资格赛缺少有效竞技规则，不能锁定配置。");
     const requirements = purposes.length && profile ? deriveCompetitiveRequirements(purposes, profile, participant) : null;
     if (!decoded.lineup.settings || !participant.allowedPlayerTypes || !participant.rankThreshold) throw new AppError(ErrorCode.VALIDATION_FAILED, "本届资格赛的新版规则不完整。");
     return {
       version: 2,
-      rules: { qualificationPolicy: season.teamRegistrationConfig.qualificationPolicy, affiliationRules: decoded.roster.affiliationRules.map((rule) => ({ ...rule, eligibleAcademicStatuses: [...rule.eligibleAcademicStatuses] })),
+      rules: { qualificationPolicy: { ...season.teamRegistrationConfig.qualificationPolicy, competitiveProfile: canonicalizeV2CompetitiveProfile(season.teamRegistrationConfig.qualificationPolicy.competitiveProfile) }, affiliationRules: decoded.roster.affiliationRules.map((rule) => ({ ...rule, eligibleAcademicStatuses: [...rule.eligibleAcademicStatuses] })),
         allowedPlayerTypes: participant.allowedPlayerTypes, rankThreshold: participant.rankThreshold,
         starterCount: decoded.lineup.starterCount, maxSubstitutes: decoded.lineup.settings.maxSubstitutes },
       competitive: requirements && profile ? { profile, requirements: { ...requirements, seasonKeys: [...requirements.seasonKeys] } } : null,

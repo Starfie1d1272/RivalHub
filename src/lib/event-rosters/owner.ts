@@ -13,6 +13,7 @@ import {
   seasons,
 } from "@/db/schema";
 import { assessEntryRosterInTx, type EntryRosterAssessment } from "@/lib/competition-entries/commands";
+import { canonicalizeV2CompetitiveProfile } from "@/lib/competitive/source-selection";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { unresolvedQualificationFindings } from "@/lib/competition-entries/restriction-overrides";
 import { decodeFrozenLineupEligibility } from "@/lib/match-rosters/frozen-eligibility";
@@ -373,9 +374,10 @@ export async function adoptApprovedRosterInTx(tx: TxDb, input: {
       source: { rosterRevisionId: approvedRevision.id, teamMembershipId: member.teamMembershipId },
     })),
     rules: { qualificationPolicy: { version: 2, educationRequired: rules.participant.educationRequired, contacts: rules.participant.contacts,
-      competitiveProfileRequired: rules.participant.competitiveProfileRequired, ...rules.competitive },
+      competitiveProfileRequired: rules.participant.competitiveProfileRequired, ...rules.competitive,
+      competitiveProfile: canonicalizeV2CompetitiveProfile(rules.competitive.competitiveProfile) },
       affiliationRules: rules.roster.affiliationRules, allowedPlayerTypes: rules.participant.allowedPlayerTypes ?? [], rankThreshold: rules.participant.rankThreshold ?? { currentMin: null, peakMin: null }, starterCount: rules.lineup.starterCount, maxSubstitutes: rules.lineup.settings?.maxSubstitutes },
-    competitive: evidence.kind === "competitive" ? { profile: evidence.context.profile, requirements: evidence.requirements,
+    competitive: evidence.kind === "competitive" ? { profile: canonicalizeV2CompetitiveProfile(evidence.context.profile), requirements: evidence.requirements,
       byPurpose: { profileReadiness: [...evidence.byPurpose.profileReadiness].map(([userId, fact]) => ({ userId, historicalPeak: fact.historicalPeak, seasons: Object.fromEntries(fact.seasons) })),
         rankThreshold: [...evidence.byPurpose.rankThreshold].map(([userId, fact]) => ({ userId, ...fact })),
         externalStrength: [...evidence.byPurpose.externalStrength].map(([userId, fact]) => ({ userId, ...fact })) } } : null,
