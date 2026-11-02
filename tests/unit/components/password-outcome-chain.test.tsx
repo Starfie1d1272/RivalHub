@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("@/components/layout/PublicRuntimeConfig", () => ({ usePublicRuntimeConfig: () => ({ appOrigin: "http://localhost:3000", supabaseUrl: "http://localhost:54321", supabasePublishableKey: "sb_publishable_fixture", turnstileSiteKey: "", authEmailResendCooldownSeconds: 60 }) }));
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 

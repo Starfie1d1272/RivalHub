@@ -1,5 +1,7 @@
 "use server";
 
+import { requireApplicationOrigin } from "@/lib/runtime/public-config";
+
 import { randomBytes } from "node:crypto";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -148,8 +150,7 @@ export async function revokeSecondaryEmailIdentity(identityId: string): Promise<
 }
 
 function identityConfirmationUrl(requestId: string, stateToken: string): string {
-  const origin = process.env.NEXT_PUBLIC_APP_URL;
-  if (!origin) throw new Error("NEXT_PUBLIC_APP_URL 未配置");
+  const origin = requireApplicationOrigin();
   const url = new URL("/auth/confirmation", origin);
   url.searchParams.set("flow", "link_identity");
   url.searchParams.set("request", requestId);

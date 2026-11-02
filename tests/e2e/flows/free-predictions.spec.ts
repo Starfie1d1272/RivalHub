@@ -95,6 +95,8 @@ test("免费预测独立于BET，零余额可改选，BP与赛果消费各自官
       await page.reload();await expect(claim).toHaveCount(0);
       expect((await db.select().from(schema.betLedger).where(eq(schema.betLedger.seasonId, fixture.seasonId))).filter(row=>row.kind==="relief")).toEqual(relief);
     }
+    // Hydration must complete before freezing the browser clock after reload.
+    await expect(card.getByRole("tab", { name: /地图/ })).toBeEnabled();
     // Freeze browser polling so the stale-view rejection is deterministic;
     // server Actions and the official isolated PG clock remain real.
     await page.clock.pauseAt(new Date(Date.now() + 1_000));

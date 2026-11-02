@@ -1,5 +1,7 @@
 "use server";
 
+import { requireApplicationOrigin } from "@/lib/runtime/public-config";
+
 import { beginAuthentication } from "@/lib/auth/session-registry";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
@@ -193,8 +195,7 @@ export async function resendCurrentEmailVerification(): Promise<ActionResult<voi
 }
 
 function confirmationUrl(flow: "signup" | "reverify", next?: string): string {
-  const origin = process.env.NEXT_PUBLIC_APP_URL;
-  if (!origin) throw new Error("NEXT_PUBLIC_APP_URL 未配置");
+  const origin = requireApplicationOrigin();
   const url = new URL("/auth/confirmation", origin);
   // Email templates append their token parameters with `&`. Keep this query
   // parameter even without `next`, otherwise a second `?` discards token_hash.
@@ -218,7 +219,7 @@ export async function sendPasswordResetEmail(email: string): Promise<ActionResul
   try {
     const supabase = createServiceClient();
     const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-      redirectTo: new URL("/reset-password", process.env.NEXT_PUBLIC_APP_URL).toString(),
+      redirectTo: new URL("/reset-password", requireApplicationOrigin()).toString(),
     });
 
     if (error) {

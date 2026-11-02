@@ -1,4 +1,4 @@
-import { requireSupabasePublicKey } from "@/lib/runtime/supabase-keys";
+import type { PublicRuntimeConfig } from "@/lib/runtime/public-config";
 import { createLiveViewerClient } from "@/lib/auth/supabase";
 import { initialLiveViewerState, receivePublicLive, resetLiveViewer, type LiveViewerState } from "./live-viewer-state";
 import { browserPreviousLiveViewStore, type PreviousLiveViewStore } from "./live-previous-view";
@@ -102,13 +102,12 @@ export function connectLiveViewer(matchId: string, onState: (state: LiveViewerSt
   return () => { stopped = true; clear(); environment.previousViews?.forget(matchId); unsubscribe(); unsubscribeIdentity?.(); };
 }
 
-export function browserViewerEnvironment(): ViewerEnvironment {
+export function browserViewerEnvironment(config: PublicRuntimeConfig): ViewerEnvironment {
   return {
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
-    key: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-      ? requireSupabasePublicKey(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_URL) : "",
+    url: config.supabaseUrl,
+    key: config.supabasePublishableKey,
     fetch: window.fetch.bind(window), createClient: createLiveViewerClient, now: () => performance.now(),
-    previousViews: browserPreviousLiveViewStore(),
+    previousViews: browserPreviousLiveViewStore(config.supabaseUrl),
     onIdentityChange(callback) {
       window.addEventListener(LIVE_VIEW_CACHE_RESET_EVENT, callback);
       return () => window.removeEventListener(LIVE_VIEW_CACHE_RESET_EVENT, callback);

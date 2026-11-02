@@ -1,3 +1,4 @@
+import { requireSupabaseOrigin, runtimePublicValue } from "@/lib/runtime/public-config";
 import type { CommunityGroup, SeasonContact, SeasonPublicInfo } from "@/db/schema";
 
 export const SEASON_PUBLIC_ASSETS_BUCKET = "season-public-assets";
@@ -54,12 +55,11 @@ export function isExternalPublicHref(value: string): boolean {
   return /^https?:\/\//i.test(value);
 }
 
-export function seasonPublicAssetUrl(path: string | null): string | null {
+export function seasonPublicAssetUrl(path: string | null, base = runtimePublicValue("NEXT_PUBLIC_SUPABASE_URL")?.trim()): string | null {
   if (!path) return null;
-  const base = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  if (!base) return null;
+  const origin = requireSupabaseOrigin(base);
   const encodedPath = path.split("/").map(encodeURIComponent).join("/");
-  return `${base.replace(/\/$/, "")}/storage/v1/object/public/${SEASON_PUBLIC_ASSETS_BUCKET}/${encodedPath}`;
+  return `${origin}/storage/v1/object/public/${SEASON_PUBLIC_ASSETS_BUCKET}/${encodedPath}`;
 }
 
 export function toPublicSeasonInfo(
@@ -67,6 +67,7 @@ export function toPublicSeasonInfo(
   groups: readonly Pick<CommunityGroup, "id" | "label" | "audience" | "status" | "groupNumber" | "qrImagePath" | "joinUrl" | "note" | "sortOrder">[],
   contacts: readonly Pick<SeasonContact, "id" | "label" | "publicName" | "value" | "href" | "note" | "sortOrder">[],
   seasonSlug?: string,
+  assetBase?: string,
 ): PublicSeasonInfo {
   const defaultRulesHref = seasonSlug === "2026-nju-rivals" ? "/rules/spring" : "/rules";
   return {
@@ -83,7 +84,7 @@ export function toPublicSeasonInfo(
             audience: group.audience,
             status: group.status,
             groupNumber: group.groupNumber,
-            qrImageUrl: seasonPublicAssetUrl(group.qrImagePath),
+            qrImageUrl: seasonPublicAssetUrl(group.qrImagePath, assetBase),
             joinUrl: safePublicHref(group.joinUrl),
             note: group.note,
           }

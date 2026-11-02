@@ -1,3 +1,4 @@
+import { requireApplicationOrigin } from "@/lib/runtime/public-config";
 import { NextRequest, NextResponse } from "next/server";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { isSecondaryEmailOtpType } from "@/lib/auth/secondary-email-otp";
@@ -5,7 +6,7 @@ import { withRouteObservability } from "@/lib/observability/route";
 
 export async function GET(request: NextRequest) {
   return withRouteObservability(request, "/auth/callback", async () => {
-    const applicationOrigin = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin;
+    const applicationOrigin = requireApplicationOrigin();
     const url = new URL(request.url);
     const flow = callbackFlow(url);
     const tokenHash = url.searchParams.get("token_hash");
