@@ -173,6 +173,8 @@ export interface AdminMatchWorkbenchData {
   teamBMembers: TeamMemberData[];
   teamARoster: RosterData | null;
   teamBRoster: RosterData | null;
+  teamAPolicy: { starterCount: number; maxSubstitutes: number } | null;
+  teamBPolicy: { starterCount: number; maxSubstitutes: number } | null;
   teamAPreflight: AdminMatchPreflight | null;
   teamBPreflight: AdminMatchPreflight | null;
   completedMaps: AdminCompletedMap[];

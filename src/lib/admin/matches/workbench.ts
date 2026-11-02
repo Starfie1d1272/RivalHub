@@ -226,6 +226,15 @@ export async function loadAdminMatchWorkbench({
     teamBPreflight = preflightRows.find((row) => row.entryId === match.entryBId)?.preflight ?? null;
   }
 
+  const lineupPolicies = match.status !== "finished" ? await Promise.all(entryIds.map(async (entryId) => {
+    try {
+      return (await db.transaction((tx) => getStartingLineupPreflightInTx(tx, { match, entryId, starterIds: [] }))).policy;
+    } catch (error) {
+      if (!isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)) throw error;
+      return null;
+    }
+  })) : [null, null];
+
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const entryName = new Map(entries.map((entry) => [entry.id, entry.name]));
   const demoReviewSummaries: NonNullable<AdminMatchWorkbenchData["demoReviewSummaries"]> = [];
@@ -284,6 +293,8 @@ export async function loadAdminMatchWorkbench({
     teamBMembers: membersByEntry.get(match.entryBId) ?? [],
     teamARoster: projectRoster(rostersByEntry.get(match.entryAId)),
     teamBRoster: projectRoster(rostersByEntry.get(match.entryBId)),
+    teamAPolicy: lineupPolicies[0],
+    teamBPolicy: lineupPolicies[1],
     teamAPreflight,
     teamBPreflight,
     completedMaps: mapCompletedMaps(mapRecords),

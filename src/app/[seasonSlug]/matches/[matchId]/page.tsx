@@ -60,9 +60,10 @@ import { getMatchMvpResults } from "@/actions/player-stats";
 import { getMatchTimeProposalViews } from "@/lib/matches/time-proposals";
 import { projectMatchScheduling } from "@/lib/matches/time-rules";
 import { presentMatchStage, presentSchedulingAction } from "@/lib/matches/presentation";
+import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
 import { loadMatchRosters } from "@/lib/match-rosters/read-model";
 import { getUserSession, requireSeasonAdmin } from "@/lib/auth/session";
-import { isExpectedAuthFailure } from "@/lib/errors";
+import { ErrorCode, isAppErrorCode, isExpectedAuthFailure } from "@/lib/errors";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import {
   buildRoster,
@@ -284,6 +285,12 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
     }
   }
 
+  const captainPolicy = (isCaptainA || isCaptainB) && match.status === "scheduled"
+    ? await db.transaction((tx) => getStartingLineupPreflightInTx(tx, { match, entryId: isCaptainA ? match.entryAId : match.entryBId, starterIds: [] })).then(result => result.policy).catch((error: unknown) => {
+      if (!isAppErrorCode(error, ErrorCode.VALIDATION_FAILED)) throw error;
+      return null;
+    })
+    : null;
   const captainRoster = isCaptainA ? rosterA : isCaptainB ? rosterB : null;
   const canParticipateInVeto = isSeasonAdmin || isCaptainA || isCaptainB || Boolean(userSession && [rosterA, rosterB].some(roster =>
     roster?.players.some(player => player.isVetoRepresentative && player.isStarter && allTeamMembers.some(member => member.id === player.eventRosterMemberId && member.userId === userSession.userId)),
@@ -389,7 +396,8 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
                 </DialogContent>
               </Dialog>
             )}
-            {(isCaptainA || isCaptainB) && (
+            {(isCaptainA || isCaptainB) && !captainPolicy && <span className="text-sm text-[var(--color-fg-dim)]">名单规则暂不可用，请联系赛事管理员。</span>}
+            {(isCaptainA || isCaptainB) && captainPolicy && (
               <Dialog>
                 <DialogTrigger className="min-h-10 rounded border border-[var(--color-border)] px-3 text-sm">
                   {captainRoster ? "调整本场首发" : "选择本场首发"}
@@ -408,7 +416,7 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
                       initialStarterIds={captainRoster?.players.filter((player) => player.isStarter).map((player) => player.eventRosterMemberId) ?? []}
                       initialSubstituteIds={captainRoster?.players.filter((player) => !player.isStarter).map((player) => player.eventRosterMemberId) ?? []}
                       initialVetoRepresentativeEventRosterMemberId={captainRoster?.players.find((player) => player.isVetoRepresentative)?.eventRosterMemberId ?? null}
-                      allowSubstitutes={match.ownership !== "major_stage"}
+                      policy={captainPolicy}
                     />
                   </DialogBody>
                 </DialogContent>

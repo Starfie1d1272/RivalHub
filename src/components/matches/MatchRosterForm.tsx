@@ -1,5 +1,7 @@
 "use client";
 
+import type { MatchLineupPolicy } from "@/lib/match-rosters/policy";
+
 import { useTelemetryTask } from "@/components/telemetry/TaskBoundary";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import React, { useRef, useState, useTransition } from "react";
@@ -34,7 +36,7 @@ interface MatchRosterFormProps {
   initialStarterIds?: string[];
   initialSubstituteIds?: string[];
   initialVetoRepresentativeEventRosterMemberId?: string | null;
-  allowSubstitutes?: boolean;
+  policy: MatchLineupPolicy;
 }
 
 export function MatchRosterForm({
@@ -46,8 +48,10 @@ export function MatchRosterForm({
   initialStarterIds = [],
   initialSubstituteIds = [],
   initialVetoRepresentativeEventRosterMemberId = null,
-  allowSubstitutes = true,
+  policy,
 }: MatchRosterFormProps) {
+  const { starterCount, maxSubstitutes } = policy;
+  const allowSubstitutes = maxSubstitutes > 0;
   const task = useTelemetryTask("roster", matchId);
   const isMatchStarted = matchStatus !== "scheduled";
   const rosterLocked = rosterStatus === "confirmed";
@@ -73,7 +77,7 @@ export function MatchRosterForm({
     setSelectedStarterIds((prev) =>
       removing
         ? prev.filter((x) => x !== id)
-        : prev.length < 5
+        : prev.length < starterCount
           ? [...prev, id]
           : prev,
     );
@@ -87,7 +91,7 @@ export function MatchRosterForm({
     setSelectedSubstituteIds((prev) =>
       prev.includes(id)
         ? prev.filter((x) => x !== id)
-        : prev.length < 2
+        : prev.length < maxSubstitutes
           ? [...prev, id]
           : prev,
     );
@@ -96,9 +100,9 @@ export function MatchRosterForm({
   const handleSubmit = () => {
     const taskToken = task.begin("submit");
     task.step("submit", taskToken);
-    if (selectedStarterIds.length !== 5) {
+    if (selectedStarterIds.length !== starterCount || selectedSubstituteIds.length > maxSubstitutes) {
       task.validation("required", taskToken);
-      toast.error("请选择 5 名首发");
+      toast.error(`请选择 ${starterCount} 名首发`);
       return;
     }
     if (!vetoRepresentativeId || !selectedStarterIds.includes(vetoRepresentativeId)) {
@@ -201,7 +205,7 @@ export function MatchRosterForm({
           ))}
         </div>
         <p className="text-sm text-[var(--color-fg-dim)]">
-          已选 {selectedStarterIds.length}/5 名首发
+          已选 {selectedStarterIds.length}/{starterCount} 名首发
         </p>
       </div>
 
@@ -243,14 +247,14 @@ export function MatchRosterForm({
           ))}
         </div>
         <p className="text-sm text-[var(--color-fg-dim)]">
-          已选 {selectedSubstituteIds.length}/2 名替补（可不选）
+          已选 {selectedSubstituteIds.length}/{maxSubstitutes} 名替补（可不选）
         </p>
       </div>}
 
       {!rosterLocked && !isMatchStarted && (
         <Button
           onClick={handleSubmit}
-          disabled={Boolean(recovery) || isPending || selectedStarterIds.length !== 5}
+          disabled={Boolean(recovery) || isPending || selectedStarterIds.length !== starterCount || selectedSubstituteIds.length > maxSubstitutes}
           size="sm"
         >
           提交名单
