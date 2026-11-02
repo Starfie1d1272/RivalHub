@@ -852,8 +852,14 @@ export async function transferCompetitionEntryRepresentativeInTx(tx: TxDb, input
   await assertRosterNotFrozen(tx, entry.id);
   const season = await loadSeasonOrThrow(tx, entry.competitionId);
   if (decodeSeasonRules(season).roster.changes?.representativeCanTransfer === false) throw new AppError(ErrorCode.FORBIDDEN, "本届赛事不允许负责人自行交接，请联系赛事管理员。");
-  const [participant] = await tx.select().from(competitionEntryParticipants).innerJoin(competitionEntryRosterMembers, and(eq(competitionEntryRosterMembers.participantId, competitionEntryParticipants.id), eq(competitionEntryRosterMembers.revisionId, entry.currentRosterRevisionId))).where(and(eq(competitionEntryParticipants.entryId, entry.id), eq(competitionEntryParticipants.userId, input.toUserId))).for("update");
-  if (!participant || participant.competition_entry_participants.status !== "confirmed") throw new AppError(ErrorCode.VALIDATION_FAILED, "新赛事负责人必须是本届名单中已确认参赛的成员。");
+  const [participant] = await tx.select().from(competitionEntryParticipants)
+    .where(and(eq(competitionEntryParticipants.entryId, entry.id), eq(competitionEntryParticipants.userId, input.toUserId))).for("update");
+  if (!participant || participant.status !== "confirmed") throw new AppError(ErrorCode.VALIDATION_FAILED, "新赛事负责人必须是本届已确认参赛的成员。");
+  if (decodeSeasonRules(season).source === "policy_v2") {
+    const [rosterMember] = await tx.select({ id: competitionEntryRosterMembers.id }).from(competitionEntryRosterMembers)
+      .where(and(eq(competitionEntryRosterMembers.revisionId, entry.currentRosterRevisionId), eq(competitionEntryRosterMembers.participantId, participant.id), eq(competitionEntryRosterMembers.userId, participant.userId)));
+    if (!rosterMember) throw new AppError(ErrorCode.VALIDATION_FAILED, "新赛事负责人必须在当前名单中。 ");
+  }
   const now = new Date();
   await tx.insert(competitionEntryRepresentativeChanges).values({ entryId: entry.id, fromUserId: entry.representativeUserId, toUserId: input.toUserId, changedAt: await nextRepresentativeChangeAt(tx, entry.id), changedByActorId: input.actorId });
   await tx.update(competitionEntries).set({ representativeUserId: input.toUserId, updatedAt: now }).where(eq(competitionEntries.id, entry.id));
