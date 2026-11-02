@@ -70,8 +70,11 @@ export function seasonCapabilityIssue(input: {
   }
   if (input.isV2 && input.registrationMode === "team" && input.requirePositions) {
     const available = new Set(input.positions.filter(position => (CS2_POSITION_VALUES as readonly string[]).includes(position)));
-    if (available.size === 0 || (input.maxPerPositionPerTeam > 0 && available.size * input.maxPerPositionPerTeam < input.minTeamSize)) {
-      return "队伍报名尚无本届自定义位置输入，现有成员位置不足以满足名单要求。";
+    if (available.size !== new Set(input.positions).size || available.size === 0) {
+      return "队伍报名尚无本届自定义位置输入，无法要求填写这些位置。";
+    }
+    if (input.maxPerPositionPerTeam > 0 && available.size * input.maxPerPositionPerTeam < input.minTeamSize) {
+      return "现有成员位置与每位置上限不足以满足名单人数要求。";
     }
   }
   if (input.externalStrengthGapEnabled && input.affiliationRuleCount === 0) return "外校实力星差需要至少一个本校机构作为参考。";
