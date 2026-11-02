@@ -104,10 +104,8 @@ export async function skipDraftTurn(
 
       if (!next) {
         await finalizeDraft(tx, {
-          seasonId: parsed.data.seasonId,
           draftStateId: ds.id,
           now,
-          actorId: auditActorId(admin),
         });
 
         await writeAuditInTx(tx, {
