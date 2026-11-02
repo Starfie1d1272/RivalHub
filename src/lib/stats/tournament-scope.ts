@@ -40,7 +40,7 @@ export async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, opti
         scope.stage ? eq(matches.stage, scope.stage) : undefined,
         scope.format ? eq(matches.format, scope.format) : undefined,
       )) : [];
-  const vetoMatches = options.reuseVetoMatches && (scope.seasonId || scope.seasonIds) && !options.mapName && !options.matchIds && !options.teamId && !scope.mapFilter && !scope.teamFilter
+  const vetoMatches = options.reuseVetoMatches && (scope.seasonId || scope.seasonIds) && !options.mapName && !options.matchIds && !options.teamId && !scope.teamFilter
     ? matchRows.filter((match) => match.testConfig === null).map(({ id, status, isForfeit, entryAId, entryBId }) => ({ id, status, isForfeit, entryAId, entryBId }))
     : undefined;
   const selectedTeamId = options.teamId ?? scope.teamFilter;
