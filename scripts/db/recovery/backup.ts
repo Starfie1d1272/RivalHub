@@ -25,7 +25,7 @@ import {
   snapshotStorage,
 } from "./storage";
 import { readManagedStorageReferences, type ManagedStorageReference } from "./storage-policy";
-import { resolveProductionSourceIdentity } from "./source";
+import { assertRecoverySourceUnchanged, resolveProductionSourceIdentity } from "./source";
 import {
   assertActiveChainPrefix,
   readExpectedMigrations,
@@ -66,6 +66,15 @@ async function main(): Promise<void> {
     const activeStorageReferencesAfterSnapshot = await readManagedStorageReferencesFromProduction(environment.databaseUrl);
     assertActiveStorageReferencesStable(activeStorageReferencesBeforeSnapshot, activeStorageReferencesAfterSnapshot);
     assertActiveStorageReferencesCaptured(activeStorageReferencesBeforeSnapshot, storage.records);
+
+    // A snapshot is not a migration mutex. Re-read both independently sourced
+    // identities before publishing so a changed release/chain fails closed.
+    const migrationAfter = await readProductionMigrationIdentity(environment.databaseUrl);
+    const sourceAfter = await resolveProductionSourceIdentity();
+    assertRecoverySourceUnchanged(
+      { ...source, databaseMigrationTerminal: migration.ledger },
+      { ...sourceAfter, databaseMigrationTerminal: migrationAfter.ledger },
+    );
 
     const manifest: RecoveryManifest = {
       formatVersion: RECOVERY_FORMAT_VERSION,

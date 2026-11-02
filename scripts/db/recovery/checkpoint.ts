@@ -18,7 +18,7 @@ import {
   readProductionMigrationIdentity,
   readSupabaseCliVersion,
 } from "./backup";
-import { resolveProductionSourceIdentity } from "./source";
+import { assertRecoverySourceUnchanged, resolveProductionSourceIdentity } from "./source";
 
 async function main(): Promise<void> {
   const environment = assertProductionDbCheckpointEnvironment(process.env);
@@ -32,6 +32,12 @@ async function main(): Promise<void> {
     const migration = await readProductionMigrationIdentity(environment.databaseUrl);
     const source = await resolveProductionSourceIdentity();
     const databaseRoot = await createDatabaseSnapshot(environment.databaseUrl, stagingRoot);
+    const migrationAfter = await readProductionMigrationIdentity(environment.databaseUrl);
+    const sourceAfter = await resolveProductionSourceIdentity();
+    assertRecoverySourceUnchanged(
+      { ...source, databaseMigrationTerminal: migration.ledger },
+      { ...sourceAfter, databaseMigrationTerminal: migrationAfter.ledger },
+    );
     const manifest: RecoveryManifest = {
       formatVersion: RECOVERY_FORMAT_VERSION,
       runId,

@@ -51,6 +51,21 @@ export async function resolveProductionSourceIdentity(
   return { deployedReleaseTag: identity.releaseTag, deployedCommit: identity.releaseCommit };
 }
 
+/** Detect a release or migration change during capture. This is evidence, not
+ * a database-wide migration lock or an atomic DB/Storage snapshot. */
+export function assertRecoverySourceUnchanged(
+  before: Omit<RecoverySourceIdentity, "databaseMigrationTerminal"> & { databaseMigrationTerminal: RecoveryMigrationIdentity },
+  after: Omit<RecoverySourceIdentity, "databaseMigrationTerminal"> & { databaseMigrationTerminal: RecoveryMigrationIdentity },
+): void {
+  const a = before.databaseMigrationTerminal;
+  const b = after.databaseMigrationTerminal;
+  if (before.deployedReleaseTag !== after.deployedReleaseTag
+    || before.deployedCommit !== after.deployedCommit
+    || a.terminalTag !== b.terminalTag || a.terminalHash !== b.terminalHash || a.terminalWhen !== b.terminalWhen) {
+    throw new Error("Recovery source release or migration ledger changed during snapshot; backup aborted.");
+  }
+}
+
 export function buildRecoveryMigrationPlan(
   expected: readonly ExpectedMigration[],
   terminal: RecoveryMigrationIdentity,
