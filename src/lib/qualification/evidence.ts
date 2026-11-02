@@ -41,6 +41,7 @@ export function buildQualificationEvidence(
   return {
     kind: "competitive",
     context: {
+      profile: context,
       platform: context.platform,
       rankOrder: context.rankOrder,
       fallback: context.fallbackConversion ?? null,
@@ -48,7 +49,7 @@ export function buildQualificationEvidence(
       evidencePolicy: context.evidencePolicy ?? null,
     },
     requirements,
-    byUser: new Map([...facts].map(([id, fact]) => [id, toPlayerStrengthInput({ ...fact, userId: id }, context, purpose)])),
+    byUser: new Map([...facts].map(([id, fact]) => [id, selectPlayerStrengthEvidence({ ...fact, userId: id }, context, purpose, requirements.seasonKeys)])),
   };
 }
 
@@ -131,11 +132,12 @@ export function createCompetitiveCandidateResolver(context: CompetitiveProfileCo
 }
 
 /** Adapts long-term facts to the event's frozen evidence policy in one place. */
-export function toPlayerStrengthInput(
+function selectPlayerStrengthEvidence(
   fact: Pick<ParticipantQualificationFacts, "userId" | "displayName" | "perfectName" | "personaName" | "email" | "historicalPeak" | "seasonPeaks" | "platformSeasonOrder" | "fallbackFacts">,
   context: CompetitiveProfileConfig | null,
   purpose?: CompetitivePurpose,
-): PlayerStrengthInput {
+  requestedSeasonKeys: readonly string[] = [],
+) {
   const policy = context?.evidencePolicy;
   const fallback = context?.fallbackConversion;
   const resolve = createCompetitiveCandidateResolver(context, purpose);
@@ -216,7 +218,7 @@ export function toPlayerStrengthInput(
     if (direct || !context || (primary?.status !== "unranked" && fallbackFact?.status !== "unranked")) return direct;
     return estimateUnrankedSeason(seasonKey);
   };
-  return {
+  const strength: PlayerStrengthInput = {
     userId: fact.userId ?? "",
     label: getDisplayName(fact),
     historicalPeak: resolve(fact.historicalPeak, fact.fallbackFacts?.historicalPeak),
@@ -226,5 +228,19 @@ export function toPlayerStrengthInput(
       : seasonFact(context?.currentSeasonKey ?? ""),
     recentSeasonPeaks: purpose === "external_historical_gap" || purpose === "rank_threshold" ? [] : recentSeasonKeys.map(seasonFact),
   };
+  return {
+    strength,
+    historicalPeak: strength.historicalPeak,
+    seasons: new Map(requestedSeasonKeys.map((key) => [key, purpose === "rank_threshold" ? directForSeason(key) : seasonFact(key)])),
+  };
+}
+
+/** Compatibility adapter; new consumers use purpose-specific QualificationEvidence. */
+export function toPlayerStrengthInput(
+  fact: Pick<ParticipantQualificationFacts, "userId" | "displayName" | "perfectName" | "personaName" | "email" | "historicalPeak" | "seasonPeaks" | "platformSeasonOrder" | "fallbackFacts">,
+  context: CompetitiveProfileConfig | null,
+  purpose?: CompetitivePurpose,
+): PlayerStrengthInput {
+  return selectPlayerStrengthEvidence(fact, context, purpose).strength;
 }
 
