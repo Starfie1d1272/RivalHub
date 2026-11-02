@@ -53,6 +53,22 @@ sudo pnpm exec tsx scripts/instance/release.ts --rollback
 
 迁移开始前失败可恢复旧程序；迁移开始后失败保持服务停止和事务快照，不自动启动旧程序。必须先按现有恢复流程在隔离目标恢复并验证 checkpoint，才能考虑运行与该数据库匹配的旧程序；应用回滚不回滚数据库。当前 DB-only 恢复入口仅支持隔离目标，Hosted 目标的恢复与重新接入尚未验收。checkpoint 的记录保存在 root-only 事务快照中。
 
+恢复检查点时，保持实例及其他写入者停止。从事务快照的 `checkpoint.log` 取 `completion=` 后的对象 key，在具备该实例 R2 只读凭据的恢复机执行以下命令。输出目录必须不存在，私钥留在离线恢复机：
+
+```bash
+pnpm db:recovery:fetch --completion-key '<completion-key>' --output /private/path/checkpoint
+export RIVALHUB_RECOVERY_TARGET=isolated
+export RIVALHUB_RECOVERY_DATABASE_URL='postgresql://...@127.0.0.1:.../postgres'
+export RIVALHUB_BACKUP_AGE_IDENTITY_FILE=/private/path/age-identity.txt
+unset RIVALHUB_ALLOW_REMOTE_DB_WRITE
+pnpm db:recovery:restore-db-checkpoint \
+  --artifact /private/path/checkpoint/artifact.tar.gz.age \
+  --manifest /private/path/checkpoint/sidecar.json \
+  --completion /private/path/checkpoint/completion.json
+```
+
+目标须是全新的隔离 Supabase/PostgreSQL；恢复工具版本须符合 [灾难恢复说明](./disaster-recovery.md#isolated-restore) 的来源版本与账本要求。核验成功仅证明隔离副本；本机自动回滚不会因为隔离恢复成功而启动旧程序。Hosted 数据库恢复、切换及重新接入仍须使用单独授权且已验证的恢复流程。
+
 ## 备份与恢复边界
 
 独立实例 full backup 使用既有 `db:recovery:backup`，显式设置 `RIVALHUB_BACKUP_SOURCE=instance`、非官方 `RIVALHUB_INSTANCE_PROJECT_REF` 与相同的 `RIVALHUB_INSTANCE_CONFIRM`，并提供该实例的应用 origin、API、Session Pooler 数据库连接、Storage secret key、age recipient 与独立 R2 配置。运行中的实例必须提供 `/api/system/recovery-source`：它只返回 release 和已公开的项目身份，备份会核对其实际运行配置、数据库项目、真实 commit 对象和版本派生的实例 release 标识，以及采集前后的账本。旧版本不支持此合同，不能靠手填身份替代。实例 artifact 位于 `instance/<project-ref>/`，该前缀的保留策略由实例运营者配置；官方 `production/` 策略不自动覆盖它。 本地端到端演练可显式使用 `RIVALHUB_BACKUP_SOURCE=isolated-instance`、`RIVALHUB_DB_TARGET=local` 和 `RIVALHUB_BACKUP_SUPABASE_WORKDIR`，并设置 loopback 的 `RIVALHUB_R2_LOCAL_ENDPOINT`；来源身份由 Local Supabase status 和运行中的本地应用读取。此类产物位于 `isolated/`，只允许恢复到隔离目标，不能作为 Hosted 激活凭证。
