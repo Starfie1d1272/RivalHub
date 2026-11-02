@@ -1,4 +1,4 @@
-import { check, pgEnum, pgTable, uuid, text, timestamp, boolean, unique, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
+import { check, pgEnum, pgTable, uuid, text, timestamp, boolean, unique, uniqueIndex, jsonb, foreignKey } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { matches } from "./matches";
 import { users } from "./users";
@@ -27,6 +27,8 @@ export const matchRosters = pgTable("match_rosters", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   unq: unique().on(t.matchId, t.entryId),
+  sourceRevisionEntryScope: foreignKey({ columns: [t.sourceRosterRevisionId, t.entryId], foreignColumns: [competitionEntryRosterRevisions.id, competitionEntryRosterRevisions.entryId], name: "match_rosters_revision_entry_scope_fk" }),
+  eligibilityIdentityShape: check("match_rosters_eligibility_identity_shape_check", sql`(${t.sourceRosterRevisionId} IS NULL) = (${t.eligibilitySnapshot} IS NULL)`),
   metadataShape: check("match_rosters_metadata_shape_check", sql`(${t.source} = 'participant' AND ${t.submittedBy} IS NOT NULL) OR (${t.source} IN ('admin_select', 'system_default') AND ${t.submittedBy} IS NULL)`),
   confirmationShape: check("match_rosters_confirmation_shape_check", sql`(${t.status} = 'submitted' AND ${t.confirmedAt} IS NULL AND ${t.confirmedBy} IS NULL) OR (${t.status} = 'confirmed' AND ${t.confirmedAt} IS NOT NULL AND ${t.confirmedBy} IS NOT NULL)`),
 }));
