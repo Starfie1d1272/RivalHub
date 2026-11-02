@@ -131,7 +131,7 @@ export function assertV2FullRecoverySupported(terminalTag: string): void {
   const minimum = chain.findIndex((entry) => entry.tag === "0046_mixed_sprite");
   const terminal = chain.findIndex((entry) => entry.tag === terminalTag);
   if (minimum < 0 || terminal < minimum) {
-    throw new Error("V2 full recovery before 0046 requires its original immutable release tools; DB-only checkpoint remains supported.");
+    throw new Error("Current tools do not support full backup or restore before 0046; DB-only checkpoint remains available. Restore an existing historical artifact only with its matching tools.");
   }
 }
 
