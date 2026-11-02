@@ -1,4 +1,3 @@
-import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { interpretEntryRosterStatus } from "@/lib/competition-entries/status-read-model";
 import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { Suspense } from "react";

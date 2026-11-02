@@ -14,7 +14,6 @@ import { ok, type ActionResult } from "@/types/action";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { adoptEventNativeRosterInTx, assessEntryRosterInTx } from "@/lib/competition-entries/commands";
-import { loadActiveRestrictionOverridesInTx } from "@/lib/competition-entries/restriction-overrides";
 import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
 import { adoptApprovedRosterInTx } from "@/lib/event-rosters/owner";
 import { prepareApprovedEventRosterInTx } from "@/lib/event-rosters/prepare-approved";
@@ -104,8 +103,7 @@ export async function approveFormation(input: { seasonId: string; entryId: strin
       if (decodeSeasonRules(season).source === "policy_v2") {
         const assessment = await assessEntryRosterInTx(tx, { entryId: entry.id, expectedRevisionId: parsed.data.expectedRevisionId });
         const coherent = await assertSinglePrestartEntryCoherenceInTx(tx, season.id, { competitionEntryId: entry.id }, { requireEventRosterSync: false });
-        const overrides = await loadActiveRestrictionOverridesInTx(tx, { competitionId: season.id, entryIds: [entry.id], rosterRevisionIds: [parsed.data.expectedRevisionId] });
-        await adoptApprovedRosterInTx(tx, { coherent, actorId, candidate: assessment.candidate, rules: assessment.rules, evidence: assessment.evidence, decisions: [assessment.rosterDecision, ...assessment.participantDecisions.values()], overrides });
+        await adoptApprovedRosterInTx(tx, { coherent, actorId, assessment });
         await writeAuditInTx(tx, { seasonId: season.id, action: "competition_entry.sync_event_roster", actorId, targetId: entry.id, meta: { source: "formation", rosterRevisionId: parsed.data.expectedRevisionId } });
       } else {
         await prepareApprovedEventRosterInTx(tx, { seasonId: season.id, entryId: entry.id, actorId });
