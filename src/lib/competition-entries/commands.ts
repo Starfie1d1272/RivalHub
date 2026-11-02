@@ -820,7 +820,7 @@ export async function adoptEventNativeRosterInTx(
   return { seasonId: season.id, seasonSlug: season.slug, revisionId: revision.id, alreadyApproved: false, assessment };
 }
 
-export async function applyEntryReviewDecisionInTx(tx: TxDb, input: { entryId: string; decision: "changes_requested" | "waitlisted" | "approved" | "rejected"; reason?: string; actorId: string }): Promise<{ seasonSlug: string; seasonId: string; from: typeof competitionEntries.$inferSelect.registrationStatus; rosterRevision: number }> {
+export async function applyEntryReviewDecisionInTx(tx: TxDb, input: { entryId: string; decision: "changes_requested" | "waitlisted" | "approved" | "rejected"; reason?: string; actorId: string }): Promise<{ seasonSlug: string; seasonId: string; from: typeof competitionEntries.$inferSelect.registrationStatus; rosterRevision: number; assessment: EntryRosterAssessment | null }> {
   const [entryScope] = await tx.select({ competitionId: competitionEntries.competitionId })
     .from(competitionEntries).where(eq(competitionEntries.id, input.entryId));
   if (!entryScope) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。");
@@ -833,9 +833,7 @@ export async function applyEntryReviewDecisionInTx(tx: TxDb, input: { entryId: s
   const [submission] = await tx.select().from(competitionEntrySubmissions).where(and(eq(competitionEntrySubmissions.entryId, entry.id), eq(competitionEntrySubmissions.rosterRevisionId, revision.id))).for("update");
   if (!submission) throw new AppError(ErrorCode.INTERNAL_ERROR, "报名提交记录不完整，请联系赛事管理员。");
   const now = new Date();
-  if (input.decision === "approved") {
-    await approveRosterRevisionInTx(tx, entry, season, now);
-  }
+  const assessment = input.decision === "approved" ? (await approveRosterRevisionInTx(tx, entry, season, now)).assessment : null;
   await tx.update(competitionEntrySubmissions).set({ decision: input.decision, decidedBy: input.actorId, decidedAt: now, reason: input.reason || null }).where(eq(competitionEntrySubmissions.id, submission.id));
   if (input.decision === "changes_requested") {
     const next = await cloneRosterRevisionAsDraftInTx(tx, revision, input.actorId, "admin_remediation");
@@ -844,7 +842,7 @@ export async function applyEntryReviewDecisionInTx(tx: TxDb, input: { entryId: s
     await tx.update(competitionEntries).set({ registrationStatus: input.decision, approvedRosterRevisionId: input.decision === "approved" ? revision.id : entry.approvedRosterRevisionId, reviewedAt: now, reviewReason: input.reason || null, updatedAt: now }).where(eq(competitionEntries.id, entry.id));
     if (input.decision === "rejected") await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.entryId, entry.id));
   }
-  return { seasonSlug: season.slug, seasonId: season.id, from: entry.registrationStatus, rosterRevision: revision.revisionNumber };
+  return { seasonSlug: season.slug, seasonId: season.id, from: entry.registrationStatus, rosterRevision: revision.revisionNumber, assessment };
 }
 
 export async function transferCompetitionEntryRepresentativeInTx(tx: TxDb, input: { entryId: string; userId: string; toUserId: string; actorId: string }): Promise<{ seasonSlug: string }> {
