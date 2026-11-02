@@ -206,10 +206,13 @@ export async function syncApprovedRosterToEventRosterInTx(
     if (eventRoster.eligibilitySnapshot?.version === 2 && eventRoster.sourceRosterRevisionId === approvedRevision.id &&
         (eventRoster.status === "confirmed" || eventRoster.status === "frozen")) {
       decodeFrozenLineupEligibility(eventRoster.eligibilitySnapshot, { seasonId: season.id, entryId: entry.id, rosterRevisionId: approvedRevision.id });
+      await freezeQualificationRosterInTx(tx, { season, entryId: entry.id, rosterRevisionId: approvedRevision.id, eventRosterId: eventRoster.id });
       return { eventRosterId: eventRoster.id, rosterSize: null, changed: false };
     }
     const assessment = input.assessment ?? await assessEntryRosterInTx(tx, { entryId: entry.id, expectedRevisionId: approvedRevision.id });
-    return adoptApprovedRosterInTx(tx, { coherent, actorId, assessment });
+    const adopted = await adoptApprovedRosterInTx(tx, { coherent, actorId, assessment });
+    await freezeQualificationRosterInTx(tx, { season, entryId: entry.id, rosterRevisionId: approvedRevision.id, eventRosterId: adopted.eventRosterId });
+    return adopted;
   }
   const freezeEligibility = () => freezeQualificationRosterInTx(tx, { season, entryId: entry.id, rosterRevisionId: approvedRevision.id, eventRosterId: eventRoster.id });
   if (eventRoster.status === "frozen") {

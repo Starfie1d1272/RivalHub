@@ -757,6 +757,13 @@
       "when": 1793612820979,
       "tag": "0107_nullable_registration_competitive_facts",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1793614733496,
+      "tag": "0108_plain_captain_cross",
+      "breakpoints": true
     }
   ]
 }

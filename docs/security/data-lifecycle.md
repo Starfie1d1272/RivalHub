@@ -8,7 +8,7 @@
 
 | 类别 / owner | 目的与存储 | 可见性与敏感性 |
 | --- | --- | --- |
-| 赛事、名单、比赛、赛果、奖项；[domain model](../domain-model.md) | PostgreSQL 保存正式历史与冻结归属 | 发布后的正式 DTO 为 public；报名、审核、后台操作字段为 private |
+| 赛事、名单、比赛、赛果、奖项；[domain model](../domain-model.md) | PostgreSQL 保存正式历史、冻结归属及本人本届参赛身份声明，用于资格审核 | 发布后的正式 DTO 为 public；参赛身份声明、报名、审核及后台操作字段为 private |
 | 长期 Team / Player 展示；[身份展示](../../src/lib/identity/display-name.ts) | PostgreSQL 保存当前昵称、自述与组织身份 | 允许公开的资料为 public；整行用户资料不是公开 DTO |
 | 账号、凭据绑定与归并；[users](../../src/db/schema/users.ts)、[identity](../../src/db/schema/identity.ts)、[auth](../auth-and-permissions.md) | PostgreSQL 保存 canonical person、邮箱归属、外部身份、provenance；Supabase Auth 拥有密码/provider 身份 | 邮箱、Auth subject、归并证据为 private/sensitive，self / 授权管理员 / server-only |
 | 登录页面更新草稿；[login-update-draft](../../src/lib/auth/login-update-draft.ts) | 用户明确点击更新时仅将当前邮箱存入同标签页 sessionStorage，供更新后一次恢复 | 不保存密码、验证码、Turnstile/session票据；15分钟后读端拒绝，读取时删除、关闭标签页清除，不进入服务端、日志或备份；不自动重放提交 |

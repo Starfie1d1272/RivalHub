@@ -13,7 +13,7 @@ import {
   type SeasonEducationVerification,
 } from "@/lib/education/eligibility";
 import type { CompetitiveProfileConfig, InstitutionAffiliationRule } from "@/types/season";
-import type { DecodedSeasonRules, EvaluateParticipant, QualificationDecision } from "@/lib/seasons/rules";
+import type { DecodedSeasonRules, EvaluateParticipant, QualificationDecision, SoloAssessment } from "@/lib/seasons/rules";
 
 /**
  * Single orchestration owner for participant qualification.
@@ -328,8 +328,10 @@ export const evaluateParticipant: EvaluateParticipant = (candidate, rules, evide
   });
   const educationState = resolveParticipantEducationReadiness(fact);
   if (rules.educationRequired && educationState !== "ready") findings.push(educationReadinessFinding(educationState));
-  if (rules.allowedPlayerTypes && (!candidate.playerType || !rules.allowedPlayerTypes.includes(candidate.playerType))) {
-    findings.push({ code: "player_type_ineligible", message: "所选身份类型不符合赛事报名要求。", waivable: false, metadata: { field: "player_type" } });
+  const allowedPlayerTypes = rules.allowedPlayerTypes;
+  const allPlayerTypesAllowed = allowedPlayerTypes && (["enrolled", "graduated", "external"] as const).every((type) => allowedPlayerTypes.includes(type));
+  if (allowedPlayerTypes && ((!candidate.playerType && !allPlayerTypesAllowed) || (candidate.playerType && !allowedPlayerTypes.includes(candidate.playerType)))) {
+    findings.push({ code: "player_type_ineligible", message: candidate.playerType ? "所选身份类型不符合赛事报名要求。" : "请声明本人参赛身份类型。", waivable: false, metadata: { field: "player_type" } });
   }
   const threshold = rules.rankThreshold;
   const hasThreshold = Boolean(threshold && (threshold.currentMin !== null || threshold.peakMin !== null));
@@ -342,13 +344,19 @@ export const evaluateParticipant: EvaluateParticipant = (candidate, rules, evide
         findings.push(...evaluateCompetitiveProfileReadiness(evidence, candidate.userId));
       }
       if (threshold && hasThreshold) {
-        findings.push(...evaluateRankThreshold(toPlayerStrengthInput({ ...fact, userId: candidate.userId }, profile, "rank_threshold"), threshold, profile.rankOrder));
+        const rankEvidence = evidence.kind === "competitive" ? evidence.byPurpose.rankThreshold.get(candidate.userId) : undefined;
+        findings.push(...evaluateRankThreshold(rankEvidence ?? { currentRank: null, peakRank: null }, threshold, profile.rankOrder));
       }
     }
   }
   const result = uniqueQualificationFindings(findings);
   return result.length ? { state: "blocked", findings: result as [QualificationFinding, ...QualificationFinding[]] } : { state: "ready", findings: [] };
 };
+
+/** A solo participant has no roster decision until a roster is assembled. */
+export function assessSoloParticipant(participant: QualificationDecision): SoloAssessment {
+  return { participant, roster: { state: "pending_stage", requiredAt: "roster_approval" } };
+}
 
 /** Load the same facts inside the caller's mutation transaction. */
 export async function evaluateSeasonParticipantInTx(

@@ -29,7 +29,7 @@ import { normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrat
 import { resolveManagedMajorProfile } from "@/lib/competition/definition";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 import { PageLayout, Panel, StatusBanner, PosChip } from "@/components/rivalhub";
-import { positionLabel } from "@/lib/validators/registration";
+import { positionLabel, type RegistrationInput } from "@/lib/validators/registration";
 import { getRegistrationWindowState, getWindowTone } from "@/lib/registration/window";
 import { formatCST } from "@/lib/utils/date";
 import { projectMapPreferences } from "@/lib/maps";
@@ -38,7 +38,7 @@ import { isSoloRegistration } from "@/lib/utils/season";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { CompetitionEntryFlow } from "@/components/register/CompetitionEntryFlow";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { computePolicyParticipantReadiness, evaluateRosterQualificationFromFacts, evaluateSeasonParticipantInTx, getParticipantReadinessBatch, isHomeAffiliatedMember, loadParticipantQualificationFacts, resolveCompetitiveContext, resolveSeasonEducationVerification } from "@/lib/qualification/service";
+import { assessSoloParticipant, computePolicyParticipantReadiness, evaluateRosterQualificationFromFacts, evaluateSeasonParticipantInTx, getParticipantReadinessBatch, isHomeAffiliatedMember, loadParticipantQualificationFacts, resolveCompetitiveContext, resolveSeasonEducationVerification } from "@/lib/qualification/service";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { presentRegistrationSchedule } from "@/lib/seasons/presentation";
 import { RegistrationScheduleCountdown } from "@/components/seasons/RegistrationScheduleCountdown";
@@ -368,15 +368,15 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
   ]);
   const regConfig = normalizeRegistrationConfig(season.registrationConfig);
   const soloRules = decodeSeasonRules(season);
-  const soloDecision = soloRules.source === "policy_v2"
-    ? await evaluateSeasonParticipantInTx(db, userSession.userId, currentRegistration?.playerType ?? regConfig.allowedPlayerTypes[0] ?? "", soloRules)
+  const soloAssessment = soloRules.source === "policy_v2"
+    ? assessSoloParticipant(await evaluateSeasonParticipantInTx(db, userSession.userId, currentRegistration?.playerType ?? regConfig.allowedPlayerTypes[0] ?? "", soloRules))
     : null;
   const maxPerPos = regConfig.maxPerPosition;
   const existingStatus = currentRegistration?.status ?? null;
   const existingStatusLabel = existingStatus ? REGISTRATION_STATUS_LABELS[existingStatus] : null;
   const canEditExisting = !!currentRegistration && currentRegistration.status !== "approved";
   const longTermMapPreferences = mapPreferences[0]?.mapPreferences;
-  const initialValues = {
+  const initialValues: Partial<RegistrationInput> = {
     email: userSession.email,
     studentId: currentUser?.studentId ?? "",
     qq: currentUser?.qq ?? "",
@@ -391,7 +391,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
         qq: currentUser?.qq ?? "",
         perfectName: currentUser?.perfectName ?? "",
         steam64: currentUser?.steam64 ?? "",
-        playerType: currentRegistration.playerType,
+        playerType: currentRegistration.playerType === "enrolled" || currentRegistration.playerType === "graduated" || currentRegistration.playerType === "external" ? currentRegistration.playerType : undefined,
         primaryPosition: currentRegistration.primaryPosition,
         secondaryPosition: currentRegistration.secondaryPosition,
         peakRank: currentRegistration.peakRank ?? undefined,
@@ -506,7 +506,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
         </div>
       )}
 
-      {soloDecision?.state === "blocked" && <StatusBanner tone="info" title="当前账号资料待完善" sub={soloDecision.findings.map((finding) => finding.message).join("；")} />}
+      {soloAssessment?.participant.state === "blocked" && <StatusBanner tone="info" title="当前账号资料待完善" sub={soloAssessment.participant.findings.map((finding) => finding.message).join("；")} />}
       <Panel contentClassName="p-6">
         {currentRegistration?.status === "approved" ? (
           <div className="py-10 text-center">
