@@ -1,11 +1,11 @@
+import { connection } from "next/server";
 import { assertReleaseIdentity } from "@/lib/release/identity";
 import { readInstanceRecoverySource } from "@/lib/runtime/instance-recovery-source";
 
-export const dynamic = "force-dynamic";
-
 // The project URL is already public runtime configuration. Never return DB
 // credentials, raw connection URLs, or any other environment values.
-export function GET(): Response {
+export async function GET(): Promise<Response> {
+  await connection();
   try {
     if (process.env.RIVALHUB_PRESENCE_MODE !== "single-process") throw new Error("Independent instance required.");
     const release = assertReleaseIdentity({ releaseTag: process.env.RIVALHUB_RELEASE_TAG, releaseCommit: process.env.RIVALHUB_RELEASE_COMMIT });
