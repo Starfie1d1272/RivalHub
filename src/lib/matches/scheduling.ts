@@ -86,6 +86,7 @@ export async function setAdminSchedule(matchId: string, seasonId: string, userId
     if (match.seasonId !== seasonId) throw new AppError(ErrorCode.FORBIDDEN, "比赛所属赛事已变化。");
     if (match.status !== "scheduled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只能调整尚未开始的比赛时间。");
     if (time) assertProposedTimeFitsDeadline(time, match.completionDeadline);
+    if ((time?.getTime() ?? null) === (match.scheduledAt?.getTime() ?? null)) return;
     await releaseMatchCoverageInTx(tx, matchId);
     // Resource rows can wait; reject a time that became invalid during the wait.
     if (time) assertProposedTimeFitsDeadline(time, match.completionDeadline);
