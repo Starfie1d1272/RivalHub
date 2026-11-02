@@ -1,3 +1,4 @@
+import { OFFICIAL_PRODUCTION } from "../../src/lib/runtime/official-deployment-profile.mjs";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,7 +13,7 @@ try {
   writeFileSync(join(dir, "known_hosts"), `${knownHosts}\n`, { mode: 0o600 });
   let identity = null;
   try {
-    const response = await fetch("https://match.starfie1d.top/api/system/release", { signal: AbortSignal.timeout(10000), redirect: "error" });
+    const response = await fetch(`${OFFICIAL_PRODUCTION.origin}/api/system/release`, { signal: AbortSignal.timeout(10000), redirect: "error" });
     if (!response.ok) throw new Error();
     const value = await response.json();
     if (Object.keys(value).sort().join(",") !== "releaseCommit,releaseTag" || !/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(value.releaseTag) || !/^[a-f0-9]{40}$/.test(value.releaseCommit)) throw new Error();
