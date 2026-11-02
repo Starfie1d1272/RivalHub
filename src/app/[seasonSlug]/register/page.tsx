@@ -1,3 +1,4 @@
+import { interpretEntryRosterStatus } from "@/lib/competition-entries/status-read-model";
 import { Suspense } from "react";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import { notFound, redirect } from "next/navigation";
@@ -257,6 +258,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
         logoUrl: entry.logoUrl,
         teamLogoUrl: entryTeam?.logoUrl ?? null,
         status: entry.registrationStatus,
+        rosterStatus: interpretEntryRosterStatus({ ...entry, revisionStatus: revision?.status ?? null }),
         revisionOrigin: revision?.origin ?? null,
         representativeUserId: entry.representativeUserId,
         reviewReason: revision?.origin === "self_roster_change" ? null : entry.reviewReason,

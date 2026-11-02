@@ -110,6 +110,8 @@ Recruitment 是 Team/Player 的当前意向，不是 membership、invitation 或
 | EventRoster | 本届已确认/冻结的正式赛事名单 |
 | MatchRoster | 本场实际出场阵容 |
 
+报名的持久状态也编码当前名单审核流程；已有批准修订指针与当前修订审核状态是两个只读事实。名单变更或被拒绝时保留原批准记录，但不能据此让待审名单上场：正式名单仍须经过既有同步、确认和冻结。审核应用用例在同一事务中编排 Entry 决定、Major 与资格赛同步及审计。
+
 这些 owner 不能互相替代。尤其 MatchRoster 必须来自本届 EventRoster，而不是回读可变 Team membership 或报名草稿。
 
 EventRoster 的当前成员供后续比赛选择；一旦某个成员行被 MatchRoster 引用，它就成为历史比赛事实。名单获批更新时保留该行并标记为非当前，再写入新版本；没有历史引用的旧成员行可以删除。已有 MatchRoster 始终指向原成员行，不随当前 EventRoster 改写。
