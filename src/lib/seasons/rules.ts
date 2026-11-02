@@ -39,7 +39,10 @@ export type QualificationEvidence = { kind: "none" } | {
   kind: "competitive";
   context: { profile: import("@/types/season").CompetitiveProfileConfig | null; platform: string; rankOrder: readonly string[]; fallback: import("@/types/season").CompetitiveFallbackConversion | null; sourceSelection: "primary_then_fallback" | "strongest_equivalent"; evidencePolicy: import("@/types/season").CompetitiveEvidencePolicy | null };
   requirements: { historicalPeak: boolean; seasonKeys: readonly string[]; ratingRequired: boolean; exactStarsRequired: boolean };
-  byUser: ReadonlyMap<string, { strength: PlayerStrengthInput; historicalPeak: PlayerStrengthFact | null; seasons: ReadonlyMap<string, PlayerStrengthFact | null> }>;
+  byPurpose: {
+    profileReadiness: ReadonlyMap<string, { historicalPeak: PlayerStrengthFact | null; seasons: ReadonlyMap<string, PlayerStrengthFact | null> }>;
+    externalStrength: ReadonlyMap<string, PlayerStrengthInput>;
+  };
 };
 export type ParticipantCandidate = { userId: string; facts: ParticipantQualificationFacts; playerType: import("@/types/season").PlayerType | null };
 /** Complete candidate facts are assembled server-side under the Entry transaction. */
@@ -50,7 +53,7 @@ export type RosterCandidate = {
   members: readonly { userId: string; participantId: string; status: typeof competitionEntryParticipants.$inferSelect.status; isPrimaryStarter: boolean; primaryPosition: string | null; playerType: import("@/types/season").PlayerType | null }[];
   factsByUser: ReadonlyMap<string, ParticipantQualificationFacts>;
   currentTeamMemberUserIds: ReadonlySet<string> | null;
-  nativeRegistration: Pick<typeof seasonRegistrations.$inferSelect, "id" | "status"> | null;
+  nativeRegistrationsByUser: ReadonlyMap<string, Pick<typeof seasonRegistrations.$inferSelect, "id" | "status">>;
   activeClaimEntryByUser: ReadonlyMap<string, string>;
   registrationBlockedUserIds: ReadonlySet<string>;
   rosterBlockedUserIds: ReadonlySet<string>;
