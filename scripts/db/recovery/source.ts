@@ -26,8 +26,11 @@ export async function resolveInstanceSourceIdentity(
   supabaseUrl: string,
   cwd = projectRoot,
   fetcher: ProductionReleaseFetcher = fetch,
+  localOnly = false,
 ): Promise<Omit<RecoverySourceIdentity, "databaseMigrationTerminal">> {
-  const base = buildReleaseEndpoint(origin);
+  const parsed = new URL(origin);
+  if (localOnly && (parsed.protocol !== "http:" || !["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname) || parsed.origin !== origin)) throw new Error("Isolated source origin must be loopback.");
+  const base = localOnly ? `${parsed.origin}${RELEASE_ENDPOINT_PATH}` : buildReleaseEndpoint(origin);
   if (new URL(base).origin === OFFICIAL_PRODUCTION.origin || new URL(base).hostname === new URL(OFFICIAL_PREVIEW.supabaseUrl).hostname) {
     throw new Error("Official source cannot be used as an independent instance.");
   }

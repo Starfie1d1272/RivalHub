@@ -117,11 +117,11 @@ export function buildRecoveryR2Keys(
   backupClass: RecoveryArtifactClass,
   runId: string,
   createdAt: string,
-  source?: { environment: "production" | "instance"; projectRef: string },
+  source?: { environment: "production" | "instance" | "isolated-instance"; projectRef: string },
 ): RecoveryR2Keys {
   const date = createdAt.slice(0, 10);
-  if (source?.environment === "instance" && !/^[a-z]{20}$/.test(source.projectRef)) throw new Error("Invalid instance recovery project identity.");
-  const owner = source?.environment === "instance" ? `instance/${source.projectRef}` : "production";
+  if (source && source.environment !== "production" && !/^[a-z]{20}$/.test(source.projectRef)) throw new Error("Invalid instance recovery project identity.");
+  const owner = source?.environment === "instance" ? `instance/${source.projectRef}` : source?.environment === "isolated-instance" ? `isolated/${source.projectRef}` : "production";
   const prefix = `${owner}/${backupClass}/${date}/${runId}`;
   return {
     artifact: `${prefix}.tar.gz.age`,

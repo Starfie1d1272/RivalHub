@@ -1,3 +1,7 @@
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { assertLocalContainerAccess } from "../local-container-guard";
 import { OFFICIAL_PREVIEW, OFFICIAL_PRODUCTION } from "../../../src/lib/runtime/official-deployment-profile.mjs";
 import { postgresConnection } from "../../../src/db/postgres-connection";
 import { requireSupabasePublicKey, requireSupabaseSecretKey } from "../../../src/lib/runtime/supabase-keys";
@@ -91,6 +95,27 @@ export function assertProductionBackupEnvironment(
 
 /** Production DB-only checkpoint target; it deliberately has no Storage credential. */
 /** Explicit non-official instance source; never inherits production defaults. */
+/** Local-only full-flow source, discovered from the running provider, never a Hosted target. */
+export function assertIsolatedInstanceBackupEnvironment(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): ProductionBackupEnvironment & { projectRef: string; appOrigin: string } {
+  if (env.RIVALHUB_DB_TARGET !== "local" || env.RIVALHUB_ALLOW_REMOTE_DB_WRITE) throw new Error("Isolated backup requires local-only configuration.");
+  assertLocalContainerAccess("isolated instance recovery backup", env);
+  const workdir = resolve(required(env.RIVALHUB_BACKUP_SUPABASE_WORKDIR, "RIVALHUB_BACKUP_SUPABASE_WORKDIR"));
+  const status = spawnSync("pnpm", ["exec", "supabase", "status", "--workdir", workdir, "--output", "json"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  if (status.error || status.status !== 0) throw new Error("Local backup source status unavailable.");
+  const local = parseLocalSupabaseStatus(status.stdout);
+  const config = readFileSync(resolve(workdir, "supabase/config.toml"), "utf8");
+  const projectRef = /^project_id\s*=\s*"([a-z]{20})"\s*$/m.exec(config)?.[1];
+  if (!projectRef || isProductionRecoverySource(projectRef) || projectRef === OFFICIAL_PREVIEW.projectRef) throw new Error("Isolated source project identity invalid.");
+  return {
+    databaseUrl: local.databaseUrl, supabaseUrl: local.apiUrl, supabaseSecretKey: local.serviceRoleKey,
+    projectRef, appOrigin: assertLocalHttpUrl(env.NEXT_PUBLIC_APP_URL, "NEXT_PUBLIC_APP_URL"),
+    ageRecipient: assertAgeRecipient(required(env.RIVALHUB_BACKUP_AGE_RECIPIENT, "RIVALHUB_BACKUP_AGE_RECIPIENT")),
+    r2: assertRecoveryFetchEnvironment(env),
+  };
+}
+
 export function assertInstanceBackupEnvironment(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): ProductionBackupEnvironment & { projectRef: string; appOrigin: string } {

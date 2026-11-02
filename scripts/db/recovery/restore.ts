@@ -87,7 +87,7 @@ async function main(): Promise<void> {
       if (process.env.RIVALHUB_RECOVERY_TARGET === "instance" && manifest.sourceEnvironment !== "instance") {
         throw new Error("Official backups may only be restored to isolated targets.");
       }
-      if (args.evidenceDirectory && manifest.sourceEnvironment !== "instance") throw new Error("Only a full independent instance restore can produce activation evidence.");
+      if (args.evidenceDirectory && manifest.sourceEnvironment !== "instance" && manifest.sourceEnvironment !== "isolated-instance") throw new Error("Only a full independent instance restore can produce activation evidence.");
       if (args.evidenceDirectory && process.env.RIVALHUB_RECOVERY_TARGET !== "instance"
         && process.env.RIVALHUB_RECOVERY_USE_LOCAL_SUPABASE !== "1") {
         throw new Error("Activation evidence requires a verified target identity.");
@@ -164,7 +164,7 @@ async function writeInstanceRecoveryEvidence(
     assertManifestMigrationMatches(actual, readExpectedMigrations(), manifest.source.databaseMigrationTerminal);
     const database = new URL(target.databaseUrl);
     const evidence = {
-      version: 1, artifactKind: "full", runId: manifest.runId,
+      version: 1, artifactKind: "full", sourceEnvironment: manifest.sourceEnvironment, runId: manifest.runId,
       artifactSha256: sidecar.artifactSha256, manifestSha256: sidecar.manifestSha256,
       sourceProjectRef: manifest.sourceProjectRef, source: manifest.source,
       target: { supabaseUrl: target.supabase.apiUrl, databaseName: decodeURI(database.pathname.slice(1)) },
@@ -349,7 +349,7 @@ function assertManifestCompatibility(manifest: RecoveryManifest): void {
   if (!validSource || manifest.database.schemas.join(",") !== "public,auth") {
     throw new Error("Recovery manifest source or schema identity is incompatible; restore aborted. ");
   }
-  if (manifest.sourceEnvironment === "instance") {
+  if (manifest.sourceEnvironment !== "production") {
     assertInstanceReleaseIdentity(manifest.source.deployedReleaseTag, manifest.source.deployedCommit);
     if (readCurrentGitCommit() !== manifest.source.deployedCommit) {
       throw new Error("Instance restore must use the exact source release checkout before upgrading.");

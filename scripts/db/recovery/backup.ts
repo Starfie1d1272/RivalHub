@@ -11,6 +11,7 @@ import { Pool } from "pg";
 import {
   assertBackupClass,
   assertInstanceBackupEnvironment,
+  assertIsolatedInstanceBackupEnvironment,
   assertProductionBackupEnvironment,
   PRODUCTION_PROJECT_REF,
 } from "./environment";
@@ -39,10 +40,11 @@ const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 async function main(): Promise<void> {
   const backupClass = assertBackupClass(process.argv[2] ?? process.env.RIVALHUB_BACKUP_CLASS);
   const sourceMode = process.env.RIVALHUB_BACKUP_SOURCE ?? "production";
-  if (sourceMode !== "production" && sourceMode !== "instance") throw new Error("Unknown backup source.");
-  const instance = sourceMode === "instance" ? assertInstanceBackupEnvironment(process.env) : undefined;
+  if (sourceMode !== "production" && sourceMode !== "instance" && sourceMode !== "isolated-instance") throw new Error("Unknown backup source.");
+  const instance = sourceMode === "instance" ? assertInstanceBackupEnvironment(process.env)
+    : sourceMode === "isolated-instance" ? assertIsolatedInstanceBackupEnvironment(process.env) : undefined;
   const environment = instance ?? assertProductionBackupEnvironment(process.env);
-  const readSource = () => instance ? resolveInstanceSourceIdentity(instance.appOrigin, instance.supabaseUrl) : resolveProductionSourceIdentity();
+  const readSource = () => instance ? resolveInstanceSourceIdentity(instance.appOrigin, instance.supabaseUrl, projectRoot, fetch, sourceMode === "isolated-instance") : resolveProductionSourceIdentity();
   const runId = randomUUID();
   const createdAt = new Date().toISOString();
   const tempRoot = mkdtempSync(join(tmpdir(), `rivalhub-recovery-${runId}-`));
@@ -85,7 +87,7 @@ async function main(): Promise<void> {
       formatVersion: RECOVERY_FORMAT_VERSION,
       runId,
       createdAt,
-      sourceEnvironment: instance ? "instance" : "production",
+      sourceEnvironment: sourceMode,
       sourceProjectRef: instance?.projectRef ?? PRODUCTION_PROJECT_REF,
       postgresVersion: migration.postgresVersion,
       supabaseCliVersion,

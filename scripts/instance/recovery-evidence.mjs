@@ -16,8 +16,12 @@ const sha256 = /^[a-f0-9]{64}$/;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const db = new URL(process.env.DATABASE_URL ?? '');
 const databaseName = decodeURI(db.pathname.slice(1));
+const loopback = new Set(['localhost', '127.0.0.1', '[::1]']);
+const isolated = evidence.sourceEnvironment === 'isolated-instance' && process.env.RIVALHUB_DB_TARGET === 'local'
+  && loopback.has(db.hostname) && loopback.has(new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').hostname);
+const validSource = evidence.sourceEnvironment === 'instance' || isolated;
 const ledger = evidence.ledger, migrations = candidate.migrations;
-if (evidence.version !== 1 || evidence.artifactKind !== 'full' || !uuid.test(evidence.runId ?? '')
+if (evidence.version !== 1 || evidence.artifactKind !== 'full' || !validSource || !uuid.test(evidence.runId ?? '')
   || !sha256.test(evidence.artifactSha256 ?? '') || !sha256.test(evidence.manifestSha256 ?? '')
   || !/^[a-z0-9]{20}$/.test(evidence.sourceProjectRef ?? '')
   || evidence.source?.deployedReleaseTag !== previousTag || evidence.source?.deployedCommit !== previousCommit
