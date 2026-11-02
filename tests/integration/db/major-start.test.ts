@@ -1,3 +1,4 @@
+import { normalizeTeamRegistrationConfig } from "../../../src/lib/seasons/compatibility";
 import { createHash } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -118,7 +119,9 @@ async function prepareReadyMajor(
   const profilePlatform = registrationFreeze ? "perfect_world" : GOLDEN_PROFILE.platform;
   const profileRankOrder = registrationFreeze ? createPerfectWorldRankOrder() : GOLDEN_PROFILE.rankOrder;
   const capabilities = options.profile === "major24" ? createMajor24Capabilities() : createMajorDefaultCapabilities();
-  capabilities.teamRegistrationConfig.competitiveProfile = registrationFreeze
+  const legacyConfig = normalizeTeamRegistrationConfig(capabilities.teamRegistrationConfig);
+  capabilities.teamRegistrationConfig = legacyConfig;
+  legacyConfig.competitiveProfile = registrationFreeze
     ? { platform: profilePlatform, currentSeasonKey: "", previousSeasonKey: "", rankOrder: [] }
     : GOLDEN_PROFILE;
   let primarySeasonKeys = registrationFreeze

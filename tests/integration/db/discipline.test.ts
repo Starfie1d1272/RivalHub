@@ -1,3 +1,4 @@
+import { normalizeTeamRegistrationConfig } from "../../../src/lib/seasons/compatibility";
 import { and, eq, inArray } from "drizzle-orm";
 import { getPublicPlayerSanctions, hasActivePublicSanction } from "@/lib/discipline/public-query";
 /**
@@ -62,7 +63,9 @@ async function prepareFixture(pool: Pool, label: string): Promise<DisciplineFixt
   const client = await pool.connect();
   const seasonId = randomUUID();
   const capabilities = createMajorDefaultCapabilities();
-  capabilities.teamRegistrationConfig.competitiveProfile = { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] };
+  const legacyConfig = normalizeTeamRegistrationConfig(capabilities.teamRegistrationConfig);
+  capabilities.teamRegistrationConfig = legacyConfig;
+  legacyConfig.competitiveProfile = { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] };
   try {
     await client.query("BEGIN");
     await client.query(

@@ -1,3 +1,4 @@
+import { normalizeTeamRegistrationConfig } from "../../../src/lib/seasons/compatibility";
 import { reviewCompetitionEntryWorkflowInTx as reviewCompetitionEntryInTx } from "../../../src/lib/registration/review-entry";
 import { existsSync, watch, writeFileSync } from "node:fs";
 import { dirname, basename } from "node:path";
@@ -115,7 +116,9 @@ async function prepareFixture(pool: Pool): Promise<SelectionFixture> {
   const entryC: EntryFixture = { entryId: randomUUID(), revisionId: randomUUID(), userIds: [entryA.userIds[0]!, ...Array.from({ length: 4 }, () => randomUUID())] };
   const allUserIds = [...new Set([...entryA.userIds, ...entryB.userIds, ...entryC.userIds])];
   const capabilities = createMajorDefaultCapabilities();
-  capabilities.teamRegistrationConfig.competitiveProfile = { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] };
+  const legacyConfig = normalizeTeamRegistrationConfig(capabilities.teamRegistrationConfig);
+  capabilities.teamRegistrationConfig = legacyConfig;
+  legacyConfig.competitiveProfile = { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] };
 
   try {
     await client.query("BEGIN");
@@ -198,7 +201,9 @@ async function prepareFullFreezeFixture(pool: Pool): Promise<FullFreezeFixture> 
   const client = await pool.connect();
   const seasonId = randomUUID();
   const capabilities = createMajorDefaultCapabilities();
-  capabilities.teamRegistrationConfig.competitiveProfile = { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] };
+  const legacyConfig = normalizeTeamRegistrationConfig(capabilities.teamRegistrationConfig);
+  capabilities.teamRegistrationConfig = legacyConfig;
+  legacyConfig.competitiveProfile = { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] };
   const entrantCapacity = checkStandardMajorCapabilities(capabilities).entrantCapacity;
   const entries = Array.from({ length: entrantCapacity }, () => ({
     entryId: randomUUID(),

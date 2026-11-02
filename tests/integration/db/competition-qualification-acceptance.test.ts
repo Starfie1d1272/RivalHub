@@ -1,3 +1,4 @@
+import { normalizeTeamRegistrationConfig } from "../../../src/lib/seasons/compatibility";
 import { reviewCompetitionEntryWorkflowInTx as reviewCompetitionEntryInTx } from "../../../src/lib/registration/review-entry";
 import { loadTestMatchEntries, createTestMatchInTx } from "@/lib/matches/test-matches";
 import { concludeUnassociatedMatchInTx } from "@/lib/matches/unassociated-result";
@@ -70,7 +71,9 @@ async function prepareAcceptanceFixture(pool: Pool): Promise<AcceptanceFixture> 
   const client = await pool.connect();
   const seasonId = randomUUID();
   const capabilities = createMajor24Capabilities();
-  capabilities.teamRegistrationConfig.competitiveProfile = {
+  const legacyConfig = normalizeTeamRegistrationConfig(capabilities.teamRegistrationConfig);
+  capabilities.teamRegistrationConfig = legacyConfig;
+  legacyConfig.competitiveProfile = {
     ...PROFILE,
     rankOrder: [...PROFILE.rankOrder],
   };
