@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
 import { canonicalizeV2CompetitiveProfile } from "@/lib/competitive/source-selection";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { qualificationPolicySchema, qualificationPolicyV2Schema } from "@/lib/competition/qualification-policy";
@@ -40,14 +41,40 @@ export function seasonRulesNeedCompetitiveContext(rules: Pick<DecodedSeasonRules
     Boolean(rules.participant.rankThreshold?.currentMin || rules.participant.rankThreshold?.peakMin);
 }
 
-/** Validate only enabled formation stages; drafts may retain incomplete values. */
-export function assertFormationRulesPublishable(rules: DecodedSeasonRules): void {
+/** Drafts may retain incomplete formation values until publication. */
+export function formationRulesPublishIssue(rules: { formation: Pick<DecodedSeasonRules["formation"], "hasCaptainVoting" | "hasDraft" | "settings">; lineup: Pick<DecodedSeasonRules["lineup"], "starterCount">; roster: Pick<DecodedSeasonRules["roster"], "maxTeamSize"> }): string | null {
   const formation = rules.formation.settings;
-  if (!formation) throw new AppError(ErrorCode.VALIDATION_FAILED, "新版赛事缺少编队配置。");
-  if (rules.formation.hasCaptainVoting && formation.targetTeamCount === null) throw new AppError(ErrorCode.VALIDATION_FAILED, "队长投票需要设置目标队伍数量。");
+  if (!formation) return "新版赛事缺少编队配置。";
+  if (rules.formation.hasCaptainVoting && formation.targetTeamCount === null) return "队长投票需要设置目标队伍数量。";
   if (rules.formation.hasDraft && (formation.targetRosterSize === null || formation.targetRosterSize < rules.lineup.starterCount || formation.targetRosterSize > rules.roster.maxTeamSize)) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "选秀目标人数须介于首发人数与名单上限之间。");
+    return "选秀目标人数须介于首发人数与名单上限之间。";
   }
+  return null;
+}
+
+export function assertFormationRulesPublishable(rules: DecodedSeasonRules): void {
+  const issue = formationRulesPublishIssue(rules);
+  if (issue) throw new AppError(ErrorCode.VALIDATION_FAILED, issue);
+}
+
+/** Shared pre-publication checks for dependencies of enabled capabilities. */
+export function seasonCapabilityIssue(input: {
+  registrationMode: "solo" | "team"; hasCaptainVoting: boolean; hasDraft: boolean;
+  isV2: boolean; requirePositions: boolean; maxPerPositionPerTeam: number;
+  positions: readonly string[]; minTeamSize: number;
+  externalStrengthGapEnabled: boolean; affiliationRuleCount: number;
+}): string | null {
+  if (input.registrationMode === "team" && (input.hasCaptainVoting || input.hasDraft)) {
+    return "队长投票和选秀需要个人报名，请改为个人报名或关闭编队环节。";
+  }
+  if (input.isV2 && input.registrationMode === "team" && input.requirePositions) {
+    const available = new Set(input.positions.filter(position => (CS2_POSITION_VALUES as readonly string[]).includes(position)));
+    if (available.size === 0 || (input.maxPerPositionPerTeam > 0 && available.size * input.maxPerPositionPerTeam < input.minTeamSize)) {
+      return "队伍报名尚无本届自定义位置输入，现有成员位置不足以满足名单要求。";
+    }
+  }
+  if (input.externalStrengthGapEnabled && input.affiliationRuleCount === 0) return "外校实力星差需要至少一个本校机构作为参考。";
+  return null;
 }
 
 export type SeasonRuleColumnPatch = Partial<SeasonRuleColumns>;

@@ -1,7 +1,6 @@
 "use server";
 
 import { isReservedSeasonSlug } from "@/lib/seasons/slug";
-import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import { revalidatePath } from "next/cache";
@@ -17,7 +16,7 @@ import { normalizeRegistrationConfig, normalizeTeamRegistrationConfig, teamRegis
 import type { StagePlan, TeamRegistrationConfig, StoredTeamRegistrationConfig } from "@/types/season";
 import { capabilitiesFromSeason, checkStandardMajorCapabilities, validateCompetitionDefinition } from "@/lib/competition/definition";
 import { assertAffiliationRequirementsFit, assertQualificationPolicyPublishable } from "@/lib/competition/qualification-policy";
-import { assertFormationRulesPublishable, decodeSeasonRules } from "@/lib/seasons/rules";
+import { assertFormationRulesPublishable, decodeSeasonRules, seasonCapabilityIssue } from "@/lib/seasons/rules";
 import { assertSeasonHasNoHistoricalFacts, freezeV2CompetitiveContext, openSeasonRegistrationInTx, resolveConversionPolicyForPublish, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
 import { seasonFormSchema, seasonUpdatePayloadSchema, planSeasonCreate, planSeasonUpdate, type SeasonFormInput } from "@/lib/seasons/edit";
 import { updatePublicAnnouncementTags, updatePublicSeasonInfoTag, updatePublicSeasonTags } from "@/lib/revalidation";
@@ -149,18 +148,14 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
       if (locked.competitionTemplate === "custom") assertRunnableCustomDefinition(locked);
 
       const decoded = decodeSeasonRules(locked);
-      if (locked.registrationMode === "team" && (locked.hasCaptainVoting || locked.hasDraft)) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "队长投票和选秀需要个人报名，请改为个人报名或关闭编队环节。");
-      }
-      if (decoded.source === "policy_v2" && locked.registrationMode === "team" && decoded.roster.requirePositions) {
-        const availablePositions = decoded.roster.positions.filter(position => (CS2_POSITION_VALUES as readonly string[]).includes(position));
-        if (availablePositions.length === 0 || (decoded.roster.maxPerPositionPerTeam > 0 && availablePositions.length * decoded.roster.maxPerPositionPerTeam < decoded.roster.minTeamSize)) {
-          throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍报名尚无本届自定义位置输入，现有成员位置不足以满足名单要求。");
-        }
-      }
-      if (decoded.competitive.externalStrengthGap.enabled && decoded.roster.affiliationRules.length === 0) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "外校实力星差需要至少一个本校机构作为参考。 ");
-      }
+      const capabilityIssue = seasonCapabilityIssue({
+        registrationMode: locked.registrationMode, hasCaptainVoting: locked.hasCaptainVoting, hasDraft: locked.hasDraft,
+        isV2: decoded.source === "policy_v2", requirePositions: decoded.roster.requirePositions,
+        maxPerPositionPerTeam: decoded.roster.maxPerPositionPerTeam, positions: decoded.roster.positions,
+        minTeamSize: decoded.roster.minTeamSize, externalStrengthGapEnabled: decoded.competitive.externalStrengthGap.enabled,
+        affiliationRuleCount: decoded.roster.affiliationRules.length,
+      });
+      if (capabilityIssue) throw new AppError(ErrorCode.VALIDATION_FAILED, capabilityIssue);
       if (locked.competitionTemplate === "major") {
         const major = checkStandardMajorCapabilities(capabilitiesFromSeason(locked));
         if (!major.isStandardMajor) throw new AppError(ErrorCode.VALIDATION_FAILED, major.failures[0]?.reason ?? "当前 Major 配置无法运行。");

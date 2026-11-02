@@ -16,6 +16,7 @@ import {
   type StagePlan,
 } from "@/types/season";
 import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
+import { formationRulesPublishIssue, seasonCapabilityIssue } from "@/lib/seasons/rules";
 import { createCompetitionTemplate, createMajor24Capabilities, createMajorDefaultCapabilities, type CompetitionTemplate } from "@/lib/competition/templates";
 import { getSeasonEditCapabilities, type SeasonEditPhase } from "@/lib/seasons/edit";
 import { parseCSTInput } from "@/lib/utils/date";
@@ -300,6 +301,18 @@ export function SeasonForm({ mode, initial, competitivePlatforms, institutionOpt
     teamRegistrationConfig: v2Config ?? teamConfig,
     affiliationRules,
   });
+  const currentPolicy = v2Config?.qualificationPolicy ?? resolveQualificationPolicy(teamConfig, affiliationRules, registrationMode === "solo" ? "participant" : "roster");
+  const capabilityIssue = seasonCapabilityIssue({
+    registrationMode, hasCaptainVoting, hasDraft, isV2: !!v2Config,
+    requirePositions: (v2Config ?? teamConfig).requirePositions,
+    maxPerPositionPerTeam: (v2Config ?? teamConfig).maxPerPositionPerTeam,
+    positions, minTeamSize, externalStrengthGapEnabled: currentPolicy.externalStrengthGap.enabled,
+    affiliationRuleCount: currentPolicy.version === 2 ? affiliationRules.length : currentPolicy.affiliationRules.length,
+  });
+  const formationIssue = v2Config ? formationRulesPublishIssue({
+    formation: { hasCaptainVoting, hasDraft, settings: v2Config.formation },
+    lineup: { starterCount }, roster: { maxTeamSize },
+  }) : null;
   const isMajorDisplayContext = template === "major";
 
   function handleSubmit() {
@@ -722,6 +735,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms, institutionOpt
           Major 的报名截止、最终名单调整截止和 Main Event 计划开始时间统一在赛前准备中管理。{" "}
           <Link href={`/admin/${initial.slug}/prestart`} className="text-[var(--color-accent)] hover:underline">前往赛前准备</Link>
         </p>}
+        {initial?.status === "draft" && (capabilityIssue || formationIssue) && <p className="mt-4 text-sm text-[var(--color-danger)]">保存后发布检查：{capabilityIssue ?? formationIssue}</p>}
         <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-[var(--color-border)] pt-4">
           {initial?.status === "draft" && <Button type="button" variant="outline" disabled={isPending} onClick={() => setPublishConfirmationOpen(true)}>发布赛季</Button>}
           {initial?.status === "registration" && !initial.registrationOpenedAt && <Button type="button" disabled={isPending} onClick={requestOpenRegistration}>立即开放报名</Button>}
