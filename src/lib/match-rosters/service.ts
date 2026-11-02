@@ -286,12 +286,10 @@ export async function loadMatchEligibilityContextInTx(
       const [stageRun] = await tx
         .select({ ruleSnapshot: majorStageRuns.ruleSnapshot, stageKey: majorStageRuns.stageKey })
         .from(majorStageRuns)
-        .where(and(
-          eq(majorStageRuns.id, match.majorStageRunId),
-          eq(majorStageRuns.seasonId, match.seasonId),
-          eq(majorStageRuns.stageKey, match.stage),
-        ));
-      if (!stageRun) {
+        .where(eq(majorStageRuns.id, match.majorStageRunId));
+      const [scopedRun] = await tx.select({ id: majorStageRuns.id }).from(majorStageRuns)
+        .where(and(eq(majorStageRuns.id, match.majorStageRunId), eq(majorStageRuns.seasonId, match.seasonId), eq(majorStageRuns.stageKey, match.stage)));
+      if (!stageRun || !scopedRun) {
         throw new AppError(ErrorCode.INTERNAL_ERROR, "托管比赛缺少对应的 StageRun。");
       }
       // Parse once before every frozen consumer; never use mutable season rules.
