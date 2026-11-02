@@ -769,7 +769,7 @@ async function approveRosterRevisionInTx(
   if (!assessment) return { revision: candidate.revision, assessment: null };
   const roster = assessment.candidate;
   const approvedCandidate: RosterCandidate = roster.entry.source === "event_native"
-    ? { ...roster, entry: { ...roster.entry, source: "event_native", approvedRosterRevisionId: candidate.revision.id }, members: roster.members.map((member) => ({ ...member, teamMembershipId: null })), revision: { ...roster.revision, status: "approved" } }
+    ? { ...roster, entry: { ...roster.entry, source: "event_native", registrationStatus: "approved", approvedRosterRevisionId: candidate.revision.id }, members: roster.members.map((member) => ({ ...member, teamMembershipId: null })), revision: { ...roster.revision, status: "approved" } }
     : { ...roster, entry: { ...roster.entry, source: "linked_team", approvedRosterRevisionId: candidate.revision.id }, revision: { ...roster.revision, status: "approved" } };
   return { revision: candidate.revision, assessment: { ...assessment, candidate: approvedCandidate } };
 }
@@ -784,8 +784,8 @@ export async function adoptEventNativeRosterInTx(
 ): Promise<{ seasonId: string; seasonSlug: string; revisionId: string; alreadyApproved: boolean; assessment: EntryRosterAssessment | null }> {
   const entry = await lockEntry(tx, input.entryId);
   const season = await loadSeasonOrThrow(tx, entry.competitionId);
-  if (entry.source !== "event_native" || entry.registrationStatus !== "approved") {
-    throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只有已成立的赛事原生参赛队可以采用名单。 ");
+  if (entry.source !== "event_native" || !["draft", "approved"].includes(entry.registrationStatus)) {
+    throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前赛事原生参赛队不能采用名单。 ");
   }
   if (entry.currentRosterRevisionId !== input.expectedRevisionId) {
     throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "名单版本已变化，请刷新后重试。 ");
@@ -802,7 +802,7 @@ export async function adoptEventNativeRosterInTx(
   await assertRosterNotFrozen(tx, entry.id);
   const now = new Date();
   const { assessment } = await approveRosterRevisionInTx(tx, entry, season, now, ["draft"]);
-  await tx.update(competitionEntries).set({ approvedRosterRevisionId: revision.id, updatedAt: now }).where(eq(competitionEntries.id, entry.id));
+  await tx.update(competitionEntries).set({ registrationStatus: "approved", approvedRosterRevisionId: revision.id, updatedAt: now }).where(eq(competitionEntries.id, entry.id));
   await auditEntry(tx, { action: "competition_entry.approved", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { rosterRevision: revision.revisionNumber, source: entry.source } });
   return { seasonId: season.id, seasonSlug: season.slug, revisionId: revision.id, alreadyApproved: false, assessment };
 }
