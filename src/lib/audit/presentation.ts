@@ -366,6 +366,7 @@ export const AUDIT_ACTION_DEFINITIONS = {
   "competition_entry.participant.confirm": { label: "确认参赛成员", category: "entry" },
   "competition_entry.participant.withdraw": { label: "参赛成员退出", category: "entry" },
   "competition_entry.participant.decline": { label: "拒绝参赛邀请", category: "entry" },
+  "competition_entry.profile.update": { label: "更新本届队伍资料", category: "entry" },
   "competition_entry.roster.save": { label: "保存参赛队阵容", category: "entry" },
   "competition_entry.roster_change.request": { label: "申请修改参赛阵容", category: "entry" },
   "competition_entry.withdraw": { label: "撤回参赛队报名", category: "entry" },

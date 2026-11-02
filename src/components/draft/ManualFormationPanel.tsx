@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { approveFormation, saveManualFormation, startFormedSeason, withdrawFormation, requestFormationChange } from "@/actions/draft/formation";
 import Link from "next/link";
+import { updateCompetitionEntryName, uploadCompetitionEntryLogo } from "@/actions/competition-entry-profile";
+import { TeamLogoUpload } from "@/components/teams/TeamLogoUpload";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,6 +17,17 @@ import type { getManualFormationData } from "@/lib/draft/manual-data";
 
 type FormationData = Awaited<ReturnType<typeof getManualFormationData>>;
 type Team = FormationData["teams"][number];
+
+function EntryProfile({ seasonId, team }: { seasonId: string; team: Team }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [name, setName] = useState(team.name);
+  return <div className="flex flex-wrap items-end gap-3">
+    <TeamLogoUpload currentLogoUrl={team.logoUrl} teamName={team.name} canEdit upload={formData => uploadCompetitionEntryLogo(seasonId, team.id, formData)} onUploaded={() => router.refresh()} />
+    <label className="space-y-1 text-sm"><span>本届队名</span><Input value={name} maxLength={32} onChange={event => setName(event.target.value)} /></label>
+    <Button type="button" variant="outline" disabled={pending || name.trim() === team.name} onClick={() => startTransition(async () => { const result = await updateCompetitionEntryName({ seasonId, entryId: team.id, name }); if (!result.success) { toast.error(result.error.message); return; } toast.success("本届队名已保存"); router.refresh(); })}>保存队名</Button>
+  </div>;
+}
 
 function TeamEditor({ seasonId, players, team, occupied, maxTeamSize, starterCount, captainsOnly, modern }: { seasonId: string; players: FormationData["players"]; team?: Team; occupied: Set<string>; maxTeamSize: number; starterCount: number; captainsOnly: boolean; modern: boolean }) {
   const router = useRouter();
@@ -47,6 +61,7 @@ function TeamEditor({ seasonId, players, team, occupied, maxTeamSize, starterCou
   }
   return <Card className="space-y-4 p-5">
     <h2 className="text-lg font-semibold">{team?.name ?? "新建队伍"}</h2>
+    {team && !team.approved && !team.approvedId && <EntryProfile seasonId={seasonId} team={team} />}
     <div className="space-y-2">
       <span className="text-sm text-[var(--color-fg-mid)]">队长</span>
       <Select value={captainId} disabled={Boolean(team) || team?.approved} onValueChange={value => { setCaptainId(value); setMembers([]); setStarters([]); }}>
@@ -86,7 +101,7 @@ export function FormationApprovalPanel({ seasonId, teams }: { seasonId: string; 
       router.refresh();
     });
   }
-  return <Card className="space-y-4 p-5"><h2 className="text-lg font-semibold">审核选秀名单</h2><p className="text-sm">成员确认并满足本届名单规则后，审核并采用各队名单。</p>{teams.map(team => <div key={team.id} className="flex items-center justify-between gap-4"><span>{team.name}</span><Button type="button" variant="outline" disabled={pending} onClick={() => approve(team)}>审核并采用名单</Button></div>)}</Card>;
+  return <Card className="space-y-4 p-5"><h2 className="text-lg font-semibold">审核选秀名单</h2><p className="text-sm">成员确认并满足本届名单规则后，审核并采用各队名单。</p>{teams.map(team => <div key={team.id} className="flex items-center justify-between gap-4"><div className="space-y-2"><span>{team.name}</span>{!team.approved && !team.approvedId && <EntryProfile seasonId={seasonId} team={team} />}</div><Button type="button" variant="outline" disabled={pending} onClick={() => approve(team)}>审核并采用名单</Button></div>)}</Card>;
 }
 
 export function FormationStartPanel({ seasonId, seasonSlug, major }: { seasonId: string; seasonSlug: string; major: boolean }) {

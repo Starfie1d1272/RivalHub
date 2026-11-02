@@ -17,6 +17,7 @@ interface TeamLogoUploadProps {
   /** 仅队长可编辑 */
   canEdit: boolean;
   onUploaded?: (logoUrl: string) => void;
+  upload?: (formData: FormData) => ReturnType<typeof uploadTeamLogo>;
 }
 
 export function TeamLogoUpload({
@@ -25,6 +26,7 @@ export function TeamLogoUpload({
   teamName,
   canEdit,
   onUploaded,
+  upload,
 }: TeamLogoUploadProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentLogoUrl);
   const [isPending, startTransition] = useTransition();
@@ -52,7 +54,7 @@ export function TeamLogoUpload({
     formData.append("file", file);
 
     startTransition(async () => {
-      const result = teamId
+      const result = upload ? await upload(formData) : teamId
         ? await uploadTeamLogo(teamId, formData)
         : { success: false as const, error: { message: "缺少队伍标识" } };
       URL.revokeObjectURL(objectUrl);
