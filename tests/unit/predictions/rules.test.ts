@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { simulateMajor, replaceSimulationChoice } from "@/lib/predictions/simulator";
-import { distributePool } from "@/lib/predictions/rules";
+import { distributePool } from "@/lib/bet/pool";
 import { SIMULATION_VERSION, type Baseline, type Choices } from "@/lib/predictions/types";
 import { projectPredictionStages } from "@/lib/predictions/stage-projection";
-import { resolveMarketOptions } from "@/lib/predictions/market-resolution";
+import { resolveMarketOptions } from "@/lib/bet/resolution";
 import { MAJOR_STAGE_PLAN } from "@/lib/competition/templates";
 import { pickEmWindowState } from "@/lib/predictions/lifecycle";
 const B = BigInt;

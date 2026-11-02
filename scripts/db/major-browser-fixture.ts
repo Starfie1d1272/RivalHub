@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { Pool, type PoolClient } from "pg";
 import { createMajor24Capabilities, createMajorDefaultCapabilities } from "../../src/lib/competition/templates";
+import { normalizeTeamRegistrationConfig } from "../../src/lib/seasons/compatibility";
 import { redactText } from "../../src/lib/observability/redact";
 import { createPerfectWorldRankOrder } from "../../src/lib/config/perfect-world";
 import { teamNameSchema } from "../../src/lib/config/team-config";
@@ -584,7 +585,9 @@ function parameterizedValues(rows: readonly (readonly unknown[])[], casts?: read
 
 function createCapabilities(scenario: ScenarioDefinition) {
   const capabilities = scenario.profile === "major-qualification" ? createMajor24Capabilities() : createMajorDefaultCapabilities();
-  capabilities.teamRegistrationConfig.competitiveProfile = {
+  const legacyConfig = normalizeTeamRegistrationConfig(capabilities.teamRegistrationConfig);
+  capabilities.teamRegistrationConfig = legacyConfig;
+  legacyConfig.competitiveProfile = {
     platform: scenario.platform,
     currentSeasonKey: scenario.currentSeasonKey,
     previousSeasonKey: scenario.previousSeasonKey,

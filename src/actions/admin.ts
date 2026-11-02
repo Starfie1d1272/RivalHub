@@ -1,6 +1,10 @@
 "use server";
 
 import { writeAuditInTx } from "@/lib/audit/write";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
+import { evaluateSeasonParticipantInTx } from "@/lib/qualification/service";
+import { evaluateRankThreshold } from "@/lib/competitive/player-strength";
+import { RANK_ORDER } from "@/lib/validators/registration";
 
 import { revalidatePath } from "next/cache";
 import { randomBytes } from "crypto";
@@ -88,6 +92,18 @@ export async function reviewRegistration(input: ReviewInput) {
       }
 
       if (targetStatus === "approved") {
+        const rules = decodeSeasonRules(season);
+        if (rules.source === "policy_v2") {
+          const decision = await evaluateSeasonParticipantInTx(tx, reg.userId, reg.playerType, rules);
+          if (decision.state === "blocked") throw new AppError(ErrorCode.VALIDATION_FAILED, decision.findings.map((finding) => finding.message).join("；"));
+        } else {
+          const config = normalizeRegistrationConfig(season.registrationConfig);
+          if (!config.allowedPlayerTypes.some((type) => type === reg.playerType)) {
+            throw new AppError(ErrorCode.VALIDATION_FAILED, "所选身份类型不符合赛事报名要求。");
+          }
+          const findings = evaluateRankThreshold({ currentRank: reg.currentSeasonPeakRank, peakRank: reg.peakRank }, config.rankThreshold, RANK_ORDER);
+          if (findings.length) throw new AppError(ErrorCode.VALIDATION_FAILED, findings.map((finding) => finding.message).join("；"));
+        }
         // 只统计已通过的，不含自身（自身是 pending/waitlisted，未算入上限）
         const [posCount] = await tx
           .select({ count: count() })

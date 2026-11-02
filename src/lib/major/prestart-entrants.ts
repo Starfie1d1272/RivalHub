@@ -17,6 +17,7 @@ import {
 import { validateApprovedCompetitionEntryRosterInTx } from "@/lib/competition-entries/commands";
 import { getStandardMajorDefinition, type StandardMajorDefinition } from "@/lib/major/standard";
 import { getCompetitionQualificationFinalEntryIdsInTx } from "@/lib/competition-qualification/runtime";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { assertPrestartEntryCoherenceInTx, type PrestartEntryCoherence } from "@/lib/event-rosters/coherence";
 import { syncApprovedRosterToEventRosterInTx } from "@/lib/event-rosters/owner";
@@ -401,18 +402,18 @@ export async function lockMajorPrestartEntrantsInTx(
     throw new AppError(ErrorCode.INTERNAL_ERROR, "已有种子建议快照与本次冻结输入不一致，拒绝覆盖。 ");
   }
 
+  const rules = decodeSeasonRules(season);
   const definitionPolicy = capabilities.teamRegistrationConfig.qualificationPolicy;
-  // A policy without required competitive evidence uses explicit manual seeds.
-  const manualSeeds = definitionPolicy !== undefined && !definitionPolicy.competitiveProfileRequired;
-  const configuredCompetitiveProfile = manualSeeds ? null : definitionPolicy
-    ? definitionPolicy.competitiveProfile
-    : capabilities.teamRegistrationConfig.competitiveProfile ?? null;
+  // Seeding is independent from participant and lineup requirements.
+  const manualSeeds = rules.source === "policy_v2"
+    ? rules.competition.seeding?.mode === "manual"
+    : definitionPolicy !== undefined && !definitionPolicy.competitiveProfileRequired;
+  const legacyProfile = "competitiveProfile" in capabilities.teamRegistrationConfig
+    ? capabilities.teamRegistrationConfig.competitiveProfile ?? null : null;
+  const configuredCompetitiveProfile = manualSeeds ? null : definitionPolicy ? definitionPolicy.competitiveProfile : legacyProfile;
   const competitiveProfile = configuredCompetitiveProfile
     ? await resolveCompetitiveContext(configuredCompetitiveProfile)
     : null;
-  if ((capabilities.teamRegistrationConfig.qualificationPolicy?.competitiveProfileRequired ?? capabilities.teamRegistrationConfig.requireCompetitiveProfile) && !competitiveProfile) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求竞技资料，但当前冻结的竞技平台目录不完整，不能生成种子建议。 ");
-  }
   if (!competitiveProfile && !manualSeeds) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "缺少生成种子建议所需的竞技上下文。 ");
   }

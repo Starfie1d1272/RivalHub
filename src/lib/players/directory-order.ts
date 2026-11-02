@@ -1,6 +1,6 @@
 interface DirectoryPlayer {
   name: string;
-  currentRating: number;
+  currentRating: number | null;
   stats: {
     maps: number;
     avgRating: number | null;
@@ -15,7 +15,7 @@ export function sortPlayerDirectory<T extends DirectoryPlayer>(players: T[]): T[
     const seasonRatingDiff = (b.stats?.avgRating ?? -1) - (a.stats?.avgRating ?? -1);
     if (seasonRatingDiff !== 0) return seasonRatingDiff;
 
-    const registrationRatingDiff = b.currentRating - a.currentRating;
+    const registrationRatingDiff = (b.currentRating ?? -1) - (a.currentRating ?? -1);
     if (registrationRatingDiff !== 0) return registrationRatingDiff;
 
     return a.name.localeCompare(b.name);

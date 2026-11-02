@@ -47,9 +47,27 @@ export const qualificationPolicySchema = z.object({
   contacts: z.object({ qqRequired: z.boolean(), emailVerifiedRequired: z.boolean() }),
 });
 
+export const qualificationPolicyV2Schema = qualificationPolicySchema.omit({ affiliationRules: true }).extend({ version: z.literal(2) }).strict();
+
 /** Solo registration still uses its historical registration configuration. */
-export function assertQualificationPolicyPublishable(config: Pick<TeamRegistrationConfig, "qualificationPolicy">, registrationMode: "team" | "solo"): void {
+export function assertQualificationPolicyPublishable(config: Pick<TeamRegistrationConfig, "qualificationPolicy">, registrationMode: "team" | "solo", limits: { maxTeamSize: number; starterCount: number }): void {
   if (config.qualificationPolicy && registrationMode !== "team") {
     throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "版本化资格政策暂不支持个人报名，请使用队伍报名或移除该政策。 ");
+  }
+  const rules = config.qualificationPolicy?.affiliationRules;
+  if (rules) assertAffiliationRequirementsFit(rules, limits);
+}
+
+export function assertAffiliationRequirementsFit(rules: readonly import("@/types/season").InstitutionAffiliationRule[], limits: { maxTeamSize: number; starterCount: number }): void {
+  // Roster assignment selects one rule per member. Lineup rules for the same
+  // institution can overlap, so only their largest minimum is additive across institutions.
+  const startingByInstitution = new Map<string, number>();
+  for (const rule of rules) {
+    startingByInstitution.set(rule.institutionCode, Math.max(startingByInstitution.get(rule.institutionCode) ?? 0, rule.minStartingMembers));
+  }
+  const rosterMinimum = rules.reduce((sum, rule) => sum + rule.minRosterMembers, 0);
+  const startingMinimum = [...startingByInstitution.values()].reduce((sum, minimum) => sum + minimum, 0);
+  if (rosterMinimum > limits.maxTeamSize || startingMinimum > limits.starterCount || startingMinimum > limits.maxTeamSize) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "机构名单或首发人数要求超过赛事名单容量，请调整后发布。 ");
   }
 }

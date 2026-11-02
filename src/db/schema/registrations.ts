@@ -19,23 +19,23 @@ export const seasonRegistrations = pgTable(
     seasonId: uuid("season_id").notNull().references(() => seasons.id),
 
     // ── 身份类型 ─────────────────────────────────────
-    playerType: text("player_type").notNull().default("enrolled"),
+    playerType: text("player_type"),
 
     // ── 位置 ─────────────────────────────────────────
     primaryPosition: text("primary_position").notNull(),
     secondaryPosition: text("secondary_position").notNull(), // 不能与主选相同
 
     // ── 段位 · 历史最高 ──────────────────────────────
-    peakRank: text("peak_rank").notNull(),              // e.g. "A+"
-    peakRankSeason: text("peak_rank_season").notNull(),  // e.g. "S1 2026"
+    peakRank: text("peak_rank"),              // e.g. "A+"
+    peakRankSeason: text("peak_rank_season"),  // e.g. "S1 2026"
     // rating：完美平台 Rating，0.01–3.00，两位小数
-    peakRating: real("peak_rating").notNull(),
+    peakRating: real("peak_rating"),
     // WE：Win Effect，0.0–16.0，一位小数
     peakWe: real("peak_we"),
 
     // ── 段位 · 当前赛季最高 ──────────────────────────
-    currentSeasonPeakRank: text("current_season_peak_rank").notNull(),
-    currentRating: real("current_rating").notNull(),
+    currentSeasonPeakRank: text("current_season_peak_rank"),
+    currentRating: real("current_rating"),
     currentWe: real("current_we"),
 
     // ── 截图（5 张天梯近期对局）─────────────────────

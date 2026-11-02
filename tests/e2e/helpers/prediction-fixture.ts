@@ -1,4 +1,3 @@
-import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -135,7 +134,7 @@ export async function createPredictionBrowserFixture(
     };
     const round = simulateMajor(base, {})[0]!.matches;
     const deadline = new Date(Date.now() + 3600000);
-    const inserted = await db
+    await db
       .insert(schema.matches)
       .values(
         round.map((m) => ({
@@ -150,8 +149,7 @@ export async function createPredictionBrowserFixture(
           format: "bo1" as const,
           scheduledAt: deadline,
         })),
-      )
-      .returning();
+      );
     // Browser fixtures use canonical pure policy; real transition hooks are covered in PostgreSQL tests.
     await db.insert(schema.predictionPrograms).values({ seasonId, rules: defaultPredictionRules(base.stages) });
     await db.insert(schema.predictionJobs).values({ seasonId });
@@ -161,34 +159,6 @@ export async function createPredictionBrowserFixture(
     })));
     if (adminSetup) {
       await db.insert(schema.seasonAdminGrants).values({ userId, seasonId });
-    } else {
-      const match = requireCompetitionMatch(inserted[0]!);
-      const [market] = await db
-        .insert(schema.predictionMarkets)
-        .values({
-          seasonId,
-          matchId: match.id,
-          stageKey: "stage1",
-          title: "比赛胜者",
-          resolver: "match_winner",
-          subject: {
-            stageRunId: run!.id,
-            entryIds: [match.entryAId, match.entryBId],
-          },
-          deadline: new Date(deadline.getTime() - 300000),
-        })
-        .returning();
-      await db
-        .insert(schema.predictionMarketOptions)
-        .values(
-          [match.entryAId, match.entryBId].map((id, position) => ({
-            marketId: market!.id,
-            key: id,
-            entryId: id,
-            label: teams.find((team) => team.teamId === id)!.name,
-            position,
-          })),
-        );
     }
     return { slug, seasonId };
   } finally {
@@ -208,24 +178,14 @@ export async function removePredictionBrowserFixture(seasonId: string) {
       "DELETE FROM prediction_judgements WHERE contest_id IN (SELECT id FROM prediction_contests WHERE season_id=$1)",
       [seasonId],
     );
-    await client.query(
-      "DELETE FROM prediction_settlements WHERE market_id IN (SELECT id FROM prediction_markets WHERE season_id=$1)",
-      [seasonId],
-    );
-    await client.query(
-      "DELETE FROM prediction_market_options WHERE market_id IN (SELECT id FROM prediction_markets WHERE season_id=$1)",
-      [seasonId],
-    );
     await client.query("DELETE FROM bet_settlements WHERE market_id IN (SELECT id FROM bet_markets WHERE season_id=$1)", [seasonId]);
     await client.query("DELETE FROM bet_options WHERE market_id IN (SELECT id FROM bet_markets WHERE season_id=$1)", [seasonId]);
     for (const table of [
       "bet_stakes", "bet_ledger", "bet_accounts", "bet_markets", "bet_stage_milestones", "bet_programs",
       "prediction_picks",
-      "prediction_stakes",
       "prediction_ledger",
       "prediction_accounts",
       "prediction_contests",
-      "prediction_markets",
       "prediction_stage_milestones",
       "prediction_jobs",
       "prediction_programs",
