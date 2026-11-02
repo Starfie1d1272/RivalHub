@@ -285,7 +285,7 @@ async function invalidateUnstartedLineupsInTx(tx: TxDb, input: {
           .innerJoin(competitionQualificationEntrants, and(eq(competitionQualificationEntrants.runId, competitionQualificationRuns.id), eq(competitionQualificationEntrants.competitionEntryId, input.entryId)))
           .where(and(eq(competitionQualificationRuns.id, match.qualificationRunId), eq(competitionQualificationRuns.seasonId, input.seasonId)));
         const revision = lineup.snapshot ? lineup.revision : roster?.revision;
-        if (!revision || snapshot.entryId !== input.entryId || snapshot.rosterRevisionId !== revision ||
+        if (!revision || (lineup.revision && lineup.revision !== revision) || snapshot.entryId !== input.entryId || snapshot.rosterRevisionId !== revision ||
             !run?.policy || run.policy.version !== 1 || !isDeepStrictEqual(snapshot.policy, run.policy)) {
           throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "历史资格赛缺少可证明的旧版资格快照。 ");
         }

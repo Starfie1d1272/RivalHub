@@ -391,7 +391,7 @@ async function loadLegacyLineupContextInTx(
       .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
       .where(and(
         eq(eventRosters.entryId, entryId),
-        inArray(eventRosters.status, acceptedRosterStatuses),
+        historicIds ? undefined : inArray(eventRosters.status, acceptedRosterStatuses),
         historicIds ? inArray(eventRosterMembers.id, historicIds) : eq(eventRosterMembers.isCurrent, true),
       ));
 
@@ -443,6 +443,31 @@ export async function getStartingLineupPreflightInTx(
   if (args.match.status !== "scheduled" || args.match.testConfig) {
     const [historical] = await tx.select({ id: matchRosters.id, snapshot: matchRosters.eligibilitySnapshot, revision: matchRosters.sourceRosterRevisionId }).from(matchRosters)
       .where(and(eq(matchRosters.matchId, args.match.id), eq(matchRosters.entryId, args.entryId)));
+    if (args.match.status === "finished" && historical?.snapshot?.version === 1) {
+      const snapshot = historical.snapshot;
+      const [run] = args.match.qualificationRunId ? await tx.select({ policy: competitionQualificationRuns.eligibilityPolicy }).from(competitionQualificationRuns)
+        .innerJoin(competitionQualificationEntrants, and(eq(competitionQualificationEntrants.runId, competitionQualificationRuns.id), eq(competitionQualificationEntrants.competitionEntryId, args.entryId)))
+        .where(and(eq(competitionQualificationRuns.id, args.match.qualificationRunId), eq(competitionQualificationRuns.seasonId, args.match.seasonId))) : [];
+      if (!historical.revision || snapshot.entryId !== args.entryId || snapshot.rosterRevisionId !== historical.revision ||
+          !run?.policy || run.policy.version !== 1 || !isDeepStrictEqual(snapshot.policy, run.policy)) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "历史资格赛资格快照来源不一致。 ");
+      }
+      const needsEducation = snapshot.policy.qualificationPolicy?.educationRequired ?? snapshot.policy.affiliationRules.length > 0;
+      if (needsEducation || snapshot.policy.affiliationRules.length > 0 || snapshot.policy.externalStrengthGapEnabled) {
+        // V1 never stored the adopted education facts. Current verification
+        // rows cannot establish what was known when this lineup was locked.
+        const members = await tx.select({ id: eventRosterMembers.id, userId: eventRosterMembers.userId }).from(matchRosterPlayers)
+          .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
+          .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
+          .where(and(eq(matchRosterPlayers.rosterId, historical.id), eq(eventRosters.entryId, args.entryId)));
+        if (!members.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "历史资格赛名单缺少可证明的成员。 ");
+        const bans = await loadActiveSanctionsInTx(tx, { seasonId: args.match.seasonId, effect: "match_participation_block", subjectUserIds: members.map((member) => member.userId) });
+        const memberFacts = new Map(members.map((member) => [member.id, { eventRosterMemberId: member.id, userId: member.userId, verification: null, participationBlocked: bans.has(member.userId) }]));
+        const policy = { starterCount: snapshot.policy.starterCount, maxSubstitutes: snapshot.policy.maxSubstitutes };
+        const result = evaluateStartingLineup({ starterIds: args.starterIds, substituteIds: args.substituteIds, policy, memberFacts });
+        return { valid: false, blockers: [...result.blockers, "历史比赛未冻结教育资格事实，无法重算当时的资格。"], affiliatedStarterCounts: result.affiliatedStarterCounts, policy };
+      }
+    }
     if (historical?.snapshot?.version === 2) {
       const snapshot = historical.snapshot;
       if (!historical.revision) throw new AppError(ErrorCode.VALIDATION_FAILED, "历史比赛缺少名单版本归属。 ");
