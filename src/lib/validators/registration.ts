@@ -200,9 +200,10 @@ export function buildRegistrationSchema(
     })
     .refine(
       (data) => {
-        const hasCurrent = rankMeetsThreshold(data.currentSeasonPeakRank, config.rankThreshold.currentMin);
-        const hasPeak = rankMeetsThreshold(data.peakRank, config.rankThreshold.peakMin);
-        return hasCurrent || hasPeak;
+        const { currentMin, peakMin } = config.rankThreshold;
+        if (currentMin === null && peakMin === null) return true;
+        return (currentMin !== null && rankMeetsThreshold(data.currentSeasonPeakRank, currentMin)) ||
+          (peakMin !== null && rankMeetsThreshold(data.peakRank, peakMin));
       },
       {
         message: rankThresholdMessage(config),
