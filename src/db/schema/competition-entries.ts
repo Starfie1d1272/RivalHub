@@ -155,6 +155,7 @@ export const competitionEntryRosterMembers = pgTable("competition_entry_roster_m
   userId: uuid("user_id").notNull().references(() => users.id),
   teamMembershipId: uuid("team_membership_id").references(() => teamMemberships.id),
   isPrimaryStarter: boolean("is_primary_starter").notNull().default(false),
+  primaryPosition: text("primary_position"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   revisionParticipantUnique: unique("competition_entry_roster_members_revision_participant_unique").on(t.revisionId, t.participantId),
