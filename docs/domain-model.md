@@ -267,7 +267,7 @@ Public and admin server read models explicitly adapt their own authorized facts 
 
 ## 免费赛果与 BP 预测
 
-`src/lib/free-predictions/` 拥有独立免费选择和幂等修订；不属于 BET 金融账本、自由推演 Prediction 或 Pick’Em。截止捕获 Match/Map 游戏开始与 Veto BP 开始的永久事实，回退不重开；判定只消费 canonical 官方结果，BP 全集合命中独立于赛果排行。公开仅匿名支持率、个人公开成绩与会话本人的选择。详见 [免费预测契约](decisions/free-predictions.md)。
+`src/lib/matches/spectator-read.ts` 拥有观众场景共享的官方比赛、地图和 BP 事实读取，`spectator-facts.ts` 拥有共同的对阵匹配、截止与胜者事实；BET 组合赛事与金融数据，免费预测只消费比赛事实，利润与免费成绩排行在 BET 组合层汇合。`src/lib/free-predictions/` 拥有独立免费选择和幂等修订；不属于 BET 金融账本、自由推演 Prediction 或 Pick’Em。截止捕获 Match/Map 游戏开始与 Veto BP 开始的永久事实，回退不重开；判定只消费 canonical 官方结果，BP 全集合命中独立于赛果排行。公开仅匿名支持率、个人公开成绩与会话本人的选择。详见 [免费预测契约](decisions/free-predictions.md)。
 
 ## 比赛回放
 

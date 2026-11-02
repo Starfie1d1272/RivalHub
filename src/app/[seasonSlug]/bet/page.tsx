@@ -12,7 +12,7 @@ import { z } from "zod";
 import { UnifiedBetBoard } from "@/components/bet/UnifiedBetBoard";
 import { freeRankingModel } from "@/components/bet/free-prediction-presentation";
 import { readBetRelief } from "@/lib/bet/relief-data";
-import { readFreeRankingSnapshot, projectFreeRankings } from "@/lib/free-predictions/ranking";
+import { readFreeRankingSnapshot, projectFreeRankings } from "@/lib/bet/free-ranking";
 export default function BetPage(props:{params:Promise<{seasonSlug:string}>;searchParams:Promise<{view?:string;match?:string;market?:string;option?:string;prediction?:string;choice?:string;page?:string;cursor?:string}>}) {
   return <Suspense fallback={<PageLayout variant="wide"><p role="status">正在加载 BET…</p></PageLayout>}><BetContent {...props}/></Suspense>;
 }
