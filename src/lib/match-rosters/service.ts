@@ -413,6 +413,7 @@ export async function getStartingLineupPreflightInTx(
   tx: TxDb,
   args: { match: Match; entryId: string; starterIds: readonly string[]; substituteIds?: readonly string[] },
 ): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number> }> {
+  return withDbTrafficSource("match.lineup.read", async () => {
   if (args.match.ownership === "major_stage") {
     if (args.entryId !== args.match.entryAId && args.entryId !== args.match.entryBId || !args.match.majorStageRunId) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛缺少对应的参赛队或阶段。");
@@ -518,6 +519,7 @@ export async function getStartingLineupPreflightInTx(
     }
   }
   return { valid: blockers.length === 0, blockers: [...new Set(blockers)], affiliatedStarterCounts: result.affiliatedStarterCounts };
+  });
 }
 
 function loadPersistedPlayers(
