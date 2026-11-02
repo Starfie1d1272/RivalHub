@@ -138,6 +138,7 @@ fi
 previous=$(readlink "$root/current" || true)
 if [[ -n $previous ]]; then
   [[ $# == 9 ]] || { echo 'Existing instances require the release controller.' >&2; exit 1; }
+  [[ $env_file == "$config" ]] || { echo 'An upgrade requires the installed instance environment.' >&2; exit 1; }
   [[ $previous == releases/rivalhub-production-* && -f $root/$previous/standby.json && -f $config && -f $unit ]] || { echo 'Previous rollback state incomplete.' >&2; exit 1; }
   if [[ -z $previous_tag ]]; then
     read -r previous_tag previous_sha < <("$node" "$helper" manifest "$root/$previous/standby.json" "${previous#releases/}")
@@ -145,6 +146,7 @@ if [[ -n $previous ]]; then
   [[ -n $previous_tag && -n $previous_sha ]] || exit 1
   "$node" "$helper" manifest "$root/$previous/standby.json" "${previous#releases/}" "$previous_tag" "$previous_sha" >/dev/null || { echo 'Current host differs from frozen previous release.' >&2; exit 1; }
   check_identity "$root/$previous/runtime/node" "$previous_tag" "$previous_sha" || { echo 'Running instance identity or ledger differs from frozen previous release.' >&2; exit 1; }
+  "$node" -e 'const fs = require("fs"); const a = JSON.parse(fs.readFileSync(process.argv[1])).migrations, b = JSON.parse(fs.readFileSync(process.argv[2])).migrations; if (!Array.isArray(a) || !a.length || !Array.isArray(b) || a.length !== b.length || a.some((m, i) => m.hash !== b[i]?.hash || m.when !== b[i]?.when)) process.exit(1)' "$root/$previous/standby.json" "$staging/standby.json" || { echo 'Migration-changing upgrades are not supported.' >&2; exit 1; }
   operator=$("$node" "$helper" operator "$staging/standby.json")
   cmp -s "$(dirname "$capability_evidence")/release-capability-gate.mjs" "$script_dir/../standby/release-capability-gate.mjs" || exit 1
   cmp -s "$(dirname "$capability_evidence")/capability-contract.ts" "$script_dir/../release/capability-contract.ts" || exit 1
