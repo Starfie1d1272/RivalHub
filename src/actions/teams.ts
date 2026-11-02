@@ -10,7 +10,6 @@ import { auditActorId, requireAuth, requireSuperAdmin } from "@/lib/auth/session
 import { createServiceClient } from "@/lib/auth/supabase-server";
 import { MAX_TEAM_NAME_LENGTH, MIN_TEAM_NAME_LENGTH, teamNameSchema } from "@/lib/config/team-config";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { publicAssetReference } from "@/lib/assets-reference";
 import { TEAM_LOGO_BUCKET, TEAM_LOGO_EXTENSIONS } from "@/lib/config/team-logo";
 import { LOGO_ALLOWED_TYPES, LOGO_MAX_BYTES } from "@/lib/config/upload-limits";
 import { normalizeEmail } from "@/lib/utils/email";
@@ -86,7 +85,7 @@ export async function uploadTeamLogo(teamId: string, formData: FormData): Promis
     const { error } = await bucket.upload(path, file, { upsert: true, contentType: file.type });
     if (error) throw new AppError(ErrorCode.INTERNAL_ERROR, "图片上传失败，请重试。");
     const logoUrl = bucket.getPublicUrl(path).data.publicUrl;
-    const result = await db.transaction((tx) => updateTeamLogoInTx(tx, { teamId, userId: session.userId, actorId: auditActorId(session), logoUrl: publicAssetReference(TEAM_LOGO_BUCKET, path) }));
+    const result = await db.transaction((tx) => updateTeamLogoInTx(tx, { teamId, userId: session.userId, actorId: auditActorId(session), logoUrl }));
     revalidateTeam(result.slug);
     return ok({ logoUrl });
   } catch (error) { return actionError("uploadTeamLogo", error); }

@@ -1,5 +1,4 @@
 import "server-only";
-import { storePublicAsset } from "@/lib/assets-reference";
 import { z } from "zod";
 import type { TxDb } from "@/db/client";
 import { matches } from "@/db/schema";
@@ -19,7 +18,7 @@ const creationSchema = z.object({
 /** Transactional domain owner; the calling entrypoint owns authorization. No invitation or roster prerequisite. */
 export async function createUnassociatedMatchInTx(tx: TxDb, input: unknown, actorId: string) {
   const { sides, mapPool, ...values } = creationSchema.parse(input);
-  const [match] = await tx.insert(matches).values({ ...values, executionContext: { version: 1, sides: { a: { ...sides.a, logoUrl: sides.a.logoUrl && storePublicAsset(sides.a.logoUrl) }, b: { ...sides.b, logoUrl: sides.b.logoUrl && storePublicAsset(sides.b.logoUrl) } }, mapPool } }).returning();
+  const [match] = await tx.insert(matches).values({ ...values, executionContext: { version: 1, sides, mapPool } }).returning();
   if (!match) throw new AppError(ErrorCode.INTERNAL_ERROR, "创建比赛失败。");
   await writeAuditInTx(tx, { action: "match.create", actorId, targetId: match.id, meta: { source: "unassociated" } });
   return match;

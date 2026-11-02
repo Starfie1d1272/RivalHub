@@ -1,7 +1,5 @@
 "use server";
 
-import { publicAssetReference } from "@/lib/assets-reference";
-
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -226,7 +224,7 @@ export async function uploadSeasonLogo(seasonId: string, formData: FormData): Pr
     await seasonPublicAssetsStorage.upload(path, file, file.type);
     let updated;
     try {
-      updated = await db.transaction((tx) => replaceSeasonLogoInTx(tx, ctx, seasonId, publicAssetReference("season-public-assets", path)));
+      updated = await db.transaction((tx) => replaceSeasonLogoInTx(tx, ctx, seasonId, logoUrl));
     } catch (error) {
       await cleanupLogo(path);
       throw error;
