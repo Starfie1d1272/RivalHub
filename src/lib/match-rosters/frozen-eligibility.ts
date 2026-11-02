@@ -41,6 +41,7 @@ export function decodeFrozenLineupEligibility(value: unknown, expected: {
     };
   }
   return {
+    recentEvidenceSemantics: snapshot.competitive?.recentEvidenceSemantics,
     entryId: snapshot.entryId, rosterRevisionId: snapshot.rosterRevisionId,
     starterCount: snapshot.rules.starterCount, maxSubstitutes: snapshot.rules.maxSubstitutes,
     affiliationRules: snapshot.rules.affiliationRules, educationRequired: snapshot.rules.qualificationPolicy.educationRequired,

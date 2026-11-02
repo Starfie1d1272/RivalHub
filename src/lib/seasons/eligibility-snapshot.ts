@@ -22,6 +22,7 @@ export const eventRosterEligibilitySnapshotV2Schema = z.object({
     starterCount: z.number().int().min(0), maxSubstitutes: z.number().int().min(0),
   }).strict(),
   competitive: z.object({
+    recentEvidenceSemantics: z.literal("any_usable").optional(),
     profile: competitiveProfileSchema.nullable(),
     requirements: z.object({ historicalPeak: z.boolean(), seasonKeys: z.array(z.string()), ratingRequired: z.boolean(), exactStarsRequired: z.boolean() }).strict(),
     byPurpose: z.object({

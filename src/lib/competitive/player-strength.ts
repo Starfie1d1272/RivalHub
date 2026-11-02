@@ -214,6 +214,7 @@ export function getPlayerStrengthFindings(
 export function evaluateCompetitiveProfileReadiness(
   evidence: QualificationEvidence,
   userId: string,
+  options: { preserveFrozenSemantics?: boolean } = {},
 ): QualificationFinding[] {
   if (evidence.kind !== "competitive" || !evidence.context.profile) {
     return [{ code: "competitive_context_unavailable", message: "本届赛事的竞技资料要求暂时无法确认，请联系赛事管理员。", waivable: false, metadata: { field: "competitive_context" } }];
@@ -244,7 +245,7 @@ export function evaluateCompetitiveProfileReadiness(
     if (!slot.fact) continue;
     // Recent evidence is an any-of set; an explicitly unranked optional
     // season is equivalent to an absent one when another recent fact exists.
-    if (slot.fact.status === "unranked" && slot.key !== "historical" && slot.key !== referenceKey && config.evidencePolicy && effectiveRecentPeak(player, config)) continue;
+    if (!options.preserveFrozenSemantics && slot.fact.status === "unranked" && slot.key !== "historical" && slot.key !== referenceKey && config.evidencePolicy && effectiveRecentPeak(player, config)) continue;
     if (slot.fact.status === "unranked") {
       findings.push({ code: "competitive_profile_incomplete", message: `${slot.key === "historical" ? "历史最高" : slot.key}为未定级，缺少可用段位。`, waivable: false, metadata: { field: "rank", status: "unranked", platform: slot.fact.sourcePlatform, seasonKey: slot.key } });
       continue;
