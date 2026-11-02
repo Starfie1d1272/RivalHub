@@ -16,6 +16,7 @@ import {
   competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
   seasonRegistrations,
+  seasons,
   steamProfiles,
   teamMemberships,
   users,
@@ -32,7 +33,9 @@ import {
 } from "@/lib/qualification/service";
 import { sameQualificationFindingSnapshot } from "@/lib/competition-entries/restriction-overrides";
 import { assessEntryRosterReadiness } from "@/lib/competition-entries/readiness";
-import { assessEntryRosterInTx } from "@/lib/competition-entries/commands";
+import { assessRosterCandidate, loadRosterCandidates } from "@/lib/competition-entries/roster-assessment";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
+import type { DatabaseExecutor } from "@/lib/qualification/facts";
 import { escapeLikePattern } from "@/lib/db/search";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { getDisplayName } from "@/lib/identity/display-name";
@@ -264,20 +267,47 @@ async function projectTeamRegistrationRows(
   entries: TeamEntryForProjection[],
   includeOverrides: boolean,
 ) {
+  if (season.teamRegistrationConfig?.qualificationPolicy?.version === 2) {
+    if (entries.length === 0) return [];
+    return db.transaction(async (tx) => {
+      const currentRows = await tx.select({
+        id: competitionEntries.id, name: competitionEntries.name, source: competitionEntries.source,
+        status: competitionEntries.registrationStatus, reviewReason: competitionEntries.reviewReason,
+        teamId: competitionEntries.teamId, perfectTeamId: competitionEntries.perfectTeamId, logoUrl: competitionEntries.logoUrl,
+        updatedAt: competitionEntries.updatedAt, currentRosterRevisionId: competitionEntries.currentRosterRevisionId,
+        revisionOrigin: competitionEntryRosterRevisions.origin, revisionStatus: competitionEntryRosterRevisions.status,
+        representative: { displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, email: users.email },
+      }).from(competitionEntries)
+        .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
+        .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+        .leftJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
+        .where(and(eq(competitionEntries.competitionId, season.id), inArray(competitionEntries.id, entries.map((entry) => entry.id))));
+      const byId = new Map(currentRows.map((row) => [row.id, row]));
+      const currentEntries = entries.flatMap((entry) => { const current = byId.get(entry.id); return current ? [current] : []; });
+      return projectTeamRegistrationRowsWithExecutor(tx, season, currentEntries, includeOverrides);
+    }, { isolationLevel: "repeatable read", accessMode: "read only" });
+  }
+  return projectTeamRegistrationRowsWithExecutor(db, season, entries, includeOverrides);
+}
+
+async function projectTeamRegistrationRowsWithExecutor(
+  executor: DatabaseExecutor,
+  season: TeamReviewSeason,
+  entries: TeamEntryForProjection[],
+  includeOverrides: boolean,
+) {
   const entryIds = entries.map((entry) => entry.id);
   const revisionIds = entries.flatMap(entry => entry.currentRosterRevisionId ? [entry.currentRosterRevisionId] : []);
-  const [overrideRows, rosterRows] = entryIds.length === 0
-    ? [[], []]
-    : await Promise.all([
-        includeOverrides ? db
+  const overrideRows = entryIds.length > 0 && (includeOverrides || season.teamRegistrationConfig?.qualificationPolicy?.version === 2)
+    ? await executor
           .select()
           .from(competitionEntryRestrictionOverrides)
           .where(and(
             eq(competitionEntryRestrictionOverrides.competitionId, season.id),
             inArray(competitionEntryRestrictionOverrides.entryId, entryIds),
             sql`${competitionEntryRestrictionOverrides.revokedAt} IS NULL`,
-          )) : Promise.resolve([]),
-        db
+          )) : [];
+  const rosterRows = entryIds.length > 0 ? await executor
           .select({
             entryId: competitionEntryRosterRevisions.entryId,
             revisionId: competitionEntryRosterRevisions.id,
@@ -299,24 +329,24 @@ async function projectTeamRegistrationRows(
           .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
         .innerJoin(users, and(eq(users.id, competitionEntryRosterMembers.userId), eq(users.status, "active")))
         .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-          .where(and(inArray(competitionEntryRosterRevisions.entryId, entryIds), inArray(competitionEntryRosterRevisions.id, revisionIds))),
-      ]);
+          .where(and(inArray(competitionEntryRosterRevisions.entryId, entryIds), inArray(competitionEntryRosterRevisions.id, revisionIds))) : [];
 
   const selfDraftIds = entries.filter((entry) => teamReviewCategory(entry) === "self_change_draft").map((entry) => entry.id);
-  const [frozenRows, qualificationRuns, entrants] = selfDraftIds.length === 0 ? [[], [], []] : await Promise.all([
-    db.select({ entryId: eventRosters.entryId }).from(eventRosters).where(and(inArray(eventRosters.entryId, selfDraftIds), eq(eventRosters.status, "frozen"))),
-    season.competitionTemplate === "major" ? db.select({ completedAt: competitionQualificationRuns.completedAt }).from(competitionQualificationRuns).where(eq(competitionQualificationRuns.seasonId, season.id)).limit(1) : Promise.resolve([]),
-    season.competitionTemplate === "major" ? db.select({ entryId: majorTournamentEntrants.competitionEntryId }).from(majorTournamentEntrants).where(and(eq(majorTournamentEntrants.seasonId, season.id), inArray(majorTournamentEntrants.competitionEntryId, selfDraftIds))) : Promise.resolve([]),
-  ]);
+  const frozenRows = selfDraftIds.length ? await executor.select({ entryId: eventRosters.entryId }).from(eventRosters).where(and(inArray(eventRosters.entryId, selfDraftIds), eq(eventRosters.status, "frozen"))) : [];
+  const qualificationRuns = selfDraftIds.length && season.competitionTemplate === "major" ? await executor.select({ completedAt: competitionQualificationRuns.completedAt }).from(competitionQualificationRuns).where(eq(competitionQualificationRuns.seasonId, season.id)).limit(1) : [];
+  const entrants = selfDraftIds.length && season.competitionTemplate === "major" ? await executor.select({ entryId: majorTournamentEntrants.competitionEntryId }).from(majorTournamentEntrants).where(and(eq(majorTournamentEntrants.seasonId, season.id), inArray(majorTournamentEntrants.competitionEntryId, selfDraftIds))) : [];
   const frozenIds = new Set(frozenRows.map((row) => row.entryId));
   const entrantIds = new Set(entrants.map((row) => row.entryId));
   const run = qualificationRuns[0];
 
   if (season.teamRegistrationConfig?.qualificationPolicy?.version === 2) {
-    return Promise.all(entries.map(async (entry) => {
-      const assessment = entry.currentRosterRevisionId
-        ? await db.transaction((tx) => assessEntryRosterInTx(tx, { entryId: entry.id, expectedRevisionId: entry.currentRosterRevisionId! }))
-        : null;
+    const seasonRow = await executor.query.seasons.findFirst({ where: eq(seasons.id, season.id) });
+    if (!seasonRow) throw new Error("赛事不存在。");
+    const rules = decodeSeasonRules(seasonRow);
+    const candidates = await loadRosterCandidates(executor, seasonRow, entries.flatMap((entry) => entry.currentRosterRevisionId ? [{ entryId: entry.id, expectedRevisionId: entry.currentRosterRevisionId }] : []));
+    return entries.map((entry) => {
+      const candidate = candidates.get(entry.id);
+      const assessment = candidate ? assessRosterCandidate(candidate, rules, overrideRows.filter((override) => override.entryId === entry.id && override.rosterRevisionId === candidate.revision.id)) : null;
       const members = rosterRows
         .filter((member) => member.entryId === entry.id && member.revisionId === entry.currentRosterRevisionId)
         .map((member) => {
@@ -346,7 +376,7 @@ async function projectTeamRegistrationRows(
           snapshotMatches: sameQualificationFindingSnapshot(override.findingSnapshot, findings.find((finding) => finding.code === override.restrictionCode) ?? { code: override.restrictionCode, message: "当前资格结果中不存在该限制。", waivable: false }),
         })),
       };
-    }));
+    });
   }
 
   const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
@@ -362,6 +392,7 @@ async function projectTeamRegistrationRows(
   const needsQualificationFacts = v1 || requiresCompetitiveProfile || affiliationRules.length > 0;
   const qualificationFacts: Map<string, ParticipantQualificationFacts> = needsQualificationFacts
     ? await loadParticipantQualificationFacts(userIds, {
+        executor,
         platform: competitiveContext?.platform ?? policy.competitiveProfile?.platform,
         fallbackPlatform: competitiveContext?.fallbackConversion?.sourcePlatform,
         includeCompetitiveFacts: hasCompetitiveProfile,
