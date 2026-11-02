@@ -27,7 +27,7 @@ export default async function AdminDraftPage({ params }: AdminDraftPageProps) {
 
   if (!season.hasDraft && season.registrationMode === "solo") {
     const data = await getManualFormationData(season.id);
-    return <div className="space-y-6"><PageHeader title={`管理员编队 · ${season.name}`} description="为已审核的个人报名选手创建编队草稿。" /><ManualFormationPanel seasonId={season.id} data={data} maxTeamSize={season.maxTeamSize} starterCount={season.starterCount} />{decodeSeasonRules(season).source === "policy_v2" && ["registration", "drafting"].includes(season.status) && <FormationStartPanel seasonId={season.id} seasonSlug={season.slug} major={season.competitionTemplate === "major"} />}</div>;
+    return <div className="space-y-6"><PageHeader title={`管理员编队 · ${season.name}`} description="为已审核的个人报名选手创建编队草稿。" /><ManualFormationPanel seasonId={season.id} data={data} maxTeamSize={season.maxTeamSize} starterCount={season.starterCount} modern={decodeSeasonRules(season).source === "policy_v2"} />{decodeSeasonRules(season).source === "policy_v2" && ["registration", "drafting"].includes(season.status) && <FormationStartPanel seasonId={season.id} seasonSlug={season.slug} major={season.competitionTemplate === "major"} />}</div>;
   }
 
   const [teamCount, data] = await Promise.all([

@@ -174,7 +174,7 @@ export async function withdrawFormation(input: { seasonId: string; entryId: stri
   try {
     const slug = await db.transaction(async tx => {
       const [season] = await tx.select().from(seasons).where(eq(seasons.id, parsed.data.seasonId)).for("update");
-      if (!season || season.hasDraft || season.registrationMode !== "solo" || !["registration", "drafting"].includes(season.status)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前阶段不能撤销编队。");
+      if (!season || season.hasDraft || season.registrationMode !== "solo" || decodeSeasonRules(season).source !== "policy_v2" || !["registration", "drafting"].includes(season.status)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "当前阶段不能撤销编队。");
       const [entry] = await tx.select().from(competitionEntries).where(and(eq(competitionEntries.id, parsed.data.entryId), eq(competitionEntries.competitionId, season.id))).for("update");
       if (!entry || entry.source !== "event_native" || entry.approvedRosterRevisionId || entry.registrationStatus !== "draft") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只能撤销尚未批准的编队草稿。");
       const [roster] = await tx.select().from(eventRosters).where(eq(eventRosters.entryId, entry.id)).for("update");
