@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -95,9 +96,9 @@ export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = fal
           <div><Label htmlFor={`${id}-roster-${index}`}>名单最少人数</Label><Input id={`${id}-roster-${index}`} disabled={disabled} type="number" min={0} value={rule.minRosterMembers} onChange={(e) => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.map((r, i) => i === index ? { ...r, minRosterMembers: Number(e.target.value) } : r) })} /></div>
           <div><Label htmlFor={`${id}-starters-${index}`}>首发最少人数</Label><Input id={`${id}-starters-${index}`} disabled={disabled} type="number" min={0} value={rule.minStartingMembers} onChange={(e) => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.map((r, i) => i === index ? { ...r, minStartingMembers: Number(e.target.value) } : r) })} /></div>
           {(["enrolled", "graduated"] as const).map((status) => <label key={status} className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={disabled} checked={rule.eligibleAcademicStatuses.includes(status)} onChange={(e) => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.map((r, i) => i === index ? { ...r, eligibleAcademicStatuses: e.target.checked ? [...r.eligibleAcademicStatuses, status] : r.eligibleAcademicStatuses.filter((item) => item !== status) } : r) })} />{status === "enrolled" ? "在读" : "毕业"}</label>)}
-          <button type="button" disabled={disabled} onClick={() => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.filter((_, i) => i !== index) })}>移除机构</button>
+          <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => setPolicy({ ...policy, affiliationRules: policy.affiliationRules.filter((_, i) => i !== index) })}>移除机构</Button>
         </div>)}
-        <button type="button" disabled={disabled} onClick={() => setPolicy({ ...policy, affiliationRules: [...policy.affiliationRules, { institutionCode: "", eligibleAcademicStatuses: ["enrolled", "graduated"], minRosterMembers: 0, minStartingMembers: 0 }] })}>添加机构</button>
+        <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => setPolicy({ ...policy, affiliationRules: [...policy.affiliationRules, { institutionCode: "", eligibleAcademicStatuses: ["enrolled", "graduated"], minRosterMembers: 0, minStartingMembers: 0 }] })}>添加机构</Button>
       </div>}
       {!fallbackOnly && showCompetitiveSettings && !policy && <div>
         <h3 className="text-sm font-medium mb-3">竞技档案规则</h3>
