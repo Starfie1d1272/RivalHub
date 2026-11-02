@@ -1,6 +1,6 @@
 import { OFFICIAL_PREVIEW, OFFICIAL_PRODUCTION } from "../../../src/lib/runtime/official-deployment-profile.mjs";
 import { postgresConnection } from "../../../src/db/postgres-connection";
-import { requireSupabaseSecretKey } from "../../../src/lib/runtime/supabase-keys";
+import { requireSupabasePublicKey, requireSupabaseSecretKey } from "../../../src/lib/runtime/supabase-keys";
 import {
   assertProductionBackupDatabaseUrl,
   buildProductionEnvironment,
@@ -219,6 +219,34 @@ export function assertRecoveryArtifactKind(value: string | undefined): RecoveryA
     throw new Error("recovery artifact kind 必须是 full | db-checkpoint。 ");
   }
   return value;
+}
+
+/** Explicitly targeted fresh non-official Hosted instance; never an official project. */
+export function buildInstanceRecoveryEnvironment(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): IsolatedRecoveryEnvironment {
+  if (env.RIVALHUB_RECOVERY_TARGET !== "instance" || env.RIVALHUB_INSTANCE_WRITE !== "yes") {
+    throw new Error("Explicit instance recovery write target required.");
+  }
+  const project = required(env.RIVALHUB_INSTANCE_PROJECT_REF, "RIVALHUB_INSTANCE_PROJECT_REF");
+  if (!/^[a-z]{20}$/.test(project) || isProductionRecoverySource(project) || project === OFFICIAL_PREVIEW.projectRef
+    || env.RIVALHUB_INSTANCE_CONFIRM !== project) throw new Error("Confirmed non-official recovery project required.");
+  const apiUrl = required(env.RIVALHUB_RECOVERY_SUPABASE_URL, "RIVALHUB_RECOVERY_SUPABASE_URL");
+  if (apiUrl !== `https://${project}.supabase.co`) throw new Error("Recovery API project identity mismatch.");
+  const databaseUrl = required(env.RIVALHUB_RECOVERY_DATABASE_URL, "RIVALHUB_RECOVERY_DATABASE_URL");
+  let db: URL;
+  try { db = new URL(databaseUrl); } catch { throw new Error("Recovery database URL invalid."); }
+  const direct = db.hostname === `db.${project}.supabase.co` && (!db.port || db.port === "5432");
+  const pooled = /^aws-[0-9]+-[a-z0-9-]+\.pooler\.supabase\.com$/.test(db.hostname)
+    && decodeURIComponent(db.username) === `postgres.${project}` && (!db.port || db.port === "5432");
+  if ((!direct && !pooled) || db.pathname !== "/postgres" || db.hash
+    || [...db.searchParams.keys()].some(key => key !== "sslmode")) throw new Error("Recovery database project identity mismatch.");
+  postgresConnection(databaseUrl);
+  return { databaseUrl, supabase: {
+    apiUrl, databaseUrl,
+    publishableKey: requireSupabasePublicKey(env.RIVALHUB_RECOVERY_PUBLISHABLE_KEY, apiUrl),
+    serviceRoleKey: requireSupabaseSecretKey(env.RIVALHUB_RECOVERY_SERVICE_ROLE_KEY, apiUrl),
+  } };
 }
 
 export function buildIsolatedRecoveryEnvironment(

@@ -92,7 +92,8 @@ if [[ ${1:-} == --rollback ]]; then
   echo "Previous release restored: $previous_tag $previous_sha"
   exit 0
 fi
-[[ $# == 2 ]] || { echo 'Usage: install.sh MANIFEST INSTANCE_ENV' >&2; exit 1; }
+[[ $# == 2 || ( $# == 4 && $3 == --recovery-evidence ) ]] || { echo 'Usage: install.sh MANIFEST INSTANCE_ENV [--recovery-evidence FILE]' >&2; exit 1; }
+recovery_evidence=${4:-}
 archive=$(realpath "$1")
 env_file=$(realpath "$2")
 (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$archive").sha256")
@@ -139,6 +140,7 @@ printf '%s %s %s %s\n' "$tag" "$sha" "$previous_tag" "$previous_sha" > "$snapsho
 env -i "$node" --env-file="$snapshot/candidate.env" "$staging/scripts/instance/validate-runtime.mjs" "$staging/standby.json"
 candidate_db=$(env -i "$node" --env-file="$snapshot/candidate.env" "$script_dir/database-identity.mjs")
 if [[ -n $previous ]]; then
+  [[ -z $recovery_evidence ]] || { echo 'Recovery evidence is only valid for a host without a previous release.' >&2; exit 1; }
   # Credentials and direct/pooler mode may change; project and database may not.
   previous_db=$(env -i "$node" --env-file="$snapshot/instance.env" "$script_dir/database-identity.mjs")
   [[ $previous_db == "$candidate_db" ]] || { echo 'Instance database destination changed; refusing upgrade.' >&2; exit 1; }
@@ -146,7 +148,14 @@ fi
 # Check real provisioning facts before starting or switching the service. Only
 # a first install requires the generic fresh-chain email rule to be absent.
 readiness_args=()
-[[ -n $previous ]] || readiness_args+=(--fresh)
+if [[ -z $previous ]]; then
+  if [[ -n $recovery_evidence ]]; then
+    cp -pP -- "$recovery_evidence" "$snapshot/recovery-evidence.json"
+    env -i "$node" --env-file="$snapshot/candidate.env" "$script_dir/recovery-evidence.mjs" "$snapshot/recovery-evidence.json" "$staging/standby.json"
+  else
+    readiness_args+=(--fresh)
+  fi
+fi
 env -i "$node" --env-file="$snapshot/candidate.env" "$staging/scripts/instance/readiness.mjs" "$staging" "${readiness_args[@]}"
 if ! id rivalhub-instance >/dev/null 2>&1; then
   useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin rivalhub-instance

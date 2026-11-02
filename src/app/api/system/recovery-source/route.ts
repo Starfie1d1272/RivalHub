@@ -1,6 +1,8 @@
 import { assertReleaseIdentity } from "@/lib/release/identity";
 import { readInstanceRecoverySource } from "@/lib/runtime/instance-recovery-source";
 
+export const dynamic = "force-dynamic";
+
 // The project URL is already public runtime configuration. Never return DB
 // credentials, raw connection URLs, or any other environment values.
 export function GET(): Response {

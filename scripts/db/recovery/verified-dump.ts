@@ -20,9 +20,16 @@ RIVALHUB_PUBLIC_CA`);
 }
 
 export function runVerifiedSupabaseDump(databaseUrl: string, flags: readonly string[], outputPath: string): void {
-  postgresConnection(databaseUrl);
+  const url = new URL(databaseUrl);
+  const keys = [...url.searchParams.keys()];
+  if (keys.some((key) => key !== "sslmode") || keys.length > 1) {
+    throw new Error("Backup database URL contains unsupported connection options.");
+  }
+  // URL options override libpq environment variables. Remove the compatible
+  // sslmode before applying our explicit verify-full contract in the wrapper.
+  const connection = postgresConnection(databaseUrl);
   const template = spawnSync(process.platform === "win32" ? "pnpm.cmd" : "pnpm",
-    ["exec", "supabase", "db", "dump", "--db-url", databaseUrl, "--dry-run", ...flags],
+    ["exec", "supabase", "db", "dump", "--db-url", connection.connectionString, "--dry-run", ...flags],
     { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   if (template.error || template.status !== 0) throw new Error("Supabase dump template generation failed.");
   const script = verifiedDumpScript(template.stdout, databaseUrl);

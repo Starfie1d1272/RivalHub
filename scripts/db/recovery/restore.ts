@@ -5,7 +5,9 @@ import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { Pool } from "pg";
+import { postgresConnection } from "../../../src/db/postgres-connection";
 import {
+  buildInstanceRecoveryEnvironment,
   buildIsolatedRecoveryDatabaseEnvironment,
   buildIsolatedRecoveryEnvironment,
   parseLocalRecoveryStatus,
@@ -34,6 +36,7 @@ import {
   type StorageBucketRecord,
 } from "./storage";
 import { readManagedStorageReferences } from "./storage-policy";
+import { reconcileRecoveryLifecycle } from "./lifecycle";
 import { buildRecoveryR2Keys } from "./r2";
 import { buildRecoveryMigrationPlan } from "./source";
 import { assertManifestMigrationMatches, verifyRecoveryDatabase } from "./verify";
@@ -81,9 +84,13 @@ async function main(): Promise<void> {
       if (!isFullRecoveryManifest(manifest)) {
         throw new Error("db-checkpoint artifact 不能由 full recovery restore 恢复；请使用 db:recovery:restore-db-checkpoint。 ");
       }
+      if (process.env.RIVALHUB_RECOVERY_TARGET === "instance" && manifest.sourceEnvironment !== "instance") {
+        throw new Error("Official backups may only be restored to isolated targets.");
+      }
       if (args.evidenceDirectory && manifest.sourceEnvironment !== "instance") throw new Error("Only a full independent instance restore can produce activation evidence.");
-      if (args.evidenceDirectory && process.env.RIVALHUB_RECOVERY_USE_LOCAL_SUPABASE !== "1") {
-        throw new Error("Activation evidence requires provider-discovered isolated target identity.");
+      if (args.evidenceDirectory && process.env.RIVALHUB_RECOVERY_TARGET !== "instance"
+        && process.env.RIVALHUB_RECOVERY_USE_LOCAL_SUPABASE !== "1") {
+        throw new Error("Activation evidence requires a verified target identity.");
       }
       if (args.evidenceDirectory) assertEvidenceDirectory(args.evidenceDirectory);
       const target = readRecoveryTarget();
@@ -148,7 +155,7 @@ async function writeInstanceRecoveryEvidence(
   sidecar: RecoverySidecar,
 ): Promise<void> {
   const root = assertEvidenceDirectory(directory);
-  const pool = new Pool({ connectionString: target.databaseUrl, ssl: false, max: 1 });
+  const pool = new Pool({ ...postgresConnection(target.databaseUrl), max: 1 });
   try {
     const actual = await readTargetMigration(pool);
     assertManifestMigrationMatches(actual, readExpectedMigrations(), manifest.source.databaseMigrationTerminal);
@@ -182,6 +189,7 @@ function assertRestoreArtifactMode(artifactKind: RecoveryArtifactKind, mode: Res
 }
 
 function readRecoveryTarget(): IsolatedRecoveryEnvironment {
+  if (process.env.RIVALHUB_RECOVERY_TARGET === "instance") return buildInstanceRecoveryEnvironment(process.env);
   if (process.env.RIVALHUB_RECOVERY_USE_LOCAL_SUPABASE === "1") {
     const status = readLocalSupabaseStatus();
     const environment = {
@@ -200,7 +208,7 @@ async function restoreFullArtifact(
   stagingRoot: string,
   tempRoot: string,
 ): Promise<void> {
-  const pool = new Pool({ connectionString: target.databaseUrl, ssl: false, max: 1 });
+  const pool = new Pool({ ...postgresConnection(target.databaseUrl), max: 1 });
   try {
     const expectedBuckets = readStorageBuckets(resolve(stagingRoot, "storage/buckets.json"));
     await assertRecoveryTargetIsEmpty(pool, expectedBuckets);
@@ -212,7 +220,7 @@ async function restoreFullArtifact(
       expectedMigration: manifest.source.databaseMigrationTerminal,
       skipExpiredSensitiveEvidence: true,
     });
-    runLifecycleReconciliation(target);
+    await reconcileRecoveryLifecycle(target);
     const activeStorageReferences = await readManagedStorageReferences(pool);
     const storageClient = createClient(target.supabase.apiUrl, target.supabase.serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -247,7 +255,7 @@ async function restoreDbCheckpointArtifact(
   stagingRoot: string,
   tempRoot: string,
 ): Promise<void> {
-  const pool = new Pool({ connectionString: target.databaseUrl, ssl: false, max: 1 });
+  const pool = new Pool({ ...postgresConnection(target.databaseUrl), max: 1 });
   try {
     await assertRecoveryDatabaseTargetIsEmpty(pool);
     await ensureTargetMigration(pool, manifest, target.databaseUrl, tempRoot);
@@ -397,7 +405,7 @@ function assertSnapshotIdentity(manifest: RecoveryManifest, sidecar: RecoverySid
     || manifest.createdAt !== sidecar.createdAt
     || manifest.artifactKind !== sidecar.artifactKind
     || manifest.backupClass !== sidecar.backupClass
-    || sidecar.artifactKey !== buildRecoveryR2Keys(manifest.backupClass, manifest.runId, manifest.createdAt).artifact
+    || sidecar.artifactKey !== buildRecoveryR2Keys(manifest.backupClass, manifest.runId, manifest.createdAt, { environment: manifest.sourceEnvironment, projectRef: manifest.sourceProjectRef }).artifact
   ) {
     throw new Error("Recovery manifest does not match the sidecar run identity; restore aborted. ");
   }
@@ -574,38 +582,20 @@ export function applyDatabaseData(databaseUrl: string, dataPath: string, tempRoo
     ].join("\n"),
     { flag: "wx" },
   );
+  const connection = postgresConnection(databaseUrl);
+  const env = { ...process.env };
+  if (connection.ssl) {
+    const caPath = join(tempRoot, "supabase-ca.pem");
+    writeFileSync(caPath, connection.ssl.ca, { flag: "wx", mode: 0o600 });
+    env.PGSSLMODE = "verify-full";
+    env.PGSSLROOTCERT = caPath;
+  }
   runCommand("psql", [
-    "--dbname", databaseUrl,
+    "--dbname", connection.connectionString,
     "--set", "ON_ERROR_STOP=1",
     "--single-transaction",
     "--file", wrapperScriptPath,
-  ]);
-}
-
-function runLifecycleReconciliation(target: IsolatedRecoveryEnvironment): void {
-  const environment: NodeJS.ProcessEnv = {
-    ...process.env,
-    DATABASE_URL: target.databaseUrl,
-    NEXT_PUBLIC_SUPABASE_URL: target.supabase.apiUrl,
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: target.supabase.publishableKey,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: target.supabase.publishableKey,
-    SUPABASE_SECRET_KEY: target.supabase.serviceRoleKey,
-    SUPABASE_SERVICE_ROLE_KEY: target.supabase.serviceRoleKey,
-    RIVALHUB_RECOVERY_DATABASE_URL: target.databaseUrl,
-    RIVALHUB_RECOVERY_SUPABASE_URL: target.supabase.apiUrl,
-    RIVALHUB_RECOVERY_PUBLISHABLE_KEY: target.supabase.publishableKey,
-    RIVALHUB_RECOVERY_SERVICE_ROLE_KEY: target.supabase.serviceRoleKey,
-    RIVALHUB_RECOVERY_TARGET: "isolated",
-    RIVALHUB_DB_TARGET: "local",
-  };
-  delete environment.RIVALHUB_ALLOW_REMOTE_DB_WRITE;
-  const result = spawnSync(pnpmBin, ["exec", "tsx", "scripts/db/recovery/lifecycle.ts"], {
-    cwd: projectRoot,
-    env: environment,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  if (result.error || result.status !== 0) throw new Error("Recovery lifecycle reconciliation failed; restore aborted. ");
+  ], env);
 }
 
 function readJson<T>(path: string, parser: (value: unknown) => T): T {

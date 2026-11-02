@@ -94,7 +94,7 @@ export function assertRecoveryFetchOutputDirectory(value: string | undefined): s
 }
 
 function parseCompletionKey(value: string): RecoveryObjectIdentity {
-  const match = value.match(/^production\/(daily|pre-release|manual|release-db)\/(\d{4}-\d{2}-\d{2})\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.complete\.json$/i);
+  const match = value.match(/^(?:production|instance\/[a-z]{20})\/(daily|pre-release|manual|release-db)\/(\d{4}-\d{2}-\d{2})\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.complete\.json$/i);
   if (!match) throw new Error("Recovery completion key identity is invalid; fetch aborted. ");
   return {
     backupClass: match[1] as RecoveryObjectIdentity["backupClass"],
