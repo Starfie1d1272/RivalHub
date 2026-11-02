@@ -295,6 +295,7 @@ export async function executeDraftPick(
     participantId: participant.id,
     userId: targetRegistration.userId,
     isPrimaryStarter: isStarterRound(ds.currentRound, format.starterPicks),
+    primaryPosition: targetRegistration.primaryPosition,
   });
   await tx.insert(eventRosterMembers).values({
     eventRosterId: roster.id,

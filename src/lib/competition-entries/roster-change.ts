@@ -57,7 +57,7 @@ export async function requestCompetitionEntryRosterChangeInTx(
   const nextRevision = current.revisionNumber + 1;
   const [next] = await tx.insert(competitionEntryRosterRevisions).values({ entryId: entry.id, revisionNumber: nextRevision, status: "draft", origin: input.source === "admin_formation" ? "admin_remediation" : "self_roster_change", createdBy: input.actorId }).returning({ id: competitionEntryRosterRevisions.id });
   const members = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, approved.id));
-  if (members.length > 0) await tx.insert(competitionEntryRosterMembers).values(members.map((member) => ({ revisionId: next.id, participantId: member.participantId, userId: member.userId, teamMembershipId: member.teamMembershipId, isPrimaryStarter: member.isPrimaryStarter })));
+  if (members.length > 0) await tx.insert(competitionEntryRosterMembers).values(members.map((member) => ({ revisionId: next.id, participantId: member.participantId, userId: member.userId, teamMembershipId: member.teamMembershipId, isPrimaryStarter: member.isPrimaryStarter, primaryPosition: member.primaryPosition })));
   await tx.update(competitionEntries).set({ registrationStatus: "changes_requested", currentRosterRevisionId: next.id, reviewReason: null, updatedAt: new Date() }).where(eq(competitionEntries.id, entry.id));
   await writeAuditInTx(tx, { seasonId: entry.competitionId, action: "competition_entry.roster_change.request", actorId: input.actorId, targetId: entry.id,meta: { approvedRevision: approved.revisionNumber, nextRevision, prestartInvalidated, source: input.source ?? "representative_roster_change" } });
   return { seasonSlug: season.slug };

@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { DatabaseExecutor } from "@/lib/qualification/facts";
-import { competitionEntries, competitionEntryActiveClaims, competitionEntryParticipants, competitionEntryRosterMembers, competitionEntryRosterRevisions, seasonRegistrations, teamMemberships, userCompetitiveRoles } from "@/db/schema";
+import { competitionEntries, competitionEntryActiveClaims, competitionEntryParticipants, competitionEntryRosterMembers, competitionEntryRosterRevisions, seasonRegistrations, teamMemberships } from "@/db/schema";
 import type { seasons } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { loadActiveSanctionsInTx, type ActiveSanctionSummary } from "@/lib/discipline/service";
@@ -33,7 +33,7 @@ export async function loadRosterCandidates(
   const rules = decodeSeasonRules(season);
   const entries = await executor.select().from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), inArray(competitionEntries.id, requested.map((item) => item.entryId))));
   const revisions = await executor.select().from(competitionEntryRosterRevisions).where(inArray(competitionEntryRosterRevisions.id, requested.map((item) => item.expectedRevisionId)));
-  const rows = await executor.select({ revisionId: competitionEntryRosterMembers.revisionId, userId: competitionEntryRosterMembers.userId, participantId: competitionEntryParticipants.id, participantUserId: competitionEntryParticipants.userId, participantEntryId: competitionEntryParticipants.entryId, declaredPlayerType: competitionEntryParticipants.playerType, teamMembershipId: competitionEntryRosterMembers.teamMembershipId, status: competitionEntryParticipants.status, isPrimaryStarter: competitionEntryRosterMembers.isPrimaryStarter })
+  const rows = await executor.select({ revisionId: competitionEntryRosterMembers.revisionId, userId: competitionEntryRosterMembers.userId, participantId: competitionEntryParticipants.id, participantUserId: competitionEntryParticipants.userId, participantEntryId: competitionEntryParticipants.entryId, declaredPlayerType: competitionEntryParticipants.playerType, teamMembershipId: competitionEntryRosterMembers.teamMembershipId, status: competitionEntryParticipants.status, isPrimaryStarter: competitionEntryRosterMembers.isPrimaryStarter, primaryPosition: competitionEntryRosterMembers.primaryPosition })
     .from(competitionEntryRosterMembers).innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId)).where(inArray(competitionEntryRosterMembers.revisionId, requested.map((item) => item.expectedRevisionId)));
   const ids = [...new Set(rows.map((row) => row.userId))];
   const teamIds = entries.flatMap((entry) => entry.teamId ? [entry.teamId] : []);
@@ -42,14 +42,12 @@ export async function loadRosterCandidates(
   const participantRules = rules.roster.legacyParticipant ?? rules.participant;
   const facts = await loadParticipantQualificationFacts(ids, { executor, includeCompetitiveFacts: purposes.length > 0, platform: profile?.platform, fallbackPlatform: profile?.fallbackConversion?.sourcePlatform, ...(profile ? { competitiveRequirements: deriveCompetitiveRequirements(purposes, profile, participantRules) } : {}) });
   const registrations = await (ids.length ? executor.select({ id: seasonRegistrations.id, userId: seasonRegistrations.userId, status: seasonRegistrations.status, primaryPosition: seasonRegistrations.primaryPosition, playerType: seasonRegistrations.playerType }).from(seasonRegistrations).where(and(eq(seasonRegistrations.seasonId, season.id), inArray(seasonRegistrations.userId, ids))) : []);
-  const roles = await (ids.length ? executor.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role }).from(userCompetitiveRoles).where(and(inArray(userCompetitiveRoles.userId, ids), eq(userCompetitiveRoles.isPrimary, true))) : []);
   const claims = await (ids.length ? executor.select({ userId: competitionEntryActiveClaims.userId, entryId: competitionEntryActiveClaims.entryId }).from(competitionEntryActiveClaims).where(and(eq(competitionEntryActiveClaims.competitionId, season.id), inArray(competitionEntryActiveClaims.userId, ids))) : []);
   const memberships = await (teamIds.length && ids.length ? executor.select({ id: teamMemberships.id, teamId: teamMemberships.teamId, userId: teamMemberships.userId }).from(teamMemberships).where(and(inArray(teamMemberships.teamId, teamIds), inArray(teamMemberships.userId, ids), inArray(teamMemberships.status, ["active", "benched"]), isNull(teamMemberships.endedAt))) : []);
   const registrationBlocks = await (ids.length ? loadActiveSanctionsInTx(executor, { seasonId: season.id, subjectUserIds: ids, effect: "registration_block" }) : new Map<string, ActiveSanctionSummary[]>());
   const rosterBlocks = await (ids.length ? loadActiveSanctionsInTx(executor, { seasonId: season.id, subjectUserIds: ids, effect: "roster_block" }) : new Map<string, ActiveSanctionSummary[]>());
   const names = await (rules.roster.requireUniqueTeamName ? executor.select({ id: competitionEntries.id, normalized: sql<string>`lower(trim(${competitionEntries.name}))` }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), sql`${competitionEntries.registrationStatus} NOT IN ('rejected', 'withdrawn')`)) : []);
   const registrationByUser = new Map(registrations.map((item) => [item.userId, item]));
-  const rolesByUser = new Map(roles.map((item) => [item.userId, item.role]));
   const playerType = (value: string | null | undefined): PlayerType | null => value === "enrolled" || value === "graduated" || value === "external" ? value : null;
   // Use the database's own normalization on both sides, including non-ASCII names.
   const targetNames = rules.roster.requireUniqueTeamName ? await executor.select({ id: competitionEntries.id, normalized: sql<string>`lower(trim(${competitionEntries.name}))` }).from(competitionEntries).where(inArray(competitionEntries.id, entries.map((entry) => entry.id))) : [];
@@ -61,7 +59,7 @@ export async function loadRosterCandidates(
     if (!revision) continue;
     const memberRows = rows.filter((row) => row.revisionId === revision.id);
     if (memberRows.some((row) => row.participantEntryId !== entry.id || row.participantUserId !== row.userId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "名单成员记录与参赛队不一致。 ");
-    const members = memberRows.map((row) => ({ ...row, primaryPosition: registrationByUser.get(row.userId)?.primaryPosition ?? rolesByUser.get(row.userId) ?? null, playerType: entry.source === "linked_team" ? playerType(row.declaredPlayerType) : playerType(registrationByUser.get(row.userId)?.playerType) }));
+    const members = memberRows.map((row) => ({ ...row, playerType: entry.source === "linked_team" ? playerType(row.declaredPlayerType) : playerType(registrationByUser.get(row.userId)?.playerType) }));
     const memberIds = new Set(members.map((member) => member.userId));
     const common = {
       season, revision, factsByUser: new Map([...facts].filter(([id]) => memberIds.has(id))),

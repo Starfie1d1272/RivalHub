@@ -124,6 +124,7 @@ async function cloneRosterRevisionAsDraftInTx(
       userId: member.userId,
       teamMembershipId: member.teamMembershipId,
       isPrimaryStarter: member.isPrimaryStarter,
+      primaryPosition: member.primaryPosition,
     })));
   }
   await tx.update(competitionEntryRosterRevisions).set({ status: "superseded" })
@@ -315,7 +316,7 @@ export async function createCompetitionEntryInTx(tx: TxDb, input: { competitionI
   return { entryId: entry.id, seasonSlug: season.slug };
 }
 
-export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId: string; userIds: string[]; primaryStarterUserIds: string[]; perfectTeamId?: string | null; userId: string; actorId: string }): Promise<{ seasonSlug: string }> {
+export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId: string; userIds: string[]; primaryStarterUserIds: string[]; positions?: { userId: string; position: string | null }[]; perfectTeamId?: string | null; userId: string; actorId: string }): Promise<{ seasonSlug: string }> {
   const perfectTeamId = normalizePerfectTeamId(input.perfectTeamId);
   if (input.perfectTeamId !== null && input.perfectTeamId !== undefined && input.perfectTeamId !== "" && perfectTeamId === null) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "完美战队 ID 只能包含数字。");
@@ -359,8 +360,21 @@ export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId:
       await auditEntry(tx, { action: "competition_entry.participant.reinvite", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: existing.id, userId, previousStatus: existing.status } });
     }
   }
+  const existingMembers = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
+  const previousPositions = new Map(existingMembers.map((member) => [member.userId, member.primaryPosition]));
+  const positions = new Map(input.positions?.map((member) => [member.userId, member.position]) ?? []);
+  if ([...positions.values()].some((position) => position !== null && !season.positions.includes(position))) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选位置不属于本届赛事选项。");
+  for (const userId of input.userIds) {
+    const participant = participantByUser.get(userId)!;
+    const nextPosition = positions.has(userId) ? positions.get(userId)! : previousPositions.get(userId) ?? null;
+    if (participant.status === "confirmed" && nextPosition !== (previousPositions.get(userId) ?? null)) {
+      await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.participantId, participant.id));
+      await tx.update(competitionEntryParticipants).set({ status: "invited", confirmedAt: null, updatedAt: new Date() }).where(eq(competitionEntryParticipants.id, participant.id));
+      await auditEntry(tx, { action: "competition_entry.roster.save", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: participant.id, userId, previousPosition: previousPositions.get(userId) ?? null, position: nextPosition, confirmationReset: true, revisionId: revision.id } });
+    }
+  }
   await tx.delete(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
-  await tx.insert(competitionEntryRosterMembers).values(input.userIds.map((userId) => ({ revisionId: revision.id, participantId: participantByUser.get(userId)!.id, userId, teamMembershipId: currentMemberships.find((row) => row.userId === userId)?.id ?? null, isPrimaryStarter: input.primaryStarterUserIds.includes(userId) })));
+  await tx.insert(competitionEntryRosterMembers).values(input.userIds.map((userId) => ({ revisionId: revision.id, participantId: participantByUser.get(userId)!.id, userId, teamMembershipId: currentMemberships.find((row) => row.userId === userId)?.id ?? null, isPrimaryStarter: input.primaryStarterUserIds.includes(userId), primaryPosition: positions.has(userId) ? positions.get(userId)! : previousPositions.get(userId) ?? null })));
   const [teamIdentity] = !entry.logoUrl ? await tx.select({ logoUrl: teams.logoUrl }).from(teams).where(eq(teams.id, entry.teamId)) : [];
   await tx.update(competitionEntries).set({ perfectTeamId, ...(!entry.logoUrl && teamIdentity?.logoUrl ? { logoUrl: teamIdentity.logoUrl } : {}), updatedAt: new Date() }).where(eq(competitionEntries.id, entry.id));
   await auditEntry(tx, { action: "competition_entry.roster.save", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { revision: revision.revisionNumber, rosterSize: input.userIds.length, primaryStarterCount: input.primaryStarterUserIds.length } });
@@ -385,7 +399,7 @@ export async function addCompetitionEntryRosterMemberInTx(tx: TxDb, input: { ent
 }
 
 /** The player explicitly accepts a target invitation and releases an eliminated entry atomically. */
-export async function transferCompetitionEntryParticipationInTx(tx: TxDb, input: { entryId: string; fromEntryId: string; userId: string; actorId: string; playerType?: PlayerType | null }): Promise<{ seasonSlug: string }> {
+export async function transferCompetitionEntryParticipationInTx(tx: TxDb, input: { entryId: string; fromEntryId: string; userId: string; actorId: string; expectedPosition?: string | null; playerType?: PlayerType | null }): Promise<{ seasonSlug: string }> {
   const [target] = await tx.select().from(competitionEntries).where(eq(competitionEntries.id, input.entryId));
   if (!target || target.id === input.fromEntryId) throw new AppError(ErrorCode.VALIDATION_FAILED, "请选择新的参赛队伍。");
   const [source] = await tx.select({ competitionId: competitionEntries.competitionId }).from(competitionEntries).where(eq(competitionEntries.id, input.fromEntryId));
@@ -409,7 +423,7 @@ export async function transferCompetitionEntryParticipationInTx(tx: TxDb, input:
   return { seasonSlug: season.slug };
 }
 
-export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: { entryId: string; userId: string; actorId: string; playerType?: PlayerType | null }): Promise<{ seasonSlug: string; alreadyConfirmed: boolean }> {
+export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: { entryId: string; userId: string; actorId: string; expectedPosition?: string | null; playerType?: PlayerType | null }): Promise<{ seasonSlug: string; alreadyConfirmed: boolean }> {
   await lockEntrySeason(tx, input.entryId);
   await tx.execute(sql`SELECT id FROM users WHERE id = ${input.userId} FOR UPDATE`);
   const entry = await lockEntry(tx, input.entryId);
@@ -420,8 +434,9 @@ export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: 
   let season = await loadSeasonOrThrow(tx, entry.competitionId);
   const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!revision || revision.status !== "draft") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不可编辑。");
-  const [rosterMember] = await tx.select({ id: competitionEntryRosterMembers.id }).from(competitionEntryRosterMembers).where(and(eq(competitionEntryRosterMembers.revisionId, revision.id), eq(competitionEntryRosterMembers.participantId, participant.id)));
+  const [rosterMember] = await tx.select({ id: competitionEntryRosterMembers.id, primaryPosition: competitionEntryRosterMembers.primaryPosition }).from(competitionEntryRosterMembers).where(and(eq(competitionEntryRosterMembers.revisionId, revision.id), eq(competitionEntryRosterMembers.participantId, participant.id)));
   if (!rosterMember) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "邀请已更新，请联系赛事负责人确认当前名单。");
+  if (entry.source === "linked_team" && (input.expectedPosition === undefined || input.expectedPosition !== rosterMember.primaryPosition)) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "本届位置已变化，请刷新页面后确认。");
   const nativeFormation = entry.source === "event_native" && season.registrationMode === "solo"
     && ((entry.registrationStatus === "draft" && revision.origin === "initial") || (entry.registrationStatus === "changes_requested" && ["self_roster_change", "admin_remediation"].includes(revision.origin) && decodeSeasonRules(season).source === "policy_v2"))
     && (season.status === "registration" || season.status === "drafting");

@@ -69,11 +69,13 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
       const participants = await tx.select().from(competitionEntryParticipants).where(eq(competitionEntryParticipants.entryId, entry.id));
       if (participants.some(participant => participant.status === "confirmed" && !userIds.includes(participant.userId))) throw new AppError(ErrorCode.VALIDATION_FAILED, "已确认成员须先通过赛事退出流程退出。");
       if (participants.some(participant => userIds.includes(participant.userId) && ["declined", "withdrawn"].includes(participant.status))) throw new AppError(ErrorCode.VALIDATION_FAILED, "已退出或拒绝的成员须先重新接受邀请。");
+      const previousMembers = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
+      const positionsByUser = new Map(previousMembers.map(member => [member.userId, member.primaryPosition]));
       await tx.delete(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
       for (const registrationId of members) {
         const userId = byId.get(registrationId)!.userId;
         const [participant] = await tx.insert(competitionEntryParticipants).values({ entryId: entry.id, userId, status: "invited", invitedByUserId: captain.userId }).onConflictDoUpdate({ target: [competitionEntryParticipants.entryId, competitionEntryParticipants.userId], set: { updatedAt: new Date() } }).returning({ id: competitionEntryParticipants.id });
-        await tx.insert(competitionEntryRosterMembers).values({ revisionId: revision.id, participantId: participant.id, userId, isPrimaryStarter: starterIds.includes(registrationId) });
+        await tx.insert(competitionEntryRosterMembers).values({ revisionId: revision.id, participantId: participant.id, userId, isPrimaryStarter: starterIds.includes(registrationId), primaryPosition: positionsByUser.has(userId) ? positionsByUser.get(userId) : byId.get(registrationId)!.primaryPosition });
         if (season.hasDraft && !entryId) {
           const [roster] = await tx.insert(eventRosters).values({ entryId: entry.id, status: "preparing" }).returning({ id: eventRosters.id });
           await tx.insert(eventRosterMembers).values({ eventRosterId: roster.id, participantId: participant.id, userId, isPrimaryStarter: starterIds.includes(registrationId) });

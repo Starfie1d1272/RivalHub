@@ -10,6 +10,7 @@ export const eventRosterEligibilitySnapshotV2Schema = z.object({
   version: z.literal(2), seasonId: z.string(), entryId: z.string(), rosterRevisionId: z.string(),
   members: z.array(z.object({
     eventRosterMemberId: z.string(), participantId: z.string(), userId: z.string(), isPrimaryStarter: z.boolean(),
+    primaryPosition: z.string().nullable().optional(),
     educationVerificationId: z.string().nullable(),
     education: z.object({ institutionCode: z.string().nullable(), academicStatus: z.enum(["enrolled", "graduated"]), status: z.enum(["pending", "approved", "rejected"]) }).strict().nullable(),
     source: z.object({ rosterRevisionId: z.string(), teamMembershipId: z.string().nullable() }).strict(),

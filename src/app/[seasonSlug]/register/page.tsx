@@ -196,7 +196,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
             .where(and(eq(teamMemberships.teamId, entry.teamId), isNull(teamMemberships.endedAt), inArray(teamMemberships.status, ["active", "benched"])))
         : [],
         revision
-        ? db.select({ participantId: competitionEntryParticipants.id, userId: competitionEntryRosterMembers.userId, confirmation: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter, membershipId: competitionEntryRosterMembers.teamMembershipId, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, membershipStatus: teamMemberships.status })
+        ? db.select({ participantId: competitionEntryParticipants.id, userId: competitionEntryRosterMembers.userId, confirmation: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter, primaryPosition: competitionEntryRosterMembers.primaryPosition, membershipId: competitionEntryRosterMembers.teamMembershipId, email: users.email, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, membershipStatus: teamMemberships.status })
             .from(competitionEntryRosterMembers)
             .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
             .innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId))
@@ -304,6 +304,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
           confirmation: row.confirmation,
           hasOtherCommitment: row.confirmation !== "confirmed" && claimedByOtherEntry.has(row.userId),
           primary: row.primary,
+          primaryPosition: row.primaryPosition,
           readiness: readinessByUser.get(row.userId),
         })),
       };
@@ -328,6 +329,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
             capabilities={capabilities}
             pendingInvitations={participantContext.pendingInvitations}
             transferFrom={transferFrom}
+            positions={entryRules.roster.positions}
             requiresTeamLogo={entryRules.roster.requireTeamLogo}
             canManageEntryTeamProfile={Boolean(entry?.teamId && captainedTeams.some((team) => team.id === entry.teamId))}
             approvedTeamCount={approvedCount}
