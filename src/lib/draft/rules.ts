@@ -1,7 +1,21 @@
 import {
   DRAFT_TOTAL_ROUNDS,
   DRAFT_TEAMS,
+  DRAFT_ROUND_TIMEOUT_SECONDS,
 } from "@/types/draft";
+import type { DecodedSeasonRules } from "@/lib/seasons/rules";
+
+/** Historical formats keep their published interpretation. */
+export function draftFormat(rules: DecodedSeasonRules) {
+  if (rules.source !== "policy_v2") return { teamCount: DRAFT_TEAMS, rounds: DRAFT_TOTAL_ROUNDS, starterPicks: 4, timeoutSeconds: DRAFT_ROUND_TIMEOUT_SECONDS };
+  const starterPicks = Math.max(0, rules.lineup.starterCount - 1);
+  return {
+    teamCount: rules.competition.stagePlan[0]?.teamCount ?? 0,
+    rounds: Math.max(0, Math.min(rules.roster.maxTeamSize, rules.lineup.starterCount + (rules.lineup.settings?.maxSubstitutes ?? 0)) - 1),
+    starterPicks,
+    timeoutSeconds: rules.formation.settings!.draftTimeoutSeconds,
+  };
+}
 
 const DRAFT_POSITION_LIMIT_PER_TEAM = 2;
 
@@ -30,6 +44,7 @@ export function getNextEntryId(
   teams: DraftTeamOrder[],
   currentEntryId: string,
   round: number,
+  totalRounds: number,
 ): { entryId: string; nextRound: number } | null {
   const order = getSnakeOrder(teams, round);
   const idx = order.findIndex((t) => t.id === currentEntryId);
@@ -42,24 +57,10 @@ export function getNextEntryId(
 
   // 本队是轮末 → 下一轮
   const nextRound = round + 1;
-  if (nextRound > DRAFT_TOTAL_ROUNDS) return null; // 已完成
+  if (nextRound > totalRounds) return null; // 已完成
 
   const nextOrder = getSnakeOrder(teams, nextRound);
   return { entryId: nextOrder[0].id, nextRound };
-}
-
-/**
- * 判断选秀是否全部完成
- */
-export function isDraftComplete(
-  round: number,
-  currentEntryId: string | null,
-  totalPicks: number,
-): boolean {
-  return (
-    totalPicks >= DRAFT_TOTAL_ROUNDS * DRAFT_TEAMS ||
-    (round > DRAFT_TOTAL_ROUNDS && !currentEntryId)
-  );
 }
 
 /**
@@ -85,8 +86,8 @@ export function computeTeamPositionCounts(
  * Round 1-4 是首发 pick；Round 5-6 是替补 pick。
  * 队长在 confirmCaptains 时已作为首发写入赛事名单。
  */
-export function isStarterRound(round: number): boolean {
-  return round >= 1 && round <= 4;
+export function isStarterRound(round: number, starterPicks: number): boolean {
+  return round >= 1 && round <= starterPicks;
 }
 
 /**

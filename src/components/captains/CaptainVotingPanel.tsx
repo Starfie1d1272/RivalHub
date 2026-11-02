@@ -27,6 +27,8 @@ const retractVote = observeAction("captains.retractVote", telemetry_retractVote)
 interface CaptainVotingPanelProps {
   seasonSlug: string;
   viewerPending?: boolean;
+  votesPerPerson?: number;
+  targetTeamCount?: number;
   seasonName: string;
   seasonStatus: string;
   currentVoter: PublicCaptainVoter | null;
@@ -42,6 +44,8 @@ export function CaptainVotingPanel({
   votes: initialVotes,
   seasonSlug,
   viewerPending = false,
+  votesPerPerson = MAX_CAPTAIN_VOTES,
+  targetTeamCount = 8,
 }: CaptainVotingPanelProps) {
   const router = useRouter();
   const [polled, setPolled] = useState<{ source: typeof initialCandidates; sourceStatus: string; sourceVoter: typeof initialVoter; sourceVotes: typeof initialVotes; data: CaptainVotingSnapshot } | null>(null);
@@ -112,7 +116,7 @@ export function CaptainVotingPanel({
             <h2 className="text-base font-semibold">{seasonName} 队长候选</h2>
             {currentVoter && (
               <p className="mt-0.5 text-xs text-[var(--color-fg-mid)]">
-                已投 {votes.length} / {MAX_CAPTAIN_VOTES} 票
+                已投 {votes.length} / {votesPerPerson} 票
               </p>
             )}
           </div>
@@ -150,7 +154,7 @@ export function CaptainVotingPanel({
                 isPending ||
                 !currentVoter ||
                 currentVoter.id === candidate.id ||
-                (!hasVoted && votes.length >= MAX_CAPTAIN_VOTES);
+                (!hasVoted && votes.length >= votesPerPerson);
               const voteBarPct = Math.round((candidate.voteCount / maxVotes) * 100);
 
               return (
@@ -167,9 +171,9 @@ export function CaptainVotingPanel({
                       <span className="text-sm font-semibold text-[var(--color-fg)] truncate">
                         <PlayerProfileLink userId={candidate.userId}>{candidate.displayName}</PlayerProfileLink>
                       </span>
-                      {index < 8 && (
+                      {index < targetTeamCount && (
                         <span className="shrink-0 text-[10px] font-mono text-[var(--color-accent)] border border-[var(--color-accent)]/40 rounded-sm px-1">
-                          前8
+                          前 {targetTeamCount}
                         </span>
                       )}
                     </div>
@@ -222,7 +226,7 @@ export function CaptainVotingPanel({
               <div>
                 <h2 className="text-base font-semibold">我的投票</h2>
                 <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-                  每名已通过报名的选手最多投 {MAX_CAPTAIN_VOTES} 票。
+                  每名已通过报名的选手最多投 {votesPerPerson} 票。
                 </p>
               </div>
 
@@ -239,13 +243,13 @@ export function CaptainVotingPanel({
                     <div className="flex items-center justify-between">
                       <span className="text-[var(--color-fg-mid)]">已投</span>
                       <span className="font-medium">
-                        {votes.length} / {MAX_CAPTAIN_VOTES}
+                        {votes.length} / {votesPerPerson}
                       </span>
                     </div>
                     <div className="mt-2 h-2 rounded-full bg-muted">
                       <div
                         className="h-2 rounded-full bg-[var(--color-accent)] transition-all"
-                        style={{ width: `${(votes.length / MAX_CAPTAIN_VOTES) * 100}%` }}
+                        style={{ width: `${(votes.length / votesPerPerson) * 100}%` }}
                       />
                     </div>
                   </div>
@@ -295,20 +299,20 @@ export function CaptainVotingPanel({
                   isPending ||
                   !currentVoter ||
                   currentVoter.id === candidate.id ||
-                  (!hasVoted && votes.length >= MAX_CAPTAIN_VOTES);
+                  (!hasVoted && votes.length >= votesPerPerson);
 
                 return (
                   <Panel key={candidate.id} contentClassName="p-4">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant={index < 8 ? "default" : "outline"}>
+                          <Badge variant={index < targetTeamCount ? "default" : "outline"}>
                             #{index + 1}
                           </Badge>
                           <h3 className="font-semibold"><PlayerProfileLink userId={candidate.userId}>{candidate.displayName}</PlayerProfileLink></h3>
-                          {index < 8 && (
+                          {index < targetTeamCount && (
                             <Badge variant="secondary" className="text-xs">
-                              当前前 8
+                              当前前 {targetTeamCount}
                             </Badge>
                           )}
                         </div>

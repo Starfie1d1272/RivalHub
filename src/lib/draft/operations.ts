@@ -18,8 +18,8 @@ import {
   } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { logEvent } from "@/lib/observability/server";
-import { DRAFT_ROUND_TIMEOUT_SECONDS, DRAFT_TOTAL_ROUNDS } from "@/types/draft";
-import { canPickPosition, getNextEntryId, isStarterRound } from "@/lib/draft/rules";
+import { canPickPosition, draftFormat, getNextEntryId, isStarterRound } from "@/lib/draft/rules";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
 import {
   createAutoPickRequestId,
   selectAutoPickCandidate,
@@ -109,6 +109,8 @@ export async function executeDraftPick(
   if (!season) {
     throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
   }
+  const rules = decodeSeasonRules(season);
+  const format = draftFormat(rules);
   if (!season.hasDraft) {
     throw new AppError(
       ErrorCode.SEASON_CAPABILITY_DISABLED,
@@ -250,7 +252,7 @@ export async function executeDraftPick(
         eq(seasonRegistrations.primaryPosition, targetRegistration.primaryPosition),
       ),
     );
-  if (!canPickPosition(Number(positionCount?.count ?? 0))) {
+  if (!canPickPosition(Number(positionCount?.count ?? 0), rules.source === "policy_v2" ? rules.roster.maxPerPositionPerTeam : 2)) {
     throw new AppError(
       ErrorCode.TEAM_POSITION_CAP_EXCEEDED,
       ERROR_MESSAGES.TEAM_POSITION_CAP_EXCEEDED,
@@ -292,13 +294,13 @@ export async function executeDraftPick(
     revisionId: revision.id,
     participantId: participant.id,
     userId: targetRegistration.userId,
-    isPrimaryStarter: isStarterRound(ds.currentRound),
+    isPrimaryStarter: isStarterRound(ds.currentRound, format.starterPicks),
   });
   await tx.insert(eventRosterMembers).values({
     eventRosterId: roster.id,
     participantId: participant.id,
     userId: targetRegistration.userId,
-    isPrimaryStarter: isStarterRound(ds.currentRound),
+    isPrimaryStarter: isStarterRound(ds.currentRound, format.starterPicks),
   });
 
   await writeAuditInTx(tx, {
@@ -319,18 +321,19 @@ export async function executeDraftPick(
     .from(competitionEntries)
     .where(and(eq(competitionEntries.competitionId, input.seasonId), isNotNull(competitionEntries.formationOrder)))
     .orderBy(asc(competitionEntries.formationOrder));
-  const next = getNextEntryId(seasonTeams, input.entryId, ds.currentRound);
+  const next = getNextEntryId(seasonTeams, input.entryId, ds.currentRound, format.rounds);
 
   if (!next) {
     await finalizeDraft(tx, {
       draftStateId: ds.id,
       now,
+      totalRounds: format.rounds,
     });
 
     return { pickId: pick.id, slug: season.slug, idempotent: false, completed: true };
   }
 
-  const deadline = new Date(now.getTime() + DRAFT_ROUND_TIMEOUT_SECONDS * 1000);
+  const deadline = new Date(now.getTime() + format.timeoutSeconds * 1000);
   await tx
     .update(draftState)
     .set({
@@ -347,12 +350,12 @@ export async function executeDraftPick(
 
 export async function finalizeDraft(
   tx: DraftTransaction,
-  input: { draftStateId: string; now: Date },
+  input: { draftStateId: string; now: Date; totalRounds: number },
 ): Promise<void> {
   await tx
     .update(draftState)
     .set({
-      currentRound: DRAFT_TOTAL_ROUNDS + 1,
+      currentRound: input.totalRounds + 1,
       currentEntryId: null,
       roundDeadline: null,
       isActive: false,
@@ -388,7 +391,8 @@ async function runAutoPickForSeason(
 
     const positionCounts = await getTeamPositionCounts(tx, ds.currentEntryId);
     const candidates = await getAutoPickCandidates(tx, seasonId);
-    const selected = selectAutoPickCandidate(candidates, positionCounts);
+    const rules = decodeSeasonRules(season);
+    const selected = selectAutoPickCandidate(candidates, positionCounts, rules.source === "policy_v2" ? rules.roster.maxPerPositionPerTeam : 2);
     if (!selected) {
       return { picked: false, seasonId, slug: season.slug, reason: "no_eligible_player" };
     }

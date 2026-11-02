@@ -35,7 +35,7 @@ export default async function AdminCaptainsPage({ params }: AdminCaptainsPagePro
 
   return (
     <div className="space-y-6">
-      <PageHeader title={`队长确认 · ${season.name}`} description="查看票数排序，确认前 8 名后自动生成队伍与 draft order。" />
+      <PageHeader title={`队长确认 · ${season.name}`} description={`查看票数排序，确认前 ${data.targetTeamCount} 名后生成队伍。`} />
 
       <CaptainConfirmPanel
         seasonId={season.id}
@@ -43,6 +43,7 @@ export default async function AdminCaptainsPage({ params }: AdminCaptainsPagePro
         teamCount={teamCount}
         candidates={data.seeds}
         candidateCount={data.candidateCount}
+        targetTeamCount={data.targetTeamCount}
       />
     </div>
   );

@@ -1,7 +1,9 @@
 import { and, asc, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { captainVotes, seasonRegistrations, steamProfiles, users, competitionEntries } from "@/db/schema";
+import { captainVotes, seasonRegistrations, steamProfiles, users, competitionEntries, seasons } from "@/db/schema";
 import { CAPTAIN_TEAM_COUNT, compareCaptainSeedCandidates, selectCaptainSeeds } from "@/lib/captains/rules";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
+import { draftFormat } from "@/lib/draft/rules";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 /** Fields allowed to cross the public captains page boundary. */
@@ -28,6 +30,8 @@ export interface CaptainVoteRecord {
 export interface PublicCaptainVotingData {
   voters: PublicCaptainVoter[];
   candidates: PublicCaptainCandidate[];
+  votesPerPerson?: number;
+  targetTeamCount?: number;
 }
 
 interface CaptainCandidateRankingRow extends PublicCaptainCandidate {
@@ -71,6 +75,10 @@ export function serializePublicCaptainCandidate(
 async function readCaptainVotingData(
   seasonId: string, includeVoters: boolean,
 ): Promise<PublicCaptainVotingData> {
+  const season = await db.query.seasons.findFirst({ where: eq(seasons.id, seasonId) });
+  if (!season) throw new Error("Season not found");
+  const rules = decodeSeasonRules(season);
+  const targetTeamCount = draftFormat(rules).teamCount;
   const registrations = await db
     .select({
       id: seasonRegistrations.id,
@@ -141,7 +149,7 @@ async function readCaptainVotingData(
       willingToBeCaptain: r.willingToBeCaptain,
     }));
 
-  const seedRows = selectCaptainSeeds(candidateRows);
+  const seedRows = selectCaptainSeeds(candidateRows, targetTeamCount);
   const sortedRankingRows = seedRows.concat(
     candidateRows
       .filter((candidate) => !seedRows.some((seed) => seed.registrationId === candidate.registrationId))
@@ -150,6 +158,8 @@ async function readCaptainVotingData(
 
   return {
     voters,
+    targetTeamCount,
+    votesPerPerson: rules.formation.settings?.votesPerPerson ?? 3,
     candidates: sortedRankingRows.map((candidate) => ({
       id: candidate.id,
       userId: candidate.userId,
@@ -170,11 +180,12 @@ export async function getPublicCaptainVotingData(seasonId: string): Promise<Publ
 export type AdminCaptainSeed = Omit<PublicCaptainCandidate, "peakRank">;
 
 /** Confirmation still rechecks canonical ranking; the panel displays only eight seeds. */
-export async function getAdminCaptainRanking(seasonId: string): Promise<{ seeds: AdminCaptainSeed[]; candidateCount: number }> {
-  const { candidates } = await readCaptainVotingData(seasonId, false);
+export async function getAdminCaptainRanking(seasonId: string): Promise<{ seeds: AdminCaptainSeed[]; candidateCount: number; targetTeamCount: number }> {
+  const { candidates, targetTeamCount = CAPTAIN_TEAM_COUNT } = await readCaptainVotingData(seasonId, false);
   return {
     candidateCount: candidates.length,
-    seeds: candidates.slice(0, CAPTAIN_TEAM_COUNT).map(({ id, userId, displayName, primaryPosition, peakRating, currentRating, voteCount }) =>
+    targetTeamCount,
+    seeds: candidates.slice(0, targetTeamCount).map(({ id, userId, displayName, primaryPosition, peakRating, currentRating, voteCount }) =>
       ({ id, userId, displayName, primaryPosition, peakRating, currentRating, voteCount })),
   };
 }

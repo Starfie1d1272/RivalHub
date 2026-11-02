@@ -32,13 +32,14 @@ import {
   type RetractVoteInput,
 } from "@/lib/validators/vote";
 import {
-  CAPTAIN_TEAM_COUNT,
   MIN_VOTES_FOR_CONFIRM,
   selectCaptainSeeds,
   validateCaptainVote,
 } from "@/lib/captains/rules";
 import { failValidation, actionError, isPgUniqueViolation } from "@/lib/action-utils";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
+import { decodeSeasonRules } from "@/lib/seasons/rules";
+import { draftFormat } from "@/lib/draft/rules";
 
 const CAPTAIN_VOTE_UNIQUE_CONSTRAINT = "captain_votes_voter_registration_id_candidate_registration_id_unique";
 
@@ -91,6 +92,7 @@ export async function castVote(
         candidate,
         existingVoteCount: Number(voteCountRow?.count ?? 0),
         alreadyVotedForCandidate: Boolean(existingVote),
+        votesPerPerson: decodeSeasonRules(season).formation.settings?.votesPerPerson ?? 3,
       });
       if (errorCode) {
         throw new AppError(errorCode, ERROR_MESSAGES[errorCode]);
@@ -201,7 +203,7 @@ export async function confirmCaptains(
       if (!season) {
         throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
       }
-      if (!season.hasCaptainVoting || !season.hasDraft) {
+      if (!season.hasCaptainVoting) {
         throw new AppError(
           ErrorCode.SEASON_CAPABILITY_DISABLED,
           ERROR_MESSAGES.SEASON_CAPABILITY_DISABLED,
@@ -210,6 +212,10 @@ export async function confirmCaptains(
       if (season.status !== "voting") {
         throw new AppError(ErrorCode.SEASON_INVALID_STATUS, ERROR_MESSAGES.SEASON_INVALID_STATUS);
       }
+      const rules = decodeSeasonRules(season);
+      const targetTeamCount = draftFormat(rules).teamCount;
+      const minimumVotes = rules.formation.settings?.minimumVotesToConfirm ?? MIN_VOTES_FOR_CONFIRM;
+      if (targetTeamCount < 1) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先设置赛事规模");
 
       const [existingEntryCount] = await tx
         .select({ count: count() })
@@ -229,10 +235,10 @@ export async function confirmCaptains(
         )
         .where(eq(seasonRegistrations.seasonId, season.id));
       const totalVotes = Number(voteCountRow?.count ?? 0);
-      if (totalVotes < MIN_VOTES_FOR_CONFIRM) {
+      if (totalVotes < minimumVotes) {
         throw new AppError(
           ErrorCode.VOTING_MINIMUM_NOT_MET,
-          `当前仅有 ${totalVotes} 票，至少需要 ${MIN_VOTES_FOR_CONFIRM} 票才能确认队长`,
+          `当前仅有 ${totalVotes} 票，至少需要 ${minimumVotes} 票才能确认队长`,
         );
       }
 
@@ -256,10 +262,10 @@ export async function confirmCaptains(
             eq(seasonRegistrations.willingToBeCaptain, true),
           ),
         );
-      if (candidates.length < CAPTAIN_TEAM_COUNT) {
+      if (candidates.length < targetTeamCount) {
         throw new AppError(
           ErrorCode.CAPTAIN_NOT_ELIGIBLE,
-          `至少需要 ${CAPTAIN_TEAM_COUNT} 名已通过且愿意担任队长的候选人`,
+          `至少需要 ${targetTeamCount} 名已通过且愿意担任队长的候选人`,
         );
       }
 
@@ -280,7 +286,7 @@ export async function confirmCaptains(
         candidates.map((candidate) => ({
           ...candidate,
           voteCount: voteCounts.get(candidate.registrationId) ?? 0,
-        })),
+        })), targetTeamCount,
       );
 
       const createdEntryIds: string[] = [];

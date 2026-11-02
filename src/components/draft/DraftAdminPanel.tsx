@@ -8,7 +8,6 @@ import { Play, Pause, RotateCcw } from "lucide-react";
 import { startDraft as telemetry_startDraft, pauseDraft as telemetry_pauseDraft, resumeDraft as telemetry_resumeDraft } from "@/actions/draft";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { DRAFT_TOTAL_ROUNDS } from "@/types/draft";
 import type { DraftAdminData } from "@/lib/draft/data";
 import { observeAction } from "@/lib/telemetry/client";
 
@@ -103,7 +102,7 @@ export function DraftAdminPanel({
             <span className="text-[var(--color-fg-dim)]">进度</span>
             <p className="font-medium text-[var(--color-fg)] tabular">
               {state
-                ? `第 ${state.currentRound} / ${DRAFT_TOTAL_ROUNDS} 轮`
+                ? `第 ${state.currentRound} / ${data && data.teams.length ? data.maxPicks / data.teams.length : 0} 轮`
                 : "-"}
             </p>
           </div>
