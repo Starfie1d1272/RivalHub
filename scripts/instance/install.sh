@@ -37,7 +37,8 @@ check_major_identity() {
     "$node" "$helper" identity "$root/last-release-check.json" "$tag" "$commit" &&
     env -i "$node" --env-file="$environment" "$script_dir/legacy-source.mjs" "$pid" "$root/current" "$tag" "$commit" > "$tls_helper/running-source.json" &&
     "$node" -e 'const fs = require("fs"); const r = JSON.parse(fs.readFileSync(process.argv[1])), d = JSON.parse(process.argv[2]); if (r.supabaseUrl !== `https://${d.project}.supabase.co` || r.databaseName !== d.database) process.exit(1)' "$tls_helper/running-source.json" "$database" &&
-    env -i "$node" --env-file="$environment" "$root/current/scripts/instance/readiness.mjs" "$root/current"
+    env -i "$node" --env-file="$environment" "$root/current/scripts/instance/readiness.mjs" "$root/current" &&
+    [[ $(systemctl show --property MainPID --value rivalhub-instance) == "$pid" ]]
 }
 wait_identity() {
   local attempt
