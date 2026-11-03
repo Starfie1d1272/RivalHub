@@ -809,7 +809,6 @@ export async function transferCompetitionEntryRepresentativeInTx(tx: TxDb, input
   await assertRosterNotFrozen(tx, entry.id);
   const season = await loadSeasonOrThrow(tx, entry.competitionId);
   if (decodeSeasonRules(season).roster.changes?.representativeCanTransfer === false) throw new AppError(ErrorCode.FORBIDDEN, "本届赛事不允许负责人自行交接，请联系赛事管理员。");
-  if (entry.source === "event_native" && entry.approvedRosterRevisionId && (decodeSeasonRules(season).roster.changes?.selfServiceAfterApproval === false || !canChangeApprovedFormationRoster(season, { source: entry.source, policyV2: decodeSeasonRules(season).source === "policy_v2" }, "self") || !await canSelfAdjustMajorRosterInTx(tx, season, entry.id))) throw new AppError(ErrorCode.REGISTRATION_CLOSED, "名单调整窗口当前不可用；请联系赛事管理员。");
   const [participant] = await tx.select().from(competitionEntryParticipants)
     .where(and(eq(competitionEntryParticipants.entryId, entry.id), eq(competitionEntryParticipants.userId, input.toUserId))).for("update");
   if (!participant || participant.status !== "confirmed") throw new AppError(ErrorCode.VALIDATION_FAILED, "新赛事负责人必须是本届已确认参赛的成员。");

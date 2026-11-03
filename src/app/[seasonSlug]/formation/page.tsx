@@ -39,7 +39,7 @@ async function FormationContent({ params }: { params: Promise<{ seasonSlug: stri
       respond: !frozen && revision?.status === "draft" && ["draft", "changes_requested"].includes(entry.registrationStatus) && draftOpen && ["registration", "drafting"].includes(currentSeason.status),
       withdraw: eliminated || (!frozen && phaseOpen && (entry.registrationStatus === "approved" ? selfOpen : revision?.origin === "admin_remediation" ? draftOpen : revision?.origin === "self_roster_change" ? selfOpen : true)),
       eliminated,
-      transfer: !frozen && rules.roster.changes?.representativeCanTransfer !== false && (!entry.approvedRosterRevisionId || selfOpen),
+      transfer: !frozen && rules.roster.changes?.representativeCanTransfer !== false,
     };
   }
   const invitations = await Promise.all(context.pendingInvitations.map(async invitation => {
