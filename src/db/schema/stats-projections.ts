@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, check, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { check, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { TournamentMapFacts, TournamentPerformanceMapProjection } from "@cs2dak/tournament";
 import type { CompactRecordFacts } from "@/lib/stats/record-facts";
 import { matchDemoImports } from "./demo-integration";
@@ -42,14 +42,3 @@ export const statisticsProjectionRepairCursors = pgTable("statistics_projection_
   afterMapId: uuid("after_map_id"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
-
-/** Server-only, payload-free global cache delivery watermark. */
-export const statisticsInvalidation = pgTable("statistics_invalidation", {
-  id: text("id").primaryKey().default("global"),
-  generation: bigint("generation", { mode: "bigint" }).notNull().default(sql`1`),
-  publishedGeneration: bigint("published_generation", { mode: "bigint" }).notNull().default(sql`0`),
-  lastTransactionId: bigint("last_transaction_id", { mode: "bigint" }).notNull(),
-}, t => ({
-  singleton: check("statistics_invalidation_singleton_check", sql`${t.id} = 'global'`),
-  generationShape: check("statistics_invalidation_generation_check", sql`${t.generation} > 0 AND ${t.publishedGeneration} >= 0 AND ${t.publishedGeneration} <= ${t.generation}`),
-})).enableRLS();

@@ -18,7 +18,6 @@ import { reconcileVetoRoom } from "@/lib/matches/veto-room/service";
 import { dispatchMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/dispatcher";
 import { settleExpiredMatchMvpVotes } from "@/lib/matches/mvp";
 import { reconcileMissingStatisticsProjections } from "@/lib/stats/projection-backfill";
-import { deliverStatisticsInvalidation } from "@/lib/stats/invalidation-delivery";
 import type { SchedulerJobKey } from "./definitions";
 import type { SchedulerRunnerResult } from "./execution";
 
@@ -197,14 +196,9 @@ export async function runMatchMvpSettlementJob() {
 }
 
 export async function runStatisticsProjectionRebuildJob() {
-  let result: Awaited<ReturnType<typeof reconcileMissingStatisticsProjections>> | undefined;
-  let failure: unknown;
-  try { result = await reconcileMissingStatisticsProjections(db); } catch (error) { failure = error; }
-  // A rebuild failure must not prevent delivery of earlier committed writes.
-  try { await deliverStatisticsInvalidation(); } catch (error) { failure ??= error; }
-  if (failure) throw failure;
-  const transitions = result!.rebuilt + result!.invalid;
+  const result = await reconcileMissingStatisticsProjections(db);
+  const transitions = result.rebuilt + result.invalid;
   if (transitions > 0) revalidatePublicStatsTag("stats.projection_rebuild");
-  if (result!.failed > 0) throw new Error(`Failed to rebuild ${result!.failed} statistics projections`);
-  return { result: result!, businessTransitions: transitions } satisfies SchedulerRunnerResult<typeof result>;
+  if (result.failed > 0) throw new Error(`Failed to rebuild ${result.failed} statistics projections`);
+  return { result, businessTransitions: transitions } satisfies SchedulerRunnerResult<typeof result>;
 }
