@@ -10,7 +10,7 @@ vi.mock("next/cache", () => ({ cacheLife: () => {}, cacheTag: () => {} }));
 // Statistics arithmetic and identity merge have independent real-PG contracts.
 // This test isolates fresh profile SQL and its request composition from Next cache.
 vi.mock("@/lib/stats/cached-query", () => ({ getPublicPlayerCareerDetail: async () => null }));
-vi.mock("@/lib/seasons/public-results", () => ({ getPublicSeasonResults: async () => ({ placements: [], honors: [], honorHistory: [] }) }));
+vi.mock("@/lib/seasons/public-results", () => ({ getPublicSeasonResultsBatch: async (seasons: { id: string }[]) => new Map(seasons.map(season => [season.id, { placements: [], honors: [], honorHistory: [] }])) }));
 vi.mock("@/lib/observability/server", () => ({ captureException: () => {} }));
 
 import { createPublicPlayerProfileSections } from "@/lib/players/public-profile";

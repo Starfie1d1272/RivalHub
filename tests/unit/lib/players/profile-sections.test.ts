@@ -12,7 +12,7 @@ vi.mock("@/db/client", () => ({ db: {
 } }));
 vi.mock("@/lib/data/public-players", () => ({ getPublicPlayerById: vi.fn() }));
 vi.mock("@/lib/data/public-seasons", () => ({ getPublicSeasonBySlug: vi.fn() }));
-vi.mock("@/lib/seasons/public-results", () => ({ getPublicSeasonResults: vi.fn() }));
+vi.mock("@/lib/seasons/public-results", () => ({ getPublicSeasonResultsBatch: async () => new Map() }));
 vi.mock("@/lib/stats/cached-query", () => ({ getPublicPlayerCareerDetail: mocks.career }));
 vi.mock("@/lib/stats/player-attribute-benchmark", () => ({ getPlayerAttributeBenchmark: mocks.benchmark }));
 vi.mock("@/lib/stats/player-attributes", () => ({ projectPlayerAttributeProfile: () => ({ attributes: [] }) }));

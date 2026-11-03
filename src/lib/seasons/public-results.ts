@@ -62,6 +62,15 @@ export async function getPublicSeasonResults(season: PublicSeason) {
   return projectSeasonResults(season, await readResultFacts([season], false));
 }
 
+/** Share fact reads across historical profiles while keeping the same per-season projection. */
+export async function getPublicSeasonResultsBatch(seasonList: readonly PublicSeason[]): Promise<Map<string, PublicSeasonResults>> {
+  if (!seasonList.length) return new Map();
+  const facts = await readResultFacts(seasonList, false);
+  const results = new Map<string, PublicSeasonResults>();
+  for (const season of seasonList) results.set(season.id, await projectSeasonResults(season, facts));
+  return results;
+}
+
 async function projectSeasonResults(season: PublicSeason, facts: Awaited<ReturnType<typeof readResultFacts>>, compact = false) {
   const result = facts.results.find(row => row.seasonId === season.id);
   const honorRows = facts.honorRows.filter(row => row.seasonId === season.id);
