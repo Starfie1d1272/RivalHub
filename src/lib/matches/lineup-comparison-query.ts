@@ -35,11 +35,9 @@ export async function loadLineupCareers(playerIds: readonly string[], matchId: s
 async function getLineupPopulation(matchId: string, cutoff: string | null) {
   "use cache: remote";
   cacheTag(PUBLIC_STATS_TAG);
-  // The fixed cutoff changes only with its inputs or a tagged write. A rolling
-  // cutoff can change when a future completedAt crosses the current time.
-  cacheLife(cutoff
-    ? { stale: 60, revalidate: Infinity, expire: Infinity }
-    : { stale: 60, revalidate: 60 * 60 * 24 * 30, expire: 60 * 60 * 24 * 365 });
+  // A future completedAt crossing the rolling cutoff is reflected on the next
+  // tagged write, rather than triggering periodic population reads.
+  cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
   return observeStatsCacheFill(cutoff ? "lineup.historical" : "lineup.realtime", () => observePublicStatsFill("stats.lineup", () => loadLineupPopulation(matchId, cutoff ? new Date(cutoff) : new Date())));
 }
 
@@ -48,3 +46,4 @@ export async function getLineupCareers(playerIds: string[], matchId: string, cut
   recordStatsCache(cutoff ? "lineup.historical" : "lineup.realtime", "readCalls");
   return projectLineupCareers(await getLineupPopulation(matchId, cutoff), playerIds);
 }
+
