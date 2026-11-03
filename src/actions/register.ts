@@ -413,7 +413,7 @@ export async function getRegistrationCounts(seasonId: string): Promise<{
     .select({
       position: seasonRegistrations.primaryPosition,
       count: count(),
-      approvedCount: sql<number>`count(*) filter (where ${seasonRegistrations.status} = 'approved')`,
+      approvedCount: sql<string>`count(*) filter (where ${seasonRegistrations.status} = 'approved')`,
     })
     .from(seasonRegistrations)
     .where(
@@ -426,6 +426,6 @@ export async function getRegistrationCounts(seasonId: string): Promise<{
 
   return {
     positionCounts: Object.fromEntries(rows.map((row) => [row.position, Number(row.count)])),
-    approvedCount: rows.reduce((total, row) => total + Number(row.approvedCount), 0),
+    approvedCount: Number(rows.reduce((total, row) => total + BigInt(row.approvedCount), BigInt(0))),
   };
 }
