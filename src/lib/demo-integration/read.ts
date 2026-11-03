@@ -19,6 +19,7 @@ import {
   users,
 } from "@/db/schema";
 import { loadStageBracketViews, projectStageBracketNodes } from "@/lib/bracket";
+import { projectDisplayScore } from "@/lib/matches/display-score";
 import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
 import { calculateStageRoundRobinStandings } from "@/lib/matches/stage-standings";
 import { buildStageViews } from "@/lib/matches/stage-views";
@@ -343,11 +344,14 @@ export async function readRivalHubEvents(
           roundScoresByMatchId.set(match.id, scores);
         }
       }
+      const displayedMatches = seasonMatches.map((match) => ({
+        ...match, displayScore: projectDisplayScore(match, mapsByMatch.get(match.id)),
+      }));
       const [bracketDataByStage, swissReadModels] = await Promise.all([
         loadStageBracketViews(db, season.id),
         Promise.all(stagePlan
           .filter((stage) => stage.type === "swiss")
-          .map(async (stage) => [stage.key, await loadMajorSwissStageReadModel(season.id, stage.key)] as const)),
+          .map(async (stage) => [stage.key, await loadMajorSwissStageReadModel(season.id, stage.key, displayedMatches)] as const)),
       ]);
       const swissReadModelByStage = new Map(
         swissReadModels.filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
