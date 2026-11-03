@@ -1,10 +1,9 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { AppError, ErrorCode } from "@/lib/errors";
 
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), season: vi.fn(), match: vi.fn(), options: vi.fn(), token: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), season: vi.fn(), options: vi.fn(), token: vi.fn() }));
 vi.mock("@/lib/auth/session", () => ({ requireAuth: mocks.auth }));
 vi.mock("@/lib/data/public-seasons", () => ({ getPublicOrAuthorizedDraftSeason: mocks.season }));
-vi.mock("@/db/client", () => ({ db: { query: { matches: { findFirst: mocks.match } } } }));
 vi.mock("@/lib/community-awards/data", () => ({ getCommunityAwardFormOptions: mocks.options }));
 vi.mock("@/lib/matches/public-refresh", () => ({ loadPublicMatchRefreshToken: mocks.token }));
 import { loadCommunityAwardOptions } from "@/actions/community-award-options";
@@ -14,7 +13,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.auth.mockResolvedValue({ userId: "viewer" });
   mocks.season.mockResolvedValue({ id: "event", hasCommunityAwards: true, stagePlan: [] });
-  mocks.match.mockResolvedValue({ id: "match" });
   mocks.options.mockResolvedValue({ candidates: [], matches: [] });
   mocks.token.mockResolvedValue("opaque");
 });
@@ -40,8 +38,7 @@ it("rejects invalid, hidden and cross-event match scopes before producing a toke
   mocks.season.mockResolvedValueOnce(null);
   expect(await readPublicMatchRefreshToken(input)).toMatchObject({ success: false });
   expect(mocks.token).not.toHaveBeenCalled();
-  mocks.match.mockResolvedValueOnce(null);
+  mocks.token.mockResolvedValueOnce(null);
   expect(await readPublicMatchRefreshToken(input)).toMatchObject({ success: false });
-  expect(mocks.token).not.toHaveBeenCalled();
   expect(await readPublicMatchRefreshToken(input)).toEqual({ success: true, data: "opaque" });
 });
