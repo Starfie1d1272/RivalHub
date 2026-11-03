@@ -100,7 +100,7 @@ async function queryStatsLeaderboard(
 function buildStatsLeaderboardQuery(
   scope: StatsLeaderboardFilters, currentImportIds: string[],
   roster: readonly Pick<EffectiveMatchRosterIdentity, "matchId" | "userId" | "entryId">[],
-  options: StatsLeaderboardOptions, includeOverall = false,
+  options: StatsLeaderboardOptions, includeOverall = false, fingerprint = false,
 ) {
   // ADR：回合加权（正确方式）；HS%：击杀数加权（正确方式）
   const adrExpr    = roundWeightedAvg("mps.adr");
@@ -139,6 +139,43 @@ function buildStatsLeaderboardQuery(
     ? sql`GROUPING SETS ((${playerGroup}), (${playerGroup}, mm.map_name))`
     : sql`${playerGroup} ${mapGroup}`;
 
+  const source = sql`
+    FROM match_player_stats mps
+    JOIN matches m ON m.id = mps.match_id
+    JOIN match_maps mm ON mm.id = mps.map_id
+    LEFT JOIN users u ON u.id = mps.user_id
+    LEFT JOIN steam_profiles sp ON sp.steam64 = u.steam64
+    LEFT JOIN jsonb_to_recordset(${JSON.stringify(roster.map((row) => ({ match_id: row.matchId, user_id: row.userId, entry_id: row.entryId })))}::jsonb)
+      AS lineup(match_id uuid, user_id uuid, entry_id uuid)
+      ON lineup.match_id = m.id AND lineup.user_id = mps.user_id
+    LEFT JOIN competition_entries entrant ON entrant.id = lineup.entry_id
+    WHERE true
+      ${options.includeTestMatch ? sql`` : sql`AND m.test_config IS NULL`}
+      ${seasonFilter}
+      ${matchFilter}
+      AND mps.verified_by_admin IS NOT NULL
+      AND mm.score_a IS NOT NULL AND mm.score_b IS NOT NULL AND mm.completed_at IS NOT NULL
+      AND mps.user_id IS NOT NULL
+      AND ${importFilter}
+      ${stageFilter}
+      ${formatFilter}
+      ${mapFilter}
+      ${teamFilter}
+      ${userFilter}
+      ${rosterMatchFilter}
+  `;
+  if (fingerprint) return sql`
+    SELECT encode(sha256(convert_to(coalesce(string_agg(row_hash, '' ORDER BY row_hash), ''), 'UTF8')), 'hex') AS fingerprint
+    FROM (
+      SELECT encode(sha256(convert_to(jsonb_build_array(
+        mps.user_id, u.display_name, sp.persona_name, u.perfect_name,
+        mps.rating_pro, mps.adr, mps.kills, mps.kast_rounds, mps.first_kills, mps.trade_kills,
+        mm.score_a, mm.score_b
+      )::text, 'UTF8')), 'hex') AS row_hash
+      ${source}
+    ) AS input_rows
+  `;
+
   return sql`
     SELECT
       mps.user_id,
@@ -172,29 +209,7 @@ function buildStatsLeaderboardQuery(
       ${perRound("mps.first_deaths")} AS fdpr,
       ${perRound("mps.trade_kills")} AS trade_kpr,
       ${perRound("mps.kast_rounds")} AS kast
-    FROM match_player_stats mps
-    JOIN matches m ON m.id = mps.match_id
-    JOIN match_maps mm ON mm.id = mps.map_id
-    LEFT JOIN users u ON u.id = mps.user_id
-    LEFT JOIN steam_profiles sp ON sp.steam64 = u.steam64
-    LEFT JOIN jsonb_to_recordset(${JSON.stringify(roster.map((row) => ({ match_id: row.matchId, user_id: row.userId, entry_id: row.entryId })))}::jsonb)
-      AS lineup(match_id uuid, user_id uuid, entry_id uuid)
-      ON lineup.match_id = m.id AND lineup.user_id = mps.user_id
-    LEFT JOIN competition_entries entrant ON entrant.id = lineup.entry_id
-    WHERE true
-      ${options.includeTestMatch ? sql`` : sql`AND m.test_config IS NULL`}
-      ${seasonFilter}
-      ${matchFilter}
-      AND mps.verified_by_admin IS NOT NULL
-      AND mm.score_a IS NOT NULL AND mm.score_b IS NOT NULL AND mm.completed_at IS NOT NULL
-      AND mps.user_id IS NOT NULL
-      AND ${importFilter}
-      ${stageFilter}
-      ${formatFilter}
-      ${mapFilter}
-      ${teamFilter}
-      ${userFilter}
-      ${rosterMatchFilter}
+    ${source}
     GROUP BY ${grouping}
     ORDER BY mps.user_id ${teamOrder} ${options.groupByMap ? sql`, mm.map_name` : sql``}
   `;
@@ -209,4 +224,13 @@ export async function getLineupStatsPopulation(currentImportIds: string[], roste
   return rows.map(row => ({ userId: row.user_id as string | null, maps: Number(row.maps), rounds: numberOrNull(row.rounds),
     avgRating: numberOrNull(row.avg_rating), avgAdr: numberOrNull(row.avg_adr), kpr: numberOrNull(row.kpr),
     kast: numberOrNull(row.kast), fkpr: numberOrNull(row.fkpr), tradeKpr: numberOrNull(row.trade_kpr) }));
+}
+
+/** Fingerprint exactly the same qualifying row multiset as the lineup aggregate. */
+export async function getLineupStatsFingerprint(currentImportIds: string[], roster: readonly Pick<EffectiveMatchRosterIdentity, "matchId" | "userId" | "entryId">[], database: DB | TxDb) {
+  const query = buildStatsLeaderboardQuery({}, currentImportIds, roster, { groupByTeam: false, requireCurrentImports: true, requireRosterMatch: true }, false, true);
+  const { rows } = await database.execute(query);
+  const fingerprint = rows[0]?.fingerprint;
+  if (typeof fingerprint !== "string" || !/^[0-9a-f]{64}$/.test(fingerprint)) throw new Error("Invalid lineup population fingerprint");
+  return fingerprint;
 }
