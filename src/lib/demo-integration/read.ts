@@ -28,7 +28,7 @@ import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import type { MatchRoundScore } from "@/lib/standings";
 import { pairingCanReadSeason } from "./pairing";
-import { demoImportMetadataSelection, type DemoImportMetadata } from "./metadata";
+import type { DemoImportMetadata } from "./metadata";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
 import { projectStage, projectOfficialStage } from "./stage-projection";
 import { CURRENT_DAK_SEMANTIC_PROFILE, dakSemanticProfileIssueMessage, isCurrentDakSemanticProfile } from "./semantic-profile";
@@ -70,6 +70,7 @@ function projectIssues(value: unknown): IntegrationIssue[] {
   });
 }
 
+type DemoImportEventMetadata = Pick<DemoImportMetadata, "id" | "matchMapId" | "demoSha256" | "semanticProfile" | "evidenceRevision" | "status" | "issues">;
 type CurrentDemoImportCandidate = Pick<DemoImportMetadata, "semanticProfile" | "status">;
 
 export function selectCurrentDemoImport<T extends CurrentDemoImportCandidate>(rows: readonly T[]): T | undefined;
@@ -83,8 +84,8 @@ export function selectCurrentDemoImport(
 }
 
 function selectLatestNonCanonicalDemoImport(
-  rows: readonly DemoImportMetadata[],
-): DemoImportMetadata | undefined {
+  rows: readonly DemoImportEventMetadata[],
+): DemoImportEventMetadata | undefined {
   return rows.find((row) => !isCurrentDakSemanticProfile(row.semanticProfile) && row.status !== "superseded");
 }
 
@@ -112,7 +113,7 @@ function projectPlayer(row: {
 export function projectDemoStatus(
   match: { status: "scheduled" | "in_progress" | "finished" | "cancelled" },
   map: { completedAt: Date | null; scoreA: number | null; scoreB: number | null },
-  latest: DemoImportMetadata | undefined,
+  latest: DemoImportEventMetadata | undefined,
   currentEvidenceRevision?: string,
 ): RivalHubRemoteMap["demoStatus"] {
   const mapFinished = map.completedAt != null && map.scoreA != null && map.scoreB != null;
@@ -139,8 +140,8 @@ const staleEvidenceIssue: IntegrationIssue = {
 };
 
 export function projectDemoIssues(
-  latest: DemoImportMetadata | undefined,
-  latestConfirmed: DemoImportMetadata | undefined,
+  latest: DemoImportEventMetadata | undefined,
+  latestConfirmed: DemoImportEventMetadata | undefined,
   currentEvidenceRevision: string,
 ): IntegrationIssue[] {
   const issues = projectIssues(latest?.issues);
@@ -253,28 +254,43 @@ export async function readRivalHubEvents(
   // Keep every timestamp tie: the existing createdAt-only ordering leaves ties
   // unordered, and each of these three independent candidates can affect output.
   const importHistory = db.select({
-    ...demoImportMetadataSelection,
+    id: matchDemoImports.id,
+    matchMapId: matchDemoImports.matchMapId,
+    demoSha256: matchDemoImports.demoSha256,
+    semanticProfile: matchDemoImports.semanticProfile,
+    evidenceRevision: matchDemoImports.evidenceRevision,
+    status: matchDemoImports.status,
+    issues: matchDemoImports.issues,
+    createdAt: matchDemoImports.createdAt,
     latestCurrentAt: sql<Date | null>`max(${matchDemoImports.createdAt}) filter (where ${matchDemoImports.semanticProfile} = ${CURRENT_DAK_SEMANTIC_PROFILE} and ${matchDemoImports.status} <> 'superseded') over (partition by ${matchDemoImports.matchMapId})`.as("latest_current_at"),
     latestNonCanonicalAt: sql<Date | null>`max(${matchDemoImports.createdAt}) filter (where ${matchDemoImports.semanticProfile} <> ${CURRENT_DAK_SEMANTIC_PROFILE} and ${matchDemoImports.status} <> 'superseded') over (partition by ${matchDemoImports.matchMapId})`.as("latest_noncanonical_at"),
     latestConfirmedAt: sql<Date | null>`max(${matchDemoImports.createdAt}) filter (where ${matchDemoImports.semanticProfile} = ${CURRENT_DAK_SEMANTIC_PROFILE} and ${matchDemoImports.status} = 'confirmed') over (partition by ${matchDemoImports.matchMapId})`.as("latest_confirmed_at"),
   }).from(matchDemoImports).where(inArray(matchDemoImports.matchMapId, mapRows.map((map) => map.id))).as("import_history");
   const importRows = mapRows.length > 0
-    ? await db.select().from(importHistory).where(or(
+    ? await db.select({
+      id: importHistory.id,
+      matchMapId: importHistory.matchMapId,
+      demoSha256: importHistory.demoSha256,
+      semanticProfile: importHistory.semanticProfile,
+      evidenceRevision: importHistory.evidenceRevision,
+      status: importHistory.status,
+      issues: importHistory.issues,
+    }).from(importHistory).where(or(
       and(eq(importHistory.semanticProfile, CURRENT_DAK_SEMANTIC_PROFILE), sql`${importHistory.status} <> 'superseded'`, eq(importHistory.createdAt, importHistory.latestCurrentAt)),
       and(sql`${importHistory.semanticProfile} <> ${CURRENT_DAK_SEMANTIC_PROFILE}`, sql`${importHistory.status} <> 'superseded'`, eq(importHistory.createdAt, importHistory.latestNonCanonicalAt)),
       and(eq(importHistory.semanticProfile, CURRENT_DAK_SEMANTIC_PROFILE), eq(importHistory.status, "confirmed"), eq(importHistory.createdAt, importHistory.latestConfirmedAt)),
     )).orderBy(desc(importHistory.createdAt))
     : [];
 
-  const importsByMap = new Map<string, Array<DemoImportMetadata>>();
+  const importsByMap = new Map<string, Array<DemoImportEventMetadata>>();
   for (const row of importRows) {
     const rows = importsByMap.get(row.matchMapId) ?? [];
     rows.push(row);
     importsByMap.set(row.matchMapId, rows);
   }
-  const latestCurrentImportByMap = new Map<string, DemoImportMetadata>();
-  const latestNonCanonicalImportByMap = new Map<string, DemoImportMetadata>();
-  const latestConfirmedImportByMap = new Map<string, DemoImportMetadata>();
+  const latestCurrentImportByMap = new Map<string, DemoImportEventMetadata>();
+  const latestNonCanonicalImportByMap = new Map<string, DemoImportEventMetadata>();
+  const latestConfirmedImportByMap = new Map<string, DemoImportEventMetadata>();
   for (const [mapId, rows] of importsByMap) {
     const current = selectCurrentDemoImport(rows);
     const nonCanonical = selectLatestNonCanonicalDemoImport(rows);
