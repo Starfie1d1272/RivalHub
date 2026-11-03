@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- 公开统计详情、职业生涯、阵容风格、选手赛事记录与赛事结果批量读取复用缓存，并在相关数据变化时更新，减少重复查询和计算。
+- 公开统计详情、职业生涯、阵容风格、选手赛事记录、纪录事件分页与赛事结果批量读取复用缓存，并在相关数据变化时更新，减少重复查询和计算。
 - 竞猜积分池和免费预测支持率按数据变化更新，减少重复读取。
 - 首页公开数据缓存按相关变更更新，减少无变化时的重复读取。
 
@@ -3807,3 +3807,4 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 [1.1.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.0...v1.0.2
 [1.0.0]: https://github.com/Starfie1d1272/RivalHub/compare/v0.3.0...v1.0.0
+

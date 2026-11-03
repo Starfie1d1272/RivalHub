@@ -128,12 +128,15 @@ viewer membership/invitation state bypass public caches. Mutations expire the ta
 immediately: Server Actions use `updateTag`, HTTP entrypoints use
 `revalidateTag(tag, { expire: 0 })`. General metadata may retain its existing SWR
 policy. Public tournament, match, career, benchmark and lineup-style results,
-platform aggregates and the official map catalog do not refresh on a timer;
+platform aggregates, public record-event pages and the official map catalog do not refresh on a timer;
 fixed-cutoff and rolling lineup comparisons follow the same policy. A future
 completion timestamp crossing the rolling cutoff may not be reflected until the
 next tagged write, eviction, or cold cache. A failed post-commit tag update can leave
 business statistics or an old public attribution stale until a later successful
-invalidation, eviction, or a cold cache. This is not a durable delivery mechanism
+invalidation, eviction, or a cold cache. A standalone same-version projection backfill
+also does not signal the application cache; its changes can remain stale until one of
+those events. Operator-triggered Steam profile cache misses can likewise leave a cached
+record-event label stale. This is not a durable delivery mechanism
 or an immediate withdrawal guarantee. The cache does not replace persisted
 projections and keys change on deploy; self-hosted process-local entries are lost
 on restart and do not share invalidations across instances.
