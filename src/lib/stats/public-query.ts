@@ -4,7 +4,7 @@ import { sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { ratioOfSums, roundWeightedAvg, simpleAvg } from "./sql";
-import { getCurrentStatsSelectionInTx } from "./tournament-query";
+import { getCurrentStatsSelectionInReadOnlySnapshot } from "./tournament-query";
 
 /** OCR remains independently verified; DAK rows must belong to the selected valid lineage. */
 function currentStatsCondition(currentImportIds: readonly string[]) {
@@ -38,7 +38,7 @@ export async function getVerifiedPlayerStatsBySeason(
     ? sql`AND mps.user_id IN (${sql.join(userIds.map((userId) => sql`${userId}`), sql`, `)})`
     : sql``;
   const result = await db.transaction(async (tx) => {
-    const selection = await getCurrentStatsSelectionInTx(tx, { seasonId, userIds });
+    const selection = await getCurrentStatsSelectionInReadOnlySnapshot(tx, { seasonId, userIds });
     return tx.execute(sql`
     SELECT
       mps.user_id,
@@ -78,7 +78,7 @@ export async function getPublicPlayerMapExperienceContext(userIds: readonly stri
   const ids = [...new Set(userIds)];
   if (!ids.length) return { experience: [], experiencedMemberIds: [] };
   const result = await db.transaction(async (tx) => {
-    const selection = await getCurrentStatsSelectionInTx(tx, { userIds: ids });
+    const selection = await getCurrentStatsSelectionInReadOnlySnapshot(tx, { userIds: ids });
     return tx.execute(sql`
     SELECT mm.map_name, count(*)::int AS samples, count(distinct mps.user_id)::int AS players,
       array_agg(DISTINCT mps.user_id) AS player_ids,

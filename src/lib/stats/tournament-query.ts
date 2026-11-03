@@ -19,7 +19,7 @@ import type { Insight } from "./insights";
 import { buildTournamentResults } from "./results";
 import { buildTeamRatings } from "./team-rating";
 import { classifyVetoSample } from "./veto-sample";
-import { loadStatsContext, loadCurrentProjectionRefs } from "./tournament-scope";
+import { loadStatsContext, loadSelectedStatsContext, loadCurrentProjectionRefs, statsMatchFields } from "./tournament-scope";
 import { loadStatsEvidence, loadStatsDetailEvidence, loadStatsEvidenceSelection, type PlayerDetailFacts, type ProjectionTargets } from "./tournament-projections";
 import { performanceFactsForScope, indexStatsRows, groupEvidenceByMap, aggregateEvidenceByMap, resultMatchesForMapScope, buildCoverage } from "./tournament-aggregate";
 export { scopePerformanceFactsToTeam } from "./tournament-aggregate";
@@ -40,9 +40,20 @@ export interface PlayerStatsEventOption {
 export type StatsLabels = { teams: Record<string, string>; players: Record<string, string> };
 
 /** Lightweight canonical selection for public directory/scouting aggregates. */
-export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: { seasonId?: string; userIds?: readonly string[]; before?: Date; excludeMatchId?: string }) {
+type CurrentStatsSelectionScope = { seasonId?: string; userIds?: readonly string[]; before?: Date; excludeMatchId?: string };
+
+export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: CurrentStatsSelectionScope) {
+  return getCurrentStatsSelection(tx, scope, false);
+}
+
+/** The caller must use a repeatable-read, read-only transaction. */
+export async function getCurrentStatsSelectionInReadOnlySnapshot(tx: TxDb, scope: CurrentStatsSelectionScope) {
+  return getCurrentStatsSelection(tx, scope, true);
+}
+
+async function getCurrentStatsSelection(tx: TxDb, scope: CurrentStatsSelectionScope, reuseMatches: boolean) {
   if (scope.userIds?.length === 0) return { currentImportIds: [], roster: [], matchIds: [] };
-  const candidates = await tx.selectDistinct({ id: matches.id }).from(matches)
+  const candidates = await tx.selectDistinctOn([matches.id], statsMatchFields).from(matches)
     .innerJoin(seasons, eq(seasons.id, matches.seasonId))
     .innerJoin(matchPlayerStats, eq(matchPlayerStats.matchId, matches.id))
     .where(and(officialMatchCondition(), eq(matches.status, "finished"), ne(seasons.status, "draft"),
@@ -52,7 +63,9 @@ export async function getCurrentStatsSelectionInTx(tx: TxDb, scope: { seasonId?:
       scope.userIds ? inArray(matchPlayerStats.userId, [...scope.userIds]) : undefined));
   const candidateIds = candidates.map((row) => row.id);
   const effectiveRoster = await loadEffectiveMatchRosterIdentities(tx, candidateIds);
-  const context = await loadStatsContext(tx, {}, { matchIds: candidateIds, effectiveRoster, skipLabels: true });
+  const context = reuseMatches
+    ? await loadSelectedStatsContext(tx, candidates, effectiveRoster)
+    : await loadStatsContext(tx, {}, { matchIds: candidateIds, effectiveRoster, skipLabels: true });
   const refs = await loadCurrentProjectionRefs(tx, context);
   return { currentImportIds: refs.map(({ current }) => current.id), roster: context.roster, matchIds: context.matchIds };
 }

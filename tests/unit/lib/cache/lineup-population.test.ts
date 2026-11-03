@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("next/cache", () => ({ cacheLife: mocks.cacheLife, cacheTag: mocks.cacheTag, updateTag: mocks.updateTag, revalidateTag: mocks.revalidateTag, revalidatePath: mocks.revalidatePath }));
 vi.mock("@/db/client", () => ({ db: { transaction: (read: (tx: object) => unknown) => read({}) } }));
-vi.mock("@/lib/stats/tournament-query", () => ({ getCurrentStatsSelectionInTx: mocks.selection }));
+vi.mock("@/lib/stats/tournament-query", () => ({ getCurrentStatsSelectionInReadOnlySnapshot: mocks.selection }));
 vi.mock("@/lib/stats/leaderboard-query", () => ({ getLineupStatsPopulation: mocks.leaderboard }));
 vi.mock("@/lib/stats/ranking", () => ({ partitionRankingPopulation: mocks.partition }));
 vi.mock("@/lib/stats/public-fill", () => ({ observePublicStatsFill: (_name: string, read: () => unknown) => read() }));

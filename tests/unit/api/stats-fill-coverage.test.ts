@@ -8,7 +8,7 @@ vi.mock("@/db/client", () => ({ db: {
 } }));
 vi.mock("@/lib/observability/server", () => ({ captureException: vi.fn() }));
 vi.mock("@/lib/stats/tournament-query", () => ({ getTournamentStats: reads.tournament, getPlayerCareerPerformances: reads.careers,
-  getCurrentStatsSelectionInTx: reads.selection, getTournamentRecordEvents: vi.fn() }));
+  getCurrentStatsSelectionInReadOnlySnapshot: reads.selection, getTournamentRecordEvents: vi.fn() }));
 vi.mock("@/lib/stats/player-attribute-benchmark", () => ({ getPlayerAttributeBenchmark: reads.benchmark }));
 vi.mock("@/lib/stats/public-view", () => ({ publicStatsView: (data: unknown) => data }));
 import { getPlatformStatsPage } from "@/lib/stats/platform-query";
