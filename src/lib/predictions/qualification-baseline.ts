@@ -33,12 +33,26 @@ export async function loadQualificationRead(
     .from(competitionQualificationRuns)
     .where(eq(competitionQualificationRuns.seasonId, seasonId));
   if (!run || run.format !== "short_swiss_2w2l") return {context:null,official:[]};
-  const entrants = await tx
-    .select({ competitionEntryId: competitionQualificationEntrants.competitionEntryId,
-      preliminarySeed: competitionQualificationEntrants.preliminarySeed })
+  const entrantRows = await tx
+    .select({
+      competitionEntryId: competitionQualificationEntrants.competitionEntryId,
+      preliminarySeed: competitionQualificationEntrants.preliminarySeed,
+      entry: {
+        teamId: competitionEntries.id,
+        name: competitionEntries.name,
+        logoUrl: competitionEntries.logoUrl,
+      },
+    })
     .from(competitionQualificationEntrants)
+    .leftJoin(
+      competitionEntries,
+      eq(competitionEntries.id, competitionQualificationEntrants.competitionEntryId),
+    )
     .where(eq(competitionQualificationEntrants.runId, run.id))
     .orderBy(asc(competitionQualificationEntrants.preliminarySeed));
+  const entrants = entrantRows.map(({ competitionEntryId, preliminarySeed }) => ({
+    competitionEntryId, preliminarySeed,
+  }));
   assertRunSnapshot(run, entrants);
   const rawOfficial = await tx
     .select(predictionMatchSelection)
@@ -68,23 +82,9 @@ export async function loadQualificationRead(
       "Play-in 运行状态与官方赛况不一致。",
     );
   }
-  const teamRows = await tx
-    .select({
-      teamId: competitionEntries.id,
-      name: competitionEntries.name,
-      logoUrl: competitionEntries.logoUrl,
-      tournamentSeed: competitionQualificationEntrants.preliminarySeed,
-    })
-    .from(competitionQualificationEntrants)
-    .innerJoin(
-      competitionEntries,
-      eq(
-        competitionEntries.id,
-        competitionQualificationEntrants.competitionEntryId,
-      ),
-    )
-    .where(eq(competitionQualificationEntrants.runId, run.id))
-    .orderBy(asc(competitionQualificationEntrants.preliminarySeed));
+  const teamRows = entrantRows.flatMap(({ entry, preliminarySeed }) =>
+    entry ? [{ ...entry, tournamentSeed: preliminarySeed }] : [],
+  );
   const playing = playInSwissEntrants(entrants, run.directEntryCount);
   const baseline: Baseline = {
     version: SIMULATION_VERSION,
