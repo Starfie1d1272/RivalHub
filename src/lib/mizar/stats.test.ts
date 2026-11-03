@@ -4,7 +4,7 @@ import extended from "../../../tests/fixtures/contracts/rivalhub-provider-stats-
 const mock = vi.hoisted(() => ({ detail: vi.fn(), document: vi.fn(), support: vi.fn(), benchmark: vi.fn(), opponents: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/db/client", () => ({ db: { transaction: (fn: (tx: unknown) => unknown) => fn({ select: () => ({ from: () => ({ where: mock.opponents }) }) }) } }));
-vi.mock("@/lib/stats/tournament-query", () => ({ getTournamentTeamDetailInTx: mock.detail }));
+vi.mock("@/lib/stats/tournament-query", () => ({ getTournamentTeamDetailsInTx: mock.detail }));
 vi.mock("@/lib/bet/match-support", () => ({ readMatchSupport: mock.support }));
 vi.mock("@/lib/stats/player-attribute-benchmark", () => ({ getPlayerAttributeBenchmark: mock.benchmark }));
 vi.mock("@/lib/stats/player-attributes", () => ({ projectPlayerAttributeProfile: () => ({ attributes: [] }) }));
@@ -26,10 +26,10 @@ it("shares one team detail per side and preserves canonical samples, missing dat
   const maps = [{ mapName: "de_dust2", results: { played: 1, wins: 1, losses: 0 }, analytics, selection: { picks: 1, bans: 0 }, coverage: { completedMaps: 1, detailedMaps: 1 } }];
   const match = { id: "historical", stage: "swiss", round: 2, entryAId: sides[0].entryId, entryBId: sides[1].entryId, scoreA: 2, scoreB: 0, status: "finished", completedAt: new Date("2026-01-02T00:00:00Z") };
   const common = { results: { matches: 1, matchWins: 1, matchLosses: 0, maps: 1, mapWins: 1, mapLosses: 0 }, official: { matches: [match, ...Array.from({ length: 50 }, (_, i) => ({ ...match, id: `older-${i}`, completedAt: new Date("2025-01-01T00:00:00Z") }))], maps: [{ matchId: "historical", mapName: "de_dust2", completedAt: new Date("2026-01-01T00:00:00Z"), scoreA: 13, scoreB: 8 }] }, maps, selection: [{ mapName: "de_dust2", deciders: 2, teams: [{ entryId: sides[0].entryId, picks: 1, bans: 0 }] }], teamRating: { rating: 1.2, ratingSamples: 3 }, analytics, performance: { slices: { overall: slice }, weapons: [{ weapon: "awp", kills: 3, killShare: value, killsPerRound: value }] }, scoreboard: [{ userId: sides[0].starters[0].userId, maps: 1, rounds: 10, ratingSamples: 1, adrRounds: null, avgRating: 1.2, avgAdr: null, kdRatio: 1.1, kpr: 0.5, fkpr: null, mkpr: 0.1, cpr: null, fdpr: null, tradeKpr: 0.15, kast: 0.5, avgHs: 50, scoreboardSamples: { kprRounds: 40, fkprRounds: null, mkprRounds: 20, cprRounds: null, fdprRounds: null, tradeKprRounds: 20, kastRounds: 20, hsKills: 10, kdDeaths: 16 } }], detailedPlayers: [{ player: { entityKey: sides[0].starters[0].userId }, slices: { overall: { sample: { rounds: 10 }, kast: value, combat: { killsPerRound: value, headshotRate: value, twoKillRounds: 2, threeKillRounds: 1, fourKillRounds: 0, fiveKillRounds: 0 }, opening: { successRate: value }, trade: { tradeKillsPerRound: value }, clutch: { attempts: 10, wins: 3, winRate: value, byOpponentCount: { "1": value, "2": value, "3": value, "4": value, "5": value } } } } }], coverage: { completedMaps: 1, detailedMaps: 1 } };
-  mock.detail.mockResolvedValueOnce(common).mockResolvedValueOnce({ ...common, maps: [], selection: [], scoreboard: [], detailedPlayers: [], analytics: null, performance: null, results: null, teamRating: null });
+  mock.detail.mockResolvedValueOnce([common, { ...common, maps: [], selection: [], scoreboard: [], detailedPlayers: [], analytics: null, performance: null, results: null, teamRating: null }]);
   const bundle = await loadBroadcastStats("match", "competition");
-  expect(mock.detail).toHaveBeenCalledTimes(2);
-  expect(mock.detail.mock.calls.map(call => call[0].teamId)).toEqual(sides.map(side => side.entryId));
+  expect(mock.detail).toHaveBeenCalledTimes(1);
+  expect(mock.detail.mock.calls[0][1]).toEqual(sides.map(side => side.entryId));
   expect(bundle.mapPool).toEqual(["de_dust2", "de_nuke"]);
   expect(bundle.support?.sides.map(side => side.ratio)).toEqual([1, 0]);
   const [a, b] = bundle.entrants;
@@ -42,7 +42,7 @@ it("shares one team detail per side and preserves canonical samples, missing dat
   expect(a.facts?.players[0].scoreboard).toMatchObject({ source: "confirmed-scoreboard", kpr: { value: 0.5, rounds: 40 }, mkpr: { value: 0.1, rounds: 20 }, tradeKpr: { value: 0.15, rounds: 20 }, kast: { value: 0.5, rounds: 20 }, avgHs: { value: 50, kills: 10 }, kd: { value: 1.1, deaths: 16 }, fkpr: { value: null, rounds: null } });
   expect(a.facts?.players[0].detailed).toMatchObject({ kast: value, killsPerRound: value, headshotRate: value, twoKillRounds: 2, clutch: { attempts: 10, wins: 3, byOpponentCount: { "5": value } } });
   expect(mock.benchmark).toHaveBeenCalledTimes(1);
-  mock.detail.mockResolvedValueOnce({ ...common, performance: { ...common.performance, weapons: [] } }).mockResolvedValueOnce({ ...common, performance: null });
+  mock.detail.mockResolvedValueOnce([{ ...common, performance: { ...common.performance, weapons: [] } }, { ...common, performance: null }]);
   const empty = await loadBroadcastStats("match", "competition");
   expect(empty.entrants[0].facts?.weapons).toEqual([]);
   expect(empty.entrants[0].facts?.weaponsCoverage).toEqual({ completeness: "unknown", completedMaps: 1, detailedMaps: 1, totalKills: null, rounds: 10 });

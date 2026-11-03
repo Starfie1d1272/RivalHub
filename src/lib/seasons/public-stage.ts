@@ -25,7 +25,7 @@ export interface PublicStagePresentation {
   currentStageKey: string | null;
   currentStageLabel: string | null;
   qualificationRun?: Pick<CompetitionQualificationRun,
-    "id" | "format" | "targetEntrantCount" | "candidateCount" | "playInEntryCount" |
+    "id" | "seasonId" | "format" | "targetEntrantCount" | "candidateCount" | "directEntryCount" | "playInEntryCount" |
     "qualifierCount" | "startedAt" | "completedAt"> | null;
 }
 
@@ -80,9 +80,10 @@ const loadPublicStageFacts = cache(async (seasonId: string, template: PublicStag
           .where(eq(majorStageRuns.seasonId, seasonId))
         : Promise.resolve([] as { stageKey: string; presentationInput: unknown; startedAt: Date }[]),
       loadOfficialMatchStages(eq(matches.seasonId, seasonId)),
-      db.select({ id: competitionQualificationRuns.id, format: competitionQualificationRuns.format,
+      db.select({ id: competitionQualificationRuns.id, seasonId: competitionQualificationRuns.seasonId, format: competitionQualificationRuns.format,
         targetEntrantCount: competitionQualificationRuns.targetEntrantCount,
         candidateCount: competitionQualificationRuns.candidateCount,
+        directEntryCount: competitionQualificationRuns.directEntryCount,
         playInEntryCount: competitionQualificationRuns.playInEntryCount,
         qualifierCount: competitionQualificationRuns.qualifierCount, startedAt: competitionQualificationRuns.startedAt,
         completedAt: competitionQualificationRuns.completedAt }).from(competitionQualificationRuns)

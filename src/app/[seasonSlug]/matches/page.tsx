@@ -12,7 +12,7 @@ import { io } from "next/cache";
 import { notFound } from "next/navigation";
 import { and, eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { majorFinalResults, matches, competitionEntries, competitionQualificationRuns } from "@/db/schema";
+import { majorFinalResults, matches, competitionEntries } from "@/db/schema";
 import { loadStageBracketState, serializeStageBracket } from "@/lib/bracket";
 import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
 import Link from "next/link";
@@ -50,7 +50,7 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
-  const [allTeams, finalResult, stagePresentation, qualificationRun] = await Promise.all([
+  const [allTeams, finalResult, stagePresentation] = await Promise.all([
     db.query.competitionEntries.findMany({
       columns: { id: true, name: true, formationOrder: true },
       where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryIdentityCondition()),
@@ -58,9 +58,8 @@ async function MatchesContent({ params, searchParams }: MatchesPageProps) {
     }),
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
     getPublicSeasonStagePresentation(season),
-    db.query.competitionQualificationRuns.findFirst({ where: eq(competitionQualificationRuns.seasonId, season.id) }),
   ]);
-  const stagePlan = stagePresentation.stagePlan;
+  const { stagePlan, qualificationRun } = stagePresentation;
   const requestedMajorStageKey = requestedStage && stagePlan.some(stage => stage.key === requestedStage) ? requestedStage : null;
   const defaultStageKey = requestedStage === "play-in" && qualificationRun
     ? "play-in"

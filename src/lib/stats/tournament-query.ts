@@ -881,12 +881,8 @@ function projectTournamentTeamDetail(scope: TournamentStatsScope & { teamId: str
   };
 }
 
-type TeamDetailSnapshot = Awaited<ReturnType<typeof loadTournamentTeamDetailSnapshot>>;
-
-/** Request-local sharing for teams in the same transaction and competition scope. */
-export type TeamDetailBatch = { teamIds: readonly string[]; snapshot?: Promise<Map<string, TeamDetailSnapshot>> };
-
-async function loadTournamentTeamDetailBatch(scope: TournamentStatsScope, teamIds: readonly string[], tx: TxDb) {
+/** Load one shared snapshot and preserve the separate team projections. */
+export async function getTournamentTeamDetailsInTx(scope: Omit<TournamentStatsScope, "teamFilter">, teamIds: readonly string[], tx: TxDb) {
   const loaded = await loadStatsDetailEvidence(tx, { ...scope, teamFilter: undefined }, { teamIds, reuseVetoMatches: true });
   // Veto historically includes official matches with incomplete competition fields.
   const vetoMatches = (loaded.vetoMatches ?? []).filter((match) => teamIds.some((id) => match.entryAId === id || match.entryBId === id));
@@ -899,7 +895,7 @@ async function loadTournamentTeamDetailBatch(scope: TournamentStatsScope, teamId
     return { teamId, matchIds, selected, importIds: selected.map((row) => row.importId) };
   });
   const scoreboard = await getStatsLeaderboard({ ...scope, teamFilter: undefined, teamSelections: selections }, loaded.selected.map((row) => row.importId), loaded.roster, tx);
-  const snapshots = new Map<string, TeamDetailSnapshot>();
+  const details = [];
   for (const { teamId, matchIds: ids, selected } of selections) {
     const teamMatches = loaded.matches.filter((match) => ids.has(match.id));
     const matchIds = teamMatches.map((match) => match.id);
@@ -911,15 +907,13 @@ async function loadTournamentTeamDetailBatch(scope: TournamentStatsScope, teamId
       selected };
     const matches = vetoMatches.filter((match) => match.entryAId === teamId || match.entryBId === teamId);
     const veto = await loadVetoData(tx, { ...scope, teamId }, loaded.entries, undefined, matches, vetoRows);
-    snapshots.set(teamId, { loaded: teamLoaded, veto, scoreboard: scoreboard.filter((row) => row.teamId === teamId) });
+    details.push(projectTournamentTeamDetail({ ...scope, teamId }, { loaded: teamLoaded, veto, scoreboard: scoreboard.filter((row) => row.teamId === teamId) }));
   }
-  return snapshots;
+  return details;
 }
 
-export async function getTournamentTeamDetailInTx(scope: TournamentStatsScope & { teamId: string }, tx: TxDb, batch?: TeamDetailBatch) {
-  if (!batch) return projectTournamentTeamDetail(scope, await loadTournamentTeamDetailSnapshot(scope, tx));
-  batch.snapshot ??= loadTournamentTeamDetailBatch(scope, batch.teamIds, tx);
-  return projectTournamentTeamDetail(scope, (await batch.snapshot).get(scope.teamId)!);
+export async function getTournamentTeamDetailInTx(scope: TournamentStatsScope & { teamId: string }, tx: TxDb) {
+  return projectTournamentTeamDetail(scope, await loadTournamentTeamDetailSnapshot(scope, tx));
 }
 
 export async function getTournamentTeamDetail(scope: TournamentStatsScope & { teamId: string }, database: DB = db) {

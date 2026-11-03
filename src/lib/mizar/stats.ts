@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { competitionEntries } from "@/db/schema";
 import { readMatchSupport } from "@/lib/bet/match-support";
 import { openingDeathTraded } from "@/lib/stats/derived-metrics";
-import { getTournamentTeamDetailInTx } from "@/lib/stats/tournament-query";
+import { getTournamentTeamDetailsInTx } from "@/lib/stats/tournament-query";
 import { getPlayerAttributeBenchmark } from "@/lib/stats/player-attribute-benchmark";
 import { projectPlayerAttributeProfile } from "@/lib/stats/player-attributes";
 import { broadcastMatchSupport } from "./stats-support";
@@ -17,9 +17,7 @@ export async function loadBroadcastStats(matchId: string, competitionId: string)
   const { document, entries, details, opponents, supportRows } = await db.transaction(async tx => {
     const document = await loadMizarMatchDocumentInTx(tx, matchId, competitionId, true);
     const entries = [document.entrants.a, document.entrants.b];
-    const details = [];
-    const batch = { teamIds: entries.map((entry) => entry.entryId) };
-    for (const entry of entries) details.push(await getTournamentTeamDetailInTx({ seasonId: competitionId, teamId: entry.entryId }, tx, batch));
+    const details = await getTournamentTeamDetailsInTx({ seasonId: competitionId }, entries.map((entry) => entry.entryId), tx);
     const opponentIds = [...new Set(details.flatMap(detail => detail.official.matches.flatMap(match => [match.entryAId, match.entryBId])))];
     const opponents = opponentIds.length ? await tx.select({ id: competitionEntries.id, name: competitionEntries.name, logoUrl: competitionEntries.logoUrl }).from(competitionEntries).where(inArray(competitionEntries.id, opponentIds)) : [];
     const supportRows = await readMatchSupport(tx, competitionId, matchId);
