@@ -69,4 +69,3 @@ describe("hard public statistics invalidation", () => {
     expect(mocks.revalidateTag).toHaveBeenCalledWith(PUBLIC_STATS_TAG, { expire: 0 });
   });
 });
-

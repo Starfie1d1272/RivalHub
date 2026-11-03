@@ -46,4 +46,3 @@ export async function getLineupCareers(playerIds: string[], matchId: string, cut
   recordStatsCache(cutoff ? "lineup.historical" : "lineup.realtime", "readCalls");
   return projectLineupCareers(await getLineupPopulation(matchId, cutoff), playerIds);
 }
-
