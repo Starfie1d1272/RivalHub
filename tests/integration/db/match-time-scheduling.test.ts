@@ -80,6 +80,7 @@ it.each([
   const a = (await db.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, fixture.entryAId) }))!;
   const b = (await db.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, fixture.entryBId) }))!;
   const successor = (await db.query.competitionEntryParticipants.findFirst({ where: and(eq(schema.competitionEntryParticipants.entryId, a.id), ne(schema.competitionEntryParticipants.userId, a.representativeUserId)) }))!;
+  await db.insert(schema.seasonRegistrations).values({ seasonId: fixture.seasonId, userId: successor.userId, primaryPosition: "rifler", secondaryPosition: "support", gameplayStyle: "fixture", status: "approved" });
   auth.userId = a.representativeUserId;
   const result = await proposeMatchTime(fixture.matchId, new Date(Date.now() + hour));
   if (!result.success) throw new Error(result.error.message);
