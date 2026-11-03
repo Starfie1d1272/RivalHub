@@ -51,21 +51,25 @@ export function updatePublicSeasonTags(
   }
 }
 
-/** Route Handler/webhook semantics: stale-while-revalidate the public tags. */
+/** Route Handler/webhook semantics: expire home and its catalog input immediately. */
 export function revalidatePublicSeasonTags(
   slug: string,
   seasonId?: string,
   options: StatisticsRevalidationOptions = {},
 ): void {
   if (options.statistics !== false) revalidatePublicStatsTag(options.statisticsReason);
-  revalidateTag(PUBLIC_SEASON_CATALOG_TAG, "max");
+  revalidateTag(PUBLIC_SEASON_CATALOG_TAG, { expire: 0 });
   revalidateTag(publicSeasonTag(slug), "max");
-  revalidateTag(PUBLIC_HOME_TAG, "max");
+  revalidatePublicHomeTag();
   if (seasonId) {
     revalidateTag(seasonParticipantsTag(seasonId), "max");
     revalidateTag(seasonMatchesTag(seasonId), "max");
     revalidateTag(seasonStandingsTag(seasonId), "max");
   }
+}
+
+export function revalidatePublicHomeTag(): void {
+  revalidateTag(PUBLIC_HOME_TAG, { expire: 0 });
 }
 
 export function updatePublicHomeTag(): void {
@@ -83,7 +87,7 @@ export function updatePublicSeasonInfoTag(seasonId: string): void {
 
 export function revalidatePublicPlayerTag(userId: string): void {
   revalidateTag(publicPlayerTag(userId), "max");
-  revalidateTag(PUBLIC_HOME_TAG, "max");
+  revalidatePublicHomeTag();
   revalidatePublicStatsTag("identity");
 }
 

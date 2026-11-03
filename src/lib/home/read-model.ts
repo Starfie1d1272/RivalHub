@@ -46,7 +46,7 @@ export async function getPublicHomeProjection(
   allSeasons: PublicSeasonWithCompletion[],
 ): Promise<PublicHomeProjection> {
   "use cache: remote";
-  cacheLife("minutes");
+  cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
   cacheTag(PUBLIC_HOME_TAG);
 
   const featured = selectFeaturedSeason(allSeasons) ?? null;
