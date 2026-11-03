@@ -27,18 +27,18 @@ describe("lineup population cache contract", () => {
   it("uses the fixed cutoff profile, selects the whole population and filters afterwards", async () => {
     const cutoff = "2026-10-01T00:00:00.000Z";
     const result = await getLineupCareers(["b"], "match-a", cutoff);
-    expect(mocks.cacheLife).toHaveBeenCalledWith({ stale: 60, revalidate: 3600, expire: 86400 });
+    expect(mocks.cacheLife).toHaveBeenCalledWith({ stale: 60, revalidate: 2592000, expire: 31536000 });
     expect(mocks.cacheTag).toHaveBeenCalledWith(PUBLIC_STATS_TAG);
     expect(mocks.leaderboard).toHaveBeenCalledWith("match-a", new Date(cutoff), expect.anything());
     expect(result).toEqual([{ userId: "b", maps: 2, rounds: 40, qualified: true, rating: 2, adr: 80, kpr: 0.8, kast: 80, firstKill: 0.2, trade: 0.2 }]);
   });
 
-  it("keeps the rolling null cutoff short and forwards distinct match and cutoff inputs", async () => {
+  it("uses the rolling cutoff and forwards distinct match and cutoff inputs", async () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(new Date("2026-10-31T00:00:00Z"));
       await getLineupCareers(["a"], "match-a", null);
-      expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 60, revalidate: 60, expire: 3600 });
+      expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 60, revalidate: 2592000, expire: 31536000 });
       expect(mocks.leaderboard).toHaveBeenLastCalledWith("match-a", new Date(), expect.anything());
       await getLineupCareers(["a"], "match-b", "2026-10-02T00:00:00.000Z");
       expect(mocks.leaderboard).toHaveBeenLastCalledWith("match-b", new Date("2026-10-02T00:00:00.000Z"), expect.anything());
