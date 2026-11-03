@@ -169,7 +169,10 @@ function buildStatsLeaderboardQuery(
     FROM (
       SELECT encode(sha256(convert_to(jsonb_build_array(
         mps.user_id, u.display_name, sp.persona_name, u.perfect_name,
-        mps.rating_pro, mps.adr, mps.kills, mps.kast_rounds, mps.first_kills, mps.trade_kills,
+        -- JSON floating output can be rounded by extra_float_digits. Hash the
+        -- stored IEEE bytes so distinct real values cannot collapse to one key.
+        encode(float4send(mps.rating_pro), 'hex'), encode(float4send(mps.adr), 'hex'),
+        mps.kills, mps.kast_rounds, mps.first_kills, mps.trade_kills,
         mm.score_a, mm.score_b
       )::text, 'UTF8')), 'hex') AS row_hash
       ${source}
