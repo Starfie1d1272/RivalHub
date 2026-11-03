@@ -21,7 +21,6 @@ import {
 import {
   createEmptyPublicEventTeamRecord,
   getPublicEventTeamMatchFacts,
-  getPublicEventTeamMatchSummary,
   type PublicEventTeamContext,
   type PublicEventTeamSummary,
 } from "@/lib/competition-entries/public-team-context";
@@ -71,7 +70,7 @@ export interface MajorPublicParticipantOverview {
 }
 
 export interface MajorPublicParticipantSummary extends MajorPublicParticipantOverview {
-  teams: PublicEventTeamSummary[];
+  teams: MajorPublicParticipantTeamBase[];
   matchCount: number;
   finishedMatchCount: number;
 }
@@ -472,19 +471,13 @@ export async function getMajorPublicParticipantOverview(
 export async function getMajorPublicParticipantSummary(
   season: MajorPublicParticipantSeason,
 ): Promise<MajorPublicParticipantSummary> {
-  const state = await loadMajorPublicParticipantState(season);
-  const [matchSummary, seasonMatches] = await Promise.all([
-    getPublicEventTeamMatchSummary(season.id, state.visibleEntryIds, state.approvedEntryIds),
+  const [state, seasonMatches] = await Promise.all([
+    loadMajorPublicParticipantState(season),
     getOfficialSeasonMatchSummary(season.id),
   ]);
   return {
     ...overviewFromState(state),
-    teams: state.teams
-      .filter((team) => state.visibleEntryIds.includes(team.entry.id))
-      .map((team) => ({
-        ...team,
-        record: matchSummary.records.get(team.entry.id) ?? createEmptyPublicEventTeamRecord(),
-      })),
+    teams: state.teams.filter((team) => state.visibleEntryIds.includes(team.entry.id)),
     matchCount: seasonMatches.total,
     finishedMatchCount: seasonMatches.finished,
   };
