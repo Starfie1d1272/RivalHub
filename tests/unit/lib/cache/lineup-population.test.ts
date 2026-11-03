@@ -38,7 +38,7 @@ describe("lineup population cache contract", () => {
     try {
       vi.setSystemTime(new Date("2026-10-31T00:00:00Z"));
       await getLineupCareers(["a"], "match-a", null);
-      expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 60, revalidate: 2592000, expire: 31536000 });
+      expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 60, revalidate: Infinity, expire: Infinity });
       expect(mocks.leaderboard).toHaveBeenLastCalledWith("match-a", new Date(), expect.anything());
       await getLineupCareers(["a"], "match-b", "2026-10-02T00:00:00.000Z");
       expect(mocks.leaderboard).toHaveBeenLastCalledWith("match-b", new Date("2026-10-02T00:00:00.000Z"), expect.anything());
@@ -69,3 +69,4 @@ describe("hard public statistics invalidation", () => {
     expect(mocks.revalidateTag).toHaveBeenCalledWith(PUBLIC_STATS_TAG, { expire: 0 });
   });
 });
+
