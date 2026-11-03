@@ -8,7 +8,7 @@ import { competitionEntries, educationVerifications, eventRosterMembers, eventRo
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import type { getPublicPlayerById } from "@/lib/data/public-players";
 import { getPublicSeasonBySlug } from "@/lib/data/public-seasons";
-import { getPublicSeasonResults } from "@/lib/seasons/public-results";
+import { getPublicSeasonResultsBatch } from "@/lib/seasons/public-results";
 import type { PlayerStatsEventOption } from "@/lib/stats/tournament-query";
 import { getPublicPlayerCareerDetail } from "@/lib/stats/cached-query";
 import { getPlayerAttributeBenchmark } from "@/lib/stats/player-attribute-benchmark";
@@ -106,15 +106,12 @@ function startPublicPlayerProfileSections(
       .groupBy(matches.seasonId)
     : []);
   const resultBySeasonPromise = teamMemberRowsPromise.then(async rows => {
-    const resultBySeason = new Map<string, Awaited<ReturnType<typeof getPublicSeasonResults>>>();
     const slugs = [...new Set(rows.filter(entry => ["finished", "archived"].includes(entry.seasonStatus)).map(entry => entry.seasonSlug))];
+    const seasons = [];
     for (let offset = 0; offset < slugs.length; offset += 2) {
-      await Promise.all(slugs.slice(offset, offset + 2).map(async slug => {
-        const season = await getPublicSeasonBySlug(slug);
-        if (season) resultBySeason.set(season.id, await getPublicSeasonResults(season));
-      }));
+      seasons.push(...await Promise.all(slugs.slice(offset, offset + 2).map(getPublicSeasonBySlug)));
     }
-    return resultBySeason;
+    return getPublicSeasonResultsBatch(seasons.filter((season): season is NonNullable<typeof season> => season !== null));
   });
   const basic = Promise.all([
     db.select({ slug: teams.slug, name: teams.name }).from(teamMemberships)

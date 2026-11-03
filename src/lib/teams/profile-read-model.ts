@@ -4,7 +4,7 @@ import { getPublicLineupStyle } from "./lineup-style-query";
 
 import { getPublicEventTeamMatchFactsBatch, type PublicEventTeamContext } from "@/lib/competition-entries/public-team-context";
 import { getPublicSeasonCatalog, type PublicSeason } from "@/lib/data/public-seasons";
-import { getPublicSeasonResults } from "@/lib/seasons/public-results";
+import { getPublicSeasonResultsBatch } from "@/lib/seasons/public-results";
 import { getPublicLongTeamCareerDetail, getPublicTournamentTeamDetail } from "@/lib/stats/cached-query";
 import { aggregatePublicTeamMapProfile, getPublicTeamMapProfile } from "@/lib/teams/map-profile";
 import { getPublicTeamProfileBasics, getPublicTeamProfileCore, getTeamProfileViewerState, type PublicTeamIdentity } from "@/lib/teams/public-profile";
@@ -50,8 +50,7 @@ export async function getPublicLongTeamProfileReadModel(
     }))));
   const matches = [...new Map(matchesBySeason.map(match => [match.id, match])).values()];
   const profileEntryRecords = new Map(performance?.official.entries.map((entry) => [entry.entryId, entry]) ?? []);
-  const careerResults = await Promise.all(seasonCatalog.filter((season) => historicalSeasonIds.has(season.id)).map(async (season) => [season.id, await getPublicSeasonResults(season)] as const));
-  const resultBySeason = new Map(careerResults);
+  const resultBySeason = await getPublicSeasonResultsBatch(seasonCatalog.filter((season) => historicalSeasonIds.has(season.id)));
 
   const career = profile.entries
     .filter((entry) => ["finished", "archived"].includes(entry.seasonStatus))
