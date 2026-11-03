@@ -208,7 +208,9 @@ export async function submitRegistration(input: RegistrationFormData) {
     // then repeat the gate inside the final mutation transaction below.
     const seasonId = season.id;
     if (initialWindow.needsOpeningRecovery) {
-      season = (await db.transaction((tx) => ensureRegistrationOpenForParticipantInTx(tx, seasonId))).season;
+      const opening = await db.transaction((tx) => ensureRegistrationOpenForParticipantInTx(tx, seasonId));
+      season = opening.season;
+      if (opening.opened) updatePublicSeasonTags(season.slug, season.id);
     }
     const windowState = getRegistrationWindowState(season);
     if (!windowState.canSubmit) {
