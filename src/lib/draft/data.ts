@@ -16,6 +16,7 @@ import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { rosterPositionSql } from "@/lib/competition-entries/roster-position";
 import type { MapPreference } from "@/types/season";
 import { draftFormat, getSnakeOrder } from "./rules";
+import { loadOccupiedDraftRegistrationIds } from "./occupancy";
 
 // ── 公开 DTO ─────────────────────────────────────────────
 
@@ -202,6 +203,7 @@ interface DraftBaseData {
   positionLimit: number;
   pickedRegistrationIds: Set<string>;
   captainRegistrationIds: Set<string>;
+  occupiedRegistrationIds: Set<string>;
 }
 
 async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "query"> = db, concurrent = false): Promise<DraftBaseData> {
@@ -294,6 +296,7 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
 
   const pickRows = parallel ? parallel[2] : await pickQuery;
 
+  const occupiedRegistrationIds = new Set(await loadOccupiedDraftRegistrationIds(executor, seasonId));
   const pickedRegistrationIds = new Set(pickRows.map((pick) => pick.registrationId));
   const captainRegistrationIds = new Set(
     teamRows.map((team) => team.captainRegistrationId),
@@ -385,11 +388,12 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
     positionLimit: rules.source === "policy_v2" ? rules.roster.maxPerPositionPerTeam : 2,
     pickedRegistrationIds,
     captainRegistrationIds,
+    occupiedRegistrationIds,
   };
 }
 
 function remainingRegistrationIds(base: DraftBaseData): string[] {
-  return [...new Set([...base.pickedRegistrationIds, ...base.captainRegistrationIds])];
+  return [...new Set([...base.pickedRegistrationIds, ...base.captainRegistrationIds, ...base.occupiedRegistrationIds])];
 }
 
 async function loadPublicRemainingPlayers(
