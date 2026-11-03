@@ -3,6 +3,8 @@ import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { db, type DB, type TxDb } from "@/db/client";
+import { cacheLife, cacheTag } from "next/cache";
+import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
 import { matchRosters, matchRosterPlayers, eventRosterMembers, eventRosters, matches, seasons } from "@/db/schema";
 
 type PublicAppearance = { seasonId: string; entryId: string; entryAId: string; entryBId: string; scoreA: number | null; scoreB: number | null };
@@ -44,7 +46,7 @@ export async function getPublicPlayerRecord(
 }
 
 /** Per-event canonical records for the public Player career timeline. */
-export async function getPublicPlayerRecords(userId: string, database: DB | TxDb = db) {
+async function loadPublicPlayerRecords(userId: string, database: DB | TxDb = db) {
   const appearances = (await loadPublicAppearances(userId, {}, database)).map(requireCompetitionFields);
   const grouped = new Map<string, PublicAppearance[]>();
   for (const row of appearances) {
@@ -53,4 +55,16 @@ export async function getPublicPlayerRecords(userId: string, database: DB | TxDb
     grouped.set(row.seasonId, rows);
   }
   return new Map([...grouped].map(([seasonId, rows]) => [seasonId, summarizeAppearances(rows)]));
+}
+
+/** Only public profiles call the default read after their live identity check. */
+async function cachedPublicPlayerRecords(userId: string) {
+  "use cache: remote";
+  cacheTag(PUBLIC_STATS_TAG);
+  cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
+  return loadPublicPlayerRecords(userId);
+}
+
+export async function getPublicPlayerRecords(userId: string, database?: DB | TxDb) {
+  return database ? loadPublicPlayerRecords(userId, database) : cachedPublicPlayerRecords(userId);
 }
