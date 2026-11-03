@@ -211,13 +211,8 @@ export async function getLineupStatsPopulation(matchId: string, before: Date, da
     WITH latest_imports AS (
       SELECT DISTINCT ON (d.match_map_id) d.id, d.match_id, d.match_map_id, d.status
       FROM match_demo_imports d
-      JOIN matches m ON m.id = d.match_id
-      JOIN seasons s ON s.id = m.season_id
       WHERE d.semantic_profile COLLATE "C" = ${CURRENT_DAK_SEMANTIC_PROFILE} COLLATE "C"
         AND d.status <> 'superseded'
-        AND m.test_config IS NULL AND m.status = 'finished' AND s.status <> 'draft'
-        AND m.entry_a_id IS NOT NULL AND m.entry_b_id IS NOT NULL AND m.stage IS NOT NULL
-        AND m.completed_at < ${before} AND m.id <> ${matchId}
       ORDER BY d.match_map_id, d.created_at DESC, d.id DESC
     )
     SELECT mps.user_id, count(*)::int AS maps, ${completeSum(roundsExpr)} AS rounds,
@@ -225,12 +220,17 @@ export async function getLineupStatsPopulation(matchId: string, before: Date, da
       ${perRound("mps.kills")} AS kpr, ${perRound("mps.kast_rounds")} AS kast,
       ${perRound("mps.first_kills")} AS fkpr, ${perRound("mps.trade_kills")} AS trade_kpr
     FROM latest_imports d
+    JOIN matches m ON m.id = d.match_id
+    JOIN seasons s ON s.id = m.season_id
     JOIN match_demo_stat_projections p ON p.import_id = d.id AND p.projection_version = ${STATISTICS_PROJECTION_VERSION}
     JOIN match_player_stats mps ON mps.dak_import_id = d.id AND mps.match_id = d.match_id AND mps.map_id = d.match_map_id
     JOIN users u ON u.id = mps.user_id AND u.status = 'active'
     JOIN match_maps mm ON mm.id = mps.map_id AND mm.match_id = d.match_id
-    WHERE d.status = 'confirmed' AND mps.verified_by_admin IS NOT NULL
-      AND mps.user_id IS NOT NULL AND mm.score_a IS NOT NULL AND mm.score_b IS NOT NULL AND mm.completed_at IS NOT NULL
+    WHERE d.status = 'confirmed'
+      AND m.test_config IS NULL AND m.status = 'finished' AND s.status <> 'draft'
+      AND m.entry_a_id IS NOT NULL AND m.entry_b_id IS NOT NULL AND m.stage IS NOT NULL
+      AND m.completed_at < ${before} AND m.id <> ${matchId}
+      AND mps.verified_by_admin IS NOT NULL AND mps.user_id IS NOT NULL AND mm.score_a IS NOT NULL AND mm.score_b IS NOT NULL AND mm.completed_at IS NOT NULL
     GROUP BY mps.user_id
     ORDER BY mps.user_id
   `);
