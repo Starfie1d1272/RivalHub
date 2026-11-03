@@ -47,6 +47,15 @@ async function cachedPlatformStats(scope: PlatformStatsScope, versions: string) 
   void versions;
   return observeStatsCacheFill("platform", () => observePublicStatsFill("stats.platform", () => preservePublicStatsDependencyFailure(() => getTournamentStats(scope))));
 }
+// Only the platform page calls this, after fresh public membership validation.
+async function cachedPublicRecordEvents(scope: PlatformStatsScope, filter: Parameters<typeof getTournamentRecordEvents>[1], version: string) {
+  "use cache: remote";
+  cacheTag(PUBLIC_STATS_TAG);
+  cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
+  void version;
+  return preservePublicStatsDependencyFailure(() => getTournamentRecordEvents(scope, filter));
+}
+
 export async function getPlatformStatsPage(raw: StatsSearch) {
   return withDbTrafficSource("stats.platform.page", async () => {
   const events = await getFreshStatsEvents();
@@ -94,7 +103,17 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
     if (raw[key] !== undefined && (query.tab !== "records" || typeof raw[key] !== "string" ||
       (key === "eventPage" ? !/^[1-9][0-9]{0,5}$/.test(raw[key] as string) : raw[key] !== query[key]))) throw new AppError(ErrorCode.NOT_FOUND, "事件范围不可用。");
   }
-  if (query.tab === "records") data = { ...data, recordEvents: await getTournamentRecordEvents(scope, query) };
+  if (query.tab === "records") {
+    const filter = { eventType: query.eventType || undefined, eventWeapon: query.eventWeapon || undefined, eventPage: query.eventPage };
+    // Only cache weapon filters present in the data, not arbitrary user input.
+    const available = filter.eventWeapon
+      ? await cachedPublicRecordEvents(scope, { eventType: filter.eventType, eventWeapon: undefined, eventPage: 1 }, STATISTICS_PROJECTION_VERSION)
+      : undefined;
+    const recordEvents = available && !available.weapons.includes(filter.eventWeapon!)
+      ? await getTournamentRecordEvents(scope, filter)
+      : await cachedPublicRecordEvents(scope, filter, STATISTICS_PROJECTION_VERSION);
+    data = { ...data, recordEvents };
+  }
   return { data: publicStatsView(data, query), query, event, stages, maps: allowedMaps, events: events.map(({ id, slug, name, status }) => ({ slug, name, status, maps: [...new Set(maps.filter((m) => m.seasonId === id).map((m) => m.name))].sort() })) };
   });
 }
