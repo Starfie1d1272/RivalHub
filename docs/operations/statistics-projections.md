@@ -128,9 +128,9 @@ viewer membership/invitation state bypass public caches. Mutations expire the ta
 immediately: Server Actions use `updateTag`, HTTP entrypoints use
 `revalidateTag(tag, { expire: 0 })`. General metadata may retain its existing SWR
 policy. Platform aggregates and the official map catalog do not refresh on a
-timer; a fixed-cutoff lineup comparison follows the same policy. The rolling
-lineup comparison retains a time fallback because a future completion timestamp
-can cross its cutoff without a write. A failed post-commit tag update can leave
+timer; fixed-cutoff and rolling lineup comparisons follow the same policy. A future
+completion timestamp crossing the rolling cutoff may not be reflected until the
+next tagged write, eviction, or cold cache. A failed post-commit tag update can leave
 business statistics or an old public attribution stale until a later successful
 invalidation, eviction, or a cold cache. This is not a durable delivery mechanism
 or an immediate withdrawal guarantee. The cache does not replace persisted
