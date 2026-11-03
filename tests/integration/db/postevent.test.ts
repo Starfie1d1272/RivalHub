@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as schema from "../../../src/db/schema";
 import { issueSanctionInTx } from "../../../src/lib/discipline/service";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
@@ -27,6 +27,9 @@ import {
   serializeTournamentHonorPublic,
 } from "../../../src/lib/postevent/service";
 import { localDatabaseUrl } from "./harness/database";
+
+// Direct Vitest calls do not run Next's cache compiler or cache context.
+vi.mock("next/cache", () => ({ cacheLife: vi.fn(), cacheTag: vi.fn() }));
 
 const databaseUrl = localDatabaseUrl();
 
