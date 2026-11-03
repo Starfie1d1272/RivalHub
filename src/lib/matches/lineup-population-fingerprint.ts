@@ -56,17 +56,19 @@ WITH candidates AS MATERIALIZED (
   UNION ALL SELECT jsonb_build_array('profile',steam64,persona_name) FROM steam_profiles
   UNION ALL SELECT jsonb_build_array('entry',id,name) FROM competition_entries
 ), bounded AS MATERIALIZED (
- SELECT row_value FROM records LIMIT 20001
-), hashes AS (
- SELECT encode(sha256(convert_to(row_value::text,'UTF8')),'hex') AS h FROM bounded
+ SELECT CASE WHEN octet_length(convert_to(row_value::text, 'UTF8')) <= 65536
+         THEN encode(sha256(convert_to(row_value::text, 'UTF8')), 'hex') ELSE NULL END AS h,
+        octet_length(convert_to(row_value::text, 'UTF8'))::bigint AS input_bytes
+ FROM records LIMIT 20001
 )
-SELECT CASE WHEN count(*) > 20000 THEN NULL ELSE
+SELECT CASE WHEN count(*) > 20000 OR count(h) <> count(*) OR coalesce(sum(input_bytes), 0) > 8388608 THEN NULL ELSE
        encode(sha256(convert_to(coalesce(string_agg(h,'' ORDER BY h),''),'UTF8')),'hex') END AS fingerprint,
        current_database() AS database_name, inet_server_addr()::text AS server_address,
        inet_server_port() AS server_port, pg_postmaster_start_time()::text AS server_started,
        current_setting('server_version_num') AS server_version,
        current_user AS effective_role, session_user AS session_role,
-       current_setting('search_path') AS search_path, current_setting('lc_collate') AS collation,
+       current_setting('search_path') AS search_path,
+       (SELECT datcollate FROM pg_catalog.pg_database WHERE datname = current_database()) AS collation,
        current_setting('extra_float_digits') AS float_digits, current_setting('DateStyle') AS date_style,
        current_setting('TimeZone') AS timezone, current_setting('row_security') AS row_security,
        current_setting('request.jwt.claims', true) IS NULL AS claims_missing,
@@ -78,7 +80,7 @@ SELECT CASE WHEN count(*) > 20000 THEN NULL ELSE
          to_regclass('match_player_stats')::oid, to_regclass('users')::oid,
          to_regclass('user_gameplay_steam_ids')::oid, to_regclass('steam_profiles')::oid,
          to_regclass('competition_entries')::oid) AS relation_ids
-FROM hashes;
+FROM bounded;
 
   `);
   // Restore before canonical selection/aggregate. A failure aborts this optional
