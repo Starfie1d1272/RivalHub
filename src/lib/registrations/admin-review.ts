@@ -4,7 +4,7 @@ import { teamReviewCategory } from "./admin-review-presentation";
 import { isMajorRosterAdjustmentPhaseOpen } from "@/lib/major/roster-window";
 import { canSelfChangeApprovedRoster } from "@/lib/registration/window";
 
-import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
@@ -519,41 +519,39 @@ export async function getSoloRegistrationReview(
   positions: readonly string[],
   query: SoloRegistrationReviewQuery,
 ): Promise<SoloRegistrationReviewResult> {
-  const conditions = [eq(seasonRegistrations.seasonId, seasonId), eq(users.status, "active")];
+  const filters: SQL[] = [];
   if (query.q) {
     const pattern = `%${escapeLikePattern(query.q)}%`;
-    conditions.push(or(
+    filters.push(or(
       ilike(users.displayName, pattern),
       ilike(users.perfectName, pattern),
       ilike(steamProfiles.personaName, pattern),
       ilike(users.email, pattern),
     )!);
   }
-  if (query.status !== "all") conditions.push(eq(seasonRegistrations.status, query.status));
+  if (query.status !== "all") filters.push(eq(seasonRegistrations.status, query.status));
   if (query.position && positions.includes(query.position)) {
-    conditions.push(or(
+    filters.push(or(
       eq(seasonRegistrations.primaryPosition, query.position),
       eq(seasonRegistrations.secondaryPosition, query.position),
     )!);
   }
-  const where = and(...conditions);
+  const filter = and(...filters);
+  const where = and(eq(seasonRegistrations.seasonId, seasonId), eq(users.status, "active"), filter);
   const orderBy = query.sort === "oldest"
     ? [asc(seasonRegistrations.createdAt), asc(seasonRegistrations.id)]
     : [desc(seasonRegistrations.createdAt), desc(seasonRegistrations.id)];
 
-  const [[totalRow], [datasetRow]] = await Promise.all([
-    db
-      .select({ count: count() })
-      .from(seasonRegistrations)
-      .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
-      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(where),
-    db.select({ count: count() }).from(seasonRegistrations)
-      .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
-      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(eq(seasonRegistrations.seasonId, seasonId)),
-  ]);
-  const total = Number(totalRow?.count ?? 0);
+  const [counts] = await db
+    .select({
+      total: filter ? sql<number>`count(*) filter (where ${filter})`.mapWith(Number) : count(),
+      dataset: count(),
+    })
+    .from(seasonRegistrations)
+    .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
+    .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
+    .where(eq(seasonRegistrations.seasonId, seasonId));
+  const total = Number(counts?.total ?? 0);
   const totalPages = Math.ceil(total / SOLO_REGISTRATION_REVIEW_PAGE_SIZE);
   const page = totalPages > 0 ? Math.min(query.page, totalPages) : 1;
   const rows = await db
@@ -617,6 +615,6 @@ export async function getSoloRegistrationReview(
     pageSize: SOLO_REGISTRATION_REVIEW_PAGE_SIZE,
     totalPages,
     normalizedQuery: { ...query, page },
-    hasAnyRecords: Number(datasetRow?.count ?? 0) > 0,
+    hasAnyRecords: Number(counts?.dataset ?? 0) > 0,
   };
 }
