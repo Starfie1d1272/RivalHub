@@ -65,7 +65,7 @@ async function requirePublicEntry(seasonId: string, entryId: string): Promise<vo
 
 function statsCachePolicy(): void {
   cacheTag(PUBLIC_STATS_TAG);
-  cacheLife({ stale: 60, revalidate: 3600, expire: 86400 });
+  cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
 }
 
 async function cachedTournamentStats(scope: TournamentViewScope) {
