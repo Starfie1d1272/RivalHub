@@ -38,7 +38,7 @@ import {
   users,
   seasonRegistrations,
 } from "@/db/schema";
-import { matchMvpVotes } from "@/db/schema/mvp-votes";
+import { readMatchMvpPanelResults } from "@/lib/matches/mvp";
 import { MatchMvpVote, type MvpPerformance } from "@/components/matches/MatchMvpVote";
 import { PageLayout, Panel, PosChip } from "@/components/rivalhub";
 import { mapLabel } from "@/lib/maps";
@@ -57,7 +57,6 @@ import { MatchHeadToHead } from "@/components/matches/MatchHeadToHead";
 import { MatchRecentResults } from "@/components/matches/MatchRecentResults";
 import { MatchSummaryStats, type SummaryPlayer } from "@/components/matches/MatchSummaryStats";
 import { PlayerStatsTable } from "@/components/matches/PlayerStatsTable";
-import { getMatchMvpResults } from "@/actions/player-stats";
 import { getMatchTimeProposalViews } from "@/lib/matches/time-proposals";
 import { projectMatchScheduling } from "@/lib/matches/time-rules";
 import { presentMatchStage, presentSchedulingAction } from "@/lib/matches/presentation";
@@ -738,12 +737,8 @@ async function readMatchMvpPanel({ core, candidates, userId, scoreboard, returnT
 }) {
   const { seasonSlug, season, match } = core;
   const winnerHasDetail = match.mvpWinnerUserId !== null && scoreboard.detailedPlayerIds.has(match.mvpWinnerUserId);
-  const [votes, existingVote, winnerSummary] = await Promise.all([
-    getMatchMvpResults(match.id),
-    userId ? db.query.matchMvpVotes.findFirst({
-      where: and(eq(matchMvpVotes.matchId, match.id), eq(matchMvpVotes.voterUserId, userId)),
-      columns: { playerName: true },
-    }) : Promise.resolve(null),
+  const [{ votes, userVotedPlayerName }, winnerSummary] = await Promise.all([
+    readMatchMvpPanelResults(match.id, userId),
     winnerHasDetail ? readOptionalPublicStats("match_mvp", () => getPublicMatchMvpSummary(
       match.id, match.mvpWinnerUserId!, season.status === "draft" ? "draft" : "public",
     )) : Promise.resolve(null),
@@ -754,7 +749,7 @@ async function readMatchMvpPanel({ core, candidates, userId, scoreboard, returnT
     flashAssist: winnerSummary.flashAssistsPerRound,
   } : null;
   return <><MatchMvpVote matchId={match.id} candidates={candidates} currentVotes={votes}
-    userVotedPlayerName={existingVote?.playerName ?? null} completedAt={match.completedAt?.toISOString() ?? null}
+    userVotedPlayerName={userVotedPlayerName} completedAt={match.completedAt?.toISOString() ?? null}
     winnerUserId={match.mvpWinnerUserId} winnerPerformance={winnerPerformance}
     winnerDetailsHref={winnerHasDetail ? `/${seasonSlug}/matches/${match.id}?statsPlayer=${match.mvpWinnerUserId}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}#detailed-stats` : undefined} /><ContentReady module="match" phase="form" /></>;
 }
