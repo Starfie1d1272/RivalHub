@@ -33,7 +33,7 @@ export async function loadOperatorContext(input: {
   const qualificationRun = match.qualificationRunId ? db.query.competitionQualificationRuns.findFirst({
     where: eq(competitionQualificationRuns.seasonId, match.seasonId),
     columns: { id: true, seasonId: true, format: true, directEntryCount: true },
-  }) : Promise.resolve(null);
+  }).execute() : Promise.resolve(null);
   const [scoreboards, liveSession, swiss, run] = await Promise.all([
     maps.length ? db.select()
       .from(playerStats).where(inArray(playerStats.mapId, maps.map(map => map.id))) : Promise.resolve([]),
