@@ -209,7 +209,7 @@ export async function getLineupStatsPopulation(matchId: string, before: Date, da
   // import must not resurrect an older confirmed import on the same map.
   const { rows } = await database.execute(sql`
     WITH latest_imports AS (
-      SELECT DISTINCT ON (d.match_map_id) d.id, d.match_map_id, d.status
+      SELECT DISTINCT ON (d.match_map_id) d.id, d.match_id, d.match_map_id, d.status
       FROM match_demo_imports d
       JOIN matches m ON m.id = d.match_id
       JOIN seasons s ON s.id = m.season_id
@@ -226,9 +226,9 @@ export async function getLineupStatsPopulation(matchId: string, before: Date, da
       ${perRound("mps.first_kills")} AS fkpr, ${perRound("mps.trade_kills")} AS trade_kpr
     FROM latest_imports d
     JOIN match_demo_stat_projections p ON p.import_id = d.id AND p.projection_version = ${STATISTICS_PROJECTION_VERSION}
-    JOIN match_player_stats mps ON mps.dak_import_id = d.id AND mps.map_id = d.match_map_id
+    JOIN match_player_stats mps ON mps.dak_import_id = d.id AND mps.match_id = d.match_id AND mps.map_id = d.match_map_id
     JOIN users u ON u.id = mps.user_id AND u.status = 'active'
-    JOIN match_maps mm ON mm.id = mps.map_id
+    JOIN match_maps mm ON mm.id = mps.map_id AND mm.match_id = d.match_id
     WHERE d.status = 'confirmed' AND mps.verified_by_admin IS NOT NULL
       AND mps.user_id IS NOT NULL AND mm.score_a IS NOT NULL AND mm.score_b IS NOT NULL AND mm.completed_at IS NOT NULL
     GROUP BY mps.user_id
