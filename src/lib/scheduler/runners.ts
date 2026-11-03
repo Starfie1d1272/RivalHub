@@ -37,14 +37,21 @@ export async function runRegistrationDeadlineJob(): Promise<SchedulerRunnerResul
 
   for (const season of activeSeasons) {
     let advancedSlug: string | null = null;
+    let openedSlug: string | null = null;
     await db.transaction(async (tx) => {
       const openResult = await ensureRegistrationOpenForParticipantInTx(tx, season.id);
-      if (openResult.opened) opened += 1;
+      if (openResult.opened) {
+        opened += 1;
+        openedSlug = openResult.season.slug;
+      }
       advancedSlug = await maybeAdvanceFromRegistration(tx, season.id);
       if (advancedSlug) advanced += 1;
     });
+    const changedSlug = advancedSlug ?? openedSlug;
+    if (changedSlug) {
+      revalidatePublicSeasonTags(changedSlug, season.id);
+    }
     if (advancedSlug) {
-      revalidatePublicSeasonTags(advancedSlug, season.id);
       revalidatePath(`/${advancedSlug}`);
       revalidatePath(`/admin/${advancedSlug}/registrations`);
     }

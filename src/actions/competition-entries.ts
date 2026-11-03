@@ -26,13 +26,13 @@ import {
   withdrawCompetitionEntryParticipationInTx,
 } from "@/lib/competition-entries/commands";
 import { ok, type ActionResult } from "@/types/action";
-import { updatePublicHomeTag, updatePublicStatsTag } from "@/lib/revalidation";
+import { updatePublicSeasonTags, updatePublicStatsTag } from "@/lib/revalidation";
 
 const uuid = z.guid();
 
 function revalidateEntry(seasonSlug: string, entryId?: string): void {
   updatePublicStatsTag();
-  updatePublicHomeTag();
+  updatePublicSeasonTags(seasonSlug, undefined, { statistics: false });
   revalidatePath(`/${seasonSlug}/register`);
   revalidatePath(`/admin/${seasonSlug}/registrations`);
   revalidatePath("/my/competitions");
