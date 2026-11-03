@@ -1,12 +1,13 @@
 import "server-only";
 
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { after } from "next/server";
 import { db } from "@/db/client";
 import type { DB, TxDb } from "@/db/client";
 import { steamProfiles, users } from "@/db/schema";
 import { getSteamPlayerSummaries, type SteamProfileSummary } from "@/lib/steam";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { revalidatePublicPlayerTag } from "@/lib/revalidation";
+import { revalidatePublicPlayerTag, revalidatePublicStatsTag } from "@/lib/revalidation";
 
 type SteamProfileDatabase = DB | TxDb;
 
@@ -109,7 +110,7 @@ export async function loadOrFetchSteamProfiles(
 
   const fetchedProfiles = [...result.profiles.values()];
   const fetchedAt = new Date();
-  await database.insert(steamProfiles).values(fetchedProfiles.map((p) => ({
+  const changed = await database.insert(steamProfiles).values(fetchedProfiles.map((p) => ({
     steam64: p.steam64,
     personaName: p.personaName,
     profileUrl: p.profileUrl,
@@ -123,7 +124,11 @@ export async function loadOrFetchSteamProfiles(
       avatarUrl: sql`excluded.avatar_url`,
       fetchedAt: sql`excluded.fetched_at`,
     },
-  });
+    setWhere: sql`(${steamProfiles.personaName}, ${steamProfiles.profileUrl}, ${steamProfiles.avatarUrl}) IS DISTINCT FROM (excluded.persona_name, excluded.profile_url, excluded.avatar_url)`,
+  }).returning({ steam64: steamProfiles.steam64 });
+  // This owner is also used while rendering the admin workbench. Invalidate
+  // after the response rather than invoking revalidateTag during render.
+  if (changed.length > 0) after(() => revalidatePublicStatsTag("identity"));
   for (const profile of fetchedProfiles) cached.set(profile.steam64, profile);
   return cached;
 }
