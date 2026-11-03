@@ -7,7 +7,8 @@
 | 读模型 | 缓存依赖 | 必须保留的 fresh 边界 |
 | --- | --- | --- |
 | 平台/赛事统计、地图/选手/队伍详情与 MVP 摘要 | 全局统计安全 tag；scope、公开赛事集合及投影版本进入 key | 公开赛事/entry 可见性；统计只使用 canonical 当前证据及冻结人口 |
-| career、benchmark、lineup style/comparison | 全局统计安全 tag | 身份归属、完整历史人口与当前证据选择；comparison 排除当前比赛 |
+| career、benchmark、lineup style | 全局统计安全 tag | 身份归属、完整历史人口与当前证据选择 |
+| lineup comparison | 全局统计安全 tag | 导入确认时校验；读取复用已确认逐图结果，覆盖完整历史人口并排除当前比赛 |
 | BET 公共池与免费预测支持率 | 单赛事 BET、公开 season、全局统计安全 tag | 每次请求的个人资金/选择、准入、封盘与事实签名；草稿不共享 |
 | 进行中 BP 房间 | 无跨请求共享 room cache；no-store transport | fresh 权限、DB 时钟、revision、实际 lineup 与命令状态 |
 | 公共玩家基础资料 | public player tag；统计支路使用统计安全 tag | viewer overlay、资格与当前身份授权 |
