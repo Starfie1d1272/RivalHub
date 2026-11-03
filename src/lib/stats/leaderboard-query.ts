@@ -4,6 +4,8 @@ import { db, type DB, type TxDb } from "@/db/client";
 import { sql } from "drizzle-orm";
 import type { EffectiveMatchRosterIdentity } from "@/lib/match-rosters/effective";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import { CURRENT_DAK_SEMANTIC_PROFILE } from "@/lib/demo-integration/semantic-profile";
+import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import { completeSum, killWeightedAvg, killWeightedDenominator, perRound, perRoundDenominator, ratioOfSums, roundWeightedAvg, roundsExpr, simpleAvg } from "./sql";
 
 export interface StatsLeaderboardFilters {
@@ -167,11 +169,11 @@ function buildStatsLeaderboardQuery(
 }
 
 
-/** Shared fact filters. The lineup-only path omits display joins, not roster rows. */
+/** Shared fact filters for the detailed leaderboard. */
 function buildStatsLeaderboardSource(
   scope: StatsLeaderboardFilters, currentImportIds: string[],
   roster: readonly Pick<EffectiveMatchRosterIdentity, "matchId" | "userId" | "entryId">[],
-  options: StatsLeaderboardOptions, lineupOnly = false,
+  options: StatsLeaderboardOptions,
 ) {
   const mapFilter = scope.mapFilter ? sql`AND mm.map_name = ${scope.mapFilter}` : sql``;
   const teamFilter = scope.teamFilter ? sql`AND entrant.id = ${scope.teamFilter}` : sql``;
@@ -189,13 +191,12 @@ function buildStatsLeaderboardSource(
     FROM match_player_stats mps
     JOIN matches m ON m.id = mps.match_id
     JOIN match_maps mm ON mm.id = mps.map_id
-    ${lineupOnly ? sql`` : sql`
-      LEFT JOIN users u ON u.id = mps.user_id
-      LEFT JOIN steam_profiles sp ON sp.steam64 = u.steam64`}
+    LEFT JOIN users u ON u.id = mps.user_id
+    LEFT JOIN steam_profiles sp ON sp.steam64 = u.steam64
     LEFT JOIN jsonb_to_recordset(${JSON.stringify(roster.map((row) => ({ match_id: row.matchId, user_id: row.userId, entry_id: row.entryId })))}::jsonb)
       AS lineup(match_id uuid, user_id uuid, entry_id uuid)
       ON lineup.match_id = m.id AND lineup.user_id = mps.user_id
-    ${lineupOnly ? sql`` : sql`LEFT JOIN competition_entries entrant ON entrant.id = lineup.entry_id`}
+    LEFT JOIN competition_entries entrant ON entrant.id = lineup.entry_id
     WHERE true
       ${options.includeTestMatch ? sql`` : sql`AND m.test_config IS NULL`}
       ${seasonFilter}
@@ -213,19 +214,33 @@ function buildStatsLeaderboardSource(
   `;
 }
 
-/** Same weighted population and filtering; only the nine lineup fields cross the connection. */
-export async function getLineupStatsPopulation(currentImportIds: string[], roster: readonly Pick<EffectiveMatchRosterIdentity, "matchId" | "userId" | "entryId">[], database: DB | TxDb) {
-  const options = { groupByTeam: false, requireCurrentImports: true, requireRosterMatch: true };
-  // users.id, steam_profiles.steam64 and competition_entries.id are primary
-  // keys. Their LEFT JOINs cannot multiply rows and none of their fields is
-  // used here. Keep the roster join unchanged, including any duplicate rows.
-  const source = buildStatsLeaderboardSource({}, currentImportIds, roster, options, true);
+/** Combine the already-confirmed per-map scoreboard facts for the whole population. */
+export async function getLineupStatsPopulation(matchId: string, before: Date, database: DB | TxDb) {
+  // Select the latest non-superseded import first: a later pending/rejected
+  // import must not resurrect an older confirmed import on the same map.
   const { rows } = await database.execute(sql`
+    WITH latest_imports AS (
+      SELECT DISTINCT ON (d.match_map_id) d.id, d.match_map_id, d.status
+      FROM match_demo_imports d
+      JOIN matches m ON m.id = d.match_id
+      JOIN seasons s ON s.id = m.season_id
+      WHERE d.semantic_profile COLLATE "C" = ${CURRENT_DAK_SEMANTIC_PROFILE} COLLATE "C"
+        AND d.status <> 'superseded'
+        AND m.test_config IS NULL AND m.status = 'finished' AND s.status <> 'draft'
+        AND m.entry_a_id IS NOT NULL AND m.entry_b_id IS NOT NULL AND m.stage IS NOT NULL
+        AND m.completed_at < ${before} AND m.id <> ${matchId}
+      ORDER BY d.match_map_id, d.created_at DESC, d.id DESC
+    )
     SELECT mps.user_id, count(*)::int AS maps, ${completeSum(roundsExpr)} AS rounds,
       ${simpleAvg("mps.rating_pro")} AS avg_rating, ${roundWeightedAvg("mps.adr")} AS avg_adr,
       ${perRound("mps.kills")} AS kpr, ${perRound("mps.kast_rounds")} AS kast,
       ${perRound("mps.first_kills")} AS fkpr, ${perRound("mps.trade_kills")} AS trade_kpr
-    ${source}
+    FROM latest_imports d
+    JOIN match_demo_stat_projections p ON p.import_id = d.id AND p.projection_version = ${STATISTICS_PROJECTION_VERSION}
+    JOIN match_player_stats mps ON mps.dak_import_id = d.id AND mps.map_id = d.match_map_id
+    JOIN match_maps mm ON mm.id = mps.map_id
+    WHERE d.status = 'confirmed' AND mps.verified_by_admin IS NOT NULL
+      AND mps.user_id IS NOT NULL AND mm.score_a IS NOT NULL AND mm.score_b IS NOT NULL AND mm.completed_at IS NOT NULL
     GROUP BY mps.user_id
     ORDER BY mps.user_id
   `);
