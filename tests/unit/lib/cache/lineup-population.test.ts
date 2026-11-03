@@ -19,7 +19,7 @@ let fingerprintId = 0;
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.execute.mockImplementation(async () => ({ rows: [{
-    fingerprint: (++fingerprintId).toString(16).padStart(64, "0"), database_name: "fixture", server_address: "local", server_port: 5432,
+    prior_timeout: "0", fingerprint: (++fingerprintId).toString(16).padStart(64, "0"), database_name: "fixture", server_address: "local", server_port: 5432,
     server_started: "fixture-start", server_version: "170000", effective_role: "fixture", session_role: "fixture", search_path: "public",
     collation: "C", float_digits: "1", date_style: "ISO, MDY", timezone: "UTC", row_security: "on", claims_missing: true, claims_hash: "fixture",
     relation_ids: Array.from({ length: 13 }, (_, index) => index + 1),
