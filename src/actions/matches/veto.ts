@@ -71,7 +71,7 @@ export async function saveVetoSteps(
         .for("update");
       if (onlineSession?.startedAt) throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "本场已在 Veto Room 留下操作记录，不能再用赛后补录修改。");
       const mapPlan = projectVetoMapPlan({
-        steps: legacyVetoStepsToFacts(locked.format, steps, locked.entryAId, locked.entryBId),
+        steps: legacyVetoStepsToFacts(locked.format, steps, locked.entryAId, locked.entryBId, mapPool.length),
         entryAId: locked.entryAId,
         format: locked.format,
       });

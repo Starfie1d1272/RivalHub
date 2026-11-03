@@ -49,7 +49,7 @@ function TeamEditor({ seasonId, players, team, occupied, maxTeamSize, starterCou
       const result = await saveManualFormation({ seasonId, entryId: team?.id ?? null, captainId, memberIds: captainsOnly ? [] : members, starterIds: captainsOnly ? [captainId] : starters, reinviteIds });
       if (!result.success) { toast.error(result.error.message); return; }
       toast.success("编队草稿已保存，仍需审核名单");
-      if (!team) { setCaptainId(""); setMembers([]); setStarters([]); }
+      if (!team) { setCaptainId(""); setMembers([]); setReinviteIds([]); setStarters([]); }
       router.refresh();
     });
   }
@@ -67,7 +67,7 @@ function TeamEditor({ seasonId, players, team, occupied, maxTeamSize, starterCou
     {team && !team.approved && !team.approvedId && <EntryProfile seasonId={seasonId} team={team} />}
     <div className="space-y-2">
       <span className="text-sm text-[var(--color-fg-mid)]">队长</span>
-      <Select value={captainId} disabled={Boolean(team) || team?.approved} onValueChange={value => { setCaptainId(value); setMembers([]); setStarters([]); }}>
+      <Select value={captainId} disabled={Boolean(team) || team?.approved} onValueChange={value => { setCaptainId(value); setMembers([]); setReinviteIds([]); setStarters([]); }}>
         <SelectTrigger aria-label="队长"><SelectValue placeholder="选择队长" /></SelectTrigger>
         <SelectContent>{players.map(player => <SelectItem key={player.id} value={player.id} disabled={occupied.has(player.id) && player.id !== team?.captainId}>{player.name}{occupied.has(player.id) && player.id !== team?.captainId ? "（已编队）" : ""}</SelectItem>)}</SelectContent>
       </Select>
@@ -92,7 +92,7 @@ function TeamEditor({ seasonId, players, team, occupied, maxTeamSize, starterCou
 }
 export function ManualFormationPanel({ seasonId, data, maxTeamSize, starterCount, captainsOnly = false, allowCreate = true, modern = true }: { seasonId: string; data: FormationData; maxTeamSize: number; starterCount: number; captainsOnly?: boolean; allowCreate?: boolean; modern?: boolean }) {
   const occupied = new Set(data.teams.flatMap(team => team.members.filter(member => ["invited", "confirmed"].includes(member.status)).map(member => member.id)));
-  return <div className="space-y-4"><p className="text-sm">{captainsOnly ? "选择队长创建选秀队伍；队长需要确认参赛。" : `每队最多 ${maxTeamSize} 人、${starterCount} 名首发。成员确认后需审核并采用名单。`}</p>{data.teams.map(team => <TeamEditor key={`${team.id}:${team.members.map(member => `${member.id}:${member.status}`).join(",")}`} seasonId={seasonId} players={data.players} team={team} occupied={new Set(data.teams.filter(other => other.id !== team.id).flatMap(other => other.members.filter(member => ["invited", "confirmed"].includes(member.status)).map(member => member.id)))} maxTeamSize={maxTeamSize} starterCount={starterCount} captainsOnly={captainsOnly} modern={modern} />)}{allowCreate && <TeamEditor seasonId={seasonId} players={data.players} occupied={occupied} maxTeamSize={maxTeamSize} starterCount={starterCount} captainsOnly={captainsOnly} modern={modern} />}</div>;
+  return <div className="space-y-4"><p className="text-sm">{captainsOnly ? "选择队长创建选秀队伍；队长需要确认参赛。" : `每队最多 ${maxTeamSize} 人、${starterCount} 名首发。成员确认后需审核并采用名单。`}</p>{data.teams.map(team => <TeamEditor key={`${team.id}:${team.captainId}:${team.members.map(member => `${member.id}:${member.status}`).join(",")}`} seasonId={seasonId} players={data.players} team={team} occupied={new Set(data.teams.filter(other => other.id !== team.id).flatMap(other => other.members.filter(member => ["invited", "confirmed"].includes(member.status)).map(member => member.id)))} maxTeamSize={maxTeamSize} starterCount={starterCount} captainsOnly={captainsOnly} modern={modern} />)}{allowCreate && <TeamEditor seasonId={seasonId} players={data.players} occupied={occupied} maxTeamSize={maxTeamSize} starterCount={starterCount} captainsOnly={captainsOnly} modern={modern} />}</div>;
 }
 
 export function FormationApprovalPanel({ seasonId, teams }: { seasonId: string; teams: FormationData["teams"] }) {

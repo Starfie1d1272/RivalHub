@@ -429,7 +429,7 @@ export function VetoRoom({ initialRoom }: { initialRoom: VetoRoomView }) {
             ) : matchClosed ? <p className="text-sm text-[var(--color-fg-mid)]">本场比赛{match.statusLabel}。以下保留已完成的 BP 记录。</p> : (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-[var(--color-border)] bg-[var(--color-panel-hi)] p-4">
                 <div>
-                  <p className={`text-lg font-semibold ${turn.currentTurnAction === "ban" ? "text-[var(--color-danger)]" : turn.currentTurnAction === "pick" ? "text-[var(--color-ok)]" : "text-[var(--color-fg)]"}`}>当前阶段：{turn.currentTurnAction ? VETO_PHASE_LABELS[turn.currentTurnAction] : "等待下一步"}{turn.currentTurnAction && <HelpTooltip className="ml-1" label="当前 BP 操作说明" content={vetoActionHelp(turn.currentTurnAction, match.formatKey)} />}</p>
+                  <p className={`text-lg font-semibold ${turn.currentTurnAction === "ban" ? "text-[var(--color-danger)]" : turn.currentTurnAction === "pick" ? "text-[var(--color-ok)]" : "text-[var(--color-fg)]"}`}>当前阶段：{turn.currentTurnAction ? VETO_PHASE_LABELS[turn.currentTurnAction] : "等待下一步"}{turn.currentTurnAction && <HelpTooltip className="ml-1" label="当前 BP 操作说明" content={vetoActionHelp(turn.currentTurnAction, match.formatKey, turn.mapPool.length)} />}</p>
                   <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
                     {currentEntry ? <><TeamProfileLink seasonSlug={room.seasonSlug} entryId={currentEntry.id}>{currentEntry.name}</TeamProfileLink>{currentEntry.vetoRoleLabel ? ` · ${currentEntry.vetoRoleLabel}` : ""}</> : "系统处理"}
                     {turn.currentTurnMapLabel ? ` · ${turn.currentTurnMapLabel}` : ""}

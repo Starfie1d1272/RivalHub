@@ -45,7 +45,6 @@ import {
   type VetoStepFact,
 } from "../veto-sequence";
 
-const MAP_POOL_SIZE = 7;
 const TIMEOUT_SETTLEMENT_MS = 2_000;
 const MAX_RECONCILE_TURNS = 16;
 const SYSTEM_ACTOR_ID = "veto-system";
@@ -243,12 +242,12 @@ function currentTurn(match: VetoMatch, session: VetoSession, steps: readonly Vet
   });
 }
 
-function roleSelectSuccessorDuration(
+function roleSelectSuccessor(
   match: VetoMatch,
   session: VetoSession,
   vetoTeamAEntryId: string,
   steps: readonly VetoStepRow[],
-): number {
+): CurrentVetoTurn {
   const next = deriveCurrentVetoTurn({
     format: match.format,
     entryAId: match.entryAId,
@@ -261,7 +260,7 @@ function roleSelectSuccessorDuration(
   if (!next || next.actionType === "role_select" || next.durationSeconds === null) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "无法确定 VETO A 选择后的回合时限。");
   }
-  return next.durationSeconds;
+  return next;
 }
 
 async function getRepresentativeUserIdInTx(tx: TxDb, match: VetoMatch, entryId: string): Promise<string | null> {
@@ -334,8 +333,8 @@ async function getMapPoolInTx(tx: TxDb, match: VetoMatch): Promise<string[]> {
     .limit(1);
   if (!season) throw new AppError(ErrorCode.NOT_FOUND, "赛事不存在。");
   const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
-  if (mapPool.length !== MAP_POOL_SIZE || new Set(mapPool).size !== MAP_POOL_SIZE || mapPool.some((mapName) => !mapName.trim())) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "当前赛事地图池必须包含七张不重复地图，才能开始 BP。");
+  if (mapPool.length < Number(match.format.slice(2)) || new Set(mapPool).size !== mapPool.length || mapPool.some((mapName) => !mapName.trim())) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, `当前赛事地图池不足以进行 ${match.format.toUpperCase()}，或包含重复、空白地图。`);
   }
   return [...mapPool];
 }
@@ -584,12 +583,12 @@ async function reconcileVetoSessionInTx(
 
     if (turn.actionType === "role_select") {
       const roleEntry = selectedOptions[0]!;
-      const nextDurationSeconds = roleSelectSuccessorDuration(match, session, roleEntry, steps);
+      const next = roleSelectSuccessor(match, session, roleEntry, steps);
       session = await updateSessionInTx(tx, match.id, session, {
         vetoTeamAEntryId: roleEntry,
-        currentTurnKey: "ban-veto-a-opening",
+        currentTurnKey: next.key,
         turnStartedAt: deadlineAt,
-        turnDeadlineAt: new Date(deadlineAt.getTime() + nextDurationSeconds * 1_000),
+        turnDeadlineAt: new Date(deadlineAt.getTime() + next.durationSeconds! * 1_000),
       });
     } else {
       let order = steps.reduce((max, step) => Math.max(max, step.stepOrder), 0);
@@ -1048,12 +1047,12 @@ export async function submitVetoCommandReceipt(input: {
       if (input.command.entryId !== match.entryAId && input.command.entryId !== match.entryBId) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "所选队伍不属于本场比赛。");
       }
-      const nextDurationSeconds = roleSelectSuccessorDuration(match, session, input.command.entryId, steps);
+      const next = roleSelectSuccessor(match, session, input.command.entryId, steps);
       session = await updateSessionInTx(tx, match.id, session, {
         vetoTeamAEntryId: input.command.entryId,
-        currentTurnKey: "ban-veto-a-opening",
+        currentTurnKey: next.key,
         turnStartedAt: receivedAt,
-        turnDeadlineAt: new Date(receivedAt.getTime() + nextDurationSeconds * 1_000),
+        turnDeadlineAt: new Date(receivedAt.getTime() + next.durationSeconds! * 1_000),
       });
       await writeAuditInTx(tx, {
         seasonId: match.seasonId,
@@ -1251,7 +1250,8 @@ async function rewindVetoInTx(input: {
   if (!session.startedAt || match.status !== "in_progress") {
     throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛已结束，BP 房间不能恢复。");
   }
-  if (targetTurnKey !== "choose-veto-team-a" && !getVetoTurnDefinitions(match.format).some((turn) => turn.key === targetTurnKey)) {
+  const definitions = getVetoTurnDefinitions(match.format, session.mapPoolSnapshot?.length ?? 7);
+  if (targetTurnKey !== "choose-veto-team-a" && !definitions.some((turn) => turn.key === targetTurnKey)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "指定的 BP 回合不存在。");
   }
   const maps = await tx.select().from(matchMaps).where(eq(matchMaps.matchId, match.id));
@@ -1259,7 +1259,7 @@ async function rewindVetoInTx(input: {
     throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "正式对局已开始或已有地图赛果，不能恢复 BP；如需赛务处理，请联系赛事管理员。");
   }
   const steps = await readStepsInTx(tx, match.id);
-  const turnOrder = ["choose-veto-team-a", ...getVetoTurnDefinitions(match.format).map((turn) => turn.key)];
+  const turnOrder = ["choose-veto-team-a", ...definitions.map((turn) => turn.key)];
   const targetOrder = turnOrder.indexOf(targetTurnKey);
   const removedStepIds = steps.filter((step) => {
     const stepOrder = step.turnKey ? turnOrder.indexOf(step.turnKey) : -1;

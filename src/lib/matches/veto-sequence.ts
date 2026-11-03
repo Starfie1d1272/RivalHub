@@ -50,7 +50,7 @@ const turn = (
   mapFromTurnKey?: string,
 ): VetoTurnDefinition => ({ key, actionType, actor, count, durationSeconds, mapFromTurnKey });
 
-export function getVetoTurnDefinitions(format: MatchFormat): readonly VetoTurnDefinition[] {
+export function getVetoTurnDefinitions(format: MatchFormat, poolSize = 7): readonly VetoTurnDefinition[] {
   const turns: Record<MatchFormat, readonly VetoTurnDefinition[]> = {
     bo1: [
       turn("ban-veto-a-opening", "ban", "veto_a", 60, 2),
@@ -85,7 +85,14 @@ export function getVetoTurnDefinitions(format: MatchFormat): readonly VetoTurnDe
       turn("system-decider", "decider", "system", null),
     ],
   };
-  return turns[format];
+  if (poolSize === 7) return turns[format];
+  const banCount = poolSize - Number(format.slice(2));
+  if (banCount < 0) return [];
+  // Alternate bans before picks for custom pools; retain the seven-map sequence above.
+  const bans = Array.from({ length: banCount }, (_, index) => turn(
+    `custom-ban-${index + 1}`, "ban", index % 2 === 0 ? "veto_a" : "veto_b", 45,
+  ));
+  return [...bans, ...turns[format].filter((definition) => definition.actionType !== "ban")];
 }
 
 export function deriveCurrentVetoTurn(input: {
@@ -111,7 +118,7 @@ export function deriveCurrentVetoTurn(input: {
     };
   }
 
-  const definitions = getVetoTurnDefinitions(input.format);
+  const definitions = getVetoTurnDefinitions(input.format, input.mapPool.length);
   for (const definition of definitions) {
     const completed = input.steps.filter((step) => step.turnKey === definition.key).length;
     if (completed >= definition.count) continue;
@@ -122,7 +129,7 @@ export function deriveCurrentVetoTurn(input: {
       mapName = input.steps.find((step) => step.turnKey === definition.key)?.mapName ?? null;
       if (mapName === null) {
         const remaining = input.mapPool.filter((name) => !used.has(name));
-        // The sequence only reaches this turn after six maps have been removed or picked.
+        // The sequence reaches this turn when exactly one map remains.
         if (remaining.length === 1) mapName = remaining[0] ?? null;
       }
     } else if (definition.mapFromTurnKey) {
@@ -224,13 +231,14 @@ function expectedLegacySequence(
   vetoAEntryId: string,
   entryAId: string,
   entryBId: string,
+  poolSize: number,
 ): VetoSequenceStep[] {
   const vetoBEntryId = otherEntry(vetoAEntryId, entryAId, entryBId);
   const actorEntry = (actor: VetoActorRole) => actor === "veto_a"
     ? vetoAEntryId
     : actor === "veto_b" ? vetoBEntryId : null;
   const expected: VetoSequenceStep[] = [];
-  for (const definition of getVetoTurnDefinitions(format)) {
+  for (const definition of getVetoTurnDefinitions(format, poolSize)) {
     if (definition.actionType === "ban" || definition.actionType === "pick") {
       for (let index = 0; index < definition.count; index += 1) {
         expected.push({ actionType: definition.actionType, entryId: actorEntry(definition.actor) });
@@ -251,12 +259,13 @@ export function assertVetoSequence(
   steps: readonly VetoSequenceStep[],
   entryAId: string,
   entryBId: string,
+  poolSize = 7,
 ): void {
   const firstEntryId = steps[0]?.entryId;
   if (!firstEntryId || (firstEntryId !== entryAId && firstEntryId !== entryBId)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "BP 首步必须由本场参赛队执行");
   }
-  const expected = expectedLegacySequence(format, firstEntryId, entryAId, entryBId);
+  const expected = expectedLegacySequence(format, firstEntryId, entryAId, entryBId, poolSize);
   if (steps.length !== expected.length || steps.some((step, index) => step.actionType !== expected[index]?.actionType)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, format.toUpperCase() + " BP 步骤顺序不合法");
   }
@@ -278,8 +287,9 @@ export function legacyVetoStepsToFacts(
   steps: readonly LegacyVetoSequenceStep[],
   entryAId: string,
   entryBId: string,
+  poolSize = 7,
 ): VetoStepFact[] {
-  assertVetoSequence(format, steps, entryAId, entryBId);
+  assertVetoSequence(format, steps, entryAId, entryBId, poolSize);
   const vetoAEntryId = steps[0]!.entryId!;
   const vetoBEntryId = otherEntry(vetoAEntryId, entryAId, entryBId);
   const actorEntry = (actor: VetoActorRole) => actor === "veto_a"
@@ -289,7 +299,7 @@ export function legacyVetoStepsToFacts(
   const mapByTurnKey = new Map<string, string>();
   let legacyIndex = 0;
 
-  for (const definition of getVetoTurnDefinitions(format)) {
+  for (const definition of getVetoTurnDefinitions(format, poolSize)) {
     if (definition.actionType === "ban" || definition.actionType === "pick") {
       for (let index = 0; index < definition.count; index += 1) {
         const step = steps[legacyIndex++]!;

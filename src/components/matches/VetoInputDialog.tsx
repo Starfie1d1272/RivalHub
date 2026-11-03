@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { saveVetoSteps as telemetry_saveVetoSteps, getMatchVetoSteps, type VetoStepInput } from "@/actions/matches/veto";
 import { mapLabel } from "@/lib/maps";
+import { getVetoTurnDefinitions } from "@/lib/matches/veto-sequence";
 import type { VetoActionType } from "@/types/match";
 import { SIDE_LABELS } from "@/types/match";
 import { cn } from "@/lib/utils/cn";
@@ -102,42 +103,15 @@ function buildTemplate(
   format: "bo1" | "bo3" | "bo5",
   entryAId: string,
   entryBId: string,
+  poolSize: number,
 ): StepEdit[] {
-  switch (format) {
-    case "bo1":
-      // A ban×2, B ban×3, A ban×1 → decider (B picks side)
-      return [
-        { actionType: "ban", mapName: "", entryId: entryAId, side: null },
-        { actionType: "ban", mapName: "", entryId: entryAId, side: null },
-        { actionType: "ban", mapName: "", entryId: entryBId, side: null },
-        { actionType: "ban", mapName: "", entryId: entryBId, side: null },
-        { actionType: "ban", mapName: "", entryId: entryBId, side: null },
-        { actionType: "ban", mapName: "", entryId: entryAId, side: null },
-        { actionType: "decider", mapName: "", entryId: entryBId, side: null },
-      ];
-    case "bo3":
-      // A ban, B ban, A pick, B pick, B ban, A ban → decider (B picks side)
-      return [
-        { actionType: "ban", mapName: "", entryId: entryAId, side: null },
-        { actionType: "ban", mapName: "", entryId: entryBId, side: null },
-        { actionType: "pick", mapName: "", entryId: entryAId, side: null },
-        { actionType: "pick", mapName: "", entryId: entryBId, side: null },
-        { actionType: "ban", mapName: "", entryId: entryBId, side: null },
-        { actionType: "ban", mapName: "", entryId: entryAId, side: null },
-        { actionType: "decider", mapName: "", entryId: entryBId, side: null },
-      ];
-    case "bo5":
-      // A ban, B ban → A/B/A/B pick → knife decides the decider side.
-      return [
-        { actionType: "ban", mapName: "", entryId: entryAId, side: null },
-        { actionType: "ban", mapName: "", entryId: entryBId, side: null },
-        { actionType: "pick", mapName: "", entryId: entryAId, side: null },
-        { actionType: "pick", mapName: "", entryId: entryBId, side: null },
-        { actionType: "pick", mapName: "", entryId: entryAId, side: null },
-        { actionType: "pick", mapName: "", entryId: entryBId, side: null },
-        { actionType: "decider", mapName: "", entryId: null, side: null },
-      ];
-  }
+  return getVetoTurnDefinitions(format, poolSize).flatMap((turn) => {
+    if (turn.actionType === "side_pick") return [];
+    const entryId = turn.actionType === "decider"
+      ? format === "bo5" ? null : entryBId
+      : turn.actor === "veto_a" ? entryAId : entryBId;
+    return Array.from({ length: turn.count }, () => ({ actionType: turn.actionType, mapName: "", entryId, side: null }));
+  });
 }
 
 export function VetoInputDialog({
@@ -152,7 +126,7 @@ export function VetoInputDialog({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [steps, setSteps] = useState<StepEdit[]>(() =>
-    buildTemplate(format, entryAId, entryBId),
+    buildTemplate(format, entryAId, entryBId, mapPool.length),
   );
   const [loadState, setLoadState] = useState<VetoLoadState>({ status: "loading" });
   const loadAttemptRef = useRef(0);
@@ -239,7 +213,7 @@ export function VetoInputDialog({
         );
         setLoadState({ status: "loaded-existing" });
       } else {
-        setSteps(buildTemplate(format, entryAId, entryBId));
+        setSteps(buildTemplate(format, entryAId, entryBId, mapPool.length));
         setLoadState({ status: "loaded-empty" });
       }
     } catch {
@@ -409,7 +383,7 @@ export function VetoInputDialog({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => canEdit && setSteps(buildTemplate(format, entryAId, entryBId))}
+            onClick={() => canEdit && setSteps(buildTemplate(format, entryAId, entryBId, mapPool.length))}
             disabled={isPending || !canEdit}
           >
             重置模板
