@@ -53,18 +53,22 @@ export async function getCurrentStatsSelectionInReadOnlySnapshot(tx: TxDb, scope
 
 async function getCurrentStatsSelection(tx: TxDb, scope: CurrentStatsSelectionScope, reuseMatches: boolean) {
   if (scope.userIds?.length === 0) return { currentImportIds: [], roster: [], matchIds: [] };
-  const candidates = await tx.selectDistinctOn([matches.id], statsMatchFields).from(matches)
+  const conditions = and(officialMatchCondition(), eq(matches.status, "finished"), ne(seasons.status, "draft"),
+    scope.seasonId ? eq(matches.seasonId, scope.seasonId) : undefined,
+    scope.before ? lt(matches.completedAt, scope.before) : undefined,
+    scope.excludeMatchId ? ne(matches.id, scope.excludeMatchId) : undefined,
+    scope.userIds ? inArray(matchPlayerStats.userId, [...scope.userIds]) : undefined);
+  const selectedMatches = reuseMatches ? await tx.selectDistinctOn([matches.id], statsMatchFields).from(matches)
     .innerJoin(seasons, eq(seasons.id, matches.seasonId))
     .innerJoin(matchPlayerStats, eq(matchPlayerStats.matchId, matches.id))
-    .where(and(officialMatchCondition(), eq(matches.status, "finished"), ne(seasons.status, "draft"),
-      scope.seasonId ? eq(matches.seasonId, scope.seasonId) : undefined,
-      scope.before ? lt(matches.completedAt, scope.before) : undefined,
-      scope.excludeMatchId ? ne(matches.id, scope.excludeMatchId) : undefined,
-      scope.userIds ? inArray(matchPlayerStats.userId, [...scope.userIds]) : undefined));
-  const candidateIds = candidates.map((row) => row.id);
+    .where(conditions) : undefined;
+  const candidateIds = selectedMatches ? selectedMatches.map((row) => row.id) : (await tx.selectDistinct({ id: matches.id }).from(matches)
+    .innerJoin(seasons, eq(seasons.id, matches.seasonId))
+    .innerJoin(matchPlayerStats, eq(matchPlayerStats.matchId, matches.id))
+    .where(conditions)).map((row) => row.id);
   const effectiveRoster = await loadEffectiveMatchRosterIdentities(tx, candidateIds);
-  const context = reuseMatches
-    ? await loadSelectedStatsContext(tx, candidates, effectiveRoster)
+  const context = selectedMatches
+    ? await loadSelectedStatsContext(tx, selectedMatches, effectiveRoster)
     : await loadStatsContext(tx, {}, { matchIds: candidateIds, effectiveRoster, skipLabels: true });
   const refs = await loadCurrentProjectionRefs(tx, context);
   return { currentImportIds: refs.map(({ current }) => current.id), roster: context.roster, matchIds: context.matchIds };
