@@ -11,11 +11,11 @@ export type PublicMatchRefreshScope = { matchId: string; stage?: never } | { sta
  * One statement observes a consistent snapshot and returns one opaque public token.
  * Ancillary/global profile and career changes are recovered by the bounded full resync.
  */
-export async function loadPublicMatchRefreshToken(seasonId: string, scope: PublicMatchRefreshScope): Promise<string> {
+export async function loadPublicMatchRefreshToken(seasonId: string, scope: PublicMatchRefreshScope): Promise<string | null> {
   const condition = scope.matchId
     ? sql`m.id = ${scope.matchId}`
     : sql`m.stage = ${scope.stage} and m.test_config is null`;
-  const result = await db.execute<{ version: string }>(sql`
+  const result = await db.execute<{ version: string; scoped_exists: boolean }>(sql`
     with scoped as (
       select m.id, m.entry_a_id, m.entry_b_id, m.status, m.updated_at, m.scheduled_at,
         m.completed_at, m.started_at, m.gameplay_started_at, m.completion_deadline, m.score_a, m.score_b, m.result_disposition, m.mvp_winner_user_id
@@ -60,7 +60,8 @@ export async function loadPublicMatchRefreshToken(seasonId: string, scope: Publi
         from match_rosters r join scoped m on m.id = r.match_id)` : sql`null`},
       'proposals', ${scope.matchId ? sql`(select jsonb_agg(jsonb_build_array(p.id, p.status, p.updated_at) order by p.id)
         from match_time_proposals p join scoped m on m.id = p.match_id)` : sql`null`}
-    )::text) as version
+    )::text) as version, exists(select 1 from scoped) as scoped_exists
   `);
-  return result.rows[0].version;
+  const row = result.rows[0];
+  return scope.matchId && !row.scoped_exists ? null : row.version;
 }
