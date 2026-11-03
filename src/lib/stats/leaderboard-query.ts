@@ -230,7 +230,7 @@ export async function getLineupStatsPopulation(matchId: string, before: Date, da
     JOIN users u ON u.id = mps.user_id AND u.status = 'active'
     JOIN match_maps mm ON mm.id = mps.map_id AND mm.match_id = d.match_id
     WHERE d.status = 'confirmed' AND mps.verified_by_admin IS NOT NULL
-      AND mps.user_id IS NOT NULL AND mm.score_a IS NOT NULL AND mm.score_b IS NOT NULL AND mm.completed_at IS NOT NULL
+      AND mm.score_a IS NOT NULL AND mm.score_b IS NOT NULL AND mm.completed_at IS NOT NULL
     GROUP BY mps.user_id
     ORDER BY mps.user_id
   `);
