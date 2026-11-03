@@ -7,7 +7,7 @@ import type { DB, TxDb } from "@/db/client";
 import { steamProfiles, users } from "@/db/schema";
 import { getSteamPlayerSummaries, type SteamProfileSummary } from "@/lib/steam";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { revalidatePublicPlayerTag, revalidatePublicStatsTag } from "@/lib/revalidation";
+import { revalidatePublicHomeTag, revalidatePublicPlayerTag, revalidatePublicStatsTag } from "@/lib/revalidation";
 
 type SteamProfileDatabase = DB | TxDb;
 
@@ -127,7 +127,10 @@ export async function loadOrFetchSteamProfiles(
   }).returning({ steam64: steamProfiles.steam64 });
   // This owner is also used while rendering the admin workbench. Invalidate
   // after the response rather than invoking revalidateTag during render.
-  if (changed.length > 0) after(() => revalidatePublicStatsTag("identity"));
+  if (changed.length > 0) after(() => {
+    revalidatePublicHomeTag();
+    revalidatePublicStatsTag("identity");
+  });
   // A concurrent insert may have already stored identical display fields.
   // Preserve the successful fetch time without counting it as a display change.
   const changedIds = new Set(changed.map((row) => row.steam64));
