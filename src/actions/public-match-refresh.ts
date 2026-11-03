@@ -1,9 +1,6 @@
 "use server";
 
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { matches } from "@/db/schema";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { loadPublicMatchRefreshToken } from "@/lib/matches/public-refresh";
 import { actionError, failValidation } from "@/lib/action-utils";
@@ -21,13 +18,9 @@ export async function readPublicMatchRefreshToken(input: unknown): Promise<Actio
     const { seasonSlug, scope } = parsed.data;
     const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
     if (!season) throw new AppError(ErrorCode.NOT_FOUND, "赛事不存在。");
-    if ("matchId" in scope) {
-      const match = await db.query.matches.findFirst({
-        where: and(eq(matches.id, scope.matchId), eq(matches.seasonId, season.id)), columns: { id: true },
-      });
-      if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
-    }
-    return ok(await loadPublicMatchRefreshToken(season.id, scope));
+    const token = await loadPublicMatchRefreshToken(season.id, scope);
+    if (token === null) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
+    return ok(token);
   } catch (error) {
     return actionError("readPublicMatchRefreshToken", error);
   }
