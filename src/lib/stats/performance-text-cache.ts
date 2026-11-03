@@ -1,6 +1,6 @@
 import "server-only";
 
-// Bound both memory and the lifetime of reusable wire representations. The
+// Share one bounded budget for performance and tournament wire representations. The
 // current database fingerprint is still checked in every snapshot.
 const MAX_BYTES = 16 * 1024 * 1024;
 const MAX_ENTRIES = 512;
@@ -36,3 +36,7 @@ export function putPerformanceText(key: string, text: string): void {
     totalBytes += bytes;
   } catch { /* Cache failures must not affect the database read. */ }
 }
+
+/** Tournament representations share the same bounded process-local budget. */
+export const getTournamentText = getPerformanceText;
+export const putTournamentText = putPerformanceText;
