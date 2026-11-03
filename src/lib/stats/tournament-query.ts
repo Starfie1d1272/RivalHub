@@ -201,7 +201,9 @@ function vetoActionSamples(rows: readonly { action: string; matchId: string }[])
 
 type VetoMatch = Pick<typeof matches.$inferSelect, "id" | "status" | "isForfeit" | "entryAId" | "entryBId">;
 
-async function loadVetoData(tx: TxDb, scope: StatsEvidenceScope & { teamId?: string }, entries: Array<{ id: string; name: string }>, remap: (id: string) => string = (id) => id, reusedMatches?: readonly VetoMatch[]) {
+type VetoRow = { matchId: string; mapName: string; action: string; entryId: string | null };
+
+async function loadVetoData(tx: TxDb, scope: StatsEvidenceScope & { teamId?: string }, entries: Array<{ id: string; name: string }>, remap: (id: string) => string = (id) => id, reusedMatches?: readonly VetoMatch[], reusedRows?: readonly VetoRow[]) {
   const originalMatches = reusedMatches ?? await tx.select({
     id: matches.id,
     status: matches.status,
@@ -217,7 +219,7 @@ async function loadVetoData(tx: TxDb, scope: StatsEvidenceScope & { teamId?: str
   const matchRows = originalMatches.map((row) => ({ ...row, entryAId: row.entryAId ? remap(row.entryAId) : row.entryAId, entryBId: row.entryBId ? remap(row.entryBId) : row.entryBId }));
   const finished = matchRows.filter((match) => match.status === "finished");
   const finishedIds = finished.map((match) => match.id);
-  const allVeto = finishedIds.length
+  const allVeto = reusedRows ? reusedRows.filter((row) => finishedIds.includes(row.matchId)) : finishedIds.length
     ? await tx.select({
       matchId: matchVetoSteps.matchId,
       mapName: matchVetoSteps.mapName,
@@ -879,8 +881,39 @@ function projectTournamentTeamDetail(scope: TournamentStatsScope & { teamId: str
   };
 }
 
-export async function getTournamentTeamDetailInTx(scope: TournamentStatsScope & { teamId: string }, tx: TxDb) {
-  return projectTournamentTeamDetail(scope, await loadTournamentTeamDetailSnapshot(scope, tx));
+type TeamDetailSnapshot = Awaited<ReturnType<typeof loadTournamentTeamDetailSnapshot>>;
+
+/** Request-local sharing for teams in the same transaction and competition scope. */
+export type TeamDetailBatch = { teamIds: readonly string[]; snapshot?: Promise<Map<string, TeamDetailSnapshot>> };
+
+async function loadTournamentTeamDetailBatch(scope: TournamentStatsScope, teamIds: readonly string[], tx: TxDb) {
+  const loaded = await loadStatsDetailEvidence(tx, scope, { teamIds, reuseVetoMatches: true });
+  // Veto historically includes official matches with incomplete competition fields.
+  const vetoMatches = (loaded.vetoMatches ?? []).filter((match) => teamIds.some((id) => match.entryAId === id || match.entryBId === id));
+  const finishedIds = vetoMatches.filter((match) => match.status === "finished").map((match) => match.id);
+  const vetoRows = finishedIds.length ? await tx.select({ matchId: matchVetoSteps.matchId, mapName: matchVetoSteps.mapName,
+    action: matchVetoSteps.actionType, entryId: matchVetoSteps.entryId }).from(matchVetoSteps).where(inArray(matchVetoSteps.matchId, finishedIds)) : [];
+  const scoreboard = await getStatsLeaderboard({ ...scope, teamFilter: undefined, teamFilters: teamIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx);
+  const snapshots = new Map<string, TeamDetailSnapshot>();
+  for (const teamId of teamIds) {
+    const teamMatches = loaded.matches.filter((match) => match.entryAId === teamId || match.entryBId === teamId);
+    const matchIds = teamMatches.map((match) => match.id);
+    const ids = new Set(matchIds);
+    const teamLoaded = { ...loaded, matches: teamMatches, matchIds,
+      maps: loaded.maps.filter((map) => ids.has(map.matchId)), scopedMaps: loaded.scopedMaps.filter((map) => ids.has(map.matchId)),
+      roster: loaded.roster.filter((row) => ids.has(row.matchId)),
+      selected: loaded.selected.filter((row) => ids.has(row.facts.tournament.matchKey)) };
+    const matches = vetoMatches.filter((match) => match.entryAId === teamId || match.entryBId === teamId);
+    const veto = await loadVetoData(tx, { ...scope, teamId }, loaded.entries, undefined, matches, vetoRows);
+    snapshots.set(teamId, { loaded: teamLoaded, veto, scoreboard: scoreboard.filter((row) => row.teamId === teamId) });
+  }
+  return snapshots;
+}
+
+export async function getTournamentTeamDetailInTx(scope: TournamentStatsScope & { teamId: string }, tx: TxDb, batch?: TeamDetailBatch) {
+  if (!batch) return projectTournamentTeamDetail(scope, await loadTournamentTeamDetailSnapshot(scope, tx));
+  batch.snapshot ??= loadTournamentTeamDetailBatch(scope, batch.teamIds, tx);
+  return projectTournamentTeamDetail(scope, (await batch.snapshot).get(scope.teamId)!);
 }
 
 export async function getTournamentTeamDetail(scope: TournamentStatsScope & { teamId: string }, database: DB = db) {

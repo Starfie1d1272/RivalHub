@@ -18,7 +18,8 @@ export async function loadBroadcastStats(matchId: string, competitionId: string)
     const document = await loadMizarMatchDocumentInTx(tx, matchId, competitionId, true);
     const entries = [document.entrants.a, document.entrants.b];
     const details = [];
-    for (const entry of entries) details.push(await getTournamentTeamDetailInTx({ seasonId: competitionId, teamId: entry.entryId }, tx));
+    const batch = { teamIds: entries.map((entry) => entry.entryId) };
+    for (const entry of entries) details.push(await getTournamentTeamDetailInTx({ seasonId: competitionId, teamId: entry.entryId }, tx, batch));
     const opponentIds = [...new Set(details.flatMap(detail => detail.official.matches.flatMap(match => [match.entryAId, match.entryBId])))];
     const opponents = opponentIds.length ? await tx.select({ id: competitionEntries.id, name: competitionEntries.name, logoUrl: competitionEntries.logoUrl }).from(competitionEntries).where(inArray(competitionEntries.id, opponentIds)) : [];
     const supportRows = await readMatchSupport(tx, competitionId, matchId);
