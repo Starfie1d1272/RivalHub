@@ -386,7 +386,7 @@ function loadCompetitiveProfileSources(
  */
 export async function loadSettingsProfileReadiness(userId: string, userRows: ParticipantQualificationUserRow[]): Promise<SettingsProfileReadiness> {
   const [bundle, catalog] = await Promise.all([
-    loadParticipantQualificationRawBundle([userId], { userRows }),
+    loadParticipantQualificationRawBundle([userId], { userRows, includePlatformChronology: false }),
     getPublicCompetitiveCatalog(),
   ]);
   const baseFact = projectParticipantQualificationFacts(bundle).get(userId) ?? null;
