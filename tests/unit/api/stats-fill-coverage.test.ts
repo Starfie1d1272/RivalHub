@@ -4,7 +4,12 @@ vi.mock("next/cache", () => ({ cacheTag: vi.fn(), cacheLife: vi.fn() }));
 vi.mock("next/navigation", () => ({ unstable_rethrow: vi.fn() }));
 vi.mock("@/db/client", () => ({ db: {
   select: () => ({ from: () => ({ where: () => ({ orderBy: async () => [] }) }) }),
-  transaction: async (read: (tx: object) => unknown) => read({}),
+  transaction: async (read: (tx: object) => unknown) => read({ execute: async () => ({ rows: [{
+    fingerprint: "a".repeat(64), database_name: "fixture", server_address: "local", server_port: 5432, server_started: "fixture-start",
+    server_version: "170000", effective_role: "fixture", session_role: "fixture", search_path: "public", collation: "C",
+    float_digits: "1", date_style: "ISO, MDY", timezone: "UTC", row_security: "on", claims_missing: true, claims_hash: "fixture",
+    relation_ids: Array.from({ length: 13 }, (_, index) => index + 1),
+  }] }) }),
 } }));
 vi.mock("@/lib/observability/server", () => ({ captureException: vi.fn() }));
 vi.mock("@/lib/stats/tournament-query", () => ({ getTournamentStats: reads.tournament, getPlayerCareerPerformances: reads.careers,

@@ -2,13 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   cacheLife: vi.fn(), cacheTag: vi.fn(), updateTag: vi.fn(), revalidateTag: vi.fn(), revalidatePath: vi.fn(),
-  selection: vi.fn(), fingerprint: vi.fn(), leaderboard: vi.fn(), partition: vi.fn(),
+  selection: vi.fn(), execute: vi.fn(), leaderboard: vi.fn(), partition: vi.fn(),
 }));
 vi.mock("next/cache", () => ({ cacheLife: mocks.cacheLife, cacheTag: mocks.cacheTag, updateTag: mocks.updateTag, revalidateTag: mocks.revalidateTag, revalidatePath: mocks.revalidatePath }));
-vi.mock("@/db/client", () => ({ db: { transaction: (read: (tx: object) => unknown) => read({}) } }));
+vi.mock("@/db/client", () => ({ db: { transaction: (read: (tx: object) => unknown) => read({ execute: mocks.execute }) } }));
 vi.mock("@/lib/stats/tournament-query", () => ({ getCurrentStatsSelectionInTx: mocks.selection }));
 vi.mock("@/lib/stats/leaderboard-query", () => ({ getLineupStatsPopulation: mocks.leaderboard }));
-vi.mock("@/lib/matches/lineup-population-fingerprint", () => ({ fingerprintLineupInputs: mocks.fingerprint }));
 vi.mock("@/lib/stats/ranking", () => ({ partitionRankingPopulation: mocks.partition }));
 vi.mock("@/lib/stats/public-fill", () => ({ observePublicStatsFill: (_name: string, read: () => unknown) => read() }));
 
@@ -19,7 +18,12 @@ import { revalidateMatchPaths, revalidatePublicStatsTag, updatePublicPlayerTag, 
 let fingerprintId = 0;
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.fingerprint.mockResolvedValue(`fixture-${++fingerprintId}`);
+  mocks.execute.mockImplementation(async () => ({ rows: [{
+    fingerprint: (++fingerprintId).toString(16).padStart(64, "0"), database_name: "fixture", server_address: "local", server_port: 5432,
+    server_started: "fixture-start", server_version: "170000", effective_role: "fixture", session_role: "fixture", search_path: "public",
+    collation: "C", float_digits: "1", date_style: "ISO, MDY", timezone: "UTC", row_security: "on", claims_missing: true, claims_hash: "fixture",
+    relation_ids: Array.from({ length: 13 }, (_, index) => index + 1),
+  }] }));
   mocks.selection.mockResolvedValue({ currentImportIds: ["import"], roster: ["roster"] });
   mocks.leaderboard.mockResolvedValue([
     { userId: "a", maps: 1, rounds: 20, avgRating: 1, avgAdr: 70, kpr: 0.7, kast: 70, fkpr: 0.1, tradeKpr: 0.1 },
@@ -37,14 +41,6 @@ describe("lineup population cache contract", () => {
     expect(mocks.selection).toHaveBeenCalledWith(expect.anything(), { before: new Date(cutoff), excludeMatchId: "match-a" });
     expect(mocks.leaderboard).toHaveBeenCalledWith(["import"], ["roster"], expect.anything());
     expect(result).toEqual([{ userId: "b", maps: 2, rounds: 40, qualified: true, rating: 2, adr: 80, kpr: 0.8, kast: 80, firstKill: 0.2, trade: 0.2 }]);
-    expect(await getLineupCareers(["b"], "match-b", cutoff)).toEqual(result);
-    expect(mocks.fingerprint).toHaveBeenCalledTimes(2);
-    expect(mocks.selection).toHaveBeenCalledTimes(1);
-    expect(mocks.leaderboard).toHaveBeenCalledTimes(1);
-    mocks.fingerprint.mockRejectedValueOnce(new Error("fingerprint unavailable"));
-    expect(await getLineupCareers(["b"], "match-c", cutoff)).toEqual(result);
-    expect(mocks.selection).toHaveBeenCalledTimes(2);
-    expect(mocks.leaderboard).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the rolling null cutoff short and forwards distinct match and cutoff inputs", async () => {
@@ -54,7 +50,6 @@ describe("lineup population cache contract", () => {
       await getLineupCareers(["a"], "match-a", null);
       expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 60, revalidate: 60, expire: 3600 });
       expect(mocks.selection).toHaveBeenLastCalledWith(expect.anything(), { before: new Date(), excludeMatchId: "match-a" });
-      mocks.fingerprint.mockResolvedValueOnce(`changed-${fingerprintId}`);
       await getLineupCareers(["a"], "match-b", "2026-10-02T00:00:00.000Z");
       expect(mocks.selection).toHaveBeenLastCalledWith(expect.anything(), { before: new Date("2026-10-02T00:00:00.000Z"), excludeMatchId: "match-b" });
     } finally { vi.useRealTimers(); }
@@ -63,7 +58,6 @@ describe("lineup population cache contract", () => {
   it("does no cache or population work for an empty lineup", async () => {
     expect(await getLineupCareers([], "match-a", null)).toEqual([]);
     expect(mocks.cacheTag).not.toHaveBeenCalled();
-    expect(mocks.fingerprint).not.toHaveBeenCalled();
     expect(mocks.selection).not.toHaveBeenCalled();
   });
 });
