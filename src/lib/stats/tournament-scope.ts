@@ -8,7 +8,7 @@ import { CURRENT_DAK_SEMANTIC_PROFILE } from "@/lib/demo-integration/semantic-pr
 import { buildEvidenceRevisionForTarget } from "@/lib/demo-integration/revision";
 import { resolveGameplayUsersBySteam64InTx } from "@/lib/identity/gameplay-steam";
 import { loadEffectiveMatchRosterIdentities, type EffectiveMatchRosterIdentity } from "@/lib/match-rosters/effective";
-import { performanceTransportSelection } from "./projection-transport";
+import { performanceTransportSelection, tournamentTransportSelection } from "./projection-transport";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import type { PlatformStatsScope as StatsEvidenceScope } from "./tournament-query";
 
@@ -109,12 +109,13 @@ export async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, opti
 }
 
 /** Select valid materialized bindings without transferring statistics or Evidence. */
-export async function loadCurrentProjectionRefs(tx: TxDb, context: Awaited<ReturnType<typeof loadStatsContext>>, includePerformanceHash = false) {
+export async function loadCurrentProjectionRefs(tx: TxDb, context: Awaited<ReturnType<typeof loadStatsContext>>, includePerformanceHash = false, includeTournamentHash = false) {
   const ids = context.currentRefs.map(({ current }) => current.id);
   const rows = ids.length ? await tx.select({
     importId: matchDemoStatProjections.importId,
     identityBindings: matchDemoStatProjections.identityBindings,
     ...(includePerformanceHash ? { performanceHash: sql<string>`encode(sha256(convert_to((${performanceTransportSelection})::text, 'UTF8')), 'hex')` } : {}),
+    ...(includeTournamentHash ? { tournamentHash: sql<string>`encode(sha256(convert_to((${tournamentTransportSelection})::text, 'UTF8')), 'hex')` } : {}),
     metadataMatches: sql<boolean>`
       ${matchDemoStatProjections.payloadSha256} COLLATE "C" = ${matchDemoImports.payloadSha256} COLLATE "C"
       AND ${matchDemoStatProjections.demoSha256} COLLATE "C" = ${matchDemoImports.demoSha256} COLLATE "C"
