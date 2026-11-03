@@ -4,6 +4,7 @@ import "server-only";
 
 import { and, eq, ne } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
+import { cache } from "react";
 import { db } from "@/db/client";
 import { competitionEntries, matches, seasons } from "@/db/schema";
 import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
@@ -141,6 +142,14 @@ export async function getPublicLongTeamCareerDetail(teamId: string) {
   return observePublicStatsFill("stats.career", async () => preservePublicStatsDependencyFailure(() => getLongTeamCareerDetail(teamId)));
 }
 
+// Share only the public visibility probe within a server render; never cache draft access.
+const isPublicMatch = cache(async (matchId: string) => {
+  const [match] = await db.select({ id: matches.id }).from(matches)
+    .innerJoin(seasons, eq(seasons.id, matches.seasonId))
+    .where(and(eq(matches.id, matchId), ne(seasons.status, "draft"))).limit(1);
+  return Boolean(match);
+});
+
 async function cachedMatchPlayerDetail(matchId: string, playerId: string, mapName?: string) {
   "use cache: remote";
   statsCachePolicy();
@@ -154,10 +163,7 @@ export async function getPublicMatchPlayerDetail(
   visibility: Visibility,
 ) {
   if (visibility === "draft") return getMatchPlayerDetail(matchId, playerId, mapName);
-  const [match] = await db.select({ id: matches.id }).from(matches)
-    .innerJoin(seasons, eq(seasons.id, matches.seasonId))
-    .where(and(eq(matches.id, matchId), ne(seasons.status, "draft"))).limit(1);
-  if (!match) return null;
+  if (!await isPublicMatch(matchId)) return null;
   return cachedMatchPlayerDetail(matchId, playerId, mapName);
 }
 
@@ -170,8 +176,5 @@ async function cachedMatchMvpSummary(matchId: string, playerId: string) {
 /** Entrypoints retain draft authorization; no draft facts enter shared caches. */
 export async function getPublicMatchMvpSummary(matchId: string, playerId: string, visibility: Visibility) {
   if (visibility === "draft") return getMatchMvpSummary(matchId, playerId);
-  const [match] = await db.select({ id: matches.id }).from(matches)
-    .innerJoin(seasons, eq(seasons.id, matches.seasonId))
-    .where(and(eq(matches.id, matchId), ne(seasons.status, "draft"))).limit(1);
-  return match ? cachedMatchMvpSummary(matchId, playerId) : null;
+  return await isPublicMatch(matchId) ? cachedMatchMvpSummary(matchId, playerId) : null;
 }
