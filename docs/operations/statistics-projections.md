@@ -26,14 +26,20 @@ Attribute benchmarks select only performance projections and the tournament targ
 keys needed for validation. They share current-import, identity-binding and target
 validation with full statistics reads, within the same read-only snapshot.
 
-Full-performance reads may reuse PostgreSQL's original text representation in a
-process-local LRU cache (16 MiB total including keys, 512 entries, 512 KiB per
-entry, five-minute TTL). Each snapshot still checks current imports, revision and
-identity bindings, and computes a SHA-256 of the actual selected representation
-in PostgreSQL. Misses are fetched in one batch and verified before use; every hit
-still goes through decoding, target checks and the normal DAK validation. The
-cache stores no parsed objects or pending requests and does not replace tag
-invalidation. PostgreSQL still serializes and hashes the representation; the
+Full-performance and full-tournament reads may reuse PostgreSQL's original text
+representations in a shared process-local LRU cache (16 MiB total including keys,
+512 entries, 512 KiB per entry). Each snapshot still checks current imports,
+revision and identity bindings, and computes a SHA-256 of the actual selected representation
+in PostgreSQL for each selected representation. Misses are fetched in batches and
+verified before use; every hit still goes through decoding, target checks and the
+normal DAK validation. Tournament and performance entries share the same budget;
+small identity-only tournament selections do not use the full representation cache.
+The cache stores no parsed objects or pending requests and does not replace tag
+invalidation. Entries are evicted by capacity, and process exit clears the cache;
+it is neither backed up nor persistent across restarts. Removed or replaced source
+bytes can remain in process memory until eviction or exit, but current lineage and
+content-hash checks prevent those bytes from being selected unless the same content
+is current again. PostgreSQL still serializes and hashes the representation; the
 effect on actual traffic must be measured under natural usage.
 
 ## Rebuild and release
