@@ -127,7 +127,15 @@ benchmarks share the semantic public-statistics tag. Authorized draft queries an
 viewer membership/invitation state bypass public caches. Mutations expire the tag
 immediately: Server Actions use `updateTag`, HTTP entrypoints use
 `revalidateTag(tag, { expire: 0 })`. General metadata may retain its existing SWR
-policy. The cache does not replace persisted projections and keys change on deploy.
+policy. Platform aggregates and the official map catalog do not refresh on a
+timer; a fixed-cutoff lineup comparison follows the same policy. The rolling
+lineup comparison retains a time fallback because a future completion timestamp
+can cross its cutoff without a write. A failed post-commit tag update can leave
+business statistics or an old public attribution stale until a later successful
+invalidation, eviction, or a cold cache. This is not a durable delivery mechanism
+or an immediate withdrawal guarantee. The cache does not replace persisted
+projections and keys change on deploy; self-hosted process-local entries are lost
+on restart and do not share invalidations across instances.
 
 Identity retirement invalidates all dependent maps, not only the import that
 introduced an alias. Scoreboard edits, official scores/rosters, event visibility,

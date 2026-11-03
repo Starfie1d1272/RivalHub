@@ -150,7 +150,12 @@ export async function lookupSteamProfile(steam64Input: string): Promise<ActionRe
     if (await findSteam64Conflict(db, steam64, session.userId)) {
       return ok({ status: "conflict" });
     }
-    return ok(await lookupAndCacheSteamProfile(db, steam64));
+    const { result, changed } = await lookupAndCacheSteamProfile(db, steam64);
+    if (changed) {
+      const owners = await db.select({ id: users.id }).from(users).where(eq(users.steam64, steam64));
+      for (const owner of owners) updatePublicPlayerTag(owner.id);
+    }
+    return ok(result);
   } catch (e) {
     return actionError("lookupSteamProfile", e);
   }

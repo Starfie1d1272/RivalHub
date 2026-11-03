@@ -37,13 +37,13 @@ async function cachedOfficialStatsMapCatalog(seasonIds: string[]) {
   "use cache: remote";
   // Veto-only updates invalidate the season catalog without invalidating statistics.
   cacheTag(PUBLIC_STATS_TAG, PUBLIC_SEASON_CATALOG_TAG);
-  cacheLife({ stale: 60, revalidate: 2592000, expire: 31536000 });
+  cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
   return getOfficialStatsMapCatalog(seasonIds);
 }
 async function cachedPlatformStats(scope: PlatformStatsScope, versions: string) {
   "use cache: remote";
   cacheTag(PUBLIC_STATS_TAG);
-  cacheLife({ stale: 60, revalidate: 3600, expire: 86400 });
+  cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
   void versions;
   return observeStatsCacheFill("platform", () => observePublicStatsFill("stats.platform", () => preservePublicStatsDependencyFailure(() => getTournamentStats(scope))));
 }

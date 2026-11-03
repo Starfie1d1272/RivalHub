@@ -52,9 +52,9 @@ export async function loadSteamProfile(
 export async function upsertSteamProfile(
   database: SteamProfileDatabase,
   profile: SteamProfileSummary,
-): Promise<void> {
+): Promise<boolean> {
   const fetchedAt = new Date();
-  await database.insert(steamProfiles).values({
+  const changed = await database.insert(steamProfiles).values({
     steam64: profile.steam64,
     personaName: profile.personaName,
     profileUrl: profile.profileUrl,
@@ -68,7 +68,12 @@ export async function upsertSteamProfile(
       avatarUrl: sql`excluded.avatar_url`,
       fetchedAt: sql`excluded.fetched_at`,
     },
-  });
+    setWhere: sql`(${steamProfiles.personaName}, ${steamProfiles.profileUrl}, ${steamProfiles.avatarUrl}) IS DISTINCT FROM (excluded.persona_name, excluded.profile_url, excluded.avatar_url)`,
+  }).returning({ steam64: steamProfiles.steam64 });
+  // Preserve the last successful fetch timestamp even when the display fields
+  // are unchanged. This timestamp is not a public statistics dependency.
+  if (changed.length === 0) await database.update(steamProfiles).set({ fetchedAt: sql`greatest(${steamProfiles.fetchedAt}, ${fetchedAt})` }).where(eq(steamProfiles.steam64, profile.steam64));
+  return changed.length > 0;
 }
 
 /**
@@ -127,13 +132,13 @@ export async function loadOrFetchSteamProfiles(
 export async function lookupAndCacheSteamProfile(
   database: SteamProfileDatabase,
   steam64: string,
-): Promise<SteamProfileLookupResult> {
+): Promise<{ result: SteamProfileLookupResult; changed: boolean }> {
   const result = await getSteamPlayerSummaries([steam64]);
-  if (result.status !== "ok") return { status: "unavailable" };
+  if (result.status !== "ok") return { result: { status: "unavailable" }, changed: false };
   const profile = result.profiles.get(steam64);
-  if (!profile) return { status: "not_found", diagnosticUrl: steamProfileDiagnosticUrl(steam64) };
-  await upsertSteamProfile(database, profile);
-  return { status: "ok", profile };
+  if (!profile) return { result: { status: "not_found", diagnosticUrl: steamProfileDiagnosticUrl(steam64) }, changed: false };
+  const changed = await upsertSteamProfile(database, profile);
+  return { result: { status: "ok", profile }, changed };
 }
 
 /**

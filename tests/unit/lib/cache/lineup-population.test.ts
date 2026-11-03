@@ -27,7 +27,7 @@ describe("lineup population cache contract", () => {
   it("uses the fixed cutoff profile, selects the whole population and filters afterwards", async () => {
     const cutoff = "2026-10-01T00:00:00.000Z";
     const result = await getLineupCareers(["b"], "match-a", cutoff);
-    expect(mocks.cacheLife).toHaveBeenCalledWith({ stale: 60, revalidate: 2592000, expire: 31536000 });
+    expect(mocks.cacheLife).toHaveBeenCalledWith({ stale: 60, revalidate: Infinity, expire: Infinity });
     expect(mocks.cacheTag).toHaveBeenCalledWith(PUBLIC_STATS_TAG);
     expect(mocks.leaderboard).toHaveBeenCalledWith("match-a", new Date(cutoff), expect.anything());
     expect(result).toEqual([{ userId: "b", maps: 2, rounds: 40, qualified: true, rating: 2, adr: 80, kpr: 0.8, kast: 80, firstKill: 0.2, trade: 0.2 }]);
