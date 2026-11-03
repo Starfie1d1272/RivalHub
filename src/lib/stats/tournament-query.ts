@@ -887,22 +887,28 @@ type TeamDetailSnapshot = Awaited<ReturnType<typeof loadTournamentTeamDetailSnap
 export type TeamDetailBatch = { teamIds: readonly string[]; snapshot?: Promise<Map<string, TeamDetailSnapshot>> };
 
 async function loadTournamentTeamDetailBatch(scope: TournamentStatsScope, teamIds: readonly string[], tx: TxDb) {
-  const loaded = await loadStatsDetailEvidence(tx, scope, { teamIds, reuseVetoMatches: true });
+  const loaded = await loadStatsDetailEvidence(tx, { ...scope, teamFilter: undefined }, { teamIds, reuseVetoMatches: true });
   // Veto historically includes official matches with incomplete competition fields.
   const vetoMatches = (loaded.vetoMatches ?? []).filter((match) => teamIds.some((id) => match.entryAId === id || match.entryBId === id));
   const finishedIds = vetoMatches.filter((match) => match.status === "finished").map((match) => match.id);
   const vetoRows = finishedIds.length ? await tx.select({ matchId: matchVetoSteps.matchId, mapName: matchVetoSteps.mapName,
     action: matchVetoSteps.actionType, entryId: matchVetoSteps.entryId }).from(matchVetoSteps).where(inArray(matchVetoSteps.matchId, finishedIds)) : [];
-  const scoreboard = await getStatsLeaderboard({ ...scope, teamFilter: undefined, teamFilters: teamIds }, loaded.selected.map((row) => row.importId), loaded.roster, tx);
+  const selections = teamIds.map((teamId) => {
+    const matchIds = new Set(loaded.matches.filter((match) => match.entryAId === teamId || match.entryBId === teamId).map((match) => match.id));
+    const selected = loaded.selected.filter((row) => matchIds.has(row.facts.tournament.matchKey));
+    return { teamId, matchIds, selected, importIds: selected.map((row) => row.importId) };
+  });
+  const scoreboard = await getStatsLeaderboard({ ...scope, teamFilter: undefined, teamSelections: selections }, loaded.selected.map((row) => row.importId), loaded.roster, tx);
   const snapshots = new Map<string, TeamDetailSnapshot>();
-  for (const teamId of teamIds) {
-    const teamMatches = loaded.matches.filter((match) => match.entryAId === teamId || match.entryBId === teamId);
+  for (const { teamId, matchIds: ids, selected } of selections) {
+    const teamMatches = loaded.matches.filter((match) => ids.has(match.id));
     const matchIds = teamMatches.map((match) => match.id);
-    const ids = new Set(matchIds);
+    const playerIds = new Set(selected.flatMap((row) => loaded.playerIdsByImport.get(row.importId) ?? []));
     const teamLoaded = { ...loaded, matches: teamMatches, matchIds,
+      labels: { ...loaded.labels, players: Object.fromEntries(Object.entries(loaded.labels.players).filter(([id]) => playerIds.has(id))) },
       maps: loaded.maps.filter((map) => ids.has(map.matchId)), scopedMaps: loaded.scopedMaps.filter((map) => ids.has(map.matchId)),
       roster: loaded.roster.filter((row) => ids.has(row.matchId)),
-      selected: loaded.selected.filter((row) => ids.has(row.facts.tournament.matchKey)) };
+      selected };
     const matches = vetoMatches.filter((match) => match.entryAId === teamId || match.entryBId === teamId);
     const veto = await loadVetoData(tx, { ...scope, teamId }, loaded.entries, undefined, matches, vetoRows);
     snapshots.set(teamId, { loaded: teamLoaded, veto, scoreboard: scoreboard.filter((row) => row.teamId === teamId) });
