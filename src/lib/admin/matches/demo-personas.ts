@@ -1,6 +1,5 @@
 import "server-only";
 
-import { db } from "@/db/client";
 import { loadOrFetchSteamProfiles } from "@/lib/steam-profiles";
 import { captureException } from "@/lib/observability/server";
 import type { AdminDemoReviewMap } from "./types";
@@ -8,7 +7,7 @@ import type { AdminDemoReviewMap } from "./types";
 /** Display enrichment only, called after all canonical validation transactions finish. */
 export async function enrichAdminDemoReviewPersonas(reviews: AdminDemoReviewMap[]): Promise<void> {
   try {
-    const profiles = await loadOrFetchSteamProfiles(db, reviews.flatMap(review => review.participants.map(participant => participant.observedSteam64)));
+    const profiles = await loadOrFetchSteamProfiles(reviews.flatMap(review => review.participants.map(participant => participant.observedSteam64)));
     for (const review of reviews) for (const participant of review.participants) {
       const profile = profiles.get(participant.observedSteam64);
       if (profile) participant.observedSteamProfile = { personaName: profile.personaName, profileUrl: profile.profileUrl, avatarUrl: profile.avatarUrl };

@@ -88,13 +88,12 @@ export async function upsertSteamProfile(
  * Does NOT register Steam64s into periodic current-primary refresh.
  */
 export async function loadOrFetchSteamProfiles(
-  database: SteamProfileDatabase,
   steam64Values: readonly string[],
 ): Promise<Map<string, SteamProfileSummary>> {
   const values = [...new Set(steam64Values.filter((value) => /^\d{17}$/.test(value)))];
   if (values.length === 0) return new Map();
 
-  const cached = await loadSteamProfilesBySteam64(database, values);
+  const cached = await loadSteamProfilesBySteam64(db, values);
 
   const missing = values.filter((steam64) => !cached.has(steam64));
   if (missing.length === 0) return cached;
@@ -110,7 +109,7 @@ export async function loadOrFetchSteamProfiles(
 
   const fetchedProfiles = [...result.profiles.values()];
   const fetchedAt = new Date();
-  const changed = await database.insert(steamProfiles).values(fetchedProfiles.map((p) => ({
+  const changed = await db.insert(steamProfiles).values(fetchedProfiles.map((p) => ({
     steam64: p.steam64,
     personaName: p.personaName,
     profileUrl: p.profileUrl,
@@ -129,6 +128,14 @@ export async function loadOrFetchSteamProfiles(
   // This owner is also used while rendering the admin workbench. Invalidate
   // after the response rather than invoking revalidateTag during render.
   if (changed.length > 0) after(() => revalidatePublicStatsTag("identity"));
+  // A concurrent insert may have already stored identical display fields.
+  // Preserve the successful fetch time without counting it as a display change.
+  const changedIds = new Set(changed.map((row) => row.steam64));
+  const unchangedIds = fetchedProfiles.map((profile) => profile.steam64).filter((id) => !changedIds.has(id));
+  if (unchangedIds.length > 0) {
+    await db.update(steamProfiles).set({ fetchedAt: sql`greatest(${steamProfiles.fetchedAt}, ${fetchedAt})` })
+      .where(inArray(steamProfiles.steam64, unchangedIds));
+  }
   for (const profile of fetchedProfiles) cached.set(profile.steam64, profile);
   return cached;
 }

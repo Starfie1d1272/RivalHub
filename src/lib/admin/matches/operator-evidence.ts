@@ -27,7 +27,7 @@ export async function loadOperatorEvidence(seasonId: string, matchId: string, se
   if (!row || !meta) return null;
   const difference = lineupDifferenceSchema.safeParse(meta.lineupDifference).data;
   const ids = difference ? [...difference.missing.flatMap(player => player.steam64 ? [player.steam64] : []), ...difference.unexpected, ...difference.duplicated] : [];
-  const profiles = await loadOrFetchSteamProfiles(db, ids);
+  const profiles = await loadOrFetchSteamProfiles(ids);
   const playerIdentity = (steam64: string | null, fallback = "待识别玩家") => ({
     steam64,
     name: (steam64 && profiles.get(steam64)?.personaName) || fallback,
