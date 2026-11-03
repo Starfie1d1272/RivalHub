@@ -14,7 +14,7 @@ import type { LineupStyleMember } from "./lineup-style";
 async function getCareerAttributes(playerIds: string[]) {
   "use cache: remote";
   cacheTag(PUBLIC_STATS_TAG);
-  cacheLife({ stale: 60, revalidate: 3600, expire: 86400 });
+  cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
   return observeStatsCacheFill("lineup.style", () => observePublicStatsFill("stats.lineup", () => preservePublicStatsDependencyFailure(async () => {
   const [careers, benchmark] = await Promise.all([getPlayerCareerPerformances(playerIds), getPlayerAttributeBenchmark()]);
   return careers.map(({ playerId, maps, rounds, performance }) => ({

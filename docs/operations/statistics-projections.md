@@ -127,8 +127,9 @@ benchmarks share the semantic public-statistics tag. Authorized draft queries an
 viewer membership/invitation state bypass public caches. Mutations expire the tag
 immediately: Server Actions use `updateTag`, HTTP entrypoints use
 `revalidateTag(tag, { expire: 0 })`. General metadata may retain its existing SWR
-policy. Platform aggregates and the official map catalog do not refresh on a
-timer; fixed-cutoff and rolling lineup comparisons follow the same policy. A future
+policy. Public tournament, match, career, benchmark and lineup-style results,
+platform aggregates and the official map catalog do not refresh on a timer;
+fixed-cutoff and rolling lineup comparisons follow the same policy. A future
 completion timestamp crossing the rolling cutoff may not be reflected until the
 next tagged write, eviction, or cold cache. A failed post-commit tag update can leave
 business statistics or an old public attribution stale until a later successful
