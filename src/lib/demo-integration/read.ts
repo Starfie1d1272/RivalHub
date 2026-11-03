@@ -2,7 +2,7 @@ import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { canConfirmMapScoreboard } from "@/lib/matches/map-scoreboard";
 import "server-only";
 
-import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -31,7 +31,7 @@ import { pairingCanReadSeason } from "./pairing";
 import { demoImportMetadataSelection, type DemoImportMetadata } from "./metadata";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
 import { projectStage, projectOfficialStage } from "./stage-projection";
-import { dakSemanticProfileIssueMessage, isCurrentDakSemanticProfile } from "./semantic-profile";
+import { CURRENT_DAK_SEMANTIC_PROFILE, dakSemanticProfileIssueMessage, isCurrentDakSemanticProfile } from "./semantic-profile";
 import type {
   IntegrationIssue,
   RivalHubEventsResponse,
@@ -250,8 +250,20 @@ export async function readRivalHubEvents(
     ? await db.select().from(matchVetoSteps).where(inArray(matchVetoSteps.matchId, matchIds)).orderBy(asc(matchVetoSteps.stepOrder))
     : [];
   const matchRosterRows = await loadEffectiveMatchRoster(db, matchIds);
+  // Keep every timestamp tie: the existing createdAt-only ordering leaves ties
+  // unordered, and each of these three independent candidates can affect output.
+  const importHistory = db.select({
+    ...demoImportMetadataSelection,
+    latestCurrentAt: sql<Date | null>`max(${matchDemoImports.createdAt}) filter (where ${matchDemoImports.semanticProfile} = ${CURRENT_DAK_SEMANTIC_PROFILE} and ${matchDemoImports.status} <> 'superseded') over (partition by ${matchDemoImports.matchMapId})`.as("latest_current_at"),
+    latestNonCanonicalAt: sql<Date | null>`max(${matchDemoImports.createdAt}) filter (where ${matchDemoImports.semanticProfile} <> ${CURRENT_DAK_SEMANTIC_PROFILE} and ${matchDemoImports.status} <> 'superseded') over (partition by ${matchDemoImports.matchMapId})`.as("latest_noncanonical_at"),
+    latestConfirmedAt: sql<Date | null>`max(${matchDemoImports.createdAt}) filter (where ${matchDemoImports.semanticProfile} = ${CURRENT_DAK_SEMANTIC_PROFILE} and ${matchDemoImports.status} = 'confirmed') over (partition by ${matchDemoImports.matchMapId})`.as("latest_confirmed_at"),
+  }).from(matchDemoImports).where(inArray(matchDemoImports.matchMapId, mapRows.map((map) => map.id))).as("import_history");
   const importRows = mapRows.length > 0
-    ? await db.select(demoImportMetadataSelection).from(matchDemoImports).where(inArray(matchDemoImports.matchMapId, mapRows.map((map) => map.id))).orderBy(desc(matchDemoImports.createdAt))
+    ? await db.select().from(importHistory).where(or(
+      and(eq(importHistory.semanticProfile, CURRENT_DAK_SEMANTIC_PROFILE), sql`${importHistory.status} <> 'superseded'`, eq(importHistory.createdAt, importHistory.latestCurrentAt)),
+      and(sql`${importHistory.semanticProfile} <> ${CURRENT_DAK_SEMANTIC_PROFILE}`, sql`${importHistory.status} <> 'superseded'`, eq(importHistory.createdAt, importHistory.latestNonCanonicalAt)),
+      and(eq(importHistory.semanticProfile, CURRENT_DAK_SEMANTIC_PROFILE), eq(importHistory.status, "confirmed"), eq(importHistory.createdAt, importHistory.latestConfirmedAt)),
+    )).orderBy(desc(importHistory.createdAt))
     : [];
 
   const importsByMap = new Map<string, Array<DemoImportMetadata>>();
