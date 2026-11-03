@@ -15,7 +15,7 @@ import type { PublicScheduleMatch } from "./schedule-read";
 import { buildQualificationSwissMatchRecord, buildQualificationSwissReadModel } from "@/lib/competition-qualification/presentation";
 
 export async function loadQualificationSwissStageReadModel(seasonId: string, supplied?: {
-  run: CompetitionQualificationRun;
+  run: Pick<CompetitionQualificationRun, "id" | "seasonId" | "format" | "directEntryCount">;
   displayedMatches: readonly (PublicScheduleMatch & { displayScore: import("./display-score").DisplayScore })[];
 }) {
   const run = supplied ? supplied.run : (await db.select().from(competitionQualificationRuns)
