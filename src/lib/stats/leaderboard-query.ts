@@ -116,6 +116,18 @@ function buildStatsLeaderboardQuery(
   const weExpr     = simpleAvg("mps.we");
   const kdExpr     = ratioOfSums("mps.kills", "mps.deaths");
 
+  const mapFilter = scope.mapFilter ? sql`AND mm.map_name = ${scope.mapFilter}` : sql``;
+  const teamFilter = scope.teamFilter ? sql`AND entrant.id = ${scope.teamFilter}` : sql``;
+  const userFilter = options.userId ? sql`AND mps.user_id = ${options.userId}` : sql``;
+  const rosterMatchFilter = options.requireRosterMatch ? sql`AND lineup.entry_id IS NOT NULL` : sql``;
+  const currentImportFilter = currentImportIds.length ? sql`mps.dak_import_id IN (${sql.join(currentImportIds.map((id) => sql`${id}`), sql`, `)})` : sql`false`;
+  const importFilter = options.requireCurrentImports
+    ? currentImportFilter
+    : sql`(mps.dak_import_id IS NULL OR ${currentImportFilter})`;
+  const seasonFilter = scope.seasonId ? sql`AND m.season_id = ${scope.seasonId}` : sql``;
+  const matchFilter = scope.matchIds ? scope.matchIds.length ? sql`AND m.id IN (${sql.join(scope.matchIds.map((id) => sql`${id}`), sql`, `)})` : sql`AND false` : sql``;
+  const stageFilter = scope.stage ? sql`AND m.stage = ${scope.stage}` : sql``;
+  const formatFilter = scope.format ? sql`AND m.format = ${scope.format}` : sql``;
   const mapName = options.groupByMap ? sql`mm.map_name AS map_name,` : sql`NULL::text AS map_name,`;
   const mapGroup = options.groupByMap ? sql`, mm.map_name` : sql``;
   const teamColumns = options.groupByTeam === false
@@ -162,32 +174,6 @@ function buildStatsLeaderboardQuery(
       ${perRound("mps.first_deaths")} AS fdpr,
       ${perRound("mps.trade_kills")} AS trade_kpr,
       ${perRound("mps.kast_rounds")} AS kast
-    ${buildStatsLeaderboardSource(scope, currentImportIds, roster, options)}
-    GROUP BY ${grouping}
-    ORDER BY mps.user_id ${teamOrder} ${options.groupByMap ? sql`, mm.map_name` : sql``}
-  `;
-}
-
-
-/** Shared fact filters for the detailed leaderboard. */
-function buildStatsLeaderboardSource(
-  scope: StatsLeaderboardFilters, currentImportIds: string[],
-  roster: readonly Pick<EffectiveMatchRosterIdentity, "matchId" | "userId" | "entryId">[],
-  options: StatsLeaderboardOptions,
-) {
-  const mapFilter = scope.mapFilter ? sql`AND mm.map_name = ${scope.mapFilter}` : sql``;
-  const teamFilter = scope.teamFilter ? sql`AND entrant.id = ${scope.teamFilter}` : sql``;
-  const userFilter = options.userId ? sql`AND mps.user_id = ${options.userId}` : sql``;
-  const rosterMatchFilter = options.requireRosterMatch ? sql`AND lineup.entry_id IS NOT NULL` : sql``;
-  const currentImportFilter = currentImportIds.length ? sql`mps.dak_import_id IN (${sql.join(currentImportIds.map((id) => sql`${id}`), sql`, `)})` : sql`false`;
-  const importFilter = options.requireCurrentImports
-    ? currentImportFilter
-    : sql`(mps.dak_import_id IS NULL OR ${currentImportFilter})`;
-  const seasonFilter = scope.seasonId ? sql`AND m.season_id = ${scope.seasonId}` : sql``;
-  const matchFilter = scope.matchIds ? scope.matchIds.length ? sql`AND m.id IN (${sql.join(scope.matchIds.map((id) => sql`${id}`), sql`, `)})` : sql`AND false` : sql``;
-  const stageFilter = scope.stage ? sql`AND m.stage = ${scope.stage}` : sql``;
-  const formatFilter = scope.format ? sql`AND m.format = ${scope.format}` : sql``;
-  return sql`
     FROM match_player_stats mps
     JOIN matches m ON m.id = mps.match_id
     JOIN match_maps mm ON mm.id = mps.map_id
@@ -211,8 +197,11 @@ function buildStatsLeaderboardSource(
       ${teamFilter}
       ${userFilter}
       ${rosterMatchFilter}
+    GROUP BY ${grouping}
+    ORDER BY mps.user_id ${teamOrder} ${options.groupByMap ? sql`, mm.map_name` : sql``}
   `;
 }
+
 
 /** Combine the already-confirmed per-map scoreboard facts for the whole population. */
 export async function getLineupStatsPopulation(matchId: string, before: Date, database: DB | TxDb) {
