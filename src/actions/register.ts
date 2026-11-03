@@ -3,7 +3,7 @@
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import { revalidatePath } from "next/cache";
-import { and, count, eq, ne } from "drizzle-orm";
+import { and, count, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { users, seasons, seasonRegistrations, registrationDrafts } from "@/db/schema";
@@ -404,16 +404,16 @@ export async function submitRegistration(input: RegistrationFormData) {
   }
 }
 
-/**
- * 查询某赛季各位置当前报名人数
- */
-export async function getPositionCounts(
-  seasonId: string
-): Promise<Record<string, number>> {
+/** 查询某赛季各位置报名人数及已通过总数。 */
+export async function getRegistrationCounts(seasonId: string): Promise<{
+  positionCounts: Record<string, number>;
+  approvedCount: number;
+}> {
   const rows = await db
     .select({
       position: seasonRegistrations.primaryPosition,
       count: count(),
+      approvedCount: sql<string>`count(*) filter (where ${seasonRegistrations.status} = 'approved')`,
     })
     .from(seasonRegistrations)
     .where(
@@ -424,18 +424,8 @@ export async function getPositionCounts(
     )
     .groupBy(seasonRegistrations.primaryPosition);
 
-  return Object.fromEntries(rows.map((r) => [r.position, Number(r.count)]));
-}
-
-export async function getApprovedCount(seasonId: string): Promise<number> {
-  const [row] = await db
-    .select({ count: count() })
-    .from(seasonRegistrations)
-    .where(
-      and(
-        eq(seasonRegistrations.seasonId, seasonId),
-        eq(seasonRegistrations.status, "approved"),
-      ),
-    );
-  return Number(row?.count ?? 0);
+  return {
+    positionCounts: Object.fromEntries(rows.map((row) => [row.position, Number(row.count)])),
+    approvedCount: Number(rows.reduce((total, row) => total + BigInt(row.approvedCount), BigInt(0))),
+  };
 }
