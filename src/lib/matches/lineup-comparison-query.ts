@@ -37,7 +37,7 @@ async function readLineupPopulation(matchId: string, before: Date, database: DB,
         return hit.value;
       }
     }
-    const population = await observeStatsCacheFill(family, () => observePublicStatsFill("stats.lineup", () => getLineupStatsPopulation(selection.currentImportIds, selection.roster, tx)));
+    const population = await observeStatsCacheFill(family, () => getLineupStatsPopulation(selection.currentImportIds, selection.roster, tx));
     const { ranked } = partitionRankingPopulation(population, (row) => row.avgRating, (row) => row.rounds);
     const qualified = new Set(ranked.map((row) => row.userId));
     const result = population.filter((row) => row.userId).map((row) => ({
@@ -82,12 +82,14 @@ export async function getLineupCareers(playerIds: string[], matchId: string, cut
   recordStatsCache(cutoff ? "lineup.historical" : "lineup.realtime", "readCalls");
   const before = cutoff ? new Date(cutoff) : new Date();
   const family = cutoff ? "lineup.historical" : "lineup.realtime";
-  let population: LineupCareer[];
-  try { population = await readLineupPopulation(matchId, before, db, true, family); }
-  catch (error) {
-    if (!(error instanceof FingerprintUnavailable)) throw error;
-    // A failed SQL statement aborts its transaction. Retry uncached in a fresh snapshot.
-    population = await readLineupPopulation(matchId, before, db, false, family);
-  }
-  return projectLineupCareers(population, playerIds);
+  return observePublicStatsFill("stats.lineup", async () => {
+    let population: LineupCareer[];
+    try { population = await readLineupPopulation(matchId, before, db, true, family); }
+    catch (error) {
+      if (!(error instanceof FingerprintUnavailable)) throw error;
+      // A failed SQL statement aborts its transaction. Retry uncached in a fresh snapshot.
+      population = await readLineupPopulation(matchId, before, db, false, family);
+    }
+    return projectLineupCareers(population, playerIds);
+  });
 }
