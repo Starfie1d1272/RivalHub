@@ -2,4 +2,4 @@
 "rivalhub": patch
 ---
 
-Keep public prediction aggregates cached until their inputs change.
+竞猜积分池和免费预测支持率在数据变化时更新，减少重复读取。
