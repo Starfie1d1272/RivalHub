@@ -12,6 +12,8 @@
 | 进行中 BP 房间 | 无跨请求共享 room cache；no-store transport | fresh 权限、DB 时钟、revision、实际 lineup 与命令状态 |
 | 公共玩家基础资料 | public player tag；统计支路使用统计安全 tag | viewer overlay、资格与当前身份授权 |
 
+阵容 comparison 保持外层 remote tag 与原历史/实时 TTL。每次 remote fill 在只读 repeatable-read 快照中校验统计输入的保守超集指纹，匹配时复用本进程有界人口结果；未匹配时在同一快照完整执行既有 selection 和聚合。指纹失败时丢弃该事务，在新快照走原有无缓存路径。进程重启或淘汰后重新填充，不承诺跨进程持久化；保守超集可能因无关输入变化重算。该路径每次 fill 增加数据库扫描和哈希，净流量与 CPU 成本应按真实负载测量，不能以 remote fill 计数推算内容命中率。
+
 不按页面名称推断依赖：统计中的 veto reader 限定 finished；BET 公共 snapshot 则确实消费进行中 BP 的支持率和市场事实。lineup/appeal 等已证明无地图目录变化的 BP 变化豁免历史统计重建时，BET tag 仍必须立即过期。`veto` 旧 receipt 同时包含普通步骤与 map-plan 完成/重建；后者改变 scheduled/in_progress 地图目录及统计 selection/options，因此仍走宽失效。只有 locks canonical owner 明确产生的 veto_step 表示普通非地图计划步骤；map_plan、旧 veto 和未知事实始终宽失效，混合事实采用并集，不能用不存在 map_plan 来推断旧 veto 等同 veto_step。不能仅凭 finished veto reader 推断全部统计消费者只依赖完赛事实。
 
 ## Mutation 合同
