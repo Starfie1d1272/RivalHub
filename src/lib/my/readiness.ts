@@ -26,6 +26,7 @@ import {
   projectParticipantQualificationFacts,
   type ParticipantQualificationRawBundle,
   type ParticipantQualificationFacts,
+  type ParticipantQualificationUserRow,
 } from "@/lib/qualification/service";
 import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 
@@ -383,9 +384,9 @@ function loadCompetitiveProfileSources(
  * select a live event catalog or simulate a Major qualification decision.
  * Event-specific qualification remains owned by the entry/event views.
  */
-export async function loadSettingsProfileReadiness(userId: string): Promise<SettingsProfileReadiness> {
+export async function loadSettingsProfileReadiness(userId: string, userRows: ParticipantQualificationUserRow[]): Promise<SettingsProfileReadiness> {
   const [bundle, catalog] = await Promise.all([
-    loadParticipantQualificationRawBundle([userId]),
+    loadParticipantQualificationRawBundle([userId], { userRows }),
     getPublicCompetitiveCatalog(),
   ]);
   const baseFact = projectParticipantQualificationFacts(bundle).get(userId) ?? null;
