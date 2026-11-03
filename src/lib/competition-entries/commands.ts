@@ -42,6 +42,7 @@ import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { canMutateCompetitionEntryRoster } from "@/lib/competition-entries/remediation";
+import { retireDraftRosterMemberInTx } from "@/lib/event-rosters/draft";
 import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entries/roster-change";
 import { copyRosterPositionsToRevisionInTx, rosterPositionSql } from "@/lib/competition-entries/roster-position";
 import { normalizeTeamRegistrationConfig, resolveQualificationPolicy } from "@/lib/seasons/compatibility";
@@ -531,6 +532,7 @@ export async function withdrawCompetitionEntryParticipationInTx(tx: TxDb, input:
   await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.participantId, participant.id));
   const now = new Date();
   await tx.update(competitionEntryParticipants).set({ status: "withdrawn", withdrawnAt: now, updatedAt: now }).where(eq(competitionEntryParticipants.id, participant.id));
+  await retireDraftRosterMemberInTx(tx, entry.id, participant.id);
   if (selfRosterChangeRevisionId) {
     await tx.delete(competitionEntryRosterMembers).where(and(
       eq(competitionEntryRosterMembers.revisionId, selfRosterChangeRevisionId),
@@ -560,6 +562,7 @@ export async function declineCompetitionEntryParticipationInTx(tx: TxDb, input: 
   const season = await loadSeasonOrThrow(tx, entry.competitionId);
   if (entry.source === "event_native" && revision.origin !== "initial" && ((revision.origin === "self_roster_change" && decodeSeasonRules(season).roster.changes?.selfServiceAfterApproval === false) || !canChangeApprovedFormationRoster(season, { source: entry.source, policyV2: decodeSeasonRules(season).source === "policy_v2" }, revision.origin === "admin_remediation" ? "admin" : "self") || !await canSelfAdjustMajorRosterInTx(tx, season, entry.id))) throw new AppError(ErrorCode.REGISTRATION_CLOSED, "名单调整窗口当前不可用；请联系赛事管理员。");
   await tx.update(competitionEntryParticipants).set({ status: "declined", updatedAt: new Date() }).where(eq(competitionEntryParticipants.id, participant.id));
+  await retireDraftRosterMemberInTx(tx, entry.id, participant.id);
   await auditEntry(tx, { action: "competition_entry.participant.decline", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: participant.id, userId: input.userId } });
   return { seasonSlug: (await loadSeasonOrThrow(tx, entry.competitionId)).slug };
 }

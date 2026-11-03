@@ -5,6 +5,7 @@ import {
   draftState,
   draftPicks,
   competitionEntries,
+  competitionEntryParticipants,
   competitionEntryRosterRevisions,
   competitionEntryRosterMembers,
   seasonRegistrations,
@@ -201,8 +202,6 @@ interface DraftBaseData {
   totalPicks: number;
   maxPicks: number;
   positionLimit: number;
-  pickedRegistrationIds: Set<string>;
-  captainRegistrationIds: Set<string>;
   occupiedRegistrationIds: Set<string>;
 }
 
@@ -285,22 +284,19 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
           .from(competitionEntries)
           .innerJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
           .innerJoin(competitionEntryRosterMembers, eq(competitionEntryRosterMembers.revisionId, competitionEntryRosterRevisions.id))
+          .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
           .innerJoin(seasonRegistrations, and(
             eq(competitionEntryRosterMembers.userId, seasonRegistrations.userId),
             eq(seasonRegistrations.seasonId, seasonId),
           ))
           .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
           .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-          .where(inArray(competitionEntries.id, entryIds))
+          .where(and(inArray(competitionEntries.id, entryIds), inArray(competitionEntryParticipants.status, ["invited", "confirmed"])))
       : [];
 
   const pickRows = parallel ? parallel[2] : await pickQuery;
 
   const occupiedRegistrationIds = new Set(await loadOccupiedDraftRegistrationIds(executor, seasonId));
-  const pickedRegistrationIds = new Set(pickRows.map((pick) => pick.registrationId));
-  const captainRegistrationIds = new Set(
-    teamRows.map((team) => team.captainRegistrationId),
-  );
 
   const membersByTeam = new Map<string, typeof allMembers>();
   for (const member of allMembers) {
@@ -311,7 +307,7 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
 
   const picksByRegistrationId = new Map<string, (typeof pickRows)[number]>();
   for (const pick of pickRows) {
-    picksByRegistrationId.set(pick.registrationId, pick);
+    picksByRegistrationId.set(`${pick.entryId}:${pick.registrationId}`, pick);
   }
 
   const draftTeams: DraftTeamSlot[] = teamRows.map((team) => {
@@ -322,7 +318,7 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
     const draftedMembers = teamMembersList
       .filter((member) => member.registrationId !== team.captainRegistrationId)
       .map((member) => {
-        const pick = picksByRegistrationId.get(member.registrationId);
+        const pick = picksByRegistrationId.get(`${team.id}:${member.registrationId}`);
         return {
           userId: member.userId,
           personaName: member.personaName ?? null,
@@ -386,14 +382,12 @@ async function loadDraftBase(seasonId: string, executor: Pick<DB, "select" | "qu
     totalPicks: pickRows.length,
     maxPicks,
     positionLimit: rules.source === "policy_v2" ? rules.roster.maxPerPositionPerTeam : 2,
-    pickedRegistrationIds,
-    captainRegistrationIds,
     occupiedRegistrationIds,
   };
 }
 
 function remainingRegistrationIds(base: DraftBaseData): string[] {
-  return [...new Set([...base.pickedRegistrationIds, ...base.captainRegistrationIds, ...base.occupiedRegistrationIds])];
+  return [...new Set([...base.occupiedRegistrationIds])];
 }
 
 async function loadPublicRemainingPlayers(

@@ -71,9 +71,7 @@ export async function skipDraftTurn(
 
   try {
     const result = await db.transaction(async (tx) => {
-      const season = await tx.query.seasons.findFirst({
-        where: eq(seasons.id, parsed.data.seasonId),
-      });
+      const [season] = await tx.select().from(seasons).where(eq(seasons.id, parsed.data.seasonId)).for("no key update");
       if (!season) {
         throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
       }
