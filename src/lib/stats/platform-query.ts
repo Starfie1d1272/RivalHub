@@ -11,7 +11,7 @@ import { db } from "@/db/client";
 import { competitionEntries, matchMaps, matchVetoSteps, matches, seasons } from "@/db/schema";
 import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
 import { PUBLIC_SEASON_CATALOG_TAG, PUBLIC_STATS_TAG } from "@/lib/cache/tags";
-import { AppError, ErrorCode } from "@/lib/errors";
+import { AppError, ErrorCode, isAppErrorCode } from "@/lib/errors";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import { INSIGHT_RULES_VERSION } from "./insights";
@@ -47,13 +47,36 @@ async function cachedPlatformStats(scope: PlatformStatsScope, versions: string) 
   void versions;
   return observeStatsCacheFill("platform", () => observePublicStatsFill("stats.platform", () => preservePublicStatsDependencyFailure(() => getTournamentStats(scope))));
 }
+const RECORD_EVENT_NOT_FOUND_DIGEST = "RIVALHUB_RECORD_EVENT_NOT_FOUND_V1";
+
 // Only the platform page calls this, after fresh public membership validation.
 async function cachedPublicRecordEvents(scope: PlatformStatsScope, filter: Parameters<typeof getTournamentRecordEvents>[1], version: string) {
   "use cache: remote";
   cacheTag(PUBLIC_STATS_TAG);
   cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
   void version;
-  return preservePublicStatsDependencyFailure(() => getTournamentRecordEvents(scope, filter));
+  return preservePublicStatsDependencyFailure(async () => {
+    try {
+      return await getTournamentRecordEvents(scope, filter);
+    } catch (error) {
+      // Flight preserves a digest but strips AppError's code and prototype.
+      if (isAppErrorCode(error, ErrorCode.NOT_FOUND)) {
+        throw Object.assign(new Error("Record event scope unavailable."), { digest: RECORD_EVENT_NOT_FOUND_DIGEST });
+      }
+      throw error;
+    }
+  });
+}
+
+async function getCachedPublicRecordEvents(scope: PlatformStatsScope, filter: Parameters<typeof getTournamentRecordEvents>[1]) {
+  try {
+    return await cachedPublicRecordEvents(scope, filter, STATISTICS_PROJECTION_VERSION);
+  } catch (error) {
+    if (error instanceof Error && "digest" in error && error.digest === RECORD_EVENT_NOT_FOUND_DIGEST) {
+      throw new AppError(ErrorCode.NOT_FOUND, "事件范围不可用。");
+    }
+    throw error;
+  }
 }
 
 export async function getPlatformStatsPage(raw: StatsSearch) {
@@ -107,11 +130,11 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
     const filter = { eventType: query.eventType || undefined, eventWeapon: query.eventWeapon || undefined, eventPage: query.eventPage };
     // Only cache weapon filters present in the data, not arbitrary user input.
     const available = filter.eventWeapon
-      ? await cachedPublicRecordEvents(scope, { eventType: filter.eventType, eventWeapon: undefined, eventPage: 1 }, STATISTICS_PROJECTION_VERSION)
+      ? await getCachedPublicRecordEvents(scope, { eventType: filter.eventType, eventWeapon: undefined, eventPage: 1 })
       : undefined;
     const recordEvents = available && !available.weapons.includes(filter.eventWeapon!)
       ? await getTournamentRecordEvents(scope, filter)
-      : await cachedPublicRecordEvents(scope, filter, STATISTICS_PROJECTION_VERSION);
+      : await getCachedPublicRecordEvents(scope, filter);
     data = { ...data, recordEvents };
   }
   return { data: publicStatsView(data, query), query, event, stages, maps: allowedMaps, events: events.map(({ id, slug, name, status }) => ({ slug, name, status, maps: [...new Set(maps.filter((m) => m.seasonId === id).map((m) => m.name))].sort() })) };
