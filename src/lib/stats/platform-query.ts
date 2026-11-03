@@ -10,7 +10,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { db } from "@/db/client";
 import { competitionEntries, matchMaps, matchVetoSteps, matches, seasons } from "@/db/schema";
 import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
-import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
+import { PUBLIC_SEASON_CATALOG_TAG, PUBLIC_STATS_TAG } from "@/lib/cache/tags";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
@@ -33,6 +33,13 @@ export async function getOfficialStatsMapCatalog(seasonIds: string[]) {
     .union(db.selectDistinct({ name: matchVetoSteps.mapName, seasonId: matches.seasonId }).from(matchVetoSteps)
     .innerJoin(matches, eq(matches.id, matchVetoSteps.matchId)).where(and(officialMatchCondition(), inArray(matches.seasonId, seasonIds))));
 }
+async function cachedOfficialStatsMapCatalog(seasonIds: string[]) {
+  "use cache: remote";
+  // Veto-only updates invalidate the season catalog without invalidating statistics.
+  cacheTag(PUBLIC_STATS_TAG, PUBLIC_SEASON_CATALOG_TAG);
+  cacheLife({ stale: 60, revalidate: 2592000, expire: 31536000 });
+  return getOfficialStatsMapCatalog(seasonIds);
+}
 async function cachedPlatformStats(scope: PlatformStatsScope, versions: string) {
   "use cache: remote";
   cacheTag(PUBLIC_STATS_TAG);
@@ -54,7 +61,7 @@ export async function getPlatformStatsPage(raw: StatsSearch) {
   if (raw.format && !["bo1", "bo3", "bo5"].includes(raw.format as string)) throw new AppError(ErrorCode.NOT_FOUND, "赛制范围不可用。");
   const [stages, maps] = await Promise.all([
     event ? getPublicSeasonStagePresentation(event).then(presentation => presentation.officialStages.map(({ key, name }) => ({ key, name }))) : Promise.resolve([]),
-    getOfficialStatsMapCatalog(events.map(e => e.id)),
+    cachedOfficialStatsMapCatalog(events.map(e => e.id)),
   ]);
   const query = parseStatsQuery(raw, stages.map((s) => s.key));
   if ((!event && (raw.stage || raw.teamFilter)) || query.stage === "__invalid__" || query.mapFilter === "__invalid__") throw new AppError(ErrorCode.NOT_FOUND, "统计范围不可用。");
