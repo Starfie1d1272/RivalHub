@@ -181,7 +181,7 @@ export async function getTeamRegistrationReview(
     ? [sql`${competitionEntries.submittedAt} ASC NULLS LAST`, asc(competitionEntries.id)]
     : [desc(competitionEntries.updatedAt), desc(competitionEntries.id)];
 
-  const [entries, [datasetCount], [reviewQueueCount]] = await Promise.all([
+  const [entries, [reviewQueueCount]] = await Promise.all([
     db
       .select({
         id: competitionEntries.id,
@@ -209,12 +209,6 @@ export async function getTeamRegistrationReview(
       .leftJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
       .where(where)
       .orderBy(...orderBy),
-    db
-      .select({ count: count() })
-      .from(competitionEntries)
-      .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
-      .leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64))
-      .where(where),
     db
       .select({ count: count() })
       .from(competitionEntries)
@@ -253,7 +247,7 @@ export async function getTeamRegistrationReview(
     pageSize: TEAM_REGISTRATION_REVIEW_PAGE_SIZE,
     totalPages,
     normalizedQuery: { ...query, page },
-    hasAnyRecords: Number(reviewQueueCount?.count ?? datasetCount?.count ?? 0) > 0,
+    hasAnyRecords: Number(reviewQueueCount?.count ?? 0) > 0,
   };
 }
 
