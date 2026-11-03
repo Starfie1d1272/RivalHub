@@ -19,7 +19,6 @@ import {
   users,
 } from "@/db/schema";
 import { loadStageBracketViews, projectStageBracketNodes } from "@/lib/bracket";
-import { getMatchMapRoundScores } from "@/lib/data/standings";
 import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
 import { calculateStageRoundRobinStandings } from "@/lib/matches/stage-standings";
 import { buildStageViews } from "@/lib/matches/stage-views";
@@ -27,6 +26,7 @@ import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import type { MatchRoundScore } from "@/lib/standings";
 import { pairingCanReadSeason } from "./pairing";
 import { demoImportMetadataSelection, type DemoImportMetadata } from "./metadata";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
@@ -305,8 +305,17 @@ export async function readRivalHubEvents(
       const presentation = await getPublicSeasonStagePresentation(season);
       const stagePlan = presentation.officialStages.flatMap((stage) => stage.config ? [stage.config] : []);
       const { views: stageViews } = buildStageViews(stagePlan, seasonMatches.filter(match => !match.testConfig));
-      const [roundScoresByMatchId, bracketDataByStage, swissReadModels] = await Promise.all([
-        getMatchMapRoundScores(seasonMatches.filter((match) => match.status === "finished").map((match) => match.id)),
+      const roundScoresByMatchId = new Map<string, MatchRoundScore[]>();
+      for (const match of seasonMatches) {
+        if (match.status !== "finished") continue;
+        for (const map of mapsByMatch.get(match.id) ?? []) {
+          if (map.scoreA == null || map.scoreB == null) continue;
+          const scores = roundScoresByMatchId.get(match.id) ?? [];
+          scores.push({ scoreA: map.scoreA, scoreB: map.scoreB });
+          roundScoresByMatchId.set(match.id, scores);
+        }
+      }
+      const [bracketDataByStage, swissReadModels] = await Promise.all([
         loadStageBracketViews(db, season.id),
         Promise.all(stagePlan
           .filter((stage) => stage.type === "swiss")
