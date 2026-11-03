@@ -15,6 +15,7 @@ export interface StatsLeaderboardFilters {
   format?: "bo1" | "bo3" | "bo5";
   mapFilter?: string;
   teamFilter?: string;
+  teamSelections?: readonly { teamId: string; importIds: readonly string[] }[];
 }
 
 export interface StatsLeaderboardOptions {
@@ -117,7 +118,9 @@ function buildStatsLeaderboardQuery(
   const kdExpr     = ratioOfSums("mps.kills", "mps.deaths");
 
   const mapFilter = scope.mapFilter ? sql`AND mm.map_name = ${scope.mapFilter}` : sql``;
-  const teamFilter = scope.teamFilter ? sql`AND entrant.id = ${scope.teamFilter}` : sql``;
+  const teamFilter = scope.teamSelections ? scope.teamSelections.length ? sql`AND (${sql.join(scope.teamSelections.map(({ teamId, importIds }) => sql`
+    (entrant.id = ${teamId} AND entrant.id IN (m.entry_a_id, m.entry_b_id) AND (mps.dak_import_id IS NULL OR ${importIds.length ? sql`mps.dak_import_id IN (${sql.join(importIds.map((id) => sql`${id}`), sql`, `)})` : sql`false`}))`), sql` OR `)})` : sql`AND false`
+    : scope.teamFilter ? sql`AND entrant.id = ${scope.teamFilter}` : sql``;
   const userFilter = options.userId ? sql`AND mps.user_id = ${options.userId}` : sql``;
   const rosterMatchFilter = options.requireRosterMatch ? sql`AND lineup.entry_id IS NOT NULL` : sql``;
   const currentImportFilter = currentImportIds.length ? sql`mps.dak_import_id IN (${sql.join(currentImportIds.map((id) => sql`${id}`), sql`, `)})` : sql`false`;

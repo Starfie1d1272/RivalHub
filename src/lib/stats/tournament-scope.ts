@@ -15,7 +15,7 @@ import type { PlatformStatsScope as StatsEvidenceScope } from "./tournament-quer
 const statsMatchFields = {id:matches.id,seasonId:matches.seasonId,stage:matches.stage,round:matches.round,entryAId:matches.entryAId,entryBId:matches.entryBId,majorStageRunId:matches.majorStageRunId,status:matches.status,isForfeit:matches.isForfeit,testConfig:matches.testConfig,format:matches.format,scoreA:matches.scoreA,scoreB:matches.scoreB,completedAt:matches.completedAt};
 const statsMapFields = {id:matchMaps.id,matchId:matchMaps.matchId,mapOrder:matchMaps.mapOrder,mapName:matchMaps.mapName,scoreA:matchMaps.scoreA,scoreB:matchMaps.scoreB,completedAt:matchMaps.completedAt};
 
-export async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; matchIds?: readonly string[]; includeTestMatch?: boolean; effectiveRoster?: readonly EffectiveMatchRosterIdentity[]; skipLabels?: boolean; reuseVetoMatches?: boolean } = {}) {
+export async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, options: { mapName?: string; teamId?: string; teamIds?: readonly string[]; matchIds?: readonly string[]; includeTestMatch?: boolean; effectiveRoster?: readonly EffectiveMatchRosterIdentity[]; skipLabels?: boolean; reuseVetoMatches?: boolean } = {}) {
   const selectedMapRows = options.mapName && options.matchIds?.length !== 0
     ? await tx.select({ match: statsMatchFields, map: statsMapFields }).from(matchMaps).innerJoin(matches, eq(matches.id, matchMaps.matchId)).where(and(
       scope.seasonId ? eq(matches.seasonId, scope.seasonId) : scope.seasonIds ? inArray(matches.seasonId, scope.seasonIds) : undefined,
@@ -45,7 +45,9 @@ export async function loadStatsContext(tx: TxDb, scope: StatsEvidenceScope, opti
     : undefined;
   const selectedTeamId = options.teamId ?? scope.teamFilter;
   const baseMatches = matchRows.filter(isCompetitionMatch).filter(match => options.includeTestMatch || !match.testConfig);
-  const scopedMatches = baseMatches.filter((match) => !selectedTeamId || [match.entryAId, match.entryBId].includes(selectedTeamId));
+  const scopedMatches = baseMatches.filter((match) => options.teamIds
+    ? options.teamIds.some((teamId) => [match.entryAId, match.entryBId].includes(teamId))
+    : !selectedTeamId || [match.entryAId, match.entryBId].includes(selectedTeamId));
   const matchesById = new Map(scopedMatches.map((match) => [match.id, match]));
   const matchIds = scopedMatches.map((match) => match.id);
   const seasonIds = scope.seasonId ? [scope.seasonId] : [...new Set(scopedMatches.map((match) => match.seasonId))];

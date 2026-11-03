@@ -149,5 +149,5 @@ export async function loadStatsEvidenceSelection<T extends ProjectionTargets>(
   };
   for (const { key, text } of verifiedTexts) putPerformanceText(key, text);
   for (const { key, text } of verifiedTournamentTexts) putTournamentText(key, text);
-  return { ...context, selected, labels };
+  return { ...context, selected, labels, playerIdsByImport: new Map(refs.map(({ current, projection }) => [current.id, projection.identityBindings.map((binding) => binding.userId)])) };
 }
