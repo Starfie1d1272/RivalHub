@@ -30,18 +30,23 @@ export async function loadOperatorContext(input: {
   vetoComplete: boolean;
 }) {
   const { match, maps, roster } = input;
-  const [scoreboards, liveSession, swiss, qualification] = await Promise.all([
+  const qualificationRun = match.qualificationRunId ? db.query.competitionQualificationRuns.findFirst({
+    where: eq(competitionQualificationRuns.seasonId, match.seasonId),
+    columns: { id: true, seasonId: true, format: true, directEntryCount: true },
+  }) : Promise.resolve(null);
+  const [scoreboards, liveSession, swiss, run] = await Promise.all([
     maps.length ? db.select()
       .from(playerStats).where(inArray(playerStats.mapId, maps.map(map => map.id))) : Promise.resolve([]),
     db.query.matchLiveSessions.findFirst({
       where: and(eq(matchLiveSessions.matchId, match.id), isNull(matchLiveSessions.closedAt)),
       columns: { id: true, authorityRevision: true, programSourceGeneration: true, lastReliableSeq: true, currentMapId: true, mapExecutionPhase: true, mapEpoch: true, manualTakeoverMapEpoch: true, identityHealth: true, lineupHealth: true, continuityHealth: true, autoCanonicalizationArmed: true },
     }),
-    match.qualificationRunId ? loadQualificationSwissMatchRecord(match.seasonId, match.id)
+    match.qualificationRunId ? qualificationRun.then(run => loadQualificationSwissMatchRecord(match.seasonId, match.id, run ?? null))
       : input.isSwiss && match.ownership === "major_stage"
         ? loadMajorSwissMatchRecord(match.seasonId, match.stage, match.id) : Promise.resolve(null),
-    match.qualificationRunId ? db.query.competitionQualificationRuns.findFirst({ where: and(eq(competitionQualificationRuns.id, match.qualificationRunId), eq(competitionQualificationRuns.seasonId, match.seasonId)), columns: { format: true } }) : Promise.resolve(null),
+    qualificationRun,
   ]);
+  const qualification = run?.id === match.qualificationRunId ? run : null;
   const operatorMaps = projectOperatorMaps({ match, maps, imports: input.imports, roster, scoreboards });
   const workflow = projectOperatorWorkflow({
     source: liveSession,
