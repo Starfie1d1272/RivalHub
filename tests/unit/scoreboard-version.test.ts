@@ -29,3 +29,24 @@ it("binds receipt replay to map, operation, base version and canonical input", (
   expect(scoreboardPayloadDigest("map", "save", command, [{ userId: "user", ratingPro: 9 } as { userId: string }])).not.toBe(digest);
   expect(() => assertScoreboardVersion("current", "stale")).toThrow();
 });
+
+it("derives half and overtime scores only from a complete consistent round sequence", async () => {
+  const { getRoundSegments } = await import("@/lib/matches/round-segments");
+  const winners = ["teamA", "teamB", "teamA", "teamB", "teamA"];
+  let a = 0, b = 0;
+  const rounds = winners.map((winnerTeamKey, index) => {
+    const teamASide = index < 2 ? "ct" as const : "t" as const;
+    const fact = { roundSeq: index + 1, phase: index === 4 ? "overtime" as const : "regulation" as const,
+      teamASide, teamBSide: teamASide === "ct" ? "t" as const : "ct" as const,
+      teamAScoreBefore: a, teamBScoreBefore: b, winnerTeamKey };
+    if (winnerTeamKey === "teamA") a++; else b++;
+    return fact;
+  });
+  expect(getRoundSegments(rounds, 3, 2)).toEqual({
+    firstHalf: { scoreA: 1, scoreB: 1, sideA: "ct" },
+    secondHalf: { scoreA: 1, scoreB: 1, sideA: "t" }, overtime: { scoreA: 1, scoreB: 0 },
+  });
+  expect(getRoundSegments(rounds.slice(1), 3, 2)).toBeNull();
+  expect(getRoundSegments(rounds, 4, 2)).toBeNull();
+  expect(getRoundSegments(rounds.map((round, index) => index === 3 ? { ...round, teamASide: "ct" as const, teamBSide: "t" as const } : round), 3, 2)).toBeNull();
+});

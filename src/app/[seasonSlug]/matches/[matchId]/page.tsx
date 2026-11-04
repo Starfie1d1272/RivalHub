@@ -18,6 +18,7 @@ import { MatchContextRefresh } from "@/components/matches/MatchContextRefresh";
 import { MatchLiveProvider } from "@/components/matches/MatchLiveProvider";
 import { MatchRealtime } from "@/components/matches/MatchRealtime";
 import { MatchMapSequence } from "@/components/matches/MatchMapSequence";
+import { getMatchRoundSegments } from "@/lib/matches/round-segments-query";
 import { loadPublicMatchPhase } from "@/lib/matches/public-phase";
 import { readBilibiliRoom } from "@/lib/production/bilibili";
 import { MatchLiveViewing } from "@/components/matches/MatchLiveViewing";
@@ -255,6 +256,7 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
     userIdToMember.set(member.userId, member);
   }
 
+  const roundSegmentsRead = isFinished ? getMatchRoundSegments(match.id) : Promise.resolve({});
   const scoreboardRead = needScoreboard ? (async () => loadMatchScoreboard(match, maps, userIdToTeamId))() : Promise.resolve(null);
 
   // 队长 / 管理员权限检查
@@ -321,7 +323,7 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
   }[] = [];
   let summaryPlayers: SummaryPlayer[] = [];
 
-  const scoreboard = await scoreboardRead;
+  const [scoreboard, roundSegments] = await Promise.all([scoreboardRead, roundSegmentsRead]);
 
   summaryPlayers = scoreboard?.summaryPlayers ?? [];
   if (isFinished && scoreboard) {
@@ -464,7 +466,7 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
       )}
       <MatchLiveProvider matchId={match.id} eligible={afterVeto}>
       {(afterVeto || isFinished) && maps.length > 0 && <MatchMapSequence seasonSlug={seasonSlug}
-        maps={maps.map(map => ({ id: map.id, mapOrder: map.mapOrder, mapName: map.mapName, pickedByEntryId: map.pickedByEntryId, scoreA: map.scoreA, scoreB: map.scoreB, completedAt: map.completedAt?.toISOString() ?? null }))}
+        maps={maps.map(map => ({ id: map.id, mapOrder: map.mapOrder, mapName: map.mapName, pickedByEntryId: map.pickedByEntryId, scoreA: map.scoreA, scoreB: map.scoreB, completedAt: map.completedAt?.toISOString() ?? null, segments: roundSegments[map.id] }))}
         currentMapId={publicContext.currentMapId} entryAId={match.entryAId} entryBId={match.entryBId} phase={phase} seriesProgress={isFinished && match.scoreA !== null && match.scoreB !== null ? { scoreA: match.scoreA, scoreB: match.scoreB } : publicContext.seriesProgress}
         teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} finished={isFinished}
       />}
