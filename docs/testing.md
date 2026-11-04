@@ -86,6 +86,8 @@ PostgreSQL harness 按稳定 `VITEST_POOL_ID` 为并发槽位分配独立数据�
 
 Pure tests retain integer pool conservation, the first-match deadline, and one upstream-choice invalidation/input-immutability oracle. Real PostgreSQL retains submission versions, server locks, idempotency, concurrent ALL IN, append-only records, official settlement/reversal/debt, account merge blockers and public-data isolation. Major runtime regression is required when shared pairing helpers change. Required browsers protect submission, independent draft restoration, real PNG download and point transactions through Local Supabase on mobile; shared flows are not repeated on desktop. Production App Shell navigation covers both viewports. Exhaustive profile/bracket/slot judgement and unrelated-playoff-branch matrices have no permanent oracle; changes to those rules need focused evidence, and ordinary browser success must not be described as replacing those assertions.
 
+BET 六视图的匿名、未加入与已加入数据隔离及读取规则由真实 PostgreSQL 验证，不再保留开发模式的全矩阵浏览器重复回归。production smoke 保留 `open`、`mine`、`event` 三个不同公共缓存参数组合的匿名/已加入 cold、warm 与 tag invalidation API 快照，以及相应 RSC 成功响应，继续覆盖真实登录和领取积分交互。已登录但未加入，以及 `settled`、`leaderboard`、`records` 的 GET/RSC 运行态组合没有独立常驻浏览器证据；相关 transport 改动按需定向验证，不能用 PostgreSQL 或其余 production 用例声称等价覆盖。RSC 响应状态与类型检查不证明其载荷隐私，也不声称量化缓存命中或过期行为。
+
 ## Maintenance rules
 
 - 新增长期测试必须说明用户/业务/安全承诺、具体失败风险、为何现有证据不足以及为何选择该层。临时验证可以留在 PR 证据中，不机械地为每个函数、组件或改动留下长期测试。
@@ -116,4 +118,4 @@ Pure tests retain integer pool conservation, the first-match deadline, and one u
 
 正式赛/测试赛及赛事阶段的 token 准入矩阵由 `tests/integration/db/test-matches.test.ts` 调用真实 `issueLiveViewerToken` 查询 PostgreSQL 承接；provider contract 使用报名阶段已启动的官方 Play-in 本地事实，证明 viewer 查询、有效上传、真实 private Broadcast 及跨场/写入隔离；通常 playing 准入由 PostgreSQL 矩阵继续覆盖。
 
-CI 使用固定 Supabase CLI 版本提供的官方 slim 镜像（对应相同上游服务版本），Kong 使用其官方 Docker Hub 上游镜像。CLI 镜像预拉取耗尽内部重试且明确返回 registry 限流时，启动入口最多再恢复两次并复用已下载镜像层；其它错误直接失败，所有尝试仍受原180秒实际执行截止约束。生产烟测按视口、BET读取按视图分片，覆盖集合保持完整且各执行一次。每次新建数据库、重放迁移并执行健康检查与 provider contract；不保存数据库或 Docker image tar 缓存。大镜像 tar 的远端加载实测比正常拉取更慢，已移除。
+CI 使用固定 Supabase CLI 版本提供的官方 slim 镜像（对应相同上游服务版本），Kong 使用其官方 Docker Hub 上游镜像。CLI 镜像预拉取耗尽内部重试且明确返回 registry 限流时，启动入口最多再恢复两次并复用已下载镜像层；其它错误直接失败，所有尝试仍受原180秒实际执行截止约束。生产烟测按视口分片。每次新建数据库、重放迁移并执行健康检查与 provider contract；不保存数据库或 Docker image tar 缓存。大镜像 tar 的远端加载实测比正常拉取更慢，已移除。
