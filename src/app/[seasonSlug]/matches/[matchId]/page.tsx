@@ -463,6 +463,7 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
         maps={maps.map(map => ({ id: map.id, mapOrder: map.mapOrder, mapName: map.mapName, pickedByEntryId: map.pickedByEntryId, scoreA: map.scoreA, scoreB: map.scoreB, completedAt: map.completedAt?.toISOString() ?? null, segments: roundSegments[map.id] }))}
         currentMapId={publicContext.currentMapId} entryAId={match.entryAId} entryBId={match.entryBId} phase={phase} seriesProgress={isFinished && match.scoreA !== null && match.scoreB !== null ? { scoreA: match.scoreA, scoreB: match.scoreB } : publicContext.seriesProgress}
         teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"} finished={isFinished}
+        teamALogoUrl={teamA?.logoUrl ?? null} teamBLogoUrl={teamB?.logoUrl ?? null}
       />}
       {(afterVeto || isFinished) && (maps.length > 0 || hasReplay) && (
         <div className="flex flex-wrap items-start gap-3">

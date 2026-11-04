@@ -66,9 +66,9 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
   });
   return <PageLayout variant="standard" className="space-y-6">
     <StatsReturnLink href={fromStats} />
+    <PlayerIdentity user={user} hasActivePublicSanction={sanctions.some(sanction => sanction.status === "active")} />
     <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
       <div className="min-w-0 space-y-4">
-        <PlayerIdentity user={user} hasActivePublicSanction={sanctions.some(sanction => sanction.status === "active")} />
         <Suspense fallback={<ProfileSectionSkeleton label="基本资料" height="min-h-40" />}>
           <PlayerBasics sections={sections} />
         </Suspense>
@@ -470,7 +470,7 @@ function PlayerPageFallback() {
 }
 
 function PlayerIdentity({ user, hasActivePublicSanction }: { user: PublicPlayer; hasActivePublicSanction: boolean }) {
-  return <div className="flex items-start gap-4">
+  return <header className="flex min-w-0 items-center gap-4 border-b border-[var(--color-border)] pb-6">
     <PlayerAvatar name={getPublicDisplayName(user)} avatarUrl={user.avatarUrl} hasActivePublicSanction={hasActivePublicSanction} size="lg" />
             <div className="min-w-0 space-y-2">
               <h1 className="break-words text-3xl font-black text-[var(--color-fg)]">{getPublicDisplayName(user)}</h1>
@@ -488,5 +488,5 @@ function PlayerIdentity({ user, hasActivePublicSanction }: { user: PublicPlayer;
                 )}
               </div>
             </div>
-  </div>;
+  </header>;
 }
