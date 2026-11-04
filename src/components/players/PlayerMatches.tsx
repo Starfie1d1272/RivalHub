@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { Route } from "next";
 import { mapLabel } from "@/lib/maps";
 import { formatStat } from "@/lib/stats/format";
+import { statValueColor } from "@/lib/stats/presentation";
 import { formatCST, getCSTDateKey } from "@/lib/utils/date";
 import { readOptionalPublicStats } from "@/lib/stats/availability";
 import { getRecentPublicPlayerMatches, type PublicPlayerMatch } from "@/lib/players/public-matches";
@@ -111,9 +112,9 @@ export function PlayerMatchHistoryTable({ matches, userId, fromStats, summary, p
               </td>
               {map ? <>
                 <td className="whitespace-nowrap px-3 text-right font-mono tabular-nums">{formatStat("kills", map.kills)}–{formatStat("deaths", map.deaths)}</td>
-                <td className="px-3 text-right font-mono tabular-nums">{difference === null ? "—" : difference > 0 ? `+${difference}` : difference}</td>
+                <td className="px-3 text-right font-mono tabular-nums" style={{ color: statValueColor("difference", difference) }}>{difference === null ? "—" : difference > 0 ? `+${difference}` : difference}</td>
                 <td className="px-3 text-right font-mono tabular-nums">{formatStat("adr", map.adr)}</td>
-                <td className="px-3 text-right font-mono font-semibold tabular-nums">{formatStat("ratingPro", map.rating)}</td>
+                <td className="px-3 text-right font-mono font-semibold tabular-nums" style={{ color: statValueColor("rating", map.rating) }}>{formatStat("ratingPro", map.rating)}</td>
               </> : <>{["kills", "difference", "adr", "rating"].map((metric) => <td key={metric} className="px-3 text-right font-mono text-[var(--color-fg-dim)]">—</td>)}</>}
             </tr>;
           })}
