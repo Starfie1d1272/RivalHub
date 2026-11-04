@@ -72,13 +72,15 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
         <PlayerBasics sections={sections} />
       </Suspense>
       <div className="mt-4"><PlayerActiveSanctions sanctions={sanctions} /></div>
+    </section>
+    <div className="grid min-w-0 gap-6 lg:grid-cols-2">
       <Suspense fallback={<ProfileSectionSkeleton label="Career Stats" height="min-h-28" />}>
         <PlayerCareerOverview sections={sections} />
       </Suspense>
-    </section>
-    <Suspense fallback={<ProfileSectionSkeleton label="近期比赛" height="min-h-40" />}>
-      <PlayerRecentMatches userId={userId} fromStats={fromStats} />
-    </Suspense>
+      <Suspense fallback={<ProfileSectionSkeleton label="近期比赛" height="min-h-40" />}>
+        <PlayerRecentMatches userId={userId} fromStats={fromStats} />
+      </Suspense>
+    </div>
     <Suspense fallback={<ProfileSectionSkeleton label="赛事履历" height="min-h-40" />}>
       <PlayerCareerHistory sections={sections} />
     </Suspense>
@@ -180,7 +182,7 @@ async function PlayerBasics({ sections }: SectionProps) {
 async function PlayerCareerOverview({ sections }: SectionProps) {
   const { careerOverview: overview } = await sections.overview;
   return <div data-profile-section="overview">
-        <div className="mt-4"><SectionHeading>Career Stats</SectionHeading></div>
+        <h2 className="text-base font-semibold">Career Stats</h2>
         <dl aria-label="Career Stats" className="mt-2 grid grid-cols-2 border-y border-[var(--color-border)] sm:grid-cols-4">
           <div className="px-3 py-3 sm:first:pl-0">
             <dt className="text-[11px] text-[var(--color-fg-mid)]"><StatsMetricLabel metric="rating">Rating</StatsMetricLabel></dt>

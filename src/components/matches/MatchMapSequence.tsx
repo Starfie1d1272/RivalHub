@@ -48,11 +48,13 @@ export function MatchMapSequence({ maps, currentMapId, seasonSlug, entryAId, tea
       return <li key={map.id} style={{ backgroundImage: mapThumbnail(map.mapName) ? `linear-gradient(90deg, color-mix(in srgb, var(--color-bg) 88%, transparent), color-mix(in srgb, var(--color-bg) 55%, transparent)), url("${mapThumbnail(map.mapName)}")` : undefined }} className={`min-w-0 border bg-[var(--color-panel-low)] bg-cover bg-center p-4 ${current ? "border-[var(--color-accent)]" : "border-[var(--color-border)]"}`}>
         <div className="flex items-center justify-between gap-2 text-xs text-[var(--color-fg-mid)]"><span className="font-mono">MAP {map.mapOrder}</span><span>{completed ? "已结束" : finished ? "未进行" : current ? snapshot ? stale ? "更新暂时中断" : "进行中" : phase === "inter_map" ? "下一张地图" : "当前地图" : "待进行"}</span></div>
         <div className="mt-2 flex items-center justify-between gap-3"><span className="font-semibold text-[var(--color-fg)]">{mapLabel(map.mapName)}</span><span className="font-mono font-bold tabular-nums text-[var(--color-fg)]">{completed ? `${map.scoreA} : ${map.scoreB}` : current && liveScore ? `${liveScore.scoreA ?? "—"} : ${liveScore.scoreB ?? "—"}` : "—"}</span></div>
-        {completed && <p className="mt-2 text-xs text-[var(--color-fg-mid)]" aria-label="分段比分">
+        {completed && <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-[var(--color-fg-mid)]" aria-label="分段比分">
           {map.segments ? <>
-            上半场 {map.segments.firstHalf.scoreA} : {map.segments.firstHalf.scoreB} ({map.segments.firstHalf.sideA.toUpperCase()} / {map.segments.secondHalf.sideA.toUpperCase()}) · 下半场 {map.segments.secondHalf.scoreA} : {map.segments.secondHalf.scoreB} ({map.segments.secondHalf.sideA.toUpperCase()} / {map.segments.firstHalf.sideA.toUpperCase()}){map.segments.overtime && <> · 加时 {map.segments.overtime.scoreA} : {map.segments.overtime.scoreB}</>}
-          </> : "分段比分 —"}
-        </p>}
+            <span>上半场 {map.segments.firstHalf.scoreA}:{map.segments.firstHalf.scoreB} <span className="text-[var(--color-fg-dim)]">{map.segments.firstHalf.sideA.toUpperCase()}/{map.segments.secondHalf.sideA.toUpperCase()}</span></span>
+            <span>下半场 {map.segments.secondHalf.scoreA}:{map.segments.secondHalf.scoreB} <span className="text-[var(--color-fg-dim)]">{map.segments.secondHalf.sideA.toUpperCase()}/{map.segments.firstHalf.sideA.toUpperCase()}</span></span>
+            {map.segments.overtime && <span>加时 {map.segments.overtime.scoreA}:{map.segments.overtime.scoreB}</span>}
+          </> : <span>分段比分 —</span>}
+        </div>}
         {current && liveScore && <p className="sr-only">本图回合</p>}
         <p className="mt-1 truncate text-xs text-[var(--color-fg-mid)]">{map.pickedByEntryId ? <><TeamProfileLink seasonSlug={seasonSlug} entryId={map.pickedByEntryId}>{map.pickedByEntryId === entryAId ? teamAName : map.pickedByEntryId === entryBId ? teamBName : "队伍"}</TeamProfileLink> · PICK</> : "DECIDER"}</p>
       </li>;

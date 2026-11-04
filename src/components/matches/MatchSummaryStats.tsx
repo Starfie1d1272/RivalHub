@@ -3,6 +3,7 @@ import { UserRound } from "lucide-react";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
+import { StatsHelpLabel } from "@/components/stats/StatsMetricHelp";
 import { getMatchPlayerDisplayName } from "@/lib/identity/display-name";
 import type { MatchStatsRow } from "@/lib/matches/scoreboard-view";
 import type { MatchStatsView } from "@/lib/matches/stats-view";
@@ -48,12 +49,12 @@ export function MatchSummaryStats({ players, entryAId, entryBId, teamAName, team
           <TeamProfileLink entryId={entryId}>{teamName}</TeamProfileLink>
         </h3>
         <div className="overflow-x-auto">
-          <table className={`w-full text-sm ${view === "detailed" ? "min-w-[960px]" : "min-w-[460px]"}`}>
+          <table className={`w-full table-fixed text-sm ${view === "detailed" ? "min-w-[1120px]" : "min-w-[760px]"}`}>
             <thead className="border-y border-[var(--color-border)] bg-[var(--color-panel-hi)]">
               <tr>
                 <th className="sticky left-0 z-10 w-44 min-w-36 bg-[var(--color-panel-hi)] px-3 py-2 text-left font-medium">选手</th>
-                {keys.map(key => <th key={key} className="whitespace-nowrap px-3 py-2 text-right text-xs font-medium text-[var(--color-fg-mid)]">
-                  <span className="inline-flex items-center gap-1">{columns[key].label}<HelpTooltip label={`${columns[key].label} 说明`} content={columns[key].help} /></span>
+                {keys.map(key => <th key={key} className="whitespace-nowrap py-2 pl-3 pr-8 text-right text-xs font-medium text-[var(--color-fg-mid)] sm:pr-9">
+                  <StatsHelpLabel help={<HelpTooltip label={`${columns[key].label} 说明`} content={columns[key].help} />}>{columns[key].label}</StatsHelpLabel>
                 </th>)}
               </tr>
             </thead>
@@ -69,7 +70,7 @@ export function MatchSummaryStats({ players, entryAId, entryBId, teamAName, team
                   {player.basicCoverage && player.basicCoverage.maps < player.basicCoverage.expectedMaps && <span className="mt-0.5 block text-xs text-[var(--color-fg-dim)]">基础 {player.basicCoverage.maps}/{player.basicCoverage.expectedMaps} 图</span>}
                   {player.advancedCoverage.maps < player.advancedCoverage.expectedMaps && <span className="mt-0.5 block text-xs text-[var(--color-fg-dim)]">高级 {player.advancedCoverage.maps}/{player.advancedCoverage.expectedMaps} 图</span>}
                 </td>
-                {keys.map(key => <td key={key} className={`whitespace-nowrap px-3 py-2.5 text-right tabular-nums ${key === "rating" ? "font-semibold" : ""}`}>{columns[key].value(player)}</td>)}
+                {keys.map(key => <td key={key} className={`whitespace-nowrap py-2.5 pl-3 pr-8 text-right tabular-nums sm:pr-9 ${key === "rating" ? "font-semibold" : ""}`}>{columns[key].value(player)}</td>)}
               </tr>)}
               {!teamPlayers.length && <tr><td colSpan={keys.length + 1} className="px-3 py-5 text-sm text-[var(--color-fg-mid)]">暂无已确认出场选手</td></tr>}
             </tbody>
