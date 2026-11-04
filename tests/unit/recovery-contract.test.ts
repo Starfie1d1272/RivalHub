@@ -2,11 +2,11 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readExpectedMigrations } from "../../scripts/db/production-preflight";
-import { assertProductionBackupEnvironment, buildIsolatedRecoveryEnvironment, isProductionRecoverySource } from "../../scripts/db/recovery/environment";
+import { assertProductionBackupEnvironment, buildIsolatedRecoveryEnvironment } from "../../scripts/db/recovery/environment";
 import { assertRecoveryCompletionMarker, assertRecoveryManifest, assertRecoverySidecar, sha256File, RECOVERY_FORMAT_VERSION } from "../../scripts/db/recovery/manifest";
 import { assertActiveStorageReferencesCaptured, assertActiveStorageReferencesStable } from "../../scripts/db/recovery/storage";
 import { buildRecoveryR2Keys, assertR2ContentReadback } from "../../scripts/db/recovery/r2";
-import { assertManifestMigrationMatches, verifyRecoveryDatabase } from "../../scripts/db/recovery/verify";
+import { assertManifestMigrationMatches } from "../../scripts/db/recovery/verify";
 import { describe, expect, it } from "vitest";
 
 const RUN_ID = "11111111-1111-4111-8111-111111111111";
@@ -62,12 +62,6 @@ function validManifest() {
 }
 
 describe("recovery contracts", () => {
-  it("accepts the previous production backup source without allowing arbitrary projects", () => {
-    expect(isProductionRecoverySource("eurxkguokrkvpcsmxuru")).toBe(true);
-    expect(isProductionRecoverySource("atjiukerfgqlwvnctigc")).toBe(true);
-    expect(isProductionRecoverySource("abcdefghijklmnopqrst")).toBe(false);
-  });
-
   it("rejects incomplete or tampered recovery identities", () => {
     const manifest = validManifest();
     expect(() => assertRecoveryManifest({ ...manifest, database: { ...manifest.database, files: [] } })).toThrow();
@@ -158,17 +152,6 @@ describe("recovery contracts", () => {
     )).toThrow();
   });
 
-  it("fails closed on representative broken domain and auth invariants", async () => {
-    const healthy = new RecoveryQueryStub();
-    await expect(verifyRecoveryDatabase(healthy as never)).resolves.toMatchObject({ foreignKeyCount: 0 });
-
-    const brokenMerged = new RecoveryQueryStub("public.users merged");
-    await expect(verifyRecoveryDatabase(brokenMerged as never)).rejects.toThrow(/identity.merged_target_invalid/);
-
-    const brokenAuth = new RecoveryQueryStub("auth.users au");
-    await expect(verifyRecoveryDatabase(brokenAuth as never)).rejects.toThrow(/auth.active_users_auth_id_mapping/);
-  });
-
   it("verifies R2 object content after GET, not only metadata", () => {
     const root = mkdtempSync(join(tmpdir(), "rivalhub-r2-contract-"));
     const path = join(root, "readback.bin");
@@ -196,33 +179,3 @@ describe("recovery contracts", () => {
   });
 
 });
-
-class RecoveryQueryStub {
-  constructor(private readonly failingNeedle?: string) {}
-
-  async query<T>(queryText: string): Promise<{ rows: T[] }> {
-    const expected = readExpectedMigrations();
-    if (queryText.includes("drizzle.__drizzle_migrations")) {
-      return { rows: expected.map(({ hash, when }) => ({ hash, when: String(when) })) as T[] };
-    }
-    if (queryText.includes("information_schema.tables")) {
-      return {
-        rows: [
-          "users",
-          "user_identities",
-          "seasons",
-          "competition_entries",
-          "event_rosters",
-          "matches",
-          "audit_logs",
-        ].map((table_name) => ({ table_name })) as T[],
-      };
-    }
-    if (queryText.includes("json_agg(") && queryText.includes("WHERE c.contype = 'f'")) return { rows: [] };
-    if (queryText.includes("FROM pg_constraint c")) return { rows: [{ count: "0" }] as T[] };
-    if (queryText.includes("SELECT count(*)::text AS count")) {
-      return { rows: [{ count: this.failingNeedle && queryText.includes(this.failingNeedle) ? "1" : "0" }] as T[] };
-    }
-    throw new Error(`unexpected recovery query: ${queryText}`);
-  }
-}

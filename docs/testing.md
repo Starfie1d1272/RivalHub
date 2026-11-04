@@ -76,7 +76,7 @@ Vitest 的三个 project（domain Node、server Node、React jsdom）是独立 e
 
 System failure/flaky 时 Playwright 生成 failure screenshot；artifact sanitizer 只保留限额内的 PNG/JPEG 与脱敏文本，不上传 trace archive。文件数、目录项/深度、单文件/累计输入输出字节及行长预算由 `scripts/ci/system-artifact-sanitizer.mjs` 统一声明；超限整文件或整行跳过，`sanitization-summary.json` 只记录固定原因计数，不包含被跳过原文或路径。Next 日志先读取有界尾部、丢弃可能不完整的首行并选取最近行，再脱敏；存在多行环境密钥且截尾/过滤可能破坏完整匹配时，整份候选日志不上传。正常的小报告与重试计数保留，成功 run 不上传大体积 artifacts。每条 stateful E2E 使用自己的 fixture profile 与 attempt namespace。认证 helper 的 predicate URL 断言仍会等待 document load；SSR可见与load不证明hydration，真实UI/持久化结果由后续断言验证。外部遥测/资源加载和dev编译仍可能影响浏览器耗时，不将一次CI成功视作稳定性证明。
 
-队伍目录、组队大厅和赛事阵容的公开搜索、筛选与历史导航不保留独立常驻 E2E，也不因共享搜索组件变更自动触发 browser lane。邀请接收、报名权限和正式名单完整性继续由各自高风险 owner 验证。`--repeat-each=10`、容量压测与截图不进入普通 PR 或 FULL required gate。
+统计目录、队伍目录、组队大厅和赛事阵容的公开搜索、筛选与历史导航不保留独立常驻 E2E，也不因共享搜索组件变更自动触发 browser lane。邀请接收、报名权限和正式名单完整性继续由各自高风险 owner 验证。`--repeat-each=10`、容量压测与截图不进入普通 PR 或 FULL required gate。
 
 核心浏览器通过 `pnpm test:e2e` 发现生命周期任务；production build/start smoke 使用 `pnpm test:e2e -- --config=playwright.production.config.ts`。容量、截图和视觉组合没有长期保留的独立 suite；需要时针对具体变化临时验证，并在 PR 记录命令、断言和结果。测试赛创建链路由 desktop project 拥有，同一用例内验证手机 viewport 的可达性。system 的 production smoke 检查真实 UI 登录、App Shell 导航、`aria-current` 和移动可达性；production 的 test-only auth route 仍关闭。
 
@@ -93,7 +93,7 @@ Pure tests retain integer pool conservation, the first-match deadline, and one u
 - 数据库业务查询测试必须执行实际 query/service/Action owner，再检查持久化结果和拒绝后的事实不变；在测试内复制一份生产 SQL 不证明生产入口正确。纯数据库 CHECK/FK/RLS 的探针仍直接验证数据库契约。
 - 合法产品变化先更新承诺再修改测试；重构不改变承诺却大量要求同步改断言时，先审查测试耦合。重复失败优先定位原因，不能以 skip、retry-pass、删负例换绿。
 - `null`、失败、并发、权限和 recovery 等重要负路径必须由对应层证明。
-- 清理测试时按独立承诺逐项处置，不能把静态扫描或全绿描述为逐断言审查完成。删除写法断言后若只剩固定文案或对象形状检查，继续评估整项删除；测试名称必须准确描述剩余保护。工作流安全门禁与应用/工具源码写法分开审查；前者保留，后者优先使用现有行为证据。
+- 清理测试时按独立承诺逐项处置，同时删除仅被退役 suite 使用的脚本、fixture、快照、配置引用与 CI 分片，不能只停止执行并留下死测试。不能把静态扫描或全绿描述为逐断言审查完成。删除写法断言后若只剩固定文案或对象形状检查，继续评估整项删除；测试名称必须准确描述剩余保护。工作流安全门禁与应用/工具源码写法分开审查；前者保留，后者优先使用现有行为证据。
 - 不在文档复制测试数、表数或 migration 数。
 - 不能用“CI 绿”“已知 flaky”或视觉 demo 替代所需 evidence。
 - canonical domain rule 尽量在其 owner 附近测试；跨层 E2E 只证明组合行为。
