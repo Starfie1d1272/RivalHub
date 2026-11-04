@@ -59,7 +59,9 @@ test("public match consumes private Broadcast and recovers across navigation and
     await expect(live.locator("canvas")).toBeVisible();
     expect(viewerJoins).toBe(1);
     await expect(page.getByLabel("系列赛比分").filter({ visible: true })).toHaveCount(0);
-    await expect(page.getByRole("region", { name: "BP 结果与地图" }).getByText("2 : 0", { exact: true })).toBeVisible();
+    const maps = page.getByRole("region", { name: "BP 结果与地图" });
+    await expect(maps.getByLabel("FURIA 本图回合 2", { exact: true })).toBeVisible();
+    await expect(maps.getByLabel("G2.Esports 本图回合 0", { exact: true })).toBeVisible();
     await expect(page.getByText("暂无直播", { exact: true })).toBeVisible();
     producer?.kill(); producer = undefined;
     await expect(live.getByText("实时数据暂时中断", { exact: true })).toBeVisible({ timeout: 6000 });
