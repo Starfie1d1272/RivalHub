@@ -64,7 +64,7 @@ export function MatchSummaryStats({ players, entryAId, entryBId, teamAName, team
                     {player.userId && playerHrefs[player.userId] ? <Link prefetch={false} href={playerHrefs[player.userId] as never} aria-current={selectedPlayerId === player.userId ? "true" : undefined} title={`${player.perfectName} · 查看当前范围的个人统计`} className="min-w-0 truncate font-medium hover:text-[var(--color-accent)] aria-[current=true]:text-[var(--color-accent)]">
                       {getMatchPlayerDisplayName(player.perfectName, teamName)}
                     </Link> : <span className="min-w-0 truncate">{getMatchPlayerDisplayName(player.perfectName, teamName)}</span>}
-                    {player.userId && <PlayerProfileLink userId={player.userId} title="选手主页" aria-label={`${player.perfectName} 的选手主页`} className="shrink-0 text-[var(--color-fg-dim)] hover:text-[var(--color-accent)]"><UserRound size={14} aria-hidden="true" /></PlayerProfileLink>}
+                    {player.userId && <PlayerProfileLink userId={player.userId} variant="dense" title="选手主页" aria-label={`${player.perfectName} 的选手主页`} className="shrink-0 text-[var(--color-fg-dim)] hover:text-[var(--color-accent)]"><UserRound size={14} aria-hidden="true" /></PlayerProfileLink>}
                   </div>
                   {player.basicCoverage && player.basicCoverage.maps < player.basicCoverage.expectedMaps && <span className="mt-0.5 block text-xs text-[var(--color-fg-dim)]">基础 {player.basicCoverage.maps}/{player.basicCoverage.expectedMaps} 图</span>}
                   {player.advancedCoverage.maps < player.advancedCoverage.expectedMaps && <span className="mt-0.5 block text-xs text-[var(--color-fg-dim)]">高级 {player.advancedCoverage.maps}/{player.advancedCoverage.expectedMaps} 图</span>}
