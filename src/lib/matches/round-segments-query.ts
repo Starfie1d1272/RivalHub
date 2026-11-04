@@ -3,7 +3,7 @@ import "server-only";
 import { inArray } from "drizzle-orm";
 import { db, type TxDb } from "@/db/client";
 import { matchRoundFacts } from "@/db/schema";
-import { loadStatsContext } from "@/lib/stats/tournament-scope";
+import { loadCurrentProjectionRefs, loadStatsContext } from "@/lib/stats/tournament-scope";
 import { getRoundSegments, type RoundSegments } from "./round-segments";
 
 /** One bounded read of rounds belonging to the current valid imports of this match. */
@@ -29,10 +29,14 @@ export async function loadMatchRoundSegments(
   }));
 }
 
-/** Failure-only fallback: round facts remain available when an advanced projection cannot decode. */
-export async function readMatchRoundSegments(matchId: string) {
+/** Failure-only fallback: validate basic statistics without decoding advanced projections. */
+export async function readMatchScoreboardFallback(matchId: string) {
   return db.transaction(async tx => {
     const context = await loadStatsContext(tx, {}, { matchIds: [matchId], includeTestMatch: true, skipLabels: true });
-    return loadMatchRoundSegments(tx, context.currentRefs);
+    const refs = await loadCurrentProjectionRefs(tx, context);
+    return {
+      roundSegments: await loadMatchRoundSegments(tx, context.currentRefs),
+      currentImports: Object.fromEntries(refs.map(({ current, map }) => [map.id, current.id])),
+    };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }

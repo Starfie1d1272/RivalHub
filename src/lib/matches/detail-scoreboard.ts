@@ -35,6 +35,7 @@ export async function loadMatchScoreboard(
   maps: readonly MatchMap[],
   userIdToTeamId: Map<string, string>,
   performance?: MatchPerformance | null,
+  currentImports?: MatchPerformance["currentImports"],
 ) {
   assertCompetitionMatch(match);
   const completed = maps.filter(map => canConfirmMapScoreboard(map) && map.scoreA! + map.scoreB! > 0);
@@ -44,9 +45,10 @@ export async function loadMatchScoreboard(
     inArray(matchPlayerStats.mapId, completed.map((map) => map.id)),
   ));
   const detail = performance === undefined ? await getMatchPerformance(match.id) : performance;
+  const validImports = currentImports ?? detail?.currentImports;
   const { rows: confirmedRows, conflicts } = selectUnambiguousMatchStatsRows(rows.filter((row) => row.verifiedByAdmin !== null && row.userId !== null
     && userIdToTeamId.has(row.userId)
-    && (!row.dakImportId || detail?.currentImports[row.mapId] === row.dakImportId)));
+    && (!row.dakImportId || validImports?.[row.mapId] === row.dakImportId)));
   const detailedPlayers = detail?.overall.map(player => ({ userId: player.player.entityKey, name: player.player.displayName })) ?? [];
   const mapPlayers = new Map<string, MatchScoreboardPlayer[]>();
   for (const row of confirmedRows) {

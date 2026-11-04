@@ -56,7 +56,7 @@ import { MatchHeadToHead } from "@/components/matches/MatchHeadToHead";
 import { MatchRecentResults } from "@/components/matches/MatchRecentResults";
 import { MatchStatistics } from "@/components/matches/MatchStatistics";
 import type { MatchStatsQuery } from "@/lib/matches/stats-view";
-import { readMatchRoundSegments } from "@/lib/matches/round-segments-query";
+import { readMatchScoreboardFallback } from "@/lib/matches/round-segments-query";
 import type { MatchPerformance } from "@/lib/stats/match-performance-query";
 import { getMatchTimeProposalViews } from "@/lib/matches/time-proposals";
 import { projectMatchScheduling } from "@/lib/matches/time-rules";
@@ -252,8 +252,11 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
   const performanceRead = needScoreboard
     ? readOptionalPublicStats("match_scoreboard", () => getPublicMatchPerformance(match.id, season.status === "draft" ? "draft" : "public"))
     : Promise.resolve(null);
+  const scoreboardFallbackRead = hasCompletedMaps
+    ? performanceRead.then(performance => performance ? null : readOptionalPublicStats("match_scoreboard_fallback", () => readMatchScoreboardFallback(match.id)))
+    : Promise.resolve(null);
   const scoreboardRead = needScoreboard
-    ? performanceRead.then(performance => loadMatchScoreboard(match, maps, userIdToTeamId, performance))
+    ? Promise.all([performanceRead, scoreboardFallbackRead]).then(([performance, fallback]) => loadMatchScoreboard(match, maps, userIdToTeamId, performance, fallback?.currentImports))
     : Promise.resolve(null);
 
   // 队长 / 管理员权限检查
@@ -318,10 +321,13 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
     we: number | null;
     avatarUrl: string | null;
   }[] = [];
-  const [scoreboard, performance] = await Promise.all([scoreboardRead, performanceRead]);
-  const fallbackSegments = needScoreboard && !performance
-    ? await readOptionalPublicStats("match_round_segments", () => readMatchRoundSegments(match.id)) : null;
-  const roundSegments = performance?.roundSegments ?? fallbackSegments ?? ({} as Record<string, never>);
+  const [scoreboard, performance, scoreboardFallback] = await Promise.all([scoreboardRead, performanceRead, scoreboardFallbackRead]);
+  const roundSegments = performance?.roundSegments ?? scoreboardFallback?.roundSegments ?? ({} as Record<string, never>);
+  const scoreboardIdentities = [
+    ...(teamARoster ?? []).filter(player => player.isStarter).flatMap(player => player.userId ? [{ userId: player.userId, perfectName: getPublicDisplayName(player), teamId: match.entryAId }] : []),
+    ...(teamBRoster ?? []).filter(player => player.isStarter).flatMap(player => player.userId ? [{ userId: player.userId, perfectName: getPublicDisplayName(player), teamId: match.entryBId }] : []),
+  ];
+  const hasStatistics = Boolean(scoreboard && (scoreboard.completed.length > 0 || scoreboardIdentities.length > 0));
   if (isFinished && scoreboard) {
     mvpCandidates = scoreboard.mvpCandidates.map((candidate) => ({
       ...candidate,
@@ -504,16 +510,15 @@ async function readMatchDetailContent({ core, searchParams }: { core: MatchCore;
 
       </MatchLiveProvider>
 
-      {scoreboard && <MatchStatistics
+      {hasStatistics && scoreboard && <MatchStatistics
         seasonSlug={seasonSlug} matchId={match.id} maps={maps}
         entryAId={match.entryAId} entryBId={match.entryBId}
         teamAName={teamA?.name ?? "队伍 A"} teamBName={teamB?.name ?? "队伍 B"}
         preferredPlayerId={match.mvpWinnerUserId} query={statsQuery}
-        identities={[...(teamARoster ?? []).filter(player => player.isStarter).flatMap(player => player.userId ? [{ userId: player.userId, perfectName: getPublicDisplayName(player), teamId: match.entryAId }] : []),
-          ...(teamBRoster ?? []).filter(player => player.isStarter).flatMap(player => player.userId ? [{ userId: player.userId, perfectName: getPublicDisplayName(player), teamId: match.entryBId }] : [])]}
+        identities={scoreboardIdentities}
         scoreboard={scoreboard} performance={performance} unavailable={performance === null} finished={isFinished}
       />}
-      {!scoreboard && isFinished && match.scoreA !== null && match.scoreB !== null && <Panel label="比赛结果" contentClassName="p-4">
+      {!hasStatistics && isFinished && match.scoreA !== null && match.scoreB !== null && <Panel label="比赛结果" contentClassName="p-4">
         <p className="text-sm text-[var(--color-fg-mid)]">{match.isForfeit ? "本场比赛以弃赛结束。" : `${MATCH_FORMAT_LABELS[match.format] ?? match.format.toUpperCase()} 系列赛总分：${match.scoreA} : ${match.scoreB}`}</p>
       </Panel>}
       {isFinished && matchBet}
