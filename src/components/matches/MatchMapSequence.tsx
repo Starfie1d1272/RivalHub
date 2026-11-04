@@ -89,7 +89,7 @@ export function MatchMapSequence({ maps, currentMapId, seasonSlug, entryAId, tea
             </TeamProfileLink>
           </div>
           <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <span className="flex w-7 shrink-0 justify-center">{map.pickedByEntryId === entryAId && <span className={pickClassName} title={`${teamAName} 选图`}>PICK</span>}</span>
               <span className={`font-mono text-xl font-bold tabular-nums ${resultA}`} aria-label={`${teamAName} 本图回合 ${scoreA ?? "—"}`}>{scoreA ?? "—"}</span>
             </div>
@@ -99,7 +99,7 @@ export function MatchMapSequence({ maps, currentMapId, seasonSlug, entryAId, tea
                 {map.segments.overtime && <span className="whitespace-nowrap font-mono" title={`加时：${teamAName} ${map.segments.overtime.scoreA} : ${teamBName} ${map.segments.overtime.scoreB}`}><span className="sr-only">加时</span>({map.segments.overtime.scoreA}:{map.segments.overtime.scoreB})</span>}
               </> : <span>分段 —</span> : !map.pickedByEntryId ? <span className="font-mono text-[10px]">DECIDER</span> : null}
             </div>
-            <div className="flex items-center justify-end gap-1">
+            <div className="flex items-center justify-end gap-2">
               <span className={`font-mono text-xl font-bold tabular-nums ${resultB}`} aria-label={`${teamBName} 本图回合 ${scoreB ?? "—"}`}>{scoreB ?? "—"}</span>
               <span className="flex w-7 shrink-0 justify-center">{map.pickedByEntryId === entryBId && <span className={pickClassName} title={`${teamBName} 选图`}>PICK</span>}</span>
             </div>
