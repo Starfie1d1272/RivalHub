@@ -26,10 +26,10 @@ const columns = {
   mk: { label: "MKs", help: "至少两杀的回合数，即 2K、3K、4K 与 5K 回合之和。", value: (p: MatchStatsRow) => number(p.multiKills) },
   kast: { label: "KAST", help: "取得击杀、助攻、存活或被队友补枪的回合占比，按当前数据覆盖的实际回合计算。", value: (p: MatchStatsRow) => p.kast === null ? "—" : `${(p.kast * 100).toFixed(1)}%` },
   clutch: { label: "1vsX", help: "1 对多残局获胜次数，可在个人 Clutch 中查看细分。", value: (p: MatchStatsRow) => number(p.clutches) },
-  kills: { label: "K (hs)", help: "总击杀（精确爆头击杀），不从 HS% 反算。", value: (p: MatchStatsRow) => detail(p.kills, p.headshots) },
-  assists: { label: "A (f)", help: "总助攻（闪光助攻）。", value: (p: MatchStatsRow) => detail(p.assists, p.flashAssists) },
-  deaths: { label: "D (t)", help: "总死亡（被队友补掉的死亡）。t 指 traded，不是 T 阵营。", value: (p: MatchStatsRow) => detail(p.deaths, p.tradedDeaths) },
-  adr: { label: "ADR", help: "每回合平均伤害；跨图使用累计伤害与回合数。", value: (p: MatchStatsRow) => p.adr === null ? "—" : p.adr.toFixed(1) },
+  kills: { label: "K (hs)", help: "总击杀（精确爆头击杀）。Both 的括号值须覆盖全部所选地图，不从 HS% 反算。", value: (p: MatchStatsRow) => detail(p.kills, p.headshots) },
+  assists: { label: "A (f)", help: "总助攻（闪光助攻）。Both 的括号值须覆盖全部所选地图。", value: (p: MatchStatsRow) => detail(p.assists, p.flashAssists) },
+  deaths: { label: "D (t)", help: "总死亡（被队友补掉的死亡）。Both 的括号值须覆盖全部所选地图；t 指 traded，不是 T 阵营。", value: (p: MatchStatsRow) => detail(p.deaths, p.tradedDeaths) },
+  adr: { label: "ADR", help: "每回合平均伤害；跨图按有效回合加权。", value: (p: MatchStatsRow) => p.adr === null ? "—" : p.adr.toFixed(1) },
   rating: { label: "Rating", help: "已核对记分板的 Rating Pro。CT/T 没有独立来源时显示 —。", value: (p: MatchStatsRow) => p.ratingPro === null ? "—" : p.ratingPro.toFixed(2) },
 };
 const compactColumns = ["kd", "adr", "kast", "rating"] as const;
@@ -63,6 +63,8 @@ export function MatchSummaryStats({ players, entryAId, entryBId, teamAName, team
                     </Link> : <span className="min-w-0 truncate">{getMatchPlayerDisplayName(player.perfectName, teamName)}</span>}
                     {player.userId && <PlayerProfileLink userId={player.userId} title="选手主页" aria-label={`${player.perfectName} 的选手主页`} className="shrink-0 text-xs text-[var(--color-fg-dim)]">↗</PlayerProfileLink>}
                   </div>
+                  {player.basicCoverage && player.basicCoverage.maps < player.basicCoverage.expectedMaps && <span className="mt-0.5 block text-xs text-[var(--color-fg-dim)]">基础 {player.basicCoverage.maps}/{player.basicCoverage.expectedMaps} 图</span>}
+                  {player.advancedCoverage.maps < player.advancedCoverage.expectedMaps && <span className="mt-0.5 block text-xs text-[var(--color-fg-dim)]">高级 {player.advancedCoverage.maps}/{player.advancedCoverage.expectedMaps} 图</span>}
                 </td>
                 {keys.map(key => <td key={key} className={`whitespace-nowrap px-3 py-2.5 text-right tabular-nums ${key === "rating" ? "font-semibold" : ""}`}>{columns[key].value(player)}</td>)}
               </tr>)}
