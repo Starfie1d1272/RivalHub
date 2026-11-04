@@ -78,10 +78,11 @@ function ScopeSideTabs({ value, onChange, sideHrefs }: {
   );
 }
 
-export function PlayerWorkspace({ detail, compact = false, hideMaps = false, side: selectedSide, sideHrefs, onSideChange }: {
+export function PlayerWorkspace({ detail, compact = false, hideMaps = false, detailUnavailable = false, side: selectedSide, sideHrefs, onSideChange }: {
   detail: PlayerWorkspaceDetail;
   compact?: boolean;
   hideMaps?: boolean;
+  detailUnavailable?: boolean;
   side?: Side;
   sideHrefs?: Record<Side, string>;
   onSideChange?: (side: Side) => void;
@@ -293,12 +294,12 @@ export function PlayerWorkspace({ detail, compact = false, hideMaps = false, sid
             rowKey={(row) => row.weapon}
             initialSortKey="kills"
             tableClassName="min-w-[560px] table-fixed"
-            emptyLabel="暂无武器数据"
+            emptyLabel={detailUnavailable ? "高级统计暂时无法加载" : "暂无武器数据"}
           />
         </section>
       )}
 
-      {!slice && tab !== "overview" && tab !== "maps" && tab !== "weapons" && (
+      {!detailUnavailable && !slice && tab !== "overview" && tab !== "maps" && tab !== "weapons" && (
         <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">暂无详细统计。</p>
       )}
     </section>

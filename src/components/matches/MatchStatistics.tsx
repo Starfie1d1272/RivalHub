@@ -114,14 +114,13 @@ export function MatchStatistics({ seasonSlug, matchId, maps, entryAId, entryBId,
       </div>
       <p className="text-sm text-[var(--color-fg-mid)]">{[scopeLabel, personalBasicCoverage, personalAdvancedCoverage].filter(Boolean).join(" · ")}</p>
       <Panel contentClassName="p-4">
-        {unavailable ? <p role="status" className="text-sm text-[var(--color-fg-mid)]">高级统计暂时无法加载，请稍后重试。</p> : <>
+        {unavailable && <p role="status" className="mb-4 text-sm text-[var(--color-fg-mid)]">高级统计暂时无法加载，请稍后重试。</p>}
         <PlayerWorkspace detail={{
           playerId: scope.playerId, performance: selectedPerformance,
           scoreboard: workspaceScoreboard, scoreboardMaps: [],
           teamNames: { [entryAId]: teamAName, [entryBId]: teamBName },
           teamLinks: { [entryAId]: `/${seasonSlug}/teams/${entryAId}`, [entryBId]: `/${seasonSlug}/teams/${entryBId}` },
-        }} hideMaps side={scope.side} sideHrefs={sideHrefs} />
-        </>}
+        }} hideMaps detailUnavailable={unavailable} side={scope.side} sideHrefs={sideHrefs} />
       </Panel>
       <ContentReady module="match" phase="advanced" />
     </section>}
