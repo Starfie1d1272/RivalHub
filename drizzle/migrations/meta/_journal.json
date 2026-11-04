@@ -736,6 +736,13 @@
       "when": 1793512323917,
       "tag": "0104_supabase_relocation_nju_2",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1793815251614,
+      "tag": "0105_harden_database_functions",
+      "breakpoints": true
     }
   ]
 }

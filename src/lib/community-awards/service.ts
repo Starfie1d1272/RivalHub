@@ -1,5 +1,5 @@
 import { officialMatchCondition } from "@/lib/matches/scope";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { writeAuditInTx } from "@/lib/audit/write";
 
 import type { TxDb } from "@/db/client";
@@ -234,14 +234,13 @@ export async function verifyCommunityAwardEvidenceInTx(tx: TxDb, args: { awardId
 
 export async function resolveCommunityAwardInTx(
   tx: TxDb,
-  args: { awardId: string; status: Outcome; recipientUserIds?: string[]; recipientUserId?: string | null; outcomeNote: string; actorId: string; expectedVersion: number },
+  args: { awardId: string; status: Outcome; recipientUserIds: string[]; outcomeNote: string; actorId: string; expectedVersion: number },
 ): Promise<{ seasonId: string }> {
   const award = await lockAwardInTx(tx, args.awardId);
   assertVersion(award.resultVersion, args.expectedVersion);
   if (!["approved", "awarded", "not_awarded", "cancelled"].includes(award.status)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有已公开或已结奖社区奖可以记录或更正结果。 ");
   if (!args.outcomeNote.trim()) throw new AppError(ErrorCode.VALIDATION_FAILED, "请填写结果或更正理由。 ");
-  const recipients = args.recipientUserIds ?? (args.recipientUserId ? [args.recipientUserId] : []);
-  if (args.recipientUserIds && args.recipientUserId !== undefined) throw new AppError(ErrorCode.VALIDATION_FAILED, "不能同时提供新旧获奖者字段。 ");
+  const recipients = args.recipientUserIds;
   if (args.status === "awarded" ? recipients.length === 0 : recipients.length !== 0) throw new AppError(ErrorCode.VALIDATION_FAILED, "获奖名单与结奖状态不匹配。 ");
   if (new Set(recipients).size !== recipients.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "获奖名单不能包含重复人员。 ");
   assertRecipientCount(award, recipients.length);
@@ -251,12 +250,10 @@ export async function resolveCommunityAwardInTx(
   const eligible = award.settlementPolicy === "event_verified" ? await eligibleCandidateIds(tx, award.id) : [];
   if (!canSettleCommunityAward(award, progress, args.status, recipients, eligible)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "尚未到达结奖时机，事件奖须先核实获奖者证据。 ");
   const previousRecipients = await currentRecipients(tx, award.id);
-  await tx.execute(sql`select set_config('rivalhub.community_awards_writer', 'recipients-v1', true)`);
   await tx.delete(communityAwardRecipients).where(eq(communityAwardRecipients.awardId, award.id));
   if (recipients.length) await tx.insert(communityAwardRecipients).values(recipients.map((userId, position) => ({ awardId: award.id, userId, position })));
   const now = new Date();
   await tx.update(communityAwards).set({ status: args.status, recipientUserId: recipients[0] ?? null, outcomeNote: args.outcomeNote, outcomeByUserId: args.actorId, outcomeAt: now, resultVersion: award.resultVersion + 1, updatedAt: now }).where(eq(communityAwards.id, award.id));
-  await tx.execute(sql`select set_config('rivalhub.community_awards_writer', '', true)`);
   await writeAuditInTx(tx, { seasonId: award.seasonId, action: `community_award.${args.status}`, actorId: args.actorId, targetId: award.id, meta: { previousStatus: award.status, status: args.status, previousRecipientUserIds: previousRecipients, recipientUserIds: recipients, previousOutcomeNote: award.outcomeNote, outcomeNote: args.outcomeNote } });
   return { seasonId: award.seasonId };
 }
@@ -269,11 +266,9 @@ export async function reparentCommunityAwardRecipientsInTx(tx: TxDb, args: { can
   for (const award of awards) {
     const previous = await currentRecipients(tx, award.id);
     const next = [...new Set(previous.map(id => id === args.mergedUserId ? args.canonicalUserId : id))];
-    await tx.execute(sql`select set_config('rivalhub.community_awards_writer', 'recipients-v1', true)`);
     await tx.delete(communityAwardRecipients).where(eq(communityAwardRecipients.awardId, award.id));
     await tx.insert(communityAwardRecipients).values(next.map((userId, position) => ({ awardId: award.id, userId, position })));
     await tx.update(communityAwards).set({ recipientUserId: next[0], resultVersion: award.resultVersion + 1, updatedAt: new Date() }).where(eq(communityAwards.id, award.id));
-    await tx.execute(sql`select set_config('rivalhub.community_awards_writer', '', true)`);
     await writeAuditInTx(tx, { seasonId: award.seasonId, action: "community_award.recipient.merge", targetId: award.id, actorId: args.actorId, meta: { previousRecipientUserIds: previous, recipientUserIds: next, canonicalUserId: args.canonicalUserId, mergedUserId: args.mergedUserId } });
   }
 }
