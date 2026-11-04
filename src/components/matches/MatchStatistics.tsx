@@ -55,9 +55,7 @@ export function MatchStatistics({ seasonSlug, matchId, maps, entryAId, entryBId,
   const href = (patch: Parameters<typeof matchStatsHref>[4] = {}, anchor = "match-stats") => matchStatsHref(seasonSlug, matchId, query, scope, patch, anchor);
   const playerHrefs = Object.fromEntries(players.map(player => [player.userId, href({ playerId: player.userId }, "detailed-stats")]));
   const coveredMaps = completedMaps.filter(map => performance?.byMap[map.id]);
-  const coverage = `${coveredMaps.length}/${completedMaps.length} 张已完成地图${coveredMaps.length ? `（${coveredMaps.map(map => mapLabel(map.mapName)).join("、")}）` : ""}`;
   const personalCoveredMaps = completedMaps.filter(map => (performanceMapIdsByPlayer.get(scope.playerId ?? "") ?? []).includes(map.id));
-  const personalCoverage = `${personalCoveredMaps.length}/${completedMaps.length} 张已完成地图${personalCoveredMaps.length ? `（${personalCoveredMaps.map(map => mapLabel(map.mapName)).join("、")}）` : ""}`;
   const selectedPerformance = scopedPerformance.find(player => player.player.entityKey === scope.playerId) ?? null;
   const playerScoreboard = completedMaps.flatMap(map => (scoreboard.mapPlayers.get(map.id) ?? [])
     .filter(player => player.userId === scope.playerId && (selectedMap !== undefined || !player.isProvisional))
@@ -66,10 +64,16 @@ export function MatchStatistics({ seasonSlug, matchId, maps, entryAId, entryBId,
   const playerName = players.find(player => player.userId === scope.playerId)?.perfectName;
   const sideHrefs = { overall: href({ side: "overall" }, "detailed-stats"), ct: href({ side: "ct" }, "detailed-stats"), t: href({ side: "t" }, "detailed-stats") };
   const completeBasicPlayers = rows.filter(player => player.basicCoverage?.maps === completedMaps.length).length;
-  const basicCoverage = scope.side === "overall" && completedMaps.length > 0
-    ? `基础记录完整 ${completeBasicPlayers}/${players.length} 人 · ` : "";
-  const personalBasicCoverage = scope.side === "overall" && completedMaps.length > 0
-    ? `基础记录覆盖 ${workspaceScoreboard[0]?.maps ?? 0}/${completedMaps.length} 图 · ` : "";
+  const hasMaps = completedMaps.length > 0;
+  const basicCoverage = scope.side === "overall" && hasMaps && completeBasicPlayers < players.length
+    ? `基础 ${completeBasicPlayers}/${players.length} 人` : null;
+  const advancedCoverage = hasMaps && !unavailable && coveredMaps.length < completedMaps.length
+    ? `高级 ${coveredMaps.length}/${completedMaps.length} 图${coveredMaps.length ? `（${coveredMaps.map(map => mapLabel(map.mapName)).join("、")}）` : ""}` : null;
+  const personalBasicMaps = workspaceScoreboard[0]?.maps ?? 0;
+  const personalBasicCoverage = scope.side === "overall" && hasMaps && personalBasicMaps < completedMaps.length
+    ? `基础 ${personalBasicMaps}/${completedMaps.length} 图` : null;
+  const personalAdvancedCoverage = hasMaps && !unavailable && personalCoveredMaps.length < completedMaps.length
+    ? `高级 ${personalCoveredMaps.length}/${completedMaps.length} 图${personalCoveredMaps.length ? `（${personalCoveredMaps.map(map => mapLabel(map.mapName)).join("、")}）` : ""}` : null;
   const scopeLabel = `${selectedMap ? mapLabel(selectedMap.mapName) : "全场"} · ${scope.side === "overall" ? "Both" : scope.side.toUpperCase()}`;
 
   return <>
@@ -98,25 +102,26 @@ export function MatchStatistics({ seasonSlug, matchId, maps, entryAId, entryBId,
         {selectedMap.teamAStartSide && <span className="text-[var(--color-fg-mid)]">{teamAName} {SIDE_LABELS[selectedMap.teamAStartSide]}先</span>}
         {!selectedMap.completedAt && <span>{finished ? "本图未进行" : "地图待进行"}</span>}
       </div>}
-      <p className="text-sm text-[var(--color-fg-mid)]">{scopeLabel} · {basicCoverage}高级数据覆盖 {coverage}</p>
+      {(basicCoverage || advancedCoverage) && <p className="text-sm text-[var(--color-fg-mid)]">{[basicCoverage, advancedCoverage].filter(Boolean).join(" · ")}</p>}
       {unavailable && <p role="status" className="text-sm">高级统计暂时无法加载，请稍后重试。</p>}
       {selectedMap && scoreboard.provisionalMapIds.has(selectedMap.id) && <p className="text-sm text-[var(--color-fg-mid)]">基础数据为临时数据，待核对。</p>}
-      <MatchSummaryStats players={rows} entryAId={entryAId} entryBId={entryBId} teamAName={teamAName} teamBName={teamBName} view={scope.view} playerHrefs={playerHrefs} selectedPlayerId={scope.playerId} />
+      <MatchSummaryStats players={rows} entryAId={entryAId} entryBId={entryBId} teamAName={teamAName} teamBName={teamBName} view={scope.view} playerHrefs={playerHrefs} selectedPlayerId={scope.playerId} showAdvancedCoverage={!unavailable} />
     </section>
     {scope.playerId && <section id="detailed-stats" className="min-w-0 scroll-mt-20 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">个人深挖 · {playerName}</h2>
         <Link prefetch={false} href={href() as never} className="text-sm text-[var(--color-accent)]">返回十人计分板 ↑</Link>
       </div>
-      <p className="text-sm text-[var(--color-fg-mid)]">{scopeLabel} · {personalBasicCoverage}详细数据覆盖 {personalCoverage}。点击上方选手行切换选手。</p>
+      <p className="text-sm text-[var(--color-fg-mid)]">{[scopeLabel, personalBasicCoverage, personalAdvancedCoverage].filter(Boolean).join(" · ")}</p>
       <Panel contentClassName="p-4">
-        {!selectedPerformance && <p className="mb-4 text-sm text-[var(--color-fg-mid)]">当前范围暂无该选手的详细统计。</p>}
+        {unavailable ? <p role="status" className="text-sm text-[var(--color-fg-mid)]">高级统计暂时无法加载，请稍后重试。</p> : <>
         <PlayerWorkspace detail={{
           playerId: scope.playerId, performance: selectedPerformance,
           scoreboard: workspaceScoreboard, scoreboardMaps: [],
           teamNames: { [entryAId]: teamAName, [entryBId]: teamBName },
           teamLinks: { [entryAId]: `/${seasonSlug}/teams/${entryAId}`, [entryBId]: `/${seasonSlug}/teams/${entryBId}` },
         }} hideMaps side={scope.side} sideHrefs={sideHrefs} />
+        </>}
       </Panel>
       <ContentReady module="match" phase="advanced" />
     </section>}

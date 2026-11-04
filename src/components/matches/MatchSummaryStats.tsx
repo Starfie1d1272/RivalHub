@@ -17,6 +17,7 @@ interface MatchSummaryStatsProps {
   view: MatchStatsView;
   playerHrefs: Record<string, string>;
   selectedPlayerId: string | null;
+  showAdvancedCoverage: boolean;
 }
 
 const number = (value: number | null) => value === null ? "—" : String(value);
@@ -39,7 +40,7 @@ const columns = {
 const compactColumns = ["kd", "difference", "assistsTotal", "adr", "kast", "rating"] as const;
 const detailedColumns = ["opening", "mk", "kast", "clutch", "kills", "assists", "deaths", "adr", "rating"] as const;
 
-export function MatchSummaryStats({ players, entryAId, entryBId, teamAName, teamBName, view, playerHrefs, selectedPlayerId }: MatchSummaryStatsProps) {
+export function MatchSummaryStats({ players, entryAId, entryBId, teamAName, teamBName, view, playerHrefs, selectedPlayerId, showAdvancedCoverage }: MatchSummaryStatsProps) {
   const keys = view === "detailed" ? detailedColumns : compactColumns;
   return <div className="min-w-0 space-y-4">
     {[[entryAId, teamAName], [entryBId, teamBName]].map(([entryId, teamName]) => {
@@ -68,7 +69,7 @@ export function MatchSummaryStats({ players, entryAId, entryBId, teamAName, team
                     {player.userId && <PlayerProfileLink userId={player.userId} variant="dense" title="选手主页" aria-label={`${player.perfectName} 的选手主页`} className="shrink-0 text-[var(--color-fg-dim)] hover:text-[var(--color-accent)]"><UserRound size={14} aria-hidden="true" /></PlayerProfileLink>}
                   </div>
                   {player.basicCoverage && player.basicCoverage.maps < player.basicCoverage.expectedMaps && <span className="mt-0.5 block text-xs text-[var(--color-fg-dim)]">基础 {player.basicCoverage.maps}/{player.basicCoverage.expectedMaps} 图</span>}
-                  {player.advancedCoverage.maps < player.advancedCoverage.expectedMaps && <span className="mt-0.5 block text-xs text-[var(--color-fg-dim)]">高级 {player.advancedCoverage.maps}/{player.advancedCoverage.expectedMaps} 图</span>}
+                  {showAdvancedCoverage && player.advancedCoverage.maps < player.advancedCoverage.expectedMaps && <span className="mt-0.5 block text-xs text-[var(--color-fg-dim)]">高级 {player.advancedCoverage.maps}/{player.advancedCoverage.expectedMaps} 图</span>}
                 </td>
                 {keys.map(key => <td key={key} className={`whitespace-nowrap py-2.5 pl-3 pr-8 text-right tabular-nums sm:pr-9 ${key === "rating" ? "font-semibold" : ""}`}>{columns[key].value(player)}</td>)}
               </tr>)}
