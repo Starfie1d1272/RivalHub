@@ -127,8 +127,9 @@ recovery and billing quota are separate from code deployment.
 
 ## Cache and invalidation
 
-Vercel's native Runtime Cache backs `use cache: remote`; local Next uses its local
-handler and cannot prove cross-instance reuse. Fresh public event membership is read outside the cache and enters normalized platform/event keys; archived public events remain eligible and withdrawn drafts cannot reuse the previous aggregate. Statistics and compiled historical
+`use cache: remote` uses Next.js's process-local handler on the current Linux
+production service. Entries and tag invalidation are not shared across instances;
+restart clears the cache. See [Linux hosting](./standby.md#公共缓存与验收). Fresh public event membership is read outside the cache and enters normalized platform/event keys; archived public events remain eligible and withdrawn drafts cannot reuse the previous aggregate. Statistics and compiled historical
 benchmarks share the semantic public-statistics tag. Authorized draft queries and
 viewer membership/invitation state bypass public caches. Mutations expire the tag
 immediately: Server Actions use `updateTag`, HTTP entrypoints use
@@ -166,7 +167,8 @@ source payloads, identities and SQL parameters must never be logged.
 Required scenarios:
 
 - Repeated event/player/long-Team/event-Team reads share results, and different
-  players share a compiled benchmark. Observe multiple Vercel instances.
+  players share a compiled benchmark within the same process. Verify cold-cache
+  behavior separately after restart.
 - Cold caches, new deployments and missing projections never read raw Evidence
   through public statistics. Missing projections produce incomplete coverage.
 - DAK directory, admin list and confirmed-match workbench metadata reads omit

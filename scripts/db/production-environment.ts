@@ -89,22 +89,6 @@ export function assertProductionConfirmations(env: Environment = process.env): v
   assertRemoteConfirmations(env, productionConfig);
 }
 
-/** Vercel production builds inherit the same runtime Transaction Pooler URL used by the app. */
-export function buildVercelProductionVerificationEnvironment(env: Environment = process.env): NodeJS.ProcessEnv {
-  if (env.VERCEL_ENV !== "production") {
-    throw new Error("Vercel production migration gate 只能在 VERCEL_ENV=production 运行。");
-  }
-  const databaseUrl = normalizeProductionDatabaseUrl(env.DATABASE_URL);
-  return {
-    ...env,
-    NODE_ENV: "production",
-    DATABASE_URL: databaseUrl,
-    RIVALHUB_DB_TARGET: "production",
-    RIVALHUB_PRODUCTION_PROJECT_CONFIRM: PRODUCTION_PROJECT_REF,
-    RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: `${PRODUCTION_POOLER_HOST}:${PRODUCTION_POOLER_PORT}`,
-  };
-}
-
 function normalizeProductionDatabaseUrl(value: string | undefined): string {
   if (!value?.trim()) {
     throw new Error("DATABASE_URL 未设置；production migration/verify 复用现有 production runtime credential，不维护第二份数据库密码。");

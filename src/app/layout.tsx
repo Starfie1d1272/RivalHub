@@ -63,8 +63,6 @@ export default function RootLayout({
           </Suspense>
         </OperationsProvider>
         <Toaster richColors position="top-right" />
-        {process.env.VERCEL === "1" && <>
-        </>}
       </body>
     </html>
   );

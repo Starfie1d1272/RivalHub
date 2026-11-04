@@ -65,7 +65,7 @@ jobs:
           pnpm --silent db:production:scheduler:watchdog-plan verify
           mapfile -t JOB_KEYS < <(jq -r '.[]' <<< "$CRON_JOB_KEYS")
           if [ "${#JOB_KEYS[@]}" -eq 0 ]; then
-            echo "Primary scheduler is healthy; no Vercel fallback required."
+            echo "Primary scheduler is healthy; no watchdog fallback required."
             exit 0
           fi
           PRODUCTION_ORIGIN="$(node --input-type=module -e 'import { OFFICIAL_PRODUCTION } from "./src/lib/runtime/official-deployment-profile.mjs"; process.stdout.write(OFFICIAL_PRODUCTION.origin)')"

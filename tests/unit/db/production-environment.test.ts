@@ -5,7 +5,6 @@ import {
   PRODUCTION_PROJECT_REF,
   assertProductionDatabaseUrl,
   buildProductionEnvironment,
-  buildVercelProductionVerificationEnvironment,
 } from "../../../scripts/db/production-environment";
 
 const runtimeUrl = `postgresql://postgres.${PRODUCTION_PROJECT_REF}:pw@${PRODUCTION_POOLER_HOST}:${PRODUCTION_POOLER_PORT}/postgres`;
@@ -35,17 +34,8 @@ describe("production database target guard", () => {
     expect(() => buildProductionEnvironment(confirmation, { requiresWriteAuthorization: true })).toThrow(/ALLOW_REMOTE_DB_WRITE=production/);
   });
 
-  it("rejects non-production DATABASE_URL values and only lets Vercel production builds inherit the runtime URL", () => {
+  it("rejects non-production DATABASE_URL values", () => {
     expect(() => buildProductionEnvironment({ ...confirmation, DATABASE_URL: "postgresql://prod.example.com/postgres" }, { requiresWriteAuthorization: false })).toThrow(/固定的 production/);
     expect(() => assertProductionDatabaseUrl(`postgresql://postgres.dtdzxnzjtohzjmfkighg:pw@${PRODUCTION_POOLER_HOST}:${PRODUCTION_POOLER_PORT}/postgres?pgbouncer=true`)).toThrow(/project ref/);
-
-    expect(() => buildVercelProductionVerificationEnvironment({ VERCEL_ENV: "preview", DATABASE_URL: runtimeUrl })).toThrow(/VERCEL_ENV=production/);
-    const vercelEnv = buildVercelProductionVerificationEnvironment({ VERCEL_ENV: "production", DATABASE_URL: runtimeUrl });
-    expect(vercelEnv).toMatchObject({
-      RIVALHUB_DB_TARGET: "production",
-      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: PRODUCTION_PROJECT_REF,
-      RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: `${PRODUCTION_POOLER_HOST}:${PRODUCTION_POOLER_PORT}`,
-    });
-    expect(vercelEnv.DATABASE_URL).toContain("pgbouncer=true");
   });
 });
