@@ -50,24 +50,23 @@ export function PlayerMatchHistoryTable({ matches, userId, fromStats }: { matche
   return <div className="max-w-full overflow-x-auto rounded-sm border border-[var(--color-border)]">
     <table className="w-full min-w-[760px] text-left text-sm">
       <thead className="border-b border-[var(--color-border)] bg-[var(--color-panel-low)] text-xs text-[var(--color-fg-mid)]">
-        <tr>{["日期", "当时队伍", "对手 / 地图比分", "地图", "K–D", "+/−", "ADR", "Rating"].map((label, index) =>
-          <th key={label} scope="col" className={`px-3 py-3 font-medium ${index >= 4 ? "text-right" : ""}`}>{label}</th>)}</tr>
+        <tr>{["当时队伍", "对手 / 地图比分", "地图", "K–D", "+/−", "ADR", "Rating"].map((label, index) =>
+          <th key={label} scope="col" className={`px-3 py-3 font-medium ${index >= 3 ? "text-right" : ""}`}>{label}</th>)}</tr>
       </thead>
       {matches.map((match) => <tbody key={match.id} className="border-b border-[var(--color-border)] last:border-0">
-        <tr className="bg-[var(--color-panel)]"><th colSpan={8} scope="rowgroup" className="px-3 py-3 text-left font-normal">
+        <tr className="bg-[var(--color-panel)]"><th colSpan={7} scope="rowgroup" className="px-3 py-3 text-left font-normal">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <Link href={playerMatchDetailHref(match.seasonSlug, match.id, userId, undefined, fromStats) as Route} className="font-medium hover:text-[var(--color-accent)]">
-              {match.seasonName} · {match.teamName} {match.ownScore ?? "—"} : {match.opponentScore ?? "—"} {match.opponentName} <span className="text-xs text-[var(--color-fg-dim)]">（系列赛） →</span>
+              {dateLabel(match.date)} · {match.seasonName} · {match.teamName} {match.ownScore ?? "—"} : {match.opponentScore ?? "—"} {match.opponentName} <span className="text-xs text-[var(--color-fg-dim)]">（系列赛） →</span>
             </Link>
             <Result match={match} />
           </div>
           {match.confirmedMaps > 0 && match.confirmedMaps < match.completedMaps && <p className="mt-1 text-xs text-[var(--color-fg-dim)]">逐图个人数据不完整：已确认 {match.confirmedMaps} / {match.completedMaps} 张已完成地图。</p>}
         </th></tr>
-        {match.maps.length === 0 ? <tr><td colSpan={8} className="px-3 py-4 text-[var(--color-fg-dim)]">{dateLabel(match.date)} · 逐图个人数据暂缺</td></tr>
+        {match.maps.length === 0 ? <tr><td colSpan={7} className="px-3 py-4 text-[var(--color-fg-dim)]">逐图个人数据暂缺</td></tr>
           : match.maps.map((map) => {
             const difference = map.kills === null || map.deaths === null ? null : map.kills - map.deaths;
             return <tr key={map.id} className="border-t border-[var(--color-border)]">
-              <td className="whitespace-nowrap px-3 py-3 text-xs text-[var(--color-fg-dim)]">{dateLabel(match.date)}</td>
               <td className="max-w-40 px-3 py-3"><span className="block truncate" title={match.teamName}>{match.teamName}</span></td>
               <td className="px-3 py-3"><span className="block max-w-44 truncate" title={match.opponentName}>{match.opponentName}</span><span className="font-mono text-xs tabular-nums">{map.ownScore} : {map.opponentScore}</span></td>
               <td className="px-3 py-3"><Link href={playerMatchDetailHref(match.seasonSlug, match.id, userId, map.id, fromStats) as Route} className="whitespace-nowrap text-[var(--color-accent)] hover:underline">{CS2_MAP_CATALOG.find((item) => item.key === map.name)?.label ?? map.name} →</Link></td>
