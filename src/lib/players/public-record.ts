@@ -1,7 +1,8 @@
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne, or, type SQL } from "drizzle-orm";
+import type { SelectedFields } from "drizzle-orm/pg-core";
 import { db, type DB, type TxDb } from "@/db/client";
 import { cacheLife, cacheTag } from "next/cache";
 import { PUBLIC_STATS_TAG } from "@/lib/cache/tags";
@@ -9,18 +10,36 @@ import { matchRosters, matchRosterPlayers, eventRosterMembers, eventRosters, mat
 
 type PublicAppearance = { seasonId: string; entryId: string; entryAId: string; entryBId: string; scoreA: number | null; scoreB: number | null };
 
+/** Shared series-appearance scope for records, recent matches and paged history. */
+export function publicPlayerAppearancesQuery<T extends SelectedFields>(
+  database: DB | TxDb, userId: string, fields: T, filter?: SQL,
+) {
+  return database.selectDistinct({ ...fields, playerUserId: eventRosterMembers.userId })
+    .from(matchRosterPlayers).innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
+    .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
+    .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
+    .innerJoin(matches, eq(matches.id, matchRosters.matchId)).innerJoin(seasons, eq(seasons.id, matches.seasonId))
+    .where(and(
+      officialMatchCondition(), eq(eventRosterMembers.userId, userId),
+      inArray(eventRosters.status, ["confirmed", "frozen"]), eq(matchRosterPlayers.isStarter, true),
+      inArray(matchRosters.status, ["submitted", "confirmed"]),
+      eq(eventRosters.entryId, matchRosters.entryId),
+      or(eq(matchRosters.entryId, matches.entryAId), eq(matchRosters.entryId, matches.entryBId)),
+      eq(matches.status, "finished"), ne(seasons.status, "draft"), filter,
+    ));
+}
+
 async function loadPublicAppearances(
   userId: string,
   options: { seasonId?: string; matchIds?: readonly string[] } = {},
   database: DB | TxDb = db,
 ) {
   if (options.matchIds?.length === 0) return [];
-  return database.select({ seasonId: matches.seasonId, entryId: matchRosters.entryId, entryAId: matches.entryAId, entryBId: matches.entryBId, scoreA: matches.scoreA, scoreB: matches.scoreB })
-    .from(matchRosterPlayers).innerJoin(matchRosters, eq(matchRosters.id, matchRosterPlayers.rosterId))
-    .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
-    .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
-    .innerJoin(matches, eq(matches.id, matchRosters.matchId)).innerJoin(seasons, eq(seasons.id, matches.seasonId))
-    .where(and(officialMatchCondition(), and(eq(eventRosterMembers.userId, userId), inArray(eventRosters.status, ["confirmed", "frozen"]), eq(matchRosterPlayers.isStarter, true), inArray(matchRosters.status, ["submitted", "confirmed"]), eq(matches.status, "finished"), ne(seasons.status, "draft"), options.seasonId ? eq(matches.seasonId, options.seasonId) : undefined, options.matchIds ? inArray(matches.id, [...options.matchIds]) : undefined)));
+  return publicPlayerAppearancesQuery(database, userId, {
+    matchId: matches.id, seasonId: matches.seasonId, entryId: matchRosters.entryId,
+    entryAId: matches.entryAId, entryBId: matches.entryBId, scoreA: matches.scoreA, scoreB: matches.scoreB,
+  }, and(options.seasonId ? eq(matches.seasonId, options.seasonId) : undefined,
+    options.matchIds ? inArray(matches.id, [...options.matchIds]) : undefined));
 }
 
 function summarizeAppearances(appearances: readonly PublicAppearance[]) {

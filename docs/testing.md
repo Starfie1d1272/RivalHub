@@ -46,7 +46,7 @@ PR CI 保留 `static`、`postgres`、`system` 三条 capability lane，按 L0–
 
 CI 只负责选择和阻断 evidence，不成为业务测试语义的第二 owner。全量 PostgreSQL 选择使用既有两片矩阵，包括 migration 要求全套 PG 但其它 capability 仍为 affected 的计划；显式小集合仍使用单片。两片保留全部文件且只执行一次，聚合门禁等待全部片并保留各自耗时证据，保留 180 秒实际执行关键路径预算。
 
-速度验收按实际执行关键路径计算：串行 planner 与 capability lane 的执行时间相加，并行 matrix、独立 dependency job 取最长路径，最后加上 gate 在核验前已执行的耗时。各 job 依据当前 run attempt 的实际 step 时间计算，包含 runner setup、checkout、安装、环境启动、测试及已完成的 cleanup，不使用可能早于 runner 分配的 job `started_at`；job 排队和 step 间的平台调度空档不计入。gate 在读取计时 API 前冻结本地执行耗时，API 等待不占预算；核验后的报告上传与 runner post-cleanup 不属于预算截止点。原 workflow 总 wall time 继续独立记录用于诊断。普通修改争取 60 秒，数据库、真实系统与 FULL 回归仍由门禁强制执行 180 秒实际执行上限；缺失必需 job/step 的计时数据、无效时间或未知图节点会阻断，不按零耗时放行。删行数、测试数下降或调低 timeout 都不能代替真实 CI 成功记录。system 的 provider、production smoke 与受影响 browser 分片并行，gate 等待所有分片；每个 runner 拥有独立服务，场景内部使用独立账号与赛事。LIVE、系列比分修正、会话撤销各自独立分片；会话撤销复用测试声明的 auth 服务层，其余动态发现的 spec 最多分成七片；LIVE 保留真实断流、恢复、跨场导航和换图。浏览器验证这些真实任务，不声称精确证明 stale/unavailable 的时间边界。
+速度验收按实际执行关键路径计算：串行 planner 与 capability lane 的执行时间相加，并行 matrix、独立 dependency job 取最长路径，最后加上 gate 在核验前已执行的耗时。各 job 依据当前 run attempt 的实际 step 时间计算，包含 runner setup、checkout、安装、环境启动、测试及已完成的 cleanup，不使用可能早于 runner 分配的 job `started_at`；job 排队和 step 间的平台调度空档不计入。gate 在读取计时 API 前冻结本地执行耗时，API 等待不占预算；核验后的报告上传与 runner post-cleanup 不属于预算截止点。原 workflow 总 wall time 继续独立记录用于诊断。普通修改争取 60 秒，数据库、真实系统与 FULL 回归仍由门禁强制执行 180 秒实际执行上限；缺失必需 job/step 的计时数据、无效时间或未知图节点会阻断，不按零耗时放行。删行数、测试数下降或调低 timeout 都不能代替真实 CI 成功记录。system 的 provider、production smoke 与受影响 browser 分片并行，gate 等待所有分片；每个 runner 拥有独立服务，场景内部使用独立账号与赛事。系列比分修正、会话撤销各自独立分片；会话撤销复用测试声明的 auth 服务层，其余动态发现的 spec 最多分成七片。LIVE 的断流、恢复、跨场导航和换图按相关改动定向人工验收，不保留独立常驻 E2E，也不声称证明精确的 stale/unavailable 时间边界。
 
 ## Staging and production
 
@@ -100,20 +100,20 @@ Pure tests retain integer pool conservation, the first-match deadline, and one u
 
 ## Public match LIVE consumer evidence
 
-`mizar-live-real-derived.json` retains the source Mizar commit and sanitized capture provenance. It was produced from Mizar's `real-live-rich` program and matching `dense-utility` radar fixture through `projectLiveSnapshotV1`. RivalHub's retained browser uses production ingest/public projection with that fixture; the capture does not prove that an NJU match was played.
+`mizar-live-real-derived.json` retains the source Mizar commit and sanitized capture provenance. It was produced from Mizar's `real-live-rich` program and matching `dense-utility` radar fixture through `projectLiveSnapshotV1`. The fixture is available for targeted LIVE verification through production ingest/public projection; the capture does not prove that an NJU match was played.
 
-`tests/e2e/flows/public-match-live.spec.ts` uses disposable Local Supabase facts and the existing private viewer endpoint. Its dedicated producer only rewrites local match/context IDs and delivery timestamps; it sends captured player/radar data at 1 Hz. Chromium checks private delivery, live scores, stale clock freezing, unavailable fallback, recovery, reload with a qualified previous table, new-frame replacement, cross-match navigation, icon failure and map changes. Retained deterministic tests protect new authoritative proof, context/map/source/login/schema matching, revoked-scope clearing and private token renewal/disposal. PostgreSQL protects source revision, identity/lineup/epoch fencing, completed-map rejection and scoped token admission. Cross-repo adapter/parser checks and the forced Local Supabase provider contract remain required for their affected surfaces. Exact age matrices, every delivery-reducer transition, cache storage-denial/two-match bounds and the detailed receiver-sharing lifecycle no longer have permanent deterministic oracles; the browser journey does not replace those assertions. These checks do not certify a production deployment, real operator handover or sustained capacity.
+公开比赛 LIVE 不保留独立常驻浏览器 E2E。相关交互改动按需人工验收真实 Broadcast、实时比分、断流与恢复、详情与赛程导航、刷新后的上次画面、跨场隔离及换图；数据库或 provider 检查不替代这份 UI 验收。既有确定性测试继续保护 authoritative proof、context/map/source/login/schema 匹配、撤销 scope 清理，以及私有 token 的更新与释放。PostgreSQL 继续保护 source revision、identity/lineup/epoch fencing、已结束地图拒绝与 scoped token admission；跨仓 adapter/parser 和受迫 Local Supabase provider contract 继续按受影响 surface 执行。精确 age matrix、全部 delivery-reducer transition、storage-denial/two-match bound 和详细 receiver-sharing lifecycle 没有常驻确定性 oracle；这些证据不认证生产部署、真实赛务交接或持续容量。
 
 
 ### 比赛领域命令的 production 检查根
 
 独立比赛创建命令尚无产品调用入口，`knip.json` 保留 `src/lib/matches/creation.ts` 显式生产检查根，使 production 模式继续检查其依赖；不为通过检查添加无授权的路由或虚假调用，接入产品调用后再移除该显式根。结束/补录/更正命令已由管理员测试赛工作台经 `TestMatchConclusion` → `concludeTestMatch` 调用 `src/lib/matches/unassociated-result.ts`，随产品引用图纳入 production 检查，无需显式根。命令行为由真实数据库集成回归验证。
 
-浏览器使用原 `/favicon.ico` 探测Next进程可用，不证明根布局或业务路由已编译。LIVE 在实际比赛页导航时先验证 document 状态并监听页面编译/运行异常，失败直接报告 HTTP 状态或异常及服务端诊断附件，不等待观众令牌超时。首页本身由 production smoke 验证。production 与 LIVE runner 仅启动 Auth、SQL（LIVE 另含 Realtime），provider 与上传路径仍启用 Storage/PostgREST。
+浏览器使用原 `/favicon.ico` 探测 Next 进程可用，不证明根布局或业务路由已编译。首页本身由 production smoke 验证。production runner 仅启动 Auth、SQL，provider 与上传路径仍启用 Storage/PostgREST；LIVE provider evidence 继续启用 Realtime。
 
 依赖缓存使用包含 lockfile、workspace 和 runtime manifest 的稳定键；命中后不 prune/re-upload。缓存 miss 仍执行 frozen-lockfile 安装，不跳过依赖校验。
 
 
-LIVE 浏览器只保留一条匿名本地公开赛的真实 Broadcast、断流恢复、详情→赛程列表→详情→刷新、跨场导航与换图链路；真实 Link 往返检查同场只有一次 channel join 且继续写入更晚合法帧，保护五秒 receiver 复用的 proof。正式赛/测试赛及赛事阶段的 token 准入矩阵由 `tests/integration/db/test-matches.test.ts` 调用真实 `issueLiveViewerToken` 查询 PostgreSQL 承接；provider contract 使用报名阶段已启动的官方 Play-in 本地事实，证明 viewer 查询、有效上传、真实 private Broadcast 及跨场/写入隔离；通常 playing 准入由 PostgreSQL 矩阵继续覆盖。
+正式赛/测试赛及赛事阶段的 token 准入矩阵由 `tests/integration/db/test-matches.test.ts` 调用真实 `issueLiveViewerToken` 查询 PostgreSQL 承接；provider contract 使用报名阶段已启动的官方 Play-in 本地事实，证明 viewer 查询、有效上传、真实 private Broadcast 及跨场/写入隔离；通常 playing 准入由 PostgreSQL 矩阵继续覆盖。
 
 CI 使用固定 Supabase CLI 版本提供的官方 slim 镜像（对应相同上游服务版本），Kong 使用其官方 Docker Hub 上游镜像。CLI 镜像预拉取耗尽内部重试且明确返回 registry 限流时，启动入口最多再恢复两次并复用已下载镜像层；其它错误直接失败，所有尝试仍受原180秒实际执行截止约束。生产烟测按视口、BET读取按视图分片，覆盖集合保持完整且各执行一次。每次新建数据库、重放迁移并执行健康检查与 provider contract；不保存数据库或 Docker image tar 缓存。大镜像 tar 的远端加载实测比正常拉取更慢，已移除。

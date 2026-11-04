@@ -36,7 +36,7 @@ export default defineConfig({
     },
     {
       name: "mobile-chrome",
-      testIgnore: ["**/visual/**", "**/acceptance/**", "**/production/**", "**/team-invitations.spec.ts", "**/major-entry.spec.ts", "**/public-match-live.spec.ts", "**/event-logo.spec.ts", "**/major-qualification.spec.ts", "**/series-score-correction.spec.ts", "**/session-revocation.spec.ts", "**/test-matches.spec.ts", "**/platform-stats.spec.ts", "**/ocr-receipt-recovery.spec.ts", "**/admin-immediate-boundaries.spec.ts"],
+      testIgnore: ["**/visual/**", "**/acceptance/**", "**/production/**", "**/team-invitations.spec.ts", "**/major-entry.spec.ts", "**/event-logo.spec.ts", "**/major-qualification.spec.ts", "**/series-score-correction.spec.ts", "**/session-revocation.spec.ts", "**/test-matches.spec.ts", "**/platform-stats.spec.ts", "**/ocr-receipt-recovery.spec.ts", "**/admin-immediate-boundaries.spec.ts"],
       use: {
         ...devices["Pixel 5"],
         channel: process.env.PLAYWRIGHT_CHANNEL === "chrome" ? "chrome" : undefined,
@@ -45,8 +45,7 @@ export default defineConfig({
   ],
   webServer: {
     command: process.env.CI ? "pnpm dev:local > .agent-tmp/next-server.log 2>&1" : "pnpm dev:local",
-    // Process readiness only: LIVE checks its actual document and page errors
-    // before waiting for a token, without compiling an unrelated homepage.
+    // Process readiness only; do not compile an unrelated homepage.
     url: "http://localhost:3000/favicon.ico",
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,

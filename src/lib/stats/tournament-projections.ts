@@ -51,8 +51,10 @@ export async function loadStatsEvidenceSelection<T extends ProjectionTargets>(
   factsSelection: SQL<T>,
   includePerformance = false,
   includeTournament = false,
+  /** Reuse only a context loaded within this same transaction and scope. */
+  existingContext?: Awaited<ReturnType<typeof loadStatsContext>>,
 ) {
-  const context = await loadStatsContext(tx, scope, options);
+  const context = existingContext ?? await loadStatsContext(tx, scope, options);
   const refs = await loadCurrentProjectionRefs(tx, context, includePerformance, includeTournament);
   const importIds = refs.map(({ current }) => current.id);
   const rows = importIds.length ? await tx.select({ importId: matchDemoStatProjections.importId, facts: factsSelection })

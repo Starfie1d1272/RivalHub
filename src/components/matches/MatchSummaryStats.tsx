@@ -1,191 +1,95 @@
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
-import React from "react";
-import { cn } from "@/lib/utils/cn";
-import { Panel } from "@/components/rivalhub";
+import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
+import { Panel } from "@/components/rivalhub/Panel";
+import { StatsHelpLabel } from "@/components/stats/StatsMetricHelp";
 import { getMatchPlayerDisplayName } from "@/lib/identity/display-name";
-import { formatStat, type StatMetric } from "@/lib/stats";
-
-export interface SummaryPlayer {
-  userId: string | null;
-  perfectName: string;
-  teamId: string;
-  kills: number | null;
-  deaths: number | null;
-  assists: number | null;
-  hsPercent: number | null;
-  firstKills: number | null;
-  multiKills: number | null;
-  clutches: number | null;
-  adr: number | null;
-  rws: number | null;
-  ratingPro: number | null;
-  we: number | null;
-  mapsPlayed: number;
-}
+import { cn } from "@/lib/utils/cn";
+import type { MatchStatsRow } from "@/lib/matches/scoreboard-view";
+import type { MatchStatsView } from "@/lib/matches/stats-view";
+import { formatDisplayValue } from "@/lib/stats/display";
+import { formatStat } from "@/lib/stats/format";
+import { formatStatsMetric } from "@/lib/stats/presentation";
 
 interface MatchSummaryStatsProps {
-  players: SummaryPlayer[];
+  players: readonly MatchStatsRow[];
   entryAId: string;
   entryBId: string;
   teamAName: string;
   teamBName: string;
-  /** 不包裹 Panel，供外部已有 Panel 包裹的场景使用（如单图 tab） */
-  noPanel?: boolean;
+  view: MatchStatsView;
+  showAdvancedCoverage: boolean;
 }
 
-const COLS = [
-  { key: "ratingPro", label: "Rating", metric: "ratingPro" },
-  { key: "kills",     label: "K",      metric: "kills" },
-  { key: "deaths",    label: "D",      metric: "deaths" },
-  { key: "assists",   label: "A",      metric: "assists" },
-  { key: "adr",       label: "ADR",    metric: "adr" },
-  { key: "hsPercent", label: "HS%",    metric: "hsPercent" },
-  { key: "firstKills",label: "FK",     metric: "firstKills" },
-  { key: "multiKills",label: "MK",     metric: "multiKills" },
-  { key: "clutches",  label: "CL",     metric: "clutches" },
-  { key: "we",        label: "WE",     metric: "we" },
-] as const satisfies readonly { key: keyof SummaryPlayer; label: string; metric: StatMetric }[];
+const count = (value: number | null) => formatDisplayValue(value, { unit: "count", precision: 0 });
+const pair = (a: number | null, b: number | null) => `${count(a)}–${count(b)}`;
+const detail = (a: number | null, b: number | null) => `${count(a)} (${count(b)})`;
+const columns = {
+  kd: { label: "K–D", help: "击杀数与死亡数。", value: (p: MatchStatsRow) => pair(p.kills, p.deaths) },
+  difference: { label: "+/−", help: "击杀数减去死亡数。", value: (p: MatchStatsRow) => p.kills === null || p.deaths === null ? "—" : p.kills - p.deaths > 0 ? `+${p.kills - p.deaths}` : String(p.kills - p.deaths) },
+  assistsTotal: { label: "A", help: "助攻数。", value: (p: MatchStatsRow) => formatStat("assists", p.assists) },
+  opening: { label: "Op. K–D", help: "每回合开局首杀与首死，不是总击杀与死亡。", value: (p: MatchStatsRow) => pair(p.firstKills, p.firstDeaths) },
+  mk: { label: "MKs", help: "至少两杀的回合数，即 2K、3K、4K 与 5K 回合之和。", value: (p: MatchStatsRow) => formatStat("multiKills", p.multiKills) },
+  kast: { label: "KAST", help: "取得击杀、助攻、存活或被队友补枪的回合占比，按当前数据覆盖的实际回合计算。", value: (p: MatchStatsRow) => formatStatsMetric("kast", p.kast) },
+  clutch: { label: "1vsX", help: "1 对多残局获胜次数，可在个人 Clutch 中查看细分。", value: (p: MatchStatsRow) => formatStat("clutches", p.clutches) },
+  kills: { label: "K (hs)", help: "总击杀（精确爆头击杀）。Both 的括号值须覆盖全部所选地图，不从 HS% 反算。", value: (p: MatchStatsRow) => detail(p.kills, p.headshots) },
+  assists: { label: "A (f)", help: "总助攻（闪光助攻）。Both 的括号值须覆盖全部所选地图。", value: (p: MatchStatsRow) => detail(p.assists, p.flashAssists) },
+  deaths: { label: "D (t)", help: "总死亡（被队友补掉的死亡）。Both 的括号值须覆盖全部所选地图；t 指 traded，不是 T 阵营。", value: (p: MatchStatsRow) => detail(p.deaths, p.tradedDeaths) },
+  adr: { label: "ADR", help: "每回合平均伤害；跨图按有效回合加权。", value: (p: MatchStatsRow) => formatStat("adr", p.adr) },
+  rating: { label: "Rating", help: "已核对记分板的 Rating Pro。CT/T 没有独立来源时显示 —。", value: (p: MatchStatsRow) => formatStat("ratingPro", p.ratingPro) },
+};
+const compactColumns = ["kd", "difference", "assistsTotal", "adr", "kast", "rating"] as const;
+const detailedColumns = ["opening", "mk", "kast", "clutch", "kills", "assists", "deaths", "adr", "rating"] as const;
 
-/** 按 Rating Pro 降序排序，null 排末尾 */
-function byRatingDesc(a: SummaryPlayer, b: SummaryPlayer): number {
-  if (a.ratingPro == null && b.ratingPro == null) return 0;
-  if (a.ratingPro == null) return 1;
-  if (b.ratingPro == null) return -1;
+function byRatingDesc(a: MatchStatsRow, b: MatchStatsRow): number {
+  if (a.ratingPro === null && b.ratingPro === null) return 0;
+  if (a.ratingPro === null) return 1;
+  if (b.ratingPro === null) return -1;
   return b.ratingPro - a.ratingPro;
 }
 
-interface PlayerRowProps {
-  player: SummaryPlayer;
-  teamName: string;
-}
-
-function PlayerRow({ player, teamName }: PlayerRowProps) {
-  const displayName = getMatchPlayerDisplayName(player.perfectName, teamName);
-  const ratingHigh = player.ratingPro != null && player.ratingPro >= 1.2;
-
-  return (
-    <tr className="border-b border-[var(--color-border)] last:border-0">
-      <td className="min-w-0 py-1.5 pl-3 pr-1">
-        {player.userId ? (
-          <PlayerProfileLink
-            userId={player.userId}
-            className="block truncate text-sm font-medium hover:text-[var(--color-accent)] transition-colors"
-            title={player.perfectName}
-          >
-            {displayName}
-          </PlayerProfileLink>
-        ) : (
-          <span className="block truncate text-sm text-[var(--color-fg)]" title={player.perfectName}>{displayName}</span>
-        )}
-      </td>
-      {COLS.map((col) => {
-        const raw = player[col.key];
-        const val = formatStat(col.metric, raw as number | null);
-        return (
-          <td
-            key={col.key}
-            className={cn(
-              "tabular-nums text-right px-1.5 py-1.5 text-xs whitespace-nowrap",
-              col.key === "deaths" && "text-[var(--color-fg-mid)]",
-            )}
-          >
-            <span
-              className={cn(
-                col.key === "ratingPro" && ratingHigh && "font-bold text-[var(--color-accent)]",
-              )}
-            >
-              {String(val)}
-            </span>
-          </td>
-        );
-      })}
-    </tr>
-  );
-}
-
-interface TeamBlockProps {
-  entryId: string;
-  teamName: string;
-  borderColor: string;
-  bgColor: string;
-  players: SummaryPlayer[];
-}
-
-function TeamBlock({ entryId, teamName, borderColor, bgColor, players }: TeamBlockProps) {
-  if (players.length === 0) return null;
-  return (
-    <div className="rounded-sm overflow-hidden" style={{ backgroundColor: bgColor }}>
-      <div
-        className="px-3 py-2 text-[11px] font-bold tracking-widest uppercase"
-        style={{ borderLeft: `3px solid ${borderColor}` }}
-      >
-        <TeamProfileLink entryId={entryId}>{teamName}</TeamProfileLink>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] table-fixed">
-          <colgroup><col style={{ width: "25%" }} />{COLS.map(col => <col key={col.key} style={{ width: "7.5%" }} />)}</colgroup>
-          <thead>
-            <tr className="border-b border-[var(--color-border)]">
-              <th className="text-left text-[10px] text-[var(--color-fg-dim)] font-medium py-1 pl-3 pr-1 whitespace-nowrap">
-                Player
-              </th>
-              {COLS.map((col) => (
-                <th
-                  key={col.key}
-                  className="text-right text-[10px] text-[var(--color-fg-dim)] font-medium px-1.5 py-1 whitespace-nowrap"
-                >
-                  {col.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {players.map((p) => (
-              <PlayerRow key={p.userId ?? p.perfectName} player={p} teamName={teamName} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-export function MatchSummaryStats({
-  players,
-  entryAId,
-  entryBId,
-  teamAName,
-  teamBName,
-  noPanel = false,
-}: MatchSummaryStatsProps) {
-  const teamAPlayers = players.filter((p) => p.teamId === entryAId).sort(byRatingDesc);
-  const teamBPlayers = players.filter((p) => p.teamId === entryBId).sort(byRatingDesc);
-
-  const content = (
-    <React.Fragment>
-      <TeamBlock
-        entryId={entryAId}
-        teamName={teamAName}
-        borderColor="var(--color-accent)"
-        bgColor="color-mix(in srgb, var(--color-accent) 4%, transparent)"
-        players={teamAPlayers}
-      />
-      <TeamBlock
-        entryId={entryBId}
-        teamName={teamBName}
-        borderColor="var(--color-accent-b)"
-        bgColor="color-mix(in srgb, var(--color-accent-b) 4%, transparent)"
-        players={teamBPlayers}
-      />
-    </React.Fragment>
-  );
-
-  if (noPanel) return content;
-
-  return (
-    <Panel contentClassName="space-y-4 p-3">
-      {content}
-    </Panel>
-  );
+export function MatchSummaryStats({ players, entryAId, entryBId, teamAName, teamBName, view, showAdvancedCoverage }: MatchSummaryStatsProps) {
+  const keys = view === "detailed" ? detailedColumns : compactColumns;
+  return <Panel className="min-w-0" contentClassName="space-y-4 p-3">
+    {[[entryAId, teamAName], [entryBId, teamBName]].map(([entryId, teamName]) => {
+      const teamPlayers = players.filter(player => player.teamId === entryId).sort(byRatingDesc);
+      const teamColor = entryId === entryAId ? "var(--color-accent)" : "var(--color-accent-b)";
+      const teamBackground = `color-mix(in srgb, ${teamColor} 4%, var(--color-panel))`;
+      return <section key={entryId} className="min-w-0 overflow-hidden rounded-sm" style={{ backgroundColor: teamBackground }}>
+        <h3 className="border-l-3 px-3 py-2 text-[11px] font-bold tracking-widest uppercase" style={{ borderColor: teamColor }}>
+          <TeamProfileLink entryId={entryId}>{teamName}</TeamProfileLink>
+        </h3>
+        <div className="overflow-x-auto">
+          <table className={`w-full table-fixed ${view === "detailed" ? "min-w-[1120px]" : "min-w-[760px]"}`}>
+            <colgroup><col className="w-36 sm:w-44" />{keys.map(key => <col key={key} />)}</colgroup>
+            <thead>
+              <tr className="border-b border-[var(--color-border)]">
+                <th className="sticky left-0 z-10 whitespace-nowrap py-1 pl-3 pr-1 text-left text-[10px] font-medium text-[var(--color-fg-mid)]" style={{ backgroundColor: teamBackground }}>Player</th>
+                {keys.map(key => <th key={key} className="whitespace-nowrap py-1 pl-1.5 pr-6 text-right text-[10px] font-medium text-[var(--color-fg-mid)] [&_button]:text-[var(--color-fg-mid)]">
+                  <StatsHelpLabel help={<HelpTooltip label={`${columns[key].label} 说明`} content={columns[key].help} />}>{columns[key].label}</StatsHelpLabel>
+                </th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {teamPlayers.map(player => <tr key={player.userId ?? player.perfectName} className="border-b border-[var(--color-border)] last:border-0">
+                <td className="sticky left-0 z-10 min-w-0 py-1.5 pl-3 pr-1 text-sm" style={{ backgroundColor: teamBackground }}>
+                  {player.userId ? <PlayerProfileLink userId={player.userId} title={player.perfectName} className="block truncate font-medium">
+                    {getMatchPlayerDisplayName(player.perfectName, teamName)}
+                  </PlayerProfileLink> : <span className="block truncate" title={player.perfectName}>{getMatchPlayerDisplayName(player.perfectName, teamName)}</span>}
+                  {player.basicCoverage && player.basicCoverage.maps < player.basicCoverage.expectedMaps && <span className="mt-0.5 block text-xs text-[var(--color-fg-dim)]">基础 {player.basicCoverage.maps}/{player.basicCoverage.expectedMaps} 图</span>}
+                  {showAdvancedCoverage && player.advancedCoverage.maps < player.advancedCoverage.expectedMaps && <span className="mt-0.5 block text-xs text-[var(--color-fg-dim)]">高级 {player.advancedCoverage.maps}/{player.advancedCoverage.expectedMaps} 图</span>}
+                </td>
+                {keys.map(key => <td key={key} className={cn(
+                  "whitespace-nowrap py-1.5 pl-1.5 pr-6 text-right text-xs tabular-nums",
+                  key === "deaths" && "text-[var(--color-fg-mid)]",
+                  key === "rating" && player.ratingPro !== null && player.ratingPro >= 1.2 && "font-bold text-[var(--color-accent)]",
+                )}>{columns[key].value(player)}</td>)}
+              </tr>)}
+              {!teamPlayers.length && <tr><td colSpan={keys.length + 1} className="px-3 py-5 text-sm text-[var(--color-fg-mid)]">暂无已确认出场选手</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>;
+    })}
+  </Panel>;
 }

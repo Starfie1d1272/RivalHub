@@ -3,6 +3,8 @@
 import { STATS_METRICS } from "@/lib/stats/metrics";
 import { TeamIdentityLinks } from "../TeamIdentityLinks";
 import { useState } from "react";
+import Link from "next/link";
+import type { Route } from "next";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { MetricFamilyTabs } from "@/components/stats/MetricFamilyTabs";
 import { MetricValue } from "@/components/stats/MetricValue";
@@ -14,6 +16,20 @@ import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 
 type PlayerTab = "overview" | "opening" | "teamplay" | "utility" | "clutch" | "maps" | "weapons";
 type Side = "overall" | "t" | "ct";
+
+type WorkspaceScoreboardRow = Pick<TournamentPlayerDetail["scoreboard"][number],
+  "teamId" | "teamIds" | "perfectName" | "teamName" | "maps" | "rounds" |
+  "avgRating" | "avgAdr" | "kdRatio" | "kpr" | "avgHs" | "avgWe" | "avgRws" | "mkpr"
+>;
+
+export type PlayerWorkspaceDetail = Pick<TournamentPlayerDetail,
+  "playerId" | "teamNames" | "teamLinks" | "performance"
+> & {
+  scoreboard: WorkspaceScoreboardRow[];
+  scoreboardMaps: Array<Pick<TournamentPlayerDetail["scoreboardMaps"][number],
+    "mapName" | "teamId" | "maps" | "rounds" | "avgRating" | "avgAdr" | "kdRatio"
+  >>;
+};
 
 const tabs = [
   { key: "overview", label: "Overview" },
@@ -29,26 +45,31 @@ function mapLabel(mapName: string) {
   return CS2_MAP_CATALOG.find((map) => map.key === mapName)?.label ?? mapName;
 }
 
-function ScopeSideTabs({ value, onChange }: { value: Side; onChange: (side: Side) => void }) {
+function ScopeSideTabs({ value, onChange, sideHrefs }: {
+  value: Side;
+  onChange: (side: Side) => void;
+  sideHrefs?: Record<Side, string>;
+}) {
   return (
     <div className="flex justify-end">
-      <div className="inline-flex items-center gap-1 border-b border-[var(--color-border)]" aria-label="DAK side sample">
-        {(["overall", "t", "ct"] as const).map((side) => {
+      <div className="inline-flex items-center gap-1 border-b border-[var(--color-border)]" aria-label="Player side sample">
+        {(["overall", "ct", "t"] as const).map((side) => {
           const active = value === side;
-          return (
-            <button
-              key={side}
-              type="button"
-              aria-pressed={active}
-              onClick={() => onChange(side)}
-              className={[
-                "-mb-px border-b-2 px-3 py-1.5 text-xs font-medium transition-colors",
-                active
-                  ? "border-[var(--color-accent)] text-[var(--color-fg)]"
-                  : "border-transparent text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]",
-              ].join(" ")}
-            >
-              {side === "overall" ? "Overall" : side.toUpperCase()}
+          const className = [
+            "-mb-px border-b-2 px-3 py-1.5 text-xs font-medium transition-colors",
+            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]",
+            active
+              ? "border-[var(--color-accent)] text-[var(--color-fg)]"
+              : "border-transparent text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]",
+          ].join(" ");
+          const label = side === "overall" ? "Overall" : side.toUpperCase();
+          return sideHrefs ? (
+            <Link key={side} href={sideHrefs[side] as Route} prefetch={false} scroll={false} aria-current={active ? "page" : undefined} className={className}>
+              {label}
+            </Link>
+          ) : (
+            <button key={side} type="button" aria-pressed={active} onClick={() => onChange(side)} className={className}>
+              {label}
             </button>
           );
         })}
@@ -57,11 +78,33 @@ function ScopeSideTabs({ value, onChange }: { value: Side; onChange: (side: Side
   );
 }
 
-export function PlayerWorkspace({ detail, compact = false, hideMaps = false }: { detail: TournamentPlayerDetail; compact?: boolean; hideMaps?: boolean }) {
+export function PlayerWorkspace({ detail, compact = false, hideMaps = false, detailUnavailable = false, side: selectedSide, sideHrefs, onSideChange }: {
+  detail: PlayerWorkspaceDetail;
+  compact?: boolean;
+  hideMaps?: boolean;
+  detailUnavailable?: boolean;
+  side?: Side;
+  sideHrefs?: Record<Side, string>;
+  onSideChange?: (side: Side) => void;
+}) {
   const [tab, setTab] = useState<PlayerTab>("overview");
-  const [side, setSide] = useState<Side>("overall");
+  const [localSide, setLocalSide] = useState<Side>("overall");
+  const side = selectedSide ?? localSide;
+  const changeSide = (nextSide: Side) => {
+    setLocalSide(nextSide);
+    onSideChange?.(nextSide);
+  };
   const player = detail.performance;
-  const slice = player?.slices[side];
+  const selectedSlice = player?.slices[side];
+  const slice = selectedSlice && selectedSlice.sample.rounds > 0 ? selectedSlice : null;
+  const scoreboard = side === "overall" ? detail.scoreboard[0] : undefined;
+  const sideCombat = side !== "overall" ? slice?.combat : undefined;
+  const sideMultiKillRounds = sideCombat
+    ? sideCombat.twoKillRounds + sideCombat.threeKillRounds + sideCombat.fourKillRounds + sideCombat.fiveKillRounds
+    : null;
+  const sideMultiKillsPerRound = slice && sideMultiKillRounds !== null
+    ? { rate: slice.sample.rounds > 0 ? sideMultiKillRounds / slice.sample.rounds : null, successes: sideMultiKillRounds, attempts: slice.sample.rounds }
+    : null;
   const clutchWinsPerRound = slice
     ? {
         rate: slice.sample.rounds > 0 ? slice.clutch.wins / slice.sample.rounds : null,
@@ -108,11 +151,13 @@ export function PlayerWorkspace({ detail, compact = false, hideMaps = false }: {
       )}
 
       <MetricFamilyTabs label="Player workspace" value={tab} options={hideMaps ? tabs.filter(item => item.key !== "maps") : tabs} onChange={setTab} />
-      {tab !== "overview" && tab !== "maps" && tab !== "weapons" && <ScopeSideTabs value={side} onChange={setSide} />}
+      {tab === "maps" || tab === "weapons" ? (
+        <p className="text-right text-xs text-[var(--color-fg-mid)]">Overall · 不按阵营拆分</p>
+      ) : <ScopeSideTabs value={side} onChange={changeSide} sideHrefs={sideHrefs} />}
 
       {tab === "overview" && (
         <div className="space-y-6">
-          {!compact && (
+          {!compact && side === "overall" && (
             <StatsDataTable
               embedded
               rows={detail.scoreboard}
@@ -124,14 +169,14 @@ export function PlayerWorkspace({ detail, compact = false, hideMaps = false }: {
           )}
 
           <MetricSection title="Performance" items={[
-            { label: "Rating", metric: "rating", value: <MetricValue metric="rating" value={detail.scoreboard[0]?.avgRating} /> },
-            { label: "ADR", metric: "adr", value: <MetricValue metric="adr" value={detail.scoreboard[0]?.avgAdr} /> },
-            { label: "K/D", metric: "kd", value: <MetricValue metric="kd" value={detail.scoreboard[0]?.kdRatio} /> },
-            { label: "KPR", metric: "kpr", value: <MetricValue metric="kpr" value={detail.scoreboard[0]?.kpr} /> },
-            { label: "HS%", metric: "hs", value: <MetricValue metric="hs" value={detail.scoreboard[0]?.avgHs == null ? null : detail.scoreboard[0].avgHs / 100} /> },
-            { label: "WE", metric: "we", value: <MetricValue metric="we" value={detail.scoreboard[0]?.avgWe} /> },
-            { label: "RWS", metric: "rws", value: <MetricValue metric="rws" value={detail.scoreboard[0]?.avgRws} /> },
-            { label: "MK/100r", metric: "mk", value: <MetricValue metric="mk" value={detail.scoreboard[0]?.mkpr} /> },
+            { label: "Rating", metric: "rating", value: <MetricValue metric="rating" value={scoreboard?.avgRating} /> },
+            { label: "ADR", metric: "adr", value: <MetricValue metric="adr" sampleLabel="rounds" value={side === "overall" ? scoreboard?.avgAdr : sideCombat?.damagePerRound} /> },
+            { label: "K/D", metric: "kd", value: <MetricValue metric="kd" value={side === "overall" ? scoreboard?.kdRatio : sideCombat && sideCombat.deaths > 0 ? sideCombat.kills / sideCombat.deaths : null} /> },
+            { label: "KPR", metric: "kpr", value: <MetricValue metric="kpr" sampleLabel="rounds" value={side === "overall" ? scoreboard?.kpr : sideCombat?.killsPerRound} /> },
+            { label: "HS%", metric: "hs", value: <MetricValue metric="hs" value={side === "overall" ? (scoreboard?.avgHs == null ? null : scoreboard.avgHs / 100) : sideCombat?.headshotRate} /> },
+            { label: "WE", metric: "we", value: <MetricValue metric="we" value={scoreboard?.avgWe} /> },
+            { label: "RWS", metric: "rws", value: <MetricValue metric="rws" value={scoreboard?.avgRws} /> },
+            { label: "MK/100r", metric: "mk", value: <MetricValue metric="mk" sampleLabel="rounds" value={side === "overall" ? scoreboard?.mkpr : sideMultiKillsPerRound} /> },
           ]} />
 
           {slice && (
@@ -249,12 +294,12 @@ export function PlayerWorkspace({ detail, compact = false, hideMaps = false }: {
             rowKey={(row) => row.weapon}
             initialSortKey="kills"
             tableClassName="min-w-[560px] table-fixed"
-            emptyLabel="暂无武器数据"
+            emptyLabel={detailUnavailable ? "高级统计暂时无法加载" : "暂无武器数据"}
           />
         </section>
       )}
 
-      {!slice && tab !== "overview" && tab !== "maps" && tab !== "weapons" && (
+      {!detailUnavailable && !slice && tab !== "overview" && tab !== "maps" && tab !== "weapons" && (
         <p className="border-y border-[var(--color-border)] py-5 text-sm text-[var(--color-fg-mid)]">暂无详细统计。</p>
       )}
     </section>

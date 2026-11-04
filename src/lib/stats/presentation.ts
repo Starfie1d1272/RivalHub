@@ -1,4 +1,5 @@
 import { formatDisplayValue } from "./display";
+import { formatStat } from "./format";
 import { STATS_METRICS, type StatsMetricKey } from "./metrics";
 
 export interface StatsRateValue {
@@ -32,6 +33,16 @@ export function statsRateNumerator(value: StatsRateValue): number | undefined {
 
 export function statsRateDenominator(value: StatsRateValue): number | undefined {
   return value.opportunities ?? value.attempts;
+}
+
+/** Presentation-only Rating bands inferred from reference samples, not an official threshold. */
+export function statValueColor(metric: "rating" | "difference", value: number | null | undefined): string | undefined {
+  if (value == null || !Number.isFinite(value)) return undefined;
+  // PostgreSQL real can put an exact displayed boundary just above or below it.
+  const displayed = metric === "rating" ? Number(formatStat("ratingPro", value)) : value;
+  const positive = metric === "rating" ? displayed >= 1.05 : displayed > 0;
+  const negative = metric === "rating" ? displayed <= 0.95 : displayed < 0;
+  return positive ? "var(--color-data-positive)" : negative ? "var(--color-data-negative)" : "var(--color-fg)";
 }
 
 export function formatStatsMetric(metric: StatsMetricKey, value: number | null | undefined): string {

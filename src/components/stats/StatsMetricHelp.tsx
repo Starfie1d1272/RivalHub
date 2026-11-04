@@ -10,11 +10,15 @@ export function StatsMetricHelp({ metric }: { metric: StatsMetricKey }) {
   return <StatsTooltip label={`${definition.label} 指标说明`} content={definition.description} />;
 }
 
-export function StatsMetricLabel({ metric, children }: { metric: StatsMetricKey; children: ReactNode }) {
+export function StatsHelpLabel({ children, help }: { children: ReactNode; help: ReactNode }) {
   return (
     <span className="relative inline-flex max-w-full items-center">
       <span className="min-w-0">{children}</span>
-      <span className="absolute left-full top-1/2 ml-1 -translate-y-1/2"><StatsMetricHelp metric={metric} /></span>
+      <span className="absolute left-full top-1/2 ml-1 -translate-y-1/2">{help}</span>
     </span>
   );
+}
+
+export function StatsMetricLabel({ metric, children }: { metric: StatsMetricKey; children: ReactNode }) {
+  return <StatsHelpLabel help={<StatsMetricHelp metric={metric} />}>{children}</StatsHelpLabel>;
 }

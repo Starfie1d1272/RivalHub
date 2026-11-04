@@ -17,9 +17,8 @@
 | `MatchTimeNegotiation` | 队长 / 管理员比赛时间协商弹窗 |
 | `TimeProposalHistory` | 时间协商历史记录 |
 | `VetoView` | 比赛禁选（BP）步骤与地图决定展示 |
-| `MatchMapTabsNavigation` | 地图标签导航（支持整场汇总与单图切换） |
-| `MatchSummaryStats` | 赛后整场选手与队伍综合数据汇总（POST） |
-| `PlayerStatsTable` | 单图选手统计面板（Rating、K、D、A、ADR 等）（POST） |
+| `MatchStatistics` | 比赛统计范围、简详计分板与选手深挖 |
+| `MatchSummaryStats` | 按队伍展示当前范围的简洁或详细十人计分板 |
 | `MatchMvpVote` | 赛后 MVP 投票与胜出者公示（POST） |
 | `MatchLiveViewing` | 直播与解说状态展示 |
 
