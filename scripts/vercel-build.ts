@@ -7,11 +7,7 @@ const projectRoot = resolve(process.cwd());
 const binSuffix = process.platform === "win32" ? ".cmd" : "";
 
 try {
-  if (process.env.VERCEL_ENV === "production") {
-    // Production is release-only. If an unexpected production build reaches
-    // Vercel, it must carry the release workflow's markers or fail closed.
-    assertProductionReleaseBuild(process.env);
-  }
+  assertProductionReleaseBuild(process.env);
   if (process.env.VERCEL_ENV === "preview") {
     assertPreviewDatabaseUrl(process.env.DATABASE_URL ?? "", process.env);
     assertPreviewAuthEnvironment(process.env);
@@ -26,6 +22,6 @@ try {
 function run(executable: string, args: readonly string[], env: NodeJS.ProcessEnv): void {
   const result = spawnSync(executable, [...args], { cwd: projectRoot, stdio: "inherit", env });
   if (result.error) throw result.error;
-  if (result.signal) throw new Error(`Vercel build 被信号 ${result.signal} 终止。`);
-  if (result.status !== 0) throw new Error(`Vercel build gate 失败（exit ${result.status ?? "unknown"}）。`);
+  if (result.signal) throw new Error(`Deployment build 被信号 ${result.signal} 终止。`);
+  if (result.status !== 0) throw new Error(`Deployment build gate 失败（exit ${result.status ?? "unknown"}）。`);
 }

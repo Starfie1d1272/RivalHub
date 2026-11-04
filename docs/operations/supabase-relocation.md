@@ -21,7 +21,7 @@
 | Auth 与邮件 | users/identities、密码 hash、确认状态、角色；SMTP/Resend、模板、redirect URLs、限流 |
 | Storage | bucket 配置、真实对象 bytes/checksum、业务引用和 retention |
 | Realtime / scheduler | private policy、JWT 签名、pg_cron/pg_net、Vault、endpoint 与 credential |
-| Consumer | GitHub production/staging、Vercel Production/Preview、备用机及外部集成 |
+| Consumer | GitHub production/staging、Linux Production/Preview 及外部集成 |
 | 外部 provider | Turnstile、Steam、OCR、日志与 R2 recovery；按当前代码补全 |
 
 只记录 secret 名称、来源和 presence。提前确认完整备份与匹配的离线 age 解密材料；新密码安全保存。SMTP 等不可反读的 credential 集中列为 Owner TODO，继续其它独立准备，相关功能在补齐前保持未验收。

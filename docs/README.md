@@ -19,7 +19,7 @@
 | 测试证据与 CI | [`testing.md`](./testing.md)、[`operations/ci.md`](./operations/ci.md) |
 | 部署支持范围与环境边界 | [`deployment.md`](./deployment.md) |
 | 本地开发、migration、staging、release | [`operations/`](./operations/) |
-| 应用备用机安装、Vercel 故障切换与回退 | [`operations/standby.md`](./operations/standby.md) |
+| Linux 应用托管、Preview 备用机与回退 | [`operations/standby.md`](./operations/standby.md) |
 | Supabase 新组织迁库 | [`operations/supabase-relocation.md`](./operations/supabase-relocation.md) |
 | Production 灾难恢复、备份与 Restore 演练 | [`operations/disaster-recovery.md`](./operations/disaster-recovery.md) |
 | UI 与交互 contract | [`ui-system.md`](./ui-system.md) |

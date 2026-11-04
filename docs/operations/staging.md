@@ -19,7 +19,7 @@ RivalHub staging 是**受保护的远程数据库 rehearsal 环境**，不是自
 
 通过 `workflow_dispatch` 指定要验证的 branch、tag 或 commit。默认使用 `main`。
 
-不要把个人 shell、Vercel Preview 或普通 PR job 当成 staging 写入口。
+不要把个人 shell、Preview 或普通 PR job 当成 staging 写入口。
 
 ## Workflow 做什么
 
@@ -60,4 +60,4 @@ Staging rehearsal 不：
 
 ## Preview mirror
 
-`rivalhub-dev` 是可牺牲的 shared staging，同时承载 production 派生的脱敏 Preview mirror。它不是 production fallback 或灾备 artifact；[Preview mirror workflow](./preview-mirror.md) 负责 reset/refresh。Vercel Preview 可正常写入它，下一次 refresh 会覆盖这些测试数据；普通本地 shell 仍不得直接写入该目标。
+`rivalhub-dev` 是可牺牲的 shared staging，同时承载 production 派生的脱敏 Preview mirror。它不是 production fallback 或灾备 artifact；[Preview mirror workflow](./preview-mirror.md) 负责 reset/refresh。Preview 可正常写入它，下一次 refresh 会覆盖这些测试数据；普通本地 shell 仍不得直接写入该目标。

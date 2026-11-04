@@ -72,13 +72,13 @@ Issue #806 的 `0073_careless_pretty_boy` 是明确的未开放功能清理例�
 
 纯 additive migration 不要求机械拆成多个 release；会破坏上一稳定应用读写的变化必须跨 release 收敛。
 
-## 社区奖名单的 expand / reader 切换
+## 社区奖名单与结果版本
 
-`community_award_recipients` 是完整名单事实。扩展迁移保留旧 `recipient_user_id`、原 CHECK 和单人读取契约，回填所有历史获奖记录，不依据当前赛季是否有结果决定是否迁移。N 版本继续读取一个真实获奖者；N+1 从关系表批量读取完整名单，新 writer 在同一事务维护关系表和首位获奖者投影。延迟约束在提交时校验状态、名单与人数上限，旧 writer 的单人更正由数据库桥接到关系表并补存完整旧/新结果与理由审计；多人规则或提前结算策略上的旧 writer 会被拒绝，不能静默覆盖新结果。
+`community_award_recipients` 是完整名单事实。当前 service 在同一事务内锁定奖项、校验结奖策略与预期版本，维护完整名单、首位获奖者投影 `recipient_user_id` 和完整旧/新结果审计。延迟约束在提交时校验状态、名单与人数上限；数据库不再为旧单人 writer 同步名单或补写审计，也不使用 writer GUC 切换行为。
 
-部署顺序为 expand/backfill → 部署完整名单 reader/writer → 排空 N 版本请求 → 管理员显式启用多人或提前结算规则。滚动重叠期间只运营原单人、整届结束策略；N 的公开页无法展示多人，因此不能在旧 reader 尚有流量时发布新的多人结果。已有公开奖项内容和历史结果不在迁移中被重解释。回退 N 应先停止新结奖/核验操作，保留数据库扩展和已有名单，不能用旧 reader 作为多人结果的完整展示。
+`community_awards_advance_result_version` 在状态、结果字段或显式 `result_version` 更新时统一落下 `OLD.result_version + 1`。审核、修改后重提和撤回仍由状态更新触发；规则设置与证据核验通过 service 的显式版本更新触发；结奖、更正与身份合并即使同时写多个触发列也只增加一次。仅请求补充说明或提交候选证据不推进结果版本。
 
-本轮不删除单人投影或桥接 trigger；仅在上一稳定 shipped 应用不再引用旧字段后，后续 release 才可独立执行 contract cleanup。兼容与回填由 PostgreSQL migration spec 实测，生产排空与策略启用属于发布/运营操作，不由普通 feature PR 执行。
+迁移保留当前 shipped 应用仍使用的首位获奖者投影和约束。上一版完整名单 writer 在迁移后的滚动窗口内可继续运行，其显式版本更新仍只增加一次；更早的单人 writer 不再是受支持入口。删除投影列必须另行确认上一稳定 shipped 应用不再读写该列。
 
 ## Staging
 

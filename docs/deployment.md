@@ -62,7 +62,7 @@ RLS、GRANT、trigger、policy、backfill 和 custom SQL 都进入 active migrat
 4. 显式 remote-write authorization；
 5. 固定 migrate/verify/deploy/smoke 顺序。
 
-普通本地 shell、Vercel Preview、Dashboard 手工 patch 或裸 Drizzle CLI 都不是 production/staging write path。本地工具也不能从 `.env.local` 静默 fallback 到远程数据库。
+普通本地 shell、Preview、Dashboard 手工 patch 或裸 Drizzle CLI 都不是 production/staging write path。本地工具也不能从 `.env.local` 静默 fallback 到远程数据库。
 
 ## Scheduler boundary
 
@@ -94,6 +94,6 @@ provider project ID、host、secret 和 workflow 具体实现由受保护配置/
 
 ## Preview 数据边界
 
-Vercel Preview 固定使用可牺牲、可重置的 `rivalhub-dev`。它拥有正常的 dev 写入体验，却永不连接或持有 production DB/Auth/Storage/provider credential。该环境由 production 派生的脱敏快照定期恢复基线，不使用 #569 的正式 R2 DR artifact；详见 [Preview 脱敏镜像运行手册](./operations/preview-mirror.md)。
+Preview 固定使用可牺牲、可重置的 `rivalhub-dev`。它拥有正常的 dev 写入体验，却永不连接或持有 production DB/Auth/Storage/provider credential。该环境由 production 派生的脱敏快照定期恢复基线，不使用 #569 的正式 R2 DR artifact；详见 [Preview 脱敏镜像运行手册](./operations/preview-mirror.md)。
 
 官方 Hosted production 与 Preview 的公开目标由 `src/lib/runtime/official-deployment-profile.mjs` 维护；数据库、备份、发布及 cron 消费此 profile 并保留各自的目标、环境隔离和 TLS 校验。它不是自托管配置接口；通用工具的显式输入与独立校验仍按其操作契约执行。profile 只包含公开值，不包含凭据。
