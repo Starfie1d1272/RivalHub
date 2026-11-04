@@ -13,9 +13,8 @@ export { PRODUCTION_PROJECT_REF } from "../production-environment";
 const PRODUCTION_SUPABASE_URL = OFFICIAL_PRODUCTION.supabaseUrl;
 const RECOVERY_TARGET = "isolated" as const;
 
-/** Retain recovery compatibility with encrypted backups from the previous organization. */
 export function isProductionRecoverySource(projectRef: string): boolean {
-  return projectRef === PRODUCTION_PROJECT_REF || projectRef === "atjiukerfgqlwvnctigc" || projectRef === "eurxkguokrkvpcsmxuru" || projectRef === "rrrebbxfghmgnoyyeqqd" || projectRef === "sucokfotkypwqkckfynp";
+  return projectRef === PRODUCTION_PROJECT_REF;
 }
 
 export type BackupClass = "daily" | "pre-release" | "manual";

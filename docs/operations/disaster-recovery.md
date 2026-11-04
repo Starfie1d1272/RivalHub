@@ -159,7 +159,7 @@ fetch 固定按 completion → sidecar → encrypted artifact 顺序执行 HEAD/
 
 ## Isolated restore
 
-普通 restore 只接受显式 isolated loopback target；代码没有 production destructive restore command。最小环境如下：
+普通 restore 使用当前官方 production 项目的最近备份，不再接受旧 Supabase 项目来源；目标只接受显式 isolated loopback target，代码没有 production destructive restore command。最小环境如下：
 
 ```bash
 export RIVALHUB_RECOVERY_TARGET=isolated
@@ -189,9 +189,9 @@ pnpm db:recovery:restore-db-checkpoint \
   --completion /private/path/new-recovery-run/completion.json
 ```
 
-### 历史备份恢复后的权限处理
+### 最近备份恢复后的权限处理
 
-项目接受日常备份窗口内的数据和权限变更丢失风险。正常备份成功时 RPO 目标为 24 小时；实际损失窗口以最近一次可用备份的时间为准。恢复历史备份后，由维护者根据已知变更重新禁用账号、撤销会话或设备授权，并核对管理员权限和身份归并。使用现有管理能力处理，不建设快照外撤销账本、自动对账或恢复放行状态机。
+项目接受日常备份窗口内的数据和权限变更丢失风险。正常备份成功时 RPO 目标为 24 小时；实际损失窗口以最近一次可用备份的时间为准。恢复最近可用备份后，由维护者根据已知变更重新禁用账号、撤销会话或设备授权，并核对管理员权限和身份归并。使用现有管理能力处理，不建设快照外撤销账本、自动对账或恢复放行状态机。
 
 恢复在维护窗口内执行：停用应用及独立写者，验证恢复数据与 provider 配置，完成上述人工权限处理，再恢复服务和 scheduler。普通隔离恢复命令仍只接受 isolated target；生产切流按对应操作流程执行。计划迁库使用停写后的最终数据并对账，见 [迁库 SOP](./supabase-relocation.md)。
 
