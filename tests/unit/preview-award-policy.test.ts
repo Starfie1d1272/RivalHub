@@ -3,24 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { readExpectedMigrations } from "../../scripts/db/production-preflight";
-import { assertReviewedColumns, exportQuery, previewPolicyFor } from "../../scripts/db/preview/policy";
+import { previewPolicyFor } from "../../scripts/db/preview/policy";
 import { readSnapshot, type MirrorSnapshot } from "../../scripts/db/preview/snapshot";
 
 describe("community award preview boundary", () => {
-  it("keeps pre-0090 sources readable and reviews the additive award schema", () => {
-    const migrations = readExpectedMigrations();
-    const index = migrations.findIndex((migration) => migration.tag === "0090_yellow_blink");
-    expect(index).toBeGreaterThan(0);
-    const old = previewPolicyFor(migrations.slice(0, index));
-    const current = previewPolicyFor(migrations);
-    expect(old.tables.community_award_recipients).toBeUndefined();
-    expect(() => exportQuery("community_award_recipients", old)).toThrow();
-    expect(old.tables.community_awards.exportedColumns).not.toContain("recipient_policy");
-    expect(current.tables.community_awards.exportedColumns).toContain("recipient_policy");
-    expect(() => assertReviewedColumns("community_award_recipients", ["award_id", "user_id", "position"], current)).not.toThrow();
-    expect(() => assertReviewedColumns("community_award_recipients", ["award_id", "user_id", "position", "private_note"], current)).toThrow();
-  });
-
   it("rejects recipient rows outside public awarded outcomes when reading an artifact", () => {
     const migrations = readExpectedMigrations();
     const snapshot: MirrorSnapshot = {

@@ -117,7 +117,6 @@
     "src/components/stats/players/PlayerWorkspace.tsx!",
     "src/components/stats/teams/TeamWorkspace.tsx!",
     "scripts/prepare-radar-assets.mjs!",
-    "scripts/db/public-live-browser-fixture.ts!",
     "src/lib/matches/creation.ts!",
     "playwright.production.config.ts!",
     "tests/e2e/helpers/production-server.mjs!",

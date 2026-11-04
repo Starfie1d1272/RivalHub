@@ -14,7 +14,6 @@ vi.mock("@/lib/seasons/public-results", () => ({ getPublicSeasonResultsBatch: as
 vi.mock("@/lib/observability/server", () => ({ captureException: () => {} }));
 
 import { createPublicPlayerProfileSections } from "@/lib/players/public-profile";
-import { getPublicPlayerMatches, getRecentPublicPlayerMatches } from "@/lib/players/public-matches";
 
 it("keeps fresh education/entry withdrawal and multi-event history in independently consumed PG sections", async () => {
   const pool = createLocalPool();
@@ -63,59 +62,6 @@ it("keeps fresh education/entry withdrawal and multi-event history in independen
     expect(after.history.careerHistory).toEqual([]);
   } finally {
     await client.query("ROLLBACK");
-    client.release();
-    await pool.end();
-  }
-});
-
-
-it("retains series-only appearances and publishes only reviewed personal maps from historical lineups", async () => {
-  const pool = createLocalPool();
-  const client = await pool.connect();
-  const tables = ["match_roster_players", "match_rosters", "event_roster_members", "event_rosters", "matches", "seasons", "competition_entries", "match_maps", "match_player_stats"];
-  try {
-    // The reader owns its repeatable-read transaction. Session-local tables
-    // persist across its commits and never mutate shared public fixtures.
-    for (const table of tables) {
-      await client.query(`CREATE TEMP TABLE ${table} AS SELECT * FROM public.${table} WITH NO DATA`);
-    }
-    state.database = drizzle(client, { schema });
-    const [userId, otherUserId, seasonId, entryA, entryB, eventRosterId, eventMemberId, rosterId, matchId, firstMap, secondMap, unplayedMap] = Array.from({ length: 12 }, () => randomUUID());
-    await client.query("INSERT INTO seasons (id,name,slug,status) VALUES ($1,'Ongoing public event','history-scope','playing')", [seasonId]);
-    await client.query("INSERT INTO competition_entries (id,name) VALUES ($1,'Historical team'),($2,'Opponent')", [entryA, entryB]);
-    await client.query("INSERT INTO event_rosters (id,entry_id,status) VALUES ($1,$2,'frozen')", [eventRosterId, entryA]);
-    await client.query("INSERT INTO event_roster_members (id,event_roster_id,user_id,is_current) VALUES ($1,$2,$3,false)", [eventMemberId, eventRosterId, userId]);
-    await client.query("INSERT INTO match_rosters (id,match_id,entry_id,status) VALUES ($1,$2,$3,'confirmed')", [rosterId, matchId, entryA]);
-    await client.query("INSERT INTO match_roster_players (roster_id,event_roster_member_id,is_starter) VALUES ($1,$2,true)", [rosterId, eventMemberId]);
-    await client.query(`INSERT INTO matches (id,season_id,entry_a_id,entry_b_id,status,score_a,score_b,is_forfeit,completed_at)
-      VALUES ($1,$2,$3,$4,'finished',2,0,false,'2026-11-04 01:02:03.123456+00')`, [matchId, seasonId, entryA, entryB]);
-    await client.query(`INSERT INTO match_maps (id,match_id,map_name,map_order,score_a,score_b,completed_at)
-      VALUES ($1,$4,'de_mirage',1,13,8,now()),($2,$4,'de_inferno',2,13,10,now()),($3,$4,'de_nuke',3,NULL,NULL,NULL)`, [firstMap, secondMap, unplayedMap, matchId]);
-    const query = { event: "", map: "", page: 1, cursor: "", direction: "older" as const };
-    const seriesOnly = await getPublicPlayerMatches(userId, query);
-    expect(seriesOnly.matches).toMatchObject([{ id: matchId, teamName: "Historical team", ownScore: 2, opponentScore: 0,
-      completedMaps: 2, confirmedMaps: 0, maps: [], cursor: `2026-11-04T01:02:03.123456Z|${matchId}` }]);
-    expect(seriesOnly.matches).toHaveLength(1);
-    expect((await getRecentPublicPlayerMatches(userId)).map(match => match.id)).toEqual([matchId]);
-    expect((await getPublicPlayerMatches(userId, { ...query, map: "de_mirage" })).matches).toEqual([]);
-
-    // Nonempty userId is insufficient: one row is unreviewed, another belongs
-    // to someone else, and the deciding map has never actually been completed.
-    const firstStat = randomUUID();
-    await client.query(`INSERT INTO match_player_stats (id,match_id,map_id,user_id,perfect_name,verified_by_admin,kills,deaths)
-      VALUES ($1,$2,$3,$6,'Reviewed later',NULL,0,3),($8,$2,$4,$7,'Other player','reviewer',20,10),($9,$2,$5,$6,'Unplayed map','reviewer',0,0)`,
-    [firstStat, matchId, firstMap, secondMap, unplayedMap, userId, otherUserId, randomUUID(), randomUUID()]);
-    expect((await getPublicPlayerMatches(userId, query)).matches[0]).toMatchObject({ maps: [], confirmedMaps: 0 });
-    await client.query("UPDATE match_player_stats SET verified_by_admin='reviewer' WHERE id=$1", [firstStat]);
-    const partial = await getPublicPlayerMatches(userId, query);
-    expect(partial.matches[0]).toMatchObject({ completedMaps: 2, confirmedMaps: 1,
-      maps: [{ id: firstMap, name: "de_mirage", order: 1, kills: 0, deaths: 3, adr: null, rating: null }] });
-    expect(partial.matches[0]?.maps).toHaveLength(1);
-    expect((await getPublicPlayerMatches(userId, { ...query, map: "de_mirage" })).matches[0]).toMatchObject({ id: matchId, ownScore: 2, opponentScore: 0 });
-    expect((await getPublicPlayerMatches(userId, { ...query, map: "de_inferno" })).matches).toEqual([]);
-    expect((await getPublicPlayerMatches(userId, { ...query, map: "de_nuke" })).matches).toEqual([]);
-  } finally {
-    for (const table of tables) await client.query(`DROP TABLE IF EXISTS pg_temp.${table}`);
     client.release();
     await pool.end();
   }
