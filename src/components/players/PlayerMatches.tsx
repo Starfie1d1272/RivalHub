@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
+import { mapLabel } from "@/lib/maps";
+import { formatStat } from "@/lib/stats/format";
 import { formatCST } from "@/lib/utils/date";
 import { readOptionalPublicStats } from "@/lib/stats/availability";
 import { getRecentPublicPlayerMatches, type PublicPlayerMatch } from "@/lib/players/public-matches";
@@ -69,11 +70,11 @@ export function PlayerMatchHistoryTable({ matches, userId, fromStats }: { matche
             return <tr key={map.id} className="border-t border-[var(--color-border)]">
               <td className="max-w-40 px-3 py-3"><span className="block truncate" title={match.teamName}>{match.teamName}</span></td>
               <td className="px-3 py-3"><span className="block max-w-44 truncate" title={match.opponentName}>{match.opponentName}</span><span className="font-mono text-xs tabular-nums">{map.ownScore} : {map.opponentScore}</span></td>
-              <td className="px-3 py-3"><Link href={playerMatchDetailHref(match.seasonSlug, match.id, userId, map.id, fromStats) as Route} className="whitespace-nowrap text-[var(--color-accent)] hover:underline">{CS2_MAP_CATALOG.find((item) => item.key === map.name)?.label ?? map.name} →</Link></td>
-              <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums">{map.kills ?? "—"}–{map.deaths ?? "—"}</td>
+              <td className="px-3 py-3"><Link href={playerMatchDetailHref(match.seasonSlug, match.id, userId, map.id, fromStats) as Route} className="whitespace-nowrap text-[var(--color-accent)] hover:underline">{mapLabel(map.name)} →</Link></td>
+              <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums">{formatStat("kills", map.kills)}–{formatStat("deaths", map.deaths)}</td>
               <td className="px-3 py-3 text-right font-mono tabular-nums">{difference === null ? "—" : difference > 0 ? `+${difference}` : difference}</td>
-              <td className="px-3 py-3 text-right font-mono tabular-nums">{map.adr?.toFixed(1) ?? "—"}</td>
-              <td className="px-3 py-3 text-right font-mono font-semibold tabular-nums">{map.rating?.toFixed(2) ?? "—"}</td>
+              <td className="px-3 py-3 text-right font-mono tabular-nums">{formatStat("adr", map.adr)}</td>
+              <td className="px-3 py-3 text-right font-mono font-semibold tabular-nums">{formatStat("ratingPro", map.rating)}</td>
             </tr>;
           })}
       </tbody>)}
