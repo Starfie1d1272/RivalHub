@@ -53,7 +53,6 @@ export function MatchStatistics({ seasonSlug, matchId, maps, entryAId, entryBId,
     expectedMapIds: completedMaps.map(map => map.id), performanceMapIdsByPlayer,
   });
   const href = (patch: Parameters<typeof matchStatsHref>[4] = {}, anchor = "match-stats") => matchStatsHref(seasonSlug, matchId, query, scope, patch, anchor);
-  const playerHrefs = Object.fromEntries(players.map(player => [player.userId, href({ playerId: player.userId }, "detailed-stats")]));
   const coveredMaps = completedMaps.filter(map => performance?.byMap[map.id]);
   const personalCoveredMaps = completedMaps.filter(map => (performanceMapIdsByPlayer.get(scope.playerId ?? "") ?? []).includes(map.id));
   const selectedPerformance = scopedPerformance.find(player => player.player.entityKey === scope.playerId) ?? null;
@@ -105,13 +104,18 @@ export function MatchStatistics({ seasonSlug, matchId, maps, entryAId, entryBId,
       {(basicCoverage || advancedCoverage) && <p className="text-sm text-[var(--color-fg-mid)]">{[basicCoverage, advancedCoverage].filter(Boolean).join(" · ")}</p>}
       {unavailable && <p role="status" className="text-sm">高级统计暂时无法加载，请稍后重试。</p>}
       {selectedMap && scoreboard.provisionalMapIds.has(selectedMap.id) && <p className="text-sm text-[var(--color-fg-mid)]">基础数据为临时数据，待核对。</p>}
-      <MatchSummaryStats players={rows} entryAId={entryAId} entryBId={entryBId} teamAName={teamAName} teamBName={teamBName} view={scope.view} playerHrefs={playerHrefs} selectedPlayerId={scope.playerId} showAdvancedCoverage={!unavailable} />
+      <MatchSummaryStats players={rows} entryAId={entryAId} entryBId={entryBId} teamAName={teamAName} teamBName={teamBName} view={scope.view} showAdvancedCoverage={!unavailable} />
     </section>
     {scope.playerId && <section id="detailed-stats" className="min-w-0 scroll-mt-20 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">个人深挖 · {playerName}</h2>
+        <h2 className="text-lg font-semibold">详细统计 · {playerName}</h2>
         <Link prefetch={false} href={href() as never} className="text-sm text-[var(--color-accent)]">返回十人计分板 ↑</Link>
       </div>
+      <nav aria-label="统计选手" className="flex flex-wrap gap-2">
+        {players.map(player => <Link key={player.userId} prefetch={false} href={href({ playerId: player.userId }, "detailed-stats") as never} aria-current={scope.playerId === player.userId ? "page" : undefined} className={controlClass}>
+          {player.perfectName}
+        </Link>)}
+      </nav>
       <p className="text-sm text-[var(--color-fg-mid)]">{[scopeLabel, personalBasicCoverage, personalAdvancedCoverage].filter(Boolean).join(" · ")}</p>
       <Panel contentClassName="p-4">
         {unavailable && <p role="status" className="mb-4 text-sm text-[var(--color-fg-mid)]">高级统计暂时无法加载，请稍后重试。</p>}

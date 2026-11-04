@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { UserRound } from "lucide-react";
 import { TeamProfileLink } from "@/components/teams/TeamProfileLink";
 import { PlayerProfileLink } from "@/components/players/PlayerProfileLink";
 import { HelpTooltip } from "@/components/rivalhub/HelpTooltip";
@@ -20,8 +18,6 @@ interface MatchSummaryStatsProps {
   teamAName: string;
   teamBName: string;
   view: MatchStatsView;
-  playerHrefs: Record<string, string>;
-  selectedPlayerId: string | null;
   showAdvancedCoverage: boolean;
 }
 
@@ -52,7 +48,7 @@ function byRatingDesc(a: MatchStatsRow, b: MatchStatsRow): number {
   return b.ratingPro - a.ratingPro;
 }
 
-export function MatchSummaryStats({ players, entryAId, entryBId, teamAName, teamBName, view, playerHrefs, selectedPlayerId, showAdvancedCoverage }: MatchSummaryStatsProps) {
+export function MatchSummaryStats({ players, entryAId, entryBId, teamAName, teamBName, view, showAdvancedCoverage }: MatchSummaryStatsProps) {
   const keys = view === "detailed" ? detailedColumns : compactColumns;
   return <Panel className="min-w-0" contentClassName="space-y-4 p-3">
     {[[entryAId, teamAName], [entryBId, teamBName]].map(([entryId, teamName]) => {
@@ -77,12 +73,9 @@ export function MatchSummaryStats({ players, entryAId, entryBId, teamAName, team
             <tbody>
               {teamPlayers.map(player => <tr key={player.userId ?? player.perfectName} className="border-b border-[var(--color-border)] last:border-0">
                 <td className="sticky left-0 z-10 min-w-0 py-1.5 pl-3 pr-1 text-sm" style={{ backgroundColor: teamBackground }}>
-                  <div className="flex items-center gap-2">
-                    {player.userId && playerHrefs[player.userId] ? <Link prefetch={false} href={playerHrefs[player.userId] as never} aria-current={selectedPlayerId === player.userId ? "true" : undefined} title={`${player.perfectName} · 查看当前范围的个人统计`} className="min-w-0 truncate font-medium hover:text-[var(--color-accent)] aria-[current=true]:text-[var(--color-accent)]">
-                      {getMatchPlayerDisplayName(player.perfectName, teamName)}
-                    </Link> : <span className="min-w-0 truncate">{getMatchPlayerDisplayName(player.perfectName, teamName)}</span>}
-                    {player.userId && <PlayerProfileLink userId={player.userId} variant="dense" title="选手主页" aria-label={`${player.perfectName} 的选手主页`} className="shrink-0 text-[var(--color-fg-mid)] hover:text-[var(--color-accent)]"><UserRound size={14} aria-hidden="true" /></PlayerProfileLink>}
-                  </div>
+                  {player.userId ? <PlayerProfileLink userId={player.userId} title={player.perfectName} className="block truncate font-medium">
+                    {getMatchPlayerDisplayName(player.perfectName, teamName)}
+                  </PlayerProfileLink> : <span className="block truncate" title={player.perfectName}>{getMatchPlayerDisplayName(player.perfectName, teamName)}</span>}
                   {player.basicCoverage && player.basicCoverage.maps < player.basicCoverage.expectedMaps && <span className="mt-0.5 block text-xs text-[var(--color-fg-dim)]">基础 {player.basicCoverage.maps}/{player.basicCoverage.expectedMaps} 图</span>}
                   {showAdvancedCoverage && player.advancedCoverage.maps < player.advancedCoverage.expectedMaps && <span className="mt-0.5 block text-xs text-[var(--color-fg-dim)]">高级 {player.advancedCoverage.maps}/{player.advancedCoverage.expectedMaps} 图</span>}
                 </td>
