@@ -38,8 +38,8 @@ const columns = {
   adr: { label: "ADR", help: "每回合平均伤害；跨图按有效回合加权。", value: (p: MatchStatsRow) => formatStat("adr", p.adr) },
   rating: { label: "Rating", help: "已核对记分板的 Rating Pro。CT/T 没有独立来源时显示 —。", value: (p: MatchStatsRow) => formatStat("ratingPro", p.ratingPro) },
 };
-const compactColumns = ["rating", "kd", "difference", "assistsTotal", "adr", "kast"] as const;
-const detailedColumns = ["rating", "opening", "mk", "kast", "clutch", "kills", "assists", "deaths", "adr"] as const;
+const compactColumns = ["kd", "difference", "assistsTotal", "adr", "kast", "rating"] as const;
+const detailedColumns = ["opening", "mk", "kast", "clutch", "kills", "assists", "deaths", "adr", "rating"] as const;
 
 function byRatingDesc(a: MatchStatsRow, b: MatchStatsRow): number {
   if (a.ratingPro === null && b.ratingPro === null) return 0;
