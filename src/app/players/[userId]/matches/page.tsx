@@ -12,7 +12,7 @@ import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
 import { getPublicPlayerById } from "@/lib/data/public-players";
 import { resolveCanonicalUserId } from "@/lib/identity/canonical";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { getPublicPlayerMatches, getPublicPlayerMatchFilters, PLAYER_MATCHES_PAGE_SIZE } from "@/lib/players/public-matches";
+import { getPublicPlayerMatches, getPublicPlayerMatchFilters } from "@/lib/players/public-matches";
 import { canonicalPlayerHref, parsePlayerMatchesQuery, playerMatchesHref } from "@/lib/players/matches-view-state";
 import type { PlayerPerformanceSearch } from "@/lib/players/performance-view-state";
 import { readOptionalPublicStats } from "@/lib/stats/availability";
@@ -43,10 +43,14 @@ async function PlayerMatchesContent({ params, searchParams }: Props) {
     return { ...history, events };
   });
   const reset = { ...query, event: "", map: "", page: 1, cursor: "", direction: "older" as const };
+  const pagination = result && result.matches.length > 0 && (result.hasNewer || result.hasOlder) ? <nav aria-label="系列赛分页" className="flex items-center gap-2 text-xs">
+    {result.hasNewer && <Link prefetch={false} href={playerMatchesHref(userId, { ...query, page: Math.max(1, query.page - 1), cursor: result.matches[0].cursor, direction: "newer" }, fromStats) as Route} className="inline-flex min-h-8 items-center rounded-sm border border-[var(--color-border)] px-2.5 hover:text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]">← 上一页</Link>}
+    {result.hasOlder && <Link prefetch={false} href={playerMatchesHref(userId, { ...query, page: query.page + 1, cursor: result.matches[result.matches.length - 1].cursor, direction: "older" }, fromStats) as Route} className="inline-flex min-h-8 items-center rounded-sm border border-[var(--color-border)] px-2.5 hover:text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]">下一页 →</Link>}
+  </nav> : null;
   return <PageLayout variant="wide" className="space-y-5">
     <StatsReturnLink href={fromStats} />
     <Link href={canonicalPlayerHref(userId, search) as Route} className="inline-flex text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-accent)]">← 返回选手主页</Link>
-    <PageHeader title={`${getPublicDisplayName(user)} · 比赛记录`} description="按系列赛分组的已确认个人逐图记录。队伍归属以当场阵容为准。" />
+    <PageHeader title={`${getPublicDisplayName(user)} · 比赛记录`} description="逐图表现与系列赛记录" />
     {result === null ? <p role="alert" className="py-8 text-sm text-[var(--color-fg-mid)]">比赛记录暂时读取失败，请稍后刷新重试。</p> : <>
       <form action={`/players/${userId}/matches`}>
         {fromStats && <input type="hidden" name="fromStats" value={fromStats} />}
@@ -70,16 +74,14 @@ async function PlayerMatchesContent({ params, searchParams }: Props) {
         </ListToolbar>
       </form>
       {Number(search.page) > 1 && !query.cursor && <p role="status" className="text-xs text-[var(--color-fg-mid)]">链接缺少有效的分页定位，已从最新比赛开始。</p>}
-      <p className="text-xs tabular-nums text-[var(--color-fg-dim)]">第 {query.page} 页 · 本页 {result.matches.length} 场系列赛 · 每页最多 {PLAYER_MATCHES_PAGE_SIZE} 场系列赛{query.map ? " · 仅展示命中的已确认个人地图" : ""}</p>
-      {result.matches.length ? <PlayerMatchHistoryTable matches={result.matches} userId={userId} fromStats={fromStats} />
+      {result.matches.length ? <PlayerMatchHistoryTable matches={result.matches} userId={userId} fromStats={fromStats}
+        summary={<p className="text-xs tabular-nums text-[var(--color-fg-dim)]">第 {query.page} 页 · {result.matches.length} 场系列赛{query.map ? " · 当前地图" : ""}</p>}
+        pagination={pagination} />
         : <div className="space-y-3 border-y border-[var(--color-border)] py-8 text-sm text-[var(--color-fg-dim)]">
           <p>{query.map ? "没有符合条件的已确认逐图记录。" : query.event || query.page > 1 || query.cursor ? "当前筛选或页码下没有比赛记录。" : "尚无公开的已完成比赛出场记录。"}</p>
           {(query.event || query.map || query.page > 1 || query.cursor) && <Link href={playerMatchesHref(userId, reset, fromStats) as Route} className="text-[var(--color-accent)] hover:underline">查看全部比赛</Link>}
         </div>}
-      {result.matches.length > 0 && (result.hasNewer || result.hasOlder) && <nav aria-label="系列赛分页" className="flex items-center justify-center gap-4 text-sm">
-        {result.hasNewer && <Link href={playerMatchesHref(userId, { ...query, page: Math.max(1, query.page - 1), cursor: result.matches[0].cursor, direction: "newer" }, fromStats) as Route} className="rounded-sm border border-[var(--color-border)] px-3 py-2 hover:text-[var(--color-accent)]">上一页</Link>}
-        {result.hasOlder && <Link href={playerMatchesHref(userId, { ...query, page: query.page + 1, cursor: result.matches[result.matches.length - 1].cursor, direction: "older" }, fromStats) as Route} className="rounded-sm border border-[var(--color-border)] px-3 py-2 hover:text-[var(--color-accent)]">下一页</Link>}
-      </nav>}
+      {pagination && <div className="flex justify-end">{pagination}</div>}
     </>}
   </PageLayout>;
 }

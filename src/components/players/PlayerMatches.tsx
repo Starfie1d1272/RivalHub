@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { PlayerMatchHistoryDensity } from "./PlayerMatchHistoryDensity";
+import type { ReactNode } from "react";
 import type { Route } from "next";
 import { mapLabel } from "@/lib/maps";
 import { formatStat } from "@/lib/stats/format";
-import { formatCST } from "@/lib/utils/date";
+import { formatCST, getCSTDateKey } from "@/lib/utils/date";
 import { readOptionalPublicStats } from "@/lib/stats/availability";
 import { getRecentPublicPlayerMatches, type PublicPlayerMatch } from "@/lib/players/public-matches";
 import { playerMatchDetailHref, playerMatchesHref } from "@/lib/players/matches-view-state";
@@ -47,37 +49,71 @@ export async function PlayerRecentMatches({ userId, fromStats }: { userId: strin
   </section>;
 }
 
-export function PlayerMatchHistoryTable({ matches, userId, fromStats }: { matches: PublicPlayerMatch[]; userId: string; fromStats?: string | null }) {
-  return <div className="max-w-full overflow-x-auto rounded-sm border border-[var(--color-border)]">
-    <table className="w-full min-w-[760px] text-left text-sm">
+export function PlayerMatchHistoryTable({ matches, userId, fromStats, summary, pagination }: {
+  matches: PublicPlayerMatch[];
+  userId: string;
+  fromStats?: string | null;
+  summary?: ReactNode;
+  pagination?: ReactNode;
+}) {
+  const linkClass = "inline-flex min-h-6 items-center hover:text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]";
+  return <PlayerMatchHistoryDensity summary={summary} pagination={pagination}>
+    <table className="w-full min-w-[740px] text-left text-sm sm:min-w-[1080px]">
+      <caption className="sr-only">个人比赛记录。同一系列赛的地图连续排列；队伍旁为地图回合比分，系列赛列为整场比分和赛果。</caption>
       <thead className="border-b border-[var(--color-border)] bg-[var(--color-panel-low)] text-xs text-[var(--color-fg-mid)]">
-        <tr>{["当时队伍", "对手 / 地图比分", "地图", "K–D", "+/−", "ADR", "Rating"].map((label, index) =>
-          <th key={label} scope="col" className={`px-3 py-3 font-medium ${index >= 3 ? "text-right" : ""}`}>{label}</th>)}</tr>
+        <tr>
+          <th scope="col" className="hidden px-3 py-2 font-medium sm:table-cell">日期</th>
+          <th scope="col" className="hidden px-3 py-2 font-medium sm:table-cell">赛事</th>
+          <th scope="col" className="px-3 py-2 font-medium">当时队伍</th>
+          <th scope="col" className="px-3 py-2 font-medium">对手</th>
+          <th scope="col" className="px-3 py-2 font-medium">地图</th>
+          {["K–D", "+/−", "ADR", "Rating"].map((label) => <th key={label} scope="col" className="px-3 py-2 text-right font-medium">{label}</th>)}
+          <th scope="col" className="px-3 py-2 text-right font-medium">系列赛</th>
+        </tr>
       </thead>
-      {matches.map((match) => <tbody key={match.id} className="border-b border-[var(--color-border)] last:border-0">
-        <tr className="bg-[var(--color-panel)]"><th colSpan={7} scope="rowgroup" className="px-3 py-3 text-left font-normal">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <Link href={playerMatchDetailHref(match.seasonSlug, match.id, userId, undefined, fromStats) as Route} className="font-medium hover:text-[var(--color-accent)]">
-              {dateLabel(match.date)} · {match.seasonName} · {match.teamName} {match.ownScore ?? "—"} : {match.opponentScore ?? "—"} {match.opponentName} <span className="text-xs text-[var(--color-fg-dim)]">（系列赛） →</span>
-            </Link>
-            <Result match={match} />
-          </div>
-          {match.confirmedMaps > 0 && match.confirmedMaps < match.completedMaps && <p className="mt-1 text-xs text-[var(--color-fg-dim)]">逐图个人数据不完整：已确认 {match.confirmedMaps} / {match.completedMaps} 张已完成地图。</p>}
-        </th></tr>
-        {match.maps.length === 0 ? <tr><td colSpan={7} className="px-3 py-4 text-[var(--color-fg-dim)]">逐图个人数据暂缺</td></tr>
-          : match.maps.map((map) => {
-            const difference = map.kills === null || map.deaths === null ? null : map.kills - map.deaths;
-            return <tr key={map.id} className="border-t border-[var(--color-border)]">
-              <td className="max-w-40 px-3 py-3"><span className="block truncate" title={match.teamName}>{match.teamName}</span></td>
-              <td className="px-3 py-3"><span className="block max-w-44 truncate" title={match.opponentName}>{match.opponentName}</span><span className="font-mono text-xs tabular-nums">{map.ownScore} : {map.opponentScore}</span></td>
-              <td className="px-3 py-3"><Link href={playerMatchDetailHref(match.seasonSlug, match.id, userId, map.id, fromStats) as Route} className="whitespace-nowrap text-[var(--color-accent)] hover:underline">{mapLabel(map.name)} →</Link></td>
-              <td className="whitespace-nowrap px-3 py-3 text-right font-mono tabular-nums">{formatStat("kills", map.kills)}–{formatStat("deaths", map.deaths)}</td>
-              <td className="px-3 py-3 text-right font-mono tabular-nums">{difference === null ? "—" : difference > 0 ? `+${difference}` : difference}</td>
-              <td className="px-3 py-3 text-right font-mono tabular-nums">{formatStat("adr", map.adr)}</td>
-              <td className="px-3 py-3 text-right font-mono font-semibold tabular-nums">{formatStat("ratingPro", map.rating)}</td>
+      {matches.map((match, index) => {
+        const seriesHref = playerMatchDetailHref(match.seasonSlug, match.id, userId, undefined, fromStats) as Route;
+        const seriesLabel = `${dateLabel(match.date)} · ${match.seasonName} · ${match.teamName} ${match.ownScore ?? "—"}:${match.opponentScore ?? "—"} ${match.opponentName} · ${match.isForfeit ? "弃权赛果 · " : ""}${resultLabels[match.result]}`;
+        const incomplete = match.confirmedMaps > 0 && match.confirmedMaps < match.completedMaps;
+        return <tbody key={match.id} aria-label={seriesLabel}
+          className={`border-b border-[var(--color-border)] last:border-0 ${index % 2 ? "bg-[var(--color-panel-low)]" : "bg-[var(--color-panel)]"}`}>
+          {(match.maps.length ? match.maps : [null]).map((map) => {
+            const difference = map?.kills == null || map.deaths === null ? null : map.kills - map.deaths;
+            return <tr key={map?.id ?? match.id} className="hover:bg-[var(--color-panel-hi)]">
+              <td className="hidden whitespace-nowrap px-3 text-xs sm:table-cell">
+                <Link prefetch={false} href={seriesHref} title={seriesLabel} aria-label={`查看系列赛：${seriesLabel}`} className={linkClass}>
+                  {match.date ? <time dateTime={match.date}>{getCSTDateKey(match.date)}</time> : "日期待补全"}
+                </Link>
+              </td>
+              <td className="hidden px-3 text-xs text-[var(--color-fg-dim)] sm:table-cell"><span className="block max-w-32 truncate" title={match.seasonName}>{match.seasonName}</span></td>
+              <td className="px-3">
+                <span className="flex items-center gap-1.5 whitespace-nowrap"><span className="max-w-32 truncate font-medium" title={match.teamName}>{match.teamName}</span>{map && <span className="font-mono tabular-nums text-[var(--color-fg-mid)]">({map.ownScore})</span>}</span>
+                <Link prefetch={false} href={seriesHref} aria-label={`查看系列赛：${seriesLabel}`} className="mt-0.5 block max-w-40 text-xs leading-4 text-[var(--color-fg-dim)] hover:text-[var(--color-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] sm:hidden">
+                  <span className="block">{match.date ? getCSTDateKey(match.date) : "日期待补全"}</span>
+                  <span className="block whitespace-normal">{match.seasonName}</span>
+                </Link>
+              </td>
+              <td className="px-3"><span className="flex items-center gap-1.5 whitespace-nowrap"><span className="max-w-32 truncate" title={match.opponentName}>{match.opponentName}</span>{map && <span className="font-mono tabular-nums text-[var(--color-fg-mid)]">({map.opponentScore})</span>}</span></td>
+              <td className="px-3">{map ? <Link prefetch={false} href={playerMatchDetailHref(match.seasonSlug, match.id, userId, map.id, fromStats) as Route}
+                aria-label={`查看 ${mapLabel(map.name)}：${match.teamName} ${map.ownScore}:${map.opponentScore} ${match.opponentName}`}
+                className={`${linkClass} whitespace-nowrap text-[var(--color-accent)]`}>{mapLabel(map.name)}</Link>
+                : <span className="text-[var(--color-fg-dim)]">—</span>}</td>
+              {map ? <>
+                <td className="whitespace-nowrap px-3 text-right font-mono tabular-nums">{formatStat("kills", map.kills)}–{formatStat("deaths", map.deaths)}</td>
+                <td className="px-3 text-right font-mono tabular-nums">{difference === null ? "—" : difference > 0 ? `+${difference}` : difference}</td>
+                <td className="px-3 text-right font-mono tabular-nums">{formatStat("adr", map.adr)}</td>
+                <td className="px-3 text-right font-mono font-semibold tabular-nums">{formatStat("ratingPro", map.rating)}</td>
+              </> : <>{["kills", "difference", "adr", "rating"].map((metric) => <td key={metric} className="px-3 text-right font-mono text-[var(--color-fg-dim)]">—</td>)}</>}
+              <td className="px-3 text-right">
+                <Link prefetch={false} href={seriesHref} title={seriesLabel} aria-label={`查看系列赛：${seriesLabel}`} className={`${linkClass} gap-2 whitespace-nowrap`}>
+                  <span className="font-mono tabular-nums">{match.ownScore ?? "—"}:{match.opponentScore ?? "—"}</span><Result match={match} />
+                </Link>
+                {incomplete && <span className="ml-2 whitespace-nowrap text-xs text-[var(--color-fg-dim)]" title={`逐图个人数据不完整：已确认 ${match.confirmedMaps} / ${match.completedMaps} 张已完成地图。`}>{match.confirmedMaps}/{match.completedMaps} 图</span>}
+              </td>
             </tr>;
           })}
-      </tbody>)}
+        </tbody>;
+      })}
     </table>
-  </div>;
+  </PlayerMatchHistoryDensity>;
 }
