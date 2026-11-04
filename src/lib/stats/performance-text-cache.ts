@@ -34,7 +34,3 @@ export function putPerformanceText(key: string, text: string): void {
     totalBytes += bytes;
   } catch { /* Cache failures must not affect the database read. */ }
 }
-
-/** Tournament representations share the same bounded process-local budget. */
-export const getTournamentText = getPerformanceText;
-export const putTournamentText = putPerformanceText;
