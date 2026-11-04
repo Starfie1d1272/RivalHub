@@ -260,6 +260,10 @@ shared layer **不拥有** allowed query、validation、SQL `WHERE/ORDER BY`、q
 
 Super-admin 系统状态页的 scheduler health 只展示 job label、primary freshness、endpoint/fallback/manual/业务推进时间和“正常/已降级”状态；不展示 secret、raw error 或 provider response。“立即运行一次”是故障恢复 mutation，必须是可键盘到达的真实 button、可见 focus，并使用 `InlineConfirm` 解释可能推进业务状态后再调用受保护 Server Action。
 
+## Player and match statistics
+
+选手主页在赛事履历和画像之前展示近期系列赛，完整记录独立页面按系列赛分组逐图展示。比赛页的地图、阵营和简洁／详细切换使用同一 URL 范围，十人表与个人深挖保持一致；Maps 和 Weapons 标明只提供 Overall。选手身份列保持可辨，宽表仅在表格容器内横向滚动。地图分段比分按同一双方顺序显示，数据不完整时保留总比分。
+
 ## Responsive and accessibility
 
 - 320–390px 下关键任务仍可完整完成，按钮不依赖单行空间，长标识不撑破页面。

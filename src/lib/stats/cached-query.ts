@@ -1,3 +1,4 @@
+import { getMatchPerformance } from "./match-performance-query";
 import { preservePublicStatsDependencyFailure } from "./availability";
 import { observePublicStatsFill } from "./public-fill";
 import "server-only";
@@ -15,8 +16,6 @@ import { getPublicSeasonStagePresentation, type PublicStageSeason } from "@/lib/
 import { isOfficialStageKey } from "@/lib/seasons/official-stages";
 import {
   getLongTeamCareerDetail,
-  getMatchPlayerDetail,
-  getMatchMvpSummary,
   getPlayerCareerDetail,
   getPlayerCareerFilterOptions,
   getTournamentMapDetail,
@@ -150,31 +149,14 @@ const isPublicMatch = cache(async (matchId: string) => {
   return Boolean(match);
 });
 
-async function cachedMatchPlayerDetail(matchId: string, playerId: string, mapName?: string) {
+async function cachedMatchPerformance(matchId: string) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill("stats.match", async () => preservePublicStatsDependencyFailure(() => getMatchPlayerDetail(matchId, playerId, mapName)));
+  return observePublicStatsFill("stats.match", () => preservePublicStatsDependencyFailure(() => getMatchPerformance(matchId)));
 }
 
-export async function getPublicMatchPlayerDetail(
-  matchId: string,
-  playerId: string,
-  mapName: string | undefined,
-  visibility: Visibility,
-) {
-  if (visibility === "draft") return getMatchPlayerDetail(matchId, playerId, mapName);
-  if (!await isPublicMatch(matchId)) return null;
-  return cachedMatchPlayerDetail(matchId, playerId, mapName);
-}
-
-async function cachedMatchMvpSummary(matchId: string, playerId: string) {
-  "use cache: remote";
-  statsCachePolicy();
-  return observePublicStatsFill("stats.match", () => preservePublicStatsDependencyFailure(() => getMatchMvpSummary(matchId, playerId)));
-}
-
-/** Entrypoints retain draft authorization; no draft facts enter shared caches. */
-export async function getPublicMatchMvpSummary(matchId: string, playerId: string, visibility: Visibility) {
-  if (visibility === "draft") return getMatchMvpSummary(matchId, playerId);
-  return await isPublicMatch(matchId) ? cachedMatchMvpSummary(matchId, playerId) : null;
+/** One match-scoped cache entry is shared by the scoreboard, all players and MVP. */
+export async function getPublicMatchPerformance(matchId: string, visibility: Visibility) {
+  if (visibility === "draft") return getMatchPerformance(matchId);
+  return await isPublicMatch(matchId) ? cachedMatchPerformance(matchId) : null;
 }

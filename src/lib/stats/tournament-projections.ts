@@ -4,7 +4,7 @@ import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { matchDemoStatProjections, steamProfiles, users } from "@/db/schema";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { getPerformanceText, putPerformanceText, getTournamentText, putTournamentText } from "./performance-text-cache";
+import { getPerformanceText, putPerformanceText } from "./performance-text-cache";
 import { decodePerformanceTransport, performanceTransportSelection, decodeTournamentTransport, tournamentTransportSelection, ProjectionTransportIntegrityError } from "./projection-transport";
 import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import { loadStatsContext, loadCurrentProjectionRefs } from "./tournament-scope";
@@ -51,8 +51,10 @@ export async function loadStatsEvidenceSelection<T extends ProjectionTargets>(
   factsSelection: SQL<T>,
   includePerformance = false,
   includeTournament = false,
+  /** Reuse only a context loaded within this same transaction and scope. */
+  existingContext?: Awaited<ReturnType<typeof loadStatsContext>>,
 ) {
-  const context = await loadStatsContext(tx, scope, options);
+  const context = existingContext ?? await loadStatsContext(tx, scope, options);
   const refs = await loadCurrentProjectionRefs(tx, context, includePerformance, includeTournament);
   const importIds = refs.map(({ current }) => current.id);
   const rows = importIds.length ? await tx.select({ importId: matchDemoStatProjections.importId, facts: factsSelection })
@@ -63,7 +65,7 @@ export async function loadStatsEvidenceSelection<T extends ProjectionTargets>(
     const missing: string[] = [];
     for (const { current, projection } of refs) {
       const key = `tournament-text-v1:${STATISTICS_PROJECTION_VERSION}:${current.id}:${projection.tournamentHash}`;
-      const text = getTournamentText(key);
+      const text = getPerformanceText(key);
       if (text === undefined) missing.push(current.id);
       else tournamentTexts.set(current.id, { text, key, cached: true });
     }
@@ -148,6 +150,6 @@ export async function loadStatsEvidenceSelection<T extends ProjectionTargets>(
     players: Object.fromEntries(identities.map((user) => [user.id, getPublicDisplayName(user)])),
   };
   for (const { key, text } of verifiedTexts) putPerformanceText(key, text);
-  for (const { key, text } of verifiedTournamentTexts) putTournamentText(key, text);
+  for (const { key, text } of verifiedTournamentTexts) putPerformanceText(key, text);
   return { ...context, selected, labels, playerIdsByImport: new Map(refs.map(({ current, projection }) => [current.id, projection.identityBindings.map((binding) => binding.userId)])) };
 }

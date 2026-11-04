@@ -26,6 +26,12 @@ Attribute benchmarks select only performance projections and the tournament targ
 keys needed for validation. They share current-import, identity-binding and target
 validation with full statistics reads, within the same read-only snapshot.
 
+Match map score segments use the current confirmed import and evidence revision
+for that match, then read its relational round facts in one bounded batch. They
+require a continuous sequence whose cumulative score matches the official map
+result; absent or inconsistent rounds do not supply segment scores. The shared
+public-statistics tag invalidates the cached result after source changes.
+
 Full-performance and full-tournament reads may reuse PostgreSQL's original text
 representations in a shared process-local LRU cache (16 MiB total including keys,
 512 entries, 512 KiB per entry). Each snapshot still checks current imports,

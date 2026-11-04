@@ -11,6 +11,8 @@ import Link from "next/link";
 import { PageLayout, PosChip } from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
+import { PlayerRecentMatches } from "@/components/players/PlayerMatches";
+import { canonicalPlayerHref } from "@/lib/players/matches-view-state";
 import { PlayerPerformanceFilters } from "@/components/players/PlayerPerformanceFilters";
 import { PlayerAttributes } from "@/components/players/PlayerAttributes";
 import { PlayerWorkspace } from "@/components/stats/players/PlayerWorkspace";
@@ -53,7 +55,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
   const fromStats = safeStatsReturn(typeof rawSearch.fromStats === "string" ? rawSearch.fromStats : null);
   const canonicalUserId = await resolveCanonicalUserId(db, userId);
   if (!canonicalUserId) notFound();
-  if (canonicalUserId !== userId) redirect(`/players/${canonicalUserId}`);
+  if (canonicalUserId !== userId) redirect(canonicalPlayerHref(canonicalUserId, rawSearch) as import("next").Route);
 
   const query = parsePlayerPerformanceQuery(rawSearch);
   const [user, sanctions] = await Promise.all([getPublicPlayerById(userId), getPublicPlayerSanctions(userId)]);
@@ -74,6 +76,9 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
         <PlayerCareerOverview sections={sections} />
       </Suspense>
     </section>
+    <Suspense fallback={<ProfileSectionSkeleton label="近期比赛" height="min-h-40" />}>
+      <PlayerRecentMatches userId={userId} fromStats={fromStats} />
+    </Suspense>
     <Suspense fallback={<ProfileSectionSkeleton label="赛事履历" height="min-h-40" />}>
       <PlayerCareerHistory sections={sections} />
     </Suspense>

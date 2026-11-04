@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import type { Match, MatchMap } from "@/db/schema";
 import { aggregateFinishedPlayerStats } from "./detail-stats";
+import { getMatchPerformance, type MatchPerformance } from "@/lib/stats/match-performance-query";
 import { canConfirmMapScoreboard } from "./map-scoreboard";
 
 export interface MatchScoreboardPlayer {
@@ -31,6 +32,7 @@ export async function loadMatchScoreboard(
   match: Match,
   maps: readonly MatchMap[],
   userIdToTeamId: Map<string, string>,
+  performance?: MatchPerformance | null,
 ) {
   assertCompetitionMatch(match);
   const completed = maps.filter(canConfirmMapScoreboard);
@@ -39,8 +41,11 @@ export async function loadMatchScoreboard(
     eq(matchPlayerStats.matchId, match.id),
     inArray(matchPlayerStats.mapId, completed.map((map) => map.id)),
   ));
-  const confirmedRows = rows.filter((row) => row.verifiedByAdmin !== null);
-  const detailedRows = rows.filter((row) => row.dakImportId && row.userId);
+  const detail = performance === undefined ? await getMatchPerformance(match.id) : performance;
+  const confirmedRows = rows.filter((row) => row.verifiedByAdmin !== null && row.userId !== null
+    && userIdToTeamId.has(row.userId)
+    && (!row.dakImportId || detail?.currentImports[row.mapId] === row.dakImportId));
+  const detailedPlayers = detail?.overall.map(player => ({ userId: player.player.entityKey, name: player.player.displayName })) ?? [];
   const mapPlayers = new Map<string, MatchScoreboardPlayer[]>();
   for (const row of confirmedRows) {
     if (!row.userId) continue;
@@ -68,8 +73,9 @@ export async function loadMatchScoreboard(
   }
   const confirmedMapIds = new Set(confirmedRows.map(row => row.mapId));
   const provisionalMapIds = new Set<string>();
+  const importedMapIds = new Set(rows.filter(row => row.dakImportId).map(row => row.mapId));
   for (const map of completed) {
-    if (!map.provisionalPlayers?.length) continue;
+    if (!map.provisionalPlayers?.length || importedMapIds.has(map.id)) continue;
     const existing = mapPlayers.get(map.id) ?? [];
     const confirmedUsers = new Set(existing.map(player => player.userId));
     const players = map.provisionalPlayers.flatMap(player => {
@@ -81,5 +87,5 @@ export async function loadMatchScoreboard(
     if (players.length) { mapPlayers.set(map.id, [...existing, ...players]); provisionalMapIds.add(map.id); }
   }
   const rounds = new Map(completed.map((map) => [map.id, map.scoreA! + map.scoreB!]));
-  return { completed, confirmedMapIds, provisionalMapIds, mapPlayers, detailedPlayers: [...new Map(detailedRows.map((row) => [row.userId!, { userId: row.userId!, name: row.perfectName }])).values()], detailedPlayerIds: new Set(detailedRows.map((row) => row.userId!)), detailedMapIds: new Set(detailedRows.map((row) => row.mapId)), ...aggregateFinishedPlayerStats(confirmedRows, userIdToTeamId, match.entryAId, match.entryBId, rounds) };
+  return { completed, confirmedMapIds, provisionalMapIds, mapPlayers, detailedPlayers, detailedPlayerIds: new Set(detailedPlayers.map(player => player.userId)), detailedMapIds: new Set(Object.keys(detail?.byMap ?? {})), ...aggregateFinishedPlayerStats(confirmedRows, userIdToTeamId, match.entryAId, match.entryBId, rounds) };
 }
