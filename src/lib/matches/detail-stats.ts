@@ -73,6 +73,21 @@ export function buildRoster(
     }));
 }
 
+/** Ambiguous same-player/same-map facts never become a summed or arbitrarily chosen row. */
+export function selectUnambiguousMatchStatsRows<T extends { mapId: string; userId: string | null }>(rows: readonly T[]) {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (row.userId) {
+      const key = `${row.mapId}:${row.userId}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return {
+    rows: rows.filter(row => row.userId !== null && counts.get(`${row.mapId}:${row.userId}`) === 1),
+    conflicts: new Set([...counts].filter(([, count]) => count > 1).map(([key]) => key)),
+  };
+}
+
 export function aggregateFinishedPlayerStats(
   allStats: MatchPlayerStatsRow[],
   userIdToTeamId: Map<string, string>,
@@ -123,7 +138,8 @@ export function aggregateFinishedPlayerStats(
     .map((p) => ({
       ...p,
       teamId: p.userId ? (userIdToTeamId.get(p.userId) ?? "") : "",
-      mapsPlayed: groupMap.get(p.userId ?? `name:${p.perfectName}`)?.length ?? 1,
+      mapsPlayed: groupMap.get(p.userId ?? `name:${p.perfectName}`)?.length ?? 0,
+      mapIds: groupMap.get(p.userId ?? `name:${p.perfectName}`)?.map(row => row.mapId) ?? [],
     }))
     .filter((p) => p.teamId === entryAId || p.teamId === entryBId);
 

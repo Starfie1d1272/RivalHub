@@ -8,7 +8,8 @@ export interface MatchSupportTeam {
   name: string;
 }
 
-export function MatchSupport({ slug, matchId, teamA, teamB, amounts, predictions }: {
+export function MatchSupport({ slug, matchId, teamA, teamB, amounts, predictions, returnTo }: {
+  returnTo?: string | null;
   slug: string;
   matchId: string;
   teamA: MatchSupportTeam;
@@ -29,12 +30,14 @@ export function MatchSupport({ slug, matchId, teamA, teamB, amounts, predictions
   const predictionLeft = votes > 0 && voteA && voteB && voteA.count + voteB.count === votes ? voteA.count / votes * 100 : null;
   const predictionRight = predictionLeft === null ? null : 100 - predictionLeft;
 
+  const target = new URL(returnTo ?? `/${slug}/bet`, "http://rivalhub.local");
+  target.searchParams.set("match", matchId);
   return <div data-match-bet className="min-w-0 space-y-3 border border-[var(--color-border)] bg-[var(--color-panel-low)] p-4 text-sm">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <span className="flex items-center gap-5">
         <span className="relative inline-block font-mono font-bold text-[var(--color-accent)]">BET<HelpTooltip className="absolute -right-3 top-0" label="支持率说明" content="支持率按本场比赛胜者盘口中，各队投入积分占总投入积分计算，不代表获胜概率或支持人数比例。" /></span>
       </span>
-      <Link href={`/${slug}/bet?match=${matchId}` as never} className="shrink-0 focus-visible:outline focus-visible:outline-[var(--color-accent)]">查看盘口 →</Link>
+      <Link href={`${target.pathname}?${target.searchParams}` as never} className="shrink-0 focus-visible:outline focus-visible:outline-[var(--color-accent)]">查看盘口 →</Link>
     </div>
     <div role="group" aria-label="比赛支持率" className="space-y-1.5">
       <div className="grid grid-cols-2 gap-3 text-xs font-medium">

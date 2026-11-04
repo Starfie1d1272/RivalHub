@@ -4,6 +4,8 @@ import { db, type DB, type TxDb } from "@/db/client";
 import { sql } from "drizzle-orm";
 import type { EffectiveMatchRosterIdentity } from "@/lib/match-rosters/effective";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import { CURRENT_DAK_SEMANTIC_PROFILE } from "@/lib/demo-integration/semantic-profile";
+import { STATISTICS_PROJECTION_VERSION } from "./projection-version";
 import { completeSum, killWeightedAvg, killWeightedDenominator, perRound, perRoundDenominator, ratioOfSums, roundWeightedAvg, roundsExpr, simpleAvg } from "./sql";
 
 export interface StatsLeaderboardFilters {
@@ -13,6 +15,7 @@ export interface StatsLeaderboardFilters {
   format?: "bo1" | "bo3" | "bo5";
   mapFilter?: string;
   teamFilter?: string;
+  teamSelections?: readonly { teamId: string; importIds: readonly string[] }[];
 }
 
 export interface StatsLeaderboardOptions {
@@ -115,7 +118,9 @@ function buildStatsLeaderboardQuery(
   const kdExpr     = ratioOfSums("mps.kills", "mps.deaths");
 
   const mapFilter = scope.mapFilter ? sql`AND mm.map_name = ${scope.mapFilter}` : sql``;
-  const teamFilter = scope.teamFilter ? sql`AND entrant.id = ${scope.teamFilter}` : sql``;
+  const teamFilter = scope.teamSelections ? scope.teamSelections.length ? sql`AND (${sql.join(scope.teamSelections.map(({ teamId, importIds }) => sql`
+    (entrant.id = ${teamId} AND entrant.id IN (m.entry_a_id, m.entry_b_id) AND (mps.dak_import_id IS NULL OR ${importIds.length ? sql`mps.dak_import_id IN (${sql.join(importIds.map((id) => sql`${id}`), sql`, `)})` : sql`false`}))`), sql` OR `)})` : sql`AND false`
+    : scope.teamFilter ? sql`AND entrant.id = ${scope.teamFilter}` : sql``;
   const userFilter = options.userId ? sql`AND mps.user_id = ${options.userId}` : sql``;
   const rosterMatchFilter = options.requireRosterMatch ? sql`AND lineup.entry_id IS NOT NULL` : sql``;
   const currentImportFilter = currentImportIds.length ? sql`mps.dak_import_id IN (${sql.join(currentImportIds.map((id) => sql`${id}`), sql`, `)})` : sql`false`;
@@ -201,10 +206,37 @@ function buildStatsLeaderboardQuery(
 }
 
 
-/** Same weighted population and filtering; only the nine lineup fields cross the connection. */
-export async function getLineupStatsPopulation(currentImportIds: string[], roster: readonly Pick<EffectiveMatchRosterIdentity, "matchId" | "userId" | "entryId">[], database: DB | TxDb) {
-  const query = buildStatsLeaderboardQuery({}, currentImportIds, roster, { groupByTeam: false, requireCurrentImports: true, requireRosterMatch: true });
-  const { rows } = await database.execute(sql`SELECT user_id, maps, rounds, avg_rating, avg_adr, kpr, kast, fkpr, trade_kpr FROM (${query}) AS population ORDER BY user_id`);
+/** Combine the already-confirmed per-map scoreboard facts for the whole population. */
+export async function getLineupStatsPopulation(matchId: string, before: Date, database: DB | TxDb) {
+  // Select the latest non-superseded import first: a later pending/rejected
+  // import must not resurrect an older confirmed import on the same map.
+  const { rows } = await database.execute(sql`
+    WITH latest_imports AS (
+      SELECT DISTINCT ON (d.match_map_id) d.id, d.match_id, d.match_map_id, d.status
+      FROM match_demo_imports d
+      JOIN matches m ON m.id = d.match_id
+      JOIN seasons s ON s.id = m.season_id
+      WHERE d.semantic_profile COLLATE "C" = ${CURRENT_DAK_SEMANTIC_PROFILE} COLLATE "C"
+        AND d.status <> 'superseded'
+        AND m.test_config IS NULL AND m.status = 'finished' AND s.status <> 'draft'
+        AND m.entry_a_id IS NOT NULL AND m.entry_b_id IS NOT NULL AND m.stage IS NOT NULL
+        AND m.completed_at < ${before} AND m.id <> ${matchId}
+      ORDER BY d.match_map_id, d.created_at DESC, d.id DESC
+    )
+    SELECT mps.user_id, count(*)::int AS maps, ${completeSum(roundsExpr)} AS rounds,
+      ${simpleAvg("mps.rating_pro")} AS avg_rating, ${roundWeightedAvg("mps.adr")} AS avg_adr,
+      ${perRound("mps.kills")} AS kpr, ${perRound("mps.kast_rounds")} AS kast,
+      ${perRound("mps.first_kills")} AS fkpr, ${perRound("mps.trade_kills")} AS trade_kpr
+    FROM latest_imports d
+    JOIN match_demo_stat_projections p ON p.import_id = d.id AND p.projection_version = ${STATISTICS_PROJECTION_VERSION}
+    JOIN match_player_stats mps ON mps.dak_import_id = d.id AND mps.match_id = d.match_id AND mps.map_id = d.match_map_id
+    JOIN users u ON u.id = mps.user_id AND u.status = 'active'
+    JOIN match_maps mm ON mm.id = mps.map_id AND mm.match_id = d.match_id
+    WHERE d.status = 'confirmed' AND mps.verified_by_admin IS NOT NULL
+      AND mm.score_a IS NOT NULL AND mm.score_b IS NOT NULL AND mm.completed_at IS NOT NULL
+    GROUP BY mps.user_id
+    ORDER BY mps.user_id
+  `);
   const numberOrNull = (value: unknown) => value == null ? null : Number(value);
   return rows.map(row => ({ userId: row.user_id as string | null, maps: Number(row.maps), rounds: numberOrNull(row.rounds),
     avgRating: numberOrNull(row.avg_rating), avgAdr: numberOrNull(row.avg_adr), kpr: numberOrNull(row.kpr),

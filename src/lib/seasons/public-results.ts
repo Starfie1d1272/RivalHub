@@ -2,6 +2,8 @@ import { withDisplayScores } from "@/lib/matches/display-score-data";
 import { officialMatchCondition } from "@/lib/matches/scope";
 import { requireCompetitionFields } from "@/lib/matches/competition-context";
 import "server-only";
+import { cacheLife, cacheTag } from "next/cache";
+import { PUBLIC_HOME_TAG, PUBLIC_STATS_TAG } from "@/lib/cache/tags";
 import { and, asc, eq, inArray, count, max, or, type SQL } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, majorFinalResults, majorStageRuns, matches, postEventAdjudications, steamProfiles, tournamentHonors, users } from "@/db/schema";
@@ -59,7 +61,33 @@ async function readResultFacts(seasonList: readonly PublicSeason[], compact: boo
 
 /** Historical output uses actual completed matches and explicit final/honor facts. */
 export async function getPublicSeasonResults(season: PublicSeason) {
-  return projectSeasonResults(season, await readResultFacts([season], false));
+  return (await getPublicSeasonResultsBatch([season])).get(season.id)!;
+}
+
+/** Share fact reads across historical profiles while keeping the same per-season projection. */
+export async function getPublicSeasonResultsBatch(seasonList: readonly PublicSeason[]): Promise<Map<string, PublicSeasonResults>> {
+  if (!seasonList.length) return new Map();
+  const publicSeasons = seasonList.filter(season => season.status !== "draft");
+  const draftSeasons = seasonList.filter(season => season.status === "draft");
+  const [publicResults, draftResults] = await Promise.all([
+    publicSeasons.length ? cachedPublicSeasonResults(publicSeasons) : new Map(),
+    draftSeasons.length ? readSeasonResults(draftSeasons) : new Map(),
+  ]);
+  return new Map(seasonList.map(season => [season.id, (season.status === "draft" ? draftResults : publicResults).get(season.id)!]));
+}
+
+async function cachedPublicSeasonResults(seasonList: readonly PublicSeason[]): Promise<Map<string, PublicSeasonResults>> {
+  "use cache: remote";
+  cacheLife({ stale: 0, revalidate: Infinity, expire: Infinity });
+  cacheTag(PUBLIC_STATS_TAG, PUBLIC_HOME_TAG);
+  return readSeasonResults(seasonList);
+}
+
+async function readSeasonResults(seasonList: readonly PublicSeason[]): Promise<Map<string, PublicSeasonResults>> {
+  const facts = await readResultFacts(seasonList, false);
+  const results = new Map<string, PublicSeasonResults>();
+  for (const season of seasonList) results.set(season.id, await projectSeasonResults(season, facts));
+  return results;
 }
 
 async function projectSeasonResults(season: PublicSeason, facts: Awaited<ReturnType<typeof readResultFacts>>, compact = false) {
@@ -105,13 +133,30 @@ async function projectSeasonResults(season: PublicSeason, facts: Awaited<ReturnT
     finishedMatches: compact ? Number(facts.matchSummaries.find(row => row.seasonId === season.id)?.finishedMatches ?? 0) : matchRows.length,
   };
 }
-export type PublicSeasonResults = Awaited<ReturnType<typeof getPublicSeasonResults>>;
+export type PublicSeasonResults = Awaited<ReturnType<typeof projectSeasonResults>>;
 
 export type PublicSeasonResultSummary = Pick<PublicSeasonResults, "champion" | "championVacant" | "final" | "completedAt" | "finishedMatches">;
 
 /** Caller bounds the displayed directory page; all events share the fact queries. */
 export async function getPublicSeasonResultSummaries(seasonList: readonly PublicSeason[]): Promise<Map<string, PublicSeasonResultSummary>> {
   if (!seasonList.length) return new Map();
+  const publicSeasons = seasonList.filter(season => season.status !== "draft");
+  const draftSeasons = seasonList.filter(season => season.status === "draft");
+  const [publicResults, draftResults] = await Promise.all([
+    publicSeasons.length ? cachedPublicSeasonResultSummaries(publicSeasons) : new Map(),
+    draftSeasons.length ? readSeasonResultSummaries(draftSeasons) : new Map(),
+  ]);
+  return new Map(seasonList.map(season => [season.id, (season.status === "draft" ? draftResults : publicResults).get(season.id)!]));
+}
+
+async function cachedPublicSeasonResultSummaries(seasonList: readonly PublicSeason[]): Promise<Map<string, PublicSeasonResultSummary>> {
+  "use cache: remote";
+  cacheLife({ stale: 0, revalidate: Infinity, expire: Infinity });
+  cacheTag(PUBLIC_STATS_TAG, PUBLIC_HOME_TAG);
+  return readSeasonResultSummaries(seasonList);
+}
+
+async function readSeasonResultSummaries(seasonList: readonly PublicSeason[]): Promise<Map<string, PublicSeasonResultSummary>> {
   const facts = await readResultFacts(seasonList, true);
   const summaries = new Map<string, PublicSeasonResultSummary>();
   // Provider projections and final display-score reads stay bounded without a checkout burst per card.

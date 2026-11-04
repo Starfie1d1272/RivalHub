@@ -3,10 +3,10 @@ import { canPublishVetoAppealClosure } from "@/lib/matches/veto-room/lifecycle-p
 import { runPredictionReconciliationJob } from "@/lib/predictions/reconciliation";
 
 import { refreshSteamProfiles } from "@/lib/steam-profiles";
-import { and, asc, eq, gt, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
-import { matchVetoInvalidations, matchVetoSessions, matchVetoAppeals, matchVetoTimeoutIncidents, matchMaps, matches, seasons } from "@/db/schema";
+import { matchVetoSessions, matchVetoAppeals, matchVetoTimeoutIncidents, matchMaps, matches, seasons } from "@/db/schema";
 import { maybeAdvanceFromRegistration } from "@/lib/seasons/transitions";
 import { runDraftTimeoutCron } from "@/lib/draft/operations";
 import { runMatchTimeAutoAwardCron } from "@/lib/matches/time-auto-award";
@@ -15,7 +15,7 @@ import { purgeExpiredEducationEvidence } from "@/lib/education/retention";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
 import { revalidateMatchPaths, revalidatePublicSeasonTags, revalidatePublicStatsTag, revalidateSeasonPaths } from "@/lib/revalidation";
 import { reconcileVetoRoom } from "@/lib/matches/veto-room/service";
-import { deliverVetoInvalidation } from "@/lib/matches/veto-room/invalidation";
+import { dispatchMatchProjectionInvalidations } from "@/lib/matches/projection-invalidation/dispatcher";
 import { settleExpiredMatchMvpVotes } from "@/lib/matches/mvp";
 import { reconcileMissingStatisticsProjections } from "@/lib/stats/projection-backfill";
 import type { SchedulerJobKey } from "./definitions";
@@ -37,14 +37,21 @@ export async function runRegistrationDeadlineJob(): Promise<SchedulerRunnerResul
 
   for (const season of activeSeasons) {
     let advancedSlug: string | null = null;
+    let openedSlug: string | null = null;
     await db.transaction(async (tx) => {
       const openResult = await ensureRegistrationOpenForParticipantInTx(tx, season.id);
-      if (openResult.opened) opened += 1;
+      if (openResult.opened) {
+        opened += 1;
+        openedSlug = openResult.season.slug;
+      }
       advancedSlug = await maybeAdvanceFromRegistration(tx, season.id);
       if (advancedSlug) advanced += 1;
     });
+    const changedSlug = advancedSlug ?? openedSlug;
+    if (changedSlug) {
+      revalidatePublicSeasonTags(changedSlug, season.id);
+    }
     if (advancedSlug) {
-      revalidatePublicSeasonTags(advancedSlug, season.id);
       revalidatePath(`/${advancedSlug}`);
       revalidatePath(`/admin/${advancedSlug}/registrations`);
     }
@@ -148,46 +155,26 @@ export async function runMatchVetoTimeoutJob() {
           AND (played_map.started_at IS NOT NULL OR played_map.score_a IS NOT NULL OR played_map.score_b IS NOT NULL OR played_map.completed_at IS NOT NULL)))`,
     ));
 
-  const pending = await db.select({ matchId: matchVetoInvalidations.matchId, generation: matchVetoInvalidations.generation })
-    .from(matchVetoInvalidations)
-    .where(gt(matchVetoInvalidations.generation, matchVetoInvalidations.publishedGeneration))
-    .orderBy(asc(matchVetoInvalidations.updatedAt)).limit(50);
-  const selectedGenerations = new Map(pending.map(row => [row.matchId, row.generation]));
-  const work = new Map(candidates.map(candidate => [candidate.matchId, { matchId: candidate.matchId, lifecycleDue: true }]));
-  for (const row of pending) if (!work.has(row.matchId)) work.set(row.matchId, { matchId: row.matchId, lifecycleDue: false });
   let changed = 0;
-  let deliveryPending = 0;
   let firstFailure: unknown;
-  for (const candidate of work.values()) {
+  for (const candidate of candidates) {
     try {
-      if (candidate.lifecycleDue && await reconcileVetoRoom(candidate.matchId) === "applied") changed += 1;
+      if (await reconcileVetoRoom(candidate.matchId) === "applied") changed += 1;
     } catch (error) { firstFailure ??= error; }
-    // A lifecycle rejection does not revoke a previously committed cache duty.
-    // Report the domain error, but independently attempt delivery for this room.
-    try {
-      // Paused/completed/archived rooms can have delivery work without an
-      // ordinary domain transition. Do not run their mutation guard merely to
-      // deliver already committed cache obligations.
-      if (await deliverVetoInvalidation(candidate.matchId, "route") === "pending") deliveryPending += 1;
-    } catch (error) { firstFailure ??= error; }
-    // Only rotate a selected, still-pending generation after its delivery was
-    // attempted. A newer fact or a successful acknowledgement wins the race.
-    const selectedGeneration = selectedGenerations.get(candidate.matchId);
-    if (selectedGeneration !== undefined) {
-      try {
-        await db.update(matchVetoInvalidations)
-          .set({ updatedAt: sql`clock_timestamp()` })
-          .where(and(eq(matchVetoInvalidations.matchId, candidate.matchId), eq(matchVetoInvalidations.generation, selectedGeneration), gt(matchVetoInvalidations.generation, matchVetoInvalidations.publishedGeneration)));
-      } catch (error) { firstFailure ??= error; }
-    }
   }
-  // Durable work remains pending and scheduler execution/health records fail.
-  // Other rooms were still allowed to recover during this invocation.
   if (firstFailure) throw firstFailure;
-  return {
-    result: { processed: work.size, changed, deliveryPending },
-    businessTransitions: changed,
-  } satisfies SchedulerRunnerResult<{ processed: number; changed: number; deliveryPending: number }>;
+  return { result: { processed: candidates.length, changed }, businessTransitions: changed };
+}
+
+/** One physical schedule, independent domain transition and committed projection delivery. */
+export async function runMatchVetoScheduledJob() {
+  let lifecycle: Awaited<ReturnType<typeof runMatchVetoTimeoutJob>> | undefined;
+  let firstFailure: unknown;
+  try { lifecycle = await runMatchVetoTimeoutJob(); } catch (error) { firstFailure = error; }
+  let delivery: Awaited<ReturnType<typeof dispatchMatchProjectionInvalidations>> | undefined;
+  try { delivery = await dispatchMatchProjectionInvalidations(); } catch (error) { firstFailure ??= error; }
+  if (firstFailure) throw firstFailure;
+  return { result: { ...lifecycle!.result, deliveryProcessed: delivery!.processed, deliveryPending: delivery!.pending }, businessTransitions: lifecycle!.businessTransitions };
 }
 
 export async function runSchedulerJobByKey(key: SchedulerJobKey): Promise<SchedulerRunnerResult<unknown>> {
@@ -196,7 +183,7 @@ export async function runSchedulerJobByKey(key: SchedulerJobKey): Promise<Schedu
     case "settle-match-mvp": return runMatchMvpSettlementJob();
     case "reconcile-predictions": return runPredictionReconciliationJob();
     case "refresh-steam-profiles": return runSteamProfileRefreshJob();
-    case "resolve-match-veto-timeouts": return runMatchVetoTimeoutJob();
+    case "resolve-match-veto-timeouts": return runMatchVetoScheduledJob();
     case "draft-timeout": return runDraftTimeoutJob();
     case "check-registration-deadline": return runRegistrationDeadlineJob();
     case "match-time-auto-award": return runMatchTimeAutoAwardJob();

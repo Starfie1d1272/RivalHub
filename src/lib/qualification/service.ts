@@ -52,6 +52,11 @@ export interface ParticipantQualificationFacts {
   };
 }
 
+/** User rows already selected for the same request and executor, restricted to active users. */
+export type ParticipantQualificationUserRow = Pick<ParticipantQualificationFacts,
+  "displayName" | "perfectName" | "personaName" | "email" | "emailVerifiedAt" | "steam64" | "qq"
+> & { id: string };
+
 type QualificationPeak = {
   status?: "ranked" | "unranked";
   rank: string | null;
@@ -488,6 +493,8 @@ export async function loadParticipantQualificationRawBundle(
     platform?: string;
     fallbackPlatform?: string;
     executor?: DatabaseExecutor;
+    /** Already-read active user rows for these IDs, on this request's executor. */
+    userRows?: ParticipantQualificationUserRow[];
     /** Raw multi-platform consumers need chronology; compatibility reads without a platform do not. */
     includePlatformChronology?: boolean;
     /** Skip rank facts for education/affiliation-only decisions. */
@@ -502,7 +509,7 @@ export async function loadParticipantQualificationRawBundle(
   const rankFactsFilter = platforms.length > 0
     ? and(inArray(competitiveRankFacts.userId, ids), inArray(competitiveRankFacts.platform, platforms))
     : inArray(competitiveRankFacts.userId, ids);
-  const userRows = await executor.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, email: users.email, emailVerifiedAt: users.emailVerifiedAt, steam64: users.steam64, qq: users.qq })
+  const userRows = options.userRows ?? await executor.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, personaName: steamProfiles.personaName, email: users.email, emailVerifiedAt: users.emailVerifiedAt, steam64: users.steam64, qq: users.qq })
     .from(users).leftJoin(steamProfiles, eq(steamProfiles.steam64, users.steam64)).where(and(inArray(users.id, ids), eq(users.status, "active")));
   const verificationRows = await executor.select({ userId: educationVerifications.userId, id: educationVerifications.id, status: educationVerifications.status, academicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name, submittedAt: educationVerifications.submittedAt })
     .from(educationVerifications).innerJoin(users, and(eq(educationVerifications.userId, users.id), eq(users.status, "active"))).innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))

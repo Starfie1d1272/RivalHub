@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { competitionEntries } from "@/db/schema";
 import { readMatchSupport } from "@/lib/bet/match-support";
 import { openingDeathTraded } from "@/lib/stats/derived-metrics";
-import { getTournamentTeamDetailInTx } from "@/lib/stats/tournament-query";
+import { getTournamentTeamDetailsInTx } from "@/lib/stats/tournament-query";
 import { getPlayerAttributeBenchmark } from "@/lib/stats/player-attribute-benchmark";
 import { projectPlayerAttributeProfile } from "@/lib/stats/player-attributes";
 import { broadcastMatchSupport } from "./stats-support";
@@ -17,8 +17,7 @@ export async function loadBroadcastStats(matchId: string, competitionId: string)
   const { document, entries, details, opponents, supportRows } = await db.transaction(async tx => {
     const document = await loadMizarMatchDocumentInTx(tx, matchId, competitionId, true);
     const entries = [document.entrants.a, document.entrants.b];
-    const details = [];
-    for (const entry of entries) details.push(await getTournamentTeamDetailInTx({ seasonId: competitionId, teamId: entry.entryId }, tx));
+    const details = await getTournamentTeamDetailsInTx({ seasonId: competitionId }, entries.map((entry) => entry.entryId), tx);
     const opponentIds = [...new Set(details.flatMap(detail => detail.official.matches.flatMap(match => [match.entryAId, match.entryBId])))];
     const opponents = opponentIds.length ? await tx.select({ id: competitionEntries.id, name: competitionEntries.name, logoUrl: competitionEntries.logoUrl }).from(competitionEntries).where(inArray(competitionEntries.id, opponentIds)) : [];
     const supportRows = await readMatchSupport(tx, competitionId, matchId);
@@ -31,7 +30,8 @@ export async function loadBroadcastStats(matchId: string, competitionId: string)
   const entrants: BroadcastStatsEntrant[] = entries.map((entry, index) => {
     const detail = details[index];
     const starters = entry.roster.players.filter(player => player.isStarter).map(player => ({ userId: player.playerId, nickname: player.displayName, avatarUrl: player.avatarUrl }));
-    const mapStats = detail.maps.flatMap(({ mapName, results }) => results && results.played > 0 ? [{
+    const maps = [...detail.maps].sort((a, b) => a.mapName < b.mapName ? -1 : a.mapName > b.mapName ? 1 : 0);
+    const mapStats = maps.flatMap(({ mapName, results }) => results && results.played > 0 ? [{
       mapName, played: results.played, wins: results.wins, winRate: results.wins / results.played,
     }] : []);
     const historyById = new Map(detail.official.matches.filter(match => match.status === "finished").map(match => [match.id, match]));
@@ -67,7 +67,7 @@ export async function loadBroadcastStats(matchId: string, competitionId: string)
     const facts: NonNullable<BroadcastStatsEntrant["facts"]> = {
       source: "competition-canonical", coverage,
       results: detail.results && { matches: detail.results.matches, matchWins: detail.results.matchWins, matchLosses: detail.results.matchLosses, maps: detail.results.maps, mapWins: detail.results.mapWins, mapLosses: detail.results.mapLosses },
-      maps: detail.maps.map(map => { const selection = detail.selection.find(row => row.mapName === map.mapName); const selectedTeam = selection?.teams.find(row => row.entryId === entry.entryId); return { mapName: map.mapName, results: map.results && { played: map.results.played, wins: map.results.wins, losses: map.results.losses }, rounds: rounds(map.analytics), selection: selection ? { picks: selectedTeam?.picks ?? 0, bans: selectedTeam?.bans ?? 0, deciders: selection.deciders } : null, coverage: { completedMaps: map.coverage.completedMaps, detailedMaps: map.coverage.detailedMaps } }; }),
+      maps: maps.map(map => { const selection = detail.selection.find(row => row.mapName === map.mapName); const selectedTeam = selection?.teams.find(row => row.entryId === entry.entryId); return { mapName: map.mapName, results: map.results && { played: map.results.played, wins: map.results.wins, losses: map.results.losses }, rounds: rounds(map.analytics), selection: selection ? { picks: selectedTeam?.picks ?? 0, bans: selectedTeam?.bans ?? 0, deciders: selection.deciders } : null, coverage: { completedMaps: map.coverage.completedMaps, detailedMaps: map.coverage.detailedMaps } }; }),
       series: { total: series.length, truncated: series.length > 50, matches: series.slice(0, 50) },
       teamRating: detail.teamRating && { rating: detail.teamRating.rating, ratingSamples: detail.teamRating.ratingSamples }, rounds: rounds(team), manAdvantage: team?.manAdvantage ?? null,
       opening: overall ? { successRate: overall.opening.successRate, winAfterOpening: overall.opening.winRateAfterWinningOpeningDuel, tradeKillsPerRound: overall.trade.tradeKillsPerRound, tradedOpeningDeaths: overall.trade.tradedOpeningDeaths, firstDeaths: overall.opening.firstDeaths, openingDeathTraded: openingDeathTraded(overall), comebackRate: overall.opening.comebackRateAfterLosingOpeningDuel } : null,

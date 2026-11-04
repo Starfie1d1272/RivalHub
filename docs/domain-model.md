@@ -64,7 +64,7 @@ CS2 地图同样区分稳定地图目录、当前轮换、长期用户熟练度�
 
 重要边界：
 
-- `seasons.logoUrl` 是单一 nullable event mark；历史赛事默认 null。赛事管理员经公开信息/设置中的图片上传入口维护它，复用 `season-public-assets` 的 Storage owner（JPEG/PNG/WebP、1 MiB），不接受手填 Storage URL。公共赛事页、赛事目录与首页复用同一字段；Mizar Match/Schedule provider revision 覆盖该公开事实，缺失 Logo 不阻断比赛。
+- 公开队标和赛事标识的读取兼容现有 URL 与公开对象引用；写入仍使用现有 URL。切换持久化格式须先确认兼容 reader 已独立发布，再以单独的发布能力门禁控制新 writer 和回退。`seasons.logoUrl` 是单一 nullable event mark；历史赛事默认 null。赛事管理员经公开信息/设置中的图片上传入口维护它，复用 `season-public-assets` 的 Storage owner（JPEG/PNG/WebP、1 MiB），不接受手填 Storage URL。公共赛事页、赛事目录与首页复用同一字段；Mizar Match/Schedule provider revision 覆盖该公开事实，缺失 Logo 不阻断比赛。
 - `competitionTemplate` 表达模板身份；`kind` 只用于展示/历史。
 - `stagePlan` 是定义态，不是已启动赛事的运行时真相。
 - 发布与实际报名开放是不同事实；`registrationOpensAt` 是运营计划时间，`registrationOpenedAt` 是实际 transition fact，需要冻结的报名/竞技上下文在实际开放时形成。按计划补开时保留原计划时间；无计划的明确立即开放同时初始化两者；未来计划的提前开放必须是明确的 force-open 语义并将有效计划时间改为当前时间。
@@ -109,6 +109,8 @@ Recruitment 是 Team/Player 的当前意向，不是 membership、invitation 或
 | Roster revision | 可编辑、可审核、可补正的报名名单 |
 | EventRoster | 本届已确认/冻结的正式赛事名单 |
 | MatchRoster | 本场实际出场阵容 |
+
+报名的持久状态也编码当前名单审核流程；已有批准修订指针与当前修订审核状态是两个只读事实。名单变更或被拒绝时保留原批准记录，但不能据此让待审名单上场：正式名单仍须经过既有同步、确认和冻结。审核应用用例在同一事务中编排 Entry 决定、Major 与资格赛同步及审计。
 
 这些 owner 不能互相替代。尤其 MatchRoster 必须来自本届 EventRoster，而不是回读可变 Team membership 或报名草稿。
 
@@ -249,7 +251,7 @@ Challenge coins are derived Pick’Em achievements, separate from player `tourna
 
 ## Tournament statistics
 
-`src/lib/stats/` owns the server-only shared statistics read model for both platform and event scopes. Platform selection batches public events (including archived history), matches and maps once. Players aggregate by canonical userId across rename/transfers; only explicit CompetitionEntry.teamId links merge teams, while event-native entries remain distinct. Map/match counts use their canonical identities; two team contributions never double the corpus. Within-match identity collapse fails closed. Scoreboard Rating/RWS/WE and ADR/HS retain the canonical SQL/in-memory metric owners and weights. Confirmation materializes versioned per-map DAK sufficient statistics alongside the existing source-round and player-scoreboard projections. The immutable Evidence artifact remains the audit/recheck/rebuild source and is never loaded by public statistics, player careers, or Team profiles. Current selection first chooses the latest non-superseded import in the active semantic profile, then requires confirmation, the effective MatchRoster/result revision, matching projection provenance and current gameplay identity bindings. Missing or invalid projections reduce detailed coverage without a raw-payload fallback. Identity retirement and account merge mark dependent confirmed imports for review across all affected events before cached attribution can be reused.
+`src/lib/stats/` owns the server-only shared statistics read model for both platform and event scopes. Platform selection batches public events (including archived history), matches and maps once. Players aggregate by canonical userId across rename/transfers; only explicit CompetitionEntry.teamId links merge teams, while event-native entries remain distinct. Map/match counts use their canonical identities; two team contributions never double the corpus. Within-match identity collapse fails closed. Scoreboard Rating/RWS/WE and ADR/HS retain the canonical SQL/in-memory metric owners and weights. Confirmation materializes versioned per-map DAK sufficient statistics alongside the existing source-round and player-scoreboard projections. The immutable Evidence artifact remains the audit/recheck/rebuild source and is never loaded by public statistics, player careers, or Team profiles. Current selection first chooses the latest non-superseded import in the active semantic profile, then requires confirmation, the effective MatchRoster/result revision, matching projection provenance and current gameplay identity bindings. Missing or invalid projections reduce detailed coverage without a raw-payload fallback. Within this owner, tournament scope selects eligible current imports and roster bindings, projection loading validates and decodes the materialized transports with the bounded performance text cache, and aggregation builds read models; the overview releases its read-only snapshot before CPU-only summaries. Identity retirement and account merge mark dependent confirmed imports for review across all affected events before cached attribution can be reused.
 
 The `@cs2dak/tournament` reducer owns collection, merge and finalization; its dependency patch and upstream removal condition are recorded in `patches/README.md`. RivalHub supplies canonical user/CompetitionEntry keys and labels. Additive counters, denominators, side slices, weapon/player attribution and map/match identity preserve the existing metrics. Scoreboard SQL retains per-map Rating/RWS/WE averages, round-weighted ADR and kill-weighted HS; Team Rating weights valid player-map Rating samples. Zero opportunities remain null. The attribute benchmark retains one player-event observation per eligible event, compiles shared distributions/ranking scores once, and never silently changes to a deduplicated career population.
 
@@ -267,7 +269,7 @@ Public and admin server read models explicitly adapt their own authorized facts 
 
 ## 免费赛果与 BP 预测
 
-`src/lib/free-predictions/` 拥有独立免费选择和幂等修订；不属于 BET 金融账本、自由推演 Prediction 或 Pick’Em。截止捕获 Match/Map 游戏开始与 Veto BP 开始的永久事实，回退不重开；判定只消费 canonical 官方结果，BP 全集合命中独立于赛果排行。公开仅匿名支持率、个人公开成绩与会话本人的选择。详见 [免费预测契约](decisions/free-predictions.md)。
+`src/lib/matches/spectator-read.ts` 拥有观众场景共享的官方比赛、地图和 BP 事实读取，`spectator-facts.ts` 拥有共同的对阵匹配、截止与胜者事实；BET 组合赛事与金融数据，免费预测只消费比赛事实，利润与免费成绩排行在 BET 组合层汇合。`src/lib/free-predictions/` 拥有独立免费选择和幂等修订；不属于 BET 金融账本、自由推演 Prediction 或 Pick’Em。截止捕获 Match/Map 游戏开始与 Veto BP 开始的永久事实，回退不重开；判定只消费 canonical 官方结果，BP 全集合命中独立于赛果排行。公开仅匿名支持率、个人公开成绩与会话本人的选择。详见 [免费预测契约](decisions/free-predictions.md)。
 
 ## 比赛回放
 

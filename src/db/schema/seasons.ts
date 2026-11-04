@@ -1,3 +1,4 @@
+import { publicAsset } from "./public-asset";
 import { pgTable, uuid, text, integer, boolean, timestamp, pgEnum, json } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { InstitutionAffiliationRule, RegistrationConfig, StagePlan, TeamRegistrationConfig } from "@/types/season";
@@ -27,7 +28,7 @@ export const seasons = pgTable("seasons", {
   status: seasonStatusEnum("status").notNull().default("draft"),
   themeColor: text("theme_color"),
   // 赛事标识：Tournament Context provider 投影给 Mizar 的 canonical 品牌字段。
-  logoUrl: text("logo_url"),
+  logoUrl: publicAsset("logo_url"),
 
   // ── Capability 字段（业务逻辑的唯一判断依据）──────────────────────────
   // 报名模式

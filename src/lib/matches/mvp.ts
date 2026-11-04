@@ -6,21 +6,31 @@ import { matchMvpVotes, matches, seasons } from "@/db/schema";
 import { writeAuditInTx } from "@/lib/audit/write";
 import { MVP_DEADLINE_MS } from "@/lib/utils/date";
 
+const publicVoteFields = {
+  playerUserId: matchMvpVotes.playerUserId,
+  playerName: sql<string>`min(${matchMvpVotes.playerName})`,
+  count: sql<number>`count(*)::int`,
+};
+const voteGroups = [matchMvpVotes.playerUserId,
+  sql`case when ${matchMvpVotes.playerUserId} is null then ${matchMvpVotes.playerName} end`] as const;
+const voteOrder = [desc(sql`count(*)`), asc(sql`min(${matchMvpVotes.createdAt})`), asc(matchMvpVotes.playerUserId)] as const;
+
 /** A renamed player remains one candidate. Legacy unbound votes retain names. */
 export function readMatchMvpResults(matchId: string, database: Pick<TxDb, "select"> = db) {
-  return database
-    .select({
-      playerUserId: matchMvpVotes.playerUserId,
-      playerName: sql<string>`min(${matchMvpVotes.playerName})`,
-      count: sql<number>`count(*)::int`,
-    })
-    .from(matchMvpVotes)
-    .where(eq(matchMvpVotes.matchId, matchId))
-    .groupBy(
-      matchMvpVotes.playerUserId,
-      sql`case when ${matchMvpVotes.playerUserId} is null then ${matchMvpVotes.playerName} end`,
-    )
-    .orderBy(desc(sql`count(*)`), asc(sql`min(${matchMvpVotes.createdAt})`), asc(matchMvpVotes.playerUserId));
+  return database.select(publicVoteFields).from(matchMvpVotes)
+    .where(eq(matchMvpVotes.matchId, matchId)).groupBy(...voteGroups).orderBy(...voteOrder);
+}
+
+/** The viewer's original vote name is kept separate from the public results DTO. */
+export async function readMatchMvpPanelResults(matchId: string, viewerUserId: string | null) {
+  const rows = await db.select({
+    ...publicVoteFields,
+    viewerPlayerName: sql<string | null>`min(${matchMvpVotes.playerName}) filter (where ${matchMvpVotes.voterUserId} = ${viewerUserId})`,
+  }).from(matchMvpVotes).where(eq(matchMvpVotes.matchId, matchId)).groupBy(...voteGroups).orderBy(...voteOrder);
+  return {
+    votes: rows.map(({ playerUserId, playerName, count }) => ({ playerUserId, playerName, count })),
+    userVotedPlayerName: rows.find((row) => row.viewerPlayerName !== null)?.viewerPlayerName ?? null,
+  };
 }
 
 /** The scheduler owns settlement; public reads never materialize winner facts. */

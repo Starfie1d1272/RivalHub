@@ -22,6 +22,10 @@ function dependencies(path, visited) {
   }
 }
 
+export function postgresSpecCount() {
+  return specsIn("tests/integration/db").length;
+}
+
 export function postgresSpecsForSource(path) {
   // Migration replay, schema, environment and provider infrastructure always
   // use FULL. Only a known executable source consumer may narrow the suite.

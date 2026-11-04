@@ -1,5 +1,7 @@
 "use server";
 
+import { reviewCompetitionEntryWorkflowInTx } from "@/lib/registration/review-entry";
+
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -16,7 +18,6 @@ import {
   createCompetitionEntryInTx,
   declineCompetitionEntryParticipationInTx,
   grantCompetitionEntryRestrictionOverrideInTx,
-  reviewCompetitionEntryInTx,
   revokeCompetitionEntryRestrictionOverrideInTx,
   saveCompetitionEntryRosterInTx,
   submitCompetitionEntryInTx,
@@ -25,13 +26,13 @@ import {
   withdrawCompetitionEntryParticipationInTx,
 } from "@/lib/competition-entries/commands";
 import { ok, type ActionResult } from "@/types/action";
-import { updatePublicHomeTag, updatePublicStatsTag } from "@/lib/revalidation";
+import { updatePublicSeasonTags, updatePublicStatsTag } from "@/lib/revalidation";
 
 const uuid = z.guid();
 
 function revalidateEntry(seasonSlug: string, entryId?: string): void {
   updatePublicStatsTag();
-  updatePublicHomeTag();
+  updatePublicSeasonTags(seasonSlug, undefined, { statistics: false });
   revalidatePath(`/${seasonSlug}/register`);
   revalidatePath(`/admin/${seasonSlug}/registrations`);
   revalidatePath("/my/competitions");
@@ -170,7 +171,7 @@ export async function reviewCompetitionEntry(input: { entryId: string; decision:
     const existing = await db.query.competitionEntries.findFirst({ where: eq(competitionEntries.id, parsed.data.entryId), columns: { competitionId: true } });
     if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。");
     const admin = await requireSeasonAdmin(existing.competitionId);
-    const result = await db.transaction((tx) => reviewCompetitionEntryInTx(tx, {
+    const result = await db.transaction((tx) => reviewCompetitionEntryWorkflowInTx(tx, {
       entryId: parsed.data.entryId,
       decision: parsed.data.decision,
       reason: parsed.data.reason,

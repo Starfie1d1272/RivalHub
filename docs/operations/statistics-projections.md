@@ -26,14 +26,26 @@ Attribute benchmarks select only performance projections and the tournament targ
 keys needed for validation. They share current-import, identity-binding and target
 validation with full statistics reads, within the same read-only snapshot.
 
-Full-performance reads may reuse PostgreSQL's original text representation in a
-process-local LRU cache (16 MiB total including keys, 512 entries, 512 KiB per
-entry, five-minute TTL). Each snapshot still checks current imports, revision and
-identity bindings, and computes a SHA-256 of the actual selected representation
-in PostgreSQL. Misses are fetched in one batch and verified before use; every hit
-still goes through decoding, target checks and the normal DAK validation. The
-cache stores no parsed objects or pending requests and does not replace tag
-invalidation. PostgreSQL still serializes and hashes the representation; the
+Match map score segments use the current confirmed import and evidence revision
+for that match, then read its relational round facts in one bounded batch. They
+require a continuous sequence whose cumulative score matches the official map
+result; absent or inconsistent rounds do not supply segment scores. The shared
+public-statistics tag invalidates the cached result after source changes.
+
+Full-performance and full-tournament reads may reuse PostgreSQL's original text
+representations in a shared process-local LRU cache (16 MiB total including keys,
+512 entries, 512 KiB per entry). Each snapshot still checks current imports,
+revision and identity bindings, and computes a SHA-256 of the actual selected representation
+in PostgreSQL for each selected representation. Misses are fetched in batches and
+verified before use; every hit still goes through decoding, target checks and the
+normal DAK validation. Tournament and performance entries share the same budget;
+small identity-only tournament selections do not use the full representation cache.
+The cache stores no parsed objects or pending requests and does not replace tag
+invalidation. Entries are evicted by capacity, and process exit clears the cache;
+it is neither backed up nor persistent across restarts. Removed or replaced source
+bytes can remain in process memory until eviction or exit, but current lineage and
+content-hash checks prevent those bytes from being selected unless the same content
+is current again. PostgreSQL still serializes and hashes the representation; the
 effect on actual traffic must be measured under natural usage.
 
 ## Rebuild and release
@@ -121,7 +133,19 @@ benchmarks share the semantic public-statistics tag. Authorized draft queries an
 viewer membership/invitation state bypass public caches. Mutations expire the tag
 immediately: Server Actions use `updateTag`, HTTP entrypoints use
 `revalidateTag(tag, { expire: 0 })`. General metadata may retain its existing SWR
-policy. The cache does not replace persisted projections and keys change on deploy.
+policy. Public tournament, match, career, benchmark and lineup-style results,
+platform aggregates, public record-event pages and the official map catalog do not refresh on a timer;
+fixed-cutoff and rolling lineup comparisons follow the same policy. A future
+completion timestamp crossing the rolling cutoff may not be reflected until the
+next tagged write, eviction, or cold cache. A failed post-commit tag update can leave
+business statistics or an old public attribution stale until a later successful
+invalidation, eviction, or a cold cache. A standalone same-version projection backfill
+also does not signal the application cache; its changes can remain stale until one of
+those events. Operator-triggered Steam profile cache misses can likewise leave a cached
+record-event label stale. This is not a durable delivery mechanism
+or an immediate withdrawal guarantee. The cache does not replace persisted
+projections and keys change on deploy; self-hosted process-local entries are lost
+on restart and do not share invalidations across instances.
 
 Identity retirement invalidates all dependent maps, not only the import that
 introduced an alias. Scoreboard edits, official scores/rosters, event visibility,

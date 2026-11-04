@@ -187,7 +187,9 @@ it("keeps confirmed DAK gameplay above provisional data when OCR later enriches 
   const maps = await db.select().from(schema.matchMaps).where(eq(schema.matchMaps.matchId, f.matchId));
   const scoreboard = await loadMatchScoreboard(match!, maps, new Map([[actor, f.entryAId]]));
   expect(scoreboard.provisionalMapIds.has(f.mapOneId)).toBe(false);
-  expect(scoreboard.mapPlayers.get(f.mapOneId)).toMatchObject([{ userId: actor, kills: 20, deaths: 10, assists: 4, adr: 88, rws: 8, ratingPro: 1.2, we: 7 }]);
+  // The imported facts remain stored, but an obsolete semantic profile without
+  // a current projection must not become a public scoreboard or revive live data.
+  expect(scoreboard.mapPlayers.get(f.mapOneId)).toBeUndefined();
   const [stored] = await db.select().from(schema.matchPlayerStats).where(eq(schema.matchPlayerStats.mapId, f.mapOneId));
   expect(stored).toMatchObject({ dakImportId: importId, verifiedByAdmin: "dak", kills: 20 });
 });

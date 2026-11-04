@@ -30,7 +30,7 @@ import {
   hashTeamInvitationToken,
 } from "@/lib/teams/commands";
 import { fail, ok, type ActionResult } from "@/types/action";
-import { updatePublicStatsTag } from "@/lib/revalidation";
+import { updatePublicHomeTag, updatePublicStatsTag } from "@/lib/revalidation";
 
 const PENDING_DIRECT_INVITATION_CONSTRAINT = "team_invitations_one_pending_direct_per_user";
 
@@ -63,6 +63,7 @@ export async function updateTeamProfile(input: { teamId: string; name: string; d
   try {
     const session = await requireAuth();
     const result = await db.transaction((tx) => updateTeamProfileInTx(tx, { ...parsed.data, description: parsed.data.description, userId: session.userId, actorId: auditActorId(session) }));
+    updatePublicHomeTag();
     revalidateTeam(result.oldSlug);
     revalidateTeam(result.slug);
     return ok({ slug: result.slug });

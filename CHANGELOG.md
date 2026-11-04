@@ -5,6 +5,100 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.36]
+
+### Changed
+
+- 公开统计详情、职业生涯、阵容风格、选手赛事记录、纪录事件分页与赛事结果批量读取复用缓存，并在相关数据变化时更新，减少重复查询和计算。
+- 竞猜积分池和免费预测支持率按数据变化更新，减少重复读取。
+- 首页公开数据缓存按相关变更更新，减少无变化时的重复读取。
+
+### Fixed
+
+- 修复队伍改名、开放报名及后台补全 Steam 资料后首页相关数据未及时更新的问题。
+
+## 2.25.35（未单独发布）
+
+### Changed
+
+- 滚动时点的阵容比较不再定时重算；未来完成时间自然越过截止点后，须等相关写入、缓存淘汰或冷缓存才会反映。生产流量效果待验证。
+
+## [2.25.34]
+
+### Changed
+
+- 平台统计与固定时点阵容比较在数据变化时更新；Steam 资料变化后更新相关公开展示。生产流量效果待验证。
+
+## [2.25.33]
+
+### Changed
+
+- 比赛详情在同一请求内复用公开可见性探针，并合并 MVP 本人投票与聚合结果的读取。
+
+## [2.25.32]
+
+### Changed
+
+- 预测页短瑞士资格赛复用参赛队伍查询，后台单场资格赛复用 run 读取。
+
+## [2.25.31]
+
+### Changed
+
+- 批量读取选手与队伍历史赛事结果，减少多赛事下的重复查询。
+
+## [2.25.30]
+
+### Changed
+
+- 比赛详情轮询复用刷新查询，避免一次重复比赛查询；SQL 缺失与跨赛事分支尚无直接实测，生产流量效果待验证。
+
+## [2.25.29]
+
+### Changed
+
+- 设置页资料资格检查跳过未使用的赛季顺序读取；生产流量效果待验证。
+
+## [2.25.28]
+
+### Changed
+
+- Mizar 双队统计复用读取并稳定地图数组顺序，首次更新时 ETag 可能变化；生产流量效果待验证。
+
+## [2.25.27]
+
+### Changed
+
+- 缓存公开赛事地图目录，供统计页面复用。
+- 精简 DAK 赛事事件的导入历史读取，合并个人报名审核计数查询，并复用设置页的个人资料查询。
+
+## [2.25.26]
+
+### Changed
+
+- 复用已确认逐图统计，减少阵容统计和投影的重复读取。
+- 复用赛程资格赛与 DAK 赛事地图比分的读取，并精简赛事阵容目录的数据查询。
+- 合并个人报名人数查询，移除队伍报名审核中未使用的计数查询。
+
+## [2.25.25]
+
+### Changed
+
+- 公开统计的地图筛选复用已加载的比赛快照，减少重复查询。
+
+## [2.25.24]
+
+### Changed
+
+- 公开队标和赛事标识支持读取稳定的存储对象引用，为后续迁移做兼容准备。
+- 竞猜列表支持按开赛时间排序和筛选未做的免费赛果预测，登录及比赛详情往返保留列表上下文。
+- 比赛投影缓存失效由独立的有界投递流程恢复，保留失败重试与并发更新保护。
+- 保存未更改的比赛时间时保留已确认的转播资源及原始时间精度，并统一竞猜列表控件样式。
+- 修复同名参赛队伍生成赛程时可能混淆的问题，并避免调整比赛排期时不必要的全站统计缓存失效。报名页面明确区分已批准名单与当前名单审核状态。
+- 修复系列比分更正时遗漏正式开图记录的问题，避免已开始的后续地图被错误提前结束。
+- 统一管理员排期入口：设置或清空时间时同步处理待回应提议与转播资源，仅允许调整尚未开始的比赛。
+- 兼容接收端可保留包含未知安全动作标签的遥测批次，并单独计数未分类事件。
+
 ## [2.25.23]
 
 ### Changed
@@ -3460,6 +3554,18 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.25.36]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.34...v2.25.36
+[2.25.34]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.33...v2.25.34
+[2.25.33]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.32...v2.25.33
+[2.25.32]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.31...v2.25.32
+[2.25.31]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.30...v2.25.31
+[2.25.30]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.29...v2.25.30
+[2.25.29]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.28...v2.25.29
+[2.25.28]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.27...v2.25.28
+[2.25.27]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.26...v2.25.27
+[2.25.26]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.25...v2.25.26
+[2.25.25]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.24...v2.25.25
+[2.25.24]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.23...v2.25.24
 [2.25.23]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.22...v2.25.23
 [2.25.22]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.21...v2.25.22
 [2.25.21]: https://github.com/Starfie1d1272/RivalHub/compare/v2.25.20...v2.25.21
@@ -3701,3 +3807,4 @@ RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Co
 [1.1.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.0...v1.0.2
 [1.0.0]: https://github.com/Starfie1d1272/RivalHub/compare/v0.3.0...v1.0.0
+

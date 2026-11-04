@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { sql } from "drizzle-orm";
+import { isMigrationLedgerPrefix, readMigrationLedger } from "./migration-ledger";
 
 function stageMigrationPrefixes(migrations: string) {
   const journal = JSON.parse(readFileSync(join(migrations, "meta/_journal.json"), "utf8")) as {
@@ -44,6 +46,15 @@ export function runCanonicalMigrations(config: string, env: NodeJS.ProcessEnv, m
 
 /** Preview's checked-out connection uses the same transaction boundaries as CLI replay. */
 export async function migrateCanonicalDatabase(database: NodePgDatabase, migrationsFolder: string): Promise<void> {
+  // Drizzle uses the latest timestamp to decide what to skip. An unknown or
+  // reordered ledger must never be treated as a successful migration.
+  const expected = readMigrationLedger(resolve(migrationsFolder));
+  const relation = await database.execute<{ ledger: string | null }>(sql`SELECT to_regclass('drizzle.__drizzle_migrations')::text AS ledger`);
+  if (relation.rows[0]?.ledger) {
+    const result = await database.execute<{ hash: string; when: string }>(sql`SELECT hash, created_at::bigint::text AS "when" FROM drizzle.__drizzle_migrations ORDER BY created_at`);
+    const actual = result.rows.map(row => ({ hash: row.hash, when: Number(row.when) }));
+    if (!isMigrationLedgerPrefix(actual, expected)) throw new Error("Drizzle migration ledger is not an exact prefix of the selected chain; refusing migration.");
+  }
   const { staging, prefixes } = stageMigrationPrefixes(resolve(migrationsFolder));
   try {
     for (const prefix of prefixes) await migrate(database, { migrationsFolder: prefix });

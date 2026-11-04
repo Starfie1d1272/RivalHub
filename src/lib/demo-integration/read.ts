@@ -2,7 +2,7 @@ import { requireCompetitionMatch } from "@/lib/matches/competition-context";
 import { canConfirmMapScoreboard } from "@/lib/matches/map-scoreboard";
 import "server-only";
 
-import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -19,7 +19,6 @@ import {
   users,
 } from "@/db/schema";
 import { loadStageBracketViews, projectStageBracketNodes } from "@/lib/bracket";
-import { getMatchMapRoundScores } from "@/lib/data/standings";
 import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
 import { calculateStageRoundRobinStandings } from "@/lib/matches/stage-standings";
 import { buildStageViews } from "@/lib/matches/stage-views";
@@ -27,11 +26,12 @@ import { loadEffectiveMatchRoster } from "@/lib/match-rosters/effective";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { getPublicSeasonStagePresentation } from "@/lib/seasons/public-stage";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import type { MatchRoundScore } from "@/lib/standings";
 import { pairingCanReadSeason } from "./pairing";
-import { demoImportMetadataSelection, type DemoImportMetadata } from "./metadata";
+import type { DemoImportMetadata } from "./metadata";
 import { buildEvidenceRevisionForTarget, sha256Json } from "./revision";
 import { projectStage, projectOfficialStage } from "./stage-projection";
-import { dakSemanticProfileIssueMessage, isCurrentDakSemanticProfile } from "./semantic-profile";
+import { CURRENT_DAK_SEMANTIC_PROFILE, dakSemanticProfileIssueMessage, isCurrentDakSemanticProfile } from "./semantic-profile";
 import type {
   IntegrationIssue,
   RivalHubEventsResponse,
@@ -70,6 +70,7 @@ function projectIssues(value: unknown): IntegrationIssue[] {
   });
 }
 
+type DemoImportEventMetadata = Pick<DemoImportMetadata, "id" | "matchMapId" | "demoSha256" | "semanticProfile" | "evidenceRevision" | "status" | "issues">;
 type CurrentDemoImportCandidate = Pick<DemoImportMetadata, "semanticProfile" | "status">;
 
 export function selectCurrentDemoImport<T extends CurrentDemoImportCandidate>(rows: readonly T[]): T | undefined;
@@ -83,8 +84,8 @@ export function selectCurrentDemoImport(
 }
 
 function selectLatestNonCanonicalDemoImport(
-  rows: readonly DemoImportMetadata[],
-): DemoImportMetadata | undefined {
+  rows: readonly DemoImportEventMetadata[],
+): DemoImportEventMetadata | undefined {
   return rows.find((row) => !isCurrentDakSemanticProfile(row.semanticProfile) && row.status !== "superseded");
 }
 
@@ -112,7 +113,7 @@ function projectPlayer(row: {
 export function projectDemoStatus(
   match: { status: "scheduled" | "in_progress" | "finished" | "cancelled" },
   map: { completedAt: Date | null; scoreA: number | null; scoreB: number | null },
-  latest: DemoImportMetadata | undefined,
+  latest: DemoImportEventMetadata | undefined,
   currentEvidenceRevision?: string,
 ): RivalHubRemoteMap["demoStatus"] {
   const mapFinished = map.completedAt != null && map.scoreA != null && map.scoreB != null;
@@ -139,8 +140,8 @@ const staleEvidenceIssue: IntegrationIssue = {
 };
 
 export function projectDemoIssues(
-  latest: DemoImportMetadata | undefined,
-  latestConfirmed: DemoImportMetadata | undefined,
+  latest: DemoImportEventMetadata | undefined,
+  latestConfirmed: DemoImportEventMetadata | undefined,
   currentEvidenceRevision: string,
 ): IntegrationIssue[] {
   const issues = projectIssues(latest?.issues);
@@ -250,19 +251,46 @@ export async function readRivalHubEvents(
     ? await db.select().from(matchVetoSteps).where(inArray(matchVetoSteps.matchId, matchIds)).orderBy(asc(matchVetoSteps.stepOrder))
     : [];
   const matchRosterRows = await loadEffectiveMatchRoster(db, matchIds);
+  // Keep every timestamp tie: the existing createdAt-only ordering leaves ties
+  // unordered, and each of these three independent candidates can affect output.
+  const importHistory = db.select({
+    id: matchDemoImports.id,
+    matchMapId: matchDemoImports.matchMapId,
+    demoSha256: matchDemoImports.demoSha256,
+    semanticProfile: matchDemoImports.semanticProfile,
+    evidenceRevision: matchDemoImports.evidenceRevision,
+    status: matchDemoImports.status,
+    issues: matchDemoImports.issues,
+    createdAt: matchDemoImports.createdAt,
+    latestCurrentAt: sql<Date | null>`max(${matchDemoImports.createdAt}) filter (where ${matchDemoImports.semanticProfile} = ${CURRENT_DAK_SEMANTIC_PROFILE} and ${matchDemoImports.status} <> 'superseded') over (partition by ${matchDemoImports.matchMapId})`.as("latest_current_at"),
+    latestNonCanonicalAt: sql<Date | null>`max(${matchDemoImports.createdAt}) filter (where ${matchDemoImports.semanticProfile} <> ${CURRENT_DAK_SEMANTIC_PROFILE} and ${matchDemoImports.status} <> 'superseded') over (partition by ${matchDemoImports.matchMapId})`.as("latest_noncanonical_at"),
+    latestConfirmedAt: sql<Date | null>`max(${matchDemoImports.createdAt}) filter (where ${matchDemoImports.semanticProfile} = ${CURRENT_DAK_SEMANTIC_PROFILE} and ${matchDemoImports.status} = 'confirmed') over (partition by ${matchDemoImports.matchMapId})`.as("latest_confirmed_at"),
+  }).from(matchDemoImports).where(inArray(matchDemoImports.matchMapId, mapRows.map((map) => map.id))).as("import_history");
   const importRows = mapRows.length > 0
-    ? await db.select(demoImportMetadataSelection).from(matchDemoImports).where(inArray(matchDemoImports.matchMapId, mapRows.map((map) => map.id))).orderBy(desc(matchDemoImports.createdAt))
+    ? await db.select({
+      id: importHistory.id,
+      matchMapId: importHistory.matchMapId,
+      demoSha256: importHistory.demoSha256,
+      semanticProfile: importHistory.semanticProfile,
+      evidenceRevision: importHistory.evidenceRevision,
+      status: importHistory.status,
+      issues: importHistory.issues,
+    }).from(importHistory).where(or(
+      and(eq(importHistory.semanticProfile, CURRENT_DAK_SEMANTIC_PROFILE), sql`${importHistory.status} <> 'superseded'`, eq(importHistory.createdAt, importHistory.latestCurrentAt)),
+      and(sql`${importHistory.semanticProfile} <> ${CURRENT_DAK_SEMANTIC_PROFILE}`, sql`${importHistory.status} <> 'superseded'`, eq(importHistory.createdAt, importHistory.latestNonCanonicalAt)),
+      and(eq(importHistory.semanticProfile, CURRENT_DAK_SEMANTIC_PROFILE), eq(importHistory.status, "confirmed"), eq(importHistory.createdAt, importHistory.latestConfirmedAt)),
+    )).orderBy(desc(importHistory.createdAt))
     : [];
 
-  const importsByMap = new Map<string, Array<DemoImportMetadata>>();
+  const importsByMap = new Map<string, Array<DemoImportEventMetadata>>();
   for (const row of importRows) {
     const rows = importsByMap.get(row.matchMapId) ?? [];
     rows.push(row);
     importsByMap.set(row.matchMapId, rows);
   }
-  const latestCurrentImportByMap = new Map<string, DemoImportMetadata>();
-  const latestNonCanonicalImportByMap = new Map<string, DemoImportMetadata>();
-  const latestConfirmedImportByMap = new Map<string, DemoImportMetadata>();
+  const latestCurrentImportByMap = new Map<string, DemoImportEventMetadata>();
+  const latestNonCanonicalImportByMap = new Map<string, DemoImportEventMetadata>();
+  const latestConfirmedImportByMap = new Map<string, DemoImportEventMetadata>();
   for (const [mapId, rows] of importsByMap) {
     const current = selectCurrentDemoImport(rows);
     const nonCanonical = selectLatestNonCanonicalDemoImport(rows);
@@ -305,8 +333,17 @@ export async function readRivalHubEvents(
       const presentation = await getPublicSeasonStagePresentation(season);
       const stagePlan = presentation.officialStages.flatMap((stage) => stage.config ? [stage.config] : []);
       const { views: stageViews } = buildStageViews(stagePlan, seasonMatches.filter(match => !match.testConfig));
-      const [roundScoresByMatchId, bracketDataByStage, swissReadModels] = await Promise.all([
-        getMatchMapRoundScores(seasonMatches.filter((match) => match.status === "finished").map((match) => match.id)),
+      const roundScoresByMatchId = new Map<string, MatchRoundScore[]>();
+      for (const match of seasonMatches) {
+        if (match.status !== "finished") continue;
+        for (const map of mapsByMatch.get(match.id) ?? []) {
+          if (map.scoreA == null || map.scoreB == null) continue;
+          const scores = roundScoresByMatchId.get(match.id) ?? [];
+          scores.push({ scoreA: map.scoreA, scoreB: map.scoreB });
+          roundScoresByMatchId.set(match.id, scores);
+        }
+      }
+      const [bracketDataByStage, swissReadModels] = await Promise.all([
         loadStageBracketViews(db, season.id),
         Promise.all(stagePlan
           .filter((stage) => stage.type === "swiss")

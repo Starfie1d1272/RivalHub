@@ -13,7 +13,7 @@ import { compilePlayerAttributeBenchmark } from "./player-attributes";
 
 async function cachedPlayerAttributeBenchmark() {
   "use cache: remote";
-  cacheLife({ stale: 60, revalidate: 3600, expire: 86400 });
+  cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
   cacheTag(PUBLIC_STATS_TAG);
   return observeStatsCacheFill("benchmark", () => observePublicStatsFill("stats.benchmark", () => preservePublicStatsDependencyFailure(async () => {
     const events = await db

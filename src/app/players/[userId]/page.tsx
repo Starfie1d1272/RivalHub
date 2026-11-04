@@ -11,6 +11,8 @@ import Link from "next/link";
 import { PageLayout, PosChip } from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
+import { PlayerRecentMatches } from "@/components/players/PlayerMatches";
+import { canonicalPlayerHref } from "@/lib/players/matches-view-state";
 import { PlayerPerformanceFilters } from "@/components/players/PlayerPerformanceFilters";
 import { PlayerAttributes } from "@/components/players/PlayerAttributes";
 import { PlayerWorkspace } from "@/components/stats/players/PlayerWorkspace";
@@ -53,7 +55,7 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
   const fromStats = safeStatsReturn(typeof rawSearch.fromStats === "string" ? rawSearch.fromStats : null);
   const canonicalUserId = await resolveCanonicalUserId(db, userId);
   if (!canonicalUserId) notFound();
-  if (canonicalUserId !== userId) redirect(`/players/${canonicalUserId}`);
+  if (canonicalUserId !== userId) redirect(canonicalPlayerHref(canonicalUserId, rawSearch) as import("next").Route);
 
   const query = parsePlayerPerformanceQuery(rawSearch);
   const [user, sanctions] = await Promise.all([getPublicPlayerById(userId), getPublicPlayerSanctions(userId)]);
@@ -65,15 +67,20 @@ export async function PlayerPageContent({ params, searchParams }: PlayerPageProp
   return <PageLayout variant="standard" className="space-y-6">
     <StatsReturnLink href={fromStats} />
     <PlayerIdentity user={user} hasActivePublicSanction={sanctions.some(sanction => sanction.status === "active")} />
-    <section className="border-b border-[var(--color-border)] pb-4">
-      <Suspense fallback={<ProfileSectionSkeleton label="基本资料" height="min-h-48" />}>
-        <PlayerBasics sections={sections} />
+    <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+      <div className="min-w-0 space-y-4">
+        <Suspense fallback={<ProfileSectionSkeleton label="基本资料" height="min-h-40" />}>
+          <PlayerBasics sections={sections} />
+        </Suspense>
+        <PlayerActiveSanctions sanctions={sanctions} />
+        <Suspense fallback={<ProfileSectionSkeleton label="Career Stats" height="min-h-28" />}>
+          <PlayerCareerOverview sections={sections} />
+        </Suspense>
+      </div>
+      <Suspense fallback={<ProfileSectionSkeleton label="近期比赛" height="min-h-40" />}>
+        <PlayerRecentMatches userId={userId} fromStats={fromStats} />
       </Suspense>
-      <div className="mt-4"><PlayerActiveSanctions sanctions={sanctions} /></div>
-      <Suspense fallback={<ProfileSectionSkeleton label="Career Stats" height="min-h-28" />}>
-        <PlayerCareerOverview sections={sections} />
-      </Suspense>
-    </section>
+    </div>
     <Suspense fallback={<ProfileSectionSkeleton label="赛事履历" height="min-h-40" />}>
       <PlayerCareerHistory sections={sections} />
     </Suspense>
@@ -118,7 +125,7 @@ async function PlayerBasics({ sections }: SectionProps) {
               </div>
             )}
 
-            <div className="grid gap-3 border-t border-[var(--color-border)] pt-4 text-sm sm:grid-cols-2">
+            <div className="grid gap-3 border-t border-[var(--color-border)] pt-3 text-sm">
               <div>
                 <p className="mb-1 text-[11px] uppercase tracking-[var(--tracking-label)] text-[var(--color-fg-dim)]">当前活动</p>
                 <div className="space-y-1.5">
@@ -175,8 +182,8 @@ async function PlayerBasics({ sections }: SectionProps) {
 async function PlayerCareerOverview({ sections }: SectionProps) {
   const { careerOverview: overview } = await sections.overview;
   return <div data-profile-section="overview">
-        <div className="mt-4"><SectionHeading>Career Stats</SectionHeading></div>
-        <dl aria-label="Career Stats" className="mt-2 grid grid-cols-2 border-y border-[var(--color-border)] sm:grid-cols-4">
+        <h2 className="text-base font-semibold">Career Stats</h2>
+        <dl aria-label="Career Stats" className="mt-2 grid grid-cols-4 border-y border-[var(--color-border)]">
           <div className="px-3 py-3 sm:first:pl-0">
             <dt className="text-[11px] text-[var(--color-fg-mid)]"><StatsMetricLabel metric="rating">Rating</StatsMetricLabel></dt>
             <dd className="mt-1 text-lg font-semibold tabular-nums"><MetricValue metric="rating" value={overview.rating} /></dd>
@@ -463,10 +470,10 @@ function PlayerPageFallback() {
 }
 
 function PlayerIdentity({ user, hasActivePublicSanction }: { user: PublicPlayer; hasActivePublicSanction: boolean }) {
-  return <div className="flex items-start gap-4">
+  return <header className="flex min-w-0 items-center gap-4 border-b border-[var(--color-border)] pb-6">
     <PlayerAvatar name={getPublicDisplayName(user)} avatarUrl={user.avatarUrl} hasActivePublicSanction={hasActivePublicSanction} size="lg" />
-            <div className="space-y-2">
-              <h1 className="text-3xl font-black text-[var(--color-fg)]">{getPublicDisplayName(user)}</h1>
+            <div className="min-w-0 space-y-2">
+              <h1 className="break-words text-3xl font-black text-[var(--color-fg)]">{getPublicDisplayName(user)}</h1>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-fg-mid)]">
                 {user.perfectName && <span className="font-mono">完美平台 · {user.perfectName}</span>}
                 {user.steamProfileUrl && (
@@ -481,5 +488,5 @@ function PlayerIdentity({ user, hasActivePublicSanction }: { user: PublicPlayer;
                 )}
               </div>
             </div>
-  </div>;
+  </header>;
 }

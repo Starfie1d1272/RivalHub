@@ -1,12 +1,11 @@
 import "server-only";
 
-// Bound both memory and the lifetime of reusable wire representations. The
+// Share one bounded budget for performance and tournament wire representations. The
 // current database fingerprint is still checked in every snapshot.
 const MAX_BYTES = 16 * 1024 * 1024;
 const MAX_ENTRIES = 512;
 const MAX_ENTRY_BYTES = 512 * 1024;
-const TTL_MS = 5 * 60 * 1000;
-const entries = new Map<string, { text: string; bytes: number; expires: number }>();
+const entries = new Map<string, { text: string; bytes: number }>();
 let totalBytes = 0;
 
 export function getPerformanceText(key: string): string | undefined {
@@ -14,7 +13,6 @@ export function getPerformanceText(key: string): string | undefined {
     const entry = entries.get(key);
     if (!entry) return undefined;
     entries.delete(key);
-    if (entry.expires <= Date.now()) { totalBytes -= entry.bytes; return undefined; }
     entries.set(key, entry);
     return entry.text;
   } catch { return undefined; }
@@ -32,7 +30,7 @@ export function putPerformanceText(key: string, text: string): void {
       totalBytes -= entries.get(oldest)!.bytes;
       entries.delete(oldest);
     }
-    entries.set(key, { text, bytes, expires: Date.now() + TTL_MS });
+    entries.set(key, { text, bytes });
     totalBytes += bytes;
   } catch { /* Cache failures must not affect the database read. */ }
 }

@@ -11,7 +11,7 @@ vi.mock("@/lib/teams/lineup-style-query", () => ({ getPublicLineupStyle: async (
 vi.mock("@/lib/stats/cached-query", () => ({ getPublicLongTeamCareerDetail: async () => null }));
 vi.mock("@/lib/teams/map-profile", () => ({ getPublicTeamMapProfile: async () => ({ experienceCoverage: "unavailable" }) }));
 vi.mock("@/lib/data/public-seasons", () => ({ getPublicSeasonCatalog: async () => [] }));
-vi.mock("@/lib/seasons/public-results", () => ({ getPublicSeasonResults: vi.fn() }));
+vi.mock("@/lib/seasons/public-results", () => ({ getPublicSeasonResultsBatch: async () => new Map() }));
 
 import { getPublicLongTeamProfileReadModel } from "@/lib/teams/profile-read-model";
 

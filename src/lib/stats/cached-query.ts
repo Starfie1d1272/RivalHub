@@ -1,9 +1,11 @@
+import { getMatchPerformance } from "./match-performance-query";
 import { preservePublicStatsDependencyFailure } from "./availability";
 import { observePublicStatsFill } from "./public-fill";
 import "server-only";
 
 import { and, eq, ne } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
+import { cache } from "react";
 import { db } from "@/db/client";
 import { competitionEntries, matches, seasons } from "@/db/schema";
 import { publicCompetitionEntryIdentityCondition } from "@/lib/competition-entries/public-visibility";
@@ -14,8 +16,6 @@ import { getPublicSeasonStagePresentation, type PublicStageSeason } from "@/lib/
 import { isOfficialStageKey } from "@/lib/seasons/official-stages";
 import {
   getLongTeamCareerDetail,
-  getMatchPlayerDetail,
-  getMatchMvpSummary,
   getPlayerCareerDetail,
   getPlayerCareerFilterOptions,
   getTournamentMapDetail,
@@ -64,7 +64,7 @@ async function requirePublicEntry(seasonId: string, entryId: string): Promise<vo
 
 function statsCachePolicy(): void {
   cacheTag(PUBLIC_STATS_TAG);
-  cacheLife({ stale: 60, revalidate: 3600, expire: 86400 });
+  cacheLife({ stale: 60, revalidate: Infinity, expire: Infinity });
 }
 
 async function cachedTournamentStats(scope: TournamentViewScope) {
@@ -141,37 +141,22 @@ export async function getPublicLongTeamCareerDetail(teamId: string) {
   return observePublicStatsFill("stats.career", async () => preservePublicStatsDependencyFailure(() => getLongTeamCareerDetail(teamId)));
 }
 
-async function cachedMatchPlayerDetail(matchId: string, playerId: string, mapName?: string) {
-  "use cache: remote";
-  statsCachePolicy();
-  return observePublicStatsFill("stats.match", async () => preservePublicStatsDependencyFailure(() => getMatchPlayerDetail(matchId, playerId, mapName)));
-}
-
-export async function getPublicMatchPlayerDetail(
-  matchId: string,
-  playerId: string,
-  mapName: string | undefined,
-  visibility: Visibility,
-) {
-  if (visibility === "draft") return getMatchPlayerDetail(matchId, playerId, mapName);
+// Share only the public visibility probe within a server render; never cache draft access.
+const isPublicMatch = cache(async (matchId: string) => {
   const [match] = await db.select({ id: matches.id }).from(matches)
     .innerJoin(seasons, eq(seasons.id, matches.seasonId))
     .where(and(eq(matches.id, matchId), ne(seasons.status, "draft"))).limit(1);
-  if (!match) return null;
-  return cachedMatchPlayerDetail(matchId, playerId, mapName);
-}
+  return Boolean(match);
+});
 
-async function cachedMatchMvpSummary(matchId: string, playerId: string) {
+async function cachedMatchPerformance(matchId: string) {
   "use cache: remote";
   statsCachePolicy();
-  return observePublicStatsFill("stats.match", () => preservePublicStatsDependencyFailure(() => getMatchMvpSummary(matchId, playerId)));
+  return observePublicStatsFill("stats.match", () => preservePublicStatsDependencyFailure(() => getMatchPerformance(matchId)));
 }
 
-/** Entrypoints retain draft authorization; no draft facts enter shared caches. */
-export async function getPublicMatchMvpSummary(matchId: string, playerId: string, visibility: Visibility) {
-  if (visibility === "draft") return getMatchMvpSummary(matchId, playerId);
-  const [match] = await db.select({ id: matches.id }).from(matches)
-    .innerJoin(seasons, eq(seasons.id, matches.seasonId))
-    .where(and(eq(matches.id, matchId), ne(seasons.status, "draft"))).limit(1);
-  return match ? cachedMatchMvpSummary(matchId, playerId) : null;
+/** One match-scoped cache entry is shared by the scoreboard, all players and MVP. */
+export async function getPublicMatchPerformance(matchId: string, visibility: Visibility) {
+  if (visibility === "draft") return getMatchPerformance(matchId);
+  return await isPublicMatch(matchId) ? cachedMatchPerformance(matchId) : null;
 }

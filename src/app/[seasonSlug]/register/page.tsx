@@ -1,3 +1,4 @@
+import { interpretEntryRosterStatus } from "@/lib/competition-entries/status-read-model";
 import { Suspense } from "react";
 import { ContentReady } from "@/components/telemetry/ContentReady";
 import { notFound, redirect } from "next/navigation";
@@ -21,7 +22,7 @@ import {
   steamProfiles,
   users,
 } from "@/db/schema";
-import { getPositionCounts, getApprovedCount } from "@/actions/register";
+import { getRegistrationCounts } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
 import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import { resolveManagedMajorProfile } from "@/lib/competition/definition";
@@ -257,6 +258,7 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
         logoUrl: entry.logoUrl,
         teamLogoUrl: entryTeam?.logoUrl ?? null,
         status: entry.registrationStatus,
+        rosterStatus: interpretEntryRosterStatus({ ...entry, revisionStatus: revision?.status ?? null }),
         revisionOrigin: revision?.origin ?? null,
         representativeUserId: entry.representativeUserId,
         reviewReason: revision?.origin === "self_roster_change" ? null : entry.reviewReason,
@@ -324,9 +326,8 @@ async function RegisterContent({ params, searchParams }: RegisterPageProps) {
     );
   }
 
-  const [positionCounts, approvedCount, currentRegistration, currentUser, mapPreferences] = await Promise.all([
-    getPositionCounts(season.id),
-    getApprovedCount(season.id),
+  const [{ positionCounts, approvedCount }, currentRegistration, currentUser, mapPreferences] = await Promise.all([
+    getRegistrationCounts(season.id),
     db.query.seasonRegistrations.findFirst({
       where: and(
         eq(seasonRegistrations.seasonId, season.id),

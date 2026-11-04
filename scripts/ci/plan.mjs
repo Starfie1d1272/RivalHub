@@ -3,7 +3,7 @@ import { appendFileSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { postgresSpecsForSource } from "./postgres-selection.mjs";
+import { postgresSpecCount, postgresSpecsForSource } from "./postgres-selection.mjs";
 
 export const CAPABILITIES = ["static", "postgres", "system"];
 
@@ -43,6 +43,10 @@ const LIVE_SURFACES = [
   "src/actions/season-public-info.ts",
   "src/lib/season-public-info/",
   "src/lib/mizar/",
+  "src/components/matches/MatchLiveProvider",
+  "src/components/matches/MatchRealtime",
+  "src/components/matches/MatchListLiveScore",
+  "src/components/matches/MatchRadar",
   "src/lib/integrations/pairing-security.ts",
   "src/db/schema/mizar.ts",
   "src/app/api/mizar/",
@@ -61,8 +65,9 @@ const SYSTEM_FLOW_MAP = [
   { prefixes: ["src/components/matches/SeriesScoreCorrection"], specs: ["tests/e2e/flows/series-score-correction.spec.ts"] },
   { prefixes: ["src/components/teams/TeamInvitationsSection"], specs: ["tests/e2e/flows/team-invitations.spec.ts"] },
   {
+    // LIVE keeps its provider evidence without a permanent browser flow.
     prefixes: ["src/lib/mizar/", "src/components/matches/MatchLiveProvider", "src/components/matches/MatchRealtime", "src/components/matches/MatchListLiveScore", "src/components/matches/MatchRadar", "src/app/api/matches/"],
-    specs: ["tests/e2e/flows/public-match-live.spec.ts"],
+    specs: [],
   },
   {
     prefixes: ["src/actions/season-public-info.ts", "src/lib/season-public-info/", "src/components/admin/SeasonLogoEditor.tsx", "src/components/season/EventLogo.tsx"],
@@ -116,12 +121,15 @@ export function classifyChangedFiles(entries, options = {}) {
   );
   const result = (...args) => {
     const plan = resultFor(...args);
-    const liveEvidence = plan.full || liveSurfaceChanged || plan.e2eSpecs.includes("tests/e2e/flows/public-match-live.spec.ts");
+    const liveEvidence = plan.full || liveSurfaceChanged;
     return { ...plan, gateName, liveEvidence,
       systemMatrix: systemMatrixFor(plan, liveEvidence),
-      // Empty PG selection executes the complete suite, including migration-only
-      // plans. Reuse both bounded shards; explicit affected filters stay on one.
-      postgresMatrix: plan.runPostgres ? (plan.integrationSpecs.length === 0 ? [{ shard: "1/2" }, { shard: "2/2" }] : [{ shard: "1/1" }]) : [],
+      // Empty selection runs the complete suite. Affected sets approaching the
+      // full suite need the same bounded parallelism without dropping filters.
+      postgresMatrix: plan.runPostgres
+        ? (plan.integrationSpecs.length === 0 || plan.integrationSpecs.length * 4 >= postgresSpecCount() * 3
+          ? [{ shard: "1/2" }, { shard: "2/2" }] : [{ shard: "1/1" }])
+        : [],
     };
   };
   if (forceFull) {
@@ -176,7 +184,10 @@ export function classifyChangedFiles(entries, options = {}) {
       if (specs === null) evidence.integrationFull = true;
       else for (const spec of specs) evidence.integrationSpecs.add(spec);
     }
-    if (classification.capabilities.includes("system") && !classification.e2eSpecs && systemSpecsForPath(path).length === 0) evidence.e2eFull = true;
+    const mappedSystemFlow = SYSTEM_FLOW_MAP.some(mapping => mapping.prefixes.some(prefix => path === prefix || path.startsWith(prefix)));
+    // An explicit empty mapping selects provider-only evidence; unmapped
+    // system surfaces still fail closed to the complete browser suite.
+    if (classification.capabilities.includes("system") && !classification.e2eSpecs && !mappedSystemFlow) evidence.e2eFull = true;
   }
 
   if (evidence.e2eSpecs.size > 0) {
@@ -518,10 +529,6 @@ export function systemMatrixFor(plan, liveEvidence) {
     { task: "provider", live: liveEvidence, specs: [] },
     ...["chromium", "mobile-chrome"].map(project => ({ task: `production-${project}`, live: false, specs: [], project })),
   ];
-  const liveSpec = "tests/e2e/flows/public-match-live.spec.ts";
-  // The real stale/recovery window is the longest indivisible browser flow.
-  // Keep its runner free of unrelated route compilation and fixture work.
-  if (specs.includes(liveSpec)) matrix.push({ task: "browser-live", live: true, specs: [liveSpec] });
   const seriesSpec = "tests/e2e/flows/series-score-correction.spec.ts";
   // This 30-second flow validates stale-preview recovery and persisted results.
   // Concurrent public-page cold compilation can consume its entire budget.
@@ -563,7 +570,7 @@ export function systemMatrixFor(plan, liveEvidence) {
   if (specs.includes(adminEvidenceSpec)) {
     matrix.push({ task: "browser-admin-evidence-chromium", live: false, specs: [adminEvidenceSpec], project: "chromium" });
   }
-  const ordinary = specs.filter(spec => spec !== liveSpec && spec !== seriesSpec && spec !== sessionSpec && spec !== ocrSpec && spec !== adminEvidenceSpec && spec !== betReadSpec && !isolated.has(spec));
+  const ordinary = specs.filter(spec => spec !== seriesSpec && spec !== sessionSpec && spec !== ocrSpec && spec !== adminEvidenceSpec && spec !== betReadSpec && !isolated.has(spec));
   // Keep remaining combinations bounded as coverage grows instead of packing
   // every new spec into a fixed seven-runner ceiling. No duration scheduler.
   const shards = [];

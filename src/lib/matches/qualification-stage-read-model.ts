@@ -15,7 +15,7 @@ import type { PublicScheduleMatch } from "./schedule-read";
 import { buildQualificationSwissMatchRecord, buildQualificationSwissReadModel } from "@/lib/competition-qualification/presentation";
 
 export async function loadQualificationSwissStageReadModel(seasonId: string, supplied?: {
-  run: CompetitionQualificationRun;
+  run: Pick<CompetitionQualificationRun, "id" | "seasonId" | "format" | "directEntryCount">;
   displayedMatches: readonly (PublicScheduleMatch & { displayScore: import("./display-score").DisplayScore })[];
 }) {
   const run = supplied ? supplied.run : (await db.select().from(competitionQualificationRuns)
@@ -71,13 +71,8 @@ export async function loadQualificationSwissStageReadModel(seasonId: string, sup
 /** Internal reader: callers authorize the season before requesting operator context.
  * Keep all frozen pairing facts, without public identities or BO1 display-map reads.
  */
-export async function loadQualificationSwissMatchRecord(seasonId: string, matchId: string): Promise<{ stageName: string; record: string } | null> {
-  const [run] = await db.select({
-    id: competitionQualificationRuns.id,
-    format: competitionQualificationRuns.format,
-    directEntryCount: competitionQualificationRuns.directEntryCount,
-  }).from(competitionQualificationRuns).where(eq(competitionQualificationRuns.seasonId, seasonId)).limit(1);
-  if (!run || run.format !== "short_swiss_2w2l") return null;
+export async function loadQualificationSwissMatchRecord(seasonId: string, matchId: string, run: Pick<CompetitionQualificationRun, "id" | "seasonId" | "format" | "directEntryCount"> | null): Promise<{ stageName: string; record: string } | null> {
+  if (!run || run.seasonId !== seasonId || run.format !== "short_swiss_2w2l") return null;
 
   const [entrants, linkedMatches] = await Promise.all([
     db.select({

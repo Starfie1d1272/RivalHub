@@ -22,7 +22,7 @@ Browser
 
 ### Entrypoint vs domain owner
 
-Entrypoint 负责不可信输入、鉴权、transport result 和 revalidation；可复用的规则或 transaction workflow 进入明确的 canonical owner。相同 transition、derived fact、validation 或 formatter 不在 page/action/component 中复制第二份。
+Entrypoint 负责不可信输入、服务端鉴权、transport result 和 revalidation；可复用规则与事实由明确的领域 owner 拥有。跨领域用例负责协调这些 owner 和必要的事务，不把事实复制成第二套规则。adapter 负责协议、外部数据转换与委托，不决定业务结果。相同 transition、derived fact、validation 或 formatter 不在 page/action/component 中复制第二份。涉及多个 owner 的事务仍须遵循既有锁序和原子性，见 [比赛锁序](operations/match-lock-order.md) 与 [锁契约](operations/locking.md)。
 
 预期业务结果统一使用 `ActionResult<T>`；unexpected runtime failure 进入 canonical observability，而不是把 exception 当业务状态。
 
@@ -46,7 +46,7 @@ History / Analytics / Spectator
 
 Page、Server Action、Route Handler 和 Client Component 是 entrypoint/presentation 层，只调用 canonical `src/lib/` owner；`src/lib/` domain/library 代码不得反向依赖 `src/actions/`、`src/app/` 或 `src/components/`。Client graph 不能到达数据库、secret/provider owner 或 server-only observability facade。mutation 经 `use server` action boundary；BET/Pick’Em 的高频私有只读通过显式 DTO 的 GET transport 委托同一个 canonical reader，客户端薄封装只持请求参数、取消信号与响应类型，不导入 server workflow。
 
-这条方向由 `pnpm architecture:check` 执行检查。检查器读取项目 tsconfig 并使用 TypeScript module resolver 解析 alias、relative 和 runtime dynamic import；Client→Server 泄漏只沿 runtime graph 检查，而 canonical third-party provider ownership 连 type-only edge 也 fail closed。DTO/serializer 的字段泄漏仍由对应 serializer tests 负责。
+`pnpm architecture:check` 检查部分依赖边界及 provider、审计写入和页面聚合约束；它不能证明所有领域事实都只有一个 owner，也不验证跨领域事务语义。检查器使用 TypeScript module resolver；Client→Server 泄漏沿 runtime graph 检查，canonical third-party provider ownership 对 type-only edge 也 fail closed。DTO/serializer 字段泄漏由对应 serializer tests 负责。
 
 ### Public data
 
@@ -80,7 +80,7 @@ session、authorization、admin 与 draft facts 不进入共享 public cache；�
 
 ## Competition architecture
 
-赛事由 capability 驱动，而不是按 `seasons.kind` 写业务分支。报名模式、投票/选秀、社区奖、阶段计划、名单与资格规则都来自 persisted capability/config；`competitionTemplate` 只负责内置模板身份与固定语义。
+赛事功能优先由 persisted capability/config 驱动，而不是按 `seasons.kind` 写业务分支；`competitionTemplate` 表达内置模板身份与固定语义。现有配置包含报名、阶段和院校关联规则，但这不表示已有可供任意社区使用的完整资格政策合同。报名、审核、名单和冻结各自仍需按当前实现核对；资格政策统一及普通社区路径属于 [3.0 工作](https://github.com/Starfie1d1272/RivalHub/issues/1326)，不能用未来合同重新解释既有冻结事实。
 
 当前两个内置体系共享账号、Team、CompetitionEntry、Match、审计和数据基础设施：
 
@@ -123,7 +123,7 @@ Major Swiss 不经过通用 provider adapter：它由 `majorStageEntrants`、off
 
 `src/lib/predictions/` composes a public Prediction/Pick’Em read model with discriminated Major and Qualification contexts. Major simulation reuses the canonical Swiss, seeding and playoff rules; Play-in simulation is owned by `src/lib/competition-qualification/` and reuses Short Swiss pairing/projection and shared official-history validation. Prediction choices live only in browser memory and never write official matches or scenarios. Baselines expose only stage rules, entrant identities, display fields and official results; frozen eligibility/roster facts remain private. The Pick’Em transport excludes Bet balances, markets and ledgers. Official seed confirmation and phase transitions synchronously publish policy-derived Pick’Em windows; the durable official-fact outbox reconciles corrections. Public reads never create windows. A window may precede its StageRun and binds it only when the official entrant set matches. `src/lib/bet/` independently owns the BET catalog, read model, admission and append-only financial facts in `bet_*` tables. It does not require a Pick’Em program; the shared scheduler runner consumes separate durable Bet work.
 
-BET 公共积分池、参与人数和免费预测支持率由 `src/lib/bet/public-stats-read.ts` 输出显式聚合 DTO，经 `use cache: remote` 按赛事、比赛及规范化视图范围跨用户复用，服务端硬过期为 15 秒；不构造无消费者的匿名完整面板。普通视图的 15 秒轮询与缓存年龄会叠加，不能承诺外部变化在 15 秒内显示。缓存填充独立读取公共统计，首次读取增加工作量，收益取决于同一窗口的复用次数。缓存不含 voter、个人选择、账户或原始赛事事实，草稿绕过共享缓存。每次请求先直接核对当前赛事及草稿管理员权限，再取会话；授权和会话解析后，公共缓存 lookup/fill 与新鲜私有事务重叠，私有事务不等待缓存或读取公共池。事务结束后只附加展示聚合；免费支持率 subject 签名与私有事实不符或聚合不可用时，丢弃整个私有快照并在一个新事务完整读取，不混合不同连接的私有事实。草稿与 records/leaderboard 保留直接读取。各阶段复用同请求 trace；GET `/api/bet/[seasonId]` 与 `/api/predictions/[seasonId]` 使用严格 scope/view 参数、`private, no-store` 与 `Vary: Cookie`，不接受客户端 viewer 身份。事务内以同一 read-only repeatable-read executor 读取必要事实、私有状态与数据库时钟，提交后纯投影；只读语句有独立预算。客户端 HTTP 读有时限、abort 和 scope/sequence 保护；abort 不证明服务端查询或事务回滚。BET 普通视图按可见性轮询，记录/排行榜使用各自读取入口而不轮询整板；免费选择成功只刷新该场免费面板。记录以 `(created_at,id)` 游标继续翻页，保留旧 page URL。records/ranking 不读取完整盘口/BP，赛事盘、个人投入和结算盘先限定 market 集合；显式 open 视图按最新 settlement revision 排除 settled/refunded，保留无结算及最新 pending 的盘口，不按比赛完赛状态排除，也不收窄免费预测 facts/signature；管理员无 view 仍读取全部盘口。冻结历史不因当前官方比赛删除而丢失。
+BET 公共积分池、参与人数和免费预测支持率由 `src/lib/bet/public-stats-read.ts` 输出显式聚合 DTO，经 `use cache: remote` 按赛事、比赛及规范化视图范围跨用户复用，由投注、免费选择、比赛与身份等变更触发标签失效，不再定时刷新；不构造无消费者的匿名完整面板。普通视图仍按可见性轮询；若提交后的标签失效失败，公共聚合可能持续陈旧，直到后续相关失效或缓存被驱逐。缓存填充独立读取公共统计，首次读取增加工作量，收益取决于后续复用次数。缓存不含 voter、个人选择、账户或原始赛事事实，草稿绕过共享缓存。每次请求先直接核对当前赛事及草稿管理员权限，再取会话；授权和会话解析后，公共缓存 lookup/fill 与新鲜私有事务重叠，私有事务不等待缓存或读取公共池。事务结束后只附加展示聚合；免费支持率 subject 签名与私有事实不符或聚合不可用时，丢弃整个私有快照并在一个新事务完整读取，不混合不同连接的私有事实。草稿与 records/leaderboard 保留直接读取。各阶段复用同请求 trace；GET `/api/bet/[seasonId]` 与 `/api/predictions/[seasonId]` 使用严格 scope/view 参数、`private, no-store` 与 `Vary: Cookie`，不接受客户端 viewer 身份。事务内以同一 read-only repeatable-read executor 读取必要事实、私有状态与数据库时钟，提交后纯投影；只读语句有独立预算。客户端 HTTP 读有时限、abort 和 scope/sequence 保护；abort 不证明服务端查询或事务回滚。BET 普通视图按可见性轮询，记录/排行榜使用各自读取入口而不轮询整板；免费选择成功只刷新该场免费面板。记录以 `(created_at,id)` 游标继续翻页，保留旧 page URL。records/ranking 不读取完整盘口/BP，赛事盘、个人投入和结算盘先限定 market 集合；显式 open 视图按最新 settlement revision 排除 settled/refunded，保留无结算及最新 pending 的盘口，不按比赛完赛状态排除，也不收窄免费预测 facts/signature；管理员无 view 仍读取全部盘口。冻结历史不因当前官方比赛删除而丢失。
 
 私人余额、下注、排名、永久封盘、资格与记录不进入共同缓存。免费预测个人读取包含 canonical viewer 的归并来源，沿用直接选择优先规则；公共支持率绑定对阵、run、赛制、地图池与有效状态，事实更正时回退重算。竞猜/free action 提交后失效本届 BET tag，赛事与统计 tag 继续覆盖赛果更正和身份归并。财务或选择回执已确认后，失效/刷新失败单独报告；投入传输结果未知时保留原 payload/requestId，只读核对该 viewer 的原始 stake receipt，缺失仍是未确认，不自动生成新 key 重扣。
 
@@ -131,7 +131,7 @@ Prediction mutations serialize by canonical user → season lifecycle guard → 
 
 The public Prediction/Pick’Em projection excludes legacy financial fields and does not compute a preview simulation that its transport discards. Simulation remains the client interaction model; official results alone drive windows and awards. Tasks read only the viewer, while the achievement leaderboard reads the full submitted population before top100 plus the viewer's own rank; others' drafts, Qualification display context and unused score payloads are excluded from summary reads. Latest judgement and revision count retain correction history. The read snapshot captures database time; browser clocks remain presentation only. Prediction render failures use the telemetry owner's private fingerprint projection and an explicit retry boundary; primary-ready is recorded beside actual hydrated BET/Pick’Em content, not fallbacks.
 
-BET 排行榜由 `src/lib/free-predictions/ranking.ts` 在同一个 read-only repeatable-read 事务载入一次全赛事投票及金融人口，页面 header 复用该快照的当前 wallet/rank。事务后生成收益、命中数和准确率投影，各自复制并赋值 rank/group，保留完整人口资格门槛、并列及筛选后排名语义；单榜 action 复用该 owner。
+BET 排行榜由 `src/lib/bet/free-ranking.ts` 在同一个 read-only repeatable-read 事务载入一次全赛事投票及金融人口，页面 header 复用该快照的当前 wallet/rank。事务后生成收益、命中数和准确率投影，各自复制并赋值 rank/group，保留完整人口资格门槛、并列及筛选后排名语义；单榜 action 复用该 owner。
 
 ## Security and operations
 

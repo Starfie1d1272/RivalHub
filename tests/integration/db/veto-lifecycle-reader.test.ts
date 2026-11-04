@@ -2,7 +2,8 @@ import { deliverExistingFixtureVetoInvalidations } from "./harness/veto-delivery
 import { randomUUID } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
-vi.mock("@/lib/revalidation", () => ({ revalidateVetoRoomPaths: vi.fn(), revalidateMatchPaths: vi.fn(), revalidatePublicSeasonTags: vi.fn(), revalidatePublicStatsTag: vi.fn(), revalidateSeasonPaths: vi.fn() }));
+vi.mock("@/lib/matches/projection-invalidation/next-adapter", () => ({ revalidateMatchProjectionPaths: vi.fn() }));
+vi.mock("@/lib/revalidation", () => ({ revalidateMatchPaths: vi.fn(), revalidatePublicSeasonTags: vi.fn(), revalidatePublicStatsTag: vi.fn(), revalidateSeasonPaths: vi.fn() }));
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { loadBetFacts } from "@/lib/bet/facts";
@@ -13,7 +14,7 @@ import { closeVetoAppealsAfterGameplayInTx, VETO_APPEAL_CLOSURE_NOTE } from "@/l
 import { canPublishVetoAppealClosure } from "@/lib/matches/veto-room/lifecycle-publication";
 import { projectVetoRoomView } from "@/lib/matches/veto-room/read-model";
 import { readVetoRoomCore, readVetoRoomSnapshot, reconcileVetoRoom, resolveVetoAppeal, rewindVetoRoom, submitVetoAppeal } from "@/lib/matches/veto-room/service";
-import { runMatchVetoTimeoutJob } from "@/lib/scheduler/runners";
+import { runMatchVetoScheduledJob } from "@/lib/scheduler/runners";
 import { createLocalPool } from "./harness/database";
 import { dispatchCommand } from "../../../scripts/db/scheduler";
 import { getSchedulerJobDefinition } from "@/lib/scheduler/definitions";
@@ -88,8 +89,8 @@ describe("veto lifecycle shipped reader1/publisher0", () => {
     await db.insert(schema.matchVetoSessions).values(previousRooms.map(matchId => ({ matchId })));
     expect((await db.select().from(schema.matchVetoInvalidations).where(gt(schema.matchVetoInvalidations.generation, schema.matchVetoInvalidations.publishedGeneration))).length).toBeGreaterThan(50);
     await deliverExistingFixtureVetoInvalidations();
-    expect(await runMatchVetoTimeoutJob()).toMatchObject({ result: { changed: 0 } });
-    expect(await runMatchVetoTimeoutJob()).toMatchObject({ result: { processed: 0, changed: 0 } });
+    expect(await runMatchVetoScheduledJob()).toMatchObject({ result: { changed: 0 } });
+    expect(await runMatchVetoScheduledJob()).toMatchObject({ result: { processed: 0, changed: 0 } });
     const pool = createLocalPool();
     try {
       expect((await pool.query("SELECT public.scheduler_job_is_due('resolve-match-veto-timeouts') AS due")).rows[0].due).toBe(false);

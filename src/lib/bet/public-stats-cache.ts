@@ -12,7 +12,8 @@ import { readBetPublicStatsSnapshot, projectBetPublicStats, type BetPublicStatsS
 
 async function cachedStats(seasonId: string, slug: string, scope: BetPublicStatsScope) {
   "use cache: remote";
-  cacheLife({stale:0,revalidate:14,expire:15});
+  // Public aggregates stay warm until their domain tags are invalidated.
+  cacheLife({stale:0,revalidate:Infinity,expire:Infinity});
   cacheTag(publicBetTag(seasonId),publicSeasonTag(slug),PUBLIC_STATS_TAG);
   const done=beginRuntimeResource("stats.public.fill");
   try {
