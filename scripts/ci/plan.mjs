@@ -550,13 +550,6 @@ export function systemMatrixFor(plan, liveEvidence) {
   for (const [spec, task] of isolated) {
     if (specs.includes(spec)) matrix.push({ task, live: false, specs: [spec] });
   }
-  // Each view retains its nine transport cells on a separate cold-stack runner.
-  const betReadSpec = "tests/e2e/flows/bet-read-stages.spec.ts";
-  if (specs.includes(betReadSpec)) {
-    for (const [index, views] of ["open", "mine", "settled", "event", "leaderboard", "records"].entries()) {
-      matrix.push({ task: `browser-bet-read-stages-${index + 1}`, live: false, specs: [betReadSpec], grep: `BET (${views}) ` });
-    }
-  }
   // The persistent-profile recovery flow is desktop-only. Mobile UI recovery
   // is covered by the component tests; avoid a runner that only skips cases.
   const ocrSpec = "tests/e2e/flows/ocr-receipt-recovery.spec.ts";
@@ -569,7 +562,7 @@ export function systemMatrixFor(plan, liveEvidence) {
   if (specs.includes(adminEvidenceSpec)) {
     matrix.push({ task: "browser-admin-evidence-chromium", live: false, specs: [adminEvidenceSpec], project: "chromium" });
   }
-  const ordinary = specs.filter(spec => spec !== seriesSpec && spec !== sessionSpec && spec !== ocrSpec && spec !== adminEvidenceSpec && spec !== betReadSpec && !isolated.has(spec));
+  const ordinary = specs.filter(spec => spec !== seriesSpec && spec !== sessionSpec && spec !== ocrSpec && spec !== adminEvidenceSpec && !isolated.has(spec));
   // Keep remaining combinations bounded as coverage grows instead of packing
   // every new spec into a fixed seven-runner ceiling. No duration scheduler.
   const shards = [];

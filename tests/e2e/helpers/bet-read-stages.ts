@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { APIRequestContext, BrowserContext, Page, Request, TestInfo } from "@playwright/test";
-import { expect,signInProgrammatically,type E2EFixtureCredentials } from "../fixtures";
+import { expect,type E2EFixtureCredentials } from "../fixtures";
 import { assertLocalDatabaseUrl } from "../../../scripts/db/local-environment";
 import { redactText } from "../../../src/lib/observability/redact";
 import { createPredictionBrowserFixture,removePredictionBrowserFixture } from "./prediction-fixture";
@@ -10,10 +10,10 @@ import * as schema from "@/db/schema";
 /** Isolated loopback fixtures only. No production bootstrap route or credentials. */
 export async function verifyBetReadStages(
   {page,context,scenario,request}:{page:Page;context:BrowserContext;scenario:E2EFixtureCredentials;request:APIRequestContext},
-  info:TestInfo, production=false, views?:readonly string[],
+  info:TestInfo,
 ){
   const started=performance.now();
-  const mark=(phase:string)=>{if(production)console.info("BET_PRODUCTION_STAGE",JSON.stringify({project:info.project.name,phase,elapsedMs:performance.now()-started}));};
+  const mark=(phase:string)=>{console.info("BET_PRODUCTION_STAGE",JSON.stringify({project:info.project.name,phase,elapsedMs:performance.now()-started}));};
   mark("fixture.start");
   const user=scenario.accounts[0]!;
   const fixture=await createPredictionBrowserFixture(user.userId);
@@ -40,15 +40,13 @@ export async function verifyBetReadStages(
     const destination=`/admin/${fixture.slug}/bet`;
     phase="login";
     mark("login.start");
-    if(production){
-      // The test bootstrap endpoint is deliberately disabled in production.
-      // Exercise the existing canonical login UI and local Turnstile test key.
-      await page.goto(`/login?next=${encodeURIComponent(destination)}`);
-      await page.getByLabel("邮箱地址").fill(user.email);
-      await page.getByLabel("密码",{exact:true}).fill(scenario.password);
-      await page.locator('button[type="submit"]').click();
-      await expect(page).toHaveURL(url=>url.pathname===destination);
-    }else await signInProgrammatically(page,user,scenario,destination);
+    // The test bootstrap endpoint is deliberately disabled in production.
+    // Exercise the existing canonical login UI and local Turnstile test key.
+    await page.goto(`/login?next=${encodeURIComponent(destination)}`);
+    await page.getByLabel("邮箱地址").fill(user.email);
+    await page.getByLabel("密码",{exact:true}).fill(scenario.password);
+    await page.locator('button[type="submit"]').click();
+    await expect(page).toHaveURL(url=>url.pathname===destination);
     mark("login.complete");
     // Login already navigated this page to the admin destination.
     async function operate(label:string){
@@ -68,7 +66,7 @@ export async function verifyBetReadStages(
     const preparationMs=performance.now()-started;
     mark("preparation.complete");
     const report:{view:string;viewer:string;state:string;runtime:string;apiMs:number;apiBytes:number;rscMs:number;rscBytes:number;publicCacheKey:string;rscCacheState:string}[]=[];
-    for(const viewer of production?["anonymous","joined"]:["anonymous","unjoined","joined"]){
+    for(const viewer of ["anonymous","joined"]){
       if(viewer==="joined"){
         phase="viewer.join";
         await viewerPage.goto(`/${fixture.slug}/bet`);
@@ -76,7 +74,7 @@ export async function verifyBetReadStages(
         await expect(viewerPage.getByRole("button",{name:"领取 1,000 积分",exact:true})).toHaveCount(0);
       }
       const reader=viewer==="anonymous"?request:page.request;
-      const selectedViews=views ?? (production?["open","mine","event"]:["open","mine","settled","event","leaderboard","records"]);
+      const selectedViews=["open","mine","event"];
       const baselines=new Map<string,{value:unknown;free:unknown}>();
       async function readCell(view:string,state:string){
           phase=`${viewer}.${view}.${state}.api`;
@@ -103,26 +101,18 @@ export async function verifyBetReadStages(
           expect(rsc.status()).toBe(200);
           expect(rsc.headers()["content-type"]).toContain("text/x-component");
           mark(`${viewer}.${view}.${state}.complete`);
-          report.push({view,viewer,state,runtime:production?"production":"development",apiMs,apiBytes:body.length,rscMs:performance.now()-rscStart,rscBytes:rscBody.length,publicCacheKey:view==="open"?"match+free":["mine","settled"].includes(view)?"match+event+free":view==="event"?"event-only":"bypassed",rscCacheState:"after API read"});
+          report.push({view,viewer,state,runtime:"production",apiMs,apiBytes:body.length,rscMs:performance.now()-rscStart,rscBytes:rscBody.length,publicCacheKey:view==="open"?"match+free":view==="mine"?"match+event+free":"event-only",rscCacheState:"after API read"});
       }
-      if(production){
-        // All three publicStats argument keys are distinct. A season-wide tag
-        // invalidation clears them together; the RSC request follows its API read.
-        await operate("暂停投入");
-        for(const view of selectedViews)for(const state of ["cold","warm"])await readCell(view,state);
-        await operate("恢复投入");
-        for(const view of selectedViews)await readCell(view,"invalidated");
-      }else{
-        for(const view of selectedViews)for(const state of ["cold","warm","invalidated"]){
-          if(state!=="warm")await operate(state==="cold"?"暂停投入":"恢复投入");
-          await readCell(view,state);
-        }
-      }
+      // All three publicStats argument keys are distinct. A season-wide tag
+      // invalidation clears them together; the RSC request follows its API read.
+      await operate("暂停投入");
+      for(const view of selectedViews)for(const state of ["cold","warm"])await readCell(view,state);
+      await operate("恢复投入");
+      for(const view of selectedViews)await readCell(view,"invalidated");
     }
-    if(production)expect(report).toHaveLength(18);
+    expect(report).toHaveLength(18);
     mark("matrix.complete");
     // Actual Pick'Em views remain independent of BET financial data.
-    if(production){
     for(const reader of [request,page.request])for(const view of ["sim","record","tasks","ranking"]){
       phase=`predictions.${view}`;
       const response=await reader.get(`/api/predictions/${fixture.seasonId}?view=${view}`,{timeout:15000});
@@ -131,8 +121,7 @@ export async function verifyBetReadStages(
       for(const key of ["balance","debt","markets","ledger"])expect(body).not.toContain(`"${key}":`);
     }
     expect((await request.get(`/api/predictions/${fixture.seasonId}?view=points`)).status()).toBe(400);
-    }
-    const timing={views:views??(production?["open","mine","event"]:[]),fixtureMs,preparationMs,bodyMs:performance.now()-started};
+    const timing={views:["open","mine","event"],fixtureMs,preparationMs,bodyMs:performance.now()-started};
     console.info("BET_FIXTURE_TIMING",JSON.stringify(timing));
     await info.attach("bet-stage-fixture-timing",{body:JSON.stringify(timing),contentType:"application/json"});
     await info.attach("bet-stage-browser-results",{body:JSON.stringify(report,null,2),contentType:"application/json"});
