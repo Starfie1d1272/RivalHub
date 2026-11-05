@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, boolean, timestamp, text, unique } from "drizzle-orm/pg-core";
+import { pgTable, uuid, integer, boolean, timestamp, text } from "drizzle-orm/pg-core";
 import { seasons } from "./seasons";
 import { competitionEntries } from "./competition-entries";
 import { seasonRegistrations } from "./registrations";
@@ -25,10 +25,7 @@ export const draftPicks = pgTable("draft_picks", {
   autoPicked: boolean("auto_picked").notNull().default(false),
   clientRequestId: text("client_request_id").unique(), // idempotency key
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  // 同一赛季内同一选手只能被选一次
-  uniqueSeasonRegistration: unique().on(t.seasonId, t.registrationId),
-}));
+});
 
 export type DraftState = typeof draftState.$inferSelect;
 export type DraftPick = typeof draftPicks.$inferSelect;

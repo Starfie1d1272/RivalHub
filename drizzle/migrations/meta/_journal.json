@@ -22,6 +22,13 @@
       "when": 1793655062422,
       "tag": "0002_stormy_santa_claus",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793702475730,
+      "tag": "0003_rare_bloodstrike",
+      "breakpoints": true
     }
   ]
 }

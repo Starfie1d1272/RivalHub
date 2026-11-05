@@ -17,6 +17,7 @@ import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entri
 import { formationRosterPosition } from "@/lib/competition-entries/roster-position";
 import { adoptEventNativeRosterInTx } from "@/lib/competition-entries/commands";
 import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/event-rosters/coherence";
+import { syncDraftRosterInTx } from "@/lib/event-rosters/draft";
 import { adoptApprovedRosterInTx } from "@/lib/event-rosters/owner";
 import { prepareApprovedEventRosterInTx } from "@/lib/event-rosters/prepare-approved";
 
@@ -96,6 +97,7 @@ export async function saveManualFormation(input: z.infer<typeof inputSchema>): P
           await tx.insert(eventRosterMembers).values({ eventRosterId: roster.id, participantId: participant.id, userId, isPrimaryStarter: starterIds.includes(registrationId) });
         }
       }
+      if (entryId && season.hasDraft) await syncDraftRosterInTx(tx, entry.id);
       if (revision.positionFactsVersion === null) await tx.update(competitionEntryRosterRevisions).set({ positionFactsVersion: 1 }).where(eq(competitionEntryRosterRevisions.id, revision.id));
       await writeAuditInTx(tx, { seasonId, action: "competition_entry.roster.save", actorId: auditActorId(admin), targetId: entry.id, meta: { source: "manual_formation", memberRegistrationIds: members, starterRegistrationIds: starterIds, positionChanges } });
       return { entryId: entry.id, slug: season.slug };
