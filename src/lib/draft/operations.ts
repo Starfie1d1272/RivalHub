@@ -188,10 +188,6 @@ export async function executeDraftPick(
   ) {
     throw new AppError(ErrorCode.FORBIDDEN, "只有当前轮次队长可以选择选手");
   }
-  if (input.registrationId === captainRegistrationId) {
-    throw new AppError(ErrorCode.PLAYER_ALREADY_PICKED, "队长已在该队伍中");
-  }
-
   const targetRegistration = await tx.query.seasonRegistrations.findFirst({
     where: and(
       eq(seasonRegistrations.id, input.registrationId),
