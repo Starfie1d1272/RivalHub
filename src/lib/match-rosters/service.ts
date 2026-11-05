@@ -249,6 +249,7 @@ async function loadLegacyLineupContextInTx(
   match: Match,
   entryId: string,
   validatedStageRun?: { ruleSnapshot: unknown; stageKey: string },
+  lockPrestartRows = true,
 ): Promise<TeamLineupContext> {
   return withDbTrafficSource("match.lineup.read", async () => {
     const canonicalEntry = await tx
@@ -341,7 +342,7 @@ async function loadLegacyLineupContextInTx(
         ? await tx.select({ id: matchRosters.id, snapshot: matchRosters.eligibilitySnapshot, revision: matchRosters.sourceRosterRevisionId }).from(matchRosters)
           .where(and(eq(matchRosters.matchId, match.id), eq(matchRosters.entryId, entryId))) : [];
       const legacyHistory = historical?.snapshot?.version === 1 ? historical : null;
-      const coherent = legacyHistory ? null : await assertSinglePrestartEntryCoherenceInTx(tx, match.seasonId, { competitionEntryId: entryId });
+      const coherent = legacyHistory ? null : await assertSinglePrestartEntryCoherenceInTx(tx, match.seasonId, { competitionEntryId: entryId }, { lockRows: lockPrestartRows });
       if (coherent && coherent.eventRoster.status !== "confirmed" && coherent.eventRoster.status !== "frozen") {
         throw new AppError(ErrorCode.INTERNAL_ERROR, "Play-in 队伍缺少已确认的赛事名单，无法校验本场阵容。");
       }
@@ -426,15 +427,27 @@ export async function assertStartingLineupAllowedInTx(
     substituteIds?: readonly string[];
   },
 ): Promise<{ affiliatedStarterCounts: Map<string, number> }> {
-  const preflight = await getStartingLineupPreflightInTx(tx, args);
+  const preflight = await evaluateStartingLineupInTx(tx, args, true);
   if (!preflight.valid) throw new AppError(ErrorCode.VALIDATION_FAILED, preflight.blockers.join("；"));
   return { affiliatedStarterCounts: preflight.affiliatedStarterCounts };
 }
 
-/** Read-only counterpart of the start gate. It deliberately shares every eligibility branch with start. */
+/**
+ * Display-only counterpart of the start gate, sharing every eligibility branch.
+ * Callers needing a consistent snapshot supply repeatable-read isolation; writes
+ * use assertStartingLineupAllowedInTx to retain authoritative coherence locks.
+ */
 export async function getStartingLineupPreflightInTx(
   tx: TxDb,
   args: { match: Match; entryId: string; starterIds: readonly string[]; substituteIds?: readonly string[] },
+): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number>; policy: MatchLineupPolicy }> {
+  return evaluateStartingLineupInTx(tx, args, false);
+}
+
+async function evaluateStartingLineupInTx(
+  tx: TxDb,
+  args: { match: Match; entryId: string; starterIds: readonly string[]; substituteIds?: readonly string[] },
+  lockPrestartRows: boolean,
 ): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number>; policy: MatchLineupPolicy }> {
   return withDbTrafficSource("match.lineup.read", async () => {
   if (args.entryId !== args.match.entryAId && args.entryId !== args.match.entryBId) throw new AppError(ErrorCode.VALIDATION_FAILED, "参赛队伍不属于本场比赛。 ");
@@ -567,7 +580,7 @@ export async function getStartingLineupPreflightInTx(
       return { valid: result.state === "ready", blockers: result.findings.map((finding) => finding.message), affiliatedStarterCounts: counts, policy: { starterCount: frozen.starterCount, maxSubstitutes: frozen.maxSubstitutes } };
     }
   }
-  const context = await loadLegacyLineupContextInTx(tx, args.match, args.entryId, validatedStageRun);
+  const context = await loadLegacyLineupContextInTx(tx, args.match, args.entryId, validatedStageRun, lockPrestartRows);
   const result = evaluateStartingLineup({
     starterIds: args.starterIds,
     substituteIds: args.substituteIds,
