@@ -22,6 +22,7 @@ import { canPickPosition, draftFormat, getNextEntryId, isStarterRound } from "@/
 import { decodeSeasonRules } from "@/lib/seasons/rules";
 import { rosterPositionSql } from "@/lib/competition-entries/roster-position";
 import { getPositionCount } from "@/lib/draft/rules";
+import { loadOccupiedDraftRegistrationIds } from "@/lib/draft/occupancy";
 import {
   createAutoPickRequestId,
   selectAutoPickCandidate,
@@ -469,6 +470,7 @@ async function getAutoPickCandidates(
   const excluded = new Set([
     ...captainRows.map((row) => row.registrationId),
     ...pickRows.map((row) => row.registrationId),
+    ...await loadOccupiedDraftRegistrationIds(tx, seasonId),
   ]);
 
   const candidates = await tx

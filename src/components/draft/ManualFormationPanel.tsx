@@ -35,19 +35,21 @@ function TeamEditor({ seasonId, players, team, occupied, maxTeamSize, starterCou
   const [pending, startTransition] = useTransition();
   const [confirmAction, setConfirmAction] = useState<"withdraw" | "change" | null>(null);
   const [captainId, setCaptainId] = useState(team?.captainId ?? "");
-  const [members, setMembers] = useState<string[]>(team?.members.map(member => member.id) ?? []);
-  const [starters, setStarters] = useState<string[]>(team?.members.filter(member => member.starter).map(member => member.id) ?? []);
+  const [members, setMembers] = useState<string[]>(team?.members.filter(member => !["declined", "withdrawn"].includes(member.status)).map(member => member.id) ?? []);
+  const [reinviteIds, setReinviteIds] = useState<string[]>([]);
+  const [starters, setStarters] = useState<string[]>(team?.members.filter(member => member.starter && !["declined", "withdrawn"].includes(member.status)).map(member => member.id) ?? []);
   function toggle(id: string, checked: boolean) {
     if (checked && members.filter(value => value !== captainId).length + 1 >= maxTeamSize) { toast.error(`每队最多 ${maxTeamSize} 人`); return; }
     setMembers(old => checked ? [...old, id] : old.filter(value => value !== id));
+    setReinviteIds(old => checked ? [...old, id] : old.filter(value => value !== id));
     if (!checked) setStarters(old => old.filter(value => value !== id));
   }
   function save() {
     startTransition(async () => {
-      const result = await saveManualFormation({ seasonId, entryId: team?.id ?? null, captainId, memberIds: captainsOnly ? [] : members, starterIds: captainsOnly ? [captainId] : starters });
+      const result = await saveManualFormation({ seasonId, entryId: team?.id ?? null, captainId, memberIds: captainsOnly ? [] : members, starterIds: captainsOnly ? [captainId] : starters, reinviteIds });
       if (!result.success) { toast.error(result.error.message); return; }
       toast.success("编队草稿已保存，仍需审核名单");
-      if (!team) { setCaptainId(""); setMembers([]); setStarters([]); }
+      if (!team) { setCaptainId(""); setMembers([]); setReinviteIds([]); setStarters([]); }
       router.refresh();
     });
   }
@@ -65,30 +67,32 @@ function TeamEditor({ seasonId, players, team, occupied, maxTeamSize, starterCou
     {team && !team.approved && !team.approvedId && <EntryProfile seasonId={seasonId} team={team} />}
     <div className="space-y-2">
       <span className="text-sm text-[var(--color-fg-mid)]">队长</span>
-      <Select value={captainId} disabled={Boolean(team) || team?.approved} onValueChange={value => { setCaptainId(value); setMembers([]); setStarters([]); }}>
+      <Select value={captainId} disabled={Boolean(team) || team?.approved} onValueChange={value => { setCaptainId(value); setMembers([]); setReinviteIds([]); setStarters([]); }}>
         <SelectTrigger aria-label="队长"><SelectValue placeholder="选择队长" /></SelectTrigger>
         <SelectContent>{players.map(player => <SelectItem key={player.id} value={player.id} disabled={occupied.has(player.id) && player.id !== team?.captainId}>{player.name}{occupied.has(player.id) && player.id !== team?.captainId ? "（已编队）" : ""}</SelectItem>)}</SelectContent>
       </Select>
     </div>
+    {team?.members.some(member => member.id === captainId && ["declined", "withdrawn"].includes(member.status)) && <label className="flex items-center gap-2 text-sm"><Checkbox checked={reinviteIds.includes(captainId)} onChange={event => setReinviteIds(old => event.target.checked ? [...old, captainId] : old.filter(id => id !== captainId))} />重新邀请队长</label>}
     {captainId && !captainsOnly && <div className="space-y-2"><p className="text-sm text-[var(--color-fg-mid)]">选择队员和首发</p>
       <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2">{players.map(player => {
         const selected = player.id === captainId || members.includes(player.id);
+        const occupiedElsewhere = occupied.has(player.id);
         return <div className="flex min-w-0 items-center justify-between gap-3 text-sm" key={player.id}>
-          <label className="flex min-w-0 items-center gap-2"><Checkbox checked={selected} disabled={player.id === captainId || team?.approved || (occupied.has(player.id) && !selected)} onChange={event => toggle(player.id, event.target.checked)} /><span className="truncate">{player.name}{occupied.has(player.id) && !selected ? "（已编队）" : ""}</span></label>
-          <label className="flex shrink-0 items-center gap-2 text-[var(--color-fg-mid)]"><Checkbox checked={starters.includes(player.id)} disabled={!selected || team?.approved || (!starters.includes(player.id) && starters.length >= starterCount)} onChange={event => setStarters(old => event.target.checked ? [...old, player.id] : old.filter(id => id !== player.id))} />首发</label>
+          <label className="flex min-w-0 items-center gap-2"><Checkbox checked={selected} disabled={player.id === captainId || (team?.approved || team?.unavailable) || (occupiedElsewhere && !selected)} onChange={event => toggle(player.id, event.target.checked)} /><span className="truncate">{player.name}{occupiedElsewhere && !selected ? "（已编队）" : ""}</span></label>
+          <label className="flex shrink-0 items-center gap-2 text-[var(--color-fg-mid)]"><Checkbox checked={starters.includes(player.id)} disabled={!selected || (team?.approved || team?.unavailable) || (!starters.includes(player.id) && starters.length >= starterCount)} onChange={event => setStarters(old => event.target.checked ? [...old, player.id] : old.filter(id => id !== player.id))} />首发</label>
         </div>;
       })}</div></div>}
-    <Button type="button" onClick={save} disabled={!captainId || pending || team?.approved || (captainsOnly && Boolean(team))}>{captainsOnly ? "创建队长队伍" : "保存编队草稿"}</Button>
+    <Button type="button" onClick={save} disabled={!captainId || pending || (team?.approved || team?.unavailable) || (captainsOnly && Boolean(team) && !reinviteIds.includes(captainId))}>{captainsOnly ? "创建队长队伍" : "保存编队草稿"}</Button>
     {team && !captainsOnly && !team.approved && <Button type="button" variant="outline" onClick={approve} disabled={pending}>审核并采用名单</Button>}
     {modern && team && !team.approved && !captainsOnly && !team.approvedId && <Button type="button" variant="outline" disabled={pending} onClick={() => setConfirmAction("withdraw")}>撤销编队</Button>}
     {modern && team?.approved && team.approvedId && <Button type="button" variant="outline" disabled={pending} onClick={() => setConfirmAction("change")}>发起名单补正</Button>}
     {team && confirmAction && <InlineConfirm title={confirmAction === "withdraw" ? "撤销此编队？" : "发起名单补正？"} sub={confirmAction === "withdraw" ? "撤销后会释放成员的参赛确认。" : "已批准版本将保留，新名单须重新确认和审核。"} confirmLabel={confirmAction === "withdraw" ? "确认撤销" : "确认补正"} onCancel={() => setConfirmAction(null)} onConfirm={() => { const action = confirmAction; setConfirmAction(null); startTransition(async () => { const result = action === "withdraw" ? await withdrawFormation({ seasonId, entryId: team.id }) : await requestFormationChange({ seasonId, entryId: team.id }); if (!result.success) { toast.error(result.error.message); return; } toast.success(action === "withdraw" ? "编队已撤销" : "已创建名单补正草稿"); router.refresh(); }); }} />}
-    {team?.approved && <p className="text-sm">名单已批准或存在不可用成员，请通过名单管理流程处理。</p>}
+    {team?.approved && <p className="text-sm">名单已批准，请通过名单管理流程处理。</p>}{team?.unavailable && <p className="text-sm">名单含不可用成员，请通过名单管理流程处理。</p>}
   </Card>;
 }
 export function ManualFormationPanel({ seasonId, data, maxTeamSize, starterCount, captainsOnly = false, allowCreate = true, modern = true }: { seasonId: string; data: FormationData; maxTeamSize: number; starterCount: number; captainsOnly?: boolean; allowCreate?: boolean; modern?: boolean }) {
-  const occupied = new Set(data.teams.flatMap(team => team.members.map(member => member.id)));
-  return <div className="space-y-4"><p className="text-sm">{captainsOnly ? "选择队长创建选秀队伍；队长需要确认参赛。" : `每队最多 ${maxTeamSize} 人、${starterCount} 名首发。成员确认后需审核并采用名单。`}</p>{data.teams.map(team => <TeamEditor key={team.id} seasonId={seasonId} players={data.players} team={team} occupied={occupied} maxTeamSize={maxTeamSize} starterCount={starterCount} captainsOnly={captainsOnly} modern={modern} />)}{allowCreate && <TeamEditor seasonId={seasonId} players={data.players} occupied={occupied} maxTeamSize={maxTeamSize} starterCount={starterCount} captainsOnly={captainsOnly} modern={modern} />}</div>;
+  const occupied = new Set(data.teams.flatMap(team => team.members.filter(member => ["invited", "confirmed"].includes(member.status)).map(member => member.id)));
+  return <div className="space-y-4"><p className="text-sm">{captainsOnly ? "选择队长创建选秀队伍；队长需要确认参赛。" : `每队最多 ${maxTeamSize} 人、${starterCount} 名首发。成员确认后需审核并采用名单。`}</p>{data.teams.map(team => <TeamEditor key={`${team.id}:${team.captainId}:${team.members.map(member => `${member.id}:${member.status}`).join(",")}`} seasonId={seasonId} players={data.players} team={team} occupied={new Set(data.teams.filter(other => other.id !== team.id).flatMap(other => other.members.filter(member => ["invited", "confirmed"].includes(member.status)).map(member => member.id)))} maxTeamSize={maxTeamSize} starterCount={starterCount} captainsOnly={captainsOnly} modern={modern} />)}{allowCreate && <TeamEditor seasonId={seasonId} players={data.players} occupied={occupied} maxTeamSize={maxTeamSize} starterCount={starterCount} captainsOnly={captainsOnly} modern={modern} />}</div>;
 }
 
 export function FormationApprovalPanel({ seasonId, teams }: { seasonId: string; teams: FormationData["teams"] }) {

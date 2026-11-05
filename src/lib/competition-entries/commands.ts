@@ -548,11 +548,17 @@ export async function withdrawCompetitionEntryParticipationInTx(tx: TxDb, input:
 }
 
 export async function declineCompetitionEntryParticipationInTx(tx: TxDb, input: { entryId: string; userId: string; actorId: string }): Promise<{ seasonSlug: string }> {
+  await lockEntrySeason(tx, input.entryId);
   const entry = await lockEntry(tx, input.entryId);
   await assertRosterNotFrozen(tx, entry.id);
   if (!editableStatuses.includes(entry.registrationStatus as typeof editableStatuses[number])) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前报名阶段不能拒绝邀请。");
   const [participant] = await tx.select().from(competitionEntryParticipants).where(and(eq(competitionEntryParticipants.entryId, entry.id), eq(competitionEntryParticipants.userId, input.userId))).for("update");
   if (!participant || participant.status !== "invited") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前没有可拒绝的本届参赛邀请。");
+  const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
+  const [member] = revision ? await tx.select({ id: competitionEntryRosterMembers.id }).from(competitionEntryRosterMembers).where(and(eq(competitionEntryRosterMembers.revisionId, revision.id), eq(competitionEntryRosterMembers.participantId, participant.id))) : [];
+  if (!revision || revision.status !== "draft" || !member) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "邀请已更新，请刷新页面后重试。");
+  const season = await loadSeasonOrThrow(tx, entry.competitionId);
+  if (entry.source === "event_native" && revision.origin !== "initial" && ((revision.origin === "self_roster_change" && decodeSeasonRules(season).roster.changes?.selfServiceAfterApproval === false) || !canChangeApprovedFormationRoster(season, { source: entry.source, policyV2: decodeSeasonRules(season).source === "policy_v2" }, revision.origin === "admin_remediation" ? "admin" : "self") || !await canSelfAdjustMajorRosterInTx(tx, season, entry.id))) throw new AppError(ErrorCode.REGISTRATION_CLOSED, "名单调整窗口当前不可用；请联系赛事管理员。");
   await tx.update(competitionEntryParticipants).set({ status: "declined", updatedAt: new Date() }).where(eq(competitionEntryParticipants.id, participant.id));
   await auditEntry(tx, { action: "competition_entry.participant.decline", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: participant.id, userId: input.userId } });
   return { seasonSlug: (await loadSeasonOrThrow(tx, entry.competitionId)).slug };
@@ -798,6 +804,7 @@ export async function applyEntryReviewDecisionInTx(tx: TxDb, input: { entryId: s
 }
 
 export async function transferCompetitionEntryRepresentativeInTx(tx: TxDb, input: { entryId: string; userId: string; toUserId: string; actorId: string }): Promise<{ seasonSlug: string }> {
+  await lockEntrySeason(tx, input.entryId);
   const entry = await lockRepresentativeEntry(tx, input.entryId, input.userId);
   await assertRosterNotFrozen(tx, entry.id);
   const season = await loadSeasonOrThrow(tx, entry.competitionId);
@@ -812,7 +819,13 @@ export async function transferCompetitionEntryRepresentativeInTx(tx: TxDb, input
   }
   const now = new Date();
   await tx.insert(competitionEntryRepresentativeChanges).values({ entryId: entry.id, fromUserId: entry.representativeUserId, toUserId: input.toUserId, changedAt: await nextRepresentativeChangeAt(tx, entry.id), changedByActorId: input.actorId });
-  await tx.update(competitionEntries).set({ representativeUserId: input.toUserId, updatedAt: now }).where(eq(competitionEntries.id, entry.id));
+  let sourceRegistrationId = entry.sourceRegistrationId;
+  if (entry.source === "event_native" && season.registrationMode === "solo") {
+    const [registration] = await tx.select({ id: seasonRegistrations.id }).from(seasonRegistrations).where(and(eq(seasonRegistrations.seasonId, entry.competitionId), eq(seasonRegistrations.userId, input.toUserId), eq(seasonRegistrations.status, "approved")));
+    if (!registration) throw new AppError(ErrorCode.VALIDATION_FAILED, "新负责人必须是已通过个人报名审核的选手。");
+    sourceRegistrationId = registration.id;
+  }
+  await tx.update(competitionEntries).set({ representativeUserId: input.toUserId, sourceRegistrationId, updatedAt: now }).where(eq(competitionEntries.id, entry.id));
   await auditEntry(tx, { action: "competition_entry.representative.transfer", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { fromUserId: entry.representativeUserId, toUserId: input.toUserId } });
   return { seasonSlug: (await loadSeasonOrThrow(tx, entry.competitionId)).slug };
 }

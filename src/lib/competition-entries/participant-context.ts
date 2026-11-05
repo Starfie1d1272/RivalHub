@@ -17,6 +17,7 @@ export interface CompetitionEntryParticipantContext {
   primaryEntry: typeof competitionEntries.$inferSelect | null;
   activeClaimEntryId: string | null;
   activeClaimEntry: typeof competitionEntries.$inferSelect | null;
+  representativeEntries: readonly (typeof competitionEntries.$inferSelect)[];
   pendingInvitations: Array<{ id: string; name: string; position?: string | null }>;
   invitationConflict: null | {
     pendingInvitationCount: number;
@@ -39,6 +40,7 @@ export function selectCompetitionEntryParticipantContext<T extends CompetitionEn
   primaryEntry: T | null;
   activeClaimEntryId: string | null;
   activeClaimEntry: T | null;
+  representativeEntries: readonly T[];
   pendingInvitations: Array<{ id: string; name: string; position?: string | null }>;
   invitationConflict: null | {
     pendingInvitationCount: number;
@@ -64,6 +66,7 @@ export function selectCompetitionEntryParticipantContext<T extends CompetitionEn
   return {
     primaryEntry: pendingInvitationRows.find(row => row.entry.id === input.requestedEntryId)?.entry ?? activeClaimEntry ?? pendingInvitationRows[0]?.entry ?? fallbackEntries[0] ?? null,
     activeClaimEntry,
+    representativeEntries: input.representativeEntries,
     pendingInvitations: pendingInvitationRows.map(row => ({ id: row.entry.id, name: row.entry.name, ...("position" in row ? { position: row.position ?? null } : {}) })),
     activeClaimEntryId: activeClaimEntry?.id ?? null,
     invitationConflict: invitationRows.length === 0

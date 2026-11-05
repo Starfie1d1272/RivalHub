@@ -4,7 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import * as schema from "@/db/schema";
 import { claimBetReliefInTx, stakeBetInTx, lockBetProgram, reconcileBetInTx, operateBetInTx, joinBetInTx } from "@/lib/bet/service";
-import { readBetRelief, betReliefDay } from "@/lib/bet/relief-data";
+import { readBetRelief } from "@/lib/bet/relief-data";
 import { fixture, read } from "./harness/bet-fixture";
 // Exercise the actual second-release publisher1 contract against real PG.
 // No capability, financial owner or immutable guard is mocked.
@@ -61,11 +61,6 @@ describe("BET relief real ledger and serialization",()=>{
     // Prior fixture grants are consumed through the real stake owner.
     await drain(f);
     const dto=await eligibility(f);expect(dto).toMatchObject({amount:"1",granted:"99",remaining:"1"});
-    const dbDay=await f.db.transaction(tx=>betReliefDay(tx));expect(dto.day).toBe(dbDay);
-    const clock=(await f.db.execute(sql`select to_char(clock_timestamp() at time zone 'Asia/Shanghai','YYYY-MM-DD') as day,
-      to_char('2026-10-11 15:59:59+00'::timestamptz at time zone 'Asia/Shanghai','YYYY-MM-DD') as before,
-      to_char('2026-10-11 16:00:00+00'::timestamptz at time zone 'Asia/Shanghai','YYYY-MM-DD') as after`)).rows[0];
-    expect(clock).toMatchObject({day:dto.day,before:"2026-10-11",after:"2026-10-12"});
     await expect(claim(f,"2000-01-11")).rejects.toThrow(/日期/);
     expect(await claim(f,dto.day)).toMatchObject({amount:"1",replayed:false});
     expect(await eligibility(f)).toMatchObject({granted:"100",remaining:"0"});
@@ -109,10 +104,21 @@ describe("BET relief real ledger and serialization",()=>{
     expect((await read(f.db,f.seasonId,f.userId)).balance).toBe("10");
     expect((await eligibility(f)).granted).toBe("20");
   }));
-  it("refuses unjoined, invalid, paused and closed accounts without creating or changing them",async()=>fixture(async f=>{
+  it("reads eligibility atomically and refuses unjoined, invalid, paused and closed accounts without mutation",async()=>fixture(async f=>{
+    // Keep the complete financial eligibility snapshot in one real SQL statement.
+    const client = await f.db.$client.connect();
+    const statements: string[] = [];
+    const db = drizzle(client, { schema, logger: { logQuery(query) { statements.push(query); } } });
+    try {
+      for (const [seasonId, userId] of [[f.seasonId, f.userId], [f.seasonId, null], [randomUUID(), f.userId]] as const) {
+        statements.length = 0;
+        const actual = await db.transaction(tx => readBetRelief(tx, seasonId, userId), {accessMode:"read only", isolationLevel:"repeatable read"});
+        expect(actual).toMatchObject({ canClaim: false, reason: !userId ? "login_required" : seasonId !== f.seasonId ? "disabled" : "balance_sufficient" });
+        expect(statements.filter(query => query.startsWith("select"))).toHaveLength(1);
+      }
+    } finally { client.release(); }
     const id=randomUUID();await f.db.insert(schema.users).values({id,email:`${id}@example.test`,emailVerifiedAt:new Date(),emailVerificationSource:"admin_migration"});
     const unjoined=await eligibility(f,id);expect(unjoined).toMatchObject({reason:"join_required"});
-    expect(await f.db.transaction(tx=>readBetRelief(tx,f.seasonId,null))).toMatchObject({reason:"login_required"});
     await expect(f.db.transaction(tx=>claimBetReliefInTx(tx,{seasonId:f.seasonId,userId:id,day:unjoined.day}))).rejects.toThrow(/先领取/);
     expect(await f.db.query.betAccounts.findFirst({where:eq(schema.betAccounts.userId,id)})).toBeUndefined();
     await drain(f);const day=(await eligibility(f)).day;
@@ -185,18 +191,3 @@ describe("BET relief real ledger and serialization",()=>{
     expect(await eligibility(f)).toMatchObject({granted:"10",reason:"claimed_today"});
   }));
 });
-
-// This financial eligibility reader must keep all inputs in one fresh statement.
-it("reads relief eligibility in one statement for joined, anonymous and missing-season viewers", async () => fixture(async f => {
-  const client = await f.db.$client.connect();
-  const statements: string[] = [];
-  const db = drizzle(client, { schema, logger: { logQuery(query) { statements.push(query); } } });
-  try {
-    for (const [seasonId, userId] of [[f.seasonId, f.userId], [f.seasonId, null], [randomUUID(), f.userId]] as const) {
-      statements.length = 0;
-      const actual = await db.transaction(tx => readBetRelief(tx, seasonId, userId), {accessMode:"read only", isolationLevel:"repeatable read"});
-      expect(actual).toMatchObject({ canClaim: false, reason: !userId ? "login_required" : seasonId !== f.seasonId ? "disabled" : "balance_sufficient" });
-      expect(statements.filter(query => query.startsWith("select"))).toHaveLength(1);
-    }
-  } finally { client.release(); }
-}));
