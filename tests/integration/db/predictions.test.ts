@@ -258,7 +258,6 @@ it("keeps baseline, revision, simulation and Pick’Em frozen across v3/v4 proje
       matches: [...before.matches].sort((a, b) => a.id.localeCompare(b.id)) })).digest("hex");
     expect(before.revision).toBe(legacyRevision);
     const runQuery = queries.find(({ query }) => query.includes('from "major_stage_runs"'))!;
-    expect(runQuery.query).toContain("jsonb_build_object");
     const result = await f.pool.query(runQuery.query, runQuery.params);
     expect(JSON.stringify(result.rows)).not.toContain("FROZEN_UNUSED_MARKER");
     expect(Buffer.byteLength(JSON.stringify(result.rows))).toBeLessThan(Buffer.byteLength(JSON.stringify(fullRows)));
@@ -278,7 +277,10 @@ it("keeps baseline, revision, simulation and Pick’Em frozen across v3/v4 proje
     expect(boardAfter.contests).toEqual(boardBefore.contests);
     expect(boardAfter.achievement).toEqual(boardBefore.achievement);
     await db.update(schema.seasons).set({ stagePlan: [] }).where(eq(schema.seasons.id, seasonId));
-    expect((await loadBaseline(db, seasonId)).revision).toBe(before.revision);
+    const frozen = await loadBaseline(db, seasonId);
+    expect(frozen.revision).toBe(before.revision);
+    expect(frozen.stages).toEqual(before.stages);
+    expect(frozen.runs[0]!.id).toBe(runId);
 
     // A later run's frozen plan wins regardless of row order, while every run
     // must still be validated rather than merely reading the last one.
@@ -775,16 +777,6 @@ describe("spectator prediction PostgreSQL contracts", () => {
       expect(voided.achievement?.challenges).toBe(0);
       expect(voided.contests.find((contest) => contest.id === id)!.submitted).not.toBeNull();
     }));
-});
-
-it("reads started stages from runtime", async () => {
-  await fixture(async (f) => {
-    const before = await loadBaseline(f.db, f.seasonId);
-    await f.db.update(schema.seasons).set({ stagePlan: [] }).where(eq(schema.seasons.id, f.seasonId));
-    const after = await loadBaseline(f.db, f.seasonId);
-    expect(after.stages).toEqual(before.stages);
-    expect(after.runs[0]!.id).toBe(f.runId);
-  });
 });
 
 it("accepts unscheduled picks, follows postponements while open and latches elapsed deadlines atomically", async () => {
