@@ -49,7 +49,9 @@ function invariant(message: string): AppError {
  * Validate, inside the caller's transaction, that every prestart entrant still
  * refers to its competition Entry's currently approved roster revision and the
  * Entry-owned event roster. Entries are locked `FOR UPDATE` so a concurrent roster
- * change cannot slip in between this check and the caller's freeze.
+ * change cannot slip in between this check and the caller's freeze. Read-only
+ * preflight may set `lockRows: false` inside a consistent snapshot; mutations
+ * must keep the default locks and revalidate before committing.
  *
  * `requireEventRosterSync: false` is reserved for the explicit resync owners
  * (Major final selection, approved Entry re-approval, test-match roster preparation
@@ -61,12 +63,13 @@ export async function assertPrestartEntryCoherenceInTx(
   tx: TxDb,
   seasonId: string,
   entrants: readonly PrestartCoherenceEntrantRef[],
-  options: { requireEventRosterSync?: boolean } = {},
+  options: { requireEventRosterSync?: boolean; lockRows?: boolean } = {},
 ): Promise<PrestartEntryCoherence[]> {
   if (entrants.length === 0) return [];
   const entryIds = [...new Set(entrants.map((entrant) => entrant.competitionEntryId))].sort();
-  const entryRows = await tx.select().from(competitionEntries)
-    .where(inArray(competitionEntries.id, entryIds)).orderBy(asc(competitionEntries.id)).for("update");
+  const entryQuery = tx.select().from(competitionEntries)
+    .where(inArray(competitionEntries.id, entryIds)).orderBy(asc(competitionEntries.id));
+  const entryRows = await (options.lockRows === false ? entryQuery : entryQuery.for("update"));
   const entryById = new Map(entryRows.map((entry) => [entry.id, entry]));
 
   const results: Array<{ entrant: PrestartCoherenceEntrantRef; entry: typeof competitionEntries.$inferSelect }> = [];
@@ -93,8 +96,9 @@ export async function assertPrestartEntryCoherenceInTx(
     .where(inArray(competitionEntryRosterRevisions.entryId, entryIds));
   const revisionById = new Map(revisionRows.map((revision) => [revision.id, revision]));
 
-  const rosterRows = await tx.select().from(eventRosters)
-    .where(inArray(eventRosters.entryId, entryIds)).orderBy(asc(eventRosters.entryId)).for("update");
+  const rosterQuery = tx.select().from(eventRosters)
+    .where(inArray(eventRosters.entryId, entryIds)).orderBy(asc(eventRosters.entryId));
+  const rosterRows = await (options.lockRows === false ? rosterQuery : rosterQuery.for("update"));
   const rosterByEntryId = new Map(rosterRows.map((roster) => [roster.entryId, roster]));
 
   const coherent: PrestartEntryCoherence[] = [];
@@ -126,7 +130,7 @@ export async function assertSinglePrestartEntryCoherenceInTx(
   tx: TxDb,
   seasonId: string,
   entrant: PrestartCoherenceEntrantRef,
-  options: { requireEventRosterSync?: boolean } = {},
+  options: { requireEventRosterSync?: boolean; lockRows?: boolean } = {},
 ): Promise<PrestartEntryCoherence> {
   const [coherent] = await assertPrestartEntryCoherenceInTx(tx, seasonId, [entrant], options);
   if (!coherent) throw invariant("正式参赛队资料不完整。 ");
